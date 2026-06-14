@@ -29,16 +29,19 @@ private slots:
     void onSaveClicked();
     void onPickVisualColour();
     void onPickBgColour();
-    void onDimensionsChanged();   // refreshes preview + dimension label
+    void onDimensionsChanged();
+    void onSafeAreaModeToggled(bool checked);
 
 private:
     void applyColourToButton(QPushButton *button, const QColor &colour);
     void updatePreview();
+    void updateSizeInfoLabel();
 
     Ui::CanvasProfileDialog *ui;
 
     QColor m_visualColour;
     QColor m_bgColour;
+    bool   m_safeAreaMode = false;
 };
 
 #endif // CANVASPROFILEDIALOG_H

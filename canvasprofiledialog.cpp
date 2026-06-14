@@ -4,6 +4,7 @@
 #include <platemaker/models/canvas_profile.hpp>
 
 #include <QColorDialog>
+#include <QFrame>
 #include <QPushButton>
 #include <QPainter>
 
@@ -12,20 +13,33 @@
 CanvasProfileDialog::CanvasProfileDialog(QWidget *parent)
     : QDialog(parent)
     , ui(new Ui::CanvasProfileDialog)
-    , m_visualColour(255, 105, 180, 128)   // default: pink overlay
-    , m_bgColour(0, 0, 0, 0)              // default: transparent
+    , m_visualColour(255, 105, 180, 128)
+    , m_bgColour(0, 0, 0, 0)
 {
     ui->setupUi(this);
     setWindowFlags(windowFlags() & ~Qt::WindowContextHelpButtonHint);
 
+    // Make textAbsoluteSize look like a dim label, not an editor.
+    ui->textAbsoluteSize->setFrameStyle(QFrame::NoFrame);
+    ui->textAbsoluteSize->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+    ui->textAbsoluteSize->setVerticalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+    ui->textAbsoluteSize->setMaximumHeight(20);
+    ui->textAbsoluteSize->setStyleSheet(
+        "QTextBrowser { background: transparent; color: #888888; "
+        "font-size: 11px; border: none; padding: 0; }");
+
+    // A standalone QRadioButton stays checked after first click unless we
+    // disable auto-exclusivity, which makes it behave like a checkbox toggle.
+    ui->radioButtonSafeArea->setAutoExclusive(false);
+
     applyColourToButton(ui->buttonVisualColour, m_visualColour);
     applyColourToButton(ui->buttonBgColour,     m_bgColour);
 
-    connect(ui->buttonSave,         &QPushButton::clicked, this, &CanvasProfileDialog::onSaveClicked);
-    connect(ui->buttonVisualColour, &QPushButton::clicked, this, &CanvasProfileDialog::onPickVisualColour);
-    connect(ui->buttonBgColour,     &QPushButton::clicked, this, &CanvasProfileDialog::onPickBgColour);
+    connect(ui->buttonSave,         &QPushButton::clicked,  this, &CanvasProfileDialog::onSaveClicked);
+    connect(ui->buttonVisualColour, &QPushButton::clicked,  this, &CanvasProfileDialog::onPickVisualColour);
+    connect(ui->buttonBgColour,     &QPushButton::clicked,  this, &CanvasProfileDialog::onPickBgColour);
+    connect(ui->radioButtonSafeArea, &QRadioButton::toggled, this, &CanvasProfileDialog::onSafeAreaModeToggled);
 
-    // Refresh preview whenever dimensions or margins change
     connect(ui->spinBoxWidth,        &QSpinBox::valueChanged, this, &CanvasProfileDialog::onDimensionsChanged);
     connect(ui->spinBoxHeight,       &QSpinBox::valueChanged, this, &CanvasProfileDialog::onDimensionsChanged);
     connect(ui->spinBoxMarginTop,    &QSpinBox::valueChanged, this, &CanvasProfileDialog::onDimensionsChanged);
@@ -34,6 +48,7 @@ CanvasProfileDialog::CanvasProfileDialog(QWidget *parent)
     connect(ui->spinBoxMarginRight,  &QSpinBox::valueChanged, this, &CanvasProfileDialog::onDimensionsChanged);
 
     updatePreview();
+    updateSizeInfoLabel();
 }
 
 CanvasProfileDialog::~CanvasProfileDialog()
@@ -47,6 +62,13 @@ CanvasProfileDialog::~CanvasProfileDialog()
 
 void CanvasProfileDialog::setProfile(const Platemaker::Models::CanvasProfile &profile)
 {
+    // Safe area mode is a dialog-side convenience, not stored in the profile.
+    // Always load in absolute mode so the spinboxes show the stored canvas size.
+    ui->radioButtonSafeArea->blockSignals(true);
+    ui->radioButtonSafeArea->setChecked(false);
+    ui->radioButtonSafeArea->blockSignals(false);
+    m_safeAreaMode = false;
+
     ui->lineEditName->setText(QString::fromStdString(profile.name));
 
     ui->spinBoxWidth->setValue(profile.canvasSize.width);
@@ -70,22 +92,34 @@ void CanvasProfileDialog::setProfile(const Platemaker::Models::CanvasProfile &pr
     applyColourToButton(ui->buttonBgColour,     m_bgColour);
 
     updatePreview();
+    updateSizeInfoLabel();
 }
 
 Platemaker::Models::CanvasProfile CanvasProfileDialog::profile() const
 {
     Platemaker::Models::CanvasProfile cp;
-    cp.name              = ui->lineEditName->text().toStdString();
-    cp.canvasSize        = { ui->spinBoxWidth->value(), ui->spinBoxHeight->value() };
-    cp.margins           = { ui->spinBoxMarginTop->value(),
-                             ui->spinBoxMarginBottom->value(),
-                             ui->spinBoxMarginLeft->value(),
-                             ui->spinBoxMarginRight->value() };
-    cp.visualColour      = { static_cast<uint8_t>(m_visualColour.red()),
+    cp.name = ui->lineEditName->text().toStdString();
+
+    const int mT = ui->spinBoxMarginTop->value();
+    const int mR = ui->spinBoxMarginRight->value();
+    const int mB = ui->spinBoxMarginBottom->value();
+    const int mL = ui->spinBoxMarginLeft->value();
+
+    if (m_safeAreaMode) {
+        // Spinboxes hold safe area → absolute canvas = safe area + all margins.
+        cp.canvasSize = { ui->spinBoxWidth->value()  + mL + mR,
+                          ui->spinBoxHeight->value() + mT + mB };
+    } else {
+        cp.canvasSize = { ui->spinBoxWidth->value(),
+                          ui->spinBoxHeight->value() };
+    }
+
+    cp.margins          = { mT, mR, mB, mL };
+    cp.visualColour     = { static_cast<uint8_t>(m_visualColour.red()),
                              static_cast<uint8_t>(m_visualColour.green()),
                              static_cast<uint8_t>(m_visualColour.blue()),
                              static_cast<uint8_t>(m_visualColour.alpha()) };
-    cp.backgroundColour  = { static_cast<uint8_t>(m_bgColour.red()),
+    cp.backgroundColour = { static_cast<uint8_t>(m_bgColour.red()),
                              static_cast<uint8_t>(m_bgColour.green()),
                              static_cast<uint8_t>(m_bgColour.blue()),
                              static_cast<uint8_t>(m_bgColour.alpha()) };
@@ -130,9 +164,14 @@ void CanvasProfileDialog::onPickBgColour()
 
 void CanvasProfileDialog::onDimensionsChanged()
 {
-    const int w = ui->spinBoxWidth->value();
-    const int h = ui->spinBoxHeight->value();
-    ui->labelPreviewDimensions->setText(QString("%1 × %2 px").arg(w).arg(h));
+    updateSizeInfoLabel();
+    updatePreview();
+}
+
+void CanvasProfileDialog::onSafeAreaModeToggled(bool checked)
+{
+    m_safeAreaMode = checked;
+    updateSizeInfoLabel();
     updatePreview();
 }
 
@@ -140,11 +179,38 @@ void CanvasProfileDialog::onDimensionsChanged()
 // Private helpers
 // ---------------------------------------------------------------------------
 
+void CanvasProfileDialog::updateSizeInfoLabel()
+{
+    const int w  = ui->spinBoxWidth->value();
+    const int h  = ui->spinBoxHeight->value();
+    const int mT = ui->spinBoxMarginTop->value();
+    const int mB = ui->spinBoxMarginBottom->value();
+    const int mL = ui->spinBoxMarginLeft->value();
+    const int mR = ui->spinBoxMarginRight->value();
+
+    if (m_safeAreaMode) {
+        const int absW = w + mL + mR;
+        const int absH = h + mT + mB;
+        ui->textAbsoluteSize->setText(
+            tr("Absolute size: %1 × %2").arg(absW).arg(absH));
+        ui->labelPreviewDimensions->setText(
+            tr("%1 × %2 px").arg(absW).arg(absH));
+    } else {
+        const int safeW = w - mL - mR;
+        const int safeH = h - mT - mB;
+        if (safeW > 0 && safeH > 0) {
+            ui->textAbsoluteSize->setText(
+                tr("Work area: %1 × %2").arg(safeW).arg(safeH));
+        } else {
+            ui->textAbsoluteSize->setText(tr("Work area: (margins exceed canvas)"));
+        }
+        ui->labelPreviewDimensions->setText(
+            tr("%1 × %2 px").arg(w).arg(h));
+    }
+}
+
 void CanvasProfileDialog::applyColourToButton(QPushButton *button, const QColor &colour)
 {
-    // Show a solid swatch of the chosen colour as the button background.
-    // A checkerboard pattern would be nicer for alpha < 255, but this keeps
-    // the code dependency-free — swap in whatever you prefer.
     QString style = QString(
         "background-color: rgba(%1,%2,%3,%4);"
         "border: 1px solid #555555;"
@@ -156,34 +222,29 @@ void CanvasProfileDialog::applyColourToButton(QPushButton *button, const QColor 
 
 void CanvasProfileDialog::updatePreview()
 {
-    // The preview is painted directly onto canvasPreviewWidget.
-    // We use a lambda-free approach: install this dialog as an event filter,
-    // OR (simpler) just call update() and override paintEvent via a subclass.
-    //
-    // For now we use the simplest viable approach: draw into the widget by
-    // grabbing its painter in a helper and calling repaint via an event filter.
-    //
-    // Recommended next step: create a tiny CanvasPreviewWidget : QWidget class
-    // and promote canvasPreviewWidget in Qt Designer to it.  Pass it the
-    // current values and let it handle its own paintEvent.  Example:
-    //
-    //   canvasPreviewWidget->setProfile(w, h, margins, m_visualColour);
-    //   canvasPreviewWidget->update();
-    //
-    // Until that class exists, we repaint manually here:
+    const int mT = ui->spinBoxMarginTop->value();
+    const int mB = ui->spinBoxMarginBottom->value();
+    const int mL = ui->spinBoxMarginLeft->value();
+    const int mR = ui->spinBoxMarginRight->value();
+
+    // Preview always uses absolute canvas dimensions.
+    const int absW = m_safeAreaMode
+                     ? ui->spinBoxWidth->value()  + mL + mR
+                     : ui->spinBoxWidth->value();
+    const int absH = m_safeAreaMode
+                     ? ui->spinBoxHeight->value() + mT + mB
+                     : ui->spinBoxHeight->value();
 
     QWidget *preview = ui->canvasPreviewWidget;
     if (!preview) return;
 
-    // Store current values as properties so the widget can read them in
-    // a custom paintEvent if you later subclass / install an event filter.
-    preview->setProperty("canvasW",        ui->spinBoxWidth->value());
-    preview->setProperty("canvasH",        ui->spinBoxHeight->value());
-    preview->setProperty("marginTop",      ui->spinBoxMarginTop->value());
-    preview->setProperty("marginBottom",   ui->spinBoxMarginBottom->value());
-    preview->setProperty("marginLeft",     ui->spinBoxMarginLeft->value());
-    preview->setProperty("marginRight",    ui->spinBoxMarginRight->value());
-    preview->setProperty("visualColour",   m_visualColour);
-    preview->setProperty("bgColour",       m_bgColour);
+    preview->setProperty("canvasW",      absW);
+    preview->setProperty("canvasH",      absH);
+    preview->setProperty("marginTop",    mT);
+    preview->setProperty("marginBottom", mB);
+    preview->setProperty("marginLeft",   mL);
+    preview->setProperty("marginRight",  mR);
+    preview->setProperty("visualColour", m_visualColour);
+    preview->setProperty("bgColour",     m_bgColour);
     preview->update();
 }

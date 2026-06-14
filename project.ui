@@ -6,8 +6,8 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>611</width>
-    <height>665</height>
+    <width>646</width>
+    <height>674</height>
    </rect>
   </property>
   <property name="windowTitle">
@@ -37,13 +37,13 @@
      <property name="elideMode">
       <enum>Qt::TextElideMode::ElideNone</enum>
      </property>
-     <widget class="QWidget" name="tab">
+     <widget class="QWidget" name="tabInput">
       <attribute name="title">
        <string>Input</string>
       </attribute>
       <layout class="QHBoxLayout" name="horizontalLayout_2" stretch="3,0,3">
        <item>
-        <widget class="QGroupBox" name="groupBox_2">
+        <widget class="QGroupBox" name="groupInputToolbox">
          <property name="sizePolicy">
           <sizepolicy hsizetype="Expanding" vsizetype="Expanding">
            <horstretch>0</horstretch>
@@ -73,7 +73,7 @@
            <enum>QLayout::SizeConstraint::SetMinimumSize</enum>
           </property>
           <item>
-           <widget class="QPushButton" name="pushButton">
+           <widget class="QPushButton" name="pushButtonAddInputsFromDir">
             <property name="sizePolicy">
              <sizepolicy hsizetype="Expanding" vsizetype="Fixed">
               <horstretch>0</horstretch>
@@ -86,7 +86,7 @@
            </widget>
           </item>
           <item>
-           <widget class="QPushButton" name="pushButton_2">
+           <widget class="QPushButton" name="pushButtonAddInputs">
             <property name="sizePolicy">
              <sizepolicy hsizetype="Expanding" vsizetype="Fixed">
               <horstretch>0</horstretch>
@@ -99,7 +99,7 @@
            </widget>
           </item>
           <item>
-           <widget class="QPushButton" name="pushButton_3">
+           <widget class="QPushButton" name="pushButtonInputClear">
             <property name="sizePolicy">
              <sizepolicy hsizetype="Expanding" vsizetype="Fixed">
               <horstretch>0</horstretch>
@@ -119,7 +119,33 @@
            </widget>
           </item>
           <item>
-           <widget class="QGroupBox" name="groupBox_14">
+           <widget class="QGroupBox" name="groupBoxCanvasProfiles">
+            <property name="title">
+             <string>Canvas Profiles</string>
+            </property>
+            <layout class="QVBoxLayout" name="verticalLayout">
+             <item>
+              <widget class="QPushButton" name="pushButtonAssignCanvasProfiles">
+               <property name="text">
+                <string>Assign Canvas Profiles</string>
+               </property>
+              </widget>
+             </item>
+             <item>
+              <widget class="QListWidget" name="listWidgetCanvasProfiles">
+               <property name="maximumSize">
+                <size>
+                 <width>16777215</width>
+                 <height>100</height>
+                </size>
+               </property>
+              </widget>
+             </item>
+            </layout>
+           </widget>
+          </item>
+          <item>
+           <widget class="QGroupBox" name="groupSortBy">
             <property name="sizePolicy">
              <sizepolicy hsizetype="Preferred" vsizetype="Preferred">
               <horstretch>0</horstretch>
@@ -149,10 +175,10 @@
               <enum>QLayout::SizeConstraint::SetNoConstraint</enum>
              </property>
              <item>
-              <widget class="QComboBox" name="comboBox"/>
+              <widget class="QComboBox" name="comboBoxSortingOpt"/>
              </item>
              <item>
-              <widget class="QPushButton" name="pushButton_27">
+              <widget class="QPushButton" name="pushSortyByApply">
                <property name="text">
                 <string>Apply</string>
                </property>
@@ -169,43 +195,43 @@
            </widget>
           </item>
           <item>
-           <widget class="QGroupBox" name="groupBox_15">
+           <widget class="QGroupBox" name="groupBoxAutosort">
             <property name="title">
              <string>Auto-sort rules:</string>
             </property>
             <layout class="QVBoxLayout" name="verticalLayout_7">
              <item>
-              <widget class="QLabel" name="label">
+              <widget class="QLabel" name="labelInputNameRegex">
                <property name="text">
                 <string>File name convetion:</string>
                </property>
               </widget>
              </item>
              <item>
-              <widget class="QLineEdit" name="lineEdit"/>
+              <widget class="QLineEdit" name="lineEditInputNameRegex"/>
              </item>
              <item>
-              <widget class="QLabel" name="label_9">
+              <widget class="QLabel" name="labelPrependedRegex">
                <property name="text">
                 <string>Prepended files (in order):</string>
                </property>
               </widget>
              </item>
              <item>
-              <widget class="QLineEdit" name="lineEdit_2"/>
+              <widget class="QLineEdit" name="lineEditPrependedRegex"/>
              </item>
              <item>
-              <widget class="QLabel" name="label_10">
+              <widget class="QLabel" name="labelAppendedRegex">
                <property name="text">
                 <string>Appended files (in order):</string>
                </property>
               </widget>
              </item>
              <item>
-              <widget class="QLineEdit" name="lineEdit_3"/>
+              <widget class="QLineEdit" name="lineEditAppendedRegex"/>
              </item>
              <item>
-              <widget class="QPushButton" name="pushButton_28">
+              <widget class="QPushButton" name="pushButtonAutosortApply">
                <property name="text">
                 <string>Apply</string>
                </property>
@@ -235,7 +261,7 @@
            </widget>
           </item>
           <item>
-           <widget class="QPushButton" name="pushButton_26">
+           <widget class="QPushButton" name="pushButtonGoToOutput">
             <property name="text">
              <string>Go to rendering</string>
             </property>
@@ -258,7 +284,7 @@
         </spacer>
        </item>
        <item>
-        <widget class="QGroupBox" name="groupBox">
+        <widget class="QGroupBox" name="groupBoxInputFiles">
          <property name="sizePolicy">
           <sizepolicy hsizetype="Expanding" vsizetype="Expanding">
            <horstretch>0</horstretch>
@@ -285,7 +311,7 @@
          </property>
          <layout class="QVBoxLayout" name="verticalLayout_4">
           <item>
-           <widget class="QListWidget" name="listImageTile">
+           <widget class="QListWidget" name="listInputImageTile">
             <property name="dragEnabled">
              <bool>true</bool>
             </property>
@@ -299,13 +325,13 @@
        </item>
       </layout>
      </widget>
-     <widget class="QWidget" name="tab_2">
+     <widget class="QWidget" name="tabOutput">
       <attribute name="title">
        <string>Output</string>
       </attribute>
       <layout class="QHBoxLayout" name="horizontalLayout_3" stretch="3,0,3">
        <item>
-        <widget class="QGroupBox" name="groupBox_4">
+        <widget class="QGroupBox" name="groupOutputToolbox">
          <property name="sizePolicy">
           <sizepolicy hsizetype="Expanding" vsizetype="Expanding">
            <horstretch>0</horstretch>
@@ -335,13 +361,32 @@
            <enum>QLayout::SizeConstraint::SetMinimumSize</enum>
           </property>
           <item>
-           <widget class="QGroupBox" name="groupBox_19">
+           <widget class="QGroupBox" name="groupBoxOutputProfile">
+            <property name="title">
+             <string>Output Profile</string>
+            </property>
+            <layout class="QVBoxLayout" name="verticalLayout_12">
+             <item>
+              <widget class="QComboBox" name="comboBoxOutputProfile"/>
+             </item>
+            </layout>
+           </widget>
+          </item>
+          <item>
+           <widget class="Line" name="line_7">
+            <property name="orientation">
+             <enum>Qt::Orientation::Horizontal</enum>
+            </property>
+           </widget>
+          </item>
+          <item>
+           <widget class="QGroupBox" name="groupBoxOutputDirectory">
             <property name="title">
              <string>Output directory</string>
             </property>
             <layout class="QVBoxLayout" name="verticalLayout_10">
              <item>
-              <widget class="QPushButton" name="pushButton_7">
+              <widget class="QPushButton" name="pushButtonODSelect">
                <property name="sizePolicy">
                 <sizepolicy hsizetype="Expanding" vsizetype="Fixed">
                  <horstretch>0</horstretch>
@@ -354,14 +399,14 @@
               </widget>
              </item>
              <item>
-              <widget class="QLabel" name="label_8">
+              <widget class="QLabel" name="labelODSelected">
                <property name="text">
                 <string>Selected directory:</string>
                </property>
               </widget>
              </item>
              <item>
-              <widget class="QTextBrowser" name="textBrowser_2">
+              <widget class="QTextBrowser" name="textOutputDirectory">
                <property name="maximumSize">
                 <size>
                  <width>16777215</width>
@@ -371,7 +416,7 @@
               </widget>
              </item>
              <item>
-              <widget class="QPushButton" name="pushButton_9">
+              <widget class="QPushButton" name="pushButtonODClear">
                <property name="sizePolicy">
                 <sizepolicy hsizetype="Expanding" vsizetype="Fixed">
                  <horstretch>0</horstretch>
@@ -394,51 +439,51 @@
            </widget>
           </item>
           <item>
-           <widget class="QGroupBox" name="groupBox_3">
+           <widget class="QGroupBox" name="groupOutputImageOptions">
             <property name="title">
              <string>Image options</string>
             </property>
             <layout class="QVBoxLayout" name="verticalLayout_6">
              <item>
-              <widget class="QLabel" name="label_3">
+              <widget class="QLabel" name="labelImageFormat">
                <property name="text">
                 <string>Image format:</string>
                </property>
               </widget>
              </item>
              <item>
-              <widget class="QComboBox" name="comboBox_2"/>
+              <widget class="QComboBox" name="comboBoxImageFormatSelection"/>
              </item>
              <item>
-              <widget class="QGroupBox" name="groupBox_16">
+              <widget class="QGroupBox" name="groupBoxPNG">
                <property name="title">
                 <string>PNG</string>
                </property>
                <layout class="QVBoxLayout" name="verticalLayout_13">
                 <item>
-                 <layout class="QFormLayout" name="formLayout_2">
+                 <layout class="QFormLayout" name="formLayoutPNG">
                   <property name="formAlignment">
                    <set>Qt::AlignmentFlag::AlignCenter</set>
                   </property>
                   <item row="0" column="0">
-                   <widget class="QLabel" name="label_15">
+                   <widget class="QLabel" name="labelCompressionPNG">
                     <property name="text">
                      <string>Compression</string>
                     </property>
                    </widget>
                   </item>
                   <item row="0" column="1">
-                   <widget class="QSpinBox" name="spinBox_3"/>
+                   <widget class="QSpinBox" name="spinBoxCompressionPNG"/>
                   </item>
                   <item row="1" column="0">
-                   <widget class="QLabel" name="label_18">
+                   <widget class="QLabel" name="labelInterlacedPNG">
                     <property name="text">
                      <string>Interlaced</string>
                     </property>
                    </widget>
                   </item>
                   <item row="1" column="1">
-                   <widget class="QCheckBox" name="checkBox_4">
+                   <widget class="QCheckBox" name="checkBoxInterlacedPNG">
                     <property name="text">
                      <string/>
                     </property>
@@ -450,49 +495,49 @@
               </widget>
              </item>
              <item>
-              <widget class="QGroupBox" name="groupBox_17">
+              <widget class="QGroupBox" name="groupBoxJPG">
                <property name="title">
                 <string>JPG</string>
                </property>
                <layout class="QVBoxLayout" name="verticalLayout_8">
                 <item>
-                 <layout class="QFormLayout" name="formLayout">
+                 <layout class="QFormLayout" name="formLayoutJPG">
                   <property name="formAlignment">
                    <set>Qt::AlignmentFlag::AlignCenter</set>
                   </property>
                   <item row="0" column="0">
-                   <widget class="QLabel" name="label_11">
+                   <widget class="QLabel" name="labelQualityJPG">
                     <property name="text">
                      <string>Quality</string>
                     </property>
                    </widget>
                   </item>
                   <item row="0" column="1">
-                   <widget class="QSpinBox" name="spinBox"/>
+                   <widget class="QSpinBox" name="spinBoxQualityJPG"/>
                   </item>
                   <item row="1" column="0">
-                   <widget class="QLabel" name="label_12">
+                   <widget class="QLabel" name="labelSubsamplingJPG">
                     <property name="text">
                      <string>Subsampling</string>
                     </property>
                    </widget>
                   </item>
                   <item row="2" column="0">
-                   <widget class="QLabel" name="label_13">
+                   <widget class="QLabel" name="labelOptimizeJPG">
                     <property name="text">
                      <string>Optimize</string>
                     </property>
                    </widget>
                   </item>
                   <item row="3" column="0">
-                   <widget class="QLabel" name="label_14">
+                   <widget class="QLabel" name="labelProgressiveJPG">
                     <property name="text">
                      <string>Progressive</string>
                     </property>
                    </widget>
                   </item>
                   <item row="2" column="1">
-                   <widget class="QCheckBox" name="checkBox">
+                   <widget class="QCheckBox" name="checkBoxOptimizeJPG">
                     <property name="text">
                      <string/>
                     </property>
@@ -502,14 +547,14 @@
                    </widget>
                   </item>
                   <item row="3" column="1">
-                   <widget class="QCheckBox" name="checkBox_2">
+                   <widget class="QCheckBox" name="checkBoxProgressiveeJPG">
                     <property name="text">
                      <string/>
                     </property>
                    </widget>
                   </item>
                   <item row="1" column="1">
-                   <widget class="QComboBox" name="comboBox_3"/>
+                   <widget class="QComboBox" name="comboBoxSubsamplingJPG"/>
                   </item>
                  </layout>
                 </item>
@@ -517,45 +562,45 @@
               </widget>
              </item>
              <item>
-              <widget class="QGroupBox" name="groupBox_21">
+              <widget class="QGroupBox" name="groupBoxWebP">
                <property name="title">
                 <string>WEBP</string>
                </property>
                <layout class="QVBoxLayout" name="verticalLayout_11">
                 <item>
-                 <layout class="QFormLayout" name="formLayout_3">
+                 <layout class="QFormLayout" name="formLayoutWebP">
                   <property name="formAlignment">
                    <set>Qt::AlignmentFlag::AlignCenter</set>
                   </property>
                   <item row="0" column="0">
-                   <widget class="QLabel" name="label_16">
+                   <widget class="QLabel" name="labelQualityWebP">
                     <property name="text">
                      <string>Quality</string>
                     </property>
                    </widget>
                   </item>
                   <item row="0" column="1">
-                   <widget class="QSpinBox" name="spinBox_4"/>
+                   <widget class="QSpinBox" name="spinBoxQualityWebP"/>
                   </item>
                   <item row="2" column="0">
-                   <widget class="QLabel" name="label_17">
+                   <widget class="QLabel" name="labelCompressionWebP">
                     <property name="text">
                      <string>Compression</string>
                     </property>
                    </widget>
                   </item>
                   <item row="2" column="1">
-                   <widget class="QSpinBox" name="spinBox_5"/>
+                   <widget class="QSpinBox" name="spinBoxCompressionWebP"/>
                   </item>
                   <item row="1" column="0">
-                   <widget class="QLabel" name="label_19">
+                   <widget class="QLabel" name="labelLosslessWebP">
                     <property name="text">
                      <string>Lossless</string>
                     </property>
                    </widget>
                   </item>
                   <item row="1" column="1">
-                   <widget class="QCheckBox" name="checkBox_3">
+                   <widget class="QCheckBox" name="checkBoxLosslessWebP">
                     <property name="text">
                      <string/>
                     </property>
@@ -593,7 +638,7 @@
            </widget>
           </item>
           <item>
-           <widget class="QPushButton" name="pushButton_8">
+           <widget class="QPushButton" name="pushButtonJumpToInput">
             <property name="text">
              <string>Go to input settings</string>
             </property>
@@ -607,7 +652,7 @@
            </widget>
           </item>
           <item>
-           <widget class="QPushButton" name="pushButton_31">
+           <widget class="QPushButton" name="pushButtonRender">
             <property name="text">
              <string>Render</string>
             </property>
@@ -630,7 +675,7 @@
         </spacer>
        </item>
        <item>
-        <widget class="QGroupBox" name="groupBox_18">
+        <widget class="QGroupBox" name="groupBoxOutputPanels">
          <property name="sizePolicy">
           <sizepolicy hsizetype="Expanding" vsizetype="Expanding">
            <horstretch>0</horstretch>
@@ -657,21 +702,7 @@
          </property>
          <layout class="QVBoxLayout" name="verticalLayout_9">
           <item>
-           <widget class="QScrollArea" name="scrollArea_2">
-            <property name="widgetResizable">
-             <bool>true</bool>
-            </property>
-            <widget class="QWidget" name="scrollAreaWidgetContents_2">
-             <property name="geometry">
-              <rect>
-               <x>0</x>
-               <y>0</y>
-               <width>304</width>
-               <height>582</height>
-              </rect>
-             </property>
-            </widget>
-           </widget>
+           <widget class="QListWidget" name="listOutputImageTile"/>
           </item>
          </layout>
         </widget>

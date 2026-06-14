@@ -6,6 +6,7 @@
 #include <platemaker/models/workspace.hpp>
 
 namespace Ui { class Project; }
+class QListWidgetItem;
 
 class Project : public QWidget
 {
@@ -26,9 +27,14 @@ signals:
 private slots:
     void onAddFromDirectory();
     void onRowsMoved();
+    void onAssignCanvasProfiles();
+    void onCanvasProfileDoubleClicked(QListWidgetItem* item);
+    void onOutputProfileChanged(int index);
 
 private:
     void addImageTile(const Platemaker::Models::InputFile& file);
+    void refreshCanvasProfilesList();
+    void refreshOutputProfileCombo();
 
     Ui::Project* ui;
     int m_projectIndex;

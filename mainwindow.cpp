@@ -247,6 +247,12 @@ void MainWindow::loadWorkspace(const QString &path)
     }
 
     m_workspacePath = path;
+    m_activeCanvasProfileName = m_workspace.canvasProfiles.empty()
+        ? QString{}
+        : QString::fromStdString(m_workspace.canvasProfiles.front().name);
+    m_activeOutputProfileName = m_workspace.outputProfiles.empty()
+        ? QString{}
+        : QString::fromStdString(m_workspace.outputProfiles.front().name);
     setDirty(false);
     applyWorkspaceToUi();
 }
@@ -268,6 +274,8 @@ void MainWindow::closeWorkspace()
 
     m_workspace     = Platemaker::Models::Workspace{};
     m_workspacePath.clear();
+    m_activeCanvasProfileName.clear();
+    m_activeOutputProfileName.clear();
     setDirty(false);
 
     ui->listWidgetProjects->clear();
@@ -327,6 +335,15 @@ void MainWindow::openProjectDock(int projectIndex)
     // On first open Qt promotes the area to a tab group; subsequent opens just add tabs.
     tabifyDockWidget(ui->dockWidgetWorkspace, newDock);
 
+    // When Qt re-docks the window (e.g. double-click on floating title bar or drag back),
+    // force it back into the tab group instead of landing in a random dock area.
+    connect(newDock, &QDockWidget::topLevelChanged, this, [this, newDock](bool floating) {
+        if (!floating) {
+            tabifyDockWidget(ui->dockWidgetWorkspace, newDock);
+            newDock->raise();
+        }
+    });
+
     m_openProjectDocks.append(newDock);
     newDock->show();
     newDock->raise();
@@ -352,13 +369,8 @@ void MainWindow::toggleProjectFloatState(int index)
 {
     if (index < 0 || index >= m_openProjectDocks.size()) return;
     QDockWidget *dock = m_openProjectDocks.at(index);
-    if (dock->isFloating()) {
-        dock->setFloating(false);
-        if (m_openProjectDocks.size() > 1)
-            tabifyDockWidget(m_openProjectDocks.first(), dock);
-    } else {
-        dock->setFloating(true);
-    }
+    // setFloating(false) triggers topLevelChanged → tabifyDockWidget, so no manual re-tabify needed.
+    dock->setFloating(!dock->isFloating());
 }
 
 // ---------------------------------------------------------------------------
@@ -381,8 +393,7 @@ void MainWindow::onManageCanvasProfiles()
 
     QList<Platemaker::Models::CanvasProfile> profiles(
         m_workspace.canvasProfiles.begin(), m_workspace.canvasProfiles.end());
-    dlg.setProfiles(profiles,
-                    QString::fromStdString(m_workspace.activeCanvasProfileName));
+    dlg.setProfiles(profiles, m_activeCanvasProfileName);
 
     // Stage 5: connect template generation signal (placeholder for now)
     connect(&dlg, &ManageCanvasProfilesDialog::generateTemplatesRequested,
@@ -395,7 +406,7 @@ void MainWindow::onManageCanvasProfiles()
 
     const auto result = dlg.profiles();
     m_workspace.canvasProfiles.assign(result.begin(), result.end());
-    m_workspace.activeCanvasProfileName = dlg.activeProfileName().toStdString();
+    m_activeCanvasProfileName = dlg.activeProfileName();
 
     // Assign IDs to any profiles added without one (dialog doesn't generate them)
     for (auto& p : m_workspace.canvasProfiles) {
@@ -432,7 +443,7 @@ void MainWindow::onNewCanvasProfile()
     m_workspace.canvasProfiles.push_back(profile);
 
     if (m_workspace.canvasProfiles.size() == 1)
-        m_workspace.activeCanvasProfileName = profile.name;
+        m_activeCanvasProfileName = QString::fromStdString(profile.name);
 
     setDirty(true);
     onSave();
@@ -442,7 +453,7 @@ void MainWindow::onEditActiveCanvasProfile()
 {
     const auto it = std::find_if(
         m_workspace.canvasProfiles.begin(), m_workspace.canvasProfiles.end(),
-        [&](const auto& p){ return p.name == m_workspace.activeCanvasProfileName; });
+        [&](const auto& p){ return p.name == m_activeCanvasProfileName.toStdString(); });
 
     if (it == m_workspace.canvasProfiles.end()) {
         QMessageBox::information(this, tr("No Active Profile"),
@@ -459,8 +470,8 @@ void MainWindow::onEditActiveCanvasProfile()
     *it = dlg.profile();
     it->id = savedId; // preserve the stable ID
 
-    if (m_workspace.activeCanvasProfileName == oldName)
-        m_workspace.activeCanvasProfileName = it->name;
+    if (m_activeCanvasProfileName == QString::fromStdString(oldName))
+        m_activeCanvasProfileName = QString::fromStdString(it->name);
 
     setDirty(true);
     onSave();
@@ -481,14 +492,13 @@ void MainWindow::onManageOutputProfiles()
 
     QList<Platemaker::Models::OutputProfile> profiles(
         m_workspace.outputProfiles.begin(), m_workspace.outputProfiles.end());
-    dlg.setProfiles(profiles,
-                    QString::fromStdString(m_workspace.activeOutputProfileName));
+    dlg.setProfiles(profiles, m_activeOutputProfileName);
 
     if (dlg.exec() != QDialog::Accepted) return;
 
     const auto result = dlg.profiles();
     m_workspace.outputProfiles.assign(result.begin(), result.end());
-    m_workspace.activeOutputProfileName = dlg.activeProfileName().toStdString();
+    m_activeOutputProfileName = dlg.activeProfileName();
 
     setDirty(true);
     onSave();
@@ -518,7 +528,7 @@ void MainWindow::onNewOutputProfile()
     m_workspace.outputProfiles.push_back(profile);
 
     if (m_workspace.outputProfiles.size() == 1)
-        m_workspace.activeOutputProfileName = profile.name;
+        m_activeOutputProfileName = QString::fromStdString(profile.name);
 
     setDirty(true);
     onSave();
@@ -528,7 +538,7 @@ void MainWindow::onEditActiveOutputProfile()
 {
     const auto it = std::find_if(
         m_workspace.outputProfiles.begin(), m_workspace.outputProfiles.end(),
-        [&](const auto& p){ return p.name == m_workspace.activeOutputProfileName; });
+        [&](const auto& p){ return p.name == m_activeOutputProfileName.toStdString(); });
 
     if (it == m_workspace.outputProfiles.end()) {
         QMessageBox::information(this, tr("No Active Profile"),
@@ -543,8 +553,8 @@ void MainWindow::onEditActiveOutputProfile()
     const std::string oldName = it->name;
     *it = dlg.profile();
 
-    if (m_workspace.activeOutputProfileName == oldName)
-        m_workspace.activeOutputProfileName = it->name;
+    if (m_activeOutputProfileName == QString::fromStdString(oldName))
+        m_activeOutputProfileName = QString::fromStdString(it->name);
 
     setDirty(true);
     onSave();

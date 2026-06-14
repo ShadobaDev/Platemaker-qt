@@ -31,13 +31,14 @@ These are the foundation — nothing else is usable without them.
 - [x] **Canvas Profiles — full CRUD** — `actionManage_profiles` → `ManageCanvasProfilesDialog`, wired in `MainWindow`
 - [x] **Output Profiles — full CRUD** — `actionManage_output_profiles` → `ManageOutputProfilesDialog`, wired in `MainWindow`
 
-- [ ] **Link canvas profile to project** *(blocked: requires `canvasProfileIds: vector<string>` added to `ProjectItem` in lib)*
-  - Add `pushButton` "Assign Canvas Profiles…" in `project.ui` Input Toolbox (dictate to user)
-  - Call `addCanvasProfileToProject()` (libplatemaker) — show conflict error if returned
+- [x] **Link canvas profile to project** — lib ready (`canvasProfileIds` in `ProjectItem`)
+  - `pushButtonAssignCanvasProfiles` → `QInputDialog::getItem` → `addCanvasProfile()` with conflict guard
+  - `listWidgetCanvasProfiles` shows assigned profiles; double-click edits via `CanvasProfileDialog`; right-click removes assignment
+  - Empty `canvasProfileIds` shows "(all workspace profiles)" placeholder
 
-- [ ] **Select output profile for project** *(blocked: requires `outputProfileId: string` added to `ProjectItem` in lib)*
-  - Add `QComboBox` in `project.ui` Output Toolbox (dictate to user)
-  - On change: set `ProjectItem::outputProfileId`, `stripDirty = true`, emit `projectModified`
+- [x] **Select output profile for project** — lib ready (`outputProfileId` in `ProjectItem`)
+  - `comboBoxOutputProfile` populated from workspace output profiles; "(workspace default)" as first item
+  - `currentIndexChanged` → `ProjectItem::outputProfileId`, emit `projectModified`
 
 ---
 

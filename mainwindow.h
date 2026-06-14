@@ -70,6 +70,11 @@ private:
     Platemaker::Infrastructure::WorkspaceSerializer    m_serializer;
     QString m_workspacePath;
     bool    m_dirty = false;
+
+    // UI-only selection state (not persisted in the workspace model since v2).
+    // Shouldn't be used per project, or even per input file?
+    QString m_activeCanvasProfileName;
+    QString m_activeOutputProfileName;
 };
 
 #endif // MAINWINDOW_H

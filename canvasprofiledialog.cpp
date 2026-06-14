@@ -62,12 +62,11 @@ CanvasProfileDialog::~CanvasProfileDialog()
 
 void CanvasProfileDialog::setProfile(const Platemaker::Models::CanvasProfile &profile)
 {
-    // Safe area mode is a dialog-side convenience, not stored in the profile.
-    // Always load in absolute mode so the spinboxes show the stored canvas size.
+    // Restore the safe-area-mode radio state from the hint stored in the profile.
+    m_safeAreaMode = profile.hintUserSafeAreaSelect;
     ui->radioButtonSafeArea->blockSignals(true);
-    ui->radioButtonSafeArea->setChecked(false);
+    ui->radioButtonSafeArea->setChecked(m_safeAreaMode);
     ui->radioButtonSafeArea->blockSignals(false);
-    m_safeAreaMode = false;
 
     ui->lineEditName->setText(QString::fromStdString(profile.name));
 
@@ -114,7 +113,8 @@ Platemaker::Models::CanvasProfile CanvasProfileDialog::profile() const
                           ui->spinBoxHeight->value() };
     }
 
-    cp.margins          = { mT, mR, mB, mL };
+    cp.margins                = { mT, mR, mB, mL };
+    cp.hintUserSafeAreaSelect = m_safeAreaMode;
     cp.visualColour     = { static_cast<uint8_t>(m_visualColour.red()),
                              static_cast<uint8_t>(m_visualColour.green()),
                              static_cast<uint8_t>(m_visualColour.blue()),

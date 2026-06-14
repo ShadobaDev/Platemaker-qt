@@ -6,8 +6,8 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>830</width>
-    <height>350</height>
+    <width>836</width>
+    <height>553</height>
    </rect>
   </property>
   <property name="sizePolicy">
@@ -80,7 +80,7 @@ QTabWidget QTabBar::close-button {
     <rect>
      <x>0</x>
      <y>0</y>
-     <width>830</width>
+     <width>836</width>
      <height>17</height>
     </rect>
    </property>
@@ -96,6 +96,8 @@ QTabWidget QTabBar::close-button {
     <addaction name="actionSave_as_Ctrl_Shift_S"/>
     <addaction name="separator"/>
     <addaction name="actionReveal_workspace_in_Explorer"/>
+    <addaction name="separator"/>
+    <addaction name="actionShow_workspace_panel"/>
     <addaction name="separator"/>
     <addaction name="actionClose_workspace"/>
    </widget>
@@ -218,6 +220,44 @@ QTabWidget QTabBar::close-button {
         </item>
        </layout>
       </widget>
+     </item>
+    </layout>
+   </widget>
+  </widget>
+  <widget class="QDockWidget" name="dockWidgetWorkspace">
+   <property name="windowTitle">
+    <string>Workspace</string>
+   </property>
+   <attribute name="dockWidgetArea">
+    <number>1</number>
+   </attribute>
+   <widget class="QWidget" name="dockWidgetContents">
+    <property name="sizePolicy">
+     <sizepolicy hsizetype="Expanding" vsizetype="Expanding">
+      <horstretch>0</horstretch>
+      <verstretch>0</verstretch>
+     </sizepolicy>
+    </property>
+    <property name="minimumSize">
+     <size>
+      <width>500</width>
+      <height>500</height>
+     </size>
+    </property>
+    <layout class="QVBoxLayout" name="verticalLayout_4">
+     <item>
+      <layout class="QVBoxLayout" name="verticalLayout_3">
+       <item>
+        <widget class="QListWidget" name="listWidgetProjects"/>
+       </item>
+       <item>
+        <widget class="QPushButton" name="pushButtonNewProject">
+         <property name="text">
+          <string>PushButton</string>
+         </property>
+        </widget>
+       </item>
+      </layout>
      </item>
     </layout>
    </widget>
@@ -366,6 +406,11 @@ QTabWidget QTabBar::close-button {
   <action name="actionVersion">
    <property name="text">
     <string>Version</string>
+   </property>
+  </action>
+  <action name="actionShow_workspace_panel">
+   <property name="text">
+    <string>Show workspace panel</string>
    </property>
   </action>
  </widget>

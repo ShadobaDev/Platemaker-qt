@@ -2,15 +2,17 @@
 #define MAINWINDOW_H
 
 #include <QMainWindow>
-#include <QDockWidget>
-#include <QList>        // <-- DODAJ TO
-#include <QDockWidget>  // <-- DODAJ TO
+#include <QList>
+
+#include <platemaker/infrastructure/workspace_serializer/workspace_serializer.hpp>
+#include <platemaker/models/workspace.hpp>
 
 QT_BEGIN_NAMESPACE
-namespace Ui {
-class MainWindow;
-}
+namespace Ui { class MainWindow; }
 QT_END_NAMESPACE
+
+class QDockWidget;
+class QListWidgetItem;
 
 class MainWindow : public QMainWindow
 {
@@ -19,12 +21,45 @@ class MainWindow : public QMainWindow
 public:
     explicit MainWindow(QWidget *parent = nullptr);
     ~MainWindow() override;
-    void addNewProject(QString projectName);
+
+protected:
+    void closeEvent(QCloseEvent *event) override;
+
+private slots:
+    // Workspace menu
+    void onOpenWorkspace();
+    void onNewWorkspace();
+    void onSave();
+    void onSaveAs();
+    void onCloseWorkspace();
+    void onRevealInExplorer();
+
+    // Project panel
+    void onNewProject();
+    void onProjectDoubleClicked(QListWidgetItem *item);
+
 private:
+    // --- helpers ---
+    bool maybeSave();                           // true = safe to proceed
+    void loadWorkspace(const QString &path);
+    void applyWorkspaceToUi();
+    void closeWorkspace();
+    void setDirty(bool dirty);
+    void updateTitle();
+
+    // --- project dock management ---
+    void openProjectDock(int projectIndex);
     void closeProjectByIndex(int index);
     void toggleProjectFloatState(int index);
-private:
+
+    // --- members ---
     Ui::MainWindow *ui;
-    QList<QDockWidget*> openProjectsList;
+    QList<QDockWidget *> m_openProjectDocks;
+
+    Platemaker::Models::Workspace                      m_workspace;
+    Platemaker::Infrastructure::WorkspaceSerializer    m_serializer;
+    QString m_workspacePath;
+    bool    m_dirty = false;
 };
+
 #endif // MAINWINDOW_H

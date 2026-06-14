@@ -3,23 +3,37 @@
 
 #include <QWidget>
 
-namespace Ui {
-class Project;
-}
+#include <platemaker/models/workspace.hpp>
+
+namespace Ui { class Project; }
 
 class Project : public QWidget
 {
     Q_OBJECT
 
 public:
-    explicit Project(QWidget *parent = nullptr);
+    explicit Project(int projectIndex,
+                     Platemaker::Models::Workspace& workspace,
+                     const QString& cacheDir,
+                     QWidget *parent = nullptr);
     ~Project();
 
+    void populate();
 
-    void addImageTile(const QString &tileName);
+signals:
+    void projectModified();
+
+private slots:
+    void onAddFromDirectory();
+    void onRowsMoved();
 
 private:
-    Ui::Project *ui;
+    void addImageTile(const Platemaker::Models::InputFile& file);
+
+    Ui::Project* ui;
+    int m_projectIndex;
+    Platemaker::Models::Workspace& m_workspace;
+    QString m_cacheDir;
 };
 
 #endif // PROJECT_H

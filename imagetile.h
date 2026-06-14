@@ -1,11 +1,12 @@
 #ifndef IMAGETILE_H
 #define IMAGETILE_H
 
+#include <QPixmap>
 #include <QWidget>
 
-namespace Ui {
-class imagetile;
-}
+#include <platemaker/models/project_item.hpp>
+
+namespace Ui { class imagetile; }
 
 class ImageTile : public QWidget
 {
@@ -15,9 +16,21 @@ public:
     explicit ImageTile(QWidget *parent = nullptr);
     ~ImageTile();
 
-    void setTileName(const QString &name);
+    void setFileInfo(const QString& filePath,
+                     Platemaker::Models::FileStatus status,
+                     const QString& cacheDir);
+
+    void setThumbnail(const QPixmap& pixmap);
+
+    // Legacy — kept so existing test code still compiles
+    void setTileName(const QString& name);
+
 private:
-    Ui::imagetile *ui;
+    void updateStatusStyle(Platemaker::Models::FileStatus status);
+    void loadThumbnailAsync(const QString& cacheDir);
+
+    Ui::imagetile* ui;
+    QString m_filePath;
 };
 
 #endif // IMAGETILE_H

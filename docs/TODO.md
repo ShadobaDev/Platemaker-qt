@@ -4,38 +4,16 @@ Priority order: each section depends on the previous.  Complete in order.
 
 ---
 
-## Stage 1 — Workspace & Project Lifecycle (core wiring)
+## Stage 1 — Workspace & Project Lifecycle (core wiring) ✅
 
 These are the foundation — nothing else is usable without them.
 
-- [ ] **Open Workspace** (`File → Open Workspace`)
-  - `QFileDialog` filtered to `*.platemaker.json`
-  - Call `WorkspaceSerializer::load(path)` in `MainWindow`
-  - Populate workspace panel with project list from `m_workspace.projectItems`
-  - Update window title with filename + dirty indicator
-
-- [ ] **New Workspace** (`File → New Workspace`)
-  - `QFileDialog` save-as dialog
-  - Construct `Workspace` with one default `OutputProfile` ("Webtoon Standard")
-  - Call `WorkspaceSerializer::save(path)`
-  - Populate empty workspace panel
-
-- [ ] **Save Workspace** (`File → Save`, `Ctrl+S`)
-  - Call `WorkspaceSerializer::save(m_workspacePath)`
-  - Clear dirty flag, update title bar
-
-- [ ] **Close + unsaved-changes prompt**
-  - On `QCloseEvent` or workspace switch: if `m_dirty` → `QMessageBox::question`
-
-- [ ] **Open Project** (double-click in workspace panel)
-  - Find `ProjectItem` in `m_workspace.projectItems` by index
-  - Open `Project` sub-window in MDI area (or bring existing to front)
-  - Call `mergeFileScan()` if `inputDirectory` is set
-
-- [ ] **New Project** (`Workspace → New Project`)
-  - Input: name + optional input directory (`QFileDialog` dir picker)
-  - Construct `ProjectItem`, append to `m_workspace.projectItems`
-  - `m_dirty = true`, save workspace
+- [x] **Open Workspace** (`File → Open Workspace`)
+- [x] **New Workspace** (`File → New Workspace`)
+- [x] **Save Workspace** (`File → Save`, `Ctrl+S`)
+- [x] **Close + unsaved-changes prompt**
+- [x] **Open Project** (double-click in workspace panel)
+- [x] **New Project** (`Projects → New Project`)
 
 ---
 

@@ -300,7 +300,14 @@ void MainWindow::openProjectDock(int projectIndex)
     newDock->setFeatures(QDockWidget::DockWidgetMovable  |
                          QDockWidget::DockWidgetClosable |
                          QDockWidget::DockWidgetFloatable);
-    newDock->setWidget(new Project(newDock));
+    const QString cacheDir = QFileInfo(m_workspacePath).absolutePath()
+                             + "/.platemaker-cache";
+    auto* projectWidget = new Project(projectIndex, m_workspace, cacheDir, newDock);
+    connect(projectWidget, &Project::projectModified, this, [this]{
+        setDirty(true);
+        onSave();
+    });
+    newDock->setWidget(projectWidget);
 
     // Always tabify with the workspace panel — keeps the layout in two columns.
     // On first open Qt promotes the area to a tab group; subsequent opens just add tabs.

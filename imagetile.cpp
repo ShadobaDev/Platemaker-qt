@@ -1,5 +1,6 @@
 #include "imagetile.h"
 #include "ui_imagetile.h"
+#include "platemaker/infrastructure/thumbnail_cache/thumbnail_cache.hpp"
 
 ImageTile::ImageTile(QWidget *parent)
     : QWidget(parent)

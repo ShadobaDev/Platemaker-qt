@@ -88,50 +88,81 @@ QTabWidget QTabBar::close-button {
     <property name="title">
      <string>📁 Workspace</string>
     </property>
-    <widget class="QMenu" name="menuSave">
-     <property name="title">
-      <string>Save workspace</string>
-     </property>
-     <addaction name="actionSave_as"/>
-     <addaction name="actionSave_2"/>
-    </widget>
-    <widget class="QMenu" name="menuDelete_workspace">
-     <property name="title">
-      <string>Delete workspace</string>
-     </property>
-     <addaction name="actionClear"/>
-    </widget>
     <addaction name="separator"/>
     <addaction name="actionOpen_worksapce"/>
     <addaction name="actionNew_workspace"/>
-    <addaction name="menuSave"/>
-    <addaction name="menuDelete_workspace"/>
+    <addaction name="separator"/>
+    <addaction name="actionSave_Ctrl_S"/>
+    <addaction name="actionSave_as_Ctrl_Shift_S"/>
+    <addaction name="separator"/>
+    <addaction name="actionReveal_workspace_in_Explorer"/>
+    <addaction name="separator"/>
+    <addaction name="actionClose_workspace"/>
    </widget>
    <widget class="QMenu" name="menuCanvas_Profile">
     <property name="title">
      <string>🖼 Canvas Profiles</string>
     </property>
+    <addaction name="actionNew_canvas_profile"/>
+    <addaction name="actionEdit_active_profile"/>
+    <addaction name="separator"/>
+    <addaction name="actionManage_profiles"/>
    </widget>
    <widget class="QMenu" name="menu_Output_Settings">
     <property name="title">
-     <string>⚙ Output Settings</string>
+     <string>⚙ Output</string>
     </property>
+    <addaction name="actionEdit_output_settings"/>
+    <addaction name="separator"/>
+    <addaction name="actionNew_output_profile"/>
+    <addaction name="actionManage_output_profiles"/>
+    <addaction name="separator"/>
+    <addaction name="actionSet_output_directory"/>
    </widget>
    <widget class="QMenu" name="menu_Process">
     <property name="title">
-     <string>▶ Process</string>
+     <string>📖 Projects</string>
     </property>
+    <addaction name="actionNew_project_chapter"/>
+    <addaction name="actionRename_project"/>
+    <addaction name="actionRemove_project"/>
+    <addaction name="separator"/>
+    <addaction name="actionOpen_input_directory"/>
+    <addaction name="actionOpen_output_directory"/>
    </widget>
    <widget class="QMenu" name="menuTemplates">
     <property name="title">
      <string>✍Templates</string>
     </property>
+    <addaction name="actionGenerate_templates"/>
+    <addaction name="actionManage_templates"/>
+    <addaction name="separator"/>
+   </widget>
+   <widget class="QMenu" name="menu_Process_2">
+    <property name="title">
+     <string>▶ Process</string>
+    </property>
+    <addaction name="actionRender_current_project_F5"/>
+    <addaction name="actionRender_all_projects_F6"/>
+    <addaction name="separator"/>
+    <addaction name="actionStop_Esc"/>
+   </widget>
+   <widget class="QMenu" name="menu_About">
+    <property name="title">
+     <string>❓About</string>
+    </property>
+    <addaction name="actionHelp"/>
+    <addaction name="separator"/>
+    <addaction name="actionAuthors"/>
+    <addaction name="actionVersion"/>
    </widget>
    <addaction name="menuPlatemaker"/>
+   <addaction name="menu_Process"/>
    <addaction name="menuCanvas_Profile"/>
    <addaction name="menu_Output_Settings"/>
-   <addaction name="menu_Process"/>
+   <addaction name="menu_Process_2"/>
    <addaction name="menuTemplates"/>
+   <addaction name="menu_About"/>
   </widget>
   <widget class="QStatusBar" name="statusbar"/>
   <widget class="QDockWidget" name="dockWidgetAction">
@@ -193,12 +224,12 @@ QTabWidget QTabBar::close-button {
   </widget>
   <action name="actionOpen_worksapce">
    <property name="text">
-    <string>Open worksapce</string>
+    <string>Open workspace (Ctrl+O)</string>
    </property>
   </action>
   <action name="actionNew_workspace">
    <property name="text">
-    <string>New workspace</string>
+    <string>New workspace (Ctrl+N)</string>
    </property>
   </action>
   <action name="actionSave_as">
@@ -214,6 +245,127 @@ QTabWidget QTabBar::close-button {
   <action name="actionClear">
    <property name="text">
     <string>Clear</string>
+   </property>
+  </action>
+  <action name="actionSave_as_Ctrl_Shift_S">
+   <property name="text">
+    <string>Save as (Ctrl+Shift+S)</string>
+   </property>
+  </action>
+  <action name="actionSave_Ctrl_S">
+   <property name="text">
+    <string>Save (Ctrl+S)</string>
+   </property>
+  </action>
+  <action name="actionClose_workspace">
+   <property name="text">
+    <string>Close workspace</string>
+   </property>
+  </action>
+  <action name="actionNew_project_chapter">
+   <property name="text">
+    <string>New project (chapter)</string>
+   </property>
+  </action>
+  <action name="actionRename_project">
+   <property name="text">
+    <string>Rename project</string>
+   </property>
+  </action>
+  <action name="actionRemove_project">
+   <property name="text">
+    <string>Remove project</string>
+   </property>
+  </action>
+  <action name="actionOpen_input_directory">
+   <property name="text">
+    <string>Open input directory</string>
+   </property>
+  </action>
+  <action name="actionOpen_output_directory">
+   <property name="text">
+    <string>Open output directory
+</string>
+   </property>
+  </action>
+  <action name="actionNew_canvas_profile">
+   <property name="text">
+    <string>New canvas profile</string>
+   </property>
+  </action>
+  <action name="actionEdit_active_profile">
+   <property name="text">
+    <string>Edit active profile</string>
+   </property>
+  </action>
+  <action name="actionManage_profiles">
+   <property name="text">
+    <string>Manage profiles</string>
+   </property>
+  </action>
+  <action name="actionEdit_output_settings">
+   <property name="text">
+    <string>Edit output settings</string>
+   </property>
+  </action>
+  <action name="actionNew_output_profile">
+   <property name="text">
+    <string>New output profile</string>
+   </property>
+  </action>
+  <action name="actionManage_output_profiles">
+   <property name="text">
+    <string>Manage output profiles</string>
+   </property>
+  </action>
+  <action name="actionSet_output_directory">
+   <property name="text">
+    <string>Set output directory</string>
+   </property>
+  </action>
+  <action name="actionRender_current_project_F5">
+   <property name="text">
+    <string>Render current project   F5</string>
+   </property>
+  </action>
+  <action name="actionRender_all_projects_F6">
+   <property name="text">
+    <string>Render all projects      F6</string>
+   </property>
+  </action>
+  <action name="actionStop_Esc">
+   <property name="text">
+    <string>Stop                     Esc</string>
+   </property>
+  </action>
+  <action name="actionGenerate_templates">
+   <property name="text">
+    <string>Generate templates</string>
+   </property>
+  </action>
+  <action name="actionManage_templates">
+   <property name="text">
+    <string>Manage templates</string>
+   </property>
+  </action>
+  <action name="actionReveal_workspace_in_Explorer">
+   <property name="text">
+    <string>Reveal workspace in Explorer</string>
+   </property>
+  </action>
+  <action name="actionHelp">
+   <property name="text">
+    <string>Help</string>
+   </property>
+  </action>
+  <action name="actionAuthors">
+   <property name="text">
+    <string>Authors</string>
+   </property>
+  </action>
+  <action name="actionVersion">
+   <property name="text">
+    <string>Version</string>
    </property>
   </action>
  </widget>

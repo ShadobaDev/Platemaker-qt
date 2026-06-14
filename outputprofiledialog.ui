@@ -1,0 +1,388 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ui version="4.0">
+ <class>OutputProfileDialog</class>
+ <widget class="QDialog" name="OutputProfileDialog">
+  <property name="geometry">
+   <rect>
+    <x>0</x>
+    <y>0</y>
+    <width>400</width>
+    <height>560</height>
+   </rect>
+  </property>
+  <property name="windowTitle">
+   <string>Output Profile</string>
+  </property>
+  <property name="styleSheet">
+   <string notr="true">
+QDialog {
+    background-color: #1e1e1e;
+    color: #e0e0e0;
+}
+QGroupBox {
+    color: #aaaaaa;
+    border: 1px solid #3d3d3d;
+    border-radius: 4px;
+    margin-top: 8px;
+    padding-top: 8px;
+    font-size: 11px;
+}
+QGroupBox::title {
+    subcontrol-origin: margin;
+    left: 8px;
+    padding: 0 4px;
+}
+QLabel {
+    color: #cccccc;
+    font-size: 12px;
+}
+QLineEdit, QSpinBox, QComboBox {
+    background-color: #2d2d2d;
+    color: #e0e0e0;
+    border: 1px solid #555555;
+    border-radius: 3px;
+    padding: 3px 6px;
+    font-size: 12px;
+}
+QLineEdit:focus, QSpinBox:focus, QComboBox:focus {
+    border: 1px solid #0078d7;
+}
+QComboBox::drop-down {
+    border: none;
+}
+QComboBox QAbstractItemView {
+    background-color: #2d2d2d;
+    color: #e0e0e0;
+    selection-background-color: #0d3a5c;
+}
+QRadioButton {
+    color: #cccccc;
+    font-size: 12px;
+    spacing: 6px;
+}
+QRadioButton::indicator {
+    width: 14px;
+    height: 14px;
+    border: 1px solid #555555;
+    border-radius: 7px;
+    background-color: #2d2d2d;
+}
+QRadioButton::indicator:checked {
+    background-color: #0078d7;
+    border-color: #0078d7;
+}
+QCheckBox {
+    color: #cccccc;
+    font-size: 12px;
+    spacing: 6px;
+}
+QCheckBox::indicator {
+    width: 14px;
+    height: 14px;
+    border: 1px solid #555555;
+    border-radius: 2px;
+    background-color: #2d2d2d;
+}
+QCheckBox::indicator:checked {
+    background-color: #0078d7;
+    border-color: #0078d7;
+}
+QPushButton {
+    background-color: #2d2d2d;
+    color: #e0e0e0;
+    border: 1px solid #555555;
+    border-radius: 3px;
+    padding: 5px 14px;
+    font-size: 12px;
+}
+QPushButton:hover {
+    background-color: #3d3d3d;
+    border-color: #0078d7;
+}
+QPushButton#buttonSave {
+    background-color: #0078d7;
+    color: #ffffff;
+    border: none;
+    font-weight: bold;
+}
+QPushButton#buttonSave:hover {
+    background-color: #1a8fe8;
+}
+QFrame#formatOptionsFrame {
+    background-color: #252525;
+    border: 1px solid #333333;
+    border-radius: 3px;
+}
+   </string>
+  </property>
+
+  <layout class="QVBoxLayout" name="verticalLayoutMain">
+   <property name="spacing"><number>12</number></property>
+   <property name="contentsMargins"><rect><x>16</x><y>16</y><x>16</x><y>16</y></rect></property>
+
+   <!-- Name -->
+   <item>
+    <layout class="QHBoxLayout">
+     <item>
+      <widget class="QLabel">
+       <property name="text"><string>Profile name:</string></property>
+       <property name="minimumWidth"><number>90</number></property>
+      </widget>
+     </item>
+     <item>
+      <widget class="QLineEdit" name="lineEditName">
+       <property name="placeholderText"><string>e.g. Webtoon Standard</string></property>
+      </widget>
+     </item>
+    </layout>
+   </item>
+
+   <!-- Output format -->
+   <item>
+    <widget class="QGroupBox" name="groupBoxFormat">
+     <property name="title"><string>Output format</string></property>
+     <layout class="QVBoxLayout" name="verticalLayoutFormat">
+      <property name="spacing"><number>8</number></property>
+
+      <!-- Format radio buttons -->
+      <item>
+       <layout class="QHBoxLayout">
+        <item>
+         <widget class="QRadioButton" name="radioButtonPNG">
+          <property name="text"><string>PNG</string></property>
+          <property name="checked"><bool>true</bool></property>
+         </widget>
+        </item>
+        <item>
+         <widget class="QRadioButton" name="radioButtonJPEG">
+          <property name="text"><string>JPEG</string></property>
+         </widget>
+        </item>
+        <item>
+         <widget class="QRadioButton" name="radioButtonWEBP">
+          <property name="text"><string>WEBP</string></property>
+         </widget>
+        </item>
+        <item>
+         <spacer>
+          <property name="orientation"><enum>Qt::Orientation::Horizontal</enum></property>
+          <property name="sizeHint" stdset="0"><size><width>40</width><height>20</height></size></property>
+         </spacer>
+        </item>
+       </layout>
+      </item>
+
+      <!-- Format-specific options (shown/hidden by code based on radio selection) -->
+      <item>
+       <widget class="QFrame" name="frameJpegOptions">
+        <property name="frameShape"><enum>QFrame::Shape::StyledPanel</enum></property>
+        <property name="visible"><bool>false</bool></property>
+        <layout class="QFormLayout" name="formLayoutJpeg">
+         <property name="horizontalSpacing"><number>12</number></property>
+         <property name="verticalSpacing"><number>6</number></property>
+         <property name="contentsMargins"><rect><x>8</x><y>8</y><x>8</x><y>8</y></rect></property>
+         <item row="0" column="0">
+          <widget class="QLabel"><property name="text"><string>Quality (0–100):</string></property></widget>
+         </item>
+         <item row="0" column="1">
+          <widget class="QSpinBox" name="spinBoxJpegQuality">
+           <property name="minimum"><number>0</number></property>
+           <property name="maximum"><number>100</number></property>
+           <property name="value"><number>90</number></property>
+          </widget>
+         </item>
+         <item row="1" column="0">
+          <widget class="QLabel"><property name="text"><string>Subsampling:</string></property></widget>
+         </item>
+         <item row="1" column="1">
+          <widget class="QComboBox" name="comboBoxJpegSubsampling">
+           <item><property name="text"><string>YUV_444</string></property></item>
+           <item><property name="text"><string>YUV_422</string></property></item>
+           <item><property name="text"><string>YUV_420</string></property></item>
+          </widget>
+         </item>
+         <item row="2" column="0">
+          <widget class="QLabel"><property name="text"><string>Optimize:</string></property></widget>
+         </item>
+         <item row="2" column="1">
+          <widget class="QCheckBox" name="checkBoxJpegOptimize">
+           <property name="text"><string/></property>
+           <property name="checked"><bool>true</bool></property>
+          </widget>
+         </item>
+         <item row="3" column="0">
+          <widget class="QLabel"><property name="text"><string>Progressive:</string></property></widget>
+         </item>
+         <item row="3" column="1">
+          <widget class="QCheckBox" name="checkBoxJpegProgressive">
+           <property name="text"><string/></property>
+          </widget>
+         </item>
+        </layout>
+       </widget>
+      </item>
+
+      <item>
+       <widget class="QFrame" name="frameWebpOptions">
+        <property name="frameShape"><enum>QFrame::Shape::StyledPanel</enum></property>
+        <property name="visible"><bool>false</bool></property>
+        <layout class="QFormLayout" name="formLayoutWebp">
+         <property name="horizontalSpacing"><number>12</number></property>
+         <property name="verticalSpacing"><number>6</number></property>
+         <property name="contentsMargins"><rect><x>8</x><y>8</y><x>8</x><y>8</y></rect></property>
+         <item row="0" column="0">
+          <widget class="QLabel"><property name="text"><string>Quality (0–100):</string></property></widget>
+         </item>
+         <item row="0" column="1">
+          <widget class="QSpinBox" name="spinBoxWebpQuality">
+           <property name="minimum"><number>0</number></property>
+           <property name="maximum"><number>100</number></property>
+           <property name="value"><number>90</number></property>
+          </widget>
+         </item>
+         <item row="1" column="0">
+          <widget class="QLabel"><property name="text"><string>Compression (0–9):</string></property></widget>
+         </item>
+         <item row="1" column="1">
+          <widget class="QSpinBox" name="spinBoxWebpCompression">
+           <property name="minimum"><number>0</number></property>
+           <property name="maximum"><number>9</number></property>
+           <property name="value"><number>6</number></property>
+          </widget>
+         </item>
+         <item row="2" column="0">
+          <widget class="QLabel"><property name="text"><string>Lossless:</string></property></widget>
+         </item>
+         <item row="2" column="1">
+          <widget class="QCheckBox" name="checkBoxWebpLossless">
+           <property name="text"><string/></property>
+          </widget>
+         </item>
+        </layout>
+       </widget>
+      </item>
+
+     </layout>
+    </widget>
+   </item>
+
+   <!-- Slicing -->
+   <item>
+    <widget class="QGroupBox" name="groupBoxSlicing">
+     <property name="title"><string>Slicing</string></property>
+     <layout class="QFormLayout" name="formLayoutSlicing">
+      <property name="horizontalSpacing"><number>12</number></property>
+      <property name="verticalSpacing"><number>8</number></property>
+      <item row="0" column="0">
+       <widget class="QLabel"><property name="text"><string>Target width (px):</string></property></widget>
+      </item>
+      <item row="0" column="1">
+       <widget class="QSpinBox" name="spinBoxTargetWidth">
+        <property name="minimum"><number>1</number></property>
+        <property name="maximum"><number>99999</number></property>
+        <property name="value"><number>800</number></property>
+       </widget>
+      </item>
+      <item row="1" column="0">
+       <widget class="QLabel"><property name="text"><string>Slice height (px):</string></property></widget>
+      </item>
+      <item row="1" column="1">
+       <widget class="QSpinBox" name="spinBoxSliceHeight">
+        <property name="minimum"><number>1</number></property>
+        <property name="maximum"><number>99999</number></property>
+        <property name="value"><number>1280</number></property>
+       </widget>
+      </item>
+      <item row="2" column="0">
+       <widget class="QLabel"><property name="text"><string>Start index:</string></property></widget>
+      </item>
+      <item row="2" column="1">
+       <widget class="QSpinBox" name="spinBoxStartIndex">
+        <property name="minimum"><number>0</number></property>
+        <property name="maximum"><number>9999</number></property>
+        <property name="value"><number>1</number></property>
+       </widget>
+      </item>
+     </layout>
+    </widget>
+   </item>
+
+   <!-- Last slice policy -->
+   <item>
+    <widget class="QGroupBox" name="groupBoxLastSlice">
+     <property name="title"><string>Last slice — if shorter than slice height</string></property>
+     <layout class="QVBoxLayout" name="verticalLayoutLastSlice">
+      <property name="spacing"><number>6</number></property>
+      <item>
+       <widget class="QRadioButton" name="radioButtonKeepAsIs">
+        <property name="text"><string>Keep as-is  (save at its natural height)</string></property>
+        <property name="checked"><bool>true</bool></property>
+       </widget>
+      </item>
+      <item>
+       <widget class="QRadioButton" name="radioButtonPadWhite">
+        <property name="text"><string>Pad with white  (extend to full slice height)</string></property>
+       </widget>
+      </item>
+      <item>
+       <widget class="QRadioButton" name="radioButtonCrop">
+        <property name="text"><string>Crop  (discard the tail entirely)</string></property>
+       </widget>
+      </item>
+     </layout>
+    </widget>
+   </item>
+
+   <item>
+    <spacer>
+     <property name="orientation"><enum>Qt::Orientation::Vertical</enum></property>
+     <property name="sizeHint" stdset="0"><size><width>20</width><height>8</height></size></property>
+    </spacer>
+   </item>
+
+   <!-- Separator + buttons -->
+   <item>
+    <widget class="QFrame">
+     <property name="frameShape"><enum>QFrame::Shape::HLine</enum></property>
+     <property name="frameShadow"><enum>QFrame::Shadow::Sunken</enum></property>
+     <property name="styleSheet"><string>color: #3d3d3d;</string></property>
+    </widget>
+   </item>
+   <item>
+    <layout class="QHBoxLayout">
+     <item>
+      <spacer>
+       <property name="orientation"><enum>Qt::Orientation::Horizontal</enum></property>
+       <property name="sizeHint" stdset="0"><size><width>40</width><height>20</height></size></property>
+      </spacer>
+     </item>
+     <item>
+      <widget class="QPushButton" name="buttonCancel">
+       <property name="text"><string>Cancel</string></property>
+      </widget>
+     </item>
+     <item>
+      <widget class="QPushButton" name="buttonSave">
+       <property name="text"><string>Save profile</string></property>
+       <property name="default"><bool>true</bool></property>
+      </widget>
+     </item>
+    </layout>
+   </item>
+
+  </layout>
+ </widget>
+ <resources/>
+ <connections>
+  <connection>
+   <sender>buttonCancel</sender>
+   <signal>clicked()</signal>
+   <receiver>OutputProfileDialog</receiver>
+   <slot>reject()</slot>
+   <hints>
+    <hint type="sourcelabel"><x>80</x><y>540</y></hint>
+    <hint type="destinationlabel"><x>200</x><y>280</y></hint>
+   </hints>
+  </connection>
+ </connections>
+</ui>

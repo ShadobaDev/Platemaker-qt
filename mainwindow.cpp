@@ -1,6 +1,10 @@
 #include "mainwindow.h"
 #include "ui_mainwindow.h"
 #include "project.h"
+#include "canvasprofiledialog.h"
+#include "managecanvasprofilesdialog.h"
+#include "manageoutputprofilesdialog.h"
+#include "outputprofiledialog.h"
 
 #include <QCloseEvent>
 #include <QDateTime>
@@ -15,7 +19,7 @@
 #include <QTabBar>
 #include <QUrl>
 
-#include <stdexcept>
+#include <algorithm>
 
 // ---------------------------------------------------------------------------
 // Construction / destruction
@@ -56,6 +60,16 @@ MainWindow::MainWindow(QWidget *parent)
         ui->dockWidgetWorkspace->show();
         ui->dockWidgetWorkspace->raise();
     });
+
+    // --- Canvas Profiles menu ---
+    connect(ui->actionManage_profiles,      &QAction::triggered, this, &MainWindow::onManageCanvasProfiles);
+    connect(ui->actionNew_canvas_profile,   &QAction::triggered, this, &MainWindow::onNewCanvasProfile);
+    connect(ui->actionEdit_active_profile,  &QAction::triggered, this, &MainWindow::onEditActiveCanvasProfile);
+
+    // --- Output menu ---
+    connect(ui->actionManage_output_profiles, &QAction::triggered, this, &MainWindow::onManageOutputProfiles);
+    connect(ui->actionNew_output_profile,     &QAction::triggered, this, &MainWindow::onNewOutputProfile);
+    connect(ui->actionEdit_output_settings,   &QAction::triggered, this, &MainWindow::onEditActiveOutputProfile);
 
     // --- Projects menu + workspace panel button ---
     connect(ui->actionNew_project_chapter, &QAction::triggered, this, &MainWindow::onNewProject);
@@ -248,7 +262,7 @@ void MainWindow::applyWorkspaceToUi()
 
 void MainWindow::closeWorkspace()
 {
-    for (QDockWidget *dock : m_openProjectDocks)
+    for (QDockWidget *dock : std::as_const(m_openProjectDocks))
         dock->deleteLater();
     m_openProjectDocks.clear();
 
@@ -272,8 +286,8 @@ void MainWindow::updateTitle()
         setWindowTitle(tr("Platemaker"));
     } else {
         setWindowTitle(tr("Platemaker — %1%2")
-            .arg(QFileInfo(m_workspacePath).fileName())
-            .arg(m_dirty ? QStringLiteral("*") : QString{}));
+            .arg(QFileInfo(m_workspacePath).fileName(),
+                 m_dirty ? QStringLiteral("*") : QString{}));
     }
 }
 
@@ -284,7 +298,7 @@ void MainWindow::updateTitle()
 void MainWindow::openProjectDock(int projectIndex)
 {
     // Bring existing dock to front if already open
-    for (QDockWidget *dock : m_openProjectDocks) {
+    for (QDockWidget *dock : std::as_const(m_openProjectDocks)) {
         if (dock->property("projectIndex").toInt() == projectIndex) {
             dock->show();
             dock->raise();
@@ -345,4 +359,193 @@ void MainWindow::toggleProjectFloatState(int index)
     } else {
         dock->setFloating(true);
     }
+}
+
+// ---------------------------------------------------------------------------
+// Canvas profile slots
+// ---------------------------------------------------------------------------
+
+static QString nowIsoTag()
+{
+    return QDateTime::currentDateTimeUtc().toString("yyyyMMddTHHmmsszzz");
+}
+
+void MainWindow::onManageCanvasProfiles()
+{
+    if (m_workspacePath.isEmpty()) {
+        QMessageBox::information(this, tr("No Workspace"), tr("Open a workspace first."));
+        return;
+    }
+
+    ManageCanvasProfilesDialog dlg(this);
+
+    QList<Platemaker::Models::CanvasProfile> profiles(
+        m_workspace.canvasProfiles.begin(), m_workspace.canvasProfiles.end());
+    dlg.setProfiles(profiles,
+                    QString::fromStdString(m_workspace.activeCanvasProfileName));
+
+    // Stage 5: connect template generation signal (placeholder for now)
+    connect(&dlg, &ManageCanvasProfilesDialog::generateTemplatesRequested,
+        this, [this](const Platemaker::Models::CanvasProfile&) {
+            QMessageBox::information(this, tr("Coming soon"),
+                tr("Template generation will be wired in Stage 5."));
+        });
+
+    if (dlg.exec() != QDialog::Accepted) return;
+
+    const auto result = dlg.profiles();
+    m_workspace.canvasProfiles.assign(result.begin(), result.end());
+    m_workspace.activeCanvasProfileName = dlg.activeProfileName().toStdString();
+
+    // Assign IDs to any profiles added without one (dialog doesn't generate them)
+    for (auto& p : m_workspace.canvasProfiles) {
+        if (p.id.empty())
+            p.id = "cp-" + nowIsoTag().toStdString();
+    }
+
+    setDirty(true);
+    onSave();
+}
+
+void MainWindow::onNewCanvasProfile()
+{
+    if (m_workspacePath.isEmpty()) {
+        QMessageBox::information(this, tr("No Workspace"), tr("Open a workspace first."));
+        return;
+    }
+
+    CanvasProfileDialog dlg(this);
+    if (dlg.exec() != QDialog::Accepted) return;
+
+    auto profile = dlg.profile();
+
+    for (const auto& p : m_workspace.canvasProfiles) {
+        if (p.name == profile.name) {
+            QMessageBox::warning(this, tr("Duplicate name"),
+                tr("A canvas profile named \"%1\" already exists.")
+                    .arg(QString::fromStdString(profile.name)));
+            return;
+        }
+    }
+
+    profile.id = "cp-" + nowIsoTag().toStdString();
+    m_workspace.canvasProfiles.push_back(profile);
+
+    if (m_workspace.canvasProfiles.size() == 1)
+        m_workspace.activeCanvasProfileName = profile.name;
+
+    setDirty(true);
+    onSave();
+}
+
+void MainWindow::onEditActiveCanvasProfile()
+{
+    const auto it = std::find_if(
+        m_workspace.canvasProfiles.begin(), m_workspace.canvasProfiles.end(),
+        [&](const auto& p){ return p.name == m_workspace.activeCanvasProfileName; });
+
+    if (it == m_workspace.canvasProfiles.end()) {
+        QMessageBox::information(this, tr("No Active Profile"),
+            tr("No active canvas profile. Use Canvas Profiles → Manage to create one."));
+        return;
+    }
+
+    CanvasProfileDialog dlg(this);
+    dlg.setProfile(*it);
+    if (dlg.exec() != QDialog::Accepted) return;
+
+    const std::string oldName = it->name;
+    const std::string savedId = it->id;
+    *it = dlg.profile();
+    it->id = savedId; // preserve the stable ID
+
+    if (m_workspace.activeCanvasProfileName == oldName)
+        m_workspace.activeCanvasProfileName = it->name;
+
+    setDirty(true);
+    onSave();
+}
+
+// ---------------------------------------------------------------------------
+// Output profile slots
+// ---------------------------------------------------------------------------
+
+void MainWindow::onManageOutputProfiles()
+{
+    if (m_workspacePath.isEmpty()) {
+        QMessageBox::information(this, tr("No Workspace"), tr("Open a workspace first."));
+        return;
+    }
+
+    ManageOutputProfilesDialog dlg(this);
+
+    QList<Platemaker::Models::OutputProfile> profiles(
+        m_workspace.outputProfiles.begin(), m_workspace.outputProfiles.end());
+    dlg.setProfiles(profiles,
+                    QString::fromStdString(m_workspace.activeOutputProfileName));
+
+    if (dlg.exec() != QDialog::Accepted) return;
+
+    const auto result = dlg.profiles();
+    m_workspace.outputProfiles.assign(result.begin(), result.end());
+    m_workspace.activeOutputProfileName = dlg.activeProfileName().toStdString();
+
+    setDirty(true);
+    onSave();
+}
+
+void MainWindow::onNewOutputProfile()
+{
+    if (m_workspacePath.isEmpty()) {
+        QMessageBox::information(this, tr("No Workspace"), tr("Open a workspace first."));
+        return;
+    }
+
+    OutputProfileDialog dlg(this);
+    if (dlg.exec() != QDialog::Accepted) return;
+
+    auto profile = dlg.profile();
+
+    for (const auto& p : m_workspace.outputProfiles) {
+        if (p.name == profile.name) {
+            QMessageBox::warning(this, tr("Duplicate name"),
+                tr("An output profile named \"%1\" already exists.")
+                    .arg(QString::fromStdString(profile.name)));
+            return;
+        }
+    }
+
+    m_workspace.outputProfiles.push_back(profile);
+
+    if (m_workspace.outputProfiles.size() == 1)
+        m_workspace.activeOutputProfileName = profile.name;
+
+    setDirty(true);
+    onSave();
+}
+
+void MainWindow::onEditActiveOutputProfile()
+{
+    const auto it = std::find_if(
+        m_workspace.outputProfiles.begin(), m_workspace.outputProfiles.end(),
+        [&](const auto& p){ return p.name == m_workspace.activeOutputProfileName; });
+
+    if (it == m_workspace.outputProfiles.end()) {
+        QMessageBox::information(this, tr("No Active Profile"),
+            tr("No active output profile. Use Output → Manage to create one."));
+        return;
+    }
+
+    OutputProfileDialog dlg(this);
+    dlg.setProfile(*it);
+    if (dlg.exec() != QDialog::Accepted) return;
+
+    const std::string oldName = it->name;
+    *it = dlg.profile();
+
+    if (m_workspace.activeOutputProfileName == oldName)
+        m_workspace.activeOutputProfileName = it->name;
+
+    setDirty(true);
+    onSave();
 }

@@ -79,7 +79,10 @@ QPushButton#buttonDelete:hover {
 
   <layout class="QVBoxLayout" name="verticalLayoutMain">
    <property name="spacing"><number>12</number></property>
-   <property name="contentsMargins"><rect><x>16</x><y>16</y><x>16</x><y>16</y></rect></property>
+   <property name="leftMargin"><number>16</number></property>
+   <property name="topMargin"><number>16</number></property>
+   <property name="rightMargin"><number>16</number></property>
+   <property name="bottomMargin"><number>16</number></property>
 
    <item>
     <layout class="QHBoxLayout" name="horizontalLayoutContent">

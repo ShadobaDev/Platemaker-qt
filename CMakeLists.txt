@@ -31,9 +31,11 @@ if(1)
     # ───────────────────────────────────────────────────────────────────────────────
     set(PLATEMAKER_VERSION "0.1.1")
     set(PLATEMAKER_DIR "" CACHE PATH "Path to a local platemaker dev package")
+    message("Local libplatemaker path: ${PLATEMAKER_DIR}")
 
     if(PLATEMAKER_DIR)
         list(PREPEND CMAKE_PREFIX_PATH "${PLATEMAKER_DIR}")
+        message("Set libplatemaker path: ${PLATEMAKER_DIR}")
     endif()
 
     find_package(platemaker CONFIG QUIET)

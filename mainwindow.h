@@ -38,6 +38,16 @@ private slots:
     void onNewProject();
     void onProjectDoubleClicked(QListWidgetItem *item);
 
+    // Canvas profile actions
+    void onManageCanvasProfiles();
+    void onNewCanvasProfile();
+    void onEditActiveCanvasProfile();
+
+    // Output profile actions
+    void onManageOutputProfiles();
+    void onNewOutputProfile();
+    void onEditActiveOutputProfile();
+
 private:
     // --- helpers ---
     bool maybeSave();                           // true = safe to proceed

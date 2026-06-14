@@ -17,54 +17,27 @@ These are the foundation — nothing else is usable without them.
 
 ---
 
-## Stage 2 — Image Tile Grid
+## Stage 2 — Image Tile Grid ✅
 
-Requires Stage 1 (project must be open with `InputFile` list populated).
-
-- [ ] **Populate tile grid from `ProjectItem::getInputImages()`**
-  - Create one `ImageTile` per `InputFile`, ordered by `InputFile::order`
-  - Pass `filePath` and `status` to each tile
-
-- [ ] **Thumbnail loading (async)**
-  - On `ImageTile` first paint: `QtConcurrent::run([path]{ ThumbnailCache::getOrGenerate(path); })`
-  - On worker finish: `QMetaObject::invokeMethod` → set pixmap, `update()`
-  - Show placeholder rect while loading; show error icon on failure
-
-- [ ] **Status badge**
-  - Reflect `FileStatus` enum visually: colour dot or label overlay
-  - Update tiles after `project.sanitize()` is called (before pipeline run)
-
-- [ ] **Drag-and-drop reorder**
-  - Enable `QAbstractItemView`-style DnD or custom mouse handling in `Project`
-  - After drop: update `InputFile::order` for all affected tiles, set `stripDirty = true`
+- [x] **Populate tile grid from `ProjectItem::getInputImages()`**
+- [x] **Thumbnail loading (async)** — `QtConcurrent::run` + `QFutureWatcher`, fits within 160×120 with `KeepAspectRatio`
+- [x] **Status badge** — colored left border: gray=Pending, green=Processed/Done, orange=Modified, red=Missing
+- [x] **Drag-and-drop reorder** — `InternalMove` on `listImageTile`, `rowsMoved` → updates `InputFile::order`
 
 ---
 
 ## Stage 3 — Profile Management (wiring dialogs to workspace)
 
-Dialogs exist; they need to read/write `m_workspace`.
+- [x] **Canvas Profiles — full CRUD** — `actionManage_profiles` → `ManageCanvasProfilesDialog`, wired in `MainWindow`
+- [x] **Output Profiles — full CRUD** — `actionManage_output_profiles` → `ManageOutputProfilesDialog`, wired in `MainWindow`
 
-- [ ] **Canvas Profiles — full CRUD**
-  - `Workspace → Canvas Profiles…` opens `ManageCanvasProfilesDialog`
-  - Pass `m_workspace.canvasProfiles` by reference (or copy + commit on OK)
-  - **Add**: call `CanvasProfileDialog`, append to list, generate `id = "cp-" + timestamp`
-  - **Edit**: call `CanvasProfileDialog`, update in-place
-  - **Delete**: warn if profile is linked to any project (`canvasProfileIds` check), then remove
-  - On OK: `m_dirty = true`
+- [ ] **Link canvas profile to project** *(blocked: requires `canvasProfileIds: vector<string>` added to `ProjectItem` in lib)*
+  - Add `pushButton` "Assign Canvas Profiles…" in `project.ui` Input Toolbox (dictate to user)
+  - Call `addCanvasProfileToProject()` (libplatemaker) — show conflict error if returned
 
-- [ ] **Output Profiles — full CRUD**
-  - Same pattern as canvas profiles
-  - **Delete**: warn if profile is the `outputProfileId` of any project
-
-- [ ] **Link canvas profile to project**
-  - Button in `Project` toolbar: "Assign Canvas Profile"
-  - Show list of `m_workspace.canvasProfiles` not yet linked
-  - Call `addCanvasProfileToProject()` (libplatemaker) — display conflict error if returned
-  - Show linked profiles in project toolbar as chips/tags
-
-- [ ] **Select output profile for project**
-  - Drop-down in `Project` toolbar, populated from `m_workspace.outputProfiles`
-  - Sets `ProjectItem::outputProfileId`, marks `stripDirty = true`
+- [ ] **Select output profile for project** *(blocked: requires `outputProfileId: string` added to `ProjectItem` in lib)*
+  - Add `QComboBox` in `project.ui` Output Toolbox (dictate to user)
+  - On change: set `ProjectItem::outputProfileId`, `stripDirty = true`, emit `projectModified`
 
 ---
 

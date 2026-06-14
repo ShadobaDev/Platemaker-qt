@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE QtCreatorProject>
-<!-- Written by QtCreator 19.0.2, 2026-06-14T17:57:09. -->
+<!-- Written by QtCreator 19.0.2, 2026-06-14T19:57:58. -->
 <qtcreator>
  <data>
   <variable>EnvironmentId</variable>
@@ -75,6 +75,10 @@
    <valuelist type="QVariantList" key="AutoTest.PathFilters"/>
    <value type="int" key="AutoTest.RunAfterBuild">0</value>
    <value type="bool" key="AutoTest.UseGlobal">true</value>
+   <valuemap type="QVariantMap" key="CMakeSpecificSettings">
+    <value type="QString" key="NinjaPath">C:/ProgramData/Qt\Tools\Ninja\ninja.exe</value>
+    <value type="bool" key="UseGlobalSettings">true</value>
+   </valuemap>
    <valuemap type="QVariantMap" key="ClangTools">
     <value type="bool" key="ClangTools.AnalyzeOpenFiles">true</value>
     <value type="bool" key="ClangTools.BuildBeforeAnalysis">true</value>

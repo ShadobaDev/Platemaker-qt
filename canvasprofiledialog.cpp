@@ -81,10 +81,14 @@ Platemaker::Models::CanvasProfile CanvasProfileDialog::profile() const
                              ui->spinBoxMarginBottom->value(),
                              ui->spinBoxMarginLeft->value(),
                              ui->spinBoxMarginRight->value() };
-    cp.visualColour      = { m_visualColour.red(), m_visualColour.green(),
-                             m_visualColour.blue(), m_visualColour.alpha() };
-    cp.backgroundColour  = { m_bgColour.red(), m_bgColour.green(),
-                             m_bgColour.blue(), m_bgColour.alpha() };
+    cp.visualColour      = { static_cast<uint8_t>(m_visualColour.red()),
+                             static_cast<uint8_t>(m_visualColour.green()),
+                             static_cast<uint8_t>(m_visualColour.blue()),
+                             static_cast<uint8_t>(m_visualColour.alpha()) };
+    cp.backgroundColour  = { static_cast<uint8_t>(m_bgColour.red()),
+                             static_cast<uint8_t>(m_bgColour.green()),
+                             static_cast<uint8_t>(m_bgColour.blue()),
+                             static_cast<uint8_t>(m_bgColour.alpha()) };
     return cp;
 }
 

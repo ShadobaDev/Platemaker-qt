@@ -57,6 +57,13 @@ private:
     void setDirty(bool dirty);
     void updateTitle();
 
+    // Captures the current workspace's serialized form as the "saved" baseline.
+    // Call after every successful load/save; clears the dirty flag.
+    void captureSnapshot();
+    // Authoritative change check: true if the workspace differs from the last
+    // captured snapshot. Robust against any action that forgot to setDirty().
+    [[nodiscard]] bool isWorkspaceModified() const;
+
     // --- project dock management ---
     void openProjectDock(int projectIndex);
     void closeProjectByIndex(int index);
@@ -69,7 +76,8 @@ private:
     Platemaker::Models::Workspace                      m_workspace;
     Platemaker::Infrastructure::WorkspaceSerializer    m_serializer;
     QString m_workspacePath;
-    bool    m_dirty = false;
+    bool    m_dirty = false;           // eager flag driving the title-bar asterisk
+    QString m_savedSnapshot;           // serialized workspace at last load/save
 
     // UI-only selection state (not persisted in the workspace model since v2).
     // Shouldn't be used per project, or even per input file?

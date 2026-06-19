@@ -25,6 +25,9 @@ public:
 
     ~CanvasProfileDialog() override;
 
+protected:
+    bool eventFilter(QObject *watched, QEvent *event) override;
+
 private slots:
     void onSaveClicked();
     void onPickVisualColour();
@@ -36,6 +39,7 @@ private:
     void applyColourToButton(QPushButton *button, const QColor &colour);
     void updatePreview();
     void updateSizeInfoLabel();
+    void paintCanvasPreview();
 
     Ui::CanvasProfileDialog *ui;
 

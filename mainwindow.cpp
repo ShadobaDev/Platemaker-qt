@@ -16,6 +16,7 @@
 #include <QLineEdit>
 #include <QListWidgetItem>
 #include <QMessageBox>
+#include <QSettings>
 #include <QTabBar>
 #include <QUrl>
 
@@ -138,7 +139,7 @@ void MainWindow::onNewWorkspace()
         return;
     }
 
-    setDirty(false);
+    captureSnapshot();
     applyWorkspaceToUi();
 }
 
@@ -148,7 +149,7 @@ void MainWindow::onSave()
 
     try {
         m_serializer.save(m_workspace, m_workspacePath.toStdString());
-        setDirty(false);
+        captureSnapshot();
     } catch (const std::exception &e) {
         QMessageBox::critical(this, tr("Error"),
             tr("Cannot save workspace:\n%1").arg(e.what()));
@@ -205,7 +206,6 @@ void MainWindow::onNewProject()
     m_workspace.projectItems.push_back(std::move(proj));
     setDirty(true);
     applyWorkspaceToUi();
-    onSave();
 }
 
 void MainWindow::onProjectDoubleClicked(QListWidgetItem *item)
@@ -222,14 +222,23 @@ void MainWindow::onProjectDoubleClicked(QListWidgetItem *item)
 
 bool MainWindow::maybeSave()
 {
-    if (!m_dirty) return true;
+    // Authoritative check — independent of the eager m_dirty flag, so a forgotten
+    // setDirty() can never silently drop changes.
+    if (!isWorkspaceModified()) return true;
+
+    // Optional preference: save silently instead of prompting (Stage 6 setting).
+    QSettings settings("Platemaker", "Platemaker");
+    if (settings.value("autoSaveOnExit", false).toBool()) {
+        onSave();
+        return !isWorkspaceModified(); // proceed only if the save actually succeeded
+    }
 
     const auto btn = QMessageBox::question(
         this, tr("Unsaved Changes"),
         tr("The workspace has unsaved changes. Save before continuing?"),
         QMessageBox::Save | QMessageBox::Discard | QMessageBox::Cancel);
 
-    if (btn == QMessageBox::Save)    { onSave(); return !m_dirty; }
+    if (btn == QMessageBox::Save)    { onSave(); return !isWorkspaceModified(); }
     if (btn == QMessageBox::Discard) return true;
     return false; // Cancel
 }
@@ -253,7 +262,7 @@ void MainWindow::loadWorkspace(const QString &path)
     m_activeOutputProfileName = m_workspace.outputProfiles.empty()
         ? QString{}
         : QString::fromStdString(m_workspace.outputProfiles.front().name);
-    setDirty(false);
+    captureSnapshot();
     applyWorkspaceToUi();
 }
 
@@ -274,6 +283,7 @@ void MainWindow::closeWorkspace()
 
     m_workspace     = Platemaker::Models::Workspace{};
     m_workspacePath.clear();
+    m_savedSnapshot.clear();
     m_activeCanvasProfileName.clear();
     m_activeOutputProfileName.clear();
     setDirty(false);
@@ -286,6 +296,22 @@ void MainWindow::setDirty(bool dirty)
 {
     m_dirty = dirty;
     updateTitle();
+}
+
+void MainWindow::captureSnapshot()
+{
+    m_savedSnapshot = m_workspacePath.isEmpty()
+        ? QString{}
+        : QString::fromStdString(m_serializer.serialize(m_workspace));
+    setDirty(false);
+}
+
+bool MainWindow::isWorkspaceModified() const
+{
+    if (m_workspacePath.isEmpty())
+        return false; // no workspace loaded — nothing to save
+    return QString::fromStdString(m_serializer.serialize(m_workspace))
+           != m_savedSnapshot;
 }
 
 void MainWindow::updateTitle()
@@ -327,7 +353,6 @@ void MainWindow::openProjectDock(int projectIndex)
     auto* projectWidget = new Project(projectIndex, m_workspace, cacheDir, newDock);
     connect(projectWidget, &Project::projectModified, this, [this]{
         setDirty(true);
-        onSave();
     });
     newDock->setWidget(projectWidget);
 
@@ -415,7 +440,6 @@ void MainWindow::onManageCanvasProfiles()
     }
 
     setDirty(true);
-    onSave();
 }
 
 void MainWindow::onNewCanvasProfile()
@@ -446,7 +470,6 @@ void MainWindow::onNewCanvasProfile()
         m_activeCanvasProfileName = QString::fromStdString(profile.name);
 
     setDirty(true);
-    onSave();
 }
 
 void MainWindow::onEditActiveCanvasProfile()
@@ -474,7 +497,6 @@ void MainWindow::onEditActiveCanvasProfile()
         m_activeCanvasProfileName = QString::fromStdString(it->name);
 
     setDirty(true);
-    onSave();
 }
 
 // ---------------------------------------------------------------------------
@@ -501,7 +523,6 @@ void MainWindow::onManageOutputProfiles()
     m_activeOutputProfileName = dlg.activeProfileName();
 
     setDirty(true);
-    onSave();
 }
 
 void MainWindow::onNewOutputProfile()
@@ -531,7 +552,6 @@ void MainWindow::onNewOutputProfile()
         m_activeOutputProfileName = QString::fromStdString(profile.name);
 
     setDirty(true);
-    onSave();
 }
 
 void MainWindow::onEditActiveOutputProfile()
@@ -557,5 +577,4 @@ void MainWindow::onEditActiveOutputProfile()
         m_activeOutputProfileName = QString::fromStdString(it->name);
 
     setDirty(true);
-    onSave();
 }

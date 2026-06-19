@@ -4,9 +4,12 @@
 #include <platemaker/models/canvas_profile.hpp>
 
 #include <QColorDialog>
+#include <QEvent>
 #include <QFrame>
 #include <QPushButton>
 #include <QPainter>
+
+#include <algorithm>
 
 // ---------------------------------------------------------------------------
 
@@ -31,6 +34,10 @@ CanvasProfileDialog::CanvasProfileDialog(QWidget *parent)
     // A standalone QRadioButton stays checked after first click unless we
     // disable auto-exclusivity, which makes it behave like a checkbox toggle.
     ui->radioButtonSafeArea->setAutoExclusive(false);
+
+    // canvasPreviewWidget is a plain QWidget with no paintEvent of its own;
+    // intercept its paint event here so we can draw the live canvas preview.
+    ui->canvasPreviewWidget->installEventFilter(this);
 
     applyColourToButton(ui->buttonVisualColour, m_visualColour);
     applyColourToButton(ui->buttonBgColour,     m_bgColour);
@@ -70,13 +77,23 @@ void CanvasProfileDialog::setProfile(const Platemaker::Models::CanvasProfile &pr
 
     ui->lineEditName->setText(QString::fromStdString(profile.name));
 
-    ui->spinBoxWidth->setValue(profile.canvasSize.width);
-    ui->spinBoxHeight->setValue(profile.canvasSize.height);
-
     ui->spinBoxMarginTop->setValue(profile.margins.top);
     ui->spinBoxMarginBottom->setValue(profile.margins.bottom);
     ui->spinBoxMarginLeft->setValue(profile.margins.left);
     ui->spinBoxMarginRight->setValue(profile.margins.right);
+
+    // canvasSize is always stored as the absolute canvas. If the user entered
+    // it as a safe area, display safe area = canvas − margins in the spinboxes
+    // so they see their data exactly as they typed it.
+    if (m_safeAreaMode) {
+        ui->spinBoxWidth->setValue(profile.canvasSize.width
+                                   - profile.margins.left - profile.margins.right);
+        ui->spinBoxHeight->setValue(profile.canvasSize.height
+                                    - profile.margins.top - profile.margins.bottom);
+    } else {
+        ui->spinBoxWidth->setValue(profile.canvasSize.width);
+        ui->spinBoxHeight->setValue(profile.canvasSize.height);
+    }
 
     m_visualColour = QColor(profile.visualColour.r,
                             profile.visualColour.g,
@@ -222,29 +239,88 @@ void CanvasProfileDialog::applyColourToButton(QPushButton *button, const QColor 
 
 void CanvasProfileDialog::updatePreview()
 {
+    // The actual drawing happens in paintCanvasPreview() via the event filter;
+    // here we just request a repaint with the current values.
+    if (ui->canvasPreviewWidget)
+        ui->canvasPreviewWidget->update();
+}
+
+bool CanvasProfileDialog::eventFilter(QObject *watched, QEvent *event)
+{
+    if (watched == ui->canvasPreviewWidget && event->type() == QEvent::Paint) {
+        paintCanvasPreview();
+        return true; // we fully handled the paint
+    }
+    return QDialog::eventFilter(watched, event);
+}
+
+void CanvasProfileDialog::paintCanvasPreview()
+{
+    QWidget *w = ui->canvasPreviewWidget;
+
     const int mT = ui->spinBoxMarginTop->value();
     const int mB = ui->spinBoxMarginBottom->value();
     const int mL = ui->spinBoxMarginLeft->value();
     const int mR = ui->spinBoxMarginRight->value();
 
-    // Preview always uses absolute canvas dimensions.
-    const int absW = m_safeAreaMode
-                     ? ui->spinBoxWidth->value()  + mL + mR
-                     : ui->spinBoxWidth->value();
-    const int absH = m_safeAreaMode
-                     ? ui->spinBoxHeight->value() + mT + mB
-                     : ui->spinBoxHeight->value();
+    // Spinboxes hold safe-area dimensions in safe-area mode; the preview always
+    // works in absolute canvas coordinates.
+    const int absW = m_safeAreaMode ? ui->spinBoxWidth->value()  + mL + mR
+                                     : ui->spinBoxWidth->value();
+    const int absH = m_safeAreaMode ? ui->spinBoxHeight->value() + mT + mB
+                                     : ui->spinBoxHeight->value();
 
-    QWidget *preview = ui->canvasPreviewWidget;
-    if (!preview) return;
+    QPainter p(w);
+    p.setRenderHint(QPainter::Antialiasing);
 
-    preview->setProperty("canvasW",      absW);
-    preview->setProperty("canvasH",      absH);
-    preview->setProperty("marginTop",    mT);
-    preview->setProperty("marginBottom", mB);
-    preview->setProperty("marginLeft",   mL);
-    preview->setProperty("marginRight",  mR);
-    preview->setProperty("visualColour", m_visualColour);
-    preview->setProperty("bgColour",     m_bgColour);
-    preview->update();
+    // Blend the widget background into the surrounding previewFrame (#141414).
+    p.fillRect(w->rect(), QColor(0x14, 0x14, 0x14));
+
+    if (absW <= 0 || absH <= 0)
+        return;
+
+    // 1. Available drawing area (with a small inset so the contour isn't clipped).
+    const int pad = 10;
+    const QRectF avail(pad, pad,
+                       w->width()  - 2 * pad,
+                       w->height() - 2 * pad);
+    if (avail.width() <= 0 || avail.height() <= 0)
+        return;
+
+    // 2. Fit the canvas into the available area, preserving aspect ratio.
+    const double scale = std::min(avail.width()  / absW,
+                                  avail.height() / absH);
+    const double dispW = absW * scale;
+    const double dispH = absH * scale;
+    const QRectF outer(avail.left() + (avail.width()  - dispW) / 2.0,
+                       avail.top()  + (avail.height() - dispH) / 2.0,
+                       dispW, dispH);
+
+    // Inner (safe-area) rect = canvas inset by the scaled margins.
+    const QRectF inner(outer.left()   + mL * scale,
+                       outer.top()    + mT * scale,
+                       outer.width()  - (mL + mR) * scale,
+                       outer.height() - (mT + mB) * scale);
+
+    // Safe-area / background fill: use the profile background colour if it has
+    // any opacity, otherwise a neutral dark so the canvas shape stays visible.
+    const QColor safeFill = (m_bgColour.alpha() > 0) ? m_bgColour
+                                                     : QColor(45, 45, 45);
+
+    // 3. Draw. With margins, paint the margin band in the visual colour and the
+    //    safe area on top; without margins, just fill the canvas and outline it.
+    const bool hasMargins = (mL || mR || mT || mB);
+    if (hasMargins && inner.width() > 0 && inner.height() > 0) {
+        p.fillRect(outer, m_visualColour);
+        p.fillRect(inner, safeFill);
+    } else {
+        p.fillRect(outer, safeFill);
+    }
+
+    // Canvas contour.
+    QPen pen(QColor(120, 120, 120));
+    pen.setWidthF(1.0);
+    p.setPen(pen);
+    p.setBrush(Qt::NoBrush);
+    p.drawRect(outer);
 }

@@ -86,7 +86,7 @@ Requires Stages 1–3 (workspace loaded, project open, profiles linked).
 ## Stage 6 — Polish
 
 - [ ] **Workspace panel** — tree or list widget with project names, status icons
-- [ ] **Recent files** (`QSettings` — recent workspace paths in `File` menu)
+- [x] **Recent files** — `QSettings` (IniFormat, app-config dir) holds up to 10 recent workspace paths; dynamic submenu on `actionOpen_recent_workspace`; Open/New dialogs default to the most recent workspace's folder; stale entries self-prune
 - [ ] **Auto-save** on pipeline finish (optional setting)
 - [ ] **Keyboard shortcuts** — `Ctrl+S` save, `F5` or `Ctrl+R` run, `Esc` cancel
 - [ ] **Drag files / folders onto Project window** — triggers `mergeFileScan()`

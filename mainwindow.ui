@@ -91,6 +91,7 @@ QTabWidget QTabBar::close-button {
     <addaction name="separator"/>
     <addaction name="actionOpen_worksapce"/>
     <addaction name="actionNew_workspace"/>
+    <addaction name="actionOpen_recent_workspace"/>
     <addaction name="separator"/>
     <addaction name="actionSave_Ctrl_S"/>
     <addaction name="actionSave_as_Ctrl_Shift_S"/>
@@ -253,7 +254,7 @@ QTabWidget QTabBar::close-button {
        <item>
         <widget class="QPushButton" name="pushButtonNewProject">
          <property name="text">
-          <string>PushButton</string>
+          <string>New project</string>
          </property>
         </widget>
        </item>
@@ -411,6 +412,11 @@ QTabWidget QTabBar::close-button {
   <action name="actionShow_workspace_panel">
    <property name="text">
     <string>Show workspace panel</string>
+   </property>
+  </action>
+  <action name="actionOpen_recent_workspace">
+   <property name="text">
+    <string>Open recent workspace...</string>
    </property>
   </action>
  </widget>

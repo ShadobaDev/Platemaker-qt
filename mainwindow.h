@@ -3,6 +3,7 @@
 
 #include <QMainWindow>
 #include <QList>
+#include <QStringList>
 
 #include <platemaker/infrastructure/workspace_serializer/workspace_serializer.hpp>
 #include <platemaker/models/workspace.hpp>
@@ -13,6 +14,7 @@ QT_END_NAMESPACE
 
 class QDockWidget;
 class QListWidgetItem;
+class QMenu;
 
 class MainWindow : public QMainWindow
 {
@@ -64,14 +66,24 @@ private:
     // captured snapshot. Robust against any action that forgot to setDirty().
     [[nodiscard]] bool isWorkspaceModified() const;
 
+    // --- recent workspaces (advisory list in QSettings; never required) ---
+    [[nodiscard]] QStringList recentWorkspaces() const;
+    void addToRecentWorkspaces(const QString &path);
+    void rebuildRecentMenu();
+    void openRecentWorkspace(const QString &path);
+    [[nodiscard]] QString defaultDialogDir() const;
+
     // --- project dock management ---
     void openProjectDock(int projectIndex);
     void closeProjectByIndex(int index);
     void toggleProjectFloatState(int index);
 
     // --- members ---
+    static constexpr int k_maxRecentWorkspaces = 10;
+
     Ui::MainWindow *ui;
     QList<QDockWidget *> m_openProjectDocks;
+    QMenu *m_recentMenu = nullptr;     // submenu attached to actionOpen_recent_workspace
 
     Platemaker::Models::Workspace                      m_workspace;
     Platemaker::Infrastructure::WorkspaceSerializer    m_serializer;

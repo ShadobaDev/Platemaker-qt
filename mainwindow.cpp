@@ -15,6 +15,7 @@
 #include <QKeySequence>
 #include <QLineEdit>
 #include <QListWidgetItem>
+#include <QMenu>
 #include <QMessageBox>
 #include <QSettings>
 #include <QTabBar>
@@ -33,13 +34,16 @@ MainWindow::MainWindow(QWidget *parent)
     ui->setupUi(this);
 
     setDockOptions(AnimatedDocks | AllowNestedDocks | AllowTabbedDocks);
-    ui->centralwidget->setFixedSize(0, 0);
 
-    // dockWidgetAction is defined in the .ui as a Right-area dock, which creates
-    // two separators (one left, one right of the empty central widget) — they can
-    // overlap when the central widget has zero width. Fix: remove action from the
-    // Right area and re-add it as a horizontal split of the workspace dock so the
-    // whole window lives in ONE dock area with a single splitter.
+    // QMainWindow always reserves a central-widget region and draws a separator
+    // between it and the dock area. We run a dock-only layout, so remove the
+    // central widget entirely — this kills the phantom right-side separator
+    // while leaving the working Workspace|Action splitter intact.
+    delete takeCentralWidget();
+
+    // Both docks live in ONE dock area, split horizontally: dockWidgetAction is
+    // declared as a Right-area dock in the .ui, so move it next to the workspace
+    // dock to get a single Workspace|Action splitter.
     removeDockWidget(ui->dockWidgetAction);
     splitDockWidget(ui->dockWidgetWorkspace, ui->dockWidgetAction, Qt::Horizontal);
     ui->dockWidgetAction->show();
@@ -61,6 +65,14 @@ MainWindow::MainWindow(QWidget *parent)
         ui->dockWidgetWorkspace->show();
         ui->dockWidgetWorkspace->raise();
     });
+
+    // "Open recent workspace" — attach a dynamic submenu to the existing action.
+    // Rebuilt on every show so it always reflects the current QSettings list.
+    m_recentMenu = new QMenu(this);
+    m_recentMenu->setToolTipsVisible(true);
+    ui->actionOpen_recent_workspace->setMenu(m_recentMenu);
+    connect(m_recentMenu, &QMenu::aboutToShow, this, &MainWindow::rebuildRecentMenu);
+    rebuildRecentMenu();
 
     // --- Canvas Profiles menu ---
     connect(ui->actionManage_profiles,      &QAction::triggered, this, &MainWindow::onManageCanvasProfiles);
@@ -104,7 +116,7 @@ void MainWindow::onOpenWorkspace()
     if (!maybeSave()) return;
 
     const QString path = QFileDialog::getOpenFileName(
-        this, tr("Open Workspace"), {},
+        this, tr("Open Workspace"), defaultDialogDir(),
         tr("Platemaker Workspace (*.platemaker.json);;All files (*)"));
     if (!path.isEmpty())
         loadWorkspace(path);
@@ -115,7 +127,7 @@ void MainWindow::onNewWorkspace()
     if (!maybeSave()) return;
 
     const QString path = QFileDialog::getSaveFileName(
-        this, tr("New Workspace"), {},
+        this, tr("New Workspace"), defaultDialogDir(),
         tr("Platemaker Workspace (*.platemaker.json);;All files (*)"));
     if (path.isEmpty()) return;
 
@@ -140,6 +152,7 @@ void MainWindow::onNewWorkspace()
     }
 
     captureSnapshot();
+    addToRecentWorkspaces(path);
     applyWorkspaceToUi();
 }
 
@@ -159,12 +172,15 @@ void MainWindow::onSave()
 void MainWindow::onSaveAs()
 {
     const QString path = QFileDialog::getSaveFileName(
-        this, tr("Save Workspace As"), m_workspacePath,
+        this, tr("Save Workspace As"),
+        m_workspacePath.isEmpty() ? defaultDialogDir() : m_workspacePath,
         tr("Platemaker Workspace (*.platemaker.json);;All files (*)"));
     if (path.isEmpty()) return;
 
     m_workspacePath = path;
     onSave();
+    if (!isWorkspaceModified())   // save succeeded
+        addToRecentWorkspaces(path);
 }
 
 void MainWindow::onCloseWorkspace()
@@ -227,7 +243,7 @@ bool MainWindow::maybeSave()
     if (!isWorkspaceModified()) return true;
 
     // Optional preference: save silently instead of prompting (Stage 6 setting).
-    QSettings settings("Platemaker", "Platemaker");
+    QSettings settings;
     if (settings.value("autoSaveOnExit", false).toBool()) {
         onSave();
         return !isWorkspaceModified(); // proceed only if the save actually succeeded
@@ -263,6 +279,7 @@ void MainWindow::loadWorkspace(const QString &path)
         ? QString{}
         : QString::fromStdString(m_workspace.outputProfiles.front().name);
     captureSnapshot();
+    addToRecentWorkspaces(path);
     applyWorkspaceToUi();
 }
 
@@ -312,6 +329,92 @@ bool MainWindow::isWorkspaceModified() const
         return false; // no workspace loaded — nothing to save
     return QString::fromStdString(m_serializer.serialize(m_workspace))
            != m_savedSnapshot;
+}
+
+// ---------------------------------------------------------------------------
+// Recent workspaces (advisory — purely a convenience, never required)
+// ---------------------------------------------------------------------------
+
+QStringList MainWindow::recentWorkspaces() const
+{
+    // Absent/corrupt settings simply yield an empty list — never an error.
+    return QSettings().value(QStringLiteral("recentWorkspaces")).toStringList();
+}
+
+void MainWindow::addToRecentWorkspaces(const QString &path)
+{
+    if (path.isEmpty()) return;
+
+    const QString canonical = QFileInfo(path).absoluteFilePath();
+
+    QStringList list = recentWorkspaces();
+    // Case-insensitive de-dupe so the same file can't appear twice on Windows.
+    list.removeIf([&](const QString &p){
+        return QString::compare(p, canonical, Qt::CaseInsensitive) == 0;
+    });
+    list.prepend(canonical);
+    while (list.size() > k_maxRecentWorkspaces)
+        list.removeLast();
+
+    QSettings().setValue(QStringLiteral("recentWorkspaces"), list);
+    rebuildRecentMenu();
+}
+
+void MainWindow::rebuildRecentMenu()
+{
+    if (!m_recentMenu) return;
+    m_recentMenu->clear();
+
+    const QStringList list = recentWorkspaces();
+    if (list.isEmpty()) {
+        QAction *none = m_recentMenu->addAction(tr("(No recent workspaces)"));
+        none->setEnabled(false);
+        return;
+    }
+
+    int n = 1;
+    for (const QString &path : list) {
+        const QString name = QFileInfo(path).fileName();
+        QAction *act = m_recentMenu->addAction(
+            tr("&%1  %2").arg(QString::number(n++), name));
+        act->setData(path);
+        act->setToolTip(path);
+        connect(act, &QAction::triggered, this, [this, path]{
+            openRecentWorkspace(path);
+        });
+    }
+
+    m_recentMenu->addSeparator();
+    connect(m_recentMenu->addAction(tr("Clear recent list")),
+            &QAction::triggered, this, [this]{
+        QSettings().remove(QStringLiteral("recentWorkspaces"));
+        rebuildRecentMenu();
+    });
+}
+
+void MainWindow::openRecentWorkspace(const QString &path)
+{
+    if (!maybeSave()) return;
+
+    if (!QFileInfo::exists(path)) {
+        QMessageBox::warning(this, tr("Workspace Not Found"),
+            tr("The workspace no longer exists:\n%1\n\n"
+               "It has been removed from the recent list.").arg(path));
+        QStringList list = recentWorkspaces();
+        list.removeAll(path);
+        QSettings().setValue(QStringLiteral("recentWorkspaces"), list);
+        rebuildRecentMenu();
+        return;
+    }
+
+    loadWorkspace(path);
+}
+
+QString MainWindow::defaultDialogDir() const
+{
+    const QStringList list = recentWorkspaces();
+    return list.isEmpty() ? QString{}
+                          : QFileInfo(list.first()).absolutePath();
 }
 
 void MainWindow::updateTitle()

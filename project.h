@@ -38,12 +38,18 @@ private slots:
     void onAssignCanvasProfiles();
     void onCanvasProfileDoubleClicked(QListWidgetItem* item);
     void onOutputProfileChanged(int index);
+    void onSelectOutputDir();
+    void onClearOutputDir();
+    void onImageFormatChanged();
+    void onJumpToInput();
+    void onRender();
 
 private:
     void addImageTile(const Platemaker::Models::InputFile& file);
     void addInputPaths(const QStringList& newPaths);
     void refreshCanvasProfilesList();
     void refreshOutputProfileCombo();
+    void refreshOutputDirectoryDisplay();
 
     Ui::Project* ui;
     int m_projectIndex;

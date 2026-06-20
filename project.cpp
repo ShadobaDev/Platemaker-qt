@@ -16,6 +16,7 @@
 #include <QListWidgetItem>
 #include <QMessageBox>
 #include <QSet>
+#include <QSettings>
 #include <QToolButton>
 
 #include <algorithm>
@@ -25,6 +26,7 @@ using namespace Platemaker::Models;
 namespace {
 // Sort keys stored in comboBoxSortingOpt item data.
 enum SortKey { SortByName = 0, SortByCreated = 1, SortByModified = 2 };
+
 } // namespace
 
 Project::Project(int projectIndex,
@@ -66,6 +68,27 @@ Project::Project(int projectIndex,
     connect(ui->comboBoxOutputProfile, &QComboBox::currentIndexChanged,
             this, &Project::onOutputProfileChanged);
 
+    // --- Output tab ---
+    connect(ui->pushButtonODSelect, &QPushButton::clicked,
+            this, &Project::onSelectOutputDir);
+    connect(ui->pushButtonODClear, &QPushButton::clicked,
+            this, &Project::onClearOutputDir);
+
+    // Image format: invalid placeholder + the three formats. Selecting one reveals
+    // its options group; the group contents are not yet bound to the model.
+    ui->comboBoxImageFormatSelection->addItem(tr("Select image format"), QVariant{});
+    ui->comboBoxImageFormatSelection->addItem(tr("PNG"),  static_cast<int>(OutputFormat::PNG));
+    ui->comboBoxImageFormatSelection->addItem(tr("JPEG"), static_cast<int>(OutputFormat::JPEG));
+    ui->comboBoxImageFormatSelection->addItem(tr("WebP"), static_cast<int>(OutputFormat::WebP));
+    connect(ui->comboBoxImageFormatSelection, &QComboBox::currentIndexChanged,
+            this, &Project::onImageFormatChanged);
+    onImageFormatChanged(); // start with all format groups hidden
+
+    connect(ui->pushButtonJumpToInput, &QPushButton::clicked,
+            this, &Project::onJumpToInput);
+    connect(ui->pushButtonRender, &QPushButton::clicked,
+            this, &Project::onRender);
+
     populate();
 }
 
@@ -92,6 +115,7 @@ void Project::populate()
 
     refreshCanvasProfilesList();
     refreshOutputProfileCombo();
+    refreshOutputDirectoryDisplay();
 }
 
 void Project::addImageTile(const InputFile& file)
@@ -165,7 +189,7 @@ void Project::refreshOutputProfileCombo()
 {
     ui->comboBoxOutputProfile->blockSignals(true);
     ui->comboBoxOutputProfile->clear();
-    ui->comboBoxOutputProfile->addItem(tr("(workspace default)"), QString{});
+    ui->comboBoxOutputProfile->addItem(tr("Choose output profile"), QString{});
 
     const auto& project = m_workspace.projectItems[m_projectIndex];
     const auto& wsProfiles = m_workspace.outputProfiles;
@@ -265,6 +289,68 @@ void Project::onOutputProfileChanged(int index)
     const QString id = ui->comboBoxOutputProfile->itemData(index).toString();
     m_workspace.projectItems[m_projectIndex].outputProfileId = id.toStdString();
     emit projectModified();
+}
+
+void Project::refreshOutputDirectoryDisplay()
+{
+    ui->textOutputDirectory->setPlainText(QString::fromStdString(
+        m_workspace.projectItems[m_projectIndex].getOutputDirectory()));
+}
+
+void Project::onSelectOutputDir()
+{
+    auto& item = m_workspace.projectItems[m_projectIndex];
+
+    QString start = QString::fromStdString(item.getOutputDirectory());
+    if (start.isEmpty())
+        start = QSettings().value(QStringLiteral("lastOutputDir")).toString();
+
+    const QString dir = QFileDialog::getExistingDirectory(
+        this, tr("Select Output Directory"), start);
+    if (dir.isEmpty()) return;
+
+    item.getOutputDirectory() = dir.toStdString();
+    QSettings().setValue(QStringLiteral("lastOutputDir"), dir);
+
+    refreshOutputDirectoryDisplay();
+    emit projectModified();
+}
+
+void Project::onClearOutputDir()
+{
+    m_workspace.projectItems[m_projectIndex].getOutputDirectory().clear();
+    refreshOutputDirectoryDisplay();
+    emit projectModified();
+}
+
+void Project::onImageFormatChanged()
+{
+    const QVariant data = ui->comboBoxImageFormatSelection->currentData();
+    const bool valid = data.isValid();
+    ui->groupBoxPNG->setVisible(valid && data.toInt() == static_cast<int>(OutputFormat::PNG));
+    ui->groupBoxJPG->setVisible(valid && data.toInt() == static_cast<int>(OutputFormat::JPEG));
+    ui->groupBoxWebP->setVisible(valid && data.toInt() == static_cast<int>(OutputFormat::WebP));
+}
+
+void Project::onJumpToInput()
+{
+    ui->tabWidget->setCurrentWidget(ui->tabInput);
+}
+
+void Project::onRender()
+{
+    if (ui->comboBoxOutputProfile->currentData().toString().isEmpty()) {
+        QMessageBox::warning(this, tr("Render"),
+            tr("Output profile is not selected."));
+        return;
+    }
+    if (m_workspace.projectItems[m_projectIndex].getOutputDirectory().empty()) {
+        QMessageBox::warning(this, tr("Render"),
+            tr("Output directory is not selected."));
+        return;
+    }
+    QMessageBox::information(this, tr("Render"),
+        tr("The rendering pipeline will be implemented in Stage 4."));
 }
 
 void Project::addInputPaths(const QStringList& newPaths)

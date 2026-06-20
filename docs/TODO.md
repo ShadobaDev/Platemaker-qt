@@ -60,6 +60,31 @@ These are the foundation — nothing else is usable without them.
 
 ---
 
+## Stage 4 — prep: Output-tab controls ✅
+
+- [x] **Output profile** — `comboBoxOutputProfile` with "Choose output profile"
+  placeholder; writes `ProjectItem::outputProfileId`
+- [x] **Output directory** — `pushButtonODSelect`/`pushButtonODClear`, full path in
+  `textOutputDirectory`, persisted to `ProjectItem::getOutputDirectory()`; last dir
+  remembered in `QSettings` (`lastOutputDir`)
+- [x] **Image format** — `comboBoxImageFormatSelection` ("Select image format" +
+  PNG/JPEG/WebP) reveals the matching `groupBoxPNG`/`groupBoxJPG`/`groupBoxWebP`
+  (show/hide only for now)
+- [x] **Go to input settings** — `pushButtonJumpToInput` switches to the Input tab
+- [x] **Render guards** — `pushButtonRender` blocks on missing output profile /
+  output directory (full pipeline is the Stage 4 task below)
+
+- [ ] **Bind format option groups to the model** — once the lib exposes
+  `PngOptions`/`WebpOptions` on `OutputProfile`, wire `groupBoxPNG` (compression,
+  interlaced), `groupBoxJPG` (quality, subsampling, optimize, progressive),
+  `groupBoxWebP` (quality, lossless, effort) to the selected output profile.
+- [ ] **Output size estimation / limits (UI)** — show estimated avg/max slice size
+  and total batch size, and warn on platform caps (Webtoon ≤ 2 MB/slice,
+  ≤ 25 MB/chapter). Estimate computed by the lib (mirrored in lib TODO); GUI
+  displays before render and/or reports after.
+
+---
+
 ## Stage 4 — Pipeline (Process)
 
 Requires Stages 1–3 (workspace loaded, project open, profiles linked).

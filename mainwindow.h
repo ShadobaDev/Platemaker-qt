@@ -5,6 +5,7 @@
 #include <QList>
 #include <QStringList>
 
+#include <platemaker/infrastructure/control/cancellation_token.hpp>
 #include <platemaker/infrastructure/workspace_serializer/workspace_serializer.hpp>
 #include <platemaker/models/workspace.hpp>
 
@@ -15,6 +16,9 @@ QT_END_NAMESPACE
 class QDockWidget;
 class QListWidgetItem;
 class QMenu;
+class QThread;
+class Project;
+class RenderWorker;
 
 class MainWindow : public QMainWindow
 {
@@ -55,7 +59,24 @@ private slots:
     void onManageTemplates();
     void onOpenTemplatesDir();
 
+    // Render / processing
+    void onRenderToggle(int projectIndex);   // Render/Stop from a Project widget
+    void onRenderProgress(int done, int total, QString sliceName);
+    void onRenderLog(int level, QString message);
+    void onRenderSliceSaved(QString name, QString fullPath);
+    void onRenderFinished();
+
 private:
+    // --- render orchestration ---
+    void startRender(int projectIndex);
+    void cancelRender();
+    [[nodiscard]] Project *projectWidget(int projectIndex) const;
+    [[nodiscard]] Platemaker::Models::OutputProfile resolveOutputProfileFor(
+        const Platemaker::Models::ProjectItem &project) const;
+    void setActionStatus(const QString &projectName, const QString &action);
+    void setProjectStatus(const QString &message);
+    void setProgressValue(int percent, bool error);
+
     // --- helpers ---
     bool maybeSave();                           // true = safe to proceed
     void loadWorkspace(const QString &path);
@@ -105,6 +126,14 @@ private:
     // Shouldn't be used per project, or even per input file?
     QString m_activeCanvasProfileName;
     QString m_activeOutputProfileName;
+
+    // --- render state (one render at a time, owned here) ---
+    Platemaker::Infrastructure::CancellationToken m_cancelToken;
+    QThread      *m_renderThread       = nullptr;
+    RenderWorker *m_renderWorker        = nullptr;
+    bool          m_rendering           = false;
+    int           m_renderProjectIndex  = -1;
+    int           m_activeProjectIndex  = -1;  // last-raised project dock (for F5/menu)
 };
 
 #endif // MAINWINDOW_H

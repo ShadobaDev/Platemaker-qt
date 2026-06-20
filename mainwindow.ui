@@ -119,8 +119,6 @@ QTabWidget QTabBar::close-button {
     <addaction name="separator"/>
     <addaction name="actionNew_output_profile"/>
     <addaction name="actionManage_output_profiles"/>
-    <addaction name="separator"/>
-    <addaction name="actionSet_output_directory"/>
    </widget>
    <widget class="QMenu" name="menuTemplates">
     <property name="title">
@@ -183,7 +181,7 @@ QTabWidget QTabBar::close-button {
         <item>
          <layout class="QVBoxLayout" name="verticalLayout">
           <item>
-           <widget class="QTextBrowser" name="textBrowser_3">
+           <widget class="QTextBrowser" name="textBrowserActionStatus">
             <property name="maximumSize">
              <size>
               <width>16777215</width>
@@ -203,9 +201,50 @@ QTabWidget QTabBar::close-button {
            </widget>
           </item>
           <item>
-           <widget class="QTextBrowser" name="textBrowser"/>
+           <widget class="QTextBrowser" name="textBrowserActionLogs"/>
           </item>
          </layout>
+        </item>
+       </layout>
+      </widget>
+     </item>
+     <item>
+      <widget class="QGroupBox" name="groupBox">
+       <property name="maximumSize">
+        <size>
+         <width>16777215</width>
+         <height>200</height>
+        </size>
+       </property>
+       <property name="title">
+        <string>Project Status</string>
+       </property>
+       <layout class="QVBoxLayout" name="verticalLayout_5">
+        <item>
+         <widget class="QTextBrowser" name="textBrowserProjectStatus">
+          <property name="sizePolicy">
+           <sizepolicy hsizetype="Preferred" vsizetype="Preferred">
+            <horstretch>0</horstretch>
+            <verstretch>0</verstretch>
+           </sizepolicy>
+          </property>
+          <property name="maximumSize">
+           <size>
+            <width>16777215</width>
+            <height>30</height>
+           </size>
+          </property>
+          <property name="placeholderText">
+           <string>No project is loaded</string>
+          </property>
+         </widget>
+        </item>
+        <item>
+         <widget class="QPushButton" name="pushButtonStop">
+          <property name="text">
+           <string>Stop</string>
+          </property>
+         </widget>
         </item>
        </layout>
       </widget>
@@ -327,7 +366,7 @@ QTabWidget QTabBar::close-button {
   </action>
   <action name="actionEdit_output_settings">
    <property name="text">
-    <string>Edit output settings</string>
+    <string>Edit active output profile</string>
    </property>
   </action>
   <action name="actionNew_output_profile">

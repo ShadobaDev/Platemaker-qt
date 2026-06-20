@@ -86,8 +86,9 @@ Project::Project(int projectIndex,
 
     connect(ui->pushButtonJumpToInput, &QPushButton::clicked,
             this, &Project::onJumpToInput);
-    connect(ui->pushButtonRender, &QPushButton::clicked,
-            this, &Project::onRender);
+    connect(ui->pushButtonRender, &QPushButton::clicked, this, [this]{
+        emit renderToggleRequested(m_projectIndex);
+    });
 
     populate();
 }
@@ -116,6 +117,7 @@ void Project::populate()
     refreshCanvasProfilesList();
     refreshOutputProfileCombo();
     refreshOutputDirectoryDisplay();
+    refreshOutputTiles();
 }
 
 void Project::addImageTile(const InputFile& file)
@@ -337,20 +339,54 @@ void Project::onJumpToInput()
     ui->tabWidget->setCurrentWidget(ui->tabInput);
 }
 
-void Project::onRender()
+void Project::setRendering(bool rendering)
 {
-    if (ui->comboBoxOutputProfile->currentData().toString().isEmpty()) {
-        QMessageBox::warning(this, tr("Render"),
-            tr("Output profile is not selected."));
-        return;
-    }
-    if (m_workspace.projectItems[m_projectIndex].getOutputDirectory().empty()) {
-        QMessageBox::warning(this, tr("Render"),
-            tr("Output directory is not selected."));
-        return;
-    }
-    QMessageBox::information(this, tr("Render"),
-        tr("The rendering pipeline will be implemented in Stage 4."));
+    ui->pushButtonRender->setText(rendering ? tr("Stop") : tr("Render"));
+    ui->pushButtonRender->setStyleSheet(rendering
+        ? QStringLiteral("background-color:#b41414; color:#ffffff; font-weight:bold;")
+        : QString{});
+
+    // Lock output configuration while a render runs.
+    ui->groupBoxOutputProfile->setEnabled(!rendering);
+    ui->groupBoxOutputDirectory->setEnabled(!rendering);
+    ui->groupOutputImageOptions->setEnabled(!rendering);
+    ui->pushButtonJumpToInput->setEnabled(!rendering);
+}
+
+void Project::addOutputTile(const QString& filePath)
+{
+    auto* listItem = new QListWidgetItem(ui->listOutputImageTile);
+    listItem->setData(Qt::UserRole, filePath);
+
+    auto* tile = new ImageTile(this);
+    tile->setFileInfo(filePath, FileStatus::Done, m_cacheDir);
+
+    listItem->setSizeHint(tile->sizeHint());
+    ui->listOutputImageTile->setItemWidget(listItem, tile);
+}
+
+void Project::addOutputImageTile(const OutputFile& file)
+{
+    const QString dir = QString::fromStdString(
+        m_workspace.projectItems[m_projectIndex].getOutputDirectory());
+    const QString path = QDir(dir).filePath(QString::fromStdString(file.fileName));
+
+    auto* listItem = new QListWidgetItem(ui->listOutputImageTile);
+    listItem->setData(Qt::UserRole, path);
+
+    auto* tile = new ImageTile(this);
+    tile->setFileInfo(path, file.status, m_cacheDir);
+
+    listItem->setSizeHint(tile->sizeHint());
+    ui->listOutputImageTile->setItemWidget(listItem, tile);
+}
+
+void Project::refreshOutputTiles()
+{
+    ui->listOutputImageTile->clear();
+    const auto& outputs = m_workspace.projectItems[m_projectIndex].getOutputImages();
+    for (const auto& f : outputs)
+        addOutputImageTile(f);
 }
 
 void Project::addInputPaths(const QStringList& newPaths)

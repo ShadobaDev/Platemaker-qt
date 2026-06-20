@@ -74,7 +74,7 @@ These are the foundation — nothing else is usable without them.
 - [x] **Render guards** — `pushButtonRender` blocks on missing output profile /
   output directory (full pipeline is the Stage 4 task below)
 
-- [ ] **Bind format option groups to the model** — once the lib exposes
+- [x] **Bind format option groups to the model** — once the lib exposes
   `PngOptions`/`WebpOptions` on `OutputProfile`, wire `groupBoxPNG` (compression,
   interlaced), `groupBoxJPG` (quality, subsampling, optimize, progressive),
   `groupBoxWebP` (quality, lossless, effort) to the selected output profile.
@@ -85,34 +85,29 @@ These are the foundation — nothing else is usable without them.
 
 ---
 
-## Stage 4 — Pipeline (Process)
+## Stage 4 — Pipeline (Process) ✅
 
-Requires Stages 1–3 (workspace loaded, project open, profiles linked).
+- [x] **Shared pipeline (lib)** — `Core::ProcessingPipeline::run()` (build strip →
+  `sliceAll` → save) with progress/log/sliceSaved callbacks + `CancellationToken`;
+  CLI `cmdProcess` refactored to use it.
+- [x] **Run triggers** — Project `pushButtonRender` (Render⇄Stop toggle),
+  `actionRender_current_project_F5` + **F5** (renders the active project dock).
+  `actionRender_all_projects_F6` deferred.
+- [x] **Threaded worker** — `RenderWorker` on a `QThread`, snapshot copies (never
+  touches the live workspace); queued signals to the main thread.
+- [x] **Progress bar** — `progressBar` `round(done/total*100)` per saved slice,
+  gray normally, **dark red `#b41414`** frozen at % on failure.
+- [x] **Cancel** — `pushButtonStop` / `actionStop_Esc` / **Esc** →
+  `CancellationToken::cancel()`; worker checks between slices.
+- [x] **Status / log** — `textBrowserActionStatus` (`<project>: Processing/Finished/
+  Failed/Require action`), `textBrowserActionLogs` (per-slice stream),
+  `textBrowserProjectStatus` (status-bar messages).
+- [x] **Post-run** — main thread `applyProcessingResults(...)`, refresh input +
+  output tiles, `setDirty(true)`. Output tiles also update live via `sliceSaved`.
 
-- [ ] **Run button wired**
-  - `Process → Run` (menu) + toolbar button
-  - Guard: if no project active → disable
-  - Call `project.sanitize()` to refresh file statuses
-  - If `project.isUpToDate()` → inform user via status bar, skip
-
-- [ ] **Background worker**
-  - `QtConcurrent::run()` with the full pipeline (see SPECIFICATION.md §4.4)
-  - Emit `progressChanged(int sliceIndex, int totalSlices)` signal to main thread
-  - Emit `processingFinished(bool cancelled, int skippedCount)` on completion
-
-- [ ] **Progress bar**
-  - Bottom dock: `QProgressBar` 0–100%
-  - Update on `progressChanged` signal (convert slice index to percent)
-  - Hide or reset on idle
-
-- [ ] **Cancel button**
-  - Enabled only while pipeline is running
-  - Calls `m_cancellationToken.cancel()`
-  - Worker checks token between slices
-
-- [ ] **Post-run refresh**
-  - Call `project.applyProcessingResults(...)` in worker before emitting `processingFinished`
-  - On `processingFinished`: refresh tile status badges, `m_dirty = true`, auto-save
+- [ ] **Pre-flight sanitize off the UI thread** — `project.sanitize()` currently
+  hashes inputs on the main thread before launching; move to the worker for very
+  large projects to avoid a brief UI pause.
 
 ---
 
@@ -144,3 +139,9 @@ Requires Stages 1–3 (workspace loaded, project open, profiles linked).
 - [ ] **Undo / Redo** (`Ctrl+Z` / `Ctrl+Y`) — for input-list operations (add,
   clear, reorder, sort) and ideally other reversible workspace edits
 - [ ] **About dialog** — version, libplatemaker version, Qt version, licence
+- [ ] **Missing button open output dir** in tabOutput. 
+- [ ] **Slice tiles should have hidden edit panel** because this are neither to deleted nor reorder by the platemaker
+- [ ] **Image options** are not porperly save/loaded in GUI - project resets it with app restart
+- [ ] **Process bar** change style
+- [ ] **ImageTile** rework to be more eye-appealing, fix/recover drag'n'drop reordering, arrow-button readodering and delete buttons
+- [ ] **Action log** should report a summary, how manu inputs, how many slices in what time where processed and when. Output cumulative size (MB or KB) would also be nice.

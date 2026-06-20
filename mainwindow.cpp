@@ -6,6 +6,7 @@
 #include "manageoutputprofilesdialog.h"
 #include "outputprofiledialog.h"
 #include "templatesdialog.h"
+#include "renderworker.h"
 
 #include <QCloseEvent>
 #include <QCollator>
@@ -23,6 +24,7 @@
 #include <QMessageBox>
 #include <QSettings>
 #include <QTabBar>
+#include <QThread>
 #include <QUrl>
 
 #include <algorithm>
@@ -101,6 +103,16 @@ MainWindow::MainWindow(QWidget *parent)
     connect(ui->actionManage_templates,   &QAction::triggered, this, &MainWindow::onManageTemplates);
     connect(ui->actionOpen_dir_templates, &QAction::triggered, this, &MainWindow::onOpenTemplatesDir);
 
+    // --- Process menu / render (F6 "all projects" deferred) ---
+    ui->actionRender_current_project_F5->setShortcut(Qt::Key_F5);
+    ui->actionStop_Esc->setShortcut(Qt::Key_Escape);
+    connect(ui->actionRender_current_project_F5, &QAction::triggered, this, [this]{
+        if (m_activeProjectIndex >= 0) startRender(m_activeProjectIndex);
+    });
+    connect(ui->actionStop_Esc, &QAction::triggered, this, &MainWindow::cancelRender);
+    connect(ui->pushButtonStop, &QPushButton::clicked, this, &MainWindow::cancelRender);
+    ui->pushButtonStop->setEnabled(false);
+
     updateTitle();
 }
 
@@ -115,6 +127,13 @@ MainWindow::~MainWindow()
 
 void MainWindow::closeEvent(QCloseEvent *event)
 {
+    // Stop an in-flight render before tearing down (the worker checks the token
+    // between slices; wait briefly for it to unwind).
+    if (m_rendering) {
+        m_cancelToken.cancel();
+        if (m_renderThread)
+            m_renderThread->wait(5000);
+    }
     maybeSave() ? event->accept() : event->ignore();
 }
 
@@ -124,6 +143,7 @@ void MainWindow::closeEvent(QCloseEvent *event)
 
 void MainWindow::onOpenWorkspace()
 {
+    if (m_rendering) { setProjectStatus(tr("Stop the current render first.")); return; }
     if (!maybeSave()) return;
 
     const QString path = QFileDialog::getOpenFileName(
@@ -135,6 +155,7 @@ void MainWindow::onOpenWorkspace()
 
 void MainWindow::onNewWorkspace()
 {
+    if (m_rendering) { setProjectStatus(tr("Stop the current render first.")); return; }
     if (!maybeSave()) return;
 
     const QString path = QFileDialog::getSaveFileName(
@@ -196,6 +217,7 @@ void MainWindow::onSaveAs()
 
 void MainWindow::onCloseWorkspace()
 {
+    if (m_rendering) { setProjectStatus(tr("Stop the current render first.")); return; }
     if (!maybeSave()) return;
     closeWorkspace();
 }
@@ -288,6 +310,7 @@ void MainWindow::renameProject(int modelIndex)
 
 void MainWindow::removeProject(int modelIndex)
 {
+    if (m_rendering) { setProjectStatus(tr("Stop the current render first.")); return; }
     if (modelIndex < 0 || modelIndex >= static_cast<int>(m_workspace.projectItems.size()))
         return;
 
@@ -579,7 +602,16 @@ void MainWindow::openProjectDock(int projectIndex)
     connect(projectWidget, &Project::projectModified, this, [this]{
         setDirty(true);
     });
+    connect(projectWidget, &Project::renderToggleRequested,
+            this, &MainWindow::onRenderToggle);
     newDock->setWidget(projectWidget);
+
+    // Track which project is "current" for F5 / Process menu (the raised dock).
+    m_activeProjectIndex = projectIndex;
+    connect(newDock, &QDockWidget::visibilityChanged, this, [this, newDock](bool visible) {
+        if (visible)
+            m_activeProjectIndex = newDock->property("projectIndex").toInt();
+    });
 
     // Always tabify with the workspace panel — keeps the layout in two columns.
     // On first open Qt promotes the area to a tab group; subsequent opens just add tabs.
@@ -621,6 +653,206 @@ void MainWindow::toggleProjectFloatState(int index)
     QDockWidget *dock = m_openProjectDocks.at(index);
     // setFloating(false) triggers topLevelChanged → tabifyDockWidget, so no manual re-tabify needed.
     dock->setFloating(!dock->isFloating());
+}
+
+// ---------------------------------------------------------------------------
+// Render / processing
+// ---------------------------------------------------------------------------
+
+Project *MainWindow::projectWidget(int projectIndex) const
+{
+    if (QDockWidget *dock = dockForProject(projectIndex))
+        return qobject_cast<Project *>(dock->widget());
+    return nullptr;
+}
+
+Platemaker::Models::OutputProfile MainWindow::resolveOutputProfileFor(
+    const Platemaker::Models::ProjectItem &project) const
+{
+    for (const auto &op : m_workspace.outputProfiles)
+        if (op.id == project.outputProfileId)
+            return op;
+    return m_workspace.outputProfiles.empty()
+        ? Platemaker::Models::OutputProfile{}
+        : m_workspace.outputProfiles.front();
+}
+
+void MainWindow::setActionStatus(const QString &projectName, const QString &action)
+{
+    ui->textBrowserActionStatus->setPlainText(projectName + ": " + action);
+}
+
+void MainWindow::setProjectStatus(const QString &message)
+{
+    ui->textBrowserProjectStatus->setPlainText(message);
+}
+
+void MainWindow::setProgressValue(int percent, bool error)
+{
+    ui->progressBar->setValue(percent);
+    ui->progressBar->setStyleSheet(QStringLiteral(
+        "QProgressBar::chunk { background-color: %1; }")
+        .arg(error ? QStringLiteral("#b41414") : QStringLiteral("#888888")));
+}
+
+void MainWindow::onRenderToggle(int projectIndex)
+{
+    if (m_rendering) {
+        if (projectIndex == m_renderProjectIndex)
+            cancelRender();
+        return;
+    }
+    startRender(projectIndex);
+}
+
+void MainWindow::startRender(int projectIndex)
+{
+    if (m_rendering) {
+        setProjectStatus(tr("A render is already running."));
+        return;
+    }
+    if (projectIndex < 0 || projectIndex >= static_cast<int>(m_workspace.projectItems.size()))
+        return;
+
+    auto &project = m_workspace.projectItems[static_cast<std::size_t>(projectIndex)];
+    const QString name = QString::fromStdString(project.name);
+
+    // --- guards ---
+    if (project.outputProfileId.empty()) {
+        setProjectStatus(tr("Output profile is not selected."));
+        return;
+    }
+    if (project.getOutputDirectory().empty()) {
+        setProjectStatus(tr("Output directory is not selected."));
+        return;
+    }
+    if (project.getInputImages().empty()) {
+        setProjectStatus(tr("Project has no input files."));
+        return;
+    }
+
+    // Refresh file statuses (hashes inputs — may briefly pause on huge projects; see TODO).
+    project.sanitize();
+    if (auto *pw = projectWidget(projectIndex)) pw->populate();
+    if (project.isUpToDate()) {
+        setActionStatus(name, tr("Require action"));
+        setProjectStatus(tr("Project is up to date — nothing to render."));
+        return;
+    }
+
+    const QString outDir = QString::fromStdString(project.getOutputDirectory());
+    if (!QDir().mkpath(outDir)) {
+        setActionStatus(name, tr("Failed"));
+        setProjectStatus(tr("Cannot create output directory:\n%1").arg(outDir));
+        return;
+    }
+
+    // --- launch the worker on its own thread, with snapshot copies ---
+    m_cancelToken.reset();
+    m_renderProjectIndex = projectIndex;
+    m_rendering = true;
+
+    auto *worker = new RenderWorker(
+        project.getInputImages(),          // copy
+        resolveOutputProfileFor(project),  // copy
+        m_workspace.canvasProfiles,        // copy
+        project.canvasProfileIds,          // copy
+        outDir.toStdString(),
+        m_cancelToken);
+    auto *thread = new QThread(this);
+    worker->moveToThread(thread);
+    m_renderWorker = worker;
+    m_renderThread = thread;
+
+    connect(thread, &QThread::started,         worker, &RenderWorker::process);
+    connect(worker, &RenderWorker::progress,   this,   &MainWindow::onRenderProgress);
+    connect(worker, &RenderWorker::log,        this,   &MainWindow::onRenderLog);
+    connect(worker, &RenderWorker::sliceSaved, this,   &MainWindow::onRenderSliceSaved);
+    connect(worker, &RenderWorker::finished,   this,   &MainWindow::onRenderFinished);
+    connect(worker, &RenderWorker::finished,   thread, &QThread::quit);
+    connect(thread, &QThread::finished,        worker, &QObject::deleteLater);
+    connect(thread, &QThread::finished,        thread, &QObject::deleteLater);
+
+    // --- enter rendering UI state ---
+    setActionStatus(name, tr("Processing"));
+    setProjectStatus(tr("Rendering…"));
+    ui->textBrowserActionLogs->clear();
+    setProgressValue(0, false);
+    ui->pushButtonStop->setEnabled(true);
+    if (auto *pw = projectWidget(projectIndex)) pw->setRendering(true);
+
+    thread->start();
+}
+
+void MainWindow::cancelRender()
+{
+    if (!m_rendering) return;
+    m_cancelToken.cancel();
+    setProjectStatus(tr("Cancelling…"));
+    ui->pushButtonStop->setEnabled(false);
+}
+
+void MainWindow::onRenderProgress(int done, int total, QString sliceName)
+{
+    Q_UNUSED(sliceName);
+    setProgressValue(total > 0 ? qRound(done * 100.0 / total) : 0, false);
+}
+
+void MainWindow::onRenderLog(int level, QString message)
+{
+    const char *tag = (level == 2) ? "[error] " : (level == 1) ? "[warn] " : "";
+    ui->textBrowserActionLogs->append(QString::fromLatin1(tag) + message);
+}
+
+void MainWindow::onRenderSliceSaved(QString name, QString fullPath)
+{
+    Q_UNUSED(name);
+    if (auto *pw = projectWidget(m_renderProjectIndex))
+        pw->addOutputTile(fullPath);
+}
+
+void MainWindow::onRenderFinished()
+{
+    const auto &outcome = m_renderWorker->outcome();
+    const int idx = m_renderProjectIndex;
+
+    QString name;
+    if (idx >= 0 && idx < static_cast<int>(m_workspace.projectItems.size())) {
+        auto &project = m_workspace.projectItems[static_cast<std::size_t>(idx)];
+        name = QString::fromStdString(project.name);
+
+        if (!outcome.failed && !outcome.cancelled) {
+            const QString ts = QDateTime::currentDateTimeUtc().toString(Qt::ISODate);
+            project.applyProcessingResults(
+                outcome.records, project.getOutputDirectory(), ts.toStdString());
+            setDirty(true);
+            if (auto *pw = projectWidget(idx)) pw->refreshOutputTiles();
+        }
+    }
+
+    if (outcome.failed) {
+        setActionStatus(name, tr("Failed"));
+        setProgressValue(ui->progressBar->value(), true);   // freeze at %, recolour red
+        setProjectStatus(QString::fromStdString(outcome.errorMessage));
+    } else if (outcome.cancelled) {
+        setActionStatus(name, tr("Require action"));
+        setProjectStatus(tr("Render cancelled (partial output kept)."));
+    } else if (!outcome.skippedPages.empty()) {
+        setActionStatus(name, tr("Require action"));
+        setProjectStatus(tr("Finished with %1 skipped page(s).")
+                             .arg(outcome.skippedPages.size()));
+    } else {
+        setActionStatus(name, tr("Finished"));
+        setProjectStatus(tr("Render finished."));
+    }
+
+    if (auto *pw = projectWidget(idx)) pw->setRendering(false);
+    ui->pushButtonStop->setEnabled(false);
+
+    m_rendering          = false;
+    m_renderWorker       = nullptr;   // deleted via thread.finished → deleteLater
+    m_renderThread       = nullptr;
+    m_renderProjectIndex = -1;
 }
 
 // ---------------------------------------------------------------------------

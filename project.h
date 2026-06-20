@@ -25,8 +25,14 @@ public:
     // project is removed and the vector shifts (the widget reads the index live).
     void setProjectIndex(int index) { m_projectIndex = index; }
 
+    // --- render UI (driven by MainWindow, which owns the render state) ---
+    void setRendering(bool rendering);             // flips Render⇄Stop + disables output controls
+    void addOutputTile(const QString& filePath);   // live append during a render
+    void refreshOutputTiles();                      // rebuild from getOutputImages()
+
 signals:
     void projectModified();
+    void renderToggleRequested(int projectIndex);   // Render/Stop button clicked
 
 private slots:
     void onAddFromDirectory();
@@ -42,10 +48,10 @@ private slots:
     void onClearOutputDir();
     void onImageFormatChanged();
     void onJumpToInput();
-    void onRender();
 
 private:
     void addImageTile(const Platemaker::Models::InputFile& file);
+    void addOutputImageTile(const Platemaker::Models::OutputFile& file);
     void addInputPaths(const QStringList& newPaths);
     void refreshCanvasProfilesList();
     void refreshOutputProfileCombo();

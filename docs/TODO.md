@@ -42,6 +42,24 @@ These are the foundation — nothing else is usable without them.
 
 ---
 
+## Stage 4 — prep: Input-tab controls ✅
+
+- [x] **Add from directory** — `pushButtonAddInputsFromDir`, additive + dedup
+  (combine multiple folders; same file never added twice)
+- [x] **Add files** — `pushButtonAddInputs`, multi-select via `QFileDialog`
+- [x] **Clear** — `pushButtonInputClear`, "Are you sure?" prompt → `mergeFileScan({})`
+- [x] **Sort** — `comboBoxSortingOpt` (Name / Date created / Date modified) +
+  `pushSortyByApply`; rewrites `InputFile::order` (manual drag-reorder still wins)
+- [x] **Go to rendering** — `pushButtonGoToOutput` switches to the Output tab
+
+- [ ] **Auto-sort rules** (`groupBoxAutosort`) — pattern/regex-based ordering:
+  `lineEditInputNameRegex` body token (e.g. `chap_<num>` → chap_001, chap_002…),
+  `lineEditPrependedRegex` (e.g. `title_<num>` first), `lineEditAppendedRegex`
+  (e.g. `end_<num>` last); `pushButtonAutosortApply` applies. Complex token/regex
+  parsing — dedicated future task.
+
+---
+
 ## Stage 4 — Pipeline (Process)
 
 Requires Stages 1–3 (workspace loaded, project open, profiles linked).
@@ -98,4 +116,6 @@ Requires Stages 1–3 (workspace loaded, project open, profiles linked).
 - [ ] **Auto-save** on pipeline finish (optional setting)
 - [ ] **Keyboard shortcuts** — `Ctrl+S` save, `F5` or `Ctrl+R` run, `Esc` cancel
 - [ ] **Drag files / folders onto Project window** — triggers `mergeFileScan()`
+- [ ] **Undo / Redo** (`Ctrl+Z` / `Ctrl+Y`) — for input-list operations (add,
+  clear, reorder, sort) and ideally other reversible workspace edits
 - [ ] **About dialog** — version, libplatemaker version, Qt version, licence

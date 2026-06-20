@@ -30,6 +30,10 @@ signals:
 
 private slots:
     void onAddFromDirectory();
+    void onAddFiles();
+    void onClearInputs();
+    void onApplySort();
+    void onGoToOutput();
     void onRowsMoved();
     void onAssignCanvasProfiles();
     void onCanvasProfileDoubleClicked(QListWidgetItem* item);
@@ -37,6 +41,7 @@ private slots:
 
 private:
     void addImageTile(const Platemaker::Models::InputFile& file);
+    void addInputPaths(const QStringList& newPaths);
     void refreshCanvasProfilesList();
     void refreshOutputProfileCombo();
 

@@ -50,6 +50,10 @@ private slots:
     void onNewOutputProfile();
     void onEditActiveOutputProfile();
 
+    // Template actions
+    void onManageTemplates();
+    void onOpenTemplatesDir();
+
 private:
     // --- helpers ---
     bool maybeSave();                           // true = safe to proceed

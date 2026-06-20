@@ -98,130 +98,197 @@ QPushButton#buttonGenerateTemplates:hover {
    </string>
   </property>
   <layout class="QVBoxLayout" name="verticalLayoutMain">
-   <property name="spacing"><number>12</number></property>
-   <property name="leftMargin"><number>16</number></property>
-   <property name="topMargin"><number>16</number></property>
-   <property name="rightMargin"><number>16</number></property>
-   <property name="bottomMargin"><number>16</number></property>
-
-   <!-- List + side buttons -->
+   <property name="spacing">
+    <number>12</number>
+   </property>
+   <property name="leftMargin">
+    <number>16</number>
+   </property>
+   <property name="topMargin">
+    <number>16</number>
+   </property>
+   <property name="rightMargin">
+    <number>16</number>
+   </property>
+   <property name="bottomMargin">
+    <number>16</number>
+   </property>
    <item>
     <layout class="QHBoxLayout" name="horizontalLayoutContent">
-     <property name="spacing"><number>10</number></property>
-
-     <!-- Profile list -->
+     <property name="spacing">
+      <number>10</number>
+     </property>
      <item>
       <widget class="QListWidget" name="listWidgetProfiles">
        <property name="sizePolicy">
-        <sizepolicy hsizetype="Expanding" vsizetype="Expanding"/>
+        <sizepolicy hsizetype="Expanding" vsizetype="Expanding">
+         <horstretch>0</horstretch>
+         <verstretch>0</verstretch>
+        </sizepolicy>
        </property>
        <property name="toolTip">
         <string>★ marks the active profile used for rendering and template generation</string>
        </property>
       </widget>
      </item>
-
-     <!-- Side action buttons -->
      <item>
       <layout class="QVBoxLayout" name="verticalLayoutSideButtons">
-       <property name="spacing"><number>6</number></property>
+       <property name="spacing">
+        <number>6</number>
+       </property>
        <item>
         <widget class="QPushButton" name="buttonNew">
-         <property name="text"><string>New…</string></property>
+         <property name="text">
+          <string>New…</string>
+         </property>
         </widget>
        </item>
        <item>
         <widget class="QPushButton" name="buttonEdit">
-         <property name="text"><string>Edit…</string></property>
-         <property name="enabled"><bool>false</bool></property>
+         <property name="enabled">
+          <bool>false</bool>
+         </property>
+         <property name="text">
+          <string>Edit…</string>
+         </property>
         </widget>
        </item>
        <item>
         <widget class="QPushButton" name="buttonDuplicate">
-         <property name="text"><string>Duplicate</string></property>
-         <property name="enabled"><bool>false</bool></property>
+         <property name="enabled">
+          <bool>false</bool>
+         </property>
+         <property name="text">
+          <string>Duplicate</string>
+         </property>
         </widget>
        </item>
        <item>
-        <widget class="QFrame">
-         <property name="frameShape"><enum>QFrame::Shape::HLine</enum></property>
-         <property name="frameShadow"><enum>QFrame::Shadow::Sunken</enum></property>
-         <property name="styleSheet"><string>color: #3d3d3d;</string></property>
+        <widget class="QFrame" name="frame">
+         <property name="styleSheet">
+          <string>color: #3d3d3d;</string>
+         </property>
+         <property name="frameShape">
+          <enum>QFrame::Shape::HLine</enum>
+         </property>
+         <property name="frameShadow">
+          <enum>QFrame::Shadow::Sunken</enum>
+         </property>
         </widget>
        </item>
        <item>
         <widget class="QPushButton" name="buttonSetActive">
-         <property name="text"><string>Set active</string></property>
-         <property name="enabled"><bool>false</bool></property>
-         <property name="toolTip"><string>Make this profile active for rendering and template generation</string></property>
+         <property name="enabled">
+          <bool>false</bool>
+         </property>
+         <property name="toolTip">
+          <string>Make this profile active for rendering and template generation</string>
+         </property>
+         <property name="text">
+          <string>Set active</string>
+         </property>
         </widget>
        </item>
        <item>
-        <widget class="QFrame">
-         <property name="frameShape"><enum>QFrame::Shape::HLine</enum></property>
-         <property name="frameShadow"><enum>QFrame::Shadow::Sunken</enum></property>
-         <property name="styleSheet"><string>color: #3d3d3d;</string></property>
+        <widget class="QFrame" name="frame">
+         <property name="styleSheet">
+          <string>color: #3d3d3d;</string>
+         </property>
+         <property name="frameShape">
+          <enum>QFrame::Shape::HLine</enum>
+         </property>
+         <property name="frameShadow">
+          <enum>QFrame::Shadow::Sunken</enum>
+         </property>
         </widget>
        </item>
        <item>
         <widget class="QPushButton" name="buttonDelete">
-         <property name="text"><string>Delete</string></property>
-         <property name="enabled"><bool>false</bool></property>
+         <property name="enabled">
+          <bool>false</bool>
+         </property>
+         <property name="text">
+          <string>Delete</string>
+         </property>
         </widget>
        </item>
        <item>
         <spacer>
-         <property name="orientation"><enum>Qt::Orientation::Vertical</enum></property>
-         <property name="sizeHint" stdset="0"><size><width>20</width><height>40</height></size></property>
+         <property name="orientation">
+          <enum>Qt::Orientation::Vertical</enum>
+         </property>
+         <property name="sizeHint" stdset="0">
+          <size>
+           <width>20</width>
+           <height>40</height>
+          </size>
+         </property>
         </spacer>
        </item>
       </layout>
      </item>
-
     </layout>
    </item>
-
-   <!-- Active profile info label -->
    <item>
     <widget class="QLabel" name="labelActiveInfo">
-     <property name="text"><string>★ Active profile: —</string></property>
-     <property name="styleSheet"><string>color: #888888; font-size: 11px;</string></property>
+     <property name="styleSheet">
+      <string>color: #888888; font-size: 11px;</string>
+     </property>
+     <property name="text">
+      <string>★ Active profile: —</string>
+     </property>
     </widget>
    </item>
-
-   <!-- Separator -->
    <item>
-    <widget class="QFrame">
-     <property name="frameShape"><enum>QFrame::Shape::HLine</enum></property>
-     <property name="frameShadow"><enum>QFrame::Shadow::Sunken</enum></property>
-     <property name="styleSheet"><string>color: #3d3d3d;</string></property>
+    <widget class="QFrame" name="frame">
+     <property name="styleSheet">
+      <string>color: #3d3d3d;</string>
+     </property>
+     <property name="frameShape">
+      <enum>QFrame::Shape::HLine</enum>
+     </property>
+     <property name="frameShadow">
+      <enum>QFrame::Shadow::Sunken</enum>
+     </property>
     </widget>
    </item>
-
-   <!-- Bottom button row -->
    <item>
     <layout class="QHBoxLayout">
      <item>
       <widget class="QPushButton" name="buttonGenerateTemplates">
-       <property name="text"><string>Generate templates from active…</string></property>
-       <property name="toolTip"><string>Generate blank template PNG files from the active canvas profile (margins visible as overlay)</string></property>
+       <property name="toolTip">
+        <string>Generate blank template PNG files from the active canvas profile (margins visible as overlay)</string>
+       </property>
+       <property name="text">
+        <string>Generate templates from active…</string>
+       </property>
       </widget>
      </item>
      <item>
       <spacer>
-       <property name="orientation"><enum>Qt::Orientation::Horizontal</enum></property>
-       <property name="sizeHint" stdset="0"><size><width>40</width><height>20</height></size></property>
+       <property name="orientation">
+        <enum>Qt::Orientation::Horizontal</enum>
+       </property>
+       <property name="sizeHint" stdset="0">
+        <size>
+         <width>40</width>
+         <height>20</height>
+        </size>
+       </property>
       </spacer>
      </item>
      <item>
       <widget class="QPushButton" name="buttonClose">
-       <property name="text"><string>Close</string></property>
-       <property name="default"><bool>true</bool></property>
+       <property name="text">
+        <string>Close</string>
+       </property>
+       <property name="default">
+        <bool>true</bool>
+       </property>
       </widget>
      </item>
     </layout>
    </item>
-
   </layout>
  </widget>
  <resources/>
@@ -232,8 +299,14 @@ QPushButton#buttonGenerateTemplates:hover {
    <receiver>ManageCanvasProfilesDialog</receiver>
    <slot>accept()</slot>
    <hints>
-    <hint type="sourcelabel"><x>420</x><y>340</y></hint>
-    <hint type="destinationlabel"><x>240</x><y>180</y></hint>
+    <hint type="sourcelabel">
+     <x>420</x>
+     <y>340</y>
+    </hint>
+    <hint type="destinationlabel">
+     <x>240</x>
+     <y>180</y>
+    </hint>
    </hints>
   </connection>
  </connections>

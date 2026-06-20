@@ -73,13 +73,20 @@ Requires Stages 1–3 (workspace loaded, project open, profiles linked).
 
 ---
 
-## Stage 5 — Template Generation
+## Stage 5 — Template Generation ✅
 
-- [ ] **Wire `generateTemplatesRequested` signal**
-  - `ManageCanvasProfilesDialog` emits this; `MainWindow` receives it
-  - `QFileDialog` → choose output directory
-  - `QtConcurrent::run()` → `TemplateGenerator::generate()` per profile
-  - Show result: open directory in file manager (`QDesktopServices::openUrl`)
+- [x] **TemplatesDialog** (`actionGenerate_templates` / `actionManage_templates`)
+  - Operates on the live `Workspace&`; lists canvas profiles with template status
+    (Not generated / Up to date / Outdated / File missing), colour-coded
+  - Generate selected / generate all outdated / open folder / delete template
+  - PNGs written to `<workspace-dir>/templates/<profile-name>.png`
+- [x] **Quick generate from selected** — `ManageCanvasProfilesDialog` button emits
+  the selected profile; `MainWindow` generates + preserves `templateInfo` by id
+- [x] **Template tracking (lib)** — `CanvasProfile::templateInfo` (relative path +
+  canvas-only fingerprint + timestamp); `TemplateGenerator::signature()` drives
+  staleness detection; serialized additively (no schema bump)
+- [x] **id correctness fixes** — `ManageCanvasProfilesDialog` edit preserves id +
+  templateInfo; duplicate clears them (avoids id collision / inherited template)
 
 ---
 

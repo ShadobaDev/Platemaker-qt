@@ -137,8 +137,8 @@ QTabWidget QTabBar::close-button {
     <property name="title">
      <string>✍Templates</string>
     </property>
-    <addaction name="actionGenerate_templates"/>
     <addaction name="actionManage_templates"/>
+    <addaction name="actionOpen_dir_templates"/>
     <addaction name="separator"/>
    </widget>
    <widget class="QMenu" name="menu_Process_2">
@@ -379,9 +379,9 @@ QTabWidget QTabBar::close-button {
     <string>Stop                     Esc</string>
    </property>
   </action>
-  <action name="actionGenerate_templates">
+  <action name="actionOpen_dir_templates">
    <property name="text">
-    <string>Generate templates</string>
+    <string>Open template directory</string>
    </property>
   </action>
   <action name="actionManage_templates">

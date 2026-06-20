@@ -5,10 +5,12 @@
 #include "managecanvasprofilesdialog.h"
 #include "manageoutputprofilesdialog.h"
 #include "outputprofiledialog.h"
+#include "templatesdialog.h"
 
 #include <QCloseEvent>
 #include <QDateTime>
 #include <QDesktopServices>
+#include <QDir>
 #include <QFileDialog>
 #include <QFileInfo>
 #include <QInputDialog>
@@ -22,6 +24,8 @@
 #include <QUrl>
 
 #include <algorithm>
+#include <utility>
+#include <vector>
 
 // ---------------------------------------------------------------------------
 // Construction / destruction
@@ -89,6 +93,10 @@ MainWindow::MainWindow(QWidget *parent)
     connect(ui->pushButtonNewProject,      &QPushButton::clicked, this, &MainWindow::onNewProject);
     connect(ui->listWidgetProjects,        &QListWidget::itemDoubleClicked,
             this, &MainWindow::onProjectDoubleClicked);
+
+    // --- Templates menu ---
+    connect(ui->actionManage_templates,   &QAction::triggered, this, &MainWindow::onManageTemplates);
+    connect(ui->actionOpen_dir_templates, &QAction::triggered, this, &MainWindow::onOpenTemplatesDir);
 
     updateTitle();
 }
@@ -523,14 +531,48 @@ void MainWindow::onManageCanvasProfiles()
         m_workspace.canvasProfiles.begin(), m_workspace.canvasProfiles.end());
     dlg.setProfiles(profiles, m_activeCanvasProfileName);
 
-    // Stage 5: connect template generation signal (placeholder for now)
+    // Quick-generate from the selected profile. The dialog edits copies, so we
+    // write the resulting templateInfo into the LIVE profile (matched by id);
+    // it is preserved across the dialog's Accept below (preserve-by-id).
+    const QString workspaceDir = QFileInfo(m_workspacePath).absolutePath();
     connect(&dlg, &ManageCanvasProfilesDialog::generateTemplatesRequested,
-        this, [this](const Platemaker::Models::CanvasProfile&) {
-            QMessageBox::information(this, tr("Coming soon"),
-                tr("Template generation will be wired in Stage 5."));
+        this, [this, workspaceDir](const Platemaker::Models::CanvasProfile& selected) {
+            // A brand-new profile created in this dialog has no id yet — it isn't
+            // in the workspace, so there is nothing stable to attach the template to.
+            Platemaker::Models::CanvasProfile* live = nullptr;
+            if (!selected.id.empty())
+                for (auto& p : m_workspace.canvasProfiles)
+                    if (p.id == selected.id) { live = &p; break; }
+
+            if (!live) {
+                QMessageBox::information(this, tr("Template"),
+                    tr("Save the new profile first (close this dialog), then "
+                       "generate its template from the Templates menu."));
+                return;
+            }
+
+            // Render from the dialog's current field values (a copy), then copy
+            // the resulting metadata onto the live profile.
+            Platemaker::Models::CanvasProfile render = selected;
+            QString err;
+            if (!TemplatesDialog::generateTemplate(m_workspace, workspaceDir, render, err)) {
+                QMessageBox::critical(this, tr("Template"), err);
+                return;
+            }
+            live->templateInfo = render.templateInfo;
+            QMessageBox::information(this, tr("Template"),
+                tr("Template generated for \"%1\".")
+                    .arg(QString::fromStdString(selected.name)));
         });
 
     if (dlg.exec() != QDialog::Accepted) return;
+
+    // Snapshot templateInfo by id — the workspace is its source of truth (the
+    // manage dialog never edits it, and the quick button may have updated it).
+    std::vector<std::pair<std::string, Platemaker::Models::CanvasTemplateInfo>> savedTpl;
+    for (const auto& p : m_workspace.canvasProfiles)
+        if (!p.templateInfo.path.empty())
+            savedTpl.emplace_back(p.id, p.templateInfo);
 
     const auto result = dlg.profiles();
     m_workspace.canvasProfiles.assign(result.begin(), result.end());
@@ -542,7 +584,47 @@ void MainWindow::onManageCanvasProfiles()
             p.id = "cp-" + nowIsoTag().toStdString();
     }
 
+    // Re-attach template metadata by id (overrides any stale copy carried back).
+    for (auto& p : m_workspace.canvasProfiles)
+        for (const auto& [id, tpl] : savedTpl)
+            if (p.id == id) { p.templateInfo = tpl; break; }
+
     setDirty(true);
+}
+
+void MainWindow::onManageTemplates()
+{
+    if (m_workspacePath.isEmpty()) {
+        QMessageBox::information(this, tr("No Workspace"), tr("Open a workspace first."));
+        return;
+    }
+    if (m_workspace.canvasProfiles.empty()) {
+        QMessageBox::information(this, tr("No Canvas Profiles"),
+            tr("Create a canvas profile before generating templates."));
+        return;
+    }
+
+    const QString workspaceDir = QFileInfo(m_workspacePath).absolutePath();
+    TemplatesDialog dlg(m_workspace, workspaceDir, this);
+    connect(&dlg, &TemplatesDialog::workspaceModified, this, [this]{ setDirty(true); });
+    dlg.exec();
+}
+
+void MainWindow::onOpenTemplatesDir()
+{
+    if (m_workspacePath.isEmpty()) {
+        QMessageBox::information(this, tr("No Workspace"), tr("Open a workspace first."));
+        return;
+    }
+
+    const QString dir = QDir(QFileInfo(m_workspacePath).absolutePath())
+                            .filePath(QStringLiteral("templates"));
+    if (!QDir(dir).exists()) {
+        QMessageBox::information(this, tr("Templates"),
+            tr("No templates folder yet — generate a template first."));
+        return;
+    }
+    QDesktopServices::openUrl(QUrl::fromLocalFile(dir));
 }
 
 void MainWindow::onNewCanvasProfile()

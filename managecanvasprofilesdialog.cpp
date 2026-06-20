@@ -24,6 +24,10 @@ ManageCanvasProfilesDialog::ManageCanvasProfilesDialog(QWidget *parent)
     connect(ui->buttonSetActive,         &QPushButton::clicked, this, &ManageCanvasProfilesDialog::onSetActiveClicked);
     connect(ui->buttonGenerateTemplates, &QPushButton::clicked, this, &ManageCanvasProfilesDialog::onGenerateTemplatesClicked);
 
+    // Generation acts on the selected row, not the active profile (set in code to
+    // avoid editing the .ui).
+    ui->buttonGenerateTemplates->setText(tr("Generate template from selected…"));
+
     updateButtonStates();
 }
 
@@ -98,8 +102,16 @@ void ManageCanvasProfilesDialog::onEditClicked()
 
     if (dlg.exec() != QDialog::Accepted) return;
 
+    // CanvasProfileDialog returns a fresh profile without id/templateInfo — restore
+    // them so project links (keyed by id) and template tracking survive the edit.
+    // If template-affecting fields changed, the fingerprint check flags it Outdated.
+    const std::string savedId  = m_profiles[row].id;
+    const auto         savedTpl = m_profiles[row].templateInfo;
+
     const QString oldName = QString::fromStdString(m_profiles[row].name);
     m_profiles[row]       = dlg.profile();
+    m_profiles[row].id           = savedId;
+    m_profiles[row].templateInfo = savedTpl;
     const QString newName = QString::fromStdString(m_profiles[row].name);
 
     // Keep activeProfileName in sync if this was the active one
@@ -116,6 +128,8 @@ void ManageCanvasProfilesDialog::onDuplicateClicked()
 
     Platemaker::Models::CanvasProfile copy = m_profiles[row];
     copy.name += " (copy)";
+    copy.id.clear();             // MainWindow assigns a fresh id (avoid collision)
+    copy.templateInfo = {};      // a duplicate has no template of its own yet
     m_profiles.insert(row + 1, copy);
     rebuildList();
 
@@ -158,13 +172,10 @@ void ManageCanvasProfilesDialog::onSetActiveClicked()
 
 void ManageCanvasProfilesDialog::onGenerateTemplatesClicked()
 {
-    // Find the active profile and emit the signal — MainWindow handles the rest
-    for (const auto &p : std::as_const(m_profiles)) {
-        if (QString::fromStdString(p.name) == m_activeProfileName) {
-            emit generateTemplatesRequested(p);
-            return;
-        }
-    }
+    // Generate for the selected row — MainWindow handles the rest.
+    const int row = selectedRow();
+    if (row < 0) return;
+    emit generateTemplatesRequested(m_profiles[row]);
 }
 
 // ---------------------------------------------------------------------------
@@ -212,7 +223,7 @@ void ManageCanvasProfilesDialog::updateButtonStates()
     ui->buttonDuplicate->setEnabled(hasSelection);
     ui->buttonDelete->setEnabled(hasSelection && m_profiles.size() > 1);
     ui->buttonSetActive->setEnabled(hasSelection && !isActive);
-    ui->buttonGenerateTemplates->setEnabled(!m_activeProfileName.isEmpty());
+    ui->buttonGenerateTemplates->setEnabled(hasSelection);
 }
 
 int ManageCanvasProfilesDialog::selectedRow() const

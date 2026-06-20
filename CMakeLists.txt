@@ -16,6 +16,7 @@ qt_add_executable(Platemaker
     imagetile.h imagetile.cpp imagetile.ui
     manageoutputprofilesdialog.ui managecanvasprofilesdialog.ui outputprofiledialog.ui canvasprofiledialog.ui
     canvasprofiledialog.cpp canvasprofiledialog.h managecanvasprofilesdialog.cpp managecanvasprofilesdialog.h manageoutputprofilesdialog.cpp manageoutputprofilesdialog.h outputprofiledialog.cpp outputprofiledialog.h
+    templatesdialog.cpp templatesdialog.h templatesdialog.ui
 
 
 )

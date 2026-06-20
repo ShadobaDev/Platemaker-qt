@@ -3,9 +3,11 @@
 #include "imagetile.h"
 #include "canvasprofiledialog.h"
 
+#include <QCheckBox>
 #include <QCollator>
 #include <QComboBox>
 #include <QDateTime>
+#include <QSpinBox>
 #include <QDir>
 #include <QFileDialog>
 #include <QFileInfo>
@@ -74,15 +76,36 @@ Project::Project(int projectIndex,
     connect(ui->pushButtonODClear, &QPushButton::clicked,
             this, &Project::onClearOutputDir);
 
-    // Image format: invalid placeholder + the three formats. Selecting one reveals
-    // its options group; the group contents are not yet bound to the model.
+    // Image format + options edit the project's SELECTED output profile (shared,
+    // also editable via Manage Output Profiles). Placeholder = no profile selected.
     ui->comboBoxImageFormatSelection->addItem(tr("Select image format"), QVariant{});
     ui->comboBoxImageFormatSelection->addItem(tr("PNG"),  static_cast<int>(OutputFormat::PNG));
     ui->comboBoxImageFormatSelection->addItem(tr("JPEG"), static_cast<int>(OutputFormat::JPEG));
     ui->comboBoxImageFormatSelection->addItem(tr("WebP"), static_cast<int>(OutputFormat::WebP));
     connect(ui->comboBoxImageFormatSelection, &QComboBox::currentIndexChanged,
             this, &Project::onImageFormatChanged);
-    onImageFormatChanged(); // start with all format groups hidden
+
+    // JPEG options (bound to OutputProfile::jpegOptions). Subsampling item order
+    // matches the JpegSubsampling enum (YUV_444 / YUV_422 / YUV_420). Configure the
+    // widgets BEFORE connecting, so initialisation doesn't fire the change slots.
+    ui->spinBoxQualityJPG->setRange(1, 95);
+    ui->comboBoxSubsamplingJPG->addItems({tr("4:4:4 (best)"), tr("4:2:2"), tr("4:2:0 (smallest)")});
+    connect(ui->spinBoxQualityJPG, &QSpinBox::valueChanged, this, &Project::onJpegOptionsChanged);
+    connect(ui->comboBoxSubsamplingJPG, &QComboBox::currentIndexChanged, this, &Project::onJpegOptionsChanged);
+    connect(ui->checkBoxOptimizeJPG, &QCheckBox::toggled, this, &Project::onJpegOptionsChanged);
+    connect(ui->checkBoxProgressiveeJPG, &QCheckBox::toggled, this, &Project::onJpegOptionsChanged);
+
+    // PNG options (bound to OutputProfile::pngOptions). Ranges before connecting.
+    ui->spinBoxCompressionPNG->setRange(0, 9);
+    connect(ui->spinBoxCompressionPNG, &QSpinBox::valueChanged, this, &Project::onPngOptionsChanged);
+    connect(ui->checkBoxInterlacedPNG, &QCheckBox::toggled, this, &Project::onPngOptionsChanged);
+
+    // WebP options (bound to OutputProfile::webpOptions). "Compression" maps to effort.
+    ui->spinBoxQualityWebP->setRange(0, 100);
+    ui->spinBoxCompressionWebP->setRange(0, 6);
+    connect(ui->spinBoxQualityWebP, &QSpinBox::valueChanged, this, &Project::onWebpOptionsChanged);
+    connect(ui->checkBoxLosslessWebP, &QCheckBox::toggled, this, &Project::onWebpOptionsChanged);
+    connect(ui->spinBoxCompressionWebP, &QSpinBox::valueChanged, this, &Project::onWebpOptionsChanged);
 
     connect(ui->pushButtonJumpToInput, &QPushButton::clicked,
             this, &Project::onJumpToInput);
@@ -116,6 +139,7 @@ void Project::populate()
 
     refreshCanvasProfilesList();
     refreshOutputProfileCombo();
+    refreshFormatControls();
     refreshOutputDirectoryDisplay();
     refreshOutputTiles();
 }
@@ -290,7 +314,71 @@ void Project::onOutputProfileChanged(int index)
 {
     const QString id = ui->comboBoxOutputProfile->itemData(index).toString();
     m_workspace.projectItems[m_projectIndex].outputProfileId = id.toStdString();
+    refreshFormatControls();   // reflect the newly-selected profile's format/options
     emit projectModified();
+}
+
+Platemaker::Models::OutputProfile* Project::selectedOutputProfile() const
+{
+    const std::string& id = m_workspace.projectItems[m_projectIndex].outputProfileId;
+    if (id.empty()) return nullptr;
+    for (auto& op : m_workspace.outputProfiles)
+        if (op.id == id) return &op;
+    return nullptr;
+}
+
+void Project::refreshFormatControls()
+{
+    OutputProfile* op = selectedOutputProfile();
+    const bool hasProfile = (op != nullptr);
+
+    // Without a selected profile there is nothing to edit.
+    ui->groupOutputImageOptions->setEnabled(hasProfile);
+
+    {
+        const QSignalBlocker bFmt(ui->comboBoxImageFormatSelection);
+        const QSignalBlocker bQ(ui->spinBoxQualityJPG);
+        const QSignalBlocker bS(ui->comboBoxSubsamplingJPG);
+        const QSignalBlocker bO(ui->checkBoxOptimizeJPG);
+        const QSignalBlocker bPr(ui->checkBoxProgressiveeJPG);
+        const QSignalBlocker bPc(ui->spinBoxCompressionPNG);
+        const QSignalBlocker bPi(ui->checkBoxInterlacedPNG);
+        const QSignalBlocker bWq(ui->spinBoxQualityWebP);
+        const QSignalBlocker bWl(ui->checkBoxLosslessWebP);
+        const QSignalBlocker bWc(ui->spinBoxCompressionWebP);
+
+        if (hasProfile) {
+            const int idx = ui->comboBoxImageFormatSelection->findData(
+                static_cast<int>(op->outputFormat));
+            ui->comboBoxImageFormatSelection->setCurrentIndex(idx >= 0 ? idx : 0);
+
+            ui->spinBoxQualityJPG->setValue(op->jpegOptions.quality);
+            ui->comboBoxSubsamplingJPG->setCurrentIndex(
+                static_cast<int>(op->jpegOptions.subsampling));
+            ui->checkBoxOptimizeJPG->setChecked(op->jpegOptions.optimize);
+            ui->checkBoxProgressiveeJPG->setChecked(op->jpegOptions.progressive);
+
+            ui->spinBoxCompressionPNG->setValue(op->pngOptions.compression);
+            ui->checkBoxInterlacedPNG->setChecked(op->pngOptions.interlaced);
+
+            ui->spinBoxQualityWebP->setValue(op->webpOptions.quality);
+            ui->checkBoxLosslessWebP->setChecked(op->webpOptions.lossless);
+            ui->spinBoxCompressionWebP->setValue(op->webpOptions.effort);
+        } else {
+            ui->comboBoxImageFormatSelection->setCurrentIndex(0); // placeholder
+        }
+    }
+
+    updateFormatGroupVisibility();
+}
+
+void Project::updateFormatGroupVisibility()
+{
+    const QVariant data = ui->comboBoxImageFormatSelection->currentData();
+    const bool valid = data.isValid();
+    ui->groupBoxPNG->setVisible(valid && data.toInt() == static_cast<int>(OutputFormat::PNG));
+    ui->groupBoxJPG->setVisible(valid && data.toInt() == static_cast<int>(OutputFormat::JPEG));
+    ui->groupBoxWebP->setVisible(valid && data.toInt() == static_cast<int>(OutputFormat::WebP));
 }
 
 void Project::refreshOutputDirectoryDisplay()
@@ -327,11 +415,26 @@ void Project::onClearOutputDir()
 
 void Project::onImageFormatChanged()
 {
+    updateFormatGroupVisibility();
+
+    // Write the chosen format into the selected output profile (shared, persisted).
+    OutputProfile* op = selectedOutputProfile();
     const QVariant data = ui->comboBoxImageFormatSelection->currentData();
-    const bool valid = data.isValid();
-    ui->groupBoxPNG->setVisible(valid && data.toInt() == static_cast<int>(OutputFormat::PNG));
-    ui->groupBoxJPG->setVisible(valid && data.toInt() == static_cast<int>(OutputFormat::JPEG));
-    ui->groupBoxWebP->setVisible(valid && data.toInt() == static_cast<int>(OutputFormat::WebP));
+    if (!op || !data.isValid()) return;
+    op->outputFormat = static_cast<OutputFormat>(data.toInt());
+    emit projectModified();
+}
+
+void Project::onJpegOptionsChanged()
+{
+    OutputProfile* op = selectedOutputProfile();
+    if (!op) return;
+    op->jpegOptions.quality     = ui->spinBoxQualityJPG->value();
+    op->jpegOptions.subsampling = static_cast<JpegSubsampling>(
+        ui->comboBoxSubsamplingJPG->currentIndex());
+    op->jpegOptions.optimize    = ui->checkBoxOptimizeJPG->isChecked();
+    op->jpegOptions.progressive = ui->checkBoxProgressiveeJPG->isChecked();
+    emit projectModified();
 }
 
 void Project::onJumpToInput()

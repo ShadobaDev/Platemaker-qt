@@ -67,17 +67,19 @@ These are the foundation — nothing else is usable without them.
 - [x] **Output directory** — `pushButtonODSelect`/`pushButtonODClear`, full path in
   `textOutputDirectory`, persisted to `ProjectItem::getOutputDirectory()`; last dir
   remembered in `QSettings` (`lastOutputDir`)
-- [x] **Image format** — `comboBoxImageFormatSelection` ("Select image format" +
-  PNG/JPEG/WebP) reveals the matching `groupBoxPNG`/`groupBoxJPG`/`groupBoxWebP`
-  (show/hide only for now)
+- [x] **Image format + JPEG options** — `comboBoxImageFormatSelection` and the JPEG
+  group (quality / subsampling / optimize / progressive) are an **inline editor of
+  the project's selected `OutputProfile`** (shared, persisted; also editable in
+  Manage Output Profiles). Reflects the selected profile; reveals the matching
+  group; disabled when no profile is selected.
 - [x] **Go to input settings** — `pushButtonJumpToInput` switches to the Input tab
 - [x] **Render guards** — `pushButtonRender` blocks on missing output profile /
   output directory (full pipeline is the Stage 4 task below)
 
-- [x] **Bind format option groups to the model** — once the lib exposes
-  `PngOptions`/`WebpOptions` on `OutputProfile`, wire `groupBoxPNG` (compression,
-  interlaced), `groupBoxJPG` (quality, subsampling, optimize, progressive),
-  `groupBoxWebP` (quality, lossless, effort) to the selected output profile.
+- [ ] **PNG / WebP option groups** — inputs disabled pending lib
+  `PngOptions`/`WebpOptions` on `OutputProfile` + `ImageIO` encoder support
+  (lib TODO); then bind `groupBoxPNG` (compression, interlaced) / `groupBoxWebP`
+  (quality, lossless, effort) like the JPEG group.
 - [ ] **Output size estimation / limits (UI)** — show estimated avg/max slice size
   and total batch size, and warn on platform caps (Webtoon ≤ 2 MB/slice,
   ≤ 25 MB/chapter). Estimate computed by the lib (mirrored in lib TODO); GUI
@@ -142,6 +144,9 @@ These are the foundation — nothing else is usable without them.
 - [ ] **Missing button open output dir** in tabOutput. 
 - [ ] **Slice tiles should have hidden edit panel** because this are neither to deleted nor reorder by the platemaker
 - [ ] **Image options** are not porperly save/loaded in GUI - project resets it with app restart
-- [ ] **Process bar** change style
-- [ ] **ImageTile** rework to be more eye-appealing, fix/recover drag'n'drop reordering, arrow-button readodering and delete buttons
+- [ ] **Process bar** change style - a soild 15px bar, initial should be 0%.
+- [ ] **ImageTile** rework to be more eye-appealing
+- [ ] **ImageTile** fix/recover drag'n'drop reordering, arrow-button re-ordering and delete buttons
 - [ ] **Action log** should report a summary, how manu inputs, how many slices in what time where processed and when. Output cumulative size (MB or KB) would also be nice.
+- [ ] **Template are not re-rendered** - add checkum comparision
+- [ ] **Ouput** changed or missing is not detected, `Render` button does nothing even though it should render missing or modified files

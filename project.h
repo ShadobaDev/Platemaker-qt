@@ -47,6 +47,9 @@ private slots:
     void onSelectOutputDir();
     void onClearOutputDir();
     void onImageFormatChanged();
+    void onJpegOptionsChanged();
+    void onPngOptionsChanged();
+    void onWebpOptionsChanged();
     void onJumpToInput();
 
 private:
@@ -56,6 +59,10 @@ private:
     void refreshCanvasProfilesList();
     void refreshOutputProfileCombo();
     void refreshOutputDirectoryDisplay();
+    void refreshFormatControls();          // reflect the selected output profile
+    void updateFormatGroupVisibility();    // show the groupbox matching the format combo
+    // Mutable pointer to the project's selected output profile, or nullptr.
+    [[nodiscard]] Platemaker::Models::OutputProfile* selectedOutputProfile() const;
 
     Ui::Project* ui;
     int m_projectIndex;

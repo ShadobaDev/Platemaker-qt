@@ -39,6 +39,7 @@ private slots:
     // Project panel
     void onNewProject();
     void onProjectDoubleClicked(QListWidgetItem *item);
+    void onProjectsContextMenu(const QPoint &pos);
 
     // Canvas profile actions
     void onManageCanvasProfiles();
@@ -76,6 +77,11 @@ private:
     void rebuildRecentMenu();
     void openRecentWorkspace(const QString &path);
     [[nodiscard]] QString defaultDialogDir() const;
+
+    // --- project management ---
+    void renameProject(int modelIndex);
+    void removeProject(int modelIndex);
+    [[nodiscard]] class QDockWidget *dockForProject(int modelIndex) const;
 
     // --- project dock management ---
     void openProjectDock(int projectIndex);

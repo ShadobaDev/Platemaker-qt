@@ -92,7 +92,8 @@ Requires Stages 1–3 (workspace loaded, project open, profiles linked).
 
 ## Stage 6 — Polish
 
-- [ ] **Workspace panel** — tree or list widget with project names, status icons
+- [x] **Menu** - `Projects` is obsolete, project managemnt should be done in workspace dock/tab.
+- [x] **Workspace panel** — tree or list widget with project names, status icons, add buttons for deleting and renaming
 - [x] **Recent files** — `QSettings` (IniFormat, app-config dir) holds up to 10 recent workspace paths; dynamic submenu on `actionOpen_recent_workspace`; Open/New dialogs default to the most recent workspace's folder; stale entries self-prune
 - [ ] **Auto-save** on pipeline finish (optional setting)
 - [ ] **Keyboard shortcuts** — `Ctrl+S` save, `F5` or `Ctrl+R` run, `Esc` cancel

@@ -21,6 +21,10 @@ public:
 
     void populate();
 
+    // Updates the workspace index this widget refers to. Used when a lower-indexed
+    // project is removed and the vector shifts (the widget reads the index live).
+    void setProjectIndex(int index) { m_projectIndex = index; }
+
 signals:
     void projectModified();
 

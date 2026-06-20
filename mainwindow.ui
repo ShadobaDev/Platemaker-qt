@@ -89,7 +89,7 @@ QTabWidget QTabBar::close-button {
      <string>📁 Workspace</string>
     </property>
     <addaction name="separator"/>
-    <addaction name="actionOpen_worksapce"/>
+    <addaction name="actionOpen_workspace"/>
     <addaction name="actionNew_workspace"/>
     <addaction name="actionOpen_recent_workspace"/>
     <addaction name="separator"/>
@@ -122,17 +122,6 @@ QTabWidget QTabBar::close-button {
     <addaction name="separator"/>
     <addaction name="actionSet_output_directory"/>
    </widget>
-   <widget class="QMenu" name="menu_Process">
-    <property name="title">
-     <string>📖 Projects</string>
-    </property>
-    <addaction name="actionNew_project_chapter"/>
-    <addaction name="actionRename_project"/>
-    <addaction name="actionRemove_project"/>
-    <addaction name="separator"/>
-    <addaction name="actionOpen_input_directory"/>
-    <addaction name="actionOpen_output_directory"/>
-   </widget>
    <widget class="QMenu" name="menuTemplates">
     <property name="title">
      <string>✍Templates</string>
@@ -141,7 +130,7 @@ QTabWidget QTabBar::close-button {
     <addaction name="actionOpen_dir_templates"/>
     <addaction name="separator"/>
    </widget>
-   <widget class="QMenu" name="menu_Process_2">
+   <widget class="QMenu" name="menu_Process">
     <property name="title">
      <string>▶ Process</string>
     </property>
@@ -160,10 +149,9 @@ QTabWidget QTabBar::close-button {
     <addaction name="actionVersion"/>
    </widget>
    <addaction name="menuPlatemaker"/>
-   <addaction name="menu_Process"/>
    <addaction name="menuCanvas_Profile"/>
    <addaction name="menu_Output_Settings"/>
-   <addaction name="menu_Process_2"/>
+   <addaction name="menu_Process"/>
    <addaction name="menuTemplates"/>
    <addaction name="menu_About"/>
   </widget>
@@ -251,19 +239,12 @@ QTabWidget QTabBar::close-button {
        <item>
         <widget class="QListWidget" name="listWidgetProjects"/>
        </item>
-       <item>
-        <widget class="QPushButton" name="pushButtonNewProject">
-         <property name="text">
-          <string>New project</string>
-         </property>
-        </widget>
-       </item>
       </layout>
      </item>
     </layout>
    </widget>
   </widget>
-  <action name="actionOpen_worksapce">
+  <action name="actionOpen_workspace">
    <property name="text">
     <string>Open workspace (Ctrl+O)</string>
    </property>

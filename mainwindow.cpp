@@ -8,9 +8,11 @@
 #include "templatesdialog.h"
 
 #include <QCloseEvent>
+#include <QCollator>
 #include <QDateTime>
 #include <QDesktopServices>
 #include <QDir>
+#include <QDockWidget>
 #include <QFileDialog>
 #include <QFileInfo>
 #include <QInputDialog>
@@ -53,13 +55,13 @@ MainWindow::MainWindow(QWidget *parent)
     ui->dockWidgetAction->show();
 
     // Keyboard shortcuts (the .ui already sets text labels, we only add keys)
-    ui->actionOpen_worksapce->setShortcut(QKeySequence::Open);
+    ui->actionOpen_workspace->setShortcut(QKeySequence::Open);
     ui->actionNew_workspace->setShortcut(QKeySequence::New);
     ui->actionSave_Ctrl_S->setShortcut(QKeySequence::Save);
     ui->actionSave_as_Ctrl_Shift_S->setShortcut(QKeySequence::SaveAs);
 
     // --- Workspace menu ---
-    connect(ui->actionOpen_worksapce,               &QAction::triggered, this, &MainWindow::onOpenWorkspace);
+    connect(ui->actionOpen_workspace,               &QAction::triggered, this, &MainWindow::onOpenWorkspace);
     connect(ui->actionNew_workspace,                &QAction::triggered, this, &MainWindow::onNewWorkspace);
     connect(ui->actionSave_Ctrl_S,                  &QAction::triggered, this, &MainWindow::onSave);
     connect(ui->actionSave_as_Ctrl_Shift_S,         &QAction::triggered, this, &MainWindow::onSaveAs);
@@ -88,11 +90,12 @@ MainWindow::MainWindow(QWidget *parent)
     connect(ui->actionNew_output_profile,     &QAction::triggered, this, &MainWindow::onNewOutputProfile);
     connect(ui->actionEdit_output_settings,   &QAction::triggered, this, &MainWindow::onEditActiveOutputProfile);
 
-    // --- Projects menu + workspace panel button ---
-    connect(ui->actionNew_project_chapter, &QAction::triggered, this, &MainWindow::onNewProject);
-    connect(ui->pushButtonNewProject,      &QPushButton::clicked, this, &MainWindow::onNewProject);
-    connect(ui->listWidgetProjects,        &QListWidget::itemDoubleClicked,
+    // --- Projects panel (managed via the workspace dock's context menu) ---
+    connect(ui->listWidgetProjects, &QListWidget::itemDoubleClicked,
             this, &MainWindow::onProjectDoubleClicked);
+    ui->listWidgetProjects->setContextMenuPolicy(Qt::CustomContextMenu);
+    connect(ui->listWidgetProjects, &QWidget::customContextMenuRequested,
+            this, &MainWindow::onProjectsContextMenu);
 
     // --- Templates menu ---
     connect(ui->actionManage_templates,   &QAction::triggered, this, &MainWindow::onManageTemplates);
@@ -234,10 +237,100 @@ void MainWindow::onNewProject()
 
 void MainWindow::onProjectDoubleClicked(QListWidgetItem *item)
 {
-    const int index = ui->listWidgetProjects->row(item);
+    const int index = item->data(Qt::UserRole).toInt();
     if (index < 0 || index >= static_cast<int>(m_workspace.projectItems.size()))
         return;
     openProjectDock(index);
+}
+
+void MainWindow::onProjectsContextMenu(const QPoint &pos)
+{
+    if (m_workspacePath.isEmpty()) return;
+
+    QListWidgetItem *item = ui->listWidgetProjects->itemAt(pos);
+
+    QMenu menu(this);
+    if (item) {
+        const int modelIndex = item->data(Qt::UserRole).toInt();
+        connect(menu.addAction(tr("Rename")), &QAction::triggered, this,
+                [this, modelIndex]{ renameProject(modelIndex); });
+        connect(menu.addAction(tr("Delete")), &QAction::triggered, this,
+                [this, modelIndex]{ removeProject(modelIndex); });
+        menu.addSeparator();
+    }
+    connect(menu.addAction(tr("New")), &QAction::triggered,
+            this, &MainWindow::onNewProject);
+
+    menu.exec(ui->listWidgetProjects->viewport()->mapToGlobal(pos));
+}
+
+void MainWindow::renameProject(int modelIndex)
+{
+    if (modelIndex < 0 || modelIndex >= static_cast<int>(m_workspace.projectItems.size()))
+        return;
+
+    auto &proj = m_workspace.projectItems[static_cast<std::size_t>(modelIndex)];
+    bool ok;
+    const QString name = QInputDialog::getText(
+        this, tr("Rename Project"), tr("Project name:"),
+        QLineEdit::Normal, QString::fromStdString(proj.name), &ok);
+    if (!ok || name.trimmed().isEmpty()) return;
+
+    proj.name = name.trimmed().toStdString();
+
+    // Reflect the new name on the open dock/tab, if any.
+    if (QDockWidget *dock = dockForProject(modelIndex))
+        dock->setWindowTitle(name.trimmed());
+
+    setDirty(true);
+    applyWorkspaceToUi();
+}
+
+void MainWindow::removeProject(int modelIndex)
+{
+    if (modelIndex < 0 || modelIndex >= static_cast<int>(m_workspace.projectItems.size()))
+        return;
+
+    const QString name = QString::fromStdString(
+        m_workspace.projectItems[static_cast<std::size_t>(modelIndex)].name);
+
+    if (QMessageBox::question(this, tr("Delete Project"),
+            tr("Remove project \"%1\" from the workspace?\n\n"
+               "Files on disk are not deleted.").arg(name))
+        != QMessageBox::Yes)
+        return;
+
+    // Close this project's dock if it is open.
+    if (QDockWidget *dock = dockForProject(modelIndex)) {
+        m_openProjectDocks.removeOne(dock);
+        dock->deleteLater();
+    }
+
+    // Erase from the model.
+    m_workspace.projectItems.erase(
+        m_workspace.projectItems.begin() + modelIndex);
+
+    // Reindex any still-open docks that referenced a higher model index — the
+    // vector shifted down by one.
+    for (QDockWidget *dock : std::as_const(m_openProjectDocks)) {
+        const int idx = dock->property("projectIndex").toInt();
+        if (idx > modelIndex) {
+            dock->setProperty("projectIndex", idx - 1);
+            if (auto *pw = qobject_cast<Project *>(dock->widget()))
+                pw->setProjectIndex(idx - 1);
+        }
+    }
+
+    setDirty(true);
+    applyWorkspaceToUi();
+}
+
+QDockWidget *MainWindow::dockForProject(int modelIndex) const
+{
+    for (QDockWidget *dock : m_openProjectDocks)
+        if (dock->property("projectIndex").toInt() == modelIndex)
+            return dock;
+    return nullptr;
 }
 
 // ---------------------------------------------------------------------------
@@ -294,8 +387,29 @@ void MainWindow::loadWorkspace(const QString &path)
 void MainWindow::applyWorkspaceToUi()
 {
     ui->listWidgetProjects->clear();
-    for (const auto &proj : m_workspace.projectItems)
-        ui->listWidgetProjects->addItem(QString::fromStdString(proj.name));
+
+    // Display projects sorted by name (natural/numeric order) while leaving the
+    // model order untouched — each item carries its real model index in UserRole,
+    // so open project docks (which reference projects by index) stay valid.
+    std::vector<int> order(m_workspace.projectItems.size());
+    for (int i = 0; i < static_cast<int>(order.size()); ++i)
+        order[static_cast<std::size_t>(i)] = i;
+
+    QCollator collator;
+    collator.setNumericMode(true);
+    collator.setCaseSensitivity(Qt::CaseInsensitive);
+    std::sort(order.begin(), order.end(), [&](int a, int b) {
+        return collator.compare(
+            QString::fromStdString(m_workspace.projectItems[static_cast<std::size_t>(a)].name),
+            QString::fromStdString(m_workspace.projectItems[static_cast<std::size_t>(b)].name)) < 0;
+    });
+
+    for (int modelIndex : order) {
+        auto* item = new QListWidgetItem(
+            QString::fromStdString(m_workspace.projectItems[static_cast<std::size_t>(modelIndex)].name));
+        item->setData(Qt::UserRole, modelIndex);
+        ui->listWidgetProjects->addItem(item);
+    }
 
     updateTitle();
 }

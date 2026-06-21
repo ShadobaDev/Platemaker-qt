@@ -518,6 +518,16 @@
            </widget>
           </item>
           <item>
+           <widget class="QPushButton" name="pushButtonRefresh">
+            <property name="toolTip">
+             <string>Re-scan input and output files on disk and update their status (detects deleted or externally modified outputs).</string>
+            </property>
+            <property name="text">
+             <string>Refresh files</string>
+            </property>
+           </widget>
+          </item>
+          <item>
            <widget class="QPushButton" name="pushButtonRender">
             <property name="text">
              <string>Render</string>

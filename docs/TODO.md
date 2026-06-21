@@ -76,7 +76,7 @@ These are the foundation — nothing else is usable without them.
 - [x] **Render guards** — `pushButtonRender` blocks on missing output profile /
   output directory (full pipeline is the Stage 4 task below)
 
-- [ ] **PNG / WebP option groups** — inputs disabled pending lib
+- [x] **PNG / WebP option groups** — inputs disabled pending lib
   `PngOptions`/`WebpOptions` on `OutputProfile` + `ImageIO` encoder support
   (lib TODO); then bind `groupBoxPNG` (compression, interlaced) / `groupBoxWebP`
   (quality, lossless, effort) like the JPEG group.
@@ -149,6 +149,9 @@ These are the foundation — nothing else is usable without them.
 - [x] **ImageTile** fix/recover drag'n'drop reordering, arrow-button re-ordering and delete buttons
 - [ ] **Action log** should report a summary, how manu inputs, how many slices in what time where processed and when. Output cumulative size (MB or KB) would also be nice.
 - [ ] **Template are not re-rendered** - add checkum comparision
-- [ ] **Ouput** changed or missing is not detected, `Render` button does nothing even though it should render missing or modified files
-- [ ] **OutputProfileDialog** (Manage Output Profiles) still edits only JPEG + format (its WebP lines were stubbed/commented). So PNG/WebP options are currently editable only in the project Output tab. Extending that dialog to the new fields is a small follow-up (noted in lib TODO).
+- [x] **Ouput** changed or missing is not detected, `Render` button does nothing even though it should render missing or modified files
+  - `ProjectItem::sanitize()` now validates outputs (existence + SHA-256) → `isUpToDate()` is false when an output is deleted/edited, so the Render guard proceeds.
+  - **Partial re-render**: pipeline `run()` takes an optional `onlySlices` filter; when inputs are all `Processed` but some outputs are dirty, only the affected slices are regenerated (`applyPartialResults`). CLI + GUI share the same decision.
+  - Re-validated on project open, before render, and via a new **Refresh files** button on the Output tab. No `QFileSystemWatcher` (deferred); no background hasher.
+- [x] **OutputProfileDialog** (Manage Output Profiles) still edits only JPEG + format (its WebP lines were stubbed/commented). So PNG/WebP options are currently editable only in the project Output tab. Extending that dialog to the new fields is a small follow-up (noted in lib TODO).
 - [ ] **Segfault** was detcted but not written down how - to be investigated.

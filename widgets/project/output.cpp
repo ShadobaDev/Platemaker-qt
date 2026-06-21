@@ -179,3 +179,12 @@ void Project::refreshOutputTiles()
         addOutputImageTile(f);
 }
 
+void Project::onRefreshFiles()
+{
+    // Re-scan inputs + outputs against disk and repaint tiles. Statuses are
+    // transient (recomputed on demand), so this does not mark the workspace
+    // dirty; an actual render does.
+    m_workspace.projectItems[m_projectIndex].sanitize();
+    populate();
+}
+

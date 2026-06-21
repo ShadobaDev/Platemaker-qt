@@ -28,6 +28,7 @@
 #include <QUrl>
 
 #include <algorithm>
+#include <unordered_set>
 #include <utility>
 #include <vector>
 
@@ -123,6 +124,14 @@ void MainWindow::startRender(int projectIndex)
         return;
     }
 
+    // Decide full vs partial re-render. When every input is Processed but some
+    // outputs are Missing/Modified, only those slices need regenerating.
+    std::unordered_set<std::string> onlySlices;
+    if (project.inputsAllProcessed()) {
+        const auto names = project.dirtyOutputNames();
+        onlySlices.insert(names.begin(), names.end());
+    }
+
     // --- launch the worker on its own thread, with snapshot copies ---
     m_cancelToken.reset();
     m_renderProjectIndex = projectIndex;
@@ -135,6 +144,8 @@ void MainWindow::startRender(int projectIndex)
         project.canvasProfileIds,          // copy
         outDir.toStdString(),
         m_cancelToken);
+    if (!onlySlices.empty())
+        worker->setOnlySlices(std::move(onlySlices));
     auto *thread = new QThread(this);
     worker->moveToThread(thread);
     m_renderWorker = worker;
@@ -190,6 +201,7 @@ void MainWindow::onRenderSliceSaved(QString name, QString fullPath)
 void MainWindow::onRenderFinished()
 {
     const auto &outcome = m_renderWorker->outcome();
+    const bool partial  = m_renderWorker->isPartial();
     const int idx = m_renderProjectIndex;
 
     QString name;
@@ -198,9 +210,14 @@ void MainWindow::onRenderFinished()
         name = QString::fromStdString(project.name);
 
         if (!outcome.failed && !outcome.cancelled) {
-            const QString ts = QDateTime::currentDateTimeUtc().toString(Qt::ISODate);
-            project.applyProcessingResults(
-                outcome.records, project.getOutputDirectory(), ts.toStdString());
+            if (partial) {
+                // Only the dirty slices were regenerated; refresh just those.
+                project.applyPartialResults(outcome.records);
+            } else {
+                const QString ts = QDateTime::currentDateTimeUtc().toString(Qt::ISODate);
+                project.applyProcessingResults(
+                    outcome.records, project.getOutputDirectory(), ts.toStdString());
+            }
             setDirty(true);
             if (auto *pw = projectWidget(idx)) pw->refreshOutputTiles();
         }

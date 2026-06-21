@@ -95,10 +95,15 @@ Project::Project(int projectIndex,
 
     connect(ui->pushButtonJumpToInput, &QPushButton::clicked,
             this, &Project::onJumpToInput);
+    connect(ui->pushButtonRefresh, &QPushButton::clicked,
+            this, &Project::onRefreshFiles);
     connect(ui->pushButtonRender, &QPushButton::clicked, this, [this]{
         emit renderToggleRequested(m_projectIndex);
     });
 
+    // Validate against disk on open so tiles reflect deletions / external edits
+    // made while the app was closed (the "changed externally" case).
+    m_workspace.projectItems[m_projectIndex].sanitize();
     populate();
 }
 

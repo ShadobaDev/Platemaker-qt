@@ -33,7 +33,8 @@ void RenderWorker::process()
         },
         [this](const std::string& name, const std::string& fullPath) {
             emit sliceSaved(QString::fromStdString(name), QString::fromStdString(fullPath));
-        });
+        },
+        m_onlySlices.empty() ? nullptr : &m_onlySlices);
 
     emit finished();
 }

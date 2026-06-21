@@ -4,6 +4,7 @@
 #include <QObject>
 
 #include <string>
+#include <unordered_set>
 #include <vector>
 
 #include <platemaker/core/processing_pipeline/processing_pipeline.hpp>
@@ -37,6 +38,18 @@ public:
 
     [[nodiscard]] const Platemaker::Core::ProcessingOutcome& outcome() const { return m_outcome; }
 
+    /**
+     * \brief Restricts the run to a partial re-render of the named output slices.
+     *
+     * When non-empty, only slices whose output file name is in \p names are
+     * encoded, saved and recorded; all others are skipped. Empty (default) →
+     * full render. Call before starting the worker.
+     */
+    void setOnlySlices(std::unordered_set<std::string> names) { m_onlySlices = std::move(names); }
+
+    /// True when a partial-render filter has been set (some slices restricted).
+    [[nodiscard]] bool isPartial() const { return !m_onlySlices.empty(); }
+
 public slots:
     void process();
 
@@ -53,6 +66,7 @@ private:
     std::vector<std::string>                       m_canvasProfileIds;
     std::string                                    m_outputDir;
     const Platemaker::Infrastructure::CancellationToken& m_cancel;
+    std::unordered_set<std::string>                m_onlySlices; //!< Partial-render filter (empty = full).
     Platemaker::Core::ProcessingOutcome            m_outcome;
 };
 

@@ -52,6 +52,7 @@ private slots:
     void onClearOutputDir();
     void onFormatOptionsEdited();   // OutputFormatOptionsWidget::edited → write back
     void onJumpToInput();
+    void onRefreshFiles();          // re-scan inputs+outputs on disk, refresh statuses/tiles
 
 private:
     void addImageTile(const Platemaker::Models::InputFile& file);

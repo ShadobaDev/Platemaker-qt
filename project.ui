@@ -363,9 +363,15 @@
            <verstretch>0</verstretch>
           </sizepolicy>
          </property>
+         <property name="minimumSize">
+          <size>
+           <width>300</width>
+           <height>0</height>
+          </size>
+         </property>
          <property name="maximumSize">
           <size>
-           <width>250</width>
+           <width>300</width>
            <height>10000</height>
           </size>
          </property>
@@ -474,178 +480,7 @@
             <property name="title">
              <string>Image options</string>
             </property>
-            <layout class="QVBoxLayout" name="verticalLayout_6">
-             <item>
-              <widget class="QLabel" name="labelImageFormat">
-               <property name="text">
-                <string>Image format:</string>
-               </property>
-              </widget>
-             </item>
-             <item>
-              <widget class="QComboBox" name="comboBoxImageFormatSelection"/>
-             </item>
-             <item>
-              <widget class="QGroupBox" name="groupBoxPNG">
-               <property name="title">
-                <string>PNG</string>
-               </property>
-               <layout class="QVBoxLayout" name="verticalLayout_13">
-                <item>
-                 <layout class="QFormLayout" name="formLayoutPNG">
-                  <property name="formAlignment">
-                   <set>Qt::AlignmentFlag::AlignCenter</set>
-                  </property>
-                  <item row="0" column="0">
-                   <widget class="QLabel" name="labelCompressionPNG">
-                    <property name="text">
-                     <string>Compression</string>
-                    </property>
-                   </widget>
-                  </item>
-                  <item row="0" column="1">
-                   <widget class="QSpinBox" name="spinBoxCompressionPNG"/>
-                  </item>
-                  <item row="1" column="0">
-                   <widget class="QLabel" name="labelInterlacedPNG">
-                    <property name="text">
-                     <string>Interlaced</string>
-                    </property>
-                   </widget>
-                  </item>
-                  <item row="1" column="1">
-                   <widget class="QCheckBox" name="checkBoxInterlacedPNG">
-                    <property name="text">
-                     <string/>
-                    </property>
-                   </widget>
-                  </item>
-                 </layout>
-                </item>
-               </layout>
-              </widget>
-             </item>
-             <item>
-              <widget class="QGroupBox" name="groupBoxJPG">
-               <property name="title">
-                <string>JPG</string>
-               </property>
-               <layout class="QVBoxLayout" name="verticalLayout_8">
-                <item>
-                 <layout class="QFormLayout" name="formLayoutJPG">
-                  <property name="formAlignment">
-                   <set>Qt::AlignmentFlag::AlignCenter</set>
-                  </property>
-                  <item row="0" column="0">
-                   <widget class="QLabel" name="labelQualityJPG">
-                    <property name="text">
-                     <string>Quality</string>
-                    </property>
-                   </widget>
-                  </item>
-                  <item row="0" column="1">
-                   <widget class="QSpinBox" name="spinBoxQualityJPG"/>
-                  </item>
-                  <item row="1" column="0">
-                   <widget class="QLabel" name="labelSubsamplingJPG">
-                    <property name="text">
-                     <string>Subsampling</string>
-                    </property>
-                   </widget>
-                  </item>
-                  <item row="2" column="0">
-                   <widget class="QLabel" name="labelOptimizeJPG">
-                    <property name="text">
-                     <string>Optimize</string>
-                    </property>
-                   </widget>
-                  </item>
-                  <item row="3" column="0">
-                   <widget class="QLabel" name="labelProgressiveJPG">
-                    <property name="text">
-                     <string>Progressive</string>
-                    </property>
-                   </widget>
-                  </item>
-                  <item row="2" column="1">
-                   <widget class="QCheckBox" name="checkBoxOptimizeJPG">
-                    <property name="text">
-                     <string/>
-                    </property>
-                    <property name="checked">
-                     <bool>true</bool>
-                    </property>
-                   </widget>
-                  </item>
-                  <item row="3" column="1">
-                   <widget class="QCheckBox" name="checkBoxProgressiveeJPG">
-                    <property name="text">
-                     <string/>
-                    </property>
-                   </widget>
-                  </item>
-                  <item row="1" column="1">
-                   <widget class="QComboBox" name="comboBoxSubsamplingJPG"/>
-                  </item>
-                 </layout>
-                </item>
-               </layout>
-              </widget>
-             </item>
-             <item>
-              <widget class="QGroupBox" name="groupBoxWebP">
-               <property name="title">
-                <string>WEBP</string>
-               </property>
-               <layout class="QVBoxLayout" name="verticalLayout_11">
-                <item>
-                 <layout class="QFormLayout" name="formLayoutWebP">
-                  <property name="formAlignment">
-                   <set>Qt::AlignmentFlag::AlignCenter</set>
-                  </property>
-                  <item row="0" column="0">
-                   <widget class="QLabel" name="labelQualityWebP">
-                    <property name="text">
-                     <string>Quality</string>
-                    </property>
-                   </widget>
-                  </item>
-                  <item row="0" column="1">
-                   <widget class="QSpinBox" name="spinBoxQualityWebP"/>
-                  </item>
-                  <item row="2" column="0">
-                   <widget class="QLabel" name="labelCompressionWebP">
-                    <property name="text">
-                     <string>Compression</string>
-                    </property>
-                   </widget>
-                  </item>
-                  <item row="2" column="1">
-                   <widget class="QSpinBox" name="spinBoxCompressionWebP"/>
-                  </item>
-                  <item row="1" column="0">
-                   <widget class="QLabel" name="labelLosslessWebP">
-                    <property name="text">
-                     <string>Lossless</string>
-                    </property>
-                   </widget>
-                  </item>
-                  <item row="1" column="1">
-                   <widget class="QCheckBox" name="checkBoxLosslessWebP">
-                    <property name="text">
-                     <string/>
-                    </property>
-                    <property name="checked">
-                     <bool>true</bool>
-                    </property>
-                   </widget>
-                  </item>
-                 </layout>
-                </item>
-               </layout>
-              </widget>
-             </item>
-            </layout>
+            <layout class="QVBoxLayout" name="verticalLayout_6"/>
            </widget>
           </item>
           <item>

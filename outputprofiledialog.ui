@@ -115,270 +115,223 @@ QFrame#formatOptionsFrame {
 }
    </string>
   </property>
-
   <layout class="QVBoxLayout" name="verticalLayoutMain">
-   <property name="spacing"><number>12</number></property>
-   <property name="leftMargin"><number>16</number></property>
-   <property name="topMargin"><number>16</number></property>
-   <property name="rightMargin"><number>16</number></property>
-   <property name="bottomMargin"><number>16</number></property>
-
-   <!-- Name -->
+   <property name="spacing">
+    <number>12</number>
+   </property>
+   <property name="leftMargin">
+    <number>16</number>
+   </property>
+   <property name="topMargin">
+    <number>16</number>
+   </property>
+   <property name="rightMargin">
+    <number>16</number>
+   </property>
+   <property name="bottomMargin">
+    <number>16</number>
+   </property>
    <item>
     <layout class="QHBoxLayout">
      <item>
-      <widget class="QLabel">
-       <property name="text"><string>Profile name:</string></property>
-       <property name="minimumWidth"><number>90</number></property>
+      <widget class="QLabel" name="label">
+       <property name="text">
+        <string>Profile name:</string>
+       </property>
       </widget>
      </item>
      <item>
       <widget class="QLineEdit" name="lineEditName">
-       <property name="placeholderText"><string>e.g. Webtoon Standard</string></property>
+       <property name="placeholderText">
+        <string>e.g. Webtoon Standard</string>
+       </property>
       </widget>
      </item>
     </layout>
    </item>
-
-   <!-- Output format -->
    <item>
     <widget class="QGroupBox" name="groupBoxFormat">
-     <property name="title"><string>Output format</string></property>
+     <property name="title">
+      <string>Output format</string>
+     </property>
      <layout class="QVBoxLayout" name="verticalLayoutFormat">
-      <property name="spacing"><number>8</number></property>
-
-      <!-- Format radio buttons -->
-      <item>
-       <layout class="QHBoxLayout">
-        <item>
-         <widget class="QRadioButton" name="radioButtonPNG">
-          <property name="text"><string>PNG</string></property>
-          <property name="checked"><bool>true</bool></property>
-         </widget>
-        </item>
-        <item>
-         <widget class="QRadioButton" name="radioButtonJPEG">
-          <property name="text"><string>JPEG</string></property>
-         </widget>
-        </item>
-        <item>
-         <widget class="QRadioButton" name="radioButtonWEBP">
-          <property name="text"><string>WEBP</string></property>
-         </widget>
-        </item>
-        <item>
-         <spacer>
-          <property name="orientation"><enum>Qt::Orientation::Horizontal</enum></property>
-          <property name="sizeHint" stdset="0"><size><width>40</width><height>20</height></size></property>
-         </spacer>
-        </item>
-       </layout>
-      </item>
-
-      <!-- Format-specific options (shown/hidden by code based on radio selection) -->
-      <item>
-       <widget class="QFrame" name="frameJpegOptions">
-        <property name="frameShape"><enum>QFrame::Shape::StyledPanel</enum></property>
-        <property name="visible"><bool>false</bool></property>
-        <layout class="QFormLayout" name="formLayoutJpeg">
-         <property name="horizontalSpacing"><number>12</number></property>
-         <property name="verticalSpacing"><number>6</number></property>
-         <property name="leftMargin"><number>8</number></property>
-      <property name="topMargin"><number>8</number></property>
-      <property name="rightMargin"><number>8</number></property>
-      <property name="bottomMargin"><number>8</number></property>
-         <item row="0" column="0">
-          <widget class="QLabel"><property name="text"><string>Quality (0–100):</string></property></widget>
-         </item>
-         <item row="0" column="1">
-          <widget class="QSpinBox" name="spinBoxJpegQuality">
-           <property name="minimum"><number>0</number></property>
-           <property name="maximum"><number>100</number></property>
-           <property name="value"><number>90</number></property>
-          </widget>
-         </item>
-         <item row="1" column="0">
-          <widget class="QLabel"><property name="text"><string>Subsampling:</string></property></widget>
-         </item>
-         <item row="1" column="1">
-          <widget class="QComboBox" name="comboBoxJpegSubsampling">
-           <item><property name="text"><string>YUV_444</string></property></item>
-           <item><property name="text"><string>YUV_422</string></property></item>
-           <item><property name="text"><string>YUV_420</string></property></item>
-          </widget>
-         </item>
-         <item row="2" column="0">
-          <widget class="QLabel"><property name="text"><string>Optimize:</string></property></widget>
-         </item>
-         <item row="2" column="1">
-          <widget class="QCheckBox" name="checkBoxJpegOptimize">
-           <property name="text"><string/></property>
-           <property name="checked"><bool>true</bool></property>
-          </widget>
-         </item>
-         <item row="3" column="0">
-          <widget class="QLabel"><property name="text"><string>Progressive:</string></property></widget>
-         </item>
-         <item row="3" column="1">
-          <widget class="QCheckBox" name="checkBoxJpegProgressive">
-           <property name="text"><string/></property>
-          </widget>
-         </item>
-        </layout>
-       </widget>
-      </item>
-
-      <item>
-       <widget class="QFrame" name="frameWebpOptions">
-        <property name="frameShape"><enum>QFrame::Shape::StyledPanel</enum></property>
-        <property name="visible"><bool>false</bool></property>
-        <layout class="QFormLayout" name="formLayoutWebp">
-         <property name="horizontalSpacing"><number>12</number></property>
-         <property name="verticalSpacing"><number>6</number></property>
-         <property name="leftMargin"><number>8</number></property>
-      <property name="topMargin"><number>8</number></property>
-      <property name="rightMargin"><number>8</number></property>
-      <property name="bottomMargin"><number>8</number></property>
-         <item row="0" column="0">
-          <widget class="QLabel"><property name="text"><string>Quality (0–100):</string></property></widget>
-         </item>
-         <item row="0" column="1">
-          <widget class="QSpinBox" name="spinBoxWebpQuality">
-           <property name="minimum"><number>0</number></property>
-           <property name="maximum"><number>100</number></property>
-           <property name="value"><number>90</number></property>
-          </widget>
-         </item>
-         <item row="1" column="0">
-          <widget class="QLabel"><property name="text"><string>Compression (0–9):</string></property></widget>
-         </item>
-         <item row="1" column="1">
-          <widget class="QSpinBox" name="spinBoxWebpCompression">
-           <property name="minimum"><number>0</number></property>
-           <property name="maximum"><number>9</number></property>
-           <property name="value"><number>6</number></property>
-          </widget>
-         </item>
-         <item row="2" column="0">
-          <widget class="QLabel"><property name="text"><string>Lossless:</string></property></widget>
-         </item>
-         <item row="2" column="1">
-          <widget class="QCheckBox" name="checkBoxWebpLossless">
-           <property name="text"><string/></property>
-          </widget>
-         </item>
-        </layout>
-       </widget>
-      </item>
-
+      <property name="spacing">
+       <number>8</number>
+      </property>
      </layout>
     </widget>
    </item>
-
-   <!-- Slicing -->
    <item>
     <widget class="QGroupBox" name="groupBoxSlicing">
-     <property name="title"><string>Slicing</string></property>
+     <property name="title">
+      <string>Slicing</string>
+     </property>
      <layout class="QFormLayout" name="formLayoutSlicing">
-      <property name="horizontalSpacing"><number>12</number></property>
-      <property name="verticalSpacing"><number>8</number></property>
+      <property name="horizontalSpacing">
+       <number>12</number>
+      </property>
+      <property name="verticalSpacing">
+       <number>8</number>
+      </property>
       <item row="0" column="0">
-       <widget class="QLabel"><property name="text"><string>Target width (px):</string></property></widget>
+       <widget class="QLabel" name="label">
+        <property name="text">
+         <string>Target width (px):</string>
+        </property>
+       </widget>
       </item>
       <item row="0" column="1">
        <widget class="QSpinBox" name="spinBoxTargetWidth">
-        <property name="minimum"><number>1</number></property>
-        <property name="maximum"><number>99999</number></property>
-        <property name="value"><number>800</number></property>
+        <property name="minimum">
+         <number>1</number>
+        </property>
+        <property name="maximum">
+         <number>99999</number>
+        </property>
+        <property name="value">
+         <number>800</number>
+        </property>
        </widget>
       </item>
       <item row="1" column="0">
-       <widget class="QLabel"><property name="text"><string>Slice height (px):</string></property></widget>
+       <widget class="QLabel" name="label">
+        <property name="text">
+         <string>Slice height (px):</string>
+        </property>
+       </widget>
       </item>
       <item row="1" column="1">
        <widget class="QSpinBox" name="spinBoxSliceHeight">
-        <property name="minimum"><number>1</number></property>
-        <property name="maximum"><number>99999</number></property>
-        <property name="value"><number>1280</number></property>
+        <property name="minimum">
+         <number>1</number>
+        </property>
+        <property name="maximum">
+         <number>99999</number>
+        </property>
+        <property name="value">
+         <number>1280</number>
+        </property>
        </widget>
       </item>
       <item row="2" column="0">
-       <widget class="QLabel"><property name="text"><string>Start index:</string></property></widget>
+       <widget class="QLabel" name="label">
+        <property name="text">
+         <string>Start index:</string>
+        </property>
+       </widget>
       </item>
       <item row="2" column="1">
        <widget class="QSpinBox" name="spinBoxStartIndex">
-        <property name="minimum"><number>0</number></property>
-        <property name="maximum"><number>9999</number></property>
-        <property name="value"><number>1</number></property>
+        <property name="minimum">
+         <number>0</number>
+        </property>
+        <property name="maximum">
+         <number>9999</number>
+        </property>
+        <property name="value">
+         <number>1</number>
+        </property>
        </widget>
       </item>
      </layout>
     </widget>
    </item>
-
-   <!-- Last slice policy -->
    <item>
     <widget class="QGroupBox" name="groupBoxLastSlice">
-     <property name="title"><string>Last slice — if shorter than slice height</string></property>
+     <property name="title">
+      <string>Last slice — if shorter than slice height</string>
+     </property>
      <layout class="QVBoxLayout" name="verticalLayoutLastSlice">
-      <property name="spacing"><number>6</number></property>
+      <property name="spacing">
+       <number>6</number>
+      </property>
       <item>
        <widget class="QRadioButton" name="radioButtonKeepAsIs">
-        <property name="text"><string>Keep as-is  (save at its natural height)</string></property>
-        <property name="checked"><bool>true</bool></property>
+        <property name="text">
+         <string>Keep as-is  (save at its natural height)</string>
+        </property>
+        <property name="checked">
+         <bool>true</bool>
+        </property>
        </widget>
       </item>
       <item>
        <widget class="QRadioButton" name="radioButtonPadWhite">
-        <property name="text"><string>Pad with white  (extend to full slice height)</string></property>
+        <property name="text">
+         <string>Pad with white  (extend to full slice height)</string>
+        </property>
        </widget>
       </item>
       <item>
        <widget class="QRadioButton" name="radioButtonCrop">
-        <property name="text"><string>Crop  (discard the tail entirely)</string></property>
+        <property name="text">
+         <string>Crop  (discard the tail entirely)</string>
+        </property>
        </widget>
       </item>
      </layout>
     </widget>
    </item>
-
    <item>
     <spacer>
-     <property name="orientation"><enum>Qt::Orientation::Vertical</enum></property>
-     <property name="sizeHint" stdset="0"><size><width>20</width><height>8</height></size></property>
+     <property name="orientation">
+      <enum>Qt::Orientation::Vertical</enum>
+     </property>
+     <property name="sizeHint" stdset="0">
+      <size>
+       <width>20</width>
+       <height>8</height>
+      </size>
+     </property>
     </spacer>
    </item>
-
-   <!-- Separator + buttons -->
    <item>
-    <widget class="QFrame">
-     <property name="frameShape"><enum>QFrame::Shape::HLine</enum></property>
-     <property name="frameShadow"><enum>QFrame::Shadow::Sunken</enum></property>
-     <property name="styleSheet"><string>color: #3d3d3d;</string></property>
+    <widget class="QFrame" name="frame">
+     <property name="styleSheet">
+      <string>color: #3d3d3d;</string>
+     </property>
+     <property name="frameShape">
+      <enum>QFrame::Shape::HLine</enum>
+     </property>
+     <property name="frameShadow">
+      <enum>QFrame::Shadow::Sunken</enum>
+     </property>
     </widget>
    </item>
    <item>
     <layout class="QHBoxLayout">
      <item>
       <spacer>
-       <property name="orientation"><enum>Qt::Orientation::Horizontal</enum></property>
-       <property name="sizeHint" stdset="0"><size><width>40</width><height>20</height></size></property>
+       <property name="orientation">
+        <enum>Qt::Orientation::Horizontal</enum>
+       </property>
+       <property name="sizeHint" stdset="0">
+        <size>
+         <width>40</width>
+         <height>20</height>
+        </size>
+       </property>
       </spacer>
      </item>
      <item>
       <widget class="QPushButton" name="buttonCancel">
-       <property name="text"><string>Cancel</string></property>
+       <property name="text">
+        <string>Cancel</string>
+       </property>
       </widget>
      </item>
      <item>
       <widget class="QPushButton" name="buttonSave">
-       <property name="text"><string>Save profile</string></property>
-       <property name="default"><bool>true</bool></property>
+       <property name="text">
+        <string>Save profile</string>
+       </property>
+       <property name="default">
+        <bool>true</bool>
+       </property>
       </widget>
      </item>
     </layout>
    </item>
-
   </layout>
  </widget>
  <resources/>
@@ -389,8 +342,14 @@ QFrame#formatOptionsFrame {
    <receiver>OutputProfileDialog</receiver>
    <slot>reject()</slot>
    <hints>
-    <hint type="sourcelabel"><x>80</x><y>540</y></hint>
-    <hint type="destinationlabel"><x>200</x><y>280</y></hint>
+    <hint type="sourcelabel">
+     <x>80</x>
+     <y>540</y>
+    </hint>
+    <hint type="destinationlabel">
+     <x>200</x>
+     <y>280</y>
+    </hint>
    </hints>
   </connection>
  </connections>

@@ -7,6 +7,7 @@
 namespace Ui {
 class OutputProfileDialog;
 }
+class OutputFormatOptionsWidget;
 
 class OutputProfileDialog : public QDialog
 {
@@ -21,10 +22,10 @@ public:
 
 private slots:
     void onSaveClicked();
-    void onFormatChanged();   // shows/hides JPEG or WEBP option panels
 
 private:
     Ui::OutputProfileDialog *ui;
+    OutputFormatOptionsWidget* m_formatOptions = nullptr;
 };
 
 #endif // OUTPUTPROFILEDIALOG_H

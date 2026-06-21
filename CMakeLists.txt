@@ -18,6 +18,7 @@ qt_add_executable(Platemaker
     canvasprofiledialog.cpp canvasprofiledialog.h managecanvasprofilesdialog.cpp managecanvasprofilesdialog.h manageoutputprofilesdialog.cpp manageoutputprofilesdialog.h outputprofiledialog.cpp outputprofiledialog.h
     templatesdialog.cpp templatesdialog.h templatesdialog.ui
     renderworker.cpp renderworker.h
+    outputformatoptionswidget.cpp outputformatoptionswidget.ui outputformatoptionswidget.h
 
 
 )

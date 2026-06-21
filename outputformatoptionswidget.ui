@@ -1,0 +1,117 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ui version="4.0">
+ <class>OutputFormatOptionsWidget</class>
+ <widget class="QWidget" name="OutputFormatOptionsWidget">
+  <property name="geometry">
+   <rect>
+    <x>0</x>
+    <y>0</y>
+    <width>320</width>
+    <height>260</height>
+   </rect>
+  </property>
+  <layout class="QVBoxLayout" name="verticalLayoutMain">
+   <property name="leftMargin"><number>0</number></property>
+   <property name="topMargin"><number>0</number></property>
+   <property name="rightMargin"><number>0</number></property>
+   <property name="bottomMargin"><number>0</number></property>
+   <property name="spacing"><number>8</number></property>
+   <item>
+    <layout class="QHBoxLayout" name="horizontalLayoutFormat">
+     <item>
+      <widget class="QLabel" name="labelFormat">
+       <property name="text"><string>Image format:</string></property>
+      </widget>
+     </item>
+     <item>
+      <widget class="QComboBox" name="comboBoxFormat">
+       <property name="sizePolicy">
+        <sizepolicy hsizetype="Expanding" vsizetype="Fixed">
+         <horstretch>0</horstretch>
+         <verstretch>0</verstretch>
+        </sizepolicy>
+       </property>
+      </widget>
+     </item>
+    </layout>
+   </item>
+   <item>
+    <widget class="QGroupBox" name="groupBoxPNG">
+     <property name="title"><string>PNG</string></property>
+     <layout class="QFormLayout" name="formLayoutPNG">
+      <item row="0" column="0">
+       <widget class="QLabel" name="labelPngCompression"><property name="text"><string>Compression (0–9):</string></property></widget>
+      </item>
+      <item row="0" column="1">
+       <widget class="QSpinBox" name="spinBoxPngCompression"/>
+      </item>
+      <item row="1" column="0">
+       <widget class="QLabel" name="labelPngInterlaced"><property name="text"><string>Interlaced:</string></property></widget>
+      </item>
+      <item row="1" column="1">
+       <widget class="QCheckBox" name="checkBoxPngInterlaced"><property name="text"><string/></property></widget>
+      </item>
+     </layout>
+    </widget>
+   </item>
+   <item>
+    <widget class="QGroupBox" name="groupBoxJPG">
+     <property name="title"><string>JPEG</string></property>
+     <layout class="QFormLayout" name="formLayoutJPG">
+      <item row="0" column="0">
+       <widget class="QLabel" name="labelJpegQuality"><property name="text"><string>Quality (1–95):</string></property></widget>
+      </item>
+      <item row="0" column="1">
+       <widget class="QSpinBox" name="spinBoxJpegQuality"/>
+      </item>
+      <item row="1" column="0">
+       <widget class="QLabel" name="labelJpegSubsampling"><property name="text"><string>Subsampling:</string></property></widget>
+      </item>
+      <item row="1" column="1">
+       <widget class="QComboBox" name="comboBoxJpegSubsampling"/>
+      </item>
+      <item row="2" column="0">
+       <widget class="QLabel" name="labelJpegOptimize"><property name="text"><string>Optimize:</string></property></widget>
+      </item>
+      <item row="2" column="1">
+       <widget class="QCheckBox" name="checkBoxJpegOptimize"><property name="text"><string/></property></widget>
+      </item>
+      <item row="3" column="0">
+       <widget class="QLabel" name="labelJpegProgressive"><property name="text"><string>Progressive:</string></property></widget>
+      </item>
+      <item row="3" column="1">
+       <widget class="QCheckBox" name="checkBoxJpegProgressive"><property name="text"><string/></property></widget>
+      </item>
+     </layout>
+    </widget>
+   </item>
+   <item>
+    <widget class="QGroupBox" name="groupBoxWebP">
+     <property name="title"><string>WebP</string></property>
+     <layout class="QFormLayout" name="formLayoutWebP">
+      <item row="0" column="0">
+       <widget class="QLabel" name="labelWebpQuality"><property name="text"><string>Quality (0–100):</string></property></widget>
+      </item>
+      <item row="0" column="1">
+       <widget class="QSpinBox" name="spinBoxWebpQuality"/>
+      </item>
+      <item row="1" column="0">
+       <widget class="QLabel" name="labelWebpLossless"><property name="text"><string>Lossless:</string></property></widget>
+      </item>
+      <item row="1" column="1">
+       <widget class="QCheckBox" name="checkBoxWebpLossless"><property name="text"><string/></property></widget>
+      </item>
+      <item row="2" column="0">
+       <widget class="QLabel" name="labelWebpEffort"><property name="text"><string>Effort (0–6):</string></property></widget>
+      </item>
+      <item row="2" column="1">
+       <widget class="QSpinBox" name="spinBoxWebpEffort"/>
+      </item>
+     </layout>
+    </widget>
+   </item>
+  </layout>
+ </widget>
+ <resources/>
+ <connections/>
+</ui>

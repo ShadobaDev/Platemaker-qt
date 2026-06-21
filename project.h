@@ -7,6 +7,7 @@
 
 namespace Ui { class Project; }
 class QListWidgetItem;
+class OutputFormatOptionsWidget;
 
 class Project : public QWidget
 {
@@ -49,10 +50,7 @@ private slots:
     void onOutputProfileChanged(int index);
     void onSelectOutputDir();
     void onClearOutputDir();
-    void onImageFormatChanged();
-    void onJpegOptionsChanged();
-    void onPngOptionsChanged();
-    void onWebpOptionsChanged();
+    void onFormatOptionsEdited();   // OutputFormatOptionsWidget::edited → write back
     void onJumpToInput();
 
 private:
@@ -63,7 +61,6 @@ private:
     void refreshOutputProfileCombo();
     void refreshOutputDirectoryDisplay();
     void refreshFormatControls();          // reflect the selected output profile
-    void updateFormatGroupVisibility();    // show the groupbox matching the format combo
     // Mutable pointer to the project's selected output profile, or nullptr.
     [[nodiscard]] Platemaker::Models::OutputProfile* selectedOutputProfile() const;
 
@@ -71,6 +68,7 @@ private:
     int m_projectIndex;
     Platemaker::Models::Workspace& m_workspace;
     QString m_cacheDir;
+    OutputFormatOptionsWidget* m_formatOptions = nullptr;
 };
 
 #endif // PROJECT_H

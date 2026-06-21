@@ -14,6 +14,7 @@
 #include <QDesktopServices>
 #include <QDir>
 #include <QDockWidget>
+#include <QFile>
 #include <QFileDialog>
 #include <QFileInfo>
 #include <QInputDialog>
@@ -22,6 +23,7 @@
 #include <QListWidgetItem>
 #include <QMenu>
 #include <QMessageBox>
+#include <QSet>
 #include <QSettings>
 #include <QTabBar>
 #include <QThread>
@@ -111,10 +113,61 @@ void MainWindow::startRender(int projectIndex)
     // Refresh file statuses (hashes inputs — may briefly pause on huge projects; see TODO).
     project.sanitize();
     if (auto *pw = projectWidget(projectIndex)) pw->populate();
-    if (project.isUpToDate()) {
+
+    // Detect an output-invalidating configuration change (e.g. PNG→JPEG, slice
+    // height, quality). The stored signature was written by the last render; a
+    // mismatch means every existing slice is stale → force a full re-render.
+    const auto resolvedProfile = resolveOutputProfileFor(project);
+    const std::string curSig = Platemaker::Models::outputProfileSignature(resolvedProfile);
+    const bool hasOutputs = !project.getOutputImages().empty();
+    const bool sigMismatch =
+        !project.outputSignature.empty() && project.outputSignature != curSig;
+
+    // Format changes are detectable even for projects rendered before signatures
+    // existed (empty outputSignature): the recorded slice extension on disk won't
+    // match the current output format.
+    bool formatMismatch = false;
+    if (hasOutputs) {
+        const std::string wantExt =
+            Platemaker::Models::outputFormatExtension(resolvedProfile.outputFormat);
+        const std::string &firstName = project.getOutputImages().front().fileName;
+        const auto dot = firstName.find_last_of('.');
+        const std::string haveExt =
+            (dot == std::string::npos) ? std::string{} : firstName.substr(dot);
+        formatMismatch = !haveExt.empty() && haveExt != wantExt;
+    }
+
+    const bool configChanged = hasOutputs && (sigMismatch || formatMismatch);
+
+    if (project.isUpToDate() && !configChanged) {
         setActionStatus(name, tr("Require action"));
         setProjectStatus(tr("Project is up to date — nothing to render."));
         return;
+    }
+
+    // Config change: existing outputs (possibly in another format) will be
+    // replaced and any that the new configuration no longer produces will be
+    // deleted. Warn before doing destructive work.
+    m_renderOrphanCandidates.clear();
+    m_renderOrphanDir.clear();
+    if (configChanged) {
+        const auto ret = QMessageBox::warning(
+            this, tr("Output settings changed"),
+            tr("The output configuration for \"%1\" changed since the last render "
+               "(e.g. format or slice size).\n\n"
+               "All slices will be regenerated, and previous output files that the "
+               "new settings no longer produce (such as the old-format files) will "
+               "be deleted from:\n%2\n\nContinue?")
+                .arg(name, QString::fromStdString(project.getOutputDirectory())),
+            QMessageBox::Yes | QMessageBox::No, QMessageBox::Yes);
+        if (ret != QMessageBox::Yes) {
+            setProjectStatus(tr("Render cancelled."));
+            return;
+        }
+        // Remember the old output files so we can delete the orphans on success.
+        m_renderOrphanDir = QString::fromStdString(project.getOutputDirectory());
+        for (const auto &of : project.getOutputImages())
+            m_renderOrphanCandidates << QString::fromStdString(of.fileName);
     }
 
     const QString outDir = QString::fromStdString(project.getOutputDirectory());
@@ -125,9 +178,10 @@ void MainWindow::startRender(int projectIndex)
     }
 
     // Decide full vs partial re-render. When every input is Processed but some
-    // outputs are Missing/Modified, only those slices need regenerating.
+    // outputs are Missing/Modified, only those slices need regenerating. A config
+    // change invalidates every slice, so it always forces a full render.
     std::unordered_set<std::string> onlySlices;
-    if (project.inputsAllProcessed()) {
+    if (!configChanged && project.inputsAllProcessed()) {
         const auto names = project.dirtyOutputNames();
         onlySlices.insert(names.begin(), names.end());
     }
@@ -179,6 +233,29 @@ void MainWindow::cancelRender()
     ui->pushButtonStop->setEnabled(false);
 }
 
+void MainWindow::deleteOrphanedOutputs(const Platemaker::Models::ProjectItem &project)
+{
+    // Names the new render produced — anything in the old set but not here is an
+    // orphan to remove (e.g. old-format files after a PNG→JPEG switch).
+    QSet<QString> produced;
+    for (const auto &of : project.getOutputImages())
+        produced.insert(QString::fromStdString(of.fileName));
+
+    QDir dir(m_renderOrphanDir);
+    int removed = 0;
+    for (const QString &fileName : m_renderOrphanCandidates) {
+        if (produced.contains(fileName)) continue;
+        if (QFile::remove(dir.filePath(fileName))) {
+            ++removed;
+            ui->textBrowserActionLogs->append(tr("Removed stale output: %1").arg(fileName));
+        }
+    }
+    if (removed > 0)
+        ui->textBrowserActionLogs->append(
+            tr("Cleaned up %1 stale output file(s) from the previous configuration.")
+                .arg(removed));
+}
+
 void MainWindow::onRenderProgress(int done, int total, QString sliceName)
 {
     Q_UNUSED(sliceName);
@@ -217,11 +294,24 @@ void MainWindow::onRenderFinished()
                 const QString ts = QDateTime::currentDateTimeUtc().toString(Qt::ISODate);
                 project.applyProcessingResults(
                     outcome.records, project.getOutputDirectory(), ts.toStdString());
+
+                // Delete outputs the new configuration no longer produces (e.g. the
+                // old-format files after a PNG→JPEG switch). Only candidates the user
+                // confirmed via the cleanup prompt are removed.
+                if (!m_renderOrphanCandidates.isEmpty())
+                    deleteOrphanedOutputs(project);
             }
+            // Record the configuration that produced these outputs so a later
+            // format/size/quality change is detected as stale.
+            project.outputSignature =
+                Platemaker::Models::outputProfileSignature(resolveOutputProfileFor(project));
             setDirty(true);
             if (auto *pw = projectWidget(idx)) pw->refreshOutputTiles();
         }
     }
+
+    m_renderOrphanCandidates.clear();
+    m_renderOrphanDir.clear();
 
     if (outcome.failed) {
         setActionStatus(name, tr("Failed"));

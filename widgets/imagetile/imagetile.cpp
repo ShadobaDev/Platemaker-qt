@@ -89,11 +89,12 @@ void ImageTile::updateStatusStyle(FileStatus status)
 {
     QString color;
     switch (status) {
-        case FileStatus::Processed: color = "#22c55e"; break; // green
-        case FileStatus::Done:      color = "#22c55e"; break; // green
-        case FileStatus::Modified:  color = "#f97316"; break; // orange
-        case FileStatus::Missing:   color = "#ef4444"; break; // red
-        default:                    color = "#6b7280"; break; // gray
+        case FileStatus::Processed:     color = "#22c55e"; break; // green
+        case FileStatus::Done:          color = "#22c55e"; break; // green
+        case FileStatus::Modified:      color = "#f97316"; break; // orange
+        case FileStatus::Missing:       color = "#ef4444"; break; // red
+        case FileStatus::Desynchronized:color = "#eab308"; break; // amber — out of sync with config
+        default:                        color = "#6b7280"; break; // gray (Pending)
     }
     ui->frame->setStyleSheet(
         QString("QFrame { border-left: 4px solid %1; border-radius: 0px; }").arg(color));

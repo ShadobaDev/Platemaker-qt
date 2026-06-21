@@ -453,6 +453,13 @@
               </widget>
              </item>
              <item>
+              <widget class="QPushButton" name="pushButtonODOpen">
+               <property name="text">
+                <string>Open in explorer</string>
+               </property>
+              </widget>
+             </item>
+             <item>
               <widget class="QPushButton" name="pushButtonODClear">
                <property name="sizePolicy">
                 <sizepolicy hsizetype="Expanding" vsizetype="Fixed">

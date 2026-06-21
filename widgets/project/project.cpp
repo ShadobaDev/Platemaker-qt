@@ -84,6 +84,8 @@ Project::Project(int projectIndex,
             this, &Project::onSelectOutputDir);
     connect(ui->pushButtonODClear, &QPushButton::clicked,
             this, &Project::onClearOutputDir);
+    connect(ui->pushButtonODOpen, &QPushButton::clicked,
+            this, &Project::onOpenOutputDir);
 
     // Image format + options: shared widget editing the project's SELECTED output
     // profile (also editable via Manage Output Profiles). Embedded into the existing

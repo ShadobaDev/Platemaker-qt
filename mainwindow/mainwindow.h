@@ -70,6 +70,9 @@ private:
     // --- render orchestration ---
     void startRender(int projectIndex);
     void cancelRender();
+    // Deletes confirmed orphan output files (m_renderOrphanCandidates) that the
+    // freshly-rendered project no longer produces.
+    void deleteOrphanedOutputs(const Platemaker::Models::ProjectItem &project);
     [[nodiscard]] Project *projectWidget(int projectIndex) const;
     [[nodiscard]] Platemaker::Models::OutputProfile resolveOutputProfileFor(
         const Platemaker::Models::ProjectItem &project) const;
@@ -134,6 +137,11 @@ private:
     bool          m_rendering           = false;
     int           m_renderProjectIndex  = -1;
     int           m_activeProjectIndex  = -1;  // last-raised project dock (for F5/menu)
+
+    // Outputs from the previous configuration to delete after a config-change
+    // full re-render (set only when the user confirmed the cleanup prompt).
+    QStringList   m_renderOrphanCandidates;
+    QString       m_renderOrphanDir;
 };
 
 #endif // MAINWINDOW_H

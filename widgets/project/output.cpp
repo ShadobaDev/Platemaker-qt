@@ -8,10 +8,12 @@
 #include <QCollator>
 #include <QComboBox>
 #include <QDateTime>
+#include <QDesktopServices>
 #include <QSpinBox>
 #include <QDir>
 #include <QFileDialog>
 #include <QFileInfo>
+#include <QUrl>
 #include <QHBoxLayout>
 #include <QInputDialog>
 #include <QLabel>
@@ -179,12 +181,64 @@ void Project::refreshOutputTiles()
         addOutputImageTile(f);
 }
 
+bool Project::outputsConfigStale() const
+{
+    const auto& project = m_workspace.projectItems[m_projectIndex];
+    if (project.getOutputImages().empty()) return false;
+
+    OutputProfile* op = selectedOutputProfile();
+    if (!op) return false;
+
+    // Signature mismatch covers format / target width / slice height / quality once
+    // a signature has been stored by a render.
+    const std::string curSig = outputProfileSignature(*op);
+    if (!project.outputSignature.empty() && project.outputSignature != curSig)
+        return true;
+
+    // Format change is detectable even without a stored signature (outputs rendered
+    // before signatures existed): the recorded slice extension won't match.
+    const std::string wantExt = outputFormatExtension(op->outputFormat);
+    const std::string& firstName = project.getOutputImages().front().fileName;
+    const auto dot = firstName.find_last_of('.');
+    const std::string haveExt =
+        (dot == std::string::npos) ? std::string{} : firstName.substr(dot);
+    return !haveExt.empty() && haveExt != wantExt;
+}
+
 void Project::onRefreshFiles()
 {
     // Re-scan inputs + outputs against disk and repaint tiles. Statuses are
     // transient (recomputed on demand), so this does not mark the workspace
     // dirty; an actual render does.
-    m_workspace.projectItems[m_projectIndex].sanitize();
+    auto& project = m_workspace.projectItems[m_projectIndex];
+    project.sanitize();
+
+    // A config change (e.g. PNG→JPEG) is invisible on disk — the old files still
+    // exist and hash-match — so flag the still-"Done" outputs as out-of-sync so the
+    // user sees that a re-render is required.
+    if (outputsConfigStale()) {
+        for (auto& of : project.getOutputImages())
+            if (of.status == FileStatus::Done)
+                of.status = FileStatus::Desynchronized;
+    }
+
     populate();
+}
+
+void Project::onOpenOutputDir()
+{
+    const QString dir = QString::fromStdString(
+        m_workspace.projectItems[m_projectIndex].getOutputDirectory());
+    if (dir.isEmpty()) {
+        QMessageBox::information(this, tr("Open output directory"),
+                                 tr("No output directory is set for this project."));
+        return;
+    }
+    if (!QFileInfo::exists(dir)) {
+        QMessageBox::warning(this, tr("Open output directory"),
+                             tr("The output directory does not exist:\n%1").arg(dir));
+        return;
+    }
+    QDesktopServices::openUrl(QUrl::fromLocalFile(dir));
 }
 

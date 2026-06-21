@@ -50,6 +50,7 @@ private slots:
     void onOutputProfileChanged(int index);
     void onSelectOutputDir();
     void onClearOutputDir();
+    void onOpenOutputDir();         // open the output directory in the system file explorer
     void onFormatOptionsEdited();   // OutputFormatOptionsWidget::edited → write back
     void onJumpToInput();
     void onRefreshFiles();          // re-scan inputs+outputs on disk, refresh statuses/tiles
@@ -64,6 +65,10 @@ private:
     void refreshFormatControls();          // reflect the selected output profile
     // Mutable pointer to the project's selected output profile, or nullptr.
     [[nodiscard]] Platemaker::Models::OutputProfile* selectedOutputProfile() const;
+    // True when the existing outputs are stale vs the current output config
+    // (format/size/quality changed since they were rendered). Drives the
+    // "Out of sync" badge shown after Refresh.
+    [[nodiscard]] bool outputsConfigStale() const;
 
     Ui::Project* ui;
     int m_projectIndex;

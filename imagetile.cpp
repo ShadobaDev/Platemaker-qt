@@ -21,6 +21,23 @@ ImageTile::ImageTile(QWidget *parent)
     ui->imageLabel->setFixedSize(160, 120);
     ui->imageLabel->setAlignment(Qt::AlignCenter);
     ui->imageLabel->setScaledContents(false);
+
+    // Let mouse presses on the display areas fall through to the QListWidget
+    // viewport so it can start a drag (the tile is set via setItemWidget, which
+    // otherwise swallows the press). The buttons stay interactive.
+    for (QWidget* w : {static_cast<QWidget*>(ui->frame),
+                       static_cast<QWidget*>(ui->imageLabel),
+                       static_cast<QWidget*>(ui->textBrowser),
+                       static_cast<QWidget*>(ui->widget)}) {
+        w->setAttribute(Qt::WA_TransparentForMouseEvents);
+    }
+
+    connect(ui->pushButtonMoveUp, &QPushButton::clicked, this, [this]{
+        emit moveUpRequested(m_filePath);
+    });
+    connect(ui->pushButtonMoveDown, &QPushButton::clicked, this, [this]{
+        emit moveDownRequested(m_filePath);
+    });
 }
 
 ImageTile::~ImageTile()

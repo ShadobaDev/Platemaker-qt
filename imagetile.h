@@ -25,6 +25,11 @@ public:
     // Legacy — kept so existing test code still compiles
     void setTileName(const QString& name);
 
+signals:
+    // Emitted by the ▲/▼ buttons; the tile identifies itself by its file path.
+    void moveUpRequested(const QString& filePath);
+    void moveDownRequested(const QString& filePath);
+
 private:
     void updateStatusStyle(Platemaker::Models::FileStatus status);
     void loadThumbnailAsync(const QString& cacheDir);

@@ -14,8 +14,10 @@
 #include <QHBoxLayout>
 #include <QInputDialog>
 #include <QLabel>
+#include <QAction>
 #include <QListWidget>
 #include <QListWidgetItem>
+#include <QMenu>
 #include <QMessageBox>
 #include <QSet>
 #include <QSettings>
@@ -51,6 +53,12 @@ Project::Project(int projectIndex,
             this, &Project::onClearInputs);
     connect(ui->listInputImageTile->model(), &QAbstractItemModel::rowsMoved,
             this, &Project::onRowsMoved);
+
+    // Multi-select (Ctrl/Shift) for multi-drag + multi-delete; right-click menu.
+    ui->listInputImageTile->setSelectionMode(QAbstractItemView::ExtendedSelection);
+    ui->listInputImageTile->setContextMenuPolicy(Qt::CustomContextMenu);
+    connect(ui->listInputImageTile, &QWidget::customContextMenuRequested,
+            this, &Project::onInputContextMenu);
 
     // Sort options (user-triggered helper; manual drag-reorder still wins).
     ui->comboBoxSortingOpt->addItem(tr("Name"),          SortByName);
@@ -151,6 +159,8 @@ void Project::addImageTile(const InputFile& file)
 
     auto* tile = new ImageTile(this);
     tile->setFileInfo(QString::fromStdString(file.filePath), file.status, m_cacheDir);
+    connect(tile, &ImageTile::moveUpRequested,   this, &Project::onTileMoveUp);
+    connect(tile, &ImageTile::moveDownRequested, this, &Project::onTileMoveDown);
 
     listItem->setSizeHint(tile->sizeHint());
     ui->listInputImageTile->setItemWidget(listItem, tile);
@@ -437,6 +447,25 @@ void Project::onJpegOptionsChanged()
     emit projectModified();
 }
 
+void Project::onPngOptionsChanged()
+{
+    OutputProfile* op = selectedOutputProfile();
+    if (!op) return;
+    op->pngOptions.compression = ui->spinBoxCompressionPNG->value();
+    op->pngOptions.interlaced  = ui->checkBoxInterlacedPNG->isChecked();
+    emit projectModified();
+}
+
+void Project::onWebpOptionsChanged()
+{
+    OutputProfile* op = selectedOutputProfile();
+    if (!op) return;
+    op->webpOptions.quality  = ui->spinBoxQualityWebP->value();
+    op->webpOptions.lossless = ui->checkBoxLosslessWebP->isChecked();
+    op->webpOptions.effort   = ui->spinBoxCompressionWebP->value();  // "Compression" label = effort
+    emit projectModified();
+}
+
 void Project::onJumpToInput()
 {
     ui->tabWidget->setCurrentWidget(ui->tabInput);
@@ -634,5 +663,92 @@ void Project::onRowsMoved()
             }
         }
     }
+    emit projectModified();
+}
+
+// Moves the tile with \p filePath one step (\p delta = -1 up, +1 down) by swapping
+// its order value with the adjacent input.
+static void moveByOrder(std::vector<InputFile>& inputs, const QString& filePath, int delta)
+{
+    std::vector<InputFile*> ordered;
+    ordered.reserve(inputs.size());
+    for (auto& f : inputs) ordered.push_back(&f);
+    std::sort(ordered.begin(), ordered.end(),
+              [](const InputFile* a, const InputFile* b){ return a->order < b->order; });
+
+    int idx = -1;
+    for (int i = 0; i < static_cast<int>(ordered.size()); ++i)
+        if (QString::fromStdString(ordered[static_cast<std::size_t>(i)]->filePath) == filePath) {
+            idx = i; break;
+        }
+    const int target = idx + delta;
+    if (idx < 0 || target < 0 || target >= static_cast<int>(ordered.size())) return;
+
+    std::swap(ordered[static_cast<std::size_t>(idx)]->order,
+              ordered[static_cast<std::size_t>(target)]->order);
+}
+
+void Project::onTileMoveUp(const QString& filePath)
+{
+    moveByOrder(m_workspace.projectItems[m_projectIndex].getInputImages(), filePath, -1);
+    populate();
+    emit projectModified();
+}
+
+void Project::onTileMoveDown(const QString& filePath)
+{
+    moveByOrder(m_workspace.projectItems[m_projectIndex].getInputImages(), filePath, +1);
+    populate();
+    emit projectModified();
+}
+
+void Project::onInputContextMenu(const QPoint& pos)
+{
+    // Right-clicking a tile outside the current selection targets just that tile.
+    if (QListWidgetItem* under = ui->listInputImageTile->itemAt(pos);
+        under && !under->isSelected()) {
+        ui->listInputImageTile->clearSelection();
+        under->setSelected(true);
+    }
+
+    const auto selected = ui->listInputImageTile->selectedItems();
+    if (selected.isEmpty()) return;
+
+    const int n = static_cast<int>(selected.size());
+
+    QMenu menu(this);
+    QAction* removeAction = menu.addAction(tr("Remove %n file(s) from list", nullptr, n));
+    if (menu.exec(ui->listInputImageTile->viewport()->mapToGlobal(pos)) != removeAction)
+        return;
+
+    if (QMessageBox::question(this, tr("Remove Inputs"),
+            tr("Remove %n file(s) from this project?\n\nFiles on disk are not deleted.",
+               nullptr, n))
+        != QMessageBox::Yes)
+        return;
+
+    // Set of paths to drop.
+    QSet<QString> drop;
+    for (const QListWidgetItem* it : selected)
+        drop.insert(it->data(Qt::UserRole).toString());
+
+    // Rebuild the ordered path list without the dropped files, then merge-scan it
+    // (handles removal + marks outputs desynchronised).
+    auto& item = m_workspace.projectItems[m_projectIndex];
+    auto& inputs = item.getInputImages();
+    std::vector<const InputFile*> ordered;
+    ordered.reserve(inputs.size());
+    for (const auto& f : inputs) ordered.push_back(&f);
+    std::sort(ordered.begin(), ordered.end(),
+              [](const InputFile* a, const InputFile* b){ return a->order < b->order; });
+
+    std::vector<std::string> remaining;
+    remaining.reserve(ordered.size());
+    for (const InputFile* f : ordered)
+        if (!drop.contains(QString::fromStdString(f->filePath)))
+            remaining.push_back(f->filePath);
+
+    item.mergeFileScan(remaining);
+    populate();
     emit projectModified();
 }

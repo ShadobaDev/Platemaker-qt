@@ -41,6 +41,9 @@ private slots:
     void onApplySort();
     void onGoToOutput();
     void onRowsMoved();
+    void onInputContextMenu(const QPoint& pos);
+    void onTileMoveUp(const QString& filePath);
+    void onTileMoveDown(const QString& filePath);
     void onAssignCanvasProfiles();
     void onCanvasProfileDoubleClicked(QListWidgetItem* item);
     void onOutputProfileChanged(int index);

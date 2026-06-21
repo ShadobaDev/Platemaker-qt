@@ -143,10 +143,12 @@ These are the foundation — nothing else is usable without them.
 - [ ] **About dialog** — version, libplatemaker version, Qt version, licence
 - [ ] **Missing button open output dir** in tabOutput. 
 - [ ] **Slice tiles should have hidden edit panel** because this are neither to deleted nor reorder by the platemaker
-- [ ] **Image options** are not porperly save/loaded in GUI - project resets it with app restart
-- [ ] **Process bar** change style - a soild 15px bar, initial should be 0%.
+- [x] **Image options** are not porperly save/loaded in GUI - project resets it with app restart
+- [ ] **Process bar** change style - a solid 15px bar - light broder - empty part background color, filled part grey, error or halt - red.
 - [ ] **ImageTile** rework to be more eye-appealing
-- [ ] **ImageTile** fix/recover drag'n'drop reordering, arrow-button re-ordering and delete buttons
+- [x] **ImageTile** fix/recover drag'n'drop reordering, arrow-button re-ordering and delete buttons
 - [ ] **Action log** should report a summary, how manu inputs, how many slices in what time where processed and when. Output cumulative size (MB or KB) would also be nice.
 - [ ] **Template are not re-rendered** - add checkum comparision
 - [ ] **Ouput** changed or missing is not detected, `Render` button does nothing even though it should render missing or modified files
+- [ ] **OutputProfileDialog** (Manage Output Profiles) still edits only JPEG + format (its WebP lines were stubbed/commented). So PNG/WebP options are currently editable only in the project Output tab. Extending that dialog to the new fields is a small follow-up (noted in lib TODO).
+- [ ] **Segfault** was detcted but not written down how - to be investigated.

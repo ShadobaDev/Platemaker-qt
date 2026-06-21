@@ -34,102 +34,6 @@ enum SortKey { SortByName = 0, SortByCreated = 1, SortByModified = 2 };
 
 } // namespace
 
-Project::Project(int projectIndex,
-                 Workspace& workspace,
-                 const QString& cacheDir,
-                 QWidget* parent)
-    : QWidget(parent)
-    , ui(new Ui::Project)
-    , m_projectIndex(projectIndex)
-    , m_workspace(workspace)
-    , m_cacheDir(cacheDir)
-{
-    ui->setupUi(this);
-
-    connect(ui->pushButtonAddInputsFromDir, &QPushButton::clicked,
-            this, &Project::onAddFromDirectory);
-    connect(ui->pushButtonAddInputs, &QPushButton::clicked,
-            this, &Project::onAddFiles);
-    connect(ui->pushButtonInputClear, &QPushButton::clicked,
-            this, &Project::onClearInputs);
-    connect(ui->listInputImageTile->model(), &QAbstractItemModel::rowsMoved,
-            this, &Project::onRowsMoved);
-
-    // Multi-select (Ctrl/Shift) for multi-drag + multi-delete; right-click menu.
-    ui->listInputImageTile->setSelectionMode(QAbstractItemView::ExtendedSelection);
-    ui->listInputImageTile->setContextMenuPolicy(Qt::CustomContextMenu);
-    connect(ui->listInputImageTile, &QWidget::customContextMenuRequested,
-            this, &Project::onInputContextMenu);
-
-    // Sort options (user-triggered helper; manual drag-reorder still wins).
-    ui->comboBoxSortingOpt->addItem(tr("Name"),          SortByName);
-    ui->comboBoxSortingOpt->addItem(tr("Date created"),  SortByCreated);
-    ui->comboBoxSortingOpt->addItem(tr("Date modified"), SortByModified);
-    connect(ui->pushSortyByApply, &QPushButton::clicked,
-            this, &Project::onApplySort);
-
-    connect(ui->pushButtonGoToOutput, &QPushButton::clicked,
-            this, &Project::onGoToOutput);
-
-    connect(ui->pushButtonAssignCanvasProfiles, &QPushButton::clicked,
-            this, &Project::onAssignCanvasProfiles);
-    connect(ui->listWidgetCanvasProfiles, &QListWidget::itemDoubleClicked,
-            this, &Project::onCanvasProfileDoubleClicked);
-
-    connect(ui->comboBoxOutputProfile, &QComboBox::currentIndexChanged,
-            this, &Project::onOutputProfileChanged);
-
-    // --- Output tab ---
-    connect(ui->pushButtonODSelect, &QPushButton::clicked,
-            this, &Project::onSelectOutputDir);
-    connect(ui->pushButtonODClear, &QPushButton::clicked,
-            this, &Project::onClearOutputDir);
-
-    // Image format + options: shared widget editing the project's SELECTED output
-    // profile (also editable via Manage Output Profiles). Embedded into the existing
-    // "Image options" group container.
-    m_formatOptions = new OutputFormatOptionsWidget(this);
-    ui->verticalLayout_6->addWidget(m_formatOptions);
-    connect(m_formatOptions, &OutputFormatOptionsWidget::edited,
-            this, &Project::onFormatOptionsEdited);
-
-    connect(ui->pushButtonJumpToInput, &QPushButton::clicked,
-            this, &Project::onJumpToInput);
-    connect(ui->pushButtonRender, &QPushButton::clicked, this, [this]{
-        emit renderToggleRequested(m_projectIndex);
-    });
-
-    populate();
-}
-
-Project::~Project()
-{
-    delete ui;
-}
-
-void Project::populate()
-{
-    ui->listInputImageTile->clear();
-
-    auto& inputs = m_workspace.projectItems[m_projectIndex].getInputImages();
-
-    std::vector<const InputFile*> sorted;
-    sorted.reserve(inputs.size());
-    for (const auto& f : inputs)
-        sorted.push_back(&f);
-    std::sort(sorted.begin(), sorted.end(),
-              [](const InputFile* a, const InputFile* b){ return a->order < b->order; });
-
-    for (const InputFile* f : sorted)
-        addImageTile(*f);
-
-    refreshCanvasProfilesList();
-    refreshOutputProfileCombo();
-    refreshFormatControls();
-    refreshOutputDirectoryDisplay();
-    refreshOutputTiles();
-}
-
 void Project::addImageTile(const InputFile& file)
 {
     auto* listItem = new QListWidgetItem(ui->listInputImageTile);
@@ -198,30 +102,6 @@ void Project::refreshCanvasProfilesList()
         }
     }
 }
-
-void Project::refreshOutputProfileCombo()
-{
-    ui->comboBoxOutputProfile->blockSignals(true);
-    ui->comboBoxOutputProfile->clear();
-    ui->comboBoxOutputProfile->addItem(tr("Choose output profile"), QString{});
-
-    const auto& project = m_workspace.projectItems[m_projectIndex];
-    const auto& wsProfiles = m_workspace.outputProfiles;
-
-    int selectedIdx = 0;
-    for (int i = 0; i < static_cast<int>(wsProfiles.size()); ++i) {
-        const auto& op = wsProfiles[i];
-        ui->comboBoxOutputProfile->addItem(
-            QString::fromStdString(op.name),
-            QString::fromStdString(op.id));
-        if (op.id == project.outputProfileId)
-            selectedIdx = i + 1;
-    }
-
-    ui->comboBoxOutputProfile->setCurrentIndex(selectedIdx);
-    ui->comboBoxOutputProfile->blockSignals(false);
-}
-
 void Project::onAssignCanvasProfiles()
 {
     const auto& project = m_workspace.projectItems[m_projectIndex];
@@ -295,129 +175,6 @@ void Project::onCanvasProfileDoubleClicked(QListWidgetItem* item)
 
     refreshCanvasProfilesList();
     emit projectModified();
-}
-
-
-void Project::onOutputProfileChanged(int index)
-{
-    const QString id = ui->comboBoxOutputProfile->itemData(index).toString();
-    m_workspace.projectItems[m_projectIndex].outputProfileId = id.toStdString();
-    refreshFormatControls();   // reflect the newly-selected profile's format/options
-    emit projectModified();
-}
-
-Platemaker::Models::OutputProfile* Project::selectedOutputProfile() const
-{
-    const std::string& id = m_workspace.projectItems[m_projectIndex].outputProfileId;
-    if (id.empty()) return nullptr;
-    for (auto& op : m_workspace.outputProfiles)
-        if (op.id == id) return &op;
-    return nullptr;
-}
-
-void Project::refreshFormatControls()
-{
-    OutputProfile* op = selectedOutputProfile();
-    // Without a selected profile there is nothing to edit.
-    m_formatOptions->setEnabled(op != nullptr);
-    if (op)
-        m_formatOptions->setFromProfile(*op);
-}
-
-void Project::refreshOutputDirectoryDisplay()
-{
-    ui->textOutputDirectory->setPlainText(QString::fromStdString(
-        m_workspace.projectItems[m_projectIndex].getOutputDirectory()));
-}
-
-void Project::onSelectOutputDir()
-{
-    auto& item = m_workspace.projectItems[m_projectIndex];
-
-    QString start = QString::fromStdString(item.getOutputDirectory());
-    if (start.isEmpty())
-        start = QSettings().value(QStringLiteral("lastOutputDir")).toString();
-
-    const QString dir = QFileDialog::getExistingDirectory(
-        this, tr("Select Output Directory"), start);
-    if (dir.isEmpty()) return;
-
-    item.getOutputDirectory() = dir.toStdString();
-    QSettings().setValue(QStringLiteral("lastOutputDir"), dir);
-
-    refreshOutputDirectoryDisplay();
-    emit projectModified();
-}
-
-void Project::onClearOutputDir()
-{
-    m_workspace.projectItems[m_projectIndex].getOutputDirectory().clear();
-    refreshOutputDirectoryDisplay();
-    emit projectModified();
-}
-
-void Project::onFormatOptionsEdited()
-{
-    // The format-options widget changed — write back into the selected profile.
-    if (OutputProfile* op = selectedOutputProfile()) {
-        m_formatOptions->applyToProfile(*op);
-        emit projectModified();
-    }
-}
-
-void Project::onJumpToInput()
-{
-    ui->tabWidget->setCurrentWidget(ui->tabInput);
-}
-
-void Project::setRendering(bool rendering)
-{
-    ui->pushButtonRender->setText(rendering ? tr("Stop") : tr("Render"));
-    ui->pushButtonRender->setStyleSheet(rendering
-        ? QStringLiteral("background-color:#b41414; color:#ffffff; font-weight:bold;")
-        : QString{});
-
-    // Lock output configuration while a render runs.
-    ui->groupBoxOutputProfile->setEnabled(!rendering);
-    ui->groupBoxOutputDirectory->setEnabled(!rendering);
-    ui->groupOutputImageOptions->setEnabled(!rendering);
-    ui->pushButtonJumpToInput->setEnabled(!rendering);
-}
-
-void Project::addOutputTile(const QString& filePath)
-{
-    auto* listItem = new QListWidgetItem(ui->listOutputImageTile);
-    listItem->setData(Qt::UserRole, filePath);
-
-    auto* tile = new ImageTile(this);
-    tile->setFileInfo(filePath, FileStatus::Done, m_cacheDir);
-
-    listItem->setSizeHint(tile->sizeHint());
-    ui->listOutputImageTile->setItemWidget(listItem, tile);
-}
-
-void Project::addOutputImageTile(const OutputFile& file)
-{
-    const QString dir = QString::fromStdString(
-        m_workspace.projectItems[m_projectIndex].getOutputDirectory());
-    const QString path = QDir(dir).filePath(QString::fromStdString(file.fileName));
-
-    auto* listItem = new QListWidgetItem(ui->listOutputImageTile);
-    listItem->setData(Qt::UserRole, path);
-
-    auto* tile = new ImageTile(this);
-    tile->setFileInfo(path, file.status, m_cacheDir);
-
-    listItem->setSizeHint(tile->sizeHint());
-    ui->listOutputImageTile->setItemWidget(listItem, tile);
-}
-
-void Project::refreshOutputTiles()
-{
-    ui->listOutputImageTile->clear();
-    const auto& outputs = m_workspace.projectItems[m_projectIndex].getOutputImages();
-    for (const auto& f : outputs)
-        addOutputImageTile(f);
 }
 
 void Project::addInputPaths(const QStringList& newPaths)
@@ -566,7 +323,6 @@ void Project::onRowsMoved()
 }
 
 // Moves the tile with \p filePath one step (\p delta = -1 up, +1 down) by swapping
-// its order value with the adjacent input.
 static void moveByOrder(std::vector<InputFile>& inputs, const QString& filePath, int delta)
 {
     std::vector<InputFile*> ordered;

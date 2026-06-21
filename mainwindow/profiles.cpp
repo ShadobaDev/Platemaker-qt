@@ -73,6 +73,14 @@ void MainWindow::onManageCanvasProfiles()
                 return;
             }
 
+            // Ask before overwriting an existing template. Check the dialog's
+            // current (possibly edited) values — `selected` — not the live profile,
+            // whose canvas fields are only updated when the dialog is accepted.
+            // `selected` carries the preserved templateInfo, so the status reflects
+            // any just-made edit (→ Outdated) rather than the stale live state.
+            if (!TemplatesDialog::confirmOverwrite(this, selected, workspaceDir))
+                return;
+
             // Render from the dialog's current field values (a copy), then copy
             // the resulting metadata onto the live profile.
             Platemaker::Models::CanvasProfile render = selected;
@@ -161,8 +169,13 @@ void MainWindow::onEditActiveCanvasProfile()
 
     const std::string oldName = it->name;
     const std::string savedId = it->id;
+    // CanvasProfileDialog returns a fresh profile without id/templateInfo. Preserve
+    // both so project links survive and template staleness is still detectable: if a
+    // canvas-affecting field changed, the kept fingerprint won't match → Outdated.
+    const auto savedTpl = it->templateInfo;
     *it = dlg.profile();
-    it->id = savedId; // preserve the stable ID
+    it->id           = savedId;
+    it->templateInfo = savedTpl;
 
     if (m_activeCanvasProfileName == QString::fromStdString(oldName))
         m_activeCanvasProfileName = QString::fromStdString(it->name);

@@ -169,9 +169,13 @@ void Project::onCanvasProfileDoubleClicked(QListWidgetItem* item)
     dlg.setProfile(*it);
     if (dlg.exec() != QDialog::Accepted) return;
 
+    // Preserve id + templateInfo (the dialog returns them empty); keeping the
+    // fingerprint lets the Templates dialog still detect a now-outdated template.
     const std::string savedId = it->id;
+    const auto savedTpl = it->templateInfo;
     *it = dlg.profile();
-    it->id = savedId;
+    it->id           = savedId;
+    it->templateInfo = savedTpl;
 
     refreshCanvasProfilesList();
     emit projectModified();

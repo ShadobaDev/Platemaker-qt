@@ -141,14 +141,14 @@ These are the foundation — nothing else is usable without them.
 - [ ] **Undo / Redo** (`Ctrl+Z` / `Ctrl+Y`) — for input-list operations (add,
   clear, reorder, sort) and ideally other reversible workspace edits
 - [ ] **About dialog** — version, libplatemaker version, Qt version, licence
-- [ ] **Missing button open output dir** in tabOutput. 
+- [x] **Missing button open output dir** in tabOutput. 
 - [ ] **Slice tiles should have hidden edit panel** because this are neither to deleted nor reorder by the platemaker
 - [x] **Image options** are not porperly save/loaded in GUI - project resets it with app restart
 - [ ] **Process bar** change style - a solid 15px bar - light broder - empty part background color, filled part grey, error or halt - red.
 - [ ] **ImageTile** rework to be more eye-appealing
 - [x] **ImageTile** fix/recover drag'n'drop reordering, arrow-button re-ordering and delete buttons
 - [ ] **Action log** should report a summary, how manu inputs, how many slices in what time where processed and when. Output cumulative size (MB or KB) would also be nice.
-- [ ] **Template are not re-rendered** - add checkum comparision
+- [x] **Template are not re-rendered** - add checkum comparision
 - [x] **Ouput** changed or missing is not detected, `Render` button does nothing even though it should render missing or modified files
   - `ProjectItem::sanitize()` now validates outputs (existence + SHA-256) → `isUpToDate()` is false when an output is deleted/edited, so the Render guard proceeds.
   - **Partial re-render**: pipeline `run()` takes an optional `onlySlices` filter; when inputs are all `Processed` but some outputs are dirty, only the affected slices are regenerated (`applyPartialResults`). CLI + GUI share the same decision.

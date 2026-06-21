@@ -97,6 +97,25 @@ TemplatesDialog::TemplateStatus TemplatesDialog::statusOf(
     return TemplateStatus::UpToDate;
 }
 
+bool TemplatesDialog::confirmOverwrite(QWidget* parent,
+                                       const CanvasProfile& cp,
+                                       const QString& workspaceDir)
+{
+    const TemplateStatus st = statusOf(cp, workspaceDir);
+    // Nothing on disk to overwrite — proceed without asking.
+    if (st == TemplateStatus::NotGenerated || st == TemplateStatus::FileMissing)
+        return true;
+
+    const QString detail = (st == TemplateStatus::UpToDate)
+        ? tr("It is already up to date — regenerating will overwrite an identical file.")
+        : tr("It is outdated and will be re-rendered.");
+
+    return QMessageBox::question(parent, tr("Regenerate template"),
+        tr("A template for \"%1\" already exists.\n%2\n\nOverwrite it?")
+            .arg(QString::fromStdString(cp.name), detail),
+        QMessageBox::Yes | QMessageBox::No, QMessageBox::Yes) == QMessageBox::Yes;
+}
+
 QString TemplatesDialog::statusText(TemplateStatus status)
 {
     switch (status) {
@@ -181,6 +200,10 @@ void TemplatesDialog::onGenerateSelected()
     if (row < 0) return;
 
     auto& cp = m_workspace.canvasProfiles[static_cast<std::size_t>(row)];
+
+    if (!confirmOverwrite(this, cp, m_workspaceDir))
+        return;
+
     QString err;
     if (!generateTemplate(m_workspace, m_workspaceDir, cp, err)) {
         QMessageBox::critical(this, tr("Template"), err);
@@ -189,6 +212,9 @@ void TemplatesDialog::onGenerateSelected()
     rebuildTable();
     ui->tableTemplates->selectRow(row);
     emit workspaceModified();
+
+    QMessageBox::information(this, tr("Template"),
+        tr("Template generated for \"%1\".").arg(QString::fromStdString(cp.name)));
 }
 
 void TemplatesDialog::onGenerateAll()

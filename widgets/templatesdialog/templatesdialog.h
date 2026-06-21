@@ -40,6 +40,13 @@ public:
     static TemplateStatus statusOf(const Platemaker::Models::CanvasProfile& cp,
                                    const QString& workspaceDir);
 
+    // When a template file already exists for \p cp, asks the user to confirm
+    // overwriting it (the message states whether it is up to date or outdated).
+    // Returns true to proceed; always true when there is nothing to overwrite.
+    static bool confirmOverwrite(QWidget* parent,
+                                 const Platemaker::Models::CanvasProfile& cp,
+                                 const QString& workspaceDir);
+
 signals:
     // Emitted whenever a template is generated or deleted (workspace mutated).
     void workspaceModified();

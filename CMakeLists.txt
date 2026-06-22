@@ -130,4 +130,48 @@ qt_generate_deploy_app_script(
     OUTPUT_SCRIPT deploy_script
     NO_UNSUPPORTED_PLATFORM_ERROR
 )
-install(SCRIPT ${deploy_script})
+install(SCRIPT ${deploy_script})   # windeployqt — deploys Qt's DLLs (incl. its older MinGW runtime)
+
+# MUST come AFTER windeployqt above. Installs platemaker.dll + all its MSYS2 dependency
+# DLLs (libvips, libuhdr, glib, …) AND the MSYS2 runtime (libwinpthread-1, libgcc_s_seh-1,
+# libstdc++-6). windeployqt does NOT deploy these (they aren't Qt), and copying them last
+# makes the newer MSYS2 runtime overwrite Qt's older copy — resolving libuhdr-1.dll's
+# missing pthread_cond_timedwait64 import when running outside Qt Creator.
+if(WIN32)
+    install(DIRECTORY "$<TARGET_FILE_DIR:Platemaker::platemaker>/"
+        DESTINATION ${CMAKE_INSTALL_BINDIR}
+        FILES_MATCHING PATTERN "*.dll")
+endif()
+
+# ─── Install platemaker's own runtime DLLs LAST ────────────────────────────────
+# windeployqt (above) ships its own copies of libgcc_s_seh-1.dll / libwinpthread-1.dll
+# / libstdc++-6.dll from Qt's bundled MinGW toolchain. platemaker/libuhdr were built
+# with a different MinGW (MSYS2 mingw64) whose ABI is incompatible (missing symbols
+# like pthread_cond_timedwait64). These install() calls MUST run after
+# install(SCRIPT ${deploy_script}) above so they win the "last one wins" file copy,
+# overwriting windeployqt's incompatible runtime DLLs with the matching ones.
+if(WIN32)
+    # All of platemaker's own runtime DLLs (libvips, libuhdr, etc.) — same folder
+    # the POST_BUILD step already copies from.
+    install(DIRECTORY "$<TARGET_FILE_DIR:Platemaker::platemaker>/"
+        DESTINATION ${CMAKE_INSTALL_BINDIR}
+        FILES_MATCHING PATTERN "*.dll"
+    )
+
+    # platemaker/libuhdr were built with MSYS2 MinGW64 — its compiler runtime DLLs
+    # (winpthreads/libgcc) are not part of the platemaker package itself, but
+    # Platemaker.exe needs an ABI-matching copy of them at install time, or it will
+    # fail to load libuhdr-1.dll with "punktu wejścia procedury pthread_cond_timedwait64".
+    set(PLATEMAKER_MSYS2_MINGW64_BIN "C:/msys64/mingw64/bin" CACHE PATH
+        "bin/ dir of the MSYS2 MinGW64 toolchain platemaker/libuhdr were built with")
+    if(EXISTS "${PLATEMAKER_MSYS2_MINGW64_BIN}/libwinpthread-1.dll")
+        install(FILES
+            "${PLATEMAKER_MSYS2_MINGW64_BIN}/libwinpthread-1.dll"
+            "${PLATEMAKER_MSYS2_MINGW64_BIN}/libgcc_s_seh-1.dll"
+            DESTINATION ${CMAKE_INSTALL_BINDIR}
+        )
+    else()
+        message(WARNING "MSYS2 MinGW64 runtime not found at ${PLATEMAKER_MSYS2_MINGW64_BIN} — "
+                         "Platemaker.exe may fail to load libuhdr-1.dll on machines without MSYS2.")
+    endif()
+endif()

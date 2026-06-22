@@ -4,7 +4,6 @@ project(Platemaker LANGUAGES CXX)
 find_package(Qt6 6.5 REQUIRED COMPONENTS Core Widgets Concurrent)
 
 qt_standard_project_setup()
-
 qt_add_executable(Platemaker
     WIN32 MACOSX_BUNDLE
     # App entry point.
@@ -31,6 +30,7 @@ qt_add_executable(Platemaker
     widgets/templatesdialog/templatesdialog.cpp widgets/templatesdialog/templatesdialog.h templatesdialog.ui
     widgets/outputformatoptionswidget/outputformatoptionswidget.cpp widgets/outputformatoptionswidget/outputformatoptionswidget.h outputformatoptionswidget.ui
     widgets/renderworker/renderworker.cpp widgets/renderworker/renderworker.h
+    app.rc
 )
 
 # Every class/header lives in its own folder; add each to the include path so

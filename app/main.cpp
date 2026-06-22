@@ -2,6 +2,7 @@
 
 #include <QApplication>
 #include <QSettings>
+#include <QIcon>
 
 int main(int argc, char *argv[])
 {
@@ -15,7 +16,7 @@ int main(int argc, char *argv[])
     QCoreApplication::setOrganizationName("Platemaker");
     QCoreApplication::setApplicationName("Platemaker");
     QSettings::setDefaultFormat(QSettings::IniFormat);
-
+    a.setWindowIcon(QIcon("icons/icon-red.ico"));
     MainWindow w;
     w.show();
     return QApplication::exec();

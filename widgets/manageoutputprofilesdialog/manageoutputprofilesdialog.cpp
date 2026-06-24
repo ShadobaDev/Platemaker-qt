@@ -96,9 +96,13 @@ void ManageOutputProfilesDialog::onEditClicked()
     dlg.setProfile(m_profiles[row]);
     if (dlg.exec() != QDialog::Accepted) return;
 
-    const QString oldName = QString::fromStdString(m_profiles[row].name);
-    m_profiles[row]       = dlg.profile();
-    const QString newName = QString::fromStdString(m_profiles[row].name);
+    // OutputProfileDialog returns a profile without an id — restore the stable id
+    // so projects referencing this profile (by id) survive the edit.
+    const QString oldName     = QString::fromStdString(m_profiles[row].name);
+    const std::string savedId = m_profiles[row].id;
+    m_profiles[row]           = dlg.profile();
+    m_profiles[row].id        = savedId;
+    const QString newName     = QString::fromStdString(m_profiles[row].name);
 
     if (m_activeProfileName == oldName)
         m_activeProfileName = newName;
@@ -113,6 +117,7 @@ void ManageOutputProfilesDialog::onDuplicateClicked()
 
     Platemaker::Models::OutputProfile copy = m_profiles[row];
     copy.name += " (copy)";
+    copy.id.clear();   // a duplicate needs its own id (MainWindow assigns a fresh one)
     m_profiles.insert(row + 1, copy);
     rebuildList();
     ui->listWidgetProfiles->setCurrentRow(row + 1);

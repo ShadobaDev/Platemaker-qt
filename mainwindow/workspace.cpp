@@ -60,6 +60,7 @@ void MainWindow::onNewWorkspace()
     closeWorkspace();
 
     Platemaker::Models::OutputProfile defaultOut;
+    defaultOut.id          = "op-Webtoon Standard"; // stable id (empty id breaks selection)
     defaultOut.name        = "Webtoon Standard";
     defaultOut.targetWidth = 800;
     defaultOut.sliceHeight = 1280;

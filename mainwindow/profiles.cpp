@@ -205,6 +205,12 @@ void MainWindow::onManageOutputProfiles()
     m_workspace.outputProfiles.assign(result.begin(), result.end());
     m_activeOutputProfileName = dlg.activeProfileName();
 
+    // Assign IDs to any profiles added without one (the dialog doesn't generate
+    // them); an empty id breaks per-project output-profile selection.
+    for (auto& p : m_workspace.outputProfiles)
+        if (p.id.empty())
+            p.id = "op-" + nowIsoTag().toStdString();
+
     setDirty(true);
 }
 
@@ -229,6 +235,7 @@ void MainWindow::onNewOutputProfile()
         }
     }
 
+    profile.id = "op-" + nowIsoTag().toStdString();
     m_workspace.outputProfiles.push_back(profile);
 
     if (m_workspace.outputProfiles.size() == 1)
@@ -253,8 +260,12 @@ void MainWindow::onEditActiveOutputProfile()
     dlg.setProfile(*it);
     if (dlg.exec() != QDialog::Accepted) return;
 
+    // OutputProfileDialog returns a profile without an id — preserve the stable
+    // id so projects that reference this profile keep working.
     const std::string oldName = it->name;
+    const std::string savedId = it->id;
     *it = dlg.profile();
+    it->id = savedId.empty() ? ("op-" + it->name) : savedId;
 
     if (m_activeOutputProfileName == QString::fromStdString(oldName))
         m_activeOutputProfileName = QString::fromStdString(it->name);

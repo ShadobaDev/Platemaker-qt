@@ -1,2 +1,6 @@
 build
 temp
+install
+installer-output
+graphify-out
+CLAUDE.md

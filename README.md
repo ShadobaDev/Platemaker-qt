@@ -43,6 +43,10 @@ _Processing in progress — progress bar + tile status badges_
 The project is built and run from **Qt Creator**.  Open `CMakeLists.txt` as a
 Qt Creator project and configure the kit (MSVC 2022 or MinGW 64-bit).
 
+```bash
+cmake -B .\build\Desktop_Qt_6_11_1_MinGW_64_bit-Debug\ -S .      
+cmake --build .\build\Desktop_Qt_6_11_1_MinGW_64_bit-Debug\ --target installer
+```
 ### Linking libplatemaker
 
 `CMakeLists.txt` resolves `libplatemaker` in three steps, in order:

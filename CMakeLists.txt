@@ -1,5 +1,5 @@
-cmake_minimum_required(VERSION 3.19)
-project(Platemaker LANGUAGES CXX)
+﻿cmake_minimum_required(VERSION 3.19)
+project(Platemaker VERSION 1.0.0 LANGUAGES CXX)
 
 find_package(Qt6 6.5 REQUIRED COMPONENTS Core Widgets Concurrent)
 
@@ -175,3 +175,35 @@ if(WIN32)
                          "Platemaker.exe may fail to load libuhdr-1.dll on machines without MSYS2.")
     endif()
 endif()
+
+# --- Inno Setup installer target -------------------------------------------
+if(WIN32)
+    find_program(ISCC_EXECUTABLE ISCC
+        PATHS
+            "C:/Program Files (x86)/Inno Setup 6"
+            "C:/Program Files/Inno Setup 6"
+            "$ENV{LOCALAPPDATA}/Programs/Inno Setup 6"
+        DOC "Inno Setup compiler (ISCC.exe)"
+    )
+
+    set(INSTALLER_INSTALL_PREFIX "${CMAKE_CURRENT_SOURCE_DIR}/install"
+        CACHE PATH "Staging prefix used by cmake --install before Inno Setup packaging")
+
+    if(ISCC_EXECUTABLE)
+        add_custom_target(installer
+            DEPENDS Platemaker
+            COMMAND ${CMAKE_COMMAND} --install "${CMAKE_BINARY_DIR}"
+                    --prefix "${INSTALLER_INSTALL_PREFIX}"
+            COMMAND ${ISCC_EXECUTABLE}
+                    "/DMyAppVersion=${PROJECT_VERSION}"
+                    "${CMAKE_CURRENT_SOURCE_DIR}/Platemaker.iss"
+            WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+            COMMENT "Installing and packaging Platemaker ${PROJECT_VERSION}..."
+            VERBATIM
+        )
+        message(STATUS "Inno Setup found: ${ISCC_EXECUTABLE} -- run: cmake --build . --target installer")
+    else()
+        message(STATUS "Inno Setup not found -- install via: winget install JRSoftware.InnoSetup")
+    endif()
+endif()
+

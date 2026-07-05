@@ -3,7 +3,7 @@
 
 #include <QDialog>
 #include <QList>
-#include <platemaker\models\output_profile.hpp>
+#include <platemaker/models/output_profile.hpp>
 
 namespace Ui {
 class ManageOutputProfilesDialog;

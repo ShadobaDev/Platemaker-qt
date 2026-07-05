@@ -2,7 +2,7 @@
 #include "ui_manageoutputprofilesdialog.h"
 #include "outputprofiledialog.h"
 
-#include <platemaker\models\output_profile.hpp>
+#include <platemaker/models/output_profile.hpp>
 
 #include <QListWidgetItem>
 #include <QMessageBox>

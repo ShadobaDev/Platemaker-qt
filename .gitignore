@@ -4,3 +4,5 @@ install
 installer-output
 graphify-out
 CLAUDE.md
+.qtcreator
+CMakeLists.txt.user

@@ -18,6 +18,7 @@ OutputDir=installer-output
 OutputBaseFilename=Platemaker-{#MyAppVersion}-Setup
 SetupIconFile=icons\icon-blue.ico
 UninstallDisplayIcon={app}\bin\{#MyAppExeName}
+LicenseFile=LICENSE
 Compression=lzma2/ultra64
 SolidCompression=yes
 WizardStyle=modern

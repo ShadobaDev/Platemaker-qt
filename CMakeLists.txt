@@ -80,14 +80,14 @@ if(1)
         include(FetchContent)
 
         if(WIN32)
-            set(_pm_archive "platemaker-dev-${PLATEMAKER_VERSION}-Windows-AMD64.zip")
+            set(_pm_archive "platemaker-dev-${PLATEMAKER_VERSION}-windows-mingw-release.zip")
         else()
-            set(_pm_archive "platemaker-dev-${PLATEMAKER_VERSION}-Linux-x86_64.tar.gz")
+            set(_pm_archive "platemaker-dev-${PLATEMAKER_VERSION}-linux-x86_64-release.tar.gz")
         endif()
 
         FetchContent_Declare(
             platemaker_pkg
-            URL "https://github.com/ShadobaDev/PlateMaker/releases/download/v${PLATEMAKER_VERSION}/${_pm_archive}"
+            URL "https://github.com/ShadobaDev/PlateMaker/releases/download/${PLATEMAKER_VERSION}/${_pm_archive}"
             DOWNLOAD_EXTRACT_TIMESTAMP TRUE
         )
         FetchContent_MakeAvailable(platemaker_pkg)

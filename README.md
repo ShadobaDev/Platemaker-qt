@@ -160,4 +160,8 @@ Platemaker/
 
 ## Licence
 
-GPL 3.0 - Qt and  `libplatemaker` is used under LGPL 3.0.
+`Platemaker` is distributed under the **GNU General Public License v3.0** (GPL-3.0). See `LICENSE`.
+
+Third-party components:
+- **Qt 6** — LGPL 2.1 ([qt.io/licensing](https://www.qt.io/licensing/)), dynamically linked
+- **libplatemaker** — LGPL 3.0, dynamically linked

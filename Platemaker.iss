@@ -17,11 +17,15 @@ AllowNoIcons=yes
 OutputDir=installer-output
 OutputBaseFilename=Platemaker-{#MyAppVersion}-Setup
 SetupIconFile=icons\icon-blue.ico
+UninstallDisplayIcon={app}\bin\{#MyAppExeName}
 Compression=lzma2/ultra64
 SolidCompression=yes
 WizardStyle=modern
 PrivilegesRequired=admin
 ArchitecturesInstallIn64BitMode=x64compatible
+CloseApplications=yes
+CloseApplicationsFilter=*Platemaker.exe
+RestartApplications=no
 
 [Languages]
 ; Name: "polish"; MessagesFile: "compiler:Languages\Polish.isl"
@@ -31,7 +35,9 @@ Name: "english"; MessagesFile: "compiler:Default.isl"
 Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{cm:AdditionalIcons}"
 
 [Files]
-; Główny exe i DLLs
+; Główny exe — restartreplace na wypadek zablokowania przez AV
+Source: "{#MyInstallDir}\bin\{#MyAppExeName}"; DestDir: "{app}\bin"; Flags: ignoreversion restartreplace uninsrestartdelete
+; Pozostałe pliki w bin\
 Source: "{#MyInstallDir}\bin\*"; DestDir: "{app}\bin"; Flags: ignoreversion recursesubdirs
 
 ; Pluginy Qt
@@ -44,6 +50,15 @@ Source: "{#MyInstallDir}\translations\*"; DestDir: "{app}\translations"; Flags: 
 Name: "{group}\{#MyAppName}"; Filename: "{app}\bin\{#MyAppExeName}"; IconFilename: "{app}\bin\{#MyAppExeName}"
 Name: "{group}\Odinstaluj {#MyAppName}"; Filename: "{uninstallexe}"
 Name: "{autodesktop}\{#MyAppName}"; Filename: "{app}\bin\{#MyAppExeName}"; Tasks: desktopicon
+
+[Code]
+procedure CurStepChanged(CurStep: TSetupStep);
+var
+  ResultCode: Integer;
+begin
+  if CurStep = ssInstall then
+    Exec('taskkill.exe', '/F /IM {#MyAppExeName}', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
+end;
 
 [Run]
 Filename: "{app}\bin\{#MyAppExeName}"; Description: "{cm:LaunchProgram,{#StringChange(MyAppName, '&', '&&')}}"; Flags: nowait postinstall skipifsilent

@@ -125,15 +125,32 @@ When libplatemaker changes its public API (new model fields, renamed methods):
 ```
 Platemaker/
 ├── CMakeLists.txt
-├── main.cpp
-├── mainwindow.h / .cpp / .ui      — application shell (MDI + docks)
-├── project.h / .cpp / .ui         — per-chapter image tile grid
-├── imagetile.h / .cpp / .ui       — single source image card
-├── projectitem.h / .cpp           — thin model adapter (minimal)
-├── canvasprofiledialog.h / .cpp / .ui
-├── outputprofiledialog.h / .cpp / .ui
-├── managecanvasprofilesdialog.h / .cpp / .ui
-├── manageoutputprofilesdialog.h / .cpp / .ui
+├── Platemaker.iss                 — Inno Setup installer script
+├── app.rc                         — Windows app manifest / icon binding
+├── app/
+│   └── main.cpp
+├── mainwindow/                    — application shell (MDI + docks)
+│   ├── mainwindow.h / .cpp
+│   ├── workspace.cpp
+│   ├── projects.cpp
+│   ├── render.cpp
+│   ├── profiles.cpp
+│   └── templates.cpp
+├── widgets/
+│   ├── project/                   — per-chapter image tile grid
+│   │   ├── project.h / .cpp
+│   │   ├── input.cpp
+│   │   └── output.cpp
+│   ├── imagetile/                 — single source image card
+│   ├── canvasprofiledialog/
+│   ├── managecanvasprofilesdialog/
+│   ├── manageoutputprofilesdialog/
+│   ├── outputprofiledialog/
+│   ├── outputformatoptionswidget/
+│   ├── renderworker/
+│   └── templatesdialog/
+├── *.ui                           — Qt Designer forms (root, found via AUTOUIC_SEARCH_PATHS)
+├── icons/                         — .ico + source .png files (16–256 px)
 └── docs/
     ├── SPECIFICATION.md           — GUI feature specification
     └── TODO.md                    — implementation checklist
@@ -143,4 +160,4 @@ Platemaker/
 
 ## Licence
 
-LGPL 3.0 — same as `libplatemaker`.  Qt is used under LGPL 3.0.
+GPL 3.0 - Qt and  `libplatemaker` is used under LGPL 3.0.

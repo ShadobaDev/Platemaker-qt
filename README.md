@@ -165,3 +165,9 @@ Platemaker/
 Third-party components:
 - **Qt 6** — LGPL 2.1 ([qt.io/licensing](https://www.qt.io/licensing/)), dynamically linked
 - **libplatemaker** — LGPL 3.0, dynamically linked
+
+---
+
+## Contributing
+
+Contributions are welcome. By opening a pull request you agree to the **[Contributor License Agreement](CLA.md)**.

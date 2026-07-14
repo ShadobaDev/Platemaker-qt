@@ -9,15 +9,25 @@ Qt 6 desktop frontend for [libplatemaker](https://github.com/ShadobaDev/PlateMak
 
 ## Screenshots
 
-_Main window — workspace panel + open project_
+_Project view — input files_
 
-<!-- TODO: add screenshot -->
-![Main window placeholder](docs/screenshots/main-window.png)
+![Project input view](docs/pics/Project_Input.png)
 
-_Canvas profile management dialog_
+_Project view — output settings_
 
-<!-- TODO: add screenshot -->
-![Canvas profiles dialog placeholder](docs/screenshots/canvas-profiles-dialog.png)
+![Project output view](docs/pics/Project_Output.png)
+
+_Canvas profile dialog_
+
+![Canvas profile dialog](docs/pics/Canvas%20profile.png)
+
+_Canvas profile with margin guides_
+
+![Canvas profile with margin](docs/pics/Canvas%20profile%20with%20margin.png)
+
+_Template manager_
+
+![Template manager](docs/pics/Template%20manager.png)
 
 _Processing in progress — progress bar + tile status badges_
 

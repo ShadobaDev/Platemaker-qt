@@ -37,23 +37,30 @@
 
 void MainWindow::onNewProject()
 {
+    // Skip if no workspace is loaded
     if (m_workspacePath.isEmpty()) {
         QMessageBox::information(this, tr("No Workspace"),
             tr("Open or create a workspace first."));
         return;
     }
 
+    // Prompt for a name, but don't allow empty or whitespace-only names.
     bool ok;
     const QString name = QInputDialog::getText(
         this, tr("New Project"), tr("Project name:"),
         QLineEdit::Normal, tr("Chapter 01"), &ok);
-    if (!ok || name.trimmed().isEmpty()) return;
 
+    // Cancelled or empty name → abort
+    if (!ok || name.trimmed().isEmpty()) 
+        return;
+
+    // Ensure the name is unique within the workspace.
     Platemaker::Models::ProjectItem proj;
     proj.name = name.trimmed().toStdString();
     proj.uuid = "proj-" + QDateTime::currentDateTimeUtc()
                     .toString(Qt::ISODate).toStdString();
 
+    // Add new porject to the workspace model, then refresh the UI to reflect it.
     m_workspace.projectItems.push_back(std::move(proj));
     setDirty(true);
     applyWorkspaceToUi();
@@ -61,6 +68,7 @@ void MainWindow::onNewProject()
 
 void MainWindow::onProjectDoubleClicked(QListWidgetItem *item)
 {
+    // Open the dock for the double-clicked project, or bring it to front if already open.
     const int index = item->data(Qt::UserRole).toInt();
     if (index < 0 || index >= static_cast<int>(m_workspace.projectItems.size()))
         return;
@@ -69,10 +77,12 @@ void MainWindow::onProjectDoubleClicked(QListWidgetItem *item)
 
 void MainWindow::onProjectsContextMenu(const QPoint &pos)
 {
+    // Skip if no workspace is loaded
     if (m_workspacePath.isEmpty()) return;
 
     QListWidgetItem *item = ui->listWidgetProjects->itemAt(pos);
 
+    // Show a context menu with options to rename or delete the project, or create a new project.
     QMenu menu(this);
     if (item) {
         const int modelIndex = item->data(Qt::UserRole).toInt();
@@ -90,9 +100,11 @@ void MainWindow::onProjectsContextMenu(const QPoint &pos)
 
 void MainWindow::renameProject(int modelIndex)
 {
+    // Skip if no project is selected or the index is out of bounds
     if (modelIndex < 0 || modelIndex >= static_cast<int>(m_workspace.projectItems.size()))
         return;
 
+    // Prompt for a new name, but don't allow empty or whitespace-only names.
     auto &proj = m_workspace.projectItems[static_cast<std::size_t>(modelIndex)];
     bool ok;
     const QString name = QInputDialog::getText(
@@ -112,7 +124,10 @@ void MainWindow::renameProject(int modelIndex)
 
 void MainWindow::removeProject(int modelIndex)
 {
+    // Block removal if a render is in progress, or if the index is out of bounds.
     if (m_rendering) { setProjectStatus(tr("Stop the current render first.")); return; }
+
+    // Skip if no project is selected or the index is out of bounds
     if (modelIndex < 0 || modelIndex >= static_cast<int>(m_workspace.projectItems.size()))
         return;
 
@@ -152,6 +167,7 @@ void MainWindow::removeProject(int modelIndex)
 
 QDockWidget *MainWindow::dockForProject(int modelIndex) const
 {
+    // Return the QDockWidget for the project at the given model index, or nullptr if not found.
     for (QDockWidget *dock : m_openProjectDocks)
         if (dock->property("projectIndex").toInt() == modelIndex)
             return dock;
@@ -172,9 +188,11 @@ void MainWindow::openProjectDock(int projectIndex)
         }
     }
 
+    // Get the project name for the dock title.
     const QString name = QString::fromStdString(
         m_workspace.projectItems[projectIndex].name);
 
+    // Create a new dock for the project, with a Project widget inside.
     QDockWidget *newDock = new QDockWidget(name, this);
     newDock->setProperty("projectIndex", projectIndex);
     newDock->setFeatures(QDockWidget::DockWidgetMovable  |
@@ -226,6 +244,7 @@ void MainWindow::openProjectDock(int projectIndex)
 
 void MainWindow::closeProjectByIndex(int index)
 {
+    // Skip if no project is selected or the index is out of bounds
     if (index < 0 || index >= m_openProjectDocks.size()) return;
     QDockWidget *dock = m_openProjectDocks.takeAt(index);
     dock->deleteLater();
@@ -233,6 +252,7 @@ void MainWindow::closeProjectByIndex(int index)
 
 void MainWindow::toggleProjectFloatState(int index)
 {
+    // Skip if no project is selected or the index is out of bounds
     if (index < 0 || index >= m_openProjectDocks.size()) return;
     QDockWidget *dock = m_openProjectDocks.at(index);
     // setFloating(false) triggers topLevelChanged → tabifyDockWidget, so no manual re-tabify needed.

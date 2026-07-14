@@ -42,11 +42,16 @@ static QString nowIsoTag()
 
 void MainWindow::onManageCanvasProfiles()
 {
+    // Skip if no workspace is loaded
     if (m_workspacePath.isEmpty()) {
         QMessageBox::information(this, tr("No Workspace"), tr("Open a workspace first."));
         return;
     }
 
+    // Open the dialog with a copy of the workspace's profiles. The dialog edits
+    // copies, and we only write the results back to the workspace if the user
+    // clicks Accept. The dialog preserves templateInfo by id, so we can snapshot
+    // it before the dialog and re-attach it afterward (the dialog never edits it).
     ManageCanvasProfilesDialog dlg(this);
 
     QList<Platemaker::Models::CanvasProfile> profiles(
@@ -123,16 +128,19 @@ void MainWindow::onManageCanvasProfiles()
 }
 void MainWindow::onNewCanvasProfile()
 {
+    // Skip if no workspace is loaded
     if (m_workspacePath.isEmpty()) {
         QMessageBox::information(this, tr("No Workspace"), tr("Open a workspace first."));
         return;
     }
 
+    // Prompt for a new profile. The dialog returns a fresh profile without an id or templateInfo; we generate a stable id and leave templateInfo empty.
     CanvasProfileDialog dlg(this);
     if (dlg.exec() != QDialog::Accepted) return;
 
     auto profile = dlg.profile();
 
+    // Ensure the name is unique within the workspace.
     for (const auto& p : m_workspace.canvasProfiles) {
         if (p.name == profile.name) {
             QMessageBox::warning(this, tr("Duplicate name"),
@@ -142,9 +150,11 @@ void MainWindow::onNewCanvasProfile()
         }
     }
 
+    // Assign a stable id to the new profile and add it to the workspace.
     profile.id = "cp-" + nowIsoTag().toStdString();
     m_workspace.canvasProfiles.push_back(profile);
 
+    // If this is the first profile, make it the active one.
     if (m_workspace.canvasProfiles.size() == 1)
         m_activeCanvasProfileName = QString::fromStdString(profile.name);
 
@@ -153,6 +163,16 @@ void MainWindow::onNewCanvasProfile()
 
 void MainWindow::onEditActiveCanvasProfile()
 {
+    // Skip if no workspace is loaded
+    if (m_workspacePath.isEmpty()) {
+        QMessageBox::information(this, tr("No Workspace"), tr("Open a workspace first."));
+        return;
+    }
+
+    // Find the active profile by name. The dialog edits a copy, 
+    // and we only write the results back to the workspace if the user clicks Accept. 
+    // The dialog preserves templateInfo by id, so we can snapshot it before 
+    // the dialog and re-attach it afterward (the dialog never edits it).
     const auto it = std::find_if(
         m_workspace.canvasProfiles.begin(), m_workspace.canvasProfiles.end(),
         [&](const auto& p){ return p.name == m_activeCanvasProfileName.toStdString(); });
@@ -188,6 +208,7 @@ void MainWindow::onEditActiveCanvasProfile()
 
 void MainWindow::onManageOutputProfiles()
 {
+    // Skip if no workspace is loaded
     if (m_workspacePath.isEmpty()) {
         QMessageBox::information(this, tr("No Workspace"), tr("Open a workspace first."));
         return;
@@ -199,6 +220,7 @@ void MainWindow::onManageOutputProfiles()
         m_workspace.outputProfiles.begin(), m_workspace.outputProfiles.end());
     dlg.setProfiles(profiles, m_activeOutputProfileName);
 
+    // The dialog edits copies, and we only write the results back to the workspace if the user clicks Accept.
     if (dlg.exec() != QDialog::Accepted) return;
 
     const auto result = dlg.profiles();
@@ -216,6 +238,7 @@ void MainWindow::onManageOutputProfiles()
 
 void MainWindow::onNewOutputProfile()
 {
+    // Skip if no workspace is loaded
     if (m_workspacePath.isEmpty()) {
         QMessageBox::information(this, tr("No Workspace"), tr("Open a workspace first."));
         return;
@@ -226,6 +249,7 @@ void MainWindow::onNewOutputProfile()
 
     auto profile = dlg.profile();
 
+    // Ensure the name is unique within the workspace.
     for (const auto& p : m_workspace.outputProfiles) {
         if (p.name == profile.name) {
             QMessageBox::warning(this, tr("Duplicate name"),
@@ -235,6 +259,7 @@ void MainWindow::onNewOutputProfile()
         }
     }
 
+    // Assign a stable id to the new profile and add it to the workspace.
     profile.id = "op-" + nowIsoTag().toStdString();
     m_workspace.outputProfiles.push_back(profile);
 
@@ -246,6 +271,16 @@ void MainWindow::onNewOutputProfile()
 
 void MainWindow::onEditActiveOutputProfile()
 {
+    // Skip if no workspace is loaded
+    if (m_workspacePath.isEmpty()) {
+        QMessageBox::information(this, tr("No Workspace"), tr("Open a workspace first."));
+        return;
+    }
+
+    // Find the active profile by name. The dialog edits a copy, and we only write
+    // the results back to the workspace if the user clicks Accept. The dialog
+    // preserves templateInfo by id, so we can snapshot it before the dialog and
+    // re-attach it afterward (the dialog never edits it).
     const auto it = std::find_if(
         m_workspace.outputProfiles.begin(), m_workspace.outputProfiles.end(),
         [&](const auto& p){ return p.name == m_activeOutputProfileName.toStdString(); });

@@ -113,7 +113,7 @@ MainWindow::MainWindow(QWidget *parent)
     connect(ui->pushButtonStop, &QPushButton::clicked, this, &MainWindow::cancelRender);
     ui->pushButtonStop->setEnabled(false);
 
-    updateTitle();
+    updateTitleBar();
 }
 
 MainWindow::~MainWindow()
@@ -214,15 +214,17 @@ void MainWindow::applyWorkspaceToUi()
         ui->listWidgetProjects->addItem(item);
     }
 
-    updateTitle();
+    updateTitleBar();
 }
 
 void MainWindow::closeWorkspace()
 {
+    // Close any open project docks and clear the list.
     for (QDockWidget *dock : std::as_const(m_openProjectDocks))
         dock->deleteLater();
     m_openProjectDocks.clear();
 
+    // Clear the workspace model and reset state.
     m_workspace     = Platemaker::Models::Workspace{};
     m_workspacePath.clear();
     m_savedSnapshot.clear();
@@ -230,18 +232,22 @@ void MainWindow::closeWorkspace()
     m_activeOutputProfileName.clear();
     setDirty(false);
 
+    // Clear the project list in the UI and update the title bar.
     ui->listWidgetProjects->clear();
-    updateTitle();
+    updateTitleBar();
 }
 
 void MainWindow::setDirty(bool dirty)
 {
+    // Eager flag driving the title-bar asterisk (*)
     m_dirty = dirty;
-    updateTitle();
+    updateTitleBar();
 }
 
 void MainWindow::captureSnapshot()
 {
+    // Capture the current workspace's serialized form as the "saved" baseline.
+    // Call after every successful load/save; clears the dirty flag.
     m_savedSnapshot = m_workspacePath.isEmpty()
         ? QString{}
         : QString::fromStdString(m_serializer.serialize(m_workspace));
@@ -250,13 +256,16 @@ void MainWindow::captureSnapshot()
 
 bool MainWindow::isWorkspaceModified() const
 {
+    // Authoritative change check: true if the workspace differs from the last
     if (m_workspacePath.isEmpty())
         return false; // no workspace loaded — nothing to save
     return QString::fromStdString(m_serializer.serialize(m_workspace))
            != m_savedSnapshot;
 }
-void MainWindow::updateTitle()
+
+void MainWindow::updateTitleBar()
 {
+    // Show the workspace file name (or just "Platemaker" if none) and an asterisk
     if (m_workspacePath.isEmpty()) {
         setWindowTitle(tr("Platemaker"));
     } else {

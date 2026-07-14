@@ -40,6 +40,7 @@
 
 Project *MainWindow::projectWidget(int projectIndex) const
 {
+    // Return the Project widget for the project at the given model index, or nullptr if not found.
     if (QDockWidget *dock = dockForProject(projectIndex))
         return qobject_cast<Project *>(dock->widget());
     return nullptr;
@@ -48,6 +49,9 @@ Project *MainWindow::projectWidget(int projectIndex) const
 Platemaker::Models::OutputProfile MainWindow::resolveOutputProfileFor(
     const Platemaker::Models::ProjectItem &project) const
 {
+    // Resolve the output profile for the given project. If the project has a specific
+    // output profile selected, return that. Otherwise, return the workspace's default
+    // output profile. If no profiles exist, return a default-constructed OutputProfile.
     for (const auto &op : m_workspace.outputProfiles)
         if (op.id == project.outputProfileId)
             return op;
@@ -58,16 +62,22 @@ Platemaker::Models::OutputProfile MainWindow::resolveOutputProfileFor(
 
 void MainWindow::setActionStatus(const QString &projectName, const QString &action)
 {
+    // Set the action status message in the UI for the specified project.
+    // This is displayed in the Action Status text browser.
     ui->textBrowserActionStatus->setPlainText(projectName + ": " + action);
 }
 
 void MainWindow::setProjectStatus(const QString &message)
 {
+    // Set the project status message in the UI (e.g., "Rendering...", "Finished", etc.).
+    // This is displayed in the Project Status text browser.
     ui->textBrowserProjectStatus->setPlainText(message);
 }
 
 void MainWindow::setProgressValue(int percent, bool error)
 {
+    // Set the progress bar value and color (red if error is true).
+    // The progress bar is displayed in the UI to indicate rendering progress.
     ui->progressBar->setValue(percent);
     ui->progressBar->setStyleSheet(QStringLiteral(
         "QProgressBar::chunk { background-color: %1; }")
@@ -76,6 +86,8 @@ void MainWindow::setProgressValue(int percent, bool error)
 
 void MainWindow::onRenderToggle(int projectIndex)
 {
+    // Handle the Render/Stop button click from a Project widget. If a render is already
+    // in progress, cancel it. Otherwise, start a new render for the specified project index.
     if (m_rendering) {
         if (projectIndex == m_renderProjectIndex)
             cancelRender();
@@ -86,10 +98,13 @@ void MainWindow::onRenderToggle(int projectIndex)
 
 void MainWindow::startRender(int projectIndex)
 {
+    // Skip if a render is already running.
     if (m_rendering) {
         setProjectStatus(tr("A render is already running."));
         return;
     }
+
+    // Skip if the project index is out of bounds.
     if (projectIndex < 0 || projectIndex >= static_cast<int>(m_workspace.projectItems.size()))
         return;
 
@@ -227,6 +242,7 @@ void MainWindow::startRender(int projectIndex)
 
 void MainWindow::cancelRender()
 {
+    // Skip if no render is in progress. Otherwise, signal the worker to cancel and update the UI.
     if (!m_rendering) return;
     m_cancelToken.cancel();
     setProjectStatus(tr("Cancelling…"));
@@ -241,6 +257,8 @@ void MainWindow::deleteOrphanedOutputs(const Platemaker::Models::ProjectItem &pr
     for (const auto &of : project.getOutputImages())
         produced.insert(QString::fromStdString(of.fileName));
 
+    // Delete any orphaned output files that the new render no longer produces. Only
+    // candidates the user confirmed via the cleanup prompt are removed.
     QDir dir(m_renderOrphanDir);
     int removed = 0;
     for (const QString &fileName : m_renderOrphanCandidates) {
@@ -258,18 +276,21 @@ void MainWindow::deleteOrphanedOutputs(const Platemaker::Models::ProjectItem &pr
 
 void MainWindow::onRenderProgress(int done, int total, QString sliceName)
 {
+    // Update the progress bar value based on the number of slices processed so far.
     Q_UNUSED(sliceName);
     setProgressValue(total > 0 ? qRound(done * 100.0 / total) : 0, false);
 }
 
 void MainWindow::onRenderLog(int level, QString message)
 {
+    // Log a message from the rendering process. The log level indicates the severity of the message.
     const char *tag = (level == 2) ? "[error] " : (level == 1) ? "[warn] " : "";
     ui->textBrowserActionLogs->append(QString::fromLatin1(tag) + message);
 }
 
 void MainWindow::onRenderSliceSaved(QString name, QString fullPath)
 {
+    // Called when a slice has been saved during rendering. Update the corresponding Project widget with the new output tile.
     Q_UNUSED(name);
     if (auto *pw = projectWidget(m_renderProjectIndex))
         pw->addOutputTile(fullPath);
@@ -277,15 +298,18 @@ void MainWindow::onRenderSliceSaved(QString name, QString fullPath)
 
 void MainWindow::onRenderFinished()
 {
+    // snapshot before m_renderWorker is nulled below
     const auto &outcome = m_renderWorker->outcome();
     const bool partial  = m_renderWorker->isPartial();
     const int idx = m_renderProjectIndex;
 
+    // Update the UI and project state based on the outcome of the rendering process.
     QString name;
     if (idx >= 0 && idx < static_cast<int>(m_workspace.projectItems.size())) {
         auto &project = m_workspace.projectItems[static_cast<std::size_t>(idx)];
         name = QString::fromStdString(project.name);
 
+        // Apply the processing results to the project if the render was successful and not cancelled.
         if (!outcome.failed && !outcome.cancelled) {
             if (partial) {
                 // Only the dirty slices were regenerated; refresh just those.
@@ -310,9 +334,11 @@ void MainWindow::onRenderFinished()
         }
     }
 
+    //--- reset render state ---
     m_renderOrphanCandidates.clear();
     m_renderOrphanDir.clear();
 
+    // Update the UI based on the outcome of the rendering process.
     if (outcome.failed) {
         setActionStatus(name, tr("Failed"));
         setProgressValue(ui->progressBar->value(), true);   // freeze at %, recolour red
@@ -329,6 +355,7 @@ void MainWindow::onRenderFinished()
         setProjectStatus(tr("Render finished."));
     }
 
+    // Update the UI and reset the render state.
     if (auto *pw = projectWidget(idx)) pw->setRendering(false);
     ui->pushButtonStop->setEnabled(false);
 

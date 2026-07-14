@@ -33,16 +33,22 @@
 
 void MainWindow::onManageTemplates()
 {
+    // Skip if no workspace is loaded.
     if (m_workspacePath.isEmpty()) {
         QMessageBox::information(this, tr("No Workspace"), tr("Open a workspace first."));
         return;
     }
+
+    // Skip if no canvas profiles exist in the workspace.
     if (m_workspace.canvasProfiles.empty()) {
         QMessageBox::information(this, tr("No Canvas Profiles"),
             tr("Create a canvas profile before generating templates."));
         return;
     }
 
+    // Open the TemplatesDialog, passing the workspace and its directory. 
+    // Connect the workspaceModified signal to mark the workspace as dirty 
+    // when templates are generated or deleted.
     const QString workspaceDir = QFileInfo(m_workspacePath).absolutePath();
     TemplatesDialog dlg(m_workspace, workspaceDir, this);
     connect(&dlg, &TemplatesDialog::workspaceModified, this, [this]{ setDirty(true); });
@@ -51,11 +57,14 @@ void MainWindow::onManageTemplates()
 
 void MainWindow::onOpenTemplatesDir()
 {
+    // Skip if no workspace is loaded.
     if (m_workspacePath.isEmpty()) {
         QMessageBox::information(this, tr("No Workspace"), tr("Open a workspace first."));
         return;
     }
 
+    // Open the templates directory in the system file explorer. 
+    // If the directory does not exist, inform the user.
     const QString dir = QDir(QFileInfo(m_workspacePath).absolutePath())
                             .filePath(QStringLiteral("templates"));
     if (!QDir(dir).exists()) {

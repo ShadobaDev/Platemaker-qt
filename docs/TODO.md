@@ -44,6 +44,7 @@ Priority order: each section depends on the previous.  Complete in order.
 - [ ] **ImageTile** rework to be more eye-appealing
 - [ ] **Action log** should report a summary, how manu inputs, how many slices in what time where processed and when. Output cumulative size (MB or KB) would also be nice.
 - [ ] **Segfault** was detcted but not written down how - to be investigated.
+- [ ] `MainWindow::m_savedSnapshot` Maybe sha256 instead of holding full string? We do not use it for recovery anyway... or maybe we should keeep for recovery purpose?
 
 ---
 

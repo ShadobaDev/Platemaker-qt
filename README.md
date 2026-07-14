@@ -17,6 +17,18 @@ _Project view — output settings_
 
 ![Project output view](docs/pics/Project_Output.png)
 
+_Project view — output out of sync_
+
+![Project output out of sync](docs/pics/Project_Output_Out_Of_Sync.png)
+
+_Project view — output out of sync, warning before render_ 
+
+![Project output processing](docs/pics/Project_Output_Out_Of_Sync_Warning.png)
+
+_Project view — processing in progress_
+
+![Project output processing](docs/pics/Project_Output_Processing.png)
+
 _Canvas profile dialog_
 
 ![Canvas profile dialog](docs/pics/Canvas%20profile.png)
@@ -28,11 +40,6 @@ _Canvas profile with margin guides_
 _Template manager_
 
 ![Template manager](docs/pics/Template%20manager.png)
-
-_Processing in progress — progress bar + tile status badges_
-
-<!-- TODO: add screenshot -->
-![Processing placeholder](docs/screenshots/processing.png)
 
 ---
 

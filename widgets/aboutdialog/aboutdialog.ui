@@ -1,0 +1,214 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ui version="4.0">
+ <class>AboutDialog</class>
+ <widget class="QDialog" name="AboutDialog">
+  <property name="geometry">
+   <rect>
+    <x>0</x>
+    <y>0</y>
+    <width>460</width>
+    <height>420</height>
+   </rect>
+  </property>
+  <property name="windowTitle">
+   <string>About Platemaker</string>
+  </property>
+  <property name="styleSheet">
+   <string notr="true">
+QDialog {
+    background-color: #1e1e1e;
+    color: #e0e0e0;
+}
+QLabel {
+    color: #cccccc;
+    font-size: 12px;
+}
+QTabWidget::pane {
+    border: 1px solid #3d3d3d;
+    border-radius: 4px;
+}
+QTabBar::tab {
+    background: #2d2d2d;
+    color: #cccccc;
+    padding: 6px 14px;
+    border: 1px solid #3d3d3d;
+    border-bottom: none;
+    border-top-left-radius: 3px;
+    border-top-right-radius: 3px;
+}
+QTabBar::tab:selected {
+    background: #3d3d3d;
+    color: #ffffff;
+}
+QTextBrowser {
+    background-color: #252525;
+    color: #e0e0e0;
+    border: 1px solid #333333;
+    border-radius: 3px;
+    font-size: 12px;
+}
+QPushButton {
+    background-color: #2d2d2d;
+    color: #e0e0e0;
+    border: 1px solid #555555;
+    border-radius: 3px;
+    padding: 5px 14px;
+    font-size: 12px;
+}
+QPushButton:hover {
+    background-color: #3d3d3d;
+    border-color: #777777;
+}
+   </string>
+  </property>
+  <layout class="QVBoxLayout" name="verticalLayoutMain">
+   <property name="spacing">
+    <number>12</number>
+   </property>
+   <property name="leftMargin">
+    <number>16</number>
+   </property>
+   <property name="topMargin">
+    <number>16</number>
+   </property>
+   <property name="rightMargin">
+    <number>16</number>
+   </property>
+   <property name="bottomMargin">
+    <number>16</number>
+   </property>
+   <item>
+    <widget class="QTabWidget" name="tabWidget">
+     <property name="currentIndex">
+      <number>0</number>
+     </property>
+     <widget class="QWidget" name="tabAbout">
+      <attribute name="title">
+       <string>About</string>
+      </attribute>
+      <layout class="QVBoxLayout" name="verticalLayoutAbout">
+       <property name="spacing">
+        <number>10</number>
+       </property>
+       <item>
+        <widget class="QLabel" name="labelIcon">
+         <property name="text">
+          <string/>
+         </property>
+         <property name="alignment">
+          <set>Qt::AlignmentFlag::AlignHCenter|Qt::AlignmentFlag::AlignTop</set>
+         </property>
+        </widget>
+       </item>
+       <item>
+        <widget class="QLabel" name="labelAbout">
+         <property name="text">
+          <string/>
+         </property>
+         <property name="textFormat">
+          <enum>Qt::TextFormat::RichText</enum>
+         </property>
+         <property name="alignment">
+          <set>Qt::AlignmentFlag::AlignHCenter|Qt::AlignmentFlag::AlignTop</set>
+         </property>
+         <property name="wordWrap">
+          <bool>true</bool>
+         </property>
+         <property name="openExternalLinks">
+          <bool>true</bool>
+         </property>
+         <property name="textInteractionFlags">
+          <set>Qt::TextInteractionFlag::TextBrowserInteraction</set>
+         </property>
+        </widget>
+       </item>
+       <item>
+        <spacer name="spacerAbout">
+         <property name="orientation">
+          <enum>Qt::Orientation::Vertical</enum>
+         </property>
+         <property name="sizeHint" stdset="0">
+          <size>
+           <width>20</width>
+           <height>20</height>
+          </size>
+         </property>
+        </spacer>
+       </item>
+      </layout>
+     </widget>
+     <widget class="QWidget" name="tabAuthors">
+      <attribute name="title">
+       <string>Authors</string>
+      </attribute>
+      <layout class="QVBoxLayout" name="verticalLayoutAuthors">
+       <item>
+        <widget class="QTextBrowser" name="textAuthors">
+         <property name="openExternalLinks">
+          <bool>true</bool>
+         </property>
+        </widget>
+       </item>
+      </layout>
+     </widget>
+     <widget class="QWidget" name="tabManual">
+      <attribute name="title">
+       <string>Manual</string>
+      </attribute>
+      <layout class="QVBoxLayout" name="verticalLayoutManual">
+       <item>
+        <widget class="QTextBrowser" name="textManual">
+         <property name="openExternalLinks">
+          <bool>true</bool>
+         </property>
+        </widget>
+       </item>
+      </layout>
+     </widget>
+    </widget>
+   </item>
+   <item>
+    <widget class="QDialogButtonBox" name="buttonBox">
+     <property name="standardButtons">
+      <set>QDialogButtonBox::StandardButton::Close</set>
+     </property>
+    </widget>
+   </item>
+  </layout>
+ </widget>
+ <resources/>
+ <connections>
+  <connection>
+   <sender>buttonBox</sender>
+   <signal>rejected()</signal>
+   <receiver>AboutDialog</receiver>
+   <slot>reject()</slot>
+   <hints>
+    <hint type="sourcelabel">
+     <x>230</x>
+     <y>400</y>
+    </hint>
+    <hint type="destinationlabel">
+     <x>230</x>
+     <y>210</y>
+    </hint>
+   </hints>
+  </connection>
+  <connection>
+   <sender>buttonBox</sender>
+   <signal>accepted()</signal>
+   <receiver>AboutDialog</receiver>
+   <slot>accept()</slot>
+   <hints>
+    <hint type="sourcelabel">
+     <x>230</x>
+     <y>400</y>
+    </hint>
+    <hint type="destinationlabel">
+     <x>230</x>
+     <y>210</y>
+    </hint>
+   </hints>
+  </connection>
+ </connections>
+</ui>

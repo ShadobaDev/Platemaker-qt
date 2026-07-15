@@ -4,6 +4,11 @@
 #include <QSettings>
 #include <QIcon>
 
+// Injected by CMake (target_compile_definitions); fallback keeps main.cpp buildable.
+#ifndef PLATEMAKER_GUI_VERSION
+#define PLATEMAKER_GUI_VERSION "unknown"
+#endif
+
 int main(int argc, char *argv[])
 {
     QApplication a(argc, argv);
@@ -15,6 +20,7 @@ int main(int argc, char *argv[])
     // After this, a default-constructed QSettings everywhere resolves here.
     QCoreApplication::setOrganizationName("Platemaker");
     QCoreApplication::setApplicationName("Platemaker");
+    QCoreApplication::setApplicationVersion(QStringLiteral(PLATEMAKER_GUI_VERSION));
     QSettings::setDefaultFormat(QSettings::IniFormat);
     a.setWindowIcon(QIcon("icons/icon-red.ico"));
     MainWindow w;

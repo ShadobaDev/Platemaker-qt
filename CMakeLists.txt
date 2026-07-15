@@ -8,12 +8,13 @@ qt_add_executable(Platemaker
     WIN32 MACOSX_BUNDLE
     # App entry point.
     app/main.cpp
+    app/app.rc
 
     # MainWindow — class split across per-concern .cpp (same MainWindow class).
     # Each .ui lives next to its .cpp, so AUTOUIC resolves ui_*.h by default.
     mainwindow/mainwindow.cpp mainwindow/mainwindow.h
     mainwindow/workspace.cpp mainwindow/projects.cpp mainwindow/render.cpp
-    mainwindow/profiles.cpp mainwindow/templates.cpp
+    mainwindow/profiles.cpp mainwindow/templates.cpp mainwindow/about.cpp
     mainwindow/mainwindow.ui
 
     # Project — class split across per-concern .cpp (same Project class).
@@ -29,8 +30,8 @@ qt_add_executable(Platemaker
     widgets/outputprofiledialog/outputprofiledialog.cpp widgets/outputprofiledialog/outputprofiledialog.h widgets/outputprofiledialog/outputprofiledialog.ui
     widgets/templatesdialog/templatesdialog.cpp widgets/templatesdialog/templatesdialog.h widgets/templatesdialog/templatesdialog.ui
     widgets/outputformatoptionswidget/outputformatoptionswidget.cpp widgets/outputformatoptionswidget/outputformatoptionswidget.h widgets/outputformatoptionswidget/outputformatoptionswidget.ui
+    widgets/aboutdialog/aboutdialog.cpp widgets/aboutdialog/aboutdialog.h widgets/aboutdialog/aboutdialog.ui
     widgets/renderworker/renderworker.cpp widgets/renderworker/renderworker.h
-    app.rc
 )
 
 # Every class/header lives in its own folder; add each to the include path so
@@ -46,6 +47,7 @@ target_include_directories(Platemaker PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/widgets/outputprofiledialog
     ${CMAKE_CURRENT_SOURCE_DIR}/widgets/templatesdialog
     ${CMAKE_CURRENT_SOURCE_DIR}/widgets/outputformatoptionswidget
+    ${CMAKE_CURRENT_SOURCE_DIR}/widgets/aboutdialog
     ${CMAKE_CURRENT_SOURCE_DIR}/widgets/renderworker
 )
 
@@ -92,6 +94,15 @@ if(1)
     endif()
 
     target_link_libraries(${PROJECT_NAME} PRIVATE Platemaker::platemaker)
+
+    # Version metadata for the About dialog, injected as compile definitions:
+    #   PLATEMAKER_GUI_VERSION — this app's project() version
+    #   PLATEMAKER_LIB_VERSION — libplatemaker version from find_package's config-version
+    #                            file (platemaker_VERSION). Read from CMake, so the GUI
+    #                            never depends on a lib header being present/updated.
+    target_compile_definitions(${PROJECT_NAME} PRIVATE
+        PLATEMAKER_GUI_VERSION="${PROJECT_VERSION}"
+        PLATEMAKER_LIB_VERSION="${platemaker_VERSION}")
 
     # Windows: copy platemaker.dll and all libvips runtime DLLs next to the executable
     if(WIN32)

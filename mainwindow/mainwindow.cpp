@@ -113,6 +113,11 @@ MainWindow::MainWindow(QWidget *parent)
     connect(ui->pushButtonStop, &QPushButton::clicked, this, &MainWindow::cancelRender);
     ui->pushButtonStop->setEnabled(false);
 
+    // --- About menu ---
+    connect(ui->actionVersion, &QAction::triggered, this, &MainWindow::onShowVersion);
+    connect(ui->actionAuthors, &QAction::triggered, this, &MainWindow::onShowAuthors);
+    connect(ui->actionHelp,    &QAction::triggered, this, &MainWindow::onShowHelp);
+
     updateTitleBar();
 }
 

@@ -222,7 +222,7 @@ bool Project::outputsConfigStale() const
     const auto& project = m_workspace.projectItems[m_projectIndex];
     if (project.getOutputImages().empty()) return false;
 
-    // Check if the selected output profile exists. If not, the outputs are considered stale.
+    // Check if the selected output profile exists. If so, the outputs are considered stale.
     OutputProfile* op = selectedOutputProfile();
     if (!op) return false;
 

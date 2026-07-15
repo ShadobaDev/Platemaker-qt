@@ -76,6 +76,11 @@ private slots:
     void onManageTemplates();       //!< Opens the template management dialog.
     void onOpenTemplatesDir();      //!< Opens the system file explorer at the templates directory.
 
+    // About menu — all open the AboutDialog on the matching tab (see about.cpp).
+    void onShowVersion();   //!< Opens the About dialog on the About/Version tab.
+    void onShowAuthors();   //!< Opens the About dialog on the Authors tab.
+    void onShowHelp();      //!< Opens the About dialog on the Manual tab (mock).
+
     // Render / processing
     void onRenderToggle(int projectIndex);   //!< Render/Stop from a Project widget
 

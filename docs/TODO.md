@@ -45,17 +45,12 @@ Priority order: each section depends on the previous.  Complete in order.
 - [ ] **Action log** should report a summary, how manu inputs, how many slices in what time where processed and when. Output cumulative size (MB or KB) would also be nice.
 - [ ] **Segfault** was detcted but not written down how - to be investigated.
 - [ ] `MainWindow::m_savedSnapshot` Maybe sha256 instead of holding full string? We do not use it for recovery anyway... or maybe we should keeep for recovery purpose?
-
+- [ ] menuPlatemaker in many collapsable combolists there are positions that have duplicated and misaligned shortcut hints
+- [ ] CMake FetchContent cannot find release, needs to be fixed
 ---
 
 ## Stage 7 — Skins and styles
 
-- [ ] **Emoji menu icons don't render on Linux** — menu titles in `mainwindow.ui`
-  (e.g. `📁 Workspace`, `🖼 Canvas Profiles`, `⚙ Output`) rely on a color emoji
-  font (Segoe UI Emoji on Windows); without `fonts-noto-color-emoji` (or
-  equivalent) installed, Linux shows empty tofu boxes instead. Either document
-  the font dependency, or replace emoji with bundled `QIcon` resources so
-  rendering doesn't depend on system fonts.
 - [ ] **App looks flat/colorless on Linux vs Windows** — no explicit style is
   set in `main.cpp`, so Qt falls back to native per-platform styling: Windows
   gets `windows11`/`windowsvista` (dark mode aware, styled GroupBox borders,

@@ -20,7 +20,8 @@
    <string>MainWindow</string>
   </property>
   <property name="styleSheet">
-   <string notr="true">/* Stylizuje linie podziału między dockami */
+   <string notr="true">
+/* STYLE SPLIT-LINES BETWEEN DOCKS */
 QMainWindow::separator {
     background-color: #a0a0a0;
     width: 4px;
@@ -31,7 +32,7 @@ QMainWindow::separator:hover {
     background-color: #0078d7;
 }
 
-/* Stylizacja kart projektów na głównym oknie */
+/* STYLE PROJECT TABS IN MAIN WINDOW */
 QMainWindow QTabBar::tab {
     background: #2d2d2d;
     color: #aaaaaa;
@@ -44,24 +45,26 @@ QMainWindow QTabBar::tab {
 QMainWindow QTabBar::tab:selected {
     background: #3d3d3d;
     color: #ffffff;
-    border-bottom: 2px solid #0078d7;
 }
 
-/* --- STYLIZACJA TYLKO DLA GŁÓWNYCH PRZYCISKÓW X --- */
+/* --- STYLE ONLY FOR MAJOR BUTTONS X --- */
+/* image: is required — styling this subcontrol without it drops the native X glyph */
 QMainWindow QTabBar::close-button {
-    background-color: #555555; /* Widoczny szary kwadracik na start */
+    image: url(:/icons/close.svg);
+    background-color: #555555; /* Grey square behind the white X */
     min-width: 12px;
     min-height: 12px;
     border-radius: 2px;
 }
 
 QMainWindow QTabBar::close-button:hover {
-    background-color: #ef4444; /* Czerwony po najechaniu */
+    background-color: #ef4444; /* Red square on hover; white X stays readable */
 }
 
-/* --- RESET DLA ZAKŁADEK INPUT / OUTPUT --- */
-/* Blokujemy dziedziczenie stylu krzyżyka dla wewnętrznych tabów projektu */
+/* --- RESET FOR INPUT / OUTPUT TABS --- */
+/* BLOCK STYLE INHERITANCE FOR X IN INNER PROJECT TABS */
 QTabWidget QTabBar::close-button {
+    image: none;
     background-color: transparent;
     min-width: 0px;
     min-height: 0px;
@@ -86,7 +89,7 @@ QTabWidget QTabBar::close-button {
    </property>
    <widget class="QMenu" name="menuPlatemaker">
     <property name="title">
-     <string>📁 Workspace</string>
+     <string>Workspace</string>
     </property>
     <addaction name="separator"/>
     <addaction name="actionOpen_workspace"/>
@@ -104,7 +107,7 @@ QTabWidget QTabBar::close-button {
    </widget>
    <widget class="QMenu" name="menuCanvas_Profile">
     <property name="title">
-     <string>🖼 Canvas Profiles</string>
+     <string>Canvas Profiles</string>
     </property>
     <addaction name="actionNew_canvas_profile"/>
     <addaction name="actionEdit_active_profile"/>
@@ -113,7 +116,7 @@ QTabWidget QTabBar::close-button {
    </widget>
    <widget class="QMenu" name="menu_Output_Settings">
     <property name="title">
-     <string>⚙ Output</string>
+     <string>Output</string>
     </property>
     <addaction name="actionEdit_output_settings"/>
     <addaction name="separator"/>
@@ -122,7 +125,7 @@ QTabWidget QTabBar::close-button {
    </widget>
    <widget class="QMenu" name="menuTemplates">
     <property name="title">
-     <string>✍Templates</string>
+     <string>Templates</string>
     </property>
     <addaction name="actionManage_templates"/>
     <addaction name="actionOpen_dir_templates"/>
@@ -130,7 +133,7 @@ QTabWidget QTabBar::close-button {
    </widget>
    <widget class="QMenu" name="menu_Process">
     <property name="title">
-     <string>▶ Process</string>
+     <string>Process</string>
     </property>
     <addaction name="actionRender_current_project_F5"/>
     <addaction name="actionRender_all_projects_F6"/>
@@ -139,7 +142,7 @@ QTabWidget QTabBar::close-button {
    </widget>
    <widget class="QMenu" name="menu_About">
     <property name="title">
-     <string>❓About</string>
+     <string>About</string>
     </property>
     <addaction name="actionHelp"/>
     <addaction name="separator"/>

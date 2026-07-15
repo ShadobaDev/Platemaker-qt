@@ -1,4 +1,5 @@
 #include "mainwindow.h"
+#include "menubaricontextstyle.hpp"
 
 #include <QApplication>
 #include <QSettings>
@@ -12,6 +13,9 @@
 int main(int argc, char *argv[])
 {
     QApplication a(argc, argv);
+
+    // Restore icon+text on top-level menu-bar items (QMenuBar shows only one otherwise).
+    a.setStyle(new MenuBarIconTextStyle);
 
     // App identity + storage backend for QSettings. With IniFormat, settings
     // land in a real file under the OS app-config dir on every platform:

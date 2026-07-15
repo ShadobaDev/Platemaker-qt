@@ -1,14 +1,24 @@
 ﻿cmake_minimum_required(VERSION 3.19)
 project(Platemaker VERSION 1.0.1 LANGUAGES CXX)
 
-find_package(Qt6 6.5 REQUIRED COMPONENTS Core Widgets Concurrent)
+find_package(Qt6 6.5 REQUIRED COMPONENTS Core Widgets Concurrent Svg)
 
 qt_standard_project_setup()
+
+# qt_standard_project_setup() enables AUTOMOC/AUTOUIC but NOT AUTORCC — turn it on so
+# the .qrc below (SVG icons) is compiled into the binary (otherwise :/icons/* is missing).
+set(CMAKE_AUTORCC ON)
+
 qt_add_executable(Platemaker
     WIN32 MACOSX_BUNDLE
     # App entry point.
     app/main.cpp
+    # App icon
     app/app.rc
+    # Qt resources — SVG icons (close button + menu icons), compiled by AUTORCC.
+    app/resources.qrc
+    # Custom style — icon + text on menu-bar items.
+    app/menubaricontextstyle/menubaricontextstyle.cpp app/menubaricontextstyle/menubaricontextstyle.hpp
 
     # MainWindow — class split across per-concern .cpp (same MainWindow class).
     # Each .ui lives next to its .cpp, so AUTOUIC resolves ui_*.h by default.
@@ -38,6 +48,7 @@ qt_add_executable(Platemaker
 # basename includes (#include "canvasprofiledialog.h", "mainwindow.h", …) resolve
 # from any source file regardless of folder.
 target_include_directories(Platemaker PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/app/menubaricontextstyle
     ${CMAKE_CURRENT_SOURCE_DIR}/mainwindow
     ${CMAKE_CURRENT_SOURCE_DIR}/widgets/project
     ${CMAKE_CURRENT_SOURCE_DIR}/widgets/imagetile
@@ -121,6 +132,7 @@ target_link_libraries(Platemaker
         Qt::Core
         Qt::Widgets
         Qt::Concurrent
+        Qt::Svg   # pulls in the qsvg image plugin (SVG icons) — windeployqt deploys it
 )
 
 install(TARGETS Platemaker

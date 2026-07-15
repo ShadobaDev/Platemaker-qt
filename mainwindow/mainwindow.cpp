@@ -16,6 +16,7 @@
 #include <QDockWidget>
 #include <QFileDialog>
 #include <QFileInfo>
+#include <QIcon>
 #include <QInputDialog>
 #include <QKeySequence>
 #include <QLineEdit>
@@ -40,6 +41,15 @@ MainWindow::MainWindow(QWidget *parent)
     , ui(new Ui::MainWindow)
 {
     ui->setupUi(this);
+
+    // Top-level menu icons (SVG; replaces the old Unicode glyphs in the titles).
+    // Requires the qsvg image plugin — pulled in by linking Qt::Svg.
+    ui->menuPlatemaker->menuAction()->setIcon(QIcon(QStringLiteral(":/icons/menu/workspace.svg")));
+    ui->menuCanvas_Profile->menuAction()->setIcon(QIcon(QStringLiteral(":/icons/menu/canvas.svg")));
+    ui->menu_Output_Settings->menuAction()->setIcon(QIcon(QStringLiteral(":/icons/menu/output.svg")));
+    ui->menu_Process->menuAction()->setIcon(QIcon(QStringLiteral(":/icons/menu/process.svg")));
+    ui->menuTemplates->menuAction()->setIcon(QIcon(QStringLiteral(":/icons/menu/templates.svg")));
+    ui->menu_About->menuAction()->setIcon(QIcon(QStringLiteral(":/icons/menu/about.svg")));
 
     setDockOptions(AnimatedDocks | AllowNestedDocks | AllowTabbedDocks);
 

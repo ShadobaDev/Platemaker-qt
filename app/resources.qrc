@@ -1,0 +1,11 @@
+<RCC>
+  <qresource prefix="/icons">
+    <file alias="close.svg">../icons/close.svg</file>
+    <file alias="menu/workspace.svg">../icons/menu/workspace.svg</file>
+    <file alias="menu/canvas.svg">../icons/menu/canvas.svg</file>
+    <file alias="menu/output.svg">../icons/menu/output.svg</file>
+    <file alias="menu/process.svg">../icons/menu/process.svg</file>
+    <file alias="menu/templates.svg">../icons/menu/templates.svg</file>
+    <file alias="menu/about.svg">../icons/menu/about.svg</file>
+  </qresource>
+</RCC>

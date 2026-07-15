@@ -78,6 +78,7 @@ void ImageTile::setFileInfo(const QString& filePath,
 
 void ImageTile::setThumbnail(const QPixmap& pixmap)
 {
+    // Skip if the pixmap is null (e.g., failed to load or generate thumbnail).
     if (pixmap.isNull()) return;
     // Fit within the fixed label area — whole image always visible, aspect ratio kept.
     ui->imageLabel->setPixmap(
@@ -102,6 +103,7 @@ void ImageTile::updateStatusStyle(FileStatus status)
 
 void ImageTile::loadThumbnailAsync(const QString& cacheDir)
 {
+    // Use a QFutureWatcher to run the thumbnail generation in a separate thread.
     auto* watcher = new QFutureWatcher<QString>(this);
     connect(watcher, &QFutureWatcher<QString>::finished, this, [this, watcher] {
         const QString thumbPath = watcher->result();
@@ -110,6 +112,7 @@ void ImageTile::loadThumbnailAsync(const QString& cacheDir)
         watcher->deleteLater();
     });
 
+    // Capture the file path and cache directory as std::string to avoid issues with QString lifetime in the lambda.
     const std::string filePathStd  = m_filePath.toStdString();
     const std::string cacheDirStd  = cacheDir.toStdString();
     watcher->setFuture(QtConcurrent::run([filePathStd, cacheDirStd]() -> QString {

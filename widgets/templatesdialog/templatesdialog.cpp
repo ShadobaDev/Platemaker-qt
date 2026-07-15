@@ -36,6 +36,7 @@ QString sanitizeFileStem(const std::string& name)
     return out;
 }
 
+// Absolute path of the workspace's "templates" subfolder (may not exist yet).
 QString templatesDirFor(const QString& workspaceDir)
 {
     return QDir(workspaceDir).filePath(QStringLiteral("templates"));

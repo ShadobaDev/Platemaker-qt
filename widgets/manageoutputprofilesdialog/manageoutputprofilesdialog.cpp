@@ -66,6 +66,7 @@ void ManageOutputProfilesDialog::onSelectionChanged()
 
 void ManageOutputProfilesDialog::onNewClicked()
 {
+    // Create a new profile via OutputProfileDialog. If the user accepts, add it to the list.
     OutputProfileDialog dlg(this);
     if (dlg.exec() != QDialog::Accepted) return;
 
@@ -89,9 +90,11 @@ void ManageOutputProfilesDialog::onNewClicked()
 
 void ManageOutputProfilesDialog::onEditClicked()
 {
+    // Edit the selected profile via OutputProfileDialog. If the user accepts, update the profile in the list.
     const int row = selectedRow();
     if (row < 0) return;
 
+    // OutputProfileDialog returns a profile without an id — restore the stable id
     OutputProfileDialog dlg(this);
     dlg.setProfile(m_profiles[row]);
     if (dlg.exec() != QDialog::Accepted) return;
@@ -112,9 +115,11 @@ void ManageOutputProfilesDialog::onEditClicked()
 
 void ManageOutputProfilesDialog::onDuplicateClicked()
 {
+    // Duplicate the selected profile, appending " (copy)" to the name. The new profile gets a fresh id.
     const int row = selectedRow();
     if (row < 0) return;
 
+    // OutputProfileDialog returns a profile without an id — restore the stable id
     Platemaker::Models::OutputProfile copy = m_profiles[row];
     copy.name += " (copy)";
     copy.id.clear();   // a duplicate needs its own id (MainWindow assigns a fresh one)
@@ -125,17 +130,20 @@ void ManageOutputProfilesDialog::onDuplicateClicked()
 
 void ManageOutputProfilesDialog::onDeleteClicked()
 {
+    // Delete the selected profile after confirmation. If it was the active profile, switch to the first one in the list.
     const int row = selectedRow();
     if (row < 0) return;
 
     const QString name = QString::fromStdString(m_profiles[row].name);
 
+    // Confirm deletion
     if (m_profiles.size() == 1) {
         QMessageBox::information(this, "Cannot delete",
             "At least one output profile must exist.");
         return;
     }
 
+    // Confirm deletion
     const auto answer = QMessageBox::question(this, "Delete profile",
         QString("Delete \"%1\"?").arg(name));
     if (answer != QMessageBox::Yes) return;
@@ -150,6 +158,7 @@ void ManageOutputProfilesDialog::onDeleteClicked()
 
 void ManageOutputProfilesDialog::onSetActiveClicked()
 {
+    // Set the selected profile as the active one. The active profile is marked with a star in the list.
     const int row = selectedRow();
     if (row < 0) return;
 
@@ -163,8 +172,10 @@ void ManageOutputProfilesDialog::onSetActiveClicked()
 
 void ManageOutputProfilesDialog::rebuildList()
 {
+    // Preserve the current selection so we can restore it after rebuilding the list.
     const int previousRow = ui->listWidgetProfiles->currentRow();
 
+    // Rebuild the list widget with the current profiles, marking the active one with a star.
     ui->listWidgetProfiles->clear();
     for (const auto &p : std::as_const(m_profiles)) {
         const QString name     = QString::fromStdString(p.name);
@@ -179,6 +190,7 @@ void ManageOutputProfilesDialog::rebuildList()
         ui->listWidgetProfiles->addItem(item);
     }
 
+    // Restore the previous selection if possible, otherwise select the first item.
     const int newRow = qBound(0, previousRow, ui->listWidgetProfiles->count() - 1);
     if (ui->listWidgetProfiles->count() > 0)
         ui->listWidgetProfiles->setCurrentRow(newRow);
@@ -193,6 +205,7 @@ void ManageOutputProfilesDialog::rebuildList()
 
 void ManageOutputProfilesDialog::updateButtonStates()
 {
+    // Enable/disable buttons based on the current selection and profile list.
     const bool hasSelection = (selectedRow() >= 0);
     const bool isActive     = hasSelection &&
         (QString::fromStdString(m_profiles[selectedRow()].name) == m_activeProfileName);

@@ -20,6 +20,12 @@ class QThread;
 class Project;
 class RenderWorker;
 
+/**
+ * @brief The MainWindow class represents the main application window of Platemaker.
+ * It manages the workspace, projects, canvas profiles, output profiles, templates,
+ * and rendering processes. It provides a user interface for interacting with these
+ * components and orchestrates their behavior.
+ */
 class MainWindow : public QMainWindow
 {
     Q_OBJECT
@@ -37,23 +43,24 @@ protected:
 
 private slots:
     // Workspace menu
-    void onOpenWorkspace(); //!< Opens a workspace file (JSON) from disk, replacing the current workspace.
-    void onNewWorkspace();  //!< Creates a new workspace (clears the current workspace).
-    void onSave();          //!< Saves the current workspace to disk (overwrites the existing file).
-    void onSaveAs();        //!< Saves the current workspace to a new file (prompts for a file path).
+    void onOpenWorkspace();     //!< Opens a workspace file (JSON) from disk, replacing the current workspace.
+    void onNewWorkspace();      //!< Creates a new workspace (clears the current workspace).
+    void onSave();              //!< Saves the current workspace to disk (overwrites the existing file).
+    void onSaveAs();            //!< Saves the current workspace to a new file (prompts for a file path).
     void onCloseWorkspace();    //!< Closes the current workspace.
     void onRevealInExplorer();  //!< Opens the system file explorer at the current workspace's directory.
 
-    // Project panel
+    //--- Project panel
     void onNewProject();    //!< Prompts for a new project name and adds it to the workspace.
+    
     /**
-     * \brief Opens the dock for the double-clicked project, or brings it to front if already open.
+     * @brief Opens the dock for the double-clicked project, or brings it to front if already open.
      * It will detach projects from the list and open them in a separate dock window, 
      * or if already detached, it will bring the dock to the front.
      * @param item The list widget item that was double-clicked.
      */
-    void onProjectDoubleClicked(QListWidgetItem *item);
-    void onProjectsContextMenu(const QPoint &pos);  //!< Shows a context menu for the project list (rename, remove, etc.) on right click.
+    void onProjectDoubleClicked(QListWidgetItem *item); //!< Handle attach/detach action of porject dock window
+    void onProjectsContextMenu(const QPoint &pos);      //!< Shows a context menu for the project list (rename, remove, etc.) on right click.
 
     // Canvas profile actions
     void onManageCanvasProfiles();      //!< Opens the canvas profile management dialog.
@@ -70,9 +77,10 @@ private slots:
     void onOpenTemplatesDir();      //!< Opens the system file explorer at the templates directory.
 
     // Render / processing
-    void onRenderToggle(int projectIndex);   // Render/Stop from a Project widget
+    void onRenderToggle(int projectIndex);   //!< Render/Stop from a Project widget
+
     /**
-     * \brief Update the rendering progress for the specified project.
+     * @brief Update the rendering progress for the specified project.
      * This is called by the RenderWorker to report progress back to the MainWindow.
      *
      * @param done The number of slices that have been processed so far.
@@ -82,7 +90,7 @@ private slots:
     void onRenderProgress(int done, int total, QString sliceName); 
 
     /**
-     * \brief Logs a message from the rendering process.
+     * @brief Logs a message from the rendering process.
      * This is called by the RenderWorker to report log messages back to the MainWindow.
      * @param level The log level (e.g., info, warning, error).
      * @param message The log message.
@@ -90,7 +98,7 @@ private slots:
     void onRenderLog(int level, QString message);
 
     /**
-     * \brief Called when a slice has been saved during rendering.
+     * @brief Called when a slice has been saved during rendering.
      * This is called by the RenderWorker to notify the MainWindow that a slice has been saved.
      * @param name The name of the slice that was saved.
      * @param fullPath The full file path where the slice was saved.
@@ -98,7 +106,7 @@ private slots:
     void onRenderSliceSaved(QString name, QString fullPath);
 
     /**
-     * \brief Called when the rendering process has finished.
+     * @brief Called when the rendering process has finished.
      * This is called by the RenderWorker to notify the MainWindow that rendering has completed.
      */
     void onRenderFinished();
@@ -107,8 +115,9 @@ private:
     // --- render orchestration ---
     void startRender(int projectIndex); //!< Starts the rendering process for the specified project index.
     void cancelRender();                //!< Cancels the ongoing rendering process, if any.
+
     /**
-     * \brief Deletes confirmed orphan output files (m_renderOrphanCandidates) that the
+     * @brief Deletes confirmed orphan output files (m_renderOrphanCandidates) that the
      * freshly-rendered project no longer produces.
      * @param project The project for which to delete orphaned outputs.
      */
@@ -116,8 +125,9 @@ private:
     
     // --- UI helpers ---
     [[nodiscard]] Project *projectWidget(int projectIndex) const;   //!< Gets the Project widget for the specified project index, nullptr if not found.
+
     /**
-     * \brief Resolves the output profile for the given project.
+     * @brief Resolves the output profile for the given project.
      * This function determines the effective output profile for a project, taking into account
      * the project's selected output profile and any workspace-level defaults.
      *
@@ -139,12 +149,16 @@ private:
     void setDirty(bool dirty);                  //!< Sets the dirty flag and updates the title bar. True = workspace has unsaved changes and the title bar will show '*'
     void updateTitleBar();                      //!< Updates the window title to reflect the current workspace and dirty state.
 
-    // Captures the current workspace's serialized form as the "saved" baseline.
-    // Call after every successful load/save; clears the dirty flag.
+    /**
+     * @brief Captures the current workspace's serialized form as the "saved" baseline.
+     * Call after every successful load/save; clears the dirty flag.
+     */
     void captureSnapshot();
 
-    // Authoritative change check: true if the workspace differs from the last
-    // captured snapshot. Robust against any action that forgot to setDirty().
+    /**
+     * @brief Authoritative change check: true if the workspace differs from the last
+     * captured snapshot. Robust against any action that forgot to setDirty().
+     */
     [[nodiscard]] bool isWorkspaceModified() const;
 
     // --- recent workspaces (advisory list in QSettings; never required) ---
@@ -161,21 +175,21 @@ private:
 
     // --- project dock management ---
     /**
-     * \brief Opens a dock for the project at the given model index.
+     * @brief Opens a dock for the project at the given model index.
      * If the dock is already open, it is raised to the front.
      * @param projectIndex The index of the project in the workspace model.
      */
     void openProjectDock(int projectIndex);
 
     /**
-     * \brief Closes the dock for the project at the given model index.
+     * @brief Closes the dock for the project at the given model index.
      * If the dock is not open, this function does nothing.
      * @param index The index of the project in the workspace model.
      */
     void closeProjectByIndex(int index);
 
     /**
-     * \brief Toggles the floating state of the dock for the project at the given model index.
+     * @brief Toggles the floating state of the dock for the project at the given model index.
      * If the dock is not open, this function does nothing.
      * @param index The index of the project in the workspace model.
      */
@@ -190,9 +204,9 @@ private:
 
     Platemaker::Models::Workspace                      m_workspace; //!< The authoritative workspace model (projects, profiles, templates).
     Platemaker::Infrastructure::WorkspaceSerializer    m_serializer;//!< Serializes the workspace model to/from disk.
-    QString m_workspacePath;    //!< Path of the currently loaded workspace file (empty if none).
-    bool    m_dirty = false;    //!< Eager flag driving the title-bar asterisk (*)
-    QString m_savedSnapshot;    //!< Serialized workspace at last load/save, used to detect unsaved changes (dirty state). Empty if no workspace is loaded.
+    QString m_workspacePath;                    //!< Path of the currently loaded workspace file (empty if none).
+    bool    m_dirty = false;                    //!< Eager flag driving the title-bar asterisk (*)
+    QString m_savedSnapshot;                    //!< Serialized workspace at last load/save, used to detect unsaved changes (dirty state). Empty if no workspace is loaded.
 
     // UI-only selection state (not persisted in the workspace model since v2).
     // Shouldn't be used per project, or even per input file?

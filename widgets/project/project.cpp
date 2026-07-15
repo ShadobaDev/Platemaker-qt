@@ -46,6 +46,8 @@ Project::Project(int projectIndex,
 {
     ui->setupUi(this);
 
+    //--- Input tab ---
+    // Input files selection
     connect(ui->pushButtonAddInputsFromDir, &QPushButton::clicked,
             this, &Project::onAddFromDirectory);
     connect(ui->pushButtonAddInputs, &QPushButton::clicked,
@@ -68,18 +70,20 @@ Project::Project(int projectIndex,
     connect(ui->pushSortyByApply, &QPushButton::clicked,
             this, &Project::onApplySort);
 
+    // Go to output tab
     connect(ui->pushButtonGoToOutput, &QPushButton::clicked,
             this, &Project::onGoToOutput);
 
+    // Output profile selection
     connect(ui->pushButtonAssignCanvasProfiles, &QPushButton::clicked,
             this, &Project::onAssignCanvasProfiles);
     connect(ui->listWidgetCanvasProfiles, &QListWidget::itemDoubleClicked,
             this, &Project::onCanvasProfileDoubleClicked);
-
     connect(ui->comboBoxOutputProfile, &QComboBox::currentIndexChanged,
             this, &Project::onOutputProfileChanged);
 
     // --- Output tab ---
+    // Output directory selection
     connect(ui->pushButtonODSelect, &QPushButton::clicked,
             this, &Project::onSelectOutputDir);
     connect(ui->pushButtonODClear, &QPushButton::clicked,
@@ -95,6 +99,7 @@ Project::Project(int projectIndex,
     connect(m_formatOptions, &OutputFormatOptionsWidget::edited,
             this, &Project::onFormatOptionsEdited);
 
+    // Render / Stop button
     connect(ui->pushButtonJumpToInput, &QPushButton::clicked,
             this, &Project::onJumpToInput);
     connect(ui->pushButtonRefresh, &QPushButton::clicked,
@@ -116,10 +121,12 @@ Project::~Project()
 
 void Project::populate()
 {
+    // Populate the UI with the current state of the project, including input files, canvas profiles, output profile selection, format controls, output directory display, and output tiles.
     ui->listInputImageTile->clear();
 
     auto& inputs = m_workspace.projectItems[m_projectIndex].getInputImages();
 
+    // Sort the input files by their order field to ensure they are displayed in the correct order in the UI.
     std::vector<const InputFile*> sorted;
     sorted.reserve(inputs.size());
     for (const auto& f : inputs)
@@ -127,9 +134,11 @@ void Project::populate()
     std::sort(sorted.begin(), sorted.end(),
               [](const InputFile* a, const InputFile* b){ return a->order < b->order; });
 
+    // Add each input file to the UI as an ImageTile widget, which displays the file's information and status.
     for (const InputFile* f : sorted)
         addImageTile(*f);
 
+    // Refresh the canvas profiles list, output profile combo box, format controls, output directory display, and output tiles to reflect the current state of the project.
     refreshCanvasProfilesList();
     refreshOutputProfileCombo();
     refreshFormatControls();

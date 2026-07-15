@@ -69,6 +69,7 @@ void ManageCanvasProfilesDialog::onSelectionChanged()
 
 void ManageCanvasProfilesDialog::onNewClicked()
 {
+    // Open the CanvasProfileDialog for creating a new profile. If the user accepts, add the new profile to the list.
     CanvasProfileDialog dlg(this);
     if (dlg.exec() != QDialog::Accepted) return;
 
@@ -123,6 +124,7 @@ void ManageCanvasProfilesDialog::onEditClicked()
 
 void ManageCanvasProfilesDialog::onDuplicateClicked()
 {
+    // Duplicate the selected profile, appending " (copy)" to the name. The new profile gets a fresh id and no template info.
     const int row = selectedRow();
     if (row < 0) return;
 
@@ -138,6 +140,7 @@ void ManageCanvasProfilesDialog::onDuplicateClicked()
 
 void ManageCanvasProfilesDialog::onDeleteClicked()
 {
+    // Delete the selected profile after confirmation. If it was the active profile, switch to the first one in the list.
     const int row = selectedRow();
     if (row < 0) return;
 
@@ -149,6 +152,7 @@ void ManageCanvasProfilesDialog::onDeleteClicked()
         return;
     }
 
+    // Confirm deletion
     const auto answer = QMessageBox::question(this, "Delete profile",
         QString("Delete \"%1\"?").arg(name));
     if (answer != QMessageBox::Yes) return;
@@ -163,6 +167,7 @@ void ManageCanvasProfilesDialog::onDeleteClicked()
 
 void ManageCanvasProfilesDialog::onSetActiveClicked()
 {
+    // Set the selected profile as the active one. The active profile is marked with a star in the list.
     const int row = selectedRow();
     if (row < 0) return;
 
@@ -184,8 +189,10 @@ void ManageCanvasProfilesDialog::onGenerateTemplatesClicked()
 
 void ManageCanvasProfilesDialog::rebuildList()
 {
+    // Preserve the current selection so we can restore it after rebuilding the list.
     const int previousRow = ui->listWidgetProfiles->currentRow();
 
+    // Rebuild the list widget with the current profiles, marking the active one with a star.
     ui->listWidgetProfiles->clear();
     for (const auto &p : std::as_const(m_profiles)) {
         const QString name = QString::fromStdString(p.name);

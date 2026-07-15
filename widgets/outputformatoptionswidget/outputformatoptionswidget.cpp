@@ -53,17 +53,21 @@ void OutputFormatOptionsWidget::setFromProfile(const OutputProfile& profile)
 {
     m_loading = true;
 
+    // Set the format dropdown to match the profile's output format.
     const int idx = ui->comboBoxFormat->findData(static_cast<int>(profile.outputFormat));
     ui->comboBoxFormat->setCurrentIndex(idx >= 0 ? idx : 0);
 
+    // PNG options
     ui->spinBoxPngCompression->setValue(profile.pngOptions.compression);
     ui->checkBoxPngInterlaced->setChecked(profile.pngOptions.interlaced);
 
+    // JPEG options
     ui->spinBoxJpegQuality->setValue(profile.jpegOptions.quality);
     ui->comboBoxJpegSubsampling->setCurrentIndex(static_cast<int>(profile.jpegOptions.subsampling));
     ui->checkBoxJpegOptimize->setChecked(profile.jpegOptions.optimize);
     ui->checkBoxJpegProgressive->setChecked(profile.jpegOptions.progressive);
 
+    // WebP options
     ui->spinBoxWebpQuality->setValue(profile.webpOptions.quality);
     ui->checkBoxWebpLossless->setChecked(profile.webpOptions.lossless);
     ui->spinBoxWebpEffort->setValue(profile.webpOptions.effort);
@@ -76,15 +80,18 @@ void OutputFormatOptionsWidget::applyToProfile(OutputProfile& profile) const
 {
     profile.outputFormat = static_cast<OutputFormat>(ui->comboBoxFormat->currentData().toInt());
 
+    // PNG options
     profile.pngOptions.compression = ui->spinBoxPngCompression->value();
     profile.pngOptions.interlaced  = ui->checkBoxPngInterlaced->isChecked();
 
+    // JPEG options
     profile.jpegOptions.quality     = ui->spinBoxJpegQuality->value();
     profile.jpegOptions.subsampling = static_cast<JpegSubsampling>(
         ui->comboBoxJpegSubsampling->currentIndex());
     profile.jpegOptions.optimize    = ui->checkBoxJpegOptimize->isChecked();
     profile.jpegOptions.progressive = ui->checkBoxJpegProgressive->isChecked();
 
+    // WebP options
     profile.webpOptions.quality  = ui->spinBoxWebpQuality->value();
     profile.webpOptions.lossless = ui->checkBoxWebpLossless->isChecked();
     profile.webpOptions.effort   = ui->spinBoxWebpEffort->value();
@@ -98,12 +105,14 @@ void OutputFormatOptionsWidget::onFormatChanged()
 
 void OutputFormatOptionsWidget::onAnyOptionChanged()
 {
+    // Emit the edited() signal if not currently loading from a profile.
     if (!m_loading)
         emit edited();
 }
 
 void OutputFormatOptionsWidget::updateVisibility()
 {
+    // Show/hide the option groups based on the selected output format.
     const int fmt = ui->comboBoxFormat->currentData().toInt();
     ui->groupBoxPNG->setVisible(fmt == static_cast<int>(OutputFormat::PNG));
     ui->groupBoxJPG->setVisible(fmt == static_cast<int>(OutputFormat::JPEG));

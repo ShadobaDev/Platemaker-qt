@@ -33,6 +33,7 @@ OutputProfileDialog::~OutputProfileDialog()
 
 void OutputProfileDialog::setProfile(const Platemaker::Models::OutputProfile &profile)
 {
+    // Set the profile to be edited in the dialog. Call before exec() to populate fields when editing an existing profile.
     ui->lineEditName->setText(QString::fromStdString(profile.name));
 
     // Format + per-format options (shared widget).
@@ -43,6 +44,7 @@ void OutputProfileDialog::setProfile(const Platemaker::Models::OutputProfile &pr
     ui->spinBoxSliceHeight->setValue(profile.sliceHeight);
     ui->spinBoxStartIndex->setValue(profile.startIndex);
 
+    // Last slice policy radio buttons
     switch (profile.lastSlicePolicy) {
         case Platemaker::Models::LastSlicePolicy::PadWhite: ui->radioButtonPadWhite->setChecked(true); break;
         case Platemaker::Models::LastSlicePolicy::Crop:     ui->radioButtonCrop->setChecked(true);     break;
@@ -64,6 +66,7 @@ Platemaker::Models::OutputProfile OutputProfileDialog::profile() const
     p.sliceHeight  = ui->spinBoxSliceHeight->value();
     p.startIndex   = ui->spinBoxStartIndex->value();
 
+    // Last slice policy radio buttons
     if      (ui->radioButtonPadWhite->isChecked()) p.lastSlicePolicy = Platemaker::Models::LastSlicePolicy::PadWhite;
     else if (ui->radioButtonCrop->isChecked())     p.lastSlicePolicy = Platemaker::Models::LastSlicePolicy::Crop;
     else                                            p.lastSlicePolicy = Platemaker::Models::LastSlicePolicy::KeepAsIs;
@@ -77,6 +80,7 @@ Platemaker::Models::OutputProfile OutputProfileDialog::profile() const
 
 void OutputProfileDialog::onSaveClicked()
 {
+    // Validate the name field before accepting the dialog. If empty, focus and highlight it.
     if (ui->lineEditName->text().trimmed().isEmpty()) {
         ui->lineEditName->setFocus();
         ui->lineEditName->setStyleSheet("border: 1px solid #e06060;");

@@ -166,7 +166,7 @@ Platemaker/
 │   ├── outputformatoptionswidget/
 │   ├── renderworker/
 │   └── templatesdialog/
-├── *.ui                           — Qt Designer forms (root, found via AUTOUIC_SEARCH_PATHS)
+│                                    (each folder holds its own .cpp/.h/.ui together)
 ├── icons/                         — .ico + source .png files (16–256 px)
 └── docs/
     ├── SPECIFICATION.md           — GUI feature specification

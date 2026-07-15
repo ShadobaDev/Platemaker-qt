@@ -10,25 +10,25 @@ qt_add_executable(Platemaker
     app/main.cpp
 
     # MainWindow — class split across per-concern .cpp (same MainWindow class).
-    # The .ui files stay in root; AUTOUIC finds them via AUTOUIC_SEARCH_PATHS below.
+    # Each .ui lives next to its .cpp, so AUTOUIC resolves ui_*.h by default.
     mainwindow/mainwindow.cpp mainwindow/mainwindow.h
     mainwindow/workspace.cpp mainwindow/projects.cpp mainwindow/render.cpp
     mainwindow/profiles.cpp mainwindow/templates.cpp
-    mainwindow.ui
+    mainwindow/mainwindow.ui
 
     # Project — class split across per-concern .cpp (same Project class).
     widgets/project/project.cpp widgets/project/project.h
     widgets/project/input.cpp widgets/project/output.cpp
-    project.ui
+    widgets/project/project.ui
 
-    # Widgets / dialogs — each in its own folder under widgets/; .ui stay in root.
-    widgets/imagetile/imagetile.cpp widgets/imagetile/imagetile.h imagetile.ui
-    widgets/canvasprofiledialog/canvasprofiledialog.cpp widgets/canvasprofiledialog/canvasprofiledialog.h canvasprofiledialog.ui
-    widgets/managecanvasprofilesdialog/managecanvasprofilesdialog.cpp widgets/managecanvasprofilesdialog/managecanvasprofilesdialog.h managecanvasprofilesdialog.ui
-    widgets/manageoutputprofilesdialog/manageoutputprofilesdialog.cpp widgets/manageoutputprofilesdialog/manageoutputprofilesdialog.h manageoutputprofilesdialog.ui
-    widgets/outputprofiledialog/outputprofiledialog.cpp widgets/outputprofiledialog/outputprofiledialog.h outputprofiledialog.ui
-    widgets/templatesdialog/templatesdialog.cpp widgets/templatesdialog/templatesdialog.h templatesdialog.ui
-    widgets/outputformatoptionswidget/outputformatoptionswidget.cpp widgets/outputformatoptionswidget/outputformatoptionswidget.h outputformatoptionswidget.ui
+    # Widgets / dialogs — each in its own folder under widgets/ (.cpp/.h/.ui together).
+    widgets/imagetile/imagetile.cpp widgets/imagetile/imagetile.h widgets/imagetile/imagetile.ui
+    widgets/canvasprofiledialog/canvasprofiledialog.cpp widgets/canvasprofiledialog/canvasprofiledialog.h widgets/canvasprofiledialog/canvasprofiledialog.ui
+    widgets/managecanvasprofilesdialog/managecanvasprofilesdialog.cpp widgets/managecanvasprofilesdialog/managecanvasprofilesdialog.h widgets/managecanvasprofilesdialog/managecanvasprofilesdialog.ui
+    widgets/manageoutputprofilesdialog/manageoutputprofilesdialog.cpp widgets/manageoutputprofilesdialog/manageoutputprofilesdialog.h widgets/manageoutputprofilesdialog/manageoutputprofilesdialog.ui
+    widgets/outputprofiledialog/outputprofiledialog.cpp widgets/outputprofiledialog/outputprofiledialog.h widgets/outputprofiledialog/outputprofiledialog.ui
+    widgets/templatesdialog/templatesdialog.cpp widgets/templatesdialog/templatesdialog.h widgets/templatesdialog/templatesdialog.ui
+    widgets/outputformatoptionswidget/outputformatoptionswidget.cpp widgets/outputformatoptionswidget/outputformatoptionswidget.h widgets/outputformatoptionswidget/outputformatoptionswidget.ui
     widgets/renderworker/renderworker.cpp widgets/renderworker/renderworker.h
     app.rc
 )
@@ -47,13 +47,6 @@ target_include_directories(Platemaker PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/widgets/templatesdialog
     ${CMAKE_CURRENT_SOURCE_DIR}/widgets/outputformatoptionswidget
     ${CMAKE_CURRENT_SOURCE_DIR}/widgets/renderworker
-)
-
-# The .ui files stay in the project root while their .cpp live in subfolders.
-# AUTOUIC otherwise only searches the including .cpp's directory, so point it at
-# the root too (resolves ui_mainwindow.h / ui_project.h from mainwindow/, project/).
-set_target_properties(Platemaker PROPERTIES
-    AUTOUIC_SEARCH_PATHS "${CMAKE_CURRENT_SOURCE_DIR}"
 )
 
 if(1)

@@ -5,6 +5,8 @@
 #include <QList>
 #include <QStringList>
 
+#include <vector>
+
 #include <platemaker/infrastructure/control/cancellation_token.hpp>
 #include <platemaker/infrastructure/workspace_serializer/workspace_serializer.hpp>
 #include <platemaker/models/workspace.hpp>
@@ -85,6 +87,14 @@ private slots:
     void onRenderToggle(int projectIndex);   //!< Render/Stop from a Project widget
 
     /**
+     * @brief Sweeps every project in the workspace, rendering the ones that need it (F6).
+     *
+     * Projects are rendered one at a time; see the batch helpers in renderbatch.cpp for
+     * why this is sequential rather than parallel.
+     */
+    void onRefreshAllProjects();
+
+    /**
      * @brief Update the rendering progress for the specified project.
      * This is called by the RenderWorker to report progress back to the MainWindow.
      *
@@ -118,8 +128,57 @@ private slots:
 
 private:
     // --- render orchestration ---
-    void startRender(int projectIndex); //!< Starts the rendering process for the specified project index.
+
+    /**
+     * @brief Starts the rendering process for the specified project index.
+     *
+     * @param projectIndex Index into m_workspace.projectItems.
+     * @return true only when a worker was actually started; false when the project was
+     *         skipped for any reason (no output profile / directory / inputs, already
+     *         up to date, config-change prompt declined, output directory not creatable).
+     *         The batch queue relies on this to tell "skipped" from "started" — without
+     *         it, it would wait forever on a finished() signal that never comes.
+     */
+    bool startRender(int projectIndex);
+
     void cancelRender();                //!< Cancels the ongoing rendering process, if any.
+
+    // --- batch render (F6) — see renderbatch.cpp ---
+
+    /**
+     * @brief Starts the next project in the batch queue, skipping ones that need no work.
+     *
+     * Loops rather than recurses: whole runs of projects can be skipped (e.g. all up to
+     * date), and a loop handles that without deep recursion or re-entering a slot. Returns
+     * as soon as a worker starts — the rest of the queue is driven by onRenderFinished().
+     * When the queue empties it calls finishBatch().
+     */
+    void advanceBatch();
+
+    /// Reports the batch summary (rendered / skipped / failed) and clears the batch state.
+    void finishBatch();
+
+    /**
+     * @brief Warns once, after opening a workspace, if canvas profiles moved on since the
+     *        last render — and offers to refresh right away.
+     *
+     * Editing a canvas profile leaves every file byte-identical, so the only visible sign
+     * is that tiles turned amber ("out of sync"). This explains why, instead of letting
+     * the user discover it as a surprise prompt mid-render. Accepting starts the batch
+     * with the config-change question already answered.
+     */
+    void warnIfCanvasConfigStale();
+
+    /**
+     * @brief Asks whether the batch should continue after a project failed.
+     *
+     * The whole error policy lives here, so switching to "log and continue" is a one-line
+     * change rather than an edit spread across onRenderFinished().
+     *
+     * @param projectName Name of the project that failed.
+     * @return true to keep going with the remaining projects.
+     */
+    [[nodiscard]] bool batchShouldContinueAfterFailure(const QString &projectName);
 
     /**
      * @brief Deletes confirmed orphan output files (m_renderOrphanCandidates) that the
@@ -230,6 +289,35 @@ private:
     // full re-render (set only when the user confirmed the cleanup prompt).
     QStringList   m_renderOrphanCandidates;         //!< List of orphaned output files from the previous configuration.
     QString       m_renderOrphanDir;                //!< Directory containing the orphaned output files.
+
+    // --- batch render state (F6). m_batchTotal == 0 means no batch is in flight. ---
+    std::vector<int> m_batchQueue;      //!< Project indices still to render.
+    int              m_batchTotal = 0;  //!< Number of projects the batch started with.
+    QStringList      m_batchOk;         //!< Projects that rendered successfully.
+    QStringList      m_batchSkipped;    //!< Projects skipped, each with the reason.
+    QStringList      m_batchFailed;     //!< Projects whose render failed.
+
+    /// Why the last startRender() bailed out, so the batch can report a useful reason
+    /// instead of a bare "skipped". Set by startRender(), consumed by advanceBatch().
+    QString          m_batchSkipReason;
+
+    /// How a config change (format / slice size / canvas profile) is confirmed before a
+    /// destructive re-render.
+    ///
+    /// A batch answers once for the whole sweep: asking per project would defeat the point
+    /// of "refresh everything in one go". The first project that actually hits a config
+    /// change asks — so a sweep with nothing to confirm stays silent — and its answer
+    /// promotes the policy to AlreadyConfirmed or DeclineAll for the rest of the run.
+    enum class ConfigChangePolicy {
+        AskPerProject,     //!< Default (single render) — confirm separately every time.
+        AskOnceForBatch,   //!< Batch start: the next config change asks, then decides for all.
+        AlreadyConfirmed,  //!< Confirmed for this sweep; proceed without asking again.
+        DeclineAll,        //!< Declined for this sweep; skip config-changed projects.
+    };
+
+    /// Reset to AskPerProject by finishBatch(); leaving a batch-wide answer in place would
+    /// let a later single render skip the destructive prompt silently.
+    ConfigChangePolicy m_configChangePolicy = ConfigChangePolicy::AskPerProject;
 };
 
 #endif // MAINWINDOW_H

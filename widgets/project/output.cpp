@@ -172,15 +172,30 @@ void Project::setRendering(bool rendering)
 
 void Project::addOutputTile(const QString& filePath)
 {
-    // Add a new output image tile to the output list in the UI. This is called during a live render to append newly generated output images.
+    // Called for each slice as the render writes it. On a re-render the tile for this
+    // file already exists (populate() built it, likely amber/out-of-sync), so refresh
+    // that one in place — appending instead would leave the stale tile on screen and
+    // grow the list with duplicates until the post-render populate() rebuilt it.
+    for (int row = 0; row < ui->listOutputImageTile->count(); ++row) {
+        QListWidgetItem* item = ui->listOutputImageTile->item(row);
+        if (item->data(Qt::UserRole).toString() != filePath)
+            continue;
+
+        if (auto* existing = qobject_cast<ImageTile*>(
+                ui->listOutputImageTile->itemWidget(item))) {
+            existing->setFileInfo(filePath, FileStatus::Done, m_cacheDir);
+            return;
+        }
+        break;  // item without a tile widget — fall through and rebuild it below
+    }
+
+    // Genuinely new slice (first render, or the output count grew).
     auto* listItem = new QListWidgetItem(ui->listOutputImageTile);
     listItem->setData(Qt::UserRole, filePath);
 
-    // Create a new ImageTile widget for the output image and set its file information, including the file path, status, and cache directory.
     auto* tile = new ImageTile(this);
     tile->setFileInfo(filePath, FileStatus::Done, m_cacheDir);
 
-    // Set the size hint of the list item to match the tile's size and set the tile as the widget for the list item in the output list.
     listItem->setSizeHint(tile->sizeHint());
     ui->listOutputImageTile->setItemWidget(listItem, tile);
 }
@@ -248,11 +263,12 @@ void Project::onRefreshFiles()
     // transient (recomputed on demand), so this does not mark the workspace
     // dirty; an actual render does.
     auto& project = m_workspace.projectItems[m_projectIndex];
-    project.sanitize();
+    // Also flags pages whose canvas profile changed since their render.
+    project.sanitize(m_workspace.canvasProfiles);
 
-    // A config change (e.g. PNG→JPEG) is invisible on disk — the old files still
-    // exist and hash-match — so flag the still-"Done" outputs as out-of-sync so the
-    // user sees that a re-render is required.
+    // The *output* profile is the other config axis sanitize() does not cover: a
+    // change there (e.g. PNG→JPEG) is invisible on disk — the old files still exist
+    // and hash-match — so flag the still-"Done" outputs as out-of-sync too.
     if (outputsConfigStale()) {
         for (auto& of : project.getOutputImages())
             if (of.status == FileStatus::Done)

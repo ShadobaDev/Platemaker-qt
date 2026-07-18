@@ -392,17 +392,17 @@ QTabWidget QTabBar::close-button {
   </action>
   <action name="actionRender_current_project_F5">
    <property name="text">
-    <string>Render current project   F5</string>
+    <string>Render current project</string>
    </property>
   </action>
   <action name="actionRender_all_projects_F6">
    <property name="text">
-    <string>Render all projects      F6</string>
+    <string>Refresh all projects</string>
    </property>
   </action>
   <action name="actionStop_Esc">
    <property name="text">
-    <string>Stop                     Esc</string>
+    <string>Stop</string>
    </property>
   </action>
   <action name="actionOpen_dir_templates">

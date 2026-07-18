@@ -108,9 +108,10 @@ Project::Project(int projectIndex,
         emit renderToggleRequested(m_projectIndex);
     });
 
-    // Validate against disk on open so tiles reflect deletions / external edits
-    // made while the app was closed (the "changed externally" case).
-    m_workspace.projectItems[m_projectIndex].sanitize();
+    // Validate against disk on open so tiles reflect deletions / external edits made
+    // while the app was closed (the "changed externally" case), and against the canvas
+    // profiles so pages whose profile was edited show as out of sync rather than done.
+    m_workspace.projectItems[m_projectIndex].sanitize(m_workspace.canvasProfiles);
     populate();
 }
 

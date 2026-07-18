@@ -24,6 +24,7 @@ qt_add_executable(Platemaker
     # Each .ui lives next to its .cpp, so AUTOUIC resolves ui_*.h by default.
     mainwindow/mainwindow.cpp mainwindow/mainwindow.h
     mainwindow/workspace.cpp mainwindow/projects.cpp mainwindow/render.cpp
+    mainwindow/renderbatch.cpp
     mainwindow/profiles.cpp mainwindow/templates.cpp mainwindow/about.cpp
     mainwindow/mainwindow.ui
 
@@ -71,7 +72,7 @@ if(1)
     #   2. find_package                   — system install or CMAKE_PREFIX_PATH
     #   3. FetchContent                   — downloads pre-built package from GitHub Releases
     # ───────────────────────────────────────────────────────────────────────────────
-    set(PLATEMAKER_VERSION "0.1.1")
+    set(PLATEMAKER_VERSION "0.2.0")
     set(PLATEMAKER_DIR "" CACHE PATH "Path to a local platemaker dev package")
     message("Local libplatemaker path: ${PLATEMAKER_DIR}")
 
@@ -98,9 +99,13 @@ if(1)
         )
         FetchContent_MakeAvailable(platemaker_pkg)
         FetchContent_GetProperties(platemaker_pkg SOURCE_DIR _pm_src)
-        file(GLOB _pm_dir LIST_DIRECTORIES true "${_pm_src}/platemaker-dev-*")
-        list(GET _pm_dir 0 _pm_dir)
-        list(PREPEND CMAKE_PREFIX_PATH "${_pm_dir}")
+
+        # The release archive extracts flat — LICENSE/bin/include/lib sit directly in
+        # the source dir, with the package config at lib/cmake/platemaker/. So the
+        # package root *is* _pm_src; there is no platemaker-dev-* subdirectory to glob
+        # for. (Globbing for one yielded an empty list, and list(GET) on it aborted the
+        # configure with "index 0 out of range" — which read like a download failure.)
+        list(PREPEND CMAKE_PREFIX_PATH "${_pm_src}")
         find_package(platemaker CONFIG REQUIRED)
     endif()
 
@@ -111,9 +116,26 @@ if(1)
     #   PLATEMAKER_LIB_VERSION — libplatemaker version from find_package's config-version
     #                            file (platemaker_VERSION). Read from CMake, so the GUI
     #                            never depends on a lib header being present/updated.
+    # Licences shown in the About dialog. Kept here rather than in the source so a licence
+    # change is a one-line edit in the build file instead of a hunt through the UI code.
+    #
+    # NOTE: the libplatemaker and libvips entries describe *someone else's* code, so they can
+    # drift without this file noticing. The lasting fix is for the lib to report its own
+    # dependencies and licences — tracked in docs/TODO.md.
+    set(PLATEMAKER_GUI_LICENCE  "GPL-3.0")
+    set(PLATEMAKER_LIB_LICENCE  "LGPL-3.0-or-later")
+    set(PLATEMAKER_QT_LICENCE   "LGPL-3.0")
+    set(PLATEMAKER_VIPS_LICENCE "LGPL-2.1-or-later")
+    set(PLATEMAKER_JSON_LICENCE "MIT")
+
     target_compile_definitions(${PROJECT_NAME} PRIVATE
         PLATEMAKER_GUI_VERSION="${PROJECT_VERSION}"
-        PLATEMAKER_LIB_VERSION="${platemaker_VERSION}")
+        PLATEMAKER_LIB_VERSION="${platemaker_VERSION}"
+        PLATEMAKER_GUI_LICENCE="${PLATEMAKER_GUI_LICENCE}"
+        PLATEMAKER_LIB_LICENCE="${PLATEMAKER_LIB_LICENCE}"
+        PLATEMAKER_QT_LICENCE="${PLATEMAKER_QT_LICENCE}"
+        PLATEMAKER_VIPS_LICENCE="${PLATEMAKER_VIPS_LICENCE}"
+        PLATEMAKER_JSON_LICENCE="${PLATEMAKER_JSON_LICENCE}")
 
     # Windows: copy platemaker.dll and all libvips runtime DLLs next to the executable
     if(WIN32)

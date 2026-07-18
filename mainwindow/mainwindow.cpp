@@ -26,6 +26,7 @@
 #include <QSettings>
 #include <QTabBar>
 #include <QThread>
+#include <QTimer>
 #include <QUrl>
 
 #include <algorithm>
@@ -113,12 +114,15 @@ MainWindow::MainWindow(QWidget *parent)
     connect(ui->actionManage_templates,   &QAction::triggered, this, &MainWindow::onManageTemplates);
     connect(ui->actionOpen_dir_templates, &QAction::triggered, this, &MainWindow::onOpenTemplatesDir);
 
-    // --- Process menu / render (F6 "all projects" deferred) ---
+    // --- Process menu / render ---
     ui->actionRender_current_project_F5->setShortcut(Qt::Key_F5);
+    ui->actionRender_all_projects_F6->setShortcut(Qt::Key_F6);
     ui->actionStop_Esc->setShortcut(Qt::Key_Escape);
     connect(ui->actionRender_current_project_F5, &QAction::triggered, this, [this]{
-        if (m_activeProjectIndex >= 0) startRender(m_activeProjectIndex);
+        if (m_activeProjectIndex >= 0) (void)startRender(m_activeProjectIndex);
     });
+    connect(ui->actionRender_all_projects_F6, &QAction::triggered,
+            this, &MainWindow::onRefreshAllProjects);
     connect(ui->actionStop_Esc, &QAction::triggered, this, &MainWindow::cancelRender);
     connect(ui->pushButtonStop, &QPushButton::clicked, this, &MainWindow::cancelRender);
     ui->pushButtonStop->setEnabled(false);
@@ -200,6 +204,12 @@ void MainWindow::loadWorkspace(const QString &path)
     captureSnapshot();
     addToRecentWorkspaces(path);
     applyWorkspaceToUi();
+
+    // Deferred to the next event-loop pass: applyWorkspaceToUi() only *queues* the
+    // repaint, so showing a modal here would block it and leave the *previous*
+    // workspace on screen behind the dialog — as if we were asking about the one being
+    // closed rather than the one being opened.
+    QTimer::singleShot(0, this, [this] { warnIfCanvasConfigStale(); });
 }
 
 void MainWindow::applyWorkspaceToUi()

@@ -68,15 +68,15 @@ cmake --build .\build\Desktop_Qt_6_11_1_MinGW_64_bit-Debug\ --target installer
 
 `CMakeLists.txt` resolves `libplatemaker` in three steps, in order:
 
-1. **`PLATEMAKER_DIR` cache variable** (preferred during development)
+1. **`LIBPLATEMAKER_DIR` cache variable** (preferred during development)
 2. System `find_package` / `CMAKE_PREFIX_PATH`
 3. Automatic download from GitHub Releases (v0.1.1)
 
-**Setting `PLATEMAKER_DIR` in Qt Creator:**
+**Setting `LIBPLATEMAKER_DIR` in Qt Creator:**
 
 1. Open **Projects** (left sidebar) → select your kit → **CMake** tab
 2. Click **Add** → **String**
-3. Name: `PLATEMAKER_DIR`  
+3. Name: `LIBPLATEMAKER_DIR`  
    Value: path to the dev package, e.g.
    ```
    D:/Users/Shadoba/Dev/PlateMaker/install/windows-msvc
@@ -92,7 +92,7 @@ The value is cached in `build/.../CMakeCache.txt` and survives reconfigures.
 cmake --preset windows-msvc
 cmake --build --preset windows-msvc
 cmake --install build/windows-msvc --config Release
-# → install/windows-msvc/  (use this path as PLATEMAKER_DIR)
+# → install/windows-msvc/  (use this path as LIBPLATEMAKER_DIR)
 ```
 
 ### Windows: runtime DLLs
@@ -131,7 +131,7 @@ When adding a new widget to a dialog or window:
 
 When libplatemaker changes its public API (new model fields, renamed methods):
 
-1. Update `PLATEMAKER_DIR` to point to the freshly installed dev package.
+1. Update `LIBPLATEMAKER_DIR` to point to the freshly installed dev package.
 2. Click **Apply Configuration Changes** in Qt Creator.
 3. Rebuild — the compiler will surface any API breaks immediately.
 
@@ -180,8 +180,11 @@ Platemaker/
 `Platemaker` is distributed under the **GNU General Public License v3.0** (GPL-3.0). See `LICENSE`.
 
 Third-party components:
-- **Qt 6** — LGPL 2.1 ([qt.io/licensing](https://www.qt.io/licensing/)), dynamically linked
-- **libplatemaker** — LGPL 3.0, dynamically linked
+- **Qt 6** — LGPL 3.0 ([qt.io/licensing](https://www.qt.io/licensing/)), dynamically linked
+- **libplatemaker** — LGPL 3.0-or-later, dynamically linked
+- **libvips** — LGPL 2.1-or-later ([libvips.org](https://www.libvips.org/)), dynamically
+  linked via libplatemaker; its own dependency DLLs ship alongside it on Windows
+- **nlohmann/json** — MIT, header-only (compiled into libplatemaker, not linked separately)
 
 ---
 

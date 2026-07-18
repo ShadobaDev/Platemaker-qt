@@ -54,16 +54,16 @@ Priority order: each section depends on the previous.  Complete in order.
   need no lib change but would lie about pages skipped for having no matching canvas
   profile — those are only known once the run completes.
 
-- [ ] **Pin the lib version once 0.3.0 is out** — `CMakeLists.txt` currently calls
-  `find_package(platemaker CONFIG QUIET/REQUIRED)` with **no version**, so any installed lib
-  is accepted and a mismatch only surfaces as compile errors. From the 0.3.0 release on:
-  `find_package(platemaker 0.3.0 CONFIG REQUIRED)` and bump `PLATEMAKER_VERSION` (the
-  FetchContent fallback URL) to match.
+- [ ] **Bump the lib pin when 0.3.0 lands** — `find_package` is now pinned via
+  `LIBPLATEMAKER_VERSION` (currently `0.2.0`), which also builds the FetchContent URL, so the
+  required and downloaded versions cannot drift. Moving to 0.3.0 is a one-line change to that
+  variable.
 
-  Note the pin only really holds once the lib switches its config-version file from
-  `SameMajorVersion` to `SameMinorVersion` (tracked in the lib TODO): with major `0`, the
-  current setting treats every `0.y` as compatible, so a `0.3.0` pin would silently accept
-  `0.4.0`.
+  Caveat: the pin does not fully hold until the lib switches its config-version file from
+  `SameMajorVersion` to `SameMinorVersion` (tracked in the lib TODO). With major `0`, the
+  current setting treats every `0.y` as compatible, so a `0.2.0` pin also accepts `0.3.0`
+  and `0.4.0` — it rejects anything *older*, which is the case that bites in practice, but
+  not a newer incompatible one.
 
 - [x] **Batch render — `actionRender_all_projects_F6`** (currently unwired;
   `mainwindow.cpp` says "F6 'all projects' deferred"). Design decided:

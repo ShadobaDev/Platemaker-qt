@@ -68,33 +68,37 @@ if(1)
 
     # ─── platemaker ────────────────────────────────────────────────────────────────
     # Discovery order:
-    #   1. PLATEMAKER_DIR cache variable  — explicit local dev package (set once, cached)
-    #   2. find_package                   — system install or CMAKE_PREFIX_PATH
-    #   3. FetchContent                   — downloads pre-built package from GitHub Releases
+    #   1. LIBPLATEMAKER_DIR cache variable — explicit local dev package (set once, cached)
+    #   2. find_package                     — system install or CMAKE_PREFIX_PATH
+    #   3. FetchContent                     — downloads pre-built package from GitHub Releases
     # ───────────────────────────────────────────────────────────────────────────────
-    set(PLATEMAKER_VERSION "0.2.0")
-    set(PLATEMAKER_DIR "" CACHE PATH "Path to a local platemaker dev package")
-    message("Local libplatemaker path: ${PLATEMAKER_DIR}")
+    set(LIBPLATEMAKER_VERSION "0.2.0")
+    set(LIBPLATEMAKER_DIR "" CACHE PATH "Path to a local platemaker dev package")
+    message("Local libplatemaker path: ${LIBPLATEMAKER_DIR}")
 
-    if(PLATEMAKER_DIR)
-        list(PREPEND CMAKE_PREFIX_PATH "${PLATEMAKER_DIR}")
-        message("Set libplatemaker path: ${PLATEMAKER_DIR}")
+    if(LIBPLATEMAKER_DIR)
+        list(PREPEND CMAKE_PREFIX_PATH "${LIBPLATEMAKER_DIR}")
+        message("Set libplatemaker path: ${LIBPLATEMAKER_DIR}")
     endif()
 
-    find_package(platemaker CONFIG QUIET)
+    # Pinned: this app uses APIs added in libplatemaker 0.2.0 (sanitize/applyProcessingResults
+    # signatures). Without a minimum, an older install would configure cleanly and only fail
+    # later as confusing compile errors. Same variable drives the download URL below, so the
+    # required and fetched versions cannot drift apart.
+    find_package(platemaker ${LIBPLATEMAKER_VERSION} CONFIG QUIET)
 
     if(NOT platemaker_FOUND)
         include(FetchContent)
 
         if(WIN32)
-            set(_pm_archive "platemaker-dev-${PLATEMAKER_VERSION}-windows-mingw-release.zip")
+            set(_pm_archive "platemaker-dev-${LIBPLATEMAKER_VERSION}-windows-mingw-release.zip")
         else()
-            set(_pm_archive "platemaker-dev-${PLATEMAKER_VERSION}-linux-x86_64-release.tar.gz")
+            set(_pm_archive "platemaker-dev-${LIBPLATEMAKER_VERSION}-linux-x86_64-release.tar.gz")
         endif()
 
         FetchContent_Declare(
             platemaker_pkg
-            URL "https://github.com/ShadobaDev/PlateMaker/releases/download/${PLATEMAKER_VERSION}/${_pm_archive}"
+            URL "https://github.com/ShadobaDev/PlateMaker/releases/download/${LIBPLATEMAKER_VERSION}/${_pm_archive}"
             DOWNLOAD_EXTRACT_TIMESTAMP TRUE
         )
         FetchContent_MakeAvailable(platemaker_pkg)
@@ -106,7 +110,7 @@ if(1)
         # for. (Globbing for one yielded an empty list, and list(GET) on it aborted the
         # configure with "index 0 out of range" — which read like a download failure.)
         list(PREPEND CMAKE_PREFIX_PATH "${_pm_src}")
-        find_package(platemaker CONFIG REQUIRED)
+        find_package(platemaker ${LIBPLATEMAKER_VERSION} CONFIG REQUIRED)
     endif()
 
     target_link_libraries(${PROJECT_NAME} PRIVATE Platemaker::platemaker)

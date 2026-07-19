@@ -51,7 +51,7 @@ _Template manager_
 | CMake | 3.21+ | Presets format v6 |
 | MSVC 2022 or MinGW (MSYS2) | — | Windows |
 | GCC / Clang | — | Linux |
-| libplatemaker | 0.1.x | See **Linking libplatemaker** below |
+| libplatemaker | 0.2.1+ | See **Linking libplatemaker** below |
 
 ---
 
@@ -70,7 +70,8 @@ cmake --build .\build\Desktop_Qt_6_11_1_MinGW_64_bit-Debug\ --target installer
 
 1. **`LIBPLATEMAKER_DIR` cache variable** (preferred during development)
 2. System `find_package` / `CMAKE_PREFIX_PATH`
-3. Automatic download from GitHub Releases (v0.1.1)
+3. Automatic download from GitHub Releases (version pinned by `LIBPLATEMAKER_VERSION`
+   in `CMakeLists.txt`, currently 0.2.1)
 
 **Setting `LIBPLATEMAKER_DIR` in Qt Creator:**
 

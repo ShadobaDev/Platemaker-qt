@@ -186,8 +186,11 @@ void MainWindow::loadWorkspace(const QString &path)
 {
     closeWorkspace();
 
+    // The report carries any profile-identifier collisions the load had to repair; the
+    // repair itself happens either way, this overload just lets us explain it.
+    Platemaker::Infrastructure::WorkspaceRepairReport repair;
     try {
-        m_workspace = m_serializer.load(path.toStdString());
+        m_workspace = m_serializer.load(path.toStdString(), repair);
     } catch (const std::exception &e) {
         QMessageBox::critical(this, tr("Error"),
             tr("Cannot open workspace:\n%1").arg(e.what()));
@@ -209,7 +212,14 @@ void MainWindow::loadWorkspace(const QString &path)
     // repaint, so showing a modal here would block it and leave the *previous*
     // workspace on screen behind the dialog — as if we were asking about the one being
     // closed rather than the one being opened.
-    QTimer::singleShot(0, this, [this] { warnIfCanvasConfigStale(); });
+    //
+    // The repair notice goes first: it is the cause, the amber tiles are the effect, so
+    // showing them the other way round would have the user reading about a symptom before
+    // being told what produced it.
+    QTimer::singleShot(0, this, [this, repair] {
+        reportWorkspaceRepair(repair);
+        warnIfCanvasConfigStale();
+    });
 }
 
 void MainWindow::applyWorkspaceToUi()

@@ -170,6 +170,24 @@ private:
     void warnIfCanvasConfigStale();
 
     /**
+     * @brief Tells the user, once after opening a workspace, that colliding profile
+     *        identifiers had to be repaired — and saves the repaired workspace.
+     *
+     * Profiles used to be given an id derived from the clock, so several created in one
+     * pass shared one. A shared id makes the second profile unreachable: it counts as
+     * already assigned everywhere and disappears from the assign list. The library
+     * separates them on load; this explains the change and the one consequence the user
+     * can see, namely that projects may now report as out of sync.
+     *
+     * Saving matters — without it captureSnapshot() would treat the repaired state as the
+     * baseline, the fix would never reach disk, and the dialog would return on every open.
+     *
+     * @param report What load() repaired; does nothing when empty.
+     */
+    void reportWorkspaceRepair(
+        const Platemaker::Infrastructure::WorkspaceRepairReport &report);
+
+    /**
      * @brief Asks whether the batch should continue after a project failed.
      *
      * The whole error policy lives here, so switching to "log and continue" is a one-line

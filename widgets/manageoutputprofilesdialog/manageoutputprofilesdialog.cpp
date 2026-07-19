@@ -180,12 +180,23 @@ void ManageOutputProfilesDialog::rebuildList()
     for (const auto &p : std::as_const(m_profiles)) {
         const QString name     = QString::fromStdString(p.name);
         const bool    isActive = (name == m_activeProfileName);
-        auto *item = new QListWidgetItem(isActive ? "★  " + name : "     " + name);
+        // Marked from the id alone, so this dialog never needs to know a specific preset
+        // and a new preset in the library shows up here without any change.
+        const bool    isPreset = Platemaker::Models::isOutputProfilePresetId(p.id);
+
+        QString label = isActive ? "★  " + name : "     " + name;
+        if (isPreset) label += tr("   (preset)");
+
+        auto *item = new QListWidgetItem(label);
         if (isActive) {
             QFont f = item->font();
             f.setBold(true);
             item->setFont(f);
             item->setForeground(QColor("#7ac8f5"));
+        }
+        if (isPreset) {
+            item->setToolTip(tr("Built-in preset — shared by every workspace, so it is "
+                                "read-only. Use Duplicate to make your own version."));
         }
         ui->listWidgetProfiles->addItem(item);
     }
@@ -210,10 +221,24 @@ void ManageOutputProfilesDialog::updateButtonStates()
     const bool isActive     = hasSelection &&
         (QString::fromStdString(m_profiles[selectedRow()].name) == m_activeProfileName);
 
-    ui->buttonEdit->setEnabled(hasSelection);
+    // A preset identifier is the same in every workspace, which is what keeps a preset
+    // recognisable across files and app updates — but only while it cannot be made to mean
+    // something else. Hence read-only: no Edit, no Delete.
+    //
+    // Duplicate and Set active stay available. Duplicating is the intended route to a
+    // customised version and already clears the id, so the copy is an ordinary profile.
+    const bool isPreset = hasSelection &&
+        Platemaker::Models::isOutputProfilePresetId(m_profiles[selectedRow()].id);
+
+    ui->buttonEdit->setEnabled(hasSelection && !isPreset);
     ui->buttonDuplicate->setEnabled(hasSelection);
-    ui->buttonDelete->setEnabled(hasSelection && m_profiles.size() > 1);
+    ui->buttonDelete->setEnabled(hasSelection && !isPreset && m_profiles.size() > 1);
     ui->buttonSetActive->setEnabled(hasSelection && !isActive);
+
+    const QString presetHint =
+        tr("Presets are read-only — use Duplicate to make your own version.");
+    ui->buttonEdit->setToolTip(isPreset ? presetHint : QString{});
+    ui->buttonDelete->setToolTip(isPreset ? presetHint : QString{});
 }
 
 int ManageOutputProfilesDialog::selectedRow() const

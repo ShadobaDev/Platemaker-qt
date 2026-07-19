@@ -8,6 +8,8 @@
 #include "templatesdialog.h"
 #include "renderworker.h"
 
+#include <platemaker/models/output_profile.hpp>
+
 #include <QCloseEvent>
 #include <QCollator>
 #include <QDateTime>
@@ -67,16 +69,13 @@ void MainWindow::onNewWorkspace()
     // Create a new workspace with a default output profile and save it to the selected path.
     closeWorkspace();
 
-    // Create a default output profile for the new workspace. This ensures that the workspace has at least one output profile, which is required for rendering.
-    Platemaker::Models::OutputProfile defaultOut;   // default output profile for new workspaces
-    defaultOut.id          = "op-Webtoon Standard"; // stable id (empty id breaks selection)
-    defaultOut.name        = "Webtoon Standard";    // user-visible name
-    defaultOut.targetWidth = 800;                   // default target width for output images
-    defaultOut.sliceHeight = 1280;                  // default slice height for output images
-
-    // Initialize the new workspace with the default output profile and save it to disk.
+    // Seed the new workspace with the library's presets, so it has at least one output
+    // profile (required for rendering) without this file asserting anything about what a
+    // preset contains. The CLI seeds from the same table, which is what makes a workspace
+    // created here and one created there carry the identical preset id.
     m_workspace = Platemaker::Models::Workspace{};
-    m_workspace.outputProfiles.push_back(defaultOut);
+    for (const auto &preset : Platemaker::Models::outputProfilePresets())
+        m_workspace.outputProfiles.push_back(preset);
     m_workspacePath = path;
 
     try {

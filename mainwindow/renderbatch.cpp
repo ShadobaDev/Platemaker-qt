@@ -2,6 +2,9 @@
 #include "ui_mainwindow.h"
 
 #include <QMessageBox>
+#include <QStringList>
+
+#include <exception>
 
 // ---------------------------------------------------------------------------
 // Batch render — "Refresh all projects" (F6)
@@ -116,6 +119,56 @@ void MainWindow::finishBatch()
     m_batchSkipped.clear();
     m_batchFailed.clear();
     m_batchSkipReason.clear();
+}
+
+void MainWindow::reportWorkspaceRepair(
+    const Platemaker::Infrastructure::WorkspaceRepairReport &report)
+{
+    if (!report.any())
+        return;
+
+    // Name the profiles that were given a new identifier — those are the ones the user
+    // will notice reappearing. Deliberately no list of affected projects: canvas profiles
+    // belong to the workspace rather than to a project, so such a list would name every
+    // project that ever touched the colliding id and would still only be a suspicion.
+    QStringList renamed;
+    for (const auto &p : report.canvasProfiles)
+        renamed << QString::fromStdString(p.name);
+    for (const auto &p : report.outputProfiles)
+        renamed << QString::fromStdString(p.name);
+
+    const QString issuesUrl =
+        QStringLiteral("https://github.com/ShadobaDev/PlateMaker/issues");
+
+    QMessageBox::information(
+        this, tr("Workspace repaired"),
+        tr("%n profile(s) shared an internal identifier with another one, so they were "
+           "given a new one:\n%1\n\n"
+           "Nothing was lost — your profiles, their settings and their project "
+           "assignments are unchanged. The identifier is internal bookkeeping and is never "
+           "shown anywhere else.\n\n"
+           "While it was shared, those profiles could not be told apart, so some projects "
+           "may now show as out of sync and need a refresh. Platemaker works this out on "
+           "its own: if anything genuinely no longer matches, those tiles turn amber.\n\n"
+           "If this message keeps appearing when nothing has changed, please report it:\n%2",
+           "", static_cast<int>(renamed.size()))
+            .arg(renamed.join(QStringLiteral(", ")))
+            .arg(issuesUrl));
+
+    // Persist the repair. captureSnapshot() ran on the loaded (already repaired) workspace,
+    // so without this the fix would look "saved", never reach disk, and the collision —
+    // along with this dialog — would come back on the next open.
+    if (!m_workspacePath.isEmpty()) {
+        try {
+            m_serializer.save(m_workspace, m_workspacePath.toStdString());
+            captureSnapshot();
+        } catch (const std::exception &e) {
+            QMessageBox::warning(this, tr("Could not save the repair"),
+                tr("The workspace was repaired in memory but could not be saved:\n%1\n\n"
+                   "It works for this session; the repair will simply run again next time.")
+                    .arg(QString::fromUtf8(e.what())));
+        }
+    }
 }
 
 void MainWindow::warnIfCanvasConfigStale()

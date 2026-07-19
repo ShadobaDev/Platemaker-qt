@@ -8,9 +8,10 @@
 #include "templatesdialog.h"
 #include "renderworker.h"
 
+#include <platemaker/infrastructure/id_generator/id_generator.hpp>
+
 #include <QCloseEvent>
 #include <QCollator>
-#include <QDateTime>
 #include <QDesktopServices>
 #include <QDir>
 #include <QDockWidget>
@@ -33,12 +34,13 @@
 
 // ---------------------------------------------------------------------------
 // Canvas profile slots
+//
+// Profile ids come from the library (Infrastructure::makeUnique*ProfileId), never from this
+// file.  They used to be a millisecond timestamp minted here, which meant every profile
+// added in one pass of the manage dialog got the *same* id — and a shared id makes the
+// second profile unreachable, so it silently dropped out of the "assign profile" list.
+// The library draws random ids and rejects any that is already taken.
 // ---------------------------------------------------------------------------
-
-static QString nowIsoTag()
-{
-    return QDateTime::currentDateTimeUtc().toString("yyyyMMddTHHmmsszzz");
-}
 
 void MainWindow::onManageCanvasProfiles()
 {
@@ -113,10 +115,11 @@ void MainWindow::onManageCanvasProfiles()
     m_workspace.canvasProfiles.assign(result.begin(), result.end());
     m_activeCanvasProfileName = dlg.activeProfileName();
 
-    // Assign IDs to any profiles added without one (dialog doesn't generate them)
+    // Assign IDs to any profiles added without one (dialog doesn't generate them).
+    // Each call sees the list as it stands, so ids minted in the same pass cannot collide.
     for (auto& p : m_workspace.canvasProfiles) {
         if (p.id.empty())
-            p.id = "cp-" + nowIsoTag().toStdString();
+            p.id = Platemaker::Infrastructure::makeUniqueCanvasProfileId(m_workspace.canvasProfiles);
     }
 
     // Re-attach template metadata by id (overrides any stale copy carried back).
@@ -151,7 +154,7 @@ void MainWindow::onNewCanvasProfile()
     }
 
     // Assign a stable id to the new profile and add it to the workspace.
-    profile.id = "cp-" + nowIsoTag().toStdString();
+    profile.id = Platemaker::Infrastructure::makeUniqueCanvasProfileId(m_workspace.canvasProfiles);
     m_workspace.canvasProfiles.push_back(profile);
 
     // If this is the first profile, make it the active one.
@@ -231,7 +234,7 @@ void MainWindow::onManageOutputProfiles()
     // them); an empty id breaks per-project output-profile selection.
     for (auto& p : m_workspace.outputProfiles)
         if (p.id.empty())
-            p.id = "op-" + nowIsoTag().toStdString();
+            p.id = Platemaker::Infrastructure::makeUniqueOutputProfileId(m_workspace.outputProfiles);
 
     setDirty(true);
 }
@@ -260,7 +263,7 @@ void MainWindow::onNewOutputProfile()
     }
 
     // Assign a stable id to the new profile and add it to the workspace.
-    profile.id = "op-" + nowIsoTag().toStdString();
+    profile.id = Platemaker::Infrastructure::makeUniqueOutputProfileId(m_workspace.outputProfiles);
     m_workspace.outputProfiles.push_back(profile);
 
     if (m_workspace.outputProfiles.size() == 1)
@@ -291,6 +294,19 @@ void MainWindow::onEditActiveOutputProfile()
         return;
     }
 
+    // Presets are read-only. This is the *second* way into the editor, next to the Manage
+    // dialog's Edit button; leaving it open would make that dialog's guard bypassable with
+    // one click from the menu.
+    if (Platemaker::Models::isOutputProfilePresetId(it->id)) {
+        QMessageBox::information(this, tr("Preset profile"),
+            tr("\"%1\" is a built-in preset and cannot be edited — it is shared by every "
+               "workspace, so it has to mean the same thing everywhere.\n\n"
+               "Use Output → Manage → Duplicate to make your own version of it, which you "
+               "can then change freely.")
+                .arg(QString::fromStdString(it->name)));
+        return;
+    }
+
     OutputProfileDialog dlg(this);
     dlg.setProfile(*it);
     if (dlg.exec() != QDialog::Accepted) return;
@@ -300,7 +316,12 @@ void MainWindow::onEditActiveOutputProfile()
     const std::string oldName = it->name;
     const std::string savedId = it->id;
     *it = dlg.profile();
-    it->id = savedId.empty() ? ("op-" + it->name) : savedId;
+    // The fallback used to derive the id from the name ("op-" + name) — a second identity
+    // scheme the library dropped in 0.2.1, and one that collided whenever two profiles
+    // shared a name. Mint a real one instead.
+    it->id = savedId.empty()
+        ? Platemaker::Infrastructure::makeUniqueOutputProfileId(m_workspace.outputProfiles)
+        : savedId;
 
     if (m_activeOutputProfileName == QString::fromStdString(oldName))
         m_activeOutputProfileName = QString::fromStdString(it->name);

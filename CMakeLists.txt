@@ -1,5 +1,5 @@
 ﻿cmake_minimum_required(VERSION 3.19)
-project(Platemaker VERSION 1.0.1 LANGUAGES CXX)
+project(Platemaker VERSION 1.1.0 LANGUAGES CXX)
 
 find_package(Qt6 6.5 REQUIRED COMPONENTS Core Widgets Concurrent Svg)
 

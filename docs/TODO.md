@@ -55,15 +55,35 @@ Priority order: each section depends on the previous.  Complete in order.
   profile — those are only known once the run completes.
 
 - [ ] **Bump the lib pin when 0.3.0 lands** — `find_package` is now pinned via
-  `LIBPLATEMAKER_VERSION` (currently `0.2.0`), which also builds the FetchContent URL, so the
+  `LIBPLATEMAKER_VERSION` (currently `0.2.1`), which also builds the FetchContent URL, so the
   required and downloaded versions cannot drift. Moving to 0.3.0 is a one-line change to that
   variable.
 
   Caveat: the pin does not fully hold until the lib switches its config-version file from
   `SameMajorVersion` to `SameMinorVersion` (tracked in the lib TODO). With major `0`, the
-  current setting treats every `0.y` as compatible, so a `0.2.0` pin also accepts `0.3.0`
+  current setting treats every `0.y` as compatible, so a `0.2.1` pin also accepts `0.3.0`
   and `0.4.0` — it rejects anything *older*, which is the case that bites in practice, but
   not a newer incompatible one.
+
+- [ ] **Drop direct `m_workspace` mutations once the lib exposes `WorkspaceEditor`** (lands
+  with lib 0.3.0 — see the *WorkspaceEditor* entry in the lib TODO for the rationale and the
+  facade shape). The GUI currently reaches into the workspace struct and re-establishes the
+  library's invariants by hand — minting profile ids, deduping, preserving `templateInfo` —
+  so an edit made in-session is not validated the way a loaded file is. Route these through
+  the facade instead.
+
+  Call-site map to rewrite:
+  - **`mainwindow/profiles.cpp`** — wholesale `canvasProfiles.assign()` + id minting at
+    `115`/`120-122`, output twin at `230`/`235-237`, new-profile minting `157`/`266`, edit
+    fallback `323`, and the `templateInfo` snapshot/reattach at `125-128` →
+    `replaceCanvasProfiles()` / `replaceOutputProfiles()`.
+  - **`widgets/project/input.cpp:112`** — raw `std::remove` on `canvasProfileIds` →
+    `removeCanvasProfileFromProject()` (mirrors the existing `addCanvasProfile()`).
+  - **`widgets/project/output.cpp:80`** — unchecked `outputProfileId =` →
+    `setProjectOutputProfile()` (validates the id exists).
+
+  Reads and navigation (`projectItems[idx]`, iterating for display) stay as they are — the
+  facade covers invariant-bearing edits, not every vector access.
 
 - [x] **Batch render — `actionRender_all_projects_F6`** (currently unwired;
   `mainwindow.cpp` says "F6 'all projects' deferred"). Design decided:

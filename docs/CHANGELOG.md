@@ -1,6 +1,9 @@
 # Changelog
 
-## [1.0.1] — 2026-07-19
+## [1.1.0] — 2026-07-20
+
+A **minor** release, not a patch: it adds features — batch render, an About dialog, workspace
+repair notices — none of which break an existing workflow.
 
 Requires **libplatemaker 0.2.1** — the minimum is now enforced at configure time instead of
 surfacing as compile errors.

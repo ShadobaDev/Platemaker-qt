@@ -4,6 +4,80 @@ Priority order: each section depends on the previous.  Complete in order.
 
 ---
 
+## Bugs
+
+- [ ] **Input tile ▲/▼ reorder buttons do nothing** — clicking a tile's up or down arrow has
+  no effect; only drag-and-drop reordering works. Not a wiring problem: the buttons emit
+  correctly (`widgets/imagetile/imagetile.cpp:35-40` → `moveUpRequested`/`moveDownRequested`),
+  the Project slots are connected (`widgets/project/input.cpp:46-47`), and `moveByOrder()`
+  (`input.cpp`) swaps the `order` fields correctly.
+
+  **Cause: the buttons never receive the click.** `imagetile.cpp:28-33` sets
+  `Qt::WA_TransparentForMouseEvents` on a list of widgets so mouse presses on the display area
+  fall through to the `QListWidget` viewport and can start a drag. That list includes
+  **`ui->widget`**, and per the `.ui` `ui->widget` is the *container that holds both move
+  buttons* (`widget → horizontalLayout_2 → verticalLayoutMoveButtons → pushButtonMoveUp` /
+  `pushButtonMoveDown`). The attribute disables mouse delivery to the widget **and its
+  children**, so the buttons inside it are dead — directly contradicting the code comment on
+  `imagetile.cpp:27` ("The buttons stay interactive"). Drag-and-drop works precisely *because*
+  the fall-through it relies on is what kills the buttons.
+
+  **Fix:** exclude `ui->widget` from the transparent-for-mouse set — make only the true display
+  widgets fall through (`ui->frame`, `ui->imageLabel`, `ui->textBrowser`), or restructure the
+  `.ui` so the buttons are not descendants of a mouse-transparent container. Verify the drag
+  still starts from the thumbnail/text area after the change.
+
+  Documented as current behaviour in the wiki (`Manual-Projects` presents drag-and-drop as the
+  way to reorder); revisit that page once fixed.
+
+- [ ] **`ProjectItem::inputDirectory` is written but never read** — `onAddFromDirectory()`
+  (`widgets/project/input.cpp`) stores the chosen directory in
+  `projectItems[idx].inputDirectory`, but nothing in the GUI or in libplatemaker ever reads it
+  back (the project keeps full absolute paths per input file instead — a leftover from Clip2l's
+  flat-directory model). Either remove the field (see the matching entry in the lib TODO, since
+  it lives on the lib model) or put it to use: pre-open the last-used directory in the
+  **Add all files from directory** dialog. Decide, then either drop the write or wire up the
+  read.
+
+---
+
+- [ ] **Show the `(preset)` marker wherever a profile name is shown, not just in the manage
+  dialog** — a workspace can legitimately hold two profiles both named *Webtoon Standard*: its
+  own, and the built-in preset added beside it when the two differ (see the matching lib TODO,
+  "Preset adoption can leave two profiles with the same visible name"). `ManageOutputProfilesDialog`
+  already appends `   (preset)`, but the Output tab's profile combo shows the bare name, so a
+  project's selected profile is ambiguous exactly where it matters most. Reuse
+  `isOutputProfilePresetId()` in `refreshOutputProfileCombo()` (`widgets/project/output.cpp`) and
+  anywhere else a profile name is rendered.
+
+- [ ] **Stale comment: templates no longer draw slice guides** —
+  `widgets/templatesdialog/templatesdialog.cpp` still says *"The output profile only supplies
+  cosmetic slice-guide lines — use the workspace default; it is not part of the template's
+  tracked identity"*, and `generateTemplate()` still takes an `OutputProfile` and falls back to
+  `ws.outputProfiles.front()`. But the lib compiles the feature out:
+  `template_generator.cpp` has `#define GUIDLINES_ENABLED 0` and an explicit
+  `(void)outputProfile;`. So the parameter is dead weight and the comment describes code that
+  does not run. Either drop the parameter (a lib API change — see the lib TODO) or re-enable the
+  guides; until then, fix the comment so it stops describing a removed feature.
+
+---
+
+## To establish / test
+
+- [ ] **Decide the recommended output format and quality** — the manual currently lists PNG /
+  JPEG / WebP neutrally because there is no considered recommendation to give. Users need one
+  ("use X unless Y"). Needs a comparison on real pages: file size and visible quality for flat
+  line art versus painted work, at a few JPEG quality values, against the platform's per-chapter
+  size cap. The first published chapter used JPEG purely to fit 20 MB per chapter, which is a
+  constraint rather than a considered choice. Feeds `Manual-Output-Profiles`.
+
+- [ ] **Recent-workspaces behaviour is unverified** — `Open recent workspace…` exists, but the
+  cap on the number of remembered entries, and what happens when a remembered workspace has
+  been moved or deleted (dropped silently vs. an error), have not been established. Test and
+  document; the wiki currently says "to be tested".
+
+---
+
 ## Stage 4 — prep: Input-tab controls ✅
 
 - [ ] **Auto-sort rules** (`groupBoxAutosort`) — pattern/regex-based ordering:

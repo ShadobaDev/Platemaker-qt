@@ -35,6 +35,7 @@
 
 namespace {
 constexpr auto kRepoUrl = "https://github.com/ShadobaDev/Platemaker-qt";
+constexpr auto kWikiUrl = "https://github.com/ShadobaDev/Platemaker-qt/wiki/Manual";
 
 QString orUnknown(QString v)
 {
@@ -124,10 +125,8 @@ AboutDialog::AboutDialog(Tab initial, QWidget* parent)
     // --- Manual tab (mock — no manual yet) ---
     ui->textManual->setHtml(tr(
         "<h3>User manual</h3>"
-        "<p><i>Coming soon.</i></p>"
-        "<p>In the meantime, see the project page for documentation:<br>"
         "<a href=\"%1\">%1</a></p>")
-        .arg(QString::fromLatin1(kRepoUrl)));
+        .arg(QString::fromLatin1(kWikiUrl)));
 
     ui->tabWidget->setCurrentIndex(static_cast<int>(initial));
 }

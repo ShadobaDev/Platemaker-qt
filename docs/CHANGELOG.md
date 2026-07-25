@@ -1,5 +1,36 @@
 # Changelog
 
+## [1.2.0] — Unreleased
+
+Requires **libplatemaker 0.2.2** — the About dialog now reads component versions and licences from
+the lib.
+
+### Added
+
+- **About dialog shows the libvips version** and reports every linked component from the lib
+  itself. libplatemaker, libvips and nlohmann/json now display the version and SPDX licence the
+  library reports at runtime (`buildInfo()` / `linkedComponents()`), with libvips at the version of
+  the DLL actually loaded
+- **Clickable licences and project links in About.** Each component's licence opens a viewer with
+  the full licence text (shipped in `credits/licenses/`), and each component name links to its
+  GitHub project. Only `github.com` links are ever opened
+- **Software Bill of Materials (`credits/sbom.spdx.json`).** The installer ships a flat SPDX 2.3 SBOM
+  for the whole product — Platemaker, Qt and libplatemaker with its bundled dependencies (versions,
+  SPDX licences, `pkg:github/...` purls) — merged from the lib's own SBOM. This is the machine-readable
+  inventory required by the EU Cyber Resilience Act and commonly requested by commercial users; the
+  licence texts beside it satisfy the LGPL requirement to distribute a copy of the licence
+
+### Changed
+
+- **The GUI no longer asserts versions or licences about code it does not own.** Compile-time
+  licence definitions are kept only for Platemaker itself and Qt; libplatemaker and its dependencies
+  are sourced from the lib, so they cannot silently go stale when a dependency is swapped or
+  relicensed
+
+### Fixed
+
+_none_
+
 ## [1.1.0] — 2026-07-20
 
 Requires **libplatemaker 0.2.1** — the minimum is now enforced at configure time instead of

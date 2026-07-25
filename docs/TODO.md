@@ -15,11 +15,13 @@ work happens in.
 - **Cascade.** Whichever section releases first takes its slot; the rest re-derive from the new
   baseline.
 
-Baseline: **1.1.0 released, 1.1.1 in progress** (`CMakeLists.txt`).
+Baseline: **1.1.0 released, 1.2.0 in progress** (`CMakeLists.txt`). 1.2.0 adds the About dialog's
+runtime component report (libplatemaker / libvips / nlohmann/json versions + licences, sourced from
+the lib), so per the cascade the pending patch bucket re-derives to 1.2.1 and the next minor to 1.3.0.
 
 ---
 
-## PATCH — next: 1.1.1
+## PATCH — next: 1.2.1
 
 Bug fixes, cosmetics and internal cleanups — no new capability, no change to an existing workflow.
 
@@ -96,13 +98,6 @@ Bug fixes, cosmetics and internal cleanups — no new capability, no change to a
   **Add all files from directory** dialog. Decide, then either drop the write or wire up the
   read.
 
-- [ ] **Move the licence values out of the GUI once `linkedComponents()` exists** — they are
-  currently `set()` in `CMakeLists.txt` and injected as `PLATEMAKER_*_LICENCE` defines. That
-  is a real improvement over hardcoding them in the dialog (one build-file edit, no code
-  hunt), but the libplatemaker and libvips rows still describe code this repo does not own,
-  so they can silently go stale. Keep the CMake defines only for Platemaker itself and Qt;
-  take the rest from the lib.
-
 - [ ] `MainWindow::m_savedSnapshot` Maybe sha256 instead of holding full string? We do not use it for recovery anyway... or maybe we should keeep for recovery purpose?
 
 - [ ] **Process bar** change style - a solid 15px bar - light broder - empty part background color, filled part grey, error or halt - red.
@@ -111,7 +106,7 @@ Bug fixes, cosmetics and internal cleanups — no new capability, no change to a
 
 ---
 
-## MINOR — next: 1.2.0
+## MINOR — next: 1.3.0
 
 New, backward-compatible features. Several are gated on a lib version, noted in the item body.
 
@@ -136,29 +131,6 @@ New, backward-compatible features. Several are gated on a lib version, noted in 
   clear, reorder, sort) and ideally other reversible workspace edits
 
 - [ ] **Action log** should report a summary, how manu inputs, how many slices in what time where processed and when. Output cumulative size (MB or KB) would also be nice.
-
-- [ ] **Show the libvips version in About** — the dialog now names libvips and its licence
-  (LGPL-2.1-or-later), but not its version, because the GUI cannot obtain it: the lib links
-  `VIPS::vips-cpp` as **PRIVATE** (deliberately — `VipsImage` never appears in the public API),
-  so nothing vips-related reaches the GUI. The CLI can print it only because it links vips
-  directly.
-
-  Needs the lib to expose it, two options:
-  - *Build-time*: add `libvips_version` to the generated `platemaker/version.hpp` from CMake
-    (`pkg_check_modules` already sets `VIPS_VERSION`). Zero runtime cost, but it reports what
-    the lib was **built** against — needs a fallback for the MSVC/FetchContent branch, which
-    has no pkg-config.
-  - *Runtime*: a small accessor in the lib (e.g. next to `ImageIO`) returning
-    `vips_version(0/1/2)`. Reports the DLL actually loaded, which is the more honest answer
-    for a bundled app where the shipped DLL can be swapped.
-
-  Either is **additive** (no API break), so it can ride along with any release; the runtime
-  accessor is the better answer if the version is meant to help diagnose a user's install.
-
-  **Superseded by the lib-side plan:** the lib TODO now proposes `linkedComponents()`,
-  returning name + version + licence for everything it links. That closes this item and the
-  one below in one go — the About table would be built from what the lib reports instead of
-  from values this repo asserts about someone else's code.
 
 - [ ] **Live input tile status during a render** — output tiles now turn green as each
   slice is written, but input tiles only update when the render finishes. This cannot be
@@ -251,6 +223,27 @@ Investigations, testing and manual/wiki work that ships no code change on their 
   document; the wiki currently says "to be tested".
 
 ---
+
+## Done — shipped in 1.2.0
+
+- [x] **About dialog reports libplatemaker + its dependencies from the lib** — closed together with
+  *Show the libvips version in About* and *Move the licence values out of the GUI*. The lib gained
+  `Infrastructure::buildInfo()` (its own version + SPDX licence, read at runtime from the loaded DLL)
+  and `Infrastructure::linkedComponents()` (libvips at its runtime `vips_version()`, nlohmann/json,
+  each with its SPDX licence) in **libplatemaker 0.2.2**. `aboutdialog.cpp` now builds the component
+  table from those, and `CMakeLists.txt` keeps compile-def licences only for Platemaker itself and Qt
+  — the GUI no longer asserts versions or licences about code it does not own, and libvips finally
+  shows a version. Lib pin bumped to `0.2.2`.
+
+- [x] **Licence viewer, GitHub links, and a product SBOM** — the About licences are now clickable and
+  open a `LicenceDialog` (`widgets/licencedialog/`) showing the full licence text shipped in
+  `credits/licenses/`; component names link to their GitHub project (`github.com` only, validated
+  before opening). The lib ships an SPDX SBOM + licence texts (`credits/`, located via
+  `platemaker_CREDITS_DIR`) and `CMakeLists.txt` merges it — via CMake `string(JSON)` — with Qt and
+  Platemaker into a flat product `credits/sbom.spdx.json` installed beside the executable. This is the
+  machine-readable inventory the EU CRA requires and commercial integrators ask for; the licence texts
+  meet the LGPL duty to distribute a copy. Full ~89-DLL closure (whole libvips graph) is the remaining
+  follow-up — the SBOM extends to it with more entries.
 
 ## Done — shipped in 1.1.0
 

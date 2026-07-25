@@ -1,5 +1,5 @@
 ﻿cmake_minimum_required(VERSION 3.19)
-project(Platemaker VERSION 1.1.1 LANGUAGES CXX)
+project(Platemaker VERSION 1.2.0 LANGUAGES CXX)
 
 find_package(Qt6 6.5 REQUIRED COMPONENTS Core Widgets Concurrent Svg)
 
@@ -42,6 +42,7 @@ qt_add_executable(Platemaker
     widgets/templatesdialog/templatesdialog.cpp widgets/templatesdialog/templatesdialog.h widgets/templatesdialog/templatesdialog.ui
     widgets/outputformatoptionswidget/outputformatoptionswidget.cpp widgets/outputformatoptionswidget/outputformatoptionswidget.h widgets/outputformatoptionswidget/outputformatoptionswidget.ui
     widgets/aboutdialog/aboutdialog.cpp widgets/aboutdialog/aboutdialog.h widgets/aboutdialog/aboutdialog.ui
+    widgets/licencedialog/licencedialog.cpp widgets/licencedialog/licencedialog.h widgets/licencedialog/licencedialog.ui
     widgets/renderworker/renderworker.cpp widgets/renderworker/renderworker.h
 )
 
@@ -60,6 +61,7 @@ target_include_directories(Platemaker PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/widgets/templatesdialog
     ${CMAKE_CURRENT_SOURCE_DIR}/widgets/outputformatoptionswidget
     ${CMAKE_CURRENT_SOURCE_DIR}/widgets/aboutdialog
+    ${CMAKE_CURRENT_SOURCE_DIR}/widgets/licencedialog
     ${CMAKE_CURRENT_SOURCE_DIR}/widgets/renderworker
 )
 
@@ -72,7 +74,7 @@ if(1)
     #   2. find_package                     — system install or CMAKE_PREFIX_PATH
     #   3. FetchContent                     — downloads pre-built package from GitHub Releases
     # ───────────────────────────────────────────────────────────────────────────────
-    set(LIBPLATEMAKER_VERSION "0.2.1")
+    set(LIBPLATEMAKER_VERSION "0.2.2")
     set(LIBPLATEMAKER_DIR "" CACHE PATH "Path to a local platemaker dev package")
     message("Local libplatemaker path: ${LIBPLATEMAKER_DIR}")
 
@@ -81,9 +83,9 @@ if(1)
         message("Set libplatemaker path: ${LIBPLATEMAKER_DIR}")
     endif()
 
-    # Pinned: this app uses APIs added in libplatemaker 0.2.0 (sanitize/applyProcessingResults
-    # signatures). Without a minimum, an older install would configure cleanly and only fail
-    # later as confusing compile errors. Same variable drives the download URL below, so the
+    # Pinned: this app's About dialog uses buildInfo() / linkedComponents(), added in
+    # libplatemaker 0.2.2. Without a minimum, an older install would configure cleanly and only
+    # fail later as confusing compile errors. Same variable drives the download URL below, so the
     # required and fetched versions cannot drift apart.
     find_package(platemaker ${LIBPLATEMAKER_VERSION} CONFIG QUIET)
 
@@ -115,31 +117,109 @@ if(1)
 
     target_link_libraries(${PROJECT_NAME} PRIVATE Platemaker::platemaker)
 
-    # Version metadata for the About dialog, injected as compile definitions:
+    # About-dialog metadata injected as compile definitions — only the two facts this app owns:
     #   PLATEMAKER_GUI_VERSION — this app's project() version
-    #   PLATEMAKER_LIB_VERSION — libplatemaker version from find_package's config-version
-    #                            file (platemaker_VERSION). Read from CMake, so the GUI
-    #                            never depends on a lib header being present/updated.
-    # Licences shown in the About dialog. Kept here rather than in the source so a licence
-    # change is a one-line edit in the build file instead of a hunt through the UI code.
+    #   PLATEMAKER_GUI_LICENCE — the GUI's own licence
+    #   PLATEMAKER_QT_LICENCE  — Qt's licence (Qt is linked directly, so the GUI legitimately knows it)
+    # Keeping them here means a licence change is a one-line build-file edit, not a code hunt.
     #
-    # NOTE: the libplatemaker and libvips entries describe *someone else's* code, so they can
-    # drift without this file noticing. The lasting fix is for the lib to report its own
-    # dependencies and licences — tracked in docs/TODO.md.
-    set(PLATEMAKER_GUI_LICENCE  "GPL-3.0")
-    set(PLATEMAKER_LIB_LICENCE  "LGPL-3.0-or-later")
-    set(PLATEMAKER_QT_LICENCE   "LGPL-3.0")
-    set(PLATEMAKER_VIPS_LICENCE "LGPL-2.1-or-later")
-    set(PLATEMAKER_JSON_LICENCE "MIT")
+    # libplatemaker, libvips and nlohmann/json are deliberately NOT here: the About dialog reads
+    # their versions and licences from the lib at runtime (buildInfo() / linkedComponents()), so the
+    # GUI never asserts facts about code it does not own that could silently go stale.
+    # SPDX identifiers (they key the licence-text files the About dialog opens).
+    set(PLATEMAKER_GUI_LICENCE  "GPL-3.0-only")
+    set(PLATEMAKER_QT_LICENCE   "LGPL-3.0-only")
 
     target_compile_definitions(${PROJECT_NAME} PRIVATE
         PLATEMAKER_GUI_VERSION="${PROJECT_VERSION}"
-        PLATEMAKER_LIB_VERSION="${platemaker_VERSION}"
         PLATEMAKER_GUI_LICENCE="${PLATEMAKER_GUI_LICENCE}"
-        PLATEMAKER_LIB_LICENCE="${PLATEMAKER_LIB_LICENCE}"
-        PLATEMAKER_QT_LICENCE="${PLATEMAKER_QT_LICENCE}"
-        PLATEMAKER_VIPS_LICENCE="${PLATEMAKER_VIPS_LICENCE}"
-        PLATEMAKER_JSON_LICENCE="${PLATEMAKER_JSON_LICENCE}")
+        PLATEMAKER_QT_LICENCE="${PLATEMAKER_QT_LICENCE}")
+
+    # -----------------------------------------------------------------------------
+    # Product SBOM + licence texts (credits/)
+    #
+    # The lib ships its own SPDX SBOM (libplatemaker + libvips + nlohmann/json) and the licence
+    # texts, located via platemaker_CREDITS_DIR from its package config. Here we MERGE that into a
+    # product-level SBOM: keep the lib's packages verbatim (so the GUI never re-declares code it does
+    # not own), append the two components the GUI itself links — Qt and Platemaker — and rewrite the
+    # relationship graph with Platemaker at the root. This mirrors what Yocto's image-level SBOM does
+    # (merge the component documents into one), done here with CMake's own string(JSON) — no extra
+    # tool. The result is the machine-readable inventory (CRA / commercial consumers) that ships
+    # beside the licence texts the LGPL requires us to distribute.
+    # -----------------------------------------------------------------------------
+    if(NOT DEFINED platemaker_CREDITS_DIR OR NOT EXISTS "${platemaker_CREDITS_DIR}/sbom.spdx.json")
+        message(FATAL_ERROR "libplatemaker package has no credits/sbom.spdx.json "
+            "(platemaker_CREDITS_DIR='${platemaker_CREDITS_DIR}'). Update the lib package to >= 0.2.2.")
+    endif()
+
+    set(_pm_app_credits "${CMAKE_BINARY_DIR}/credits")
+    file(REMOVE_RECURSE "${_pm_app_credits}")
+    file(MAKE_DIRECTORY "${_pm_app_credits}/licenses")
+
+    # Licence texts: take the lib's set, add Platemaker's own (GPL-3.0). Qt (LGPL-3.0-only) shares the
+    # LGPL-3.0 body the lib already ships (LGPL-3.0-or-later.txt), so the viewer maps it there — no
+    # duplicate file.
+    file(COPY "${platemaker_CREDITS_DIR}/licenses/" DESTINATION "${_pm_app_credits}/licenses")
+    configure_file("${CMAKE_CURRENT_SOURCE_DIR}/LICENSE"
+                   "${_pm_app_credits}/licenses/GPL-3.0-only.txt" COPYONLY)
+
+    # Merge the SBOM with string(JSON): keep the lib's packages[], append Qt + Platemaker, rewrite the
+    # relationships and the document identity to describe the product.
+    file(READ "${platemaker_CREDITS_DIR}/sbom.spdx.json" _pm_sbom)
+    string(JSON _pm_npkg LENGTH "${_pm_sbom}" packages)
+
+    set(_pm_qt_pkg "{
+      \"SPDXID\": \"SPDXRef-Package-Qt\",
+      \"name\": \"Qt\",
+      \"versionInfo\": \"${Qt6_VERSION}\",
+      \"supplier\": \"Organization: The Qt Company\",
+      \"downloadLocation\": \"https://github.com/qt/qtbase\",
+      \"filesAnalyzed\": false,
+      \"licenseConcluded\": \"LGPL-3.0-only\",
+      \"licenseDeclared\": \"LGPL-3.0-only\",
+      \"copyrightText\": \"NOASSERTION\",
+      \"externalRefs\": [ { \"referenceCategory\": \"PACKAGE-MANAGER\", \"referenceType\": \"purl\", \"referenceLocator\": \"pkg:github/qt/qtbase@${Qt6_VERSION}\" } ]
+    }")
+    set(_pm_app_pkg "{
+      \"SPDXID\": \"SPDXRef-Package-Platemaker\",
+      \"name\": \"Platemaker\",
+      \"versionInfo\": \"${PROJECT_VERSION}\",
+      \"supplier\": \"Organization: ShadobaDev\",
+      \"downloadLocation\": \"https://github.com/ShadobaDev/Platemaker-qt\",
+      \"filesAnalyzed\": false,
+      \"licenseConcluded\": \"GPL-3.0-only\",
+      \"licenseDeclared\": \"GPL-3.0-only\",
+      \"copyrightText\": \"Copyright (c) 2026 ShadobaDev\",
+      \"externalRefs\": [ { \"referenceCategory\": \"PACKAGE-MANAGER\", \"referenceType\": \"purl\", \"referenceLocator\": \"pkg:github/ShadobaDev/Platemaker-qt@${PROJECT_VERSION}\" } ]
+    }")
+    string(JSON _pm_sbom SET "${_pm_sbom}" packages "${_pm_npkg}" "${_pm_qt_pkg}")
+    math(EXPR _pm_npkg1 "${_pm_npkg}+1")
+    string(JSON _pm_sbom SET "${_pm_sbom}" packages "${_pm_npkg1}" "${_pm_app_pkg}")
+
+    set(_pm_rel "[
+      { \"spdxElementId\": \"SPDXRef-DOCUMENT\", \"relationshipType\": \"DESCRIBES\", \"relatedSpdxElement\": \"SPDXRef-Package-Platemaker\" },
+      { \"spdxElementId\": \"SPDXRef-Package-Platemaker\", \"relationshipType\": \"DEPENDS_ON\", \"relatedSpdxElement\": \"SPDXRef-Package-libplatemaker\" },
+      { \"spdxElementId\": \"SPDXRef-Package-Platemaker\", \"relationshipType\": \"DEPENDS_ON\", \"relatedSpdxElement\": \"SPDXRef-Package-Qt\" },
+      { \"spdxElementId\": \"SPDXRef-Package-libplatemaker\", \"relationshipType\": \"DEPENDS_ON\", \"relatedSpdxElement\": \"SPDXRef-Package-libvips\" },
+      { \"spdxElementId\": \"SPDXRef-Package-libplatemaker\", \"relationshipType\": \"DEPENDS_ON\", \"relatedSpdxElement\": \"SPDXRef-Package-nlohmann-json\" }
+    ]")
+    string(JSON _pm_sbom SET "${_pm_sbom}" relationships "${_pm_rel}")
+
+    string(TIMESTAMP _pm_sbom_stamp "%Y%m%d%H%M%S" UTC)
+    string(JSON _pm_sbom SET "${_pm_sbom}" name "\"Platemaker-${PROJECT_VERSION}\"")
+    string(JSON _pm_sbom SET "${_pm_sbom}" documentNamespace
+           "\"https://github.com/ShadobaDev/Platemaker-qt/spdx/Platemaker-${PROJECT_VERSION}-${_pm_sbom_stamp}\"")
+    file(WRITE "${_pm_app_credits}/sbom.spdx.json" "${_pm_sbom}")
+
+    # Ship credits/ beside the executable (installed) and copy it into the build tree so the in-app
+    # viewer works when running from Qt Creator without installing.
+    install(DIRECTORY "${_pm_app_credits}/" DESTINATION "${CMAKE_INSTALL_BINDIR}/credits")
+    add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E copy_directory
+            "${_pm_app_credits}" "$<TARGET_FILE_DIR:${PROJECT_NAME}>/credits"
+        COMMENT "Copying credits/ (SBOM + licences) next to the executable"
+        VERBATIM
+    )
 
     # Windows: copy platemaker.dll and all libvips runtime DLLs next to the executable
     if(WIN32)

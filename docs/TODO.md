@@ -1,10 +1,27 @@
 # Platemaker GUI — TODO
 
-Priority order: each section depends on the previous.  Complete in order.
+Roadmap grouped by **which semver position a change forces**, not by priority or by the order
+work happens in.
+
+**How to read this**
+- Version numbers are provisional, non-binding hints — a *kind of bump*, not a schedule.
+- A section is the **minimum bump the change forces**. The GUI is post-1.0, so plain semver: a
+  new backward-compatible **feature** bumps the **MINOR**; a **fix, cosmetic change or internal
+  refactor** that does not change behaviour bumps the **PATCH**; only something that **strands the
+  user** — e.g. a workspace format an older build cannot open — bumps the **MAJOR**.
+- **Lib gate.** The GUI's contract is to its user, but the *timing* of some items depends on a
+  libplatemaker version. The bucket states the user-facing impact; the item body says which lib
+  version unblocks it.
+- **Cascade.** Whichever section releases first takes its slot; the rest re-derive from the new
+  baseline.
+
+Baseline: **1.1.0 released, 1.1.1 in progress** (`CMakeLists.txt`).
 
 ---
 
-## Bugs
+## PATCH — next: 1.1.1
+
+Bug fixes, cosmetics and internal cleanups — no new capability, no change to an existing workflow.
 
 - [ ] **Input tile ▲/▼ reorder buttons do nothing** — clicking a tile's up or down arrow has
   no effect; only drag-and-drop reordering works. Not a wiring problem: the buttons emit
@@ -30,16 +47,20 @@ Priority order: each section depends on the previous.  Complete in order.
   Documented as current behaviour in the wiki (`Manual-Projects` presents drag-and-drop as the
   way to reorder); revisit that page once fixed.
 
-- [ ] **`ProjectItem::inputDirectory` is written but never read** — `onAddFromDirectory()`
-  (`widgets/project/input.cpp`) stores the chosen directory in
-  `projectItems[idx].inputDirectory`, but nothing in the GUI or in libplatemaker ever reads it
-  back (the project keeps full absolute paths per input file instead — a leftover from Clip2l's
-  flat-directory model). Either remove the field (see the matching entry in the lib TODO, since
-  it lives on the lib model) or put it to use: pre-open the last-used directory in the
-  **Add all files from directory** dialog. Decide, then either drop the write or wire up the
-  read.
+- [ ] **Window icon is loaded from a relative path** — `main.cpp` calls
+  `setWindowIcon(QIcon("icons/icon-red.ico"))`, resolved against the *working directory*, so
+  it silently yields a null icon whenever the app is not started from the install folder.
+  The title-bar icon still appears because Windows takes that from the executable's own
+  resource (`app.rc`), which hides the failure — it surfaced only as an empty band above the
+  About text, where the icon was supposed to be.
 
----
+  Fix: load it from the Qt resource system (`:/icons/…`), which the app already has via
+  `app/resources.qrc` — same mechanism as the menu icons, and independent of the working
+  directory.
+
+- [ ] menuPlatemaker in many collapsable combolists there are positions that have duplicated and misaligned shortcut hints
+
+- [ ] **Segfault** was detcted but not written down how - to be investigated.
 
 - [ ] **Show the `(preset)` marker wherever a profile name is shown, not just in the manage
   dialog** — a workspace can legitimately hold two profiles both named *Webtoon Standard*: its
@@ -60,25 +81,39 @@ Priority order: each section depends on the previous.  Complete in order.
   does not run. Either drop the parameter (a lib API change — see the lib TODO) or re-enable the
   guides; until then, fix the comment so it stops describing a removed feature.
 
+- [ ] **Slice tiles should have hidden edit panel** because this are neither to be deleted nor reordered by the platemaker
+
+- [ ] **Pre-flight sanitize off the UI thread** — `project.sanitize()` currently
+  hashes inputs on the main thread before launching; move to the worker for very
+  large projects to avoid a brief UI pause.
+
+- [ ] **`ProjectItem::inputDirectory` is written but never read** — `onAddFromDirectory()`
+  (`widgets/project/input.cpp`) stores the chosen directory in
+  `projectItems[idx].inputDirectory`, but nothing in the GUI or in libplatemaker ever reads it
+  back (the project keeps full absolute paths per input file instead — a leftover from Clip2l's
+  flat-directory model). Either remove the field (see the matching entry in the lib TODO, since
+  it lives on the lib model) or put it to use: pre-open the last-used directory in the
+  **Add all files from directory** dialog. Decide, then either drop the write or wire up the
+  read.
+
+- [ ] **Move the licence values out of the GUI once `linkedComponents()` exists** — they are
+  currently `set()` in `CMakeLists.txt` and injected as `PLATEMAKER_*_LICENCE` defines. That
+  is a real improvement over hardcoding them in the dialog (one build-file edit, no code
+  hunt), but the libplatemaker and libvips rows still describe code this repo does not own,
+  so they can silently go stale. Keep the CMake defines only for Platemaker itself and Qt;
+  take the rest from the lib.
+
+- [ ] `MainWindow::m_savedSnapshot` Maybe sha256 instead of holding full string? We do not use it for recovery anyway... or maybe we should keeep for recovery purpose?
+
+- [ ] **Process bar** change style - a solid 15px bar - light broder - empty part background color, filled part grey, error or halt - red.
+
+- [ ] **ImageTile** rework to be more eye-appealing
+
 ---
 
-## To establish / test
+## MINOR — next: 1.2.0
 
-- [ ] **Decide the recommended output format and quality** — the manual currently lists PNG /
-  JPEG / WebP neutrally because there is no considered recommendation to give. Users need one
-  ("use X unless Y"). Needs a comparison on real pages: file size and visible quality for flat
-  line art versus painted work, at a few JPEG quality values, against the platform's per-chapter
-  size cap. The first published chapter used JPEG purely to fit 20 MB per chapter, which is a
-  constraint rather than a considered choice. Feeds `Manual-Output-Profiles`.
-
-- [ ] **Recent-workspaces behaviour is unverified** — `Open recent workspace…` exists, but the
-  cap on the number of remembered entries, and what happens when a remembered workspace has
-  been moved or deleted (dropped silently vs. an error), have not been established. Test and
-  document; the wiki currently says "to be tested".
-
----
-
-## Stage 4 — prep: Input-tab controls ✅
+New, backward-compatible features. Several are gated on a lib version, noted in the item body.
 
 - [ ] **Auto-sort rules** (`groupBoxAutosort`) — pattern/regex-based ordering:
   `lineEditInputNameRegex` body token (e.g. `chap_<num>` → chap_001, chap_002…),
@@ -86,22 +121,44 @@ Priority order: each section depends on the previous.  Complete in order.
   (e.g. `end_<num>` last); `pushButtonAutosortApply` applies. Complex token/regex
   parsing — dedicated future task.
 
----
-
-## Stage 4 — prep: Output-tab controls ✅
-
 - [ ] **Output size estimation / limits (UI)** — show estimated avg/max slice size
   and total batch size, and warn on platform caps (Webtoon ≤ 2 MB/slice,
   ≤ 25 MB/chapter). Estimate computed by the lib (mirrored in lib TODO); GUI
   displays before render and/or reports after.
 
----
+- [ ] **Auto-save** on pipeline finish (optional setting)
 
-## Stage 4 — Pipeline (Process) ✅
+- [ ] **Keyboard shortcuts** — `Ctrl+S` save, `F5` or `Ctrl+R` run, `Esc` cancel
 
-- [ ] **Pre-flight sanitize off the UI thread** — `project.sanitize()` currently
-  hashes inputs on the main thread before launching; move to the worker for very
-  large projects to avoid a brief UI pause.
+- [ ] **Drag files / folders onto Project window** — triggers `mergeFileScan()`
+
+- [ ] **Undo / Redo** (`Ctrl+Z` / `Ctrl+Y`) — for input-list operations (add,
+  clear, reorder, sort) and ideally other reversible workspace edits
+
+- [ ] **Action log** should report a summary, how manu inputs, how many slices in what time where processed and when. Output cumulative size (MB or KB) would also be nice.
+
+- [ ] **Show the libvips version in About** — the dialog now names libvips and its licence
+  (LGPL-2.1-or-later), but not its version, because the GUI cannot obtain it: the lib links
+  `VIPS::vips-cpp` as **PRIVATE** (deliberately — `VipsImage` never appears in the public API),
+  so nothing vips-related reaches the GUI. The CLI can print it only because it links vips
+  directly.
+
+  Needs the lib to expose it, two options:
+  - *Build-time*: add `libvips_version` to the generated `platemaker/version.hpp` from CMake
+    (`pkg_check_modules` already sets `VIPS_VERSION`). Zero runtime cost, but it reports what
+    the lib was **built** against — needs a fallback for the MSVC/FetchContent branch, which
+    has no pkg-config.
+  - *Runtime*: a small accessor in the lib (e.g. next to `ImageIO`) returning
+    `vips_version(0/1/2)`. Reports the DLL actually loaded, which is the more honest answer
+    for a bundled app where the shipped DLL can be swapped.
+
+  Either is **additive** (no API break), so it can ride along with any release; the runtime
+  accessor is the better answer if the version is meant to help diagnose a user's install.
+
+  **Superseded by the lib-side plan:** the lib TODO now proposes `linkedComponents()`,
+  returning name + version + licence for everything it links. That closes this item and the
+  one below in one go — the About table would be built from what the lib reports instead of
+  from values this repo asserts about someone else's code.
 
 - [ ] **Live input tile status during a render** — output tiles now turn green as each
   slice is written, but input tiles only update when the render finishes. This cannot be
@@ -128,17 +185,6 @@ Priority order: each section depends on the previous.  Complete in order.
   need no lib change but would lie about pages skipped for having no matching canvas
   profile — those are only known once the run completes.
 
-- [ ] **Bump the lib pin when 0.3.0 lands** — `find_package` is now pinned via
-  `LIBPLATEMAKER_VERSION` (currently `0.2.1`), which also builds the FetchContent URL, so the
-  required and downloaded versions cannot drift. Moving to 0.3.0 is a one-line change to that
-  variable.
-
-  Caveat: the pin does not fully hold until the lib switches its config-version file from
-  `SameMajorVersion` to `SameMinorVersion` (tracked in the lib TODO). With major `0`, the
-  current setting treats every `0.y` as compatible, so a `0.2.1` pin also accepts `0.3.0`
-  and `0.4.0` — it rejects anything *older*, which is the case that bites in practice, but
-  not a newer incompatible one.
-
 - [ ] **Drop direct `m_workspace` mutations once the lib exposes `WorkspaceEditor`** (lands
   with lib 0.3.0 — see the *WorkspaceEditor* entry in the lib TODO for the rationale and the
   facade shape). The GUI currently reaches into the workspace struct and re-establishes the
@@ -158,6 +204,55 @@ Priority order: each section depends on the previous.  Complete in order.
 
   Reads and navigation (`projectItems[idx]`, iterating for display) stay as they are — the
   facade covers invariant-bearing edits, not every vector access.
+
+- [ ] **Bump the lib pin when 0.3.0 lands** — `find_package` is now pinned via
+  `LIBPLATEMAKER_VERSION` (currently `0.2.1`), which also builds the FetchContent URL, so the
+  required and downloaded versions cannot drift. Moving to 0.3.0 is a one-line change to that
+  variable.
+
+  Caveat: the pin does not fully hold until the lib switches its config-version file from
+  `SameMajorVersion` to `SameMinorVersion` (tracked in the lib TODO). With major `0`, the
+  current setting treats every `0.y` as compatible, so a `0.2.1` pin also accepts `0.3.0`
+  and `0.4.0` — it rejects anything *older*, which is the case that bites in practice, but
+  not a newer incompatible one.
+
+- [ ] **App looks flat/colorless on Linux vs Windows** — no explicit style is
+  set in `main.cpp`, so Qt falls back to native per-platform styling: Windows
+  gets `windows11`/`windowsvista` (dark mode aware, styled GroupBox borders,
+  accent colors); Linux falls back to a much plainer default. Consider
+  `QApplication::setStyle("Fusion")` plus a shared custom `QPalette`/QSS so the
+  look is consistent (and intentional) across platforms instead of relying on
+  whatever the native style happens to provide.
+
+---
+
+## MAJOR — next: 2.0.0
+
+Nothing pending. Reserved for a change that strands the user — e.g. a workspace format an older
+version cannot open. The format has stayed additive and reads both ways, so no such change is on
+the horizon.
+
+---
+
+## To establish / test — no release impact
+
+Investigations, testing and manual/wiki work that ships no code change on their own.
+
+- [ ] **Decide the recommended output format and quality** — the manual currently lists PNG /
+  JPEG / WebP neutrally because there is no considered recommendation to give. Users need one
+  ("use X unless Y"). Needs a comparison on real pages: file size and visible quality for flat
+  line art versus painted work, at a few JPEG quality values, against the platform's per-chapter
+  size cap. The first published chapter used JPEG purely to fit 20 MB per chapter, which is a
+  constraint rather than a considered choice. Feeds `Manual-Output-Profiles`.
+
+- [ ] **Recent-workspaces behaviour is unverified** — `Open recent workspace…` exists, but the
+  cap on the number of remembered entries, and what happens when a remembered workspace has
+  been moved or deleted (dropped silently vs. an error), have not been established. Test and
+  document; the wiki currently says "to be tested".
+
+---
+
+## Done — shipped in 1.1.0
 
 - [x] **Batch render — `actionRender_all_projects_F6`** (currently unwired;
   `mainwindow.cpp` says "F6 'all projects' deferred"). Design decided:
@@ -198,72 +293,6 @@ Priority order: each section depends on the previous.  Complete in order.
     comment). Reload/close `mainwindow.ui` in Qt Designer before building (Designer clobbers
     on-disk edits).
 
----
-
-## Stage 6 — Polish
-
-- [ ] **Auto-save** on pipeline finish (optional setting)
-- [ ] **Keyboard shortcuts** — `Ctrl+S` save, `F5` or `Ctrl+R` run, `Esc` cancel
-- [ ] **Drag files / folders onto Project window** — triggers `mergeFileScan()`
-- [ ] **Undo / Redo** (`Ctrl+Z` / `Ctrl+Y`) — for input-list operations (add,
-  clear, reorder, sort) and ideally other reversible workspace edits
 - [x] **About dialog** — version, libplatemaker version, Qt version, licence
-- [ ] **Show the libvips version in About** — the dialog now names libvips and its licence
-  (LGPL-2.1-or-later), but not its version, because the GUI cannot obtain it: the lib links
-  `VIPS::vips-cpp` as **PRIVATE** (deliberately — `VipsImage` never appears in the public API),
-  so nothing vips-related reaches the GUI. The CLI can print it only because it links vips
-  directly.
 
-  Needs the lib to expose it, two options:
-  - *Build-time*: add `libvips_version` to the generated `platemaker/version.hpp` from CMake
-    (`pkg_check_modules` already sets `VIPS_VERSION`). Zero runtime cost, but it reports what
-    the lib was **built** against — needs a fallback for the MSVC/FetchContent branch, which
-    has no pkg-config.
-  - *Runtime*: a small accessor in the lib (e.g. next to `ImageIO`) returning
-    `vips_version(0/1/2)`. Reports the DLL actually loaded, which is the more honest answer
-    for a bundled app where the shipped DLL can be swapped.
-
-  Either is **additive** (no API break), so it can ride along with any release; the runtime
-  accessor is the better answer if the version is meant to help diagnose a user's install.
-
-  **Superseded by the lib-side plan:** the lib TODO now proposes `linkedComponents()`,
-  returning name + version + licence for everything it links. That closes this item and the
-  one below in one go — the About table would be built from what the lib reports instead of
-  from values this repo asserts about someone else's code.
-
-- [ ] **Move the licence values out of the GUI once `linkedComponents()` exists** — they are
-  currently `set()` in `CMakeLists.txt` and injected as `PLATEMAKER_*_LICENCE` defines. That
-  is a real improvement over hardcoding them in the dialog (one build-file edit, no code
-  hunt), but the libplatemaker and libvips rows still describe code this repo does not own,
-  so they can silently go stale. Keep the CMake defines only for Platemaker itself and Qt;
-  take the rest from the lib.
-- [ ] **Window icon is loaded from a relative path** — `main.cpp` calls
-  `setWindowIcon(QIcon("icons/icon-red.ico"))`, resolved against the *working directory*, so
-  it silently yields a null icon whenever the app is not started from the install folder.
-  The title-bar icon still appears because Windows takes that from the executable's own
-  resource (`app.rc`), which hides the failure — it surfaced only as an empty band above the
-  About text, where the icon was supposed to be.
-
-  Fix: load it from the Qt resource system (`:/icons/…`), which the app already has via
-  `app/resources.qrc` — same mechanism as the menu icons, and independent of the working
-  directory.
-
-- [ ] **Slice tiles should have hidden edit panel** because this are neither to be deleted nor reordered by the platemaker
-- [ ] **Process bar** change style - a solid 15px bar - light broder - empty part background color, filled part grey, error or halt - red.
-- [ ] **ImageTile** rework to be more eye-appealing
-- [ ] **Action log** should report a summary, how manu inputs, how many slices in what time where processed and when. Output cumulative size (MB or KB) would also be nice.
-- [ ] **Segfault** was detcted but not written down how - to be investigated.
-- [ ] `MainWindow::m_savedSnapshot` Maybe sha256 instead of holding full string? We do not use it for recovery anyway... or maybe we should keeep for recovery purpose?
-- [ ] menuPlatemaker in many collapsable combolists there are positions that have duplicated and misaligned shortcut hints
 - [x] CMake FetchContent cannot find release, needs to be fixed
----
-
-## Stage 7 — Skins and styles
-
-- [ ] **App looks flat/colorless on Linux vs Windows** — no explicit style is
-  set in `main.cpp`, so Qt falls back to native per-platform styling: Windows
-  gets `windows11`/`windowsvista` (dark mode aware, styled GroupBox borders,
-  accent colors); Linux falls back to a much plainer default. Consider
-  `QApplication::setStyle("Fusion")` plus a shared custom `QPalette`/QSS so the
-  look is consistent (and intentional) across platforms instead of relying on
-  whatever the native style happens to provide.

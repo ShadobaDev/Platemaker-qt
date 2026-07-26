@@ -62,10 +62,12 @@ bool TemplatesDialog::generateTemplate(const Workspace& ws,
     const QString fileName = sanitizeFileStem(cp.name) + QStringLiteral(".png");
     const QString absPath  = QDir(templatesDir).filePath(fileName);
 
-    // The output profile only supplies cosmetic slice-guide lines — use the
-    // workspace default; it is not part of the template's tracked identity.
+    // The output profile only supplies cosmetic slice-guide lines (NOT EVEN YET IMPLEMENTED) — 
+    // use the first user profile, else the Webtoon Standard preset (a workspace may legitimately
+    // have no profiles of its own, since presets live in code). It is not part of 
+    // the template's tracked identity.
     const OutputProfile op = ws.outputProfiles.empty()
-        ? OutputProfile{} : ws.outputProfiles.front();
+        ? Platemaker::Models::webtoonStandardPreset() : ws.outputProfiles.front();
 
     try {
         TemplateGenerator{}.generate(cp, op, absPath.toStdString());

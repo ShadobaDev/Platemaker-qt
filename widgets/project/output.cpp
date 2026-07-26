@@ -6,6 +6,7 @@
 
 #include <QCheckBox>
 #include <QCollator>
+#include <QColor>
 #include <QComboBox>
 #include <QDateTime>
 #include <QDesktopServices>
@@ -43,30 +44,27 @@ void Project::refreshOutputProfileCombo()
     ui->comboBoxOutputProfile->clear();
     ui->comboBoxOutputProfile->addItem(tr("Choose output profile"), QString{});
 
-    // Populate the output profile combo box with the available workspace output profiles. 
-    // The first item is a placeholder for "Choose output profile", and subsequent items are added based on the workspace's output profiles. 
-    // The currently selected profile is determined by matching the project's outputProfileId with the workspace profiles.
+    // The selectable profiles are the user's own plus the code-defined presets. A preset is a
+    // first-class render option — it differs only in being read-only and marked "(preset)" (in a
+    // preset-blue colour). Presets carry a stable id, so a project can reference one exactly like
+    // its own profile; selection is by id (the display label carries the marker, the id does not).
     const auto& project = m_workspace.projectItems[m_projectIndex];
-    const auto& wsProfiles = m_workspace.outputProfiles;
 
-    // Guard: if there are no workspace profiles, add a placeholder item and return early.
-    if (wsProfiles.empty()) {
-        ui->comboBoxOutputProfile->addItem(tr("No output profiles in workspace"), QString{});
-        ui->comboBoxOutputProfile->setCurrentIndex(0);
-        ui->comboBoxOutputProfile->blockSignals(false);
-        return;
-    }
-
-    // Populate the combo box with the workspace output profiles, marking the currently selected profile if it exists.
     int selectedIdx = 0;
-    for (int i = 0; i < static_cast<int>(wsProfiles.size()); ++i) {
-        const auto& op = wsProfiles[i];
-        ui->comboBoxOutputProfile->addItem(
-            QString::fromStdString(op.name),
-            QString::fromStdString(op.id));
+    int row = 0;
+    const auto addProfile = [&](const OutputProfile& op, bool isPreset) {
+        ++row;
+        QString label = QString::fromStdString(op.name);
+        if (isPreset) label += tr("   (preset)");
+        ui->comboBoxOutputProfile->addItem(label, QString::fromStdString(op.id));
+        if (isPreset)
+            ui->comboBoxOutputProfile->setItemData(row, QColor("#7ac8f5"), Qt::ForegroundRole);
         if (op.id == project.outputProfileId)
-            selectedIdx = i + 1;
-    }
+            selectedIdx = row;
+    };
+
+    for (const auto& op : m_workspace.outputProfiles) addProfile(op, false);
+    for (const auto& op : outputProfilePresets())      addProfile(op, true);
 
     // Set the current index of the combo box to the selected profile index and unblock signals.
     ui->comboBoxOutputProfile->setCurrentIndex(selectedIdx);
@@ -95,11 +93,16 @@ Platemaker::Models::OutputProfile* Project::selectedOutputProfile() const
 
 void Project::refreshFormatControls()
 {
-    OutputProfile* op = selectedOutputProfile();
-    // Without a selected profile there is nothing to edit.
-    m_formatOptions->setEnabled(op != nullptr);
-    if (op)
-        m_formatOptions->setFromProfile(*op);
+    // Resolve against user profiles ∪ presets so a preset-selected project shows its format too.
+    const std::string& id = m_workspace.projectItems[m_projectIndex].outputProfileId;
+    const auto resolved = resolveOutputProfile(m_workspace, id);
+
+    // A preset's options are shown but not editable: it is read-only, and its meaning must be
+    // identical in every workspace. Inline editing is offered only for the user's own profiles.
+    const bool isPreset = outputPresetDefById(id) != nullptr;
+    m_formatOptions->setEnabled(resolved.has_value() && !isPreset);
+    if (resolved)
+        m_formatOptions->setFromProfile(*resolved);
 }
 
 void Project::refreshOutputDirectoryDisplay()
@@ -222,10 +225,24 @@ void Project::addOutputImageTile(const OutputFile& file)
 
 void Project::refreshOutputTiles()
 {
-    // Rebuild the output image tiles in the UI based on the current output images in the project. 
+    // Rebuild the output image tiles in the UI based on the current output images in the project.
     // This is used to refresh the output list after changes to the project's output images.
+    auto& project = m_workspace.projectItems[m_projectIndex];
+
+    // The output profile is the config axis sanitize() does not cover: a change there (e.g.
+    // PNG→JPEG, slice height, quality) is invisible on disk — the old files still exist and
+    // hash-match — so flag still-"Done" outputs as out-of-sync here, on *every* repaint, not only
+    // after an explicit Refresh. This is what keeps render-start (startRender → populate) from
+    // flashing the stale outputs green before the confirm dialog. Safe because a successful render
+    // updates project.outputSignature *before* it repopulates (see MainWindow::onRenderFinished),
+    // so freshly-rendered outputs are no longer stale and stay Done.
+    if (outputsConfigStale())
+        for (auto& of : project.getOutputImages())
+            if (of.status == FileStatus::Done)
+                of.status = FileStatus::Desynchronized;
+
     ui->listOutputImageTile->clear();
-    const auto& outputs = m_workspace.projectItems[m_projectIndex].getOutputImages();
+    const auto& outputs = project.getOutputImages();
     for (const auto& f : outputs)
         addOutputImageTile(f);
 }
@@ -237,19 +254,19 @@ bool Project::outputsConfigStale() const
     const auto& project = m_workspace.projectItems[m_projectIndex];
     if (project.getOutputImages().empty()) return false;
 
-    // Check if the selected output profile exists. If so, the outputs are considered stale.
-    OutputProfile* op = selectedOutputProfile();
-    if (!op) return false;
+    // Resolve the project's profile (user or preset); if it resolves to nothing, nothing to compare.
+    const auto resolved = resolveOutputProfile(m_workspace, project.outputProfileId);
+    if (!resolved) return false;
 
     // Signature mismatch covers format / target width / slice height / quality once
     // a signature has been stored by a render.
-    const std::string curSig = outputProfileSignature(*op);
+    const std::string curSig = outputProfileSignature(*resolved);
     if (!project.outputSignature.empty() && project.outputSignature != curSig)
         return true;
 
     // Format change is detectable even without a stored signature (outputs rendered
     // before signatures existed): the recorded slice extension won't match.
-    const std::string wantExt = outputFormatExtension(op->outputFormat);
+    const std::string wantExt = outputFormatExtension(resolved->outputFormat);
     const std::string& firstName = project.getOutputImages().front().fileName;
     const auto dot = firstName.find_last_of('.');
     const std::string haveExt =
@@ -266,15 +283,9 @@ void Project::onRefreshFiles()
     // Also flags pages whose canvas profile changed since their render.
     project.sanitize(m_workspace.canvasProfiles);
 
-    // The *output* profile is the other config axis sanitize() does not cover: a
-    // change there (e.g. PNG→JPEG) is invisible on disk — the old files still exist
-    // and hash-match — so flag the still-"Done" outputs as out-of-sync too.
-    if (outputsConfigStale()) {
-        for (auto& of : project.getOutputImages())
-            if (of.status == FileStatus::Done)
-                of.status = FileStatus::Desynchronized;
-    }
-
+    // The output-profile staleness overlay (Done → Desynchronized) is applied by
+    // refreshOutputTiles(), reached via populate(), so it no longer needs repeating here — and
+    // that shared path is what makes render-start reflect it too.
     populate();
 }
 

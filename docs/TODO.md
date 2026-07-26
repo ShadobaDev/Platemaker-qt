@@ -60,18 +60,52 @@ Bug fixes, cosmetics and internal cleanups — no new capability, no change to a
   `app/resources.qrc` — same mechanism as the menu icons, and independent of the working
   directory.
 
+- [x] **Output tiles flash green (Done) at the start of a config-change re-render** — change the
+  output profile, hit *Refresh files*, outputs correctly show amber *Out of sync*; click *Render*,
+  the *"Settings changed"* dialog appears, and every output tile turns green (Done) the instant the
+  render *starts* — before a single slice is regenerated (the worker isn't even running yet; it's
+  parked on the modal dialog). Cosmetic, but it reads as "already finished" mid-run.
+
+  **Confirmed cause: the render-start refresh drops the config-stale overlay.** `onRefreshFiles()`
+  (`widgets/project/output.cpp`) did *two* steps — `project.sanitize()` (disk + canvas check),
+  **then** the output-profile staleness overlay (`outputsConfigStale()` flips still-`Done` outputs
+  to `Desynchronized`) — before `populate()`. `startRender()` (`mainwindow/render.cpp:151-152`) did
+  only the first: `sanitize()` then `populate()`, *before* the confirm dialog at line 218.
+  `sanitize()` judges outputs against disk alone (old files still exist and hash-match → `Done`);
+  `populate()` → `refreshOutputTiles()` read model status directly and never reapplied the overlay,
+  so they painted green. The overlay lived *only* in `onRefreshFiles`.
+
+  **Not a regression.** The overlay *and* the whole config-change dialog were introduced together in
+  commit `80b5233` ("detect stale outputs"); it added the overlay to `onRefreshFiles` but not to
+  `startRender`. So the asymmetry has existed since stale-detection first shipped. Before `80b5233`
+  there was no out-of-sync state at all (outputs were always green after Refresh) — nothing to flash
+  away, which is why it felt correct — and it is invisible on a first-ever render (no existing
+  outputs to flash). Both explain the "I'm sure this used to work" impression.
+
+  **GUI-only — no lib dependency.** Reuses `outputProfileSignature()` / `detectCanvasConfigChange()`
+  (already in the lib) on the main thread, before the worker starts. See the cross-reference on
+  *"Live input tile status during a render"* below: the two share **no** lib change.
+
+  **Fixed:** folded the `Done`→`Desynchronized` overlay into `refreshOutputTiles()` (the one path
+  every `populate()` goes through), and dropped the now-duplicate block from `onRefreshFiles()`. So
+  every repaint — load, render-start, finish, Refresh — reflects staleness uniformly. Safe because
+  `onRenderFinished()` updates `project.outputSignature` *before* repopulating, so freshly-rendered
+  outputs are no longer stale and stay `Done`.
+
 - [ ] menuPlatemaker in many collapsable combolists there are positions that have duplicated and misaligned shortcut hints
 
 - [ ] **Segfault** was detcted but not written down how - to be investigated.
 
-- [ ] **Show the `(preset)` marker wherever a profile name is shown, not just in the manage
-  dialog** — a workspace can legitimately hold two profiles both named *Webtoon Standard*: its
-  own, and the built-in preset added beside it when the two differ (see the matching lib TODO,
-  "Preset adoption can leave two profiles with the same visible name"). `ManageOutputProfilesDialog`
-  already appends `   (preset)`, but the Output tab's profile combo shows the bare name, so a
-  project's selected profile is ambiguous exactly where it matters most. Reuse
-  `isOutputProfilePresetId()` in `refreshOutputProfileCombo()` (`widgets/project/output.cpp`) and
-  anywhere else a profile name is rendered.
+- [x] **Show the `(preset)` marker wherever a profile name is shown, not just in the manage
+  dialog** — done as part of the lib 0.3.0 preset redesign (presets are code-defined, never
+  persisted, resolved from the catalogue). The Output tab combo (`refreshOutputProfileCombo()`,
+  `widgets/project/output.cpp`) now lists the user's own profiles **and** the presets, appending
+  `   (preset)` and colouring preset rows preset-blue; selection is by id so a project can target
+  either. Provenance is tested with `outputPresetDefById(id) != nullptr` (the old
+  `isOutputProfilePresetId()` was removed with the prefix-as-type scheme). Presets are read-only:
+  the Manage dialog greys out Edit/Delete on preset rows, and inline format editing is disabled
+  when a preset is selected. `MainWindow` merges presets into the Manage dialog and writes back
+  only user profiles; a new workspace no longer seeds presets into `outputProfiles`.
 
 - [ ] **Stale comment: templates no longer draw slice guides** —
   `widgets/templatesdialog/templatesdialog.cpp` still says *"The output profile only supplies
@@ -156,6 +190,12 @@ New, backward-compatible features. Several are gated on a lib version, noted in 
   Rejected alternative: marking every input green once the first slice arrives. It would
   need no lib change but would lie about pages skipped for having no matching canvas
   profile — those are only known once the run completes.
+
+  Not the same as the *"Output tiles flash green"* fix (PATCH): despite the superficial
+  resemblance (both about tile status around a render), that one is **GUI-only** — it reapplies
+  an existing main-thread staleness overlay before the worker starts and needs **no** lib change.
+  This item is the only one of the pair that requires the `ProcessingCallbacks` / `onInputDone`
+  lib work, so there is no near-duplicate lib change to introduce twice.
 
 - [ ] **Drop direct `m_workspace` mutations once the lib exposes `WorkspaceEditor`** (lands
   with lib 0.3.0 — see the *WorkspaceEditor* entry in the lib TODO for the rationale and the

@@ -3,9 +3,23 @@
 #include "outputprofiledialog.h"
 
 #include <platemaker/models/output_profile.hpp>
+#include <platemaker/infrastructure/id_generator/id_generator.hpp>
 
 #include <QListWidgetItem>
 #include <QMessageBox>
+
+#include <vector>
+
+namespace {
+// Mints an "op-" id that collides with nothing already in the dialog's list. Profiles get a
+// stable id inside the dialog (not only when MainWindow commits) so the active profile can be
+// tracked by id — names repeat once presets sit beside a user copy of the same name.
+QString mintOutputProfileId(const QList<Platemaker::Models::OutputProfile> &profiles)
+{
+    const std::vector<Platemaker::Models::OutputProfile> taken(profiles.begin(), profiles.end());
+    return QString::fromStdString(Platemaker::Infrastructure::makeUniqueOutputProfileId(taken));
+}
+} // namespace
 
 ManageOutputProfilesDialog::ManageOutputProfilesDialog(QWidget *parent)
     : QDialog(parent)
@@ -38,10 +52,10 @@ ManageOutputProfilesDialog::~ManageOutputProfilesDialog()
 // ---------------------------------------------------------------------------
 
 void ManageOutputProfilesDialog::setProfiles(const QList<Platemaker::Models::OutputProfile> &profiles,
-                                              const QString &activeProfileName)
+                                              const QString &activeProfileId)
 {
-    m_profiles          = profiles;
-    m_activeProfileName = activeProfileName;
+    m_profiles        = profiles;
+    m_activeProfileId = activeProfileId;
     rebuildList();
 }
 
@@ -50,9 +64,9 @@ QList<Platemaker::Models::OutputProfile> ManageOutputProfilesDialog::profiles() 
     return m_profiles;
 }
 
-QString ManageOutputProfilesDialog::activeProfileName() const
+QString ManageOutputProfilesDialog::activeProfileId() const
 {
-    return m_activeProfileName;
+    return m_activeProfileId;
 }
 
 // ---------------------------------------------------------------------------
@@ -80,10 +94,12 @@ void ManageOutputProfilesDialog::onNewClicked()
         }
     }
 
+    // Give it a stable id now, so it is trackable by id (as the active profile, and on write-back).
+    newProfile.id = mintOutputProfileId(m_profiles).toStdString();
     m_profiles.append(newProfile);
 
     if (m_profiles.size() == 1)
-        m_activeProfileName = QString::fromStdString(newProfile.name);
+        m_activeProfileId = QString::fromStdString(newProfile.id);
 
     rebuildList();
 }
@@ -100,15 +116,11 @@ void ManageOutputProfilesDialog::onEditClicked()
     if (dlg.exec() != QDialog::Accepted) return;
 
     // OutputProfileDialog returns a profile without an id — restore the stable id
-    // so projects referencing this profile (by id) survive the edit.
-    const QString oldName     = QString::fromStdString(m_profiles[row].name);
+    // so projects referencing this profile (by id) survive the edit. The id is unchanged,
+    // so the active profile (tracked by id) needs no update even if the name changed.
     const std::string savedId = m_profiles[row].id;
     m_profiles[row]           = dlg.profile();
     m_profiles[row].id        = savedId;
-    const QString newName     = QString::fromStdString(m_profiles[row].name);
-
-    if (m_activeProfileName == oldName)
-        m_activeProfileName = newName;
 
     rebuildList();
 }
@@ -119,10 +131,11 @@ void ManageOutputProfilesDialog::onDuplicateClicked()
     const int row = selectedRow();
     if (row < 0) return;
 
-    // OutputProfileDialog returns a profile without an id — restore the stable id
+    // A duplicate is an ordinary user profile with its own fresh id — this is the route to
+    // customising a preset (the copy is no longer a preset, so it becomes editable).
     Platemaker::Models::OutputProfile copy = m_profiles[row];
     copy.name += " (copy)";
-    copy.id.clear();   // a duplicate needs its own id (MainWindow assigns a fresh one)
+    copy.id = mintOutputProfileId(m_profiles).toStdString();
     m_profiles.insert(row + 1, copy);
     rebuildList();
     ui->listWidgetProfiles->setCurrentRow(row + 1);
@@ -135,6 +148,7 @@ void ManageOutputProfilesDialog::onDeleteClicked()
     if (row < 0) return;
 
     const QString name = QString::fromStdString(m_profiles[row].name);
+    const QString id   = QString::fromStdString(m_profiles[row].id);
 
     // Confirm deletion
     if (m_profiles.size() == 1) {
@@ -150,8 +164,9 @@ void ManageOutputProfilesDialog::onDeleteClicked()
 
     m_profiles.removeAt(row);
 
-    if (m_activeProfileName == name)
-        m_activeProfileName = QString::fromStdString(m_profiles.first().name);
+    if (m_activeProfileId == id)
+        m_activeProfileId = m_profiles.isEmpty()
+            ? QString{} : QString::fromStdString(m_profiles.first().id);
 
     rebuildList();
 }
@@ -162,7 +177,7 @@ void ManageOutputProfilesDialog::onSetActiveClicked()
     const int row = selectedRow();
     if (row < 0) return;
 
-    m_activeProfileName = QString::fromStdString(m_profiles[row].name);
+    m_activeProfileId = QString::fromStdString(m_profiles[row].id);
     rebuildList();
 }
 
@@ -176,25 +191,31 @@ void ManageOutputProfilesDialog::rebuildList()
     const int previousRow = ui->listWidgetProfiles->currentRow();
 
     // Rebuild the list widget with the current profiles, marking the active one with a star.
+    // The active profile is matched by id, so a "Webtoon Standard" of the user's own and the
+    // preset of the same name are told apart — only the genuinely active row gets the star.
     ui->listWidgetProfiles->clear();
     for (const auto &p : std::as_const(m_profiles)) {
         const QString name     = QString::fromStdString(p.name);
-        const bool    isActive = (name == m_activeProfileName);
+        const bool    isActive = (QString::fromStdString(p.id) == m_activeProfileId);
         // Marked from the id alone, so this dialog never needs to know a specific preset
-        // and a new preset in the library shows up here without any change.
-        const bool    isPreset = Platemaker::Models::isOutputProfilePresetId(p.id);
+        // and a new preset in the library shows up here without any change. Provenance is the
+        // membership test on the catalogue — no "is a preset" field, no reserved id prefix.
+        const bool    isPreset = Platemaker::Models::outputPresetDefById(p.id) != nullptr;
 
         QString label = isActive ? "★  " + name : "     " + name;
         if (isPreset) label += tr("   (preset)");
 
+        // Two independent visual channels, so they combine cleanly: the *active* profile is a
+        // star + bold; a *preset* is preset-blue (matching the Output tab's combo). An active
+        // preset is therefore bold, starred and blue.
         auto *item = new QListWidgetItem(label);
         if (isActive) {
             QFont f = item->font();
             f.setBold(true);
             item->setFont(f);
-            item->setForeground(QColor("#7ac8f5"));
         }
         if (isPreset) {
+            item->setForeground(QColor("#7ac8f5"));
             item->setToolTip(tr("Built-in preset — shared by every workspace, so it is "
                                 "read-only. Use Duplicate to make your own version."));
         }
@@ -206,10 +227,17 @@ void ManageOutputProfilesDialog::rebuildList()
     if (ui->listWidgetProfiles->count() > 0)
         ui->listWidgetProfiles->setCurrentRow(newRow);
 
+    // Resolve the active id back to a display name for the info label.
+    QString activeName;
+    for (const auto &p : std::as_const(m_profiles))
+        if (QString::fromStdString(p.id) == m_activeProfileId) {
+            activeName = QString::fromStdString(p.name);
+            break;
+        }
     ui->labelActiveInfo->setText(
-        m_activeProfileName.isEmpty()
+        activeName.isEmpty()
             ? "★ Active profile: —"
-            : "★ Active profile: " + m_activeProfileName);
+            : "★ Active profile: " + activeName);
 
     updateButtonStates();
 }
@@ -219,7 +247,7 @@ void ManageOutputProfilesDialog::updateButtonStates()
     // Enable/disable buttons based on the current selection and profile list.
     const bool hasSelection = (selectedRow() >= 0);
     const bool isActive     = hasSelection &&
-        (QString::fromStdString(m_profiles[selectedRow()].name) == m_activeProfileName);
+        (QString::fromStdString(m_profiles[selectedRow()].id) == m_activeProfileId);
 
     // A preset identifier is the same in every workspace, which is what keeps a preset
     // recognisable across files and app updates — but only while it cannot be made to mean
@@ -228,7 +256,7 @@ void ManageOutputProfilesDialog::updateButtonStates()
     // Duplicate and Set active stay available. Duplicating is the intended route to a
     // customised version and already clears the id, so the copy is an ordinary profile.
     const bool isPreset = hasSelection &&
-        Platemaker::Models::isOutputProfilePresetId(m_profiles[selectedRow()].id);
+        Platemaker::Models::outputPresetDefById(m_profiles[selectedRow()].id) != nullptr;
 
     ui->buttonEdit->setEnabled(hasSelection && !isPreset);
     ui->buttonDuplicate->setEnabled(hasSelection);

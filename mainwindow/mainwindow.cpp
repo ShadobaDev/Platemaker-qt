@@ -201,9 +201,14 @@ void MainWindow::loadWorkspace(const QString &path)
     m_activeCanvasProfileName = m_workspace.canvasProfiles.empty()
         ? QString{}
         : QString::fromStdString(m_workspace.canvasProfiles.front().name);
-    m_activeOutputProfileName = m_workspace.outputProfiles.empty()
-        ? QString{}
-        : QString::fromStdString(m_workspace.outputProfiles.front().name);
+    // Default the active output profile to the first user profile; if the workspace has none,
+    // fall back to a preset (always available from the catalogue) so "active" still means
+    // something and rendering has a profile to resolve. Tracked by id (names may repeat).
+    m_activeOutputProfileId = !m_workspace.outputProfiles.empty()
+        ? QString::fromStdString(m_workspace.outputProfiles.front().id)
+        : (Platemaker::Models::outputProfilePresets().empty()
+              ? QString{}
+              : QString::fromStdString(Platemaker::Models::outputProfilePresets().front().id));
     captureSnapshot();
     addToRecentWorkspaces(path);
     applyWorkspaceToUi();
@@ -264,7 +269,7 @@ void MainWindow::closeWorkspace()
     m_workspacePath.clear();
     m_savedSnapshot.clear();
     m_activeCanvasProfileName.clear();
-    m_activeOutputProfileName.clear();
+    m_activeOutputProfileId.clear();
     setDirty(false);
 
     // Clear the project list in the UI and update the title bar.

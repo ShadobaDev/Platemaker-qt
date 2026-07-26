@@ -69,13 +69,12 @@ void MainWindow::onNewWorkspace()
     // Create a new workspace with a default output profile and save it to the selected path.
     closeWorkspace();
 
-    // Seed the new workspace with the library's presets, so it has at least one output
-    // profile (required for rendering) without this file asserting anything about what a
-    // preset contains. The CLI seeds from the same table, which is what makes a workspace
-    // created here and one created there carry the identical preset id.
+    // A new workspace starts with no output profiles of its own: presets are code-defined,
+    // never persisted, and always available from the catalogue (so rendering has at least one
+    // profile without this file storing anything about what a preset contains). The user's own
+    // profiles are added later via Manage → New / Duplicate. This matches the CLI's
+    // `workspace create`, which also stores nothing until the settings diverge from a preset.
     m_workspace = Platemaker::Models::Workspace{};
-    for (const auto &preset : Platemaker::Models::outputProfilePresets())
-        m_workspace.outputProfiles.push_back(preset);
     m_workspacePath = path;
 
     try {

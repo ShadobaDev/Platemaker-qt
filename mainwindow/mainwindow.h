@@ -293,7 +293,7 @@ private:
     // UI-only selection state (not persisted in the workspace model since v2).
     // Shouldn't be used per project, or even per input file?
     QString m_activeCanvasProfileName;  //!< Name of the canvas profile currently selected in the UI (may not exist in the workspace model).
-    QString m_activeOutputProfileName;  //!< Name of the output profile currently selected in the UI (may not exist in the workspace model).
+    QString m_activeOutputProfileId;    //!< Id of the output profile currently selected in the UI. Tracked by id, not name: a preset and a user copy can share a name, and the id may point at a preset (resolved from the catalogue, not the workspace).
 
     // --- render state (one render at a time, owned here) ---
     Platemaker::Infrastructure::CancellationToken m_cancelToken;    //<! Cancellation token for the current render operation, if any.

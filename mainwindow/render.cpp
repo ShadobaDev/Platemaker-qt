@@ -49,14 +49,15 @@ Project *MainWindow::projectWidget(int projectIndex) const
 Platemaker::Models::OutputProfile MainWindow::resolveOutputProfileFor(
     const Platemaker::Models::ProjectItem &project) const
 {
-    // Resolve the output profile for the given project. If the project has a specific
-    // output profile selected, return that. Otherwise, return the workspace's default
-    // output profile. If no profiles exist, return a default-constructed OutputProfile.
-    for (const auto &op : m_workspace.outputProfiles)
-        if (op.id == project.outputProfileId)
-            return op;
+    // Resolve the output profile for the given project. resolveOutputProfile() unions the
+    // workspace's own profiles with the code-defined presets (a preset id resolves against the
+    // catalogue), so a project may reference either. If the id resolves to nothing (unset, or a
+    // stale id), fall back to the first user profile, else the Webtoon Standard preset — a valid
+    // profile is always available because presets live in code.
+    if (auto op = Platemaker::Models::resolveOutputProfile(m_workspace, project.outputProfileId))
+        return *op;
     return m_workspace.outputProfiles.empty()
-        ? Platemaker::Models::OutputProfile{}
+        ? Platemaker::Models::webtoonStandardPreset()
         : m_workspace.outputProfiles.front();
 }
 

@@ -219,19 +219,29 @@ void MainWindow::onManageOutputProfiles()
 
     ManageOutputProfilesDialog dlg(this);
 
+    // Show the user's own profiles plus the code-defined presets in one list. Presets are
+    // read-only in the dialog (Edit/Delete disabled) and never persisted; customising one is a
+    // Duplicate, which clears its id and yields an ordinary user profile.
     QList<Platemaker::Models::OutputProfile> profiles(
         m_workspace.outputProfiles.begin(), m_workspace.outputProfiles.end());
-    dlg.setProfiles(profiles, m_activeOutputProfileName);
+    for (const auto& preset : Platemaker::Models::outputProfilePresets())
+        profiles.append(preset);
+    dlg.setProfiles(profiles, m_activeOutputProfileId);
 
     // The dialog edits copies, and we only write the results back to the workspace if the user clicks Accept.
     if (dlg.exec() != QDialog::Accepted) return;
 
-    const auto result = dlg.profiles();
-    m_workspace.outputProfiles.assign(result.begin(), result.end());
-    m_activeOutputProfileName = dlg.activeProfileName();
+    // Persist only the user's own profiles — presets live in code and must stay out of the
+    // workspace (the serializer strips them anyway; keeping them out of the model avoids a
+    // duplicated listing until the next load).
+    m_workspace.outputProfiles.clear();
+    for (const auto& p : dlg.profiles())
+        if (Platemaker::Models::outputPresetDefById(p.id) == nullptr)
+            m_workspace.outputProfiles.push_back(p);
+    m_activeOutputProfileId = dlg.activeProfileId();
 
-    // Assign IDs to any profiles added without one (the dialog doesn't generate
-    // them); an empty id breaks per-project output-profile selection.
+    // Assign IDs to any profiles added without one (the dialog doesn't generate them; a
+    // duplicated preset also arrives with an empty id). An empty id breaks per-project selection.
     for (auto& p : m_workspace.outputProfiles)
         if (p.id.empty())
             p.id = Platemaker::Infrastructure::makeUniqueOutputProfileId(m_workspace.outputProfiles);
@@ -267,7 +277,7 @@ void MainWindow::onNewOutputProfile()
     m_workspace.outputProfiles.push_back(profile);
 
     if (m_workspace.outputProfiles.size() == 1)
-        m_activeOutputProfileName = QString::fromStdString(profile.name);
+        m_activeOutputProfileId = QString::fromStdString(profile.id);
 
     setDirty(true);
 }
@@ -280,13 +290,28 @@ void MainWindow::onEditActiveOutputProfile()
         return;
     }
 
-    // Find the active profile by name. The dialog edits a copy, and we only write
-    // the results back to the workspace if the user clicks Accept. The dialog
-    // preserves templateInfo by id, so we can snapshot it before the dialog and
-    // re-attach it afterward (the dialog never edits it).
+    // Resolve the active profile by id. The dialog edits a copy, and we only write the results
+    // back to the workspace if the user clicks Accept.
+    const std::string activeId = m_activeOutputProfileId.toStdString();
+
+    // Presets are read-only. This is the *second* way into the editor, next to the Manage
+    // dialog's Edit button; leaving it open would make that dialog's guard bypassable with one
+    // click from the menu. A preset is never in outputProfiles (code-defined, not persisted), so
+    // an active preset id is caught here first.
+    if (Platemaker::Models::outputPresetDefById(activeId) != nullptr) {
+        const auto preset = Platemaker::Models::resolveOutputProfile(m_workspace, activeId);
+        QMessageBox::information(this, tr("Preset profile"),
+            tr("\"%1\" is a built-in preset and cannot be edited — it is shared by every "
+               "workspace, so it has to mean the same thing everywhere.\n\n"
+               "Use Output → Manage → Duplicate to make your own version of it, which you "
+               "can then change freely.")
+                .arg(preset ? QString::fromStdString(preset->name) : m_activeOutputProfileId));
+        return;
+    }
+
     const auto it = std::find_if(
         m_workspace.outputProfiles.begin(), m_workspace.outputProfiles.end(),
-        [&](const auto& p){ return p.name == m_activeOutputProfileName.toStdString(); });
+        [&](const auto& p){ return p.id == activeId; });
 
     if (it == m_workspace.outputProfiles.end()) {
         QMessageBox::information(this, tr("No Active Profile"),
@@ -294,26 +319,13 @@ void MainWindow::onEditActiveOutputProfile()
         return;
     }
 
-    // Presets are read-only. This is the *second* way into the editor, next to the Manage
-    // dialog's Edit button; leaving it open would make that dialog's guard bypassable with
-    // one click from the menu.
-    if (Platemaker::Models::isOutputProfilePresetId(it->id)) {
-        QMessageBox::information(this, tr("Preset profile"),
-            tr("\"%1\" is a built-in preset and cannot be edited — it is shared by every "
-               "workspace, so it has to mean the same thing everywhere.\n\n"
-               "Use Output → Manage → Duplicate to make your own version of it, which you "
-               "can then change freely.")
-                .arg(QString::fromStdString(it->name)));
-        return;
-    }
-
     OutputProfileDialog dlg(this);
     dlg.setProfile(*it);
     if (dlg.exec() != QDialog::Accepted) return;
 
-    // OutputProfileDialog returns a profile without an id — preserve the stable
-    // id so projects that reference this profile keep working.
-    const std::string oldName = it->name;
+    // OutputProfileDialog returns a profile without an id — preserve the stable id so projects
+    // that reference this profile keep working. The id is unchanged, so the active profile
+    // (tracked by id) needs no update even if the name changed.
     const std::string savedId = it->id;
     *it = dlg.profile();
     // The fallback used to derive the id from the name ("op-" + name) — a second identity
@@ -322,9 +334,6 @@ void MainWindow::onEditActiveOutputProfile()
     it->id = savedId.empty()
         ? Platemaker::Infrastructure::makeUniqueOutputProfileId(m_workspace.outputProfiles)
         : savedId;
-
-    if (m_activeOutputProfileName == QString::fromStdString(oldName))
-        m_activeOutputProfileName = QString::fromStdString(it->name);
 
     setDirty(true);
 }

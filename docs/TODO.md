@@ -83,8 +83,10 @@ Bug fixes, cosmetics and internal cleanups — no new capability, no change to a
   outputs to flash). Both explain the "I'm sure this used to work" impression.
 
   **GUI-only — no lib dependency.** Reuses `outputProfileSignature()` / `detectCanvasConfigChange()`
-  (already in the lib) on the main thread, before the worker starts. See the cross-reference on
-  *"Live input tile status during a render"* below: the two share **no** lib change.
+  (already in the lib) on the main thread, before the worker starts. This is the *pre*-render flash and
+  is done. Note: the *during*-render lingering of stale output tiles is a **separate** item —
+  *"Output tiles: replace by position in real time during a render"* (MINOR 1.2.0) — which **does** ride
+  the lib's `ProcessingCallbacks` change, alongside *"Live input tile status during a render"*.
 
   **Fixed:** folded the `Done`→`Desynchronized` overlay into `refreshOutputTiles()` (the one path
   every `populate()` goes through), and dropped the now-duplicate block from `onRefreshFiles()`. So
@@ -140,6 +142,63 @@ Bug fixes, cosmetics and internal cleanups — no new capability, no change to a
 
 ---
 
+## MINOR — in progress: 1.2.0
+
+Features landing in the current **unreleased 1.2.0**, gated on **lib 0.3.0** (the GUI pins
+`find_package(platemaker 0.3.0 …)`). Both ride the one-time `ProcessingCallbacks` API break, now
+**implemented in lib 0.3.0** (see the lib CHANGELOG: `run()` takes a `ProcessingCallbacks` struct;
+`onSliceSaved` carries the slice index; `onInput` reports each input). No CMake bump: 1.2.0 is already
+the in-progress version.
+
+- [x] **Output tiles: replace by position in real time during a render** — during a re-render the new
+  output tiles were created live (green) while the old out-of-sync tiles lingered, and the stale ones
+  vanished only at finish (`populate()` rebuild). Cause: `Project::setOutputTile()`
+  (`widgets/project/output.cpp`) matched by **exact filename**, so on a format change
+  (`output_001.jpg` → `output_001.png`) the new slice didn't match the old tile and was **appended**
+  instead of replacing it. Long-standing "genuinely new ⇒ append" fallback, not a regression.
+
+  Distinct from the shipped *"Output tiles flash green"* PATCH (that was the *pre*-render flash — a
+  GUI-only staleness-overlay fix). This is the *during*-render lingering, and it needed the lib.
+
+  **Done (positional replacement, uniform for partial and full renders).** The lib's per-slice callback
+  now carries the absolute slice index (`SliceSaved{sliceIndex, name, fullPath}`);
+  `RenderWorker::sliceSaved` re-emits `(index, name, fullPath)`; `Project::setOutputTile(index, name,
+  fullPath)` **replaces the tile at row `index`** (appends when `index >= count`). No filename matching,
+  so a format change or slice-count change no longer leaves stale tiles. Trailing tiles on a count shrink
+  are still cleaned by the finish `populate()` (a live trim via `ProcessingProgress::sliceTotal` remains a
+  possible refinement).
+
+- [ ] **Live input tile status during a render** — input tiles only update when the render finishes,
+  while output tiles update live per slice. This cannot be fixed in the GUI: `ProcessingPipeline::run()`
+  reports `ProgressFn` (per slice), `LogFn` and `SliceSavedFn`, but has **no per-input callback** — and
+  inputs are all consumed in phase 1 (strip building) before the first slice exists, so there is nothing
+  to hook.
+
+  The lib now provides the channel: **`ProcessingCallbacks::onInput(InputResult)`** (lib 0.3.0) fires
+  once per input — appended (`InputStatus::Appended`) or skipped with a reason (missing / no matching
+  profile / a profile matches but isn't linked, with the candidate ids / load error). **Remaining GUI
+  work:** re-emit it as a `RenderWorker` signal, refresh that input's tile, and add a `FileStatus` value
+  for "skipped / processed without a profile" (new enumerator or flag). Visible effect: inputs go green
+  quickly at the start, then slices stream in.
+
+  **Lib API ready (0.3.0)** — `run()`'s callbacks are grouped into a `ProcessingCallbacks` struct
+  (`onProgress` / `onLog` / `onSliceSaved` / `onInput` / `onSlicingStarted` / `onSliceSkipped`), the same
+  refactor that gave the output-positional entry above its slice index. The output feature is done; this
+  one just needs its GUI wiring.
+
+  Caveat to expect: after a cancel, `populate()` pulls the inputs back to their model status
+  (Modified / out-of-sync), because an unfinished run must not claim them as processed. So inputs go
+  green during the run and amber again if it is cancelled — correct, but worth knowing before it looks
+  like a bug.
+
+  Rejected alternative: marking every input green once the first slice arrives. It would need no lib
+  change but would lie about pages skipped for having no matching canvas profile — those are only known
+  once the run completes.
+
+  Note on the shipped *"Output tiles flash green"* PATCH: that was a **GUI-only** pre-render fix. It is
+  *not* this and *not* the output-positional entry above — those two *during*-render features both ride
+  `ProcessingCallbacks`, so the lib work is done once and serves both.
+
 ## MINOR — next: 1.3.0
 
 New, backward-compatible features. Several are gated on a lib version, noted in the item body.
@@ -165,37 +224,6 @@ New, backward-compatible features. Several are gated on a lib version, noted in 
   clear, reorder, sort) and ideally other reversible workspace edits
 
 - [ ] **Action log** should report a summary, how manu inputs, how many slices in what time where processed and when. Output cumulative size (MB or KB) would also be nice.
-
-- [ ] **Live input tile status during a render** — output tiles now turn green as each
-  slice is written, but input tiles only update when the render finishes. This cannot be
-  fixed in the GUI: `ProcessingPipeline::run()` reports `ProgressFn` (per slice), `LogFn`
-  and `SliceSavedFn`, but has **no per-input callback** — and inputs are all consumed in
-  phase 1 (strip building) before the first slice exists, so there is nothing to hook.
-
-  Needs a lib change: an optional callback such as `InputDoneFn(path, ok)` invoked as each
-  input is appended to the strip (or skipped), re-emitted by `RenderWorker` as a signal,
-  with the GUI refreshing that input's tile the same way `addOutputTile()` does. Visible
-  effect: inputs go green quickly at the start, then slices stream in.
-
-  **Decided: this rides on lib 0.3.0.** `run()` already takes 10 parameters, so rather than
-  bolting on an 11th, the lib groups the callbacks into a `ProcessingCallbacks` struct
-  (`onProgress` / `onLog` / `onSliceSaved` / `onInputDone`) — see the lib TODO. That is an
-  API break, hence the lib minor bump, and this GUI feature lands with it.
-
-  Caveat to expect: after a cancel, `populate()` pulls the inputs back to their model status
-  (Modified / out-of-sync), because an unfinished run must not claim them as processed. So
-  inputs go green during the run and amber again if it is cancelled — correct, but worth
-  knowing before it looks like a bug.
-
-  Rejected alternative: marking every input green once the first slice arrives. It would
-  need no lib change but would lie about pages skipped for having no matching canvas
-  profile — those are only known once the run completes.
-
-  Not the same as the *"Output tiles flash green"* fix (PATCH): despite the superficial
-  resemblance (both about tile status around a render), that one is **GUI-only** — it reapplies
-  an existing main-thread staleness overlay before the worker starts and needs **no** lib change.
-  This item is the only one of the pair that requires the `ProcessingCallbacks` / `onInputDone`
-  lib work, so there is no near-duplicate lib change to introduce twice.
 
 - [ ] **Drop direct `m_workspace` mutations once the lib exposes `WorkspaceEditor`** (lands
   with lib 0.3.0 — see the *WorkspaceEditor* entry in the lib TODO for the rationale and the

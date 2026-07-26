@@ -44,7 +44,7 @@ public:
 
     // --- render UI (driven by MainWindow, which owns the render state) ---
     void setRendering(bool rendering);              //!<  flips Render⇄Stop + disables output controls
-    void addOutputTile(const QString& filePath);    //!< live append during a render
+    void setOutputTile(int index, const QString& name, const QString& fullPath); //!< live positional update during a render — creates or replaces the tile at row \p index
     void refreshOutputTiles();                      //!< rebuild from getOutputImages()
 
 signals:

@@ -173,34 +173,29 @@ void Project::setRendering(bool rendering)
     ui->pushButtonJumpToInput->setEnabled(!rendering);
 }
 
-void Project::addOutputTile(const QString& filePath)
+void Project::setOutputTile(int index, const QString& name, const QString& fullPath)
 {
-    // Called for each slice as the render writes it. On a re-render the tile for this
-    // file already exists (populate() built it, likely amber/out-of-sync), so refresh
-    // that one in place — appending instead would leave the stale tile on screen and
-    // grow the list with duplicates until the post-render populate() rebuilt it.
-    for (int row = 0; row < ui->listOutputImageTile->count(); ++row) {
-        QListWidgetItem* item = ui->listOutputImageTile->item(row);
-        if (item->data(Qt::UserRole).toString() != filePath)
-            continue;
+    Q_UNUSED(name);
+    // Called for each slice as the render writes it, with its 0-based output row. This is
+    // **positional**: the tile at row `index` is replaced in place, so a re-render that changes the
+    // format (output_001.jpg → output_001.png) or the slice count replaces the old (amber,
+    // out-of-sync) tile instead of appending a mismatched-name one beside it — which used to leave
+    // stale tiles on screen until the post-render populate() rebuilt the list. Works the same for a
+    // partial re-render (each dirty slice hits its own existing row) and a full one (rows filled in
+    // order). Trailing rows a shorter render no longer produces are cleaned by the finish populate().
+    QListWidget* list = ui->listOutputImageTile;
 
-        if (auto* existing = qobject_cast<ImageTile*>(
-                ui->listOutputImageTile->itemWidget(item))) {
-            existing->setFileInfo(filePath, FileStatus::Done, m_cacheDir);
-            return;
-        }
-        break;  // item without a tile widget — fall through and rebuild it below
-    }
+    // The pipeline delivers slices in increasing index; extend the list if this row is new.
+    while (list->count() <= index)
+        new QListWidgetItem(list);
 
-    // Genuinely new slice (first render, or the output count grew).
-    auto* listItem = new QListWidgetItem(ui->listOutputImageTile);
-    listItem->setData(Qt::UserRole, filePath);
+    QListWidgetItem* item = list->item(index);
+    item->setData(Qt::UserRole, fullPath);
 
     auto* tile = new ImageTile(this);
-    tile->setFileInfo(filePath, FileStatus::Done, m_cacheDir);
-
-    listItem->setSizeHint(tile->sizeHint());
-    ui->listOutputImageTile->setItemWidget(listItem, tile);
+    tile->setFileInfo(fullPath, FileStatus::Done, m_cacheDir);   // replaces any existing widget at this row
+    item->setSizeHint(tile->sizeHint());
+    list->setItemWidget(item, tile);
 }
 
 void Project::addOutputImageTile(const OutputFile& file)

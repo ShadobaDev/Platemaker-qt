@@ -371,12 +371,13 @@ void MainWindow::onRenderLog(int level, QString message)
     ui->textBrowserActionLogs->append(QString::fromLatin1(tag) + message);
 }
 
-void MainWindow::onRenderSliceSaved(QString name, QString fullPath)
+void MainWindow::onRenderSliceSaved(int index, QString name, QString fullPath)
 {
-    // Called when a slice has been saved during rendering. Update the corresponding Project widget with the new output tile.
-    Q_UNUSED(name);
+    // Called when a slice has been saved during rendering. Replace the output tile at row `index`
+    // in the corresponding Project widget (positional, so a format/count change doesn't leave a
+    // stale tile behind).
     if (auto *pw = projectWidget(m_renderProjectIndex))
-        pw->addOutputTile(fullPath);
+        pw->setOutputTile(index, name, fullPath);
 }
 
 void MainWindow::onRenderFinished()

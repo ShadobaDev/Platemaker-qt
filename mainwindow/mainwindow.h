@@ -118,7 +118,7 @@ private slots:
      * @param name The name of the slice that was saved.
      * @param fullPath The full file path where the slice was saved.
      */
-    void onRenderSliceSaved(QString name, QString fullPath);
+    void onRenderSliceSaved(int index, QString name, QString fullPath);
 
     /**
      * @brief Called when the rendering process has finished.

@@ -21,30 +21,33 @@ void RenderWorker::process()
 {
     using namespace Platemaker::Core;
 
-    ProcessingPipeline pipeline;
-    // Runs the whole render synchronously on this thread (this call blocks until every
-    // slice is processed, or m_cancel is triggered). The pipeline reports back through
-    // three plain-C++ callbacks; each one just re-emits the data as a Qt signal so the
-    // GUI thread (connected via a queued connection) can react without touching pipeline
-    // internals directly. m_outcome captures the final success/failure/cancellation result.
-    m_outcome = pipeline.run(
+    // The pipeline reports back through plain-C++ callbacks, called synchronously on THIS worker
+    // thread. Each lambda does one cheap thing — re-emit the data as a Qt signal — so the GUI
+    // thread (connected via a queued connection) reacts without touching pipeline internals, and
+    // the render is never blocked on the UI. Only the callbacks the GUI uses are wired; the rest
+    // stay null. m_outcome captures the final success/failure/cancellation result.
+    ProcessingCallbacks callbacks;
+    // Per-slice progress tick: how many of the total slices are done, and which one just finished.
+    callbacks.onProgress = [this](const ProcessingProgress& p) {
+        emit progress(p.sliceDone, p.sliceTotal, QString::fromStdString(p.sliceName));
+    };
+    // Pipeline log line (info/warning/error) — forwarded verbatim for the GUI's log view.
+    callbacks.onLog = [this](ProcessingLogLevel level, const std::string& msg) {
+        emit log(static_cast<int>(level), QString::fromStdString(msg));
+    };
+    // Fired the moment a slice file is written to disk, carrying its 0-based row index so the
+    // output tile at that position can be replaced live (same for partial and full renders).
+    callbacks.onSliceSaved = [this](const SliceSaved& s) {
+        emit sliceSaved(s.sliceIndex,
+                        QString::fromStdString(s.name),
+                        QString::fromStdString(s.fullPath));
+    };
+
+    // Runs the whole render synchronously on this thread (blocks until every slice is processed
+    // or m_cancel is triggered). Restricts to m_onlySlices for a partial re-render; nullptr = all.
+    m_outcome = ProcessingPipeline::run(
         m_inputs, m_outProfile, m_canvasProfiles, m_canvasProfileIds, m_outputDir,
-        m_cancel,
-        // Per-slice progress tick: how many of the total slices are done, and which one just finished.
-        [this](const ProcessingProgress& p) {
-            emit progress(p.sliceDone, p.sliceTotal, QString::fromStdString(p.sliceName));
-        },
-        // Pipeline log line (info/warning/error) — forwarded verbatim for the GUI's log view.
-        [this](ProcessingLogLevel level, const std::string& msg) {
-            emit log(static_cast<int>(level), QString::fromStdString(msg));
-        },
-        // Fired the moment a slice file is actually written to disk, so the output tile
-        // list can append it live instead of waiting for the whole render to finish.
-        [this](const std::string& name, const std::string& fullPath) {
-            emit sliceSaved(QString::fromStdString(name), QString::fromStdString(fullPath));
-        },
-        // Restricts the run to m_onlySlices when a partial re-render was requested
-        // (see setOnlySlices()); nullptr means "render everything".
+        m_cancel, callbacks,
         m_onlySlices.empty() ? nullptr : &m_onlySlices);
 
     emit finished();

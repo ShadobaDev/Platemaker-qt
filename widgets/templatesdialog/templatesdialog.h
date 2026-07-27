@@ -88,7 +88,7 @@ private slots:
     void onDeleteTemplate();    //!< Slot for the "Delete" button. Confirms and deletes the selected profile's template file, then clears its templateInfo.
 
 private:
-    void rebuildTable();                                //!< Rebuilds tableTemplates from m_workspace.canvasProfiles, preserving the current selection where possible.
+    void rebuildTable();                                //!< Rebuilds tableTemplates from m_workspace.canvasProfiles(), preserving the current selection where possible.
     int  selectedRow() const;                           //!< Returns the currently selected table row, or -1 if none is selected.
     static QString statusText(TemplateStatus status);   //!< Returns the user-facing label for a TemplateStatus value.
 

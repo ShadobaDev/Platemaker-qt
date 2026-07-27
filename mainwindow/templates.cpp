@@ -40,7 +40,7 @@ void MainWindow::onManageTemplates()
     }
 
     // Skip if no canvas profiles exist in the workspace.
-    if (m_workspace.canvasProfiles.empty()) {
+    if (m_workspace.canvasProfiles().empty()) {
         QMessageBox::information(this, tr("No Canvas Profiles"),
             tr("Create a canvas profile before generating templates."));
         return;

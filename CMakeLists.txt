@@ -74,7 +74,7 @@ if(1)
     #   2. find_package                     — system install or CMAKE_PREFIX_PATH
     #   3. FetchContent                     — downloads pre-built package from GitHub Releases
     # ───────────────────────────────────────────────────────────────────────────────
-    set(LIBPLATEMAKER_VERSION "0.2.2")
+    set(LIBPLATEMAKER_VERSION "0.3.0")
     set(LIBPLATEMAKER_DIR "" CACHE PATH "Path to a local platemaker dev package")
     message("Local libplatemaker path: ${LIBPLATEMAKER_DIR}")
 
@@ -83,10 +83,11 @@ if(1)
         message("Set libplatemaker path: ${LIBPLATEMAKER_DIR}")
     endif()
 
-    # Pinned: this app's About dialog uses buildInfo() / linkedComponents(), added in
-    # libplatemaker 0.2.2. Without a minimum, an older install would configure cleanly and only
-    # fail later as confusing compile errors. Same variable drives the download URL below, so the
-    # required and fetched versions cannot drift apart.
+    # Pinned: the profile-editing widgets now go through Infrastructure::WorkspaceEditor and the
+    # read-only Workspace::canvasProfiles()/outputProfiles() accessors, both added in libplatemaker
+    # 0.3.0 (which made the profile vectors private). Without a minimum, an older install would
+    # configure cleanly and only fail later as confusing compile errors. Same variable drives the
+    # download URL below, so the required and fetched versions cannot drift apart.
     find_package(platemaker ${LIBPLATEMAKER_VERSION} CONFIG QUIET)
 
     if(NOT platemaker_FOUND)

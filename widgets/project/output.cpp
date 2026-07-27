@@ -4,6 +4,8 @@
 #include "canvasprofiledialog.h"
 #include "outputformatoptionswidget.h"
 
+#include <platemaker/infrastructure/workspace_editor/workspace_editor.hpp>
+
 #include <QCheckBox>
 #include <QCollator>
 #include <QColor>
@@ -63,8 +65,8 @@ void Project::refreshOutputProfileCombo()
             selectedIdx = row;
     };
 
-    for (const auto& op : m_workspace.outputProfiles) addProfile(op, false);
-    for (const auto& op : outputProfilePresets())      addProfile(op, true);
+    for (const auto& op : m_workspace.outputProfiles()) addProfile(op, false);
+    for (const auto& op : outputProfilePresets())        addProfile(op, true);
 
     // Set the current index of the combo box to the selected profile index and unblock signals.
     ui->comboBoxOutputProfile->setCurrentIndex(selectedIdx);
@@ -75,20 +77,13 @@ void Project::onOutputProfileChanged(int index)
 {
     // When the output profile selection changes, update the project's output profile ID and refresh the format controls.
     const QString id = ui->comboBoxOutputProfile->itemData(index).toString();
-    m_workspace.projectItems[m_projectIndex].outputProfileId = id.toStdString();
+    auto& proj = m_workspace.projectItems[m_projectIndex];
+    // The combo lists user profiles and presets, so the id always resolves; the editor validates
+    // it anyway (an empty id means "workspace default").
+    Platemaker::Infrastructure::WorkspaceEditor(m_workspace)
+        .setProjectOutputProfile(proj, id.toStdString());
     refreshFormatControls();   // reflect the newly-selected profile's format/options
     emit projectModified();
-}
-
-Platemaker::Models::OutputProfile* Project::selectedOutputProfile() const
-{
-    // Return a pointer to the currently selected output profile based on the project's outputProfileId.
-    // If no profile is selected or the ID does not match any workspace profiles, return nullptr.
-    const std::string& id = m_workspace.projectItems[m_projectIndex].outputProfileId;
-    if (id.empty()) return nullptr;
-    for (auto& op : m_workspace.outputProfiles)
-        if (op.id == id) return &op;
-    return nullptr;
 }
 
 void Project::refreshFormatControls()
@@ -146,11 +141,21 @@ void Project::onClearOutputDir()
 
 void Project::onFormatOptionsEdited()
 {
-    // The format-options widget changed — write back into the selected profile.
-    if (OutputProfile* op = selectedOutputProfile()) {
-        m_formatOptions->applyToProfile(*op);
-        emit projectModified();
-    }
+    // The format-options widget changed — write back into the selected user profile through the
+    // editor (the palette is private). Presets are read-only and never edited here.
+    const std::string& id = m_workspace.projectItems[m_projectIndex].outputProfileId;
+    if (id.empty() || Platemaker::Models::outputPresetDefById(id) != nullptr)
+        return;
+
+    auto profiles = std::vector<OutputProfile>(
+        m_workspace.outputProfiles().begin(), m_workspace.outputProfiles().end());
+    const auto it = std::find_if(profiles.begin(), profiles.end(),
+        [&](const OutputProfile& p){ return p.id == id; });
+    if (it == profiles.end()) return;
+
+    m_formatOptions->applyToProfile(*it);
+    Platemaker::Infrastructure::WorkspaceEditor(m_workspace).replaceOutputProfiles(std::move(profiles));
+    emit projectModified();
 }
 
 void Project::onJumpToInput()
@@ -276,7 +281,7 @@ void Project::onRefreshFiles()
     // dirty; an actual render does.
     auto& project = m_workspace.projectItems[m_projectIndex];
     // Also flags pages whose canvas profile changed since their render.
-    project.sanitize(m_workspace.canvasProfiles);
+    project.sanitize(m_workspace.canvasProfiles());
 
     // The output-profile staleness overlay (Done → Desynchronized) is applied by
     // refreshOutputTiles(), reached via populate(), so it no longer needs repeating here — and

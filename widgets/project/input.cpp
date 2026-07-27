@@ -4,6 +4,8 @@
 #include "canvasprofiledialog.h"
 #include "outputformatoptionswidget.h"
 
+#include <platemaker/infrastructure/workspace_editor/workspace_editor.hpp>
+
 #include <QCheckBox>
 #include <QCollator>
 #include <QComboBox>
@@ -57,7 +59,7 @@ void Project::refreshCanvasProfilesList()
     ui->listWidgetCanvasProfiles->clear();
 
     const auto& project = m_workspace.projectItems[m_projectIndex];
-    const auto& wsProfiles = m_workspace.canvasProfiles;
+    const auto& wsProfiles = m_workspace.canvasProfiles();
 
     // If the project has no assigned canvas profiles, display a placeholder item indicating that all workspace profiles are used.
     if (project.canvasProfileIds.empty()) {
@@ -108,8 +110,9 @@ void Project::refreshCanvasProfilesList()
             //The lambda captures the profile ID and uses it to find and remove the profile from the project's canvasProfileIds vector.
             const std::string profileId = cp.id;
             connect(removeBtn, &QToolButton::clicked, this, [this, profileId]() {
-                auto& ids = m_workspace.projectItems[m_projectIndex].canvasProfileIds;
-                ids.erase(std::remove(ids.begin(), ids.end(), profileId), ids.end());
+                auto& proj = m_workspace.projectItems[m_projectIndex];
+                Platemaker::Infrastructure::WorkspaceEditor(m_workspace)
+                    .removeCanvasProfileFromProject(proj, profileId);
                 refreshCanvasProfilesList();
                 emit projectModified();
             });
@@ -121,7 +124,7 @@ void Project::onAssignCanvasProfiles()
 {
     // Assign a canvas profile to the project. Opens a dialog to select from available workspace profiles that are not already assigned to this project.
     const auto& project = m_workspace.projectItems[m_projectIndex];
-    const auto& wsProfiles = m_workspace.canvasProfiles;
+    const auto& wsProfiles = m_workspace.canvasProfiles();
 
     // Guard: if there are no workspace profiles, inform the user and return.
     if (wsProfiles.empty()) {
@@ -169,7 +172,9 @@ void Project::onAssignCanvasProfiles()
     }
 
     // Guard: if the profile ID was not found (should not happen), inform the user and return.
-    if (!m_workspace.projectItems[m_projectIndex].addCanvasProfile(wsProfiles, profileId)) {
+    auto& proj = m_workspace.projectItems[m_projectIndex];
+    if (!Platemaker::Infrastructure::WorkspaceEditor(m_workspace)
+             .addCanvasProfileToProject(proj, profileId)) {
         QMessageBox::warning(this, tr("Conflict"),
             tr("Cannot assign \"%1\": a linked profile already has the same canvas dimensions.")
                 .arg(chosen));
@@ -187,8 +192,10 @@ void Project::onCanvasProfileDoubleClicked(QListWidgetItem* item)
     const QString id = item->data(Qt::UserRole).toString();
     if (id.isEmpty()) return;
 
-    // Find the profile in the workspace by ID. If not found, return.
-    auto& wsProfiles = m_workspace.canvasProfiles;
+    // Find the profile in a copy of the palette by ID (the vectors are private — edit a copy and
+    // hand it back through the editor). If not found, return.
+    auto wsProfiles = std::vector<CanvasProfile>(
+        m_workspace.canvasProfiles().begin(), m_workspace.canvasProfiles().end());
     auto it = std::find_if(wsProfiles.begin(), wsProfiles.end(),
         [&](const CanvasProfile& p){ return p.id == id.toStdString(); });
     if (it == wsProfiles.end()) return;
@@ -205,6 +212,8 @@ void Project::onCanvasProfileDoubleClicked(QListWidgetItem* item)
     *it = dlg.profile();
     it->id           = savedId;
     it->templateInfo = savedTpl;
+
+    Platemaker::Infrastructure::WorkspaceEditor(m_workspace).replaceCanvasProfiles(std::move(wsProfiles));
 
     refreshCanvasProfilesList();
     emit projectModified();

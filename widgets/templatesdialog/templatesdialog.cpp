@@ -2,6 +2,7 @@
 #include "ui_templatesdialog.h"
 
 #include <platemaker/core/template_generator/template_generator.hpp>
+#include <platemaker/infrastructure/workspace_editor/workspace_editor.hpp>
 
 #include <QDateTime>
 #include <QDesktopServices>
@@ -66,8 +67,8 @@ bool TemplatesDialog::generateTemplate(const Workspace& ws,
     // use the first user profile, else the Webtoon Standard preset (a workspace may legitimately
     // have no profiles of its own, since presets live in code). It is not part of 
     // the template's tracked identity.
-    const OutputProfile op = ws.outputProfiles.empty()
-        ? Platemaker::Models::webtoonStandardPreset() : ws.outputProfiles.front();
+    const OutputProfile op = ws.outputProfiles().empty()
+        ? Platemaker::Models::webtoonStandardPreset() : ws.outputProfiles().front();
 
     try {
         TemplateGenerator{}.generate(cp, op, absPath.toStdString());
@@ -192,7 +193,7 @@ void TemplatesDialog::onSelectionChanged()
 
     bool hasTemplate = false;
     if (row >= 0)
-        hasTemplate = !m_workspace.canvasProfiles[static_cast<std::size_t>(row)]
+        hasTemplate = !m_workspace.canvasProfiles()[static_cast<std::size_t>(row)]
                           .templateInfo.path.empty();
     ui->buttonDeleteTemplate->setEnabled(hasTemplate);
 }
@@ -202,7 +203,9 @@ void TemplatesDialog::onGenerateSelected()
     const int row = selectedRow();
     if (row < 0) return;
 
-    auto& cp = m_workspace.canvasProfiles[static_cast<std::size_t>(row)];
+    // Edit a copy — the palette is private. generateTemplate writes cp.templateInfo, which we then
+    // persist onto the workspace profile through the editor.
+    CanvasProfile cp = m_workspace.canvasProfiles()[static_cast<std::size_t>(row)];
 
     if (!confirmOverwrite(this, cp, m_workspaceDir))
         return;
@@ -212,6 +215,8 @@ void TemplatesDialog::onGenerateSelected()
         QMessageBox::critical(this, tr("Template"), err);
         return;
     }
+    Platemaker::Infrastructure::WorkspaceEditor(m_workspace)
+        .setCanvasProfileTemplateInfo(cp.id, cp.templateInfo);
     rebuildTable();
     ui->tableTemplates->selectRow(row);
     emit workspaceModified();
@@ -225,14 +230,21 @@ void TemplatesDialog::onGenerateAll()
     int generated = 0;
     QStringList failures;
 
-    for (auto& cp : m_workspace.canvasProfiles) {
-        if (statusOf(cp, m_workspaceDir) == TemplateStatus::UpToDate)
+    // Work on copies (the palette is private), writing each generated template back through the
+    // editor. setCanvasProfileTemplateInfo only edits templateInfo, so it does not invalidate the
+    // accessor's reference we are iterating.
+    for (const auto& orig : m_workspace.canvasProfiles()) {
+        if (statusOf(orig, m_workspaceDir) == TemplateStatus::UpToDate)
             continue;
+        CanvasProfile cp = orig;
         QString err;
-        if (generateTemplate(m_workspace, m_workspaceDir, cp, err))
+        if (generateTemplate(m_workspace, m_workspaceDir, cp, err)) {
+            Platemaker::Infrastructure::WorkspaceEditor(m_workspace)
+                .setCanvasProfileTemplateInfo(cp.id, cp.templateInfo);
             ++generated;
-        else
+        } else {
             failures << QString::fromStdString(cp.name) + ": " + err;
+        }
     }
 
     rebuildTable();
@@ -265,7 +277,7 @@ void TemplatesDialog::onDeleteTemplate()
     const int row = selectedRow();
     if (row < 0) return;
 
-    auto& cp = m_workspace.canvasProfiles[static_cast<std::size_t>(row)];
+    const CanvasProfile& cp = m_workspace.canvasProfiles()[static_cast<std::size_t>(row)];
     if (cp.templateInfo.path.empty()) return;
 
     const QString abs = QDir(m_workspaceDir).filePath(
@@ -278,7 +290,10 @@ void TemplatesDialog::onDeleteTemplate()
         return;
 
     QFile::remove(abs); // ignore result — the file may already be gone
-    cp.templateInfo = CanvasTemplateInfo{};
+    // Clear the template metadata through the editor (an exact empty value — a carry heuristic
+    // could not express a deliberate clear).
+    Platemaker::Infrastructure::WorkspaceEditor(m_workspace)
+        .setCanvasProfileTemplateInfo(cp.id, CanvasTemplateInfo{});
 
     rebuildTable();
     ui->tableTemplates->selectRow(row);
@@ -294,10 +309,10 @@ void TemplatesDialog::rebuildTable()
     const int previousRow = selectedRow();
 
     ui->tableTemplates->setRowCount(
-        static_cast<int>(m_workspace.canvasProfiles.size()));
+        static_cast<int>(m_workspace.canvasProfiles().size()));
 
-    for (int row = 0; row < static_cast<int>(m_workspace.canvasProfiles.size()); ++row) {
-        const auto& cp = m_workspace.canvasProfiles[static_cast<std::size_t>(row)];
+    for (int row = 0; row < static_cast<int>(m_workspace.canvasProfiles().size()); ++row) {
+        const auto& cp = m_workspace.canvasProfiles()[static_cast<std::size_t>(row)];
         const TemplateStatus status = statusOf(cp, m_workspaceDir);
 
         auto* nameItem = new QTableWidgetItem(QString::fromStdString(cp.name));

@@ -198,14 +198,14 @@ void MainWindow::loadWorkspace(const QString &path)
     }
 
     m_workspacePath = path;
-    m_activeCanvasProfileName = m_workspace.canvasProfiles.empty()
+    m_activeCanvasProfileName = m_workspace.canvasProfiles().empty()
         ? QString{}
-        : QString::fromStdString(m_workspace.canvasProfiles.front().name);
+        : QString::fromStdString(m_workspace.canvasProfiles().front().name);
     // Default the active output profile to the first user profile; if the workspace has none,
     // fall back to a preset (always available from the catalogue) so "active" still means
     // something and rendering has a profile to resolve. Tracked by id (names may repeat).
-    m_activeOutputProfileId = !m_workspace.outputProfiles.empty()
-        ? QString::fromStdString(m_workspace.outputProfiles.front().id)
+    m_activeOutputProfileId = !m_workspace.outputProfiles().empty()
+        ? QString::fromStdString(m_workspace.outputProfiles().front().id)
         : (Platemaker::Models::outputProfilePresets().empty()
               ? QString{}
               : QString::fromStdString(Platemaker::Models::outputProfilePresets().front().id));

@@ -8,7 +8,7 @@
 #include "templatesdialog.h"
 #include "renderworker.h"
 
-#include <platemaker/infrastructure/id_generator/id_generator.hpp>
+#include <platemaker/infrastructure/workspace_editor/workspace_editor.hpp>
 
 #include <QCloseEvent>
 #include <QCollator>
@@ -57,7 +57,7 @@ void MainWindow::onManageCanvasProfiles()
     ManageCanvasProfilesDialog dlg(this);
 
     QList<Platemaker::Models::CanvasProfile> profiles(
-        m_workspace.canvasProfiles.begin(), m_workspace.canvasProfiles.end());
+        m_workspace.canvasProfiles().begin(), m_workspace.canvasProfiles().end());
     dlg.setProfiles(profiles, m_activeCanvasProfileName);
 
     // Quick-generate from the selected profile. The dialog edits copies, so we
@@ -68,12 +68,12 @@ void MainWindow::onManageCanvasProfiles()
         this, [this, workspaceDir](const Platemaker::Models::CanvasProfile& selected) {
             // A brand-new profile created in this dialog has no id yet — it isn't
             // in the workspace, so there is nothing stable to attach the template to.
-            Platemaker::Models::CanvasProfile* live = nullptr;
+            bool exists = false;
             if (!selected.id.empty())
-                for (auto& p : m_workspace.canvasProfiles)
-                    if (p.id == selected.id) { live = &p; break; }
+                for (const auto& p : m_workspace.canvasProfiles())
+                    if (p.id == selected.id) { exists = true; break; }
 
-            if (!live) {
+            if (!exists) {
                 QMessageBox::information(this, tr("Template"),
                     tr("Save the new profile first (close this dialog), then "
                        "generate its template from the Templates menu."));
@@ -88,15 +88,16 @@ void MainWindow::onManageCanvasProfiles()
             if (!TemplatesDialog::confirmOverwrite(this, selected, workspaceDir))
                 return;
 
-            // Render from the dialog's current field values (a copy), then copy
-            // the resulting metadata onto the live profile.
+            // Render from the dialog's current field values (a copy), then write the
+            // resulting template metadata onto the workspace profile through the editor.
             Platemaker::Models::CanvasProfile render = selected;
             QString err;
             if (!TemplatesDialog::generateTemplate(m_workspace, workspaceDir, render, err)) {
                 QMessageBox::critical(this, tr("Template"), err);
                 return;
             }
-            live->templateInfo = render.templateInfo;
+            Platemaker::Infrastructure::WorkspaceEditor(m_workspace)
+                .setCanvasProfileTemplateInfo(selected.id, render.templateInfo);
             QMessageBox::information(this, tr("Template"),
                 tr("Template generated for \"%1\".")
                     .arg(QString::fromStdString(selected.name)));
@@ -104,28 +105,14 @@ void MainWindow::onManageCanvasProfiles()
 
     if (dlg.exec() != QDialog::Accepted) return;
 
-    // Snapshot templateInfo by id — the workspace is its source of truth (the
-    // manage dialog never edits it, and the quick button may have updated it).
-    std::vector<std::pair<std::string, Platemaker::Models::CanvasTemplateInfo>> savedTpl;
-    for (const auto& p : m_workspace.canvasProfiles)
-        if (!p.templateInfo.path.empty())
-            savedTpl.emplace_back(p.id, p.templateInfo);
-
+    // Hand the whole edited palette to the editor: it mints ids for new profiles, deduplicates,
+    // and carries templateInfo from the current profile of the same id (the manage dialog drops
+    // that field on its round trip). This replaces the former snapshot / assign / mint / re-attach
+    // done by hand here.
     const auto result = dlg.profiles();
-    m_workspace.canvasProfiles.assign(result.begin(), result.end());
+    Platemaker::Infrastructure::WorkspaceEditor(m_workspace).replaceCanvasProfiles(
+        std::vector<Platemaker::Models::CanvasProfile>(result.begin(), result.end()));
     m_activeCanvasProfileName = dlg.activeProfileName();
-
-    // Assign IDs to any profiles added without one (dialog doesn't generate them).
-    // Each call sees the list as it stands, so ids minted in the same pass cannot collide.
-    for (auto& p : m_workspace.canvasProfiles) {
-        if (p.id.empty())
-            p.id = Platemaker::Infrastructure::makeUniqueCanvasProfileId(m_workspace.canvasProfiles);
-    }
-
-    // Re-attach template metadata by id (overrides any stale copy carried back).
-    for (auto& p : m_workspace.canvasProfiles)
-        for (const auto& [id, tpl] : savedTpl)
-            if (p.id == id) { p.templateInfo = tpl; break; }
 
     setDirty(true);
 }
@@ -144,7 +131,7 @@ void MainWindow::onNewCanvasProfile()
     auto profile = dlg.profile();
 
     // Ensure the name is unique within the workspace.
-    for (const auto& p : m_workspace.canvasProfiles) {
+    for (const auto& p : m_workspace.canvasProfiles()) {
         if (p.name == profile.name) {
             QMessageBox::warning(this, tr("Duplicate name"),
                 tr("A canvas profile named \"%1\" already exists.")
@@ -153,12 +140,11 @@ void MainWindow::onNewCanvasProfile()
         }
     }
 
-    // Assign a stable id to the new profile and add it to the workspace.
-    profile.id = Platemaker::Infrastructure::makeUniqueCanvasProfileId(m_workspace.canvasProfiles);
-    m_workspace.canvasProfiles.push_back(profile);
+    // The editor mints a stable id and appends it to the workspace palette.
+    Platemaker::Infrastructure::WorkspaceEditor(m_workspace).addCanvasProfile(profile);
 
     // If this is the first profile, make it the active one.
-    if (m_workspace.canvasProfiles.size() == 1)
+    if (m_workspace.canvasProfiles().size() == 1)
         m_activeCanvasProfileName = QString::fromStdString(profile.name);
 
     setDirty(true);
@@ -176,11 +162,14 @@ void MainWindow::onEditActiveCanvasProfile()
     // and we only write the results back to the workspace if the user clicks Accept. 
     // The dialog preserves templateInfo by id, so we can snapshot it before 
     // the dialog and re-attach it afterward (the dialog never edits it).
-    const auto it = std::find_if(
-        m_workspace.canvasProfiles.begin(), m_workspace.canvasProfiles.end(),
+    // Edit a copy of the palette, then hand it back through the editor (it preserves the ids and
+    // carries templateInfo). The vectors are private, so we cannot mutate a live profile in place.
+    auto profiles = std::vector<Platemaker::Models::CanvasProfile>(
+        m_workspace.canvasProfiles().begin(), m_workspace.canvasProfiles().end());
+    const auto it = std::find_if(profiles.begin(), profiles.end(),
         [&](const auto& p){ return p.name == m_activeCanvasProfileName.toStdString(); });
 
-    if (it == m_workspace.canvasProfiles.end()) {
+    if (it == profiles.end()) {
         QMessageBox::information(this, tr("No Active Profile"),
             tr("No active canvas profile. Use Canvas Profiles → Manage to create one."));
         return;
@@ -203,6 +192,8 @@ void MainWindow::onEditActiveCanvasProfile()
     if (m_activeCanvasProfileName == QString::fromStdString(oldName))
         m_activeCanvasProfileName = QString::fromStdString(it->name);
 
+    Platemaker::Infrastructure::WorkspaceEditor(m_workspace).replaceCanvasProfiles(std::move(profiles));
+
     setDirty(true);
 }
 // ---------------------------------------------------------------------------
@@ -223,7 +214,7 @@ void MainWindow::onManageOutputProfiles()
     // read-only in the dialog (Edit/Delete disabled) and never persisted; customising one is a
     // Duplicate, which clears its id and yields an ordinary user profile.
     QList<Platemaker::Models::OutputProfile> profiles(
-        m_workspace.outputProfiles.begin(), m_workspace.outputProfiles.end());
+        m_workspace.outputProfiles().begin(), m_workspace.outputProfiles().end());
     for (const auto& preset : Platemaker::Models::outputProfilePresets())
         profiles.append(preset);
     dlg.setProfiles(profiles, m_activeOutputProfileId);
@@ -231,20 +222,13 @@ void MainWindow::onManageOutputProfiles()
     // The dialog edits copies, and we only write the results back to the workspace if the user clicks Accept.
     if (dlg.exec() != QDialog::Accepted) return;
 
-    // Persist only the user's own profiles — presets live in code and must stay out of the
-    // workspace (the serializer strips them anyway; keeping them out of the model avoids a
-    // duplicated listing until the next load).
-    m_workspace.outputProfiles.clear();
-    for (const auto& p : dlg.profiles())
-        if (Platemaker::Models::outputPresetDefById(p.id) == nullptr)
-            m_workspace.outputProfiles.push_back(p);
+    // Hand the edited list to the editor: it drops any preset (presets live in code and are never
+    // persisted), mints ids for new profiles, and deduplicates. Replaces the former clear / filter /
+    // mint done by hand here.
+    const auto dlgProfiles = dlg.profiles();
+    Platemaker::Infrastructure::WorkspaceEditor(m_workspace).replaceOutputProfiles(
+        std::vector<Platemaker::Models::OutputProfile>(dlgProfiles.begin(), dlgProfiles.end()));
     m_activeOutputProfileId = dlg.activeProfileId();
-
-    // Assign IDs to any profiles added without one (the dialog doesn't generate them; a
-    // duplicated preset also arrives with an empty id). An empty id breaks per-project selection.
-    for (auto& p : m_workspace.outputProfiles)
-        if (p.id.empty())
-            p.id = Platemaker::Infrastructure::makeUniqueOutputProfileId(m_workspace.outputProfiles);
 
     setDirty(true);
 }
@@ -263,7 +247,7 @@ void MainWindow::onNewOutputProfile()
     auto profile = dlg.profile();
 
     // Ensure the name is unique within the workspace.
-    for (const auto& p : m_workspace.outputProfiles) {
+    for (const auto& p : m_workspace.outputProfiles()) {
         if (p.name == profile.name) {
             QMessageBox::warning(this, tr("Duplicate name"),
                 tr("An output profile named \"%1\" already exists.")
@@ -272,12 +256,12 @@ void MainWindow::onNewOutputProfile()
         }
     }
 
-    // Assign a stable id to the new profile and add it to the workspace.
-    profile.id = Platemaker::Infrastructure::makeUniqueOutputProfileId(m_workspace.outputProfiles);
-    m_workspace.outputProfiles.push_back(profile);
+    // The editor mints a stable user id (never a preset id) and appends it.
+    const std::string newId =
+        Platemaker::Infrastructure::WorkspaceEditor(m_workspace).addOutputProfile(profile);
 
-    if (m_workspace.outputProfiles.size() == 1)
-        m_activeOutputProfileId = QString::fromStdString(profile.id);
+    if (m_workspace.outputProfiles().size() == 1)
+        m_activeOutputProfileId = QString::fromStdString(newId);
 
     setDirty(true);
 }
@@ -309,11 +293,13 @@ void MainWindow::onEditActiveOutputProfile()
         return;
     }
 
-    const auto it = std::find_if(
-        m_workspace.outputProfiles.begin(), m_workspace.outputProfiles.end(),
+    // Edit a copy of the palette, then hand it back through the editor (vectors are private).
+    auto profiles = std::vector<Platemaker::Models::OutputProfile>(
+        m_workspace.outputProfiles().begin(), m_workspace.outputProfiles().end());
+    const auto it = std::find_if(profiles.begin(), profiles.end(),
         [&](const auto& p){ return p.id == activeId; });
 
-    if (it == m_workspace.outputProfiles.end()) {
+    if (it == profiles.end()) {
         QMessageBox::information(this, tr("No Active Profile"),
             tr("No active output profile. Use Output → Manage to create one."));
         return;
@@ -325,15 +311,13 @@ void MainWindow::onEditActiveOutputProfile()
 
     // OutputProfileDialog returns a profile without an id — preserve the stable id so projects
     // that reference this profile keep working. The id is unchanged, so the active profile
-    // (tracked by id) needs no update even if the name changed.
+    // (tracked by id) needs no update even if the name changed. (An empty id would be minted by
+    // replaceOutputProfiles below, but activeId is non-empty here by construction.)
     const std::string savedId = it->id;
     *it = dlg.profile();
-    // The fallback used to derive the id from the name ("op-" + name) — a second identity
-    // scheme the library dropped in 0.2.1, and one that collided whenever two profiles
-    // shared a name. Mint a real one instead.
-    it->id = savedId.empty()
-        ? Platemaker::Infrastructure::makeUniqueOutputProfileId(m_workspace.outputProfiles)
-        : savedId;
+    it->id = savedId;
+
+    Platemaker::Infrastructure::WorkspaceEditor(m_workspace).replaceOutputProfiles(std::move(profiles));
 
     setDirty(true);
 }

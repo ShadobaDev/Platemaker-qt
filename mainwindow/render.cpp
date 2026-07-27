@@ -56,9 +56,9 @@ Platemaker::Models::OutputProfile MainWindow::resolveOutputProfileFor(
     // profile is always available because presets live in code.
     if (auto op = Platemaker::Models::resolveOutputProfile(m_workspace, project.outputProfileId))
         return *op;
-    return m_workspace.outputProfiles.empty()
+    return m_workspace.outputProfiles().empty()
         ? Platemaker::Models::webtoonStandardPreset()
-        : m_workspace.outputProfiles.front();
+        : m_workspace.outputProfiles().front();
 }
 
 void MainWindow::setActionStatus(const QString &projectName, const QString &action)
@@ -148,7 +148,7 @@ bool MainWindow::startRender(int projectIndex)
 
     // Refresh file statuses against disk and against the canvas profiles in effect
     // (hashes inputs — may briefly pause on huge projects; see TODO).
-    project.sanitize(m_workspace.canvasProfiles);
+    project.sanitize(m_workspace.canvasProfiles());
     if (auto *pw = projectWidget(projectIndex)) pw->populate();
 
     // Detect an output-invalidating configuration change (e.g. PNG→JPEG, slice
@@ -179,7 +179,7 @@ bool MainWindow::startRender(int projectIndex)
     // outputProfileSignature() covers the output profile only. Without this, changing
     // margins left the project reporting itself up to date while its outputs were stale.
     const auto canvasChange =
-        project.detectCanvasConfigChange(m_workspace.canvasProfiles);
+        project.detectCanvasConfigChange(m_workspace.canvasProfiles());
 
     const bool configChanged =
         hasOutputs && (sigMismatch || formatMismatch || canvasChange.any());
@@ -282,7 +282,7 @@ bool MainWindow::startRender(int projectIndex)
     auto *worker = new RenderWorker(
         project.getInputImages(),          // copy
         resolveOutputProfileFor(project),  // copy
-        m_workspace.canvasProfiles,        // copy
+        m_workspace.canvasProfiles(),      // copy
         project.canvasProfileIds,          // copy
         outDir.toStdString(),
         m_cancelToken);
@@ -411,7 +411,7 @@ void MainWindow::onRenderFinished()
                 // profile is edited, so no hash would ever notice.
                 project.applyProcessingResults(
                     outcome.records, outcome.appliedProfiles,
-                    m_workspace.canvasProfiles,
+                    m_workspace.canvasProfiles(),
                     project.getOutputDirectory(), ts.toStdString());
 
                 // Delete outputs the new configuration no longer produces (e.g. the

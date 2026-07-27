@@ -81,13 +81,6 @@ private:
     void refreshFormatControls();          //!< Reflects the selected output profile in m_formatOptions (or disables it if none selected).
 
     /**
-     * @brief Returns the project's currently selected output profile.
-     * @return A mutable pointer to the output profile, or nullptr if none is selected
-     * or the selected ID no longer matches any workspace profile.
-     */
-    [[nodiscard]] Platemaker::Models::OutputProfile* selectedOutputProfile() const;
-
-    /**
      * @brief Checks whether the project's existing outputs are stale relative to
      * the current output configuration (format/size/quality changed since they
      * were rendered). Drives the "Out of sync" badge shown after Refresh.

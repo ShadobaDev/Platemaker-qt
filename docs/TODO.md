@@ -225,14 +225,20 @@ New, backward-compatible features. Several are gated on a lib version, noted in 
 
 - [ ] **Action log** should report a summary, how manu inputs, how many slices in what time where processed and when. Output cumulative size (MB or KB) would also be nice.
 
-- [ ] **Drop direct `m_workspace` mutations once the lib exposes `WorkspaceEditor`** (lands
-  with lib 0.3.0 — see the *WorkspaceEditor* entry in the lib TODO for the rationale and the
-  facade shape). The GUI currently reaches into the workspace struct and re-establishes the
-  library's invariants by hand — minting profile ids, deduping, preserving `templateInfo` —
-  so an edit made in-session is not validated the way a loaded file is. Route these through
-  the facade instead.
+- [x] **Drop direct `m_workspace` mutations — adopt `Infrastructure::WorkspaceEditor`** ✅ **DONE (1.2.0, against lib 0.3.0).**
+  The profile palettes are now private in the lib (`ws.canvasProfiles()` / `outputProfiles()` are
+  read-only); every edit routes through `WorkspaceEditor`. Bulk edits go through
+  `replaceCanvasProfiles` / `replaceOutputProfiles` (they mint ids, dedup, carry `templateInfo`, strip
+  presets), single-profile edits through a **copy → mutate → replace** pattern (the palette can't be
+  mutated in place), links through `add`/`removeCanvasProfileToProject`, and the project's output
+  profile through `setProjectOutputProfile`. Template generation/deletion uses the lib's new
+  `setCanvasProfileTemplateInfo(id, info)` (an exact set/clear, which the `replace*` carry heuristic
+  cannot express). The hand-rolled snapshot/mint/reattach in `profiles.cpp` is gone. Files touched:
+  `mainwindow/{profiles,mainwindow,render,renderbatch,templates}.cpp`,
+  `widgets/project/{input,output,project}.cpp` (+ `project.h`),
+  `widgets/templatesdialog/templatesdialog.cpp`.
 
-  Call-site map to rewrite:
+  Original call-site map (for reference — all rewritten):
   - **`mainwindow/profiles.cpp`** — wholesale `canvasProfiles.assign()` + id minting at
     `115`/`120-122`, output twin at `230`/`235-237`, new-profile minting `157`/`266`, edit
     fallback `323`, and the `templateInfo` snapshot/reattach at `125-128` →

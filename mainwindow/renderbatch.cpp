@@ -185,7 +185,7 @@ void MainWindow::warnIfCanvasConfigStale()
     // into a technical one the user has no decision to make about.
     QStringList affected;
     for (const auto &project : m_workspace.projectItems)
-        if (project.detectCanvasConfigChange(m_workspace.canvasProfiles).any())
+        if (project.detectCanvasConfigChange(m_workspace.canvasProfiles()).any())
             affected << QString::fromStdString(project.name);
 
     if (affected.isEmpty())

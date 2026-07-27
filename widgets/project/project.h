@@ -47,6 +47,7 @@ public:
     void setOutputTile(int index, const QString& name, const QString& fullPath); //!< live positional update during a render — creates or replaces the tile at row \p index
     void setInputTileStatus(const QString& filePath, Platemaker::Models::FileStatus status); //!< live per-input update during a render — repaints the input tile matching \p filePath
     void refreshOutputTiles();                      //!< rebuild from getOutputImages()
+    void refreshProfileViews();                     //!< rebuilds the palette-derived views (canvas list, output combo, format controls) after a workspace-level profile edit — see MainWindow::workspaceProfilesChanged
 
 signals:
     void projectModified();                         //!< emitted when the project is modified (inputs, outputs, profiles, etc.)

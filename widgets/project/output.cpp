@@ -276,12 +276,25 @@ bool Project::outputsConfigStale() const
 
 void Project::onRefreshFiles()
 {
-    // Re-scan inputs + outputs against disk and repaint tiles. Statuses are
-    // transient (recomputed on demand), so this does not mark the workspace
-    // dirty; an actual render does.
+    // "Refresh files" re-checks the OUTPUT files against disk (and re-applies the output-profile
+    // staleness overlay via populate()). It must NOT re-derive input statuses: those are owned by
+    // the last render (Processed / Skipped), and sanitize() recomputes inputs from disk — which has
+    // no notion of "skipped", so it would silently revert a skipped page to Processed/Pending.
+    // sanitize() is the shared routine that also refreshes outputs + config staleness, so we run it
+    // but preserve and restore the input statuses around it, leaving inputs untouched by a refresh.
     auto& project = m_workspace.projectItems[m_projectIndex];
-    // Also flags pages whose canvas profile changed since their render.
+
+    auto& inputs = project.getInputImages();
+    std::vector<FileStatus> savedInputStatus;
+    savedInputStatus.reserve(inputs.size());
+    for (const auto& inf : inputs)
+        savedInputStatus.push_back(inf.status);
+
+    // Also flags outputs whose canvas profile changed since their render.
     project.sanitize(m_workspace.canvasProfiles());
+
+    for (std::size_t i = 0; i < inputs.size(); ++i)
+        inputs[i].status = savedInputStatus[i];
 
     // The output-profile staleness overlay (Done → Desynchronized) is applied by
     // refreshOutputTiles(), reached via populate(), so it no longer needs repeating here — and

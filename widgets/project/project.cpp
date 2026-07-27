@@ -146,3 +146,14 @@ void Project::populate()
     refreshOutputDirectoryDisplay();
     refreshOutputTiles();
 }
+
+void Project::refreshProfileViews()
+{
+    // Rebuild only the views derived from the workspace's profile palettes, after a workspace-level
+    // profile edit (Manage/New/Edit, done in MainWindow). Deliberately a subset of populate(): it
+    // touches neither the input/output tiles (no thumbnail churn) nor sanitize() (so it can't disturb
+    // the live render statuses or re-scan inputs), which is exactly what a palette change needs.
+    refreshCanvasProfilesList();
+    refreshOutputProfileCombo();
+    refreshFormatControls();
+}

@@ -206,6 +206,11 @@ void MainWindow::openProjectDock(int projectIndex)
     });
     connect(projectWidget, &Project::renderToggleRequested,
             this, &MainWindow::onRenderToggle);
+    // Keep this dock's palette-derived views (output combo, assigned-canvas list) in sync with
+    // workspace-level profile edits made elsewhere. The connection is auto-removed when the widget
+    // is destroyed (dock closed), so no manual bookkeeping is needed.
+    connect(this, &MainWindow::workspaceProfilesChanged,
+            projectWidget, &Project::refreshProfileViews);
     newDock->setWidget(projectWidget);
 
     // Track which project is "current" for F5 / Process menu (the raised dock).

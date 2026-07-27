@@ -115,6 +115,7 @@ void MainWindow::onManageCanvasProfiles()
     m_activeCanvasProfileName = dlg.activeProfileName();
 
     setDirty(true);
+    emit workspaceProfilesChanged();
 }
 void MainWindow::onNewCanvasProfile()
 {
@@ -148,6 +149,7 @@ void MainWindow::onNewCanvasProfile()
         m_activeCanvasProfileName = QString::fromStdString(profile.name);
 
     setDirty(true);
+    emit workspaceProfilesChanged();
 }
 
 void MainWindow::onEditActiveCanvasProfile()
@@ -195,6 +197,7 @@ void MainWindow::onEditActiveCanvasProfile()
     Platemaker::Infrastructure::WorkspaceEditor(m_workspace).replaceCanvasProfiles(std::move(profiles));
 
     setDirty(true);
+    emit workspaceProfilesChanged();
 }
 // ---------------------------------------------------------------------------
 // Output profile slots
@@ -231,6 +234,7 @@ void MainWindow::onManageOutputProfiles()
     m_activeOutputProfileId = dlg.activeProfileId();
 
     setDirty(true);
+    emit workspaceProfilesChanged();
 }
 
 void MainWindow::onNewOutputProfile()
@@ -264,6 +268,7 @@ void MainWindow::onNewOutputProfile()
         m_activeOutputProfileId = QString::fromStdString(newId);
 
     setDirty(true);
+    emit workspaceProfilesChanged();
 }
 
 void MainWindow::onEditActiveOutputProfile()
@@ -320,4 +325,5 @@ void MainWindow::onEditActiveOutputProfile()
     Platemaker::Infrastructure::WorkspaceEditor(m_workspace).replaceOutputProfiles(std::move(profiles));
 
     setDirty(true);
+    emit workspaceProfilesChanged();
 }

@@ -43,6 +43,13 @@ protected:
      */
     void closeEvent(QCloseEvent *event) override;
 
+signals:
+    //! Emitted after a workspace-level profile edit (canvas/output Manage/New/Edit). Every open
+    //! Project dock connects this to Project::refreshProfileViews() so their palette-derived views
+    //! (output combo, assigned-canvas list, format controls) update at once, without a manual
+    //! iteration over the open docks.
+    void workspaceProfilesChanged();
+
 private slots:
     // Workspace menu
     void onOpenWorkspace();     //!< Opens a workspace file (JSON) from disk, replacing the current workspace.

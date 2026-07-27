@@ -168,28 +168,25 @@ the in-progress version.
   are still cleaned by the finish `populate()` (a live trim via `ProcessingProgress::sliceTotal` remains a
   possible refinement).
 
-- [ ] **Live input tile status during a render** — input tiles only update when the render finishes,
-  while output tiles update live per slice. This cannot be fixed in the GUI: `ProcessingPipeline::run()`
-  reports `ProgressFn` (per slice), `LogFn` and `SliceSavedFn`, but has **no per-input callback** — and
-  inputs are all consumed in phase 1 (strip building) before the first slice exists, so there is nothing
-  to hook.
+- [x] **Live input tile status during a render** ✅ **DONE (1.2.0, against lib 0.3.0).** Input tiles
+  now update live in phase 1 (strip building), so pages go green as they are appended and violet
+  **Skipped** when no canvas profile matches them — instead of all staying Pending until the run ends.
 
-  The lib now provides the channel: **`ProcessingCallbacks::onInput(InputResult)`** (lib 0.3.0) fires
-  once per input — appended (`InputStatus::Appended`) or skipped with a reason (missing / no matching
-  profile / a profile matches but isn't linked, with the candidate ids / load error). **Remaining GUI
-  work:** re-emit it as a `RenderWorker` signal, refresh that input's tile, and add a `FileStatus` value
-  for "skipped / processed without a profile" (new enumerator or flag). Visible effect: inputs go green
-  quickly at the start, then slices stream in.
+  Wiring: `RenderWorker` re-emits `ProcessingCallbacks::onInput(InputResult)` as
+  `inputStatus(path, Core::InputStatus)`; `MainWindow::onRenderInput` maps it to a `FileStatus`
+  (`Appended→Processed`, `SkippedMissing→Missing`, the other skips→`Skipped`) and calls
+  `Project::setInputTileStatus(path, status)`, which repaints the matching tile via the new
+  `ImageTile::setStatus()` (no thumbnail reload). The lib added **`FileStatus::Skipped`**, and
+  `applyProcessingResults()` now marks `outcome.skippedPages` as `Skipped` in the model — so the finish
+  `populate()` keeps skipped pages skipped instead of flipping them green (the old "skipped pages
+  silently go green" lie). Files: `widgets/renderworker/*`, `mainwindow/{render.cpp,mainwindow.h}`,
+  `widgets/project/{input.cpp,project.h}`, `widgets/imagetile/*`.
 
-  **Lib API ready (0.3.0)** — `run()`'s callbacks are grouped into a `ProcessingCallbacks` struct
-  (`onProgress` / `onLog` / `onSliceSaved` / `onInput` / `onSlicingStarted` / `onSliceSkipped`), the same
-  refactor that gave the output-positional entry above its slice index. The output feature is done; this
-  one just needs its GUI wiring.
-
-  Caveat to expect: after a cancel, `populate()` pulls the inputs back to their model status
-  (Modified / out-of-sync), because an unfinished run must not claim them as processed. So inputs go
-  green during the run and amber again if it is cancelled — correct, but worth knowing before it looks
-  like a bug.
+  Caveat (as expected): after a **cancel**, `populate()` pulls inputs back to their model status
+  (`applyPartialResults` leaves inputs untouched), so they go green during the run and revert if it is
+  cancelled. And a Skipped status only lasts until the next explicit `sanitize()` (open / Refresh),
+  which is not profile-aware and re-derives an unchanged file as Processed — a known limitation
+  (making `sanitize()` profile-aware is a possible follow-up).
 
   Rejected alternative: marking every input green once the first slice arrives. It would need no lib
   change but would lie about pages skipped for having no matching canvas profile — those are only known

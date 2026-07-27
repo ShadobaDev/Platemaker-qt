@@ -42,6 +42,13 @@ void RenderWorker::process()
                         QString::fromStdString(s.name),
                         QString::fromStdString(s.fullPath));
     };
+    // Fired once per input during phase 1 (before any slice exists) — appended to the strip, or
+    // skipped with a reason. Carries the path + Core::InputStatus so the matching input tile can
+    // update live (green when used, violet "Skipped" when no profile matched, etc.).
+    callbacks.onInput = [this](const InputResult& r) {
+        emit inputStatus(QString::fromStdString(r.inputPath),
+                         static_cast<int>(r.status));
+    };
 
     // Runs the whole render synchronously on this thread (blocks until every slice is processed
     // or m_cancel is triggered). Restricts to m_onlySlices for a partial re-render; nullptr = all.

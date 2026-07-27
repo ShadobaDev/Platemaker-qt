@@ -297,6 +297,7 @@ bool MainWindow::startRender(int projectIndex)
     connect(worker, &RenderWorker::progress,   this,   &MainWindow::onRenderProgress);
     connect(worker, &RenderWorker::log,        this,   &MainWindow::onRenderLog);
     connect(worker, &RenderWorker::sliceSaved, this,   &MainWindow::onRenderSliceSaved);
+    connect(worker, &RenderWorker::inputStatus,this,   &MainWindow::onRenderInput);
     connect(worker, &RenderWorker::finished,   this,   &MainWindow::onRenderFinished);
     connect(worker, &RenderWorker::finished,   thread, &QThread::quit);
     connect(thread, &QThread::finished,        worker, &QObject::deleteLater);
@@ -380,6 +381,29 @@ void MainWindow::onRenderSliceSaved(int index, QString name, QString fullPath)
         pw->setOutputTile(index, name, fullPath);
 }
 
+void MainWindow::onRenderInput(QString path, int status)
+{
+    // Live per-input feedback during phase 1 (strip building), before any slice exists. Map the
+    // lib's Core::InputStatus to the tile's FileStatus: appended pages go green immediately, and a
+    // page the render leaves out (no matching/linked canvas profile, or a load error) shows as
+    // Skipped (violet) rather than staying Pending until the run ends. The finish populate() keeps
+    // these — applyProcessingResults() marks the skipped inputs Skipped in the model too.
+    using Platemaker::Core::InputStatus;
+    using Platemaker::Models::FileStatus;
+
+    FileStatus fs = FileStatus::Processed;
+    switch (static_cast<InputStatus>(status)) {
+        case InputStatus::Appended:                fs = FileStatus::Processed; break;
+        case InputStatus::SkippedMissing:          fs = FileStatus::Missing;   break;
+        case InputStatus::SkippedNoProfile:        // fallthrough
+        case InputStatus::SkippedProfileNotLinked: // fallthrough
+        case InputStatus::SkippedError:            fs = FileStatus::Skipped;   break;
+    }
+
+    if (auto *pw = projectWidget(m_renderProjectIndex))
+        pw->setInputTileStatus(path, fs);
+}
+
 void MainWindow::onRenderFinished()
 {
     // snapshot before m_renderWorker is nulled below
@@ -410,7 +434,7 @@ void MainWindow::onRenderFinished()
                 // detectable — neither the input nor the output file changes when a
                 // profile is edited, so no hash would ever notice.
                 project.applyProcessingResults(
-                    outcome.records, outcome.appliedProfiles,
+                    outcome.records, outcome.appliedProfiles, outcome.skippedPages,
                     m_workspace.canvasProfiles(),
                     project.getOutputDirectory(), ts.toStdString());
 

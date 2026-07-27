@@ -53,6 +53,23 @@ void Project::addImageTile(const InputFile& file)
     ui->listInputImageTile->setItemWidget(listItem, tile);
 }
 
+void Project::setInputTileStatus(const QString& filePath, FileStatus status)
+{
+    // Live per-input update during a render: find the tile whose stored path matches and repaint
+    // just its status label + border (no thumbnail reload). Each tile keeps its file path in the
+    // list item's UserRole (see addImageTile). Matched by path because inputs are reported by path
+    // in phase 1, before any slice — there is no positional index to key on as there is for outputs.
+    auto* list = ui->listInputImageTile;
+    for (int i = 0; i < list->count(); ++i) {
+        QListWidgetItem* item = list->item(i);
+        if (item->data(Qt::UserRole).toString() != filePath)
+            continue;
+        if (auto* tile = qobject_cast<ImageTile*>(list->itemWidget(item)))
+            tile->setStatus(status);
+        return;
+    }
+}
+
 void Project::refreshCanvasProfilesList()
 {
     // Clear the current list of canvas profiles in the UI.

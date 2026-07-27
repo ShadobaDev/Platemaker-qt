@@ -56,8 +56,17 @@ void ImageTile::setFileInfo(const QString& filePath,
 {
     m_filePath = filePath;
 
-    const QString filename = QFileInfo(filePath).fileName();
-    ui->imageLabel->setText(filename);
+    ui->imageLabel->setText(QFileInfo(filePath).fileName());
+
+    setStatus(status);
+
+    if (!cacheDir.isEmpty())
+        loadThumbnailAsync(cacheDir);
+}
+
+void ImageTile::setStatus(FileStatus status)
+{
+    const QString filename = QFileInfo(m_filePath).fileName();
 
     QString statusText;
     switch (status) {
@@ -67,13 +76,11 @@ void ImageTile::setFileInfo(const QString& filePath,
         case FileStatus::Missing:        statusText = "Missing";       break;
         case FileStatus::Desynchronized: statusText = "Out of sync";   break;
         case FileStatus::Done:           statusText = "Done";          break;
+        case FileStatus::Skipped:        statusText = "Skipped";       break;
     }
     ui->textBrowser->setText(filename + "\n" + statusText);
 
     updateStatusStyle(status);
-
-    if (!cacheDir.isEmpty())
-        loadThumbnailAsync(cacheDir);
 }
 
 void ImageTile::setThumbnail(const QPixmap& pixmap)
@@ -95,6 +102,7 @@ void ImageTile::updateStatusStyle(FileStatus status)
         case FileStatus::Modified:      color = "#f97316"; break; // orange
         case FileStatus::Missing:       color = "#ef4444"; break; // red
         case FileStatus::Desynchronized:color = "#eab308"; break; // amber — out of sync with config
+        case FileStatus::Skipped:       color = "#a855f7"; break; // violet — render left this page out
         default:                        color = "#6b7280"; break; // gray (Pending)
     }
     ui->frame->setStyleSheet(

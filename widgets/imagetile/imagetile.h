@@ -35,6 +35,16 @@ public:
     void setThumbnail(const QPixmap& pixmap);   //!< Sets the thumbnail image for the tile. The pixmap is scaled to fit within the fixed label area while maintaining aspect ratio.
 
     /**
+     * @brief Updates only the status label + colour, leaving the thumbnail untouched.
+     *
+     * Used for live status updates during a render (e.g. an input goes green as it is appended to
+     * the strip, or amber "Skipped" when no canvas profile matches it), where reloading the
+     * thumbnail would be wasteful. \c setFileInfo() routes through this too.
+     * @param status The new file status.
+     */
+    void setStatus(Platemaker::Models::FileStatus status);
+
+    /**
      * @brief Sets the name of the image tile.
      * UNUSED. Legacy code may have used this to set the label text, but now it is primarily for display purposes. The name is typically derived from the file path.
      * @param name The name to set.

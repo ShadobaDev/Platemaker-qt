@@ -121,6 +121,14 @@ private slots:
     void onRenderSliceSaved(int index, QString name, QString fullPath);
 
     /**
+     * @brief Called once per input during a render (phase 1), to update its tile live.
+     * @param path The input file's absolute path.
+     * @param status A Core::InputStatus value (appended / skipped-with-reason), mapped to a
+     *               FileStatus for the tile.
+     */
+    void onRenderInput(QString path, int status);
+
+    /**
      * @brief Called when the rendering process has finished.
      * This is called by the RenderWorker to notify the MainWindow that rendering has completed.
      */

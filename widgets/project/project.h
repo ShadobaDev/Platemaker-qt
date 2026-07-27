@@ -45,6 +45,7 @@ public:
     // --- render UI (driven by MainWindow, which owns the render state) ---
     void setRendering(bool rendering);              //!<  flips Render⇄Stop + disables output controls
     void setOutputTile(int index, const QString& name, const QString& fullPath); //!< live positional update during a render — creates or replaces the tile at row \p index
+    void setInputTileStatus(const QString& filePath, Platemaker::Models::FileStatus status); //!< live per-input update during a render — repaints the input tile matching \p filePath
     void refreshOutputTiles();                      //!< rebuild from getOutputImages()
 
 signals:

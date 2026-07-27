@@ -67,6 +67,7 @@ signals:
     void progress(int done, int total, QString sliceName);  //!< Emitted as each slice completes; \p done / \p total are slice counts, \p sliceName the slice just finished.
     void log(int level, QString message);                   //!< Emitted for pipeline log messages; \p level is a ProcessingLogLevel value.
     void sliceSaved(int index, QString name, QString fullPath); //!< Emitted right after a slice is written; \p index is the 0-based output row, for live positional output-tile updates.
+    void inputStatus(QString path, int status);             //!< Emitted once per input during phase 1; \p status is a Core::InputStatus value, for live input-tile updates.
     void finished();                                        //!< Emitted when the run completes (success, failure, or cancellation); outcome() is valid at this point.
 
 private:

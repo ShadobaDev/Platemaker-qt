@@ -6,7 +6,7 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>836</width>
+    <width>1136</width>
     <height>553</height>
    </rect>
   </property>
@@ -83,7 +83,7 @@ QTabWidget QTabBar::close-button {
     <rect>
      <x>0</x>
      <y>0</y>
-     <width>836</width>
+     <width>1136</width>
      <height>17</height>
     </rect>
    </property>
@@ -259,6 +259,12 @@ QTabWidget QTabBar::close-button {
    </widget>
   </widget>
   <widget class="QDockWidget" name="dockWidgetWorkspace">
+   <property name="minimumSize">
+    <size>
+     <width>800</width>
+     <height>514</height>
+    </size>
+   </property>
    <property name="windowTitle">
     <string>Workspace</string>
    </property>

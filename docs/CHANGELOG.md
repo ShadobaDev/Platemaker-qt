@@ -57,6 +57,13 @@ with the profile-editing adoption.)
 
 ### Fixed
 
+- **Input tile ▲/▼ reorder buttons work again.** The move-up/-down arrows on an input tile did
+  nothing (only drag-and-drop reordered). The tile marked its display areas
+  `WA_TransparentForMouseEvents` so clicks fall through to start a drag, but the set included the
+  buttons' ancestor container — and Qt hit-testing skips a transparent widget's whole subtree, so the
+  buttons never received the click. Now only the leaf display widgets are transparent; the buttons are
+  clickable and drag still starts from anywhere on the tile (the plain container widgets ignore the
+  press and it propagates to the list)
 - **A project with skipped pages no longer re-renders on every open, and skipped tiles survive a
   reopen.** Reopening a project whose outputs were all Done used to always trigger a render, and the
   violet "Skipped" input tiles reverted to green/grey — because the lib's `sanitize()` recomputed input

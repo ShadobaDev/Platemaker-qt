@@ -22,13 +22,18 @@ ImageTile::ImageTile(QWidget *parent)
     ui->imageLabel->setAlignment(Qt::AlignCenter);
     ui->imageLabel->setScaledContents(false);
 
-    // Let mouse presses on the display areas fall through to the QListWidget
-    // viewport so it can start a drag (the tile is set via setItemWidget, which
-    // otherwise swallows the press). The buttons stay interactive.
-    for (QWidget* w : {static_cast<QWidget*>(ui->frame),
-                       static_cast<QWidget*>(ui->imageLabel),
-                       static_cast<QWidget*>(ui->textBrowser),
-                       static_cast<QWidget*>(ui->widget)}) {
+    // Let mouse presses on the passive display areas fall through to the QListWidget viewport so it
+    // can start a drag (the tile is set via setItemWidget, which otherwise swallows the press) —
+    // WITHOUT disabling the ▲/▼ move buttons.
+    //
+    // Only the leaf display widgets get WA_TransparentForMouseEvents. A transparent widget hides its
+    // whole subtree from hit-testing (QWidget::childAt skips it and never descends), so the buttons'
+    // ancestors — `frame` and `widget` — must NOT be transparent, or the buttons would be dead
+    // (they are grandchildren of `frame`). Presses that land on `frame` or the button container are
+    // ignored by those plain widgets and propagate up to the list viewport, so the drag still starts
+    // from anywhere on the tile; presses on the buttons reach them normally.
+    for (QWidget* w : {static_cast<QWidget*>(ui->imageLabel),
+                       static_cast<QWidget*>(ui->textBrowser)}) {
         w->setAttribute(Qt::WA_TransparentForMouseEvents);
     }
 

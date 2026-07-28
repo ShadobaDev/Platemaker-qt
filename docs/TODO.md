@@ -25,29 +25,26 @@ the lib), so per the cascade the pending patch bucket re-derives to 1.2.1 and th
 
 Bug fixes, cosmetics and internal cleanups — no new capability, no change to an existing workflow.
 
-- [ ] **Input tile ▲/▼ reorder buttons do nothing** — clicking a tile's up or down arrow has
-  no effect; only drag-and-drop reordering works. Not a wiring problem: the buttons emit
-  correctly (`widgets/imagetile/imagetile.cpp:35-40` → `moveUpRequested`/`moveDownRequested`),
-  the Project slots are connected (`widgets/project/input.cpp:46-47`), and `moveByOrder()`
-  (`input.cpp`) swaps the `order` fields correctly.
+- [x] **Input tile ▲/▼ reorder buttons do nothing** — ✅ **Fixed.** Clicking a tile's up/down
+  arrow had no effect; only drag-and-drop worked. Wiring was fine (`imagetile.cpp` emits
+  `moveUpRequested`/`moveDownRequested`, the Project slots are connected, `moveByOrder()` swaps the
+  `order` fields).
 
-  **Cause: the buttons never receive the click.** `imagetile.cpp:28-33` sets
-  `Qt::WA_TransparentForMouseEvents` on a list of widgets so mouse presses on the display area
-  fall through to the `QListWidget` viewport and can start a drag. That list includes
-  **`ui->widget`**, and per the `.ui` `ui->widget` is the *container that holds both move
-  buttons* (`widget → horizontalLayout_2 → verticalLayoutMoveButtons → pushButtonMoveUp` /
-  `pushButtonMoveDown`). The attribute disables mouse delivery to the widget **and its
-  children**, so the buttons inside it are dead — directly contradicting the code comment on
-  `imagetile.cpp:27` ("The buttons stay interactive"). Drag-and-drop works precisely *because*
-  the fall-through it relies on is what kills the buttons.
+  **Cause: the buttons never received the click.** The tile set `Qt::WA_TransparentForMouseEvents`
+  on `{frame, imageLabel, textBrowser, widget}` so presses fall through to the `QListWidget` viewport
+  to start a drag. Per the `.ui` the buttons are **grandchildren of `frame`**
+  (`frame → … → widget → … → pushButtonMoveUp`/`Down`). `QWidget::childAt` **skips a transparent
+  widget together with its whole subtree** (it never descends into it), so a transparent ancestor
+  makes everything below it unhittable — the buttons were dead.
 
-  **Fix:** exclude `ui->widget` from the transparent-for-mouse set — make only the true display
-  widgets fall through (`ui->frame`, `ui->imageLabel`, `ui->textBrowser`), or restructure the
-  `.ui` so the buttons are not descendants of a mouse-transparent container. Verify the drag
-  still starts from the thumbnail/text area after the change.
+  **Fix (`imagetile.cpp`):** set the attribute on **only the leaf display widgets**
+  (`imageLabel`, `textBrowser`). `frame` and `widget` — the buttons' ancestors — must **not** be
+  transparent, or the buttons stay dead; the earlier idea of "keep `frame`, drop only `widget`" would
+  *not* have worked for the same childAt-subtree reason. Drag still starts from anywhere on the tile:
+  `frame`/`widget` are plain widgets that ignore the press, so it propagates up to the list viewport.
 
-  Documented as current behaviour in the wiki (`Manual-Projects` presents drag-and-drop as the
-  way to reorder); revisit that page once fixed.
+  Documented as current behaviour in the wiki (`Manual-Projects` presents drag-and-drop as the only
+  way to reorder); that page can now mention the ▲/▼ buttons too.
 
 - [ ] **Window icon is loaded from a relative path** — `main.cpp` calls
   `setWindowIcon(QIcon("icons/icon-red.ico"))`, resolved against the *working directory*, so

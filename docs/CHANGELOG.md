@@ -11,10 +11,17 @@ with the profile-editing adoption.)
 
 - **Live input tile status during a render.** Input tiles update in real time as the strip is built
   (phase 1), instead of only when the render finishes: a page turns green (Processed) the moment it is
-  appended, and violet **"Skipped"** when no canvas profile matches it (or the matching one is not
-  linked, or it fails to load). Driven by the lib's new `ProcessingCallbacks::onInput`, re-emitted as a
-  `RenderWorker` signal. Skipped pages stay Skipped after the render (the model records it), instead of
-  silently going green
+  appended, cyan **"Processed (no canvas profile)"** when it is rendered without a matching canvas
+  profile (see below), and violet **"Skipped"** only when it is missing or fails to load. Driven by the
+  lib's new `ProcessingCallbacks::onInput`, re-emitted as a `RenderWorker` signal. These states survive
+  the render (the model records them), instead of silently going green
+- **Cyan "Processed (no canvas profile)" for implicitly-rendered inputs.** With libplatemaker 0.3.0 a
+  page whose size matches no canvas profile is no longer dropped — it is rendered without margins. Such
+  a page (and every page in a workspace that has no canvas profiles at all) now shows a **cyan** tile
+  reading **"Processed (no canvas profile)"** instead of a plain green "Processed", so it is obvious
+  which pages went through without a profile. Derived from the input's recorded profile
+  (`InputFile::canvasProfileId` empty ⇒ none), so it persists across reopen; no new `FileStatus`. Cyan
+  is deliberately distinct from the amber "Out of sync" state
 - **Output tiles replace by position in real time.** During a re-render the output tiles are updated in
   place at their row, using the absolute slice index the lib now reports (`SliceSaved{sliceIndex,…}`).
   A format or slice-count change no longer leaves stale tiles lingering until the run finishes

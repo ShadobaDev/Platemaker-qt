@@ -52,26 +52,32 @@ void ImageTile::setTileName(const QString& name)
 
 void ImageTile::setFileInfo(const QString& filePath,
                              FileStatus status,
-                             const QString& cacheDir)
+                             const QString& cacheDir,
+                             bool renderedWithoutProfile)
 {
     m_filePath = filePath;
 
     ui->imageLabel->setText(QFileInfo(filePath).fileName());
 
-    setStatus(status);
+    setStatus(status, renderedWithoutProfile);
 
     if (!cacheDir.isEmpty())
         loadThumbnailAsync(cacheDir);
 }
 
-void ImageTile::setStatus(FileStatus status)
+void ImageTile::setStatus(FileStatus status, bool renderedWithoutProfile)
 {
     const QString filename = QFileInfo(m_filePath).fileName();
+
+    // A page rendered without a canvas profile is still Processed, but flagged so the "no margins"
+    // fact is visible instead of hidden behind a plain green tile. Only meaningful for Processed.
+    const bool noProfile = (status == FileStatus::Processed) && renderedWithoutProfile;
 
     QString statusText;
     switch (status) {
         case FileStatus::Pending:        statusText = "Pending";       break;
-        case FileStatus::Processed:      statusText = "Processed";     break;
+        case FileStatus::Processed:      statusText = noProfile ? "Processed (no canvas profile)"
+                                                                : "Processed";                 break;
         case FileStatus::Modified:       statusText = "Modified";      break;
         case FileStatus::Missing:        statusText = "Missing";       break;
         case FileStatus::Desynchronized: statusText = "Out of sync";   break;
@@ -80,7 +86,7 @@ void ImageTile::setStatus(FileStatus status)
     }
     ui->textBrowser->setText(filename + "\n" + statusText);
 
-    updateStatusStyle(status);
+    updateStatusStyle(status, noProfile);
 }
 
 void ImageTile::setThumbnail(const QPixmap& pixmap)
@@ -93,8 +99,16 @@ void ImageTile::setThumbnail(const QPixmap& pixmap)
     ui->imageLabel->setText({});
 }
 
-void ImageTile::updateStatusStyle(FileStatus status)
+void ImageTile::updateStatusStyle(FileStatus status, bool renderedWithoutProfile)
 {
+    // Rendered without a canvas profile: cyan, distinct from the plain-green "Processed" (a profile
+    // was applied) and from the amber "Out of sync" it must not be confused with.
+    if (status == FileStatus::Processed && renderedWithoutProfile) {
+        ui->frame->setStyleSheet(
+            "QFrame { border-left: 4px solid #06b6d4; border-radius: 0px; }"); // cyan
+        return;
+    }
+
     QString color;
     switch (status) {
         case FileStatus::Processed:     color = "#22c55e"; break; // green

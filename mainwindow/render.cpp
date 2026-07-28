@@ -384,24 +384,37 @@ void MainWindow::onRenderSliceSaved(int index, QString name, QString fullPath)
 void MainWindow::onRenderInput(QString path, int status)
 {
     // Live per-input feedback during phase 1 (strip building), before any slice exists. Map the
-    // lib's Core::InputStatus to the tile's FileStatus: appended pages go green immediately, and a
-    // page the render leaves out (no matching/linked canvas profile, or a load error) shows as
-    // Skipped (violet) rather than staying Pending until the run ends. The finish populate() keeps
-    // these — applyProcessingResults() marks the skipped inputs Skipped in the model too.
+    // lib's Core::InputStatus to the tile's FileStatus: appended pages go green immediately; a page
+    // rendered implicitly (no canvas profile — no margins) goes cyan "Processed (no canvas profile)";
+    // and a page the render leaves out (missing / load error) shows as Skipped (violet) rather than
+    // staying Pending until the run ends. The finish populate() keeps these — applyProcessingResults()
+    // records the same outcome in the model (Processed with an empty canvasProfileId, or Skipped).
     using Platemaker::Core::InputStatus;
     using Platemaker::Models::FileStatus;
 
-    FileStatus fs = FileStatus::Processed;
+    FileStatus fs         = FileStatus::Processed;
+    bool       noProfile  = false;
     switch (static_cast<InputStatus>(status)) {
-        case InputStatus::Appended:                fs = FileStatus::Processed; break;
-        case InputStatus::SkippedMissing:          fs = FileStatus::Missing;   break;
-        case InputStatus::SkippedNoProfile:        // fallthrough
-        case InputStatus::SkippedProfileNotLinked: // fallthrough
-        case InputStatus::SkippedError:            fs = FileStatus::Skipped;   break;
+        // A plain Appended page had a profile applied — unless the workspace has no canvas profiles at
+        // all (quick-start), in which case nothing could have matched and it too was rendered without
+        // one. This mirrors the persisted colouring, which keys off an empty canvasProfileId.
+        case InputStatus::Appended:
+            fs        = FileStatus::Processed;
+            noProfile = m_workspace.canvasProfiles().empty();
+            break;
+        case InputStatus::AppendedWithoutProfile:   // fallthrough
+        case InputStatus::AppendedProfileNotLinked:
+            fs        = FileStatus::Processed;
+            noProfile = true;
+            break;
+        case InputStatus::SkippedMissing:           fs = FileStatus::Missing; break;
+        case InputStatus::SkippedNoProfile:         // fallthrough (retained, no longer emitted)
+        case InputStatus::SkippedProfileNotLinked:  // fallthrough (retained, no longer emitted)
+        case InputStatus::SkippedError:             fs = FileStatus::Skipped; break;
     }
 
     if (auto *pw = projectWidget(m_renderProjectIndex))
-        pw->setInputTileStatus(path, fs);
+        pw->setInputTileStatus(path, fs, noProfile);
 }
 
 void MainWindow::onRenderFinished()

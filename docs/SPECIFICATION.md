@@ -72,13 +72,20 @@ Single card in the project grid.  Shows:
 
 - Thumbnail (loaded asynchronously via `ThumbnailCache + QtConcurrent`)
 - Filename (short)
-- Processing status badge with a colour-coded left border, one per `FileStatus`:
+- Processing status badge with a colour-coded left border, keyed on `FileStatus` plus, for a Processed
+  input, whether a canvas profile was applied:
   Pending (grey) / Processed / Done (green) / Modified (orange) / Missing (red) /
   Desynchronized "Out of sync" (amber) / **Skipped (violet)** — the render did not include this page
+  (missing / load error) / **"Processed (no canvas profile)" (cyan)** — the page was rendered
+  implicitly, without a matching canvas profile (no margins). The cyan state is not a `FileStatus`: it
+  is derived from `InputFile::canvasProfileId` being empty on a Processed input, so it persists across
+  reopen
 - Contribution indicator (which output slices this file feeds into)
 
-`ImageTile::setStatus(FileStatus)` repaints only the badge + border (no thumbnail reload), so the tile
-can be updated live during a render (see §4.4) without re-running the async thumbnail load.
+`ImageTile::setStatus(FileStatus, bool renderedWithoutProfile)` repaints only the badge + border (no
+thumbnail reload), so the tile can be updated live during a render (see §4.4) without re-running the
+async thumbnail load. The `renderedWithoutProfile` flag drives the cyan "Processed (no canvas profile)"
+state.
 
 ### 2.4 Profile Dialogs
 
@@ -197,8 +204,9 @@ Process → Run  (or the project's Render button)
       populate()  + WorkspaceSerializer::save()
 ```
 
-During phase 1 (strip building) each input's tile turns green as it is appended, or violet **Skipped**
-when it is left out; then output tiles stream in per slice.  See §2.3.
+During phase 1 (strip building) each input's tile turns green as it is appended, cyan **Processed
+(no canvas profile)** when it is rendered without a matching profile, or violet **Skipped** when it is
+left out (missing / load error); then output tiles stream in per slice.  See §2.3.
 
 ### 4.5 Cancel Pipeline
 

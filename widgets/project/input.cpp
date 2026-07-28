@@ -43,8 +43,11 @@ void Project::addImageTile(const InputFile& file)
     listItem->setData(Qt::UserRole, QString::fromStdString(file.filePath));
 
     // Create a new ImageTile widget, set its file info, and connect its move up/down signals to the Project's slots.
+    // A Processed input with no recorded canvas profile was rendered implicitly (no margins) — flag it
+    // so the tile shows cyan "Processed (no canvas profile)" rather than a plain green "Processed".
+    const bool noProfile = (file.status == FileStatus::Processed) && file.canvasProfileId.empty();
     auto* tile = new ImageTile(this);
-    tile->setFileInfo(QString::fromStdString(file.filePath), file.status, m_cacheDir);
+    tile->setFileInfo(QString::fromStdString(file.filePath), file.status, m_cacheDir, noProfile);
     connect(tile, &ImageTile::moveUpRequested,   this, &Project::onTileMoveUp);
     connect(tile, &ImageTile::moveDownRequested, this, &Project::onTileMoveDown);
 
@@ -53,7 +56,7 @@ void Project::addImageTile(const InputFile& file)
     ui->listInputImageTile->setItemWidget(listItem, tile);
 }
 
-void Project::setInputTileStatus(const QString& filePath, FileStatus status)
+void Project::setInputTileStatus(const QString& filePath, FileStatus status, bool renderedWithoutProfile)
 {
     // Live per-input update during a render: find the tile whose stored path matches and repaint
     // just its status label + border (no thumbnail reload). Each tile keeps its file path in the
@@ -65,7 +68,7 @@ void Project::setInputTileStatus(const QString& filePath, FileStatus status)
         if (item->data(Qt::UserRole).toString() != filePath)
             continue;
         if (auto* tile = qobject_cast<ImageTile*>(list->itemWidget(item)))
-            tile->setStatus(status);
+            tile->setStatus(status, renderedWithoutProfile);
         return;
     }
 }

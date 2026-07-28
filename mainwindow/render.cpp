@@ -54,7 +54,7 @@ Platemaker::Models::OutputProfile MainWindow::resolveOutputProfileFor(
     // catalogue), so a project may reference either. If the id resolves to nothing (unset, or a
     // stale id), fall back to the first user profile, else the Webtoon Standard preset — a valid
     // profile is always available because presets live in code.
-    if (auto op = Platemaker::Models::resolveOutputProfile(m_workspace, project.outputProfileId))
+    if (auto op = Platemaker::Models::resolveOutputProfile(m_workspace, project.outputProfileId()))
         return *op;
     return m_workspace.outputProfiles().empty()
         ? Platemaker::Models::webtoonStandardPreset()
@@ -130,7 +130,7 @@ bool MainWindow::startRender(int projectIndex)
     const QString name = QString::fromStdString(project.name);
 
     // --- guards ---
-    if (project.outputProfileId.empty()) {
+    if (project.outputProfileId().empty()) {
         m_batchSkipReason = tr("output profile is not selected");
         setProjectStatus(tr("Output profile is not selected."));
         return false;
@@ -283,7 +283,7 @@ bool MainWindow::startRender(int projectIndex)
         project.getInputImages(),          // copy
         resolveOutputProfileFor(project),  // copy
         m_workspace.canvasProfiles(),      // copy
-        project.canvasProfileIds,          // copy
+        project.canvasProfileIds(),        // copy
         outDir.toStdString(),
         m_cancelToken);
     if (!onlySlices.empty())

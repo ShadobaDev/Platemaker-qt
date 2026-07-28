@@ -79,7 +79,7 @@ void Project::refreshCanvasProfilesList()
     const auto& wsProfiles = m_workspace.canvasProfiles();
 
     // If the project has no assigned canvas profiles, display a placeholder item indicating that all workspace profiles are used.
-    if (project.canvasProfileIds.empty()) {
+    if (project.canvasProfileIds().empty()) {
         auto* placeholder = new QListWidgetItem(tr("(all workspace profiles)"));
         placeholder->setFlags(Qt::ItemIsEnabled);
         ui->listWidgetCanvasProfiles->addItem(placeholder);
@@ -87,7 +87,7 @@ void Project::refreshCanvasProfilesList()
     }
 
     // Iterate through the project's assigned canvas profile IDs and find the corresponding profiles in the workspace. For each matched profile, create a list item with a remove button to allow unassigning the profile.
-    for (const auto& id : project.canvasProfileIds) {
+    for (const auto& id : project.canvasProfileIds()) {
         for (const auto& cp : wsProfiles) {
             // Match the profile by ID. If it matches, create a list item with a remove button.
             if (cp.id != id) continue;
@@ -155,9 +155,9 @@ void Project::onAssignCanvasProfiles()
     QStringList available;
     for (const auto& cp : wsProfiles) {
         const bool linked = std::find(
-            project.canvasProfileIds.begin(),
-            project.canvasProfileIds.end(),
-            cp.id) != project.canvasProfileIds.end();
+            project.canvasProfileIds().begin(),
+            project.canvasProfileIds().end(),
+            cp.id) != project.canvasProfileIds().end();
         if (!linked)
             available << QString::fromStdString(cp.name);
     }

@@ -61,7 +61,7 @@ void Project::refreshOutputProfileCombo()
         ui->comboBoxOutputProfile->addItem(label, QString::fromStdString(op.id));
         if (isPreset)
             ui->comboBoxOutputProfile->setItemData(row, QColor("#7ac8f5"), Qt::ForegroundRole);
-        if (op.id == project.outputProfileId)
+        if (op.id == project.outputProfileId())
             selectedIdx = row;
     };
 
@@ -89,7 +89,7 @@ void Project::onOutputProfileChanged(int index)
 void Project::refreshFormatControls()
 {
     // Resolve against user profiles ∪ presets so a preset-selected project shows its format too.
-    const std::string& id = m_workspace.projectItems[m_projectIndex].outputProfileId;
+    const std::string& id = m_workspace.projectItems[m_projectIndex].outputProfileId();
     const auto resolved = resolveOutputProfile(m_workspace, id);
 
     // A preset's options are shown but not editable: it is read-only, and its meaning must be
@@ -143,7 +143,7 @@ void Project::onFormatOptionsEdited()
 {
     // The format-options widget changed — write back into the selected user profile through the
     // editor (the palette is private). Presets are read-only and never edited here.
-    const std::string& id = m_workspace.projectItems[m_projectIndex].outputProfileId;
+    const std::string& id = m_workspace.projectItems[m_projectIndex].outputProfileId();
     if (id.empty() || Platemaker::Models::outputPresetDefById(id) != nullptr)
         return;
 
@@ -255,7 +255,7 @@ bool Project::outputsConfigStale() const
     if (project.getOutputImages().empty()) return false;
 
     // Resolve the project's profile (user or preset); if it resolves to nothing, nothing to compare.
-    const auto resolved = resolveOutputProfile(m_workspace, project.outputProfileId);
+    const auto resolved = resolveOutputProfile(m_workspace, project.outputProfileId());
     if (!resolved) return false;
 
     // Signature mismatch covers format / target width / slice height / quality once

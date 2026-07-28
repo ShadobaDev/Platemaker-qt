@@ -2,11 +2,26 @@
 
 ## [1.2.0] — Unreleased
 
-Requires **libplatemaker 0.2.2** — the About dialog now reads component versions and licences from
-the lib.
+Requires **libplatemaker 0.3.0** — this release adopts the lib's new `WorkspaceEditor` (profile
+editing) and `ProcessingCallbacks` (per-input / per-slice render events), and renders the new
+`FileStatus::Skipped` state. (The earlier About-dialog work needed only 0.2.2; the pin moved to 0.3.0
+with the profile-editing adoption.)
 
 ### Added
 
+- **Live input tile status during a render.** Input tiles update in real time as the strip is built
+  (phase 1), instead of only when the render finishes: a page turns green (Processed) the moment it is
+  appended, and violet **"Skipped"** when no canvas profile matches it (or the matching one is not
+  linked, or it fails to load). Driven by the lib's new `ProcessingCallbacks::onInput`, re-emitted as a
+  `RenderWorker` signal. Skipped pages stay Skipped after the render (the model records it), instead of
+  silently going green
+- **Output tiles replace by position in real time.** During a re-render the output tiles are updated in
+  place at their row, using the absolute slice index the lib now reports (`SliceSaved{sliceIndex,…}`).
+  A format or slice-count change no longer leaves stale tiles lingering until the run finishes
+- **Profile edits refresh every open project immediately.** Adding, editing or deleting a canvas or
+  output profile now updates the output-profile combo and the assigned-canvas list of *all* open
+  project docks at once (via a `MainWindow::workspaceProfilesChanged` signal → `Project::refreshProfileViews`),
+  without needing to click "Refresh files"
 - **About dialog shows the libvips version** and reports every linked component from the lib
   itself. libplatemaker, libvips and nlohmann/json now display the version and SPDX licence the
   library reports at runtime (`buildInfo()` / `linkedComponents()`), with libvips at the version of
@@ -22,6 +37,12 @@ the lib.
 
 ### Changed
 
+- **All workspace-profile editing goes through the lib's `WorkspaceEditor`.** The GUI no longer mutates
+  the workspace's profile vectors directly or re-implements the library's invariants (minting profile
+  ids, deduplicating, preserving `templateInfo`, stripping presets, the project-link dimension guard).
+  Manage/New/Edit for canvas and output profiles, profile↔project links, and per-project output-profile
+  selection now call `WorkspaceEditor`, so an in-session edit is validated the same way a loaded file is.
+  Template generation/deletion uses the lib's `setCanvasProfileTemplateInfo`
 - **The GUI no longer asserts versions or licences about code it does not own.** Compile-time
   licence definitions are kept only for Platemaker itself and Qt; libplatemaker and its dependencies
   are sourced from the lib, so they cannot silently go stale when a dependency is swapped or
@@ -29,7 +50,17 @@ the lib.
 
 ### Fixed
 
-_none_
+- **A project with skipped pages no longer re-renders on every open, and skipped tiles survive a
+  reopen.** Reopening a project whose outputs were all Done used to always trigger a render, and the
+  violet "Skipped" input tiles reverted to green/grey — because the lib's `sanitize()` recomputed input
+  status from disk and did not know "skipped". Fixed in libplatemaker 0.3.0 (`sanitize()` now keeps
+  `Skipped` sticky for unchanged files and treats it as a settled, terminal state); requires the updated
+  `libplatemaker.dll`
+- **"Refresh files" no longer resets input statuses.** It now refreshes only the *output* files against
+  disk (and the output-profile staleness overlay); input statuses are owned by the last render, so a
+  page the render marked **Skipped** (or Processed) survives a refresh. Previously, changing the output
+  profile and clicking "Refresh files" reverted inputs to their pre-render state, because the shared
+  `sanitize()` re-derived input status from disk (which has no notion of "skipped")
 
 ## [1.1.0] — 2026-07-20
 

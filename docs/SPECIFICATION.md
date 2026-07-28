@@ -42,12 +42,12 @@ libplatemaker  (shared library)
 
 ### 2.1 Shell — `MainWindow`
 
-MDI-style host window.  Holds:
+Dock-based host window.  Holds:
 
 | Area | Widget | Purpose |
 |---|---|---|
-| Central MDI area | `QMdiArea` | Displays one `Project` sub-window per open chapter |
-| Left dock | Workspace panel | Lists projects in the open workspace, profile buttons |
+| Workspace panel | Left dock | Lists projects in the open workspace, profile buttons |
+| Project docks | `QDockWidget` per open project | Each holds a `Project` widget, tabbed with the workspace panel (opened via `openProjectDock()`) |
 | Bottom dock | Log / progress | Pipeline output, progress bar, cancel button |
 | Menu bar | File / Workspace / Project / Process / Help | All application actions |
 | Status bar | — | Current workspace path + dirty indicator |
@@ -57,7 +57,8 @@ current one (with save prompt) and re-opens with the new file.
 
 ### 2.2 Project View — `Project`
 
-Sub-window inside the MDI area.  Represents one `ProjectItem`.
+A dock widget, tabbed alongside the workspace panel (one dock per open project).  Represents one
+`ProjectItem` — created lazily by `MainWindow::openProjectDock()`, holding a `Workspace&` reference.
 
 - Scrollable grid of `ImageTile` widgets, one per `InputFile` in the project.
 - Tiles are ordered by `InputFile::order`.
@@ -71,8 +72,13 @@ Single card in the project grid.  Shows:
 
 - Thumbnail (loaded asynchronously via `ThumbnailCache + QtConcurrent`)
 - Filename (short)
-- Processing status badge (Pending / Processed / Modified / Missing)
+- Processing status badge with a colour-coded left border, one per `FileStatus`:
+  Pending (grey) / Processed / Done (green) / Modified (orange) / Missing (red) /
+  Desynchronized "Out of sync" (amber) / **Skipped (violet)** — the render did not include this page
 - Contribution indicator (which output slices this file feeds into)
+
+`ImageTile::setStatus(FileStatus)` repaints only the badge + border (no thumbnail reload), so the tile
+can be updated live during a render (see §4.4) without re-running the async thumbnail load.
 
 ### 2.4 Profile Dialogs
 
@@ -80,28 +86,47 @@ Single card in the project grid.  Shows:
 |---|---|---|
 | `CanvasProfileDialog` | `CanvasProfile` | Add / Edit in ManageCanvasProfilesDialog |
 | `OutputProfileDialog` | `OutputProfile` | Add / Edit in ManageOutputProfilesDialog |
-| `ManageCanvasProfilesDialog` | `Workspace::canvasProfiles` | "Canvas Profiles…" action |
-| `ManageOutputProfilesDialog` | `Workspace::outputProfiles` | "Output Profiles…" action |
+| `ManageCanvasProfilesDialog` | `Workspace::canvasProfiles()` | "Canvas Profiles…" action |
+| `ManageOutputProfilesDialog` | `Workspace::outputProfiles()` | "Output Profiles…" action |
 
 `ManageCanvasProfilesDialog` also emits `generateTemplatesRequested(QList<CanvasProfile>)`
 when the user requests template PNG generation.
+
+The dialogs edit **copies**; the workspace is mutated only on accept, and only through the lib's
+`Infrastructure::WorkspaceEditor` (the palettes are private in the model — see the lib spec §7.5). The
+GUI does not mint ids, deduplicate, preserve `templateInfo`, or strip presets itself; the editor does.
 
 ---
 
 ## 3. Application State
 
 All persistent state is stored in `Platemaker::Models::Workspace` — the GUI
-never has its own parallel data model.
+never has its own parallel data model.  `MainWindow` owns the single live `m_workspace` (the whole
+model is loaded at open); each `Project` widget holds a **reference** to it and is a live view over
+`m_workspace.projectItems[m_projectIndex]`, not a copy.  Project widgets are created lazily, one per
+open dock.
 
 ```
 MainWindow
-  └── m_workspace : Workspace          // loaded from .platemaker.json
+  └── m_workspace : Workspace          // loaded from .platemaker.json; the source of truth
   └── m_workspacePath : QString        // current file path
   └── m_dirty : bool                   // unsaved changes
 
-Project (one per open ProjectItem)
+Project (one per open project dock)
+  └── m_workspace : Workspace&         // reference to MainWindow's workspace
   └── m_projectIndex : int             // index into m_workspace.projectItems
 ```
+
+**Mutation goes through the library.** The workspace's profile palettes and the projects' profile-link
+fields are private in the model; the GUI edits them only through `Infrastructure::WorkspaceEditor`
+(`replaceCanvasProfiles` / `replaceOutputProfiles`, `add`/`removeCanvasProfileToProject`,
+`setProjectOutputProfile`, `setCanvasProfileTemplateInfo`).  It reads through the const accessors
+(`canvasProfiles()`, `outputProfileId()`, …).
+
+**Keeping open views in sync.** A workspace-level profile edit (Manage/New/Edit) emits
+`MainWindow::workspaceProfilesChanged`, connected in `openProjectDock()` to
+`Project::refreshProfileViews()` on every open dock — so the output-profile combo and assigned-canvas
+list of all open projects update at once, without a manual refresh.
 
 **Dirty tracking rules:**
 - Any profile edit → `m_dirty = true` → asterisk in title bar
@@ -137,30 +162,43 @@ File → New Workspace
 
 ```
 Workspace panel → double-click project  OR  Workspace → New Project
-  → Project sub-window opens in MDI area
+  → Project dock opens (tabbed with the workspace panel), or is raised if already open
   → mergeFileScan() populates tile grid from input directory
   → thumbnails load asynchronously in background
 ```
 
 ### 4.4 Run Pipeline
 
+The pipeline runs on a `RenderWorker` moved to its own `QThread`; it holds **copies** of the inputs,
+profiles and output dir, so it never touches the live workspace.  The lib reports progress through a
+`Core::ProcessingCallbacks` struct (plain `std::function`s called synchronously on the worker thread);
+each callback lambda does one cheap thing — `emit` a Qt signal — which is delivered to the main thread
+via a queued connection, so the *reaction* (repainting tiles) happens on the main thread while the
+render is never blocked on the UI.
+
 ```
-Process → Run  (or toolbar button)
-  → project.sanitize()
-  → if project.isUpToDate() → inform user, skip
-  → else:
-      worker = QtConcurrent::run([&]() {
-          CanvasProfileMatcher matcher(workspace.canvasProfiles, project.canvasProfileIds)
-          for each InputFile:
-              result = matcher.resolve(w, h)
-              // scale + strip.append()
-          slices = strip.sliceAll(...)
-          for each slice: imageIO.save(...)  + emit progress
-          project.applyProcessingResults(records, outDir, timestamp)
-      })
-      show progress bar + Cancel button
-      on finish: refresh tile statuses, WorkspaceSerializer::save()
+Process → Run  (or the project's Render button)
+  → startRender(projectIndex):
+      project.sanitize(workspace.canvasProfiles())   // refresh statuses (disk + config)
+      if up-to-date and no config change → inform user, skip
+      confirm if outputs are stale (format/size/canvas changed since last render)
+      worker = new RenderWorker(copies…);  worker.moveToThread(thread)
+      connect worker → MainWindow:  progress, log,
+                                    sliceSaved(index,…)  → setOutputTile(index,…)   // live, positional
+                                    inputStatus(path,…)  → setInputTileStatus(path,…) // live, phase 1
+      ProcessingPipeline::run(inputs, outProfile, canvasProfiles, canvasProfileIds,
+                              outDir, cancel, callbacks, onlySlices?)   // static; on the worker thread
+      show progress bar + Stop button
+  → onRenderFinished():
+      project.applyProcessingResults(records, appliedProfiles, outcome.skippedPages,
+                                     workspace.canvasProfiles(), outDir, timestamp)
+        // skipped pages are recorded as FileStatus::Skipped, not Processed
+      delete orphaned outputs the new config no longer produces
+      populate()  + WorkspaceSerializer::save()
 ```
+
+During phase 1 (strip building) each input's tile turns green as it is appended, or violet **Skipped**
+when it is left out; then output tiles stream in per slice.  See §2.3.
 
 ### 4.5 Cancel Pipeline
 
@@ -187,19 +225,23 @@ ManageCanvasProfilesDialog → "Generate Templates" button
 
 ```
 Workspace → Canvas Profiles…
-  → ManageCanvasProfilesDialog opens
-  → shows workspace.canvasProfiles list
-  → Add    → CanvasProfileDialog → appends to workspace.canvasProfiles
-  → Edit   → CanvasProfileDialog → updates entry in-place
-  → Delete → removes from list (check: warn if profile is linked to any project)
-  → OK     → save workspace
+  → ManageCanvasProfilesDialog opens on a COPY of workspace.canvasProfiles()
+  → Add / Edit / Delete happen on that copy inside the dialog
+  → OK  → WorkspaceEditor(m_workspace).replaceCanvasProfiles(copy)
+            // mints ids for new profiles, dedups, carries templateInfo by id
+          setDirty(true);  emit workspaceProfilesChanged()   // open projects refresh live
 ```
 
-**Conflict guard** (SPECIFICATION.md §7.5.2):  
-When linking a canvas profile to a project (`project add-profile` equivalent in GUI),
-the GUI must call `addCanvasProfileToProject()` from libplatemaker and display an
-error if `AddCanvasProfileResult::Status::Conflict` is returned, highlighting the
-conflicting profile in the list.
+The output-profile equivalent is the same through `replaceOutputProfiles()` (which additionally strips
+any preset — presets are code-defined and never persisted).  Single-profile edits (edit-active,
+double-click) use a copy → mutate → replace of the whole palette, since the palette is private and
+cannot be mutated in place.
+
+**Conflict guard** (lib SPECIFICATION.md §7.5.2):  
+Linking a canvas profile to a project goes through
+`WorkspaceEditor::addCanvasProfileToProject()`, which returns `false` when the profile's canvas W×H
+collides with one already linked; the GUI shows an error and does not link it.  The project's
+`canvasProfileIds` are private in the model, so a raw bypass of this guard is not possible.
 
 ---
 

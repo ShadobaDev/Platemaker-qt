@@ -181,8 +181,14 @@ bool MainWindow::startRender(int projectIndex)
     const auto canvasChange =
         project.detectCanvasConfigChange(m_workspace.canvasProfiles());
 
+    // Reordering / adding / removing inputs shifts the continuous strip, so every downstream slice
+    // changes while each file stays byte-identical. Fold it into configChanged so the *full* render
+    // path runs (applyProcessingResults refreshes the input-order baseline; the partial path would
+    // leave it stale, re-rendering forever).
+    const bool inputOrderChanged = project.detectInputCompositionChange();
+
     const bool configChanged =
-        hasOutputs && (sigMismatch || formatMismatch || canvasChange.any());
+        hasOutputs && (sigMismatch || formatMismatch || canvasChange.any() || inputOrderChanged);
 
     if (project.isUpToDate() && !configChanged) {
         m_batchSkipReason = tr("up to date");
@@ -280,7 +286,7 @@ bool MainWindow::startRender(int projectIndex)
     m_rendering = true;
 
     auto *worker = new RenderWorker(
-        project.getInputImages(),          // copy
+        project.inputsInOrder(),           // strip is built in `order` sequence, not vector order
         resolveOutputProfileFor(project),  // copy
         m_workspace.canvasProfiles(),      // copy
         project.canvasProfileIds(),        // copy

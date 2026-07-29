@@ -8,7 +8,7 @@
 #include "templatesdialog.h"
 #include "renderworker.h"
 
-#include <platemaker/infrastructure/id_generator/id_generator.hpp>
+#include <platemaker/infrastructure/workspace_editor/workspace_editor.hpp>
 
 #include <QCloseEvent>
 #include <QCollator>
@@ -56,19 +56,9 @@ void MainWindow::onNewProject()
     if (!ok || name.trimmed().isEmpty()) 
         return;
 
-    // Ensure the name is unique within the workspace.
-    Platemaker::Models::ProjectItem proj;
-    proj.name = name.trimmed().toStdString();
-    // A random, collision-checked uid — not a timestamp (which resolves to the second, so two projects
-    // created quickly could share an id) and not an RFC 4122 UUID.
-    std::vector<std::string> takenUids;
-    takenUids.reserve(m_workspace.projectItems.size());
-    for (const auto& p : m_workspace.projectItems)
-        takenUids.push_back(p.uid);
-    proj.uid = Platemaker::Infrastructure::makeUniqueId("proj", takenUids);
-
-    // Add new porject to the workspace model, then refresh the UI to reflect it.
-    m_workspace.projectItems.push_back(std::move(proj));
+    // Create the project through the library, which mints the workspace-unique project uid — the GUI
+    // no longer hand-rolls it. Then refresh the UI to reflect the new project.
+    Platemaker::Infrastructure::WorkspaceEditor(m_workspace).addProject(name.trimmed().toStdString());
     setDirty(true);
     applyWorkspaceToUi();
 }

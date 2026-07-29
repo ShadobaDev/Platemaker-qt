@@ -61,8 +61,13 @@ A dock widget, tabbed alongside the workspace panel (one dock per open project).
 `ProjectItem` — created lazily by `MainWindow::openProjectDock()`, holding a `Workspace&` reference.
 
 - Scrollable grid of `ImageTile` widgets, one per `InputFile` in the project.
-- Tiles are ordered by `InputFile::order`.
-- Drag-and-drop reordering changes `order` and marks `ProjectItem::stripDirty`.
+- Tiles are ordered by `InputFile::order`, which is also the sequence the render builds the strip in
+  (`ProjectItem::inputsInOrder()`).
+- Drag-and-drop and the ▲/▼ buttons reorder through `Infrastructure::ProjectEditor`
+  (`setInputOrder` / `moveInput`), which rewrites only the `order` field — the stored input vector is
+  never physically moved. A reorder marks the affected outputs out of sync via the lib's
+  input-composition staleness axis (`detectInputCompositionChange`, surfaced by `sanitize()` at the
+  next Refresh/Render/reopen), and marks the workspace dirty.
 - A toolbar row above the grid shows: project name, input directory, link/unlink
   canvas profile button, output profile selector.
 
@@ -137,7 +142,7 @@ list of all open projects update at once, without a manual refresh.
 
 **Dirty tracking rules:**
 - Any profile edit → `m_dirty = true` → asterisk in title bar
-- Any image tile reorder → `ProjectItem::stripDirty = true` + `m_dirty = true`
+- Any image tile reorder → `ProjectEditor::setInputOrder`/`moveInput` (rewrites `order`) + `m_dirty = true`
 - Successful pipeline run → `m_dirty = true` (hashes updated)
 - File → Save → `WorkspaceSerializer::save()` → `m_dirty = false`
 

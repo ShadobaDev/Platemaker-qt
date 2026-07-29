@@ -44,6 +44,15 @@ with the profile-editing adoption.)
 
 ### Changed
 
+- **Reordering inputs goes through the lib's `ProjectEditor`, and now actually affects the render.**
+  Drag-and-drop and the ▲/▼ buttons call `Infrastructure::ProjectEditor::setInputOrder` / `moveInput`
+  instead of writing `InputFile::order` by hand; the render feeds `ProjectItem::inputsInOrder()` to the
+  pipeline so the strip is built in the reordered sequence. A reorder now marks the affected outputs
+  **Out of sync** (via the lib's new input-composition staleness axis) — live at Refresh/Render and,
+  because it is persisted, after a save→reopen — instead of being silently ignored. Requires
+  libplatemaker 0.3.0.
+- **New projects are created through `WorkspaceEditor::addProject`.** The GUI no longer mints the
+  project uid itself (it used `makeUniqueId` directly) — identifier generation is the library's job.
 - **All workspace-profile editing goes through the lib's `WorkspaceEditor`.** The GUI no longer mutates
   the workspace's profile vectors directly or re-implements the library's invariants (minting profile
   ids, deduplicating, preserving `templateInfo`, stripping presets, the project-link dimension guard).

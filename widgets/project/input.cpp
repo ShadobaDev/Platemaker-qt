@@ -4,6 +4,7 @@
 #include "canvasprofiledialog.h"
 #include "outputformatoptionswidget.h"
 
+#include <platemaker/infrastructure/project_editor/project_editor.hpp>
 #include <platemaker/infrastructure/workspace_editor/workspace_editor.hpp>
 
 #include <QCheckBox>
@@ -33,6 +34,17 @@ using namespace Platemaker::Models;
 namespace {
 // Sort keys stored in comboBoxSortingOpt item data.
 enum SortKey { SortByName = 0, SortByCreated = 1, SortByModified = 2 };
+
+// Input tiles are keyed by file path (stored in the list item's UserRole); ProjectEditor works in the
+// stable input uids. Map one to the other via the model.
+std::string uidForPath(const ProjectItem& pi, const QString& filePath)
+{
+    const std::string p = filePath.toStdString();
+    for (const auto& f : pi.getInputImages())
+        if (f.filePath == p)
+            return f.uid;
+    return {};
+}
 
 } // namespace
 
@@ -393,63 +405,38 @@ void Project::onGoToOutput()
 
 void Project::onRowsMoved()
 {
-    // Update the order of input images based on the current order of items in the QListWidget. This is called when the user drags and drops items to reorder them.
-    auto& inputs = m_workspace.projectItems[m_projectIndex].getInputImages();
-    for (int i = 0; i < ui->listInputImageTile->count(); ++i) {
-        const QString path = ui->listInputImageTile->item(i)->data(Qt::UserRole).toString();
-        for (auto& f : inputs) {
-            if (QString::fromStdString(f.filePath) == path) {
-                f.order = i;
-                break;
-            }
-        }
-    }
+    // Drag-and-drop finished: the QListWidget is already in the new visual order. Push that order into
+    // the model through ProjectEditor, which rewrites each input's `order` field (the stored vector is
+    // never physically moved). Statuses are refreshed at the next sanitize (Refresh / render / reopen).
+    auto& pi = m_workspace.projectItems[m_projectIndex];
+    std::vector<std::string> orderedUids;
+    orderedUids.reserve(static_cast<std::size_t>(ui->listInputImageTile->count()));
+    for (int i = 0; i < ui->listInputImageTile->count(); ++i)
+        orderedUids.push_back(
+            uidForPath(pi, ui->listInputImageTile->item(i)->data(Qt::UserRole).toString()));
+
+    Platemaker::Infrastructure::ProjectEditor(pi).setInputOrder(orderedUids);
     emit projectModified();
-}
-
-// Moves the tile with \p filePath one step (\p delta = -1 up, +1 down) by swapping
-static void moveByOrder(std::vector<InputFile>& inputs, const QString& filePath, int delta)
-{
-    // Guard: if there are fewer than 2 input images, moving is not applicable, so return early.
-    if (inputs.size() < 2) return;
-
-    // Create a vector of pointers to the input files for sorting. This allows us to sort the inputs without modifying the original vector until we finalize the new order.
-    std::vector<InputFile*> ordered;
-    ordered.reserve(inputs.size());
-    for (auto& f : inputs) ordered.push_back(&f);
-    std::sort(ordered.begin(), ordered.end(),
-              [](const InputFile* a, const InputFile* b){ return a->order < b->order; });
-
-    // Find the index of the input file with the specified filePath in the ordered list. If not found, return early. Then calculate the target index by adding delta to the current index. If the target index is out of bounds, return early. Finally, swap the order values of the current and target input files to move the tile up or down in the order.
-    int idx = -1;
-    for (int i = 0; i < static_cast<int>(ordered.size()); ++i)
-        if (QString::fromStdString(ordered[static_cast<std::size_t>(i)]->filePath) == filePath) {
-            idx = i; break;
-        }
-    const int target = idx + delta;
-    if (idx < 0 || target < 0 || target >= static_cast<int>(ordered.size())) return;
-
-    // Swap the order values of the current and target input files to move the tile up or down in the order.
-    std::swap(ordered[static_cast<std::size_t>(idx)]->order,
-              ordered[static_cast<std::size_t>(target)]->order);
 }
 
 void Project::onTileMoveUp(const QString& filePath)
 {
-    // Move the tile with the specified filePath up in the order by calling moveByOrder with a delta of -1. 
-    // After moving, repopulate the UI and emit a projectModified signal to indicate that the project has been modified.
-    moveByOrder(m_workspace.projectItems[m_projectIndex].getInputImages(), filePath, -1);
-    populate();
-    emit projectModified();
+    // Move one step up via ProjectEditor (rewrites only the `order` field), then repopulate + mark
+    // the project modified.
+    auto& pi = m_workspace.projectItems[m_projectIndex];
+    if (Platemaker::Infrastructure::ProjectEditor(pi).moveInput(uidForPath(pi, filePath), -1)) {
+        populate();
+        emit projectModified();
+    }
 }
 
 void Project::onTileMoveDown(const QString& filePath)
 {
-    // Move the tile with the specified filePath down in the order by calling moveByOrder with a delta of +1.
-    // After moving, repopulate the UI and emit a projectModified signal to indicate that the project has been modified.
-    moveByOrder(m_workspace.projectItems[m_projectIndex].getInputImages(), filePath, +1);
-    populate();
-    emit projectModified();
+    auto& pi = m_workspace.projectItems[m_projectIndex];
+    if (Platemaker::Infrastructure::ProjectEditor(pi).moveInput(uidForPath(pi, filePath), +1)) {
+        populate();
+        emit projectModified();
+    }
 }
 
 void Project::onInputContextMenu(const QPoint& pos)

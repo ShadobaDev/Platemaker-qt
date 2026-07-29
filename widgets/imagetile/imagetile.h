@@ -39,6 +39,15 @@ public:
     void setThumbnail(const QPixmap& pixmap);   //!< Sets the thumbnail image for the tile. The pixmap is scaled to fit within the fixed label area while maintaining aspect ratio.
 
     /**
+     * @brief Shows or hides the ▲/▼ move buttons.
+     *
+     * Only input tiles are reorderable; output-tile order is derived from the render and cannot be
+     * changed, so their move buttons are hidden to avoid implying otherwise. Visible by default.
+     * @param visible false to hide the move-button column and reclaim its space.
+     */
+    void setMoveControlsVisible(bool visible);
+
+    /**
      * @brief Updates only the status label + colour, leaving the thumbnail untouched.
      *
      * Used for live status updates during a render (e.g. an input goes green as it is appended to

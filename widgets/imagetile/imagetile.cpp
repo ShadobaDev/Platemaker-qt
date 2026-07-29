@@ -94,6 +94,14 @@ void ImageTile::setStatus(FileStatus status, bool renderedWithoutProfile)
     updateStatusStyle(status, noProfile);
 }
 
+void ImageTile::setMoveControlsVisible(bool visible)
+{
+    // `ui->widget` is the container holding both move buttons (see the .ui). Hiding it removes the
+    // whole button column; a hidden widget is skipped by the box layout, so the thumbnail/text reclaim
+    // the space.
+    ui->widget->setVisible(visible);
+}
+
 void ImageTile::setThumbnail(const QPixmap& pixmap)
 {
     // Skip if the pixmap is null (e.g., failed to load or generate thumbnail).

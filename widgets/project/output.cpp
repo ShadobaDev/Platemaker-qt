@@ -198,6 +198,7 @@ void Project::setOutputTile(int index, const QString& name, const QString& fullP
     item->setData(Qt::UserRole, fullPath);
 
     auto* tile = new ImageTile(this);
+    tile->setMoveControlsVisible(false);   // output order is fixed — no reorder arrows
     tile->setFileInfo(fullPath, FileStatus::Done, m_cacheDir);   // replaces any existing widget at this row
     item->setSizeHint(tile->sizeHint());
     list->setItemWidget(item, tile);
@@ -216,6 +217,7 @@ void Project::addOutputImageTile(const OutputFile& file)
 
     // Create a new ImageTile widget for the output image, set its file information, and add it to the output list in the UI.
     auto* tile = new ImageTile(this);
+    tile->setMoveControlsVisible(false);   // output order is fixed — no reorder arrows
     tile->setFileInfo(path, file.status, m_cacheDir);
 
     // Set the size hint of the list item to match the tile's size and set the tile as the widget for the list item in the output list.

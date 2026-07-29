@@ -66,6 +66,9 @@ with the profile-editing adoption.)
 
 ### Fixed
 
+- **Output tiles no longer show the ▲/▼ reorder buttons.** Output order is derived from the render and
+  cannot be changed; the buttons did nothing there (their move signals are wired only for input tiles)
+  and implied outputs could be reordered. They are now hidden on output tiles (the space is reclaimed).
 - **Input tile ▲/▼ reorder buttons work again.** The move-up/-down arrows on an input tile did
   nothing (only drag-and-drop reordered). The tile marked its display areas
   `WA_TransparentForMouseEvents` so clicks fall through to start a drag, but the set included the

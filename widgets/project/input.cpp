@@ -294,13 +294,24 @@ void Project::addInputPaths(const QStringList& newPaths)
 
 void Project::onAddFromDirectory()
 {
+    auto& item = m_workspace.projectItems[m_projectIndex];
+
+    // Pre-open where the user last scanned: the project's stored inputDirectory (written below on
+    // every scan). If it is empty (project never scanned a folder, e.g. built via Add files…), fall
+    // back to the folder of an existing input, else the platform default. Saves re-navigating the
+    // tree to re-scan the same folder or add a sibling.
+    QString startDir = QString::fromStdString(item.inputDirectory);
+    if (startDir.isEmpty() && !item.getInputImages().empty())
+        startDir = QFileInfo(QString::fromStdString(item.getInputImages().front().filePath)).absolutePath();
+
     // Prompt the user to select a directory containing input images. If a directory is selected, scan it for image files and add them to the project.
     const QString dir = QFileDialog::getExistingDirectory(
-        this, tr("Select Input Directory"));
+        this, tr("Select Input Directory"), startDir);
     if (dir.isEmpty()) return;
 
-    // Store the selected directory in the project's inputDirectory field for future reference.
-    m_workspace.projectItems[m_projectIndex].inputDirectory = dir.toStdString();
+    // Store the selected directory in the project's inputDirectory field, so the next scan re-opens
+    // here and the CLI can match this project by its directory.
+    item.inputDirectory = dir.toStdString();
 
     // Scan the selected directory for image files with specific extensions and add them to the project.
     const QStringList filters = {"*.jpg","*.jpeg","*.png","*.webp","*.tif","*.tiff"};

@@ -9,6 +9,12 @@ with the profile-editing adoption.)
 
 ### Added
 
+- **"Add all files from directory" re-opens the last-used folder.** The dialog now starts at the
+  project's last scanned directory (falling back to the folder of an existing input, then the platform
+  default), instead of always at the default location — so re-scanning a folder or adding a sibling no
+  longer means re-navigating the tree. This gives the project's `inputDirectory` field a defined use on
+  the GUI side (it was written on every scan but never read back); the CLI already uses it to match a
+  project by its directory
 - **Live input tile status during a render.** Input tiles update in real time as the strip is built
   (phase 1), instead of only when the render finishes: a page turns green (Processed) the moment it is
   appended, cyan **"Processed (no canvas profile)"** when it is rendered without a matching canvas

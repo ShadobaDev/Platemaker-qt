@@ -91,7 +91,7 @@ Bug fixes, cosmetics and internal cleanups — no new capability, no change to a
   `onRenderFinished()` updates `project.outputSignature` *before* repopulating, so freshly-rendered
   outputs are no longer stale and stay `Done`.
 
-- [ ] menuPlatemaker in many collapsable combolists there are positions that have duplicated and misaligned shortcut hints
+- [x] menuPlatemaker in many collapsable combolists there are positions that have duplicated and misaligned shortcut hints
 
 - [ ] **Segfault** was detcted but not written down how - to be investigated.
 
@@ -116,20 +116,11 @@ Bug fixes, cosmetics and internal cleanups — no new capability, no change to a
   does not run. Either drop the parameter (a lib API change — see the lib TODO) or re-enable the
   guides; until then, fix the comment so it stops describing a removed feature.
 
-- [ ] **Slice tiles should have hidden edit panel** because this are neither to be deleted nor reordered by the platemaker
+- [x] **Slice tiles should have hidden edit panel** because this are neither to be deleted nor reordered by the platemaker
 
 - [ ] **Pre-flight sanitize off the UI thread** — `project.sanitize()` currently
   hashes inputs on the main thread before launching; move to the worker for very
   large projects to avoid a brief UI pause.
-
-- [ ] **`ProjectItem::inputDirectory` is written but never read** — `onAddFromDirectory()`
-  (`widgets/project/input.cpp`) stores the chosen directory in
-  `projectItems[idx].inputDirectory`, but nothing in the GUI or in libplatemaker ever reads it
-  back (the project keeps full absolute paths per input file instead — a leftover from Clip2l's
-  flat-directory model). Either remove the field (see the matching entry in the lib TODO, since
-  it lives on the lib model) or put it to use: pre-open the last-used directory in the
-  **Add all files from directory** dialog. Decide, then either drop the write or wire up the
-  read.
 
 - [ ] `MainWindow::m_savedSnapshot` Maybe sha256 instead of holding full string? We do not use it for recovery anyway... or maybe we should keeep for recovery purpose?
 

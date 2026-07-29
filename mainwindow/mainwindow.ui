@@ -297,12 +297,12 @@ QTabWidget QTabBar::close-button {
   </widget>
   <action name="actionOpen_workspace">
    <property name="text">
-    <string>Open workspace (Ctrl+O)</string>
+    <string>Open workspace</string>
    </property>
   </action>
   <action name="actionNew_workspace">
    <property name="text">
-    <string>New workspace (Ctrl+N)</string>
+    <string>New workspace</string>
    </property>
   </action>
   <action name="actionSave_as">
@@ -322,12 +322,12 @@ QTabWidget QTabBar::close-button {
   </action>
   <action name="actionSave_as_Ctrl_Shift_S">
    <property name="text">
-    <string>Save as (Ctrl+Shift+S)</string>
+    <string>Save as</string>
    </property>
   </action>
   <action name="actionSave_Ctrl_S">
    <property name="text">
-    <string>Save (Ctrl+S)</string>
+    <string>Save</string>
    </property>
   </action>
   <action name="actionClose_workspace">

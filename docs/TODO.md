@@ -84,7 +84,8 @@ New, backward-compatible features. Several are gated on a lib version, noted in 
   *Add from directory* (non-recursive, image extensions) and remembered as the project's
   `inputDirectory`. A new capability (not a change to an existing workflow), hence MINOR.
 
-- [x] **Undo / Redo** (`Ctrl+Z` / `Ctrl+Y`) — Done, app-wide via an **Edit** menu. A `QUndoGroup` with
+- [x] **Undo / Redo** (`Ctrl+Z` / `Ctrl+Y`) — Done, app-wide via the Workspace-menu Undo/Redo actions
+  (`actionUndo`/`actionRedo`, wired to the group in `setupUndo`). A `QUndoGroup` with
   one stack per open project + one workspace stack; `Ctrl+Z`/`Ctrl+Y` route to the front tab. Snapshot
   commands built on the lib's `ProjectEditor::snapshot/restore` and `WorkspaceEditor::snapshotMeta/
   restoreMeta` (component-scoped, so light in RAM; depth 10). Covers input edits, canvas links, output
@@ -141,5 +142,9 @@ Investigations, testing and manual/wiki work that ships no code change on their 
   cap on the number of remembered entries, and what happens when a remembered workspace has
   been moved or deleted (dropped silently vs. an error), have not been established. Test and
   document; the wiki currently says "to be tested".
+
+## Add dependency manifest
+
+- [ ] **Repository must define dependencies** in one of the supported manifest file types, like package.json or Gemfile. Maybe copy of sbom from build\Desktop_Qt_6_11_1_MinGW_64_bit-Debug\credits will work?
 
 ---

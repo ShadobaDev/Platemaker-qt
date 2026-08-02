@@ -1,6 +1,6 @@
 # Changelog
 
-## [1.3.0] — 2026-08-02
+## [1.3.0] — 2026-08-03
 
 Requires **libplatemaker 0.3.1** — this release uses the lib's new `ProjectEditor` /
 `WorkspaceEditor` snapshot/restore for undo/redo.
@@ -13,7 +13,8 @@ Requires **libplatemaker 0.3.1** — this release uses the lib's new `ProjectEdi
   folder is scanned like *Add from directory* (top level, image files only: PNG/JPEG/WebP/TIFF) and
   becomes the project's remembered input directory; non-image files are ignored. Reordering tiles by
   dragging within the list still works.
-- **Undo / Redo across the app** (`Ctrl+Z` / `Ctrl+Y`), via a new **Edit** menu. Reversible now:
+- **Undo / Redo across the app** (`Ctrl+Z` / `Ctrl+Y`), via the **Undo** / **Redo** items in the
+  Workspace menu. Reversible now:
   - **Project edits** — add files / add-from-directory / remove / clear / reorder (drag or ▲/▼) / sort
     inputs, link/unlink a canvas profile, change the output profile, set/clear the output directory.
   - **Workspace edits** — rename a project; create / edit / delete canvas and output profiles; generate

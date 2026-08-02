@@ -264,7 +264,7 @@ private:
     void captureSnapshot();
 
     // --- undo / redo ---
-    void setupUndo();   //!< Creates the QUndoGroup + workspace stack and the Edit-menu Undo/Redo actions.
+    void setupUndo();   //!< Creates the QUndoGroup + workspace stack and wires the Workspace-menu actionUndo/actionRedo to it.
 
     /**
      * @brief Records one undoable **workspace-scope** edit (profile CRUD, project rename, templates)

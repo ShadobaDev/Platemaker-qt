@@ -142,7 +142,7 @@ MainWindow::MainWindow(QWidget *parent)
     connect(ui->actionAuthors, &QAction::triggered, this, &MainWindow::onShowAuthors);
     connect(ui->actionHelp,    &QAction::triggered, this, &MainWindow::onShowHelp);
 
-    // --- Undo / redo (Edit menu; group routes Ctrl+Z / Ctrl+Y to the active context) ---
+    // --- Undo / redo (Workspace-menu actions; group routes Ctrl+Z / Ctrl+Y to the active context) ---
     setupUndo();
 
     updateTitleBar();
@@ -336,21 +336,31 @@ void MainWindow::setupUndo()
     m_undoGroup->addStack(m_workspaceUndoStack);
     m_undoGroup->setActiveStack(m_workspaceUndoStack);
 
-    // Edit menu. The group's Undo/Redo actions always target the *active* stack — i.e. whichever tab
-    // (a project dock, or the workspace panel) is in front — so Ctrl+Z / Ctrl+Y do the right thing.
-    QAction* undoAction = m_undoGroup->createUndoAction(this, tr("&Undo"));
-    QAction* redoAction = m_undoGroup->createRedoAction(this, tr("&Redo"));
-    undoAction->setShortcut(QKeySequence::Undo);   // Ctrl+Z
-    redoAction->setShortcut(QKeySequence::Redo);   // Ctrl+Y (+ Ctrl+Shift+Z on Windows)
+    // Wire the existing Undo/Redo actions (defined in the .ui, in the Workspace menu) to the group.
+    // The group always targets the *active* stack — whichever tab (a project dock, or the workspace
+    // panel) is in front — so Ctrl+Z / Ctrl+Y do the right thing. We drive these actions ourselves
+    // rather than use QUndoGroup::createUndoAction, because the actions already live in the .ui.
+    ui->actionUndo->setShortcut(QKeySequence::Undo);   // Ctrl+Z
+    ui->actionRedo->setShortcut(QKeySequence::Redo);   // Ctrl+Y (+ Ctrl+Shift+Z on Windows)
+    connect(ui->actionUndo, &QAction::triggered, m_undoGroup, &QUndoGroup::undo);
+    connect(ui->actionRedo, &QAction::triggered, m_undoGroup, &QUndoGroup::redo);
 
-    auto* editMenu = new QMenu(tr("&Edit"), this);
-    editMenu->addAction(undoAction);
-    editMenu->addAction(redoAction);
-    const auto menus = menuBar()->actions();
-    if (menus.size() > 1)
-        menuBar()->insertMenu(menus[1], editMenu);   // second slot, after the Workspace menu
-    else
-        menuBar()->addMenu(editMenu);
+    // Enable each only when the active stack has something to undo/redo, and reflect the command name
+    // in the menu text ("Undo Add files") — mirroring what createUndoAction would have given us.
+    const auto refreshUndoText = [this](const QString& t){
+        ui->actionUndo->setText(t.isEmpty() ? tr("Undo") : tr("Undo %1").arg(t));
+    };
+    const auto refreshRedoText = [this](const QString& t){
+        ui->actionRedo->setText(t.isEmpty() ? tr("Redo") : tr("Redo %1").arg(t));
+    };
+    ui->actionUndo->setEnabled(m_undoGroup->canUndo());
+    ui->actionRedo->setEnabled(m_undoGroup->canRedo());
+    refreshUndoText(m_undoGroup->undoText());
+    refreshRedoText(m_undoGroup->redoText());
+    connect(m_undoGroup, &QUndoGroup::canUndoChanged, ui->actionUndo, &QAction::setEnabled);
+    connect(m_undoGroup, &QUndoGroup::canRedoChanged, ui->actionRedo, &QAction::setEnabled);
+    connect(m_undoGroup, &QUndoGroup::undoTextChanged, this, refreshUndoText);
+    connect(m_undoGroup, &QUndoGroup::redoTextChanged, this, refreshRedoText);
 
     // The workspace panel coming to the front makes the workspace stack active. Each project dock does
     // the symmetric thing for its own stack (openProjectDock).

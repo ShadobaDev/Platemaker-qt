@@ -104,6 +104,9 @@ QTabWidget QTabBar::close-button {
     <addaction name="actionShow_workspace_panel"/>
     <addaction name="separator"/>
     <addaction name="actionClose_workspace"/>
+    <addaction name="separator"/>
+    <addaction name="actionUndo"/>
+    <addaction name="actionRedo"/>
    </widget>
    <widget class="QMenu" name="menuCanvas_Profile">
     <property name="title">
@@ -449,6 +452,16 @@ QTabWidget QTabBar::close-button {
   <action name="actionOpen_recent_workspace">
    <property name="text">
     <string>Open recent workspace...</string>
+   </property>
+  </action>
+  <action name="actionUndo">
+   <property name="text">
+    <string>Undo</string>
+   </property>
+  </action>
+  <action name="actionRedo">
+   <property name="text">
+    <string>Redo</string>
    </property>
   </action>
  </widget>

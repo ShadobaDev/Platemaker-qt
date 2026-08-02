@@ -15,13 +15,13 @@ work happens in.
 - **Cascade.** Whichever section releases first takes its slot; the rest re-derive from the new
   baseline.
 
-Baseline: **1.1.0 released, 1.2.0 in progress** (`CMakeLists.txt`). 1.2.0 adds the About dialog's
-runtime component report (libplatemaker / libvips / nlohmann/json versions + licences, sourced from
-the lib), so per the cascade the pending patch bucket re-derives to 1.2.1 and the next minor to 1.3.0.
+Baseline: **1.2.0 released, 1.3.0 in progress** (`CMakeLists.txt`). 1.3.0 so far adds a `Ctrl+R`
+alternate for the render shortcut; the drag-and-drop input adding and undo/redo features below are the
+planned MINOR work. Per the cascade, the pending patch bucket re-derives to 1.3.1.
 
 ---
 
-## PATCH — next: 1.2.1
+## PATCH — next: 1.3.1
 
 Bug fixes, cosmetics and internal cleanups — no new capability, no change to an existing workflow.
 
@@ -64,6 +64,13 @@ Bug fixes, cosmetics and internal cleanups — no new capability, no change to a
 
 New, backward-compatible features. Several are gated on a lib version, noted in the item body.
 
+- [ ] **Drag files / folders onto the Project window** — dropping images (or a folder) onto the
+  project's input list adds them via `mergeFileScan()`, the same path as *Add files* / *Add from
+  directory*. A new capability (not a change to an existing workflow), hence MINOR.
+
+- [ ] **Undo / Redo** (`Ctrl+Z` / `Ctrl+Y`) — for input-list operations (add, clear, reorder, sort)
+  and ideally other reversible workspace edits. A new capability, hence MINOR.
+
 - [ ] **Auto-sort rules** (`groupBoxAutosort`) — pattern/regex-based ordering:
   `lineEditInputNameRegex` body token (e.g. `chap_<num>` → chap_001, chap_002…),
   `lineEditPrependedRegex` (e.g. `title_<num>` first), `lineEditAppendedRegex`
@@ -77,25 +84,7 @@ New, backward-compatible features. Several are gated on a lib version, noted in 
 
 - [ ] **Auto-save** on pipeline finish (optional setting)
 
-- [ ] **Keyboard shortcuts** — `Ctrl+S` save, `F5` or `Ctrl+R` run, `Esc` cancel
-
-- [ ] **Drag files / folders onto Project window** — triggers `mergeFileScan()`
-
-- [ ] **Undo / Redo** (`Ctrl+Z` / `Ctrl+Y`) — for input-list operations (add,
-  clear, reorder, sort) and ideally other reversible workspace edits
-
 - [ ] **Action log** should report a summary, how manu inputs, how many slices in what time where processed and when. Output cumulative size (MB or KB) would also be nice.
-
-- [ ] **Bump the lib pin when 0.3.0 lands** — `find_package` is now pinned via
-  `LIBPLATEMAKER_VERSION` (currently `0.2.1`), which also builds the FetchContent URL, so the
-  required and downloaded versions cannot drift. Moving to 0.3.0 is a one-line change to that
-  variable.
-
-  Caveat: the pin does not fully hold until the lib switches its config-version file from
-  `SameMajorVersion` to `SameMinorVersion` (tracked in the lib TODO). With major `0`, the
-  current setting treats every `0.y` as compatible, so a `0.2.1` pin also accepts `0.3.0`
-  and `0.4.0` — it rejects anything *older*, which is the case that bites in practice, but
-  not a newer incompatible one.
 
 - [ ] **App looks flat/colorless on Linux vs Windows** — no explicit style is
   set in `main.cpp`, so Qt falls back to native per-platform styling: Windows

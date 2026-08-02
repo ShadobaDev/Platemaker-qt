@@ -1,6 +1,17 @@
 # Changelog
 
-## [1.2.0] — Unreleased
+## [1.3.0] — Unreleased
+
+Requires **libplatemaker 0.3.0** (unchanged from 1.2.0).
+
+### Added
+
+- **`Ctrl+R` also renders the current project** — an alternate for `F5` (the "run" convention in many
+  editors); `F5` stays the primary key shown in the menu, and `F6` (render all) / `Esc` (stop) are
+  unchanged. The rest of the app's keyboard shortcuts (`Ctrl+S`/`Ctrl+Shift+S` save, `Ctrl+O` open,
+  `Ctrl+N` new) already shipped in earlier releases.
+
+## [1.2.0] — 2026-08-02
 
 Requires **libplatemaker 0.3.0** — this release adopts the lib's new `WorkspaceEditor` (profile
 editing) and `ProcessingCallbacks` (per-input / per-slice render events), and renders the new

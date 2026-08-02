@@ -115,7 +115,10 @@ MainWindow::MainWindow(QWidget *parent)
     connect(ui->actionOpen_dir_templates, &QAction::triggered, this, &MainWindow::onOpenTemplatesDir);
 
     // --- Process menu / render ---
-    ui->actionRender_current_project_F5->setShortcut(Qt::Key_F5);
+    // F5 is the primary render key (shown in the menu); Ctrl+R is an accepted alternate (the
+    // "run" convention in many editors). setShortcuts keeps F5 as the displayed one.
+    ui->actionRender_current_project_F5->setShortcuts(
+        {QKeySequence(Qt::Key_F5), QKeySequence(QStringLiteral("Ctrl+R"))});
     ui->actionRender_all_projects_F6->setShortcut(Qt::Key_F6);
     ui->actionStop_Esc->setShortcut(Qt::Key_Escape);
     connect(ui->actionRender_current_project_F5, &QAction::triggered, this, [this]{

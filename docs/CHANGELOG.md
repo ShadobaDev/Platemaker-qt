@@ -11,6 +11,12 @@ Requires **libplatemaker 0.3.0** (unchanged from 1.2.0).
   unchanged. The rest of the app's keyboard shortcuts (`Ctrl+S`/`Ctrl+Shift+S` save, `Ctrl+O` open,
   `Ctrl+N` new) already shipped in earlier releases.
 
+### Changed
+
+- **The "Auto-sort rules" panel is greyed out until the feature exists.** Its fields were fully
+  editable but wired to nothing; the group is now disabled with a "Coming soon" placeholder, so the UI
+  no longer invites input that does nothing. (The auto-sort feature itself is still planned.)
+
 ## [1.2.0] — 2026-08-02
 
 Requires **libplatemaker 0.3.0** — this release adopts the lib's new `WorkspaceEditor` (profile

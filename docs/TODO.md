@@ -58,6 +58,12 @@ Bug fixes, cosmetics and internal cleanups — no new capability, no change to a
 
 - [ ] **ImageTile** rework to be more eye-appealing
 
+- [x] **Grey out the Auto-sort rules group until it works** — the `groupBoxAutosort` fields
+  (`lineEditInputNameRegex` / `Prepended` / `Appended`, `pushButtonAutosortApply`) were fully
+  interactive but wired to nothing, inviting input that does nothing. Done: the group is now disabled
+  and its fields show a "Coming soon" placeholder (`project.cpp`, constructor). A stopgap — remove it
+  when the Auto-sort feature lands (see the MINOR item).
+
 ---
 
 ## MINOR — next: 1.3.0
@@ -75,7 +81,8 @@ New, backward-compatible features. Several are gated on a lib version, noted in 
   `lineEditInputNameRegex` body token (e.g. `chap_<num>` → chap_001, chap_002…),
   `lineEditPrependedRegex` (e.g. `title_<num>` first), `lineEditAppendedRegex`
   (e.g. `end_<num>` last); `pushButtonAutosortApply` applies. Complex token/regex
-  parsing — dedicated future task.
+  parsing — dedicated future task. When implemented, **re-enable the group and drop the
+  "Coming soon" stopgap** in `project.cpp` (see the completed PATCH item).
 
 - [ ] **Output size estimation / limits (UI)** — show estimated avg/max slice size
   and total batch size, and warn on platform caps (Webtoon ≤ 2 MB/slice,

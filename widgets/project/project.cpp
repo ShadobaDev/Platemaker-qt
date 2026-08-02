@@ -14,6 +14,9 @@
 #include <QDateTime>
 #include <QSpinBox>
 #include <QDir>
+#include <QDragEnterEvent>
+#include <QDragMoveEvent>
+#include <QDropEvent>
 #include <QFileDialog>
 #include <QFileInfo>
 #include <QHBoxLayout>
@@ -24,11 +27,13 @@
 #include <QListWidgetItem>
 #include <QMenu>
 #include <QMessageBox>
+#include <QMimeData>
 #include <QSet>
 #include <QSettings>
 #include <QToolButton>
 #include <QKeySequence>
 #include <QUndoStack>
+#include <QUrl>
 
 #include <algorithm>
 #include <utility>
@@ -38,6 +43,16 @@ using namespace Platemaker::Models;
 namespace {
 // Sort keys stored in comboBoxSortingOpt item data.
 enum SortKey { SortByName = 0, SortByCreated = 1, SortByModified = 2 };
+
+// Image extensions Platemaker accepts as inputs — the same set the Add-from-directory scan uses,
+// as name filters (for QDir) and as a membership test (for individually dropped files).
+const QStringList kImageNameFilters = {"*.jpg","*.jpeg","*.png","*.webp","*.tif","*.tiff"};
+
+bool isSupportedImage(const QFileInfo& fi)
+{
+    static const QSet<QString> exts = {"jpg","jpeg","png","webp","tif","tiff"};
+    return exts.contains(fi.suffix().toLower());
+}
 
 } // namespace
 
@@ -69,6 +84,12 @@ Project::Project(int projectIndex,
     ui->listInputImageTile->setContextMenuPolicy(Qt::CustomContextMenu);
     connect(ui->listInputImageTile, &QWidget::customContextMenuRequested,
             this, &Project::onInputContextMenu);
+
+    // Accept images / folders dropped from the file manager onto the input tile list. The list is in
+    // InternalMove mode for reordering; an event filter on its viewport handles external file drags
+    // (which carry URLs) and lets internal reorder drags (no URLs) fall through untouched. See
+    // eventFilter().
+    ui->listInputImageTile->viewport()->installEventFilter(this);
 
     // Sort options (user-triggered helper; manual drag-reorder still wins).
     ui->comboBoxSortingOpt->addItem(tr("Name"),          SortByName);
@@ -235,4 +256,80 @@ void Project::refreshProfileViews()
     refreshCanvasProfilesList();
     refreshOutputProfileCombo();
     refreshFormatControls();
+}
+
+// ---------------------------------------------------------------------------
+// Drag & drop of files / folders onto the input list
+// ---------------------------------------------------------------------------
+
+bool Project::eventFilter(QObject* watched, QEvent* event)
+{
+    // Only the input list's viewport is filtered (installed in the constructor). Everything else, and
+    // any event type we don't care about, defers to the base implementation.
+    if (watched == ui->listInputImageTile->viewport()) {
+        switch (event->type()) {
+        case QEvent::DragEnter:
+        case QEvent::DragMove: {
+            // A drag carrying at least one local file/folder is an external add — accept it (Copy) and
+            // consume the event. A drag without URLs is the list's own reorder; return false so its
+            // InternalMove handling runs unchanged.
+            auto* de = static_cast<QDragMoveEvent*>(event);
+            const auto* mime = de->mimeData();
+            if (mime->hasUrls() &&
+                std::any_of(mime->urls().cbegin(), mime->urls().cend(),
+                            [](const QUrl& u){ return u.isLocalFile(); })) {
+                de->setDropAction(Qt::CopyAction);
+                de->accept();
+                return true;
+            }
+            return false;
+        }
+        case QEvent::Drop: {
+            auto* de = static_cast<QDropEvent*>(event);
+            if (!de->mimeData()->hasUrls())
+                return false;                       // reorder drop — let the list handle it
+            de->setDropAction(Qt::CopyAction);
+            de->accept();
+            addDroppedUrls(de->mimeData()->urls());
+            return true;
+        }
+        default:
+            break;
+        }
+    }
+    return QWidget::eventFilter(watched, event);
+}
+
+void Project::addDroppedUrls(const QList<QUrl>& urls)
+{
+    // Turn the dropped URLs into a flat list of image file paths: a dropped folder is scanned the same
+    // way Add-from-directory scans (non-recursive, by name, image extensions only); a dropped file is
+    // taken only if it is a supported image, so stray non-images are silently ignored.
+    QStringList paths;
+    QString lastDir;
+    for (const QUrl& url : urls) {
+        if (!url.isLocalFile()) continue;
+        const QFileInfo fi(url.toLocalFile());
+        if (fi.isDir()) {
+            const auto entries = QDir(fi.absoluteFilePath())
+                                     .entryInfoList(kImageNameFilters, QDir::Files, QDir::Name);
+            for (const auto& e : entries)
+                paths << e.absoluteFilePath();
+            lastDir = fi.absoluteFilePath();
+        } else if (fi.isFile() && isSupportedImage(fi)) {
+            paths << fi.absoluteFilePath();
+        }
+    }
+
+    if (paths.isEmpty()) return;
+
+    // One undo step for the whole drop. If a folder was dropped, remember it as the project's input
+    // directory (same as Add-from-directory) so the next scan re-opens there; the assignment is inside
+    // the bracket so it is captured in the snapshot.
+    auto& item = m_workspace.projectItems[m_projectIndex];
+    commitEdit(tr("Add files"), [&]{
+        if (!lastDir.isEmpty())
+            item.inputDirectory = lastDir.toStdString();
+        addInputPaths(paths);
+    });
 }

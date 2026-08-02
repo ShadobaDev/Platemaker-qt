@@ -2,6 +2,7 @@
 #define PROJECT_H
 
 #include <QWidget>
+#include <QList>
 
 #include <functional>
 #include <string>
@@ -13,6 +14,8 @@ namespace Ui { class Project; }
 class QListWidgetItem;
 class OutputFormatOptionsWidget;
 class QUndoStack;
+class QEvent;
+class QUrl;
 
 /**
  * @brief The Project class represents a single project within the Platemaker application.
@@ -64,6 +67,14 @@ public:
     [[nodiscard]] QUndoStack* undoStack() const { return m_undoStack; } //!< This project's undo stack (owned here; added to MainWindow's group).
     void applyProjectSnapshot(const QString& snapshot);  //!< Restore the project from a ProjectEditor::snapshot string, repopulate, mark modified. Called by ProjectSnapshotCommand.
 
+protected:
+    /**
+     * @brief Intercepts drag/drop on the input list's viewport so images (or folders) dropped from
+     * the file manager are added via the same path as Add files / Add from directory. Internal
+     * reorder drags (which carry no file URLs) fall through to the list's own InternalMove handling.
+     */
+    bool eventFilter(QObject* watched, QEvent* event) override;
+
 signals:
     void projectModified();                         //!< emitted when the project is modified (inputs, outputs, profiles, etc.)
     void renderToggleRequested(int projectIndex);   //!< Render/Stop button clicked
@@ -99,6 +110,7 @@ private:
     void addImageTile(const Platemaker::Models::InputFile& file);           //!< Creates an ImageTile widget for an input file and inserts it into the input list.
     void addOutputImageTile(const Platemaker::Models::OutputFile& file);    //!< Creates an ImageTile widget for an existing output file and inserts it into the output list.
     void addInputPaths(const QStringList& newPaths);                        //!< Merges new paths with the existing inputs (order-preserving, de-duplicated) and re-scans them.
+    void addDroppedUrls(const QList<QUrl>& urls);                           //!< Turns dropped file/folder URLs into image paths (folders scanned like Add from directory) and adds them as one undo step.
     void refreshCanvasProfilesList();      //!< Rebuilds listWidgetCanvasProfiles from the project's assigned canvas profile IDs.
     void refreshOutputProfileCombo();      //!< Repopulates comboBoxOutputProfile from the workspace's output profiles, selecting the project's current one.
     void refreshOutputDirectoryDisplay();  //!< Updates textOutputDirectory to show the project's current output directory.

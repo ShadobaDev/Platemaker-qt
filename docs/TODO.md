@@ -16,8 +16,8 @@ work happens in.
   baseline.
 
 Baseline: **1.2.0 released, 1.3.0 in progress** (`CMakeLists.txt`). 1.3.0 so far adds a `Ctrl+R`
-alternate for the render shortcut; the drag-and-drop input adding and undo/redo features below are the
-planned MINOR work. Per the cascade, the pending patch bucket re-derives to 1.3.1.
+alternate for the render shortcut, app-wide undo/redo, and drag-and-drop input adding. Per the cascade,
+the pending patch bucket re-derives to 1.3.1.
 
 ---
 
@@ -71,9 +71,13 @@ Bug fixes, cosmetics and internal cleanups — no new capability, no change to a
 
 New, backward-compatible features. Several are gated on a lib version, noted in the item body.
 
-- [ ] **Drag files / folders onto the Project window** — dropping images (or a folder) onto the
-  project's input list adds them via `mergeFileScan()`, the same path as *Add files* / *Add from
-  directory*. A new capability (not a change to an existing workflow), hence MINOR.
+- [x] **Drag files / folders onto the Project window** — Done. Dropping images (or a folder) onto the
+  Input-tab tile list adds them via the same path as *Add files* / *Add from directory*
+  (`addInputPaths()` → `mergeFileScan()`), as one undo step. Implemented as an event filter on the
+  list viewport (`project.cpp` `eventFilter`/`addDroppedUrls`), so external file drops are handled
+  while the list's InternalMove reorder drag still works. A dropped folder is scanned like
+  *Add from directory* (non-recursive, image extensions) and remembered as the project's
+  `inputDirectory`. A new capability (not a change to an existing workflow), hence MINOR.
 
 - [x] **Undo / Redo** (`Ctrl+Z` / `Ctrl+Y`) — Done, app-wide via an **Edit** menu. A `QUndoGroup` with
   one stack per open project + one workspace stack; `Ctrl+Z`/`Ctrl+Y` route to the front tab. Snapshot

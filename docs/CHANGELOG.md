@@ -7,6 +7,12 @@ Requires **libplatemaker 0.3.1** — this release uses the lib's new `ProjectEdi
 
 ### Added
 
+- **Drag files or a folder onto a project's Input list to add them.** Dropping images (or a folder of
+  images) onto the Input-tab tile list adds them the same way *Add files* / *Add from directory* do —
+  de-duplicated, appended in order, existing statuses preserved — as a single undoable step. A dropped
+  folder is scanned like *Add from directory* (top level, image files only: PNG/JPEG/WebP/TIFF) and
+  becomes the project's remembered input directory; non-image files are ignored. Reordering tiles by
+  dragging within the list still works.
 - **Undo / Redo across the app** (`Ctrl+Z` / `Ctrl+Y`), via a new **Edit** menu. Reversible now:
   - **Project edits** — add files / add-from-directory / remove / clear / reorder (drag or ▲/▼) / sort
     inputs, link/unlink a canvas profile, change the output profile, set/clear the output directory.

@@ -15,9 +15,9 @@ work happens in.
 - **Cascade.** Whichever section releases first takes its slot; the rest re-derive from the new
   baseline.
 
-Baseline: **1.2.0 released, 1.3.0 in progress** (`CMakeLists.txt`). 1.3.0 so far adds a `Ctrl+R`
-alternate for the render shortcut, app-wide undo/redo, and drag-and-drop input adding. Per the cascade,
-the pending patch bucket re-derives to 1.3.1.
+Baseline: **1.3.0 released, 1.3.1 in progress** (`CMakeLists.txt`). 1.3.0 added a `Ctrl+R` alternate
+for the render shortcut, app-wide undo/redo, and drag-and-drop input adding (requires libplatemaker
+0.3.1). Per the cascade, the pending patch bucket re-derives to 1.3.1.
 
 ---
 
@@ -67,9 +67,10 @@ Bug fixes, cosmetics and internal cleanups — no new capability, no change to a
 - [ ] **Light mode** is broken. It is mixed with hardcoded dark greys color, and light grey font on light background is unreadable. Either provide support for light mode, or hardcode drak mode. 
 ---
 
-## MINOR — next: 1.3.0
+## MINOR — next: 1.4.0
 
 New, backward-compatible features. Several are gated on a lib version, noted in the item body.
+(The `[x]` items below shipped in 1.3.0; the open ones re-derive to the next MINOR.)
 
 - [x] **Drag files / folders onto the Project window** — Done. Dropping images (or a folder) onto the
   Input-tab tile list adds them via the same path as *Add files* / *Add from directory*

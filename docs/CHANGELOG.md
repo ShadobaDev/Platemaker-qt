@@ -1,6 +1,6 @@
 # Changelog
 
-## [1.3.0] — Unreleased
+## [1.3.0] — 2026-08-02
 
 Requires **libplatemaker 0.3.1** — this release uses the lib's new `ProjectEditor` /
 `WorkspaceEditor` snapshot/restore for undo/redo.

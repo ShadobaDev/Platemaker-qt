@@ -37,6 +37,17 @@ Requires **libplatemaker 0.3.1** — this release uses the lib's new `ProjectEdi
   editable but wired to nothing; the group is now disabled with a "Coming soon" placeholder, so the UI
   no longer invites input that does nothing. (The auto-sort feature itself is still planned.)
 
+### Fixed
+
+- **Unreadable UI in OS "light" mode — the app now forces its dark theme.** The interface was designed
+  dark (every dialog hardcodes dark backgrounds and light text), but the window shell and the plain
+  controls followed the operating system's theme, so under a light OS theme the light-grey text landed
+  on light backgrounds and became unreadable. The app now requests the **dark colour scheme**
+  (`QStyleHints::setColorScheme`) at startup, so the native style renders dark regardless of the OS
+  setting — while keeping the platform's own look (on Windows, the windows11 style: lighter-grey rounded
+  controls and the accent left-bar on the selected row). One line in `main.cpp`; no per-widget changes.
+  Requires **Qt 6.8+** (the CMake minimum moved from 6.5 to 6.8).
+
 ## [1.2.0] — 2026-08-02
 
 Requires **libplatemaker 0.3.0** — this release adopts the lib's new `WorkspaceEditor` (profile

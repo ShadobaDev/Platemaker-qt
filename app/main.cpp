@@ -3,6 +3,7 @@
 
 #include <QApplication>
 #include <QSettings>
+#include <QStyleHints>
 #include <QIcon>
 
 // Injected by CMake (target_compile_definitions); fallback keeps main.cpp buildable.
@@ -14,7 +15,16 @@ int main(int argc, char *argv[])
 {
     QApplication a(argc, argv);
 
-    // Restore icon+text on top-level menu-bar items (QMenuBar shows only one otherwise).
+    // The app is a dark-only design (every dialog hardcodes dark stylesheets: #1e1e1e / #2d2d2d
+    // backgrounds, #e0e0e0 text). Left to the OS theme, the plain widgets follow a light OS setting
+    // while that light-grey text stays put — unreadable. Force the dark colour scheme so the native
+    // style renders dark regardless of the OS setting, and we keep the platform's own look (on Windows
+    // the windows11 style: lighter-grey rounded controls, the accent left-bar on selected rows).
+    // Requires Qt 6.8+ (QStyleHints::setColorScheme); the CMake minimum is pinned accordingly.
+    a.styleHints()->setColorScheme(Qt::ColorScheme::Dark);
+
+    // Restore icon+text on top-level menu-bar items (QMenuBar shows only one otherwise). The proxy
+    // wraps the platform's default style, so the native look is preserved.
     a.setStyle(new MenuBarIconTextStyle);
 
     // App identity + storage backend for QSettings. With IniFormat, settings

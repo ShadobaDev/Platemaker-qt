@@ -64,7 +64,11 @@ Bug fixes, cosmetics and internal cleanups — no new capability, no change to a
   and its fields show a "Coming soon" placeholder (`project.cpp`, constructor). A stopgap — remove it
   when the Auto-sort feature lands (see the MINOR item).
 
-- [ ] **Light mode** is broken. It is mixed with hardcoded dark greys color, and light grey font on light background is unreadable. Either provide support for light mode, or hardcode drak mode. 
+- [x] **Light mode** was broken (hardcoded dark greys mixed with an OS-light background → light-grey
+  font on light background, unreadable). Resolved by **forcing the dark colour scheme**: `main.cpp`
+  calls `QStyleHints::setColorScheme(Qt::ColorScheme::Dark)` at startup, so the native style renders
+  dark regardless of the OS setting while keeping the platform look (windows11 on Windows). This bumped
+  the Qt minimum to **6.8** (where `setColorScheme` was added). Shipped in 1.3.0.
 ---
 
 ## MINOR — next: 1.4.0
@@ -104,13 +108,13 @@ New, backward-compatible features. Several are gated on a lib version, noted in 
 
 - [ ] **Action log** should report a summary, how manu inputs, how many slices in what time where processed and when. Output cumulative size (MB or KB) would also be nice.
 
-- [ ] **App looks flat/colorless on Linux vs Windows** — no explicit style is
-  set in `main.cpp`, so Qt falls back to native per-platform styling: Windows
-  gets `windows11`/`windowsvista` (dark mode aware, styled GroupBox borders,
-  accent colors); Linux falls back to a much plainer default. Consider
-  `QApplication::setStyle("Fusion")` plus a shared custom `QPalette`/QSS so the
-  look is consistent (and intentional) across platforms instead of relying on
-  whatever the native style happens to provide.
+- [ ] **App looks flat/colorless on Linux vs Windows** — no explicit style is set in `main.cpp`, so Qt
+  falls back to native per-platform styling: Windows gets `windows11`/`windowsvista` (dark-mode aware,
+  styled GroupBox borders, accent colors); Linux falls back to a much plainer default. (We deliberately
+  keep the native windows11 look on Windows — see the light-mode fix — rather than force Fusion, so this
+  cross-platform-consistency item is still open.) If uniformity matters, consider
+  `QApplication::setStyle("Fusion")` plus a shared custom `QPalette`/QSS, accepting that it trades the
+  native windows11 look for consistency.
 
 ---
 

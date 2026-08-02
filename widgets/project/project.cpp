@@ -1,9 +1,12 @@
 #include "project.h"
 #include "ui_project.h"
 #include "imagetile.h"
-#include "inputlistcommand.h"
+#include "projectsnapshotcommand.h"
 #include "canvasprofiledialog.h"
 #include "outputformatoptionswidget.h"
+
+#include <platemaker/infrastructure/project_editor/project_editor.hpp>
+#include <platemaker/infrastructure/workspace_editor/workspace_editor.hpp>
 
 #include <QCheckBox>
 #include <QCollator>
@@ -138,76 +141,62 @@ Project::~Project()
 }
 
 // ---------------------------------------------------------------------------
-// Undo / redo of input-list edits
+// Undo / redo
 // ---------------------------------------------------------------------------
 
 void Project::setupUndo()
 {
+    // Each project owns its stack (depth 10, per the design). MainWindow adds it to a QUndoGroup and
+    // makes it active while this dock is visible; the Ctrl+Z / Ctrl+Y actions live on the group, so
+    // the shortcut always targets whichever project (or the workspace) is in front.
     m_undoStack = new QUndoStack(this);
-
-    // createUndo/RedoAction give QActions whose enabled state and text ("Undo Reorder inputs") track
-    // the stack automatically. They carry no shortcut of their own, so we set the platform-standard
-    // ones (Ctrl+Z / Ctrl+Y, plus Ctrl+Shift+Z for redo on Windows). Scope them to this widget so the
-    // shortcut acts on the project that has focus — each open project dock has its own history.
-    QAction* undoAction = m_undoStack->createUndoAction(this, tr("Undo"));
-    QAction* redoAction = m_undoStack->createRedoAction(this, tr("Redo"));
-    undoAction->setShortcut(QKeySequence::Undo);
-    redoAction->setShortcut(QKeySequence::Redo);
-    undoAction->setShortcutContext(Qt::WidgetWithChildrenShortcut);
-    redoAction->setShortcutContext(Qt::WidgetWithChildrenShortcut);
-    addAction(undoAction);
-    addAction(redoAction);
+    m_undoStack->setUndoLimit(10);
 }
 
-Project::InputSnapshot Project::captureInputSnapshot() const
+void Project::applyProjectSnapshot(const QString& snapshot)
 {
-    const auto& item = m_workspace.projectItems[m_projectIndex];
-
-    InputSnapshot snap;
-    snap.inputs          = item.getInputImages();   // copy (InputFile is a plain value type)
-    snap.inputDirectory  = item.inputDirectory;
-
-    // Cheap identity for no-op detection: the fields the input-list ops actually change (uid, order,
-    // path), in vector order, plus the scanned directory. Two snapshots with equal signatures are
-    // treated as "nothing changed", so a sort that was already sorted (etc.) records no undo step.
-    QString sig;
-    for (const auto& f : snap.inputs) {
-        sig += QString::fromStdString(f.uid);
-        sig += '|'; sig += QString::number(f.order);
-        sig += '|'; sig += QString::fromStdString(f.filePath);
-        sig += '\n';
-    }
-    sig += QString::fromStdString(snap.inputDirectory);
-    snap.signature = std::move(sig);
-    return snap;
-}
-
-void Project::restoreInputSnapshot(const InputSnapshot& snap)
-{
+    // Restore the whole project (inputs, links, output-profile selection, output dir) from a
+    // ProjectEditor snapshot. The project's name is workspace-owned and deliberately preserved by
+    // ProjectEditor::restore. Outputs are left as they are — their staleness is recomputed by
+    // sanitize() at the next Refresh/render, exactly as for a live reorder.
     auto& item = m_workspace.projectItems[m_projectIndex];
-
-    // Replace the input vector wholesale and rebuild the path→output / sha→path lookup tables so they
-    // match. Outputs are left as they are: their staleness is derived and recomputed by sanitize() at
-    // the next Refresh/render (the input-composition baseline notices a reorder/add/remove), exactly as
-    // for a live reorder — undo never touches rendered output files.
-    item.getInputImages() = snap.inputs;
-    item.inputDirectory   = snap.inputDirectory;
-    item.rebuildLookupTables();
+    Platemaker::Infrastructure::ProjectEditor(item).restore(snapshot.toStdString());
 
     populate();
     emit projectModified();
 }
 
-void Project::commitInputChange(const QString& text, const std::function<void()>& mutate)
+void Project::commitEdit(const QString& text, const std::function<void()>& mutate)
 {
-    InputSnapshot before = captureInputSnapshot();
-    mutate();                                   // the existing operation (does its own populate/emit)
-    InputSnapshot after = captureInputSnapshot();
+    auto& item = m_workspace.projectItems[m_projectIndex];
 
-    if (after.signature == before.signature)    // no effective change (e.g. re-sorting sorted inputs)
+    const QString before = QString::fromStdString(
+        Platemaker::Infrastructure::ProjectEditor(item).snapshot());
+    mutate();                                   // the existing operation (does its own populate/emit)
+    QString after = QString::fromStdString(
+        Platemaker::Infrastructure::ProjectEditor(item).snapshot());
+
+    if (after == before)                        // no effective change (e.g. re-sorting sorted inputs)
         return;                                 // — don't pollute the undo history
 
-    m_undoStack->push(new InputListCommand(this, std::move(before), std::move(after), text));
+    m_undoStack->push(new ProjectSnapshotCommand(this, before, std::move(after), text));
+}
+
+void Project::commitWorkspaceEdit(const QString& text, const std::function<void()>& mutate)
+{
+    // A workspace-level edit triggered from this dock (canvas-profile content edit, output-format
+    // edit). Bracket it with the workspace-metadata snapshot and hand both ends to MainWindow, which
+    // owns the workspace undo stack and refreshes every open dock on restore.
+    const QString before = QString::fromStdString(
+        Platemaker::Infrastructure::WorkspaceEditor(m_workspace).snapshotMeta());
+    mutate();
+    const QString after = QString::fromStdString(
+        Platemaker::Infrastructure::WorkspaceEditor(m_workspace).snapshotMeta());
+
+    if (after == before)
+        return;
+
+    emit workspaceEditCommitted(text, before, after);
 }
 
 void Project::populate()

@@ -31,7 +31,8 @@ qt_add_executable(Platemaker
     # Project — class split across per-concern .cpp (same Project class).
     widgets/project/project.cpp widgets/project/project.h
     widgets/project/input.cpp widgets/project/output.cpp
-    widgets/project/inputlistcommand.cpp widgets/project/inputlistcommand.h
+    widgets/project/projectsnapshotcommand.cpp widgets/project/projectsnapshotcommand.h
+    widgets/project/workspacesnapshotcommand.cpp widgets/project/workspacesnapshotcommand.h
     widgets/project/project.ui
 
     # Widgets / dialogs — each in its own folder under widgets/ (.cpp/.h/.ui together).
@@ -75,7 +76,7 @@ if(1)
     #   2. find_package                     — system install or CMAKE_PREFIX_PATH
     #   3. FetchContent                     — downloads pre-built package from GitHub Releases
     # ───────────────────────────────────────────────────────────────────────────────
-    set(LIBPLATEMAKER_VERSION "0.3.0")
+    set(LIBPLATEMAKER_VERSION "0.3.1")
     set(LIBPLATEMAKER_DIR "" CACHE PATH "Path to a local platemaker dev package")
     message("Local libplatemaker path: ${LIBPLATEMAKER_DIR}")
 

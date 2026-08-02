@@ -52,7 +52,10 @@ void MainWindow::onManageTemplates()
     const QString workspaceDir = QFileInfo(m_workspacePath).absolutePath();
     TemplatesDialog dlg(m_workspace, workspaceDir, this);
     connect(&dlg, &TemplatesDialog::workspaceModified, this, [this]{ setDirty(true); });
-    dlg.exec();
+    // Generating/deleting templates edits canvas-profile templateInfo (workspace-scope). Treat the
+    // whole modal session as one undo step: bracket exec() with the metadata snapshot. (Undo reverts
+    // the recorded templateInfo; the generated image files on disk are left in place, like renders.)
+    commitWorkspaceEdit(tr("Edit templates"), [&]{ dlg.exec(); });
 }
 
 void MainWindow::onOpenTemplatesDir()

@@ -1,6 +1,7 @@
 #include "mainwindow.h"
 #include "ui_mainwindow.h"
 #include "project.h"
+#include "workspacesnapshotcommand.h"
 #include "canvasprofiledialog.h"
 #include "managecanvasprofilesdialog.h"
 #include "manageoutputprofilesdialog.h"
@@ -27,6 +28,8 @@
 #include <QSettings>
 #include <QTabBar>
 #include <QThread>
+#include <QUndoGroup>
+#include <QUndoStack>
 #include <QUrl>
 
 #include <algorithm>
@@ -109,14 +112,18 @@ void MainWindow::renameProject(int modelIndex)
         QLineEdit::Normal, QString::fromStdString(proj.name), &ok);
     if (!ok || name.trimmed().isEmpty()) return;
 
-    proj.name = name.trimmed().toStdString();
+    // Renaming a project is a workspace-scope edit (the name lives on the workspace timeline, not the
+    // project's content timeline) — record it there so Ctrl+Z from the Workspace tab reverts it.
+    commitWorkspaceEdit(tr("Rename project"), [&]{
+        proj.name = name.trimmed().toStdString();
 
-    // Reflect the new name on the open dock/tab, if any.
-    if (QDockWidget *dock = dockForProject(modelIndex))
-        dock->setWindowTitle(name.trimmed());
+        // Reflect the new name on the open dock/tab, if any.
+        if (QDockWidget *dock = dockForProject(modelIndex))
+            dock->setWindowTitle(name.trimmed());
 
-    setDirty(true);
-    applyWorkspaceToUi();
+        setDirty(true);
+        applyWorkspaceToUi();
+    });
 }
 
 void MainWindow::removeProject(int modelIndex)
@@ -203,6 +210,12 @@ void MainWindow::openProjectDock(int projectIndex)
     });
     connect(projectWidget, &Project::renderToggleRequested,
             this, &MainWindow::onRenderToggle);
+    // A workspace-level edit made from this dock (canvas-profile content, output format) belongs on
+    // the workspace undo timeline — push it there from the before/after snapshots the project sends.
+    connect(projectWidget, &Project::workspaceEditCommitted, this,
+            [this](const QString& text, const QString& before, const QString& after) {
+                m_workspaceUndoStack->push(new WorkspaceSnapshotCommand(this, before, after, text));
+            });
     // Keep this dock's palette-derived views (output combo, assigned-canvas list) in sync with
     // workspace-level profile edits made elsewhere. The connection is auto-removed when the widget
     // is destroyed (dock closed), so no manual bookkeeping is needed.
@@ -210,11 +223,19 @@ void MainWindow::openProjectDock(int projectIndex)
             projectWidget, &Project::refreshProfileViews);
     newDock->setWidget(projectWidget);
 
-    // Track which project is "current" for F5 / Process menu (the raised dock).
+    // Register this project's undo stack with the group (its destructor auto-removes it when the dock
+    // closes). Ctrl+Z / Ctrl+Y target it while this dock's tab is in front (visibilityChanged below).
+    m_undoGroup->addStack(projectWidget->undoStack());
+
+    // Track which project is "current" for F5 / Process menu (the raised dock), and make this
+    // project's undo stack active while its tab is visible.
     m_activeProjectIndex = projectIndex;
-    connect(newDock, &QDockWidget::visibilityChanged, this, [this, newDock](bool visible) {
-        if (visible)
+    connect(newDock, &QDockWidget::visibilityChanged, this,
+            [this, newDock, projectWidget](bool visible) {
+        if (visible) {
             m_activeProjectIndex = newDock->property("projectIndex").toInt();
+            m_undoGroup->setActiveStack(projectWidget->undoStack());
+        }
     });
 
     // Always tabify with the workspace panel — keeps the layout in two columns.

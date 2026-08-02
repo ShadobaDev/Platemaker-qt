@@ -1,6 +1,7 @@
 #include "mainwindow.h"
 #include "ui_mainwindow.h"
 #include "project.h"
+#include "workspacesnapshotcommand.h"
 #include "canvasprofiledialog.h"
 #include "managecanvasprofilesdialog.h"
 #include "manageoutputprofilesdialog.h"
@@ -8,6 +9,9 @@
 #include "templatesdialog.h"
 #include "renderworker.h"
 
+#include <platemaker/infrastructure/workspace_editor/workspace_editor.hpp>
+
+#include <QAction>
 #include <QCloseEvent>
 #include <QCollator>
 #include <QDateTime>
@@ -22,11 +26,14 @@
 #include <QLineEdit>
 #include <QListWidgetItem>
 #include <QMenu>
+#include <QMenuBar>
 #include <QMessageBox>
 #include <QSettings>
 #include <QTabBar>
 #include <QThread>
 #include <QTimer>
+#include <QUndoGroup>
+#include <QUndoStack>
 #include <QUrl>
 
 #include <algorithm>
@@ -134,6 +141,9 @@ MainWindow::MainWindow(QWidget *parent)
     connect(ui->actionVersion, &QAction::triggered, this, &MainWindow::onShowVersion);
     connect(ui->actionAuthors, &QAction::triggered, this, &MainWindow::onShowAuthors);
     connect(ui->actionHelp,    &QAction::triggered, this, &MainWindow::onShowHelp);
+
+    // --- Undo / redo (Edit menu; group routes Ctrl+Z / Ctrl+Y to the active context) ---
+    setupUndo();
 
     updateTitleBar();
 }
@@ -262,10 +272,15 @@ void MainWindow::applyWorkspaceToUi()
 
 void MainWindow::closeWorkspace()
 {
-    // Close any open project docks and clear the list.
+    // Close any open project docks and clear the list. Each dock's Project owns its undo stack, whose
+    // destructor removes itself from the group — so no manual removeStack() is needed here.
     for (QDockWidget *dock : std::as_const(m_openProjectDocks))
         dock->deleteLater();
     m_openProjectDocks.clear();
+
+    // Drop the workspace-scope undo history (a new/closed workspace starts fresh).
+    if (m_workspaceUndoStack)
+        m_workspaceUndoStack->clear();
 
     // Clear the workspace model and reset state.
     m_workspace     = Platemaker::Models::Workspace{};
@@ -304,6 +319,77 @@ bool MainWindow::isWorkspaceModified() const
         return false; // no workspace loaded — nothing to save
     return QString::fromStdString(m_serializer.serialize(m_workspace))
            != m_savedSnapshot;
+}
+
+// ---------------------------------------------------------------------------
+// Undo / redo
+// ---------------------------------------------------------------------------
+
+void MainWindow::setupUndo()
+{
+    m_undoGroup = new QUndoGroup(this);
+
+    // The workspace stack (profiles, project rename, templates). Per-project stacks are added to the
+    // group as their docks open (see openProjectDock).
+    m_workspaceUndoStack = new QUndoStack(this);
+    m_workspaceUndoStack->setUndoLimit(10);
+    m_undoGroup->addStack(m_workspaceUndoStack);
+    m_undoGroup->setActiveStack(m_workspaceUndoStack);
+
+    // Edit menu. The group's Undo/Redo actions always target the *active* stack — i.e. whichever tab
+    // (a project dock, or the workspace panel) is in front — so Ctrl+Z / Ctrl+Y do the right thing.
+    QAction* undoAction = m_undoGroup->createUndoAction(this, tr("&Undo"));
+    QAction* redoAction = m_undoGroup->createRedoAction(this, tr("&Redo"));
+    undoAction->setShortcut(QKeySequence::Undo);   // Ctrl+Z
+    redoAction->setShortcut(QKeySequence::Redo);   // Ctrl+Y (+ Ctrl+Shift+Z on Windows)
+
+    auto* editMenu = new QMenu(tr("&Edit"), this);
+    editMenu->addAction(undoAction);
+    editMenu->addAction(redoAction);
+    const auto menus = menuBar()->actions();
+    if (menus.size() > 1)
+        menuBar()->insertMenu(menus[1], editMenu);   // second slot, after the Workspace menu
+    else
+        menuBar()->addMenu(editMenu);
+
+    // The workspace panel coming to the front makes the workspace stack active. Each project dock does
+    // the symmetric thing for its own stack (openProjectDock).
+    connect(ui->dockWidgetWorkspace, &QDockWidget::visibilityChanged, this, [this](bool visible) {
+        if (visible && m_undoGroup && m_workspaceUndoStack)
+            m_undoGroup->setActiveStack(m_workspaceUndoStack);
+    });
+}
+
+void MainWindow::applyWorkspaceSnapshot(const QString& snapshot)
+{
+    Platemaker::Infrastructure::WorkspaceEditor(m_workspace).restoreMeta(snapshot.toStdString());
+
+    // Names may have changed → refresh the project list and open dock titles; profile palettes may
+    // have changed → refresh every open dock's palette-derived views. Project *contents* are untouched
+    // (they live on each project's own undo stack).
+    applyWorkspaceToUi();
+    for (QDockWidget* dock : std::as_const(m_openProjectDocks)) {
+        const int idx = dock->property("projectIndex").toInt();
+        if (idx >= 0 && idx < static_cast<int>(m_workspace.projectItems.size()))
+            dock->setWindowTitle(QString::fromStdString(
+                m_workspace.projectItems[static_cast<std::size_t>(idx)].name));
+    }
+    emit workspaceProfilesChanged();
+    setDirty(true);
+}
+
+void MainWindow::commitWorkspaceEdit(const QString& text, const std::function<void()>& mutate)
+{
+    const QString before = QString::fromStdString(
+        Platemaker::Infrastructure::WorkspaceEditor(m_workspace).snapshotMeta());
+    mutate();
+    QString after = QString::fromStdString(
+        Platemaker::Infrastructure::WorkspaceEditor(m_workspace).snapshotMeta());
+
+    if (after == before)   // nothing workspace-level actually changed → no undo step
+        return;
+
+    m_workspaceUndoStack->push(new WorkspaceSnapshotCommand(this, before, std::move(after), text));
 }
 
 void MainWindow::updateTitleBar()

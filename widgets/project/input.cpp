@@ -142,11 +142,13 @@ void Project::refreshCanvasProfilesList()
             //The lambda captures the profile ID and uses it to find and remove the profile from the project's canvasProfileIds vector.
             const std::string profileId = cp.id;
             connect(removeBtn, &QToolButton::clicked, this, [this, profileId]() {
-                auto& proj = m_workspace.projectItems[m_projectIndex];
-                Platemaker::Infrastructure::WorkspaceEditor(m_workspace)
-                    .removeCanvasProfileFromProject(proj, profileId);
-                refreshCanvasProfilesList();
-                emit projectModified();
+                commitEdit(tr("Unlink canvas profile"), [&]{
+                    auto& proj = m_workspace.projectItems[m_projectIndex];
+                    Platemaker::Infrastructure::WorkspaceEditor(m_workspace)
+                        .removeCanvasProfileFromProject(proj, profileId);
+                    refreshCanvasProfilesList();
+                    emit projectModified();
+                });
             });
             break;
         }
@@ -203,18 +205,23 @@ void Project::onAssignCanvasProfiles()
         }
     }
 
-    // Guard: if the profile ID was not found (should not happen), inform the user and return.
+    // Do the guarded link inside the undo bracket; only a successful add changes the project (and so
+    // records a step). A dimension conflict leaves the project untouched → no undo step + a warning.
     auto& proj = m_workspace.projectItems[m_projectIndex];
-    if (!Platemaker::Infrastructure::WorkspaceEditor(m_workspace)
-             .addCanvasProfileToProject(proj, profileId)) {
+    bool linked = false;
+    commitEdit(tr("Link canvas profile"), [&]{
+        linked = Platemaker::Infrastructure::WorkspaceEditor(m_workspace)
+                     .addCanvasProfileToProject(proj, profileId);
+        if (linked) {
+            refreshCanvasProfilesList();
+            emit projectModified();
+        }
+    });
+    if (!linked) {
         QMessageBox::warning(this, tr("Conflict"),
             tr("Cannot assign \"%1\": a linked profile already has the same canvas dimensions.")
                 .arg(chosen));
-        return;
     }
-
-    refreshCanvasProfilesList();
-    emit projectModified();
 }
 
 void Project::onCanvasProfileDoubleClicked(QListWidgetItem* item)
@@ -245,10 +252,13 @@ void Project::onCanvasProfileDoubleClicked(QListWidgetItem* item)
     it->id           = savedId;
     it->templateInfo = savedTpl;
 
-    Platemaker::Infrastructure::WorkspaceEditor(m_workspace).replaceCanvasProfiles(std::move(wsProfiles));
-
-    refreshCanvasProfilesList();
-    emit projectModified();
+    // Editing a canvas profile changes a *workspace* palette (shared by every project), so it goes on
+    // the workspace undo timeline, not this project's.
+    commitWorkspaceEdit(tr("Edit canvas profile"), [&]{
+        Platemaker::Infrastructure::WorkspaceEditor(m_workspace).replaceCanvasProfiles(std::move(wsProfiles));
+        refreshCanvasProfilesList();
+        emit projectModified();
+    });
 }
 
 void Project::addInputPaths(const QStringList& newPaths)
@@ -323,8 +333,8 @@ void Project::onAddFromDirectory()
     for (const auto& e : entries)
         paths << e.absoluteFilePath();
 
-    // If no image files were found, addInputPaths() no-ops (and commitInputChange records nothing).
-    commitInputChange(tr("Add from directory"), [&]{ addInputPaths(paths); });
+    // If no image files were found, addInputPaths() no-ops (and commitEdit records nothing).
+    commitEdit(tr("Add from directory"), [&]{ addInputPaths(paths); });
 }
 
 void Project::onAddFiles()
@@ -334,7 +344,7 @@ void Project::onAddFiles()
         this, tr("Add Input Files"), {},
         tr("Images (*.jpg *.jpeg *.png *.webp *.tif *.tiff);;All files (*)"));
     if (files.isEmpty()) return;
-    commitInputChange(tr("Add files"), [&]{ addInputPaths(files); });
+    commitEdit(tr("Add files"), [&]{ addInputPaths(files); });
 }
 
 void Project::onClearInputs()
@@ -351,7 +361,7 @@ void Project::onClearInputs()
         return;
 
     // clears the list and marks outputs desynchronised
-    commitInputChange(tr("Clear inputs"), [&]{
+    commitEdit(tr("Clear inputs"), [&]{
         item.mergeFileScan({});
         populate();
         emit projectModified();
@@ -403,8 +413,8 @@ void Project::onApplySort()
     }
 
     // Apply the new order (rewrites only the InputFile::order fields) as one undo step. If the inputs
-    // were already in this order, commitInputChange sees no change and records nothing.
-    commitInputChange(tr("Sort inputs"), [&]{
+    // were already in this order, commitEdit sees no change and records nothing.
+    commitEdit(tr("Sort inputs"), [&]{
         for (int i = 0; i < static_cast<int>(order.size()); ++i)
             order[static_cast<std::size_t>(i)]->order = i;
 
@@ -431,7 +441,7 @@ void Project::onRowsMoved()
         orderedUids.push_back(
             uidForPath(pi, ui->listInputImageTile->item(i)->data(Qt::UserRole).toString()));
 
-    commitInputChange(tr("Reorder inputs"), [&]{
+    commitEdit(tr("Reorder inputs"), [&]{
         Platemaker::Infrastructure::ProjectEditor(pi).setInputOrder(orderedUids);
         emit projectModified();
     });
@@ -441,7 +451,7 @@ void Project::onTileMoveUp(const QString& filePath)
 {
     // Move one step up via ProjectEditor (rewrites only the `order` field), then repopulate + mark
     // the project modified. A no-op move (already at the top) records no undo step.
-    commitInputChange(tr("Move input up"), [&]{
+    commitEdit(tr("Move input up"), [&]{
         auto& pi = m_workspace.projectItems[m_projectIndex];
         if (Platemaker::Infrastructure::ProjectEditor(pi).moveInput(uidForPath(pi, filePath), -1)) {
             populate();
@@ -452,7 +462,7 @@ void Project::onTileMoveUp(const QString& filePath)
 
 void Project::onTileMoveDown(const QString& filePath)
 {
-    commitInputChange(tr("Move input down"), [&]{
+    commitEdit(tr("Move input down"), [&]{
         auto& pi = m_workspace.projectItems[m_projectIndex];
         if (Platemaker::Infrastructure::ProjectEditor(pi).moveInput(uidForPath(pi, filePath), +1)) {
             populate();
@@ -513,7 +523,7 @@ void Project::onInputContextMenu(const QPoint& pos)
             remaining.push_back(f->filePath);
 
     // Merge-scan the remaining paths to update the project's input images. This will remove the selected files and mark outputs as desynchronized.
-    commitInputChange(tr("Remove inputs"), [&]{
+    commitEdit(tr("Remove inputs"), [&]{
         item.mergeFileScan(remaining);
         populate();
         emit projectModified();

@@ -55,21 +55,25 @@ public:
     void refreshOutputTiles();                      //!< rebuild from getOutputImages()
     void refreshProfileViews();                     //!< rebuilds the palette-derived views (canvas list, output combo, format controls) after a workspace-level profile edit — see MainWindow::workspaceProfilesChanged
 
-    // --- Undo / redo of input-list edits (add / remove / clear / reorder / sort) ---
-    // Snapshot of the undoable slice of a project: the input files (composition + order) and the
-    // last-scanned directory. Outputs are deliberately NOT captured — output staleness is derived and
-    // recomputed by sanitize() at the next Refresh/render, exactly as it already is for a plain reorder.
-    struct InputSnapshot {
-        std::vector<Platemaker::Models::InputFile> inputs;  //!< Full copy of the input vector.
-        std::string inputDirectory;                         //!< Project's last-scanned folder.
-        QString     signature;                              //!< Cheap identity (uid|order|path per input) for no-op detection.
-    };
-    [[nodiscard]] InputSnapshot captureInputSnapshot() const;   //!< Snapshot the current input list. Public so the undo command can call it.
-    void restoreInputSnapshot(const InputSnapshot& snap);       //!< Restore a snapshot into the model, rebuild lookup tables, repopulate the UI, and mark modified.
+    // --- Undo / redo ---
+    // Project-scope edits (inputs, canvas links, output-profile selection, output dir) go on this
+    // project's own QUndoStack; MainWindow adds it to a QUndoGroup and makes it active when this
+    // dock is visible. Workspace-scope edits triggered from here (canvas-profile *content* edit,
+    // output-format edit) are bracketed with WorkspaceEditor::snapshotMeta and forwarded to MainWindow
+    // via workspaceEditCommitted so they land on the workspace timeline instead.
+    [[nodiscard]] QUndoStack* undoStack() const { return m_undoStack; } //!< This project's undo stack (owned here; added to MainWindow's group).
+    void applyProjectSnapshot(const QString& snapshot);  //!< Restore the project from a ProjectEditor::snapshot string, repopulate, mark modified. Called by ProjectSnapshotCommand.
 
 signals:
     void projectModified();                         //!< emitted when the project is modified (inputs, outputs, profiles, etc.)
     void renderToggleRequested(int projectIndex);   //!< Render/Stop button clicked
+
+    /**
+     * @brief A workspace-level edit was made from this project dock (canvas-profile content edit,
+     *        output-format edit). Carries the WorkspaceEditor::snapshotMeta strings from before/after
+     *        the edit so MainWindow can push it onto the workspace undo stack.
+     */
+    void workspaceEditCommitted(const QString& text, const QString& before, const QString& after);
 
 private slots:
     void onAddFromDirectory();                      //!< Slot for when the "Add Inputs from Directory" button is clicked. Opens a QFileDialog to select a directory and adds all image files from that directory to the input list.
@@ -108,16 +112,27 @@ private:
      */
     [[nodiscard]] bool outputsConfigStale() const;
 
-    void setupUndo();   //!< Creates the undo stack and installs the Ctrl+Z / Ctrl+Y actions (widget-scoped).
+    void setupUndo();   //!< Creates this project's undo stack (depth 10). MainWindow adds it to the group.
 
     /**
-     * @brief Records one undoable input-list edit: snapshots the inputs, runs \p mutate (the existing
-     *        operation), then pushes an undo command if anything actually changed.
-     * @param text Short label for the operation (shown in the undo action's tooltip/text).
-     * @param mutate The operation to perform (e.g. add / clear / reorder / sort). It still does its own
-     *        populate()/projectModified() — this only wraps it to make it reversible.
+     * @brief Records one undoable **project-scope** edit onto this project's stack.
+     *
+     * Brackets \p mutate with ProjectEditor::snapshot() before/after and pushes a
+     * ProjectSnapshotCommand if the project actually changed (a no-op edit records nothing).
+     * @param text   Short label for the operation (shown in the undo action's text).
+     * @param mutate The operation to perform (add / clear / reorder / sort / link / output selection /
+     *               output dir). It still does its own populate()/projectModified().
      */
-    void commitInputChange(const QString& text, const std::function<void()>& mutate);
+    void commitEdit(const QString& text, const std::function<void()>& mutate);
+
+    /**
+     * @brief Records one undoable **workspace-scope** edit triggered from this dock onto the workspace
+     *        timeline (canvas-profile content edit, output-format edit).
+     *
+     * Brackets \p mutate with WorkspaceEditor::snapshotMeta before/after and, if anything changed,
+     * emits workspaceEditCommitted so MainWindow pushes it onto the workspace undo stack.
+     */
+    void commitWorkspaceEdit(const QString& text, const std::function<void()>& mutate);
 
     Ui::Project* ui;                                        //!< Qt Designer-generated UI for this widget.
     int m_projectIndex;                                     //!< Index of this project within m_workspace.projectItems (kept in sync via setProjectIndex()).

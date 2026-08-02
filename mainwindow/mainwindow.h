@@ -5,6 +5,7 @@
 #include <QList>
 #include <QStringList>
 
+#include <functional>
 #include <vector>
 
 #include <platemaker/infrastructure/control/cancellation_token.hpp>
@@ -19,6 +20,8 @@ class QDockWidget;
 class QListWidgetItem;
 class QMenu;
 class QThread;
+class QUndoGroup;
+class QUndoStack;
 class Project;
 class RenderWorker;
 
@@ -35,6 +38,14 @@ class MainWindow : public QMainWindow
 public:
     explicit MainWindow(QWidget *parent = nullptr); //!< Constructs the main window and initializes the UI.
     ~MainWindow() override;                         //!< Destroys the main window and cleans up resources.
+
+    /**
+     * @brief Restores workspace-level metadata (profiles + project names) from a
+     *        WorkspaceEditor::snapshotMeta string and refreshes every view. Called by
+     *        WorkspaceSnapshotCommand on undo/redo. Project *contents* are untouched (they live on
+     *        each project's own undo stack).
+     */
+    void applyWorkspaceSnapshot(const QString& snapshot);
 
 protected:
     /**
@@ -252,6 +263,18 @@ private:
      */
     void captureSnapshot();
 
+    // --- undo / redo ---
+    void setupUndo();   //!< Creates the QUndoGroup + workspace stack and the Edit-menu Undo/Redo actions.
+
+    /**
+     * @brief Records one undoable **workspace-scope** edit (profile CRUD, project rename, templates)
+     *        onto the workspace undo stack.
+     *
+     * Brackets \p mutate with WorkspaceEditor::snapshotMeta before/after and pushes a
+     * WorkspaceSnapshotCommand if anything changed. \p mutate does its own UI refresh / setDirty.
+     */
+    void commitWorkspaceEdit(const QString& text, const std::function<void()>& mutate);
+
     /**
      * @brief Authoritative change check: true if the workspace differs from the last
      * captured snapshot. Robust against any action that forgot to setDirty().
@@ -301,6 +324,11 @@ private:
 
     Platemaker::Models::Workspace                      m_workspace; //!< The authoritative workspace model (projects, profiles, templates).
     Platemaker::Infrastructure::WorkspaceSerializer    m_serializer;//!< Serializes the workspace model to/from disk.
+
+    // Undo/redo: a QUndoGroup holds one stack per open project plus the workspace stack; the active
+    // stack follows the visible tab in the workspace dock area (Ctrl+Z/Ctrl+Y route to it). Depth 10.
+    QUndoGroup* m_undoGroup         = nullptr;  //!< Owns the per-context stacks; provides the Undo/Redo actions.
+    QUndoStack* m_workspaceUndoStack = nullptr; //!< Workspace-scope history (profiles, project rename, templates).
     QString m_workspacePath;                    //!< Path of the currently loaded workspace file (empty if none).
     bool    m_dirty = false;                    //!< Eager flag driving the title-bar asterisk (*)
     QString m_savedSnapshot;                    //!< Serialized workspace at last load/save, used to detect unsaved changes (dirty state). Empty if no workspace is loaded.

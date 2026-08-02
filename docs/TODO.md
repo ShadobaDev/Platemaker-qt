@@ -75,10 +75,13 @@ New, backward-compatible features. Several are gated on a lib version, noted in 
   project's input list adds them via `mergeFileScan()`, the same path as *Add files* / *Add from
   directory*. A new capability (not a change to an existing workflow), hence MINOR.
 
-- [x] **Undo / Redo** (`Ctrl+Z` / `Ctrl+Y`) — Done for the input-list operations (add, add-from-dir,
-  remove, clear, reorder via drag/▲▼, sort): per-project `QUndoStack`, snapshot-based, widget-scoped
-  shortcuts (`Project::setupUndo` / `commitInputChange`). Not yet extended to other workspace edits
-  (profile links, output settings, etc.) — a natural follow-up if wanted.
+- [x] **Undo / Redo** (`Ctrl+Z` / `Ctrl+Y`) — Done, app-wide via an **Edit** menu. A `QUndoGroup` with
+  one stack per open project + one workspace stack; `Ctrl+Z`/`Ctrl+Y` route to the front tab. Snapshot
+  commands built on the lib's `ProjectEditor::snapshot/restore` and `WorkspaceEditor::snapshotMeta/
+  restoreMeta` (component-scoped, so light in RAM; depth 10). Covers input edits, canvas links, output
+  profile/dir, and workspace-level profile CRUD / project rename / templates. Add/remove project is
+  deliberately **not** undoable; render/refresh are never recorded. Requires libplatemaker 0.3.1.
+  (Out of scope: undoable project add/remove; restoring links a profile-delete cascaded away.)
 
 - [ ] **Auto-sort rules** (`groupBoxAutosort`) — pattern/regex-based ordering:
   `lineEditInputNameRegex` body token (e.g. `chap_<num>` → chap_001, chap_002…),

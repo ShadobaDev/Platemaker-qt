@@ -110,12 +110,14 @@ void MainWindow::onManageCanvasProfiles()
     // that field on its round trip). This replaces the former snapshot / assign / mint / re-attach
     // done by hand here.
     const auto result = dlg.profiles();
-    Platemaker::Infrastructure::WorkspaceEditor(m_workspace).replaceCanvasProfiles(
-        std::vector<Platemaker::Models::CanvasProfile>(result.begin(), result.end()));
-    m_activeCanvasProfileName = dlg.activeProfileName();
+    commitWorkspaceEdit(tr("Manage canvas profiles"), [&]{
+        Platemaker::Infrastructure::WorkspaceEditor(m_workspace).replaceCanvasProfiles(
+            std::vector<Platemaker::Models::CanvasProfile>(result.begin(), result.end()));
+        m_activeCanvasProfileName = dlg.activeProfileName();
 
-    setDirty(true);
-    emit workspaceProfilesChanged();
+        setDirty(true);
+        emit workspaceProfilesChanged();
+    });
 }
 void MainWindow::onNewCanvasProfile()
 {
@@ -141,15 +143,17 @@ void MainWindow::onNewCanvasProfile()
         }
     }
 
-    // The editor mints a stable id and appends it to the workspace palette.
-    Platemaker::Infrastructure::WorkspaceEditor(m_workspace).addCanvasProfile(profile);
+    commitWorkspaceEdit(tr("New canvas profile"), [&]{
+        // The editor mints a stable id and appends it to the workspace palette.
+        Platemaker::Infrastructure::WorkspaceEditor(m_workspace).addCanvasProfile(profile);
 
-    // If this is the first profile, make it the active one.
-    if (m_workspace.canvasProfiles().size() == 1)
-        m_activeCanvasProfileName = QString::fromStdString(profile.name);
+        // If this is the first profile, make it the active one.
+        if (m_workspace.canvasProfiles().size() == 1)
+            m_activeCanvasProfileName = QString::fromStdString(profile.name);
 
-    setDirty(true);
-    emit workspaceProfilesChanged();
+        setDirty(true);
+        emit workspaceProfilesChanged();
+    });
 }
 
 void MainWindow::onEditActiveCanvasProfile()
@@ -194,10 +198,12 @@ void MainWindow::onEditActiveCanvasProfile()
     if (m_activeCanvasProfileName == QString::fromStdString(oldName))
         m_activeCanvasProfileName = QString::fromStdString(it->name);
 
-    Platemaker::Infrastructure::WorkspaceEditor(m_workspace).replaceCanvasProfiles(std::move(profiles));
+    commitWorkspaceEdit(tr("Edit canvas profile"), [&]{
+        Platemaker::Infrastructure::WorkspaceEditor(m_workspace).replaceCanvasProfiles(std::move(profiles));
 
-    setDirty(true);
-    emit workspaceProfilesChanged();
+        setDirty(true);
+        emit workspaceProfilesChanged();
+    });
 }
 // ---------------------------------------------------------------------------
 // Output profile slots
@@ -229,12 +235,14 @@ void MainWindow::onManageOutputProfiles()
     // persisted), mints ids for new profiles, and deduplicates. Replaces the former clear / filter /
     // mint done by hand here.
     const auto dlgProfiles = dlg.profiles();
-    Platemaker::Infrastructure::WorkspaceEditor(m_workspace).replaceOutputProfiles(
-        std::vector<Platemaker::Models::OutputProfile>(dlgProfiles.begin(), dlgProfiles.end()));
-    m_activeOutputProfileId = dlg.activeProfileId();
+    commitWorkspaceEdit(tr("Manage output profiles"), [&]{
+        Platemaker::Infrastructure::WorkspaceEditor(m_workspace).replaceOutputProfiles(
+            std::vector<Platemaker::Models::OutputProfile>(dlgProfiles.begin(), dlgProfiles.end()));
+        m_activeOutputProfileId = dlg.activeProfileId();
 
-    setDirty(true);
-    emit workspaceProfilesChanged();
+        setDirty(true);
+        emit workspaceProfilesChanged();
+    });
 }
 
 void MainWindow::onNewOutputProfile()
@@ -260,15 +268,17 @@ void MainWindow::onNewOutputProfile()
         }
     }
 
-    // The editor mints a stable user id (never a preset id) and appends it.
-    const std::string newId =
-        Platemaker::Infrastructure::WorkspaceEditor(m_workspace).addOutputProfile(profile);
+    commitWorkspaceEdit(tr("New output profile"), [&]{
+        // The editor mints a stable user id (never a preset id) and appends it.
+        const std::string newId =
+            Platemaker::Infrastructure::WorkspaceEditor(m_workspace).addOutputProfile(profile);
 
-    if (m_workspace.outputProfiles().size() == 1)
-        m_activeOutputProfileId = QString::fromStdString(newId);
+        if (m_workspace.outputProfiles().size() == 1)
+            m_activeOutputProfileId = QString::fromStdString(newId);
 
-    setDirty(true);
-    emit workspaceProfilesChanged();
+        setDirty(true);
+        emit workspaceProfilesChanged();
+    });
 }
 
 void MainWindow::onEditActiveOutputProfile()
@@ -322,8 +332,10 @@ void MainWindow::onEditActiveOutputProfile()
     *it = dlg.profile();
     it->id = savedId;
 
-    Platemaker::Infrastructure::WorkspaceEditor(m_workspace).replaceOutputProfiles(std::move(profiles));
+    commitWorkspaceEdit(tr("Edit output profile"), [&]{
+        Platemaker::Infrastructure::WorkspaceEditor(m_workspace).replaceOutputProfiles(std::move(profiles));
 
-    setDirty(true);
-    emit workspaceProfilesChanged();
+        setDirty(true);
+        emit workspaceProfilesChanged();
+    });
 }

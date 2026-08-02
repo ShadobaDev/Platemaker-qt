@@ -75,15 +75,18 @@ void Project::refreshOutputProfileCombo()
 
 void Project::onOutputProfileChanged(int index)
 {
-    // When the output profile selection changes, update the project's output profile ID and refresh the format controls.
+    // Fires only on a genuine user change — refreshOutputProfileCombo() blocks signals while it
+    // repopulates, so this never runs during populate()/restore. Selecting a profile is project-scope.
     const QString id = ui->comboBoxOutputProfile->itemData(index).toString();
-    auto& proj = m_workspace.projectItems[m_projectIndex];
-    // The combo lists user profiles and presets, so the id always resolves; the editor validates
-    // it anyway (an empty id means "workspace default").
-    Platemaker::Infrastructure::WorkspaceEditor(m_workspace)
-        .setProjectOutputProfile(proj, id.toStdString());
-    refreshFormatControls();   // reflect the newly-selected profile's format/options
-    emit projectModified();
+    commitEdit(tr("Change output profile"), [&]{
+        auto& proj = m_workspace.projectItems[m_projectIndex];
+        // The combo lists user profiles and presets, so the id always resolves; the editor validates
+        // it anyway (an empty id means "workspace default").
+        Platemaker::Infrastructure::WorkspaceEditor(m_workspace)
+            .setProjectOutputProfile(proj, id.toStdString());
+        refreshFormatControls();   // reflect the newly-selected profile's format/options
+        emit projectModified();
+    });
 }
 
 void Project::refreshFormatControls()
@@ -122,21 +125,22 @@ void Project::onSelectOutputDir()
         this, tr("Select Output Directory"), start);
     if (dir.isEmpty()) return;
 
-    // Update the project's output directory and store the selected directory in settings for future reference.
-    item.getOutputDirectory() = dir.toStdString();
-    QSettings().setValue(QStringLiteral("lastOutputDir"), dir);
-
-    // Refresh the output directory display in the UI and emit a projectModified signal to indicate that the project has been modified.
-    refreshOutputDirectoryDisplay();
-    emit projectModified();
+    commitEdit(tr("Set output directory"), [&]{
+        // Update the project's output directory and store it in settings (a UI convenience, not undone).
+        item.getOutputDirectory() = dir.toStdString();
+        QSettings().setValue(QStringLiteral("lastOutputDir"), dir);
+        refreshOutputDirectoryDisplay();
+        emit projectModified();
+    });
 }
 
 void Project::onClearOutputDir()
 {
-    // Clear the project's output directory and refresh the display. Emit a projectModified signal to indicate that the project has been modified.
-    m_workspace.projectItems[m_projectIndex].getOutputDirectory().clear();
-    refreshOutputDirectoryDisplay();
-    emit projectModified();
+    commitEdit(tr("Clear output directory"), [&]{
+        m_workspace.projectItems[m_projectIndex].getOutputDirectory().clear();
+        refreshOutputDirectoryDisplay();
+        emit projectModified();
+    });
 }
 
 void Project::onFormatOptionsEdited()
@@ -154,8 +158,12 @@ void Project::onFormatOptionsEdited()
     if (it == profiles.end()) return;
 
     m_formatOptions->applyToProfile(*it);
-    Platemaker::Infrastructure::WorkspaceEditor(m_workspace).replaceOutputProfiles(std::move(profiles));
-    emit projectModified();
+    // Editing an output profile's format changes a *workspace* palette (shared by every project that
+    // selected it), so it goes on the workspace undo timeline, not this project's.
+    commitWorkspaceEdit(tr("Edit output profile"), [&]{
+        Platemaker::Infrastructure::WorkspaceEditor(m_workspace).replaceOutputProfiles(std::move(profiles));
+        emit projectModified();
+    });
 }
 
 void Project::onJumpToInput()

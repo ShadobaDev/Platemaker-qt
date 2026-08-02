@@ -2,16 +2,24 @@
 
 ## [1.3.0] — Unreleased
 
-Requires **libplatemaker 0.3.0** (unchanged from 1.2.0).
+Requires **libplatemaker 0.3.1** — this release uses the lib's new `ProjectEditor` /
+`WorkspaceEditor` snapshot/restore for undo/redo.
 
 ### Added
 
-- **Undo / Redo for input-list edits** (`Ctrl+Z` / `Ctrl+Y`). Adding files, adding from a directory,
-  removing, clearing, reordering (drag or the ▲/▼ buttons) and applying a sort are now reversible. Each
-  open project has its own history, and the shortcut acts on the project that has focus. Implemented on
-  a `QUndoStack` with a snapshot of the input list per step; a no-op edit (e.g. re-sorting already-sorted
-  inputs) records nothing. Undo/redo restores the input composition only — output staleness is
-  recomputed by the next Refresh/render, as it already is for a plain reorder.
+- **Undo / Redo across the app** (`Ctrl+Z` / `Ctrl+Y`), via a new **Edit** menu. Reversible now:
+  - **Project edits** — add files / add-from-directory / remove / clear / reorder (drag or ▲/▼) / sort
+    inputs, link/unlink a canvas profile, change the output profile, set/clear the output directory.
+  - **Workspace edits** — rename a project; create / edit / delete canvas and output profiles; generate
+    or delete templates.
+
+  Each open project has its own undo history and there is one for the workspace; a `QUndoGroup` routes
+  `Ctrl+Z`/`Ctrl+Y` to **whichever tab is in front** (a project dock, or the Workspace panel). Each step
+  is a compact snapshot from the lib (a single project, or the workspace's profiles + names — never the
+  whole workspace), so history stays light even with many projects open; depth is 10 per timeline and a
+  no-op edit (e.g. re-sorting sorted inputs) records nothing. Undo restores the edited scope only —
+  output staleness is recomputed by the next Refresh/render, as for a plain reorder. **Adding or removing
+  a project is not undoable** (by design), and render/refresh are never recorded.
 - **`Ctrl+R` also renders the current project** — an alternate for `F5` (the "run" convention in many
   editors); `F5` stays the primary key shown in the menu, and `F6` (render all) / `Esc` (stop) are
   unchanged. The rest of the app's keyboard shortcuts (`Ctrl+S`/`Ctrl+Shift+S` save, `Ctrl+O` open,

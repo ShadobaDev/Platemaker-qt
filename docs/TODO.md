@@ -143,8 +143,18 @@ Investigations, testing and manual/wiki work that ships no code change on their 
   been moved or deleted (dropped silently vs. an error), have not been established. Test and
   document; the wiki currently says "to be tested".
 
-## Add dependency manifest
+## Add dependency manifest — done (SBOM submission)
 
-- [ ] **Repository must define dependencies** in one of the supported manifest file types, like package.json or Gemfile. Maybe copy of sbom from build\Desktop_Qt_6_11_1_MinGW_64_bit-Debug\credits will work?
+- [x] **Repository defines its dependencies for GitHub's Dependency graph.** GitHub can't read our CMake
+  dependencies (find_package for Qt/libplatemaker, the prebuilt libvips zip, FetchContent), and it does
+  **not** ingest an SBOM merely committed to the repo (the *Export SBOM* button only exports). So instead
+  of a fake `package.json`, we feed the graph through the **Dependency Submission API**: a committed SPDX
+  snapshot at [`sbom/sbom.spdx.json`](../sbom/sbom.spdx.json) (the superset: Qt, libplatemaker, libvips,
+  nlohmann/json) is submitted by
+  [`.github/workflows/dependency-submission.yml`](../.github/workflows/dependency-submission.yml) on every
+  push touching `sbom/`. Regenerate the snapshot from the build's `credits/sbom.spdx.json` when a version
+  changes (see `sbom/README.md`). CVE alerts additionally need *Dependabot alerts* enabled in
+  Settings → Code security; [`.github/dependabot.yml`](../.github/dependabot.yml) separately keeps the
+  GitHub Actions current (Dependabot version-updates has no C++ ecosystem for Qt/libvips).
 
 ---

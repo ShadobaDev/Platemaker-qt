@@ -1,0 +1,15 @@
+# Dependabot VERSION UPDATES (auto-PRs bumping dependency versions).
+#
+# Scope note: this only covers ecosystems Dependabot supports. Our real dependencies (Qt, libvips,
+# nlohmann/json, libplatemaker) have NO Dependabot ecosystem — they are pinned in CMakeLists.txt /
+# fixed by the build kit and surfaced to GitHub via the SBOM submission (see
+# .github/workflows/dependency-submission.yml). CVE ALERTS for those come from "Dependabot alerts"
+# (enabled in repo Settings → Code security), which reads the dependency graph and needs no config here.
+#
+# So this file only keeps our GitHub Actions current — the one thing Dependabot can update here.
+version: 2
+updates:
+  - package-ecosystem: "github-actions"
+    directory: "/"                 # scans .github/workflows/*
+    schedule:
+      interval: "weekly"

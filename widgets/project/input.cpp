@@ -323,8 +323,8 @@ void Project::onAddFromDirectory()
     for (const auto& e : entries)
         paths << e.absoluteFilePath();
 
-    // If no image files were found, inform the user and return.
-    addInputPaths(paths);
+    // If no image files were found, addInputPaths() no-ops (and commitInputChange records nothing).
+    commitInputChange(tr("Add from directory"), [&]{ addInputPaths(paths); });
 }
 
 void Project::onAddFiles()
@@ -333,7 +333,8 @@ void Project::onAddFiles()
     const QStringList files = QFileDialog::getOpenFileNames(
         this, tr("Add Input Files"), {},
         tr("Images (*.jpg *.jpeg *.png *.webp *.tif *.tiff);;All files (*)"));
-    addInputPaths(files);
+    if (files.isEmpty()) return;
+    commitInputChange(tr("Add files"), [&]{ addInputPaths(files); });
 }
 
 void Project::onClearInputs()
@@ -350,9 +351,11 @@ void Project::onClearInputs()
         return;
 
     // clears the list and marks outputs desynchronised
-    item.mergeFileScan({}); 
-    populate();
-    emit projectModified();
+    commitInputChange(tr("Clear inputs"), [&]{
+        item.mergeFileScan({});
+        populate();
+        emit projectModified();
+    });
 }
 
 void Project::onApplySort()
@@ -399,13 +402,15 @@ void Project::onApplySort()
             });
     }
 
-    // Update the order field of each input file based on the new sorted order. 
-    // This ensures that the input files are displayed in the correct order in the UI.
-    for (int i = 0; i < static_cast<int>(order.size()); ++i)
-        order[static_cast<std::size_t>(i)]->order = i;
+    // Apply the new order (rewrites only the InputFile::order fields) as one undo step. If the inputs
+    // were already in this order, commitInputChange sees no change and records nothing.
+    commitInputChange(tr("Sort inputs"), [&]{
+        for (int i = 0; i < static_cast<int>(order.size()); ++i)
+            order[static_cast<std::size_t>(i)]->order = i;
 
-    populate();
-    emit projectModified();
+        populate();
+        emit projectModified();
+    });
 }
 
 void Project::onGoToOutput()
@@ -426,28 +431,34 @@ void Project::onRowsMoved()
         orderedUids.push_back(
             uidForPath(pi, ui->listInputImageTile->item(i)->data(Qt::UserRole).toString()));
 
-    Platemaker::Infrastructure::ProjectEditor(pi).setInputOrder(orderedUids);
-    emit projectModified();
+    commitInputChange(tr("Reorder inputs"), [&]{
+        Platemaker::Infrastructure::ProjectEditor(pi).setInputOrder(orderedUids);
+        emit projectModified();
+    });
 }
 
 void Project::onTileMoveUp(const QString& filePath)
 {
     // Move one step up via ProjectEditor (rewrites only the `order` field), then repopulate + mark
-    // the project modified.
-    auto& pi = m_workspace.projectItems[m_projectIndex];
-    if (Platemaker::Infrastructure::ProjectEditor(pi).moveInput(uidForPath(pi, filePath), -1)) {
-        populate();
-        emit projectModified();
-    }
+    // the project modified. A no-op move (already at the top) records no undo step.
+    commitInputChange(tr("Move input up"), [&]{
+        auto& pi = m_workspace.projectItems[m_projectIndex];
+        if (Platemaker::Infrastructure::ProjectEditor(pi).moveInput(uidForPath(pi, filePath), -1)) {
+            populate();
+            emit projectModified();
+        }
+    });
 }
 
 void Project::onTileMoveDown(const QString& filePath)
 {
-    auto& pi = m_workspace.projectItems[m_projectIndex];
-    if (Platemaker::Infrastructure::ProjectEditor(pi).moveInput(uidForPath(pi, filePath), +1)) {
-        populate();
-        emit projectModified();
-    }
+    commitInputChange(tr("Move input down"), [&]{
+        auto& pi = m_workspace.projectItems[m_projectIndex];
+        if (Platemaker::Infrastructure::ProjectEditor(pi).moveInput(uidForPath(pi, filePath), +1)) {
+            populate();
+            emit projectModified();
+        }
+    });
 }
 
 void Project::onInputContextMenu(const QPoint& pos)
@@ -502,7 +513,9 @@ void Project::onInputContextMenu(const QPoint& pos)
             remaining.push_back(f->filePath);
 
     // Merge-scan the remaining paths to update the project's input images. This will remove the selected files and mark outputs as desynchronized.
-    item.mergeFileScan(remaining);
-    populate();
-    emit projectModified();
+    commitInputChange(tr("Remove inputs"), [&]{
+        item.mergeFileScan(remaining);
+        populate();
+        emit projectModified();
+    });
 }

@@ -3,11 +3,16 @@
 
 #include <QWidget>
 
+#include <functional>
+#include <string>
+#include <vector>
+
 #include <platemaker/models/workspace.hpp>
 
 namespace Ui { class Project; }
 class QListWidgetItem;
 class OutputFormatOptionsWidget;
+class QUndoStack;
 
 /**
  * @brief The Project class represents a single project within the Platemaker application.
@@ -50,6 +55,18 @@ public:
     void refreshOutputTiles();                      //!< rebuild from getOutputImages()
     void refreshProfileViews();                     //!< rebuilds the palette-derived views (canvas list, output combo, format controls) after a workspace-level profile edit — see MainWindow::workspaceProfilesChanged
 
+    // --- Undo / redo of input-list edits (add / remove / clear / reorder / sort) ---
+    // Snapshot of the undoable slice of a project: the input files (composition + order) and the
+    // last-scanned directory. Outputs are deliberately NOT captured — output staleness is derived and
+    // recomputed by sanitize() at the next Refresh/render, exactly as it already is for a plain reorder.
+    struct InputSnapshot {
+        std::vector<Platemaker::Models::InputFile> inputs;  //!< Full copy of the input vector.
+        std::string inputDirectory;                         //!< Project's last-scanned folder.
+        QString     signature;                              //!< Cheap identity (uid|order|path per input) for no-op detection.
+    };
+    [[nodiscard]] InputSnapshot captureInputSnapshot() const;   //!< Snapshot the current input list. Public so the undo command can call it.
+    void restoreInputSnapshot(const InputSnapshot& snap);       //!< Restore a snapshot into the model, rebuild lookup tables, repopulate the UI, and mark modified.
+
 signals:
     void projectModified();                         //!< emitted when the project is modified (inputs, outputs, profiles, etc.)
     void renderToggleRequested(int projectIndex);   //!< Render/Stop button clicked
@@ -91,11 +108,23 @@ private:
      */
     [[nodiscard]] bool outputsConfigStale() const;
 
+    void setupUndo();   //!< Creates the undo stack and installs the Ctrl+Z / Ctrl+Y actions (widget-scoped).
+
+    /**
+     * @brief Records one undoable input-list edit: snapshots the inputs, runs \p mutate (the existing
+     *        operation), then pushes an undo command if anything actually changed.
+     * @param text Short label for the operation (shown in the undo action's tooltip/text).
+     * @param mutate The operation to perform (e.g. add / clear / reorder / sort). It still does its own
+     *        populate()/projectModified() — this only wraps it to make it reversible.
+     */
+    void commitInputChange(const QString& text, const std::function<void()>& mutate);
+
     Ui::Project* ui;                                        //!< Qt Designer-generated UI for this widget.
     int m_projectIndex;                                     //!< Index of this project within m_workspace.projectItems (kept in sync via setProjectIndex()).
     Platemaker::Models::Workspace& m_workspace;             //!< Reference to the workspace owning this project's data.
     QString m_cacheDir;                                     //!< Directory where cached thumbnails and other temporary files are stored.
     OutputFormatOptionsWidget* m_formatOptions = nullptr;   //!< Shared widget for editing the selected output profile's format/options.
+    QUndoStack* m_undoStack = nullptr;                      //!< Per-project undo history for input-list edits (owned via QObject parent).
 };
 
 #endif // PROJECT_H

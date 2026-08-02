@@ -64,6 +64,7 @@ Bug fixes, cosmetics and internal cleanups — no new capability, no change to a
   and its fields show a "Coming soon" placeholder (`project.cpp`, constructor). A stopgap — remove it
   when the Auto-sort feature lands (see the MINOR item).
 
+- [ ] **Light mode** is broken. It is mixed with hardcoded dark greys color, and light grey font on light background is unreadable. Either provide support for light mode, or hardcode drak mode. 
 ---
 
 ## MINOR — next: 1.3.0
@@ -74,8 +75,10 @@ New, backward-compatible features. Several are gated on a lib version, noted in 
   project's input list adds them via `mergeFileScan()`, the same path as *Add files* / *Add from
   directory*. A new capability (not a change to an existing workflow), hence MINOR.
 
-- [ ] **Undo / Redo** (`Ctrl+Z` / `Ctrl+Y`) — for input-list operations (add, clear, reorder, sort)
-  and ideally other reversible workspace edits. A new capability, hence MINOR.
+- [x] **Undo / Redo** (`Ctrl+Z` / `Ctrl+Y`) — Done for the input-list operations (add, add-from-dir,
+  remove, clear, reorder via drag/▲▼, sort): per-project `QUndoStack`, snapshot-based, widget-scoped
+  shortcuts (`Project::setupUndo` / `commitInputChange`). Not yet extended to other workspace edits
+  (profile links, output settings, etc.) — a natural follow-up if wanted.
 
 - [ ] **Auto-sort rules** (`groupBoxAutosort`) — pattern/regex-based ordering:
   `lineEditInputNameRegex` body token (e.g. `chap_<num>` → chap_001, chap_002…),

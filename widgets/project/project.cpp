@@ -1,6 +1,7 @@
 #include "project.h"
 #include "ui_project.h"
 #include "imagetile.h"
+#include "inputlistcommand.h"
 #include "canvasprofiledialog.h"
 #include "outputformatoptionswidget.h"
 
@@ -23,8 +24,11 @@
 #include <QSet>
 #include <QSettings>
 #include <QToolButton>
+#include <QKeySequence>
+#include <QUndoStack>
 
 #include <algorithm>
+#include <utility>
 
 using namespace Platemaker::Models;
 
@@ -80,6 +84,9 @@ Project::Project(int projectIndex,
     ui->lineEditPrependedRegex->setPlaceholderText(comingSoon);
     ui->lineEditAppendedRegex->setPlaceholderText(comingSoon);
 
+    // Undo / redo for the input-list edits wired above (add / remove / clear / reorder / sort).
+    setupUndo();
+
     // Go to output tab
     connect(ui->pushButtonGoToOutput, &QPushButton::clicked,
             this, &Project::onGoToOutput);
@@ -128,6 +135,79 @@ Project::Project(int projectIndex,
 Project::~Project()
 {
     delete ui;
+}
+
+// ---------------------------------------------------------------------------
+// Undo / redo of input-list edits
+// ---------------------------------------------------------------------------
+
+void Project::setupUndo()
+{
+    m_undoStack = new QUndoStack(this);
+
+    // createUndo/RedoAction give QActions whose enabled state and text ("Undo Reorder inputs") track
+    // the stack automatically. They carry no shortcut of their own, so we set the platform-standard
+    // ones (Ctrl+Z / Ctrl+Y, plus Ctrl+Shift+Z for redo on Windows). Scope them to this widget so the
+    // shortcut acts on the project that has focus — each open project dock has its own history.
+    QAction* undoAction = m_undoStack->createUndoAction(this, tr("Undo"));
+    QAction* redoAction = m_undoStack->createRedoAction(this, tr("Redo"));
+    undoAction->setShortcut(QKeySequence::Undo);
+    redoAction->setShortcut(QKeySequence::Redo);
+    undoAction->setShortcutContext(Qt::WidgetWithChildrenShortcut);
+    redoAction->setShortcutContext(Qt::WidgetWithChildrenShortcut);
+    addAction(undoAction);
+    addAction(redoAction);
+}
+
+Project::InputSnapshot Project::captureInputSnapshot() const
+{
+    const auto& item = m_workspace.projectItems[m_projectIndex];
+
+    InputSnapshot snap;
+    snap.inputs          = item.getInputImages();   // copy (InputFile is a plain value type)
+    snap.inputDirectory  = item.inputDirectory;
+
+    // Cheap identity for no-op detection: the fields the input-list ops actually change (uid, order,
+    // path), in vector order, plus the scanned directory. Two snapshots with equal signatures are
+    // treated as "nothing changed", so a sort that was already sorted (etc.) records no undo step.
+    QString sig;
+    for (const auto& f : snap.inputs) {
+        sig += QString::fromStdString(f.uid);
+        sig += '|'; sig += QString::number(f.order);
+        sig += '|'; sig += QString::fromStdString(f.filePath);
+        sig += '\n';
+    }
+    sig += QString::fromStdString(snap.inputDirectory);
+    snap.signature = std::move(sig);
+    return snap;
+}
+
+void Project::restoreInputSnapshot(const InputSnapshot& snap)
+{
+    auto& item = m_workspace.projectItems[m_projectIndex];
+
+    // Replace the input vector wholesale and rebuild the path→output / sha→path lookup tables so they
+    // match. Outputs are left as they are: their staleness is derived and recomputed by sanitize() at
+    // the next Refresh/render (the input-composition baseline notices a reorder/add/remove), exactly as
+    // for a live reorder — undo never touches rendered output files.
+    item.getInputImages() = snap.inputs;
+    item.inputDirectory   = snap.inputDirectory;
+    item.rebuildLookupTables();
+
+    populate();
+    emit projectModified();
+}
+
+void Project::commitInputChange(const QString& text, const std::function<void()>& mutate)
+{
+    InputSnapshot before = captureInputSnapshot();
+    mutate();                                   // the existing operation (does its own populate/emit)
+    InputSnapshot after = captureInputSnapshot();
+
+    if (after.signature == before.signature)    // no effective change (e.g. re-sorting sorted inputs)
+        return;                                 // — don't pollute the undo history
+
+    m_undoStack->push(new InputListCommand(this, std::move(before), std::move(after), text));
 }
 
 void Project::populate()

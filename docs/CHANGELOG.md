@@ -6,6 +6,12 @@ Requires **libplatemaker 0.3.0** (unchanged from 1.2.0).
 
 ### Added
 
+- **Undo / Redo for input-list edits** (`Ctrl+Z` / `Ctrl+Y`). Adding files, adding from a directory,
+  removing, clearing, reordering (drag or the ▲/▼ buttons) and applying a sort are now reversible. Each
+  open project has its own history, and the shortcut acts on the project that has focus. Implemented on
+  a `QUndoStack` with a snapshot of the input list per step; a no-op edit (e.g. re-sorting already-sorted
+  inputs) records nothing. Undo/redo restores the input composition only — output staleness is
+  recomputed by the next Refresh/render, as it already is for a plain reorder.
 - **`Ctrl+R` also renders the current project** — an alternate for `F5` (the "run" convention in many
   editors); `F5` stays the primary key shown in the menu, and `F6` (render all) / `Esc` (stop) are
   unchanged. The rest of the app's keyboard shortcuts (`Ctrl+S`/`Ctrl+Shift+S` save, `Ctrl+O` open,

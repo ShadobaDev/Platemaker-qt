@@ -31,6 +31,7 @@ qt_add_executable(Platemaker
     # Project — class split across per-concern .cpp (same Project class).
     widgets/project/project.cpp widgets/project/project.h
     widgets/project/input.cpp widgets/project/output.cpp
+    widgets/project/inputlistcommand.cpp widgets/project/inputlistcommand.h
     widgets/project/project.ui
 
     # Widgets / dialogs — each in its own folder under widgets/ (.cpp/.h/.ui together).

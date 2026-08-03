@@ -1,0 +1,94 @@
+# Release pipeline for the GUI: on a bare version tag (e.g. 1.3.1), build the Windows installer, attach
+# a build-provenance attestation, and upload the installer + its SHA256SUMS to a GitHub Release.
+#
+# Windows-only (the installer is Inno Setup). Unlike the lib, this needs Qt and a MinGW compiler, and it
+# depends on the LIB: CMake downloads `platemaker-dev-<LIBPLATEMAKER_VERSION>-windows-mingw-release.zip`
+# from the lib's GitHub Release. PREREQUISITES to go green:
+#   1. The lib Release for the pinned LIBPLATEMAKER_VERSION (currently 0.3.1) must expose that MinGW dev
+#      asset — otherwise the configure step 404s. (Confirm on the lib's Releases page.)
+#   2. The Qt MinGW toolchain must be ABI-compatible with that lib archive. Both are MinGW/GCC, and this
+#      is exactly what works locally (Qt-MinGW app + MSYS2-built lib), so it should hold on CI too; the
+#      config-package guard will FATAL_ERROR loudly if not.
+#   3. Verify the Qt MinGW tool id (`tools_mingw1310` below) matches Qt 6.11.1 — `aqt list-tool windows
+#      desktop tools_mingw` if unsure.
+#
+# Add a `VT_API_KEY` repo secret (this repo, separately from the lib) to enable the VirusTotal step.
+name: Release
+
+on:
+  push:
+    tags: ['*.*.*']          # bare versions: 1.3.1
+  workflow_dispatch:         # manual build validation (no Release — the publish/VT steps are tag-only)
+
+permissions:
+  contents: write            # create the Release + upload assets
+  id-token: write            # OIDC for provenance
+  attestations: write        # store the provenance attestation
+
+jobs:
+  installer:
+    runs-on: windows-latest
+    env:
+      VT_API_KEY: ${{ secrets.VT_API_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+
+      # Qt (win64_mingw) + Qt's MinGW compiler. This is how CI gets Qt without Qt Creator: install-qt-action
+      # wraps aqtinstall, which downloads the exact Qt build from Qt's servers (open-source/LGPL, no account).
+      - name: Install Qt 6.11.1 (MinGW) + toolchain
+        uses: jurplel/install-qt-action@v4
+        with:
+          version: '6.11.1'
+          host: windows
+          target: desktop
+          arch: win64_mingw
+          tools: 'tools_mingw1310'   # Qt's MinGW (verify the id matches 6.11.1)
+          cache: true                # cache the Qt download between runs
+
+      # Put Qt's MinGW bin on PATH so CMake finds gcc/g++ (glob the version dir to avoid hardcoding it).
+      - name: Add Qt MinGW to PATH
+        shell: pwsh
+        run: |
+          $bin = (Get-ChildItem "$env:IQTA_TOOLS\mingw*_64\bin" -Directory -ErrorAction SilentlyContinue | Select-Object -First 1).FullName
+          if (-not $bin) { throw "Qt MinGW bin not found under $env:IQTA_TOOLS" }
+          Write-Host "MinGW: $bin"
+          Add-Content -Path $env:GITHUB_PATH -Value $bin
+
+      - name: Install Ninja + Inno Setup
+        shell: pwsh
+        run: choco install ninja innosetup --no-progress -y
+
+      # Configure (downloads libplatemaker from its Release) + build the Inno Setup installer, which also
+      # writes installer-output/Platemaker-<ver>-SHA256SUMS.txt (our checksum step).
+      - name: Configure & build installer
+        shell: pwsh
+        run: |
+          cmake -B build -S . -G Ninja
+          cmake --build build --target installer
+
+      - name: Attest build provenance
+        uses: actions/attest-build-provenance@v1
+        with:
+          subject-path: installer-output/Platemaker-*-Setup.exe
+
+      - name: Publish GitHub Release
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          fail_on_unmatched_files: true
+          files: |
+            installer-output/Platemaker-*-Setup.exe
+            installer-output/Platemaker-*-SHA256SUMS.txt
+
+      # Best-effort malware scan; appends the VirusTotal link to the release body. Self-skips without the
+      # secret, and never fails the release.
+      - name: Scan installer on VirusTotal
+        if: ${{ startsWith(github.ref, 'refs/tags/') && env.VT_API_KEY != '' }}
+        continue-on-error: true
+        uses: crazy-max/ghaction-virustotal@v4
+        with:
+          vt_api_key: ${{ secrets.VT_API_KEY }}
+          github_token: ${{ github.token }}
+          update_release_body: true
+          files: installer-output/Platemaker-*-Setup.exe

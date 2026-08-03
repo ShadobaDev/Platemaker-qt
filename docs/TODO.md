@@ -175,13 +175,15 @@ and provenance trail; they do **not** remove the SmartScreen warning (set that e
   that file as a GitHub Release asset (will be automated by the release-CI item below). Proves the
   download wasn't tampered with, even though it stays unsigned.
 
-- [ ] **GitHub Actions release CI** — a workflow that, on a version tag, builds the installer, generates
-  the checksums, and attaches everything to the GitHub Release. Add **build-provenance attestation**
-  (`actions/attest-build-provenance`, free via Sigstore) so anyone can prove the binary came from a
-  specific repo/commit/workflow: `gh attestation verify <installer> --repo ShadobaDev/Platemaker-qt`.
-  This is the closest thing to a signature without paying (verification is GitHub-side, not OS-side).
-  Needs deciding the installer toolchain (NSIS / Inno Setup / CPack) and whether CI can build the full
-  Qt + libvips + libplatemaker stack, or whether it uploads a locally-built artifact.
+- [~] **GitHub Actions release CI** — draft written: [`.github/workflows/release.yml`](../.github/workflows/release.yml).
+  On a bare version tag it installs Qt 6.11.1 (MinGW) via `install-qt-action`, installs Inno Setup, builds
+  `--target installer` (which also emits the SHA256SUMS), attests **build provenance**
+  (`actions/attest-build-provenance` — verify with `gh attestation verify <installer> --repo
+  ShadobaDev/Platemaker-qt`), uploads to the Release, and runs a best-effort VirusTotal scan. **Not yet
+  iterated green** — open items: confirm the lib `0.3.1` Release exposes
+  `platemaker-dev-0.3.1-windows-mingw-release.zip` (else configure 404s), verify the Qt MinGW tool id
+  (`tools_mingw1310`) and its ABI-compat with the lib archive, and add a `VT_API_KEY` secret to this repo.
+  Validate first via `workflow_dispatch` (builds without releasing). See `../PlateMaker/temp/CI-release-github-actions.md`.
 
 - [ ] **Submit to winget (`winget-pkgs`)** — free community channel giving users a trusted
   `winget install Platemaker` path; the manifest validates the installer's SHA-256. Cleaner than a raw

@@ -175,15 +175,16 @@ and provenance trail; they do **not** remove the SmartScreen warning (set that e
   that file as a GitHub Release asset (will be automated by the release-CI item below). Proves the
   download wasn't tampered with, even though it stays unsigned.
 
-- [~] **GitHub Actions release CI** — draft written: [`.github/workflows/release.yml`](../.github/workflows/release.yml).
-  On a bare version tag it installs Qt 6.11.1 (MinGW) via `install-qt-action`, installs Inno Setup, builds
-  `--target installer` (which also emits the SHA256SUMS), attests **build provenance**
+- [x] **GitHub Actions release CI** — green: [`.github/workflows/release.yml`](../.github/workflows/release.yml).
+  On a bare version tag it installs **Qt 6.11.1 (MinGW)**, builds `--target installer` (which also emits the
+  SHA256SUMS), uploads the installer as a run artifact, attests **build provenance**
   (`actions/attest-build-provenance` — verify with `gh attestation verify <installer> --repo
-  ShadobaDev/Platemaker-qt`), uploads to the Release, and runs a best-effort VirusTotal scan. **Not yet
-  iterated green** — open items: confirm the lib `0.3.1` Release exposes
-  `platemaker-dev-0.3.1-windows-mingw-release.zip` (else configure 404s), verify the Qt MinGW tool id
-  (`tools_mingw1310`) and its ABI-compat with the lib archive, and add a `VT_API_KEY` secret to this repo.
-  Validate first via `workflow_dispatch` (builds without releasing). See `../PlateMaker/temp/CI-release-github-actions.md`.
+  ShadobaDev/Platemaker-qt`), and on a tag publishes the Release + runs a best-effort VirusTotal scan.
+  Validated via `workflow_dispatch` (provenance produced for `Platemaker-1.3.1-Setup.exe`). Notes: Qt is
+  installed by driving **aqtinstall from git master** (its latest release 3.3.0 can't read Qt 6.11's new
+  repo layout — issue #1007; revert to `install-qt-action` once a fixed aqt ships); a `VT_API_KEY` secret
+  must be added to this repo to enable the VirusTotal step. **Remaining:** cut a real tag `1.3.1` to
+  exercise the publish path end-to-end. See `../PlateMaker/temp/CI-release-github-actions.md`.
 
 - [ ] **Submit to winget (`winget-pkgs`)** — free community channel giving users a trusted
   `winget install Platemaker` path; the manifest validates the installer's SHA-256. Cleaner than a raw

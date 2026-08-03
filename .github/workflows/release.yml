@@ -79,6 +79,17 @@ jobs:
           cmake -B build -S . -G Ninja
           cmake --build build --target installer
 
+      # Expose the installer (+ checksum) as a run artifact so it's downloadable from any run — including
+      # a workflow_dispatch validation build, which doesn't publish a Release. (On a tag, it's also
+      # uploaded to the Release below.)
+      - uses: actions/upload-artifact@v4
+        with:
+          name: installer
+          path: |
+            installer-output/Platemaker-*-Setup.exe
+            installer-output/Platemaker-*-SHA256SUMS.txt
+          if-no-files-found: error
+
       - name: Attest build provenance
         uses: actions/attest-build-provenance@v1
         with:

@@ -158,3 +158,44 @@ Investigations, testing and manual/wiki work that ships no code change on their 
   GitHub Actions current (Dependabot version-updates has no C++ ecosystem for Qt/libvips).
 
 ---
+
+## Distribution & installer trust (no paid signing) — no release impact
+
+Windows SmartScreen warns on our installer because it is **unsigned**. Only a paid Authenticode
+certificate removes that warning — OV ≈ 200-400 USD/yr (still needs SmartScreen reputation to build up),
+EV ≈ 300-700 USD/yr (instant reputation), or Azure Trusted Signing ≈ 10 USD/mo (cheapest legit,
+needs a 3-yr-old org or individual verification). A self-signed cert does **not** help — Windows
+doesn't trust it. **Decision: don't pay.** The items below instead give users a *verifiable* integrity
+and provenance trail; they do **not** remove the SmartScreen warning (set that expectation in docs).
+
+- [x] **Generate SHA-256 checksums with the installer** — the `installer` target now writes
+  `installer-output/Platemaker-<version>-SHA256SUMS.txt` (via `cmake/make_checksums.cmake`, `sha256sum`
+  format) right after Inno Setup runs, so every local build produces the checksum. The name is
+  versioned so releases don't overwrite each other in `installer-output/`. **Still manual:** uploading
+  that file as a GitHub Release asset (will be automated by the release-CI item below). Proves the
+  download wasn't tampered with, even though it stays unsigned.
+
+- [ ] **GitHub Actions release CI** — a workflow that, on a version tag, builds the installer, generates
+  the checksums, and attaches everything to the GitHub Release. Add **build-provenance attestation**
+  (`actions/attest-build-provenance`, free via Sigstore) so anyone can prove the binary came from a
+  specific repo/commit/workflow: `gh attestation verify <installer> --repo ShadobaDev/Platemaker-qt`.
+  This is the closest thing to a signature without paying (verification is GitHub-side, not OS-side).
+  Needs deciding the installer toolchain (NSIS / Inno Setup / CPack) and whether CI can build the full
+  Qt + libvips + libplatemaker stack, or whether it uploads a locally-built artifact.
+
+- [ ] **Submit to winget (`winget-pkgs`)** — free community channel giving users a trusted
+  `winget install Platemaker` path; the manifest validates the installer's SHA-256. Cleaner than a raw
+  `.exe` download (doesn't remove SmartScreen on direct download, but the winget flow is smoother).
+  Consider a Scoop bucket too for the dev audience.
+
+- [x] **VirusTotal report** — `Platemaker-1.3.0-Setup.exe` scanned **0 / 68 clean**
+  ([report](https://www.virustotal.com/gui/file/6d1b95c6dc68d94c9d7a8b4ea7a7c41f2135538d3ea4ab1bade091551cae7602)),
+  linked from the README. Per-build (tied to the file hash), so rescan each release; could later be
+  automated in the release CI via the VirusTotal API.
+
+- [x] **README: explain the SmartScreen warning** — README now has an *Installing & verifying your
+  download* section: why the "unknown publisher" warning appears, how to proceed (Properties →
+  *Unblock*, or *More info → Run anyway*), plus the current build's SHA-256 and the VirusTotal link.
+  (Provenance verify command to be added once the release CI produces attestations.)
+
+---

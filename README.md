@@ -43,6 +43,36 @@ _Template manager_
 
 ---
 
+## Installing & verifying your download
+
+The Windows installer is **not code-signed** — a paid certificate is required to remove Windows'
+warning, and this is a free open-source project. SmartScreen may therefore show *"Windows protected
+your PC / unknown publisher"*. That is expected for an unsigned installer, **not** a sign the file is
+unsafe. To proceed: **More info → Run anyway**, or right-click the downloaded file →
+**Properties → Unblock → OK** before running.
+
+Since it isn't signed, you can verify the download yourself:
+
+**1. Checksum (SHA-256)** — confirm the file is byte-for-byte what was published:
+
+```powershell
+Get-FileHash .\Platemaker-1.3.0-Setup.exe -Algorithm SHA256
+```
+
+**2. Malware scan** — the installer is scanned on VirusTotal.
+
+### Latest verified build (1.3.0)
+
+- **File:** `Platemaker-1.3.0-Setup.exe`
+- **SHA-256:** `6d1b95c6dc68d94c9d7a8b4ea7a7c41f2135538d3ea4ab1bade091551cae7602`
+- **VirusTotal:** [0 / 68 — clean](https://www.virustotal.com/gui/file/6d1b95c6dc68d94c9d7a8b4ea7a7c41f2135538d3ea4ab1bade091551cae7602)
+
+> Each release has its own hash and scan; the values above are for 1.3.0. For newer builds, use the
+> checksum and scan link published on that release's
+> [Releases](https://github.com/ShadobaDev/Platemaker-qt/releases) page.
+
+---
+
 ## Requirements
 
 | Tool | Version | Notes |

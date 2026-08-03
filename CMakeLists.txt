@@ -1,5 +1,5 @@
 ﻿cmake_minimum_required(VERSION 3.19)
-project(Platemaker VERSION 1.3.0 LANGUAGES CXX)
+project(Platemaker VERSION 1.3.1 LANGUAGES CXX)
 
 find_package(Qt6 6.8 REQUIRED COMPONENTS Core Widgets Concurrent Svg)
 
@@ -315,6 +315,13 @@ if(WIN32)
         CACHE PATH "Staging prefix used by cmake --install before Inno Setup packaging")
 
     if(ISCC_EXECUTABLE)
+        # Paths of the artifact Inno Setup emits (OutputDir / OutputBaseFilename in Platemaker.iss)
+        # and the checksum file we write beside it. Keep in sync with Platemaker.iss if those change.
+        set(_pm_installer_exe
+            "${CMAKE_CURRENT_SOURCE_DIR}/installer-output/Platemaker-${PROJECT_VERSION}-Setup.exe")
+        set(_pm_checksums
+            "${CMAKE_CURRENT_SOURCE_DIR}/installer-output/Platemaker-${PROJECT_VERSION}-SHA256SUMS.txt")
+
         add_custom_target(installer
             DEPENDS Platemaker
             COMMAND ${CMAKE_COMMAND} --install "${CMAKE_BINARY_DIR}"
@@ -322,8 +329,13 @@ if(WIN32)
             COMMAND ${ISCC_EXECUTABLE}
                     "/DMyAppVersion=${PROJECT_VERSION}"
                     "${CMAKE_CURRENT_SOURCE_DIR}/Platemaker.iss"
+            # Emit SHA256SUMS.txt next to the installer (sha256sum format) for release verification.
+            COMMAND ${CMAKE_COMMAND}
+                    "-DINSTALLER_FILE=${_pm_installer_exe}"
+                    "-DOUTPUT=${_pm_checksums}"
+                    -P "${CMAKE_CURRENT_SOURCE_DIR}/cmake/make_checksums.cmake"
             WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
-            COMMENT "Installing and packaging Platemaker ${PROJECT_VERSION}..."
+            COMMENT "Installing, packaging and checksumming Platemaker ${PROJECT_VERSION}..."
             VERBATIM
         )
         message(STATUS "Inno Setup found: ${ISCC_EXECUTABLE} -- run: cmake --build . --target installer")

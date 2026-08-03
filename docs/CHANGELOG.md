@@ -49,6 +49,8 @@ Requires **libplatemaker 0.3.1** — this release uses the lib's new `ProjectEdi
   controls and the accent left-bar on the selected row). One line in `main.cpp`; no per-widget changes.
   Requires **Qt 6.8+** (the CMake minimum moved from 6.5 to 6.8).
 
+### VIRUSTOTAL report
+  https://www.virustotal.com/gui/file/6d1b95c6dc68d94c9d7a8b4ea7a7c41f2135538d3ea4ab1bade091551cae7602
 ## [1.2.0] — 2026-08-02
 
 Requires **libplatemaker 0.3.0** — this release adopts the lib's new `WorkspaceEditor` (profile

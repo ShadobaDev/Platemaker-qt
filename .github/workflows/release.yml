@@ -35,18 +35,20 @@ jobs:
 
       # Qt (win64_mingw) + Qt's MinGW compiler. This is how CI gets Qt without Qt Creator: install-qt-action
       # wraps aqtinstall, which downloads the exact Qt build from Qt's servers (open-source/LGPL, no account).
-      - name: Install Qt 6.11.1 (MinGW) + toolchain
+      - name: Install Qt (MinGW) + toolchain
         uses: jurplel/install-qt-action@v4
         with:
-          version: '6.11.1'
+          # We build against 6.11.0 for near-parity with the local dev Qt (6.11.1). aqt couldn't fetch
+          # 6.11.1 — its Updates.xml checksum isn't on the CI mirror yet ("Failed to locate XML data for
+          # Qt version 6.11.1"), too new to be propagated. 6.11.0 is an older folder (qt6_6110) with more
+          # propagation time, so it should install. If it hits the same checksum error, fall back to a
+          # fully-mirrored version: 6.10.3 (closest) or 6.8.* (LTS, safest). App requires 6.8+.
+          version: '6.11.0'
           host: windows
           target: desktop
           arch: win64_mingw
-          tools: 'tools_mingw1310'   # Qt's MinGW — confirmed: local Qt ships mingw1310_64 (GCC 13.1.0)
-          cache: true                # cache the Qt download between runs
-          # Force the canonical Qt server. aqtinstall otherwise picks a mirror from Qt's list, and some
-          # are incomplete — a stale mirror was missing 6.11.1's Updates.xml ("Failed to locate XML data
-          # for Qt version 6.11.1"). download.qt.io always has it.
+          tools: 'tools_mingw1310'   # MinGW 13.1.0 — used by Qt 6.7+ (both 6.8 LTS and local 6.11.1)
+          cache: true
           extra: '--base https://download.qt.io'
 
       # Put Qt's MinGW bin on PATH so CMake finds gcc/g++ (glob the version dir to avoid hardcoding it).

@@ -42,8 +42,12 @@ jobs:
           host: windows
           target: desktop
           arch: win64_mingw
-          tools: 'tools_mingw1310'   # Qt's MinGW (verify the id matches 6.11.1)
+          tools: 'tools_mingw1310'   # Qt's MinGW — confirmed: local Qt ships mingw1310_64 (GCC 13.1.0)
           cache: true                # cache the Qt download between runs
+          # Force the canonical Qt server. aqtinstall otherwise picks a mirror from Qt's list, and some
+          # are incomplete — a stale mirror was missing 6.11.1's Updates.xml ("Failed to locate XML data
+          # for Qt version 6.11.1"). download.qt.io always has it.
+          extra: '--base https://download.qt.io'
 
       # Put Qt's MinGW bin on PATH so CMake finds gcc/g++ (glob the version dir to avoid hardcoding it).
       - name: Add Qt MinGW to PATH

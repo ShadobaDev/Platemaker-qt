@@ -35,30 +35,37 @@ jobs:
 
       # Qt (win64_mingw) + Qt's MinGW compiler. This is how CI gets Qt without Qt Creator: install-qt-action
       # wraps aqtinstall, which downloads the exact Qt build from Qt's servers (open-source/LGPL, no account).
-      - name: Install Qt (MinGW) + toolchain
-        uses: jurplel/install-qt-action@v4
+      # Qt 6.11 changed its online-repo folder layout; aqtinstall only handles it on git master (fix for
+      # issue #1007), NOT in the latest release (3.3.0) that install-qt-action pins. So we drive aqt
+      # directly from git and set the Qt/MinGW env ourselves. Switch back to install-qt-action once a
+      # fixed aqt is released (> 3.3.0).
+      - uses: actions/setup-python@v5
         with:
-          # We build against 6.11.0 for near-parity with the local dev Qt (6.11.1). aqt couldn't fetch
-          # 6.11.1 — its Updates.xml checksum isn't on the CI mirror yet ("Failed to locate XML data for
-          # Qt version 6.11.1"), too new to be propagated. 6.11.0 is an older folder (qt6_6110) with more
-          # propagation time, so it should install. If it hits the same checksum error, fall back to a
-          # fully-mirrored version: 6.10.3 (closest) or 6.8.* (LTS, safest). App requires 6.8+.
-          version: '6.11.0'
-          host: windows
-          target: desktop
-          arch: win64_mingw
-          tools: 'tools_mingw1310'   # MinGW 13.1.0 — used by Qt 6.7+ (both 6.8 LTS and local 6.11.1)
-          cache: true
-          extra: '--base https://download.qt.io'
+          python-version: '3.12'
 
-      # Put Qt's MinGW bin on PATH so CMake finds gcc/g++ (glob the version dir to avoid hardcoding it).
-      - name: Add Qt MinGW to PATH
+      - name: Install aqtinstall (git master — has the Qt 6.11 repo-layout fix, #1007)
+        shell: pwsh
+        run: python -m pip install --upgrade "git+https://github.com/miurahr/aqtinstall.git"
+
+      - name: Install Qt 6.11.1 (MinGW) + toolchain
         shell: pwsh
         run: |
-          $bin = (Get-ChildItem "$env:IQTA_TOOLS\mingw*_64\bin" -Directory -ErrorAction SilentlyContinue | Select-Object -First 1).FullName
-          if (-not $bin) { throw "Qt MinGW bin not found under $env:IQTA_TOOLS" }
-          Write-Host "MinGW: $bin"
-          Add-Content -Path $env:GITHUB_PATH -Value $bin
+          python -m aqt install-qt   windows desktop 6.11.1 win64_mingw --outputdir "${{ github.workspace }}\Qt"
+          python -m aqt install-tool windows desktop tools_mingw1310     --outputdir "${{ github.workspace }}\Qt"
+
+      - name: Set Qt + MinGW environment
+        shell: pwsh
+        run: |
+          $qt = "${{ github.workspace }}\Qt\6.11.1\mingw_64"
+          if (-not (Test-Path "$qt\bin\qmake.exe")) { throw "Qt not found at $qt" }
+          $mingw = (Get-ChildItem "${{ github.workspace }}\Qt\Tools\mingw*_64\bin" -Directory | Select-Object -First 1).FullName
+          if (-not $mingw) { throw "MinGW toolchain not found under Qt\Tools" }
+          Write-Host "Qt:    $qt"
+          Write-Host "MinGW: $mingw"
+          # CMAKE_PREFIX_PATH lets find_package(Qt6) resolve; the two bins give windeployqt/moc/uic + gcc.
+          "CMAKE_PREFIX_PATH=$qt" | Out-File $env:GITHUB_ENV  -Append -Encoding utf8
+          "$qt\bin"               | Out-File $env:GITHUB_PATH -Append -Encoding utf8
+          $mingw                  | Out-File $env:GITHUB_PATH -Append -Encoding utf8
 
       - name: Install Ninja + Inno Setup
         shell: pwsh

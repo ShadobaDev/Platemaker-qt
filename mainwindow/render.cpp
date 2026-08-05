@@ -435,6 +435,16 @@ void MainWindow::onRenderFinished()
     const bool renderFailed    = outcome.failed;
     const bool renderCancelled = outcome.cancelled;
 
+    // Inputs the render produced output for but could not hash afterwards (locked / permission /
+    // offline). applyProcessingResults() returns these; the model marks them FileStatus::Error so they
+    // are not silently reprocessed forever. Surfaced in the status section below.
+    QStringList postRenderUnverified;
+
+    // Set if applying results to the model threw unexpectedly (a bug / out-of-memory). This runs on the
+    // GUI thread, where an escaping exception would propagate into Qt's event loop and terminate the app,
+    // so it is caught, logged, and turned into a Failed status the user can report.
+    QString applyError;
+
     // Update the UI and project state based on the outcome of the rendering process.
     QString name;
     if (idx >= 0 && idx < static_cast<int>(m_workspace.projectItems.size())) {
@@ -442,6 +452,7 @@ void MainWindow::onRenderFinished()
         name = QString::fromStdString(project.name);
 
         // Apply the processing results to the project if the render was successful and not cancelled.
+        try {
         if (!outcome.failed && !outcome.cancelled) {
             if (partial) {
                 // Only the dirty slices were regenerated; refresh just those.
@@ -452,10 +463,12 @@ void MainWindow::onRenderFinished()
                 // with, so a later edit to that profile (margins, canvas size) is
                 // detectable — neither the input nor the output file changes when a
                 // profile is edited, so no hash would ever notice.
-                project.applyProcessingResults(
+                const auto perr = project.applyProcessingResults(
                     outcome.records, outcome.appliedProfiles, outcome.skippedPages,
                     m_workspace.canvasProfiles(),
                     project.getOutputDirectory(), ts.toStdString());
+                for (const auto& e : perr)
+                    postRenderUnverified << QString::fromStdString(e.file);
 
                 // Delete outputs the new configuration no longer produces (e.g. the
                 // old-format files after a PNG→JPEG switch). Only candidates the user
@@ -486,6 +499,11 @@ void MainWindow::onRenderFinished()
             setDirty(true);
             if (auto *pw = projectWidget(idx)) pw->populate();
         }
+        } catch (const std::exception& e) {
+            applyError = tr("Internal error while applying results: %1").arg(QString::fromUtf8(e.what()));
+        } catch (...) {
+            applyError = tr("Internal error while applying results (non-standard exception).");
+        }
     }
 
     //--- reset render state ---
@@ -498,7 +516,9 @@ void MainWindow::onRenderFinished()
     // in a batch, say), so each outcome is also appended to the action log — that is the
     // only place a finished run leaves a durable record of which project ended how.
     if (outcome.failed) {
-        const QString why = QString::fromStdString(outcome.errorMessage);
+        const QString why = outcome.error
+            ? QString::fromStdString(outcome.error->message)
+            : tr("Unknown error");
         setActionStatus(name, tr("Failed"));
         setProgressValue(ui->progressBar->value(), true);   // freeze at %, recolour red
         setProjectStatus(why);
@@ -519,6 +539,25 @@ void MainWindow::onRenderFinished()
         setActionStatus(name, tr("Finished"));
         setProjectStatus(tr("Render finished."));
         ui->textBrowserActionLogs->append(tr("Finished %1.").arg(name));
+    }
+
+    // Rendered but unverifiable inputs (now FileStatus::Error): the render succeeded, so this is not a
+    // failure, but the user should know which files couldn't be checked. Overrides the status to
+    // "Require action" and logs each one. Orthogonal to the branches above (can co-occur with skips).
+    if (!postRenderUnverified.isEmpty()) {
+        setActionStatus(name, tr("Require action"));
+        setProjectStatus(tr("%1 input(s) could not be verified after render (check file access).")
+                             .arg(postRenderUnverified.size()));
+        for (const QString& f : postRenderUnverified)
+            ui->textBrowserActionLogs->append(tr("Unverified after render: %1").arg(f));
+    }
+
+    // An exception while applying results is a bug, not a normal outcome — surface it as a failure with
+    // the diagnostic in the action log (worth attaching to an issue). Wins over the branches above.
+    if (!applyError.isEmpty()) {
+        setActionStatus(name, tr("Failed"));
+        setProjectStatus(applyError);
+        ui->textBrowserActionLogs->append(tr("FAILED %1 — %2").arg(name, applyError));
     }
 
     // Update the UI and reset the render state.

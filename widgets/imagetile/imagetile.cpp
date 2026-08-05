@@ -88,6 +88,7 @@ void ImageTile::setStatus(FileStatus status, bool renderedWithoutProfile)
         case FileStatus::Desynchronized: statusText = "Out of sync";   break;
         case FileStatus::Done:           statusText = "Done";          break;
         case FileStatus::Skipped:        statusText = "Skipped";       break;
+        case FileStatus::Error:          statusText = "Unverified";    break;
     }
     ui->textBrowser->setText(filename + "\n" + statusText);
 
@@ -130,6 +131,7 @@ void ImageTile::updateStatusStyle(FileStatus status, bool renderedWithoutProfile
         case FileStatus::Missing:       color = "#ef4444"; break; // red
         case FileStatus::Desynchronized:color = "#eab308"; break; // amber — out of sync with config
         case FileStatus::Skipped:       color = "#a855f7"; break; // violet — render left this page out
+        case FileStatus::Error:         color = "#e11d48"; break; // rose — rendered but hash unverifiable
         default:                        color = "#6b7280"; break; // gray (Pending)
     }
     ui->frame->setStyleSheet(

@@ -81,7 +81,7 @@ Get-FileHash .\Platemaker-1.3.0-Setup.exe -Algorithm SHA256
 | CMake | 3.25+ | Presets format v6 |
 | MSVC 2022 or MinGW (MSYS2) | — | Windows |
 | GCC / Clang | — | Linux |
-| libplatemaker | 0.3.1+ | See **Linking libplatemaker** below |
+| libplatemaker | 0.4.0+ | See **Linking libplatemaker** below |
 
 ---
 

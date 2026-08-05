@@ -1,5 +1,30 @@
 # Changelog
 
+## [1.3.1] — 2026-08-05
+
+Requires **libplatemaker 0.4.0** — the lib's processing error channel is now typed (a breaking change),
+so this release adapts to it.
+
+### Changed
+
+- **Adapted to libplatemaker 0.4.0's typed errors.** A fatal render error is read from
+  `outcome.error->message` (the old free-text `outcome.errorMessage` is gone), and the value returned by
+  `ProjectItem::applyProcessingResults()` is now surfaced (see below). No visible behaviour change for a
+  normal render.
+
+### Added
+
+- **"Unverified" input state.** An input the render produced output for but whose content could not be
+  hashed afterwards (locked file / denied permission / offline drive) now shows a distinct rose tile
+  labelled *Unverified* (libplatemaker's new `FileStatus::Error`) instead of being silently reprocessed
+  on every subsequent render. After such a render the project reports **Require action** and the action
+  log lists each unverified file; the tile recovers once the file can be read again.
+- **Applying render results is guarded.** The model update in `onRenderFinished` runs on the GUI thread,
+  where an escaping exception would take down the app; it is now caught, logged to the action log, and
+  shown as a **Failed** status with the diagnostic — useful to attach to a bug report. (The lib's
+  `run()` already guards the render itself.) Hardware faults such as a segfault are not C++ exceptions
+  and are still out of scope here.
+
 ## [1.3.0] — 2026-08-03
 
 Requires **libplatemaker 0.3.1** — this release uses the lib's new `ProjectEditor` /

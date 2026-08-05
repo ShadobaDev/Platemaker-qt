@@ -105,6 +105,22 @@ New, backward-compatible features. Several are gated on a lib version, noted in 
   ≤ 25 MB/chapter). Estimate computed by the lib (mirrored in lib TODO); GUI
   displays before render and/or reports after.
 
+- [ ] **Crash handler for hard faults (segfault / access violation)** — the 0.4.0 / 1.3.1 work added a
+  Layer-A safety net for **C++ exceptions** (lib `run()` guard, GUI apply guard, CLI top-level guard).
+  This is the follow-up for faults `try/catch` **cannot** catch — SIGSEGV / null deref / stack overflow /
+  Windows SEH — which need an OS-level handler that writes a diagnostic (stack trace / minidump) for a
+  bug report before the process dies. GUI-first / Windows-first (that's where crashes get reported).
+  Three approaches were weighed, plus the thorny **symbol-shipping** problem (MinGW DWARF vs MSVC PDB,
+  stripped releases, exact-match requirement, privacy of dumps):
+  1. **Windows SEH** (`SetUnhandledExceptionFilter` + `MiniDumpWriteDump` + best-effort text trace) —
+     most reliable on our platform.
+  2. **Cross-platform** signal handlers + C++23 `std::stacktrace` (or `backward-cpp`) — one path, weaker
+     on Windows where `signal(SIGSEGV)` is an unreliable shim.
+  3. **Both**, or a library (**Breakpad/Crashpad**) if crashes become a recurring burden.
+  Cheap first step (do anytime): wire `std::set_terminate` in `main.cpp` to print the in-flight C++
+  exception (covers the `noexcept`/uncaught/pure-virtual `terminate` paths). Full analysis + pitfalls:
+  `PlateMaker/temp/crash-handling-options.md`. Deferred 2026-08-05.
+
 - [ ] **Auto-save** on pipeline finish (optional setting)
 
 - [ ] **Action log** should report a summary, how manu inputs, how many slices in what time where processed and when. Output cumulative size (MB or KB) would also be nice.

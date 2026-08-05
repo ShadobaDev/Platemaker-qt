@@ -22,8 +22,10 @@ so this release adapts to it.
 - **Applying render results is guarded.** The model update in `onRenderFinished` runs on the GUI thread,
   where an escaping exception would take down the app; it is now caught, logged to the action log, and
   shown as a **Failed** status with the diagnostic — useful to attach to a bug report. (The lib's
-  `run()` already guards the render itself.) Hardware faults such as a segfault are not C++ exceptions
-  and are still out of scope here.
+  `run()` already guards the render itself.) `main.cpp` also installs `std::set_terminate` to log the
+  in-flight exception (`qCritical`) on the `terminate` paths (uncaught exception / `noexcept` violation /
+  pure-virtual call) instead of aborting silently. Hardware faults such as a segfault are not C++
+  exceptions and are still out of scope here (see `docs/TODO.md`).
 
 ## [1.3.0] — 2026-08-03
 

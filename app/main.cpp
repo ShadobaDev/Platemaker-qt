@@ -5,6 +5,10 @@
 #include <QSettings>
 #include <QStyleHints>
 #include <QIcon>
+#include <QDebug>
+
+#include <cstdlib>
+#include <exception>
 
 // Injected by CMake (target_compile_definitions); fallback keeps main.cpp buildable.
 #ifndef PLATEMAKER_GUI_VERSION
@@ -13,6 +17,21 @@
 
 int main(int argc, char *argv[])
 {
+    // Log the in-flight C++ exception on a terminate() — an uncaught exception escaping a slot / the
+    // event loop, a noexcept violation, or a pure-virtual call — so it lands in the Qt log / debugger
+    // output instead of a silent abort. Cheap C++-side hygiene (see docs/TODO.md); it does NOT catch a
+    // hardware fault such as a segfault (that is an OS signal / SEH, not a C++ exception).
+    std::set_terminate([] {
+        if (std::exception_ptr e = std::current_exception()) {
+            try { std::rethrow_exception(e); }
+            catch (const std::exception& ex) { qCritical("Fatal: unhandled exception: %s", ex.what()); }
+            catch (...)                       { qCritical("Fatal: unhandled non-standard exception."); }
+        } else {
+            qCritical("Fatal: terminate() called with no active exception.");
+        }
+        std::abort();
+    });
+
     QApplication a(argc, argv);
 
     // The app is a dark-only design (every dialog hardcodes dark stylesheets: #1e1e1e / #2d2d2d

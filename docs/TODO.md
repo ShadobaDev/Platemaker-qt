@@ -36,7 +36,9 @@ Bug fixes, cosmetics and internal cleanups — no new capability, no change to a
   `app/resources.qrc` — same mechanism as the menu icons, and independent of the working
   directory.
 
-- [ ] **Segfault** was detcted but not written down how - to be investigated.
+- [ ] **Duplicate project** option in context menu in workspace. This will cover multi-publisher situation. For example when user wants to have different projects per publisher of the same chapter. The use-case is that one project is fully done, and the dupliacted ones will only have Output profile changed.
+
+- [ ] **Persist last render log.** The GUI render log is in-memory only (cleared on exit). Optionally persist the last run's log (and the slice/skip summary) next to the workspace so a user can review what the previous render did.
 
 - [ ] **Stale comment: templates no longer draw slice guides** —
   `widgets/templatesdialog/templatesdialog.cpp` still says *"The output profile only supplies
@@ -105,21 +107,22 @@ New, backward-compatible features. Several are gated on a lib version, noted in 
   ≤ 25 MB/chapter). Estimate computed by the lib (mirrored in lib TODO); GUI
   displays before render and/or reports after.
 
-- [ ] **Crash handler for hard faults (segfault / access violation)** — the 0.4.0 / 1.3.1 work added a
-  Layer-A safety net for **C++ exceptions** (lib `run()` guard, GUI apply guard, CLI top-level guard).
-  This is the follow-up for faults `try/catch` **cannot** catch — SIGSEGV / null deref / stack overflow /
-  Windows SEH — which need an OS-level handler that writes a diagnostic (stack trace / minidump) for a
-  bug report before the process dies. GUI-first / Windows-first (that's where crashes get reported).
-  Three approaches were weighed, plus the thorny **symbol-shipping** problem (MinGW DWARF vs MSVC PDB,
-  stripped releases, exact-match requirement, privacy of dumps):
-  1. **Windows SEH** (`SetUnhandledExceptionFilter` + `MiniDumpWriteDump` + best-effort text trace) —
-     most reliable on our platform.
-  2. **Cross-platform** signal handlers + C++23 `std::stacktrace` (or `backward-cpp`) — one path, weaker
-     on Windows where `signal(SIGSEGV)` is an unreliable shim.
-  3. **Both**, or a library (**Breakpad/Crashpad**) if crashes become a recurring burden.
-  Cheap first step (do anytime): wire `std::set_terminate` in `main.cpp` to print the in-flight C++
-  exception (covers the `noexcept`/uncaught/pure-virtual `terminate` paths). Full analysis + pitfalls:
-  `PlateMaker/temp/crash-handling-options.md`. Deferred 2026-08-05.
+- [x] **`std::set_terminate` in `main.cpp`** — Done (1.3.1). Logs the in-flight C++ exception via
+  `qCritical` on the `terminate` paths (uncaught exception / `noexcept` violation / pure-virtual call)
+  instead of a silent abort. Does **not** catch a segfault (that's not a C++ exception). The lib CLI got
+  the same via `std::set_terminate` in `runCli`.
+
+- [ ] **OS-level crash handler for hard faults (segfault / SEH) — DEFERRED, likely not worth it yet.**
+  Verdict from the cost/benefit analysis (`PlateMaker/temp/crash-handling-options.md`, §0): a minidump /
+  Breakpad apparatus is a **bazooka** for a simple app with a small user base. It only pays off for
+  crashes on **users' machines we cannot reproduce** — which we don't yet have evidence of; a crash we
+  observe ourselves (see the segfault in the PATCH bucket) is reproducible, so the **Qt Creator debugger
+  on the Debug build gives a full trace for free**. The symbol worry is also smaller than it seemed: we'd
+  archive only **libplatemaker's** small `-g` debug info (never Qt's GB-scale symbols, never libvips'
+  which don't exist), and that covers the boundary frame in *our* code — the only frame triage usually
+  needs; Qt/vips show as `module+offset+version`, which is enough. **Revisit only if unreproducible field
+  crashes appear**; then do the *minimal* form (Windows `SetUnhandledExceptionFilter` → text breadcrumb +
+  optional `MiniDumpNormal`), not Breakpad. Full menu + pitfalls in the linked note.
 
 - [ ] **Auto-save** on pipeline finish (optional setting)
 

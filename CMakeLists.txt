@@ -166,6 +166,13 @@ if(1)
     configure_file("${CMAKE_CURRENT_SOURCE_DIR}/LICENSE"
                    "${_pm_app_credits}/licenses/GPL-3.0-only.txt" COPYONLY)
 
+    # The lib's Windows package also ships a human THIRD-PARTY-NOTICES.txt (the full bundled DLL graph:
+    # glib, libpng, libimagequant, …). Carry it into the product credits so it reaches the installed app
+    # and the About dialog's "full notices" link. (Absent on a Linux/system-libvips lib package.)
+    if(EXISTS "${platemaker_CREDITS_DIR}/THIRD-PARTY-NOTICES.txt")
+        file(COPY "${platemaker_CREDITS_DIR}/THIRD-PARTY-NOTICES.txt" DESTINATION "${_pm_app_credits}")
+    endif()
+
     # Merge the SBOM with string(JSON): keep the lib's packages[], append Qt + Platemaker, rewrite the
     # relationships and the document identity to describe the product.
     file(READ "${platemaker_CREDITS_DIR}/sbom.spdx.json" _pm_sbom)
@@ -199,14 +206,19 @@ if(1)
     math(EXPR _pm_npkg1 "${_pm_npkg}+1")
     string(JSON _pm_sbom SET "${_pm_sbom}" packages "${_pm_npkg1}" "${_pm_app_pkg}")
 
-    set(_pm_rel "[
-      { \"spdxElementId\": \"SPDXRef-DOCUMENT\", \"relationshipType\": \"DESCRIBES\", \"relatedSpdxElement\": \"SPDXRef-Package-Platemaker\" },
-      { \"spdxElementId\": \"SPDXRef-Package-Platemaker\", \"relationshipType\": \"DEPENDS_ON\", \"relatedSpdxElement\": \"SPDXRef-Package-libplatemaker\" },
-      { \"spdxElementId\": \"SPDXRef-Package-Platemaker\", \"relationshipType\": \"DEPENDS_ON\", \"relatedSpdxElement\": \"SPDXRef-Package-Qt\" },
-      { \"spdxElementId\": \"SPDXRef-Package-libplatemaker\", \"relationshipType\": \"DEPENDS_ON\", \"relatedSpdxElement\": \"SPDXRef-Package-libvips\" },
-      { \"spdxElementId\": \"SPDXRef-Package-libplatemaker\", \"relationshipType\": \"DEPENDS_ON\", \"relatedSpdxElement\": \"SPDXRef-Package-nlohmann-json\" }
-    ]")
-    string(JSON _pm_sbom SET "${_pm_sbom}" relationships "${_pm_rel}")
+    # Product relationships: KEEP the lib's graph intact — libplatemaker → libvips / nlohmann AND the
+    # whole bundled-DLL closure (libvips → glib, libpng, … plus the compiler-runtime edges) that the lib
+    # SBOM now carries — then re-root the document on Platemaker and add the two edges the GUI owns.
+    # (An earlier version REPLACED the array wholesale, which dropped every bundled-DLL edge and left the
+    # packages as orphans — so this must augment, not overwrite.)
+    string(JSON _pm_sbom SET "${_pm_sbom}" relationships 0 relatedSpdxElement
+           "\"SPDXRef-Package-Platemaker\"")   # relationships[0] is DOCUMENT DESCRIBES … → Platemaker now
+    string(JSON _pm_nrel LENGTH "${_pm_sbom}" relationships)
+    string(JSON _pm_sbom SET "${_pm_sbom}" relationships "${_pm_nrel}"
+           "{ \"spdxElementId\": \"SPDXRef-Package-Platemaker\", \"relationshipType\": \"DEPENDS_ON\", \"relatedSpdxElement\": \"SPDXRef-Package-libplatemaker\" }")
+    math(EXPR _pm_nrel1 "${_pm_nrel}+1")
+    string(JSON _pm_sbom SET "${_pm_sbom}" relationships "${_pm_nrel1}"
+           "{ \"spdxElementId\": \"SPDXRef-Package-Platemaker\", \"relationshipType\": \"DEPENDS_ON\", \"relatedSpdxElement\": \"SPDXRef-Package-Qt\" }")
 
     string(TIMESTAMP _pm_sbom_stamp "%Y%m%d%H%M%S" UTC)
     string(JSON _pm_sbom SET "${_pm_sbom}" name "\"Platemaker-${PROJECT_VERSION}\"")

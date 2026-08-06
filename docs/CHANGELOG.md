@@ -26,6 +26,13 @@ so this release adapts to it.
   in-flight exception (`qCritical`) on the `terminate` paths (uncaught exception / `noexcept` violation /
   pure-virtual call) instead of aborting silently. Hardware faults such as a segfault are not C++
   exceptions and are still out of scope here (see `docs/TODO.md`).
+- **Full third-party notices reach the app.** libplatemaker 0.4.0 now ships a complete
+  `THIRD-PARTY-NOTICES.txt` + licence texts + a 32-package SBOM for the bundled libvips DLL graph; the
+  product `credits/` carries them into the installer, and the **About dialog links to the full notices**
+  (the bundled runtime components — glib, libpng, libimagequant, … — beyond the five headline rows).
+  The product-SBOM merge was fixed to **preserve** the lib's bundled-dependency relationships (it
+  previously overwrote them, orphaning the packages). Note libvips as bundled is effectively GPL-3.0
+  because it is built with **libimagequant (GPL-3.0)** — compatible with Platemaker's own GPL-3.0.
 
 ## [1.3.0] — 2026-08-03
 

@@ -138,6 +138,9 @@ AboutDialog::AboutDialog(Tab initial, QWidget* parent)
            "<p>Comic artist canvas tool — pre-processing and post-processing "
            "for webtoon-style publishing.</p>")
         + table
+        + tr("<p>The full set of bundled runtime components (the libvips DLL graph and the "
+             "compiler runtime) is listed with versions and licences in "
+             "<a href=\"pm-notices:all\">the third-party notices</a>.</p>")
         + QStringLiteral("<p><a href=\"%1\">%1</a></p>").arg(QString::fromLatin1(kRepoUrl)));
 
     // Links on the About tab are handled here (not auto-followed): a licence link opens the licence
@@ -146,6 +149,15 @@ AboutDialog::AboutDialog(Tab initial, QWidget* parent)
     ui->textAbout->setOpenLinks(false);
     ui->textAbout->setOpenExternalLinks(false);
     connect(ui->textAbout, &QTextBrowser::anchorClicked, this, [this](const QUrl& link) {
+        // The full third-party notices for the bundled DLL graph (glib, libpng, libimagequant, …) —
+        // shipped as credits/THIRD-PARTY-NOTICES.txt beside the executable.
+        if (link.scheme() == QLatin1String("pm-notices")) {
+            const QString path = QDir(QCoreApplication::applicationDirPath())
+                                     .filePath(QStringLiteral("credits/THIRD-PARTY-NOTICES.txt"));
+            LicenceDialog dlg(this);
+            dlg.showLicence(tr("Third-party notices"), path);
+            return;
+        }
         if (link.scheme() == QLatin1String(kLicenceScheme)) {
             const QString spdx      = link.path();
             const QString component = QUrlQuery(link).queryItemValue(QStringLiteral("c"));

@@ -88,6 +88,10 @@ void MainWindow::onProjectsContextMenu(const QPoint &pos)
         const int modelIndex = item->data(Qt::UserRole).toInt();
         connect(menu.addAction(tr("Rename")), &QAction::triggered, this,
                 [this, modelIndex]{ renameProject(modelIndex); });
+        // "New from this…" rather than "Duplicate": the copy is a new, unrendered project seeded from
+        // this one's inputs + profile, not a byte-for-byte duplicate (no outputs, no output folder).
+        connect(menu.addAction(tr("New from this…")), &QAction::triggered, this,
+                [this, modelIndex]{ duplicateProject(modelIndex); });
         connect(menu.addAction(tr("Delete")), &QAction::triggered, this,
                 [this, modelIndex]{ removeProject(modelIndex); });
         menu.addSeparator();
@@ -124,6 +128,32 @@ void MainWindow::renameProject(int modelIndex)
         setDirty(true);
         applyWorkspaceToUi();
     });
+}
+
+void MainWindow::duplicateProject(int modelIndex)
+{
+    // Skip if no project is selected or the index is out of bounds
+    if (modelIndex < 0 || modelIndex >= static_cast<int>(m_workspace.projectItems.size()))
+        return;
+
+    // Pre-fill the name prompt with "<source> (copy)" so the user can immediately rename it (e.g. to
+    // the publisher this sibling targets) — the driving use-case is one project per publisher.
+    const auto& source = m_workspace.projectItems[static_cast<std::size_t>(modelIndex)];
+    bool ok;
+    const QString name = QInputDialog::getText(
+        this, tr("New Project From This"), tr("Project name:"),
+        QLineEdit::Normal,
+        tr("%1 (copy)").arg(QString::fromStdString(source.name)), &ok);
+    if (!ok || name.trimmed().isEmpty()) return;
+
+    // The lib seeds a new project from the source: its input files and profile links only — no output
+    // directory, no output slices, no render state (the copy's inputs start Pending). It mints the
+    // fresh workspace-unique project uid, so nothing collides. Adding a project is not undoable here
+    // (matching New / Delete), so just mark dirty and refresh.
+    Platemaker::Infrastructure::WorkspaceEditor(m_workspace)
+        .duplicateProject(source, name.trimmed().toStdString());
+    setDirty(true);
+    applyWorkspaceToUi();
 }
 
 void MainWindow::removeProject(int modelIndex)

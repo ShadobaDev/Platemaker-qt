@@ -1,18 +1,21 @@
 # Changelog
 
-## [1.3.1] — 2026-08-05
+## [1.4.0] — unreleased
+
+Last released version: **1.3.0**. This supersedes the never-released 1.3.1 (its work is folded in
+here); adding the *New from this…* project action below makes the accumulated changes a MINOR.
 
 Requires **libplatemaker 0.4.0** — the lib's processing error channel is now typed (a breaking change),
 so this release adapts to it.
 
-### Changed
-
-- **Adapted to libplatemaker 0.4.0's typed errors.** A fatal render error is read from
-  `outcome.error->message` (the old free-text `outcome.errorMessage` is gone), and the value returned by
-  `ProjectItem::applyProcessingResults()` is now surfaced (see below). No visible behaviour change for a
-  normal render.
-
 ### Added
+
+- **"New from this…" project action.** The workspace context menu can seed a new project from an
+  existing one — copying its **input files** and **profile links** (canvas + output) but **not** its
+  outputs, output directory, or render state, so the copy starts fresh (inputs *Pending*) and renders
+  into its own folder. Built for the multi-publisher workflow: siblings over the same pages that differ
+  only in the Output profile. The new project gets a fresh workspace-unique uid (via libplatemaker
+  0.4.0's `WorkspaceEditor::duplicateProject()`), so nothing collides with the source.
 
 - **"Unverified" input state.** An input the render produced output for but whose content could not be
   hashed afterwards (locked file / denied permission / offline drive) now shows a distinct rose tile
@@ -39,6 +42,11 @@ so this release adapts to it.
 - **About dialog header.** The small app icon inside the *About* tab is replaced by the wide product
   banner (`:/icons/banner`) shown **above** the tabs, scaled to span the full tab-area width. The dialog
   now has a fixed width so the banner and the tab bodies share one stable measure.
+
+- **Adapted to libplatemaker 0.4.0's typed errors.** A fatal render error is read from
+  `outcome.error->message` (the old free-text `outcome.errorMessage` is gone), and the value returned by
+  `ProjectItem::applyProcessingResults()` is now surfaced (see below). No visible behaviour change for a
+  normal render.
 
 ### Fixed
 

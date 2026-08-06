@@ -290,6 +290,7 @@ private:
 
     // --- project management ---
     void renameProject(int modelIndex);     //!< Prompts the user to rename the project at the given model index and updates the workspace and UI accordingly.
+    void duplicateProject(int modelIndex);  //!< Creates a new project seeded from the one at the given model index (its inputs + profile links only — no outputs / output dir).
     void removeProject(int modelIndex);     //!< Removes the project at the given model index from the workspace.
     [[nodiscard]] class QDockWidget *dockForProject(int modelIndex) const;  //!< Returns the QDockWidget for the project at the given model index, or nullptr if not found.
 

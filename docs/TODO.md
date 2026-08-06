@@ -15,13 +15,15 @@ work happens in.
 - **Cascade.** Whichever section releases first takes its slot; the rest re-derive from the new
   baseline.
 
-Baseline: **1.3.0 released, 1.3.1 in progress** (`CMakeLists.txt`). 1.3.0 added a `Ctrl+R` alternate
+Baseline: **1.3.0 released, 1.4.0 in progress** (`CMakeLists.txt`). 1.3.0 added a `Ctrl+R` alternate
 for the render shortcut, app-wide undo/redo, and drag-and-drop input adding (requires libplatemaker
-0.3.1). Per the cascade, the pending patch bucket re-derives to 1.3.1.
+0.3.1). **1.3.1 was never released** — its work is folded into 1.4.0, which a new feature (*New from
+this…*) turns into a MINOR. Per the cascade, 1.4.0 (MINOR) takes the next slot, so the pending patch
+bucket re-derives to 1.4.1.
 
 ---
 
-## PATCH — next: 1.3.1
+## PATCH — next: 1.4.1
 
 Bug fixes, cosmetics and internal cleanups — no new capability, no change to an existing workflow.
 
@@ -36,7 +38,13 @@ Bug fixes, cosmetics and internal cleanups — no new capability, no change to a
   `app/resources.qrc` — same mechanism as the menu icons, and independent of the working
   directory.
 
-- [ ] **Duplicate project** option in context menu in workspace. This will cover multi-publisher situation. For example when user wants to have different projects per publisher of the same chapter. The use-case is that one project is fully done, and the dupliacted ones will only have Output profile changed.
+- [x] **Duplicate project** option in context menu in workspace. This will cover multi-publisher situation. For example when user wants to have different projects per publisher of the same chapter. The use-case is that one project is fully done, and the dupliacted ones will only have Output profile changed.
+
+  Done (shipped in **1.4.0**, so a MINOR not a patch): implemented as **"New from this…"** — a *naive*
+  seed, not a render clone. It copies the source's input files + profile links (canvas + output) but
+  drops the output directory, the output list and all render state, so the copy starts fresh (inputs
+  *Pending*) and renders into its own folder. Backed by `WorkspaceEditor::duplicateProject()` in
+  libplatemaker 0.4.0, which mints the fresh workspace-unique project uid.
 
 - [ ] **Persist last render log.** The GUI render log is in-memory only (cleared on exit). Optionally persist the last run's log (and the slice/skip summary) next to the workspace so a user can review what the previous render did.
 

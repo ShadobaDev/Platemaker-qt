@@ -34,6 +34,20 @@ so this release adapts to it.
   previously overwrote them, orphaning the packages). Note libvips as bundled is effectively GPL-3.0
   because it is built with **libimagequant (GPL-3.0)** — compatible with Platemaker's own GPL-3.0.
 
+### Changed
+
+- **About dialog header.** The small app icon inside the *About* tab is replaced by the wide product
+  banner (`:/icons/banner`) shown **above** the tabs, scaled to span the full tab-area width. The dialog
+  now has a fixed width so the banner and the tab bodies share one stable measure.
+
+### Fixed
+
+- **Window/taskbar icon no longer depends on the working directory.** `main.cpp` loaded the app icon
+  from a relative filesystem path (`icons/icon-red.ico`), which resolved against the working directory
+  and silently yielded a null icon whenever the app was launched from outside the install folder — the
+  About dialog exposed it as an empty band above the text. It now loads from the compiled Qt resource
+  (`:/icons/app`, added to `app/resources.qrc`), independent of the working directory.
+
 ## [1.3.0] — 2026-08-03
 
 Requires **libplatemaker 0.3.1** — this release uses the lib's new `ProjectEditor` /

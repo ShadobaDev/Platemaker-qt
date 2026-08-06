@@ -1,5 +1,7 @@
 <RCC>
   <qresource prefix="/icons">
+    <file alias="app">../icons/icon-red.ico</file>
+    <file alias="banner">../icons/pm-thin-banner-1000-481.png</file>
     <file alias="close.svg">../icons/close.svg</file>
     <file alias="menu/workspace.svg">../icons/menu/workspace.svg</file>
     <file alias="menu/canvas.svg">../icons/menu/canvas.svg</file>

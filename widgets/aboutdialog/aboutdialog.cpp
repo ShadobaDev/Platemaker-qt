@@ -6,9 +6,11 @@
 #include <QApplication>
 #include <QDesktopServices>
 #include <QDir>
-#include <QIcon>
+#include <QMargins>
+#include <QPixmap>
 #include <QString>
 #include <QTextBrowser>
+#include <QTextDocument>
 #include <QUrl>
 #include <QUrlQuery>
 
@@ -66,17 +68,24 @@ AboutDialog::AboutDialog(Tab initial, QWidget* parent)
 {
     ui->setupUi(this);
 
-    // App icon (reuses the window icon set in main.cpp — no file dependency here).
-    //
-    // Hidden when there is no icon to show: an empty QLabel still claims its share of the
-    // layout, which read as a stray band of padding above the text. Note the window icon
-    // is currently loaded from a relative filesystem path in main.cpp, so it silently
-    // fails whenever the working directory is not the install dir — see docs/TODO.md.
-    const QIcon appIcon = qApp->windowIcon();
-    const bool hasIcon = !appIcon.isNull();
-    ui->labelIcon->setVisible(hasIcon);
-    if (hasIcon)
-        ui->labelIcon->setPixmap(appIcon.pixmap(64, 64));
+    // Lock the dialog to a fixed width. The tab bodies are QTextBrowsers (width='100%' table,
+    // wrapping text) so they adapt to it, and it gives the banner below a stable width to match.
+    // Height stays free to fit each tab's content.
+    constexpr int kDialogWidth = 520;
+    setFixedWidth(kDialogWidth);
+
+    // Product banner heading the dialog, above the tabs. The wide art (:/icons/banner —
+    // icons/pm-thin-banner-1000-481.png, ~2:1) is scaled to the tab area's width — the fixed dialog
+    // width minus the main layout's left+right margins — so it spans exactly as wide as the tabs
+    // beneath it. Hidden if the resource is missing so an empty QLabel does not claim layout space.
+    const QPixmap banner(QStringLiteral(":/icons/banner"));
+    const bool hasBanner = !banner.isNull();
+    ui->labelBanner->setVisible(hasBanner);
+    if (hasBanner) {
+        const QMargins m = ui->verticalLayoutMain->contentsMargins();
+        ui->labelBanner->setPixmap(
+            banner.scaledToWidth(kDialogWidth - m.left() - m.right(), Qt::SmoothTransformation));
+    }
 
     // This tab used to be a QLabel, which meant styling it to imitate the QTextBrowsers on
     // the other two tabs — frame, viewport colour, inner margin — and it never quite
@@ -142,6 +151,26 @@ AboutDialog::AboutDialog(Tab initial, QWidget* parent)
              "compiler runtime) is listed with versions and licences in "
              "<a href=\"pm-notices:all\">the third-party notices</a>.</p>")
         + QStringLiteral("<p><a href=\"%1\">%1</a></p>").arg(QString::fromLatin1(kRepoUrl)));
+
+    // Grow the dialog to fit the About tab instead of scrolling it. A QTextBrowser advertises a
+    // small default sizeHint (it is built to scroll), so with the width fixed and the height free the
+    // dialog collapsed and clipped the content. Here we lay the document out at the browser's actual
+    // text width and set that as the tab's minimum height — the About tab (with the licence table) is
+    // the tallest, so it drives the shared QTabWidget height and the whole dialog sizes to it. The
+    // width is deliberately under-estimated (a narrower layout is taller), so the reserved height is
+    // never short; the default scrollbar stays as a graceful fallback. Runs once, content is static.
+    {
+        // kDialogWidth minus the main margins, the tab-page insets, the pane border and the browser's
+        // own frame + document margin — biased low so the height comes out generous.
+        constexpr int kChromeEstimate = 46;
+        constexpr int kAboutDocHeightPaddingEstimate = 20;
+        const QMargins mm = ui->verticalLayoutMain->contentsMargins();
+        const int textWidth = kDialogWidth - mm.left() - mm.right() - kChromeEstimate;
+        QTextDocument* doc = ui->textAbout->document();
+        doc->setTextWidth(textWidth);
+        const int docHeight = static_cast<int>(doc->size().height()) + kAboutDocHeightPaddingEstimate; 
+        ui->textAbout->setMinimumHeight(docHeight + 2 * ui->textAbout->frameWidth());
+    }
 
     // Links on the About tab are handled here (not auto-followed): a licence link opens the licence
     // viewer, a component link opens its GitHub page. setOpenLinks(false) stops QTextBrowser from

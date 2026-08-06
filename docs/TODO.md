@@ -25,7 +25,7 @@ for the render shortcut, app-wide undo/redo, and drag-and-drop input adding (req
 
 Bug fixes, cosmetics and internal cleanups — no new capability, no change to an existing workflow.
 
-- [ ] **Window icon is loaded from a relative path** — `main.cpp` calls
+- [x] **Window icon is loaded from a relative path** — `main.cpp` calls
   `setWindowIcon(QIcon("icons/icon-red.ico"))`, resolved against the *working directory*, so
   it silently yields a null icon whenever the app is not started from the install folder.
   The title-bar icon still appears because Windows takes that from the executable's own

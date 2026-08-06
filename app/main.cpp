@@ -55,7 +55,11 @@ int main(int argc, char *argv[])
     QCoreApplication::setApplicationName("Platemaker");
     QCoreApplication::setApplicationVersion(QStringLiteral(PLATEMAKER_GUI_VERSION));
     QSettings::setDefaultFormat(QSettings::IniFormat);
-    a.setWindowIcon(QIcon("icons/icon-red.ico"));
+    // Load from the compiled Qt resource, not a filesystem path: a relative path resolves against
+    // the working directory, so it silently yielded a null icon whenever the app was launched from
+    // anywhere but the install folder (the About dialog's icon band exposed the failure). The .ico
+    // carries all sizes, so the taskbar/window and the 64px About pixmap both come from one asset.
+    a.setWindowIcon(QIcon(QStringLiteral(":/icons/app")));
     MainWindow w;
     w.show();
     return QApplication::exec();

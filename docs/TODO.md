@@ -53,15 +53,14 @@ Bug fixes, cosmetics and internal cleanups — no new capability, no change to a
   run's log isn't overwritten by the next. Plus a right-click menu on the log — *Save log as…* and
   *Clear log* — instead of a toolbar button.
 
-- [ ] **Stale comment: templates no longer draw slice guides** —
-  `widgets/templatesdialog/templatesdialog.cpp` still says *"The output profile only supplies
-  cosmetic slice-guide lines — use the workspace default; it is not part of the template's
-  tracked identity"*, and `generateTemplate()` still takes an `OutputProfile` and falls back to
-  `ws.outputProfiles.front()`. But the lib compiles the feature out:
-  `template_generator.cpp` has `#define GUIDLINES_ENABLED 0` and an explicit
-  `(void)outputProfile;`. So the parameter is dead weight and the comment describes code that
-  does not run. Either drop the parameter (a lib API change — see the lib TODO) or re-enable the
-  guides; until then, fix the comment so it stops describing a removed feature.
+- [x] **Stale comment: templates no longer draw slice guides** — comments cleaned up (the
+  `until-then` option). `templatesdialog.cpp`, the lib `template_generator.{hpp,cpp}` docstrings and
+  the CLI `template` help/comment no longer describe the border + slice-guide lines as if they run:
+  they are documented as **compiled out behind `GUIDELINES_ENABLED`** (renamed from the misspelled
+  `GUIDLINES_ENABLED`, now `#undef`-ed after use), and `outputProfile` is documented as reserved/unused
+  while guides are off. The parameter is **kept** on purpose (dropping it is a breaking lib API change
+  and would remove the easy path to re-enable the guides). Still open, later: *drop the parameter* or
+  *re-enable the guides* — a deliberate feature/API decision, not a cleanup.
 
 - [ ] **Pre-flight sanitize off the UI thread** — `project.sanitize()` currently
   hashes inputs on the main thread before launching; move to the worker for very

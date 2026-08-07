@@ -122,6 +122,9 @@ MainWindow::MainWindow(QWidget *parent)
     connect(ui->textBrowserActionLogs, &QWidget::customContextMenuRequested,
             this, &MainWindow::onActionLogContextMenu);
 
+    // Apply the slim styled progress bar look at rest (idle 0%), before the first render.
+    setProgressValue(0, false);
+
     // --- Templates menu ---
     connect(ui->actionManage_templates,   &QAction::triggered, this, &MainWindow::onManageTemplates);
     connect(ui->actionOpen_dir_templates, &QAction::triggered, this, &MainWindow::onOpenTemplatesDir);

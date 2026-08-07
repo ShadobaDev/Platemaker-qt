@@ -62,13 +62,42 @@ Bug fixes, cosmetics and internal cleanups — no new capability, no change to a
   and would remove the easy path to re-enable the guides). Still open, later: *drop the parameter* or
   *re-enable the guides* — a deliberate feature/API decision, not a cleanup.
 
-- [ ] **Pre-flight sanitize off the UI thread** — `project.sanitize()` currently
-  hashes inputs on the main thread before launching; move to the worker for very
-  large projects to avoid a brief UI pause.
+- [~] **Pre-flight sanitize off the UI thread — won't do (by design).** `project.sanitize()` hashes
+  every input + output on the main thread before launching, which can briefly pause the UI on a very
+  large project. Decision after review: **leave it on the UI thread.**
+  - The pre-flight hash is small next to the render that immediately follows and re-reads every input
+    anyway; the user has already committed to a wait by pressing Render.
+  - `sanitize()` **mutates** the live, UI-thread-owned model (the render worker runs on *value copies*,
+    not the live model), so off-threading it means sanitize-on-a-copy + merge-back — real complexity and
+    race surface for a pause this small.
+  - Reacting to *config* changes does **not** need this: `sanitize()` really does two things — a cheap
+    in-memory config-staleness pass (`detectCanvasConfigChange` / `detectInputCompositionChange`) and the
+    expensive disk hashing. Config edits don't change file bytes, so they never need the hash. The
+    output-profile axis is already surfaced live and cheaply via `outputsConfigStale()` on every
+    `populate()`; the canvas-profile / reorder axes are caught at the next Refresh/render (only a minor
+    tile-freshness lag — never a wrong render, since pre-flight re-derives full-vs-partial).
+  - **Deferred option** if that tile-freshness lag ever matters: extract the cheap in-memory axes out of
+    `sanitize()` into a `refreshConfigStaleness()` and call *only that* on config-change signals — no
+    hashing, no threads. Not worth doing now.
 
-- [ ] `MainWindow::m_savedSnapshot` Maybe sha256 instead of holding full string? We do not use it for recovery anyway... or maybe we should keeep for recovery purpose?
+- [~] **`MainWindow::m_savedSnapshot` — keep as-is (by design).** Original question: store a sha256
+  instead of the full serialized string, and is it even useful. After analysis: **keep the full string.**
+  - It is the **authoritative** unsaved-changes baseline: `isWorkspaceModified()` re-serializes the
+    workspace and compares against it, and `maybeSave()` uses that — deliberately independent of the
+    eager `m_dirty` flag so a forgotten `setDirty()` can never silently drop changes.
+  - **Not made redundant by undo/redo.** The `QUndoStack`s revert edits, but not every change goes
+    through undo (a render updates hashes via `setDirty(true)` but is never recorded; add/remove project
+    is not undoable), so `QUndoStack::isClean()` would miss real modifications. Serialize-and-compare
+    catches every serialized change — strictly more robust.
+  - **sha256 rejected:** `isWorkspaceModified()` already re-serializes the whole workspace each call
+    (that is the cost); a hash would not cut it, only shrink the stored baseline from ~KB to 32 bytes
+    (negligible), and would foreclose a cheap in-memory **"Revert to last saved"** the full string
+    enables (deferred idea, not built).
+  - Separate minor smell noted for later: the title-bar `*` (driven by `m_dirty`) can be a false
+    positive after undoing back to the saved state; harmless because the save prompt uses the
+    authoritative check.
 
-- [ ] **Process bar** change style - a solid 15px bar - light broder - empty part background color, filled part grey, error or halt - red.
+- [x] **Process bar** change style - a solid 15px bar - light broder - empty part background color, filled part grey, error or halt - red. Done (1.4.0): full `QProgressBar` QSS in `setProgressValue()` (15px min/max height, `#555` border, `#2b2b2b` trough, `#888` chunk / `#b41414` on error), applied at construction for the idle look.
 
 - [ ] **ImageTile** rework to be more eye-appealing
 
@@ -139,7 +168,7 @@ New, backward-compatible features. Several are gated on a lib version, noted in 
 
 - [ ] **Auto-save** on pipeline finish (optional setting)
 
-- [ ] **Action log** should report a summary, how manu inputs, how many slices in what time where processed and when. Output cumulative size (MB or KB) would also be nice.
+- [x] **Action log** should report a summary, how manu inputs, how many slices in what time where processed and when. Output cumulative size (MB or KB) would also be nice. Done (1.4.0): a successful render appends `Output: N slice(s), <size> — from M input(s) in <time>` (size via `QLocale::formattedDataSize`, time via a new per-render `QElapsedTimer`); a batch adds each project's line plus the whole-sweep time on the *Batch finished* line. Captured in the persisted render log too. ("when" is the log file's own timestamp.)
 
 - [ ] **App looks flat/colorless on Linux vs Windows** — no explicit style is set in `main.cpp`, so Qt
   falls back to native per-platform styling: Windows gets `windows11`/`windowsvista` (dark-mode aware,
@@ -170,10 +199,11 @@ Investigations, testing and manual/wiki work that ships no code change on their 
   size cap. The first published chapter used JPEG purely to fit 20 MB per chapter, which is a
   constraint rather than a considered choice. Feeds `Manual-Output-Profiles`.
 
-- [ ] **Recent-workspaces behaviour is unverified** — `Open recent workspace…` exists, but the
-  cap on the number of remembered entries, and what happens when a remembered workspace has
-  been moved or deleted (dropped silently vs. an error), have not been established. Test and
-  document; the wiki currently says "to be tested".
+- [x] **Recent-workspaces behaviour — verified.** Confirmed in code (`mainwindow/workspace.cpp`):
+  the list is capped at `k_maxRecentWorkspaces = 10` (oldest dropped) and de-duplicated
+  case-insensitively; opening a remembered workspace that has been moved/deleted shows a warning
+  (`QMessageBox::warning`, "The workspace no longer exists…") and removes it from the list rather than
+  erroring. Behaviour is intentional; wiki note ("to be tested") can be updated to describe this.
 
 ## Add dependency manifest — done (SBOM submission)
 

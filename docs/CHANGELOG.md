@@ -17,6 +17,16 @@ so this release adapts to it.
   only in the Output profile. The new project gets a fresh workspace-unique uid (via libplatemaker
   0.4.0's `WorkspaceEditor::duplicateProject()`), so nothing collides with the source.
 
+- **Render summary in the action log.** A successful render now ends with a short summary — slice count
+  / input count / elapsed time, the heaviest slice (name + size), and the total output size (e.g.
+  *"Output: 40 slice(s) — from 12 input(s) in 3.2 s"*, *"The heaviest slice: output_017.png (612 KB)"*,
+  *"Output size: 18.4 MB"*); a batch adds each project's summary plus the whole-sweep time on the
+  *Batch finished* line. It is part of the saved log too.
+- **Action-log right-click menu.** *Copy* / *Copy all* / *Select all*, *Open output folder* (the last
+  render's output dir) and *Open log folder* (`.platemaker-cache/logs`, to grab a saved log after a
+  crash), plus *Save log as…* / *Clear log*. The never-usable *Copy Link Location* entry is gone.
+- **Restyled progress bar.** The Action-panel progress bar is now a slim 15 px bar with a light border
+  and a dark trough (the empty part), a grey fill, turning red when a render fails or is halted.
 - **Render logs are persisted and manageable.** Each render's action-log transcript is now auto-saved to
   `<workspace>/.platemaker-cache/logs/render-<timestamp>.log` when the run finishes (a batch is one
   file); the **last 10 runs** are kept, so a failing render's log survives the next one — handy for

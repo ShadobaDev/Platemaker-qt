@@ -46,6 +46,7 @@ void MainWindow::onRefreshAllProjects()
     m_batchOk.clear();
     m_batchSkipped.clear();
     m_batchFailed.clear();
+    m_batchTimer.start(); // whole-batch wall-clock for the "Batch finished" summary
 
     // The point of a sweep is to sync everything in one go, so confirm config changes
     // once for the whole run rather than per project. Unless the caller already got that
@@ -98,8 +99,9 @@ void MainWindow::finishBatch()
     const int failed  = m_batchFailed.size();
 
     ui->textBrowserActionLogs->append(
-        tr("Batch finished: %1 rendered, %2 skipped, %3 failed (of %4).")
-            .arg(done).arg(skipped).arg(failed).arg(m_batchTotal));
+        tr("Batch finished: %1 rendered, %2 skipped, %3 failed (of %4) in %5.")
+            .arg(done).arg(skipped).arg(failed).arg(m_batchTotal)
+            .arg(humanReadableDuration(m_batchTimer.elapsed())));
 
     if (!m_batchFailed.isEmpty())
         ui->textBrowserActionLogs->append(

@@ -8,6 +8,8 @@
 #include "templatesdialog.h"
 #include "renderworker.h"
 
+#include <QApplication>
+#include <QClipboard>
 #include <QCloseEvent>
 #include <QCollator>
 #include <QDateTime>
@@ -21,6 +23,7 @@
 #include <QKeySequence>
 #include <QLineEdit>
 #include <QListWidgetItem>
+#include <QLocale>
 #include <QMenu>
 #include <QMessageBox>
 #include <QSet>
@@ -77,10 +80,18 @@ void MainWindow::setProjectStatus(const QString &message)
 
 void MainWindow::setProgressValue(int percent, bool error)
 {
-    // Set the progress bar value and color (red if error is true).
-    // The progress bar is displayed in the UI to indicate rendering progress.
+    // A slim (15px) bordered bar: dark trough for the empty part, grey fill, red on error/halt.
+    // The whole sheet is (re)written each call — the only thing that varies is the chunk colour, and
+    // this is called at most once per slice, so re-parsing the QSS is negligible.
     ui->progressBar->setValue(percent);
     ui->progressBar->setStyleSheet(QStringLiteral(
+        "QProgressBar {"
+        "  border: 1px solid #555555;"
+        "  border-radius: 2px;"
+        "  background-color: #2b2b2b;"
+        "  min-height: 15px; max-height: 15px;"
+        "  text-align: center; color: #dddddd;"
+        "}"
         "QProgressBar::chunk { background-color: %1; }")
         .arg(error ? QStringLiteral("#b41414") : QStringLiteral("#888888")));
 }
@@ -270,6 +281,7 @@ bool MainWindow::startRender(int projectIndex)
         setProjectStatus(tr("Cannot create output directory:\n%1").arg(outDir));
         return false;
     }
+    m_lastRenderOutputDir = outDir; // for the log's "Open output folder" action (last render wins)
 
     // Decide full vs partial re-render. When every input is Processed but some
     // outputs are Missing/Modified, only those slices need regenerating. A config
@@ -323,6 +335,7 @@ bool MainWindow::startRender(int projectIndex)
     ui->pushButtonStop->setEnabled(true);
     if (auto *pw = projectWidget(projectIndex)) pw->setRendering(true);
 
+    m_renderTimer.start(); // wall-clock for this render's action-log summary
     thread->start();
     return true;
 }
@@ -405,18 +418,104 @@ void MainWindow::persistRenderLog()
         QFile::remove(logsDir + '/' + logs.at(i));
 }
 
+QString MainWindow::humanReadableDuration(qint64 ms)
+{
+    if (ms < 1000)
+        return QStringLiteral("%1 ms").arg(ms);
+    const double s = ms / 1000.0;
+    if (s < 60.0)
+        return QStringLiteral("%1 s").arg(s, 0, 'f', 1);           // e.g. "3.2 s"
+    const qint64 totalSec = (ms + 500) / 1000;                     // round to nearest second
+    return QStringLiteral("%1 m %2 s")
+        .arg(totalSec / 60)
+        .arg(totalSec % 60, 2, 10, QChar('0'));                    // e.g. "1 m 05 s"
+}
+
+QStringList MainWindow::renderSummaryLines(const Platemaker::Models::ProjectItem &project,
+                                           qint64 elapsedMs) const
+{
+    const auto &outputs = project.getOutputImages();
+    const QString outDir = QString::fromStdString(project.getOutputDirectory());
+
+    // One disk pass: total size + the heaviest slice (name + size).
+    qint64  totalBytes   = 0;
+    qint64  heaviestSize = -1;
+    QString heaviestName;
+    for (const auto &of : outputs) {
+        const QString fileName = QString::fromStdString(of.fileName);
+        const QFileInfo fi(outDir + '/' + fileName);
+        if (!fi.exists())
+            continue;
+        const qint64 sz = fi.size();
+        totalBytes += sz;
+        if (sz > heaviestSize) {
+            heaviestSize = sz;
+            heaviestName = fileName;
+        }
+    }
+
+    // Traditional format + 1 decimal → "18.4 MB" (not the default "18.42 MiB").
+    const auto fmt = [](qint64 bytes) {
+        return QLocale().formattedDataSize(bytes, 1, QLocale::DataSizeTraditionalFormat);
+    };
+
+    QStringList lines;
+    lines << tr("Output: %1 slice(s) — from %2 input(s) in %3")
+                 .arg(static_cast<qulonglong>(outputs.size()))
+                 .arg(static_cast<qulonglong>(project.getInputImages().size()))
+                 .arg(humanReadableDuration(elapsedMs));
+    if (heaviestSize >= 0) // at least one slice on disk
+        lines << tr("The heaviest slice: %1 (%2)").arg(heaviestName, fmt(heaviestSize));
+    lines << tr("Output total size: %1").arg(fmt(totalBytes));
+    return lines;
+}
+
 void MainWindow::onActionLogContextMenu(const QPoint &pos)
 {
-    // Extend the browser's own menu (Copy / Select All) with log management — no toolbar button.
-    // createStandardContextMenu() hands us a menu to own; delete it after exec.
-    QMenu *menu = ui->textBrowserActionLogs->createStandardContextMenu(pos);
-    menu->addSeparator();
+    // Built from scratch (not createStandardContextMenu, which carries a never-enabled "Copy Link
+    // Location") so the menu holds exactly what the log needs. No toolbar buttons — everything is here.
+    auto *log = ui->textBrowserActionLogs;
+    QMenu menu(this);
 
-    const bool hasText = !ui->textBrowserActionLogs->toPlainText().isEmpty();
+    QAction *copyAct = menu.addAction(tr("Copy"));
+    copyAct->setEnabled(log->textCursor().hasSelection());
+    connect(copyAct, &QAction::triggered, log, &QTextBrowser::copy);
 
-    QAction *saveAct = menu->addAction(tr("Save log as…"));
+    const bool hasText = !log->toPlainText().isEmpty();
+
+    QAction *copyAllAct = menu.addAction(tr("Copy all"));
+    copyAllAct->setEnabled(hasText);
+    connect(copyAllAct, &QAction::triggered, this,
+            [log] { QApplication::clipboard()->setText(log->toPlainText()); });
+
+    QAction *selectAllAct = menu.addAction(tr("Select all"));
+    selectAllAct->setEnabled(hasText);
+    connect(selectAllAct, &QAction::triggered, log, &QTextBrowser::selectAll);
+
+    menu.addSeparator();
+
+    // Jump to the render's output folder, and to the saved-logs folder (handy for grabbing the log if
+    // something crashed). Both open the platform file manager; disabled when the target isn't there.
+    QAction *openOutAct = menu.addAction(tr("Open output folder"));
+    openOutAct->setEnabled(!m_lastRenderOutputDir.isEmpty()
+                           && QFileInfo(m_lastRenderOutputDir).isDir());
+    connect(openOutAct, &QAction::triggered, this, [this] {
+        QDesktopServices::openUrl(QUrl::fromLocalFile(m_lastRenderOutputDir));
+    });
+
+    const QString logsDir = workspaceCacheDir().isEmpty()
+        ? QString{} : workspaceCacheDir() + "/logs";
+    QAction *openLogsAct = menu.addAction(tr("Open log folder"));
+    openLogsAct->setEnabled(!logsDir.isEmpty() && QFileInfo(logsDir).isDir());
+    connect(openLogsAct, &QAction::triggered, this, [logsDir] {
+        QDesktopServices::openUrl(QUrl::fromLocalFile(logsDir));
+    });
+
+    menu.addSeparator();
+
+    QAction *saveAct = menu.addAction(tr("Save log as…"));
     saveAct->setEnabled(hasText);
-    connect(saveAct, &QAction::triggered, this, [this] {
+    connect(saveAct, &QAction::triggered, this, [this, log] {
         const QString stem = m_workspacePath.isEmpty()
             ? QStringLiteral("render")
             : QFileInfo(m_workspacePath).baseName();
@@ -428,19 +527,17 @@ void MainWindow::onActionLogContextMenu(const QPoint &pos)
         if (path.isEmpty()) return;
         QFile file(path);
         if (file.open(QIODevice::WriteOnly | QIODevice::Truncate | QIODevice::Text))
-            file.write(ui->textBrowserActionLogs->toPlainText().toUtf8());
+            file.write(log->toPlainText().toUtf8());
         else
             QMessageBox::warning(this, tr("Save Render Log"),
                                  tr("Could not write the log to:\n%1").arg(path));
     });
 
-    QAction *clearAct = menu->addAction(tr("Clear log"));
+    QAction *clearAct = menu.addAction(tr("Clear log"));
     clearAct->setEnabled(hasText);
-    connect(clearAct, &QAction::triggered, this,
-            [this] { ui->textBrowserActionLogs->clear(); });
+    connect(clearAct, &QAction::triggered, log, &QTextBrowser::clear);
 
-    menu->exec(ui->textBrowserActionLogs->viewport()->mapToGlobal(pos));
-    menu->deleteLater();
+    menu.exec(log->viewport()->mapToGlobal(pos));
 }
 
 void MainWindow::onRenderSliceSaved(int index, QString name, QString fullPath)
@@ -623,6 +720,17 @@ void MainWindow::onRenderFinished()
         setActionStatus(name, tr("Failed"));
         setProjectStatus(applyError);
         ui->textBrowserActionLogs->append(tr("FAILED %1 — %2").arg(name, applyError));
+    }
+
+    // One-line "what this run produced" summary — only on a successful render (not failed / cancelled /
+    // apply-error), and for each project in a batch. Appended before the reset + persistRenderLog() tail,
+    // so it is part of the saved log too.
+    if (!outcome.failed && !outcome.cancelled && applyError.isEmpty()
+        && idx >= 0 && idx < static_cast<int>(m_workspace.projectItems.size())) {
+        const QStringList summary = renderSummaryLines(
+            m_workspace.projectItems[static_cast<std::size_t>(idx)], m_renderTimer.elapsed());
+        for (const QString &line : summary)
+            ui->textBrowserActionLogs->append(line);
     }
 
     // Update the UI and reset the render state.

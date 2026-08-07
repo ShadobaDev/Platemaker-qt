@@ -2,6 +2,7 @@
 #define MAINWINDOW_H
 
 #include <QMainWindow>
+#include <QElapsedTimer>
 #include <QList>
 #include <QStringList>
 
@@ -239,6 +240,19 @@ private:
      */
     void persistRenderLog();
 
+    /**
+     * @brief Builds the render summary block for the action log: slice count / input count / elapsed
+     * time, the heaviest slice (name + size), and the total output size — one line each (the heaviest
+     * line is omitted when there are no slices).
+     * @param project    The just-rendered project (for output/input counts and the output directory).
+     * @param elapsedMs  Wall-clock render time in milliseconds.
+     */
+    [[nodiscard]] QStringList renderSummaryLines(
+        const Platemaker::Models::ProjectItem &project, qint64 elapsedMs) const;
+
+    /** @brief Formats a millisecond duration for humans ("820 ms", "3.2 s", "1 m 05 s"). */
+    [[nodiscard]] static QString humanReadableDuration(qint64 ms);
+
     // --- UI helpers ---
     [[nodiscard]] Project *projectWidget(int projectIndex) const;   //!< Gets the Project widget for the specified project index, nullptr if not found.
 
@@ -356,6 +370,8 @@ private:
     bool          m_rendering           = false;    //!< True if a render operation is currently in progress.
     int           m_renderProjectIndex  = -1;       //!< Index of the project currently being rendered (in m_workspace.projectItems), -1 if none.
     int           m_activeProjectIndex  = -1;       //!< Index of the project dock that was last raised (for F5/menu).
+    QElapsedTimer m_renderTimer;                    //!< Wall-clock timer for the current single render (started in startRender), read for the action-log summary.
+    QString       m_lastRenderOutputDir;            //!< Output directory of the most recent render (set in startRender), for the log's "Open output folder" action.
 
     // Outputs from the previous configuration to delete after a config-change
     // full re-render (set only when the user confirmed the cleanup prompt).
@@ -364,6 +380,7 @@ private:
 
     // --- batch render state (F6). m_batchTotal == 0 means no batch is in flight. ---
     std::vector<int> m_batchQueue;      //!< Project indices still to render.
+    QElapsedTimer    m_batchTimer;      //!< Wall-clock timer for the whole batch (started in onRefreshAllProjects), read in finishBatch.
     int              m_batchTotal = 0;  //!< Number of projects the batch started with.
     QStringList      m_batchOk;         //!< Projects that rendered successfully.
     QStringList      m_batchSkipped;    //!< Projects skipped, each with the reason.

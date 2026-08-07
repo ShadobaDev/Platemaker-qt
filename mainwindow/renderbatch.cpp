@@ -109,6 +109,9 @@ void MainWindow::finishBatch()
         tr("Refresh finished — %1 rendered, %2 skipped, %3 failed.")
             .arg(done).arg(skipped).arg(failed));
 
+    // Persist the whole batch transcript as one run's log (before clearing state below).
+    persistRenderLog();
+
     // Clear the batch state; m_batchTotal == 0 is what marks "no batch in flight".
     // Restoring the policy matters: a blanket confirmation belongs to this sweep only,
     // and leaving it set would let a later single render skip the destructive prompt.

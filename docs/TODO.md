@@ -46,7 +46,12 @@ Bug fixes, cosmetics and internal cleanups — no new capability, no change to a
   *Pending*) and renders into its own folder. Backed by `WorkspaceEditor::duplicateProject()` in
   libplatemaker 0.4.0, which mints the fresh workspace-unique project uid.
 
-- [ ] **Persist last render log.** The GUI render log is in-memory only (cleared on exit). Optionally persist the last run's log (and the slice/skip summary) next to the workspace so a user can review what the previous render did.
+- [x] **Persist last render log.** The GUI render log is in-memory only (cleared on exit). Optionally persist the last run's log (and the slice/skip summary) next to the workspace so a user can review what the previous render did.
+
+  Done (1.4.0): each run's log is auto-saved to `<workspace>/.platemaker-cache/logs/render-<timestamp>.log`
+  at render/batch end (`persistRenderLog()`), keeping the newest 10 (`k_maxRenderLogs`) so a failing
+  run's log isn't overwritten by the next. Plus a right-click menu on the log — *Save log as…* and
+  *Clear log* — instead of a toolbar button.
 
 - [ ] **Stale comment: templates no longer draw slice guides** —
   `widgets/templatesdialog/templatesdialog.cpp` still says *"The output profile only supplies
@@ -79,6 +84,7 @@ Bug fixes, cosmetics and internal cleanups — no new capability, no change to a
   calls `QStyleHints::setColorScheme(Qt::ColorScheme::Dark)` at startup, so the native style renders
   dark regardless of the OS setting while keeping the platform look (windows11 on Windows). This bumped
   the Qt minimum to **6.8** (where `setColorScheme` was added). Shipped in 1.3.0.
+
 ---
 
 ## MINOR — next: 1.4.0

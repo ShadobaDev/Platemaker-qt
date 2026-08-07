@@ -241,10 +241,19 @@ void MainWindow::openRecentWorkspace(const QString &path)
 
 QString MainWindow::defaultDialogDir() const
 {
-    // Return the default directory for file dialogs. 
-    // If there are recent workspaces, return the directory of 
+    // Return the default directory for file dialogs.
+    // If there are recent workspaces, return the directory of
     // the most recent one; otherwise, return the user's home directory.
     const QStringList list = recentWorkspaces();
     return list.isEmpty() ? QString{}
                           : QFileInfo(list.first()).absolutePath();
+}
+
+QString MainWindow::workspaceCacheDir() const
+{
+    // The per-workspace cache folder next to the workspace file (thumbnails, render logs). Empty when
+    // no workspace is loaded — callers treat that as "nowhere to cache" and skip. Single definition,
+    // reused by openProjectDock (thumbnails) and persistRenderLog (logs).
+    if (m_workspacePath.isEmpty()) return {};
+    return QFileInfo(m_workspacePath).absolutePath() + "/.platemaker-cache";
 }

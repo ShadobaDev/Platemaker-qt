@@ -378,6 +378,71 @@ void MainWindow::onRenderLog(int level, QString message)
     ui->textBrowserActionLogs->append(QString::fromLatin1(tag) + message);
 }
 
+void MainWindow::persistRenderLog()
+{
+    // Auto-save the finished run's log next to the workspace so it survives exit — and keep the last
+    // few runs (not just the latest), so an environmental failure's log is not overwritten by whatever
+    // the user renders next; those Io / "Unverified after render" faults may not reproduce, making the
+    // log the only forensic artifact. No workspace → nowhere to write. Best-effort: a filesystem hiccup
+    // must never disturb a completed render, so failures are swallowed.
+    const QString cache = workspaceCacheDir();
+    if (cache.isEmpty()) return;
+
+    const QString logsDir = cache + "/logs";
+    if (!QDir().mkpath(logsDir)) return;
+
+    // The timestamped name sorts chronologically, so the newest file is "the previous render".
+    const QString stamp = QDateTime::currentDateTime().toString(QStringLiteral("yyyyMMdd-HHmmss"));
+    QFile file(logsDir + "/render-" + stamp + ".log");
+    if (file.open(QIODevice::WriteOnly | QIODevice::Truncate | QIODevice::Text))
+        file.write(ui->textBrowserActionLogs->toPlainText().toUtf8());
+    file.close();
+
+    // Prune to the newest k_maxRenderLogs (QDir::Name sorts the timestamped names oldest-first).
+    const QStringList logs = QDir(logsDir).entryList({QStringLiteral("render-*.log")},
+                                                     QDir::Files, QDir::Name);
+    for (qsizetype i = 0; i < logs.size() - k_maxRenderLogs; ++i)
+        QFile::remove(logsDir + '/' + logs.at(i));
+}
+
+void MainWindow::onActionLogContextMenu(const QPoint &pos)
+{
+    // Extend the browser's own menu (Copy / Select All) with log management — no toolbar button.
+    // createStandardContextMenu() hands us a menu to own; delete it after exec.
+    QMenu *menu = ui->textBrowserActionLogs->createStandardContextMenu(pos);
+    menu->addSeparator();
+
+    const bool hasText = !ui->textBrowserActionLogs->toPlainText().isEmpty();
+
+    QAction *saveAct = menu->addAction(tr("Save log as…"));
+    saveAct->setEnabled(hasText);
+    connect(saveAct, &QAction::triggered, this, [this] {
+        const QString stem = m_workspacePath.isEmpty()
+            ? QStringLiteral("render")
+            : QFileInfo(m_workspacePath).baseName();
+        const QString dir = defaultDialogDir();
+        const QString suggested = (dir.isEmpty() ? QString{} : dir + '/') + stem + "-render.log";
+        const QString path = QFileDialog::getSaveFileName(
+            this, tr("Save Render Log"), suggested,
+            tr("Log files (*.log);;Text files (*.txt);;All files (*)"));
+        if (path.isEmpty()) return;
+        QFile file(path);
+        if (file.open(QIODevice::WriteOnly | QIODevice::Truncate | QIODevice::Text))
+            file.write(ui->textBrowserActionLogs->toPlainText().toUtf8());
+        else
+            QMessageBox::warning(this, tr("Save Render Log"),
+                                 tr("Could not write the log to:\n%1").arg(path));
+    });
+
+    QAction *clearAct = menu->addAction(tr("Clear log"));
+    clearAct->setEnabled(hasText);
+    connect(clearAct, &QAction::triggered, this,
+            [this] { ui->textBrowserActionLogs->clear(); });
+
+    menu->exec(ui->textBrowserActionLogs->viewport()->mapToGlobal(pos));
+    menu->deleteLater();
+}
+
 void MainWindow::onRenderSliceSaved(int index, QString name, QString fullPath)
 {
     // Called when a slice has been saved during rendering. Replace the output tile at row `index`
@@ -568,6 +633,11 @@ void MainWindow::onRenderFinished()
     m_renderWorker       = nullptr;   // deleted via thread.finished → deleteLater
     m_renderThread       = nullptr;
     m_renderProjectIndex = -1;
+
+    // A single render (not part of a batch) ends here — persist its log now. Batch runs persist once
+    // in finishBatch() so the whole sweep is one file.
+    if (m_batchTotal == 0)
+        persistRenderLog();
 
     // --- batch continuation (F6) ---
     // Must come last: advanceBatch() calls startRender(), which bails out while

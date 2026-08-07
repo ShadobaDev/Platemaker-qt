@@ -117,6 +117,11 @@ MainWindow::MainWindow(QWidget *parent)
     connect(ui->listWidgetProjects, &QWidget::customContextMenuRequested,
             this, &MainWindow::onProjectsContextMenu);
 
+    // --- Action log (right-click: Copy/Select All + Save log as… / Clear) ---
+    ui->textBrowserActionLogs->setContextMenuPolicy(Qt::CustomContextMenu);
+    connect(ui->textBrowserActionLogs, &QWidget::customContextMenuRequested,
+            this, &MainWindow::onActionLogContextMenu);
+
     // --- Templates menu ---
     connect(ui->actionManage_templates,   &QAction::triggered, this, &MainWindow::onManageTemplates);
     connect(ui->actionOpen_dir_templates, &QAction::triggered, this, &MainWindow::onOpenTemplatesDir);

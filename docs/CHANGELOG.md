@@ -17,6 +17,13 @@ so this release adapts to it.
   only in the Output profile. The new project gets a fresh workspace-unique uid (via libplatemaker
   0.4.0's `WorkspaceEditor::duplicateProject()`), so nothing collides with the source.
 
+- **Render logs are persisted and manageable.** Each render's action-log transcript is now auto-saved to
+  `<workspace>/.platemaker-cache/logs/render-<timestamp>.log` when the run finishes (a batch is one
+  file); the **last 10 runs** are kept, so a failing render's log survives the next one — handy for
+  reviewing what happened or attaching to a bug report. The log also gained a **right-click menu**:
+  *Save log as…* (export the current text anywhere) and *Clear log*, alongside the usual Copy / Select
+  All. No new buttons.
+
 - **"Unverified" input state.** An input the render produced output for but whose content could not be
   hashed afterwards (locked file / denied permission / offline drive) now shows a distinct rose tile
   labelled *Unverified* (libplatemaker's new `FileStatus::Error`) instead of being silently reprocessed

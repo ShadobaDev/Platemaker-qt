@@ -232,8 +232,7 @@ void MainWindow::openProjectDock(int projectIndex)
     newDock->setFeatures(QDockWidget::DockWidgetMovable  |
                          QDockWidget::DockWidgetClosable |
                          QDockWidget::DockWidgetFloatable);
-    const QString cacheDir = QFileInfo(m_workspacePath).absolutePath()
-                             + "/.platemaker-cache";
+    const QString cacheDir = workspaceCacheDir();
     auto* projectWidget = new Project(projectIndex, m_workspace, cacheDir, newDock);
     connect(projectWidget, &Project::projectModified, this, [this]{
         setDirty(true);

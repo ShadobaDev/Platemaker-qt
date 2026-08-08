@@ -59,7 +59,26 @@ Since it isn't signed, you can verify the download yourself:
 Get-FileHash .\Platemaker-1.3.0-Setup.exe -Algorithm SHA256
 ```
 
-**2. Malware scan** — the installer is scanned on VirusTotal.
+**2. Provenance — proof GitHub itself built it from this repo.** Every release carries a GitHub
+**build-provenance attestation**: GitHub vouches that the file was produced by this repository's release
+workflow and records the exact source commit it was built from. This is stronger than a checksum — you
+don't have to trust a hash *we* published.
+
+- **In your browser (nothing to install):** open the
+  [Attestations](https://github.com/ShadobaDev/Platemaker-qt/attestations) page. Each entry is a
+  GitHub-verified build showing the file it covers (name + SHA-256), the **source commit**, and the
+  **workflow** that produced it — i.e. GitHub confirming *"this binary was built here, from this commit."*
+  Compare that SHA-256 with your download's (step 1): if they match, the attestation is about your file.
+- **Command line ([GitHub CLI](https://cli.github.com/)) — one check for integrity + origin:**
+
+  ```powershell
+  gh attestation verify .\Platemaker-<version>-Setup.exe --repo ShadobaDev/Platemaker-qt
+  ```
+
+  A `✓ Verification succeeded!` confirms the file's digest matches and that it was built by this repo's
+  `release.yml`.
+
+**3. Malware scan** — the installer is scanned on VirusTotal.
 
 ### Latest verified build (1.3.0)
 

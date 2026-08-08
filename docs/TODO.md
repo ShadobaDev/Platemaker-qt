@@ -261,6 +261,8 @@ and provenance trail; they do **not** remove the SmartScreen warning (set that e
 - [x] **README: explain the SmartScreen warning** — README now has an *Installing & verifying your
   download* section: why the "unknown publisher" warning appears, how to proceed (Properties →
   *Unblock*, or *More info → Run anyway*), plus the current build's SHA-256 and the VirusTotal link.
-  (Provenance verify command to be added once the release CI produces attestations.)
+  Now also documents **build-provenance verification** (the CI produces attestations): a browser path
+  (the repo's Attestations page — GitHub confirming the file was built here from a specific commit, for
+  non-technical users) and the `gh attestation verify … --repo ShadobaDev/Platemaker-qt` command.
 
 ---

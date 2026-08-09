@@ -39,7 +39,7 @@ jobs:
       # issue #1007), NOT in the latest release (3.3.0) that install-qt-action pins. So we drive aqt
       # directly from git and set the Qt/MinGW env ourselves. Switch back to install-qt-action once a
       # fixed aqt is released (> 3.3.0).
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v7
         with:
           python-version: '3.12'
 

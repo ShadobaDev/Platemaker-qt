@@ -31,7 +31,7 @@ jobs:
     env:
       VT_API_KEY: ${{ secrets.VT_API_KEY }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       # Qt (win64_mingw) + Qt's MinGW compiler. This is how CI gets Qt without Qt Creator: install-qt-action
       # wraps aqtinstall, which downloads the exact Qt build from Qt's servers (open-source/LGPL, no account).

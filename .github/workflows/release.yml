@@ -82,7 +82,7 @@ jobs:
       # Expose the installer (+ checksum) as a run artifact so it's downloadable from any run — including
       # a workflow_dispatch validation build, which doesn't publish a Release. (On a tag, it's also
       # uploaded to the Release below.)
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: installer
           path: |

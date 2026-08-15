@@ -15,11 +15,10 @@ work happens in.
 - **Cascade.** Whichever section releases first takes its slot; the rest re-derive from the new
   baseline.
 
-Baseline: **1.3.0 released, 1.4.0 in progress** (`CMakeLists.txt`). 1.3.0 added a `Ctrl+R` alternate
-for the render shortcut, app-wide undo/redo, and drag-and-drop input adding (requires libplatemaker
-0.3.1). **1.3.1 was never released** — its work is folded into 1.4.0, which a new feature (*New from
-this…*) turns into a MINOR. Per the cascade, 1.4.0 (MINOR) takes the next slot, so the pending patch
-bucket re-derives to 1.4.1.
+Baseline: **1.4.0 released (2026-08-07), 1.4.1 in progress** (`CMakeLists.txt`). 1.4.0 folded in the
+never-released 1.3.1 work and added the *New from this…* project action, render-log persistence, the
+render summary and the restyled progress bar (requires libplatemaker 0.4.0). The pending patch bucket
+is **1.4.1**; the next feature bucket re-derives to **1.5.0**.
 
 ---
 
@@ -115,10 +114,10 @@ Bug fixes, cosmetics and internal cleanups — no new capability, no change to a
 
 ---
 
-## MINOR — next: 1.4.0
+## MINOR — next: 1.5.0
 
 New, backward-compatible features. Several are gated on a lib version, noted in the item body.
-(The `[x]` items below shipped in 1.3.0; the open ones re-derive to the next MINOR.)
+(The `[x]` items below shipped in 1.3.0 / 1.4.0; the open ones re-derive to the next MINOR.)
 
 - [x] **Drag files / folders onto the Project window** — Done. Dropping images (or a folder) onto the
   Input-tab tile list adds them via the same path as *Add files* / *Add from directory*

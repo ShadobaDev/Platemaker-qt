@@ -1,5 +1,5 @@
 ﻿cmake_minimum_required(VERSION 3.25)
-project(Platemaker VERSION 1.4.0 LANGUAGES CXX)
+project(Platemaker VERSION 1.4.1 LANGUAGES CXX)
 
 find_package(Qt6 6.8 REQUIRED COMPONENTS Core Widgets Concurrent Svg)
 
@@ -9,12 +9,19 @@ qt_standard_project_setup()
 # the .qrc below (SVG icons) is compiled into the binary (otherwise :/icons/* is missing).
 set(CMAKE_AUTORCC ON)
 
+# Embed Windows version metadata (product name / version / company / description shown by Explorer's
+# Details tab and Process Explorer), generated from the project version so it stays in sync. app.rc
+# keeps the icon; this .rc adds VERSIONINFO only. Compiled by the RC tool alongside app.rc.
+configure_file(app/version.rc.in "${CMAKE_CURRENT_BINARY_DIR}/version.rc" @ONLY)
+
 qt_add_executable(Platemaker
     WIN32 MACOSX_BUNDLE
     # App entry point.
     app/main.cpp
     # App icon
     app/app.rc
+    # Windows version metadata (generated from PROJECT_VERSION — see app/version.rc.in)
+    "${CMAKE_CURRENT_BINARY_DIR}/version.rc"
     # Qt resources — SVG icons (close button + menu icons), compiled by AUTORCC.
     app/resources.qrc
     # Custom style — icon + text on menu-bar items.

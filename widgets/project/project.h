@@ -15,6 +15,10 @@ class QListWidgetItem;
 class OutputFormatOptionsWidget;
 class QUndoStack;
 class QEvent;
+class QDragEnterEvent;
+class QDragMoveEvent;
+class QDropEvent;
+class QMimeData;
 class QUrl;
 
 /**
@@ -74,6 +78,16 @@ protected:
      * reorder drags (which carry no file URLs) fall through to the list's own InternalMove handling.
      */
     bool eventFilter(QObject* watched, QEvent* event) override;
+
+    /**
+     * @brief Whole-widget drop target: images / folders dropped **anywhere** on the project panel
+     * (not only on the input tile list) are added via the same path as Add files / Add from directory.
+     * Drops that land directly on the input list are still handled by eventFilter() (so its InternalMove
+     * reorder keeps working); these three catch every other area of the panel.
+     */
+    void dragEnterEvent(QDragEnterEvent* event) override;
+    void dragMoveEvent(QDragMoveEvent* event) override;
+    void dropEvent(QDropEvent* event) override;
 
 signals:
     void projectModified();                         //!< emitted when the project is modified (inputs, outputs, profiles, etc.)

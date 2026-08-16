@@ -26,40 +26,33 @@ is **1.4.1**; the next feature bucket re-derives to **1.5.0**.
 
 Bug fixes, cosmetics and internal cleanups — no new capability, no change to an existing workflow.
 
-- [x] **Window icon is loaded from a relative path** — `main.cpp` calls
-  `setWindowIcon(QIcon("icons/icon-red.ico"))`, resolved against the *working directory*, so
-  it silently yields a null icon whenever the app is not started from the install folder.
-  The title-bar icon still appears because Windows takes that from the executable's own
-  resource (`app.rc`), which hides the failure — it surfaced only as an empty band above the
-  About text, where the icon was supposed to be.
-
-  Fix: load it from the Qt resource system (`:/icons/…`), which the app already has via
-  `app/resources.qrc` — same mechanism as the menu icons, and independent of the working
-  directory.
-
-- [x] **Duplicate project** option in context menu in workspace. This will cover multi-publisher situation. For example when user wants to have different projects per publisher of the same chapter. The use-case is that one project is fully done, and the dupliacted ones will only have Output profile changed.
-
-  Done (shipped in **1.4.0**, so a MINOR not a patch): implemented as **"New from this…"** — a *naive*
-  seed, not a render clone. It copies the source's input files + profile links (canvas + output) but
-  drops the output directory, the output list and all render state, so the copy starts fresh (inputs
-  *Pending*) and renders into its own folder. Backed by `WorkspaceEditor::duplicateProject()` in
-  libplatemaker 0.4.0, which mints the fresh workspace-unique project uid.
-
-- [x] **Persist last render log.** The GUI render log is in-memory only (cleared on exit). Optionally persist the last run's log (and the slice/skip summary) next to the workspace so a user can review what the previous render did.
-
-  Done (1.4.0): each run's log is auto-saved to `<workspace>/.platemaker-cache/logs/render-<timestamp>.log`
-  at render/batch end (`persistRenderLog()`), keeping the newest 10 (`k_maxRenderLogs`) so a failing
-  run's log isn't overwritten by the next. Plus a right-click menu on the log — *Save log as…* and
-  *Clear log* — instead of a toolbar button.
-
-- [x] **Stale comment: templates no longer draw slice guides** — comments cleaned up (the
-  `until-then` option). `templatesdialog.cpp`, the lib `template_generator.{hpp,cpp}` docstrings and
-  the CLI `template` help/comment no longer describe the border + slice-guide lines as if they run:
-  they are documented as **compiled out behind `GUIDELINES_ENABLED`** (renamed from the misspelled
-  `GUIDLINES_ENABLED`, now `#undef`-ed after use), and `outputProfile` is documented as reserved/unused
-  while guides are off. The parameter is **kept** on purpose (dropping it is a breaking lib API change
-  and would remove the easy path to re-enable the guides). Still open, later: *drop the parameter* or
-  *re-enable the guides* — a deliberate feature/API decision, not a cleanup.
+- [ ] **Harden against DLL injection / hijacking (Windows).** Prompted by finding third-party global
+  hooks injected into our own process during the drag-and-drop debugging (LG OnScreen Control's
+  `ScreenSplitterHook`; ASUS/ENE RGB software) — plus general defence-in-depth for an unsigned app. Two
+  Windows-only mitigations, applied **very early in `main()`** (before `QApplication`, before any DLL /
+  Qt plugin is loaded — `SetDefaultDllDirectories` especially must precede DLL loading), guarded by
+  `#ifdef _WIN32`:
+  - **Block legacy extension points** — stops global `SetWindowsHookEx` hooks (WH_CBT etc.),
+    `AppInit_DLLs` and legacy IME DLLs from being loaded into the process (i.e. the class of injection we
+    observed):
+    ```c
+    PROCESS_MITIGATION_EXTENSION_POINT_DISABLE_POLICY p = {0};
+    p.DisableExtensionPoints = 1;
+    SetProcessMitigationPolicy(ProcessExtensionPointDisablePolicy, &p, sizeof(p));
+    ```
+  - **Restrict the DLL search path** to the app dir + System32 (removes the current dir and `PATH` — the
+    classic DLL-planting vector; relevant because we bundle a large DLL graph):
+    ```c
+    SetDefaultDllDirectories(LOAD_LIBRARY_SEARCH_APPLICATION_DIR | LOAD_LIBRARY_SEARCH_SYSTEM32);
+    ```
+  - **Risk — must test before shipping:** disabling extension points also breaks **legacy IMEs** and some
+    **accessibility / assistive tools** and overlays. Broken IME would hurt non-Latin input (Korean /
+    Japanese / Chinese authors — a core webtoon audience — typing e.g. project names). Verify text entry
+    with an IME first; modern TSF IMEs may be unaffected, legacy ones are not. Also confirm the whole
+    bundled DLL graph + Qt plugins still resolve under the restricted search path.
+  - Not a substitute for code signing (the real integrity / reputation fix); this is defence-in-depth
+    against injection and search-order hijacking and does **not** affect SmartScreen. Internal hardening,
+    so PATCH — but the IME risk means it ships only after that check.
 
 - [~] **Pre-flight sanitize off the UI thread — won't do (by design).** `project.sanitize()` hashes
   every input + output on the main thread before launching, which can briefly pause the UI on a very
@@ -96,7 +89,6 @@ Bug fixes, cosmetics and internal cleanups — no new capability, no change to a
     positive after undoing back to the saved state; harmless because the save prompt uses the
     authoritative check.
 
-- [x] **Process bar** change style - a solid 15px bar - light broder - empty part background color, filled part grey, error or halt - red. Done (1.4.0): full `QProgressBar` QSS in `setProgressValue()` (15px min/max height, `#555` border, `#2b2b2b` trough, `#888` chunk / `#b41414` on error), applied at construction for the idle look.
 
 - [ ] **ImageTile** rework to be more eye-appealing
 
@@ -105,12 +97,6 @@ Bug fixes, cosmetics and internal cleanups — no new capability, no change to a
   interactive but wired to nothing, inviting input that does nothing. Done: the group is now disabled
   and its fields show a "Coming soon" placeholder (`project.cpp`, constructor). A stopgap — remove it
   when the Auto-sort feature lands (see the MINOR item).
-
-- [x] **Light mode** was broken (hardcoded dark greys mixed with an OS-light background → light-grey
-  font on light background, unreadable). Resolved by **forcing the dark colour scheme**: `main.cpp`
-  calls `QStyleHints::setColorScheme(Qt::ColorScheme::Dark)` at startup, so the native style renders
-  dark regardless of the OS setting while keeping the platform look (windows11 on Windows). This bumped
-  the Qt minimum to **6.8** (where `setColorScheme` was added). Shipped in 1.3.0.
 
 ---
 
@@ -127,14 +113,6 @@ New, backward-compatible features. Several are gated on a lib version, noted in 
   *Add from directory* (non-recursive, image extensions) and remembered as the project's
   `inputDirectory`. A new capability (not a change to an existing workflow), hence MINOR.
 
-- [x] **Undo / Redo** (`Ctrl+Z` / `Ctrl+Y`) — Done, app-wide via the Workspace-menu Undo/Redo actions
-  (`actionUndo`/`actionRedo`, wired to the group in `setupUndo`). A `QUndoGroup` with
-  one stack per open project + one workspace stack; `Ctrl+Z`/`Ctrl+Y` route to the front tab. Snapshot
-  commands built on the lib's `ProjectEditor::snapshot/restore` and `WorkspaceEditor::snapshotMeta/
-  restoreMeta` (component-scoped, so light in RAM; depth 10). Covers input edits, canvas links, output
-  profile/dir, and workspace-level profile CRUD / project rename / templates. Add/remove project is
-  deliberately **not** undoable; render/refresh are never recorded. Requires libplatemaker 0.3.1.
-  (Out of scope: undoable project add/remove; restoring links a profile-delete cascaded away.)
 
 - [ ] **Auto-sort rules** (`groupBoxAutosort`) — pattern/regex-based ordering:
   `lineEditInputNameRegex` body token (e.g. `chap_<num>` → chap_001, chap_002…),
@@ -148,10 +126,20 @@ New, backward-compatible features. Several are gated on a lib version, noted in 
   ≤ 25 MB/chapter). Estimate computed by the lib (mirrored in lib TODO); GUI
   displays before render and/or reports after.
 
-- [x] **`std::set_terminate` in `main.cpp`** — Done (1.3.1). Logs the in-flight C++ exception via
-  `qCritical` on the `terminate` paths (uncaught exception / `noexcept` violation / pure-virtual call)
-  instead of a silent abort. Does **not** catch a segfault (that's not a C++ exception). The lib CLI got
-  the same via `std::set_terminate` in `runCli`.
+- [ ] **Project-wide colour correction.** Comic/webtoon art is drawn on iPad in **Display P3** (wide
+  gamut); most webtoon platforms and screens are **sRGB**, so even Procreate's "sRGB IEC61966-2.1" export
+  doesn't fully fix how colours land (gamut mapping / a perceived shift). Artists want the *whole chapter*
+  graded consistently, not tweaked page-by-page. Idea: a **project-level colour tool** that uniformly
+  adjusts every input page of a project at render time (non-destructive — source files untouched).
+  - Open design questions: proper **ICC colour management** (P3→sRGB via embedded/assumed profiles)
+    versus a simple **user-driven curves/levels** control (per-channel RGB curves, saturation,
+    brightness/contrast) versus both; how the settings are stored (a project setting, like the canvas /
+    output profile) and previewed before a full render.
+  - The pixel work belongs in the lib (libvips has `vips_icc_transform` plus curve/LUT ops) — mirror in
+    the lib TODO.
+  - **Scope idea:** apply project-wide but with per-page **exclusions** (e.g. everywhere except the first
+    and last page), which touches several GUI components (input tiles, a settings panel, the render
+    path).
 
 - [ ] **OS-level crash handler for hard faults (segfault / SEH) — DEFERRED, likely not worth it yet.**
   Verdict from the cost/benefit analysis (`PlateMaker/temp/crash-handling-options.md`, §0): a minidump /
@@ -166,8 +154,6 @@ New, backward-compatible features. Several are gated on a lib version, noted in 
   optional `MiniDumpNormal`), not Breakpad. Full menu + pitfalls in the linked note.
 
 - [ ] **Auto-save** on pipeline finish (optional setting)
-
-- [x] **Action log** should report a summary, how manu inputs, how many slices in what time where processed and when. Output cumulative size (MB or KB) would also be nice. Done (1.4.0): a successful render appends `Output: N slice(s), <size> — from M input(s) in <time>` (size via `QLocale::formattedDataSize`, time via a new per-render `QElapsedTimer`); a batch adds each project's line plus the whole-sweep time on the *Batch finished* line. Captured in the persisted render log too. ("when" is the log file's own timestamp.)
 
 - [ ] **App looks flat/colorless on Linux vs Windows** — no explicit style is set in `main.cpp`, so Qt
   falls back to native per-platform styling: Windows gets `windows11`/`windowsvista` (dark-mode aware,
@@ -198,11 +184,6 @@ Investigations, testing and manual/wiki work that ships no code change on their 
   size cap. The first published chapter used JPEG purely to fit 20 MB per chapter, which is a
   constraint rather than a considered choice. Feeds `Manual-Output-Profiles`.
 
-- [x] **Recent-workspaces behaviour — verified.** Confirmed in code (`mainwindow/workspace.cpp`):
-  the list is capped at `k_maxRecentWorkspaces = 10` (oldest dropped) and de-duplicated
-  case-insensitively; opening a remembered workspace that has been moved/deleted shows a warning
-  (`QMessageBox::warning`, "The workspace no longer exists…") and removes it from the list rather than
-  erroring. Behaviour is intentional; wiki note ("to be tested") can be updated to describe this.
 
 ## Add dependency manifest — done (SBOM submission)
 
@@ -229,24 +210,6 @@ needs a 3-yr-old org or individual verification). A self-signed cert does **not*
 doesn't trust it. **Decision: don't pay.** The items below instead give users a *verifiable* integrity
 and provenance trail; they do **not** remove the SmartScreen warning (set that expectation in docs).
 
-- [x] **Generate SHA-256 checksums with the installer** — the `installer` target now writes
-  `installer-output/Platemaker-<version>-SHA256SUMS.txt` (via `cmake/make_checksums.cmake`, `sha256sum`
-  format) right after Inno Setup runs, so every local build produces the checksum. The name is
-  versioned so releases don't overwrite each other in `installer-output/`. **Still manual:** uploading
-  that file as a GitHub Release asset (will be automated by the release-CI item below). Proves the
-  download wasn't tampered with, even though it stays unsigned.
-
-- [x] **GitHub Actions release CI** — green: [`.github/workflows/release.yml`](../.github/workflows/release.yml).
-  On a bare version tag it installs **Qt 6.11.1 (MinGW)**, builds `--target installer` (which also emits the
-  SHA256SUMS), uploads the installer as a run artifact, attests **build provenance**
-  (`actions/attest-build-provenance` — verify with `gh attestation verify <installer> --repo
-  ShadobaDev/Platemaker-qt`), and on a tag publishes the Release + runs a best-effort VirusTotal scan.
-  Validated via `workflow_dispatch` (provenance produced for `Platemaker-1.3.1-Setup.exe`). Notes: Qt is
-  installed by driving **aqtinstall from git master** (its latest release 3.3.0 can't read Qt 6.11's new
-  repo layout — issue #1007; revert to `install-qt-action` once a fixed aqt ships); a `VT_API_KEY` secret
-  must be added to this repo to enable the VirusTotal step. **Remaining:** cut a real tag `1.3.1` to
-  exercise the publish path end-to-end. See `../PlateMaker/temp/CI-release-github-actions.md`.
-
 - [ ] **Submit to winget (`winget-pkgs`)** — free community channel giving users a trusted
   `winget install Platemaker` path; the manifest validates the installer's SHA-256. Cleaner than a raw
   `.exe` download (doesn't remove SmartScreen on direct download, but the winget flow is smoother).
@@ -257,11 +220,6 @@ and provenance trail; they do **not** remove the SmartScreen warning (set that e
   linked from the README. Per-build (tied to the file hash), so rescan each release; could later be
   automated in the release CI via the VirusTotal API.
 
-- [x] **README: explain the SmartScreen warning** — README now has an *Installing & verifying your
-  download* section: why the "unknown publisher" warning appears, how to proceed (Properties →
-  *Unblock*, or *More info → Run anyway*), plus the current build's SHA-256 and the VirusTotal link.
-  Now also documents **build-provenance verification** (the CI produces attestations): a browser path
-  (the repo's Attestations page — GitHub confirming the file was built here from a specific commit, for
-  non-technical users) and the `gh attestation verify … --repo ShadobaDev/Platemaker-qt` command.
+
 
 ---

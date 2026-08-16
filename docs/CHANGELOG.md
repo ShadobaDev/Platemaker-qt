@@ -1,6 +1,26 @@
 # Changelog
 
-## [1.4.0] — unreleased
+## [1.4.1] — unreleased
+
+### Added
+
+- **Windows version metadata on `Platemaker.exe`.** The executable now carries a `VERSIONINFO` resource
+  (product name, version from the project version, company, description, copyright), so Explorer's
+  *Details* tab and tools like Process Explorer show proper identity instead of blanks — and the file
+  reads as less "anonymous" to users and heuristics. Generated from `PROJECT_VERSION` via
+  `app/version.rc.in`; `app.rc` still supplies the icon.
+
+### Fixed
+
+- **Drag-and-drop of images now works over the whole project panel, not just the input list.** Dropping
+  files/folders was only accepted over the input tile list (an event filter on its viewport), so a drop
+  on any other part of the panel (empty space, labels, buttons, other tabs) was rejected. The `Project`
+  widget now accepts external file drops itself, so an image dropped **anywhere** on the panel is added
+  via the same path as *Add files* / *Add from directory*; the list keeps its own filter so InternalMove
+  reordering is unaffected, and a drop reaches exactly one handler (no double-add). (Text fields that
+  natively accept a URL-as-text drop remain the one exception.)
+
+## [1.4.0] — 2026-08-07
 
 Last released version: **1.3.0**. This supersedes the never-released 1.3.1 (its work is folded in
 here); adding the *New from this…* project action below makes the accumulated changes a MINOR.

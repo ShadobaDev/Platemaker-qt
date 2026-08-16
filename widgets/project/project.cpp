@@ -8,10 +8,12 @@
 #include <platemaker/infrastructure/project_editor/project_editor.hpp>
 #include <platemaker/infrastructure/workspace_editor/workspace_editor.hpp>
 
+#include <QApplication>   // for the optional DRAGNDROP_DEBUG_ENABLE logging (qApp filter)
 #include <QCheckBox>
 #include <QCollator>
 #include <QComboBox>
 #include <QDateTime>
+#include <QDebug>         // for the optional DRAGNDROP_DEBUG_ENABLE logging
 #include <QSpinBox>
 #include <QDir>
 #include <QDragEnterEvent>
@@ -38,6 +40,12 @@
 #include <algorithm>
 #include <utility>
 
+// Drag-and-drop diagnostics: flip to 1 to re-enable the [DND] logging — an app-wide event filter that
+// logs every drag/drop and which widget it lands on (tile vs input-list viewport vs group box vs dock),
+// plus whether Project's own handlers fire. Kept behind this flag so it's a one-line switch next time,
+// with zero cost (no logging, no qApp filter) when 0. The D&D behaviour itself is independent of this.
+#define DRAGNDROP_DEBUG_ENABLE 0
+
 using namespace Platemaker::Models;
 
 namespace {
@@ -52,6 +60,28 @@ bool isSupportedImage(const QFileInfo& fi)
 {
     static const QSet<QString> exts = {"jpg","jpeg","png","webp","tif","tiff"};
     return exts.contains(fi.suffix().toLower());
+}
+
+// True when a drag carries at least one local file/folder — i.e. an external "add" drag, as opposed to
+// the input list's own InternalMove reorder (which carries no file URLs). Shared by the list-viewport
+// event filter and the whole-widget drop handlers.
+bool hasLocalFileUrls(const QMimeData* mime)
+{
+    return mime && mime->hasUrls() &&
+           std::any_of(mime->urls().cbegin(), mime->urls().cend(),
+                       [](const QUrl& u){ return u.isLocalFile(); });
+}
+
+// True for the input list's OWN InternalMove reorder drag, identified by the item-model MIME type it
+// carries (never file URLs). We accept the *drag phase* of everything else (external drops) by ruling
+// out this type — rather than by hasLocalFileUrls() — because a Windows OLE quirk makes an external file
+// drag intermittently report hasUrls()==false mid-drag; gating acceptance on that left the drop target
+// in a "reject" state whenever the last pre-release event flickered false, so the drop silently failed.
+// The actual add still gates on hasLocalFileUrls() at Drop time, which is reliable (data is materialised
+// on release).
+bool isInternalReorder(const QMimeData* mime)
+{
+    return mime && mime->hasFormat(QStringLiteral("application/x-qabstractitemmodeldatalist"));
 }
 
 } // namespace
@@ -85,11 +115,22 @@ Project::Project(int projectIndex,
     connect(ui->listInputImageTile, &QWidget::customContextMenuRequested,
             this, &Project::onInputContextMenu);
 
-    // Accept images / folders dropped from the file manager onto the input tile list. The list is in
-    // InternalMove mode for reordering; an event filter on its viewport handles external file drags
-    // (which carry URLs) and lets internal reorder drags (no URLs) fall through untouched. See
-    // eventFilter().
+    // Accept images / folders dropped from the file manager. Two layers cover the whole panel:
+    //  - the input list is in InternalMove mode for reordering, so an event filter on its viewport
+    //    handles external file drags there (URLs) while letting internal reorder drags (no URLs) fall
+    //    through untouched — see eventFilter();
+    //  - the Project widget itself accepts drops so an image dropped ANYWHERE else on the panel (empty
+    //    space, labels, buttons, other tabs) still adds it — see dragEnterEvent()/dropEvent().
+    // A given drop reaches exactly one of the two (the list viewport if over the list, otherwise the
+    // widget), so there is no double-add.
     ui->listInputImageTile->viewport()->installEventFilter(this);
+    setAcceptDrops(true);
+
+#if DRAGNDROP_DEBUG_ENABLE
+    // Watch drag/drop on EVERY widget so we can see exactly which one a drag lands on and whether our
+    // filter/handlers fire. See DRAGNDROP_DEBUG_ENABLE at the top of this file.
+    qApp->installEventFilter(this);
+#endif
 
     // Sort options (user-triggered helper; manual drag-reorder still wins).
     ui->comboBoxSortingOpt->addItem(tr("Name"),          SortByName);
@@ -264,34 +305,51 @@ void Project::refreshProfileViews()
 
 bool Project::eventFilter(QObject* watched, QEvent* event)
 {
-    // Only the input list's viewport is filtered (installed in the constructor). Everything else, and
-    // any event type we don't care about, defers to the base implementation.
+#if DRAGNDROP_DEBUG_ENABLE
+    // With the app-wide filter installed, this runs for every widget. Log where a drag/drop actually
+    // lands (skip DragMove — it fires continuously).
+    if (const auto t = event->type(); t == QEvent::DragEnter || t == QEvent::Drop) {
+        const auto* de = static_cast<const QDropEvent*>(event); // DragEnter/Drop are QDropEvent-derived
+        qDebug().nospace() << "[DND] " << (t == QEvent::DragEnter ? "DragEnter" : "Drop")
+            << " -> " << watched->metaObject()->className()
+            << " '" << watched->objectName() << "'"
+            << " hasUrls=" << hasLocalFileUrls(de->mimeData())
+            << (watched == ui->listInputImageTile->viewport() ? "  [input-list viewport]" : "");
+    }
+#endif
+
+    // Only the input list's viewport is filtered for the ACTION (installed in the constructor).
+    // Everything else, and any event type we don't care about, defers to the base implementation.
     if (watched == ui->listInputImageTile->viewport()) {
         switch (event->type()) {
         case QEvent::DragEnter:
         case QEvent::DragMove: {
-            // A drag carrying at least one local file/folder is an external add — accept it (Copy) and
-            // consume the event. A drag without URLs is the list's own reorder; return false so its
-            // InternalMove handling runs unchanged.
+            // The list's own reorder (item-model MIME) falls through to InternalMove; every other drag is
+            // an external drop we accept (Copy) — NOT gated on hasUrls(), which flickers false mid-drag
+            // on Windows and would otherwise let the drop be rejected. See isInternalReorder().
             auto* de = static_cast<QDragMoveEvent*>(event);
-            const auto* mime = de->mimeData();
-            if (mime->hasUrls() &&
-                std::any_of(mime->urls().cbegin(), mime->urls().cend(),
-                            [](const QUrl& u){ return u.isLocalFile(); })) {
-                de->setDropAction(Qt::CopyAction);
-                de->accept();
-                return true;
-            }
-            return false;
+            if (isInternalReorder(de->mimeData()))
+                return false;
+            de->setDropAction(Qt::CopyAction);
+            de->accept();
+            return true;
         }
         case QEvent::Drop: {
             auto* de = static_cast<QDropEvent*>(event);
-            if (!de->mimeData()->hasUrls())
+            if (isInternalReorder(de->mimeData()))
                 return false;                       // reorder drop — let the list handle it
-            de->setDropAction(Qt::CopyAction);
-            de->accept();
-            addDroppedUrls(de->mimeData()->urls());
-            return true;
+            // Read the URLs ONCE: on Windows, mimeData()->urls() re-queries the OLE data object per
+            // call and can return different results, so a separate hasUrls() check could disagree with
+            // this read. Decide and add from the same snapshot.
+            const QList<QUrl> urls = de->mimeData()->urls();
+            if (std::any_of(urls.cbegin(), urls.cend(),
+                            [](const QUrl& u){ return u.isLocalFile(); })) {
+                de->setDropAction(Qt::CopyAction);
+                de->accept();
+                addDroppedUrls(urls);
+                return true;
+            }
+            return false;                           // external drag with nothing droppable
         }
         default:
             break;
@@ -300,14 +358,75 @@ bool Project::eventFilter(QObject* watched, QEvent* event)
     return QWidget::eventFilter(watched, event);
 }
 
+// --- Whole-widget drop target (everything on the panel except the input list, which eventFilter
+//     already covers). Accept only external file/folder drags; anything else propagates normally. ---
+
+void Project::dragEnterEvent(QDragEnterEvent* event)
+{
+#if DRAGNDROP_DEBUG_ENABLE
+    qDebug() << "[DND] Project::dragEnterEvent  hasUrls=" << hasLocalFileUrls(event->mimeData())
+             << " internalReorder=" << isInternalReorder(event->mimeData());
+#endif
+    // Accept any external drag (Copy) — NOT gated on hasUrls(), which flickers false mid-drag on Windows
+    // and would let the drop be rejected. Only the list's own reorder is left to the default handler; the
+    // add itself gates on hasLocalFileUrls() at Drop. Force Copy so we never signal the source to delete.
+    if (!isInternalReorder(event->mimeData())) {
+        event->setDropAction(Qt::CopyAction);
+        event->accept();
+    } else {
+        QWidget::dragEnterEvent(event);
+    }
+}
+
+void Project::dragMoveEvent(QDragMoveEvent* event)
+{
+    // Same as dragEnterEvent: keep accepting the whole drag so a mid-drag hasUrls() flicker can't drop us
+    // out of the "accepting" state before release. The add gates on hasLocalFileUrls() at Drop.
+    if (!isInternalReorder(event->mimeData())) {
+        event->setDropAction(Qt::CopyAction);
+        event->accept();
+    } else {
+        QWidget::dragMoveEvent(event);
+    }
+}
+
+void Project::dropEvent(QDropEvent* event)
+{
+    // Read the URLs ONCE (Windows OLE re-queries mimeData()->urls() per call and can return different
+    // results — see the list-viewport Drop case in eventFilter). Decide and add from the same snapshot.
+    const QList<QUrl> urls = event->mimeData()->urls();
+    const bool hasFiles = std::any_of(urls.cbegin(), urls.cend(),
+                                      [](const QUrl& u){ return u.isLocalFile(); });
+#if DRAGNDROP_DEBUG_ENABLE
+    qDebug() << "[DND] Project::dropEvent  hasFiles=" << hasFiles << " urlCount=" << urls.size();
+#endif
+    if (hasFiles) {
+        event->setDropAction(Qt::CopyAction);
+        event->accept();
+        addDroppedUrls(urls);
+    } else {
+        QWidget::dropEvent(event);
+    }
+}
+
 void Project::addDroppedUrls(const QList<QUrl>& urls)
 {
     // Turn the dropped URLs into a flat list of image file paths: a dropped folder is scanned the same
     // way Add-from-directory scans (non-recursive, by name, image extensions only); a dropped file is
     // taken only if it is a supported image, so stray non-images are silently ignored.
+#if DRAGNDROP_DEBUG_ENABLE
+    qDebug() << "[DND] addDroppedUrls: got" << urls.size() << "url(s)";
+#endif
     QStringList paths;
     QString lastDir;
     for (const QUrl& url : urls) {
+#if DRAGNDROP_DEBUG_ENABLE
+        const QFileInfo dbgFi(url.toLocalFile());
+        qDebug().nospace() << "[DND]   url=" << url.toString()
+            << " local=" << url.isLocalFile() << " path='" << url.toLocalFile() << "'"
+            << " exists=" << dbgFi.exists() << " file=" << dbgFi.isFile()
+            << " dir=" << dbgFi.isDir() << " img=" << isSupportedImage(dbgFi);
+#endif
         if (!url.isLocalFile()) continue;
         const QFileInfo fi(url.toLocalFile());
         if (fi.isDir()) {
@@ -321,15 +440,26 @@ void Project::addDroppedUrls(const QList<QUrl>& urls)
         }
     }
 
+#if DRAGNDROP_DEBUG_ENABLE
+    qDebug() << "[DND] addDroppedUrls: collected" << paths.size() << "image path(s):" << paths;
+#endif
     if (paths.isEmpty()) return;
 
     // One undo step for the whole drop. If a folder was dropped, remember it as the project's input
     // directory (same as Add-from-directory) so the next scan re-opens there; the assignment is inside
     // the bracket so it is captured in the snapshot.
     auto& item = m_workspace.projectItems[m_projectIndex];
+#if DRAGNDROP_DEBUG_ENABLE
+    const auto beforeCount = item.getInputImages().size();
+#endif
     commitEdit(tr("Add files"), [&]{
         if (!lastDir.isEmpty())
             item.inputDirectory = lastDir.toStdString();
         addInputPaths(paths);
     });
+#if DRAGNDROP_DEBUG_ENABLE
+    qDebug() << "[DND] addDroppedUrls: input count" << beforeCount << "->"
+             << m_workspace.projectItems[m_projectIndex].getInputImages().size()
+             << "(no change = dropped file(s) already in the list -> dedup)";
+#endif
 }

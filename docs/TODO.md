@@ -15,14 +15,15 @@ work happens in.
 - **Cascade.** Whichever section releases first takes its slot; the rest re-derive from the new
   baseline.
 
-Baseline: **1.4.0 released (2026-08-07), 1.4.1 in progress** (`CMakeLists.txt`). 1.4.0 folded in the
-never-released 1.3.1 work and added the *New from this…* project action, render-log persistence, the
-render summary and the restyled progress bar (requires libplatemaker 0.4.0). The pending patch bucket
-is **1.4.1**; the next feature bucket re-derives to **1.5.0**.
+Baseline: **1.4.1 released (2026-08-16), 1.4.2 in progress** (`CMakeLists.txt`). 1.4.0 (2026-08-07)
+added the *New from this…* project action, render-log persistence, the render summary and the restyled
+progress bar. 1.4.1 is a patch — the DLL search-path hardening, the drag-and-drop fix, `Platemaker.exe`
+version metadata, and a bump to **libplatemaker 0.4.1** (metadata-only) so the bundled DLL also carries
+identity metadata. The next patch bucket is **1.4.2**; the next feature bucket re-derives to **1.5.0**.
 
 ---
 
-## PATCH — next: 1.4.1
+## PATCH — next: 1.4.2
 
 Bug fixes, cosmetics and internal cleanups — no new capability, no change to an existing workflow.
 

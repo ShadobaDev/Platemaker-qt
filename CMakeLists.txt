@@ -83,7 +83,7 @@ if(1)
     #   2. find_package                     — system install or CMAKE_PREFIX_PATH
     #   3. FetchContent                     — downloads pre-built package from GitHub Releases
     # ───────────────────────────────────────────────────────────────────────────────
-    set(LIBPLATEMAKER_VERSION "0.4.0")
+    set(LIBPLATEMAKER_VERSION "0.4.1")
     set(LIBPLATEMAKER_DIR "" CACHE PATH "Path to a local platemaker dev package")
     message("Local libplatemaker path: ${LIBPLATEMAKER_DIR}")
 
@@ -97,6 +97,11 @@ if(1)
     # 0.3.0 (which made the profile vectors private). Without a minimum, an older install would
     # configure cleanly and only fail later as confusing compile errors. Same variable drives the
     # download URL below, so the required and fetched versions cannot drift apart.
+    #
+    # Bumped to 0.4.1 for the 1.4.1 release. The API floor is still 0.4.0 (the typed processing errors
+    # adopted in 1.4.0); 0.4.1 is metadata-only — no new API. We pin it anyway so the bundled
+    # libplatemaker.dll carries VERSIONINFO + the portable @(#) marker, completing binary-identity
+    # metadata for the shipped runtime, not just Platemaker.exe.
     find_package(platemaker ${LIBPLATEMAKER_VERSION} CONFIG QUIET)
 
     if(NOT platemaker_FOUND)

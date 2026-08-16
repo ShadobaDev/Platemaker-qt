@@ -1,6 +1,9 @@
 # Changelog
 
-## [1.4.1] — unreleased
+## [1.4.1] — 2026-08-16
+
+Built against **libplatemaker 0.4.1** (up from 0.4.0). 0.4.1 is metadata-only — no API change — so
+this is purely a bundled-runtime bump on top of the fixes below.
 
 ### Security
 
@@ -19,6 +22,11 @@
   *Details* tab and tools like Process Explorer show proper identity instead of blanks — and the file
   reads as less "anonymous" to users and heuristics. Generated from `PROJECT_VERSION` via
   `app/version.rc.in`; `app.rc` still supplies the icon.
+
+- **The bundled `libplatemaker.dll` now carries identity metadata too.** Bumping to libplatemaker 0.4.1
+  means the shipped DLL (and the standalone CLI) embed a `VERSIONINFO` resource plus a portable `@(#)`
+  version marker, so Process Explorer / Explorer *Details* show identity for the bundled runtime, not
+  only for `Platemaker.exe`. No behaviour change — 0.4.1 is metadata-only.
 
 ### Fixed
 

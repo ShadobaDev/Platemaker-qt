@@ -27,6 +27,68 @@ identity metadata. The next patch bucket is **1.4.2**; the next feature bucket r
 
 Bug fixes, cosmetics and internal cleanups — no new capability, no change to an existing workflow.
 
+- [ ] **Forced dark scheme does not take effect on Windows 10.** Reported from a Win10 test
+  (`temp/win10/image (3).png`, `(4)`, `(5)`): the **main window renders light** — menu bar, docks,
+  toolbox, tabs, plain controls — while the **hardcoded-dark dialogs stay dark** (About, Output
+  Profiles: `image (1).png`, `(2).png`). The result is an inconsistent light-shell / dark-dialog mix
+  — a partial return of the very bug the 1.3.0 fix closed, now only on Windows 10.
+
+  **Cause:** the 1.3.0 fix calls `QStyleHints::setColorScheme(Qt::ColorScheme::Dark)` at startup. On
+  Windows 11 (windows11 style) that forces the shell dark; on Windows 10 it does **not** take —
+  Win10's platform theme does not honour the forced scheme. But the deeper cause is that the app was
+  **designed dark by hardcoding**: every dialog `.ui` bakes in dark backgrounds and light text
+  (≈83 `color:` + ≈63 `background-color` across 9 `.ui` files), which is *why* the shell had to be
+  forced dark to match. When the force fails (Win10), the hardcoded-dark dialogs clash with the
+  light native shell.
+
+  **Chosen direction — stop fighting the platform theme; go theme-agnostic** (rather than shipping a
+  custom skin/palette, which is rejected). Let Qt / the OS drive light vs. dark for all chrome, and
+  hardcode only the handful of *semantic* colours that must be specific. This also folds in the
+  deferred "flat/colorless on Linux vs Windows" item (MINOR): following the native theme everywhere
+  is the consistency fix.
+
+  1. **Remove the colour force.** Drop `setColorScheme(Dark)` and the global dark stylesheet in
+     `app/main.cpp` (the `#2d2d2d / #1e1e1e / #e0e0e0` block). (Re-check whether the Qt 6.8 minimum is
+     still needed once `setColorScheme` is gone.)
+  2. **Strip hardcoded chrome from the `.ui` files** — the dark `background-color` / `color:` /
+     `styleSheet` on backgrounds, panels, labels and plain controls across `mainwindow.ui`,
+     `aboutdialog.ui`, `canvasprofiledialog.ui`, `imagetile.ui`, `licencedialog.ui`,
+     `managecanvasprofilesdialog.ui`, `manageoutputprofilesdialog.ui`, `outputprofiledialog.ui`,
+     `templatesdialog.ui`. Let them inherit the platform palette so they are light under a light OS
+     and dark under a dark OS, consistently.
+  3. **Strip the same from `.cpp`** — `canvasprofiledialog.cpp` (`#141414 / #888888 / #555555`),
+     the progress-bar trough greys in `render.cpp` (`#2b2b2b / #555555 / #888888 / #dddddd` — keep
+     only the error state), the accent `#7ac8f5` in `output.cpp` / the manage dialogs.
+  4. **Keep the semantic colours, made legible on *both* themes.** For each retained colour, apply one
+     of the two allowed strategies:
+     - **theme-conditional** — pick the shade from the active `QStyleHints::colorScheme()`, and update
+       on `colorSchemeChanged`; or
+     - **dual-theme-safe** — one shade with adequate contrast on both a white and a dark background
+       (e.g. darken over-light text; keep the status colours saturated enough to read on white *and*
+       on dark grey).
+
+     The set to keep: the **input/output tile status bar** colours (`imagetile.cpp:122-135` —
+     green/cyan/orange/red/amber/violet/rose/grey; these are the state signal), and the **red
+     error/halt** on the progress bar and the Render→Stop button (`render.cpp #b41414`,
+     `output.cpp`). The invalid-field border (`#e06060`) is arguably semantic too — keep or map to the
+     palette's error role.
+
+  5. **Test under both OS themes** on Windows 10 and 11 (light and dark), plus Linux: no
+     light-on-light or dark-on-dark, and the tile status colours must read on whatever background the
+     theme paints. We have no Win10 CI, so this is a manual pass.
+
+  Minimum bar: the app is **readable and internally consistent** under whatever theme the OS gives —
+  no forced scheme, no light-shell/dark-dialog clash.
+
+- [ ] **Camera photos (EXIF-rotated) render wrong — lib-side fix.** Same Win10 test: three phone
+  photos, the EXIF-90° one landed in its own slice with a black band instead of flowing into the
+  continuous strip. Root cause is in libplatemaker (matching reads raw header dims; the scaler does
+  not auto-rotate), tracked in the **lib TODO → PATCH → "EXIF orientation is ignored"** with the full
+  analysis. The GUI change, if any, is only to pin the lib version once the fix ships; inputs and
+  screenshots are in `temp/win10/`.
+
+- [ ] **Duplicate output profile** requires to click edit on freshly duplicated profile and then save. Leaving Ouput prfoiles dialog without this step won't retain the duplicate. Proposition is that Duplicate button shall automatically open Output Profile edit dialog of the duplicated profile. 
+
 - [x] **Harden against DLL injection / hijacking (Windows) — search-path half done in 1.4.1.** Prompted
   by finding third-party global hooks injected into our own process during the drag-and-drop debugging
   (LG OnScreen Control's `ScreenSplitterHook`; ASUS/ENE RGB software) — plus general defence-in-depth for

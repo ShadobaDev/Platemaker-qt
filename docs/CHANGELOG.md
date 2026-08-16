@@ -2,6 +2,16 @@
 
 ## [1.4.1] — unreleased
 
+### Security
+
+- **Restricted the DLL search path (Windows).** `Platemaker.exe` now calls `SetDefaultDllDirectories`
+  at startup to drop the current working directory and `PATH` from the default DLL search, leaving only
+  the application directory (where the whole bundled DLL graph lives) and System32. This closes the
+  classic DLL search-order hijacking / planting vector for an unsigned, DLL-heavy app. Defence-in-depth,
+  layered under — not a substitute for — code signing; it does not affect SmartScreen. (Blocking global
+  hook *injection* was considered but deferred over the IME/accessibility risk — see
+  `docs/SPECIFICATION.md` §9.)
+
 ### Added
 
 - **Windows version metadata on `Platemaker.exe`.** The executable now carries a `VERSIONINFO` resource

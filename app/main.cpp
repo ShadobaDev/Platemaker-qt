@@ -10,6 +10,46 @@
 #include <cstdlib>
 #include <exception>
 
+#ifdef _WIN32
+#include <windows.h>
+
+// LOAD_LIBRARY_SEARCH_* live in libloaderapi.h when _WIN32_WINNT >= 0x0602; define them defensively so
+// the call compiles regardless of the MinGW headers' target-version defaults.
+#ifndef LOAD_LIBRARY_SEARCH_APPLICATION_DIR
+#define LOAD_LIBRARY_SEARCH_APPLICATION_DIR 0x00000200
+#endif
+#ifndef LOAD_LIBRARY_SEARCH_SYSTEM32
+#define LOAD_LIBRARY_SEARCH_SYSTEM32 0x00000800
+#endif
+
+// Defence-in-depth for an unsigned, DLL-heavy app: strip the current working directory and PATH from
+// the default DLL search, leaving only the application dir (our whole bundled closure is co-located
+// there — see CMakeLists) and System32. This closes DLL search-order hijacking / planting for every
+// DLL loaded *after* this point (Qt plugins, libvips operation DLLs at render time); the exe's static
+// imports are already resolved before main() runs, so startup linkage is unaffected. It does NOT stop
+// hook-based injection (that would need ProcessExtensionPointDisablePolicy, deliberately deferred — see
+// docs/SPECIFICATION.md) and does NOT affect SmartScreen. Resolved dynamically so this degrades to a
+// no-op on pre-Windows-8 hosts instead of failing to load, and sidesteps MinGW header quirks.
+static void restrictDllSearchPath()
+{
+    using SetDefaultDllDirectories_t = BOOL(WINAPI *)(DWORD);
+    const HMODULE kernel32 = GetModuleHandleW(L"kernel32.dll");
+    const auto setDefaultDllDirectories = kernel32
+        ? reinterpret_cast<SetDefaultDllDirectories_t>(
+              reinterpret_cast<void *>(GetProcAddress(kernel32, "SetDefaultDllDirectories")))
+        : nullptr;
+
+    if (!setDefaultDllDirectories) {
+        qWarning("DLL hardening: SetDefaultDllDirectories unavailable (pre-Win8?); search path unchanged.");
+        return;
+    }
+    if (setDefaultDllDirectories(LOAD_LIBRARY_SEARCH_APPLICATION_DIR | LOAD_LIBRARY_SEARCH_SYSTEM32))
+        qDebug("DLL hardening: default search path restricted to application dir + System32.");
+    else
+        qWarning("DLL hardening: SetDefaultDllDirectories failed (GetLastError=%lu).", GetLastError());
+}
+#endif // _WIN32
+
 // Injected by CMake (target_compile_definitions); fallback keeps main.cpp buildable.
 #ifndef PLATEMAKER_GUI_VERSION
 #define PLATEMAKER_GUI_VERSION "unknown"
@@ -17,6 +57,12 @@
 
 int main(int argc, char *argv[])
 {
+#ifdef _WIN32
+    // First thing in main(): must precede any post-main dynamic DLL load (Qt plugins, libvips ops).
+    restrictDllSearchPath();
+#endif
+
+
     // Log the in-flight C++ exception on a terminate() — an uncaught exception escaping a slot / the
     // event loop, a noexcept violation, or a pure-virtual call — so it lands in the Qt log / debugger
     // output instead of a silent abort. Cheap C++-side hygiene (see docs/TODO.md); it does NOT catch a

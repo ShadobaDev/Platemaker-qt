@@ -1,7 +1,7 @@
 # Platemaker GUI — Application Specification
 
 **Status:** Active development — core widget layer done, business logic wiring in progress.  
-**Last updated:** 2026-06-14  
+**Last updated:** 2026-08-16  
 **Audience:** Developer + AI coding assistant
 
 > **Library reference:** The GUI is a thin shell over `libplatemaker`.  
@@ -297,3 +297,51 @@ collides with one already linked; the GUI shows an error and does not link it.  
 - Destructive actions (delete profile, remove project): require a `QMessageBox::question` confirmation.
 - Errors from libplatemaker (pipeline, serialiser): shown as `QMessageBox::critical`.
 - Progress: `QProgressBar` in the bottom dock, range 0–100 (percent of output slices written).
+
+---
+
+## 9. Windows Security Hardening
+
+Platemaker is an **unsigned** desktop app that ships a large bundled DLL closure (Qt, `platemaker.dll`,
+the whole libvips graph, the MinGW runtime), all copied next to the executable (§7). While debugging
+drag-and-drop we noticed third-party **global hooks** injecting themselves into our own process (LG
+OnScreen Control's `ScreenSplitterHook64X.dll`; RGB software) — benign, but it exposed that the process
+took no injection/hijacking precautions. This section records the security posture and, importantly,
+what we deliberately do **not** do and why.
+
+### 9.1 What we do — restrict the DLL search path
+
+`app/main.cpp` calls `SetDefaultDllDirectories(LOAD_LIBRARY_SEARCH_APPLICATION_DIR |
+LOAD_LIBRARY_SEARCH_SYSTEM32)` as the **first statement in `main()`** — before `QApplication`, before
+any post-`main` dynamic DLL load. This drops the current working directory and `PATH` from the default
+`LoadLibrary` search, closing the classic **DLL search-order hijack / planting** vector (drop a
+malicious `zlib1`/`libpng` on `PATH` or beside a data file and have our graph pick it up).
+
+- **Why it's safe here:** the entire dependency closure is co-located in the application directory, which
+  `LOAD_LIBRARY_SEARCH_APPLICATION_DIR` still covers, and the exe's static imports are resolved *before*
+  `main()` runs — so startup linkage is unaffected. Only *post-`main`* dynamic loads are narrowed (Qt
+  plugins, loaded by absolute path with their deps in the app dir; libvips operation DLLs at render
+  time). Verified by launching + running a full render under both the Qt Creator run environment (which
+  injects the Qt bin via `PATH`) and the installed build.
+- **Robustness:** the API is resolved dynamically via `GetProcAddress`, so it degrades to a no-op on any
+  pre-Windows-8 host instead of failing to load, and sidesteps MinGW header/`_WIN32_WINNT` quirks. It
+  logs a one-line startup notice (`DLL hardening: …`) so the code path is verifiable in DebugView / the
+  Qt Creator Application Output.
+
+### 9.2 What we defer — blocking extension-point injection
+
+The natural companion is `SetProcessMitigationPolicy(ProcessExtensionPointDisablePolicy, …)`, which would
+block exactly the hook injection we observed, plus `AppInit_DLLs` and legacy IME DLLs. **We deliberately
+do not ship it.** It also disables **legacy IMM32 IMEs** and some **accessibility / assistive tools**.
+Broken IME would hurt non-Latin text entry for Korean / Japanese / Chinese authors — a core webtoon
+audience — and we have no way to validate that without a CJK IME test rig (modern TSF IMEs are usually
+unaffected; legacy ones are not). The benign, low real-world risk of hook injection (the attacker already
+needs hook-registration privileges on the machine — not a remote vector) does not justify that
+regression. **Revisit** once code signing lands or an IME test rig exists; the deferred snippet + caveat
+live in `docs/TODO.md`.
+
+### 9.3 What this does *not* address
+
+Neither mitigation affects **SmartScreen / AV reputation** — for an unsigned app that is per-file-hash and
+resets each release. **Code signing** is the real integrity/reputation fix; the search-path restriction is
+defence-in-depth layered under it, not a substitute.

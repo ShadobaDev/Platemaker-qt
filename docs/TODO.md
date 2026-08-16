@@ -26,33 +26,32 @@ is **1.4.1**; the next feature bucket re-derives to **1.5.0**.
 
 Bug fixes, cosmetics and internal cleanups — no new capability, no change to an existing workflow.
 
-- [ ] **Harden against DLL injection / hijacking (Windows).** Prompted by finding third-party global
-  hooks injected into our own process during the drag-and-drop debugging (LG OnScreen Control's
-  `ScreenSplitterHook`; ASUS/ENE RGB software) — plus general defence-in-depth for an unsigned app. Two
-  Windows-only mitigations, applied **very early in `main()`** (before `QApplication`, before any DLL /
-  Qt plugin is loaded — `SetDefaultDllDirectories` especially must precede DLL loading), guarded by
-  `#ifdef _WIN32`:
-  - **Block legacy extension points** — stops global `SetWindowsHookEx` hooks (WH_CBT etc.),
-    `AppInit_DLLs` and legacy IME DLLs from being loaded into the process (i.e. the class of injection we
-    observed):
+- [x] **Harden against DLL injection / hijacking (Windows) — search-path half done in 1.4.1.** Prompted
+  by finding third-party global hooks injected into our own process during the drag-and-drop debugging
+  (LG OnScreen Control's `ScreenSplitterHook`; ASUS/ENE RGB software) — plus general defence-in-depth for
+  an unsigned app. Two Windows-only mitigations were considered; **one shipped, one is deferred** (full
+  rationale in `docs/SPECIFICATION.md` §9):
+  - **DONE (1.4.1) — restrict the DLL search path** to the app dir + System32 (removes the current dir
+    and `PATH` — the classic DLL-planting vector; relevant because we bundle a large DLL graph). Called as
+    the first statement in `main()`, guarded by `#ifdef _WIN32`, resolved dynamically so it no-ops on
+    pre-Win8. Verified: launches + full render clean under Qt Creator and the installed build.
+    ```c
+    SetDefaultDllDirectories(LOAD_LIBRARY_SEARCH_APPLICATION_DIR | LOAD_LIBRARY_SEARCH_SYSTEM32);
+    ```
+  - **DEFERRED — block legacy extension points** (`ProcessExtensionPointDisablePolicy`). This is the half
+    that would actually stop the hook injection we observed (plus `AppInit_DLLs` and legacy IME DLLs), but
+    it also breaks **legacy IMM32 IMEs** and some **accessibility / assistive tools**. Broken IME would
+    hurt non-Latin input (Korean / Japanese / Chinese authors — a core webtoon audience), and we have no
+    CJK IME test rig to validate it (modern TSF IMEs are usually unaffected; legacy ones are not). The
+    benign, low real-world risk of hook injection does not justify that regression. **Revisit once code
+    signing lands or an IME test rig exists.** Deferred snippet kept for the record:
     ```c
     PROCESS_MITIGATION_EXTENSION_POINT_DISABLE_POLICY p = {0};
     p.DisableExtensionPoints = 1;
     SetProcessMitigationPolicy(ProcessExtensionPointDisablePolicy, &p, sizeof(p));
     ```
-  - **Restrict the DLL search path** to the app dir + System32 (removes the current dir and `PATH` — the
-    classic DLL-planting vector; relevant because we bundle a large DLL graph):
-    ```c
-    SetDefaultDllDirectories(LOAD_LIBRARY_SEARCH_APPLICATION_DIR | LOAD_LIBRARY_SEARCH_SYSTEM32);
-    ```
-  - **Risk — must test before shipping:** disabling extension points also breaks **legacy IMEs** and some
-    **accessibility / assistive tools** and overlays. Broken IME would hurt non-Latin input (Korean /
-    Japanese / Chinese authors — a core webtoon audience — typing e.g. project names). Verify text entry
-    with an IME first; modern TSF IMEs may be unaffected, legacy ones are not. Also confirm the whole
-    bundled DLL graph + Qt plugins still resolve under the restricted search path.
-  - Not a substitute for code signing (the real integrity / reputation fix); this is defence-in-depth
-    against injection and search-order hijacking and does **not** affect SmartScreen. Internal hardening,
-    so PATCH — but the IME risk means it ships only after that check.
+  - Neither is a substitute for code signing (the real integrity / reputation fix); the shipped half is
+    defence-in-depth against search-order hijacking and does **not** affect SmartScreen.
 
 - [~] **Pre-flight sanitize off the UI thread — won't do (by design).** `project.sanitize()` hashes
   every input + output on the main thread before launching, which can briefly pause the UI on a very

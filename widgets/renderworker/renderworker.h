@@ -60,6 +60,17 @@ public:
 
     [[nodiscard]] bool isPartial() const { return !m_onlySlices.empty(); } //!< True when a partial-render filter has been set (some slices restricted).
 
+    /**
+     * \brief Directory of the workspace thumbnail cache to pre-warm during the render.
+     *
+     * When set, the pipeline writes each slice's preview into this ThumbnailCache from the in-RAM slice
+     * (no output re-read) before emitting \c sliceSaved — so the GUI's \c getOrGenerate(path) for the
+     * output tile is a cache hit and never opens the freshly-written output (avoids the read/write race;
+     * see the render output contract in the lib SPECIFICATION). Empty (default) → no thumbnails. Call
+     * before starting the worker.
+     */
+    void setThumbnailCacheDir(std::string dir) { m_thumbnailCacheDir = std::move(dir); }
+
 public slots:
     void process();   //!< Runs Core::ProcessingPipeline synchronously (intended to execute on a worker thread), emitting progress/log/sliceSaved as it goes, then `finished`.
 
@@ -78,6 +89,7 @@ private:
     std::string                                    m_outputDir;         //!< Directory slices are written into.
     const Platemaker::Infrastructure::CancellationToken& m_cancel;      //!< Cancellation token owned by MainWindow; checked during the run.
     std::unordered_set<std::string>                m_onlySlices;        //!< Partial-render filter (empty = full).
+    std::string                                    m_thumbnailCacheDir; //!< Workspace thumbnail-cache dir to pre-warm during the render (empty = none).
     Platemaker::Core::ProcessingOutcome            m_outcome;           //!< Result of the run, populated by process().
 };
 

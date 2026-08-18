@@ -199,7 +199,7 @@ Process → Run  (or the project's Render button)
                                     sliceSaved(index,…)  → setOutputTile(index,…)   // live, positional
                                     inputStatus(path,…)  → setInputTileStatus(path,…) // live, phase 1
       ProcessingPipeline::run(inputs, outProfile, canvasProfiles, canvasProfileIds,
-                              outDir, cancel, callbacks, onlySlices?)   // static; on the worker thread
+                              outDir, cancel, callbacks, onlySlices?, cacheDir)  // static; worker thread
       show progress bar + Stop button
   → onRenderFinished():
       project.applyProcessingResults(records, appliedProfiles, outcome.skippedPages,
@@ -212,6 +212,15 @@ Process → Run  (or the project's Render button)
 During phase 1 (strip building) each input's tile turns green as it is appended, cyan **Processed
 (no canvas profile)** when it is rendered without a matching profile, or violet **Skipped** when it is
 left out (missing / load error); then output tiles stream in per slice.  See §2.3.
+
+**Render output contract (consumer side — lib SPECIFICATION §7.0).** `startRender` passes the workspace's
+`.platemaker-cache` dir to `run()`, so the pipeline warms each slice's thumbnail from its **in-RAM** pixels
+*before* `sliceSaved` fires. The output tile's `getOrGenerate()` is then a **cache hit** that never
+re-reads a slice the render is still writing — this closes a Windows read/write race that used to abort
+re-renders with *unable to open for write*. Rules the GUI must keep: treat `sliceSaved(path)` as the only
+"ready" signal (never read an output before it or during a run that rewrites it); a locked output surfaces
+as `ProcessingErrorCode::OutputLocked` and is shown as a short *Render failed — see the action log* status
+(the lib does not retry — that policy is ours). Requires **libplatemaker 0.5.0**.
 
 ### 4.5 Cancel Pipeline
 
@@ -266,6 +275,11 @@ collides with one already linked; the GUI shows an error and does not link it.  
 - On completion the worker emits a signal back to the tile; the tile calls `update()`.
 - A placeholder grey rect is shown while loading.
 - Failed thumbnails show an error icon; the tile remains interactive.
+- **During a render, output thumbnails are pre-warmed by the library, not read from the output file.**
+  The pipeline writes each slice's thumbnail into the same cache from the in-RAM slice before `sliceSaved`
+  (§4.4), so the output tile's `getOrGenerate()` is a cache hit. File-reading generation (`getOrGenerate`
+  opening the source) is therefore only for **input** tiles and **at-rest** output tiles (reopening a
+  workspace) — never for an output while a render is writing it, which is what avoids the read/write race.
 
 ---
 

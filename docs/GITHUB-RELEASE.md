@@ -23,7 +23,7 @@ installer as a run artifact you can download.
   must have a **published lib Release** exposing `platemaker-dev-<that version>-windows-mingw-release.zip`
   on [PlateMaker/releases](https://github.com/ShadobaDev/PlateMaker/releases) — CMake downloads it at
   configure time, so a missing/mismatched asset makes the build **404**. Release the lib **first**.
-  *(1.4.1 pins lib 0.4.1, which is published — good.)*
+  *(1.4.2 pins lib 0.5.0 — release the lib first; the GUI's `run()` call needs 0.5.0's API.)*
 - **Changelog:** `docs/CHANGELOG.md` has the entry for this version.
 - Everything committed and pushed to `main`.
 - One-time: the **`VT_API_KEY`** repo secret is set on **this** repo (separate from the lib), or the

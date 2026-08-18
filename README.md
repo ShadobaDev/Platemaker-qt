@@ -100,7 +100,7 @@ don't have to trust a hash *we* published.
 | CMake | 3.25+ | Presets format v6 |
 | MSVC 2022 or MinGW (MSYS2) | — | Windows |
 | GCC / Clang | — | Linux |
-| libplatemaker | 0.4.1+ | See **Linking libplatemaker** below |
+| libplatemaker | 0.5.0+ | See **Linking libplatemaker** below |
 
 ---
 

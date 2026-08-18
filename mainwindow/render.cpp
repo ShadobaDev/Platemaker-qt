@@ -306,6 +306,10 @@ bool MainWindow::startRender(int projectIndex)
         m_cancelToken);
     if (!onlySlices.empty())
         worker->setOnlySlices(std::move(onlySlices));
+    // Pre-warm the output thumbnails during the render, from the in-RAM slices, so each output tile is a
+    // cache hit and never re-reads a slice the render is still writing (the read/write race). The dir is
+    // the same .platemaker-cache the tiles read from; empty when no workspace is open (no warming then).
+    worker->setThumbnailCacheDir(workspaceCacheDir().toStdString());
     auto *thread = new QThread(this);
     worker->moveToThread(thread);
     m_renderWorker = worker;
@@ -683,7 +687,9 @@ void MainWindow::onRenderFinished()
             : tr("Unknown error");
         setActionStatus(name, tr("Failed"));
         setProgressValue(ui->progressBar->value(), true);   // freeze at %, recolour red
-        setProjectStatus(why);
+        // Keep the status line short and consistent with the other outcomes; the full lib error
+        // (which can be several lines — a vips write failure, say) goes to the action log below.
+        setProjectStatus(tr("Render failed — see the action log."));
         ui->textBrowserActionLogs->append(tr("FAILED %1 — %2").arg(name, why));
     } else if (outcome.cancelled) {
         setActionStatus(name, tr("Require action"));
@@ -718,7 +724,7 @@ void MainWindow::onRenderFinished()
     // the diagnostic in the action log (worth attaching to an issue). Wins over the branches above.
     if (!applyError.isEmpty()) {
         setActionStatus(name, tr("Failed"));
-        setProjectStatus(applyError);
+        setProjectStatus(tr("Render failed — see the action log."));
         ui->textBrowserActionLogs->append(tr("FAILED %1 — %2").arg(name, applyError));
     }
 

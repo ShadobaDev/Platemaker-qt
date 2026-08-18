@@ -1,5 +1,22 @@
 # Changelog
 
+## [1.4.2] — unreleased
+
+Built against **libplatemaker 0.5.0**, adopting the lib's new render output contract (lib SPECIFICATION
+§7.0). Requires libplatemaker 0.5.0 (the GUI's `run()` call now passes the cache dir).
+
+### Fixed
+
+- **Re-renders no longer fail with *unable to open for write*.** The render now passes the workspace's
+  `.platemaker-cache` dir to the pipeline, which pre-warms each slice's output thumbnail from the in-RAM
+  pixels *before* signalling the tile — so the GUI never re-reads a slice the render is still writing. This
+  closes the Windows read/write race that intermittently aborted a re-render (most visibly on the *Webtoon*
+  profile) and the stale/black-band output previews. A slice that genuinely cannot be published (its file
+  held open by another program) now surfaces cleanly instead of a cryptic vips error.
+- **The Project Status panel shows a short status, not the whole error dump.** A failed render now reads
+  *Render failed — see the action log* (consistent with *Render finished.*); the full multi-line error
+  stays in the action log.
+
 ## [1.4.1] — 2026-08-16
 
 Built against **libplatemaker 0.4.1** (up from 0.4.0). 0.4.1 is metadata-only — no API change — so

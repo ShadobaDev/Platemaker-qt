@@ -55,7 +55,8 @@ void RenderWorker::process()
     m_outcome = ProcessingPipeline::run(
         m_inputs, m_outProfile, m_canvasProfiles, m_canvasProfileIds, m_outputDir,
         m_cancel, callbacks,
-        m_onlySlices.empty() ? nullptr : &m_onlySlices);
+        m_onlySlices.empty() ? nullptr : &m_onlySlices,
+        m_thumbnailCacheDir);
 
     emit finished();
 }

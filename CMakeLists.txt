@@ -1,5 +1,5 @@
 ﻿cmake_minimum_required(VERSION 3.25)
-project(Platemaker VERSION 1.4.1 LANGUAGES CXX)
+project(Platemaker VERSION 1.4.2 LANGUAGES CXX)
 
 find_package(Qt6 6.8 REQUIRED COMPONENTS Core Widgets Concurrent Svg)
 
@@ -83,7 +83,7 @@ if(1)
     #   2. find_package                     — system install or CMAKE_PREFIX_PATH
     #   3. FetchContent                     — downloads pre-built package from GitHub Releases
     # ───────────────────────────────────────────────────────────────────────────────
-    set(LIBPLATEMAKER_VERSION "0.4.1")
+    set(LIBPLATEMAKER_VERSION "0.5.0")
     set(LIBPLATEMAKER_DIR "" CACHE PATH "Path to a local platemaker dev package")
     message("Local libplatemaker path: ${LIBPLATEMAKER_DIR}")
 
@@ -98,10 +98,10 @@ if(1)
     # configure cleanly and only fail later as confusing compile errors. Same variable drives the
     # download URL below, so the required and fetched versions cannot drift apart.
     #
-    # Bumped to 0.4.1 for the 1.4.1 release. The API floor is still 0.4.0 (the typed processing errors
-    # adopted in 1.4.0); 0.4.1 is metadata-only — no new API. We pin it anyway so the bundled
-    # libplatemaker.dll carries VERSIONINFO + the portable @(#) marker, completing binary-identity
-    # metadata for the shipped runtime, not just Platemaker.exe.
+    # Bumped to 0.5.0 for the 1.4.2 release — a hard floor, not just a preference: the GUI now calls
+    # ProcessingPipeline::run() with the trailing thumbnailCacheDir argument (the render output contract,
+    # lib SPECIFICATION §7.0), which does not exist before 0.5.0, so an older lib fails to compile. 0.5.0
+    # also carries the atomic output publish + OutputLocked that fix the re-render write failures.
     find_package(platemaker ${LIBPLATEMAKER_VERSION} CONFIG QUIET)
 
     if(NOT platemaker_FOUND)

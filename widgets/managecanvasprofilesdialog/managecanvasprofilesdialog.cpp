@@ -124,17 +124,27 @@ void ManageCanvasProfilesDialog::onEditClicked()
 
 void ManageCanvasProfilesDialog::onDuplicateClicked()
 {
-    // Duplicate the selected profile, appending " (copy)" to the name. The new profile gets a fresh id and no template info.
+    // Duplicate & Edit: seed a copy of the selected profile (name + " (copy)") and open the editor on
+    // it straight away, mirroring the output-profile dialog so both behave the same. The user lands in
+    // the editor instead of having to find and Edit the copy afterwards.
     const int row = selectedRow();
     if (row < 0) return;
 
     Platemaker::Models::CanvasProfile copy = m_profiles[row];
     copy.name += " (copy)";
-    copy.id.clear();             // MainWindow assigns a fresh id (avoid collision)
+    copy.id.clear();             // MainWindow assigns a fresh id on write-back (avoid collision)
     copy.templateInfo = {};      // a duplicate has no template of its own yet
-    m_profiles.insert(row + 1, copy);
-    rebuildList();
 
+    CanvasProfileDialog dlg(this);
+    dlg.setProfile(copy);
+    // Atomic: cancelling the editor abandons the whole action — nothing is inserted, so a stray
+    // Duplicate never leaves an unwanted "… (copy)" behind. Only an accepted edit adds the profile.
+    if (dlg.exec() != QDialog::Accepted) return;
+
+    // CanvasProfileDialog returns a fresh profile without id/templateInfo — exactly what a duplicate
+    // should carry (id minted by MainWindow, no template of its own yet) — so it is inserted as-is.
+    m_profiles.insert(row + 1, dlg.profile());
+    rebuildList();
     ui->listWidgetProfiles->setCurrentRow(row + 1);
 }
 

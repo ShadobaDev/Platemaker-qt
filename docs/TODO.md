@@ -80,14 +80,17 @@ Bug fixes, cosmetics and internal cleanups — no new capability, no change to a
   Minimum bar: the app is **readable and internally consistent** under whatever theme the OS gives —
   no forced scheme, no light-shell/dark-dialog clash.
 
-- [ ] **Camera photos (EXIF-rotated) render wrong — lib-side fix.** Same Win10 test: three phone
+- [x] **Camera photos (EXIF-rotated) render wrong — lib-side fix.** Same Win10 test: three phone
   photos, the EXIF-90° one landed in its own slice with a black band instead of flowing into the
-  continuous strip. Root cause is in libplatemaker (matching reads raw header dims; the scaler does
-  not auto-rotate), tracked in the **lib TODO → PATCH → "EXIF orientation is ignored"** with the full
-  analysis. The GUI change, if any, is only to pin the lib version once the fix ships; inputs and
-  screenshots are in `temp/win10/`.
+  continuous strip. Root cause was in libplatemaker (matching reads raw header dims; the scaler does
+  not auto-rotate). **DONE — fixed in lib 0.5.0:** the black band via `ScaledStrip::buildSlice()`
+  switching to `vips_join` (with a `built.height == sliceH` post-condition), and the orientation via
+  `vips_autorot` on load in both pipelines plus `headerGeometry()` reporting display dimensions so
+  matching agrees with the rendered pixels. The GUI's only action was pinning the lib: `CMakeLists.txt`
+  now sets `LIBPLATEMAKER_VERSION "0.5.0"` (a hard floor for the render output contract). Verified
+  against the `temp/win10/` photos — the EXIF-90° page now flows into the strip, upright, no band.
 
-- [ ] **Duplicate output profile** requires to click edit on freshly duplicated profile and then save. Leaving Ouput prfoiles dialog without this step won't retain the duplicate. Proposition is that Duplicate button shall automatically open Output Profile edit dialog of the duplicated profile. 
+- [x] **Duplicate output profile** requires to click edit on freshly duplicated profile and then save. Leaving Ouput profiles dialog without this step won't retain the duplicate. Proposition is that Duplicate button shall automatically open Output Profile edit dialog of the duplicated profile. **DONE:** the retention half was already fixed by the track-by-id / `WorkspaceEditor` refactor (a duplicate carries a fresh user id and is persisted by `replaceOutputProfiles`, which drops only preset-id entries) — this item predated that change. The proposition is now implemented: `onDuplicateClicked` seeds the copy (name + " (copy)", fresh id) and opens `OutputProfileDialog` on it immediately; **atomic** — cancelling the editor abandons the copy, only an accepted edit inserts it. 
 
 - [x] **Harden against DLL injection / hijacking (Windows) — search-path half done in 1.4.1.** Prompted
   by finding third-party global hooks injected into our own process during the drag-and-drop debugging

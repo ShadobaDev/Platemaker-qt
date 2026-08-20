@@ -127,15 +127,30 @@ void ManageOutputProfilesDialog::onEditClicked()
 
 void ManageOutputProfilesDialog::onDuplicateClicked()
 {
-    // Duplicate the selected profile, appending " (copy)" to the name. The new profile gets a fresh id.
+    // Duplicate & Edit: seed a copy of the selected profile (name suffixed " (copy)", fresh id) and
+    // open the editor on it straight away — duplicating is the sanctioned route to customising a
+    // preset, so the user lands in the editor rather than having to find and Edit the copy afterwards.
     const int row = selectedRow();
     if (row < 0) return;
 
-    // A duplicate is an ordinary user profile with its own fresh id — this is the route to
-    // customising a preset (the copy is no longer a preset, so it becomes editable).
+    // A duplicate is an ordinary user profile with its own fresh id — the copy is no longer a preset,
+    // so it is editable. The id is minted before the editor so it is stable across the round trip.
     Platemaker::Models::OutputProfile copy = m_profiles[row];
     copy.name += " (copy)";
     copy.id = mintOutputProfileId(m_profiles).toStdString();
+
+    OutputProfileDialog dlg(this);
+    dlg.setProfile(copy);
+    // Atomic: cancelling the editor abandons the whole action — nothing is inserted, so a stray
+    // Duplicate never leaves an unwanted "… (copy)" behind. Only an accepted edit adds the profile.
+    if (dlg.exec() != QDialog::Accepted) return;
+
+    // OutputProfileDialog returns a profile without an id — restore the freshly-minted one so the
+    // copy is trackable (as the active profile, and on write-back).
+    const std::string copyId = copy.id;
+    copy    = dlg.profile();
+    copy.id = copyId;
+
     m_profiles.insert(row + 1, copy);
     rebuildList();
     ui->listWidgetProfiles->setCurrentRow(row + 1);

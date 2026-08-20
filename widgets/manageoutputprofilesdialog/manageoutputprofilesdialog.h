@@ -43,7 +43,7 @@ private slots:
     void onSelectionChanged();      //!< Slot for when the selection in the profile list changes. Updates button states accordingly.
     void onNewClicked();            //!< Slot for when the "New" button is clicked. Opens the OutputProfileDialog to create a new profile.
     void onEditClicked();           //!< Slot for when the "Edit" button is clicked. Opens the OutputProfileDialog to edit the selected profile.
-    void onDuplicateClicked();      //!< Slot for when the "Duplicate" button is clicked. Duplicates the selected profile and adds it to the list.
+    void onDuplicateClicked();      //!< Slot for the "Duplicate" button: seeds a copy of the selected profile and opens the editor on it; the copy is added only if the edit is accepted (cancel abandons it).
     void onDeleteClicked();         //!< Slot for when the "Delete" button is clicked. Deletes the selected profile after confirmation.
     void onSetActiveClicked();      //!< Slot for when the "Set Active" button is clicked. Sets the selected profile as the active one.
 

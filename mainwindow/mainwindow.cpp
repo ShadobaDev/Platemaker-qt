@@ -74,6 +74,24 @@ MainWindow::MainWindow(QWidget *parent)
     splitDockWidget(ui->dockWidgetWorkspace, ui->dockWidgetAction, Qt::Horizontal);
     ui->dockWidgetAction->show();
 
+    // Re-dock guard for the two shell docks. Floating one out and snapping it back otherwise corrupts
+    // the layout: Qt re-docks the returning dock into the Left area but with a degenerate geometry that
+    // overlaps the incumbent (which grabs the whole area), and it does not self-correct — only a manual
+    // splitter drag recovered it. Cache the docked widths at the moment of floating, and on return
+    // rebuild the split via reestablishShellSplit(). Deferred to a singleShot(0): doing it synchronously
+    // here fights Qt's in-progress re-dock and produces a worse, unrecoverable state. The project docks
+    // carry their own topLevelChanged re-dock guard (openProjectDock); this is the shell-dock analogue.
+    for (QDockWidget *shellDock : {ui->dockWidgetWorkspace, ui->dockWidgetAction}) {
+        connect(shellDock, &QDockWidget::topLevelChanged, this, [this](bool floating) {
+            if (floating) {
+                m_workspaceDockWidthBeforeFloat = ui->dockWidgetWorkspace->width();
+                m_actionDockWidthBeforeFloat    = ui->dockWidgetAction->width();
+            } else {
+                QTimer::singleShot(0, this, [this] { reestablishShellSplit(); });
+            }
+        });
+    }
+
     // Keyboard shortcuts (the .ui already sets text labels, we only add keys)
     ui->actionOpen_workspace->setShortcut(QKeySequence::Open);
     ui->actionNew_workspace->setShortcut(QKeySequence::New);
@@ -176,6 +194,30 @@ void MainWindow::closeEvent(QCloseEvent *event)
     }
     maybeSave() ? event->accept() : event->ignore();
 }
+
+void MainWindow::reestablishShellSplit()
+{
+    // Rebuild the Workspace | Action split, exactly as the constructor does at startup. After a float
+    // returns, Qt leaves the returning dock in the Left area with a degenerate, overlapping geometry —
+    // not tabified, and not a resizable sibling of the incumbent (which occupies the whole area), so a
+    // plain resizeDocks is a no-op (verified). removeDockWidget detaches the Action dock, which forces
+    // Workspace to relayout as the sole, full-area occupant (undoing its degenerate geometry);
+    // splitDockWidget then re-seats Action beside it, recreating the real splitter that a manual drag
+    // relied on. Anchoring on Workspace leaves any project docks tabbed on it untouched. Neither call
+    // floats anything, so there is no topLevelChanged re-entry. Called deferred (singleShot) so it runs
+    // after Qt's own re-dock settles — doing it synchronously fights the transition and worsens it.
+    removeDockWidget(ui->dockWidgetAction);
+    splitDockWidget(ui->dockWidgetWorkspace, ui->dockWidgetAction, Qt::Horizontal);
+    ui->dockWidgetAction->show();
+
+    // Bias the fresh split back to the pre-float proportion. The cache is always populated before a
+    // return (a dock must float before it can re-dock), so the guard is just defensive.
+    if (m_workspaceDockWidthBeforeFloat > 0 && m_actionDockWidthBeforeFloat > 0)
+        resizeDocks({ui->dockWidgetWorkspace, ui->dockWidgetAction},
+                    {m_workspaceDockWidthBeforeFloat, m_actionDockWidthBeforeFloat},
+                    Qt::Horizontal);
+}
+
 // ---------------------------------------------------------------------------
 // Private helpers
 // ---------------------------------------------------------------------------

@@ -27,7 +27,7 @@ identity metadata. The next patch bucket is **1.4.2**; the next feature bucket r
 
 Bug fixes, cosmetics and internal cleanups — no new capability, no change to an existing workflow.
 
-- [ ] **Forced dark scheme does not take effect on Windows 10.** Reported from a Win10 test
+- [x] **Forced dark scheme does not take effect on Windows 10.** Reported from a Win10 test
   (`temp/win10/image (3).png`, `(4)`, `(5)`): the **main window renders light** — menu bar, docks,
   toolbox, tabs, plain controls — while the **hardcoded-dark dialogs stay dark** (About, Output
   Profiles: `image (1).png`, `(2).png`). The result is an inconsistent light-shell / dark-dialog mix
@@ -166,6 +166,24 @@ EXIF-90° input has thumbanil rendered as EXIF-0°. See photo temp\wrong_input_t
     positive after undoing back to the saved state; harmless because the save prompt uses the
     authoritative check.
 
+
+- [x] **Detaching then re-docking the Workspace dock corrupts the layout.** Float the Workspace dock
+  (drag it out or double-click its title bar), then double-click the floating title bar to snap it back:
+  the intended Workspace │ Action split collapses — the Action dock stretches to fill the window while
+  the Workspace panel ends up lost / overlapping (see screenshot). Toggling full-screen forced a full
+  re-layout and restored it. **Root cause (confirmed by instrumentation):** unlike the project docks
+  (which have a `topLevelChanged` handler that re-runs `tabifyDockWidget` on return, `projects.cpp:276`),
+  the Workspace and Action docks had **no** re-dock guard, so on return Qt re-docked the returning dock
+  into the Left area with a **degenerate, overlapping geometry** (the incumbent grabs the whole area; the
+  returning dock is not tabified and not a resizable sibling, so a plain `resizeDocks` is a no-op) — not
+  gated by the min-size overflow (it reproduced even when the window exceeded the combined minimum). Only a
+  manual splitter drag recovered it. **DONE:** `MainWindow::reestablishShellSplit()` **rebuilds** the split
+  on either shell dock's `topLevelChanged(false)` — `removeDockWidget(action)` (forces Workspace to relayout
+  as the sole full-area occupant, undoing the degenerate geometry) + `splitDockWidget` to re-seat Action
+  beside it + `resizeDocks` to the pre-float widths cached on float. Two subtleties that cost iterations: it
+  must run **deferred** (`QTimer::singleShot(0)`) — synchronously it fights Qt's in-progress re-dock and
+  makes it worse — and `resizeDocks` alone does nothing until the split tree is rebuilt (`mainwindow.cpp`,
+  constructor guard + helper).
 
 - [ ] **ImageTile** rework to be more eye-appealing
 

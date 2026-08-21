@@ -29,6 +29,11 @@ Built against **libplatemaker 0.5.0**, adopting the lib's new render output cont
   **exact page count** it affects (`• Chapter 01 — 2 page(s)`) instead of a generic warning. A project
   last rendered by an older version (no recorded page sizes) shows *needs one re-render to confirm* and
   becomes precise after its next render.
+- **Detaching a panel and docking it back no longer wrecks the window layout.** Floating the Workspace or
+  Action panel out and snapping it back left the layout broken — one panel filled the whole window and the
+  other vanished behind it, recoverable only by dragging the splitter by hand. On re-dock the app now
+  rebuilds the Workspace │ Action split and restores its previous proportion, so the panels return to
+  where they were.
 
 ## [1.4.1] — 2026-08-16
 

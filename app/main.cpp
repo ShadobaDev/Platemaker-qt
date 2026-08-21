@@ -6,6 +6,7 @@
 #include <QStyleHints>
 #include <QOperatingSystemVersion>
 #include <QIcon>
+#include <QSvgRenderer>
 #include <QDebug>
 
 #include <cstdlib>
@@ -80,6 +81,18 @@ int main(int argc, char *argv[])
     });
 
     QApplication a(argc, argv);
+
+    // Anchor Qt6Svg.dll as a load-time dependency of this executable. SVG is reached only at runtime,
+    // through Qt's qsvg image / qsvgicon iconengine plugins (the menu-bar icons, the tab close-X, any
+    // ":/...svg"), so nothing here references a Qt6Svg symbol: the linker imports only Qt6Core/Gui/Widgets
+    // and Qt6Svg.dll would be pulled in lazily, when those plugins first load. But restrictDllSearchPath()
+    // above has by then stripped PATH, and Qt6Svg.dll lives in the Qt bin dir (reached via PATH), not the
+    // app dir of a non-deployed build — so Windows can no longer find it, the qsvg plugins silently fail to
+    // load, and every SVG renders blank. Constructing a QSvgRenderer forces Qt6Svg.dll to be a load-time
+    // import, resolved at process start (before the hardening) exactly like the other Qt DLLs, so it is
+    // already in memory when the plugins load. Deployed builds co-locate it in the app dir; this also
+    // covers the dev run straight from the build directory. (qsvgicon.dll imports Qt6Svg.dll — verified.)
+    { QSvgRenderer qtSvgLoadTimeAnchor; Q_UNUSED(qtSvgLoadTimeAnchor); }
 
     // The app is a dark-only design (every dialog hardcodes dark stylesheets: #1e1e1e / #2d2d2d
     // backgrounds, #e0e0e0 text). Left to the OS theme, the plain widgets follow a light OS setting

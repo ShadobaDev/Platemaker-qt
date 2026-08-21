@@ -4,6 +4,7 @@
 #include <QApplication>
 #include <QSettings>
 #include <QStyleHints>
+#include <QOperatingSystemVersion>
 #include <QIcon>
 #include <QDebug>
 
@@ -86,11 +87,27 @@ int main(int argc, char *argv[])
     // style renders dark regardless of the OS setting, and we keep the platform's own look (on Windows
     // the windows11 style: lighter-grey rounded controls, the accent left-bar on selected rows).
     // Requires Qt 6.8+ (QStyleHints::setColorScheme); the CMake minimum is pinned accordingly.
+    //
+    // Windows 10's native (windowsvista) style honours no dark scheme — its Win32 controls have no dark
+    // theme — so on Win10 the hint below only tints the palette while native-drawn controls, combo
+    // popups and menus stay light, an unreadable mix against the dark dialogs. Fusion is fully
+    // palette-driven and renders a consistent dark on any Windows version, so fall back to it there.
+    // Windows 11 keeps its native windows11 style (stock look), which honours the dark scheme itself.
+#ifdef _WIN32
+    const bool nativeDarkCapable =
+        QOperatingSystemVersion::current() >= QOperatingSystemVersion::Windows11;
+#else
+    const bool nativeDarkCapable = true;   // macOS / Fusion honour the scheme themselves
+#endif
+
     a.styleHints()->setColorScheme(Qt::ColorScheme::Dark);
 
     // Restore icon+text on top-level menu-bar items (QMenuBar shows only one otherwise). The proxy
-    // wraps the platform's default style, so the native look is preserved.
-    a.setStyle(new MenuBarIconTextStyle);
+    // wraps a base style, so the platform look is preserved: the native default where it can render dark,
+    // otherwise Fusion (Win10). MenuBarIconTextStyle inherits QProxyStyle's constructors, so the key
+    // selects the wrapped base.
+    a.setStyle(nativeDarkCapable ? new MenuBarIconTextStyle
+                                 : new MenuBarIconTextStyle(QStringLiteral("Fusion")));
 
     // App identity + storage backend for QSettings. With IniFormat, settings
     // land in a real file under the OS app-config dir on every platform:

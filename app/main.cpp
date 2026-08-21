@@ -7,7 +7,8 @@
 #include <QOperatingSystemVersion>
 #include <QIcon>
 #include <QSvgRenderer>
-#include <QProxyStyle>
+#include <QPalette>
+#include <QColor>
 #include <QDebug>
 
 #include <cstdlib>
@@ -57,6 +58,46 @@ static void restrictDllSearchPath()
 #ifndef PLATEMAKER_GUI_VERSION
 #define PLATEMAKER_GUI_VERSION "unknown"
 #endif
+
+namespace {
+// An explicit dark palette for the Fusion fallback (Windows 10). Fusion's own standard palette is
+// light, and QStyleHints::setColorScheme(Dark) does not reliably darken it on the Win10 platform
+// theme — so palette-driven text (menu items, list rows with no explicit colour) comes out black on
+// the app's hardcoded-dark chrome, readable only when a selection/hover paints the OS accent behind
+// it. A palette set directly on the QApplication is not reset by the style, so it holds. Only applied
+// on the Fusion path; the native windows11 path keeps its own (already-correct) dark palette. Colours
+// mirror the hardcoded dark dialogs (#1e1e1e / #2d2d2d / #e0e0e0) and the app accent (#0078d7), so
+// unstyled chrome matches the styled dialogs and hover/selection is the app blue, not the OS accent.
+QPalette fusionDarkPalette()
+{
+    const QColor window (0x2d, 0x2d, 0x2d);
+    const QColor base   (0x1e, 0x1e, 0x1e);
+    const QColor text   (0xe0, 0xe0, 0xe0);
+    const QColor dim    (0x80, 0x80, 0x80);
+    const QColor accent (0x00, 0x78, 0xd7);
+
+    QPalette p;
+    p.setColor(QPalette::Window,          window);
+    p.setColor(QPalette::WindowText,      text);
+    p.setColor(QPalette::Base,            base);
+    p.setColor(QPalette::AlternateBase,   window);
+    p.setColor(QPalette::ToolTipBase,     base);
+    p.setColor(QPalette::ToolTipText,     text);
+    p.setColor(QPalette::Text,            text);
+    p.setColor(QPalette::Button,          window);
+    p.setColor(QPalette::ButtonText,      text);
+    p.setColor(QPalette::BrightText,      QColor(Qt::white));
+    p.setColor(QPalette::Link,            accent);
+    p.setColor(QPalette::Highlight,       accent);
+    p.setColor(QPalette::HighlightedText, QColor(Qt::white));
+    p.setColor(QPalette::PlaceholderText, dim);
+
+    p.setColor(QPalette::Disabled, QPalette::Text,       dim);
+    p.setColor(QPalette::Disabled, QPalette::WindowText, dim);
+    p.setColor(QPalette::Disabled, QPalette::ButtonText, dim);
+    return p;
+}
+} // namespace
 
 int main(int argc, char *argv[])
 {
@@ -108,8 +149,9 @@ int main(int argc, char *argv[])
     // palette-driven and renders a consistent dark on any Windows version, so fall back to it there.
     // Windows 11 keeps its native windows11 style (stock look), which honours the dark scheme itself.
 #ifdef _WIN32
-    // PM_FORCE_FUSION lets a Win11 dev box reproduce the Win10 Fusion path (set the env var to run Fusion
-    // here). TEMP debug aid — remove or keep as a hidden switch once the Fusion look is settled.
+    // PM_FORCE_FUSION (a runtime *environment* variable, not a CMake option) forces the Fusion path so a
+    // Win11 dev box can preview the Win10 look — set it under Qt Creator: Projects > Run > Run Environment.
+    // Hidden testing switch; harmless when unset.
     const bool forceFusion = qEnvironmentVariableIsSet("PM_FORCE_FUSION");
     const bool nativeDarkCapable = !forceFusion &&
         QOperatingSystemVersion::current() >= QOperatingSystemVersion::Windows11;
@@ -117,38 +159,21 @@ int main(int argc, char *argv[])
     const bool nativeDarkCapable = true;   // macOS / Fusion honour the scheme themselves
 #endif
 
-    // Order matters: install the style FIRST, then force the dark scheme. setStyle() resets the
-    // application palette to the style's *standard* palette, and Fusion's standard palette is LIGHT — so
-    // setting the dark scheme before setStyle(Fusion) gets overwritten, leaving palette-driven text
-    // (menus, list items with no explicit colour) black on the app's hardcoded-dark chrome. Applying the
-    // scheme after the style is installed regenerates a dark palette for whatever style is active, so the
-    // native path (windows11) and the Fusion fallback both end up genuinely dark.
-    //
-    // The MenuBarIconTextStyle proxy also restores icon+text on top-level menu-bar items (QMenuBar shows
-    // only one otherwise); it inherits QProxyStyle's constructors, so the key selects the wrapped base:
-    // the native default where it can render dark, otherwise Fusion (Win10).
-    a.setStyle(nativeDarkCapable ? new MenuBarIconTextStyle
-                                 : new MenuBarIconTextStyle(QStringLiteral("Fusion")));
     a.styleHints()->setColorScheme(Qt::ColorScheme::Dark);
 
-    // --- TEMP DIAGNOSTIC (remove once the Fusion palette is confirmed dark) -----------------------
-    // Prints the active base style and the key palette roles. Under a correct dark scheme, Text /
-    // WindowText / ButtonText should be light (near-white); if they come out dark, the palette never went
-    // dark and that is why menu / list text renders black on the dark chrome.
-    {
-        const QStyle* base = a.style();
-        if (const auto* px = qobject_cast<const QProxyStyle*>(base)) base = px->baseStyle();
-        const QPalette pal = a.palette();
-        qDebug() << "[diag] base =" << (base ? base->metaObject()->className() : "null")
-                 << "| scheme =" << int(a.styleHints()->colorScheme());
-        qDebug() << "[diag] Window=" << pal.color(QPalette::Window).name()
-                 << "WindowText=" << pal.color(QPalette::WindowText).name()
-                 << "Base=" << pal.color(QPalette::Base).name()
-                 << "Text=" << pal.color(QPalette::Text).name()
-                 << "ButtonText=" << pal.color(QPalette::ButtonText).name()
-                 << "Highlight=" << pal.color(QPalette::Highlight).name();
-    }
-    // --- END TEMP DIAGNOSTIC ---------------------------------------------------------------------
+    // Menu-bar icon+text proxy over the platform style (QMenuBar shows only one otherwise): the native
+    // default where it can render dark (windows11), otherwise Fusion (Win10). MenuBarIconTextStyle
+    // inherits QProxyStyle's constructors, so the key selects the wrapped base.
+    a.setStyle(nativeDarkCapable ? new MenuBarIconTextStyle
+                                 : new MenuBarIconTextStyle(QStringLiteral("Fusion")));
+
+    // Fusion's own palette is light and the dark-scheme hint above does not darken it on the Win10
+    // platform theme, so palette-driven text (menu items, list rows with no explicit colour) renders
+    // black on the app's dark chrome — readable only under a selection/hover that paints the OS accent.
+    // A palette set directly on the QApplication is not reset by the style, so force an explicit dark one
+    // on the Fusion path. The native windows11 path already renders dark from the scheme, so leave it be.
+    if (!nativeDarkCapable)
+        a.setPalette(fusionDarkPalette());
 
     // App identity + storage backend for QSettings. With IniFormat, settings
     // land in a real file under the OS app-config dir on every platform:

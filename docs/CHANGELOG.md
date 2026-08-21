@@ -30,15 +30,6 @@ Built against **libplatemaker 0.5.0**, adopting the lib's new render output cont
   last rendered by an older version (no recorded page sizes) shows *needs one re-render to confirm* and
   becomes precise after its next render.
 
-### Changed
-
-- **The profile dialogs no longer re-hardcode the dark theme.** The canvas- and output-profile editors and
-  their manage dialogs dropped the redundant dark backgrounds, text and selection colours that merely
-  restated what the active style already supplies; they now inherit the app palette (so, e.g., list
-  selection follows the OS accent). Shape, spacing and the semantic accents (primary-action blue, delete
-  red, generate green, the invalid-field marker) are unchanged. Internal cleanup — no behaviour change; a
-  first down-payment on the fuller theme-agnostic work.
-
 ## [1.4.1] — 2026-08-16
 
 Built against **libplatemaker 0.4.1** (up from 0.4.0). 0.4.1 is metadata-only — no API change — so

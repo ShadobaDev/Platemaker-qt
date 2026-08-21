@@ -34,6 +34,12 @@ Built against **libplatemaker 0.5.0**, adopting the lib's new render output cont
   other vanished behind it, recoverable only by dragging the splitter by hand. On re-dock the app now
   rebuilds the Workspace │ Action split and restores its previous proportion, so the panels return to
   where they were.
+- **Rotated camera photos now preview upright in the input list.** A photo carrying an EXIF 90° tag showed
+  a sideways (landscape) input thumbnail. libplatemaker 0.5.0 already generates the preview upright, but a
+  thumbnail cached by an earlier build kept being re-served because the cache only compared file dates —
+  and a camera photo is always older than its cached thumbnail. The lib now versions each cached thumbnail,
+  so the stale sideways previews are discarded and regenerated the correct way up, with no need to clear the
+  `.platemaker-cache` by hand.
 
 ## [1.4.1] — 2026-08-16
 

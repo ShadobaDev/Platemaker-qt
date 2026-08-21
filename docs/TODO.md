@@ -99,8 +99,9 @@ Bug fixes, cosmetics and internal cleanups — no new capability, no change to a
   now sets `LIBPLATEMAKER_VERSION "0.5.0"` (a hard floor for the render output contract). Verified
   against the `temp/win10/` photos — the EXIF-90° page now flows into the strip, upright, no band.
 
-- [ ] **Camera photos (EXIF-rotated) wrong input thumbnail orientation**
-EXIF-90° input has thumbanil rendered as EXIF-0°. See photo temp\wrong_input_thumbs.png. The third image should be vertical, but the thumbenail is horizontal.
+- [x] **Camera photos (EXIF-rotated) wrong input thumbnail orientation**
+EXIF-90° input had its thumbnail rendered as EXIF-0° (the third `real_photos` shot, Orientation 6, previewed
+landscape instead of portrait. **DONE — fixed in lib 0.5.0.**
 
 - [x] **Duplicate output profile** requires to click edit on freshly duplicated profile and then save. Leaving Ouput profiles dialog without this step won't retain the duplicate. Proposition is that Duplicate button shall automatically open Output Profile edit dialog of the duplicated profile. **DONE:** the retention half was already fixed by the track-by-id / `WorkspaceEditor` refactor (a duplicate carries a fresh user id and is persisted by `replaceOutputProfiles`, which drops only preset-id entries) — this item predated that change. The proposition is now implemented: `onDuplicateClicked` seeds the copy (name + " (copy)", fresh id) and opens `OutputProfileDialog` on it immediately; **atomic** — cancelling the editor abandons the copy, only an accepted edit inserts it. 
 

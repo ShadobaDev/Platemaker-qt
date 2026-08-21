@@ -32,20 +32,9 @@ QMainWindow::separator:hover {
     background-color: #0078d7;
 }
 
-/* STYLE PROJECT TABS IN MAIN WINDOW */
-QMainWindow QTabBar::tab {
-    background: #2d2d2d;
-    color: #aaaaaa;
-    padding: 6px 15px;
-    margin-right: 2px;
-    border-top-left-radius: 4px;
-    border-top-right-radius: 4px;
-}
-
-QMainWindow QTabBar::tab:selected {
-    background: #3d3d3d;
-    color: #ffffff;
-}
+/* PROJECT DOCK TABS: intentionally left unstyled so they render in the platform's native tab
+   style (windows11 on Win11, Fusion on Win10) instead of a hardcoded dark shape. Only the
+   close-button below is still styled. */
 
 /* --- STYLE ONLY FOR MAJOR BUTTONS X --- */
 /* image: is required — styling this subcontrol without it drops the native X glyph */

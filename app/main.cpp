@@ -7,6 +7,7 @@
 #include <QOperatingSystemVersion>
 #include <QIcon>
 #include <QSvgRenderer>
+#include <QProxyStyle>
 #include <QDebug>
 
 #include <cstdlib>
@@ -107,20 +108,47 @@ int main(int argc, char *argv[])
     // palette-driven and renders a consistent dark on any Windows version, so fall back to it there.
     // Windows 11 keeps its native windows11 style (stock look), which honours the dark scheme itself.
 #ifdef _WIN32
-    const bool nativeDarkCapable =
+    // PM_FORCE_FUSION lets a Win11 dev box reproduce the Win10 Fusion path (set the env var to run Fusion
+    // here). TEMP debug aid — remove or keep as a hidden switch once the Fusion look is settled.
+    const bool forceFusion = qEnvironmentVariableIsSet("PM_FORCE_FUSION");
+    const bool nativeDarkCapable = !forceFusion &&
         QOperatingSystemVersion::current() >= QOperatingSystemVersion::Windows11;
 #else
     const bool nativeDarkCapable = true;   // macOS / Fusion honour the scheme themselves
 #endif
 
-    a.styleHints()->setColorScheme(Qt::ColorScheme::Dark);
-
-    // Restore icon+text on top-level menu-bar items (QMenuBar shows only one otherwise). The proxy
-    // wraps a base style, so the platform look is preserved: the native default where it can render dark,
-    // otherwise Fusion (Win10). MenuBarIconTextStyle inherits QProxyStyle's constructors, so the key
-    // selects the wrapped base.
+    // Order matters: install the style FIRST, then force the dark scheme. setStyle() resets the
+    // application palette to the style's *standard* palette, and Fusion's standard palette is LIGHT — so
+    // setting the dark scheme before setStyle(Fusion) gets overwritten, leaving palette-driven text
+    // (menus, list items with no explicit colour) black on the app's hardcoded-dark chrome. Applying the
+    // scheme after the style is installed regenerates a dark palette for whatever style is active, so the
+    // native path (windows11) and the Fusion fallback both end up genuinely dark.
+    //
+    // The MenuBarIconTextStyle proxy also restores icon+text on top-level menu-bar items (QMenuBar shows
+    // only one otherwise); it inherits QProxyStyle's constructors, so the key selects the wrapped base:
+    // the native default where it can render dark, otherwise Fusion (Win10).
     a.setStyle(nativeDarkCapable ? new MenuBarIconTextStyle
                                  : new MenuBarIconTextStyle(QStringLiteral("Fusion")));
+    a.styleHints()->setColorScheme(Qt::ColorScheme::Dark);
+
+    // --- TEMP DIAGNOSTIC (remove once the Fusion palette is confirmed dark) -----------------------
+    // Prints the active base style and the key palette roles. Under a correct dark scheme, Text /
+    // WindowText / ButtonText should be light (near-white); if they come out dark, the palette never went
+    // dark and that is why menu / list text renders black on the dark chrome.
+    {
+        const QStyle* base = a.style();
+        if (const auto* px = qobject_cast<const QProxyStyle*>(base)) base = px->baseStyle();
+        const QPalette pal = a.palette();
+        qDebug() << "[diag] base =" << (base ? base->metaObject()->className() : "null")
+                 << "| scheme =" << int(a.styleHints()->colorScheme());
+        qDebug() << "[diag] Window=" << pal.color(QPalette::Window).name()
+                 << "WindowText=" << pal.color(QPalette::WindowText).name()
+                 << "Base=" << pal.color(QPalette::Base).name()
+                 << "Text=" << pal.color(QPalette::Text).name()
+                 << "ButtonText=" << pal.color(QPalette::ButtonText).name()
+                 << "Highlight=" << pal.color(QPalette::Highlight).name();
+    }
+    // --- END TEMP DIAGNOSTIC ---------------------------------------------------------------------
 
     // App identity + storage backend for QSettings. With IniFormat, settings
     // land in a real file under the OS app-config dir on every platform:

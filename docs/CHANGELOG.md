@@ -16,6 +16,13 @@ Built against **libplatemaker 0.5.0**, adopting the lib's new render output cont
 - **The Project Status panel shows a short status, not the whole error dump.** A failed render now reads
   *Render failed — see the action log* (consistent with *Render finished.*); the full multi-line error
   stays in the action log.
+- **Creating a canvas profile no longer turns a whole project amber with an alarming "state cannot be
+  confirmed" prompt.** libplatemaker 0.5.0 records each page's dimensions and re-matches canvas profiles
+  per page, so a profile that matches no page in a project leaves it untouched. When a canvas change *does*
+  affect pages, the reopen prompt is now titled *Canvas profiles changed* and lists each project with the
+  **exact page count** it affects (`• Chapter 01 — 2 page(s)`) instead of a generic warning. A project
+  last rendered by an older version (no recorded page sizes) shows *needs one re-render to confirm* and
+  becomes precise after its next render.
 
 ## [1.4.1] — 2026-08-16
 

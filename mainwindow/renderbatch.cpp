@@ -181,41 +181,51 @@ void MainWindow::warnIfCanvasConfigStale()
     if (m_workspace.projectItems.empty())
         return;
 
-    // Which projects can no longer be confirmed as up to date. sanitize() has already
-    // turned their tiles amber; this only explains why and offers the remedy.
-    //
-    // Deliberately no breakdown of *what* changed: the causes (a profile edit, an app
-    // update that records more than the workspace holds, an outside edit of the file)
-    // all lead to the same answer — re-render — and naming them turns a simple message
-    // into a technical one the user has no decision to make about.
-    QStringList affected;
-    for (const auto &project : m_workspace.projectItems)
-        if (project.detectCanvasConfigChange(m_workspace.canvasProfiles()).any())
-            affected << QString::fromStdString(project.name);
+    // What the current canvas config actually changed, per project — precise where the pages carry
+    // recorded dimensions (the common case), coarse only for a legacy project rendered before sizes
+    // were tracked. detectCanvasConfigChange() re-matches each page against the profiles now in effect,
+    // so a profile that matches no page produces nothing here and this dialog never appears for it —
+    // which is the whole point: the warning is now about pages that genuinely change, not a blanket
+    // "something moved" whenever the profile list grows.
+    struct Affected { QString name; int pages = 0; bool coarse = false; };
+    QList<Affected> affected;
+    bool anyCoarse = false;
+    for (const auto &project : m_workspace.projectItems) {
+        const auto change = project.detectCanvasConfigChange(m_workspace.canvasProfiles());
+        if (!change.any())
+            continue;
+        affected.append({ QString::fromStdString(project.name),
+                          static_cast<int>(change.changedInputs.size()),
+                          change.listChanged });
+        if (change.listChanged) anyCoarse = true;
+    }
 
     if (affected.isEmpty())
         return;
 
-    const QString issuesUrl =
-        QStringLiteral("https://github.com/ShadobaDev/PlateMaker/issues");
+    // One line per project: an exact page count, or (legacy) an honest "needs one re-render".
+    QStringList lines;
+    for (const auto &a : affected) {
+        lines << (a.coarse
+                  ? tr("• %1 — needs one re-render to confirm").arg(a.name)
+                  : tr("• %1 — %2 page(s)").arg(a.name).arg(a.pages));
+    }
+
+    QString body =
+        tr("A canvas-profile change affects pages in %1 project(s):").arg(affected.size());
+    body += "\n\n" + lines.join(QStringLiteral("\n")) + "\n\n";
+    body += tr("These pages will re-render with the updated canvas. Nothing is broken and no work is "
+               "lost — re-rendering settles it and the amber clears.");
+    if (anyCoarse) {
+        body += "\n\n" + tr("Projects marked \"needs one re-render\" were last rendered by an older "
+                            "version that did not record page sizes. The first re-render records them, "
+                            "and later canvas-profile changes are then pinpointed to the exact pages.");
+    }
+    body += "\n\n" + tr("Refresh all projects now?");
 
     const auto answer = QMessageBox::question(
-        this, tr("Project state cannot be confirmed"),
-        tr("Platemaker cannot tell whether these %1 project(s) still match their settings:\n"
-           "%2\n\n"
-           "Nothing is broken and no work is lost — the workspace is intact. This happens "
-           "when something the output depends on moved on outside of a render: a profile "
-           "was edited, the workspace was changed by another tool, or an application "
-           "update now tracks more than this workspace recorded.\n\n"
-           "The tiles may be shown amber. That does not mean the files changed — it means "
-           "their state cannot be confirmed from the workspace alone. Re-rendering settles "
-           "it and the colour clears.\n\n"
-           "If you are confident nothing changed, this is worth reporting:\n%3\n\n"
-           "Refresh all projects now?")
-            .arg(affected.size())
-            .arg(affected.join(QStringLiteral(", ")))
-            .arg(issuesUrl),
-        QMessageBox::Yes | QMessageBox::No, QMessageBox::Yes);
+        this, tr("Canvas profiles changed"),
+        body, QMessageBox::Yes | QMessageBox::No, QMessageBox::Yes);
 
     if (answer == QMessageBox::Yes) {
         // Consent given here covers the whole sweep; finishBatch() puts it back.

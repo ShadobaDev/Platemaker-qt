@@ -33,6 +33,15 @@ Bug fixes, cosmetics and internal cleanups — no new capability, no change to a
   Profiles: `image (1).png`, `(2).png`). The result is an inconsistent light-shell / dark-dialog mix
   — a partial return of the very bug the 1.3.0 fix closed, now only on Windows 10.
 
+  **PARTIAL — Win10 clash fixed now via a Fusion-dark fallback** (branch `fix/win10-dark-fusion-fallback`,
+  `app/main.cpp`): where the native style cannot render dark (Windows 10), the app installs the
+  palette-driven **Fusion** style so the whole shell + dialogs render a consistent dark; Windows 11 keeps
+  its native windows11 style unchanged. This resolves the light-shell / dark-dialog clash without touching
+  the hardcoded stylesheets. The **theme-agnostic refactor** described below (drop the force, strip the
+  hardcoded chrome, offer follow-OS / a Light·Dark·System toggle) remains the larger future effort and is
+  left open. Trade-off accepted: on Win10 the native windowsvista look is replaced by Fusion-dark (the OS
+  has no native dark to keep).
+
   **Cause:** the 1.3.0 fix calls `QStyleHints::setColorScheme(Qt::ColorScheme::Dark)` at startup. On
   Windows 11 (windows11 style) that forces the shell dark; on Windows 10 it does **not** take —
   Win10's platform theme does not honour the forced scheme. But the deeper cause is that the app was
@@ -89,6 +98,9 @@ Bug fixes, cosmetics and internal cleanups — no new capability, no change to a
   matching agrees with the rendered pixels. The GUI's only action was pinning the lib: `CMakeLists.txt`
   now sets `LIBPLATEMAKER_VERSION "0.5.0"` (a hard floor for the render output contract). Verified
   against the `temp/win10/` photos — the EXIF-90° page now flows into the strip, upright, no band.
+
+- [ ] **Camera photos (EXIF-rotated) wrong input thumbnail orientation**
+EXIF-90° input has thumbanil rendered as EXIF-0°. See photo temp\wrong_input_thumbs.png. The third image should be vertical, but the thumbenail is horizontal.
 
 - [x] **Duplicate output profile** requires to click edit on freshly duplicated profile and then save. Leaving Ouput profiles dialog without this step won't retain the duplicate. Proposition is that Duplicate button shall automatically open Output Profile edit dialog of the duplicated profile. **DONE:** the retention half was already fixed by the track-by-id / `WorkspaceEditor` refactor (a duplicate carries a fresh user id and is persisted by `replaceOutputProfiles`, which drops only preset-id entries) — this item predated that change. The proposition is now implemented: `onDuplicateClicked` seeds the copy (name + " (copy)", fresh id) and opens `OutputProfileDialog` on it immediately; **atomic** — cancelling the editor abandons the copy, only an accepted edit inserts it. 
 

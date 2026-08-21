@@ -16,6 +16,12 @@ Built against **libplatemaker 0.5.0**, adopting the lib's new render output cont
 - **The Project Status panel shows a short status, not the whole error dump.** A failed render now reads
   *Render failed — see the action log* (consistent with *Render finished.*); the full multi-line error
   stays in the action log.
+- **The forced dark scheme now takes effect on Windows 10.** Windows 10's native style cannot render its
+  controls dark, so the forced dark scheme previously left the shell (menu bar, docks, tabs, plain
+  controls) light while the hardcoded-dark dialogs stayed dark — an unreadable mix. Where the native style
+  cannot go dark, the app now falls back to the palette-driven **Fusion** style, so the whole window and its
+  dialogs render a consistent dark. Windows 11 is unchanged (it keeps its native windows11 look). A fuller
+  theme-agnostic option (follow the OS, or a Light/Dark/System toggle) remains future work.
 - **Creating a canvas profile no longer turns a whole project amber with an alarming "state cannot be
   confirmed" prompt.** libplatemaker 0.5.0 records each page's dimensions and re-matches canvas profiles
   per page, so a profile that matches no page in a project leaves it untouched. When a canvas change *does*

@@ -292,6 +292,13 @@ qt_generate_deploy_app_script(
     # shipped app-local via InstallRequiredSystemLibraries below (a few small DLLs). For MinGW the runtime
     # comes from the lib package's own bin/ plus the MSYS2 override below.
     NO_COMPILER_RUNTIME
+
+    # The app is a Qt Widgets image tool — no networking, no touch input. windeployqt otherwise pulls the
+    # generic 'qtuiotouchplugin', which drags in Qt6Network.dll + the TLS/network-info backends
+    # (qschannelbackend, qcertonlybackend, qnetworklistmanager). Shipping an unused network+TLS stack is
+    # dead weight and part of the "can exfiltrate data" profile AV/ML heuristics weight; dropping those
+    # plugin types (Qt 6.10+) also removes the Qt6Network.dll dependency they pulled in.
+    EXCLUDE_PLUGIN_TYPES generic tls networkinformation
 )
 install(SCRIPT ${deploy_script})   # windeployqt — deploys Qt's DLLs (not the compiler runtime; see above)
 

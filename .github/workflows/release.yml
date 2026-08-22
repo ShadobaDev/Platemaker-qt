@@ -40,9 +40,9 @@ jobs:
         shell: pwsh
         run: python -m pip install --upgrade "git+https://github.com/miurahr/aqtinstall.git"
 
-      - name: Install Qt 6.11.1 (MSVC 2022)
+      - name: Install Qt 6.11.2 (MSVC 2022)
         shell: pwsh
-        run: python -m aqt install-qt windows desktop 6.11.1 win64_msvc2022_64 --outputdir "${{ github.workspace }}\Qt"
+        run: python -m aqt install-qt windows desktop 6.11.2 win64_msvc2022_64 --outputdir "${{ github.workspace }}\Qt"
 
       # Put cl.exe + the VS 2022 x64 environment on PATH for the Ninja build.
       - name: Set up MSVC 2022 environment
@@ -53,7 +53,7 @@ jobs:
       - name: Set Qt environment
         shell: pwsh
         run: |
-          $qt = "${{ github.workspace }}\Qt\6.11.1\msvc2022_64"
+          $qt = "${{ github.workspace }}\Qt\6.11.2\msvc2022_64"
           if (-not (Test-Path "$qt\bin\qmake.exe")) { throw "Qt not found at $qt" }
           Write-Host "Qt: $qt"
           # CMAKE_PREFIX_PATH lets find_package(Qt6) resolve; $qt\bin gives windeployqt/moc/uic.

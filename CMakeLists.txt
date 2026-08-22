@@ -83,7 +83,7 @@ if(1)
     #   2. find_package                     — system install or CMAKE_PREFIX_PATH
     #   3. FetchContent                     — downloads pre-built package from GitHub Releases
     # ───────────────────────────────────────────────────────────────────────────────
-    set(LIBPLATEMAKER_VERSION "0.5.0")
+    set(LIBPLATEMAKER_VERSION "0.5.1")
     set(LIBPLATEMAKER_DIR "" CACHE PATH "Path to a local platemaker dev package")
     message("Local libplatemaker path: ${LIBPLATEMAKER_DIR}")
 
@@ -315,21 +315,24 @@ if(WIN32)
         FILES_MATCHING PATTERN "*.dll"
     )
 
-    # platemaker/libuhdr were built with MSYS2 MinGW64 — its compiler runtime DLLs
-    # (winpthreads/libgcc) are not part of the platemaker package itself, but
-    # Platemaker.exe needs an ABI-matching copy of them at install time, or it will
-    # fail to load libuhdr-1.dll with "punktu wejścia procedury pthread_cond_timedwait64".
-    set(PLATEMAKER_MSYS2_MINGW64_BIN "C:/msys64/mingw64/bin" CACHE PATH
-        "bin/ dir of the MSYS2 MinGW64 toolchain platemaker/libuhdr were built with")
-    if(EXISTS "${PLATEMAKER_MSYS2_MINGW64_BIN}/libwinpthread-1.dll")
-        install(FILES
-            "${PLATEMAKER_MSYS2_MINGW64_BIN}/libwinpthread-1.dll"
-            "${PLATEMAKER_MSYS2_MINGW64_BIN}/libgcc_s_seh-1.dll"
-            DESTINATION ${CMAKE_INSTALL_BINDIR}
-        )
-    else()
-        message(WARNING "MSYS2 MinGW64 runtime not found at ${PLATEMAKER_MSYS2_MINGW64_BIN} — "
-                         "Platemaker.exe may fail to load libuhdr-1.dll on machines without MSYS2.")
+    # MinGW only: platemaker/libuhdr were built with MSYS2 MinGW64 — its compiler runtime DLLs
+    # (winpthreads/libgcc) are not part of the platemaker package itself, but Platemaker.exe needs an
+    # ABI-matching copy of them at install time, or it fails to load libuhdr-1.dll with
+    # "punktu wejścia procedury pthread_cond_timedwait64". The MSVC build has no MinGW runtime (its C++
+    # runtime is the MSVC redist, deployed by windeployqt), so this whole step is skipped there.
+    if(MINGW)
+        set(PLATEMAKER_MSYS2_MINGW64_BIN "C:/msys64/mingw64/bin" CACHE PATH
+            "bin/ dir of the MSYS2 MinGW64 toolchain platemaker/libuhdr were built with")
+        if(EXISTS "${PLATEMAKER_MSYS2_MINGW64_BIN}/libwinpthread-1.dll")
+            install(FILES
+                "${PLATEMAKER_MSYS2_MINGW64_BIN}/libwinpthread-1.dll"
+                "${PLATEMAKER_MSYS2_MINGW64_BIN}/libgcc_s_seh-1.dll"
+                DESTINATION ${CMAKE_INSTALL_BINDIR}
+            )
+        else()
+            message(WARNING "MSYS2 MinGW64 runtime not found at ${PLATEMAKER_MSYS2_MINGW64_BIN} — "
+                             "Platemaker.exe may fail to load libuhdr-1.dll on machines without MSYS2.")
+        endif()
     endif()
 endif()
 

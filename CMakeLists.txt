@@ -1,5 +1,5 @@
 ﻿cmake_minimum_required(VERSION 3.25)
-project(Platemaker VERSION 1.4.2 LANGUAGES CXX)
+project(Platemaker VERSION 1.4.3 LANGUAGES CXX)
 
 find_package(Qt6 6.8 REQUIRED COMPONENTS Core Widgets Concurrent Svg)
 
@@ -107,8 +107,16 @@ if(1)
     if(NOT platemaker_FOUND)
         include(FetchContent)
 
+        # Pick the dev package matching the compiler this GUI is being built with — the lib ships a
+        # per-toolchain package (…-windows-msvc-… vs …-windows-mingw-…) because MSVC and MinGW are
+        # ABI-incompatible (the package config's own guard rejects a mismatch). MSVC is true for
+        # MSVC/clang-cl, false for MinGW/GCC.
         if(WIN32)
-            set(_pm_archive "platemaker-dev-${LIBPLATEMAKER_VERSION}-windows-mingw-release.zip")
+            if(MSVC)
+                set(_pm_archive "platemaker-dev-${LIBPLATEMAKER_VERSION}-windows-msvc-release.zip")
+            else()
+                set(_pm_archive "platemaker-dev-${LIBPLATEMAKER_VERSION}-windows-mingw-release.zip")
+            endif()
         else()
             set(_pm_archive "platemaker-dev-${LIBPLATEMAKER_VERSION}-linux-x86_64-release.tar.gz")
         endif()

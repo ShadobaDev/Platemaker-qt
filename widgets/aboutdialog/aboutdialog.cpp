@@ -147,6 +147,11 @@ AboutDialog::AboutDialog(Tab initial, QWidget* parent)
            "<p>Comic artist canvas tool — pre-processing and post-processing "
            "for webtoon-style publishing.</p>")
         + table
+        // The compiler/platform the loaded libplatemaker was built with. The ABI guard in its package
+        // config forces the GUI to be built with the same toolchain, so this is the whole build's compiler.
+        + tr("<p>Built with %1 for %2.</p>")
+              .arg(orUnknown(QString::fromStdString(libBuild.compiler)).toHtmlEscaped(),
+                   orUnknown(QString::fromStdString(libBuild.platform)).toHtmlEscaped())
         + tr("<p>The full set of bundled runtime components (the libvips DLL graph and the "
              "compiler runtime) is listed with versions and licences in "
              "<a href=\"pm-notices:all\">the third-party notices</a>.</p>")

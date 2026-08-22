@@ -1,6 +1,6 @@
 # Changelog
 
-## [1.4.2] — unreleased
+## [1.4.2] — 22.08.2026
 
 Built against **libplatemaker 0.5.0**, adopting the lib's new render output contract (lib SPECIFICATION
 §7.0). Requires libplatemaker 0.5.0 (the GUI's `run()` call now passes the cache dir).

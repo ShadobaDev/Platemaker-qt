@@ -1,118 +1,151 @@
-# Release pipeline for the GUI: on a bare version tag (e.g. 1.3.1), build the Windows installer, attach
-# a build-provenance attestation, and upload the installer + its SHA256SUMS to a GitHub Release.
+# Toolchain-comparison build (branch `ci/compare-mingw-msvc`).
 #
-# Windows-only (the installer is Inno Setup). Unlike the lib, this needs Qt and a MinGW compiler, and it
-# depends on the LIB: CMake downloads `platemaker-dev-<LIBPLATEMAKER_VERSION>-windows-mingw-release.zip`
-# from the lib's GitHub Release. PREREQUISITES to go green:
-#   1. The lib Release for the pinned LIBPLATEMAKER_VERSION (currently 0.3.1) must expose that MinGW dev
-#      asset — otherwise the configure step 404s. (Confirm on the lib's Releases page.)
-#   2. The Qt MinGW toolchain must be ABI-compatible with that lib archive. Both are MinGW/GCC, and this
-#      is exactly what works locally (Qt-MinGW app + MSYS2-built lib), so it should hold on CI too; the
-#      config-package guard will FATAL_ERROR loudly if not.
-#   3. Verify the Qt MinGW tool id (`tools_mingw1310` below) matches Qt 6.11.1 — `aqt list-tool windows
-#      desktop tools_mingw` if unsure.
+# Builds the Windows installer TWICE from the same commit — once with MinGW, once with MSVC — so their
+# VirusTotal verdicts can be compared apples-to-apples (the MinGW build trips a Defender ML false positive,
+# Wacatac.B!ml; the question is whether the MSVC build of the same sources is clean). Each installer is
+# uploaded as its own artifact and scanned on VirusTotal, with the analysis URL written to the run summary.
 #
-# Add a `VT_API_KEY` repo secret (this repo, separately from the lib) to enable the VirusTotal step.
-name: Release
+# NOTE: this is the comparison variant of the release workflow, not the real release. It does NOT publish a
+# GitHub Release. The MSVC installer path (windeployqt + Inno Setup) is newly wired and unvalidated on CI —
+# expect to iterate. Requires a `VT_API_KEY` repo secret for the VirusTotal step.
+name: Toolchain compare (MinGW vs MSVC)
 
 on:
   push:
-    tags: ['*.*.*']          # bare versions: 1.3.1
-  workflow_dispatch:         # manual build validation (no Release — the publish/VT steps are tag-only)
+    branches: ['ci/compare-mingw-msvc']  # every push to this branch runs the comparison (the reliable
+                                         # trigger — a workflow_dispatch on a non-default branch is not
+                                         # offered in the Actions UI)
+    tags: ['*.*.*']                      # also builds both from a tagged commit (no Release is published)
+  workflow_dispatch:
 
 permissions:
-  contents: write            # create the Release + upload assets
+  contents: read
   id-token: write            # OIDC for provenance
   attestations: write        # store the provenance attestation
 
 jobs:
   installer:
-    runs-on: windows-latest
+    strategy:
+      fail-fast: false       # MinGW and MSVC are independent; one failing must not cancel the other
+      matrix:
+        include:
+          # MinGW: matches the real release. Qt's win64_mingw + its bundled MinGW; windows-latest is fine
+          # (MSYS2/MinGW does not care which Visual Studio the runner image ships).
+          - toolchain: mingw
+            os: windows-latest
+            qt_arch: win64_mingw
+            qt_subdir: mingw_64
+          # MSVC: pinned to windows-2022 because Qt 6.11 supports MSVC 2022 (VS 2022) and windows-latest has
+          # moved to the VS 2026 image. The compiler comes from the runner's VS 2022 via ilammy/msvc-dev-cmd.
+          - toolchain: msvc
+            os: windows-2022
+            qt_arch: win64_msvc2022_64
+            qt_subdir: msvc2022_64
+    runs-on: ${{ matrix.os }}
     env:
       VT_API_KEY: ${{ secrets.VT_API_KEY }}
     steps:
       - uses: actions/checkout@v7
 
-      # Qt (win64_mingw) + Qt's MinGW compiler. This is how CI gets Qt without Qt Creator: install-qt-action
-      # wraps aqtinstall, which downloads the exact Qt build from Qt's servers (open-source/LGPL, no account).
-      # Qt 6.11 changed its online-repo folder layout; aqtinstall only handles it on git master (fix for
-      # issue #1007), NOT in the latest release (3.3.0) that install-qt-action pins. So we drive aqt
-      # directly from git and set the Qt/MinGW env ourselves. Switch back to install-qt-action once a
-      # fixed aqt is released (> 3.3.0).
+      # Qt via aqtinstall (open-source/LGPL, no account). Driven from git master because aqt 3.3.0 does not
+      # yet handle Qt 6.11's online-repo layout (miurahr/aqtinstall#1007). Switch back to install-qt-action
+      # once a fixed aqt (> 3.3.0) is released.
       - uses: actions/setup-python@v7
         with:
           python-version: '3.12'
 
-      - name: Install aqtinstall (git master — has the Qt 6.11 repo-layout fix, #1007)
+      - name: Install aqtinstall (git master — Qt 6.11 repo-layout fix #1007)
         shell: pwsh
         run: python -m pip install --upgrade "git+https://github.com/miurahr/aqtinstall.git"
 
-      - name: Install Qt 6.11.1 (MinGW) + toolchain
+      - name: Install Qt 6.11.1 (${{ matrix.qt_arch }})
         shell: pwsh
-        run: |
-          python -m aqt install-qt   windows desktop 6.11.1 win64_mingw --outputdir "${{ github.workspace }}\Qt"
-          python -m aqt install-tool windows desktop tools_mingw1310     --outputdir "${{ github.workspace }}\Qt"
+        run: python -m aqt install-qt windows desktop 6.11.1 ${{ matrix.qt_arch }} --outputdir "${{ github.workspace }}\Qt"
 
-      - name: Set Qt + MinGW environment
+      - name: Install Qt's MinGW toolchain
+        if: matrix.toolchain == 'mingw'
+        shell: pwsh
+        run: python -m aqt install-tool windows desktop tools_mingw1310 --outputdir "${{ github.workspace }}\Qt"
+
+      # MSVC: put cl.exe + the VS 2022 x64 environment on PATH for the Ninja build.
+      - name: Set up MSVC 2022 environment
+        if: matrix.toolchain == 'msvc'
+        uses: ilammy/msvc-dev-cmd@v1
+        with:
+          arch: x64
+
+      - name: Set Qt (and MinGW) environment
         shell: pwsh
         run: |
-          $qt = "${{ github.workspace }}\Qt\6.11.1\mingw_64"
+          $qt = "${{ github.workspace }}\Qt\6.11.1\${{ matrix.qt_subdir }}"
           if (-not (Test-Path "$qt\bin\qmake.exe")) { throw "Qt not found at $qt" }
-          $mingw = (Get-ChildItem "${{ github.workspace }}\Qt\Tools\mingw*_64\bin" -Directory | Select-Object -First 1).FullName
-          if (-not $mingw) { throw "MinGW toolchain not found under Qt\Tools" }
-          Write-Host "Qt:    $qt"
-          Write-Host "MinGW: $mingw"
-          # CMAKE_PREFIX_PATH lets find_package(Qt6) resolve; the two bins give windeployqt/moc/uic + gcc.
+          Write-Host "Qt: $qt"
+          # CMAKE_PREFIX_PATH lets find_package(Qt6) resolve; $qt\bin gives windeployqt/moc/uic.
           "CMAKE_PREFIX_PATH=$qt" | Out-File $env:GITHUB_ENV  -Append -Encoding utf8
           "$qt\bin"               | Out-File $env:GITHUB_PATH -Append -Encoding utf8
-          $mingw                  | Out-File $env:GITHUB_PATH -Append -Encoding utf8
+          if ("${{ matrix.toolchain }}" -eq "mingw") {
+            $mingw = (Get-ChildItem "${{ github.workspace }}\Qt\Tools\mingw*_64\bin" -Directory | Select-Object -First 1).FullName
+            if (-not $mingw) { throw "MinGW toolchain not found under Qt\Tools" }
+            Write-Host "MinGW: $mingw"
+            $mingw | Out-File $env:GITHUB_PATH -Append -Encoding utf8
+          }
 
       - name: Install Ninja + Inno Setup
         shell: pwsh
         run: choco install ninja innosetup --no-progress -y
 
-      # Configure (downloads libplatemaker from its Release) + build the Inno Setup installer, which also
-      # writes installer-output/Platemaker-<ver>-SHA256SUMS.txt (our checksum step).
+      # Configure (FetchContent pulls the matching libplatemaker dev package — MSVC vs MinGW — from the
+      # lib's Release) + build the Inno Setup installer. MSVC needs an explicit build type (single-config
+      # Ninja); MinGW keeps the exact command the real release uses.
       - name: Configure & build installer
         shell: pwsh
         run: |
-          cmake -B build -S . -G Ninja
+          if ("${{ matrix.toolchain }}" -eq "msvc") {
+            cmake -B build -S . -G Ninja -DCMAKE_BUILD_TYPE=Release
+          } else {
+            cmake -B build -S . -G Ninja
+          }
           cmake --build build --target installer
 
-      # Expose the installer (+ checksum) as a run artifact so it's downloadable from any run — including
-      # a workflow_dispatch validation build, which doesn't publish a Release. (On a tag, it's also
-      # uploaded to the Release below.)
+      # Tag the installer filename with the toolchain so the two are distinguishable on disk and on VirusTotal.
+      - name: Label installer by toolchain
+        id: label
+        shell: pwsh
+        run: |
+          $src = Get-ChildItem installer-output/Platemaker-*-Setup.exe | Select-Object -First 1
+          if (-not $src) { throw "No installer produced in installer-output/" }
+          $dst = $src.FullName -replace '-Setup\.exe$', "-${{ matrix.toolchain }}-Setup.exe"
+          Move-Item $src.FullName $dst -Force
+          "installer=$dst" | Out-File $env:GITHUB_OUTPUT -Append -Encoding utf8
+          Write-Host "Installer: $dst"
+
       - uses: actions/upload-artifact@v7
         with:
-          name: installer
-          path: |
-            installer-output/Platemaker-*-Setup.exe
-            installer-output/Platemaker-*-SHA256SUMS.txt
+          name: installer-${{ matrix.toolchain }}
+          path: installer-output/Platemaker-*-${{ matrix.toolchain }}-Setup.exe
           if-no-files-found: error
 
       - name: Attest build provenance
         uses: actions/attest-build-provenance@v4
         with:
-          subject-path: installer-output/Platemaker-*-Setup.exe
+          subject-path: ${{ steps.label.outputs.installer }}
 
-      - name: Publish GitHub Release
-        if: startsWith(github.ref, 'refs/tags/')
-        uses: softprops/action-gh-release@v3
-        with:
-          tag_name: ${{ github.ref_name }}
-          fail_on_unmatched_files: true
-          files: |
-            installer-output/Platemaker-*-Setup.exe
-            installer-output/Platemaker-*-SHA256SUMS.txt
-
-      # Best-effort malware scan; appends the VirusTotal link to the release body. Self-skips without the
-      # secret, and never fails the release.
-      - name: Scan installer on VirusTotal
-        if: ${{ startsWith(github.ref, 'refs/tags/') && env.VT_API_KEY != '' }}
+      # VirusTotal — runs on dispatch too (this branch's whole point). The analysis URL goes to the run
+      # summary so both toolchains' verdicts are visible side by side without publishing a Release.
+      - name: Scan on VirusTotal
+        id: vt
+        if: env.VT_API_KEY != ''
         continue-on-error: true
         uses: crazy-max/ghaction-virustotal@v5
         with:
           vt_api_key: ${{ secrets.VT_API_KEY }}
-          github_token: ${{ github.token }}
-          update_release_body: true
-          files: installer-output/Platemaker-*-Setup.exe
+          files: ${{ steps.label.outputs.installer }}
+
+      - name: VirusTotal result to run summary
+        if: always()
+        shell: pwsh
+        run: |
+          $a = "${{ steps.vt.outputs.analysis }}"
+          "## VirusTotal — ${{ matrix.toolchain }}"                 | Out-File $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8
+          if ($a) { "``$a``"                                        | Out-File $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8 }
+          else    { "_(no result — VT_API_KEY unset or scan failed)_" | Out-File $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8 }

@@ -83,7 +83,7 @@ if(1)
     #   2. find_package                     — system install or CMAKE_PREFIX_PATH
     #   3. FetchContent                     — downloads pre-built package from GitHub Releases
     # ───────────────────────────────────────────────────────────────────────────────
-    set(LIBPLATEMAKER_VERSION "0.5.0")
+    set(LIBPLATEMAKER_VERSION "0.5.1")
     set(LIBPLATEMAKER_DIR "" CACHE PATH "Path to a local platemaker dev package")
     message("Local libplatemaker path: ${LIBPLATEMAKER_DIR}")
 
@@ -286,8 +286,14 @@ qt_generate_deploy_app_script(
     TARGET Platemaker
     OUTPUT_SCRIPT deploy_script
     NO_UNSUPPORTED_PLATFORM_ERROR
+    # Do NOT let windeployqt bundle the compiler runtime. For MSVC that means the ~25 MB
+    # vc_redist.x64.exe (a full nested installer-exe) is skipped — it bloated the installer to ~52 MB and
+    # its dropper-like shape tripped Defender's Wacatac ML on the installer. The MSVC runtime is instead
+    # shipped app-local via InstallRequiredSystemLibraries below (a few small DLLs). For MinGW the runtime
+    # comes from the lib package's own bin/ plus the MSYS2 override below.
+    NO_COMPILER_RUNTIME
 )
-install(SCRIPT ${deploy_script})   # windeployqt — deploys Qt's DLLs (incl. its older MinGW runtime)
+install(SCRIPT ${deploy_script})   # windeployqt — deploys Qt's DLLs (not the compiler runtime; see above)
 
 # MUST come AFTER windeployqt above. Installs platemaker.dll + all its MSYS2 dependency
 # DLLs (libvips, libuhdr, glib, …) AND the MSYS2 runtime (libwinpthread-1, libgcc_s_seh-1,
@@ -315,21 +321,32 @@ if(WIN32)
         FILES_MATCHING PATTERN "*.dll"
     )
 
-    # platemaker/libuhdr were built with MSYS2 MinGW64 — its compiler runtime DLLs
-    # (winpthreads/libgcc) are not part of the platemaker package itself, but
-    # Platemaker.exe needs an ABI-matching copy of them at install time, or it will
-    # fail to load libuhdr-1.dll with "punktu wejścia procedury pthread_cond_timedwait64".
-    set(PLATEMAKER_MSYS2_MINGW64_BIN "C:/msys64/mingw64/bin" CACHE PATH
-        "bin/ dir of the MSYS2 MinGW64 toolchain platemaker/libuhdr were built with")
-    if(EXISTS "${PLATEMAKER_MSYS2_MINGW64_BIN}/libwinpthread-1.dll")
-        install(FILES
-            "${PLATEMAKER_MSYS2_MINGW64_BIN}/libwinpthread-1.dll"
-            "${PLATEMAKER_MSYS2_MINGW64_BIN}/libgcc_s_seh-1.dll"
-            DESTINATION ${CMAKE_INSTALL_BINDIR}
-        )
-    else()
-        message(WARNING "MSYS2 MinGW64 runtime not found at ${PLATEMAKER_MSYS2_MINGW64_BIN} — "
-                         "Platemaker.exe may fail to load libuhdr-1.dll on machines without MSYS2.")
+    # MinGW only: platemaker/libuhdr were built with MSYS2 MinGW64 — its compiler runtime DLLs
+    # (winpthreads/libgcc) are not part of the platemaker package itself, but Platemaker.exe needs an
+    # ABI-matching copy of them at install time, or it fails to load libuhdr-1.dll with
+    # "punktu wejścia procedury pthread_cond_timedwait64". The MSVC build has no MinGW runtime — skip.
+    if(MINGW)
+        set(PLATEMAKER_MSYS2_MINGW64_BIN "C:/msys64/mingw64/bin" CACHE PATH
+            "bin/ dir of the MSYS2 MinGW64 toolchain platemaker/libuhdr were built with")
+        if(EXISTS "${PLATEMAKER_MSYS2_MINGW64_BIN}/libwinpthread-1.dll")
+            install(FILES
+                "${PLATEMAKER_MSYS2_MINGW64_BIN}/libwinpthread-1.dll"
+                "${PLATEMAKER_MSYS2_MINGW64_BIN}/libgcc_s_seh-1.dll"
+                DESTINATION ${CMAKE_INSTALL_BINDIR}
+            )
+        else()
+            message(WARNING "MSYS2 MinGW64 runtime not found at ${PLATEMAKER_MSYS2_MINGW64_BIN} — "
+                             "Platemaker.exe may fail to load libuhdr-1.dll on machines without MSYS2.")
+        endif()
+    endif()
+
+    # MSVC only: ship the Visual C++ runtime app-local (vcruntime140*.dll, msvcp140.dll — a few small
+    # DLLs) instead of the ~25 MB vc_redist.x64.exe that NO_COMPILER_RUNTIME (above) disabled. This is the
+    # canonical CMake mechanism and Microsoft-supported app-local redistribution; it keeps the installer
+    # lean and drops the nested-installer-exe shape that tripped Defender's Wacatac ML on the installer.
+    if(MSVC)
+        set(CMAKE_INSTALL_SYSTEM_RUNTIME_DESTINATION "${CMAKE_INSTALL_BINDIR}")
+        include(InstallRequiredSystemLibraries)
     endif()
 endif()
 

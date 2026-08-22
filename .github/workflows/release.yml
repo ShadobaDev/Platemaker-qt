@@ -1,23 +1,19 @@
-# Release pipeline for the GUI: on a bare version tag (e.g. 1.3.1), build the Windows installer, attach
-# a build-provenance attestation, and upload the installer + its SHA256SUMS to a GitHub Release.
+# Release pipeline for the GUI: on a bare version tag (e.g. 1.4.3), build the Windows installer, attach a
+# build-provenance attestation, and upload the installer + its SHA256SUMS to a GitHub Release.
 #
-# Windows-only (the installer is Inno Setup). Unlike the lib, this needs Qt and a MinGW compiler, and it
-# depends on the LIB: CMake downloads `platemaker-dev-<LIBPLATEMAKER_VERSION>-windows-mingw-release.zip`
-# from the lib's GitHub Release. PREREQUISITES to go green:
-#   1. The lib Release for the pinned LIBPLATEMAKER_VERSION (currently 0.3.1) must expose that MinGW dev
-#      asset — otherwise the configure step 404s. (Confirm on the lib's Releases page.)
-#   2. The Qt MinGW toolchain must be ABI-compatible with that lib archive. Both are MinGW/GCC, and this
-#      is exactly what works locally (Qt-MinGW app + MSYS2-built lib), so it should hold on CI too; the
-#      config-package guard will FATAL_ERROR loudly if not.
-#   3. Verify the Qt MinGW tool id (`tools_mingw1310` below) matches Qt 6.11.1 — `aqt list-tool windows
-#      desktop tools_mingw` if unsure.
+# MSVC-only. The app is built with MSVC 2022 (not MinGW): a MinGW-compiled, unsigned build trips a Defender
+# ML false positive (Wacatac.B!ml) on both libplatemaker.dll and the installer; the MSVC build is clean.
+# Because Qt 6.11 supports MSVC 2022 and windows-latest has moved to the VS 2026 image, the job runs on
+# windows-2022 (which ships VS 2022). It depends on the LIB: CMake downloads
+# `platemaker-dev-<LIBPLATEMAKER_VERSION>-windows-msvc-release.zip` from the lib's GitHub Release, so that
+# lib version's MSVC dev asset must exist (0.5.1+ publishes it; 0.5.0 was MinGW-only).
 #
 # Add a `VT_API_KEY` repo secret (this repo, separately from the lib) to enable the VirusTotal step.
 name: Release
 
 on:
   push:
-    tags: ['*.*.*']          # bare versions: 1.3.1
+    tags: ['*.*.*']          # bare versions: 1.4.3
   workflow_dispatch:         # manual build validation (no Release — the publish/VT steps are tag-only)
 
 permissions:
@@ -27,18 +23,15 @@ permissions:
 
 jobs:
   installer:
-    runs-on: windows-latest
+    runs-on: windows-2022    # VS 2022 — matches Qt 6.11's MSVC 2022 support and the lib's MSVC package
     env:
       VT_API_KEY: ${{ secrets.VT_API_KEY }}
     steps:
       - uses: actions/checkout@v7
 
-      # Qt (win64_mingw) + Qt's MinGW compiler. This is how CI gets Qt without Qt Creator: install-qt-action
-      # wraps aqtinstall, which downloads the exact Qt build from Qt's servers (open-source/LGPL, no account).
-      # Qt 6.11 changed its online-repo folder layout; aqtinstall only handles it on git master (fix for
-      # issue #1007), NOT in the latest release (3.3.0) that install-qt-action pins. So we drive aqt
-      # directly from git and set the Qt/MinGW env ourselves. Switch back to install-qt-action once a
-      # fixed aqt is released (> 3.3.0).
+      # Qt (win64_msvc2022_64). aqtinstall is driven from git master because aqt 3.3.0 does not yet handle
+      # Qt 6.11's online-repo layout (miurahr/aqtinstall#1007). The MSVC compiler comes from the runner's
+      # VS 2022 (activated by msvc-dev-cmd below); Qt does not ship a compiler for MSVC.
       - uses: actions/setup-python@v7
         with:
           python-version: '3.12'
@@ -47,41 +40,41 @@ jobs:
         shell: pwsh
         run: python -m pip install --upgrade "git+https://github.com/miurahr/aqtinstall.git"
 
-      - name: Install Qt 6.11.1 (MinGW) + toolchain
+      - name: Install Qt 6.11.1 (MSVC 2022)
         shell: pwsh
-        run: |
-          python -m aqt install-qt   windows desktop 6.11.1 win64_mingw --outputdir "${{ github.workspace }}\Qt"
-          python -m aqt install-tool windows desktop tools_mingw1310     --outputdir "${{ github.workspace }}\Qt"
+        run: python -m aqt install-qt windows desktop 6.11.1 win64_msvc2022_64 --outputdir "${{ github.workspace }}\Qt"
 
-      - name: Set Qt + MinGW environment
+      # Put cl.exe + the VS 2022 x64 environment on PATH for the Ninja build.
+      - name: Set up MSVC 2022 environment
+        uses: ilammy/msvc-dev-cmd@v1
+        with:
+          arch: x64
+
+      - name: Set Qt environment
         shell: pwsh
         run: |
-          $qt = "${{ github.workspace }}\Qt\6.11.1\mingw_64"
+          $qt = "${{ github.workspace }}\Qt\6.11.1\msvc2022_64"
           if (-not (Test-Path "$qt\bin\qmake.exe")) { throw "Qt not found at $qt" }
-          $mingw = (Get-ChildItem "${{ github.workspace }}\Qt\Tools\mingw*_64\bin" -Directory | Select-Object -First 1).FullName
-          if (-not $mingw) { throw "MinGW toolchain not found under Qt\Tools" }
-          Write-Host "Qt:    $qt"
-          Write-Host "MinGW: $mingw"
-          # CMAKE_PREFIX_PATH lets find_package(Qt6) resolve; the two bins give windeployqt/moc/uic + gcc.
+          Write-Host "Qt: $qt"
+          # CMAKE_PREFIX_PATH lets find_package(Qt6) resolve; $qt\bin gives windeployqt/moc/uic.
           "CMAKE_PREFIX_PATH=$qt" | Out-File $env:GITHUB_ENV  -Append -Encoding utf8
           "$qt\bin"               | Out-File $env:GITHUB_PATH -Append -Encoding utf8
-          $mingw                  | Out-File $env:GITHUB_PATH -Append -Encoding utf8
 
       - name: Install Ninja + Inno Setup
         shell: pwsh
         run: choco install ninja innosetup --no-progress -y
 
-      # Configure (downloads libplatemaker from its Release) + build the Inno Setup installer, which also
-      # writes installer-output/Platemaker-<ver>-SHA256SUMS.txt (our checksum step).
+      # Configure (downloads the MSVC libplatemaker dev package from its Release) + build the Inno Setup
+      # installer, which also writes installer-output/Platemaker-<ver>-SHA256SUMS.txt. Single-config Ninja
+      # needs an explicit build type.
       - name: Configure & build installer
         shell: pwsh
         run: |
-          cmake -B build -S . -G Ninja
+          cmake -B build -S . -G Ninja -DCMAKE_BUILD_TYPE=Release
           cmake --build build --target installer
 
-      # Expose the installer (+ checksum) as a run artifact so it's downloadable from any run — including
-      # a workflow_dispatch validation build, which doesn't publish a Release. (On a tag, it's also
-      # uploaded to the Release below.)
+      # Expose the installer (+ checksum) as a run artifact so it's downloadable from any run — including a
+      # workflow_dispatch validation build, which doesn't publish a Release.
       - uses: actions/upload-artifact@v7
         with:
           name: installer

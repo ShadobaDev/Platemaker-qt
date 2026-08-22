@@ -306,6 +306,37 @@ needs a 3-yr-old org or individual verification). A self-signed cert does **not*
 doesn't trust it. **Decision: don't pay.** The items below instead give users a *verifiable* integrity
 and provenance trail; they do **not** remove the SmartScreen warning (set that expectation in docs).
 
+- [x] **Slim the MSVC installer — drop the bundled `vc_redist.x64.exe` (≈25 MB), ship the VC runtime
+  app-local.** The MSVC installer is ~52 MB vs MinGW's ~27 MB, and a file-list diff of the two (built
+  from the same commit on `ci/compare-mingw-msvc`) pins the whole gap on **one file**: windeployqt bundles
+  the full **Visual C++ Redistributable installer** `vc_redist.x64.exe` (via its default `--compiler-runtime`),
+  plus `dxcompiler.dll` + `dxil.dll`. MinGW instead ships three small runtime DLLs (`libgcc_s_seh-1`,
+  `libstdc++-6`, `libwinpthread-1`, ≈3 MB total).
+
+  **This is very likely also why Microsoft's `Wacatac.B!ml` came back on the MSVC *installer* while the
+  MSVC lib/exe are clean** (VT, 1.4.3, same commit): MinGW installer 2/70 — DeepInstinct + SecureAge, **no
+  Microsoft**; MSVC installer 2/68 — DeepInstinct + **Microsoft `Trojan:Win32/Wacatac.B!ml`**; standalone
+  MSVC `platemaker.dll` **0/71 clean**. So the app binaries are fine on MSVC — the FP is installer-level and
+  tracks the embedded `vc_redist.x64.exe`: an installer that carries *another* full installer-exe is a
+  dropper-like shape ML models weight. Dropping it should slim the installer to ≈30 MB **and** remove that
+  ML trigger.
+
+  **How:** stop windeployqt bundling the redist and ship the runtime DLLs next to `Platemaker.exe` instead
+  (Microsoft-supported app-local VC redist):
+  - Pass `--no-compiler-runtime` to windeployqt (via `qt_generate_deploy_app_script`'s `DEPLOY_TOOL_OPTIONS`,
+    Qt 6.7+ — verify against the Qt 6.11 docs), and optionally `--no-opengl-sw` is *not* wanted (both
+    toolchains ship it and it is harmless), but do consider excluding `dxcompiler.dll`/`dxil.dll` — the
+    DirectXShaderCompiler is for Qt Quick / RHI-D3D, and Platemaker is Qt Widgets.
+  - `install(FILES …)` the three VC runtime DLLs (`vcruntime140.dll`, `vcruntime140_1.dll`, `msvcp140.dll`)
+    from the VS redist dir (`$ENV{VCToolsRedistDir}/x64/Microsoft.VC143.CRT/`) into `bin/`, guarded by
+    `if(MSVC)` — the mirror of the existing `if(MINGW)` MSYS2-runtime block.
+  - **Verify** by re-scanning the slimmed MSVC installer on VirusTotal: size ≈ MinGW's, and (the real test)
+    whether the Microsoft Wacatac verdict clears.
+
+  Caveat: every verdict here is an ML/heuristic FP on an **unsigned** installer — DeepInstinct flags *both*
+  toolchains regardless. Slimming removes one strong ML trigger, it is not a guarantee; the only complete
+  fix for installer-level FPs remains **code signing** (see the "don't pay" decision above).
+
 - [ ] **Submit to winget (`winget-pkgs`)** — free community channel giving users a trusted
   `winget install Platemaker` path; the manifest validates the installer's SHA-256. Cleaner than a raw
   `.exe` download (doesn't remove SmartScreen on direct download, but the winget flow is smoother).

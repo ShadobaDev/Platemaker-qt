@@ -214,12 +214,12 @@ if(1)
       \"SPDXID\": \"SPDXRef-Package-Platemaker\",
       \"name\": \"Platemaker\",
       \"versionInfo\": \"${PROJECT_VERSION}\",
-      \"supplier\": \"Organization: ShadobaDev\",
+      \"supplier\": \"Person: ShadobaDev (Bartlomiej Mucha)\",
       \"downloadLocation\": \"https://github.com/ShadobaDev/Platemaker-qt\",
       \"filesAnalyzed\": false,
       \"licenseConcluded\": \"GPL-3.0-only\",
       \"licenseDeclared\": \"GPL-3.0-only\",
-      \"copyrightText\": \"Copyright (c) 2026 ShadobaDev\",
+      \"copyrightText\": \"Copyright (c) 2026 ShadobaDev (Bartlomiej Mucha)\",
       \"externalRefs\": [ { \"referenceCategory\": \"PACKAGE-MANAGER\", \"referenceType\": \"purl\", \"referenceLocator\": \"pkg:github/ShadobaDev/Platemaker-qt@${PROJECT_VERSION}\" } ]
     }")
     string(JSON _pm_sbom SET "${_pm_sbom}" packages "${_pm_npkg}" "${_pm_qt_pkg}")

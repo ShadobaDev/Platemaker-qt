@@ -2,7 +2,10 @@
 #ifndef MyAppVersion
   #define MyAppVersion "1.0.0"
 #endif
-#define MyAppPublisher "Bartłomiej Mucha"
+; Publisher identity, single source for AppPublisher + the VersionInfo* fields below.
+; Keep in step with app/version.rc.in (which uses an ASCII spelling - .rc files are read
+; in the system codepage by rc.exe, so a non-ASCII name would mangle on a US-locale runner).
+#define MyAppPublisher "ShadobaDev (Bartłomiej Mucha)"
 #define MyAppExeName "Platemaker.exe"
 #define MyInstallDir "install"
 
@@ -18,6 +21,14 @@ OutputDir=installer-output
 OutputBaseFilename=Platemaker-{#MyAppVersion}-Setup
 SetupIconFile=icons\icon-blue.ico
 UninstallDisplayIcon={app}\bin\{#MyAppExeName}
+
+; Version info for Setup.exe itself. Inno derives CompanyName from AppPublisher,
+; FileDescription from AppName, and ProductName/ProductVersion from AppName/AppVersion,
+; but leaves FileVersion, LegalCopyright and OriginalFilename empty unless set here.
+; (InternalName has no Inno directive and stays empty.)
+VersionInfoVersion={#MyAppVersion}
+VersionInfoCopyright=Copyright (C) 2026 {#MyAppPublisher} - GPL-3.0-or-later
+VersionInfoOriginalFileName=Platemaker-{#MyAppVersion}-Setup.exe
 LicenseFile=LICENSE
 Compression=lzma2/ultra64
 SolidCompression=yes

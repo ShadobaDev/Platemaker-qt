@@ -1,5 +1,33 @@
 # Changelog
 
+## [1.4.3] — 23.08.2026
+
+Built with **MSVC 2022** instead of MinGW (requires libplatemaker **0.5.1**'s MSVC package). The switch
+responds to a Microsoft Defender ML false positive (`Wacatac.B!ml`) that flags MinGW-compiled, unsigned
+binaries; the MSVC build of the same sources is clean at the binary level. Also bumps Qt to 6.11.2 and
+slims the installer.
+
+### Changed
+
+- **Windows binaries are now built with MSVC 2022** (previously MinGW). Requires libplatemaker **0.5.1**
+  (its MSVC dev package). MinGW and MSVC are ABI-incompatible, so this is a hard toolchain switch — the
+  lib's package config enforces a matching toolchain at configure time.
+- **Leaner installer.** The MSVC C++ runtime ships as small app-local DLLs (`vcruntime140`/`msvcp140`)
+  instead of bundling the ~25 MB `vc_redist.x64.exe`, and unused Qt plugins (network / TLS / touch) are
+  excluded from deployment — dropping the whole networking stack the app never used.
+- **Qt updated to 6.11.2.**
+
+### Added
+
+- **The About dialog shows the build compiler and platform** ("Built with … for …"), read from the loaded
+  libplatemaker at runtime.
+
+### Notes
+
+- The unsigned installer/executable may still be flagged by some antivirus ML engines — a known false
+  positive for unsigned apps, not an infection. Verify against the published VirusTotal report and the
+  build-provenance attestation on the release. A signed build is the durable fix (tracked in the TODO).
+
 ## [1.4.2] — 22.08.2026
 
 Built against **libplatemaker 0.5.0**, adopting the lib's new render output contract (lib SPECIFICATION

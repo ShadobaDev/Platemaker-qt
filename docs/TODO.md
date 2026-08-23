@@ -15,11 +15,14 @@ work happens in.
 - **Cascade.** Whichever section releases first takes its slot; the rest re-derive from the new
   baseline.
 
-Baseline: **1.4.1 released (2026-08-16), 1.4.2 in progress** (`CMakeLists.txt`). 1.4.0 (2026-08-07)
+Baseline: **1.4.2 released (2026-08-22), 1.4.3 in progress** (`CMakeLists.txt`). 1.4.3 is a patch — the
+Windows toolchain moved MinGW → MSVC (to dodge the Defender/MinGW false positive), the installer was
+slimmed (app-local VC runtime, unused Qt plugins dropped), Qt bumped to 6.11.2, and the lib pin to
+**0.5.1**. 1.4.0 (2026-08-07)
 added the *New from this…* project action, render-log persistence, the render summary and the restyled
 progress bar. 1.4.1 is a patch — the DLL search-path hardening, the drag-and-drop fix, `Platemaker.exe`
 version metadata, and a bump to **libplatemaker 0.4.1** (metadata-only) so the bundled DLL also carries
-identity metadata. The next patch bucket is **1.4.2**; the next feature bucket re-derives to **1.5.0**.
+identity metadata. The next patch bucket is **1.4.3**; the next feature bucket re-derives to **1.5.0**.
 
 ---
 

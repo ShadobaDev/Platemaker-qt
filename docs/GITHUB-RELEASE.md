@@ -72,6 +72,10 @@ appends the report link to the release body.
 
 - Update the README's **Latest verified build** block (`README.md`) with this release's filename, its
   **SHA-256** (from `SHA256SUMS.txt`), and the VirusTotal link — those are per-release facts.
+- **If the VirusTotal scan shows a Microsoft `Wacatac.*!ml` verdict**, file a Defender false-positive
+  report for this release's hashes — the installer (and the bare `Platemaker.exe` if it also flags).
+  Per-hash and temporary, so it must be redone every release. Procedure + paste-ready justification:
+  [`WDSI-FP-SUBMISSION.md`](WDSI-FP-SUBMISSION.md).
 - (Optional) list it on itch.io / announce it.
 
 ## Rollback — if you pushed a tag on a bad build

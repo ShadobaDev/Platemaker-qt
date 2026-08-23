@@ -26,7 +26,7 @@ identity metadata. The next patch bucket is **1.4.3**; the next feature bucket r
 
 ---
 
-## PATCH — next: 1.4.2
+## PATCH — next: 1.4.4
 
 Bug fixes, cosmetics and internal cleanups — no new capability, no change to an existing workflow.
 
@@ -339,6 +339,17 @@ and provenance trail; they do **not** remove the SmartScreen warning (set that e
   Caveat: every verdict here is an ML/heuristic FP on an **unsigned** installer — DeepInstinct flags *both*
   toolchains regardless. Slimming removes one strong ML trigger, it is not a guarantee; the only complete
   fix for installer-level FPs remains **code signing** (see the "don't pay" decision above).
+
+- [ ] **Portable ZIP distribution** — a no-install `Platemaker-<ver>-portable.zip` alongside the
+  installer: single top folder with `Platemaker.exe` at its root (flat layout, `qt.conf` → `Prefix = .`),
+  built by a new `portable` CMake target that repackages the existing `install/` staging (no second
+  deploy). Design + wiring in [`temp/portable-zip-idea.md`](../temp/portable-zip-idea.md). *Approved in
+  principle, not implemented — confirm flat layout first.*
+
+- [ ] **Free code signing via SignPath.io OSS** — reconsider the "don't pay" stance: SignPath's Open
+  Source program grants a **free real Authenticode cert** (OV-class), which is the one option that actually
+  clears the Defender `Wacatac!ml` FP. Sigstore/GPG don't (Windows ignores them for `.exe`). Full
+  evaluation + next research step in [`temp/code-signing-options.md`](../temp/code-signing-options.md).
 
 - [ ] **Submit to winget (`winget-pkgs`)** — free community channel giving users a trusted
   `winget install Platemaker` path; the manifest validates the installer's SHA-256. Cleaner than a raw

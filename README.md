@@ -236,8 +236,23 @@ Third-party components:
   linked via libplatemaker; its own dependency DLLs ship alongside it on Windows
 - **nlohmann/json** — MIT, header-only (compiled into libplatemaker, not linked separately)
 
+Platemaker is distributed under open-source licences only — there is no commercial or
+dual-licensed edition (see [CLA §7](CLA.md#7-current-licensing-status)).
+
+---
+
+## Download integrity & code signing
+
+Every release publishes SHA-256 checksums and a GitHub build-provenance attestation, so you
+can verify that an installer really came from this repository. How to check a download — and
+how signing is handled — is documented in the **[code signing policy](docs/CODE-SIGNING-POLICY.md)**.
+
+If your antivirus flags the installer, read that page first: unsigned binaries from small
+projects are routinely flagged by ML heuristics without anything actually being detected.
+
 ---
 
 ## Contributing
 
-Contributions are welcome. By opening a pull request you agree to the **[Contributor License Agreement](CLA.md)**.
+Contributions are welcome. By opening a pull request you agree to the **[Contributor License Agreement](CLA.md)**
+and the **[Code of Conduct](CODE_OF_CONDUCT.md)**.

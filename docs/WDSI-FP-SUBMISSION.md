@@ -34,6 +34,16 @@ Detection names drift. Read the exact current one from either:
 Seen historically: installer → `Wacatac.B!ml`; bare exe → `Wacatac.C!ml`. Use whatever the
 file shows now.
 
+**Confirmed for 1.4.3** (`0af852fec2a720cc2ccffdc408a653c11941f43c1156a5984eecb6b66ef786a7`,
+checked 2026-08-23): Microsoft reports **`Trojan:Win32/Wacatac.C!ml`** on the installer.
+VirusTotal permalink for that hash — paste this into the justification:
+<https://www.virustotal.com/gui/file/0af852fec2a720cc2ccffdc408a653c11941f43c1156a5984eecb6b66ef786a7>
+
+The other two engines flagging this file are DeepInstinct and SecureAge. (VirusTotal's web
+UI labels the latter **SecureAge**, while the API returns it under the key **APEX** —
+SecureAge's engine is named APEX. Same engine, two labels; don't mistake it for a fourth
+detection.) Only the **Microsoft** verdict matters for a WDSI submission — ignore the rest.
+
 ## Steps
 1. Go to **https://www.microsoft.com/en-us/wdsi/filesubmission**
 2. **Sign in with a Microsoft account** (gives a tracking dashboard + status emails).
@@ -48,27 +58,49 @@ file shows now.
 Replace `<ver>` and the VirusTotal permalink.
 
 ```
-This file is the official release installer of Platemaker, a free, open-source desktop
-application for comic/webtoon artists (joins and slices artwork into upload-ready panels).
-I am the developer and maintainer.
+Platemaker is a free, open-source (GPL-3.0) desktop application for comic and webtoon
+artists. I am its developer and maintainer. It contains no malicious code, and none was
+placed in it, knowingly or otherwise.
 
-I believe the detection (Trojan:Win32/Wacatac.*!ml) is a machine-learning false positive
-on an unsigned, low-prevalence binary. The application contains no malicious functionality:
-it runs fully offline, performs no network communication (the Qt Network/TLS plugins are
-deliberately excluded from the build), collects no user data, and only reads/writes local
-image and project files chosen by the user.
+The build is verifiable end to end: this binary is produced by a public GitHub Actions
+workflow and carries an actions/attest-build-provenance attestation tying it to the exact
+public source commit it was built from.
+- Source:     https://github.com/ShadobaDev/Platemaker-qt
+- Release:    https://github.com/ShadobaDev/Platemaker-qt/releases/tag/<ver>
+- VirusTotal: <permalink>
 
-Provenance and verifiability:
-- Source code (GPL-3.0), fully public: https://github.com/ShadobaDev/Platemaker-qt
-- This exact artifact is produced by a public GitHub Actions release pipeline with a
-  build-provenance attestation (actions/attest-build-provenance) and published SHA-256
-  checksums.
-- Release page: https://github.com/ShadobaDev/Platemaker-qt/releases/tag/<ver>
-- VirusTotal report for this file: <paste the VirusTotal permalink for THIS hash>
+The file is an Inno Setup installer wrapping a C++ application built with MSVC 2022 and its
+dependency DLLs. The installer's payload is compressed, which accounts for the file's high
+entropy; there is no packer and no obfuscation, and VirusTotal reports none. All three of
+VirusTotal's sandboxes report no malicious behaviour, and Zenbox returns an explicit CLEAN
+verdict: no network traffic, no persistence, no services created.
 
-The binary is built with MSVC 2022, is not packed, and uses no obfuscation. Please
-re-evaluate and whitelist this hash. Thank you.
+Please re-evaluate and clear this hash.
 ```
+
+> **Submitting `Platemaker.exe` instead of the installer?** Replace the first sentence of
+> that last paragraph with: *"The file is a C++ application built with MSVC 2022."* — and
+> drop the clause about compressed payload and entropy, which applies only to the installer.
+
+## The other two engines — same file, separate submissions
+
+Microsoft is the one that matters most to users, but it is not the only engine flagging the
+installer. Both others accept false-positive reports directly, and neither needs a rebuild —
+the same hash and the same justification text work:
+
+| Engine | Where to report |
+|---|---|
+| **Deep Instinct** | `vt-fps-requests@deepinstinct.com` — email, specifically for VirusTotal false positives |
+| **SecureAge APEX** | <https://www.secureage.com/contact-us> (use the bottom option), or the form at <https://www.secureaplus.com/features/antivirus/report-false-positive/> |
+
+For both, send the **same justification text** as above, with the detection name changed to
+what that engine reports (Deep Instinct: `MALICIOUS`; SecureAge: `Malicious` — neither uses a
+family name), plus the SHA-256 and the VirusTotal permalink. For the email, a subject line of
+`False positive — Platemaker-<ver>-Setup.exe — SHA-256 <hash>` is enough.
+
+Same caveat as Microsoft: clearance is **per hash**, so every release needs the round again.
+That is precisely the recurring cost a code-signing certificate removes
+([code signing policy](CODE-SIGNING-POLICY.md)).
 
 ## After submitting
 - Turnaround ~24–72 h; verdict lands on the dashboard/email.

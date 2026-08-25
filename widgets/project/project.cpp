@@ -141,7 +141,7 @@ Project::Project(int projectIndex,
 
     // Auto-sort rules are not implemented yet. Grey the whole group out (setEnabled(false) disables
     // every child) and flag the fields "Coming soon" so the UI doesn't offer inputs that do nothing.
-    // Remove this stopgap when the auto-sort feature lands (tracked in the GUI TODO).
+    // Remove this stopgap when the auto-sort feature lands.
     ui->groupBoxAutosort->setEnabled(false);
     ui->groupBoxAutosort->setTitle(tr("Auto-sort rules (coming soon):"));
     const QString comingSoon = tr("Coming soon");

@@ -158,7 +158,7 @@ bool MainWindow::startRender(int projectIndex)
     }
 
     // Refresh file statuses against disk and against the canvas profiles in effect
-    // (hashes inputs — may briefly pause on huge projects; see TODO).
+    // (hashes inputs — may briefly pause on huge projects).
     project.sanitize(m_workspace.canvasProfiles());
     if (auto *pw = projectWidget(projectIndex)) pw->populate();
 

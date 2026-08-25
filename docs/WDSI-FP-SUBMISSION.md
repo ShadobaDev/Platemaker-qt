@@ -14,6 +14,15 @@ durable fix is a real code-signing certificate from a trusted CA (see
 [`temp/code-signing-options.md`](../temp/code-signing-options.md)). WDSI is the bridge
 until then.
 
+## Submission log
+
+Which release hashes have been reported to Microsoft and cleared. Every new release is a new hash — add a
+row each time you submit, and update the status when Microsoft's verdict lands.
+
+| Version | File | Detection reported | Submitted | Status |
+|---|---|---|---|---|
+| 1.4.3 | `Platemaker-1.4.3-Setup.exe` (`0af852f…6a7`) | `Trojan:Win32/Wacatac.C!ml` | 2026-08-23 | **Cleared by Microsoft** (2026-08-25) |
+
 ## Which files to submit
 Submit the **exact artifacts users download from the GitHub Release** — clearance is tied
 to the file hash, so a locally-built copy (different hash) won't help real users.

@@ -1,5 +1,14 @@
 # Changelog
 
+## [Unreleased]
+
+### Added
+
+- **Portable ZIP distribution.** Alongside the installer, the release now ships
+  `Platemaker-<ver>-portable.zip` — unzip and run, no installation. The exe sits at the root of the single
+  `Platemaker-<ver>/` folder (with its DLLs; `plugins/` and `translations/` alongside), so there's nothing
+  to dig into. Build it with `cmake --build <dir> --target portable` (or `scripts/make_portable.ps1`).
+
 ## [1.4.3] — 23.08.2026
 
 Built with **MSVC 2022** instead of MinGW (requires libplatemaker **0.5.1**'s MSVC package). The switch

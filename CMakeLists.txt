@@ -398,5 +398,37 @@ if(WIN32)
     else()
         message(STATUS "Inno Setup not found -- install via: winget install JRSoftware.InnoSetup")
     endif()
+
+    # --- Portable ZIP target (no Inno Setup needed) --------------------------
+    # Same staged install/ tree as the installer, flattened so the exe sits at the folder root after unzip
+    # (no digging into bin/). Reuses make_checksums.cmake for the .zip's SHA256SUMS; zips with the built-in
+    # `cmake -E tar` (no external zip tool). Output lands in installer-output/ beside the setup exe.
+    set(_pm_portable_out "${CMAKE_CURRENT_SOURCE_DIR}/installer-output")
+    set(_pm_portable_zip  "${_pm_portable_out}/Platemaker-${PROJECT_VERSION}-portable.zip")
+    set(_pm_portable_sums "${_pm_portable_out}/Platemaker-${PROJECT_VERSION}-portable-SHA256SUMS.txt")
+
+    add_custom_target(portable
+        DEPENDS Platemaker
+        COMMAND ${CMAKE_COMMAND} --install "${CMAKE_BINARY_DIR}"
+                --prefix "${INSTALLER_INSTALL_PREFIX}"
+        COMMAND ${CMAKE_COMMAND}
+                "-DSRC=${INSTALLER_INSTALL_PREFIX}"
+                "-DVERSION=${PROJECT_VERSION}"
+                "-DDEST=${_pm_portable_out}"
+                -P "${CMAKE_CURRENT_SOURCE_DIR}/cmake/make_portable.cmake"
+        # chdir into the output dir so the archive stores the top-level Platemaker-<ver>/ folder, not an
+        # absolute path. --format=zip is CMake's own libarchive — no external zip tool.
+        COMMAND ${CMAKE_COMMAND} -E chdir "${_pm_portable_out}"
+                ${CMAKE_COMMAND} -E tar cf "Platemaker-${PROJECT_VERSION}-portable.zip" --format=zip
+                "Platemaker-${PROJECT_VERSION}"
+        COMMAND ${CMAKE_COMMAND}
+                "-DINSTALLER_FILE=${_pm_portable_zip}"
+                "-DOUTPUT=${_pm_portable_sums}"
+                -P "${CMAKE_CURRENT_SOURCE_DIR}/cmake/make_checksums.cmake"
+        WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+        COMMENT "Building portable ZIP for Platemaker ${PROJECT_VERSION}..."
+        VERBATIM
+    )
+    message(STATUS "Portable ZIP target available -- run: cmake --build . --target portable")
 endif()
 

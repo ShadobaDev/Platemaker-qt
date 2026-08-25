@@ -72,6 +72,7 @@ jobs:
         run: |
           cmake -B build -S . -G Ninja -DCMAKE_BUILD_TYPE=Release
           cmake --build build --target installer
+          cmake --build build --target portable
 
       # Expose the installer (+ checksum) as a run artifact so it's downloadable from any run — including a
       # workflow_dispatch validation build, which doesn't publish a Release.
@@ -80,13 +81,16 @@ jobs:
           name: installer
           path: |
             installer-output/Platemaker-*-Setup.exe
+            installer-output/Platemaker-*-portable.zip
             installer-output/Platemaker-*-SHA256SUMS.txt
           if-no-files-found: error
 
       - name: Attest build provenance
         uses: actions/attest-build-provenance@v4
         with:
-          subject-path: installer-output/Platemaker-*-Setup.exe
+          subject-path: |
+            installer-output/Platemaker-*-Setup.exe
+            installer-output/Platemaker-*-portable.zip
 
       - name: Publish GitHub Release
         if: startsWith(github.ref, 'refs/tags/')
@@ -96,6 +100,7 @@ jobs:
           fail_on_unmatched_files: true
           files: |
             installer-output/Platemaker-*-Setup.exe
+            installer-output/Platemaker-*-portable.zip
             installer-output/Platemaker-*-SHA256SUMS.txt
 
       # Best-effort malware scan; appends the VirusTotal link to the release body. Self-skips without the

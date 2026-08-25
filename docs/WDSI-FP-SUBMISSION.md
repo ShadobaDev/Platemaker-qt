@@ -35,6 +35,11 @@ to the file hash, so a locally-built copy (different hash) won't help real users
 
 Submit each flagged file as a **separate** submission.
 
+> **Portable ZIP.** The release also ships `Platemaker-<ver>-portable.zip`. Its
+> `Platemaker.exe` is **byte-identical** to the installed one, so the bare-exe submission
+> above clears both. Only submit the zip itself if a scanner flags the *archive* (rare —
+> Defender's Wacatac ML flags the PE, not the container).
+
 ## Before you submit — confirm the current detection name
 Detection names drift. Read the exact current one from either:
 - Windows Defender **Protection history** (names e.g. `Trojan:Win32/Wacatac.B!ml`), or

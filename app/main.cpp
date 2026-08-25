@@ -109,7 +109,7 @@ int main(int argc, char *argv[])
 
     // Log the in-flight C++ exception on a terminate() — an uncaught exception escaping a slot / the
     // event loop, a noexcept violation, or a pure-virtual call — so it lands in the Qt log / debugger
-    // output instead of a silent abort. Cheap C++-side hygiene (see docs/TODO.md); it does NOT catch a
+    // output instead of a silent abort. Cheap C++-side hygiene; it does NOT catch a
     // hardware fault such as a segfault (that is an OS signal / SEH, not a C++ exception).
     std::set_terminate([] {
         if (std::exception_ptr e = std::current_exception()) {

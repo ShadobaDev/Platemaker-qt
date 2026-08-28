@@ -48,6 +48,7 @@ qt_add_executable(Platemaker
     widgets/managecanvasprofilesdialog/managecanvasprofilesdialog.cpp widgets/managecanvasprofilesdialog/managecanvasprofilesdialog.h widgets/managecanvasprofilesdialog/managecanvasprofilesdialog.ui
     widgets/manageoutputprofilesdialog/manageoutputprofilesdialog.cpp widgets/manageoutputprofilesdialog/manageoutputprofilesdialog.h widgets/manageoutputprofilesdialog/manageoutputprofilesdialog.ui
     widgets/outputprofiledialog/outputprofiledialog.cpp widgets/outputprofiledialog/outputprofiledialog.h widgets/outputprofiledialog/outputprofiledialog.ui
+    widgets/profilepickerdialog/profilepickerdialog.cpp widgets/profilepickerdialog/profilepickerdialog.h widgets/profilepickerdialog/profilepickerdialog.ui
     widgets/templatesdialog/templatesdialog.cpp widgets/templatesdialog/templatesdialog.h widgets/templatesdialog/templatesdialog.ui
     widgets/outputformatoptionswidget/outputformatoptionswidget.cpp widgets/outputformatoptionswidget/outputformatoptionswidget.h widgets/outputformatoptionswidget/outputformatoptionswidget.ui
     widgets/aboutdialog/aboutdialog.cpp widgets/aboutdialog/aboutdialog.h widgets/aboutdialog/aboutdialog.ui
@@ -67,6 +68,7 @@ target_include_directories(Platemaker PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/widgets/managecanvasprofilesdialog
     ${CMAKE_CURRENT_SOURCE_DIR}/widgets/manageoutputprofilesdialog
     ${CMAKE_CURRENT_SOURCE_DIR}/widgets/outputprofiledialog
+    ${CMAKE_CURRENT_SOURCE_DIR}/widgets/profilepickerdialog
     ${CMAKE_CURRENT_SOURCE_DIR}/widgets/templatesdialog
     ${CMAKE_CURRENT_SOURCE_DIR}/widgets/outputformatoptionswidget
     ${CMAKE_CURRENT_SOURCE_DIR}/widgets/aboutdialog
@@ -82,7 +84,7 @@ include(FetchContent)
 #   2. find_package                     — system install or CMAKE_PREFIX_PATH
 #   3. FetchContent                     — downloads pre-built package from GitHub Releases
 # ───────────────────────────────────────────────────────────────────────────────
-set(LIBPLATEMAKER_VERSION "0.5.1")
+set(LIBPLATEMAKER_VERSION "0.5.2")
 set(LIBPLATEMAKER_DIR "" CACHE PATH "Path to a local platemaker dev package")
 message("Local libplatemaker path: ${LIBPLATEMAKER_DIR}")
 
@@ -101,6 +103,10 @@ endif()
 # ProcessingPipeline::run() with the trailing thumbnailCacheDir argument (the render output contract,
 # lib SPECIFICATION §7.0), which does not exist before 0.5.0, so an older lib fails to compile. 0.5.0
 # also carries the atomic output publish + OutputLocked that fix the re-render write failures.
+#
+# Bumped to 0.5.2 for the profile-import/export feature: the GUI uses Infrastructure::ProfileBundleSerializer
+# and WorkspaceEditor::importProfiles (both new in 0.5.2), so an older lib fails to compile. 0.5.2 is not yet
+# on GitHub Releases — build the GUI against a locally-installed 0.5.2 dev package via LIBPLATEMAKER_DIR.
 find_package(platemaker ${LIBPLATEMAKER_VERSION} CONFIG QUIET)
 
 if(NOT platemaker_FOUND)

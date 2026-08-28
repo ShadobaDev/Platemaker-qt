@@ -81,6 +81,30 @@ Bug fixes, cosmetics and internal cleanups — no new capability, no change to a
 New, backward-compatible features. Several are gated on a lib version, noted in the item body.
 (The `[x]` items below shipped in 1.3.0 / 1.4.0; the open ones re-derive to the next MINOR.)
 
+- [ ] **Infinite strip and lookup system**
+  The problem is that during work user may want to see how does the full strip look like
+  Two ideas:
+  1. Built-in webtoon-like viewer. Problem are margins and general rendereing - the files will have to be either rendered on fly or stored in temporary location with option to save
+  2. Render infinite long strip either via designated output profile or separate button/menu option [Process]
+
+  Both options could be implemented.
+
+- [ ] **Import / export input and output profiles** — *lib side DONE; GUI pending.*
+  The lib now provides everything (see the lib TODO / changelog): a portable **profile bundle**
+  (`.platemaker.profiles.json`) via `Infrastructure::ProfileBundleSerializer`, and
+  `WorkspaceEditor::importProfiles` (fresh ids, template cleared, presets skipped — additive, so a
+  workspace stays self-contained). Needs a lib pin bump to the release that ships them.
+  GUI work:
+  - New **`widgets/importprofilesdialog/`** — cherry-pick list + inspection panel + "Inspect in editor…"
+    (a read-only mode added to the existing `CanvasProfileDialog` / `OutputProfileDialog`). Import
+    **sources**: another `.platemaker.json`, a `.platemaker.profiles.json` bundle, and a GUI-managed
+    **user library** (a bundle at a fixed `AppData` path, `user.platemaker.profiles.json`); plus Recent.
+  - An **"Import…"** button in the existing Manage dialogs (append to the working list → existing
+    `replace*Profiles` Accept path) and an **"Export…"** flow. A "Manage Profile Library" reuses the
+    Manage dialogs against the AppData bundle.
+  - The library is **only ever an import source** — no per-profile "global" flag; every workspace stays
+    self-contained. (See the planning doc for the full design.)
+
 - [ ] **Auto-sort rules** (`groupBoxAutosort`) — pattern/regex-based ordering:
   `lineEditInputNameRegex` body token (e.g. `chap_<num>` → chap_001, chap_002…),
   `lineEditPrependedRegex` (e.g. `title_<num>` first), `lineEditAppendedRegex`

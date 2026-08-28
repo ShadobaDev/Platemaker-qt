@@ -122,11 +122,15 @@ MainWindow::MainWindow(QWidget *parent)
     connect(ui->actionManage_profiles,      &QAction::triggered, this, &MainWindow::onManageCanvasProfiles);
     connect(ui->actionNew_canvas_profile,   &QAction::triggered, this, &MainWindow::onNewCanvasProfile);
     connect(ui->actionEdit_active_profile,  &QAction::triggered, this, &MainWindow::onEditActiveCanvasProfile);
+    connect(ui->actionImport_canvas_profiles, &QAction::triggered, this, &MainWindow::onImportCanvasProfiles);
+    connect(ui->actionExport_canvas_profiles, &QAction::triggered, this, &MainWindow::onExportCanvasProfiles);
 
     // --- Output menu ---
     connect(ui->actionManage_output_profiles, &QAction::triggered, this, &MainWindow::onManageOutputProfiles);
     connect(ui->actionNew_output_profile,     &QAction::triggered, this, &MainWindow::onNewOutputProfile);
     connect(ui->actionEdit_output_settings,   &QAction::triggered, this, &MainWindow::onEditActiveOutputProfile);
+    connect(ui->actionImport_output_profiles, &QAction::triggered, this, &MainWindow::onImportOutputProfiles);
+    connect(ui->actionExport_output_profiles, &QAction::triggered, this, &MainWindow::onExportOutputProfiles);
 
     // --- Projects panel (managed via the workspace dock's context menu) ---
     connect(ui->listWidgetProjects, &QListWidget::itemDoubleClicked,

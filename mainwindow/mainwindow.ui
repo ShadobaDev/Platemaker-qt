@@ -105,6 +105,9 @@ QTabWidget QTabBar::close-button {
     <addaction name="actionEdit_active_profile"/>
     <addaction name="separator"/>
     <addaction name="actionManage_profiles"/>
+    <addaction name="separator"/>
+    <addaction name="actionImport_canvas_profiles"/>
+    <addaction name="actionExport_canvas_profiles"/>
    </widget>
    <widget class="QMenu" name="menu_Output_Settings">
     <property name="title">
@@ -114,6 +117,9 @@ QTabWidget QTabBar::close-button {
     <addaction name="separator"/>
     <addaction name="actionNew_output_profile"/>
     <addaction name="actionManage_output_profiles"/>
+    <addaction name="separator"/>
+    <addaction name="actionImport_output_profiles"/>
+    <addaction name="actionExport_output_profiles"/>
    </widget>
    <widget class="QMenu" name="menuTemplates">
     <property name="title">
@@ -381,6 +387,38 @@ QTabWidget QTabBar::close-button {
   <action name="actionManage_output_profiles">
    <property name="text">
     <string>Manage output profiles</string>
+   </property>
+  </action>
+  <action name="actionImport_canvas_profiles">
+   <property name="text">
+    <string>Import canvas profiles…</string>
+   </property>
+   <property name="toolTip">
+    <string>Copy canvas profiles from another workspace, a profile bundle, or your library</string>
+   </property>
+  </action>
+  <action name="actionExport_canvas_profiles">
+   <property name="text">
+    <string>Export canvas profiles…</string>
+   </property>
+   <property name="toolTip">
+    <string>Save canvas profiles to a bundle file or your profile library</string>
+   </property>
+  </action>
+  <action name="actionImport_output_profiles">
+   <property name="text">
+    <string>Import output profiles…</string>
+   </property>
+   <property name="toolTip">
+    <string>Copy output profiles from another workspace, a profile bundle, or your library</string>
+   </property>
+  </action>
+  <action name="actionExport_output_profiles">
+   <property name="text">
+    <string>Export output profiles…</string>
+   </property>
+   <property name="toolTip">
+    <string>Save output profiles to a bundle file or your profile library</string>
    </property>
   </action>
   <action name="actionSet_output_directory">

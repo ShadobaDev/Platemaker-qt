@@ -94,6 +94,12 @@ private slots:
     void onNewOutputProfile();          //!< Prompts for a new output profile and adds it to the workspace.
     void onEditActiveOutputProfile();   //!< Opens the editor for the currently active output profile.
 
+    // Profile portability (import / export). Canvas + output are symmetric; see profiles.cpp.
+    void onImportCanvasProfiles();      //!< Imports canvas profiles from a workspace/bundle/library into this workspace.
+    void onExportCanvasProfiles();      //!< Exports selected canvas profiles to a bundle file or the user library.
+    void onImportOutputProfiles();      //!< Imports output profiles from a workspace/bundle/library into this workspace.
+    void onExportOutputProfiles();      //!< Exports selected output profiles to a bundle file or the user library.
+
     // Template actions
     void onManageTemplates();       //!< Opens the template management dialog.
     void onOpenTemplatesDir();      //!< Opens the system file explorer at the templates directory.
@@ -302,6 +308,37 @@ private:
      * captured snapshot. Robust against any action that forgot to setDirty().
      */
     [[nodiscard]] bool isWorkspaceModified() const;
+
+    // --- profile portability helpers (see profiles.cpp) ---
+
+    //! Shared body of the import slots. @p canvasKind selects the canvas palette (true) or the output
+    //! palette (false): choose a source, cherry-pick, then import through WorkspaceEditor::importProfiles.
+    void importProfilesFlow(bool canvasKind);
+
+    //! Shared body of the export slots: cherry-pick from the workspace's palette of the given kind,
+    //! then write a bundle file or merge into the user library.
+    void exportProfilesFlow(bool canvasKind);
+
+    //! Absolute path of the user's global profile library — a bundle in the OS app-data dir. The
+    //! library is purely a GUI convenience: an import source and an export target. The lib stays
+    //! app-data-agnostic, so the GUI owns this location. The parent directory is created on demand.
+    [[nodiscard]] QString userProfileLibraryPath() const;
+
+    //! Pops a source chooser (User library / a recent workspace / Browse…) and returns the chosen
+    //! file path, or an empty string if the user cancelled.
+    [[nodiscard]] QString chooseProfileImportSource();
+
+    //! Loads the canvas + output palettes from \p path, which may be a profile bundle
+    //! (.platemaker.profiles.json) or a full workspace (.platemaker.json) — distinguished by content.
+    //! Shows an error and returns false on failure.
+    bool loadProfilesFromFile(const QString&                                   path,
+                              std::vector<Platemaker::Models::CanvasProfile>&  canvasOut,
+                              std::vector<Platemaker::Models::OutputProfile>&  outputOut);
+
+    //! Merges the given profiles into the user library bundle (upsert by name for each kind, leaving
+    //! the other kind untouched), then saves it. Shows an error and returns false on failure.
+    bool addToUserLibrary(const std::vector<Platemaker::Models::CanvasProfile>& canvas,
+                          const std::vector<Platemaker::Models::OutputProfile>& output);
 
     // --- recent workspaces (advisory list in QSettings; never required) ---
     [[nodiscard]] QStringList recentWorkspaces() const;     //!< Returns a list of recently opened workspaces.

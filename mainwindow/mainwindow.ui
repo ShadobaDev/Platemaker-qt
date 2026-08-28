@@ -391,7 +391,7 @@ QTabWidget QTabBar::close-button {
   </action>
   <action name="actionImport_canvas_profiles">
    <property name="text">
-    <string>Import canvas profiles…</string>
+    <string>Import canvas profiles</string>
    </property>
    <property name="toolTip">
     <string>Copy canvas profiles from another workspace, a profile bundle, or your library</string>
@@ -399,7 +399,7 @@ QTabWidget QTabBar::close-button {
   </action>
   <action name="actionExport_canvas_profiles">
    <property name="text">
-    <string>Export canvas profiles…</string>
+    <string>Export canvas profiles</string>
    </property>
    <property name="toolTip">
     <string>Save canvas profiles to a bundle file or your profile library</string>
@@ -407,7 +407,7 @@ QTabWidget QTabBar::close-button {
   </action>
   <action name="actionImport_output_profiles">
    <property name="text">
-    <string>Import output profiles…</string>
+    <string>Import output profiles</string>
    </property>
    <property name="toolTip">
     <string>Copy output profiles from another workspace, a profile bundle, or your library</string>
@@ -415,7 +415,7 @@ QTabWidget QTabBar::close-button {
   </action>
   <action name="actionExport_output_profiles">
    <property name="text">
-    <string>Export output profiles…</string>
+    <string>Export output profiles</string>
    </property>
    <property name="toolTip">
     <string>Save output profiles to a bundle file or your profile library</string>

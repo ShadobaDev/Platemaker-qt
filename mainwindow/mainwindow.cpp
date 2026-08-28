@@ -122,15 +122,27 @@ MainWindow::MainWindow(QWidget *parent)
     connect(ui->actionManage_profiles,      &QAction::triggered, this, &MainWindow::onManageCanvasProfiles);
     connect(ui->actionNew_canvas_profile,   &QAction::triggered, this, &MainWindow::onNewCanvasProfile);
     connect(ui->actionEdit_active_profile,  &QAction::triggered, this, &MainWindow::onEditActiveCanvasProfile);
-    connect(ui->actionImport_canvas_profiles, &QAction::triggered, this, &MainWindow::onImportCanvasProfiles);
-    connect(ui->actionExport_canvas_profiles, &QAction::triggered, this, &MainWindow::onExportCanvasProfiles);
 
     // --- Output menu ---
     connect(ui->actionManage_output_profiles, &QAction::triggered, this, &MainWindow::onManageOutputProfiles);
     connect(ui->actionNew_output_profile,     &QAction::triggered, this, &MainWindow::onNewOutputProfile);
     connect(ui->actionEdit_output_settings,   &QAction::triggered, this, &MainWindow::onEditActiveOutputProfile);
-    connect(ui->actionImport_output_profiles, &QAction::triggered, this, &MainWindow::onImportOutputProfiles);
-    connect(ui->actionExport_output_profiles, &QAction::triggered, this, &MainWindow::onExportOutputProfiles);
+
+    // --- Import/Export profiles: native submenus, populated on demand. Attaching a QMenu to the action
+    //     makes it a real submenu (no QMenu::exec() from a triggered handler — that fragile pattern was
+    //     the earlier bug). Each submenu is rebuilt every time it opens, so recent lists stay current.
+    m_importCanvasMenu = new QMenu(this);
+    m_importOutputMenu = new QMenu(this);
+    m_exportCanvasMenu = new QMenu(this);
+    m_exportOutputMenu = new QMenu(this);
+    ui->actionImport_canvas_profiles->setMenu(m_importCanvasMenu);
+    ui->actionImport_output_profiles->setMenu(m_importOutputMenu);
+    ui->actionExport_canvas_profiles->setMenu(m_exportCanvasMenu);
+    ui->actionExport_output_profiles->setMenu(m_exportOutputMenu);
+    connect(m_importCanvasMenu, &QMenu::aboutToShow, this, [this]{ populateImportMenu(m_importCanvasMenu, true);  });
+    connect(m_importOutputMenu, &QMenu::aboutToShow, this, [this]{ populateImportMenu(m_importOutputMenu, false); });
+    connect(m_exportCanvasMenu, &QMenu::aboutToShow, this, [this]{ populateExportMenu(m_exportCanvasMenu, true);  });
+    connect(m_exportOutputMenu, &QMenu::aboutToShow, this, [this]{ populateExportMenu(m_exportOutputMenu, false); });
 
     // --- Projects panel (managed via the workspace dock's context menu) ---
     connect(ui->listWidgetProjects, &QListWidget::itemDoubleClicked,

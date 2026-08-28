@@ -558,44 +558,78 @@ QString MainWindow::userProfileLibraryPath() const
     return QDir(dir).filePath(QStringLiteral("user.platemaker.profiles.json"));
 }
 
-QString MainWindow::chooseProfileImportSource()
+QStringList MainWindow::recentBundles() const
 {
-    // A modal chooser rather than a QMenu popup: opening a menu from within a menu-action handler
-    // (the menubar item is still closing) is a fragile Qt pattern. Labels are kept unique — the
-    // library and Browse entries plus each recent workspace's full path — so the pick maps back exactly.
-    const QString libLabel    = tr("My profile library");
-    const QString browseLabel = tr("Browse for a file…");
+    return QSettings().value(QStringLiteral("recentBundles")).toStringList();
+}
 
-    QStringList labels;
-    QStringList paths; // parallel to labels; empty for the special entries
+void MainWindow::addToRecentBundles(const QString& path)
+{
+    if (path.isEmpty()) return;
+    QStringList list = recentBundles();
+    list.removeAll(path);          // de-dup, then promote to the front
+    list.prepend(path);
+    while (list.size() > k_maxRecentBundles)
+        list.removeLast();
+    QSettings().setValue(QStringLiteral("recentBundles"), list);
+}
 
-    const QString libPath = userProfileLibraryPath();
-    if (QFileInfo::exists(libPath)) { labels << libLabel; paths << libPath; }
+void MainWindow::populateImportMenu(QMenu* menu, bool canvasKind)
+{
+    // Rebuilt on every open (aboutToShow), so the recent lists stay current. Only leaf actions are
+    // added (no nested QMenus), so QMenu::clear() releases them cleanly each time.
+    menu->clear();
 
-    for (const QString& p : recentWorkspaces()) {
-        if (p == m_workspacePath) continue;                 // skip the workspace we're importing into
-        labels << QDir::toNativeSeparators(p);
-        paths  << p;
+    if (m_workspacePath.isEmpty()) {
+        menu->addAction(tr("(open a workspace first)"))->setEnabled(false);
+        return;
     }
 
-    labels << browseLabel; paths << QString();
+    connect(menu->addAction(tr("Browse for a file…")), &QAction::triggered, this,
+        [this, canvasKind]{
+            importProfilesFlow(canvasKind, QFileDialog::getOpenFileName(
+                this, tr("Import profiles from"), defaultDialogDir(),
+                tr("Platemaker profiles (*.platemaker.profiles.json *.platemaker.json);;All files (*)")));
+        });
 
-    bool ok = false;
-    const QString chosen = QInputDialog::getItem(
-        this, tr("Import profiles"), tr("Import profiles from:"),
-        labels, /*current=*/0, /*editable=*/false, &ok);
-    if (!ok || chosen.isEmpty())
-        return {};
+    const QString libPath = userProfileLibraryPath();
+    if (QFileInfo::exists(libPath))
+        connect(menu->addAction(tr("From your profile library")), &QAction::triggered, this,
+                [this, canvasKind, libPath]{ importProfilesFlow(canvasKind, libPath); });
 
-    if (chosen == browseLabel)
-        return QFileDialog::getOpenFileName(
-            this, tr("Import profiles from"), defaultDialogDir(),
-            tr("Platemaker profiles (*.platemaker.profiles.json *.platemaker.json);;All files (*)"));
-    if (chosen == libLabel)
-        return libPath;
+    menu->addSection(tr("Recent workspaces"));
+    bool anyWs = false;
+    for (const QString& p : recentWorkspaces()) {
+        if (p == m_workspacePath) continue;                 // skip the workspace we're importing into
+        QAction* a = menu->addAction(QFileInfo(p).fileName());
+        a->setToolTip(QDir::toNativeSeparators(p));
+        connect(a, &QAction::triggered, this, [this, canvasKind, p]{ importProfilesFlow(canvasKind, p); });
+        anyWs = true;
+    }
+    if (!anyWs) menu->addAction(tr("(none)"))->setEnabled(false);
 
-    const int idx = labels.indexOf(chosen);
-    return (idx >= 0) ? paths.at(idx) : QString();
+    menu->addSection(tr("Recent bundles"));
+    bool anyBundle = false;
+    for (const QString& p : recentBundles()) {
+        QAction* a = menu->addAction(QFileInfo(p).fileName());
+        a->setToolTip(QDir::toNativeSeparators(p));
+        connect(a, &QAction::triggered, this, [this, canvasKind, p]{ importProfilesFlow(canvasKind, p); });
+        anyBundle = true;
+    }
+    if (!anyBundle) menu->addAction(tr("(none)"))->setEnabled(false);
+}
+
+void MainWindow::populateExportMenu(QMenu* menu, bool canvasKind)
+{
+    menu->clear();
+    if (m_workspacePath.isEmpty()) {
+        menu->addAction(tr("(open a workspace first)"))->setEnabled(false);
+        return;
+    }
+    connect(menu->addAction(tr("To a bundle file…")), &QAction::triggered, this,
+            [this, canvasKind]{ exportProfilesFlow(canvasKind, /*toFile=*/true); });
+    connect(menu->addAction(tr("Add to my profile library")), &QAction::triggered, this,
+            [this, canvasKind]{ exportProfilesFlow(canvasKind, /*toFile=*/false); });
 }
 
 bool MainWindow::loadProfilesFromFile(const QString&                                  path,
@@ -672,21 +706,22 @@ bool MainWindow::addToUserLibrary(const std::vector<Platemaker::Models::CanvasPr
     return true;
 }
 
-void MainWindow::importProfilesFlow(bool canvasKind)
+void MainWindow::importProfilesFlow(bool canvasKind, const QString& src)
 {
-    if (m_workspacePath.isEmpty()) {
-        QMessageBox::information(this, tr("No Workspace"), tr("Open a workspace first."));
-        return;
-    }
-
-    const QString src = chooseProfileImportSource();
-    if (src.isEmpty())
+    // Empty = the user cancelled the Browse dialog; no workspace = the submenu already guarded it.
+    if (src.isEmpty() || m_workspacePath.isEmpty())
         return;
 
     std::vector<Platemaker::Models::CanvasProfile> canvas;
     std::vector<Platemaker::Models::OutputProfile> output;
     if (!loadProfilesFromFile(src, canvas, output))
         return;
+
+    // Remember bundle sources (not the library, not workspaces) so re-importing another profile from
+    // the same bundle later is one click away in the "Recent bundles" list.
+    if (src != userProfileLibraryPath() &&
+        src.endsWith(QStringLiteral(".platemaker.profiles.json"), Qt::CaseInsensitive))
+        addToRecentBundles(src);
 
     QList<ProfilePickerDialog::Row> rows;
     if (canvasKind)
@@ -734,12 +769,10 @@ void MainWindow::importProfilesFlow(bool canvasKind)
         tr("Imported %1 profile(s).").arg(n));
 }
 
-void MainWindow::exportProfilesFlow(bool canvasKind)
+void MainWindow::exportProfilesFlow(bool canvasKind, bool toFile)
 {
-    if (m_workspacePath.isEmpty()) {
-        QMessageBox::information(this, tr("No Workspace"), tr("Open a workspace first."));
-        return;
-    }
+    if (m_workspacePath.isEmpty())
+        return; // the submenu already guards this
 
     // Snapshot the palette of the requested kind (the accessors return const views).
     std::vector<Platemaker::Models::CanvasProfile> canvas(
@@ -778,27 +811,14 @@ void MainWindow::exportProfilesFlow(bool canvasKind)
     else
         for (int i : picked) chosenOutput.push_back(output[i]);
 
-    // Destination: a shareable bundle file, or the user's library. A dialog, not a QMenu popup, for
-    // the same reason as the import source chooser (a menu opened from a menu-action handler is fragile).
-    QMessageBox box(this);
-    box.setWindowTitle(tr("Export profiles"));
-    box.setText(tr("Where should the selected profile(s) go?"));
-    box.setIcon(QMessageBox::Question);
-    QPushButton* fileBtn = box.addButton(tr("To a bundle file…"), QMessageBox::AcceptRole);
-    QPushButton* libBtn  = box.addButton(tr("Add to my library"),  QMessageBox::AcceptRole);
-    box.addButton(QMessageBox::Cancel);
-    box.exec();
-
-    if (box.clickedButton() == libBtn) {
+    // The destination was chosen by which submenu item invoked this (toFile) — no dialog needed here.
+    if (!toFile) {
         if (addToUserLibrary(chosenCanvas, chosenOutput))
             QMessageBox::information(this, tr("Export"),
                 tr("Added %1 profile(s) to your library.").arg(picked.size()));
         return;
     }
-    if (box.clickedButton() != fileBtn)
-        return; // Cancel or closed
 
-    // A file destination.
     const QString suggested = QDir(defaultDialogDir())
         .filePath(QStringLiteral("profiles.platemaker.profiles.json"));
     const QString out = QFileDialog::getSaveFileName(
@@ -816,11 +836,7 @@ void MainWindow::exportProfilesFlow(bool canvasKind)
                 .arg(QDir::toNativeSeparators(out), QString::fromUtf8(e.what())));
         return;
     }
+    addToRecentBundles(out); // surfaces under "Recent bundles" for future imports
     QMessageBox::information(this, tr("Export"),
         tr("Exported %1 profile(s) to:\n%2").arg(picked.size()).arg(QDir::toNativeSeparators(out)));
 }
-
-void MainWindow::onImportCanvasProfiles() { importProfilesFlow(/*canvasKind=*/true); }
-void MainWindow::onExportCanvasProfiles() { exportProfilesFlow(/*canvasKind=*/true); }
-void MainWindow::onImportOutputProfiles() { importProfilesFlow(/*canvasKind=*/false); }
-void MainWindow::onExportOutputProfiles() { exportProfilesFlow(/*canvasKind=*/false); }

@@ -8,6 +8,7 @@
 #include "outputprofiledialog.h"
 #include "templatesdialog.h"
 #include "renderworker.h"
+#include "stripviewer.h"
 
 #include <platemaker/infrastructure/workspace_editor/workspace_editor.hpp>
 
@@ -124,6 +125,8 @@ void MainWindow::renameProject(int modelIndex)
         // Reflect the new name on the open dock/tab, if any.
         if (QDockWidget *dock = dockForProject(modelIndex))
             dock->setWindowTitle(name.trimmed());
+        if (QDockWidget *strip = dockForStripViewer(modelIndex))
+            strip->setWindowTitle(tr("Strip — %1").arg(name.trimmed()));
 
         setDirty(true);
         applyWorkspaceToUi();
@@ -179,6 +182,11 @@ void MainWindow::removeProject(int modelIndex)
         m_openProjectDocks.removeOne(dock);
         dock->deleteLater();
     }
+    // ...and its strip viewer, if open.
+    if (QDockWidget *strip = dockForStripViewer(modelIndex)) {
+        m_openStripDocks.removeOne(strip);
+        strip->deleteLater();
+    }
 
     // Erase from the model.
     m_workspace.projectItems.erase(
@@ -193,6 +201,12 @@ void MainWindow::removeProject(int modelIndex)
             if (auto *pw = qobject_cast<Project *>(dock->widget()))
                 pw->setProjectIndex(idx - 1);
         }
+    }
+    // Strip docks only carry the index as a property (their widget reads nothing project-scoped itself).
+    for (QDockWidget *strip : std::as_const(m_openStripDocks)) {
+        const int idx = strip->property("projectIndex").toInt();
+        if (idx > modelIndex)
+            strip->setProperty("projectIndex", idx - 1);
     }
 
     setDirty(true);
@@ -242,6 +256,8 @@ void MainWindow::openProjectDock(int projectIndex)
     });
     connect(projectWidget, &Project::renderToggleRequested,
             this, &MainWindow::onRenderToggle);
+    connect(projectWidget, &Project::viewStripRequested,
+            this, &MainWindow::openStripViewerDock);
     // A workspace-level edit made from this dock (canvas-profile content, output format) belongs on
     // the workspace undo timeline — push it there from the before/after snapshots the project sends.
     connect(projectWidget, &Project::workspaceEditCommitted, this,
@@ -306,4 +322,86 @@ void MainWindow::toggleProjectFloatState(int index)
     // Un-floating re-docks it into one of its allowed areas (never the Action column); the user is then
     // free to split or tab it wherever they like.
     dock->setFloating(!dock->isFloating());
+}
+
+// ---------------------------------------------------------------------------
+// Strip viewer dock (per-project, floating)
+// ---------------------------------------------------------------------------
+
+QDockWidget *MainWindow::dockForStripViewer(int modelIndex) const
+{
+    for (QDockWidget *dock : m_openStripDocks)
+        if (dock->property("projectIndex").toInt() == modelIndex)
+            return dock;
+    return nullptr;
+}
+
+void MainWindow::refreshStripViewer(QDockWidget *dock)
+{
+    if (!dock) return;
+    auto *viewer = qobject_cast<StripViewer *>(dock->widget());
+    if (!viewer) return;
+
+    const int idx = dock->property("projectIndex").toInt();
+    if (idx < 0 || idx >= static_cast<int>(m_workspace.projectItems.size())) {
+        viewer->setSlices({}, workspaceCacheDir());   // project gone → empty state
+        return;
+    }
+
+    // The strip is the committed output slices reassembled. getOutputImages() is already in strip
+    // (slice) order — the render writes them in order — so no sorting is needed. Path building mirrors
+    // Project::addOutputImageTile (output directory + fileName). The workspace cache dir feeds the
+    // viewer's proxy thumbnails (the render already warmed it for the output tiles).
+    const auto &project = m_workspace.projectItems[static_cast<std::size_t>(idx)];
+    const QString dir = QString::fromStdString(project.getOutputDirectory());
+    QStringList paths;
+    for (const auto &of : project.getOutputImages())
+        paths << QDir(dir).filePath(QString::fromStdString(of.fileName));
+    viewer->setSlices(paths, workspaceCacheDir());
+}
+
+void MainWindow::openStripViewerDock(int projectIndex)
+{
+    if (projectIndex < 0 || projectIndex >= static_cast<int>(m_workspace.projectItems.size()))
+        return;
+
+    // Already open → raise and refresh (the outputs may have changed since it was last shown).
+    if (QDockWidget *existing = dockForStripViewer(projectIndex)) {
+        existing->show();
+        existing->raise();
+        refreshStripViewer(existing);
+        return;
+    }
+
+    const QString name = QString::fromStdString(
+        m_workspace.projectItems[static_cast<std::size_t>(projectIndex)].name);
+
+    QDockWidget *dock = new QDockWidget(tr("Strip — %1").arg(name), this);
+    dock->setProperty("projectIndex", projectIndex);
+    dock->setFeatures(QDockWidget::DockWidgetMovable  |
+                      QDockWidget::DockWidgetClosable |
+                      QDockWidget::DockWidgetFloatable);
+    // Free to dock anywhere but the Action column (Right), like the project/workspace docks — the strip
+    // is never tab-combined with Action.
+    dock->setAllowedAreas(Qt::LeftDockWidgetArea | Qt::TopDockWidgetArea | Qt::BottomDockWidgetArea);
+
+    auto *viewer = new StripViewer(dock);
+    // "Render & view": outputs are cheap/regenerable, so this just runs the normal render for the
+    // project; onRenderFinished refreshes this viewer when it completes. If the project is already up to
+    // date, startRender is a no-op and the already-loaded committed slices stay shown.
+    connect(viewer, &StripViewer::renderAndViewRequested, this, [this, projectIndex] {
+        (void)startRender(projectIndex);
+    });
+    dock->setWidget(viewer);
+
+    // Default to a large floating window (per the placement decision) so a tall strip has room; the user
+    // can still dock/split it. addDockWidget first gives it a home area for when it is un-floated.
+    addDockWidget(Qt::LeftDockWidgetArea, dock);
+    dock->setFloating(true);
+    dock->resize(qMax(600, width() * 2 / 3), qMax(500, height() * 4 / 5));
+
+    m_openStripDocks.append(dock);
+    refreshStripViewer(dock);   // load the current committed slices
+    dock->show();
+    dock->raise();
 }

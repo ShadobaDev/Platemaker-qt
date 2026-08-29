@@ -11,6 +11,13 @@
 
 ### Added
 
+- **Strip viewer.** A new **View strip** button on a project's Output tab opens the rendered chapter as
+  one continuous, zoomable strip in a floating window — the whole webtoon at a glance instead of
+  per-slice tiles. Scroll through it, zoom (fit-width / 100% / Ctrl+wheel), and toggle slice-boundary
+  guides; a *Render & view* button (re)renders on the spot. It shows the actual rendered output, loads
+  lazily with blurry thumbnail placeholders so scrolling stays smooth, and keeps memory bounded to what
+  is on screen — so even long chapters open instantly. The dock floats by default and can be arranged
+  anywhere but the Action column.
 - **Import / export input and output profiles.** Canvas and output profiles can now be carried between
   workspaces. Under *Canvas Profiles* and *Output*, new **Import** and **Export** submenus pull profiles
   from another `.platemaker.json` workspace, a `.platemaker.profiles.json` bundle, your personal **profile

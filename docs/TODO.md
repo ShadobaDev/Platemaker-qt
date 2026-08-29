@@ -81,13 +81,24 @@ Bug fixes, cosmetics and internal cleanups — no new capability, no change to a
 New, backward-compatible features. Several are gated on a lib version, noted in the item body.
 (The `[x]` items below shipped/ready to ship; the open ones re-derive to the next MINOR.)
 
-- [ ] **Infinite strip and lookup system**
-  The problem is that during work user may want to see how does the full strip look like
-  Two ideas:
-  1. Built-in webtoon-like viewer. Problem are margins and general rendereing - the files will have to be either rendered on fly or stored in temporary location with option to save
-  2. Render infinite long strip either via designated output profile or separate button/menu option [Process]
-
-  Both options could be implemented. 
+- [~] **Infinite strip and lookup system** — *viewer DONE (GUI); lookup + preview-render deferred.*
+  See the full strip as one continuous image during work, instead of per-slice tiles. Shipped: a
+  per-project **floating dock** (`widgets/stripviewer/`, opened from the Output tab's *View strip*), a
+  window onto the **lib-rendered output slices** reassembled — WYSIWYG, the viewer never re-derives
+  pixels. `QGraphicsView`/`Scene` with **one** item drawing every slice (avoids the 1px inter-item seam),
+  and **antialiasing off on the strip draw** so adjacent slices tile without edge-coverage bleed (the
+  root cause of the hairline "frames" between pages). Memory-bounded (proxy + async decode + prefetch):
+  header-only layout (`QImageReader::size`), a blurry **proxy** from the render-warmed `ThumbnailCache`
+  (instant, no scroll gaps), and a **sharp** native decode of visible + prefetch slices on `QtConcurrent`
+  into an LRU cache — off-screen slices evicted, so RAM tracks the viewport, not chapter length.
+  Native-width default (shrink-to-fit only, never enlarged), fit-width / 100% / Ctrl+wheel zoom, optional
+  slice-seam guides. Source (settled with the user): **committed output** + a *Render & view* button
+  (outputs are cheap / regenerable). See SPECIFICATION §2.5.
+  - *Deferred (not built):* the **lookup** half — click a strip position → which input page / output
+    slice (the per-slice Y offsets + `OutputFile::sourceMap` foundation is already in place); a
+    **preview-render-to-temp** feed to preview *uncommitted* edits (belongs with colour / text below);
+    **display-resolution decode** (`QImageReader::setScaledSize`) so RAM also shrinks when zoomed out;
+    and a dedicated side tool-panel + async-placeholder polish for very tall chapters.
 
 - [ ] **Project-wide colour correction.** Comic/webtoon art is drawn on iPad in **Display P3** (wide
   gamut); most webtoon platforms and screens are **sRGB**, so even Procreate's "sRGB IEC61966-2.1" export

@@ -108,6 +108,40 @@ The dialogs edit **copies**; the workspace is mutated only on accept, and only t
 `Infrastructure::WorkspaceEditor` (the palettes are private in the model — see the lib spec §7.5). The
 GUI does not mint ids, deduplicate, preserve `templateInfo`, or strip presets itself; the editor does.
 
+### 2.5 Strip Viewer — `StripViewer`
+
+A per-project **floating dock** (`widgets/stripviewer/`), opened from the Output tab's *View strip*
+button via `MainWindow::openStripViewerDock()`. It shows the project's committed **output slices
+reassembled into the single continuous strip** they were cut from — a window onto the *lib-rendered*
+pixels. It is deliberately **WYSIWYG and never re-derives the image**: what the viewer shows is exactly
+what the render produced (so a blank gutter or a colour is a render/input matter, not the viewer's).
+
+- **Placement.** Allowed Left/Top/Bottom, defaults to floating (a big movable window); like the project
+  docks it **never** tab-combines with the Action right column. Raised-if-open, refreshed on render
+  finish (`onRenderFinished`), and closed/reindexed with its project.
+- **Rendering (seam-free).** `QGraphicsView` + `QGraphicsScene` with **one** item (`StripItem`) that
+  draws every slice as its own image in one pass. One `QGraphicsPixmapItem` *per* slice would leave a
+  1px hairline at each page join — `QGraphicsView` clips/rounds each item's edge independently — but the
+  actual cause of the seam is **edge antialiasing**: with AA on, each `drawPixmap` coverage-antialiases
+  the destination rect's edges at fractional zoom, so the boundary row is only partly covered and the
+  background hairlines through. `StripItem::paint` **disables `QPainter::Antialiasing`** (keeping
+  `SmoothPixmapTransform`), so adjacent slices tile with hard edges and no bleed.
+- **Memory model (proxy + async native decode + prefetch).** Layout is built from each slice's *header*
+  size only (`QImageReader::size()`, no decode). Two tiers, both off the UI thread (see §6):
+  - **Proxy** — a small blurry thumbnail per slice, reusing the render-warmed `ThumbnailCache` (§5),
+    drawn instantly so a slice is never blank while its sharp decode runs.
+  - **Sharp** — the full slice decoded at **native** resolution for slices in view plus a prefetch
+    margin, kept in a byte-capped LRU `QCache`; off-screen slices are evicted, so RAM tracks the
+    viewport, not the chapter length. A generation counter drops async results from a superseded rebuild.
+  (Decoding at *display* resolution via `setScaledSize`, so RAM shrinks with zoom too, is a deferred
+  lever — see the TODO.)
+- **Zoom.** Default is the output's **native width**, shrunk to fit only when the strip is wider than the
+  viewport (never enlarged), so several slices read at once; plus fit-width / 100% / − / + and
+  Ctrl+wheel. The default re-settles on resize until the user takes control.
+- **Foundation for colour correction / text bubbles.** The scene is the future home for overlay editing;
+  the per-slice Y offsets (+ `OutputFile::sourceMap`) are the basis for a later click→input **lookup**,
+  and the "rendered slices" source is the seam for a future **preview-render-to-temp** feed.
+
 ---
 
 ## 3. Application State
@@ -280,6 +314,8 @@ collides with one already linked; the GUI shows an error and does not link it.  
   (§4.4), so the output tile's `getOrGenerate()` is a cache hit. File-reading generation (`getOrGenerate`
   opening the source) is therefore only for **input** tiles and **at-rest** output tiles (reopening a
   workspace) — never for an output while a render is writing it, which is what avoids the read/write race.
+- **The Strip Viewer (§2.5) reuses these same output thumbnails as low-res proxies** — an instant blurry
+  fill drawn under each slice while its full-resolution decode runs, so scrolling never shows a gap.
 
 ---
 
@@ -288,6 +324,7 @@ collides with one already linked; the GUI shows an error and does not link it.  
 | Operation | Mechanism | Thread safety notes |
 |---|---|---|
 | Thumbnail loading | `QtConcurrent::run()` per tile | `ThumbnailCache` is thread-safe |
+| Strip-viewer slice decode | `QtConcurrent::run()` per slice (proxy + full) | `QImageReader` is reentrant; `QPixmap` built on the GUI thread in the watcher; a generation counter drops results from a superseded rebuild |
 | Pipeline run | Single `QFuture` via `QtConcurrent::run()` | `CancellationToken` is atomic |
 | Template generation | `QtConcurrent::run()` per profile | `TemplateGenerator` is stateless |
 | All UI updates | `QMetaObject::invokeMethod()` or signal/slot | Never touch widgets from worker |

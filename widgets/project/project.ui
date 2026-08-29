@@ -535,6 +535,16 @@
             </property>
            </widget>
           </item>
+          <item>
+           <widget class="QPushButton" name="pushButtonViewStrip">
+            <property name="toolTip">
+             <string>Open the rendered slices as one continuous strip in a floating viewer.</string>
+            </property>
+            <property name="text">
+             <string>View strip</string>
+            </property>
+           </widget>
+          </item>
          </layout>
         </widget>
        </item>

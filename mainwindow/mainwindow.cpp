@@ -386,6 +386,11 @@ void MainWindow::closeWorkspace()
         dock->deleteLater();
     m_openProjectDocks.clear();
 
+    // Strip viewer docks belong to the workspace's projects too — close them with it.
+    for (QDockWidget *dock : std::as_const(m_openStripDocks))
+        dock->deleteLater();
+    m_openStripDocks.clear();
+
     // Drop the workspace-scope undo history (a new/closed workspace starts fresh).
     if (m_workspaceUndoStack)
         m_workspaceUndoStack->clear();
@@ -491,6 +496,12 @@ void MainWindow::applyWorkspaceSnapshot(const QString& snapshot)
         if (idx >= 0 && idx < static_cast<int>(m_workspace.projectItems.size()))
             dock->setWindowTitle(QString::fromStdString(
                 m_workspace.projectItems[static_cast<std::size_t>(idx)].name));
+    }
+    for (QDockWidget* dock : std::as_const(m_openStripDocks)) {
+        const int idx = dock->property("projectIndex").toInt();
+        if (idx >= 0 && idx < static_cast<int>(m_workspace.projectItems.size()))
+            dock->setWindowTitle(tr("Strip — %1").arg(QString::fromStdString(
+                m_workspace.projectItems[static_cast<std::size_t>(idx)].name)));
     }
     emit workspaceProfilesChanged();
     setDirty(true);

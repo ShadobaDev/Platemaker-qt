@@ -189,6 +189,9 @@ Project::Project(int projectIndex,
     connect(ui->pushButtonRender, &QPushButton::clicked, this, [this]{
         emit renderToggleRequested(m_projectIndex);
     });
+    connect(ui->pushButtonViewStrip, &QPushButton::clicked, this, [this]{
+        emit viewStripRequested(m_projectIndex);
+    });
 
     // Validate against disk on open so tiles reflect deletions / external edits made
     // while the app was closed (the "changed externally" case), and against the canvas

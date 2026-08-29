@@ -92,6 +92,7 @@ protected:
 signals:
     void projectModified();                         //!< emitted when the project is modified (inputs, outputs, profiles, etc.)
     void renderToggleRequested(int projectIndex);   //!< Render/Stop button clicked
+    void viewStripRequested(int projectIndex);      //!< "View strip" button clicked — open the strip viewer for this project
 
     /**
      * @brief A workspace-level edit was made from this project dock (canvas-profile content edit,

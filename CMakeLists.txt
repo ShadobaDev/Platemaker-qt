@@ -54,6 +54,9 @@ qt_add_executable(Platemaker
     widgets/aboutdialog/aboutdialog.cpp widgets/aboutdialog/aboutdialog.h widgets/aboutdialog/aboutdialog.ui
     widgets/licencedialog/licencedialog.cpp widgets/licencedialog/licencedialog.h widgets/licencedialog/licencedialog.ui
     widgets/renderworker/renderworker.cpp widgets/renderworker/renderworker.h
+
+    # Strip viewer — continuous "infinite strip" view of a project's rendered slices (QGraphicsView).
+    widgets/stripviewer/stripviewer.cpp widgets/stripviewer/stripviewer.h
 )
 
 # Every class/header lives in its own folder; add each to the include path so
@@ -74,6 +77,7 @@ target_include_directories(Platemaker PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/widgets/aboutdialog
     ${CMAKE_CURRENT_SOURCE_DIR}/widgets/licencedialog
     ${CMAKE_CURRENT_SOURCE_DIR}/widgets/renderworker
+    ${CMAKE_CURRENT_SOURCE_DIR}/widgets/stripviewer
 )
 
 include(FetchContent)

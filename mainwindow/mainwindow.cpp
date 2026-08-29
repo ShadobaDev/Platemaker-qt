@@ -13,6 +13,10 @@
 
 #include <QAction>
 #include <QCloseEvent>
+#include <QEvent>
+#include <QHBoxLayout>
+#include <QMouseEvent>
+#include <QResizeEvent>
 #include <QCollator>
 #include <QDateTime>
 #include <QDesktopServices>
@@ -63,34 +67,41 @@ MainWindow::MainWindow(QWidget *parent)
 
     // QMainWindow always reserves a central-widget region and draws a separator
     // between it and the dock area. We run a dock-only layout, so remove the
-    // central widget entirely — this kills the phantom right-side separator
-    // while leaving the working Workspace|Action splitter intact.
+    // central widget entirely — this kills the phantom central separator and lets
+    // the Left and Right dock areas meet directly across the main splitter.
     delete takeCentralWidget();
 
-    // Both docks live in ONE dock area, split horizontally: dockWidgetAction is
-    // declared as a Right-area dock in the .ui, so move it next to the workspace
-    // dock to get a single Workspace|Action splitter.
-    removeDockWidget(ui->dockWidgetAction);
-    splitDockWidget(ui->dockWidgetWorkspace, ui->dockWidgetAction, Qt::Horizontal);
-    ui->dockWidgetAction->show();
+    // Dock freedom is partitioned by allowed areas, not enforced with re-dock guards:
+    //  - The Action panel is pinned to the Right area alone. Nothing else is allowed there, so it can
+    //    never be tab-combined with another dock and can never wander — it stays its own right column.
+    //  - Workspace and the project docks may live anywhere *except* that right column, free to split
+    //    (horizontally and vertically) and tab among themselves via AllowNestedDocks.
+    // The docks are already seated in their .ui-declared areas (Workspace = Left, Action = Right), which
+    // is exactly the split we want, so there is no split-dance to run here.
+    ui->dockWidgetAction->setAllowedAreas(Qt::RightDockWidgetArea);
+    ui->dockWidgetWorkspace->setAllowedAreas(Qt::LeftDockWidgetArea | Qt::TopDockWidgetArea |
+                                             Qt::BottomDockWidgetArea);
 
-    // Re-dock guard for the two shell docks. Floating one out and snapping it back otherwise corrupts
-    // the layout: Qt re-docks the returning dock into the Left area but with a degenerate geometry that
-    // overlaps the incumbent (which grabs the whole area), and it does not self-correct — only a manual
-    // splitter drag recovered it. Cache the docked widths at the moment of floating, and on return
-    // rebuild the split via reestablishShellSplit(). Deferred to a singleShot(0): doing it synchronously
-    // here fights Qt's in-progress re-dock and produces a worse, unrecoverable state. The project docks
-    // carry their own topLevelChanged re-dock guard (openProjectDock); this is the shell-dock analogue.
-    for (QDockWidget *shellDock : {ui->dockWidgetWorkspace, ui->dockWidgetAction}) {
-        connect(shellDock, &QDockWidget::topLevelChanged, this, [this](bool floating) {
-            if (floating) {
-                m_workspaceDockWidthBeforeFloat = ui->dockWidgetWorkspace->width();
-                m_actionDockWidthBeforeFloat    = ui->dockWidgetAction->width();
-            } else {
-                QTimer::singleShot(0, this, [this] { reestablishShellSplit(); });
-            }
-        });
-    }
+    // The Action column is a hard fixed-width side panel. setFixedWidth (min == max) is a constraint the
+    // dock layout must honour, so QMainWindow can never widen it on a window resize/maximize — the extra
+    // width is forced into the flexible left region instead. A fixed dock also freezes its native
+    // separator, so we grow our own drag grip on its left edge and resize it by hand (see eventFilter).
+    // This sidesteps Qt's fuzzy dock-resize distribution entirely.
+    ui->dockWidgetAction->setFixedWidth(m_actionDockWidth);
+
+    // Wrap the Action content as [grip | content] so the grip sits on the panel's inner-left edge.
+    QWidget *actionContent = ui->dockWidgetAction->widget();
+    auto    *actionWrapper = new QWidget(ui->dockWidgetAction);
+    auto    *wrapperLayout = new QHBoxLayout(actionWrapper);
+    wrapperLayout->setContentsMargins(0, 0, 0, 0);
+    wrapperLayout->setSpacing(0);
+    m_actionGrip = new QWidget(actionWrapper);
+    m_actionGrip->setFixedWidth(k_actionGripWidth);
+    m_actionGrip->setCursor(Qt::SplitHCursor);
+    m_actionGrip->installEventFilter(this);
+    wrapperLayout->addWidget(m_actionGrip);
+    wrapperLayout->addWidget(actionContent);
+    ui->dockWidgetAction->setWidget(actionWrapper);
 
     // Keyboard shortcuts (the .ui already sets text labels, we only add keys)
     ui->actionOpen_workspace->setShortcut(QKeySequence::Open);
@@ -211,27 +222,58 @@ void MainWindow::closeEvent(QCloseEvent *event)
     maybeSave() ? event->accept() : event->ignore();
 }
 
-void MainWindow::reestablishShellSplit()
+void MainWindow::resizeEvent(QResizeEvent *event)
 {
-    // Rebuild the Workspace | Action split, exactly as the constructor does at startup. After a float
-    // returns, Qt leaves the returning dock in the Left area with a degenerate, overlapping geometry —
-    // not tabified, and not a resizable sibling of the incumbent (which occupies the whole area), so a
-    // plain resizeDocks is a no-op (verified). removeDockWidget detaches the Action dock, which forces
-    // Workspace to relayout as the sole, full-area occupant (undoing its degenerate geometry);
-    // splitDockWidget then re-seats Action beside it, recreating the real splitter that a manual drag
-    // relied on. Anchoring on Workspace leaves any project docks tabbed on it untouched. Neither call
-    // floats anything, so there is no topLevelChanged re-entry. Called deferred (singleShot) so it runs
-    // after Qt's own re-dock settles — doing it synchronously fights the transition and worsens it.
-    removeDockWidget(ui->dockWidgetAction);
-    splitDockWidget(ui->dockWidgetWorkspace, ui->dockWidgetAction, Qt::Horizontal);
-    ui->dockWidgetAction->show();
+    QMainWindow::resizeEvent(event);
+    // If the window shrank below what the chosen Action width needs, shrink the panel to fit (never more
+    // than half the window, never below its minimum). m_actionDockWidth — the user's choice — is left
+    // untouched, so growing the window back restores it. setFixedWidth remains the thing that stops the
+    // panel from ever growing on its own; this only clamps it down.
+    const int maxW    = qMax(k_actionDockDefaultWidth, width() / 2);
+    const int applied = qBound(k_actionDockDefaultWidth, m_actionDockWidth, maxW);
+    ui->dockWidgetAction->setFixedWidth(applied);
+}
 
-    // Bias the fresh split back to the pre-float proportion. The cache is always populated before a
-    // return (a dock must float before it can re-dock), so the guard is just defensive.
-    if (m_workspaceDockWidthBeforeFloat > 0 && m_actionDockWidthBeforeFloat > 0)
-        resizeDocks({ui->dockWidgetWorkspace, ui->dockWidgetAction},
-                    {m_workspaceDockWidthBeforeFloat, m_actionDockWidthBeforeFloat},
-                    Qt::Horizontal);
+bool MainWindow::eventFilter(QObject *watched, QEvent *event)
+{
+    // Manual resize of the fixed-width Action column via its left-edge grip. Dragging the grip left grows
+    // the panel, dragging right shrinks it; the new width is applied with setFixedWidth so it stays put on
+    // the next window resize. Clamped so it can't drop below its minimum or eat more than half the window.
+    if (watched == m_actionGrip) {
+        switch (event->type()) {
+        case QEvent::MouseButtonPress: {
+            auto *me = static_cast<QMouseEvent *>(event);
+            if (me->button() == Qt::LeftButton) {
+                m_actionGripDragging   = true;
+                m_actionGripStartX     = me->globalPosition().toPoint().x();
+                m_actionGripStartWidth = ui->dockWidgetAction->width();
+                return true;
+            }
+            break;
+        }
+        case QEvent::MouseMove: {
+            if (m_actionGripDragging) {
+                auto     *me    = static_cast<QMouseEvent *>(event);
+                const int delta = m_actionGripStartX - me->globalPosition().toPoint().x(); // left → grow
+                const int maxW  = qMax(k_actionDockDefaultWidth, width() / 2);
+                m_actionDockWidth =
+                    qBound(k_actionDockDefaultWidth, m_actionGripStartWidth + delta, maxW);
+                ui->dockWidgetAction->setFixedWidth(m_actionDockWidth);
+                return true;
+            }
+            break;
+        }
+        case QEvent::MouseButtonRelease:
+            if (m_actionGripDragging) {
+                m_actionGripDragging = false;
+                return true;
+            }
+            break;
+        default:
+            break;
+        }
+    }
+    return QMainWindow::eventFilter(watched, event);
 }
 
 // ---------------------------------------------------------------------------

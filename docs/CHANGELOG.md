@@ -2,6 +2,13 @@
 
 ## [Unreleased]
 
+### Changed
+
+- **Freer docking layout.** Workspace and project docks can now be arranged freely — docked side by side
+  horizontally *and* vertically, split, or tabbed together. The **Action** panel is pinned to its own
+  right column: it can no longer be tab-combined with other docks and keeps a static default width that
+  only a splitter drag changes.
+
 ### Added
 
 - **Import / export input and output profiles.** Canvas and output profiles can now be carried between

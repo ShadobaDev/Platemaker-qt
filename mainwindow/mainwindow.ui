@@ -259,8 +259,8 @@ QTabWidget QTabBar::close-button {
   <widget class="QDockWidget" name="dockWidgetWorkspace">
    <property name="minimumSize">
     <size>
-     <width>800</width>
-     <height>514</height>
+     <width>200</width>
+     <height>200</height>
     </size>
    </property>
    <property name="windowTitle">
@@ -278,8 +278,8 @@ QTabWidget QTabBar::close-button {
     </property>
     <property name="minimumSize">
      <size>
-      <width>500</width>
-      <height>500</height>
+      <width>150</width>
+      <height>150</height>
      </size>
     </property>
     <layout class="QVBoxLayout" name="verticalLayout_4">

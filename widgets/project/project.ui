@@ -27,7 +27,7 @@
      </property>
      <property name="maximumSize">
       <size>
-       <width>2000</width>
+       <width>16777215</width>
        <height>16777215</height>
       </size>
      </property>
@@ -322,12 +322,6 @@
            <height>0</height>
           </size>
          </property>
-         <property name="maximumSize">
-          <size>
-           <width>1600</width>
-           <height>16777215</height>
-          </size>
-         </property>
          <property name="title">
           <string>Panels</string>
          </property>
@@ -569,12 +563,6 @@
           <size>
            <width>250</width>
            <height>0</height>
-          </size>
-         </property>
-         <property name="maximumSize">
-          <size>
-           <width>1600</width>
-           <height>16777215</height>
           </size>
          </property>
          <property name="title">

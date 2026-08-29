@@ -112,9 +112,9 @@ New, backward-compatible features. Several are gated on a lib version, noted in 
   1. Persistenly modify input files - goes against rule not to modify raw user input.
   2. Add to lib an additional step to overlay text and text bubbles during render.
 
-- [ ] **Improve docking**
+- [x] **Improve docking**
   It should be possible to dock multiple dock-views next to each other vertically as well as horizontally.
-  Action dock shall have static default width - that can be only change by moving splitter. 
+  Action dock shall have static default width - that can be only changed by moving splitter. 
 
 - [x] **Import / export input and output profiles** — *DONE (lib + GUI); requires libplatemaker 0.5.2.*
   Carry canvas/output profiles between workspaces. Lib side: a portable **profile bundle**

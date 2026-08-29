@@ -232,6 +232,9 @@ void MainWindow::openProjectDock(int projectIndex)
     newDock->setFeatures(QDockWidget::DockWidgetMovable  |
                          QDockWidget::DockWidgetClosable |
                          QDockWidget::DockWidgetFloatable);
+    // Free to arrange anywhere but the Action column (Right), matching the workspace dock, so a project
+    // can never be tab-combined with Action but can split/tab with Workspace and other projects.
+    newDock->setAllowedAreas(Qt::LeftDockWidgetArea | Qt::TopDockWidgetArea | Qt::BottomDockWidgetArea);
     const QString cacheDir = workspaceCacheDir();
     auto* projectWidget = new Project(projectIndex, m_workspace, cacheDir, newDock);
     connect(projectWidget, &Project::projectModified, this, [this]{
@@ -267,18 +270,11 @@ void MainWindow::openProjectDock(int projectIndex)
         }
     });
 
-    // Always tabify with the workspace panel — keeps the layout in two columns.
-    // On first open Qt promotes the area to a tab group; subsequent opens just add tabs.
+    // Default placement on open: tab onto the workspace panel. On first open Qt promotes the area to a
+    // tab group; subsequent opens add tabs. From here the dock is free — the user can split it out
+    // horizontally or vertically, or float it, and a re-dock lands where it is dropped (no forced
+    // re-tabify guard: the allowed-areas restriction already keeps it out of the Action column).
     tabifyDockWidget(ui->dockWidgetWorkspace, newDock);
-
-    // When Qt re-docks the window (e.g. double-click on floating title bar or drag back),
-    // force it back into the tab group instead of landing in a random dock area.
-    connect(newDock, &QDockWidget::topLevelChanged, this, [this, newDock](bool floating) {
-        if (!floating) {
-            tabifyDockWidget(ui->dockWidgetWorkspace, newDock);
-            newDock->raise();
-        }
-    });
 
     m_openProjectDocks.append(newDock);
     newDock->show();
@@ -307,6 +303,7 @@ void MainWindow::toggleProjectFloatState(int index)
     // Skip if no project is selected or the index is out of bounds
     if (index < 0 || index >= m_openProjectDocks.size()) return;
     QDockWidget *dock = m_openProjectDocks.at(index);
-    // setFloating(false) triggers topLevelChanged → tabifyDockWidget, so no manual re-tabify needed.
+    // Un-floating re-docks it into one of its allowed areas (never the Action column); the user is then
+    // free to split or tab it wherever they like.
     dock->setFloating(!dock->isFloating());
 }

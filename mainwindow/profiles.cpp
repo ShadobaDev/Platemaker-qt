@@ -14,6 +14,7 @@
 
 #include <QCloseEvent>
 #include <QCollator>
+#include <QColor>
 #include <QDesktopServices>
 #include <QDir>
 #include <QDockWidget>
@@ -533,9 +534,9 @@ ProfilePickerDialog::Row canvasRow(const Platemaker::Models::CanvasProfile& cp)
 
     ProfilePickerDialog::Row r;
     r.title   = QString::fromStdString(cp.name);
-    r.summary = QStringLiteral("%1 × %2%3")
-                    .arg(cp.canvasSize.width).arg(cp.canvasSize.height)
-                    .arg(margined ? QStringLiteral("  ·  margins") : QString());
+    r.summary = QStringLiteral("%1 × %2").arg(cp.canvasSize.width).arg(cp.canvasSize.height);
+    if (margined)
+        r.summaryBadges.append({ QObject::tr("margins"), QColor(0x9F, 0xD8, 0x9F) }); // light green
     r.details = canvasInfoWidget(cp);
     return r;
 }
@@ -780,11 +781,37 @@ void MainWindow::exportProfilesFlow(bool canvasKind, bool toFile)
     std::vector<Platemaker::Models::OutputProfile> output(
         m_workspace.outputProfiles().begin(), m_workspace.outputProfiles().end());
 
+    // For a library export, learn which names already live in the library so the picker can flag them
+    // and we can confirm before overwriting. (Loaded once here; addToUserLibrary reloads to upsert —
+    // a negligible re-read of a tiny file.)
+    QStringList libraryNames;
+    if (!toFile) {
+        const QString libPath = userProfileLibraryPath();
+        std::vector<Platemaker::Models::CanvasProfile> libC;
+        std::vector<Platemaker::Models::OutputProfile> libO;
+        if (QFileInfo::exists(libPath) && !loadProfilesFromFile(libPath, libC, libO))
+            return;
+        if (canvasKind) for (const auto& c : libC) libraryNames << QString::fromStdString(c.name);
+        else            for (const auto& o : libO) libraryNames << QString::fromStdString(o.name);
+    }
+    const auto inLibrary = [&](const std::string& name) {
+        return libraryNames.contains(QString::fromStdString(name));
+    };
+
+    const QColor kInLibraryColour(0xE0, 0x87, 0x2C); // orange
     QList<ProfilePickerDialog::Row> rows;
     if (canvasKind)
-        for (const auto& cp : canvas) rows.append(canvasRow(cp));
+        for (const auto& cp : canvas) {
+            ProfilePickerDialog::Row r = canvasRow(cp);
+            if (inLibrary(cp.name)) r.titleBadges.append({ tr("already in library"), kInLibraryColour });
+            rows.append(r);
+        }
     else
-        for (const auto& op : output) rows.append(outputRow(op));
+        for (const auto& op : output) {
+            ProfilePickerDialog::Row r = outputRow(op);
+            if (inLibrary(op.name)) r.titleBadges.append({ tr("already in library"), kInLibraryColour });
+            rows.append(r);
+        }
 
     if (rows.isEmpty()) {
         QMessageBox::information(this, tr("Export"),
@@ -795,6 +822,8 @@ void MainWindow::exportProfilesFlow(bool canvasKind, bool toFile)
 
     ProfilePickerDialog dlg(this);
     dlg.setWindowTitle(canvasKind ? tr("Export canvas profiles") : tr("Export output profiles"));
+    if (!toFile)
+        dlg.setIntro(tr("Exporting to your profile library. Profiles already there are marked."));
     dlg.setConfirmText(tr("Export…"));
     dlg.setRows(rows);
     if (dlg.exec() != QDialog::Accepted)
@@ -813,9 +842,28 @@ void MainWindow::exportProfilesFlow(bool canvasKind, bool toFile)
 
     // The destination was chosen by which submenu item invoked this (toFile) — no dialog needed here.
     if (!toFile) {
-        if (addToUserLibrary(chosenCanvas, chosenOutput))
+        // Confirm before overwriting any same-named library entries, and name them.
+        QStringList overwrites;
+        for (int i : picked) {
+            const QString nm = canvasKind ? QString::fromStdString(canvas[i].name)
+                                          : QString::fromStdString(output[i].name);
+            if (libraryNames.contains(nm)) overwrites << nm;
+        }
+        if (!overwrites.isEmpty()) {
+            const auto ret = QMessageBox::question(this, tr("Overwrite in library?"),
+                tr("These %1 profile(s) already exist in your library and will be overwritten:\n\n%2\n\nContinue?")
+                    .arg(overwrites.size()).arg(overwrites.join(QStringLiteral("\n"))),
+                QMessageBox::Yes | QMessageBox::No, QMessageBox::No);
+            if (ret != QMessageBox::Yes)
+                return;
+        }
+        if (addToUserLibrary(chosenCanvas, chosenOutput)) {
+            const int added = static_cast<int>(picked.size()) - static_cast<int>(overwrites.size());
             QMessageBox::information(this, tr("Export"),
-                tr("Added %1 profile(s) to your library.").arg(picked.size()));
+                overwrites.isEmpty()
+                    ? tr("Added %1 profile(s) to your library.").arg(picked.size())
+                    : tr("Library updated: %1 new, %2 overwritten.").arg(added).arg(overwrites.size()));
+        }
         return;
     }
 

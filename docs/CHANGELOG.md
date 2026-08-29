@@ -5,14 +5,16 @@
 ### Added
 
 - **Import / export input and output profiles.** Canvas and output profiles can now be carried between
-  workspaces. *Canvas Profiles → Import canvas profiles… / Export canvas profiles…* (and the same under
-  *Output*) copy profiles in from another `.platemaker.json` workspace, a `.platemaker.profiles.json`
-  bundle, or your personal **profile library**, and write selected profiles out to a bundle file or that
-  library. A cherry-pick dialog lists each profile with a full field breakdown (dimensions, margins,
-  format options…) for inspection before you commit. Imports are additive copies with fresh ids (via
-  libplatemaker 0.5.2's `WorkspaceEditor::importProfiles`), so the workspace stays self-contained. The
-  profile library is a bundle the app keeps in your app-data folder — an import source and export target
-  only; it never changes a workspace on its own. Requires **libplatemaker 0.5.2**.
+  workspaces. Under *Canvas Profiles* and *Output*, new **Import** and **Export** submenus pull profiles
+  from another `.platemaker.json` workspace, a `.platemaker.profiles.json` bundle, your personal **profile
+  library**, or a **recent workspace / recent bundle**, and write selected profiles out to a bundle file
+  or that library. A cherry-pick dialog shows each profile with a grouped read-only field panel (canvas
+  size, margins, colour swatches / format options) for inspection, plus coloured badges (*margins*,
+  *already in library*). Exporting to the library upserts by name — no duplicates — and asks before
+  overwriting. Imports are additive copies with fresh ids (via libplatemaker 0.5.2's
+  `WorkspaceEditor::importProfiles`) and are undoable, so the workspace stays self-contained. The profile
+  library is a bundle the app keeps in your app-data folder — an import source / export target only; it
+  never changes a workspace on its own. Requires **libplatemaker 0.5.2**.
 - **Portable ZIP distribution.** Alongside the installer, the release now ships
   `Platemaker-<ver>-portable.zip` — unzip and run, no installation. The exe sits at the root of the single
   `Platemaker-<ver>/` folder (with its DLLs; `plugins/` and `translations/` alongside), so there's nothing

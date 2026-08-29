@@ -79,7 +79,7 @@ Bug fixes, cosmetics and internal cleanups — no new capability, no change to a
 ## MINOR — next: 1.5.0
 
 New, backward-compatible features. Several are gated on a lib version, noted in the item body.
-(The `[x]` items below shipped in 1.3.0 / 1.4.0; the open ones re-derive to the next MINOR.)
+(The `[x]` items below shipped/ready to ship; the open ones re-derive to the next MINOR.)
 
 - [ ] **Infinite strip and lookup system**
   The problem is that during work user may want to see how does the full strip look like
@@ -87,35 +87,7 @@ New, backward-compatible features. Several are gated on a lib version, noted in 
   1. Built-in webtoon-like viewer. Problem are margins and general rendereing - the files will have to be either rendered on fly or stored in temporary location with option to save
   2. Render infinite long strip either via designated output profile or separate button/menu option [Process]
 
-  Both options could be implemented.
-
-- [ ] **Import / export input and output profiles** — *lib side DONE; GUI pending.*
-  The lib now provides everything (see the lib TODO / changelog): a portable **profile bundle**
-  (`.platemaker.profiles.json`) via `Infrastructure::ProfileBundleSerializer`, and
-  `WorkspaceEditor::importProfiles` (fresh ids, template cleared, presets skipped — additive, so a
-  workspace stays self-contained). Needs a lib pin bump to the release that ships them.
-  GUI work:
-  - New **`widgets/importprofilesdialog/`** — cherry-pick list + inspection panel + "Inspect in editor…"
-    (a read-only mode added to the existing `CanvasProfileDialog` / `OutputProfileDialog`). Import
-    **sources**: another `.platemaker.json`, a `.platemaker.profiles.json` bundle, and a GUI-managed
-    **user library** (a bundle at a fixed `AppData` path, `user.platemaker.profiles.json`); plus Recent.
-  - An **"Import…"** button in the existing Manage dialogs (append to the working list → existing
-    `replace*Profiles` Accept path) and an **"Export…"** flow. A "Manage Profile Library" reuses the
-    Manage dialogs against the AppData bundle.
-  - The library is **only ever an import source** — no per-profile "global" flag; every workspace stays
-    self-contained. (See the planning doc for the full design.)
-
-- [ ] **Auto-sort rules** (`groupBoxAutosort`) — pattern/regex-based ordering:
-  `lineEditInputNameRegex` body token (e.g. `chap_<num>` → chap_001, chap_002…),
-  `lineEditPrependedRegex` (e.g. `title_<num>` first), `lineEditAppendedRegex`
-  (e.g. `end_<num>` last); `pushButtonAutosortApply` applies. Complex token/regex
-  parsing — dedicated future task. When implemented, **re-enable the group and drop the
-  "Coming soon" stopgap** in `project.cpp` (see the completed PATCH item).
-
-- [ ] **Output size estimation / limits (UI)** — show estimated avg/max slice size
-  and total batch size, and warn on platform caps (Webtoon ≤ 2 MB/slice,
-  ≤ 25 MB/chapter). Estimate computed by the lib (mirrored in lib TODO); GUI
-  displays before render and/or reports after.
+  Both options could be implemented. 
 
 - [ ] **Project-wide colour correction.** Comic/webtoon art is drawn on iPad in **Display P3** (wide
   gamut); most webtoon platforms and screens are **sRGB**, so even Procreate's "sRGB IEC61966-2.1" export
@@ -128,9 +100,53 @@ New, backward-compatible features. Several are gated on a lib version, noted in 
     output profile) and previewed before a full render.
   - The pixel work belongs in the lib (libvips has `vips_icc_transform` plus curve/LUT ops) — mirror in
     the lib TODO.
-  - **Scope idea:** apply project-wide but with per-page **exclusions** (e.g. everywhere except the first
+  - **Scope idea:** apply project-wide but with optional per-page **exclusions** (e.g. everywhere except the first
     and last page), which touches several GUI components (input tiles, a settings panel, the render
     path).
+  - GUI has to visualize color correction in Infinite strip and lookup system.
+    Two ideas:
+    1. Persistenly modify input files - goes against rule not to modify raw user input.
+    2. Add do lib an additional step during render to overlay color correction. 
+  
+- [ ] **Text and Text bubble creator**
+  1. Persistenly modify input files - goes against rule not to modify raw user input.
+  2. Add to lib an additional step to overlay text and text bubbles during render.
+
+- [ ] **Improve docking**
+  It should be possible to dock multiple dock-views next to each other vertically as well as horizontally.
+  Action dock shall have static default width - that can be only change by moving splitter. 
+
+- [x] **Import / export input and output profiles** — *DONE (lib + GUI); requires libplatemaker 0.5.2.*
+  Carry canvas/output profiles between workspaces. Lib side: a portable **profile bundle**
+  (`.platemaker.profiles.json`) via `Infrastructure::ProfileBundleSerializer` + `WorkspaceEditor::importProfiles`
+  (fresh ids, template cleared, presets skipped — additive, so a workspace stays self-contained). GUI side:
+  - **Import / Export** live as native **submenus** under *Canvas Profiles* and *Output* (populated on
+    `aboutToShow`). Import **sources**: another `.platemaker.json` workspace, a `.platemaker.profiles.json`
+    bundle, the GUI-managed **user library** (a bundle at a fixed `AppData` path,
+    `user.platemaker.profiles.json`), plus **recent workspaces** and **recent bundles**.
+  - New reusable `widgets/profilepickerdialog/` — a type-agnostic cherry-pick list with a grouped
+    read-only **inspection panel** (mirrors the editor: canvas size / margins / colour swatches) and
+    coloured **badges** (`margins`, `already in library`, painted by a custom item delegate).
+  - Export writes a bundle **file** or **adds to the library** (upsert-by-name — no duplicates); the picker
+    marks profiles already in the library and confirms before overwriting.
+  - Import commits through `WorkspaceEditor::importProfiles` (undoable), so the workspace stays
+    self-contained. The library is **only ever an import source / export target** — no per-profile
+    "global" flag; it never mutates a workspace on its own.
+  - *Deferred (not built):* a "read-only inspect in the editor dialog" (the inline panel covers it) and a
+    dedicated "Manage Profile Library" curation dialog (the library is populated by Export, consumed by
+    Import; per-entry edit/delete can come later).
+
+- [ ] **Auto-sort rules** (`groupBoxAutosort`) — pattern/regex-based ordering:
+  `lineEditInputNameRegex` body token (e.g. `chap_<num>` → chap_001, chap_002…),
+  `lineEditPrependedRegex` (e.g. `title_<num>` first), `lineEditAppendedRegex`
+  (e.g. `end_<num>` last); `pushButtonAutosortApply` applies. Complex token/regex
+  parsing — dedicated future task. When implemented, **re-enable the group and drop the
+  "Coming soon" stopgap** in `project.cpp` (see the completed PATCH item).
+
+- [ ] **Output size estimation / limits (UI)** — show estimated avg/max slice size
+  and total batch size, and warn on platform caps (Webtoon ≤ 2 MB/slice,
+  ≤ 25 MB/chapter). Estimate computed by the lib (mirrored in lib TODO); GUI
+  displays before render and/or reports after.
 
 - [ ] **OS-level crash handler for hard faults (segfault / SEH) — DEFERRED, likely not worth it yet.**
   Verdict from the cost/benefit analysis (`PlateMaker/temp/crash-handling-options.md`, §0): a minidump /

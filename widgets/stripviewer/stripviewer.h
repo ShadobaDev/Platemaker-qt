@@ -16,9 +16,10 @@ class QGraphicsScene;
 class QGraphicsItem;
 class QGraphicsLineItem;
 class QLabel;
-class QAction;
 class QEvent;
 class QResizeEvent;
+
+namespace Ui { class StripViewer; }
 
 /**
  * @brief Continuous "infinite strip" view of a project's rendered output slices.
@@ -53,6 +54,7 @@ class StripViewer : public QWidget
 
 public:
     explicit StripViewer(QWidget *parent = nullptr);
+    ~StripViewer() override;
 
     /**
      * @brief Feeds the ordered rendered slice image paths (in strip order) and rebuilds the strip.
@@ -88,7 +90,7 @@ protected:
 private:
     void rebuildScene();        //!< Lays out m_slicePaths (header sizes only) into one lazy StripItem.
     void showEmptyState();      //!< Clears the scene and shows the "no output yet" hint.
-    void addSeamItems();        //!< Adds a thin guide line at each slice boundary (toggled by m_seamsAction).
+    void addSeamItems();        //!< Adds a thin guide line at each slice boundary (toggled by ui->buttonSeams).
     void applyZoom(double z);   //!< Sets the absolute zoom factor (clamped) and updates the % label.
     void applyDefaultZoom();    //!< Native width, shrunk only if the strip is wider than the viewport (never enlarged).
     void userZoom(double z);    //!< A user-initiated zoom: applies it and ends the pending default-zoom follow.
@@ -104,11 +106,11 @@ private:
     //! Discards all cached/in-flight decodes and bumps the generation so stale results are ignored.
     void resetDecodeState();
 
-    QGraphicsView  *m_view       = nullptr;
+    Ui::StripViewer *ui          = nullptr;  //!< Designer form (toolbar buttons + graphics view).
+    QGraphicsView  *m_view       = nullptr;  //!< == ui->graphicsView (cached).
     QGraphicsScene *m_scene      = nullptr;
     QGraphicsItem  *m_item       = nullptr;  //!< The single StripItem drawing all slices (owned by the scene).
-    QLabel         *m_zoomLabel  = nullptr;
-    QAction        *m_seamsAction = nullptr; //!< Checkable "slice seams" overlay toggle.
+    QLabel         *m_zoomLabel  = nullptr;  //!< == ui->labelZoom (cached).
 
     QStringList  m_slicePaths;               //!< Raw feed as given to setSlices (may include unreadable entries).
     QString      m_cacheDir;                 //!< Proxy-thumbnail cache dir (the workspace .platemaker-cache).

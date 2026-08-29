@@ -1,8 +1,8 @@
 #include "stripviewer.h"
+#include "ui_stripviewer.h"
 
 #include <platemaker/infrastructure/thumbnail_cache/thumbnail_cache.hpp>
 
-#include <QAction>
 #include <QEvent>
 #include <QFutureWatcher>
 #include <QGraphicsItem>
@@ -17,9 +17,8 @@
 #include <QPen>
 #include <QScrollBar>
 #include <QStyleOptionGraphicsItem>
-#include <QToolBar>
+#include <QToolButton>
 #include <QTransform>
-#include <QVBoxLayout>
 #include <QWheelEvent>
 #include <QtConcurrent/QtConcurrentRun>
 
@@ -90,12 +89,18 @@ private:
 
 StripViewer::StripViewer(QWidget *parent)
     : QWidget(parent)
+    , ui(new Ui::StripViewer)
 {
     m_fullCache.setMaxCost(k_fullCacheKiB);
     m_proxyCache.setMaxCost(k_proxyCacheKiB);
 
+    // Toolbar buttons + the graphics view come from the Designer form; the runtime wiring is here.
+    ui->setupUi(this);
+    m_view      = ui->graphicsView;
+    m_zoomLabel = ui->labelZoom;
+
     m_scene = new QGraphicsScene(this);
-    m_view  = new QGraphicsView(m_scene, this);
+    m_view->setScene(m_scene);
     // Hand-drag to pan the big canvas; scrollbars + wheel cover the rest. No hardcoded background —
     // the strip sits on the themed palette (see the "inherit, don't hardcode colours" rule).
     m_view->setDragMode(QGraphicsView::ScrollHandDrag);
@@ -106,37 +111,22 @@ StripViewer::StripViewer(QWidget *parent)
     connect(m_view->verticalScrollBar(),   &QScrollBar::valueChanged, this, &StripViewer::updateVisibleSlices);
     connect(m_view->horizontalScrollBar(), &QScrollBar::valueChanged, this, &StripViewer::updateVisibleSlices);
 
-    // Slim top toolbar: zoom controls + seams toggle + "Render & view". The future colour / bubble
-    // tools slot in here (or a side panel) without disturbing the view.
-    auto *bar = new QToolBar(this);
-    bar->setMovable(false);                              // it lives in a layout, not a QMainWindow area
-    bar->setToolButtonStyle(Qt::ToolButtonTextOnly);     // the actions have no icons — show their text
-    bar->addAction(tr("−"), this, &StripViewer::zoomOut);
-    m_zoomLabel = new QLabel(QStringLiteral("100%"), this);
-    m_zoomLabel->setMinimumWidth(48);
-    m_zoomLabel->setAlignment(Qt::AlignCenter);
-    bar->addWidget(m_zoomLabel);
-    bar->addAction(tr("+"),        this, &StripViewer::zoomIn);
-    bar->addAction(tr("Fit width"), this, &StripViewer::fitWidth);
-    bar->addAction(tr("100%"),     this, &StripViewer::resetZoom);
-    bar->addSeparator();
-    m_seamsAction = bar->addAction(tr("Seams"));
-    m_seamsAction->setCheckable(true);
-    m_seamsAction->setToolTip(tr("Show a guide line at each slice boundary."));
-    connect(m_seamsAction, &QAction::toggled, this, [this](bool on) {
+    connect(ui->buttonZoomOut,   &QToolButton::clicked, this, &StripViewer::zoomOut);
+    connect(ui->buttonZoomIn,    &QToolButton::clicked, this, &StripViewer::zoomIn);
+    connect(ui->buttonFitWidth,  &QToolButton::clicked, this, &StripViewer::fitWidth);
+    connect(ui->buttonZoomReset, &QToolButton::clicked, this, &StripViewer::resetZoom);
+    connect(ui->buttonSeams, &QToolButton::toggled, this, [this](bool on) {
         for (QGraphicsLineItem *seam : std::as_const(m_seamItems))
             seam->setVisible(on);
     });
-    bar->addSeparator();
-    bar->addAction(tr("Render && view"), this, [this] { emit renderAndViewRequested(); });
-
-    auto *layout = new QVBoxLayout(this);
-    layout->setContentsMargins(0, 0, 0, 0);
-    layout->setSpacing(0);
-    layout->addWidget(bar);
-    layout->addWidget(m_view, 1);
+    connect(ui->buttonRenderView, &QToolButton::clicked, this, [this] { emit renderAndViewRequested(); });
 
     showEmptyState();
+}
+
+StripViewer::~StripViewer()
+{
+    delete ui;
 }
 
 void StripViewer::setSlices(const QStringList &slicePaths, const QString &cacheDir)
@@ -229,7 +219,7 @@ void StripViewer::addSeamItems()
         if (top == 0)
             continue;
         auto *seam = m_scene->addLine(0, top, m_stripWidth, top, pen);
-        seam->setVisible(m_seamsAction->isChecked());
+        seam->setVisible(ui->buttonSeams->isChecked());
         seam->setZValue(1);     // above the strip item
         m_seamItems.append(seam);
     }

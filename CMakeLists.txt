@@ -56,7 +56,7 @@ qt_add_executable(Platemaker
     widgets/renderworker/renderworker.cpp widgets/renderworker/renderworker.h
 
     # Strip viewer — continuous "infinite strip" view of a project's rendered slices (QGraphicsView).
-    widgets/stripviewer/stripviewer.cpp widgets/stripviewer/stripviewer.h
+    widgets/stripviewer/stripviewer.cpp widgets/stripviewer/stripviewer.h widgets/stripviewer/stripviewer.ui
 )
 
 # Every class/header lives in its own folder; add each to the include path so

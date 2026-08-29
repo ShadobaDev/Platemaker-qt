@@ -83,9 +83,13 @@ New, backward-compatible features. Several are gated on a lib version, noted in 
 
 - [~] **Infinite strip and lookup system** — *viewer DONE (GUI); lookup + preview-render deferred.*
   See the full strip as one continuous image during work, instead of per-slice tiles. Shipped: a
-  per-project **floating dock** (`widgets/stripviewer/`, opened from the Output tab's *View strip*), a
-  window onto the **lib-rendered output slices** reassembled — WYSIWYG, the viewer never re-derives
-  pixels. `QGraphicsView`/`Scene` with **one** item drawing every slice (avoids the 1px inter-item seam),
+  per-project **floating dock** (`widgets/stripviewer/`, `.ui` + `.cpp`/`.h`, opened from the Output tab's
+  *View strip*), a window onto the **lib-rendered output slices** reassembled — WYSIWYG, the viewer never
+  re-derives pixels. It carries a **custom title bar** (native min/max on a dock misbehave; a floating
+  dock otherwise shows only close) whose buttons **dock it tabbed beside Workspace** (minimise), **fill
+  the screen** (maximise ⇄ restore) or close it, while the bar still drives Qt's drag-to-dock so the dock
+  stays dockable. The shared dock tab bar's close/double-click resolve the dock by title
+  (`dockForTabBarTab`), so a tabified strip closes/floats correctly. `QGraphicsView`/`Scene` with **one** item drawing every slice (avoids the 1px inter-item seam),
   and **antialiasing off on the strip draw** so adjacent slices tile without edge-coverage bleed (the
   root cause of the hairline "frames" between pages). Memory-bounded (proxy + async decode + prefetch):
   header-only layout (`QImageReader::size`), a blurry **proxy** from the render-warmed `ThumbnailCache`

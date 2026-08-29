@@ -20,6 +20,7 @@ QT_END_NAMESPACE
 class QDockWidget;
 class QListWidgetItem;
 class QMenu;
+class QTabBar;
 class QThread;
 class QUndoGroup;
 class QUndoStack;
@@ -389,23 +390,39 @@ private:
      */
     void toggleProjectFloatState(int index);
 
+    /**
+     * @brief (Re)wires every dock tab bar so its tabs are closable and route close / double-click to the
+     * resolvers below. Idempotent — call it after any change that adds a dock to a tab group (opening a
+     * project, tabifying the strip). The workspace, project and strip docks can share one tab bar.
+     */
+    void wireDockTabBars();
+
+    /**
+     * @brief The dock whose tab is at @p index in tab bar @p bar, resolved by window title across the
+     * workspace, project and strip docks (a shared tab bar means a raw index into any one list is wrong).
+     * @return The matching dock, or nullptr.
+     */
+    [[nodiscard]] QDockWidget *dockForTabBarTab(const QTabBar *bar, int index) const;
+
     // --- strip viewer dock (per-project, floating) ---
 
     /**
      * @brief Opens (or raises + refreshes) the continuous strip viewer for the project at @p projectIndex.
      *
-     * A dedicated per-project dock, defaulting to floating (a big, movable window) so a tall strip has
-     * room; allowed to dock Left/Top/Bottom but never the Action column. Fed the project's committed
-     * output slices; a render's finish hook refreshes an open one. Mirrors the project-dock lifecycle
-     * (raise-if-open, tracked in m_openStripDocks, reindexed/closed with the project).
+     * A dedicated per-project dock, defaulting to floating; allowed Left/Top/Bottom but never the Action
+     * column, and never tab-combined. It carries a **custom title bar** whose buttons dock it (minimise),
+     * fill the screen (maximise ⇄ restore) or close it — a floating QDockWidget otherwise shows only a
+     * close button, and native min/max on a dock misbehave. Fed the project's committed output slices; a
+     * render's finish hook refreshes an open one. Raise-if-open, tracked in m_openStripDocks,
+     * reindexed/closed with the project.
      */
     void openStripViewerDock(int projectIndex);
 
     //! The open strip dock for the project at @p modelIndex, or nullptr. Keyed by the "projectIndex" property.
-    [[nodiscard]] class QDockWidget *dockForStripViewer(int modelIndex) const;
+    [[nodiscard]] QDockWidget *dockForStripViewer(int modelIndex) const;
 
     //! Reloads @p dock's StripViewer from its project's current committed output slices (in strip order).
-    void refreshStripViewer(class QDockWidget *dock);
+    void refreshStripViewer(QDockWidget *dock);
 
     // --- members ---
     static constexpr int k_maxRecentWorkspaces = 10;    //!< Maximum number of recent workspaces to track in the menu.

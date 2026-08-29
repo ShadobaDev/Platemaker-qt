@@ -16,8 +16,9 @@
   per-slice tiles. Scroll through it, zoom (fit-width / 100% / Ctrl+wheel), and toggle slice-boundary
   guides; a *Render & view* button (re)renders on the spot. It shows the actual rendered output, loads
   lazily with blurry thumbnail placeholders so scrolling stays smooth, and keeps memory bounded to what
-  is on screen — so even long chapters open instantly. The dock floats by default and can be arranged
-  anywhere but the Action column.
+  is on screen — so even long chapters open instantly. It opens as a floating dock sized to the strip,
+  with a title bar whose buttons dock it (tabbed beside the workspace), stretch it to the full screen,
+  or close it.
 - **Import / export input and output profiles.** Canvas and output profiles can now be carried between
   workspaces. Under *Canvas Profiles* and *Output*, new **Import** and **Export** submenus pull profiles
   from another `.platemaker.json` workspace, a `.platemaker.profiles.json` bundle, your personal **profile

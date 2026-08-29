@@ -20,13 +20,19 @@
 #include <QDockWidget>
 #include <QFileDialog>
 #include <QFileInfo>
+#include <QGuiApplication>
+#include <QHBoxLayout>
 #include <QInputDialog>
 #include <QKeySequence>
+#include <QLabel>
 #include <QLineEdit>
 #include <QListWidgetItem>
 #include <QMenu>
 #include <QMessageBox>
+#include <QScreen>
 #include <QSettings>
+#include <QStyle>
+#include <QToolButton>
 #include <QTabBar>
 #include <QThread>
 #include <QUndoGroup>
@@ -182,7 +188,7 @@ void MainWindow::removeProject(int modelIndex)
         m_openProjectDocks.removeOne(dock);
         dock->deleteLater();
     }
-    // ...and its strip viewer, if open.
+    // ...and its strip viewer dock, if open.
     if (QDockWidget *strip = dockForStripViewer(modelIndex)) {
         m_openStripDocks.removeOne(strip);
         strip->deleteLater();
@@ -296,7 +302,14 @@ void MainWindow::openProjectDock(int projectIndex)
     newDock->show();
     newDock->raise();
 
-    // Wire close/float tab bar buttons for the project tab bar
+    wireDockTabBars();
+}
+
+void MainWindow::wireDockTabBars()
+{
+    // The workspace, project and strip docks share dock tab bars (QMainWindow creates one per tab
+    // group). Make every tab closable and (re)wire close / double-click to the resolvers below, which
+    // map a tab back to its dock by title. disconnect(this) first so repeated calls don't stack.
     const auto tabBars = findChildren<QTabBar *>(QString{}, Qt::FindDirectChildrenOnly);
     for (QTabBar *bar : tabBars) {
         bar->setTabsClosable(true);
@@ -306,26 +319,45 @@ void MainWindow::openProjectDock(int projectIndex)
     }
 }
 
+QDockWidget *MainWindow::dockForTabBarTab(const QTabBar *bar, int index) const
+{
+    if (!bar || index < 0 || index >= bar->count())
+        return nullptr;
+    const QString title = bar->tabText(index);
+    if (ui->dockWidgetWorkspace->windowTitle() == title)
+        return ui->dockWidgetWorkspace;
+    for (QDockWidget *dock : m_openProjectDocks)
+        if (dock->windowTitle() == title) return dock;
+    for (QDockWidget *dock : m_openStripDocks)
+        if (dock->windowTitle() == title) return dock;
+    return nullptr;
+}
+
 void MainWindow::closeProjectByIndex(int index)
 {
-    // Skip if no project is selected or the index is out of bounds
-    if (index < 0 || index >= m_openProjectDocks.size()) return;
-    QDockWidget *dock = m_openProjectDocks.takeAt(index);
+    // Resolve which dock's tab was closed — the tab bar is shared by the workspace, project and strip
+    // docks, so a raw index into m_openProjectDocks would be wrong. Workspace / strip docks hide (the
+    // strip reopens via View strip, the workspace via its menu action); a project dock is destroyed.
+    QDockWidget *dock = dockForTabBarTab(qobject_cast<QTabBar *>(sender()), index);
+    if (!dock) return;
+    if (dock == ui->dockWidgetWorkspace || m_openStripDocks.contains(dock)) {
+        dock->close();
+        return;
+    }
+    m_openProjectDocks.removeOne(dock);
     dock->deleteLater();
 }
 
 void MainWindow::toggleProjectFloatState(int index)
 {
-    // Skip if no project is selected or the index is out of bounds
-    if (index < 0 || index >= m_openProjectDocks.size()) return;
-    QDockWidget *dock = m_openProjectDocks.at(index);
-    // Un-floating re-docks it into one of its allowed areas (never the Action column); the user is then
-    // free to split or tab it wherever they like.
-    dock->setFloating(!dock->isFloating());
+    // Float / re-dock whichever dock's tab was double-clicked (resolved from the shared tab bar). This is
+    // also how a tabified strip is pulled back out into its own floating window.
+    if (QDockWidget *dock = dockForTabBarTab(qobject_cast<QTabBar *>(sender()), index))
+        dock->setFloating(!dock->isFloating());
 }
 
 // ---------------------------------------------------------------------------
-// Strip viewer dock (per-project, floating)
+// Strip viewer dock (per-project, floating, custom title bar)
 // ---------------------------------------------------------------------------
 
 QDockWidget *MainWindow::dockForStripViewer(int modelIndex) const
@@ -376,7 +408,8 @@ void MainWindow::openStripViewerDock(int projectIndex)
     const QString name = QString::fromStdString(
         m_workspace.projectItems[static_cast<std::size_t>(projectIndex)].name);
 
-    QDockWidget *dock = new QDockWidget(tr("Strip — %1").arg(name), this);
+    QDockWidget *dock = new QDockWidget(this);
+    dock->setWindowTitle(tr("Strip — %1").arg(name));
     dock->setProperty("projectIndex", projectIndex);
     dock->setFeatures(QDockWidget::DockWidgetMovable  |
                       QDockWidget::DockWidgetClosable |
@@ -394,14 +427,79 @@ void MainWindow::openStripViewerDock(int projectIndex)
     });
     dock->setWidget(viewer);
 
-    // Default to a large floating window (per the placement decision) so a tall strip has room; the user
-    // can still dock/split it. addDockWidget first gives it a home area for when it is un-floated.
+    // Custom title bar: title + minimise / maximise / close. A floating QDockWidget otherwise shows only
+    // Qt's own close button, and native min/max on a dock misbehave; a custom bar gives the exact
+    // buttons while keeping the dock draggable and dockable (its empty area still drives the dock move).
+    // Per the user's model: minimise packs it back into the dock, maximise fills the screen (⇄ restore).
+    auto *titleBar = new QWidget(dock);
+    auto *tbLayout = new QHBoxLayout(titleBar);
+    tbLayout->setContentsMargins(6, 2, 2, 2);
+    tbLayout->setSpacing(2);
+    auto *titleLabel = new QLabel(dock->windowTitle(), titleBar);
+    connect(dock, &QDockWidget::windowTitleChanged, titleLabel, &QLabel::setText);
+    tbLayout->addWidget(titleLabel, 1);
+
+    const auto addTitleButton = [&](QStyle::StandardPixmap icon, const QString &tip) {
+        auto *b = new QToolButton(titleBar);
+        b->setIcon(style()->standardIcon(icon));
+        b->setToolTip(tip);
+        b->setAutoRaise(true);
+        tbLayout->addWidget(b);
+        return b;
+    };
+
+    // Minimise → dock it back, tabbed alongside the Workspace / project docks (not as its own area).
+    // Clear any maximised state so a later maximise fills the screen rather than restoring an old size.
+    connect(addTitleButton(QStyle::SP_TitleBarMinButton, tr("Dock (tab beside Workspace)")),
+            &QToolButton::clicked, this, [this, dock] {
+        dock->setProperty("stripMaximized", false);
+        dock->setFloating(false);
+        tabifyDockWidget(ui->dockWidgetWorkspace, dock);
+        wireDockTabBars();   // the new tab must be closable + wired
+        dock->show();
+        dock->raise();
+    });
+
+    // Maximise ⇄ restore → fill the screen (float first if docked), toggling back to the previous size.
+    connect(addTitleButton(QStyle::SP_TitleBarMaxButton, tr("Maximise to the full screen")),
+            &QToolButton::clicked, this, [this, dock] {
+        if (!dock->isFloating())
+            dock->setFloating(true);
+        if (dock->property("stripMaximized").toBool()) {
+            dock->setGeometry(dock->property("stripRestoreGeom").toRect());
+            dock->setProperty("stripMaximized", false);
+        } else {
+            dock->setProperty("stripRestoreGeom", dock->geometry());
+            const QScreen *scr = dock->screen() ? dock->screen() : screen();
+            if (scr)
+                dock->setGeometry(scr->availableGeometry());
+            dock->setProperty("stripMaximized", true);
+        }
+    });
+
+    // Close → hide (reopened via View strip).
+    connect(addTitleButton(QStyle::SP_TitleBarCloseButton, tr("Close")),
+            &QToolButton::clicked, dock, &QDockWidget::close);
+
+    dock->setTitleBarWidget(titleBar);
+
+    // Register it in a dock area first (its home when docked), then float it.
     addDockWidget(Qt::LeftDockWidgetArea, dock);
     dock->setFloating(true);
-    dock->resize(qMax(600, width() * 2 / 3), qMax(500, height() * 4 / 5));
 
     m_openStripDocks.append(dock);
-    refreshStripViewer(dock);   // load the current committed slices
+    refreshStripViewer(dock);   // load the current committed slices (also computes the strip width)
+
+    // Size: the output/strip width plus a 100px margin on each side, and 80% of the screen height. Fall
+    // back to a typical webtoon width when the project has no output yet (strip width unknown).
+    const int stripW = viewer->stripSize().width();
+    const int dockW  = (stripW > 0 ? stripW : 800) + 200;
+    const QScreen *scr = screen() ? screen() : QGuiApplication::primaryScreen();
+    const QRect avail  = scr ? scr->availableGeometry() : QRect(0, 0, 1280, 800);
+    const int dockH    = static_cast<int>(avail.height() * 0.8);
+    dock->resize(dockW, dockH);
+    dock->move(avail.center() - QPoint(dockW / 2, dockH / 2));   // centre on the screen
+
     dock->show();
     dock->raise();
 }

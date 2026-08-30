@@ -17,7 +17,7 @@ DockTitleBar::DockTitleBar(QDockWidget *dock, QWidget *parent)
 {
     auto *layout = new QHBoxLayout(this);
     layout->setContentsMargins(6, 2, 2, 2);
-    layout->setSpacing(23);          // roomy gaps between the buttons, like the native title-bar controls
+    layout->setSpacing(0);           // gaps added explicitly below, so the minimise button can be nudged
 
     auto *titleLabel = new QLabel(m_dock->windowTitle(), this);
     connect(m_dock, &QDockWidget::windowTitleChanged, titleLabel, &QLabel::setText);
@@ -34,19 +34,28 @@ DockTitleBar::DockTitleBar(QDockWidget *dock, QWidget *parent)
         return b;
     };
 
-    // Minimise → the owner decides dock ⇄ detach. The style's minimise glyph is a short dash; swap in a
-    // longer one so it reads like the native control (see dashIcon).
+    constexpr int gap   = 23;   // roomy gaps between the buttons, like the native title-bar controls
+    constexpr int nudge = 3;    // shift the minimise button right so its hover sits under the centred dash
+    constexpr int offset = 5;   // shift all buttons left there is addtional sapce on the right (to match the native windows title bar layout)
+
+    // Minimise → the owner decides dock ⇄ detach. The dash is drawn centred (see dashIcon); the button is
+    // nudged right by `nudge` and the following gap trimmed by the same, so the dash keeps its position
+    // and the hover sits symmetrically around it — without moving maximise / close.
+    layout->addSpacing(gap + nudge);
     QToolButton *minButton = addButton(QStyle::SP_TitleBarMinButton, tr("Dock ⇄ detach"));
     minButton->setIcon(dashIcon(minButton->iconSize().height()));
     connect(minButton, &QToolButton::clicked, this, &DockTitleBar::minimiseClicked);
 
     // Maximise ⇄ restore is identical for every dock, so handle it here.
+    layout->addSpacing(gap - nudge);
     connect(addButton(QStyle::SP_TitleBarMaxButton, tr("Maximise to the full screen")),
             &QToolButton::clicked, this, &DockTitleBar::toggleMaximise);
 
     // Close → the owner decides hide vs destroy.
+    layout->addSpacing(gap);
     connect(addButton(QStyle::SP_TitleBarCloseButton, tr("Close")),
             &QToolButton::clicked, this, &DockTitleBar::closeClicked);
+    layout->addSpacing(offset);
 
     // The maximise toggle is only meaningful within one float state; reset it whenever that changes
     // (docking, detaching), so the next maximise fills the screen instead of restoring a stale geometry.
@@ -81,9 +90,8 @@ QIcon DockTitleBar::dashIcon(int px) const
     QPen pen(palette().color(QPalette::WindowText));
     pen.setWidth(1);
     p.setPen(pen);
-    const int     y      = px / 2;
-    const int     margin = qMax(2, px / 7);   // 2px min, ~1/7 of the icon size
-    constexpr int offset = 3;                 // nudge right so it sits under the button like the glyphs
-    p.drawLine(margin + offset, y, px - margin + offset, y);
+    const int y      = px / 2;
+    const int margin = qMax(2, px / 7)+1;   // 2px min, ~1/7 of the icon size
+    p.drawLine(margin, y, px - margin, y);   // centred; the min button itself is nudged in the layout
     return QIcon(pm);
 }

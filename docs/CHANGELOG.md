@@ -8,6 +8,11 @@
   horizontally *and* vertically, split, or tabbed together. The **Action** panel is pinned to its own
   right column: it can no longer be tab-combined with other docks and keeps a static default width that
   only a splitter drag changes.
+- **Custom dock title bar.** The Workspace, project and strip docks share a title bar with real
+  **minimise** (dock ⇄ detach — docking tabs it beside the Workspace, floating pops it out), **maximise**
+  (fill the screen ⇄ restore) and **close** buttons — a floating dock previously showed only a close
+  button, and the OS min/max misbehaved on a dock. (A tabified dock is still detached by double-clicking
+  its tab.)
 
 ### Added
 

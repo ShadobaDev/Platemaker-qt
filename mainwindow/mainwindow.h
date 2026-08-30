@@ -404,6 +404,19 @@ private:
      */
     [[nodiscard]] QDockWidget *dockForTabBarTab(const QTabBar *bar, int index) const;
 
+    /**
+     * @brief Installs the shared `DockTitleBar` on @p dock and wires its dock-specific behaviour: minimise
+     * toggles dock ⇄ detach (docking tabs it beside the Workspace, except the Workspace anchor and the
+     * Action column which just re-dock); close routes to closeDock(). Maximise is handled inside
+     * DockTitleBar. Used for the Workspace, project, strip and Action docks.
+     */
+    void installDockTitleBar(QDockWidget *dock);
+
+    //! Closes @p dock the way its kind expects: the Workspace and strip docks hide (reopened via their
+    //! menu / View strip); a project dock is removed and destroyed. Shared by the tab close and the
+    //! custom title bar's close button.
+    void closeDock(QDockWidget *dock);
+
     // --- strip viewer dock (per-project, floating) ---
 
     /**

@@ -57,6 +57,9 @@ qt_add_executable(Platemaker
 
     # Strip viewer — continuous "infinite strip" view of a project's rendered slices (QGraphicsView).
     widgets/stripviewer/stripviewer.cpp widgets/stripviewer/stripviewer.h widgets/stripviewer/stripviewer.ui
+
+    # Custom dock title bar (min = dock⇄detach, max = fill screen, close) shared by all docks.
+    widgets/docktitlebar/docktitlebar.cpp widgets/docktitlebar/docktitlebar.h
 )
 
 # Every class/header lives in its own folder; add each to the include path so
@@ -78,6 +81,7 @@ target_include_directories(Platemaker PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/widgets/licencedialog
     ${CMAKE_CURRENT_SOURCE_DIR}/widgets/renderworker
     ${CMAKE_CURRENT_SOURCE_DIR}/widgets/stripviewer
+    ${CMAKE_CURRENT_SOURCE_DIR}/widgets/docktitlebar
 )
 
 include(FetchContent)

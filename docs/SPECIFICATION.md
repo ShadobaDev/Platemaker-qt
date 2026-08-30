@@ -55,6 +55,19 @@ Dock-based host window.  Holds:
 One `MainWindow` instance = one open workspace.  Switching workspace closes the
 current one (with save prompt) and re-opens with the new file.
 
+Every dock — Workspace, project, strip **and Action** — wears the same **custom title bar**, the
+reusable `DockTitleBar` widget (`widgets/docktitlebar/`), installed via
+`MainWindow::installDockTitleBar()` (`setTitleBarWidget`): a live title label plus **minimise**,
+**maximise** and **close** buttons styled after the native window controls. `DockTitleBar` handles
+**maximise ⇄ restore** (fill the screen) itself — identical for every dock — and leaves the
+dock-specific actions to the owner via signals: **minimise** toggles dock ⇄ detach (docking tabs it
+beside the Workspace, except the Workspace anchor and the Right-only Action column, which just re-dock),
+**close** routes to `closeDock()` (Workspace / Action / strip hide — reopened via the *Show … panel*
+menu items / *View strip*; a project dock is destroyed). Qt hides a dock's title bar while it is
+tabified, so those buttons show only while a dock floats or is docked alone; a tabified dock is detached
+by double-clicking its tab. The Action dock keeps its fixed-width grip content underneath the bar. See
+§2.5 for the shared dock tab-bar handling.
+
 ### 2.2 Project View — `Project`
 
 A dock widget, tabbed alongside the workspace panel (one dock per open project).  Represents one
@@ -117,18 +130,11 @@ cut from — a window onto the *lib-rendered* pixels. It is deliberately **WYSIW
 image**: what the viewer shows is exactly what the render produced (so a blank gutter or a colour is a
 render/input matter, not the viewer's).
 
-- **Placement + custom title bar.** A `QDockWidget` allowed Left/Top/Bottom and **never** tab-combined
-  with the Action right column; it defaults to floating. A floating dock shows only Qt's own close
-  button, and native min/max on a dock misbehave (maximise re-docks, minimise shrinks to a corner), so it
-  carries a **custom title bar** (`setTitleBarWidget`) — a title label kept in sync via
-  `windowTitleChanged`, plus three `SP_TitleBar*` buttons: **minimise → dock it, tabbed beside the
-  Workspace / project docks** (`setFloating(false)` + `tabifyDockWidget(dockWidgetWorkspace, …)`),
-  **maximise ⇄ restore → fill the screen** (float if needed, then swap geometry with the screen's
-  `availableGeometry`, remembered on a `stripMaximized` / `stripRestoreGeom` property), **close → hide**
-  (reopened via *View strip*). The bar's empty area still drives Qt's drag-to-dock, so the dock stays
-  fully dockable. It opens sized to the **output width + 100px each side** (× 80% of the screen height),
-  centred, is refreshed on render finish (`onRenderFinished`), and is tracked in `m_openStripDocks`
-  (keyed by a `projectIndex` property), reindexed/closed with its project.
+- **Placement.** A `QDockWidget` allowed Left/Top/Bottom and **never** tab-combined with the Action right
+  column; it defaults to floating and wears the shared custom title bar (§2.1). It opens sized to the
+  **output width + 100px each side** (× 80% of the screen height), centred, is refreshed on render finish
+  (`onRenderFinished`), and is tracked in `m_openStripDocks` (keyed by a `projectIndex` property),
+  reindexed/closed with its project.
 - **Shared dock tab bar.** The Workspace, project and strip docks can occupy one tab group, so their tab
   bar's close / double-click are resolved by `dockForTabBarTab()` (tab → dock **by window title**) rather
   than a raw index into any one list: a project tab destroys its dock, a strip/workspace tab hides it, a

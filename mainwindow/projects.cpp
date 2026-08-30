@@ -9,6 +9,7 @@
 #include "templatesdialog.h"
 #include "renderworker.h"
 #include "stripviewer.h"
+#include "docktitlebar.h"
 
 #include <platemaker/infrastructure/workspace_editor/workspace_editor.hpp>
 
@@ -21,18 +22,15 @@
 #include <QFileDialog>
 #include <QFileInfo>
 #include <QGuiApplication>
-#include <QHBoxLayout>
 #include <QInputDialog>
 #include <QKeySequence>
-#include <QLabel>
 #include <QLineEdit>
 #include <QListWidgetItem>
 #include <QMenu>
 #include <QMessageBox>
 #include <QScreen>
 #include <QSettings>
-#include <QStyle>
-#include <QToolButton>
+#include <QSize>
 #include <QTabBar>
 #include <QThread>
 #include <QUndoGroup>
@@ -276,6 +274,8 @@ void MainWindow::openProjectDock(int projectIndex)
     connect(this, &MainWindow::workspaceProfilesChanged,
             projectWidget, &Project::refreshProfileViews);
     newDock->setWidget(projectWidget);
+    // Same custom title bar as the workspace/strip/action docks (min = dock ⇄ detach, max, close).
+    installDockTitleBar(newDock);
 
     // Register this project's undo stack with the group (its destructor auto-removes it when the dock
     // closes). Ctrl+Z / Ctrl+Y target it while this dock's tab is in front (visibilityChanged below).
@@ -335,17 +335,9 @@ QDockWidget *MainWindow::dockForTabBarTab(const QTabBar *bar, int index) const
 
 void MainWindow::closeProjectByIndex(int index)
 {
-    // Resolve which dock's tab was closed — the tab bar is shared by the workspace, project and strip
-    // docks, so a raw index into m_openProjectDocks would be wrong. Workspace / strip docks hide (the
-    // strip reopens via View strip, the workspace via its menu action); a project dock is destroyed.
-    QDockWidget *dock = dockForTabBarTab(qobject_cast<QTabBar *>(sender()), index);
-    if (!dock) return;
-    if (dock == ui->dockWidgetWorkspace || m_openStripDocks.contains(dock)) {
-        dock->close();
-        return;
-    }
-    m_openProjectDocks.removeOne(dock);
-    dock->deleteLater();
+    // The tab bar is shared by the workspace, project and strip docks, so resolve the dock by title
+    // rather than a raw index, then close it the way its kind expects (see closeDock).
+    closeDock(dockForTabBarTab(qobject_cast<QTabBar *>(sender()), index));
 }
 
 void MainWindow::toggleProjectFloatState(int index)
@@ -354,6 +346,47 @@ void MainWindow::toggleProjectFloatState(int index)
     // also how a tabified strip is pulled back out into its own floating window.
     if (QDockWidget *dock = dockForTabBarTab(qobject_cast<QTabBar *>(sender()), index))
         dock->setFloating(!dock->isFloating());
+}
+
+void MainWindow::installDockTitleBar(QDockWidget *dock)
+{
+    // The shared visual/maximise part lives in DockTitleBar; wire the dock-specific minimise and close
+    // behaviour here. Qt hides the bar while the dock is tabified (the tab stands in), so its buttons
+    // show only while the dock floats or is docked alone.
+    auto *bar = new DockTitleBar(dock, dock);
+
+    // Minimise → toggle dock ⇄ detach. Docking tabs it beside the Workspace, except the Workspace dock
+    // (the tab anchor) and the Action column (Right-only, never combined) which simply re-dock.
+    connect(bar, &DockTitleBar::minimiseClicked, this, [this, dock] {
+        if (dock->isFloating()) {
+            dock->setFloating(false);
+            if (dock != ui->dockWidgetWorkspace && dock != ui->dockWidgetAction) {
+                tabifyDockWidget(ui->dockWidgetWorkspace, dock);
+                wireDockTabBars();
+            }
+            dock->show();
+            dock->raise();
+        } else {
+            dock->setFloating(true);
+        }
+    });
+
+    connect(bar, &DockTitleBar::closeClicked, this, [this, dock] { closeDock(dock); });
+
+    dock->setTitleBarWidget(bar);
+}
+
+void MainWindow::closeDock(QDockWidget *dock)
+{
+    if (!dock) return;
+    // The Workspace, Action and strip docks hide (reopened via their menu action / View strip); a
+    // project dock is destroyed (reopened from the project list).
+    if (dock == ui->dockWidgetWorkspace || dock == ui->dockWidgetAction || m_openStripDocks.contains(dock)) {
+        dock->close();
+        return;
+    }
+    m_openProjectDocks.removeOne(dock);
+    dock->deleteLater();
 }
 
 // ---------------------------------------------------------------------------
@@ -427,61 +460,8 @@ void MainWindow::openStripViewerDock(int projectIndex)
     });
     dock->setWidget(viewer);
 
-    // Custom title bar: title + minimise / maximise / close. A floating QDockWidget otherwise shows only
-    // Qt's own close button, and native min/max on a dock misbehave; a custom bar gives the exact
-    // buttons while keeping the dock draggable and dockable (its empty area still drives the dock move).
-    // Per the user's model: minimise packs it back into the dock, maximise fills the screen (⇄ restore).
-    auto *titleBar = new QWidget(dock);
-    auto *tbLayout = new QHBoxLayout(titleBar);
-    tbLayout->setContentsMargins(6, 2, 2, 2);
-    tbLayout->setSpacing(2);
-    auto *titleLabel = new QLabel(dock->windowTitle(), titleBar);
-    connect(dock, &QDockWidget::windowTitleChanged, titleLabel, &QLabel::setText);
-    tbLayout->addWidget(titleLabel, 1);
-
-    const auto addTitleButton = [&](QStyle::StandardPixmap icon, const QString &tip) {
-        auto *b = new QToolButton(titleBar);
-        b->setIcon(style()->standardIcon(icon));
-        b->setToolTip(tip);
-        b->setAutoRaise(true);
-        tbLayout->addWidget(b);
-        return b;
-    };
-
-    // Minimise → dock it back, tabbed alongside the Workspace / project docks (not as its own area).
-    // Clear any maximised state so a later maximise fills the screen rather than restoring an old size.
-    connect(addTitleButton(QStyle::SP_TitleBarMinButton, tr("Dock (tab beside Workspace)")),
-            &QToolButton::clicked, this, [this, dock] {
-        dock->setProperty("stripMaximized", false);
-        dock->setFloating(false);
-        tabifyDockWidget(ui->dockWidgetWorkspace, dock);
-        wireDockTabBars();   // the new tab must be closable + wired
-        dock->show();
-        dock->raise();
-    });
-
-    // Maximise ⇄ restore → fill the screen (float first if docked), toggling back to the previous size.
-    connect(addTitleButton(QStyle::SP_TitleBarMaxButton, tr("Maximise to the full screen")),
-            &QToolButton::clicked, this, [this, dock] {
-        if (!dock->isFloating())
-            dock->setFloating(true);
-        if (dock->property("stripMaximized").toBool()) {
-            dock->setGeometry(dock->property("stripRestoreGeom").toRect());
-            dock->setProperty("stripMaximized", false);
-        } else {
-            dock->setProperty("stripRestoreGeom", dock->geometry());
-            const QScreen *scr = dock->screen() ? dock->screen() : screen();
-            if (scr)
-                dock->setGeometry(scr->availableGeometry());
-            dock->setProperty("stripMaximized", true);
-        }
-    });
-
-    // Close → hide (reopened via View strip).
-    connect(addTitleButton(QStyle::SP_TitleBarCloseButton, tr("Close")),
-            &QToolButton::clicked, dock, &QDockWidget::close);
-
-    dock->setTitleBarWidget(titleBar);
+    // Shared custom title bar (minimise = dock ⇄ detach, maximise = fill screen, close = hide).
+    installDockTitleBar(dock);
 
     // Register it in a dock area first (its home when docked), then float it.
     addDockWidget(Qt::LeftDockWidgetArea, dock);

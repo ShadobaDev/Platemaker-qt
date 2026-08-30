@@ -103,6 +103,12 @@ MainWindow::MainWindow(QWidget *parent)
     wrapperLayout->addWidget(actionContent);
     ui->dockWidgetAction->setWidget(actionWrapper);
 
+    // Give the Workspace and Action docks the same custom title bar as the project / strip docks
+    // (minimise = dock ⇄ detach, maximise = fill screen, close = hide). The Action dock keeps its
+    // fixed-width grip content underneath — the title bar sits above it.
+    installDockTitleBar(ui->dockWidgetWorkspace);
+    installDockTitleBar(ui->dockWidgetAction);
+
     // Keyboard shortcuts (the .ui already sets text labels, we only add keys)
     ui->actionOpen_workspace->setShortcut(QKeySequence::Open);
     ui->actionNew_workspace->setShortcut(QKeySequence::New);
@@ -119,6 +125,10 @@ MainWindow::MainWindow(QWidget *parent)
     connect(ui->actionShow_workspace_panel, &QAction::triggered, this, [this]{
         ui->dockWidgetWorkspace->show();
         ui->dockWidgetWorkspace->raise();
+    });
+    connect(ui->actionShow_action_panel, &QAction::triggered, this, [this]{
+        ui->dockWidgetAction->show();
+        ui->dockWidgetAction->raise();
     });
 
     // "Open recent workspace" — attach a dynamic submenu to the existing action.

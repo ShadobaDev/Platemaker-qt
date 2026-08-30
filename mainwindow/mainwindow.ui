@@ -91,6 +91,7 @@ QTabWidget QTabBar::close-button {
     <addaction name="actionReveal_workspace_in_Explorer"/>
     <addaction name="separator"/>
     <addaction name="actionShow_workspace_panel"/>
+    <addaction name="actionShow_action_panel"/>
     <addaction name="separator"/>
     <addaction name="actionClose_workspace"/>
     <addaction name="separator"/>
@@ -474,6 +475,11 @@ QTabWidget QTabBar::close-button {
   <action name="actionShow_workspace_panel">
    <property name="text">
     <string>Show workspace panel</string>
+   </property>
+  </action>
+  <action name="actionShow_action_panel">
+   <property name="text">
+    <string>Show action panel</string>
    </property>
   </action>
   <action name="actionOpen_recent_workspace">

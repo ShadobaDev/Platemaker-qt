@@ -91,7 +91,7 @@ QIcon DockTitleBar::dashIcon(int px) const
     pen.setWidth(1);
     p.setPen(pen);
     const int y      = px / 2;
-    const int margin = qMax(2, px / 7)+1;   // 2px min, ~1/7 of the icon size
+    const int margin = qMax(2, px / 7) + 1;   // 2px min, ~1/7 of the icon size, plus 1px to match windows native min button dash size
     p.drawLine(margin, y, px - margin, y);   // centred; the min button itself is nudged in the layout
     return QIcon(pm);
 }

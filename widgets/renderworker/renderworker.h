@@ -11,6 +11,7 @@
 #include <platemaker/infrastructure/control/cancellation_token.hpp>
 #include <platemaker/models/canvas_profile.hpp>
 #include <platemaker/models/output_profile.hpp>
+#include <platemaker/models/processing_steps.hpp>
 #include <platemaker/models/project_item.hpp>
 
 /**
@@ -71,6 +72,22 @@ public:
      */
     void setThumbnailCacheDir(std::string dir) { m_thumbnailCacheDir = std::move(dir); }
 
+    /**
+     * \brief Optional per-page colour grade, applied in the page domain (before scale).
+     *
+     * Default / \c enabled==false → no colour work at all, so the output is byte-identical to a build
+     * without this step. Call before starting the worker.
+     */
+    void setColourCorrection(Platemaker::Models::ColourCorrection cc) { m_colourCorrection = std::move(cc); }
+
+    /**
+     * \brief Optional text/bubble overlays, composited in the strip domain (per slice, at strip-Y).
+     *
+     * Empty (default) → no compositing, so the output is byte-identical to a build without this step.
+     * Call before starting the worker.
+     */
+    void setStripOverlays(std::vector<Platemaker::Models::StripOverlay> overlays) { m_stripOverlays = std::move(overlays); }
+
 public slots:
     void process();   //!< Runs Core::ProcessingPipeline synchronously (intended to execute on a worker thread), emitting progress/log/sliceSaved as it goes, then `finished`.
 
@@ -90,6 +107,8 @@ private:
     const Platemaker::Infrastructure::CancellationToken& m_cancel;      //!< Cancellation token owned by MainWindow; checked during the run.
     std::unordered_set<std::string>                m_onlySlices;        //!< Partial-render filter (empty = full).
     std::string                                    m_thumbnailCacheDir; //!< Workspace thumbnail-cache dir to pre-warm during the render (empty = none).
+    Platemaker::Models::ColourCorrection           m_colourCorrection;  //!< Optional page-domain colour grade (default enabled==false → no-op).
+    std::vector<Platemaker::Models::StripOverlay>  m_stripOverlays;     //!< Optional strip-domain text/bubble overlays (empty → no-op).
     Platemaker::Core::ProcessingOutcome            m_outcome;           //!< Result of the run, populated by process().
 };
 

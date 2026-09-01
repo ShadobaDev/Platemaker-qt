@@ -92,7 +92,7 @@ include(FetchContent)
 #   2. find_package                     — system install or CMAKE_PREFIX_PATH
 #   3. FetchContent                     — downloads pre-built package from GitHub Releases
 # ───────────────────────────────────────────────────────────────────────────────
-set(LIBPLATEMAKER_VERSION "0.5.2")
+set(LIBPLATEMAKER_VERSION "0.6.0" CACHE STRING "Minimum libplatemaker version required by the GUI")
 set(LIBPLATEMAKER_DIR "" CACHE PATH "Path to a local platemaker dev package")
 message("Local libplatemaker path: ${LIBPLATEMAKER_DIR}")
 

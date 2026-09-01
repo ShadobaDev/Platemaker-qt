@@ -198,8 +198,19 @@ bool MainWindow::startRender(int projectIndex)
     // leave it stale, re-rendering forever).
     const bool inputOrderChanged = project.detectInputCompositionChange();
 
+    // Optional processing steps (colour correction / overlays) change every slice while leaving the
+    // inputs and the output profile untouched — invisible to every check above. processingConfigSignature()
+    // is empty when nothing is configured, so a pre-feature project (empty stored signature) matches and is
+    // not flagged; enabling *or* disabling a step flips the signature and forces a full re-render. No
+    // empty-guard (unlike outputSignature): an empty current sig must still differ from a non-empty stored
+    // one, so turning a step back off re-renders. Mirrors the CLI.
+    const std::string curProcSig =
+        Platemaker::Models::processingConfigSignature(project.colourCorrection, project.getStripOverlays());
+    const bool procSigMismatch = project.processingSignature != curProcSig;
+
     const bool configChanged =
-        hasOutputs && (sigMismatch || formatMismatch || canvasChange.any() || inputOrderChanged);
+        hasOutputs && (sigMismatch || formatMismatch || canvasChange.any() || inputOrderChanged
+                       || procSigMismatch);
 
     if (project.isUpToDate() && !configChanged) {
         m_batchSkipReason = tr("up to date");
@@ -310,6 +321,10 @@ bool MainWindow::startRender(int projectIndex)
     // cache hit and never re-reads a slice the render is still writing (the read/write race). The dir is
     // the same .platemaker-cache the tiles read from; empty when no workspace is open (no warming then).
     worker->setThumbnailCacheDir(workspaceCacheDir().toStdString());
+    // Optional render-time processing steps, copied from the project into the worker. Default / disabled
+    // (CC enabled==false, no overlays) → the pipeline is byte-identical to a build without them.
+    worker->setColourCorrection(project.colourCorrection);
+    worker->setStripOverlays(project.getStripOverlays());
     auto *thread = new QThread(this);
     worker->moveToThread(thread);
     m_renderWorker = worker;
@@ -646,6 +661,10 @@ void MainWindow::onRenderFinished()
             // format/size/quality change is detected as stale.
             project.outputSignature =
                 Platemaker::Models::outputProfileSignature(resolveOutputProfileFor(project));
+            // Same for the optional processing steps: stamp the signature of the CC/overlay config that
+            // produced these outputs, so a later enable/disable/tweak is detected as stale (Axis D).
+            project.processingSignature =
+                Platemaker::Models::processingConfigSignature(project.colourCorrection, project.getStripOverlays());
             setDirty(true);
             // Repopulate both lists, not just the outputs: applyProcessingResults() also
             // moves the inputs back to Processed (and clears their out-of-sync marks), so

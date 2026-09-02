@@ -64,6 +64,11 @@ qt_add_executable(Platemaker
     # Flow layout — wraps items to fit the width (the strip editor's reflowing tool grid).
     widgets/flowlayout/flowlayout.cpp widgets/flowlayout/flowlayout.h
 
+    # Strip-editor tool-options panels (empty scaffolds; grade/bubble/text controls land later).
+    widgets/ccpanel/ccpanel.cpp widgets/ccpanel/ccpanel.h widgets/ccpanel/ccpanel.ui
+    widgets/bubblepanel/bubblepanel.cpp widgets/bubblepanel/bubblepanel.h widgets/bubblepanel/bubblepanel.ui
+    widgets/textpanel/textpanel.cpp widgets/textpanel/textpanel.h widgets/textpanel/textpanel.ui
+
     # Custom dock title bar (min = dock⇄detach, max = fill screen, close) shared by all docks.
     widgets/docktitlebar/docktitlebar.cpp widgets/docktitlebar/docktitlebar.h
 )
@@ -89,6 +94,9 @@ target_include_directories(Platemaker PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/widgets/stripviewer
     ${CMAKE_CURRENT_SOURCE_DIR}/widgets/stagecard
     ${CMAKE_CURRENT_SOURCE_DIR}/widgets/flowlayout
+    ${CMAKE_CURRENT_SOURCE_DIR}/widgets/ccpanel
+    ${CMAKE_CURRENT_SOURCE_DIR}/widgets/bubblepanel
+    ${CMAKE_CURRENT_SOURCE_DIR}/widgets/textpanel
     ${CMAKE_CURRENT_SOURCE_DIR}/widgets/docktitlebar
 )
 

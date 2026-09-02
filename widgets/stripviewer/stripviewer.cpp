@@ -1,6 +1,9 @@
 #include "stripviewer.h"
 #include "ui_stripviewer.h"
 #include "flowlayout.h"
+#include "ccpanel.h"
+#include "bubblepanel.h"
+#include "textpanel.h"
 
 #include <platemaker/infrastructure/thumbnail_cache/thumbnail_cache.hpp>
 
@@ -129,19 +132,17 @@ StripViewer::StripViewer(QWidget *parent)
     });
     connect(ui->buttonRenderView, &QToolButton::clicked, this, [this] { emit renderAndViewRequested(); });
 
-    // --- Editor shell: a left tool rail and a right panel wrap the existing graphics view (built in code;
-    // the .ui provides the toolbar + view). Pan (the default) keeps today's behaviour exactly — hand-drag
-    // pan and no side panel; the other tools reveal the right panel. Their real controls (grade / bubble /
-    // text) arrive in later increments.
+    // --- Editor shell: the splitters, canvas, tool-options stack and artifact list come from the .ui
+    // (editorBody = toolbox | canvas | rightPanel). Here we only fill the toolbox with a flowing grid of
+    // square tool tiles (a flow layout can't be expressed in a .ui), give the stack a page per tool, and
+    // set the splitter sizing (not a .ui property). Pan (the default) keeps today's behaviour: hand-drag
+    // pan and no side panel.
     {
-        auto* rail = new QWidget(this);
-        // A flow layout so the square tool tiles wrap to fit the toolbox width (1 / 2 / 3 … per row).
-        auto* railLay = new FlowLayout(rail, 6, 4, 4); // margin, hSpacing, vSpacing
-
+        auto* railLay = new FlowLayout(ui->toolRail, 6, 4, 4); // margin, hSpacing, vSpacing — wraps to fit
         m_toolGroup = new QButtonGroup(this);
         m_toolGroup->setExclusive(true);
         auto addTool = [&](Tool t, const QString& iconPath, const QString& tip) {
-            auto* b = new QToolButton(rail);
+            auto* b = new QToolButton(ui->toolRail);
             b->setIcon(QIcon(iconPath));
             b->setIconSize(QSize(26, 26));
             b->setToolTip(tip);
@@ -157,35 +158,20 @@ StripViewer::StripViewer(QWidget *parent)
         addTool(Tool::Bubble, QStringLiteral(":/icons/tools/bubble.svg"), tr("Speech bubble"));
         addTool(Tool::Text,   QStringLiteral(":/icons/tools/text.svg"),   tr("Text"));
 
-        // Right column: tool options (top) over an artifacts / exclusions list (bottom).
-        m_toolOptions = new QStackedWidget(this);
-        for (int i = 0; i < 4; ++i)                       // one page per tool; filled in later increments
-            m_toolOptions->addWidget(new QWidget(m_toolOptions));
-        m_artifactList = new QListWidget(this);
-        m_rightPanel = new QSplitter(Qt::Vertical, this);
-        m_rightPanel->addWidget(m_toolOptions);
-        m_rightPanel->addWidget(m_artifactList);
-        m_rightPanel->setStretchFactor(0, 3);
-        m_rightPanel->setStretchFactor(1, 2);
-        m_rightPanel->setMaximumWidth(320);
+        // One tool-options page per tool (index == Tool). Empty scaffolds for now; grade/bubble/text
+        // controls arrive in later increments. Pan has no options.
+        ui->toolOptions->addWidget(new QWidget(ui->toolOptions)); // Pan
+        ui->toolOptions->addWidget(new CcPanel(ui->toolOptions)); // Grade
+        ui->toolOptions->addWidget(new BubblePanel(ui->toolOptions)); // Bubble
+        ui->toolOptions->addWidget(new TextPanel(ui->toolOptions)); // Text
 
-        // Re-seat the graphics view into a resizable grid: rail | view | right panel. A horizontal splitter
-        // pins the toolbox to the left edge yet lets the user drag the divider between it and the canvas to
-        // resize its width (GIMP-style); the right panel resizes the same way. Panes never collapse to
-        // nothing by dragging.
-        ui->rootLayout->removeWidget(m_view);
-        rail->setMinimumWidth(52); // room for one square tile column; wider fits more per row
-        auto* body = new QSplitter(Qt::Horizontal, this);
-        body->setChildrenCollapsible(false);
-        body->setHandleWidth(4);
-        body->addWidget(rail);
-        body->addWidget(m_view);
-        body->addWidget(m_rightPanel);
-        body->setStretchFactor(0, 0);   // toolbox keeps its width on resize
-        body->setStretchFactor(1, 1);   // canvas absorbs the extra space
-        body->setStretchFactor(2, 0);   // right panel keeps its width
-        body->setSizes({108, 700, 260}); // toolbox wide enough for a 2-tile row by default
-        ui->rootLayout->insertWidget(1, body);
+        // Splitter behaviour (not expressible in the .ui): canvas absorbs resize, panels keep their width.
+        ui->editorBody->setStretchFactor(0, 0);   // toolbox
+        ui->editorBody->setStretchFactor(1, 1);   // canvas
+        ui->editorBody->setStretchFactor(2, 0);   // right panel
+        ui->editorBody->setSizes({108, 700, 260}); // toolbox wide enough for a 2-tile row by default
+        ui->rightPanel->setStretchFactor(0, 3);    // options
+        ui->rightPanel->setStretchFactor(1, 2);    // artifacts
 
         connect(m_toolGroup, &QButtonGroup::idClicked, this, [this](int id) { setTool(static_cast<Tool>(id)); });
         setTool(Tool::Pan);   // default: today's view, right panel hidden
@@ -199,12 +185,12 @@ void StripViewer::setTool(Tool tool)
     m_tool = tool;
     if (auto* b = m_toolGroup->button(static_cast<int>(tool)))
         b->setChecked(true);
-    m_toolOptions->setCurrentIndex(static_cast<int>(tool));
+    ui->toolOptions->setCurrentIndex(static_cast<int>(tool));
     // Pan == today: hand-drag to pan, and no side panel. Any other tool reveals the panel and frees the
     // left button for tool interaction (drawing/selection lands in later increments).
     const bool pan = (tool == Tool::Pan);
     m_view->setDragMode(pan ? QGraphicsView::ScrollHandDrag : QGraphicsView::NoDrag);
-    m_rightPanel->setVisible(!pan);
+    ui->rightPanel->setVisible(!pan);
 }
 
 StripViewer::~StripViewer()

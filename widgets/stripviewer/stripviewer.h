@@ -19,9 +19,6 @@ class QLabel;
 class QEvent;
 class QResizeEvent;
 class QButtonGroup;
-class QStackedWidget;
-class QListWidget;
-class QSplitter;
 
 namespace Ui { class StripViewer; }
 
@@ -144,12 +141,10 @@ private:
     QSet<int>            m_proxyInFlight;     //!< Slice indices whose proxy load is running.
     int                  m_generation = 0;   //!< Bumped on every rebuild; async results from an older gen are dropped.
 
-    // --- editor shell (tool rail + right panel; built in the ctor around the graphics view) ---
-    QButtonGroup   *m_toolGroup   = nullptr;  //!< Exclusive group of the left rail's tool buttons (id == Tool).
-    QStackedWidget *m_toolOptions = nullptr;  //!< Right-top: one options page per tool (empty until later increments).
-    QListWidget    *m_artifactList = nullptr; //!< Right-bottom: per-tool artifacts / exclusions list (unused until later).
-    QSplitter      *m_rightPanel  = nullptr;  //!< Right column (options over artifacts); hidden while Pan is active.
-    Tool            m_tool        = Tool::Pan;//!< Current tool.
+    // --- editor shell: the tool rail's flowing buttons are built in the ctor (a flow layout can't live in
+    // a .ui); the splitters, canvas, tool-options stack and artifact list all come from stripviewer.ui ---
+    QButtonGroup   *m_toolGroup = nullptr;   //!< Exclusive group of the left rail's tool buttons (id == Tool).
+    Tool            m_tool      = Tool::Pan; //!< Current tool.
 };
 
 #endif // STRIPVIEWER_H

@@ -344,6 +344,12 @@
        </item>
       </layout>
      </widget>
+     <widget class="QWidget" name="tabWorkflow">
+      <attribute name="title">
+       <string>Workflow</string>
+      </attribute>
+      <layout class="QVBoxLayout" name="workflowTabLayout"/>
+     </widget>
      <widget class="QWidget" name="tabOutput">
       <attribute name="title">
        <string>Output</string>

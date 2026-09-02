@@ -13,6 +13,7 @@
 namespace Ui { class Project; }
 class QListWidgetItem;
 class OutputFormatOptionsWidget;
+class QVBoxLayout;
 class QUndoStack;
 class QEvent;
 class QDragEnterEvent;
@@ -126,6 +127,14 @@ private:
     void addOutputImageTile(const Platemaker::Models::OutputFile& file);    //!< Creates an ImageTile widget for an existing output file and inserts it into the output list.
     void addInputPaths(const QStringList& newPaths);                        //!< Merges new paths with the existing inputs (order-preserving, de-duplicated) and re-scans them.
     void addDroppedUrls(const QList<QUrl>& urls);                           //!< Turns dropped file/folder URLs into image paths (folders scanned like Add from directory) and adds them as one undo step.
+    /**
+     * @brief Rebuilds the "Workflow" tab's pipeline map from the current project — a read-only row of
+     * StageCards (Inputs → Margin crop → Colour correction → Resize → Slice → Text & bubbles → Output)
+     * that doubles as a launchpad: fixed stages jump to the Input/Output tab, the optional CC/text
+     * stages open the strip editor (and enable themselves). Called from populate().
+     */
+    void refreshWorkflowMap();
+
     void refreshCanvasProfilesList();      //!< Rebuilds listWidgetCanvasProfiles from the project's assigned canvas profile IDs.
     void refreshOutputProfileCombo();      //!< Repopulates comboBoxOutputProfile from the workspace's output profiles, selecting the project's current one.
     void refreshOutputDirectoryDisplay();  //!< Updates textOutputDirectory to show the project's current output directory.
@@ -166,6 +175,7 @@ private:
     Platemaker::Models::Workspace& m_workspace;             //!< Reference to the workspace owning this project's data.
     QString m_cacheDir;                                     //!< Directory where cached thumbnails and other temporary files are stored.
     OutputFormatOptionsWidget* m_formatOptions = nullptr;   //!< Shared widget for editing the selected output profile's format/options.
+    QVBoxLayout* m_workflowStack = nullptr;                  //!< Vertical stack of the Workflow tab's StageCards (built in the ctor, rebuilt by refreshWorkflowMap()).
     QUndoStack* m_undoStack = nullptr;                      //!< Per-project undo history for input-list edits (owned via QObject parent).
 };
 

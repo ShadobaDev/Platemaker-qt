@@ -4,6 +4,7 @@
 #include "projectsnapshotcommand.h"
 #include "canvasprofiledialog.h"
 #include "outputformatoptionswidget.h"
+#include "stagecard.h"
 
 #include <platemaker/infrastructure/project_editor/project_editor.hpp>
 #include <platemaker/infrastructure/workspace_editor/workspace_editor.hpp>
@@ -24,6 +25,8 @@
 #include <QHBoxLayout>
 #include <QInputDialog>
 #include <QLabel>
+#include <QScrollArea>
+#include <QVBoxLayout>
 #include <QAction>
 #include <QListWidget>
 #include <QListWidgetItem>
@@ -193,6 +196,35 @@ Project::Project(int projectIndex,
         emit viewStripRequested(m_projectIndex);
     });
 
+    // --- Workflow tab: a read-only pipeline map that doubles as a launchpad. It reads top-to-bottom like
+    // the strip itself — a vertical stack of stage bars (so every step is visible without scrolling and it
+    // fits the narrow panel). The .ui gives only the empty tab + its layout; the header hint and the
+    // scrollable, centred column are built here, and the column is (re)filled by refreshWorkflowMap().
+    {
+        auto* hint = new QLabel(
+            tr("The pipeline your pages run through. Click a step to configure it"),
+            this);
+        hint->setWordWrap(true);
+        hint->setEnabled(false); // muted, palette-derived (no hardcoded colour)
+        ui->workflowTabLayout->addWidget(hint);
+
+        auto* scroll = new QScrollArea(this);
+        scroll->setWidgetResizable(true);
+        scroll->setFrameShape(QFrame::NoFrame);
+        scroll->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+        scroll->setVerticalScrollBarPolicy(Qt::ScrollBarAsNeeded);
+
+        // The bars are added centred (Qt::AlignHCenter) at their fixed width, so they read as a neat
+        // column and don't stretch absurdly wide on a wide panel — no wrapper widget needed.
+        auto* contents = new QWidget(scroll);
+        m_workflowStack = new QVBoxLayout(contents);
+        m_workflowStack->setContentsMargins(8, 8, 8, 8);
+        m_workflowStack->setSpacing(2);
+        scroll->setWidget(contents);
+
+        ui->workflowTabLayout->addWidget(scroll, 1); // fills the tab
+    }
+
     // Validate against disk on open so tiles reflect deletions / external edits made
     // while the app was closed (the "changed externally" case), and against the canvas
     // profiles so pages whose profile was edited show as out of sync rather than done.
@@ -289,6 +321,123 @@ void Project::populate()
     refreshFormatControls();
     refreshOutputDirectoryDisplay();
     refreshOutputTiles();
+    refreshWorkflowMap();
+}
+
+void Project::refreshWorkflowMap()
+{
+    if (!m_workflowStack) // built in the ctor; guard in case populate() runs earlier
+        return;
+
+    // Clear the previous cards/arrows. deleteLater (not delete): activating an optional step repopulates
+    // the map from inside a card's own clicked() handler, so the emitting card may be one of these — and
+    // deleting the sender synchronously mid-signal would crash.
+    while (QLayoutItem* item = m_workflowStack->takeAt(0)) {
+        if (QWidget* w = item->widget())
+            w->deleteLater();
+        delete item;
+    }
+
+    const auto& project = m_workspace.projectItems[m_projectIndex];
+    const int  nInputs   = static_cast<int>(project.getInputImages().size());
+    const int  nOutputs  = static_cast<int>(project.getOutputImages().size());
+    const bool ccOn      = project.colourCorrection.enabled;
+    const int  nExcluded = static_cast<int>(project.colourCorrection.excludedInputUids.size());
+    const int  nOverlays = static_cast<int>(project.getStripOverlays().size());
+
+    // Stage actions. Fixed stages jump to the tab where they're configured. The optional stages carry
+    // their own buttons: "+" activates in place (no navigation), Edit / double-click open the editor,
+    // "−" deactivates.
+    const auto goInput    = [this]{ ui->tabWidget->setCurrentWidget(ui->tabInput); };
+    const auto goOutput   = [this]{ ui->tabWidget->setCurrentWidget(ui->tabOutput); };
+    const auto openEditor = [this]{ emit viewStripRequested(m_projectIndex); };
+    const auto setCC = [this](bool on) {
+        auto& item = m_workspace.projectItems[m_projectIndex];
+        if (item.colourCorrection.enabled == on) return;
+        commitEdit(on ? tr("Enable colour correction") : tr("Disable colour correction"),
+                   [this, &item, on]{ item.colourCorrection.enabled = on; emit projectModified(); populate(); });
+    };
+    const auto clearOverlays = [this] {
+        auto& item = m_workspace.projectItems[m_projectIndex];
+        if (item.getStripOverlays().empty()) return;
+        commitEdit(tr("Clear text & bubbles"), [this, &item]{
+            while (!item.getStripOverlays().empty()) {
+                const std::string uid = item.getStripOverlays().front().uid; // copy: removeOverlay erases it
+                item.removeOverlay(uid);
+            }
+            emit projectModified();
+            populate();
+        });
+    };
+
+    auto addArrow = [this]{
+        auto* arrow = new QLabel(QStringLiteral("↓")); // downwards arrow (UTF-8 source, as elsewhere)
+        arrow->setAlignment(Qt::AlignCenter);
+        arrow->setEnabled(false); // muted, palette-derived
+        m_workflowStack->addWidget(arrow, 0, Qt::AlignHCenter);
+    };
+    auto addFixed = [this](const QString& title, const QString& subtitle, const std::function<void()>& jump) {
+        auto* c = new StageCard;
+        c->setKind(StageCard::Kind::Fixed);
+        c->setTitle(title);
+        c->setSubtitle(subtitle);
+        c->setActions(false, false, false);
+        connect(c, &StageCard::clicked, this, jump);
+        m_workflowStack->addWidget(c, 0, Qt::AlignHCenter);
+    };
+
+    addFixed(tr("Inputs"),      tr("%1 pages").arg(nInputs), goInput);
+    addArrow();
+    addFixed(tr("Margin crop"), tr("trim scan edges"),       goInput);
+    addArrow();
+
+    // Colour correction (optional). Greyed until enabled: "+" or a click on the placeholder activates it
+    // in place; once on, Edit / double-click open the editor and "−" turns it off.
+    {
+        auto* c = new StageCard;
+        c->setKind(StageCard::Kind::Optional);
+        c->setTitle(tr("Colour correction"));
+        c->setActive(ccOn);
+        if (ccOn) {
+            c->setSubtitle(nExcluded > 0 ? tr("on, %1 excluded").arg(nExcluded) : tr("on"));
+            c->setActions(/*add*/false, /*edit*/true, /*remove*/true);
+            connect(c, &StageCard::editRequested,   this, openEditor);
+            connect(c, &StageCard::removeRequested, this, [setCC]{ setCC(false); });
+        } else {
+            c->setSubtitle(tr("optional"));
+            c->setActions(/*add*/true, /*edit*/false, /*remove*/false);
+            connect(c, &StageCard::addRequested, this, [setCC]{ setCC(true); });
+            connect(c, &StageCard::clicked,      this, [setCC]{ setCC(true); });
+        }
+        m_workflowStack->addWidget(c, 0, Qt::AlignHCenter);
+    }
+    addArrow();
+
+    addFixed(tr("Resize"), tr("fit canvas width"), goOutput);
+    addArrow();
+    addFixed(tr("Slice"),  tr("cut to slices"),    goOutput);
+    addArrow();
+
+    // Text & bubbles (optional). A bubble only exists once authored in the editor, so there is no in-place
+    // "+" — Edit / click / double-click open the editor; "−" clears the overlays once there are any.
+    {
+        const bool tbOn = nOverlays > 0;
+        auto* c = new StageCard;
+        c->setKind(StageCard::Kind::Optional);
+        c->setTitle(tr("Text & bubbles"));
+        c->setActive(tbOn);
+        c->setSubtitle(tbOn ? tr("%1 artifacts").arg(nOverlays) : tr("optional"));
+        c->setActions(/*add*/false, /*edit*/true, /*remove*/tbOn);
+        connect(c, &StageCard::editRequested,   this, openEditor);
+        connect(c, &StageCard::clicked,         this, openEditor);
+        connect(c, &StageCard::removeRequested, this, clearOverlays);
+        m_workflowStack->addWidget(c, 0, Qt::AlignHCenter);
+    }
+    addArrow();
+
+    addFixed(tr("Output"), tr("%1 slices").arg(nOutputs), goOutput);
+
+    m_workflowStack->addStretch(1);
 }
 
 void Project::refreshProfileViews()

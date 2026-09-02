@@ -1,0 +1,81 @@
+#ifndef STAGECARD_H
+#define STAGECARD_H
+
+#include <QString>
+#include <QWidget>
+
+class QLabel;
+class QToolButton;
+class QEnterEvent;
+class QMouseEvent;
+class QPaintEvent;
+
+/**
+ * @brief One step in the Project "Workflow" pipeline map (built by Project::refreshWorkflowMap).
+ *
+ * A short bar: title on the left, a state line on the right, and — for the optional steps — action
+ * buttons. Fixed stages are informational and jump to their tab on click (clicked()). Optional stages
+ * (colour correction / text & bubbles) render greyed with a dashed border until active; which buttons
+ * they carry is set by Project via setActions():
+ *   - **add**    → a green "+", revealed on hover — *activate this step in place* (no navigation),
+ *   - **edit**   → "Edit" — open the strip editor (also emitted on a double-click),
+ *   - **remove** → "−" — deactivate / clear the step.
+ *
+ * The card emits intent only (clicked / addRequested / editRequested / removeRequested); Project decides
+ * what each means. The background is custom-painted from the palette (theme-aware, no stylesheet); the one
+ * deliberate colour accent is the green "+".
+ */
+class StageCard : public QWidget
+{
+    Q_OBJECT
+
+public:
+    enum class Kind { Fixed, Optional };
+
+    explicit StageCard(QWidget* parent = nullptr);
+
+    void setTitle(const QString& title);
+    void setSubtitle(const QString& subtitle);
+    void setKind(Kind kind);
+    void setActive(bool active);
+    //! Which action buttons to show on the right: add = green "+", edit = "Edit", remove = "−".
+    void setActions(bool add, bool edit, bool remove);
+
+    [[nodiscard]] QSize sizeHint() const override; //!< Uniform bar; a touch smaller when it's a greyed placeholder.
+
+signals:
+    void clicked();          //!< Single left-click on the body (fixed stages jump; CC placeholder activates).
+    void addRequested();     //!< The green "+" — activate this step in place (no navigation).
+    void editRequested();    //!< "Edit" or a double-click — open the strip editor.
+    void removeRequested();  //!< "−" — deactivate / clear this step.
+
+protected:
+    void paintEvent(QPaintEvent* event) override;        //!< Background frame only; text/buttons are child widgets.
+    void enterEvent(QEnterEvent* event) override;
+    void leaveEvent(QEvent* event) override;
+    void mousePressEvent(QMouseEvent* event) override;
+    void mouseDoubleClickEvent(QMouseEvent* event) override;
+    //! Watches the child buttons'/labels' enter & leave so hover is re-evaluated when the cursor crosses
+    //! from the card body onto a child (or off a child), which the card's own leaveEvent can't see.
+    bool eventFilter(QObject* watched, QEvent* event) override;
+
+private:
+    void restyle();      //!< Reflects kind/active/hover in text colours, size and button visibility.
+    void updateHover();  //!< True hover = the widget under the cursor is this card or a descendant.
+    [[nodiscard]] bool isDimmed() const { return m_kind == Kind::Optional && !m_active; }
+
+    QLabel*      m_titleLabel    = nullptr;
+    QLabel*      m_subtitleLabel = nullptr;
+    QToolButton* m_addButton     = nullptr;
+    QToolButton* m_editButton    = nullptr;
+    QToolButton* m_removeButton  = nullptr;
+
+    Kind m_kind       = Kind::Fixed;
+    bool m_active     = true;
+    bool m_hovered    = false;
+    bool m_wantAdd    = false;
+    bool m_wantEdit   = false;
+    bool m_wantRemove = false;
+};
+
+#endif // STAGECARD_H

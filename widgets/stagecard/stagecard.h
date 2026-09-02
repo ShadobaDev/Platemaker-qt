@@ -6,7 +6,6 @@
 
 class QLabel;
 class QToolButton;
-class QEnterEvent;
 class QMouseEvent;
 class QPaintEvent;
 
@@ -22,8 +21,9 @@ class QPaintEvent;
  *   - **remove** → "−" — deactivate / clear the step.
  *
  * The card emits intent only (clicked / addRequested / editRequested / removeRequested); Project decides
- * what each means. The background is custom-painted from the palette (theme-aware, no stylesheet); the one
- * deliberate colour accent is the green "+".
+ * what each means. The frame is drawn through a Qt Style Sheet so `:hover` is tracked correctly by Qt
+ * itself (including over the child buttons, in both directions); its colours use `palette(...)` so it
+ * stays theme-aware — the one deliberate literal is the green "+".
  */
 class StageCard : public QWidget
 {
@@ -50,18 +50,12 @@ signals:
     void removeRequested();  //!< "−" — deactivate / clear this step.
 
 protected:
-    void paintEvent(QPaintEvent* event) override;        //!< Background frame only; text/buttons are child widgets.
-    void enterEvent(QEnterEvent* event) override;
-    void leaveEvent(QEvent* event) override;
+    void paintEvent(QPaintEvent* event) override;        //!< Renders the style-sheet box (bg/border/radius/:hover).
     void mousePressEvent(QMouseEvent* event) override;
     void mouseDoubleClickEvent(QMouseEvent* event) override;
-    //! Watches the child buttons'/labels' enter & leave so hover is re-evaluated when the cursor crosses
-    //! from the card body onto a child (or off a child), which the card's own leaveEvent can't see.
-    bool eventFilter(QObject* watched, QEvent* event) override;
 
 private:
-    void restyle();      //!< Reflects kind/active/hover in text colours, size and button visibility.
-    void updateHover();  //!< True hover = the widget under the cursor is this card or a descendant.
+    void restyle();  //!< Rebuilds the state-dependent style sheet and button visibility.
     [[nodiscard]] bool isDimmed() const { return m_kind == Kind::Optional && !m_active; }
 
     QLabel*      m_titleLabel    = nullptr;
@@ -72,7 +66,6 @@ private:
 
     Kind m_kind       = Kind::Fixed;
     bool m_active     = true;
-    bool m_hovered    = false;
     bool m_wantAdd    = false;
     bool m_wantEdit   = false;
     bool m_wantRemove = false;

@@ -1,14 +1,12 @@
 #include "stagecard.h"
 
-#include <QApplication>
-#include <QCursor>
-#include <QEnterEvent>
-#include <QEvent>
 #include <QFont>
 #include <QHBoxLayout>
 #include <QLabel>
 #include <QMouseEvent>
 #include <QPainter>
+#include <QStyle>
+#include <QStyleOption>
 #include <QToolButton>
 
 #include <algorithm>
@@ -16,7 +14,6 @@
 StageCard::StageCard(QWidget* parent)
     : QWidget(parent)
 {
-    setAttribute(Qt::WA_Hover, true);
     setCursor(Qt::PointingHandCursor);
 
     m_titleLabel = new QLabel(this);
@@ -37,18 +34,11 @@ StageCard::StageCard(QWidget* parent)
         b->hide();
         return b;
     };
-    m_addButton    = makeBtn(QStringLiteral("+"));
+    m_addButton = makeBtn(QStringLiteral("+"));
+    m_addButton->setObjectName(QStringLiteral("stageAddBtn")); // targeted by the :hover rule (green reveal)
     m_editButton   = makeBtn(tr("Edit"));
     m_removeButton = makeBtn(QStringLiteral("−")); // U+2212 minus
-
-    // The "+" is the one deliberate colour accent (green "add"), applied via the button's own palette so
-    // it still tracks the theme's background — no stylesheet.
-    { QPalette p = m_addButton->palette();
-      p.setColor(QPalette::ButtonText, QColor(46, 160, 67)); // success green (reads on light & dark)
-      m_addButton->setPalette(p);
-      QFont f = m_addButton->font(); f.setBold(true); f.setPointSizeF(f.pointSizeF() + 2.0);
-      m_addButton->setFont(f);
-      m_addButton->setToolTip(tr("Add this step")); }
+    m_addButton->setToolTip(tr("Add this step"));
     m_editButton->setToolTip(tr("Open the editor"));
     m_removeButton->setToolTip(tr("Remove this step"));
 
@@ -65,12 +55,6 @@ StageCard::StageCard(QWidget* parent)
     lay->addWidget(m_addButton);
     lay->addWidget(m_editButton);
     lay->addWidget(m_removeButton);
-
-    // Hover over a child (button/label) makes the card's own leaveEvent fire, and leaving that child never
-    // sends the card another event — so watch the children too and recompute hover from the real cursor.
-    const QList<QWidget*> kids{ m_titleLabel, m_subtitleLabel, m_addButton, m_editButton, m_removeButton };
-    for (QWidget* kid : kids)
-        kid->installEventFilter(this);
 
     setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Fixed);
     restyle();
@@ -114,37 +98,30 @@ void StageCard::setActions(bool add, bool edit, bool remove)
 
 void StageCard::restyle()
 {
-    const bool dim = isDimmed();
-    m_titleLabel->setEnabled(!dim);                   // greyed title when it's an inactive placeholder
-    m_addButton->setVisible(m_wantAdd && m_hovered);  // the "+" is revealed on hover
+    const bool dim       = isDimmed();
+    const bool activeOpt = (m_kind == Kind::Optional && m_active);
+    const QString bg          = dim ? QStringLiteral("palette(window)") : QStringLiteral("palette(base)");
+    const QString borderStyle = dim ? QStringLiteral("dashed") : QStringLiteral("solid");
+    const QString borderColor = activeOpt ? QStringLiteral("palette(highlight)") : QStringLiteral("palette(mid)");
+
+    // The whole frame lives in the style sheet so Qt tracks :hover for us (correctly, incl. over the child
+    // buttons and in both directions — the manual enter/leave tracking could not). Frame colours are
+    // palette() references (theme-aware); the "+" is transparent until the card is hovered, then green —
+    // a hover-reveal driven entirely by :hover, so it can never get "stuck".
+    setStyleSheet(QStringLiteral(
+        "StageCard { background: %1; border: 1px %2 %3; border-radius: 9px; }"
+        "StageCard:hover { border: 2px %2 palette(highlight); }"
+        "StageCard QToolButton { border: none; background: transparent; padding: 1px 4px; }"
+        "StageCard QToolButton#stageAddBtn { color: transparent; font-weight: bold; }"
+        "StageCard:hover QToolButton#stageAddBtn { color: rgb(46, 160, 67); }") // success green
+        .arg(bg, borderStyle, borderColor));
+
+    m_titleLabel->setEnabled(!dim);          // greyed title on an inactive placeholder
+    m_addButton->setVisible(m_wantAdd);      // space reserved; the QSS reveals its colour on hover
     m_editButton->setVisible(m_wantEdit);
     m_removeButton->setVisible(m_wantRemove);
-    updateGeometry();                                 // sizeHint depends on dim
+    updateGeometry();                        // sizeHint depends on dim
     update();
-}
-
-void StageCard::enterEvent(QEnterEvent*) { updateHover(); }
-void StageCard::leaveEvent(QEvent*)      { updateHover(); }
-
-bool StageCard::eventFilter(QObject* watched, QEvent* event)
-{
-    if (event->type() == QEvent::Enter || event->type() == QEvent::Leave)
-        updateHover();
-    return QWidget::eventFilter(watched, event);
-}
-
-void StageCard::updateHover()
-{
-    // Hover = the widget directly under the cursor is this card or one of its children. Hit-testing the
-    // real cursor (not geometric rect containment) avoids the top-edge boundary bug and the "left via a
-    // child" case that left borders stuck highlighted.
-    const QWidget* under = QApplication::widgetAt(QCursor::pos());
-    const bool hovered = under && (under == this || isAncestorOf(under));
-    if (hovered == m_hovered)
-        return;
-    m_hovered = hovered;
-    m_addButton->setVisible(m_wantAdd && m_hovered); // "+" revealed on hover
-    update();                                        // repaint the border
 }
 
 void StageCard::mousePressEvent(QMouseEvent* event)
@@ -169,28 +146,9 @@ void StageCard::mouseDoubleClickEvent(QMouseEvent* event)
 
 void StageCard::paintEvent(QPaintEvent*)
 {
+    // A custom QWidget only honours style-sheet background/border/radius if it paints the style's box.
+    QStyleOption opt;
+    opt.initFrom(this);
     QPainter p(this);
-    p.setRenderHint(QPainter::Antialiasing, true);
-
-    const QPalette pal = palette();
-    const bool dim = isDimmed();
-    const QRectF card = QRectF(rect()).adjusted(1, 1, -1, -1);
-
-    // Fill: recessed for a placeholder, a card surface otherwise.
-    const QColor fill = dim ? pal.color(QPalette::Window) : pal.color(QPalette::Base);
-
-    // Border: highlighted on hover; also highlighted (subtly) for an *active* optional step so an enabled
-    // effect stands out; dashed for the empty placeholder.
-    QColor border;
-    if (m_hovered)                                   border = pal.color(QPalette::Highlight);
-    else if (m_kind == Kind::Optional && m_active)   border = pal.color(QPalette::Highlight);
-    else                                             border = pal.color(QPalette::Mid);
-    QPen pen(border);
-    pen.setWidthF(m_hovered ? 2.0 : 1.2);
-    if (dim)
-        pen.setStyle(Qt::DashLine);
-
-    p.setPen(pen);
-    p.setBrush(fill);
-    p.drawRoundedRect(card, 9, 9);
+    style()->drawPrimitive(QStyle::PE_Widget, &opt, &p, this);
 }

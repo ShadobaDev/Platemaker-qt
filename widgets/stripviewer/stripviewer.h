@@ -18,6 +18,10 @@ class QGraphicsLineItem;
 class QLabel;
 class QEvent;
 class QResizeEvent;
+class QButtonGroup;
+class QStackedWidget;
+class QListWidget;
+class QSplitter;
 
 namespace Ui { class StripViewer; }
 
@@ -66,6 +70,14 @@ public:
      *                   slices show a neutral placeholder until their sharp decode arrives).
      */
     void setSlices(const QStringList &slicePaths, const QString &cacheDir);
+
+    //! The editor tools on the left rail. Pan = today's view (hand-drag, no side panel); the others reveal
+    //! the right panel. Grade/Bubble/Text gain real controls in later increments.
+    enum class Tool { Pan, Grade, Bubble, Text };
+
+    //! Selects the active tool: checks its rail button, swaps the options page, sets the drag mode and
+    //! shows/hides the right panel. Pan restores today's behaviour exactly.
+    void setTool(Tool tool);
 
     // --- read by StripItem (the single painting item) ---
     [[nodiscard]] int    sliceCount() const { return m_paths.size(); }         //!< Number of drawable slices.
@@ -131,6 +143,13 @@ private:
     QSet<int>            m_fullInFlight;      //!< Slice indices whose full decode is running.
     QSet<int>            m_proxyInFlight;     //!< Slice indices whose proxy load is running.
     int                  m_generation = 0;   //!< Bumped on every rebuild; async results from an older gen are dropped.
+
+    // --- editor shell (tool rail + right panel; built in the ctor around the graphics view) ---
+    QButtonGroup   *m_toolGroup   = nullptr;  //!< Exclusive group of the left rail's tool buttons (id == Tool).
+    QStackedWidget *m_toolOptions = nullptr;  //!< Right-top: one options page per tool (empty until later increments).
+    QListWidget    *m_artifactList = nullptr; //!< Right-bottom: per-tool artifacts / exclusions list (unused until later).
+    QSplitter      *m_rightPanel  = nullptr;  //!< Right column (options over artifacts); hidden while Pan is active.
+    Tool            m_tool        = Tool::Pan;//!< Current tool.
 };
 
 #endif // STRIPVIEWER_H

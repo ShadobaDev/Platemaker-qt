@@ -3,6 +3,7 @@
 
 #include <platemaker/infrastructure/thumbnail_cache/thumbnail_cache.hpp>
 
+#include <QButtonGroup>
 #include <QEvent>
 #include <QFutureWatcher>
 #include <QGraphicsItem>
@@ -10,15 +11,20 @@
 #include <QGraphicsScene>
 #include <QGraphicsSimpleTextItem>
 #include <QGraphicsView>
+#include <QHBoxLayout>
 #include <QImage>
 #include <QImageReader>
 #include <QLabel>
+#include <QListWidget>
 #include <QPainter>
 #include <QPen>
 #include <QScrollBar>
+#include <QSplitter>
+#include <QStackedWidget>
 #include <QStyleOptionGraphicsItem>
 #include <QToolButton>
 #include <QTransform>
+#include <QVBoxLayout>
 #include <QWheelEvent>
 #include <QtConcurrent/QtConcurrentRun>
 
@@ -121,7 +127,75 @@ StripViewer::StripViewer(QWidget *parent)
     });
     connect(ui->buttonRenderView, &QToolButton::clicked, this, [this] { emit renderAndViewRequested(); });
 
+    // --- Editor shell: a left tool rail and a right panel wrap the existing graphics view (built in code;
+    // the .ui provides the toolbar + view). Pan (the default) keeps today's behaviour exactly — hand-drag
+    // pan and no side panel; the other tools reveal the right panel. Their real controls (grade / bubble /
+    // text) arrive in later increments.
+    {
+        auto* rail = new QWidget(this);
+        auto* railLay = new QVBoxLayout(rail);
+        railLay->setContentsMargins(4, 4, 4, 4);
+        railLay->setSpacing(2);
+
+        m_toolGroup = new QButtonGroup(this);
+        m_toolGroup->setExclusive(true);
+        auto addTool = [&](Tool t, const QString& label, const QString& tip) {
+            auto* b = new QToolButton(rail);
+            b->setText(label);
+            b->setToolTip(tip);
+            b->setCheckable(true);
+            b->setAutoRaise(true);
+            b->setToolButtonStyle(Qt::ToolButtonTextOnly);
+            b->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed); // uniform rail width
+            railLay->addWidget(b);
+            m_toolGroup->addButton(b, static_cast<int>(t));
+        };
+        addTool(Tool::Pan,    tr("Pan"), tr("Pan / select (default)"));
+        addTool(Tool::Grade,  tr("CC"),  tr("Colour correction"));
+        addTool(Tool::Bubble, tr("Bub"), tr("Speech bubble"));
+        addTool(Tool::Text,   tr("Txt"), tr("Text"));
+        railLay->addStretch(1);
+
+        // Right column: tool options (top) over an artifacts / exclusions list (bottom).
+        m_toolOptions = new QStackedWidget(this);
+        for (int i = 0; i < 4; ++i)                       // one page per tool; filled in later increments
+            m_toolOptions->addWidget(new QWidget(m_toolOptions));
+        m_artifactList = new QListWidget(this);
+        m_rightPanel = new QSplitter(Qt::Vertical, this);
+        m_rightPanel->addWidget(m_toolOptions);
+        m_rightPanel->addWidget(m_artifactList);
+        m_rightPanel->setStretchFactor(0, 3);
+        m_rightPanel->setStretchFactor(1, 2);
+        m_rightPanel->setMaximumWidth(320);
+
+        // Re-seat the graphics view into: rail | view | right panel (was the sole body row of rootLayout).
+        ui->rootLayout->removeWidget(m_view);
+        auto* body = new QHBoxLayout;
+        body->setContentsMargins(0, 0, 0, 0);
+        body->setSpacing(0);
+        ui->rootLayout->insertLayout(1, body);
+        body->addWidget(rail);
+        body->addWidget(m_view, 1);
+        body->addWidget(m_rightPanel);
+
+        connect(m_toolGroup, &QButtonGroup::idClicked, this, [this](int id) { setTool(static_cast<Tool>(id)); });
+        setTool(Tool::Pan);   // default: today's view, right panel hidden
+    }
+
     showEmptyState();
+}
+
+void StripViewer::setTool(Tool tool)
+{
+    m_tool = tool;
+    if (auto* b = m_toolGroup->button(static_cast<int>(tool)))
+        b->setChecked(true);
+    m_toolOptions->setCurrentIndex(static_cast<int>(tool));
+    // Pan == today: hand-drag to pan, and no side panel. Any other tool reveals the panel and frees the
+    // left button for tool interaction (drawing/selection lands in later increments).
+    const bool pan = (tool == Tool::Pan);
+    m_view->setDragMode(pan ? QGraphicsView::ScrollHandDrag : QGraphicsView::NoDrag);
+    m_rightPanel->setVisible(!pan);
 }
 
 StripViewer::~StripViewer()

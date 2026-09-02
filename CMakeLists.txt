@@ -61,6 +61,9 @@ qt_add_executable(Platemaker
     # Stage card — one step in the Project "Workflow" pipeline map (custom-painted, no .ui).
     widgets/stagecard/stagecard.cpp widgets/stagecard/stagecard.h
 
+    # Flow layout — wraps items to fit the width (the strip editor's reflowing tool grid).
+    widgets/flowlayout/flowlayout.cpp widgets/flowlayout/flowlayout.h
+
     # Custom dock title bar (min = dock⇄detach, max = fill screen, close) shared by all docks.
     widgets/docktitlebar/docktitlebar.cpp widgets/docktitlebar/docktitlebar.h
 )
@@ -85,6 +88,7 @@ target_include_directories(Platemaker PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/widgets/renderworker
     ${CMAKE_CURRENT_SOURCE_DIR}/widgets/stripviewer
     ${CMAKE_CURRENT_SOURCE_DIR}/widgets/stagecard
+    ${CMAKE_CURRENT_SOURCE_DIR}/widgets/flowlayout
     ${CMAKE_CURRENT_SOURCE_DIR}/widgets/docktitlebar
 )
 

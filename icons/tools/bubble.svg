@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none"
+     stroke="#d0d0d0" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+  <!-- Bubble body: an elliptical arc that skips the lower-right gap, where the tail joins seamlessly
+       (the arc runs the long way round, so the ellipse is cut between the tail's two arms). The tail
+       points out toward the bottom-right corner. -->
+  <path d="M 15.64,14.15 A 7.5 5.5 0 1 0 10.80,16.42 L 20,21 Z"/>
+  <!-- "+" in the top-right corner (add a bubble) -->
+  <line x1="19" y1="3.5" x2="19" y2="8.5"/>
+  <line x1="16.5" y1="6" x2="21.5" y2="6"/>
+</svg>

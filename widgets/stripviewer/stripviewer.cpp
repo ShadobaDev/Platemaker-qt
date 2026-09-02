@@ -1,5 +1,6 @@
 #include "stripviewer.h"
 #include "ui_stripviewer.h"
+#include "flowlayout.h"
 
 #include <platemaker/infrastructure/thumbnail_cache/thumbnail_cache.hpp>
 
@@ -12,6 +13,7 @@
 #include <QGraphicsSimpleTextItem>
 #include <QGraphicsView>
 #include <QHBoxLayout>
+#include <QIcon>
 #include <QImage>
 #include <QImageReader>
 #include <QLabel>
@@ -133,28 +135,27 @@ StripViewer::StripViewer(QWidget *parent)
     // text) arrive in later increments.
     {
         auto* rail = new QWidget(this);
-        auto* railLay = new QVBoxLayout(rail);
-        railLay->setContentsMargins(4, 4, 4, 4);
-        railLay->setSpacing(2);
+        // A flow layout so the square tool tiles wrap to fit the toolbox width (1 / 2 / 3 … per row).
+        auto* railLay = new FlowLayout(rail, 6, 4, 4); // margin, hSpacing, vSpacing
 
         m_toolGroup = new QButtonGroup(this);
         m_toolGroup->setExclusive(true);
-        auto addTool = [&](Tool t, const QString& label, const QString& tip) {
+        auto addTool = [&](Tool t, const QString& iconPath, const QString& tip) {
             auto* b = new QToolButton(rail);
-            b->setText(label);
+            b->setIcon(QIcon(iconPath));
+            b->setIconSize(QSize(26, 26));
             b->setToolTip(tip);
             b->setCheckable(true);
             b->setAutoRaise(true);
-            b->setToolButtonStyle(Qt::ToolButtonTextOnly);
-            b->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed); // uniform rail width
+            b->setToolButtonStyle(Qt::ToolButtonIconOnly);
+            b->setFixedSize(40, 40);       // square tile
             railLay->addWidget(b);
             m_toolGroup->addButton(b, static_cast<int>(t));
         };
-        addTool(Tool::Pan,    tr("Pan"), tr("Pan / select (default)"));
-        addTool(Tool::Grade,  tr("CC"),  tr("Colour correction"));
-        addTool(Tool::Bubble, tr("Bub"), tr("Speech bubble"));
-        addTool(Tool::Text,   tr("Txt"), tr("Text"));
-        railLay->addStretch(1);
+        addTool(Tool::Pan,    QStringLiteral(":/icons/tools/pan.svg"),    tr("Pan / select (default)"));
+        addTool(Tool::Grade,  QStringLiteral(":/icons/tools/cc.svg"),     tr("Colour correction"));
+        addTool(Tool::Bubble, QStringLiteral(":/icons/tools/bubble.svg"), tr("Speech bubble"));
+        addTool(Tool::Text,   QStringLiteral(":/icons/tools/text.svg"),   tr("Text"));
 
         // Right column: tool options (top) over an artifacts / exclusions list (bottom).
         m_toolOptions = new QStackedWidget(this);
@@ -168,15 +169,23 @@ StripViewer::StripViewer(QWidget *parent)
         m_rightPanel->setStretchFactor(1, 2);
         m_rightPanel->setMaximumWidth(320);
 
-        // Re-seat the graphics view into: rail | view | right panel (was the sole body row of rootLayout).
+        // Re-seat the graphics view into a resizable grid: rail | view | right panel. A horizontal splitter
+        // pins the toolbox to the left edge yet lets the user drag the divider between it and the canvas to
+        // resize its width (GIMP-style); the right panel resizes the same way. Panes never collapse to
+        // nothing by dragging.
         ui->rootLayout->removeWidget(m_view);
-        auto* body = new QHBoxLayout;
-        body->setContentsMargins(0, 0, 0, 0);
-        body->setSpacing(0);
-        ui->rootLayout->insertLayout(1, body);
+        rail->setMinimumWidth(52); // room for one square tile column; wider fits more per row
+        auto* body = new QSplitter(Qt::Horizontal, this);
+        body->setChildrenCollapsible(false);
+        body->setHandleWidth(4);
         body->addWidget(rail);
-        body->addWidget(m_view, 1);
+        body->addWidget(m_view);
         body->addWidget(m_rightPanel);
+        body->setStretchFactor(0, 0);   // toolbox keeps its width on resize
+        body->setStretchFactor(1, 1);   // canvas absorbs the extra space
+        body->setStretchFactor(2, 0);   // right panel keeps its width
+        body->setSizes({108, 700, 260}); // toolbox wide enough for a 2-tile row by default
+        ui->rootLayout->insertWidget(1, body);
 
         connect(m_toolGroup, &QButtonGroup::idClicked, this, [this](int id) { setTool(static_cast<Tool>(id)); });
         setTool(Tool::Pan);   // default: today's view, right panel hidden
@@ -435,13 +444,10 @@ void StripViewer::resetZoom() { userZoom(1.0); }
 
 void StripViewer::applyDefaultZoom()
 {
-    if (m_stripWidth <= 0)
-        return;
-    // Leave room for the vertical scrollbar so the fit doesn't force a horizontal one.
-    const int vw = m_view->viewport()->width() - m_view->verticalScrollBar()->width();
-    // Never enlarge past 100%: keep the output's native width so several slices read at once; shrink
-    // only when the strip is wider than the viewport.
-    applyZoom(vw > 0 ? qMin(1.0, static_cast<double>(vw) / static_cast<double>(m_stripWidth)) : 1.0);
+    // Default view is native size — 100% — always. (The former "shrink to fit the viewport width" default
+    // computed a tiny zoom while the splitter had not yet given the canvas its real width, so the strip
+    // opened at ~3%. 100% is what's wanted regardless; "Fit width" stays available on demand.)
+    applyZoom(1.0);
 }
 
 void StripViewer::fitWidth()

@@ -8,13 +8,12 @@
 namespace Ui { class CcPanel; }
 class QSlider;
 class QDoubleSpinBox;
-class QCheckBox;
 class QTimer;
 
 /**
  * @brief Tool-options panel for the strip editor's Colour-correction (Grade) tool.
  *
- * Brightness / contrast / saturation (slider + spin-box each), and the ICC→sRGB toggle, plus a reset.
+ * Brightness / contrast / saturation (slider + spin-box each), plus a reset.
  * The panel owns a working \c ColourCorrection: \c setColourCorrection() populates the controls without
  * emitting; editing emits \c changed() continuously (for the live preview) and \c committed() once the
  * controls settle (debounced) or on a discrete action (for the persisted, undoable write).
@@ -48,7 +47,6 @@ private:
     QDoubleSpinBox* m_contrastSpin     = nullptr;
     QSlider*        m_saturationSlider = nullptr;
     QDoubleSpinBox* m_saturationSpin   = nullptr;
-    QCheckBox*      m_iccCheck         = nullptr;
     QTimer*         m_commitTimer      = nullptr;
 
     Platemaker::Models::ColourCorrection m_cc; //!< Working grade (scalars edited here; curves/exclusions preserved).

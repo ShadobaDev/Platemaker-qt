@@ -228,18 +228,9 @@ void StripViewer::applyGrade(const Platemaker::Models::ColourCorrection& cc)
         return;
     m_ccSignature = sig;
 
-    // Most of the grade is a point operation on already-built pixels, so a slider move only re-grades —
-    // that is the whole reason the built pages are kept ungraded. But part of the colour step happens at
-    // *load*: the ICC toggle, and whether this page is excluded, decide which load path the render takes,
-    // and that part is baked into the built page. Change one of those and the pages must come back from
-    // the library.
-    const bool loadPathChanged = m_cc.enabled           != cc.enabled
-                              || m_cc.iccToSRGB         != cc.iccToSRGB
-                              || m_cc.excludedInputUids != cc.excludedInputUids;
-
+    // The grade is a point operation on already-built pixels and never changes how a page is read, so
+    // no grade edit can invalidate a built page — re-grading the resident ones is always enough.
     m_cc = cc;
-    if (loadPathChanged)
-        resetDecodeState();   // drops the built pages; updateVisiblePages() rebuilds what is on screen
     refreshGradePreview();
 }
 
@@ -528,7 +519,6 @@ void StripViewer::requestPage(int index)
         const auto  outProf = m_outProfile;
         const auto  profs   = m_canvasProfiles;
         const auto  ids     = m_canvasProfileIds;
-        const auto  cc      = m_cc;
         const QSize size    = m_pageSizes.at(index);
 
         auto *watcher = new QFutureWatcher<QImage>(this);
@@ -548,7 +538,7 @@ void StripViewer::requestPage(int index)
                 m_item->update(pageRect(index));
         });
         watcher->setFuture(QtConcurrent::run(
-            [input, outProf, profs, ids, cc, size]() -> QImage {
+            [input, outProf, profs, ids, size]() -> QImage {
                 QImage img(size, QImage::Format_RGBA8888);
                 // previewPageRgba writes tightly packed RGBA8888. Format_RGBA8888 is 4 bytes per pixel,
                 // so a scanline is always 4-byte aligned and Qt adds no padding — but assert rather than
@@ -557,7 +547,7 @@ void StripViewer::requestPage(int index)
                     return {};
                 try {
                     Platemaker::Core::ProcessingPipeline::previewPageRgba(
-                        input, outProf, profs, ids, cc, img.bits(), size.width(), size.height());
+                        input, outProf, profs, ids, img.bits(), size.width(), size.height());
                 } catch (...) {
                     return {};   // the page stays on its proxy; the layout already knows its size
                 }

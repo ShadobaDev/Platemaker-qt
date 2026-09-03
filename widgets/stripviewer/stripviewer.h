@@ -112,9 +112,8 @@ public:
      * @brief Feeds the project's colour grade to the Grade panel and the live preview.
      *
      * The strip's pixels are ungraded by construction, so this always previews cleanly — before a
-     * render and after one alike. Only the parts of the grade that happen at *load* (the ICC toggle,
-     * and which pages are excluded) invalidate the built pages; changing the grade values re-grades the
-     * resident pixels and never re-reads a file.
+     * render and after one alike. No grade edit ever re-reads a file: the colour step does not change
+     * how a page is read, so the resident pixels stay a valid baseline for every grade tried on them.
      */
     void setColourCorrection(const Platemaker::Models::ColourCorrection& cc);
 
@@ -162,8 +161,7 @@ private:
     //! Discards all cached/in-flight pages and bumps the generation so stale results are ignored.
     void resetDecodeState();
 
-    //! Adopts a new grade: re-grades the resident pages, and rebuilds them only if the part of the grade
-    //! that happens at *load* (the ICC toggle, the exclusion set) changed. Does not touch the CC panel.
+    //! Adopts a new grade and re-grades the resident pages. Does not touch the CC panel.
     void applyGrade(const Platemaker::Models::ColourCorrection& cc);
 
     //! Grade the built page \p index into the graded-preview cache (no-op if grade inactive / not built).

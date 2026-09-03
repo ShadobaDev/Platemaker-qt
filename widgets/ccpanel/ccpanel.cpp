@@ -1,7 +1,6 @@
 #include "ccpanel.h"
 #include "ui_ccpanel.h"
 
-#include <QCheckBox>
 #include <QDoubleSpinBox>
 #include <QGridLayout>
 #include <QGroupBox>
@@ -66,13 +65,6 @@ CcPanel::CcPanel(QWidget* parent)
     addRow(1, tr("Contrast"),   m_contrastSlider,   m_contrastSpin,      0, 200,  0.0, 2.0, 100.0);
     addRow(2, tr("Saturation"), m_saturationSlider, m_saturationSpin,    0, 200,  0.0, 2.0, 100.0);
 
-    m_iccCheck = new QCheckBox(tr("Convert to sRGB (ICC)"), this);
-    connect(m_iccCheck, &QCheckBox::toggled, this, [this](bool) {
-        if (m_populating) return;
-        onControlChanged();
-        emit committed(m_cc); // a discrete toggle commits immediately
-    });
-
     auto* resetBtn = new QPushButton(tr("Reset"), this);
     connect(resetBtn, &QPushButton::clicked, this, [this] {
         m_cc.brightness = 0.0;
@@ -88,7 +80,6 @@ CcPanel::CcPanel(QWidget* parent)
     auto* group = new QGroupBox(tr("Colour correction"), this);
     auto* groupLay = new QVBoxLayout(group);
     groupLay->addLayout(grid);
-    groupLay->addWidget(m_iccCheck);
     groupLay->addWidget(resetBtn);
 
     ui->verticalLayout->addWidget(group);
@@ -113,7 +104,6 @@ void CcPanel::onControlChanged()
     m_cc.brightness = m_brightnessSpin->value();
     m_cc.contrast   = m_contrastSpin->value();
     m_cc.saturation = m_saturationSpin->value();
-    m_cc.iccToSRGB  = m_iccCheck->isChecked();
     m_cc.enabled    = true; // editing the grade implies it is on
     emit changed(m_cc);
     m_commitTimer->start();
@@ -130,6 +120,5 @@ void CcPanel::syncFromModel()
     set(m_brightnessSlider, m_brightnessSpin, m_cc.brightness, 100.0);
     set(m_contrastSlider,   m_contrastSpin,   m_cc.contrast,   100.0);
     set(m_saturationSlider, m_saturationSpin, m_cc.saturation, 100.0);
-    { QSignalBlocker b(m_iccCheck); m_iccCheck->setChecked(m_cc.iccToSRGB); }
     m_populating = false;
 }

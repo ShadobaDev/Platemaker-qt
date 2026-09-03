@@ -18,8 +18,8 @@
   The strip also follows input, canvas-profile and output-profile edits live, with no render. Pages are
   built lazily for the viewport plus one page either side and evicted behind it, so memory tracks the
   viewport rather than the chapter; the proxy tier reuses the input thumbnails the Input tab already
-  warms. The **seam guides** now mark where the output will be *cut* (every slice height down the
-  strip) — the line an author needs when placing something that must not be split.
+  warms. The **seam guides** now mark where the output will be *cut* (every slice
+  height down the strip) — the line an author needs when placing something that must not be split.
 
 - **Freer docking layout.** Workspace and project docks can now be arranged freely — docked side by side
   horizontally *and* vertically, split, or tabbed together. The **Action** panel is pinned to its own

@@ -61,6 +61,10 @@ public:
     void setInputTileStatus(const QString& filePath, Platemaker::Models::FileStatus status,
                             bool renderedWithoutProfile = false); //!< live per-input update during a render — repaints the input tile matching \p filePath (cyan when Processed without a canvas profile)
     void refreshOutputTiles();                      //!< rebuild from getOutputImages()
+
+    //! Persist a settled colour-correction edit from the strip editor onto this project, as one undoable
+    //! step (also refreshes the workflow map). Called by MainWindow on StripViewer::colourCorrectionEdited.
+    void applyColourCorrection(const Platemaker::Models::ColourCorrection& cc);
     void refreshProfileViews();                     //!< rebuilds the palette-derived views (canvas list, output combo, format controls) after a workspace-level profile edit — see MainWindow::workspaceProfilesChanged
 
     // --- Undo / redo ---

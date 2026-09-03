@@ -4,6 +4,23 @@
 
 ### Changed
 
+- **The strip viewer now shows the project's *input pages*, not its rendered output.** It stacks each
+  input put through the library's page domain (`ProcessingPipeline::previewLayout` / `previewPageRgba`)
+  instead of reassembling the committed slices, which changes three things that matter:
+  - **It works before the first render.** A grade has to be authored before it is baked, and previously
+    there was nothing to look at until a render existed.
+  - **Rendering no longer changes the view.** The grade is previewed against the input, so the render
+    bakes in exactly what was on screen — where before the render baked the grade into the output and
+    the preview then graded it a second time.
+  - **The unit of work is the page**, which is the unit the grade's per-page exclusions address; on
+    output slices an exclusion could not be honoured at all, because a slice can straddle an excluded
+    and an included page.
+  The strip also follows input, canvas-profile and output-profile edits live, with no render. Pages are
+  built lazily for the viewport plus one page either side and evicted behind it, so memory tracks the
+  viewport rather than the chapter; the proxy tier reuses the input thumbnails the Input tab already
+  warms. The **seam guides** now mark where the output will be *cut* (every slice height down the
+  strip) — the line an author needs when placing something that must not be split.
+
 - **Freer docking layout.** Workspace and project docks can now be arranged freely — docked side by side
   horizontally *and* vertically, split, or tabbed together. The **Action** panel is pinned to its own
   right column: it can no longer be tab-combined with other docks and keeps a static default width that

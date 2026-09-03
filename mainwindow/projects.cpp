@@ -255,8 +255,14 @@ void MainWindow::openProjectDock(int projectIndex)
     newDock->setAllowedAreas(Qt::LeftDockWidgetArea | Qt::TopDockWidgetArea | Qt::BottomDockWidgetArea);
     const QString cacheDir = workspaceCacheDir();
     auto* projectWidget = new Project(projectIndex, m_workspace, cacheDir, newDock);
-    connect(projectWidget, &Project::projectModified, this, [this]{
+    connect(projectWidget, &Project::projectModified, this, [this, newDock]{
         setDirty(true);
+        // The strip is built from the inputs, so it follows an input / profile edit immediately — no
+        // render needed. setPreviewSource() ignores a feed that has not actually changed, so the edits
+        // that leave the strip alone (a grade tweak, render bookkeeping) cost nothing here.
+        // The index comes from the dock property, which removeProject() re-stamps when the model shifts.
+        if (QDockWidget *strip = dockForStripViewer(newDock->property("projectIndex").toInt()))
+            refreshStripViewer(strip);
     });
     connect(projectWidget, &Project::renderToggleRequested,
             this, &MainWindow::onRenderToggle);
@@ -409,20 +415,27 @@ void MainWindow::refreshStripViewer(QDockWidget *dock)
 
     const int idx = dock->property("projectIndex").toInt();
     if (idx < 0 || idx >= static_cast<int>(m_workspace.projectItems.size())) {
-        viewer->setSlices({}, workspaceCacheDir());   // project gone → empty state
+        viewer->setPreviewSource({}, {}, {}, {}, workspaceCacheDir());   // project gone → empty state
         return;
     }
 
-    // The strip is the committed output slices reassembled. getOutputImages() is already in strip
-    // (slice) order — the render writes them in order — so no sorting is needed. Path building mirrors
-    // Project::addOutputImageTile (output directory + fileName). The workspace cache dir feeds the
-    // viewer's proxy thumbnails (the render already warmed it for the output tiles).
+    // The strip is built from the project's INPUT pages, not from the rendered output: the viewer has to
+    // work before the first render, and a grade previewed on the committed output would be applied on
+    // top of the one the render already baked in. Everything the library needs to put a page through its
+    // page domain goes across: the inputs in strip order, the resolved output profile (target width +
+    // slice height), and the canvas profiles that decide margins. The workspace cache dir feeds the
+    // viewer's proxy thumbnails — already warm, the Input tab's tiles use the same cache for the same
+    // files.
     const auto &project = m_workspace.projectItems[static_cast<std::size_t>(idx)];
-    const QString dir = QString::fromStdString(project.getOutputDirectory());
-    QStringList paths;
-    for (const auto &of : project.getOutputImages())
-        paths << QDir(dir).filePath(QString::fromStdString(of.fileName));
-    viewer->setSlices(paths, workspaceCacheDir());
+    viewer->setPreviewSource(project.inputsInOrder(),
+                             resolveOutputProfileFor(project),
+                             m_workspace.canvasProfiles(),
+                             project.canvasProfileIds(),
+                             workspaceCacheDir());
+
+    // Feed the Grade panel + live preview. The strip's pixels are ungraded by construction, so this
+    // previews cleanly whether or not a render has happened, and a render does not change the view.
+    viewer->setColourCorrection(project.colourCorrection);
 }
 
 void MainWindow::openStripViewerDock(int projectIndex)
@@ -458,6 +471,12 @@ void MainWindow::openStripViewerDock(int projectIndex)
     connect(viewer, &StripViewer::renderAndViewRequested, this, [this, projectIndex] {
         (void)startRender(projectIndex);
     });
+    // A settled grade edit in the CC panel → persist it onto the project (undoable, via the Project dock).
+    connect(viewer, &StripViewer::colourCorrectionEdited, this,
+            [this, projectIndex](const Platemaker::Models::ColourCorrection &cc) {
+        if (auto *pw = projectWidget(projectIndex))
+            pw->applyColourCorrection(cc);
+    });
     dock->setWidget(viewer);
 
     // Shared custom title bar (minimise = dock ⇄ detach, maximise = fill screen, close = hide).
@@ -468,10 +487,10 @@ void MainWindow::openStripViewerDock(int projectIndex)
     dock->setFloating(true);
 
     m_openStripDocks.append(dock);
-    refreshStripViewer(dock);   // load the current committed slices (also computes the strip width)
+    refreshStripViewer(dock);   // lay the strip out from the inputs (also settles the strip width)
 
     // Size: the output/strip width plus a 100px margin on each side, and 80% of the screen height. Fall
-    // back to a typical webtoon width when the project has no output yet (strip width unknown).
+    // back to a typical webtoon width when the project has no pages yet (strip width unknown).
     const int stripW = viewer->stripSize().width();
     const int dockW  = (stripW > 0 ? stripW : 800) + 200;
     const QScreen *scr = screen() ? screen() : QGuiApplication::primaryScreen();

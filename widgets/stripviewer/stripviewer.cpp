@@ -5,9 +5,11 @@
 #include "bubblepanel.h"
 #include "textpanel.h"
 
+#include <platemaker/core/colour_corrector/colour_corrector.hpp>
 #include <platemaker/infrastructure/thumbnail_cache/thumbnail_cache.hpp>
 
 #include <QButtonGroup>
+#include <QDebug>
 #include <QEvent>
 #include <QFutureWatcher>
 #include <QGraphicsItem>
@@ -18,7 +20,6 @@
 #include <QHBoxLayout>
 #include <QIcon>
 #include <QImage>
-#include <QImageReader>
 #include <QLabel>
 #include <QListWidget>
 #include <QPainter>
@@ -33,25 +34,28 @@
 #include <QWheelEvent>
 #include <QtConcurrent/QtConcurrentRun>
 
+#include <algorithm>
 #include <string>
 #include <utility>
 
 namespace {
 
-//! LRU caps (in KiB). Full slices are big (native RGBA); proxies are tiny, so many fit. Both bound RAM
-//! to roughly the viewport plus the prefetch margin, independent of chapter length.
-constexpr int k_fullCacheKiB  = 96 * 1024;   //!< ~24 native 800×1280 slices — visible + prefetch, with headroom.
+//! LRU caps (in KiB). A scaled page is big — 800×5120 RGBA is ~16 MiB — so these hold only a handful,
+//! which is the point: RAM tracks the viewport plus the prefetch margin, not the chapter length.
+constexpr int k_pageCacheKiB  = 96 * 1024;   //!< ~6 scaled pages: visible + prefetch, with headroom.
 constexpr int k_proxyCacheKiB = 24 * 1024;   //!< Hundreds of 200px-wide proxies.
-constexpr int k_prefetchSlices = 3;          //!< Slices decoded beyond the viewport on each side.
+//! Pages built beyond the viewport on each side. One page is several slices tall, so ±1 already covers
+//! a comfortable scroll ahead; a larger margin would multiply a much heavier unit of work.
+constexpr int k_prefetchPages = 1;
 
 /**
- * @brief One graphics item that draws every output slice as its own image — seam-free.
+ * @brief One graphics item that draws every input page as its own image — seam-free.
  *
- * One QGraphicsPixmapItem per slice leaves a 1px hairline at each page join (QGraphicsView clips and
- * rounds each item's edge independently). Drawing all slices through one item, in one painter pass,
- * tiles them edge-to-edge with no seam at any zoom. The item is a thin view over the StripViewer: it
- * owns no pixels — it asks the viewer for each slice's sharp pixmap (if decoded) or its blurry proxy,
- * so the lazy/async machinery lives in one place.
+ * One QGraphicsPixmapItem per page leaves a 1px hairline at each join (QGraphicsView clips and rounds
+ * each item's edge independently). Drawing all pages through one item, in one painter pass, tiles them
+ * edge-to-edge with no seam at any zoom. The item is a thin view over the StripViewer: it owns no
+ * pixels — it asks the viewer for each page's built pixmap (if ready) or its blurry proxy, so the
+ * lazy/async machinery lives in one place.
  */
 class StripItem : public QGraphicsItem
 {
@@ -68,25 +72,34 @@ public:
     {
         // Smooth the pixmap interior, but turn OFF edge antialiasing: with AA on, each drawPixmap
         // coverage-antialiases the destination rect's edges at fractional zoom, so the boundary row
-        // between two slices is only partially covered and the background hairlines through — that is
-        // the "1px frame". AA off makes adjacent slices tile with hard edges, each device row owned by
-        // exactly one slice, no bleed. (Local to this item — the view keeps AA for text/seam lines.)
+        // between two pages is only partially covered and the background hairlines through — that is
+        // the "1px frame". AA off makes adjacent pages tile with hard edges, each device row owned by
+        // exactly one page, no bleed. (Local to this item — the view keeps AA for text/seam lines.)
         painter->setRenderHint(QPainter::Antialiasing, false);
         painter->setRenderHint(QPainter::SmoothPixmapTransform, true);
         const QRectF exposed = option->exposedRect;
-        for (int i = 0; i < m_owner->sliceCount(); ++i) {
-            const QRectF r = m_owner->sliceRect(i);
+        for (int i = 0; i < m_owner->pageCount(); ++i) {
+            const QRectF r = m_owner->pageRect(i);
             if (!r.intersects(exposed))
                 continue;
 
-            const QPixmap full = m_owner->fullOf(i);
-            if (!full.isNull()) {
-                painter->drawPixmap(r.topLeft(), full);     // sharp, native size
+            if (m_owner->gradeActive()) {
+                const QPixmap graded = m_owner->gradedOf(i);
+                if (!graded.isNull()) {
+                    painter->drawPixmap(r.topLeft(), graded); // live grade preview
+                    continue;
+                }
+                // not graded yet → briefly show the ungraded page below while the grade is produced
+            }
+
+            const QPixmap page = m_owner->pageOf(i);
+            if (!page.isNull()) {
+                painter->drawPixmap(r.topLeft(), page);     // sharp, at the strip's native scale
                 continue;
             }
             const QPixmap proxy = m_owner->proxyOf(i);
             if (!proxy.isNull())
-                painter->drawPixmap(r, proxy, QRectF(proxy.rect())); // blurry proxy, scaled into the slice rect
+                painter->drawPixmap(r, proxy, QRectF(proxy.rect())); // blurry proxy, scaled into the page rect
             else
                 painter->fillRect(r, m_owner->palette().color(QPalette::Base)); // brief neutral placeholder
         }
@@ -102,8 +115,9 @@ StripViewer::StripViewer(QWidget *parent)
     : QWidget(parent)
     , ui(new Ui::StripViewer)
 {
-    m_fullCache.setMaxCost(k_fullCacheKiB);
+    m_pageCache.setMaxCost(k_pageCacheKiB);
     m_proxyCache.setMaxCost(k_proxyCacheKiB);
+    m_gradedCache.setMaxCost(k_pageCacheKiB); // a graded preview is the same size as the page it came from
 
     // Toolbar buttons + the graphics view come from the Designer form; the runtime wiring is here.
     ui->setupUi(this);
@@ -118,9 +132,9 @@ StripViewer::StripViewer(QWidget *parent)
     m_view->setAlignment(Qt::AlignHCenter | Qt::AlignTop);
     m_view->setRenderHints(QPainter::Antialiasing | QPainter::SmoothPixmapTransform);
     m_view->viewport()->installEventFilter(this);   // Ctrl+wheel zoom
-    // Decode the slices that scroll into view (plus a prefetch margin).
-    connect(m_view->verticalScrollBar(),   &QScrollBar::valueChanged, this, &StripViewer::updateVisibleSlices);
-    connect(m_view->horizontalScrollBar(), &QScrollBar::valueChanged, this, &StripViewer::updateVisibleSlices);
+    // Build the pages that scroll into view (plus a prefetch margin).
+    connect(m_view->verticalScrollBar(),   &QScrollBar::valueChanged, this, &StripViewer::updateVisiblePages);
+    connect(m_view->horizontalScrollBar(), &QScrollBar::valueChanged, this, &StripViewer::updateVisiblePages);
 
     connect(ui->buttonZoomOut,   &QToolButton::clicked, this, &StripViewer::zoomOut);
     connect(ui->buttonZoomIn,    &QToolButton::clicked, this, &StripViewer::zoomIn);
@@ -161,7 +175,16 @@ StripViewer::StripViewer(QWidget *parent)
         // One tool-options page per tool (index == Tool). Empty scaffolds for now; grade/bubble/text
         // controls arrive in later increments. Pan has no options.
         ui->toolOptions->addWidget(new QWidget(ui->toolOptions)); // Pan
-        ui->toolOptions->addWidget(new CcPanel(ui->toolOptions)); // Grade
+        m_ccPanel = new CcPanel(ui->toolOptions);                 // Grade
+        ui->toolOptions->addWidget(m_ccPanel);
+        connect(m_ccPanel, &CcPanel::changed, this, [this](const Platemaker::Models::ColourCorrection& cc) {
+            // Live edit: apply it, but do NOT push it back into the panel — the panel is the source
+            // here, and re-syncing its widgets mid-drag would fight the slider the user is holding.
+            applyGrade(cc);
+        });
+        connect(m_ccPanel, &CcPanel::committed, this, [this](const Platemaker::Models::ColourCorrection& cc) {
+            emit colourCorrectionEdited(cc); // settled: the owner persists it onto the project (undo)
+        });
         ui->toolOptions->addWidget(new BubblePanel(ui->toolOptions)); // Bubble
         ui->toolOptions->addWidget(new TextPanel(ui->toolOptions)); // Text
 
@@ -193,27 +216,155 @@ void StripViewer::setTool(Tool tool)
     ui->rightPanel->setVisible(!pan);
 }
 
+void StripViewer::applyGrade(const Platemaker::Models::ColourCorrection& cc)
+{
+    // The owner re-feeds this viewer on every project edit, and the panel persists a settled drag while
+    // still emitting live values, so the same grade arrives here repeatedly. Re-grading for it would
+    // double the work of a slider drag. processingConfigSignature() is the library's own fingerprint of
+    // this exact config — reuse it as the equality test rather than hand-rolling a field compare. (It is
+    // empty for any disabled grade, which is right: nothing is graded and the load path is the same one.)
+    const std::string sig = Platemaker::Models::processingConfigSignature(cc, {});
+    if (sig == m_ccSignature)
+        return;
+    m_ccSignature = sig;
+
+    // Most of the grade is a point operation on already-built pixels, so a slider move only re-grades —
+    // that is the whole reason the built pages are kept ungraded. But part of the colour step happens at
+    // *load*: the ICC toggle, and whether this page is excluded, decide which load path the render takes,
+    // and that part is baked into the built page. Change one of those and the pages must come back from
+    // the library.
+    const bool loadPathChanged = m_cc.enabled           != cc.enabled
+                              || m_cc.iccToSRGB         != cc.iccToSRGB
+                              || m_cc.excludedInputUids != cc.excludedInputUids;
+
+    m_cc = cc;
+    if (loadPathChanged)
+        resetDecodeState();   // drops the built pages; updateVisiblePages() rebuilds what is on screen
+    refreshGradePreview();
+}
+
+void StripViewer::setColourCorrection(const Platemaker::Models::ColourCorrection& cc)
+{
+    applyGrade(cc);
+    if (m_ccPanel)
+        m_ccPanel->setColourCorrection(cc);   // the project is the source here — show it in the panel
+}
+
+bool StripViewer::gradeActive() const
+{
+    // Independent of the active tool: the strip's pixels are the ungraded input, so the project's grade
+    // is what the strip is *supposed* to look like — switching to Pan must not reveal an ungraded strip.
+    if (!m_cc.enabled)
+        return false;
+    // A neutral grade leaves the pixels unchanged — nothing to preview.
+    return !(m_cc.brightness == 0.0 && m_cc.contrast == 1.0 && m_cc.saturation == 1.0
+             && !Platemaker::Models::hasAnyCurve(m_cc.curves));
+}
+
+QPixmap StripViewer::gradedOf(int index) const
+{
+    const QPixmap* p = m_gradedCache.object(index);
+    return p ? *p : QPixmap();
+}
+
+void StripViewer::produceGraded(int index)
+{
+    if (!gradeActive() || m_gradedCache.object(index))
+        return;
+    const QPixmap* src = m_pageCache.object(index); // grade from the resident (ungraded) page
+    if (!src)
+        return;
+
+    // A page excluded from the grade renders ungraded — the same rule the render applies, and the
+    // reason the preview's unit of work is the page: an output slice can straddle an excluded and an
+    // included page, so on that feed the exclusion could not be honoured at display time at all.
+    const auto& ex  = m_cc.excludedInputUids;
+    const auto& uid = m_inputs[static_cast<std::size_t>(m_inputIndex.at(index))].uid;
+    if (std::find(ex.begin(), ex.end(), uid) != ex.end())
+        return;
+
+    QImage img = src->toImage().convertToFormat(QImage::Format_RGBA8888);
+    try {
+        // ponytail: grades the whole page (~4 Mpx at 800×5120) even though the viewport shows a
+        // fraction of it. Simple and cache-friendly — one grade per page, none while scrolling within
+        // it. If a slider drag feels heavy, grade only the visible band: rows are contiguous in an
+        // interleaved RGBA buffer, so applyToRgba(bits + top*w*4, w, rows, cc) is already legal.
+        Platemaker::Core::ColourCorrector{}.applyToRgba(img.bits(), img.width(), img.height(), m_cc);
+    } catch (const std::exception& e) {
+        qWarning() << "StripViewer: grade preview failed for page" << index << "—" << e.what();
+        return; // leave it ungraded (paint falls back to the built page)
+    } catch (...) {
+        qWarning() << "StripViewer: grade preview failed for page" << index;
+        return;
+    }
+    const QPixmap g = QPixmap::fromImage(img);
+    m_gradedCache.insert(index, new QPixmap(g), qMax(1, (g.width() * g.height() * 4) / 1024));
+    if (m_item)
+        m_item->update(pageRect(index));
+}
+
+void StripViewer::refreshGradePreview()
+{
+    m_gradedCache.clear();     // the grade changed → previous previews are stale
+    if (m_item)
+        m_item->update();
+    updateVisiblePages();      // re-grade what's on screen (produceGraded runs for visible pages)
+}
+
 StripViewer::~StripViewer()
 {
     delete ui;
 }
 
-void StripViewer::setSlices(const QStringList &slicePaths, const QString &cacheDir)
+void StripViewer::setPreviewSource(const std::vector<Platemaker::Models::InputFile>&     inputs,
+                                   const Platemaker::Models::OutputProfile&              outProfile,
+                                   const std::vector<Platemaker::Models::CanvasProfile>& canvasProfiles,
+                                   const std::vector<std::string>&                       canvasProfileIds,
+                                   const QString&                                        cacheDir)
 {
-    m_slicePaths = slicePaths;
-    m_cacheDir   = cacheDir;
+    // Everything that can move a page on the strip, and nothing else. The owner refreshes this viewer on
+    // any project edit — a settled slider drag included — and a rebuild drops every built page, so an
+    // unconditional rebuild would re-fetch the visible pages after each of them. Deliberately excluded:
+    // per-input render bookkeeping (status, sha, timestamps), which the render stamps without any page
+    // moving. A page edited on disk therefore does not refresh by itself; re-opening the viewer or
+    // rendering picks it up.
+    QStringList parts;
+    parts << QString::fromStdString(Platemaker::Models::outputProfileSignature(outProfile))
+          << cacheDir;
+    for (const auto& id : canvasProfileIds)
+        parts << QString::fromStdString(id);
+    for (const auto& cp : canvasProfiles)
+        parts << QStringLiteral("%1:%2").arg(QString::fromStdString(cp.id),
+                                             QString::fromStdString(
+                                                 Platemaker::Models::canvasRenderFingerprint(cp)));
+    for (const auto& in : inputs)
+        parts << QStringLiteral("%1:%2").arg(
+                     QString::fromStdString(in.filePath),
+                     in.status == Platemaker::Models::FileStatus::Missing ? QStringLiteral("x")
+                                                                         : QStringLiteral("."));
+    const QString sig = parts.join(QStringLiteral("/"));
+
+    if (sig == m_feedSignature && !m_pagePaths.isEmpty())
+        return;                 // same strip — keep the built pages
+
+    m_feedSignature    = sig;
+    m_inputs           = inputs;
+    m_outProfile       = outProfile;
+    m_canvasProfiles   = canvasProfiles;
+    m_canvasProfileIds = canvasProfileIds;
+    m_cacheDir         = cacheDir;
     rebuildScene();
 }
 
-QRectF StripViewer::sliceRect(int index) const
+QRectF StripViewer::pageRect(int index) const
 {
-    return QRectF(0, m_sliceTops.at(index),
-                  m_sliceSizes.at(index).width(), m_sliceSizes.at(index).height());
+    return QRectF(0, m_pageTops.at(index),
+                  m_pageSizes.at(index).width(), m_pageSizes.at(index).height());
 }
 
-QPixmap StripViewer::fullOf(int index) const
+QPixmap StripViewer::pageOf(int index) const
 {
-    const QPixmap *p = m_fullCache.object(index);
+    const QPixmap *p = m_pageCache.object(index);
     return p ? *p : QPixmap();
 }
 
@@ -226,9 +377,10 @@ QPixmap StripViewer::proxyOf(int index) const
 void StripViewer::resetDecodeState()
 {
     ++m_generation;             // in-flight results from before now are ignored on arrival
-    m_fullCache.clear();
+    m_pageCache.clear();
     m_proxyCache.clear();
-    m_fullInFlight.clear();
+    m_gradedCache.clear();
+    m_pageInFlight.clear();
     m_proxyInFlight.clear();
 }
 
@@ -237,56 +389,74 @@ void StripViewer::rebuildScene()
     m_scene->clear();           // deletes every item (incl. the StripItem); the tracked pointers are now stale
     m_item = nullptr;
     m_seamItems.clear();
-    m_paths.clear();
-    m_sliceTops.clear();
-    m_sliceSizes.clear();
+    m_inputIndex.clear();
+    m_pagePaths.clear();
+    m_pageTops.clear();
+    m_pageSizes.clear();
     m_stripWidth  = 0;
     m_stripHeight = 0;
     resetDecodeState();
 
-    // Lay the strip out from each slice's HEADER size only — no pixels are decoded here.
+    // Ask the library where each page lands. This reads headers and decodes nothing, and the numbers
+    // come from the same page-domain code a render uses — so the strip laid out here is the strip a
+    // render would build, before any render exists.
+    std::vector<Platemaker::Core::PagePreviewGeometry> layout;
+    try {
+        layout = Platemaker::Core::ProcessingPipeline::previewLayout(
+            m_inputs, m_outProfile, m_canvasProfiles, m_canvasProfileIds);
+    } catch (const std::exception& e) {
+        qWarning() << "StripViewer: preview layout failed —" << e.what();
+    }
+
     int y = 0;
-    for (const QString &path : std::as_const(m_slicePaths)) {
-        const QSize s = QImageReader(path).size();   // header read, not a decode
-        if (!s.isValid())       // a slice missing / not yet written / unreadable — skip, keep the rest
+    for (int i = 0; i < static_cast<int>(layout.size()); ++i) {
+        const auto& g = layout[static_cast<std::size_t>(i)];
+        // A page the render would skip contributes nothing to the strip. Dropping it here is what keeps
+        // every page below it at the offset the render will give it.
+        if (!g.readable || g.width <= 0 || g.height <= 0)
             continue;
-        m_sliceTops.append(y);
-        m_paths.append(path);
-        m_sliceSizes.append(s);
-        y            += s.height();
-        m_stripWidth  = qMax(m_stripWidth, s.width());
+        m_inputIndex.append(i);
+        m_pagePaths.append(QString::fromStdString(g.sourceFilePath));
+        m_pageTops.append(y);
+        m_pageSizes.append(QSize(g.width, g.height));
+        y            += g.height;
+        m_stripWidth  = qMax(m_stripWidth, g.width);
     }
     m_stripHeight = y;
 
-    if (m_paths.isEmpty()) {
+    if (m_pagePaths.isEmpty()) {
         showEmptyState();
         return;
     }
 
     m_scene->setSceneRect(0, 0, m_stripWidth, m_stripHeight);
-    // One item draws every slice as its own image — no per-item seam. It pulls pixels lazily from us.
+    // One item draws every page as its own image — no per-item seam. It pulls pixels lazily from us.
     m_item = new StripItem(this);
     m_scene->addItem(m_item);
     addSeamItems();
 
-    // Default view: the output's native width (several slices visible), shrunk only if the strip is
-    // wider than the viewport. Re-applied on resize until the user zooms.
+    // Default view: 100%. Re-applied on resize until the user zooms.
     m_pendingFit = true;
     applyDefaultZoom();
-    updateVisibleSlices();      // start decoding what's on screen
+    updateVisiblePages();       // start building what's on screen
 }
 
 void StripViewer::addSeamItems()
 {
-    // A thin, semi-transparent guide at each interior slice boundary (skip the top edge at y==0).
-    // Painted in the palette's text colour so it reads in both themes without a hardcoded colour.
+    // Where the output will be cut. Unlike the page joins, these are not visible in the strip itself,
+    // and they are exactly what an author needs to see: a bubble that straddles one lands on both
+    // slices. The render cuts every sliceHeight from the top of the strip, so that is what is drawn.
+    const int step = m_outProfile.sliceHeight;
+    if (step <= 0)
+        return;
+
+    // A thin, semi-transparent guide, in the palette's text colour so it reads in both themes without a
+    // hardcoded colour.
     QColor c = palette().color(QPalette::WindowText);
     c.setAlpha(90);
     QPen pen(c);
     pen.setCosmetic(true);      // stays 1px regardless of zoom
-    for (int top : std::as_const(m_sliceTops)) {
-        if (top == 0)
-            continue;
+    for (int top = step; top < m_stripHeight; top += step) {
         auto *seam = m_scene->addLine(0, top, m_stripWidth, top, pen);
         seam->setVisible(ui->buttonSeams->isChecked());
         seam->setZValue(1);     // above the strip item
@@ -299,13 +469,14 @@ void StripViewer::showEmptyState()
     m_scene->clear();
     m_item = nullptr;
     m_seamItems.clear();
-    m_paths.clear();
-    m_sliceTops.clear();
-    m_sliceSizes.clear();
+    m_inputIndex.clear();
+    m_pagePaths.clear();
+    m_pageTops.clear();
+    m_pageSizes.clear();
     m_stripWidth = m_stripHeight = 0;
 
     auto *text = m_scene->addSimpleText(
-        tr("No rendered output yet.\nRender the project to see the full strip."));
+        tr("No pages to show.\nAdd input pages to the project to see the strip."));
     text->setBrush(palette().color(QPalette::WindowText));
     const QRectF b = text->boundingRect();
     m_scene->setSceneRect(b.adjusted(-40, -40, 40, 40));
@@ -313,20 +484,20 @@ void StripViewer::showEmptyState()
 }
 
 // ---------------------------------------------------------------------------
-// Lazy decode: proxy (blurry, instant) + full (sharp, async), for visible + prefetch
+// Lazy page build: proxy (blurry, instant) + the real page domain (sharp, async)
 // ---------------------------------------------------------------------------
 
-void StripViewer::updateVisibleSlices()
+void StripViewer::updateVisiblePages()
 {
-    if (m_paths.isEmpty())
+    if (m_pagePaths.isEmpty())
         return;
 
-    // The viewport mapped into scene coordinates → which slices intersect it.
+    // The viewport mapped into scene coordinates → which pages intersect it.
     const QRectF vis = m_view->mapToScene(m_view->viewport()->rect()).boundingRect();
     int first = -1, last = -1;
-    for (int i = 0; i < m_paths.size(); ++i) {
-        const int top = m_sliceTops.at(i);
-        const int bot = top + m_sliceSizes.at(i).height();
+    for (int i = 0; i < m_pagePaths.size(); ++i) {
+        const int top = m_pageTops.at(i);
+        const int bot = top + m_pageSizes.at(i).height();
         if (bot >= vis.top() && top <= vis.bottom()) {
             if (first < 0) first = i;
             last = i;
@@ -335,46 +506,71 @@ void StripViewer::updateVisibleSlices()
     if (first < 0)
         return;
 
-    first = qMax(0, first - k_prefetchSlices);
-    last  = qMin(m_paths.size() - 1, last + k_prefetchSlices);
-    for (int i = first; i <= last; ++i)
-        requestSlice(i);
+    first = qMax(0, first - k_prefetchPages);
+    last  = qMin(m_pagePaths.size() - 1, last + k_prefetchPages);
+    for (int i = first; i <= last; ++i) {
+        requestPage(i);
+        produceGraded(i); // grade now if already built; otherwise the build watcher grades it on arrival
+    }
 }
 
-void StripViewer::requestSlice(int index)
+void StripViewer::requestPage(int index)
 {
     const int gen = m_generation;
 
-    // Sharp tier: decode the full slice at native resolution on a worker thread.
-    if (!m_fullCache.object(index) && !m_fullInFlight.contains(index)) {
-        m_fullInFlight.insert(index);
-        const QString path = m_paths.at(index);
+    // Sharp tier: put the input page through the library's page domain on a worker thread. This is the
+    // same code the render runs, so the pixels here are the pixels the render will produce — ungraded,
+    // because the grade is a point op we apply to the result and re-apply on every slider move.
+    if (!m_pageCache.object(index) && !m_pageInFlight.contains(index)) {
+        m_pageInFlight.insert(index);
+        // Copies, because the worker outlives this call and the workspace can change under it.
+        const auto  input   = m_inputs[static_cast<std::size_t>(m_inputIndex.at(index))];
+        const auto  outProf = m_outProfile;
+        const auto  profs   = m_canvasProfiles;
+        const auto  ids     = m_canvasProfileIds;
+        const auto  cc      = m_cc;
+        const QSize size    = m_pageSizes.at(index);
+
         auto *watcher = new QFutureWatcher<QImage>(this);
         connect(watcher, &QFutureWatcher<QImage>::finished, this, [this, watcher, index, gen] {
             const QImage img = watcher->result();
             watcher->deleteLater();
             if (gen != m_generation)   // superseded by a rebuild — its in-flight set was already cleared
                 return;
-            m_fullInFlight.remove(index);
+            m_pageInFlight.remove(index);
             if (img.isNull())
                 return;
             const QPixmap pm = QPixmap::fromImage(img);
-            m_fullCache.insert(index, new QPixmap(pm),
+            m_pageCache.insert(index, new QPixmap(pm),
                                qMax(1, (pm.width() * pm.height() * 4) / 1024));
+            produceGraded(index); // grade the freshly-built page if the grade is on
             if (m_item)
-                m_item->update(sliceRect(index));
+                m_item->update(pageRect(index));
         });
-        watcher->setFuture(QtConcurrent::run([path]() -> QImage {
-            QImageReader reader(path);
-            reader.setAutoTransform(true);
-            return reader.read();
-        }));
+        watcher->setFuture(QtConcurrent::run(
+            [input, outProf, profs, ids, cc, size]() -> QImage {
+                QImage img(size, QImage::Format_RGBA8888);
+                // previewPageRgba writes tightly packed RGBA8888. Format_RGBA8888 is 4 bytes per pixel,
+                // so a scanline is always 4-byte aligned and Qt adds no padding — but assert rather than
+                // assume, because a padded scanline would shear the image.
+                if (img.bytesPerLine() != size.width() * 4)
+                    return {};
+                try {
+                    Platemaker::Core::ProcessingPipeline::previewPageRgba(
+                        input, outProf, profs, ids, cc, img.bits(), size.width(), size.height());
+                } catch (...) {
+                    return {};   // the page stays on its proxy; the layout already knows its size
+                }
+                return img;
+            }));
     }
 
-    // Proxy tier: a small blurry thumbnail, reusing the lib ThumbnailCache the render already warmed.
+    // Proxy tier: the input page's thumbnail, reusing the lib ThumbnailCache the Input tab already warms
+    // for exactly these files. Aspect-wrong for a margin-cropped page, but it is a placeholder that gets
+    // replaced the moment the real page arrives.
     if (!m_cacheDir.isEmpty() && !m_proxyCache.object(index) && !m_proxyInFlight.contains(index)) {
         m_proxyInFlight.insert(index);
-        const std::string path     = m_paths.at(index).toStdString();
+        const std::string path     = m_pagePaths.at(index).toStdString();
         const std::string cacheDir = m_cacheDir.toStdString();
         auto *watcher = new QFutureWatcher<QString>(this);
         connect(watcher, &QFutureWatcher<QString>::finished, this, [this, watcher, index, gen] {
@@ -391,7 +587,7 @@ void StripViewer::requestSlice(int index)
             m_proxyCache.insert(index, new QPixmap(pm),
                                 qMax(1, (pm.width() * pm.height() * 4) / 1024));
             if (m_item)
-                m_item->update(sliceRect(index));
+                m_item->update(pageRect(index));
         });
         watcher->setFuture(QtConcurrent::run([path, cacheDir]() -> QString {
             try {
@@ -415,7 +611,7 @@ void StripViewer::applyZoom(double z)
     t.scale(m_zoom, m_zoom);
     m_view->setTransform(t);
     m_zoomLabel->setText(QStringLiteral("%1%").arg(qRound(m_zoom * 100.0)));
-    updateVisibleSlices();      // zoom changes how many slices are on screen
+    updateVisiblePages();       // zoom changes how many pages are on screen
 }
 
 void StripViewer::userZoom(double z)
@@ -451,7 +647,7 @@ void StripViewer::resizeEvent(QResizeEvent *event)
     QWidget::resizeEvent(event);
     if (m_pendingFit)
         applyDefaultZoom();     // settle the default zoom as the viewport gets its real size
-    updateVisibleSlices();
+    updateVisiblePages();
 }
 
 bool StripViewer::eventFilter(QObject *watched, QEvent *event)

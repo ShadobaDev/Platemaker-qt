@@ -324,6 +324,15 @@ void Project::populate()
     refreshWorkflowMap();
 }
 
+void Project::applyColourCorrection(const ColourCorrection& cc)
+{
+    commitEdit(tr("Adjust colour correction"), [this, &cc] {
+        m_workspace.projectItems[m_projectIndex].colourCorrection = cc;
+        emit projectModified();
+        populate(); // refresh the workflow map (CC on/off, exclusions) and the rest of the views
+    });
+}
+
 void Project::refreshWorkflowMap()
 {
     if (!m_workflowStack) // built in the ctor; guard in case populate() runs earlier

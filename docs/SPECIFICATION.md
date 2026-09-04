@@ -1,7 +1,7 @@
 # Platemaker GUI — Application Specification
 
 **Status:** Active development — core widget layer done, business logic wiring in progress.  
-**Last updated:** 2026-08-16  
+**Last updated:** 2026-09-05  
 **Audience:** Developer + AI coding assistant
 
 > **Library reference:** The GUI is a thin shell over `libplatemaker`.  
@@ -21,6 +21,8 @@ It exposes all capabilities of `libplatemaker` through a visual interface:
 - Running the strip-processing pipeline with live progress
 - Managing canvas profiles and generating margin-overlay templates
 - Managing output profiles (format, slice size, JPEG options)
+- Authoring the pipeline's two **optional** steps on a continuous strip of the chapter — a project-wide
+  colour grade and text/bubble overlays (§2.5)
 
 The application follows a strict separation of concerns:
 
@@ -83,6 +85,13 @@ A dock widget, tabbed alongside the workspace panel (one dock per open project).
   next Refresh/Render/reopen), and marks the workspace dirty.
 - A toolbar row above the grid shows: project name, input directory, link/unlink
   canvas profile button, output profile selector.
+- A **Workflow** tab renders the pipeline as a read-only map of `StageCard`s
+  (`widgets/stagecard/`), built from the live `ProjectItem`: Inputs → Margin crop → **Colour
+  correction** → Resize → Slice → **Text & bubbles** → Output. The two optional stages draw as smaller,
+  greyed cards with a green **+** on hover; activating one opens the strip editor (§2.5). It is an
+  honest map of a **fixed, non-reorderable** pipeline — deliberately not a node graph, because the
+  library's steps are typed and ordered by design, and a draggable canvas would imply a freedom that
+  does not exist.
 
 ### 2.3 Image Tile — `ImageTile`
 
@@ -121,47 +130,138 @@ The dialogs edit **copies**; the workspace is mutated only on accept, and only t
 `Infrastructure::WorkspaceEditor` (the palettes are private in the model — see the lib spec §7.5). The
 GUI does not mint ids, deduplicate, preserve `templateInfo`, or strip presets itself; the editor does.
 
-### 2.5 Strip Viewer — `StripViewer`
+### 2.5 Strip Editor — `StripViewer`
 
 A per-project **floating dock** (`widgets/stripviewer/`, a `.ui`-defined `QWidget` inside a
-`QDockWidget`), opened from the Output tab's *View strip* button via `MainWindow::openStripViewerDock()`.
-It shows the project's committed **output slices reassembled into the single continuous strip** they were
-cut from — a window onto the *lib-rendered* pixels. It is deliberately **WYSIWYG and never re-derives the
-image**: what the viewer shows is exactly what the render produced (so a blank gutter or a colour is a
-render/input matter, not the viewer's).
+`QDockWidget`), opened from the Output tab's *View strip* button or from a Workflow-map card, via
+`MainWindow::openStripViewerDock()`. It is the authoring surface for the pipeline's two optional steps —
+colour correction and text/bubble overlays — and it shows the chapter as one continuous strip.
+
+**The strip is built from the project's INPUT pages, not from its rendered output.** It stacks each
+input put through the library's page domain (EXIF-upright → canvas-profile margin crop → scale to the
+output's target width) via `ProcessingPipeline::previewLayout()` / `previewPageRgba()`. Three
+consequences, and they are the whole reason for the design:
+
+- **It works before the first render.** A grade or a bubble has to be authored before it is baked, and
+  on the old output-slice feed there was nothing to look at until a render existed.
+- **Rendering does not change the view.** Edits are previewed against the *input*, so the render bakes
+  exactly what was on screen. On the old feed the render baked the grade into the output and the preview
+  then graded it a second time.
+- **The unit of work is the page**, which is the unit the grade's per-page exclusions and an overlay's
+  page anchor both address. An output slice can straddle two pages, so on that feed neither could be
+  honoured at display time at all.
+
+Output *slices* are deliberately absent: they are a publishing artifact. What the author still needs is
+the slice **grid**, which the seam guides draw at every `sliceHeight` down the strip — the line a bubble
+must not be split by.
 
 - **Placement.** A `QDockWidget` allowed Left/Top/Bottom and **never** tab-combined with the Action right
   column; it defaults to floating and wears the shared custom title bar (§2.1). It opens sized to the
-  **output width + 100px each side** (× 80% of the screen height), centred, is refreshed on render finish
-  (`onRenderFinished`), and is tracked in `m_openStripDocks` (keyed by a `projectIndex` property),
-  reindexed/closed with its project.
+  **strip width + 100px each side** (× 80% of the screen height), centred, and is tracked in
+  `m_openStripDocks` (keyed by a `projectIndex` property), reindexed/closed with its project.
+  `MainWindow::refreshStripViewer()` re-feeds it on every `Project::projectModified`.
 - **Shared dock tab bar.** The Workspace, project and strip docks can occupy one tab group, so their tab
   bar's close / double-click are resolved by `dockForTabBarTab()` (tab → dock **by window title**) rather
-  than a raw index into any one list: a project tab destroys its dock, a strip/workspace tab hides it, a
-  double-click floats/re-docks it (also how a tabified strip is pulled back out). `wireDockTabBars()`
-  (re)applies this whenever a dock joins a tab group.
-- **Rendering (seam-free).** `QGraphicsView` + `QGraphicsScene` with **one** item (`StripItem`) that
-  draws every slice as its own image in one pass. One `QGraphicsPixmapItem` *per* slice would leave a
-  1px hairline at each page join — `QGraphicsView` clips/rounds each item's edge independently — but the
-  actual cause of the seam is **edge antialiasing**: with AA on, each `drawPixmap` coverage-antialiases
-  the destination rect's edges at fractional zoom, so the boundary row is only partly covered and the
-  background hairlines through. `StripItem::paint` **disables `QPainter::Antialiasing`** (keeping
-  `SmoothPixmapTransform`), so adjacent slices tile with hard edges and no bleed.
-- **Memory model (proxy + async native decode + prefetch).** Layout is built from each slice's *header*
-  size only (`QImageReader::size()`, no decode). Two tiers, both off the UI thread (see §6):
-  - **Proxy** — a small blurry thumbnail per slice, reusing the render-warmed `ThumbnailCache` (§5),
-    drawn instantly so a slice is never blank while its sharp decode runs.
-  - **Sharp** — the full slice decoded at **native** resolution for slices in view plus a prefetch
-    margin, kept in a byte-capped LRU `QCache`; off-screen slices are evicted, so RAM tracks the
-    viewport, not the chapter length. A generation counter drops async results from a superseded rebuild.
-  (Decoding at *display* resolution via `setScaledSize`, so RAM shrinks with zoom too, is a deferred
-  lever — see the TODO.)
-- **Zoom.** Default is the output's **native width**, shrunk to fit only when the strip is wider than the
-  viewport (never enlarged), so several slices read at once; plus fit-width / 100% / − / + and
-  Ctrl+wheel. The default re-settles on resize until the user takes control.
-- **Foundation for colour correction / text bubbles.** The scene is the future home for overlay editing;
-  the per-slice Y offsets (+ `OutputFile::sourceMap`) are the basis for a later click→input **lookup**,
-  and the "rendered slices" source is the seam for a future **preview-render-to-temp** feed.
+  than a raw index into any one list. `wireDockTabBars()` (re)applies this whenever a dock joins a group.
+
+#### 2.5.1 Editor shell
+
+`stripviewer.ui` lays out `[toolbar]` over `[toolRail | graphicsView | rightPanel]`:
+
+- **Tool rail** (left) — square checkable `QToolButton`s in an exclusive `QButtonGroup`, laid out by
+  `FlowLayout` so they reflow to the rail's width (a flow layout cannot be expressed in a `.ui`).
+  Tools: **Pan** (default — hand-drag, no side panel, behaves exactly as the viewer did before the
+  editor existed), **Grade**, **Bubble**, **Text**.
+- **Tool options** (right-top) — a `QStackedWidget`, one page per tool. `CcPanel` for Grade;
+  `BubblePanel` for **both** Bubble and Text, because they author the same object (§2.5.4) — `setTool()`
+  points both at that page and hides the shape group for Text.
+- **Artifact list** (right-bottom) — `artifactList`, the overlays in composite order. Hidden under Grade,
+  whose per-page exclusion feed is not built yet.
+
+#### 2.5.2 Rendering (seam-free) and memory
+
+`QGraphicsView` + `QGraphicsScene`. The scene's coordinates **are** strip coordinates, 1:1 — which is
+what lets an overlay's scene position be its library placement plus its anchor page's top, with no
+mapping layer.
+
+- **One item for the pages.** `StripItem` draws every page as its own image in one pass. One
+  `QGraphicsPixmapItem` per page would leave a 1px hairline at each join — `QGraphicsView` clips and
+  rounds each item's edge independently — but the actual cause is **edge antialiasing**: with AA on,
+  each `drawPixmap` coverage-antialiases the destination rect's edges at fractional zoom, so the boundary
+  row is only partly covered and the background hairlines through. `StripItem::paint` **disables
+  `QPainter::Antialiasing`** (keeping `SmoothPixmapTransform`), so adjacent pages tile with hard edges.
+  Overlays are separate items above it (§2.5.4) — they are sparse, so they cost no seam.
+- **Layout without pixels.** `previewLayout()` reads each page's header and decodes nothing; pages the
+  render would skip (missing / unreadable) are dropped here exactly as the render drops them, or every
+  page below would sit at the wrong strip offset.
+- **Two tiers, both off the UI thread** (§6):
+  - **Proxy** — the input page's thumbnail from the lib `ThumbnailCache` the Input tab already warms
+    (reused, not reinvented), drawn instantly so a page is never blank.
+  - **Sharp** — `previewPageRgba()` on `QtConcurrent` for pages in view plus a one-page prefetch margin,
+    into a byte-capped LRU `QCache`. Off-screen pages are evicted, so RAM tracks the viewport, not the
+    chapter. A generation counter drops async results from a superseded rebuild.
+- **Zoom.** 100% default, plus fit-width / 100% / − / + and Ctrl+wheel; the default re-settles on resize
+  until the user takes control.
+
+#### 2.5.3 Colour correction (Grade tool)
+
+`CcPanel` edits `Models::ColourCorrection` — brightness / contrast / saturation, with curves and the
+per-page exclusion UI still to come. It emits `changed()` continuously (live preview) and `committed()`
+debounced (persist + one undo step), which `MainWindow` routes to `Project::applyColourCorrection()`.
+
+The preview grades the **resident, ungraded page pixels** in place with
+`Core::ColourCorrector::applyToRgba()` — the same engine the render uses, so the preview is not an
+approximation. Because the colour step never influences how a page is *read*, no grade edit can
+invalidate a built page: re-grading what is resident is always enough, and a page fetched once stays a
+valid baseline for every grade tried on it. Excluded pages are skipped, matching the render.
+
+#### 2.5.4 Text & bubbles (Bubble / Text tools)
+
+- **One object, two tools.** A bubble is a `TextArtifact` (`widgets/textartifact/`): shape, box, tail,
+  text, font, colours. The Text tool is the same object with `shape == None`.
+- **Drawing.** `OverlayItem` (`widgets/stripviewer/overlayitem.*`) is one `QGraphicsObject` per overlay,
+  painted from the **authoring model** by `paintArtifact()` — so typing updates the strip with no file
+  round-trip, and the preview is the render because both go through that one function at the same scale.
+  It handles move, corner resize and the tail handle, and reports a settled drag on mouse release.
+- **Placement is page-anchored.** An overlay stores `anchorInputUid` plus an offset from that page's top;
+  the viewer resolves it against the layout it just built, exactly as `ProcessingPipeline::run()` does.
+  Dragging across a page boundary silently re-anchors. An overlay whose page is not in the strip is shown
+  greyed and listed as an orphan — never re-homed, never deleted.
+- **Creation is the library's.** The viewer emits `artifactCreated()`; `Project::createOverlay()`
+  rasterises the PNG and calls `ProjectItem::addOverlay()`, which mints the uid, hashes the bitmap and
+  dedups identical content. Every other edit arrives as the complete new state on `overlaysEdited()`.
+
+##### Where a bubble lives, and when it becomes pixels
+
+Three layers, each with exactly one owner. For a workspace at `D:\Comic\Chapter_002.platemaker.json`:
+
+| layer | what it holds | where | written by |
+|---|---|---|---|
+| library record | uid, `bitmapPath`, `sha256`, `anchorInputUid`, x/y, enabled, blend | `Chapter_002.platemaker.json` → `projectItems[].stripOverlays[]` | lib |
+| bitmap | the composited RGBA pixels, at strip scale | `D:\Comic\overlays\ovl-<sha16>.png` | GUI |
+| authoring record | shape, box, tail, text, font, colours | `D:\Comic\Chapter_002.overlays.json` | GUI (§3) |
+
+**Only the GUI ever rasterises; the library draws nothing.** It happens in two places through **one**
+function, `paintArtifact()`:
+
+- **Preview** — `OverlayItem::paint()` calls it on every scene repaint, so typing updates the strip with
+  no file I/O at all.
+- **The file** — `renderArtifact()` calls it into an ARGB32 `QImage` when an edit *settles* (the panel
+  debounces typing by 300 ms; a drag reports on mouse release), never per keystroke.
+
+Because the scene is the strip at 1:1, both run at the same scale over the same numbers — so the preview
+is not *consistent with* the render, it is the same drawing. The shape-picker tiles are a third caller of
+the same function, which is why a tile cannot show a shape that placing it does not give you.
+
+**Bitmaps are named by content hash and never overwritten.** `writeArtifactBitmap()` writes to a scratch
+name, hashes the encoded file with `FileMetaData::computeFileSha256` (the same function the library's
+inventory uses), then renames to `ovl-<first 16 hex>.png`; an existing file with that name is reused, so
+identical bubbles share one bitmap. Not overwriting is what lets undo restore an *earlier rendering* —
+a superseded file stays in `overlays/` on purpose, because an undo step still references it.
+
+A text or styling edit therefore rewrites the bitmap **and** the record's `sha256`; a move or a reorder
+rewrites neither, only the placement. `Project::applyOverlays()` re-rasterises exactly the artifacts
+whose authoring record actually changed.
 
 ---
 
@@ -178,11 +278,30 @@ MainWindow
   └── m_workspace : Workspace          // loaded from .platemaker.json; the source of truth
   └── m_workspacePath : QString        // current file path
   └── m_dirty : bool                   // unsaved changes
+  └── m_overlayArtifacts : ArtifactStore   // GUI-owned; <workspace>.overlays.json
 
 Project (one per open project dock)
   └── m_workspace : Workspace&         // reference to MainWindow's workspace
   └── m_projectIndex : int             // index into m_workspace.projectItems
+  └── m_artifacts : ArtifactMap        // this project's slice of the store
+  └── m_workspacePath : QString        // where overlays/ and the sidecar live
 ```
+
+**The one exception to "no parallel model": bubble authoring records.** The library composites a flat
+RGBA bitmap and deliberately has no text engine, so what a bubble *says* — shape, text, font, colours —
+is information the workspace codec has no business carrying. It lives in a sidecar,
+`<workspace-basename>.overlays.json`, keyed by project uid then overlay uid, with the rasterised PNGs in
+an `overlays/` folder beside the workspace file. That follows the storage split the rest of the app runs
+on (the library is a complete, OS-path-agnostic tool; the GUI decides where things live) and keeps a
+workspace self-contained: the three copy together. It is deliberately **not** in `.platemaker-cache/`,
+which is regenerable and safe to delete — losing these records would silently flatten every bubble into
+un-editable art. `MainWindow` loads and saves it with the workspace; each `Project` holds its own slice
+and pushes changes back via `Project::artifactsChanged`.
+
+**Undo covers both halves.** `Project::fullSnapshot()` is the library's project snapshot *plus* those
+authoring records, serialised together, so undoing a text edit restores what a bubble said and not merely
+where it sat. Without it the record would come back pointing at the *new* bitmap, and the strip would
+show text the render does not bake.
 
 **Mutation goes through the library.** The workspace's profile palettes and the projects' profile-link
 fields are private in the model; the GUI edits them only through `Infrastructure::WorkspaceEditor`
@@ -254,7 +373,8 @@ Process → Run  (or the project's Render button)
                                     sliceSaved(index,…)  → setOutputTile(index,…)   // live, positional
                                     inputStatus(path,…)  → setInputTileStatus(path,…) // live, phase 1
       ProcessingPipeline::run(inputs, outProfile, canvasProfiles, canvasProfileIds,
-                              outDir, cancel, callbacks, onlySlices?, cacheDir)  // static; worker thread
+                              outDir, cancel, callbacks, onlySlices?, cacheDir,
+                              colourCorrection, stripOverlays)  // static; worker thread
       show progress bar + Stop button
   → onRenderFinished():
       project.applyProcessingResults(records, appliedProfiles, outcome.skippedPages,
@@ -267,6 +387,14 @@ Process → Run  (or the project's Render button)
 During phase 1 (strip building) each input's tile turns green as it is appended, cyan **Processed
 (no canvas profile)** when it is rendered without a matching profile, or violet **Skipped** when it is
 left out (missing / load error); then output tiles stream in per slice.  See §2.3.
+
+**The two optional steps ride along.** `startRender` copies the project's `colourCorrection` and
+`getStripOverlays()` into the worker; both default to empty, so a project using neither renders
+byte-identically to one built before they existed. They also need a staleness axis of their own: a grade
+tweak or a moved bubble changes no input and no output file, so `Models::processingConfigSignature()` is
+compared against the stored `ProjectItem::processingSignature` and a mismatch folds into the
+"needs a full re-render" decision, exactly as `outputProfileSignature()` does for format/size changes.
+The signature is stamped back after a completed render. Requires **libplatemaker 0.6.0**.
 
 **Render output contract (consumer side — lib SPECIFICATION §7.0).** `startRender` passes the workspace's
 `.platemaker-cache` dir to `run()`, so the pipeline warms each slice's thumbnail from its **in-RAM** pixels
@@ -345,7 +473,8 @@ collides with one already linked; the GUI shows an error and does not link it.  
 | Operation | Mechanism | Thread safety notes |
 |---|---|---|
 | Thumbnail loading | `QtConcurrent::run()` per tile | `ThumbnailCache` is thread-safe |
-| Strip-viewer slice decode | `QtConcurrent::run()` per slice (proxy + full) | `QImageReader` is reentrant; `QPixmap` built on the GUI thread in the watcher; a generation counter drops results from a superseded rebuild |
+| Strip-editor page build | `QtConcurrent::run()` per page (proxy + sharp) | The sharp tier runs the library's page domain (`previewPageRgba`); the proxy tier reads `ThumbnailCache`. Both are thread-safe; `QPixmap` is built on the GUI thread in the watcher, and a generation counter drops results from a superseded rebuild |
+| Bubble rasterising | GUI thread | `paintArtifact()` on a small `QImage`; it runs on a settled edit, not per keystroke, and a bubble is a few hundred pixels — not worth a thread |
 | Pipeline run | Single `QFuture` via `QtConcurrent::run()` | `CancellationToken` is atomic |
 | Template generation | `QtConcurrent::run()` per profile | `TemplateGenerator` is stateless |
 | All UI updates | `QMetaObject::invokeMethod()` or signal/slot | Never touch widgets from worker |

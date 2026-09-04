@@ -9,10 +9,9 @@ procedure to report it to Microsoft.
 submit*, usually within ~24–72 h. It is **per-hash and temporary**: every new release
 produces new hashes and must be resubmitted. It also only sways the **Microsoft** engine —
 other ML resellers (DeepInstinct, SecureAge) flag unsigned binaries regardless. The only
-durable fix is a real code-signing certificate from a trusted CA (see
-[TODO → *Free code signing via SignPath.io OSS* / the Certum note](TODO.md) and
-[`temp/code-signing-options.md`](../temp/code-signing-options.md)). WDSI is the bridge
-until then.
+durable fix is a real code-signing certificate from a trusted CA — SignPath.io's Open Source
+programme is the one free route to one, and the options are evaluated in
+[TODO → *Free code signing via SignPath.io OSS*](TODO.md). WDSI is the bridge until then.
 
 ## Submission log
 

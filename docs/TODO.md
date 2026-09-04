@@ -96,15 +96,39 @@ New, backward-compatible features. Several are gated on a lib version, noted in 
   (instant, no scroll gaps), and a **sharp** native decode of visible + prefetch slices on `QtConcurrent`
   into an LRU cache — off-screen slices evicted, so RAM tracks the viewport, not chapter length.
   Native-width default (shrink-to-fit only, never enlarged), fit-width / 100% / Ctrl+wheel zoom, optional
-  slice-seam guides. Source (settled with the user): **committed output** + a *Render & view* button
-  (outputs are cheap / regenerable). See SPECIFICATION §2.5.
+  slice-seam guides. See SPECIFICATION §2.5.
+  - **Feed changed (2026-09-04): the strip is built from the project's INPUT pages, not its committed
+    output.** The original choice (committed output + a *Render & view* button, outputs being cheap and
+    regenerable) did not survive contact with the authoring work it was meant to host: there is nothing
+    to look at before the first render, a grade previewed on output is applied on top of the one the
+    render already baked in, and an output slice can straddle two pages so neither a per-page exclusion
+    nor a page-anchored bubble can be honoured at display time. It now feeds through the library's
+    page-domain preview API (`previewLayout` / `previewPageRgba`, lib 0.6.0), so the strip exists before
+    any render and rendering does not change what it shows. The seam guides moved with it: they now mark
+    where the output *will be* cut, every `sliceHeight` down the strip.
   - *Deferred (not built):* the **lookup** half — click a strip position → which input page / output
     slice (the per-slice Y offsets + `OutputFile::sourceMap` foundation is already in place); a
     **preview-render-to-temp** feed to preview *uncommitted* edits (belongs with colour / text below);
     **display-resolution decode** (`QImageReader::setScaledSize`) so RAM also shrinks when zoomed out;
     and a dedicated side tool-panel + async-placeholder polish for very tall chapters.
 
-- [ ] **Project-wide colour correction.** Comic/webtoon art is drawn on iPad in **Display P3** (wide
+- [x] **Project-wide colour correction — DONE (lib 0.6.0 + GUI).** Shipped: `Models::ColourCorrection`
+  on the project (tone curves, brightness / contrast / saturation, per-page exclusions by input uid),
+  applied per input page **before scale** by `Core::ColourCorrector`, folded into staleness via
+  `processingConfigSignature()`. The GUI's Grade tool (`widgets/ccpanel/`) edits it live against the
+  strip using `ColourCorrector::applyToRgba()` — the same engine the render uses, so the preview is not
+  an approximation — and writes through `commitEdit` for undo.
+  - *The ICC half was investigated and dropped.* An `iccToSRGB` toggle shipped first, then measurement
+    killed it: the pages carry **no embedded ICC profile** (Procreate exports none), so the transform is
+    a pixel-exact no-op — `vips icc_transform … srgb --embedded` then `vips subtract` gives
+    `max abs difference: 0,000000` — and with the grade off the margin path normalises on load anyway.
+    The checkbox governed a corner of a decision it did not own, so it was removed rather than kept as
+    reassurance. Colour space is settled at *export* (Procreate), not here.
+  - *Still open:* the **curve editor** (the model and the render already do curves; nothing draws them),
+    the **per-page exclusion UI** (the model and render honour `excludedInputUids`; the artifact list is
+    the intended home), and preselecting the Grade tool when entering from the Workflow map.
+
+- ~~**Project-wide colour correction.**~~ — *superseded by the entry above; kept for the reasoning.* Comic/webtoon art is drawn on iPad in **Display P3** (wide
   gamut); most webtoon platforms and screens are **sRGB**, so even Procreate's "sRGB IEC61966-2.1" export
   doesn't fully fix how colours land (gamut mapping / a perceived shift). Artists want the *whole chapter*
   graded consistently, not tweaked page-by-page. Idea: a **project-level colour tool** that uniformly
@@ -123,7 +147,23 @@ New, backward-compatible features. Several are gated on a lib version, noted in 
     1. Persistenly modify input files - goes against rule not to modify raw user input.
     2. Add do lib an additional step during render to overlay color correction. 
   
-- [ ] **Text and Text bubble creator**
+- [x] **Text and Text bubble creator — DONE (lib 0.6.0 + GUI).** Option 2 was taken: the library gained
+  a strip-domain step that composites consumer-rasterised RGBA bitmaps onto each output slice
+  (`Core::StripOverlayCompositor`), so raw input files are never touched. Storage, the rasterising
+  contract and the anchoring rule are documented in **SPECIFICATION §2.5.4**.
+  - **Placement is page-anchored** (`StripOverlay::anchorInputUid` + an offset from that page's top,
+    resolved by `Models::resolveOverlayAnchors()`), not an absolute strip-Y. An absolute placement drifts
+    onto different artwork the moment anything above it changes height — inserting a page is the everyday
+    case — and drifts silently. Pinned by `test_overlay_anchoring.cpp` and `test_overlays.py`, each with a
+    deliberate absolute-placement control.
+  - **A bubble is a GUI object, a bitmap is what the lib sees.** `TextArtifact` (shape / box / tail /
+    text / font / colours) lives in a sidecar beside the workspace; the PNG in `overlays/` is what gets
+    composited. That is what keeps a bubble re-editable instead of flattened.
+  - *Still open:* hand-drawn custom shapes, rich text, per-artifact blend modes in the UI (the model and
+    render already carry them), re-rasterising every bubble when the output target width changes, and
+    **SVG as the stored form** — see the note under "To establish / test".
+
+- ~~**Text and Text bubble creator**~~ — *superseded by the entry above; kept for the reasoning.*
   1. Persistenly modify input files - goes against rule not to modify raw user input.
   2. Add to lib an additional step to overlay text and text bubbles during render.
 
@@ -164,7 +204,7 @@ New, backward-compatible features. Several are gated on a lib version, noted in 
   displays before render and/or reports after.
 
 - [ ] **OS-level crash handler for hard faults (segfault / SEH) — DEFERRED, likely not worth it yet.**
-  Verdict from the cost/benefit analysis (`PlateMaker/temp/crash-handling-options.md`, §0): a minidump /
+  Verdict from the cost/benefit analysis: a minidump /
   Breakpad apparatus is a **bazooka** for a simple app with a small user base. It only pays off for
   crashes on **users' machines we cannot reproduce** — which we don't yet have evidence of; a crash we
   observe ourselves (see the segfault in the PATCH bucket) is reproducible, so the **Qt Creator debugger
@@ -205,6 +245,45 @@ Investigations, testing and manual/wiki work that ships no code change on their 
   line art versus painted work, at a few JPEG quality values, against the platform's per-chapter
   size cap. The first published chapter used JPEG purely to fit 20 MB per chapter, which is a
   constraint rather than a considered choice. Feeds `Manual-Output-Profiles`.
+
+- [ ] **Store bubbles as SVG instead of PNG — the library already accepts it, measured.** The overlay
+  compositor opens `bitmapPath` with `vips_image_new_from_file()`, so it takes **any format libvips can
+  read**, SVG included (via librsvg). Verified end-to-end: pointing a `StripOverlay` at
+  `fixtures/overlays/bubble-speech.svg` and rendering through the CLI composited the balloon on the right
+  page with its alpha intact — **no library change at all**. The size it rasterises at is the SVG's own
+  `width`/`height` at 72 dpi, which is exactly the strip-scale pixel box the GUI already authors in.
+
+  Why it is interesting: an SVG overlay is *resolution-independent* (a target-width change would
+  re-rasterise rather than resample), it is a real interchange format (draw a bubble anywhere, drop it
+  in), and SVG **filters** would give bubble styling the GUI cannot reach with `QPainter` alone —
+  a dried-marker edge, a rough ink texture, a paper grain — declaratively, without a filter engine in
+  either the library or the GUI. That reframes the authoring model as a *small SVG editor*: shape
+  handles, a movable tail anchor, per-shape filters, rather than the "box you drag" it is today.
+
+  What it would cost, honestly:
+  - **librsvg is an optional libvips module.** It is present in this build; a libvips without it would
+    fail to load the overlay (logged and skipped, not fatal — but the bubble silently vanishes). Shipping
+    SVG as *the* storage form makes a soft dependency into a hard one, so it needs a startup probe and a
+    PNG fallback.
+  - libvips marks `svgload` **untrusted** (librsvg parses external XML). A consumer that enables
+    `vips_block_untrusted_set()` would refuse it.
+  - The GUI would still need to rasterise for the *preview*, since `QPainter` draws the scene — so
+    `QSvgRenderer` becomes the preview path and Qt's SVG feature coverage (notably filters) becomes the
+    limit on WYSIWYG, not librsvg's.
+  - The sidecar's job would shrink but not vanish: an SVG is a *shape*, not an editing model. Which
+    control point is the tail, which rect is the text-safe area, which font was requested — that is
+    still ours to record.
+
+  **Convention for hand-drawn shapes** (the same one a "custom shape" slot would need, so settle it
+  once): SVG, transparent background, nominal width ~1000 px (it gets scaled, so the number only fixes
+  the stroke-to-size ratio); the **tail as its own `<path id="tail">`** so it can be hidden, mirrored or
+  rotated independently; and the **text-safe area as `<rect id="safe" fill="none">`** — the box text may
+  wrap inside. Without that last one the GUI has to guess an inset, and it guesses wrong on anything
+  non-rectangular. Strokes as real strokes (not outlined paths) if they should stay re-colourable.
+
+  **Why the built-in shapes should stay parametric either way:** a bubble resizes to its text, and a
+  hand-drawn outline stretched non-uniformly distorts its own stroke (a 3px line becomes 3px on one axis
+  and 9px on the other). Drawn art belongs in the *custom* slot, used at its natural aspect ratio.
 
 
 ## Add dependency manifest — done (SBOM submission)
@@ -271,9 +350,28 @@ and provenance trail; they do **not** remove the SmartScreen warning (set that e
   [`release.yml`](../.github/workflows/release.yml).
 
 - [ ] **Free code signing via SignPath.io OSS** — reconsider the "don't pay" stance: SignPath's Open
-  Source program grants a **free real Authenticode cert** (OV-class), which is the one option that actually
-  clears the Defender `Wacatac!ml` FP. Sigstore/GPG don't (Windows ignores them for `.exe`). Full
-  evaluation + next research step in [`temp/code-signing-options.md`](../temp/code-signing-options.md).
+  Source program grants a **free real Authenticode cert** (OV-class), which is the one option that
+  actually clears the Defender `Wacatac!ml` FP.
+
+  | option | fixes the Wacatac FP? | what it is actually for |
+  |---|---|---|
+  | **Sigstore** (cosign/gitsign) | **No** | Artifact/commit provenance. Not an Authenticode signature — Windows, Defender and SmartScreen ignore it for `.exe`. We already get the equivalent from the build-provenance attestation in `release.yml`. |
+  | **SignPath.io OSS** | **Yes — the one** | Free, real Authenticode cert + signing pipeline for verified OSS. A genuine publisher identity is what lifts a binary out of the anonymous-unsigned ML dice-roll. |
+  | **GnuPG / GPG** | **No** | Detached sigs for tags/tarballs (pairs with our SHA256SUMS). Web-of-trust; Windows ignores it for execution. |
+
+  Caveats: approval needs their OSS verification (public repo + OSI licence — GPL-3.0 qualifies), and it
+  is not instant. The free certs are **OV, not EV** — that kills "unknown publisher" and is exactly what
+  stops the `Wacatac!ml` FP, but SmartScreen *download* reputation still accrues over time (only a paid
+  EV cert is instant). Signing runs on their infrastructure via a GitHub Actions step.
+
+  **Paid fallback if approval stalls:** Azure Trusted Signing ≈ $10/mo (Microsoft-run Authenticode,
+  short-lived certs, especially effective vs Defender — but historically wants a 3+ year org history,
+  which can block an individual dev); OV ≈ $200–400/yr, EV ≈ $300–700/yr. This does not overturn the
+  standing "don't pay" decision — it records that SignPath OSS is a *free* route to a real signature,
+  which the earlier "only a paid cert removes the warning" framing missed.
+
+  **Next research step:** confirm SignPath's exact OSS eligibility criteria and how their Actions signing
+  step slots into `release.yml` — sign the installer **and** the portable exe before the VirusTotal scan.
 
 - [ ] **Submit to winget (`winget-pkgs`)** — free community channel giving users a trusted
   `winget install Platemaker` path; the manifest validates the installer's SHA-256. Cleaner than a raw

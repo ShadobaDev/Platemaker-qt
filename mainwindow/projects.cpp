@@ -255,6 +255,23 @@ void MainWindow::openProjectDock(int projectIndex)
     newDock->setAllowedAreas(Qt::LeftDockWidgetArea | Qt::TopDockWidgetArea | Qt::BottomDockWidgetArea);
     const QString cacheDir = workspaceCacheDir();
     auto* projectWidget = new Project(projectIndex, m_workspace, cacheDir, newDock);
+
+    // Text & bubbles: the project needs to know where the workspace file lives (its `overlays/` folder
+    // is written beside it) and which authoring records are its own. The records travel back here on
+    // every edit — including an undo, which restores them alongside the library's project state — so the
+    // sidecar written at save time is always current.
+    const QString projectUid =
+        QString::fromStdString(m_workspace.projectItems[projectIndex].uid);
+    projectWidget->setWorkspacePath(m_workspacePath);
+    projectWidget->setArtifacts(m_overlayArtifacts.artifacts(projectUid));
+    connect(projectWidget, &Project::artifactsChanged, this,
+            [this, projectUid, newDock](const ArtifactMap& artifacts) {
+        m_overlayArtifacts.setArtifacts(projectUid, artifacts);
+        // A record edit changes what a bubble says without moving a page, so the strip has to be told
+        // explicitly — the feed signature it guards itself with would not see it.
+        if (QDockWidget* strip = dockForStripViewer(newDock->property("projectIndex").toInt()))
+            refreshStripViewer(strip);
+    });
     connect(projectWidget, &Project::projectModified, this, [this, newDock]{
         setDirty(true);
         // The strip is built from the inputs, so it follows an input / profile edit immediately — no
@@ -436,6 +453,12 @@ void MainWindow::refreshStripViewer(QDockWidget *dock)
     // Feed the Grade panel + live preview. The strip's pixels are ungraded by construction, so this
     // previews cleanly whether or not a render has happened, and a render does not change the view.
     viewer->setColourCorrection(project.colourCorrection);
+
+    // Text & bubbles: the library's placements plus the GUI's authoring records for them. The viewer
+    // resolves each overlay's page anchor against the layout it just built — the same arithmetic the
+    // render does — so a bubble previews exactly where it will be baked.
+    viewer->setOverlaySource(project.getStripOverlays(),
+                             m_overlayArtifacts.artifacts(QString::fromStdString(project.uid)));
 }
 
 void MainWindow::openStripViewerDock(int projectIndex)
@@ -476,6 +499,22 @@ void MainWindow::openStripViewerDock(int projectIndex)
             [this, projectIndex](const Platemaker::Models::ColourCorrection &cc) {
         if (auto *pw = projectWidget(projectIndex))
             pw->applyColourCorrection(cc);
+    });
+
+    // Text & bubbles. Creation goes through the project because the *library* mints the overlay's uid
+    // and hashes its bitmap; every other edit arrives as the complete new state and is stored as one
+    // undo step. Both are guarded the same way the grade is: with the project dock closed there is no
+    // undo stack to push onto, so the edit is declined rather than applied untracked.
+    connect(viewer, &StripViewer::artifactCreated, this,
+            [this, projectIndex](const TextArtifact &artifact, int x, int y, const QString &anchorUid) {
+        if (auto *pw = projectWidget(projectIndex))
+            pw->createOverlay(artifact, x, y, anchorUid);
+    });
+    connect(viewer, &StripViewer::overlaysEdited, this,
+            [this, projectIndex](const std::vector<Platemaker::Models::StripOverlay> &overlays,
+                                 const ArtifactMap &artifacts, const QString &undoText) {
+        if (auto *pw = projectWidget(projectIndex))
+            pw->applyOverlays(overlays, artifacts, undoText);
     });
     dock->setWidget(viewer);
 

@@ -9,6 +9,8 @@
 #include <functional>
 #include <vector>
 
+#include "textartifact.h"
+
 #include <platemaker/infrastructure/control/cancellation_token.hpp>
 #include <platemaker/infrastructure/workspace_serializer/workspace_serializer.hpp>
 #include <platemaker/models/workspace.hpp>
@@ -460,6 +462,16 @@ private:
     QMenu *m_exportOutputMenu = nullptr;
 
     Platemaker::Models::Workspace                      m_workspace; //!< The authoritative workspace model (projects, profiles, templates).
+
+    /**
+     * @brief Authoring records for every project's text/bubble overlays, loaded and saved with the
+     *        workspace (`<workspace>.overlays.json`).
+     *
+     * The library inventories the rasterised bitmaps; what those bitmaps *say* is the GUI's, and this is
+     * where it lives so a bubble stays re-editable across sessions. Kept here rather than on the Project
+     * widget because a project has records whether or not its dock happens to be open.
+     */
+    ArtifactStore m_overlayArtifacts;
     Platemaker::Infrastructure::WorkspaceSerializer    m_serializer;//!< Serializes the workspace model to/from disk.
 
     // Undo/redo: a QUndoGroup holds one stack per open project plus the workspace stack; the active

@@ -2,6 +2,8 @@
 #define PROJECT_H
 
 #include <QWidget>
+
+#include "textartifact.h"
 #include <QList>
 
 #include <functional>
@@ -65,6 +67,38 @@ public:
     //! Persist a settled colour-correction edit from the strip editor onto this project, as one undoable
     //! step (also refreshes the workflow map). Called by MainWindow on StripViewer::colourCorrectionEdited.
     void applyColourCorrection(const Platemaker::Models::ColourCorrection& cc);
+
+    // --- text & bubble overlays -------------------------------------------------------------
+    /**
+     * @brief Where the workspace file lives — the root of `overlays/` and the authoring sidecar.
+     *
+     * Set by MainWindow, and re-set after "Save as": the bitmaps a project references have to follow
+     * the workspace they belong to, or a moved workspace renders bubbles from the old directory.
+     */
+    void setWorkspacePath(const QString& path) { m_workspacePath = path; }
+
+    //! Adopts this project's authoring records (from the sidecar). Does not touch the undo stack.
+    void setArtifacts(ArtifactMap artifacts);
+    [[nodiscard]] const ArtifactMap& artifacts() const { return m_artifacts; }
+
+    /**
+     * @brief Registers a newly drawn bubble: rasterises it, then lets the library inventory the bitmap.
+     *
+     * The library mints the uid, hashes the file and dedups identical content, so creation goes through
+     * `ProjectItem::addOverlay()` rather than being assembled here. One undo step.
+     *
+     * @param x,y            Top-left relative to the anchor page's top edge (page domain).
+     * @param anchorInputUid The input page the bubble rides on.
+     */
+    void createOverlay(const TextArtifact& artifact, int x, int y, const QString& anchorInputUid);
+
+    /**
+     * @brief Stores a complete new overlay state — move, restyle, delete, reorder or mute — as one
+     *        undo step, re-rasterising the bitmaps whose authoring record changed.
+     */
+    void applyOverlays(std::vector<Platemaker::Models::StripOverlay> overlays,
+                       ArtifactMap                                  artifacts,
+                       const QString&                               undoText);
     void refreshProfileViews();                     //!< rebuilds the palette-derived views (canvas list, output combo, format controls) after a workspace-level profile edit — see MainWindow::workspaceProfilesChanged
 
     // --- Undo / redo ---
@@ -106,6 +140,9 @@ signals:
      */
     void workspaceEditCommitted(const QString& text, const QString& before, const QString& after);
 
+    //! This project's authoring records changed — MainWindow folds them back into the sidecar store.
+    void artifactsChanged(const ArtifactMap& artifacts);
+
 private slots:
     void onAddFromDirectory();                      //!< Slot for when the "Add Inputs from Directory" button is clicked. Opens a QFileDialog to select a directory and adds all image files from that directory to the input list.
     void onAddFiles();                              //!< Slot for when the "Add Input Files" button is clicked. Opens a QFileDialog to select image files and adds them to the input list.
@@ -127,6 +164,9 @@ private slots:
     void onRefreshFiles();                          //!< Re-scan inputs+outputs on disk, refresh statuses/tiles
 
 private:
+    //! Project state as this GUI defines it: the library's snapshot plus the authoring records.
+    [[nodiscard]] QString fullSnapshot();
+
     void addImageTile(const Platemaker::Models::InputFile& file);           //!< Creates an ImageTile widget for an input file and inserts it into the input list.
     void addOutputImageTile(const Platemaker::Models::OutputFile& file);    //!< Creates an ImageTile widget for an existing output file and inserts it into the output list.
     void addInputPaths(const QStringList& newPaths);                        //!< Merges new paths with the existing inputs (order-preserving, de-duplicated) and re-scans them.
@@ -177,6 +217,8 @@ private:
     Ui::Project* ui;                                        //!< Qt Designer-generated UI for this widget.
     int m_projectIndex;                                     //!< Index of this project within m_workspace.projectItems (kept in sync via setProjectIndex()).
     Platemaker::Models::Workspace& m_workspace;             //!< Reference to the workspace owning this project's data.
+    QString     m_workspacePath;                            //!< Workspace file path — root of overlays/ and the sidecar.
+    ArtifactMap m_artifacts;                                //!< Authoring records for this project's overlays, by uid.
     QString m_cacheDir;                                     //!< Directory where cached thumbnails and other temporary files are stored.
     OutputFormatOptionsWidget* m_formatOptions = nullptr;   //!< Shared widget for editing the selected output profile's format/options.
     QVBoxLayout* m_workflowStack = nullptr;                  //!< Vertical stack of the Workflow tab's StageCards (built in the ctor, rebuilt by refreshWorkflowMap()).

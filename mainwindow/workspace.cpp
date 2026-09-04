@@ -13,6 +13,7 @@
 #include <QCloseEvent>
 #include <QCollator>
 #include <QDateTime>
+#include <QDebug>
 #include <QDesktopServices>
 #include <QDir>
 #include <QDockWidget>
@@ -79,6 +80,7 @@ void MainWindow::onNewWorkspace()
 
     try {
         m_serializer.save(m_workspace, path.toStdString());
+        m_overlayArtifacts.save(path);
     } catch (const std::exception &e) {
         QMessageBox::critical(this, tr("Error"),
             tr("Cannot create workspace:\n%1").arg(e.what()));
@@ -102,6 +104,11 @@ void MainWindow::onSave()
     // Save the current workspace to disk. If the save operation fails, show an error message to the user.
     try {
         m_serializer.save(m_workspace, m_workspacePath.toStdString());
+        // The bubbles' authoring records travel with the workspace file. A failure here is reported
+        // but does not fail the save: the workspace and the overlay bitmaps are both already on disk,
+        // and the worst case is that the bubbles come back as flat art rather than editable objects.
+        if (!m_overlayArtifacts.save(m_workspacePath))
+            qWarning() << "Could not write the overlay sidecar for" << m_workspacePath;
         captureSnapshot();
     } catch (const std::exception &e) {
         QMessageBox::critical(this, tr("Error"),
@@ -122,6 +129,13 @@ void MainWindow::onSaveAs()
     // Save the current workspace to the selected path.
     // If the save operation fails, show an error message to the user.
     m_workspacePath = path;
+    // New bubbles are written next to the workspace file, so every open project has to learn where that
+    // is now. (Bitmaps already registered keep their old absolute paths — the same way input pages do;
+    // a workspace-wide "collect assets" step is the general fix, and is not this round's.)
+    for (QDockWidget* dock : std::as_const(m_openProjectDocks))
+        if (auto* pw = qobject_cast<Project*>(dock->widget()))
+            pw->setWorkspacePath(m_workspacePath);
+
     onSave();
     if (!isWorkspaceModified())   // save succeeded
         addToRecentWorkspaces(path);

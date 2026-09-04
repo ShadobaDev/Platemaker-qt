@@ -33,6 +33,34 @@
 
 ### Added
 
+- **Text & bubbles — author lettering directly on the strip.** The Bubble and Text tools draw a bubble
+  where you **drag** one out (a click just deselects, so clicking away from a finished bubble cannot
+  leave a stray one behind), and the right-hand panel edits what it says: shape, fill, stroke, tail,
+  font, size, alignment and colour. The shape picker is a **grid of preview tiles** laid out like the
+  tool rail — each tile is drawn by the same rasteriser that draws the real bubble, so it shows the
+  shape instead of naming it. A new bubble arrives selected with the caret already in the text box.
+
+  Bubbles move, resize by their corners, and aim their tail by dragging its handle; the artifact list
+  underneath lists them in composite order, with drag-to-reorder, a mute checkbox, and **Duplicate
+  (Ctrl+D) / Delete** from its right-click menu or the keyboard — a duplicate lands a little down and
+  right, on the same page, sharing the original's bitmap. Everything previews live on the strip and
+  *Render & view* bakes exactly that — the preview and the render are literally the same drawing code
+  over the same numbers, at the same strip scale.
+
+  Three details worth knowing:
+  - **A bubble is anchored to the page it was drawn on, not to a position in the strip.** Insert a page
+    at the front of the chapter and every bubble below rides down with its own artwork instead of
+    landing on someone else's. Dragging a bubble across a page boundary silently re-anchors it. If the
+    page it belongs to leaves the project, the bubble is *not* deleted: it is listed as an orphan and
+    comes back when its page does.
+  - **Bubbles stay editable across sessions.** The rendered PNG is what the library composites, but the
+    shape, text and styling are kept beside the workspace in `<workspace>.overlays.json`, with the
+    bitmaps in an `overlays/` folder next to it — so changing one word next month re-renders the bubble
+    instead of asking you to redraw it. Lose that sidecar and the bubbles still render; they just stop
+    being re-typable.
+  - **Every edit is one undo step** and is captured in the project's history along with the library's
+    own state, so undo restores what a bubble said, not just where it sat.
+
 - **Strip viewer.** A new **View strip** button on a project's Output tab opens the rendered chapter as
   one continuous, zoomable strip in a floating window — the whole webtoon at a glance instead of
   per-slice tiles. Scroll through it, zoom (fit-width / 100% / Ctrl+wheel), and toggle slice-boundary

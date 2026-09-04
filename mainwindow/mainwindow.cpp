@@ -329,6 +329,9 @@ void MainWindow::loadWorkspace(const QString &path)
     }
 
     m_workspacePath = path;
+    // The overlay sidecar sits beside the workspace file; a missing one just means no bubble has been
+    // authored yet (or its records were lost — the bitmaps still render, they stop being editable).
+    m_overlayArtifacts.load(path);
     m_activeCanvasProfileName = m_workspace.canvasProfiles().empty()
         ? QString{}
         : QString::fromStdString(m_workspace.canvasProfiles().front().name);
@@ -407,6 +410,7 @@ void MainWindow::closeWorkspace()
 
     // Clear the workspace model and reset state.
     m_workspace     = Platemaker::Models::Workspace{};
+    m_overlayArtifacts.clear();
     m_workspacePath.clear();
     m_savedSnapshot.clear();
     m_activeCanvasProfileName.clear();

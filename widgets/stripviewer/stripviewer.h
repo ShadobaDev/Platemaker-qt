@@ -11,6 +11,8 @@
 #include <QString>
 #include <QStringList>
 
+#include "textartifact.h"
+
 #include <platemaker/core/processing_pipeline/processing_pipeline.hpp>
 #include <platemaker/models/canvas_profile.hpp>
 #include <platemaker/models/output_profile.hpp>
@@ -27,8 +29,13 @@ class QGraphicsLineItem;
 class QLabel;
 class QEvent;
 class QResizeEvent;
+class QAction;
 class QButtonGroup;
+class QGraphicsRectItem;
+class QListWidgetItem;
 class CcPanel;
+class BubblePanel;
+class OverlayItem;
 
 namespace Ui { class StripViewer; }
 
@@ -109,6 +116,22 @@ public:
     void setTool(Tool tool);
 
     /**
+     * @brief Feeds the project's text/bubble overlays and their authoring records.
+     *
+     * Overlays are placed in the **page domain**: each carries the uid of the input page it rides on
+     * (`StripOverlay::anchorInputUid`) plus an offset from that page's top, and this viewer resolves the
+     * pair against the strip it just laid out — the same arithmetic `ProcessingPipeline::run()` does, so
+     * the preview cannot disagree with the render about where a bubble lands. An overlay whose anchor
+     * page is not in the strip is shown greyed and marked orphaned rather than dropped, because the
+     * project still holds it and it returns the moment its page does.
+     *
+     * Items are reconciled by uid rather than rebuilt, so a re-feed after an edit keeps the selection
+     * and does not interrupt an interaction.
+     */
+    void setOverlaySource(const std::vector<Platemaker::Models::StripOverlay>& overlays,
+                          const ArtifactMap&                                  artifacts);
+
+    /**
      * @brief Feeds the project's colour grade to the Grade panel and the live preview.
      *
      * The strip's pixels are ungraded by construction, so this always previews cleanly — before a
@@ -133,6 +156,30 @@ signals:
 
     //! A settled grade edit in the CC panel — the owner (MainWindow) persists it onto the project (undo).
     void colourCorrectionEdited(const Platemaker::Models::ColourCorrection& cc);
+
+    /**
+     * @brief A new bubble was drawn — the owner rasterises it and registers it with the library.
+     *
+     * Creation is the one thing this viewer cannot finish on its own: the uid is minted by
+     * `ProjectItem::addOverlay()`, which also hashes the bitmap and dedups identical content. Sending
+     * the intent instead of a half-built record keeps that inventory the library's.
+     *
+     * @param artifact       Authoring record for the new bubble (its box is the placement rectangle).
+     * @param x,y            Top-left, relative to the anchor page's top edge.
+     * @param anchorInputUid The page it was drawn on.
+     */
+    void artifactCreated(const TextArtifact& artifact, int x, int y, const QString& anchorInputUid);
+
+    /**
+     * @brief Every other overlay edit, as the complete new state: move, restyle, delete, reorder, mute.
+     *
+     * One channel rather than one signal per gesture — the uids already exist, so the owner only has to
+     * store what it is given (re-rasterising the artifacts whose bitmaps no longer match) and push one
+     * undo step labelled @p undoText.
+     */
+    void overlaysEdited(const std::vector<Platemaker::Models::StripOverlay>& overlays,
+                        const ArtifactMap&                                  artifacts,
+                        const QString&                                      undoText);
 
 protected:
     //! Ctrl+wheel over the view zooms; a plain wheel keeps the view's native vertical scroll.
@@ -163,6 +210,32 @@ private:
 
     //! Adopts a new grade and re-grades the resident pages. Does not touch the CC panel.
     void applyGrade(const Platemaker::Models::ColourCorrection& cc);
+
+    // --- overlays (text & bubbles) ---
+    void onOverlayGeometryEdited(const QString& uid); //!< An item settled a move/resize/tail drag.
+    void syncOverlayItems();        //!< Reconciles the scene items with m_overlays, by uid.
+    void refreshArtifactList();     //!< Rebuilds the right-bottom list from m_overlays (composite order).
+    void selectOverlay(const QString& uid);   //!< Selects one in the scene and the list, and loads the panel.
+    void pushOverlays(const QString& undoText); //!< Emits overlaysEdited() with the current state.
+    void applyPanelArtifact(const TextArtifact& a, bool commit); //!< Live edit from the panel → item (+persist).
+    void deleteSelectedOverlay();
+    void duplicateSelectedOverlay();   //!< Copies the selected bubble a little down and right.
+    void setOverlayEnabled(const QString& uid, bool on);  //!< The list's mute checkbox (deferred, see the ctor).
+    void commitListOrder();                               //!< Adopts the list's row order as composite order.
+    void beginPlacement(const QPointF& scenePos);   //!< Bubble/Text tool: start the placement rubber band.
+    void updatePlacement(const QPointF& scenePos);
+    void finishPlacement();                          //!< Emits artifactCreated() for the drawn rectangle.
+
+    //! Index of the drawable page containing strip-Y \p y, or -1 when it falls outside every page.
+    [[nodiscard]] int     pageAtSceneY(qreal y) const;
+    //! Input uid of drawable page \p page (empty when out of range).
+    [[nodiscard]] QString anchorUidForPage(int page) const;
+    //! Drawable page carrying input uid \p uid, or -1 — which is what makes an overlay an orphan.
+    [[nodiscard]] int     pageForAnchor(const QString& uid) const;
+    //! Scene position of \p o, resolving its page anchor against the current layout.
+    [[nodiscard]] QPointF scenePosOf(const Platemaker::Models::StripOverlay& o) const;
+    //! True while a tool that authors overlays is active (Bubble or Text).
+    [[nodiscard]] bool    artifactToolActive() const;
 
     //! Grade the built page \p index into the graded-preview cache (no-op if grade inactive / not built).
     void produceGraded(int index);
@@ -211,6 +284,24 @@ private:
     Platemaker::Models::ColourCorrection m_cc;            //!< Current grade (from the project / the panel).
     std::string                          m_ccSignature;   //!< Fingerprint of m_cc — a grade that matches it is ignored.
     QCache<int, QPixmap>                 m_gradedCache;   //!< Graded preview of visible pages; cleared on grade change.
+
+    // --- text & bubbles ---
+    BubblePanel* m_bubblePanel = nullptr;   //!< Shared tool-options page for both the Bubble and Text tools.
+    std::vector<Platemaker::Models::StripOverlay> m_overlays;   //!< The project's overlays, in composite order.
+    ArtifactMap                                   m_artifacts;  //!< Their authoring records, keyed by overlay uid.
+    QHash<QString, OverlayItem*>                  m_overlayItems; //!< Live scene items, keyed by overlay uid.
+    QString            m_selectedOverlay;                   //!< uid of the selected overlay, empty for none.
+    // Duplicate / Delete, shared by the artifact list's context menu and its keyboard shortcuts, and
+    // reachable from the canvas too — the two places a bubble is ever selected.
+    QAction*           m_actDuplicate    = nullptr;
+    QAction*           m_actDelete       = nullptr;
+    QGraphicsRectItem* m_placementRubber = nullptr;         //!< Rubber band while a new bubble is drawn.
+    QPointF            m_placementOrigin;                   //!< Where that drag started, in scene coordinates.
+    bool               m_placing         = false;
+    bool               m_syncingList     = false;           //!< Guards the list ⇄ scene selection round-trip.
+    //! Set when this viewer asked for a new bubble; the uid only exists after the owner mints it, so the
+    //! selection has to wait for the feed to come back.
+    bool               m_selectNewOverlay = false;
 };
 
 #endif // STRIPVIEWER_H

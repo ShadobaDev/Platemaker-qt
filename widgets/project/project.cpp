@@ -6,6 +6,7 @@
 #include "outputformatoptionswidget.h"
 #include "stagecard.h"
 
+#include <platemaker/infrastructure/file/file_meta_data.hpp>
 #include <platemaker/infrastructure/project_editor/project_editor.hpp>
 #include <platemaker/infrastructure/workspace_editor/workspace_editor.hpp>
 
@@ -20,8 +21,11 @@
 #include <QDragEnterEvent>
 #include <QDragMoveEvent>
 #include <QDropEvent>
+#include <QFile>
 #include <QFileDialog>
 #include <QFileInfo>
+#include <QJsonDocument>
+#include <QJsonObject>
 #include <QHBoxLayout>
 #include <QInputDialog>
 #include <QLabel>
@@ -250,6 +254,22 @@ void Project::setupUndo()
     m_undoStack->setUndoLimit(10);
 }
 
+QString Project::fullSnapshot()
+{
+    // The library's project snapshot plus this GUI's authoring records for the same project. Undo has to
+    // move both together: an overlay's record says *which* bitmap renders, its artifact says what that
+    // bitmap contains, and restoring one without the other would leave the strip showing text the render
+    // does not bake. The lib snapshot is itself JSON, carried here as a string — the library owns its
+    // format and this wrapper has no business parsing it.
+    auto& item = m_workspace.projectItems[m_projectIndex];
+    const QJsonObject j{
+        {QStringLiteral("project"),
+         QString::fromStdString(Platemaker::Infrastructure::ProjectEditor(item).snapshot())},
+        {QStringLiteral("artifacts"), artifactsToJsonObject(m_artifacts)},
+    };
+    return QString::fromUtf8(QJsonDocument(j).toJson(QJsonDocument::Compact));
+}
+
 void Project::applyProjectSnapshot(const QString& snapshot)
 {
     // Restore the whole project (inputs, links, output-profile selection, output dir) from a
@@ -257,7 +277,13 @@ void Project::applyProjectSnapshot(const QString& snapshot)
     // ProjectEditor::restore. Outputs are left as they are — their staleness is recomputed by
     // sanitize() at the next Refresh/render, exactly as for a live reorder.
     auto& item = m_workspace.projectItems[m_projectIndex];
-    Platemaker::Infrastructure::ProjectEditor(item).restore(snapshot.toStdString());
+
+    const QJsonObject j = QJsonDocument::fromJson(snapshot.toUtf8()).object();
+    Platemaker::Infrastructure::ProjectEditor(item).restore(
+        j.value(QStringLiteral("project")).toString().toStdString());
+
+    m_artifacts = artifactsFromJsonObject(j.value(QStringLiteral("artifacts")).toObject());
+    emit artifactsChanged(m_artifacts);
 
     populate();
     emit projectModified();
@@ -265,13 +291,9 @@ void Project::applyProjectSnapshot(const QString& snapshot)
 
 void Project::commitEdit(const QString& text, const std::function<void()>& mutate)
 {
-    auto& item = m_workspace.projectItems[m_projectIndex];
-
-    const QString before = QString::fromStdString(
-        Platemaker::Infrastructure::ProjectEditor(item).snapshot());
+    const QString before = fullSnapshot();
     mutate();                                   // the existing operation (does its own populate/emit)
-    QString after = QString::fromStdString(
-        Platemaker::Infrastructure::ProjectEditor(item).snapshot());
+    QString after = fullSnapshot();
 
     if (after == before)                        // no effective change (e.g. re-sorting sorted inputs)
         return;                                 // — don't pollute the undo history
@@ -623,4 +645,135 @@ void Project::addDroppedUrls(const QList<QUrl>& urls)
              << m_workspace.projectItems[m_projectIndex].getInputImages().size()
              << "(no change = dropped file(s) already in the list -> dedup)";
 #endif
+}
+
+// ---------------------------------------------------------------------------
+// Text & bubble overlays
+//
+// Three layers meet here: the authoring record (this GUI), the rasterised bitmap on disk, and the
+// library's inventory entry. The library owns uid minting, hashing and content dedup, so creation
+// always goes through addOverlay(); everything else is a straight write of the state the editor sends.
+// ---------------------------------------------------------------------------
+
+namespace {
+
+/**
+ * @brief Rasterises \p a into the workspace's overlays/ directory, named by its content hash.
+ *
+ * Naming by hash gives two things for free: identical bubbles share one file (the same dedup the
+ * library's inventory does), and an edit *never overwrites* the bitmap an earlier version references —
+ * which is what lets undo restore a previous rendering rather than the old record pointing at new
+ * pixels. Superseded files are left behind deliberately; they are a few KB each, and deleting one
+ * would break the undo step still referencing it.
+ *
+ * @return The bitmap's absolute path, or empty when it could not be written.
+ */
+QString writeArtifactBitmap(const QString& overlaysDir, const TextArtifact& a)
+{
+    const QImage img = renderArtifact(a);
+    if (img.isNull() || overlaysDir.isEmpty())
+        return {};
+
+    // Written first under a scratch name, because the hash has to come from the encoded file — the same
+    // bytes the library will hash when it inventories it.
+    const QString tmp = overlaysDir + QStringLiteral("/.writing.png");
+    QFile::remove(tmp);
+    if (!img.save(tmp, "PNG"))
+        return {};
+
+    std::string sha;
+    try {
+        sha = Platemaker::Infrastructure::FileMetaData::computeFileSha256(tmp.toStdString());
+    } catch (const std::exception&) {
+        sha.clear();
+    }
+    if (sha.empty()) {
+        QFile::remove(tmp);
+        return {};
+    }
+
+    const QString finalPath =
+        overlaysDir + QStringLiteral("/ovl-") + QString::fromStdString(sha).left(16) + QStringLiteral(".png");
+    if (QFile::exists(finalPath))
+        QFile::remove(tmp);            // same content, already stored
+    else if (!QFile::rename(tmp, finalPath))
+        return {};
+    return finalPath;
+}
+
+} // namespace
+
+void Project::setArtifacts(ArtifactMap artifacts)
+{
+    m_artifacts = std::move(artifacts);
+}
+
+void Project::createOverlay(const TextArtifact& artifact, int x, int y, const QString& anchorInputUid)
+{
+    const QString dir = ArtifactStore::ensureOverlaysDir(m_workspacePath);
+    if (dir.isEmpty()) {
+        QMessageBox::warning(this, tr("Text & bubbles"),
+                             tr("Save the workspace first — bubbles are stored next to the workspace "
+                                "file, in an 'overlays' folder."));
+        return;
+    }
+
+    const QString bitmap = writeArtifactBitmap(dir, artifact);
+    if (bitmap.isEmpty()) {
+        QMessageBox::warning(this, tr("Text & bubbles"),
+                             tr("Could not write the bubble image to:\n%1").arg(dir));
+        return;
+    }
+
+    commitEdit(tr("Add bubble"), [&] {
+        auto& item = m_workspace.projectItems[m_projectIndex];
+        // The library mints the uid, hashes the file and reuses an existing path for identical content.
+        const std::string uid =
+            item.addOverlay(bitmap.toStdString(), x, y,
+                            Platemaker::Models::BlendMode::Over, anchorInputUid.toStdString());
+        m_artifacts.insert(QString::fromStdString(uid), artifact);
+        emit artifactsChanged(m_artifacts);
+        emit projectModified();
+        populate();   // the workflow map counts overlays
+    });
+}
+
+void Project::applyOverlays(std::vector<Platemaker::Models::StripOverlay> overlays,
+                            ArtifactMap                                  artifacts,
+                            const QString&                               undoText)
+{
+    const QString dir = ArtifactStore::ensureOverlaysDir(m_workspacePath);
+
+    // Re-rasterise only what actually changed. A move or a reorder touches no pixels, so the common
+    // gesture writes no files at all; a text or styling edit rewrites exactly one bubble.
+    for (auto& o : overlays) {
+        const QString uid = QString::fromStdString(o.uid);
+        const auto    it  = artifacts.constFind(uid);
+        if (it == artifacts.constEnd())
+            continue;                                   // bitmap-only overlay: nothing to re-render
+        if (m_artifacts.contains(uid) && m_artifacts.value(uid) == it.value())
+            continue;                                   // unchanged content
+
+        const QString bitmap = dir.isEmpty() ? QString{} : writeArtifactBitmap(dir, it.value());
+        if (bitmap.isEmpty())
+            continue;                                   // keep the previous bitmap rather than lose it
+
+        o.bitmapPath = bitmap.toStdString();
+        try {
+            // The hash is what the staleness signature watches: without updating it, a re-rendered
+            // bubble would look changed on screen and render as the old one.
+            o.sha256 = Platemaker::Infrastructure::FileMetaData::computeFileSha256(o.bitmapPath);
+        } catch (const std::exception&) {
+            o.sha256.clear();
+        }
+    }
+
+    commitEdit(undoText, [&] {
+        auto& item = m_workspace.projectItems[m_projectIndex];
+        item.getStripOverlays() = std::move(overlays);
+        m_artifacts             = std::move(artifacts);
+        emit artifactsChanged(m_artifacts);
+        emit projectModified();
+        populate();
+    });
 }

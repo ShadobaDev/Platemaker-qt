@@ -5,7 +5,8 @@
 ### Changed
 
 - **The strip viewer now shows the project's *input pages*, not its rendered output.** It stacks each
-  input put through the library's page domain (`ProcessingPipeline::previewLayout` / `previewPageRgba`)
+  input put through the library's page domain (`ProcessingPipeline::layoutPagesFromHeaders` /
+  `decodePageToRgba`)
   instead of reassembling the committed slices, which changes three things that matter:
   - **It works before the first render.** A grade has to be authored before it is baked, and previously
     there was nothing to look at until a render existed.

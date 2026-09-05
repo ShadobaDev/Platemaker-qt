@@ -50,14 +50,24 @@ void RenderWorker::process()
                          static_cast<int>(r.status));
     };
 
+    // The worker's members are exactly a RenderRequest — both exist so a render never touches the
+    // live workspace — so assembling one here is a copy, not a translation.
+    RenderRequest request;
+    request.inputs            = m_inputs;
+    request.outputProfile     = m_outProfile;
+    request.canvasProfiles    = m_canvasProfiles;
+    request.canvasProfileIds  = m_canvasProfileIds;
+    request.outputDirectory   = m_outputDir;
+    request.thumbnailCacheDir = m_thumbnailCacheDir;
+    request.colourCorrection  = m_colourCorrection;
+    request.stripOverlays     = m_stripOverlays;
+    // Absent = full render; a partial re-render restricts it to the dirty slice names.
+    if (!m_onlySlices.empty())
+        request.onlySlices = m_onlySlices;
+
     // Runs the whole render synchronously on this thread (blocks until every slice is processed
-    // or m_cancel is triggered). Restricts to m_onlySlices for a partial re-render; nullptr = all.
-    m_outcome = ProcessingPipeline::run(
-        m_inputs, m_outProfile, m_canvasProfiles, m_canvasProfileIds, m_outputDir,
-        m_cancel, callbacks,
-        m_onlySlices.empty() ? nullptr : &m_onlySlices,
-        m_thumbnailCacheDir,
-        m_colourCorrection, m_stripOverlays);
+    // or m_cancel is triggered).
+    m_outcome = ProcessingPipeline::render(request, m_cancel, callbacks);
 
     emit finished();
 }

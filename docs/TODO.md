@@ -103,7 +103,7 @@ New, backward-compatible features. Several are gated on a lib version, noted in 
     to look at before the first render, a grade previewed on output is applied on top of the one the
     render already baked in, and an output slice can straddle two pages so neither a per-page exclusion
     nor a page-anchored bubble can be honoured at display time. It now feeds through the library's
-    page-domain preview API (`previewLayout` / `previewPageRgba`, lib 0.6.0), so the strip exists before
+    page-domain API (`layoutPagesFromHeaders` / `decodePageToRgba`, lib 0.6.0), so the strip exists before
     any render and rendering does not change what it shows. The seam guides moved with it: they now mark
     where the output *will be* cut, every `sliceHeight` down the strip.
   - *Deferred (not built):* the **lookup** half — click a strip position → which input page / output

@@ -139,7 +139,7 @@ colour correction and text/bubble overlays — and it shows the chapter as one c
 
 **The strip is built from the project's INPUT pages, not from its rendered output.** It stacks each
 input put through the library's page domain (EXIF-upright → canvas-profile margin crop → scale to the
-output's target width) via `ProcessingPipeline::previewLayout()` / `previewPageRgba()`. Three
+output's target width) via `ProcessingPipeline::layoutPagesFromHeaders()` / `decodePageToRgba()`. Three
 consequences, and they are the whole reason for the design:
 
 - **It works before the first render.** A grade or a bubble has to be authored before it is baked, and
@@ -191,13 +191,13 @@ mapping layer.
   row is only partly covered and the background hairlines through. `StripItem::paint` **disables
   `QPainter::Antialiasing`** (keeping `SmoothPixmapTransform`), so adjacent pages tile with hard edges.
   Overlays are separate items above it (§2.5.4) — they are sparse, so they cost no seam.
-- **Layout without pixels.** `previewLayout()` reads each page's header and decodes nothing; pages the
+- **Layout without pixels.** `layoutPagesFromHeaders()` reads each page's header and decodes nothing; pages the
   render would skip (missing / unreadable) are dropped here exactly as the render drops them, or every
   page below would sit at the wrong strip offset.
 - **Two tiers, both off the UI thread** (§6):
   - **Proxy** — the input page's thumbnail from the lib `ThumbnailCache` the Input tab already warms
     (reused, not reinvented), drawn instantly so a page is never blank.
-  - **Sharp** — `previewPageRgba()` on `QtConcurrent` for pages in view plus a one-page prefetch margin,
+  - **Sharp** — `decodePageToRgba()` on `QtConcurrent` for pages in view plus a one-page prefetch margin,
     into a byte-capped LRU `QCache`. Off-screen pages are evicted, so RAM tracks the viewport, not the
     chapter. A generation counter drops async results from a superseded rebuild.
 - **Zoom.** 100% default, plus fit-width / 100% / − / + and Ctrl+wheel; the default re-settles on resize
@@ -473,7 +473,7 @@ collides with one already linked; the GUI shows an error and does not link it.  
 | Operation | Mechanism | Thread safety notes |
 |---|---|---|
 | Thumbnail loading | `QtConcurrent::run()` per tile | `ThumbnailCache` is thread-safe |
-| Strip-editor page build | `QtConcurrent::run()` per page (proxy + sharp) | The sharp tier runs the library's page domain (`previewPageRgba`); the proxy tier reads `ThumbnailCache`. Both are thread-safe; `QPixmap` is built on the GUI thread in the watcher, and a generation counter drops results from a superseded rebuild |
+| Strip-editor page build | `QtConcurrent::run()` per page (proxy + sharp) | The sharp tier runs the library's page domain (`decodePageToRgba`); the proxy tier reads `ThumbnailCache`. Both are thread-safe; `QPixmap` is built on the GUI thread in the watcher, and a generation counter drops results from a superseded rebuild |
 | Bubble rasterising | GUI thread | `paintArtifact()` on a small `QImage`; it runs on a settled edit, not per keystroke, and a bubble is a few hundred pixels — not worth a thread |
 | Pipeline run | Single `QFuture` via `QtConcurrent::run()` | `CancellationToken` is atomic |
 | Template generation | `QtConcurrent::run()` per profile | `TemplateGenerator` is stateless |

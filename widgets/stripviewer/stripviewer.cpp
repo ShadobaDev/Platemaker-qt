@@ -500,7 +500,7 @@ void StripViewer::rebuildScene()
     // render would build, before any render exists.
     std::vector<Platemaker::Core::PagePreviewGeometry> layout;
     try {
-        layout = Platemaker::Core::ProcessingPipeline::previewLayout(
+        layout = Platemaker::Core::ProcessingPipeline::layoutPagesFromHeaders(
             m_inputs, m_outProfile, m_canvasProfiles, m_canvasProfileIds);
     } catch (const std::exception& e) {
         qWarning() << "StripViewer: preview layout failed —" << e.what();
@@ -657,13 +657,13 @@ void StripViewer::requestPage(int index)
         watcher->setFuture(QtConcurrent::run(
             [input, outProf, profs, ids, size]() -> QImage {
                 QImage img(size, QImage::Format_RGBA8888);
-                // previewPageRgba writes tightly packed RGBA8888. Format_RGBA8888 is 4 bytes per pixel,
+                // decodePageToRgba writes tightly packed RGBA8888. Format_RGBA8888 is 4 bytes per pixel,
                 // so a scanline is always 4-byte aligned and Qt adds no padding — but assert rather than
                 // assume, because a padded scanline would shear the image.
                 if (img.bytesPerLine() != size.width() * 4)
                     return {};
                 try {
-                    Platemaker::Core::ProcessingPipeline::previewPageRgba(
+                    Platemaker::Core::ProcessingPipeline::decodePageToRgba(
                         input, outProf, profs, ids, img.bits(), size.width(), size.height());
                 } catch (...) {
                     return {};   // the page stays on its proxy; the layout already knows its size

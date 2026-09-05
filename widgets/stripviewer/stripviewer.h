@@ -46,7 +46,8 @@ namespace Ui { class StripViewer; }
  * ## The strip is built from the INPUTS, not from the rendered output
  * The viewer stacks the project's *input pages*, each put through the library's page domain
  * (EXIF-upright → canvas-profile margin crop → scale to the output's target width) by
- * `ProcessingPipeline::previewLayout` / `previewPageRgba`. It never reads the committed output slices.
+ * `ProcessingPipeline::layoutPagesFromHeaders` / `decodePageToRgba`. It never reads the committed
+ * output slices.
  * Three things follow, and they are the whole reason for the design:
  *  - **It works before the first render.** There is nothing to view otherwise, and a grade has to be
  *    authored before it is baked, not after.
@@ -70,7 +71,7 @@ namespace Ui { class StripViewer; }
  * ## Memory: proxy + async page build + prefetch
  * A scaled page is far bigger than a slice (~16 MB at 800×5120), and a chapter has many, so pages are
  * brought online lazily:
- *  - **Layout** comes from `previewLayout` — a header read per page, no pixels decoded.
+ *  - **Layout** comes from `layoutPagesFromHeaders` — a header read per page, no pixels decoded.
  *  - **Proxy tier:** the input page's thumbnail from the lib ThumbnailCache the Input tab already warms
  *    (reused, not reinvented) — drawn instantly so a page is never blank.
  *  - **Sharp tier:** the page is built through the real page domain on a worker thread, only for pages
@@ -88,7 +89,7 @@ public:
     /**
      * @brief Feeds the project's input pages and rebuilds the strip.
      *
-     * Lays the strip out through `ProcessingPipeline::previewLayout`, which reads each page's header
+     * Lays the strip out through `ProcessingPipeline::layoutPagesFromHeaders`, which reads each page's header
      * and decodes nothing; pixels are built lazily, per page, off the UI thread. Pages the render would
      * skip (missing or unreadable) are dropped here exactly as the render drops them, so the preview's
      * page offsets match what a render produces.
@@ -190,7 +191,7 @@ protected:
     void resizeEvent(QResizeEvent *event) override;
 
 private:
-    void rebuildScene();        //!< Lays the feed out via previewLayout (header reads only) into one lazy StripItem.
+    void rebuildScene();        //!< Lays the feed out via layoutPagesFromHeaders (header reads only) into one lazy StripItem.
     void showEmptyState();      //!< Clears the scene and shows the "no pages yet" hint.
     void addSeamItems();        //!< Adds a guide line at each slice cut (every sliceHeight down the strip).
     void applyZoom(double z);   //!< Sets the absolute zoom factor (clamped) and updates the % label.
@@ -260,7 +261,7 @@ private:
     QList<int>          m_inputIndex;   //!< Index into m_inputs for each drawable page.
     QStringList         m_pagePaths;    //!< Source path of each drawable page (proxy lookup + diagnostics).
     QList<int>          m_pageTops;     //!< Cumulative Y offset per drawable page (also: overlay anchor).
-    QList<QSize>        m_pageSizes;    //!< Scaled size per page, from previewLayout.
+    QList<QSize>        m_pageSizes;    //!< Scaled size per page, from layoutPagesFromHeaders.
     QList<QGraphicsLineItem*> m_seamItems; //!< Slice-cut guide lines (owned by the scene).
     int    m_stripWidth  = 0;                //!< Widest page = strip width.
     int    m_stripHeight = 0;                //!< Sum of page heights.

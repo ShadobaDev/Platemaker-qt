@@ -209,7 +209,7 @@ bool MainWindow::startRender(int projectIndex)
     const bool procSigMismatch = project.processingSignature != curProcSig;
 
     const bool configChanged =
-        hasOutputs && (sigMismatch || formatMismatch || canvasChange.any() || inputOrderChanged
+        hasOutputs && (sigMismatch || formatMismatch || canvasChange.anyChanged() || inputOrderChanged
                        || procSigMismatch);
 
     if (project.isUpToDate() && !configChanged) {

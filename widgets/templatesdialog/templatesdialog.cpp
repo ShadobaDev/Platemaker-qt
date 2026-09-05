@@ -79,7 +79,7 @@ bool TemplatesDialog::generateTemplate(const Workspace& ws,
     }
 
     cp.templateInfo.path        = (QStringLiteral("templates/") + fileName).toStdString();
-    cp.templateInfo.fingerprint = TemplateGenerator::signature(cp);
+    cp.templateInfo.fingerprint = TemplateGenerator::canvasSignature(cp);
     cp.templateInfo.generatedAt =
         QDateTime::currentDateTimeUtc().toString(Qt::ISODate).toStdString();
     return true;
@@ -96,7 +96,7 @@ TemplatesDialog::TemplateStatus TemplatesDialog::statusOf(
     if (!QFileInfo::exists(abs))
         return TemplateStatus::FileMissing;
 
-    if (TemplateGenerator::signature(cp) != cp.templateInfo.fingerprint)
+    if (TemplateGenerator::canvasSignature(cp) != cp.templateInfo.fingerprint)
         return TemplateStatus::Outdated;
 
     return TemplateStatus::UpToDate;

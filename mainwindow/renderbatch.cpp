@@ -129,7 +129,7 @@ void MainWindow::finishBatch()
 void MainWindow::reportWorkspaceRepair(
     const Platemaker::Infrastructure::WorkspaceRepairReport &report)
 {
-    if (!report.any())
+    if (!report.anyRepairs())
         return;
 
     // Name the profiles that were given a new identifier — those are the ones the user
@@ -192,7 +192,7 @@ void MainWindow::warnIfCanvasConfigStale()
     bool anyCoarse = false;
     for (const auto &project : m_workspace.projectItems) {
         const auto change = project.detectCanvasConfigChange(m_workspace.canvasProfiles());
-        if (!change.any())
+        if (!change.anyChanged())
             continue;
         affected.append({ QString::fromStdString(project.name),
                           static_cast<int>(change.changedInputs.size()),

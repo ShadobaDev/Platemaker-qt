@@ -70,19 +70,19 @@ public:
 
     // --- text & bubble overlays -------------------------------------------------------------
     /**
-     * @brief Where the workspace file lives — the root of `overlays/` and the authoring sidecar.
+     * @brief Where the workspace file lives — the root of `overlays/`.
      *
-     * Set by MainWindow, and re-set after "Save as": the bitmaps a project references have to follow
+     * Set by MainWindow, and re-set after "Save as": the assets a project references have to follow
      * the workspace they belong to, or a moved workspace renders bubbles from the old directory.
      */
     void setWorkspacePath(const QString& path) { m_workspacePath = path; }
 
-    //! Adopts this project's authoring records (from the sidecar). Does not touch the undo stack.
+    //! Adopts this project's authoring records (read back from its assets). Leaves the undo stack alone.
     void setArtifacts(ArtifactMap artifacts);
     [[nodiscard]] const ArtifactMap& artifacts() const { return m_artifacts; }
 
     /**
-     * @brief Registers a newly drawn bubble: rasterises it, then lets the library inventory the bitmap.
+     * @brief Registers a newly drawn bubble: writes its SVG, then lets the library inventory the file.
      *
      * The library mints the uid, hashes the file and dedups identical content, so creation goes through
      * `ProjectItem::addOverlay()` rather than being assembled here. One undo step.
@@ -94,7 +94,7 @@ public:
 
     /**
      * @brief Stores a complete new overlay state — move, restyle, delete, reorder or mute — as one
-     *        undo step, re-rasterising the bitmaps whose authoring record changed.
+     *        undo step, re-writing the assets whose authoring record changed.
      */
     void applyOverlays(std::vector<Platemaker::Models::StripOverlay> overlays,
                        ArtifactMap                                  artifacts,
@@ -140,7 +140,7 @@ signals:
      */
     void workspaceEditCommitted(const QString& text, const QString& before, const QString& after);
 
-    //! This project's authoring records changed — MainWindow folds them back into the sidecar store.
+    //! This project's authoring records changed — MainWindow folds them back into its per-project cache.
     void artifactsChanged(const ArtifactMap& artifacts);
 
 private slots:
@@ -217,7 +217,7 @@ private:
     Ui::Project* ui;                                        //!< Qt Designer-generated UI for this widget.
     int m_projectIndex;                                     //!< Index of this project within m_workspace.projectItems (kept in sync via setProjectIndex()).
     Platemaker::Models::Workspace& m_workspace;             //!< Reference to the workspace owning this project's data.
-    QString     m_workspacePath;                            //!< Workspace file path — root of overlays/ and the sidecar.
+    QString     m_workspacePath;                            //!< Workspace file path — the root of overlays/.
     ArtifactMap m_artifacts;                                //!< Authoring records for this project's overlays, by uid.
     QString m_cacheDir;                                     //!< Directory where cached thumbnails and other temporary files are stored.
     OutputFormatOptionsWidget* m_formatOptions = nullptr;   //!< Shared widget for editing the selected output profile's format/options.

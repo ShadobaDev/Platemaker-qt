@@ -1,5 +1,6 @@
 #include "project.h"
 #include "artifactpainter.h"
+#include "artifactsvg.h"
 #include "ui_project.h"
 #include "imagetile.h"
 #include "projectsnapshotcommand.h"
@@ -22,6 +23,7 @@
 #include <QDragEnterEvent>
 #include <QDragMoveEvent>
 #include <QDropEvent>
+#include <QCryptographicHash>
 #include <QFile>
 #include <QFileDialog>
 #include <QFileInfo>
@@ -651,55 +653,49 @@ void Project::addDroppedUrls(const QList<QUrl>& urls)
 // ---------------------------------------------------------------------------
 // Text & bubble overlays
 //
-// Three layers meet here: the authoring record (this GUI), the rasterised bitmap on disk, and the
-// library's inventory entry. The library owns uid minting, hashing and content dedup, so creation
-// always goes through addOverlay(); everything else is a straight write of the state the editor sends.
+// Two layers meet here: the SVG asset on disk — which is both the artwork and the authoring record —
+// and the library's inventory entry. The library owns uid minting, hashing and content dedup, so
+// creation always goes through addOverlay(); everything else is a straight write of what the editor
+// sends.
 // ---------------------------------------------------------------------------
 
 namespace {
 
 /**
- * @brief Rasterises \p a into the workspace's overlays/ directory, named by its content hash.
+ * @brief Writes \p a into the workspace's overlays/ directory as an SVG, named by its content hash.
+ *
+ * The file the library composites **is** the authoring record: the artwork every renderer can draw,
+ * plus the editor's parameters in a namespace renderers ignore. There is no separate sidecar and no
+ * intermediate raster.
  *
  * Naming by hash gives two things for free: identical bubbles share one file (the same dedup the
- * library's inventory does), and an edit *never overwrites* the bitmap an earlier version references —
- * which is what lets undo restore a previous rendering rather than the old record pointing at new
- * pixels. Superseded files are left behind deliberately; they are a few KB each, and deleting one
- * would break the undo step still referencing it.
+ * library's inventory does), and an edit *never overwrites* the file an earlier version references —
+ * which is what lets undo restore a previous rendering rather than the old record pointing at new art.
+ * Superseded files are left behind deliberately; they are a few KB each, and deleting one would break
+ * the undo step still referencing it.
  *
- * @return The bitmap's absolute path, or empty when it could not be written.
+ * @return The asset's absolute path, or empty when it could not be written.
  */
-QString writeArtifactBitmap(const QString& overlaysDir, const TextArtifact& a)
+QString writeArtifactSvg(const QString& overlaysDir, const TextArtifact& a)
 {
-    const QImage img = renderArtifact(a);
-    if (img.isNull() || overlaysDir.isEmpty())
+    const QByteArray svg = artifactToSvg(a);
+    if (svg.isEmpty() || overlaysDir.isEmpty())
         return {};
 
-    // Written first under a scratch name, because the hash has to come from the encoded file — the same
-    // bytes the library will hash when it inventories it.
-    const QString tmp = overlaysDir + QStringLiteral("/.writing.png");
-    QFile::remove(tmp);
-    if (!img.save(tmp, "PNG"))
-        return {};
+    // Hashed from the bytes about to be written, so the name matches what the library will hash when it
+    // inventories the file — no scratch file needed, unlike the encode-then-hash the raster path used.
+    const QString sha = QString::fromLatin1(
+        QCryptographicHash::hash(svg, QCryptographicHash::Sha256).toHex()).left(16);
+    const QString finalPath = overlaysDir + QStringLiteral("/ovl-") + sha + QStringLiteral(".svg");
 
-    std::string sha;
-    try {
-        sha = Platemaker::Infrastructure::FileMetaData::computeFileSha256(tmp.toStdString());
-    } catch (const std::exception&) {
-        sha.clear();
-    }
-    if (sha.empty()) {
-        QFile::remove(tmp);
-        return {};
-    }
-
-    const QString finalPath =
-        overlaysDir + QStringLiteral("/ovl-") + QString::fromStdString(sha).left(16) + QStringLiteral(".png");
     if (QFile::exists(finalPath))
-        QFile::remove(tmp);            // same content, already stored
-    else if (!QFile::rename(tmp, finalPath))
+        return finalPath;              // same content, already stored
+
+    QFile f(finalPath);
+    if (!f.open(QIODevice::WriteOnly | QIODevice::Truncate))
         return {};
-    return finalPath;
+    f.write(svg);
+    return f.error() == QFile::NoError ? finalPath : QString{};
 }
 
 } // namespace
@@ -719,10 +715,10 @@ void Project::createOverlay(const TextArtifact& artifact, int x, int y, const QS
         return;
     }
 
-    const QString bitmap = writeArtifactBitmap(dir, artifact);
-    if (bitmap.isEmpty()) {
+    const QString asset = writeArtifactSvg(dir, artifact);
+    if (asset.isEmpty()) {
         QMessageBox::warning(this, tr("Text & bubbles"),
-                             tr("Could not write the bubble image to:\n%1").arg(dir));
+                             tr("Could not write the bubble to:\n%1").arg(dir));
         return;
     }
 
@@ -730,7 +726,7 @@ void Project::createOverlay(const TextArtifact& artifact, int x, int y, const QS
         auto& item = m_workspace.projectItems[m_projectIndex];
         // The library mints the uid, hashes the file and reuses an existing path for identical content.
         const std::string uid =
-            item.addOverlay(bitmap.toStdString(), x, y,
+            item.addOverlay(asset.toStdString(), x, y,
                             Platemaker::Models::BlendMode::Over, anchorInputUid.toStdString());
         m_artifacts.insert(QString::fromStdString(uid), artifact);
         emit artifactsChanged(m_artifacts);
@@ -745,23 +741,23 @@ void Project::applyOverlays(std::vector<Platemaker::Models::StripOverlay> overla
 {
     const QString dir = ArtifactStore::ensureOverlaysDir(m_workspacePath);
 
-    // Re-rasterise only what actually changed. A move or a reorder touches no pixels, so the common
+    // Re-write only what actually changed. A move or a reorder touches no artwork, so the common
     // gesture writes no files at all; a text or styling edit rewrites exactly one bubble.
     for (auto& o : overlays) {
         const QString uid = QString::fromStdString(o.uid);
         const auto    it  = artifacts.constFind(uid);
         if (it == artifacts.constEnd())
-            continue;                                   // bitmap-only overlay: nothing to re-render
+            continue;                                   // flat asset: no parameters, nothing to re-emit
         if (m_artifacts.contains(uid) && m_artifacts.value(uid) == it.value())
             continue;                                   // unchanged content
 
-        const QString bitmap = dir.isEmpty() ? QString{} : writeArtifactBitmap(dir, it.value());
-        if (bitmap.isEmpty())
-            continue;                                   // keep the previous bitmap rather than lose it
+        const QString asset = dir.isEmpty() ? QString{} : writeArtifactSvg(dir, it.value());
+        if (asset.isEmpty())
+            continue;                                   // keep the previous asset rather than lose it
 
-        o.assetPath = bitmap.toStdString();
+        o.assetPath = asset.toStdString();
         try {
-            // The hash is what the staleness signature watches: without updating it, a re-rendered
+            // The hash is what the staleness signature watches: without updating it, a re-written
             // bubble would look changed on screen and render as the old one.
             o.sha256 = Platemaker::Infrastructure::FileMetaData::computeFileSha256(o.assetPath);
         } catch (const std::exception&) {

@@ -1,9 +1,7 @@
 #include "textartifact.h"
 
 #include <QDir>
-#include <QFile>
 #include <QFileInfo>
-#include <QJsonDocument>
 
 namespace {
 
@@ -63,8 +61,8 @@ TextArtifact artifactFromJson(const QJsonObject& j)
     else if (shape == QLatin1String("caption")) a.shape = TextArtifact::Shape::Caption;
     else                                        a.shape = TextArtifact::Shape::Speech;
 
-    // Every field is read defensively with the struct's own default as the fallback, so a sidecar
-    // written by an older build (or a hand-edited one) loads as a usable bubble rather than a blank.
+    // Every field is read defensively with the struct's own default as the fallback, so a snapshot
+    // written by an older build loads as a usable bubble rather than a blank.
     a.box  = QSize(j.value(QStringLiteral("w")).toInt(a.box.width()),
                    j.value(QStringLiteral("h")).toInt(a.box.height()));
     a.tail = QPoint(j.value(QStringLiteral("tailX")).toInt(a.tail.x()),
@@ -101,14 +99,6 @@ ArtifactMap artifactsFromJsonObject(const QJsonObject& j)
 // ArtifactStore
 // ---------------------------------------------------------------------------
 
-QString ArtifactStore::sidecarPath(const QString& workspacePath)
-{
-    if (workspacePath.isEmpty())
-        return {};
-    const QFileInfo fi(workspacePath);
-    return fi.absolutePath() + QLatin1Char('/') + fi.completeBaseName() + QStringLiteral(".overlays.json");
-}
-
 QString ArtifactStore::overlaysDir(const QString& workspacePath)
 {
     if (workspacePath.isEmpty())
@@ -122,53 +112,6 @@ QString ArtifactStore::ensureOverlaysDir(const QString& workspacePath)
     if (dir.isEmpty())
         return {};
     return QDir().mkpath(dir) ? dir : QString{};
-}
-
-void ArtifactStore::load(const QString& workspacePath)
-{
-    clear();
-
-    QFile f(sidecarPath(workspacePath));
-    if (!f.open(QIODevice::ReadOnly))
-        return;   // no sidecar yet, or unreadable — the bitmaps still render, they just stop being editable
-
-    const QJsonObject root = QJsonDocument::fromJson(f.readAll()).object();
-    const QJsonObject byProject = root.value(QStringLiteral("projects")).toObject();
-    for (auto p = byProject.begin(); p != byProject.end(); ++p) {
-        ArtifactMap map = artifactsFromJsonObject(p.value().toObject());
-        if (!map.isEmpty())
-            m_byProject.insert(p.key(), std::move(map));
-    }
-}
-
-bool ArtifactStore::save(const QString& workspacePath) const
-{
-    const QString path = sidecarPath(workspacePath);
-    if (path.isEmpty())
-        return false;
-
-    // Nothing to write and nothing written before → leave the directory clean rather than dropping an
-    // empty file beside every workspace that never used a bubble.
-    if (m_byProject.isEmpty() && !QFile::exists(path))
-        return true;
-
-    QJsonObject byProject;
-    for (auto p = m_byProject.begin(); p != m_byProject.end(); ++p) {
-        const QJsonObject arts = artifactsToJsonObject(p.value());
-        if (!arts.isEmpty())
-            byProject.insert(p.key(), arts);
-    }
-
-    QJsonObject root{
-        {QStringLiteral("version"),  1},
-        {QStringLiteral("projects"), byProject},
-    };
-
-    QFile f(path);
-    if (!f.open(QIODevice::WriteOnly | QIODevice::Truncate))
-        return false;
-    f.write(QJsonDocument(root).toJson(QJsonDocument::Indented));
-    return f.error() == QFile::NoError;
 }
 
 ArtifactMap ArtifactStore::artifacts(const QString& projectUid) const

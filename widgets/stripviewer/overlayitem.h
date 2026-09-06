@@ -41,10 +41,10 @@ public:
     /**
      * @brief Draws \p pm instead of the artifact — used when no authoring record exists for this overlay.
      *
-     * The sidecar can be missing (never written, lost, hand-deleted) while the library's bitmap is
-     * perfectly intact. Falling back to that bitmap keeps the bubble visible and movable instead of
-     * replacing it with an empty default; it just cannot be re-typed until it is recreated. Pass a null
-     * pixmap to go back to drawing the artifact.
+     * An asset can carry artwork without carrying parameters — drawn elsewhere, or edited outside
+     * Platemaker. Drawing the file itself keeps the overlay visible and movable instead of replacing it
+     * with an empty default; it just cannot be re-typed. Pass a null pixmap to go back to drawing the
+     * artifact.
      */
     void setFallbackPixmap(const QPixmap& pm);
 

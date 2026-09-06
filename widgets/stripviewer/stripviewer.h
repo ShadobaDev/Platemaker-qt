@@ -162,7 +162,7 @@ signals:
      * @brief A new bubble was drawn — the owner rasterises it and registers it with the library.
      *
      * Creation is the one thing this viewer cannot finish on its own: the uid is minted by
-     * `ProjectItem::addOverlay()`, which also hashes the bitmap and dedups identical content. Sending
+     * `ProjectItem::addOverlay()`, which also hashes the asset and dedups identical content. Sending
      * the intent instead of a half-built record keeps that inventory the library's.
      *
      * @param artifact       Authoring record for the new bubble (its box is the placement rectangle).

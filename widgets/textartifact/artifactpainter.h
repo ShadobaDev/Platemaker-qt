@@ -14,12 +14,33 @@
 #define ARTIFACTPAINTER_H
 
 #include <QImage>
+#include <QPainterPath>
 #include <QSize>
 #include <QString>
 
 #include "textartifact.h"
 
 class QPainter;
+
+// ---------------------------------------------------------------------------
+// Geometry — one definition, three consumers
+//
+// The scene draws it, the SVG writer serialises it, and the library rasterises that SVG. Because all
+// three start from these two paths, "what you see" and "what is baked" cannot drift apart.
+// ---------------------------------------------------------------------------
+
+//! The balloon (and its tail) as one path, in box coordinates. Empty for a shapeless artifact.
+[[nodiscard]] QPainterPath artifactSilhouette(const TextArtifact& a);
+
+/**
+ * @brief The laid-out text as **glyph outlines**, positioned in box coordinates.
+ *
+ * Outlines rather than a string, because that is what lets the library render a bubble with no font
+ * stack and no font installed: by the time the artwork leaves here it is pure geometry. The wrapping is
+ * still the text document's, so line breaks are exactly what the editor showed. Clipped to the shape's
+ * safe area, so an overlong string cannot bleed past the stroke.
+ */
+[[nodiscard]] QPainterPath artifactTextOutline(const TextArtifact& a);
 
 // ---------------------------------------------------------------------------
 // Rasterising — the single definition of what a bubble looks like

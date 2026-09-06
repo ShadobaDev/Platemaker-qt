@@ -259,7 +259,7 @@ void MainWindow::openProjectDock(int projectIndex)
     // Text & bubbles: the project needs to know where the workspace file lives (its `overlays/` folder
     // is written beside it) and which authoring records are its own. The records travel back here on
     // every edit — including an undo, which restores them alongside the library's project state — so the
-    // sidecar written at save time is always current.
+    // per-project cache stays in step with what the editor has committed.
     const QString projectUid =
         QString::fromStdString(m_workspace.projectItems[projectIndex].uid);
     projectWidget->setWorkspacePath(m_workspacePath);

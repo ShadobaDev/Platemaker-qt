@@ -80,7 +80,6 @@ void MainWindow::onNewWorkspace()
 
     try {
         m_serializer.save(m_workspace, path.toStdString());
-        m_overlayArtifacts.save(path);
     } catch (const std::exception &e) {
         QMessageBox::critical(this, tr("Error"),
             tr("Cannot create workspace:\n%1").arg(e.what()));
@@ -104,11 +103,8 @@ void MainWindow::onSave()
     // Save the current workspace to disk. If the save operation fails, show an error message to the user.
     try {
         m_serializer.save(m_workspace, m_workspacePath.toStdString());
-        // The bubbles' authoring records travel with the workspace file. A failure here is reported
-        // but does not fail the save: the workspace and the overlay bitmaps are both already on disk,
-        // and the worst case is that the bubbles come back as flat art rather than editable objects.
-        if (!m_overlayArtifacts.save(m_workspacePath))
-            qWarning() << "Could not write the overlay sidecar for" << m_workspacePath;
+        // No companion file to write: a bubble's authoring parameters live inside the SVG the library
+        // already references, and that was written when the edit settled.
         captureSnapshot();
     } catch (const std::exception &e) {
         QMessageBox::critical(this, tr("Error"),

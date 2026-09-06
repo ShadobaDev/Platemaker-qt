@@ -33,6 +33,7 @@
 #include <QTimer>
 #include <QPen>
 #include <QScrollBar>
+#include <QSvgRenderer>
 #include <QSplitter>
 #include <QStackedWidget>
 #include <QStyleOptionGraphicsItem>
@@ -63,6 +64,36 @@ constexpr int k_minPlacementDrag = 24;
 constexpr int k_overlayZBase = 2;
 //! How far a duplicate lands from its original, so it is visibly a second bubble and not a mis-click.
 constexpr int k_duplicateOffset = 28;
+
+/**
+ * @brief Draws an overlay asset that carries no authoring parameters, at its own natural size.
+ *
+ * Vector assets go through QSvgRenderer explicitly rather than through QPixmap's image plugin: the
+ * plugin path depends on qsvg being deployed and gives no control over the size it picks. Raster
+ * assets still load the ordinary way, so a hand-supplied PNG keeps working.
+ */
+QPixmap renderAssetFile(const QString& path)
+{
+    if (path.isEmpty())
+        return {};
+
+    if (!path.endsWith(QLatin1String(".svg"), Qt::CaseInsensitive))
+        return QPixmap(path);
+
+    QSvgRenderer renderer(path);
+    if (!renderer.isValid())
+        return {};
+    QSize size = renderer.defaultSize();
+    if (size.isEmpty())
+        return {};
+
+    QImage img(size, QImage::Format_ARGB32);
+    img.fill(Qt::transparent);
+    QPainter p(&img);
+    renderer.render(&p);
+    p.end();
+    return QPixmap::fromImage(img);
+}
 
 /**
  * @brief One graphics item that draws every input page as its own image — seam-free.
@@ -831,13 +862,14 @@ void StripViewer::syncOverlayItems()
         const int     page = m_layout.pageForAnchor(QString::fromStdString(o.anchorInputUid));
         const bool    orphaned = page < 0 && !o.anchorInputUid.empty();
 
-        // Normally the authoring record says what to draw. When it is missing — a sidecar lost or not
-        // yet written — fall back to the rasterised bitmap the library composites: the bubble still
-        // shows and still moves, it just cannot be re-typed. That is the intended degradation.
+        // Normally the asset carries the parameters that say what to draw. When it does not — art drawn
+        // elsewhere, or a file edited outside Platemaker — fall back to drawing the asset itself: the
+        // bubble still shows and still moves, it just cannot be re-typed. That is the intended
+        // degradation, and it is what makes an imported shape a first-class overlay rather than an error.
         TextArtifact a = m_artifacts.value(uid);
         QPixmap      fallback;
         if (!m_artifacts.contains(uid)) {
-            fallback = QPixmap(QString::fromStdString(o.assetPath));
+            fallback = renderAssetFile(QString::fromStdString(o.assetPath));
             if (!fallback.isNull())
                 a.box = fallback.size();
         }
@@ -904,7 +936,7 @@ void StripViewer::refreshArtifactList()
         const int     page = m_layout.pageForAnchor(QString::fromStdString(o.anchorInputUid));
 
         const QString label = m_artifacts.contains(uid) ? artifactLabel(m_artifacts.value(uid))
-                                                        : tr("(bitmap only)");
+                                                        : tr("(flat asset)");
         const QString prefix = (page >= 0) ? tr("p.%1").arg(page + 1, 2, 10, QLatin1Char('0'))
                                            : tr("orphan");
 
@@ -1030,7 +1062,7 @@ void StripViewer::duplicateSelectedOverlay()
         if (QString::fromStdString(o.uid) != m_selectedOverlay)
             continue;
         // Routed through the creation channel, not copied into the list here: the library mints the new
-        // uid and, because the bitmap is byte-identical, its inventory dedups it onto the same file.
+        // uid and, because the artwork is byte-identical, its inventory dedups it onto the same file.
         // Offset within the same page, so a duplicate stays on the artwork its original was talking to.
         m_selectNewOverlay = true;
         emit artifactCreated(item->artifact(), o.x + k_duplicateOffset, o.y + k_duplicateOffset,
@@ -1099,7 +1131,7 @@ void StripViewer::finishPlacement()
     if (a.tail.y() >= 0)
         a.tail = QPoint(a.box.width() / 4, a.box.height() - 2);
 
-    // Creation is the library's: it mints the uid, hashes the bitmap and dedups identical content, so
+    // Creation is the library's: it mints the uid, hashes the asset and dedups identical content, so
     // the owner finishes this and feeds the result back — where it gets selected (see setOverlaySource).
     m_selectNewOverlay = true;
     emit artifactCreated(a, qRound(r.left()), qRound(r.top()) - m_layout.page(page).top,

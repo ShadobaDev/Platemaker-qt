@@ -11,13 +11,13 @@
 /**
  * @brief What a bubble *is* — the editable source a strip overlay is rendered from.
  *
- * The library composites a flat RGBA bitmap and deliberately never grows a text engine, so everything
- * about a bubble's content lives here, on the GUI side. That split is what makes a bubble re-editable:
- * the PNG in `<workspace>/overlays/` is the *render* artifact, this struct is the *source*. Changing
- * one word re-rasterises from here instead of asking the author to redraw.
+ * The library rasterises artwork and deliberately never grows a text engine, so everything about a
+ * bubble's content lives here, on the GUI side. This struct is the *working* form; the SVG in
+ * `<workspace>/overlays/` is the stored one, and it carries these same values in a private namespace
+ * so a bubble can be re-solved from the file it renders from (see artifactsvg.h).
  *
  * Coordinates are **strip-scale pixels**, the same scale the render composites at, so the scene preview
- * and the baked output are the same pixels by construction (see renderArtifact()).
+ * and the baked output are the same geometry by construction (see artifactpainter.h).
  *
  * One struct serves both rail tools: the Text tool is this with `shape == Shape::None`. Two entry
  * points, one object — so a caption can grow a balloon later without changing type, and there is one
@@ -29,7 +29,7 @@ struct TextArtifact
     enum class Shape { None, Speech, Shout, Caption };
 
     Shape  shape = Shape::Speech;
-    QSize  box{280, 160};        //!< The whole artifact, tail included — this *is* the bitmap's size.
+    QSize  box{280, 160};        //!< The whole artifact, tail included — this *is* the SVG's viewBox.
     QPoint tail{70, 158};        //!< Tip, in box coordinates. `y < 0` = no tail (see hasTail()).
 
     QString text;
@@ -60,36 +60,29 @@ using ArtifactMap = QHash<QString, TextArtifact>;
 [[nodiscard]] QJsonObject artifactToJson(const TextArtifact& a);
 [[nodiscard]] TextArtifact artifactFromJson(const QJsonObject& j);
 
-//! A whole map, keyed by overlay uid — the shape the sidecar and the undo snapshot both store.
+//! A whole map, keyed by overlay uid — the shape the undo snapshot stores.
 [[nodiscard]] QJsonObject artifactsToJsonObject(const ArtifactMap& m);
 [[nodiscard]] ArtifactMap artifactsFromJsonObject(const QJsonObject& j);
 
 /**
- * @brief Every project's authoring records, persisted beside the workspace file.
+ * @brief Every open project's authoring records, keyed by project uid.
  *
- * A sidecar rather than a field in the workspace JSON, because that codec belongs to the **library**
- * and this is information the library refuses to model. It follows the storage split the rest of the
- * app runs on — the library is a complete, OS-path-agnostic tool; the GUI decides where things live —
- * and it keeps a workspace self-contained: the `.platemaker.json`, `overlays/` and this file sit in one
- * directory and copy together.
+ * A **cache**, not a store: the records live in the overlays' own SVG files (see artifactsvg.h), and
+ * this holds the parsed form so a populate() does not re-read and re-parse the whole chapter. It is
+ * repopulated from disk when a workspace is opened and written through whenever the editor commits.
  *
- * Deliberately **not** in `.platemaker-cache/`: that directory is regenerable and safe to delete, and
- * losing these records would silently flatten every bubble into un-editable art.
+ * There is deliberately nothing to save here. An authoring sidecar would be a second copy of what the
+ * asset already carries — one more file to keep in step, and one more thing to lose separately from the
+ * artwork it describes.
  */
 class ArtifactStore
 {
 public:
-    //! `<workspace>.overlays.json` beside the workspace file; empty in, empty out.
-    [[nodiscard]] static QString sidecarPath(const QString& workspacePath);
-    //! `<workspace dir>/overlays` — where the rasterised PNGs live; created on demand by ensureDir().
+    //! `<workspace dir>/overlays` — where the SVG assets live; created on demand by ensureDir().
     [[nodiscard]] static QString overlaysDir(const QString& workspacePath);
     //! Creates the overlays directory if missing. Returns its path, or empty if it cannot be created.
     [[nodiscard]] static QString ensureOverlaysDir(const QString& workspacePath);
 
-    //! Reads the sidecar for \p workspacePath. A missing or unreadable file just leaves the store empty.
-    void load(const QString& workspacePath);
-    //! Writes the sidecar. Skipped (and reported false) when there is nothing to write and no file yet.
-    bool save(const QString& workspacePath) const;
     void clear() { m_byProject.clear(); }
 
     [[nodiscard]] ArtifactMap        artifacts(const QString& projectUid) const;

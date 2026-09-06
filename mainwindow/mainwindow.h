@@ -464,12 +464,14 @@ private:
     Platemaker::Models::Workspace                      m_workspace; //!< The authoritative workspace model (projects, profiles, templates).
 
     /**
-     * @brief Authoring records for every project's text/bubble overlays, loaded and saved with the
-     *        workspace (`<workspace>.overlays.json`).
+     * @brief Parsed authoring records for every project's text/bubble overlays.
      *
-     * The library inventories the rasterised bitmaps; what those bitmaps *say* is the GUI's, and this is
-     * where it lives so a bubble stays re-editable across sessions. Kept here rather than on the Project
-     * widget because a project has records whether or not its dock happens to be open.
+     * A cache, not a store: the records live inside the overlays' own SVG assets, and are read back
+     * from them when a workspace opens. Nothing here is written to disk — an authoring sidecar would be
+     * a second copy of what the asset already carries.
+     *
+     * Kept here rather than on the Project widget because a project has records whether or not its dock
+     * happens to be open.
      */
     ArtifactStore m_overlayArtifacts;
     Platemaker::Infrastructure::WorkspaceSerializer    m_serializer;//!< Serializes the workspace model to/from disk.

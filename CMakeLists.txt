@@ -65,6 +65,7 @@ qt_add_executable(Platemaker
     # The library composites a flat RGBA bitmap and has no text engine, so the editable source lives here.
     widgets/textartifact/textartifact.cpp widgets/textartifact/textartifact.h
     widgets/textartifact/artifactpainter.cpp widgets/textartifact/artifactpainter.h
+    widgets/textartifact/artifactsvg.cpp widgets/textartifact/artifactsvg.h
 
     # Stage card — one step in the Project "Workflow" pipeline map (custom-painted, no .ui).
     widgets/stagecard/stagecard.cpp widgets/stagecard/stagecard.h

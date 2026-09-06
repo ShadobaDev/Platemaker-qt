@@ -1,4 +1,5 @@
 #include "mainwindow.h"
+#include "artifactsvg.h"
 #include "ui_mainwindow.h"
 #include "project.h"
 #include "workspacesnapshotcommand.h"
@@ -329,9 +330,14 @@ void MainWindow::loadWorkspace(const QString &path)
     }
 
     m_workspacePath = path;
-    // The overlay sidecar sits beside the workspace file; a missing one just means no bubble has been
-    // authored yet (or its records were lost — the bitmaps still render, they stop being editable).
-    m_overlayArtifacts.load(path);
+    // Bubbles carry their own authoring parameters inside the SVG the library composites, so the
+    // records are read back from the assets themselves — there is no sidecar to fall out of step with
+    // them. An asset that is missing, or was drawn elsewhere, simply yields no record: the overlay
+    // still renders, it just cannot be re-typed.
+    m_overlayArtifacts.clear();
+    for (const auto& project : m_workspace.projectItems)
+        m_overlayArtifacts.setArtifacts(QString::fromStdString(project.uid),
+                                        artifactsFromOverlays(project.getStripOverlays()));
     m_activeCanvasProfileName = m_workspace.canvasProfiles().empty()
         ? QString{}
         : QString::fromStdString(m_workspace.canvasProfiles().front().name);

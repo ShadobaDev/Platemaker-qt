@@ -1,12 +1,13 @@
 #include "artifactpainter.h"
 
-#include <QAbstractTextDocumentLayout>
 #include <QFont>
 #include <QObject>
 #include <QPainter>
 #include <QPainterPath>
 #include <QPen>
+#include <QTextBlock>
 #include <QTextDocument>
+#include <QTextLayout>
 #include <QTextOption>
 #include <QtMath>
 
@@ -139,6 +140,80 @@ void layOutText(QTextDocument& doc, const TextArtifact& a, qreal width)
 // Rasterising
 // ---------------------------------------------------------------------------
 
+QPainterPath artifactSilhouette(const TextArtifact& a)
+{
+    const QRectF body = balloonRect(a);
+    if (a.shape == TextArtifact::Shape::None || body.isEmpty())
+        return {};
+
+    QPainterPath path;
+    switch (a.shape) {
+    case TextArtifact::Shape::Speech:
+        path.addRoundedRect(body, body.height() * 0.28, body.height() * 0.28);
+        break;
+    case TextArtifact::Shape::Caption:
+        path.addRoundedRect(body, 4, 4);
+        break;
+    case TextArtifact::Shape::Shout:
+        path = burstPath(body);
+        break;
+    case TextArtifact::Shape::None:
+        break;
+    }
+    if (a.hasTail())
+        path = path.united(tailPath(a, body));
+    return path;
+}
+
+QPainterPath artifactTextOutline(const TextArtifact& a)
+{
+    if (a.text.isEmpty())
+        return {};
+
+    const QRectF body = balloonRect(a);
+    const QRectF safe = textSafeArea(a, body);
+    if (safe.width() <= 1 || safe.height() <= 1)
+        return {};
+
+    QTextDocument doc;
+    layOutText(doc, a, safe.width());
+
+    // Vertically centred in the safe area — a bubble's text sits in the middle of the balloon, never
+    // pinned to its top edge.
+    const qreal   h = doc.size().height();
+    const QPointF origin(safe.left(), safe.top() + qMax(qreal(0), (safe.height() - h) / 2.0));
+
+    // The document does the wrapping — unchanged — and then each laid-out line is converted to glyph
+    // outlines at the position the layout gave it. Going through the layout rather than re-wrapping by
+    // hand is what keeps this identical to what the document would have painted; going to *outlines* is
+    // what lets the same geometry be written into an SVG the library can rasterise without a font.
+    const QFont  f = doc.defaultFont();
+    QPainterPath out;
+    for (QTextBlock b = doc.begin(); b.isValid(); b = b.next()) {
+        const QTextLayout* lay = b.layout();
+        if (!lay)
+            continue;
+        const QString blockText = b.text();
+        for (int i = 0; i < lay->lineCount(); ++i) {
+            const QTextLine line = lay->lineAt(i);
+            const QString   s    = blockText.mid(line.textStart(), line.textLength());
+            if (s.trimmed().isEmpty())
+                continue;
+            const QPointF p = lay->position() + line.position();
+            // addText places by the text *baseline*, which is the line's top plus its ascent.
+            out.addText(origin.x() + p.x(), origin.y() + p.y() + line.ascent(), f, s);
+        }
+    }
+    if (out.isEmpty())
+        return out;
+
+    // The old painter clipped to the safe area so an overlong string could not bleed past the stroke.
+    // Intersecting keeps that guarantee in vector form, so it survives into the SVG too.
+    QPainterPath clip;
+    clip.addRect(safe);
+    return out.intersected(clip);
+}
+
 void paintArtifact(QPainter& painter, const TextArtifact& a)
 {
     if (a.box.isEmpty())
@@ -146,53 +221,22 @@ void paintArtifact(QPainter& painter, const TextArtifact& a)
 
     painter.save();
     painter.setRenderHint(QPainter::Antialiasing, true);
-    painter.setRenderHint(QPainter::TextAntialiasing, true);
 
-    const QRectF body = balloonRect(a);
-
-    if (a.shape != TextArtifact::Shape::None && !body.isEmpty()) {
-        QPainterPath path;
-        switch (a.shape) {
-        case TextArtifact::Shape::Speech:
-            path.addRoundedRect(body, body.height() * 0.28, body.height() * 0.28);
-            break;
-        case TextArtifact::Shape::Caption:
-            path.addRoundedRect(body, 4, 4);
-            break;
-        case TextArtifact::Shape::Shout:
-            path = burstPath(body);
-            break;
-        case TextArtifact::Shape::None:
-            break;
-        }
-        if (a.hasTail())
-            path = path.united(tailPath(a, body));
-
-        painter.fillPath(path, a.fill);
+    const QPainterPath silhouette = artifactSilhouette(a);
+    if (!silhouette.isEmpty()) {
+        painter.fillPath(silhouette, a.fill);
         if (a.strokeWidth > 0) {
             QPen pen(a.stroke, a.strokeWidth);
             pen.setJoinStyle(Qt::RoundJoin);
-            painter.strokePath(path, pen);
+            painter.strokePath(silhouette, pen);
         }
     }
 
-    if (!a.text.isEmpty()) {
-        const QRectF safe = textSafeArea(a, body);
-        if (safe.width() > 1 && safe.height() > 1) {
-            QTextDocument doc;
-            layOutText(doc, a, safe.width());
-
-            // Vertically centred in the safe area — a bubble's text sits in the middle of the balloon,
-            // never pinned to its top edge. Clipped so an overlong string cannot bleed past the stroke.
-            const qreal h = doc.size().height();
-            painter.setClipRect(safe);
-            painter.translate(safe.left(), safe.top() + qMax(qreal(0), (safe.height() - h) / 2.0));
-
-            QAbstractTextDocumentLayout::PaintContext ctx;
-            ctx.palette.setColor(QPalette::Text, a.textColour);
-            doc.documentLayout()->draw(&painter, ctx);
-        }
-    }
+    // Filled outlines rather than drawn text, so that what is on screen is what artifactToSvg() writes
+    // and what the library rasterises — one geometry, three consumers.
+    const QPainterPath text = artifactTextOutline(a);
+    if (!text.isEmpty())
+        painter.fillPath(text, a.textColour);
 
     painter.restore();
 }

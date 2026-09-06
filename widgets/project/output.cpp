@@ -30,6 +30,7 @@
 #include <QToolButton>
 
 #include <algorithm>
+#include <platemaker/infrastructure/project_editor/project_editor.hpp>
 
 using namespace Platemaker::Models;
 
@@ -301,7 +302,7 @@ void Project::onRefreshFiles()
         savedInputStatus.push_back(inf.status);
 
     // Also flags outputs whose canvas profile changed since their render.
-    project.sanitize(m_workspace.canvasProfiles());
+    Platemaker::Infrastructure::ProjectEditor{project}.sanitize(m_workspace.canvasProfiles());
 
     for (std::size_t i = 0; i < inputs.size(); ++i)
         inputs[i].status = savedInputStatus[i];

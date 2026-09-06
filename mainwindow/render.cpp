@@ -36,6 +36,7 @@
 #include <unordered_set>
 #include <utility>
 #include <vector>
+#include <platemaker/infrastructure/project_editor/project_editor.hpp>
 
 // ---------------------------------------------------------------------------
 // Render / processing
@@ -159,60 +160,18 @@ bool MainWindow::startRender(int projectIndex)
 
     // Refresh file statuses against disk and against the canvas profiles in effect
     // (hashes inputs — may briefly pause on huge projects).
-    project.sanitize(m_workspace.canvasProfiles());
+    Platemaker::Infrastructure::ProjectEditor{project}.sanitize(m_workspace.canvasProfiles());
     if (auto *pw = projectWidget(projectIndex)) pw->populate();
 
-    // Detect an output-invalidating configuration change (e.g. PNG→JPEG, slice
-    // height, quality). The stored signature was written by the last render; a
-    // mismatch means every existing slice is stale → force a full re-render.
+    // Every reason the outputs could be stale, in one answer from the library. This and the CLI each
+    // used to assemble the same five terms by hand — one rule kept in two repositories, which is one
+    // place for a sixth axis to be added on one side only and silently forgotten on the other.
     const auto resolvedProfile = resolveOutputProfileFor(project);
-    const std::string curSig = Platemaker::Models::outputProfileSignature(resolvedProfile);
-    const bool hasOutputs = !project.getOutputImages().empty();
-    const bool sigMismatch =
-        !project.outputSignature.empty() && project.outputSignature != curSig;
+    const auto staleness =
+        project.detectStaleness(m_workspace.canvasProfiles(), resolvedProfile);
+    const bool configChanged = staleness.configurationChanged();
 
-    // Format changes are detectable even for projects rendered before signatures
-    // existed (empty outputSignature): the recorded slice extension on disk won't
-    // match the current output format.
-    bool formatMismatch = false;
-    if (hasOutputs) {
-        const std::string wantExt =
-            Platemaker::Models::outputFormatExtension(resolvedProfile.outputFormat);
-        const std::string &firstName = project.getOutputImages().front().fileName;
-        const auto dot = firstName.find_last_of('.');
-        const std::string haveExt =
-            (dot == std::string::npos) ? std::string{} : firstName.substr(dot);
-        formatMismatch = !haveExt.empty() && haveExt != wantExt;
-    }
-
-    // Canvas-profile edits are invisible to every check above: editing margins or the
-    // canvas size changes neither the input files nor the output files, and
-    // outputProfileSignature() covers the output profile only. Without this, changing
-    // margins left the project reporting itself up to date while its outputs were stale.
-    const auto canvasChange =
-        project.detectCanvasConfigChange(m_workspace.canvasProfiles());
-
-    // Reordering / adding / removing inputs shifts the continuous strip, so every downstream slice
-    // changes while each file stays byte-identical. Fold it into configChanged so the *full* render
-    // path runs (applyProcessingResults refreshes the input-order baseline; the partial path would
-    // leave it stale, re-rendering forever).
-    const bool inputOrderChanged = project.detectInputCompositionChange();
-
-    // Optional processing steps (colour correction / overlays) change every slice while leaving the
-    // inputs and the output profile untouched — invisible to every check above. processingConfigSignature()
-    // is empty when nothing is configured, so a pre-feature project (empty stored signature) matches and is
-    // not flagged; enabling *or* disabling a step flips the signature and forces a full re-render. No
-    // empty-guard (unlike outputSignature): an empty current sig must still differ from a non-empty stored
-    // one, so turning a step back off re-renders. Mirrors the CLI.
-    const std::string curProcSig =
-        Platemaker::Models::processingConfigSignature(project.colourCorrection, project.getStripOverlays());
-    const bool procSigMismatch = project.processingSignature != curProcSig;
-
-    const bool configChanged =
-        hasOutputs && (sigMismatch || formatMismatch || canvasChange.anyChanged() || inputOrderChanged
-                       || procSigMismatch);
-
-    if (project.isUpToDate() && !configChanged) {
+    if (!staleness.needsRender()) {
         m_batchSkipReason = tr("up to date");
         setActionStatus(name, tr("Require action"));
         setProjectStatus(tr("Project is up to date — nothing to render."));
@@ -228,16 +187,16 @@ bool MainWindow::startRender(int projectIndex)
         // No breakdown of which setting moved — it does not change the decision, which is
         // only ever "regenerate or not". What *does* matter is the consequence below.
         //
-        // Only an output-format change leaves files behind under names the new settings
-        // never produce. A canvas edit keeps the format, so the same names are simply
-        // overwritten — promising deletions there would be a lie.
-        const QString consequence = formatMismatch || sigMismatch
-            ? tr("All slices will be regenerated, and previous output files that the new "
-                 "settings no longer produce (such as the old-format ones) will be deleted "
-                 "from:\n%1")
-                  .arg(QString::fromStdString(project.getOutputDirectory()))
-            : tr("All slices will be regenerated in place, in:\n%1")
-                  .arg(QString::fromStdString(project.getOutputDirectory()));
+        // One wording for every branch, because the code takes the same action in every branch:
+        // regenerate the slices, then delete whatever the new settings no longer produce. The text
+        // used to promise "in place, nothing deleted" for anything but a format or profile change,
+        // which was not true — editing a canvas margin changes page height, which changes the strip
+        // height, which can change the slice *count*, leaving a tail of files the render then
+        // removes. Saying so once is both honest and shorter than predicting which case applies.
+        const QString consequence =
+            tr("All slices will be regenerated in:\n%1\n\n"
+               "Any previous output files the new settings no longer produce will be deleted.")
+                .arg(QString::fromStdString(project.getOutputDirectory()));
 
         // A single render asks every time; a batch asks at most once (see ConfigChangePolicy).
         bool proceed = true;
@@ -637,14 +596,14 @@ void MainWindow::onRenderFinished()
         if (!outcome.failed && !outcome.cancelled) {
             if (partial) {
                 // Only the dirty slices were regenerated; refresh just those.
-                project.applyPartialResults(outcome.records);
+                Platemaker::Infrastructure::ProjectEditor{project}.applyPartialResults(outcome.records);
             } else {
                 const QString ts = QDateTime::currentDateTimeUtc().toString(Qt::ISODate);
                 // appliedProfiles records which canvas profile each page was rendered
                 // with, so a later edit to that profile (margins, canvas size) is
                 // detectable — neither the input nor the output file changes when a
                 // profile is edited, so no hash would ever notice.
-                const auto perr = project.applyProcessingResults(
+                const auto perr = Platemaker::Infrastructure::ProjectEditor{project}.applyProcessingResults(
                     outcome.records, outcome.appliedProfiles, outcome.skippedPages,
                     m_workspace.canvasProfiles(),
                     project.getOutputDirectory(), ts.toStdString());
@@ -680,7 +639,7 @@ void MainWindow::onRenderFinished()
             // applyPartialResults() updates exactly those outputs and leaves the rest, so
             // the unrendered slices stay flagged. Inputs are deliberately not marked
             // Processed: the run did not finish, so the project still needs a full pass.
-            project.applyPartialResults(outcome.records);
+            Platemaker::Infrastructure::ProjectEditor{project}.applyPartialResults(outcome.records);
             setDirty(true);
             if (auto *pw = projectWidget(idx)) pw->populate();
         }

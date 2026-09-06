@@ -297,7 +297,7 @@ void Project::addInputPaths(const QStringList& newPaths)
         pushUnique(QFileInfo(p).absoluteFilePath());
 
     // Additive merge: existing kept (status/hash preserved), new appended Pending.
-    item.mergeFileScan(unionPaths);
+    Platemaker::Infrastructure::ProjectEditor{item}.mergeFileScan(unionPaths);
     populate();
     emit projectModified();
 }
@@ -362,7 +362,7 @@ void Project::onClearInputs()
 
     // clears the list and marks outputs desynchronised
     commitEdit(tr("Clear inputs"), [&]{
-        item.mergeFileScan({});
+        Platemaker::Infrastructure::ProjectEditor{item}.mergeFileScan({});
         populate();
         emit projectModified();
     });
@@ -524,7 +524,7 @@ void Project::onInputContextMenu(const QPoint& pos)
 
     // Merge-scan the remaining paths to update the project's input images. This will remove the selected files and mark outputs as desynchronized.
     commitEdit(tr("Remove inputs"), [&]{
-        item.mergeFileScan(remaining);
+        Platemaker::Infrastructure::ProjectEditor{item}.mergeFileScan(remaining);
         populate();
         emit projectModified();
     });

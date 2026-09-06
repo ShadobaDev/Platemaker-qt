@@ -758,11 +758,11 @@ void Project::applyOverlays(std::vector<Platemaker::Models::StripOverlay> overla
         if (bitmap.isEmpty())
             continue;                                   // keep the previous bitmap rather than lose it
 
-        o.bitmapPath = bitmap.toStdString();
+        o.assetPath = bitmap.toStdString();
         try {
             // The hash is what the staleness signature watches: without updating it, a re-rendered
             // bubble would look changed on screen and render as the old one.
-            o.sha256 = Platemaker::Infrastructure::FileMetaData::computeFileSha256(o.bitmapPath);
+            o.sha256 = Platemaker::Infrastructure::FileMetaData::computeFileSha256(o.assetPath);
         } catch (const std::exception&) {
             o.sha256.clear();
         }

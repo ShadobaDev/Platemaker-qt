@@ -906,7 +906,7 @@ void StripViewer::syncOverlayItems()
         TextArtifact a = m_artifacts.value(uid);
         QPixmap      fallback;
         if (!m_artifacts.contains(uid)) {
-            fallback = QPixmap(QString::fromStdString(o.bitmapPath));
+            fallback = QPixmap(QString::fromStdString(o.assetPath));
             if (!fallback.isNull())
                 a.box = fallback.size();
         }

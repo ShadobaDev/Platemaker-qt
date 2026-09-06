@@ -4,6 +4,7 @@
 #include "ccpanel.h"
 #include "bubblepanel.h"
 #include "overlayitem.h"
+#include "artifactpainter.h"
 
 #include <platemaker/core/colour_corrector/colour_corrector.hpp>
 #include <platemaker/infrastructure/thumbnail_cache/thumbnail_cache.hpp>
@@ -373,8 +374,8 @@ void StripViewer::produceGraded(int index)
     // A page excluded from the grade renders ungraded — the same rule the render applies, and the
     // reason the preview's unit of work is the page: an output slice can straddle an excluded and an
     // included page, so on that feed the exclusion could not be honoured at display time at all.
-    const auto& ex  = m_cc.excludedInputUids;
-    const auto& uid = m_inputs[static_cast<std::size_t>(m_inputIndex.at(index))].uid;
+    const auto&       ex  = m_cc.excludedInputUids;
+    const std::string uid = m_layout.anchorUidForPage(index).toStdString();
     if (std::find(ex.begin(), ex.end(), uid) != ex.end())
         return;
 
@@ -439,7 +440,7 @@ void StripViewer::setPreviewSource(const std::vector<Platemaker::Models::InputFi
                                                                          : QStringLiteral("."));
     const QString sig = parts.join(QStringLiteral("/"));
 
-    if (sig == m_feedSignature && !m_pagePaths.isEmpty())
+    if (sig == m_feedSignature && !m_layout.isEmpty())
         return;                 // same strip — keep the built pages
 
     m_feedSignature    = sig;
@@ -449,12 +450,6 @@ void StripViewer::setPreviewSource(const std::vector<Platemaker::Models::InputFi
     m_canvasProfileIds = canvasProfileIds;
     m_cacheDir         = cacheDir;
     rebuildScene();
-}
-
-QRectF StripViewer::pageRect(int index) const
-{
-    return QRectF(0, m_pageTops.at(index),
-                  m_pageSizes.at(index).width(), m_pageSizes.at(index).height());
 }
 
 QPixmap StripViewer::pageOf(int index) const
@@ -487,12 +482,7 @@ void StripViewer::rebuildScene()
     m_item = nullptr;
     m_seamItems.clear();
     m_overlayItems.clear();     // owned by the scene — already deleted, just forget them
-    m_inputIndex.clear();
-    m_pagePaths.clear();
-    m_pageTops.clear();
-    m_pageSizes.clear();
-    m_stripWidth  = 0;
-    m_stripHeight = 0;
+    m_layout.clear();
     resetDecodeState();
 
     // Ask the library where each page lands. This reads headers and decodes nothing, and the numbers
@@ -506,28 +496,16 @@ void StripViewer::rebuildScene()
         qWarning() << "StripViewer: preview layout failed —" << e.what();
     }
 
-    int y = 0;
-    for (int i = 0; i < static_cast<int>(layout.size()); ++i) {
-        const auto& g = layout[static_cast<std::size_t>(i)];
-        // A page the render would skip contributes nothing to the strip. Dropping it here is what keeps
-        // every page below it at the offset the render will give it.
-        if (!g.readable || g.width <= 0 || g.height <= 0)
-            continue;
-        m_inputIndex.append(i);
-        m_pagePaths.append(QString::fromStdString(g.sourceFilePath));
-        m_pageTops.append(y);
-        m_pageSizes.append(QSize(g.width, g.height));
-        y            += g.height;
-        m_stripWidth  = qMax(m_stripWidth, g.width);
-    }
-    m_stripHeight = y;
+    // Pages the render would skip are dropped here, which is what keeps every page below them at the
+    // offset the render will give it.
+    m_layout.build(layout, m_inputs);
 
-    if (m_pagePaths.isEmpty()) {
+    if (m_layout.isEmpty()) {
         showEmptyState();
         return;
     }
 
-    m_scene->setSceneRect(0, 0, m_stripWidth, m_stripHeight);
+    m_scene->setSceneRect(0, 0, m_layout.stripWidth(), m_layout.stripHeight());
     // One item draws every page as its own image — no per-item seam. It pulls pixels lazily from us.
     m_item = new StripItem(this);
     m_scene->addItem(m_item);
@@ -561,8 +539,8 @@ void StripViewer::addSeamItems()
     c.setAlpha(90);
     QPen pen(c);
     pen.setCosmetic(true);      // stays 1px regardless of zoom
-    for (int top = step; top < m_stripHeight; top += step) {
-        auto *seam = m_scene->addLine(0, top, m_stripWidth, top, pen);
+    for (int top = step; top < m_layout.stripHeight(); top += step) {
+        auto *seam = m_scene->addLine(0, top, m_layout.stripWidth(), top, pen);
         seam->setVisible(ui->buttonSeams->isChecked());
         seam->setZValue(1);     // above the strip item
         m_seamItems.append(seam);
@@ -577,11 +555,7 @@ void StripViewer::showEmptyState()
     m_item = nullptr;
     m_seamItems.clear();
     m_overlayItems.clear();
-    m_inputIndex.clear();
-    m_pagePaths.clear();
-    m_pageTops.clear();
-    m_pageSizes.clear();
-    m_stripWidth = m_stripHeight = 0;
+    m_layout.clear();
 
     auto *text = m_scene->addSimpleText(
         tr("No pages to show.\nAdd input pages to the project to see the strip."));
@@ -597,16 +571,15 @@ void StripViewer::showEmptyState()
 
 void StripViewer::updateVisiblePages()
 {
-    if (m_pagePaths.isEmpty())
+    if (m_layout.isEmpty())
         return;
 
     // The viewport mapped into scene coordinates → which pages intersect it.
     const QRectF vis = m_view->mapToScene(m_view->viewport()->rect()).boundingRect();
     int first = -1, last = -1;
-    for (int i = 0; i < m_pagePaths.size(); ++i) {
-        const int top = m_pageTops.at(i);
-        const int bot = top + m_pageSizes.at(i).height();
-        if (bot >= vis.top() && top <= vis.bottom()) {
+    for (int i = 0; i < m_layout.pageCount(); ++i) {
+        const StripPage& p = m_layout.page(i);
+        if (p.top + p.size.height() >= vis.top() && p.top <= vis.bottom()) {
             if (first < 0) first = i;
             last = i;
         }
@@ -615,7 +588,7 @@ void StripViewer::updateVisiblePages()
         return;
 
     first = qMax(0, first - k_prefetchPages);
-    last  = qMin(m_pagePaths.size() - 1, last + k_prefetchPages);
+    last  = qMin(m_layout.pageCount() - 1, last + k_prefetchPages);
     for (int i = first; i <= last; ++i) {
         requestPage(i);
         produceGraded(i); // grade now if already built; otherwise the build watcher grades it on arrival
@@ -632,11 +605,11 @@ void StripViewer::requestPage(int index)
     if (!m_pageCache.object(index) && !m_pageInFlight.contains(index)) {
         m_pageInFlight.insert(index);
         // Copies, because the worker outlives this call and the workspace can change under it.
-        const auto  input   = m_inputs[static_cast<std::size_t>(m_inputIndex.at(index))];
+        const auto  input   = m_inputs[static_cast<std::size_t>(m_layout.page(index).inputIndex)];
         const auto  outProf = m_outProfile;
         const auto  profs   = m_canvasProfiles;
         const auto  ids     = m_canvasProfileIds;
-        const QSize size    = m_pageSizes.at(index);
+        const QSize size    = m_layout.page(index).size;
 
         auto *watcher = new QFutureWatcher<QImage>(this);
         connect(watcher, &QFutureWatcher<QImage>::finished, this, [this, watcher, index, gen] {
@@ -677,7 +650,7 @@ void StripViewer::requestPage(int index)
     // replaced the moment the real page arrives.
     if (!m_cacheDir.isEmpty() && !m_proxyCache.object(index) && !m_proxyInFlight.contains(index)) {
         m_proxyInFlight.insert(index);
-        const std::string path     = m_pagePaths.at(index).toStdString();
+        const std::string path     = m_layout.page(index).sourcePath.toStdString();
         const std::string cacheDir = m_cacheDir.toStdString();
         auto *watcher = new QFutureWatcher<QString>(this);
         connect(watcher, &QFutureWatcher<QString>::finished, this, [this, watcher, index, gen] {
@@ -741,12 +714,12 @@ void StripViewer::applyDefaultZoom()
 
 void StripViewer::fitWidth()
 {
-    if (m_stripWidth <= 0)
+    if (m_layout.stripWidth() <= 0)
         return;
     // Explicit user fit — unlike the default, this MAY enlarge past 100% to fill the width.
     const int vw = m_view->viewport()->width() - m_view->verticalScrollBar()->width();
     if (vw > 0)
-        userZoom(static_cast<double>(vw) / static_cast<double>(m_stripWidth));
+        userZoom(static_cast<double>(vw) / static_cast<double>(m_layout.stripWidth()));
 }
 
 void StripViewer::resizeEvent(QResizeEvent *event)
@@ -808,48 +781,6 @@ bool StripViewer::artifactToolActive() const
     return m_tool == Tool::Bubble || m_tool == Tool::Text;
 }
 
-int StripViewer::pageAtSceneY(qreal y) const
-{
-    if (m_pageTops.isEmpty())
-        return -1;
-    for (int i = m_pageTops.size() - 1; i >= 0; --i)
-        if (y >= m_pageTops.at(i))
-            return i;
-    // Above the first page: clamp rather than fall through to an absolute placement. An anchored
-    // overlay is the only kind this editor should ever create — an absolute one silently drifts onto
-    // different artwork as soon as a page above it changes height.
-    return 0;
-}
-
-QString StripViewer::anchorUidForPage(int page) const
-{
-    if (page < 0 || page >= m_inputIndex.size())
-        return {};
-    const int in = m_inputIndex.at(page);
-    if (in < 0 || in >= static_cast<int>(m_inputs.size()))
-        return {};
-    return QString::fromStdString(m_inputs[static_cast<std::size_t>(in)].uid);
-}
-
-int StripViewer::pageForAnchor(const QString& uid) const
-{
-    if (uid.isEmpty())
-        return -1;
-    for (int p = 0; p < m_inputIndex.size(); ++p)
-        if (anchorUidForPage(p) == uid)
-            return p;
-    return -1;
-}
-
-QPointF StripViewer::scenePosOf(const Platemaker::Models::StripOverlay& o) const
-{
-    const int page = pageForAnchor(QString::fromStdString(o.anchorInputUid));
-    // An unanchored overlay (an older workspace, or one whose page is gone) is already in strip
-    // coordinates — the same reading Models::resolveOverlayAnchors() gives it.
-    const int top = (page >= 0) ? m_pageTops.at(page) : 0;
-    return QPointF(o.x, top + o.y);
-}
-
 void StripViewer::setOverlaySource(const std::vector<Platemaker::Models::StripOverlay>& overlays,
                                    const ArtifactMap&                                  artifacts)
 {
@@ -891,13 +822,13 @@ void StripViewer::syncOverlayItems()
         it = m_overlayItems.erase(it);
     }
 
-    if (m_pagePaths.isEmpty())
+    if (m_layout.isEmpty())
         return;   // no strip laid out yet — there is nothing to place an overlay against
 
     int z = k_overlayZBase;
     for (const auto& o : m_overlays) {
         const QString uid  = QString::fromStdString(o.uid);
-        const int     page = pageForAnchor(QString::fromStdString(o.anchorInputUid));
+        const int     page = m_layout.pageForAnchor(QString::fromStdString(o.anchorInputUid));
         const bool    orphaned = page < 0 && !o.anchorInputUid.empty();
 
         // Normally the authoring record says what to draw. When it is missing — a sidecar lost or not
@@ -924,7 +855,7 @@ void StripViewer::syncOverlayItems()
         item->setFallbackPixmap(fallback);
         item->setBlend(o.blend);
         item->setOrphaned(orphaned);
-        item->setPos(scenePosOf(o));
+        item->setPos(m_layout.scenePosOf(o));
         item->setVisible(o.enabled);
         item->setZValue(z++);
         item->setFlag(QGraphicsItem::ItemIsSelectable, artifactToolActive() && !orphaned);
@@ -940,14 +871,14 @@ void StripViewer::onOverlayGeometryEdited(const QString& uid)
     // Re-anchor to whichever page the bubble now sits on. Crossing a page boundary is a normal drag,
     // and silently re-homing it is the whole point: the offset stays relative to the artwork under it.
     const QPointF p    = item->pos();
-    const int     page = pageAtSceneY(p.y());
+    const int     page = m_layout.pageAtSceneY(p.y());
     for (auto& o : m_overlays) {
         if (QString::fromStdString(o.uid) != uid)
             continue;
         o.x = qRound(p.x());
         if (page >= 0) {
-            o.anchorInputUid = anchorUidForPage(page).toStdString();
-            o.y              = qRound(p.y()) - m_pageTops.at(page);
+            o.anchorInputUid = m_layout.anchorUidForPage(page).toStdString();
+            o.y              = qRound(p.y()) - m_layout.page(page).top;
         } else {
             o.y = qRound(p.y());
         }
@@ -970,7 +901,7 @@ void StripViewer::refreshArtifactList()
     ui->artifactList->clear();
     for (const auto& o : m_overlays) {
         const QString uid  = QString::fromStdString(o.uid);
-        const int     page = pageForAnchor(QString::fromStdString(o.anchorInputUid));
+        const int     page = m_layout.pageForAnchor(QString::fromStdString(o.anchorInputUid));
 
         const QString label = m_artifacts.contains(uid) ? artifactLabel(m_artifacts.value(uid))
                                                         : tr("(bitmap only)");
@@ -1146,7 +1077,7 @@ void StripViewer::finishPlacement()
     }
     m_placing = false;
 
-    if (m_pagePaths.isEmpty() || !m_bubblePanel)
+    if (m_layout.isEmpty() || !m_bubblePanel)
         return;
 
     // Only a drag creates a bubble. Letting a bare click create one made every click on the artwork a
@@ -1157,7 +1088,7 @@ void StripViewer::finishPlacement()
         return;
     }
 
-    const int page = pageAtSceneY(r.top());
+    const int page = m_layout.pageAtSceneY(r.top());
     if (page < 0)
         return;
 
@@ -1171,6 +1102,6 @@ void StripViewer::finishPlacement()
     // Creation is the library's: it mints the uid, hashes the bitmap and dedups identical content, so
     // the owner finishes this and feeds the result back — where it gets selected (see setOverlaySource).
     m_selectNewOverlay = true;
-    emit artifactCreated(a, qRound(r.left()), qRound(r.top()) - m_pageTops.at(page),
-                         anchorUidForPage(page));
+    emit artifactCreated(a, qRound(r.left()), qRound(r.top()) - m_layout.page(page).top,
+                         m_layout.anchorUidForPage(page));
 }

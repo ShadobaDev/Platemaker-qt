@@ -9,8 +9,8 @@
 #include <QSet>
 #include <QSize>
 #include <QString>
-#include <QStringList>
 
+#include "striplayout.h"
 #include "textartifact.h"
 
 #include <platemaker/core/processing_pipeline/processing_pipeline.hpp>
@@ -142,9 +142,9 @@ public:
     void setColourCorrection(const Platemaker::Models::ColourCorrection& cc);
 
     // --- read by StripItem (the single painting item) ---
-    [[nodiscard]] int    pageCount() const { return m_pagePaths.size(); }             //!< Number of drawable pages.
-    [[nodiscard]] QRectF pageRect(int index) const;                                   //!< Scene rect of page \p index.
-    [[nodiscard]] QSize  stripSize() const { return {m_stripWidth, m_stripHeight}; }  //!< Whole-strip size (item boundingRect).
+    [[nodiscard]] int    pageCount() const { return m_layout.pageCount(); }             //!< Number of drawable pages.
+    [[nodiscard]] QRectF pageRect(int index) const { return m_layout.pageRect(index); } //!< Scene rect of page \p index.
+    [[nodiscard]] QSize  stripSize() const { return m_layout.stripSize(); }             //!< Whole-strip size (item boundingRect).
     [[nodiscard]] QPixmap pageOf(int index) const;   //!< Built (ungraded) page if cached, else a null pixmap.
     [[nodiscard]] QPixmap proxyOf(int index) const;  //!< Blurry proxy thumbnail if cached, else a null pixmap.
     [[nodiscard]] bool    gradeActive() const;       //!< True when the live grade preview should be shown.
@@ -227,15 +227,8 @@ private:
     void updatePlacement(const QPointF& scenePos);
     void finishPlacement();                          //!< Emits artifactCreated() for the drawn rectangle.
 
-    //! Index of the drawable page containing strip-Y \p y, or -1 when it falls outside every page.
-    [[nodiscard]] int     pageAtSceneY(qreal y) const;
-    //! Input uid of drawable page \p page (empty when out of range).
-    [[nodiscard]] QString anchorUidForPage(int page) const;
-    //! Drawable page carrying input uid \p uid, or -1 — which is what makes an overlay an orphan.
-    [[nodiscard]] int     pageForAnchor(const QString& uid) const;
-    //! Scene position of \p o, resolving its page anchor against the current layout.
-    [[nodiscard]] QPointF scenePosOf(const Platemaker::Models::StripOverlay& o) const;
     //! True while a tool that authors overlays is active (Bubble or Text).
+    //! Page and anchor geometry is asked of \c m_layout instead — see StripLayout.
     [[nodiscard]] bool    artifactToolActive() const;
 
     //! Grade the built page \p index into the graded-preview cache (no-op if grade inactive / not built).
@@ -257,14 +250,10 @@ private:
     QString                                        m_cacheDir;         //!< Proxy-thumbnail cache dir.
     QString                                        m_feedSignature;    //!< Fingerprint of the feed above — a re-feed that matches it keeps the built pages.
 
-    // Drawable pages (those the render would also skip are dropped) — indices here key every cache.
-    QList<int>          m_inputIndex;   //!< Index into m_inputs for each drawable page.
-    QStringList         m_pagePaths;    //!< Source path of each drawable page (proxy lookup + diagnostics).
-    QList<int>          m_pageTops;     //!< Cumulative Y offset per drawable page (also: overlay anchor).
-    QList<QSize>        m_pageSizes;    //!< Scaled size per page, from layoutPagesFromHeaders.
+    //! Where every drawable page landed (those the render would skip are dropped). Indices into this
+    //! key every cache below, and every overlay placement question is asked of it.
+    StripLayout         m_layout;
     QList<QGraphicsLineItem*> m_seamItems; //!< Slice-cut guide lines (owned by the scene).
-    int    m_stripWidth  = 0;                //!< Widest page = strip width.
-    int    m_stripHeight = 0;                //!< Sum of page heights.
     double m_zoom        = 1.0;              //!< Absolute zoom factor.
     bool   m_pendingFit  = false;            //!< Re-apply the default zoom on resize until the user zooms.
 

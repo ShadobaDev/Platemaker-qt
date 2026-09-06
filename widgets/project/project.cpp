@@ -1,4 +1,5 @@
 #include "project.h"
+#include "artifactpainter.h"
 #include "ui_project.h"
 #include "imagetile.h"
 #include "projectsnapshotcommand.h"

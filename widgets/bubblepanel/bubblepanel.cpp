@@ -1,4 +1,5 @@
 #include "bubblepanel.h"
+#include "artifactpainter.h"
 #include "ui_bubblepanel.h"
 #include "flowlayout.h"
 

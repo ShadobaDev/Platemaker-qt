@@ -3,13 +3,10 @@
 
 #include <QColor>
 #include <QHash>
-#include <QImage>
 #include <QJsonObject>
 #include <QPoint>
 #include <QSize>
 #include <QString>
-
-class QPainter;
 
 /**
  * @brief What a bubble *is* — the editable source a strip overlay is rendered from.
@@ -55,27 +52,6 @@ struct TextArtifact
 
 //! Authoring records for one project's overlays, keyed by `StripOverlay::uid`.
 using ArtifactMap = QHash<QString, TextArtifact>;
-
-// ---------------------------------------------------------------------------
-// Rasterising — the single definition of what a bubble looks like
-// ---------------------------------------------------------------------------
-
-/**
- * @brief Draws \p a into the rectangle (0, 0, a.box), on whatever painter is given.
- *
- * The scene preview and the PNG both go through here, so "what you see" and "what is baked" cannot
- * drift apart — they are the same code path over the same numbers.
- */
-void paintArtifact(QPainter& painter, const TextArtifact& a);
-
-//! Rasterises \p a to a transparent ARGB32 image the size of its box — what the library composites.
-[[nodiscard]] QImage renderArtifact(const TextArtifact& a);
-
-//! The box height that fits \p a's text at its current width (its width, and a sane floor, are kept).
-[[nodiscard]] QSize fittedBox(const TextArtifact& a);
-
-//! Human-readable label for the artifact list — the first line of text, or the shape's name if empty.
-[[nodiscard]] QString artifactLabel(const TextArtifact& a);
 
 // ---------------------------------------------------------------------------
 // Persistence

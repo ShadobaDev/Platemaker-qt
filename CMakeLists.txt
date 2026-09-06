@@ -59,10 +59,12 @@ qt_add_executable(Platemaker
     # (QGraphicsView), plus the scene item that draws and edits one text/bubble overlay on it.
     widgets/stripviewer/stripviewer.cpp widgets/stripviewer/stripviewer.h widgets/stripviewer/stripviewer.ui
     widgets/stripviewer/overlayitem.cpp widgets/stripviewer/overlayitem.h
+    widgets/stripviewer/striplayout.cpp widgets/stripviewer/striplayout.h
 
     # Text artifact — what a bubble IS (shape, text, styling), its sidecar codec and its rasteriser.
     # The library composites a flat RGBA bitmap and has no text engine, so the editable source lives here.
     widgets/textartifact/textartifact.cpp widgets/textartifact/textartifact.h
+    widgets/textartifact/artifactpainter.cpp widgets/textartifact/artifactpainter.h
 
     # Stage card — one step in the Project "Workflow" pipeline map (custom-painted, no .ui).
     widgets/stagecard/stagecard.cpp widgets/stagecard/stagecard.h

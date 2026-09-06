@@ -1,4 +1,5 @@
 #include "overlayitem.h"
+#include "artifactpainter.h"
 
 #include <QGraphicsScene>
 #include <QGraphicsSceneHoverEvent>

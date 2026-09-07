@@ -2,6 +2,7 @@
 #define OVERLAYITEM_H
 
 #include <QGraphicsObject>
+#include <QImage>
 #include <QPainterPath>
 #include <QPixmap>
 #include <QString>
@@ -49,6 +50,20 @@ public:
      */
     void setFallbackPixmap(const QPixmap& pm);
 
+    /**
+     * @brief Shows \p img — the library's own rasterisation of this bubble — instead of the local paths.
+     *
+     * How a styled bubble is previewed. Its style is an SVG filter, so the effect exists only once
+     * librsvg has rasterised it; Qt implements neither feTurbulence nor feDisplacementMap and would
+     * quietly draw the unfiltered outline. Rather than approximate it, the editor asks the library for
+     * the same pixels the render will bake.
+     *
+     * Dropped whenever the artifact changes, so a stale rendering is never shown as current; the owner
+     * supplies a fresh one after the edit has settled and been written. A null image means "draw the
+     * paths", which is what an unstyled bubble always does.
+     */
+    void setSharpRaster(const QImage& img);
+
     //! Greys the item out and stops interaction: its anchor page is not in the strip (see the list).
     void setOrphaned(bool orphaned);
     [[nodiscard]] bool isOrphaned() const { return m_orphaned; }
@@ -87,6 +102,7 @@ private:
 
     QString      m_uid;
     TextArtifact m_artifact;
+    QImage       m_sharp;      //!< Library rasterisation shown at rest for a styled bubble (see above).
     QPixmap      m_fallback;   //!< Non-null when the authoring record is missing (see setFallbackPixmap).
     QRectF       m_bounds;      //!< Cached content bounds — see refreshBounds().
     QPainterPath m_silhouette;  //!< Cached balloon + tails, so a repaint resolves no geometry.

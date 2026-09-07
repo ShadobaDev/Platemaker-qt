@@ -18,6 +18,7 @@
 #include <QPushButton>
 #include <QSignalBlocker>
 #include <QEvent>
+#include <QRandomGenerator>
 #include <QSpinBox>
 #include <QTimer>
 #include <QToolButton>
@@ -162,6 +163,20 @@ BubblePanel::BubblePanel(QWidget* parent)
     colourRow->addWidget(m_strokeSwatch);
     shapeForm->addRow(tr("Colours"), colourRow);
 
+    m_styleCombo = new QComboBox(m_shapeGroup);
+    m_styleCombo->addItem(tr("Clean"),  int(TextArtifact::Style::Clean));
+    m_styleCombo->addItem(tr("Marker"), int(TextArtifact::Style::Marker));
+    m_styleCombo->addItem(tr("Ink"),    int(TextArtifact::Style::Ink));
+    m_styleCombo->setToolTip(tr("Roughens the outline as it is rendered. Shown here exactly as it will "
+                                "be baked, because the library draws it."));
+    shapeForm->addRow(tr("Line style:"), m_styleCombo);
+
+    m_styleAmount = new QSpinBox(m_shapeGroup);
+    m_styleAmount->setRange(0, 200);
+    m_styleAmount->setSuffix(tr(" %"));
+    m_styleAmount->setToolTip(tr("How strong the line style is. 100% is the preset's own strength."));
+    shapeForm->addRow(tr("Style amount:"), m_styleAmount);
+
     m_strokeWidth = new QSpinBox(m_shapeGroup);
     m_strokeWidth->setRange(0, 40);
     m_strokeWidth->setSuffix(tr(" px"));
@@ -227,6 +242,8 @@ BubblePanel::BubblePanel(QWidget* parent)
     });
     connect(m_alignCombo, &QComboBox::currentIndexChanged, this, [this] { onControlChanged(); });
     connect(m_tailCheck,  &QCheckBox::toggled,             this, [this] { onControlChanged(); });
+    connect(m_styleCombo, &QComboBox::currentIndexChanged, this, [this] { onControlChanged(); });
+    connect(m_styleAmount,&QSpinBox::valueChanged,         this, [this] { onControlChanged(); });
     connect(m_tailWidth,  &QSpinBox::valueChanged,         this, [this] { onControlChanged(); });
     connect(m_tailBend,   &QSpinBox::valueChanged,         this, [this] { onControlChanged(); });
     connect(m_addTail,    &QPushButton::clicked, this, [this] {
@@ -312,6 +329,12 @@ TextArtifact BubblePanel::prototype() const
     a.stroke        = m_artifact.stroke;
     a.textColour    = m_artifact.textColour;
     a.strokeWidth   = m_strokeWidth->value();
+    a.style         = static_cast<TextArtifact::Style>(m_styleCombo->currentData().toInt());
+    a.styleAmount   = m_styleAmount->value() / 100.0;
+    // A fresh seed per bubble, so a page of marker balloons does not wear one repeated wobble. Set at
+    // placement and then left alone — re-rolling it on every edit would make the outline crawl as you
+    // type.
+    a.styleSeed     = QRandomGenerator::global()->generate();
     if (m_tailCheck->isChecked() && a.shape != TextArtifact::Shape::None) {
         Tail t;
         t.baseWidth = m_tailWidth->value();
@@ -336,6 +359,13 @@ void BubblePanel::onControlChanged()
     m_artifact.bold          = m_boldCheck->isChecked();
     m_artifact.align         = m_alignCombo->currentData().toInt();
     m_artifact.strokeWidth   = m_strokeWidth->value();
+    m_artifact.style         = static_cast<TextArtifact::Style>(m_styleCombo->currentData().toInt());
+    m_artifact.styleAmount   = m_styleAmount->value() / 100.0;
+    // A bubble authored before styles existed carries seed 0, and so would every other one — style a
+    // page of them and they would all wear the same wobble. Give it one the first time it is styled.
+    if (m_artifact.style != TextArtifact::Style::Clean && m_artifact.styleSeed == 0)
+        m_artifact.styleSeed = QRandomGenerator::global()->generate();
+    m_styleAmount->setEnabled(m_artifact.style != TextArtifact::Style::Clean);
 
     // A tail's *aim* is authored on the strip, not here. The checkbox only turns tails on and off, so
     // re-enabling has to place a sensible first tip rather than resurrect a stale one; width and bend
@@ -371,6 +401,7 @@ void BubblePanel::syncFromModel()
     {
         QSignalBlocker b2(m_tailCheck),  b3(m_strokeWidth), b4(m_textEdit);
         QSignalBlocker b9(m_tailWidth),  b10(m_tailBend);
+        QSignalBlocker b11(m_styleCombo), b12(m_styleAmount);
         QSignalBlocker b5(m_fontCombo),  b6(m_fontSize),   b7(m_boldCheck),   b8(m_alignCombo);
 
         // Checkable buttons in an exclusive group do not emit on setChecked(), so no blocker is needed.
@@ -386,6 +417,9 @@ void BubblePanel::syncFromModel()
         m_tailBend->setEnabled(hasTail);
         m_addTail->setEnabled(hasTail);
         m_strokeWidth->setValue(m_artifact.strokeWidth);
+        m_styleCombo->setCurrentIndex(m_styleCombo->findData(int(m_artifact.style)));
+        m_styleAmount->setValue(qRound(m_artifact.styleAmount * 100.0));
+        m_styleAmount->setEnabled(m_artifact.style != TextArtifact::Style::Clean);
 
         if (m_textEdit->toPlainText() != m_artifact.text)
             m_textEdit->setPlainText(m_artifact.text);   // guarded: setPlainText resets the caret

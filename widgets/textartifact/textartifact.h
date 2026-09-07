@@ -5,6 +5,7 @@
 #include <QHash>
 #include <QList>
 #include <QStringView>
+#include <QtGlobal>
 #include <QPointF>
 #include <QJsonObject>
 #include <QPoint>
@@ -60,6 +61,18 @@ struct TextArtifact
      */
     enum class Shape { None, Speech, Shout, Caption, Ellipse, Diamond, Trapezoid, Thought, Scroll, Banner };
 
+    /**
+     * @brief How the outline is *drawn*, as opposed to what it is.
+     *
+     * Every value but `Clean` is an SVG filter, so the artwork stays the same geometry and the effect
+     * happens at rasterise time — which means librsvg applies it and Qt cannot. That is the whole reason
+     * a styled bubble is previewed through the library instead of being drawn locally: an effect only
+     * the committed output could show would be an effect nobody could author.
+     *
+     * **Append only**, and persisted by name — see styleName().
+     */
+    enum class Style { Clean, Marker, Ink };
+
     Shape shape = Shape::Speech;
 
     /**
@@ -72,6 +85,16 @@ struct TextArtifact
     QSize box{280, 160};
 
     QList<Tail> tails;           //!< Empty = no tail. More than one = one sound, several speakers.
+
+    Style   style       = Style::Clean;  //!< Clean is a true no-op: no filter is emitted at all.
+    qreal   styleAmount = 1.0;           //!< Scales the effect, 0..2. 1.0 is the preset's own strength.
+    /**
+     * @brief Seeds the filter's noise, so two bubbles do not wear identical wobble.
+     *
+     * Stored rather than derived, because it must survive an edit: re-rolling it on every keystroke
+     * would make the outline crawl while you type. Set once, when the bubble is placed.
+     */
+    quint32 styleSeed   = 0;
 
     QString text;
     QString fontFamily;          //!< Empty = the application's default family.
@@ -104,6 +127,10 @@ using ArtifactMap = QHash<QString, TextArtifact>;
 [[nodiscard]] const char* shapeName(TextArtifact::Shape s);
 //! Parses \p name; anything unrecognised falls back to Speech, so an unknown shape still draws.
 [[nodiscard]] TextArtifact::Shape shapeFromName(QStringView name);
+
+//! The persisted name of \p s, and the way back — same contract as shapeName().
+[[nodiscard]] const char* styleName(TextArtifact::Style s);
+[[nodiscard]] TextArtifact::Style styleFromName(QStringView name);
 
 // ---------------------------------------------------------------------------
 // Persistence

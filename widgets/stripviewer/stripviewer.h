@@ -215,6 +215,8 @@ private:
     // --- overlays (text & bubbles) ---
     void onOverlayGeometryEdited(const QString& uid); //!< An item settled a move/resize/tail drag.
     void syncOverlayItems();        //!< Reconciles the scene items with m_overlays, by uid.
+    //! The library's rasterisation of \p a, cached by the SVG it emits. Empty if it cannot be produced.
+    [[nodiscard]] QImage sharpRasterFor(const TextArtifact& a);
     void refreshArtifactList();     //!< Rebuilds the right-bottom list from m_overlays (composite order).
     void selectOverlay(const QString& uid);   //!< Selects one in the scene and the list, and loads the panel.
     void pushOverlays(const QString& undoText); //!< Emits overlaysEdited() with the current state.
@@ -280,6 +282,21 @@ private:
     std::vector<Platemaker::Models::StripOverlay> m_overlays;   //!< The project's overlays, in composite order.
     ArtifactMap                                   m_artifacts;  //!< Their authoring records, keyed by overlay uid.
     QHash<QString, OverlayItem*>                  m_overlayItems; //!< Live scene items, keyed by overlay uid.
+    /**
+     * @brief Library rasterisations of styled bubbles, keyed by the SVG document itself.
+     *
+     * Keyed by the bytes rather than by the overlay's stored hash, and rendered from those same bytes
+     * rather than from the file — because the file is the wrong thing to ask. A workspace can live on a
+     * synced drive, where reading a file back immediately after writing it may still return the previous
+     * content; keying and rendering off the buffer in hand makes the preview show what is being edited,
+     * and leaves the file to matter only when a render reads it.
+     *
+     * Only styled bubbles are in here — an unstyled one is the same geometry either way, so rasterising
+     * it would buy nothing.
+     * ponytail: rasterised synchronously, on the UI thread. One bubble per settled edit is a few ms;
+     * opening a chapter with dozens of styled bubbles is the case that would want QtConcurrent.
+     */
+    QHash<QString, QImage>                        m_sharpCache;
     QString            m_selectedOverlay;                   //!< uid of the selected overlay, empty for none.
     // Duplicate / Delete, shared by the artifact list's context menu and its keyboard shortcuts, and
     // reachable from the canvas too — the two places a bubble is ever selected.

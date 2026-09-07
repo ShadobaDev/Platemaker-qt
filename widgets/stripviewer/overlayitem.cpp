@@ -68,8 +68,20 @@ void OverlayItem::refreshBounds()
     m_bounds = next;
 }
 
+void OverlayItem::setSharpRaster(const QImage& img)
+{
+    if (m_sharp.size() == img.size() && m_sharp.cacheKey() == img.cacheKey())
+        return;
+    m_sharp = img;
+    update();
+}
+
 void OverlayItem::setArtifact(const TextArtifact& a)
 {
+    // Whatever was rasterised described the previous artifact. Showing it now would be showing an edit
+    // that has not happened; the owner hands over a fresh one once this one settles.
+    if (!(a == m_artifact))
+        m_sharp = QImage();
     m_artifact = a;
     // A tail can reach outside the balloon, so the drawn extent moves for more reasons than a resize:
     // aiming one, bending it, or adding a second all change what this item covers.
@@ -124,10 +136,15 @@ void OverlayItem::paint(QPainter* painter, const QStyleOptionGraphicsItem* optio
         painter->setOpacity(0.35);   // present but not rendering — see the artifact list's "re-anchor"
 
     painter->setCompositionMode(compositionFor(m_blend));
-    if (m_fallback.isNull())
-        paintArtifactPaths(*painter, m_artifact, m_silhouette, m_textPath);
-    else
+    if (!m_fallback.isNull()) {
         painter->drawPixmap(QPointF(0, 0), m_fallback);
+    } else if (!m_sharp.isNull() && m_active == Grip::None) {
+        // At rest, and styled: show the library's rendering. Mid-drag the paths are used instead — they
+        // follow the mouse, and a rasterisation cannot be produced per mouse-move anyway.
+        painter->drawImage(m_bounds.topLeft(), m_sharp);
+    } else {
+        paintArtifactPaths(*painter, m_artifact, m_silhouette, m_textPath);
+    }
     painter->setCompositionMode(QPainter::CompositionMode_SourceOver);
 
     if (option->state & QStyle::State_Selected) {

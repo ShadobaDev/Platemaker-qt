@@ -55,6 +55,15 @@ class QPainter;
  */
 [[nodiscard]] QRectF artifactBounds(const TextArtifact& a);
 
+/**
+ * @brief How far \p a's style pushes ink beyond the geometry, in balloon pixels.
+ *
+ * A displacement filter moves pixels *outward* as well as in, so the artwork covers more than its paths
+ * do. The bounds — and therefore the buffer and the SVG's filter region — have to allow for it, or the
+ * effect is neatly clipped off at the edge it was meant to roughen.
+ */
+[[nodiscard]] qreal artifactStyleMargin(const TextArtifact& a);
+
 //! Same, from paths already resolved — for a caller that keeps them (see OverlayItem).
 [[nodiscard]] QRectF artifactBoundsOf(const TextArtifact& a,
                                       const QPainterPath& silhouette,

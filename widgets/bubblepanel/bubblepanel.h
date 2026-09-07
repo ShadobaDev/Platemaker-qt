@@ -98,6 +98,8 @@ private:
     QSpinBox*       m_tailWidth   = nullptr;
     QSpinBox*       m_tailBend    = nullptr;
     QPushButton*    m_addTail     = nullptr;
+    QComboBox*      m_styleCombo  = nullptr;   //!< Clean / Marker / Ink — an SVG filter, or none.
+    QSpinBox*       m_styleAmount = nullptr;   //!< How strongly, as a percentage of the preset.
     QPushButton*    m_fillSwatch  = nullptr;
     QPushButton*    m_strokeSwatch= nullptr;
     QSpinBox*       m_strokeWidth = nullptr;

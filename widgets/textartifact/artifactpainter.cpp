@@ -15,6 +15,11 @@
 
 namespace {
 
+//! Displacement of the Marker style at amount 1.0, in balloon pixels — a dried felt-tip wanders
+//! about this far off a straight line.
+constexpr qreal k_markerScale   = 6.0;
+//! Ink bleeds less than a marker wanders, but blurs where a marker does not.
+constexpr qreal k_inkScale      = 3.0;
 //! How far the tail's base is pulled back inside the silhouette, as a fraction of its width. Enough
 //! that the union is watertight, little enough that the taper still reads from where it emerges.
 constexpr qreal k_tailBaseInset = 0.6;
@@ -381,6 +386,17 @@ QRectF artifactBounds(const TextArtifact& a)
     return artifactBoundsOf(a, artifactSilhouette(a), artifactTextOutline(a));
 }
 
+qreal artifactStyleMargin(const TextArtifact& a)
+{
+    const qreal amount = qBound(0.0, a.styleAmount, 2.0);
+    switch (a.style) {
+    case TextArtifact::Style::Clean:  return 0.0;
+    case TextArtifact::Style::Marker: return k_markerScale * amount;
+    case TextArtifact::Style::Ink:    return k_inkScale * amount + 2.0;   // + the blur's own reach
+    }
+    return 0.0;
+}
+
 QRectF artifactBoundsOf(const TextArtifact& a, const QPainterPath& silhouette, const QPainterPath& text)
 {
     // The balloon always counts, even when nothing is drawn in it — an empty shapeless artifact still
@@ -394,7 +410,7 @@ QRectF artifactBoundsOf(const TextArtifact& a, const QPainterPath& silhouette, c
 
     // The stroke straddles the path, so half of it lies outside; one more pixel keeps antialiasing off
     // the edge of the buffer.
-    const qreal pad = a.strokeWidth / 2.0 + 1.0;
+    const qreal pad = a.strokeWidth / 2.0 + 1.0 + artifactStyleMargin(a);
     r = r.adjusted(-pad, -pad, pad, pad);
 
     // Whole pixels, so the rasterised buffer and the SVG viewBox describe the same rectangle rather

@@ -51,6 +51,8 @@ QList<Tail> tailsFromJson(const QJsonArray& arr)
 bool TextArtifact::operator==(const TextArtifact& o) const
 {
     return shape == o.shape && box == o.box && tails == o.tails && text == o.text
+        && style == o.style && qFuzzyCompare(1.0 + styleAmount, 1.0 + o.styleAmount)
+        && styleSeed == o.styleSeed
         && fontFamily == o.fontFamily && fontPixelSize == o.fontPixelSize && bold == o.bold
         && align == o.align && fill == o.fill && stroke == o.stroke && textColour == o.textColour
         && strokeWidth == o.strokeWidth;
@@ -89,6 +91,26 @@ TextArtifact::Shape shapeFromName(QStringView name)
     return TextArtifact::Shape::Speech;
 }
 
+const char* styleName(TextArtifact::Style s)
+{
+    switch (s) {
+    case TextArtifact::Style::Clean:  return "clean";
+    case TextArtifact::Style::Marker: return "marker";
+    case TextArtifact::Style::Ink:    return "ink";
+    }
+    return "clean";
+}
+
+TextArtifact::Style styleFromName(QStringView name)
+{
+    for (int i = 0; i <= int(TextArtifact::Style::Ink); ++i) {
+        const auto s = static_cast<TextArtifact::Style>(i);
+        if (name == QLatin1String(styleName(s)))
+            return s;
+    }
+    return TextArtifact::Style::Clean;
+}
+
 QJsonObject artifactToJson(const TextArtifact& a)
 {
     return QJsonObject{
@@ -105,6 +127,9 @@ QJsonObject artifactToJson(const TextArtifact& a)
         {QStringLiteral("stroke"),     a.stroke.name(QColor::HexArgb)},
         {QStringLiteral("textColour"), a.textColour.name(QColor::HexArgb)},
         {QStringLiteral("strokeWidth"),a.strokeWidth},
+        {QStringLiteral("style"),      QLatin1String(styleName(a.style))},
+        {QStringLiteral("styleAmount"),a.styleAmount},
+        {QStringLiteral("styleSeed"),  double(a.styleSeed)},
     };
 }
 
@@ -128,6 +153,9 @@ TextArtifact artifactFromJson(const QJsonObject& j)
     a.fill          = colourFromJson(j, "fill",       a.fill);
     a.stroke        = colourFromJson(j, "stroke",     a.stroke);
     a.textColour    = colourFromJson(j, "textColour", a.textColour);
+    a.style         = styleFromName(j.value(QStringLiteral("style")).toString());
+    a.styleAmount   = j.value(QStringLiteral("styleAmount")).toDouble(a.styleAmount);
+    a.styleSeed     = quint32(j.value(QStringLiteral("styleSeed")).toDouble(0));
     return a;
 }
 

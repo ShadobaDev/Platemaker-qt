@@ -149,6 +149,48 @@ QList<Tail> tailsFromText(const QString& s)
     return tails;
 }
 
+/**
+ * @brief The `<defs>` block for \p a's style, and the `filter="..."` to hang on the group.
+ *
+ * Only primitives librsvg implements. Qt SVG implements neither feTurbulence nor feDisplacementMap, so
+ * anything written here is invisible to Qt — which is precisely why a styled bubble is previewed by
+ * asking the library to rasterise it (see StripViewer's sharp tier) rather than drawing it locally.
+ *
+ * baseFrequency is in the filter region's *user space*, and the viewBox is in balloon pixels, so the
+ * texture scales with the bubble rather than with the output resolution. A chapter re-profiled to twice
+ * the width re-renders the same wobble, larger — not twice as much of it.
+ */
+QString styleDefs(const TextArtifact& a, const QString& id)
+{
+    if (a.style == TextArtifact::Style::Clean)
+        return {};
+
+    const qreal amount = qBound(0.0, a.styleAmount, 2.0);
+    const bool  marker = a.style == TextArtifact::Style::Marker;
+
+    // A marker's edge wanders in long slow waves; ink bleeds in finer ones and then softens.
+    const qreal freq  = marker ? 0.028 : 0.075;
+    const qreal scale = (marker ? 6.0 : 3.0) * amount;
+    const int   oct   = marker ? 3 : 2;
+
+    QString d;
+    d += QStringLiteral("  <defs>\n");
+    // A generous region: the displacement moves ink outward, and a filter region is a hard clip.
+    d += QStringLiteral("    <filter id=\"%1\" x=\"-25%\" y=\"-25%\" width=\"150%\" height=\"150%\">\n")
+             .arg(id);
+    d += QStringLiteral("      <feTurbulence type=\"fractalNoise\" baseFrequency=\"%1\" numOctaves=\"%2\" "
+                        "seed=\"%3\" result=\"pmNoise\"/>\n")
+             .arg(num(freq)).arg(oct).arg(a.styleSeed % 65536u);
+    d += QStringLiteral("      <feDisplacementMap in=\"SourceGraphic\" in2=\"pmNoise\" scale=\"%1\" "
+                        "xChannelSelector=\"R\" yChannelSelector=\"G\"%2/>\n")
+             .arg(num(scale), marker ? QString() : QStringLiteral(" result=\"pmBled\""));
+    if (!marker)
+        d += QStringLiteral("      <feGaussianBlur in=\"pmBled\" stdDeviation=\"%1\"/>\n")
+                 .arg(num(0.6 * amount));
+    d += QStringLiteral("    </filter>\n  </defs>\n");
+    return d;
+}
+
 int intOf(const QStringView& v, int fallback)
 {
     bool      ok = false;
@@ -182,6 +224,10 @@ QByteArray artifactToSvg(const TextArtifact& a)
                .arg(num(bounds.width()), num(bounds.height()),
                     num(bounds.left()),  num(bounds.top()));
 
+    // The filter is defined before the group that references it, as SVG requires.
+    const QString filterId = QStringLiteral("pm-style");
+    svg += styleDefs(a, filterId);
+
     // Everything the editor needs to re-solve this bubble, in a namespace no renderer looks at. Losing
     // these leaves a perfectly good drawing that simply cannot be re-typed — the intended degradation.
     svg += QStringLiteral("  <g");
@@ -199,12 +245,19 @@ QByteArray artifactToSvg(const TextArtifact& a)
     svg += attr(QStringLiteral("stroke"), a.stroke.name(QColor::HexArgb));
     svg += attr(QStringLiteral("textColour"), a.textColour.name(QColor::HexArgb));
     svg += attr(QStringLiteral("strokeWidth"), a.strokeWidth);
+    svg += attr(QStringLiteral("style"), QString::fromLatin1(styleName(a.style)));
+    svg += attr(QStringLiteral("styleAmount"), num(a.styleAmount));
+    svg += attr(QStringLiteral("styleSeed"), QString::number(a.styleSeed));
     svg += QLatin1String(">\n");
 
     const QPainterPath silhouette = artifactSilhouette(a);
     if (!silhouette.isEmpty()) {
         svg += QStringLiteral("    <path d=\"%1\" fill-rule=\"%2\" %3")
                    .arg(pathData(silhouette), fillRule(silhouette), paint("fill", a.fill));
+        // On the silhouette alone. A displacement filter on the whole group would drag the lettering
+        // about with the outline — the balloon is what should look hand-drawn, not the words in it.
+        if (a.style != TextArtifact::Style::Clean)
+            svg += QStringLiteral(" filter=\"url(#%1)\"").arg(filterId);
         if (a.strokeWidth > 0)
             svg += QStringLiteral(" %1 stroke-width=\"%2\" stroke-linejoin=\"round\"")
                        .arg(paint("stroke", a.stroke)).arg(a.strokeWidth);
@@ -258,6 +311,16 @@ TextArtifact artifactFromSvg(const QByteArray& svg, bool* ok)
         a.bold          = intOf(at.value(ns, QStringLiteral("bold")), 0) != 0;
         a.align         = intOf(at.value(ns, QStringLiteral("align")), a.align);
         a.strokeWidth   = intOf(at.value(ns, QStringLiteral("strokeWidth")), a.strokeWidth);
+        a.style         = styleFromName(at.value(ns, QStringLiteral("style")));
+        {
+            bool        ok  = false;
+            const qreal amt = at.value(ns, QStringLiteral("styleAmount")).toDouble(&ok);
+            if (ok)
+                a.styleAmount = amt;
+            const auto seed = at.value(ns, QStringLiteral("styleSeed")).toULongLong(&ok);
+            if (ok)
+                a.styleSeed = quint32(seed);
+        }
 
         const auto colour = [&](const char* name, QColor fallback) {
             const QColor c(at.value(ns, QLatin1String(name)).toString());

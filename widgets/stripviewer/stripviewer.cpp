@@ -5,8 +5,10 @@
 #include "bubblepanel.h"
 #include "overlayitem.h"
 #include "artifactpainter.h"
+#include "artifactsvg.h"
 
 #include <platemaker/core/colour_corrector/colour_corrector.hpp>
+#include <platemaker/core/strip_overlay_compositor/strip_overlay_compositor.hpp>
 #include <platemaker/infrastructure/thumbnail_cache/thumbnail_cache.hpp>
 
 #include <QButtonGroup>
@@ -29,6 +31,7 @@
 #include <QListWidget>
 #include <QListWidgetItem>
 #include <QMouseEvent>
+#include <QCryptographicHash>
 #include <QPainter>
 #include <QTimer>
 #include <QPen>
@@ -64,6 +67,9 @@ constexpr int k_minPlacementDrag = 24;
 constexpr int k_overlayZBase = 2;
 //! How far a duplicate lands from its original, so it is visibly a second bubble and not a mis-click.
 constexpr int k_duplicateOffset = 28;
+//! Rasterised styled bubbles held before the cache is dropped wholesale. Generous for a chapter,
+//! nothing next to the page caches above.
+constexpr int k_sharpCacheEntries = 64;
 
 /**
  * @brief Draws an overlay asset that carries no authoring parameters, at its own natural size.
@@ -837,6 +843,35 @@ void StripViewer::setOverlaySource(const std::vector<Platemaker::Models::StripOv
         selectOverlay(QString());
 }
 
+QImage StripViewer::sharpRasterFor(const TextArtifact& a)
+{
+    const QByteArray svg = artifactToSvg(a);
+    if (svg.isEmpty())
+        return {};
+
+    // Keyed by the document, so the entry cannot outlive what produced it.
+    const QString key = QString::fromLatin1(
+        QCryptographicHash::hash(svg, QCryptographicHash::Sha256).toHex());
+    if (const auto it = m_sharpCache.constFind(key); it != m_sharpCache.constEnd())
+        return it.value();
+
+    // The render's own rasteriser, at strip scale — the scene is 1:1 with the strip, so what appears
+    // here is what the committed slice will carry. From the bytes, not the path: see m_sharpCache.
+    const auto raster = Platemaker::Core::StripOverlayCompositor{}.rasterizeSvgRgba(svg.toStdString(), 1.0);
+    QImage img;
+    if (raster.isValid()) {
+        // copy(): the QImage would otherwise reference the vector's buffer, which dies with the call.
+        img = QImage(raster.rgba.data(), raster.width, raster.height,
+                     raster.width * 4, QImage::Format_RGBA8888).copy();
+    }
+    // Every settled edit mints a new hash, so a long lettering session would otherwise accumulate one
+    // rasterisation per revision. Nothing here is precious — a miss costs one librsvg render.
+    if (m_sharpCache.size() > k_sharpCacheEntries)
+        m_sharpCache.clear();
+    m_sharpCache.insert(key, img);   // cache the failure too, so a broken bubble is not retried per repaint
+    return img;
+}
+
 void StripViewer::syncOverlayItems()
 {
     if (!m_scene)
@@ -883,6 +918,13 @@ void StripViewer::syncOverlayItems()
         } else if (item->artifact() != a) {
             item->setArtifact(a);
         }
+
+        // A styled bubble is drawn by the library, because its effect is an SVG filter Qt cannot render.
+        // Unstyled ones keep drawing locally: same geometry, no round-trip.
+        if (fallback.isNull() && a.style != TextArtifact::Style::Clean)
+            item->setSharpRaster(sharpRasterFor(a));
+        else
+            item->setSharpRaster(QImage());
 
         item->setFallbackPixmap(fallback);
         item->setBlend(o.blend);

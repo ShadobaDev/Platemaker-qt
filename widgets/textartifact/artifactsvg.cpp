@@ -4,6 +4,8 @@
 
 #include <QFile>
 #include <QPainterPath>
+#include <QRectF>
+#include <QStringList>
 #include <QPointF>
 #include <QXmlStreamReader>
 
@@ -120,6 +122,33 @@ QString attr(const QString& name, int value)
     return attr(name, QString::number(value));
 }
 
+//! Tails as "x,y,width,bend" groups joined by ";" — one attribute however many there are.
+QString tailsToText(const QList<Tail>& tails)
+{
+    QStringList parts;
+    parts.reserve(tails.size());
+    for (const Tail& t : tails)
+        parts << (num(t.tip.x()) + QLatin1Char(',') + num(t.tip.y()) + QLatin1Char(',')
+                  + num(t.baseWidth) + QLatin1Char(',') + num(t.bend));
+    return parts.join(QLatin1Char(';'));
+}
+
+QList<Tail> tailsFromText(const QString& s)
+{
+    QList<Tail> tails;
+    for (const QString& g : s.split(QLatin1Char(';'), Qt::SkipEmptyParts)) {
+        const auto f = g.split(QLatin1Char(','));
+        if (f.size() < 2)
+            continue;   // a group without at least a tip says nothing
+        Tail t;
+        t.tip = QPointF(f[0].toDouble(), f[1].toDouble());
+        if (f.size() > 2) t.baseWidth = f[2].toDouble();
+        if (f.size() > 3) t.bend      = f[3].toDouble();
+        tails.append(t);
+    }
+    return tails;
+}
+
 int intOf(const QStringView& v, int fallback)
 {
     bool      ok = false;
@@ -157,21 +186,29 @@ QByteArray artifactToSvg(const TextArtifact& a)
     if (a.box.isEmpty())
         return {};
 
-    const int w = a.box.width();
-    const int h = a.box.height();
+    // The viewBox is the artifact's *drawn* extent, not its balloon: a tail may reach above or left of
+    // the balloon, and SVG takes a negative viewBox origin natively — so the file itself carries the
+    // offset and the placement stays a plain top-left. width/height are that extent, so the library
+    // rasterises it 1:1 at scale 1.0.
+    const QRectF bounds = artifactBounds(a);
+    if (bounds.isEmpty())
+        return {};
 
     QString svg;
     svg += QStringLiteral("<svg xmlns=\"http://www.w3.org/2000/svg\" xmlns:pm=\"%1\"\n"
-                          "     width=\"%2\" height=\"%3\" viewBox=\"0 0 %2 %3\">\n")
-               .arg(QLatin1String(k_pmNamespace)).arg(w).arg(h);
+                          "     width=\"%2\" height=\"%3\" viewBox=\"%4 %5 %2 %3\">\n")
+               .arg(QLatin1String(k_pmNamespace))
+               .arg(num(bounds.width()), num(bounds.height()),
+                    num(bounds.left()),  num(bounds.top()));
 
     // Everything the editor needs to re-solve this bubble, in a namespace no renderer looks at. Losing
     // these leaves a perfectly good drawing that simply cannot be re-typed — the intended degradation.
     svg += QStringLiteral("  <g");
-    svg += attr(QStringLiteral("v"), 1);
+    svg += attr(QStringLiteral("v"), 2);
     svg += attr(QStringLiteral("shape"), QString::fromLatin1(shapeName(a.shape)));
-    svg += attr(QStringLiteral("box"), QStringLiteral("%1,%2").arg(w).arg(h));
-    svg += attr(QStringLiteral("tail"), QStringLiteral("%1,%2").arg(a.tail.x()).arg(a.tail.y()));
+    svg += attr(QStringLiteral("box"),
+                QStringLiteral("%1,%2").arg(a.box.width()).arg(a.box.height()));
+    svg += attr(QStringLiteral("tails"), tailsToText(a.tails));
     svg += attr(QStringLiteral("text"), a.text);
     svg += attr(QStringLiteral("fontFamily"), a.fontFamily);
     svg += attr(QStringLiteral("fontSize"), a.fontPixelSize);
@@ -232,10 +269,7 @@ TextArtifact artifactFromSvg(const QByteArray& svg, bool* ok)
             a.box = QSize(intOf(QStringView(box[0]), a.box.width()),
                           intOf(QStringView(box[1]), a.box.height()));
 
-        const auto tail = at.value(ns, QStringLiteral("tail")).toString().split(QLatin1Char(','));
-        if (tail.size() == 2)
-            a.tail = QPoint(intOf(QStringView(tail[0]), a.tail.x()),
-                            intOf(QStringView(tail[1]), a.tail.y()));
+        a.tails = tailsFromText(at.value(ns, QStringLiteral("tails")).toString());
 
         a.text          = at.value(ns, QStringLiteral("text")).toString();
         a.fontFamily    = at.value(ns, QStringLiteral("fontFamily")).toString();

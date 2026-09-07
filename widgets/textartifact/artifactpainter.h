@@ -15,6 +15,7 @@
 
 #include <QImage>
 #include <QPainterPath>
+#include <QRectF>
 #include <QSize>
 #include <QString>
 
@@ -41,6 +42,18 @@ class QPainter;
  * safe area, so an overlong string cannot bleed past the stroke.
  */
 [[nodiscard]] QPainterPath artifactTextOutline(const TextArtifact& a);
+
+/**
+ * @brief Everything the artifact actually covers, in balloon coordinates — origin may be negative.
+ *
+ * The balloon, its tails and its text, plus room for the stroke. A tail can point anywhere, so this is
+ * computed rather than assumed: it is the size of the rasterised buffer, the SVG's viewBox, and the
+ * item's bounding rect, and those three agreeing is what keeps the preview and the render aligned.
+ *
+ * Snapped to whole pixels, so the buffer and the viewBox describe one rectangle rather than two
+ * roundings of it.
+ */
+[[nodiscard]] QRectF artifactBounds(const TextArtifact& a);
 
 // ---------------------------------------------------------------------------
 // Rasterising — the single definition of what a bubble looks like

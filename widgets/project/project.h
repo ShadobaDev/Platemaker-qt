@@ -79,6 +79,17 @@ public:
 
     //! Adopts this project's authoring records (read back from its assets). Leaves the undo stack alone.
     void setArtifacts(ArtifactMap artifacts);
+
+    /**
+     * @brief Re-writes every overlay's SVG from its authoring record.
+     *
+     * Undo and redo restore what each bubble *says*, but a bubble overwrites its own asset file rather
+     * than leaving one behind per edit — so the file on disk still holds whatever the step being undone
+     * wrote. Re-emitting from the restored records puts the two back in agreement. Safe to call
+     * repeatedly: emission is a pure function of the record, so a file that already matches is rewritten
+     * with identical bytes.
+     */
+    void rewriteOverlayAssets();
     [[nodiscard]] const ArtifactMap& artifacts() const { return m_artifacts; }
 
     /**

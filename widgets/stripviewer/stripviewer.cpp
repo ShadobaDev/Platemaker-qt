@@ -887,7 +887,9 @@ void StripViewer::syncOverlayItems()
         item->setFallbackPixmap(fallback);
         item->setBlend(o.blend);
         item->setOrphaned(orphaned);
-        item->setPos(m_layout.scenePosOf(o));
+        // The record stores the artwork's top-left; the item is positioned by its balloon's. They differ
+        // by the bounds offset whenever a tail reaches above or left of the balloon.
+        item->setPos(m_layout.scenePosOf(o) - item->contentBounds().topLeft());
         item->setVisible(o.enabled);
         item->setZValue(z++);
         item->setFlag(QGraphicsItem::ItemIsSelectable, artifactToolActive() && !orphaned);
@@ -902,8 +904,9 @@ void StripViewer::onOverlayGeometryEdited(const QString& uid)
 
     // Re-anchor to whichever page the bubble now sits on. Crossing a page boundary is a normal drag,
     // and silently re-homing it is the whole point: the offset stays relative to the artwork under it.
-    const QPointF p    = item->pos();
-    const int     page = m_layout.pageAtSceneY(p.y());
+    // Back to the artwork's own top-left, which is what the library composites at.
+    const QPointF p    = item->pos() + item->contentBounds().topLeft();
+    const int     page = m_layout.pageAtSceneY(item->pos().y());
     for (auto& o : m_overlays) {
         if (QString::fromStdString(o.uid) != uid)
             continue;
@@ -1128,12 +1131,15 @@ void StripViewer::finishPlacement()
     if (m_tool == Tool::Text)
         a.shape = TextArtifact::Shape::None;   // the Text tool is this object without a balloon
     a.box = r.size().toSize();
-    if (a.tail.y() >= 0)
-        a.tail = QPoint(a.box.width() / 4, a.box.height() - 2);
+    // The prototype's tail was placed against the panel's nominal box; re-aim it at the one just drawn,
+    // just below the balloon, which is where a reader expects a new bubble to be speaking from.
+    for (Tail& t : a.tails)
+        t.tip = QPointF(a.box.width() * 0.28, a.box.height() * 1.25);
 
     // Creation is the library's: it mints the uid, hashes the asset and dedups identical content, so
     // the owner finishes this and feeds the result back — where it gets selected (see setOverlaySource).
     m_selectNewOverlay = true;
-    emit artifactCreated(a, qRound(r.left()), qRound(r.top()) - m_layout.page(page).top,
+    const QPointF origin = r.topLeft() + artifactBounds(a).topLeft();
+    emit artifactCreated(a, qRound(origin.x()), qRound(origin.y()) - m_layout.page(page).top,
                          m_layout.anchorUidForPage(page));
 }

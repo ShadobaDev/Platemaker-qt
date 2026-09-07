@@ -3,6 +3,8 @@
 
 #include <QColor>
 #include <QHash>
+#include <QList>
+#include <QPointF>
 #include <QJsonObject>
 #include <QPoint>
 #include <QSize>
@@ -23,14 +25,46 @@
  * points, one object — so a caption can grow a balloon later without changing type, and there is one
  * rasteriser, one schema and one list.
  */
+/**
+ * @brief One tail: where it points, how wide it leaves the balloon, and how much it curves.
+ *
+ * The tip is in balloon coordinates and **may fall outside the balloon** — that is the whole point of a
+ * tail, and it is why the artifact's drawn extent is computed rather than assumed (artifactBounds()).
+ * Length is not stored: it is the distance from the balloon to the tip, so aiming and lengthening are
+ * one gesture.
+ */
+struct Tail
+{
+    QPointF tip;                //!< Balloon coordinates; outside the balloon is normal.
+    qreal   baseWidth = 34.0;   //!< Width where it emerges from the silhouette, in balloon pixels.
+    qreal   bend      = 0.0;    //!< -1..+1 — sideways offset of the curve, as a fraction of its length.
+
+    [[nodiscard]] bool operator==(const Tail& o) const
+    {
+        return tip == o.tip
+            && qFuzzyCompare(baseWidth, o.baseWidth)
+            && qFuzzyCompare(1.0 + bend, 1.0 + o.bend);   // +1 so an exact 0.0 compares equal
+    }
+    [[nodiscard]] bool operator!=(const Tail& o) const { return !(*this == o); }
+};
+
 struct TextArtifact
 {
     //! The silhouette drawn behind the text. `None` is the Text tool: letters with no balloon.
     enum class Shape { None, Speech, Shout, Caption };
 
-    Shape  shape = Shape::Speech;
-    QSize  box{280, 160};        //!< The whole artifact, tail included — this *is* the SVG's viewBox.
-    QPoint tail{70, 158};        //!< Tip, in box coordinates. `y < 0` = no tail (see hasTail()).
+    Shape shape = Shape::Speech;
+
+    /**
+     * @brief The **balloon** — what the author drags, and what text wraps inside.
+     *
+     * Not the artifact's drawn extent: a tail may reach well outside it, so the size of the rendered
+     * artwork comes from artifactBounds(). Until tails could point anywhere these were one rectangle,
+     * with a fixed fraction of the height reserved at the bottom for the tail to live in.
+     */
+    QSize box{280, 160};
+
+    QList<Tail> tails;           //!< Empty = no tail. More than one = one sound, several speakers.
 
     QString text;
     QString fontFamily;          //!< Empty = the application's default family.
@@ -44,7 +78,7 @@ struct TextArtifact
     int    strokeWidth = 5;
 
     //! True when a tail should be drawn. A shapeless artifact has nothing to grow a tail from.
-    [[nodiscard]] bool hasTail() const { return shape != Shape::None && tail.y() >= 0; }
+    [[nodiscard]] bool hasTail() const { return shape != Shape::None && !tails.isEmpty(); }
 
     [[nodiscard]] bool operator==(const TextArtifact& o) const;
     [[nodiscard]] bool operator!=(const TextArtifact& o) const { return !(*this == o); }

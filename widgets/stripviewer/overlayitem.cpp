@@ -49,13 +49,25 @@ OverlayItem::OverlayItem(QString uid, TextArtifact artifact, QGraphicsItem* pare
     // handled here, in one place, for whichever grip the press actually hit.
     setFlag(ItemIsSelectable, true);
     setAcceptHoverEvents(true);
+    refreshBounds();
+}
+
+void OverlayItem::refreshBounds()
+{
+    const QRectF next = m_fallback.isNull() ? artifactBounds(m_artifact)
+                                            : QRectF(QPointF(0, 0), QSizeF(m_fallback.size()));
+    if (next == m_bounds)
+        return;
+    prepareGeometryChange();
+    m_bounds = next;
 }
 
 void OverlayItem::setArtifact(const TextArtifact& a)
 {
-    if (a.box != m_artifact.box)
-        prepareGeometryChange();
     m_artifact = a;
+    // A tail can reach outside the balloon, so the drawn extent moves for more reasons than a resize:
+    // aiming one, bending it, or adding a second all change what this item covers.
+    refreshBounds();
     update();
 }
 
@@ -72,6 +84,7 @@ void OverlayItem::setFallbackPixmap(const QPixmap& pm)
     if (m_fallback.cacheKey() == pm.cacheKey())
         return;
     m_fallback = pm;
+    refreshBounds();
     update();
 }
 
@@ -87,7 +100,10 @@ void OverlayItem::setOrphaned(bool orphaned)
 
 QRectF OverlayItem::boundingRect() const
 {
-    return QRectF(0, 0, m_artifact.box.width(), m_artifact.box.height())
+    // The artifact's own extent, not its balloon: local (0,0) is still the balloon's top-left, so a tail
+    // pointing up or left gives this rect a negative origin. Sharing artifactBounds() with the rasteriser
+    // and the SVG writer is what keeps all three describing the same rectangle.
+    return contentBounds()
         .adjusted(-k_gripMargin, -k_gripMargin, k_gripMargin, k_gripMargin);
 }
 
@@ -126,10 +142,9 @@ void OverlayItem::paint(QPainter* painter, const QStyleOptionGraphicsItem* optio
         for (const Grip g : {Grip::TopLeft, Grip::TopRight, Grip::BottomLeft, Grip::BottomRight})
             painter->drawRect(gripRect(g));
 
-        if (m_artifact.hasTail()) {
-            painter->setBrush(option->palette.color(QPalette::Highlight));
-            painter->drawEllipse(gripRect(Grip::Tail));
-        }
+        painter->setBrush(option->palette.color(QPalette::Highlight));
+        for (int i = 0; i < m_artifact.tails.size(); ++i)
+            painter->drawEllipse(tailGripRect(i));
     }
     painter->restore();
 }
@@ -151,11 +166,6 @@ qreal gripSpan(const QGraphicsItem* item)
 }
 } // namespace
 
-QPointF OverlayItem::tailPoint() const
-{
-    return QPointF(m_artifact.tail.x(), m_artifact.tail.y());
-}
-
 QRectF OverlayItem::gripRect(Grip g) const
 {
     const qreal  s = gripSpan(this);
@@ -167,20 +177,35 @@ QRectF OverlayItem::gripRect(Grip g) const
     case Grip::TopRight:    c = box.topRight();    break;
     case Grip::BottomLeft:  c = box.bottomLeft();  break;
     case Grip::BottomRight: c = box.bottomRight(); break;
-    case Grip::Tail:        c = tailPoint();       break;
     default:                return {};
     }
     return QRectF(c.x() - s / 2, c.y() - s / 2, s, s);
 }
 
-OverlayItem::Grip OverlayItem::gripAt(const QPointF& local) const
+QRectF OverlayItem::tailGripRect(int i) const
 {
+    if (i < 0 || i >= m_artifact.tails.size())
+        return {};
+    const qreal   s = gripSpan(this);
+    const QPointF c = m_artifact.tails.at(i).tip;
+    return QRectF(c.x() - s / 2, c.y() - s / 2, s, s);
+}
+
+OverlayItem::Grip OverlayItem::gripAt(const QPointF& local, int* tailIndex) const
+{
+    if (tailIndex)
+        *tailIndex = -1;
     if (!isSelected())
         return Grip::Body;   // grips only exist on the selected item; a press elsewhere is a move
 
-    // Tail first: it can sit near a corner, and aiming is the more specific intent there.
-    if (m_artifact.hasTail() && gripRect(Grip::Tail).contains(local))
-        return Grip::Tail;
+    // Tails first: a tip can sit near a corner, and aiming is the more specific intent there.
+    for (int i = 0; i < m_artifact.tails.size(); ++i) {
+        if (tailGripRect(i).contains(local)) {
+            if (tailIndex)
+                *tailIndex = i;
+            return Grip::Tail;
+        }
+    }
     for (const Grip g : {Grip::TopLeft, Grip::TopRight, Grip::BottomLeft, Grip::BottomRight})
         if (gripRect(g).contains(local))
             return g;
@@ -202,7 +227,7 @@ void OverlayItem::mousePressEvent(QGraphicsSceneMouseEvent* e)
     // gripAt() depends on being selected, so the order matters.
     QGraphicsObject::mousePressEvent(e);
 
-    m_active        = gripAt(e->pos());
+    m_active        = gripAt(e->pos(), &m_activeTail);
     m_startRect     = QRectF(pos(), QSizeF(m_artifact.box));
     m_startScenePos = e->scenePos();
     m_moved         = false;
@@ -224,12 +249,11 @@ void OverlayItem::mouseMoveEvent(QGraphicsSceneMouseEvent* e)
         return;
     }
 
-    if (m_active == Grip::Tail) {
-        // The tail is stored in box coordinates and clamped to the box: the artifact's bitmap *is* its
-        // box, so a tip outside it would simply be cropped away by the rasteriser.
-        const QPointF local = e->pos();
-        m_artifact.tail = QPoint(qBound(0, qRound(local.x()), m_artifact.box.width()),
-                                 qBound(0, qRound(local.y()), m_artifact.box.height()));
+    if (m_active == Grip::Tail && m_activeTail >= 0 && m_activeTail < m_artifact.tails.size()) {
+        // Unclamped on purpose: the artwork's extent is computed from where its tails actually point, so
+        // a tip well outside the balloon makes the artifact bigger rather than being cropped away.
+        m_artifact.tails[m_activeTail].tip = e->pos();
+        refreshBounds();
         update();
         return;
     }
@@ -250,14 +274,18 @@ void OverlayItem::mouseMoveEvent(QGraphicsSceneMouseEvent* e)
 
     const QSize newBox(qRound(r.width()), qRound(r.height()));
     if (newBox != m_artifact.box) {
-        // Keep the tail pointing the same relative way as the balloon changes size.
-        if (m_artifact.tail.y() >= 0 && !m_artifact.box.isEmpty()) {
-            m_artifact.tail = QPoint(
-                qRound(m_artifact.tail.x() * double(newBox.width())  / m_artifact.box.width()),
-                qRound(m_artifact.tail.y() * double(newBox.height()) / m_artifact.box.height()));
+        // Keep every tail pointing the same relative way as the balloon changes size, and scale its
+        // width with it — otherwise a tail keeps its absolute thickness and swamps a shrinking bubble.
+        if (!m_artifact.box.isEmpty()) {
+            const qreal sx = double(newBox.width())  / m_artifact.box.width();
+            const qreal sy = double(newBox.height()) / m_artifact.box.height();
+            for (Tail& t : m_artifact.tails) {
+                t.tip = QPointF(t.tip.x() * sx, t.tip.y() * sy);
+                t.baseWidth *= (sx + sy) / 2.0;
+            }
         }
-        prepareGeometryChange();
         m_artifact.box = newBox;
+        refreshBounds();
     }
     setPos(r.topLeft());
     update();

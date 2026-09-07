@@ -58,8 +58,12 @@ QPixmap shapeThumbnail(TextArtifact::Shape shape, const QPalette& pal)
     a.fill          = pal.color(QPalette::Base);
     a.stroke        = pal.color(QPalette::WindowText);
     a.textColour    = pal.color(QPalette::WindowText);
-    a.tail          = shapeSpeaks(shape) ? QPoint(a.box.width() / 4, a.box.height() - a.strokeWidth)
-                                         : QPoint(0, -1);
+    if (shapeSpeaks(shape)) {
+        Tail t;
+        t.tip       = QPointF(a.box.width() * 0.28, a.box.height() * 1.22);
+        t.baseWidth = a.box.width() * 0.18;
+        a.tails     = {t};
+    }
 
     return QPixmap::fromImage(renderArtifact(a).scaled(QSize(k_shapeIconW, k_shapeIconH),
                                                        Qt::KeepAspectRatio, Qt::SmoothTransformation));
@@ -113,8 +117,25 @@ BubblePanel::BubblePanel(QWidget* parent)
     shapeLay->addLayout(shapeForm);
 
     m_tailCheck = new QCheckBox(tr("Tail"), m_shapeGroup);
-    m_tailCheck->setToolTip(tr("Drag the round handle on the bubble to aim it."));
+    m_tailCheck->setToolTip(tr("Drag the round handle on the bubble to aim it — including outside it."));
     shapeForm->addRow(QString(), m_tailCheck);
+
+    // Aiming is a drag on the strip; these are the two things a drag cannot say.
+    m_tailWidth = new QSpinBox(m_shapeGroup);
+    m_tailWidth->setRange(4, 400);
+    m_tailWidth->setSuffix(tr(" px"));
+    m_tailWidth->setToolTip(tr("How wide the tail is where it leaves the bubble."));
+    shapeForm->addRow(tr("Tail width:"), m_tailWidth);
+
+    m_tailBend = new QSpinBox(m_shapeGroup);
+    m_tailBend->setRange(-100, 100);
+    m_tailBend->setSuffix(tr(" %"));
+    m_tailBend->setToolTip(tr("Curves the tail sideways. 0 is straight."));
+    shapeForm->addRow(tr("Tail bend:"), m_tailBend);
+
+    m_addTail = new QPushButton(tr("Add another tail"), m_shapeGroup);
+    m_addTail->setToolTip(tr("For a sound with more than one source. Drag each handle to aim it."));
+    shapeForm->addRow(QString(), m_addTail);
 
     m_fillSwatch   = new QPushButton(tr("Fill"),   m_shapeGroup);
     m_strokeSwatch = new QPushButton(tr("Stroke"), m_shapeGroup);
@@ -188,6 +209,21 @@ BubblePanel::BubblePanel(QWidget* parent)
     });
     connect(m_alignCombo, &QComboBox::currentIndexChanged, this, [this] { onControlChanged(); });
     connect(m_tailCheck,  &QCheckBox::toggled,             this, [this] { onControlChanged(); });
+    connect(m_tailWidth,  &QSpinBox::valueChanged,         this, [this] { onControlChanged(); });
+    connect(m_tailBend,   &QSpinBox::valueChanged,         this, [this] { onControlChanged(); });
+    connect(m_addTail,    &QPushButton::clicked, this, [this] {
+        // A new tail starts opposite the last one so it is visible rather than stacked on top of it.
+        Tail t;
+        t.baseWidth = m_tailWidth->value();
+        t.bend      = m_tailBend->value() / 100.0;
+        t.tip       = m_artifact.tails.isEmpty()
+            ? QPointF(m_artifact.box.width() * 0.28, m_artifact.box.height() * 1.25)
+            : QPointF(m_artifact.box.width() - m_artifact.tails.last().tip.x(),
+                      m_artifact.tails.last().tip.y());
+        m_artifact.tails.append(t);
+        m_tailCheck->setChecked(true);
+        onControlChanged();
+    });
     connect(m_boldCheck,  &QCheckBox::toggled,             this, [this] { onControlChanged(); });
     connect(m_strokeWidth, &QSpinBox::valueChanged,        this, [this] { onControlChanged(); });
     connect(m_fontSize,    &QSpinBox::valueChanged,        this, [this] { onControlChanged(); });
@@ -258,8 +294,13 @@ TextArtifact BubblePanel::prototype() const
     a.stroke        = m_artifact.stroke;
     a.textColour    = m_artifact.textColour;
     a.strokeWidth   = m_strokeWidth->value();
-    if (!m_tailCheck->isChecked() || a.shape == TextArtifact::Shape::None)
-        a.tail = QPoint(0, -1);   // no tail
+    if (m_tailCheck->isChecked() && a.shape != TextArtifact::Shape::None) {
+        Tail t;
+        t.baseWidth = m_tailWidth->value();
+        t.bend      = m_tailBend->value() / 100.0;
+        t.tip       = QPointF(a.box.width() * 0.28, a.box.height() * 1.25);
+        a.tails     = {t};
+    }
     return a;
 }
 
@@ -278,13 +319,26 @@ void BubblePanel::onControlChanged()
     m_artifact.align         = m_alignCombo->currentData().toInt();
     m_artifact.strokeWidth   = m_strokeWidth->value();
 
-    // The tail's position is authored on the strip, not here — the checkbox only turns it on and off,
-    // so re-enabling it has to restore a sensible tip rather than resurrect a stale one.
+    // A tail's *aim* is authored on the strip, not here. The checkbox only turns tails on and off, so
+    // re-enabling has to place a sensible first tip rather than resurrect a stale one; width and bend
+    // apply to all of them (see m_tailWidth).
     const bool wantTail = m_tailCheck->isChecked() && m_artifact.shape != TextArtifact::Shape::None;
-    if (!wantTail)
-        m_artifact.tail = QPoint(0, -1);
-    else if (m_artifact.tail.y() < 0)
-        m_artifact.tail = QPoint(m_artifact.box.width() / 4, m_artifact.box.height() - 2);
+    if (!wantTail) {
+        m_artifact.tails.clear();
+    } else {
+        if (m_artifact.tails.isEmpty()) {
+            Tail t;
+            t.tip = QPointF(m_artifact.box.width() * 0.28, m_artifact.box.height() * 1.25);
+            m_artifact.tails.append(t);
+        }
+        for (Tail& t : m_artifact.tails) {
+            t.baseWidth = m_tailWidth->value();
+            t.bend      = m_tailBend->value() / 100.0;
+        }
+    }
+    m_tailWidth->setEnabled(wantTail);
+    m_tailBend->setEnabled(wantTail);
+    m_addTail->setEnabled(wantTail);
 
     if (!m_hasSelection)
         return;   // styling the next placement, nothing to preview or persist yet
@@ -298,12 +352,21 @@ void BubblePanel::syncFromModel()
     m_populating = true;
     {
         QSignalBlocker b2(m_tailCheck),  b3(m_strokeWidth), b4(m_textEdit);
+        QSignalBlocker b9(m_tailWidth),  b10(m_tailBend);
         QSignalBlocker b5(m_fontCombo),  b6(m_fontSize),   b7(m_boldCheck),   b8(m_alignCombo);
 
         // Checkable buttons in an exclusive group do not emit on setChecked(), so no blocker is needed.
         if (auto* tile = m_shapeTiles->button(int(m_artifact.shape)))
             tile->setChecked(true);
-        m_tailCheck->setChecked(m_artifact.tail.y() >= 0);
+        const bool hasTail = !m_artifact.tails.isEmpty();
+        m_tailCheck->setChecked(hasTail);
+        if (hasTail) {
+            m_tailWidth->setValue(qRound(m_artifact.tails.first().baseWidth));
+            m_tailBend->setValue(qRound(m_artifact.tails.first().bend * 100.0));
+        }
+        m_tailWidth->setEnabled(hasTail);
+        m_tailBend->setEnabled(hasTail);
+        m_addTail->setEnabled(hasTail);
         m_strokeWidth->setValue(m_artifact.strokeWidth);
 
         if (m_textEdit->toPlainText() != m_artifact.text)

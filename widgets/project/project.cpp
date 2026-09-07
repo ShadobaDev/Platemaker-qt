@@ -286,6 +286,8 @@ void Project::applyProjectSnapshot(const QString& snapshot)
         j.value(QStringLiteral("project")).toString().toStdString());
 
     m_artifacts = artifactsFromJsonObject(j.value(QStringLiteral("artifacts")).toObject());
+    // The records are back; the files on disk still hold what the step being undone wrote.
+    rewriteOverlayAssets();
     emit artifactsChanged(m_artifacts);
 
     populate();
@@ -662,40 +664,46 @@ void Project::addDroppedUrls(const QList<QUrl>& urls)
 namespace {
 
 /**
- * @brief Writes \p a into the workspace's overlays/ directory as an SVG, named by its content hash.
+ * @brief Writes \p a into the workspace's overlays/ directory as an SVG.
  *
  * The file the library composites **is** the authoring record: the artwork every renderer can draw,
  * plus the editor's parameters in a namespace renderers ignore. There is no separate sidecar and no
  * intermediate raster.
  *
- * Naming by hash gives two things for free: identical bubbles share one file (the same dedup the
- * library's inventory does), and an edit *never overwrites* the file an earlier version references —
- * which is what lets undo restore a previous rendering rather than the old record pointing at new art.
- * Superseded files are left behind deliberately; they are a few KB each, and deleting one would break
- * the undo step still referencing it.
+ * @param reusePath The file this overlay already owns, overwritten in place. Empty for a new overlay,
+ *                  which is then named by content hash — that name is also what makes two identical
+ *                  bubbles share one file, the same dedup the library's inventory performs.
+ *
+ * A bubble keeps **one** file for its lifetime. Naming every revision by its content instead would
+ * leave one file per settled edit — a dozen in a single lettering session — and the reason to do that
+ * has gone: the undo snapshot carries the full authoring record, so a previous rendering is regenerated
+ * from it (see Project::rewriteOverlayAssets()) rather than recovered from a file kept alive for it.
  *
  * @return The asset's absolute path, or empty when it could not be written.
  */
-QString writeArtifactSvg(const QString& overlaysDir, const TextArtifact& a)
+QString writeArtifactSvg(const QString& overlaysDir, const TextArtifact& a,
+                         const QString& reusePath = {})
 {
     const QByteArray svg = artifactToSvg(a);
     if (svg.isEmpty() || overlaysDir.isEmpty())
         return {};
 
-    // Hashed from the bytes about to be written, so the name matches what the library will hash when it
-    // inventories the file — no scratch file needed, unlike the encode-then-hash the raster path used.
-    const QString sha = QString::fromLatin1(
-        QCryptographicHash::hash(svg, QCryptographicHash::Sha256).toHex()).left(16);
-    const QString finalPath = overlaysDir + QStringLiteral("/ovl-") + sha + QStringLiteral(".svg");
+    QString path = reusePath;
+    if (path.isEmpty()) {
+        // Hashed from the bytes about to be written, so the name matches what the library will hash
+        // when it inventories the file — no scratch file needed, unlike the raster path's encode-then-hash.
+        const QString sha = QString::fromLatin1(
+            QCryptographicHash::hash(svg, QCryptographicHash::Sha256).toHex()).left(16);
+        path = overlaysDir + QStringLiteral("/ovl-") + sha + QStringLiteral(".svg");
+        if (QFile::exists(path))
+            return path;               // same content, already stored
+    }
 
-    if (QFile::exists(finalPath))
-        return finalPath;              // same content, already stored
-
-    QFile f(finalPath);
+    QFile f(path);
     if (!f.open(QIODevice::WriteOnly | QIODevice::Truncate))
         return {};
     f.write(svg);
-    return f.error() == QFile::NoError ? finalPath : QString{};
+    return f.error() == QFile::NoError ? path : QString{};
 }
 
 } // namespace
@@ -735,6 +743,20 @@ void Project::createOverlay(const TextArtifact& artifact, int x, int y, const QS
     });
 }
 
+void Project::rewriteOverlayAssets()
+{
+    const QString dir = ArtifactStore::overlaysDir(m_workspacePath);
+    if (dir.isEmpty())
+        return;
+
+    for (const auto& o : m_workspace.projectItems[m_projectIndex].getStripOverlays()) {
+        const auto it = m_artifacts.constFind(QString::fromStdString(o.uid));
+        if (it == m_artifacts.constEnd() || o.assetPath.empty())
+            continue;   // a flat asset has no record to re-emit from, and must be left exactly as it is
+        writeArtifactSvg(dir, it.value(), QString::fromStdString(o.assetPath));
+    }
+}
+
 void Project::applyOverlays(std::vector<Platemaker::Models::StripOverlay> overlays,
                             ArtifactMap                                  artifacts,
                             const QString&                               undoText)
@@ -751,7 +773,17 @@ void Project::applyOverlays(std::vector<Platemaker::Models::StripOverlay> overla
         if (m_artifacts.contains(uid) && m_artifacts.value(uid) == it.value())
             continue;                                   // unchanged content
 
-        const QString asset = dir.isEmpty() ? QString{} : writeArtifactSvg(dir, it.value());
+        // Overwrite the file this overlay owns — unless another overlay shares it, which happens when
+        // addOverlay() deduped two identical bubbles onto one path at creation. Writing through that
+        // would silently re-letter the other one, so fork to a fresh file instead.
+        const QString owned  = QString::fromStdString(o.assetPath);
+        const bool    shared = std::count_if(overlays.begin(), overlays.end(),
+                                             [&o](const Platemaker::Models::StripOverlay& other) {
+                                                 return other.assetPath == o.assetPath;
+                                             }) > 1;
+        const QString asset = dir.isEmpty()
+            ? QString{}
+            : writeArtifactSvg(dir, it.value(), shared ? QString{} : owned);
         if (asset.isEmpty())
             continue;                                   // keep the previous asset rather than lose it
 

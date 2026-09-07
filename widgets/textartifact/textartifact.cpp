@@ -2,6 +2,7 @@
 
 #include <QDir>
 #include <QFileInfo>
+#include <QJsonArray>
 
 namespace {
 
@@ -12,6 +13,35 @@ QColor colourFromJson(const QJsonObject& j, const char* key, QColor fallback)
     return c.isValid() ? c : fallback;
 }
 
+QJsonArray tailsToJson(const QList<Tail>& tails)
+{
+    QJsonArray arr;
+    for (const Tail& t : tails)
+        arr.append(QJsonObject{
+            {QStringLiteral("x"),     t.tip.x()},
+            {QStringLiteral("y"),     t.tip.y()},
+            {QStringLiteral("width"), t.baseWidth},
+            {QStringLiteral("bend"),  t.bend},
+        });
+    return arr;
+}
+
+QList<Tail> tailsFromJson(const QJsonArray& arr)
+{
+    QList<Tail> tails;
+    tails.reserve(arr.size());
+    for (const QJsonValue& v : arr) {
+        const QJsonObject o = v.toObject();
+        Tail t;
+        t.tip       = QPointF(o.value(QStringLiteral("x")).toDouble(),
+                              o.value(QStringLiteral("y")).toDouble());
+        t.baseWidth = o.value(QStringLiteral("width")).toDouble(t.baseWidth);
+        t.bend      = o.value(QStringLiteral("bend")).toDouble(t.bend);
+        tails.append(t);
+    }
+    return tails;
+}
+
 } // namespace
 
 // ---------------------------------------------------------------------------
@@ -20,7 +50,7 @@ QColor colourFromJson(const QJsonObject& j, const char* key, QColor fallback)
 
 bool TextArtifact::operator==(const TextArtifact& o) const
 {
-    return shape == o.shape && box == o.box && tail == o.tail && text == o.text
+    return shape == o.shape && box == o.box && tails == o.tails && text == o.text
         && fontFamily == o.fontFamily && fontPixelSize == o.fontPixelSize && bold == o.bold
         && align == o.align && fill == o.fill && stroke == o.stroke && textColour == o.textColour
         && strokeWidth == o.strokeWidth;
@@ -37,8 +67,7 @@ QJsonObject artifactToJson(const TextArtifact& a)
         {QStringLiteral("shape"),      QLatin1String(names[static_cast<int>(a.shape)])},
         {QStringLiteral("w"),          a.box.width()},
         {QStringLiteral("h"),          a.box.height()},
-        {QStringLiteral("tailX"),      a.tail.x()},
-        {QStringLiteral("tailY"),      a.tail.y()},
+        {QStringLiteral("tails"),      tailsToJson(a.tails)},
         {QStringLiteral("text"),       a.text},
         {QStringLiteral("fontFamily"), a.fontFamily},
         {QStringLiteral("fontSize"),   a.fontPixelSize},
@@ -65,8 +94,7 @@ TextArtifact artifactFromJson(const QJsonObject& j)
     // written by an older build loads as a usable bubble rather than a blank.
     a.box  = QSize(j.value(QStringLiteral("w")).toInt(a.box.width()),
                    j.value(QStringLiteral("h")).toInt(a.box.height()));
-    a.tail = QPoint(j.value(QStringLiteral("tailX")).toInt(a.tail.x()),
-                    j.value(QStringLiteral("tailY")).toInt(a.tail.y()));
+    a.tails = tailsFromJson(j.value(QStringLiteral("tails")).toArray());
     a.text          = j.value(QStringLiteral("text")).toString();
     a.fontFamily    = j.value(QStringLiteral("fontFamily")).toString();
     a.fontPixelSize = j.value(QStringLiteral("fontSize")).toInt(a.fontPixelSize);

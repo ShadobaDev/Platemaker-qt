@@ -11,13 +11,16 @@
 #include <QTextOption>
 #include <QtMath>
 
+#include <cmath>
+
 namespace {
 
-//! Fraction of the box height reserved below the balloon for its tail.
-constexpr qreal k_tailAllowance = 0.18;
-//! Half-width of the tail's base, as a fraction of the balloon's width. The base is hidden inside the
-//! silhouette, so what shows is the taper below it — about half this at the point it emerges.
-constexpr qreal k_tailBaseHalf  = 0.16;
+//! How far the tail's base is pulled back inside the silhouette, as a fraction of its width. Enough
+//! that the union is watertight, little enough that the taper still reads from where it emerges.
+constexpr qreal k_tailBaseInset = 0.6;
+//! Binary-search steps for the silhouette crossing. 24 halvings resolve a 4000px balloon to well under
+//! a pixel, and each step is one QPainterPath::contains().
+constexpr int   k_edgeSteps     = 24;
 //! Points on a "shout" burst — 12 spikes reads as a shout without turning into a sunburst.
 constexpr int   k_burstSpikes   = 12;
 //! Inner radius of the burst, as a fraction of the outer one.
@@ -26,21 +29,17 @@ constexpr qreal k_burstInner    = 0.74;
 constexpr int   k_fitPasses     = 6;
 
 /**
- * @brief The balloon's own rectangle inside the box — the box less the stroke and the tail allowance.
+ * @brief The balloon's own rectangle inside the box — the box, less room for the stroke.
  *
- * The tail lives *inside* the artifact's box rather than hanging off it, which is what keeps the
- * bitmap, the box the author drags and the library's placement all one rectangle. It costs a little
- * reach: a tail cannot point past the box, so a speaker far outside it needs a bigger box.
- * ponytail: bottom-edge tails only, which is nearly every comic bubble. A tail leaving another edge
- * means computing the nearest edge and rotating the base segment — worth doing when someone asks.
+ * The box *is* the balloon now. It used to double as the artifact's whole extent, with a fixed 18 % of
+ * its height reserved at the bottom for the tail to live in — which is what limited a tail to the
+ * bottom edge and to inside the box. The drawn extent is computed instead (artifactBounds()).
  */
 QRectF balloonRect(const TextArtifact& a)
 {
     const qreal  sw = a.strokeWidth / 2.0;
     QRectF body(0, 0, a.box.width(), a.box.height());
     body.adjust(sw, sw, -sw, -sw);
-    if (a.hasTail())
-        body.setBottom(body.bottom() - a.box.height() * k_tailAllowance);
     return body.normalized();
 }
 
@@ -64,34 +63,60 @@ QPainterPath burstPath(const QRectF& r)
 }
 
 /**
- * @brief Triangle reaching from deep inside the balloon out to the tail tip.
+ * @brief One tail, from wherever the ray to its tip leaves the silhouette out to that tip.
  *
- * The base sits at the body's vertical **centre**, not on its bottom edge, so the triangle is certain to
- * overlap the silhouette whatever shape it is. That matters for the burst: its outline is a star
- * inscribed in the body rect, so at the tail's x the shape's boundary can be far above the rect's bottom
- * — a tail based on that edge comes out as a separate triangle floating under the shape. Everything
- * inside the silhouette disappears into the union anyway, and the taper reads as a proper tail from
- * wherever it emerges, which is the point: this needs no idea of where the outline actually is.
+ * Shape-agnostic by construction. Rather than knowing where a given outline's edge is, it casts a ray
+ * from the balloon's centre toward the tip and binary-searches for the crossing with
+ * QPainterPath::contains(). That works for a rounded rectangle, a burst, and anything added later,
+ * and it is what lets a tail leave any edge instead of only the bottom one.
+ *
+ * The base is pulled back *inside* the silhouette so the union is watertight — everything inside
+ * disappears into it anyway, and what shows is the taper from the point it emerges.
+ *
+ * @param outline The bare silhouette, without any tail already merged into it: each tail must be aimed
+ *                at the balloon, not at a neighbour's outline.
  */
-QPainterPath tailPath(const TextArtifact& a, const QRectF& body)
+QPainterPath tailPath(const QPainterPath& outline, const QRectF& body, const Tail& t)
 {
-    const qreal baseY = body.center().y();
-    const QPointF tip(qBound(body.left(), qreal(a.tail.x()), body.right()),
-                      qBound(body.bottom(), qreal(a.tail.y()), qreal(a.box.height()) - a.strokeWidth / 2.0));
+    const QPointF centre = body.center();
+    QPointF       ray    = t.tip - centre;
+    const qreal   len    = std::hypot(ray.x(), ray.y());
+    if (len < 1.0 || t.baseWidth < 1.0)
+        return {};                       // tip on the centre, or a tail too thin to see
+    ray /= len;
 
-    // k_tailBaseHalf is the half-width where the tail *emerges*, which is the only part anyone sees.
-    // The base is hidden inside the balloon, so widen it by the taper ratio to land on that width at the
-    // edge — otherwise the tail's thickness would silently depend on the box's proportions.
-    // Clamped to leave room on both sides: qBound() below is undefined, not merely wide, if its minimum
-    // ends up above its maximum — which a very narrow balloon would otherwise produce.
-    const qreal half = qMin(qMax(4.0, body.width() * k_tailBaseHalf),
-                            qMax(1.0, body.width() / 2.0 - 1.0));
-    const qreal cx   = qBound(body.left() + half, qreal(a.tail.x()), body.right() - half);
+    // Find the crossing as a fraction of the distance to the tip. Extend past the tip first if it lies
+    // inside the balloon, so the search always brackets an inside/outside pair.
+    qreal outside = 1.0;
+    while (outside < 8.0 && outline.contains(centre + ray * (len * outside)))
+        outside *= 1.5;
+    qreal inside = 0.0;
+    for (int i = 0; i < k_edgeSteps; ++i) {
+        const qreal mid = (inside + outside) / 2.0;
+        if (outline.contains(centre + ray * (len * mid)))
+            inside = mid;
+        else
+            outside = mid;
+    }
+
+    const qreal edge = len * inside;
+    if (edge >= len)
+        return {};                       // the tip sits inside the balloon: nothing would show
+
+    const QPointF perp(-ray.y(), ray.x());
+    const qreal   half = t.baseWidth / 2.0;
+    const QPointF base = centre + ray * qMax(0.0, edge - t.baseWidth * k_tailBaseInset);
+    const QPointF b1   = base + perp * half;
+    const QPointF b2   = base - perp * half;
+
+    // Bend is a sideways offset of both control points, so the tail curves as one ribbon rather than
+    // pinching. Expressed as a fraction of the tail's own length, so it looks the same at any size.
+    const QPointF sway = perp * (t.bend * (len - edge));
 
     QPainterPath p;
-    p.moveTo(cx - half, baseY);
-    p.lineTo(cx + half, baseY);
-    p.lineTo(tip);
+    p.moveTo(b1);
+    p.quadTo((b1 + t.tip) / 2.0 + sway, t.tip);
+    p.quadTo((b2 + t.tip) / 2.0 + sway, b2);
     p.closeSubpath();
     return p;
 }
@@ -160,9 +185,40 @@ QPainterPath artifactSilhouette(const TextArtifact& a)
     case TextArtifact::Shape::None:
         break;
     }
-    if (a.hasTail())
-        path = path.united(tailPath(a, body));
+    // Each tail is aimed at the *bare* outline, not at the accumulating union: otherwise the second
+    // tail would ray-cast against the first one and emerge from its flank.
+    const QPainterPath outline = path;
+    for (const Tail& t : a.tails) {
+        const QPainterPath tp = tailPath(outline, body, t);
+        if (!tp.isEmpty())
+            path = path.united(tp);
+    }
     return path;
+}
+
+QRectF artifactBounds(const TextArtifact& a)
+{
+    // The balloon always counts, even when nothing is drawn in it — an empty shapeless artifact still
+    // occupies the box the author dragged.
+    QRectF r(0, 0, a.box.width(), a.box.height());
+
+    const QPainterPath silhouette = artifactSilhouette(a);
+    if (!silhouette.isEmpty())
+        r = r.united(silhouette.boundingRect());
+    const QPainterPath text = artifactTextOutline(a);
+    if (!text.isEmpty())
+        r = r.united(text.boundingRect());
+
+    // The stroke straddles the path, so half of it lies outside; one more pixel keeps antialiasing off
+    // the edge of the buffer.
+    const qreal pad = a.strokeWidth / 2.0 + 1.0;
+    r = r.adjusted(-pad, -pad, pad, pad);
+
+    // Whole pixels, so the rasterised buffer and the SVG viewBox describe the same rectangle rather
+    // than two roundings of it.
+    const qreal left = qFloor(r.left());
+    const qreal top  = qFloor(r.top());
+    return QRectF(left, top, qCeil(r.right()) - left, qCeil(r.bottom()) - top);
 }
 
 QPainterPath artifactTextOutline(const TextArtifact& a)
@@ -199,7 +255,11 @@ QPainterPath artifactTextOutline(const TextArtifact& a)
             const QString   s    = blockText.mid(line.textStart(), line.textLength());
             if (s.trimmed().isEmpty())
                 continue;
-            const QPointF p = lay->position() + line.position();
+            // naturalTextRect(), *not* position(): Qt stores every line at the layout's left edge and
+            // applies the alignment offset inside QTextLine::draw(). Nothing here goes through draw(),
+            // so reading position() silently left-aligns every bubble whatever the setting says.
+            // naturalTextRect() is the accessor that has the offset already folded in.
+            const QPointF p = lay->position() + line.naturalTextRect().topLeft();
             // addText places by the text *baseline*, which is the line's top plus its ascent.
             out.addText(origin.x() + p.x(), origin.y() + p.y() + line.ascent(), f, s);
         }
@@ -246,12 +306,19 @@ QImage renderArtifact(const TextArtifact& a)
     if (a.box.isEmpty())
         return {};
 
-    // ARGB32 (not premultiplied) so the saved PNG carries straight, unmultiplied alpha — which is what
+    const QRectF bounds = artifactBounds(a);
+    if (bounds.isEmpty())
+        return {};
+
+    // ARGB32 (not premultiplied) so the image carries straight, unmultiplied alpha — which is what
     // libvips reads back and what the compositor's source-over expects.
-    QImage img(a.box, QImage::Format_ARGB32);
+    QImage img(bounds.size().toSize(), QImage::Format_ARGB32);
     img.fill(Qt::transparent);
 
     QPainter p(&img);
+    // The artifact is drawn in balloon coordinates, and a tail can reach above or left of the balloon,
+    // so the buffer's origin is the bounds' origin rather than the balloon's.
+    p.translate(-bounds.topLeft());
     paintArtifact(p, a);
     p.end();
     return img;
@@ -262,10 +329,9 @@ QSize fittedBox(const TextArtifact& a)
     if (a.text.isEmpty())
         return a.box;
 
-    // Growing the box also grows the tail allowance (a fraction of the height) and leaves the stroke and
-    // inset to pay for, so adding the shortfall once always falls short. Re-measure instead of deriving
-    // a closed form here: it converges in a couple of passes and cannot drift out of step with
-    // balloonRect() / textSafeArea() the way a duplicated formula would.
+    // Growing the box leaves the stroke and the shape's inset to pay for, so adding the shortfall once
+    // falls short. Re-measure instead of deriving a closed form here: it converges in a pass or two and
+    // cannot drift out of step with balloonRect() / textSafeArea() the way a duplicated formula would.
     TextArtifact probe = a;
     for (int pass = 0; pass < k_fitPasses; ++pass) {
         const QRectF safe = textSafeArea(probe, balloonRect(probe));

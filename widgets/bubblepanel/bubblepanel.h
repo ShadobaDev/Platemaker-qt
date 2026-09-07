@@ -86,6 +86,18 @@ private:
      */
     QButtonGroup*   m_shapeTiles  = nullptr;
     QCheckBox*      m_tailCheck   = nullptr;
+    /**
+     * @brief Tail thickness and curve, applied to **every** tail on the artifact.
+     *
+     * Aiming a tail is a drag on the strip; these are the two things a drag cannot express. They are
+     * artifact-wide rather than per-tail because almost every bubble has exactly one, and per-tail
+     * controls would need a "current tail" selection to hang off.
+     * ponytail: artifact-wide. Give Tail its own row in a list if anyone ever wants two tails on one
+     * bubble with different weights.
+     */
+    QSpinBox*       m_tailWidth   = nullptr;
+    QSpinBox*       m_tailBend    = nullptr;
+    QPushButton*    m_addTail     = nullptr;
     QPushButton*    m_fillSwatch  = nullptr;
     QPushButton*    m_strokeSwatch= nullptr;
     QSpinBox*       m_strokeWidth = nullptr;

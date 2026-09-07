@@ -55,6 +55,11 @@ class QPainter;
  */
 [[nodiscard]] QRectF artifactBounds(const TextArtifact& a);
 
+//! Same, from paths already resolved — for a caller that keeps them (see OverlayItem).
+[[nodiscard]] QRectF artifactBoundsOf(const TextArtifact& a,
+                                      const QPainterPath& silhouette,
+                                      const QPainterPath& text);
+
 // ---------------------------------------------------------------------------
 // Rasterising — the single definition of what a bubble looks like
 // ---------------------------------------------------------------------------
@@ -66,6 +71,16 @@ class QPainter;
  * drift apart — they are the same code path over the same numbers.
  */
 void paintArtifact(QPainter& painter, const TextArtifact& a);
+
+/**
+ * @brief Draws \p a from paths already resolved, so a repaint costs no geometry.
+ *
+ * Resolving is not cheap — a thought balloon unions eleven circles, and any shape with text lays out a
+ * document and builds glyph outlines — while a repaint happens on every scroll, zoom and selection
+ * change. A caller that holds the paths draws through here; paintArtifact() is the one-shot form.
+ */
+void paintArtifactPaths(QPainter& painter, const TextArtifact& a,
+                        const QPainterPath& silhouette, const QPainterPath& text);
 
 //! Rasterises \p a to a transparent ARGB32 image the size of its box — what the library composites.
 [[nodiscard]] QImage renderArtifact(const TextArtifact& a);

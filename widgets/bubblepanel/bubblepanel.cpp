@@ -37,7 +37,17 @@ constexpr int k_shapeIconScale   = 4;
 //! promise a shape that placing it does not give you.
 bool shapeSpeaks(TextArtifact::Shape shape)
 {
-    return shape == TextArtifact::Shape::Speech || shape == TextArtifact::Shape::Shout;
+    // Someone is talking: a tail belongs. A caption, a banner or a scroll is narration — it has no
+    // speaker to point at, so placing one should not sprout a tail the author then has to turn off.
+    switch (shape) {
+    case TextArtifact::Shape::Speech:
+    case TextArtifact::Shape::Shout:
+    case TextArtifact::Shape::Ellipse:
+    case TextArtifact::Shape::Thought:
+        return true;
+    default:
+        return false;
+    }
 }
 
 /**
@@ -60,7 +70,9 @@ QPixmap shapeThumbnail(TextArtifact::Shape shape, const QPalette& pal)
     a.textColour    = pal.color(QPalette::WindowText);
     if (shapeSpeaks(shape)) {
         Tail t;
-        t.tip       = QPointF(a.box.width() * 0.28, a.box.height() * 1.22);
+        // A short tail: the tile is scaled to fit, so a long one would shrink the balloon itself and
+        // leave the speaking shapes visibly smaller than the rest of the grid.
+        t.tip       = QPointF(a.box.width() * 0.28, a.box.height() * 1.10);
         t.baseWidth = a.box.width() * 0.18;
         a.tails     = {t};
     }
@@ -104,10 +116,16 @@ BubblePanel::BubblePanel(QWidget* parent)
         tileLay->addWidget(b);
         m_shapeTiles->addButton(b, int(shape));
     };
-    addShapeTile(TextArtifact::Shape::Speech,  tr("Speech balloon"));
-    addShapeTile(TextArtifact::Shape::Shout,   tr("Shout"));
-    addShapeTile(TextArtifact::Shape::Caption, tr("Caption box"));
-    addShapeTile(TextArtifact::Shape::None,    tr("Text only — no balloon"));
+    addShapeTile(TextArtifact::Shape::Speech,    tr("Speech balloon"));
+    addShapeTile(TextArtifact::Shape::Ellipse,   tr("Round balloon"));
+    addShapeTile(TextArtifact::Shape::Thought,   tr("Thought balloon"));
+    addShapeTile(TextArtifact::Shape::Shout,     tr("Shout"));
+    addShapeTile(TextArtifact::Shape::Caption,   tr("Caption box"));
+    addShapeTile(TextArtifact::Shape::Trapezoid, tr("Caption plate"));
+    addShapeTile(TextArtifact::Shape::Diamond,   tr("Diamond"));
+    addShapeTile(TextArtifact::Shape::Banner,    tr("Banner"));
+    addShapeTile(TextArtifact::Shape::Scroll,    tr("Scroll"));
+    addShapeTile(TextArtifact::Shape::None,      tr("Text only — no balloon"));
     if (auto* first = m_shapeTiles->button(int(TextArtifact::Shape::Speech)))
         first->setChecked(true);
     refreshShapeTiles();

@@ -60,11 +60,39 @@ bool TextArtifact::operator==(const TextArtifact& o) const
 // JSON
 // ---------------------------------------------------------------------------
 
+const char* shapeName(TextArtifact::Shape s)
+{
+    // A switch with no default: adding a Shape without naming it here is a compiler warning, not a
+    // silently mis-saved bubble.
+    switch (s) {
+    case TextArtifact::Shape::None:      return "none";
+    case TextArtifact::Shape::Speech:    return "speech";
+    case TextArtifact::Shape::Shout:     return "shout";
+    case TextArtifact::Shape::Caption:   return "caption";
+    case TextArtifact::Shape::Ellipse:   return "ellipse";
+    case TextArtifact::Shape::Diamond:   return "diamond";
+    case TextArtifact::Shape::Trapezoid: return "trapezoid";
+    case TextArtifact::Shape::Thought:   return "thought";
+    case TextArtifact::Shape::Scroll:    return "scroll";
+    case TextArtifact::Shape::Banner:    return "banner";
+    }
+    return "speech";
+}
+
+TextArtifact::Shape shapeFromName(QStringView name)
+{
+    for (int i = 0; i <= int(TextArtifact::Shape::Banner); ++i) {
+        const auto s = static_cast<TextArtifact::Shape>(i);
+        if (name == QLatin1String(shapeName(s)))
+            return s;
+    }
+    return TextArtifact::Shape::Speech;
+}
+
 QJsonObject artifactToJson(const TextArtifact& a)
 {
-    static const char* names[] = {"none", "speech", "shout", "caption"};
     return QJsonObject{
-        {QStringLiteral("shape"),      QLatin1String(names[static_cast<int>(a.shape)])},
+        {QStringLiteral("shape"),      QLatin1String(shapeName(a.shape))},
         {QStringLiteral("w"),          a.box.width()},
         {QStringLiteral("h"),          a.box.height()},
         {QStringLiteral("tails"),      tailsToJson(a.tails)},
@@ -84,11 +112,7 @@ TextArtifact artifactFromJson(const QJsonObject& j)
 {
     TextArtifact a;
 
-    const QString shape = j.value(QStringLiteral("shape")).toString();
-    if      (shape == QLatin1String("none"))    a.shape = TextArtifact::Shape::None;
-    else if (shape == QLatin1String("shout"))   a.shape = TextArtifact::Shape::Shout;
-    else if (shape == QLatin1String("caption")) a.shape = TextArtifact::Shape::Caption;
-    else                                        a.shape = TextArtifact::Shape::Speech;
+    a.shape = shapeFromName(j.value(QStringLiteral("shape")).toString());
 
     // Every field is read defensively with the struct's own default as the fallback, so a snapshot
     // written by an older build loads as a usable bubble rather than a blank.

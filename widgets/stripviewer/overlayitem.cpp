@@ -54,8 +54,14 @@ OverlayItem::OverlayItem(QString uid, TextArtifact artifact, QGraphicsItem* pare
 
 void OverlayItem::refreshBounds()
 {
-    const QRectF next = m_fallback.isNull() ? artifactBounds(m_artifact)
-                                            : QRectF(QPointF(0, 0), QSizeF(m_fallback.size()));
+    // Resolve once, here, and keep the paths: paint() must not rebuild an eleven-circle union or re-lay
+    // a text document on every scroll and selection change.
+    m_silhouette = m_fallback.isNull() ? artifactSilhouette(m_artifact) : QPainterPath();
+    m_textPath   = m_fallback.isNull() ? artifactTextOutline(m_artifact) : QPainterPath();
+
+    const QRectF next = m_fallback.isNull()
+        ? artifactBoundsOf(m_artifact, m_silhouette, m_textPath)
+        : QRectF(QPointF(0, 0), QSizeF(m_fallback.size()));
     if (next == m_bounds)
         return;
     prepareGeometryChange();
@@ -119,7 +125,7 @@ void OverlayItem::paint(QPainter* painter, const QStyleOptionGraphicsItem* optio
 
     painter->setCompositionMode(compositionFor(m_blend));
     if (m_fallback.isNull())
-        paintArtifact(*painter, m_artifact);
+        paintArtifactPaths(*painter, m_artifact, m_silhouette, m_textPath);
     else
         painter->drawPixmap(QPointF(0, 0), m_fallback);
     painter->setCompositionMode(QPainter::CompositionMode_SourceOver);

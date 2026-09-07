@@ -4,6 +4,7 @@
 #include <QColor>
 #include <QHash>
 #include <QList>
+#include <QStringView>
 #include <QPointF>
 #include <QJsonObject>
 #include <QPoint>
@@ -50,8 +51,14 @@ struct Tail
 
 struct TextArtifact
 {
-    //! The silhouette drawn behind the text. `None` is the Text tool: letters with no balloon.
-    enum class Shape { None, Speech, Shout, Caption };
+    /**
+     * @brief The silhouette drawn behind the text. `None` is the Text tool: letters with no balloon.
+     *
+     * **Append only.** These are persisted by name, not by number (see shapeName()), so the order here
+     * is free — but an existing value must keep its name or every saved bubble using it silently becomes
+     * a speech balloon on the next load.
+     */
+    enum class Shape { None, Speech, Shout, Caption, Ellipse, Diamond, Trapezoid, Thought, Scroll, Banner };
 
     Shape shape = Shape::Speech;
 
@@ -86,6 +93,17 @@ struct TextArtifact
 
 //! Authoring records for one project's overlays, keyed by `StripOverlay::uid`.
 using ArtifactMap = QHash<QString, TextArtifact>;
+
+/**
+ * @brief The persisted name of \p s, and the way back.
+ *
+ * One mapping, used by both persistence paths — the undo snapshot's JSON and the SVG's `pm:shape`. It
+ * used to be a positional array in one and a switch in the other, which meant appending a shape was
+ * a silent out-of-bounds read on one side and a compiler error on neither.
+ */
+[[nodiscard]] const char* shapeName(TextArtifact::Shape s);
+//! Parses \p name; anything unrecognised falls back to Speech, so an unknown shape still draws.
+[[nodiscard]] TextArtifact::Shape shapeFromName(QStringView name);
 
 // ---------------------------------------------------------------------------
 // Persistence

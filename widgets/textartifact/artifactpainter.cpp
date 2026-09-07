@@ -27,6 +27,21 @@ constexpr int   k_burstSpikes   = 12;
 constexpr qreal k_burstInner    = 0.74;
 //! Re-measure passes in fittedBox(); it converges in two or three, this is headroom.
 constexpr int   k_fitPasses     = 6;
+//! 1/sqrt(2) — the half-axis fraction at which a rectangle inscribes an ellipse.
+constexpr qreal k_invSqrt2      = 0.70710678118654752;
+//! Fraction of the width the trapezoid's top edge loses on each side.
+constexpr qreal k_trapezoidSlant = 0.16;
+//! Lobes around a thought balloon. Odd, so no two sit exactly opposite and it reads as drawn, not
+//! generated.
+constexpr int   k_thoughtLobes  = 11;
+//! Lobe radius, as a fraction of the balloon's shorter half-axis.
+constexpr qreal k_thoughtLobe   = 0.40;
+//! Depth of a banner's end notch, as a fraction of its width.
+constexpr qreal k_bannerNotch   = 0.12;
+//! Width of a scroll's rolled end, as a fraction of the balloon's width.
+constexpr qreal k_scrollRoll    = 0.10;
+//! How far a scroll's long edges bow inward, as a fraction of its height.
+constexpr qreal k_scrollBow     = 0.06;
 
 /**
  * @brief The balloon's own rectangle inside the box — the box, less room for the stroke.
@@ -41,6 +56,102 @@ QRectF balloonRect(const TextArtifact& a)
     QRectF body(0, 0, a.box.width(), a.box.height());
     body.adjust(sw, sw, -sw, -sw);
     return body.normalized();
+}
+
+//! The largest axis-aligned rectangle inside the ellipse inscribed in \p r.
+QRectF inscribedInEllipse(const QRectF& r)
+{
+    const qreal kx = r.width()  * (1.0 - k_invSqrt2) / 2.0;
+    const qreal ky = r.height() * (1.0 - k_invSqrt2) / 2.0;
+    return r.adjusted(kx, ky, -kx, -ky);
+}
+
+//! A rhombus with its vertices at the midpoints of \p r's edges.
+QPainterPath diamondPath(const QRectF& r)
+{
+    const QPointF c = r.center();
+    QPainterPath p;
+    p.moveTo(c.x(), r.top());
+    p.lineTo(r.right(), c.y());
+    p.lineTo(c.x(), r.bottom());
+    p.lineTo(r.left(), c.y());
+    p.closeSubpath();
+    return p;
+}
+
+//! A trapezoid: full width at the bottom, narrowed at the top. Reads as a caption plate seen in
+//! perspective, which is what it is usually for.
+QPainterPath trapezoidPath(const QRectF& r)
+{
+    const qreal inset = r.width() * k_trapezoidSlant;
+    QPainterPath p;
+    p.moveTo(r.left() + inset, r.top());
+    p.lineTo(r.right() - inset, r.top());
+    p.lineTo(r.right(), r.bottom());
+    p.lineTo(r.left(), r.bottom());
+    p.closeSubpath();
+    return p;
+}
+
+/**
+ * @brief A thought balloon: a ring of overlapping circles around an inner ellipse.
+ *
+ * United rather than drawn as separate circles, so the arcs *inside* the outline disappear and one
+ * stroke follows the scalloped edge. The inner ellipse is what keeps the middle solid when the lobes
+ * are small relative to the balloon.
+ */
+QPainterPath thoughtPath(const QRectF& r)
+{
+    const QPointF c    = r.center();
+    const qreal   rx   = r.width()  / 2.0;
+    const qreal   ry   = r.height() / 2.0;
+    const qreal   lobe = qMax(2.0, qMin(rx, ry) * k_thoughtLobe);
+
+    QPainterPath p;
+    p.addEllipse(c, qMax(1.0, rx - lobe * 0.95), qMax(1.0, ry - lobe * 0.95));
+    for (int i = 0; i < k_thoughtLobes; ++i) {
+        const qreal   ang = (2.0 * M_PI * i) / k_thoughtLobes;
+        const QPointF at(c.x() + qCos(ang) * (rx - lobe), c.y() + qSin(ang) * (ry - lobe));
+        QPainterPath  bump;
+        bump.addEllipse(at, lobe, lobe);
+        p = p.united(bump);
+    }
+    return p;
+}
+
+//! An unrolled scroll: a panel with bowed long edges and a rolled end on each side.
+QPainterPath scrollPath(const QRectF& r)
+{
+    const qreal  roll = qMax(2.0, qMin(r.width() * k_scrollRoll, r.height() / 2.0));
+    const qreal  bow  = r.height() * k_scrollBow;
+    const QRectF body = r.adjusted(roll, 0, -roll, 0);
+    if (body.width() <= 1.0)
+        return trapezoidPath(r);   // too narrow to roll: fall back to something still drawable
+
+    QPainterPath p;
+    p.moveTo(body.left(), body.top());
+    p.quadTo(body.center().x(), body.top() + bow, body.right(), body.top());
+    // Qt measures arcs in counter-clockwise degrees; a -180 sweep from the top bulges the roll outward.
+    p.arcTo(QRectF(body.right() - roll, body.top(), roll * 2.0, body.height()), 90.0, -180.0);
+    p.quadTo(body.center().x(), body.bottom() - bow, body.left(), body.bottom());
+    p.arcTo(QRectF(body.left() - roll, body.top(), roll * 2.0, body.height()), -90.0, -180.0);
+    p.closeSubpath();
+    return p;
+}
+
+//! A ribbon with a V notched into each end.
+QPainterPath bannerPath(const QRectF& r)
+{
+    const qreal n = qMin(r.width() * k_bannerNotch, r.width() / 3.0);
+    QPainterPath p;
+    p.moveTo(r.left(), r.top());
+    p.lineTo(r.right(), r.top());
+    p.lineTo(r.right() - n, r.center().y());
+    p.lineTo(r.right(), r.bottom());
+    p.lineTo(r.left(), r.bottom());
+    p.lineTo(r.left() + n, r.center().y());
+    p.closeSubpath();
+    return p;
 }
 
 //! A star polygon inscribed in \p r — the "shout" silhouette.
@@ -121,22 +232,73 @@ QPainterPath tailPath(const QPainterPath& outline, const QRectF& body, const Tai
     return p;
 }
 
-//! The rectangle text may occupy — inset from the silhouette so letters do not touch the stroke.
+/**
+ * @brief The rectangle text may occupy — inset from the silhouette so letters do not touch the stroke.
+ *
+ * This is the half of a shape that takes the thought. A path is a few lines; knowing where text fits
+ * *inside* it is what stops a wide bubble spilling its words out between a burst's spikes or past a
+ * diamond's slope. Every case here is the largest axis-aligned rectangle the outline actually contains,
+ * then inset for the stroke.
+ */
 QRectF textSafeArea(const TextArtifact& a, const QRectF& body)
 {
     if (a.shape == TextArtifact::Shape::None)
         return QRectF(0, 0, a.box.width(), a.box.height());
 
-    // A star's usable interior is its *inner* radius, not its bounding box — inset accordingly, or the
-    // text runs out between the spikes.
-    if (a.shape == TextArtifact::Shape::Shout) {
+    const qreal pad = a.strokeWidth + 8.0;
+    QRectF      usable;
+
+    switch (a.shape) {
+    case TextArtifact::Shape::Shout: {
+        // A star's usable interior is its *inner* radius, not its bounding box — inset accordingly, or
+        // the text runs out between the spikes.
         const qreal kx = body.width()  * (1.0 - k_burstInner * 0.92) / 2.0;
         const qreal ky = body.height() * (1.0 - k_burstInner * 0.92) / 2.0;
-        return body.adjusted(kx, ky, -kx, -ky);
+        usable = body.adjusted(kx, ky, -kx, -ky);
+        break;
+    }
+    case TextArtifact::Shape::Ellipse:
+        usable = inscribedInEllipse(body);
+        break;
+    case TextArtifact::Shape::Thought:
+        // The lobes eat into the ring, so the safe area is the inner ellipse rather than the whole one.
+        usable = inscribedInEllipse(body.adjusted(qMin(body.width(), body.height()) * k_thoughtLobe * 0.5,
+                                                  qMin(body.width(), body.height()) * k_thoughtLobe * 0.5,
+                                                  -qMin(body.width(), body.height()) * k_thoughtLobe * 0.5,
+                                                  -qMin(body.width(), body.height()) * k_thoughtLobe * 0.5));
+        break;
+    case TextArtifact::Shape::Diamond:
+        // The largest rectangle inside a rhombus is half its width and half its height, centred.
+        usable = body.adjusted(body.width() / 4.0, body.height() / 4.0,
+                               -body.width() / 4.0, -body.height() / 4.0);
+        break;
+    case TextArtifact::Shape::Trapezoid: {
+        // Narrowest at the top, so the top width is the only one safe for every line.
+        const qreal inset = body.width() * k_trapezoidSlant;
+        usable = body.adjusted(inset, 0, -inset, 0);
+        break;
+    }
+    case TextArtifact::Shape::Scroll: {
+        const qreal roll = qMin(body.width() * k_scrollRoll, body.height() / 2.0);
+        const qreal bow  = body.height() * k_scrollBow;
+        usable = body.adjusted(roll, bow, -roll, -bow);
+        break;
+    }
+    case TextArtifact::Shape::Banner: {
+        const qreal n = qMin(body.width() * k_bannerNotch, body.width() / 3.0);
+        usable = body.adjusted(n, 0, -n, 0);
+        break;
+    }
+    case TextArtifact::Shape::Speech:
+        usable = body.adjusted(6.0, 0, -6.0, 0);   // the rounded corners cost a little width
+        break;
+    case TextArtifact::Shape::Caption:
+    case TextArtifact::Shape::None:
+        usable = body;
+        break;
     }
 
-    const qreal inset = a.strokeWidth + (a.shape == TextArtifact::Shape::Speech ? 14.0 : 8.0);
-    return body.adjusted(inset, inset, -inset, -inset);
+    return usable.adjusted(pad, pad, -pad, -pad);
 }
 
 //! The laid-out text, ready to draw or measure. Width-bound; height falls out of the wrap.
@@ -182,6 +344,24 @@ QPainterPath artifactSilhouette(const TextArtifact& a)
     case TextArtifact::Shape::Shout:
         path = burstPath(body);
         break;
+    case TextArtifact::Shape::Ellipse:
+        path.addEllipse(body);
+        break;
+    case TextArtifact::Shape::Diamond:
+        path = diamondPath(body);
+        break;
+    case TextArtifact::Shape::Trapezoid:
+        path = trapezoidPath(body);
+        break;
+    case TextArtifact::Shape::Thought:
+        path = thoughtPath(body);
+        break;
+    case TextArtifact::Shape::Scroll:
+        path = scrollPath(body);
+        break;
+    case TextArtifact::Shape::Banner:
+        path = bannerPath(body);
+        break;
     case TextArtifact::Shape::None:
         break;
     }
@@ -198,14 +378,17 @@ QPainterPath artifactSilhouette(const TextArtifact& a)
 
 QRectF artifactBounds(const TextArtifact& a)
 {
+    return artifactBoundsOf(a, artifactSilhouette(a), artifactTextOutline(a));
+}
+
+QRectF artifactBoundsOf(const TextArtifact& a, const QPainterPath& silhouette, const QPainterPath& text)
+{
     // The balloon always counts, even when nothing is drawn in it — an empty shapeless artifact still
     // occupies the box the author dragged.
     QRectF r(0, 0, a.box.width(), a.box.height());
 
-    const QPainterPath silhouette = artifactSilhouette(a);
     if (!silhouette.isEmpty())
         r = r.united(silhouette.boundingRect());
-    const QPainterPath text = artifactTextOutline(a);
     if (!text.isEmpty())
         r = r.united(text.boundingRect());
 
@@ -276,13 +459,18 @@ QPainterPath artifactTextOutline(const TextArtifact& a)
 
 void paintArtifact(QPainter& painter, const TextArtifact& a)
 {
+    paintArtifactPaths(painter, a, artifactSilhouette(a), artifactTextOutline(a));
+}
+
+void paintArtifactPaths(QPainter& painter, const TextArtifact& a,
+                        const QPainterPath& silhouette, const QPainterPath& text)
+{
     if (a.box.isEmpty())
         return;
 
     painter.save();
     painter.setRenderHint(QPainter::Antialiasing, true);
 
-    const QPainterPath silhouette = artifactSilhouette(a);
     if (!silhouette.isEmpty()) {
         painter.fillPath(silhouette, a.fill);
         if (a.strokeWidth > 0) {
@@ -294,7 +482,6 @@ void paintArtifact(QPainter& painter, const TextArtifact& a)
 
     // Filled outlines rather than drawn text, so that what is on screen is what artifactToSvg() writes
     // and what the library rasterises — one geometry, three consumers.
-    const QPainterPath text = artifactTextOutline(a);
     if (!text.isEmpty())
         painter.fillPath(text, a.textColour);
 

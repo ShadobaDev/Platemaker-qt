@@ -156,25 +156,6 @@ int intOf(const QStringView& v, int fallback)
     return ok ? n : fallback;
 }
 
-const char* shapeName(TextArtifact::Shape s)
-{
-    switch (s) {
-    case TextArtifact::Shape::None:    return "none";
-    case TextArtifact::Shape::Speech:  return "speech";
-    case TextArtifact::Shape::Shout:   return "shout";
-    case TextArtifact::Shape::Caption: return "caption";
-    }
-    return "speech";
-}
-
-TextArtifact::Shape shapeFrom(const QStringView& v)
-{
-    if (v == QLatin1String("none"))    return TextArtifact::Shape::None;
-    if (v == QLatin1String("shout"))   return TextArtifact::Shape::Shout;
-    if (v == QLatin1String("caption")) return TextArtifact::Shape::Caption;
-    return TextArtifact::Shape::Speech;
-}
-
 } // namespace
 
 // ---------------------------------------------------------------------------
@@ -262,7 +243,7 @@ TextArtifact artifactFromSvg(const QByteArray& svg, bool* ok)
 
         // Every field falls back to the struct's own default, so a file written by an older build, or
         // hand-edited, loads as a usable bubble rather than a blank one.
-        a.shape = shapeFrom(at.value(ns, QStringLiteral("shape")));
+        a.shape = shapeFromName(at.value(ns, QStringLiteral("shape")));
 
         const auto box = at.value(ns, QStringLiteral("box")).toString().split(QLatin1Char(','));
         if (box.size() == 2)

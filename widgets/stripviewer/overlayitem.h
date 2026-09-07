@@ -2,6 +2,7 @@
 #define OVERLAYITEM_H
 
 #include <QGraphicsObject>
+#include <QPainterPath>
 #include <QPixmap>
 #include <QString>
 
@@ -87,7 +88,9 @@ private:
     QString      m_uid;
     TextArtifact m_artifact;
     QPixmap      m_fallback;   //!< Non-null when the authoring record is missing (see setFallbackPixmap).
-    QRectF       m_bounds;     //!< Cached content bounds — see refreshBounds().
+    QRectF       m_bounds;      //!< Cached content bounds — see refreshBounds().
+    QPainterPath m_silhouette;  //!< Cached balloon + tails, so a repaint resolves no geometry.
+    QPainterPath m_textPath;    //!< Cached glyph outlines, likewise.
     Platemaker::Models::BlendMode m_blend = Platemaker::Models::BlendMode::Over;
 
     /**

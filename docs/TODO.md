@@ -246,8 +246,10 @@ Investigations, testing and manual/wiki work that ships no code change on their 
   size cap. The first published chapter used JPEG purely to fit 20 MB per chapter, which is a
   constraint rather than a considered choice. Feeds `Manual-Output-Profiles`.
 
-- [ ] **Store bubbles as SVG instead of PNG — the library already accepts it, measured.** The overlay
-  compositor opens `bitmapPath` with `vips_image_new_from_file()`, so it takes **any format libvips can
+- [x] **Store bubbles as SVG instead of PNG — the library already accepts it, measured. DONE.**
+  Shipped: the SVG carries the artwork *and* the editor parameters in a `pm:` namespace, so it replaced
+  the PNG **and** the authoring sidecar. See the CHANGELOG entry and SPECIFICATION 2.5.4.
+  The overlay compositor opens `assetPath` with `vips_image_new_from_file()`, so it takes **any format libvips can
   read**, SVG included (via librsvg). Verified end-to-end: pointing a `StripOverlay` at
   `fixtures/overlays/bubble-speech.svg` and rendering through the CLI composited the balloon on the right
   page with its alpha intact — **no library change at all**. The size it rasterises at is the SVG's own

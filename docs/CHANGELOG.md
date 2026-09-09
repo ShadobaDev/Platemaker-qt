@@ -4,6 +4,50 @@
 
 ### Changed
 
+- **A bubble is now an SVG, not a bitmap plus a sidecar.** The file the library composites *is* the
+  authoring record: resolved artwork every renderer can draw, plus the editor's parameters in a private
+  `pm:` namespace that renderers ignore — the pattern Inkscape has used for twenty years. Three
+  representations become two: the `<workspace>.overlays.json` sidecar is gone, and with it everything
+  that kept it in step with the bitmaps.
+  - **Text is written as glyph outlines.** The document still does the wrapping, so line breaks are what
+    the editor showed, but by the time artwork leaves the GUI it is pure geometry — which is what lets a
+    chapter render correctly on a machine that does not have the font. The font is needed to *change*
+    text, never to *draw* it, and Platemaker no longer has to warn about a missing one or bundle it.
+  - **One file per bubble**, overwritten in place. Undo re-emits from the snapshot, which already
+    carries the full authoring record, so a trail of superseded files is no longer the way back.
+  - Silhouette, text outline and the SVG all come from one geometry, so what is approved on screen is
+    what gets baked.
+- **Ten bubble shapes**, up from four: speech, round, thought, shout, caption, caption plate, diamond,
+  banner, scroll, and text-only. Each brings the rectangle its text may occupy — the part that matters,
+  since a path is a few lines but knowing where words fit inside it is what stops a wide bubble spilling
+  them between a burst's spikes.
+- **Tails point anywhere, curve, and come in numbers.** A tail is a tip, a width and a bend, and a bubble
+  can have several — one sound with several speakers. The base is found by casting a ray from the
+  balloon's centre and searching for where it crosses the outline, so it works for any shape and leaves
+  any edge; the old one was a triangle welded to the bottom of the box. The box therefore stops doubling
+  as the artifact's extent, which is computed from what is actually drawn.
+- **Line styles — Clean, Marker, Ink.** Marker and Ink are SVG filters (`feTurbulence` /
+  `feDisplacementMap`), which librsvg applies and Qt cannot. So a styled bubble is previewed by asking
+  the **library** for the same pixels the render will produce, rather than drawing a local approximation
+  — an effect visible only in the committed output would be an effect nobody could author. The noise is
+  seeded per bubble, and its frequency is in the drawing's own units, so the texture scales with the
+  balloon rather than with the output resolution. Clean emits no filter and draws locally.
+- **Overlays follow a re-profiled chapter.** The target width they were authored at is recorded, so
+  re-profiling from 800 px to 1600 px re-renders every bubble sharp at the new size and moves it to
+  match, instead of leaving it half-size in the wrong place.
+
+### Added
+
+- **Import artwork…** (right-click on the strip or the artifact list) — a balloon inked on a tablet, a
+  logo, a hand-drawn effect. The file is copied into `overlays/` under its content hash, never referenced
+  where it was found, so the workspace stays self-contained. It carries no `pm:` parameters, which makes
+  it a *flat asset*: placed, moved, re-anchored, muted, resized and rendered like any other overlay, but
+  not re-typable. An SVG is probed through the renderer first, so one that cannot be drawn is refused
+  rather than placed invisibly. Resizing rewrites the artwork's own `width`/`height` — for an SVG that
+  is a crisp vector re-render at any size.
+
+### Changed
+
 - **The strip viewer now shows the project's *input pages*, not its rendered output.** It stacks each
   input put through the library's page domain (`ProcessingPipeline::layoutPagesFromHeaders` /
   `decodePageToRgba`)

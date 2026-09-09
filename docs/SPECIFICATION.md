@@ -217,8 +217,16 @@ valid baseline for every grade tried on it. Excluded pages are skipped, matching
 
 #### 2.5.4 Text & bubbles (Bubble / Text tools)
 
-- **One object, two tools.** A bubble is a `TextArtifact` (`widgets/textartifact/`): shape, box, tail,
-  text, font, colours. The Text tool is the same object with `shape == None`.
+- **One object, two tools.** A bubble is a `TextArtifact` (`widgets/textartifact/`): shape, box, tails,
+  text, font, colours, line style. The Text tool is the same object with `shape == None`. Ten shapes;
+  each brings the rectangle its text may occupy (`textSafeArea()`), which is the half that takes the
+  thought — a path is a few lines, knowing where words fit inside it is what stops them crossing a
+  stroke.
+- **Tails are a list.** Each is a tip (in balloon coordinates, and free to fall *outside* the balloon), a
+  base width and a bend. The base is found by casting a ray from the balloon's centre and binary-searching
+  for where it crosses the silhouette with `QPainterPath::contains()` — shape-agnostic, so every shape
+  grew a working tail for free and a tail may leave any edge. `artifactBounds()` therefore computes what
+  the artifact actually covers; `box` is the balloon alone.
 - **Drawing.** `OverlayItem` (`widgets/stripviewer/overlayitem.*`) is one `QGraphicsObject` per overlay,
   painted from the **authoring model** by `paintArtifact()` — so typing updates the strip with no file
   round-trip, and the preview is the render because both go through that one function at the same scale.
@@ -227,19 +235,30 @@ valid baseline for every grade tried on it. Excluded pages are skipped, matching
   the viewer resolves it against the layout it just built, exactly as `ProcessingPipeline::run()` does.
   Dragging across a page boundary silently re-anchors. An overlay whose page is not in the strip is shown
   greyed and listed as an orphan — never re-homed, never deleted.
-- **Creation is the library's.** The viewer emits `artifactCreated()`; `Project::createOverlay()`
-  rasterises the PNG and calls `ProjectItem::addOverlay()`, which mints the uid, hashes the bitmap and
-  dedups identical content. Every other edit arrives as the complete new state on `overlaysEdited()`.
+- **Creation is the library's.** The viewer emits `artifactCreated()`; `Project::createOverlay()` writes
+  the SVG and calls `ProjectItem::addOverlay()`, which mints the uid, hashes the file and dedups identical
+  content. Every other edit arrives as the complete new state on `overlaysEdited()`.
+- **Imported artwork is the same overlay with fewer attributes.** *Import artwork…* copies a file into
+  `overlays/` under its content hash and registers it with **no** authoring record; with no `pm:`
+  parameters it is a *flat asset* — drawn from the file, placed and moved like any bubble, resizable
+  (which rewrites the artwork's own `width`/`height`), but not re-typable. `selectOverlay()` and
+  `onOverlayGeometryEdited()` both refuse to write a record for one, because `item->artifact()` would be
+  a *default* bubble and storing it would replace the artwork with a blank balloon.
 
 ##### Where a bubble lives, and when it becomes pixels
 
-Three layers, each with exactly one owner. For a workspace at `D:\Comic\Chapter_002.platemaker.json`:
+**Two** layers, each with exactly one owner. For a workspace at `D:\Comic\Chapter_002.platemaker.json`:
 
 | layer | what it holds | where | written by |
 |---|---|---|---|
-| library record | uid, `bitmapPath`, `sha256`, `anchorInputUid`, x/y, enabled, blend | `Chapter_002.platemaker.json` → `projectItems[].stripOverlays[]` | lib |
-| bitmap | the composited RGBA pixels, at strip scale | `D:\Comic\overlays\ovl-<sha16>.png` | GUI |
-| authoring record | shape, box, tail, text, font, colours | `D:\Comic\Chapter_002.overlays.json` | GUI (§3) |
+| library record | uid, `assetPath`, `sha256`, `anchorInputUid`, x/y, enabled, blend | `Chapter_002.platemaker.json` → `projectItems[].stripOverlays[]` | lib |
+| the asset | resolved artwork **plus** the editor's `pm:` parameters | `D:\Comic\overlays\ovl-<sha16>.svg` | GUI |
+
+There used to be a third — a JSON sidecar holding what a bubble *said*, beside a PNG holding what it
+*looked like*. Storing shapes, fills, strokes and glyphs in a bespoke schema was inventing a worse SVG,
+so the two collapsed into one file: the artwork every renderer can draw, and in a private `pm:` namespace
+every renderer ignores, the parameters the editor re-solves from. Losing those attributes degrades a
+bubble to flat-but-still-rendering art — exactly the property the sidecar existed to provide.
 
 **Only the GUI ever rasterises; the library draws nothing.** It happens in two places through **one**
 function, `paintArtifact()`:
@@ -253,15 +272,23 @@ Because the scene is the strip at 1:1, both run at the same scale over the same 
 is not *consistent with* the render, it is the same drawing. The shape-picker tiles are a third caller of
 the same function, which is why a tile cannot show a shape that placing it does not give you.
 
-**Bitmaps are named by content hash and never overwritten.** `writeArtifactBitmap()` writes to a scratch
-name, hashes the encoded file with `FileMetaData::computeFileSha256` (the same function the library's
-inventory uses), then renames to `ovl-<first 16 hex>.png`; an existing file with that name is reused, so
-identical bubbles share one bitmap. Not overwriting is what lets undo restore an *earlier rendering* —
-a superseded file stays in `overlays/` on purpose, because an undo step still references it.
+**A bubble owns one file for its lifetime.** `writeArtifactSvg()` names a *new* overlay by the content
+hash of the bytes about to be written (so identical bubbles share one file, matching the library's own
+dedup), and thereafter overwrites that same path. Naming every revision by its content instead would
+leave one file per settled edit — a dozen in a single lettering session. Undo does not need them:
+`fullSnapshot()` carries the complete authoring record, so `Project::rewriteOverlayAssets()` re-emits the
+file from the restored record. An overlay sharing a path with another (`addOverlay()` dedups identical
+content at creation) forks to a fresh file rather than re-lettering its twin.
 
-A text or styling edit therefore rewrites the bitmap **and** the record's `sha256`; a move or a reorder
-rewrites neither, only the placement. `Project::applyOverlays()` re-rasterises exactly the artifacts
-whose authoring record actually changed.
+A text or styling edit therefore rewrites the asset **and** the record's `sha256`; a move or a reorder
+rewrites neither, only the placement. `Project::applyOverlays()` re-emits exactly the artifacts whose
+authoring record actually changed.
+
+**A styled bubble is previewed by the library.** Marker and Ink are SVG filters, which Qt cannot draw at
+all, so `OverlayItem` shows an `OverlayRaster` obtained from `StripOverlayCompositor::rasterizeSvgRgba()`
+while at rest, falling back to its own paths mid-drag. It renders from the **document in hand**, not from
+the file just written: on a synced drive a file read back immediately after a write may still return the
+previous content, which would pin pre-edit artwork on screen for a whole session.
 
 ---
 
@@ -278,7 +305,7 @@ MainWindow
   └── m_workspace : Workspace          // loaded from .platemaker.json; the source of truth
   └── m_workspacePath : QString        // current file path
   └── m_dirty : bool                   // unsaved changes
-  └── m_overlayArtifacts : ArtifactStore   // GUI-owned; <workspace>.overlays.json
+  └── m_overlayArtifacts : ArtifactStore   // parsed cache; the records live in the overlays SVGs
 
 Project (one per open project dock)
   └── m_workspace : Workspace&         // reference to MainWindow's workspace
@@ -287,16 +314,19 @@ Project (one per open project dock)
   └── m_workspacePath : QString        // where overlays/ and the sidecar live
 ```
 
-**The one exception to "no parallel model": bubble authoring records.** The library composites a flat
-RGBA bitmap and deliberately has no text engine, so what a bubble *says* — shape, text, font, colours —
-is information the workspace codec has no business carrying. It lives in a sidecar,
-`<workspace-basename>.overlays.json`, keyed by project uid then overlay uid, with the rasterised PNGs in
-an `overlays/` folder beside the workspace file. That follows the storage split the rest of the app runs
-on (the library is a complete, OS-path-agnostic tool; the GUI decides where things live) and keeps a
-workspace self-contained: the three copy together. It is deliberately **not** in `.platemaker-cache/`,
-which is regenerable and safe to delete — losing these records would silently flatten every bubble into
-un-editable art. `MainWindow` loads and saves it with the workspace; each `Project` holds its own slice
-and pushes changes back via `Project::artifactsChanged`.
+**Bubble authoring records are a cache, not a store.** What a bubble *says* — shape, text, font, colours
+— is information the workspace codec has no business carrying, so it lives inside the overlay's own SVG
+in the `pm:` namespace. `MainWindow::m_overlayArtifacts` holds the *parsed* form, keyed by project uid
+then overlay uid, so a `populate()` does not re-read and re-parse the whole chapter; it is repopulated
+from the assets by `artifactsFromOverlays()` when a workspace opens, and **nothing about it is written to
+disk**. An authoring sidecar would be a second copy of what the asset already carries — one more file to
+keep in step, and one more thing to lose separately from the artwork it describes.
+
+The assets live in an `overlays/` folder beside the workspace file, which follows the storage split the
+rest of the app runs on (the library is a complete, OS-path-agnostic tool; the GUI decides where things
+live) and keeps a workspace self-contained: the two copy together. Deliberately **not** in
+`.platemaker-cache/`, which is regenerable and safe to delete. Each `Project` holds its own slice and
+pushes changes back via `Project::artifactsChanged`.
 
 **Undo covers both halves.** `Project::fullSnapshot()` is the library's project snapshot *plus* those
 authoring records, serialised together, so undoing a text edit restores what a bubble said and not merely

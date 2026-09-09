@@ -8,6 +8,7 @@
 #include "outputformatoptionswidget.h"
 #include "stagecard.h"
 
+#include <platemaker/core/strip_overlay_compositor/strip_overlay_compositor.hpp>
 #include <platemaker/infrastructure/file/file_meta_data.hpp>
 #include <platemaker/infrastructure/project_editor/project_editor.hpp>
 #include <platemaker/infrastructure/workspace_editor/workspace_editor.hpp>
@@ -23,6 +24,7 @@
 #include <QDragEnterEvent>
 #include <QDragMoveEvent>
 #include <QDropEvent>
+#include <QBuffer>
 #include <QCryptographicHash>
 #include <QFile>
 #include <QFileDialog>
@@ -32,7 +34,9 @@
 #include <QHBoxLayout>
 #include <QInputDialog>
 #include <QLabel>
+#include <QRegularExpression>
 #include <QScrollArea>
+#include <QSvgRenderer>
 #include <QVBoxLayout>
 #include <QAction>
 #include <QListWidget>
@@ -755,6 +759,180 @@ void Project::rewriteOverlayAssets()
             continue;   // a flat asset has no record to re-emit from, and must be left exactly as it is
         writeArtifactSvg(dir, it.value(), QString::fromStdString(o.assetPath));
     }
+}
+
+void Project::importOverlayArtwork(const QString& sourceFile, int x, int y,
+                                   const QString& anchorInputUid)
+{
+    const QString dir = ArtifactStore::ensureOverlaysDir(m_workspacePath);
+    if (dir.isEmpty()) {
+        QMessageBox::warning(this, tr("Import artwork"),
+                             tr("Save the workspace first — artwork is stored next to the workspace "
+                                "file, in an 'overlays' folder."));
+        return;
+    }
+
+    QFile src(sourceFile);
+    if (!src.open(QIODevice::ReadOnly)) {
+        QMessageBox::warning(this, tr("Import artwork"),
+                             tr("Could not read:\n%1").arg(sourceFile));
+        return;
+    }
+    const QByteArray bytes = src.readAll();
+    src.close();
+
+    // Ask the renderer that will have to draw it, rather than trusting the extension. An SVG using
+    // features it cannot handle, or one whose visible result is empty, is better refused here than
+    // placed as an invisible rectangle the author then has to hunt for.
+    const QFileInfo fi(sourceFile);
+    if (fi.suffix().compare(QLatin1String("svg"), Qt::CaseInsensitive) == 0) {
+        const auto probe =
+            Platemaker::Core::StripOverlayCompositor{}.rasterizeSvgRgba(bytes.toStdString(), 1.0);
+        if (!probe.isValid()) {
+            QMessageBox::warning(this, tr("Import artwork"),
+                                 tr("This SVG could not be rendered, so it would not appear in the "
+                                    "output either:\n%1").arg(sourceFile));
+            return;
+        }
+    }
+
+    const QString sha = QString::fromLatin1(
+        QCryptographicHash::hash(bytes, QCryptographicHash::Sha256).toHex()).left(16);
+    const QString dest = dir + QStringLiteral("/art-") + sha + QLatin1Char('.') + fi.suffix().toLower();
+
+    if (!QFile::exists(dest)) {          // identical artwork imported twice keeps one copy
+        QFile out(dest);
+        if (!out.open(QIODevice::WriteOnly | QIODevice::Truncate) || out.write(bytes) < 0) {
+            QMessageBox::warning(this, tr("Import artwork"),
+                                 tr("Could not write the artwork to:\n%1").arg(dir));
+            return;
+        }
+    }
+
+    commitEdit(tr("Import artwork"), [&] {
+        auto& item = m_workspace.projectItems[m_projectIndex];
+        item.addOverlay(dest.toStdString(), x, y,
+                        Platemaker::Models::BlendMode::Over, anchorInputUid.toStdString());
+        emit projectModified();
+        populate();
+    });
+}
+
+namespace {
+
+/**
+ * @brief Rewrites an SVG's rendered size, preserving everything else about the document.
+ *
+ * Only the root `<svg …>` tag is touched — the substring up to its first `>` — so the artist's markup
+ * comes back byte-identical apart from the two attributes that had to change.
+ *
+ * A document with **no viewBox** gets one synthesised from its current size first. Without that,
+ * changing width/height moves the coordinate system rather than scaling the drawing, and the artwork
+ * would come back the same size in a bigger canvas.
+ *
+ * @return The rewritten document, or empty when the root tag cannot be found.
+ */
+QByteArray svgResized(const QByteArray& svg, QSize size, QSize naturalSize)
+{
+    const int open = svg.indexOf("<svg");
+    if (open < 0)
+        return {};
+    const int close = svg.indexOf('>', open);
+    if (close < 0)
+        return {};
+
+    QString root = QString::fromUtf8(svg.mid(open, close - open));
+
+    static const QRegularExpression viewBoxRe(QStringLiteral("\\bviewBox\\s*="));
+    if (!viewBoxRe.match(root).hasMatch() && !naturalSize.isEmpty()) {
+        root += QStringLiteral(" viewBox=\"0 0 %1 %2\"")
+                    .arg(naturalSize.width()).arg(naturalSize.height());
+    }
+
+    // Width and height may carry units (400px, 10cm, 100%) — replaced outright rather than parsed,
+    // since the viewBox above is what preserves the drawing's proportions.
+    const auto setAttr = [&root](const QString& name, int value) {
+        const QRegularExpression re(QStringLiteral("\\b%1\\s*=\\s*([\"'])[^\"']*\\1").arg(name));
+        const QString replacement = QStringLiteral("%1=\"%2\"").arg(name).arg(value);
+        if (re.match(root).hasMatch())
+            root.replace(re, replacement);
+        else
+            root += QLatin1Char(' ') + replacement;
+    };
+    setAttr(QStringLiteral("width"),  size.width());
+    setAttr(QStringLiteral("height"), size.height());
+
+    QByteArray out = svg;
+    out.replace(open, close - open, root.toUtf8());
+    return out;
+}
+
+} // namespace
+
+void Project::resizeOverlayArtwork(const QString& overlayUid, QSize size)
+{
+    if (size.width() < 1 || size.height() < 1)
+        return;
+    if (m_artifacts.contains(overlayUid))
+        return;   // a parametric bubble; its size is in its record, not in the file
+
+    auto& item = m_workspace.projectItems[m_projectIndex];
+    auto& overlays = item.getStripOverlays();
+    const auto it = std::find_if(overlays.begin(), overlays.end(),
+                                 [&](const Platemaker::Models::StripOverlay& o) {
+                                     return QString::fromStdString(o.uid) == overlayUid;
+                                 });
+    if (it == overlays.end() || it->assetPath.empty())
+        return;
+
+    const QString path = QString::fromStdString(it->assetPath);
+    QFile f(path);
+    if (!f.open(QIODevice::ReadOnly))
+        return;
+    const QByteArray original = f.readAll();
+    f.close();
+
+    QByteArray rewritten;
+    if (path.endsWith(QLatin1String(".svg"), Qt::CaseInsensitive)) {
+        QSvgRenderer renderer(original);
+        rewritten = svgResized(original, size, renderer.isValid() ? renderer.defaultSize() : QSize());
+    } else {
+        // A raster has no size to rewrite — only pixels to resample, which is lossy. That is the
+        // inherent limit of raster artwork, and why an imported SVG is the better thing to hand over.
+        QImage img;
+        if (img.loadFromData(original)) {
+            QBuffer buf(&rewritten);
+            buf.open(QIODevice::WriteOnly);
+            img.scaled(size, Qt::IgnoreAspectRatio, Qt::SmoothTransformation)
+               .save(&buf, QFileInfo(path).suffix().toUpper().toLatin1().constData());
+        }
+    }
+    if (rewritten.isEmpty() || rewritten == original)
+        return;
+
+    // Overwrite in place: an overlay owns one file for its lifetime (see writeArtifactSvg).
+    QFile out(path);
+    if (!out.open(QIODevice::WriteOnly | QIODevice::Truncate) || out.write(rewritten) < 0)
+        return;
+    out.close();
+
+    commitEdit(tr("Resize artwork"), [&] {
+        auto& live = m_workspace.projectItems[m_projectIndex].getStripOverlays();
+        for (auto& o : live) {
+            if (QString::fromStdString(o.uid) != overlayUid)
+                continue;
+            try {
+                // The hash is what the staleness signature watches; without it the render would keep
+                // compositing the previous size.
+                o.sha256 = Platemaker::Infrastructure::FileMetaData::computeFileSha256(o.assetPath);
+            } catch (const std::exception&) {
+                o.sha256.clear();
+            }
+            break;
+        }
+        emit projectModified();
+        populate();
+    });
 }
 
 void Project::applyOverlays(std::vector<Platemaker::Models::StripOverlay> overlays,

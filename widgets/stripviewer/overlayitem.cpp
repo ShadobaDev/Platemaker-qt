@@ -59,9 +59,12 @@ void OverlayItem::refreshBounds()
     m_silhouette = m_fallback.isNull() ? artifactSilhouette(m_artifact) : QPainterPath();
     m_textPath   = m_fallback.isNull() ? artifactTextOutline(m_artifact) : QPainterPath();
 
+    // A flat asset is bounded by the box as well, not by its pixmap: that is what gives the corner grips
+    // something to move. The pixmap is stretched into it (see paint()), and the file is rewritten to
+    // match once the drag settles — an SVG re-renders crisp at the new size.
     const QRectF next = m_fallback.isNull()
         ? artifactBoundsOf(m_artifact, m_silhouette, m_textPath)
-        : QRectF(QPointF(0, 0), QSizeF(m_fallback.size()));
+        : QRectF(QPointF(0, 0), QSizeF(m_artifact.box));
     if (next == m_bounds)
         return;
     prepareGeometryChange();
@@ -137,7 +140,9 @@ void OverlayItem::paint(QPainter* painter, const QStyleOptionGraphicsItem* optio
 
     painter->setCompositionMode(compositionFor(m_blend));
     if (!m_fallback.isNull()) {
-        painter->drawPixmap(QPointF(0, 0), m_fallback);
+        painter->setRenderHint(QPainter::SmoothPixmapTransform, true);
+        painter->drawPixmap(QRectF(QPointF(0, 0), QSizeF(m_artifact.box)), m_fallback,
+                            QRectF(m_fallback.rect()));
     } else if (!m_sharp.isNull() && m_active == Grip::None) {
         // At rest, and styled: show the library's rendering. Mid-drag the paths are used instead — they
         // follow the mouse, and a rasterisation cannot be produced per mouse-move anyway.
@@ -316,15 +321,21 @@ void OverlayItem::mouseMoveEvent(QGraphicsSceneMouseEvent* e)
 
 void OverlayItem::mouseReleaseEvent(QGraphicsSceneMouseEvent* e)
 {
-    const bool report = m_moved && m_active != Grip::None;
+    const bool report  = m_moved && m_active != Grip::None;
+    const bool resized = report && m_active != Grip::Body && m_active != Grip::Tail;
     m_active = Grip::None;
     m_moved  = false;
     QGraphicsObject::mouseReleaseEvent(e);
 
     // Only a settled drag is persisted: the owner turns each report into one undo step, and reporting
     // per mouse-move would bury the history under a pixel-by-pixel trail.
-    if (report)
-        emit geometryEdited(m_uid);
+    if (!report)
+        return;
+    emit geometryEdited(m_uid);
+    // A resized flat asset needs its artwork rewritten as well — geometryEdited() carries placement, and
+    // for an overlay with no authoring record there is nothing else for a size to travel in.
+    if (isFlatAsset() && resized)
+        emit artworkResized(m_uid, m_artifact.box);
 }
 
 void OverlayItem::hoverMoveEvent(QGraphicsSceneHoverEvent* e)

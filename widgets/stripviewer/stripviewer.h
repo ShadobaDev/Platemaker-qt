@@ -182,6 +182,22 @@ signals:
                         const ArtifactMap&                                  artifacts,
                         const QString&                                      undoText);
 
+    /**
+     * @brief The author picked artwork to bring in — the owner copies it and registers it.
+     *
+     * Placement is decided here, because only the viewer knows which page is in front of the author;
+     * everything after that is the owner's, exactly as it is for a drawn bubble.
+     */
+    void artworkImportRequested(const QString& sourceFile, int x, int y, const QString& anchorInputUid);
+
+    /**
+     * @brief Imported artwork was resized — the owner rewrites the asset to \p size.
+     *
+     * A flat asset has no authoring record and \c StripOverlay has no width or height, so its size is
+     * the artwork's own. Changing it means changing the file, which only the owner may do.
+     */
+    void artworkResizeRequested(const QString& uid, QSize size);
+
 protected:
     //! Ctrl+wheel over the view zooms; a plain wheel keeps the view's native vertical scroll.
     bool eventFilter(QObject *watched, QEvent *event) override;
@@ -214,6 +230,8 @@ private:
 
     // --- overlays (text & bubbles) ---
     void onOverlayGeometryEdited(const QString& uid); //!< An item settled a move/resize/tail drag.
+    //! A flat asset settled a resize — forwarded so the owner can rewrite the artwork itself.
+    void onArtworkResized(const QString& uid, QSize size);
     void syncOverlayItems();        //!< Reconciles the scene items with m_overlays, by uid.
     //! The library's rasterisation of \p a, cached by the SVG it emits. Empty if it cannot be produced.
     [[nodiscard]] QImage sharpRasterFor(const TextArtifact& a);
@@ -222,6 +240,7 @@ private:
     void pushOverlays(const QString& undoText); //!< Emits overlaysEdited() with the current state.
     void applyPanelArtifact(const TextArtifact& a, bool commit); //!< Live edit from the panel → item (+persist).
     void deleteSelectedOverlay();
+    void importArtwork();           //!< Asks for a file and drops it on the page currently in view.
     void duplicateSelectedOverlay();   //!< Copies the selected bubble a little down and right.
     void setOverlayEnabled(const QString& uid, bool on);  //!< The list's mute checkbox (deferred, see the ctor).
     void commitListOrder();                               //!< Adopts the list's row order as composite order.
@@ -302,6 +321,7 @@ private:
     // reachable from the canvas too — the two places a bubble is ever selected.
     QAction*           m_actDuplicate    = nullptr;
     QAction*           m_actDelete       = nullptr;
+    QAction*           m_actImport       = nullptr;   //!< Bring in artwork drawn outside Platemaker.
     QGraphicsRectItem* m_placementRubber = nullptr;         //!< Rubber band while a new bubble is drawn.
     QPointF            m_placementOrigin;                   //!< Where that drag started, in scene coordinates.
     bool               m_placing         = false;

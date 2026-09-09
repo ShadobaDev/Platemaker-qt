@@ -510,6 +510,16 @@ void MainWindow::openStripViewerDock(int projectIndex)
         if (auto *pw = projectWidget(projectIndex))
             pw->createOverlay(artifact, x, y, anchorUid);
     });
+    connect(viewer, &StripViewer::artworkImportRequested, this,
+            [this, projectIndex](const QString &file, int x, int y, const QString &anchorUid) {
+        if (auto *pw = projectWidget(projectIndex))
+            pw->importOverlayArtwork(file, x, y, anchorUid);
+    });
+    connect(viewer, &StripViewer::artworkResizeRequested, this,
+            [this, projectIndex](const QString &uid, QSize size) {
+        if (auto *pw = projectWidget(projectIndex))
+            pw->resizeOverlayArtwork(uid, size);
+    });
     connect(viewer, &StripViewer::overlaysEdited, this,
             [this, projectIndex](const std::vector<Platemaker::Models::StripOverlay> &overlays,
                                  const ArtifactMap &artifacts, const QString &undoText) {

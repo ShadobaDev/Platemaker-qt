@@ -68,6 +68,9 @@ public:
     void setOrphaned(bool orphaned);
     [[nodiscard]] bool isOrphaned() const { return m_orphaned; }
 
+    //! True while drawing an asset that carries no authoring parameters (see setFallbackPixmap()).
+    [[nodiscard]] bool isFlatAsset() const { return !m_fallback.isNull(); }
+
     /**
      * @brief What this item actually draws, in item coordinates — origin may be negative.
      *
@@ -83,6 +86,16 @@ public:
 signals:
     //! A move / resize / tail drag has settled — the owner reads pos() and artifact() and persists them.
     void geometryEdited(const QString& uid);
+
+    /**
+     * @brief A **flat asset** was resized — the owner rewrites the artwork to \p size.
+     *
+     * Reported separately from geometryEdited() because there is nowhere else for the size to go: a flat
+     * asset has no authoring record, and \c StripOverlay has no width or height — an asset's own pixel
+     * dimensions *are* its rendered size. So the size lives in the file, and changing it means rewriting
+     * the file.
+     */
+    void artworkResized(const QString& uid, QSize size);
 
 protected:
     void mousePressEvent(QGraphicsSceneMouseEvent* e) override;

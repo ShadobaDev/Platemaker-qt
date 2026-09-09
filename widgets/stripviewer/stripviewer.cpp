@@ -28,8 +28,10 @@
 #include <QGraphicsRectItem>
 #include <QKeyEvent>
 #include <QKeySequence>
+#include <QFileDialog>
 #include <QListWidget>
 #include <QListWidgetItem>
+#include <QMessageBox>
 #include <QMouseEvent>
 #include <QCryptographicHash>
 #include <QPainter>
@@ -284,9 +286,15 @@ StripViewer::StripViewer(QWidget *parent)
         m_actDelete->setShortcutContext(Qt::WidgetShortcut);
         connect(m_actDelete, &QAction::triggered, this, &StripViewer::deleteSelectedOverlay);
 
+        // Artwork drawn elsewhere — a balloon inked on a tablet, a logo — placed as an overlay like any
+        // other. Always available, unlike Duplicate/Delete, because it needs no selection.
+        m_actImport = new QAction(tr("Import artwork…"), this);
+        connect(m_actImport, &QAction::triggered, this, &StripViewer::importArtwork);
+
         for (QWidget* w : {static_cast<QWidget*>(ui->artifactList), static_cast<QWidget*>(m_view)}) {
             w->addAction(m_actDuplicate);
             w->addAction(m_actDelete);
+            w->addAction(m_actImport);
         }
         ui->artifactList->setContextMenuPolicy(Qt::ActionsContextMenu);
         connect(ui->artifactList, &QListWidget::itemSelectionChanged, this, [this] {
@@ -903,16 +911,22 @@ void StripViewer::syncOverlayItems()
         // degradation, and it is what makes an imported shape a first-class overlay rather than an error.
         TextArtifact a = m_artifacts.value(uid);
         QPixmap      fallback;
+        OverlayItem* item = m_overlayItems.value(uid);
         if (!m_artifacts.contains(uid)) {
             fallback = renderAssetFile(QString::fromStdString(o.assetPath));
-            if (!fallback.isNull())
+            // The artwork's own size seeds the box, but only once. Re-reading it on every feed would
+            // undo a resize the moment it was made — and on a synced drive the file may still be
+            // reporting its previous size for a moment after being rewritten.
+            if (item)
+                a.box = item->artifact().box;
+            else if (!fallback.isNull())
                 a.box = fallback.size();
         }
 
-        OverlayItem* item = m_overlayItems.value(uid);
         if (!item) {
             item = new OverlayItem(uid, a);
             connect(item, &OverlayItem::geometryEdited, this, &StripViewer::onOverlayGeometryEdited);
+            connect(item, &OverlayItem::artworkResized,  this, &StripViewer::onArtworkResized);
             m_scene->addItem(item);
             m_overlayItems.insert(uid, item);
         } else if (item->artifact() != a) {
@@ -962,11 +976,22 @@ void StripViewer::onOverlayGeometryEdited(const QString& uid)
         break;
     }
 
-    m_artifacts.insert(uid, item->artifact());   // a resize or tail drag changed the artifact too
-    if (uid == m_selectedOverlay && m_bubblePanel)
-        m_bubblePanel->setArtifact(item->artifact());
+    // A resize or tail drag changed the artifact too — but only for an overlay that *has* one. For a
+    // flat asset item->artifact() is a default bubble, and storing it would make the overlay look
+    // authored: the next sync would draw a blank balloon where the imported artwork was.
+    if (m_artifacts.contains(uid)) {
+        m_artifacts.insert(uid, item->artifact());
+        if (uid == m_selectedOverlay && m_bubblePanel)
+            m_bubblePanel->setArtifact(item->artifact());
+    }
     refreshArtifactList();
     pushOverlays(tr("Move bubble"));
+}
+
+void StripViewer::onArtworkResized(const QString& uid, QSize size)
+{
+    // Straight through: the size belongs in the artwork itself, and only the owner writes files.
+    emit artworkResizeRequested(uid, size);
 }
 
 void StripViewer::refreshArtifactList()
@@ -1020,7 +1045,11 @@ void StripViewer::selectOverlay(const QString& uid)
 
     if (!m_bubblePanel)
         return;
-    if (OverlayItem* item = m_overlayItems.value(uid))
+    // Only a bubble this editor authored can be edited here. A flat asset — imported artwork, or a file
+    // whose parameters were lost — has no record, and item->artifact() would hand the panel a *default*
+    // bubble: typing into it would quietly replace the artwork with a blank balloon.
+    OverlayItem* item = m_overlayItems.value(uid);
+    if (item && m_artifacts.contains(uid))
         m_bubblePanel->setArtifact(item->artifact());
     else
         m_bubblePanel->clearSelection();
@@ -1041,6 +1070,34 @@ void StripViewer::applyPanelArtifact(const TextArtifact& a, bool commit)
         return;
     refreshArtifactList();
     pushOverlays(tr("Edit bubble"));
+}
+
+void StripViewer::importArtwork()
+{
+    if (m_layout.isEmpty()) {
+        QMessageBox::information(this, tr("Import artwork"),
+                                 tr("Add input pages to the project first — artwork is anchored to a "
+                                    "page, so there has to be one to put it on."));
+        return;
+    }
+
+    const QString file = QFileDialog::getOpenFileName(
+        this, tr("Import artwork"), QString(),
+        tr("Artwork (*.svg *.png *.webp);;All files (*)"));
+    if (file.isEmpty())
+        return;
+
+    // Onto whatever the author is looking at: the middle of the viewport, resolved to the page under
+    // it. Dropping it at the top of the chapter would mean scrolling back to find what you just added.
+    const QRectF  view   = m_view->mapToScene(m_view->viewport()->rect()).boundingRect();
+    const QPointF centre = view.center();
+    const int     page   = m_layout.pageAtSceneY(centre.y());
+    if (page < 0)
+        return;
+
+    m_selectNewOverlay = true;
+    emit artworkImportRequested(file, qRound(centre.x()), qRound(centre.y()) - m_layout.page(page).top,
+                                m_layout.anchorUidForPage(page));
 }
 
 void StripViewer::deleteSelectedOverlay()

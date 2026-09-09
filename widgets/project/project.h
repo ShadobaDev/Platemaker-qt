@@ -104,6 +104,31 @@ public:
     void createOverlay(const TextArtifact& artifact, int x, int y, const QString& anchorInputUid);
 
     /**
+     * @brief Registers artwork the author drew elsewhere as an overlay, exactly as it is.
+     *
+     * The file is copied into the workspace's `overlays/` under its content hash — never referenced
+     * where it was found, so the workspace stays self-contained and moving it does not break a bubble.
+     *
+     * No authoring record is created, and that is the point: with no `pm:*` parameters the overlay is a
+     * **flat asset**, drawn from the file and placed, moved and scaled like any other bubble, but not
+     * re-typable. That case already exists for a bubble whose parameters were lost, so importing needs
+     * no separate kind of overlay — it is the same one, arrived at deliberately.
+     */
+    void importOverlayArtwork(const QString& sourceFile, int x, int y, const QString& anchorInputUid);
+
+    /**
+     * @brief Resizes imported artwork by rewriting the artwork, because that is where its size lives.
+     *
+     * A flat asset has no authoring record and \c StripOverlay has no width or height — an asset's own
+     * dimensions *are* its rendered size. For an SVG that size is two attributes on the root element, so
+     * resizing rewrites those and leaves \c viewBox alone: the drawing is unchanged, rendered larger,
+     * and stays crisp because it is still vector. A raster can only be resampled.
+     *
+     * Ignores an overlay that *does* have a record — a parametric bubble resizes through applyOverlays().
+     */
+    void resizeOverlayArtwork(const QString& overlayUid, QSize size);
+
+    /**
      * @brief Stores a complete new overlay state — move, restyle, delete, reorder or mute — as one
      *        undo step, re-writing the assets whose authoring record changed.
      */

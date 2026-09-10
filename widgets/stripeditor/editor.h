@@ -1,5 +1,5 @@
-#ifndef STRIPVIEWER_H
-#define STRIPVIEWER_H
+#ifndef STRIPEDIT_EDITOR_H
+#define STRIPEDIT_EDITOR_H
 
 #include <QWidget>
 #include <QCache>
@@ -10,7 +10,7 @@
 #include <QSize>
 #include <QString>
 
-#include "striplayout.h"
+#include "layout.h"
 #include "textartifact.h"
 
 #include <platemaker/core/processing_pipeline/processing_pipeline.hpp>
@@ -33,11 +33,13 @@ class QAction;
 class QButtonGroup;
 class QGraphicsRectItem;
 class QListWidgetItem;
-class CcPanel;
+namespace Ui { class Editor; }
+
+namespace StripEdit {
+
+class GradePanel;
 class BubblePanel;
 class OverlayItem;
-
-namespace Ui { class StripViewer; }
 
 /**
  * @brief Continuous "infinite strip" editor for a project — the authoring surface for the optional
@@ -78,13 +80,13 @@ namespace Ui { class StripViewer; }
  *    in view plus a prefetch margin, and kept in a memory-capped LRU cache. Off-screen pages are
  *    evicted, so RAM tracks the viewport, not the chapter length.
  */
-class StripViewer : public QWidget
+class Editor : public QWidget
 {
     Q_OBJECT
 
 public:
-    explicit StripViewer(QWidget *parent = nullptr);
-    ~StripViewer() override;
+    explicit Editor(QWidget *parent = nullptr);
+    ~Editor() override;
 
     /**
      * @brief Feeds the project's input pages and rebuilds the strip.
@@ -249,7 +251,7 @@ private:
     void finishPlacement();                          //!< Emits artifactCreated() for the drawn rectangle.
 
     //! True while a tool that authors overlays is active (Bubble or Text).
-    //! Page and anchor geometry is asked of \c m_layout instead — see StripLayout.
+    //! Page and anchor geometry is asked of \c m_layout instead — see Layout.
     [[nodiscard]] bool    artifactToolActive() const;
 
     //! Grade the built page \p index into the graded-preview cache (no-op if grade inactive / not built).
@@ -257,7 +259,7 @@ private:
     //! Grade state changed: drop the graded cache and re-grade what's visible.
     void refreshGradePreview();
 
-    Ui::StripViewer *ui          = nullptr;  //!< Designer form (toolbar buttons + graphics view).
+    Ui::Editor *ui          = nullptr;  //!< Designer form (toolbar buttons + graphics view).
     QGraphicsView  *m_view       = nullptr;  //!< == ui->graphicsView (cached).
     QGraphicsScene *m_scene      = nullptr;
     QGraphicsItem  *m_item       = nullptr;  //!< The single StripItem drawing all pages (owned by the scene).
@@ -273,7 +275,7 @@ private:
 
     //! Where every drawable page landed (those the render would skip are dropped). Indices into this
     //! key every cache below, and every overlay placement question is asked of it.
-    StripLayout         m_layout;
+    Layout         m_layout;
     QList<QGraphicsLineItem*> m_seamItems; //!< Slice-cut guide lines (owned by the scene).
     double m_zoom        = 1.0;              //!< Absolute zoom factor.
     bool   m_pendingFit  = false;            //!< Re-apply the default zoom on resize until the user zooms.
@@ -286,9 +288,9 @@ private:
     int                  m_generation = 0;   //!< Bumped on every rebuild; async results from an older gen are dropped.
 
     // --- editor shell: the tool rail's flowing buttons are built in the ctor (a flow layout can't live in
-    // a .ui); the splitters, canvas, tool-options stack and artifact list all come from stripviewer.ui ---
+    // a .ui); the splitters, canvas, tool-options stack and artifact list all come from editor.ui ---
     QButtonGroup   *m_toolGroup = nullptr;   //!< Exclusive group of the left rail's tool buttons (id == Tool).
-    CcPanel        *m_ccPanel   = nullptr;   //!< The Grade tool-options page (colour-correction controls).
+    GradePanel        *m_gradePanel   = nullptr;   //!< The Grade tool-options page (colour-correction controls).
     Tool            m_tool      = Tool::Pan; //!< Current tool.
 
     // --- colour correction ---
@@ -331,4 +333,6 @@ private:
     bool               m_selectNewOverlay = false;
 };
 
-#endif // STRIPVIEWER_H
+}  // namespace StripEdit
+
+#endif // STRIPEDIT_EDITOR_H

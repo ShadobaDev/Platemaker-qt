@@ -1,14 +1,16 @@
-#ifndef CCPANEL_H
-#define CCPANEL_H
+#ifndef STRIPEDIT_GRADEPANEL_H
+#define STRIPEDIT_GRADEPANEL_H
 
 #include <QWidget>
 
 #include <platemaker/models/processing_steps.hpp>
 
-namespace Ui { class CcPanel; }
+namespace Ui { class GradePanel; }
 class QSlider;
 class QDoubleSpinBox;
 class QTimer;
+
+namespace StripEdit {
 
 /**
  * @brief Tool-options panel for the strip editor's Colour-correction (Grade) tool.
@@ -21,13 +23,13 @@ class QTimer;
  * Curves and per-page exclusions are not exposed here yet — a later sub-step. The panel preserves those
  * fields of the working grade untouched.
  */
-class CcPanel : public QWidget
+class GradePanel : public QWidget
 {
     Q_OBJECT
 
 public:
-    explicit CcPanel(QWidget* parent = nullptr);
-    ~CcPanel() override;
+    explicit GradePanel(QWidget* parent = nullptr);
+    ~GradePanel() override;
 
     //! Populate the controls from \p cc without emitting change signals.
     void setColourCorrection(const Platemaker::Models::ColourCorrection& cc);
@@ -40,7 +42,7 @@ private:
     void onControlChanged(); //!< Any control moved → read into m_cc, emit changed(), arm the commit timer.
     void syncFromModel();     //!< Push m_cc into the controls with their signals blocked.
 
-    Ui::CcPanel*    ui;
+    Ui::GradePanel*    ui;
     QSlider*        m_brightnessSlider = nullptr;
     QDoubleSpinBox* m_brightnessSpin   = nullptr;
     QSlider*        m_contrastSlider   = nullptr;
@@ -53,4 +55,6 @@ private:
     bool m_populating = false;                 //!< Suppresses change signals while syncFromModel() runs.
 };
 
-#endif // CCPANEL_H
+}  // namespace StripEdit
+
+#endif // STRIPEDIT_GRADEPANEL_H

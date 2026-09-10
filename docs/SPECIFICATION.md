@@ -130,11 +130,11 @@ The dialogs edit **copies**; the workspace is mutated only on accept, and only t
 `Infrastructure::WorkspaceEditor` (the palettes are private in the model — see the lib spec §7.5). The
 GUI does not mint ids, deduplicate, preserve `templateInfo`, or strip presets itself; the editor does.
 
-### 2.5 Strip Editor — `StripViewer`
+### 2.5 Strip Editor — `StripEdit::Editor`
 
-A per-project **floating dock** (`widgets/stripviewer/`, a `.ui`-defined `QWidget` inside a
+A per-project **floating dock** (`widgets/stripeditor/`, a `.ui`-defined `QWidget` inside a
 `QDockWidget`), opened from the Output tab's *View strip* button or from a Workflow-map card, via
-`MainWindow::openStripViewerDock()`. It is the authoring surface for the pipeline's two optional steps —
+`MainWindow::openStripEditorDock()`. It is the authoring surface for the pipeline's two optional steps —
 colour correction and text/bubble overlays — and it shows the chapter as one continuous strip.
 
 **The strip is built from the project's INPUT pages, not from its rendered output.** It stacks each
@@ -159,20 +159,20 @@ must not be split by.
   column; it defaults to floating and wears the shared custom title bar (§2.1). It opens sized to the
   **strip width + 100px each side** (× 80% of the screen height), centred, and is tracked in
   `m_openStripDocks` (keyed by a `projectIndex` property), reindexed/closed with its project.
-  `MainWindow::refreshStripViewer()` re-feeds it on every `Project::projectModified`.
+  `MainWindow::refreshStripEditor()` re-feeds it on every `Project::projectModified`.
 - **Shared dock tab bar.** The Workspace, project and strip docks can occupy one tab group, so their tab
   bar's close / double-click are resolved by `dockForTabBarTab()` (tab → dock **by window title**) rather
   than a raw index into any one list. `wireDockTabBars()` (re)applies this whenever a dock joins a group.
 
 #### 2.5.1 Editor shell
 
-`stripviewer.ui` lays out `[toolbar]` over `[toolRail | graphicsView | rightPanel]`:
+`editor.ui` lays out `[toolbar]` over `[toolRail | graphicsView | rightPanel]`:
 
 - **Tool rail** (left) — square checkable `QToolButton`s in an exclusive `QButtonGroup`, laid out by
   `FlowLayout` so they reflow to the rail's width (a flow layout cannot be expressed in a `.ui`).
   Tools: **Pan** (default — hand-drag, no side panel, behaves exactly as the viewer did before the
   editor existed), **Grade**, **Bubble**, **Text**.
-- **Tool options** (right-top) — a `QStackedWidget`, one page per tool. `CcPanel` for Grade;
+- **Tool options** (right-top) — a `QStackedWidget`, one page per tool. `GradePanel` for Grade;
   `BubblePanel` for **both** Bubble and Text, because they author the same object (§2.5.4) — `setTool()`
   points both at that page and hides the shape group for Text.
 - **Artifact list** (right-bottom) — `artifactList`, the overlays in composite order. Hidden under Grade,
@@ -205,7 +205,7 @@ mapping layer.
 
 #### 2.5.3 Colour correction (Grade tool)
 
-`CcPanel` edits `Models::ColourCorrection` — brightness / contrast / saturation, with curves and the
+`GradePanel` edits `Models::ColourCorrection` — brightness / contrast / saturation, with curves and the
 per-page exclusion UI still to come. It emits `changed()` continuously (live preview) and `committed()`
 debounced (persist + one undo step), which `MainWindow` routes to `Project::applyColourCorrection()`.
 
@@ -227,7 +227,7 @@ valid baseline for every grade tried on it. Excluded pages are skipped, matching
   for where it crosses the silhouette with `QPainterPath::contains()` — shape-agnostic, so every shape
   grew a working tail for free and a tail may leave any edge. `artifactBounds()` therefore computes what
   the artifact actually covers; `box` is the balloon alone.
-- **Drawing.** `OverlayItem` (`widgets/stripviewer/overlayitem.*`) is one `QGraphicsObject` per overlay,
+- **Drawing.** `OverlayItem` (`widgets/stripeditor/overlayitem.*`) is one `QGraphicsObject` per overlay,
   painted from the **authoring model** by `paintArtifact()` — so typing updates the strip with no file
   round-trip, and the preview is the render because both go through that one function at the same scale.
   It handles move, corner resize and the tail handle, and reports a settled drag on mouse release.
@@ -238,7 +238,7 @@ valid baseline for every grade tried on it. Excluded pages are skipped, matching
 - **Creation is the library's.** The viewer emits `artifactCreated()`; `Project::createOverlay()` writes
   the SVG and calls `ProjectItem::addOverlay()`, which mints the uid, hashes the file and dedups identical
   content. Every other edit arrives as the complete new state on `overlaysEdited()`.
-- **A preset is a bubble with nothing said in it.** `BubblePreset` (`widgets/bubblepanel/`) is a name
+- **A preset is a bubble with nothing said in it.** `BubblePreset` (`widgets/stripeditor/panels/`) is a name
   plus a `TextArtifact` whose `text`, `box`, `tails` and `styleSeed` are meaningless — applying one
   copies the *look* over the selection and copies the content straight back, so restyling never touches
   the lettering. With nothing selected it restyles `prototype()` instead, which is what the next

@@ -1,5 +1,5 @@
-#ifndef OVERLAYITEM_H
-#define OVERLAYITEM_H
+#ifndef STRIPEDIT_OVERLAYITEM_H
+#define STRIPEDIT_OVERLAYITEM_H
 
 #include <QGraphicsObject>
 #include <QImage>
@@ -10,6 +10,8 @@
 #include <platemaker/models/processing_steps.hpp>
 
 #include "textartifact.h"
+
+namespace StripEdit {
 
 /**
  * @brief One bubble on the strip: draws a TextArtifact, and lets the author move, resize and aim it.
@@ -139,4 +141,6 @@ private:
     bool    m_orphaned = false;
 };
 
-#endif // OVERLAYITEM_H
+}  // namespace StripEdit
+
+#endif // STRIPEDIT_OVERLAYITEM_H

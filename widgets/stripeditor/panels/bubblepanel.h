@@ -1,5 +1,5 @@
-#ifndef BUBBLEPANEL_H
-#define BUBBLEPANEL_H
+#ifndef STRIPEDIT_BUBBLEPANEL_H
+#define STRIPEDIT_BUBBLEPANEL_H
 
 #include <QWidget>
 
@@ -16,6 +16,8 @@ class QPlainTextEdit;
 class QPushButton;
 class QSpinBox;
 class QTimer;
+
+namespace StripEdit {
 
 /**
  * @brief A named look, with nothing said in it: shape, colours, stroke, line style, font.
@@ -38,7 +40,7 @@ struct BubblePreset
  * shape (see TextArtifact). Switching tools hides the shape group rather than swapping in a second
  * panel, so there is one set of text controls, one state, and no chance of the two drifting apart.
  *
- * Follows the CcPanel contract exactly: \c setArtifact() populates without emitting; editing emits
+ * Follows the GradePanel contract exactly: \c setArtifact() populates without emitting; editing emits
  * \c changed() continuously (live preview) and \c committed() once the controls settle (debounced) or
  * on a discrete action (persisted, one undo step).
  *
@@ -159,4 +161,6 @@ private:
     bool m_shapeVisible = true;       //!< False (Text tool) → a preset restyles without changing shape.
 };
 
-#endif // BUBBLEPANEL_H
+}  // namespace StripEdit
+
+#endif // STRIPEDIT_BUBBLEPANEL_H

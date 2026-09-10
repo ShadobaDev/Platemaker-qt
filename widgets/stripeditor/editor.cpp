@@ -1,7 +1,7 @@
-#include "stripviewer.h"
-#include "ui_stripviewer.h"
+#include "editor.h"
+#include "ui_editor.h"
 #include "flowlayout.h"
-#include "ccpanel.h"
+#include "gradepanel.h"
 #include "bubblepanel.h"
 #include "overlayitem.h"
 #include "artifactpainter.h"
@@ -52,6 +52,8 @@
 #include <string>
 #include <unordered_map>
 #include <utility>
+
+namespace StripEdit {
 
 namespace {
 
@@ -108,14 +110,14 @@ QPixmap renderAssetFile(const QString& path)
  *
  * One QGraphicsPixmapItem per page leaves a 1px hairline at each join (QGraphicsView clips and rounds
  * each item's edge independently). Drawing all pages through one item, in one painter pass, tiles them
- * edge-to-edge with no seam at any zoom. The item is a thin view over the StripViewer: it owns no
+ * edge-to-edge with no seam at any zoom. The item is a thin view over the Editor: it owns no
  * pixels — it asks the viewer for each page's built pixmap (if ready) or its blurry proxy, so the
  * lazy/async machinery lives in one place.
  */
 class StripItem : public QGraphicsItem
 {
 public:
-    explicit StripItem(StripViewer *owner) : m_owner(owner) {}
+    explicit StripItem(Editor *owner) : m_owner(owner) {}
 
     QRectF boundingRect() const override
     {
@@ -161,14 +163,14 @@ public:
     }
 
 private:
-    StripViewer *m_owner;
+    Editor *m_owner;
 };
 
 } // namespace
 
-StripViewer::StripViewer(QWidget *parent)
+Editor::Editor(QWidget *parent)
     : QWidget(parent)
-    , ui(new Ui::StripViewer)
+    , ui(new Ui::Editor)
 {
     m_pageCache.setMaxCost(k_pageCacheKiB);
     m_proxyCache.setMaxCost(k_proxyCacheKiB);
@@ -188,13 +190,13 @@ StripViewer::StripViewer(QWidget *parent)
     m_view->setRenderHints(QPainter::Antialiasing | QPainter::SmoothPixmapTransform);
     m_view->viewport()->installEventFilter(this);   // Ctrl+wheel zoom
     // Build the pages that scroll into view (plus a prefetch margin).
-    connect(m_view->verticalScrollBar(),   &QScrollBar::valueChanged, this, &StripViewer::updateVisiblePages);
-    connect(m_view->horizontalScrollBar(), &QScrollBar::valueChanged, this, &StripViewer::updateVisiblePages);
+    connect(m_view->verticalScrollBar(),   &QScrollBar::valueChanged, this, &Editor::updateVisiblePages);
+    connect(m_view->horizontalScrollBar(), &QScrollBar::valueChanged, this, &Editor::updateVisiblePages);
 
-    connect(ui->buttonZoomOut,   &QToolButton::clicked, this, &StripViewer::zoomOut);
-    connect(ui->buttonZoomIn,    &QToolButton::clicked, this, &StripViewer::zoomIn);
-    connect(ui->buttonFitWidth,  &QToolButton::clicked, this, &StripViewer::fitWidth);
-    connect(ui->buttonZoomReset, &QToolButton::clicked, this, &StripViewer::resetZoom);
+    connect(ui->buttonZoomOut,   &QToolButton::clicked, this, &Editor::zoomOut);
+    connect(ui->buttonZoomIn,    &QToolButton::clicked, this, &Editor::zoomIn);
+    connect(ui->buttonFitWidth,  &QToolButton::clicked, this, &Editor::fitWidth);
+    connect(ui->buttonZoomReset, &QToolButton::clicked, this, &Editor::resetZoom);
     connect(ui->buttonSeams, &QToolButton::toggled, this, [this](bool on) {
         for (QGraphicsLineItem *seam : std::as_const(m_seamItems))
             seam->setVisible(on);
@@ -230,14 +232,14 @@ StripViewer::StripViewer(QWidget *parent)
         // One tool-options page per tool (index == Tool). Empty scaffolds for now; grade/bubble/text
         // controls arrive in later increments. Pan has no options.
         ui->toolOptions->addWidget(new QWidget(ui->toolOptions)); // Pan
-        m_ccPanel = new CcPanel(ui->toolOptions);                 // Grade
-        ui->toolOptions->addWidget(m_ccPanel);
-        connect(m_ccPanel, &CcPanel::changed, this, [this](const Platemaker::Models::ColourCorrection& cc) {
+        m_gradePanel = new GradePanel(ui->toolOptions);                 // Grade
+        ui->toolOptions->addWidget(m_gradePanel);
+        connect(m_gradePanel, &GradePanel::changed, this, [this](const Platemaker::Models::ColourCorrection& cc) {
             // Live edit: apply it, but do NOT push it back into the panel — the panel is the source
             // here, and re-syncing its widgets mid-drag would fight the slider the user is holding.
             applyGrade(cc);
         });
-        connect(m_ccPanel, &CcPanel::committed, this, [this](const Platemaker::Models::ColourCorrection& cc) {
+        connect(m_gradePanel, &GradePanel::committed, this, [this](const Platemaker::Models::ColourCorrection& cc) {
             emit colourCorrectionEdited(cc); // settled: the owner persists it onto the project (undo)
         });
         // One panel for Bubble *and* Text: they author the same object (a TextArtifact, with or without
@@ -248,7 +250,7 @@ StripViewer::StripViewer(QWidget *parent)
                 [this](const TextArtifact& a) { applyPanelArtifact(a, /*commit=*/false); });
         connect(m_bubblePanel, &BubblePanel::committed, this,
                 [this](const TextArtifact& a) { applyPanelArtifact(a, /*commit=*/true); });
-        connect(m_bubblePanel, &BubblePanel::deleteRequested, this, &StripViewer::deleteSelectedOverlay);
+        connect(m_bubblePanel, &BubblePanel::deleteRequested, this, &Editor::deleteSelectedOverlay);
         connect(m_bubblePanel, &BubblePanel::fitRequested, this, [this] {
             OverlayItem* item = m_overlayItems.value(m_selectedOverlay);
             if (!item) return;
@@ -279,17 +281,17 @@ StripViewer::StripViewer(QWidget *parent)
         m_actDuplicate = new QAction(tr("Duplicate"), this);
         m_actDuplicate->setShortcut(QKeySequence(Qt::CTRL | Qt::Key_D));
         m_actDuplicate->setShortcutContext(Qt::WidgetShortcut);
-        connect(m_actDuplicate, &QAction::triggered, this, &StripViewer::duplicateSelectedOverlay);
+        connect(m_actDuplicate, &QAction::triggered, this, &Editor::duplicateSelectedOverlay);
 
         m_actDelete = new QAction(tr("Delete"), this);
         m_actDelete->setShortcut(QKeySequence::Delete);
         m_actDelete->setShortcutContext(Qt::WidgetShortcut);
-        connect(m_actDelete, &QAction::triggered, this, &StripViewer::deleteSelectedOverlay);
+        connect(m_actDelete, &QAction::triggered, this, &Editor::deleteSelectedOverlay);
 
         // Artwork drawn elsewhere — a balloon inked on a tablet, a logo — placed as an overlay like any
         // other. Always available, unlike Duplicate/Delete, because it needs no selection.
         m_actImport = new QAction(tr("Import artwork…"), this);
-        connect(m_actImport, &QAction::triggered, this, &StripViewer::importArtwork);
+        connect(m_actImport, &QAction::triggered, this, &Editor::importArtwork);
 
         for (QWidget* w : {static_cast<QWidget*>(ui->artifactList), static_cast<QWidget*>(m_view)}) {
             w->addAction(m_actDuplicate);
@@ -333,7 +335,7 @@ StripViewer::StripViewer(QWidget *parent)
     showEmptyState();
 }
 
-void StripViewer::setTool(Tool tool)
+void Editor::setTool(Tool tool)
 {
     m_tool = tool;
     if (auto* b = m_toolGroup->button(static_cast<int>(tool)))
@@ -366,7 +368,7 @@ void StripViewer::setTool(Tool tool)
         selectOverlay(QString());
 }
 
-void StripViewer::applyGrade(const Platemaker::Models::ColourCorrection& cc)
+void Editor::applyGrade(const Platemaker::Models::ColourCorrection& cc)
 {
     // The owner re-feeds this viewer on every project edit, and the panel persists a settled drag while
     // still emitting live values, so the same grade arrives here repeatedly. Re-grading for it would
@@ -384,14 +386,14 @@ void StripViewer::applyGrade(const Platemaker::Models::ColourCorrection& cc)
     refreshGradePreview();
 }
 
-void StripViewer::setColourCorrection(const Platemaker::Models::ColourCorrection& cc)
+void Editor::setColourCorrection(const Platemaker::Models::ColourCorrection& cc)
 {
     applyGrade(cc);
-    if (m_ccPanel)
-        m_ccPanel->setColourCorrection(cc);   // the project is the source here — show it in the panel
+    if (m_gradePanel)
+        m_gradePanel->setColourCorrection(cc);   // the project is the source here — show it in the panel
 }
 
-bool StripViewer::gradeActive() const
+bool Editor::gradeActive() const
 {
     // Independent of the active tool: the strip's pixels are the ungraded input, so the project's grade
     // is what the strip is *supposed* to look like — switching to Pan must not reveal an ungraded strip.
@@ -402,13 +404,13 @@ bool StripViewer::gradeActive() const
              && !Platemaker::Models::hasAnyCurve(m_cc.curves));
 }
 
-QPixmap StripViewer::gradedOf(int index) const
+QPixmap Editor::gradedOf(int index) const
 {
     const QPixmap* p = m_gradedCache.object(index);
     return p ? *p : QPixmap();
 }
 
-void StripViewer::produceGraded(int index)
+void Editor::produceGraded(int index)
 {
     if (!gradeActive() || m_gradedCache.object(index))
         return;
@@ -432,10 +434,10 @@ void StripViewer::produceGraded(int index)
         // interleaved RGBA buffer, so applyToRgba(bits + top*w*4, w, rows, cc) is already legal.
         Platemaker::Core::ColourCorrector{}.applyToRgba(img.bits(), img.width(), img.height(), m_cc);
     } catch (const std::exception& e) {
-        qWarning() << "StripViewer: grade preview failed for page" << index << "—" << e.what();
+        qWarning() << "Editor: grade preview failed for page" << index << "—" << e.what();
         return; // leave it ungraded (paint falls back to the built page)
     } catch (...) {
-        qWarning() << "StripViewer: grade preview failed for page" << index;
+        qWarning() << "Editor: grade preview failed for page" << index;
         return;
     }
     const QPixmap g = QPixmap::fromImage(img);
@@ -444,7 +446,7 @@ void StripViewer::produceGraded(int index)
         m_item->update(pageRect(index));
 }
 
-void StripViewer::refreshGradePreview()
+void Editor::refreshGradePreview()
 {
     m_gradedCache.clear();     // the grade changed → previous previews are stale
     if (m_item)
@@ -452,12 +454,12 @@ void StripViewer::refreshGradePreview()
     updateVisiblePages();      // re-grade what's on screen (produceGraded runs for visible pages)
 }
 
-StripViewer::~StripViewer()
+Editor::~Editor()
 {
     delete ui;
 }
 
-void StripViewer::setPreviewSource(const std::vector<Platemaker::Models::InputFile>&     inputs,
+void Editor::setPreviewSource(const std::vector<Platemaker::Models::InputFile>&     inputs,
                                    const Platemaker::Models::OutputProfile&              outProfile,
                                    const std::vector<Platemaker::Models::CanvasProfile>& canvasProfiles,
                                    const std::vector<std::string>&                       canvasProfileIds,
@@ -497,19 +499,19 @@ void StripViewer::setPreviewSource(const std::vector<Platemaker::Models::InputFi
     rebuildScene();
 }
 
-QPixmap StripViewer::pageOf(int index) const
+QPixmap Editor::pageOf(int index) const
 {
     const QPixmap *p = m_pageCache.object(index);
     return p ? *p : QPixmap();
 }
 
-QPixmap StripViewer::proxyOf(int index) const
+QPixmap Editor::proxyOf(int index) const
 {
     const QPixmap *p = m_proxyCache.object(index);
     return p ? *p : QPixmap();
 }
 
-void StripViewer::resetDecodeState()
+void Editor::resetDecodeState()
 {
     ++m_generation;             // in-flight results from before now are ignored on arrival
     m_pageCache.clear();
@@ -519,7 +521,7 @@ void StripViewer::resetDecodeState()
     m_proxyInFlight.clear();
 }
 
-void StripViewer::rebuildScene()
+void Editor::rebuildScene()
 {
     m_syncingList = true;       // scene->clear() drops the selection; that is not a user action
     m_scene->clear();           // deletes every item (incl. the StripItem); the tracked pointers are now stale
@@ -538,7 +540,7 @@ void StripViewer::rebuildScene()
         layout = Platemaker::Core::ProcessingPipeline::layoutPagesFromHeaders(
             m_inputs, m_outProfile, m_canvasProfiles, m_canvasProfileIds);
     } catch (const std::exception& e) {
-        qWarning() << "StripViewer: preview layout failed —" << e.what();
+        qWarning() << "Editor: preview layout failed —" << e.what();
     }
 
     // Pages the render would skip are dropped here, which is what keeps every page below them at the
@@ -569,7 +571,7 @@ void StripViewer::rebuildScene()
     updateVisiblePages();       // start building what's on screen
 }
 
-void StripViewer::addSeamItems()
+void Editor::addSeamItems()
 {
     // Where the output will be cut. Unlike the page joins, these are not visible in the strip itself,
     // and they are exactly what an author needs to see: a bubble that straddles one lands on both
@@ -592,7 +594,7 @@ void StripViewer::addSeamItems()
     }
 }
 
-void StripViewer::showEmptyState()
+void Editor::showEmptyState()
 {
     m_syncingList = true;
     m_scene->clear();
@@ -614,7 +616,7 @@ void StripViewer::showEmptyState()
 // Lazy page build: proxy (blurry, instant) + the real page domain (sharp, async)
 // ---------------------------------------------------------------------------
 
-void StripViewer::updateVisiblePages()
+void Editor::updateVisiblePages()
 {
     if (m_layout.isEmpty())
         return;
@@ -623,7 +625,7 @@ void StripViewer::updateVisiblePages()
     const QRectF vis = m_view->mapToScene(m_view->viewport()->rect()).boundingRect();
     int first = -1, last = -1;
     for (int i = 0; i < m_layout.pageCount(); ++i) {
-        const StripPage& p = m_layout.page(i);
+        const Page& p = m_layout.page(i);
         if (p.top + p.size.height() >= vis.top() && p.top <= vis.bottom()) {
             if (first < 0) first = i;
             last = i;
@@ -640,7 +642,7 @@ void StripViewer::updateVisiblePages()
     }
 }
 
-void StripViewer::requestPage(int index)
+void Editor::requestPage(int index)
 {
     const int gen = m_generation;
 
@@ -729,7 +731,7 @@ void StripViewer::requestPage(int index)
 // Zoom
 // ---------------------------------------------------------------------------
 
-void StripViewer::applyZoom(double z)
+void Editor::applyZoom(double z)
 {
     m_zoom = qBound(0.02, z, 8.0);
     QTransform t;
@@ -739,17 +741,17 @@ void StripViewer::applyZoom(double z)
     updateVisiblePages();       // zoom changes how many pages are on screen
 }
 
-void StripViewer::userZoom(double z)
+void Editor::userZoom(double z)
 {
     m_pendingFit = false;   // the user has taken control — stop re-fitting on resize
     applyZoom(z);
 }
 
-void StripViewer::zoomIn()  { userZoom(m_zoom * 1.25); }
-void StripViewer::zoomOut() { userZoom(m_zoom / 1.25); }
-void StripViewer::resetZoom() { userZoom(1.0); }
+void Editor::zoomIn()  { userZoom(m_zoom * 1.25); }
+void Editor::zoomOut() { userZoom(m_zoom / 1.25); }
+void Editor::resetZoom() { userZoom(1.0); }
 
-void StripViewer::applyDefaultZoom()
+void Editor::applyDefaultZoom()
 {
     // Default view is native size — 100% — always. (The former "shrink to fit the viewport width" default
     // computed a tiny zoom while the splitter had not yet given the canvas its real width, so the strip
@@ -757,7 +759,7 @@ void StripViewer::applyDefaultZoom()
     applyZoom(1.0);
 }
 
-void StripViewer::fitWidth()
+void Editor::fitWidth()
 {
     if (m_layout.stripWidth() <= 0)
         return;
@@ -767,7 +769,7 @@ void StripViewer::fitWidth()
         userZoom(static_cast<double>(vw) / static_cast<double>(m_layout.stripWidth()));
 }
 
-void StripViewer::resizeEvent(QResizeEvent *event)
+void Editor::resizeEvent(QResizeEvent *event)
 {
     QWidget::resizeEvent(event);
     if (m_pendingFit)
@@ -775,7 +777,7 @@ void StripViewer::resizeEvent(QResizeEvent *event)
     updateVisiblePages();
 }
 
-bool StripViewer::eventFilter(QObject *watched, QEvent *event)
+bool Editor::eventFilter(QObject *watched, QEvent *event)
 {
     // Bubble / Text: the left button draws a new bubble on empty strip. A press that lands on an
     // existing overlay is left alone, so the item's own move/resize handling still runs.
@@ -821,12 +823,12 @@ bool StripViewer::eventFilter(QObject *watched, QEvent *event)
 // render will put it.
 // ---------------------------------------------------------------------------
 
-bool StripViewer::artifactToolActive() const
+bool Editor::artifactToolActive() const
 {
     return m_tool == Tool::Bubble || m_tool == Tool::Text;
 }
 
-void StripViewer::setOverlaySource(const std::vector<Platemaker::Models::StripOverlay>& overlays,
+void Editor::setOverlaySource(const std::vector<Platemaker::Models::StripOverlay>& overlays,
                                    const ArtifactMap&                                  artifacts)
 {
     m_overlays  = overlays;
@@ -851,7 +853,7 @@ void StripViewer::setOverlaySource(const std::vector<Platemaker::Models::StripOv
         selectOverlay(QString());
 }
 
-QImage StripViewer::sharpRasterFor(const TextArtifact& a)
+QImage Editor::sharpRasterFor(const TextArtifact& a)
 {
     const QByteArray svg = artifactToSvg(a);
     if (svg.isEmpty())
@@ -880,7 +882,7 @@ QImage StripViewer::sharpRasterFor(const TextArtifact& a)
     return img;
 }
 
-void StripViewer::syncOverlayItems()
+void Editor::syncOverlayItems()
 {
     if (!m_scene)
         return;
@@ -925,8 +927,8 @@ void StripViewer::syncOverlayItems()
 
         if (!item) {
             item = new OverlayItem(uid, a);
-            connect(item, &OverlayItem::geometryEdited, this, &StripViewer::onOverlayGeometryEdited);
-            connect(item, &OverlayItem::artworkResized,  this, &StripViewer::onArtworkResized);
+            connect(item, &OverlayItem::geometryEdited, this, &Editor::onOverlayGeometryEdited);
+            connect(item, &OverlayItem::artworkResized,  this, &Editor::onArtworkResized);
             m_scene->addItem(item);
             m_overlayItems.insert(uid, item);
         } else if (item->artifact() != a) {
@@ -952,7 +954,7 @@ void StripViewer::syncOverlayItems()
     }
 }
 
-void StripViewer::onOverlayGeometryEdited(const QString& uid)
+void Editor::onOverlayGeometryEdited(const QString& uid)
 {
     OverlayItem* item = m_overlayItems.value(uid);
     if (!item)
@@ -988,13 +990,13 @@ void StripViewer::onOverlayGeometryEdited(const QString& uid)
     pushOverlays(tr("Move bubble"));
 }
 
-void StripViewer::onArtworkResized(const QString& uid, QSize size)
+void Editor::onArtworkResized(const QString& uid, QSize size)
 {
     // Straight through: the size belongs in the artwork itself, and only the owner writes files.
     emit artworkResizeRequested(uid, size);
 }
 
-void StripViewer::refreshArtifactList()
+void Editor::refreshArtifactList()
 {
     if (!ui->artifactList)
         return;
@@ -1026,7 +1028,7 @@ void StripViewer::refreshArtifactList()
     m_syncingList = false;
 }
 
-void StripViewer::selectOverlay(const QString& uid)
+void Editor::selectOverlay(const QString& uid)
 {
     m_selectedOverlay = uid;
 
@@ -1055,7 +1057,7 @@ void StripViewer::selectOverlay(const QString& uid)
         m_bubblePanel->clearSelection();
 }
 
-void StripViewer::applyPanelArtifact(const TextArtifact& a, bool commit)
+void Editor::applyPanelArtifact(const TextArtifact& a, bool commit)
 {
     OverlayItem* item = m_overlayItems.value(m_selectedOverlay);
     if (!item)
@@ -1072,7 +1074,7 @@ void StripViewer::applyPanelArtifact(const TextArtifact& a, bool commit)
     pushOverlays(tr("Edit bubble"));
 }
 
-void StripViewer::importArtwork()
+void Editor::importArtwork()
 {
     if (m_layout.isEmpty()) {
         QMessageBox::information(this, tr("Import artwork"),
@@ -1100,7 +1102,7 @@ void StripViewer::importArtwork()
                                 m_layout.anchorUidForPage(page));
 }
 
-void StripViewer::deleteSelectedOverlay()
+void Editor::deleteSelectedOverlay()
 {
     if (m_selectedOverlay.isEmpty())
         return;
@@ -1119,7 +1121,7 @@ void StripViewer::deleteSelectedOverlay()
     pushOverlays(tr("Delete bubble"));
 }
 
-void StripViewer::setOverlayEnabled(const QString& uid, bool on)
+void Editor::setOverlayEnabled(const QString& uid, bool on)
 {
     for (auto& o : m_overlays) {
         if (QString::fromStdString(o.uid) != uid || o.enabled == on)
@@ -1131,7 +1133,7 @@ void StripViewer::setOverlayEnabled(const QString& uid, bool on)
     }
 }
 
-void StripViewer::commitListOrder()
+void Editor::commitListOrder()
 {
     // The list's row order is the composite order: the render draws overlays in vector order, so the
     // last row is the one on top.
@@ -1154,7 +1156,7 @@ void StripViewer::commitListOrder()
     pushOverlays(tr("Reorder overlays"));
 }
 
-void StripViewer::duplicateSelectedOverlay()
+void Editor::duplicateSelectedOverlay()
 {
     OverlayItem* item = m_overlayItems.value(m_selectedOverlay);
     if (!item)
@@ -1173,14 +1175,14 @@ void StripViewer::duplicateSelectedOverlay()
     }
 }
 
-void StripViewer::pushOverlays(const QString& undoText)
+void Editor::pushOverlays(const QString& undoText)
 {
     emit overlaysEdited(m_overlays, m_artifacts, undoText);
 }
 
 // --- placing a new bubble ---------------------------------------------------
 
-void StripViewer::beginPlacement(const QPointF& scenePos)
+void Editor::beginPlacement(const QPointF& scenePos)
 {
     m_placing         = true;
     m_placementOrigin = scenePos;
@@ -1195,13 +1197,13 @@ void StripViewer::beginPlacement(const QPointF& scenePos)
     m_placementRubber->setZValue(1000);   // above everything while it is being drawn
 }
 
-void StripViewer::updatePlacement(const QPointF& scenePos)
+void Editor::updatePlacement(const QPointF& scenePos)
 {
     if (m_placementRubber)
         m_placementRubber->setRect(QRectF(m_placementOrigin, scenePos).normalized());
 }
 
-void StripViewer::finishPlacement()
+void Editor::finishPlacement()
 {
     QRectF r = m_placementRubber ? m_placementRubber->rect() : QRectF();
     if (m_placementRubber) {
@@ -1242,3 +1244,5 @@ void StripViewer::finishPlacement()
     emit artifactCreated(a, qRound(origin.x()), qRound(origin.y()) - m_layout.page(page).top,
                          m_layout.anchorUidForPage(page));
 }
+
+}  // namespace StripEdit

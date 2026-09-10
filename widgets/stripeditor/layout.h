@@ -1,5 +1,5 @@
-#ifndef STRIPLAYOUT_H
-#define STRIPLAYOUT_H
+#ifndef STRIPEDIT_LAYOUT_H
+#define STRIPEDIT_LAYOUT_H
 
 #include <QList>
 #include <QPointF>
@@ -13,13 +13,15 @@
 
 #include <vector>
 
+namespace StripEdit {
+
 /**
  * @brief One drawable page in the strip: where it sits, what it is, and what an overlay anchors to.
  *
  * "Drawable" excludes the pages a render would skip (missing or unreadable). They are dropped when the
  * layout is built, which is what keeps every page below them at the offset the render will give it.
  */
-struct StripPage
+struct Page
 {
     int     inputIndex = -1;  //!< Index into the feed's inputs — the page still needs its InputFile to build.
     QString sourcePath;       //!< Source file, for the proxy thumbnail lookup and diagnostics.
@@ -31,7 +33,7 @@ struct StripPage
 /**
  * @brief Where every page lands in the strip, and the queries the editor asks of that.
  *
- * Split out of StripViewer, where it lived as **four parallel QLists** indexed in lockstep — a struct
+ * Split out of the editor, where it lived as **four parallel QLists** indexed in lockstep — a struct
  * wearing four names, and one `append()` away from silently mismatching. It is also the part of the
  * viewer with no Qt widget in it: no scene, no view, no palette, nothing to construct. That makes it the
  * one piece testable on its own, and it is the piece the overlay code interrogates constantly (every
@@ -40,7 +42,7 @@ struct StripPage
  * **Strip coordinates are scene coordinates, 1:1**, so what this returns is directly usable as a scene
  * position — which is exactly why overlays need no coordinate-mapping layer of their own.
  */
-class StripLayout
+class Layout
 {
 public:
     /**
@@ -62,7 +64,7 @@ public:
 
     //! Page \p i. Out of range gives a default-constructed page rather than throwing: every caller is a
     //! paint or a hit-test, and an empty rect is a better answer there than an exception.
-    [[nodiscard]] const StripPage& page(int i) const;
+    [[nodiscard]] const Page& page(int i) const;
 
     //! Scene rect of page \p i — the strip is one column, so x is always 0.
     [[nodiscard]] QRectF pageRect(int i) const;
@@ -93,9 +95,11 @@ public:
     [[nodiscard]] QPointF scenePosOf(const Platemaker::Models::StripOverlay& o) const;
 
 private:
-    QList<StripPage> m_pages;
+    QList<Page> m_pages;
     int              m_width  = 0;   //!< Widest page = strip width.
     int              m_height = 0;   //!< Sum of page heights.
 };
 
-#endif // STRIPLAYOUT_H
+}  // namespace StripEdit
+
+#endif // STRIPEDIT_LAYOUT_H

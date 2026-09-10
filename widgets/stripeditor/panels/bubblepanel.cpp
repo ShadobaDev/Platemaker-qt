@@ -37,6 +37,8 @@
 #include <QToolButton>
 #include <QVBoxLayout>
 
+namespace StripEdit {
+
 namespace {
 constexpr int k_commitDebounceMs = 300; //!< Coalesce typing into one undo step this long after it stops.
 constexpr int k_swatchPx         = 16;  //!< Colour chip drawn on a swatch button.
@@ -837,3 +839,5 @@ void BubblePanel::paintSwatch(QPushButton* swatch, const QColor& c)
     pm.fill(c);
     swatch->setIcon(QIcon(pm));
 }
+
+}  // namespace StripEdit

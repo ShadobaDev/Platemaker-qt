@@ -431,13 +431,13 @@ private:
      * render's finish hook refreshes an open one. Raise-if-open, tracked in m_openStripDocks,
      * reindexed/closed with the project.
      */
-    void openStripViewerDock(int projectIndex);
+    void openStripEditorDock(int projectIndex);
 
     //! The open strip dock for the project at @p modelIndex, or nullptr. Keyed by the "projectIndex" property.
-    [[nodiscard]] QDockWidget *dockForStripViewer(int modelIndex) const;
+    [[nodiscard]] QDockWidget *dockForStripEditor(int modelIndex) const;
 
-    //! Reloads @p dock's StripViewer from its project's current committed output slices (in strip order).
-    void refreshStripViewer(QDockWidget *dock);
+    //! Reloads @p dock's StripEdit::Editor from its project's current committed output slices (in strip order).
+    void refreshStripEditor(QDockWidget *dock);
 
     // --- members ---
     static constexpr int k_maxRecentWorkspaces = 10;    //!< Maximum number of recent workspaces to track in the menu.

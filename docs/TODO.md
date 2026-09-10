@@ -83,7 +83,7 @@ New, backward-compatible features. Several are gated on a lib version, noted in 
 
 - [~] **Infinite strip and lookup system** — *viewer DONE (GUI); lookup + preview-render deferred.*
   See the full strip as one continuous image during work, instead of per-slice tiles. Shipped: a
-  per-project **floating dock** (`widgets/stripviewer/`, `.ui` + `.cpp`/`.h`, opened from the Output tab's
+  per-project **floating dock** (`widgets/stripeditor/`, `.ui` + `.cpp`/`.h`, opened from the Output tab's
   *View strip*), a window onto the **lib-rendered output slices** reassembled — WYSIWYG, the viewer never
   re-derives pixels. It carries a **custom title bar** (native min/max on a dock misbehave; a floating
   dock otherwise shows only close) whose buttons **dock it tabbed beside Workspace** (minimise), **fill
@@ -115,7 +115,7 @@ New, backward-compatible features. Several are gated on a lib version, noted in 
 - [x] **Project-wide colour correction — DONE (lib 0.6.0 + GUI).** Shipped: `Models::ColourCorrection`
   on the project (tone curves, brightness / contrast / saturation, per-page exclusions by input uid),
   applied per input page **before scale** by `Core::ColourCorrector`, folded into staleness via
-  `processingConfigSignature()`. The GUI's Grade tool (`widgets/ccpanel/`) edits it live against the
+  `processingConfigSignature()`. The GUI's Grade tool (`widgets/stripeditor/panels/gradepanel.*`) edits it live against the
   strip using `ColourCorrector::applyToRgba()` — the same engine the render uses, so the preview is not
   an approximation — and writes through `commitEdit` for undo.
   - *The ICC half was investigated and dropped.* An `iccToSRGB` toggle shipped first, then measurement

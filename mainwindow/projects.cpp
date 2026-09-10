@@ -8,7 +8,7 @@
 #include "outputprofiledialog.h"
 #include "templatesdialog.h"
 #include "renderworker.h"
-#include "stripviewer.h"
+#include "editor.h"
 #include "docktitlebar.h"
 
 #include <platemaker/infrastructure/workspace_editor/workspace_editor.hpp>
@@ -129,7 +129,7 @@ void MainWindow::renameProject(int modelIndex)
         // Reflect the new name on the open dock/tab, if any.
         if (QDockWidget *dock = dockForProject(modelIndex))
             dock->setWindowTitle(name.trimmed());
-        if (QDockWidget *strip = dockForStripViewer(modelIndex))
+        if (QDockWidget *strip = dockForStripEditor(modelIndex))
             strip->setWindowTitle(tr("Strip — %1").arg(name.trimmed()));
 
         setDirty(true);
@@ -187,7 +187,7 @@ void MainWindow::removeProject(int modelIndex)
         dock->deleteLater();
     }
     // ...and its strip viewer dock, if open.
-    if (QDockWidget *strip = dockForStripViewer(modelIndex)) {
+    if (QDockWidget *strip = dockForStripEditor(modelIndex)) {
         m_openStripDocks.removeOne(strip);
         strip->deleteLater();
     }
@@ -269,8 +269,8 @@ void MainWindow::openProjectDock(int projectIndex)
         m_overlayArtifacts.setArtifacts(projectUid, artifacts);
         // A record edit changes what a bubble says without moving a page, so the strip has to be told
         // explicitly — the feed signature it guards itself with would not see it.
-        if (QDockWidget* strip = dockForStripViewer(newDock->property("projectIndex").toInt()))
-            refreshStripViewer(strip);
+        if (QDockWidget* strip = dockForStripEditor(newDock->property("projectIndex").toInt()))
+            refreshStripEditor(strip);
     });
     connect(projectWidget, &Project::projectModified, this, [this, newDock]{
         setDirty(true);
@@ -278,13 +278,13 @@ void MainWindow::openProjectDock(int projectIndex)
         // render needed. setPreviewSource() ignores a feed that has not actually changed, so the edits
         // that leave the strip alone (a grade tweak, render bookkeeping) cost nothing here.
         // The index comes from the dock property, which removeProject() re-stamps when the model shifts.
-        if (QDockWidget *strip = dockForStripViewer(newDock->property("projectIndex").toInt()))
-            refreshStripViewer(strip);
+        if (QDockWidget *strip = dockForStripEditor(newDock->property("projectIndex").toInt()))
+            refreshStripEditor(strip);
     });
     connect(projectWidget, &Project::renderToggleRequested,
             this, &MainWindow::onRenderToggle);
     connect(projectWidget, &Project::viewStripRequested,
-            this, &MainWindow::openStripViewerDock);
+            this, &MainWindow::openStripEditorDock);
     // A workspace-level edit made from this dock (canvas-profile content, output format) belongs on
     // the workspace undo timeline — push it there from the before/after snapshots the project sends.
     connect(projectWidget, &Project::workspaceEditCommitted, this,
@@ -416,7 +416,7 @@ void MainWindow::closeDock(QDockWidget *dock)
 // Strip viewer dock (per-project, floating, custom title bar)
 // ---------------------------------------------------------------------------
 
-QDockWidget *MainWindow::dockForStripViewer(int modelIndex) const
+QDockWidget *MainWindow::dockForStripEditor(int modelIndex) const
 {
     for (QDockWidget *dock : m_openStripDocks)
         if (dock->property("projectIndex").toInt() == modelIndex)
@@ -424,10 +424,10 @@ QDockWidget *MainWindow::dockForStripViewer(int modelIndex) const
     return nullptr;
 }
 
-void MainWindow::refreshStripViewer(QDockWidget *dock)
+void MainWindow::refreshStripEditor(QDockWidget *dock)
 {
     if (!dock) return;
-    auto *viewer = qobject_cast<StripViewer *>(dock->widget());
+    auto *viewer = qobject_cast<StripEdit::Editor *>(dock->widget());
     if (!viewer) return;
 
     const int idx = dock->property("projectIndex").toInt();
@@ -461,16 +461,16 @@ void MainWindow::refreshStripViewer(QDockWidget *dock)
                              m_overlayArtifacts.artifacts(QString::fromStdString(project.uid)));
 }
 
-void MainWindow::openStripViewerDock(int projectIndex)
+void MainWindow::openStripEditorDock(int projectIndex)
 {
     if (projectIndex < 0 || projectIndex >= static_cast<int>(m_workspace.projectItems.size()))
         return;
 
     // Already open → raise and refresh (the outputs may have changed since it was last shown).
-    if (QDockWidget *existing = dockForStripViewer(projectIndex)) {
+    if (QDockWidget *existing = dockForStripEditor(projectIndex)) {
         existing->show();
         existing->raise();
-        refreshStripViewer(existing);
+        refreshStripEditor(existing);
         return;
     }
 
@@ -487,15 +487,15 @@ void MainWindow::openStripViewerDock(int projectIndex)
     // is never tab-combined with Action.
     dock->setAllowedAreas(Qt::LeftDockWidgetArea | Qt::TopDockWidgetArea | Qt::BottomDockWidgetArea);
 
-    auto *viewer = new StripViewer(dock);
+    auto *viewer = new StripEdit::Editor(dock);
     // "Render & view": outputs are cheap/regenerable, so this just runs the normal render for the
     // project; onRenderFinished refreshes this viewer when it completes. If the project is already up to
     // date, startRender is a no-op and the already-loaded committed slices stay shown.
-    connect(viewer, &StripViewer::renderAndViewRequested, this, [this, projectIndex] {
+    connect(viewer, &StripEdit::Editor::renderAndViewRequested, this, [this, projectIndex] {
         (void)startRender(projectIndex);
     });
     // A settled grade edit in the CC panel → persist it onto the project (undoable, via the Project dock).
-    connect(viewer, &StripViewer::colourCorrectionEdited, this,
+    connect(viewer, &StripEdit::Editor::colourCorrectionEdited, this,
             [this, projectIndex](const Platemaker::Models::ColourCorrection &cc) {
         if (auto *pw = projectWidget(projectIndex))
             pw->applyColourCorrection(cc);
@@ -505,22 +505,22 @@ void MainWindow::openStripViewerDock(int projectIndex)
     // and hashes its bitmap; every other edit arrives as the complete new state and is stored as one
     // undo step. Both are guarded the same way the grade is: with the project dock closed there is no
     // undo stack to push onto, so the edit is declined rather than applied untracked.
-    connect(viewer, &StripViewer::artifactCreated, this,
+    connect(viewer, &StripEdit::Editor::artifactCreated, this,
             [this, projectIndex](const TextArtifact &artifact, int x, int y, const QString &anchorUid) {
         if (auto *pw = projectWidget(projectIndex))
             pw->createOverlay(artifact, x, y, anchorUid);
     });
-    connect(viewer, &StripViewer::artworkImportRequested, this,
+    connect(viewer, &StripEdit::Editor::artworkImportRequested, this,
             [this, projectIndex](const QString &file, int x, int y, const QString &anchorUid) {
         if (auto *pw = projectWidget(projectIndex))
             pw->importOverlayArtwork(file, x, y, anchorUid);
     });
-    connect(viewer, &StripViewer::artworkResizeRequested, this,
+    connect(viewer, &StripEdit::Editor::artworkResizeRequested, this,
             [this, projectIndex](const QString &uid, QSize size) {
         if (auto *pw = projectWidget(projectIndex))
             pw->resizeOverlayArtwork(uid, size);
     });
-    connect(viewer, &StripViewer::overlaysEdited, this,
+    connect(viewer, &StripEdit::Editor::overlaysEdited, this,
             [this, projectIndex](const std::vector<Platemaker::Models::StripOverlay> &overlays,
                                  const ArtifactMap &artifacts, const QString &undoText) {
         if (auto *pw = projectWidget(projectIndex))
@@ -536,7 +536,7 @@ void MainWindow::openStripViewerDock(int projectIndex)
     dock->setFloating(true);
 
     m_openStripDocks.append(dock);
-    refreshStripViewer(dock);   // lay the strip out from the inputs (also settles the strip width)
+    refreshStripEditor(dock);   // lay the strip out from the inputs (also settles the strip width)
 
     // Size: the output/strip width plus a 100px margin on each side, and 80% of the screen height. Fall
     // back to a typical webtoon width when the project has no pages yet (strip width unknown).

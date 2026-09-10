@@ -55,11 +55,14 @@ qt_add_executable(Platemaker
     widgets/licencedialog/licencedialog.cpp widgets/licencedialog/licencedialog.h widgets/licencedialog/licencedialog.ui
     widgets/renderworker/renderworker.cpp widgets/renderworker/renderworker.h
 
-    # Strip viewer — continuous "infinite strip" view built from the project's input pages
-    # (QGraphicsView), plus the scene item that draws and edits one text/bubble overlay on it.
-    widgets/stripviewer/stripviewer.cpp widgets/stripviewer/stripviewer.h widgets/stripviewer/stripviewer.ui
-    widgets/stripviewer/overlayitem.cpp widgets/stripviewer/overlayitem.h
-    widgets/stripviewer/striplayout.cpp widgets/stripviewer/striplayout.h
+    # Strip editor (namespace StripEdit) — the continuous "infinite strip" authoring surface built from
+    # the project's input pages (QGraphicsView), the scene item that draws and edits one overlay on it,
+    # the page geometry it answers placement questions from, and its two tool-options panels.
+    widgets/stripeditor/editor.cpp widgets/stripeditor/editor.h widgets/stripeditor/editor.ui
+    widgets/stripeditor/overlayitem.cpp widgets/stripeditor/overlayitem.h
+    widgets/stripeditor/layout.cpp widgets/stripeditor/layout.h
+    widgets/stripeditor/panels/gradepanel.cpp widgets/stripeditor/panels/gradepanel.h widgets/stripeditor/panels/gradepanel.ui
+    widgets/stripeditor/panels/bubblepanel.cpp widgets/stripeditor/panels/bubblepanel.h widgets/stripeditor/panels/bubblepanel.ui
 
     # Text artifact — what a bubble IS (shape, text, styling), its sidecar codec and its rasteriser.
     # The library composites a flat RGBA bitmap and has no text engine, so the editable source lives here.
@@ -72,11 +75,6 @@ qt_add_executable(Platemaker
 
     # Flow layout — wraps items to fit the width (the strip editor's reflowing tool grid).
     widgets/flowlayout/flowlayout.cpp widgets/flowlayout/flowlayout.h
-
-    # Strip-editor tool-options panels. bubblepanel serves the Bubble *and* Text tools: they author the
-    # same object (a TextArtifact, with or without a shape), so there is one set of text controls.
-    widgets/ccpanel/ccpanel.cpp widgets/ccpanel/ccpanel.h widgets/ccpanel/ccpanel.ui
-    widgets/bubblepanel/bubblepanel.cpp widgets/bubblepanel/bubblepanel.h widgets/bubblepanel/bubblepanel.ui
 
     # Custom dock title bar (min = dock⇄detach, max = fill screen, close) shared by all docks.
     widgets/docktitlebar/docktitlebar.cpp widgets/docktitlebar/docktitlebar.h
@@ -100,11 +98,10 @@ target_include_directories(Platemaker PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/widgets/aboutdialog
     ${CMAKE_CURRENT_SOURCE_DIR}/widgets/licencedialog
     ${CMAKE_CURRENT_SOURCE_DIR}/widgets/renderworker
-    ${CMAKE_CURRENT_SOURCE_DIR}/widgets/stripviewer
+    ${CMAKE_CURRENT_SOURCE_DIR}/widgets/stripeditor
+    ${CMAKE_CURRENT_SOURCE_DIR}/widgets/stripeditor/panels
     ${CMAKE_CURRENT_SOURCE_DIR}/widgets/stagecard
     ${CMAKE_CURRENT_SOURCE_DIR}/widgets/flowlayout
-    ${CMAKE_CURRENT_SOURCE_DIR}/widgets/ccpanel
-    ${CMAKE_CURRENT_SOURCE_DIR}/widgets/bubblepanel
     ${CMAKE_CURRENT_SOURCE_DIR}/widgets/textartifact
     ${CMAKE_CURRENT_SOURCE_DIR}/widgets/docktitlebar
 )

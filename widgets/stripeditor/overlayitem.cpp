@@ -11,6 +11,8 @@
 
 #include <utility>
 
+namespace StripEdit {
+
 namespace {
 
 //! Smallest box the author can resize to — below this the grips overlap and it stops being draggable.
@@ -350,3 +352,5 @@ void OverlayItem::hoverMoveEvent(QGraphicsSceneHoverEvent* e)
     }
     QGraphicsObject::hoverMoveEvent(e);
 }
+
+}  // namespace StripEdit

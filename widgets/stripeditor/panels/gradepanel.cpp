@@ -1,5 +1,5 @@
-#include "ccpanel.h"
-#include "ui_ccpanel.h"
+#include "gradepanel.h"
+#include "ui_gradepanel.h"
 
 #include <QDoubleSpinBox>
 #include <QGridLayout>
@@ -13,13 +13,15 @@
 
 #include <cmath>
 
+namespace StripEdit {
+
 namespace {
 constexpr int k_commitDebounceMs = 300; //!< Coalesce a drag into one undo step this long after it settles.
 }
 
-CcPanel::CcPanel(QWidget* parent)
+GradePanel::GradePanel(QWidget* parent)
     : QWidget(parent)
-    , ui(new Ui::CcPanel)
+    , ui(new Ui::GradePanel)
 {
     ui->setupUi(this); // provides the empty verticalLayout container; the controls are built here
 
@@ -88,18 +90,18 @@ CcPanel::CcPanel(QWidget* parent)
     syncFromModel();
 }
 
-CcPanel::~CcPanel()
+GradePanel::~GradePanel()
 {
     delete ui;
 }
 
-void CcPanel::setColourCorrection(const Platemaker::Models::ColourCorrection& cc)
+void GradePanel::setColourCorrection(const Platemaker::Models::ColourCorrection& cc)
 {
     m_cc = cc;
     syncFromModel();
 }
 
-void CcPanel::onControlChanged()
+void GradePanel::onControlChanged()
 {
     m_cc.brightness = m_brightnessSpin->value();
     m_cc.contrast   = m_contrastSpin->value();
@@ -109,7 +111,7 @@ void CcPanel::onControlChanged()
     m_commitTimer->start();
 }
 
-void CcPanel::syncFromModel()
+void GradePanel::syncFromModel()
 {
     m_populating = true;
     const auto set = [](QSlider* s, QDoubleSpinBox* box, double value, double scale) {
@@ -122,3 +124,5 @@ void CcPanel::syncFromModel()
     set(m_saturationSlider, m_saturationSpin, m_cc.saturation, 100.0);
     m_populating = false;
 }
+
+}  // namespace StripEdit

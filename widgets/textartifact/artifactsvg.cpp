@@ -154,7 +154,7 @@ QList<Tail> tailsFromText(const QString& s)
  *
  * Only primitives librsvg implements. Qt SVG implements neither feTurbulence nor feDisplacementMap, so
  * anything written here is invisible to Qt — which is precisely why a styled bubble is previewed by
- * asking the library to rasterise it (see StripViewer's sharp tier) rather than drawing it locally.
+ * asking the library to rasterise it (see the strip editor's sharp tier) rather than drawing it locally.
  *
  * baseFrequency is in the filter region's *user space*, and the viewBox is in balloon pixels, so the
  * texture scales with the bubble rather than with the output resolution. A chapter re-profiled to twice

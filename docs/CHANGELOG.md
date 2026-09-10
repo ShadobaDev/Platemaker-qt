@@ -4,6 +4,14 @@
 
 ### Changed
 
+- **The strip editor is one feature in one place.** `widgets/{stripviewer,ccpanel,bubblepanel}/` became
+  **`widgets/stripeditor/`** in namespace **`StripEdit`** — `StripEdit::Editor` (was `StripViewer`),
+  `Layout`, `OverlayItem`, and `panels/{bubblepanel,gradepanel}` (`GradePanel` was `CcPanel`). The screen
+  had been called the Strip Editor in `docs/SPECIFICATION.md` §2.5 for months while the code still said
+  "viewer" and lived in three sibling directories; this is the code catching up with the documentation.
+  `MainWindow::{openStripEditorDock,dockForStripEditor,refreshStripEditor}` renamed to match. Behaviour
+  is unchanged — the whole increment is renaming and moving.
+
 - **A bubble is now an SVG, not a bitmap plus a sidecar.** The file the library composites *is* the
   authoring record: resolved artwork every renderer can draw, plus the editor's parameters in a private
   `pm:` namespace that renderers ignore — the pattern Inkscape has used for twenty years. Three
@@ -66,7 +74,7 @@
 
 ### Changed
 
-- **The strip viewer now shows the project's *input pages*, not its rendered output.** It stacks each
+- **The strip editor now shows the project's *input pages*, not its rendered output.** It stacks each
   input put through the library's page domain (`ProcessingPipeline::layoutPagesFromHeaders` /
   `decodePageToRgba`)
   instead of reassembling the committed slices, which changes three things that matter:

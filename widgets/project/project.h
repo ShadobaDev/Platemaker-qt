@@ -65,7 +65,7 @@ public:
     void refreshOutputTiles();                      //!< rebuild from getOutputImages()
 
     //! Persist a settled colour-correction edit from the strip editor onto this project, as one undoable
-    //! step (also refreshes the workflow map). Called by MainWindow on StripViewer::colourCorrectionEdited.
+    //! step (also refreshes the workflow map). Called by MainWindow on StripEdit::Editor::colourCorrectionEdited.
     void applyColourCorrection(const Platemaker::Models::ColourCorrection& cc);
 
     // --- text & bubble overlays -------------------------------------------------------------

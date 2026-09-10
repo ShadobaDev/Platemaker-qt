@@ -1,15 +1,17 @@
-#include "striplayout.h"
+#include "layout.h"
+
+namespace StripEdit {
 
 namespace {
 //! Returned for an out-of-range page, so every accessor can stay total (see page()).
-const StripPage& nullPage()
+const Page& nullPage()
 {
-    static const StripPage k_none;
+    static const Page k_none;
     return k_none;
 }
 } // namespace
 
-void StripLayout::build(const std::vector<Platemaker::Core::PagePreviewGeometry>& geometry,
+void Layout::build(const std::vector<Platemaker::Core::PagePreviewGeometry>& geometry,
                         const std::vector<Platemaker::Models::InputFile>&         inputs)
 {
     clear();
@@ -22,7 +24,7 @@ void StripLayout::build(const std::vector<Platemaker::Core::PagePreviewGeometry>
         if (!g.readable || g.width <= 0 || g.height <= 0)
             continue;
 
-        StripPage p;
+        Page p;
         p.inputIndex = i;
         p.sourcePath = QString::fromStdString(g.sourceFilePath);
         if (i >= 0 && i < static_cast<int>(inputs.size()))
@@ -37,25 +39,25 @@ void StripLayout::build(const std::vector<Platemaker::Core::PagePreviewGeometry>
     m_height = y;
 }
 
-void StripLayout::clear()
+void Layout::clear()
 {
     m_pages.clear();
     m_width  = 0;
     m_height = 0;
 }
 
-const StripPage& StripLayout::page(int i) const
+const Page& Layout::page(int i) const
 {
     return (i >= 0 && i < m_pages.size()) ? m_pages.at(i) : nullPage();
 }
 
-QRectF StripLayout::pageRect(int i) const
+QRectF Layout::pageRect(int i) const
 {
-    const StripPage& p = page(i);
+    const Page& p = page(i);
     return QRectF(0, p.top, p.size.width(), p.size.height());
 }
 
-int StripLayout::pageAtSceneY(qreal y) const
+int Layout::pageAtSceneY(qreal y) const
 {
     if (m_pages.isEmpty())
         return -1;
@@ -65,12 +67,12 @@ int StripLayout::pageAtSceneY(qreal y) const
     return 0;   // above the first page: clamp, never fall through to an absolute placement
 }
 
-QString StripLayout::anchorUidForPage(int page) const
+QString Layout::anchorUidForPage(int page) const
 {
     return this->page(page).inputUid;
 }
 
-int StripLayout::pageForAnchor(const QString& uid) const
+int Layout::pageForAnchor(const QString& uid) const
 {
     if (uid.isEmpty())
         return -1;
@@ -80,9 +82,11 @@ int StripLayout::pageForAnchor(const QString& uid) const
     return -1;
 }
 
-QPointF StripLayout::scenePosOf(const Platemaker::Models::StripOverlay& o) const
+QPointF Layout::scenePosOf(const Platemaker::Models::StripOverlay& o) const
 {
     const int page = pageForAnchor(QString::fromStdString(o.anchorInputUid));
     const int top  = (page >= 0) ? m_pages.at(page).top : 0;
     return QPointF(o.x, top + o.y);
 }
+
+}  // namespace StripEdit

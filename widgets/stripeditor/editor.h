@@ -2,15 +2,14 @@
 #define STRIPEDIT_EDITOR_H
 
 #include <QWidget>
-#include <QCache>
 #include <QList>
 #include <QPixmap>
 #include <QRectF>
-#include <QSet>
 #include <QSize>
 #include <QString>
 
 #include "layout.h"
+#include "pagesource.h"
 #include "textartifact.h"
 
 #include <platemaker/core/processing_pipeline/processing_pipeline.hpp>
@@ -222,12 +221,8 @@ private:
 
     //! Requests a build of every page in view plus a prefetch margin. Called on scroll / zoom / resize.
     void updateVisiblePages();
-    //! Kicks off the async proxy + page build for one page (no-op if already cached / in flight).
-    void requestPage(int index);
-    //! Discards all cached/in-flight pages and bumps the generation so stale results are ignored.
-    void resetDecodeState();
 
-    //! Adopts a new grade and re-grades the resident pages. Does not touch the CC panel.
+    //! Adopts a new grade and re-grades the resident pages. Does not touch the Grade panel.
     void applyGrade(const Platemaker::Models::ColourCorrection& cc);
 
     // --- overlays (text & bubbles) ---
@@ -254,8 +249,6 @@ private:
     //! Page and anchor geometry is asked of \c m_layout instead — see Layout.
     [[nodiscard]] bool    artifactToolActive() const;
 
-    //! Grade the built page \p index into the graded-preview cache (no-op if grade inactive / not built).
-    void produceGraded(int index);
     //! Grade state changed: drop the graded cache and re-grade what's visible.
     void refreshGradePreview();
 
@@ -265,14 +258,6 @@ private:
     QGraphicsItem  *m_item       = nullptr;  //!< The single StripItem drawing all pages (owned by the scene).
     QLabel         *m_zoomLabel  = nullptr;  //!< == ui->labelZoom (cached).
 
-    // --- the feed: everything the lib needs to put one input page through the page domain ---
-    std::vector<Platemaker::Models::InputFile>     m_inputs;           //!< Project inputs in strip order.
-    Platemaker::Models::OutputProfile              m_outProfile;       //!< Target width + slice height.
-    std::vector<Platemaker::Models::CanvasProfile> m_canvasProfiles;   //!< Workspace palette (margins).
-    std::vector<std::string>                       m_canvasProfileIds; //!< Profiles linked to this project.
-    QString                                        m_cacheDir;         //!< Proxy-thumbnail cache dir.
-    QString                                        m_feedSignature;    //!< Fingerprint of the feed above — a re-feed that matches it keeps the built pages.
-
     //! Where every drawable page landed (those the render would skip are dropped). Indices into this
     //! key every cache below, and every overlay placement question is asked of it.
     Layout         m_layout;
@@ -280,23 +265,15 @@ private:
     double m_zoom        = 1.0;              //!< Absolute zoom factor.
     bool   m_pendingFit  = false;            //!< Re-apply the default zoom on resize until the user zooms.
 
-    // --- async build state ---
-    QCache<int, QPixmap> m_pageCache;        //!< Built (ungraded) pages, LRU-evicted under a byte cap.
-    QCache<int, QPixmap> m_proxyCache;       //!< Blurry proxy thumbnails, LRU-evicted under a byte cap.
-    QSet<int>            m_pageInFlight;     //!< Page indices whose build is running.
-    QSet<int>            m_proxyInFlight;    //!< Page indices whose proxy load is running.
-    int                  m_generation = 0;   //!< Bumped on every rebuild; async results from an older gen are dropped.
+    //! Where a page's pixels come from: the feed, the proxy/sharp/graded tiers and their caches.
+    //! Declared after m_layout because it holds a reference to it.
+    PageSource* m_pages = nullptr;
 
     // --- editor shell: the tool rail's flowing buttons are built in the ctor (a flow layout can't live in
     // a .ui); the splitters, canvas, tool-options stack and artifact list all come from editor.ui ---
     QButtonGroup   *m_toolGroup = nullptr;   //!< Exclusive group of the left rail's tool buttons (id == Tool).
     GradePanel        *m_gradePanel   = nullptr;   //!< The Grade tool-options page (colour-correction controls).
     Tool            m_tool      = Tool::Pan; //!< Current tool.
-
-    // --- colour correction ---
-    Platemaker::Models::ColourCorrection m_cc;            //!< Current grade (from the project / the panel).
-    std::string                          m_ccSignature;   //!< Fingerprint of m_cc — a grade that matches it is ignored.
-    QCache<int, QPixmap>                 m_gradedCache;   //!< Graded preview of visible pages; cleared on grade change.
 
     // --- text & bubbles ---
     BubblePanel* m_bubblePanel = nullptr;   //!< Shared tool-options page for both the Bubble and Text tools.

@@ -61,6 +61,7 @@ qt_add_executable(Platemaker
     widgets/stripeditor/editor.cpp widgets/stripeditor/editor.h widgets/stripeditor/editor.ui
     widgets/stripeditor/overlayitem.cpp widgets/stripeditor/overlayitem.h
     widgets/stripeditor/layout.cpp widgets/stripeditor/layout.h
+    widgets/stripeditor/pagesource.cpp widgets/stripeditor/pagesource.h
     widgets/stripeditor/panels/gradepanel.cpp widgets/stripeditor/panels/gradepanel.h widgets/stripeditor/panels/gradepanel.ui
     widgets/stripeditor/panels/bubblepanel.cpp widgets/stripeditor/panels/bubblepanel.h widgets/stripeditor/panels/bubblepanel.ui
 

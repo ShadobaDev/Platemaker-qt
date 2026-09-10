@@ -2,19 +2,17 @@
 #include "ui_editor.h"
 #include "flowlayout.h"
 #include "gradepanel.h"
+#include "pagesource.h"
 #include "bubblepanel.h"
 #include "overlayitem.h"
 #include "artifactpainter.h"
 #include "artifactsvg.h"
 
-#include <platemaker/core/colour_corrector/colour_corrector.hpp>
 #include <platemaker/core/strip_overlay_compositor/strip_overlay_compositor.hpp>
-#include <platemaker/infrastructure/thumbnail_cache/thumbnail_cache.hpp>
 
 #include <QButtonGroup>
 #include <QDebug>
 #include <QEvent>
-#include <QFutureWatcher>
 #include <QGraphicsItem>
 #include <QGraphicsLineItem>
 #include <QGraphicsScene>
@@ -46,7 +44,6 @@
 #include <QTransform>
 #include <QVBoxLayout>
 #include <QWheelEvent>
-#include <QtConcurrent/QtConcurrentRun>
 
 #include <algorithm>
 #include <string>
@@ -57,10 +54,6 @@ namespace StripEdit {
 
 namespace {
 
-//! LRU caps (in KiB). A scaled page is big — 800×5120 RGBA is ~16 MiB — so these hold only a handful,
-//! which is the point: RAM tracks the viewport plus the prefetch margin, not the chapter length.
-constexpr int k_pageCacheKiB  = 96 * 1024;   //!< ~6 scaled pages: visible + prefetch, with headroom.
-constexpr int k_proxyCacheKiB = 24 * 1024;   //!< Hundreds of 200px-wide proxies.
 //! Pages built beyond the viewport on each side. One page is several slices tall, so ±1 already covers
 //! a comfortable scroll ahead; a larger margin would multiply a much heavier unit of work.
 constexpr int k_prefetchPages = 1;
@@ -172,9 +165,13 @@ Editor::Editor(QWidget *parent)
     : QWidget(parent)
     , ui(new Ui::Editor)
 {
-    m_pageCache.setMaxCost(k_pageCacheKiB);
-    m_proxyCache.setMaxCost(k_proxyCacheKiB);
-    m_gradedCache.setMaxCost(k_pageCacheKiB); // a graded preview is the same size as the page it came from
+    // Page memory: the feed, the proxy/sharp tiers and the graded previews. It reads m_layout, which
+    // this widget owns and rebuilds, so it takes it by reference.
+    m_pages = new PageSource(m_layout, this);
+    connect(m_pages, &PageSource::pageReady, this, [this](int index) {
+        if (m_item)
+            m_item->update(pageRect(index));
+    });
 
     // Toolbar buttons + the graphics view come from the Designer form; the runtime wiring is here.
     ui->setupUi(this);
@@ -370,20 +367,8 @@ void Editor::setTool(Tool tool)
 
 void Editor::applyGrade(const Platemaker::Models::ColourCorrection& cc)
 {
-    // The owner re-feeds this viewer on every project edit, and the panel persists a settled drag while
-    // still emitting live values, so the same grade arrives here repeatedly. Re-grading for it would
-    // double the work of a slider drag. processingConfigSignature() is the library's own fingerprint of
-    // this exact config — reuse it as the equality test rather than hand-rolling a field compare. (It is
-    // empty for any disabled grade, which is right: nothing is graded and the load path is the same one.)
-    const std::string sig = Platemaker::Models::processingConfigSignature(cc, {});
-    if (sig == m_ccSignature)
-        return;
-    m_ccSignature = sig;
-
-    // The grade is a point operation on already-built pixels and never changes how a page is read, so
-    // no grade edit can invalidate a built page — re-grading the resident ones is always enough.
-    m_cc = cc;
-    refreshGradePreview();
+    if (m_pages->setColourCorrection(cc))
+        refreshGradePreview();
 }
 
 void Editor::setColourCorrection(const Platemaker::Models::ColourCorrection& cc)
@@ -393,62 +378,14 @@ void Editor::setColourCorrection(const Platemaker::Models::ColourCorrection& cc)
         m_gradePanel->setColourCorrection(cc);   // the project is the source here — show it in the panel
 }
 
-bool Editor::gradeActive() const
-{
-    // Independent of the active tool: the strip's pixels are the ungraded input, so the project's grade
-    // is what the strip is *supposed* to look like — switching to Pan must not reveal an ungraded strip.
-    if (!m_cc.enabled)
-        return false;
-    // A neutral grade leaves the pixels unchanged — nothing to preview.
-    return !(m_cc.brightness == 0.0 && m_cc.contrast == 1.0 && m_cc.saturation == 1.0
-             && !Platemaker::Models::hasAnyCurve(m_cc.curves));
-}
-
-QPixmap Editor::gradedOf(int index) const
-{
-    const QPixmap* p = m_gradedCache.object(index);
-    return p ? *p : QPixmap();
-}
-
-void Editor::produceGraded(int index)
-{
-    if (!gradeActive() || m_gradedCache.object(index))
-        return;
-    const QPixmap* src = m_pageCache.object(index); // grade from the resident (ungraded) page
-    if (!src)
-        return;
-
-    // A page excluded from the grade renders ungraded — the same rule the render applies, and the
-    // reason the preview's unit of work is the page: an output slice can straddle an excluded and an
-    // included page, so on that feed the exclusion could not be honoured at display time at all.
-    const auto&       ex  = m_cc.excludedInputUids;
-    const std::string uid = m_layout.anchorUidForPage(index).toStdString();
-    if (std::find(ex.begin(), ex.end(), uid) != ex.end())
-        return;
-
-    QImage img = src->toImage().convertToFormat(QImage::Format_RGBA8888);
-    try {
-        // ponytail: grades the whole page (~4 Mpx at 800×5120) even though the viewport shows a
-        // fraction of it. Simple and cache-friendly — one grade per page, none while scrolling within
-        // it. If a slider drag feels heavy, grade only the visible band: rows are contiguous in an
-        // interleaved RGBA buffer, so applyToRgba(bits + top*w*4, w, rows, cc) is already legal.
-        Platemaker::Core::ColourCorrector{}.applyToRgba(img.bits(), img.width(), img.height(), m_cc);
-    } catch (const std::exception& e) {
-        qWarning() << "Editor: grade preview failed for page" << index << "—" << e.what();
-        return; // leave it ungraded (paint falls back to the built page)
-    } catch (...) {
-        qWarning() << "Editor: grade preview failed for page" << index;
-        return;
-    }
-    const QPixmap g = QPixmap::fromImage(img);
-    m_gradedCache.insert(index, new QPixmap(g), qMax(1, (g.width() * g.height() * 4) / 1024));
-    if (m_item)
-        m_item->update(pageRect(index));
-}
+bool Editor::gradeActive() const  { return m_pages->gradeActive(); }
+QPixmap Editor::gradedOf(int index) const { return m_pages->gradedOf(index); }
+QPixmap Editor::pageOf(int index) const   { return m_pages->pageOf(index); }
+QPixmap Editor::proxyOf(int index) const  { return m_pages->proxyOf(index); }
 
 void Editor::refreshGradePreview()
 {
-    m_gradedCache.clear();     // the grade changed → previous previews are stale
+    m_pages->clearGraded();    // the grade changed → previous previews are stale
     if (m_item)
         m_item->update();
     updateVisiblePages();      // re-grade what's on screen (produceGraded runs for visible pages)
@@ -465,60 +402,12 @@ void Editor::setPreviewSource(const std::vector<Platemaker::Models::InputFile>& 
                                    const std::vector<std::string>&                       canvasProfileIds,
                                    const QString&                                        cacheDir)
 {
-    // Everything that can move a page on the strip, and nothing else. The owner refreshes this viewer on
-    // any project edit — a settled slider drag included — and a rebuild drops every built page, so an
-    // unconditional rebuild would re-fetch the visible pages after each of them. Deliberately excluded:
-    // per-input render bookkeeping (status, sha, timestamps), which the render stamps without any page
-    // moving. A page edited on disk therefore does not refresh by itself; re-opening the viewer or
-    // rendering picks it up.
-    QStringList parts;
-    parts << QString::fromStdString(Platemaker::Models::outputProfileSignature(outProfile))
-          << cacheDir;
-    for (const auto& id : canvasProfileIds)
-        parts << QString::fromStdString(id);
-    for (const auto& cp : canvasProfiles)
-        parts << QStringLiteral("%1:%2").arg(QString::fromStdString(cp.id),
-                                             QString::fromStdString(
-                                                 Platemaker::Models::canvasRenderFingerprint(cp)));
-    for (const auto& in : inputs)
-        parts << QStringLiteral("%1:%2").arg(
-                     QString::fromStdString(in.filePath),
-                     in.status == Platemaker::Models::FileStatus::Missing ? QStringLiteral("x")
-                                                                         : QStringLiteral("."));
-    const QString sig = parts.join(QStringLiteral("/"));
-
-    if (sig == m_feedSignature && !m_layout.isEmpty())
-        return;                 // same strip — keep the built pages
-
-    m_feedSignature    = sig;
-    m_inputs           = inputs;
-    m_outProfile       = outProfile;
-    m_canvasProfiles   = canvasProfiles;
-    m_canvasProfileIds = canvasProfileIds;
-    m_cacheDir         = cacheDir;
+    // An unchanged feed keeps the built pages — but an empty layout still needs a rebuild, which is the
+    // case on the very first feed and after a failed one.
+    if (!m_pages->setFeed(inputs, outProfile, canvasProfiles, canvasProfileIds, cacheDir)
+        && !m_layout.isEmpty())
+        return;
     rebuildScene();
-}
-
-QPixmap Editor::pageOf(int index) const
-{
-    const QPixmap *p = m_pageCache.object(index);
-    return p ? *p : QPixmap();
-}
-
-QPixmap Editor::proxyOf(int index) const
-{
-    const QPixmap *p = m_proxyCache.object(index);
-    return p ? *p : QPixmap();
-}
-
-void Editor::resetDecodeState()
-{
-    ++m_generation;             // in-flight results from before now are ignored on arrival
-    m_pageCache.clear();
-    m_proxyCache.clear();
-    m_gradedCache.clear();
-    m_pageInFlight.clear();
-    m_proxyInFlight.clear();
 }
 
 void Editor::rebuildScene()
@@ -530,22 +419,14 @@ void Editor::rebuildScene()
     m_seamItems.clear();
     m_overlayItems.clear();     // owned by the scene — already deleted, just forget them
     m_layout.clear();
-    resetDecodeState();
+    m_pages->reset();
 
     // Ask the library where each page lands. This reads headers and decodes nothing, and the numbers
     // come from the same page-domain code a render uses — so the strip laid out here is the strip a
     // render would build, before any render exists.
-    std::vector<Platemaker::Core::PagePreviewGeometry> layout;
-    try {
-        layout = Platemaker::Core::ProcessingPipeline::layoutPagesFromHeaders(
-            m_inputs, m_outProfile, m_canvasProfiles, m_canvasProfileIds);
-    } catch (const std::exception& e) {
-        qWarning() << "Editor: preview layout failed —" << e.what();
-    }
-
     // Pages the render would skip are dropped here, which is what keeps every page below them at the
     // offset the render will give it.
-    m_layout.build(layout, m_inputs);
+    m_layout.build(m_pages->layoutPages(), m_pages->inputs());
 
     if (m_layout.isEmpty()) {
         showEmptyState();
@@ -576,7 +457,7 @@ void Editor::addSeamItems()
     // Where the output will be cut. Unlike the page joins, these are not visible in the strip itself,
     // and they are exactly what an author needs to see: a bubble that straddles one lands on both
     // slices. The render cuts every sliceHeight from the top of the strip, so that is what is drawn.
-    const int step = m_outProfile.sliceHeight;
+    const int step = m_pages->sliceHeight();
     if (step <= 0)
         return;
 
@@ -637,93 +518,8 @@ void Editor::updateVisiblePages()
     first = qMax(0, first - k_prefetchPages);
     last  = qMin(m_layout.pageCount() - 1, last + k_prefetchPages);
     for (int i = first; i <= last; ++i) {
-        requestPage(i);
-        produceGraded(i); // grade now if already built; otherwise the build watcher grades it on arrival
-    }
-}
-
-void Editor::requestPage(int index)
-{
-    const int gen = m_generation;
-
-    // Sharp tier: put the input page through the library's page domain on a worker thread. This is the
-    // same code the render runs, so the pixels here are the pixels the render will produce — ungraded,
-    // because the grade is a point op we apply to the result and re-apply on every slider move.
-    if (!m_pageCache.object(index) && !m_pageInFlight.contains(index)) {
-        m_pageInFlight.insert(index);
-        // Copies, because the worker outlives this call and the workspace can change under it.
-        const auto  input   = m_inputs[static_cast<std::size_t>(m_layout.page(index).inputIndex)];
-        const auto  outProf = m_outProfile;
-        const auto  profs   = m_canvasProfiles;
-        const auto  ids     = m_canvasProfileIds;
-        const QSize size    = m_layout.page(index).size;
-
-        auto *watcher = new QFutureWatcher<QImage>(this);
-        connect(watcher, &QFutureWatcher<QImage>::finished, this, [this, watcher, index, gen] {
-            const QImage img = watcher->result();
-            watcher->deleteLater();
-            if (gen != m_generation)   // superseded by a rebuild — its in-flight set was already cleared
-                return;
-            m_pageInFlight.remove(index);
-            if (img.isNull())
-                return;
-            const QPixmap pm = QPixmap::fromImage(img);
-            m_pageCache.insert(index, new QPixmap(pm),
-                               qMax(1, (pm.width() * pm.height() * 4) / 1024));
-            produceGraded(index); // grade the freshly-built page if the grade is on
-            if (m_item)
-                m_item->update(pageRect(index));
-        });
-        watcher->setFuture(QtConcurrent::run(
-            [input, outProf, profs, ids, size]() -> QImage {
-                QImage img(size, QImage::Format_RGBA8888);
-                // decodePageToRgba writes tightly packed RGBA8888. Format_RGBA8888 is 4 bytes per pixel,
-                // so a scanline is always 4-byte aligned and Qt adds no padding — but assert rather than
-                // assume, because a padded scanline would shear the image.
-                if (img.bytesPerLine() != size.width() * 4)
-                    return {};
-                try {
-                    Platemaker::Core::ProcessingPipeline::decodePageToRgba(
-                        input, outProf, profs, ids, img.bits(), size.width(), size.height());
-                } catch (...) {
-                    return {};   // the page stays on its proxy; the layout already knows its size
-                }
-                return img;
-            }));
-    }
-
-    // Proxy tier: the input page's thumbnail, reusing the lib ThumbnailCache the Input tab already warms
-    // for exactly these files. Aspect-wrong for a margin-cropped page, but it is a placeholder that gets
-    // replaced the moment the real page arrives.
-    if (!m_cacheDir.isEmpty() && !m_proxyCache.object(index) && !m_proxyInFlight.contains(index)) {
-        m_proxyInFlight.insert(index);
-        const std::string path     = m_layout.page(index).sourcePath.toStdString();
-        const std::string cacheDir = m_cacheDir.toStdString();
-        auto *watcher = new QFutureWatcher<QString>(this);
-        connect(watcher, &QFutureWatcher<QString>::finished, this, [this, watcher, index, gen] {
-            const QString thumbPath = watcher->result();
-            watcher->deleteLater();
-            if (gen != m_generation)   // superseded by a rebuild — its in-flight set was already cleared
-                return;
-            m_proxyInFlight.remove(index);
-            if (thumbPath.isEmpty())
-                return;
-            const QPixmap pm(thumbPath);
-            if (pm.isNull())
-                return;
-            m_proxyCache.insert(index, new QPixmap(pm),
-                                qMax(1, (pm.width() * pm.height() * 4) / 1024));
-            if (m_item)
-                m_item->update(pageRect(index));
-        });
-        watcher->setFuture(QtConcurrent::run([path, cacheDir]() -> QString {
-            try {
-                Platemaker::Infrastructure::ThumbnailCache cache(cacheDir);
-                return QString::fromStdString(cache.getOrGenerate(path));
-            } catch (...) {
-                return {};
-            }
-        }));
+        m_pages->request(i);
+        m_pages->produceGraded(i); // grade now if built; otherwise the build watcher grades it on arrival
     }
 }
 

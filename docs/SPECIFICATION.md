@@ -238,6 +238,16 @@ valid baseline for every grade tried on it. Excluded pages are skipped, matching
 - **Creation is the library's.** The viewer emits `artifactCreated()`; `Project::createOverlay()` writes
   the SVG and calls `ProjectItem::addOverlay()`, which mints the uid, hashes the file and dedups identical
   content. Every other edit arrives as the complete new state on `overlaysEdited()`.
+- **A preset is a bubble with nothing said in it.** `BubblePreset` (`widgets/bubblepanel/`) is a name
+  plus a `TextArtifact` whose `text`, `box`, `tails` and `styleSeed` are meaningless — applying one
+  copies the *look* over the selection and copies the content straight back, so restyling never touches
+  the lettering. With nothing selected it restyles `prototype()` instead, which is what the next
+  placement is built from. Serialised by taking `artifactToJson()` and removing those four keys: the
+  reader's defaults fill them back in, and a styling field added to `TextArtifact` is carried without
+  being enumerated anywhere. Built-ins are code and are not deletable; the artist's own live in the
+  application config (`QSettings`, key `bubblePresets`) because restyling follows the artist, not the
+  chapter. A *pack* is the same array in a file, marked with `platemakerBubblePresets`, imported by
+  replacing same-named presets rather than accumulating them.
 - **Imported artwork is the same overlay with fewer attributes.** *Import artwork…* copies a file into
   `overlays/` under its content hash and registers it with **no** authoring record; with no `pm:`
   parameters it is a *flat asset* — drawn from the file, placed and moved like any bubble, resizable

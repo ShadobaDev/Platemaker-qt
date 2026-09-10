@@ -38,6 +38,20 @@
 
 ### Added
 
+- **Bubble presets** — a named look, applied from the panel's top row. A preset is *shape and style
+  without content*: colours, stroke, line style, font, alignment and shape, but never the text, the
+  balloon's size, its tails or where it sits. So applying one restyles the selected bubble without
+  touching the lettering, and with nothing selected it becomes the styling the next placement starts
+  from. Five built-ins ship as code — Dialogue, Whisper, Thought, Shout, Caption — and cannot be
+  deleted, which is why there is no "restore defaults" to get wrong. Saving stores the *panel's* current
+  look, so a preset can be authored with nothing selected at all.
+  - Presets live in the application config, not the workspace: restyling is a habit of the artist rather
+    than a property of one comic.
+  - **Import pack… / Export pack…** move them between machines and people as one JSON file. That
+    is the sharing a separate bubble-editor project would have been built for, at the cost of a
+    documented file instead of a second repository, CI and release cadence.
+  - Persisted by dropping the content keys from the bubble's own JSON, so a styling field added to
+    `TextArtifact` joins presets without being listed a second time.
 - **Import artwork…** (right-click on the strip or the artifact list) — a balloon inked on a tablet, a
   logo, a hand-drawn effect. The file is copied into `overlays/` under its content hash, never referenced
   where it was found, so the workspace stays self-contained. It carries no `pm:` parameters, which makes

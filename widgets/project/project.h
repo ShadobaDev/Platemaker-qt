@@ -104,6 +104,21 @@ public:
     void createOverlay(const TextArtifact& artifact, int x, int y, const QString& anchorInputUid);
 
     /**
+     * @brief Records the target width every overlay's coordinates and artwork are authored in.
+     *
+     * An overlay is stored in pixels, and pixels mean nothing without the width they were measured
+     * against: re-profile a chapter from 800 px to 1600 px and every bubble is half-size in the wrong
+     * place unless the render knows what the numbers meant. \c ProjectItem::overlayAuthoredWidth is that
+     * width, and this stamps it from the project's active output profile.
+     *
+     * **Written once, on the first overlay.** It describes the coordinate system the whole set lives in,
+     * so a later overlay does not get to redefine it — and a project that already has overlays but no
+     * recorded width (authored before this existed) is stamped with the current width, which is exactly
+     * the assumption the render made for it anyway.
+     */
+    void stampOverlayAuthoredWidth(Platemaker::Models::ProjectItem& item) const;
+
+    /**
      * @brief Registers artwork the author drew elsewhere as an overlay, exactly as it is.
      *
      * The file is copied into the workspace's `overlays/` under its content hash — never referenced

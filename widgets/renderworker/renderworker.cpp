@@ -61,6 +61,7 @@ void RenderWorker::process()
     request.thumbnailCacheDir = m_thumbnailCacheDir;
     request.colourCorrection  = m_colourCorrection;
     request.stripOverlays     = m_stripOverlays;
+    request.overlayAuthoredWidth = m_overlayAuthoredWidth;
     // Absent = full render; a partial re-render restricts it to the dirty slice names.
     if (!m_onlySlices.empty())
         request.onlySlices = m_onlySlices;

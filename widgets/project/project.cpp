@@ -717,6 +717,14 @@ void Project::setArtifacts(ArtifactMap artifacts)
     m_artifacts = std::move(artifacts);
 }
 
+void Project::stampOverlayAuthoredWidth(Platemaker::Models::ProjectItem& item) const
+{
+    if (item.overlayAuthoredWidth != 0)
+        return;
+    if (const auto op = Platemaker::Models::resolveOutputProfile(m_workspace, item.outputProfileId()))
+        item.overlayAuthoredWidth = op->targetWidth;
+}
+
 void Project::createOverlay(const TextArtifact& artifact, int x, int y, const QString& anchorInputUid)
 {
     const QString dir = ArtifactStore::ensureOverlaysDir(m_workspacePath);
@@ -736,6 +744,7 @@ void Project::createOverlay(const TextArtifact& artifact, int x, int y, const QS
 
     commitEdit(tr("Add bubble"), [&] {
         auto& item = m_workspace.projectItems[m_projectIndex];
+        stampOverlayAuthoredWidth(item);
         // The library mints the uid, hashes the file and reuses an existing path for identical content.
         const std::string uid =
             item.addOverlay(asset.toStdString(), x, y,
@@ -811,6 +820,7 @@ void Project::importOverlayArtwork(const QString& sourceFile, int x, int y,
 
     commitEdit(tr("Import artwork"), [&] {
         auto& item = m_workspace.projectItems[m_projectIndex];
+        stampOverlayAuthoredWidth(item);
         item.addOverlay(dest.toStdString(), x, y,
                         Platemaker::Models::BlendMode::Over, anchorInputUid.toStdString());
         emit projectModified();

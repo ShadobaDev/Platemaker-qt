@@ -32,9 +32,13 @@
   — an effect visible only in the committed output would be an effect nobody could author. The noise is
   seeded per bubble, and its frequency is in the drawing's own units, so the texture scales with the
   balloon rather than with the output resolution. Clean emits no filter and draws locally.
-- **Overlays follow a re-profiled chapter.** The target width they were authored at is recorded, so
-  re-profiling from 800 px to 1600 px re-renders every bubble sharp at the new size and moves it to
-  match, instead of leaving it half-size in the wrong place.
+- **A rendered chapter follows a re-profile.** The target width the overlays were authored at is
+  recorded on the project and sent with the render, so re-profiling from 800 px to 1600 px re-renders
+  every bubble sharp at the new size and moves it to match, instead of leaving it half-size in the wrong
+  place. Recorded once, on the first overlay: it describes the coordinate system the whole set lives in.
+  - **The strip editor's own preview does not scale yet**, so between a re-profile and the next authoring
+    pass the editor shows the overlays at their authored size while the render places them correctly.
+    Being resolved next; until then, re-profile *before* lettering rather than after.
 
 ### Added
 

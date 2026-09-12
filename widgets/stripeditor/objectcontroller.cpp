@@ -1,7 +1,9 @@
 #include "objectcontroller.h"
 #include "bubblepanel.h"
 #include "layout.h"
-#include "overlayitem.h"
+#include "assetobject.h"
+#include "bubbleobject.h"
+#include "object.h"
 #include "artifactpainter.h"
 #include "artifactsvg.h"
 
@@ -94,9 +96,9 @@ ObjectController::ObjectController(QGraphicsScene* scene, QGraphicsView* view, Q
             [this](const TextArtifact& a) { applyPanelArtifact(a, /*commit=*/true); });
     connect(m_bubblePanel, &BubblePanel::deleteRequested, this, &ObjectController::deleteSelectedOverlay);
     connect(m_bubblePanel, &BubblePanel::fitRequested, this, [this] {
-        OverlayItem* item = m_overlayItems.value(m_selectedOverlay);
-        if (!item) return;
-        TextArtifact a = item->artifact();
+        auto* bubble = qobject_cast<BubbleObject*>(m_overlayItems.value(m_selectedOverlay));
+        if (!bubble) return;   // only a bubble has text to fit to
+        TextArtifact a = bubble->artifact();
         a.box = fittedBox(a);
         applyPanelArtifact(a, /*commit=*/true);
         m_bubblePanel->setArtifact(a);
@@ -157,7 +159,7 @@ ObjectController::ObjectController(QGraphicsScene* scene, QGraphicsView* view, Q
         if (m_syncingList) return;
         const auto picked = m_scene->selectedItems();
         for (QGraphicsItem* gi : picked)
-            if (auto* oi = dynamic_cast<OverlayItem*>(gi)) { selectOverlay(oi->uid()); return; }
+            if (auto* obj = dynamic_cast<Object*>(gi)) { selectOverlay(obj->uid()); return; }
         selectOverlay(QString());
     });
 }
@@ -175,7 +177,7 @@ void ObjectController::setAuthoring(bool active, bool textOnly)
 
 bool ObjectController::objectAt(const QPointF& scenePos, const QTransform& deviceTransform) const
 {
-    return dynamic_cast<OverlayItem*>(m_scene->itemAt(scenePos, deviceTransform)) != nullptr;
+    return dynamic_cast<Object*>(m_scene->itemAt(scenePos, deviceTransform)) != nullptr;
 }
 
 void ObjectController::reselect()
@@ -272,41 +274,39 @@ void ObjectController::syncItems()
         const int     page = m_layout.pageForAnchor(QString::fromStdString(o.anchorInputUid));
         const bool    orphaned = page < 0 && !o.anchorInputUid.empty();
 
-        // Normally the asset carries the parameters that say what to draw. When it does not — art drawn
-        // elsewhere, or a file edited outside Platemaker — fall back to drawing the asset itself: the
-        // bubble still shows and still moves, it just cannot be re-typed. That is the intended
-        // degradation, and it is what makes an imported shape a first-class overlay rather than an error.
-        TextArtifact a = m_artifacts.value(uid);
-        QPixmap      fallback;
-        OverlayItem* item = m_overlayItems.value(uid);
-        if (!m_artifacts.contains(uid)) {
-            fallback = renderAssetFile(QString::fromStdString(o.assetPath));
-            // The artwork's own size seeds the box, but only once. Re-reading it on every feed would
-            // undo a resize the moment it was made — and on a synced drive the file may still be
-            // reporting its previous size for a moment after being rewritten.
-            if (item)
-                a.box = item->artifact().box;
-            else if (!fallback.isNull())
-                a.box = fallback.size();
-        }
+        // **The one place the two kinds are told apart**, and it is a choice of constructor rather than
+        // a test repeated downstream. An overlay whose asset carries no authoring parameters — art drawn
+        // elsewhere, or a file edited outside Platemaker — becomes an AssetObject: it still shows, still
+        // moves and still renders, it just cannot be re-typed. That is the intended degradation, and it
+        // is what makes imported artwork a first-class object rather than an error.
+        const bool parametric = m_artifacts.contains(uid);
+        Object*    item       = m_overlayItems.value(uid);
 
+        // An overlay cannot change kind in place; if it somehow has, rebuild rather than mis-draw it.
+        if (item && (item->kind() == Object::Kind::Bubble) != parametric) {
+            m_scene->removeItem(item);
+            delete item;
+            m_overlayItems.remove(uid);
+            item = nullptr;
+        }
         if (!item) {
-            item = new OverlayItem(uid, a);
-            connect(item, &OverlayItem::geometryEdited, this, &ObjectController::onOverlayGeometryEdited);
+            item = parametric
+                ? static_cast<Object*>(new BubbleObject(uid, m_artifacts.value(uid)))
+                : static_cast<Object*>(new AssetObject(uid, renderAssetFile(QString::fromStdString(o.assetPath))));
+            connect(item, &Object::geometryEdited, this, &ObjectController::onOverlayGeometryEdited);
             m_scene->addItem(item);
             m_overlayItems.insert(uid, item);
-        } else if (item->artifact() != a) {
-            item->setArtifact(a);
         }
 
-        // A styled bubble is drawn by the library, because its effect is an SVG filter Qt cannot render.
-        // Unstyled ones keep drawing locally: same geometry, no round-trip.
-        if (fallback.isNull() && a.style != TextArtifact::Style::Clean)
-            item->setSharpRaster(sharpRasterFor(a));
-        else
-            item->setSharpRaster(QImage());
+        if (auto* bubble = qobject_cast<BubbleObject*>(item)) {
+            const TextArtifact& a = m_artifacts.value(uid);
+            if (bubble->artifact() != a)
+                bubble->setArtifact(a);
+            // A styled bubble is drawn by the library, because its effect is an SVG filter Qt cannot
+            // render. Unstyled ones keep drawing locally: same geometry, no round-trip.
+            bubble->setSharpRaster(a.style != TextArtifact::Style::Clean ? sharpRasterFor(a) : QImage());
+        }
 
-        item->setFallbackPixmap(fallback);
         item->setBlend(o.blend);
         item->setOrphaned(orphaned);
         // The record says how wide the object is relative to the page; the item draws its own artwork at
@@ -326,7 +326,7 @@ void ObjectController::syncItems()
 
 void ObjectController::onOverlayGeometryEdited(const QString& uid)
 {
-    OverlayItem* item = m_overlayItems.value(uid);
+    Object* item = m_overlayItems.value(uid);
     if (!item)
         return;
 
@@ -357,13 +357,13 @@ void ObjectController::onOverlayGeometryEdited(const QString& uid)
         break;
     }
 
-    // A resize or tail drag changed the artifact too — but only for an overlay that *has* one. For a
-    // flat asset item->artifact() is a default bubble, and storing it would make the overlay look
-    // authored: the next sync would draw a blank balloon where the imported artwork was.
-    if (m_artifacts.contains(uid)) {
-        m_artifacts.insert(uid, item->artifact());
+    // A resize or tail drag changed the artifact too — and only a bubble has one. This used to test
+    // the model for an authoring record and was written wrong once, storing a *default* bubble over
+    // imported artwork; asking the object what it is cannot go wrong the same way.
+    if (auto* bubble = qobject_cast<BubbleObject*>(item)) {
+        m_artifacts.insert(uid, bubble->artifact());
         if (uid == m_selectedOverlay && m_bubblePanel)
-            m_bubblePanel->setArtifact(item->artifact());
+            m_bubblePanel->setArtifact(bubble->artifact());
     }
     refreshList();
     pushOverlays(tr("Move bubble"));
@@ -385,8 +385,12 @@ void ObjectController::refreshList()
         const QString uid  = QString::fromStdString(o.uid);
         const int     page = m_layout.pageForAnchor(QString::fromStdString(o.anchorInputUid));
 
-        const QString label = m_artifacts.contains(uid) ? artifactLabel(m_artifacts.value(uid))
-                                                        : tr("(flat asset)");
+        // The object names itself. The fallback covers the one moment there is no object to ask: a list
+        // rebuilt before the strip has a layout, where syncItems() has nothing to place anything against.
+        const Object* item  = m_overlayItems.value(uid);
+        const QString label = item ? item->label()
+                                   : (m_artifacts.contains(uid) ? artifactLabel(m_artifacts.value(uid))
+                                                                : tr("(imported artwork)"));
         const QString prefix = (page >= 0) ? tr("p.%1").arg(page + 1, 2, 10, QLatin1Char('0'))
                                            : tr("orphan");
 
@@ -425,21 +429,20 @@ void ObjectController::selectOverlay(const QString& uid)
 
     if (!m_bubblePanel)
         return;
-    // Only a bubble this editor authored can be edited here. A flat asset — imported artwork, or a file
-    // whose parameters were lost — has no record, and item->artifact() would hand the panel a *default*
-    // bubble: typing into it would quietly replace the artwork with a blank balloon.
-    OverlayItem* item = m_overlayItems.value(uid);
-    if (item && m_artifacts.contains(uid))
-        m_bubblePanel->setArtifact(item->artifact());
+    // Only a bubble this editor authored can be edited here. Imported artwork has no parameters, and
+    // handing the panel a default set would replace the artwork with a blank balloon on the next
+    // commit — which is exactly what this used to do, because it asked the model instead of the object.
+    if (auto* bubble = qobject_cast<BubbleObject*>(m_overlayItems.value(uid)))
+        m_bubblePanel->setArtifact(bubble->artifact());
     else
         m_bubblePanel->clearSelection();
 }
 
 void ObjectController::applyPanelArtifact(const TextArtifact& a, bool commit)
 {
-    OverlayItem* item = m_overlayItems.value(m_selectedOverlay);
+    auto* item = qobject_cast<BubbleObject*>(m_overlayItems.value(m_selectedOverlay));
     if (!item)
-        return;
+        return;   // the panel authors bubbles; imported artwork has no parameters to apply
 
     item->setArtifact(a);
     m_artifacts.insert(m_selectedOverlay, a);
@@ -562,7 +565,7 @@ void ObjectController::commitListOrder()
 
 void ObjectController::duplicateSelectedOverlay()
 {
-    OverlayItem* item = m_overlayItems.value(m_selectedOverlay);
+    Object* item = m_overlayItems.value(m_selectedOverlay);
     if (!item)
         return;
 
@@ -577,8 +580,18 @@ void ObjectController::duplicateSelectedOverlay()
         const double tw  = m_layout.targetWidth();
         const double off = tw > 0 ? k_duplicateOffset / tw : 0.0;
         m_selectNewOverlay = true;
-        emit artifactCreated(item->artifact(), o.xFrac + off, o.yFrac + off, o.wFrac,
-                             QString::fromStdString(o.anchorInputUid));
+        if (auto* bubble = qobject_cast<BubbleObject*>(item)) {
+            emit artifactCreated(bubble->artifact(), o.xFrac + off, o.yFrac + off, o.wFrac,
+                                 QString::fromStdString(o.anchorInputUid));
+        } else {
+            // Imported artwork has no authoring record to re-emit, so the copy goes through the import
+            // channel instead: the library hashes the same bytes and dedups the new placement onto the
+            // file that is already there. Routing it through creation would have written an SVG of a
+            // *default* bubble — which is what it did before this was two types.
+            emit artworkImportRequested(QString::fromStdString(o.assetPath),
+                                        o.xFrac + off, o.yFrac + off, o.wFrac,
+                                        QString::fromStdString(o.anchorInputUid));
+        }
         return;
     }
 }

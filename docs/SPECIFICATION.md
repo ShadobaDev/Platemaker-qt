@@ -231,10 +231,24 @@ valid baseline for every grade tried on it. Excluded pages are skipped, matching
   for where it crosses the silhouette with `QPainterPath::contains()` — shape-agnostic, so every shape
   grew a working tail for free and a tail may leave any edge. `artifactBounds()` therefore computes what
   the artifact actually covers; `box` is the balloon alone.
-- **Drawing.** `OverlayItem` (`widgets/stripeditor/overlayitem.*`) is one `QGraphicsObject` per overlay,
-  painted from the **authoring model** by `paintArtifact()` — so typing updates the strip with no file
-  round-trip, and the preview is the render because both go through that one function at the same scale.
-  It handles move, corner resize and the tail handle, and reports a settled drag on mouse release.
+- **Every placed thing is a `StripEdit::Object`.** One `QGraphicsObject` per overlay, and everything an
+  author does to one is the same whatever kind it is: select, move, drag a corner, mute, delete,
+  reorder. That all lives on the base class, once — including the grips, the drag state machine and the
+  "report only a settled drag" rule the undo stack depends on. A kind supplies only what it draws, how
+  big that is, and any extra handle it offers.
+  - **`BubbleObject`** — painted from the **authoring model** by `paintArtifactPaths()`, so typing
+    updates the strip with no file round-trip and the preview is the render because both go through one
+    function at one scale. Its tails are the object's handles.
+  - **`AssetObject`** — imported artwork, drawn from its own pixmap, with no parameters to edit. It
+    keeps aspect on a corner drag, because the record stores one width fraction and a distorted one is
+    not expressible.
+  - The split is a correctness measure, not tidiness. There used to be one item class switching on
+    whether a pixmap had been handed to it, and **eight** places re-derived the same distinction from
+    the model (`m_artifacts.contains(uid)`). Three of those eight were written wrong and shipped — two
+    persisted a *default* bubble over imported artwork, and Duplicate wrote a blank balloon instead of
+    copying the artwork. None of them is expressible now. Three model-side tests remain and all three
+    are legitimate: choosing which object to build, naming a row before the scene has a layout, and
+    comparing records in `Project::applyOverlays()`.
 - **Placement is resolution-independent.** Every coordinate and the artwork's width are stored as
   fractions of the render's target width, so re-profiling a chapter moves and resizes every object
   proportionally and nothing has to remember what the numbers used to mean. `Layout::targetWidth()` is
@@ -260,10 +274,10 @@ valid baseline for every grade tried on it. Excluded pages are skipped, matching
   replacing same-named presets rather than accumulating them.
 - **Imported artwork is the same overlay with fewer attributes.** *Import artwork…* copies a file into
   `overlays/` under its content hash and registers it with **no** authoring record; with no `pm:`
-  parameters it is a *flat asset* — drawn from the file, placed and moved like any bubble, resizable
-  (which rewrites the artwork's own `width`/`height`), but not re-typable. `selectOverlay()` and
-  `onOverlayGeometryEdited()` both refuse to write a record for one, because `item->artifact()` would be
-  a *default* bubble and storing it would replace the artwork with a blank balloon.
+  parameters it becomes an `AssetObject` — placed, moved, re-anchored, muted, resized and rendered like
+  any bubble, but not re-typable. Duplicating one goes back through the import channel rather than
+  through creation, because there is no authoring record to re-emit and the library dedups the identical
+  bytes onto the file already there.
 
 ##### Where a bubble lives, and when it becomes pixels
 
@@ -283,7 +297,7 @@ bubble to flat-but-still-rendering art — exactly the property the sidecar exis
 **Only the GUI ever rasterises; the library draws nothing.** It happens in two places through **one**
 function, `paintArtifact()`:
 
-- **Preview** — `OverlayItem::paint()` calls it on every scene repaint, so typing updates the strip with
+- **Preview** — `BubbleObject::paintContent()` calls it on every scene repaint, so typing updates the strip with
   no file I/O at all.
 - **The file** — `renderArtifact()` calls it into an ARGB32 `QImage` when an edit *settles* (the panel
   debounces typing by 300 ms; a drag reports on mouse release), never per keystroke.
@@ -305,7 +319,7 @@ rewrites neither, only the placement. `Project::applyOverlays()` re-emits exactl
 authoring record actually changed.
 
 **A styled bubble is previewed by the library.** Marker and Ink are SVG filters, which Qt cannot draw at
-all, so `OverlayItem` shows an `OverlayRaster` obtained from `StripOverlayCompositor::rasterizeSvgRgba()`
+all, so `BubbleObject` shows an `OverlayRaster` obtained from `StripOverlayCompositor::rasterizeSvgRgba()`
 while at rest, falling back to its own paths mid-drag. It renders from the **document in hand**, not from
 the file just written: on a synced drive a file read back immediately after a write may still return the
 previous content, which would pin pre-edit artwork on screen for a whole session.

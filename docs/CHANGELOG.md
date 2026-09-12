@@ -4,6 +4,13 @@
 
 ### Changed
 
+- **A bubble and imported artwork are two kinds of one thing.** Everything an author does to an object
+  — select, move, drag a corner, mute, delete, reorder — is now written once on `StripEdit::Object`, and
+  a kind supplies only what it draws and what handles it offers. This fixes a class of bug rather than a
+  bug: the editor used to ask *the model* whether an overlay had an authoring record, in eight places,
+  and three of them were wrong. Two persisted a blank balloon over imported artwork; the third made
+  **Duplicate** write a blank balloon instead of copying the artwork. Duplicating imported artwork now
+  copies the artwork.
 - **The object list is a stack, the way a layers panel is.** Row 0 is the front-most object and a row
   covers every row below it where they overlap, so a newly placed sprite appears at the **top**. The
   library composites in vector order (last on top), which is the opposite, so the list shows that

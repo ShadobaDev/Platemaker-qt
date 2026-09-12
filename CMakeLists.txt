@@ -59,7 +59,9 @@ qt_add_executable(Platemaker
     # the project's input pages (QGraphicsView), the scene item that draws and edits one overlay on it,
     # the page geometry it answers placement questions from, and its two tool-options panels.
     widgets/stripeditor/editor.cpp widgets/stripeditor/editor.h widgets/stripeditor/editor.ui
-    widgets/stripeditor/overlayitem.cpp widgets/stripeditor/overlayitem.h
+    widgets/stripeditor/object.cpp widgets/stripeditor/object.h
+    widgets/stripeditor/bubbleobject.cpp widgets/stripeditor/bubbleobject.h
+    widgets/stripeditor/assetobject.cpp widgets/stripeditor/assetobject.h
     widgets/stripeditor/layout.cpp widgets/stripeditor/layout.h
     widgets/stripeditor/pagesource.cpp widgets/stripeditor/pagesource.h
     widgets/stripeditor/objectcontroller.cpp widgets/stripeditor/objectcontroller.h

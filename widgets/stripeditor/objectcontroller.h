@@ -26,7 +26,7 @@ namespace StripEdit {
 
 class BubblePanel;
 class Layout;
-class OverlayItem;
+class Object;
 
 /**
  * @brief Everything the author *places* on the strip: the objects, the list, the selection, the drag.
@@ -133,7 +133,7 @@ private:
 
     std::vector<Platemaker::Models::StripOverlay> m_overlays;   //!< The project's overlays, in composite order.
     ArtifactMap                                   m_artifacts;  //!< Their authoring records, keyed by overlay uid.
-    QHash<QString, OverlayItem*>                  m_overlayItems; //!< Live scene items, keyed by overlay uid.
+    QHash<QString, Object*>                       m_overlayItems; //!< Live scene objects, keyed by overlay uid.
     /**
      * @brief Library rasterisations of styled bubbles, keyed by the SVG document itself.
      *

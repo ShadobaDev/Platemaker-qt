@@ -235,6 +235,12 @@ valid baseline for every grade tried on it. Excluded pages are skipped, matching
   painted from the **authoring model** by `paintArtifact()` — so typing updates the strip with no file
   round-trip, and the preview is the render because both go through that one function at the same scale.
   It handles move, corner resize and the tail handle, and reports a settled drag on mouse release.
+- **Placement is resolution-independent.** Every coordinate and the artwork's width are stored as
+  fractions of the render's target width, so re-profiling a chapter moves and resizes every object
+  proportionally and nothing has to remember what the numbers used to mean. `Layout::targetWidth()` is
+  that unit on the GUI side — the strip's width, which *is* the target width because the page domain
+  scales every page to it — and `Layout::pixels()` / the write-back in `onOverlayGeometryEdited()` are
+  the only two places a placement crosses between the two forms.
 - **Placement is page-anchored.** An overlay stores `anchorInputUid` plus an offset from that page's top;
   the viewer resolves it against the layout it just built, exactly as `ProcessingPipeline::run()` does.
   Dragging across a page boundary silently re-anchors. An overlay whose page is not in the strip is shown
@@ -265,7 +271,7 @@ valid baseline for every grade tried on it. Excluded pages are skipped, matching
 
 | layer | what it holds | where | written by |
 |---|---|---|---|
-| library record | uid, `assetPath`, `sha256`, `anchorInputUid`, x/y, enabled, blend | `Chapter_002.platemaker.json` → `projectItems[].stripOverlays[]` | lib |
+| library record | uid, `assetPath`, `sha256`, `anchorInputUid`, `xFrac`/`yFrac`/`wFrac`, enabled, blend | `Chapter_002.platemaker.json` → `projectItems[].stripOverlays[]` | lib |
 | the asset | resolved artwork **plus** the editor's `pm:` parameters | `D:\Comic\overlays\ovl-<sha16>.svg` | GUI |
 
 There used to be a third — a JSON sidecar holding what a bubble *said*, beside a PNG holding what it

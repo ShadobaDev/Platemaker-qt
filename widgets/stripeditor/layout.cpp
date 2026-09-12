@@ -86,7 +86,7 @@ QPointF Layout::scenePosOf(const Platemaker::Models::StripOverlay& o) const
 {
     const int page = pageForAnchor(QString::fromStdString(o.anchorInputUid));
     const int top  = (page >= 0) ? m_pages.at(page).top : 0;
-    return QPointF(o.x, top + o.y);
+    return QPointF(pixels(o.xFrac), top + pixels(o.yFrac));
 }
 
 }  // namespace StripEdit

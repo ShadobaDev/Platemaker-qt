@@ -86,16 +86,12 @@ public:
      * Empty (default) → no compositing, so the output is byte-identical to a build without this step.
      * Call before starting the worker.
      *
-     * \param authoredWidth The \c OutputProfile::targetWidth the overlays' coordinates and artwork were
-     *        authored against (\c ProjectItem::overlayAuthoredWidth). It travels **with** the overlays
-     *        rather than as its own setter because it is not a separate setting: it is the unit their
-     *        pixels are measured in, and a caller that has one without the other has nothing usable.
-     *        \c 0 means "authored at this render's own target width" — the no-op.
+     * Their placement carries its own unit — every coordinate is a fraction of the render's target
+     * width — so there is nothing else to pass alongside them.
      */
-    void setStripOverlays(std::vector<Platemaker::Models::StripOverlay> overlays, int authoredWidth)
+    void setStripOverlays(std::vector<Platemaker::Models::StripOverlay> overlays)
     {
-        m_stripOverlays        = std::move(overlays);
-        m_overlayAuthoredWidth = authoredWidth;
+        m_stripOverlays = std::move(overlays);
     }
 
 public slots:
@@ -119,7 +115,6 @@ private:
     std::string                                    m_thumbnailCacheDir; //!< Workspace thumbnail-cache dir to pre-warm during the render (empty = none).
     Platemaker::Models::ColourCorrection           m_colourCorrection;  //!< Optional page-domain colour grade (default enabled==false → no-op).
     std::vector<Platemaker::Models::StripOverlay>  m_stripOverlays;     //!< Optional strip-domain text/bubble overlays (empty → no-op).
-    int                                            m_overlayAuthoredWidth = 0; //!< Target width m_stripOverlays were authored at (0 → this render's own).
     Platemaker::Core::ProcessingOutcome            m_outcome;           //!< Result of the run, populated by process().
 };
 

@@ -58,13 +58,19 @@
   — an effect visible only in the committed output would be an effect nobody could author. The noise is
   seeded per bubble, and its frequency is in the drawing's own units, so the texture scales with the
   balloon rather than with the output resolution. Clean emits no filter and draws locally.
-- **A rendered chapter follows a re-profile.** The target width the overlays were authored at is
-  recorded on the project and sent with the render, so re-profiling from 800 px to 1600 px re-renders
-  every bubble sharp at the new size and moves it to match, instead of leaving it half-size in the wrong
-  place. Recorded once, on the first overlay: it describes the coordinate system the whole set lives in.
-  - **The strip editor's own preview does not scale yet**, so between a re-profile and the next authoring
-    pass the editor shows the overlays at their authored size while the render places them correctly.
-    Being resolved next; until then, re-profile *before* lettering rather than after.
+- **A chapter can be re-profiled at any time, and the bubbles follow — on screen and in the render.**
+  An overlay's placement and its width are stored as fractions of the output width rather than in
+  pixels, so 800 px → 1600 px moves and re-renders every bubble proportionally, and the strip editor and
+  the render agree about it without either being told what the other assumed.
+  - This replaces a recorded "authored width" that the render scaled by. That worked, but only if the
+    width was captured at the right moment and never lost, and only if both the editor and the render
+    remembered to apply it — the editor did not, so for a while the preview and the output disagreed.
+    There is now nothing to capture: the editor converts at one boundary, and the conversion runs on
+    every load and every edit rather than only after a re-profile, so it cannot rot unnoticed.
+  - **Imported artwork resizes by changing that fraction**, not by rewriting the file. Its size lived in
+    the artwork's own `width`/`height` before, which meant two places could disagree about how big it
+    was. A corner drag now scales it uniformly, because its height follows the artwork's own aspect —
+    which is what dragging the corner of a logo meant anyway.
 
 ### Added
 

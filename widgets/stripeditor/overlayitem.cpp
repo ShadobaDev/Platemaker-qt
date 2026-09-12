@@ -190,6 +190,10 @@ qreal gripSpan(const QGraphicsItem* item)
     qreal scale = 1.0;
     if (const QGraphicsScene* s = item->scene(); s && !s->views().isEmpty())
         scale = s->views().first()->transform().m11();
+    // The item may carry a scale of its own (ObjectController::itemScaleFor), and a grip is chrome: it
+    // has to be the same size on screen whatever the object is drawn at. Both transforms apply to
+    // anything the item paints, so both have to be divided back out.
+    scale *= item->scale();
     if (scale <= 0.0)
         scale = 1.0;
     return qBound(k_gripMin, k_gripScreenPx / scale, k_gripMax);
@@ -302,6 +306,18 @@ void OverlayItem::mouseMoveEvent(QGraphicsSceneMouseEvent* e)
     if (r.width() < k_minBox || r.height() < k_minBox)
         return;   // refuse rather than clamp: clamping makes the box "stick" and jump on the way back
 
+    // A flat asset has no authoring record, so its size travels as a single width fraction and its
+    // height follows the artwork's own aspect. Distorting it is therefore not expressible — which is
+    // also what anyone dragging a corner of an imported logo meant. The corner opposite the dragged one
+    // stays put, because r was built by moving only that one.
+    if (isFlatAsset() && m_startRect.height() > 0.0) {
+        const qreal h = r.width() * (m_startRect.height() / m_startRect.width());
+        if (m_active == Grip::TopLeft || m_active == Grip::TopRight)
+            r.setTop(r.bottom() - h);
+        else
+            r.setBottom(r.top() + h);
+    }
+
     const QSize newBox(qRound(r.width()), qRound(r.height()));
     if (newBox != m_artifact.box) {
         // Keep every tail pointing the same relative way as the balloon changes size, and scale its
@@ -323,8 +339,7 @@ void OverlayItem::mouseMoveEvent(QGraphicsSceneMouseEvent* e)
 
 void OverlayItem::mouseReleaseEvent(QGraphicsSceneMouseEvent* e)
 {
-    const bool report  = m_moved && m_active != Grip::None;
-    const bool resized = report && m_active != Grip::Body && m_active != Grip::Tail;
+    const bool report = m_moved && m_active != Grip::None;
     m_active = Grip::None;
     m_moved  = false;
     QGraphicsObject::mouseReleaseEvent(e);
@@ -334,10 +349,6 @@ void OverlayItem::mouseReleaseEvent(QGraphicsSceneMouseEvent* e)
     if (!report)
         return;
     emit geometryEdited(m_uid);
-    // A resized flat asset needs its artwork rewritten as well — geometryEdited() carries placement, and
-    // for an overlay with no authoring record there is nothing else for a size to travel in.
-    if (isFlatAsset() && resized)
-        emit artworkResized(m_uid, m_artifact.box);
 }
 
 void OverlayItem::hoverMoveEvent(QGraphicsSceneHoverEvent* e)

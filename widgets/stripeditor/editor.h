@@ -170,7 +170,8 @@ signals:
      * @param x,y            Top-left, relative to the anchor page's top edge.
      * @param anchorInputUid The page it was drawn on.
      */
-    void artifactCreated(const TextArtifact& artifact, int x, int y, const QString& anchorInputUid);
+    void artifactCreated(const TextArtifact& artifact, double xFrac, double yFrac, double wFrac,
+                         const QString& anchorInputUid);
 
     /**
      * @brief Every other overlay edit, as the complete new state: move, restyle, delete, reorder, mute.
@@ -189,15 +190,8 @@ signals:
      * Placement is decided here, because only the viewer knows which page is in front of the author;
      * everything after that is the owner's, exactly as it is for a drawn bubble.
      */
-    void artworkImportRequested(const QString& sourceFile, int x, int y, const QString& anchorInputUid);
-
-    /**
-     * @brief Imported artwork was resized — the owner rewrites the asset to \p size.
-     *
-     * A flat asset has no authoring record and \c StripOverlay has no width or height, so its size is
-     * the artwork's own. Changing it means changing the file, which only the owner may do.
-     */
-    void artworkResizeRequested(const QString& uid, QSize size);
+    void artworkImportRequested(const QString& sourceFile, double xFrac, double yFrac, double wFrac,
+                                const QString& anchorInputUid);
 
 protected:
     //! Ctrl+wheel over the view zooms; a plain wheel keeps the view's native vertical scroll.

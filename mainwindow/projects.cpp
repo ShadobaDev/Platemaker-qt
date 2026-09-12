@@ -506,19 +506,16 @@ void MainWindow::openStripEditorDock(int projectIndex)
     // undo step. Both are guarded the same way the grade is: with the project dock closed there is no
     // undo stack to push onto, so the edit is declined rather than applied untracked.
     connect(viewer, &StripEdit::Editor::artifactCreated, this,
-            [this, projectIndex](const TextArtifact &artifact, int x, int y, const QString &anchorUid) {
+            [this, projectIndex](const TextArtifact &artifact, double xFrac, double yFrac,
+                                 double wFrac, const QString &anchorUid) {
         if (auto *pw = projectWidget(projectIndex))
-            pw->createOverlay(artifact, x, y, anchorUid);
+            pw->createOverlay(artifact, xFrac, yFrac, wFrac, anchorUid);
     });
     connect(viewer, &StripEdit::Editor::artworkImportRequested, this,
-            [this, projectIndex](const QString &file, int x, int y, const QString &anchorUid) {
+            [this, projectIndex](const QString &file, double xFrac, double yFrac, double wFrac,
+                                 const QString &anchorUid) {
         if (auto *pw = projectWidget(projectIndex))
-            pw->importOverlayArtwork(file, x, y, anchorUid);
-    });
-    connect(viewer, &StripEdit::Editor::artworkResizeRequested, this,
-            [this, projectIndex](const QString &uid, QSize size) {
-        if (auto *pw = projectWidget(projectIndex))
-            pw->resizeOverlayArtwork(uid, size);
+            pw->importOverlayArtwork(file, xFrac, yFrac, wFrac, anchorUid);
     });
     connect(viewer, &StripEdit::Editor::overlaysEdited, this,
             [this, projectIndex](const std::vector<Platemaker::Models::StripOverlay> &overlays,

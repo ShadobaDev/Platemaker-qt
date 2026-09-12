@@ -283,7 +283,7 @@ bool MainWindow::startRender(int projectIndex)
     // Optional render-time processing steps, copied from the project into the worker. Default / disabled
     // (CC enabled==false, no overlays) → the pipeline is byte-identical to a build without them.
     worker->setColourCorrection(project.colourCorrection);
-    worker->setStripOverlays(project.getStripOverlays(), project.overlayAuthoredWidth);
+    worker->setStripOverlays(project.getStripOverlays());
     auto *thread = new QThread(this);
     worker->moveToThread(thread);
     m_renderWorker = worker;

@@ -184,6 +184,15 @@ void ObjectController::reselect()
         selectOverlay(m_selectedOverlay);
 }
 
+qreal ObjectController::itemScaleFor(const Platemaker::Models::StripOverlay& o, qreal naturalWidth) const
+{
+    // wFrac 0 means "the asset's own size", which is exactly a scale of 1 — and it is what an overlay
+    // placed before sizes were recorded, or imported and never resized, carries.
+    if (o.wFrac <= 0.0 || naturalWidth <= 0.0)
+        return 1.0;
+    return m_layout.pixels(o.wFrac) / naturalWidth;
+}
+
 void ObjectController::setSource(const std::vector<Platemaker::Models::StripOverlay>& overlays,
                                  const ArtifactMap&                                  artifacts)
 {
@@ -284,7 +293,6 @@ void ObjectController::syncItems()
         if (!item) {
             item = new OverlayItem(uid, a);
             connect(item, &OverlayItem::geometryEdited, this, &ObjectController::onOverlayGeometryEdited);
-            connect(item, &OverlayItem::artworkResized,  this, &ObjectController::onArtworkResized);
             m_scene->addItem(item);
             m_overlayItems.insert(uid, item);
         } else if (item->artifact() != a) {
@@ -301,9 +309,15 @@ void ObjectController::syncItems()
         item->setFallbackPixmap(fallback);
         item->setBlend(o.blend);
         item->setOrphaned(orphaned);
+        // The record says how wide the object is relative to the page; the item draws its own artwork at
+        // that artwork's own size. The ratio is the item's scale — 1.0 for everything authored at the
+        // width the strip is laid out at now, which is every overlay until a chapter is re-profiled.
+        const qreal k = itemScaleFor(o, item->contentBounds().width());
+        item->setScale(k);
         // The record stores the artwork's top-left; the item is positioned by its balloon's. They differ
-        // by the bounds offset whenever a tail reaches above or left of the balloon.
-        item->setPos(m_layout.scenePosOf(o) - item->contentBounds().topLeft());
+        // by the bounds offset whenever a tail reaches above or left of the balloon — and that offset is
+        // in the item's own units, so it scales with it.
+        item->setPos(m_layout.scenePosOf(o) - item->contentBounds().topLeft() * k);
         item->setVisible(o.enabled);
         item->setZValue(z++);
         item->setFlag(QGraphicsItem::ItemIsSelectable, m_authoring && !orphaned);
@@ -316,20 +330,29 @@ void ObjectController::onOverlayGeometryEdited(const QString& uid)
     if (!item)
         return;
 
+    const double tw = m_layout.targetWidth();
+    if (tw <= 0)
+        return;   // no strip laid out; there is nothing to measure a fraction against
+
     // Re-anchor to whichever page the bubble now sits on. Crossing a page boundary is a normal drag,
     // and silently re-homing it is the whole point: the offset stays relative to the artwork under it.
-    // Back to the artwork's own top-left, which is what the library composites at.
-    const QPointF p    = item->pos() + item->contentBounds().topLeft();
+    // Back to the artwork's own top-left, which is what the library composites at — in scene pixels,
+    // so the item's own scale applies to the offset as well as to the artwork.
+    const qreal   k    = item->scale();
+    const QPointF p    = item->pos() + item->contentBounds().topLeft() * k;
     const int     page = m_layout.pageAtSceneY(item->pos().y());
     for (auto& o : m_overlays) {
         if (QString::fromStdString(o.uid) != uid)
             continue;
-        o.x = qRound(p.x());
+        // Back into the durable unit. Dividing by the target width here is the *only* place a placement
+        // leaves the editor, which is what keeps the stored form independent of the profile in use.
+        o.xFrac = p.x() / tw;
+        o.wFrac = item->contentBounds().width() * k / tw;
         if (page >= 0) {
             o.anchorInputUid = m_layout.anchorUidForPage(page).toStdString();
-            o.y              = qRound(p.y()) - m_layout.page(page).top;
+            o.yFrac          = (p.y() - m_layout.page(page).top) / tw;
         } else {
-            o.y = qRound(p.y());
+            o.yFrac = p.y() / tw;
         }
         break;
     }
@@ -344,12 +367,6 @@ void ObjectController::onOverlayGeometryEdited(const QString& uid)
     }
     refreshList();
     pushOverlays(tr("Move bubble"));
-}
-
-void ObjectController::onArtworkResized(const QString& uid, QSize size)
-{
-    // Straight through: the size belongs in the artwork itself, and only the owner writes files.
-    emit artworkResizeRequested(uid, size);
 }
 
 void ObjectController::refreshList()
@@ -431,6 +448,20 @@ void ObjectController::applyPanelArtifact(const TextArtifact& a, bool commit)
     // character; the panel debounces and tells us when it has settled.
     if (!commit)
         return;
+
+    // Typing a longer line, or restyling, changes how much room the artwork takes — and the render
+    // draws the asset at wFrac of the page, not at whatever size the SVG happens to come out. Without
+    // this the re-emitted artwork would be squeezed back into the old width.
+    if (const double tw = m_layout.targetWidth(); tw > 0) {
+        const qreal k = item->scale();
+        for (auto& o : m_overlays) {
+            if (QString::fromStdString(o.uid) != m_selectedOverlay)
+                continue;
+            o.wFrac = item->contentBounds().width() * k / tw;
+            break;
+        }
+    }
+
     refreshList();
     pushOverlays(tr("Edit bubble"));
 }
@@ -458,8 +489,20 @@ void ObjectController::importArtwork()
     if (page < 0)
         return;
 
+    const double tw = m_layout.targetWidth();
+    if (tw <= 0)
+        return;
+
+    // Record the artwork's own width as a fraction straight away rather than leaving it at 0 ("natural
+    // size"). Both draw identically today; the difference shows on the next re-profile, where a logo
+    // that knows its width relative to the page grows with the chapter and a "natural size" one does
+    // not. Growing with the chapter is what anyone placing artwork on a page meant.
+    const qreal natural = renderAssetFile(file).width();
+
     m_selectNewOverlay = true;
-    emit artworkImportRequested(file, qRound(centre.x()), qRound(centre.y()) - m_layout.page(page).top,
+    emit artworkImportRequested(file, centre.x() / tw,
+                                (centre.y() - m_layout.page(page).top) / tw,
+                                natural > 0 ? natural / tw : 0.0,
                                 m_layout.anchorUidForPage(page));
 }
 
@@ -529,8 +572,12 @@ void ObjectController::duplicateSelectedOverlay()
         // Routed through the creation channel, not copied into the list here: the library mints the new
         // uid and, because the artwork is byte-identical, its inventory dedups it onto the same file.
         // Offset within the same page, so a duplicate stays on the artwork its original was talking to.
+        // The offset is a pixel nudge, so it becomes a fraction like everything else — a duplicate has
+        // to land the same distance away whatever width the chapter is being laid out at.
+        const double tw  = m_layout.targetWidth();
+        const double off = tw > 0 ? k_duplicateOffset / tw : 0.0;
         m_selectNewOverlay = true;
-        emit artifactCreated(item->artifact(), o.x + k_duplicateOffset, o.y + k_duplicateOffset,
+        emit artifactCreated(item->artifact(), o.xFrac + off, o.yFrac + off, o.wFrac,
                              QString::fromStdString(o.anchorInputUid));
         return;
     }
@@ -600,9 +647,18 @@ void ObjectController::finishPlacement()
 
     // Creation is the library's: it mints the uid, hashes the asset and dedups identical content, so
     // the owner finishes this and feeds the result back — where it gets selected (see setOverlaySource).
+    const double tw = m_layout.targetWidth();
+    if (tw <= 0)
+        return;
+
     m_selectNewOverlay = true;
-    const QPointF origin = r.topLeft() + artifactBounds(a).topLeft();
-    emit artifactCreated(a, qRound(origin.x()), qRound(origin.y()) - m_layout.page(page).top,
+    // The drag was in strip pixels at the width the editor is laid out at, and the SVG about to be
+    // written is in those same pixels — so the artwork's own width *is* this fraction of the page, and
+    // the bubble comes back at scale 1.
+    const QRectF  bounds = artifactBounds(a);
+    const QPointF origin = r.topLeft() + bounds.topLeft();
+    emit artifactCreated(a, origin.x() / tw, (origin.y() - m_layout.page(page).top) / tw,
+                         bounds.width() / tw,
                          m_layout.anchorUidForPage(page));
 }
 

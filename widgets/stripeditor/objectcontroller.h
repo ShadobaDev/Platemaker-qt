@@ -94,19 +94,24 @@ public:
 
 signals:
     //! A bubble was drawn. Creation is the library's — it mints the uid and dedups identical artwork.
-    void artifactCreated(const TextArtifact& artifact, int x, int y, const QString& anchorInputUid);
+    void artifactCreated(const TextArtifact& artifact, double xFrac, double yFrac, double wFrac,
+                         const QString& anchorInputUid);
     //! Any other edit, as the complete new state: one channel rather than one signal per gesture.
     void overlaysEdited(const std::vector<Platemaker::Models::StripOverlay>& overlays,
                         const ArtifactMap& artifacts, const QString& undoText);
     //! Artwork drawn elsewhere should be copied into the workspace and registered at this placement.
-    void artworkImportRequested(const QString& sourceFile, int x, int y, const QString& anchorInputUid);
-    //! A flat asset settled a resize — the owner rewrites the artwork itself, because that is where a
-    //! flat asset's size lives.
-    void artworkResizeRequested(const QString& uid, QSize size);
-
+    void artworkImportRequested(const QString& sourceFile, double xFrac, double yFrac, double wFrac,
+                                const QString& anchorInputUid);
 private:
     void onOverlayGeometryEdited(const QString& uid); //!< An item settled a move/resize/tail drag.
-    void onArtworkResized(const QString& uid, QSize size);
+    /**
+     * @brief How much bigger than its own artwork an overlay is drawn.
+     *
+     * \c 1.0 whenever the asset was authored at the width the strip is laid out at now, which is every
+     * overlay until a chapter is re-profiled. After one, the record's \c wFrac still says how wide the
+     * object is *relative to the page*, and this is what turns that back into a scale for the item.
+     */
+    [[nodiscard]] qreal itemScaleFor(const Platemaker::Models::StripOverlay& o, qreal naturalWidth) const;
     //! The library's rasterisation of \p a, cached by the SVG it emits. Empty if it cannot be produced.
     [[nodiscard]] QImage sharpRasterFor(const TextArtifact& a);
     void selectOverlay(const QString& uid);   //!< Selects one in the scene and the list, and loads the panel.

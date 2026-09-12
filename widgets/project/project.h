@@ -98,25 +98,13 @@ public:
      * The library mints the uid, hashes the file and dedups identical content, so creation goes through
      * `ProjectItem::addOverlay()` rather than being assembled here. One undo step.
      *
-     * @param x,y            Top-left relative to the anchor page's top edge (page domain).
+     * @param xFrac,yFrac    Top-left as fractions of the render's target width — page-relative to the
+     *                       anchor page's top edge.
+     * @param wFrac          The artwork's rendered width in that same unit.
      * @param anchorInputUid The input page the bubble rides on.
      */
-    void createOverlay(const TextArtifact& artifact, int x, int y, const QString& anchorInputUid);
-
-    /**
-     * @brief Records the target width every overlay's coordinates and artwork are authored in.
-     *
-     * An overlay is stored in pixels, and pixels mean nothing without the width they were measured
-     * against: re-profile a chapter from 800 px to 1600 px and every bubble is half-size in the wrong
-     * place unless the render knows what the numbers meant. \c ProjectItem::overlayAuthoredWidth is that
-     * width, and this stamps it from the project's active output profile.
-     *
-     * **Written once, on the first overlay.** It describes the coordinate system the whole set lives in,
-     * so a later overlay does not get to redefine it — and a project that already has overlays but no
-     * recorded width (authored before this existed) is stamped with the current width, which is exactly
-     * the assumption the render made for it anyway.
-     */
-    void stampOverlayAuthoredWidth(Platemaker::Models::ProjectItem& item) const;
+    void createOverlay(const TextArtifact& artifact, double xFrac, double yFrac, double wFrac,
+                       const QString& anchorInputUid);
 
     /**
      * @brief Registers artwork the author drew elsewhere as an overlay, exactly as it is.
@@ -129,19 +117,8 @@ public:
      * re-typable. That case already exists for a bubble whose parameters were lost, so importing needs
      * no separate kind of overlay — it is the same one, arrived at deliberately.
      */
-    void importOverlayArtwork(const QString& sourceFile, int x, int y, const QString& anchorInputUid);
-
-    /**
-     * @brief Resizes imported artwork by rewriting the artwork, because that is where its size lives.
-     *
-     * A flat asset has no authoring record and \c StripOverlay has no width or height — an asset's own
-     * dimensions *are* its rendered size. For an SVG that size is two attributes on the root element, so
-     * resizing rewrites those and leaves \c viewBox alone: the drawing is unchanged, rendered larger,
-     * and stays crisp because it is still vector. A raster can only be resampled.
-     *
-     * Ignores an overlay that *does* have a record — a parametric bubble resizes through applyOverlays().
-     */
-    void resizeOverlayArtwork(const QString& overlayUid, QSize size);
+    void importOverlayArtwork(const QString& sourceFile, double xFrac, double yFrac, double wFrac,
+                              const QString& anchorInputUid);
 
     /**
      * @brief Stores a complete new overlay state — move, restyle, delete, reorder or mute — as one

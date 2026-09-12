@@ -198,7 +198,6 @@ Editor::Editor(QWidget *parent)
         connect(m_objects, &ObjectController::artifactCreated,        this, &Editor::artifactCreated);
         connect(m_objects, &ObjectController::overlaysEdited,         this, &Editor::overlaysEdited);
         connect(m_objects, &ObjectController::artworkImportRequested, this, &Editor::artworkImportRequested);
-        connect(m_objects, &ObjectController::artworkResizeRequested, this, &Editor::artworkResizeRequested);
         // Splitter behaviour (not expressible in the .ui): canvas absorbs resize, panels keep their width.
         ui->editorBody->setStretchFactor(0, 0);   // toolbox
         ui->editorBody->setStretchFactor(1, 1);   // canvas

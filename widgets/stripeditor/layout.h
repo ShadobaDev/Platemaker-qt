@@ -77,6 +77,16 @@ public:
      * an absolute one silently drifts onto different artwork as soon as a page above it changes height.
      * Returns -1 only when there is no layout at all.
      */
+    /**
+     * @brief The width every page was scaled to — the unit every overlay fraction is measured in.
+     *
+     * The same number the render passes to \c Models::resolveOverlayAnchors(). It is the strip's width
+     * by construction: the page domain scales every page to the output profile's target width, so the
+     * widest page *is* that width.
+     */
+    [[nodiscard]] int   targetWidth() const { return m_width; }
+    //! One fraction of the target width, in strip pixels.
+    [[nodiscard]] qreal pixels(double frac) const { return frac * m_width; }
     [[nodiscard]] int pageAtSceneY(qreal y) const;
 
     //! Input uid of page \p page, empty when out of range.

@@ -36,7 +36,6 @@
 #include <QLabel>
 #include <QRegularExpression>
 #include <QScrollArea>
-#include <QSvgRenderer>
 #include <QVBoxLayout>
 #include <QAction>
 #include <QListWidget>
@@ -717,15 +716,8 @@ void Project::setArtifacts(ArtifactMap artifacts)
     m_artifacts = std::move(artifacts);
 }
 
-void Project::stampOverlayAuthoredWidth(Platemaker::Models::ProjectItem& item) const
-{
-    if (item.overlayAuthoredWidth != 0)
-        return;
-    if (const auto op = Platemaker::Models::resolveOutputProfile(m_workspace, item.outputProfileId()))
-        item.overlayAuthoredWidth = op->targetWidth;
-}
-
-void Project::createOverlay(const TextArtifact& artifact, int x, int y, const QString& anchorInputUid)
+void Project::createOverlay(const TextArtifact& artifact, double xFrac, double yFrac, double wFrac,
+                            const QString& anchorInputUid)
 {
     const QString dir = ArtifactStore::ensureOverlaysDir(m_workspacePath);
     if (dir.isEmpty()) {
@@ -744,10 +736,9 @@ void Project::createOverlay(const TextArtifact& artifact, int x, int y, const QS
 
     commitEdit(tr("Add bubble"), [&] {
         auto& item = m_workspace.projectItems[m_projectIndex];
-        stampOverlayAuthoredWidth(item);
         // The library mints the uid, hashes the file and reuses an existing path for identical content.
         const std::string uid =
-            item.addOverlay(asset.toStdString(), x, y,
+            item.addOverlay(asset.toStdString(), xFrac, yFrac, wFrac,
                             Platemaker::Models::BlendMode::Over, anchorInputUid.toStdString());
         m_artifacts.insert(QString::fromStdString(uid), artifact);
         emit artifactsChanged(m_artifacts);
@@ -770,8 +761,8 @@ void Project::rewriteOverlayAssets()
     }
 }
 
-void Project::importOverlayArtwork(const QString& sourceFile, int x, int y,
-                                   const QString& anchorInputUid)
+void Project::importOverlayArtwork(const QString& sourceFile, double xFrac, double yFrac,
+                                   double wFrac, const QString& anchorInputUid)
 {
     const QString dir = ArtifactStore::ensureOverlaysDir(m_workspacePath);
     if (dir.isEmpty()) {
@@ -820,126 +811,8 @@ void Project::importOverlayArtwork(const QString& sourceFile, int x, int y,
 
     commitEdit(tr("Import artwork"), [&] {
         auto& item = m_workspace.projectItems[m_projectIndex];
-        stampOverlayAuthoredWidth(item);
-        item.addOverlay(dest.toStdString(), x, y,
+        item.addOverlay(dest.toStdString(), xFrac, yFrac, wFrac,
                         Platemaker::Models::BlendMode::Over, anchorInputUid.toStdString());
-        emit projectModified();
-        populate();
-    });
-}
-
-namespace {
-
-/**
- * @brief Rewrites an SVG's rendered size, preserving everything else about the document.
- *
- * Only the root `<svg …>` tag is touched — the substring up to its first `>` — so the artist's markup
- * comes back byte-identical apart from the two attributes that had to change.
- *
- * A document with **no viewBox** gets one synthesised from its current size first. Without that,
- * changing width/height moves the coordinate system rather than scaling the drawing, and the artwork
- * would come back the same size in a bigger canvas.
- *
- * @return The rewritten document, or empty when the root tag cannot be found.
- */
-QByteArray svgResized(const QByteArray& svg, QSize size, QSize naturalSize)
-{
-    const int open = svg.indexOf("<svg");
-    if (open < 0)
-        return {};
-    const int close = svg.indexOf('>', open);
-    if (close < 0)
-        return {};
-
-    QString root = QString::fromUtf8(svg.mid(open, close - open));
-
-    static const QRegularExpression viewBoxRe(QStringLiteral("\\bviewBox\\s*="));
-    if (!viewBoxRe.match(root).hasMatch() && !naturalSize.isEmpty()) {
-        root += QStringLiteral(" viewBox=\"0 0 %1 %2\"")
-                    .arg(naturalSize.width()).arg(naturalSize.height());
-    }
-
-    // Width and height may carry units (400px, 10cm, 100%) — replaced outright rather than parsed,
-    // since the viewBox above is what preserves the drawing's proportions.
-    const auto setAttr = [&root](const QString& name, int value) {
-        const QRegularExpression re(QStringLiteral("\\b%1\\s*=\\s*([\"'])[^\"']*\\1").arg(name));
-        const QString replacement = QStringLiteral("%1=\"%2\"").arg(name).arg(value);
-        if (re.match(root).hasMatch())
-            root.replace(re, replacement);
-        else
-            root += QLatin1Char(' ') + replacement;
-    };
-    setAttr(QStringLiteral("width"),  size.width());
-    setAttr(QStringLiteral("height"), size.height());
-
-    QByteArray out = svg;
-    out.replace(open, close - open, root.toUtf8());
-    return out;
-}
-
-} // namespace
-
-void Project::resizeOverlayArtwork(const QString& overlayUid, QSize size)
-{
-    if (size.width() < 1 || size.height() < 1)
-        return;
-    if (m_artifacts.contains(overlayUid))
-        return;   // a parametric bubble; its size is in its record, not in the file
-
-    auto& item = m_workspace.projectItems[m_projectIndex];
-    auto& overlays = item.getStripOverlays();
-    const auto it = std::find_if(overlays.begin(), overlays.end(),
-                                 [&](const Platemaker::Models::StripOverlay& o) {
-                                     return QString::fromStdString(o.uid) == overlayUid;
-                                 });
-    if (it == overlays.end() || it->assetPath.empty())
-        return;
-
-    const QString path = QString::fromStdString(it->assetPath);
-    QFile f(path);
-    if (!f.open(QIODevice::ReadOnly))
-        return;
-    const QByteArray original = f.readAll();
-    f.close();
-
-    QByteArray rewritten;
-    if (path.endsWith(QLatin1String(".svg"), Qt::CaseInsensitive)) {
-        QSvgRenderer renderer(original);
-        rewritten = svgResized(original, size, renderer.isValid() ? renderer.defaultSize() : QSize());
-    } else {
-        // A raster has no size to rewrite — only pixels to resample, which is lossy. That is the
-        // inherent limit of raster artwork, and why an imported SVG is the better thing to hand over.
-        QImage img;
-        if (img.loadFromData(original)) {
-            QBuffer buf(&rewritten);
-            buf.open(QIODevice::WriteOnly);
-            img.scaled(size, Qt::IgnoreAspectRatio, Qt::SmoothTransformation)
-               .save(&buf, QFileInfo(path).suffix().toUpper().toLatin1().constData());
-        }
-    }
-    if (rewritten.isEmpty() || rewritten == original)
-        return;
-
-    // Overwrite in place: an overlay owns one file for its lifetime (see writeArtifactSvg).
-    QFile out(path);
-    if (!out.open(QIODevice::WriteOnly | QIODevice::Truncate) || out.write(rewritten) < 0)
-        return;
-    out.close();
-
-    commitEdit(tr("Resize artwork"), [&] {
-        auto& live = m_workspace.projectItems[m_projectIndex].getStripOverlays();
-        for (auto& o : live) {
-            if (QString::fromStdString(o.uid) != overlayUid)
-                continue;
-            try {
-                // The hash is what the staleness signature watches; without it the render would keep
-                // compositing the previous size.
-                o.sha256 = Platemaker::Infrastructure::FileMetaData::computeFileSha256(o.assetPath);
-            } catch (const std::exception&) {
-                o.sha256.clear();
-            }
-            break;
-        }
         emit projectModified();
         populate();
     });

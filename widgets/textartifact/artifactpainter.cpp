@@ -32,6 +32,8 @@ constexpr int   k_burstSpikes   = 12;
 constexpr qreal k_burstInner    = 0.74;
 //! Re-measure passes in fittedBox(); it converges in two or three, this is headroom.
 constexpr int   k_fitPasses     = 6;
+//! Floor for a fit, matching the resize grips' own minimum — a short line must not collapse the shape.
+constexpr int   k_minFitHeight  = 40;
 //! 1/sqrt(2) — the half-axis fraction at which a rectangle inscribes an ellipse.
 constexpr qreal k_invSqrt2      = 0.70710678118654752;
 //! Fraction of the width the trapezoid's top edge loses on each side.
@@ -532,19 +534,35 @@ QSize fittedBox(const TextArtifact& a)
     if (a.text.isEmpty())
         return a.box;
 
-    // Growing the box leaves the stroke and the shape's inset to pay for, so adding the shortfall once
-    // falls short. Re-measure instead of deriving a closed form here: it converges in a pass or two and
-    // cannot drift out of step with balloonRect() / textSafeArea() the way a duplicated formula would.
+    // How much taller the wrapped text is than the room it has. Negative means the balloon has slack.
+    // 0 when there is no room to wrap into at all, which reads as "nothing to do" and stops the loops.
+    const auto overflowOf = [](const TextArtifact& p) -> qreal {
+        const QRectF safe = textSafeArea(p, balloonRect(p));
+        if (safe.width() < 1)
+            return 0.0;
+        QTextDocument doc;
+        layOutText(doc, p, safe.width());
+        return doc.size().height() - safe.height();
+    };
+
+    // Converge on "as tall as the text needs", shrinking as readily as growing. Growing alone made the
+    // button do nothing in the common case — a balloon drawn larger than its line, which is most of
+    // them. Re-measure instead of deriving a closed form: growing leaves the stroke and the shape's
+    // inset to pay for, so adding the shortfall once falls short, and this cannot drift out of step
+    // with balloonRect() / textSafeArea() the way a duplicated formula would.
     TextArtifact probe = a;
     for (int pass = 0; pass < k_fitPasses; ++pass) {
-        const QRectF safe = textSafeArea(probe, balloonRect(probe));
-        if (safe.width() < 1)
+        const qreal extra = overflowOf(probe);
+        if (qAbs(extra) <= 0.5)
             break;
+        probe.box.setHeight(qMax(k_minFitHeight, qRound(probe.box.height() + extra)));
+    }
 
-        QTextDocument doc;
-        layOutText(doc, probe, safe.width());
-
-        const qreal extra = doc.size().height() - safe.height();
+    // A shape whose safe width moves with its height — an ellipse, a burst — can leave the loop above
+    // mid-oscillation, one pass short of fitting. Let the last word be "it fits": grow-only passes,
+    // which can only ever add room.
+    for (int pass = 0; pass < k_fitPasses; ++pass) {
+        const qreal extra = overflowOf(probe);
         if (extra <= 0.5)
             break;
         probe.box.setHeight(qRound(probe.box.height() + extra));

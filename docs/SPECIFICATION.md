@@ -175,8 +175,12 @@ must not be split by.
 - **Tool options** (right-top) — a `QStackedWidget`, one page per tool. `GradePanel` for Grade;
   `BubblePanel` for **both** Bubble and Text, because they author the same object (§2.5.4) — `setTool()`
   points both at that page and hides the shape group for Text.
-- **Artifact list** (right-bottom) — `artifactList`, the overlays in composite order. Hidden under Grade,
-  whose per-page exclusion feed is not built yet.
+- **Artifact list** (right-bottom) — `artifactList`, the overlays as a **stack**: row 0 is the front-most
+  object, and a row covers every row below it wherever they overlap. The library's composite order is the
+  opposite (it draws `stripOverlays` in vector order, so the last element is on top), so the list is that
+  vector **reversed** — done in `refreshList()` / `commitListOrder()` alone, because a layers panel that
+  reads bottom-up is a surprise in every tool that has one, and the reversal belongs at the view rather
+  than in a model the render shares. Hidden under Grade, whose per-page exclusion feed is not built yet.
 
 #### 2.5.2 Rendering (seam-free) and memory
 

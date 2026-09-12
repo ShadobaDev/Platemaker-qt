@@ -4,6 +4,24 @@
 
 ### Changed
 
+- **The object list is a stack, the way a layers panel is.** Row 0 is the front-most object and a row
+  covers every row below it where they overlap, so a newly placed sprite appears at the **top**. The
+  library composites in vector order (last on top), which is the opposite, so the list shows that
+  vector reversed — at the view only, leaving the render’s own ordering rule untouched.
+- **Fit to text shrinks as well as grows.** It only ever added height, so on the common case — a
+  balloon drawn larger than the line it holds — the button did nothing at all. It now converges on
+  the height the text actually needs, floored so a short line cannot collapse the shape, with a final
+  grow-only pass so the result always still holds the text.
+- **The strip editor is split into units that each do one thing.** `editor.cpp` was 1244 lines doing
+  four jobs; it is now the shell (canvas, zoom, tools, panels) with two collaborators beside it:
+  **`StripEdit::PageSource`** — *give me page N at the best fidelity available*: the feed, the
+  blurry-proxy and sharp tiers, the graded previews, the LRU caps that keep RAM tracking the viewport
+  rather than the chapter, and the generation counter that makes a rebuild discard results still in
+  flight — and **`StripEdit::ObjectController`** — everything the author *places* on the strip: the
+  overlay set, the scene items, the composite-order list, the selection and the placement drag. Nothing
+  changed about what any of it does.
+  - The split was overdue rather than speculative: the same unit was identified in the previous
+    refactor as "the half about to double", deferred, and had doubled by the next feature.
 - **The strip editor is one feature in one place.** `widgets/{stripviewer,ccpanel,bubblepanel}/` became
   **`widgets/stripeditor/`** in namespace **`StripEdit`** — `StripEdit::Editor` (was `StripViewer`),
   `Layout`, `OverlayItem`, and `panels/{bubblepanel,gradepanel}` (`GradePanel` was `CcPanel`). The screen

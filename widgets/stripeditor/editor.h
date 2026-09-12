@@ -38,7 +38,7 @@ namespace StripEdit {
 
 class GradePanel;
 class BubblePanel;
-class OverlayItem;
+class ObjectController;
 
 /**
  * @brief Continuous "infinite strip" editor for a project — the authoring surface for the optional
@@ -225,26 +225,6 @@ private:
     //! Adopts a new grade and re-grades the resident pages. Does not touch the Grade panel.
     void applyGrade(const Platemaker::Models::ColourCorrection& cc);
 
-    // --- overlays (text & bubbles) ---
-    void onOverlayGeometryEdited(const QString& uid); //!< An item settled a move/resize/tail drag.
-    //! A flat asset settled a resize — forwarded so the owner can rewrite the artwork itself.
-    void onArtworkResized(const QString& uid, QSize size);
-    void syncOverlayItems();        //!< Reconciles the scene items with m_overlays, by uid.
-    //! The library's rasterisation of \p a, cached by the SVG it emits. Empty if it cannot be produced.
-    [[nodiscard]] QImage sharpRasterFor(const TextArtifact& a);
-    void refreshArtifactList();     //!< Rebuilds the right-bottom list from m_overlays (composite order).
-    void selectOverlay(const QString& uid);   //!< Selects one in the scene and the list, and loads the panel.
-    void pushOverlays(const QString& undoText); //!< Emits overlaysEdited() with the current state.
-    void applyPanelArtifact(const TextArtifact& a, bool commit); //!< Live edit from the panel → item (+persist).
-    void deleteSelectedOverlay();
-    void importArtwork();           //!< Asks for a file and drops it on the page currently in view.
-    void duplicateSelectedOverlay();   //!< Copies the selected bubble a little down and right.
-    void setOverlayEnabled(const QString& uid, bool on);  //!< The list's mute checkbox (deferred, see the ctor).
-    void commitListOrder();                               //!< Adopts the list's row order as composite order.
-    void beginPlacement(const QPointF& scenePos);   //!< Bubble/Text tool: start the placement rubber band.
-    void updatePlacement(const QPointF& scenePos);
-    void finishPlacement();                          //!< Emits artifactCreated() for the drawn rectangle.
-
     //! True while a tool that authors overlays is active (Bubble or Text).
     //! Page and anchor geometry is asked of \c m_layout instead — see Layout.
     [[nodiscard]] bool    artifactToolActive() const;
@@ -275,39 +255,11 @@ private:
     GradePanel        *m_gradePanel   = nullptr;   //!< The Grade tool-options page (colour-correction controls).
     Tool            m_tool      = Tool::Pan; //!< Current tool.
 
-    // --- text & bubbles ---
+    // --- the objects on the strip ---
     BubblePanel* m_bubblePanel = nullptr;   //!< Shared tool-options page for both the Bubble and Text tools.
-    std::vector<Platemaker::Models::StripOverlay> m_overlays;   //!< The project's overlays, in composite order.
-    ArtifactMap                                   m_artifacts;  //!< Their authoring records, keyed by overlay uid.
-    QHash<QString, OverlayItem*>                  m_overlayItems; //!< Live scene items, keyed by overlay uid.
-    /**
-     * @brief Library rasterisations of styled bubbles, keyed by the SVG document itself.
-     *
-     * Keyed by the bytes rather than by the overlay's stored hash, and rendered from those same bytes
-     * rather than from the file — because the file is the wrong thing to ask. A workspace can live on a
-     * synced drive, where reading a file back immediately after writing it may still return the previous
-     * content; keying and rendering off the buffer in hand makes the preview show what is being edited,
-     * and leaves the file to matter only when a render reads it.
-     *
-     * Only styled bubbles are in here — an unstyled one is the same geometry either way, so rasterising
-     * it would buy nothing.
-     * ponytail: rasterised synchronously, on the UI thread. One bubble per settled edit is a few ms;
-     * opening a chapter with dozens of styled bubbles is the case that would want QtConcurrent.
-     */
-    QHash<QString, QImage>                        m_sharpCache;
-    QString            m_selectedOverlay;                   //!< uid of the selected overlay, empty for none.
-    // Duplicate / Delete, shared by the artifact list's context menu and its keyboard shortcuts, and
-    // reachable from the canvas too — the two places a bubble is ever selected.
-    QAction*           m_actDuplicate    = nullptr;
-    QAction*           m_actDelete       = nullptr;
-    QAction*           m_actImport       = nullptr;   //!< Bring in artwork drawn outside Platemaker.
-    QGraphicsRectItem* m_placementRubber = nullptr;         //!< Rubber band while a new bubble is drawn.
-    QPointF            m_placementOrigin;                   //!< Where that drag started, in scene coordinates.
-    bool               m_placing         = false;
-    bool               m_syncingList     = false;           //!< Guards the list ⇄ scene selection round-trip.
-    //! Set when this viewer asked for a new bubble; the uid only exists after the owner mints it, so the
-    //! selection has to wait for the feed to come back.
-    bool               m_selectNewOverlay = false;
+    //! Owns the overlay set, the scene items, the list and the selection. Declared after m_layout,
+    //! which it holds by reference.
+    ObjectController* m_objects = nullptr;
 };
 
 }  // namespace StripEdit

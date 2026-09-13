@@ -202,6 +202,16 @@ protected:
     void resizeEvent(QResizeEvent *event) override;
 
 private:
+    /**
+     * @brief Restores / stores the three splitters' positions across sessions.
+     *
+     * How wide the tool options are, and how the right column divides between an object's properties
+     * and the list of objects, is a working preference — the kind that is infuriating to re-drag every
+     * time the editor opens. Application config, not the workspace: it follows the artist, not the comic.
+     */
+    void restoreSplitterState();
+    void storeSplitterState() const;
+
     void rebuildScene();        //!< Lays the feed out via layoutPagesFromHeaders (header reads only) into one lazy StripItem.
     void showEmptyState();      //!< Clears the scene and shows the "no pages yet" hint.
     void addSeamItems();        //!< Adds a guide line at each slice cut (every sliceHeight down the strip).
@@ -250,7 +260,10 @@ private:
     Tool            m_tool      = Tool::Pan; //!< Current tool.
 
     // --- the objects on the strip ---
-    BubblePanel* m_bubblePanel = nullptr;   //!< Shared tool-options page for both the Bubble and Text tools.
+    //! Right-top: what the selected object *is*. Inert, and says so, while nothing is selected.
+    BubblePanel* m_bubblePanel = nullptr;
+    //! Bottom-left, under the tool rail: what the *next* object will be. Never edits anything.
+    BubblePanel* m_toolDefaults = nullptr;
     //! Owns the overlay set, the scene items, the list and the selection. Declared after m_layout,
     //! which it holds by reference.
     ObjectController* m_objects = nullptr;

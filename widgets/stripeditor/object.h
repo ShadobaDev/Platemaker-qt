@@ -2,6 +2,7 @@
 #define STRIPEDIT_OBJECT_H
 
 #include <QGraphicsObject>
+#include <QPainterPath>
 #include <QPointF>
 #include <QRectF>
 #include <QSizeF>
@@ -72,6 +73,24 @@ public:
     [[nodiscard]] virtual QSizeF boxSize() const = 0;
 
     QRectF boundingRect() const override;
+
+    /**
+     * @brief What is actually clickable: the box, the handles, and the grips while selected.
+     *
+     * Qt's default is `boundingRect()`, and this class's bounding rect is the drawn extent padded for
+     * grips — for a bubble that is one rectangle enclosing the balloon *and* wherever its tail points,
+     * most of which is empty. So a click in the blank space beside a tail selected the bubble, and with
+     * two that overlap, the upper one's rectangle reached down over the lower one's body and swallowed
+     * presses meant for it.
+     *
+     * The box is the hit area because the box is the object: a balloon is inscribed in it, a text block
+     * fills it, artwork is drawn into it. The tail *tips* are added because they are grabbable, and the
+     * corner grips while selected, because they sit outside the box and a selected object must stay
+     * resizable. The tail's shaft is deliberately left out — it is a thin sliver a long way from
+     * anything anyone is aiming at.
+     */
+    QPainterPath shape() const override;
+
     void   paint(QPainter* painter, const QStyleOptionGraphicsItem* option, QWidget* widget) final;
 
 signals:

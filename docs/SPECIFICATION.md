@@ -166,7 +166,32 @@ must not be split by.
 
 #### 2.5.1 Editor shell
 
-`editor.ui` lays out `[toolbar]` over `[toolRail | graphicsView | rightPanel]`:
+`editor.ui` lays out `[toolbar]` over `[toolColumn | graphicsView | rightPanel]`, with the two side
+columns each split vertically:
+
+```
+toolColumn = QSplitter(V): [ tool tiles | TOOL OPTIONS ]      what the NEXT object will be
+rightPanel = QSplitter(V): [ OBJECT PROPERTIES | object list ] what THIS object is
+```
+
+The two sides answer two different questions, and that is the point. One panel used to answer both —
+the selection's properties when something was selected, the next placement's styling when nothing was,
+with nothing on screen saying which. `BubblePanel` is now instantiated twice, once per `Seat`: the same
+controls, because a bubble's colours mean the same thing either way, but a stated subject. With nothing
+selected the right-hand one goes inert and says so, instead of quietly becoming the other thing.
+
+The **grade** lives in tool options rather than on the right: its subject is the project, so it is the
+tool's own configuration and not any object's property.
+
+The right column is **never hidden**, under any tool. It was, briefly, on the grounds that Pan and Grade
+have no objects to describe — but the canvas is what grows into the space, so the strip jumped sideways
+every time the tool changed, and the object list went away with it. A tool that cannot act on objects
+makes the column *inert* instead: leaving an authoring tool clears the selection, so the properties pane
+is empty on its own, and the list is left readable but disabled so its highlight cannot drift away from
+a canvas whose items are no longer selectable.
+
+Splitter positions are remembered in `QSettings` — a working preference that follows the artist rather
+than the comic.
 
 - **Tool rail** (left) — square checkable `QToolButton`s in an exclusive `QButtonGroup`, laid out by
   `FlowLayout` so they reflow to the rail's width (a flow layout cannot be expressed in a `.ui`).
@@ -242,6 +267,12 @@ valid baseline for every grade tried on it. Excluded pages are skipped, matching
   - **`AssetObject`** — imported artwork, drawn from its own pixmap, with no parameters to edit. It
     keeps aspect on a corner drag, because the record stores one width fraction and a distorted one is
     not expressible.
+  - **What is clickable is the box, not the bounding rectangle.** `Object::shape()` is the box, plus the
+    tail tips (grabbable at any time) and the corner grips while selected. Qt's default is
+    `boundingRect()`, which here is the *drawn extent* — balloon ∪ glyphs ∪ every tail tip, padded for
+    grips — so a bubble with a long tail claimed a rectangle largely made of empty page, and the upper of
+    two overlapping bubbles swallowed presses meant for the lower one. A tail's shaft is left out
+    deliberately: it is a thin sliver far from anything anyone aims at.
   - The split is a correctness measure, not tidiness. There used to be one item class switching on
     whether a pixmap had been handed to it, and **eight** places re-derived the same distinction from
     the model (`m_artifacts.contains(uid)`). Three of those eight were written wrong and shipped — two

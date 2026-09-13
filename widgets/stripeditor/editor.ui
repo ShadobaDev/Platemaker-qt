@@ -186,13 +186,22 @@
      <property name="childrenCollapsible">
       <bool>false</bool>
      </property>
-     <widget class="QWidget" name="toolRail">
-      <property name="minimumSize">
-       <size>
-        <width>52</width>
-        <height>0</height>
-       </size>
+     <widget class="QSplitter" name="toolColumn">
+      <property name="orientation">
+       <enum>Qt::Vertical</enum>
       </property>
+      <property name="childrenCollapsible">
+       <bool>false</bool>
+      </property>
+      <widget class="QWidget" name="toolRail">
+       <property name="minimumSize">
+        <size>
+         <width>52</width>
+         <height>0</height>
+        </size>
+       </property>
+      </widget>
+      <widget class="QStackedWidget" name="toolOptions"/>
      </widget>
      <widget class="QGraphicsView" name="graphicsView"/>
      <widget class="QSplitter" name="rightPanel">
@@ -205,7 +214,7 @@
       <property name="orientation">
        <enum>Qt::Vertical</enum>
       </property>
-      <widget class="QStackedWidget" name="toolOptions"/>
+      <widget class="QStackedWidget" name="objectProperties"/>
       <widget class="QListWidget" name="artifactList"/>
      </widget>
     </widget>

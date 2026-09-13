@@ -101,6 +101,27 @@ QRectF Object::boundingRect() const
     return contentBounds().adjusted(-k_gripMargin, -k_gripMargin, k_gripMargin, k_gripMargin);
 }
 
+QPainterPath Object::shape() const
+{
+    // Rectangles only, and all of them wound the same way, so the winding rule can be trusted where they
+    // overlap — a grip sitting on a corner of the box must add to the hit area, not punch a hole in it,
+    // which is exactly what the default odd-even rule would do.
+    QPainterPath p;
+    p.setFillRule(Qt::WindingFill);
+    p.addRect(QRectF(QPointF(0, 0), boxSize()));
+
+    // A tail tip is grabbable whether or not the object is selected — it is how a bubble is aimed, and
+    // it is usually the only part of it out there.
+    for (int i = 0; i < handleCount(); ++i)
+        p.addRect(handleRect(i));
+
+    if (isSelected()) {
+        for (const Grip g : {Grip::TopLeft, Grip::TopRight, Grip::BottomLeft, Grip::BottomRight})
+            p.addRect(gripRect(g));
+    }
+    return p;
+}
+
 // ---------------------------------------------------------------------------
 // Painting
 // ---------------------------------------------------------------------------

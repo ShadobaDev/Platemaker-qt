@@ -204,8 +204,9 @@ QList<BubblePreset> builtinPresets()
 }
 }
 
-BubblePanel::BubblePanel(QWidget* parent)
+BubblePanel::BubblePanel(Seat seat, QWidget* parent)
     : QWidget(parent)
+    , m_seat(seat)
     , ui(new Ui::BubblePanel)
 {
     ui->setupUi(this);  // provides the empty verticalLayout container; the controls are built here
@@ -376,8 +377,23 @@ BubblePanel::BubblePanel(QWidget* parent)
     actions->addWidget(fitBtn);
     actions->addWidget(delBtn);
 
+    // A defaults seat describes an object that does not exist yet, so the three controls that act on
+    // one are meaningless there: what it says, fitting the balloon to that, and deleting it.
+    const bool properties = (m_seat == Seat::ObjectProperties);
+    m_textEdit->setVisible(properties);
+    m_addTail->setVisible(properties);
+    fitBtn->setVisible(properties);
+    delBtn->setVisible(properties);
+
+    m_emptyHint = new QLabel(tr("Select an object on the strip to edit it."), this);
+    m_emptyHint->setWordWrap(true);
+    m_emptyHint->setAlignment(Qt::AlignCenter);
+    m_emptyHint->setEnabled(false);      // reads as inactive without a hardcoded colour
+    m_emptyHint->setVisible(false);
+
     auto* lay = qobject_cast<QVBoxLayout*>(layout());
     if (lay) {
+        lay->addWidget(m_emptyHint);
         lay->addLayout(presetRow);
         lay->addWidget(m_shapeGroup);
         lay->addWidget(m_textGroup);
@@ -453,6 +469,8 @@ void BubblePanel::setArtifact(const TextArtifact& a)
     m_artifact    = a;
     m_hasSelection = true;
     syncFromModel();
+    if (m_emptyHint)
+        m_emptyHint->setVisible(false);
     m_textGroup->setEnabled(true);
     m_shapeGroup->setEnabled(true);
 }
@@ -461,8 +479,14 @@ void BubblePanel::clearSelection()
 {
     m_hasSelection = false;
     m_commitTimer->stop();
-    // The controls stay readable and usable: with nothing selected they are the styling the *next*
-    // placement will use (see prototype()), which is how a drawing tool's options normally behave.
+    if (m_seat != Seat::ObjectProperties)
+        return;   // a defaults seat has no selection; its controls always describe the next object
+
+    // Inert and visibly so. These controls used to stay live and quietly become "the next placement's
+    // styling" instead — the same widget meaning two things, which is what nobody could tell apart.
+    m_emptyHint->setVisible(true);
+    m_shapeGroup->setEnabled(false);
+    m_textGroup->setEnabled(false);
     m_textEdit->setEnabled(false);
 }
 
@@ -693,8 +717,8 @@ void BubblePanel::applyPreset(const BubblePreset& p)
     m_artifact = a;
     syncFromModel();
     if (!m_hasSelection) {
-        // The panel is simply the next placement's styling now. syncFromModel() re-enables the text box
-        // on the way through, and with nothing selected there is nothing to type into.
+        // A defaults seat: the panel now simply describes the next object. syncFromModel() re-enables
+        // the text box on the way through, and there is nothing to type into yet.
         clearSelection();
         return;
     }

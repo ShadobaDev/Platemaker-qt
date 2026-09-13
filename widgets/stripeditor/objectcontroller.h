@@ -55,13 +55,14 @@ public:
      * @param scene        Where the objects are drawn (the editor's canvas scene).
      * @param view         Needed for hit-testing and for "where is the author looking" on import.
      * @param list         The right-bottom list: composite order, mute toggles, selection.
-     * @param panel        Tool options for the selected object — the Bubble/Text panel.
+     * @param panel        The selected object's properties — edited, and told what is selected.
+     * @param defaults     The tool's own options, read (never written) for what a new object starts as.
      * @param layout       Page geometry, owned by the editor; every placement question is asked of it.
      * @param dialogParent Parent for the file/message dialogs this raises.
      */
     ObjectController(QGraphicsScene* scene, QGraphicsView* view, QListWidget* list,
-                     BubblePanel* panel, const Layout& layout, QWidget* dialogParent,
-                     QObject* parent = nullptr);
+                     BubblePanel* panel, BubblePanel* defaults, const Layout& layout,
+                     QWidget* dialogParent, QObject* parent = nullptr);
 
     //! Adopts the owner's complete state after an edit round-trips back.
     void setSource(const std::vector<Platemaker::Models::StripOverlay>& overlays,
@@ -128,6 +129,7 @@ private:
     QGraphicsView*  m_view         = nullptr;
     QListWidget*    m_list         = nullptr;
     BubblePanel*    m_bubblePanel  = nullptr;
+    BubblePanel*    m_toolDefaults = nullptr;   //!< Read for prototype(); never edited from here.
     const Layout&   m_layout;
     QWidget*        m_dialogParent = nullptr;
 

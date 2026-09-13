@@ -24,6 +24,7 @@
 #include <QPainter>
 #include <QPen>
 #include <QScrollBar>
+#include <QSettings>
 #include <QSplitter>
 #include <QStackedWidget>
 #include <QStyleOptionGraphicsItem>
@@ -173,9 +174,11 @@ Editor::Editor(QWidget *parent)
         addTool(Tool::Bubble, QStringLiteral(":/icons/tools/bubble.svg"), tr("Speech bubble"));
         addTool(Tool::Text,   QStringLiteral(":/icons/tools/text.svg"),   tr("Text"));
 
-        // One tool-options page per tool (index == Tool). Empty scaffolds for now; grade/bubble/text
-        // controls arrive in later increments. Pan has no options.
+        // One tool-options page per tool (index == Tool), under the rail — the tool's own settings, in
+        // the place every drawing application puts them. Pan has none.
         ui->toolOptions->addWidget(new QWidget(ui->toolOptions)); // Pan
+        // The grade lives here rather than on the right, because its subject is the project: it is the
+        // tool's configuration, not any object's property (see the object abstraction in S4).
         m_gradePanel = new GradePanel(ui->toolOptions);                 // Grade
         ui->toolOptions->addWidget(m_gradePanel);
         connect(m_gradePanel, &GradePanel::changed, this, [this](const Platemaker::Models::ColourCorrection& cc) {
@@ -188,13 +191,19 @@ Editor::Editor(QWidget *parent)
         });
         // One panel for Bubble *and* Text: they author the same object (a TextArtifact, with or without
         // a shape), so both rail buttons point at this page and setTool() just hides the shape group.
-        m_bubblePanel = new BubblePanel(ui->toolOptions);
-        ui->toolOptions->addWidget(m_bubblePanel);
+        m_toolDefaults = new BubblePanel(BubblePanel::Seat::ToolDefaults, ui->toolOptions);
+        ui->toolOptions->addWidget(m_toolDefaults);
+
+        // The other seat: what the selected object is. Same controls, a different subject — and now a
+        // different place on screen, which is the whole point.
+        m_bubblePanel = new BubblePanel(BubblePanel::Seat::ObjectProperties, ui->objectProperties);
+        ui->objectProperties->addWidget(m_bubblePanel);
+        m_bubblePanel->clearSelection();
 
         // Everything placed on the strip. It drives the scene, the list and the panel; it owns no
         // persistence, so every edit leaves through one of its four signals and comes back as a re-feed.
         m_objects = new ObjectController(m_scene, m_view, ui->artifactList, m_bubblePanel,
-                                         m_layout, this, this);
+                                         m_toolDefaults, m_layout, this, this);
         connect(m_objects, &ObjectController::artifactCreated,        this, &Editor::artifactCreated);
         connect(m_objects, &ObjectController::overlaysEdited,         this, &Editor::overlaysEdited);
         connect(m_objects, &ObjectController::artworkImportRequested, this, &Editor::artworkImportRequested);
@@ -202,9 +211,13 @@ Editor::Editor(QWidget *parent)
         ui->editorBody->setStretchFactor(0, 0);   // toolbox
         ui->editorBody->setStretchFactor(1, 1);   // canvas
         ui->editorBody->setStretchFactor(2, 0);   // right panel
-        ui->editorBody->setSizes({108, 700, 260}); // toolbox wide enough for a 2-tile row by default
-        ui->rightPanel->setStretchFactor(0, 3);    // options
-        ui->rightPanel->setStretchFactor(1, 2);    // artifacts
+        ui->editorBody->setSizes({220, 700, 260}); // the tool column now carries the tool's options
+        ui->toolColumn->setStretchFactor(0, 0);    // the tile rail takes what it needs
+        ui->toolColumn->setStretchFactor(1, 1);    // the options absorb the rest
+        ui->toolColumn->setSizes({120, 600});
+        ui->rightPanel->setStretchFactor(0, 3);    // object properties
+        ui->rightPanel->setStretchFactor(1, 2);    // the object list
+        restoreSplitterState();                    // ...unless the artist has already moved them
 
         connect(m_toolGroup, &QButtonGroup::idClicked, this, [this](int id) { setTool(static_cast<Tool>(id)); });
 
@@ -222,19 +235,23 @@ void Editor::setTool(Tool tool)
     // Bubble and Text share one options page (see the ctor) — Text is the same object without a shape.
     ui->toolOptions->setCurrentIndex(
         tool == Tool::Text ? static_cast<int>(Tool::Bubble) : static_cast<int>(tool));
-    // Pan == today: hand-drag to pan, and no side panel. Any other tool reveals the panel and frees the
-    // left button for tool interaction.
+    // Pan == today: hand-drag to pan. Any other tool frees the left button for tool interaction.
     const bool pan = (tool == Tool::Pan);
     m_view->setDragMode(pan ? QGraphicsView::ScrollHandDrag : QGraphicsView::NoDrag);
-    ui->rightPanel->setVisible(!pan);
-
+    // Both seats follow the tool: Text is the same object without a balloon, in either of them.
     if (m_bubblePanel)
         m_bubblePanel->setShapeControlsVisible(tool == Tool::Bubble);
+    if (m_toolDefaults)
+        m_toolDefaults->setShapeControlsVisible(tool == Tool::Bubble);
 
-    // The artifact list belongs to whichever tool it is listing. It holds overlays today; under Grade it
-    // is meant to hold the per-page exclusions, which are not built yet — so hide it there rather than
-    // show bubbles under a tool that cannot edit them.
-    ui->artifactList->setVisible(artifactToolActive());
+    // The right column stays put under every tool. It used to be hidden for Pan and Grade, on the
+    // grounds that neither has objects — but hiding it resizes the canvas, so the strip jumped sideways
+    // every time the tool changed, and the object list (the only place the strip's contents can be seen
+    // and reordered) went with it. A tool that cannot act on objects makes the column *inert*, not
+    // absent: the properties pane is already empty by then, because leaving an authoring tool clears the
+    // selection, and the list is readable but not clickable so its highlight cannot drift from a canvas
+    // whose items are no longer selectable.
+    ui->artifactList->setEnabled(artifactToolActive());
 
     // Drawing takes over the left button, so panning moves to the middle button / scrollbars while an
     // authoring tool is active — the usual drawing-app trade. The crosshair says so.
@@ -273,7 +290,33 @@ void Editor::refreshGradePreview()
 
 Editor::~Editor()
 {
+    storeSplitterState();
     delete ui;
+}
+
+namespace {
+//! One QSettings key per splitter. Prefixed, because the strip editor is not the only thing in here.
+QString splitterKey(const QString& name) { return QStringLiteral("stripEditor/splitter/") + name; }
+}
+
+void Editor::restoreSplitterState()
+{
+    QSettings st;
+    for (const auto& [name, splitter] : {std::pair{QStringLiteral("editorBody"), ui->editorBody},
+                                         std::pair{QStringLiteral("toolColumn"), ui->toolColumn},
+                                         std::pair{QStringLiteral("rightPanel"), ui->rightPanel}}) {
+        const QByteArray state = st.value(splitterKey(name)).toByteArray();
+        if (!state.isEmpty())
+            splitter->restoreState(state);
+    }
+}
+
+void Editor::storeSplitterState() const
+{
+    QSettings st;
+    st.setValue(splitterKey(QStringLiteral("editorBody")), ui->editorBody->saveState());
+    st.setValue(splitterKey(QStringLiteral("toolColumn")), ui->toolColumn->saveState());
+    st.setValue(splitterKey(QStringLiteral("rightPanel")), ui->rightPanel->saveState());
 }
 
 void Editor::setPreviewSource(const std::vector<Platemaker::Models::InputFile>&     inputs,

@@ -4,6 +4,21 @@
 
 ### Changed
 
+- **The editor stops asking you to guess what a panel is talking about.** Tool options moved to the
+  **bottom-left**, under the tool rail — what the *next* object will be — and the right-hand panel is
+  now only ever the **selected object's properties**, going visibly inert when nothing is selected
+  instead of silently becoming the other thing. That ambiguity is why the preset picker was confusing:
+  one widget meant two things depending on state you could not see.
+  - The grade sits in tool options too, because its subject is the project rather than any object.
+  - The right column stays where it is under every tool, so the strip no longer jumps sideways when you
+    switch tools and the object list never goes away. Under a tool that cannot act on objects it simply
+    goes inert.
+  - Splitter positions are remembered between sessions.
+- **Clicking an empty patch of page no longer grabs the bubble next to it.** An object's clickable area
+  was its bounding rectangle — for a bubble, one rectangle enclosing the balloon *and* wherever its tail
+  points, mostly empty. With two bubbles overlapping, the upper one could swallow clicks meant for the
+  lower one's body. A bubble is now hit where it is drawn: its box, its tail tips, and its corner grips
+  while selected.
 - **A bubble and imported artwork are two kinds of one thing.** Everything an author does to an object
   — select, move, drag a corner, mute, delete, reorder — is now written once on `StripEdit::Object`, and
   a kind supplies only what it draws and what handles it offers. This fixes a class of bug rather than a

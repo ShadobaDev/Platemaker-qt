@@ -80,13 +80,14 @@ QPixmap renderAssetFile(const QString& path)
 } // namespace
 
 ObjectController::ObjectController(QGraphicsScene* scene, QGraphicsView* view, QListWidget* list,
-                                   BubblePanel* panel, const Layout& layout, QWidget* dialogParent,
-                                   QObject* parent)
+                                   BubblePanel* panel, BubblePanel* defaults, const Layout& layout,
+                                   QWidget* dialogParent, QObject* parent)
     : QObject(parent)
     , m_scene(scene)
     , m_view(view)
     , m_list(list)
     , m_bubblePanel(panel)
+    , m_toolDefaults(defaults)
     , m_layout(layout)
     , m_dialogParent(dialogParent)
 {
@@ -634,7 +635,7 @@ void ObjectController::finishPlacement()
     }
     m_placing = false;
 
-    if (m_layout.isEmpty() || !m_bubblePanel)
+    if (m_layout.isEmpty() || !m_toolDefaults)
         return;
 
     // Only a drag creates a bubble. Letting a bare click create one made every click on the artwork a
@@ -649,7 +650,7 @@ void ObjectController::finishPlacement()
     if (page < 0)
         return;
 
-    TextArtifact a = m_bubblePanel->prototype();
+    TextArtifact a = m_toolDefaults->prototype();
     if (m_textOnly)
         a.shape = TextArtifact::Shape::None;   // the Text tool is this object without a balloon
     a.box = r.size().toSize();

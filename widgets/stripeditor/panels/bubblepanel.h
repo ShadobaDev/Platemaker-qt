@@ -12,6 +12,7 @@ class QCheckBox;
 class QComboBox;
 class QFontComboBox;
 class QGroupBox;
+class QLabel;
 class QPlainTextEdit;
 class QPushButton;
 class QSpinBox;
@@ -53,13 +54,28 @@ class BubblePanel : public QWidget
     Q_OBJECT
 
 public:
-    explicit BubblePanel(QWidget* parent = nullptr);
+    /**
+     * @brief Which of the editor's two seats this panel is sitting in.
+     *
+     * The controls are the same either way, which is why it is one class: a bubble's colours, stroke,
+     * line style and font mean the same thing whether they describe the next object or this one. What
+     * differs is the *subject*, and that used to be implicit — one panel meaning "the selection" when
+     * there was one and "the next placement" when there was not, with nothing on screen saying which.
+     * Two seats, two instances, and the question stops being asked.
+     */
+    enum class Seat {
+        ToolDefaults,     //!< Bottom-left, under the tool rail: what the *next* object will look like.
+        ObjectProperties  //!< Right-top: what *this* object is. Inert with nothing selected.
+    };
+
+    explicit BubblePanel(Seat seat, QWidget* parent = nullptr);
     ~BubblePanel() override;
 
     //! Populates the controls from \p a without emitting. Pass no selection to disable the panel.
     void setArtifact(const TextArtifact& a);
 
-    //! Greys everything out and shows the "nothing selected" hint.
+    //! Greys everything out and shows the "nothing selected" hint. Only meaningful in an
+    //! ObjectProperties seat — tool defaults have no selection to lose.
     void clearSelection();
 
     //! Hides the shape group for the Text tool; shows it for the Bubble tool.
@@ -102,6 +118,11 @@ private:
     void pickColour(QColor& target, QPushButton* swatch);
     void paintSwatch(QPushButton* swatch, const QColor& c);
     void refreshShapeTiles();   //!< (Re)draws each shape tile's icon from the rasteriser.
+
+    const Seat m_seat;
+    //! Shown in an ObjectProperties seat while nothing is selected, in place of controls that would
+    //! otherwise look editable and silently do nothing.
+    QLabel* m_emptyHint = nullptr;
 
     Ui::BubblePanel* ui;
 

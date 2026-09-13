@@ -78,6 +78,16 @@
     the application does, so closing a project or its strip editor and opening it again finds the
     history where you left it. Editing bubbles with the project panel closed used to be accepted on
     screen and silently dropped; it is recorded now.
+- **The status bar now tells you what will not do what you meant.** Today that is **objects with no
+  page under them**: lettering whose page was removed is kept rather than deleted, but a render leaves
+  it out. The chip says how many, and clicking it takes you to them in the strip editor. A chip stands
+  while its cause does and goes when you fix it, so it cannot be left behind as a warning nobody can
+  clear. Chapters are reported one at a time: the one you are looking at.
+- **A colour grade is on because it is set, not because a switch says so.** Moving any of the grade's
+  controls away from neutral makes the chapter graded — in the strip editor's preview and in the
+  render, which cannot now disagree. **Reset** is how a grade is removed, and so is the workflow card's
+  **−**; both are one undoable step. There is no longer a way to leave a grade configured but parked
+  where a render would ignore it, and no way for a slider to quietly switch a step on behind you.
 - **The coloured chips explain themselves.** Hovering a chip in the profile import/export dialog —
   *margins*, *already in library* — now says what it means and what it implies, instead of leaving a
   two-word label to be guessed at.

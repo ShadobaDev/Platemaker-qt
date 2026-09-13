@@ -11,6 +11,7 @@
 #include "editor.h"
 #include "docktitlebar.h"
 #include "dockattention.h"
+#include "advisories.h"
 
 #include <platemaker/infrastructure/workspace_editor/workspace_editor.hpp>
 
@@ -184,8 +185,11 @@ void MainWindow::removeProject(int modelIndex)
 
     // The project is going, so its history has nothing left to restore. It is dropped here rather than
     // left in the group, where its entries would keep Undo enabled for a project that no longer exists.
-    dropHistoryFor(QString::fromStdString(
-        m_workspace.projectItems[static_cast<std::size_t>(modelIndex)].uid));
+    const QString goingUid = QString::fromStdString(
+        m_workspace.projectItems[static_cast<std::size_t>(modelIndex)].uid);
+    dropHistoryFor(goingUid);
+    // ...and nothing is true of it any more, so nothing should still be said about it.
+    m_advisories->clearProject(goingUid);
 
     // Close this project's dock if it is open. Destroyed rather than hidden, unlike closeDock(): there
     // is no project left for it to show.
@@ -311,6 +315,10 @@ void MainWindow::openProjectDock(int projectIndex)
     });
     connect(projectWidget, &Project::projectModified, this, [this, newDock]{
         setDirty(true);
+        // Conditions are derived, so they are re-derived here rather than at each of the places that
+        // could make one true. An edit that changes neither says nothing: raise() is silent when the
+        // advisory it is handed is the one already standing.
+        refreshAdvisoriesFor(newDock->property("projectIndex").toInt());
         // The strip is built from the inputs, so it follows an input / profile edit immediately — no
         // render needed. setPreviewSource() ignores a feed that has not actually changed, so the edits
         // that leave the strip alone (a grade tweak, render bookkeeping) cost nothing here.
@@ -369,6 +377,7 @@ void MainWindow::openProjectDock(int projectIndex)
         if (visible) {
             m_activeProjectIndex = newDock->property("projectIndex").toInt();
             m_undoGroup->setActiveStack(projectWidget->undoStack());
+            rebuildStatusAdvisories();   // the bar speaks about the project being looked at
         }
     });
 
@@ -596,8 +605,13 @@ void MainWindow::openStripEditorDock(int projectIndex)
         if (!visible)
             return;
         const int idx = dock->property("projectIndex").toInt();
-        if (idx >= 0 && idx < int(m_workspace.projectItems.size()))
-            m_undoGroup->setActiveStack(historyFor(idx));
+        if (idx < 0 || idx >= int(m_workspace.projectItems.size()))
+            return;
+        m_undoGroup->setActiveStack(historyFor(idx));
+        // Looking at a chapter's strip is looking at that chapter, for the status bar as much as for
+        // Ctrl+Z — otherwise the bar would go on describing whichever project dock was raised last.
+        m_activeProjectIndex = idx;
+        rebuildStatusAdvisories();
     });
 
     // Register it in a dock area first (its home when docked), then float it.

@@ -311,6 +311,24 @@ valid baseline for every grade tried on it. Excluded pages are skipped, matching
     history. Removing the project drops its history, and so does closing the workspace; both snapshot
     commands hold a `QPointer` so one that outlives its project does nothing rather than reaching into
     freed memory.
+- **Advisories: the application says what is set up wrongly, and offers the way out.** `Advisories`
+  (owned by `MainWindow`) holds every standing advisory, keyed `"<condition>/<project uid>"` — by uid
+  and never by index, since removing a project shifts every index after it. An `Advisory` carries a
+  level, four words for its badge, the sentence behind it, and **the action that fixes it**: *"grade not
+  run"* is an annoyance, *"grade not run — turn the step on"* is help.
+  - **A condition is derived, so it is re-evaluated and never remembered.** `refreshAdvisoriesFor()`
+    recomputes everything this window can observe about one project and raises or withdraws to match,
+    called from anything that changes a project rather than from each place that could make one true —
+    the arrangement where a condition is eventually forgotten and a badge outlives its cause. Re-raising
+    an unchanged advisory is silent, which is what makes calling it on every edit affordable.
+  - **A thing that merely happened is not an advisory.** *"Converted 2 texts to bubbles"* can never stop
+    being true, so nothing could withdraw it; those belong in the status bar's temporary message, which
+    expires by itself and needs no registry.
+  - **One condition today:** *N objects unanchored* (Error — an overlay whose anchor names no page, or
+    names a page not in the input list; its action opens the strip editor with them picked out).
+  - **The status bar shows one chapter at a time** — the one whose dock was last raised, or failing that
+    the one selected in the project list. Badges sit on the right as permanent widgets, worst first, and
+    a badge whose advisory carries an action is clickable and says so with a pointing-hand cursor.
 - **Badges are one widget, shared.** `widgets/badge/` owns the rounded chip: a `Badge` is a label, a
   required fill and three colours derived from it (border, gradient, label), plus the sentence behind
   it. `paintBadge()` draws one, `layOutBadges()` a run of them, and `makeBadge()` hands one out as a
@@ -324,6 +342,16 @@ valid baseline for every grade tried on it. Excluded pages are skipped, matching
     lightness is derived against `QPalette::Base` so the hue carries the meaning and the theme carries
     the rest. The label is black or white by the fill's perceived luminance rather than a fixed dark
     grey, which was correct only while every chip stayed light.
+- **A colour grade is its own switch.** The library dropped `ColourCorrection::enabled`, so *graded*
+  means *not neutral* — `Models::isNeutral()` is the one test the render, the staleness signature and
+  this preview all gate on, which is what makes the strip editor WYSIWYG by construction rather than by
+  two predicates happening to agree.
+  - **The workflow card reads the values**, like the *Text & bubbles* card next to it reads the overlay
+    count: active because there is something in it, no in-place *+* (a grade is made in the editor),
+    and **−** removes what is there. `Project::applyColourCorrection({})` is that removal, labelled
+    *Remove colour correction* on the history.
+  - **The grade panel edits values and switches nothing.** It used to set `enabled` on every keystroke,
+    which turned a step on behind the artist; with no flag to set there is nothing to do silently.
 - **Selection is the canvas's, not a tool's.** Every object is selectable, movable and resizable under
   every tool; an unanchored one is the only exception, because it is not on the strip. A tool decides
   what a *placement* creates — armed in `Editor::eventFilter()` — so `ObjectController` knows exactly one

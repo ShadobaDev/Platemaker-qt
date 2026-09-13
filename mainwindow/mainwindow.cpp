@@ -1,4 +1,5 @@
 #include "mainwindow.h"
+#include "advisories.h"
 #include "artifactsvg.h"
 #include "ui_mainwindow.h"
 #include "project.h"
@@ -167,6 +168,9 @@ MainWindow::MainWindow(QWidget *parent)
     connect(m_exportOutputMenu, &QMenu::aboutToShow, this, [this]{ populateExportMenu(m_exportOutputMenu, false); });
 
     // --- Projects panel (managed via the workspace dock's context menu) ---
+    // Picking a chapter in the list is looking at that chapter, for as long as no dock has been raised.
+    connect(ui->listWidgetProjects, &QListWidget::currentItemChanged,
+            this, [this]{ rebuildStatusAdvisories(); });
     connect(ui->listWidgetProjects, &QListWidget::itemDoubleClicked,
             this, &MainWindow::onProjectDoubleClicked);
     ui->listWidgetProjects->setContextMenuPolicy(Qt::CustomContextMenu);
@@ -208,6 +212,10 @@ MainWindow::MainWindow(QWidget *parent)
 
     // --- Undo / redo (Workspace-menu actions; group routes Ctrl+Z / Ctrl+Y to the active context) ---
     setupUndo();
+
+    // The status bar is the registry's only subscriber and knows nothing about what raises anything.
+    m_advisories = new Advisories(this);
+    connect(m_advisories, &Advisories::changed, this, &MainWindow::rebuildStatusAdvisories);
 
     updateTitleBar();
 }
@@ -394,6 +402,10 @@ void MainWindow::applyWorkspaceToUi()
         ui->listWidgetProjects->addItem(item);
     }
 
+    // Every view of the workspace has just been rebuilt from the model, and the advisories are one of
+    // them: this is the path a freshly opened workspace arrives by, with its conditions already true.
+    refreshAllAdvisories();
+
     updateTitleBar();
 }
 
@@ -422,6 +434,11 @@ void MainWindow::closeWorkspace()
     // Drop the workspace-scope undo history (a new/closed workspace starts fresh).
     if (m_workspaceUndoStack)
         m_workspaceUndoStack->clear();
+
+    // Every advisory was about a project in the workspace being closed, so there is no condition left
+    // for any of them to describe.
+    if (m_advisories)
+        m_advisories->clearAll();
 
     // Clear the workspace model and reset state.
     m_workspace     = Platemaker::Models::Workspace{};

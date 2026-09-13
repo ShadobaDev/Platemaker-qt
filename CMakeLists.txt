@@ -33,6 +33,7 @@ qt_add_executable(Platemaker
     mainwindow/workspace.cpp mainwindow/projects.cpp mainwindow/render.cpp
     mainwindow/renderbatch.cpp
     mainwindow/profiles.cpp mainwindow/templates.cpp mainwindow/about.cpp
+    mainwindow/advisories.cpp
     mainwindow/mainwindow.ui
 
     # Project — class split across per-concern .cpp (same Project class).
@@ -101,6 +102,9 @@ qt_add_executable(Platemaker
 
     # Badges — the rounded chips, shared by the item-view delegates and the status bar.
     widgets/badge/badge.cpp widgets/badge/badge.h
+
+    # Advisories — the application-wide registry of "this will not do what you meant".
+    widgets/advisories/advisories.cpp widgets/advisories/advisories.h
 )
 
 # Every class/header lives in its own folder; add each to the include path so
@@ -130,6 +134,7 @@ target_include_directories(Platemaker PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/widgets/textartifact
     ${CMAKE_CURRENT_SOURCE_DIR}/widgets/docktitlebar
     ${CMAKE_CURRENT_SOURCE_DIR}/widgets/badge
+    ${CMAKE_CURRENT_SOURCE_DIR}/widgets/advisories
 )
 
 # ---------------------------------------------------------------------------

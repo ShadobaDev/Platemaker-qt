@@ -91,8 +91,16 @@ public:
                             bool renderedWithoutProfile = false); //!< live per-input update during a render — repaints the input tile matching \p filePath (cyan when Processed without a canvas profile)
     void refreshOutputTiles();                      //!< rebuild from getOutputImages()
 
-    //! Persist a settled colour-correction edit from the strip editor onto this project, as one undoable
-    //! step (also refreshes the workflow map). Called by MainWindow on StripEdit::Editor::colourCorrectionEdited.
+    /**
+     * @brief Persist a settled colour-correction edit onto this project, as one undoable step (also
+     *        refreshes the workflow map).
+     *
+     * A neutral grade is no grade, so this is also how the step is removed — `applyColourCorrection({})`
+     * is what the workflow card's "−" does, and the undo step is labelled for it. There is no separate
+     * toggle that could leave a grade parked where the render would not run it.
+     *
+     * Called by MainWindow on StripEdit::Editor::colourCorrectionEdited, and by the workflow card.
+     */
     void applyColourCorrection(const Platemaker::Models::ColourCorrection& cc);
 
     // --- text & bubble overlays -------------------------------------------------------------
@@ -155,6 +163,8 @@ public:
                        ArtifactMap                                  artifacts,
                        const QString&                               undoText);
     void refreshProfileViews();                     //!< rebuilds the palette-derived views (canvas list, output combo, format controls) after a workspace-level profile edit — see MainWindow::workspaceProfilesChanged
+
+
 
     // --- Undo / redo ---
     // Everything this project records goes on one QUndoStack; MainWindow owns it, adds it to a

@@ -2,6 +2,7 @@
 
 #include <QFont>
 #include <QFontMetrics>
+#include <QMouseEvent>
 #include <QLinearGradient>
 #include <QPainter>
 #include <QPalette>
@@ -56,12 +57,15 @@ constexpr int k_darkStep = 150; //!< How much darker the derived border is than 
 class BadgeWidget : public QWidget
 {
 public:
-    BadgeWidget(const Badge& badge, QWidget* parent)
+    BadgeWidget(const Badge& badge, QWidget* parent, std::function<void()> onClick)
         : QWidget(parent)
         , m_badge(badge)
+        , m_onClick(std::move(onClick))
     {
         setToolTip(badge.detail);
         setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Fixed);
+        if (m_onClick)
+            setCursor(Qt::PointingHandCursor);
     }
 
     [[nodiscard]] QSize sizeHint() const override { return badgeSize(m_badge, font()); }
@@ -74,8 +78,18 @@ protected:
         paintBadge(p, rect(), m_badge, font());
     }
 
+    void mouseReleaseEvent(QMouseEvent* event) override
+    {
+        // On release inside, as a button behaves: a press the user drags off the chip is a press they
+        // changed their mind about.
+        if (m_onClick && event->button() == Qt::LeftButton && rect().contains(event->position().toPoint()))
+            m_onClick();
+        QWidget::mouseReleaseEvent(event);
+    }
+
 private:
-    Badge m_badge;
+    Badge                 m_badge;
+    std::function<void()> m_onClick;
 };
 
 } // namespace
@@ -145,7 +159,7 @@ QList<QRect> layOutBadges(QPainter* painter, const QFont& base, const QList<Badg
     return rects;
 }
 
-QWidget* makeBadge(const Badge& badge, QWidget* parent)
+QWidget* makeBadge(const Badge& badge, QWidget* parent, std::function<void()> onClick)
 {
-    return new BadgeWidget(badge, parent);
+    return new BadgeWidget(badge, parent, std::move(onClick));
 }

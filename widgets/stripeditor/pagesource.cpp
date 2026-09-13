@@ -214,11 +214,10 @@ bool PageSource::gradeActive() const
 {
     // Independent of the active tool: the strip's pixels are the ungraded input, so the project's grade
     // is what the strip is *supposed* to look like — switching to Pan must not reveal an ungraded strip.
-    if (!m_cc.enabled)
-        return false;
-    // A neutral grade leaves the pixels unchanged — nothing to preview.
-    return !(m_cc.brightness == 0.0 && m_cc.contrast == 1.0 && m_cc.saturation == 1.0
-             && !Platemaker::Models::hasAnyCurve(m_cc.curves));
+    //
+    // The library's own test, not a copy of it. It is the one the render gates on, so asking it here is
+    // what makes this preview WYSIWYG by construction rather than by two predicates happening to agree.
+    return !Platemaker::Models::isNeutral(m_cc);
 }
 
 void PageSource::produceGraded(int index)

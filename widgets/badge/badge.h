@@ -6,6 +6,8 @@
 #include <QRect>
 #include <QString>
 
+#include <functional>
+
 class QFont;
 class QPainter;
 class QPalette;
@@ -83,7 +85,12 @@ QList<QRect> layOutBadges(QPainter* painter, const QFont& base,
  * @brief One chip as a widget, for a status bar or any layout.
  *
  * Carries its own tooltip, so unlike the painted form there is nothing for the host to answer.
+ *
+ * Given @p onClick it becomes clickable, with a pointing-hand cursor to say so. That is what turns a
+ * chip reporting a problem into a chip offering the way out of it — a status bar has no room for a
+ * label and a button, and a chip nobody can act on is a chip that only nags.
  */
-[[nodiscard]] QWidget* makeBadge(const Badge& badge, QWidget* parent = nullptr);
+[[nodiscard]] QWidget* makeBadge(const Badge& badge, QWidget* parent = nullptr,
+                                 std::function<void()> onClick = {});
 
 #endif // BADGE_H

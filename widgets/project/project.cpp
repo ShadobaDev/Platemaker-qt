@@ -417,7 +417,10 @@ void Project::populate()
 
 void Project::applyColourCorrection(const ColourCorrection& cc)
 {
-    commitEdit(tr("Adjust colour correction"), [this, &cc] {
+    auto& current = m_workspace.projectItems[m_projectIndex].colourCorrection;
+    const bool clearing = Platemaker::Models::isNeutral(cc)
+                       && !Platemaker::Models::isNeutral(current);
+    commitEdit(clearing ? tr("Remove colour correction") : tr("Adjust colour correction"), [this, &cc] {
         m_workspace.projectItems[m_projectIndex].colourCorrection = cc;
         emit projectModified();
         populate(); // refresh the workflow map (CC on/off, exclusions) and the rest of the views
@@ -441,7 +444,9 @@ void Project::refreshWorkflowMap()
     const auto& project = m_workspace.projectItems[m_projectIndex];
     const int  nInputs   = static_cast<int>(project.getInputImages().size());
     const int  nOutputs  = static_cast<int>(project.getOutputImages().size());
-    const bool ccOn      = project.colourCorrection.enabled;
+    // Active because there *is* a grade — the same rule the card next door uses for bubbles, and the
+    // same rule the render uses. Nothing can say "on" while the values say otherwise.
+    const bool ccOn      = !Platemaker::Models::isNeutral(project.colourCorrection);
     const int  nExcluded = static_cast<int>(project.colourCorrection.excludedInputUids.size());
     const int  nOverlays = static_cast<int>(project.getStripOverlays().size());
 
@@ -451,12 +456,7 @@ void Project::refreshWorkflowMap()
     const auto goInput    = [this]{ ui->tabWidget->setCurrentWidget(ui->tabInput); };
     const auto goOutput   = [this]{ ui->tabWidget->setCurrentWidget(ui->tabOutput); };
     const auto openEditor = [this]{ emit viewStripRequested(m_projectIndex); };
-    const auto setCC = [this](bool on) {
-        auto& item = m_workspace.projectItems[m_projectIndex];
-        if (item.colourCorrection.enabled == on) return;
-        commitEdit(on ? tr("Enable colour correction") : tr("Disable colour correction"),
-                   [this, &item, on]{ item.colourCorrection.enabled = on; emit projectModified(); populate(); });
-    };
+    const auto resetCC = [this] { applyColourCorrection({}); };
     const auto clearOverlays = [this] {
         auto& item = m_workspace.projectItems[m_projectIndex];
         if (item.getStripOverlays().empty()) return;
@@ -491,24 +491,21 @@ void Project::refreshWorkflowMap()
     addFixed(tr("Margin crop"), tr("trim scan edges"),       goInput);
     addArrow();
 
-    // Colour correction (optional). Greyed until enabled: "+" or a click on the placeholder activates it
-    // in place; once on, Edit / double-click open the editor and "−" turns it off.
+    // Colour correction (optional), with exactly the grammar of Text & bubbles below: greyed while there
+    // is nothing in it, no in-place "+" because a grade is made in the editor, Edit / click to go there,
+    // and "−" to take it back out. What "−" removes is the grade itself — there is no switch that could
+    // leave a grade parked where the render will not run it.
     {
         auto* c = new StageCard;
         c->setKind(StageCard::Kind::Optional);
         c->setTitle(tr("Colour correction"));
         c->setActive(ccOn);
-        if (ccOn) {
-            c->setSubtitle(nExcluded > 0 ? tr("on, %1 excluded").arg(nExcluded) : tr("on"));
-            c->setActions(/*add*/false, /*edit*/true, /*remove*/true);
-            connect(c, &StageCard::editRequested,   this, openEditor);
-            connect(c, &StageCard::removeRequested, this, [setCC]{ setCC(false); });
-        } else {
-            c->setSubtitle(tr("optional"));
-            c->setActions(/*add*/true, /*edit*/false, /*remove*/false);
-            connect(c, &StageCard::addRequested, this, [setCC]{ setCC(true); });
-            connect(c, &StageCard::clicked,      this, [setCC]{ setCC(true); });
-        }
+        c->setSubtitle(ccOn ? (nExcluded > 0 ? tr("on, %1 excluded").arg(nExcluded) : tr("on"))
+                            : tr("optional"));
+        c->setActions(/*add*/false, /*edit*/true, /*remove*/ccOn);
+        connect(c, &StageCard::editRequested,   this, openEditor);
+        connect(c, &StageCard::clicked,         this, openEditor);
+        connect(c, &StageCard::removeRequested, this, resetCC);
         m_workflowStack->addWidget(c, 0, Qt::AlignHCenter);
     }
     addArrow();

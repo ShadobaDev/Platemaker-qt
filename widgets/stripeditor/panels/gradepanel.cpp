@@ -67,6 +67,8 @@ GradePanel::GradePanel(QWidget* parent)
     addRow(1, tr("Contrast"),   m_contrastSlider,   m_contrastSpin,      0, 200,  0.0, 2.0, 100.0);
     addRow(2, tr("Saturation"), m_saturationSlider, m_saturationSpin,    0, 200,  0.0, 2.0, 100.0);
 
+    // Reset is also how the grade is switched *off*: a neutral grade is no grade, so there is no
+    // separate toggle to leave disagreeing with the values. Undoable like any other edit.
     auto* resetBtn = new QPushButton(tr("Reset"), this);
     connect(resetBtn, &QPushButton::clicked, this, [this] {
         m_cc.brightness = 0.0;
@@ -106,7 +108,6 @@ void GradePanel::onControlChanged()
     m_cc.brightness = m_brightnessSpin->value();
     m_cc.contrast   = m_contrastSpin->value();
     m_cc.saturation = m_saturationSpin->value();
-    m_cc.enabled    = true; // editing the grade implies it is on
     emit changed(m_cc);
     m_commitTimer->start();
 }

@@ -1,27 +1,32 @@
 #include "profilepickerdialog.h"
 #include "ui_profilepickerdialog.h"
 
+#include "badge.h"
+
+#include <QAbstractItemView>
 #include <QApplication>
 #include <QDialogButtonBox>
 #include <QFont>
 #include <QFontMetrics>
+#include <QHelpEvent>
 #include <QListWidgetItem>
 #include <QPainter>
 #include <QPalette>
-#include <QPen>
 #include <QPushButton>
 #include <QSignalBlocker>
 #include <QStackedWidget>
 #include <QStyle>
 #include <QStyledItemDelegate>
+#include <QToolTip>
 #include <QWidget>
 
 namespace {
 
-// Paints each list row as two lines (name / summary) with rounded "chip" badges after the text.
-// Reads the row data straight from the dialog's row list (index == row), so the badges stay structured
-// (text + colour) instead of baked into a string. Only text/badges are custom-painted; the base style
-// still draws the background, selection and check indicator, so checkboxes and selection are unchanged.
+// Paints each list row as two lines (name / summary) with rounded chips after the text. Reads the row
+// data straight from the dialog's row list (index == row), so the badges stay structured instead of
+// baked into a string. Only text/badges are custom-painted; the base style still draws the background,
+// selection and check indicator, so checkboxes and selection are unchanged. The chips themselves are
+// `widgets/badge/`'s, shared with the status bar.
 class BadgeItemDelegate : public QStyledItemDelegate
 {
 public:
@@ -39,18 +44,10 @@ protected:
         opt.text.clear();                                                     // we paint the text ourselves
         style->drawControl(QStyle::CE_ItemViewItem, &opt, painter, nullptr);  // bg + selection + checkbox
 
-        if (!m_rows || index.row() < 0 || index.row() >= m_rows->size())
+        const ProfilePickerDialog::Row* r = rowFor(index);
+        if (!r)
             return;
-        const ProfilePickerDialog::Row& r = m_rows->at(index.row());
-
-        const QRect textRect = style->subElementRect(QStyle::SE_ItemViewItemText, &opt, nullptr);
-
-        const QFont       baseFont = opt.font;
-        const QFontMetrics fm(baseFont);
-        const int lineH   = fm.height();
-        const int lineGap = 4;
-        const int totalH  = lineH * 2 + lineGap;
-        int       y       = textRect.top() + qMax(0, (textRect.height() - totalH) / 2);
+        const Lines lines = linesFor(opt);
 
         const QColor nameColour = opt.palette.color(
             (opt.state & QStyle::State_Selected) ? QPalette::HighlightedText : QPalette::Text);
@@ -58,11 +55,8 @@ protected:
 
         painter->save();
         painter->setRenderHint(QPainter::Antialiasing, true);
-        drawLine(painter, baseFont, r.title,   nameColour, r.titleBadges,
-                 textRect.left(), y, lineH, textRect.right());
-        y += lineH + lineGap;
-        drawLine(painter, baseFont, r.summary, dimColour,  r.summaryBadges,
-                 textRect.left(), y, lineH, textRect.right());
+        drawLine(painter, opt.font, r->title,   nameColour, r->titleBadges,   lines.title,   lines.height);
+        drawLine(painter, opt.font, r->summary, dimColour,  r->summaryBadges, lines.summary, lines.height);
         painter->restore();
     }
 
@@ -71,53 +65,99 @@ protected:
         QStyleOptionViewItem opt = option;
         initStyleOption(&opt, index);
         const int lineH = QFontMetrics(opt.font).height();
-        return QSize(0, lineH * 2 + 4 /*line gap*/ + 12 /*padding*/);
+        return QSize(0, lineH * 2 + k_lineGap + 12 /*padding*/);
+    }
+
+    /**
+     * @brief Answers the tooltip of whichever chip is under the cursor.
+     *
+     * A painted badge is not a widget, so there is nothing for `setToolTip()` to attach to and the view
+     * has to be asked instead — this is the hook for that. The chip rectangles come from the same
+     * `layOutBadges()` call `paint()` makes, with a null painter, so the chip that answers cannot drift
+     * apart from the chip on screen.
+     */
+    bool helpEvent(QHelpEvent* event, QAbstractItemView* view, const QStyleOptionViewItem& option,
+                   const QModelIndex& index) override
+    {
+        const ProfilePickerDialog::Row* r = rowFor(index);
+        if (event && event->type() == QEvent::ToolTip && r) {
+            QStyleOptionViewItem opt = option;
+            initStyleOption(&opt, index);
+            const Lines lines = linesFor(opt);
+
+            QString tip = tipAt(event->pos(), opt.font, r->title, r->titleBadges,
+                                lines.title, lines.height);
+            if (tip.isEmpty())
+                tip = tipAt(event->pos(), opt.font, r->summary, r->summaryBadges,
+                            lines.summary, lines.height);
+            if (!tip.isEmpty()) {
+                QToolTip::showText(event->globalPos(), tip, view);
+                return true;
+            }
+        }
+        return QStyledItemDelegate::helpEvent(event, view, option, index);
     }
 
 private:
-    // Slightly smaller, bold font for badges, robust to point- vs pixel-sized base fonts.
-    static QFont badgeFontFor(const QFont& base)
+    static constexpr int k_lineGap = 4;   //!< Between the title line and the summary line.
+
+    //! Where the two lines of one row sit. Computed once and used by both painting and hit-testing,
+    //! because a tooltip that disagrees with the pixels is worse than no tooltip.
+    struct Lines {
+        QRect title;
+        QRect summary;
+        int   height = 0;
+    };
+
+    [[nodiscard]] const ProfilePickerDialog::Row* rowFor(const QModelIndex& index) const
     {
-        QFont f = base;
-        f.setBold(true);
-        if (base.pointSizeF() > 0)
-            f.setPointSizeF(base.pointSizeF() * 0.85);
-        else if (base.pixelSize() > 0)
-            f.setPixelSize(qMax(1, static_cast<int>(base.pixelSize() * 0.85)));
-        return f;
+        if (!m_rows || index.row() < 0 || index.row() >= m_rows->size())
+            return nullptr;
+        return &m_rows->at(index.row());
     }
 
-    static void drawLine(QPainter* painter, const QFont& baseFont, const QString& text,
-                         const QColor& textColour, const QList<ProfilePickerDialog::Badge>& badges,
-                         int x, int y, int lineH, int right)
+    [[nodiscard]] static Lines linesFor(const QStyleOptionViewItem& opt)
     {
-        const QFontMetrics fm(baseFont);
-        painter->setFont(baseFont);
+        const QRect textRect =
+            QApplication::style()->subElementRect(QStyle::SE_ItemViewItemText, &opt, nullptr);
+        const int lineH  = QFontMetrics(opt.font).height();
+        const int totalH = lineH * 2 + k_lineGap;
+        const int top    = textRect.top() + qMax(0, (textRect.height() - totalH) / 2);
+
+        Lines l;
+        l.height  = lineH;
+        l.title   = QRect(textRect.left(), top, textRect.width(), lineH);
+        l.summary = l.title.translated(0, lineH + k_lineGap);
+        return l;
+    }
+
+    //! Where this line's chips begin: after the text it follows.
+    [[nodiscard]] static int badgeLeft(const QFont& base, const QString& text, const QRect& line)
+    {
+        return line.left() + QFontMetrics(base).horizontalAdvance(text);
+    }
+
+    static void drawLine(QPainter* painter, const QFont& base, const QString& text,
+                         const QColor& textColour, const QList<Badge>& badges,
+                         const QRect& line, int lineH)
+    {
+        painter->setFont(base);
         painter->setPen(textColour);
-        painter->drawText(QRect(x, y, right - x, lineH), Qt::AlignVCenter | Qt::AlignLeft, text);
+        painter->drawText(line, Qt::AlignVCenter | Qt::AlignLeft, text);
+        layOutBadges(painter, base, badges, badgeLeft(base, text, line), line.top(), lineH,
+                     line.right());
+    }
 
-        int cx = x + fm.horizontalAdvance(text);
-
-        const QFont        badgeFont = badgeFontFor(baseFont);
-        const QFontMetrics bfm(badgeFont);
-        const int hpad   = 7;                   // horizontal padding inside a chip
-        const int bh     = bfm.height() + 2;    // chip height (smaller than the line)
-        const int radius = 5;                   // corner radius
-        const int gap    = 8;                   // space before each chip (so chips never touch)
-
-        for (const ProfilePickerDialog::Badge& b : badges) {
-            const int bw = bfm.horizontalAdvance(b.text) + 2 * hpad;
-            cx += gap;
-            if (cx + bw > right) break;          // don't overflow the item
-            const QRectF chip(cx, y + (lineH - bh) / 2.0, bw, bh);
-            painter->setPen(QPen(b.colour.darker(150), 1));   // border: same hue, darker
-            painter->setBrush(b.colour);
-            painter->drawRoundedRect(chip, radius, radius);
-            painter->setFont(badgeFont);
-            painter->setPen(QColor(0x11, 0x11, 0x11));        // dark text on the light chip
-            painter->drawText(chip, Qt::AlignCenter, b.text);
-            cx += bw;
-        }
+    [[nodiscard]] static QString tipAt(const QPoint& pos, const QFont& base, const QString& text,
+                                       const QList<Badge>& badges, const QRect& line, int lineH)
+    {
+        const QList<QRect> chips = layOutBadges(nullptr, base, badges,
+                                                badgeLeft(base, text, line), line.top(), lineH,
+                                                line.right());
+        for (int i = 0; i < chips.size(); ++i)
+            if (chips.at(i).contains(pos))
+                return badges.at(i).detail;
+        return {};
     }
 
     const QList<ProfilePickerDialog::Row>* m_rows;

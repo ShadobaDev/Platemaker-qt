@@ -3,6 +3,8 @@
 
 #include <QColor>
 #include <QDialog>
+
+#include "badge.h"
 #include <QList>
 #include <QString>
 
@@ -26,13 +28,6 @@ class ProfilePickerDialog : public QDialog
     Q_OBJECT
 
 public:
-    //! A small coloured chip drawn after the title or summary (e.g. "margins", "already in library").
-    //! Dark text is drawn on the given background, so pick a light-ish colour.
-    struct Badge {
-        QString text;
-        QColor  colour;
-    };
-
     //! One selectable entry. @c details is shown in the right-hand panel while the row is current;
     //! ownership of the widget passes to the dialog on setRows().
     struct Row {

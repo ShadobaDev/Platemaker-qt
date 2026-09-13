@@ -311,6 +311,19 @@ valid baseline for every grade tried on it. Excluded pages are skipped, matching
     history. Removing the project drops its history, and so does closing the workspace; both snapshot
     commands hold a `QPointer` so one that outlives its project does nothing rather than reaching into
     freed memory.
+- **Badges are one widget, shared.** `widgets/badge/` owns the rounded chip: a `Badge` is a label, a
+  required fill and three colours derived from it (border, gradient, label), plus the sentence behind
+  it. `paintBadge()` draws one, `layOutBadges()` a run of them, and `makeBadge()` hands one out as a
+  widget — an item delegate cannot give out widgets and a status bar cannot host a delegate, so what
+  they share is the description and the painter rather than the surface.
+  - **`layOutBadges()` paints or measures through one code path** (a null painter measures), which is
+    how `QStyledItemDelegate::helpEvent()` answers the tooltip for the chip under the cursor: a painted
+    badge is not a widget, and a second copy of the layout arithmetic would drift from the first and
+    put the wrong sentence on a chip.
+  - **The four tones — Info, Warning, Error and neutral — are named in exactly one place**, and their
+    lightness is derived against `QPalette::Base` so the hue carries the meaning and the theme carries
+    the rest. The label is black or white by the fill's perceived luminance rather than a fixed dark
+    grey, which was correct only while every chip stayed light.
 - **Selection is the canvas's, not a tool's.** Every object is selectable, movable and resizable under
   every tool; an unanchored one is the only exception, because it is not on the strip. A tool decides
   what a *placement* creates — armed in `Editor::eventFilter()` — so `ObjectController` knows exactly one

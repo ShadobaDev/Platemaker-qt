@@ -98,6 +98,9 @@ qt_add_executable(Platemaker
     # Dock attention: undo/redo raises the dock that shows the step, and flashes it when it was
     # somewhere other than where the user was looking.
     widgets/docktitlebar/dockattention.cpp widgets/docktitlebar/dockattention.h
+
+    # Badges — the rounded chips, shared by the item-view delegates and the status bar.
+    widgets/badge/badge.cpp widgets/badge/badge.h
 )
 
 # Every class/header lives in its own folder; add each to the include path so
@@ -126,6 +129,7 @@ target_include_directories(Platemaker PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/widgets/collapsiblesection
     ${CMAKE_CURRENT_SOURCE_DIR}/widgets/textartifact
     ${CMAKE_CURRENT_SOURCE_DIR}/widgets/docktitlebar
+    ${CMAKE_CURRENT_SOURCE_DIR}/widgets/badge
 )
 
 # ---------------------------------------------------------------------------

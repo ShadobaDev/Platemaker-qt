@@ -78,6 +78,9 @@
     the application does, so closing a project or its strip editor and opening it again finds the
     history where you left it. Editing bubbles with the project panel closed used to be accepted on
     screen and silently dropped; it is recorded now.
+- **The coloured chips explain themselves.** Hovering a chip in the profile import/export dialog —
+  *margins*, *already in library* — now says what it means and what it implies, instead of leaving a
+  two-word label to be guessed at.
 - **Import / export input and output profiles.** Canvas and output profiles can now be carried between
   workspaces. Under *Canvas Profiles* and *Output*, new **Import** and **Export** submenus pull profiles
   from another `.platemaker.json` workspace, a `.platemaker.profiles.json` bundle, your personal **profile

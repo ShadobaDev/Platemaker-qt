@@ -536,7 +536,11 @@ ProfilePickerDialog::Row canvasRow(const Platemaker::Models::CanvasProfile& cp)
     r.title   = QString::fromStdString(cp.name);
     r.summary = QStringLiteral("%1 × %2").arg(cp.canvasSize.width).arg(cp.canvasSize.height);
     if (margined)
-        r.summaryBadges.append({ QObject::tr("margins"), QColor(0x9F, 0xD8, 0x9F) }); // light green
+        r.summaryBadges.append({ QObject::tr("margins"), QColor(0x9F, 0xD8, 0x9F),   // light green
+                                 QObject::tr("This profile crops the page: %1 top, %2 right, "
+                                             "%3 bottom, %4 left.")
+                                     .arg(cp.margins.top).arg(cp.margins.right)
+                                     .arg(cp.margins.bottom).arg(cp.margins.left) });
     r.details = canvasInfoWidget(cp);
     return r;
 }
@@ -799,17 +803,21 @@ void MainWindow::exportProfilesFlow(bool canvasKind, bool toFile)
     };
 
     const QColor kInLibraryColour(0xE0, 0x87, 0x2C); // orange
+    const QString kInLibraryDetail =
+        tr("A profile of this name is already in your library. Exporting it there will replace it.");
     QList<ProfilePickerDialog::Row> rows;
     if (canvasKind)
         for (const auto& cp : canvas) {
             ProfilePickerDialog::Row r = canvasRow(cp);
-            if (inLibrary(cp.name)) r.titleBadges.append({ tr("already in library"), kInLibraryColour });
+            if (inLibrary(cp.name))
+                r.titleBadges.append({ tr("already in library"), kInLibraryColour, kInLibraryDetail });
             rows.append(r);
         }
     else
         for (const auto& op : output) {
             ProfilePickerDialog::Row r = outputRow(op);
-            if (inLibrary(op.name)) r.titleBadges.append({ tr("already in library"), kInLibraryColour });
+            if (inLibrary(op.name))
+                r.titleBadges.append({ tr("already in library"), kInLibraryColour, kInLibraryDetail });
             rows.append(r);
         }
 

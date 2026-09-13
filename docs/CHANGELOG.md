@@ -2,198 +2,67 @@
 
 ## [Unreleased]
 
-### Changed
-
-- **A balloon's properties are being cut into groups, each with one owner.** The first is its
-  **surface** — fill, stroke and stroke width — which now has its own editor and its own struct. It
-  looks the same and behaves the same; what changed is that only one piece of code can write those
-  three properties, which is the class of bug this editor has shipped three times.
-  - **The first automated test in the GUI**, and the reason for the shape above: it applies a group to
-    an artifact and checks that every property outside the group is untouched. GoogleTest, no window
-    required, off by default (`-DPLATEMAKER_GUI_BUILD_TESTS=ON`).
-  - Saved bubbles are unaffected: the file keeps exactly the same keys.
-- **The editor stops asking you to guess what a panel is talking about.** Tool options moved to the
-  **bottom-left**, under the tool rail — what the *next* object will be — and the right-hand panel is
-  now only ever the **selected object's properties**, going visibly inert when nothing is selected
-  instead of silently becoming the other thing. That ambiguity is why the preset picker was confusing:
-  one widget meant two things depending on state you could not see.
-  - The grade sits in tool options too, because its subject is the project rather than any object.
-  - The right column stays where it is under every tool, so the strip no longer jumps sideways when you
-    switch tools and the object list never goes away. Under a tool that cannot act on objects it simply
-    goes inert.
-  - Splitter positions are remembered between sessions.
-- **Clicking an empty patch of page no longer grabs the bubble next to it.** An object's clickable area
-  was its bounding rectangle — for a bubble, one rectangle enclosing the balloon *and* wherever its tail
-  points, mostly empty. With two bubbles overlapping, the upper one could swallow clicks meant for the
-  lower one's body. A bubble is now hit where it is drawn: its box, its tail tips, and its corner grips
-  while selected.
-- **A bubble and imported artwork are two kinds of one thing.** Everything an author does to an object
-  — select, move, drag a corner, mute, delete, reorder — is now written once on `StripEdit::Object`, and
-  a kind supplies only what it draws and what handles it offers. This fixes a class of bug rather than a
-  bug: the editor used to ask *the model* whether an overlay had an authoring record, in eight places,
-  and three of them were wrong. Two persisted a blank balloon over imported artwork; the third made
-  **Duplicate** write a blank balloon instead of copying the artwork. Duplicating imported artwork now
-  copies the artwork.
-- **The object list is a stack, the way a layers panel is.** Row 0 is the front-most object and a row
-  covers every row below it where they overlap, so a newly placed sprite appears at the **top**. The
-  library composites in vector order (last on top), which is the opposite, so the list shows that
-  vector reversed — at the view only, leaving the render’s own ordering rule untouched.
-- **Fit to text shrinks as well as grows.** It only ever added height, so on the common case — a
-  balloon drawn larger than the line it holds — the button did nothing at all. It now converges on
-  the height the text actually needs, floored so a short line cannot collapse the shape, with a final
-  grow-only pass so the result always still holds the text.
-- **The strip editor is split into units that each do one thing.** `editor.cpp` was 1244 lines doing
-  four jobs; it is now the shell (canvas, zoom, tools, panels) with two collaborators beside it:
-  **`StripEdit::PageSource`** — *give me page N at the best fidelity available*: the feed, the
-  blurry-proxy and sharp tiers, the graded previews, the LRU caps that keep RAM tracking the viewport
-  rather than the chapter, and the generation counter that makes a rebuild discard results still in
-  flight — and **`StripEdit::ObjectController`** — everything the author *places* on the strip: the
-  overlay set, the scene items, the composite-order list, the selection and the placement drag. Nothing
-  changed about what any of it does.
-  - The split was overdue rather than speculative: the same unit was identified in the previous
-    refactor as "the half about to double", deferred, and had doubled by the next feature.
-- **The strip editor is one feature in one place.** `widgets/{stripviewer,ccpanel,bubblepanel}/` became
-  **`widgets/stripeditor/`** in namespace **`StripEdit`** — `StripEdit::Editor` (was `StripViewer`),
-  `Layout`, `OverlayItem`, and `panels/{bubblepanel,gradepanel}` (`GradePanel` was `CcPanel`). The screen
-  had been called the Strip Editor in `docs/SPECIFICATION.md` §2.5 for months while the code still said
-  "viewer" and lived in three sibling directories; this is the code catching up with the documentation.
-  `MainWindow::{openStripEditorDock,dockForStripEditor,refreshStripEditor}` renamed to match. Behaviour
-  is unchanged — the whole increment is renaming and moving.
-
-- **A bubble is now an SVG, not a bitmap plus a sidecar.** The file the library composites *is* the
-  authoring record: resolved artwork every renderer can draw, plus the editor's parameters in a private
-  `pm:` namespace that renderers ignore — the pattern Inkscape has used for twenty years. Three
-  representations become two: the `<workspace>.overlays.json` sidecar is gone, and with it everything
-  that kept it in step with the bitmaps.
-  - **Text is written as glyph outlines.** The document still does the wrapping, so line breaks are what
-    the editor showed, but by the time artwork leaves the GUI it is pure geometry — which is what lets a
-    chapter render correctly on a machine that does not have the font. The font is needed to *change*
-    text, never to *draw* it, and Platemaker no longer has to warn about a missing one or bundle it.
-  - **One file per bubble**, overwritten in place. Undo re-emits from the snapshot, which already
-    carries the full authoring record, so a trail of superseded files is no longer the way back.
-  - Silhouette, text outline and the SVG all come from one geometry, so what is approved on screen is
-    what gets baked.
-- **Ten bubble shapes**, up from four: speech, round, thought, shout, caption, caption plate, diamond,
-  banner, scroll, and text-only. Each brings the rectangle its text may occupy — the part that matters,
-  since a path is a few lines but knowing where words fit inside it is what stops a wide bubble spilling
-  them between a burst's spikes.
-- **Tails point anywhere, curve, and come in numbers.** A tail is a tip, a width and a bend, and a bubble
-  can have several — one sound with several speakers. The base is found by casting a ray from the
-  balloon's centre and searching for where it crosses the outline, so it works for any shape and leaves
-  any edge; the old one was a triangle welded to the bottom of the box. The box therefore stops doubling
-  as the artifact's extent, which is computed from what is actually drawn.
-- **Line styles — Clean, Marker, Ink.** Marker and Ink are SVG filters (`feTurbulence` /
-  `feDisplacementMap`), which librsvg applies and Qt cannot. So a styled bubble is previewed by asking
-  the **library** for the same pixels the render will produce, rather than drawing a local approximation
-  — an effect visible only in the committed output would be an effect nobody could author. The noise is
-  seeded per bubble, and its frequency is in the drawing's own units, so the texture scales with the
-  balloon rather than with the output resolution. Clean emits no filter and draws locally.
-- **A chapter can be re-profiled at any time, and the bubbles follow — on screen and in the render.**
-  An overlay's placement and its width are stored as fractions of the output width rather than in
-  pixels, so 800 px → 1600 px moves and re-renders every bubble proportionally, and the strip editor and
-  the render agree about it without either being told what the other assumed.
-  - This replaces a recorded "authored width" that the render scaled by. That worked, but only if the
-    width was captured at the right moment and never lost, and only if both the editor and the render
-    remembered to apply it — the editor did not, so for a while the preview and the output disagreed.
-    There is now nothing to capture: the editor converts at one boundary, and the conversion runs on
-    every load and every edit rather than only after a re-profile, so it cannot rot unnoticed.
-  - **Imported artwork resizes by changing that fraction**, not by rewriting the file. Its size lived in
-    the artwork's own `width`/`height` before, which meant two places could disagree about how big it
-    was. A corner drag now scales it uniformly, because its height follows the artwork's own aspect —
-    which is what dragging the corner of a logo meant anyway.
-
 ### Added
 
-- **Bubble presets** — a named look, applied from the panel's top row. A preset is *shape and style
-  without content*: colours, stroke, line style, font, alignment and shape, but never the text, the
-  balloon's size, its tails or where it sits. So applying one restyles the selected bubble without
-  touching the lettering, and with nothing selected it becomes the styling the next placement starts
-  from. Five built-ins ship as code — Dialogue, Whisper, Thought, Shout, Caption — and cannot be
-  deleted, which is why there is no "restore defaults" to get wrong. Saving stores the *panel's* current
-  look, so a preset can be authored with nothing selected at all.
-  - Presets live in the application config, not the workspace: restyling is a habit of the artist rather
-    than a property of one comic.
-  - **Import pack… / Export pack…** move them between machines and people as one JSON file. That
-    is the sharing a separate bubble-editor project would have been built for, at the cost of a
-    documented file instead of a second repository, CI and release cadence.
-  - Persisted by dropping the content keys from the bubble's own JSON, so a styling field added to
-    `TextArtifact` joins presets without being listed a second time.
-- **Import artwork…** (right-click on the strip or the artifact list) — a balloon inked on a tablet, a
-  logo, a hand-drawn effect. The file is copied into `overlays/` under its content hash, never referenced
-  where it was found, so the workspace stays self-contained. It carries no `pm:` parameters, which makes
-  it a *flat asset*: placed, moved, re-anchored, muted, resized and rendered like any other overlay, but
-  not re-typable. An SVG is probed through the renderer first, so one that cannot be drawn is refused
-  rather than placed invisibly. Resizing rewrites the artwork's own `width`/`height` — for an SVG that
-  is a crisp vector re-render at any size.
+- **Strip editor — the chapter as one continuous strip, and the lettering authored on it.** *View strip*
+  on a project's Output tab (or a card on the Workflow map) opens the whole chapter in a floating dock:
+  scroll it, zoom it (fit-width / 100% / Ctrl+wheel), and toggle guides marking where the output will be
+  **cut**. It shows the project's **input pages** rather than rendered slices, so it works before the
+  first render, follows input and profile edits live, and previews the grade against the input — which is
+  what lets *Render & view* bake exactly what is on screen. Pages are built lazily for the viewport plus
+  one either side and evicted behind it, so memory tracks the viewport rather than the chapter and a long
+  chapter opens instantly.
 
-### Changed
+  **Text & bubbles.** The Bubble and Text tools draw a balloon where you **drag** one out; a click just
+  deselects, so clicking away cannot leave a stray behind, and a new bubble arrives selected with the
+  caret already in the text box. Objects are selectable, movable and resizable under every tool — a tool
+  decides what a *new* object will be, never whether the existing ones can be touched — and a bubble is
+  hit where it is drawn: its box, its tail tips, and its corner grips while selected.
 
-- **The strip editor now shows the project's *input pages*, not its rendered output.** It stacks each
-  input put through the library's page domain (`ProcessingPipeline::layoutPagesFromHeaders` /
-  `decodePageToRgba`)
-  instead of reassembling the committed slices, which changes three things that matter:
-  - **It works before the first render.** A grade has to be authored before it is baked, and previously
-    there was nothing to look at until a render existed.
-  - **Rendering no longer changes the view.** The grade is previewed against the input, so the render
-    bakes in exactly what was on screen — where before the render baked the grade into the output and
-    the preview then graded it a second time.
-  - **The unit of work is the page**, which is the unit the grade's per-page exclusions address; on
-    output slices an exclusion could not be honoured at all, because a slice can straddle an excluded
-    and an included page.
-  The strip also follows input, canvas-profile and output-profile edits live, with no render. Pages are
-  built lazily for the viewport plus one page either side and evicted behind it, so memory tracks the
-  viewport rather than the chapter; the proxy tier reuses the input thumbnails the Input tab already
-  warms. The **seam guides** now mark where the output will be *cut* (every slice
-  height down the strip) — the line an author needs when placing something that must not be split.
-
-- **Freer docking layout.** Workspace and project docks can now be arranged freely — docked side by side
-  horizontally *and* vertically, split, or tabbed together. The **Action** panel is pinned to its own
-  right column: it can no longer be tab-combined with other docks and keeps a static default width that
-  only a splitter drag changes.
-- **Custom dock title bar.** The Workspace, project and strip docks share a title bar with real
-  **minimise** (dock ⇄ detach — docking tabs it beside the Workspace, floating pops it out), **maximise**
-  (fill the screen ⇄ restore) and **close** buttons — a floating dock previously showed only a close
-  button, and the OS min/max misbehaved on a dock. (A tabified dock is still detached by double-clicking
-  its tab.)
-
-### Added
-
-- **Text & bubbles — author lettering directly on the strip.** The Bubble and Text tools draw a bubble
-  where you **drag** one out (a click just deselects, so clicking away from a finished bubble cannot
-  leave a stray one behind), and the right-hand panel edits what it says: shape, fill, stroke, tail,
-  font, size, alignment and colour. The shape picker is a **grid of preview tiles** laid out like the
-  tool rail — each tile is drawn by the same rasteriser that draws the real bubble, so it shows the
-  shape instead of naming it. A new bubble arrives selected with the caret already in the text box.
-
-  Bubbles move, resize by their corners, and aim their tail by dragging its handle; the artifact list
-  underneath lists them in composite order, with drag-to-reorder, a mute checkbox, and **Duplicate
-  (Ctrl+D) / Delete** from its right-click menu or the keyboard — a duplicate lands a little down and
-  right, on the same page, sharing the original's bitmap. Everything previews live on the strip and
-  *Render & view* bakes exactly that — the preview and the render are literally the same drawing code
-  over the same numbers, at the same strip scale.
-
-  Three details worth knowing:
-  - **A bubble is anchored to the page it was drawn on, not to a position in the strip.** Insert a page
-    at the front of the chapter and every bubble below rides down with its own artwork instead of
-    landing on someone else's. Dragging a bubble across a page boundary silently re-anchors it. If the
-    page it belongs to leaves the project, the bubble is *not* deleted: it is listed as an orphan and
-    comes back when its page does.
-  - **Bubbles stay editable across sessions.** The rendered PNG is what the library composites, but the
-    shape, text and styling are kept beside the workspace in `<workspace>.overlays.json`, with the
-    bitmaps in an `overlays/` folder next to it — so changing one word next month re-renders the bubble
-    instead of asking you to redraw it. Lose that sidecar and the bubbles still render; they just stop
-    being re-typable.
-  - **Every edit is one undo step** and is captured in the project's history along with the library's
-    own state, so undo restores what a bubble said, not just where it sat.
-
-- **Strip viewer.** A new **View strip** button on a project's Output tab opens the rendered chapter as
-  one continuous, zoomable strip in a floating window — the whole webtoon at a glance instead of
-  per-slice tiles. Scroll through it, zoom (fit-width / 100% / Ctrl+wheel), and toggle slice-boundary
-  guides; a *Render & view* button (re)renders on the spot. It shows the actual rendered output, loads
-  lazily with blurry thumbnail placeholders so scrolling stays smooth, and keeps memory bounded to what
-  is on screen — so even long chapters open instantly. It opens as a floating dock sized to the strip,
-  with a title bar whose buttons dock it (tabbed beside the workspace), stretch it to the full screen,
-  or close it.
+  The tool's own options sit **bottom-left**, under the tool rail, and say what the next object will be.
+  The **right-hand panel describes whatever is selected** and nothing else; the object list beneath it
+  shows the strip's contents as a stack — row 0 is front-most, drag to reorder, tick to mute, **Duplicate
+  (Ctrl+D) / Delete** from the context menu. Splitter positions are remembered between sessions.
+  Everything previews live, and the preview *is* the render: the same drawing code over the same numbers
+  at the same scale.
+  - **Ten shapes**, each bringing the rectangle its text may occupy — speech, round, thought, shout,
+    caption, caption plate, diamond, banner, scroll, and text-only.
+  - **Tails point anywhere, curve, and come in numbers** — a tail is a tip, a width and a bend, and one
+    sound may have several speakers. The base is found where a ray from the balloon's centre crosses its
+    outline, so it works for every shape and can leave any edge.
+  - **Line styles — Clean, Marker, Ink.** Marker and Ink are SVG filters (`feTurbulence` /
+    `feDisplacementMap`), which librsvg applies and Qt cannot, so a styled bubble is previewed by asking
+    the **library** for the same pixels the render will produce. The noise is seeded per bubble and
+    measured in the drawing's own units, so the texture scales with the balloon rather than with the
+    output resolution. Clean emits no filter at all.
+  - **Fit to text** converges on the height the line actually needs, floored so a short line cannot
+    collapse the shape.
+  - **Presets** — a named look: colours, stroke, line style, font, alignment and shape, but never the
+    text, the balloon's size, its tails or where it sits, so applying one restyles a bubble without
+    touching its lettering. Five built-ins ship as code — Dialogue, Whisper, Thought, Shout, Caption —
+    and **Import pack… / Export pack…** carry your own between machines and people as one JSON file.
+    They live in the application config rather than the workspace: restyling is a habit of the artist,
+    not a property of one comic.
+  - **Import artwork…** places a balloon inked on a tablet, a logo, or a hand-drawn effect. The file is
+    copied into `overlays/` under its content hash, never referenced where it was found, so the workspace
+    stays self-contained. It has no text to re-type, but it is placed, moved, re-anchored, muted, resized
+    and rendered like anything else; a corner drag scales it uniformly, which is what dragging the corner
+    of a logo means. An SVG is probed through the renderer first, so one that cannot be drawn is refused
+    rather than placed invisibly.
+  - **A bubble is anchored to the page it was drawn on**, not to a position in the strip, so inserting a
+    page at the front of a chapter carries every bubble down with its own artwork. Dragging one across a
+    page boundary re-anchors it. If its page leaves the project the bubble is not deleted — it is listed
+    as unanchored and comes back when the page does.
+  - **Placement and size are stored as fractions of the output width**, so re-profiling a chapter from
+    800 px to 1600 px moves and re-renders every bubble proportionally, with the editor and the render
+    agreeing without either being told what the other assumed.
+  - **A bubble is an SVG in `overlays/`** — resolved artwork every renderer can draw, plus the editor's
+    parameters in a private `pm:` namespace that renderers ignore, the pattern Inkscape has used for
+    twenty years. Text is written as **glyph outlines**, so a chapter renders correctly on a machine that
+    does not have the font: the font is needed to *change* text, never to draw it. One file per bubble,
+    overwritten in place.
+  - **Every edit is one undo step**, captured in the project's history alongside the library's own state,
+    so undo restores what a bubble said and not only where it sat.
 - **Import / export input and output profiles.** Canvas and output profiles can now be carried between
   workspaces. Under *Canvas Profiles* and *Output*, new **Import** and **Export** submenus pull profiles
   from another `.platemaker.json` workspace, a `.platemaker.profiles.json` bundle, your personal **profile
@@ -209,6 +78,22 @@
   `Platemaker-<ver>-portable.zip` — unzip and run, no installation. The exe sits at the root of the single
   `Platemaker-<ver>/` folder (with its DLLs; `plugins/` and `translations/` alongside), so there's nothing
   to dig into. Build it with `cmake --build <dir> --target portable` (or `scripts/make_portable.ps1`).
+- **Unit tests for the GUI.** A small GoogleTest target (`tests/gui-unit-tests/`, off by default —
+  `-DPLATEMAKER_GUI_BUILD_TESTS=ON`) covers the bubble model: each property group is applied to a fully
+  populated bubble and every property outside that group is checked to be untouched. It needs no window,
+  so it builds and runs like the library's suite.
+
+### Changed
+
+- **Freer docking layout.** Workspace and project docks can now be arranged freely — docked side by side
+  horizontally *and* vertically, split, or tabbed together. The **Action** panel is pinned to its own
+  right column: it can no longer be tab-combined with other docks and keeps a static default width that
+  only a splitter drag changes.
+- **Custom dock title bar.** The Workspace, project and strip docks share a title bar with real
+  **minimise** (dock ⇄ detach — docking tabs it beside the Workspace, floating pops it out), **maximise**
+  (fill the screen ⇄ restore) and **close** buttons — a floating dock previously showed only a close
+  button, and the OS min/max misbehaved on a dock. (A tabified dock is still detached by double-clicking
+  its tab.)
 
 ## [1.4.3] — 23.08.2026
 

@@ -65,7 +65,7 @@ void BubbleObject::setBoxSize(QSizeF size)
     if (!m_artifact.box.isEmpty()) {
         const qreal sx = double(newBox.width())  / m_artifact.box.width();
         const qreal sy = double(newBox.height()) / m_artifact.box.height();
-        for (Tail& t : m_artifact.tails) {
+        for (Tail& t : m_artifact.tails.items) {
             t.tip = QPointF(t.tip.x() * sx, t.tip.y() * sy);
             t.baseWidth *= (sx + sy) / 2.0;
         }
@@ -76,16 +76,16 @@ void BubbleObject::setBoxSize(QSizeF size)
 
 QPointF BubbleObject::handlePos(int index) const
 {
-    if (index < 0 || index >= int(m_artifact.tails.size()))
+    if (index < 0 || index >= int(m_artifact.tails.items.size()))
         return {};
-    return m_artifact.tails.at(index).tip;
+    return m_artifact.tails.items.at(index).tip;
 }
 
 void BubbleObject::setHandlePos(int index, const QPointF& local)
 {
-    if (index < 0 || index >= int(m_artifact.tails.size()))
+    if (index < 0 || index >= int(m_artifact.tails.items.size()))
         return;
-    m_artifact.tails[index].tip = local;
+    m_artifact.tails.items[index].tip = local;
     rebuild();
 }
 

@@ -32,9 +32,9 @@ class Object;
  * @brief Everything the author *places* on the strip: the objects, the list, the selection, the drag.
  *
  * One sentence, no "and": it owns the overlay set and keeps three views of it in agreement — the scene
- * items, the composite-order list, and the tool-options panel showing whichever one is selected. The
- * editor above it owns the canvas and the tools; it tells this class when an authoring tool is active
- * and hands it the mouse while a placement drag is in flight.
+ * items, the composite-order list, and the properties panel showing whichever one is selected. The
+ * editor above it owns the canvas and the tools; it hands this class the mouse while a placement drag
+ * is in flight, and tells it one thing about the active tool — whether a placement gets a balloon.
  *
  * It **owns no persistence**. Every mutation is announced on one of the four signals below and only
  * becomes real when the owner writes it and feeds the new state back through setSource() — which is
@@ -69,11 +69,18 @@ public:
                    const ArtifactMap& artifacts);
 
     /**
-     * @brief Which authoring tool is active.
-     * @param active   Objects are selectable and a drag places a new one.
-     * @param textOnly The Text tool: a placement is the same object with no balloon.
+     * @brief The Text tool is active, so a placement gets no balloon.
+     *
+     * The whole of what this class needs to know about which tool is active. Selecting, moving and
+     * dragging a handle are not a tool's privilege — they are what a canvas does, under every tool —
+     * and whether a drag on empty strip *places* something is the editor's gate, one level up.
+     *
+     * This used to be `setAuthoring(active, textOnly)`, and the `active` half did two wrong things: it
+     * duplicated the editor's gate, and it made **selection** depend on the tool. Picking Pan therefore
+     * deselected whatever was selected and left the object's properties inert, while the object itself
+     * stayed draggable — movable but not selectable.
      */
-    void setAuthoring(bool active, bool textOnly);
+    void setTextOnly(bool textOnly);
 
     void syncItems();    //!< Reconciles the scene items with the overlay set, by uid.
     void refreshList();  //!< Rebuilds the list from the overlay set (composite order).
@@ -164,8 +171,7 @@ private:
     //! Set when this controller asked for a new bubble; the uid only exists after the owner mints it, so
     //! the selection has to wait for the feed to come back.
     bool               m_selectNewOverlay = false;
-    bool               m_authoring       = false;  //!< A tool that authors objects is active.
-    bool               m_textOnly        = false;  //!< That tool is Text: a placement gets no balloon.
+    bool               m_textOnly        = false;  //!< The Text tool: a placement gets no balloon.
 };
 
 }  // namespace StripEdit

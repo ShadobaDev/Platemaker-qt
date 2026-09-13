@@ -162,11 +162,11 @@ QList<Tail> tailsFromText(const QString& s)
  */
 QString styleDefs(const TextArtifact& a, const QString& id)
 {
-    if (a.style == TextArtifact::Style::Clean)
+    if (a.style.kind == TextArtifact::Style::Clean)
         return {};
 
-    const qreal amount = qBound(0.0, a.styleAmount, 2.0);
-    const bool  marker = a.style == TextArtifact::Style::Marker;
+    const qreal amount = qBound(0.0, a.style.amount, 2.0);
+    const bool  marker = a.style.kind == TextArtifact::Style::Marker;
 
     // A marker's edge wanders in long slow waves; ink bleeds in finer ones and then softens.
     const qreal freq  = marker ? 0.028 : 0.075;
@@ -232,21 +232,21 @@ QByteArray artifactToSvg(const TextArtifact& a)
     // these leaves a perfectly good drawing that simply cannot be re-typed — the intended degradation.
     svg += QStringLiteral("  <g");
     svg += attr(QStringLiteral("v"), 2);
-    svg += attr(QStringLiteral("shape"), QString::fromLatin1(shapeName(a.shape)));
+    svg += attr(QStringLiteral("shape"), QString::fromLatin1(shapeName(a.shape.kind)));
     svg += attr(QStringLiteral("box"),
                 QStringLiteral("%1,%2").arg(a.box.width()).arg(a.box.height()));
-    svg += attr(QStringLiteral("tails"), tailsToText(a.tails));
-    svg += attr(QStringLiteral("text"), a.text);
-    svg += attr(QStringLiteral("fontFamily"), a.fontFamily);
-    svg += attr(QStringLiteral("fontSize"), a.fontPixelSize);
-    svg += attr(QStringLiteral("bold"), a.bold ? 1 : 0);
-    svg += attr(QStringLiteral("align"), a.align);
+    svg += attr(QStringLiteral("tails"), tailsToText(a.tails.items));
+    svg += attr(QStringLiteral("text"), a.text.body);
+    svg += attr(QStringLiteral("fontFamily"), a.text.family);
+    svg += attr(QStringLiteral("fontSize"), a.text.pixelSize);
+    svg += attr(QStringLiteral("bold"), a.text.bold ? 1 : 0);
+    svg += attr(QStringLiteral("align"), a.text.align);
     svg += attr(QStringLiteral("fill"), a.skin.fill.name(QColor::HexArgb));
     svg += attr(QStringLiteral("stroke"), a.skin.stroke.name(QColor::HexArgb));
-    svg += attr(QStringLiteral("textColour"), a.textColour.name(QColor::HexArgb));
+    svg += attr(QStringLiteral("textColour"), a.text.colour.name(QColor::HexArgb));
     svg += attr(QStringLiteral("strokeWidth"), a.skin.strokeWidth);
-    svg += attr(QStringLiteral("style"), QString::fromLatin1(styleName(a.style)));
-    svg += attr(QStringLiteral("styleAmount"), num(a.styleAmount));
+    svg += attr(QStringLiteral("style"), QString::fromLatin1(styleName(a.style.kind)));
+    svg += attr(QStringLiteral("styleAmount"), num(a.style.amount));
     svg += attr(QStringLiteral("styleSeed"), QString::number(a.styleSeed));
     svg += QLatin1String(">\n");
 
@@ -256,7 +256,7 @@ QByteArray artifactToSvg(const TextArtifact& a)
                    .arg(pathData(silhouette), fillRule(silhouette), paint("fill", a.skin.fill));
         // On the silhouette alone. A displacement filter on the whole group would drag the lettering
         // about with the outline — the balloon is what should look hand-drawn, not the words in it.
-        if (a.style != TextArtifact::Style::Clean)
+        if (a.style.kind != TextArtifact::Style::Clean)
             svg += QStringLiteral(" filter=\"url(#%1)\"").arg(filterId);
         if (a.skin.strokeWidth > 0)
             svg += QStringLiteral(" %1 stroke-width=\"%2\" stroke-linejoin=\"round\"")
@@ -267,7 +267,7 @@ QByteArray artifactToSvg(const TextArtifact& a)
     const QPainterPath text = artifactTextOutline(a);
     if (!text.isEmpty())
         svg += QStringLiteral("    <path d=\"%1\" fill-rule=\"%2\" %3/>\n")
-                   .arg(pathData(text), fillRule(text), paint("fill", a.textColour));
+                   .arg(pathData(text), fillRule(text), paint("fill", a.text.colour));
 
     svg += QLatin1String("  </g>\n</svg>\n");
     return svg.toUtf8();
@@ -296,27 +296,27 @@ TextArtifact artifactFromSvg(const QByteArray& svg, bool* ok)
 
         // Every field falls back to the struct's own default, so a file written by an older build, or
         // hand-edited, loads as a usable bubble rather than a blank one.
-        a.shape = shapeFromName(at.value(ns, QStringLiteral("shape")));
+        a.shape.kind = shapeFromName(at.value(ns, QStringLiteral("shape")));
 
         const auto box = at.value(ns, QStringLiteral("box")).toString().split(QLatin1Char(','));
         if (box.size() == 2)
             a.box = QSize(intOf(QStringView(box[0]), a.box.width()),
                           intOf(QStringView(box[1]), a.box.height()));
 
-        a.tails = tailsFromText(at.value(ns, QStringLiteral("tails")).toString());
+        a.tails.items = tailsFromText(at.value(ns, QStringLiteral("tails")).toString());
 
-        a.text          = at.value(ns, QStringLiteral("text")).toString();
-        a.fontFamily    = at.value(ns, QStringLiteral("fontFamily")).toString();
-        a.fontPixelSize = intOf(at.value(ns, QStringLiteral("fontSize")), a.fontPixelSize);
-        a.bold          = intOf(at.value(ns, QStringLiteral("bold")), 0) != 0;
-        a.align         = intOf(at.value(ns, QStringLiteral("align")), a.align);
+        a.text.body          = at.value(ns, QStringLiteral("text")).toString();
+        a.text.family    = at.value(ns, QStringLiteral("fontFamily")).toString();
+        a.text.pixelSize = intOf(at.value(ns, QStringLiteral("fontSize")), a.text.pixelSize);
+        a.text.bold          = intOf(at.value(ns, QStringLiteral("bold")), 0) != 0;
+        a.text.align         = intOf(at.value(ns, QStringLiteral("align")), a.text.align);
         a.skin.strokeWidth = intOf(at.value(ns, QStringLiteral("strokeWidth")), a.skin.strokeWidth);
-        a.style         = styleFromName(at.value(ns, QStringLiteral("style")));
+        a.style.kind         = styleFromName(at.value(ns, QStringLiteral("style")));
         {
             bool        ok  = false;
             const qreal amt = at.value(ns, QStringLiteral("styleAmount")).toDouble(&ok);
             if (ok)
-                a.styleAmount = amt;
+                a.style.amount = amt;
             const auto seed = at.value(ns, QStringLiteral("styleSeed")).toULongLong(&ok);
             if (ok)
                 a.styleSeed = quint32(seed);
@@ -328,7 +328,7 @@ TextArtifact artifactFromSvg(const QByteArray& svg, bool* ok)
         };
         a.skin.fill   = colour("fill",       a.skin.fill);
         a.skin.stroke = colour("stroke",     a.skin.stroke);
-        a.textColour = colour("textColour", a.textColour);
+        a.text.colour = colour("textColour", a.text.colour);
 
         if (ok)
             *ok = true;

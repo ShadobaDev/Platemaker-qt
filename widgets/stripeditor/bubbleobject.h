@@ -54,7 +54,7 @@ protected:
     [[nodiscard]] QRectF  computeBounds() const override;
     void                  setBoxSize(QSizeF size) override;
 
-    [[nodiscard]] int     handleCount() const override { return int(m_artifact.tails.size()); }
+    [[nodiscard]] int     handleCount() const override { return int(m_artifact.tails.items.size()); }
     [[nodiscard]] QPointF handlePos(int index) const override;
     void                  setHandlePos(int index, const QPointF& local) override;
 

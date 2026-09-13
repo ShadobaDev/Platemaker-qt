@@ -165,15 +165,9 @@ ObjectController::ObjectController(QGraphicsScene* scene, QGraphicsView* view, Q
     });
 }
 
-void ObjectController::setAuthoring(bool active, bool textOnly)
+void ObjectController::setTextOnly(bool textOnly)
 {
-    m_authoring = active;
-    m_textOnly  = textOnly;
-    // Objects stay visible under every tool (they are part of what the strip looks like) but are only
-    // selectable while a tool that authors them is active, so the flag change has to reach the items.
-    syncItems();
-    if (!active)
-        selectOverlay(QString());
+    m_textOnly = textOnly;
 }
 
 bool ObjectController::objectAt(const QPointF& scenePos, const QTransform& deviceTransform) const
@@ -305,7 +299,7 @@ void ObjectController::syncItems()
                 bubble->setArtifact(a);
             // A styled bubble is drawn by the library, because its effect is an SVG filter Qt cannot
             // render. Unstyled ones keep drawing locally: same geometry, no round-trip.
-            bubble->setSharpRaster(a.style != TextArtifact::Style::Clean ? sharpRasterFor(a) : QImage());
+            bubble->setSharpRaster(a.style.kind != TextArtifact::Style::Clean ? sharpRasterFor(a) : QImage());
         }
 
         item->setBlend(o.blend);
@@ -321,7 +315,11 @@ void ObjectController::syncItems()
         item->setPos(m_layout.scenePosOf(o) - item->contentBounds().topLeft() * k);
         item->setVisible(o.enabled);
         item->setZValue(z++);
-        item->setFlag(QGraphicsItem::ItemIsSelectable, m_authoring && !orphaned);
+        // Selectable under **every** tool. It used to depend on an authoring tool being active, which
+        // made the object panel depend on it too — and left an object that could be dragged but not
+        // selected, because moving it never asked. An unanchored object is the one exception: it is
+        // not on the strip, so there is nothing to select it *on*.
+        item->setFlag(QGraphicsItem::ItemIsSelectable, !orphaned);
     }
 }
 
@@ -652,11 +650,11 @@ void ObjectController::finishPlacement()
 
     TextArtifact a = m_toolDefaults->prototype();
     if (m_textOnly)
-        a.shape = TextArtifact::Shape::None;   // the Text tool is this object without a balloon
+        a.shape.kind = TextArtifact::Shape::None;   // the Text tool is this object without a balloon
     a.box = r.size().toSize();
     // The prototype's tail was placed against the panel's nominal box; re-aim it at the one just drawn,
     // just below the balloon, which is where a reader expects a new bubble to be speaking from.
-    for (Tail& t : a.tails)
+    for (Tail& t : a.tails.items)
         t.tip = QPointF(a.box.width() * 0.28, a.box.height() * 1.25);
 
     // Creation is the library's: it mints the uid, hashes the asset and dedups identical content, so

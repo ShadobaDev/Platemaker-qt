@@ -249,13 +249,13 @@ QPainterPath tailPath(const QPainterPath& outline, const QRectF& body, const Tai
  */
 QRectF textSafeArea(const TextArtifact& a, const QRectF& body)
 {
-    if (a.shape == TextArtifact::Shape::None)
+    if (a.shape.kind == TextArtifact::Shape::None)
         return QRectF(0, 0, a.box.width(), a.box.height());
 
     const qreal pad = a.skin.strokeWidth + 8.0;
     QRectF      usable;
 
-    switch (a.shape) {
+    switch (a.shape.kind) {
     case TextArtifact::Shape::Shout: {
         // A star's usable interior is its *inner* radius, not its bounding box — inset accordingly, or
         // the text runs out between the spikes.
@@ -312,19 +312,19 @@ QRectF textSafeArea(const TextArtifact& a, const QRectF& body)
 void layOutText(QTextDocument& doc, const TextArtifact& a, qreal width)
 {
     QFont f;
-    if (!a.fontFamily.isEmpty())
-        f.setFamily(a.fontFamily);
-    f.setPixelSize(qMax(1, a.fontPixelSize));
-    f.setBold(a.bold);
+    if (!a.text.family.isEmpty())
+        f.setFamily(a.text.family);
+    f.setPixelSize(qMax(1, a.text.pixelSize));
+    f.setBold(a.text.bold);
 
     QTextOption opt;
-    opt.setAlignment(static_cast<Qt::Alignment>(a.align));
+    opt.setAlignment(static_cast<Qt::Alignment>(a.text.align));
     opt.setWrapMode(QTextOption::WrapAtWordBoundaryOrAnywhere);
 
     doc.setDefaultFont(f);
     doc.setDefaultTextOption(opt);
     doc.setDocumentMargin(0);
-    doc.setPlainText(a.text);
+    doc.setPlainText(a.text.body);
     doc.setTextWidth(qMax(qreal(1), width));
 }
 
@@ -337,11 +337,11 @@ void layOutText(QTextDocument& doc, const TextArtifact& a, qreal width)
 QPainterPath artifactSilhouette(const TextArtifact& a)
 {
     const QRectF body = balloonRect(a);
-    if (a.shape == TextArtifact::Shape::None || body.isEmpty())
+    if (a.shape.kind == TextArtifact::Shape::None || body.isEmpty())
         return {};
 
     QPainterPath path;
-    switch (a.shape) {
+    switch (a.shape.kind) {
     case TextArtifact::Shape::Speech:
         path.addRoundedRect(body, body.height() * 0.28, body.height() * 0.28);
         break;
@@ -375,7 +375,7 @@ QPainterPath artifactSilhouette(const TextArtifact& a)
     // Each tail is aimed at the *bare* outline, not at the accumulating union: otherwise the second
     // tail would ray-cast against the first one and emerge from its flank.
     const QPainterPath outline = path;
-    for (const Tail& t : a.tails) {
+    for (const Tail& t : a.tails.items) {
         const QPainterPath tp = tailPath(outline, body, t);
         if (!tp.isEmpty())
             path = path.united(tp);
@@ -390,8 +390,8 @@ QRectF artifactBounds(const TextArtifact& a)
 
 qreal artifactStyleMargin(const TextArtifact& a)
 {
-    const qreal amount = qBound(0.0, a.styleAmount, 2.0);
-    switch (a.style) {
+    const qreal amount = qBound(0.0, a.style.amount, 2.0);
+    switch (a.style.kind) {
     case TextArtifact::Style::Clean:  return 0.0;
     case TextArtifact::Style::Marker: return k_markerScale * amount;
     case TextArtifact::Style::Ink:    return k_inkScale * amount + 2.0;   // + the blur's own reach
@@ -424,7 +424,7 @@ QRectF artifactBoundsOf(const TextArtifact& a, const QPainterPath& silhouette, c
 
 QPainterPath artifactTextOutline(const TextArtifact& a)
 {
-    if (a.text.isEmpty())
+    if (a.text.body.isEmpty())
         return {};
 
     const QRectF body = balloonRect(a);
@@ -501,7 +501,7 @@ void paintArtifactPaths(QPainter& painter, const TextArtifact& a,
     // Filled outlines rather than drawn text, so that what is on screen is what artifactToSvg() writes
     // and what the library rasterises — one geometry, three consumers.
     if (!text.isEmpty())
-        painter.fillPath(text, a.textColour);
+        painter.fillPath(text, a.text.colour);
 
     painter.restore();
 }
@@ -531,7 +531,7 @@ QImage renderArtifact(const TextArtifact& a)
 
 QSize fittedBox(const TextArtifact& a)
 {
-    if (a.text.isEmpty())
+    if (a.text.body.isEmpty())
         return a.box;
 
     // How much taller the wrapped text is than the room it has. Negative means the balloon has slack.
@@ -572,11 +572,11 @@ QSize fittedBox(const TextArtifact& a)
 
 QString artifactLabel(const TextArtifact& a)
 {
-    const QString first = a.text.section(QLatin1Char('\n'), 0, 0).trimmed();
+    const QString first = a.text.body.section(QLatin1Char('\n'), 0, 0).trimmed();
     if (!first.isEmpty())
         return first.length() > 28 ? first.left(27) + QStringLiteral("…") : first;
 
-    switch (a.shape) {
+    switch (a.shape.kind) {
     case TextArtifact::Shape::Speech:  return QObject::tr("(speech bubble)");
     case TextArtifact::Shape::Shout:   return QObject::tr("(shout)");
     case TextArtifact::Shape::Caption: return QObject::tr("(caption)");

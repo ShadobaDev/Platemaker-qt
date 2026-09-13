@@ -91,7 +91,13 @@ struct SkinProperties
     [[nodiscard]] bool operator!=(const SkinProperties& o) const { return !(*this == o); }
 };
 
-struct TextArtifact
+/**
+ * @brief Which silhouette is drawn behind the text.
+ *
+ * One property, and still a group: it has an owner, an editor and an ownership test like every other,
+ * and a group with one property today is a group with room tomorrow.
+ */
+struct ShapeProperties
 {
     /**
      * @brief The silhouette drawn behind the text. `None` is the Text tool: letters with no balloon.
@@ -100,21 +106,105 @@ struct TextArtifact
      * is free — but an existing value must keep its name or every saved bubble using it silently becomes
      * a speech balloon on the next load.
      */
-    enum class Shape { None, Speech, Shout, Caption, Ellipse, Diamond, Trapezoid, Thought, Scroll, Banner };
+    enum class Kind { None, Speech, Shout, Caption, Ellipse, Diamond, Trapezoid, Thought, Scroll, Banner };
 
+    Kind kind = Kind::Speech;
+
+    [[nodiscard]] static ShapeProperties from(const TextArtifact& a);
+    void applyTo(TextArtifact& a) const;
+
+    [[nodiscard]] bool operator==(const ShapeProperties& o) const { return kind == o.kind; }
+    [[nodiscard]] bool operator!=(const ShapeProperties& o) const { return !(*this == o); }
+};
+
+/**
+ * @brief How the outline is drawn, as opposed to what it is.
+ *
+ * The **seed is not in here**, deliberately. It is per balloon and set once at placement, so a preset
+ * that carried it would give a whole chapter one repeated wobble — and a group's applyTo() writes the
+ * whole group, which would do exactly that. It stays a bare field with no editor.
+ */
+struct StyleProperties
+{
     /**
-     * @brief How the outline is *drawn*, as opposed to what it is.
-     *
-     * Every value but `Clean` is an SVG filter, so the artwork stays the same geometry and the effect
-     * happens at rasterise time — which means librsvg applies it and Qt cannot. That is the whole reason
-     * a styled bubble is previewed through the library instead of being drawn locally: an effect only
-     * the committed output could show would be an effect nobody could author.
+     * @brief Every value but `Clean` is an SVG filter, so the artwork stays the same geometry and the
+     * effect happens at rasterise time — which means librsvg applies it and Qt cannot. That is the
+     * whole reason a styled bubble is previewed through the library instead of being drawn locally: an
+     * effect only the committed output could show would be an effect nobody could author.
      *
      * **Append only**, and persisted by name — see styleName().
      */
-    enum class Style { Clean, Marker, Ink };
+    enum class Kind { Clean, Marker, Ink };
 
-    Shape shape = Shape::Speech;
+    Kind  kind   = Kind::Clean;  //!< Clean is a true no-op: no filter is emitted at all.
+    qreal amount = 1.0;          //!< Scales the effect, 0..2. 1.0 is the preset's own strength.
+
+    [[nodiscard]] static StyleProperties from(const TextArtifact& a);
+    void applyTo(TextArtifact& a) const;
+
+    [[nodiscard]] bool operator==(const StyleProperties& o) const
+    {
+        return kind == o.kind && qFuzzyCompare(1.0 + amount, 1.0 + o.amount);
+    }
+    [[nodiscard]] bool operator!=(const StyleProperties& o) const { return !(*this == o); }
+};
+
+/**
+ * @brief What the balloon says, and how it is set.
+ *
+ * Content and typography in one group because one widget edits both, and because the split that
+ * matters is elsewhere: a **preset** carries the typography and never the content — *everything a
+ * balloon is, minus everything it says*. The colour is here rather than with the fill and stroke for
+ * the same reason the colour tool has only two swatches: editing a frame is not editing its lettering.
+ *
+ * Shared, unchanged, by whatever has text — a balloon, a caption, and eventually a standalone text
+ * object — rather than each kind carrying its own copy of the same six properties.
+ */
+struct TextProperties
+{
+    QString body;                     //!< The lettering itself.
+    QString family;                   //!< Empty = the application's default family.
+    int     pixelSize = 30;           //!< Strip-scale pixels, so it means the same thing in the output.
+    bool    bold      = false;
+    int     align     = Qt::AlignHCenter;   //!< Horizontal alignment of the wrapped text.
+    QColor  colour{20, 20, 20};
+
+    [[nodiscard]] static TextProperties from(const TextArtifact& a);
+    void applyTo(TextArtifact& a) const;
+
+    [[nodiscard]] bool operator==(const TextProperties& o) const
+    {
+        return body == o.body && family == o.family && pixelSize == o.pixelSize && bold == o.bold
+            && align == o.align && colour == o.colour;
+    }
+    [[nodiscard]] bool operator!=(const TextProperties& o) const { return !(*this == o); }
+};
+
+/**
+ * @brief Every tail on the balloon.
+ *
+ * The whole list is one group today because a tail is not yet addressable on its own: there is no way
+ * to say *which* tail, which is why one can be added and never removed. When tails become objects in
+ * their own right this splits into a group per tail, and the list stops being a property at all.
+ */
+struct TailsProperties
+{
+    QList<Tail> items;   //!< Empty = no tail. More than one = one sound, several speakers.
+
+    [[nodiscard]] static TailsProperties from(const TextArtifact& a);
+    void applyTo(TextArtifact& a) const;
+
+    [[nodiscard]] bool operator==(const TailsProperties& o) const { return items == o.items; }
+    [[nodiscard]] bool operator!=(const TailsProperties& o) const { return !(*this == o); }
+};
+
+struct TextArtifact
+{
+    //! The enums live with the groups that own them; these keep every existing spelling working.
+    using Shape = ShapeProperties::Kind;
+    using Style = StyleProperties::Kind;
+
+    ShapeProperties shape;
 
     /**
      * @brief The **balloon** — what the author drags, and what text wraps inside.
@@ -125,10 +215,9 @@ struct TextArtifact
      */
     QSize box{280, 160};
 
-    QList<Tail> tails;           //!< Empty = no tail. More than one = one sound, several speakers.
+    TailsProperties tails;
+    StyleProperties style;
 
-    Style   style       = Style::Clean;  //!< Clean is a true no-op: no filter is emitted at all.
-    qreal   styleAmount = 1.0;           //!< Scales the effect, 0..2. 1.0 is the preset's own strength.
     /**
      * @brief Seeds the filter's noise, so two bubbles do not wear identical wobble.
      *
@@ -137,18 +226,14 @@ struct TextArtifact
      */
     quint32 styleSeed   = 0;
 
-    QString text;
-    QString fontFamily;          //!< Empty = the application's default family.
-    int     fontPixelSize = 30;  //!< Strip-scale pixels, so it means the same thing in the output.
-    bool    bold  = false;
-    int     align = Qt::AlignHCenter;   //!< Horizontal alignment of the wrapped text.
-
+    TextProperties text;
     SkinProperties skin;   //!< Fill, stroke and stroke width — see SkinProperties.
 
-    QColor textColour{20, 20, 20};
-
     //! True when a tail should be drawn. A shapeless artifact has nothing to grow a tail from.
-    [[nodiscard]] bool hasTail() const { return shape != Shape::None && !tails.isEmpty(); }
+    [[nodiscard]] bool hasTail() const
+    {
+        return shape.kind != Shape::None && !tails.items.isEmpty();
+    }
 
     [[nodiscard]] bool operator==(const TextArtifact& o) const;
     [[nodiscard]] bool operator!=(const TextArtifact& o) const { return !(*this == o); }

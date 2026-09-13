@@ -50,12 +50,23 @@ QList<Tail> tailsFromJson(const QJsonArray& arr)
 
 bool TextArtifact::operator==(const TextArtifact& o) const
 {
+    // Group by group, so adding a property to a group cannot quietly fall out of equality: the
+    // group's own operator== is the one place that has to know about it.
     return shape == o.shape && box == o.box && tails == o.tails && text == o.text
-        && style == o.style && qFuzzyCompare(1.0 + styleAmount, 1.0 + o.styleAmount)
-        && styleSeed == o.styleSeed
-        && fontFamily == o.fontFamily && fontPixelSize == o.fontPixelSize && bold == o.bold
-        && align == o.align && skin == o.skin && textColour == o.textColour;
+        && style == o.style && styleSeed == o.styleSeed && skin == o.skin;
 }
+
+ShapeProperties ShapeProperties::from(const TextArtifact& a) { return a.shape; }
+void            ShapeProperties::applyTo(TextArtifact& a) const { a.shape = *this; }
+
+StyleProperties StyleProperties::from(const TextArtifact& a) { return a.style; }
+void            StyleProperties::applyTo(TextArtifact& a) const { a.style = *this; }
+
+TextProperties  TextProperties::from(const TextArtifact& a) { return a.text; }
+void            TextProperties::applyTo(TextArtifact& a) const { a.text = *this; }
+
+TailsProperties TailsProperties::from(const TextArtifact& a) { return a.tails; }
+void            TailsProperties::applyTo(TextArtifact& a) const { a.tails = *this; }
 
 SkinProperties SkinProperties::from(const TextArtifact& a)
 {
@@ -123,21 +134,21 @@ TextArtifact::Style styleFromName(QStringView name)
 QJsonObject artifactToJson(const TextArtifact& a)
 {
     return QJsonObject{
-        {QStringLiteral("shape"),      QLatin1String(shapeName(a.shape))},
+        {QStringLiteral("shape"),      QLatin1String(shapeName(a.shape.kind))},
         {QStringLiteral("w"),          a.box.width()},
         {QStringLiteral("h"),          a.box.height()},
-        {QStringLiteral("tails"),      tailsToJson(a.tails)},
-        {QStringLiteral("text"),       a.text},
-        {QStringLiteral("fontFamily"), a.fontFamily},
-        {QStringLiteral("fontSize"),   a.fontPixelSize},
-        {QStringLiteral("bold"),       a.bold},
-        {QStringLiteral("align"),      a.align},
+        {QStringLiteral("tails"),      tailsToJson(a.tails.items)},
+        {QStringLiteral("text"),       a.text.body},
+        {QStringLiteral("fontFamily"), a.text.family},
+        {QStringLiteral("fontSize"),   a.text.pixelSize},
+        {QStringLiteral("bold"),       a.text.bold},
+        {QStringLiteral("align"),      a.text.align},
         {QStringLiteral("fill"),       a.skin.fill.name(QColor::HexArgb)},
         {QStringLiteral("stroke"),     a.skin.stroke.name(QColor::HexArgb)},
-        {QStringLiteral("textColour"), a.textColour.name(QColor::HexArgb)},
+        {QStringLiteral("textColour"), a.text.colour.name(QColor::HexArgb)},
         {QStringLiteral("strokeWidth"),a.skin.strokeWidth},
-        {QStringLiteral("style"),      QLatin1String(styleName(a.style))},
-        {QStringLiteral("styleAmount"),a.styleAmount},
+        {QStringLiteral("style"),      QLatin1String(styleName(a.style.kind))},
+        {QStringLiteral("styleAmount"),a.style.amount},
         {QStringLiteral("styleSeed"),  double(a.styleSeed)},
     };
 }
@@ -146,24 +157,24 @@ TextArtifact artifactFromJson(const QJsonObject& j)
 {
     TextArtifact a;
 
-    a.shape = shapeFromName(j.value(QStringLiteral("shape")).toString());
+    a.shape.kind = shapeFromName(j.value(QStringLiteral("shape")).toString());
 
     // Every field is read defensively with the struct's own default as the fallback, so a snapshot
     // written by an older build loads as a usable bubble rather than a blank.
     a.box  = QSize(j.value(QStringLiteral("w")).toInt(a.box.width()),
                    j.value(QStringLiteral("h")).toInt(a.box.height()));
-    a.tails = tailsFromJson(j.value(QStringLiteral("tails")).toArray());
-    a.text          = j.value(QStringLiteral("text")).toString();
-    a.fontFamily    = j.value(QStringLiteral("fontFamily")).toString();
-    a.fontPixelSize = j.value(QStringLiteral("fontSize")).toInt(a.fontPixelSize);
-    a.bold          = j.value(QStringLiteral("bold")).toBool(a.bold);
-    a.align         = j.value(QStringLiteral("align")).toInt(a.align);
+    a.tails.items = tailsFromJson(j.value(QStringLiteral("tails")).toArray());
+    a.text.body          = j.value(QStringLiteral("text")).toString();
+    a.text.family    = j.value(QStringLiteral("fontFamily")).toString();
+    a.text.pixelSize = j.value(QStringLiteral("fontSize")).toInt(a.text.pixelSize);
+    a.text.bold          = j.value(QStringLiteral("bold")).toBool(a.text.bold);
+    a.text.align         = j.value(QStringLiteral("align")).toInt(a.text.align);
     a.skin.strokeWidth = j.value(QStringLiteral("strokeWidth")).toInt(a.skin.strokeWidth);
     a.skin.fill     = colourFromJson(j, "fill",       a.skin.fill);
     a.skin.stroke   = colourFromJson(j, "stroke",     a.skin.stroke);
-    a.textColour    = colourFromJson(j, "textColour", a.textColour);
-    a.style         = styleFromName(j.value(QStringLiteral("style")).toString());
-    a.styleAmount   = j.value(QStringLiteral("styleAmount")).toDouble(a.styleAmount);
+    a.text.colour    = colourFromJson(j, "textColour", a.text.colour);
+    a.style.kind         = styleFromName(j.value(QStringLiteral("style")).toString());
+    a.style.amount   = j.value(QStringLiteral("styleAmount")).toDouble(a.style.amount);
     a.styleSeed     = quint32(j.value(QStringLiteral("styleSeed")).toDouble(0));
     return a;
 }

@@ -1,6 +1,10 @@
 #include "bubblepanel.h"
 
+#include "properties/shapeeditor.h"
 #include "properties/skineditor.h"
+#include "properties/styleeditor.h"
+#include "properties/tailseditor.h"
+#include "properties/texteditor.h"
 #include "artifactpainter.h"
 #include "ui_bubblepanel.h"
 #include "flowlayout.h"
@@ -43,71 +47,6 @@ namespace StripEdit {
 
 namespace {
 constexpr int k_commitDebounceMs = 300; //!< Coalesce typing into one undo step this long after it stops.
-//! Shape tile, matching the editor's tool rail so the two grids read as one family.
-constexpr int k_shapeTilePx      = 44;
-constexpr int k_shapeIconW       = 34;
-constexpr int k_shapeIconH       = 26;
-//! Supersampling factor for a tile's preview — rendered big, scaled down, so the stroke stays smooth.
-constexpr int k_shapeIconScale   = 4;
-
-//! Whether a shape normally speaks. Shared by the tile previews and by picking one, so a tile cannot
-//! promise a shape that placing it does not give you.
-bool shapeSpeaks(TextArtifact::Shape shape)
-{
-    // Someone is talking: a tail belongs. A caption, a banner or a scroll is narration — it has no
-    // speaker to point at, so placing one should not sprout a tail the author then has to turn off.
-    switch (shape) {
-    case TextArtifact::Shape::Speech:
-    case TextArtifact::Shape::Shout:
-    case TextArtifact::Shape::Ellipse:
-    case TextArtifact::Shape::Thought:
-        return true;
-    default:
-        return false;
-    }
-}
-
-/**
- * @brief A miniature of \p shape, drawn by the very rasteriser that draws the real bubble.
- *
- * Reusing renderArtifact() means a tile cannot misrepresent its shape, and it costs no icon assets: the
- * picker is generated, not drawn by hand. The caller chooses the colours, because a shape tile is UI
- * chrome (it wears the palette) while a preset's tile is a swatch of the preset itself.
- */
-QPixmap bubbleThumbnail(TextArtifact::Shape shape, const QColor& fill, const QColor& stroke,
-                        const QColor& ink)
-{
-    TextArtifact a;
-    a.shape         = shape;
-    a.box           = QSize(k_shapeIconW * k_shapeIconScale, k_shapeIconH * k_shapeIconScale);
-    // The tile's own stroke, not the artifact's: a preset authored at 5 px on a 280 px balloon would be
-    // a hairline here, and the icon is meant to say *which shape and what colours*, not how heavy.
-    a.skin.strokeWidth = 2 * k_shapeIconScale;
-    a.text          = QStringLiteral("Aa");
-    a.fontPixelSize = a.box.height() / 3;
-    a.skin.fill     = fill;
-    a.skin.stroke   = stroke;
-    a.textColour    = ink;
-    if (shapeSpeaks(shape)) {
-        Tail t;
-        // A short tail: the tile is scaled to fit, so a long one would shrink the balloon itself and
-        // leave the speaking shapes visibly smaller than the rest of the grid.
-        t.tip       = QPointF(a.box.width() * 0.28, a.box.height() * 1.10);
-        t.baseWidth = a.box.width() * 0.18;
-        a.tails     = {t};
-    }
-
-    return QPixmap::fromImage(renderArtifact(a).scaled(QSize(k_shapeIconW, k_shapeIconH),
-                                                       Qt::KeepAspectRatio, Qt::SmoothTransformation));
-}
-
-//! The shape picker's tiles: UI chrome, so they wear the palette rather than three white blobs.
-QPixmap shapeThumbnail(TextArtifact::Shape shape, const QPalette& pal)
-{
-    return bubbleThumbnail(shape, pal.color(QPalette::Base), pal.color(QPalette::WindowText),
-                           pal.color(QPalette::WindowText));
-}
-
 // --- presets ---------------------------------------------------------------
 
 const auto k_presetsKey = QStringLiteral("bubblePresets");
@@ -172,33 +111,33 @@ QList<BubblePreset> builtinPresets()
     out.append({BubblePanel::tr("Dialogue"), dialogue});
 
     TextArtifact whisper = dialogue;
-    whisper.shape         = TextArtifact::Shape::Ellipse;
+    whisper.shape.kind         = TextArtifact::Shape::Ellipse;
     whisper.skin.strokeWidth = 3;
     whisper.skin.stroke      = QColor(90, 90, 90);
-    whisper.textColour    = QColor(70, 70, 70);
-    whisper.fontPixelSize = 26;
+    whisper.text.colour    = QColor(70, 70, 70);
+    whisper.text.pixelSize = 26;
     out.append({BubblePanel::tr("Whisper"), whisper});
 
     TextArtifact thought = dialogue;
-    thought.shape       = TextArtifact::Shape::Thought;
+    thought.shape.kind       = TextArtifact::Shape::Thought;
     thought.skin.strokeWidth = 4;
     out.append({BubblePanel::tr("Thought"), thought});
 
     TextArtifact shout = dialogue;
-    shout.shape         = TextArtifact::Shape::Shout;
-    shout.bold          = true;
-    shout.fontPixelSize = 38;
+    shout.shape.kind         = TextArtifact::Shape::Shout;
+    shout.text.bold          = true;
+    shout.text.pixelSize = 38;
     shout.skin.strokeWidth   = 7;
-    shout.style         = TextArtifact::Style::Marker;
+    shout.style.kind         = TextArtifact::Style::Marker;
     out.append({BubblePanel::tr("Shout"), shout});
 
     TextArtifact caption = dialogue;
-    caption.shape       = TextArtifact::Shape::Caption;
+    caption.shape.kind       = TextArtifact::Shape::Caption;
     caption.skin.fill        = QColor(16, 16, 16);
-    caption.textColour       = QColor(245, 245, 245);
+    caption.text.colour       = QColor(245, 245, 245);
     caption.skin.stroke      = QColor(245, 245, 245);
     caption.skin.strokeWidth = 2;
-    caption.align       = Qt::AlignLeft;
+    caption.text.align       = Qt::AlignLeft;
     out.append({BubblePanel::tr("Caption"), caption});
 
     return out;
@@ -225,7 +164,7 @@ BubblePanel::BubblePanel(Seat seat, QWidget* parent)
     m_presetCombo = new QComboBox(this);
     m_presetCombo->setToolTip(tr("Restyles the selection, and starts the next bubble you place."));
     m_presetCombo->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
-    m_presetCombo->setIconSize(QSize(k_shapeIconW, k_shapeIconH));
+    m_presetCombo->setIconSize(QSize(k_bubbleThumbW, k_bubbleThumbH));
 
     auto* presetSave = new QToolButton(this);
     presetSave->setText(tr("Save…"));
@@ -251,117 +190,27 @@ BubblePanel::BubblePanel(Seat seat, QWidget* parent)
     refreshPresetCombo(0);
 
     // --- Shape (Bubble tool only) ---------------------------------------------------------------
+    //
+    // Four groups, each bringing its own controls and owning its own properties. The order is the one
+    // they had as loose widgets: the shape, then its tails, then its surface, then how the line is
+    // drawn. This panel neither reads nor writes any of it.
     m_shapeGroup = new QGroupBox(tr("Shape"), this);
     auto* shapeLay = new QVBoxLayout(m_shapeGroup);
 
-    // The shape picker: a reflowing grid of preview tiles, built the same way the editor's tool rail is
-    // (a flow layout cannot be expressed in a .ui). Each tile's icon comes from the rasteriser, so it
-    // shows the shape rather than naming it.
-    auto* tileHost = new QWidget(m_shapeGroup);
-    auto* tileLay  = new FlowLayout(tileHost, 0, 4, 4);
-    m_shapeTiles   = new QButtonGroup(this);
-    m_shapeTiles->setExclusive(true);
-    const auto addShapeTile = [&](TextArtifact::Shape shape, const QString& tip) {
-        auto* b = new QToolButton(tileHost);
-        b->setCheckable(true);
-        b->setAutoRaise(true);
-        b->setToolTip(tip);
-        b->setIconSize(QSize(k_shapeIconW, k_shapeIconH));
-        b->setFixedSize(k_shapeTilePx, k_shapeTilePx);
-        tileLay->addWidget(b);
-        m_shapeTiles->addButton(b, int(shape));
-    };
-    addShapeTile(TextArtifact::Shape::Speech,    tr("Speech balloon"));
-    addShapeTile(TextArtifact::Shape::Ellipse,   tr("Round balloon"));
-    addShapeTile(TextArtifact::Shape::Thought,   tr("Thought balloon"));
-    addShapeTile(TextArtifact::Shape::Shout,     tr("Shout"));
-    addShapeTile(TextArtifact::Shape::Caption,   tr("Caption box"));
-    addShapeTile(TextArtifact::Shape::Trapezoid, tr("Caption plate"));
-    addShapeTile(TextArtifact::Shape::Diamond,   tr("Diamond"));
-    addShapeTile(TextArtifact::Shape::Banner,    tr("Banner"));
-    addShapeTile(TextArtifact::Shape::Scroll,    tr("Scroll"));
-    addShapeTile(TextArtifact::Shape::None,      tr("Text only — no balloon"));
-    if (auto* first = m_shapeTiles->button(int(TextArtifact::Shape::Speech)))
-        first->setChecked(true);
-    refreshShapeTiles();
-    shapeLay->addWidget(tileHost);
-
-    auto* shapeForm = new QFormLayout;
-    shapeLay->addLayout(shapeForm);
-
-    m_tailCheck = new QCheckBox(tr("Tail"), m_shapeGroup);
-    m_tailCheck->setToolTip(tr("Drag the round handle on the bubble to aim it — including outside it."));
-    shapeForm->addRow(QString(), m_tailCheck);
-
-    // Aiming is a drag on the strip; these are the two things a drag cannot say.
-    m_tailWidth = new QSpinBox(m_shapeGroup);
-    m_tailWidth->setRange(4, 400);
-    m_tailWidth->setSuffix(tr(" px"));
-    m_tailWidth->setToolTip(tr("How wide the tail is where it leaves the bubble."));
-    shapeForm->addRow(tr("Tail width:"), m_tailWidth);
-
-    m_tailBend = new QSpinBox(m_shapeGroup);
-    m_tailBend->setRange(-100, 100);
-    m_tailBend->setSuffix(tr(" %"));
-    m_tailBend->setToolTip(tr("Curves the tail sideways. 0 is straight."));
-    shapeForm->addRow(tr("Tail bend:"), m_tailBend);
-
-    m_addTail = new QPushButton(tr("Add another tail"), m_shapeGroup);
-    m_addTail->setToolTip(tr("For a sound with more than one source. Drag each handle to aim it."));
-    shapeForm->addRow(QString(), m_addTail);
-
-    // The Skin group brings its own controls and owns its own three properties. This panel neither
-    // reads nor writes them any more; it only forwards the two signals every editor here emits.
-    m_skin = new SkinEditor(m_shapeGroup);
-    shapeForm->addRow(m_skin);
-
-    m_styleCombo = new QComboBox(m_shapeGroup);
-    m_styleCombo->addItem(tr("Clean"),  int(TextArtifact::Style::Clean));
-    m_styleCombo->addItem(tr("Marker"), int(TextArtifact::Style::Marker));
-    m_styleCombo->addItem(tr("Ink"),    int(TextArtifact::Style::Ink));
-    m_styleCombo->setToolTip(tr("Roughens the outline as it is rendered. Shown here exactly as it will "
-                                "be baked, because the library draws it."));
-    shapeForm->addRow(tr("Line style:"), m_styleCombo);
-
-    m_styleAmount = new QSpinBox(m_shapeGroup);
-    m_styleAmount->setRange(0, 200);
-    m_styleAmount->setSuffix(tr(" %"));
-    m_styleAmount->setToolTip(tr("How strong the line style is. 100% is the preset's own strength."));
-    shapeForm->addRow(tr("Style amount:"), m_styleAmount);
+    m_shape = new ShapeEditor(m_shapeGroup);
+    m_tails = new TailsEditor(m_shapeGroup);
+    m_skin  = new SkinEditor(m_shapeGroup);
+    m_style = new StyleEditor(m_shapeGroup);
+    shapeLay->addWidget(m_shape);
+    shapeLay->addWidget(m_tails);
+    shapeLay->addWidget(m_skin);
+    shapeLay->addWidget(m_style);
 
     // --- Text (both tools) ----------------------------------------------------------------------
     m_textGroup = new QGroupBox(tr("Text"), this);
     auto* textLay = new QVBoxLayout(m_textGroup);
-
-    m_textEdit = new QPlainTextEdit(m_textGroup);
-    m_textEdit->setPlaceholderText(tr("Type the line…"));
-    m_textEdit->setMinimumHeight(70);
-    textLay->addWidget(m_textEdit);
-
-    auto* textForm = new QFormLayout;
-    m_fontCombo = new QFontComboBox(m_textGroup);
-    textForm->addRow(tr("Font"), m_fontCombo);
-
-    m_fontSize = new QSpinBox(m_textGroup);
-    m_fontSize->setRange(6, 400);
-    m_fontSize->setSuffix(tr(" px"));
-    // Strip-scale pixels: the same number the render uses, so a size chosen here means the same thing
-    // in the output. It is not a point size and does not follow the screen's DPI.
-    m_fontSize->setToolTip(tr("Height in output pixels, at the project's target width."));
-    textForm->addRow(tr("Size"), m_fontSize);
-
-    m_boldCheck = new QCheckBox(tr("Bold"), m_textGroup);
-    textForm->addRow(QString(), m_boldCheck);
-
-    m_alignCombo = new QComboBox(m_textGroup);
-    m_alignCombo->addItem(tr("Centre"), int(Qt::AlignHCenter));
-    m_alignCombo->addItem(tr("Left"),   int(Qt::AlignLeft));
-    m_alignCombo->addItem(tr("Right"),  int(Qt::AlignRight));
-    textForm->addRow(tr("Align"), m_alignCombo);
-
-    m_textSwatch = new QPushButton(tr("Colour"), m_textGroup);
-    textForm->addRow(tr("Colour"), m_textSwatch);
-    textLay->addLayout(textForm);
+    m_text = new TextEditor(m_textGroup);
+    textLay->addWidget(m_text);
 
     // --- Actions --------------------------------------------------------------------------------
     auto* fitBtn = new QPushButton(tr("Fit to text"), this);
@@ -374,8 +223,8 @@ BubblePanel::BubblePanel(Seat seat, QWidget* parent)
     // A defaults seat describes an object that does not exist yet, so the three controls that act on
     // one are meaningless there: what it says, fitting the balloon to that, and deleting it.
     const bool properties = (m_seat == Seat::ObjectProperties);
-    m_textEdit->setVisible(properties);
-    m_addTail->setVisible(properties);
+    m_text->setContentVisible(properties);
+    m_tails->setAddVisible(properties);
     fitBtn->setVisible(properties);
     delBtn->setVisible(properties);
 
@@ -396,47 +245,25 @@ BubblePanel::BubblePanel(Seat seat, QWidget* parent)
     }
 
     // --- Wiring ---------------------------------------------------------------------------------
-    connect(m_shapeTiles, &QButtonGroup::idClicked, this, [this](int id) {
-        // Picking a shape gives you the shape its tile shows — a narration box does not arrive wearing a
-        // tail. The checkbox stays available for the cases that want one anyway.
-        QSignalBlocker block(m_tailCheck);
-        m_tailCheck->setChecked(shapeSpeaks(static_cast<TextArtifact::Shape>(id)));
-        onControlChanged();
+    //
+    // Every group editor reports the same two things — a control moved, and an edit settled — so the
+    // panel maps five editors onto the two signals it already emits, once, rather than wiring thirteen
+    // controls by hand.
+    // The one cross-group rule, connected first so it runs first: picking a shape gives you the shape
+    // its tile shows, tail and all, and the tails editor has to hear about it before the change is
+    // collected. Qt runs slots in connection order, which is the whole reason this line is up here.
+    connect(m_shape, &ShapeEditor::edited, this, [this] {
+        m_tails->shapeChanged(m_shape->values().kind);
     });
-    connect(m_alignCombo, &QComboBox::currentIndexChanged, this, [this] { onControlChanged(); });
-    connect(m_tailCheck,  &QCheckBox::toggled,             this, [this] { onControlChanged(); });
-    connect(m_styleCombo, &QComboBox::currentIndexChanged, this, [this] { onControlChanged(); });
-    connect(m_styleAmount,&QSpinBox::valueChanged,         this, [this] { onControlChanged(); });
-    connect(m_tailWidth,  &QSpinBox::valueChanged,         this, [this] { onControlChanged(); });
-    connect(m_tailBend,   &QSpinBox::valueChanged,         this, [this] { onControlChanged(); });
-    connect(m_addTail,    &QPushButton::clicked, this, [this] {
-        // A new tail starts opposite the last one so it is visible rather than stacked on top of it.
-        Tail t;
-        t.baseWidth = m_tailWidth->value();
-        t.bend      = m_tailBend->value() / 100.0;
-        t.tip       = m_artifact.tails.isEmpty()
-            ? QPointF(m_artifact.box.width() * 0.28, m_artifact.box.height() * 1.25)
-            : QPointF(m_artifact.box.width() - m_artifact.tails.last().tip.x(),
-                      m_artifact.tails.last().tip.y());
-        m_artifact.tails.append(t);
-        m_tailCheck->setChecked(true);
-        onControlChanged();
-    });
-    connect(m_boldCheck,  &QCheckBox::toggled,             this, [this] { onControlChanged(); });
-    connect(m_fontSize,    &QSpinBox::valueChanged,        this, [this] { onControlChanged(); });
-    connect(m_fontCombo,   &QFontComboBox::currentFontChanged, this, [this] { onControlChanged(); });
-    connect(m_textEdit,    &QPlainTextEdit::textChanged,   this, [this] { onControlChanged(); });
 
-    connect(m_textSwatch,   &QPushButton::clicked, this, [this] { pickColour(m_artifact.textColour, m_textSwatch); });
-
-    // A group editor reports continuously and then once, settled; this panel maps that onto the two
-    // signals it already emits. onControlChanged() is what pulls the group's values into the working
-    // artifact, so committed() only has to say "and that one is final".
-    connect(m_skin, &SkinEditor::edited,    this, [this] { onControlChanged(); });
-    connect(m_skin, &SkinEditor::committed, this, [this] {
-        if (m_hasSelection)
-            emit committed(m_artifact);
-    });
+    const QList<PropertyGroupEditor*> editors{m_shape, m_skin, m_style, m_text, m_tails};
+    for (PropertyGroupEditor* e : editors) {
+        connect(e, &PropertyGroupEditor::edited,    this, [this] { onControlChanged(); });
+        connect(e, &PropertyGroupEditor::committed, this, [this] {
+            if (m_hasSelection)
+                emit committed(m_artifact);
+        });
+    }
 
     // activated(), not currentIndexChanged(): only a human picking an entry applies a preset, so
     // rebuilding the list never restyles anything, and re-picking the current entry re-applies it.
@@ -487,13 +314,12 @@ void BubblePanel::clearSelection()
     m_emptyHint->setVisible(true);
     m_shapeGroup->setEnabled(false);
     m_textGroup->setEnabled(false);
-    m_textEdit->setEnabled(false);
+    m_text->setContentEnabled(false);
 }
 
 void BubblePanel::focusText()
 {
-    m_textEdit->setFocus(Qt::OtherFocusReason);
-    m_textEdit->selectAll();   // a duplicate arrives with the original's line; typing should replace it
+    m_text->focusContent();
 }
 
 void BubblePanel::setShapeControlsVisible(bool visible)
@@ -502,34 +328,27 @@ void BubblePanel::setShapeControlsVisible(bool visible)
     m_shapeGroup->setVisible(visible);
 }
 
-TextArtifact::Shape BubblePanel::currentShape() const
-{
-    return static_cast<TextArtifact::Shape>(m_shapeTiles->checkedId());
-}
-
 TextArtifact BubblePanel::prototype() const
 {
     TextArtifact a;
-    a.shape         = currentShape();
-    a.fontFamily    = m_fontCombo->currentFont().family();
-    a.fontPixelSize = m_fontSize->value();
-    a.bold          = m_boldCheck->isChecked();
-    a.align         = m_alignCombo->currentData().toInt();
+    // Shape first: the tails editor reads it, because a shapeless artifact has nothing to grow a tail
+    // from. Everything else is order-independent by construction — no two groups touch a property.
+    m_shape->applyTo(a);
     m_skin->applyTo(a);
-    a.textColour    = m_artifact.textColour;
-    a.style         = static_cast<TextArtifact::Style>(m_styleCombo->currentData().toInt());
-    a.styleAmount   = m_styleAmount->value() / 100.0;
+    m_style->applyTo(a);
+    m_text->applyTo(a);
+
+    // A placement takes the look and not the line. The same distinction a preset makes — everything a
+    // balloon is, minus everything it says — and the same reason: the words belong to one balloon.
+    a.text.body.clear();
+    // …and to one balloon's aim: applyToNew() makes a first tail rather than copying the selected
+    // balloon's, which would give every new bubble the last one's tail.
+    m_tails->applyToNew(a);
+
     // A fresh seed per bubble, so a page of marker balloons does not wear one repeated wobble. Set at
     // placement and then left alone — re-rolling it on every edit would make the outline crawl as you
-    // type.
-    a.styleSeed     = QRandomGenerator::global()->generate();
-    if (m_tailCheck->isChecked() && a.shape != TextArtifact::Shape::None) {
-        Tail t;
-        t.baseWidth = m_tailWidth->value();
-        t.bend      = m_tailBend->value() / 100.0;
-        t.tip       = QPointF(a.box.width() * 0.28, a.box.height() * 1.25);
-        a.tails     = {t};
-    }
+    // type. It belongs to no group precisely so that no editor and no preset can copy it.
+    a.styleSeed = QRandomGenerator::global()->generate();
     return a;
 }
 
@@ -540,41 +359,20 @@ void BubblePanel::onControlChanged()
     if (m_populating)
         return;
 
-    m_artifact.shape         = currentShape();
-    m_artifact.text          = m_textEdit->toPlainText();
-    m_artifact.fontFamily    = m_fontCombo->currentFont().family();
-    m_artifact.fontPixelSize = m_fontSize->value();
-    m_artifact.bold          = m_boldCheck->isChecked();
-    m_artifact.align         = m_alignCombo->currentData().toInt();
+    // Five calls, in place of thirteen properties read out of thirteen widgets by hand. Shape goes
+    // first because the tails editor reads it; the rest cannot collide, since no property has two
+    // owners.
+    m_shape->applyTo(m_artifact);
     m_skin->applyTo(m_artifact);
-    m_artifact.style         = static_cast<TextArtifact::Style>(m_styleCombo->currentData().toInt());
-    m_artifact.styleAmount   = m_styleAmount->value() / 100.0;
-    // A bubble authored before styles existed carries seed 0, and so would every other one — style a
-    // page of them and they would all wear the same wobble. Give it one the first time it is styled.
-    if (m_artifact.style != TextArtifact::Style::Clean && m_artifact.styleSeed == 0)
-        m_artifact.styleSeed = QRandomGenerator::global()->generate();
-    m_styleAmount->setEnabled(m_artifact.style != TextArtifact::Style::Clean);
+    m_style->applyTo(m_artifact);
+    m_text->applyTo(m_artifact);
+    m_tails->applyTo(m_artifact);
 
-    // A tail's *aim* is authored on the strip, not here. The checkbox only turns tails on and off, so
-    // re-enabling has to place a sensible first tip rather than resurrect a stale one; width and bend
-    // apply to all of them (see m_tailWidth).
-    const bool wantTail = m_tailCheck->isChecked() && m_artifact.shape != TextArtifact::Shape::None;
-    if (!wantTail) {
-        m_artifact.tails.clear();
-    } else {
-        if (m_artifact.tails.isEmpty()) {
-            Tail t;
-            t.tip = QPointF(m_artifact.box.width() * 0.28, m_artifact.box.height() * 1.25);
-            m_artifact.tails.append(t);
-        }
-        for (Tail& t : m_artifact.tails) {
-            t.baseWidth = m_tailWidth->value();
-            t.bend      = m_tailBend->value() / 100.0;
-        }
-    }
-    m_tailWidth->setEnabled(wantTail);
-    m_tailBend->setEnabled(wantTail);
-    m_addTail->setEnabled(wantTail);
+    // The seed is the one thing here that belongs to no group, and this is why: a bubble authored
+    // before styles existed carries seed 0, and so would every other one — style a page of them and
+    // they would all wear the same wobble. Give it one the first time it is styled.
+    if (m_artifact.style.kind != TextArtifact::Style::Clean && m_artifact.styleSeed == 0)
+        m_artifact.styleSeed = QRandomGenerator::global()->generate();
 
     if (!m_hasSelection)
         return;   // styling the next placement, nothing to preview or persist yet
@@ -585,70 +383,16 @@ void BubblePanel::onControlChanged()
 
 void BubblePanel::syncFromModel()
 {
+    // No signal blockers and no populating dance here any more: bind() never emits, by contract.
     m_populating = true;
-    {
-        QSignalBlocker b2(m_tailCheck),  b4(m_textEdit);
-        QSignalBlocker b9(m_tailWidth),  b10(m_tailBend);
-        QSignalBlocker b11(m_styleCombo), b12(m_styleAmount);
-        QSignalBlocker b5(m_fontCombo),  b6(m_fontSize),   b7(m_boldCheck),   b8(m_alignCombo);
-
-        // Checkable buttons in an exclusive group do not emit on setChecked(), so no blocker is needed.
-        if (auto* tile = m_shapeTiles->button(int(m_artifact.shape)))
-            tile->setChecked(true);
-        const bool hasTail = !m_artifact.tails.isEmpty();
-        m_tailCheck->setChecked(hasTail);
-        if (hasTail) {
-            m_tailWidth->setValue(qRound(m_artifact.tails.first().baseWidth));
-            m_tailBend->setValue(qRound(m_artifact.tails.first().bend * 100.0));
-        }
-        m_tailWidth->setEnabled(hasTail);
-        m_tailBend->setEnabled(hasTail);
-        m_addTail->setEnabled(hasTail);
-        m_styleCombo->setCurrentIndex(m_styleCombo->findData(int(m_artifact.style)));
-        m_styleAmount->setValue(qRound(m_artifact.styleAmount * 100.0));
-        m_styleAmount->setEnabled(m_artifact.style != TextArtifact::Style::Clean);
-
-        if (m_textEdit->toPlainText() != m_artifact.text)
-            m_textEdit->setPlainText(m_artifact.text);   // guarded: setPlainText resets the caret
-        m_textEdit->setEnabled(true);
-
-        if (!m_artifact.fontFamily.isEmpty())
-            m_fontCombo->setCurrentFont(QFont(m_artifact.fontFamily));
-        m_fontSize->setValue(m_artifact.fontPixelSize);
-        m_boldCheck->setChecked(m_artifact.bold);
-        const int alignIdx = m_alignCombo->findData(m_artifact.align);
-        if (alignIdx >= 0)
-            m_alignCombo->setCurrentIndex(alignIdx);
-    }
+    m_shape->bindOne(m_artifact);
     m_skin->bindOne(m_artifact);
-    paintColourSwatch(m_textSwatch, m_artifact.textColour);
+    m_style->bindOne(m_artifact);
+    m_text->bindOne(m_artifact);
+    m_tails->bindOne(m_artifact);
+    m_text->setContentEnabled(true);
     m_populating = false;
 }
-
-void BubblePanel::pickColour(QColor& target, QPushButton* swatch)
-{
-    const QColor picked = QColorDialog::getColor(target, this, tr("Choose colour"));
-    if (!picked.isValid())
-        return;
-    target = picked;
-    paintColourSwatch(swatch, picked);
-    if (!m_hasSelection)
-        return;
-    emit changed(m_artifact);
-    emit committed(m_artifact);   // a dialog choice is discrete — commit it without waiting on the timer
-}
-
-void BubblePanel::refreshShapeTiles()
-{
-    if (!m_shapeTiles)
-        return;
-    for (QAbstractButton* b : m_shapeTiles->buttons())
-        b->setIcon(QIcon(shapeThumbnail(static_cast<TextArtifact::Shape>(m_shapeTiles->id(b)), palette())));
-}
-
-// ---------------------------------------------------------------------------
-// Presets
-// ---------------------------------------------------------------------------
 
 void BubblePanel::loadPresets()
 {
@@ -676,8 +420,8 @@ void BubblePanel::refreshPresetCombo(int current)
         const BubblePreset& p = m_presets.at(i);
         // No separator row between built-ins and the artist's own: a separator is an entry, and every
         // index here doubles as an index into m_presets.
-        m_presetCombo->addItem(QIcon(bubbleThumbnail(p.artifact.shape, p.artifact.skin.fill,
-                                                     p.artifact.skin.stroke, p.artifact.textColour)),
+        m_presetCombo->addItem(QIcon(bubbleThumbnail(p.artifact.shape.kind, p.artifact.skin.fill,
+                                                     p.artifact.skin.stroke, p.artifact.text.colour)),
                                p.name);
     }
     m_presetCombo->setCurrentIndex(qBound(-1, current, int(m_presets.size()) - 1));
@@ -695,19 +439,19 @@ void BubblePanel::applyPreset(const BubblePreset& p)
     TextArtifact a = p.artifact;
     // A preset is a look, not a line: whatever the bubble says, how big it is and where its tails point
     // survive being restyled. Without this, picking a preset would erase the lettering.
-    a.text  = m_artifact.text;
+    a.text.body  = m_artifact.text.body;
     a.box   = m_artifact.box;
-    a.tails = m_artifact.tails;
+    a.tails.items = m_artifact.tails.items;
     // With the Text tool the shape picker is hidden, so a preset must not change a shape the author
     // cannot see, and cannot put back.
     if (!m_shapeVisible)
-        a.shape = m_artifact.shape;
-    if (a.shape == TextArtifact::Shape::None)
-        a.tails.clear();
+        a.shape.kind = m_artifact.shape.kind;
+    if (a.shape.kind == TextArtifact::Shape::None)
+        a.tails.items.clear();
     // Keep the bubble's own seed. Re-rolling it would make an already-placed marker outline jump for a
     // reason the author did not ask for.
     a.styleSeed = m_artifact.styleSeed;
-    if (a.style != TextArtifact::Style::Clean && a.styleSeed == 0)
+    if (a.style.kind != TextArtifact::Style::Clean && a.styleSeed == 0)
         a.styleSeed = QRandomGenerator::global()->generate();
 
     m_artifact = a;
@@ -734,7 +478,7 @@ void BubblePanel::onSavePreset()
     // What is saved is what the *controls* say, not what the selection is: with nothing selected the
     // panel is still a valid look, and prototype() is already exactly "the panel as an artifact".
     BubblePreset p{name, prototype()};
-    p.artifact.tails.clear();
+    p.artifact.tails.items.clear();
     p.artifact.styleSeed = 0;   // content, not style: a stored seed would clone one bubble's wobble
 
     for (int i = m_builtinCount; i < m_presets.size(); ++i) {
@@ -841,14 +585,5 @@ void BubblePanel::onExportPack()
 }
 
 // ---------------------------------------------------------------------------
-
-void BubblePanel::changeEvent(QEvent* e)
-{
-    QWidget::changeEvent(e);
-    // The tiles are drawn in palette colours, so a theme flip has to redraw them or they stay in the
-    // previous theme's ink (the app follows the Windows light/dark setting).
-    if (e->type() == QEvent::PaletteChange)
-        refreshShapeTiles();
-}
 
 }  // namespace StripEdit

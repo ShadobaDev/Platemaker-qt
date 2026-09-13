@@ -238,28 +238,31 @@ void Editor::setTool(Tool tool)
     // Pan == today: hand-drag to pan. Any other tool frees the left button for tool interaction.
     const bool pan = (tool == Tool::Pan);
     m_view->setDragMode(pan ? QGraphicsView::ScrollHandDrag : QGraphicsView::NoDrag);
-    // Both seats follow the tool: Text is the same object without a balloon, in either of them.
-    if (m_bubblePanel)
-        m_bubblePanel->setShapeControlsVisible(tool == Tool::Bubble);
+    // Only the *tool's own options* follow the tool. The Text tool makes objects without a balloon, so
+    // offering a shape there would contradict itself.
+    //
+    // The object-state panel deliberately does not get this call. It describes whatever is **selected**,
+    // and a tool chosen minutes ago must not decide what a bubble's properties look like — selecting a
+    // balloon under the Text tool used to show nothing but its lettering, an effect with no visible
+    // cause. Which groups that panel shows comes from the selected object's own kind instead.
     if (m_toolDefaults)
         m_toolDefaults->setShapeControlsVisible(tool == Tool::Bubble);
 
-    // The right column stays put under every tool. It used to be hidden for Pan and Grade, on the
-    // grounds that neither has objects — but hiding it resizes the canvas, so the strip jumped sideways
-    // every time the tool changed, and the object list (the only place the strip's contents can be seen
-    // and reordered) went with it. A tool that cannot act on objects makes the column *inert*, not
-    // absent: the properties pane is already empty by then, because leaving an authoring tool clears the
-    // selection, and the list is readable but not clickable so its highlight cannot drift from a canvas
-    // whose items are no longer selectable.
-    ui->artifactList->setEnabled(artifactToolActive());
+    // The right column stays put under every tool, and **live** under every tool. It was briefly
+    // hidden for Pan and Grade, which resized the canvas and made the strip jump sideways; then it was
+    // merely greyed, on the grounds that its highlight would otherwise drift from a canvas whose items
+    // were not selectable. Both were treating a symptom — the items are selectable now, so the list has
+    // a selection to agree with and needs no gate at all.
 
     // Drawing takes over the left button, so panning moves to the middle button / scrollbars while an
     // authoring tool is active — the usual drawing-app trade. The crosshair says so.
     m_view->viewport()->setCursor(artifactToolActive() ? Qt::CrossCursor : Qt::ArrowCursor);
 
-    // Bubbles stay visible under every tool (they are part of what the strip looks like) but are only
-    // selectable while a tool that authors them is active.
-    m_objects->setAuthoring(artifactToolActive(), tool == Tool::Text);
+    // The only thing the object controller needs from the tool: the Text tool places an object with no
+    // balloon. Whether a drag on empty strip places anything at all is decided in eventFilter(), and
+    // selecting, moving and dragging a handle are available under every tool — they are what a canvas
+    // does, not what a tool grants.
+    m_objects->setTextOnly(tool == Tool::Text);
 }
 
 void Editor::applyGrade(const Platemaker::Models::ColourCorrection& cc)

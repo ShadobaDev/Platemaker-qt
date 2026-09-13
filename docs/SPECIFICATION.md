@@ -174,38 +174,40 @@ toolColumn = QSplitter(V): [ tool tiles | TOOL OPTIONS ]      what the NEXT obje
 rightPanel = QSplitter(V): [ OBJECT PROPERTIES | object list ] what THIS object is
 ```
 
-The two sides answer two different questions, and that is the point. One panel used to answer both —
-the selection's properties when something was selected, the next placement's styling when nothing was,
-with nothing on screen saying which. `BubblePanel` is now instantiated twice, once per `Seat`: the same
-controls, because a bubble's colours mean the same thing either way, but a stated subject. With nothing
-selected the right-hand one goes inert and says so, instead of quietly becoming the other thing.
+**Each side answers one question, and only that one.** Bottom-left says what the *next* object will be;
+the right-hand panel says what *this* object is. A panel answering both would mean two things depending
+on state the artist cannot see, which is what makes a preset picker above shared controls ambiguous.
+
+`BubblePanel` is instantiated once per `Seat` — the same controls with a stated subject, because a
+bubble's colours mean the same thing either way. With nothing selected the right-hand one is inert and
+says so.
 
 The **grade** lives in tool options rather than on the right: its subject is the project, so it is the
 tool's own configuration and not any object's property.
 
-The right column is **never hidden**, under any tool. It was, briefly, on the grounds that Pan and Grade
-have no objects to describe — but the canvas is what grows into the space, so the strip jumped sideways
-every time the tool changed, and the object list went away with it. A tool that cannot act on objects
-makes the column *inert* instead: leaving an authoring tool clears the selection, so the properties pane
-is empty on its own, and the list is left readable but disabled so its highlight cannot drift away from
-a canvas whose items are no longer selectable.
+**The right column is never hidden and never disabled**, under any tool. Hiding it lets the canvas grow
+into the space, which makes the strip jump sideways on every tool change; disabling it costs the artist
+the only place the strip's contents can be seen and reordered. A tool changes what is in the column's
+*tool-facing* half, never whether the column is there.
 
 Splitter positions are remembered in `QSettings` — a working preference that follows the artist rather
 than the comic.
 
 - **Tool rail** (left) — square checkable `QToolButton`s in an exclusive `QButtonGroup`, laid out by
   `FlowLayout` so they reflow to the rail's width (a flow layout cannot be expressed in a `.ui`).
-  Tools: **Pan** (default — hand-drag, no side panel, behaves exactly as the viewer did before the
-  editor existed), **Grade**, **Bubble**, **Text**.
-- **Tool options** (right-top) — a `QStackedWidget`, one page per tool. `GradePanel` for Grade;
-  `BubblePanel` for **both** Bubble and Text, because they author the same object (§2.5.4) — `setTool()`
-  points both at that page and hides the shape group for Text.
+  Tools: **Pan** (default — hand-drag to scroll the canvas), **Grade**, **Bubble**, **Text**. A tool
+  decides what a *placement* creates; selecting, moving and resizing what is already there is available
+  under all four (§2.5.4).
+- **Tool options** (bottom-left, under the rail) — a `QStackedWidget`, one page per tool. `GradePanel`
+  for Grade; `BubblePanel` for **both** Bubble and Text, because they author the same object (§2.5.4) —
+  `setTool()` points both at that page and hides the shape group for Text, which creates objects that
+  have no balloon.
 - **Artifact list** (right-bottom) — `artifactList`, the overlays as a **stack**: row 0 is the front-most
   object, and a row covers every row below it wherever they overlap. The library's composite order is the
   opposite (it draws `stripOverlays` in vector order, so the last element is on top), so the list is that
   vector **reversed** — done in `refreshList()` / `commitListOrder()` alone, because a layers panel that
   reads bottom-up is a surprise in every tool that has one, and the reversal belongs at the view rather
-  than in a model the render shares. Hidden under Grade, whose per-page exclusion feed is not built yet.
+  than in a model the render shares.
 
 #### 2.5.2 Rendering (seam-free) and memory
 
@@ -256,19 +258,40 @@ valid baseline for every grade tried on it. Excluded pages are skipped, matching
   for where it crosses the silhouette with `QPainterPath::contains()` — shape-agnostic, so every shape
   grew a working tail for free and a tail may leave any edge. `artifactBounds()` therefore computes what
   the artifact actually covers; `box` is the balloon alone.
-- **A balloon's editable state is being cut into property groups.** A group is a named struct with
-  exactly one editor responsible for it; the editor reads through `bind()` and writes through
-  `applyTo()`, which touches only that group. The panel it is being carved out of does the opposite —
-  it keeps a whole copy of the selected artifact and writes the whole copy back on every control
-  change, which is why a canvas resize has to be pushed back into it by hand to stop the stale copy
-  restoring the old box. **`SkinProperties`** (fill, stroke, stroke width) is the first, with
-  `StripEdit::SkinEditor` as its editor and `PropertyGroupEditor` as the contract. The text's colour is
-  deliberately not in it: editing a balloon's frame does not edit its lettering. Persistence is
-  unchanged — the struct is new, the three JSON/SVG keys are where they were.
-  - The rule that makes it work: **an editor never knows which surface it is in.** A widget carrying an
-    enum naming its own panel is what produced two identical-looking panels.
-  - `tests/gui-unit-tests/` is the first test target in this repository. It links `Qt6::Gui` and
-    nothing else, so anything it can reach is free of `QWidget` by construction.
+- **Selection is the canvas's, not a tool's.** Every object is selectable, movable and resizable under
+  every tool; an unanchored one is the only exception, because it is not on the strip. A tool decides
+  what a *placement* creates — armed in `Editor::eventFilter()` — so `ObjectController` knows exactly one
+  thing about the active tool: whether it is Text. Anything more would put the same gate in two places
+  and make the object panel depend on a cause the artist cannot see.
+- **The object-state panel follows the selection, never the active tool.** Only the tool-options panel is
+  told which controls a tool offers. Which groups the object panel shows comes from the selected object's
+  own kind: a shapeless text object has no fill to edit and no tail to grow, so those sections are
+  **absent** rather than greyed — a greyed control promises something deferred, and these are not
+  deferred, they are not part of that object at all. Stable group order plus update-in-place means the
+  panel moves only when the *kind* of the selection changes, which is a change worth seeing.
+- **A balloon's editable state is five property groups.** A group is a named struct with exactly one
+  editor responsible for it; the editor reads through `bind()` and writes through `applyTo()`, which
+  touches only that group. `TextArtifact` composes them — `ShapeProperties`, `SkinProperties`,
+  `StyleProperties`, `TextProperties`, `TailsProperties` — and `StripEdit::PropertyGroupEditor` is the
+  contract their five editors implement.
+  - **The base is re-read before every patch**, and each editor writes one member. An editor holding a
+    copy of the whole artifact would write back stale values for properties it never touched — a canvas
+    resize during an edit being the obvious way in.
+  - **Two properties belong to no group**, so no editor and no preset can copy them: `box` (the
+    object's, not the look's) and `styleSeed` (per balloon, set once at placement — a preset carrying
+    it would give a chapter one repeated wobble).
+  - **Reading the target is allowed; writing outside the group is not.** `TailsEditor::applyTo()` reads
+    the shape, because a shapeless artifact has nothing to grow a tail from, and the box, because a
+    first tail needs somewhere to point.
+  - **The enums live with their groups** — `ShapeProperties::Kind`, `StyleProperties::Kind` — with
+    `TextArtifact::Shape` and `::Style` kept as aliases, so every existing spelling still compiles and
+    the persisted names are untouched.
+  - The rule that makes it work: **an editor never knows which surface it is in.** A surface asks an
+    editor to be compact; an editor never asks where it is, or the two surfaces drift into showing the
+    same thing.
+  - `tests/gui-unit-tests/` links `Qt6::Gui` and nothing else, so anything it can reach is free of
+    `QWidget` by construction. Nine tests: one per group, plus the two colour groups' boundary, the
+    seed, and the file format.
 - **Every placed thing is a `StripEdit::Object`.** One `QGraphicsObject` per overlay, and everything an
   author does to one is the same whatever kind it is: select, move, drag a corner, mute, delete,
   reorder. That all lives on the base class, once — including the grips, the drag state machine and the
@@ -281,18 +304,18 @@ valid baseline for every grade tried on it. Excluded pages are skipped, matching
     keeps aspect on a corner drag, because the record stores one width fraction and a distorted one is
     not expressible.
   - **What is clickable is the box, not the bounding rectangle.** `Object::shape()` is the box, plus the
-    tail tips (grabbable at any time) and the corner grips while selected. Qt's default is
+    tail tips (grabbable at any time) and the corner grips while selected. Qt's default would be
     `boundingRect()`, which here is the *drawn extent* — balloon ∪ glyphs ∪ every tail tip, padded for
-    grips — so a bubble with a long tail claimed a rectangle largely made of empty page, and the upper of
-    two overlapping bubbles swallowed presses meant for the lower one. A tail's shaft is left out
+    grips — a rectangle largely made of empty page whenever a tail is long, and one that lets the upper
+    of two overlapping bubbles swallow presses meant for the lower. A tail's shaft is left out
     deliberately: it is a thin sliver far from anything anyone aims at.
-  - The split is a correctness measure, not tidiness. There used to be one item class switching on
-    whether a pixmap had been handed to it, and **eight** places re-derived the same distinction from
-    the model (`m_artifacts.contains(uid)`). Three of those eight were written wrong and shipped — two
-    persisted a *default* bubble over imported artwork, and Duplicate wrote a blank balloon instead of
-    copying the artwork. None of them is expressible now. Three model-side tests remain and all three
-    are legitimate: choosing which object to build, naming a row before the scene has a layout, and
-    comparing records in `Project::applyOverlays()`.
+  - **The split is a correctness measure, not tidiness.** One item class switching on whether a pixmap
+    had been handed to it forces every caller to re-derive the same distinction from the model
+    (`m_artifacts.contains(uid)`) — and the ones that get it wrong persist a *default* bubble over
+    imported artwork, or make Duplicate write a blank balloon. With two types none of that is
+    expressible. Three model-side asks remain and all three are legitimate: choosing which object to
+    build, naming a row before the scene has a layout, and comparing records in
+    `Project::applyOverlays()`.
 - **Placement is resolution-independent.** Every coordinate and the artwork's width are stored as
   fractions of the render's target width, so re-profiling a chapter moves and resizes every object
   proportionally and nothing has to remember what the numbers used to mean. `Layout::targetWidth()` is
@@ -332,11 +355,11 @@ valid baseline for every grade tried on it. Excluded pages are skipped, matching
 | library record | uid, `assetPath`, `sha256`, `anchorInputUid`, `xFrac`/`yFrac`/`wFrac`, enabled, blend | `Chapter_002.platemaker.json` → `projectItems[].stripOverlays[]` | lib |
 | the asset | resolved artwork **plus** the editor's `pm:` parameters | `D:\Comic\overlays\ovl-<sha16>.svg` | GUI |
 
-There used to be a third — a JSON sidecar holding what a bubble *said*, beside a PNG holding what it
-*looked like*. Storing shapes, fills, strokes and glyphs in a bespoke schema was inventing a worse SVG,
-so the two collapsed into one file: the artwork every renderer can draw, and in a private `pm:` namespace
-every renderer ignores, the parameters the editor re-solves from. Losing those attributes degrades a
-bubble to flat-but-still-rendering art — exactly the property the sidecar existed to provide.
+**Two and not three**, because what a bubble *says* and what it *looks like* belong in one file. Holding
+shapes, fills, strokes and glyphs in a bespoke schema beside a bitmap is inventing a worse SVG; here the
+artwork every renderer can draw carries, in a private `pm:` namespace every renderer ignores, the
+parameters the editor re-solves from. Losing those attributes degrades a bubble to
+flat-but-still-rendering art rather than to nothing.
 
 **Only the GUI ever rasterises; the library draws nothing.** It happens in two places through **one**
 function, `paintArtifact()`:

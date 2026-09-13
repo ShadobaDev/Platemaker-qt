@@ -20,7 +20,11 @@ class QTimer;
 
 namespace StripEdit {
 
+class ShapeEditor;
 class SkinEditor;
+class StyleEditor;
+class TailsEditor;
+class TextEditor;
 
 /**
  * @brief A named look, with nothing said in it: shape, colours, stroke, line style, font.
@@ -80,14 +84,18 @@ public:
     //! ObjectProperties seat — tool defaults have no selection to lose.
     void clearSelection();
 
-    //! Hides the shape group for the Text tool; shows it for the Bubble tool.
+    /**
+     * @brief Hides the shape group for the Text tool; shows it for the Bubble tool.
+     *
+     * **For a panel showing a tool's options, and only that.** A panel showing the selected object must
+     * never be called here: what it shows follows the object, not whichever tool happens to be active.
+     * The decision belongs to the editor, which owns the surfaces — not to this widget, which must not
+     * know which surface it is.
+     */
     void setShapeControlsVisible(bool visible);
 
     //! Puts the caret in the text box — called right after a bubble is placed, so you can just type.
     void focusText();
-
-    //! The shape the next placed bubble should use (the picker's current value).
-    [[nodiscard]] TextArtifact::Shape currentShape() const;
 
     //! A fresh artifact carrying the panel's current styling — what a new placement starts from.
     [[nodiscard]] TextArtifact prototype() const;
@@ -97,10 +105,6 @@ signals:
     void committed(const TextArtifact& a);  //!< Debounced / discrete — persist + undo.
     void fitRequested();                    //!< "Fit to text" — the viewer resizes the selected bubble.
     void deleteRequested();                 //!< Removes the selected artifact.
-
-protected:
-    //! Re-renders the shape tiles when the theme flips — they are drawn in the palette's colours.
-    void changeEvent(QEvent* e) override;
 
 private:
     void onControlChanged();  //!< Any control moved → read into m_artifact, emit changed(), arm the timer.
@@ -117,8 +121,6 @@ private:
     void onExportPack();
     //! True when the current combo entry is one of the artist's own, i.e. deletable.
     [[nodiscard]] bool currentPresetIsCustom() const;
-    void pickColour(QColor& target, QPushButton* swatch);
-    void refreshShapeTiles();   //!< (Re)draws each shape tile's icon from the rasteriser.
 
     const Seat m_seat;
     //! Shown in an ObjectProperties seat while nothing is selected, in place of controls that would
@@ -139,46 +141,29 @@ private:
     QList<BubblePreset> m_presets;      //!< Built-ins first, then the artist's own.
     int             m_builtinCount = 0; //!< How many of m_presets are built in — those cannot be deleted.
 
-    QGroupBox*      m_shapeGroup  = nullptr;
     /**
-     * @brief The shape picker: one checkable tile per shape, laid out like the editor's tool rail.
+     * @brief The two boxes the editors are arranged in.
      *
-     * A grid of previews rather than a drop-down, because a bubble shape is a *look* — a name in a list
-     * makes you open it to find out what it is. Each tile's icon is produced by the same rasteriser that
-     * draws the bubble, so the tile is a true miniature of what placing it gives you.
+     * The Text tool hides the shape box wholesale, which is why every group that only makes sense on a
+     * balloon — its tails, its surface, its line style — lives inside it.
      */
-    QButtonGroup*   m_shapeTiles  = nullptr;
-    QCheckBox*      m_tailCheck   = nullptr;
-    /**
-     * @brief Tail thickness and curve, applied to **every** tail on the artifact.
-     *
-     * Aiming a tail is a drag on the strip; these are the two things a drag cannot express. They are
-     * artifact-wide rather than per-tail because almost every bubble has exactly one, and per-tail
-     * controls would need a "current tail" selection to hang off.
-     * ponytail: artifact-wide. Give Tail its own row in a list if anyone ever wants two tails on one
-     * bubble with different weights.
-     */
-    QSpinBox*       m_tailWidth   = nullptr;
-    QSpinBox*       m_tailBend    = nullptr;
-    QPushButton*    m_addTail     = nullptr;
-    QComboBox*      m_styleCombo  = nullptr;   //!< Clean / Marker / Ink — an SVG filter, or none.
-    QSpinBox*       m_styleAmount = nullptr;   //!< How strongly, as a percentage of the preset.
-    /**
-     * @brief Fill, stroke and stroke width — the first group this panel stopped owning.
-     *
-     * It is bound to the working artifact and written back through its own applyTo(), so this panel
-     * no longer reads or writes those three properties at all. The remaining groups follow the same
-     * way, and when the last one has gone this class goes with it.
-     */
-    SkinEditor*     m_skin        = nullptr;
+    QGroupBox* m_shapeGroup = nullptr;
+    QGroupBox* m_textGroup  = nullptr;
 
-    QGroupBox*      m_textGroup   = nullptr;
-    QPlainTextEdit* m_textEdit    = nullptr;
-    QFontComboBox*  m_fontCombo   = nullptr;
-    QSpinBox*       m_fontSize    = nullptr;
-    QCheckBox*      m_boldCheck   = nullptr;
-    QComboBox*      m_alignCombo  = nullptr;
-    QPushButton*    m_textSwatch  = nullptr;
+    /**
+     * @brief The five groups, each owning its own properties.
+     *
+     * This panel owns **none** of them. It holds the working artifact, hands it to each editor to be
+     * shown, and collects the edits back through their applyTo() — which is all that is left of a class
+     * that used to read and write thirteen properties by hand. When the panel itself is replaced by the
+     * object-state and tool-option surfaces, these five move across unchanged, because none of them
+     * knows which panel it is sitting in.
+     */
+    ShapeEditor* m_shape = nullptr;
+    SkinEditor*  m_skin  = nullptr;
+    StyleEditor* m_style = nullptr;
+    TextEditor*  m_text  = nullptr;
+    TailsEditor* m_tails = nullptr;
 
     QTimer* m_commitTimer = nullptr;
 

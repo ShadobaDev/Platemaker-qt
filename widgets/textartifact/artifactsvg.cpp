@@ -241,10 +241,10 @@ QByteArray artifactToSvg(const TextArtifact& a)
     svg += attr(QStringLiteral("fontSize"), a.fontPixelSize);
     svg += attr(QStringLiteral("bold"), a.bold ? 1 : 0);
     svg += attr(QStringLiteral("align"), a.align);
-    svg += attr(QStringLiteral("fill"), a.fill.name(QColor::HexArgb));
-    svg += attr(QStringLiteral("stroke"), a.stroke.name(QColor::HexArgb));
+    svg += attr(QStringLiteral("fill"), a.skin.fill.name(QColor::HexArgb));
+    svg += attr(QStringLiteral("stroke"), a.skin.stroke.name(QColor::HexArgb));
     svg += attr(QStringLiteral("textColour"), a.textColour.name(QColor::HexArgb));
-    svg += attr(QStringLiteral("strokeWidth"), a.strokeWidth);
+    svg += attr(QStringLiteral("strokeWidth"), a.skin.strokeWidth);
     svg += attr(QStringLiteral("style"), QString::fromLatin1(styleName(a.style)));
     svg += attr(QStringLiteral("styleAmount"), num(a.styleAmount));
     svg += attr(QStringLiteral("styleSeed"), QString::number(a.styleSeed));
@@ -253,14 +253,14 @@ QByteArray artifactToSvg(const TextArtifact& a)
     const QPainterPath silhouette = artifactSilhouette(a);
     if (!silhouette.isEmpty()) {
         svg += QStringLiteral("    <path d=\"%1\" fill-rule=\"%2\" %3")
-                   .arg(pathData(silhouette), fillRule(silhouette), paint("fill", a.fill));
+                   .arg(pathData(silhouette), fillRule(silhouette), paint("fill", a.skin.fill));
         // On the silhouette alone. A displacement filter on the whole group would drag the lettering
         // about with the outline — the balloon is what should look hand-drawn, not the words in it.
         if (a.style != TextArtifact::Style::Clean)
             svg += QStringLiteral(" filter=\"url(#%1)\"").arg(filterId);
-        if (a.strokeWidth > 0)
+        if (a.skin.strokeWidth > 0)
             svg += QStringLiteral(" %1 stroke-width=\"%2\" stroke-linejoin=\"round\"")
-                       .arg(paint("stroke", a.stroke)).arg(a.strokeWidth);
+                       .arg(paint("stroke", a.skin.stroke)).arg(a.skin.strokeWidth);
         svg += QLatin1String("/>\n");
     }
 
@@ -310,7 +310,7 @@ TextArtifact artifactFromSvg(const QByteArray& svg, bool* ok)
         a.fontPixelSize = intOf(at.value(ns, QStringLiteral("fontSize")), a.fontPixelSize);
         a.bold          = intOf(at.value(ns, QStringLiteral("bold")), 0) != 0;
         a.align         = intOf(at.value(ns, QStringLiteral("align")), a.align);
-        a.strokeWidth   = intOf(at.value(ns, QStringLiteral("strokeWidth")), a.strokeWidth);
+        a.skin.strokeWidth = intOf(at.value(ns, QStringLiteral("strokeWidth")), a.skin.strokeWidth);
         a.style         = styleFromName(at.value(ns, QStringLiteral("style")));
         {
             bool        ok  = false;
@@ -326,8 +326,8 @@ TextArtifact artifactFromSvg(const QByteArray& svg, bool* ok)
             const QColor c(at.value(ns, QLatin1String(name)).toString());
             return c.isValid() ? c : fallback;
         };
-        a.fill       = colour("fill",       a.fill);
-        a.stroke     = colour("stroke",     a.stroke);
+        a.skin.fill   = colour("fill",       a.skin.fill);
+        a.skin.stroke = colour("stroke",     a.skin.stroke);
         a.textColour = colour("textColour", a.textColour);
 
         if (ok)

@@ -4,6 +4,14 @@
 
 ### Changed
 
+- **A balloon's properties are being cut into groups, each with one owner.** The first is its
+  **surface** — fill, stroke and stroke width — which now has its own editor and its own struct. It
+  looks the same and behaves the same; what changed is that only one piece of code can write those
+  three properties, which is the class of bug this editor has shipped three times.
+  - **The first automated test in the GUI**, and the reason for the shape above: it applies a group to
+    an artifact and checks that every property outside the group is untouched. GoogleTest, no window
+    required, off by default (`-DPLATEMAKER_GUI_BUILD_TESTS=ON`).
+  - Saved bubbles are unaffected: the file keeps exactly the same keys.
 - **The editor stops asking you to guess what a panel is talking about.** Tool options moved to the
   **bottom-left**, under the tool rail — what the *next* object will be — and the right-hand panel is
   now only ever the **selected object's properties**, going visibly inert when nothing is selected

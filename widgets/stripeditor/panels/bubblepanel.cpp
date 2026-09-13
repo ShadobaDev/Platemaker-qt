@@ -1,4 +1,6 @@
 #include "bubblepanel.h"
+
+#include "properties/skineditor.h"
 #include "artifactpainter.h"
 #include "ui_bubblepanel.h"
 #include "flowlayout.h"
@@ -41,7 +43,6 @@ namespace StripEdit {
 
 namespace {
 constexpr int k_commitDebounceMs = 300; //!< Coalesce typing into one undo step this long after it stops.
-constexpr int k_swatchPx         = 16;  //!< Colour chip drawn on a swatch button.
 //! Shape tile, matching the editor's tool rail so the two grids read as one family.
 constexpr int k_shapeTilePx      = 44;
 constexpr int k_shapeIconW       = 34;
@@ -81,11 +82,11 @@ QPixmap bubbleThumbnail(TextArtifact::Shape shape, const QColor& fill, const QCo
     a.box           = QSize(k_shapeIconW * k_shapeIconScale, k_shapeIconH * k_shapeIconScale);
     // The tile's own stroke, not the artifact's: a preset authored at 5 px on a 280 px balloon would be
     // a hairline here, and the icon is meant to say *which shape and what colours*, not how heavy.
-    a.strokeWidth   = 2 * k_shapeIconScale;
+    a.skin.strokeWidth = 2 * k_shapeIconScale;
     a.text          = QStringLiteral("Aa");
     a.fontPixelSize = a.box.height() / 3;
-    a.fill          = fill;
-    a.stroke        = stroke;
+    a.skin.fill     = fill;
+    a.skin.stroke   = stroke;
     a.textColour    = ink;
     if (shapeSpeaks(shape)) {
         Tail t;
@@ -172,31 +173,31 @@ QList<BubblePreset> builtinPresets()
 
     TextArtifact whisper = dialogue;
     whisper.shape         = TextArtifact::Shape::Ellipse;
-    whisper.strokeWidth   = 3;
-    whisper.stroke        = QColor(90, 90, 90);
+    whisper.skin.strokeWidth = 3;
+    whisper.skin.stroke      = QColor(90, 90, 90);
     whisper.textColour    = QColor(70, 70, 70);
     whisper.fontPixelSize = 26;
     out.append({BubblePanel::tr("Whisper"), whisper});
 
     TextArtifact thought = dialogue;
     thought.shape       = TextArtifact::Shape::Thought;
-    thought.strokeWidth = 4;
+    thought.skin.strokeWidth = 4;
     out.append({BubblePanel::tr("Thought"), thought});
 
     TextArtifact shout = dialogue;
     shout.shape         = TextArtifact::Shape::Shout;
     shout.bold          = true;
     shout.fontPixelSize = 38;
-    shout.strokeWidth   = 7;
+    shout.skin.strokeWidth   = 7;
     shout.style         = TextArtifact::Style::Marker;
     out.append({BubblePanel::tr("Shout"), shout});
 
     TextArtifact caption = dialogue;
     caption.shape       = TextArtifact::Shape::Caption;
-    caption.fill        = QColor(16, 16, 16);
-    caption.textColour  = QColor(245, 245, 245);
-    caption.stroke      = QColor(245, 245, 245);
-    caption.strokeWidth = 2;
+    caption.skin.fill        = QColor(16, 16, 16);
+    caption.textColour       = QColor(245, 245, 245);
+    caption.skin.stroke      = QColor(245, 245, 245);
+    caption.skin.strokeWidth = 2;
     caption.align       = Qt::AlignLeft;
     out.append({BubblePanel::tr("Caption"), caption});
 
@@ -309,12 +310,10 @@ BubblePanel::BubblePanel(Seat seat, QWidget* parent)
     m_addTail->setToolTip(tr("For a sound with more than one source. Drag each handle to aim it."));
     shapeForm->addRow(QString(), m_addTail);
 
-    m_fillSwatch   = new QPushButton(tr("Fill"),   m_shapeGroup);
-    m_strokeSwatch = new QPushButton(tr("Stroke"), m_shapeGroup);
-    auto* colourRow = new QHBoxLayout;
-    colourRow->addWidget(m_fillSwatch);
-    colourRow->addWidget(m_strokeSwatch);
-    shapeForm->addRow(tr("Colours"), colourRow);
+    // The Skin group brings its own controls and owns its own three properties. This panel neither
+    // reads nor writes them any more; it only forwards the two signals every editor here emits.
+    m_skin = new SkinEditor(m_shapeGroup);
+    shapeForm->addRow(m_skin);
 
     m_styleCombo = new QComboBox(m_shapeGroup);
     m_styleCombo->addItem(tr("Clean"),  int(TextArtifact::Style::Clean));
@@ -329,11 +328,6 @@ BubblePanel::BubblePanel(Seat seat, QWidget* parent)
     m_styleAmount->setSuffix(tr(" %"));
     m_styleAmount->setToolTip(tr("How strong the line style is. 100% is the preset's own strength."));
     shapeForm->addRow(tr("Style amount:"), m_styleAmount);
-
-    m_strokeWidth = new QSpinBox(m_shapeGroup);
-    m_strokeWidth->setRange(0, 40);
-    m_strokeWidth->setSuffix(tr(" px"));
-    shapeForm->addRow(tr("Stroke width"), m_strokeWidth);
 
     // --- Text (both tools) ----------------------------------------------------------------------
     m_textGroup = new QGroupBox(tr("Text"), this);
@@ -429,14 +423,20 @@ BubblePanel::BubblePanel(Seat seat, QWidget* parent)
         onControlChanged();
     });
     connect(m_boldCheck,  &QCheckBox::toggled,             this, [this] { onControlChanged(); });
-    connect(m_strokeWidth, &QSpinBox::valueChanged,        this, [this] { onControlChanged(); });
     connect(m_fontSize,    &QSpinBox::valueChanged,        this, [this] { onControlChanged(); });
     connect(m_fontCombo,   &QFontComboBox::currentFontChanged, this, [this] { onControlChanged(); });
     connect(m_textEdit,    &QPlainTextEdit::textChanged,   this, [this] { onControlChanged(); });
 
-    connect(m_fillSwatch,   &QPushButton::clicked, this, [this] { pickColour(m_artifact.fill,       m_fillSwatch); });
-    connect(m_strokeSwatch, &QPushButton::clicked, this, [this] { pickColour(m_artifact.stroke,     m_strokeSwatch); });
     connect(m_textSwatch,   &QPushButton::clicked, this, [this] { pickColour(m_artifact.textColour, m_textSwatch); });
+
+    // A group editor reports continuously and then once, settled; this panel maps that onto the two
+    // signals it already emits. onControlChanged() is what pulls the group's values into the working
+    // artifact, so committed() only has to say "and that one is final".
+    connect(m_skin, &SkinEditor::edited,    this, [this] { onControlChanged(); });
+    connect(m_skin, &SkinEditor::committed, this, [this] {
+        if (m_hasSelection)
+            emit committed(m_artifact);
+    });
 
     // activated(), not currentIndexChanged(): only a human picking an entry applies a preset, so
     // rebuilding the list never restyles anything, and re-picking the current entry re-applies it.
@@ -515,10 +515,8 @@ TextArtifact BubblePanel::prototype() const
     a.fontPixelSize = m_fontSize->value();
     a.bold          = m_boldCheck->isChecked();
     a.align         = m_alignCombo->currentData().toInt();
-    a.fill          = m_artifact.fill;
-    a.stroke        = m_artifact.stroke;
+    m_skin->applyTo(a);
     a.textColour    = m_artifact.textColour;
-    a.strokeWidth   = m_strokeWidth->value();
     a.style         = static_cast<TextArtifact::Style>(m_styleCombo->currentData().toInt());
     a.styleAmount   = m_styleAmount->value() / 100.0;
     // A fresh seed per bubble, so a page of marker balloons does not wear one repeated wobble. Set at
@@ -548,7 +546,7 @@ void BubblePanel::onControlChanged()
     m_artifact.fontPixelSize = m_fontSize->value();
     m_artifact.bold          = m_boldCheck->isChecked();
     m_artifact.align         = m_alignCombo->currentData().toInt();
-    m_artifact.strokeWidth   = m_strokeWidth->value();
+    m_skin->applyTo(m_artifact);
     m_artifact.style         = static_cast<TextArtifact::Style>(m_styleCombo->currentData().toInt());
     m_artifact.styleAmount   = m_styleAmount->value() / 100.0;
     // A bubble authored before styles existed carries seed 0, and so would every other one — style a
@@ -589,7 +587,7 @@ void BubblePanel::syncFromModel()
 {
     m_populating = true;
     {
-        QSignalBlocker b2(m_tailCheck),  b3(m_strokeWidth), b4(m_textEdit);
+        QSignalBlocker b2(m_tailCheck),  b4(m_textEdit);
         QSignalBlocker b9(m_tailWidth),  b10(m_tailBend);
         QSignalBlocker b11(m_styleCombo), b12(m_styleAmount);
         QSignalBlocker b5(m_fontCombo),  b6(m_fontSize),   b7(m_boldCheck),   b8(m_alignCombo);
@@ -606,7 +604,6 @@ void BubblePanel::syncFromModel()
         m_tailWidth->setEnabled(hasTail);
         m_tailBend->setEnabled(hasTail);
         m_addTail->setEnabled(hasTail);
-        m_strokeWidth->setValue(m_artifact.strokeWidth);
         m_styleCombo->setCurrentIndex(m_styleCombo->findData(int(m_artifact.style)));
         m_styleAmount->setValue(qRound(m_artifact.styleAmount * 100.0));
         m_styleAmount->setEnabled(m_artifact.style != TextArtifact::Style::Clean);
@@ -623,9 +620,8 @@ void BubblePanel::syncFromModel()
         if (alignIdx >= 0)
             m_alignCombo->setCurrentIndex(alignIdx);
     }
-    paintSwatch(m_fillSwatch,   m_artifact.fill);
-    paintSwatch(m_strokeSwatch, m_artifact.stroke);
-    paintSwatch(m_textSwatch,   m_artifact.textColour);
+    m_skin->bindOne(m_artifact);
+    paintColourSwatch(m_textSwatch, m_artifact.textColour);
     m_populating = false;
 }
 
@@ -635,7 +631,7 @@ void BubblePanel::pickColour(QColor& target, QPushButton* swatch)
     if (!picked.isValid())
         return;
     target = picked;
-    paintSwatch(swatch, picked);
+    paintColourSwatch(swatch, picked);
     if (!m_hasSelection)
         return;
     emit changed(m_artifact);
@@ -680,8 +676,8 @@ void BubblePanel::refreshPresetCombo(int current)
         const BubblePreset& p = m_presets.at(i);
         // No separator row between built-ins and the artist's own: a separator is an entry, and every
         // index here doubles as an index into m_presets.
-        m_presetCombo->addItem(QIcon(bubbleThumbnail(p.artifact.shape, p.artifact.fill,
-                                                     p.artifact.stroke, p.artifact.textColour)),
+        m_presetCombo->addItem(QIcon(bubbleThumbnail(p.artifact.shape, p.artifact.skin.fill,
+                                                     p.artifact.skin.stroke, p.artifact.textColour)),
                                p.name);
     }
     m_presetCombo->setCurrentIndex(qBound(-1, current, int(m_presets.size()) - 1));
@@ -853,15 +849,6 @@ void BubblePanel::changeEvent(QEvent* e)
     // previous theme's ink (the app follows the Windows light/dark setting).
     if (e->type() == QEvent::PaletteChange)
         refreshShapeTiles();
-}
-
-void BubblePanel::paintSwatch(QPushButton* swatch, const QColor& c)
-{
-    // An icon, not a stylesheet: the button keeps the theme's own look (see the "inherit, don't
-    // hardcode colours" rule) and only carries the chosen colour as a chip.
-    QPixmap pm(k_swatchPx, k_swatchPx);
-    pm.fill(c);
-    swatch->setIcon(QIcon(pm));
 }
 
 }  // namespace StripEdit

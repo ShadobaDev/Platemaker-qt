@@ -50,6 +50,47 @@ struct Tail
     [[nodiscard]] bool operator!=(const Tail& o) const { return !(*this == o); }
 };
 
+struct TextArtifact;
+
+/**
+ * @brief The balloon's own surface: what it is filled with, and the line drawn around it.
+ *
+ * The first **property group** — a named slice of an object's state with exactly one editor
+ * responsible for it. Groups exist so that two editors can never write the same field: an editor
+ * writes through applyTo() and applyTo() assigns one member, so "this editor touched something that
+ * was not its own" stops being expressible rather than being something to remember.
+ *
+ * The text's colour is deliberately **not** here. Editing a balloon's frame does not edit its
+ * lettering, so the colour tool's two swatches are the fill and the stroke, and the text's colour
+ * belongs with the text.
+ *
+ * Persisted as three flat keys, exactly as before — the struct changed, the file format did not.
+ */
+struct SkinProperties
+{
+    QColor fill{255, 255, 255};
+    QColor stroke{20, 20, 20};
+    int    strokeWidth = 5;
+
+    //! Reads this group out of \p a.
+    [[nodiscard]] static SkinProperties from(const TextArtifact& a);
+
+    /**
+     * @brief Writes this group into \p a — **and nothing else**.
+     *
+     * The single write path for everything that edits a balloon's surface. Guarded by
+     * `SkinPropertiesOwnership` in the unit tests, which applies a group to a randomised artifact and
+     * asserts that every property outside it is unchanged.
+     */
+    void applyTo(TextArtifact& a) const;
+
+    [[nodiscard]] bool operator==(const SkinProperties& o) const
+    {
+        return fill == o.fill && stroke == o.stroke && strokeWidth == o.strokeWidth;
+    }
+    [[nodiscard]] bool operator!=(const SkinProperties& o) const { return !(*this == o); }
+};
+
 struct TextArtifact
 {
     /**
@@ -102,10 +143,9 @@ struct TextArtifact
     bool    bold  = false;
     int     align = Qt::AlignHCenter;   //!< Horizontal alignment of the wrapped text.
 
-    QColor fill{255, 255, 255};
-    QColor stroke{20, 20, 20};
+    SkinProperties skin;   //!< Fill, stroke and stroke width — see SkinProperties.
+
     QColor textColour{20, 20, 20};
-    int    strokeWidth = 5;
 
     //! True when a tail should be drawn. A shapeless artifact has nothing to grow a tail from.
     [[nodiscard]] bool hasTail() const { return shape != Shape::None && !tails.isEmpty(); }

@@ -54,8 +54,17 @@ bool TextArtifact::operator==(const TextArtifact& o) const
         && style == o.style && qFuzzyCompare(1.0 + styleAmount, 1.0 + o.styleAmount)
         && styleSeed == o.styleSeed
         && fontFamily == o.fontFamily && fontPixelSize == o.fontPixelSize && bold == o.bold
-        && align == o.align && fill == o.fill && stroke == o.stroke && textColour == o.textColour
-        && strokeWidth == o.strokeWidth;
+        && align == o.align && skin == o.skin && textColour == o.textColour;
+}
+
+SkinProperties SkinProperties::from(const TextArtifact& a)
+{
+    return a.skin;
+}
+
+void SkinProperties::applyTo(TextArtifact& a) const
+{
+    a.skin = *this;
 }
 
 // ---------------------------------------------------------------------------
@@ -123,10 +132,10 @@ QJsonObject artifactToJson(const TextArtifact& a)
         {QStringLiteral("fontSize"),   a.fontPixelSize},
         {QStringLiteral("bold"),       a.bold},
         {QStringLiteral("align"),      a.align},
-        {QStringLiteral("fill"),       a.fill.name(QColor::HexArgb)},
-        {QStringLiteral("stroke"),     a.stroke.name(QColor::HexArgb)},
+        {QStringLiteral("fill"),       a.skin.fill.name(QColor::HexArgb)},
+        {QStringLiteral("stroke"),     a.skin.stroke.name(QColor::HexArgb)},
         {QStringLiteral("textColour"), a.textColour.name(QColor::HexArgb)},
-        {QStringLiteral("strokeWidth"),a.strokeWidth},
+        {QStringLiteral("strokeWidth"),a.skin.strokeWidth},
         {QStringLiteral("style"),      QLatin1String(styleName(a.style))},
         {QStringLiteral("styleAmount"),a.styleAmount},
         {QStringLiteral("styleSeed"),  double(a.styleSeed)},
@@ -149,9 +158,9 @@ TextArtifact artifactFromJson(const QJsonObject& j)
     a.fontPixelSize = j.value(QStringLiteral("fontSize")).toInt(a.fontPixelSize);
     a.bold          = j.value(QStringLiteral("bold")).toBool(a.bold);
     a.align         = j.value(QStringLiteral("align")).toInt(a.align);
-    a.strokeWidth   = j.value(QStringLiteral("strokeWidth")).toInt(a.strokeWidth);
-    a.fill          = colourFromJson(j, "fill",       a.fill);
-    a.stroke        = colourFromJson(j, "stroke",     a.stroke);
+    a.skin.strokeWidth = j.value(QStringLiteral("strokeWidth")).toInt(a.skin.strokeWidth);
+    a.skin.fill     = colourFromJson(j, "fill",       a.skin.fill);
+    a.skin.stroke   = colourFromJson(j, "stroke",     a.skin.stroke);
     a.textColour    = colourFromJson(j, "textColour", a.textColour);
     a.style         = styleFromName(j.value(QStringLiteral("style")).toString());
     a.styleAmount   = j.value(QStringLiteral("styleAmount")).toDouble(a.styleAmount);

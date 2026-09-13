@@ -59,7 +59,7 @@ constexpr qreal k_scrollBow     = 0.06;
  */
 QRectF balloonRect(const TextArtifact& a)
 {
-    const qreal  sw = a.strokeWidth / 2.0;
+    const qreal  sw = a.skin.strokeWidth / 2.0;
     QRectF body(0, 0, a.box.width(), a.box.height());
     body.adjust(sw, sw, -sw, -sw);
     return body.normalized();
@@ -252,7 +252,7 @@ QRectF textSafeArea(const TextArtifact& a, const QRectF& body)
     if (a.shape == TextArtifact::Shape::None)
         return QRectF(0, 0, a.box.width(), a.box.height());
 
-    const qreal pad = a.strokeWidth + 8.0;
+    const qreal pad = a.skin.strokeWidth + 8.0;
     QRectF      usable;
 
     switch (a.shape) {
@@ -412,7 +412,7 @@ QRectF artifactBoundsOf(const TextArtifact& a, const QPainterPath& silhouette, c
 
     // The stroke straddles the path, so half of it lies outside; one more pixel keeps antialiasing off
     // the edge of the buffer.
-    const qreal pad = a.strokeWidth / 2.0 + 1.0 + artifactStyleMargin(a);
+    const qreal pad = a.skin.strokeWidth / 2.0 + 1.0 + artifactStyleMargin(a);
     r = r.adjusted(-pad, -pad, pad, pad);
 
     // Whole pixels, so the rasterised buffer and the SVG viewBox describe the same rectangle rather
@@ -490,9 +490,9 @@ void paintArtifactPaths(QPainter& painter, const TextArtifact& a,
     painter.setRenderHint(QPainter::Antialiasing, true);
 
     if (!silhouette.isEmpty()) {
-        painter.fillPath(silhouette, a.fill);
-        if (a.strokeWidth > 0) {
-            QPen pen(a.stroke, a.strokeWidth);
+        painter.fillPath(silhouette, a.skin.fill);
+        if (a.skin.strokeWidth > 0) {
+            QPen pen(a.skin.stroke, a.skin.strokeWidth);
             pen.setJoinStyle(Qt::RoundJoin);
             painter.strokePath(silhouette, pen);
         }

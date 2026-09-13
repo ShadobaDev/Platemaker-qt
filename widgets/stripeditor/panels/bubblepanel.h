@@ -20,6 +20,8 @@ class QTimer;
 
 namespace StripEdit {
 
+class SkinEditor;
+
 /**
  * @brief A named look, with nothing said in it: shape, colours, stroke, line style, font.
  *
@@ -116,7 +118,6 @@ private:
     //! True when the current combo entry is one of the artist's own, i.e. deletable.
     [[nodiscard]] bool currentPresetIsCustom() const;
     void pickColour(QColor& target, QPushButton* swatch);
-    void paintSwatch(QPushButton* swatch, const QColor& c);
     void refreshShapeTiles();   //!< (Re)draws each shape tile's icon from the rasteriser.
 
     const Seat m_seat;
@@ -162,9 +163,14 @@ private:
     QPushButton*    m_addTail     = nullptr;
     QComboBox*      m_styleCombo  = nullptr;   //!< Clean / Marker / Ink — an SVG filter, or none.
     QSpinBox*       m_styleAmount = nullptr;   //!< How strongly, as a percentage of the preset.
-    QPushButton*    m_fillSwatch  = nullptr;
-    QPushButton*    m_strokeSwatch= nullptr;
-    QSpinBox*       m_strokeWidth = nullptr;
+    /**
+     * @brief Fill, stroke and stroke width — the first group this panel stopped owning.
+     *
+     * It is bound to the working artifact and written back through its own applyTo(), so this panel
+     * no longer reads or writes those three properties at all. The remaining groups follow the same
+     * way, and when the last one has gone this class goes with it.
+     */
+    SkinEditor*     m_skin        = nullptr;
 
     QGroupBox*      m_textGroup   = nullptr;
     QPlainTextEdit* m_textEdit    = nullptr;

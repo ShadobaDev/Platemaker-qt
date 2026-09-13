@@ -256,6 +256,19 @@ valid baseline for every grade tried on it. Excluded pages are skipped, matching
   for where it crosses the silhouette with `QPainterPath::contains()` — shape-agnostic, so every shape
   grew a working tail for free and a tail may leave any edge. `artifactBounds()` therefore computes what
   the artifact actually covers; `box` is the balloon alone.
+- **A balloon's editable state is being cut into property groups.** A group is a named struct with
+  exactly one editor responsible for it; the editor reads through `bind()` and writes through
+  `applyTo()`, which touches only that group. The panel it is being carved out of does the opposite —
+  it keeps a whole copy of the selected artifact and writes the whole copy back on every control
+  change, which is why a canvas resize has to be pushed back into it by hand to stop the stale copy
+  restoring the old box. **`SkinProperties`** (fill, stroke, stroke width) is the first, with
+  `StripEdit::SkinEditor` as its editor and `PropertyGroupEditor` as the contract. The text's colour is
+  deliberately not in it: editing a balloon's frame does not edit its lettering. Persistence is
+  unchanged — the struct is new, the three JSON/SVG keys are where they were.
+  - The rule that makes it work: **an editor never knows which surface it is in.** A widget carrying an
+    enum naming its own panel is what produced two identical-looking panels.
+  - `tests/gui-unit-tests/` is the first test target in this repository. It links `Qt6::Gui` and
+    nothing else, so anything it can reach is free of `QWidget` by construction.
 - **Every placed thing is a `StripEdit::Object`.** One `QGraphicsObject` per overlay, and everything an
   author does to one is the same whatever kind it is: select, move, drag a corner, mute, delete,
   reorder. That all lives on the base class, once — including the grips, the drag state machine and the

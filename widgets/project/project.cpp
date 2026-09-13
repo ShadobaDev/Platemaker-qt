@@ -4,6 +4,7 @@
 #include "ui_project.h"
 #include "imagetile.h"
 #include "projectsnapshotcommand.h"
+#include "overlaysnapshotcommand.h"
 #include "canvasprofiledialog.h"
 #include "outputformatoptionswidget.h"
 #include "stagecard.h"
@@ -102,12 +103,14 @@ bool isInternalReorder(const QMimeData* mime)
 Project::Project(int projectIndex,
                  Workspace& workspace,
                  const QString& cacheDir,
+                 QUndoStack* history,
                  QWidget* parent)
     : QWidget(parent)
     , ui(new Ui::Project)
     , m_projectIndex(projectIndex)
     , m_workspace(workspace)
     , m_cacheDir(cacheDir)
+    , m_undoStack(history)
 {
     ui->setupUi(this);
 
@@ -253,11 +256,6 @@ Project::~Project()
 
 void Project::setupUndo()
 {
-    // Each project owns its stack (depth 10, per the design). MainWindow adds it to a QUndoGroup and
-    // makes it active while this dock is visible; the Ctrl+Z / Ctrl+Y actions live on the group, so
-    // the shortcut always targets whichever project (or the workspace) is in front.
-    m_undoStack = new QUndoStack(this);
-    m_undoStack->setUndoLimit(10);
 }
 
 QString Project::fullSnapshot()
@@ -271,30 +269,63 @@ QString Project::fullSnapshot()
     const QJsonObject j{
         {QStringLiteral("project"),
          QString::fromStdString(Platemaker::Infrastructure::ProjectEditor(item).snapshot())},
-        {QStringLiteral("artifacts"), artifactsToJsonObject(m_artifacts)},
     };
     return QString::fromUtf8(QJsonDocument(j).toJson(QJsonDocument::Compact));
 }
 
 void Project::applyProjectSnapshot(const QString& snapshot)
 {
-    // Restore the whole project (inputs, links, output-profile selection, output dir) from a
-    // ProjectEditor snapshot. The project's name is workspace-owned and deliberately preserved by
+    // Restore the project (inputs, links, output-profile selection, output dir) from a ProjectEditor
+    // snapshot. The project's name is workspace-owned and deliberately preserved by
     // ProjectEditor::restore. Outputs are left as they are — their staleness is recomputed by
     // sanitize() at the next Refresh/render, exactly as for a live reorder.
     auto& item = m_workspace.projectItems[m_projectIndex];
+
+    // **The overlays are not this step's to move.** The library's snapshot carries them because they are
+    // part of the project, so they are lifted out and put back around the restore — otherwise undoing a
+    // page reorder would silently rewind every bubble to where it stood at the time of the reorder,
+    // throwing away the lettering done since.
+    auto overlays = item.getStripOverlays();
 
     const QJsonObject j = QJsonDocument::fromJson(snapshot.toUtf8()).object();
     Platemaker::Infrastructure::ProjectEditor(item).restore(
         j.value(QStringLiteral("project")).toString().toStdString());
 
-    m_artifacts = artifactsFromJsonObject(j.value(QStringLiteral("artifacts")).toObject());
+    item.getStripOverlays() = std::move(overlays);
+
+    populate();
+    emit projectModified();
+    emit historyStepApplied(EditScope::ProjectDock);
+}
+
+OverlayState Project::overlayState() const
+{
+    return {m_workspace.projectItems[m_projectIndex].getStripOverlays(), m_artifacts};
+}
+
+void Project::restoreOverlayState(const OverlayState& state)
+{
+    m_workspace.projectItems[m_projectIndex].getStripOverlays() = state.overlays;
+    m_artifacts = state.artifacts;
     // The records are back; the files on disk still hold what the step being undone wrote.
     rewriteOverlayAssets();
     emit artifactsChanged(m_artifacts);
 
     populate();
     emit projectModified();
+    emit historyStepApplied(EditScope::StripEditor);
+}
+
+void Project::commitOverlayEdit(const QString& text, const std::function<void()>& mutate)
+{
+    const OverlayState before = overlayState();
+    mutate();
+    OverlayState after = overlayState();
+
+    if (after == before)
+        return;   // no effective change — don't pollute the history
+
+    m_undoStack->push(new OverlaySnapshotCommand(this, before, std::move(after), text));
 }
 
 void Project::commitEdit(const QString& text, const std::function<void()>& mutate)
@@ -399,7 +430,7 @@ void Project::refreshWorkflowMap()
     const auto clearOverlays = [this] {
         auto& item = m_workspace.projectItems[m_projectIndex];
         if (item.getStripOverlays().empty()) return;
-        commitEdit(tr("Clear text & bubbles"), [this, &item]{
+        commitOverlayEdit(tr("Clear text & bubbles"), [this, &item]{
             while (!item.getStripOverlays().empty()) {
                 const std::string uid = item.getStripOverlays().front().uid; // copy: removeOverlay erases it
                 item.removeOverlay(uid);
@@ -734,7 +765,7 @@ void Project::createOverlay(const TextArtifact& artifact, double xFrac, double y
         return;
     }
 
-    commitEdit(tr("Add bubble"), [&] {
+    commitOverlayEdit(tr("Add bubble"), [&] {
         auto& item = m_workspace.projectItems[m_projectIndex];
         // The library mints the uid, hashes the file and reuses an existing path for identical content.
         const std::string uid =
@@ -809,7 +840,7 @@ void Project::importOverlayArtwork(const QString& sourceFile, double xFrac, doub
         }
     }
 
-    commitEdit(tr("Import artwork"), [&] {
+    commitOverlayEdit(tr("Import artwork"), [&] {
         auto& item = m_workspace.projectItems[m_projectIndex];
         item.addOverlay(dest.toStdString(), xFrac, yFrac, wFrac,
                         Platemaker::Models::BlendMode::Over, anchorInputUid.toStdString());
@@ -858,7 +889,7 @@ void Project::applyOverlays(std::vector<Platemaker::Models::StripOverlay> overla
         }
     }
 
-    commitEdit(undoText, [&] {
+    commitOverlayEdit(undoText, [&] {
         auto& item = m_workspace.projectItems[m_projectIndex];
         item.getStripOverlays() = std::move(overlays);
         m_artifacts             = std::move(artifacts);

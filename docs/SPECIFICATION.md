@@ -275,6 +275,31 @@ valid baseline for every grade tried on it. Excluded pages are skipped, matching
   for where it crosses the silhouette with `QPainterPath::contains()` — shape-agnostic, so every shape
   grew a working tail for free and a tail may leave any edge. `artifactBounds()` therefore computes what
   the artifact actually covers; `box` is the balloon alone.
+- **A project has one history, and it belongs to no window.** `MainWindow` owns it, keyed by
+  `ProjectItem::uid` and alive for the session; the `QUndoGroup` makes it the active stack while either
+  of that project's docks — the project dock or its strip editor — is in front. One rather than one per
+  window because both edit the same document in the same train of thought: with a history per window,
+  Ctrl+Z reaches past the last thing done to undo the one before it, which is a stranger thing to
+  explain than an undo whose effect is elsewhere.
+  - **The answer to "undo did something I cannot see" is to show it, not to split the history.**
+    `Project::historyStepApplied(EditScope)` is emitted by the restores only — an edit is already on
+    screen where it was made — and `showDockAttention()` raises and focuses the dock it names, outlining
+    it for about a second and a half **only when it was not already the focused dock**. A flash on the
+    window being looked at teaches nothing and would cost the effect its meaning.
+  - **A step still reaches only into its own half of the document**, which is what keeps restores cheap
+    and stops two steps treading on each other. `fullSnapshot()` carries the library's project snapshot
+    and no authoring records; `applyProjectSnapshot()` lifts the overlays out and puts them back around
+    the restore, because the library's snapshot carries them as part of the project. `OverlayState` —
+    `stripOverlays` plus the authoring records — is the other half, typed rather than serialised, and
+    the two halves of *it* are never split from each other: an overlay's record says which file renders,
+    its artifact says what that file contains.
+  - **Which half a step covers is decided by what the operation changes**, not by which window triggered
+    it: *Clear text & bubbles* is a button on the project dock and records an overlay step.
+  - **Closing a dock keeps everything.** A project dock hides rather than being destroyed, because an
+    open strip editor goes on sending it edits that need its artifacts, its overlay directory and its
+    history. Removing the project drops its history, and so does closing the workspace; both snapshot
+    commands hold a `QPointer` so one that outlives its project does nothing rather than reaching into
+    freed memory.
 - **Selection is the canvas's, not a tool's.** Every object is selectable, movable and resizable under
   every tool; an unanchored one is the only exception, because it is not on the strip. A tool decides
   what a *placement* creates — armed in `Editor::eventFilter()` — so `ObjectController` knows exactly one

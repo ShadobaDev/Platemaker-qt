@@ -10,6 +10,7 @@
 #include "renderworker.h"
 #include "editor.h"
 #include "docktitlebar.h"
+#include "dockattention.h"
 
 #include <platemaker/infrastructure/workspace_editor/workspace_editor.hpp>
 
@@ -181,7 +182,13 @@ void MainWindow::removeProject(int modelIndex)
         != QMessageBox::Yes)
         return;
 
-    // Close this project's dock if it is open.
+    // The project is going, so its history has nothing left to restore. It is dropped here rather than
+    // left in the group, where its entries would keep Undo enabled for a project that no longer exists.
+    dropHistoryFor(QString::fromStdString(
+        m_workspace.projectItems[static_cast<std::size_t>(modelIndex)].uid));
+
+    // Close this project's dock if it is open. Destroyed rather than hidden, unlike closeDock(): there
+    // is no project left for it to show.
     if (QDockWidget *dock = dockForProject(modelIndex)) {
         m_openProjectDocks.removeOne(dock);
         dock->deleteLater();
@@ -229,6 +236,35 @@ QDockWidget *MainWindow::dockForProject(int modelIndex) const
 // Project dock management
 // ---------------------------------------------------------------------------
 
+QUndoStack* MainWindow::historyFor(int projectIndex)
+{
+    const QString uid = QString::fromStdString(
+        m_workspace.projectItems[static_cast<std::size_t>(projectIndex)].uid);
+
+    auto it = m_projectHistories.constFind(uid);
+    if (it != m_projectHistories.constEnd())
+        return it.value();
+
+    // Depth 10, as the project history has always had: deep enough to undo a train of thought, shallow
+    // enough that a chapter's worth of snapshots never accumulates.
+    auto* stack = new QUndoStack(this);
+    stack->setUndoLimit(10);
+    m_undoGroup->addStack(stack);
+    m_projectHistories.insert(uid, stack);
+    return stack;
+}
+
+void MainWindow::dropHistoryFor(const QString& projectUid)
+{
+    const auto it = m_projectHistories.constFind(projectUid);
+    if (it == m_projectHistories.constEnd())
+        return;
+    // removeStack() reparents to the stack itself, so it has to be deleted deliberately.
+    m_undoGroup->removeStack(it.value());
+    delete it.value();
+    m_projectHistories.erase(it);
+}
+
 void MainWindow::openProjectDock(int projectIndex)
 {
     // Bring existing dock to front if already open
@@ -254,7 +290,8 @@ void MainWindow::openProjectDock(int projectIndex)
     // can never be tab-combined with Action but can split/tab with Workspace and other projects.
     newDock->setAllowedAreas(Qt::LeftDockWidgetArea | Qt::TopDockWidgetArea | Qt::BottomDockWidgetArea);
     const QString cacheDir = workspaceCacheDir();
-    auto* projectWidget = new Project(projectIndex, m_workspace, cacheDir, newDock);
+    auto* projectWidget = new Project(projectIndex, m_workspace, cacheDir,
+                                      historyFor(projectIndex), newDock);
 
     // Text & bubbles: the project needs to know where the workspace file lives (its `overlays/` folder
     // is written beside it) and which authoring records are its own. The records travel back here on
@@ -281,6 +318,13 @@ void MainWindow::openProjectDock(int projectIndex)
         if (QDockWidget *strip = dockForStripEditor(newDock->property("projectIndex").toInt()))
             refreshStripEditor(strip);
     });
+    // An undone or redone step can land in the window the artist is not looking at — one history
+    // covers both docks. Take them to it, so Ctrl+Z is never mistaken for having done nothing. The
+    // strip editor may simply not be open, and then there is nowhere to go.
+    connect(projectWidget, &Project::historyStepApplied, this, [this, newDock](EditScope scope) {
+        const int idx = newDock->property("projectIndex").toInt();
+        showDockAttention(scope == EditScope::StripEditor ? dockForStripEditor(idx) : newDock);
+    });
     connect(projectWidget, &Project::renderToggleRequested,
             this, &MainWindow::onRenderToggle);
     connect(projectWidget, &Project::viewStripRequested,
@@ -300,9 +344,10 @@ void MainWindow::openProjectDock(int projectIndex)
     // Same custom title bar as the workspace/strip/action docks (min = dock ⇄ detach, max, close).
     installDockTitleBar(newDock);
 
-    // Register this project's undo stack with the group (its destructor auto-removes it when the dock
-    // closes). Ctrl+Z / Ctrl+Y target it while this dock's tab is in front (visibilityChanged below).
-    m_undoGroup->addStack(projectWidget->undoStack());
+    // The stack is already in the group — historyFor() put it there, and it stays for the session
+    // whether or not this dock exists. Ctrl+Z / Ctrl+Y target whichever project's stack is active, and
+    // the dock in front decides which that is (visibilityChanged below, and in the strip dock).
+
 
     // Track which project is "current" for F5 / Process menu (the raised dock), and make this
     // project's undo stack active while its tab is visible.
@@ -408,8 +453,11 @@ void MainWindow::closeDock(QDockWidget *dock)
         dock->close();
         return;
     }
-    m_openProjectDocks.removeOne(dock);
-    dock->deleteLater();
+    // Hidden, not destroyed. The dock is the way in, not the thing itself: an open strip editor keeps
+    // sending edits to this widget, and those edits need its artifacts, its overlay directory and its
+    // history. Destroying it dropped all three silently — the editor went on showing changes nobody
+    // had recorded. Reopening from the project list finds this dock and raises it.
+    dock->hide();
 }
 
 // ---------------------------------------------------------------------------
@@ -503,8 +551,9 @@ void MainWindow::openStripEditorDock(int projectIndex)
 
     // Text & bubbles. Creation goes through the project because the *library* mints the overlay's uid
     // and hashes its bitmap; every other edit arrives as the complete new state and is stored as one
-    // undo step. Both are guarded the same way the grade is: with the project dock closed there is no
-    // undo stack to push onto, so the edit is declined rather than applied untracked.
+    // undo step. Both are guarded the same way the grade is: a project that has been removed has no
+    // widget and no history, and the edit is dropped rather than applied untracked. Merely *closing*
+    // the dock does not reach here — it hides, and the widget goes on recording.
     connect(viewer, &StripEdit::Editor::artifactCreated, this,
             [this, projectIndex](const TextArtifact &artifact, double xFrac, double yFrac,
                                  double wFrac, const QString &anchorUid) {
@@ -527,6 +576,17 @@ void MainWindow::openStripEditorDock(int projectIndex)
 
     // Shared custom title bar (minimise = dock ⇄ detach, maximise = fill screen, close = hide).
     installDockTitleBar(dock);
+
+    // Looking at the strip editor makes this project's history the one Ctrl+Z targets — the same stack
+    // its project dock uses, since it is the same document and the same train of thought. What the
+    // window decides is the *project*, not which half of the work is undoable.
+    connect(dock, &QDockWidget::visibilityChanged, this, [this, dock](bool visible) {
+        if (!visible)
+            return;
+        const int idx = dock->property("projectIndex").toInt();
+        if (idx >= 0 && idx < int(m_workspace.projectItems.size()))
+            m_undoGroup->setActiveStack(historyFor(idx));
+    });
 
     // Register it in a dock area first (its home when docked), then float it.
     addDockWidget(Qt::LeftDockWidgetArea, dock);

@@ -65,8 +65,16 @@
     twenty years. Text is written as **glyph outlines**, so a chapter renders correctly on a machine that
     does not have the font: the font is needed to *change* text, never to draw it. One file per bubble,
     overwritten in place.
-  - **Every edit is one undo step**, captured in the project's history alongside the library's own state,
-    so undo restores what a bubble said and not only where it sat.
+  - **Every edit is one undo step, on the project's own history** — the same one the project panel
+    uses, so Ctrl+Z always undoes the last thing you did, whichever of the two windows you did it in.
+    Undo restores what a bubble said and not only where it sat.
+  - **Undo takes you to what it changed.** The window showing the step comes to the front, and is
+    outlined for a moment when it is not the one you were already looking at — so an undo whose effect
+    is in the other window can no longer pass for an undo that did nothing.
+  - **Closing a window no longer throws away what you did in it.** A project's history lives as long as
+    the application does, so closing a project or its strip editor and opening it again finds the
+    history where you left it. Editing bubbles with the project panel closed used to be accepted on
+    screen and silently dropped; it is recorded now.
 - **Import / export input and output profiles.** Canvas and output profiles can now be carried between
   workspaces. Under *Canvas Profiles* and *Output*, new **Import** and **Export** submenus pull profiles
   from another `.platemaker.json` workspace, a `.platemaker.profiles.json` bundle, your personal **profile

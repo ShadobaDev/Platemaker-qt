@@ -1,6 +1,7 @@
 #ifndef PROJECTSNAPSHOTCOMMAND_H
 #define PROJECTSNAPSHOTCOMMAND_H
 
+#include <QPointer>
 #include <QString>
 #include <QUndoCommand>
 
@@ -17,6 +18,10 @@ class Project;
  *
  * The snapshots are compact JSON of one project (~tens of KB), not the whole workspace, so the undo
  * history stays light even with many projects open. Not a QObject (QUndoCommand isn't one).
+ *
+ * The target is a `QPointer`, like its overlay-scope sibling: a history lives for the session and a dock
+ * does not, so a project that has actually gone leaves commands with nothing to restore. They do nothing
+ * rather than reaching into freed memory.
  */
 class ProjectSnapshotCommand : public QUndoCommand
 {
@@ -36,7 +41,7 @@ public:
     void redo() override;   //!< No-op on the first call (push); restore the "after" snapshot thereafter.
 
 private:
-    Project* m_project;          //!< Target project (outlives this command — its stack dies with it).
+    QPointer<Project> m_project; //!< Target project; null once it has been removed.
     QString  m_before;           //!< Serialized project state before the edit.
     QString  m_after;            //!< Serialized project state after the edit.
     bool     m_firstRedo = true; //!< Swallows the redo QUndoStack::push() fires.

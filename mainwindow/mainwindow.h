@@ -3,6 +3,7 @@
 
 #include <QMainWindow>
 #include <QElapsedTimer>
+#include <QHash>
 #include <QList>
 #include <QStringList>
 
@@ -479,6 +480,29 @@ private:
     // Undo/redo: a QUndoGroup holds one stack per open project plus the workspace stack; the active
     // stack follows the visible tab in the workspace dock area (Ctrl+Z/Ctrl+Y route to it). Depth 10.
     QUndoGroup* m_undoGroup         = nullptr;  //!< Owns the per-context stacks; provides the Undo/Redo actions.
+
+    /**
+     * @brief Every project's history, for the life of the session, keyed by `ProjectItem::uid`.
+     *
+     * **One stack per project**, covering both the project dock and its strip editor, because both edit
+     * one document and the artist edits it in one train of thought. A history per window would make
+     * Ctrl+Z reach past the last thing done to undo the one before it, which is a stranger thing to
+     * explain than a Ctrl+Z whose effect is in the other window — and that one is answered instead by
+     * taking the artist there (see `showDockAttention`). What a step covers is still decided per step:
+     * `ProjectSnapshotCommand` and `OverlaySnapshotCommand` each restore one half of the document and
+     * leave the other alone.
+     *
+     * Owned here and never by a dock. Closing a project or its strip editor and opening it again finds
+     * the history where it was left: a history that dies with a window is a history the artist loses by
+     * tidying up. Keyed by uid rather than by index because removing a project shifts every index after
+     * it, and a key that moves is not a key.
+     */
+    QHash<QString, QUndoStack*> m_projectHistories;
+
+    //! This project's history, created on first use.
+    [[nodiscard]] QUndoStack* historyFor(int projectIndex);
+    //! Forgets a removed project's history — there is nothing left for it to restore.
+    void dropHistoryFor(const QString& projectUid);
     QUndoStack* m_workspaceUndoStack = nullptr; //!< Workspace-scope history (profiles, project rename, templates).
     QString m_workspacePath;                    //!< Path of the currently loaded workspace file (empty if none).
     bool    m_dirty = false;                    //!< Eager flag driving the title-bar asterisk (*)

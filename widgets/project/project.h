@@ -4,6 +4,7 @@
 #include <QWidget>
 
 #include "textartifact.h"
+#include "overlaystate.h"
 #include <QList>
 
 #include <functional>
@@ -25,6 +26,18 @@ class QMimeData;
 class QUrl;
 
 /**
+ * @brief Where an undone or redone step is visible — the two windows one project is edited from.
+ *
+ * A project has **one** history covering both, so a step can land in a window the user is not looking
+ * at. This is what lets undo take them there. It is not a second history and it is not a filter: every
+ * step goes on the one stack in the order it was made, and this only answers "where do I look".
+ */
+enum class EditScope {
+    ProjectDock,   //!< Inputs, links, profiles, the output directory.
+    StripEditor,   //!< Text & bubbles.
+};
+
+/**
  * @brief The Project class represents a single project within the Platemaker application.
  * It provides a user interface for managing input files, canvas profiles, output profiles,
  * and rendering settings. The class allows users to add, remove, and reorder input files,
@@ -42,9 +55,22 @@ public:
      * @param cacheDir The directory where cached thumbnails and other temporary files are stored.
      * @param parent The parent widget, if any.
      */
+    /**
+     * @brief Builds the dock's contents for one project.
+     *
+     * @param history  Everything this project records: inputs, links, profiles, the output directory,
+     *                 and text & bubbles. One history, because one document is being edited — an edit
+     *                 made in the strip editor and an edit made here are steps in the same session of
+     *                 work, and a Ctrl+Z that skips over the last one to undo the one before it is a
+     *                 worse surprise than a Ctrl+Z whose effect is in the other window.
+     *
+     * The stack is **owned by MainWindow and lives for the session**. This widget uses it; it does not
+     * own it, because a history that dies with a dock is a history the artist loses by tidying up.
+     */
     explicit Project(int projectIndex,
                      Platemaker::Models::Workspace& workspace,
                      const QString& cacheDir,
+                     QUndoStack* history,
                      QWidget *parent = nullptr);
     ~Project();         //!< Destroys the Project widget and cleans up resources.
 
@@ -130,13 +156,18 @@ public:
     void refreshProfileViews();                     //!< rebuilds the palette-derived views (canvas list, output combo, format controls) after a workspace-level profile edit — see MainWindow::workspaceProfilesChanged
 
     // --- Undo / redo ---
-    // Project-scope edits (inputs, canvas links, output-profile selection, output dir) go on this
-    // project's own QUndoStack; MainWindow adds it to a QUndoGroup and makes it active when this
-    // dock is visible. Workspace-scope edits triggered from here (canvas-profile *content* edit,
-    // output-format edit) are bracketed with WorkspaceEditor::snapshotMeta and forwarded to MainWindow
-    // via workspaceEditCommitted so they land on the workspace timeline instead.
-    [[nodiscard]] QUndoStack* undoStack() const { return m_undoStack; } //!< This project's undo stack (owned here; added to MainWindow's group).
-    void applyProjectSnapshot(const QString& snapshot);  //!< Restore the project from a ProjectEditor::snapshot string, repopulate, mark modified. Called by ProjectSnapshotCommand.
+    // Everything this project records goes on one QUndoStack; MainWindow owns it, adds it to a
+    // QUndoGroup and makes it active while either of this project's docks is in front. Workspace-scope
+    // edits triggered from here (canvas-profile *content* edit, output-format edit) are bracketed with
+    // WorkspaceEditor::snapshotMeta and forwarded to MainWindow via workspaceEditCommitted so they land
+    // on the workspace timeline instead.
+    [[nodiscard]] QUndoStack* undoStack() const { return m_undoStack; }        //!< This project's history.
+    void applyProjectSnapshot(const QString& snapshot);  //!< Restore everything **except** the overlays. Called by ProjectSnapshotCommand.
+
+    //! This project's `stripOverlays` + authoring records — the strip editor's half of the document.
+    [[nodiscard]] OverlayState overlayState() const;
+    //! Restore that half and nothing else. Called by OverlaySnapshotCommand.
+    void restoreOverlayState(const OverlayState& state);
 
 protected:
     /**
@@ -170,6 +201,15 @@ signals:
 
     //! This project's authoring records changed — MainWindow folds them back into its per-project cache.
     void artifactsChanged(const ArtifactMap& artifacts);
+
+    /**
+     * @brief A step was undone or redone, and @p scope says which dock shows the difference.
+     *
+     * Emitted only by the restores, never by the edit that created the step: an edit is already on
+     * screen where it was made. MainWindow uses it to raise that dock, so a step taken in the window
+     * the user is not looking at cannot pass as "Ctrl+Z did nothing".
+     */
+    void historyStepApplied(EditScope scope);
 
 private slots:
     void onAddFromDirectory();                      //!< Slot for when the "Add Inputs from Directory" button is clicked. Opens a QFileDialog to select a directory and adds all image files from that directory to the input list.
@@ -234,6 +274,17 @@ private:
     void commitEdit(const QString& text, const std::function<void()>& mutate);
 
     /**
+     * @brief Records one undoable **text & bubbles** edit — same history, other half of the document.
+     *
+     * The same bracket as commitEdit() over a much smaller snapshot, which is the reason the two are
+     * separate methods: restoring the lettering does not have to reload the project, and neither can
+     * tread on the other's half. Which half an operation belongs to is decided by what it changes, not
+     * by which window it was triggered from: clearing every bubble is a project-dock button and still
+     * belongs here.
+     */
+    void commitOverlayEdit(const QString& text, const std::function<void()>& mutate);
+
+    /**
      * @brief Records one undoable **workspace-scope** edit triggered from this dock onto the workspace
      *        timeline (canvas-profile content edit, output-format edit).
      *
@@ -250,7 +301,8 @@ private:
     QString m_cacheDir;                                     //!< Directory where cached thumbnails and other temporary files are stored.
     OutputFormatOptionsWidget* m_formatOptions = nullptr;   //!< Shared widget for editing the selected output profile's format/options.
     QVBoxLayout* m_workflowStack = nullptr;                  //!< Vertical stack of the Workflow tab's StageCards (built in the ctor, rebuilt by refreshWorkflowMap()).
-    QUndoStack* m_undoStack = nullptr;                      //!< Per-project undo history for input-list edits (owned via QObject parent).
+    //! Owned by MainWindow and alive for the session — see the constructor.
+    QUndoStack* m_undoStack = nullptr;      //!< This project's whole history.
 };
 
 #endif // PROJECT_H

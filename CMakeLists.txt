@@ -39,6 +39,8 @@ qt_add_executable(Platemaker
     widgets/project/project.cpp widgets/project/project.h
     widgets/project/input.cpp widgets/project/output.cpp
     widgets/project/projectsnapshotcommand.cpp widgets/project/projectsnapshotcommand.h
+    widgets/project/overlaysnapshotcommand.cpp widgets/project/overlaysnapshotcommand.h
+    widgets/project/overlaystate.h
     widgets/project/workspacesnapshotcommand.cpp widgets/project/workspacesnapshotcommand.h
     widgets/project/project.ui
 
@@ -92,6 +94,10 @@ qt_add_executable(Platemaker
 
     # Custom dock title bar (min = dock⇄detach, max = fill screen, close) shared by all docks.
     widgets/docktitlebar/docktitlebar.cpp widgets/docktitlebar/docktitlebar.h
+
+    # Dock attention: undo/redo raises the dock that shows the step, and flashes it when it was
+    # somewhere other than where the user was looking.
+    widgets/docktitlebar/dockattention.cpp widgets/docktitlebar/dockattention.h
 )
 
 # Every class/header lives in its own folder; add each to the include path so

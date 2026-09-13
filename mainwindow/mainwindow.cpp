@@ -399,8 +399,17 @@ void MainWindow::applyWorkspaceToUi()
 
 void MainWindow::closeWorkspace()
 {
-    // Close any open project docks and clear the list. Each dock's Project owns its undo stack, whose
-    // destructor removes itself from the group — so no manual removeStack() is needed here.
+    // Every project is going, so every project history has nothing left to restore — and the widgets
+    // its commands point at are destroyed just below. Dropped explicitly, because these stacks are
+    // owned here and outlive the docks by design: left behind, they would keep Undo enabled for a
+    // document that is no longer open.
+    for (QUndoStack *stack : std::as_const(m_projectHistories)) {
+        m_undoGroup->removeStack(stack);   // reparents to the stack itself
+        delete stack;
+    }
+    m_projectHistories.clear();
+
+    // Close any open project docks and clear the list.
     for (QDockWidget *dock : std::as_const(m_openProjectDocks))
         dock->deleteLater();
     m_openProjectDocks.clear();

@@ -16,7 +16,8 @@ ProjectSnapshotCommand::ProjectSnapshotCommand(Project* project,
 
 void ProjectSnapshotCommand::undo()
 {
-    m_project->applyProjectSnapshot(m_before);
+    if (m_project)
+        m_project->applyProjectSnapshot(m_before);
 }
 
 void ProjectSnapshotCommand::redo()
@@ -27,5 +28,6 @@ void ProjectSnapshotCommand::redo()
         m_firstRedo = false;
         return;
     }
-    m_project->applyProjectSnapshot(m_after);
+    if (m_project)
+        m_project->applyProjectSnapshot(m_after);
 }

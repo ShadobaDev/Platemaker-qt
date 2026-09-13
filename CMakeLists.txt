@@ -105,6 +105,7 @@ qt_add_executable(Platemaker
 
     # Advisories — the application-wide registry of "this will not do what you meant".
     widgets/advisories/advisories.cpp widgets/advisories/advisories.h
+    widgets/advisories/advisorybar.cpp widgets/advisories/advisorybar.h
 )
 
 # Every class/header lives in its own folder; add each to the include path so

@@ -12,14 +12,12 @@
 #include "ui_mainwindow.h"
 
 #include "advisories.h"
-#include "badge.h"
+#include "advisorybar.h"
 #include "editor.h"
 #include "project.h"
 
 #include <QDockWidget>
-#include <QHBoxLayout>
 #include <QListWidgetItem>
-#include <QStatusBar>
 #include <QWidget>
 
 #include <set>
@@ -29,16 +27,6 @@ namespace {
 // Key prefixes. One per condition, suffixed with the project's uid — an index would move under the
 // advisory the moment a lower-numbered project was removed.
 const QString k_unanchoredKey = QStringLiteral("unanchored/");
-
-[[nodiscard]] BadgeTone toneFor(Advisory::Level level)
-{
-    switch (level) {
-    case Advisory::Level::Error:   return BadgeTone::Error;
-    case Advisory::Level::Warning: return BadgeTone::Warning;
-    case Advisory::Level::Info:    break;
-    }
-    return BadgeTone::Info;
-}
 
 //! The uids of this project's overlays that have no page under them, in composite order.
 [[nodiscard]] QStringList unanchoredUids(const Platemaker::Models::ProjectItem& project)
@@ -155,42 +143,11 @@ QString MainWindow::activeProjectUid() const
 // The status bar
 // ---------------------------------------------------------------------------
 
-void MainWindow::rebuildStatusAdvisories()
+void MainWindow::retargetStatusAdvisories()
 {
-    // removeWidget() takes it out of the bar's layout at once; deleteLater() frees it when the event
-    // loop next turns. Only deleting would leave the gap filled until then.
-    if (m_statusBadges) {
-        statusBar()->removeWidget(m_statusBadges);
-        m_statusBadges->deleteLater();
-        m_statusBadges = nullptr;
-    }
-
-    if (!m_advisories)
-        return;
-
-    // One project's advisories at a time — the one being looked at. A bar showing every open chapter's
-    // problems at once would make "3 objects unanchored" a sentence with no subject.
-    const QList<Advisory> standing = m_advisories->forProject(activeProjectUid());
-    if (standing.isEmpty())
-        return;
-
-    // All the chips go into **one** permanent widget. A QStatusBar frames every item it is given, so
-    // adding them one by one draws a vertical rule between each pair; one tray is one frame, and the
-    // space between chips becomes the tray's layout spacing rather than a piece of chrome.
-    m_statusBadges = new QWidget(statusBar());
-    auto* tray = new QHBoxLayout(m_statusBadges);
-    tray->setContentsMargins(0, 0, 0, 0);
-    tray->setSpacing(k_statusBadgeSpacing);
-
-    for (const Advisory& a : standing) {
-        QString tip = a.detail;
-        if (!a.actionText.isEmpty() && a.action)
-            tip += QStringLiteral("\n\n") + tr("Click to %1.").arg(a.actionText.toLower());
-
-        tray->addWidget(makeBadge(toneBadge(toneFor(a.level), a.text, tip, palette()),
-                                  m_statusBadges, a.action));
-    }
-
-    statusBar()->addPermanentWidget(m_statusBadges);
-    m_statusBadges->show();   // addPermanentWidget does not show a widget added after the bar is visible
+    // The strip keeps itself in step with the registry; the one thing it cannot work out alone is which
+    // chapter it is speaking about. One at a time — a bar showing every open chapter's problems at once
+    // would make "3 objects unanchored" a sentence with no subject.
+    if (m_statusAdvisories)
+        m_statusAdvisories->setProjectUid(activeProjectUid());
 }

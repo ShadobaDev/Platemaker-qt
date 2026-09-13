@@ -326,9 +326,17 @@ valid baseline for every grade tried on it. Excluded pages are skipped, matching
     expires by itself and needs no registry.
   - **One condition today:** *N objects unanchored* (Error — an overlay whose anchor names no page, or
     names a page not in the input list; its action opens the strip editor with them picked out).
-  - **The status bar shows one chapter at a time** — the one whose dock was last raised, or failing that
-    the one selected in the project list. Badges sit on the right as permanent widgets, worst first, and
-    a badge whose advisory carries an action is clickable and says so with a pointing-hand cursor.
+  - **The surface is a widget, `AdvisoryBar`, and there are two hosts.** `MainWindow` keeps one in the
+    status bar; the strip editor keeps one along its own bottom edge, live **only while its dock is
+    floating** — a floating dock is a top-level window with no status bar, and maximised it covers the
+    one behind it, so the advisories would be missing from the window where the work is done. The rule
+    is the owner's: `MainWindow` connects `QDockWidget::topLevelChanged` to
+    `Editor::setAdvisoriesActive()`, because a widget cannot know what other surfaces its window has.
+  - **One chapter at a time** — the one whose dock was last raised, or failing that the one selected in
+    the project list. Chips are ordered worst first; one whose advisory carries an action is clickable
+    and says so with a pointing-hand cursor. The bar is exactly as wide as its chips, so where it sits
+    is the host's to state — bottom right in both, the corner permanent status items live in. A bar with
+    nothing to say takes no room at all, margins included.
 - **Badges are one widget, shared.** `widgets/badge/` owns the rounded chip: a `Badge` is a label, a
   required fill and three colours derived from it (border, gradient, label), plus the sentence behind
   it. `paintBadge()` draws one, `layOutBadges()` a run of them, and `makeBadge()` hands one out as a

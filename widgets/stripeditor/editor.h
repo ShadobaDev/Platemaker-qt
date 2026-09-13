@@ -32,6 +32,9 @@ class QAction;
 class QButtonGroup;
 class QGraphicsRectItem;
 class QListWidgetItem;
+class AdvisoryBar;
+class Advisories;
+
 namespace Ui { class Editor; }
 
 namespace StripEdit {
@@ -143,6 +146,21 @@ public:
      * one still standing is the one selected.
      */
     void selectAfterFeed(const QStringList& uids);
+
+    /**
+     * @brief Gives this editor its own advisory bar, along the bottom edge, for @p projectUid.
+     *
+     * It exists because this widget's window is not always the main window: dragged out, the dock is a
+     * top level of its own with no status bar, and maximised it covers the one behind it. The chapter's
+     * problems would then be invisible in the window where they are worked on.
+     *
+     * @param registry The application's advisory registry; the bar subscribes and keeps itself current.
+     */
+    void setAdvisories(Advisories* registry, const QString& projectUid);
+
+    //! Turns that bar off while this editor's window already shows the same advisories elsewhere —
+    //! docked, the main window's status bar is saying it. The owner knows; this widget does not.
+    void setAdvisoriesActive(bool active);
 
     /**
      * @brief Feeds the project's colour grade to the Grade panel and the live preview.
@@ -268,6 +286,7 @@ private:
     // a .ui); the splitters, canvas, tool-options stack and artifact list all come from editor.ui ---
     QButtonGroup   *m_toolGroup = nullptr;   //!< Exclusive group of the left rail's tool buttons (id == Tool).
     GradePanel        *m_gradePanel   = nullptr;   //!< The Grade tool-options page (colour-correction controls).
+    AdvisoryBar       *m_advisoryBar  = nullptr;   //!< Bottom edge of this editor; absent until setAdvisories().
     Tool            m_tool      = Tool::Pan; //!< Current tool.
 
     // --- the objects on the strip ---

@@ -377,7 +377,7 @@ void MainWindow::openProjectDock(int projectIndex)
         if (visible) {
             m_activeProjectIndex = newDock->property("projectIndex").toInt();
             m_undoGroup->setActiveStack(projectWidget->undoStack());
-            rebuildStatusAdvisories();   // the bar speaks about the project being looked at
+            retargetStatusAdvisories();   // the bar speaks about the project being looked at
         }
     });
 
@@ -593,6 +593,15 @@ void MainWindow::openStripEditorDock(int projectIndex)
         if (auto *pw = projectWidget(projectIndex))
             pw->applyOverlays(overlays, artifacts, undoText);
     });
+    // Its own advisory strip, along the bottom. Dragged out, this dock is a top-level window with no
+    // status bar; maximised, it covers the one behind it. Either way the chapter's problems would be
+    // invisible in the very window they are worked on. Docked, the strip stands down — the main
+    // window's status bar is already saying it, and saying it twice teaches nothing.
+    viewer->setAdvisories(m_advisories,
+                          QString::fromStdString(m_workspace.projectItems[projectIndex].uid));
+    viewer->setAdvisoriesActive(dock->isFloating());
+    connect(dock, &QDockWidget::topLevelChanged, viewer, &StripEdit::Editor::setAdvisoriesActive);
+
     dock->setWidget(viewer);
 
     // Shared custom title bar (minimise = dock ⇄ detach, maximise = fill screen, close = hide).
@@ -611,7 +620,7 @@ void MainWindow::openStripEditorDock(int projectIndex)
         // Looking at a chapter's strip is looking at that chapter, for the status bar as much as for
         // Ctrl+Z — otherwise the bar would go on describing whichever project dock was raised last.
         m_activeProjectIndex = idx;
-        rebuildStatusAdvisories();
+        retargetStatusAdvisories();
     });
 
     // Register it in a dock area first (its home when docked), then float it.

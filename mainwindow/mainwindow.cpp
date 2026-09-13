@@ -1,5 +1,6 @@
 #include "mainwindow.h"
 #include "advisories.h"
+#include "advisorybar.h"
 #include "artifactsvg.h"
 #include "ui_mainwindow.h"
 #include "project.h"
@@ -170,7 +171,7 @@ MainWindow::MainWindow(QWidget *parent)
     // --- Projects panel (managed via the workspace dock's context menu) ---
     // Picking a chapter in the list is looking at that chapter, for as long as no dock has been raised.
     connect(ui->listWidgetProjects, &QListWidget::currentItemChanged,
-            this, [this]{ rebuildStatusAdvisories(); });
+            this, [this]{ retargetStatusAdvisories(); });
     connect(ui->listWidgetProjects, &QListWidget::itemDoubleClicked,
             this, &MainWindow::onProjectDoubleClicked);
     ui->listWidgetProjects->setContextMenuPolicy(Qt::CustomContextMenu);
@@ -213,9 +214,11 @@ MainWindow::MainWindow(QWidget *parent)
     // --- Undo / redo (Workspace-menu actions; group routes Ctrl+Z / Ctrl+Y to the active context) ---
     setupUndo();
 
-    // The status bar is the registry's only subscriber and knows nothing about what raises anything.
+    // The registry knows nothing about what raises anything, and its subscribers know nothing about
+    // each other. This one lives in the status bar; the strip editor grows a second when it floats.
     m_advisories = new Advisories(this);
-    connect(m_advisories, &Advisories::changed, this, &MainWindow::rebuildStatusAdvisories);
+    m_statusAdvisories = new AdvisoryBar(m_advisories, statusBar());
+    statusBar()->addPermanentWidget(m_statusAdvisories);
 
     updateTitleBar();
 }

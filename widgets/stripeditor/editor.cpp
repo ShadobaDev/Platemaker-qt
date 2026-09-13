@@ -1,6 +1,7 @@
 #include "editor.h"
 #include "ui_editor.h"
 #include "flowlayout.h"
+#include "advisorybar.h"
 #include "gradepanel.h"
 #include "objectcontroller.h"
 #include "pagesource.h"
@@ -556,6 +557,25 @@ void Editor::setOverlaySource(const std::vector<Platemaker::Models::StripOverlay
 void Editor::selectAfterFeed(const QStringList& uids)
 {
     m_objects->selectAfterFeed(uids);
+}
+
+void Editor::setAdvisories(Advisories* registry, const QString& projectUid)
+{
+    if (!m_advisoryBar) {
+        // Appended to the root column, so it spans the editor's full width under everything else —
+        // the same place a window puts a status bar, for the same reason.
+        m_advisoryBar = new AdvisoryBar(registry, this);
+        // Bottom right, the corner a status bar keeps its permanent items in — so the chips are in the
+        // same place whichever window the artist is looking at them in.
+        ui->rootLayout->addWidget(m_advisoryBar, 0, Qt::AlignRight);
+    }
+    m_advisoryBar->setProjectUid(projectUid);
+}
+
+void Editor::setAdvisoriesActive(bool active)
+{
+    if (m_advisoryBar)
+        m_advisoryBar->setActive(active);
 }
 
 bool Editor::artifactToolActive() const

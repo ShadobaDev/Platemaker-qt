@@ -83,6 +83,11 @@
   it out. The chip says how many, and clicking it takes you to them in the strip editor. A chip stands
   while its cause does and goes when you fix it, so it cannot be left behind as a warning nobody can
   clear. Chapters are reported one at a time: the one you are looking at.
+
+  **Pull the strip editor out into its own window and the chips come with it**, along its bottom edge —
+  a detached or full-screen editor has no status bar of its own, and that is exactly the window where
+  the lettering it is talking about gets done. Dock it back and they go, because the status bar is
+  saying it already.
 - **A colour grade is on because it is set, not because a switch says so.** Moving any of the grade's
   controls away from neutral makes the chapter graded — in the strip editor's preview and in the
   render, which cannot now disagree. **Reset** is how a grade is removed, and so is the workflow card's

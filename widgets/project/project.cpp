@@ -295,8 +295,30 @@ void Project::applyProjectSnapshot(const QString& snapshot)
 
     populate();
     emit projectModified();
-    emit historyStepApplied(EditScope::ProjectDock);
+    emit historyStepApplied(EditScope::ProjectDock, {});
 }
+
+namespace {
+
+//! The uids an overlay-scope step moves between @p from and @p to — added, or changed in placement or in
+//! what they say. Only uids that exist in @p to, because a uid the step removes is nothing to point at.
+//! The artifacts are compared as well as the overlays: an edit to a bubble's text rewrites its asset,
+//! and reading that as "changed" through the placement alone would depend on the hash having settled.
+[[nodiscard]] QStringList movedUids(const OverlayState& from, const OverlayState& to)
+{
+    QStringList uids;
+    for (const auto& after : to.overlays) {
+        const QString uid = QString::fromStdString(after.uid);
+        const auto it = std::find_if(from.overlays.begin(), from.overlays.end(),
+                                     [&](const auto& b) { return b.uid == after.uid; });
+        if (it == from.overlays.end() || *it != after
+            || from.artifacts.value(uid) != to.artifacts.value(uid))
+            uids << uid;
+    }
+    return uids;
+}
+
+} // namespace
 
 OverlayState Project::overlayState() const
 {
@@ -305,15 +327,23 @@ OverlayState Project::overlayState() const
 
 void Project::restoreOverlayState(const OverlayState& state)
 {
+    // Asked while the old state is still here, because it is the difference between the two that says
+    // what the artist just watched change.
+    const QStringList touched = movedUids(overlayState(), state);
+
     m_workspace.projectItems[m_projectIndex].getStripOverlays() = state.overlays;
     m_artifacts = state.artifacts;
+
+    // Ahead of the views, not after them: this arms the editor to select what the step touched, and the
+    // feed two lines down is what consumes the arming.
+    emit historyStepApplied(EditScope::StripEditor, touched);
+
     // The records are back; the files on disk still hold what the step being undone wrote.
     rewriteOverlayAssets();
     emit artifactsChanged(m_artifacts);
 
     populate();
     emit projectModified();
-    emit historyStepApplied(EditScope::StripEditor);
 }
 
 void Project::commitOverlayEdit(const QString& text, const std::function<void()>& mutate)

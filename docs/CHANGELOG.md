@@ -69,8 +69,11 @@
     uses, so Ctrl+Z always undoes the last thing you did, whichever of the two windows you did it in.
     Undo restores what a bubble said and not only where it sat.
   - **Undo takes you to what it changed.** The window showing the step comes to the front, and is
-    outlined for a moment when it is not the one you were already looking at — so an undo whose effect
-    is in the other window can no longer pass for an undo that did nothing.
+    outlined for a moment when it is not the one you were already looking at. In the strip editor the
+    object the step touched is **selected and scrolled into view**, in the canvas and in the object
+    list — so an undo whose effect is in the other window, or three screens down a long chapter, can no
+    longer pass for an undo that did nothing. Nothing moves when what changed is already in front of
+    you.
   - **Closing a window no longer throws away what you did in it.** A project's history lives as long as
     the application does, so closing a project or its strip editor and opening it again finds the
     history where you left it. Editing bubbles with the project panel closed used to be accepted on

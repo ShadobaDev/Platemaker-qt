@@ -282,10 +282,21 @@ valid baseline for every grade tried on it. Excluded pages are skipped, matching
   Ctrl+Z reaches past the last thing done to undo the one before it, which is a stranger thing to
   explain than an undo whose effect is elsewhere.
   - **The answer to "undo did something I cannot see" is to show it, not to split the history.**
-    `Project::historyStepApplied(EditScope)` is emitted by the restores only — an edit is already on
-    screen where it was made — and `showDockAttention()` raises and focuses the dock it names, outlining
-    it for about a second and a half **only when it was not already the focused dock**. A flash on the
-    window being looked at teaches nothing and would cost the effect its meaning.
+    `Project::historyStepApplied(EditScope, uids)` is emitted by the restores only — an edit is already
+    on screen where it was made — and names both the dock that shows the step and the objects it moved.
+    `showDockAttention()` raises and focuses that dock, outlining it for about a second and a half
+    **only when it was not already the focused dock**; a flash on the window being looked at teaches
+    nothing and would cost the effect its meaning.
+    - **The objects are named by diffing the two overlay states**, not tracked per operation, so every
+      kind of edit reports what it moved without any of them being taught to. Artifacts are compared
+      alongside placements: a text edit rewrites a bubble's asset, and reading that as "changed"
+      through the placement alone would rest on the hash having settled.
+    - The signal is emitted **before** the state reaches the views: it arms `Editor::selectAfterFeed()`,
+      and the feed that follows is what consumes the arming — the objects do not exist in the editor
+      until that feed builds them. The first named object still standing is selected and scrolled into
+      view in the canvas and the object list; a step that removed everything it touched clears the
+      selection instead of pointing at a ghost. `ensureVisible()` moves nothing that is already
+      visible, so an undo of what is in front of you stays perfectly still.
   - **A step still reaches only into its own half of the document**, which is what keeps restores cheap
     and stops two steps treading on each other. `fullSnapshot()` carries the library's project snapshot
     and no authoring records; `applyProjectSnapshot()` lifts the overlays out and puts them back around

@@ -7,6 +7,7 @@
 #include <QPointF>
 #include <QSize>
 #include <QString>
+#include <QStringList>
 
 #include "textartifact.h"
 
@@ -71,6 +72,18 @@ public:
     //! Adopts the owner's complete state after an edit round-trips back.
     void setSource(const std::vector<Platemaker::Models::StripOverlay>& overlays,
                    const ArtifactMap& artifacts);
+
+    /**
+     * @brief Select one of @p uids — the first that still exists — when the next feed arrives.
+     *
+     * How an undone or redone step says *what* it changed, the way the dock it lands in says *where*.
+     * A list rather than a uid because one step can touch several objects, and because the objects a
+     * step touched are not necessarily still there: undoing a placement, or redoing a delete, leaves
+     * nothing to select and the selection is cleared instead of left pointing at a ghost.
+     *
+     * One-shot, and armed immediately before the feed it applies to.
+     */
+    void selectAfterFeed(const QStringList& uids) { m_selectAfterFeed = uids; }
 
     /**
      * @brief The Text tool is active, so a placement gets no balloon.
@@ -184,6 +197,10 @@ private:
     //! Set when this controller asked for a new bubble; the uid only exists after the owner mints it, so
     //! the selection has to wait for the feed to come back.
     bool               m_selectNewOverlay = false;
+    //! Set when a history step is about to arrive: the objects it touched, to select on that feed. A
+    //! different question from m_selectNewOverlay — that one means "whatever was appended", because
+    //! there was no uid to name yet; this one names them.
+    QStringList        m_selectAfterFeed;
     bool               m_textOnly        = false;  //!< The Text tool: a placement gets no balloon.
 };
 

@@ -219,6 +219,29 @@ void ObjectController::setSource(const std::vector<Platemaker::Models::StripOver
     }
     m_selectNewOverlay = false;
 
+    // A history step brought this feed, and these are the objects it touched. Selecting one is how the
+    // artist sees *what* was undone; raising its dock only says where to look. The first that survived
+    // wins — a step that removed everything it touched leaves nothing to point at.
+    if (!m_selectAfterFeed.isEmpty()) {
+        QStringList touched;
+        touched.swap(m_selectAfterFeed);   // one-shot: consumed by this feed and no other
+        for (const QString& uid : touched) {
+            if (!m_overlayItems.contains(uid))
+                continue;
+            selectOverlay(uid);
+            // A long strip is exactly where an undone edit sits off-screen, so bring it into view in
+            // both places the selection shows. ensureVisible() and scrollToItem() do nothing when the
+            // target is already visible, which keeps an undo of what you are looking at perfectly still.
+            m_view->ensureVisible(m_overlayItems.value(uid));
+            const QList<QListWidgetItem*> rows = m_list->selectedItems();
+            if (!rows.isEmpty())
+                m_list->scrollToItem(rows.first());
+            return;
+        }
+        selectOverlay(QString());
+        return;
+    }
+
     // The selection may not have survived the edit (a delete, or an undo that removed it).
     if (!m_selectedOverlay.isEmpty() && !m_overlayItems.contains(m_selectedOverlay))
         selectOverlay(QString());

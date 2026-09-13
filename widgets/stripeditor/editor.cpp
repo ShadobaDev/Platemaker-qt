@@ -553,6 +553,11 @@ void Editor::setOverlaySource(const std::vector<Platemaker::Models::StripOverlay
     m_objects->setSource(overlays, artifacts);
 }
 
+void Editor::selectAfterFeed(const QStringList& uids)
+{
+    m_objects->selectAfterFeed(uids);
+}
+
 bool Editor::artifactToolActive() const
 {
     return m_tool == Tool::Bubble || m_tool == Tool::Text;

@@ -319,11 +319,23 @@ void MainWindow::openProjectDock(int projectIndex)
             refreshStripEditor(strip);
     });
     // An undone or redone step can land in the window the artist is not looking at — one history
-    // covers both docks. Take them to it, so Ctrl+Z is never mistaken for having done nothing. The
-    // strip editor may simply not be open, and then there is nowhere to go.
-    connect(projectWidget, &Project::historyStepApplied, this, [this, newDock](EditScope scope) {
+    // covers both docks. Take them to it, and to the objects it touched, so Ctrl+Z is never mistaken
+    // for having done nothing. The strip editor may simply not be open, and then there is nowhere to go.
+    connect(projectWidget, &Project::historyStepApplied, this,
+            [this, newDock](EditScope scope, const QStringList& uids) {
         const int idx = newDock->property("projectIndex").toInt();
-        showDockAttention(scope == EditScope::StripEditor ? dockForStripEditor(idx) : newDock);
+        if (scope != EditScope::StripEditor) {
+            showDockAttention(newDock);
+            return;
+        }
+        QDockWidget* strip = dockForStripEditor(idx);
+        if (!strip)
+            return;
+        // Armed before the state goes out: the objects do not exist here until the feed that follows
+        // this signal builds them.
+        if (auto* viewer = qobject_cast<StripEdit::Editor*>(strip->widget()))
+            viewer->selectAfterFeed(uids);
+        showDockAttention(strip);
     });
     connect(projectWidget, &Project::renderToggleRequested,
             this, &MainWindow::onRenderToggle);

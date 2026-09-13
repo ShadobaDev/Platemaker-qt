@@ -136,6 +136,15 @@ public:
                           const ArtifactMap&                                  artifacts);
 
     /**
+     * @brief Select what an undone or redone step touched, when the feed carrying it arrives.
+     *
+     * Armed by the owner immediately before that feed, because the objects only become real here when
+     * the new state comes back. @p uids is a list: one step can touch several objects, and the first
+     * one still standing is the one selected.
+     */
+    void selectAfterFeed(const QStringList& uids);
+
+    /**
      * @brief Feeds the project's colour grade to the Grade panel and the live preview.
      *
      * The strip's pixels are ungraded by construction, so this always previews cleanly — before a

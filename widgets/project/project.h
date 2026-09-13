@@ -6,6 +6,7 @@
 #include "textartifact.h"
 #include "overlaystate.h"
 #include <QList>
+#include <QStringList>
 
 #include <functional>
 #include <string>
@@ -203,13 +204,18 @@ signals:
     void artifactsChanged(const ArtifactMap& artifacts);
 
     /**
-     * @brief A step was undone or redone, and @p scope says which dock shows the difference.
+     * @brief A step was undone or redone: @p scope says which dock shows the difference, and @p uids
+     *        names the objects it touched (empty for a project-scope step, which has none).
      *
      * Emitted only by the restores, never by the edit that created the step: an edit is already on
      * screen where it was made. MainWindow uses it to raise that dock, so a step taken in the window
-     * the user is not looking at cannot pass as "Ctrl+Z did nothing".
+     * the user is not looking at cannot pass as "Ctrl+Z did nothing", and to select what changed, so
+     * a step whose effect is small cannot pass for nothing either.
+     *
+     * **Emitted before the state goes out to the views**, because the selection is armed on the editor
+     * and consumed by the feed that follows.
      */
-    void historyStepApplied(EditScope scope);
+    void historyStepApplied(EditScope scope, const QStringList& uids);
 
 private slots:
     void onAddFromDirectory();                      //!< Slot for when the "Add Inputs from Directory" button is clicked. Opens a QFileDialog to select a directory and adds all image files from that directory to the input list.

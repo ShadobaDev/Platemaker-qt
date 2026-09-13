@@ -4,8 +4,9 @@
 #include "gradepanel.h"
 #include "objectcontroller.h"
 #include "pagesource.h"
-#include "bubblepanel.h"
 #include "objectstatepanel.h"
+#include "presetstore.h"
+#include "tooloptionspanel.h"
 
 #include <QButtonGroup>
 #include <QDebug>
@@ -192,8 +193,9 @@ Editor::Editor(QWidget *parent)
         });
         // One panel for Bubble *and* Text: they author the same object (a TextArtifact, with or without
         // a shape), so both rail buttons point at this page and setTool() just hides the shape group.
-        m_toolDefaults = new BubblePanel(ui->toolOptions);
-        ui->toolOptions->addWidget(m_toolDefaults);
+        m_presets     = new PresetStore(this);
+        m_toolOptions = new ToolOptionsPanel(*m_presets, ui->toolOptions);
+        ui->toolOptions->addWidget(m_toolOptions);
 
         // The other question, and a different class for it: what the *selected* object is. The two used
         // to be one class sitting in two places, which is how they came to look like the same panel
@@ -204,7 +206,7 @@ Editor::Editor(QWidget *parent)
         // Everything placed on the strip. It drives the scene, the list and the panel; it owns no
         // persistence, so every edit leaves through one of its four signals and comes back as a re-feed.
         m_objects = new ObjectController(m_scene, m_view, ui->artifactList, m_objectState,
-                                         m_toolDefaults, m_layout, this, this);
+                                         m_toolOptions, *m_presets, m_layout, this, this);
         connect(m_objects, &ObjectController::artifactCreated,        this, &Editor::artifactCreated);
         connect(m_objects, &ObjectController::overlaysEdited,         this, &Editor::overlaysEdited);
         connect(m_objects, &ObjectController::artworkImportRequested, this, &Editor::artworkImportRequested);
@@ -246,8 +248,8 @@ void Editor::setTool(Tool tool)
     // and a tool chosen minutes ago must not decide what a bubble's properties look like — selecting a
     // balloon under the Text tool used to show nothing but its lettering, an effect with no visible
     // cause. Which groups that panel shows comes from the selected object's own kind instead.
-    if (m_toolDefaults)
-        m_toolDefaults->setShapeControlsVisible(tool == Tool::Bubble);
+    if (m_toolOptions)
+        m_toolOptions->setShapeControlsVisible(tool == Tool::Bubble);
 
     // The right column stays put under every tool, and **live** under every tool. It was briefly
     // hidden for Pan and Grade, which resized the canvas and made the strip jump sideways; then it was

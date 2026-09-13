@@ -37,8 +37,9 @@ namespace Ui { class Editor; }
 namespace StripEdit {
 
 class GradePanel;
-class BubblePanel;
 class ObjectStatePanel;
+class PresetStore;
+class ToolOptionsPanel;
 class ObjectController;
 
 /**
@@ -264,7 +265,14 @@ private:
     //! Right-top: what the selected object *is*. Inert, and says so, while nothing is selected.
     ObjectStatePanel* m_objectState = nullptr;
     //! Bottom-left, under the tool rail: what the *next* object will be. Never edits anything.
-    BubblePanel* m_toolDefaults = nullptr;
+    ToolOptionsPanel* m_toolOptions = nullptr;
+    /**
+     * @brief The preset library, owned here because more than one thing needs it.
+     *
+     * The tool's options pick one for the next object; an object's context menu applies one to what is
+     * selected. A model reachable only by going through a widget is a model that cannot be reached.
+     */
+    PresetStore* m_presets = nullptr;
     //! Owns the overlay set, the scene items, the list and the selection. Declared after m_layout,
     //! which it holds by reference.
     ObjectController* m_objects = nullptr;

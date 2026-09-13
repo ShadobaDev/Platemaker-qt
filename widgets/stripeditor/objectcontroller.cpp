@@ -1,6 +1,7 @@
 #include "objectcontroller.h"
-#include "bubblepanel.h"
 #include "objectstatepanel.h"
+#include "presetstore.h"
+#include "tooloptionspanel.h"
 #include "layout.h"
 #include "assetobject.h"
 #include "bubbleobject.h"
@@ -12,6 +13,7 @@
 
 #include <QAbstractItemModel>
 #include <QAction>
+#include <QMenu>
 #include <QCryptographicHash>
 #include <QFileDialog>
 #include <QGraphicsRectItem>
@@ -81,14 +83,16 @@ QPixmap renderAssetFile(const QString& path)
 } // namespace
 
 ObjectController::ObjectController(QGraphicsScene* scene, QGraphicsView* view, QListWidget* list,
-                                   ObjectStatePanel* panel, BubblePanel* defaults, const Layout& layout,
+                                   ObjectStatePanel* panel, ToolOptionsPanel* defaults,
+                                   PresetStore& presets, const Layout& layout,
                                    QWidget* dialogParent, QObject* parent)
     : QObject(parent)
     , m_scene(scene)
     , m_view(view)
     , m_list(list)
     , m_objectState(panel)
-    , m_toolDefaults(defaults)
+    , m_toolOptions(defaults)
+    , m_presets(presets)
     , m_layout(layout)
     , m_dialogParent(dialogParent)
 {
@@ -119,6 +123,9 @@ ObjectController::ObjectController(QGraphicsScene* scene, QGraphicsView* view, Q
     m_actDuplicate->setShortcutContext(Qt::WidgetShortcut);
     connect(m_actDuplicate, &QAction::triggered, this, &ObjectController::duplicateSelectedOverlay);
 
+    m_presetMenu = new QMenu(tr("Apply preset"), dialogParent);
+    connect(m_presetMenu, &QMenu::aboutToShow, this, &ObjectController::rebuildPresetMenu);
+
     m_actDelete = new QAction(tr("Delete"), this);
     m_actDelete->setShortcut(QKeySequence::Delete);
     m_actDelete->setShortcutContext(Qt::WidgetShortcut);
@@ -130,6 +137,7 @@ ObjectController::ObjectController(QGraphicsScene* scene, QGraphicsView* view, Q
     connect(m_actImport, &QAction::triggered, this, &ObjectController::importArtwork);
 
     for (QWidget* w : {static_cast<QWidget*>(m_list), static_cast<QWidget*>(m_view)}) {
+        w->addAction(m_presetMenu->menuAction());
         w->addAction(m_actDuplicate);
         w->addAction(m_actDelete);
         w->addAction(m_actImport);
@@ -426,6 +434,10 @@ void ObjectController::selectOverlay(const QString& uid)
     const bool has = !uid.isEmpty() && m_overlayItems.contains(uid);
     if (m_actDuplicate) m_actDuplicate->setEnabled(has);
     if (m_actDelete)    m_actDelete->setEnabled(has);
+    // Only a bubble has a look to restyle; imported artwork has no parameters at all.
+    if (m_presetMenu)
+        m_presetMenu->menuAction()->setEnabled(
+            qobject_cast<BubbleObject*>(m_overlayItems.value(uid)) != nullptr);
 
     if (!m_objectState)
         return;
@@ -436,6 +448,29 @@ void ObjectController::selectOverlay(const QString& uid)
         m_objectState->setArtifact(bubble->artifact());
     else
         m_objectState->clearSelection();
+}
+
+void ObjectController::rebuildPresetMenu()
+{
+    m_presetMenu->clear();
+    const QList<BubblePreset>& presets = m_presets.presets();
+    for (int i = 0; i < presets.size(); ++i) {
+        QAction* a = m_presetMenu->addAction(presets.at(i).name);
+        connect(a, &QAction::triggered, this, [this, i] { applyPresetToSelection(i); });
+    }
+}
+
+void ObjectController::applyPresetToSelection(int index)
+{
+    auto* bubble = qobject_cast<BubbleObject*>(m_overlayItems.value(m_selectedOverlay));
+    if (!bubble || index < 0 || index >= m_presets.presets().size())
+        return;
+    // keepShape is false: the shape section is on screen beside this menu, so a preset changing the
+    // shape is visible and reversible — unlike the tool options under the Text tool, where it is not.
+    const TextArtifact a =
+        PresetStore::applied(m_presets.presets().at(index), bubble->artifact(), /*keepShape=*/false);
+    m_objectState->setArtifact(a);
+    applyPanelArtifact(a, /*commit=*/true);
 }
 
 void ObjectController::applyPanelArtifact(const TextArtifact& a, bool commit)
@@ -634,7 +669,7 @@ void ObjectController::finishPlacement()
     }
     m_placing = false;
 
-    if (m_layout.isEmpty() || !m_toolDefaults)
+    if (m_layout.isEmpty() || !m_toolOptions)
         return;
 
     // Only a drag creates a bubble. Letting a bare click create one made every click on the artwork a
@@ -649,7 +684,7 @@ void ObjectController::finishPlacement()
     if (page < 0)
         return;
 
-    TextArtifact a = m_toolDefaults->prototype();
+    TextArtifact a = m_toolOptions->prototype();
     if (m_textOnly)
         a.shape.kind = TextArtifact::Shape::None;   // the Text tool is this object without a balloon
     a.box = r.size().toSize();

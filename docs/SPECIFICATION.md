@@ -175,8 +175,8 @@ rightPanel = QSplitter(V): [ OBJECT PROPERTIES | object list ] what THIS object 
 ```
 
 **Each side answers one question, and only that one** — and they are two classes, not one class in two
-places. `BubblePanel` is the tool's options: what the *next* object will be, editing nothing and emitting
-nothing. `ObjectStatePanel` is the selection's properties. A single class answering both would mean two
+places. `ToolOptionsPanel` is the tool's options: what the *next* object will be, editing nothing and
+emitting nothing. `ObjectStatePanel` is the selection's properties. A single class answering both would mean two
 things depending on state the artist cannot see, which is what makes a preset picker above shared
 controls ambiguous.
 
@@ -184,6 +184,14 @@ Both own a **`PropertyGroupSet`** — the five group editors, plus the only two 
 them: shape is written before tails (the tails editor reads it), and the style seed is topped up
 afterwards, since it belongs to no group. Written once, because both are the kind of rule that drifts
 when written twice.
+
+**`PresetStore`** is a model, not a panel's field. The tool's options pick a preset for the next
+object; an object's context menu applies one to what is selected (*Apply preset ▸*); a dialog will
+eventually import and export them. A model reachable only by going through a widget cannot be reached, so
+`Editor` owns the store and hands a reference to each. It raises no dialogs: reading and writing a pack
+report what happened and leave the telling to whoever asked. `PresetStore::applied()` is the one place
+that knows what a preset does *not* carry — the lettering, the box, the tails and the style seed all
+survive being restyled.
 
 `ObjectStatePanel` shows **one `CollapsibleSection` per group**, in a fixed order, and only the sections
 the selected object's kind has. Qt has no collapsible container — a checkable `QGroupBox` puts a checkbox

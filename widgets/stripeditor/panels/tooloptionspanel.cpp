@@ -1,0 +1,264 @@
+#include "tooloptionspanel.h"
+
+#include <QAction>
+#include <QComboBox>
+#include <QFileDialog>
+#include <QFileInfo>
+#include <QGroupBox>
+#include <QHBoxLayout>
+#include <QIcon>
+#include <QInputDialog>
+#include <QLabel>
+#include <QLineEdit>
+#include <QMenu>
+#include <QMessageBox>
+#include <QRandomGenerator>
+#include <QSignalBlocker>
+#include <QStandardPaths>
+#include <QToolButton>
+#include <QVBoxLayout>
+
+#include "presetstore.h"
+#include "shapeeditor.h"
+#include "skineditor.h"
+#include "styleeditor.h"
+#include "tailseditor.h"
+#include "texteditor.h"
+
+namespace StripEdit {
+
+ToolOptionsPanel::ToolOptionsPanel(PresetStore& presets, QWidget* parent)
+    : QWidget(parent)
+    , m_presets(presets)
+    , m_groups(this)
+{
+    auto* lay = new QVBoxLayout(this);
+
+    // --- Presets ------------------------------------------------------------------------------------
+    // Above the controls it fills, and outside the Shape group, because a preset also carries the font
+    // and the colours the Text tool uses.
+    m_presetCombo = new QComboBox(this);
+    m_presetCombo->setToolTip(tr("The look the next bubble you place will start from."));
+    m_presetCombo->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
+    m_presetCombo->setIconSize(QSize(k_bubbleThumbW, k_bubbleThumbH));
+
+    auto* presetSave = new QToolButton(this);
+    presetSave->setText(tr("Save…"));
+    presetSave->setToolTip(tr("Saves the current look — shape, colours, line style, font — under a name."));
+
+    auto* presetMore = new QToolButton(this);
+    presetMore->setText(QStringLiteral("⋯"));
+    presetMore->setPopupMode(QToolButton::InstantPopup);
+    auto* presetMenu = new QMenu(presetMore);
+    m_presetDelete     = presetMenu->addAction(tr("Delete preset"));
+    presetMenu->addSeparator();
+    QAction* importAct = presetMenu->addAction(tr("Import pack…"));
+    QAction* exportAct = presetMenu->addAction(tr("Export pack…"));
+    presetMore->setMenu(presetMenu);
+
+    auto* presetRow = new QHBoxLayout;
+    presetRow->addWidget(new QLabel(tr("Preset:"), this));
+    presetRow->addWidget(m_presetCombo, 1);
+    presetRow->addWidget(presetSave);
+    presetRow->addWidget(presetMore);
+    lay->addLayout(presetRow);
+
+    // --- Shape (Bubble tool only) -------------------------------------------------------------------
+    m_shapeGroup = new QGroupBox(tr("Shape"), this);
+    auto* shapeLay = new QVBoxLayout(m_shapeGroup);
+    shapeLay->addWidget(m_groups.shape());
+    shapeLay->addWidget(m_groups.tails());
+    shapeLay->addWidget(m_groups.skin());
+    shapeLay->addWidget(m_groups.style());
+    lay->addWidget(m_shapeGroup);
+
+    // --- Text (both tools) --------------------------------------------------------------------------
+    m_textGroup = new QGroupBox(tr("Text"), this);
+    auto* textLay = new QVBoxLayout(m_textGroup);
+    textLay->addWidget(m_groups.text());
+    lay->addWidget(m_textGroup);
+    lay->addStretch(1);
+
+    // Nothing here acts on an object, because there is no object yet: no line to type, and no tail to
+    // add to something that does not exist.
+    m_groups.text()->setContentVisible(false);
+    m_groups.tails()->setAddVisible(false);
+
+    // --- Wiring -------------------------------------------------------------------------------------
+    // The one cross-group rule, connected first so it runs first: picking a shape gives you the shape
+    // its tile shows, tail and all, and the tails editor has to hear about it before the change is
+    // collected. Qt runs slots in connection order, which is the whole reason this line is up here.
+    connect(m_groups.shape(), &ShapeEditor::edited, this, [this] {
+        m_groups.tails()->shapeChanged(m_groups.shape()->values().kind);
+    });
+    for (PropertyGroupEditor* e : m_groups.all())
+        connect(e, &PropertyGroupEditor::edited, this, [this] { onControlChanged(); });
+
+    // activated(), not currentIndexChanged(): only a human picking an entry applies a preset, so
+    // rebuilding the list never restyles anything, and re-picking the current entry re-applies it.
+    connect(m_presetCombo, &QComboBox::activated, this, [this](int i) { applyPreset(i); });
+    connect(presetSave,     &QToolButton::clicked, this, [this] { onSavePreset(); });
+    connect(m_presetDelete, &QAction::triggered,   this, [this] { onDeletePreset(); });
+    connect(importAct,      &QAction::triggered,   this, [this] { onImportPack(); });
+    connect(exportAct,      &QAction::triggered,   this, [this] { onExportPack(); });
+    connect(&m_presets, &PresetStore::changed, this,
+            [this] { refreshPresetCombo(m_presetCombo->currentIndex()); });
+
+    refreshPresetCombo(0);
+    syncFromModel();
+}
+
+void ToolOptionsPanel::setShapeControlsVisible(bool visible)
+{
+    m_shapeVisible = visible;
+    m_shapeGroup->setVisible(visible);
+}
+
+TextArtifact ToolOptionsPanel::prototype() const
+{
+    TextArtifact a;
+    // Shape first: the tails editor reads it, because a shapeless artifact has nothing to grow a tail
+    // from. Everything else is order-independent by construction — no two groups touch a property.
+    m_groups.shape()->applyTo(a);
+    m_groups.skin()->applyTo(a);
+    m_groups.style()->applyTo(a);
+    m_groups.text()->applyTo(a);
+
+    // A placement takes the look and not the line. The same distinction a preset makes — everything a
+    // balloon is, minus everything it says — and the same reason: the words belong to one balloon.
+    a.text.body.clear();
+    // …and to one balloon's aim: applyToNew() makes a first tail rather than copying anyone else's.
+    m_groups.tails()->applyToNew(a);
+
+    // A fresh seed per bubble, so a page of marker balloons does not wear one repeated wobble. It
+    // belongs to no group precisely so that no editor and no preset can copy it.
+    a.styleSeed = QRandomGenerator::global()->generate();
+    return a;
+}
+
+// ---------------------------------------------------------------------------
+
+void ToolOptionsPanel::onControlChanged()
+{
+    if (m_populating)
+        return;
+    m_groups.collect(m_artifact);
+    // Nothing is emitted: these values describe an object that does not exist yet, so there is nothing
+    // to preview and nothing to persist until one is placed.
+}
+
+void ToolOptionsPanel::syncFromModel()
+{
+    m_populating = true;
+    m_groups.bind(m_artifact);
+    m_populating = false;
+}
+
+// ---------------------------------------------------------------------------
+// Presets
+// ---------------------------------------------------------------------------
+
+void ToolOptionsPanel::refreshPresetCombo(int current)
+{
+    const QSignalBlocker block(m_presetCombo);
+    m_presetCombo->clear();
+    const QList<BubblePreset>& presets = m_presets.presets();
+    for (const BubblePreset& p : presets) {
+        // No separator row between built-ins and the artist's own: a separator is an entry, and every
+        // index here doubles as an index into the store.
+        m_presetCombo->addItem(QIcon(bubbleThumbnail(p.artifact.shape.kind, p.artifact.skin.fill,
+                                                     p.artifact.skin.stroke, p.artifact.text.colour)),
+                               p.name);
+    }
+    m_presetCombo->setCurrentIndex(qBound(-1, current, int(presets.size()) - 1));
+    m_presetDelete->setEnabled(m_presets.isCustom(m_presetCombo->currentIndex()));
+}
+
+void ToolOptionsPanel::applyPreset(int index)
+{
+    m_presetDelete->setEnabled(m_presets.isCustom(index));
+    if (index < 0 || index >= m_presets.presets().size())
+        return;
+    m_artifact = PresetStore::applied(m_presets.presets().at(index), m_artifact, !m_shapeVisible);
+    syncFromModel();
+}
+
+void ToolOptionsPanel::onSavePreset()
+{
+    bool ok = false;
+    const QString name = QInputDialog::getText(this, tr("Save preset"), tr("Preset name:"),
+                                               QLineEdit::Normal, m_presetCombo->currentText(), &ok)
+                             .trimmed();
+    if (!ok || name.isEmpty())
+        return;
+
+    // What is saved is what the *controls* say: prototype() is already exactly "the panel as an
+    // artifact", minus the content a preset never carries.
+    int existing = -1;
+    int at = m_presets.save(name, prototype(), /*replaceExisting=*/false, &existing);
+    if (at < 0) {
+        if (QMessageBox::question(this, tr("Save preset"),
+                                  tr("A preset named “%1” already exists. Replace it?").arg(name))
+            != QMessageBox::Yes)
+            return;
+        at = m_presets.save(name, prototype(), /*replaceExisting=*/true);
+    }
+    refreshPresetCombo(at);
+}
+
+void ToolOptionsPanel::onDeletePreset()
+{
+    const int i = m_presetCombo->currentIndex();
+    if (!m_presets.isCustom(i))
+        return;
+    if (QMessageBox::question(this, tr("Delete preset"),
+                              tr("Delete the preset “%1”?").arg(m_presets.presets().at(i).name))
+        != QMessageBox::Yes)
+        return;
+    m_presets.remove(i);
+    refreshPresetCombo(qMin(i, int(m_presets.presets().size()) - 1));
+}
+
+void ToolOptionsPanel::onImportPack()
+{
+    const QString path = QFileDialog::getOpenFileName(
+        this, tr("Import preset pack"),
+        QStandardPaths::writableLocation(QStandardPaths::DocumentsLocation),
+        tr("Bubble preset packs (*.json);;All files (*)"));
+    if (path.isEmpty())
+        return;
+
+    QString error;
+    const int n = m_presets.importPack(path, &error);
+    if (n < 0) {
+        QMessageBox::warning(this, tr("Import preset pack"), error);
+        return;
+    }
+    refreshPresetCombo(m_presetCombo->currentIndex());
+    QMessageBox::information(this, tr("Import preset pack"),
+                             tr("Imported %n preset(s).", nullptr, n));
+}
+
+void ToolOptionsPanel::onExportPack()
+{
+    if (m_presets.presets().size() <= m_presets.builtinCount()) {
+        QMessageBox::information(this, tr("Export preset pack"),
+                                 tr("There are no saved presets to export yet."));
+        return;
+    }
+    QString path = QFileDialog::getSaveFileName(
+        this, tr("Export preset pack"),
+        QStandardPaths::writableLocation(QStandardPaths::DocumentsLocation)
+            + QStringLiteral("/bubble-presets.json"),
+        tr("Bubble preset packs (*.json)"));
+    if (path.isEmpty())
+        return;
+    if (QFileInfo(path).suffix().isEmpty())
+        path += QStringLiteral(".json");
+
+    QString error;
+    if (!m_presets.exportPack(path, &error))
+        QMessageBox::warning(this, tr("Export preset pack"), error);
+}
+
+}  // namespace StripEdit

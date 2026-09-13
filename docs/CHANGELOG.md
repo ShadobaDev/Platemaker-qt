@@ -41,11 +41,12 @@
   - **Fit to text** converges on the height the line actually needs, floored so a short line cannot
     collapse the shape.
   - **Presets** — a named look: colours, stroke, line style, font, alignment and shape, but never the
-    text, the balloon's size, its tails or where it sits, so applying one restyles a bubble without
-    touching its lettering. Five built-ins ship as code — Dialogue, Whisper, Thought, Shout, Caption —
-    and **Import pack… / Export pack…** carry your own between machines and people as one JSON file.
-    They live in the application config rather than the workspace: restyling is a habit of the artist,
-    not a property of one comic.
+    text, the balloon's size, its tails or where it sits. The picker in the tool's options sets what the
+    **next** bubble starts from; **right-click an existing bubble → *Apply preset ▸*** restyles that one
+    without touching its lettering. Five built-ins ship as code — Dialogue, Whisper, Thought, Shout,
+    Caption — and **Import pack… / Export pack…** carry your own between machines and people as one JSON
+    file. They live in the application config rather than the workspace: restyling is a habit of the
+    artist, not a property of one comic.
   - **Import artwork…** places a balloon inked on a tablet, a logo, or a hand-drawn effect. The file is
     copied into `overlays/` under its content hash, never referenced where it was found, so the workspace
     stays self-contained. It has no text to re-type, but it is placed, moved, re-anchored, muted, resized

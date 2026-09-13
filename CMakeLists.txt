@@ -65,6 +65,7 @@ qt_add_executable(Platemaker
     widgets/stripeditor/layout.cpp widgets/stripeditor/layout.h
     widgets/stripeditor/pagesource.cpp widgets/stripeditor/pagesource.h
     widgets/stripeditor/objectcontroller.cpp widgets/stripeditor/objectcontroller.h
+    widgets/stripeditor/presetstore.cpp widgets/stripeditor/presetstore.h
     widgets/stripeditor/properties/propertygroupeditor.h
     widgets/stripeditor/properties/propertygroupset.cpp widgets/stripeditor/properties/propertygroupset.h
     widgets/stripeditor/properties/shapeeditor.cpp widgets/stripeditor/properties/shapeeditor.h
@@ -73,7 +74,7 @@ qt_add_executable(Platemaker
     widgets/stripeditor/properties/tailseditor.cpp widgets/stripeditor/properties/tailseditor.h
     widgets/stripeditor/properties/texteditor.cpp widgets/stripeditor/properties/texteditor.h
     widgets/stripeditor/panels/gradepanel.cpp widgets/stripeditor/panels/gradepanel.h widgets/stripeditor/panels/gradepanel.ui
-    widgets/stripeditor/panels/bubblepanel.cpp widgets/stripeditor/panels/bubblepanel.h widgets/stripeditor/panels/bubblepanel.ui
+    widgets/stripeditor/panels/tooloptionspanel.cpp widgets/stripeditor/panels/tooloptionspanel.h
     widgets/stripeditor/panels/objectstatepanel.cpp widgets/stripeditor/panels/objectstatepanel.h
     widgets/collapsiblesection/collapsiblesection.cpp widgets/collapsiblesection/collapsiblesection.h
 

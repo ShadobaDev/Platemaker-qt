@@ -19,13 +19,15 @@ class QGraphicsRectItem;
 class QGraphicsScene;
 class QGraphicsView;
 class QListWidget;
+class QMenu;
 class QTransform;
 class QWidget;
 
 namespace StripEdit {
 
-class BubblePanel;
 class ObjectStatePanel;
+class PresetStore;
+class ToolOptionsPanel;
 class Layout;
 class Object;
 
@@ -62,7 +64,8 @@ public:
      * @param dialogParent Parent for the file/message dialogs this raises.
      */
     ObjectController(QGraphicsScene* scene, QGraphicsView* view, QListWidget* list,
-                     ObjectStatePanel* panel, BubblePanel* defaults, const Layout& layout,
+                     ObjectStatePanel* panel, ToolOptionsPanel* defaults, PresetStore& presets,
+                     const Layout& layout,
                      QWidget* dialogParent, QObject* parent = nullptr);
 
     //! Adopts the owner's complete state after an edit round-trips back.
@@ -82,6 +85,11 @@ public:
      * stayed draggable — movable but not selectable.
      */
     void setTextOnly(bool textOnly);
+
+    //! Rebuilds *Apply preset ▸* from the store, so a preset saved a moment ago is already there.
+    void rebuildPresetMenu();
+    //! Restyles the selected bubble with preset \p index, keeping what it says and where it points.
+    void applyPresetToSelection(int index);
 
     void syncItems();    //!< Reconciles the scene items with the overlay set, by uid.
     void refreshList();  //!< Rebuilds the list from the overlay set (composite order).
@@ -137,7 +145,11 @@ private:
     QGraphicsView*  m_view         = nullptr;
     QListWidget*    m_list         = nullptr;
     ObjectStatePanel* m_objectState = nullptr;
-    BubblePanel*    m_toolDefaults = nullptr;   //!< Read for prototype(); never edited from here.
+    ToolOptionsPanel* m_toolOptions = nullptr;  //!< Read for prototype(); never edited from here.
+    PresetStore&      m_presets;
+    //! *Apply preset ▸* on the selection. Restyling something that exists is a different act from
+    //! choosing what the next object will be, so it lives with the object rather than with the tool.
+    QMenu*            m_presetMenu = nullptr;
     const Layout&   m_layout;
     QWidget*        m_dialogParent = nullptr;
 

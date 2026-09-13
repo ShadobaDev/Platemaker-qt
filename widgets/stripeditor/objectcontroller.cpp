@@ -1,5 +1,6 @@
 #include "objectcontroller.h"
 #include "bubblepanel.h"
+#include "objectstatepanel.h"
 #include "layout.h"
 #include "assetobject.h"
 #include "bubbleobject.h"
@@ -80,29 +81,29 @@ QPixmap renderAssetFile(const QString& path)
 } // namespace
 
 ObjectController::ObjectController(QGraphicsScene* scene, QGraphicsView* view, QListWidget* list,
-                                   BubblePanel* panel, BubblePanel* defaults, const Layout& layout,
+                                   ObjectStatePanel* panel, BubblePanel* defaults, const Layout& layout,
                                    QWidget* dialogParent, QObject* parent)
     : QObject(parent)
     , m_scene(scene)
     , m_view(view)
     , m_list(list)
-    , m_bubblePanel(panel)
+    , m_objectState(panel)
     , m_toolDefaults(defaults)
     , m_layout(layout)
     , m_dialogParent(dialogParent)
 {
-    connect(m_bubblePanel, &BubblePanel::changed, this,
+    connect(m_objectState, &ObjectStatePanel::changed, this,
             [this](const TextArtifact& a) { applyPanelArtifact(a, /*commit=*/false); });
-    connect(m_bubblePanel, &BubblePanel::committed, this,
+    connect(m_objectState, &ObjectStatePanel::committed, this,
             [this](const TextArtifact& a) { applyPanelArtifact(a, /*commit=*/true); });
-    connect(m_bubblePanel, &BubblePanel::deleteRequested, this, &ObjectController::deleteSelectedOverlay);
-    connect(m_bubblePanel, &BubblePanel::fitRequested, this, [this] {
+    connect(m_objectState, &ObjectStatePanel::deleteRequested, this, &ObjectController::deleteSelectedOverlay);
+    connect(m_objectState, &ObjectStatePanel::fitRequested, this, [this] {
         auto* bubble = qobject_cast<BubbleObject*>(m_overlayItems.value(m_selectedOverlay));
         if (!bubble) return;   // only a bubble has text to fit to
         TextArtifact a = bubble->artifact();
         a.box = fittedBox(a);
         applyPanelArtifact(a, /*commit=*/true);
-        m_bubblePanel->setArtifact(a);
+        m_objectState->setArtifact(a);
     });
 
     // --- artifact list (right-bottom): composite order, mute toggles, selection ---
@@ -204,8 +205,8 @@ void ObjectController::setSource(const std::vector<Platemaker::Models::StripOver
     if (m_selectNewOverlay && !m_overlays.empty()) {
         m_selectNewOverlay = false;
         selectOverlay(QString::fromStdString(m_overlays.back().uid));
-        if (m_bubblePanel)
-            m_bubblePanel->focusText();
+        if (m_objectState)
+            m_objectState->focusText();
         return;
     }
     m_selectNewOverlay = false;
@@ -361,8 +362,8 @@ void ObjectController::onOverlayGeometryEdited(const QString& uid)
     // imported artwork; asking the object what it is cannot go wrong the same way.
     if (auto* bubble = qobject_cast<BubbleObject*>(item)) {
         m_artifacts.insert(uid, bubble->artifact());
-        if (uid == m_selectedOverlay && m_bubblePanel)
-            m_bubblePanel->setArtifact(bubble->artifact());
+        if (uid == m_selectedOverlay && m_objectState)
+            m_objectState->setArtifact(bubble->artifact());
     }
     refreshList();
     pushOverlays(tr("Move bubble"));
@@ -426,15 +427,15 @@ void ObjectController::selectOverlay(const QString& uid)
     if (m_actDuplicate) m_actDuplicate->setEnabled(has);
     if (m_actDelete)    m_actDelete->setEnabled(has);
 
-    if (!m_bubblePanel)
+    if (!m_objectState)
         return;
     // Only a bubble this editor authored can be edited here. Imported artwork has no parameters, and
     // handing the panel a default set would replace the artwork with a blank balloon on the next
     // commit — which is exactly what this used to do, because it asked the model instead of the object.
     if (auto* bubble = qobject_cast<BubbleObject*>(m_overlayItems.value(uid)))
-        m_bubblePanel->setArtifact(bubble->artifact());
+        m_objectState->setArtifact(bubble->artifact());
     else
-        m_bubblePanel->clearSelection();
+        m_objectState->clearSelection();
 }
 
 void ObjectController::applyPanelArtifact(const TextArtifact& a, bool commit)

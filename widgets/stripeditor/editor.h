@@ -38,6 +38,7 @@ namespace StripEdit {
 
 class GradePanel;
 class BubblePanel;
+class ObjectStatePanel;
 class ObjectController;
 
 /**
@@ -261,7 +262,7 @@ private:
 
     // --- the objects on the strip ---
     //! Right-top: what the selected object *is*. Inert, and says so, while nothing is selected.
-    BubblePanel* m_bubblePanel = nullptr;
+    ObjectStatePanel* m_objectState = nullptr;
     //! Bottom-left, under the tool rail: what the *next* object will be. Never edits anything.
     BubblePanel* m_toolDefaults = nullptr;
     //! Owns the overlay set, the scene items, the list and the selection. Declared after m_layout,

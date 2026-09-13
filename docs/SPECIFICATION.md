@@ -174,13 +174,22 @@ toolColumn = QSplitter(V): [ tool tiles | TOOL OPTIONS ]      what the NEXT obje
 rightPanel = QSplitter(V): [ OBJECT PROPERTIES | object list ] what THIS object is
 ```
 
-**Each side answers one question, and only that one.** Bottom-left says what the *next* object will be;
-the right-hand panel says what *this* object is. A panel answering both would mean two things depending
-on state the artist cannot see, which is what makes a preset picker above shared controls ambiguous.
+**Each side answers one question, and only that one** — and they are two classes, not one class in two
+places. `BubblePanel` is the tool's options: what the *next* object will be, editing nothing and emitting
+nothing. `ObjectStatePanel` is the selection's properties. A single class answering both would mean two
+things depending on state the artist cannot see, which is what makes a preset picker above shared
+controls ambiguous.
 
-`BubblePanel` is instantiated once per `Seat` — the same controls with a stated subject, because a
-bubble's colours mean the same thing either way. With nothing selected the right-hand one is inert and
-says so.
+Both own a **`PropertyGroupSet`** — the five group editors, plus the only two rules about applying all of
+them: shape is written before tails (the tails editor reads it), and the style seed is topped up
+afterwards, since it belongs to no group. Written once, because both are the kind of rule that drifts
+when written twice.
+
+`ObjectStatePanel` shows **one `CollapsibleSection` per group**, in a fixed order, and only the sections
+the selected object's kind has. Qt has no collapsible container — a checkable `QGroupBox` puts a checkbox
+in the title that means *enabled* — so `widgets/collapsiblesection/` is a disclosure arrow over a content
+widget. Which sections are open is a working preference and lives in `QSettings`. With nothing selected
+the panel shows one line saying so and no sections at all.
 
 The **grade** lives in tool options rather than on the right: its subject is the project, so it is the
 tool's own configuration and not any object's property.

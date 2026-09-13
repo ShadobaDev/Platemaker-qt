@@ -20,9 +20,12 @@
   hit where it is drawn: its box, its tail tips, and its corner grips while selected.
 
   The tool's own options sit **bottom-left**, under the tool rail, and say what the next object will be.
-  The **right-hand panel describes whatever is selected** and nothing else; the object list beneath it
-  shows the strip's contents as a stack — row 0 is front-most, drag to reorder, tick to mute, **Duplicate
-  (Ctrl+D) / Delete** from the context menu. Splitter positions are remembered between sessions.
+  The **right-hand panel describes whatever is selected** and nothing else: a collapsible section per
+  thing a bubble has — shape, fill and outline, line style, text, tails — showing only the sections that
+  apply, so a caption with no balloon is not offered a fill it has nowhere to put. Which sections you
+  leave open is remembered. The object list beneath shows the strip's contents as a stack — row 0 is
+  front-most, drag to reorder, tick to mute, **Duplicate (Ctrl+D) / Delete** from the context menu.
+  Splitter positions are remembered between sessions.
   Everything previews live, and the preview *is* the render: the same drawing code over the same numbers
   at the same scale.
   - **Ten shapes**, each bringing the rectangle its text may occupy — speech, round, thought, shout,

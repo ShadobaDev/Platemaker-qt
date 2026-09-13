@@ -5,6 +5,7 @@
 #include "objectcontroller.h"
 #include "pagesource.h"
 #include "bubblepanel.h"
+#include "objectstatepanel.h"
 
 #include <QButtonGroup>
 #include <QDebug>
@@ -191,18 +192,18 @@ Editor::Editor(QWidget *parent)
         });
         // One panel for Bubble *and* Text: they author the same object (a TextArtifact, with or without
         // a shape), so both rail buttons point at this page and setTool() just hides the shape group.
-        m_toolDefaults = new BubblePanel(BubblePanel::Seat::ToolDefaults, ui->toolOptions);
+        m_toolDefaults = new BubblePanel(ui->toolOptions);
         ui->toolOptions->addWidget(m_toolDefaults);
 
-        // The other seat: what the selected object is. Same controls, a different subject — and now a
-        // different place on screen, which is the whole point.
-        m_bubblePanel = new BubblePanel(BubblePanel::Seat::ObjectProperties, ui->objectProperties);
-        ui->objectProperties->addWidget(m_bubblePanel);
-        m_bubblePanel->clearSelection();
+        // The other question, and a different class for it: what the *selected* object is. The two used
+        // to be one class sitting in two places, which is how they came to look like the same panel
+        // twice. They now differ in what they contain, not only in what they mean.
+        m_objectState = new ObjectStatePanel(ui->objectProperties);
+        ui->objectProperties->addWidget(m_objectState);
 
         // Everything placed on the strip. It drives the scene, the list and the panel; it owns no
         // persistence, so every edit leaves through one of its four signals and comes back as a re-feed.
-        m_objects = new ObjectController(m_scene, m_view, ui->artifactList, m_bubblePanel,
+        m_objects = new ObjectController(m_scene, m_view, ui->artifactList, m_objectState,
                                          m_toolDefaults, m_layout, this, this);
         connect(m_objects, &ObjectController::artifactCreated,        this, &Editor::artifactCreated);
         connect(m_objects, &ObjectController::overlaysEdited,         this, &Editor::overlaysEdited);

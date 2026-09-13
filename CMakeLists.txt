@@ -66,6 +66,7 @@ qt_add_executable(Platemaker
     widgets/stripeditor/pagesource.cpp widgets/stripeditor/pagesource.h
     widgets/stripeditor/objectcontroller.cpp widgets/stripeditor/objectcontroller.h
     widgets/stripeditor/properties/propertygroupeditor.h
+    widgets/stripeditor/properties/propertygroupset.cpp widgets/stripeditor/properties/propertygroupset.h
     widgets/stripeditor/properties/shapeeditor.cpp widgets/stripeditor/properties/shapeeditor.h
     widgets/stripeditor/properties/skineditor.cpp widgets/stripeditor/properties/skineditor.h
     widgets/stripeditor/properties/styleeditor.cpp widgets/stripeditor/properties/styleeditor.h
@@ -73,6 +74,8 @@ qt_add_executable(Platemaker
     widgets/stripeditor/properties/texteditor.cpp widgets/stripeditor/properties/texteditor.h
     widgets/stripeditor/panels/gradepanel.cpp widgets/stripeditor/panels/gradepanel.h widgets/stripeditor/panels/gradepanel.ui
     widgets/stripeditor/panels/bubblepanel.cpp widgets/stripeditor/panels/bubblepanel.h widgets/stripeditor/panels/bubblepanel.ui
+    widgets/stripeditor/panels/objectstatepanel.cpp widgets/stripeditor/panels/objectstatepanel.h
+    widgets/collapsiblesection/collapsiblesection.cpp widgets/collapsiblesection/collapsiblesection.h
 
     # Text artifact — what a bubble IS (shape, text, styling), its sidecar codec and its rasteriser.
     # The library composites a flat RGBA bitmap and has no text engine, so the editable source lives here.
@@ -113,6 +116,7 @@ target_include_directories(Platemaker PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/widgets/stripeditor/properties
     ${CMAKE_CURRENT_SOURCE_DIR}/widgets/stagecard
     ${CMAKE_CURRENT_SOURCE_DIR}/widgets/flowlayout
+    ${CMAKE_CURRENT_SOURCE_DIR}/widgets/collapsiblesection
     ${CMAKE_CURRENT_SOURCE_DIR}/widgets/textartifact
     ${CMAKE_CURRENT_SOURCE_DIR}/widgets/docktitlebar
 )

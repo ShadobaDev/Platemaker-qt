@@ -46,7 +46,6 @@
 namespace StripEdit {
 
 namespace {
-constexpr int k_commitDebounceMs = 300; //!< Coalesce typing into one undo step this long after it stops.
 // --- presets ---------------------------------------------------------------
 
 const auto k_presetsKey = QStringLiteral("bubblePresets");
@@ -144,25 +143,18 @@ QList<BubblePreset> builtinPresets()
 }
 }
 
-BubblePanel::BubblePanel(Seat seat, QWidget* parent)
+BubblePanel::BubblePanel(QWidget* parent)
     : QWidget(parent)
-    , m_seat(seat)
     , ui(new Ui::BubblePanel)
+    , m_groups(this)
 {
     ui->setupUi(this);  // provides the empty verticalLayout container; the controls are built here
-
-    m_commitTimer = new QTimer(this);
-    m_commitTimer->setSingleShot(true);
-    m_commitTimer->setInterval(k_commitDebounceMs);
-    connect(m_commitTimer, &QTimer::timeout, this, [this] {
-        if (m_hasSelection) emit committed(m_artifact);
-    });
 
     // --- Presets ---------------------------------------------------------------------------------
     // Above the controls it sets, and outside the Shape group, because a preset also carries the font
     // and the colours the Text tool uses.
     m_presetCombo = new QComboBox(this);
-    m_presetCombo->setToolTip(tr("Restyles the selection, and starts the next bubble you place."));
+    m_presetCombo->setToolTip(tr("The look the next bubble you place will start from."));
     m_presetCombo->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
     m_presetCombo->setIconSize(QSize(k_bubbleThumbW, k_bubbleThumbH));
 
@@ -197,73 +189,40 @@ BubblePanel::BubblePanel(Seat seat, QWidget* parent)
     m_shapeGroup = new QGroupBox(tr("Shape"), this);
     auto* shapeLay = new QVBoxLayout(m_shapeGroup);
 
-    m_shape = new ShapeEditor(m_shapeGroup);
-    m_tails = new TailsEditor(m_shapeGroup);
-    m_skin  = new SkinEditor(m_shapeGroup);
-    m_style = new StyleEditor(m_shapeGroup);
-    shapeLay->addWidget(m_shape);
-    shapeLay->addWidget(m_tails);
-    shapeLay->addWidget(m_skin);
-    shapeLay->addWidget(m_style);
+    shapeLay->addWidget(m_groups.shape());
+    shapeLay->addWidget(m_groups.tails());
+    shapeLay->addWidget(m_groups.skin());
+    shapeLay->addWidget(m_groups.style());
 
     // --- Text (both tools) ----------------------------------------------------------------------
     m_textGroup = new QGroupBox(tr("Text"), this);
     auto* textLay = new QVBoxLayout(m_textGroup);
-    m_text = new TextEditor(m_textGroup);
-    textLay->addWidget(m_text);
+    textLay->addWidget(m_groups.text());
 
-    // --- Actions --------------------------------------------------------------------------------
-    auto* fitBtn = new QPushButton(tr("Fit to text"), this);
-    fitBtn->setToolTip(tr("Grow the bubble until the whole line fits."));
-    auto* delBtn = new QPushButton(tr("Delete"), this);
-    auto* actions = new QHBoxLayout;
-    actions->addWidget(fitBtn);
-    actions->addWidget(delBtn);
-
-    // A defaults seat describes an object that does not exist yet, so the three controls that act on
-    // one are meaningless there: what it says, fitting the balloon to that, and deleting it.
-    const bool properties = (m_seat == Seat::ObjectProperties);
-    m_text->setContentVisible(properties);
-    m_tails->setAddVisible(properties);
-    fitBtn->setVisible(properties);
-    delBtn->setVisible(properties);
-
-    m_emptyHint = new QLabel(tr("Select an object on the strip to edit it."), this);
-    m_emptyHint->setWordWrap(true);
-    m_emptyHint->setAlignment(Qt::AlignCenter);
-    m_emptyHint->setEnabled(false);      // reads as inactive without a hardcoded colour
-    m_emptyHint->setVisible(false);
+    // Nothing here acts on an object, because there is no object yet: no text to type, no tail to add
+    // to, nothing to fit or delete. Those live with the selection, in ObjectStatePanel.
+    m_groups.text()->setContentVisible(false);
+    m_groups.tails()->setAddVisible(false);
 
     auto* lay = qobject_cast<QVBoxLayout*>(layout());
     if (lay) {
-        lay->addWidget(m_emptyHint);
         lay->addLayout(presetRow);
         lay->addWidget(m_shapeGroup);
         lay->addWidget(m_textGroup);
-        lay->addLayout(actions);
         lay->addStretch(1);
     }
 
     // --- Wiring ---------------------------------------------------------------------------------
     //
-    // Every group editor reports the same two things — a control moved, and an edit settled — so the
-    // panel maps five editors onto the two signals it already emits, once, rather than wiring thirteen
-    // controls by hand.
     // The one cross-group rule, connected first so it runs first: picking a shape gives you the shape
     // its tile shows, tail and all, and the tails editor has to hear about it before the change is
     // collected. Qt runs slots in connection order, which is the whole reason this line is up here.
-    connect(m_shape, &ShapeEditor::edited, this, [this] {
-        m_tails->shapeChanged(m_shape->values().kind);
+    connect(m_groups.shape(), &ShapeEditor::edited, this, [this] {
+        m_groups.tails()->shapeChanged(m_groups.shape()->values().kind);
     });
 
-    const QList<PropertyGroupEditor*> editors{m_shape, m_skin, m_style, m_text, m_tails};
-    for (PropertyGroupEditor* e : editors) {
-        connect(e, &PropertyGroupEditor::edited,    this, [this] { onControlChanged(); });
-        connect(e, &PropertyGroupEditor::committed, this, [this] {
-            if (m_hasSelection)
-                emit committed(m_artifact);
-        });
-    }
+    for (PropertyGroupEditor* e : m_groups.all())
+        connect(e, &PropertyGroupEditor::edited, this, [this] { onControlChanged(); });
 
     // activated(), not currentIndexChanged(): only a human picking an entry applies a preset, so
     // rebuilding the list never restyles anything, and re-picking the current entry re-applies it.
@@ -277,11 +236,7 @@ BubblePanel::BubblePanel(Seat seat, QWidget* parent)
     connect(importAct,      &QAction::triggered,   this, [this] { onImportPack(); });
     connect(exportAct,      &QAction::triggered,   this, [this] { onExportPack(); });
 
-    connect(fitBtn, &QPushButton::clicked, this, [this] { if (m_hasSelection) emit fitRequested(); });
-    connect(delBtn, &QPushButton::clicked, this, [this] { if (m_hasSelection) emit deleteRequested(); });
-
     syncFromModel();
-    clearSelection();
 }
 
 BubblePanel::~BubblePanel()
@@ -290,37 +245,6 @@ BubblePanel::~BubblePanel()
 }
 
 // ---------------------------------------------------------------------------
-
-void BubblePanel::setArtifact(const TextArtifact& a)
-{
-    m_artifact    = a;
-    m_hasSelection = true;
-    syncFromModel();
-    if (m_emptyHint)
-        m_emptyHint->setVisible(false);
-    m_textGroup->setEnabled(true);
-    m_shapeGroup->setEnabled(true);
-}
-
-void BubblePanel::clearSelection()
-{
-    m_hasSelection = false;
-    m_commitTimer->stop();
-    if (m_seat != Seat::ObjectProperties)
-        return;   // a defaults seat has no selection; its controls always describe the next object
-
-    // Inert and visibly so. These controls used to stay live and quietly become "the next placement's
-    // styling" instead — the same widget meaning two things, which is what nobody could tell apart.
-    m_emptyHint->setVisible(true);
-    m_shapeGroup->setEnabled(false);
-    m_textGroup->setEnabled(false);
-    m_text->setContentEnabled(false);
-}
-
-void BubblePanel::focusText()
-{
-    m_text->focusContent();
-}
 
 void BubblePanel::setShapeControlsVisible(bool visible)
 {
@@ -333,17 +257,17 @@ TextArtifact BubblePanel::prototype() const
     TextArtifact a;
     // Shape first: the tails editor reads it, because a shapeless artifact has nothing to grow a tail
     // from. Everything else is order-independent by construction — no two groups touch a property.
-    m_shape->applyTo(a);
-    m_skin->applyTo(a);
-    m_style->applyTo(a);
-    m_text->applyTo(a);
+    m_groups.shape()->applyTo(a);
+    m_groups.skin()->applyTo(a);
+    m_groups.style()->applyTo(a);
+    m_groups.text()->applyTo(a);
 
     // A placement takes the look and not the line. The same distinction a preset makes — everything a
     // balloon is, minus everything it says — and the same reason: the words belong to one balloon.
     a.text.body.clear();
     // …and to one balloon's aim: applyToNew() makes a first tail rather than copying the selected
     // balloon's, which would give every new bubble the last one's tail.
-    m_tails->applyToNew(a);
+    m_groups.tails()->applyToNew(a);
 
     // A fresh seed per bubble, so a page of marker balloons does not wear one repeated wobble. Set at
     // placement and then left alone — re-rolling it on every edit would make the outline crawl as you
@@ -362,35 +286,17 @@ void BubblePanel::onControlChanged()
     // Five calls, in place of thirteen properties read out of thirteen widgets by hand. Shape goes
     // first because the tails editor reads it; the rest cannot collide, since no property has two
     // owners.
-    m_shape->applyTo(m_artifact);
-    m_skin->applyTo(m_artifact);
-    m_style->applyTo(m_artifact);
-    m_text->applyTo(m_artifact);
-    m_tails->applyTo(m_artifact);
+    m_groups.collect(m_artifact);
 
-    // The seed is the one thing here that belongs to no group, and this is why: a bubble authored
-    // before styles existed carries seed 0, and so would every other one — style a page of them and
-    // they would all wear the same wobble. Give it one the first time it is styled.
-    if (m_artifact.style.kind != TextArtifact::Style::Clean && m_artifact.styleSeed == 0)
-        m_artifact.styleSeed = QRandomGenerator::global()->generate();
-
-    if (!m_hasSelection)
-        return;   // styling the next placement, nothing to preview or persist yet
-
-    emit changed(m_artifact);
-    m_commitTimer->start();
+    // Nothing is emitted: these values describe an object that does not exist yet, so there is nothing
+    // to preview and nothing to persist until one is placed.
 }
 
 void BubblePanel::syncFromModel()
 {
     // No signal blockers and no populating dance here any more: bind() never emits, by contract.
     m_populating = true;
-    m_shape->bindOne(m_artifact);
-    m_skin->bindOne(m_artifact);
-    m_style->bindOne(m_artifact);
-    m_text->bindOne(m_artifact);
-    m_tails->bindOne(m_artifact);
-    m_text->setContentEnabled(true);
+    m_groups.bind(m_artifact);
     m_populating = false;
 }
 
@@ -456,14 +362,6 @@ void BubblePanel::applyPreset(const BubblePreset& p)
 
     m_artifact = a;
     syncFromModel();
-    if (!m_hasSelection) {
-        // A defaults seat: the panel now simply describes the next object. syncFromModel() re-enables
-        // the text box on the way through, and there is nothing to type into yet.
-        clearSelection();
-        return;
-    }
-    emit changed(m_artifact);
-    emit committed(m_artifact);   // a discrete choice, like the colour dialog: one undo step, no timer
 }
 
 void BubblePanel::onSavePreset()

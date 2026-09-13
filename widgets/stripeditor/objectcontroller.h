@@ -25,6 +25,7 @@ class QWidget;
 namespace StripEdit {
 
 class BubblePanel;
+class ObjectStatePanel;
 class Layout;
 class Object;
 
@@ -61,7 +62,7 @@ public:
      * @param dialogParent Parent for the file/message dialogs this raises.
      */
     ObjectController(QGraphicsScene* scene, QGraphicsView* view, QListWidget* list,
-                     BubblePanel* panel, BubblePanel* defaults, const Layout& layout,
+                     ObjectStatePanel* panel, BubblePanel* defaults, const Layout& layout,
                      QWidget* dialogParent, QObject* parent = nullptr);
 
     //! Adopts the owner's complete state after an edit round-trips back.
@@ -135,7 +136,7 @@ private:
     QGraphicsScene* m_scene        = nullptr;
     QGraphicsView*  m_view         = nullptr;
     QListWidget*    m_list         = nullptr;
-    BubblePanel*    m_bubblePanel  = nullptr;
+    ObjectStatePanel* m_objectState = nullptr;
     BubblePanel*    m_toolDefaults = nullptr;   //!< Read for prototype(); never edited from here.
     const Layout&   m_layout;
     QWidget*        m_dialogParent = nullptr;

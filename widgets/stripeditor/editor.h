@@ -41,6 +41,7 @@ namespace StripEdit {
 
 class GradePanel;
 class ObjectStatePanel;
+class StripStatePanel;
 class PresetStore;
 class ToolOptionsPanel;
 class ObjectController;
@@ -265,6 +266,9 @@ private:
     //! Grade state changed: drop the graded cache and re-grade what's visible.
     void refreshGradePreview();
 
+    //! Shows the selected strip or page in ③, with current data — or the object panel for anything else.
+    void showSubject();
+
     Ui::Editor *ui          = nullptr;  //!< Designer form (toolbar buttons + graphics view).
     QGraphicsView  *m_view       = nullptr;  //!< == ui->graphicsView (cached).
     QGraphicsScene *m_scene      = nullptr;
@@ -292,6 +296,15 @@ private:
     // --- the objects on the strip ---
     //! Right-top: what the selected object *is*. Inert, and says so, while nothing is selected.
     ObjectStatePanel* m_objectState = nullptr;
+    //! The same surface when the strip or one of its pages is selected: what *that* is.
+    StripStatePanel*  m_stripState = nullptr;
+    /**
+     * @brief The grade as this editor last saw it — from the project, or from a live edit in progress.
+     *
+     * What a page's exclusion is toggled against. Taken from the last thing shown rather than asked of the
+     * project, so a toggle can never write back a grade older than the one on screen.
+     */
+    Platemaker::Models::ColourCorrection m_cc;
     //! Bottom-left, under the tool rail: what the *next* object will be. Never edits anything.
     ToolOptionsPanel* m_toolOptions = nullptr;
     /**

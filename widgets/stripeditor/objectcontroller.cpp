@@ -21,8 +21,7 @@
 #include <QGraphicsScene>
 #include <QGraphicsView>
 #include <QKeySequence>
-#include <QListWidget>
-#include <QListWidgetItem>
+#include <QTreeWidget>
 #include <QMessageBox>
 #include <QPainter>
 #include <QPen>
@@ -83,7 +82,7 @@ QPixmap renderAssetFile(const QString& path)
 
 } // namespace
 
-ObjectController::ObjectController(QGraphicsScene* scene, QGraphicsView* view, QListWidget* list,
+ObjectController::ObjectController(QGraphicsScene* scene, QGraphicsView* view, QTreeWidget* list,
                                    ObjectStatePanel* panel, ToolOptionsPanel* defaults,
                                    PresetStore& presets, const Layout& layout,
                                    QWidget* dialogParent, QObject* parent)
@@ -114,6 +113,11 @@ ObjectController::ObjectController(QGraphicsScene* scene, QGraphicsView* view, Q
     // --- artifact list (right-bottom): composite order, mute toggles, selection ---
     m_list->setDragDropMode(QAbstractItemView::InternalMove);
     m_list->setSelectionMode(QAbstractItemView::SingleSelection);
+    m_list->setHeaderHidden(true);
+    m_list->setColumnCount(1);
+    // Branch decoration, because the strip nests its pages. Rows start collapsed; what the artist opens
+    // stays open, since the rows are updated in place rather than rebuilt.
+    m_list->setRootIsDecorated(true);
 
     // Duplicate / Delete as real QActions: Qt::ActionsContextMenu then builds the list's right-click
     // menu from them for free, and the same objects carry the keyboard shortcuts. They are added to
@@ -148,24 +152,54 @@ ObjectController::ObjectController(QGraphicsScene* scene, QGraphicsView* view, Q
         w->addAction(m_actImport);
     }
     m_list->setContextMenuPolicy(Qt::ActionsContextMenu);
-    connect(m_list, &QListWidget::itemSelectionChanged, this, [this] {
-        if (m_syncingList) return;
+    connect(m_list, &QTreeWidget::itemSelectionChanged, this, [this] {
+        // A drag moves a row by taking it out and putting it back, and the taking clears its selection.
+        // That is the tree's mechanics, not the artist deselecting, so the selection stands until the
+        // move has been committed and re-shown.
+        if (m_syncingList || m_rowsMoving) return;
         const auto sel = m_list->selectedItems();
-        selectOverlay(sel.isEmpty() ? QString() : sel.first()->data(Qt::UserRole).toString());
+        if (sel.isEmpty()) {
+            selectOverlay(QString());
+            return;
+        }
+        const QTreeWidgetItem* row = sel.first();
+        const QString id = row->data(0, Qt::UserRole).toString();
+        switch (static_cast<Subject>(row->data(0, k_kindRole).toInt())) {
+        case Subject::Strip: selectStrip();      break;
+        case Subject::Page:  selectPage(id);     break;
+        default:             selectOverlay(id);  break;
+        }
     });
     // Both list handlers are deferred to the next event-loop turn on purpose. Persisting an edit
     // round-trips through the owner and comes back as a re-feed that clears and refills this list —
     // which cannot safely happen inside the list's own itemChanged / rowsMoved emission.
-    connect(m_list, &QListWidget::itemChanged, this, [this](QListWidgetItem* row) {
+    connect(m_list, &QTreeWidget::itemChanged, this, [this](QTreeWidgetItem* row, int) {
         if (m_syncingList || !row) return;
-        const QString uid = row->data(Qt::UserRole).toString();
-        const bool    on  = row->checkState() == Qt::Checked;
+        const QString uid = row->data(0, Qt::UserRole).toString();
+        const bool    on  = row->checkState(0) == Qt::Checked;
         QTimer::singleShot(0, this, [this, uid, on] { setOverlayEnabled(uid, on); });
     });
-    // Dragging a row changes the composite order, which is what the render draws bottom-to-top.
-    connect(m_list->model(), &QAbstractItemModel::rowsMoved, this, [this] {
-        if (m_syncingList) return;
-        QTimer::singleShot(0, this, [this] { commitListOrder(); });
+    // Dragging a row changes the composite order, which is what the render draws bottom-to-top. Listened
+    // for as both a move and an insert: a list reports a drag as a move, a tree as a removal followed by
+    // an insertion. Which one arrives is Qt's business, so neither is relied on; either restarts one
+    // timer, and the commit it fires compares the rows with the model and does nothing if they agree.
+    m_orderCommit = new QTimer(this);
+    m_orderCommit->setSingleShot(true);
+    m_orderCommit->setInterval(0);
+    connect(m_orderCommit, &QTimer::timeout, this, &ObjectController::commitListOrder);
+    const auto orderMayHaveChanged = [this] {
+        if (!m_syncingList)
+            m_orderCommit->start();
+    };
+    connect(m_list->model(), &QAbstractItemModel::rowsMoved,    this, orderMayHaveChanged);
+    connect(m_list->model(), &QAbstractItemModel::rowsInserted, this, orderMayHaveChanged);
+    // Outside a refresh, nothing but a drag removes a row — deleting an object goes through the model
+    // and comes back as a refresh.
+    connect(m_list->model(), &QAbstractItemModel::rowsAboutToBeRemoved, this, [this] {
+        if (m_syncingList)
+            return;
+        m_rowsMoving = true;
+        m_orderCommit->start();   // so the flag is cleared even if no insertion ever follows
     });
 
     // The scene is the other half of the selection: clicking a bubble on the strip drives the list
@@ -191,8 +225,66 @@ bool ObjectController::objectAt(const QPointF& scenePos, const QTransform& devic
 
 void ObjectController::reselect()
 {
+    if (m_subject == Subject::Strip || m_subject == Subject::Page) {
+        // A page can go between feeds — an input removed — and a selection must not outlive its row.
+        if (subjectRow())
+            selectSubject(m_subject, m_selectedPage);
+        else
+            selectOverlay(QString());
+        return;
+    }
     if (!m_selectedOverlay.isEmpty())
         selectOverlay(m_selectedOverlay);
+}
+
+void ObjectController::selectStrip()
+{
+    selectSubject(Subject::Strip, QString());
+}
+
+void ObjectController::selectPage(const QString& inputUid)
+{
+    selectSubject(Subject::Page, inputUid);
+}
+
+void ObjectController::selectSubject(Subject subject, const QString& pageUid)
+{
+    // Everything overlay-shaped let go of first, through the one function that already knows how: the
+    // scene, the tree, the actions that need an object, and the object panel.
+    selectOverlay(QString());
+
+    m_subject      = subject;
+    m_selectedPage = subject == Subject::Page ? pageUid : QString();
+
+    m_syncingList = true;
+    if (QTreeWidgetItem* row = subjectRow())
+        row->setSelected(true);
+    m_syncingList = false;
+
+    emit subjectChanged(m_subject, m_selectedPage);
+}
+
+QTreeWidgetItem* ObjectController::subjectRow() const
+{
+    for (int r = 0; r < m_list->topLevelItemCount(); ++r) {
+        QTreeWidgetItem* top = m_list->topLevelItem(r);
+        if (top->data(0, k_kindRole).toInt() != static_cast<int>(Subject::Strip))
+            continue;
+        if (m_subject == Subject::Strip)
+            return top;
+        for (int c = 0; c < top->childCount(); ++c)
+            if (top->child(c)->data(0, Qt::UserRole).toString() == m_selectedPage)
+                return top->child(c);
+    }
+    return nullptr;
+}
+
+void ObjectController::setExcludedPages(const QSet<QString>& inputUids)
+{
+    if (inputUids == m_excludedPages)
+        return;
+    m_excludedPages = inputUids;
+    refreshList();
 }
 
 qreal ObjectController::itemScaleFor(const Platemaker::Models::StripOverlay& o, qreal naturalWidth) const
@@ -238,7 +330,7 @@ void ObjectController::setSource(const std::vector<Platemaker::Models::StripOver
             // both places the selection shows. ensureVisible() and scrollToItem() do nothing when the
             // target is already visible, which keeps an undo of what you are looking at perfectly still.
             m_view->ensureVisible(m_overlayItems.value(uid));
-            const QList<QListWidgetItem*> rows = m_list->selectedItems();
+            const QList<QTreeWidgetItem*> rows = m_list->selectedItems();
             if (!rows.isEmpty())
                 m_list->scrollToItem(rows.first());
             return;
@@ -411,18 +503,44 @@ void ObjectController::refreshList()
         return;
 
     m_syncingList = true;
-    m_list->clear();
-    // The list is a **stack**: row 0 is the front-most object, and a row covers every row below it
+
+    // **Updated in place, never cleared and refilled.** The tree is where an object is picked out
+    // precisely, and every edit comes back to this controller as a feed — so a tree rebuilt on each feed
+    // would lose what the artist had opened, selected or scrolled to at exactly the moment they were
+    // using it. Rows are matched by id — an overlay's uid, the strip's fixed id, a page's input uid — and
+    // only what changed is touched.
+    QHash<QString, QTreeWidgetItem*> unused;
+    for (int r = 0; r < m_list->topLevelItemCount(); ++r) {
+        QTreeWidgetItem* row = m_list->topLevelItem(r);
+        unused.insert(row->data(0, Qt::UserRole).toString(), row);
+    }
+
+    // Puts @p row at top-level position @p index, moving it only if it is not already there. A move is a
+    // take and an insert, and the view forgets whether a taken row was expanded — so that is carried
+    // across by hand, or every reorder would fold up whatever the artist had opened.
+    const auto placeTopLevel = [this](QTreeWidgetItem* row, int index) {
+        const int at = m_list->indexOfTopLevelItem(row);
+        if (at == index)
+            return;
+        const bool open = at >= 0 && row->isExpanded();
+        if (at >= 0)
+            m_list->takeTopLevelItem(at);
+        m_list->insertTopLevelItem(index, row);
+        row->setExpanded(open);
+    };
+
+    // The tree is a **stack**: row 0 is the front-most object, and a row covers every row below it
     // wherever they overlap. The render draws m_overlays in vector order, so the *last* element is the
-    // one on top — which makes the list that vector reversed. Reversing here rather than in the model
+    // one on top — which makes the rows that vector reversed. Reversing here rather than in the model
     // keeps the library's "composite order == vector order" rule intact and costs one iterator.
-    for (auto rit = m_overlays.rbegin(); rit != m_overlays.rend(); ++rit) {
+    int index = 0;
+    for (auto rit = m_overlays.rbegin(); rit != m_overlays.rend(); ++rit, ++index) {
         const auto&   o    = *rit;
         const QString uid  = QString::fromStdString(o.uid);
         const int     page = m_layout.pageForAnchor(QString::fromStdString(o.anchorInputUid));
 
-        // The object names itself. The fallback covers the one moment there is no object to ask: a list
-        // rebuilt before the strip has a layout, where syncItems() has nothing to place anything against.
+        // The object names itself. The fallback covers the one moment there is no object to ask: rows
+        // refreshed before the strip has a layout, where syncItems() has nothing to place anything against.
         const Object* item  = m_overlayItems.value(uid);
         const QString label = item ? item->label()
                                    : (m_artifacts.contains(uid) ? artifactLabel(m_artifacts.value(uid))
@@ -430,32 +548,107 @@ void ObjectController::refreshList()
         const QString prefix = (page >= 0) ? tr("p.%1").arg(page + 1, 2, 10, QLatin1Char('0'))
                                            : tr("orphan");
 
-        auto* row = new QListWidgetItem(QStringLiteral("%1 · %2").arg(prefix, label));
-        row->setData(Qt::UserRole, uid);
-        row->setFlags(row->flags() | Qt::ItemIsUserCheckable);
-        row->setCheckState(o.enabled ? Qt::Checked : Qt::Unchecked);
-        if (page < 0) {
-            row->setForeground(m_dialogParent->palette().brush(QPalette::Disabled, QPalette::WindowText));
-            row->setToolTip(tr("The page this overlay was anchored to is not in the strip. It is kept, "
-                               "and comes back when its page does — the render skips it meanwhile."));
+        QTreeWidgetItem* row = unused.take(uid);
+        if (!row) {
+            row = new QTreeWidgetItem;
+            row->setData(0, Qt::UserRole, uid);
+            row->setData(0, k_kindRole, static_cast<int>(Subject::Overlay));
+            // Drops land between rows and never onto one. Nesting is structural — a tail belongs to its
+            // balloon — and is not something a drag may create.
+            row->setFlags((row->flags() | Qt::ItemIsUserCheckable) & ~Qt::ItemIsDropEnabled);
         }
-        m_list->addItem(row);
-        if (uid == m_selectedOverlay)
-            row->setSelected(true);
+        placeTopLevel(row, index);
+
+        row->setText(0, QStringLiteral("%1 · %2").arg(prefix, label));
+        row->setCheckState(0, o.enabled ? Qt::Checked : Qt::Unchecked);
+        // Both set on every pass, not only when unanchored: a row is reused, and one that was greyed must
+        // stop being greyed the moment its object is re-anchored.
+        if (page < 0) {
+            row->setForeground(0, m_dialogParent->palette().brush(QPalette::Disabled, QPalette::WindowText));
+            row->setToolTip(0, tr("The page this overlay was anchored to is not in the strip. It is kept, "
+                                  "and comes back when its page does — the render skips it meanwhile."));
+        } else {
+            row->setData(0, Qt::ForegroundRole, QVariant());
+            row->setToolTip(0, QString());
+        }
+        row->setSelected(m_subject == Subject::Overlay && uid == m_selectedOverlay);
     }
+
+    // The strip, pinned last — under every object, because it is what they all sit on. It is not an
+    // overlay: nothing can drag it, nothing can be dropped on it, and it has no mute, because a strip
+    // that could be hidden would no longer show what renders (Q62). Absent until there is a layout.
+    // Rows for overlays that are gone go *before* the strip is placed. Left in until the end they would
+    // still occupy positions above it, and the strip would be moved — taken and re-inserted — on every
+    // deletion, when all that had changed was a row above it disappearing.
+    QTreeWidgetItem* strip = unused.take(k_stripId);
+    qDeleteAll(unused);
+    unused.clear();
+    if (m_layout.isEmpty()) {
+        delete strip;
+        strip = nullptr;
+    }
+
+    if (!m_layout.isEmpty()) {
+        if (!strip) {
+            strip = new QTreeWidgetItem;
+            strip->setData(0, Qt::UserRole, k_stripId);
+            strip->setData(0, k_kindRole, static_cast<int>(Subject::Strip));
+            strip->setFlags(Qt::ItemIsSelectable | Qt::ItemIsEnabled);
+        }
+        placeTopLevel(strip, index);
+        strip->setText(0, tr("Strip · %n page(s)", "", m_layout.pageCount()));
+
+        // Its pages, in strip order, reconciled the same way — by input uid, in place, so a page the
+        // artist had selected is still selected after an edit that did not remove it.
+        QHash<QString, QTreeWidgetItem*> oldPages;
+        for (int c = 0; c < strip->childCount(); ++c)
+            oldPages.insert(strip->child(c)->data(0, Qt::UserRole).toString(), strip->child(c));
+
+        for (int i = 0; i < m_layout.pageCount(); ++i) {
+            const Page& page = m_layout.page(i);
+            QTreeWidgetItem* row = oldPages.take(page.inputUid);
+            if (!row) {
+                row = new QTreeWidgetItem;
+                row->setData(0, Qt::UserRole, page.inputUid);
+                row->setData(0, k_kindRole, static_cast<int>(Subject::Page));
+                row->setFlags(Qt::ItemIsSelectable | Qt::ItemIsEnabled);   // not draggable, not a drop target
+            }
+            const int at = strip->indexOfChild(row);
+            if (at != i) {
+                if (at >= 0)
+                    strip->takeChild(at);
+                strip->insertChild(i, row);
+            }
+            const QString name = tr("p.%1 — %2").arg(i + 1, 2, 10, QLatin1Char('0'))
+                                                .arg(QFileInfo(page.sourcePath).fileName());
+            row->setText(0, m_excludedPages.contains(page.inputUid) ? tr("%1 · excluded").arg(name) : name);
+            row->setSelected(m_subject == Subject::Page && page.inputUid == m_selectedPage);
+        }
+        qDeleteAll(oldPages);   // pages no longer in the strip
+        strip->setSelected(m_subject == Subject::Strip);
+    }
+
     m_syncingList = false;
 }
+
+
 
 void ObjectController::selectOverlay(const QString& uid)
 {
     m_selectedOverlay = uid;
+    m_subject         = uid.isEmpty() ? Subject::None : Subject::Overlay;
+    m_selectedPage.clear();
 
     m_syncingList = true;
     for (auto it = m_overlayItems.begin(); it != m_overlayItems.end(); ++it)
         it.value()->setSelected(it.key() == uid);
-    for (int r = 0; r < m_list->count(); ++r) {
-        QListWidgetItem* row = m_list->item(r);
-        row->setSelected(row->data(Qt::UserRole).toString() == uid);
+    // Cleared first: a page is a row too, and a page must not stay selected beside an object.
+    m_list->clearSelection();
+    for (int r = 0; r < m_list->topLevelItemCount(); ++r) {
+        QTreeWidgetItem* row = m_list->topLevelItem(r);
+        if (row->data(0, k_kindRole).toInt() == static_cast<int>(Subject::Overlay)
+            && row->data(0, Qt::UserRole).toString() == uid)
+            row->setSelected(true);
     }
     m_syncingList = false;
 
@@ -469,6 +662,8 @@ void ObjectController::selectOverlay(const QString& uid)
     // Any object can change page, artwork included — and an unanchored one can do nothing else useful.
     if (m_reanchorMenu)
         m_reanchorMenu->menuAction()->setEnabled(has && !m_layout.isEmpty());
+
+    emit subjectChanged(m_subject, uid);
 
     if (!m_objectState)
         return;
@@ -654,6 +849,10 @@ void ObjectController::setOverlayEnabled(const QString& uid, bool on)
 
 void ObjectController::commitListOrder()
 {
+    // First, before any return: a drag that ends in an early exit must not leave the tree ignoring
+    // every selection made after it.
+    m_rowsMoving = false;
+
     // The list is the composite order reversed (see refreshList): row 0 is the front-most object and
     // the render draws last-on-top, so the vector is the rows read bottom-up.
     std::unordered_map<std::string, Platemaker::Models::StripOverlay> byUid;
@@ -662,17 +861,35 @@ void ObjectController::commitListOrder()
 
     std::vector<Platemaker::Models::StripOverlay> reordered;
     reordered.reserve(m_overlays.size());
-    for (int r = m_list->count() - 1; r >= 0; --r) {
-        const auto it = byUid.find(m_list->item(r)->data(Qt::UserRole).toString().toStdString());
+    for (int r = m_list->topLevelItemCount() - 1; r >= 0; --r) {
+        const auto it = byUid.find(
+            m_list->topLevelItem(r)->data(0, Qt::UserRole).toString().toStdString());
         if (it != byUid.end())
             reordered.push_back(it->second);
     }
-    if (reordered.size() != m_overlays.size())
-        return;   // defensive: a partial rebuild would silently drop someone's bubble
+    if (reordered.size() != m_overlays.size()) {
+        // A row landed where no overlay row belongs — among the strip's pages, say. Put the rows back as
+        // the model has them rather than commit an order that has lost someone's bubble.
+        refreshList();
+        return;
+    }
+
+    // Nothing moved — a signal that looked like a drag was not one. Committing anyway would cost a round
+    // trip through the owner for a history step that records nothing.
+    const bool sameOrder = std::equal(reordered.begin(), reordered.end(), m_overlays.begin(),
+                                      [](const Platemaker::Models::StripOverlay& a,
+                                         const Platemaker::Models::StripOverlay& b) {
+                                          return a.uid == b.uid;
+                                      });
+    if (sameOrder) {
+        reselect();   // put back what the drag's take-and-insert unselected
+        return;
+    }
 
     m_overlays = std::move(reordered);
     syncItems();
     pushOverlays(tr("Reorder overlays"));
+    reselect();
 }
 
 void ObjectController::duplicateSelectedOverlay()

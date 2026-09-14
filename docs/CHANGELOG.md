@@ -99,6 +99,10 @@
   too — in one step that one Ctrl+Z puts back.
 - **Re-anchor to ▸** in an object's right-click menu moves it onto any page, by name — the way back for
   lettering whose page was removed, which cannot be dragged because it is not on the strip.
+- **The object list shows the strip and its pages.** The strip sits at the bottom, under every bubble;
+  open it to see the chapter's pages. Selecting the strip shows what colour correction it carries, and
+  selecting a page lets you **exclude it from colour correction** — a title or credits page that should
+  keep its own colours. Excluding or including a page is one undoable step.
 - **A colour grade is on because it is set, not because a switch says so.** Moving any of the grade's
   controls away from neutral makes the chapter graded — in the strip editor's preview and in the
   render, which cannot now disagree. **Reset** is how a grade is removed, and so is the workflow card's

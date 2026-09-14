@@ -2,6 +2,7 @@
 #define STRIPEDIT_OBJECTCONTROLLER_H
 
 #include <QHash>
+#include <QSet>
 #include <QImage>
 #include <QObject>
 #include <QPointF>
@@ -19,7 +20,9 @@ class QAction;
 class QGraphicsRectItem;
 class QGraphicsScene;
 class QGraphicsView;
-class QListWidget;
+class QTimer;
+class QTreeWidget;
+class QTreeWidgetItem;
 class QMenu;
 class QTransform;
 class QWidget;
@@ -54,6 +57,15 @@ class ObjectController : public QObject
 
 public:
     /**
+     * @brief What kind of thing is selected.
+     *
+     * An overlay keeps its uid in the selection as it always has. The strip and its pages are not
+     * overlays — nothing about them is placed, styled or composited — so they are told apart here rather
+     * than squeezed into an overlay's uid.
+     */
+    enum class Subject { None, Overlay, Strip, Page };
+
+    /**
      * @brief Wires itself to the collaborators it drives; it owns none of them.
      *
      * @param scene        Where the objects are drawn (the editor's canvas scene).
@@ -64,7 +76,7 @@ public:
      * @param layout       Page geometry, owned by the editor; every placement question is asked of it.
      * @param dialogParent Parent for the file/message dialogs this raises.
      */
-    ObjectController(QGraphicsScene* scene, QGraphicsView* view, QListWidget* list,
+    ObjectController(QGraphicsScene* scene, QGraphicsView* view, QTreeWidget* list,
                      ObjectStatePanel* panel, ToolOptionsPanel* defaults, PresetStore& presets,
                      const Layout& layout,
                      QWidget* dialogParent, QObject* parent = nullptr);
@@ -84,6 +96,16 @@ public:
      * One-shot, and armed immediately before the feed it applies to.
      */
     void selectAfterFeed(const QStringList& uids) { m_selectAfterFeed = uids; }
+
+    //! Selects the strip itself — what every page sits in, and what a grade is applied to.
+    void selectStrip();
+    //! Selects page @p inputUid of the strip.
+    void selectPage(const QString& inputUid);
+    [[nodiscard]] Subject        subject() const { return m_subject; }
+    [[nodiscard]] const QString& selectedPage() const { return m_selectedPage; }   //!< When subject() is Page.
+
+    //! The pages the grade skips, so their rows can say so. Touches the rows only when the set changed.
+    void setExcludedPages(const QSet<QString>& inputUids);
 
     /**
      * @brief The Text tool is active, so a placement gets no balloon.
@@ -137,6 +159,9 @@ signals:
     //! Artwork drawn elsewhere should be copied into the workspace and registered at this placement.
     void artworkImportRequested(const QString& sourceFile, double xFrac, double yFrac, double wFrac,
                                 const QString& anchorInputUid);
+    //! The selection moved to @p subject. @p uid is the overlay's uid or the page's input uid, and empty
+    //! for the strip and for nothing. Which panel shows that subject is the editor's to decide.
+    void subjectChanged(StripEdit::ObjectController::Subject subject, const QString& uid);
 private:
     void onOverlayGeometryEdited(const QString& uid); //!< An item settled a move/resize/tail drag.
     /**
@@ -150,6 +175,10 @@ private:
     //! The library's rasterisation of \p a, cached by the SVG it emits. Empty if it cannot be produced.
     [[nodiscard]] QImage sharpRasterFor(const TextArtifact& a);
     void selectOverlay(const QString& uid);   //!< Selects one in the scene and the list, and loads the panel.
+    //! Selects the strip or a page: every overlay deselected, that one row selected, the subject reported.
+    void selectSubject(Subject subject, const QString& pageUid);
+    //! The tree row of the selected strip or page, or nullptr.
+    [[nodiscard]] QTreeWidgetItem* subjectRow() const;
     void pushOverlays(const QString& undoText); //!< Emits overlaysEdited() with the current state.
     void applyPanelArtifact(const TextArtifact& a, bool commit); //!< Live edit from the panel → item (+persist).
     void deleteSelectedOverlay();
@@ -161,7 +190,9 @@ private:
     // --- collaborators, not owned ---
     QGraphicsScene* m_scene        = nullptr;
     QGraphicsView*  m_view         = nullptr;
-    QListWidget*    m_list         = nullptr;
+    //! The object stack. A tree, so that objects can nest under the objects they belong to; for now
+    //! every row is top level and it behaves exactly as the list it replaced.
+    QTreeWidget*    m_list         = nullptr;
     ObjectStatePanel* m_objectState = nullptr;
     ToolOptionsPanel* m_toolOptions = nullptr;  //!< Read for prototype(); never edited from here.
     PresetStore&      m_presets;
@@ -193,6 +224,13 @@ private:
      */
     QHash<QString, QImage>                        m_sharpCache;
     QString            m_selectedOverlay;                   //!< uid of the selected overlay, empty for none.
+    Subject            m_subject = Subject::None;           //!< What the selection is.
+    QString            m_selectedPage;                      //!< Input uid of the selected page, when a page is.
+    QSet<QString>      m_excludedPages;                     //!< Pages the grade skips — said on their rows.
+    //! Which kind of thing a tree row stands for, beside its id in Qt::UserRole.
+    static constexpr int k_kindRole = Qt::UserRole + 1;
+    //! The strip row's id. Overlay uids are minted as "ovl-…" and page ids are input uids, so it is free.
+    static inline const QString k_stripId = QStringLiteral("strip");
     // Duplicate / Delete, shared by the artifact list's context menu and its keyboard shortcuts, and
     // reachable from the canvas too — the two places a bubble is ever selected.
     QAction*           m_actDuplicate    = nullptr;
@@ -202,6 +240,13 @@ private:
     QPointF            m_placementOrigin;                   //!< Where that drag started, in scene coordinates.
     bool               m_placing         = false;
     bool               m_syncingList     = false;           //!< Guards the list ⇄ scene selection round-trip.
+    //! Coalesces a drag in the tree into one commit. A tree moves a row by taking it out and inserting it
+    //! again, so one gesture can arrive as more than one model signal; they all restart this, and it
+    //! fires once, after the drop has finished.
+    QTimer*            m_orderCommit     = nullptr;
+    //! Set from the moment a drag starts taking a row out until the commit above has run. Taking a row
+    //! out drops its selection, and without this the tree would report a deselection nobody asked for.
+    bool               m_rowsMoving      = false;
     //! Set when this controller asked for a new bubble; the uid only exists after the owner mints it, so
     //! the selection has to wait for the feed to come back.
     bool               m_selectNewOverlay = false;

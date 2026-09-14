@@ -79,6 +79,7 @@ qt_add_executable(Platemaker
     widgets/stripeditor/panels/gradepanel.cpp widgets/stripeditor/panels/gradepanel.h widgets/stripeditor/panels/gradepanel.ui
     widgets/stripeditor/panels/tooloptionspanel.cpp widgets/stripeditor/panels/tooloptionspanel.h
     widgets/stripeditor/panels/objectstatepanel.cpp widgets/stripeditor/panels/objectstatepanel.h
+    widgets/stripeditor/panels/stripstatepanel.cpp widgets/stripeditor/panels/stripstatepanel.h
     widgets/collapsiblesection/collapsiblesection.cpp widgets/collapsiblesection/collapsiblesection.h
 
     # Text artifact — what a bubble IS (shape, text, styling), its sidecar codec and its rasteriser.

@@ -7,8 +7,14 @@
 #include "pagesource.h"
 #include "objectstatepanel.h"
 #include "presetstore.h"
+#include "stripstatepanel.h"
 #include "tooloptionspanel.h"
 
+#include <platemaker/models/colour_correction.hpp>
+
+#include <algorithm>
+
+#include <QFileInfo>
 #include <QButtonGroup>
 #include <QDebug>
 #include <QEvent>
@@ -204,6 +210,27 @@ Editor::Editor(QWidget *parent)
         m_objectState = new ObjectStatePanel(ui->objectProperties);
         ui->objectProperties->addWidget(m_objectState);
 
+        // The strip and its pages are selected too, and they are not overlays — so they get the same
+        // surface with different contents rather than an object panel full of sections that never apply.
+        m_stripState = new StripStatePanel(ui->objectProperties);
+        ui->objectProperties->addWidget(m_stripState);
+        connect(m_stripState, &StripStatePanel::excludedToggled, this,
+                [this](const QString& inputUid, bool excluded) {
+            auto cc = m_cc;
+            auto& skipped = cc.excludedInputUids;
+            const std::string uid = inputUid.toStdString();
+            const auto it = std::find(skipped.begin(), skipped.end(), uid);
+            if (excluded == (it != skipped.end()))
+                return;
+            if (excluded)
+                skipped.push_back(uid);
+            else
+                skipped.erase(it);
+            // The owner persists it as one undo step and feeds it back, which is what updates the preview,
+            // the page's row and this panel — the same round trip every grade edit takes.
+            emit colourCorrectionEdited(cc);
+        });
+
         // Everything placed on the strip. It drives the scene, the list and the panel; it owns no
         // persistence, so every edit leaves through one of its four signals and comes back as a re-feed.
         m_objects = new ObjectController(m_scene, m_view, ui->artifactList, m_objectState,
@@ -211,6 +238,7 @@ Editor::Editor(QWidget *parent)
         connect(m_objects, &ObjectController::artifactCreated,        this, &Editor::artifactCreated);
         connect(m_objects, &ObjectController::overlaysEdited,         this, &Editor::overlaysEdited);
         connect(m_objects, &ObjectController::artworkImportRequested, this, &Editor::artworkImportRequested);
+        connect(m_objects, &ObjectController::subjectChanged,         this, [this] { showSubject(); });
         // Splitter behaviour (not expressible in the .ui): canvas absorbs resize, panels keep their width.
         ui->editorBody->setStretchFactor(0, 0);   // toolbox
         ui->editorBody->setStretchFactor(1, 1);   // canvas
@@ -271,8 +299,56 @@ void Editor::setTool(Tool tool)
 
 void Editor::applyGrade(const Platemaker::Models::ColourCorrection& cc)
 {
+    m_cc = cc;
+    if (m_objects) {
+        QSet<QString> skipped;
+        for (const auto& uid : cc.excludedInputUids)
+            skipped.insert(QString::fromStdString(uid));
+        m_objects->setExcludedPages(skipped);
+    }
+    showSubject();   // a selected strip or page describes the grade, so it follows it
     if (m_pages->setColourCorrection(cc))
         refreshGradePreview();
+}
+
+void Editor::showSubject()
+{
+    if (!m_objects || !m_stripState || !m_objectState)
+        return;
+
+    const auto isSkipped = [this](const QString& inputUid) {
+        const auto& skipped = m_cc.excludedInputUids;
+        return std::find(skipped.begin(), skipped.end(), inputUid.toStdString()) != skipped.end();
+    };
+
+    switch (m_objects->subject()) {
+    case ObjectController::Subject::Strip: {
+        int excluded = 0;
+        for (int i = 0; i < m_layout.pageCount(); ++i)
+            if (isSkipped(m_layout.page(i).inputUid))
+                ++excluded;
+        m_stripState->showStrip(m_layout.pageCount(), excluded, m_cc);
+        ui->objectProperties->setCurrentWidget(m_stripState);
+        return;
+    }
+    case ObjectController::Subject::Page: {
+        const int i = m_layout.pageForAnchor(m_objects->selectedPage());
+        if (i < 0)
+            break;
+        const Page& page = m_layout.page(i);
+        m_stripState->showPage(page.inputUid,
+                               tr("p.%1 — %2").arg(i + 1, 2, 10, QLatin1Char('0'))
+                                              .arg(QFileInfo(page.sourcePath).fileName()),
+                               page.size, isSkipped(page.inputUid),
+                               !Platemaker::Models::isNeutral(m_cc));
+        ui->objectProperties->setCurrentWidget(m_stripState);
+        return;
+    }
+    case ObjectController::Subject::None:
+    case ObjectController::Subject::Overlay:
+        break;
+    }
+    ui->objectProperties->setCurrentWidget(m_objectState);
 }
 
 void Editor::setColourCorrection(const Platemaker::Models::ColourCorrection& cc)

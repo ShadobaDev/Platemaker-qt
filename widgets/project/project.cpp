@@ -420,7 +420,15 @@ void Project::applyColourCorrection(const ColourCorrection& cc)
     auto& current = m_workspace.projectItems[m_projectIndex].colourCorrection;
     const bool clearing = Platemaker::Models::isNeutral(cc)
                        && !Platemaker::Models::isNeutral(current);
-    commitEdit(clearing ? tr("Remove colour correction") : tr("Adjust colour correction"), [this, &cc] {
+    // Named for what changed. A page excluded or included is a different act from moving a slider, and
+    // the history should read that way.
+    const auto before = current.excludedInputUids.size();
+    const auto after  = cc.excludedInputUids.size();
+    const QString text = after > before ? tr("Exclude page from colour correction")
+                       : after < before ? tr("Include page in colour correction")
+                       : clearing       ? tr("Remove colour correction")
+                                        : tr("Adjust colour correction");
+    commitEdit(text, [this, &cc] {
         m_workspace.projectItems[m_projectIndex].colourCorrection = cc;
         emit projectModified();
         populate(); // refresh the workflow map (CC on/off, exclusions) and the rest of the views

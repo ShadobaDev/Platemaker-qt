@@ -215,7 +215,7 @@
        <enum>Qt::Vertical</enum>
       </property>
       <widget class="QStackedWidget" name="objectProperties"/>
-      <widget class="QListWidget" name="artifactList"/>
+      <widget class="QTreeWidget" name="artifactList"/>
      </widget>
     </widget>
    </item>

@@ -171,7 +171,7 @@ columns each split vertically:
 
 ```
 toolColumn = QSplitter(V): [ tool tiles | TOOL OPTIONS ]      what the NEXT object will be
-rightPanel = QSplitter(V): [ OBJECT PROPERTIES | object list ] what THIS object is
+rightPanel = QSplitter(V): [ OBJECT PROPERTIES | object stack ] what THIS object is
 ```
 
 **Each side answers one question, and only that one** — and they are two classes, not one class in two
@@ -294,7 +294,7 @@ valid baseline for every grade tried on it. Excluded pages are skipped, matching
     - The signal is emitted **before** the state reaches the views: it arms `Editor::selectAfterFeed()`,
       and the feed that follows is what consumes the arming — the objects do not exist in the editor
       until that feed builds them. The first named object still standing is selected and scrolled into
-      view in the canvas and the object list; a step that removed everything it touched clears the
+      view in the canvas and the object stack; a step that removed everything it touched clears the
       selection instead of pointing at a ghost. `ensureVisible()` moves nothing that is already
       visible, so an undo of what is in front of you stays perfectly still.
   - **A step still reaches only into its own half of the document**, which is what keeps restores cheap
@@ -387,6 +387,32 @@ valid baseline for every grade tried on it. Excluded pages are skipped, matching
   what a *placement* creates — armed in `Editor::eventFilter()` — so `ObjectController` knows exactly one
   thing about the active tool: whether it is Text. Anything more would put the same gate in two places
   and make the object panel depend on a cause the artist cannot see.
+- **The object stack is a tree, and a way to pick existing objects rather than a structure of its own.**
+  Every row points at an object the editor already has — an overlay by uid, a page by input uid — and
+  holds nothing else. Overlays are top level, front-most first; **the strip is pinned last with its pages
+  nested under it**, collapsed until opened. A bubble's tails nest next.
+  - **The strip and its pages are selectable subjects, not overlays.** `ObjectController::Subject` says
+    which kind of thing is selected — none, an overlay, the strip or a page — and selecting one lets go of
+    every overlay through the same path an empty click takes. ③ is a stack of two panels chosen by that
+    subject: `ObjectStatePanel` for overlays, `StripStatePanel` for the strip and its pages.
+  - **The strip** shows its page count, how many pages its grade skips, and which adjustments that grade
+    applies — *Curves*, *Brightness & contrast*, *Saturation*, in the order the library runs them. It
+    cannot be dragged, dropped on or muted: a strip that could be hidden would stop showing what renders.
+  - **A page** shows its size in the strip and **Excluded from colour correction**, which adds or removes
+    its uid in `ColourCorrection::excludedInputUids` — the one colour decision the library lets a page
+    make. The toggle is made against the grade the editor last showed and goes out as one undo step,
+    named *Exclude page from colour correction* or *Include page in colour correction*.
+  - **What the artist opened stays open.** A row is moved by taking it out and inserting it, which makes
+    the view forget whether it was expanded, so that is carried across; and rows for deleted objects are
+    removed before the strip is placed, so a deletion above it does not move — and fold — the strip.
+  - **Updated in place, never cleared and refilled.** Every edit returns to the editor as a feed, so a
+    tree rebuilt on each feed would lose what the artist had open, selected or scrolled to at exactly the
+    moment they were using it; rows are matched to overlays by uid and only what changed is touched.
+  - **Drops land between rows, never onto one** — no row accepts a drop — because nesting is structural
+    and not something a drag may create. A tree moves a row by taking it out and inserting it again, so
+    a drag can arrive as several model signals: they restart one zero-length timer, and the commit it
+    fires compares the rows with the overlays and records nothing if the order did not change. The
+    take also clears the row's selection, which is ignored until that commit has re-shown it.
 - **The object-state panel follows the selection, never the active tool.** Only the tool-options panel is
   told which controls a tool offers. Which groups the object panel shows comes from the selected object's
   own kind: a shapeless text object has no fill to edit and no tail to grow, so those sections are

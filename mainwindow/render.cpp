@@ -1,4 +1,8 @@
 #include "mainwindow.h"
+#include "advisories.h"
+#include <QAbstractButton>
+#include <QPushButton>
+#include <functional>
 #include "ui_mainwindow.h"
 #include "project.h"
 #include "canvasprofiledialog.h"
@@ -116,6 +120,80 @@ void MainWindow::onRenderToggle(int projectIndex)
     (void)startRender(projectIndex);
 }
 
+MainWindow::RenderGate MainWindow::askRenderGate(int projectIndex)
+{
+    if (!m_advisories)
+        return RenderGate::Pass;
+
+    const auto&   project = m_workspace.projectItems[static_cast<std::size_t>(projectIndex)];
+    const QString uid     = QString::fromStdString(project.uid);
+    const QString name    = QString::fromStdString(project.name);
+
+    // Derived now rather than trusted from the last edit: this is the one reader whose answer decides
+    // what gets written to disk.
+    refreshAdvisoriesFor(projectIndex);
+
+    QList<Advisory> errors;
+    for (const Advisory& a : m_advisories->forProject(uid))
+        if (a.level == Advisory::Level::Error)
+            errors << a;
+    if (errors.isEmpty())
+        return RenderGate::Pass;
+
+    // A sweep does not stop to ask about one chapter — every chapter after it would wait on a dialog
+    // nobody may be watching. It is skipped, and the batch summary says why.
+    if (m_batchTotal > 0) {
+        QStringList texts;
+        for (const Advisory& e : errors)
+            texts << e.text;
+        m_batchSkipReason = texts.join(QStringLiteral(", "));
+        return RenderGate::Stop;
+    }
+
+    QMessageBox box(this);
+    box.setIcon(QMessageBox::Warning);
+    box.setWindowTitle(tr("Render \"%1\"").arg(name));
+    box.setText(tr("\"%1\" will not render the way it looks in the strip editor.").arg(name));
+    QStringList details;
+    for (const Advisory& e : errors)
+        details << e.detail;
+    box.setInformativeText(details.join(QStringLiteral("\n\n")));
+
+    // A way to *look* ends the render — the artist went to look. A way to *resolve* renders afterwards,
+    // provided nothing else still stands in the way; the re-run of the gate is what checks that.
+    struct Offer {
+        const QAbstractButton* button;
+        std::function<void()>  run;
+        bool                   resolves;
+    };
+    std::vector<Offer> offers;
+    for (const Advisory& e : errors) {
+        if (e.action && !e.actionText.isEmpty())
+            offers.push_back({box.addButton(e.actionText, QMessageBox::ActionRole), e.action, false});
+        if (e.resolve && !e.resolveText.isEmpty())
+            offers.push_back({box.addButton(e.resolveText, QMessageBox::DestructiveRole), e.resolve, true});
+    }
+    const QAbstractButton* anyway = box.addButton(tr("Render anyway"), QMessageBox::AcceptRole);
+    // Cancel is the default: a dialog that stands between the artist and a wrong deliverable must not
+    // be dismissed into rendering by a reflexive Enter.
+    box.setDefaultButton(box.addButton(QMessageBox::Cancel));
+    box.exec();
+
+    const QAbstractButton* clicked = box.clickedButton();
+    if (clicked == anyway)
+        return RenderGate::Pass;
+    for (const Offer& o : offers) {
+        if (clicked != o.button)
+            continue;
+        o.run();
+        if (o.resolves)
+            return RenderGate::Again;
+        break;
+    }
+    setProjectStatus(tr("Render cancelled."));
+    return RenderGate::Stop;
+}
+
 bool MainWindow::startRender(int projectIndex)
 {
     // Every early return here means "no worker started" — the batch queue depends on
@@ -176,6 +254,20 @@ bool MainWindow::startRender(int projectIndex)
         setActionStatus(name, tr("Require action"));
         setProjectStatus(tr("Project is up to date — nothing to render."));
         return false;
+    }
+
+    // The render gate. Here, after "nothing to render": a chapter that is already up to date loses
+    // nothing by standing still, so it is not worth stopping to ask about. And before the settings
+    // question, so nobody answers that one only to cancel at this one.
+    switch (askRenderGate(projectIndex)) {
+    case RenderGate::Stop:
+        return false;
+    case RenderGate::Again:
+        // A resolution changed the project under this call — objects deleted — so everything derived
+        // above, the staleness first, describes the chapter as it was. Start again from the top.
+        return startRender(projectIndex);
+    case RenderGate::Pass:
+        break;
     }
 
     // Config change: existing outputs (possibly in another format) will be

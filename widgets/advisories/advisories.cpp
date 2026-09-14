@@ -9,7 +9,8 @@ namespace {
 [[nodiscard]] bool saysTheSame(const Advisory& a, const Advisory& b)
 {
     return a.level == b.level && a.text == b.text && a.detail == b.detail
-        && a.actionText == b.actionText && a.projectUid == b.projectUid;
+        && a.actionText == b.actionText && a.resolveText == b.resolveText
+        && a.projectUid == b.projectUid;
 }
 
 } // namespace

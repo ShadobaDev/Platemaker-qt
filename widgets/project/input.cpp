@@ -23,6 +23,10 @@
 #include <QListWidgetItem>
 #include <QMenu>
 #include <QMessageBox>
+#include <QAbstractButton>
+#include <QPushButton>
+#include <QUndoStack>
+#include <set>
 #include <QSet>
 #include <QSettings>
 #include <QToolButton>
@@ -337,12 +341,22 @@ void Project::onAddFromDirectory()
     commitEdit(tr("Add from directory"), [&]{ addInputPaths(paths); });
 }
 
+namespace {
+
+//! The image types an input can be, for every dialog that picks one — adding and replacing must never
+//! disagree about what a page is allowed to be.
+[[nodiscard]] QString imageFileFilter()
+{
+    return QObject::tr("Images (*.jpg *.jpeg *.png *.webp *.tif *.tiff);;All files (*)");
+}
+
+} // namespace
+
 void Project::onAddFiles()
 {
     // Prompt the user to select one or more input image files. If files are selected, add them to the project.
     const QStringList files = QFileDialog::getOpenFileNames(
-        this, tr("Add Input Files"), {},
-        tr("Images (*.jpg *.jpeg *.png *.webp *.tif *.tiff);;All files (*)"));
+        this, tr("Add Input Files"), {}, imageFileFilter());
     if (files.isEmpty()) return;
     commitEdit(tr("Add files"), [&]{ addInputPaths(files); });
 }
@@ -353,19 +367,9 @@ void Project::onClearInputs()
     auto& item = m_workspace.projectItems[m_projectIndex];
     if (item.getInputImages().empty()) return;
 
-    // Guard: if the user does not confirm the action, return without clearing inputs.
-    if (QMessageBox::question(this, tr("Clear Inputs"),
-            tr("Remove all input files from this project?\n\n"
-               "Files on disk are not deleted."))
-        != QMessageBox::Yes)
-        return;
-
-    // clears the list and marks outputs desynchronised
-    commitEdit(tr("Clear inputs"), [&]{
-        Platemaker::Infrastructure::ProjectEditor{item}.mergeFileScan({});
-        populate();
-        emit projectModified();
-    });
+    // Nothing remains: every page goes, and with it every anchor.
+    removeInputs({}, tr("Clear Inputs"), tr("Remove all input files from this project?"),
+                 tr("Clear inputs"));
 }
 
 void Project::onApplySort()
@@ -489,15 +493,17 @@ void Project::onInputContextMenu(const QPoint& pos)
     // Show a context menu with an option to remove the selected input files from the project. 
     //If the user confirms the action, remove the selected files from the project's input images and repopulate the UI.
     QMenu menu(this);
+    // Replace first: it is the gesture for "a newer scan of this page", which is what most people
+    // reaching for Remove on a single page actually want — and it strands nothing.
+    QAction* replaceAction = menu.addAction(tr("Replace file…"));
+    replaceAction->setEnabled(n == 1);
     QAction* removeAction = menu.addAction(tr("Remove %n file(s) from list", nullptr, n));
-    if (menu.exec(ui->listInputImageTile->viewport()->mapToGlobal(pos)) != removeAction)
+    const QAction* chosen = menu.exec(ui->listInputImageTile->viewport()->mapToGlobal(pos));
+    if (chosen == replaceAction) {
+        replaceInput(selected.first()->data(Qt::UserRole).toString());
         return;
-
-    // Guard: if the user does not confirm the action, return without removing inputs.
-    if (QMessageBox::question(this, tr("Remove Inputs"),
-            tr("Remove %n file(s) from this project?\n\nFiles on disk are not deleted.",
-               nullptr, n))
-        != QMessageBox::Yes)
+    }
+    if (chosen != removeAction)
         return;
 
     // Set of paths to drop.
@@ -522,9 +528,111 @@ void Project::onInputContextMenu(const QPoint& pos)
         if (!drop.contains(QString::fromStdString(f->filePath)))
             remaining.push_back(f->filePath);
 
-    // Merge-scan the remaining paths to update the project's input images. This will remove the selected files and mark outputs as desynchronized.
-    commitEdit(tr("Remove inputs"), [&]{
-        Platemaker::Infrastructure::ProjectEditor{item}.mergeFileScan(remaining);
+    removeInputs(remaining, tr("Remove Inputs"),
+                 tr("Remove %n file(s) from this project?", nullptr, n), tr("Remove inputs"));
+}
+
+void Project::removeInputs(const std::vector<std::string>& remainingPaths, const QString& title,
+                           const QString& question, const QString& undoText)
+{
+    auto& item = m_workspace.projectItems[m_projectIndex];
+
+    // Which pages go, by uid — anchors name uids, not files.
+    const std::set<std::string> kept(remainingPaths.begin(), remainingPaths.end());
+    std::set<std::string> going;
+    for (const auto& f : item.getInputImages())
+        if (!kept.count(f.filePath))
+            going.insert(f.uid);
+
+    QStringList stranded;
+    for (const auto& o : item.getStripOverlays())
+        if (going.count(o.anchorInputUid))
+            stranded << QString::fromStdString(o.uid);
+
+    const QString onDisk = tr("Files on disk are not deleted.");
+    bool deleteThem = false;
+
+    if (stranded.isEmpty()) {
+        if (QMessageBox::question(this, title, question + QStringLiteral("\n\n") + onDisk)
+            != QMessageBox::Yes)
+            return;
+    } else {
+        // Said at the moment that causes it, not an hour later at render time. The render gate still
+        // stands behind this — the artist may keep them now and decide later — but the first mention of
+        // the problem belongs to the click that made it.
+        QMessageBox box(QMessageBox::Warning, title, question, QMessageBox::NoButton, this);
+        box.setInformativeText(
+            tr("%n object(s) of text and bubbles are anchored to the page(s) being removed.", "",
+               stranded.size())
+            + QStringLiteral(" ")
+            + tr("Kept, they are unanchored: nothing is deleted, a render leaves them out, and each one "
+                 "comes back when it is re-anchored to a page.")
+            + QStringLiteral("\n\n") + onDisk);
+        QPushButton* const keep =
+            box.addButton(tr("Remove, keep them"), QMessageBox::AcceptRole);
+        const QAbstractButton* drop =
+            box.addButton(tr("Remove with the %n object(s)", "", stranded.size()),
+                          QMessageBox::DestructiveRole);
+        box.setDefaultButton(keep);   // keeping loses nothing; deleting is the one to choose on purpose
+        box.addButton(QMessageBox::Cancel);
+        box.exec();
+
+        if (box.clickedButton() == drop)
+            deleteThem = true;
+        else if (box.clickedButton() != keep)
+            return;
+    }
+
+    // One click is one undo step, though underneath it is two kinds of edit on one history: the pages
+    // (a project step) and the lettering (an overlay step). The macro is what makes a single Ctrl+Z put
+    // back both.
+    if (deleteThem)
+        m_undoStack->beginMacro(undoText);
+
+    commitEdit(undoText, [&] {
+        Platemaker::Infrastructure::ProjectEditor{item}.mergeFileScan(remainingPaths);
+        populate();
+        emit projectModified();
+    });
+
+    if (deleteThem) {
+        deleteOverlays(stranded, tr("Delete %n object(s)", "", stranded.size()));
+        m_undoStack->endMacro();
+    }
+}
+
+void Project::replaceInput(const QString& currentPath)
+{
+    auto& item = m_workspace.projectItems[m_projectIndex];
+    const auto& inputs = item.getInputImages();
+    const auto it = std::find_if(inputs.begin(), inputs.end(), [&](const InputFile& f) {
+        return QString::fromStdString(f.filePath) == currentPath;
+    });
+    if (it == inputs.end())
+        return;
+    const std::string uid = it->uid;
+
+    const QFileInfo current(currentPath);
+    const QString file = QFileDialog::getOpenFileName(
+        this, tr("Replace %1").arg(current.fileName()), current.absolutePath(), imageFileFilter());
+    if (file.isEmpty() || file == currentPath)
+        return;
+
+    // Case-insensitively, the way adding files de-duplicates: on Windows these are the same file, and
+    // two pages on one file would be folded into one by the next rescan. The library refuses an exact
+    // match too; this is the check that also knows about case.
+    const bool taken = std::any_of(inputs.begin(), inputs.end(), [&](const InputFile& f) {
+        return f.uid != uid && QString::fromStdString(f.filePath).compare(file, Qt::CaseInsensitive) == 0;
+    });
+    if (taken) {
+        QMessageBox::information(this, tr("Replace File"),
+                                 tr("%1 is already a page in this project.").arg(QFileInfo(file).fileName()));
+        return;
+    }
+
+    // Stored exactly as adding a file stores it, so every path in the project has one form.
+    commitEdit(tr("Replace file"), [&] {
+        Platemaker::Infrastructure::ProjectEditor{item}.replaceInputFile(uid, file.toStdString());
         populate();
         emit projectModified();
     });

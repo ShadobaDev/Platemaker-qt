@@ -325,7 +325,17 @@ valid baseline for every grade tried on it. Excluded pages are skipped, matching
     being true, so nothing could withdraw it; those belong in the status bar's temporary message, which
     expires by itself and needs no registry.
   - **One condition today:** *N objects unanchored* (Error — an overlay whose anchor names no page, or
-    names a page not in the input list; its action opens the strip editor with them picked out).
+    names a page not in the input list; its action opens the strip editor with them picked out, and its
+    resolution deletes them).
+  - **An advisory carries a way to look and, separately, a way to resolve.** The action is one click on
+    a chip. The resolution may destroy work, so it is only ever offered inside a question — never on a
+    chip.
+  - **The render gate is one rule: a render stops and asks while any Error stands for the chapter.**
+    Every button is an advisory's — each one's action (which ends the render) and resolution (which
+    renders afterwards) — plus *Render anyway* and *Cancel*, which is the default. A resolution returns
+    `RenderGate::Again`, which re-runs `startRender()` from the top: deleting objects changed the chapter
+    every earlier derivation was made from. The gate sits after "up to date" and before the settings
+    question, and a batch does not ask — it skips the chapter and the summary says why.
   - **The surface is a widget, `AdvisoryBar`, and there are two hosts.** `MainWindow` keeps one in the
     status bar; the strip editor keeps one along its own bottom edge, live **only while its dock is
     floating** — a floating dock is a top-level window with no status bar, and maximised it covers the
@@ -337,6 +347,18 @@ valid baseline for every grade tried on it. Excluded pages are skipped, matching
     and says so with a pointing-hand cursor. The bar is exactly as wide as its chips, so where it sits
     is the host's to state — bottom right in both, the corner permanent status items live in. A bar with
     nothing to say takes no room at all, margins included.
+- **A page is its uid, not its file, and removing one says what it strands.**
+  - **Replace file…** on an input tile swaps the file and keeps the uid, so nothing anchored to the page
+    unanchors. The swap is `ProjectEditor::replaceInputFile()`, the library's, because the project's
+    lookup tables are keyed by path. A file that is already another page is refused — case-insensitively,
+    the way adding files de-duplicates — since a rescan matches by path and would fold the two.
+  - **Removing inputs goes through one `Project::removeInputs()`**, for *Clear* and *Remove* alike. When
+    objects are anchored to a page being removed, the confirmation says how many and offers *Remove, keep
+    them* (the default) or *Remove with the objects*; the latter is **one undo step** — a `QUndoStack`
+    macro around the project step and the overlay step.
+  - **Re-anchor to ▸** on the selection lists every page as `p.NN — file name`, current one checked, and
+    changes only the anchor: the object keeps its offset from the page top. Pages are listed, never
+    pre-chosen, because a guess could only go on position and position is what a deletion shifts.
 - **Badges are one widget, shared.** `widgets/badge/` owns the rounded chip: a `Badge` is a label, a
   required fill and three colours derived from it (border, gradient, label), plus the sentence behind
   it. `paintBadge()` draws one, `layOutBadges()` a run of them, and `makeBadge()` hands one out as a

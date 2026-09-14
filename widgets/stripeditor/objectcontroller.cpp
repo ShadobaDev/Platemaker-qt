@@ -9,6 +9,7 @@
 #include "artifactpainter.h"
 #include "artifactsvg.h"
 
+#include <QFileInfo>
 #include <platemaker/core/strip_overlay_compositor/strip_overlay_compositor.hpp>
 
 #include <QAbstractItemModel>
@@ -126,6 +127,9 @@ ObjectController::ObjectController(QGraphicsScene* scene, QGraphicsView* view, Q
     m_presetMenu = new QMenu(tr("Apply preset"), dialogParent);
     connect(m_presetMenu, &QMenu::aboutToShow, this, &ObjectController::rebuildPresetMenu);
 
+    m_reanchorMenu = new QMenu(tr("Re-anchor to"), dialogParent);
+    connect(m_reanchorMenu, &QMenu::aboutToShow, this, &ObjectController::rebuildReanchorMenu);
+
     m_actDelete = new QAction(tr("Delete"), this);
     m_actDelete->setShortcut(QKeySequence::Delete);
     m_actDelete->setShortcutContext(Qt::WidgetShortcut);
@@ -138,6 +142,7 @@ ObjectController::ObjectController(QGraphicsScene* scene, QGraphicsView* view, Q
 
     for (QWidget* w : {static_cast<QWidget*>(m_list), static_cast<QWidget*>(m_view)}) {
         w->addAction(m_presetMenu->menuAction());
+        w->addAction(m_reanchorMenu->menuAction());
         w->addAction(m_actDuplicate);
         w->addAction(m_actDelete);
         w->addAction(m_actImport);
@@ -461,6 +466,9 @@ void ObjectController::selectOverlay(const QString& uid)
     if (m_presetMenu)
         m_presetMenu->menuAction()->setEnabled(
             qobject_cast<BubbleObject*>(m_overlayItems.value(uid)) != nullptr);
+    // Any object can change page, artwork included — and an unanchored one can do nothing else useful.
+    if (m_reanchorMenu)
+        m_reanchorMenu->menuAction()->setEnabled(has && !m_layout.isEmpty());
 
     if (!m_objectState)
         return;
@@ -565,6 +573,52 @@ void ObjectController::importArtwork()
                                 (centre.y() - m_layout.page(page).top) / tw,
                                 natural > 0 ? natural / tw : 0.0,
                                 m_layout.anchorUidForPage(page));
+}
+
+void ObjectController::rebuildReanchorMenu()
+{
+    m_reanchorMenu->clear();
+
+    const auto it = std::find_if(m_overlays.cbegin(), m_overlays.cend(),
+                                 [this](const Platemaker::Models::StripOverlay& o) {
+                                     return QString::fromStdString(o.uid) == m_selectedOverlay;
+                                 });
+    if (it == m_overlays.cend())
+        return;
+
+    // Listed, never pre-chosen. The only thing a guess could go on is position, and position is exactly
+    // what a deletion shifts: page 5 becomes the fourth page, and a guess puts one page's lettering on
+    // another page's art. Named the way the object list names pages, so the two can be read together.
+    const int current = m_layout.pageForAnchor(QString::fromStdString(it->anchorInputUid));
+    for (int i = 0; i < m_layout.pageCount(); ++i) {
+        const Page& page = m_layout.page(i);
+        QAction* a = m_reanchorMenu->addAction(tr("p.%1 — %2")
+                                                   .arg(i + 1, 2, 10, QLatin1Char('0'))
+                                                   .arg(QFileInfo(page.sourcePath).fileName()));
+        a->setCheckable(true);
+        a->setChecked(i == current);
+        a->setEnabled(i != current);
+        connect(a, &QAction::triggered, this, [this, uid = page.inputUid] { reanchorSelection(uid); });
+    }
+}
+
+void ObjectController::reanchorSelection(const QString& pageUid)
+{
+    for (auto& o : m_overlays) {
+        if (QString::fromStdString(o.uid) != m_selectedOverlay)
+            continue;
+        if (QString::fromStdString(o.anchorInputUid) == pageUid)
+            return;
+        // Only the anchor changes. Placement is measured from the anchor page's top, so the object lands
+        // at the offset it had on its old page — for an unanchored one, where it sat on the page it lost,
+        // which is the best starting point there is and one drag from wherever it should be.
+        o.anchorInputUid = pageUid.toStdString();
+        syncItems();
+        refreshList();
+        reselect();
+        pushOverlays(tr("Re-anchor"));
+        return;
+    }
 }
 
 void ObjectController::deleteSelectedOverlay()

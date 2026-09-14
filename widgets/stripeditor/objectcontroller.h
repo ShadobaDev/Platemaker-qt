@@ -104,6 +104,11 @@ public:
     //! Restyles the selected bubble with preset \p index, keeping what it says and where it points.
     void applyPresetToSelection(int index);
 
+    //! Rebuilds *Re-anchor to ▸* from the layout: one entry per page, the current one checked.
+    void rebuildReanchorMenu();
+    //! Moves the selected object onto page @p pageUid, at the same offset from that page's top.
+    void reanchorSelection(const QString& pageUid);
+
     void syncItems();    //!< Reconciles the scene items with the overlay set, by uid.
     void refreshList();  //!< Rebuilds the list from the overlay set (composite order).
     void reselect();     //!< Re-applies the current selection after the scene was rebuilt.
@@ -163,6 +168,9 @@ private:
     //! *Apply preset ▸* on the selection. Restyling something that exists is a different act from
     //! choosing what the next object will be, so it lives with the object rather than with the tool.
     QMenu*            m_presetMenu = nullptr;
+    //! *Re-anchor to ▸* on the selection — the explicit way back for an object whose page is gone, and
+    //! the only way to move one that is not on the strip, where there is nothing to drag.
+    QMenu*            m_reanchorMenu = nullptr;
     const Layout&   m_layout;
     QWidget*        m_dialogParent = nullptr;
 

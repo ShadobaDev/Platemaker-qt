@@ -876,6 +876,27 @@ void Project::importOverlayArtwork(const QString& sourceFile, double xFrac, doub
     });
 }
 
+void Project::deleteOverlays(const QStringList& uids, const QString& undoText)
+{
+    if (uids.isEmpty())
+        return;
+
+    auto kept = m_workspace.projectItems[m_projectIndex].getStripOverlays();   // a copy, to edit
+    kept.erase(std::remove_if(kept.begin(), kept.end(),
+                              [&uids](const Platemaker::Models::StripOverlay& o) {
+                                  return uids.contains(QString::fromStdString(o.uid));
+                              }),
+               kept.end());
+
+    // The records go with their overlays. A record left behind would describe a bubble that no longer
+    // exists, and would come back to life if an overlay ever reused its uid.
+    ArtifactMap artifacts = m_artifacts;
+    for (const QString& uid : uids)
+        artifacts.remove(uid);
+
+    applyOverlays(std::move(kept), std::move(artifacts), undoText);
+}
+
 void Project::applyOverlays(std::vector<Platemaker::Models::StripOverlay> overlays,
                             ArtifactMap                                  artifacts,
                             const QString&                               undoText)

@@ -321,6 +321,26 @@ private:
     //! Opens the strip editor for @p projectUid with its unanchored objects picked out. An advisory's
     //! way out of itself, not a menu item.
     void showUnanchoredObjects(const QString& projectUid);
+    //! Deletes them, as one undoable step on that chapter's history. Offered only by the render gate.
+    void deleteUnanchoredObjects(const QString& projectUid);
+
+    //! What the render gate decided.
+    enum class RenderGate {
+        Pass,    //!< Nothing stands in the way, or the artist chose to render anyway.
+        Stop,    //!< Cancelled, or the artist went to look at the problem.
+        Again,   //!< A resolution changed the project; everything derived before it is out of date.
+    };
+
+    /**
+     * @brief The render gate: a render stops and asks while any **Error** advisory stands for the project.
+     *
+     * One rule rather than a list of checks, and every button comes from an advisory — its way to look
+     * and its way to resolve — so a second kind of error brings its own ways out and nothing here
+     * changes. *Render anyway* is always offered: it is what the library does unaided, and the gate is
+     * there so nobody finds out an hour later, not to overrule them. A batch does not ask; it skips the
+     * chapter and says why in the summary.
+     */
+    [[nodiscard]] RenderGate askRenderGate(int projectIndex);
 
     [[nodiscard]] int     projectIndexForUid(const QString& projectUid) const;   //!< -1 when it is gone.
     [[nodiscard]] QString activeProjectUid() const;   //!< The project the status bar is speaking about.

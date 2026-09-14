@@ -162,6 +162,10 @@ public:
     void applyOverlays(std::vector<Platemaker::Models::StripOverlay> overlays,
                        ArtifactMap                                  artifacts,
                        const QString&                               undoText);
+
+    //! Deletes the overlays @p uids, with their authoring records, as one undo step. Through
+    //! applyOverlays(), the same door every other overlay edit goes through.
+    void deleteOverlays(const QStringList& uids, const QString& undoText);
     void refreshProfileViews();                     //!< rebuilds the palette-derived views (canvas list, output combo, format controls) after a workspace-level profile edit — see MainWindow::workspaceProfilesChanged
 
 
@@ -254,6 +258,28 @@ private:
     void addImageTile(const Platemaker::Models::InputFile& file);           //!< Creates an ImageTile widget for an input file and inserts it into the input list.
     void addOutputImageTile(const Platemaker::Models::OutputFile& file);    //!< Creates an ImageTile widget for an existing output file and inserts it into the output list.
     void addInputPaths(const QStringList& newPaths);                        //!< Merges new paths with the existing inputs (order-preserving, de-duplicated) and re-scans them.
+
+    /**
+     * @brief Asks for a replacement for the input at @p currentPath and swaps it in, **keeping the page**.
+     *
+     * The operation for "I have a newer scan of page 4". Removing the input and adding the new file
+     * would mint a new uid and strand every object anchored to the old one; this keeps the uid, so
+     * nothing unanchors, because anchoring was never about the file.
+     */
+    void replaceInput(const QString& currentPath);
+
+    /**
+     * @brief Removes every input not in @p remainingPaths, after asking — and says what it strands.
+     *
+     * Both ways of removing inputs come through here, so neither can forget the question. When objects
+     * are anchored to a page being removed, the confirmation says how many and offers to delete them
+     * in the same step: one click, one undo, though it is two kinds of edit underneath. Keeping them is
+     * the default, because they are not lost — they wait, unanchored, for a page to be given back.
+     *
+     * @param question  The confirmation's first sentence, specific to the caller.
+     */
+    void removeInputs(const std::vector<std::string>& remainingPaths, const QString& title,
+                      const QString& question, const QString& undoText);
     void addDroppedUrls(const QList<QUrl>& urls);                           //!< Turns dropped file/folder URLs into image paths (folders scanned like Add from directory) and adds them as one undo step.
     /**
      * @brief Rebuilds the "Workflow" tab's pipeline map from the current project — a read-only row of

@@ -81,6 +81,8 @@ void MainWindow::refreshAdvisoriesFor(int projectIndex)
         a.actionText = tr("Show them");
         a.projectUid = uid;
         a.action     = [this, uid] { showUnanchoredObjects(uid); };
+        a.resolveText = tr("Delete the %n object(s)", "", stranded.size());
+        a.resolve     = [this, uid] { deleteUnanchoredObjects(uid); };
         m_advisories->raise(k_unanchoredKey + uid, a);
     }
 }
@@ -113,6 +115,24 @@ void MainWindow::showUnanchoredObjects(const QString& projectUid)
     // strip — so what this reaches is its row in the object stack, which is where it can be acted on.
     viewer->selectAfterFeed(unanchoredUids(m_workspace.projectItems[static_cast<std::size_t>(idx)]));
     refreshStripEditor(strip);
+}
+
+void MainWindow::deleteUnanchoredObjects(const QString& projectUid)
+{
+    const int idx = projectIndexForUid(projectUid);
+    if (idx < 0)
+        return;
+    const QStringList stranded =
+        unanchoredUids(m_workspace.projectItems[static_cast<std::size_t>(idx)]);
+    if (stranded.isEmpty())
+        return;
+
+    // Through the project, so it lands on that chapter's history as one undoable step. The dock is
+    // opened because the history's commands act on its widget — and an edit this large should end with
+    // the artist looking at the chapter it happened to.
+    openProjectDock(idx);
+    if (Project* pw = projectWidget(idx))
+        pw->deleteOverlays(stranded, tr("Delete %n unanchored object(s)", "", stranded.size()));
 }
 
 int MainWindow::projectIndexForUid(const QString& projectUid) const

@@ -88,6 +88,17 @@
   a detached or full-screen editor has no status bar of its own, and that is exactly the window where
   the lettering it is talking about gets done. Dock it back and they go, because the status bar is
   saying it already.
+- **A render stops and asks before it leaves lettering out.** With objects that have no page under them,
+  Render says so and offers to **show them**, **delete them**, or **render anyway** — the render never
+  quietly drops them any more, and *Cancel* is the default. Refreshing every project (F6) does not stop
+  to ask; a chapter in that state is skipped, and the summary says why.
+- **Replace file…** on an input tile swaps in a newer scan of a page **without unanchoring anything** on
+  it. Removing the page and adding the new file would have left every bubble on it with no page.
+- **Removing a page tells you what it would strand.** If text or bubbles are anchored to a page you are
+  removing, the confirmation says how many and lets you keep them (they wait, unanchored) or remove them
+  too — in one step that one Ctrl+Z puts back.
+- **Re-anchor to ▸** in an object's right-click menu moves it onto any page, by name — the way back for
+  lettering whose page was removed, which cannot be dragged because it is not on the strip.
 - **A colour grade is on because it is set, not because a switch says so.** Moving any of the grade's
   controls away from neutral makes the chapter graded — in the strip editor's preview and in the
   render, which cannot now disagree. **Reset** is how a grade is removed, and so is the workflow card's

@@ -35,6 +35,16 @@ struct Advisory
     std::function<void()> action;   //!< What @c actionText does. Absent means there is nothing to offer.
 
     /**
+     * @brief Optional — a way to make the condition go away here and now, which may destroy something.
+     *
+     * Kept apart from @c action because the two are offered differently. An action only takes the
+     * artist somewhere, so it is one click on a chip. A resolution can delete work, so it is **only
+     * ever offered in a question** — the render gate — and never sits on a chip one stray click away.
+     */
+    QString resolveText;
+    std::function<void()> resolve;   //!< What @c resolveText does.
+
+    /**
      * @brief Which project this is about; empty means the application itself.
      *
      * The status bar shows one project's advisories at a time, and the render gate asks about one

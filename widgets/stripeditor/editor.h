@@ -186,8 +186,10 @@ signals:
     //! shows the same pixels before and after, so this is about producing the output files, not the view.
     void renderAndViewRequested();
 
-    //! A settled grade edit in the CC panel — the owner (MainWindow) persists it onto the project (undo).
-    void colourCorrectionEdited(const Platemaker::Models::ColourCorrection& cc);
+    //! A settled grade edit — the owner (MainWindow) persists it onto the project as one undo step named
+    //! @p undoText. Named here, where it is known what was done — an adjustment moved, reset or removed, a
+    //! page excluded — rather than guessed afterwards from a before-and-after that cannot tell them apart.
+    void colourCorrectionEdited(const Platemaker::Models::ColourCorrection& cc, const QString& undoText);
 
     /**
      * @brief A new bubble was drawn — the owner rasterises it and registers it with the library.

@@ -103,11 +103,16 @@
   open it to see the chapter's pages. Selecting the strip shows what colour correction it carries, and
   selecting a page lets you **exclude it from colour correction** — a title or credits page that should
   keep its own colours. Excluding or including a page is one undoable step.
+- **Colour correction works the way graphic editor's *Colours* menu does.** The Grade tool lists its adjustments —
+  *Brightness & contrast*, *Saturation* — and shows the controls of the one you pick, applied live to the
+  strip; the adjustments in use are in bold, and *Reset* takes one off without touching the others. Picking
+  the Grade tool selects the strip for you. The strip, selected, lists what is applied to it, each with
+  **Edit** to open it again and **Remove** to take it off. Removing the whole grade keeps the pages you
+  excluded, so they stay excluded when you grade again.
 - **A colour grade is on because it is set, not because a switch says so.** Moving any of the grade's
   controls away from neutral makes the chapter graded — in the strip editor's preview and in the
-  render, which cannot now disagree. **Reset** is how a grade is removed, and so is the workflow card's
-  **−**; both are one undoable step. There is no longer a way to leave a grade configured but parked
-  where a render would ignore it, and no way for a slider to quietly switch a step on behind you.
+  render, which cannot disagree. The workflow card's **−** takes the whole grade off in one undoable step;
+  a grade cannot be left configured but parked where a render would ignore it.
 - **The coloured chips explain themselves.** Hovering a chip in the profile import/export dialog —
   *margins*, *already in library* — now says what it means and what it implies, instead of leaving a
   two-word label to be guessed at.

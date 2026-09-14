@@ -92,16 +92,20 @@ public:
     void refreshOutputTiles();                      //!< rebuild from getOutputImages()
 
     /**
-     * @brief Persist a settled colour-correction edit onto this project, as one undoable step (also
-     *        refreshes the workflow map).
+     * @brief Persist a settled colour-correction edit onto this project as one undoable step named
+     *        @p undoText (also refreshes the workflow map).
      *
-     * A neutral grade is no grade, so this is also how the step is removed — `applyColourCorrection({})`
-     * is what the workflow card's "−" does, and the undo step is labelled for it. There is no separate
-     * toggle that could leave a grade parked where the render would not run it.
+     * The name comes from the caller, which knows what was done — an adjustment moved or removed, a page
+     * excluded — rather than being guessed here from a before-and-after that cannot tell those apart.
+     *
+     * A neutral grade is no grade, so this is also how every adjustment comes off at once: the workflow
+     * card's "−" passes a neutral grade that **keeps the page exclusions**, which are each page's own
+     * decision and apply again the moment the strip is graded again. There is no separate toggle that could
+     * leave a grade parked where the render would not run it.
      *
      * Called by MainWindow on StripEdit::Editor::colourCorrectionEdited, and by the workflow card.
      */
-    void applyColourCorrection(const Platemaker::Models::ColourCorrection& cc);
+    void applyColourCorrection(const Platemaker::Models::ColourCorrection& cc, const QString& undoText);
 
     // --- text & bubble overlays -------------------------------------------------------------
     /**

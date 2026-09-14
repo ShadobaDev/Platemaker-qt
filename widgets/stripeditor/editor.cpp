@@ -2,6 +2,7 @@
 #include "ui_editor.h"
 #include "flowlayout.h"
 #include "advisorybar.h"
+#include "colouradjustment.h"
 #include "gradepanel.h"
 #include "objectcontroller.h"
 #include "pagesource.h"
@@ -186,8 +187,8 @@ Editor::Editor(QWidget *parent)
         // One tool-options page per tool (index == Tool), under the rail — the tool's own settings, in
         // the place every drawing application puts them. Pan has none.
         ui->toolOptions->addWidget(new QWidget(ui->toolOptions)); // Pan
-        // The grade lives here rather than on the right, because its subject is the project: it is the
-        // tool's configuration, not any object's property (see the object abstraction in S4).
+        // The Grade tool's options are graphic editor's Colours: which adjustment, and its controls, applied to the
+        // selected object. What a selected strip's grade *is* is shown on the right, in its state.
         m_gradePanel = new GradePanel(ui->toolOptions);                 // Grade
         ui->toolOptions->addWidget(m_gradePanel);
         connect(m_gradePanel, &GradePanel::changed, this, [this](const Platemaker::Models::ColourCorrection& cc) {
@@ -195,8 +196,14 @@ Editor::Editor(QWidget *parent)
             // here, and re-syncing its widgets mid-drag would fight the slider the user is holding.
             applyGrade(cc);
         });
-        connect(m_gradePanel, &GradePanel::committed, this, [this](const Platemaker::Models::ColourCorrection& cc) {
-            emit colourCorrectionEdited(cc); // settled: the owner persists it onto the project (undo)
+        connect(m_gradePanel, &GradePanel::committed, this,
+                [this](const Platemaker::Models::ColourCorrection& cc, const QString& undoText) {
+            emit colourCorrectionEdited(cc, undoText);   // settled: the owner persists it, one undo step
+        });
+        // The panel can only act on the strip; asked for it, it gets it.
+        connect(m_gradePanel, &GradePanel::selectStripRequested, this, [this] {
+            if (m_objects)
+                m_objects->selectStrip();
         });
         // One panel for Bubble *and* Text: they author the same object (a TextArtifact, with or without
         // a shape), so both rail buttons point at this page and setTool() just hides the shape group.
@@ -228,7 +235,17 @@ Editor::Editor(QWidget *parent)
                 skipped.erase(it);
             // The owner persists it as one undo step and feeds it back, which is what updates the preview,
             // the page's row and this panel — the same round trip every grade edit takes.
-            emit colourCorrectionEdited(cc);
+            emit colourCorrectionEdited(cc, excluded ? tr("Exclude page from colour correction")
+                                                     : tr("Include page in colour correction"));
+        });
+        // An adjustment listed on the strip: reopened in the Grade tool, or taken off the strip.
+        connect(m_stripState, &StripStatePanel::adjustmentEditRequested, this, [this](ColourAdjustment a) {
+            setTool(Tool::Grade);
+            m_gradePanel->openAdjustment(a);
+        });
+        connect(m_stripState, &StripStatePanel::adjustmentRemoveRequested, this, [this](ColourAdjustment a) {
+            emit colourCorrectionEdited(withoutColourAdjustment(m_cc, a),
+                                        tr("Remove %1").arg(colourAdjustmentName(a)));
         });
 
         // Everything placed on the strip. It drives the scene, the list and the panel; it owns no
@@ -295,6 +312,12 @@ void Editor::setTool(Tool tool)
     // selecting, moving and dragging a handle are available under every tool — they are what a canvas
     // does, not what a tool grants.
     m_objects->setTextOnly(tool == Tool::Text);
+
+    // graphic editor always has an active layer for a colour tool to act on; here the strip is that layer. Picking
+    // the Grade tool with nothing selected selects it, rather than opening on a panel that can only say
+    // "select something first". A selection the artist made is left alone — the panel explains instead.
+    if (tool == Tool::Grade && m_objects->subject() == ObjectController::Subject::None)
+        m_objects->selectStrip();
 }
 
 void Editor::applyGrade(const Platemaker::Models::ColourCorrection& cc)
@@ -315,6 +338,14 @@ void Editor::showSubject()
 {
     if (!m_objects || !m_stripState || !m_objectState)
         return;
+
+    // The Grade tool acts on the selection, so it is told what that is whether or not it is showing.
+    if (m_gradePanel) {
+        const auto s = m_objects->subject();
+        m_gradePanel->setTarget(s == ObjectController::Subject::Strip ? GradePanel::Target::Strip
+                                : s == ObjectController::Subject::Page ? GradePanel::Target::Page
+                                                                         : GradePanel::Target::Other);
+    }
 
     const auto isSkipped = [this](const QString& inputUid) {
         const auto& skipped = m_cc.excludedInputUids;

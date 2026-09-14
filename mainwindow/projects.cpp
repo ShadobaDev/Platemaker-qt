@@ -563,11 +563,12 @@ void MainWindow::openStripEditorDock(int projectIndex)
     connect(viewer, &StripEdit::Editor::renderAndViewRequested, this, [this, projectIndex] {
         (void)startRender(projectIndex);
     });
-    // A settled grade edit in the CC panel → persist it onto the project (undoable, via the Project dock).
+    // A settled grade edit → persist it onto the project as one undo step, named by the editor, which
+    // knows what was done (undoable, via the Project dock).
     connect(viewer, &StripEdit::Editor::colourCorrectionEdited, this,
-            [this, projectIndex](const Platemaker::Models::ColourCorrection &cc) {
+            [this, projectIndex](const Platemaker::Models::ColourCorrection &cc, const QString &undoText) {
         if (auto *pw = projectWidget(projectIndex))
-            pw->applyColourCorrection(cc);
+            pw->applyColourCorrection(cc, undoText);
     });
 
     // Text & bubbles. Creation goes through the project because the *library* mints the overlay's uid

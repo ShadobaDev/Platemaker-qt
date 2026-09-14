@@ -415,25 +415,15 @@ void Project::populate()
     refreshWorkflowMap();
 }
 
-void Project::applyColourCorrection(const ColourCorrection& cc)
+void Project::applyColourCorrection(const ColourCorrection& cc, const QString& undoText)
 {
-    auto& current = m_workspace.projectItems[m_projectIndex].colourCorrection;
-    const bool clearing = Platemaker::Models::isNeutral(cc)
-                       && !Platemaker::Models::isNeutral(current);
-    // Named for what changed. A page excluded or included is a different act from moving a slider, and
-    // the history should read that way.
-    const auto before = current.excludedInputUids.size();
-    const auto after  = cc.excludedInputUids.size();
-    const QString text = after > before ? tr("Exclude page from colour correction")
-                       : after < before ? tr("Include page in colour correction")
-                       : clearing       ? tr("Remove colour correction")
-                                        : tr("Adjust colour correction");
-    commitEdit(text, [this, &cc] {
+    commitEdit(undoText, [this, &cc] {
         m_workspace.projectItems[m_projectIndex].colourCorrection = cc;
         emit projectModified();
         populate(); // refresh the workflow map (CC on/off, exclusions) and the rest of the views
     });
 }
+
 
 void Project::refreshWorkflowMap()
 {
@@ -464,7 +454,14 @@ void Project::refreshWorkflowMap()
     const auto goInput    = [this]{ ui->tabWidget->setCurrentWidget(ui->tabInput); };
     const auto goOutput   = [this]{ ui->tabWidget->setCurrentWidget(ui->tabOutput); };
     const auto openEditor = [this]{ emit viewStripRequested(m_projectIndex); };
-    const auto resetCC = [this] { applyColourCorrection({}); };
+    // Every adjustment off, the page exclusions kept: those are each page's own decision, and they apply
+    // again the moment the strip is graded again.
+    const auto resetCC = [this] {
+        ColourCorrection neutral;
+        neutral.excludedInputUids =
+            m_workspace.projectItems[m_projectIndex].colourCorrection.excludedInputUids;
+        applyColourCorrection(neutral, tr("Remove colour correction"));
+    };
     const auto clearOverlays = [this] {
         auto& item = m_workspace.projectItems[m_projectIndex];
         if (item.getStripOverlays().empty()) return;

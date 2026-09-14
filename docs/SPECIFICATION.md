@@ -378,10 +378,25 @@ valid baseline for every grade tried on it. Excluded pages are skipped, matching
   two predicates happening to agree.
   - **The workflow card reads the values**, like the *Text & bubbles* card next to it reads the overlay
     count: active because there is something in it, no in-place *+* (a grade is made in the editor),
-    and **−** removes what is there. `Project::applyColourCorrection({})` is that removal, labelled
-    *Remove colour correction* on the history.
-  - **The grade panel edits values and switches nothing.** It used to set `enabled` on every keystroke,
-    which turned a step on behind the artist; with no flag to set there is nothing to do silently.
+    and **−** removes what is there: every adjustment back to neutral, recorded as *Remove colour
+    correction*. The page exclusions stay — they are each page's decision, and apply again once the strip
+    is graded again.
+  - **The Grade tool is graphic editor's *Colours*, applied to the selected object.** Its ④ page lists the
+    adjustments — *Brightness & contrast*, *Saturation* — with the applied ones in bold, and the chosen
+    one's controls below, live, settling into one undo step named *Adjust …*; *Reset* takes that
+    adjustment off (*Reset …*) and leaves the others. Curves are run by the library but have no editor
+    here, so they are not listed. The panel edits only the shown adjustment's fields and switches nothing.
+  - **It can act on the strip, and on nothing else yet** (a page's only colour decision is its exclusion).
+    With a page, an overlay or nothing selected the list and controls are disabled and the panel says
+    why, with *Select the strip*. Picking the Grade tool with **nothing** selected selects the strip, as
+    graphic editor always has an active layer for a colour tool; a selection the artist made is left alone.
+  - **`ColourAdjustment` is the one mapping** between graphic editor's names and `ColourCorrection`'s fields, used by
+    both panels: which adjustments exist, whether one is applied, its values, and the grade without it.
+    Neutral is read from a default-constructed `ColourCorrection` rather than restated, and a GUI test
+    pins that removing one adjustment touches nothing else and that the per-adjustment rules add up to
+    the library's `isNeutral()`.
+  - **The undo step is named by whoever made the edit.** `Editor::colourCorrectionEdited(cc, undoText)`
+    carries the name to `Project::applyColourCorrection(cc, undoText)`, which records it as given.
 - **Selection is the canvas's, not a tool's.** Every object is selectable, movable and resizable under
   every tool; an unanchored one is the only exception, because it is not on the strip. A tool decides
   what a *placement* creates — armed in `Editor::eventFilter()` — so `ObjectController` knows exactly one
@@ -395,9 +410,12 @@ valid baseline for every grade tried on it. Excluded pages are skipped, matching
     which kind of thing is selected — none, an overlay, the strip or a page — and selecting one lets go of
     every overlay through the same path an empty click takes. ③ is a stack of two panels chosen by that
     subject: `ObjectStatePanel` for overlays, `StripStatePanel` for the strip and its pages.
-  - **The strip** shows its page count, how many pages its grade skips, and which adjustments that grade
-    applies — *Curves*, *Brightness & contrast*, *Saturation*, in the order the library runs them. It
-    cannot be dragged, dropped on or muted: a strip that could be hidden would stop showing what renders.
+  - **The strip** shows its page count, how many pages its grade skips, and the adjustments that grade
+    applies — *Curves*, *Brightness & contrast*, *Saturation*, in the order the library runs them — each
+    with its values, *Edit* (which opens it in the Grade tool) and *Remove* (one undo step, *Remove …*),
+    as graphic editor 3 lists the filters on a layer. Rows are rebuilt only when *which* adjustments apply changes;
+    while a slider moves only their text is rewritten. The strip cannot be dragged, dropped on or muted:
+    a strip that could be hidden would stop showing what renders.
   - **A page** shows its size in the strip and **Excluded from colour correction**, which adds or removes
     its uid in `ColourCorrection::excludedInputUids` — the one colour decision the library lets a page
     make. The toggle is made against the grade the editor last showed and goes out as one undo step,

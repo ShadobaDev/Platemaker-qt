@@ -76,6 +76,7 @@ qt_add_executable(Platemaker
     widgets/stripeditor/properties/styleeditor.cpp widgets/stripeditor/properties/styleeditor.h
     widgets/stripeditor/properties/tailseditor.cpp widgets/stripeditor/properties/tailseditor.h
     widgets/stripeditor/properties/texteditor.cpp widgets/stripeditor/properties/texteditor.h
+    widgets/stripeditor/colouradjustment.cpp widgets/stripeditor/colouradjustment.h
     widgets/stripeditor/panels/gradepanel.cpp widgets/stripeditor/panels/gradepanel.h widgets/stripeditor/panels/gradepanel.ui
     widgets/stripeditor/panels/tooloptionspanel.cpp widgets/stripeditor/panels/tooloptionspanel.h
     widgets/stripeditor/panels/objectstatepanel.cpp widgets/stripeditor/panels/objectstatepanel.h
@@ -145,11 +146,8 @@ target_include_directories(Platemaker PRIVATE
 # The GUI has no test suite of its own beyond the property model: what can be tested without a window
 # is the part that should not need one. See tests/gui-unit-tests/CMakeLists.txt.
 # ---------------------------------------------------------------------------
-option(PLATEMAKER_GUI_BUILD_TESTS "Build the GUI unit tests (GoogleTest)" OFF)
-if(PLATEMAKER_GUI_BUILD_TESTS)
-    enable_testing()
-    add_subdirectory(tests/gui-unit-tests)
-endif()
+# The option itself is declared further down, once libplatemaker has been found: the tests read the
+# library's model headers, so its target has to exist before their directory is added.
 
 include(FetchContent)
 
@@ -219,6 +217,13 @@ if(NOT platemaker_FOUND)
 endif()
 
 target_link_libraries(${PROJECT_NAME} PRIVATE Platemaker::platemaker)
+
+# GUI unit tests (see the note above): here, after the library, because they borrow its include path.
+option(PLATEMAKER_GUI_BUILD_TESTS "Build the GUI unit tests (GoogleTest)" OFF)
+if(PLATEMAKER_GUI_BUILD_TESTS)
+    enable_testing()
+    add_subdirectory(tests/gui-unit-tests)
+endif()
 
 # About-dialog metadata injected as compile definitions — only the two facts this app owns:
 #   PLATEMAKER_GUI_VERSION — this app's project() version

@@ -3,46 +3,81 @@
 
 #include <QWidget>
 
-#include <platemaker/models/processing_steps.hpp>
+#include <platemaker/models/colour_correction.hpp>
+
+#include "colouradjustment.h"
 
 namespace Ui { class GradePanel; }
-class QSlider;
 class QDoubleSpinBox;
+class QGroupBox;
+class QLabel;
+class QListWidget;
+class QPushButton;
+class QSlider;
+class QStackedWidget;
 class QTimer;
 
 namespace StripEdit {
 
 /**
- * @brief Tool-options panel for the strip editor's Colour-correction (Grade) tool.
+ * @brief The Grade tool's options — graphic editor's *Colours*, applied to the selected object.
  *
- * Brightness / contrast / saturation (slider + spin-box each), plus a reset.
- * The panel owns a working \c ColourCorrection: \c setColourCorrection() populates the controls without
- * emitting; editing emits \c changed() continuously (for the live preview) and \c committed() once the
- * controls settle (debounced) or on a discrete action (for the persisted, undoable write).
+ * A list of adjustments at the top, the way graphic editor's menu lists them, and the chosen one's controls below it.
+ * Controls apply live and settle into one undo step, named for the adjustment that was edited, rather than
+ * waiting behind an OK button: the preview already is the result, and every settled edit is already
+ * undoable. An adjustment the grade applies is shown in bold.
  *
- * Curves and per-page exclusions are not exposed here yet — a later sub-step. The panel preserves those
- * fields of the working grade untouched.
+ * **What it applies to is the selection**, and today that can only be the strip: the library holds one
+ * grade per chapter, and a page's only colour decision is whether that grade skips it (Q65). With anything
+ * else selected the panel stays visible, says why it cannot act, and offers the way to the strip — a tool
+ * that silently does nothing is worse than one that explains itself.
+ *
+ * The panel works on a whole `ColourCorrection` and edits only the fields of the adjustment in front of it;
+ * curves and page exclusions pass through untouched.
  */
 class GradePanel : public QWidget
 {
     Q_OBJECT
 
 public:
+    //! What the selection is, as far as a grade is concerned.
+    enum class Target {
+        Strip,   //!< Something a grade can be applied to.
+        Page,    //!< Takes the strip's grade, or is excluded from it — decided in its own properties.
+        Other,   //!< Nothing, or an overlay.
+    };
+
     explicit GradePanel(QWidget* parent = nullptr);
     ~GradePanel() override;
 
     //! Populate the controls from \p cc without emitting change signals.
     void setColourCorrection(const Platemaker::Models::ColourCorrection& cc);
 
+    //! Enables the panel for the strip; for anything else, disables it and says why.
+    void setTarget(Target target);
+
+    //! Shows @p a's controls — how *Edit* on an applied adjustment, elsewhere, reopens it here.
+    void openAdjustment(ColourAdjustment a);
+
 signals:
     void changed(const Platemaker::Models::ColourCorrection& cc);   //!< Continuous — for the live preview.
-    void committed(const Platemaker::Models::ColourCorrection& cc); //!< Debounced / discrete — persist + undo.
+    //! Settled or discrete — persist and record, as a step named @p undoText.
+    void committed(const Platemaker::Models::ColourCorrection& cc, const QString& undoText);
+    //! The panel cannot act on the selection, and the artist asked to go to what it can act on.
+    void selectStripRequested();
 
 private:
-    void onControlChanged(); //!< Any control moved → read into m_cc, emit changed(), arm the commit timer.
-    void syncFromModel();     //!< Push m_cc into the controls with their signals blocked.
+    void onControlChanged(ColourAdjustment edited);   //!< Read that adjustment's controls, preview, arm the commit.
+    void syncFromModel();                              //!< Push m_cc into every control with its signals blocked.
+    void refreshList();                                //!< Bold for what is applied, with its values in the tooltip.
+    [[nodiscard]] ColourAdjustment currentAdjustment() const;
 
     Ui::GradePanel*    ui;
+    QLabel*         m_unavailable      = nullptr;   //!< Why the panel cannot act on the selection.
+    QPushButton*    m_toStrip          = nullptr;   //!< ...and the way to something it can act on.
+    QListWidget*    m_list             = nullptr;   //!< The adjustments, as graphic editor's Colours menu lists them.
+    QGroupBox*      m_controls         = nullptr;   //!< The chosen adjustment, titled with its name.
+    QStackedWidget* m_pages            = nullptr;   //!< One page of controls per list entry, in the same order.
     QSlider*        m_brightnessSlider = nullptr;
     QDoubleSpinBox* m_brightnessSpin   = nullptr;
     QSlider*        m_contrastSlider   = nullptr;
@@ -51,8 +86,9 @@ private:
     QDoubleSpinBox* m_saturationSpin   = nullptr;
     QTimer*         m_commitTimer      = nullptr;
 
-    Platemaker::Models::ColourCorrection m_cc; //!< Working grade (scalars edited here; curves/exclusions preserved).
-    bool m_populating = false;                 //!< Suppresses change signals while syncFromModel() runs.
+    Platemaker::Models::ColourCorrection m_cc;   //!< Working grade; only the shown adjustment's fields are edited.
+    ColourAdjustment m_lastEdited = ColourAdjustment::BrightnessContrast;   //!< Names the pending commit.
+    bool m_populating = false;                   //!< Suppresses change signals while syncFromModel() runs.
 };
 
 }  // namespace StripEdit

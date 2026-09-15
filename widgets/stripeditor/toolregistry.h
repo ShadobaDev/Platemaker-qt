@@ -20,6 +20,7 @@ enum class ToolKind {
     Select,   //!< The default state: hand-drag pans the view, and the left button is the canvas's.
     Create,   //!< A drag on empty strip places an object.
     Grade,    //!< Edits the selected object's colour; picked with nothing selected, it takes the strip.
+    Sample,   //!< A press reads the canvas instead of changing it — the eyedropper.
 };
 
 /**

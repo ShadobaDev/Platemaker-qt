@@ -41,6 +41,7 @@ namespace Ui { class Editor; }
 
 namespace StripEdit {
 
+class ColourPair;
 class GradePanel;
 class ObjectStatePanel;
 class StripStatePanel;
@@ -267,6 +268,18 @@ private:
     //! Page and anchor geometry is asked of \c m_layout instead — see Layout.
     [[nodiscard]] bool    artifactToolActive() const;
 
+    /**
+     * @brief Reads the colour at @p scenePos into the pair — the secondary half when @p secondary.
+     *
+     * Takes what is **on screen**: the graded tier when the grade is on, the built page when it is off,
+     * which is the same pixel the render will produce. A page still showing its proxy is not sampled —
+     * a blurry stand-in would hand back an average of the colours around the point rather than the
+     * colour at it — so the page is requested and the press does nothing.
+     *
+     * @return Whether a colour was taken.
+     */
+    bool sampleColourAt(const QPointF& scenePos, bool secondary);
+
     //! Grade state changed: drop the graded cache and re-grade what's visible.
     void refreshGradePreview();
 
@@ -294,6 +307,7 @@ private:
     // a .ui); the splitters, canvas, tool-options stack and artifact list all come from editor.ui ---
     QButtonGroup   *m_toolGroup = nullptr;   //!< The rail's buttons; a button's id is its row in tools().
     QHash<QString, int> m_toolPage;          //!< Tool id → its page in the options stack.
+    ColourPair*     m_colours    = nullptr;  //!< The primary/secondary pair, under the rail. Furniture.
     GradePanel        *m_gradePanel   = nullptr;   //!< The Grade tool-options page (colour-correction controls).
     AdvisoryBar       *m_advisoryBar  = nullptr;   //!< Bottom edge of this editor; absent until setAdvisories().
     QString         m_tool;                  //!< The active tool's registry id.

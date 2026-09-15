@@ -3,6 +3,7 @@
 #include "flowlayout.h"
 #include "advisorybar.h"
 #include "colouradjustment.h"
+#include "colourpair.h"
 #include "gradepanel.h"
 #include "objectcontroller.h"
 #include "pagesource.h"
@@ -219,6 +220,12 @@ Editor::Editor(QWidget *parent)
             m_toolPage.insert(t.id, pageIndex.value(t.page));
         }
 
+        // The colour pair is **furniture**, not a tool: it sits under the tiles and stays there whichever
+        // tool is active, because the tools that use it — the eyedropper fills it, an applicator spends
+        // it — hold a reference to it rather than a colour of their own.
+        m_colours = new ColourPair(ui->toolRail);
+        railLay->addWidget(m_colours);
+
         // The other question, and a different class for it: what the *selected* object is. The two used
         // to be one class sitting in two places, which is how they came to look like the same panel
         // twice. They now differ in what they contain, not only in what they mean.
@@ -299,7 +306,8 @@ void Editor::setTool(const QString& id)
     // interaction, and a crosshair says the canvas is being drawn on rather than dragged.
     m_view->setDragMode(tool->kind == ToolKind::Select ? QGraphicsView::ScrollHandDrag
                                                        : QGraphicsView::NoDrag);
-    m_view->viewport()->setCursor(tool->kind == ToolKind::Create ? Qt::CrossCursor : Qt::ArrowCursor);
+    const bool onCanvas = tool->kind == ToolKind::Create || tool->kind == ToolKind::Sample;
+    m_view->viewport()->setCursor(onCanvas ? Qt::CrossCursor : Qt::ArrowCursor);
 
     // Only the *tool's own options* follow the tool: a tool that places one shape says so, and the
     // Bubble tool leaves the choice on the tiles. This replaced two gates that each existed to say
@@ -619,6 +627,20 @@ void Editor::resizeEvent(QResizeEvent *event)
 
 bool Editor::eventFilter(QObject *watched, QEvent *event)
 {
+    // The eyedropper: a press takes the colour that is on the strip there, wherever it lands — over an
+    // object as much as over a page, because what is sampled is what is drawn.
+    if (watched == m_view->viewport() && event->type() == QEvent::MouseButtonPress) {
+        const Tool* tool = toolById(m_tool);
+        if (tool && tool->kind == ToolKind::Sample) {
+            auto* me = static_cast<QMouseEvent*>(event);
+            if (me->button() == Qt::LeftButton) {
+                sampleColourAt(m_view->mapToScene(me->position().toPoint()),
+                               me->modifiers() & Qt::ControlModifier);
+                return true;
+            }
+        }
+    }
+
     // Bubble / Text: the left button draws a new bubble on empty strip. A press that lands on an
     // existing overlay is left alone, so the item's own move/resize handling still runs.
     if (watched == m_view->viewport() && artifactToolActive()) {
@@ -691,6 +713,35 @@ void Editor::setAdvisoriesActive(bool active)
 {
     if (m_advisoryBar)
         m_advisoryBar->setActive(active);
+}
+
+bool Editor::sampleColourAt(const QPointF& scenePos, bool secondary)
+{
+    if (!m_colours || !m_pages || m_layout.isEmpty())
+        return false;
+    const int page = m_layout.pageAtSceneY(scenePos.y());
+    if (page < 0)
+        return false;
+    const QRectF rect = m_layout.pageRect(page);
+    if (!rect.contains(scenePos))
+        return false;   // the gutter between two pages is not a colour anyone means to pick
+
+    QPixmap px = m_pages->gradedOf(page);   // null whenever the grade is off — see gradeActive()
+    if (px.isNull())
+        px = m_pages->pageOf(page);
+    if (px.isNull()) {
+        m_pages->request(page);   // still a proxy: ask for the real pixels rather than sample a blur
+        return false;
+    }
+
+    // The page is drawn into its rect, so its pixels and the scene differ by that one ratio. One pixel
+    // is copied out rather than converting the whole page to an image for a single read.
+    const QPointF inPage = scenePos - rect.topLeft();
+    const qreal   k      = px.width() / rect.width();
+    const QPoint  at(qBound(0, qRound(inPage.x() * k), px.width() - 1),
+                     qBound(0, qRound(inPage.y() * k), px.height() - 1));
+    m_colours->set(px.copy(QRect(at, QSize(1, 1))).toImage().pixelColor(0, 0), secondary);
+    return true;
 }
 
 bool Editor::artifactToolActive() const

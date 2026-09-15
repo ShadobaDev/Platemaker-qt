@@ -18,6 +18,11 @@ const QList<Tool>& tools()
          QT_TRANSLATE_NOOP("StripEdit::Tool", "Colour correction"),
          ToolKind::Grade, std::nullopt, QStringLiteral("grade")},
 
+        {QStringLiteral("eyedropper"),
+         QStringLiteral(":/icons/tools/eyedropper.svg"),
+         QT_TRANSLATE_NOOP("StripEdit::Tool", "Pick a colour from the strip — Ctrl for the secondary"),
+         ToolKind::Sample, std::nullopt, QString()},
+
         {QStringLiteral("bubble"),
          QStringLiteral(":/icons/tools/bubble.svg"),
          QT_TRANSLATE_NOOP("StripEdit::Tool", "Speech bubble"),

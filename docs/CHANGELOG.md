@@ -52,9 +52,9 @@
     artist, not a property of one comic.
   - **The eyedropper and the colour pair.** The tool column carries a primary and a secondary colour
     under the tool tiles — overlapping swatches with **swap** and **reset to black and white**,
-    remembered between sessions. The eyedropper takes a colour off the strip
-    exactly as it appears — through the grade, when one is applied — with **Ctrl** for the secondary
-    half. The pair belongs to the tools, not to any object: filling it changes nothing on the page.
+    remembered between sessions. The eyedropper takes a colour off the strip exactly as it appears —
+    through the grade, and from the balloons and artwork on it as readily as from the page — with the
+    **right button** (or Ctrl) for the secondary half. The pair belongs to the tools, not to any object: filling it changes nothing on the page.
   - **Import artwork…** places a balloon inked on a tablet, a logo, or a hand-drawn effect. The file is
     copied into `overlays/` under its content hash, never referenced where it was found, so the workspace
     stays self-contained. It has no text to re-type, but it is placed, moved, re-anchored, muted, resized

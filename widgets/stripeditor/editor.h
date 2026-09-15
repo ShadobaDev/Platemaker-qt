@@ -267,14 +267,18 @@ private:
     //! True while a tool that authors overlays is active (Bubble or Text).
     //! Page and anchor geometry is asked of \c m_layout instead — see Layout.
     [[nodiscard]] bool    artifactToolActive() const;
+    //! The active tool reads the canvas rather than changing it — the eyedropper.
+    [[nodiscard]] bool    isSampling() const;
 
     /**
      * @brief Reads the colour at @p scenePos into the pair — the secondary half when @p secondary.
      *
-     * Takes what is **on screen**: the graded tier when the grade is on, the built page when it is off,
-     * which is the same pixel the render will produce. A page still showing its proxy is not sampled —
-     * a blurry stand-in would hand back an average of the colours around the point rather than the
-     * colour at it — so the page is requested and the press does nothing.
+     * Takes what is **drawn**: one composited pixel of the scene — the page through its grade, with every
+     * balloon, caption and asset over it — which is the same pixel the render will produce. Selection
+     * chrome and the seam guides are left out of that one repaint: they are the editor talking, not the
+     * comic. A page still showing its proxy is not sampled — a blurry stand-in would hand back an average
+     * of the colours around the point rather than the colour at it — so the page is requested and the
+     * press does nothing.
      *
      * @return Whether a colour was taken.
      */

@@ -126,6 +126,13 @@ QPainterPath Object::shape() const
 // Painting
 // ---------------------------------------------------------------------------
 
+bool Object::s_chromeVisible = true;
+
+void Object::setChromeVisible(bool on)
+{
+    s_chromeVisible = on;
+}
+
 void Object::setFocusedHandle(int index)
 {
     if (m_focusedHandle == index)
@@ -144,7 +151,7 @@ void Object::paint(QPainter* painter, const QStyleOptionGraphicsItem* option, QW
     paintContent(*painter);
     painter->setCompositionMode(QPainter::CompositionMode_SourceOver);
 
-    if (option->state & QStyle::State_Selected) {
+    if (s_chromeVisible && (option->state & QStyle::State_Selected)) {
         // Selection chrome in the palette's highlight colour, cosmetic so it stays 1px at any zoom
         // (no hardcoded colours — the app is themed).
         QPen pen(option->palette.color(QPalette::Highlight));

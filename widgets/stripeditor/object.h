@@ -59,6 +59,16 @@ public:
     void setFocusedHandle(int index);
 
     /**
+     * @brief Turns selection chrome off for **every** object, for one repaint.
+     *
+     * The box, the grips and the tail handles are the editor talking, not the comic. A repaint that has
+     * to answer *what does the page look like* — the eyedropper's, which samples one composited pixel —
+     * asks for them to be left out, because sampling a balloon that happens to be selected must give its
+     * fill and not the highlight colour.
+     */
+    static void setChromeVisible(bool on);
+
+    /**
      * @brief What this object actually draws, in item coordinates — origin may be negative.
      *
      * The offset between the item's position (the box's top-left) and the artwork's own top-left, which
@@ -169,6 +179,8 @@ private:
     bool    m_moved    = false;      //!< Whether this press actually changed anything worth reporting.
     bool    m_orphaned = false;
     int     m_focusedHandle = -1;    //!< The selected tail's handle, drawn hollow; -1 for none.
+
+    static bool s_chromeVisible;     //!< Off while something samples what is drawn. See setChromeVisible().
 };
 
 }  // namespace StripEdit

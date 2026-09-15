@@ -5,6 +5,7 @@
 #include "colouradjustment.h"
 #include "colourpair.h"
 #include "gradepanel.h"
+#include "object.h"
 #include "objectcontroller.h"
 #include "pagesource.h"
 #include "objectstatepanel.h"
@@ -629,15 +630,20 @@ bool Editor::eventFilter(QObject *watched, QEvent *event)
 {
     // The eyedropper: a press takes the colour that is on the strip there, wherever it lands — over an
     // object as much as over a page, because what is sampled is what is drawn.
-    if (watched == m_view->viewport() && event->type() == QEvent::MouseButtonPress) {
-        const Tool* tool = toolById(m_tool);
-        if (tool && tool->kind == ToolKind::Sample) {
+    if (watched == m_view->viewport() && isSampling()) {
+        if (event->type() == QEvent::MouseButtonPress) {
             auto* me = static_cast<QMouseEvent*>(event);
-            if (me->button() == Qt::LeftButton) {
+            // Left fills the primary half, right the secondary — as every eyedropper does. Ctrl+left
+            // does the same as right, for a tablet with one barrel button bound to nothing.
+            const bool left  = me->button() == Qt::LeftButton;
+            const bool right = me->button() == Qt::RightButton;
+            if (left || right) {
                 sampleColourAt(m_view->mapToScene(me->position().toPoint()),
-                               me->modifiers() & Qt::ControlModifier);
+                               right || (me->modifiers() & Qt::ControlModifier));
                 return true;
             }
+        } else if (event->type() == QEvent::ContextMenu) {
+            return true;   // the right button is the tool's here, so it opens no menu
         }
     }
 
@@ -720,34 +726,63 @@ bool Editor::sampleColourAt(const QPointF& scenePos, bool secondary)
     if (!m_colours || !m_pages || m_layout.isEmpty())
         return false;
     const int page = m_layout.pageAtSceneY(scenePos.y());
-    if (page < 0)
-        return false;
-    const QRectF rect = m_layout.pageRect(page);
-    if (!rect.contains(scenePos))
+    if (page < 0 || !m_layout.pageRect(page).contains(scenePos))
         return false;   // the gutter between two pages is not a colour anyone means to pick
 
-    QPixmap px = m_pages->gradedOf(page);   // null whenever the grade is off — see gradeActive()
-    if (px.isNull())
-        px = m_pages->pageOf(page);
-    if (px.isNull()) {
-        m_pages->request(page);   // still a proxy: ask for the real pixels rather than sample a blur
+    // A page still showing its blurry proxy is not sampled: a stand-in would answer with an average of
+    // the colours around the point rather than the colour at it. Ask for the real pixels instead.
+    if (m_pages->gradedOf(page).isNull() && m_pages->pageOf(page).isNull()) {
+        m_pages->request(page);
         return false;
     }
 
-    // The page is drawn into its rect, so its pixels and the scene differ by that one ratio. One pixel
-    // is copied out rather than converting the whole page to an image for a single read.
-    const QPointF inPage = scenePos - rect.topLeft();
-    const qreal   k      = px.width() / rect.width();
-    const QPoint  at(qBound(0, qRound(inPage.x() * k), px.width() - 1),
-                     qBound(0, qRound(inPage.y() * k), px.height() - 1));
-    m_colours->set(px.copy(QRect(at, QSize(1, 1))).toImage().pixelColor(0, 0), secondary);
+    // **What is drawn is what is picked.** One pixel of the scene, composited: the page through its
+    // grade, and every balloon, caption and imported asset over it, each with its own blend mode and
+    // opacity — the same pixels the render will produce. Sampling the page pixmap alone was defensible
+    // and still wrong: clicking a balloon gave the paper behind it.
+    //
+    // Two things in the scene are the editor talking rather than the comic, and they are hidden for the
+    // one repaint: selection chrome, and the seam guides.
+    QList<QGraphicsLineItem*> hiddenSeams;
+    for (QGraphicsLineItem* seam : std::as_const(m_seamItems)) {
+        if (seam->isVisible()) {
+            seam->setVisible(false);
+            hiddenSeams.append(seam);
+        }
+    }
+    Object::setChromeVisible(false);
+
+    QImage pixel(1, 1, QImage::Format_ARGB32);
+    pixel.fill(Qt::transparent);
+    {
+        QPainter p(&pixel);
+        m_scene->render(&p, QRectF(0, 0, 1, 1),                       // the pixel under the cursor,
+                        QRectF(scenePos - QPointF(0.5, 0.5), QSizeF(1, 1)),   // not the one past it
+                        Qt::IgnoreAspectRatio);
+    }
+
+    Object::setChromeVisible(true);
+    for (QGraphicsLineItem* seam : std::as_const(hiddenSeams))
+        seam->setVisible(true);
+
+    const QColor picked = pixel.pixelColor(0, 0);
+    if (picked.alpha() == 0)
+        return false;   // nothing was drawn there after all
+    m_colours->set(picked, secondary);
     return true;
 }
+
 
 bool Editor::artifactToolActive() const
 {
     const Tool* tool = toolById(m_tool);
     return tool && tool->kind == ToolKind::Create;
+}
+
+bool Editor::isSampling() const
+{
+    const Tool* tool = toolById(m_tool);
+    return tool && tool->kind == ToolKind::Sample;
 }
 
 

@@ -241,12 +241,18 @@ than the comic.
   colour of their own, which is what keeps them stateless. It is independent of the colours in ③ —
   setting a balloon's fill does not touch the pair, and changing the pair does not touch any object — and
   it persists in `QSettings`, because it is a habit of the artist rather than a property of one comic.
-- **The eyedropper** (`ToolKind::Sample`) takes what is **on screen** at the press: the graded tier when
-  the grade is on, the built page when it is off — the same pixel the render will produce, so there is no
-  divergence to design around. Ctrl fills the secondary half. A page still showing its blurry proxy is
-  **not** sampled: the page is requested instead, because a stand-in would answer with an average of the
-  colours around the point rather than the colour at it. The press is consumed, so sampling never changes
-  the selection.
+- **The eyedropper** (`ToolKind::Sample`) takes what is **drawn** at the press — one composited pixel of
+  the scene: the page through its grade, with every balloon, caption and imported asset over it, each
+  with its own blend mode. Sampling the page pixmap alone was defensible and still wrong: clicking a
+  balloon gave the paper behind it, which is not what the artist sees. **Left fills the primary half,
+  right the secondary** (Ctrl+left does the same as right), and the right button opens no context menu
+  while the tool is active, because it belongs to the tool.
+  - **Chrome is not part of the picture.** Selection boxes, grips, tail handles and the seam guides are
+    hidden for that one repaint — `Object::setChromeVisible()` — so sampling a *selected* balloon gives
+    its fill rather than the highlight colour.
+  - A page still showing its blurry proxy is **not** sampled: the page is requested instead, because a
+    stand-in would answer with an average of the colours around the point rather than the colour at it.
+  - The press is consumed, so sampling never changes the selection.
 - **Tool options** (bottom-left, under the rail) — a `QStackedWidget`, one page per *page* rather than
   per tool: `GradePanel` for Grade, `ToolOptionsPanel` for every tool that authors a `TextArtifact`
   (Bubble, Text, Caption), because they author the same object (§2.5.4) and two copies of those controls

@@ -75,6 +75,8 @@ qt_add_executable(Platemaker
     widgets/stripeditor/properties/skineditor.cpp widgets/stripeditor/properties/skineditor.h
     widgets/stripeditor/properties/styleeditor.cpp widgets/stripeditor/properties/styleeditor.h
     widgets/stripeditor/properties/tailseditor.cpp widgets/stripeditor/properties/tailseditor.h
+    widgets/stripeditor/properties/taillisteditor.cpp widgets/stripeditor/properties/taillisteditor.h
+    widgets/stripeditor/properties/taileditor.cpp widgets/stripeditor/properties/taileditor.h
     widgets/stripeditor/properties/texteditor.cpp widgets/stripeditor/properties/texteditor.h
     widgets/stripeditor/colouradjustment.cpp widgets/stripeditor/colouradjustment.h
     widgets/stripeditor/panels/gradepanel.cpp widgets/stripeditor/panels/gradepanel.h widgets/stripeditor/panels/gradepanel.ui

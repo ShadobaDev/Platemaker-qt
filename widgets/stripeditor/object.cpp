@@ -126,6 +126,14 @@ QPainterPath Object::shape() const
 // Painting
 // ---------------------------------------------------------------------------
 
+void Object::setFocusedHandle(int index)
+{
+    if (m_focusedHandle == index)
+        return;
+    m_focusedHandle = index;
+    update();
+}
+
 void Object::paint(QPainter* painter, const QStyleOptionGraphicsItem* option, QWidget*)
 {
     painter->save();
@@ -137,26 +145,34 @@ void Object::paint(QPainter* painter, const QStyleOptionGraphicsItem* option, QW
     painter->setCompositionMode(QPainter::CompositionMode_SourceOver);
 
     if (option->state & QStyle::State_Selected) {
-        const QRectF box(QPointF(0, 0), boxSize());
-
         // Selection chrome in the palette's highlight colour, cosmetic so it stays 1px at any zoom
         // (no hardcoded colours — the app is themed).
         QPen pen(option->palette.color(QPalette::Highlight));
         pen.setCosmetic(true);
-        pen.setStyle(Qt::DashLine);
-        painter->setPen(pen);
-        painter->setBrush(Qt::NoBrush);
-        painter->drawRect(box);
 
-        pen.setStyle(Qt::SolidLine);
-        painter->setPen(pen);
-        painter->setBrush(option->palette.color(QPalette::Base));
-        for (const Grip g : {Grip::TopLeft, Grip::TopRight, Grip::BottomLeft, Grip::BottomRight})
-            painter->drawRect(gripRect(g));
+        // The box and its corners are the object's; while one of its tails is the subject they are not
+        // shown, so what looks selected is what an edit will change.
+        if (m_focusedHandle < 0) {
+            pen.setStyle(Qt::DashLine);
+            painter->setPen(pen);
+            painter->setBrush(Qt::NoBrush);
+            painter->drawRect(QRectF(QPointF(0, 0), boxSize()));
 
-        painter->setBrush(option->palette.color(QPalette::Highlight));
-        for (int i = 0; i < handleCount(); ++i)
+            pen.setStyle(Qt::SolidLine);
+            painter->setPen(pen);
+            painter->setBrush(option->palette.color(QPalette::Base));
+            for (const Grip g : {Grip::TopLeft, Grip::TopRight, Grip::BottomLeft, Grip::BottomRight})
+                painter->drawRect(gripRect(g));
+        }
+        painter->setPen(pen);
+
+        // The selected tail's handle is drawn hollow, so among several tails the one being edited is
+        // visible on the strip as well as in the list — inside its own rectangle, where it cannot reach
+        // past what the item has promised to repaint.
+        for (int i = 0; i < handleCount(); ++i) {
+            painter->setBrush(option->palette.color(i == m_focusedHandle ? QPalette::Base : QPalette::Highlight));
             painter->drawEllipse(handleRect(i));
+        }
     }
     painter->restore();
 }
@@ -205,6 +221,8 @@ Object::Grip Object::gripAt(const QPointF& local, int* handleIndex) const
             return Grip::Handle;
         }
     }
+    if (m_focusedHandle >= 0)
+        return Grip::Body;   // corners are not shown while a tail is the subject, so they do not resize
     for (const Grip g : {Grip::TopLeft, Grip::TopRight, Grip::BottomLeft, Grip::BottomRight})
         if (gripRect(g).contains(local))
             return g;
@@ -231,6 +249,7 @@ void Object::mousePressEvent(QGraphicsSceneMouseEvent* e)
     m_startScenePos = e->scenePos();
     m_moved         = false;
     e->accept();
+    emit pressed(m_uid, m_active == Grip::Handle ? m_activeHandle : -1);
 }
 
 void Object::mouseMoveEvent(QGraphicsSceneMouseEvent* e)

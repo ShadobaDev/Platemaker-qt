@@ -2,7 +2,6 @@
 
 #include <QCheckBox>
 #include <QFormLayout>
-#include <QPushButton>
 #include <QSignalBlocker>
 #include <QSize>
 #include <QSpinBox>
@@ -23,20 +22,16 @@ TailsEditor::TailsEditor(QWidget* parent)
 
     // Aiming is a drag on the strip; these are the two things a drag cannot say.
     m_width = new QSpinBox(this);
-    m_width->setRange(4, 400);
+    m_width->setRange(k_tailWidthMinPx, k_tailWidthMaxPx);
     m_width->setSuffix(tr(" px"));
     m_width->setToolTip(tr("How wide the tail is where it leaves the bubble."));
     form->addRow(tr("Tail width:"), m_width);
 
     m_bend = new QSpinBox(this);
-    m_bend->setRange(-100, 100);
+    m_bend->setRange(-k_tailBendPercent, k_tailBendPercent);
     m_bend->setSuffix(tr(" %"));
     m_bend->setToolTip(tr("Curves the tail sideways. 0 is straight."));
     form->addRow(tr("Tail bend:"), m_bend);
-
-    m_add = new QPushButton(tr("Add another tail"), this);
-    m_add->setToolTip(tr("For a sound with more than one source. Drag each handle to aim it."));
-    form->addRow(QString(), m_add);
 
     const auto changed = [this] {
         if (m_populating)
@@ -47,20 +42,6 @@ TailsEditor::TailsEditor(QWidget* parent)
     connect(m_enabled, &QCheckBox::toggled,     this, changed);
     connect(m_width,   &QSpinBox::valueChanged, this, changed);
     connect(m_bend,    &QSpinBox::valueChanged, this, changed);
-
-    connect(m_add, &QPushButton::clicked, this, [this] {
-        // A new tail starts opposite the last one so it is visible rather than stacked on top of it.
-        Tail t;
-        t.baseWidth = m_width->value();
-        t.bend      = m_bend->value() / 100.0;
-        t.tip       = m_values.items.isEmpty()
-            ? QPointF(m_box.width() * 0.28, m_box.height() * 1.25)
-            : QPointF(m_box.width() - m_values.items.last().tip.x(), m_values.items.last().tip.y());
-        m_values.items.append(t);
-        m_enabled->setChecked(true);
-        syncEnabled();
-        emit edited();
-    });
 
     syncEnabled();
 }
@@ -131,17 +112,11 @@ void TailsEditor::shapeChanged(TextArtifact::Shape kind)
     syncEnabled();
 }
 
-void TailsEditor::setAddVisible(bool on)
-{
-    m_add->setVisible(on);
-}
-
 void TailsEditor::syncEnabled()
 {
     const bool want = m_enabled->isChecked() && m_shapeCanSpeak;
     m_width->setEnabled(want);
     m_bend->setEnabled(want);
-    m_add->setEnabled(want);
 }
 
 }  // namespace StripEdit

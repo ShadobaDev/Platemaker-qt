@@ -377,6 +377,7 @@ void Editor::showSubject()
     }
     case ObjectController::Subject::None:
     case ObjectController::Subject::Overlay:
+    case ObjectController::Subject::Tail:
         break;
     }
     ui->objectProperties->setCurrentWidget(m_objectState);

@@ -55,6 +55,9 @@ public:
     void setOrphaned(bool orphaned);
     [[nodiscard]] bool isOrphaned() const { return m_orphaned; }
 
+    //! Marks handle @p index as its tail's — the one selected — or none with -1. Drawn hollow.
+    void setFocusedHandle(int index);
+
     /**
      * @brief What this object actually draws, in item coordinates — origin may be negative.
      *
@@ -96,6 +99,15 @@ public:
 signals:
     //! A move / resize / handle drag has settled — the owner reads pos() and the object and persists it.
     void geometryEdited(const QString& uid);
+
+    /**
+     * @brief The object was pressed — on handle @p handle, or on anything else when it is -1.
+     *
+     * Emitted after the base class has done its selecting, so the owner can narrow a selection it has
+     * already heard about: a press on a tail's handle selects that tail, and a press on the balloon while
+     * one of its tails is selected selects the balloon again.
+     */
+    void pressed(const QString& uid, int handle);
 
 protected:
     //! What the press landed on. `Body` falls through to this class's own move handling.
@@ -156,6 +168,7 @@ private:
     QPointF m_startScenePos;         //!< Cursor at press, in scene coordinates.
     bool    m_moved    = false;      //!< Whether this press actually changed anything worth reporting.
     bool    m_orphaned = false;
+    int     m_focusedHandle = -1;    //!< The selected tail's handle, drawn hollow; -1 for none.
 };
 
 }  // namespace StripEdit

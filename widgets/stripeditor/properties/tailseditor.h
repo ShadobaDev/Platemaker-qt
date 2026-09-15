@@ -4,20 +4,19 @@
 #include "propertygroupeditor.h"
 
 class QCheckBox;
-class QPushButton;
 class QSpinBox;
 
 namespace StripEdit {
 
 /**
- * @brief Every tail on the balloon — whether there are any, how wide they leave it, how much they bend.
+ * @brief The tail the **next** balloon starts with — whether it has one, how wide, how bent.
  *
- * A tail's **aim** is not here: it is a drag on the strip, because pointing at a speaker is a gesture
- * and not a pair of numbers. These are the two things a drag cannot say, and they apply to every tail
- * on the artifact rather than to one of them — almost every balloon has exactly one, and per-tail
- * controls would need a "current tail" to hang off. That is what makes a tail impossible to delete
- * today, and it is the thing nesting fixes: once a tail is an object it can be selected, and once it
- * can be selected it can be removed.
+ * The tool's side of tails. An object that does not exist yet has at most one tail and nothing to select,
+ * so its width and bend are set here directly. An existing balloon's tails are objects of their own and are
+ * edited elsewhere — `TailListEditor` for the collection, `TailEditor` for one tail — which is why this
+ * editor offers nothing for adding a second tail.
+ *
+ * A tail's **aim** is not here either: pointing at a speaker is a drag on the strip.
  *
  * applyTo() **reads** the target's shape and box before deciding what to write. Reading is not writing:
  * a shapeless artifact has nothing for a tail to grow from, and a first tail needs somewhere to point.
@@ -51,16 +50,12 @@ public:
      */
     void shapeChanged(TextArtifact::Shape kind);
 
-    //! Hides "add another tail", for a surface describing an object that does not exist yet.
-    void setAddVisible(bool on);
-
 private:
     void syncEnabled();
 
     QCheckBox*   m_enabled = nullptr;
     QSpinBox*    m_width   = nullptr;
     QSpinBox*    m_bend    = nullptr;
-    QPushButton* m_add     = nullptr;
 
     TailsProperties m_values;   //!< Carries the authored tips through an edit; the spins overwrite the rest.
     //! The balloon's size, read at bind(). A new tail has to be placed relative to it, and this editor

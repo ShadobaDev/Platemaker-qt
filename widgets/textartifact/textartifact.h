@@ -198,6 +198,28 @@ struct TailsProperties
     [[nodiscard]] bool operator!=(const TailsProperties& o) const { return !(*this == o); }
 };
 
+/**
+ * @brief One tail of a balloon — the group a selected tail is edited through.
+ *
+ * A tail is an object of its own, and this is its state. It is addressed by **position** in the balloon's
+ * list rather than by an id: undo restores whole states and holds no tail by number, so an index is enough,
+ * and a selection that outlives a change in the number of tails simply moves up to its balloon.
+ *
+ * applyTo() writes that one tail and leaves the others exactly as they were; an index the balloon no longer
+ * has writes nothing, rather than resurrecting a tail that was deleted.
+ */
+struct TailProperties
+{
+    int  index = 0;
+    Tail tail;
+
+    [[nodiscard]] static TailProperties from(const TextArtifact& a, int index);
+    void applyTo(TextArtifact& a) const;
+
+    [[nodiscard]] bool operator==(const TailProperties& o) const { return index == o.index && tail == o.tail; }
+    [[nodiscard]] bool operator!=(const TailProperties& o) const { return !(*this == o); }
+};
+
 struct TextArtifact
 {
     //! The enums live with the groups that own them; these keep every existing spelling working.

@@ -180,10 +180,13 @@ emitting nothing. `ObjectStatePanel` is the selection's properties. A single cla
 things depending on state the artist cannot see, which is what makes a preset picker above shared
 controls ambiguous.
 
-Both own a **`PropertyGroupSet`** — the five group editors, plus the only two rules about applying all of
-them: shape is written before tails (the tails editor reads it), and the style seed is topped up
+Both own a **`PropertyGroupSet`** — the shape, skin, style and text editors, plus the only two rules about
+applying them: shape is written before tails (a tails editor reads it), and the style seed is topped up
 afterwards, since it belongs to no group. Written once, because both are the kind of rule that drifts
-when written twice.
+when written twice. **Tails are not in the set**, because the two panels edit different things: the next
+balloon has one tail to set up (`TailsEditor`), an existing balloon has a list whose members are objects
+of their own (`TailListEditor`, `TailEditor`). Each panel hands its own to `collect()`, which keeps the
+order.
 
 **`PresetStore`** is a model, not a panel's field. The tool's options pick a preset for the next
 object; an object's context menu applies one to what is selected (*Apply preset ▸*); a dialog will
@@ -275,6 +278,16 @@ valid baseline for every grade tried on it. Excluded pages are skipped, matching
   for where it crosses the silhouette with `QPainterPath::contains()` — shape-agnostic, so every shape
   grew a working tail for free and a tail may leave any edge. `artifactBounds()` therefore computes what
   the artifact actually covers; `box` is the balloon alone.
+- **Each tail is an object of its own.** It shares nothing with its siblings: its width and bend are its
+  own, and *Add tail* only seeds a new tail's starting values from the last one. It is selected in the
+  object tree or by pressing its handle on the strip, which leaves the bubble selected there — its handles
+  exist only on a selected bubble — but hides its box and corner grips, which stop resizing while a tail is
+  the subject; the selected tail's handle is drawn hollow. ③ then shows only **Tail** (width, bend) and
+  *Delete tail*, which removes that tail and selects its bubble. A press anywhere else on the bubble selects
+  the bubble again.
+  - **A tail is addressed by position**, `ObjectController::selectedTail()`, not by an id: undo restores
+    whole states and holds no tail by number. A feed that changes how many tails the bubble has cannot say
+    which one went, so the selection moves up to the bubble.
 - **A project has one history, and it belongs to no window.** `MainWindow` owns it, keyed by
   `ProjectItem::uid` and alive for the session; the `QUndoGroup` makes it the active stack while either
   of that project's docks — the project dock or its strip editor — is in front. One rather than one per
@@ -403,11 +416,12 @@ valid baseline for every grade tried on it. Excluded pages are skipped, matching
   thing about the active tool: whether it is Text. Anything more would put the same gate in two places
   and make the object panel depend on a cause the artist cannot see.
 - **The object stack is a tree, and a way to pick existing objects rather than a structure of its own.**
-  Every row points at an object the editor already has — an overlay by uid, a page by input uid — and
-  holds nothing else. Overlays are top level, front-most first; **the strip is pinned last with its pages
-  nested under it**, collapsed until opened. A bubble's tails nest next.
+  Every row points at an object the editor already has — an overlay by uid, a page by input uid, a tail
+  by its bubble's uid and its index — and holds nothing else. Overlays are top level, front-most first,
+  each bubble with a *Tail N* row per tail; **the strip is pinned last with its pages nested under it**,
+  collapsed until opened. A bubble's text has no row: it is a property group, not an object.
   - **The strip and its pages are selectable subjects, not overlays.** `ObjectController::Subject` says
-    which kind of thing is selected — none, an overlay, the strip or a page — and selecting one lets go of
+    which kind of thing is selected — none, an overlay, a tail, the strip or a page — and selecting one lets go of
     every overlay through the same path an empty click takes. ③ is a stack of two panels chosen by that
     subject: `ObjectStatePanel` for overlays, `StripStatePanel` for the strip and its pages.
   - **The strip** shows its page count, how many pages its grade skips, and the adjustments that grade
@@ -441,16 +455,18 @@ valid baseline for every grade tried on it. Excluded pages are skipped, matching
   editor responsible for it; the editor reads through `bind()` and writes through `applyTo()`, which
   touches only that group. `TextArtifact` composes them — `ShapeProperties`, `SkinProperties`,
   `StyleProperties`, `TextProperties`, `TailsProperties` — and `StripEdit::PropertyGroupEditor` is the
-  contract their five editors implement.
+  contract their editors implement. One level down, **`TailProperties`** is one tail by index: its
+  `applyTo()` writes that tail and no other, and an index the balloon no longer has writes nothing, so a
+  deleted tail cannot come back.
   - **The base is re-read before every patch**, and each editor writes one member. An editor holding a
     copy of the whole artifact would write back stale values for properties it never touched — a canvas
     resize during an edit being the obvious way in.
   - **Two properties belong to no group**, so no editor and no preset can copy them: `box` (the
     object's, not the look's) and `styleSeed` (per balloon, set once at placement — a preset carrying
     it would give a chapter one repeated wobble).
-  - **Reading the target is allowed; writing outside the group is not.** `TailsEditor::applyTo()` reads
-    the shape, because a shapeless artifact has nothing to grow a tail from, and the box, because a
-    first tail needs somewhere to point.
+  - **Reading the target is allowed; writing outside the group is not.** `TailListEditor::applyTo()`
+    reads the shape, because a shapeless artifact has nothing to grow a tail from; `TailEditor::applyTo()`
+    reads the tail's tip, so a spin box cannot undo a drag made since.
   - **The enums live with their groups** — `ShapeProperties::Kind`, `StyleProperties::Kind` — with
     `TextArtifact::Shape` and `::Style` kept as aliases, so every existing spelling still compiles and
     the persisted names are untouched.

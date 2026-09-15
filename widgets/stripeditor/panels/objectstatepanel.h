@@ -8,9 +8,13 @@
 
 class CollapsibleSection;
 class QLabel;
+class QPushButton;
 class QTimer;
 
 namespace StripEdit {
+
+class TailEditor;
+class TailListEditor;
 
 /**
  * @brief What the selected object **is** — the right-hand panel, and nothing else's business.
@@ -44,6 +48,15 @@ public:
     //! Shows \p a and names it in the header. Emits nothing.
     void setArtifact(const TextArtifact& a);
 
+    /**
+     * @brief Shows tail @p index of \p a — a tail selected on its own. Emits nothing.
+     *
+     * One section, the tail's, and *Delete tail*. The balloon's own groups are the balloon's, and showing
+     * them here would make an edit look as if it belonged to the tail. Edits still arrive as the whole
+     * artifact through changed() and committed(), with only that tail written.
+     */
+    void setTail(const TextArtifact& a, int index);
+
     //! Nothing is selected: the sections go away and the panel says why.
     void clearSelection();
 
@@ -64,10 +77,15 @@ private:
     void restoreExpansion();
 
     PropertyGroupSet m_groups;
+    TailListEditor*  m_tailList = nullptr;   //!< A balloon's tails, as a collection.
+    TailEditor*      m_tail     = nullptr;   //!< One selected tail.
+    int              m_tailIndex = -1;       //!< The tail on show, or -1 when the subject is the balloon.
 
     QLabel*             m_subject   = nullptr;  //!< Names what is being edited.
     QLabel*             m_emptyHint = nullptr;  //!< Stands in for the sections when nothing is selected.
     QWidget*            m_actions   = nullptr;  //!< Fit / Delete — they act on the selection.
+    QPushButton*        m_fitButton    = nullptr;
+    QPushButton*        m_deleteButton = nullptr;   //!< "Delete", or "Delete tail" when a tail is the subject.
     QTimer*             m_commitTimer = nullptr;
     QHash<int, CollapsibleSection*> m_sections; //!< Keyed by PropertyGroup.
 

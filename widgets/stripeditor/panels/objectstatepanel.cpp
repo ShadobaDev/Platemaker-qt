@@ -11,7 +11,8 @@
 #include "shapeeditor.h"
 #include "skineditor.h"
 #include "styleeditor.h"
-#include "tailseditor.h"
+#include "taileditor.h"
+#include "taillisteditor.h"
 #include "texteditor.h"
 
 namespace StripEdit {
@@ -29,7 +30,7 @@ QString expansionKey(PropertyGroup g)
 //! Open on a first run: what is edited most, and what is looked at most.
 bool expandedByDefault(PropertyGroup g)
 {
-    return g == PropertyGroup::Text || g == PropertyGroup::Skin;
+    return g == PropertyGroup::Text || g == PropertyGroup::Skin || g == PropertyGroup::TailItem;
 }
 
 QString sectionTitle(PropertyGroup g)
@@ -40,6 +41,7 @@ QString sectionTitle(PropertyGroup g)
     case PropertyGroup::Style: return ObjectStatePanel::tr("Line style");
     case PropertyGroup::Text:  return ObjectStatePanel::tr("Text");
     case PropertyGroup::Tail:  return ObjectStatePanel::tr("Tails");
+    case PropertyGroup::TailItem: return ObjectStatePanel::tr("Tail");
     default: break;
     }
     return {};
@@ -68,9 +70,16 @@ ObjectStatePanel::ObjectStatePanel(QWidget* parent)
     m_emptyHint->setEnabled(false);      // reads as inactive without a hardcoded colour
     lay->addWidget(m_emptyHint);
 
+    // The look's four, then a balloon's tails as a list, then one tail — the last shown only when a tail
+    // is the subject.
+    m_tailList = new TailListEditor(this);
+    m_tail     = new TailEditor(this);
+    QList<PropertyGroupEditor*> editors = m_groups.all();
+    editors << m_tailList << m_tail;
+
     // One section per group, in a fixed order, so a group present on two consecutive selections stays
     // where it was and the panel does not shuffle under the cursor.
-    for (PropertyGroupEditor* e : m_groups.all()) {
+    for (PropertyGroupEditor* e : editors) {
         auto* section = new CollapsibleSection(sectionTitle(e->group()), this);
         section->setContent(e);
         lay->addWidget(section);
@@ -89,6 +98,8 @@ ObjectStatePanel::ObjectStatePanel(QWidget* parent)
     auto* fitBtn = new QPushButton(tr("Fit to text"), m_actions);
     fitBtn->setToolTip(tr("Size the bubble to the line it holds."));
     auto* delBtn = new QPushButton(tr("Delete"), m_actions);
+    m_fitButton    = fitBtn;
+    m_deleteButton = delBtn;
     actionRow->addWidget(fitBtn);
     actionRow->addWidget(delBtn);
     lay->addWidget(m_actions);
@@ -102,9 +113,9 @@ ObjectStatePanel::ObjectStatePanel(QWidget* parent)
             emit committed(m_artifact);
     });
 
-    // A group editor reports the same two things whatever it edits, so five editors map onto the two
+    // A group editor reports the same two things whatever it edits, so every editor maps onto the two
     // signals this panel emits, once.
-    for (PropertyGroupEditor* e : m_groups.all()) {
+    for (PropertyGroupEditor* e : editors) {
         connect(e, &PropertyGroupEditor::edited,    this, [this] { onControlChanged(); });
         connect(e, &PropertyGroupEditor::committed, this, [this] {
             if (m_hasSelection)
@@ -114,7 +125,7 @@ ObjectStatePanel::ObjectStatePanel(QWidget* parent)
     // Picking a shape gives you the shape its tile shows, tail and all — connected before the collector
     // above runs, because Qt calls slots in connection order and the tails editor has to hear first.
     connect(m_groups.shape(), &ShapeEditor::edited, this, [this] {
-        m_groups.tails()->shapeChanged(m_groups.shape()->values().kind);
+        m_tailList->shapeChanged(m_groups.shape()->values().kind);
     });
 
     connect(fitBtn, &QPushButton::clicked, this, [this] { if (m_hasSelection) emit fitRequested(); });
@@ -126,22 +137,47 @@ ObjectStatePanel::ObjectStatePanel(QWidget* parent)
 void ObjectStatePanel::setArtifact(const TextArtifact& a)
 {
     m_artifact     = a;
+    m_tailIndex    = -1;
     m_hasSelection = true;
 
     m_populating = true;
     m_groups.bind(m_artifact);
+    m_tailList->bindOne(m_artifact);
     m_populating = false;
 
     m_subject->setText(m_artifact.shape.kind == TextArtifact::Shape::None ? tr("Text") : tr("Bubble"));
     m_subject->setVisible(true);
     m_emptyHint->setVisible(false);
     m_actions->setVisible(true);
+    m_fitButton->setVisible(true);
+    m_deleteButton->setText(tr("Delete"));
+    applyKindVisibility();
+}
+
+void ObjectStatePanel::setTail(const TextArtifact& a, int index)
+{
+    m_artifact     = a;
+    m_tailIndex    = index;
+    m_hasSelection = true;
+
+    m_populating = true;
+    m_tail->setIndex(index);
+    m_tail->bindOne(m_artifact);
+    m_populating = false;
+
+    m_subject->setText(tr("Tail %1").arg(index + 1));
+    m_subject->setVisible(true);
+    m_emptyHint->setVisible(false);
+    m_actions->setVisible(true);
+    m_fitButton->setVisible(false);   // a tail holds no text to fit
+    m_deleteButton->setText(tr("Delete tail"));
     applyKindVisibility();
 }
 
 void ObjectStatePanel::clearSelection()
 {
     m_hasSelection = false;
+    m_tailIndex    = -1;
     m_commitTimer->stop();
 
     // Gone, not greyed. There is no object, so there are no properties — and a greyed control would
@@ -160,16 +196,23 @@ void ObjectStatePanel::focusText()
 
 void ObjectStatePanel::applyKindVisibility()
 {
-    // A shapeless object has no silhouette, so there is nothing to fill, nothing to roughen and nothing
-    // for a tail to grow from. Shape stays: it is how a caption grows a balloon, until a conversion tool
-    // takes that over.
-    const bool hasShape = m_artifact.shape.kind != TextArtifact::Shape::None;
+    // A selected tail is a subject of its own with one section, and the balloon's groups stay the balloon's.
+    // Otherwise: a shapeless object has no silhouette, so there is nothing to fill, nothing to roughen and
+    // nothing for a tail to grow from. Shape stays: it is how a caption grows a balloon, until a conversion
+    // tool takes that over.
+    const bool tailSubject = m_tailIndex >= 0;
+    const bool hasShape    = m_artifact.shape.kind != TextArtifact::Shape::None;
     for (auto it = m_sections.cbegin(); it != m_sections.cend(); ++it) {
         const auto g = static_cast<PropertyGroup>(it.key());
-        const bool applies = (g == PropertyGroup::Shape || g == PropertyGroup::Text) ? true : hasShape;
+        bool applies = false;
+        if (g == PropertyGroup::TailItem)
+            applies = tailSubject;
+        else if (!tailSubject)
+            applies = (g == PropertyGroup::Shape || g == PropertyGroup::Text) ? true : hasShape;
         it.value()->setVisible(applies);
     }
 }
+
 
 void ObjectStatePanel::restoreExpansion()
 {
@@ -185,12 +228,16 @@ void ObjectStatePanel::onControlChanged()
     if (m_populating)
         return;
 
-    m_groups.collect(m_artifact);
+    if (m_tailIndex >= 0) {
+        m_tail->applyTo(m_artifact);   // that tail, and nothing else about the balloon
+    } else {
+        m_groups.collect(m_artifact, m_tailList);
 
-    // A shape change can add or remove whole sections — the object is still the same object, so this is
-    // the one moment the panel is allowed to re-lay itself out.
-    applyKindVisibility();
-    m_subject->setText(m_artifact.shape.kind == TextArtifact::Shape::None ? tr("Text") : tr("Bubble"));
+        // A shape change can add or remove whole sections — the object is still the same object, so this
+        // is the one moment the panel is allowed to re-lay itself out.
+        applyKindVisibility();
+        m_subject->setText(m_artifact.shape.kind == TextArtifact::Shape::None ? tr("Text") : tr("Bubble"));
+    }
 
     if (!m_hasSelection)
         return;
@@ -198,5 +245,6 @@ void ObjectStatePanel::onControlChanged()
     emit changed(m_artifact);
     m_commitTimer->start();
 }
+
 
 }  // namespace StripEdit

@@ -32,7 +32,10 @@
     caption, caption plate, diamond, banner, scroll, and text-only.
   - **Tails point anywhere, curve, and come in numbers** — a tail is a tip, a width and a bend, and one
     sound may have several speakers. The base is found where a ray from the balloon's centre crosses its
-    outline, so it works for every shape and can leave any edge.
+    outline, so it works for every shape and can leave any edge. **Each tail is its own object**: select
+    it under its bubble in the object list, or press its handle on the strip, to give it its own width and
+    bend or to delete it — the other tails keep theirs. *Add tail* on the bubble adds one shaped like the
+    last.
   - **Line styles — Clean, Marker, Ink.** Marker and Ink are SVG filters (`feTurbulence` /
     `feDisplacementMap`), which librsvg applies and Qt cannot, so a styled bubble is previewed by asking
     the **library** for the same pixels the render will produce. The noise is seeded per bubble and

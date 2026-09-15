@@ -68,6 +68,21 @@ void            TextProperties::applyTo(TextArtifact& a) const { a.text = *this;
 TailsProperties TailsProperties::from(const TextArtifact& a) { return a.tails; }
 void            TailsProperties::applyTo(TextArtifact& a) const { a.tails = *this; }
 
+TailProperties TailProperties::from(const TextArtifact& a, int index)
+{
+    TailProperties p;
+    p.index = index;
+    if (index >= 0 && index < a.tails.items.size())
+        p.tail = a.tails.items.at(index);
+    return p;
+}
+
+void TailProperties::applyTo(TextArtifact& a) const
+{
+    if (index >= 0 && index < a.tails.items.size())
+        a.tails.items[index] = tail;
+}
+
 SkinProperties SkinProperties::from(const TextArtifact& a)
 {
     return a.skin;

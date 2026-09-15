@@ -4,6 +4,7 @@
 #include <QWidget>
 
 #include "propertygroupset.h"
+#include "tailseditor.h"
 
 class QAction;
 class QComboBox;
@@ -64,6 +65,8 @@ private:
     QGroupBox* m_textGroup    = nullptr;
 
     PropertyGroupSet m_groups;
+    //! The next balloon's tail. Not in the set: an existing balloon's tails are edited as objects instead.
+    TailsEditor*     m_tails = nullptr;
 
     TextArtifact m_artifact;       //!< The next placement's working values.
     bool m_populating   = false;   //!< Suppresses change signals while binding.

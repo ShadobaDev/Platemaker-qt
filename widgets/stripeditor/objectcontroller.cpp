@@ -167,6 +167,7 @@ ObjectController::ObjectController(QGraphicsScene* scene, QGraphicsView* view, Q
         switch (static_cast<Subject>(row->data(0, k_kindRole).toInt())) {
         case Subject::Strip: selectStrip();      break;
         case Subject::Page:  selectPage(id);     break;
+        case Subject::Tail:  selectTail(id, row->data(0, k_tailRole).toInt()); break;
         default:             selectOverlay(id);  break;
         }
     });
@@ -225,6 +226,10 @@ bool ObjectController::objectAt(const QPointF& scenePos, const QTransform& devic
 
 void ObjectController::reselect()
 {
+    if (m_subject == Subject::Tail) {
+        selectTail(m_selectedOverlay, m_selectedTail);   // falls back to the bubble if the tail is gone
+        return;
+    }
     if (m_subject == Subject::Strip || m_subject == Subject::Page) {
         // A page can go between feeds — an input removed — and a selection must not outlive its row.
         if (subjectRow())
@@ -245,6 +250,64 @@ void ObjectController::selectStrip()
 void ObjectController::selectPage(const QString& inputUid)
 {
     selectSubject(Subject::Page, inputUid);
+}
+
+void ObjectController::selectTail(const QString& uid, int index)
+{
+    auto*     bubble = qobject_cast<BubbleObject*>(m_overlayItems.value(uid));
+    const int count  = bubble ? static_cast<int>(bubble->artifact().tails.items.size()) : 0;
+    if (!bubble || index < 0 || index >= count) {
+        selectOverlay(uid);   // nothing at that position: the bubble is what is left to hold
+        return;
+    }
+
+    // The bubble first — its scene selection and its panel — and then narrowed to one of its tails. The
+    // bubble stays selected on the strip because its handles only exist while it is, and a tail is aimed
+    // by its handle.
+    selectOverlay(uid);
+    m_subject           = Subject::Tail;
+    m_selectedTail      = index;
+    m_selectedTailCount = count;
+    bubble->setFocusedHandle(index);
+
+    m_syncingList = true;
+    m_list->clearSelection();
+    if (QTreeWidgetItem* row = tailRow(uid, index))
+        row->setSelected(true);
+    m_syncingList = false;
+
+    // A tail can be deleted. Duplicating, restyling and re-anchoring are things a balloon does.
+    if (m_actDuplicate) m_actDuplicate->setEnabled(false);
+    if (m_actDelete)    m_actDelete->setEnabled(true);
+    if (m_presetMenu)   m_presetMenu->menuAction()->setEnabled(false);
+    if (m_reanchorMenu) m_reanchorMenu->menuAction()->setEnabled(false);
+
+    if (m_objectState)
+        m_objectState->setTail(bubble->artifact(), index);
+    emit subjectChanged(m_subject, uid);
+}
+
+QTreeWidgetItem* ObjectController::tailRow(const QString& uid, int index) const
+{
+    for (int r = 0; r < m_list->topLevelItemCount(); ++r) {
+        QTreeWidgetItem* top = m_list->topLevelItem(r);
+        if (top->data(0, k_kindRole).toInt() == static_cast<int>(Subject::Overlay)
+            && top->data(0, Qt::UserRole).toString() == uid)
+            return (index >= 0 && index < top->childCount()) ? top->child(index) : nullptr;
+    }
+    return nullptr;
+}
+
+void ObjectController::onObjectPressed(const QString& uid, int handle)
+{
+    if (handle >= 0) {
+        selectTail(uid, handle);
+        return;
+    }
+    // A press on the balloon itself while one of its tails is selected is a press on the balloon: the
+    // scene reports no change, because the balloon was selected all along.
+    if (m_subject == Subject::Tail && uid == m_selectedOverlay)
+        selectOverlay(uid);
 }
 
 void ObjectController::selectSubject(Subject subject, const QString& pageUid)
@@ -340,8 +403,19 @@ void ObjectController::setSource(const std::vector<Platemaker::Models::StripOver
     }
 
     // The selection may not have survived the edit (a delete, or an undo that removed it).
-    if (!m_selectedOverlay.isEmpty() && !m_overlayItems.contains(m_selectedOverlay))
+    if (!m_selectedOverlay.isEmpty() && !m_overlayItems.contains(m_selectedOverlay)) {
         selectOverlay(QString());
+        return;
+    }
+
+    // ponytail: tails are addressed by position, not by id. A feed that changes how many tails a balloon
+    // has — an undo, a preset — cannot say which one went, so a tail selection survives it only by moving
+    // up to its balloon. A per-tail id would let the selection follow its tail; nothing needs that yet.
+    if (m_subject == Subject::Tail) {
+        const auto* bubble = qobject_cast<BubbleObject*>(m_overlayItems.value(m_selectedOverlay));
+        if (!bubble || bubble->artifact().tails.items.size() != m_selectedTailCount)
+            selectOverlay(m_selectedOverlay);
+    }
 }
 
 QImage ObjectController::sharpRasterFor(const TextArtifact& a)
@@ -418,6 +492,7 @@ void ObjectController::syncItems()
                 ? static_cast<Object*>(new BubbleObject(uid, m_artifacts.value(uid)))
                 : static_cast<Object*>(new AssetObject(uid, renderAssetFile(QString::fromStdString(o.assetPath))));
             connect(item, &Object::geometryEdited, this, &ObjectController::onOverlayGeometryEdited);
+            connect(item, &Object::pressed,        this, &ObjectController::onObjectPressed);
             m_scene->addItem(item);
             m_overlayItems.insert(uid, item);
         }
@@ -490,8 +565,13 @@ void ObjectController::onOverlayGeometryEdited(const QString& uid)
     // imported artwork; asking the object what it is cannot go wrong the same way.
     if (auto* bubble = qobject_cast<BubbleObject*>(item)) {
         m_artifacts.insert(uid, bubble->artifact());
-        if (uid == m_selectedOverlay && m_objectState)
-            m_objectState->setArtifact(bubble->artifact());
+        if (uid == m_selectedOverlay && m_objectState) {
+            // A tail's drag leaves that tail selected, so the panel shows the tail again, not the balloon.
+            if (m_subject == Subject::Tail)
+                m_objectState->setTail(bubble->artifact(), m_selectedTail);
+            else
+                m_objectState->setArtifact(bubble->artifact());
+        }
     }
     refreshList();
     pushOverlays(tr("Move bubble"));
@@ -572,6 +652,25 @@ void ObjectController::refreshList()
             row->setToolTip(0, QString());
         }
         row->setSelected(m_subject == Subject::Overlay && uid == m_selectedOverlay);
+
+        // A bubble's tails, one row each, by position: a row stands for whichever tail is at its index now.
+        // Only a bubble has tails, so artwork gets none.
+        const int tailCount = m_artifacts.contains(uid)
+                                  ? static_cast<int>(m_artifacts.value(uid).tails.items.size()) : 0;
+        while (row->childCount() > tailCount)
+            delete row->takeChild(row->childCount() - 1);
+        for (int t = 0; t < tailCount; ++t) {
+            QTreeWidgetItem* tailItem = t < row->childCount() ? row->child(t) : nullptr;
+            if (!tailItem) {
+                tailItem = new QTreeWidgetItem(row);
+                tailItem->setData(0, k_kindRole, static_cast<int>(Subject::Tail));
+                tailItem->setFlags(Qt::ItemIsSelectable | Qt::ItemIsEnabled);   // not draggable, not a drop target
+            }
+            tailItem->setData(0, Qt::UserRole, uid);
+            tailItem->setData(0, k_tailRole, t);
+            tailItem->setText(0, tr("Tail %1").arg(t + 1));
+            tailItem->setSelected(m_subject == Subject::Tail && uid == m_selectedOverlay && t == m_selectedTail);
+        }
     }
 
     // The strip, pinned last — under every object, because it is what they all sit on. It is not an
@@ -638,10 +737,13 @@ void ObjectController::selectOverlay(const QString& uid)
     m_selectedOverlay = uid;
     m_subject         = uid.isEmpty() ? Subject::None : Subject::Overlay;
     m_selectedPage.clear();
+    m_selectedTail = -1;
 
     m_syncingList = true;
-    for (auto it = m_overlayItems.begin(); it != m_overlayItems.end(); ++it)
+    for (auto it = m_overlayItems.begin(); it != m_overlayItems.end(); ++it) {
         it.value()->setSelected(it.key() == uid);
+        it.value()->setFocusedHandle(-1);
+    }
     // Cleared first: a page is a row too, and a page must not stay selected beside an object.
     m_list->clearSelection();
     for (int r = 0; r < m_list->topLevelItemCount(); ++r) {
@@ -699,7 +801,7 @@ void ObjectController::applyPresetToSelection(int index)
     applyPanelArtifact(a, /*commit=*/true);
 }
 
-void ObjectController::applyPanelArtifact(const TextArtifact& a, bool commit)
+void ObjectController::applyPanelArtifact(const TextArtifact& a, bool commit, const QString& undoText)
 {
     auto* item = qobject_cast<BubbleObject*>(m_overlayItems.value(m_selectedOverlay));
     if (!item)
@@ -727,7 +829,9 @@ void ObjectController::applyPanelArtifact(const TextArtifact& a, bool commit)
     }
 
     refreshList();
-    pushOverlays(tr("Edit bubble"));
+    pushOverlays(!undoText.isEmpty()           ? undoText
+                 : m_subject == Subject::Tail  ? tr("Edit tail")
+                                               : tr("Edit bubble"));
 }
 
 void ObjectController::importArtwork()
@@ -816,8 +920,31 @@ void ObjectController::reanchorSelection(const QString& pageUid)
     }
 }
 
+void ObjectController::deleteSelectedTail()
+{
+    auto* bubble = qobject_cast<BubbleObject*>(m_overlayItems.value(m_selectedOverlay));
+    if (!bubble)
+        return;
+    TextArtifact a = bubble->artifact();
+    if (m_selectedTail < 0 || m_selectedTail >= a.tails.items.size())
+        return;
+    a.tails.items.removeAt(m_selectedTail);
+
+    // The balloon is what is left to hold once its tail is gone. Selected before the edit goes out, so the
+    // feed that comes back finds a balloon selected, not a tail that no longer exists.
+    const QString uid = m_selectedOverlay;
+    selectOverlay(uid);
+    applyPanelArtifact(a, /*commit=*/true, tr("Delete tail"));
+    if (m_objectState)
+        m_objectState->setArtifact(a);
+}
+
 void ObjectController::deleteSelectedOverlay()
 {
+    if (m_subject == Subject::Tail) {
+        deleteSelectedTail();
+        return;
+    }
     if (m_selectedOverlay.isEmpty())
         return;
     const QString uid = m_selectedOverlay;

@@ -67,7 +67,8 @@ ToolOptionsPanel::ToolOptionsPanel(PresetStore& presets, QWidget* parent)
     m_shapeGroup = new QGroupBox(tr("Shape"), this);
     auto* shapeLay = new QVBoxLayout(m_shapeGroup);
     shapeLay->addWidget(m_groups.shape());
-    shapeLay->addWidget(m_groups.tails());
+    m_tails = new TailsEditor(this);
+    shapeLay->addWidget(m_tails);
     shapeLay->addWidget(m_groups.skin());
     shapeLay->addWidget(m_groups.style());
     lay->addWidget(m_shapeGroup);
@@ -79,20 +80,19 @@ ToolOptionsPanel::ToolOptionsPanel(PresetStore& presets, QWidget* parent)
     lay->addWidget(m_textGroup);
     lay->addStretch(1);
 
-    // Nothing here acts on an object, because there is no object yet: no line to type, and no tail to
-    // add to something that does not exist.
+    // Nothing here acts on an object, because there is no object yet: no line to type.
     m_groups.text()->setContentVisible(false);
-    m_groups.tails()->setAddVisible(false);
 
     // --- Wiring -------------------------------------------------------------------------------------
     // The one cross-group rule, connected first so it runs first: picking a shape gives you the shape
     // its tile shows, tail and all, and the tails editor has to hear about it before the change is
     // collected. Qt runs slots in connection order, which is the whole reason this line is up here.
     connect(m_groups.shape(), &ShapeEditor::edited, this, [this] {
-        m_groups.tails()->shapeChanged(m_groups.shape()->values().kind);
+        m_tails->shapeChanged(m_groups.shape()->values().kind);
     });
     for (PropertyGroupEditor* e : m_groups.all())
         connect(e, &PropertyGroupEditor::edited, this, [this] { onControlChanged(); });
+    connect(m_tails, &PropertyGroupEditor::edited, this, [this] { onControlChanged(); });
 
     // activated(), not currentIndexChanged(): only a human picking an entry applies a preset, so
     // rebuilding the list never restyles anything, and re-picking the current entry re-applies it.
@@ -128,7 +128,7 @@ TextArtifact ToolOptionsPanel::prototype() const
     // balloon is, minus everything it says — and the same reason: the words belong to one balloon.
     a.text.body.clear();
     // …and to one balloon's aim: applyToNew() makes a first tail rather than copying anyone else's.
-    m_groups.tails()->applyToNew(a);
+    m_tails->applyToNew(a);
 
     // A fresh seed per bubble, so a page of marker balloons does not wear one repeated wobble. It
     // belongs to no group precisely so that no editor and no preset can copy it.
@@ -142,7 +142,7 @@ void ToolOptionsPanel::onControlChanged()
 {
     if (m_populating)
         return;
-    m_groups.collect(m_artifact);
+    m_groups.collect(m_artifact, m_tails);
     // Nothing is emitted: these values describe an object that does not exist yet, so there is nothing
     // to preview and nothing to persist until one is placed.
 }
@@ -151,6 +151,7 @@ void ToolOptionsPanel::syncFromModel()
 {
     m_populating = true;
     m_groups.bind(m_artifact);
+    m_tails->bindOne(m_artifact);
     m_populating = false;
 }
 

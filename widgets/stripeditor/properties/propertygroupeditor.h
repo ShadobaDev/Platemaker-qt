@@ -14,13 +14,17 @@ namespace StripEdit {
 //! Side of a colour chip, in pixels. Small enough to read as a swatch rather than a picture.
 inline constexpr int k_swatchPx = 16;
 
+inline constexpr int k_tailWidthMinPx  = 4;     //!< Narrower than this and a tail stops reading as one.
+inline constexpr int k_tailWidthMaxPx  = 400;
+inline constexpr int k_tailBendPercent = 100;   //!< A tail bends ±this, as a percentage of its length.
+
 /**
  * @brief A named slice of an object's editable state.
  *
- * One editor is responsible for each, and only that editor writes it. The list grows as groups are
- * cut out of the bubble panel; today only \c Skin has an editor.
+ * One editor is responsible for each, and only that editor writes it. `Tail` is a balloon's tails as a
+ * collection; `TailItem` is one tail, the group of a selected tail object.
  */
-enum class PropertyGroup { Placement, Size, Compositing, Shape, Skin, Style, Text, Tail };
+enum class PropertyGroup { Placement, Size, Compositing, Shape, Skin, Style, Text, Tail, TailItem };
 
 /**
  * @brief One property group's controls, bound to whatever is selected.

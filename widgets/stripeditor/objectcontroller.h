@@ -63,7 +63,7 @@ public:
      * overlays — nothing about them is placed, styled or composited — so they are told apart here rather
      * than squeezed into an overlay's uid.
      */
-    enum class Subject { None, Overlay, Strip, Page };
+    enum class Subject { None, Overlay, Strip, Page, Tail };
 
     /**
      * @brief Wires itself to the collaborators it drives; it owns none of them.
@@ -101,8 +101,11 @@ public:
     void selectStrip();
     //! Selects page @p inputUid of the strip.
     void selectPage(const QString& inputUid);
+    //! Selects tail @p index of bubble @p uid — or the bubble, when it has no tail at that position.
+    void selectTail(const QString& uid, int index);
     [[nodiscard]] Subject        subject() const { return m_subject; }
     [[nodiscard]] const QString& selectedPage() const { return m_selectedPage; }   //!< When subject() is Page.
+    [[nodiscard]] int            selectedTail() const { return m_selectedTail; }   //!< When subject() is Tail.
 
     //! The pages the grade skips, so their rows can say so. Touches the rows only when the set changed.
     void setExcludedPages(const QSet<QString>& inputUids);
@@ -164,6 +167,7 @@ signals:
     void subjectChanged(StripEdit::ObjectController::Subject subject, const QString& uid);
 private:
     void onOverlayGeometryEdited(const QString& uid); //!< An item settled a move/resize/tail drag.
+    void onObjectPressed(const QString& uid, int handle); //!< A press on a tail's handle selects that tail.
     /**
      * @brief How much bigger than its own artwork an overlay is drawn.
      *
@@ -179,9 +183,13 @@ private:
     void selectSubject(Subject subject, const QString& pageUid);
     //! The tree row of the selected strip or page, or nullptr.
     [[nodiscard]] QTreeWidgetItem* subjectRow() const;
+    //! The tree row of tail @p index of bubble @p uid, or nullptr.
+    [[nodiscard]] QTreeWidgetItem* tailRow(const QString& uid, int index) const;
     void pushOverlays(const QString& undoText); //!< Emits overlaysEdited() with the current state.
-    void applyPanelArtifact(const TextArtifact& a, bool commit); //!< Live edit from the panel → item (+persist).
+    //! Live edit from the panel → item (+persist, as a step named @p undoText or for the subject).
+    void applyPanelArtifact(const TextArtifact& a, bool commit, const QString& undoText = QString());
     void deleteSelectedOverlay();
+    void deleteSelectedTail();   //!< Takes the selected tail off its balloon, and selects the balloon.
     void importArtwork();           //!< Asks for a file and drops it on the page currently in view.
     void duplicateSelectedOverlay();   //!< Copies the selected bubble a little down and right.
     void setOverlayEnabled(const QString& uid, bool on);  //!< The list's mute checkbox (deferred, see the ctor).
@@ -226,9 +234,13 @@ private:
     QString            m_selectedOverlay;                   //!< uid of the selected overlay, empty for none.
     Subject            m_subject = Subject::None;           //!< What the selection is.
     QString            m_selectedPage;                      //!< Input uid of the selected page, when a page is.
+    int                m_selectedTail      = -1;            //!< Index of the selected tail, when a tail is.
+    int                m_selectedTailCount = 0;             //!< How many tails its bubble had when it was selected.
     QSet<QString>      m_excludedPages;                     //!< Pages the grade skips — said on their rows.
     //! Which kind of thing a tree row stands for, beside its id in Qt::UserRole.
     static constexpr int k_kindRole = Qt::UserRole + 1;
+    //! A tail row's position in its bubble's list, beside the bubble's uid in Qt::UserRole.
+    static constexpr int k_tailRole = Qt::UserRole + 2;
     //! The strip row's id. Overlay uids are minted as "ovl-…" and page ids are input uids, so it is free.
     static inline const QString k_stripId = QStringLiteral("strip");
     // Duplicate / Delete, shared by the artifact list's context menu and its keyboard shortcuts, and

@@ -50,7 +50,7 @@ TextArtifact loadedArtifact()
 }
 
 //! Which group a test is applying, so everything else can be checked as untouched.
-enum class Group { Shape, Skin, Style, Text, Tails };
+enum class Group { Shape, Skin, Style, Text, Tails, Nothing };
 
 /**
  * @brief Asserts that every property outside \p applied is byte-identical.
@@ -195,6 +195,52 @@ TEST(PropertyGroupOwnership, Tails)
     EXPECT_EQ(after.tails, s);
     EXPECT_EQ(TailsProperties::from(after), s);
     expectUntouched(Group::Tails, before, after);
+}
+
+/**
+ * @brief One tail is a group of its own: editing tail 2 leaves tail 1 and tail 3 as they were.
+ *
+ * The reason tails became objects. When one editor wrote a width and bend onto every tail, a balloon with
+ * two differently shaped tails lost the difference the next time anything else about it was edited.
+ */
+TEST(PropertyGroupOwnership, OneTail)
+{
+    TextArtifact before = loadedArtifact();
+    Tail first = before.tails.items.first();
+    Tail last  = first;
+    last.tip       = QPointF(250, -40);
+    last.baseWidth = 8.0;
+    last.bend      = 0.9;
+    Tail middle = first;
+    middle.tip  = QPointF(90, 200);
+    before.tails.items = {first, middle, last};
+    TextArtifact after = before;
+
+    TailProperties edited = TailProperties::from(before, 1);
+    edited.tail.baseWidth = 77.0;
+    edited.tail.bend      = -0.6;
+    edited.applyTo(after);
+
+    ASSERT_EQ(after.tails.items.size(), 3);
+    EXPECT_EQ(after.tails.items.at(0), before.tails.items.at(0));
+    EXPECT_EQ(after.tails.items.at(1), edited.tail);
+    EXPECT_EQ(after.tails.items.at(2), before.tails.items.at(2));
+    EXPECT_EQ(TailProperties::from(after, 1), edited);
+    expectUntouched(Group::Tails, before, after);   // and nothing outside the tails
+}
+
+//! A tail selected before an undo removed it has nowhere to go. Writing it must not bring it back.
+TEST(PropertyGroupOwnership, OneTailOutOfRangeWritesNothing)
+{
+    const TextArtifact before = loadedArtifact();   // one tail
+    TextArtifact       after  = before;
+
+    TailProperties gone;
+    gone.index      = 3;
+    gone.tail.bend  = 0.5;
+    gone.applyTo(after);
+
+    expectUntouched(Group::Nothing, before, after);   // not even the tails
 }
 
 /**

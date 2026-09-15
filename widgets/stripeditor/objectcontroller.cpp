@@ -214,11 +214,6 @@ ObjectController::ObjectController(QGraphicsScene* scene, QGraphicsView* view, Q
     });
 }
 
-void ObjectController::setTextOnly(bool textOnly)
-{
-    m_textOnly = textOnly;
-}
-
 bool ObjectController::objectAt(const QPointF& scenePos, const QTransform& deviceTransform) const
 {
     return dynamic_cast<Object*>(m_scene->itemAt(scenePos, deviceTransform)) != nullptr;
@@ -1105,9 +1100,9 @@ void ObjectController::finishPlacement()
     if (page < 0)
         return;
 
+    // Whatever the active tool places — shape included: the panel is the tool's side of the question,
+    // and this controller knows nothing about which tool is armed.
     TextArtifact a = m_toolOptions->prototype();
-    if (m_textOnly)
-        a.shape.kind = TextArtifact::Shape::None;   // the Text tool is this object without a balloon
     a.box = r.size().toSize();
     // The prototype's tail was placed against the panel's nominal box; re-aim it at the one just drawn,
     // just below the balloon, which is where a reader expects a new bubble to be speaking from.

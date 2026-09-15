@@ -68,6 +68,7 @@ qt_add_executable(Platemaker
     widgets/stripeditor/layout.cpp widgets/stripeditor/layout.h
     widgets/stripeditor/pagesource.cpp widgets/stripeditor/pagesource.h
     widgets/stripeditor/objectcontroller.cpp widgets/stripeditor/objectcontroller.h
+    widgets/stripeditor/toolregistry.cpp widgets/stripeditor/toolregistry.h
     widgets/stripeditor/presetstore.cpp widgets/stripeditor/presetstore.h
     widgets/stripeditor/properties/propertygroupeditor.h
     widgets/stripeditor/properties/propertygroupset.cpp widgets/stripeditor/properties/propertygroupset.h

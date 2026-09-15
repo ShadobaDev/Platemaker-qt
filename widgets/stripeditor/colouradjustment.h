@@ -9,9 +9,9 @@
 namespace StripEdit {
 
 /**
- * @brief One colour adjustment, in graphic editor's sense — a named part of the grade.
+ * @brief One colour adjustment, in an image editor's sense — a named part of the grade.
  *
- * The library holds one `ColourCorrection` with a fixed set of fields. graphic editor's *Colours* menu names the same
+ * The library holds one `ColourCorrection` with a fixed set of fields. An image editor's colour menu names the same
  * operations one at a time, and that is how an artist thinks of a grade: *I brightened it, then pulled the
  * saturation down*. This is the mapping between the two, in one place, because two panels speak it — the
  * Grade tool, which edits one adjustment at a time, and the strip's state, which lists what is applied.
@@ -23,7 +23,7 @@ enum class ColourAdjustment { Curves, BrightnessContrast, Saturation };
 //! Every adjustment, in the library's order.
 [[nodiscard]] QList<ColourAdjustment> allColourAdjustments();
 
-//! The name graphic editor gives it — for a list entry, a heading or an undo step.
+//! The name an image editor gives it — for a list entry, a heading or an undo step.
 [[nodiscard]] QString colourAdjustmentName(ColourAdjustment a);
 
 //! Whether it can be edited here. Curves are read by the library and have no editor yet: they can be listed

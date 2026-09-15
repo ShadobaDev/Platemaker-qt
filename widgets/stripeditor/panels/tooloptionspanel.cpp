@@ -108,10 +108,10 @@ ToolOptionsPanel::ToolOptionsPanel(PresetStore& presets, QWidget* parent)
     syncFromModel();
 }
 
-void ToolOptionsPanel::setShapeControlsVisible(bool visible)
+void ToolOptionsPanel::setToolShape(std::optional<TextArtifact::Shape> shape)
 {
-    m_shapeVisible = visible;
-    m_shapeGroup->setVisible(visible);
+    m_toolShape = shape;
+    m_shapeGroup->setVisible(!shape.has_value());
 }
 
 TextArtifact ToolOptionsPanel::prototype() const
@@ -120,6 +120,8 @@ TextArtifact ToolOptionsPanel::prototype() const
     // Shape first: the tails editor reads it, because a shapeless artifact has nothing to grow a tail
     // from. Everything else is order-independent by construction — no two groups touch a property.
     m_groups.shape()->applyTo(a);
+    if (m_toolShape)
+        a.shape.kind = *m_toolShape;   // the tool places this, whatever the tiles were left showing
     m_groups.skin()->applyTo(a);
     m_groups.style()->applyTo(a);
     m_groups.text()->applyTo(a);
@@ -180,7 +182,8 @@ void ToolOptionsPanel::applyPreset(int index)
     m_presetDelete->setEnabled(m_presets.isCustom(index));
     if (index < 0 || index >= m_presets.presets().size())
         return;
-    m_artifact = PresetStore::applied(m_presets.presets().at(index), m_artifact, !m_shapeVisible);
+    m_artifact = PresetStore::applied(m_presets.presets().at(index), m_artifact,
+                                      /*keepShape=*/m_toolShape.has_value());
     syncFromModel();
 }
 

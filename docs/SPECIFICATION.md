@@ -215,13 +215,25 @@ than the comic.
 
 - **Tool rail** (left) — square checkable `QToolButton`s in an exclusive `QButtonGroup`, laid out by
   `FlowLayout` so they reflow to the rail's width (a flow layout cannot be expressed in a `.ui`).
-  Tools: **Pan** (default — hand-drag to scroll the canvas), **Grade**, **Bubble**, **Text**. A tool
-  decides what a *placement* creates; selecting, moving and resizing what is already there is available
-  under all four (§2.5.4).
-- **Tool options** (bottom-left, under the rail) — a `QStackedWidget`, one page per tool. `GradePanel`
-  for Grade; `BubblePanel` for **both** Bubble and Text, because they author the same object (§2.5.4) —
-  `setTool()` points both at that page and hides the shape group for Text, which creates objects that
-  have no balloon.
+  Tools: **Pan / select** (default — hand-drag to scroll the canvas), **Grade**, **Bubble**, **Text**,
+  **Caption box**. A tool decides what a *placement* creates; selecting, moving and resizing what is
+  already there is available under every one of them (§2.5.4).
+- **The rail is built from a table, and a tool is a record.** `StripEdit::tools()` holds one `Tool` per
+  rail entry — id, icon, tooltip, `ToolKind` (`Select`, `Create`, `Grade`), the shape a `Create` tool
+  places, and which options page it shows — and the rail, the options stack, the drag mode and the cursor
+  are all read off it. **Adding a tool is a row there and nothing else.** A tool is stateless, so it needs
+  no object and no class per button; the record gains a hook the day a tool needs behaviour of its own.
+  - A `Create` tool that fixes its shape (Text places none, Caption places a caption) says so in its row,
+    and `ToolOptionsPanel::prototype()` applies it over the artist's pick without disturbing it — which
+    is why switching Text → Bubble brings back the shape chosen before. It replaced two gates that each
+    existed to say *this tool makes a shapeless object*, one in the panel and one in `ObjectController`,
+    and the controller now knows nothing about which tool is armed.
+  - A tool that places one shape carries **no icon file**: its button is drawn by the rasteriser that
+    draws that shape, so it cannot misrepresent what pressing it gives you.
+- **Tool options** (bottom-left, under the rail) — a `QStackedWidget`, one page per *page* rather than
+  per tool: `GradePanel` for Grade, `ToolOptionsPanel` for every tool that authors a `TextArtifact`
+  (Bubble, Text, Caption), because they author the same object (§2.5.4) and two copies of those controls
+  would drift. A tool with no options gets an empty page.
 - **Artifact list** (right-bottom) — `artifactList`, the overlays as a **stack**: row 0 is the front-most
   object, and a row covers every row below it wherever they overlap. The library's composite order is the
   opposite (it draws `stripOverlays` in vector order, so the last element is on top), so the list is that
@@ -394,7 +406,7 @@ valid baseline for every grade tried on it. Excluded pages are skipped, matching
     and **−** removes what is there: every adjustment back to neutral, recorded as *Remove colour
     correction*. The page exclusions stay — they are each page's decision, and apply again once the strip
     is graded again.
-  - **The Grade tool is graphic editor's *Colours*, applied to the selected object.** Its ④ page lists the
+  - **The Grade tool is an image editor's colour menu, applied to the selected object.** Its ④ page lists the
     adjustments — *Brightness & contrast*, *Saturation* — with the applied ones in bold, and the chosen
     one's controls below, live, settling into one undo step named *Adjust …*; *Reset* takes that
     adjustment off (*Reset …*) and leaves the others. Curves are run by the library but have no editor
@@ -402,8 +414,8 @@ valid baseline for every grade tried on it. Excluded pages are skipped, matching
   - **It can act on the strip, and on nothing else yet** (a page's only colour decision is its exclusion).
     With a page, an overlay or nothing selected the list and controls are disabled and the panel says
     why, with *Select the strip*. Picking the Grade tool with **nothing** selected selects the strip, as
-    graphic editor always has an active layer for a colour tool; a selection the artist made is left alone.
-  - **`ColourAdjustment` is the one mapping** between graphic editor's names and `ColourCorrection`'s fields, used by
+    an image editor always has an active layer for a colour tool; a selection the artist made is left alone.
+  - **`ColourAdjustment` is the one mapping** between the names an artist knows and `ColourCorrection`'s fields, used by
     both panels: which adjustments exist, whether one is applied, its values, and the grade without it.
     Neutral is read from a default-constructed `ColourCorrection` rather than restated, and a GUI test
     pins that removing one adjustment touches nothing else and that the per-adjustment rules add up to
@@ -427,7 +439,7 @@ valid baseline for every grade tried on it. Excluded pages are skipped, matching
   - **The strip** shows its page count, how many pages its grade skips, and the adjustments that grade
     applies — *Curves*, *Brightness & contrast*, *Saturation*, in the order the library runs them — each
     with its values, *Edit* (which opens it in the Grade tool) and *Remove* (one undo step, *Remove …*),
-    as graphic editor 3 lists the filters on a layer. Rows are rebuilt only when *which* adjustments apply changes;
+    the way an image editor lists the filters applied to a layer. Rows are rebuilt only when *which* adjustments apply changes;
     while a slider moves only their text is rewritten. The strip cannot be dragged, dropped on or muted:
     a strip that could be hidden would stop showing what renders.
   - **A page** shows its size in the strip and **Excluded from colour correction**, which adds or removes

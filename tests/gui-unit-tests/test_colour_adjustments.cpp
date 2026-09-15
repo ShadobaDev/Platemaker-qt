@@ -1,6 +1,6 @@
 /**
  * @file test_colour_adjustments.cpp
- * @brief The graphic editor-named adjustments are a partition of one `ColourCorrection`.
+ * @brief The named adjustments are a partition of one `ColourCorrection`.
  *
  * Two panels rely on this mapping: the Grade tool edits one adjustment at a time, and the strip's state
  * lists what is applied and removes one on request. The contract worth pinning is the one *Remove* and

@@ -1,6 +1,8 @@
 #ifndef STRIPEDIT_TOOLOPTIONSPANEL_H
 #define STRIPEDIT_TOOLOPTIONSPANEL_H
 
+#include <optional>
+
 #include <QWidget>
 
 #include "propertygroupset.h"
@@ -37,12 +39,17 @@ public:
     ToolOptionsPanel(PresetStore& presets, QWidget* parent = nullptr);
 
     /**
-     * @brief Hides the shape group for the Text tool; shows it for the Bubble tool.
+     * @brief The shape the active tool places — or no value, when the artist picks it here.
+     *
+     * The Bubble tool passes no value and the shape tiles are shown; the Text tool passes `Shape::None`
+     * and the Caption tool `Shape::Caption`, and the tiles go away, because a tool that places one shape
+     * has already answered that question. prototype() then applies it **over** the artist's pick without
+     * disturbing it, so switching back to the Bubble tool brings back the shape that was chosen before.
      *
      * A tool's options follow the tool, which is exactly what a panel describing a *selected object*
      * must never do.
      */
-    void setShapeControlsVisible(bool visible);
+    void setToolShape(std::optional<TextArtifact::Shape> shape);
 
     //! A fresh artifact carrying the panel's current styling — what a new placement starts from.
     [[nodiscard]] TextArtifact prototype() const;
@@ -70,7 +77,9 @@ private:
 
     TextArtifact m_artifact;       //!< The next placement's working values.
     bool m_populating   = false;   //!< Suppresses change signals while binding.
-    bool m_shapeVisible = true;    //!< False (Text tool) → a preset restyles without changing shape.
+    //! The active tool's fixed shape, if it has one → the tiles are hidden and a preset restyles
+    //! without changing shape, because the shape is the tool's to say.
+    std::optional<TextArtifact::Shape> m_toolShape;
 };
 
 }  // namespace StripEdit

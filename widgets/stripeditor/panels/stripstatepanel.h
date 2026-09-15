@@ -25,7 +25,7 @@ namespace StripEdit {
  * `TextArtifact`: a page has no fill and no tail, and pretending otherwise would mean a panel full of
  * sections that are always hidden.
  *
- * **The strip** lists its pages and **the colour adjustments applied to it**, the way graphic editor 3 lists the
+ * **The strip** lists its pages and **the colour adjustments applied to it**, the way an image editor lists the
  * filters on a layer: each can be reopened in the Grade tool or removed, and removing one leaves the others
  * and every page exclusion alone. **A page** is named, sized, and carries the one colour decision the
  * library lets a page make — whether the strip's grade skips it.

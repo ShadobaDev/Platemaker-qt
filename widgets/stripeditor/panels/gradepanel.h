@@ -20,9 +20,10 @@ class QTimer;
 namespace StripEdit {
 
 /**
- * @brief The Grade tool's options — graphic editor's *Colours*, applied to the selected object.
+ * @brief The Grade tool's options — an image editor's colour menu, applied to the selected object.
  *
- * A list of adjustments at the top, the way graphic editor's menu lists them, and the chosen one's controls below it.
+ * A list of adjustments at the top, the way an image editor's colour menu lists them, and the chosen one's
+ * controls below it.
  * Controls apply live and settle into one undo step, named for the adjustment that was edited, rather than
  * waiting behind an OK button: the preview already is the result, and every settled edit is already
  * undoable. An adjustment the grade applies is shown in bold.
@@ -75,7 +76,7 @@ private:
     Ui::GradePanel*    ui;
     QLabel*         m_unavailable      = nullptr;   //!< Why the panel cannot act on the selection.
     QPushButton*    m_toStrip          = nullptr;   //!< ...and the way to something it can act on.
-    QListWidget*    m_list             = nullptr;   //!< The adjustments, as graphic editor's Colours menu lists them.
+    QListWidget*    m_list             = nullptr;   //!< The adjustments, as an image editor's menu lists them.
     QGroupBox*      m_controls         = nullptr;   //!< The chosen adjustment, titled with its name.
     QStackedWidget* m_pages            = nullptr;   //!< One page of controls per list entry, in the same order.
     QSlider*        m_brightnessSlider = nullptr;

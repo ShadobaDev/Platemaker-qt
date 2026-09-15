@@ -13,7 +13,7 @@
   one either side and evicted behind it, so memory tracks the viewport rather than the chapter and a long
   chapter opens instantly.
 
-  **Text & bubbles.** The Bubble and Text tools draw a balloon where you **drag** one out; a click just
+  **Text & bubbles.** The Bubble, Text and Caption box tools draw a balloon where you **drag** one out; a click just
   deselects, so clicking away cannot leave a stray behind, and a new bubble arrives selected with the
   caret already in the text box. Objects are selectable, movable and resizable under every tool — a tool
   decides what a *new* object will be, never whether the existing ones can be touched — and a bubble is
@@ -106,7 +106,7 @@
   open it to see the chapter's pages. Selecting the strip shows what colour correction it carries, and
   selecting a page lets you **exclude it from colour correction** — a title or credits page that should
   keep its own colours. Excluding or including a page is one undoable step.
-- **Colour correction works the way graphic editor's *Colours* menu does.** The Grade tool lists its adjustments —
+- **Colour correction works the way an image editor's colour menu does.** The Grade tool lists its adjustments —
   *Brightness & contrast*, *Saturation* — and shows the controls of the one you pick, applied live to the
   strip; the adjustments in use are in bold, and *Reset* takes one off without touching the others. Picking
   the Grade tool selects the strip for you. The strip, selected, lists what is applied to it, each with

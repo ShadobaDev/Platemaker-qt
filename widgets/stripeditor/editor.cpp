@@ -8,6 +8,7 @@
 #include "pagesource.h"
 #include "objectstatepanel.h"
 #include "presetstore.h"
+#include "shapeeditor.h"
 #include "stripstatepanel.h"
 #include "tooloptionspanel.h"
 
@@ -15,6 +16,7 @@
 
 #include <algorithm>
 
+#include <QCoreApplication>
 #include <QFileInfo>
 #include <QButtonGroup>
 #include <QDebug>
@@ -167,30 +169,17 @@ Editor::Editor(QWidget *parent)
         auto* railLay = new FlowLayout(ui->toolRail, 6, 4, 4); // margin, hSpacing, vSpacing — wraps to fit
         m_toolGroup = new QButtonGroup(this);
         m_toolGroup->setExclusive(true);
-        auto addTool = [&](Tool t, const QString& iconPath, const QString& tip) {
-            auto* b = new QToolButton(ui->toolRail);
-            b->setIcon(QIcon(iconPath));
-            b->setIconSize(QSize(26, 26));
-            b->setToolTip(tip);
-            b->setCheckable(true);
-            b->setAutoRaise(true);
-            b->setToolButtonStyle(Qt::ToolButtonIconOnly);
-            b->setFixedSize(40, 40);       // square tile
-            railLay->addWidget(b);
-            m_toolGroup->addButton(b, static_cast<int>(t));
-        };
-        addTool(Tool::Pan,    QStringLiteral(":/icons/tools/pan.svg"),    tr("Pan / select (default)"));
-        addTool(Tool::Grade,  QStringLiteral(":/icons/tools/cc.svg"),     tr("Colour correction"));
-        addTool(Tool::Bubble, QStringLiteral(":/icons/tools/bubble.svg"), tr("Speech bubble"));
-        addTool(Tool::Text,   QStringLiteral(":/icons/tools/text.svg"),   tr("Text"));
 
-        // One tool-options page per tool (index == Tool), under the rail — the tool's own settings, in
-        // the place every drawing application puts them. Pan has none.
-        ui->toolOptions->addWidget(new QWidget(ui->toolOptions)); // Pan
-        // The Grade tool's options are graphic editor's Colours: which adjustment, and its controls, applied to the
+        // The tool-options pages, under the rail — the tool's own settings, in the place every drawing
+        // application puts them. One widget per *page*, not per tool: tools that author the same object
+        // name the same page, so there is one set of controls and no chance of two drifting apart. A
+        // tool with no options gets the empty page.
+        QHash<QString, int> pageIndex;
+        pageIndex.insert(QString(), ui->toolOptions->addWidget(new QWidget(ui->toolOptions)));
+        // The Grade tool's options are an image editor's colour menu: which adjustment, and its controls, applied to the
         // selected object. What a selected strip's grade *is* is shown on the right, in its state.
-        m_gradePanel = new GradePanel(ui->toolOptions);                 // Grade
-        ui->toolOptions->addWidget(m_gradePanel);
+        m_gradePanel = new GradePanel(ui->toolOptions);
+        pageIndex.insert(QStringLiteral("grade"), ui->toolOptions->addWidget(m_gradePanel));
         connect(m_gradePanel, &GradePanel::changed, this, [this](const Platemaker::Models::ColourCorrection& cc) {
             // Live edit: apply it, but do NOT push it back into the panel — the panel is the source
             // here, and re-syncing its widgets mid-drag would fight the slider the user is holding.
@@ -205,11 +194,30 @@ Editor::Editor(QWidget *parent)
             if (m_objects)
                 m_objects->selectStrip();
         });
-        // One panel for Bubble *and* Text: they author the same object (a TextArtifact, with or without
-        // a shape), so both rail buttons point at this page and setTool() just hides the shape group.
+        // One panel for every tool that authors a `TextArtifact` — Bubble, Text, Caption — because they
+        // author the same object and differ only in the shape they place, which each tool's row says.
         m_presets     = new PresetStore(this);
         m_toolOptions = new ToolOptionsPanel(*m_presets, ui->toolOptions);
-        ui->toolOptions->addWidget(m_toolOptions);
+        pageIndex.insert(QStringLiteral("artifact"), ui->toolOptions->addWidget(m_toolOptions));
+
+        // The rail, built from the registry: a button per row, in the table's order, its id that row's
+        // index. A tool that places one shape is drawn by the rasteriser that draws that shape, so it
+        // needs no icon file and cannot misrepresent what pressing it gives you.
+        for (int i = 0; i < tools().size(); ++i) {
+            const Tool& t = tools().at(i);
+            auto* b = new QToolButton(ui->toolRail);
+            b->setIcon(t.icon.isEmpty() && t.shape ? QIcon(shapeThumbnail(*t.shape, palette()))
+                                                   : QIcon(t.icon));
+            b->setIconSize(QSize(26, 26));
+            b->setToolTip(QCoreApplication::translate("StripEdit::Tool", t.tip));
+            b->setCheckable(true);
+            b->setAutoRaise(true);
+            b->setToolButtonStyle(Qt::ToolButtonIconOnly);
+            b->setFixedSize(40, 40);       // square tile
+            railLay->addWidget(b);
+            m_toolGroup->addButton(b, i);
+            m_toolPage.insert(t.id, pageIndex.value(t.page));
+        }
 
         // The other question, and a different class for it: what the *selected* object is. The two used
         // to be one class sitting in two places, which is how they came to look like the same panel
@@ -240,7 +248,7 @@ Editor::Editor(QWidget *parent)
         });
         // An adjustment listed on the strip: reopened in the Grade tool, or taken off the strip.
         connect(m_stripState, &StripStatePanel::adjustmentEditRequested, this, [this](ColourAdjustment a) {
-            setTool(Tool::Grade);
+            setTool(QStringLiteral("grade"));
             m_gradePanel->openAdjustment(a);
         });
         connect(m_stripState, &StripStatePanel::adjustmentRemoveRequested, this, [this](ColourAdjustment a) {
@@ -268,34 +276,41 @@ Editor::Editor(QWidget *parent)
         ui->rightPanel->setStretchFactor(1, 2);    // the object list
         restoreSplitterState();                    // ...unless the artist has already moved them
 
-        connect(m_toolGroup, &QButtonGroup::idClicked, this, [this](int id) { setTool(static_cast<Tool>(id)); });
+        connect(m_toolGroup, &QButtonGroup::idClicked, this,
+                [this](int id) { setTool(tools().at(id).id); });
 
-        setTool(Tool::Pan);   // default: today's view, right panel hidden
+        setTool(QStringLiteral("select"));   // the default state: pan and select, no tool armed
     }
 
     showEmptyState();
 }
 
-void Editor::setTool(Tool tool)
+void Editor::setTool(const QString& id)
 {
-    m_tool = tool;
-    if (auto* b = m_toolGroup->button(static_cast<int>(tool)))
+    const Tool* tool = toolById(id);
+    if (!tool)
+        return;
+    m_tool = tool->id;
+    if (auto* b = m_toolGroup->button(toolIndex(m_tool)))
         b->setChecked(true);
-    // Bubble and Text share one options page (see the ctor) — Text is the same object without a shape.
-    ui->toolOptions->setCurrentIndex(
-        tool == Tool::Text ? static_cast<int>(Tool::Bubble) : static_cast<int>(tool));
-    // Pan == today: hand-drag to pan. Any other tool frees the left button for tool interaction.
-    const bool pan = (tool == Tool::Pan);
-    m_view->setDragMode(pan ? QGraphicsView::ScrollHandDrag : QGraphicsView::NoDrag);
-    // Only the *tool's own options* follow the tool. The Text tool makes objects without a balloon, so
-    // offering a shape there would contradict itself.
+    ui->toolOptions->setCurrentIndex(m_toolPage.value(m_tool));
+
+    // Select == today's view: hand-drag to pan. Any other tool frees the left button for tool
+    // interaction, and a crosshair says the canvas is being drawn on rather than dragged.
+    m_view->setDragMode(tool->kind == ToolKind::Select ? QGraphicsView::ScrollHandDrag
+                                                       : QGraphicsView::NoDrag);
+    m_view->viewport()->setCursor(tool->kind == ToolKind::Create ? Qt::CrossCursor : Qt::ArrowCursor);
+
+    // Only the *tool's own options* follow the tool: a tool that places one shape says so, and the
+    // Bubble tool leaves the choice on the tiles. This replaced two gates that each existed to say
+    // "this tool makes a shapeless object" — one here, one in the object controller.
     //
-    // The object-state panel deliberately does not get this call. It describes whatever is **selected**,
-    // and a tool chosen minutes ago must not decide what a bubble's properties look like — selecting a
+    // The object-state panel deliberately gets no such call. It describes whatever is **selected**, and
+    // a tool chosen minutes ago must not decide what a bubble's properties look like — selecting a
     // balloon under the Text tool used to show nothing but its lettering, an effect with no visible
     // cause. Which groups that panel shows comes from the selected object's own kind instead.
     if (m_toolOptions)
-        m_toolOptions->setShapeControlsVisible(tool == Tool::Bubble);
+        m_toolOptions->setToolShape(tool->kind == ToolKind::Create ? tool->shape : std::nullopt);
 
     // The right column stays put under every tool, and **live** under every tool. It was briefly
     // hidden for Pan and Grade, which resized the canvas and made the strip jump sideways; then it was
@@ -303,22 +318,14 @@ void Editor::setTool(Tool tool)
     // were not selectable. Both were treating a symptom — the items are selectable now, so the list has
     // a selection to agree with and needs no gate at all.
 
-    // Drawing takes over the left button, so panning moves to the middle button / scrollbars while an
-    // authoring tool is active — the usual drawing-app trade. The crosshair says so.
-    m_view->viewport()->setCursor(artifactToolActive() ? Qt::CrossCursor : Qt::ArrowCursor);
-
-    // The only thing the object controller needs from the tool: the Text tool places an object with no
-    // balloon. Whether a drag on empty strip places anything at all is decided in eventFilter(), and
-    // selecting, moving and dragging a handle are available under every tool — they are what a canvas
-    // does, not what a tool grants.
-    m_objects->setTextOnly(tool == Tool::Text);
-
-    // graphic editor always has an active layer for a colour tool to act on; here the strip is that layer. Picking
-    // the Grade tool with nothing selected selects it, rather than opening on a panel that can only say
-    // "select something first". A selection the artist made is left alone — the panel explains instead.
-    if (tool == Tool::Grade && m_objects->subject() == ObjectController::Subject::None)
+    // An image editor always has an active layer for a colour tool to act on; here the strip is that
+    // layer. Picking the Grade tool with nothing selected selects it, rather than opening on a panel
+    // that can only say "select something first". A selection the artist made is left alone — the panel
+    // explains instead.
+    if (tool->kind == ToolKind::Grade && m_objects->subject() == ObjectController::Subject::None)
         m_objects->selectStrip();
 }
+
 
 void Editor::applyGrade(const Platemaker::Models::ColourCorrection& cc)
 {
@@ -688,7 +695,9 @@ void Editor::setAdvisoriesActive(bool active)
 
 bool Editor::artifactToolActive() const
 {
-    return m_tool == Tool::Bubble || m_tool == Tool::Text;
+    const Tool* tool = toolById(m_tool);
+    return tool && tool->kind == ToolKind::Create;
 }
+
 
 }  // namespace StripEdit

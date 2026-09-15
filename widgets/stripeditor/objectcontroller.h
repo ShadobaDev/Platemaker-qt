@@ -110,20 +110,6 @@ public:
     //! The pages the grade skips, so their rows can say so. Touches the rows only when the set changed.
     void setExcludedPages(const QSet<QString>& inputUids);
 
-    /**
-     * @brief The Text tool is active, so a placement gets no balloon.
-     *
-     * The whole of what this class needs to know about which tool is active. Selecting, moving and
-     * dragging a handle are not a tool's privilege — they are what a canvas does, under every tool —
-     * and whether a drag on empty strip *places* something is the editor's gate, one level up.
-     *
-     * This used to be `setAuthoring(active, textOnly)`, and the `active` half did two wrong things: it
-     * duplicated the editor's gate, and it made **selection** depend on the tool. Picking Pan therefore
-     * deselected whatever was selected and left the object's properties inert, while the object itself
-     * stayed draggable — movable but not selectable.
-     */
-    void setTextOnly(bool textOnly);
-
     //! Rebuilds *Apply preset ▸* from the store, so a preset saved a moment ago is already there.
     void rebuildPresetMenu();
     //! Restyles the selected bubble with preset \p index, keeping what it says and where it points.
@@ -266,7 +252,6 @@ private:
     //! different question from m_selectNewOverlay — that one means "whatever was appended", because
     //! there was no uid to name yet; this one names them.
     QStringList        m_selectAfterFeed;
-    bool               m_textOnly        = false;  //!< The Text tool: a placement gets no balloon.
 };
 
 }  // namespace StripEdit

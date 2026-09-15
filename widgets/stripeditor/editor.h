@@ -2,6 +2,7 @@
 #define STRIPEDIT_EDITOR_H
 
 #include <QWidget>
+#include <QHash>
 #include <QList>
 #include <QPixmap>
 #include <QRectF>
@@ -11,6 +12,7 @@
 #include "layout.h"
 #include "pagesource.h"
 #include "textartifact.h"
+#include "toolregistry.h"
 
 #include <platemaker/core/processing_pipeline/processing_pipeline.hpp>
 #include <platemaker/models/canvas_profile.hpp>
@@ -115,13 +117,13 @@ public:
                           const std::vector<std::string>&                       canvasProfileIds,
                           const QString&                                        cacheDir);
 
-    //! The editor tools on the left rail. Pan = plain viewing (hand-drag, no side panel); the others reveal
-    //! the right panel. Bubble/Text gain real controls in a later increment.
-    enum class Tool { Pan, Grade, Bubble, Text };
-
-    //! Selects the active tool: checks its rail button, swaps the options page, sets the drag mode and
-    //! shows/hides the right panel.
-    void setTool(Tool tool);
+    /**
+     * @brief Selects the tool with registry id @p id: rail button, options page, drag mode, cursor.
+     *
+     * Everything this does it reads off that tool's row in `tools()`, which is what lets a tool be
+     * added without this class hearing about it.
+     */
+    void setTool(const QString& id);
 
     /**
      * @brief Feeds the project's text/bubble overlays and their authoring records.
@@ -290,10 +292,11 @@ private:
 
     // --- editor shell: the tool rail's flowing buttons are built in the ctor (a flow layout can't live in
     // a .ui); the splitters, canvas, tool-options stack and artifact list all come from editor.ui ---
-    QButtonGroup   *m_toolGroup = nullptr;   //!< Exclusive group of the left rail's tool buttons (id == Tool).
+    QButtonGroup   *m_toolGroup = nullptr;   //!< The rail's buttons; a button's id is its row in tools().
+    QHash<QString, int> m_toolPage;          //!< Tool id → its page in the options stack.
     GradePanel        *m_gradePanel   = nullptr;   //!< The Grade tool-options page (colour-correction controls).
     AdvisoryBar       *m_advisoryBar  = nullptr;   //!< Bottom edge of this editor; absent until setAdvisories().
-    Tool            m_tool      = Tool::Pan; //!< Current tool.
+    QString         m_tool;                  //!< The active tool's registry id.
 
     // --- the objects on the strip ---
     //! Right-top: what the selected object *is*. Inert, and says so, while nothing is selected.

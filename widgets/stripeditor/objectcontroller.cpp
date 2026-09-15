@@ -783,6 +783,47 @@ void ObjectController::rebuildPresetMenu()
     }
 }
 
+bool ObjectController::applyColourAt(const QPointF& scenePos, const QTransform& deviceTransform,
+                                     const QColor& colour)
+{
+    auto* bubble = qobject_cast<BubbleObject*>(
+        dynamic_cast<Object*>(m_scene->itemAt(scenePos, deviceTransform)));
+    if (!bubble || bubble->isOrphaned() || !colour.isValid())
+        return false;   // imported artwork has no colour of its own, and an orphan is not on the strip
+
+    // A few screen pixels of forgiveness, in the object's own units: a thin letter and a hairline
+    // outline are unhittable at 100% zoom otherwise, and at 400% the same slack would swallow the fill.
+    qreal onScreen = m_view ? m_view->transform().m11() : 1.0;
+    onScreen *= bubble->scale();
+    if (onScreen <= 0.0)
+        onScreen = 1.0;
+    const qreal slack = k_pickSlackPx / onScreen;
+
+    TextArtifact a = bubble->artifact();
+    QString      step;
+    switch (artifactPartAt(a, bubble->mapFromScene(scenePos), slack)) {
+    case ArtifactPart::Text:
+        a.text.colour = colour;
+        step          = tr("Apply text colour");
+        break;
+    case ArtifactPart::Outline:
+        a.skin.stroke = colour;
+        step          = tr("Apply outline colour");
+        break;
+    case ArtifactPart::Fill:
+        a.skin.fill = colour;
+        step        = tr("Apply fill colour");
+        break;
+    case ArtifactPart::None:
+        return false;   // the transparent corner of the box is not the balloon
+    }
+
+    selectOverlay(bubble->uid());
+    m_objectState->setArtifact(a);
+    applyPanelArtifact(a, /*commit=*/true, step);
+    return true;
+}
+
 void ObjectController::applyPresetToSelection(int index)
 {
     auto* bubble = qobject_cast<BubbleObject*>(m_overlayItems.value(m_selectedOverlay));

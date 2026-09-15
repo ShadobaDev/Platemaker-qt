@@ -13,6 +13,7 @@
     <file alias="tools/cc.svg">../icons/tools/cc.svg</file>
     <file alias="tools/eyedropper.svg">../icons/tools/eyedropper.svg</file>
     <file alias="tools/bubble.svg">../icons/tools/bubble.svg</file>
+    <file alias="tools/bucket.svg">../icons/tools/bucket.svg</file>
     <file alias="tools/text.svg">../icons/tools/text.svg</file>
   </qresource>
 </RCC>

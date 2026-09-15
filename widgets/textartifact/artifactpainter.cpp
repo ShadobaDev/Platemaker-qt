@@ -334,6 +334,42 @@ void layOutText(QTextDocument& doc, const TextArtifact& a, qreal width)
 // Rasterising
 // ---------------------------------------------------------------------------
 
+ArtifactPart artifactPartAt(const TextArtifact& a, const QPointF& local, qreal slack)
+{
+    // ponytail: geometry, not pixels. A Marker or Ink balloon is drawn through an SVG filter that
+    // displaces its edges by a pixel or two, so at a high style amount a press right on the visible
+    // edge can answer with the neighbouring part. Exactness would mean rasterising an id map through
+    // the same filter on every press; the slack below already covers more than the filter moves.
+    slack = qMax(slack, 0.0);
+
+    // Topmost first. The lettering is drawn over the balloon, so a letter standing on the fill answers
+    // "text" — which is what the eye says too.
+    const QPainterPath text = artifactTextOutline(a);
+    if (!text.isEmpty()) {
+        if (text.contains(local))
+            return ArtifactPart::Text;
+        if (slack > 0.0) {
+            QPainterPathStroker widen;
+            widen.setWidth(slack * 2);
+            if (widen.createStroke(text).contains(local))
+                return ArtifactPart::Text;
+        }
+    }
+
+    const QPainterPath silhouette = artifactSilhouette(a);
+    if (silhouette.isEmpty())
+        return ArtifactPart::None;   // a shapeless artifact is its lettering and nothing else
+
+    // The stroke is painted centred on the silhouette, so the band a click can land on is the path
+    // stroked to the pen's width — plus the slack, because a hairline outline is unhittable without it.
+    QPainterPathStroker band;
+    band.setWidth(qMax(1.0, static_cast<qreal>(a.skin.strokeWidth)) + slack * 2);
+    if (band.createStroke(silhouette).contains(local))
+        return ArtifactPart::Outline;
+
+    return silhouette.contains(local) ? ArtifactPart::Fill : ArtifactPart::None;
+}
+
 QPainterPath artifactSilhouette(const TextArtifact& a)
 {
     const QRectF body = balloonRect(a);

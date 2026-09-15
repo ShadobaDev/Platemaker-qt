@@ -241,6 +241,24 @@ than the comic.
   colour of their own, which is what keeps them stateless. It is independent of the colours in ③ —
   setting a balloon's fill does not touch the pair, and changing the pair does not touch any object — and
   it persists in `QSettings`, because it is a habit of the artist rather than a property of one comic.
+- **The colour tool** (`ToolKind::Apply`) spends the pair on what a press lands on: **left** with the
+  primary, **Shift+left** with the secondary. `X` swaps the pair and `D` resets it to black and white,
+  both scoped to the canvas so typing an *x* into a balloon stays typing an *x*.
+  - **What changes is what is under the pointer** — the lettering, the outline band, or the fill —
+    answered by `artifactPartAt()` off the same two paths the scene draws (`artifactSilhouette()`,
+    `artifactTextOutline()`), topmost first. A few screen pixels of slack make a hairline outline and a
+    thin letter hittable, converted through the zoom so they do not swallow the fill when magnified. A
+    press inside a balloon's box but outside its silhouette paints nothing; imported artwork takes
+    nothing. One undo step per press, named after what it painted.
+  - **The tool therefore has no "what am I painting" setting**: the picture is the setting, and the two
+    axes — which colour, which property — stay separate, which the first version did not manage.
+  - **The right button stays the context menu's.** Only the eyedropper takes it, and only because
+    sampling two colours is what a pair is for.
+  - **The press selects what it painted**, so ③ shows the change that just happened rather than leaving
+    an undo step describing something invisible.
+  - Its **other face needed no code**: editing the selection's colours is `SkinEditor` in ③, which was
+    already there because ③ follows the selection and never the tool. A tool's "editor face" is a tool
+    naming a property group some panel already shows.
 - **The eyedropper** (`ToolKind::Sample`) takes what is **drawn** at the press — one composited pixel of
   the scene: the page through its grade, with every balloon, caption and imported asset over it, each
   with its own blend mode. Sampling the page pixmap alone was defensible and still wrong: clicking a

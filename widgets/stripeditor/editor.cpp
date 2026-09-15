@@ -38,6 +38,7 @@
 #include <QPainter>
 #include <QPen>
 #include <QScrollBar>
+#include <QShortcut>
 #include <QSettings>
 #include <QSplitter>
 #include <QStackedWidget>
@@ -203,13 +204,12 @@ Editor::Editor(QWidget *parent)
         pageIndex.insert(QStringLiteral("artifact"), ui->toolOptions->addWidget(m_toolOptions));
 
         // The rail, built from the registry: a button per row, in the table's order, its id that row's
-        // index. A tool that places one shape is drawn by the rasteriser that draws that shape, so it
-        // needs no icon file and cannot misrepresent what pressing it gives you.
+        // index. A row with no icon file draws its own — see refreshGeneratedToolIcons().
         for (int i = 0; i < tools().size(); ++i) {
             const Tool& t = tools().at(i);
             auto* b = new QToolButton(ui->toolRail);
-            b->setIcon(t.icon.isEmpty() && t.shape ? QIcon(shapeThumbnail(*t.shape, palette()))
-                                                   : QIcon(t.icon));
+            if (!t.icon.isEmpty())
+                b->setIcon(QIcon(t.icon));
             b->setIconSize(QSize(26, 26));
             b->setToolTip(QCoreApplication::translate("StripEdit::Tool", t.tip));
             b->setCheckable(true);
@@ -226,6 +226,18 @@ Editor::Editor(QWidget *parent)
         // it — hold a reference to it rather than a colour of their own.
         m_colours = new ColourPair(ui->toolRail);
         railLay->addWidget(m_colours);
+
+        refreshGeneratedToolIcons();   // the rows that carry no icon file draw their own
+
+        // X and D over the canvas, as every drawing application binds them. Scoped to the view so that
+        // typing an x into a balloon stays typing an x.
+        const auto onCanvas = [this](QKeySequence key, void (ColourPair::*op)()) {
+            auto* s = new QShortcut(key, m_view);
+            s->setContext(Qt::WidgetWithChildrenShortcut);
+            connect(s, &QShortcut::activated, m_colours, op);
+        };
+        onCanvas(QKeySequence(Qt::Key_X), &ColourPair::swap);
+        onCanvas(QKeySequence(Qt::Key_D), &ColourPair::resetToDefaults);
 
         // The other question, and a different class for it: what the *selected* object is. The two used
         // to be one class sitting in two places, which is how they came to look like the same panel
@@ -307,7 +319,8 @@ void Editor::setTool(const QString& id)
     // interaction, and a crosshair says the canvas is being drawn on rather than dragged.
     m_view->setDragMode(tool->kind == ToolKind::Select ? QGraphicsView::ScrollHandDrag
                                                        : QGraphicsView::NoDrag);
-    const bool onCanvas = tool->kind == ToolKind::Create || tool->kind == ToolKind::Sample;
+    const bool onCanvas = tool->kind == ToolKind::Create || tool->kind == ToolKind::Sample
+                       || tool->kind == ToolKind::Apply;
     m_view->viewport()->setCursor(onCanvas ? Qt::CrossCursor : Qt::ArrowCursor);
 
     // Only the *tool's own options* follow the tool: a tool that places one shape says so, and the
@@ -647,6 +660,23 @@ bool Editor::eventFilter(QObject *watched, QEvent *event)
         }
     }
 
+    // The colour tool: a press spends the pair on **what is under the pointer** — the lettering, the
+    // outline or the fill, decided by the picture rather than by a setting. Shift spends the other half.
+    //
+    // The left button only. The right one belongs to the context menu, and a tool that quietly took it
+    // away would be a mode nobody can see — the same mistake the Text tool made when it stripped the
+    // object panel.
+    if (watched == m_view->viewport() && isApplying() && m_colours
+        && event->type() == QEvent::MouseButtonPress) {
+        auto* me = static_cast<QMouseEvent*>(event);
+        if (me->button() == Qt::LeftButton) {
+            const bool other = me->modifiers() & Qt::ShiftModifier;
+            m_objects->applyColourAt(m_view->mapToScene(me->position().toPoint()), m_view->transform(),
+                                     other ? m_colours->secondary() : m_colours->primary());
+            return true;
+        }
+    }
+
     // Bubble / Text: the left button draws a new bubble on empty strip. A press that lands on an
     // existing overlay is left alone, so the item's own move/resize handling still runs.
     if (watched == m_view->viewport() && artifactToolActive()) {
@@ -783,6 +813,33 @@ bool Editor::isSampling() const
 {
     const Tool* tool = toolById(m_tool);
     return tool && tool->kind == ToolKind::Sample;
+}
+
+bool Editor::isApplying() const
+{
+    const Tool* tool = toolById(m_tool);
+    return tool && tool->kind == ToolKind::Apply;
+}
+
+void Editor::refreshGeneratedToolIcons()
+{
+    if (!m_toolGroup)
+        return;
+    for (int i = 0; i < tools().size(); ++i) {
+        const Tool& t = tools().at(i);
+        if (!t.icon.isEmpty())
+            continue;
+        auto* b = m_toolGroup->button(i);
+        if (b && t.shape)
+            b->setIcon(QIcon(shapeThumbnail(*t.shape, palette())));
+    }
+}
+
+void Editor::changeEvent(QEvent* event)
+{
+    QWidget::changeEvent(event);
+    if (event->type() == QEvent::PaletteChange || event->type() == QEvent::ThemeChange)
+        refreshGeneratedToolIcons();
 }
 
 

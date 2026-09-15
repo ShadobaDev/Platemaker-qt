@@ -33,6 +33,23 @@ class QPainter;
 //! The balloon (and its tail) as one path, in box coordinates. Empty for a shapeless artifact.
 [[nodiscard]] QPainterPath artifactSilhouette(const TextArtifact& a);
 
+//! What an artifact is made of where a point lands — the three things that carry a colour, and a miss.
+enum class ArtifactPart { None, Fill, Outline, Text };
+
+/**
+ * @brief What is drawn at @p local (box coordinates), with @p slack units of forgiveness.
+ *
+ * The same geometry the scene draws, asked a different question — so a tool that acts on *what you are
+ * pointing at* cannot disagree with what is on screen. Answered in painting order, topmost first: the
+ * lettering, then the stroke band around the silhouette, then the silhouette's inside. A point outside
+ * all three is \c None: the transparent corner of a balloon's box is not the balloon.
+ *
+ * @param slack Widens the lettering and the stroke band by this much on each side. A 1px outline and a
+ *              thin letter are as hard to hit as each other, and the caller knows what a few *screen*
+ *              pixels are worth in box units at the current zoom.
+ */
+[[nodiscard]] ArtifactPart artifactPartAt(const TextArtifact& a, const QPointF& local, qreal slack);
+
 /**
  * @brief The laid-out text as **glyph outlines**, positioned in box coordinates.
  *

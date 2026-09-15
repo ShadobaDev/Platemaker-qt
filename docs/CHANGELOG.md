@@ -55,6 +55,12 @@
     remembered between sessions. The eyedropper takes a colour off the strip exactly as it appears —
     through the grade, and from the balloons and artwork on it as readily as from the page — with the
     **right button** (or Ctrl) for the secondary half. The pair belongs to the tools, not to any object: filling it changes nothing on the page.
+  - **The colour tool** paints **what you point at**: click the lettering and the lettering changes
+    colour, click the outline and the outline does, click anywhere inside the balloon and it is the
+    fill — no setting to get wrong first. The left button uses the primary colour and **Shift** the
+    secondary; **X** swaps the pair and **D** puts back black and white. Thin letters and hairline
+    outlines have a few pixels of slack, so they can be hit without zooming in. Each press is one
+    undoable step and selects what it painted.
   - **Import artwork…** places a balloon inked on a tablet, a logo, or a hand-drawn effect. The file is
     copied into `overlays/` under its content hash, never referenced where it was found, so the workspace
     stays self-contained. It has no text to re-type, but it is placed, moved, re-anchored, muted, resized

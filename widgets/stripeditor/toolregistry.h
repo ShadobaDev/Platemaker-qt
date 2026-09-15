@@ -21,6 +21,7 @@ enum class ToolKind {
     Create,   //!< A drag on empty strip places an object.
     Grade,    //!< Edits the selected object's colour; picked with nothing selected, it takes the strip.
     Sample,   //!< A press reads the canvas instead of changing it — the eyedropper.
+    Apply,    //!< A press spends the colour pair on the object it lands on.
 };
 
 /**

@@ -33,21 +33,21 @@ const auto k_secondaryKey = QLatin1String("StripEditor/secondaryColour");
  * the chequer behind it is what tells a transparent colour from a pale one — a flat swatch of a 10%
  * alpha fill looks like an opaque near-white.
  */
-[[nodiscard]] QPixmap swatch(const QColor& colour, const QPalette& pal, qreal dpr)
+[[nodiscard]] QPixmap swatch(const QColor& colour, const QPalette& pal, int side, qreal dpr)
 {
-    QPixmap px(QSize(k_iconPx, k_iconPx) * dpr);
+    QPixmap px(QSize(side, side) * dpr);
     px.setDevicePixelRatio(dpr);
     px.fill(Qt::transparent);
 
     QPainter p(&px);
     p.setRenderHint(QPainter::Antialiasing);
-    const QRectF box(0.5, 0.5, k_iconPx - 1, k_iconPx - 1);
+    const QRectF box(0.5, 0.5, side - 1, side - 1);
     QPainterPath rounded;
     rounded.addRoundedRect(box, 3, 3);
     p.setClipPath(rounded);
 
     if (colour.alpha() < 255) {
-        const qreal half = k_iconPx / 2.0;
+        const qreal half = side / 2.0;
         p.fillRect(box, pal.color(QPalette::Base));
         p.fillRect(QRectF(box.left(), box.top(), half, half), pal.color(QPalette::AlternateBase));
         p.fillRect(QRectF(box.left() + half, box.top() + half, half, half),
@@ -138,28 +138,34 @@ ColourPair::ColourPair(QWidget* parent)
     m_swapButton->setAutoRaise(true);
     m_swapButton->setIconSize(QSize(12, 12));
     m_swapButton->setGeometry(k_panelW - k_smallBtn - 4, 3, k_smallBtn, k_smallBtn);
-    connect(m_swapButton, &QToolButton::clicked, this, [this] {
-        std::swap(m_primary, m_secondary);
-        store();
-        refresh();
-        emit changed();
-    });
+    connect(m_swapButton, &QToolButton::clicked, this, &ColourPair::swap);
 
     m_resetButton = new QToolButton(this);
     m_resetButton->setAutoRaise(true);
     m_resetButton->setIconSize(QSize(12, 12));
     m_resetButton->setGeometry(3, k_panelH - k_smallBtn - 4, k_smallBtn, k_smallBtn);
-    connect(m_resetButton, &QToolButton::clicked, this, [this] {
-        if (m_primary == QColor(Qt::black) && m_secondary == QColor(Qt::white))
-            return;
-        m_primary   = Qt::black;
-        m_secondary = Qt::white;
-        store();
-        refresh();
-        emit changed();
-    });
+    connect(m_resetButton, &QToolButton::clicked, this, &ColourPair::resetToDefaults);
 
     refresh();
+}
+
+void ColourPair::swap()
+{
+    std::swap(m_primary, m_secondary);
+    store();
+    refresh();
+    emit changed();
+}
+
+void ColourPair::resetToDefaults()
+{
+    if (m_primary == QColor(Qt::black) && m_secondary == QColor(Qt::white))
+        return;
+    m_primary   = Qt::black;
+    m_secondary = Qt::white;
+    store();
+    refresh();
+    emit changed();
 }
 
 void ColourPair::set(const QColor& colour, bool secondary)
@@ -201,8 +207,8 @@ void ColourPair::store()
 void ColourPair::refresh()
 {
     const qreal dpr = devicePixelRatioF();
-    m_primaryButton->setIcon(swatch(m_primary, palette(), dpr));
-    m_secondaryButton->setIcon(swatch(m_secondary, palette(), dpr));
+    m_primaryButton->setIcon(swatch(m_primary, palette(), k_iconPx, dpr));
+    m_secondaryButton->setIcon(swatch(m_secondary, palette(), k_iconPx, dpr));
     m_swapButton->setIcon(swapIcon(palette(), dpr));
     m_resetButton->setIcon(resetIcon(palette(), dpr));
 

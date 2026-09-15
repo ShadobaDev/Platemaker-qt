@@ -231,6 +231,8 @@ signals:
 protected:
     //! Ctrl+wheel over the view zooms; a plain wheel keeps the view's native vertical scroll.
     bool eventFilter(QObject *watched, QEvent *event) override;
+    //! Re-draws the generated rail icons when the theme flips — they are made of palette colours.
+    void changeEvent(QEvent* event) override;
 
     //! While the default zoom is still pending, re-applies it as the viewport gets its real size; also
     //! re-evaluates which pages to build.
@@ -269,6 +271,17 @@ private:
     [[nodiscard]] bool    artifactToolActive() const;
     //! The active tool reads the canvas rather than changing it — the eyedropper.
     [[nodiscard]] bool    isSampling() const;
+    //! The active tool spends the colour pair on what it hits — the colour applicator.
+    [[nodiscard]] bool    isApplying() const;
+    /**
+     * @brief Draws the rail buttons that carry no icon file.
+     *
+     * Two tools draw their own: one that places a single shape is drawn by the rasteriser that draws
+     * that shape, and the colour tool *is* a swatch of the primary colour. Both are made of things that
+     * change under the application — the palette, the pair — so they are drawn here rather than once in
+     * the constructor, and this runs again whenever either moves.
+     */
+    void                  refreshGeneratedToolIcons();
 
     /**
      * @brief Reads the colour at @p scenePos into the pair — the secondary half when @p secondary.

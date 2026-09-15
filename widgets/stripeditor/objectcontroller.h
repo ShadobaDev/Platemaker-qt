@@ -110,6 +110,22 @@ public:
     //! The pages the grade skips, so their rows can say so. Touches the rows only when the set changed.
     void setExcludedPages(const QSet<QString>& inputUids);
 
+    /**
+     * @brief Paints @p colour onto whatever is drawn at @p scenePos.
+     *
+     * The colour tool's canvas face, and the same rule the eyedropper reads by: **what is under the
+     * pointer is what changes.** Point at the lettering and the lettering takes it; at the outline and
+     * the outline does; anywhere inside the balloon and it is the fill. A point on a balloon's box but
+     * outside its silhouette paints nothing, and imported artwork takes nothing — it is pixels somebody
+     * else drew. The tool therefore needs no "what am I painting" setting: the picture is the setting.
+     *
+     * The object it lands on becomes the **selection**, so ③ shows what just changed and the same edit
+     * is one Ctrl+Z away. One undo step per press, named after what it painted.
+     *
+     * @return Whether anything was painted.
+     */
+    bool applyColourAt(const QPointF& scenePos, const QTransform& deviceTransform, const QColor& colour);
+
     //! Rebuilds *Apply preset ▸* from the store, so a preset saved a moment ago is already there.
     void rebuildPresetMenu();
     //! Restyles the selected bubble with preset \p index, keeping what it says and where it points.
@@ -224,6 +240,9 @@ private:
     int                m_selectedTailCount = 0;             //!< How many tails its bubble had when it was selected.
     QSet<QString>      m_excludedPages;                     //!< Pages the grade skips — said on their rows.
     //! Which kind of thing a tree row stands for, beside its id in Qt::UserRole.
+    //! How far off a hairline outline or a thin letter a press may land and still count, in screen px.
+    static constexpr qreal k_pickSlackPx = 3.0;
+
     static constexpr int k_kindRole = Qt::UserRole + 1;
     //! A tail row's position in its bubble's list, beside the bubble's uid in Qt::UserRole.
     static constexpr int k_tailRole = Qt::UserRole + 2;

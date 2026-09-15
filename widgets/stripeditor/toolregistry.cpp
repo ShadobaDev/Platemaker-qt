@@ -18,6 +18,13 @@ const QList<Tool>& tools()
          QT_TRANSLATE_NOOP("StripEdit::Tool", "Colour correction"),
          ToolKind::Grade, std::nullopt, QStringLiteral("grade")},
 
+        {QStringLiteral("colour"),
+         QStringLiteral(":/icons/tools/bucket.svg"),
+         QT_TRANSLATE_NOOP("StripEdit::Tool",
+                           "Paint what you click — the lettering, the outline or the fill. Shift uses "
+                           "the secondary colour; X swaps the pair"),
+         ToolKind::Apply, std::nullopt, QString()},
+
         {QStringLiteral("eyedropper"),
          QStringLiteral(":/icons/tools/eyedropper.svg"),
          QT_TRANSLATE_NOOP("StripEdit::Tool", "Pick a colour from the strip — Ctrl for the secondary"),

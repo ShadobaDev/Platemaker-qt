@@ -41,6 +41,11 @@ public:
     //! Sets one half of the pair. Persists it and emits changed() when it is actually different.
     void set(const QColor& colour, bool secondary);
 
+    //! Exchanges the two halves — the swap button, and **X** over the canvas.
+    void swap();
+    //! Back to black and white — the reset button, and **D** over the canvas.
+    void resetToDefaults();
+
 signals:
     //! Either half changed — by a dialog, a swap, a reset, or a tool that samples.
     void changed();

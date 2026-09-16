@@ -489,9 +489,19 @@ valid baseline for every grade tried on it. Excluded pages are skipped, matching
   with Ctrl and Shift (`ExtendedSelection`).
   - **The strip, a page and a tail stay single.** Picking one collapses the set: there is one strip, a
     page is a row of it, and a tail belongs to one balloon.
-  - **③ names a set rather than pretending to edit one of it**: *N objects*, no property sections.
-    Editing several at once is the union of their roles, which is not built yet, and a panel showing one
-    object's values under that heading would be a control acting on something other than what it names.
+  - **③ binds the whole set** through `setArtifacts()`: the sections shown are those at least one
+    selected object carries, and a control whose value differs across the selection says **Mixed** rather
+    than showing the first object's. Today that is the two colour groups — fill and outline where there is
+    a silhouette, the lettering's colour everywhere; the rest of the typography is **absent** for a set,
+    because a spin box has no *Mixed* to show and a number would be a claim about objects that disagree.
+  - **A role is which objects a group is bound to.** The skin editor is bound to the shaped objects only,
+    so a caption with no balloon neither votes *Mixed* with a fill it never uses nor receives one.
+  - **Writes are property-granular for a set**: `PropertyGroupEditor::applyEditedTo()` writes only what
+    the artist touched since `bind()` and leaves every other property as each object had it. One subject
+    still takes the whole-group `applyTo()`. The edits come back as `changedMany()` / `committedMany()`,
+    in the selection's order, and land as one history step (*Edit N objects*).
+  - **The colour tool follows the same rule**: poured onto an object that is part of a selection, it
+    paints every selected object in the role it has, as one step, and the selection stays.
   - **Delete acts on the whole set, as one history step** (*Delete N objects*) — one gesture, one undo.
     Duplicate, *Apply preset ▸* and *Re-anchor to ▸* are **disabled** while several are selected, for the
     same reason ③ shows nothing: they act on one object and say so.

@@ -206,6 +206,9 @@ private:
     void pushOverlays(const QString& undoText); //!< Emits overlaysEdited() with the current state.
     //! Live edit from the panel → item (+persist, as a step named @p undoText or for the subject).
     void applyPanelArtifact(const TextArtifact& a, bool commit, const QString& undoText = QString());
+    //! The same, for the whole selection: @p objects are in m_selectedOverlays order.
+    void applyPanelArtifacts(const QList<TextArtifact>& objects, bool commit,
+                             const QString& undoText = QString());
     void deleteSelectedOverlay();
     void deleteSelectedTail();   //!< Takes the selected tail off its balloon, and selects the balloon.
     void importArtwork();           //!< Asks for a file and drops it on the page currently in view.

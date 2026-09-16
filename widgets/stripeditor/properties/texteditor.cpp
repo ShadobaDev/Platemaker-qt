@@ -72,6 +72,8 @@ TextEditor::TextEditor(QWidget* parent)
         if (!picked.isValid())
             return;
         m_values.colour = picked;
+        m_colourTouched = true;
+        m_mixedColour   = false;   // they all take this one now
         paintColourSwatch(m_swatch, picked);
         emit edited();
         emit committed();   // a dialog choice is discrete — commit it without waiting on a timer
@@ -84,13 +86,30 @@ void TextEditor::bind(const Subjects& subjects)
 {
     if (subjects.isEmpty())
         return;
-    m_values = TextProperties::from(*subjects.first());
+
+    m_values   = TextProperties::from(*subjects.first());
+    m_subjects = static_cast<int>(subjects.size());
+
+    m_mixedColour = false;
+    for (const TextArtifact* a : subjects)
+        m_mixedColour = m_mixedColour || TextProperties::from(*a).colour != m_values.colour;
+    m_colourTouched = false;
+
     syncFromValues();
 }
 
 void TextEditor::applyTo(TextArtifact& target) const
 {
     m_values.applyTo(target);
+}
+
+void TextEditor::applyEditedTo(TextArtifact& target) const
+{
+    // The lettering itself is never written to a set: five balloons do not share one line of dialogue.
+    TextProperties t = TextProperties::from(target);
+    if (m_colourTouched)
+        t.colour = m_values.colour;
+    t.applyTo(target);
 }
 
 void TextEditor::focusContent()
@@ -101,7 +120,8 @@ void TextEditor::focusContent()
 
 void TextEditor::setContentVisible(bool on)
 {
-    m_body->setVisible(on);
+    m_bodyVisible = on;
+    m_body->setVisible(on && m_subjects <= 1);
 }
 
 void TextEditor::setContentEnabled(bool on)
@@ -127,7 +147,22 @@ void TextEditor::syncFromValues()
         if (alignIdx >= 0)
             m_align->setCurrentIndex(alignIdx);
     }
-    paintColourSwatch(m_swatch, m_values.colour);
+    if (m_mixedColour)
+        paintMixedSwatch(m_swatch, palette());
+    else
+        paintColourSwatch(m_swatch, m_values.colour);
+
+    // Bound to a set, only the colour is shown: it is the role a balloon and a caption share, and a
+    // swatch is the one control that can say *Mixed* today. The typography follows in T7b-2, and the
+    // lettering never does — five balloons do not share one line.
+    if (auto* form = qobject_cast<QFormLayout*>(layout())) {
+        const bool one = m_subjects <= 1;
+        form->setRowVisible(m_family, one);
+        form->setRowVisible(m_size,   one);
+        form->setRowVisible(m_bold,   one);
+        form->setRowVisible(m_align,  one);
+        m_body->setVisible(one && m_bodyVisible);
+    }
     m_populating = false;
 }
 

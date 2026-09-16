@@ -29,6 +29,7 @@ public:
 
     void bind(const Subjects& subjects) override;
     void applyTo(TextArtifact& target) const override;
+    void applyEditedTo(TextArtifact& target) const override;
 
     //! The values the controls currently show — what applyTo() writes.
     [[nodiscard]] const SkinProperties& values() const { return m_values; }
@@ -36,7 +37,7 @@ public:
 private:
     //! Raises the colour dialog for \p target and repaints \p swatch. A dialog choice is discrete, so
     //! it commits immediately rather than waiting on anyone's debounce timer.
-    void pickColour(QColor& target, QPushButton* swatch);
+    bool pickColour(QColor& target, QPushButton* swatch);
 
     //! Pushes m_values into the controls with their signals blocked.
     void syncFromValues();
@@ -47,6 +48,14 @@ private:
 
     SkinProperties m_values;
     bool m_populating = false;   //!< Suppresses edited() while bind() runs.
+
+    // --- what a *set* of subjects made of this group ---
+    int  m_subjects     = 0;       //!< How many objects are bound. Above one, the stroke width is hidden.
+    bool m_mixedFill    = false;   //!< The selection disagrees about this colour, so the swatch says so.
+    bool m_mixedStroke  = false;
+    bool m_fillTouched   = false;  //!< The artist picked since bind(), so this colour is theirs to spend.
+    bool m_strokeTouched = false;
+    bool m_widthTouched  = false;
 };
 
 }  // namespace StripEdit

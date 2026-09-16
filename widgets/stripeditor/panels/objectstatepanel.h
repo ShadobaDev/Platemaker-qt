@@ -58,13 +58,17 @@ public:
     void setTail(const TextArtifact& a, int index);
 
     /**
-     * @brief Says that @p count objects are selected, and shows none of their properties. Emits nothing.
+     * @brief Shows @p objects as one subject — the **union** of what they have in common. Emits nothing.
      *
-     * Editing several at once is the union of their roles, which is the next increment. Until then this
-     * panel names the selection and stops: showing one object's properties under a heading that says
-     * *3 objects* would be a control acting on something other than what the panel names.
+     * The sections that appear are those at least one selected object carries; a control whose value
+     * differs across the selection says **Mixed** rather than showing the first object's. An edit then
+     * reaches every object that has that property and leaves the others exactly as they were, which is
+     * what `PropertyGroupEditor::applyEditedTo()` is for.
+     *
+     * Today that is the two colour groups: a swatch is the one control that can say *Mixed*. The rest of
+     * the typography is hidden while a set is bound rather than showing one object's numbers.
      */
-    void setMultiSelection(int count);
+    void setArtifacts(const QList<TextArtifact>& objects);
 
 
     //! Nothing is selected: the sections go away and the panel says why.
@@ -76,6 +80,10 @@ public:
 signals:
     void changed(const TextArtifact& a);    //!< Continuous — for the live preview.
     void committed(const TextArtifact& a);  //!< Debounced / discrete — persist + undo.
+
+    //! The same two, for a set: the objects in the order they were given to setArtifacts().
+    void changedMany(const QList<TextArtifact>& objects);
+    void committedMany(const QList<TextArtifact>& objects);
     void fitRequested();                    //!< "Fit to text" — the editor resizes the selected bubble.
     void deleteRequested();                 //!< Removes the selected object.
 
@@ -100,7 +108,8 @@ private:
     QTimer*             m_commitTimer = nullptr;
     QHash<int, CollapsibleSection*> m_sections; //!< Keyed by PropertyGroup.
 
-    TextArtifact m_artifact;        //!< Working copy of the selected object.
+    TextArtifact m_artifact;
+    QList<TextArtifact> m_subjects;   //!< The whole selection, when there is more than one of it.        //!< Working copy of the selected object.
     bool m_populating   = false;    //!< Suppresses change signals while binding.
     //! One artifact is bound, so an edit may be emitted about it. False for a set — there is no single
     //! object those controls would be describing.

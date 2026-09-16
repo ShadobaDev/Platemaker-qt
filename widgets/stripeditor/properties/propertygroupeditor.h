@@ -2,6 +2,8 @@
 #define STRIPEDIT_PROPERTYGROUPEDITOR_H
 
 #include <QIcon>
+#include <QPainter>
+#include <QPalette>
 #include <QList>
 #include <QPixmap>
 #include <QPushButton>
@@ -72,6 +74,15 @@ public:
     //! The single-subject case, which is every caller until multi-selection lands.
     void bindOne(const TextArtifact& subject) { bind(Subjects{&subject}); }
 
+    /**
+     * @brief Writes into @p target only the properties the artist has **touched** since bind().
+     *
+     * The whole-group write is right for one object and wrong for several: it would stamp the first
+     * object's other values onto everything else in the selection. Editors that can be bound to a set
+     * override this; the default is the group, which is what a single subject wants.
+     */
+    virtual void applyEditedTo(TextArtifact& target) const { applyTo(target); }
+
 signals:
     void edited();     //!< A control moved — live preview, no history step.
     void committed();  //!< The edit settled, or a dialog returned — one history step.
@@ -83,10 +94,56 @@ signals:
  * An icon rather than a stylesheet: the button keeps the theme's own look (see the "inherit, don't
  * hardcode colours" rule) and only carries the chosen colour as a chip.
  */
+/**
+ * @brief Shows @p c on @p swatch — framed, chequered under transparency, and named in the tooltip.
+ *
+ * A bare square of colour is unreadable at both ends of the range: black on a dark theme and white on a
+ * light one vanish into the button, which is exactly when the artist most needs to see what they picked.
+ * The frame is the palette's text colour, so it works in either theme, and the chequer is what tells a
+ * 10% alpha fill from a pale one. The hex goes in the tooltip because a swatch cannot be read aloud.
+ */
 inline void paintColourSwatch(QPushButton* swatch, const QColor& c)
 {
+    const QPalette& pal = swatch->palette();
     QPixmap pm(k_swatchPx, k_swatchPx);
-    pm.fill(c);
+    pm.fill(Qt::transparent);
+
+    QPainter p(&pm);
+    const QRectF box(0.5, 0.5, k_swatchPx - 1, k_swatchPx - 1);
+    if (c.alpha() < 255) {
+        const qreal half = k_swatchPx / 2.0;
+        p.fillRect(box, pal.color(QPalette::Base));
+        p.fillRect(QRectF(box.left(), box.top(), half, half), pal.color(QPalette::Mid));
+        p.fillRect(QRectF(box.left() + half, box.top() + half, half, half), pal.color(QPalette::Mid));
+    }
+    p.fillRect(box, c);
+    QColor frame = pal.color(QPalette::Text);
+    frame.setAlpha(160);
+    p.setPen(frame);
+    p.setBrush(Qt::NoBrush);
+    p.drawRect(box);
+    p.end();
+
+    swatch->setIcon(QIcon(pm));
+    swatch->setToolTip(c.name(QColor::HexArgb));
+}
+
+/**
+ * @brief Marks a colour swatch as **Mixed** — the selection disagrees about this colour.
+ *
+ * A chequer rather than one of the colours, because showing any single value here would be the panel
+ * claiming something about objects that do not have it. Pressing it still picks, and the pick then
+ * lands on every selected object that has this colour.
+ */
+inline void paintMixedSwatch(QPushButton* swatch, const QPalette& pal)
+{
+    QPixmap pm(k_swatchPx, k_swatchPx);
+    pm.fill(pal.color(QPalette::Base));
+    QPainter p(&pm);
+    const int half = k_swatchPx / 2;
+    p.fillRect(0, 0, half, half, pal.color(QPalette::Mid));
+    p.fillRect(half, half, k_swatchPx - half, k_swatchPx - half, pal.color(QPalette::Mid));
+    p.end();
     swatch->setIcon(QIcon(pm));
 }
 

@@ -110,7 +110,9 @@ ObjectStatePanel::ObjectStatePanel(QWidget* parent)
     m_commitTimer->setSingleShot(true);
     m_commitTimer->setInterval(k_commitDebounceMs);
     connect(m_commitTimer, &QTimer::timeout, this, [this] {
-        if (m_hasArtifact)
+        if (!m_subjects.isEmpty())
+            emit committedMany(m_subjects);
+        else if (m_hasArtifact)
             emit committed(m_artifact);
     });
 
@@ -119,7 +121,9 @@ ObjectStatePanel::ObjectStatePanel(QWidget* parent)
     for (PropertyGroupEditor* e : editors) {
         connect(e, &PropertyGroupEditor::edited,    this, [this] { onControlChanged(); });
         connect(e, &PropertyGroupEditor::committed, this, [this] {
-            if (m_hasArtifact)
+            if (!m_subjects.isEmpty())
+                emit committedMany(m_subjects);
+            else if (m_hasArtifact)
                 emit committed(m_artifact);
         });
     }
@@ -145,6 +149,7 @@ void ObjectStatePanel::setArtifact(const TextArtifact& a)
     m_selectionCount = 1;
 
     m_populating = true;
+    m_subjects.clear();
     m_groups.bind(m_artifact);
     m_tailList->bindOne(m_artifact);
     m_populating = false;
@@ -159,22 +164,45 @@ void ObjectStatePanel::setArtifact(const TextArtifact& a)
     applyKindVisibility();
 }
 
-void ObjectStatePanel::setMultiSelection(int count)
+void ObjectStatePanel::setArtifacts(const QList<TextArtifact>& objects)
 {
-    m_hasArtifact    = false;   // no single artifact to edit, so nothing may be emitted about one
-    m_selectionCount = count;   // ...but there is plenty to delete
+    m_subjects       = objects;
+    m_hasArtifact    = false;   // no single artifact, so the single-subject signals stay quiet
+    m_selectionCount = static_cast<int>(objects.size());
     m_tailIndex      = -1;
     m_commitTimer->stop();
 
-    m_subject->setText(tr("%n objects", "", count));
+    // A role is a property several kinds share, so each group is bound to the objects that have it: the
+    // lettering's colour every object has, a fill only something with a silhouette does. Binding a
+    // shapeless object into the skin group would have it vote "Mixed" with values it never uses.
+    PropertyGroupEditor::Subjects all;
+    PropertyGroupEditor::Subjects shaped;
+    all.reserve(objects.size());
+    for (const TextArtifact& a : objects) {
+        all.append(&a);
+        if (a.shape.kind != TextArtifact::Shape::None)
+            shaped.append(&a);
+    }
+
+    m_populating = true;
+    m_groups.skin()->bind(shaped);
+    m_groups.text()->bind(all);
+    m_populating = false;
+
+    m_subject->setText(tr("%n objects", "", m_selectionCount));
     m_subject->setVisible(true);
-    m_emptyHint->setText(tr("Delete removes all of them. Editing several at once is not here yet."));
-    m_emptyHint->setVisible(true);
+    m_emptyHint->setVisible(false);
     m_actions->setVisible(true);
-    m_fitButton->setVisible(false);
+    m_fitButton->setVisible(false);   // one box cannot be fitted to several texts
     m_deleteButton->setText(tr("Delete"));
-    for (auto it = m_sections.cbegin(); it != m_sections.cend(); ++it)
-        it.value()->setVisible(false);
+
+    // The union: a section is here when at least one of them carries that group. Skin needs a silhouette
+    // to sit on; the lettering's colour every object has.
+    const bool anyShape = !shaped.isEmpty();
+    for (auto it = m_sections.cbegin(); it != m_sections.cend(); ++it) {
+        const auto g = static_cast<PropertyGroup>(it.key());
+        it.value()->setVisible(g == PropertyGroup::Text || (g == PropertyGroup::Skin && anyShape));
+    }
 }
 
 void ObjectStatePanel::setTail(const TextArtifact& a, int index)
@@ -184,6 +212,7 @@ void ObjectStatePanel::setTail(const TextArtifact& a, int index)
     m_hasArtifact   = true;
     m_selectionCount = 1;
 
+    m_subjects.clear();
     m_populating = true;
     m_tail->setIndex(index);
     m_tail->bindOne(m_artifact);
@@ -203,6 +232,7 @@ void ObjectStatePanel::clearSelection()
     m_hasArtifact    = false;
     m_selectionCount = 0;
     m_tailIndex      = -1;
+    m_subjects.clear();
     m_commitTimer->stop();
 
     // Gone, not greyed. There is no object, so there are no properties — and a greyed control would
@@ -252,6 +282,18 @@ void ObjectStatePanel::onControlChanged()
 {
     if (m_populating)
         return;
+
+    if (!m_subjects.isEmpty()) {
+        // A set: every object takes what the artist touched and keeps everything else of its own.
+        for (TextArtifact& a : m_subjects) {
+            if (a.shape.kind != TextArtifact::Shape::None)
+                m_groups.skin()->applyEditedTo(a);   // a caption with no balloon has no fill to take
+            m_groups.text()->applyEditedTo(a);
+        }
+        emit changedMany(m_subjects);
+        m_commitTimer->start();
+        return;
+    }
 
     if (m_tailIndex >= 0) {
         m_tail->applyTo(m_artifact);   // that tail, and nothing else about the balloon

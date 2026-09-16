@@ -51,9 +51,13 @@
     file. They live in the application config rather than the workspace: restyling is a habit of the
     artist, not a property of one comic.
   - **Select several objects at once** — Ctrl+click on the strip, Ctrl or Shift in the object list —
-    and **Delete** removes all of them in one undoable step. The panel on the right names the selection
-    (*3 objects*) instead of showing one balloon's properties, and the actions that only make sense for a
-    single object are greyed until you pick one.
+    and **recolour or delete them together**. The panel on the right names the selection (*3 objects*)
+    and offers what they have in common: fill and outline for whatever has a balloon, and the lettering's
+    colour for everything. A colour they do not share shows as a chequer until you pick one, and picking
+    reaches every object that has it — a caption without a balloon takes the lettering colour and no
+    fill. The colour tool does the same when you pour it onto something that is selected. Deleting is one
+    undoable step, and the actions that only make sense for a single object are greyed until you pick
+    one.
   - **The pointer now says what the tool will do** and stays saying it: a hand over the strip under
     Pan, a move cross over an object, resize arrows on a corner, a crosshair under the drawing tools.
     It used to flip between an arrow and a hand depending on whether you had panned yet.

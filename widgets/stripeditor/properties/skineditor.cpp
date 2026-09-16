@@ -34,10 +34,21 @@ SkinEditor::SkinEditor(QWidget* parent)
         if (m_populating)
             return;
         m_values.strokeWidth = v;
+        m_widthTouched       = true;
         emit edited();
     });
-    connect(m_fillSwatch,   &QPushButton::clicked, this, [this] { pickColour(m_values.fill,   m_fillSwatch); });
-    connect(m_strokeSwatch, &QPushButton::clicked, this, [this] { pickColour(m_values.stroke, m_strokeSwatch); });
+    connect(m_fillSwatch, &QPushButton::clicked, this, [this] {
+        if (pickColour(m_values.fill, m_fillSwatch)) {
+            m_fillTouched = true;
+            m_mixedFill   = false;   // they all take this one now
+        }
+    });
+    connect(m_strokeSwatch, &QPushButton::clicked, this, [this] {
+        if (pickColour(m_values.stroke, m_strokeSwatch)) {
+            m_strokeTouched = true;
+            m_mixedStroke   = false;
+        }
+    });
 
     syncFromValues();
 }
@@ -46,7 +57,19 @@ void SkinEditor::bind(const Subjects& subjects)
 {
     if (subjects.isEmpty())
         return;   // nothing selected: the controls keep showing what they showed
-    m_values = SkinProperties::from(*subjects.first());
+
+    m_values   = SkinProperties::from(*subjects.first());
+    m_subjects = static_cast<int>(subjects.size());
+
+    // What the selection disagrees about is not a value this panel may show.
+    m_mixedFill = m_mixedStroke = false;
+    for (const TextArtifact* a : subjects) {
+        const SkinProperties s = SkinProperties::from(*a);
+        m_mixedFill   = m_mixedFill   || s.fill   != m_values.fill;
+        m_mixedStroke = m_mixedStroke || s.stroke != m_values.stroke;
+    }
+    m_fillTouched = m_strokeTouched = m_widthTouched = false;   // binding is not editing
+
     syncFromValues();
 }
 
@@ -57,6 +80,17 @@ void SkinEditor::applyTo(TextArtifact& target) const
     m_values.applyTo(target);
 }
 
+void SkinEditor::applyEditedTo(TextArtifact& target) const
+{
+    // Still one write path — the group's — but only the properties that were actually picked. What the
+    // artist did not touch stays each object's own, which is the whole point of editing a set.
+    SkinProperties t = SkinProperties::from(target);
+    if (m_fillTouched)   t.fill        = m_values.fill;
+    if (m_strokeTouched) t.stroke      = m_values.stroke;
+    if (m_widthTouched)  t.strokeWidth = m_values.strokeWidth;
+    t.applyTo(target);
+}
+
 void SkinEditor::syncFromValues()
 {
     m_populating = true;
@@ -64,20 +98,32 @@ void SkinEditor::syncFromValues()
         const QSignalBlocker block(m_strokeWidth);
         m_strokeWidth->setValue(m_values.strokeWidth);
     }
-    paintColourSwatch(m_fillSwatch,   m_values.fill);
-    paintColourSwatch(m_strokeSwatch, m_values.stroke);
+    if (m_mixedFill)
+        paintMixedSwatch(m_fillSwatch, palette());
+    else
+        paintColourSwatch(m_fillSwatch, m_values.fill);
+    if (m_mixedStroke)
+        paintMixedSwatch(m_strokeSwatch, palette());
+    else
+        paintColourSwatch(m_strokeSwatch, m_values.stroke);
+
+    // One number cannot describe several objects yet — a spin box has no "mixed" to show — so with a set
+    // bound the stroke width is absent rather than showing the first object's.
+    if (auto* form = qobject_cast<QFormLayout*>(layout()))
+        form->setRowVisible(m_strokeWidth, m_subjects <= 1);
     m_populating = false;
 }
 
-void SkinEditor::pickColour(QColor& target, QPushButton* swatch)
+bool SkinEditor::pickColour(QColor& target, QPushButton* swatch)
 {
     const QColor picked = QColorDialog::getColor(target, this, tr("Choose colour"));
     if (!picked.isValid())
-        return;
+        return false;
     target = picked;
     paintColourSwatch(swatch, picked);
     emit edited();
     emit committed();   // a dialog choice is discrete — commit it without waiting on a timer
+    return true;
 }
 
 }  // namespace StripEdit

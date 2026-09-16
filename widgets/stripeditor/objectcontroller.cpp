@@ -101,6 +101,10 @@ ObjectController::ObjectController(QGraphicsScene* scene, QGraphicsView* view, Q
     connect(m_objectState, &ObjectStatePanel::committed, this,
             [this](const TextArtifact& a) { applyPanelArtifact(a, /*commit=*/true); });
     connect(m_objectState, &ObjectStatePanel::deleteRequested, this, &ObjectController::deleteSelectedOverlay);
+    connect(m_objectState, &ObjectStatePanel::changedMany, this,
+            [this](const QList<TextArtifact>& objects) { applyPanelArtifacts(objects, /*commit=*/false); });
+    connect(m_objectState, &ObjectStatePanel::committedMany, this,
+            [this](const QList<TextArtifact>& objects) { applyPanelArtifacts(objects, /*commit=*/true); });
     connect(m_objectState, &ObjectStatePanel::fitRequested, this, [this] {
         auto* bubble = qobject_cast<BubbleObject*>(m_overlayItems.value(m_selectedOverlay));
         if (!bubble) return;   // only a bubble has text to fit to
@@ -808,8 +812,13 @@ void ObjectController::selectOverlays(const QStringList& uids)
             m_objectState->clearSelection();
         else if (one)
             m_objectState->setArtifact(m_artifacts.value(m_selectedOverlay));
-        else
-            m_objectState->setMultiSelection(static_cast<int>(picked.size()));
+        else {
+            QList<TextArtifact> subjects;
+            subjects.reserve(picked.size());
+            for (const QString& uid : picked)
+                subjects.append(m_artifacts.value(uid));
+            m_objectState->setArtifacts(subjects);
+        }
     }
     emit subjectChanged(m_subject, m_selectedOverlay);
 }
@@ -842,9 +851,10 @@ bool ObjectController::applyColourAt(const QPointF& scenePos, const QTransform& 
         onScreen = 1.0;
     const qreal slack = k_pickSlackPx / onScreen;
 
-    TextArtifact a = bubble->artifact();
-    QString      step;
-    switch (artifactPartAt(a, bubble->mapFromScene(scenePos), slack)) {
+    TextArtifact       a    = bubble->artifact();
+    QString            step;
+    const ArtifactPart part = artifactPartAt(a, bubble->mapFromScene(scenePos), slack);
+    switch (part) {
     case ArtifactPart::Text:
         a.text.colour = colour;
         step          = tr("Apply text colour");
@@ -859,6 +869,29 @@ bool ObjectController::applyColourAt(const QPointF& scenePos, const QTransform& 
         break;
     case ArtifactPart::None:
         return false;   // the transparent corner of the box is not the balloon
+    }
+
+    // Pouring onto something that is part of a selection paints the **whole** selection, each object in
+    // the role it has: a fill lands on everything with a silhouette, the lettering's colour on everything.
+    // An object outside the selection is a fresh subject, and painting it selects it as any click does.
+    if (m_selectedOverlays.size() > 1 && m_selectedOverlays.contains(bubble->uid())) {
+        QList<TextArtifact> next;
+        next.reserve(m_selectedOverlays.size());
+        for (const QString& uid : std::as_const(m_selectedOverlays)) {
+            TextArtifact each = m_artifacts.value(uid);
+            const bool   shaped = each.shape.kind != TextArtifact::Shape::None;
+            switch (part) {
+            case ArtifactPart::Text:    each.text.colour = colour; break;
+            case ArtifactPart::Outline: if (shaped) each.skin.stroke = colour; break;
+            case ArtifactPart::Fill:    if (shaped) each.skin.fill   = colour; break;
+            case ArtifactPart::None:    break;
+            }
+            next.append(each);
+        }
+        applyPanelArtifacts(next, /*commit=*/true, step);
+        if (m_objectState)
+            m_objectState->setArtifacts(next);
+        return true;
     }
 
     selectOverlay(bubble->uid());
@@ -878,6 +911,37 @@ void ObjectController::applyPresetToSelection(int index)
         PresetStore::applied(m_presets.presets().at(index), bubble->artifact(), /*keepShape=*/false);
     m_objectState->setArtifact(a);
     applyPanelArtifact(a, /*commit=*/true);
+}
+
+void ObjectController::applyPanelArtifacts(const QList<TextArtifact>& objects, bool commit,
+                                           const QString& undoText)
+{
+    if (objects.size() != m_selectedOverlays.size())
+        return;   // the panel is answering about a selection that has since changed
+
+    for (int i = 0; i < objects.size(); ++i) {
+        const QString& uid = m_selectedOverlays.at(i);
+        if (auto* bubble = qobject_cast<BubbleObject*>(m_overlayItems.value(uid))) {
+            bubble->setArtifact(objects.at(i));
+            m_artifacts.insert(uid, objects.at(i));
+        }
+    }
+    if (!commit)
+        return;   // live preview only, exactly as the single-object path does
+
+    // Each object keeps its own width fraction: a colour does not change how much room the artwork takes,
+    // but a stroke does, and the render draws the asset at wFrac of the page.
+    if (const double tw = m_layout.targetWidth(); tw > 0) {
+        for (auto& o : m_overlays) {
+            const QString uid = QString::fromStdString(o.uid);
+            if (auto* item = m_overlayItems.value(uid); item && m_selectedOverlays.contains(uid))
+                o.wFrac = item->contentBounds().width() * item->scale() / tw;
+        }
+    }
+
+    refreshList();
+    pushOverlays(!undoText.isEmpty() ? undoText
+                                     : tr("Edit %n objects", "", static_cast<int>(objects.size())));
 }
 
 void ObjectController::applyPanelArtifact(const TextArtifact& a, bool commit, const QString& undoText)

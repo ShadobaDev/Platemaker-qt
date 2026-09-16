@@ -36,6 +36,7 @@ public:
 
     void bind(const Subjects& subjects) override;
     void applyTo(TextArtifact& target) const override;
+    void applyEditedTo(TextArtifact& target) const override;
 
     [[nodiscard]] const TextProperties& values() const { return m_values; }
 
@@ -61,6 +62,12 @@ private:
 
     TextProperties m_values;
     bool m_populating = false;
+
+    // --- bound to a set: only the colour is shown, because only a swatch can say "Mixed" yet ---
+    int  m_subjects      = 0;
+    bool m_bodyVisible   = true;   //!< What setContentVisible() was last told; a set hides the box too.
+    bool m_mixedColour   = false;
+    bool m_colourTouched = false;
 };
 
 }  // namespace StripEdit

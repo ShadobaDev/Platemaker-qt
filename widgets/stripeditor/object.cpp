@@ -1,7 +1,6 @@
 #include "object.h"
 
 #include <QGraphicsScene>
-#include <QGraphicsSceneHoverEvent>
 #include <QGraphicsSceneMouseEvent>
 #include <QGraphicsView>
 #include <QPainter>
@@ -63,7 +62,6 @@ Object::Object(QString uid, QGraphicsItem* parent)
     // base class move the item as well would drag the object while the author is resizing it. Movement
     // is handled here, in one place, for whichever grip the press actually hit.
     setFlag(ItemIsSelectable, true);
-    setAcceptHoverEvents(true);
 }
 
 void Object::setBlend(Platemaker::Models::BlendMode blend)
@@ -80,7 +78,6 @@ void Object::setOrphaned(bool orphaned)
         return;
     m_orphaned = orphaned;
     setFlag(ItemIsSelectable, !orphaned);
-    setAcceptHoverEvents(!orphaned);
     update();
 }
 
@@ -213,6 +210,11 @@ QRectF Object::handleRect(int index) const
     return QRectF(c.x() - s / 2, c.y() - s / 2, s, s);
 }
 
+Object::Grip Object::gripAtScene(const QPointF& scenePos, int* handleIndex) const
+{
+    return gripAt(mapFromScene(scenePos), handleIndex);
+}
+
 Object::Grip Object::gripAt(const QPointF& local, int* handleIndex) const
 {
     if (handleIndex)
@@ -327,19 +329,6 @@ void Object::mouseReleaseEvent(QGraphicsSceneMouseEvent* e)
     if (!report)
         return;
     emit geometryEdited(m_uid);
-}
-
-void Object::hoverMoveEvent(QGraphicsSceneHoverEvent* e)
-{
-    switch (gripAt(e->pos())) {
-    case Grip::TopLeft:
-    case Grip::BottomRight: setCursor(Qt::SizeFDiagCursor); break;
-    case Grip::TopRight:
-    case Grip::BottomLeft:  setCursor(Qt::SizeBDiagCursor); break;
-    case Grip::Handle:      setCursor(Qt::CrossCursor);     break;
-    default:                setCursor(Qt::SizeAllCursor);   break;
-    }
-    QGraphicsObject::hoverMoveEvent(e);
 }
 
 }  // namespace StripEdit

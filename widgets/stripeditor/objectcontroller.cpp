@@ -214,6 +214,27 @@ ObjectController::ObjectController(QGraphicsScene* scene, QGraphicsView* view, Q
     });
 }
 
+PointerTarget ObjectController::pointerTargetAt(const QPointF&     scenePos,
+                                                const QTransform& deviceTransform) const
+{
+    auto* obj = dynamic_cast<Object*>(m_scene->itemAt(scenePos, deviceTransform));
+    if (!obj)
+        return PointerTarget::BareStrip;
+    if (obj->isOrphaned())
+        return PointerTarget::Orphan;
+
+    switch (obj->gripAtScene(scenePos)) {
+    case Object::Grip::TopLeft:
+    case Object::Grip::BottomRight: return PointerTarget::ResizeFDiag;
+    case Object::Grip::TopRight:
+    case Object::Grip::BottomLeft:  return PointerTarget::ResizeBDiag;
+    case Object::Grip::Handle:      return PointerTarget::TailHandle;
+    case Object::Grip::Body:
+    case Object::Grip::None:        break;
+    }
+    return PointerTarget::Object;
+}
+
 bool ObjectController::objectAt(const QPointF& scenePos, const QTransform& deviceTransform) const
 {
     return dynamic_cast<Object*>(m_scene->itemAt(scenePos, deviceTransform)) != nullptr;

@@ -10,6 +10,7 @@
 #include <QString>
 #include <QStringList>
 
+#include "cursors.h"
 #include "textartifact.h"
 
 #include <platemaker/models/project_item.hpp>
@@ -150,6 +151,10 @@ public:
     [[nodiscard]] bool isPlacing() const { return m_placing; }
     //! True when an existing object sits under \p scenePos — the editor leaves that press to the item.
     [[nodiscard]] bool objectAt(const QPointF& scenePos, const QTransform& deviceTransform) const;
+
+    //! What the pointer is over at @p scenePos, for whoever has to decide a cursor or a gesture.
+    [[nodiscard]] PointerTarget pointerTargetAt(const QPointF& scenePos,
+                                                const QTransform& deviceTransform) const;
     void beginPlacement(const QPointF& scenePos);
     void updatePlacement(const QPointF& scenePos);
     void finishPlacement();

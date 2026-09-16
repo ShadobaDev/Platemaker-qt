@@ -230,6 +230,25 @@ than the comic.
     and the controller now knows nothing about which tool is armed.
   - A tool that places one shape carries **no icon file**: its button is drawn by the rasteriser that
     draws that shape, so it cannot misrepresent what pressing it gives you.
+- **The pointer is decided in one place.** A cursor is a function of *(active tool, what is under the
+  pointer)*, evaluated by `StripEdit::cursorFor()`; nothing else writes the viewport cursor. The tool row
+  carries the data half — `cursor` over the bare strip, `cursorOnObject` over an object — so *Pan* shows a
+  hand and a move cross, the authoring tools a crosshair, and a new tool still costs one row.
+  - **The two resize corners and a tail tip are the canvas's**, whatever the tool: every object is movable
+    and resizable under every one of them. Because the cursor promises that, the colour tool lets a press
+    on a grip through to the canvas rather than painting.
+  - **The view's drag mode still writes a cursor of its own** (`ScrollHandDrag`, under Pan). Rather than
+    taking it away — its documented rule, *"only affects mouse clicks that are not handled by any item"*,
+    is worth keeping — `cursorFor()` answers the same open hand in that state, so the two agree instead of
+    overwriting each other. `setTool()` therefore sets the drag mode **first** and decides the cursor
+    after; reversing those two lines brings the flicker back.
+  - It is re-decided on hover (only while no button is held), when the pointer enters the canvas, after a
+    release, on a tool change, after a zoom and after a feed — the last two because they move the scene
+    under a pointer that has not moved. **The viewport has mouse tracking on** for exactly this reason: a
+    widget hears about the mouse only while a button is held otherwise, which would leave the cursor
+    following the last *click* rather than the pointer. The re-decision after a **release** is queued:
+    under `ScrollHandDrag` the view restores an open hand on every left release, even one an item took,
+    and its handler runs after the filter.
 - **The colour pair is furniture** — `ColourPair`, under the tiles in the tool column, where it stays
   whichever tool is active. It is drawn the way every drawing application draws one: two **overlapping**
   swatches, primary in front, with *swap* and *reset to black and white* beside them, inside a panel of

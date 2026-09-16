@@ -25,6 +25,14 @@ enum class ToolKind {
 };
 
 /**
+ * @brief The cursor a tool asks for. `Inherit` means "whatever this tool shows over the bare strip".
+ *
+ * A style rather than a `QCursor`, so the table stays data: what a style is drawn as belongs to
+ * `cursors.cpp`, which is also where a generated tool-glyph cursor will come from.
+ */
+enum class CursorStyle { Arrow, Hand, Cross, Move, Inherit };
+
+/**
  * @brief One entry on the tool rail — a record, because a tool is stateless.
  *
  * What the editor asks of a tool is a name, an icon, a tooltip, what it does to the canvas and which
@@ -48,6 +56,11 @@ struct Tool
     std::optional<TextArtifact::Shape> shape;
     //! Which tool-options page: empty for none, `grade`, or `artifact` (what the next object will be).
     QString page;
+
+    //! Over the bare strip. `Hand` is what `ScrollHandDrag` writes anyway, so the two agree.
+    CursorStyle cursor = CursorStyle::Arrow;
+    //! Over an object's body. `Inherit` keeps the one above — a tool that acts on objects usually should.
+    CursorStyle cursorOnObject = CursorStyle::Inherit;
 };
 
 //! Every tool the rail offers, in rail order. **Adding a tool is one row here and nothing else.**

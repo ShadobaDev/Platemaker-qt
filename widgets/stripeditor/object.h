@@ -41,6 +41,9 @@ public:
     //! What an object is. Kept minimal on purpose — it exists for the few places that must ask.
     enum class Kind { Bubble, Asset };
 
+    //! What a press or a hover landed on. `Body` falls through to this class's own move handling.
+    enum class Grip { None, Body, TopLeft, TopRight, BottomLeft, BottomRight, Handle };
+
     explicit Object(QString uid, QGraphicsItem* parent = nullptr);
 
     [[nodiscard]] const QString& uid() const { return m_uid; }
@@ -57,6 +60,10 @@ public:
 
     //! Marks handle @p index as its tail's — the one selected — or none with -1. Drawn hollow.
     void setFocusedHandle(int index);
+
+    //! What sits under @p scenePos: a corner grip, a tail handle, the body, or nothing of this object.
+    //! Public because the cursor is decided in one place now, and that place is not this class.
+    [[nodiscard]] Grip gripAtScene(const QPointF& scenePos, int* handleIndex = nullptr) const;
 
     /**
      * @brief Turns selection chrome off for **every** object, for one repaint.
@@ -120,8 +127,6 @@ signals:
     void pressed(const QString& uid, int handle);
 
 protected:
-    //! What the press landed on. `Body` falls through to this class's own move handling.
-    enum class Grip { None, Body, TopLeft, TopRight, BottomLeft, BottomRight, Handle };
 
     //! Draws the object itself, in item coordinates. Chrome and blending are the base class's job.
     virtual void paintContent(QPainter& painter) = 0;
@@ -160,7 +165,6 @@ protected:
     void mousePressEvent(QGraphicsSceneMouseEvent* e) override;
     void mouseMoveEvent(QGraphicsSceneMouseEvent* e) override;
     void mouseReleaseEvent(QGraphicsSceneMouseEvent* e) override;
-    void hoverMoveEvent(QGraphicsSceneHoverEvent* e) override;
 
 private:
     //! Which grip is under \p local. For Grip::Handle, \p handleIndex receives which one.

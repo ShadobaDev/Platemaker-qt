@@ -4,6 +4,7 @@
 #include "advisorybar.h"
 #include "colouradjustment.h"
 #include "colourpair.h"
+#include "cursors.h"
 #include "gradepanel.h"
 #include "object.h"
 #include "objectcontroller.h"
@@ -22,6 +23,7 @@
 #include <QFileInfo>
 #include <QButtonGroup>
 #include <QDebug>
+#include <QEnterEvent>
 #include <QEvent>
 #include <QGraphicsItem>
 #include <QGraphicsLineItem>
@@ -148,7 +150,11 @@ Editor::Editor(QWidget *parent)
     m_view->setDragMode(QGraphicsView::ScrollHandDrag);
     m_view->setAlignment(Qt::AlignHCenter | Qt::AlignTop);
     m_view->setRenderHints(QPainter::Antialiasing | QPainter::SmoothPixmapTransform);
-    m_view->viewport()->installEventFilter(this);   // Ctrl+wheel zoom
+    m_view->viewport()->installEventFilter(this);   // Ctrl+wheel zoom, and the pointer's own answer
+    // Without this a widget hears about the mouse only while a button is held, which is what made the
+    // cursor look as though it followed the last *click*: it could only be re-decided on release. The
+    // cursor is a promise about what a press would do here, so it has to be re-decided while hovering.
+    m_view->viewport()->setMouseTracking(true);
     // Build the pages that scroll into view (plus a prefetch margin).
     connect(m_view->verticalScrollBar(),   &QScrollBar::valueChanged, this, &Editor::updateVisiblePages);
     connect(m_view->horizontalScrollBar(), &QScrollBar::valueChanged, this, &Editor::updateVisiblePages);
@@ -315,13 +321,15 @@ void Editor::setTool(const QString& id)
         b->setChecked(true);
     ui->toolOptions->setCurrentIndex(m_toolPage.value(m_tool));
 
-    // Select == today's view: hand-drag to pan. Any other tool frees the left button for tool
-    // interaction, and a crosshair says the canvas is being drawn on rather than dragged.
+    // Select == today's view: hand-drag to pan, which Qt implements and which only starts on a press no
+    // item took. Any other tool frees the left button for tool interaction.
+    //
+    // **Order matters and must stay this way.** Leaving `ScrollHandDrag` makes the view unset the
+    // viewport cursor, and entering it makes the view write an open hand; deciding our cursor after that
+    // is what keeps the last word. Reverse these two lines and the pointer starts flickering again.
     m_view->setDragMode(tool->kind == ToolKind::Select ? QGraphicsView::ScrollHandDrag
                                                        : QGraphicsView::NoDrag);
-    const bool onCanvas = tool->kind == ToolKind::Create || tool->kind == ToolKind::Sample
-                       || tool->kind == ToolKind::Apply;
-    m_view->viewport()->setCursor(onCanvas ? Qt::CrossCursor : Qt::ArrowCursor);
+    updateCursor();
 
     // Only the *tool's own options* follow the tool: a tool that places one shape says so, and the
     // Bubble tool leaves the choice on the tiles. This replaced two gates that each existed to say
@@ -593,6 +601,17 @@ void Editor::updateVisiblePages()
 // Zoom
 // ---------------------------------------------------------------------------
 
+void Editor::updateCursor()
+{
+    const Tool* tool = toolById(m_tool);
+    if (!tool || !m_view || !m_view->viewport())
+        return;
+    PointerTarget target = PointerTarget::BareStrip;
+    if (m_objects && m_pointerPos.x() >= 0)
+        target = m_objects->pointerTargetAt(m_view->mapToScene(m_pointerPos), m_view->transform());
+    m_view->viewport()->setCursor(cursorFor(*tool, target));
+}
+
 void Editor::applyZoom(double z)
 {
     m_zoom = qBound(0.02, z, 8.0);
@@ -601,6 +620,7 @@ void Editor::applyZoom(double z)
     m_view->setTransform(t);
     m_zoomLabel->setText(QStringLiteral("%1%").arg(qRound(m_zoom * 100.0)));
     updateVisiblePages();       // zoom changes how many pages are on screen
+    updateCursor();             // ...and what sits under a pointer that never moved
 }
 
 void Editor::userZoom(double z)
@@ -669,7 +689,12 @@ bool Editor::eventFilter(QObject *watched, QEvent *event)
     if (watched == m_view->viewport() && isApplying() && m_colours
         && event->type() == QEvent::MouseButtonPress) {
         auto* me = static_cast<QMouseEvent*>(event);
-        if (me->button() == Qt::LeftButton) {
+        // A corner grip and a tail tip belong to the canvas under every tool, and the cursor says so —
+        // so a press there resizes or aims rather than painting. The tool gets everything else.
+        const bool affordance = isCanvasAffordance(
+            m_objects->pointerTargetAt(m_view->mapToScene(me->position().toPoint()),
+                                       m_view->transform()));
+        if (me->button() == Qt::LeftButton && !affordance) {
             const bool other = me->modifiers() & Qt::ShiftModifier;
             m_objects->applyColourAt(m_view->mapToScene(me->position().toPoint()), m_view->transform(),
                                      other ? m_colours->secondary() : m_colours->primary());
@@ -699,6 +724,29 @@ bool Editor::eventFilter(QObject *watched, QEvent *event)
         }
     }
 
+    if (watched == m_view->viewport()) {
+        if (event->type() == QEvent::MouseMove) {
+            auto* me = static_cast<QMouseEvent*>(event);
+            m_pointerPos = me->position().toPoint();
+            // Only while nothing is held: mid-drag the view writes a closed hand, and an object being
+            // dragged is not "what the pointer is over" in any useful sense.
+            if (me->buttons() == Qt::NoButton)
+                updateCursor();
+        } else if (event->type() == QEvent::MouseButtonRelease) {
+            // **Queued, and it has to be.** Under ScrollHandDrag the view restores an open hand on every
+            // left release — even one that never panned, because the press was taken by an item — and its
+            // handler runs after this filter. Deciding here would be overwritten a moment later, which is
+            // what made a click on a balloon flash the hand until the mouse moved a pixel. Deciding after
+            // the event has been handled puts us last again.
+            QMetaObject::invokeMethod(this, [this] { updateCursor(); }, Qt::QueuedConnection);
+        } else if (event->type() == QEvent::Enter) {
+            m_pointerPos = static_cast<QEnterEvent*>(event)->position().toPoint();
+            updateCursor();   // coming back onto the canvas is a hover like any other
+        } else if (event->type() == QEvent::Leave) {
+            m_pointerPos = {-1, -1};
+        }
+    }
+
     if (watched == m_view->viewport() && event->type() == QEvent::Wheel) {
         auto *we = static_cast<QWheelEvent *>(event);
         if (we->modifiers() & Qt::ControlModifier) {
@@ -725,6 +773,7 @@ void Editor::setOverlaySource(const std::vector<Platemaker::Models::StripOverlay
                               const ArtifactMap&                                  artifacts)
 {
     m_objects->setSource(overlays, artifacts);
+    updateCursor();   // an object may have arrived under, or vanished from beneath, a still pointer
 }
 
 void Editor::selectAfterFeed(const QStringList& uids)

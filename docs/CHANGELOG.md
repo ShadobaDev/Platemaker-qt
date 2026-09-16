@@ -50,6 +50,9 @@
     Caption — and **Import pack… / Export pack…** carry your own between machines and people as one JSON
     file. They live in the application config rather than the workspace: restyling is a habit of the
     artist, not a property of one comic.
+  - **The pointer now says what the tool will do** and stays saying it: a hand over the strip under
+    Pan, a move cross over an object, resize arrows on a corner, a crosshair under the drawing tools.
+    It used to flip between an arrow and a hand depending on whether you had panned yet.
   - **The eyedropper and the colour pair.** The tool column carries a primary and a secondary colour
     under the tool tiles — overlapping swatches with **swap** and **reset to black and white**,
     remembered between sessions. The eyedropper takes a colour off the strip exactly as it appears —

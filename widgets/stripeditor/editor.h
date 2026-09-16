@@ -273,6 +273,18 @@ private:
     [[nodiscard]] bool    isSampling() const;
     //! The active tool spends the colour pair on what it hits — the colour applicator.
     [[nodiscard]] bool    isApplying() const;
+
+    /**
+     * @brief Re-decides the viewport cursor for the tool and whatever the pointer is over.
+     *
+     * Called on hover, after a press is released, when the tool changes, when the zoom changes and after
+     * a feed — every moment at which either half of *(tool, target)* can have moved, including the ones
+     * where the pointer itself did not.
+     *
+     * **Nothing else sets the viewport cursor.** The view's drag mode still writes one of its own, and
+     * `cursorFor()` answers the same cursor in that state so the two agree rather than take turns.
+     */
+    void                  updateCursor();
     /**
      * @brief Draws the rail buttons that carry no icon file.
      *
@@ -325,6 +337,9 @@ private:
     QButtonGroup   *m_toolGroup = nullptr;   //!< The rail's buttons; a button's id is its row in tools().
     QHash<QString, int> m_toolPage;          //!< Tool id → its page in the options stack.
     ColourPair*     m_colours    = nullptr;  //!< The primary/secondary pair, under the rail. Furniture.
+    QPoint          m_pointerPos {-1, -1};   //!< Last hovered viewport point, so the cursor can be
+                                             //!< re-decided when the pointer has not moved but the
+                                             //!< scene under it has.
     GradePanel        *m_gradePanel   = nullptr;   //!< The Grade tool-options page (colour-correction controls).
     AdvisoryBar       *m_advisoryBar  = nullptr;   //!< Bottom edge of this editor; absent until setAdvisories().
     QString         m_tool;                  //!< The active tool's registry id.

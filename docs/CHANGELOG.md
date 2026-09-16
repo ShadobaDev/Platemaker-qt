@@ -59,6 +59,8 @@
     caption without a balloon takes the lettering colour and no fill. The colour tool does the same when you pour it onto something that is selected. Deleting is one
     undoable step, and the actions that only make sense for a single object are greyed until you pick
     one.
+  - **Drag one of several selected objects and they all move**, keeping their formation, re-anchoring to
+    whatever page each lands on, and undoing in one step.
   - **The pointer now says what the tool will do** and stays saying it: a hand over the strip under
     Pan, a move cross over an object, resize arrows on a corner, a crosshair under the drawing tools.
     It used to flip between an arrow and a hand depending on whether you had panned yet.

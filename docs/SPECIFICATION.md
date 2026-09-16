@@ -510,6 +510,11 @@ valid baseline for every grade tried on it. Excluded pages are skipped, matching
     same reason ③ shows nothing: they act on one object and say so.
   - A feed re-applies the set and drops whatever no longer exists, so an undo that removed two of five
     leaves three selected rather than clearing the lot.
+  - **Dragging one of a selection moves all of it** — *position* is the one property every object has.
+    Each co-mover is placed at the position it held when the drag began plus the drag's delta, so a fast
+    drag cannot make the formation drift; the whole move is **one** history step (*Move N objects*), and
+    each object re-anchors to whatever page it lands on, exactly as a single drag does. Only a **move**
+    carries the others: a resize is that object's own size.
 - **Selection is the canvas's, not a tool's.** Every object is selectable, movable and resizable under
   every tool; an unanchored one is the only exception, because it is not on the strip. A tool decides
   what a *placement* creates — armed in `Editor::eventFilter()` — so `ObjectController` knows exactly one

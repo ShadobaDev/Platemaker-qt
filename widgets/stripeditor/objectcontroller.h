@@ -176,6 +176,8 @@ signals:
     void subjectChanged(StripEdit::ObjectController::Subject subject, const QString& uid);
 private:
     void onOverlayGeometryEdited(const QString& uid); //!< An item settled a move/resize/tail drag.
+    //! Writes where object @p uid now stands back into its record — placement, width and anchor page.
+    void writePlacement(const QString& uid);
     void onObjectPressed(const QString& uid, int handle); //!< A press on a tail's handle selects that tail.
     /**
      * @brief How much bigger than its own artwork an overlay is drawn.

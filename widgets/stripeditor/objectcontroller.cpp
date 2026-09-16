@@ -561,14 +561,11 @@ void ObjectController::syncItems()
     }
 }
 
-void ObjectController::onOverlayGeometryEdited(const QString& uid)
+void ObjectController::writePlacement(const QString& uid)
 {
     Object* item = m_overlayItems.value(uid);
-    if (!item)
-        return;
-
     const double tw = m_layout.targetWidth();
-    if (tw <= 0)
+    if (!item || tw <= 0)
         return;   // no strip laid out; there is nothing to measure a fraction against
 
     // Re-anchor to whichever page the bubble now sits on. Crossing a page boundary is a normal drag,
@@ -593,6 +590,21 @@ void ObjectController::onOverlayGeometryEdited(const QString& uid)
         }
         break;
     }
+}
+
+void ObjectController::onOverlayGeometryEdited(const QString& uid)
+{
+    Object* item = m_overlayItems.value(uid);
+    if (!item)
+        return;
+
+    // A move carries the whole selection (position is the one role every object has), so the record of
+    // every object that travelled is rewritten — and the lot becomes **one** history step, because one
+    // drag is one thing the artist did.
+    const bool group = item->movedWholeSelection() && m_selectedOverlays.contains(uid);
+    const QStringList moved = group ? m_selectedOverlays : QStringList{uid};
+    for (const QString& u : moved)
+        writePlacement(u);
 
     // A resize or tail drag changed the artifact too — and only a bubble has one. This used to test
     // the model for an authoring record and was written wrong once, storing a *default* bubble over
@@ -608,7 +620,8 @@ void ObjectController::onOverlayGeometryEdited(const QString& uid)
         }
     }
     refreshList();
-    pushOverlays(tr("Move bubble"));
+    pushOverlays(group ? tr("Move %n objects", "", static_cast<int>(moved.size()))
+                       : tr("Move bubble"));
 }
 
 void ObjectController::refreshList()

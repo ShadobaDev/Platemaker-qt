@@ -53,9 +53,10 @@
   - **Select several objects at once** — Ctrl+click on the strip, Ctrl or Shift in the object list —
     and **recolour or delete them together**. The panel on the right names the selection (*3 objects*)
     and offers what they have in common: fill and outline for whatever has a balloon, and the lettering's
-    colour for everything. A colour they do not share shows as a chequer until you pick one, and picking
-    reaches every object that has it — a caption without a balloon takes the lettering colour and no
-    fill. The colour tool does the same when you pour it onto something that is selected. Deleting is one
+    colour for everything, plus outline width, line style, font, size, bold and alignment. Anything they
+    do not share reads **Mixed** — a chequered swatch, an empty drop-down, a half-ticked box — until you
+    set it, and what you set reaches every object that has it, leaving the rest of each object alone. A
+    caption without a balloon takes the lettering colour and no fill. The colour tool does the same when you pour it onto something that is selected. Deleting is one
     undoable step, and the actions that only make sense for a single object are greyed until you pick
     one.
   - **The pointer now says what the tool will do** and stays saying it: a hand over the strip under

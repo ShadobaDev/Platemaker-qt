@@ -22,21 +22,29 @@ StyleEditor::StyleEditor(QWidget* parent)
     form->addRow(tr("Line style:"), m_kind);
 
     m_amount = new QSpinBox(this);
-    m_amount->setRange(0, 200);
+    m_amount->setRange(k_styleAmountMin, k_styleAmountMax);
     m_amount->setSuffix(tr(" %"));
     m_amount->setToolTip(tr("How strong the line style is. 100% is the preset's own strength."));
     form->addRow(tr("Style amount:"), m_amount);
 
-    const auto changed = [this] {
-        if (m_populating)
+    connect(m_kind, &QComboBox::currentIndexChanged, this, [this](int i) {
+        if (m_populating || i < 0)
             return;
-        m_values.kind   = static_cast<TextArtifact::Style>(m_kind->currentData().toInt());
-        m_values.amount = m_amount->value() / 100.0;
+        m_values.kind = static_cast<TextArtifact::Style>(m_kind->currentData().toInt());
+        m_kindTouched = true;
+        m_mixedKind   = false;
         m_amount->setEnabled(m_values.kind != TextArtifact::Style::Clean);
         emit edited();
-    };
-    connect(m_kind,   &QComboBox::currentIndexChanged, this, changed);
-    connect(m_amount, &QSpinBox::valueChanged,         this, changed);
+    });
+    connect(m_amount, &QSpinBox::valueChanged, this, [this](int v) {
+        if (m_populating)
+            return;
+        if (restoreSpin(m_amount, k_styleAmountMin))
+            m_mixedAmount = false;
+        m_values.amount = v / 100.0;
+        m_amountTouched = true;
+        emit edited();
+    });
 
     syncFromValues();
 }
@@ -46,6 +54,15 @@ void StyleEditor::bind(const Subjects& subjects)
     if (subjects.isEmpty())
         return;
     m_values = StyleProperties::from(*subjects.first());
+
+    m_mixedKind = m_mixedAmount = false;
+    for (const TextArtifact* a : subjects) {
+        const StyleProperties v = StyleProperties::from(*a);
+        m_mixedKind   = m_mixedKind   || v.kind   != m_values.kind;
+        m_mixedAmount = m_mixedAmount || !qFuzzyCompare(v.amount + 1.0, m_values.amount + 1.0);
+    }
+    m_kindTouched = m_amountTouched = false;
+
     syncFromValues();
 }
 
@@ -54,16 +71,22 @@ void StyleEditor::applyTo(TextArtifact& target) const
     m_values.applyTo(target);
 }
 
+void StyleEditor::applyEditedTo(TextArtifact& target) const
+{
+    StyleProperties t = StyleProperties::from(target);
+    if (m_kindTouched)   t.kind   = m_values.kind;
+    if (m_amountTouched) t.amount = m_values.amount;
+    t.applyTo(target);
+}
+
 void StyleEditor::syncFromValues()
 {
     m_populating = true;
-    {
-        const QSignalBlocker b1(m_kind), b2(m_amount);
-        m_kind->setCurrentIndex(m_kind->findData(int(m_values.kind)));
-        m_amount->setValue(qRound(m_values.amount * 100.0));
-    }
-    // Clean emits no filter at all, so there is no strength to scale.
-    m_amount->setEnabled(m_values.kind != TextArtifact::Style::Clean);
+    showCombo(m_kind, m_mixedKind, m_kind->findData(int(m_values.kind)));
+    showSpin(m_amount, m_mixedAmount, qRound(m_values.amount * 100.0), k_styleAmountMin, k_styleAmountMax);
+    // Clean emits no filter at all, so there is no strength to scale — but a selection that disagrees
+    // about the style has something to scale in at least one of them.
+    m_amount->setEnabled(m_mixedKind || m_values.kind != TextArtifact::Style::Clean);
     m_populating = false;
 }
 

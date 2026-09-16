@@ -32,7 +32,7 @@ TextEditor::TextEditor(QWidget* parent)
     form->addRow(tr("Font"), m_family);
 
     m_size = new QSpinBox(this);
-    m_size->setRange(6, 400);
+    m_size->setRange(k_textSizeMin, k_textSizeMax);
     m_size->setSuffix(tr(" px"));
     // Strip-scale pixels: the same number the render uses, so a size chosen here means the same thing
     // in the output. It is not a point size and does not follow the screen's DPI.
@@ -51,21 +51,50 @@ TextEditor::TextEditor(QWidget* parent)
     m_swatch = new QPushButton(tr("Colour"), this);
     form->addRow(tr("Colour"), m_swatch);
 
+    // Each control records that *it* was the one moved. Bound to a set, only what was moved is written,
+    // and everything else stays each object's own — see applyEditedTo().
     const auto changed = [this] {
         if (m_populating)
             return;
-        m_values.body      = m_body->toPlainText();
-        m_values.family    = m_family->currentFont().family();
-        m_values.pixelSize = m_size->value();
-        m_values.bold      = m_bold->isChecked();
-        m_values.align     = m_align->currentData().toInt();
+        m_values.body = m_body->toPlainText();
         emit edited();
     };
-    connect(m_body,   &QPlainTextEdit::textChanged,        this, changed);
-    connect(m_family, &QFontComboBox::currentFontChanged,  this, changed);
-    connect(m_size,   &QSpinBox::valueChanged,             this, changed);
-    connect(m_bold,   &QCheckBox::toggled,                 this, changed);
-    connect(m_align,  &QComboBox::currentIndexChanged,     this, changed);
+    connect(m_body, &QPlainTextEdit::textChanged, this, changed);
+
+    connect(m_family, &QFontComboBox::currentFontChanged, this, [this](const QFont& f) {
+        if (m_populating)
+            return;
+        m_values.family = f.family();
+        m_familyTouched = true;
+        m_mixedFamily   = false;
+        emit edited();
+    });
+    connect(m_size, &QSpinBox::valueChanged, this, [this](int v) {
+        if (m_populating)
+            return;
+        if (restoreSpin(m_size, k_textSizeMin))
+            m_mixedSize = false;
+        m_values.pixelSize = v;
+        m_sizeTouched      = true;
+        emit edited();
+    });
+    connect(m_bold, &QCheckBox::toggled, this, [this](bool on) {
+        if (m_populating)
+            return;
+        m_bold->setTristate(false);   // they have taken a position; there is no third state to return to
+        m_values.bold = on;
+        m_boldTouched = true;
+        m_mixedBold   = false;
+        emit edited();
+    });
+    connect(m_align, &QComboBox::currentIndexChanged, this, [this](int i) {
+        if (m_populating || i < 0)
+            return;
+        m_values.align = m_align->currentData().toInt();
+        m_alignTouched = true;
+        m_mixedAlign   = false;
+        emit edited();
+    });
 
     connect(m_swatch, &QPushButton::clicked, this, [this] {
         const QColor picked = QColorDialog::getColor(m_values.colour, this, tr("Choose colour"));
@@ -90,10 +119,16 @@ void TextEditor::bind(const Subjects& subjects)
     m_values   = TextProperties::from(*subjects.first());
     m_subjects = static_cast<int>(subjects.size());
 
-    m_mixedColour = false;
-    for (const TextArtifact* a : subjects)
-        m_mixedColour = m_mixedColour || TextProperties::from(*a).colour != m_values.colour;
-    m_colourTouched = false;
+    m_mixedColour = m_mixedFamily = m_mixedSize = m_mixedBold = m_mixedAlign = false;
+    for (const TextArtifact* a : subjects) {
+        const TextProperties t = TextProperties::from(*a);
+        m_mixedColour = m_mixedColour || t.colour    != m_values.colour;
+        m_mixedFamily = m_mixedFamily || t.family    != m_values.family;
+        m_mixedSize   = m_mixedSize   || t.pixelSize != m_values.pixelSize;
+        m_mixedBold   = m_mixedBold   || t.bold      != m_values.bold;
+        m_mixedAlign  = m_mixedAlign  || t.align     != m_values.align;
+    }
+    m_colourTouched = m_familyTouched = m_sizeTouched = m_boldTouched = m_alignTouched = false;
 
     syncFromValues();
 }
@@ -107,8 +142,11 @@ void TextEditor::applyEditedTo(TextArtifact& target) const
 {
     // The lettering itself is never written to a set: five balloons do not share one line of dialogue.
     TextProperties t = TextProperties::from(target);
-    if (m_colourTouched)
-        t.colour = m_values.colour;
+    if (m_colourTouched) t.colour    = m_values.colour;
+    if (m_familyTouched) t.family    = m_values.family;
+    if (m_sizeTouched)   t.pixelSize = m_values.pixelSize;
+    if (m_boldTouched)   t.bold      = m_values.bold;
+    if (m_alignTouched)  t.align     = m_values.align;
     t.applyTo(target);
 }
 
@@ -133,36 +171,29 @@ void TextEditor::syncFromValues()
 {
     m_populating = true;
     {
-        const QSignalBlocker b1(m_body),  b2(m_family), b3(m_size);
-        const QSignalBlocker b4(m_bold),  b5(m_align);
+        const QSignalBlocker b1(m_body), b2(m_family);
 
         if (m_body->toPlainText() != m_values.body)
             m_body->setPlainText(m_values.body);   // guarded: setPlainText resets the caret
 
-        if (!m_values.family.isEmpty())
+        // A font combo is a list of fonts, so "Mixed" cannot be an entry in it: no current entry, and
+        // the placeholder says which state that is.
+        m_family->setPlaceholderText(tr("Mixed"));
+        if (m_mixedFamily)
+            m_family->setCurrentIndex(-1);
+        else if (!m_values.family.isEmpty())
             m_family->setCurrentFont(QFont(m_values.family));
-        m_size->setValue(m_values.pixelSize);
-        m_bold->setChecked(m_values.bold);
-        const int alignIdx = m_align->findData(m_values.align);
-        if (alignIdx >= 0)
-            m_align->setCurrentIndex(alignIdx);
     }
+    showSpin(m_size, m_mixedSize, m_values.pixelSize, k_textSizeMin, k_textSizeMax);
+    showCheck(m_bold, m_mixedBold, m_values.bold);
+    showCombo(m_align, m_mixedAlign, m_align->findData(m_values.align));
     if (m_mixedColour)
         paintMixedSwatch(m_swatch, palette());
     else
         paintColourSwatch(m_swatch, m_values.colour);
 
-    // Bound to a set, only the colour is shown: it is the role a balloon and a caption share, and a
-    // swatch is the one control that can say *Mixed* today. The typography follows in T7b-2, and the
-    // lettering never does — five balloons do not share one line.
-    if (auto* form = qobject_cast<QFormLayout*>(layout())) {
-        const bool one = m_subjects <= 1;
-        form->setRowVisible(m_family, one);
-        form->setRowVisible(m_size,   one);
-        form->setRowVisible(m_bold,   one);
-        form->setRowVisible(m_align,  one);
-        m_body->setVisible(one && m_bodyVisible);
-    }
+    // The lettering itself is the one thing a set never shares: five balloons do not share one line.
+    m_body->setVisible(m_subjects <= 1 && m_bodyVisible);
     m_populating = false;
 }
 

@@ -1,9 +1,13 @@
 #ifndef STRIPEDIT_PROPERTYGROUPEDITOR_H
 #define STRIPEDIT_PROPERTYGROUPEDITOR_H
 
+#include <QCheckBox>
+#include <QComboBox>
 #include <QIcon>
 #include <QPainter>
 #include <QPalette>
+#include <QSignalBlocker>
+#include <QSpinBox>
 #include <QList>
 #include <QPixmap>
 #include <QPushButton>
@@ -15,6 +19,15 @@ namespace StripEdit {
 
 //! Side of a colour chip, in pixels. Small enough to read as a swatch rather than a picture.
 inline constexpr int k_swatchPx = 16;
+
+inline constexpr int k_styleAmountMin = 0;    //!< Per cent of the style's own strength.
+inline constexpr int k_styleAmountMax = 200;
+
+inline constexpr int k_textSizeMin = 6;      //!< Below this the lettering stops being lettering.
+inline constexpr int k_textSizeMax = 400;
+
+inline constexpr int k_strokeWidthMin = 0;    //!< A balloon with no outline at all is a legitimate look.
+inline constexpr int k_strokeWidthMax = 40;
 
 inline constexpr int k_tailWidthMinPx  = 4;     //!< Narrower than this and a tail stops reading as one.
 inline constexpr int k_tailWidthMaxPx  = 400;
@@ -126,6 +139,59 @@ inline void paintColourSwatch(QPushButton* swatch, const QColor& c)
 
     swatch->setIcon(QIcon(pm));
     swatch->setToolTip(c.name(QColor::HexArgb));
+}
+
+/**
+ * @brief Shows @p value in @p spin, or **Mixed** when the selection disagrees.
+ *
+ * A spin box has no third state, so the value one below its minimum becomes the sentinel and Qt's own
+ * `specialValueText` renders it. Stepping or typing leaves the sentinel behind, which is what tells the
+ * editor the artist has taken a position — see restoreSpin().
+ */
+inline void showSpin(QSpinBox* spin, bool mixed, int value, int min, int max)
+{
+    const QSignalBlocker block(spin);
+    if (mixed) {
+        spin->setRange(min - 1, max);
+        spin->setSpecialValueText(QObject::tr("Mixed"));
+        spin->setValue(min - 1);
+    } else {
+        spin->setSpecialValueText(QString());
+        spin->setRange(min, max);
+        spin->setValue(value);
+    }
+}
+
+//! Takes the Mixed sentinel away once the artist has moved @p spin. Returns false if it was never there.
+inline bool restoreSpin(QSpinBox* spin, int min)
+{
+    if (spin->minimum() == min)
+        return false;
+    const QSignalBlocker block(spin);
+    spin->setSpecialValueText(QString());
+    spin->setRange(min, spin->maximum());
+    return true;
+}
+
+/**
+ * @brief Shows entry @p index in @p combo, or **Mixed** when the selection disagrees.
+ *
+ * No fake entry in the list: an unset combo shows its placeholder, so *Mixed* cannot be picked by
+ * accident and cannot end up written to anything.
+ */
+inline void showCombo(QComboBox* combo, bool mixed, int index)
+{
+    const QSignalBlocker block(combo);
+    combo->setPlaceholderText(QObject::tr("Mixed"));
+    combo->setCurrentIndex(mixed ? -1 : index);
+}
+
+//! Shows @p on in @p box, or **Mixed** as Qt's own partially-checked state.
+inline void showCheck(QCheckBox* box, bool mixed, bool on)
+{
+    const QSignalBlocker block(box);
+    box->setTristate(mixed);
+    box->setCheckState(mixed ? Qt::PartiallyChecked : (on ? Qt::Checked : Qt::Unchecked));
 }
 
 /**

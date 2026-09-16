@@ -186,6 +186,7 @@ void ObjectStatePanel::setArtifacts(const QList<TextArtifact>& objects)
 
     m_populating = true;
     m_groups.skin()->bind(shaped);
+    m_groups.style()->bind(shaped);   // a line style roughens an outline; a caption has none to roughen
     m_groups.text()->bind(all);
     m_populating = false;
 
@@ -199,9 +200,14 @@ void ObjectStatePanel::setArtifacts(const QList<TextArtifact>& objects)
     // The union: a section is here when at least one of them carries that group. Skin needs a silhouette
     // to sit on; the lettering's colour every object has.
     const bool anyShape = !shaped.isEmpty();
+    // Shape and the tails are **absent** for a set on purpose. Giving several objects one shape is a
+    // conversion, which is its own act with its own menu; adding a tail to five balloons is five
+    // objects, not one property.
     for (auto it = m_sections.cbegin(); it != m_sections.cend(); ++it) {
         const auto g = static_cast<PropertyGroup>(it.key());
-        it.value()->setVisible(g == PropertyGroup::Text || (g == PropertyGroup::Skin && anyShape));
+        const bool applies = g == PropertyGroup::Text
+                          || ((g == PropertyGroup::Skin || g == PropertyGroup::Style) && anyShape);
+        it.value()->setVisible(applies);
     }
 }
 
@@ -286,8 +292,10 @@ void ObjectStatePanel::onControlChanged()
     if (!m_subjects.isEmpty()) {
         // A set: every object takes what the artist touched and keeps everything else of its own.
         for (TextArtifact& a : m_subjects) {
-            if (a.shape.kind != TextArtifact::Shape::None)
+            if (a.shape.kind != TextArtifact::Shape::None) {
                 m_groups.skin()->applyEditedTo(a);   // a caption with no balloon has no fill to take
+                m_groups.style()->applyEditedTo(a);
+            }
             m_groups.text()->applyEditedTo(a);
         }
         emit changedMany(m_subjects);

@@ -26,13 +26,15 @@ SkinEditor::SkinEditor(QWidget* parent)
     form->addRow(tr("Colours"), colourRow);
 
     m_strokeWidth = new QSpinBox(this);
-    m_strokeWidth->setRange(0, 40);
+    m_strokeWidth->setRange(k_strokeWidthMin, k_strokeWidthMax);
     m_strokeWidth->setSuffix(tr(" px"));
     form->addRow(tr("Stroke width"), m_strokeWidth);
 
     connect(m_strokeWidth, &QSpinBox::valueChanged, this, [this](int v) {
         if (m_populating)
             return;
+        if (restoreSpin(m_strokeWidth, k_strokeWidthMin))
+            m_mixedWidth = false;   // they have taken a position, so the sentinel goes
         m_values.strokeWidth = v;
         m_widthTouched       = true;
         emit edited();
@@ -62,11 +64,12 @@ void SkinEditor::bind(const Subjects& subjects)
     m_subjects = static_cast<int>(subjects.size());
 
     // What the selection disagrees about is not a value this panel may show.
-    m_mixedFill = m_mixedStroke = false;
+    m_mixedFill = m_mixedStroke = m_mixedWidth = false;
     for (const TextArtifact* a : subjects) {
         const SkinProperties s = SkinProperties::from(*a);
-        m_mixedFill   = m_mixedFill   || s.fill   != m_values.fill;
-        m_mixedStroke = m_mixedStroke || s.stroke != m_values.stroke;
+        m_mixedFill   = m_mixedFill   || s.fill        != m_values.fill;
+        m_mixedStroke = m_mixedStroke || s.stroke      != m_values.stroke;
+        m_mixedWidth  = m_mixedWidth  || s.strokeWidth != m_values.strokeWidth;
     }
     m_fillTouched = m_strokeTouched = m_widthTouched = false;   // binding is not editing
 
@@ -94,10 +97,7 @@ void SkinEditor::applyEditedTo(TextArtifact& target) const
 void SkinEditor::syncFromValues()
 {
     m_populating = true;
-    {
-        const QSignalBlocker block(m_strokeWidth);
-        m_strokeWidth->setValue(m_values.strokeWidth);
-    }
+    showSpin(m_strokeWidth, m_mixedWidth, m_values.strokeWidth, k_strokeWidthMin, k_strokeWidthMax);
     if (m_mixedFill)
         paintMixedSwatch(m_fillSwatch, palette());
     else
@@ -107,10 +107,6 @@ void SkinEditor::syncFromValues()
     else
         paintColourSwatch(m_strokeSwatch, m_values.stroke);
 
-    // One number cannot describe several objects yet — a spin box has no "mixed" to show — so with a set
-    // bound the stroke width is absent rather than showing the first object's.
-    if (auto* form = qobject_cast<QFormLayout*>(layout()))
-        form->setRowVisible(m_strokeWidth, m_subjects <= 1);
     m_populating = false;
 }
 

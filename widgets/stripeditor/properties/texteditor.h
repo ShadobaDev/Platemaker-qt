@@ -65,6 +65,14 @@ private:
 
     // --- bound to a set: only the colour is shown, because only a swatch can say "Mixed" yet ---
     int  m_subjects      = 0;
+    bool m_mixedFamily   = false;
+    bool m_mixedSize     = false;
+    bool m_mixedBold     = false;
+    bool m_mixedAlign    = false;
+    bool m_familyTouched = false;
+    bool m_sizeTouched   = false;
+    bool m_boldTouched   = false;
+    bool m_alignTouched  = false;
     bool m_bodyVisible   = true;   //!< What setContentVisible() was last told; a set hides the box too.
     bool m_mixedColour   = false;
     bool m_colourTouched = false;

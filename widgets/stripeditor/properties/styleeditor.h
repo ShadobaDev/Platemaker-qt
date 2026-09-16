@@ -27,6 +27,7 @@ public:
 
     void bind(const Subjects& subjects) override;
     void applyTo(TextArtifact& target) const override;
+    void applyEditedTo(TextArtifact& target) const override;
 
     [[nodiscard]] const StyleProperties& values() const { return m_values; }
 
@@ -38,6 +39,12 @@ private:
 
     StyleProperties m_values;
     bool m_populating = false;
+
+    // --- bound to a set ---
+    bool m_mixedKind    = false;
+    bool m_mixedAmount  = false;
+    bool m_kindTouched  = false;
+    bool m_amountTouched = false;
 };
 
 }  // namespace StripEdit

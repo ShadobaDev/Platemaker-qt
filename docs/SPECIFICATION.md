@@ -491,9 +491,12 @@ valid baseline for every grade tried on it. Excluded pages are skipped, matching
     page is a row of it, and a tail belongs to one balloon.
   - **③ binds the whole set** through `setArtifacts()`: the sections shown are those at least one
     selected object carries, and a control whose value differs across the selection says **Mixed** rather
-    than showing the first object's. Today that is the two colour groups — fill and outline where there is
-    a silhouette, the lettering's colour everywhere; the rest of the typography is **absent** for a set,
-    because a spin box has no *Mixed* to show and a number would be a claim about objects that disagree.
+    than showing the first object's. Every control kind has a way to say it — a chequered swatch, a spin
+    box using the value below its minimum with Qt's `specialValueText`, a combo with no current entry and
+    a *Mixed* placeholder, and a tri-state check box — so fill, outline, stroke width, line style, its
+    amount, font, size, bold, alignment and the lettering's colour are all editable across a selection.
+  - **Shape, the tails and the lettering are absent for a set**: giving several objects one shape is a
+    conversion, adding a tail to five balloons is five objects, and five balloons do not share one line.
   - **A role is which objects a group is bound to.** The skin editor is bound to the shaped objects only,
     so a caption with no balloon neither votes *Mixed* with a fill it never uses nor receives one.
   - **Writes are property-granular for a set**: `PropertyGroupEditor::applyEditedTo()` writes only what

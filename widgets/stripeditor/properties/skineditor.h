@@ -53,6 +53,7 @@ private:
     int  m_subjects     = 0;       //!< How many objects are bound. Above one, the stroke width is hidden.
     bool m_mixedFill    = false;   //!< The selection disagrees about this colour, so the swatch says so.
     bool m_mixedStroke  = false;
+    bool m_mixedWidth   = false;
     bool m_fillTouched   = false;  //!< The artist picked since bind(), so this colour is theirs to spend.
     bool m_strokeTouched = false;
     bool m_widthTouched  = false;

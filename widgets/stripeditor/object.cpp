@@ -125,6 +125,15 @@ QPainterPath Object::shape() const
 
 bool Object::s_chromeVisible = true;
 
+void Object::moveHandle(int index, const QPointF& local)
+{
+    if (index < 0 || index >= handleCount())
+        return;
+    setHandlePos(index, local);
+    refreshBounds();
+    update();
+}
+
 void Object::setChromeVisible(bool on)
 {
     s_chromeVisible = on;
@@ -257,18 +266,7 @@ void Object::mousePressEvent(QGraphicsSceneMouseEvent* e)
     m_startRect     = QRectF(pos(), boxSize());
     m_startScenePos = e->scenePos();
     m_moved         = false;
-    m_movedSelection = false;
-
-    // Only a move carries the others: resizing one of a selection is that object's own size, and a tail
-    // belongs to the balloon it grows from.
-    m_coMoving.clear();
-    if (m_active == Grip::Body && isSelected() && scene()) {
-        for (QGraphicsItem* gi : scene()->selectedItems()) {
-            auto* obj = dynamic_cast<Object*>(gi);
-            if (obj && obj != this && !obj->isOrphaned())
-                m_coMoving.append({obj, obj->pos()});
-        }
-    }
+    m_dragReported  = false;
     e->accept();
     emit pressed(m_uid, m_active == Grip::Handle ? m_activeHandle : -1);
 }
@@ -285,12 +283,8 @@ void Object::mouseMoveEvent(QGraphicsSceneMouseEvent* e)
 
     if (m_active == Grip::Body) {
         setPos(m_startRect.topLeft() + delta);
-        for (const auto& [other, start] : std::as_const(m_coMoving)) {
-            if (other) {
-                other->setPos(start + delta);
-                m_movedSelection = true;
-            }
-        }
+        m_dragReported = true;
+        emit dragging(m_uid, delta, -1);   // the owner decides whether anything travels with it
         return;
     }
 
@@ -300,6 +294,8 @@ void Object::mouseMoveEvent(QGraphicsSceneMouseEvent* e)
         setHandlePos(m_activeHandle, e->pos());
         refreshBounds();
         update();
+        m_dragReported = true;
+        emit dragging(m_uid, delta, m_activeHandle);
         return;
     }
 
@@ -340,7 +336,7 @@ void Object::mouseReleaseEvent(QGraphicsSceneMouseEvent* e)
     const bool report = m_moved && m_active != Grip::None;
     m_active = Grip::None;
     m_moved  = false;
-    m_coMoving.clear();   // the flag outlives it: the owner asks after the release
+
     QGraphicsObject::mouseReleaseEvent(e);
 
     // Only a settled drag is persisted: the owner turns each report into one undo step, and reporting

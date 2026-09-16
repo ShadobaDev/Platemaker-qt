@@ -510,6 +510,11 @@ valid baseline for every grade tried on it. Excluded pages are skipped, matching
     same reason ③ shows nothing: they act on one object and say so.
   - A feed re-applies the set and drops whatever no longer exists, so an undo that removed two of five
     leaves three selected rather than clearing the lot.
+  - **A selection may hold objects and tails at once**, because *position* is the role they share: a tail
+    of one balloon and the body of another are dragged as one thing. Ctrl gathers them — on a tail's row in
+    the tree, or on its handle on the strip — and the balloon a selected tail belongs to is selected with
+    it, because its handles only exist while it is. ③ then shows **no** property sections: what such a
+    selection has in common is where it sits, and that is edited by dragging rather than in a panel.
   - **Dragging one of a selection moves all of it** — *position* is the one property every object has.
     Each co-mover is placed at the position it held when the drag began plus the drag's delta, so a fast
     drag cannot make the formation drift; the whole move is **one** history step (*Move N objects*), and

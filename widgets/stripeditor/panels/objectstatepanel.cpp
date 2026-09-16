@@ -156,12 +156,32 @@ void ObjectStatePanel::setArtifact(const TextArtifact& a)
 
     m_subject->setText(m_artifact.shape.kind == TextArtifact::Shape::None ? tr("Text") : tr("Bubble"));
     m_subject->setVisible(true);
-    m_emptyHint->setVisible(false);
     m_emptyHint->setText(m_emptyText);
+    m_emptyHint->setVisible(false);
     m_actions->setVisible(true);
     m_fitButton->setVisible(true);
     m_deleteButton->setText(tr("Delete"));
     applyKindVisibility();
+}
+
+void ObjectStatePanel::setMixedSubjects(int count)
+{
+    m_subjects.clear();
+    m_hasArtifact    = false;
+    m_selectionCount = count;
+    m_tailIndex      = -1;
+    m_commitTimer->stop();
+
+    m_subject->setText(tr("%n objects", "", count));
+    m_subject->setVisible(true);
+    m_emptyHint->setText(tr("A balloon and a tail have only their position in common — drag to move them "
+                            "together."));
+    m_emptyHint->setVisible(true);
+    m_actions->setVisible(true);
+    m_fitButton->setVisible(false);
+    m_deleteButton->setText(tr("Delete"));
+    for (auto it = m_sections.cbegin(); it != m_sections.cend(); ++it)
+        it.value()->setVisible(false);
 }
 
 void ObjectStatePanel::setArtifacts(const QList<TextArtifact>& objects)

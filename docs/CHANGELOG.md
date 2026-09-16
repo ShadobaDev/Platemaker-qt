@@ -60,7 +60,9 @@
     undoable step, and the actions that only make sense for a single object are greyed until you pick
     one.
   - **Drag one of several selected objects and they all move**, keeping their formation, re-anchoring to
-    whatever page each lands on, and undoing in one step.
+    whatever page each lands on, and undoing in one step. **Tails count as objects here**: Ctrl-click a
+    tail — its row in the list, or its handle on the strip — together with a balloon, and one drag moves
+    the balloon and re-aims the tail at once. Delete takes both.
   - **The pointer now says what the tool will do** and stays saying it: a hand over the strip under
     Pan, a move cross over an object, resize arrows on a corner, a crosshair under the drawing tools.
     It used to flip between an arrow and a hand depending on whether you had panned yet.

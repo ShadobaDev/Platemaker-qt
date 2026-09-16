@@ -19,6 +19,7 @@
 #include <QFileDialog>
 #include <QGraphicsRectItem>
 #include <QGraphicsScene>
+#include <QGuiApplication>
 #include <QGraphicsView>
 #include <QKeySequence>
 #include <QTreeWidget>
@@ -167,19 +168,20 @@ ObjectController::ObjectController(QGraphicsScene* scene, QGraphicsView* view, Q
             selectOverlay(QString());
             return;
         }
-        // A strip, a page or a tail is one of a kind: picking one collapses whatever set was there.
-        // Only overlays gather.
-        QStringList overlays;
+        // The strip and a page are one of a kind: picking one collapses whatever set was there. Objects
+        // and tails gather together — they share a position, which is what a drag acts on.
+        QStringList    overlays;
+        QList<TailRef> tails;
         for (const QTreeWidgetItem* row : sel) {
             const QString id = row->data(0, Qt::UserRole).toString();
             switch (static_cast<Subject>(row->data(0, k_kindRole).toInt())) {
             case Subject::Strip: selectStrip();  return;
             case Subject::Page:  selectPage(id); return;
-            case Subject::Tail:  selectTail(id, row->data(0, k_tailRole).toInt()); return;
+            case Subject::Tail:  tails.append(TailRef{id, row->data(0, k_tailRole).toInt()}); break;
             default:             overlays.append(id); break;
             }
         }
-        selectOverlays(overlays);
+        selectSubjects(overlays, tails);
     });
     // Both list handlers are deferred to the next event-loop turn on purpose. Persisting an edit
     // round-trips through the owner and comes back as a re-feed that clears and refills this list —
@@ -268,7 +270,7 @@ void ObjectController::reselect()
         return;
     }
     if (!m_selectedOverlays.isEmpty())
-        selectOverlays(m_selectedOverlays);   // the set, not just its primary; gone uids drop out
+        selectSubjects(m_selectedOverlays, m_selectedTails);   // both kinds; whatever is gone drops out
 }
 
 void ObjectController::selectStrip()
@@ -283,38 +285,14 @@ void ObjectController::selectPage(const QString& inputUid)
 
 void ObjectController::selectTail(const QString& uid, int index)
 {
-    auto*     bubble = qobject_cast<BubbleObject*>(m_overlayItems.value(uid));
-    const int count  = bubble ? static_cast<int>(bubble->artifact().tails.items.size()) : 0;
-    if (!bubble || index < 0 || index >= count) {
+    const auto* bubble = qobject_cast<BubbleObject*>(m_overlayItems.value(uid));
+    if (!bubble || index < 0 || index >= bubble->artifact().tails.items.size()) {
         selectOverlay(uid);   // nothing at that position: the bubble is what is left to hold
         return;
     }
-
-    // The bubble first — its scene selection and its panel — and then narrowed to one of its tails. The
-    // bubble stays selected on the strip because its handles only exist while it is, and a tail is aimed
-    // by its handle.
-    selectOverlay(uid);
-    m_subject           = Subject::Tail;
-    m_selectedTail      = index;
-    m_selectedTailCount = count;
-    bubble->setFocusedHandle(index);
-
-    m_syncingList = true;
-    m_list->clearSelection();
-    if (QTreeWidgetItem* row = tailRow(uid, index))
-        row->setSelected(true);
-    m_syncingList = false;
-
-    // A tail can be deleted. Duplicating, restyling and re-anchoring are things a balloon does.
-    if (m_actDuplicate) m_actDuplicate->setEnabled(false);
-    if (m_actDelete)    m_actDelete->setEnabled(true);
-    if (m_presetMenu)   m_presetMenu->menuAction()->setEnabled(false);
-    if (m_reanchorMenu) m_reanchorMenu->menuAction()->setEnabled(false);
-
-    if (m_objectState)
-        m_objectState->setTail(bubble->artifact(), index);
-    emit subjectChanged(m_subject, uid);
+    selectSubjects({uid}, {TailRef{uid, index}});
 }
+
 
 QTreeWidgetItem* ObjectController::tailRow(const QString& uid, int index) const
 {
@@ -329,14 +307,84 @@ QTreeWidgetItem* ObjectController::tailRow(const QString& uid, int index) const
 
 void ObjectController::onObjectPressed(const QString& uid, int handle)
 {
+    const bool add = QGuiApplication::keyboardModifiers() & Qt::ControlModifier;
+
     if (handle >= 0) {
-        selectTail(uid, handle);
+        if (add) {
+            // Ctrl gathers, here as everywhere else. The scene has already toggled the balloon's own
+            // selection by the time this arrives; re-stating the whole selection puts that right.
+            QList<TailRef> tails = m_selectedTails;
+            const TailRef  t{uid, handle};
+            if (tails.contains(t))
+                tails.removeAll(t);
+            else
+                tails.append(t);
+            QStringList objects = m_selectedOverlays;
+            objects.removeAll(uid);   // the balloon comes back as the tail's carrier, not as a subject
+            selectSubjects(objects, tails);
+        } else {
+            selectTail(uid, handle);
+        }
+        beginDrag(uid, handle);
         return;
     }
     // A press on the balloon itself while one of its tails is selected is a press on the balloon: the
     // scene reports no change, because the balloon was selected all along.
-    if (m_subject == Subject::Tail && uid == m_selectedOverlay)
+    if (m_subject == Subject::Tail && uid == m_selectedOverlay && !add)
         selectOverlay(uid);
+    beginDrag(uid, handle);
+}
+
+void ObjectController::beginDrag(const QString& uid, int handle)
+{
+    // Is this drag the selection's, or this object's alone? Grabbing a body carries the selection when
+    // that body is in it; grabbing a tail carries it when *that tail* is — a balloon being selected does
+    // not make aiming one of its tails a group gesture.
+    const int subjects = static_cast<int>(m_selectedOverlays.size() + m_selectedTails.size());
+    m_dragIsGroup = subjects > 1
+                 && (handle >= 0 ? m_selectedTails.contains(TailRef{uid, handle})
+                                 : m_selectedOverlays.contains(uid));
+
+    m_dragStartPos.clear();
+    m_dragStartTips.clear();
+    if (!m_dragIsGroup)
+        return;
+
+    // Everything is placed from *its own* start plus the drag's delta, never nudged per mouse-move, so a
+    // fast drag cannot make the formation drift apart.
+    for (const QString& u : std::as_const(m_selectedOverlays)) {
+        if (Object* item = m_overlayItems.value(u))
+            m_dragStartPos.insert(u, item->pos());
+    }
+    for (const TailRef& t : std::as_const(m_selectedTails)) {
+        if (Object* item = m_overlayItems.value(t.uid))
+            m_dragStartTips.append({t, item->handleAt(t.index)});
+    }
+}
+
+void ObjectController::onObjectDragged(const QString& uid, const QPointF& delta, int handle)
+{
+    if (!m_dragIsGroup)
+        return;   // one object moving itself, which it has already done
+
+    for (auto it = m_dragStartPos.cbegin(); it != m_dragStartPos.cend(); ++it) {
+        if (it.key() == uid)
+            continue;   // the one under the mouse placed itself
+        if (Object* item = m_overlayItems.value(it.key()))
+            item->setPos(it.value() + delta);
+    }
+
+    for (const auto& [tail, start] : std::as_const(m_dragStartTips)) {
+        if (tail.uid == uid && tail.index == handle)
+            continue;   // likewise the tail being aimed
+        Object* item = m_overlayItems.value(tail.uid);
+        if (!item)
+            continue;
+        // A tip lives in the balloon's own units, and the item may be drawn at a scale, so the scene
+        // delta has to be divided back out before it means anything to a tail.
+        const qreal k = item->scale() > 0.0 ? item->scale() : 1.0;
+        item->moveHandle(tail.index, start + delta / k);
+    }
 }
 
 void ObjectController::selectSubject(Subject subject, const QString& pageUid)
@@ -437,7 +485,7 @@ void ObjectController::setSource(const std::vector<Platemaker::Models::StripOver
     for (const QString& uid : std::as_const(m_selectedOverlays))
         gone = gone || !m_overlayItems.contains(uid);
     if (gone) {
-        selectOverlays(m_selectedOverlays);
+        selectSubjects(m_selectedOverlays, m_selectedTails);
         if (m_selectedOverlays.isEmpty())
             return;
     }
@@ -527,6 +575,7 @@ void ObjectController::syncItems()
                 : static_cast<Object*>(new AssetObject(uid, renderAssetFile(QString::fromStdString(o.assetPath))));
             connect(item, &Object::geometryEdited, this, &ObjectController::onOverlayGeometryEdited);
             connect(item, &Object::pressed,        this, &ObjectController::onObjectPressed);
+            connect(item, &Object::dragging,       this, &ObjectController::onObjectDragged);
             m_scene->addItem(item);
             m_overlayItems.insert(uid, item);
         }
@@ -598,30 +647,41 @@ void ObjectController::onOverlayGeometryEdited(const QString& uid)
     if (!item)
         return;
 
-    // A move carries the whole selection (position is the one role every object has), so the record of
+    // A drag carries the whole selection (position is the one role everything has), so the record of
     // every object that travelled is rewritten — and the lot becomes **one** history step, because one
-    // drag is one thing the artist did.
-    const bool group = item->movedWholeSelection() && m_selectedOverlays.contains(uid);
+    // drag is one thing the artist did. A tail that travelled changes its balloon's extent, so its
+    // balloon's placement is rewritten too, and its artifact re-read below.
+    const bool        group = m_dragIsGroup && item->reportedDrag();
     const QStringList moved = group ? m_selectedOverlays : QStringList{uid};
     for (const QString& u : moved)
         writePlacement(u);
+    if (group) {
+        for (const TailRef& t : std::as_const(m_selectedTails)) {
+            if (auto* bubble = qobject_cast<BubbleObject*>(m_overlayItems.value(t.uid)))
+                m_artifacts.insert(t.uid, bubble->artifact());
+        }
+    }
+    const int travelled = group ? selectedSubjectCount() : 1;
+    m_dragIsGroup = false;
 
     // A resize or tail drag changed the artifact too — and only a bubble has one. This used to test
     // the model for an authoring record and was written wrong once, storing a *default* bubble over
     // imported artwork; asking the object what it is cannot go wrong the same way.
     if (auto* bubble = qobject_cast<BubbleObject*>(item)) {
         m_artifacts.insert(uid, bubble->artifact());
-        if (uid == m_selectedOverlay && m_objectState) {
+        // Only when the panel is about this one object. A set of several — or one of two kinds — is
+        // already showing what it should, and rebinding it to the thing that happened to move would be
+        // the panel changing subject on its own.
+        if (uid == m_selectedOverlay && m_objectState && m_selectedOverlays.size() == 1) {
             // A tail's drag leaves that tail selected, so the panel shows the tail again, not the balloon.
             if (m_subject == Subject::Tail)
                 m_objectState->setTail(bubble->artifact(), m_selectedTail);
-            else
+            else if (m_selectedTails.isEmpty())
                 m_objectState->setArtifact(bubble->artifact());
         }
     }
     refreshList();
-    pushOverlays(group ? tr("Move %n objects", "", static_cast<int>(moved.size()))
-                       : tr("Move bubble"));
+    pushOverlays(group ? tr("Move %n objects", "", travelled) : tr("Move bubble"));
 }
 
 void ObjectController::refreshList()
@@ -716,7 +776,7 @@ void ObjectController::refreshList()
             tailItem->setData(0, Qt::UserRole, uid);
             tailItem->setData(0, k_tailRole, t);
             tailItem->setText(0, tr("Tail %1").arg(t + 1));
-            tailItem->setSelected(m_subject == Subject::Tail && uid == m_selectedOverlay && t == m_selectedTail);
+            tailItem->setSelected(m_selectedTails.contains(TailRef{uid, t}));
         }
     }
 
@@ -786,46 +846,101 @@ void ObjectController::selectOverlay(const QString& uid)
 
 void ObjectController::selectOverlays(const QStringList& uids)
 {
+    selectSubjects(uids, {});
+}
+
+int ObjectController::selectedSubjectCount() const
+{
+    return static_cast<int>(m_selectedOverlays.size() - m_carriers.size() + m_selectedTails.size());
+}
+
+void ObjectController::selectSubjects(const QStringList& uids, const QList<TailRef>& tails)
+{
     QStringList picked;
     for (const QString& uid : uids) {
         if (m_overlayItems.contains(uid) && !picked.contains(uid))
             picked.append(uid);
     }
 
+    // A tail outlives neither its balloon nor a change in how many tails that balloon has.
+    QList<TailRef> pickedTails;
+    QStringList    carriers;
+    for (const TailRef& t : tails) {
+        const auto* bubble = qobject_cast<BubbleObject*>(m_overlayItems.value(t.uid));
+        if (bubble && t.index >= 0 && t.index < bubble->artifact().tails.items.size()
+            && !pickedTails.contains(t)) {
+            pickedTails.append(t);
+            if (!picked.contains(t.uid)) {
+                // Its balloon carries the handles a tail is aimed by, so it has to be selected on the
+                // canvas — but it is not a subject. Nobody picked it, so it is not counted, not deleted,
+                // and its own row stays unhighlighted.
+                picked.append(t.uid);
+                carriers.append(t.uid);
+            }
+        }
+    }
+
     m_selectedOverlays = picked;
+    m_selectedTails    = pickedTails;
+    m_carriers         = carriers;
     m_selectedOverlay  = picked.isEmpty() ? QString() : picked.last();
-    m_subject          = picked.isEmpty() ? Subject::None : Subject::Overlay;
     m_selectedPage.clear();
-    m_selectedTail = -1;
+
+    // One tail, on its own balloon, is the subject T5c built: the handle drawn hollow and ③ showing that
+    // tail. Anything else with a tail in it is a set whose only common property is where it sits.
+    const bool singleTail = pickedTails.size() == 1 && picked.size() == 1
+                         && picked.first() == pickedTails.first().uid;
+    const auto* primary = qobject_cast<BubbleObject*>(m_overlayItems.value(m_selectedOverlay));
+    m_selectedTail      = singleTail ? pickedTails.first().index : -1;
+    m_selectedTailCount = primary ? static_cast<int>(primary->artifact().tails.items.size()) : 0;
+    m_subject           = picked.isEmpty() ? Subject::None
+                        : singleTail       ? Subject::Tail
+                                           : Subject::Overlay;
 
     m_syncingList = true;
     for (auto it = m_overlayItems.begin(); it != m_overlayItems.end(); ++it) {
         it.value()->setSelected(picked.contains(it.key()));
         it.value()->setFocusedHandle(-1);
     }
+    // ponytail: one focused handle per balloon. Select two tails of the same balloon and only the last
+    // is drawn hollow; both still move. Per-handle marking would need the chrome to carry a set.
+    for (const TailRef& t : pickedTails) {
+        if (Object* item = m_overlayItems.value(t.uid))
+            item->setFocusedHandle(t.index);
+    }
+
     m_list->clearSelection();
     for (int r = 0; r < m_list->topLevelItemCount(); ++r) {
         QTreeWidgetItem* row = m_list->topLevelItem(r);
-        if (row->data(0, k_kindRole).toInt() == static_cast<int>(Subject::Overlay)
-            && picked.contains(row->data(0, Qt::UserRole).toString()))
-            row->setSelected(true);
+        if (row->data(0, k_kindRole).toInt() != static_cast<int>(Subject::Overlay))
+            continue;
+        const QString uid = row->data(0, Qt::UserRole).toString();
+        // A tail's row stands for the tail; its balloon's row is only selected when the balloon itself is.
+        row->setSelected(picked.contains(uid) && !carriers.contains(uid));
+        for (int c = 0; c < row->childCount(); ++c)
+            row->child(c)->setSelected(pickedTails.contains(TailRef{uid, c}));
     }
     m_syncingList = false;
 
-    // An action that acts on one object stays disabled while several are selected rather than quietly
-    // acting on the primary: a control that does something other than what the panel names is a lie.
-    const bool one = picked.size() == 1;
-    if (m_actDuplicate) m_actDuplicate->setEnabled(one);
+    // An action that acts on one object stays disabled while several things are selected rather than
+    // quietly acting on the primary: a control that does something other than what the panel names is a
+    // lie. A tail can only be deleted.
+    const bool oneObject = picked.size() == 1 && pickedTails.isEmpty();
+    if (m_actDuplicate) m_actDuplicate->setEnabled(oneObject);
     if (m_actDelete)    m_actDelete->setEnabled(!picked.isEmpty());
-    if (m_presetMenu)   m_presetMenu->menuAction()->setEnabled(one);
-    if (m_reanchorMenu) m_reanchorMenu->menuAction()->setEnabled(one);
+    if (m_presetMenu)   m_presetMenu->menuAction()->setEnabled(oneObject);
+    if (m_reanchorMenu) m_reanchorMenu->menuAction()->setEnabled(oneObject);
 
     if (m_objectState) {
-        if (picked.isEmpty())
+        if (picked.isEmpty()) {
             m_objectState->clearSelection();
-        else if (one)
+        } else if (singleTail) {
+            m_objectState->setTail(primary->artifact(), m_selectedTail);
+        } else if (!pickedTails.isEmpty()) {
+            m_objectState->setMixedSubjects(selectedSubjectCount());
+        } else if (oneObject) {
             m_objectState->setArtifact(m_artifacts.value(m_selectedOverlay));
-        else {
+        } else {
             QList<TextArtifact> subjects;
             subjects.reserve(picked.size());
             for (const QString& uid : picked)
@@ -835,6 +950,7 @@ void ObjectController::selectOverlays(const QStringList& uids)
     }
     emit subjectChanged(m_subject, m_selectedOverlay);
 }
+
 
 
 
@@ -1103,6 +1219,52 @@ void ObjectController::deleteSelectedOverlay()
     }
     if (m_selectedOverlays.isEmpty())
         return;
+
+    // A selection of two kinds is deleted as one: the objects go, and the tails of the balloons that
+    // stay go with them. Highest index first, or removing tail 1 would renumber tail 2 under our feet.
+    if (!m_selectedTails.isEmpty()) {
+        QStringList doomedObjects = m_selectedOverlays;
+        for (const QString& carrier : std::as_const(m_carriers))
+            doomedObjects.removeAll(carrier);   // it only lent a tail; nobody asked for the balloon
+
+        // A balloon the artist *did* pick goes whole, so its own selected tails need no separate removal.
+        QHash<QString, QList<int>> byBubble;
+        for (const TailRef& t : std::as_const(m_selectedTails)) {
+            if (!doomedObjects.contains(t.uid))
+                byBubble[t.uid].append(t.index);
+        }
+        const int subjects = selectedSubjectCount();
+
+        for (auto it = byBubble.begin(); it != byBubble.end(); ++it) {
+            auto* bubble = qobject_cast<BubbleObject*>(m_overlayItems.value(it.key()));
+            if (!bubble)
+                continue;
+            TextArtifact a = bubble->artifact();
+            QList<int>   indexes = it.value();
+            std::sort(indexes.begin(), indexes.end(), std::greater<int>());
+            for (int i : std::as_const(indexes)) {
+                if (i >= 0 && i < a.tails.items.size())
+                    a.tails.items.removeAt(i);
+            }
+            bubble->setArtifact(a);
+            m_artifacts.insert(it.key(), a);
+            writePlacement(it.key());
+        }
+
+        m_overlays.erase(std::remove_if(m_overlays.begin(), m_overlays.end(),
+                                        [&](const Platemaker::Models::StripOverlay& o) {
+                                            return doomedObjects.contains(QString::fromStdString(o.uid));
+                                        }),
+                         m_overlays.end());
+        for (const QString& uid : std::as_const(doomedObjects))
+            m_artifacts.remove(uid);
+
+        selectOverlay(QString());
+        syncItems();
+        refreshList();
+        pushOverlays(tr("Delete %n objects", "", subjects));
+        return;
+    }
 
     // One history step for the gesture, not one per object: the artist deleted a selection, and that is
     // what they will expect one Ctrl+Z to bring back.

@@ -66,6 +66,14 @@ public:
      */
     enum class Subject { None, Overlay, Strip, Page, Tail };
 
+    //! One tail, as a selection holds it: which balloon, and which of its tails.
+    struct TailRef
+    {
+        QString uid;
+        int     index = 0;
+        [[nodiscard]] bool operator==(const TailRef& o) const { return uid == o.uid && index == o.index; }
+    };
+
     /**
      * @brief Wires itself to the collaborators it drives; it owns none of them.
      *
@@ -179,6 +187,10 @@ private:
     //! Writes where object @p uid now stands back into its record — placement, width and anchor page.
     void writePlacement(const QString& uid);
     void onObjectPressed(const QString& uid, int handle); //!< A press on a tail's handle selects that tail.
+    //! An object reports a live drag; the selection decides what else travels with it.
+    void onObjectDragged(const QString& uid, const QPointF& delta, int handle);
+    //! Records where everything selected stands, so a group drag can place each from its own start.
+    void beginDrag(const QString& uid, int handle);
     /**
      * @brief How much bigger than its own artwork an overlay is drawn.
      *
@@ -199,6 +211,24 @@ private:
      * was a set still reads selectedOverlay(), which is now that primary.
      */
     void selectOverlays(const QStringList& uids);
+
+    /**
+     * @brief Selects @p uids and @p tails together — the general form, of which everything else is a case.
+     *
+     * A selection may hold objects and tails at once, because *position* is the role they share: a tail of
+     * one balloon and the body of another can be dragged as one thing. What they do **not** share is
+     * anything ③ could edit, so a mixed selection shows no property sections at all.
+     *
+     * One tail on its own stays the subject it was in T5c: its balloon selected on the canvas so the
+     * handles exist, the handle drawn hollow, and ③ showing that tail.
+     */
+    void selectSubjects(const QStringList& uids, const QList<TailRef>& tails);
+
+    //! The tails in the selection, in the order they were picked.
+    [[nodiscard]] const QList<TailRef>& selectedTails() const { return m_selectedTails; }
+
+    //! How many things the artist actually picked — a balloon carrying someone's selected tail is not one.
+    [[nodiscard]] int selectedSubjectCount() const;
     //! Selects the strip or a page: every overlay deselected, that one row selected, the subject reported.
     void selectSubject(Subject subject, const QString& pageUid);
     //! The tree row of the selected strip or page, or nullptr.
@@ -256,6 +286,16 @@ private:
     QHash<QString, QImage>                        m_sharpCache;
     QString            m_selectedOverlay;                   //!< The primary: last of m_selectedOverlays.
     QStringList        m_selectedOverlays;                  //!< Everything selected, in pick order.
+    QList<TailRef>     m_selectedTails;                     //!< Tails in the selection, in pick order.
+    //! Uids in m_selectedOverlays that are there only to **carry** a selected tail — its handles exist
+    //! only while its balloon is selected. They are not subjects: they are not counted, not deleted, and
+    //! their row in the tree is not highlighted.
+    QStringList        m_carriers;
+
+    // --- a drag in flight: where everything stood when it started ---
+    QHash<QString, QPointF>         m_dragStartPos;   //!< Object uid → its position at the press.
+    QList<QPair<TailRef, QPointF>>  m_dragStartTips;  //!< Tail → its tip, in its balloon's own units.
+    bool                            m_dragIsGroup = false;
     Subject            m_subject = Subject::None;           //!< What the selection is.
     QString            m_selectedPage;                      //!< Input uid of the selected page, when a page is.
     int                m_selectedTail      = -1;            //!< Index of the selected tail, when a tail is.

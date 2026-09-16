@@ -2,7 +2,6 @@
 #define STRIPEDIT_OBJECT_H
 
 #include <QGraphicsObject>
-#include <QPointer>
 #include <QPainterPath>
 #include <QPointF>
 #include <QRectF>
@@ -59,11 +58,18 @@ public:
     void setOrphaned(bool orphaned);
     [[nodiscard]] bool isOrphaned() const { return m_orphaned; }
 
+    //! Whether the drag that just ended was reported through dragging() — so others may have travelled.
+    [[nodiscard]] bool reportedDrag() const { return m_dragReported; }
+
+    //! Places handle @p index at @p local and rebuilds — how an owner moves a tail that is not the one
+    //! under the mouse. The object itself uses the same path when its own handle is dragged.
+    void moveHandle(int index, const QPointF& local);
+
+    //! Where handle @p index sits, in this object's own units. Public for the same reason as moveHandle().
+    [[nodiscard]] QPointF handleAt(int index) const { return handlePos(index); }
+
     //! Marks handle @p index as its tail's — the one selected — or none with -1. Drawn hollow.
     void setFocusedHandle(int index);
-
-    //! Whether the drag that just ended carried the rest of the selection along.
-    [[nodiscard]] bool movedWholeSelection() const { return m_movedSelection; }
 
     //! What sits under @p scenePos: a corner grip, a tail handle, the body, or nothing of this object.
     //! Public because the cursor is decided in one place now, and that place is not this class.
@@ -130,6 +136,18 @@ signals:
      */
     void pressed(const QString& uid, int handle);
 
+    /**
+     * @brief This object is being dragged — @p delta from where the press landed, in scene units.
+     *
+     * Emitted per mouse-move while a drag is live, *after* this object has placed itself. @p handle is
+     * the tail being aimed, or -1 for a move of the body.
+     *
+     * The object moves itself and nothing else: **who else travels is the selection's business**, and the
+     * selection belongs to the controller. An object that reached for its neighbours would need to know
+     * what is selected, and a tail of some *other* balloon is not something it could reach at all.
+     */
+    void dragging(const QString& uid, const QPointF& delta, int handle);
+
 protected:
 
     //! Draws the object itself, in item coordinates. Chrome and blending are the base class's job.
@@ -188,15 +206,7 @@ private:
     bool    m_orphaned = false;
     int     m_focusedHandle = -1;    //!< The selected tail's handle, drawn hollow; -1 for none.
 
-    /**
-     * @brief The other selected objects and where each stood when this drag began.
-     *
-     * *Position* is the one property every object has, so moving one of a selection moves all of them.
-     * Each is placed from **its own** start plus the drag's delta rather than being nudged per mouse-move,
-     * so a fast drag cannot accumulate rounding error and the formation cannot drift apart.
-     */
-    QList<QPair<QPointer<Object>, QPointF>> m_coMoving;
-    bool m_movedSelection = false;
+    bool m_dragReported = false;   //!< A drag was live, so the owner may have moved others along.
 
     static bool s_chromeVisible;     //!< Off while something samples what is drawn. See setChromeVisible().
 };

@@ -70,6 +70,16 @@ public:
      */
     void setArtifacts(const QList<TextArtifact>& objects);
 
+    /**
+     * @brief Names a selection of @p count things of **different kinds** — objects and tails together.
+     *
+     * The union of their roles is *position*, and position is not edited here: it is edited by dragging.
+     * So the panel says how many things are selected and offers nothing else, which §6.4 calls a
+     * legitimate state — "these things have nothing in common but where they are". Delete still acts on
+     * all of them.
+     */
+    void setMixedSubjects(int count);
+
 
     //! Nothing is selected: the sections go away and the panel says why.
     void clearSelection();

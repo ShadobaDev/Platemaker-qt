@@ -64,7 +64,8 @@ ObjectStatePanel::ObjectStatePanel(QWidget* parent)
     m_subject->setFont(subjectFont);
     lay->addWidget(m_subject);
 
-    m_emptyHint = new QLabel(tr("Select an object on the strip to edit it."), this);
+    m_emptyText = tr("Select an object on the strip to edit it.");
+    m_emptyHint = new QLabel(m_emptyText, this);
     m_emptyHint->setWordWrap(true);
     m_emptyHint->setAlignment(Qt::AlignCenter);
     m_emptyHint->setEnabled(false);      // reads as inactive without a hardcoded colour
@@ -109,7 +110,7 @@ ObjectStatePanel::ObjectStatePanel(QWidget* parent)
     m_commitTimer->setSingleShot(true);
     m_commitTimer->setInterval(k_commitDebounceMs);
     connect(m_commitTimer, &QTimer::timeout, this, [this] {
-        if (m_hasSelection)
+        if (m_hasArtifact)
             emit committed(m_artifact);
     });
 
@@ -118,7 +119,7 @@ ObjectStatePanel::ObjectStatePanel(QWidget* parent)
     for (PropertyGroupEditor* e : editors) {
         connect(e, &PropertyGroupEditor::edited,    this, [this] { onControlChanged(); });
         connect(e, &PropertyGroupEditor::committed, this, [this] {
-            if (m_hasSelection)
+            if (m_hasArtifact)
                 emit committed(m_artifact);
         });
     }
@@ -128,17 +129,20 @@ ObjectStatePanel::ObjectStatePanel(QWidget* parent)
         m_tailList->shapeChanged(m_groups.shape()->values().kind);
     });
 
-    connect(fitBtn, &QPushButton::clicked, this, [this] { if (m_hasSelection) emit fitRequested(); });
-    connect(delBtn, &QPushButton::clicked, this, [this] { if (m_hasSelection) emit deleteRequested(); });
+    connect(fitBtn, &QPushButton::clicked, this, [this] { if (m_hasArtifact) emit fitRequested(); });
+    // Delete asks how *many* are selected, not whether one artifact is bound: with several selected there
+    // is nothing to bind and still everything to remove.
+    connect(delBtn, &QPushButton::clicked, this, [this] { if (m_selectionCount > 0) emit deleteRequested(); });
 
     clearSelection();
 }
 
 void ObjectStatePanel::setArtifact(const TextArtifact& a)
 {
-    m_artifact     = a;
-    m_tailIndex    = -1;
-    m_hasSelection = true;
+    m_artifact      = a;
+    m_tailIndex     = -1;
+    m_hasArtifact   = true;
+    m_selectionCount = 1;
 
     m_populating = true;
     m_groups.bind(m_artifact);
@@ -148,17 +152,37 @@ void ObjectStatePanel::setArtifact(const TextArtifact& a)
     m_subject->setText(m_artifact.shape.kind == TextArtifact::Shape::None ? tr("Text") : tr("Bubble"));
     m_subject->setVisible(true);
     m_emptyHint->setVisible(false);
+    m_emptyHint->setText(m_emptyText);
     m_actions->setVisible(true);
     m_fitButton->setVisible(true);
     m_deleteButton->setText(tr("Delete"));
     applyKindVisibility();
 }
 
+void ObjectStatePanel::setMultiSelection(int count)
+{
+    m_hasArtifact    = false;   // no single artifact to edit, so nothing may be emitted about one
+    m_selectionCount = count;   // ...but there is plenty to delete
+    m_tailIndex      = -1;
+    m_commitTimer->stop();
+
+    m_subject->setText(tr("%n objects", "", count));
+    m_subject->setVisible(true);
+    m_emptyHint->setText(tr("Delete removes all of them. Editing several at once is not here yet."));
+    m_emptyHint->setVisible(true);
+    m_actions->setVisible(true);
+    m_fitButton->setVisible(false);
+    m_deleteButton->setText(tr("Delete"));
+    for (auto it = m_sections.cbegin(); it != m_sections.cend(); ++it)
+        it.value()->setVisible(false);
+}
+
 void ObjectStatePanel::setTail(const TextArtifact& a, int index)
 {
-    m_artifact     = a;
-    m_tailIndex    = index;
-    m_hasSelection = true;
+    m_artifact      = a;
+    m_tailIndex     = index;
+    m_hasArtifact   = true;
+    m_selectionCount = 1;
 
     m_populating = true;
     m_tail->setIndex(index);
@@ -176,8 +200,9 @@ void ObjectStatePanel::setTail(const TextArtifact& a, int index)
 
 void ObjectStatePanel::clearSelection()
 {
-    m_hasSelection = false;
-    m_tailIndex    = -1;
+    m_hasArtifact    = false;
+    m_selectionCount = 0;
+    m_tailIndex      = -1;
     m_commitTimer->stop();
 
     // Gone, not greyed. There is no object, so there are no properties — and a greyed control would
@@ -239,7 +264,7 @@ void ObjectStatePanel::onControlChanged()
         m_subject->setText(m_artifact.shape.kind == TextArtifact::Shape::None ? tr("Text") : tr("Bubble"));
     }
 
-    if (!m_hasSelection)
+    if (!m_hasArtifact)
         return;
 
     emit changed(m_artifact);

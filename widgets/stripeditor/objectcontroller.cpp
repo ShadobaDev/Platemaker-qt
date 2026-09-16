@@ -112,7 +112,8 @@ ObjectController::ObjectController(QGraphicsScene* scene, QGraphicsView* view, Q
 
     // --- artifact list (right-bottom): composite order, mute toggles, selection ---
     m_list->setDragDropMode(QAbstractItemView::InternalMove);
-    m_list->setSelectionMode(QAbstractItemView::SingleSelection);
+    // Extended: Ctrl adds, Shift takes a run — the two gestures every list in the application uses.
+    m_list->setSelectionMode(QAbstractItemView::ExtendedSelection);
     m_list->setHeaderHidden(true);
     m_list->setColumnCount(1);
     // Branch decoration, because the strip nests its pages. Rows start collapsed; what the artist opens
@@ -162,14 +163,19 @@ ObjectController::ObjectController(QGraphicsScene* scene, QGraphicsView* view, Q
             selectOverlay(QString());
             return;
         }
-        const QTreeWidgetItem* row = sel.first();
-        const QString id = row->data(0, Qt::UserRole).toString();
-        switch (static_cast<Subject>(row->data(0, k_kindRole).toInt())) {
-        case Subject::Strip: selectStrip();      break;
-        case Subject::Page:  selectPage(id);     break;
-        case Subject::Tail:  selectTail(id, row->data(0, k_tailRole).toInt()); break;
-        default:             selectOverlay(id);  break;
+        // A strip, a page or a tail is one of a kind: picking one collapses whatever set was there.
+        // Only overlays gather.
+        QStringList overlays;
+        for (const QTreeWidgetItem* row : sel) {
+            const QString id = row->data(0, Qt::UserRole).toString();
+            switch (static_cast<Subject>(row->data(0, k_kindRole).toInt())) {
+            case Subject::Strip: selectStrip();  return;
+            case Subject::Page:  selectPage(id); return;
+            case Subject::Tail:  selectTail(id, row->data(0, k_tailRole).toInt()); return;
+            default:             overlays.append(id); break;
+            }
         }
+        selectOverlays(overlays);
     });
     // Both list handlers are deferred to the next event-loop turn on purpose. Persisting an edit
     // round-trips through the owner and comes back as a re-feed that clears and refills this list —
@@ -207,10 +213,13 @@ ObjectController::ObjectController(QGraphicsScene* scene, QGraphicsView* view, Q
     // and the panel, and vice versa.
     connect(m_scene, &QGraphicsScene::selectionChanged, this, [this] {
         if (m_syncingList) return;
-        const auto picked = m_scene->selectedItems();
-        for (QGraphicsItem* gi : picked)
-            if (auto* obj = dynamic_cast<Object*>(gi)) { selectOverlay(obj->uid()); return; }
-        selectOverlay(QString());
+        // The scene has always multi-selected — items are selectable, so Ctrl+click adds to it. This used
+        // to take the first object and drop the rest, which is why the canvas could only ever hold one.
+        QStringList picked;
+        for (QGraphicsItem* gi : m_scene->selectedItems())
+            if (auto* obj = dynamic_cast<Object*>(gi))
+                picked.append(obj->uid());
+        selectOverlays(picked);
     });
 }
 
@@ -254,8 +263,8 @@ void ObjectController::reselect()
             selectOverlay(QString());
         return;
     }
-    if (!m_selectedOverlay.isEmpty())
-        selectOverlay(m_selectedOverlay);
+    if (!m_selectedOverlays.isEmpty())
+        selectOverlays(m_selectedOverlays);   // the set, not just its primary; gone uids drop out
 }
 
 void ObjectController::selectStrip()
@@ -418,10 +427,15 @@ void ObjectController::setSource(const std::vector<Platemaker::Models::StripOver
         return;
     }
 
-    // The selection may not have survived the edit (a delete, or an undo that removed it).
-    if (!m_selectedOverlay.isEmpty() && !m_overlayItems.contains(m_selectedOverlay)) {
-        selectOverlay(QString());
-        return;
+    // The selection may not have survived the edit (a delete, or an undo that removed it). Re-applying
+    // the set drops whatever is gone and keeps the rest, because selectOverlays() filters by what exists.
+    bool gone = false;
+    for (const QString& uid : std::as_const(m_selectedOverlays))
+        gone = gone || !m_overlayItems.contains(uid);
+    if (gone) {
+        selectOverlays(m_selectedOverlays);
+        if (m_selectedOverlays.isEmpty())
+            return;
     }
 
     // ponytail: tails are addressed by position, not by id. A feed that changes how many tails a balloon
@@ -667,7 +681,7 @@ void ObjectController::refreshList()
             row->setData(0, Qt::ForegroundRole, QVariant());
             row->setToolTip(0, QString());
         }
-        row->setSelected(m_subject == Subject::Overlay && uid == m_selectedOverlay);
+        row->setSelected(m_subject == Subject::Overlay && m_selectedOverlays.contains(uid));
 
         // A bubble's tails, one row each, by position: a row stands for whichever tail is at its index now.
         // Only a bubble has tails, so artwork gets none.
@@ -750,49 +764,57 @@ void ObjectController::refreshList()
 
 void ObjectController::selectOverlay(const QString& uid)
 {
-    m_selectedOverlay = uid;
-    m_subject         = uid.isEmpty() ? Subject::None : Subject::Overlay;
+    selectOverlays(uid.isEmpty() ? QStringList{} : QStringList{uid});
+}
+
+void ObjectController::selectOverlays(const QStringList& uids)
+{
+    QStringList picked;
+    for (const QString& uid : uids) {
+        if (m_overlayItems.contains(uid) && !picked.contains(uid))
+            picked.append(uid);
+    }
+
+    m_selectedOverlays = picked;
+    m_selectedOverlay  = picked.isEmpty() ? QString() : picked.last();
+    m_subject          = picked.isEmpty() ? Subject::None : Subject::Overlay;
     m_selectedPage.clear();
     m_selectedTail = -1;
 
     m_syncingList = true;
     for (auto it = m_overlayItems.begin(); it != m_overlayItems.end(); ++it) {
-        it.value()->setSelected(it.key() == uid);
+        it.value()->setSelected(picked.contains(it.key()));
         it.value()->setFocusedHandle(-1);
     }
-    // Cleared first: a page is a row too, and a page must not stay selected beside an object.
     m_list->clearSelection();
     for (int r = 0; r < m_list->topLevelItemCount(); ++r) {
         QTreeWidgetItem* row = m_list->topLevelItem(r);
         if (row->data(0, k_kindRole).toInt() == static_cast<int>(Subject::Overlay)
-            && row->data(0, Qt::UserRole).toString() == uid)
+            && picked.contains(row->data(0, Qt::UserRole).toString()))
             row->setSelected(true);
     }
     m_syncingList = false;
 
-    const bool has = !uid.isEmpty() && m_overlayItems.contains(uid);
-    if (m_actDuplicate) m_actDuplicate->setEnabled(has);
-    if (m_actDelete)    m_actDelete->setEnabled(has);
-    // Only a bubble has a look to restyle; imported artwork has no parameters at all.
-    if (m_presetMenu)
-        m_presetMenu->menuAction()->setEnabled(
-            qobject_cast<BubbleObject*>(m_overlayItems.value(uid)) != nullptr);
-    // Any object can change page, artwork included — and an unanchored one can do nothing else useful.
-    if (m_reanchorMenu)
-        m_reanchorMenu->menuAction()->setEnabled(has && !m_layout.isEmpty());
+    // An action that acts on one object stays disabled while several are selected rather than quietly
+    // acting on the primary: a control that does something other than what the panel names is a lie.
+    const bool one = picked.size() == 1;
+    if (m_actDuplicate) m_actDuplicate->setEnabled(one);
+    if (m_actDelete)    m_actDelete->setEnabled(!picked.isEmpty());
+    if (m_presetMenu)   m_presetMenu->menuAction()->setEnabled(one);
+    if (m_reanchorMenu) m_reanchorMenu->menuAction()->setEnabled(one);
 
-    emit subjectChanged(m_subject, uid);
-
-    if (!m_objectState)
-        return;
-    // Only a bubble this editor authored can be edited here. Imported artwork has no parameters, and
-    // handing the panel a default set would replace the artwork with a blank balloon on the next
-    // commit — which is exactly what this used to do, because it asked the model instead of the object.
-    if (auto* bubble = qobject_cast<BubbleObject*>(m_overlayItems.value(uid)))
-        m_objectState->setArtifact(bubble->artifact());
-    else
-        m_objectState->clearSelection();
+    if (m_objectState) {
+        if (picked.isEmpty())
+            m_objectState->clearSelection();
+        else if (one)
+            m_objectState->setArtifact(m_artifacts.value(m_selectedOverlay));
+        else
+            m_objectState->setMultiSelection(static_cast<int>(picked.size()));
+    }
+    emit subjectChanged(m_subject, m_selectedOverlay);
 }
+
+
 
 void ObjectController::rebuildPresetMenu()
 {
@@ -1002,22 +1024,28 @@ void ObjectController::deleteSelectedOverlay()
         deleteSelectedTail();
         return;
     }
-    if (m_selectedOverlay.isEmpty())
+    if (m_selectedOverlays.isEmpty())
         return;
-    const QString uid = m_selectedOverlay;
 
+    // One history step for the gesture, not one per object: the artist deleted a selection, and that is
+    // what they will expect one Ctrl+Z to bring back.
+    const QStringList doomed = m_selectedOverlays;
     m_overlays.erase(std::remove_if(m_overlays.begin(), m_overlays.end(),
                                     [&](const Platemaker::Models::StripOverlay& o) {
-                                        return QString::fromStdString(o.uid) == uid;
+                                        return doomed.contains(QString::fromStdString(o.uid));
                                     }),
                      m_overlays.end());
-    m_artifacts.remove(uid);
+    for (const QString& uid : doomed)
+        m_artifacts.remove(uid);
 
     selectOverlay(QString());
     syncItems();
     refreshList();
-    pushOverlays(tr("Delete bubble"));
+    pushOverlays(doomed.size() == 1 ? tr("Delete bubble")
+                                    : tr("Delete %n objects", "", static_cast<int>(doomed.size())));
 }
+
+
 
 void ObjectController::setOverlayEnabled(const QString& uid, bool on)
 {

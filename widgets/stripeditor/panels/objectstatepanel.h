@@ -57,6 +57,16 @@ public:
      */
     void setTail(const TextArtifact& a, int index);
 
+    /**
+     * @brief Says that @p count objects are selected, and shows none of their properties. Emits nothing.
+     *
+     * Editing several at once is the union of their roles, which is the next increment. Until then this
+     * panel names the selection and stops: showing one object's properties under a heading that says
+     * *3 objects* would be a control acting on something other than what the panel names.
+     */
+    void setMultiSelection(int count);
+
+
     //! Nothing is selected: the sections go away and the panel says why.
     void clearSelection();
 
@@ -84,6 +94,7 @@ private:
     QLabel*             m_subject   = nullptr;  //!< Names what is being edited.
     QLabel*             m_emptyHint = nullptr;  //!< Stands in for the sections when nothing is selected.
     QWidget*            m_actions   = nullptr;  //!< Fit / Delete — they act on the selection.
+    QString             m_emptyText;            //!< What the hint says with nothing selected.
     QPushButton*        m_fitButton    = nullptr;
     QPushButton*        m_deleteButton = nullptr;   //!< "Delete", or "Delete tail" when a tail is the subject.
     QTimer*             m_commitTimer = nullptr;
@@ -91,7 +102,11 @@ private:
 
     TextArtifact m_artifact;        //!< Working copy of the selected object.
     bool m_populating   = false;    //!< Suppresses change signals while binding.
-    bool m_hasSelection = false;
+    //! One artifact is bound, so an edit may be emitted about it. False for a set — there is no single
+    //! object those controls would be describing.
+    bool m_hasArtifact = false;
+    //! How many objects the panel is speaking for. Delete acts on all of them; 0 means nothing is selected.
+    int  m_selectionCount = 0;
 };
 
 }  // namespace StripEdit

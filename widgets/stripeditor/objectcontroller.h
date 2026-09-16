@@ -105,6 +105,8 @@ public:
     //! Selects tail @p index of bubble @p uid — or the bubble, when it has no tail at that position.
     void selectTail(const QString& uid, int index);
     [[nodiscard]] Subject        subject() const { return m_subject; }
+    //! Everything selected, in the order it was picked. The last is the primary — see selectOverlays().
+    [[nodiscard]] const QStringList& selectedOverlays() const { return m_selectedOverlays; }
     [[nodiscard]] const QString& selectedPage() const { return m_selectedPage; }   //!< When subject() is Page.
     [[nodiscard]] int            selectedTail() const { return m_selectedTail; }   //!< When subject() is Tail.
 
@@ -186,6 +188,15 @@ private:
     //! The library's rasterisation of \p a, cached by the SVG it emits. Empty if it cannot be produced.
     [[nodiscard]] QImage sharpRasterFor(const TextArtifact& a);
     void selectOverlay(const QString& uid);   //!< Selects one in the scene and the list, and loads the panel.
+
+    /**
+     * @brief Selects exactly @p uids, in the order given. The **last** is the primary.
+     *
+     * The primary is what a single-subject action acts on and what ③ shows when there is only one —
+     * "the thing I just clicked", which is the last one picked. Everything written before the selection
+     * was a set still reads selectedOverlay(), which is now that primary.
+     */
+    void selectOverlays(const QStringList& uids);
     //! Selects the strip or a page: every overlay deselected, that one row selected, the subject reported.
     void selectSubject(Subject subject, const QString& pageUid);
     //! The tree row of the selected strip or page, or nullptr.
@@ -238,7 +249,8 @@ private:
      * opening a chapter with dozens of styled bubbles is the case that would want QtConcurrent.
      */
     QHash<QString, QImage>                        m_sharpCache;
-    QString            m_selectedOverlay;                   //!< uid of the selected overlay, empty for none.
+    QString            m_selectedOverlay;                   //!< The primary: last of m_selectedOverlays.
+    QStringList        m_selectedOverlays;                  //!< Everything selected, in pick order.
     Subject            m_subject = Subject::None;           //!< What the selection is.
     QString            m_selectedPage;                      //!< Input uid of the selected page, when a page is.
     int                m_selectedTail      = -1;            //!< Index of the selected tail, when a tail is.

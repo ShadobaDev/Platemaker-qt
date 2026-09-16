@@ -482,6 +482,21 @@ valid baseline for every grade tried on it. Excluded pages are skipped, matching
     the library's `isNeutral()`.
   - **The undo step is named by whoever made the edit.** `Editor::colourCorrectionEdited(cc, undoText)`
     carries the name to `Project::applyColourCorrection(cc, undoText)`, which records it as given.
+- **The selection is a set with a primary.** `ObjectController` holds the selected overlays in the order
+  they were picked; the **last** is the primary, which is what `selectedOverlay()` returns and what every
+  single-subject path still reads. The canvas gathers a set with Ctrl+click — the scene always
+  multi-selected, the controller used to take the first item and drop the rest — and the tree gathers one
+  with Ctrl and Shift (`ExtendedSelection`).
+  - **The strip, a page and a tail stay single.** Picking one collapses the set: there is one strip, a
+    page is a row of it, and a tail belongs to one balloon.
+  - **③ names a set rather than pretending to edit one of it**: *N objects*, no property sections.
+    Editing several at once is the union of their roles, which is not built yet, and a panel showing one
+    object's values under that heading would be a control acting on something other than what it names.
+  - **Delete acts on the whole set, as one history step** (*Delete N objects*) — one gesture, one undo.
+    Duplicate, *Apply preset ▸* and *Re-anchor to ▸* are **disabled** while several are selected, for the
+    same reason ③ shows nothing: they act on one object and say so.
+  - A feed re-applies the set and drops whatever no longer exists, so an undo that removed two of five
+    leaves three selected rather than clearing the lot.
 - **Selection is the canvas's, not a tool's.** Every object is selectable, movable and resizable under
   every tool; an unanchored one is the only exception, because it is not on the strip. A tool decides
   what a *placement* creates — armed in `Editor::eventFilter()` — so `ObjectController` knows exactly one

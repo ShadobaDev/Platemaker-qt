@@ -253,6 +253,24 @@ Object::Grip Object::gripAt(const QPointF& local, int* handleIndex) const
 
 void Object::mousePressEvent(QGraphicsSceneMouseEvent* e)
 {
+    // The right button is the menu's, and a menu acts on what you pointed at: an object that is not in
+    // the selection becomes the selection, exactly as it would on a left click. One already selected is
+    // left alone, so right-clicking one of several keeps the set the menu is about to act on.
+    //
+    // **And the press must be accepted.** The scene clears the selection on any press no item took, so
+    // handing a right press to the base class — which ignores it — made the scene treat a click on a
+    // balloon as a click on nothing: whatever had just been selected was deselected a moment later. The
+    // menu itself arrives separately, as a context-menu event, and is unaffected.
+    if (!m_orphaned && e->button() == Qt::RightButton) {
+        if (!isSelected()) {
+            if (scene())
+                scene()->clearSelection();
+            setSelected(true);
+        }
+        e->accept();
+        return;   // the right button drags nothing, so there is no grip to record
+    }
+
     if (m_orphaned || e->button() != Qt::LeftButton) {
         QGraphicsObject::mousePressEvent(e);
         return;

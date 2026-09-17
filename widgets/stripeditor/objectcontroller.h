@@ -246,6 +246,25 @@ private:
     void importArtwork();           //!< Asks for a file and drops it on the page currently in view.
     void duplicateSelectedOverlay();   //!< Copies the selected bubble a little down and right.
     void setOverlayEnabled(const QString& uid, bool on);  //!< The list's mute checkbox (deferred, see the ctor).
+
+    /**
+     * @brief Gives every selected object the blend mode @p blend, as one history step.
+     *
+     * Blend has been in the model, the compositor and this preview since the library shipped it, and
+     * nothing could reach it: both creation sites wrote `Over` and no widget offered another. It is a
+     * property every object has, so a set takes it the way a set takes a colour.
+     */
+    void setSelectionBlend(Platemaker::Models::BlendMode blend);
+
+    /**
+     * @brief Moves the selected object one place towards the front (@p forward) or the back.
+     *
+     * The stack in the list **is** the composite order, and dragging a row has always said so; this says
+     * the same thing without a drag, which is what you want when the object is on the canvas and its row
+     * is somewhere off-screen. One object only: moving several needs a rule about their order among
+     * themselves, and inventing one to avoid greying a menu entry is the wrong trade.
+     */
+    void moveSelectedInStack(bool forward);
     void commitListOrder();                               //!< Adopts the list's row order as composite order.
 
     // --- collaborators, not owned ---
@@ -314,6 +333,9 @@ private:
     // reachable from the canvas too — the two places a bubble is ever selected.
     QAction*           m_actDuplicate    = nullptr;
     QAction*           m_actDelete       = nullptr;
+    QAction*           m_actForward      = nullptr;   //!< Bring forward — one place up the stack.
+    QAction*           m_actBackward     = nullptr;   //!< Send back.
+    QMenu*             m_blendMenu       = nullptr;   //!< The six blend modes, checkable, on the selection.
     QAction*           m_actImport       = nullptr;   //!< Bring in artwork drawn outside Platemaker.
     QGraphicsRectItem* m_placementRubber = nullptr;         //!< Rubber band while a new bubble is drawn.
     QPointF            m_placementOrigin;                   //!< Where that drag started, in scene coordinates.

@@ -524,6 +524,18 @@ valid baseline for every grade tried on it. Excluded pages are skipped, matching
     drag cannot make the formation drift; the whole move is **one** history step (*Move N objects*), and
     each object re-anchors to whatever page it lands on, exactly as a single drag does. Only a **move**
     carries the others: a resize is that object's own size.
+- **The object's context menu is the widgets' own action list** (`Qt::ActionsContextMenu` on both the
+  canvas and the tree, so the two cannot drift and every entry keeps its shortcut; a right-click selects
+  the object it points at unless that object is already part of the selection), in three sections:
+  what the object looks like — *Apply preset ▸*, **Blend ▸** — then where it sits in the stack —
+  **Bring forward**, **Send back** — then what happens to it whole: *Re-anchor to ▸*, *Duplicate*,
+  *Delete*, and *Import artwork…* which needs no selection at all.
+  - **Blend** applies to the whole selection as one step, and the tick shows the mode only when the
+    selection agrees — the same answer ③ gives by saying *Mixed*. The mode has been in the model, the
+    compositor and this preview since the library shipped it; nothing could reach it until now.
+  - **Bring forward / Send back** move one object one place through `stripOverlays`, which *is* the
+    composite order — the list has always shown it, reversed, and a drag has always committed it. They
+    stay single-object: moving several needs a rule about their order among themselves.
 - **Selection is the canvas's, not a tool's.** Every object is selectable, movable and resizable under
   every tool; an unanchored one is the only exception, because it is not on the strip. A tool decides
   what a *placement* creates — armed in `Editor::eventFilter()` — so `ObjectController` knows exactly one

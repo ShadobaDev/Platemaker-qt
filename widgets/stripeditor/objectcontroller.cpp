@@ -20,6 +20,8 @@
 #include <QGraphicsRectItem>
 #include <QGraphicsScene>
 #include <QGuiApplication>
+
+#include <optional>
 #include <QGraphicsView>
 #include <QKeySequence>
 #include <QTreeWidget>
@@ -140,6 +142,47 @@ ObjectController::ObjectController(QGraphicsScene* scene, QGraphicsView* view, Q
     m_reanchorMenu = new QMenu(tr("Re-anchor to"), dialogParent);
     connect(m_reanchorMenu, &QMenu::aboutToShow, this, &ObjectController::rebuildReanchorMenu);
 
+    // Blend, at last reachable. Built once; which entry is ticked is decided when it opens, because that
+    // is the only moment it can be true.
+    m_blendMenu = new QMenu(tr("Blend"), dialogParent);
+    using BlendMode = Platemaker::Models::BlendMode;
+    const QList<QPair<BlendMode, QString>> blends{
+        {BlendMode::Over,     tr("Normal")},
+        {BlendMode::Multiply, tr("Multiply")},
+        {BlendMode::Screen,   tr("Screen")},
+        {BlendMode::Overlay,  tr("Overlay")},
+        {BlendMode::Darken,   tr("Darken")},
+        {BlendMode::Lighten,  tr("Lighten")},
+    };
+    for (const auto& [mode, name] : blends) {
+        QAction* a = m_blendMenu->addAction(name);
+        a->setCheckable(true);
+        a->setData(static_cast<int>(mode));
+        connect(a, &QAction::triggered, this, [this, mode] { setSelectionBlend(mode); });
+    }
+    connect(m_blendMenu, &QMenu::aboutToShow, this, [this] {
+        // Ticked against the primary: with a set that disagrees, nothing is ticked, which is the same
+        // answer ③ gives when it says Mixed.
+        std::optional<Platemaker::Models::BlendMode> shared;
+        bool agree = true;
+        for (const auto& o : m_overlays) {
+            const QString uid = QString::fromStdString(o.uid);
+            if (!m_selectedOverlays.contains(uid) || m_carriers.contains(uid))
+                continue;
+            if (!shared)
+                shared = o.blend;
+            else if (*shared != o.blend)
+                agree = false;
+        }
+        for (QAction* a : m_blendMenu->actions())
+            a->setChecked(shared && agree && a->data().toInt() == static_cast<int>(*shared));
+    });
+
+    m_actForward = new QAction(tr("Bring forward"), this);
+    connect(m_actForward, &QAction::triggered, this, [this] { moveSelectedInStack(true); });
+    m_actBackward = new QAction(tr("Send back"), this);
+    connect(m_actBackward, &QAction::triggered, this, [this] { moveSelectedInStack(false); });
+
     m_actDelete = new QAction(tr("Delete"), this);
     m_actDelete->setShortcut(QKeySequence::Delete);
     m_actDelete->setShortcutContext(Qt::WidgetShortcut);
@@ -150,14 +193,32 @@ ObjectController::ObjectController(QGraphicsScene* scene, QGraphicsView* view, Q
     m_actImport = new QAction(tr("Import artwork…"), this);
     connect(m_actImport, &QAction::triggered, this, &ObjectController::importArtwork);
 
+    // The menu is the widgets' own action list (Qt::ActionsContextMenu), so the canvas and the tree
+    // cannot drift apart and every entry keeps its shortcut. Sections are separators in that same list:
+    // what the object *looks like*, then where it sits in the stack, then what happens to it as a whole.
+    const auto separator = [this] {
+        auto* a = new QAction(this);
+        a->setSeparator(true);
+        return a;
+    };
     for (QWidget* w : {static_cast<QWidget*>(m_list), static_cast<QWidget*>(m_view)}) {
         w->addAction(m_presetMenu->menuAction());
+        w->addAction(m_blendMenu->menuAction());
+        w->addAction(separator());
+        w->addAction(m_actForward);
+        w->addAction(m_actBackward);
+        w->addAction(separator());
         w->addAction(m_reanchorMenu->menuAction());
         w->addAction(m_actDuplicate);
         w->addAction(m_actDelete);
+        w->addAction(separator());
         w->addAction(m_actImport);
     }
+    // Both widgets, not just the list. The actions were added to the canvas from the start — which is why
+    // the shortcuts worked there — but without this the canvas had nothing to build a menu *from*, so a
+    // right-click on the strip did nothing at all.
     m_list->setContextMenuPolicy(Qt::ActionsContextMenu);
+    m_view->setContextMenuPolicy(Qt::ActionsContextMenu);
     connect(m_list, &QTreeWidget::itemSelectionChanged, this, [this] {
         // A drag moves a row by taking it out and putting it back, and the taking clears its selection.
         // That is the tree's mechanics, not the artist deselecting, so the selection stands until the
@@ -930,6 +991,12 @@ void ObjectController::selectSubjects(const QStringList& uids, const QList<TailR
     if (m_actDelete)    m_actDelete->setEnabled(!picked.isEmpty());
     if (m_presetMenu)   m_presetMenu->menuAction()->setEnabled(oneObject);
     if (m_reanchorMenu) m_reanchorMenu->menuAction()->setEnabled(oneObject);
+    // Blend is a property every object has, so a set can take it; the stack order is one object's place
+    // among the others, so it is not a thing several can be told at once.
+    const bool anyObject = picked.size() > m_carriers.size();
+    if (m_blendMenu)   m_blendMenu->menuAction()->setEnabled(anyObject);
+    if (m_actForward)  m_actForward->setEnabled(oneObject);
+    if (m_actBackward) m_actBackward->setEnabled(oneObject);
 
     if (m_objectState) {
         if (picked.isEmpty()) {
@@ -1285,6 +1352,51 @@ void ObjectController::deleteSelectedOverlay()
 }
 
 
+
+void ObjectController::setSelectionBlend(Platemaker::Models::BlendMode blend)
+{
+    int changed = 0;
+    for (auto& o : m_overlays) {
+        const QString uid = QString::fromStdString(o.uid);
+        if (!m_selectedOverlays.contains(uid) || m_carriers.contains(uid) || o.blend == blend)
+            continue;
+        o.blend = blend;
+        ++changed;
+        if (Object* item = m_overlayItems.value(uid))
+            item->setBlend(blend);
+    }
+    if (changed == 0)
+        return;   // picking the mode it already has is not an edit, and not a history step
+
+    refreshList();
+    pushOverlays(changed == 1 ? tr("Set blend") : tr("Set blend on %n objects", "", changed));
+}
+
+void ObjectController::moveSelectedInStack(bool forward)
+{
+    if (m_selectedOverlays.size() != 1 || !m_carriers.isEmpty())
+        return;
+    const QString uid = m_selectedOverlays.first();
+
+    const auto at = std::find_if(m_overlays.begin(), m_overlays.end(),
+                                 [&](const Platemaker::Models::StripOverlay& o) {
+                                     return QString::fromStdString(o.uid) == uid;
+                                 });
+    if (at == m_overlays.end())
+        return;
+
+    // The library draws the vector in order, so the **last** element is the front-most — which is why the
+    // list shows this reversed (see refreshList). Forward therefore means later in the vector.
+    const auto index  = static_cast<qsizetype>(std::distance(m_overlays.begin(), at));
+    const auto target = index + (forward ? 1 : -1);
+    if (target < 0 || target >= static_cast<qsizetype>(m_overlays.size()))
+        return;   // already at the end of the stack; nothing to report and nothing to undo
+
+    std::swap(m_overlays[static_cast<size_t>(index)], m_overlays[static_cast<size_t>(target)]);
+    syncItems();    // z-values come from the vector's order
+    refreshList();
+    pushOverlays(forward ? tr("Bring forward") : tr("Send back"));
+}
 
 void ObjectController::setOverlayEnabled(const QString& uid, bool on)
 {

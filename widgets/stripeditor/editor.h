@@ -337,6 +337,8 @@ private:
     QButtonGroup   *m_toolGroup = nullptr;   //!< The rail's buttons; a button's id is its row in tools().
     QHash<QString, int> m_toolPage;          //!< Tool id → its page in the options stack.
     ColourPair*     m_colours    = nullptr;  //!< The primary/secondary pair, under the rail. Furniture.
+    //! Where the middle-button pan last was, in viewport points; x < 0 when no such pan is in flight.
+    QPoint          m_panFrom {-1, -1};
     QPoint          m_pointerPos {-1, -1};   //!< Last hovered viewport point, so the cursor can be
                                              //!< re-decided when the pointer has not moved but the
                                              //!< scene under it has.

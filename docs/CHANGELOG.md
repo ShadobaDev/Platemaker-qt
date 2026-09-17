@@ -59,6 +59,9 @@
     caption without a balloon takes the lettering colour and no fill. The colour tool does the same when you pour it onto something that is selected. Deleting is one
     undoable step, and the actions that only make sense for a single object are greyed until you pick
     one.
+  - **Drag the strip itself to select everything the box covers.** The old *Pan / select* tool is now
+    two: **Select** (the default) rubber-bands, and **Pan** scrolls — and the **middle mouse button
+    scrolls under every tool**, so you never have to switch tools to look somewhere else.
   - **Drag one of several selected objects and they all move**, keeping their formation, re-anchoring to
     whatever page each lands on, and undoing in one step. **Tails count as objects here**: Ctrl-click a
     tail — its row in the list, or its handle on the strip — together with a balloon, and one drag moves

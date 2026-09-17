@@ -8,12 +8,22 @@ const QList<Tool>& tools()
     // same object — one panel, so two copies of it cannot drift — and differ only in the shape they
     // place. That is the whole cost of a tool: this row.
     static const QList<Tool> table = {
+        // Select and Pan are two rows because `dragMode` is one property: the rubber band and the hand
+        // cannot both own the left button. Splitting them costs a row — which is what the table is for —
+        // and leaves each tool honest about what a drag does.
         {QStringLiteral("select"),
-         QStringLiteral(":/icons/tools/pan.svg"),
-         QT_TRANSLATE_NOOP("StripEdit::Tool", "Pan / select (default)"),
+         QStringLiteral(":/icons/tools/select.svg"),
+         QT_TRANSLATE_NOOP("StripEdit::Tool", "Select (default) — drag the strip to select what it covers"),
          ToolKind::Select, std::nullopt, QString(),
+         CursorStyle::Arrow, CursorStyle::Move},
+
+        {QStringLiteral("pan"),
+         QStringLiteral(":/icons/tools/pan.svg"),
+         QT_TRANSLATE_NOOP("StripEdit::Tool", "Pan — drag the strip to scroll it (or hold the middle "
+                                              "button under any tool)"),
          // The hand is the view's own drag mode talking; saying it here too is what stops the two from
-         // disagreeing. Over an object the left button moves it, so the cursor says so.
+         // disagreeing. Over an object the left button still moves it, so the cursor says so.
+         ToolKind::Pan, std::nullopt, QString(),
          CursorStyle::Hand, CursorStyle::Move},
 
         {QStringLiteral("grade"),

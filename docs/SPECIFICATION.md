@@ -215,8 +215,12 @@ than the comic.
 
 - **Tool rail** (left) — square checkable `QToolButton`s in an exclusive `QButtonGroup`, laid out by
   `FlowLayout` so they reflow to the rail's width (a flow layout cannot be expressed in a `.ui`).
-  Tools: **Pan / select** (default — hand-drag to scroll the canvas), **Grade**, **Bubble**, **Text**,
-  **Caption box**. A tool decides what a *placement* creates; selecting, moving and resizing what is
+  Tools: **Select** (default — a drag on the bare strip rubber-bands what it covers), **Pan** (a drag
+  scrolls), **Grade**, **Bubble**, **Text**, **Caption box**, **Colour**, **Eyedropper**. `dragMode` is a
+  single property, which is why Select and Pan are two rows rather than one tool: the rubber band and the
+  hand both want the left button on the bare strip. Both only act on a press no item took, so dragging an
+  object moves it under either. **The middle button scrolls under every tool** — implemented here rather
+  than by the view, because Qt's hand-drag is the left button's. A tool decides what a *placement* creates; selecting, moving and resizing what is
   already there is available under every one of them (§2.5.4).
 - **The rail is built from a table, and a tool is a record.** `StripEdit::tools()` holds one `Tool` per
   rail entry — id, icon, tooltip, `ToolKind` (`Select`, `Create`, `Grade`), the shape a `Create` tool

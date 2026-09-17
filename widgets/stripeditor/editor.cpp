@@ -305,7 +305,7 @@ Editor::Editor(QWidget *parent)
         connect(m_toolGroup, &QButtonGroup::idClicked, this,
                 [this](int id) { setTool(tools().at(id).id); });
 
-        setTool(QStringLiteral("select"));   // the default state: pan and select, no tool armed
+        setTool(QStringLiteral("select"));   // the default state: select and move, no tool armed
     }
 
     showEmptyState();
@@ -321,14 +321,16 @@ void Editor::setTool(const QString& id)
         b->setChecked(true);
     ui->toolOptions->setCurrentIndex(m_toolPage.value(m_tool));
 
-    // Select == today's view: hand-drag to pan, which Qt implements and which only starts on a press no
-    // item took. Any other tool frees the left button for tool interaction.
+    // What a left-drag on the **bare strip** does — the view's own business, and one property, which is
+    // why Select and Pan are two tools. Both modes only act on a press no item took, so dragging an
+    // object still moves it under either.
     //
     // **Order matters and must stay this way.** Leaving `ScrollHandDrag` makes the view unset the
     // viewport cursor, and entering it makes the view write an open hand; deciding our cursor after that
     // is what keeps the last word. Reverse these two lines and the pointer starts flickering again.
-    m_view->setDragMode(tool->kind == ToolKind::Select ? QGraphicsView::ScrollHandDrag
-                                                       : QGraphicsView::NoDrag);
+    m_view->setDragMode(tool->kind == ToolKind::Pan      ? QGraphicsView::ScrollHandDrag
+                        : tool->kind == ToolKind::Select ? QGraphicsView::RubberBandDrag
+                                                         : QGraphicsView::NoDrag);
     updateCursor();
 
     // Only the *tool's own options* follow the tool: a tool that places one shape says so, and the
@@ -661,6 +663,36 @@ void Editor::resizeEvent(QResizeEvent *event)
 
 bool Editor::eventFilter(QObject *watched, QEvent *event)
 {
+    // The middle button scrolls the strip under **every** tool, so no tool has to give up its left
+    // button for something as ordinary as looking somewhere else. Qt's own hand-drag is the left
+    // button's, and only the Pan tool arms it.
+    if (watched == m_view->viewport()) {
+        auto* me = event->type() == QEvent::MouseButtonPress || event->type() == QEvent::MouseMove
+                           || event->type() == QEvent::MouseButtonRelease
+                       ? static_cast<QMouseEvent*>(event)
+                       : nullptr;
+        if (me && event->type() == QEvent::MouseButtonPress && me->button() == Qt::MiddleButton) {
+            m_panFrom = me->position().toPoint();
+            m_view->viewport()->setCursor(Qt::ClosedHandCursor);
+            return true;
+        }
+        if (me && event->type() == QEvent::MouseMove && m_panFrom.x() >= 0) {
+            const QPoint now  = me->position().toPoint();
+            const QPoint step = now - m_panFrom;
+            m_panFrom         = now;
+            // Scrollbars take whole steps, so this follows the mouse rather than a remembered origin:
+            // there is no fraction left over to drift with.
+            m_view->horizontalScrollBar()->setValue(m_view->horizontalScrollBar()->value() - step.x());
+            m_view->verticalScrollBar()->setValue(m_view->verticalScrollBar()->value() - step.y());
+            return true;
+        }
+        if (me && event->type() == QEvent::MouseButtonRelease && me->button() == Qt::MiddleButton) {
+            m_panFrom = {-1, -1};
+            updateCursor();
+            return true;
+        }
+    }
+
     // The eyedropper: a press takes the colour that is on the strip there, wherever it lands — over an
     // object as much as over a page, because what is sampled is what is drawn.
     if (watched == m_view->viewport() && isSampling()) {

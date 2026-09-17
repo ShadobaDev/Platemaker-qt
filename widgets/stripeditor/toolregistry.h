@@ -17,7 +17,8 @@ namespace StripEdit {
  * tool, so no tool grants them. `Select` is the default state rather than a tool that permits anything.
  */
 enum class ToolKind {
-    Select,   //!< The default state: hand-drag pans the view, and the left button is the canvas's.
+    Select,   //!< The default state: a drag on the bare strip draws a rubber band over what it covers.
+    Pan,      //!< A drag on the bare strip scrolls the view. The left button belongs to the viewport.
     Create,   //!< A drag on empty strip places an object.
     Grade,    //!< Edits the selected object's colour; picked with nothing selected, it takes the strip.
     Sample,   //!< A press reads the canvas instead of changing it — the eyedropper.

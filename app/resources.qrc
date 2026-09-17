@@ -10,6 +10,7 @@
     <file alias="menu/templates.svg">../icons/menu/templates.svg</file>
     <file alias="menu/about.svg">../icons/menu/about.svg</file>
     <file alias="tools/pan.svg">../icons/tools/pan.svg</file>
+    <file alias="tools/select.svg">../icons/tools/select.svg</file>
     <file alias="tools/cc.svg">../icons/tools/cc.svg</file>
     <file alias="tools/eyedropper.svg">../icons/tools/eyedropper.svg</file>
     <file alias="tools/bubble.svg">../icons/tools/bubble.svg</file>

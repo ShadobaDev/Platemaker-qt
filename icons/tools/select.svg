@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none"
+     stroke="#d0d0d0" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+  <!-- A pointer, fitted to the same ink box as the other rail icons: measured by rendering and
+       trimming, then mapped to the centre. -->
+  <g transform="translate(-0.236 0.312) scale(0.9948)">
+    <path d="M6 3.2 L6 18.4 L10.1 14.6 L12.6 20.3 L15.4 19.1 L12.9 13.6 L18.6 13.2 Z"/>
+  </g>
+</svg>

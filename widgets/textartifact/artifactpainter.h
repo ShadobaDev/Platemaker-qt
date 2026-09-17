@@ -115,6 +115,10 @@ void paintArtifactPaths(QPainter& painter, const TextArtifact& a,
 [[nodiscard]] QSize fittedBox(const TextArtifact& a);
 
 //! Human-readable label for the artifact list — the first line of text, or the shape's name if empty.
+//! How much of the lettering names an object in a list. Long enough to tell two lines apart, short
+//! enough to leave room for what else a row carries.
+inline constexpr int k_labelChars = 32;
+
 [[nodiscard]] QString artifactLabel(const TextArtifact& a);
 
 #endif // ARTIFACTPAINTER_H

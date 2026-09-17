@@ -31,6 +31,9 @@ public:
 
     [[nodiscard]] QSizeF boxSize() const override { return m_box; }
 
+    //! The art itself — what a list row wears, since imported artwork has no silhouette to borrow.
+    [[nodiscard]] const QPixmap& artwork() const { return m_artwork; }
+
 protected:
     void                 paintContent(QPainter& painter) override;
     [[nodiscard]] QRectF computeBounds() const override { return QRectF(QPointF(0, 0), m_box); }

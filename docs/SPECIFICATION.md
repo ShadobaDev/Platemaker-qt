@@ -211,7 +211,10 @@ the only place the strip's contents can be seen and reordered. A tool changes wh
 *tool-facing* half, never whether the column is there.
 
 Splitter positions are remembered in `QSettings` — a working preference that follows the artist rather
-than the comic.
+than the comic. The right column starts at **two thirds properties, one third object list**, stated as
+sizes rather than left to the children's size hints (a list's hint is one row tall, which is how it ended
+up a sliver). The settings key carries the layout's version, so a deliberately changed default reaches
+the people who already have the old one saved instead of being outvoted by it.
 
 - **Tool rail** (left) — square checkable `QToolButton`s in an exclusive `QButtonGroup`, laid out by
   `FlowLayout` so they reflow to the rail's width (a flow layout cannot be expressed in a `.ui`).
@@ -533,6 +536,16 @@ valid baseline for every grade tried on it. Excluded pages are skipped, matching
   - **Blend** applies to the whole selection as one step, and the tick shows the mode only when the
     selection agrees — the same answer ③ gives by saying *Mixed*. The mode has been in the model, the
     compositor and this preview since the library shipped it; nothing could reach it until now.
+  - **The colour entries spend the pair**: *Fill with primary colour* and *Outline with secondary colour*
+    apply it to every selected object that has that role, exactly as the colour tool does when poured onto
+    one — the menu is what makes the gesture discoverable. They read the pair and never write it.
+  - **Apply from tool options ▸** copies one property group from ④ onto the selection — *Fill & outline*,
+    *Line style*, *Text style* (everything about the lettering except the lettering). This is the *style
+    applicator*: as a rail tool it would have to carry a current style, which a stateless tool may not;
+    as a menu entry the value is whatever the tool's options are set to. Applying a line style mints a
+    `styleSeed` for an object that has none, the same top-up `PropertyGroupSet::collect()` does.
+  - **Save as preset…** stores the selected balloon's look through `PresetStore`, which is the one place
+    that knows a preset carries no lettering.
   - **Bring forward / Send back** move one object one place through `stripOverlays`, which *is* the
     composite order — the list has always shown it, reversed, and a drag has always committed it. They
     stay single-object: moving several needs a rule about their order among themselves.
@@ -560,6 +573,17 @@ valid baseline for every grade tried on it. Excluded pages are skipped, matching
     its uid in `ColourCorrection::excludedInputUids` — the one colour decision the library lets a page
     make. The toggle is made against the grade the editor last showed and goes out as one undo step,
     named *Exclude page from colour correction* or *Include page in colour correction*.
+  - **Every row wears the object it stands for.** The glyph is the object's own silhouette — *this*
+    balloon with *its* tails — scaled into `k_rowGlyphPx` points from `artifactSilhouette()`, filled in the object's
+    colour and outlined in the palette's, so it survives both themes. There is no rendering and no library
+    round-trip: the path is already geometry. The lettering is left out because the row's text *is* the
+    lettering — the first `k_labelChars` characters of it. A shapeless object wears **Aa** (drawn as
+    outlines, so hinting cannot clip it), a tail row wears a tail, and imported artwork wears itself,
+    scaled; the strip and its pages wear glyphs of their own, so no row is shorter than its neighbours.
+    A tail's glyph is a curved sliver rather than a V, because the tree already draws a chevron beside it.
+    Every glyph is drawn at the view's `devicePixelRatioF()` — drawing at one and letting the view scale up
+    is what makes an icon look soft on a scaled display — and cached per object against what it is made of:
+    the shape, the tails, the box, the two colours and that ratio.
   - **What the artist opened stays open.** A row is moved by taking it out and inserting it, which makes
     the view forget whether it was expanded, so that is carried across; and rows for deleted objects are
     removed before the strip is placed, so a deletion above it does not move — and fold — the strip.

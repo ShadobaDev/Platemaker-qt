@@ -3,6 +3,7 @@
 
 #include <QHash>
 #include <QSet>
+#include <QIcon>
 #include <QImage>
 #include <QObject>
 #include <QPointF>
@@ -10,7 +11,9 @@
 #include <QString>
 #include <QStringList>
 
+#include "artifactpainter.h"   // ArtifactPart: which part of an object a colour lands on
 #include "cursors.h"
+#include "propertygroupeditor.h"   // PropertyGroup: which group the menu hands over
 #include "textartifact.h"
 
 #include <platemaker/models/project_item.hpp>
@@ -31,6 +34,7 @@ class QWidget;
 namespace StripEdit {
 
 class ObjectStatePanel;
+class ColourPair;
 class PresetStore;
 class ToolOptionsPanel;
 class Layout;
@@ -137,6 +141,35 @@ public:
      */
     bool applyColourAt(const QPointF& scenePos, const QTransform& deviceTransform, const QColor& colour);
 
+    /**
+     * @brief Where the menu's colour entries read from — the tool column's pair. Never written to.
+     *
+     * The pair is furniture (§5.2): the tools that spend it hold a reference rather than a colour of
+     * their own, and so does this menu. Without one, the two colour entries stay hidden.
+     */
+    void setColourSource(const ColourPair* pair);
+
+    /**
+     * @brief Gives @p colour to the @p role of every selected object that has it, as one history step.
+     *
+     * The same rule the colour tool paints by, reached from the menu instead of the canvas: a fill lands
+     * on everything with a silhouette, the lettering's colour on everything, and an object that has no
+     * such role is left alone rather than being given one.
+     */
+    void applyColourToSelection(const QColor& colour, ArtifactPart role);
+
+    /**
+     * @brief Copies one property group from the tool's options onto every selected object.
+     *
+     * This is where the *style applicator* went (§23.8). As a rail tool it would have to carry a current
+     * style, which a stateless tool may not; as a menu entry it carries nothing — the value is whatever
+     * ④ is set to, which is the panel that already holds "what the next object will be".
+     */
+    void applyGroupToSelection(PropertyGroup group);
+
+    //! Saves the selected object's look as a named preset — everything a preset carries, and no lettering.
+    void saveSelectionAsPreset();
+
     //! Rebuilds *Apply preset ▸* from the store, so a preset saved a moment ago is already there.
     void rebuildPresetMenu();
     //! Restyles the selected bubble with preset \p index, keeping what it says and where it points.
@@ -233,6 +266,8 @@ private:
     void selectSubject(Subject subject, const QString& pageUid);
     //! The tree row of the selected strip or page, or nullptr.
     [[nodiscard]] QTreeWidgetItem* subjectRow() const;
+    //! The glyph a row wears — the object drawn small, cached until the look it is made of changes.
+    [[nodiscard]] QIcon rowGlyph(const QString& uid);
     //! The tree row of tail @p index of bubble @p uid, or nullptr.
     [[nodiscard]] QTreeWidgetItem* tailRow(const QString& uid, int index) const;
     void pushOverlays(const QString& undoText); //!< Emits overlaysEdited() with the current state.
@@ -311,6 +346,11 @@ private:
     //! their row in the tree is not highlighted.
     QStringList        m_carriers;
 
+    QHash<QString, QPair<QString, QIcon>> m_glyphs;   //!< uid → (what the glyph is made of, the glyph).
+    QIcon                                 m_tailGlyph;  //!< One drawing; every tail row wears it.
+    QIcon                                 m_pageGlyph;  //!< Likewise for a page…
+    QIcon                                 m_stripGlyph; //!< …and for the strip itself.
+
     // --- a drag in flight: where everything stood when it started ---
     QHash<QString, QPointF>         m_dragStartPos;   //!< Object uid → its position at the press.
     QList<QPair<TailRef, QPointF>>  m_dragStartTips;  //!< Tail → its tip, in its balloon's own units.
@@ -336,6 +376,11 @@ private:
     QAction*           m_actForward      = nullptr;   //!< Bring forward — one place up the stack.
     QAction*           m_actBackward     = nullptr;   //!< Send back.
     QMenu*             m_blendMenu       = nullptr;   //!< The six blend modes, checkable, on the selection.
+    QMenu*             m_groupMenu       = nullptr;   //!< *Apply this group ▸*, from the tool's options.
+    QAction*           m_actFill         = nullptr;   //!< Fill with the primary colour.
+    QAction*           m_actOutline      = nullptr;   //!< Outline with the secondary colour.
+    QAction*           m_actSavePreset   = nullptr;
+    const ColourPair*  m_colours         = nullptr;   //!< The pair the two colour entries spend.
     QAction*           m_actImport       = nullptr;   //!< Bring in artwork drawn outside Platemaker.
     QGraphicsRectItem* m_placementRubber = nullptr;         //!< Rubber band while a new bubble is drawn.
     QPointF            m_placementOrigin;                   //!< Where that drag started, in scene coordinates.

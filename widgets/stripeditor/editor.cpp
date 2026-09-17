@@ -286,6 +286,8 @@ Editor::Editor(QWidget *parent)
         // persistence, so every edit leaves through one of its four signals and comes back as a re-feed.
         m_objects = new ObjectController(m_scene, m_view, ui->artifactList, m_objectState,
                                          m_toolOptions, *m_presets, m_layout, this, this);
+        // The object's menu spends the same pair the bucket does — it reads it, never writes it.
+        m_objects->setColourSource(m_colours);
         connect(m_objects, &ObjectController::artifactCreated,        this, &Editor::artifactCreated);
         connect(m_objects, &ObjectController::overlaysEdited,         this, &Editor::overlaysEdited);
         connect(m_objects, &ObjectController::artworkImportRequested, this, &Editor::artworkImportRequested);
@@ -298,8 +300,12 @@ Editor::Editor(QWidget *parent)
         ui->toolColumn->setStretchFactor(0, 0);    // the tile rail takes what it needs
         ui->toolColumn->setStretchFactor(1, 1);    // the options absorb the rest
         ui->toolColumn->setSizes({120, 600});
-        ui->rightPanel->setStretchFactor(0, 3);    // object properties
-        ui->rightPanel->setStretchFactor(1, 2);    // the object list
+        ui->rightPanel->setStretchFactor(0, 2);    // object properties
+        ui->rightPanel->setStretchFactor(1, 1);    // the object list
+        // A third of the column, and stated rather than inferred: without sizes a splitter falls back to
+        // its children's size hints, and the list's hint is one row tall — which is how it ended up a
+        // sliver. QSplitter reads these as proportions, so the ratio is what survives, not the numbers.
+        ui->rightPanel->setSizes({2, 1});
         restoreSplitterState();                    // ...unless the artist has already moved them
 
         connect(m_toolGroup, &QButtonGroup::idClicked, this,
@@ -450,7 +456,11 @@ Editor::~Editor()
 
 namespace {
 //! One QSettings key per splitter. Prefixed, because the strip editor is not the only thing in here.
-QString splitterKey(const QString& name) { return QStringLiteral("stripEditor/splitter/") + name; }
+// The layout's version is in the key. A default that changes is only a default for whoever has never
+// moved the splitter — everyone else has a saved state that would go on winning — so a deliberate change
+// bumps this, the old entries are ignored, and the artist's own adjustments start again from the new
+// proportions rather than from a sliver.
+QString splitterKey(const QString& name) { return QStringLiteral("stripEditor/splitter2/") + name; }
 }
 
 void Editor::restoreSplitterState()

@@ -609,8 +609,10 @@ QSize fittedBox(const TextArtifact& a)
 QString artifactLabel(const TextArtifact& a)
 {
     const QString first = a.text.body.section(QLatin1Char('\n'), 0, 0).trimmed();
-    if (!first.isEmpty())
-        return first.length() > 28 ? first.left(27) + QStringLiteral("…") : first;
+    if (!first.isEmpty()) {
+        return first.length() > k_labelChars ? first.left(k_labelChars - 1) + QStringLiteral("…")
+                                             : first;
+    }
 
     switch (a.shape.kind) {
     case TextArtifact::Shape::Speech:  return QObject::tr("(speech bubble)");

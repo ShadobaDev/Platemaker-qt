@@ -1,6 +1,8 @@
 #include "objectcontroller.h"
 #include "objectstatepanel.h"
+#include "colourpair.h"
 #include "presetstore.h"
+#include "rowglyph.h"
 #include "tooloptionspanel.h"
 #include "layout.h"
 #include "assetobject.h"
@@ -25,7 +27,9 @@
 #include <QGraphicsView>
 #include <QKeySequence>
 #include <QTreeWidget>
+#include <QInputDialog>
 #include <QMessageBox>
+#include <QRandomGenerator>
 #include <QPainter>
 #include <QPen>
 #include <QSet>
@@ -126,6 +130,10 @@ ObjectController::ObjectController(QGraphicsScene* scene, QGraphicsView* view, Q
     // Branch decoration, because the strip nests its pages. Rows start collapsed; what the artist opens
     // stays open, since the rows are updated in place rather than rebuilt.
     m_list->setRootIsDecorated(true);
+    // The row grows to fit the glyph: a column of objects, not of labels. Icons are drawn at the screen's
+    // own density (see rowglyph.cpp), so this is a size in points and not a reason for anything to be
+    // scaled up afterwards.
+    m_list->setIconSize(QSize(k_rowGlyphPx, k_rowGlyphPx));
 
     // Duplicate / Delete as real QActions: Qt::ActionsContextMenu then builds the list's right-click
     // menu from them for free, and the same objects carry the keyboard shortcuts. They are added to
@@ -178,6 +186,34 @@ ObjectController::ObjectController(QGraphicsScene* scene, QGraphicsView* view, Q
             a->setChecked(shared && agree && a->data().toInt() == static_cast<int>(*shared));
     });
 
+    // The pair, spent from the menu as well as from the canvas — the gesture the bucket offers is easy to
+    // miss, and an entry that names it is how it stops being folklore.
+    m_actFill = new QAction(tr("Fill with primary colour"), this);
+    connect(m_actFill, &QAction::triggered, this, [this] {
+        if (m_colours)
+            applyColourToSelection(m_colours->primary(), ArtifactPart::Fill);
+    });
+    m_actOutline = new QAction(tr("Outline with secondary colour"), this);
+    connect(m_actOutline, &QAction::triggered, this, [this] {
+        if (m_colours)
+            applyColourToSelection(m_colours->secondary(), ArtifactPart::Outline);
+    });
+
+    // One property group at a time, taken from what the tool's options are set to.
+    m_groupMenu = new QMenu(tr("Apply from tool options"), dialogParent);
+    const QList<QPair<PropertyGroup, QString>> groups{
+        {PropertyGroup::Skin,  tr("Fill && outline")},
+        {PropertyGroup::Style, tr("Line style")},
+        {PropertyGroup::Text,  tr("Text style")},
+    };
+    for (const auto& [group, name] : groups) {
+        QAction* a = m_groupMenu->addAction(name);
+        connect(a, &QAction::triggered, this, [this, group] { applyGroupToSelection(group); });
+    }
+
+    m_actSavePreset = new QAction(tr("Save as preset…"), this);
+    connect(m_actSavePreset, &QAction::triggered, this, &ObjectController::saveSelectionAsPreset);
+
     m_actForward = new QAction(tr("Bring forward"), this);
     connect(m_actForward, &QAction::triggered, this, [this] { moveSelectedInStack(true); });
     m_actBackward = new QAction(tr("Send back"), this);
@@ -203,6 +239,10 @@ ObjectController::ObjectController(QGraphicsScene* scene, QGraphicsView* view, Q
     };
     for (QWidget* w : {static_cast<QWidget*>(m_list), static_cast<QWidget*>(m_view)}) {
         w->addAction(m_presetMenu->menuAction());
+        w->addAction(m_actSavePreset);
+        w->addAction(m_groupMenu->menuAction());
+        w->addAction(m_actFill);
+        w->addAction(m_actOutline);
         w->addAction(m_blendMenu->menuAction());
         w->addAction(separator());
         w->addAction(m_actForward);
@@ -745,6 +785,37 @@ void ObjectController::onOverlayGeometryEdited(const QString& uid)
     pushOverlays(group ? tr("Move %n objects", "", travelled) : tr("Move bubble"));
 }
 
+QIcon ObjectController::rowGlyph(const QString& uid)
+{
+    // Drawn once per look, not once per feed. The silhouette is cheap but not free — a tail's base is
+    // found by casting a ray at the outline — and a feed arrives after every edit, so the key is what the
+    // glyph is made of: the shape, the tails, the box's proportions and the two colours it wears.
+    if (!m_artifacts.contains(uid)) {
+        // Imported artwork: no authoring record, so no silhouette. The art is its own glyph.
+        const auto* art = qobject_cast<const AssetObject*>(m_overlayItems.value(uid));
+        return art ? assetGlyph(art->artwork(), k_rowGlyphPx, m_list->devicePixelRatioF()) : QIcon();
+    }
+    const TextArtifact& a = m_artifacts[uid];
+
+    QString key = QStringLiteral("%1|%2|%3x%4|%5|%6")
+                      .arg(static_cast<int>(a.shape.kind))
+                      .arg(a.tails.items.size())
+                      .arg(a.box.width())
+                      .arg(a.box.height())
+                      .arg(a.skin.fill.name(QColor::HexArgb), a.skin.stroke.name(QColor::HexArgb));
+    for (const Tail& t : a.tails.items)
+        key += QStringLiteral("|%1,%2").arg(qRound(t.tip.x())).arg(qRound(t.tip.y()));
+    key += QStringLiteral("|@%1").arg(m_list->devicePixelRatioF());   // a window can move to another screen
+
+    auto it = m_glyphs.constFind(uid);
+    if (it != m_glyphs.constEnd() && it->first == key)
+        return it->second;
+
+    const QIcon glyph = objectGlyph(a, m_list->palette(), k_rowGlyphPx, m_list->devicePixelRatioF());
+    m_glyphs.insert(uid, {key, glyph});
+    return glyph;
+}
+
 void ObjectController::refreshList()
 {
     if (!m_list)
@@ -808,6 +879,7 @@ void ObjectController::refreshList()
         placeTopLevel(row, index);
 
         row->setText(0, QStringLiteral("%1 · %2").arg(prefix, label));
+        row->setIcon(0, rowGlyph(uid));
         row->setCheckState(0, o.enabled ? Qt::Checked : Qt::Unchecked);
         // Both set on every pass, not only when unanchored: a row is reused, and one that was greyed must
         // stop being greyed the moment its object is re-anchored.
@@ -837,6 +909,9 @@ void ObjectController::refreshList()
             tailItem->setData(0, Qt::UserRole, uid);
             tailItem->setData(0, k_tailRole, t);
             tailItem->setText(0, tr("Tail %1").arg(t + 1));
+            if (m_tailGlyph.isNull())
+                m_tailGlyph = tailGlyph(m_list->palette(), k_rowGlyphPx, m_list->devicePixelRatioF());
+            tailItem->setIcon(0, m_tailGlyph);
             tailItem->setSelected(m_selectedTails.contains(TailRef{uid, t}));
         }
     }
@@ -864,6 +939,9 @@ void ObjectController::refreshList()
         }
         placeTopLevel(strip, index);
         strip->setText(0, tr("Strip · %n page(s)", "", m_layout.pageCount()));
+        if (m_stripGlyph.isNull())
+            m_stripGlyph = stripGlyph(m_list->palette(), k_rowGlyphPx, m_list->devicePixelRatioF());
+        strip->setIcon(0, m_stripGlyph);
 
         // Its pages, in strip order, reconciled the same way — by input uid, in place, so a page the
         // artist had selected is still selected after an edit that did not remove it.
@@ -889,6 +967,9 @@ void ObjectController::refreshList()
             const QString name = tr("p.%1 — %2").arg(i + 1, 2, 10, QLatin1Char('0'))
                                                 .arg(QFileInfo(page.sourcePath).fileName());
             row->setText(0, m_excludedPages.contains(page.inputUid) ? tr("%1 · excluded").arg(name) : name);
+            if (m_pageGlyph.isNull())
+                m_pageGlyph = pageGlyph(m_list->palette(), k_rowGlyphPx, m_list->devicePixelRatioF());
+            row->setIcon(0, m_pageGlyph);
             row->setSelected(m_subject == Subject::Page && page.inputUid == m_selectedPage);
         }
         qDeleteAll(oldPages);   // pages no longer in the strip
@@ -997,6 +1078,10 @@ void ObjectController::selectSubjects(const QStringList& uids, const QList<TailR
     if (m_blendMenu)   m_blendMenu->menuAction()->setEnabled(anyObject);
     if (m_actForward)  m_actForward->setEnabled(oneObject);
     if (m_actBackward) m_actBackward->setEnabled(oneObject);
+    if (m_groupMenu)   m_groupMenu->menuAction()->setEnabled(anyObject);
+    if (m_actFill)     m_actFill->setEnabled(anyObject && m_colours);
+    if (m_actOutline)  m_actOutline->setEnabled(anyObject && m_colours);
+    if (m_actSavePreset) m_actSavePreset->setEnabled(oneObject);
 
     if (m_objectState) {
         if (picked.isEmpty()) {
@@ -1352,6 +1437,122 @@ void ObjectController::deleteSelectedOverlay()
 }
 
 
+
+void ObjectController::setColourSource(const ColourPair* pair)
+{
+    m_colours = pair;
+    const bool has = pair != nullptr;
+    if (m_actFill)    m_actFill->setVisible(has);
+    if (m_actOutline) m_actOutline->setVisible(has);
+}
+
+void ObjectController::applyColourToSelection(const QColor& colour, ArtifactPart role)
+{
+    if (!colour.isValid() || m_selectedOverlays.isEmpty())
+        return;
+
+    QList<TextArtifact> next;
+    int                 changed = 0;
+    for (const QString& uid : std::as_const(m_selectedOverlays)) {
+        TextArtifact each   = m_artifacts.value(uid);
+        const bool   shaped = each.shape.kind != TextArtifact::Shape::None;
+        switch (role) {
+        case ArtifactPart::Text:    each.text.colour = colour; ++changed; break;
+        case ArtifactPart::Outline: if (shaped) { each.skin.stroke = colour; ++changed; } break;
+        case ArtifactPart::Fill:    if (shaped) { each.skin.fill   = colour; ++changed; } break;
+        case ArtifactPart::None:    break;
+        }
+        next.append(each);
+    }
+    if (changed == 0)
+        return;   // nothing in the selection has that role, so there is nothing to undo either
+
+    const QString step = role == ArtifactPart::Text      ? tr("Apply text colour")
+                       : role == ArtifactPart::Outline   ? tr("Apply outline colour")
+                                                         : tr("Apply fill colour");
+    applyPanelArtifacts(next, /*commit=*/true, step);
+    if (m_objectState && m_selectedOverlays.size() > 1)
+        m_objectState->setArtifacts(next);
+    else if (m_objectState)
+        m_objectState->setArtifact(next.first());
+}
+
+void ObjectController::applyGroupToSelection(PropertyGroup group)
+{
+    if (!m_toolOptions || m_selectedOverlays.isEmpty())
+        return;
+    const TextArtifact source = m_toolOptions->prototype();
+
+    QList<TextArtifact> next;
+    int                 changed = 0;
+    for (const QString& uid : std::as_const(m_selectedOverlays)) {
+        TextArtifact each   = m_artifacts.value(uid);
+        const bool   shaped = each.shape.kind != TextArtifact::Shape::None;
+        switch (group) {
+        case PropertyGroup::Skin:
+            if (shaped) { each.skin = source.skin; ++changed; }   // nothing to fill without a silhouette
+            break;
+        case PropertyGroup::Style:
+            if (shaped) {
+                each.style = source.style;
+                // The seed belongs to no group precisely so that nothing can copy it — but an object that
+                // has just become styled needs one of its own, or a page of them wears one wobble.
+                if (each.style.kind != TextArtifact::Style::Clean && each.styleSeed == 0)
+                    each.styleSeed = QRandomGenerator::global()->generate();
+                ++changed;
+            }
+            break;
+        case PropertyGroup::Text: {
+            // Everything about the lettering except the lettering: five balloons do not share one line.
+            const QString said = each.text.body;
+            each.text          = source.text;
+            each.text.body     = said;
+            ++changed;
+            break;
+        }
+        default:
+            break;
+        }
+        next.append(each);
+    }
+    if (changed == 0)
+        return;
+
+    const QString step = group == PropertyGroup::Skin  ? tr("Apply fill & outline")
+                       : group == PropertyGroup::Style ? tr("Apply line style")
+                                                       : tr("Apply text style");
+    applyPanelArtifacts(next, /*commit=*/true, step);
+    if (m_objectState && m_selectedOverlays.size() > 1)
+        m_objectState->setArtifacts(next);
+    else if (m_objectState)
+        m_objectState->setArtifact(next.first());
+}
+
+void ObjectController::saveSelectionAsPreset()
+{
+    const auto* bubble = qobject_cast<BubbleObject*>(m_overlayItems.value(m_selectedOverlay));
+    if (!bubble)
+        return;   // imported artwork has no look to save
+
+    bool          ok   = false;
+    const QString name = QInputDialog::getText(m_dialogParent, tr("Save preset"), tr("Preset name:"),
+                                               QLineEdit::Normal, bubble->artifact().text.body.left(24),
+                                               &ok)
+                             .trimmed();
+    if (!ok || name.isEmpty())
+        return;
+
+    // The store decides what a preset carries — the look, never the lettering — so this hands over the
+    // whole artifact and lets the one function that knows the answer do the cutting.
+    int existing = -1;
+    if (m_presets.save(name, bubble->artifact(), /*replaceExisting=*/false, &existing) < 0) {
+        if (QMessageBox::question(m_dialogParent, tr("Save preset"),
+                                  tr("A preset named “%1” already exists. Replace it?").arg(name))
+            != QMessageBox::Yes)
+            return;
+        m_presets.save(name, bubble->artifact(), /*replaceExisting=*/true);
+    }
+}
 
 void ObjectController::setSelectionBlend(Platemaker::Models::BlendMode blend)
 {

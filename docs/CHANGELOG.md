@@ -59,11 +59,21 @@
     caption without a balloon takes the lettering colour and no fill. The colour tool does the same when you pour it onto something that is selected. Deleting is one
     undoable step, and the actions that only make sense for a single object are greyed until you pick
     one.
+  - **The object list starts at a third of the right-hand column** instead of a couple of rows, and the
+    splitter still remembers wherever you put it.
+  - **The object list shows what each row is** — a drawing of that very balloon, with its own shape, its
+    tails and its fill colour, beside the first 32 characters of what it says. Artwork shows itself, a
+    caption with no balloon shows *Aa*, a tail shows a tail, and the strip shows its pages. The rows are
+    tall enough to read the drawing, and it stays crisp on a scaled display.
   - **Blend modes are reachable** — right-click an object → **Blend ▸** for Normal, Multiply, Screen,
     Overlay, Darken or Lighten, applied to everything selected in one undoable step. The render has
     understood them all along; nothing in the editor could set them.
   - **Bring forward / Send back** on the context menu move an object through the stack without dragging
     its row.
+  - **More on the object's menu**: *Fill with primary colour* and *Outline with secondary colour* spend the
+    colour pair without reaching for the bucket; *Apply from tool options ▸* gives the selection the fill,
+    the line style or the typography you have set up for the next object; *Save as preset…* keeps a
+    balloon's look under a name.
   - **Drag the strip itself to select everything the box covers.** The old *Pan / select* tool is now
     two: **Select** (the default) rubber-bands, and **Pan** scrolls — and the **middle mouse button
     scrolls under every tool**, so you never have to switch tools to look somewhere else.

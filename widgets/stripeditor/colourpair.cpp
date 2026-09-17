@@ -212,9 +212,9 @@ void ColourPair::refresh()
     m_swapButton->setIcon(swapIcon(palette(), dpr));
     m_resetButton->setIcon(resetIcon(palette(), dpr));
 
-    m_primaryButton->setToolTip(tr("Primary colour — %1.\nClick to choose it; the eyedropper fills it.")
+    m_primaryButton->setToolTip(tr("Primary colour: %1.")
                                     .arg(m_primary.name(QColor::HexArgb)));
-    m_secondaryButton->setToolTip(tr("Secondary colour — %1.\nThe eyedropper fills it with Ctrl held.")
+    m_secondaryButton->setToolTip(tr("Secondary colour: %1.")
                                       .arg(m_secondary.name(QColor::HexArgb)));
     m_swapButton->setToolTip(tr("Swap the two colours"));
     m_resetButton->setToolTip(tr("Reset to black and white"));

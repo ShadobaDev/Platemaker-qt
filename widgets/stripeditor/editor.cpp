@@ -457,10 +457,10 @@ Editor::~Editor()
 namespace {
 //! One QSettings key per splitter. Prefixed, because the strip editor is not the only thing in here.
 // The layout's version is in the key. A default that changes is only a default for whoever has never
-// moved the splitter — everyone else has a saved state that would go on winning — so a deliberate change
-// bumps this, the old entries are ignored, and the artist's own adjustments start again from the new
+// moved the splitter — everyone else has a saved state that would go on winning. In case new layout components are added,
+// bumps this, so the old entries are ignored, and the user's own adjustments start again from the new
 // proportions rather than from a sliver.
-QString splitterKey(const QString& name) { return QStringLiteral("stripEditor/splitter2/") + name; }
+QString splitterKey(const QString& name) { return QStringLiteral("stripEditor/splitter/") + name; }
 }
 
 void Editor::restoreSplitterState()

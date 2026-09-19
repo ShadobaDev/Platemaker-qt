@@ -205,12 +205,6 @@
      </widget>
      <widget class="QGraphicsView" name="graphicsView"/>
      <widget class="QSplitter" name="rightPanel">
-      <property name="maximumSize">
-       <size>
-        <width>320</width>
-        <height>16777215</height>
-       </size>
-      </property>
       <property name="orientation">
        <enum>Qt::Vertical</enum>
       </property>

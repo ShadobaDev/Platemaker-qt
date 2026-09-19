@@ -61,7 +61,6 @@ private slots:
 
 private:
     Ui::ProfilePickerDialog *ui;
-    QList<Row>               m_rows;
 };
 
 #endif // PROFILEPICKERDIALOG_H

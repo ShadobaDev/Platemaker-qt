@@ -39,10 +39,12 @@
 #include <QMouseEvent>
 #include <QPainter>
 #include <QPen>
+#include <QScrollArea>
 #include <QScrollBar>
 #include <QShortcut>
 #include <QSettings>
 #include <QSplitter>
+#include <QSplitterHandle>
 #include <QStackedWidget>
 #include <QStyleOptionGraphicsItem>
 #include <QToolButton>
@@ -58,6 +60,72 @@
 namespace StripEdit {
 
 namespace {
+
+/**
+ * @brief Puts @p page into @p host inside a scroll area, and hands the area back to be added as the page.
+ *
+ * **A panel may not decide how wide its column is.** A stacked widget's minimum is its pages' minimum,
+ * and a splitter may never take a child below that — so the right column grew the moment something was
+ * selected and the properties appeared (measured: 18 points empty, 174 with one object's controls, and
+ * more with the real panel). Every row in the list then slid sideways, out from under the pointer that
+ * had just come down on a mute checkbox, and the click landed on the row instead. Inside a scroll area
+ * the column's minimum is the scroll area's own — constant — and a panel too big for the column scrolls
+ * rather than shoving it. That is also what lets the object list keep its third of the height when the
+ * properties are long.
+ */
+[[nodiscard]] QScrollArea* scrolled(QWidget* page, QStackedWidget* host)
+{
+    auto* area = new QScrollArea(host);
+    area->setFrameShape(QFrame::NoFrame);   // the panel already sits in a framed column
+    area->setWidgetResizable(true);
+    area->setWidget(page);
+    return area;
+}
+
+/**
+ * @brief How wide a side column starts, and the least it can be dragged to.
+ *
+ * **Measured rather than guessed, and a number rather than a question.** With an object in it, the
+ * properties panel's layout asks for 324 points and stops needing a horizontal scroll bar at 332
+ * (Windows 11 style, default font); 340 leaves room for the vertical one. Asking the panel at
+ * construction — the obvious thing, and the first thing tried — cannot work: a panel with nothing
+ * selected has not built a control yet and answers **55**, while the width has to be known before
+ * anything is selected. Asking again later would mean the column widening under the pointer, which is
+ * the bug this whole arrangement exists to stop.
+ *
+ * It is enforced as a *minimum* and not only as a starting size, because a size is outvoted by whatever
+ * the artist last had saved — someone whose saved layout predates this would otherwise go on reading
+ * half a spin box.
+ */
+constexpr int k_sideColumnPx = 340;
+
+//! How wide a splitter's grab area is. Wider than the default 1 point, which was as hard to hit as it
+//! sounds.
+constexpr int k_splitterHandlePx = 6;
+
+//! The least the tool's options may be squeezed to. Below this the panel is a heading with no controls
+//! under it, which says less than nothing about what the armed tool will do.
+constexpr int k_toolOptionsFloorPx = 140;
+
+/**
+ * @brief Makes @p splitter's handles visible, in the palette's own colours.
+ *
+ * Neither the native style nor Fusion paints anything on a splitter handle (checked, both), so widening
+ * one only widens the gap. Filling it does say where the seam is — and which of the two neighbouring
+ * greys reads as a line depends on the theme, so it is chosen the same way `widgets/badge/` chooses a
+ * chip's lightness: against the window's own.
+ */
+void showHandles(QSplitter* splitter)
+{
+    splitter->setHandleWidth(k_splitterHandlePx);
+    const bool darkUi = splitter->palette().color(QPalette::Window).lightnessF() < 0.5;
+    for (int i = 1; i < splitter->count(); ++i) {
+        if (QSplitterHandle* handle = splitter->handle(i)) {
+            handle->setAutoFillBackground(true);
+            handle->setBackgroundRole(darkUi ? QPalette::Midlight : QPalette::Mid);
+        }
+    }
+}
 
 //! Pages built beyond the viewport on each side. One page is several slices tall, so ±1 already covers
 //! a comfortable scroll ahead; a larger margin would multiply a much heavier unit of work.
@@ -175,7 +243,16 @@ Editor::Editor(QWidget *parent)
     // set the splitter sizing (not a .ui property). Pan (the default) keeps today's behaviour: hand-drag
     // pan and no side panel.
     {
-        auto* railLay = new FlowLayout(ui->toolRail, 6, 4, 4); // margin, hSpacing, vSpacing — wraps to fit
+        // The rail is two rows, not one flow: the tiles, and under them the colour pair. They used to
+        // share the flow, which worked and read badly — the pair took its turn in the grid as though it
+        // were a ninth tool, and it is furniture.
+        auto* railRows = new QVBoxLayout(ui->toolRail);
+        railRows->setContentsMargins(0, 0, 0, 0);
+        railRows->setSpacing(0);
+        m_toolTiles   = new QWidget(ui->toolRail);
+        auto* railLay = new FlowLayout(m_toolTiles, 6, 4, 4); // margin, hSpacing, vSpacing — wraps to fit
+        railRows->addWidget(m_toolTiles);
+        m_toolTiles->installEventFilter(this);   // see eventFilter: the tiles keep their own minimum
         m_toolGroup = new QButtonGroup(this);
         m_toolGroup->setExclusive(true);
 
@@ -188,7 +265,8 @@ Editor::Editor(QWidget *parent)
         // The Grade tool's options are an image editor's colour menu: which adjustment, and its controls, applied to the
         // selected object. What a selected strip's grade *is* is shown on the right, in its state.
         m_gradePanel = new GradePanel(ui->toolOptions);
-        pageIndex.insert(QStringLiteral("grade"), ui->toolOptions->addWidget(m_gradePanel));
+        pageIndex.insert(QStringLiteral("grade"),
+                         ui->toolOptions->addWidget(scrolled(m_gradePanel, ui->toolOptions)));
         connect(m_gradePanel, &GradePanel::changed, this, [this](const Platemaker::Models::ColourCorrection& cc) {
             // Live edit: apply it, but do NOT push it back into the panel — the panel is the source
             // here, and re-syncing its widgets mid-drag would fight the slider the user is holding.
@@ -207,13 +285,14 @@ Editor::Editor(QWidget *parent)
         // author the same object and differ only in the shape they place, which each tool's row says.
         m_presets     = new PresetStore(this);
         m_toolOptions = new ToolOptionsPanel(*m_presets, ui->toolOptions);
-        pageIndex.insert(QStringLiteral("artifact"), ui->toolOptions->addWidget(m_toolOptions));
+        pageIndex.insert(QStringLiteral("artifact"),
+                         ui->toolOptions->addWidget(scrolled(m_toolOptions, ui->toolOptions)));
 
         // The rail, built from the registry: a button per row, in the table's order, its id that row's
         // index. A row with no icon file draws its own — see refreshGeneratedToolIcons().
         for (int i = 0; i < tools().size(); ++i) {
             const Tool& t = tools().at(i);
-            auto* b = new QToolButton(ui->toolRail);
+            auto* b = new QToolButton(m_toolTiles);
             if (!t.icon.isEmpty())
                 b->setIcon(QIcon(t.icon));
             b->setIconSize(QSize(26, 26));
@@ -230,8 +309,13 @@ Editor::Editor(QWidget *parent)
         // The colour pair is **furniture**, not a tool: it sits under the tiles and stays there whichever
         // tool is active, because the tools that use it — the eyedropper fills it, an applicator spends
         // it — hold a reference to it rather than a colour of their own.
-        m_colours = new ColourPair(ui->toolRail);
-        railLay->addWidget(m_colours);
+        m_colours       = new ColourPair(ui->toolRail);
+        auto* colourRow = new QHBoxLayout;
+        colourRow->setContentsMargins(6, 2, 6, 6);
+        colourRow->addWidget(m_colours);
+        colourRow->addStretch(1);       // left, where the tiles start
+        railRows->addLayout(colourRow);
+        railRows->addStretch(1);        // both rows hug the top; the rest of the rail is empty space
 
         refreshGeneratedToolIcons();   // the rows that carry no icon file draw their own
 
@@ -249,12 +333,14 @@ Editor::Editor(QWidget *parent)
         // to be one class sitting in two places, which is how they came to look like the same panel
         // twice. They now differ in what they contain, not only in what they mean.
         m_objectState = new ObjectStatePanel(ui->objectProperties);
-        ui->objectProperties->addWidget(m_objectState);
+        m_objectPage  = scrolled(m_objectState, ui->objectProperties);
+        ui->objectProperties->addWidget(m_objectPage);
 
         // The strip and its pages are selected too, and they are not overlays — so they get the same
         // surface with different contents rather than an object panel full of sections that never apply.
         m_stripState = new StripStatePanel(ui->objectProperties);
-        ui->objectProperties->addWidget(m_stripState);
+        m_stripPage  = scrolled(m_stripState, ui->objectProperties);
+        ui->objectProperties->addWidget(m_stripPage);
         connect(m_stripState, &StripStatePanel::excludedToggled, this,
                 [this](const QString& inputUid, bool excluded) {
             auto cc = m_cc;
@@ -296,9 +382,18 @@ Editor::Editor(QWidget *parent)
         ui->editorBody->setStretchFactor(0, 0);   // toolbox
         ui->editorBody->setStretchFactor(1, 1);   // canvas
         ui->editorBody->setStretchFactor(2, 0);   // right panel
-        ui->editorBody->setSizes({220, 700, 260}); // the tool column now carries the tool's options
+        // Both side columns hold panels of the same kind — rows of labelled controls — so they take the
+        // same width, and neither can be dragged under it. See k_sideColumnPx for where the number is
+        // from and why it is a number.
+        ui->toolColumn->setMinimumWidth(k_sideColumnPx);
+        ui->rightPanel->setMinimumWidth(k_sideColumnPx);
+        ui->editorBody->setChildrenCollapsible(false);   // no column can be dragged out of existence
+        ui->editorBody->setSizes({k_sideColumnPx, 700, k_sideColumnPx});
         ui->toolColumn->setStretchFactor(0, 0);    // the tile rail takes what it needs
         ui->toolColumn->setStretchFactor(1, 1);    // the options absorb the rest
+        // The tools are never negotiable — the rail's minimum follows its own wrapping (see
+        // eventFilter) — and the options keep a floor of their own, so neither can be shut by a drag.
+        ui->toolOptions->setMinimumHeight(k_toolOptionsFloorPx);
         ui->toolColumn->setSizes({120, 600});
         ui->rightPanel->setStretchFactor(0, 2);    // object properties
         ui->rightPanel->setStretchFactor(1, 1);    // the object list
@@ -307,6 +402,8 @@ Editor::Editor(QWidget *parent)
         // sliver. QSplitter reads these as proportions, so the ratio is what survives, not the numbers.
         ui->rightPanel->setSizes({2, 1});
         restoreSplitterState();                    // ...unless the artist has already moved them
+        for (QSplitter* s : {ui->editorBody, ui->toolColumn, ui->rightPanel})
+            showHandles(s);
 
         connect(m_toolGroup, &QButtonGroup::idClicked, this,
                 [this](int id) { setTool(tools().at(id).id); });
@@ -404,7 +501,7 @@ void Editor::showSubject()
             if (isSkipped(m_layout.page(i).inputUid))
                 ++excluded;
         m_stripState->showStrip(m_layout.pageCount(), excluded, m_cc);
-        ui->objectProperties->setCurrentWidget(m_stripState);
+        ui->objectProperties->setCurrentWidget(m_stripPage);
         return;
     }
     case ObjectController::Subject::Page: {
@@ -417,7 +514,7 @@ void Editor::showSubject()
                                               .arg(QFileInfo(page.sourcePath).fileName()),
                                page.size, isSkipped(page.inputUid),
                                !Platemaker::Models::isNeutral(m_cc));
-        ui->objectProperties->setCurrentWidget(m_stripState);
+        ui->objectProperties->setCurrentWidget(m_stripPage);
         return;
     }
     case ObjectController::Subject::None:
@@ -425,7 +522,7 @@ void Editor::showSubject()
     case ObjectController::Subject::Tail:
         break;
     }
-    ui->objectProperties->setCurrentWidget(m_objectState);
+    ui->objectProperties->setCurrentWidget(m_objectPage);
 }
 
 void Editor::setColourCorrection(const Platemaker::Models::ColourCorrection& cc)
@@ -673,6 +770,18 @@ void Editor::resizeEvent(QResizeEvent *event)
 
 bool Editor::eventFilter(QObject *watched, QEvent *event)
 {
+    // **The tools are always all visible.** A flow layout's minimum is one tile, so a splitter was free
+    // to shorten the rail until the last row of tools was simply not drawn — and a tool you cannot see
+    // is a tool you do not know you have. The rail's minimum height is therefore whatever its own
+    // wrapping needs at its current width, recomputed whenever that width changes.
+    if (watched == m_toolTiles && event->type() == QEvent::Resize) {
+        if (QLayout* flow = m_toolTiles->layout()) {
+            const int needed = flow->heightForWidth(m_toolTiles->width());
+            if (needed > 0 && needed != m_toolTiles->minimumHeight())
+                m_toolTiles->setMinimumHeight(needed);
+        }
+    }
+
     // The middle button scrolls the strip under **every** tool, so no tool has to give up its left
     // button for something as ordinary as looking somewhere else. Qt's own hand-drag is the left
     // button's, and only the Pan tool arms it.

@@ -342,6 +342,9 @@ private:
     QPoint          m_pointerPos {-1, -1};   //!< Last hovered viewport point, so the cursor can be
                                              //!< re-decided when the pointer has not moved but the
                                              //!< scene under it has.
+    //! The tool tiles' own row in the rail. Held because its minimum height has to follow the flow
+    //! layout's wrapping — see `eventFilter()` — or a drag can hide a row of tools.
+    QWidget           *m_toolTiles    = nullptr;
     GradePanel        *m_gradePanel   = nullptr;   //!< The Grade tool-options page (colour-correction controls).
     AdvisoryBar       *m_advisoryBar  = nullptr;   //!< Bottom edge of this editor; absent until setAdvisories().
     QString         m_tool;                  //!< The active tool's registry id.
@@ -351,6 +354,10 @@ private:
     ObjectStatePanel* m_objectState = nullptr;
     //! The same surface when the strip or one of its pages is selected: what *that* is.
     StripStatePanel*  m_stripState = nullptr;
+    //! What the properties stack actually switches between: each panel inside its own scroll area, so a
+    //! selection cannot widen the column under the pointer. See `scrolled()` in the .cpp.
+    QWidget*          m_objectPage = nullptr;
+    QWidget*          m_stripPage  = nullptr;
     /**
      * @brief The grade as this editor last saw it — from the project, or from a live edit in progress.
      *

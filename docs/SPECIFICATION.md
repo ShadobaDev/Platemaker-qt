@@ -211,13 +211,40 @@ the only place the strip's contents can be seen and reordered. A tool changes wh
 *tool-facing* half, never whether the column is there.
 
 Splitter positions are remembered in `QSettings` — a working preference that follows the artist rather
-than the comic. The right column starts at **two thirds properties, one third object list**, stated as
-sizes rather than left to the children's size hints (a list's hint is one row tall, which is how it ended
-up a sliver). The settings key carries the layout's version, so a deliberately changed default reaches
-the people who already have the old one saved instead of being outvoted by it.
+than the comic, and written on every close, so a changed default only ever reaches someone who has not
+opened this editor before. The right column starts at **two thirds properties, one third object list**,
+stated as sizes rather than left to the children's size hints (a list's hint is one row tall, which is
+how it ended up a sliver).
+
+- **A panel may not decide how wide its column is.** Both stacks — the tool's options and the object's
+  properties — hold each panel in a `QScrollArea`, because a stacked widget's minimum is its pages'
+  minimum and a splitter may never take a child below that. Without it the right column grew the moment
+  something was selected and its controls appeared, sliding every row in the list sideways out from
+  under the pointer that had just come down on a mute checkbox — so the click landed on the row and the
+  mute took two attempts. It is also what lets a long set of properties scroll instead of squeezing the
+  object list.
+- **A side column is as wide as its panel needs, and cannot be dragged narrower.** Both hold the same
+  kind of thing — rows of labelled controls — so both take the same width, enforced as a *minimum* and
+  not only as a starting size: a size is outvoted by whatever the artist last had saved, and someone
+  whose saved layout predates this would go on reading half a spin box. The width is a **measured
+  constant**, not a question asked of the panel: with an object in it the properties panel asks for 324
+  points and stops needing a horizontal scroll bar at 332, but with *nothing* selected it has not built
+  a control yet and answers 55 — and the width has to be settled before anything is selected. Asking
+  again once something is would be the column widening under the pointer, which is the thing the scroll
+  areas above exist to stop.
+- **The tools are never negotiable.** A flow layout's minimum is one tile, so a splitter was free to
+  shorten the rail until its last row of tools was simply not drawn. The rail's minimum height is now
+  whatever its own wrapping needs at its current width, recomputed whenever that width changes, and the
+  tool options keep a floor of their own; no column can be collapsed out of existence by a drag.
+- **The handles are visible and 6 points wide.** Neither the native style nor Fusion paints anything on
+  a splitter handle, so the default one was an invisible 1-point target. The seam is filled from the
+  palette — `Midlight` on a dark window, `Mid` on a light one — chosen the way `widgets/badge/` chooses
+  a chip's lightness rather than named as a colour.
 
 - **Tool rail** (left) — square checkable `QToolButton`s in an exclusive `QButtonGroup`, laid out by
-  `FlowLayout` so they reflow to the rail's width (a flow layout cannot be expressed in a `.ui`).
+  `FlowLayout` so they reflow to the rail's width (a flow layout cannot be expressed in a `.ui`). The
+  colour pair sits in **its own row underneath**, not in the flow: it took its turn in the grid as
+  though it were another tool, which worked and read as one.
   Tools: **Select** (default — a drag on the bare strip rubber-bands what it covers), **Pan** (a drag
   scrolls), **Grade**, **Bubble**, **Text**, **Caption box**, **Colour**, **Eyedropper**. `dragMode` is a
   single property, which is why Select and Pan are two rows rather than one tool: the rubber band and the
@@ -460,6 +487,14 @@ valid baseline for every grade tried on it. Excluded pages are skipped, matching
     how `QStyledItemDelegate::helpEvent()` answers the tooltip for the chip under the cursor: a painted
     badge is not a widget, and a second copy of the layout arithmetic would drift from the first and
     put the wrong sentence on a chip.
+  - **One delegate paints every badged row.** `BadgeItemDelegate` (`widgets/badge/`) draws a row as its
+    text followed by its chips, with an optional dimmed second line and chips of its own — the profile
+    picker's shape and the object list's, from one class. It reads them from **the model**, at roles far
+    above `Qt::UserRole` so they cannot collide with what a host keeps there: indexing a flat vector by
+    `index.row()` is an assumption only a list can keep, and the object list is a tree. A row with
+    nothing to report is handed straight back to `QStyledItemDelegate`, so a view gains the delegate
+    without gaining a new look. The style still draws the background, the selection, the check
+    indicator and the icon; only the text and the chips are ours.
   - **The four tones — Info, Warning, Error and neutral — are named in exactly one place**, and their
     lightness is derived against `QPalette::Base` so the hue carries the meaning and the theme carries
     the rest. The label is black or white by the fill's perceived luminance rather than a fixed dark
@@ -584,6 +619,16 @@ valid baseline for every grade tried on it. Excluded pages are skipped, matching
     Every glyph is drawn at the view's `devicePixelRatioF()` — drawing at one and letting the view scale up
     is what makes an icon look soft on a scaled display — and cached per object against what it is made of:
     the shape, the tails, the box, the two colours and that ratio.
+  - **Every row reports what is true of its object**, as chips after its name: *unanchored* when the
+    page it was placed on is not in the strip, and the blend mode by name whenever it is not `Over`.
+    They are facts nobody typed and that the row says nowhere else — **muting is deliberately not among
+    them**, because the row's own checkbox already answers it and a chip repeating the control beside it
+    is a second voice saying the same thing. The blend mode is lower-cased here and Title Case on the
+    menu, also deliberately: a menu entry is a command and a chip is a remark.
+    - **The chips win the width.** `layOutBadges()` drops a chip that would cross the row's edge, and
+      silently, so a long line of lettering would have stopped the row reporting; the name is elided to
+      whatever the chips leave. An unanchored object correspondingly **lost the word *orphan* where its
+      page number goes** — the chip says that now, and saying it twice cost the row the width it needs.
   - **What the artist opened stays open.** A row is moved by taking it out and inserting it, which makes
     the view forget whether it was expanded, so that is carried across; and rows for deleted objects are
     removed before the strip is placed, so a deletion above it does not move — and fold — the strip.

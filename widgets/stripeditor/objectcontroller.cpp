@@ -9,6 +9,7 @@
 #include "bubbleobject.h"
 #include "object.h"
 #include "artifactpainter.h"
+#include "badgeitemdelegate.h"
 #include "artifactsvg.h"
 
 #include <QFileInfo>
@@ -87,6 +88,35 @@ QPixmap renderAssetFile(const QString& path)
     return QPixmap::fromImage(img);
 }
 
+
+/**
+ * @brief The six blend modes and what to call them — the menu's entries and the row's chip, from one list.
+ *
+ * Named once because a row that reported *Multiply* while the menu ticked something else spelled
+ * differently would be two answers to one question.
+ */
+[[nodiscard]] const QList<QPair<Platemaker::Models::BlendMode, QString>>& blendModes()
+{
+    using BlendMode = Platemaker::Models::BlendMode;
+    static const QList<QPair<BlendMode, QString>> modes{
+        {BlendMode::Over,     ObjectController::tr("Normal")},
+        {BlendMode::Multiply, ObjectController::tr("Multiply")},
+        {BlendMode::Screen,   ObjectController::tr("Screen")},
+        {BlendMode::Overlay,  ObjectController::tr("Overlay")},
+        {BlendMode::Darken,   ObjectController::tr("Darken")},
+        {BlendMode::Lighten,  ObjectController::tr("Lighten")},
+    };
+    return modes;
+}
+
+[[nodiscard]] QString blendName(Platemaker::Models::BlendMode mode)
+{
+    for (const auto& [m, name] : blendModes())
+        if (m == mode)
+            return name;
+    return {};
+}
+
 } // namespace
 
 ObjectController::ObjectController(QGraphicsScene* scene, QGraphicsView* view, QTreeWidget* list,
@@ -134,6 +164,10 @@ ObjectController::ObjectController(QGraphicsScene* scene, QGraphicsView* view, Q
     // own density (see rowglyph.cpp), so this is a size in points and not a reason for anything to be
     // scaled up afterwards.
     m_list->setIconSize(QSize(k_rowGlyphPx, k_rowGlyphPx));
+    // A row names its object; the chips after the name say what is true of it. The delegate hands any
+    // row with nothing to report straight back to the style, so tails, pages and the strip are drawn
+    // exactly as they were.
+    m_list->setItemDelegate(new BadgeItemDelegate(m_list));
 
     // Duplicate / Delete as real QActions: Qt::ActionsContextMenu then builds the list's right-click
     // menu from them for free, and the same objects carry the keyboard shortcuts. They are added to
@@ -153,16 +187,7 @@ ObjectController::ObjectController(QGraphicsScene* scene, QGraphicsView* view, Q
     // Blend, at last reachable. Built once; which entry is ticked is decided when it opens, because that
     // is the only moment it can be true.
     m_blendMenu = new QMenu(tr("Blend"), dialogParent);
-    using BlendMode = Platemaker::Models::BlendMode;
-    const QList<QPair<BlendMode, QString>> blends{
-        {BlendMode::Over,     tr("Normal")},
-        {BlendMode::Multiply, tr("Multiply")},
-        {BlendMode::Screen,   tr("Screen")},
-        {BlendMode::Overlay,  tr("Overlay")},
-        {BlendMode::Darken,   tr("Darken")},
-        {BlendMode::Lighten,  tr("Lighten")},
-    };
-    for (const auto& [mode, name] : blends) {
+    for (const auto& [mode, name] : blendModes()) {
         QAction* a = m_blendMenu->addAction(name);
         a->setCheckable(true);
         a->setData(static_cast<int>(mode));
@@ -864,8 +889,12 @@ void ObjectController::refreshList()
         const QString label = item ? item->label()
                                    : (m_artifacts.contains(uid) ? artifactLabel(m_artifacts.value(uid))
                                                                 : tr("(imported artwork)"));
-        const QString prefix = (page >= 0) ? tr("p.%1").arg(page + 1, 2, 10, QLatin1Char('0'))
-                                           : tr("orphan");
+        // The page it sits on, when it sits on one. An unanchored object used to carry the word *orphan*
+        // where the page number goes; that is what the chip says now, and saying it twice cost the row
+        // the width its lettering needs.
+        const QString text = (page >= 0)
+                                 ? tr("p.%1 · %2").arg(page + 1, 2, 10, QLatin1Char('0')).arg(label)
+                                 : label;
 
         QTreeWidgetItem* row = unused.take(uid);
         if (!row) {
@@ -878,7 +907,7 @@ void ObjectController::refreshList()
         }
         placeTopLevel(row, index);
 
-        row->setText(0, QStringLiteral("%1 · %2").arg(prefix, label));
+        row->setText(0, text);
         row->setIcon(0, rowGlyph(uid));
         row->setCheckState(0, o.enabled ? Qt::Checked : Qt::Unchecked);
         // Both set on every pass, not only when unanchored: a row is reused, and one that was greyed must
@@ -891,6 +920,26 @@ void ObjectController::refreshList()
             row->setData(0, Qt::ForegroundRole, QVariant());
             row->setToolTip(0, QString());
         }
+        // What is true of this object and is written nowhere else on the row. Muting is **not** here:
+        // the row's own checkbox already answers it, and a chip repeating a control next to it is a
+        // second voice saying the same thing.
+        QList<Badge> badges;
+        const QPalette pal = m_list->palette();
+        if (page < 0)
+            badges << toneBadge(BadgeTone::Warning, tr("unanchored"),
+                                tr("The page this object was anchored to is not in the strip, so the "
+                                   "render skips it. Re-anchor it from the object's menu."), pal);
+        // Lower-cased here and Title Case on the menu, deliberately: a menu entry is a command and a
+        // chip is a remark, and a column of chips that disagreed about their capitals would read as
+        // two kinds of thing.
+        if (o.blend != Platemaker::Models::BlendMode::Over)
+            badges << toneBadge(BadgeTone::Neutral, blendName(o.blend).toLower(),
+                                tr("Composited with the page underneath in this blend mode rather "
+                                   "than simply drawn over it."), pal);
+        // Set on every pass, empty included: a row is reused, and one that stopped being unanchored
+        // must stop saying so.
+        row->setData(0, BadgeItemDelegate::k_badgesRole, QVariant::fromValue(badges));
+
         row->setSelected(m_subject == Subject::Overlay && m_selectedOverlays.contains(uid));
 
         // A bubble's tails, one row each, by position: a row stands for whichever tail is at its index now.

@@ -3,6 +3,7 @@
 
 #include <QColor>
 #include <QList>
+#include <QMetaType>
 #include <QRect>
 #include <QString>
 
@@ -40,6 +41,10 @@ struct Badge
     Badge& withBorder(const QColor& c)     { border = c;     return *this; }
     Badge& withTextColour(const QColor& c) { textColour = c; return *this; }
 };
+
+//! So a chip can be carried in a model's item data, which is how a view's rows report without the
+//! delegate having to know what kind of thing each row stands for.
+Q_DECLARE_METATYPE(Badge)
 
 /**
  * @brief What a chip means. The three advisory levels plus the tone that means nothing at all.

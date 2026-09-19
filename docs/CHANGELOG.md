@@ -81,6 +81,19 @@
     whatever page each lands on, and undoing in one step. **Tails count as objects here**: Ctrl-click a
     tail — its row in the list, or its handle on the strip — together with a balloon, and one drag moves
     the balloon and re-aims the tail at once. Delete takes both.
+  - **Muting an object from the list now takes one click.** Selecting it used to widen the right
+    column, which slid the row sideways before the click landed, so the checkbox had to be hit twice.
+    The panels there scroll instead of pushing the column about, which also means a long set of
+    properties no longer squeezes the object list.
+  - **The panel dividers are visible and easier to grab** — they were a one-pixel invisible target —
+    and neither side column can be dragged shut or squeezed narrower than the controls in it.
+  - **The side columns start wide enough for their controls**, so selecting an object no longer leaves
+    its properties cut off at the edge.
+  - **A row of tools can no longer be hidden** by dragging the tool column shorter, and the primary /
+    secondary colour pair has moved to its own row under the tiles instead of queueing among them.
+  - **Each row in the object list now reports its object's state** — *unanchored* when the page it was
+    placed on is not in the strip, and the blend mode by name when it is not the normal one. Hovering a
+    chip says what it means and what to do about it.
   - **The pointer now says what the tool will do** and stays saying it: a hand over the strip under
     Pan, a move cross over an object, resize arrows on a corner, a crosshair under the drawing tools.
     It used to flip between an arrow and a hand depending on whether you had panned yet.

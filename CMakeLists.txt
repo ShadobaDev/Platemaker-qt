@@ -110,6 +110,7 @@ qt_add_executable(Platemaker
 
     # Badges — the rounded chips, shared by the item-view delegates and the status bar.
     widgets/badge/badge.cpp widgets/badge/badge.h
+    widgets/badge/badgeitemdelegate.cpp widgets/badge/badgeitemdelegate.h
 
     # Advisories — the application-wide registry of "this will not do what you meant".
     widgets/advisories/advisories.cpp widgets/advisories/advisories.h

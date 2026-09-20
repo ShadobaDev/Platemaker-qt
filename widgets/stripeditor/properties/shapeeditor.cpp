@@ -84,26 +84,18 @@ ShapeEditor::ShapeEditor(QWidget* parent)
 
     m_tiles = new QButtonGroup(this);
     m_tiles->setExclusive(true);
-    const auto addTile = [&](TextArtifact::Shape shape, const QString& tip) {
+    // The tiles are the shape list, in the shape list's order — both from textartifact.h, so this
+    // picker and *Convert to ▸* cannot come to offer different things or call them different names.
+    for (TextArtifact::Shape shape : shapeOrder()) {
         auto* b = new QToolButton(tileHost);
         b->setCheckable(true);
         b->setAutoRaise(true);
-        b->setToolTip(tip);
+        b->setToolTip(shapeTitle(shape));
         b->setIconSize(QSize(k_bubbleThumbW, k_bubbleThumbH));
         b->setFixedSize(k_shapeTilePx, k_shapeTilePx);
         tileLay->addWidget(b);
         m_tiles->addButton(b, int(shape));
-    };
-    addTile(TextArtifact::Shape::Speech,    tr("Speech balloon"));
-    addTile(TextArtifact::Shape::Ellipse,   tr("Round balloon"));
-    addTile(TextArtifact::Shape::Thought,   tr("Thought balloon"));
-    addTile(TextArtifact::Shape::Shout,     tr("Shout"));
-    addTile(TextArtifact::Shape::Caption,   tr("Caption box"));
-    addTile(TextArtifact::Shape::Trapezoid, tr("Caption plate"));
-    addTile(TextArtifact::Shape::Diamond,   tr("Diamond"));
-    addTile(TextArtifact::Shape::Banner,    tr("Banner"));
-    addTile(TextArtifact::Shape::Scroll,    tr("Scroll"));
-    addTile(TextArtifact::Shape::None,      tr("Text only — no balloon"));
+    }
 
     if (auto* first = m_tiles->button(int(TextArtifact::Shape::Speech)))
         first->setChecked(true);

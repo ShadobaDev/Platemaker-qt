@@ -112,6 +112,14 @@ ToolOptionsPanel::ToolOptionsPanel(PresetStore& presets, QWidget* parent)
     syncFromModel();
 }
 
+TextArtifact::Shape ToolOptionsPanel::balloonShape() const
+{
+    TextArtifact picked;
+    m_groups.shape()->applyTo(picked);
+    return picked.shape.kind == TextArtifact::Shape::None ? TextArtifact::Shape::Speech
+                                                          : picked.shape.kind;
+}
+
 void ToolOptionsPanel::setToolShape(std::optional<TextArtifact::Shape> shape)
 {
     m_toolShape = shape;
@@ -123,9 +131,8 @@ TextArtifact ToolOptionsPanel::prototype() const
     TextArtifact a;
     // Shape first: the tails editor reads it, because a shapeless artifact has nothing to grow a tail
     // from. Everything else is order-independent by construction — no two groups touch a property.
-    m_groups.shape()->applyTo(a);
-    if (m_toolShape)
-        a.shape.kind = *m_toolShape;   // the tool places this, whatever the tiles were left showing
+    // The tool places its own kind if it has one; otherwise the tiles' balloon, which is never None.
+    a.shape.kind = m_toolShape ? *m_toolShape : balloonShape();
     m_groups.skin()->applyTo(a);
     m_groups.style()->applyTo(a);
     m_groups.text()->applyTo(a);

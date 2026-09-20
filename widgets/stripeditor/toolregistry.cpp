@@ -6,9 +6,13 @@ namespace StripEdit {
 
 const QList<Tool>& tools()
 {
-    // The rail, in order. Bubble, Text and Caption name the same options page because they author the
-    // same object — one panel, so two copies of it cannot drift — and differ only in the shape they
-    // place. That is the whole cost of a tool: this row.
+    // The rail, in order. **A row is a kind of object, not a value of one of its properties.** Bubble
+    // and Text share an options page because they author the same record and differ in the one thing
+    // that is structural — whether the object has a silhouette to fill, roughen and grow tails from.
+    //
+    // *Caption used to be a third row here and was a mistake*: a caption box is one of ten silhouettes,
+    // so the rail offered two kinds and one property value as though they were peers. It is picked in
+    // the shape tiles like every other silhouette, and a preset places one in a click.
     static const QList<Tool> table = {
         // Select and Pan are two rows because `dragMode` is one property: the rubber band and the hand
         // cannot both own the left button. Splitting them costs a row — which is what the table is for —
@@ -88,15 +92,6 @@ const QList<Tool>& tools()
          ToolKind::Create, TextArtifact::Shape::None, QStringLiteral("artifact"),
          CursorStyle::Cross, CursorStyle::Inherit},
 
-        // No icon file: a tool that places one shape is drawn by the rasteriser that draws that shape,
-        // so the button cannot misrepresent what pressing it gives you — and a new shape tool costs no
-        // artwork.
-        {QStringLiteral("caption"),
-         QString(),
-         QT_TRANSLATE_NOOP("StripEdit::Tool", "Caption box"),
-         QT_TRANSLATE_NOOP("StripEdit::Tool", "Drag on the strip to place a caption box."),
-         ToolKind::Create, TextArtifact::Shape::Caption, QStringLiteral("artifact"),
-         CursorStyle::Cross, CursorStyle::Inherit},
     };
     return table;
 }

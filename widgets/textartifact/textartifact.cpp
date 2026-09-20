@@ -116,6 +116,35 @@ const char* shapeName(TextArtifact::Shape s)
     return "speech";
 }
 
+QString shapeTitle(TextArtifact::Shape s)
+{
+    // A switch with no default, for the same reason shapeName() has none: a new shape must be named
+    // here too, and the compiler is what says so.
+    switch (s) {
+    case TextArtifact::Shape::None:      return QObject::tr("Text only — no balloon");
+    case TextArtifact::Shape::Speech:    return QObject::tr("Speech balloon");
+    case TextArtifact::Shape::Shout:     return QObject::tr("Shout");
+    case TextArtifact::Shape::Caption:   return QObject::tr("Caption box");
+    case TextArtifact::Shape::Ellipse:   return QObject::tr("Round balloon");
+    case TextArtifact::Shape::Diamond:   return QObject::tr("Diamond");
+    case TextArtifact::Shape::Trapezoid: return QObject::tr("Caption plate");
+    case TextArtifact::Shape::Thought:   return QObject::tr("Thought balloon");
+    case TextArtifact::Shape::Scroll:    return QObject::tr("Scroll");
+    case TextArtifact::Shape::Banner:    return QObject::tr("Banner");
+    }
+    return {};
+}
+
+const QList<TextArtifact::Shape>& shapeOrder()
+{
+    using Shape = TextArtifact::Shape;
+    static const QList<Shape> order{
+        Shape::Speech, Shape::Ellipse, Shape::Thought,  Shape::Shout,  Shape::Caption,
+        Shape::Trapezoid, Shape::Diamond, Shape::Banner, Shape::Scroll,
+    };   // Shape::None is not a silhouette — see the header
+    return order;
+}
+
 TextArtifact::Shape shapeFromName(QStringView name)
 {
     for (int i = 0; i <= int(TextArtifact::Shape::Banner); ++i) {

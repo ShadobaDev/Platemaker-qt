@@ -228,6 +228,16 @@ signals:
     void artworkImportRequested(const QString& sourceFile, double xFrac, double yFrac, double wFrac,
                                 const QString& anchorInputUid);
 
+    /**
+     * @brief Something happened that the artist should be told once — not a state they can fix.
+     *
+     * **An event, deliberately not a badge.** A badge is derived from state, so whoever raised it
+     * re-evaluates and clears it; *"converting hid 2 tails"* has already happened and nothing can make
+     * it stop being true. Events belong in the status bar's temporary message area, which is what its
+     * left side is for, while the advisories keep the right (§9.3).
+     */
+    void noted(const QString& text);
+
 protected:
     //! Ctrl+wheel over the view zooms; a plain wheel keeps the view's native vertical scroll.
     bool eventFilter(QObject *watched, QEvent *event) override;

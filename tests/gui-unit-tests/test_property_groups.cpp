@@ -304,3 +304,54 @@ TEST(PropertyGroupPersistence, RoundTrips)
     EXPECT_EQ(b.tails, a.tails);
     EXPECT_EQ(b, a);
 }
+
+// ---------------------------------------------------------------------------
+// Conversion
+// ---------------------------------------------------------------------------
+
+/**
+ * @brief What *Convert to ▸* promises: a kind the record cannot draw hides properties, never destroys
+ *        them, so converting back brings them with it.
+ *
+ * The promise is made in the menu's own message ("converting back brings them back"), and everything
+ * behind it is this one rule — the tails stay in the record and the *kind* decides whether they count.
+ * A painter taught to draw tails without a balloon, or a conversion taught to clear them, would break
+ * the promise silently; this is what would fail first.
+ */
+TEST(Conversion, AKindHidesTailsRatherThanDestroyingThem)
+{
+    TextArtifact a = loadedArtifact();
+    a.shape.kind   = TextArtifact::Shape::Speech;
+    ASSERT_FALSE(a.tails.items.isEmpty());
+    ASSERT_TRUE(a.hasTail());
+
+    const TailsProperties kept = a.tails;
+
+    a.shape.kind = TextArtifact::Shape::None;   // what the conversion does, and all it does
+    EXPECT_FALSE(a.hasTail());                  // no balloon, so nothing for a tail to leave
+    EXPECT_EQ(a.tails, kept);                   // ...but the record still has them
+
+    a.shape.kind = TextArtifact::Shape::Caption;
+    EXPECT_TRUE(a.hasTail());
+    EXPECT_EQ(a.tails, kept);
+}
+
+/**
+ * @brief The picker offers every silhouette exactly once — and offers "no balloon" never.
+ *
+ * `Shape::None` is a *kind*, not a silhouette: it is the absence of one, and an object without a
+ * silhouette has no fill, no outline, no line style and nothing for a tail to leave from. A picker that
+ * offered it would let a property control change what the object is, which is *Convert to ▸*'s job.
+ */
+TEST(Conversion, ThePickerOffersEverySilhouetteAndNoKind)
+{
+    EXPECT_FALSE(shapeOrder().contains(TextArtifact::Shape::None));
+    // Every enumerated shape except None, and each of them once.
+    EXPECT_EQ(shapeOrder().size(), int(TextArtifact::Shape::Banner));
+    for (TextArtifact::Shape s : shapeOrder()) {
+        EXPECT_FALSE(shapeTitle(s).isEmpty()) << shapeName(s);
+        EXPECT_EQ(shapeOrder().count(s), 1) << shapeName(s);
+    }
+    // Named all the same, because a kind still has to be spelled somewhere.
+    EXPECT_FALSE(shapeTitle(TextArtifact::Shape::None).isEmpty());
+}

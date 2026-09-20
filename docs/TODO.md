@@ -225,6 +225,28 @@ New, backward-compatible features. Several are gated on a lib version, noted in 
   `QApplication::setStyle("Fusion")` plus a shared custom `QPalette`/QSS, accepting that it trades the
   native windows11 look for consistency.
 
+- [ ] **Adopt an imported drawing as a balloon** — a hand-drawn silhouette (someone's own SVG) becomes a
+  real parametric object: recolourable, styleable, and able to grow tails. Today an import is artwork
+  because it carries no *recipe* — the `pm:` attributes a Platemaker-written SVG has — and a foreign
+  file's paths cannot be guessed into `shape.kind`. What is already in place is most of it: tails aim at
+  an arbitrary outline (`tailPath()` takes a `QPainterPath` and ray-casts, so it does not care where the
+  outline came from), the style filter and fill/stroke work on any path, and the lettering is drawn over
+  whatever is underneath. What is missing is **a place in the record for a custom silhouette**
+  (`ShapeProperties` holds an enum; it would need an "imported path" variant) and **a dialog where the
+  artist marks which path is the silhouette and where the tails attach** — i.e. writes the recipe for
+  somebody else's drawing. The honest limit: one closed silhouette, not a drawing of two hundred paths,
+  or "fill" and "outline" stop meaning anything.
+
+- [ ] **Namespace hygiene for the `pm:` recipe** — three small things, together, before overlay files
+  start travelling between people (which the import work makes routine):
+  - **`platemaker.dev` is not registered.** A namespace URI is an identifier and need not resolve, so
+    nothing is broken — but the convention is to mint one in a domain you control, precisely so nobody
+    else can legitimately use it. Either register it or move the URI to a domain we own.
+  - **We write `pm:v="2"` and never read it.** A version marker nobody checks is decoration.
+  - **The two version numbers need a stated rule**: the URI's `/1` changes only on a break, where an old
+    reader *should* fail to recognise the file at all; `pm:v` counts compatible revisions and is what a
+    reader checks to say "this was written by something newer than me".
+
 ---
 
 ## MAJOR — next: 2.0.0

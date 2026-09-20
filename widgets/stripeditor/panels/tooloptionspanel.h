@@ -54,6 +54,15 @@ public:
     //! A fresh artifact carrying the panel's current styling — what a new placement starts from.
     [[nodiscard]] TextArtifact prototype() const;
 
+    /**
+     * @brief The silhouette the tiles are set to — **the artist's own pick, never the active tool's**.
+     *
+     * What *Convert to ▸ Balloon* arrives at, and what the Bubble tool places. Never `None`: the tiles
+     * no longer offer "no balloon", because that is a kind rather than a silhouette, so a `None` here
+     * could only come from a settings file written before that was true.
+     */
+    [[nodiscard]] TextArtifact::Shape balloonShape() const;
+
 private:
     void onControlChanged();      //!< A group reported an edit → read it into the prototype's values.
     void syncFromModel();         //!< Push the prototype's values into the controls.

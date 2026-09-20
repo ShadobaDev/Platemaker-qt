@@ -289,10 +289,15 @@ void ObjectStatePanel::focusText()
 
 void ObjectStatePanel::applyKindVisibility()
 {
-    // A selected tail is a subject of its own with one section, and the balloon's groups stay the balloon's.
-    // Otherwise: a shapeless object has no silhouette, so there is nothing to fill, nothing to roughen and
-    // nothing for a tail to grow from. Shape stays: it is how a caption grows a balloon, until a conversion
-    // tool takes that over.
+    // A selected tail is a subject of its own with one section, and the balloon's groups stay the
+    // balloon's. Otherwise: a shapeless object has no silhouette, so there is nothing to fill, nothing
+    // to roughen, nothing for a tail to grow from — **and no silhouette to choose between**, which is
+    // why Shape goes with them. Shape answers *which* balloon; whether there is a balloon at all is a
+    // kind, and kinds are changed by *Convert to ▸*. The text is the only group every kind carries.
+    //
+    // The editors are still bound and still written back (`PropertyGroupSet::collect()` writes every
+    // group), so a hidden Shape editor holds the object's own `None` and hands it straight back — which
+    // is exactly what must happen: a panel may not convert an object by being edited.
     const bool tailSubject = m_tailIndex >= 0;
     const bool hasShape    = m_artifact.shape.kind != TextArtifact::Shape::None;
     for (auto it = m_sections.cbegin(); it != m_sections.cend(); ++it) {
@@ -301,7 +306,7 @@ void ObjectStatePanel::applyKindVisibility()
         if (g == PropertyGroup::TailItem)
             applies = tailSubject;
         else if (!tailSubject)
-            applies = (g == PropertyGroup::Shape || g == PropertyGroup::Text) ? true : hasShape;
+            applies = (g == PropertyGroup::Text) ? true : hasShape;
         it.value()->setVisible(applies);
     }
 }

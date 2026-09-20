@@ -227,6 +227,7 @@ ObjectController::ObjectController(QGraphicsScene* scene, QGraphicsView* view, Q
     // One property group at a time, taken from what the tool's options are set to.
     m_groupMenu = new QMenu(tr("Apply from tool options"), dialogParent);
     const QList<QPair<PropertyGroup, QString>> groups{
+        {PropertyGroup::Shape, tr("Shape")},
         {PropertyGroup::Skin,  tr("Fill && outline")},
         {PropertyGroup::Style, tr("Line style")},
         {PropertyGroup::Text,  tr("Text style")},
@@ -238,6 +239,46 @@ ObjectController::ObjectController(QGraphicsScene* scene, QGraphicsView* view, Q
 
     m_actSavePreset = new QAction(tr("Save as preset…"), this);
     connect(m_actSavePreset, &QAction::triggered, this, &ObjectController::saveSelectionAsPreset);
+
+    // **Convert crosses the one boundary there is.** An object either has a silhouette — to fill, to
+    // roughen, to grow tails from — or it has not, and that decides which property groups it carries at
+    // all. *Which* silhouette is a property, edited in ③ and applied to a set from *Apply from tool
+    // options ▸*; it has no business in a menu about kinds. Two entries, therefore, not ten.
+    //
+    // The intersection Q32 asks for is either both or neither: every authored object can become either
+    // kind, and something that is not an authored object — imported artwork, or a tail — can become
+    // nothing, which is what greys the menu.
+    m_convertMenu = new QMenu(tr("Convert to"), dialogParent);
+    m_actToText   = m_convertMenu->addAction(tr("Text"));
+    m_actToText->setCheckable(true);
+    connect(m_actToText, &QAction::triggered, this,
+            [this] { convertSelectionTo(TextArtifact::Shape::None); });
+    m_actToBalloon = m_convertMenu->addAction(tr("Balloon"));
+    m_actToBalloon->setCheckable(true);
+    // The silhouette it arrives at is the one the tool's options are set to — the same source *Apply
+    // from tool options ▸* spends, so there is one answer to "which balloon" and not two.
+    connect(m_actToBalloon, &QAction::triggered, this, [this] {
+        if (m_toolOptions)
+            convertSelectionTo(m_toolOptions->balloonShape());
+    });
+    connect(m_convertMenu, &QMenu::aboutToShow, this, [this] {
+        // Ticked only when the selection agrees, exactly as Blend is: with a set that disagrees,
+        // nothing is ticked, which is the same answer ③ gives when it says Mixed. The tick is on the
+        // *kind*, so any silhouette ticks Balloon — the shape tiles say which one.
+        std::optional<bool> shaped;
+        bool                agree = true;
+        for (const QString& uid : std::as_const(m_selectedOverlays)) {
+            if (m_carriers.contains(uid) || !m_artifacts.contains(uid))
+                continue;
+            const bool hasShape = m_artifacts.value(uid).shape.kind != TextArtifact::Shape::None;
+            if (!shaped)
+                shaped = hasShape;
+            else if (*shaped != hasShape)
+                agree = false;
+        }
+        m_actToText->setChecked(shaped && agree && !*shaped);
+        m_actToBalloon->setChecked(shaped && agree && *shaped);
+    });
 
     m_actForward = new QAction(tr("Bring forward"), this);
     connect(m_actForward, &QAction::triggered, this, [this] { moveSelectedInStack(true); });
@@ -273,6 +314,7 @@ ObjectController::ObjectController(QGraphicsScene* scene, QGraphicsView* view, Q
         w->addAction(m_actForward);
         w->addAction(m_actBackward);
         w->addAction(separator());
+        w->addAction(m_convertMenu->menuAction());
         w->addAction(m_reanchorMenu->menuAction());
         w->addAction(m_actDuplicate);
         w->addAction(m_actDelete);
@@ -1141,6 +1183,14 @@ void ObjectController::selectSubjects(const QStringList& uids, const QList<TailR
     if (m_actFill)     m_actFill->setEnabled(anyObject && m_colours);
     if (m_actOutline)  m_actOutline->setEnabled(anyObject && m_colours);
     if (m_actSavePreset) m_actSavePreset->setEnabled(oneObject);
+    // A kind is something only an authored object has. One that is not — imported artwork, or a tail —
+    // can reach nothing, and the intersection of "everything" with "nothing" is what greys this out.
+    const bool authoredOnly =
+        !picked.isEmpty() && pickedTails.isEmpty()
+        && std::all_of(picked.cbegin(), picked.cend(), [this](const QString& uid) {
+               return m_artifacts.contains(uid) && !m_carriers.contains(uid);
+           });
+    if (m_convertMenu) m_convertMenu->menuAction()->setEnabled(authoredOnly);
 
     if (m_objectState) {
         if (picked.isEmpty()) {
@@ -1548,6 +1598,11 @@ void ObjectController::applyGroupToSelection(PropertyGroup group)
         TextArtifact each   = m_artifacts.value(uid);
         const bool   shaped = each.shape.kind != TextArtifact::Shape::None;
         switch (group) {
+        case PropertyGroup::Shape:
+            // The silhouette, to everything that has one. A shapeless object is **left alone**: giving
+            // it a balloon would be a conversion, and a conversion is somewhere else on this menu.
+            if (shaped) { each.shape.kind = source.shape.kind; ++changed; }
+            break;
         case PropertyGroup::Skin:
             if (shaped) { each.skin = source.skin; ++changed; }   // nothing to fill without a silhouette
             break;
@@ -1577,10 +1632,62 @@ void ObjectController::applyGroupToSelection(PropertyGroup group)
     if (changed == 0)
         return;
 
-    const QString step = group == PropertyGroup::Skin  ? tr("Apply fill & outline")
+    const QString step = group == PropertyGroup::Shape ? tr("Apply shape")
+                       : group == PropertyGroup::Skin  ? tr("Apply fill & outline")
                        : group == PropertyGroup::Style ? tr("Apply line style")
                                                        : tr("Apply text style");
     applyPanelArtifacts(next, /*commit=*/true, step);
+    if (m_objectState && m_selectedOverlays.size() > 1)
+        m_objectState->setArtifacts(next);
+    else if (m_objectState)
+        m_objectState->setArtifact(next.first());
+}
+
+void ObjectController::convertSelectionTo(TextArtifact::Shape kind)
+{
+    if (m_selectedOverlays.isEmpty())
+        return;
+
+    // **What passes through is decided by the kind, not by the silhouette.** @p kind carries which
+    // silhouette to arrive at, but a Thought balloon asked to become a Balloon is already one — and
+    // re-shaping it to whatever ④ happens to show would be this menu quietly doing the shape picker's
+    // job on an object the artist only had along for the ride. Changing *which* balloon several objects
+    // are is *Apply from tool options ▸ Shape*, and it says so.
+    const bool toSilhouette = kind != TextArtifact::Shape::None;
+
+    QList<TextArtifact> next;
+    int                 converted = 0;
+    int                 hidden    = 0;   //!< Tails that the new kind does not draw.
+    for (const QString& uid : std::as_const(m_selectedOverlays)) {
+        TextArtifact each = m_artifacts.value(uid);
+        // Not an authored object, or already of this kind: it passes through, and since nothing here
+        // touches the order, it keeps its place in the stack for free.
+        const bool authored    = m_artifacts.contains(uid) && !m_carriers.contains(uid);
+        const bool hasSilhouette = each.shape.kind != TextArtifact::Shape::None;
+        if (authored && hasSilhouette != toSilhouette) {
+            if (!toSilhouette)
+                hidden += static_cast<int>(each.tails.items.size());
+            each.shape.kind = kind;
+            ++converted;
+        }
+        next.append(each);
+    }
+    if (converted == 0)
+        return;   // everything was already that kind — not an edit, and not a history step
+
+    // Named after the kind it arrived at — *Balloon*, not *Speech balloon*: the silhouette it happens
+    // to wear is a property, and a history entry should say what the step decided.
+    const QString what = kind == TextArtifact::Shape::None ? tr("text") : tr("a balloon");
+    applyPanelArtifacts(next, /*commit=*/true,
+                        converted == 1 ? tr("Convert to %1").arg(what)
+                                       : tr("Convert %n objects to %1", "", converted).arg(what));
+
+    // Said once, and then gone. An event has no condition to re-evaluate, so it is a message and not a
+    // badge — and it says *not drawn* rather than *removed*, because that is what happened: the tails
+    // are still in the record and a conversion back brings them with it.
+    if (hidden > 0)
+        emit noted(tr("%n tail(s) are no longer drawn — converting back brings them back.", "", hidden));
+
     if (m_objectState && m_selectedOverlays.size() > 1)
         m_objectState->setArtifacts(next);
     else if (m_objectState)

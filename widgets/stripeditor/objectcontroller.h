@@ -215,6 +215,16 @@ signals:
     //! The selection moved to @p subject. @p uid is the overlay's uid or the page's input uid, and empty
     //! for the strip and for nothing. Which panel shows that subject is the editor's to decide.
     void subjectChanged(StripEdit::ObjectController::Subject subject, const QString& uid);
+
+    /**
+     * @brief Something happened that the artist should be told once — not a state they can fix.
+     *
+     * **An event, deliberately not a badge.** A badge is derived from state, so whoever raised it
+     * re-evaluates and clears it; *"converting hid 2 tails"* has already happened and nothing can make
+     * it stop being true. Events belong in the status bar's temporary message area, which is what its
+     * left side is for, while the advisories keep the right (§9.3).
+     */
+    void noted(const QString& text);
 private:
     void onOverlayGeometryEdited(const QString& uid); //!< An item settled a move/resize/tail drag.
     //! Writes where object @p uid now stands back into its record — placement, width and anchor page.
@@ -290,6 +300,28 @@ private:
      * property every object has, so a set takes it the way a set takes a colour.
      */
     void setSelectionBlend(Platemaker::Models::BlendMode blend);
+
+    /**
+     * @brief Makes every selected object the **kind** @p kind stands for, as one history step.
+     *
+     * @param kind `None` for lettering with no balloon; any silhouette for a balloon, and that is the
+     *             silhouette a converted object arrives at.
+     *
+     * **What passes through is decided by the kind, not by the silhouette.** An object that already has
+     * a balloon is untouched by *Convert to ▸ Balloon* even if it wears a different one — re-shaping it
+     * would be this menu doing the shape picker's job on an object the artist only had along for the
+     * ride. Changing *which* balloon a selection wears is `applyGroupToSelection(PropertyGroup::Shape)`.
+     *
+     * Passing through includes keeping its place in the stack, which nothing here reorders (Q46), so
+     * converting a mixed set is not two acts: select two texts and a balloon, convert to Balloon, and
+     * the balloon is simply not in the diff.
+     *
+     * The carry-over needs no per-pair code. Every kind is the same record, so a conversion writes one
+     * property and what the new kind cannot draw is **not drawn rather than destroyed**: a converted
+     * balloon's tails are still in its record and come back if it is converted back. What stopped being
+     * drawn is said once, in the status bar, because it is an event and not a condition (§9.3).
+     */
+    void convertSelectionTo(TextArtifact::Shape kind);
 
     /**
      * @brief Moves the selected object one place towards the front (@p forward) or the back.
@@ -376,6 +408,9 @@ private:
     QAction*           m_actForward      = nullptr;   //!< Bring forward — one place up the stack.
     QAction*           m_actBackward     = nullptr;   //!< Send back.
     QMenu*             m_blendMenu       = nullptr;   //!< The six blend modes, checkable, on the selection.
+    QMenu*             m_convertMenu     = nullptr;   //!< The two kinds the selection can be made into.
+    QAction*           m_actToText       = nullptr;   //!< Convert to ▸ Text: no silhouette at all.
+    QAction*           m_actToBalloon    = nullptr;   //!< Convert to ▸ Balloon: the tiles' silhouette.
     QMenu*             m_groupMenu       = nullptr;   //!< *Apply this group ▸*, from the tool's options.
     QAction*           m_actFill         = nullptr;   //!< Fill with the primary colour.
     QAction*           m_actOutline      = nullptr;   //!< Outline with the secondary colour.

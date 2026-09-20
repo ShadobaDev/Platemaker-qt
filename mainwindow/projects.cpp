@@ -33,6 +33,7 @@
 #include <QScreen>
 #include <QSettings>
 #include <QSize>
+#include <QStatusBar>
 #include <QTabBar>
 #include <QThread>
 #include <QUndoGroup>
@@ -42,6 +43,13 @@
 #include <algorithm>
 #include <utility>
 #include <vector>
+
+namespace {
+//! How long a notice stays in the status bar. Long enough to read a sentence, short enough that it
+//! is gone before it becomes furniture — a message that never expires is a badge, and an event is
+//! not a condition (see the strip editor's `noted` signal).
+constexpr int k_noticeMs = 6000;
+}  // namespace
 
 // ---------------------------------------------------------------------------
 // Project panel slots
@@ -602,6 +610,10 @@ void MainWindow::openStripEditorDock(int projectIndex)
                           QString::fromStdString(m_workspace.projectItems[projectIndex].uid));
     viewer->setAdvisoriesActive(dock->isFloating());
     connect(dock, &QDockWidget::topLevelChanged, viewer, &StripEdit::Editor::setAdvisoriesActive);
+    // What has happened, as opposed to what is wrong: the bar's left side, which expires on its own.
+    // The advisories keep the right side, where a badge lives as long as its condition does (§9.3).
+    connect(viewer, &StripEdit::Editor::noted, this,
+            [this](const QString& text) { statusBar()->showMessage(text, k_noticeMs); });
 
     dock->setWidget(viewer);
 

@@ -94,6 +94,16 @@
   - **Each row in the object list now reports its object's state** — *unanchored* when the page it was
     placed on is not in the strip, and the blend mode by name when it is not the normal one. Hovering a
     chip says what it means and what to do about it.
+  - **Convert to ▸ Text / Balloon** turns the selected objects into the other kind in one undoable
+    step. Objects already of that kind are left exactly as they are, stacking order included, so a
+    mixed selection takes one action. Nothing is thrown away: a balloon converted to text keeps its
+    tails and gets them back on the way back, and the status bar says what stopped being drawn.
+    *Which* balloon stays a property — pick it in the shape tiles, or give it to a whole selection
+    with *Apply from tool options ▸ Shape*.
+  - **The Caption box tool is gone from the tool rail.** A caption is one of the shapes, not a third
+    kind of object beside Bubble and Text: pick it in the shape tiles, or save a preset for it. The
+    shape tiles no longer offer *Text only — no balloon* either, because that is a conversion rather
+    than a shape, and it now lives where the other conversions are.
   - **Presets now report instead of claiming.** The selected object's properties carry a chip naming
     the preset it still looks like — or *Custom* once you change anything the preset covers, and
     *Mixed* when several selected objects disagree; an object's row in the list names the preset the

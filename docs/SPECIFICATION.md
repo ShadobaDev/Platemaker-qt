@@ -257,7 +257,12 @@ how it ended up a sliver).
   colour pair sits in **its own row underneath**, not in the flow: it took its turn in the grid as
   though it were another tool, which worked and read as one.
   Tools: **Select** (default — a drag on the bare strip rubber-bands what it covers), **Pan** (a drag
-  scrolls), **Grade**, **Bubble**, **Text**, **Caption box**, **Colour**, **Eyedropper**. `dragMode` is a
+  scrolls), **Grade**, **Bubble**, **Text**, **Colour**, **Eyedropper**. **A row is a kind of object,
+  not a value of one of its properties**: Bubble and Text author the same record and differ in the one
+  thing that is structural — whether the object has a silhouette. *Caption box used to be a third
+  create tool and was a mistake*: a caption is one of nine silhouettes, so the rail offered two kinds
+  and one property value as peers. It is picked in the shape tiles like every other silhouette, and a
+  preset places one in a click. `dragMode` is a
   single property, which is why Select and Pan are two rows rather than one tool: the rubber band and the
   hand both want the left button on the bare strip. Both only act on a press no item took, so dragging an
   object moves it under either. **The middle button scrolls under every tool** — implemented here rather
@@ -489,6 +494,12 @@ valid baseline for every grade tried on it. Excluded pages are skipped, matching
   - **Re-anchor to ▸** on the selection lists every page as `p.NN — file name`, current one checked, and
     changes only the anchor: the object keeps its offset from the page top. Pages are listed, never
     pre-chosen, because a guess could only go on position and position is what a deletion shifts.
+- **An event is told once; a condition is shown until it is fixed.** A badge is derived from state, so
+  whoever raises it re-evaluates and clears it — *unanchored*, *grade not run*. *"Converting hid 2
+  tails"* has already happened and nothing can make it stop being true, so it is not a badge: the strip
+  editor emits `noted()`, and the main window shows it in the status bar's **temporary message area**,
+  which expires on its own. The advisories keep the bar's right-hand side, where a badge lives exactly
+  as long as its condition does.
 - **Badges are one widget, shared.** `widgets/badge/` owns the rounded chip: a `Badge` is a label, a
   required fill and three colours derived from it (border, gradient, label), plus the sentence behind
   it. `paintBadge()` draws one, `layOutBadges()` a run of them, and `makeBadge()` hands one out as a
@@ -577,21 +588,43 @@ valid baseline for every grade tried on it. Excluded pages are skipped, matching
   canvas and the tree, so the two cannot drift and every entry keeps its shortcut; a right-click selects
   the object it points at unless that object is already part of the selection), in three sections:
   what the object looks like — *Apply preset ▸*, **Blend ▸** — then where it sits in the stack —
-  **Bring forward**, **Send back** — then what happens to it whole: *Re-anchor to ▸*, *Duplicate*,
-  *Delete*, and *Import artwork…* which needs no selection at all.
+  **Bring forward**, **Send back** — then what happens to it whole: **Convert to ▸**, *Re-anchor to ▸*,
+  *Duplicate*, *Delete*, and *Import artwork…* which needs no selection at all.
   - **Blend** applies to the whole selection as one step, and the tick shows the mode only when the
     selection agrees — the same answer ③ gives by saying *Mixed*. The mode has been in the model, the
     compositor and this preview since the library shipped it; nothing could reach it until now.
   - **The colour entries spend the pair**: *Fill with primary colour* and *Outline with secondary colour*
     apply it to every selected object that has that role, exactly as the colour tool does when poured onto
     one — the menu is what makes the gesture discoverable. They read the pair and never write it.
-  - **Apply from tool options ▸** copies one property group from ④ onto the selection — *Fill & outline*,
-    *Line style*, *Text style* (everything about the lettering except the lettering). This is the *style
+  - **Apply from tool options ▸** copies one property group from ④ onto the selection — *Shape*,
+    *Fill & outline*, *Line style*, *Text style* (everything about the lettering except the lettering).
+    **Shape lands only on objects that already have one**: giving a silhouette to something that has
+    none is a conversion, and that is elsewhere on this menu. This is the *style
     applicator*: as a rail tool it would have to carry a current style, which a stateless tool may not;
     as a menu entry the value is whatever the tool's options are set to. Applying a line style mints a
     `styleSeed` for an object that has none, the same top-up `PropertyGroupSet::collect()` does.
   - **Save as preset…** stores the selected balloon's look through `PresetStore`, which is the one place
     that knows a preset carries no lettering.
+  - **Convert to ▸ crosses the one boundary there is: Text or Balloon.** An object either has a
+    silhouette — to fill, to roughen, to grow tails from — or it has not, and that decides which
+    property groups it carries at all. *Which* silhouette is a property, so it is not in this menu; a
+    conversion to Balloon arrives at whatever ④'s tiles are set to, the same source *Apply from tool
+    options ▸* spends. The whole selection goes in one step, and an object already of that kind passes
+    through untouched — including its place in the stack, since nothing in the conversion reorders
+    anything. Select two texts and a balloon, convert to Balloon, and the balloon is simply not in the
+    diff. The tick is on the kind, so any silhouette ticks *Balloon*, and only when the selection
+    agrees — as Blend's does.
+    - **The carry-over needs no per-pair code.** Every kind is the same record, so a conversion writes
+      one property, and what the new kind cannot draw is **hidden rather than destroyed**: a converted
+      balloon's tails stay in its record — `hasTail()` is what decides they no longer count — and a
+      conversion back brings them with it. The one thing the artist is told is what stopped being
+      drawn.
+    - **A kind is something only an authored object has.** Imported artwork has no record to convert
+      and a tail is not a kind of object, so a selection containing either can reach nothing and the
+      menu is greyed. Every authored object can reach every shape, which is why the *intersection* the
+      menu offers is, today, either all of them or none.
+    - Shapes are named and ordered in **one place** (`shapeTitle()` / `shapeOrder()`), so this menu and
+      ③'s shape tiles cannot come to offer different things or call them different names.
   - **Bring forward / Send back** move one object one place through `stripOverlays`, which *is* the
     composite order — the list has always shown it, reversed, and a drag has always committed it. They
     stay single-object: moving several needs a rule about their order among themselves.

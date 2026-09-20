@@ -851,6 +851,15 @@ valid baseline for every grade tried on it. Excluded pages are skipped, matching
     (`vips_svgload_buffer` → librsvg), so a relative `href` has nothing to resolve against — and a
     wrapper that cannot draw its picture is never written, because it would render as lettering
     floating over nothing.
+  - **The item draws the picture, not the file the library renders.** They are the same thing until
+    the picture is lettered; after that the overlay points at the wrapper, and an item built from
+    *that* would draw the words twice — once baked into the wrapper and once itself. `pictureFor()`
+    resolves the record's `artwork` beside the overlay's own file, so the preview is built from what
+    the artist imported and the lettering stays the editor's to draw.
+  - **A vector picture stays vector on the canvas.** `AssetObject` keeps a `QSvgRenderer` for an SVG
+    source and draws through it, so zooming in sharpens the sprite instead of magnifying pixels chosen
+    at import. The rasterised copy is kept for the row's icon and for the one question a picture has to
+    answer about itself — how big it is. A raster source draws as it always did.
   - **The picture itself is never overwritten.** `writeArtifactSvg()` ignores its reuse path for an
     artwork record: that path may be the imported file, and the imported file is the one thing in the
     workspace we did not make.

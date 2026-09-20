@@ -105,6 +105,9 @@
     edge — which is what a sound effect usually wants. Dragging a box on the strip instead fits it to
     that box, and a picture dragged in from a file manager lands like the preview's. Adding artwork
     used to be possible only from the object list's right-click menu.
+  - **An imported SVG stays sharp at any zoom.** It used to be rasterised once at import and then
+    scaled like a photograph, so zooming in blurred it; it is now drawn as vector at whatever size the
+    canvas is showing.
   - **Imported artwork can be lettered.** Select a picture and type into its Text section: the words
     are laid out over it, shown on the strip exactly as they will render, and they scale with the
     picture when you resize it. Hand-drawn balloons and sound effects can now be typeset without

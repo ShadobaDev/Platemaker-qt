@@ -590,6 +590,13 @@ valid baseline for every grade tried on it. Excluded pages are skipped, matching
   what the object looks like — *Apply preset ▸*, **Blend ▸** — then where it sits in the stack —
   **Bring forward**, **Send back** — then what happens to it whole: **Convert to ▸**, *Re-anchor to ▸*,
   *Duplicate*, *Delete*, and *Import artwork…* which needs no selection at all.
+  - **Blend is a property of every kind, so it is in ③ as well as on the menu.** `BlendEditor`
+    (`properties/`) is the one row a balloon, a piece of lettering and imported artwork all show —
+    deliberately **not** a `PropertyGroupEditor`, because blend lives on `StripOverlay` rather than on
+    the authoring record: it belongs to the object, not to the drawing. A selection that disagrees
+    shows *Mixed* (no current entry, a placeholder), exactly as a mixed swatch does. A selected tail
+    has no row: its composite is its balloon's. The menu's tick and the row read **one** computation,
+    `selectionBlend()`, so they cannot disagree.
   - **Blend** applies to the whole selection as one step, and the tick shows the mode only when the
     selection agrees — the same answer ③ gives by saying *Mixed*. The mode has been in the model, the
     compositor and this preview since the library shipped it; nothing could reach it until now.
@@ -800,9 +807,11 @@ valid baseline for every grade tried on it. Excluded pages are skipped, matching
     history step. *Delete* is there too. Selected together with a balloon, the panel names the count
     and offers nothing — they have only their position in common, as a balloon and a tail do.
   - **The object's menu offers artwork only what applies to it.** *Apply preset ▸*, *Save as preset…*,
-    *Apply from tool options ▸* and the two colour entries are **absent** — not greyed — when nothing
-    parametric is selected: greying says *not now*, and these never apply to a picture somebody else
-    drew. In their place artwork has two of its own, **Original size** (100%) and **Fit to strip
+    *Apply from tool options ▸* and the two colour entries are **absent** — not greyed — unless
+    **every** selected object can take them: greying says *not now*, and these never apply to a picture
+    somebody else drew. The intersection rather than the union, the same rule *Convert to ▸* follows
+    (Q32) and for the same reason — offering *Fill with primary colour* over a balloon and a picture
+    would be offering to do it to both and quietly doing it to one. In their place artwork has two of its own, **Original size** (100%) and **Fit to strip
     width**, which a balloon does not get: a balloon has no size of its own, since its drawing is
     generated at whatever size it is given.
 - **Placing artwork is a tool, not a menu entry.** The **Artwork** tool's options (④) hold one picture

@@ -74,6 +74,7 @@ qt_add_executable(Platemaker
     widgets/stripeditor/rowglyph.cpp widgets/stripeditor/rowglyph.h
     widgets/stripeditor/presetstore.cpp widgets/stripeditor/presetstore.h
     widgets/stripeditor/properties/propertygroupeditor.h
+    widgets/stripeditor/properties/blendeditor.cpp widgets/stripeditor/properties/blendeditor.h
     widgets/stripeditor/properties/propertygroupset.cpp widgets/stripeditor/properties/propertygroupset.h
     widgets/stripeditor/properties/shapeeditor.cpp widgets/stripeditor/properties/shapeeditor.h
     widgets/stripeditor/properties/skineditor.cpp widgets/stripeditor/properties/skineditor.h

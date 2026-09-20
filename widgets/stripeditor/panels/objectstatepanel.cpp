@@ -99,6 +99,13 @@ ObjectStatePanel::ObjectStatePanel(PresetStore& presets, QWidget* parent)
     }
     restoreExpansion();
 
+    // Under the sections and above the actions: what the object *is* composited as. It is not one of
+    // the groups — it belongs to the overlay, not to the record — so it sits outside them, and it is
+    // the only row a picture and a balloon both have.
+    m_blend = new BlendEditor(this);
+    lay->addWidget(m_blend);
+    connect(m_blend, &BlendEditor::blendPicked, this, &ObjectStatePanel::blendPicked);
+
     // Fit and Delete act on the selection, so they live with the selection.
     m_actions = new QWidget(this);
     auto* actionRow = new QHBoxLayout(m_actions);
@@ -333,6 +340,14 @@ void ObjectStatePanel::applyKindVisibility()
     }
 }
 
+
+void ObjectStatePanel::setSelectionBlend(std::optional<Platemaker::Models::BlendMode> blend,
+                                        bool applies)
+{
+    m_blend->setVisible(applies);
+    if (applies)
+        m_blend->setBlend(blend);
+}
 
 void ObjectStatePanel::refreshLook()
 {

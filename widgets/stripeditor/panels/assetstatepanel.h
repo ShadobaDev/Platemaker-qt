@@ -1,8 +1,12 @@
 #ifndef STRIPEDIT_ASSETSTATEPANEL_H
 #define STRIPEDIT_ASSETSTATEPANEL_H
 
+#include <optional>
+
 #include <QString>
 #include <QWidget>
+
+#include "blendeditor.h"
 
 class QDoubleSpinBox;
 class QLabel;
@@ -36,17 +40,23 @@ public:
     //! Shows @p name at @p percent of its own size. Emits nothing.
     void showArtwork(const QString& name, double percent);
 
+    //! How it is composited — the one property it shares with a balloon. Emits nothing.
+    void setSelectionBlend(std::optional<Platemaker::Models::BlendMode> blend);
+
 signals:
     //! Live — while the spin box moves. The editor resizes the object without a history step.
     void scaleChanged(double percent);
     //! Settled — one history step, named for what it did.
     void scaleCommitted(double percent);
     void deleteRequested();
+    //! A blend mode was picked. The editor hands it to the same verb the menu uses.
+    void blendPicked(Platemaker::Models::BlendMode blend);
 
 private:
     QLabel*         m_name  = nullptr;
     QDoubleSpinBox* m_scale = nullptr;
     QPushButton*    m_delete = nullptr;
+    BlendEditor*    m_blend  = nullptr;
     bool            m_populating = false;   //!< Suppresses the signals while binding, as ③'s others do.
 };
 

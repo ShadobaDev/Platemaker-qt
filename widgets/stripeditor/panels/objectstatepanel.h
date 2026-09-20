@@ -4,6 +4,9 @@
 #include <QHash>
 #include <QWidget>
 
+#include <optional>
+
+#include "blendeditor.h"
 #include "propertygroupset.h"
 
 class CollapsibleSection;
@@ -97,6 +100,16 @@ public:
      */
     void setUneditableSubject(const QString& name, const QString& why);
 
+    /**
+     * @brief Shows how the selection is composited — @p blend, or *Mixed* when it has no one answer.
+     *
+     * Separate from the setters above because it is not one of the object's property groups: blend
+     * belongs to the overlay rather than to the record a balloon is drawn from, and every kind of
+     * object has one. @p applies is false where there is no object to ask — nothing selected, or a
+     * tail, whose composite is its balloon's.
+     */
+    void setSelectionBlend(std::optional<Platemaker::Models::BlendMode> blend, bool applies);
+
 
     //! Nothing is selected: the sections go away and the panel says why.
     void clearSelection();
@@ -111,6 +124,8 @@ signals:
     //! The same two, for a set: the objects in the order they were given to setArtifacts().
     void changedMany(const QList<TextArtifact>& objects);
     void committedMany(const QList<TextArtifact>& objects);
+    //! A blend mode was picked for the whole selection. One history step, the owner's to name.
+    void blendPicked(Platemaker::Models::BlendMode blend);
     void fitRequested();                    //!< "Fit to text" — the editor resizes the selected bubble.
     void deleteRequested();                 //!< Removes the selected object.
 
@@ -134,6 +149,7 @@ private:
     QHBoxLayout*        m_header    = nullptr;  //!< The subject and, after it, the look chip.
     QWidget*            m_lookChip  = nullptr;  //!< Shout / Custom / Mixed. Rebuilt, never relabelled.
     QLabel*             m_emptyHint = nullptr;  //!< Stands in for the sections when nothing is selected.
+    BlendEditor*        m_blend     = nullptr;  //!< The one property every kind of object carries.
     QWidget*            m_actions   = nullptr;  //!< Fit / Delete — they act on the selection.
     QString             m_emptyText;            //!< What the hint says with nothing selected.
     QPushButton*        m_fitButton    = nullptr;

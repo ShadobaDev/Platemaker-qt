@@ -11,6 +11,8 @@
 #include <QString>
 #include <QStringList>
 
+#include <optional>
+
 #include "artifactpainter.h"   // ArtifactPart: which part of an object a colour lands on
 #include "cursors.h"
 #include "propertygroupeditor.h"   // PropertyGroup: which group the menu hands over
@@ -250,6 +252,23 @@ public:
     [[nodiscard]] QString selectedArtworkName() const;
 
     /**
+     * @brief Gives every selected object the blend mode @p blend, as one history step.
+     *
+     * Blend has been in the model, the compositor and this preview since the library shipped it, and
+     * nothing could reach it: both creation sites wrote `Over` and no widget offered another. It is a
+     * property every object has, so a set takes it the way a set takes a colour.
+     */
+    void setSelectionBlend(Platemaker::Models::BlendMode blend);
+
+    /**
+     * @brief The mode the whole selection is composited in, or no value when they disagree.
+     *
+     * One computation for the menu's tick and for ③'s row, because they answer the same question and
+     * a tick that disagreed with the row beside it would make one of them wrong.
+     */
+    [[nodiscard]] std::optional<Platemaker::Models::BlendMode> selectionBlend() const;
+
+    /**
      * @brief Removes everything selected, as one history step.
      *
      * Public because more than the menu asks for it: ③ offers Delete for whichever kind of object it
@@ -354,14 +373,6 @@ private:
     void duplicateSelectedOverlay();   //!< Copies the selected bubble a little down and right.
     void setOverlayEnabled(const QString& uid, bool on);  //!< The list's mute checkbox (deferred, see the ctor).
 
-    /**
-     * @brief Gives every selected object the blend mode @p blend, as one history step.
-     *
-     * Blend has been in the model, the compositor and this preview since the library shipped it, and
-     * nothing could reach it: both creation sites wrote `Over` and no widget offered another. It is a
-     * property every object has, so a set takes it the way a set takes a colour.
-     */
-    void setSelectionBlend(Platemaker::Models::BlendMode blend);
 
     /**
      * @brief Makes every selected object the **kind** @p kind stands for, as one history step.

@@ -10,6 +10,7 @@
 #include "object.h"
 #include "artifactpainter.h"
 #include "badgeitemdelegate.h"
+#include "blendeditor.h"   // blendModes(): the menu and ③'s row name the modes from one list
 #include "artifactsvg.h"
 
 #include <QFileInfo>
@@ -59,26 +60,6 @@ constexpr int k_duplicateOffset = 28;
 constexpr int k_sharpCacheEntries = 64;
 
 
-/**
- * @brief The six blend modes and what to call them — the menu's entries and the row's chip, from one list.
- *
- * Named once because a row that reported *Multiply* while the menu ticked something else spelled
- * differently would be two answers to one question.
- */
-[[nodiscard]] const QList<QPair<Platemaker::Models::BlendMode, QString>>& blendModes()
-{
-    using BlendMode = Platemaker::Models::BlendMode;
-    static const QList<QPair<BlendMode, QString>> modes{
-        {BlendMode::Over,     ObjectController::tr("Normal")},
-        {BlendMode::Multiply, ObjectController::tr("Multiply")},
-        {BlendMode::Screen,   ObjectController::tr("Screen")},
-        {BlendMode::Overlay,  ObjectController::tr("Overlay")},
-        {BlendMode::Darken,   ObjectController::tr("Darken")},
-        {BlendMode::Lighten,  ObjectController::tr("Lighten")},
-    };
-    return modes;
-}
-
 [[nodiscard]] QString blendName(Platemaker::Models::BlendMode mode)
 {
     for (const auto& [m, name] : blendModes())
@@ -107,6 +88,7 @@ ObjectController::ObjectController(QGraphicsScene* scene, QGraphicsView* view, Q
             [this](const TextArtifact& a) { applyPanelArtifact(a, /*commit=*/false); });
     connect(m_objectState, &ObjectStatePanel::committed, this,
             [this](const TextArtifact& a) { applyPanelArtifact(a, /*commit=*/true); });
+    connect(m_objectState, &ObjectStatePanel::blendPicked, this, &ObjectController::setSelectionBlend);
     connect(m_objectState, &ObjectStatePanel::deleteRequested, this, &ObjectController::deleteSelectedOverlay);
     connect(m_objectState, &ObjectStatePanel::changedMany, this,
             [this](const QList<TextArtifact>& objects) { applyPanelArtifacts(objects, /*commit=*/false); });
@@ -164,21 +146,11 @@ ObjectController::ObjectController(QGraphicsScene* scene, QGraphicsView* view, Q
         connect(a, &QAction::triggered, this, [this, mode] { setSelectionBlend(mode); });
     }
     connect(m_blendMenu, &QMenu::aboutToShow, this, [this] {
-        // Ticked against the primary: with a set that disagrees, nothing is ticked, which is the same
-        // answer ③ gives when it says Mixed.
-        std::optional<Platemaker::Models::BlendMode> shared;
-        bool agree = true;
-        for (const auto& o : m_overlays) {
-            const QString uid = QString::fromStdString(o.uid);
-            if (!m_selectedOverlays.contains(uid) || m_carriers.contains(uid))
-                continue;
-            if (!shared)
-                shared = o.blend;
-            else if (*shared != o.blend)
-                agree = false;
-        }
+        // Ticked from the same answer ③'s row shows: with a set that disagrees, nothing is ticked and
+        // the row says *Mixed*. One question, one computation.
+        const auto shared = selectionBlend();
         for (QAction* a : m_blendMenu->actions())
-            a->setChecked(shared && agree && a->data().toInt() == static_cast<int>(*shared));
+            a->setChecked(shared && a->data().toInt() == static_cast<int>(*shared));
     });
 
     // The pair, spent from the menu as well as from the canvas — the gesture the bucket offers is easy to
@@ -1171,14 +1143,21 @@ void ObjectController::selectSubjects(const QStringList& uids, const QList<TailR
     // **A menu entry that cannot apply is not greyed, it is absent.** Greying says *not now*; these
     // never apply to a picture somebody else drew — it has no preset, no fill and no outline to give
     // it, and nothing to re-type. A balloon's menu is a balloon's.
-    const bool anyParametric = std::any_of(picked.cbegin(), picked.cend(), [this](const QString& uid) {
-        return isParametric(uid) && !m_carriers.contains(uid);
-    });
+    //
+    // **Every** selected object has to be able to take it, not merely one of them — the same
+    // intersection rule *Convert to ▸* follows (Q32). Offering *Fill with primary colour* for a
+    // selection of a balloon and a picture would be offering to do it to both, and it would quietly
+    // do it to one: a menu that acts on part of what is selected is a menu that lied about its
+    // subject.
+    const bool allParametric = !picked.isEmpty()
+        && std::all_of(picked.cbegin(), picked.cend(), [this](const QString& uid) {
+               return isParametric(uid) || m_carriers.contains(uid);
+           });
     for (QAction* a : {m_actSavePreset, m_actFill, m_actOutline})
         if (a)
-            a->setVisible(anyParametric);
-    if (m_presetMenu) m_presetMenu->menuAction()->setVisible(anyParametric);
-    if (m_groupMenu)  m_groupMenu->menuAction()->setVisible(anyParametric);
+            a->setVisible(allParametric);
+    if (m_presetMenu) m_presetMenu->menuAction()->setVisible(allParametric);
+    if (m_groupMenu)  m_groupMenu->menuAction()->setVisible(allParametric);
     // ...and the two that only artwork has.
     const bool artwork = selectionIsArtwork();
     if (m_actNaturalSize) m_actNaturalSize->setVisible(artwork);
@@ -1225,6 +1204,14 @@ void ObjectController::selectSubjects(const QStringList& uids, const QList<TailR
                 subjects.append(m_artifacts.value(uid));
             m_objectState->setArtifacts(subjects);
         }
+
+        // Whatever the panel is showing, it is showing it for objects that all have a blend mode —
+        // the one property every kind carries. A tail is the exception: it is part of a balloon, and
+        // the balloon's composite is the balloon's.
+        m_objectState->setSelectionBlend(pickedTails.isEmpty() && !picked.isEmpty()
+                                             ? selectionBlend()
+                                             : std::nullopt,
+                                         pickedTails.isEmpty() && !picked.isEmpty());
     }
     emit subjectChanged(m_subject, m_selectedOverlay);
 }
@@ -1816,6 +1803,21 @@ void ObjectController::saveSelectionAsPreset()
             return;
         m_presets.save(name, bubble->artifact(), /*replaceExisting=*/true);
     }
+}
+
+std::optional<Platemaker::Models::BlendMode> ObjectController::selectionBlend() const
+{
+    std::optional<Platemaker::Models::BlendMode> shared;
+    for (const auto& o : m_overlays) {
+        const QString uid = QString::fromStdString(o.uid);
+        if (!m_selectedOverlays.contains(uid) || m_carriers.contains(uid))
+            continue;
+        if (!shared)
+            shared = o.blend;
+        else if (*shared != o.blend)
+            return std::nullopt;   // no one answer — which is an answer, and it is *Mixed*
+    }
+    return shared;
 }
 
 void ObjectController::setSelectionBlend(Platemaker::Models::BlendMode blend)

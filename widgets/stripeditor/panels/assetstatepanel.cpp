@@ -36,8 +36,14 @@ AssetStatePanel::AssetStatePanel(QWidget* parent)
     form->addRow(tr("Size"), m_scale);
     lay->addLayout(form);
 
+    // The one property it shares with a balloon: blend belongs to the overlay, not to the drawing, so
+    // a picture has one exactly as lettering does.
+    m_blend = new BlendEditor(this);
+    lay->addWidget(m_blend);
+    connect(m_blend, &BlendEditor::blendPicked, this, &AssetStatePanel::blendPicked);
+
     auto* hint = new QLabel(tr("Imported artwork has no properties to re-type — somebody else drew it. "
-                               "Its place in the stack, its blend and its page are on the object's menu."),
+                               "Its place in the stack and its page are on the object's menu."),
                             this);
     hint->setWordWrap(true);
     hint->setForegroundRole(QPalette::PlaceholderText);
@@ -58,6 +64,11 @@ AssetStatePanel::AssetStatePanel(QWidget* parent)
             emit scaleCommitted(m_scale->value());
     });
     connect(m_delete, &QPushButton::clicked, this, &AssetStatePanel::deleteRequested);
+}
+
+void AssetStatePanel::setSelectionBlend(std::optional<Platemaker::Models::BlendMode> blend)
+{
+    m_blend->setBlend(blend);
 }
 
 void AssetStatePanel::showArtwork(const QString& name, double percent)

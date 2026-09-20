@@ -408,6 +408,11 @@ Editor::Editor(QWidget *parent)
             if (m_objects)
                 m_objects->deleteSelectedOverlay();
         });
+        connect(m_assetState, &AssetStatePanel::blendPicked, this,
+                [this](Platemaker::Models::BlendMode b) {
+                    if (m_objects)
+                        m_objects->setSelectionBlend(b);
+                });
         connect(m_stripState, &StripStatePanel::excludedToggled, this,
                 [this](const QString& inputUid, bool excluded) {
             auto cc = m_cc;
@@ -615,6 +620,7 @@ void Editor::showSubject()
     if (m_objects->selectionIsArtwork()) {
         m_assetState->showArtwork(m_objects->selectedArtworkName(),
                                   m_objects->selectedArtworkPercent());
+        m_assetState->setSelectionBlend(m_objects->selectionBlend());
         ui->objectProperties->setCurrentWidget(m_assetPage);
         return;
     }

@@ -108,7 +108,11 @@
   - **Imported artwork can be resized by the numbers.** Selecting it shows its size as a percentage of
     its own pixels, and its menu offers *Original size* and *Fit to strip width*.
   - **A picture's menu no longer offers a balloon's entries** — presets, fill and outline colours and
-    *Apply from tool options* are simply not there for imported artwork.
+    *Apply from tool options* are simply not there for imported artwork, nor for a selection that
+    mixes a picture with a balloon: an entry that would act on only half of what is selected is not
+    offered at all.
+  - **Blend is now in the properties panel**, not only on the object's menu — for balloons, lettering
+    and imported artwork alike, since every object has one. A selection that disagrees says *Mixed*.
   - **Importing an SVG that Platemaker wrote gives you a balloon again**, not a flat picture of one:
     shape, tails, colours and lettering all come back editable. Bubbles can be shared between chapters
     and between people this way. A drawing from anywhere else is still placed as artwork.

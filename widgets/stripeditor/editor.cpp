@@ -19,7 +19,6 @@
 
 #include <algorithm>
 
-#include <QCoreApplication>
 #include <QFileInfo>
 #include <QButtonGroup>
 #include <QDebug>
@@ -259,9 +258,25 @@ Editor::Editor(QWidget *parent)
         // The tool-options pages, under the rail — the tool's own settings, in the place every drawing
         // application puts them. One widget per *page*, not per tool: tools that author the same object
         // name the same page, so there is one set of controls and no chance of two drifting apart. A
-        // tool with no options gets the empty page.
+        // tool with no options gets the hint page, which is never blank.
+        // **A tool with no options is not a tool with nothing to say.** The page used to be blank, and a
+        // blank panel under an armed tool reads as *nothing is armed* — which is how the bucket gets
+        // picked by accident, and the next click paints. It carries the tool's name and its one
+        // sentence, both from the registry row, so a new tool cannot arrive without them.
+        auto* hintPage = new QWidget(ui->toolOptions);
+        auto* hintLay  = new QVBoxLayout(hintPage);
+        m_toolTitle    = new QLabel(hintPage);
+        QFont titleFont = m_toolTitle->font();
+        titleFont.setBold(true);
+        m_toolTitle->setFont(titleFont);
+        m_toolHint = new QLabel(hintPage);
+        m_toolHint->setWordWrap(true);
+        m_toolHint->setForegroundRole(QPalette::PlaceholderText);   // a remark, not an instruction
+        hintLay->addWidget(m_toolTitle);
+        hintLay->addWidget(m_toolHint);
+        hintLay->addStretch(1);
         QHash<QString, int> pageIndex;
-        pageIndex.insert(QString(), ui->toolOptions->addWidget(new QWidget(ui->toolOptions)));
+        pageIndex.insert(QString(), ui->toolOptions->addWidget(scrolled(hintPage, ui->toolOptions)));
         // The Grade tool's options are an image editor's colour menu: which adjustment, and its controls, applied to the
         // selected object. What a selected strip's grade *is* is shown on the right, in its state.
         m_gradePanel = new GradePanel(ui->toolOptions);
@@ -296,7 +311,7 @@ Editor::Editor(QWidget *parent)
             if (!t.icon.isEmpty())
                 b->setIcon(QIcon(t.icon));
             b->setIconSize(QSize(26, 26));
-            b->setToolTip(QCoreApplication::translate("StripEdit::Tool", t.tip));
+            b->setToolTip(toolTooltip(t));   // the name, and the same sentence ④ shows
             b->setCheckable(true);
             b->setAutoRaise(true);
             b->setToolButtonStyle(Qt::ToolButtonIconOnly);
@@ -423,6 +438,12 @@ void Editor::setTool(const QString& id)
     if (auto* b = m_toolGroup->button(toolIndex(m_tool)))
         b->setChecked(true);
     ui->toolOptions->setCurrentIndex(m_toolPage.value(m_tool));
+    // Filled whichever page is showing: the hint page is the one that displays it, and writing it
+    // unconditionally means there is no state to get wrong when tools are switched quickly.
+    if (m_toolTitle)
+        m_toolTitle->setText(toolName(*tool));
+    if (m_toolHint)
+        m_toolHint->setText(toolHint(*tool));
 
     // What a left-drag on the **bare strip** does — the view's own business, and one property, which is
     // why Select and Pan are two tools. Both modes only act on a press no item took, so dragging an

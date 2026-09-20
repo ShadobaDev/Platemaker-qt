@@ -94,6 +94,10 @@
   - **Each row in the object list now reports its object's state** — *unanchored* when the page it was
     placed on is not in the strip, and the blend mode by name when it is not the normal one. Hovering a
     chip says what it means and what to do about it.
+  - **Every tool now says what it does.** Picking one that has no settings — Select, Pan, the bucket,
+    the colour picker — used to leave the options panel empty, which looks the same as no tool being
+    armed. It now names the tool and says in a line what a click or a drag with it does; the same
+    sentence is in the button's tooltip. The bucket's tooltip was also missing half its text.
   - **The pointer now says what the tool will do** and stays saying it: a hand over the strip under
     Pan, a move cross over an object, resize arrows on a corner, a crosshair under the drawing tools.
     It used to flip between an arrow and a hand depending on whether you had panned yet.

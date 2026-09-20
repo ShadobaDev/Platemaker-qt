@@ -205,6 +205,13 @@ the panel shows one line saying so and no sections at all.
 The **grade** lives in tool options rather than on the right: its subject is the project, so it is the
 tool's own configuration and not any object's property.
 
+**The tool-options panel is never blank.** A tool whose row names no options page gets the **hint
+page**: the tool's name and one sentence saying what a press or a drag with it does, both taken from
+its registry row. An empty panel under an armed tool reads as *nothing is armed* — which is how a tool
+gets picked by accident and the fault is then looked for somewhere else entirely. The same sentence is
+the second half of the rail button's tooltip (`toolTooltip()` joins the name to it), so it is written
+once rather than once per place it is read, and a new tool cannot arrive without one.
+
 **The right column is never hidden and never disabled**, under any tool. Hiding it lets the canvas grow
 into the space, which makes the strip jump sideways on every tool change; disabling it costs the artist
 the only place the strip's contents can be seen and reordered. A tool changes what is in the column's

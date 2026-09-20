@@ -48,10 +48,19 @@ struct Tool
 {
     QString  id;                 //!< Stable name: `setTool()`, settings, tests. Never shown.
     QString  icon;               //!< Resource path, or empty to draw the shape this tool places.
-    //! The tooltip, untranslated: a static table is built once, and a language change must not freeze
-    //! into it. The rail translates this when it builds the button.
-    const char* tip = nullptr;
-    ToolKind kind = ToolKind::Select;
+    //! What the rail calls it, untranslated: a static table is built once, and a language change must
+    //! not freeze into it. A name, not a sentence — the sentence is below.
+    const char* name = nullptr;
+    /**
+     * @brief One sentence: what a press or a drag with this tool does. Untranslated, as above.
+     *
+     * **A tool with no options page shows this in ④**, because an empty options panel reads as *nothing
+     * is armed* — which is how a tool gets picked by accident and the artist then looks for the fault
+     * somewhere else entirely. It is also the second half of the rail button's tooltip, so the sentence
+     * is written once rather than once per place it is read; `toolTooltip()` joins the two.
+     */
+    const char* hint = nullptr;
+    ToolKind kind = ToolKind::Select;   //!< What a press or a drag does to the canvas.
     //! `Create` only: the shape a placement gets. No value leaves the choice to the shape tiles in ④,
     //! which is the Bubble tool; `Shape::None` is the Text tool, letters with no balloon.
     std::optional<TextArtifact::Shape> shape;
@@ -66,6 +75,15 @@ struct Tool
 
 //! Every tool the rail offers, in rail order. **Adding a tool is one row here and nothing else.**
 [[nodiscard]] const QList<Tool>& tools();
+
+//! What to call the tool, translated.
+[[nodiscard]] QString toolName(const Tool& t);
+
+//! Its sentence, translated; empty when the row carries none.
+[[nodiscard]] QString toolHint(const Tool& t);
+
+//! The rail button's tooltip: the name, and the sentence after it when there is one.
+[[nodiscard]] QString toolTooltip(const Tool& t);
 
 //! The tool with @p id, or nullptr if there is none.
 [[nodiscard]] const Tool* toolById(const QString& id);

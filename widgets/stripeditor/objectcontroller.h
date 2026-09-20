@@ -117,6 +117,22 @@ public:
     //! Selects tail @p index of bubble @p uid — or the bubble, when it has no tail at that position.
     void selectTail(const QString& uid, int index);
     [[nodiscard]] Subject        subject() const { return m_subject; }
+    /**
+     * @brief Whether @p uid is an object **we** author — one whose drawing we generate from a record.
+     *
+     * **The one place this is decided.** It was `m_artifacts.contains(uid)` written out at eight call
+     * sites, and the review counted that as the missing abstraction behind two shipped bugs (E6a,
+     * E6a.1): a default balloon loaded into the panel for a piece of imported artwork, and that default
+     * then stored back over the artwork. A third had survived until this refactor — see the panel
+     * binding in updateActionStates().
+     *
+     * False therefore means *imported artwork*: a picture somebody else drew, which we place, move,
+     * mute, re-anchor and render, but cannot re-type. When artwork gains lettering of its own it will
+     * have a record too, and this test will have to become something else — **in one place instead of
+     * eight**, which is the whole point of it having a name.
+     */
+    [[nodiscard]] bool isParametric(const QString& uid) const { return m_artifacts.contains(uid); }
+
     //! Everything selected, in the order it was picked. The last is the primary — see selectOverlays().
     [[nodiscard]] const QStringList& selectedOverlays() const { return m_selectedOverlays; }
     [[nodiscard]] const QString& selectedPage() const { return m_selectedPage; }   //!< When subject() is Page.

@@ -251,7 +251,7 @@ TextArtifact PresetStore::applied(const BubblePreset& p, const TextArtifact& tar
 
     if (keepShape)
         a.shape.kind = target.shape.kind;
-    if (a.shape.kind == TextArtifact::Shape::None)
+    if (!a.hasSilhouette())
         a.tails.items.clear();
 
     // Keep the object's own seed. Re-rolling it would make an already-placed marker outline jump for a

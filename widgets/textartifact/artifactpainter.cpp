@@ -249,7 +249,7 @@ QPainterPath tailPath(const QPainterPath& outline, const QRectF& body, const Tai
  */
 QRectF textSafeArea(const TextArtifact& a, const QRectF& body)
 {
-    if (a.shape.kind == TextArtifact::Shape::None)
+    if (!a.hasSilhouette())
         return QRectF(0, 0, a.box.width(), a.box.height());
 
     const qreal pad = a.skin.strokeWidth + 8.0;
@@ -373,7 +373,7 @@ ArtifactPart artifactPartAt(const TextArtifact& a, const QPointF& local, qreal s
 QPainterPath artifactSilhouette(const TextArtifact& a)
 {
     const QRectF body = balloonRect(a);
-    if (a.shape.kind == TextArtifact::Shape::None || body.isEmpty())
+    if (!a.hasSilhouette() || body.isEmpty())
         return {};
 
     QPainterPath path;

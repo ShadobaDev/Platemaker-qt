@@ -328,10 +328,12 @@ TEST(Conversion, AKindHidesTailsRatherThanDestroyingThem)
     const TailsProperties kept = a.tails;
 
     a.shape.kind = TextArtifact::Shape::None;   // what the conversion does, and all it does
+    EXPECT_FALSE(a.hasSilhouette());            // the one structural question, and its whole answer
     EXPECT_FALSE(a.hasTail());                  // no balloon, so nothing for a tail to leave
     EXPECT_EQ(a.tails, kept);                   // ...but the record still has them
 
     a.shape.kind = TextArtifact::Shape::Caption;
+    EXPECT_TRUE(a.hasSilhouette());
     EXPECT_TRUE(a.hasTail());
     EXPECT_EQ(a.tails, kept);
 }

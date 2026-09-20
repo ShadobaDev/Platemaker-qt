@@ -161,7 +161,7 @@ void ObjectStatePanel::setArtifact(const TextArtifact& a)
     m_tailList->bindOne(m_artifact);
     m_populating = false;
 
-    m_subject->setText(m_artifact.shape.kind == TextArtifact::Shape::None ? tr("Text") : tr("Bubble"));
+    m_subject->setText(m_artifact.hasSilhouette() ? tr("Bubble") : tr("Text"));
     m_subject->setVisible(true);
     refreshLook();
     m_emptyHint->setText(m_emptyText);
@@ -172,7 +172,7 @@ void ObjectStatePanel::setArtifact(const TextArtifact& a)
     applyKindVisibility();
 }
 
-void ObjectStatePanel::setMixedSubjects(int count)
+void ObjectStatePanel::setMixedSubjects(int count, const QString& why)
 {
     m_subjects.clear();
     m_hasArtifact    = false;
@@ -182,11 +182,33 @@ void ObjectStatePanel::setMixedSubjects(int count)
 
     m_subject->setText(tr("%n objects", "", count));
     m_subject->setVisible(true);
-    m_emptyHint->setText(tr("A balloon and a tail have only their position in common — drag to move them "
-                            "together."));
+    m_emptyHint->setText(why.isEmpty()
+                             ? tr("A balloon and a tail have only their position in common — drag to "
+                                  "move them together.")
+                             : why);
     m_emptyHint->setVisible(true);
     m_actions->setVisible(true);
     m_fitButton->setVisible(false);
+    m_deleteButton->setText(tr("Delete"));
+    for (auto it = m_sections.cbegin(); it != m_sections.cend(); ++it)
+        it.value()->setVisible(false);
+    refreshLook();
+}
+
+void ObjectStatePanel::setUneditableSubject(const QString& name, const QString& why)
+{
+    m_subjects.clear();
+    m_hasArtifact    = false;   // nothing here may emit an edit about it — there is nothing to edit
+    m_selectionCount = 1;       // ...but it is selected, so Delete still means this object
+    m_tailIndex      = -1;
+    m_commitTimer->stop();
+
+    m_subject->setText(name);
+    m_subject->setVisible(true);
+    m_emptyHint->setText(why);
+    m_emptyHint->setVisible(true);
+    m_actions->setVisible(true);
+    m_fitButton->setVisible(false);   // there is no text to fit a box to
     m_deleteButton->setText(tr("Delete"));
     for (auto it = m_sections.cbegin(); it != m_sections.cend(); ++it)
         it.value()->setVisible(false);
@@ -209,7 +231,7 @@ void ObjectStatePanel::setArtifacts(const QList<TextArtifact>& objects)
     all.reserve(objects.size());
     for (const TextArtifact& a : objects) {
         all.append(&a);
-        if (a.shape.kind != TextArtifact::Shape::None)
+        if (a.hasSilhouette())
             shaped.append(&a);
     }
 
@@ -299,7 +321,7 @@ void ObjectStatePanel::applyKindVisibility()
     // group), so a hidden Shape editor holds the object's own `None` and hands it straight back — which
     // is exactly what must happen: a panel may not convert an object by being edited.
     const bool tailSubject = m_tailIndex >= 0;
-    const bool hasShape    = m_artifact.shape.kind != TextArtifact::Shape::None;
+    const bool hasShape    = m_artifact.hasSilhouette();
     for (auto it = m_sections.cbegin(); it != m_sections.cend(); ++it) {
         const auto g = static_cast<PropertyGroup>(it.key());
         bool applies = false;
@@ -362,7 +384,7 @@ void ObjectStatePanel::onControlChanged()
     if (!m_subjects.isEmpty()) {
         // A set: every object takes what the artist touched and keeps everything else of its own.
         for (TextArtifact& a : m_subjects) {
-            if (a.shape.kind != TextArtifact::Shape::None) {
+            if (a.hasSilhouette()) {
                 m_groups.skin()->applyEditedTo(a);   // a caption with no balloon has no fill to take
                 m_groups.style()->applyEditedTo(a);
             }
@@ -381,7 +403,7 @@ void ObjectStatePanel::onControlChanged()
         // A shape change can add or remove whole sections — the object is still the same object, so this
         // is the one moment the panel is allowed to re-lay itself out.
         applyKindVisibility();
-        m_subject->setText(m_artifact.shape.kind == TextArtifact::Shape::None ? tr("Text") : tr("Bubble"));
+        m_subject->setText(m_artifact.hasSilhouette() ? tr("Bubble") : tr("Text"));
     }
 
     // One changed property and it is no longer that preset (Q40). Computed, so it flips back by itself

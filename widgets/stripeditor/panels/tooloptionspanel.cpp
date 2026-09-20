@@ -116,8 +116,7 @@ TextArtifact::Shape ToolOptionsPanel::balloonShape() const
 {
     TextArtifact picked;
     m_groups.shape()->applyTo(picked);
-    return picked.shape.kind == TextArtifact::Shape::None ? TextArtifact::Shape::Speech
-                                                          : picked.shape.kind;
+    return picked.hasSilhouette() ? picked.shape.kind : TextArtifact::Shape::Speech;
 }
 
 void ToolOptionsPanel::setToolShape(std::optional<TextArtifact::Shape> shape)

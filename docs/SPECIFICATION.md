@@ -782,6 +782,21 @@ valid baseline for every grade tried on it. Excluded pages are skipped, matching
   application config (`QSettings`, key `bubblePresets`) because restyling follows the artist, not the
   chapter. A *pack* is the same array in a file, marked with `platemakerBubblePresets`, imported by
   replacing same-named presets rather than accumulating them.
+- **Both axes have a name, and one place each.** *Which silhouette* an object wears is a property;
+  *whether it has one* is `TextArtifact::hasSilhouette()`, the one structural question — it decides
+  which property groups the object carries at all. *Whether we author the object* is
+  `ObjectController::isParametric()`: true for something whose drawing we generate from a record, false
+  for imported artwork. Both were written out by hand at every call site — the silhouette test twenty
+  times in eight files, in both polarities, and the authored test eight times. The review counted the
+  second as the missing abstraction behind two shipped bugs (E6a, E6a.1), and a third had survived into
+  this refactor: ③ bound a **default balloon** to a selected picture, because `ArtifactMap::value()`
+  returns one for a uid it does not hold — so the panel offered a shape, a fill and a line style for a
+  photograph, and swallowed every edit, since only a `BubbleObject` is ever written to.
+  - **Imported artwork now says what it is.** Selected on its own, ③ names it and says that it is
+    placed, moved, resized, muted and rendered like any object but has nothing in it to re-type;
+    *Delete* still acts on it. Selected together with a balloon, the panel names the count and offers
+    nothing, the same answer it gives for a balloon and a tail — they have only their position in
+    common.
 - **Imported artwork is the same overlay with fewer attributes.** *Import artwork…* copies a file into
   `overlays/` under its content hash and registers it with **no** authoring record; with no `pm:`
   parameters it becomes an `AssetObject` — placed, moved, re-anchored, muted, resized and rendered like

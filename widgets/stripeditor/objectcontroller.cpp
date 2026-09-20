@@ -268,9 +268,9 @@ ObjectController::ObjectController(QGraphicsScene* scene, QGraphicsView* view, Q
         std::optional<bool> shaped;
         bool                agree = true;
         for (const QString& uid : std::as_const(m_selectedOverlays)) {
-            if (m_carriers.contains(uid) || !m_artifacts.contains(uid))
+            if (m_carriers.contains(uid) || !isParametric(uid))
                 continue;
-            const bool hasShape = m_artifacts.value(uid).shape.kind != TextArtifact::Shape::None;
+            const bool hasShape = m_artifacts.value(uid).hasSilhouette();
             if (!shaped)
                 shaped = hasShape;
             else if (*shaped != hasShape)
@@ -727,7 +727,7 @@ void ObjectController::syncItems()
         // elsewhere, or a file edited outside Platemaker — becomes an AssetObject: it still shows, still
         // moves and still renders, it just cannot be re-typed. That is the intended degradation, and it
         // is what makes imported artwork a first-class object rather than an error.
-        const bool parametric = m_artifacts.contains(uid);
+        const bool parametric = isParametric(uid);
         Object*    item       = m_overlayItems.value(uid);
 
         // An overlay cannot change kind in place; if it somehow has, rebuild rather than mis-draw it.
@@ -857,7 +857,7 @@ QIcon ObjectController::rowGlyph(const QString& uid)
     // Drawn once per look, not once per feed. The silhouette is cheap but not free — a tail's base is
     // found by casting a ray at the outline — and a feed arrives after every edit, so the key is what the
     // glyph is made of: the shape, the tails, the box's proportions and the two colours it wears.
-    if (!m_artifacts.contains(uid)) {
+    if (!isParametric(uid)) {
         // Imported artwork: no authoring record, so no silhouette. The art is its own glyph.
         const auto* art = qobject_cast<const AssetObject*>(m_overlayItems.value(uid));
         return art ? assetGlyph(art->artwork(), k_rowGlyphPx, m_list->devicePixelRatioF()) : QIcon();
@@ -929,8 +929,8 @@ void ObjectController::refreshList()
         // refreshed before the strip has a layout, where syncItems() has nothing to place anything against.
         const Object* item  = m_overlayItems.value(uid);
         const QString label = item ? item->label()
-                                   : (m_artifacts.contains(uid) ? artifactLabel(m_artifacts.value(uid))
-                                                                : tr("(imported artwork)"));
+                                   : (isParametric(uid) ? artifactLabel(m_artifacts.value(uid))
+                                                        : tr("(imported artwork)"));
         // The page it sits on, when it sits on one. An unanchored object used to carry the word *orphan*
         // where the page number goes; that is what the chip says now, and saying it twice cost the row
         // the width its lettering needs.
@@ -974,7 +974,7 @@ void ObjectController::refreshList()
         // The preset this object still looks like, when it looks like one. **Named or nothing**: a row
         // is scanned, and *Custom* on every hand-made balloon would be a column of chips reporting that
         // there is nothing to report. ③ says *Custom* because there the question was asked.
-        if (m_artifacts.contains(uid)) {
+        if (isParametric(uid)) {
             const int preset = m_presets.matching(m_artifacts.value(uid));
             if (preset >= 0)
                 badges << toneBadge(BadgeTone::Neutral, m_presets.presets().at(preset).name,
@@ -996,7 +996,7 @@ void ObjectController::refreshList()
 
         // A bubble's tails, one row each, by position: a row stands for whichever tail is at its index now.
         // Only a bubble has tails, so artwork gets none.
-        const int tailCount = m_artifacts.contains(uid)
+        const int tailCount = isParametric(uid)
                                   ? static_cast<int>(m_artifacts.value(uid).tails.items.size()) : 0;
         while (row->childCount() > tailCount)
             delete row->takeChild(row->childCount() - 1);
@@ -1188,7 +1188,7 @@ void ObjectController::selectSubjects(const QStringList& uids, const QList<TailR
     const bool authoredOnly =
         !picked.isEmpty() && pickedTails.isEmpty()
         && std::all_of(picked.cbegin(), picked.cend(), [this](const QString& uid) {
-               return m_artifacts.contains(uid) && !m_carriers.contains(uid);
+               return isParametric(uid) && !m_carriers.contains(uid);
            });
     if (m_convertMenu) m_convertMenu->menuAction()->setEnabled(authoredOnly);
 
@@ -1199,6 +1199,23 @@ void ObjectController::selectSubjects(const QStringList& uids, const QList<TailR
             m_objectState->setTail(primary->artifact(), m_selectedTail);
         } else if (!pickedTails.isEmpty()) {
             m_objectState->setMixedSubjects(selectedSubjectCount());
+        } else if (std::any_of(picked.cbegin(), picked.cend(),
+                               [this](const QString& uid) { return !isParametric(uid); })) {
+            // **Imported artwork has no properties here, and the panel must say so rather than show a
+            // balloon's.** `m_artifacts.value()` on a uid it does not hold returns a *default* balloon,
+            // so the panel used to bind speech-balloon controls to a picture — and every edit was
+            // swallowed, because only a BubbleObject is ever written to. That is the same fault E6a and
+            // E6a.1 were, at a third site, and it is why the question now has a name.
+            if (oneObject)
+                m_objectState->setUneditableSubject(
+                    tr("Imported artwork"),
+                    tr("A picture drawn elsewhere. It is placed, moved, resized, muted and rendered "
+                       "like any object, but there is nothing in it to re-type."));
+            else
+                m_objectState->setMixedSubjects(
+                    selectedSubjectCount(),
+                    tr("Imported artwork and a balloon have only their position in common — drag to "
+                       "move them together."));
         } else if (oneObject) {
             m_objectState->setArtifact(m_artifacts.value(m_selectedOverlay));
         } else {
@@ -1269,7 +1286,7 @@ bool ObjectController::applyColourAt(const QPointF& scenePos, const QTransform& 
         next.reserve(m_selectedOverlays.size());
         for (const QString& uid : std::as_const(m_selectedOverlays)) {
             TextArtifact each = m_artifacts.value(uid);
-            const bool   shaped = each.shape.kind != TextArtifact::Shape::None;
+            const bool   shaped = each.hasSilhouette();
             switch (part) {
             case ArtifactPart::Text:    each.text.colour = colour; break;
             case ArtifactPart::Outline: if (shaped) each.skin.stroke = colour; break;
@@ -1564,7 +1581,7 @@ void ObjectController::applyColourToSelection(const QColor& colour, ArtifactPart
     int                 changed = 0;
     for (const QString& uid : std::as_const(m_selectedOverlays)) {
         TextArtifact each   = m_artifacts.value(uid);
-        const bool   shaped = each.shape.kind != TextArtifact::Shape::None;
+        const bool   shaped = each.hasSilhouette();
         switch (role) {
         case ArtifactPart::Text:    each.text.colour = colour; ++changed; break;
         case ArtifactPart::Outline: if (shaped) { each.skin.stroke = colour; ++changed; } break;
@@ -1596,7 +1613,7 @@ void ObjectController::applyGroupToSelection(PropertyGroup group)
     int                 changed = 0;
     for (const QString& uid : std::as_const(m_selectedOverlays)) {
         TextArtifact each   = m_artifacts.value(uid);
-        const bool   shaped = each.shape.kind != TextArtifact::Shape::None;
+        const bool   shaped = each.hasSilhouette();
         switch (group) {
         case PropertyGroup::Shape:
             // The silhouette, to everything that has one. A shapeless object is **left alone**: giving
@@ -1662,8 +1679,8 @@ void ObjectController::convertSelectionTo(TextArtifact::Shape kind)
         TextArtifact each = m_artifacts.value(uid);
         // Not an authored object, or already of this kind: it passes through, and since nothing here
         // touches the order, it keeps its place in the stack for free.
-        const bool authored    = m_artifacts.contains(uid) && !m_carriers.contains(uid);
-        const bool hasSilhouette = each.shape.kind != TextArtifact::Shape::None;
+        const bool authored    = isParametric(uid) && !m_carriers.contains(uid);
+        const bool hasSilhouette = each.hasSilhouette();
         if (authored && hasSilhouette != toSilhouette) {
             if (!toSilhouette)
                 hidden += static_cast<int>(each.tails.items.size());

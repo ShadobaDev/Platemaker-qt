@@ -100,6 +100,9 @@
     tails and gets them back on the way back, and the status bar says what stopped being drawn.
     *Which* balloon stays a property — pick it in the shape tiles, or give it to a whole selection
     with *Apply from tool options ▸ Shape*.
+  - **Selecting imported artwork no longer shows a balloon's controls.** The properties panel used to
+    offer a shape, a fill, a line style and a text box for a picture — none of which did anything. It
+    now names the artwork and says what can still be done with it, and *Delete* works as before.
   - **The Caption box tool is gone from the tool rail.** A caption is one of the shapes, not a third
     kind of object beside Bubble and Text: pick it in the shape tiles, or save a preset for it. The
     shape tiles no longer offer *Text only — no balloon* either, because that is a conversion rather

@@ -252,10 +252,19 @@ struct TextArtifact
     SkinProperties skin;   //!< Fill, stroke and stroke width — see SkinProperties.
 
     //! True when a tail should be drawn. A shapeless artifact has nothing to grow a tail from.
-    [[nodiscard]] bool hasTail() const
-    {
-        return shape.kind != Shape::None && !tails.items.isEmpty();
-    }
+    /**
+     * @brief Whether this object has a balloon behind its lettering — **the one structural question**.
+     *
+     * It decides which property groups the object carries at all: a fill and an outline to paint, a
+     * line style to roughen them with, and something for a tail to leave from. Everything else about
+     * `shape` — speech, thought, caption, banner — is one property with one editor, which is why
+     * *which* silhouette is picked in a panel and *whether there is one* is `Convert to ▸`.
+     *
+     * Written out by hand in twenty places before it had a name, in both polarities.
+     */
+    [[nodiscard]] bool hasSilhouette() const { return shape.kind != Shape::None; }
+
+    [[nodiscard]] bool hasTail() const { return hasSilhouette() && !tails.items.isEmpty(); }
 
     [[nodiscard]] bool operator==(const TextArtifact& o) const;
     [[nodiscard]] bool operator!=(const TextArtifact& o) const { return !(*this == o); }

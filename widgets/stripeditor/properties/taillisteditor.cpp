@@ -61,14 +61,14 @@ void TailListEditor::bind(const Subjects& subjects)
     const TextArtifact& a = *subjects.first();
     m_values        = TailsProperties::from(a);
     m_box           = a.box;
-    m_shapeCanSpeak = a.shape.kind != TextArtifact::Shape::None;
+    m_shapeCanSpeak = a.hasSilhouette();
     refresh();
 }
 
 void TailListEditor::applyTo(TextArtifact& target) const
 {
     TailsProperties next = m_values;
-    if (target.shape.kind == TextArtifact::Shape::None)
+    if (!target.hasSilhouette())
         next.items.clear();   // nothing for a tail to grow from
     next.applyTo(target);
 }

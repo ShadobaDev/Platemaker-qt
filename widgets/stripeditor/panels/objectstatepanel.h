@@ -35,8 +35,9 @@ class TailListEditor;
  * after another — almost every selection — and moves exactly when the kind changes, which is worth
  * seeing.
  *
- * Shape is the exception that stays on a shapeless object: it is how a caption grows a balloon. That
- * stops being a property edit the day a conversion tool exists, and the section changes meaning with it.
+ * Shape is a section like any other and goes with them: it answers *which* balloon, and an object with
+ * no balloon has no answer to give. Whether there is one at all is a kind, and kinds are changed by
+ * *Convert to ▸* — which is what took that job over, as this comment used to predict it would.
  *
  * Follows the same contract as `GradePanel`: \c setArtifact() populates without emitting; editing emits
  * \c changed() continuously (live preview) and \c committed() once the controls settle (debounced) or on
@@ -81,8 +82,20 @@ public:
      * So the panel says how many things are selected and offers nothing else, which §6.4 calls a
      * legitimate state — "these things have nothing in common but where they are". Delete still acts on
      * all of them.
+     *
+     * @param why What they have in common, in a line. Empty takes the balloon-and-tail wording, which
+     *            was the only mixture there was when this state was built.
      */
-    void setMixedSubjects(int count);
+    void setMixedSubjects(int count, const QString& why = {});
+
+    /**
+     * @brief One subject with **no properties to edit** — imported artwork — named, and said why.
+     *
+     * Not `clearSelection()`: something *is* selected, and Delete still acts on it. Not an empty set of
+     * sections either, because a panel that simply went blank would read as a panel that had lost the
+     * selection. It says what the object is and what can still be done to it.
+     */
+    void setUneditableSubject(const QString& name, const QString& why);
 
 
     //! Nothing is selected: the sections go away and the panel says why.

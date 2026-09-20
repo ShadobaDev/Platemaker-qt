@@ -53,7 +53,7 @@ void TailsEditor::bind(const Subjects& subjects)
     const TextArtifact& a = *subjects.first();
     m_values        = TailsProperties::from(a);
     m_box           = a.box;
-    m_shapeCanSpeak = a.shape.kind != TextArtifact::Shape::None;
+    m_shapeCanSpeak = a.hasSilhouette();
 
     m_populating = true;
     {
@@ -74,7 +74,7 @@ void TailsEditor::applyTo(TextArtifact& target) const
     TailsProperties next = m_values;
 
     // A shapeless artifact has nothing to grow a tail from, whatever the checkbox says.
-    const bool want = m_enabled->isChecked() && target.shape.kind != TextArtifact::Shape::None;
+    const bool want = m_enabled->isChecked() && target.hasSilhouette();
     if (!want) {
         next.items.clear();
     } else {
@@ -94,7 +94,7 @@ void TailsEditor::applyTo(TextArtifact& target) const
 void TailsEditor::applyToNew(TextArtifact& target) const
 {
     TailsProperties next;
-    if (m_enabled->isChecked() && target.shape.kind != TextArtifact::Shape::None) {
+    if (m_enabled->isChecked() && target.hasSilhouette()) {
         Tail t;
         t.tip       = QPointF(target.box.width() * 0.28, target.box.height() * 1.25);
         t.baseWidth = m_width->value();

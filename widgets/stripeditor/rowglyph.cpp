@@ -53,7 +53,7 @@ QIcon objectGlyph(const TextArtifact& a, const QPalette& pal, int px, qreal dpr)
     // No silhouette to borrow: lettering with no balloon around it says so with letters. Drawn as
     // **outlines** rather than as text — type at this size is at the mercy of hinting and of what the
     // font calls an advance, and a path is measured and scaled like any other shape.
-    if (a.shape.kind == TextArtifact::Shape::None || a.box.isEmpty()) {
+    if (!a.hasSilhouette() || a.box.isEmpty()) {
         QFont f;
         f.setBold(true);
         f.setPixelSize(64);

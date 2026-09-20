@@ -408,6 +408,14 @@ Editor::Editor(QWidget *parent)
             if (m_objects)
                 m_objects->deleteSelectedOverlay();
         });
+        connect(m_assetState, &AssetStatePanel::changed, this, [this](const TextArtifact& r) {
+            if (m_objects)
+                m_objects->applyArtworkRecord(r, /*commit=*/false);
+        });
+        connect(m_assetState, &AssetStatePanel::committed, this, [this](const TextArtifact& r) {
+            if (m_objects)
+                m_objects->applyArtworkRecord(r, /*commit=*/true);
+        });
         connect(m_assetState, &AssetStatePanel::blendPicked, this,
                 [this](Platemaker::Models::BlendMode b) {
                     if (m_objects)
@@ -619,7 +627,8 @@ void Editor::showSubject()
     // Which of the two object panels: the kind decides, as it decides everything else since §26.
     if (m_objects->selectionIsArtwork()) {
         m_assetState->showArtwork(m_objects->selectedArtworkName(),
-                                  m_objects->selectedArtworkPercent());
+                                  m_objects->selectedArtworkPercent(),
+                                  m_objects->selectedArtworkRecord());
         m_assetState->setSelectionBlend(m_objects->selectionBlend());
         ui->objectProperties->setCurrentWidget(m_assetPage);
         return;

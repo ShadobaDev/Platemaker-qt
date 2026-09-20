@@ -229,6 +229,21 @@ struct TextArtifact
     ShapeProperties shape;
 
     /**
+     * @brief The imported picture this object **is** — a file name in the workspace's `overlays/`.
+     *
+     * Empty for an object we draw ourselves. Non-empty and the drawing is somebody else's: our
+     * silhouette, our line style and our tails have nothing to act on, and what is left that we can
+     * still do is put lettering over it (V5b) and decide how big it is drawn.
+     *
+     * **This is the third kind, and it lives in the same record on purpose.** A second map keyed by the
+     * same uid would be a second channel carrying the same object, and the two would drift; a record
+     * that says what it is keeps one. A *file name* rather than a path so the workspace stays portable,
+     * and a name inside `overlays/` rather than the import's source so it stays self-contained — the
+     * source may be anywhere, or gone.
+     */
+    QString artwork;
+
+    /**
      * @brief The **balloon** — what the author drags, and what text wraps inside.
      *
      * Not the artifact's drawn extent: a tail may reach well outside it, so the size of the rendered
@@ -262,7 +277,10 @@ struct TextArtifact
      *
      * Written out by hand in twenty places before it had a name, in both polarities.
      */
-    [[nodiscard]] bool hasSilhouette() const { return shape.kind != Shape::None; }
+    //! Somebody else drew this one: the drawing is `artwork`, and none of our geometry applies to it.
+    [[nodiscard]] bool isArtwork() const { return !artwork.isEmpty(); }
+
+    [[nodiscard]] bool hasSilhouette() const { return !isArtwork() && shape.kind != Shape::None; }
 
     [[nodiscard]] bool hasTail() const { return hasSilhouette() && !tails.items.isEmpty(); }
 

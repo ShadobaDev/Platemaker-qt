@@ -696,7 +696,7 @@ void ObjectController::syncItems()
         if (!item) {
             item = parametric
                 ? static_cast<Object*>(new BubbleObject(uid, m_artifacts.value(uid)))
-                : static_cast<Object*>(new AssetObject(uid, loadArtwork(QString::fromStdString(o.assetPath))));
+                : static_cast<Object*>(new AssetObject(uid, pictureFor(o)));
             connect(item, &Object::geometryEdited, this, &ObjectController::onOverlayGeometryEdited);
             connect(item, &Object::pressed,        this, &ObjectController::onObjectPressed);
             connect(item, &Object::dragging,       this, &ObjectController::onObjectDragged);
@@ -711,6 +711,12 @@ void ObjectController::syncItems()
             // A styled bubble is drawn by the library, because its effect is an SVG filter Qt cannot
             // render. Unstyled ones keep drawing locally: same geometry, no round-trip.
             bubble->setSharpRaster(a.style.kind != TextArtifact::Style::Clean ? sharpRasterFor(a) : QImage());
+        }
+
+        // A picture's record is its own kind of record: which file it is, and the words over it.
+        if (auto* art = qobject_cast<AssetObject*>(item)) {
+            art->setArtifact(m_artifacts.value(uid));
+            art->setPicture(pictureFor(o));   // ...and the file may have changed under it
         }
 
         item->setBlend(o.blend);
@@ -806,6 +812,19 @@ void ObjectController::onOverlayGeometryEdited(const QString& uid)
     }
     refreshList();
     pushOverlays(group ? tr("Move %n objects", "", travelled) : tr("Move bubble"));
+}
+
+QString ObjectController::pictureFor(const Platemaker::Models::StripOverlay& o) const
+{
+    const QString asset  = QString::fromStdString(o.assetPath);
+    const TextArtifact r = m_artifacts.value(QString::fromStdString(o.uid));
+    if (!r.isArtwork())
+        return asset;   // a picture placed before pictures had records: the overlay's file is it
+
+    // **The picture, not the file the library renders.** Once it is lettered they differ: the overlay
+    // points at a wrapper that embeds the picture and bakes the words in, and drawing that *and* the
+    // words would show them twice. The record names the picture; it sits beside the wrapper.
+    return QFileInfo(asset).absolutePath() + QLatin1Char('/') + r.artwork;
 }
 
 QIcon ObjectController::rowGlyph(const QString& uid)
@@ -1435,6 +1454,30 @@ void ObjectController::placeArtworkAt(const QString& file, const QPointF& sceneP
                                 m_layout.anchorUidForPage(page));
 }
 
+TextArtifact ObjectController::selectedArtworkRecord() const
+{
+    const TextArtifact stored = m_artifacts.value(m_selectedOverlay);
+    if (stored.isArtwork())
+        return stored;
+
+    // No record: a picture placed before pictures had one. Derive it from what the object *is* — the
+    // file its overlay points at, at the size that file is — so it can be lettered like any other, and
+    // the first edit is what writes the record down.
+    const auto* art = qobject_cast<const AssetObject*>(m_overlayItems.value(m_selectedOverlay));
+    const auto  it  = std::find_if(m_overlays.cbegin(), m_overlays.cend(),
+                                   [this](const Platemaker::Models::StripOverlay& o) {
+                                       return QString::fromStdString(o.uid) == m_selectedOverlay;
+                                   });
+    if (!art || it == m_overlays.cend() || it->assetPath.empty())
+        return stored;
+
+    TextArtifact derived;
+    derived.shape.kind = TextArtifact::Shape::None;   // no silhouette of ours, said both ways
+    derived.artwork    = QFileInfo(QString::fromStdString(it->assetPath)).fileName();
+    derived.box        = art->artwork().size();
+    return derived.box.isEmpty() ? stored : derived;
+}
+
 QString ObjectController::selectedArtworkName() const
 {
     const Object* item = m_overlayItems.value(m_selectedOverlay);
@@ -1490,6 +1533,21 @@ void ObjectController::scaleSelectedArtwork(double percent, bool commit)
         refreshList();
         pushOverlays(tr("Resize artwork"));
     }
+}
+
+void ObjectController::applyArtworkRecord(const TextArtifact& record, bool commit)
+{
+    auto* art = qobject_cast<AssetObject*>(m_overlayItems.value(m_selectedOverlay));
+    if (!art || !record.isArtwork() || m_artifacts.value(m_selectedOverlay) == record)
+        return;
+
+    m_artifacts.insert(m_selectedOverlay, record);
+    art->setArtifact(record);          // the preview is what the render will make of it
+    if (!commit)
+        return;                        // live: shown, not yet a step
+
+    refreshList();                     // the row's label is the lettering
+    pushOverlays(tr("Edit artwork text"));
 }
 
 void ObjectController::rebuildReanchorMenu()

@@ -7,6 +7,7 @@
 #include <QWidget>
 
 #include "blendeditor.h"
+#include "texteditor.h"
 
 class QDoubleSpinBox;
 class QLabel;
@@ -37,13 +38,24 @@ class AssetStatePanel : public QWidget
 public:
     explicit AssetStatePanel(QWidget* parent = nullptr);
 
-    //! Shows @p name at @p percent of its own size. Emits nothing.
-    void showArtwork(const QString& name, double percent);
+    /**
+     * @brief Shows @p record — the picture named @p name, drawn at @p percent of its own size.
+     *
+     * The lettering is the same property group a balloon carries, bound to the same editor: a picture
+     * with words on it and a balloon with words in it are the same question about the same group, and
+     * answering it twice is how two panels come to disagree.
+     */
+    void showArtwork(const QString& name, double percent, const TextArtifact& record);
 
     //! How it is composited — the one property it shares with a balloon. Emits nothing.
     void setSelectionBlend(std::optional<Platemaker::Models::BlendMode> blend);
 
 signals:
+    //! Continuous, for the live preview — the record with the lettering as it is being typed.
+    void changed(const TextArtifact& record);
+    //! Debounced / discrete: one history step.
+    void committed(const TextArtifact& record);
+
     //! Live — while the spin box moves. The editor resizes the object without a history step.
     void scaleChanged(double percent);
     //! Settled — one history step, named for what it did.
@@ -57,7 +69,10 @@ private:
     QDoubleSpinBox* m_scale = nullptr;
     QPushButton*    m_delete = nullptr;
     BlendEditor*    m_blend  = nullptr;
-    bool            m_populating = false;   //!< Suppresses the signals while binding, as ③'s others do.
+    TextEditor*     m_text   = nullptr;   //!< The words over the picture — a balloon's group, reused.
+    class QTimer*   m_commitTimer = nullptr;
+    TextArtifact    m_record;             //!< What is bound, so an edit is that record and not a new one.
+    bool            m_populating  = false;
 };
 
 }  // namespace StripEdit

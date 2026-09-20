@@ -4,7 +4,10 @@
 #include <QFormLayout>
 #include <QLabel>
 #include <QPushButton>
+#include <QTimer>
 #include <QVBoxLayout>
+
+#include "collapsiblesection.h"
 
 namespace StripEdit {
 
@@ -35,6 +38,33 @@ AssetStatePanel::AssetStatePanel(QWidget* parent)
                            "one image pixel per strip pixel — the size it was drawn at."));
     form->addRow(tr("Size"), m_scale);
     lay->addLayout(form);
+
+    // The words over the picture. The same editor a balloon's lettering uses, in the same collapsible
+    // section, because it is the same property group — this panel differs from ③'s other one in what it
+    // does *not* have, not in having its own version of what it does.
+    m_text = new TextEditor(this);
+    auto* textSection = new CollapsibleSection(tr("Text"), this);
+    textSection->setContent(m_text);
+    textSection->setExpanded(true);
+    lay->addWidget(textSection);
+    connect(m_text, &PropertyGroupEditor::edited, this, [this] {
+        if (m_populating)
+            return;
+        m_text->applyTo(m_record);
+        emit changed(m_record);
+        m_commitTimer->start();
+    });
+    connect(m_text, &PropertyGroupEditor::committed, this, [this] {
+        if (m_populating)
+            return;
+        m_text->applyTo(m_record);
+        m_commitTimer->stop();
+        emit committed(m_record);
+    });
+    m_commitTimer = new QTimer(this);
+    m_commitTimer->setSingleShot(true);
+    m_commitTimer->setInterval(k_commitDebounceMs);
+    connect(m_commitTimer, &QTimer::timeout, this, [this] { emit committed(m_record); });
 
     // The one property it shares with a balloon: blend belongs to the overlay, not to the drawing, so
     // a picture has one exactly as lettering does.
@@ -71,11 +101,14 @@ void AssetStatePanel::setSelectionBlend(std::optional<Platemaker::Models::BlendM
     m_blend->setBlend(blend);
 }
 
-void AssetStatePanel::showArtwork(const QString& name, double percent)
+void AssetStatePanel::showArtwork(const QString& name, double percent, const TextArtifact& record)
 {
     m_populating = true;
+    m_record = record;
     m_name->setText(name);
     m_scale->setValue(qBound(k_minPercent, percent, k_maxPercent));
+    m_text->bindOne(m_record);
+    m_commitTimer->stop();
     m_populating = false;
 }
 

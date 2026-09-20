@@ -52,8 +52,8 @@ bool TextArtifact::operator==(const TextArtifact& o) const
 {
     // Group by group, so adding a property to a group cannot quietly fall out of equality: the
     // group's own operator== is the one place that has to know about it.
-    return shape == o.shape && box == o.box && tails == o.tails && text == o.text
-        && style == o.style && styleSeed == o.styleSeed && skin == o.skin;
+    return shape == o.shape && artwork == o.artwork && box == o.box && tails == o.tails
+        && text == o.text && style == o.style && styleSeed == o.styleSeed && skin == o.skin;
 }
 
 ShapeProperties ShapeProperties::from(const TextArtifact& a) { return a.shape; }
@@ -179,6 +179,7 @@ QJsonObject artifactToJson(const TextArtifact& a)
 {
     return QJsonObject{
         {QStringLiteral("shape"),      QLatin1String(shapeName(a.shape.kind))},
+        {QStringLiteral("artwork"),    a.artwork},
         {QStringLiteral("w"),          a.box.width()},
         {QStringLiteral("h"),          a.box.height()},
         {QStringLiteral("tails"),      tailsToJson(a.tails.items)},
@@ -202,6 +203,7 @@ TextArtifact artifactFromJson(const QJsonObject& j)
     TextArtifact a;
 
     a.shape.kind = shapeFromName(j.value(QStringLiteral("shape")).toString());
+    a.artwork    = j.value(QStringLiteral("artwork")).toString();   // absent → an object we draw
 
     // Every field is read defensively with the struct's own default as the fallback, so a snapshot
     // written by an older build loads as a usable bubble rather than a blank.

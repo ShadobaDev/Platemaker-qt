@@ -21,7 +21,6 @@ namespace StripEdit {
 
 namespace {
 
-constexpr int k_commitDebounceMs = 300; //!< Coalesce typing into one undo step this long after it stops.
 
 //! Where an expanded section is remembered — a working preference, so it follows the artist.
 QString expansionKey(PropertyGroup g)

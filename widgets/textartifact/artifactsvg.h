@@ -38,7 +38,21 @@ inline constexpr char k_pmNamespace[] = "https://platemaker.dev/ns/bubble/1";
  * The viewBox is the artifact's box, in strip-scale pixels, so the library rasterises it 1:1 at scale
  * 1.0 and re-renders it sharp at any other scale.
  */
-[[nodiscard]] QByteArray artifactToSvg(const TextArtifact& a);
+/**
+ * @brief The drawing @p a describes, as an SVG — the file the library composites.
+ *
+ * @param picture For an **artwork** record only: the bytes of the picture it names. They are embedded
+ *                as a data URI rather than referenced, because the library hands the renderer a buffer
+ *                with no base path (`vips_svgload_buffer` → librsvg), so a relative href has nothing to
+ *                resolve against and would render as nothing. Embedding also keeps the workspace
+ *                self-contained, which is the same reason the import copies the file in the first place.
+ * @param mime    The picture's media type, e.g. `image/png`.
+ *
+ * An artwork record with no bytes returns empty: a wrapper that cannot draw its picture is worse than
+ * no file at all, since the object would silently render as its lettering alone.
+ */
+[[nodiscard]] QByteArray artifactToSvg(const TextArtifact& a, const QByteArray& picture = {},
+                                       const QString& mime = {});
 
 /**
  * @brief Reads the `pm:*` parameters back out of \p svg.

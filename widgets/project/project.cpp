@@ -747,9 +747,53 @@ namespace {
  *
  * @return The asset's absolute path, or empty when it could not be written.
  */
+//! The media type of @p file, from its suffix — what a data URI has to declare.
+QString pictureMime(const QString& file)
+{
+    const QString ext = QFileInfo(file).suffix().toLower();
+    if (ext == QLatin1String("png"))  return QStringLiteral("image/png");
+    if (ext == QLatin1String("webp")) return QStringLiteral("image/webp");
+    if (ext == QLatin1String("svg"))  return QStringLiteral("image/svg+xml");
+    if (ext == QLatin1String("jpg") || ext == QLatin1String("jpeg"))
+        return QStringLiteral("image/jpeg");
+    return {};
+}
+
 QString writeArtifactSvg(const QString& overlaysDir, const TextArtifact& a,
                          const QString& reusePath = {})
 {
+    // **A picture with nothing written on it is its own file.** There is nothing of ours to draw, so
+    // generating one would be drawing our geometry over somebody's artwork — the E6a.1 mistake, in the
+    // one place that could still make it. Its overlay points straight at the imported picture.
+    if (a.isArtwork()) {
+        const QString picture = overlaysDir + QLatin1Char('/') + a.artwork;
+        if (a.text.body.isEmpty())
+            return picture;
+
+        // Lettered, so there *is* something of ours: a wrapper that embeds the picture and draws the
+        // words over it. Written to a file of its own and **never over the picture** — `reusePath` is
+        // deliberately ignored here, because for an artwork overlay that path may be the picture
+        // itself, and the picture is the one thing in the workspace we did not make.
+        QFile in(picture);
+        if (!in.open(QIODevice::ReadOnly))
+            return {};
+        const QByteArray bytes = in.readAll();
+        const QByteArray svg   = artifactToSvg(a, bytes, pictureMime(a.artwork));
+        if (svg.isEmpty())
+            return {};
+
+        const QString sha = QString::fromLatin1(
+            QCryptographicHash::hash(svg, QCryptographicHash::Sha256).toHex()).left(16);
+        const QString path = overlaysDir + QStringLiteral("/ovl-") + sha + QStringLiteral(".svg");
+        if (QFile::exists(path))
+            return path;
+        QFile out(path);
+        if (!out.open(QIODevice::WriteOnly | QIODevice::Truncate))
+            return {};
+        out.write(svg);
+        return out.error() == QFile::NoError ? path : QString{};
+    }
+
     const QByteArray svg = artifactToSvg(a);
     if (svg.isEmpty() || overlaysDir.isEmpty())
         return {};
@@ -889,8 +933,22 @@ void Project::importOverlayArtwork(const QString& sourceFile, double xFrac, doub
             // The record is what makes it an object we author rather than one we merely place. The file
             // beside it already matches, so nothing is rewritten until the first edit.
             m_artifacts.insert(QString::fromStdString(uid), adopted);
-            emit artifactsChanged(m_artifacts);
+        } else {
+            // **A picture gets a record too** — one that says it is a picture. It carries no geometry
+            // of ours; what it is for is the lettering that can go over it, and knowing which file the
+            // object is without asking the overlay.
+            TextArtifact record;
+            record.artwork = QFileInfo(dest).fileName();
+            // No silhouette of ours, and the record says so in both ways it can. It matters for the
+            // one reader that might not know about `artwork` — an older build, or a hand-edited file:
+            // it degrades to lettering with no balloon rather than to a speech balloon nobody drew.
+            record.shape.kind = TextArtifact::Shape::None;
+            record.box     = QPixmap(dest).size();   // the picture's own pixels; SVG falls back below
+            if (record.box.isEmpty())
+                record.box = QSize(wFrac > 0 ? int(wFrac * 1000) : 200, 200);
+            m_artifacts.insert(QString::fromStdString(uid), record);
         }
+        emit artifactsChanged(m_artifacts);
         emit projectModified();
         populate();
     });

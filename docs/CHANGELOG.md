@@ -105,6 +105,10 @@
     edge — which is what a sound effect usually wants. Dragging a box on the strip instead fits it to
     that box, and a picture dragged in from a file manager lands like the preview's. Adding artwork
     used to be possible only from the object list's right-click menu.
+  - **Imported artwork can be lettered.** Select a picture and type into its Text section: the words
+    are laid out over it, shown on the strip exactly as they will render, and they scale with the
+    picture when you resize it. Hand-drawn balloons and sound effects can now be typeset without
+    redrawing them. The picture file itself is never modified.
   - **Imported artwork can be resized by the numbers.** Selecting it shows its size as a percentage of
     its own pixels, and its menu offers *Original size* and *Fit to strip width*.
   - **A picture's menu no longer offers a balloon's entries** — presets, fill and outline colours and

@@ -3,8 +3,12 @@
 
 #include <QPixmap>
 #include <QSizeF>
+#include <QString>
+
+class QSvgRenderer;
 
 #include "object.h"
+#include "textartifact.h"
 
 namespace StripEdit {
 
@@ -37,7 +41,19 @@ class AssetObject : public Object
     Q_OBJECT
 
 public:
-    AssetObject(QString uid, QPixmap artwork, QGraphicsItem* parent = nullptr);
+    /**
+     * @brief Draws the picture at @p picture — **the file the artist imported**, not the file the
+     *        library renders.
+     *
+     * Those are the same thing until the picture is lettered; after that the overlay points at a
+     * generated wrapper that embeds the picture *and* bakes the words into it, and an item built from
+     * that would draw the lettering twice — once from the wrapper and once itself. So it is given the
+     * picture, and the words stay this class's to draw.
+     */
+    AssetObject(QString uid, const QString& picture, QGraphicsItem* parent = nullptr);
+
+    //! Points it at a different file. The drawn size is kept: it is the artist's, not the file's.
+    void setPicture(const QString& picture);
 
     [[nodiscard]] Kind    kind() const override { return Kind::Asset; }
     [[nodiscard]] QString label() const override;
@@ -45,7 +61,21 @@ public:
     [[nodiscard]] QSizeF boxSize() const override { return m_box; }
 
     //! The art itself — what a list row wears, since imported artwork has no silhouette to borrow.
+    //! A raster of a vector picture at its own size: the canvas draws the vector, this is for icons
+    //! and for the one question a picture has to answer about itself, which is how big it is.
     [[nodiscard]] const QPixmap& artwork() const { return m_artwork; }
+
+    /**
+     * @brief The record this picture carries: which file it is, and the lettering put over it.
+     *
+     * Artwork has no geometry of ours, but it may have **words** — a hand-drawn balloon typeset, a
+     * sound effect captioned — and the preview has to show them, or the strip stops being what the
+     * render will produce. The words are laid out in the record's box, which is the picture's own
+     * pixels, and then drawn through the same transform the picture is: they scale with it rather than
+     * sliding about on it.
+     */
+    void setArtifact(const TextArtifact& a);
+    [[nodiscard]] const TextArtifact& artifact() const { return m_artifact; }
 
 protected:
     void                 paintContent(QPainter& painter) override;
@@ -54,7 +84,21 @@ protected:
     [[nodiscard]] bool   keepsAspect() const override { return true; }
 
 private:
-    QPixmap m_artwork;
+    //! Reads @p picture into both forms: the renderer when it is vector, the pixmap always — one for
+    //! the canvas, one for the row's icon and for the size the picture says it is.
+    void loadPicture(const QString& picture);
+
+    QString      m_picture;   //!< The file, so a feed can tell whether it changed.
+    QPixmap      m_artwork;
+    /**
+     * @brief Set when the picture is vector — and then it, not the pixmap, is what the canvas draws.
+     *
+     * A rasterised SVG is sharp at one size and soft at every other, which on a canvas that zooms is
+     * every size but one. Keeping the renderer costs a parse at load and draws at whatever scale the
+     * view is showing.
+     */
+    QSvgRenderer* m_svg = nullptr;
+    TextArtifact m_artifact;   //!< Which picture, and the words over it. See setArtifact().
     //! Drawn size. Seeded from the artwork's own pixels and then owned here, so a re-feed cannot undo a
     //! resize — and on a synced drive the file may still report its previous size just after a write.
     QSizeF  m_box;

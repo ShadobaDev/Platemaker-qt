@@ -417,3 +417,86 @@ TEST(Import, OnlyAFileCarryingTheRecipeIsAdopted)
     artifactFromSvg(impostor, &ok);
     EXPECT_FALSE(ok);
 }
+
+// ---------------------------------------------------------------------------
+// The third kind
+// ---------------------------------------------------------------------------
+
+/**
+ * @brief A record that names a picture **is** that picture, and none of our geometry applies to it.
+ *
+ * One record type carries all three kinds — lettering, a balloon, and somebody else's drawing — because
+ * a second map keyed by the same uid would be a second channel carrying the same object, and the two
+ * would drift. What keeps that honest is this: the moment `artwork` is set, the questions about our own
+ * geometry answer *no*, whatever the other fields happen to hold.
+ */
+TEST(Kinds, ArtworkHasNoGeometryOfOurs)
+{
+    TextArtifact a = loadedArtifact();
+    a.shape.kind   = TextArtifact::Shape::Speech;
+    ASSERT_TRUE(a.hasSilhouette());
+    ASSERT_TRUE(a.hasTail());
+
+    a.artwork = QStringLiteral("art-0123456789abcdef.png");
+    EXPECT_TRUE(a.isArtwork());
+    EXPECT_FALSE(a.hasSilhouette());   // the drawing is the picture, not a shape of ours
+    EXPECT_FALSE(a.hasTail());         // and nothing for a tail to leave from
+
+    a.artwork.clear();
+    EXPECT_FALSE(a.isArtwork());
+    EXPECT_TRUE(a.hasSilhouette());    // ...and nothing was destroyed to say so
+}
+
+//! The kind survives being saved, like every other property — a picture that loaded as a balloon would
+//! be the E6a bug arriving by a different road.
+TEST(Kinds, ArtworkSurvivesTheSnapshot)
+{
+    TextArtifact a = loadedArtifact();
+    a.artwork      = QStringLiteral("art-0123456789abcdef.png");
+
+    const TextArtifact back = artifactFromJson(artifactToJson(a));
+    EXPECT_EQ(back.artwork, a.artwork);
+    EXPECT_TRUE(back.isArtwork());
+    EXPECT_EQ(back, a);
+
+    // A snapshot written before the field existed loads as what it was: something we draw.
+    QJsonObject older = artifactToJson(a);
+    older.remove(QStringLiteral("artwork"));
+    EXPECT_FALSE(artifactFromJson(older).isArtwork());
+}
+
+/**
+ * @brief A wrapper is written only when it can draw its picture, and reads back as one.
+ *
+ * The library hands the renderer a buffer with no base path (`vips_svgload_buffer` → librsvg), so a
+ * relative `href` has nothing to resolve against: the picture is embedded or the file is useless. A
+ * wrapper without it would render as the lettering alone, floating over nothing — worse than no file,
+ * because it would look deliberate.
+ */
+TEST(Import, AWrapperWithoutItsPictureIsNotWritten)
+{
+    TextArtifact a;
+    a.artwork   = QStringLiteral("art-0123456789abcdef.png");
+    a.box       = QSize(200, 200);
+    a.text.body = QStringLiteral("KRAK!");
+
+    EXPECT_TRUE(artifactToSvg(a).isEmpty());                                   // no bytes at all
+    EXPECT_TRUE(artifactToSvg(a, QByteArray("nonsense"), QString()).isEmpty()); // ...and no media type
+}
+
+//! A wrapper says which picture it wraps, so re-importing one brings the object back whole.
+TEST(Import, AWrapperNamesItsPicture)
+{
+    const QByteArray wrapper =
+        QByteArray("<svg xmlns=\"http://www.w3.org/2000/svg\" xmlns:pm=\"") + k_pmNamespace
+        + "\" width=\"10\" height=\"10\"><g pm:v=\"2\" pm:shape=\"none\""
+          " pm:artwork=\"art-0123456789abcdef.png\" pm:box=\"200,200\" pm:text=\"KRAK!\"/></svg>";
+
+    bool               ok = false;
+    const TextArtifact a  = artifactFromSvg(wrapper, &ok);
+    EXPECT_TRUE(ok);
+    EXPECT_TRUE(a.isArtwork());
+    EXPECT_FALSE(a.hasSilhouette());
+    EXPECT_EQ(a.artwork, QStringLiteral("art-0123456789abcdef.png"));
+    EXPECT_EQ(a.text.body, QStringLiteral("KRAK!"));
+}

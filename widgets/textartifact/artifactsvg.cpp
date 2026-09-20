@@ -204,10 +204,54 @@ int intOf(const QStringView& v, int fallback)
 // Writing
 // ---------------------------------------------------------------------------
 
-QByteArray artifactToSvg(const TextArtifact& a)
+QByteArray artifactToSvg(const TextArtifact& a, const QByteArray& picture, const QString& mime)
 {
     if (a.box.isEmpty())
         return {};
+
+    // **A picture with words over it.** The geometry is the picture's own box — no tails to reach past
+    // it — so the viewBox is the box, and the lettering is laid out in it exactly as a shapeless
+    // object's is (textSafeArea() gives the whole box when there is no silhouette of ours).
+    if (a.isArtwork()) {
+        if (picture.isEmpty() || mime.isEmpty())
+            return {};
+
+        QString svg;
+        svg += QStringLiteral("<svg xmlns=\"http://www.w3.org/2000/svg\" "
+                              "xmlns:xlink=\"http://www.w3.org/1999/xlink\" xmlns:pm=\"%1\"\n"
+                              "     width=\"%2\" height=\"%3\" viewBox=\"0 0 %2 %3\">\n")
+                   .arg(QLatin1String(k_pmNamespace))
+                   .arg(num(a.box.width()), num(a.box.height()));
+
+        // The same parameter group every file of ours carries, so this one is re-typable in the same
+        // way — and so an import can tell it is ours (see artifactFromSvg).
+        svg += QStringLiteral("  <g");
+        svg += attr(QStringLiteral("v"), 2);
+        svg += attr(QStringLiteral("shape"), QString::fromLatin1(shapeName(a.shape.kind)));
+        svg += attr(QStringLiteral("artwork"), a.artwork);
+        svg += attr(QStringLiteral("box"),
+                    QStringLiteral("%1,%2").arg(a.box.width()).arg(a.box.height()));
+        svg += attr(QStringLiteral("text"), a.text.body);
+        svg += attr(QStringLiteral("fontFamily"), a.text.family);
+        svg += attr(QStringLiteral("fontSize"), a.text.pixelSize);
+        svg += attr(QStringLiteral("bold"), a.text.bold ? 1 : 0);
+        svg += attr(QStringLiteral("align"), a.text.align);
+        svg += attr(QStringLiteral("textColour"), a.text.colour.name(QColor::HexArgb));
+        svg += QLatin1String(">\n");
+
+        svg += QStringLiteral("    <image x=\"0\" y=\"0\" width=\"%1\" height=\"%2\" "
+                              "xlink:href=\"data:%3;base64,%4\"/>\n")
+                   .arg(num(a.box.width()), num(a.box.height()), mime,
+                        QString::fromLatin1(picture.toBase64()));
+
+        const QPainterPath text = artifactTextOutline(a);
+        if (!text.isEmpty())
+            svg += QStringLiteral("    <path d=\"%1\" fill-rule=\"%2\" %3/>\n")
+                       .arg(pathData(text), fillRule(text), paint("fill", a.text.colour));
+
+        svg += QLatin1String("  </g>\n</svg>\n");
+        return svg.toUtf8();
+    }
 
     // The viewBox is the artifact's *drawn* extent, not its balloon: a tail may reach above or left of
     // the balloon, and SVG takes a negative viewBox origin natively — so the file itself carries the
@@ -297,6 +341,9 @@ TextArtifact artifactFromSvg(const QByteArray& svg, bool* ok)
         // Every field falls back to the struct's own default, so a file written by an older build, or
         // hand-edited, loads as a usable bubble rather than a blank one.
         a.shape.kind = shapeFromName(at.value(ns, QStringLiteral("shape")));
+        // A wrapper says which picture it is wrapping; a balloon carries no such attribute and stays
+        // an object we draw.
+        a.artwork = at.value(ns, QStringLiteral("artwork")).toString();
 
         const auto box = at.value(ns, QStringLiteral("box")).toString().split(QLatin1Char(','));
         if (box.size() == 2)

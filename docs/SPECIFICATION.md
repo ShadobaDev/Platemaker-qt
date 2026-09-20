@@ -833,6 +833,27 @@ valid baseline for every grade tried on it. Excluded pages are skipped, matching
     as a picture of itself. Matched on the **namespace URI**, never the prefix, which in XML is only a
     local shorthand. A drawing with no recipe stays artwork, which is the honest answer: someone else's
     paths are not something our silhouettes can express.
+- **There is one record type and three kinds of object.** `TextArtifact::artwork` names an imported
+  picture — a file name inside the workspace's `overlays/` — and its presence *is* the kind: empty and
+  the drawing is ours (a balloon when `shape` is not `None`, lettering when it is), non-empty and the
+  drawing is somebody else's. A second map keyed by the same uid would be a second channel carrying the
+  same object, and the two would drift; a record that says what it is keeps one. `isArtwork()` makes
+  `hasSilhouette()` and `hasTail()` answer *no* whatever else the record holds, so our geometry cannot
+  be applied to a picture by accident.
+  - **A picture can be lettered.** The same `Text` group a balloon carries is bound to it — one editor,
+    one group, one answer — and laid out across the whole picture, which `textSafeArea()` already gave
+    to any object with no silhouette of ours. Hand-drawn balloons and sound effects are typeset without
+    ceasing to be somebody's drawing.
+  - **What the render composites is a wrapper.** A lettered picture's overlay points at a generated
+    `ovl-<sha>.svg` that **embeds the picture as a data URI** and draws the lettering over it; an
+    unlettered one points straight at the imported file, so the common case writes nothing. Embedded
+    rather than referenced because the library hands the renderer a buffer with **no base path**
+    (`vips_svgload_buffer` → librsvg), so a relative `href` has nothing to resolve against — and a
+    wrapper that cannot draw its picture is never written, because it would render as lettering
+    floating over nothing.
+  - **The picture itself is never overwritten.** `writeArtifactSvg()` ignores its reuse path for an
+    artwork record: that path may be the imported file, and the imported file is the one thing in the
+    workspace we did not make.
 - **Imported artwork is the same overlay with fewer attributes.** *Import artwork…* copies a file into
   `overlays/` under its content hash and registers it with **no** authoring record; with no `pm:`
   parameters it becomes an `AssetObject` — placed, moved, re-anchored, muted, resized and rendered like

@@ -133,7 +133,11 @@ public:
      * have a record too, and this test will have to become something else — **in one place instead of
      * eight**, which is the whole point of it having a name.
      */
-    [[nodiscard]] bool isParametric(const QString& uid) const { return m_artifacts.contains(uid); }
+    [[nodiscard]] bool isParametric(const QString& uid) const
+    {
+        const auto it = m_artifacts.constFind(uid);
+        return it != m_artifacts.constEnd() && !it->isArtwork();
+    }
 
     //! Everything selected, in the order it was picked. The last is the primary — see selectOverlays().
     [[nodiscard]] const QStringList& selectedOverlays() const { return m_selectedOverlays; }
@@ -252,6 +256,24 @@ public:
     [[nodiscard]] QString selectedArtworkName() const;
 
     /**
+     * @brief The selected artwork's record — which picture it is, and the lettering over it.
+     *
+     * **Made up when there is none**, which is every picture placed before records existed for them.
+     * `ArtifactMap::value()` would hand back an empty record, the edit would be refused for not being
+     * about a picture, and the panel would keep re-binding nothing — which is exactly how it behaved.
+     * The object knows what it is, so the record is derived from it and stored on the first edit.
+     */
+    [[nodiscard]] TextArtifact selectedArtworkRecord() const;
+
+    /**
+     * @brief Writes @p record back onto the selected picture — the words, as they are typed.
+     *
+     * @param commit False while typing: the object is redrawn, the history is not touched. The panel's
+     *               own debounce decides when it settles, exactly as a balloon's lettering does.
+     */
+    void applyArtworkRecord(const TextArtifact& record, bool commit);
+
+    /**
      * @brief Gives every selected object the blend mode @p blend, as one history step.
      *
      * Blend has been in the model, the compositor and this preview since the library shipped it, and
@@ -357,6 +379,9 @@ private:
     //! Selects the strip or a page: every overlay deselected, that one row selected, the subject reported.
     void selectSubject(Subject subject, const QString& pageUid);
     //! The tree row of the selected strip or page, or nullptr.
+    //! Which file an asset item draws: the imported picture, which is not always the overlay's own.
+    [[nodiscard]] QString pictureFor(const Platemaker::Models::StripOverlay& o) const;
+
     [[nodiscard]] QTreeWidgetItem* subjectRow() const;
     //! The glyph a row wears — the object drawn small, cached until the look it is made of changes.
     [[nodiscard]] QIcon rowGlyph(const QString& uid);

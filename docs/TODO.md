@@ -237,6 +237,28 @@ New, backward-compatible features. Several are gated on a lib version, noted in 
   somebody else's drawing. The honest limit: one closed silhouette, not a drawing of two hundred paths,
   or "fill" and "outline" stop meaning anything.
 
+- [ ] **Names that describe what things were, not what they are** — a sweep, deliberately deferred so it
+  lands as one mechanical diff rather than as noise inside feature work. Nothing here changes behaviour.
+  - **`TextArtifact` → `Artifact`.** It is not the text: it is the whole authoring record of an
+    overlay — shape, skin, style, tails, the imported picture, *and* a `TextProperties text` field,
+    which is the part the name claims to be. The rest of the codebase already agreed: `ArtifactMap`,
+    `ArtifactPart`, `ArtifactStore`, `artifactToSvg`, `artifactFromSvg`, `artifactToJson`,
+    `artifactPainter`, `artifactLabel`, `artifactBounds`, `artifactSilhouette`, `artifactPartAt`,
+    `artifactCreated` — twenty symbols say *artifact*, and only the struct still says *Text*. The name
+    is a relic of the day it described nothing but a bubble with words in it, and it is the first thing
+    a reader trips over: *why does a "text artifact" have tails and a picture?* ≈390 occurrences in 49
+    files, crossing into `widgets/project/project.h` but **not** into the library. Files
+    `textartifact.{h,cpp}` rename with it. No `using` alias: the feature is unreleased, so nothing has
+    to keep the old spelling alive, and an alias would keep two names for ever.
+  - **`TextArtifact::artwork` is not necessarily art.** It holds whatever picture the artist placed — a
+    sprite, a sound effect, a logo, a screen grab. *Artwork* reads as "someone's drawing", which is
+    only sometimes true. Something like `picture`, `image` or `source` says what the field is without
+    claiming what it is *for*. (The same word is worth auditing in `AssetObject`, `loadArtwork()`,
+    `ArtworkOptionsPanel` and the **Artwork** tool — the rail's label is a separate question from the
+    code's, since the artist's word for it may legitimately differ.)
+  - Expect more of these once the two above are pulled: the sweep is the point, not the individual
+    rename.
+
 - [ ] **Namespace hygiene for the `pm:` recipe** — three small things, together, before overlay files
   start travelling between people (which the import work makes routine):
   - **`platemaker.dev` is not registered.** A namespace URI is an identifier and need not resolve, so

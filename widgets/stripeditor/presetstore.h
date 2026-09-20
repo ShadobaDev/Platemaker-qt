@@ -71,6 +71,24 @@ public:
     bool exportPack(const QString& path, QString* error) const;
 
     /**
+     * @brief Which preset @p a currently looks like, or -1 for none of them.
+     *
+     * **Computed, never stored.** A remembered "this came from Shout" is a field that goes stale the
+     * moment a property is edited, and it cannot answer for a selection of several; comparing the
+     * values each time costs nothing, self-heals when the artist edits back to an exact match, and has
+     * an honest answer either way.
+     *
+     * Only the groups a preset *fills* are compared — shape, fill & outline, line style, text style.
+     * The box, the tails and the lettering are the object's own and `applied()` copies them across, and
+     * the style seed belongs to no group at all: it would make an object that matches in every visible
+     * way report as something else.
+     */
+    [[nodiscard]] int matching(const TextArtifact& a) const;
+
+    //! What to call that look: the preset's name, or *Custom* when it is nobody's.
+    [[nodiscard]] QString lookLabel(const TextArtifact& a) const;
+
+    /**
      * @brief \p target restyled by \p p — the one place that knows what a preset does *not* carry.
      *
      * The lettering, the balloon's size, where its tails point and its own style seed all survive:

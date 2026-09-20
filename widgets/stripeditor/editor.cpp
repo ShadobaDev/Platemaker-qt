@@ -44,6 +44,7 @@
 #include <QSettings>
 #include <QSplitter>
 #include <QSplitterHandle>
+#include <QStyle>
 #include <QStackedWidget>
 #include <QStyleOptionGraphicsItem>
 #include <QToolButton>
@@ -82,21 +83,36 @@ namespace {
 }
 
 /**
- * @brief How wide a side column starts, and the least it can be dragged to.
+ * @brief How wide the **right** column starts, and the least it can be dragged to.
  *
- * **Measured rather than guessed, and a number rather than a question.** With an object in it, the
- * properties panel's layout asks for 324 points and stops needing a horizontal scroll bar at 332
- * (Windows 11 style, default font); 340 leaves room for the vertical one. Asking the panel at
- * construction — the obvious thing, and the first thing tried — cannot work: a panel with nothing
- * selected has not built a control yet and answers **55**, while the width has to be known before
- * anything is selected. Asking again later would mean the column widening under the pointer, which is
- * the bug this whole arrangement exists to stop.
+ * A number rather than a question, and the difference between this column and the tool column is the
+ * whole reason: the properties panel builds its controls when something is *selected*, so at
+ * construction it has none and answers **55** — while the width has to be settled before anything is
+ * selected, and asking again afterwards would be the column widening under the pointer, which is the
+ * bug the scroll areas exist to stop. So it is measured once, by hand: with an object in it the panel
+ * asks for 324 points and stops needing a horizontal scroll bar at 332, and 340 leaves room for the
+ * vertical one.
  *
  * It is enforced as a *minimum* and not only as a starting size, because a size is outvoted by whatever
  * the artist last had saved — someone whose saved layout predates this would otherwise go on reading
  * half a spin box.
  */
-constexpr int k_sideColumnPx = 340;
+constexpr int k_rightColumnPx = 340;
+
+/**
+ * @brief How wide a column has to be to hold @p panel whole.
+ *
+ * The tool options **can** be asked, where the properties cannot: they describe the next object rather
+ * than a selected one, so every control exists from the moment the panel is built and the answer is
+ * complete and final. Asking beats a constant here because it follows the screen — the same panel that
+ * wants 339 points at one font and scale wants more at another, and a number measured on the author's
+ * machine is a number that clips on somebody else's.
+ */
+[[nodiscard]] int columnWidthFor(const QWidget* panel)
+{
+    return panel->minimumSizeHint().width()
+         + panel->style()->pixelMetric(QStyle::PM_ScrollBarExtent);   // the bar it will want first
+}
 
 //! How wide a splitter's grab area is. Wider than the default 1 point, which was as hard to hit as it
 //! sounds.
@@ -347,7 +363,7 @@ Editor::Editor(QWidget *parent)
         // The other question, and a different class for it: what the *selected* object is. The two used
         // to be one class sitting in two places, which is how they came to look like the same panel
         // twice. They now differ in what they contain, not only in what they mean.
-        m_objectState = new ObjectStatePanel(ui->objectProperties);
+        m_objectState = new ObjectStatePanel(*m_presets, ui->objectProperties);
         m_objectPage  = scrolled(m_objectState, ui->objectProperties);
         ui->objectProperties->addWidget(m_objectPage);
 
@@ -397,13 +413,13 @@ Editor::Editor(QWidget *parent)
         ui->editorBody->setStretchFactor(0, 0);   // toolbox
         ui->editorBody->setStretchFactor(1, 1);   // canvas
         ui->editorBody->setStretchFactor(2, 0);   // right panel
-        // Both side columns hold panels of the same kind — rows of labelled controls — so they take the
-        // same width, and neither can be dragged under it. See k_sideColumnPx for where the number is
-        // from and why it is a number.
-        ui->toolColumn->setMinimumWidth(k_sideColumnPx);
-        ui->rightPanel->setMinimumWidth(k_sideColumnPx);
+        // Neither side column can be dragged under what its panel needs. The tool column knows that
+        // because its panel is complete; the right column is told, because its panel is not yet.
+        const int toolW = qMax(k_rightColumnPx, columnWidthFor(m_toolOptions));
+        ui->toolColumn->setMinimumWidth(toolW);
+        ui->rightPanel->setMinimumWidth(k_rightColumnPx);
         ui->editorBody->setChildrenCollapsible(false);   // no column can be dragged out of existence
-        ui->editorBody->setSizes({k_sideColumnPx, 700, k_sideColumnPx});
+        ui->editorBody->setSizes({toolW, 700, k_rightColumnPx});
         ui->toolColumn->setStretchFactor(0, 0);    // the tile rail takes what it needs
         ui->toolColumn->setStretchFactor(1, 1);    // the options absorb the rest
         // The tools are never negotiable — the rail's minimum follows its own wrapping (see

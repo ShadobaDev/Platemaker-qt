@@ -33,8 +33,11 @@ endif()
 add_executable(platemaker-gui-tests
     test_property_groups.cpp
     test_colour_adjustments.cpp
+    test_presets.cpp
     ${CMAKE_SOURCE_DIR}/widgets/textartifact/textartifact.cpp
     ${CMAKE_SOURCE_DIR}/widgets/stripeditor/colouradjustment.cpp
+    # The preset store is QtCore and a QObject — no widget in it — so the rule above still holds.
+    ${CMAKE_SOURCE_DIR}/widgets/stripeditor/presetstore.cpp
 )
 
 target_include_directories(platemaker-gui-tests PRIVATE

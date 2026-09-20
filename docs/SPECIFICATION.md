@@ -230,15 +230,19 @@ how it ended up a sliver).
   under the pointer that had just come down on a mute checkbox — so the click landed on the row and the
   mute took two attempts. It is also what lets a long set of properties scroll instead of squeezing the
   object list.
-- **A side column is as wide as its panel needs, and cannot be dragged narrower.** Both hold the same
-  kind of thing — rows of labelled controls — so both take the same width, enforced as a *minimum* and
-  not only as a starting size: a size is outvoted by whatever the artist last had saved, and someone
-  whose saved layout predates this would go on reading half a spin box. The width is a **measured
-  constant**, not a question asked of the panel: with an object in it the properties panel asks for 324
-  points and stops needing a horizontal scroll bar at 332, but with *nothing* selected it has not built
-  a control yet and answers 55 — and the width has to be settled before anything is selected. Asking
-  again once something is would be the column widening under the pointer, which is the thing the scroll
-  areas above exist to stop.
+- **A side column is as wide as its panel needs, and cannot be dragged narrower.** Both are enforced as
+  *minimums* and not only as starting sizes: a size is outvoted by whatever the artist last had saved,
+  and someone whose saved layout predates this would go on reading half a spin box. Where the two
+  columns differ is **who knows the width**.
+  - **The tool column asks its panel.** The tool options describe the object that does not exist yet, so
+    every control is built with the panel and `minimumSizeHint()` is complete and final. Asking follows
+    the screen, which a number cannot: the same panel measures 330 points at one font and scale and more
+    at another, and a width measured on one machine is a width that clips on the next.
+  - **The right column is told.** The properties panel builds its controls when something is *selected*,
+    so at construction it has none and answers 55 — while the width has to be settled before anything is
+    selected, and asking again afterwards would be the column widening under the pointer, which is the
+    thing the scroll areas above exist to stop. So it carries a measured constant: with an object in it
+    the panel asks for 324 and stops needing a horizontal scroll bar at 332.
 - **The tools are never negotiable.** A flow layout's minimum is one tile, so a splitter was free to
   shorten the rail until its last row of tools was simply not drawn. The rail's minimum height is now
   whatever its own wrapping needs at its current width, recomputed whenever that width changes, and the
@@ -715,6 +719,26 @@ valid baseline for every grade tried on it. Excluded pages are skipped, matching
 - **Creation is the library's.** The viewer emits `artifactCreated()`; `Project::createOverlay()` writes
   the SVG and calls `ProjectItem::addOverlay()`, which mints the uid, hashes the file and dedups identical
   content. Every other edit arrives as the complete new state on `overlaysEdited()`.
+- **Which preset an object looks like is computed, never stored.** `PresetStore::matching()` restyles
+  the object by each preset in turn and keeps the one that changes nothing; `lookLabel()` names it, or
+  says *Custom*. A remembered "this came from Shout" would be a field that goes stale on the next edit
+  and has no answer at all for a selection of several — this one self-heals if the artist edits back to
+  an exact match, and answers *Mixed* when a selection disagrees.
+  - **Only the groups a preset fills are compared** — shape, fill & outline, line style, text style. The
+    box, the tails and the lettering are the object's own and `applied()` copies them across, and the
+    style seed belongs to no group: comparing whole artifacts would make a re-rolled outline report as a
+    different look.
+  - It is shown where it answers something: **③** says what the selection *is* (*Mixed* when they
+    disagree, nothing at all for a tail), and **⑤** names the preset on a row **only when it matches
+    one** — *Custom* on every hand-made balloon would be a column of chips reporting that there is
+    nothing to report.
+  - **④ wears no chip.** Every property a preset covers is on screen a few points below the picker, so
+    a chip there would report what the controls already say, and beside the picker it read as a second
+    control answering the same question — the fault this panel was rearranged to fix.
+  - **The picker offers; it never claims.** The combo in ④ shows a prompt and no current entry, because
+    a drop-down showing an entry means *this is what is selected* and a preset is a one-shot fill that
+    stops describing anything the moment a control moves. *Save…* and *Delete* act on the look the
+    controls currently **are** — `matching()` again — rather than on a picker's selection.
 - **A preset is a bubble with nothing said in it.** `BubblePreset` (`widgets/stripeditor/panels/`) is a name
   plus a `TextArtifact` whose `text`, `box`, `tails` and `styleSeed` are meaningless — applying one
   copies the *look* over the selection and copies the content straight back, so restyling never touches

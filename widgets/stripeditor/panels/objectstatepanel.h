@@ -11,7 +11,11 @@ class QLabel;
 class QPushButton;
 class QTimer;
 
+class QHBoxLayout;
+
 namespace StripEdit {
+
+class PresetStore;
 
 class TailEditor;
 class TailListEditor;
@@ -43,7 +47,7 @@ class ObjectStatePanel : public QWidget
     Q_OBJECT
 
 public:
-    explicit ObjectStatePanel(QWidget* parent = nullptr);
+    ObjectStatePanel(PresetStore& presets, QWidget* parent = nullptr);
 
     //! Shows \p a and names it in the header. Emits nothing.
     void setArtifact(const TextArtifact& a);
@@ -103,6 +107,10 @@ private:
     void applyKindVisibility();
     //! Remembers which sections are open, so the choice follows the artist rather than the object.
     void restoreExpansion();
+    //! Rebuilds the chip beside the subject: which preset the selection looks like, right now.
+    void refreshLook();
+
+    PresetStore& m_presets;
 
     PropertyGroupSet m_groups;
     TailListEditor*  m_tailList = nullptr;   //!< A balloon's tails, as a collection.
@@ -110,6 +118,8 @@ private:
     int              m_tailIndex = -1;       //!< The tail on show, or -1 when the subject is the balloon.
 
     QLabel*             m_subject   = nullptr;  //!< Names what is being edited.
+    QHBoxLayout*        m_header    = nullptr;  //!< The subject and, after it, the look chip.
+    QWidget*            m_lookChip  = nullptr;  //!< Shout / Custom / Mixed. Rebuilt, never relabelled.
     QLabel*             m_emptyHint = nullptr;  //!< Stands in for the sections when nothing is selected.
     QWidget*            m_actions   = nullptr;  //!< Fit / Delete — they act on the selection.
     QString             m_emptyText;            //!< What the hint says with nothing selected.

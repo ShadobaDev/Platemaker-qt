@@ -8,7 +8,6 @@
 #include <QHBoxLayout>
 #include <QIcon>
 #include <QInputDialog>
-#include <QLabel>
 #include <QLineEdit>
 #include <QMenu>
 #include <QMessageBox>
@@ -38,7 +37,13 @@ ToolOptionsPanel::ToolOptionsPanel(PresetStore& presets, QWidget* parent)
     // Above the controls it fills, and outside the Shape group, because a preset also carries the font
     // and the colours the Text tool uses.
     m_presetCombo = new QComboBox(this);
-    m_presetCombo->setToolTip(tr("The look the next bubble you place will start from."));
+    // **The picker offers; it never claims.** A drop-down showing an entry says *this is what is
+    // selected*, and a preset is not a selection — it is a one-shot fill that stops describing anything
+    // the moment any control moves. So it shows a prompt, and the chip beside it reports what the next
+    // object's values actually are.
+    m_presetCombo->setPlaceholderText(tr("Apply a preset…"));
+    m_presetCombo->setToolTip(tr("Fills the controls below with a saved look. What the next object "
+                                 "will be is what the controls say, and the chip reports it."));
     m_presetCombo->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
     m_presetCombo->setIconSize(QSize(k_bubbleThumbW, k_bubbleThumbH));
 
@@ -57,7 +62,7 @@ ToolOptionsPanel::ToolOptionsPanel(PresetStore& presets, QWidget* parent)
     presetMore->setMenu(presetMenu);
 
     auto* presetRow = new QHBoxLayout;
-    presetRow->addWidget(new QLabel(tr("Preset:"), this));
+
     presetRow->addWidget(m_presetCombo, 1);
     presetRow->addWidget(presetSave);
     presetRow->addWidget(presetMore);
@@ -101,10 +106,9 @@ ToolOptionsPanel::ToolOptionsPanel(PresetStore& presets, QWidget* parent)
     connect(m_presetDelete, &QAction::triggered,   this, [this] { onDeletePreset(); });
     connect(importAct,      &QAction::triggered,   this, [this] { onImportPack(); });
     connect(exportAct,      &QAction::triggered,   this, [this] { onExportPack(); });
-    connect(&m_presets, &PresetStore::changed, this,
-            [this] { refreshPresetCombo(m_presetCombo->currentIndex()); });
+    connect(&m_presets, &PresetStore::changed, this, [this] { refreshPresetCombo(); });
 
-    refreshPresetCombo(0);
+    refreshPresetCombo();
     syncFromModel();
 }
 
@@ -145,6 +149,7 @@ void ToolOptionsPanel::onControlChanged()
     if (m_populating)
         return;
     m_groups.collect(m_artifact, m_tails);
+    refreshLook();   // one changed property and it is no longer that preset (Q40)
     // Nothing is emitted: these values describe an object that does not exist yet, so there is nothing
     // to preview and nothing to persist until one is placed.
 }
@@ -161,7 +166,7 @@ void ToolOptionsPanel::syncFromModel()
 // Presets
 // ---------------------------------------------------------------------------
 
-void ToolOptionsPanel::refreshPresetCombo(int current)
+void ToolOptionsPanel::refreshPresetCombo()
 {
     const QSignalBlocker block(m_presetCombo);
     m_presetCombo->clear();
@@ -173,13 +178,24 @@ void ToolOptionsPanel::refreshPresetCombo(int current)
                                                      p.artifact.skin.stroke, p.artifact.text.colour)),
                                p.name);
     }
-    m_presetCombo->setCurrentIndex(qBound(-1, current, int(presets.size()) - 1));
-    m_presetDelete->setEnabled(m_presets.isCustom(m_presetCombo->currentIndex()));
+    // No current entry, ever: see the placeholder above. Which preset the other two act on is the one
+    // the controls currently *are*, which is what the chip reports — see refreshLook().
+    m_presetCombo->setCurrentIndex(-1);
+    refreshLook();
+}
+
+void ToolOptionsPanel::refreshLook()
+{
+    // **Delete acts on the look, not on a picker's selection.** With nothing claimed above, the honest
+    // subject is the preset these values *are*, and only if it is the artist's own: a built-in cannot be
+    // removed, and a look that is nobody's preset is not a preset to remove.
+    m_presetDelete->setEnabled(m_presets.isCustom(m_presets.matching(m_artifact)));
 }
 
 void ToolOptionsPanel::applyPreset(int index)
 {
     m_presetDelete->setEnabled(m_presets.isCustom(index));
+    m_presetCombo->setCurrentIndex(-1);   // it applied a look; it is not now *showing* one
     if (index < 0 || index >= m_presets.presets().size())
         return;
     m_artifact = PresetStore::applied(m_presets.presets().at(index), m_artifact,
@@ -190,8 +206,12 @@ void ToolOptionsPanel::applyPreset(int index)
 void ToolOptionsPanel::onSavePreset()
 {
     bool ok = false;
+    // Offered back: the name these values already carry, so saving over a preset needs no retyping,
+    // and *Custom* offers nothing rather than a word nobody meant as a name.
+    const int     match   = m_presets.matching(m_artifact);
+    const QString suggest = match >= 0 ? m_presets.presets().at(match).name : QString();
     const QString name = QInputDialog::getText(this, tr("Save preset"), tr("Preset name:"),
-                                               QLineEdit::Normal, m_presetCombo->currentText(), &ok)
+                                               QLineEdit::Normal, suggest, &ok)
                              .trimmed();
     if (!ok || name.isEmpty())
         return;
@@ -207,12 +227,13 @@ void ToolOptionsPanel::onSavePreset()
             return;
         at = m_presets.save(name, prototype(), /*replaceExisting=*/true);
     }
-    refreshPresetCombo(at);
+    (void)at;
+    refreshPresetCombo();
 }
 
 void ToolOptionsPanel::onDeletePreset()
 {
-    const int i = m_presetCombo->currentIndex();
+    const int i = m_presets.matching(m_artifact);   // the one the chip names, and it is the artist's own
     if (!m_presets.isCustom(i))
         return;
     if (QMessageBox::question(this, tr("Delete preset"),
@@ -220,7 +241,7 @@ void ToolOptionsPanel::onDeletePreset()
         != QMessageBox::Yes)
         return;
     m_presets.remove(i);
-    refreshPresetCombo(qMin(i, int(m_presets.presets().size()) - 1));
+    refreshPresetCombo();   // the values stay as they are; they are simply nobody's preset now
 }
 
 void ToolOptionsPanel::onImportPack()
@@ -238,7 +259,7 @@ void ToolOptionsPanel::onImportPack()
         QMessageBox::warning(this, tr("Import preset pack"), error);
         return;
     }
-    refreshPresetCombo(m_presetCombo->currentIndex());
+    refreshPresetCombo();
     QMessageBox::information(this, tr("Import preset pack"),
                              tr("Imported %n preset(s).", nullptr, n));
 }

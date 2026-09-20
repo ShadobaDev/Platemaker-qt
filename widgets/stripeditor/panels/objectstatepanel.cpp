@@ -7,7 +7,9 @@
 #include <QTimer>
 #include <QVBoxLayout>
 
+#include "badge.h"
 #include "collapsiblesection.h"
+#include "presetstore.h"
 #include "shapeeditor.h"
 #include "skineditor.h"
 #include "styleeditor.h"
@@ -49,20 +51,25 @@ QString sectionTitle(PropertyGroup g)
 
 } // namespace
 
-ObjectStatePanel::ObjectStatePanel(QWidget* parent)
+ObjectStatePanel::ObjectStatePanel(PresetStore& presets, QWidget* parent)
     : QWidget(parent)
+    , m_presets(presets)
     , m_groups(this)
 {
     auto* lay = new QVBoxLayout(this);
 
     // Names the subject. The whole answer to "what am I editing", which the artist should never have to
-    // work out from which controls happen to be on screen.
+    // work out from which controls happen to be on screen. After it, what the selection currently looks
+    // like — a chip, because it reports and does not offer.
     m_subject = new QLabel(this);
     m_subject->setTextFormat(Qt::PlainText);
     QFont subjectFont = m_subject->font();
     subjectFont.setBold(true);
     m_subject->setFont(subjectFont);
-    lay->addWidget(m_subject);
+    m_header = new QHBoxLayout;
+    m_header->addWidget(m_subject);
+    m_header->addStretch(1);
+    lay->addLayout(m_header);
 
     m_emptyText = tr("Select an object on the strip to edit it.");
     m_emptyHint = new QLabel(m_emptyText, this);
@@ -156,6 +163,7 @@ void ObjectStatePanel::setArtifact(const TextArtifact& a)
 
     m_subject->setText(m_artifact.shape.kind == TextArtifact::Shape::None ? tr("Text") : tr("Bubble"));
     m_subject->setVisible(true);
+    refreshLook();
     m_emptyHint->setText(m_emptyText);
     m_emptyHint->setVisible(false);
     m_actions->setVisible(true);
@@ -182,6 +190,7 @@ void ObjectStatePanel::setMixedSubjects(int count)
     m_deleteButton->setText(tr("Delete"));
     for (auto it = m_sections.cbegin(); it != m_sections.cend(); ++it)
         it.value()->setVisible(false);
+    refreshLook();
 }
 
 void ObjectStatePanel::setArtifacts(const QList<TextArtifact>& objects)
@@ -212,6 +221,7 @@ void ObjectStatePanel::setArtifacts(const QList<TextArtifact>& objects)
 
     m_subject->setText(tr("%n objects", "", m_selectionCount));
     m_subject->setVisible(true);
+    refreshLook();
     m_emptyHint->setVisible(false);
     m_actions->setVisible(true);
     m_fitButton->setVisible(false);   // one box cannot be fitted to several texts
@@ -246,6 +256,7 @@ void ObjectStatePanel::setTail(const TextArtifact& a, int index)
 
     m_subject->setText(tr("Tail %1").arg(index + 1));
     m_subject->setVisible(true);
+    refreshLook();
     m_emptyHint->setVisible(false);
     m_actions->setVisible(true);
     m_fitButton->setVisible(false);   // a tail holds no text to fit
@@ -263,6 +274,7 @@ void ObjectStatePanel::clearSelection()
 
     // Gone, not greyed. There is no object, so there are no properties — and a greyed control would
     // promise one that arriving later would not deliver.
+    refreshLook();
     m_subject->setVisible(false);
     m_emptyHint->setVisible(true);
     m_actions->setVisible(false);
@@ -294,6 +306,39 @@ void ObjectStatePanel::applyKindVisibility()
     }
 }
 
+
+void ObjectStatePanel::refreshLook()
+{
+    // Rebuilt rather than relabelled: a painted chip carries its text, its colours and its tooltip
+    // together, and a setter for each would be three ways to leave two of them disagreeing.
+    delete m_lookChip;
+    m_lookChip = nullptr;
+
+    QString text;
+    QString detail;
+    if (m_tailIndex >= 0 || m_selectionCount == 0) {
+        // A tail has no look of its own, and nothing selected has nothing to report.
+    } else if (m_hasArtifact) {
+        text   = m_presets.lookLabel(m_artifact);
+        detail = m_presets.matching(m_artifact) >= 0
+                     ? tr("Every property a preset covers still matches “%1”.").arg(text)
+                     : tr("The look of no preset: something a preset covers has been changed since.");
+    } else if (!m_subjects.isEmpty()) {
+        const QString first = m_presets.lookLabel(m_subjects.first());
+        const bool    agree = std::all_of(m_subjects.cbegin(), m_subjects.cend(),
+                                          [this, &first](const TextArtifact& a) {
+                                              return m_presets.lookLabel(a) == first;
+                                          });
+        text   = agree ? first : tr("Mixed");
+        detail = agree ? tr("Every object in the selection has this look.")
+                       : tr("The selected objects do not share one look.");
+    }
+
+    if (text.isEmpty())
+        return;
+    m_lookChip = makeBadge(toneBadge(BadgeTone::Neutral, text, detail, palette()), this);
+    m_header->insertWidget(1, m_lookChip);   // after the subject, before the stretch
+}
 
 void ObjectStatePanel::restoreExpansion()
 {
@@ -333,6 +378,10 @@ void ObjectStatePanel::onControlChanged()
         applyKindVisibility();
         m_subject->setText(m_artifact.shape.kind == TextArtifact::Shape::None ? tr("Text") : tr("Bubble"));
     }
+
+    // One changed property and it is no longer that preset (Q40). Computed, so it flips back by itself
+    // if the artist edits the value to an exact match again.
+    refreshLook();
 
     if (!m_hasArtifact)
         return;

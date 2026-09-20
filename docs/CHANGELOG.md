@@ -94,6 +94,11 @@
   - **Each row in the object list now reports its object's state** — *unanchored* when the page it was
     placed on is not in the strip, and the blend mode by name when it is not the normal one. Hovering a
     chip says what it means and what to do about it.
+  - **Presets now report instead of claiming.** The selected object's properties carry a chip naming
+    the preset it still looks like — or *Custom* once you change anything the preset covers, and
+    *Mixed* when several selected objects disagree; an object's row in the list names the preset the
+    same way. The picker in the tool options no longer shows one preset as though it were selected, and
+    *Save…* and *Delete* act on the look the controls currently are.
   - **Every tool now says what it does.** Picking one that has no settings — Select, Pan, the bucket,
     the colour picker — used to leave the options panel empty, which looks the same as no tool being
     armed. It now names the tool and says in a line what a click or a drag with it does; the same

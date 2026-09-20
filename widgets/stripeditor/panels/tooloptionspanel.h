@@ -57,7 +57,7 @@ public:
 private:
     void onControlChanged();      //!< A group reported an edit → read it into the prototype's values.
     void syncFromModel();         //!< Push the prototype's values into the controls.
-    void refreshPresetCombo(int current);
+    void refreshPresetCombo();
     void applyPreset(int index);
     void onSavePreset();
     void onDeletePreset();
@@ -65,6 +65,16 @@ private:
     void onExportPack();
 
     PresetStore& m_presets;
+
+    /**
+     * @brief Re-decides what *Delete* acts on: the preset these values **are**, if they are one.
+     *
+     * There is no chip here. ③ wears one because a selected object's look is a question the panel
+     * cannot otherwise answer; here every property a preset covers is on screen a few points below, so
+     * a chip would report what the controls already say — and sitting beside the picker it read as a
+     * second control answering the same question, which is the fault this panel was rearranged to fix.
+     */
+    void refreshLook();
 
     QComboBox* m_presetCombo  = nullptr;
     QAction*   m_presetDelete = nullptr;

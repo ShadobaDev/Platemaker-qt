@@ -929,6 +929,16 @@ void ObjectController::refreshList()
             badges << toneBadge(BadgeTone::Warning, tr("unanchored"),
                                 tr("The page this object was anchored to is not in the strip, so the "
                                    "render skips it. Re-anchor it from the object's menu."), pal);
+        // The preset this object still looks like, when it looks like one. **Named or nothing**: a row
+        // is scanned, and *Custom* on every hand-made balloon would be a column of chips reporting that
+        // there is nothing to report. ③ says *Custom* because there the question was asked.
+        if (m_artifacts.contains(uid)) {
+            const int preset = m_presets.matching(m_artifacts.value(uid));
+            if (preset >= 0)
+                badges << toneBadge(BadgeTone::Neutral, m_presets.presets().at(preset).name,
+                                    tr("Every property a preset covers still matches this preset."),
+                                    pal);
+        }
         // Lower-cased here and Title Case on the menu, deliberately: a menu entry is a command and a
         // chip is a remark, and a column of chips that disagreed about their capitals would read as
         // two kinds of thing.

@@ -222,6 +222,23 @@ bool PresetStore::exportPack(const QString& path, QString* error) const
     return true;
 }
 
+int PresetStore::matching(const TextArtifact& a) const
+{
+    for (int i = 0; i < m_presets.size(); ++i) {
+        const TextArtifact look = applied(m_presets.at(i), a, /*keepShape=*/false);
+        if (look.shape == a.shape && look.skin == a.skin && look.style == a.style
+            && look.text == a.text)
+            return i;
+    }
+    return -1;
+}
+
+QString PresetStore::lookLabel(const TextArtifact& a) const
+{
+    const int i = matching(a);
+    return i < 0 ? tr("Custom") : m_presets.at(i).name;
+}
+
 TextArtifact PresetStore::applied(const BubblePreset& p, const TextArtifact& target, bool keepShape)
 {
     TextArtifact a = p.artifact;

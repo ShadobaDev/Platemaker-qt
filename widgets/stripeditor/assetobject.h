@@ -9,6 +9,19 @@
 namespace StripEdit {
 
 /**
+ * @brief Reads imported artwork from @p path — **raster or vector, drawn the way it will be placed**.
+ *
+ * Vector assets go through `QSvgRenderer` explicitly rather than through QPixmap's image plugin: the
+ * plugin path depends on qsvg being deployed and gives no control over the size it picks. Raster assets
+ * load the ordinary way, so a hand-supplied PNG keeps working.
+ *
+ * It lives here because it is the same question this class answers — *what does that file look like* —
+ * and both the object on the strip and the tool's preview must answer it identically. It was private to
+ * the object controller until the Artwork tool needed to show the artist what they picked.
+ */
+[[nodiscard]] QPixmap loadArtwork(const QString& path);
+
+/**
  * @brief Artwork the author made elsewhere, placed as it is: a balloon inked on a tablet, a logo.
  *
  * It carries no authoring parameters, so there is nothing to re-type — and, being its own type, nothing

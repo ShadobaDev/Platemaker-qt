@@ -15,6 +15,7 @@
 
 #include <QJsonObject>
 
+#include "artifactsvg.h"
 #include "textartifact.h"
 
 namespace {
@@ -356,4 +357,63 @@ TEST(Conversion, ThePickerOffersEverySilhouetteAndNoKind)
     }
     // Named all the same, because a kind still has to be spelled somewhere.
     EXPECT_FALSE(shapeTitle(TextArtifact::Shape::None).isEmpty());
+}
+
+// ---------------------------------------------------------------------------
+// Import
+// ---------------------------------------------------------------------------
+
+/**
+ * @brief What an import decides by: **our own file carries a recipe, and nobody else's does**.
+ *
+ * A bubble's SVG is an ordinary drawing plus the parameters it was drawn from, in a namespace no
+ * renderer looks at. That is what lets one come home as a re-typable balloon instead of being filed as
+ * a picture of itself — and what stops a foreign drawing being mistaken for one, since our ten
+ * silhouettes cannot express somebody else's paths.
+ *
+ * The match is on the **namespace URI**, not on the `pm:` prefix, which in XML is only a local
+ * shorthand: an SVG binding that prefix to any other namespace is not ours, whatever it looks like.
+ */
+TEST(Import, OnlyAFileCarryingTheRecipeIsAdopted)
+{
+    // Built by hand rather than through artifactToSvg(): writing one measures its lettering, and
+    // measuring text needs a QGuiApplication this target deliberately does not have. What is under test
+    // is the reader's rule, and the rule is which namespace an attribute is in.
+    const QByteArray ours =
+        QByteArray("<svg xmlns=\"http://www.w3.org/2000/svg\" xmlns:pm=\"") + k_pmNamespace
+        + "\" width=\"10\" height=\"10\"><g pm:v=\"2\" pm:shape=\"thought\" pm:box=\"300,200\""
+          " pm:tails=\"40,260,30,0.2\" pm:text=\"Hello\"/></svg>";
+
+    bool               ok   = false;
+    const TextArtifact back = artifactFromSvg(ours, &ok);
+    EXPECT_TRUE(ok);
+    EXPECT_EQ(back.shape.kind, TextArtifact::Shape::Thought);
+    EXPECT_EQ(back.box, QSize(300, 200));
+    EXPECT_EQ(back.tails.items.size(), 1);
+    EXPECT_EQ(back.text.body, QStringLiteral("Hello"));
+
+    // The prefix is a local shorthand and carries no meaning: the same file with a different prefix,
+    // bound to the same namespace, is still ours.
+    QByteArray renamed = ours;
+    renamed.replace("pm:", "x:").replace("xmlns:x=", "xmlns:x=");
+    renamed.replace("xmlns:pm=", "xmlns:x=");
+    ok = false;
+    artifactFromSvg(renamed, &ok);
+    EXPECT_TRUE(ok);
+
+    // A drawing with no recipe: read, and declined.
+    const QByteArray foreign =
+        "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"10\" height=\"10\">"
+        "<rect width=\"10\" height=\"10\"/></svg>";
+    ok = true;
+    artifactFromSvg(foreign, &ok);
+    EXPECT_FALSE(ok);
+
+    // The same attributes under somebody else's namespace are somebody else's attributes.
+    const QByteArray impostor =
+        "<svg xmlns=\"http://www.w3.org/2000/svg\" xmlns:pm=\"https://example.invalid/ns/1\""
+        " width=\"10\" height=\"10\"><g pm:shape=\"speech\" pm:box=\"10,10\"/></svg>";
+    ok = true;
+    artifactFromSvg(impostor, &ok);
+    EXPECT_FALSE(ok);
 }

@@ -39,7 +39,12 @@ class Advisories;
 
 namespace Ui { class Editor; }
 
+class QMimeData;
+
 namespace StripEdit {
+
+class ArtworkOptionsPanel;
+class AssetStatePanel;
 
 class ColourPair;
 class GradePanel;
@@ -304,6 +309,8 @@ private:
      * the constructor, and this runs again whenever either moves.
      */
     void                  refreshGeneratedToolIcons();
+    //! The picture in @p mime, or empty when it carries none. One rule for both drop sources.
+    [[nodiscard]] static QString droppedArtwork(const ::QMimeData* mime);
 
     /**
      * @brief Reads the colour at @p scenePos into the pair — the secondary half when @p secondary.
@@ -360,6 +367,8 @@ private:
     QLabel            *m_toolTitle    = nullptr;   //!< The tool's name, in the tool-options stack.
     QLabel            *m_toolHint     = nullptr;   //!< What a press does, in the tool-options stack.
     GradePanel        *m_gradePanel   = nullptr;   //!< The Grade tool-options page (colour-correction controls).
+    //! The Artwork tool's options: which picture a placement puts down. See `setTool()`.
+    ArtworkOptionsPanel *m_artworkOptions = nullptr;
     AdvisoryBar       *m_advisoryBar  = nullptr;   //!< Bottom edge of this editor; absent until setAdvisories().
     QString            m_tool;                     //!< The active tool's registry id.
 
@@ -368,10 +377,13 @@ private:
     ObjectStatePanel* m_objectState = nullptr;
     //! The same surface when the strip or one of its pages is selected: what *that* is.
     StripStatePanel*  m_stripState = nullptr;
+    //! ...and when imported artwork is: its size, which is all of its state that is ours to set.
+    AssetStatePanel*  m_assetState = nullptr;
     //! What the properties stack actually switches between: each panel inside its own scroll area, so a
     //! selection cannot widen the column under the pointer. See `scrolled()` in the .cpp.
     QWidget*          m_objectPage = nullptr;
     QWidget*          m_stripPage  = nullptr;
+    QWidget*          m_assetPage  = nullptr;
     /**
      * @brief The grade as this editor last saw it — from the project, or from a live edit in progress.
      *

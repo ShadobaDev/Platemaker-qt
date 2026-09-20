@@ -872,10 +872,25 @@ void Project::importOverlayArtwork(const QString& sourceFile, double xFrac, doub
         }
     }
 
-    commitOverlayEdit(tr("Import artwork"), [&] {
+    // **An SVG we wrote comes home as a balloon.** Our own files carry the parameters they were drawn
+    // from, in a namespace no renderer looks at, and `artifactFromSvg()` reads them back — so a bubble
+    // shared with a collaborator, or copied out of another chapter, arrives re-typable instead of being
+    // filed as a picture of itself. A foreign SVG has no such recipe and stays artwork, which is the
+    // honest answer: its paths are not something our ten silhouettes can express.
+    bool               ours = false;
+    const TextArtifact adopted = artifactFromSvg(bytes, &ours);
+
+    commitOverlayEdit(ours ? tr("Import bubble") : tr("Import artwork"), [&] {
         auto& item = m_workspace.projectItems[m_projectIndex];
-        item.addOverlay(dest.toStdString(), xFrac, yFrac, wFrac,
-                        Platemaker::Models::BlendMode::Over, anchorInputUid.toStdString());
+        const std::string uid =
+            item.addOverlay(dest.toStdString(), xFrac, yFrac, wFrac,
+                            Platemaker::Models::BlendMode::Over, anchorInputUid.toStdString());
+        if (ours) {
+            // The record is what makes it an object we author rather than one we merely place. The file
+            // beside it already matches, so nothing is rewritten until the first edit.
+            m_artifacts.insert(QString::fromStdString(uid), adopted);
+            emit artifactsChanged(m_artifacts);
+        }
         emit projectModified();
         populate();
     });

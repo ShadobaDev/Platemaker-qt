@@ -58,36 +58,6 @@ constexpr int k_duplicateOffset = 28;
 //! nothing next to the page caches above.
 constexpr int k_sharpCacheEntries = 64;
 
-/**
- * @brief Draws an overlay asset that carries no authoring parameters, at its own natural size.
- *
- * Vector assets go through QSvgRenderer explicitly rather than through QPixmap's image plugin: the
- * plugin path depends on qsvg being deployed and gives no control over the size it picks. Raster
- * assets still load the ordinary way, so a hand-supplied PNG keeps working.
- */
-QPixmap renderAssetFile(const QString& path)
-{
-    if (path.isEmpty())
-        return {};
-
-    if (!path.endsWith(QLatin1String(".svg"), Qt::CaseInsensitive))
-        return QPixmap(path);
-
-    QSvgRenderer renderer(path);
-    if (!renderer.isValid())
-        return {};
-    QSize size = renderer.defaultSize();
-    if (size.isEmpty())
-        return {};
-
-    QImage img(size, QImage::Format_ARGB32);
-    img.fill(Qt::transparent);
-    QPainter p(&img);
-    renderer.render(&p);
-    p.end();
-    return QPixmap::fromImage(img);
-}
-
 
 /**
  * @brief The six blend modes and what to call them — the menu's entries and the row's chip, from one list.
@@ -285,6 +255,18 @@ ObjectController::ObjectController(QGraphicsScene* scene, QGraphicsView* view, Q
     m_actBackward = new QAction(tr("Send back"), this);
     connect(m_actBackward, &QAction::triggered, this, [this] { moveSelectedInStack(false); });
 
+    // Artwork's own two. They are not on a balloon's menu, because a balloon has no "own size": its
+    // drawing is generated at whatever size it is given.
+    m_actNaturalSize = new QAction(tr("Original size"), this);
+    connect(m_actNaturalSize, &QAction::triggered, this, [this] { scaleSelectedArtwork(100.0); });
+    m_actFitToStrip = new QAction(tr("Fit to strip width"), this);
+    connect(m_actFitToStrip, &QAction::triggered, this, [this] {
+        const auto* art = qobject_cast<const AssetObject*>(m_overlayItems.value(m_selectedOverlay));
+        const double tw = m_layout.targetWidth();
+        if (art && tw > 0 && art->artwork().width() > 0)
+            scaleSelectedArtwork(tw * 100.0 / art->artwork().width());
+    });
+
     m_actDelete = new QAction(tr("Delete"), this);
     m_actDelete->setShortcut(QKeySequence::Delete);
     m_actDelete->setShortcutContext(Qt::WidgetShortcut);
@@ -313,6 +295,8 @@ ObjectController::ObjectController(QGraphicsScene* scene, QGraphicsView* view, Q
         w->addAction(separator());
         w->addAction(m_actForward);
         w->addAction(m_actBackward);
+        w->addAction(m_actNaturalSize);
+        w->addAction(m_actFitToStrip);
         w->addAction(separator());
         w->addAction(m_convertMenu->menuAction());
         w->addAction(m_reanchorMenu->menuAction());
@@ -740,7 +724,7 @@ void ObjectController::syncItems()
         if (!item) {
             item = parametric
                 ? static_cast<Object*>(new BubbleObject(uid, m_artifacts.value(uid)))
-                : static_cast<Object*>(new AssetObject(uid, renderAssetFile(QString::fromStdString(o.assetPath))));
+                : static_cast<Object*>(new AssetObject(uid, loadArtwork(QString::fromStdString(o.assetPath))));
             connect(item, &Object::geometryEdited, this, &ObjectController::onOverlayGeometryEdited);
             connect(item, &Object::pressed,        this, &ObjectController::onObjectPressed);
             connect(item, &Object::dragging,       this, &ObjectController::onObjectDragged);
@@ -1183,6 +1167,22 @@ void ObjectController::selectSubjects(const QStringList& uids, const QList<TailR
     if (m_actFill)     m_actFill->setEnabled(anyObject && m_colours);
     if (m_actOutline)  m_actOutline->setEnabled(anyObject && m_colours);
     if (m_actSavePreset) m_actSavePreset->setEnabled(oneObject);
+
+    // **A menu entry that cannot apply is not greyed, it is absent.** Greying says *not now*; these
+    // never apply to a picture somebody else drew — it has no preset, no fill and no outline to give
+    // it, and nothing to re-type. A balloon's menu is a balloon's.
+    const bool anyParametric = std::any_of(picked.cbegin(), picked.cend(), [this](const QString& uid) {
+        return isParametric(uid) && !m_carriers.contains(uid);
+    });
+    for (QAction* a : {m_actSavePreset, m_actFill, m_actOutline})
+        if (a)
+            a->setVisible(anyParametric);
+    if (m_presetMenu) m_presetMenu->menuAction()->setVisible(anyParametric);
+    if (m_groupMenu)  m_groupMenu->menuAction()->setVisible(anyParametric);
+    // ...and the two that only artwork has.
+    const bool artwork = selectionIsArtwork();
+    if (m_actNaturalSize) m_actNaturalSize->setVisible(artwork);
+    if (m_actFitToStrip)  m_actFitToStrip->setVisible(artwork);
     // A kind is something only an authored object has. One that is not — imported artwork, or a tail —
     // can reach nothing, and the intersection of "everything" with "nothing" is what greys this out.
     const bool authoredOnly =
@@ -1415,13 +1415,94 @@ void ObjectController::importArtwork()
     // size"). Both draw identically today; the difference shows on the next re-profile, where a logo
     // that knows its width relative to the page grows with the chapter and a "natural size" one does
     // not. Growing with the chapter is what anyone placing artwork on a page meant.
-    const qreal natural = renderAssetFile(file).width();
+    const qreal natural = loadArtwork(file).width();
 
     m_selectNewOverlay = true;
     emit artworkImportRequested(file, centre.x() / tw,
                                 (centre.y() - m_layout.page(page).top) / tw,
                                 natural > 0 ? natural / tw : 0.0,
                                 m_layout.anchorUidForPage(page));
+}
+
+void ObjectController::placeArtworkAt(const QString& file, const QPointF& scenePos)
+{
+    const double tw = m_layout.targetWidth();
+    if (file.isEmpty() || m_layout.isEmpty() || tw <= 0)
+        return;
+
+    const QPixmap art = loadArtwork(file);
+    if (art.isNull())
+        return;
+
+    // Centred on the cursor, because the drag carried the picture under it: dropping is the moment the
+    // artist chose *there*, and the thing they were aiming was the middle of what they could see.
+    const QPointF topLeft = scenePos - QPointF(art.width(), art.height()) / 2.0;
+    const int     page    = m_layout.pageAtSceneY(topLeft.y());
+    if (page < 0)
+        return;
+
+    m_selectNewOverlay = true;
+    emit artworkImportRequested(file, topLeft.x() / tw,
+                                (topLeft.y() - m_layout.page(page).top) / tw,
+                                art.width() / tw,   // its own pixels, one for one with the strip's
+                                m_layout.anchorUidForPage(page));
+}
+
+QString ObjectController::selectedArtworkName() const
+{
+    const Object* item = m_overlayItems.value(m_selectedOverlay);
+    return item ? item->label() : tr("Imported artwork");
+}
+
+bool ObjectController::selectionIsArtwork() const
+{
+    return m_selectedOverlays.size() == 1 && m_selectedTails.isEmpty()
+        && !isParametric(m_selectedOverlays.first());
+}
+
+double ObjectController::selectedArtworkPercent() const
+{
+    const auto*  art = qobject_cast<const AssetObject*>(m_overlayItems.value(m_selectedOverlay));
+    const double tw  = m_layout.targetWidth();
+    if (!art || tw <= 0 || art->artwork().width() <= 0)
+        return 0.0;
+
+    const auto it = std::find_if(m_overlays.cbegin(), m_overlays.cend(),
+                                 [this](const Platemaker::Models::StripOverlay& o) {
+                                     return QString::fromStdString(o.uid) == m_selectedOverlay;
+                                 });
+    if (it == m_overlays.cend())
+        return 0.0;
+    // The record holds a fraction of the page; the artwork holds its own pixels. The percentage is the
+    // ratio between what it is drawn at and what it was drawn as.
+    return it->wFrac * tw * 100.0 / art->artwork().width();
+}
+
+void ObjectController::scaleSelectedArtwork(double percent, bool commit)
+{
+    const auto*  art = qobject_cast<const AssetObject*>(m_overlayItems.value(m_selectedOverlay));
+    const double tw  = m_layout.targetWidth();
+    if (!art || tw <= 0 || percent <= 0 || art->artwork().width() <= 0)
+        return;
+
+    // Written to the **record**, not to the item: the item's scale is derived from the record on every
+    // feed (see syncItems), so setting it here would be a display that the next feed argues with.
+    const double wFrac = art->artwork().width() * percent / 100.0 / tw;
+    bool         moved = false;
+    for (auto& o : m_overlays) {
+        if (QString::fromStdString(o.uid) != m_selectedOverlay || qFuzzyCompare(o.wFrac, wFrac))
+            continue;
+        o.wFrac = wFrac;
+        moved   = true;
+    }
+    if (!moved)
+        return;
+
+    syncItems();
+    if (commit) {
+        refreshList();
+        pushOverlays(tr("Resize artwork"));
+    }
 }
 
 void ObjectController::rebuildReanchorMenu()
@@ -1924,6 +2005,22 @@ void ObjectController::finishPlacement()
     const int page = m_layout.pageAtSceneY(r.top());
     if (page < 0)
         return;
+
+    const double targetWidth = m_layout.targetWidth();
+    if (targetWidth <= 0)
+        return;
+
+    // **A picture, if that is what the tool places.** The drag says where and how wide; the file says
+    // what — and which file is the tool's business, not this class's: it is armed with one or it places
+    // balloons. Arming the Artwork tool with nothing chosen is what raises the file dialog (Editor).
+    if (!m_placementArtwork.isEmpty()) {
+        m_selectNewOverlay = true;
+        emit artworkImportRequested(m_placementArtwork, r.left() / targetWidth,
+                                    (r.top() - m_layout.page(page).top) / targetWidth,
+                                    r.width() / targetWidth,
+                                    m_layout.anchorUidForPage(page));
+        return;
+    }
 
     // Whatever the active tool places — shape included: the panel is the tool's side of the question,
     // and this controller knows nothing about which tool is armed.

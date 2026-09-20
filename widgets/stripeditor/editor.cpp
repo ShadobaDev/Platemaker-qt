@@ -13,6 +13,8 @@
 #include "presetstore.h"
 #include "shapeeditor.h"
 #include "stripstatepanel.h"
+#include "artworkoptionspanel.h"
+#include "assetstatepanel.h"
 #include "tooloptionspanel.h"
 
 #include <platemaker/models/colour_correction.hpp>
@@ -35,6 +37,9 @@
 #include <QLabel>
 #include <QKeyEvent>
 #include <QListWidget>
+#include <QDragEnterEvent>
+#include <QDropEvent>
+#include <QMimeData>
 #include <QMouseEvent>
 #include <QPainter>
 #include <QPen>
@@ -238,6 +243,7 @@ Editor::Editor(QWidget *parent)
     // cursor look as though it followed the last *click*: it could only be re-decided on release. The
     // cursor is a promise about what a press would do here, so it has to be re-decided while hovering.
     m_view->viewport()->setMouseTracking(true);
+    m_view->viewport()->setAcceptDrops(true);   // pictures, from ④'s preview or a file manager
     // Build the pages that scroll into view (plus a prefetch margin).
     connect(m_view->verticalScrollBar(),   &QScrollBar::valueChanged, this, &Editor::updateVisiblePages);
     connect(m_view->horizontalScrollBar(), &QScrollBar::valueChanged, this, &Editor::updateVisiblePages);
@@ -319,6 +325,17 @@ Editor::Editor(QWidget *parent)
         pageIndex.insert(QStringLiteral("artifact"),
                          ui->toolOptions->addWidget(scrolled(m_toolOptions, ui->toolOptions)));
 
+        // The other create tool's options: which picture the next placement puts down. A separate panel
+        // rather than a section of the one above, because they describe different kinds of object — the
+        // arrangement §26 exists to keep straight.
+        m_artworkOptions = new ArtworkOptionsPanel(ui->toolOptions);
+        pageIndex.insert(QStringLiteral("artwork"),
+                         ui->toolOptions->addWidget(scrolled(m_artworkOptions, ui->toolOptions)));
+        connect(m_artworkOptions, &ArtworkOptionsPanel::artworkChanged, this, [this](const QString& f) {
+            if (m_objects && m_tool == QLatin1String("artwork"))
+                m_objects->setPlacementArtwork(f);
+        });
+
         // The rail, built from the registry: a button per row, in the table's order, its id that row's
         // index. A row with no icon file draws its own — see refreshGeneratedToolIcons().
         for (int i = 0; i < tools().size(); ++i) {
@@ -372,6 +389,25 @@ Editor::Editor(QWidget *parent)
         m_stripState = new StripStatePanel(ui->objectProperties);
         m_stripPage  = scrolled(m_stripState, ui->objectProperties);
         ui->objectProperties->addWidget(m_stripPage);
+
+        // And the third kind. Artwork has no property groups — somebody else drew it — but it does
+        // have a size, and a panel that says "nothing to edit" while the artist wants it half as big
+        // is a panel that has stopped answering the question.
+        m_assetState = new AssetStatePanel(ui->objectProperties);
+        m_assetPage  = scrolled(m_assetState, ui->objectProperties);
+        ui->objectProperties->addWidget(m_assetPage);
+        connect(m_assetState, &AssetStatePanel::scaleChanged, this, [this](double percent) {
+            if (m_objects)
+                m_objects->scaleSelectedArtwork(percent, /*commit=*/false);   // live, no history
+        });
+        connect(m_assetState, &AssetStatePanel::scaleCommitted, this, [this](double percent) {
+            if (m_objects)
+                m_objects->scaleSelectedArtwork(percent, /*commit=*/true);
+        });
+        connect(m_assetState, &AssetStatePanel::deleteRequested, this, [this] {
+            if (m_objects)
+                m_objects->deleteSelectedOverlay();
+        });
         connect(m_stripState, &StripStatePanel::excludedToggled, this,
                 [this](const QString& inputUid, bool excluded) {
             auto cc = m_cc;
@@ -485,6 +521,20 @@ void Editor::setTool(const QString& id)
     if (m_toolOptions)
         m_toolOptions->setToolShape(tool->kind == ToolKind::Create ? tool->shape : std::nullopt);
 
+    // What a placement puts down: a picture, or — when this is empty — a balloon. The second and last
+    // thing the controller is told about the active tool, and told at the moment it is armed.
+    if (m_objects) {
+        QString artwork;
+        if (m_tool == QLatin1String("artwork") && m_artworkOptions) {
+            // Arming with nothing chosen asks once, here: before any drag, so a file dialog never lands
+            // in the middle of one. A cancelled dialog arms nothing, and ④ says as much.
+            if (m_artworkOptions->artwork().isEmpty())
+                m_artworkOptions->chooseArtwork();
+            artwork = m_artworkOptions->artwork();
+        }
+        m_objects->setPlacementArtwork(artwork);
+    }
+
     // The right column stays put under every tool, and **live** under every tool. It was briefly
     // hidden for Pan and Grade, which resized the canvas and made the strip jump sideways; then it was
     // merely greyed, on the grounds that its highlight would otherwise drift from a canvas whose items
@@ -559,6 +609,14 @@ void Editor::showSubject()
     case ObjectController::Subject::Overlay:
     case ObjectController::Subject::Tail:
         break;
+    }
+
+    // Which of the two object panels: the kind decides, as it decides everything else since §26.
+    if (m_objects->selectionIsArtwork()) {
+        m_assetState->showArtwork(m_objects->selectedArtworkName(),
+                                  m_objects->selectedArtworkPercent());
+        ui->objectProperties->setCurrentWidget(m_assetPage);
+        return;
     }
     ui->objectProperties->setCurrentWidget(m_objectPage);
 }
@@ -808,6 +866,28 @@ void Editor::resizeEvent(QResizeEvent *event)
 
 bool Editor::eventFilter(QObject *watched, QEvent *event)
 {
+    // **A picture dropped on the strip is placed where it was dropped, at its own size.** Dragged out
+    // of ④'s preview, or straight from a file manager — both arrive as a file URL, so one handler
+    // serves both and neither needs a tool to be armed.
+    if (watched == m_view->viewport()
+        && (event->type() == QEvent::DragEnter || event->type() == QEvent::DragMove)) {
+        auto* de = static_cast<QDragMoveEvent*>(event);
+        if (!droppedArtwork(de->mimeData()).isEmpty()) {
+            de->setDropAction(Qt::CopyAction);
+            de->accept();
+            return true;
+        }
+    }
+    if (watched == m_view->viewport() && event->type() == QEvent::Drop) {
+        auto*         drop = static_cast<QDropEvent*>(event);
+        const QString file = droppedArtwork(drop->mimeData());
+        if (!file.isEmpty() && m_objects) {
+            m_objects->placeArtworkAt(file, m_view->mapToScene(drop->position().toPoint()));
+            drop->acceptProposedAction();
+            return true;
+        }
+    }
+
     // **The tools are always all visible.** A flow layout's minimum is one tile, so a splitter was free
     // to shorten the rail until the last row of tools was simply not drawn — and a tool you cannot see
     // is a tool you do not know you have. The rail's minimum height is therefore whatever its own
@@ -1040,6 +1120,23 @@ bool Editor::sampleColourAt(const QPointF& scenePos, bool secondary)
     return true;
 }
 
+
+QString Editor::droppedArtwork(const QMimeData* mime)
+{
+    // A picture, by what it *is* rather than by where it came from: the same three suffixes the import
+    // has always taken. Anything else — a page, a workspace, a folder — is not for this canvas.
+    if (!mime || !mime->hasUrls())
+        return {};
+    for (const QUrl& url : mime->urls()) {
+        if (!url.isLocalFile())
+            continue;
+        const QString path = url.toLocalFile();
+        for (const char* ext : {".svg", ".png", ".webp"})
+            if (path.endsWith(QLatin1String(ext), Qt::CaseInsensitive))
+                return path;
+    }
+    return {};
+}
 
 bool Editor::artifactToolActive() const
 {

@@ -35,6 +35,10 @@ add_executable(platemaker-gui-tests
     test_colour_adjustments.cpp
     test_presets.cpp
     ${CMAKE_SOURCE_DIR}/widgets/textartifact/textartifact.cpp
+    # The SVG a bubble is written to, and the geometry it is written from: both Qt6::Gui only, so the
+    # rule above still holds — and the import's premise is worth a test of its own.
+    ${CMAKE_SOURCE_DIR}/widgets/textartifact/artifactsvg.cpp
+    ${CMAKE_SOURCE_DIR}/widgets/textartifact/artifactpainter.cpp
     ${CMAKE_SOURCE_DIR}/widgets/stripeditor/colouradjustment.cpp
     # The preset store is QtCore and a QObject — no widget in it — so the rule above still holds.
     ${CMAKE_SOURCE_DIR}/widgets/stripeditor/presetstore.cpp

@@ -214,6 +214,53 @@ public:
     //! What the pointer is over at @p scenePos, for whoever has to decide a cursor or a gesture.
     [[nodiscard]] PointerTarget pointerTargetAt(const QPointF& scenePos,
                                                 const QTransform& deviceTransform) const;
+    /**
+     * @brief What the next placement puts down: this picture, or — when empty — a balloon.
+     *
+     * The second and last thing this class is told about the active tool, beside the shape. It is a
+     * *file*, not a kind flag, because the Artwork tool's whole state is which picture it stamps; an
+     * empty one still places, by asking for a file at that moment and keeping the answer.
+     */
+    void setPlacementArtwork(const QString& file) { m_placementArtwork = file; }
+
+    /**
+     * @brief Puts @p file down centred on @p scenePos, **at its own size** — a drop from ④'s preview.
+     *
+     * Its own size, deliberately, and not fitted to anything: a sound effect that reaches past the
+     * strip's edge is a thing artists want, and a placement that quietly shrank it would be a decision
+     * nobody asked for. *Fit to strip width* is one menu entry away for when they did.
+     */
+    void placeArtworkAt(const QString& file, const QPointF& scenePos);
+
+    /**
+     * @brief Draws the selected artwork at @p percent of its own pixels — 100 is one for one.
+     *
+     * A percentage rather than a width, because the artist's question is *how much bigger than I drew
+     * it*, and because the answer has to survive a re-profile: the stored form is a fraction of the
+     * page, so the same percentage means the same thing at 800 or 1600 points wide.
+     *
+     * @param commit False while the spin box is moving — the object resizes, the history does not.
+     */
+    void scaleSelectedArtwork(double percent, bool commit = true);
+
+    //! What that percentage currently is, or 0 when the selection is not one piece of artwork.
+    [[nodiscard]] double selectedArtworkPercent() const;
+
+    //! What to call the selected artwork in ③ — the object's own label, which is its file's name.
+    [[nodiscard]] QString selectedArtworkName() const;
+
+    /**
+     * @brief Removes everything selected, as one history step.
+     *
+     * Public because more than the menu asks for it: ③ offers Delete for whichever kind of object it
+     * is showing, and both panels are the editor's to wire. What it deletes is the selection, which is
+     * the only thing any of them mean by it.
+     */
+    void deleteSelectedOverlay();
+
+    //! Exactly one piece of imported artwork is selected — what ③ and the menu both ask.
+    [[nodiscard]] bool selectionIsArtwork() const;
+
     void beginPlacement(const QPointF& scenePos);
     void updatePlacement(const QPointF& scenePos);
     void finishPlacement();
@@ -302,7 +349,6 @@ private:
     //! The same, for the whole selection: @p objects are in m_selectedOverlays order.
     void applyPanelArtifacts(const QList<TextArtifact>& objects, bool commit,
                              const QString& undoText = QString());
-    void deleteSelectedOverlay();
     void deleteSelectedTail();   //!< Takes the selected tail off its balloon, and selects the balloon.
     void importArtwork();           //!< Asks for a file and drops it on the page currently in view.
     void duplicateSelectedOverlay();   //!< Copies the selected bubble a little down and right.
@@ -427,6 +473,8 @@ private:
     QMenu*             m_convertMenu     = nullptr;   //!< The two kinds the selection can be made into.
     QAction*           m_actToText       = nullptr;   //!< Convert to ▸ Text: no silhouette at all.
     QAction*           m_actToBalloon    = nullptr;   //!< Convert to ▸ Balloon: the tiles' silhouette.
+    QAction*           m_actNaturalSize  = nullptr;   //!< Artwork at 100% — the size it was drawn at.
+    QAction*           m_actFitToStrip   = nullptr;   //!< Artwork as wide as the strip, and no wider.
     QMenu*             m_groupMenu       = nullptr;   //!< *Apply this group ▸*, from the tool's options.
     QAction*           m_actFill         = nullptr;   //!< Fill with the primary colour.
     QAction*           m_actOutline      = nullptr;   //!< Outline with the secondary colour.
@@ -435,6 +483,7 @@ private:
     QAction*           m_actImport       = nullptr;   //!< Bring in artwork drawn outside Platemaker.
     QGraphicsRectItem* m_placementRubber = nullptr;         //!< Rubber band while a new bubble is drawn.
     QPointF            m_placementOrigin;                   //!< Where that drag started, in scene coordinates.
+    QString            m_placementArtwork;                  //!< Empty: a placement makes a balloon.
     bool               m_placing         = false;
     bool               m_syncingList     = false;           //!< Guards the list ⇄ scene selection round-trip.
     //! Coalesces a drag in the tree into one commit. A tree moves a row by taking it out and inserting it

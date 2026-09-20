@@ -16,5 +16,6 @@
     <file alias="tools/bubble.svg">../icons/tools/bubble.svg</file>
     <file alias="tools/bucket.svg">../icons/tools/bucket.svg</file>
     <file alias="tools/text.svg">../icons/tools/text.svg</file>
+    <file alias="tools/artwork.svg">../icons/tools/artwork.svg</file>
   </qresource>
 </RCC>

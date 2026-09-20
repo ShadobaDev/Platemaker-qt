@@ -100,6 +100,18 @@
     tails and gets them back on the way back, and the status bar says what stopped being drawn.
     *Which* balloon stays a property — pick it in the shape tiles, or give it to a whole selection
     with *Apply from tool options ▸ Shape*.
+  - **An Artwork tool.** Pick a picture once in the tool's options, then **drag it from the preview
+    onto the strip**: it lands at its own size, wherever you drop it, and may reach past the strip's
+    edge — which is what a sound effect usually wants. Dragging a box on the strip instead fits it to
+    that box, and a picture dragged in from a file manager lands like the preview's. Adding artwork
+    used to be possible only from the object list's right-click menu.
+  - **Imported artwork can be resized by the numbers.** Selecting it shows its size as a percentage of
+    its own pixels, and its menu offers *Original size* and *Fit to strip width*.
+  - **A picture's menu no longer offers a balloon's entries** — presets, fill and outline colours and
+    *Apply from tool options* are simply not there for imported artwork.
+  - **Importing an SVG that Platemaker wrote gives you a balloon again**, not a flat picture of one:
+    shape, tails, colours and lettering all come back editable. Bubbles can be shared between chapters
+    and between people this way. A drawing from anywhere else is still placed as artwork.
   - **Selecting imported artwork no longer shows a balloon's controls.** The properties panel used to
     offer a shape, a fill, a line style and a text box for a picture — none of which did anything. It
     now names the artwork and says what can still be done with it, and *Delete* works as before.

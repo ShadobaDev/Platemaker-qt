@@ -257,7 +257,7 @@ how it ended up a sliver).
   colour pair sits in **its own row underneath**, not in the flow: it took its turn in the grid as
   though it were another tool, which worked and read as one.
   Tools: **Select** (default — a drag on the bare strip rubber-bands what it covers), **Pan** (a drag
-  scrolls), **Grade**, **Bubble**, **Text**, **Colour**, **Eyedropper**. **A row is a kind of object,
+  scrolls), **Grade**, **Bubble**, **Artwork**, **Text**, **Colour**, **Eyedropper**. **A row is a kind of object,
   not a value of one of its properties**: Bubble and Text author the same record and differ in the one
   thing that is structural — whether the object has a silhouette. *Caption box used to be a third
   create tool and was a mistake*: a caption is one of nine silhouettes, so the rail offered two kinds
@@ -792,11 +792,38 @@ valid baseline for every grade tried on it. Excluded pages are skipped, matching
   this refactor: ③ bound a **default balloon** to a selected picture, because `ArtifactMap::value()`
   returns one for a uid it does not hold — so the panel offered a shape, a fill and a line style for a
   photograph, and swallowed every edit, since only a `BubbleObject` is ever written to.
-  - **Imported artwork now says what it is.** Selected on its own, ③ names it and says that it is
-    placed, moved, resized, muted and rendered like any object but has nothing in it to re-type;
-    *Delete* still acts on it. Selected together with a balloon, the panel names the count and offers
-    nothing, the same answer it gives for a balloon and a tail — they have only their position in
-    common.
+  - **Imported artwork has its own ③**, `AssetStatePanel`: it names the picture and offers the one
+    thing about it that is ours to set — **its size, as a percentage of its own pixels**, where 100%
+    is one image pixel per strip pixel. A percentage rather than a width because the artist's question
+    is *how much bigger than I drew it*, and because the stored form is a fraction of the page, so the
+    same percentage survives a re-profile. Moving the spin box previews; releasing it is the one
+    history step. *Delete* is there too. Selected together with a balloon, the panel names the count
+    and offers nothing — they have only their position in common, as a balloon and a tail do.
+  - **The object's menu offers artwork only what applies to it.** *Apply preset ▸*, *Save as preset…*,
+    *Apply from tool options ▸* and the two colour entries are **absent** — not greyed — when nothing
+    parametric is selected: greying says *not now*, and these never apply to a picture somebody else
+    drew. In their place artwork has two of its own, **Original size** (100%) and **Fit to strip
+    width**, which a balloon does not get: a balloon has no size of its own, since its drawing is
+    generated at whatever size it is given.
+- **Placing artwork is a tool, not a menu entry.** The **Artwork** tool's options (④) hold one picture
+  — chosen once, previewed, and remembered in `QSettings`. There are two ways to put it down, and they
+  differ in the one thing artwork cares about:
+  - **Dragged out of ④'s preview** it lands at **its own size**, centred where it was dropped — past
+    the strip's edge if that is what it is, which for a sound effect is the point rather than a mistake
+    to correct. The payload is a file URL, so a picture dragged in from a file manager lands the same
+    way, under any tool.
+  - **Dragged on the strip** with the tool armed, it is fitted to the box drawn.
+
+  Arming the tool with nothing chosen asks for a file there and then, before any drag, so a dialog
+  never interrupts one. It exists because importing used to be
+  reachable only from the object list's context menu, which is not where anyone looks to *add*
+  something. *Import artwork…* stays on that menu for the case with no tool armed.
+  - **An imported SVG that carries a recipe comes home as a balloon.** Our own files hold the parameters
+    they were drawn from in the `pm:` namespace, and `artifactFromSvg()` reads them back — so a bubble
+    sent by a collaborator, or copied out of another chapter, arrives re-typable instead of being filed
+    as a picture of itself. Matched on the **namespace URI**, never the prefix, which in XML is only a
+    local shorthand. A drawing with no recipe stays artwork, which is the honest answer: someone else's
+    paths are not something our silhouettes can express.
 - **Imported artwork is the same overlay with fewer attributes.** *Import artwork…* copies a file into
   `overlays/` under its content hash and registers it with **no** authoring record; with no `pm:`
   parameters it becomes an `AssetObject` — placed, moved, re-anchored, muted, resized and rendered like

@@ -1,10 +1,35 @@
 #include "assetobject.h"
 
+#include <QImage>
 #include <QPainter>
+#include <QSvgRenderer>
 
 #include <utility>
 
 namespace StripEdit {
+
+QPixmap loadArtwork(const QString& path)
+{
+    if (path.isEmpty())
+        return {};
+
+    if (!path.endsWith(QLatin1String(".svg"), Qt::CaseInsensitive))
+        return QPixmap(path);
+
+    QSvgRenderer renderer(path);
+    if (!renderer.isValid())
+        return {};
+    const QSize size = renderer.defaultSize();
+    if (size.isEmpty())
+        return {};
+
+    QImage img(size, QImage::Format_ARGB32);
+    img.fill(Qt::transparent);
+    QPainter p(&img);
+    renderer.render(&p);
+    p.end();
+    return QPixmap::fromImage(img);
+}
 
 AssetObject::AssetObject(QString uid, QPixmap artwork, QGraphicsItem* parent)
     : Object(std::move(uid), parent)

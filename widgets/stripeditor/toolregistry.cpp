@@ -83,6 +83,20 @@ const QList<Tool>& tools()
          ToolKind::Create, std::nullopt, QStringLiteral("artifact"),
          CursorStyle::Cross, CursorStyle::Inherit},
 
+        // The third kind of object, and the reason this tool exists: artwork could only be added from
+        // the object list's context menu, which is not where anyone looks to *add* something.
+        {QStringLiteral("artwork"),
+         QStringLiteral(":/icons/tools/artwork.svg"),
+         QT_TRANSLATE_NOOP("StripEdit::Tool", "Artwork"),
+         QT_TRANSLATE_NOOP("StripEdit::Tool",
+                           "Drag the picture below onto the strip and it lands at\n"
+                           "its own size — past the edge too, if that is the point\n"
+                           "of it. Drag on the strip instead and it is fitted to\n"
+                           "the box you draw. Original size and Fit to strip width\n"
+                           "are on the object's own menu."),
+         ToolKind::Create, std::nullopt, QStringLiteral("artwork"),
+         CursorStyle::Cross, CursorStyle::Inherit},
+
         {QStringLiteral("text"),
          QStringLiteral(":/icons/tools/text.svg"),
          QT_TRANSLATE_NOOP("StripEdit::Tool", "Text"),

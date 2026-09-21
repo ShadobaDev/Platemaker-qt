@@ -212,7 +212,7 @@ ObjectController::ObjectController(QGraphicsScene* scene, QGraphicsView* view, Q
         for (const QString& uid : std::as_const(m_selectedOverlays)) {
             if (m_carriers.contains(uid) || !isParametric(uid))
                 continue;
-            const bool hasShape = m_artifacts.value(uid).hasSilhouette();
+            const bool hasShape = recordFor(uid).hasSilhouette();
             if (!shaped)
                 shaped = hasShape;
             else if (*shaped != hasShape)
@@ -563,8 +563,20 @@ qreal ObjectController::itemScaleFor(const Platemaker::Models::StripOverlay& o, 
 void ObjectController::setSource(const std::vector<Platemaker::Models::StripOverlay>& overlays,
                                  const ArtifactMap&                                  artifacts)
 {
-    m_overlays  = overlays;
-    m_artifacts = artifacts;
+    m_overlays     = overlays;
+    m_feedRecords  = artifacts;
+
+    // **The feed's records reach the objects that already exist, here and nowhere else.** This is the
+    // one direction a record travels from outside — an undo, a reopened project, an edit made through
+    // another surface — and doing it before syncItems() means the geometry pass below reads each
+    // object's settled record rather than one it is about to be given. Objects built by syncItems()
+    // take theirs from the seed at construction.
+    for (auto it = m_overlayItems.cbegin(), end = m_overlayItems.cend(); it != end; ++it) {
+        const auto rec = m_feedRecords.constFind(it.key());
+        if (rec != m_feedRecords.constEnd() && it.value()->artifact() != *rec)
+            it.value()->setArtifact(*rec);
+    }
+
     syncItems();
     refreshList();
 
@@ -683,7 +695,11 @@ void ObjectController::syncItems()
         // elsewhere, or a file edited outside Platemaker — becomes an AssetObject: it still shows, still
         // moves and still renders, it just cannot be re-typed. That is the intended degradation, and it
         // is what makes imported artwork a first-class object rather than an error.
-        const bool parametric = isParametric(uid);
+        // **The feed's answer, not the object's.** isParametric() prefers the object, which is right
+        // everywhere else and useless here: the question is whether the object that exists is still the
+        // right kind for the record that arrived, and asking the object would always say yes.
+        const auto seed       = m_feedRecords.constFind(uid);
+        const bool parametric = seed != m_feedRecords.constEnd() && !seed->isArtwork();
         Object*    item       = m_overlayItems.value(uid);
 
         // An overlay cannot change kind in place; if it somehow has, rebuild rather than mis-draw it.
@@ -695,7 +711,7 @@ void ObjectController::syncItems()
         }
         if (!item) {
             item = parametric
-                ? static_cast<Object*>(new BubbleObject(uid, m_artifacts.value(uid)))
+                ? static_cast<Object*>(new BubbleObject(uid, m_feedRecords.value(uid)))
                 : static_cast<Object*>(new AssetObject(uid, pictureFor(o)));
             connect(item, &Object::geometryEdited, this, &ObjectController::onOverlayGeometryEdited);
             connect(item, &Object::pressed,        this, &ObjectController::onObjectPressed);
@@ -704,12 +720,11 @@ void ObjectController::syncItems()
             m_overlayItems.insert(uid, item);
         }
 
-        // **The record goes to whichever kind this is**, because every object carries one: a balloon's
-        // parameters, or which picture it is and the words over it. An AssetObject re-describes what
-        // arrives, so a uid with no record of its own gets the picture rather than a default balloon.
-        const TextArtifact& a = m_artifacts.value(uid);
-        if (item->artifact() != a)
-            item->setArtifact(a);
+        // **The object's own record, not the feed's.** A record reaches an object in exactly two
+        // places — its constructor, above, and the adoption loop in setSource() — so by the time this
+        // runs the object is holding the one that is current, including an edit previewed but not yet
+        // settled. Reading the feed here would undo it.
+        const TextArtifact& a = item->artifact();
         if (auto* bubble = qobject_cast<BubbleObject*>(item)) {
             // A styled bubble is drawn by the library, because its effect is an SVG filter Qt cannot
             // render. Unstyled ones keep drawing locally: same geometry, no round-trip.
@@ -737,6 +752,27 @@ void ObjectController::syncItems()
         // not on the strip, so there is nothing to select it *on*.
         item->setFlag(QGraphicsItem::ItemIsSelectable, !orphaned);
     }
+}
+
+ArtifactMap ObjectController::currentArtifacts() const
+{
+    // The objects are the state; this is a snapshot of it in the shape the owner stores. Driven by the
+    // overlay list rather than by the objects, so it carries exactly what exists: an overlay whose
+    // object has not been built — no layout yet — keeps what the last feed said about it, and one that
+    // has been deleted is simply not walked.
+    ArtifactMap out;
+    for (const auto& o : m_overlays) {
+        const QString      uid = QString::fromStdString(o.uid);
+        const TextArtifact rec = recordFor(uid);
+        // **A picture with nothing written on it stays record-less if that is how it arrived.** Its
+        // object describes itself so that every reader here is safe (AssetObject::describePicture), but
+        // that description says nothing the file does not, and the owner reads an absent record as
+        // exactly that. Inventing one would make every legacy import look edited on the next save.
+        if (rec.isArtwork() && rec.text.body.isEmpty() && !m_feedRecords.contains(uid))
+            continue;
+        out.insert(uid, rec);
+    }
+    return out;
 }
 
 void ObjectController::writePlacement(const QString& uid)
@@ -776,38 +812,27 @@ void ObjectController::onOverlayGeometryEdited(const QString& uid)
     if (!item)
         return;
 
-    // A drag carries the whole selection (position is the one role everything has), so the record of
+    // A drag carries the whole selection (position is the one role everything has), so the placement of
     // every object that travelled is rewritten — and the lot becomes **one** history step, because one
     // drag is one thing the artist did. A tail that travelled changes its balloon's extent, so its
-    // balloon's placement is rewritten too, and its artifact re-read below.
+    // balloon's placement is rewritten too. The *records* need no rewriting at all: a tail moved on the
+    // object that owns it, and that object is where its record lives.
     const bool        group = m_dragIsGroup && item->reportedDrag();
     const QStringList moved = group ? m_selectedOverlays : QStringList{uid};
     for (const QString& u : moved)
         writePlacement(u);
-    if (group) {
-        for (const TailRef& t : std::as_const(m_selectedTails)) {
-            if (const Object* carrier = m_overlayItems.value(t.uid))
-                m_artifacts.insert(t.uid, carrier->artifact());
-        }
-    }
     const int travelled = group ? selectedSubjectCount() : 1;
     m_dragIsGroup = false;
 
-    // A resize or a tail drag changed the record too. This used to test the model for an authoring
-    // record and was written wrong once, storing a *default* bubble over imported artwork; asking the
-    // object for its own cannot go wrong the same way, whichever kind it is.
-    {
-        m_artifacts.insert(uid, item->artifact());
-        // Only when the panel is about this one object. A set of several — or one of two kinds — is
-        // already showing what it should, and rebinding it to the thing that happened to move would be
-        // the panel changing subject on its own.
-        if (uid == m_selectedOverlay && m_objectState && m_selectedOverlays.size() == 1) {
-            // A tail's drag leaves that tail selected, so the panel shows the tail again, not the balloon.
-            if (m_subject == Subject::Tail)
-                m_objectState->setTail(item->artifact(), m_selectedTail);
-            else if (m_selectedTails.isEmpty())
-                m_objectState->setArtifact(item->artifact());
-        }
+    // Only when the panel is about this one object. A set of several — or one of two kinds — is already
+    // showing what it should, and rebinding it to the thing that happened to move would be the panel
+    // changing subject on its own.
+    if (uid == m_selectedOverlay && m_objectState && m_selectedOverlays.size() == 1) {
+        // A tail's drag leaves that tail selected, so the panel shows the tail again, not the balloon.
+        if (m_subject == Subject::Tail)
+            m_objectState->setTail(item->artifact(), m_selectedTail);
+        else if (m_selectedTails.isEmpty())
+            m_objectState->setArtifact(item->artifact());
     }
     refreshList();
     pushOverlays(group ? tr("Move %n objects", "", travelled) : tr("Move bubble"));
@@ -816,7 +841,7 @@ void ObjectController::onOverlayGeometryEdited(const QString& uid)
 QString ObjectController::pictureFor(const Platemaker::Models::StripOverlay& o) const
 {
     const QString asset  = QString::fromStdString(o.assetPath);
-    const TextArtifact r = m_artifacts.value(QString::fromStdString(o.uid));
+    const TextArtifact r = recordFor(QString::fromStdString(o.uid));
     if (!r.isArtwork())
         return asset;   // a picture placed before pictures had records: the overlay's file is it
 
@@ -836,7 +861,7 @@ QIcon ObjectController::rowGlyph(const QString& uid)
         const auto* art = qobject_cast<const AssetObject*>(m_overlayItems.value(uid));
         return art ? assetGlyph(art->artwork(), k_rowGlyphPx, m_list->devicePixelRatioF()) : QIcon();
     }
-    const TextArtifact& a = m_artifacts[uid];
+    const TextArtifact a = recordFor(uid);
 
     QString key = QStringLiteral("%1|%2|%3x%4|%5|%6")
                       .arg(static_cast<int>(a.shape.kind))
@@ -903,7 +928,7 @@ void ObjectController::refreshList()
         // refreshed before the strip has a layout, where syncItems() has nothing to place anything against.
         const Object* item  = m_overlayItems.value(uid);
         const QString label = item ? item->label()
-                                   : (isParametric(uid) ? artifactLabel(m_artifacts.value(uid))
+                                   : (isParametric(uid) ? artifactLabel(recordFor(uid))
                                                         : tr("(imported artwork)"));
         // The page it sits on, when it sits on one. An unanchored object used to carry the word *orphan*
         // where the page number goes; that is what the chip says now, and saying it twice cost the row
@@ -949,7 +974,7 @@ void ObjectController::refreshList()
         // is scanned, and *Custom* on every hand-made balloon would be a column of chips reporting that
         // there is nothing to report. ③ says *Custom* because there the question was asked.
         if (isParametric(uid)) {
-            const int preset = m_presets.matching(m_artifacts.value(uid));
+            const int preset = m_presets.matching(recordFor(uid));
             if (preset >= 0)
                 badges << toneBadge(BadgeTone::Neutral, m_presets.presets().at(preset).name,
                                     tr("Every property a preset covers still matches this preset."),
@@ -971,7 +996,7 @@ void ObjectController::refreshList()
         // A bubble's tails, one row each, by position: a row stands for whichever tail is at its index now.
         // Only a bubble has tails, so artwork gets none.
         const int tailCount = isParametric(uid)
-                                  ? static_cast<int>(m_artifacts.value(uid).tails.items.size()) : 0;
+                                  ? static_cast<int>(recordFor(uid).tails.items.size()) : 0;
         while (row->childCount() > tailCount)
             delete row->takeChild(row->childCount() - 1);
         for (int t = 0; t < tailCount; ++t) {
@@ -1199,10 +1224,13 @@ void ObjectController::selectSubjects(const QStringList& uids, const QList<TailR
         } else if (std::any_of(picked.cbegin(), picked.cend(),
                                [this](const QString& uid) { return !isParametric(uid); })) {
             // **Imported artwork has no properties here, and the panel must say so rather than show a
-            // balloon's.** `m_artifacts.value()` on a uid it does not hold returns a *default* balloon,
-            // so the panel used to bind speech-balloon controls to a picture — and every edit was
-            // swallowed, because only a BubbleObject is ever written to. That is the same fault E6a and
-            // E6a.1 were, at a third site, and it is why the question now has a name.
+            // balloon's.** Reading the record from a map was how this went wrong: `value()` on a uid it
+            // does not hold returns a *default* balloon, so the panel bound speech-balloon controls to
+            // a picture and every edit was swallowed, because only a BubbleObject was ever written to.
+            // That was the same fault as E6a and E6a.1, at a third site. recordFor() asks the object,
+            // which cannot answer with something it is not — but the write path below still takes only
+            // balloons, and until it does not (REPORT-D2 §4.3) this branch is what keeps the panel
+            // honest about it.
             if (oneObject)
                 m_objectState->setUneditableSubject(
                     tr("Imported artwork"),
@@ -1214,12 +1242,12 @@ void ObjectController::selectSubjects(const QStringList& uids, const QList<TailR
                     tr("Imported artwork and a balloon have only their position in common — drag to "
                        "move them together."));
         } else if (oneObject) {
-            m_objectState->setArtifact(m_artifacts.value(m_selectedOverlay));
+            m_objectState->setArtifact(recordFor(m_selectedOverlay));
         } else {
             QList<TextArtifact> subjects;
             subjects.reserve(picked.size());
             for (const QString& uid : picked)
-                subjects.append(m_artifacts.value(uid));
+                subjects.append(recordFor(uid));
             m_objectState->setArtifacts(subjects);
         }
 
@@ -1289,7 +1317,7 @@ bool ObjectController::applyColourAt(const QPointF& scenePos, const QTransform& 
         QList<TextArtifact> next;
         next.reserve(m_selectedOverlays.size());
         for (const QString& uid : std::as_const(m_selectedOverlays)) {
-            TextArtifact each = m_artifacts.value(uid);
+            TextArtifact each   = recordFor(uid);
             const bool   shaped = each.hasSilhouette();
             switch (part) {
             case ArtifactPart::Text:    each.text.colour = colour; break;
@@ -1335,10 +1363,8 @@ void ObjectController::applyPanelArtifacts(const QList<TextArtifact>& objects, b
         Object* item = m_overlayItems.value(uid);
         // **Balloons only, still** — the panel can describe a picture since V5, and this drops it. That
         // is the second half of V4b (REPORT-D2 §4.3), and it is a behaviour change, so it is not here.
-        if (item && !item->artifact().isArtwork()) {
+        if (item && !item->artifact().isArtwork())
             item->setArtifact(objects.at(i));
-            m_artifacts.insert(uid, objects.at(i));
-        }
     }
     if (!commit)
         return;   // live preview only, exactly as the single-object path does
@@ -1365,7 +1391,6 @@ void ObjectController::applyPanelArtifact(const TextArtifact& a, bool commit, co
         return;   // this path authors balloons; a picture's record is written by the one below
 
     item->setArtifact(a);
-    m_artifacts.insert(m_selectedOverlay, a);
 
     // Live edits repaint only. Persisting every keystroke would write a PNG and push an undo step per
     // character; the panel debounces and tells us when it has settled.
@@ -1525,10 +1550,9 @@ void ObjectController::scaleSelectedArtwork(double percent, bool commit)
 void ObjectController::applyArtworkRecord(const TextArtifact& record, bool commit)
 {
     Object* art = m_overlayItems.value(m_selectedOverlay);
-    if (!art || !record.isArtwork() || m_artifacts.value(m_selectedOverlay) == record)
+    if (!art || !record.isArtwork() || art->artifact() == record)
         return;
 
-    m_artifacts.insert(m_selectedOverlay, record);
     art->setArtifact(record);          // the preview is what the render will make of it
     if (!commit)
         return;                        // live: shown, not yet a step
@@ -1638,7 +1662,6 @@ void ObjectController::deleteSelectedOverlay()
                     a.tails.items.removeAt(i);
             }
             bubble->setArtifact(a);
-            m_artifacts.insert(it.key(), a);
             writePlacement(it.key());
         }
 
@@ -1647,9 +1670,8 @@ void ObjectController::deleteSelectedOverlay()
                                             return doomedObjects.contains(QString::fromStdString(o.uid));
                                         }),
                          m_overlays.end());
-        for (const QString& uid : std::as_const(doomedObjects))
-            m_artifacts.remove(uid);
-
+        // Their records go when their objects do — syncItems() drops an item whose overlay has gone,
+        // and currentArtifacts() walks the overlays that are left.
         selectOverlay(QString());
         syncItems();
         refreshList();
@@ -1665,9 +1687,6 @@ void ObjectController::deleteSelectedOverlay()
                                         return doomed.contains(QString::fromStdString(o.uid));
                                     }),
                      m_overlays.end());
-    for (const QString& uid : doomed)
-        m_artifacts.remove(uid);
-
     selectOverlay(QString());
     syncItems();
     refreshList();
@@ -1693,7 +1712,7 @@ void ObjectController::applyColourToSelection(const QColor& colour, ArtifactPart
     QList<TextArtifact> next;
     int                 changed = 0;
     for (const QString& uid : std::as_const(m_selectedOverlays)) {
-        TextArtifact each   = m_artifacts.value(uid);
+        TextArtifact each   = recordFor(uid);
         const bool   shaped = each.hasSilhouette();
         switch (role) {
         case ArtifactPart::Text:    each.text.colour = colour; ++changed; break;
@@ -1725,7 +1744,7 @@ void ObjectController::applyGroupToSelection(PropertyGroup group)
     QList<TextArtifact> next;
     int                 changed = 0;
     for (const QString& uid : std::as_const(m_selectedOverlays)) {
-        TextArtifact each   = m_artifacts.value(uid);
+        TextArtifact each   = recordFor(uid);
         const bool   shaped = each.hasSilhouette();
         switch (group) {
         case PropertyGroup::Shape:
@@ -1788,7 +1807,7 @@ void ObjectController::convertSelectionTo(TextArtifact::Shape kind)
     int                 converted = 0;
     int                 hidden    = 0;   //!< Tails that the new kind does not draw.
     for (const QString& uid : std::as_const(m_selectedOverlays)) {
-        TextArtifact each = m_artifacts.value(uid);
+        TextArtifact each = recordFor(uid);
         // Not an authored object, or already of this kind: it passes through, and since nothing here
         // touches the order, it keeps its place in the stack for free.
         const bool authored    = isParametric(uid) && !m_carriers.contains(uid);
@@ -2003,7 +2022,7 @@ void ObjectController::duplicateSelectedOverlay()
 
 void ObjectController::pushOverlays(const QString& undoText)
 {
-    emit overlaysEdited(m_overlays, m_artifacts, undoText);
+    emit overlaysEdited(m_overlays, currentArtifacts(), undoText);
 }
 
 // --- placing a new bubble ---------------------------------------------------

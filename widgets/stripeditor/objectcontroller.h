@@ -15,6 +15,7 @@
 
 #include "artifactpainter.h"   // ArtifactPart: which part of an object a colour lands on
 #include "cursors.h"
+#include "object.h"   // recordFor()/isParametric() ask the object itself
 #include "propertygroupeditor.h"   // PropertyGroup: which group the menu hands over
 #include "textartifact.h"
 
@@ -129,15 +130,44 @@ public:
      * binding in updateActionStates().
      *
      * False therefore means *imported artwork*: a picture somebody else drew, which we place, move,
-     * mute, re-anchor and render, but cannot re-type. When artwork gains lettering of its own it will
-     * have a record too, and this test will have to become something else — **in one place instead of
-     * eight**, which is the whole point of it having a name.
+     * mute, re-anchor and render, but cannot re-type.
+     *
+     * **The object answers when there is one**, because it is the one that knows: its record is kept
+     * describing what it actually is. The feed's records are consulted only for a uid whose object has
+     * not been built yet, and a uid neither of them holds is not ours to author.
      */
     [[nodiscard]] bool isParametric(const QString& uid) const
     {
-        const auto it = m_artifacts.constFind(uid);
-        return it != m_artifacts.constEnd() && !it->isArtwork();
+        if (const Object* item = m_overlayItems.value(uid))
+            return !item->artifact().isArtwork();
+        const auto it = m_feedRecords.constFind(uid);
+        return it != m_feedRecords.constEnd() && !it->isArtwork();
     }
+
+    /**
+     * @brief The record for @p uid — **from the object, which is where one lives**.
+     *
+     * Every read of an authoring record goes through here. It used to be `m_artifacts.value(uid)`, and
+     * that returns a **default speech balloon** for a uid the map does not hold: one value standing for
+     * both "a plain speech balloon" and "no record at all", which is the mechanism behind four shipped
+     * defects. An object always has a record describing what it is, so asking one cannot go wrong; the
+     * feed's map is consulted only before the object exists.
+     */
+    [[nodiscard]] TextArtifact recordFor(const QString& uid) const
+    {
+        if (const Object* item = m_overlayItems.value(uid))
+            return item->artifact();
+        return m_feedRecords.value(uid);
+    }
+
+    /**
+     * @brief Every object's record, as the owner should store it — **built from the objects**.
+     *
+     * What goes out on overlaysEdited(). Derived rather than maintained: the map used to be written by
+     * hand at ten sites beside the object that had just been given the same record, and a write path
+     * that updated one of the two left the other describing something that is not on screen.
+     */
+    [[nodiscard]] ArtifactMap currentArtifacts() const;
 
     //! Everything selected, in the order it was picked. The last is the primary — see selectOverlays().
     [[nodiscard]] const QStringList& selectedOverlays() const { return m_selectedOverlays; }
@@ -210,7 +240,18 @@ public:
     //! user action, and \c QGraphicsScene::clear() drops the selection on its way through.
     void setSyncing(bool on) { m_syncingList = on; }
     //! The scene deleted every item it owned; drop the now-dangling pointers without touching them.
-    void forgetItems() { m_overlayItems.clear(); }
+    /**
+     * @brief The scene deleted every item; drop the pointers.
+     *
+     * Their records are harvested into the feed's first, because the objects are where a record lives
+     * between feeds — an edit previewed but not yet settled exists only on the object, and rebuilding
+     * the scene from a feed that never heard about it would quietly undo it.
+     */
+    void forgetItems()
+    {
+        m_feedRecords = currentArtifacts();
+        m_overlayItems.clear();
+    }
 
     // --- placement, driven by the editor's event filter ---
     [[nodiscard]] bool isPlacing() const { return m_placing; }
@@ -458,7 +499,15 @@ private:
     QWidget*        m_dialogParent = nullptr;
 
     std::vector<Platemaker::Models::StripOverlay> m_overlays;   //!< The project's overlays, in composite order.
-    ArtifactMap                                   m_artifacts;  //!< Their authoring records, keyed by overlay uid.
+    /**
+     * @brief The records the last feed brought — **a seed, not the state**.
+     *
+     * Read in two places only: to build an object that does not exist yet, and to answer for a uid that
+     * has no object. Everything else asks the object, through recordFor(). It is deliberately not kept
+     * in step with edits, because the objects already are; keeping a second copy in step by hand is
+     * what this member used to be for, and what it stopped being.
+     */
+    ArtifactMap                                   m_feedRecords;
     QHash<QString, Object*>                       m_overlayItems; //!< Live scene objects, keyed by overlay uid.
     /**
      * @brief Library rasterisations of styled bubbles, keyed by the SVG document itself.

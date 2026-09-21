@@ -802,6 +802,15 @@ valid baseline for every grade tried on it. Excluded pages are skipped, matching
   this refactor: ③ bound a **default balloon** to a selected picture, because `ArtifactMap::value()`
   returns one for a uid it does not hold — so the panel offered a shape, a fill and a line style for a
   photograph, and swallowed every edit, since only a `BubbleObject` is ever written to.
+  - **The objects hold the state; the controller holds no second copy.** `ObjectController` used to
+    keep an `ArtifactMap` beside the objects and write both at every edit — ten hand-maintained sync
+    points, and a write path that updated one of them left the other describing something that is not
+    on screen. What is left is a *seed*: the records the last feed brought, read only to build an
+    object that does not exist yet and to answer for a uid that has none. Every other read goes through
+    `recordFor()`, and what goes out on `overlaysEdited()` is `currentArtifacts()`, derived from the
+    objects at the moment it is asked for. A record reaches an object in exactly two places — its
+    constructor, and the adoption loop in `setSource()`, which is the one direction a record travels
+    from outside.
   - **Every object carries an authoring record, and `Object::artifact()` is how anything asks for
     it.** A balloon's is everything about it; a picture's says which file it is and what words are over
     it. The accessor used to be declared once per subclass, so a caller had to prove which subclass it

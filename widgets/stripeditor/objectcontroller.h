@@ -313,7 +313,7 @@ public:
      * @param commit False while typing: the object is redrawn, the history is not touched. The panel's
      *               own debounce decides when it settles, exactly as a balloon's lettering does.
      */
-    void applyArtworkRecord(const TextArtifact& record, bool commit);
+    void applyArtworkRecord(const TextArtifact& record, bool commit);   //!< See applyRecord().
 
     /**
      * @brief Gives every selected object the blend mode @p blend, as one history step.
@@ -437,10 +437,36 @@ private:
     [[nodiscard]] QTreeWidgetItem* tailRow(const QString& uid, int index) const;
     void pushOverlays(const QString& undoText); //!< Emits overlaysEdited() with the current state.
     //! Live edit from the panel → item (+persist, as a step named @p undoText or for the subject).
-    void applyPanelArtifact(const TextArtifact& a, bool commit, const QString& undoText = QString());
-    //! The same, for the whole selection: @p objects are in m_selectedOverlays order.
-    void applyPanelArtifacts(const QList<TextArtifact>& objects, bool commit,
-                             const QString& undoText = QString());
+    /**
+     * @brief Writes @p records onto the objects @p uids names — **the one write path**.
+     *
+     * There were three: one for a single balloon, one for several, and one for a picture. They differed
+     * in a `qobject_cast` and in what the history step was called, and the two that only accepted a
+     * balloon dropped a picture silently — so the bucket, applied to a balloon and a lettered picture
+     * together, coloured one of them and told the panel it had coloured both (REPORT-D2 §4.3).
+     *
+     * **Pairing is stated, not inferred.** The old multi-object path matched its list to
+     * `m_selectedOverlays` by position and refused when the two lengths disagreed, which is what made a
+     * mixed selection uneditable (V4b). Here the caller says which object each record is for.
+     *
+     * @param commit False while a control is being dragged or typed in: the objects repaint and nothing
+     *               reaches the history. The panel's own debounce decides when an edit has settled.
+     */
+    void applyRecords(const QStringList& uids, const QList<TextArtifact>& records, bool commit,
+                      const QString& undoText = QString());
+
+    //! One object, by uid — the same path, for the callers that act on the primary selection.
+    void applyRecord(const QString& uid, const TextArtifact& record, bool commit,
+                     const QString& undoText = QString());
+
+    /**
+     * @brief What ③ just said, written to the objects ③ was bound to.
+     *
+     * The panel answers with records and no uids, because it was handed records and no uids. Which
+     * objects those were is remembered in \c m_panelSubjects at the moment it was bound, so a selection
+     * that has changed since cannot make this write the right records onto the wrong objects.
+     */
+    void applyPanelRecords(const QList<TextArtifact>& records, bool commit);
     void deleteSelectedTail();   //!< Takes the selected tail off its balloon, and selects the balloon.
     void importArtwork();           //!< Asks for a file and drops it on the page currently in view.
     void duplicateSelectedOverlay();   //!< Copies the selected bubble a little down and right.
@@ -526,6 +552,14 @@ private:
     QHash<QString, QImage>                        m_sharpCache;
     QString            m_selectedOverlay;                   //!< The primary: last of m_selectedOverlays.
     QStringList        m_selectedOverlays;                  //!< Everything selected, in pick order.
+    /**
+     * @brief The objects ③ is currently bound to, in the order its records are in.
+     *
+     * Not the same thing as the selection, and that is the point: the panel answers about what it was
+     * shown, which may no longer be what is selected. Empty whenever the panel is showing something
+     * that cannot be edited — nothing, a mixed set, a tail's balloon — so a stray signal writes nothing.
+     */
+    QStringList        m_panelSubjects;
     QList<TailRef>     m_selectedTails;                     //!< Tails in the selection, in pick order.
     //! Uids in m_selectedOverlays that are there only to **carry** a selected tail — its handles exist
     //! only while its balloon is selected. They are not subjects: they are not counted, not deleted, and

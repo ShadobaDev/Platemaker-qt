@@ -84,22 +84,22 @@ ObjectController::ObjectController(QGraphicsScene* scene, QGraphicsView* view, Q
     , m_dialogParent(dialogParent)
 {
     connect(m_objectState, &ObjectStatePanel::changed, this,
-            [this](const TextArtifact& a) { applyPanelArtifact(a, /*commit=*/false); });
+            [this](const TextArtifact& a) { applyPanelRecords({a}, /*commit=*/false); });
     connect(m_objectState, &ObjectStatePanel::committed, this,
-            [this](const TextArtifact& a) { applyPanelArtifact(a, /*commit=*/true); });
+            [this](const TextArtifact& a) { applyPanelRecords({a}, /*commit=*/true); });
     connect(m_objectState, &ObjectStatePanel::blendPicked, this, &ObjectController::setSelectionBlend);
     connect(m_objectState, &ObjectStatePanel::deleteRequested, this, &ObjectController::deleteSelectedOverlay);
     connect(m_objectState, &ObjectStatePanel::changedMany, this,
-            [this](const QList<TextArtifact>& objects) { applyPanelArtifacts(objects, /*commit=*/false); });
+            [this](const QList<TextArtifact>& objects) { applyPanelRecords(objects, /*commit=*/false); });
     connect(m_objectState, &ObjectStatePanel::committedMany, this,
-            [this](const QList<TextArtifact>& objects) { applyPanelArtifacts(objects, /*commit=*/true); });
+            [this](const QList<TextArtifact>& objects) { applyPanelRecords(objects, /*commit=*/true); });
     connect(m_objectState, &ObjectStatePanel::fitRequested, this, [this] {
         Object* item = m_overlayItems.value(m_selectedOverlay);
         if (!item || item->artifact().isArtwork())
             return;   // a picture's box is the picture's own pixels, not its words'
         TextArtifact a = item->artifact();
         a.box = fittedBox(a);
-        applyPanelArtifact(a, /*commit=*/true);
+        applyRecord(m_selectedOverlay, a, /*commit=*/true);
         m_objectState->setArtifact(a);
     });
 
@@ -517,8 +517,9 @@ void ObjectController::selectSubject(Subject subject, const QString& pageUid)
     // scene, the tree, the actions that need an object, and the object panel.
     selectOverlay(QString());
 
-    m_subject      = subject;
-    m_selectedPage = subject == Subject::Page ? pageUid : QString();
+    m_subject       = subject;
+    m_selectedPage  = subject == Subject::Page ? pageUid : QString();
+    m_panelSubjects.clear();   // ③ is showing the strip or a page; no object panel is answering
 
     m_syncingList = true;
     if (QTreeWidgetItem* row = subjectRow())
@@ -1214,36 +1215,35 @@ void ObjectController::selectSubjects(const QStringList& uids, const QList<TailR
            });
     if (m_convertMenu) m_convertMenu->menuAction()->setEnabled(authoredOnly);
 
+    // **Which objects ③ is about to be bound to, in the order its records go in.** Set here and only
+    // here, because this is the one place that decides what the panel is showing. A branch that binds
+    // something uneditable leaves it empty, so a signal arriving from a panel that cannot be edited
+    // writes nothing rather than writing to whatever happens to be selected now.
+    m_panelSubjects.clear();
+
     if (m_objectState) {
         if (picked.isEmpty()) {
             m_objectState->clearSelection();
         } else if (singleTail) {
+            m_panelSubjects = QStringList{m_selectedOverlay};   // the tail's balloon owns the record
             m_objectState->setTail(primary->artifact(), m_selectedTail);
         } else if (!pickedTails.isEmpty()) {
             m_objectState->setMixedSubjects(selectedSubjectCount());
-        } else if (std::any_of(picked.cbegin(), picked.cend(),
-                               [this](const QString& uid) { return !isParametric(uid); })) {
-            // **Imported artwork has no properties here, and the panel must say so rather than show a
-            // balloon's.** Reading the record from a map was how this went wrong: `value()` on a uid it
-            // does not hold returns a *default* balloon, so the panel bound speech-balloon controls to
-            // a picture and every edit was swallowed, because only a BubbleObject was ever written to.
-            // That was the same fault as E6a and E6a.1, at a third site. recordFor() asks the object,
-            // which cannot answer with something it is not — but the write path below still takes only
-            // balloons, and until it does not (REPORT-D2 §4.3) this branch is what keeps the panel
-            // honest about it.
-            if (oneObject)
-                m_objectState->setUneditableSubject(
-                    tr("Imported artwork"),
-                    tr("A picture drawn elsewhere. It is placed, moved, resized, muted and rendered "
-                       "like any object, but there is nothing in it to re-type."));
-            else
-                m_objectState->setMixedSubjects(
-                    selectedSubjectCount(),
-                    tr("Imported artwork and a balloon have only their position in common — drag to "
-                       "move them together."));
+        } else if (oneObject && !isParametric(picked.first())) {
+            // One picture on its own: ③ shows the page built for it (see Editor::showSubject), which
+            // writes through applyArtworkRecord(). Nothing here is answering for it.
+            m_objectState->clearSelection();
         } else if (oneObject) {
+            m_panelSubjects = QStringList{m_selectedOverlay};
             m_objectState->setArtifact(recordFor(m_selectedOverlay));
         } else {
+            // **Whatever kinds are in it.** This used to refuse any set containing a picture, on the
+            // grounds that a picture and a balloon had nothing in common — true until V5 gave a picture
+            // lettering of its own, and false since. The panel already sorts records into roles: skin
+            // and line style are bound to the objects with a silhouette and written back only to those
+            // (see onControlChanged), and the lettering to all of them. So the union is what shows, and
+            // the write path takes whichever kind each object is.
+            m_panelSubjects = picked;
             QList<TextArtifact> subjects;
             subjects.reserve(picked.size());
             for (const QString& uid : picked)
@@ -1327,7 +1327,7 @@ bool ObjectController::applyColourAt(const QPointF& scenePos, const QTransform& 
             }
             next.append(each);
         }
-        applyPanelArtifacts(next, /*commit=*/true, step);
+        applyRecords(m_selectedOverlays, next, /*commit=*/true, step);
         if (m_objectState)
             m_objectState->setArtifacts(next);
         return true;
@@ -1335,7 +1335,7 @@ bool ObjectController::applyColourAt(const QPointF& scenePos, const QTransform& 
 
     selectOverlay(bubble->uid());
     m_objectState->setArtifact(a);
-    applyPanelArtifact(a, /*commit=*/true, step);
+    applyRecord(bubble->uid(), a, /*commit=*/true, step);
     return true;
 }
 
@@ -1349,71 +1349,64 @@ void ObjectController::applyPresetToSelection(int index)
     const TextArtifact a =
         PresetStore::applied(m_presets.presets().at(index), bubble->artifact(), /*keepShape=*/false);
     m_objectState->setArtifact(a);
-    applyPanelArtifact(a, /*commit=*/true);
+    applyRecord(m_selectedOverlay, a, /*commit=*/true);
 }
 
-void ObjectController::applyPanelArtifacts(const QList<TextArtifact>& objects, bool commit,
-                                           const QString& undoText)
+void ObjectController::applyRecords(const QStringList& uids, const QList<TextArtifact>& records,
+                                    bool commit, const QString& undoText)
 {
-    if (objects.size() != m_selectedOverlays.size())
-        return;   // the panel is answering about a selection that has since changed
+    if (uids.size() != records.size())
+        return;   // a caller answering about objects it no longer has; writing half of it is worse
 
-    for (int i = 0; i < objects.size(); ++i) {
-        const QString& uid = m_selectedOverlays.at(i);
-        Object* item = m_overlayItems.value(uid);
-        // **Balloons only, still** — the panel can describe a picture since V5, and this drops it. That
-        // is the second half of V4b (REPORT-D2 §4.3), and it is a behaviour change, so it is not here.
-        if (item && !item->artifact().isArtwork())
-            item->setArtifact(objects.at(i));
+    // **Whichever kind the object is.** This loop used to reach for a BubbleObject and skip whatever
+    // was not one, which since V5 meant dropping a picture's lettering without saying so.
+    int written = 0;
+    for (int i = 0; i < uids.size(); ++i) {
+        Object* item = m_overlayItems.value(uids.at(i));
+        if (!item || item->artifact() == records.at(i))
+            continue;
+        item->setArtifact(records.at(i));
+        ++written;
     }
-    if (!commit)
-        return;   // live preview only, exactly as the single-object path does
+    if (written == 0)
+        return;   // nothing moved, so there is nothing to preview and nothing to undo
 
-    // Each object keeps its own width fraction: a colour does not change how much room the artwork takes,
-    // but a stroke does, and the render draws the asset at wFrac of the page.
+    // Live edits repaint only. Persisting every keystroke would write a file and push a history step
+    // per character; the panel debounces and says when it has settled.
+    if (!commit)
+        return;
+
+    // Each object keeps its own width fraction: a colour does not change how much room the drawing
+    // takes, but a longer line or a heavier stroke does, and the render draws the asset at wFrac of the
+    // page rather than at whatever size the file happens to come out. For a picture, whose box is the
+    // artist's and not its words', this recomputes the value it already had.
     if (const double tw = m_layout.targetWidth(); tw > 0) {
         for (auto& o : m_overlays) {
             const QString uid = QString::fromStdString(o.uid);
-            if (auto* item = m_overlayItems.value(uid); item && m_selectedOverlays.contains(uid))
+            if (!uids.contains(uid))
+                continue;
+            if (const Object* item = m_overlayItems.value(uid))
                 o.wFrac = item->contentBounds().width() * item->scale() / tw;
         }
     }
 
-    refreshList();
-    pushOverlays(!undoText.isEmpty() ? undoText
-                                     : tr("Edit %n objects", "", static_cast<int>(objects.size())));
+    refreshList();   // a row wears its object, and its label is what the object says
+    pushOverlays(!undoText.isEmpty()            ? undoText
+                 : uids.size() > 1              ? tr("Edit %n objects", "", uids.size())
+                 : m_subject == Subject::Tail   ? tr("Edit tail")
+                 : recordFor(uids.first()).isArtwork() ? tr("Edit artwork")
+                                                       : tr("Edit bubble"));
 }
 
-void ObjectController::applyPanelArtifact(const TextArtifact& a, bool commit, const QString& undoText)
+void ObjectController::applyRecord(const QString& uid, const TextArtifact& record, bool commit,
+                                   const QString& undoText)
 {
-    Object* item = m_overlayItems.value(m_selectedOverlay);
-    if (!item || item->artifact().isArtwork())
-        return;   // this path authors balloons; a picture's record is written by the one below
+    applyRecords(QStringList{uid}, QList<TextArtifact>{record}, commit, undoText);
+}
 
-    item->setArtifact(a);
-
-    // Live edits repaint only. Persisting every keystroke would write a PNG and push an undo step per
-    // character; the panel debounces and tells us when it has settled.
-    if (!commit)
-        return;
-
-    // Typing a longer line, or restyling, changes how much room the artwork takes — and the render
-    // draws the asset at wFrac of the page, not at whatever size the SVG happens to come out. Without
-    // this the re-emitted artwork would be squeezed back into the old width.
-    if (const double tw = m_layout.targetWidth(); tw > 0) {
-        const qreal k = item->scale();
-        for (auto& o : m_overlays) {
-            if (QString::fromStdString(o.uid) != m_selectedOverlay)
-                continue;
-            o.wFrac = item->contentBounds().width() * k / tw;
-            break;
-        }
-    }
-
-    refreshList();
-    pushOverlays(!undoText.isEmpty()           ? undoText
-                 : m_subject == Subject::Tail  ? tr("Edit tail")
-                                               : tr("Edit bubble"));
+void ObjectController::applyPanelRecords(const QList<TextArtifact>& records, bool commit)
+{
+    applyRecords(m_panelSubjects, records, commit);
 }
 
 void ObjectController::importArtwork()
@@ -1549,16 +1542,9 @@ void ObjectController::scaleSelectedArtwork(double percent, bool commit)
 
 void ObjectController::applyArtworkRecord(const TextArtifact& record, bool commit)
 {
-    Object* art = m_overlayItems.value(m_selectedOverlay);
-    if (!art || !record.isArtwork() || art->artifact() == record)
-        return;
-
-    art->setArtifact(record);          // the preview is what the render will make of it
-    if (!commit)
-        return;                        // live: shown, not yet a step
-
-    refreshList();                     // the row's label is the lettering
-    pushOverlays(tr("Edit artwork text"));
+    if (!record.isArtwork())
+        return;   // ③'s picture page answering about something that is no longer a picture
+    applyRecord(m_selectedOverlay, record, commit, tr("Edit artwork text"));
 }
 
 void ObjectController::rebuildReanchorMenu()
@@ -1621,7 +1607,7 @@ void ObjectController::deleteSelectedTail()
     // feed that comes back finds a balloon selected, not a tail that no longer exists.
     const QString uid = m_selectedOverlay;
     selectOverlay(uid);
-    applyPanelArtifact(a, /*commit=*/true, tr("Delete tail"));
+    applyRecord(m_selectedOverlay, a, /*commit=*/true, tr("Delete tail"));
     if (m_objectState)
         m_objectState->setArtifact(a);
 }
@@ -1728,7 +1714,7 @@ void ObjectController::applyColourToSelection(const QColor& colour, ArtifactPart
     const QString step = role == ArtifactPart::Text      ? tr("Apply text colour")
                        : role == ArtifactPart::Outline   ? tr("Apply outline colour")
                                                          : tr("Apply fill colour");
-    applyPanelArtifacts(next, /*commit=*/true, step);
+    applyRecords(m_selectedOverlays, next, /*commit=*/true, step);
     if (m_objectState && m_selectedOverlays.size() > 1)
         m_objectState->setArtifacts(next);
     else if (m_objectState)
@@ -1784,7 +1770,7 @@ void ObjectController::applyGroupToSelection(PropertyGroup group)
                        : group == PropertyGroup::Skin  ? tr("Apply fill & outline")
                        : group == PropertyGroup::Style ? tr("Apply line style")
                                                        : tr("Apply text style");
-    applyPanelArtifacts(next, /*commit=*/true, step);
+    applyRecords(m_selectedOverlays, next, /*commit=*/true, step);
     if (m_objectState && m_selectedOverlays.size() > 1)
         m_objectState->setArtifacts(next);
     else if (m_objectState)
@@ -1826,9 +1812,9 @@ void ObjectController::convertSelectionTo(TextArtifact::Shape kind)
     // Named after the kind it arrived at — *Balloon*, not *Speech balloon*: the silhouette it happens
     // to wear is a property, and a history entry should say what the step decided.
     const QString what = kind == TextArtifact::Shape::None ? tr("text") : tr("a balloon");
-    applyPanelArtifacts(next, /*commit=*/true,
-                        converted == 1 ? tr("Convert to %1").arg(what)
-                                       : tr("Convert %n objects to %1", "", converted).arg(what));
+    applyRecords(m_selectedOverlays, next, /*commit=*/true,
+                 converted == 1 ? tr("Convert to %1").arg(what)
+                                : tr("Convert %n objects to %1", "", converted).arg(what));
 
     // Said once, and then gone. An event has no condition to re-evaluate, so it is a message and not a
     // badge — and it says *not drawn* rather than *removed*, because that is what happened: the tails

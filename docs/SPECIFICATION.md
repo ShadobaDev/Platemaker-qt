@@ -802,6 +802,18 @@ valid baseline for every grade tried on it. Excluded pages are skipped, matching
   this refactor: ③ bound a **default balloon** to a selected picture, because `ArtifactMap::value()`
   returns one for a uid it does not hold — so the panel offered a shape, a fill and a line style for a
   photograph, and swallowed every edit, since only a `BubbleObject` is ever written to.
+  - **One write path, and pairing is stated rather than inferred.** `applyRecords(uids, records, …)`
+    writes whichever kind each object is. There were three paths — one balloon, several balloons, one
+    picture — differing in a `qobject_cast` and in what the history step was called, and the two that
+    took only a balloon dropped a picture without saying so. The multi-object one also matched its
+    records to the selection **by position** and refused whenever the two lengths disagreed, which is
+    what made a mixed selection uneditable. ③'s own signals carry records and no uids, so the objects
+    it was bound to are remembered in `m_panelSubjects` at the moment of binding: a selection that has
+    changed since cannot make the right records land on the wrong objects.
+  - **A set of several binds whatever kinds it holds.** The panel sorts records into roles — skin and
+    line style to the objects with a silhouette, the lettering to all of them — and writes each group
+    back only to the objects it was bound from, so the union is what shows and nothing is written to an
+    object that has no place for it.
   - **The objects hold the state; the controller holds no second copy.** `ObjectController` used to
     keep an `ArtifactMap` beside the objects and write both at every edit — ten hand-maintained sync
     points, and a write path that updated one of them left the other describing something that is not

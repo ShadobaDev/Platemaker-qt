@@ -178,7 +178,7 @@ void ObjectStatePanel::setArtifact(const TextArtifact& a)
     applyKindVisibility();
 }
 
-void ObjectStatePanel::setMixedSubjects(int count, const QString& why)
+void ObjectStatePanel::setMixedSubjects(int count)
 {
     m_subjects.clear();
     m_hasArtifact    = false;
@@ -188,33 +188,11 @@ void ObjectStatePanel::setMixedSubjects(int count, const QString& why)
 
     m_subject->setText(tr("%n objects", "", count));
     m_subject->setVisible(true);
-    m_emptyHint->setText(why.isEmpty()
-                             ? tr("A balloon and a tail have only their position in common — drag to "
-                                  "move them together.")
-                             : why);
+    m_emptyHint->setText(tr("A balloon and a tail have only their position in common — drag to "
+                            "move them together."));
     m_emptyHint->setVisible(true);
     m_actions->setVisible(true);
     m_fitButton->setVisible(false);
-    m_deleteButton->setText(tr("Delete"));
-    for (auto it = m_sections.cbegin(); it != m_sections.cend(); ++it)
-        it.value()->setVisible(false);
-    refreshLook();
-}
-
-void ObjectStatePanel::setUneditableSubject(const QString& name, const QString& why)
-{
-    m_subjects.clear();
-    m_hasArtifact    = false;   // nothing here may emit an edit about it — there is nothing to edit
-    m_selectionCount = 1;       // ...but it is selected, so Delete still means this object
-    m_tailIndex      = -1;
-    m_commitTimer->stop();
-
-    m_subject->setText(name);
-    m_subject->setVisible(true);
-    m_emptyHint->setText(why);
-    m_emptyHint->setVisible(true);
-    m_actions->setVisible(true);
-    m_fitButton->setVisible(false);   // there is no text to fit a box to
     m_deleteButton->setText(tr("Delete"));
     for (auto it = m_sections.cbegin(); it != m_sections.cend(); ++it)
         it.value()->setVisible(false);

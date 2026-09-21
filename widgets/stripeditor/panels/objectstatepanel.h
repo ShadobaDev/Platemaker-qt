@@ -86,19 +86,9 @@ public:
      * legitimate state — "these things have nothing in common but where they are". Delete still acts on
      * all of them.
      *
-     * @param why What they have in common, in a line. Empty takes the balloon-and-tail wording, which
-     *            was the only mixture there was when this state was built.
      */
-    void setMixedSubjects(int count, const QString& why = {});
+    void setMixedSubjects(int count);
 
-    /**
-     * @brief One subject with **no properties to edit** — imported artwork — named, and said why.
-     *
-     * Not `clearSelection()`: something *is* selected, and Delete still acts on it. Not an empty set of
-     * sections either, because a panel that simply went blank would read as a panel that had lost the
-     * selection. It says what the object is and what can still be done to it.
-     */
-    void setUneditableSubject(const QString& name, const QString& why);
 
     /**
      * @brief Shows how the selection is composited — @p blend, or *Mixed* when it has no one answer.

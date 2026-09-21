@@ -67,6 +67,12 @@
     tall enough to read the drawing, and it stays crisp on a scaled display. A picture is named by its
     lettering, or by its file when it has none — every one of them used to read *(imported artwork)*,
     which told you nothing about which was which.
+  - **A balloon and a picture can be edited together.** Select both and the properties panel shows
+    what they have in common — the lettering, and the blend mode — while fill and line style stay with
+    the balloons that have a silhouette to put them on. Selecting the two used to say they had "only
+    their position in common", which stopped being true when pictures gained lettering of their own.
+    The bucket had the same gap the other way round: poured over a mixed selection it coloured the
+    balloons, told the panel it had coloured everything, and left the picture untouched.
   - **Blend modes are reachable** — right-click an object → **Blend ▸** for Normal, Multiply, Screen,
     Overlay, Darken or Lighten, applied to everything selected in one undoable step. The render has
     understood them all along; nothing in the editor could set them.

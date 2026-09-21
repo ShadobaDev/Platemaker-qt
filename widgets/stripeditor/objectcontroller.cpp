@@ -31,7 +31,6 @@
 #include <QTreeWidget>
 #include <QInputDialog>
 #include <QMessageBox>
-#include <QRandomGenerator>
 #include <QPainter>
 #include <QPen>
 #include <QSet>
@@ -1421,12 +1420,12 @@ void ObjectController::importArtwork()
     // size"). Both draw identically today; the difference shows on the next re-profile, where a logo
     // that knows its width relative to the page grows with the chapter and a "natural size" one does
     // not. Growing with the chapter is what anyone placing artwork on a page meant.
-    const qreal natural = loadArtwork(file).width();
+    const QPixmap art = loadArtwork(file);
 
     m_selectNewOverlay = true;
     emit artworkImportRequested(file, centre.x() / tw,
                                 (centre.y() - m_layout.page(page).top) / tw,
-                                natural > 0 ? natural / tw : 0.0,
+                                art.width() > 0 ? art.width() / tw : 0.0, art.size(),
                                 m_layout.anchorUidForPage(page));
 }
 
@@ -1451,31 +1450,41 @@ void ObjectController::placeArtworkAt(const QString& file, const QPointF& sceneP
     emit artworkImportRequested(file, topLeft.x() / tw,
                                 (topLeft.y() - m_layout.page(page).top) / tw,
                                 art.width() / tw,   // its own pixels, one for one with the strip's
-                                m_layout.anchorUidForPage(page));
+                                art.size(), m_layout.anchorUidForPage(page));
 }
 
 TextArtifact ObjectController::selectedArtworkRecord() const
 {
     const TextArtifact stored = m_artifacts.value(m_selectedOverlay);
-    if (stored.isArtwork())
-        return stored;
 
-    // No record: a picture placed before pictures had one. Derive it from what the object *is* — the
-    // file its overlay points at, at the size that file is — so it can be lettered like any other, and
-    // the first edit is what writes the record down.
+    // **The object is the authority on how big the picture is**, not the record. A record's box is
+    // supposed to be the picture's own pixels, and two kinds of record disagree with that: one placed
+    // before pictures had a record at all, and one imported while the box was guessed from a copy the
+    // importer could not read (it came out as a fraction times 1000, by 200). Both are repaired here,
+    // from the pixmap the object actually loaded — and `artifactToSvg()` refuses an empty box, so an
+    // unrepaired one is a picture that silently cannot be lettered.
     const auto* art = qobject_cast<const AssetObject*>(m_overlayItems.value(m_selectedOverlay));
-    const auto  it  = std::find_if(m_overlays.cbegin(), m_overlays.cend(),
-                                   [this](const Platemaker::Models::StripOverlay& o) {
-                                       return QString::fromStdString(o.uid) == m_selectedOverlay;
-                                   });
-    if (!art || it == m_overlays.cend() || it->assetPath.empty())
+    if (!art || art->artwork().isNull())
+        return stored;
+    if (stored.isArtwork() && stored.box == art->artwork().size())
         return stored;
 
-    TextArtifact derived;
-    derived.shape.kind = TextArtifact::Shape::None;   // no silhouette of ours, said both ways
-    derived.artwork    = QFileInfo(QString::fromStdString(it->assetPath)).fileName();
-    derived.box        = art->artwork().size();
-    return derived.box.isEmpty() ? stored : derived;
+    TextArtifact repaired = stored;
+    if (!repaired.isArtwork()) {
+        // No record at all: name the file its overlay points at, so it can be lettered like any other
+        // picture, and the first edit is what writes the record down.
+        const auto it = std::find_if(m_overlays.cbegin(), m_overlays.cend(),
+                                     [this](const Platemaker::Models::StripOverlay& o) {
+                                         return QString::fromStdString(o.uid) == m_selectedOverlay;
+                                     });
+        if (it == m_overlays.cend() || it->assetPath.empty())
+            return stored;
+        repaired           = {};
+        repaired.shape.kind = TextArtifact::Shape::None;   // no silhouette of ours, said both ways
+        repaired.artwork    = QFileInfo(QString::fromStdString(it->assetPath)).fileName();
+    }
+    repaired.box = art->artwork().size();
+    return repaired;
 }
 
 QString ObjectController::selectedArtworkName() const
@@ -1752,10 +1761,9 @@ void ObjectController::applyGroupToSelection(PropertyGroup group)
         case PropertyGroup::Style:
             if (shaped) {
                 each.style = source.style;
-                // The seed belongs to no group precisely so that nothing can copy it — but an object that
-                // has just become styled needs one of its own, or a page of them wears one wobble.
-                if (each.style.kind != TextArtifact::Style::Clean && each.styleSeed == 0)
-                    each.styleSeed = QRandomGenerator::global()->generate();
+                // The seed belongs to no group precisely so that nothing can copy it — but an object
+                // that has just become styled needs one of its own.
+                topUpStyleSeed(each);
                 ++changed;
             }
             break;
@@ -2005,8 +2013,10 @@ void ObjectController::duplicateSelectedOverlay()
             // channel instead: the library hashes the same bytes and dedups the new placement onto the
             // file that is already there. Routing it through creation would have written an SVG of a
             // *default* bubble — which is what it did before this was two types.
+            const auto* art = qobject_cast<AssetObject*>(item);
             emit artworkImportRequested(QString::fromStdString(o.assetPath),
                                         o.xFrac + off, o.yFrac + off, o.wFrac,
+                                        art ? art->artwork().size() : QSize(),
                                         QString::fromStdString(o.anchorInputUid));
         }
         return;
@@ -2078,6 +2088,7 @@ void ObjectController::finishPlacement()
         emit artworkImportRequested(m_placementArtwork, r.left() / targetWidth,
                                     (r.top() - m_layout.page(page).top) / targetWidth,
                                     r.width() / targetWidth,
+                                    loadArtwork(m_placementArtwork).size(),
                                     m_layout.anchorUidForPage(page));
         return;
     }
@@ -2089,7 +2100,7 @@ void ObjectController::finishPlacement()
     // The prototype's tail was placed against the panel's nominal box; re-aim it at the one just drawn,
     // just below the balloon, which is where a reader expects a new bubble to be speaking from.
     for (Tail& t : a.tails.items)
-        t.tip = QPointF(a.box.width() * 0.28, a.box.height() * 1.25);
+        t.tip = firstTailTip(a.box);
 
     // Creation is the library's: it mints the uid, hashes the asset and dedups identical content, so
     // the owner finishes this and feeds the result back — where it gets selected (see setOverlaySource).

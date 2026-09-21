@@ -80,7 +80,7 @@ void TailsEditor::applyTo(TextArtifact& target) const
     } else {
         if (next.items.isEmpty()) {
             Tail t;
-            t.tip = QPointF(target.box.width() * 0.28, target.box.height() * 1.25);
+            t.tip = firstTailTip(target.box);
             next.items.append(t);
         }
         for (Tail& t : next.items) {
@@ -96,7 +96,7 @@ void TailsEditor::applyToNew(TextArtifact& target) const
     TailsProperties next;
     if (m_enabled->isChecked() && target.hasSilhouette()) {
         Tail t;
-        t.tip       = QPointF(target.box.width() * 0.28, target.box.height() * 1.25);
+        t.tip       = firstTailTip(target.box);
         t.baseWidth = m_width->value();
         t.bend      = m_bend->value() / 100.0;
         next.items  = {t};

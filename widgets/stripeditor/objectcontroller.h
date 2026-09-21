@@ -313,9 +313,15 @@ signals:
     //! Any other edit, as the complete new state: one channel rather than one signal per gesture.
     void overlaysEdited(const std::vector<Platemaker::Models::StripOverlay>& overlays,
                         const ArtifactMap& artifacts, const QString& undoText);
-    //! Artwork drawn elsewhere should be copied into the workspace and registered at this placement.
+    /**
+     * @brief Artwork drawn elsewhere should be copied into the workspace and registered here.
+     *
+     * @p naturalSize is the picture's own pixels, read through the one loader that knows how to ask an
+     * SVG its size. It travels because the far end cannot work it out: it sees only the copy it has
+     * just written, and guessing there once produced a record whose box was a fraction times 1000.
+     */
     void artworkImportRequested(const QString& sourceFile, double xFrac, double yFrac, double wFrac,
-                                const QString& anchorInputUid);
+                                QSize naturalSize, const QString& anchorInputUid);
     //! The selection moved to @p subject. @p uid is the overlay's uid or the page's input uid, and empty
     //! for the strip and for nothing. Which panel shows that subject is the editor's to decide.
     void subjectChanged(StripEdit::ObjectController::Subject subject, const QString& uid);

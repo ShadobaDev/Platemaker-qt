@@ -11,7 +11,6 @@
 #include <QLineEdit>
 #include <QMenu>
 #include <QMessageBox>
-#include <QRandomGenerator>
 #include <QSignalBlocker>
 #include <QStandardPaths>
 #include <QToolButton>
@@ -142,9 +141,10 @@ TextArtifact ToolOptionsPanel::prototype() const
     // …and to one balloon's aim: applyToNew() makes a first tail rather than copying anyone else's.
     m_tails->applyToNew(a);
 
-    // A fresh seed per bubble, so a page of marker balloons does not wear one repeated wobble. It
-    // belongs to no group precisely so that no editor and no preset can copy it.
-    a.styleSeed = QRandomGenerator::global()->generate();
+    // A fresh seed per bubble, so a page of marker balloons does not wear one repeated wobble —
+    // by the same rule every other writer follows, rather than a second one that also seeded balloons
+    // with no style to wobble.
+    topUpStyleSeed(a);
     return a;
 }
 

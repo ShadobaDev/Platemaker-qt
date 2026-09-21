@@ -50,6 +50,23 @@ struct Tail
     [[nodiscard]] bool operator!=(const Tail& o) const { return !(*this == o); }
 };
 
+/**
+ * @brief Where a balloon's **first** tail points: down and a little left of centre.
+ *
+ * Which is where a reader expects a speech balloon to be speaking from. It lives beside the tail rather
+ * than in whichever editor happens to seed one, because three of them do — the tails editor, the tail
+ * list and a fresh placement — and a rule written out once per caller is a rule that drifts. A *later*
+ * tail is seeded from the one before it, not from here.
+ *
+ * The shape tiles deliberately do **not** use this: a thumbnail draws a short tail so that a speaking
+ * shape does not come out smaller than the rest of the grid, and that is a drawing tweak rather than a
+ * different answer to this question.
+ */
+[[nodiscard]] inline QPointF firstTailTip(QSize box)
+{
+    return {box.width() * 0.28, box.height() * 1.25};
+}
+
 struct TextArtifact;
 
 /**
@@ -287,6 +304,19 @@ struct TextArtifact
     [[nodiscard]] bool operator==(const TextArtifact& o) const;
     [[nodiscard]] bool operator!=(const TextArtifact& o) const { return !(*this == o); }
 };
+
+/**
+ * @brief Gives \p a a style seed if it is styled and has none — **the one place that mints one**.
+ *
+ * The seed belongs to no property group, precisely so that no editor and no preset can copy it: a page
+ * of marker balloons all wearing the same wobble is the failure it exists to prevent. That makes *who
+ * mints it* a question with exactly one right answer, and it is here — four callers had each written
+ * the rule out, and one of them had already diverged into minting a seed for balloons that have no
+ * style to wobble.
+ *
+ * Idempotent: a record that already has a seed keeps it, so re-styling never re-rolls the wobble.
+ */
+void topUpStyleSeed(TextArtifact& a);
 
 //! Authoring records for one project's overlays, keyed by `StripOverlay::uid`.
 using ArtifactMap = QHash<QString, TextArtifact>;

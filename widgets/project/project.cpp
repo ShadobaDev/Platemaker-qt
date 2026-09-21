@@ -869,7 +869,7 @@ void Project::rewriteOverlayAssets()
 }
 
 void Project::importOverlayArtwork(const QString& sourceFile, double xFrac, double yFrac,
-                                   double wFrac, const QString& anchorInputUid)
+                                   double wFrac, QSize naturalSize, const QString& anchorInputUid)
 {
     const QString dir = ArtifactStore::ensureOverlaysDir(m_workspacePath);
     if (dir.isEmpty()) {
@@ -943,9 +943,11 @@ void Project::importOverlayArtwork(const QString& sourceFile, double xFrac, doub
             // one reader that might not know about `artwork` — an older build, or a hand-edited file:
             // it degrades to lettering with no balloon rather than to a speech balloon nobody drew.
             record.shape.kind = TextArtifact::Shape::None;
-            record.box     = QPixmap(dest).size();   // the picture's own pixels; SVG falls back below
-            if (record.box.isEmpty())
-                record.box = QSize(wFrac > 0 ? int(wFrac * 1000) : 200, 200);
+            // The picture's own pixels, as the side that could still see the original read them —
+            // through the one loader that knows to ask an SVG rather than the image plugin. This is
+            // what `artifactToSvg()` writes as the wrapper's width, height and viewBox once the
+            // picture is lettered, so a guess here is a wrong aspect ratio in the render.
+            record.box = naturalSize;
             m_artifacts.insert(QString::fromStdString(uid), record);
         }
         emit artifactsChanged(m_artifacts);

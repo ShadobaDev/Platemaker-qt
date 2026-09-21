@@ -8,17 +8,6 @@
 
 namespace StripEdit {
 
-namespace {
-
-//! Where a balloon's first tail points: down and a little left of centre, which is where a reader expects
-//! a speech balloon to be speaking from.
-[[nodiscard]] QPointF firstTailTip(QSize box)
-{
-    return {box.width() * 0.28, box.height() * 1.25};
-}
-
-}  // namespace
-
 TailListEditor::TailListEditor(QWidget* parent)
     : PropertyGroupEditor(parent)
 {

@@ -6,6 +6,7 @@
 #include "textartifact.h"
 #include "overlaystate.h"
 #include <QList>
+#include <QSize>
 #include <QStringList>
 
 #include <functional>
@@ -157,7 +158,7 @@ public:
      * no separate kind of overlay — it is the same one, arrived at deliberately.
      */
     void importOverlayArtwork(const QString& sourceFile, double xFrac, double yFrac, double wFrac,
-                              const QString& anchorInputUid);
+                              QSize naturalSize, const QString& anchorInputUid);
 
     /**
      * @brief Stores a complete new overlay state — move, restyle, delete, reorder or mute — as one

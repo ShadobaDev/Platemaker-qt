@@ -3,6 +3,7 @@
 #include <QDir>
 #include <QFileInfo>
 #include <QJsonArray>
+#include <QRandomGenerator>
 
 namespace {
 
@@ -271,4 +272,12 @@ void ArtifactStore::setArtifacts(const QString& projectUid, ArtifactMap map)
         m_byProject.remove(projectUid);
     else
         m_byProject.insert(projectUid, std::move(map));
+}
+
+void topUpStyleSeed(TextArtifact& a)
+{
+    // A bubble authored before styles existed carries seed 0, and so would every other one — style a
+    // page of them and they would all wear the same wobble. Give it one the first time it is styled.
+    if (a.style.kind != TextArtifact::Style::Clean && a.styleSeed == 0)
+        a.styleSeed = QRandomGenerator::global()->generate();
 }

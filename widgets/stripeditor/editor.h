@@ -231,7 +231,7 @@ signals:
      * everything after that is the owner's, exactly as it is for a drawn bubble.
      */
     void artworkImportRequested(const QString& sourceFile, double xFrac, double yFrac, double wFrac,
-                                const QString& anchorInputUid);
+                                QSize naturalSize, const QString& anchorInputUid);
 
     /**
      * @brief Something happened that the artist should be told once — not a state they can fix.

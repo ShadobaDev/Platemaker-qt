@@ -1,7 +1,5 @@
 #include "propertygroupset.h"
 
-#include <QRandomGenerator>
-
 #include "shapeeditor.h"
 #include "skineditor.h"
 #include "styleeditor.h"
@@ -37,10 +35,7 @@ void PropertyGroupSet::collect(TextArtifact& a, const PropertyGroupEditor* tails
     if (tails)
         tails->applyTo(a);   // last: it reads the shape that was just written
 
-    // A bubble authored before styles existed carries seed 0, and so would every other one — style a
-    // page of them and they would all wear the same wobble. Give it one the first time it is styled.
-    if (a.style.kind != TextArtifact::Style::Clean && a.styleSeed == 0)
-        a.styleSeed = QRandomGenerator::global()->generate();
+    topUpStyleSeed(a);
 }
 
 }  // namespace StripEdit

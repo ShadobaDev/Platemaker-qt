@@ -183,7 +183,8 @@ controls ambiguous.
 Both own a **`PropertyGroupSet`** — the shape, skin, style and text editors, plus the only two rules about
 applying them: shape is written before tails (a tails editor reads it), and the style seed is topped up
 afterwards, since it belongs to no group. Written once, because both are the kind of rule that drifts
-when written twice. **Tails are not in the set**, because the two panels edit different things: the next
+when written twice — the seed as `topUpStyleSeed()`, beside the record rather than in the set, because
+four writers need it and only one of them is a property group. **Tails are not in the set**, because the two panels edit different things: the next
 balloon has one tail to set up (`TailsEditor`), an existing balloon has a list whose members are objects
 of their own (`TailListEditor`, `TailEditor`). Each panel hands its own to `collect()`, which keeps the
 order.
@@ -609,7 +610,8 @@ valid baseline for every grade tried on it. Excluded pages are skipped, matching
     none is a conversion, and that is elsewhere on this menu. This is the *style
     applicator*: as a rail tool it would have to carry a current style, which a stateless tool may not;
     as a menu entry the value is whatever the tool's options are set to. Applying a line style mints a
-    `styleSeed` for an object that has none, the same top-up `PropertyGroupSet::collect()` does.
+    `styleSeed` for an object that has none, through `topUpStyleSeed()` — the one place that mints
+    one, which `collect()`, a preset and a fresh placement all call.
   - **Save as preset…** stores the selected balloon's look through `PresetStore`, which is the one place
     that knows a preset carries no lettering.
   - **Convert to ▸ crosses the one boundary there is: Text or Balloon.** An object either has a
@@ -708,8 +710,9 @@ valid baseline for every grade tried on it. Excluded pages are skipped, matching
     copy of the whole artifact would write back stale values for properties it never touched — a canvas
     resize during an edit being the obvious way in.
   - **Two properties belong to no group**, so no editor and no preset can copy them: `box` (the
-    object's, not the look's) and `styleSeed` (per balloon, set once at placement — a preset carrying
-    it would give a chapter one repeated wobble).
+    object's, not the look's) and `styleSeed` (per balloon, minted the first time it is styled and
+    never re-rolled — a preset carrying it would give a chapter one repeated wobble, and a balloon
+    with no style has no wobble to seed).
   - **Reading the target is allowed; writing outside the group is not.** `TailListEditor::applyTo()`
     reads the shape, because a shapeless artifact has nothing to grow a tail from; `TailEditor::applyTo()`
     reads the tail's tip, so a spin box cannot undo a drag made since.
@@ -799,6 +802,12 @@ valid baseline for every grade tried on it. Excluded pages are skipped, matching
   this refactor: ③ bound a **default balloon** to a selected picture, because `ArtifactMap::value()`
   returns one for a uid it does not hold — so the panel offered a shape, a fill and a line style for a
   photograph, and swallowed every edit, since only a `BubbleObject` is ever written to.
+  - **The object is the authority on how big a picture is.** A record's `box` is the picture's own
+    pixels, read by the one loader that asks an SVG its size rather than the image plugin, and carried
+    on the import signal because the far end sees only the copy it has just written. A record that
+    disagrees with the object — one placed before pictures had a record, or one whose size was guessed
+    — is repaired from the object when it is next selected, since `artifactToSvg()` refuses an empty
+    box and an unrepaired picture silently cannot be lettered.
   - **Imported artwork has its own ③**, `AssetStatePanel`: it names the picture and offers the one
     thing about it that is ours to set — **its size, as a percentage of its own pixels**, where 100%
     is one image pixel per strip pixel. A percentage rather than a width because the artist's question

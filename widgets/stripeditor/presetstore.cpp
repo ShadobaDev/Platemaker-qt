@@ -5,7 +5,6 @@
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
-#include <QRandomGenerator>
 #include <QSettings>
 
 namespace StripEdit {
@@ -257,8 +256,7 @@ TextArtifact PresetStore::applied(const BubblePreset& p, const TextArtifact& tar
     // Keep the object's own seed. Re-rolling it would make an already-placed marker outline jump for a
     // reason the author did not ask for.
     a.styleSeed = target.styleSeed;
-    if (a.style.kind != TextArtifact::Style::Clean && a.styleSeed == 0)
-        a.styleSeed = QRandomGenerator::global()->generate();
+    topUpStyleSeed(a);
 
     return a;
 }

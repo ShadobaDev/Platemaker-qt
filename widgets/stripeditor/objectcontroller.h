@@ -258,10 +258,11 @@ public:
     /**
      * @brief The selected artwork's record — which picture it is, and the lettering over it.
      *
-     * **Made up when there is none**, which is every picture placed before records existed for them.
-     * `ArtifactMap::value()` would hand back an empty record, the edit would be refused for not being
-     * about a picture, and the panel would keep re-binding nothing — which is exactly how it behaved.
-     * The object knows what it is, so the record is derived from it and stored on the first edit.
+     * A plain read of the object's own record, because the object keeps that record describing what it
+     * actually is (`AssetObject::describePicture`). This used to reconstruct one: a picture placed
+     * before records existed for them got an empty record from `ArtifactMap::value()`, the edit was
+     * refused for not being about a picture, and the panel kept re-binding nothing. Repairing it at
+     * the object rather than here fixes it for every reader instead of this one.
      */
     [[nodiscard]] TextArtifact selectedArtworkRecord() const;
 

@@ -28,10 +28,8 @@ public:
     [[nodiscard]] Kind    kind() const override { return Kind::Bubble; }
     [[nodiscard]] QString label() const override;
 
-    [[nodiscard]] const TextArtifact& artifact() const { return m_artifact; }
-
     //! Adopts new authoring values and repaints (handles a box change, so it may resize the object).
-    void setArtifact(const TextArtifact& a);
+    void setArtifact(const TextArtifact& a) override;
 
     /**
      * @brief Shows \p img — the library's own rasterisation of this bubble — instead of the local paths.
@@ -62,7 +60,6 @@ private:
     //! Re-resolves the cached paths after the artifact changed, then re-measures the extent.
     void rebuild();
 
-    TextArtifact m_artifact;
     QImage       m_sharp;       //!< Library rasterisation shown at rest for a styled bubble (see above).
     QPainterPath m_silhouette;  //!< Cached balloon + tails, so a repaint resolves no geometry.
     QPainterPath m_textPath;    //!< Cached glyph outlines, likewise.

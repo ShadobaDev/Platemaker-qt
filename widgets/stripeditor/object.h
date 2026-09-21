@@ -10,6 +10,8 @@
 
 #include <platemaker/models/processing_steps.hpp>
 
+#include "textartifact.h"
+
 namespace StripEdit {
 
 /**
@@ -50,6 +52,24 @@ public:
     [[nodiscard]] virtual Kind    kind() const = 0;
     //! One line naming this object for the object list.
     [[nodiscard]] virtual QString label() const = 0;
+
+    /**
+     * @brief The authoring record this object carries — **every kind has one**.
+     *
+     * A balloon's record is everything about it; a picture's says which file it is and what words are
+     * over it. Both were the same accessor declared twice, once per subclass, so every caller that
+     * wanted a record had to prove which subclass it was holding first — and the write paths that only
+     * proved one of them silently dropped the other.
+     *
+     * A record here is **never** a stand-in for "this object has none". The map this used to be read
+     * from returns a default *speech balloon* for a uid it does not hold, and that one value standing
+     * for two different things is the mechanism behind four shipped defects. Each kind keeps its record
+     * describing what it actually is, so asking any object is always safe.
+     */
+    [[nodiscard]] const TextArtifact& artifact() const { return m_artifact; }
+
+    //! Adopts \p a and repaints. What that costs — re-resolving paths, a resize — is the kind's own.
+    virtual void setArtifact(const TextArtifact& a) = 0;
 
     //! How this object blends onto the strip — mapped to the matching QPainter composition mode.
     void setBlend(Platemaker::Models::BlendMode blend);
@@ -187,6 +207,9 @@ protected:
     void mousePressEvent(QGraphicsSceneMouseEvent* e) override;
     void mouseMoveEvent(QGraphicsSceneMouseEvent* e) override;
     void mouseReleaseEvent(QGraphicsSceneMouseEvent* e) override;
+
+    //! Written by each kind's setArtifact(), read by everyone through artifact(). See above.
+    TextArtifact m_artifact;
 
 private:
     //! Which grip is under \p local. For Grip::Handle, \p handleIndex receives which one.

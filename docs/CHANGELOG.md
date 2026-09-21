@@ -64,7 +64,9 @@
   - **The object list shows what each row is** — a drawing of that very balloon, with its own shape, its
     tails and its fill colour, beside the first 32 characters of what it says. Artwork shows itself, a
     caption with no balloon shows *Aa*, a tail shows a tail, and the strip shows its pages. The rows are
-    tall enough to read the drawing, and it stays crisp on a scaled display.
+    tall enough to read the drawing, and it stays crisp on a scaled display. A picture is named by its
+    lettering, or by its file when it has none — every one of them used to read *(imported artwork)*,
+    which told you nothing about which was which.
   - **Blend modes are reachable** — right-click an object → **Blend ▸** for Normal, Multiply, Screen,
     Overlay, Darken or Lighten, applied to everything selected in one undoable step. The render has
     understood them all along; nothing in the editor could set them.

@@ -94,9 +94,10 @@ ObjectController::ObjectController(QGraphicsScene* scene, QGraphicsView* view, Q
     connect(m_objectState, &ObjectStatePanel::committedMany, this,
             [this](const QList<TextArtifact>& objects) { applyPanelArtifacts(objects, /*commit=*/true); });
     connect(m_objectState, &ObjectStatePanel::fitRequested, this, [this] {
-        auto* bubble = qobject_cast<BubbleObject*>(m_overlayItems.value(m_selectedOverlay));
-        if (!bubble) return;   // only a bubble has text to fit to
-        TextArtifact a = bubble->artifact();
+        Object* item = m_overlayItems.value(m_selectedOverlay);
+        if (!item || item->artifact().isArtwork())
+            return;   // a picture's box is the picture's own pixels, not its words'
+        TextArtifact a = item->artifact();
         a.box = fittedBox(a);
         applyPanelArtifact(a, /*commit=*/true);
         m_objectState->setArtifact(a);
@@ -408,8 +409,8 @@ void ObjectController::selectPage(const QString& inputUid)
 
 void ObjectController::selectTail(const QString& uid, int index)
 {
-    const auto* bubble = qobject_cast<BubbleObject*>(m_overlayItems.value(uid));
-    if (!bubble || index < 0 || index >= bubble->artifact().tails.items.size()) {
+    const Object* item = m_overlayItems.value(uid);
+    if (!item || index < 0 || index >= item->artifact().tails.items.size()) {
         selectOverlay(uid);   // nothing at that position: the bubble is what is left to hold
         return;
     }
@@ -617,8 +618,8 @@ void ObjectController::setSource(const std::vector<Platemaker::Models::StripOver
     // has — an undo, a preset — cannot say which one went, so a tail selection survives it only by moving
     // up to its balloon. A per-tail id would let the selection follow its tail; nothing needs that yet.
     if (m_subject == Subject::Tail) {
-        const auto* bubble = qobject_cast<BubbleObject*>(m_overlayItems.value(m_selectedOverlay));
-        if (!bubble || bubble->artifact().tails.items.size() != m_selectedTailCount)
+        const Object* item = m_overlayItems.value(m_selectedOverlay);
+        if (!item || item->artifact().tails.items.size() != m_selectedTailCount)
             selectOverlay(m_selectedOverlay);
     }
 }
@@ -703,19 +704,18 @@ void ObjectController::syncItems()
             m_overlayItems.insert(uid, item);
         }
 
+        // **The record goes to whichever kind this is**, because every object carries one: a balloon's
+        // parameters, or which picture it is and the words over it. An AssetObject re-describes what
+        // arrives, so a uid with no record of its own gets the picture rather than a default balloon.
+        const TextArtifact& a = m_artifacts.value(uid);
+        if (item->artifact() != a)
+            item->setArtifact(a);
         if (auto* bubble = qobject_cast<BubbleObject*>(item)) {
-            const TextArtifact& a = m_artifacts.value(uid);
-            if (bubble->artifact() != a)
-                bubble->setArtifact(a);
             // A styled bubble is drawn by the library, because its effect is an SVG filter Qt cannot
             // render. Unstyled ones keep drawing locally: same geometry, no round-trip.
             bubble->setSharpRaster(a.style.kind != TextArtifact::Style::Clean ? sharpRasterFor(a) : QImage());
-        }
-
-        // A picture's record is its own kind of record: which file it is, and the words over it.
-        if (auto* art = qobject_cast<AssetObject*>(item)) {
-            art->setArtifact(m_artifacts.value(uid));
-            art->setPicture(pictureFor(o));   // ...and the file may have changed under it
+        } else if (auto* art = qobject_cast<AssetObject*>(item)) {
+            art->setPicture(pictureFor(o));   // the file may have changed under it
         }
 
         item->setBlend(o.blend);
@@ -786,27 +786,27 @@ void ObjectController::onOverlayGeometryEdited(const QString& uid)
         writePlacement(u);
     if (group) {
         for (const TailRef& t : std::as_const(m_selectedTails)) {
-            if (auto* bubble = qobject_cast<BubbleObject*>(m_overlayItems.value(t.uid)))
-                m_artifacts.insert(t.uid, bubble->artifact());
+            if (const Object* carrier = m_overlayItems.value(t.uid))
+                m_artifacts.insert(t.uid, carrier->artifact());
         }
     }
     const int travelled = group ? selectedSubjectCount() : 1;
     m_dragIsGroup = false;
 
-    // A resize or tail drag changed the artifact too — and only a bubble has one. This used to test
-    // the model for an authoring record and was written wrong once, storing a *default* bubble over
-    // imported artwork; asking the object what it is cannot go wrong the same way.
-    if (auto* bubble = qobject_cast<BubbleObject*>(item)) {
-        m_artifacts.insert(uid, bubble->artifact());
+    // A resize or a tail drag changed the record too. This used to test the model for an authoring
+    // record and was written wrong once, storing a *default* bubble over imported artwork; asking the
+    // object for its own cannot go wrong the same way, whichever kind it is.
+    {
+        m_artifacts.insert(uid, item->artifact());
         // Only when the panel is about this one object. A set of several — or one of two kinds — is
         // already showing what it should, and rebinding it to the thing that happened to move would be
         // the panel changing subject on its own.
         if (uid == m_selectedOverlay && m_objectState && m_selectedOverlays.size() == 1) {
             // A tail's drag leaves that tail selected, so the panel shows the tail again, not the balloon.
             if (m_subject == Subject::Tail)
-                m_objectState->setTail(bubble->artifact(), m_selectedTail);
+                m_objectState->setTail(item->artifact(), m_selectedTail);
             else if (m_selectedTails.isEmpty())
-                m_objectState->setArtifact(bubble->artifact());
+                m_objectState->setArtifact(item->artifact());
         }
     }
     refreshList();
@@ -1083,8 +1083,8 @@ void ObjectController::selectSubjects(const QStringList& uids, const QList<TailR
     QList<TailRef> pickedTails;
     QStringList    carriers;
     for (const TailRef& t : tails) {
-        const auto* bubble = qobject_cast<BubbleObject*>(m_overlayItems.value(t.uid));
-        if (bubble && t.index >= 0 && t.index < bubble->artifact().tails.items.size()
+        const Object* carrier = m_overlayItems.value(t.uid);
+        if (carrier && t.index >= 0 && t.index < carrier->artifact().tails.items.size()
             && !pickedTails.contains(t)) {
             pickedTails.append(t);
             if (!picked.contains(t.uid)) {
@@ -1107,7 +1107,7 @@ void ObjectController::selectSubjects(const QStringList& uids, const QList<TailR
     // tail. Anything else with a tail in it is a set whose only common property is where it sits.
     const bool singleTail = pickedTails.size() == 1 && picked.size() == 1
                          && picked.first() == pickedTails.first().uid;
-    const auto* primary = qobject_cast<BubbleObject*>(m_overlayItems.value(m_selectedOverlay));
+    const Object* primary = m_overlayItems.value(m_selectedOverlay);
     m_selectedTail      = singleTail ? pickedTails.first().index : -1;
     m_selectedTailCount = primary ? static_cast<int>(primary->artifact().tails.items.size()) : 0;
     m_subject           = picked.isEmpty() ? Subject::None
@@ -1250,9 +1250,8 @@ void ObjectController::rebuildPresetMenu()
 bool ObjectController::applyColourAt(const QPointF& scenePos, const QTransform& deviceTransform,
                                      const QColor& colour)
 {
-    auto* bubble = qobject_cast<BubbleObject*>(
-        dynamic_cast<Object*>(m_scene->itemAt(scenePos, deviceTransform)));
-    if (!bubble || bubble->isOrphaned() || !colour.isValid())
+    auto* bubble = dynamic_cast<Object*>(m_scene->itemAt(scenePos, deviceTransform));
+    if (!bubble || bubble->artifact().isArtwork() || bubble->isOrphaned() || !colour.isValid())
         return false;   // imported artwork has no colour of its own, and an orphan is not on the strip
 
     // A few screen pixels of forgiveness, in the object's own units: a thin letter and a hairline
@@ -1314,8 +1313,8 @@ bool ObjectController::applyColourAt(const QPointF& scenePos, const QTransform& 
 
 void ObjectController::applyPresetToSelection(int index)
 {
-    auto* bubble = qobject_cast<BubbleObject*>(m_overlayItems.value(m_selectedOverlay));
-    if (!bubble || index < 0 || index >= m_presets.presets().size())
+    const Object* bubble = m_overlayItems.value(m_selectedOverlay);
+    if (!bubble || bubble->artifact().isArtwork() || index < 0 || index >= m_presets.presets().size())
         return;
     // keepShape is false: the shape section is on screen beside this menu, so a preset changing the
     // shape is visible and reversible — unlike the tool options under the Text tool, where it is not.
@@ -1333,8 +1332,11 @@ void ObjectController::applyPanelArtifacts(const QList<TextArtifact>& objects, b
 
     for (int i = 0; i < objects.size(); ++i) {
         const QString& uid = m_selectedOverlays.at(i);
-        if (auto* bubble = qobject_cast<BubbleObject*>(m_overlayItems.value(uid))) {
-            bubble->setArtifact(objects.at(i));
+        Object* item = m_overlayItems.value(uid);
+        // **Balloons only, still** — the panel can describe a picture since V5, and this drops it. That
+        // is the second half of V4b (REPORT-D2 §4.3), and it is a behaviour change, so it is not here.
+        if (item && !item->artifact().isArtwork()) {
+            item->setArtifact(objects.at(i));
             m_artifacts.insert(uid, objects.at(i));
         }
     }
@@ -1358,9 +1360,9 @@ void ObjectController::applyPanelArtifacts(const QList<TextArtifact>& objects, b
 
 void ObjectController::applyPanelArtifact(const TextArtifact& a, bool commit, const QString& undoText)
 {
-    auto* item = qobject_cast<BubbleObject*>(m_overlayItems.value(m_selectedOverlay));
-    if (!item)
-        return;   // the panel authors bubbles; imported artwork has no parameters to apply
+    Object* item = m_overlayItems.value(m_selectedOverlay);
+    if (!item || item->artifact().isArtwork())
+        return;   // this path authors balloons; a picture's record is written by the one below
 
     item->setArtifact(a);
     m_artifacts.insert(m_selectedOverlay, a);
@@ -1455,36 +1457,12 @@ void ObjectController::placeArtworkAt(const QString& file, const QPointF& sceneP
 
 TextArtifact ObjectController::selectedArtworkRecord() const
 {
-    const TextArtifact stored = m_artifacts.value(m_selectedOverlay);
-
-    // **The object is the authority on how big the picture is**, not the record. A record's box is
-    // supposed to be the picture's own pixels, and two kinds of record disagree with that: one placed
-    // before pictures had a record at all, and one imported while the box was guessed from a copy the
-    // importer could not read (it came out as a fraction times 1000, by 200). Both are repaired here,
-    // from the pixmap the object actually loaded — and `artifactToSvg()` refuses an empty box, so an
-    // unrepaired one is a picture that silently cannot be lettered.
-    const auto* art = qobject_cast<const AssetObject*>(m_overlayItems.value(m_selectedOverlay));
-    if (!art || art->artwork().isNull())
-        return stored;
-    if (stored.isArtwork() && stored.box == art->artwork().size())
-        return stored;
-
-    TextArtifact repaired = stored;
-    if (!repaired.isArtwork()) {
-        // No record at all: name the file its overlay points at, so it can be lettered like any other
-        // picture, and the first edit is what writes the record down.
-        const auto it = std::find_if(m_overlays.cbegin(), m_overlays.cend(),
-                                     [this](const Platemaker::Models::StripOverlay& o) {
-                                         return QString::fromStdString(o.uid) == m_selectedOverlay;
-                                     });
-        if (it == m_overlays.cend() || it->assetPath.empty())
-            return stored;
-        repaired           = {};
-        repaired.shape.kind = TextArtifact::Shape::None;   // no silhouette of ours, said both ways
-        repaired.artwork    = QFileInfo(QString::fromStdString(it->assetPath)).fileName();
-    }
-    repaired.box = art->artwork().size();
-    return repaired;
+    // **The object is the authority on what a picture is**, and it keeps its own record saying so
+    // (see AssetObject::describePicture). A record placed before pictures had one, or one whose size
+    // was guessed at import, is already repaired by the time it is stored here — which is what makes
+    // this a plain read rather than the reconstruction it used to be.
+    const Object* item = m_overlayItems.value(m_selectedOverlay);
+    return item ? item->artifact() : TextArtifact{};
 }
 
 QString ObjectController::selectedArtworkName() const
@@ -1546,7 +1524,7 @@ void ObjectController::scaleSelectedArtwork(double percent, bool commit)
 
 void ObjectController::applyArtworkRecord(const TextArtifact& record, bool commit)
 {
-    auto* art = qobject_cast<AssetObject*>(m_overlayItems.value(m_selectedOverlay));
+    Object* art = m_overlayItems.value(m_selectedOverlay);
     if (!art || !record.isArtwork() || m_artifacts.value(m_selectedOverlay) == record)
         return;
 
@@ -1607,7 +1585,7 @@ void ObjectController::reanchorSelection(const QString& pageUid)
 
 void ObjectController::deleteSelectedTail()
 {
-    auto* bubble = qobject_cast<BubbleObject*>(m_overlayItems.value(m_selectedOverlay));
+    const Object* bubble = m_overlayItems.value(m_selectedOverlay);
     if (!bubble)
         return;
     TextArtifact a = bubble->artifact();
@@ -1649,7 +1627,7 @@ void ObjectController::deleteSelectedOverlay()
         const int subjects = selectedSubjectCount();
 
         for (auto it = byBubble.begin(); it != byBubble.end(); ++it) {
-            auto* bubble = qobject_cast<BubbleObject*>(m_overlayItems.value(it.key()));
+            Object* bubble = m_overlayItems.value(it.key());
             if (!bubble)
                 continue;
             TextArtifact a = bubble->artifact();
@@ -1847,8 +1825,8 @@ void ObjectController::convertSelectionTo(TextArtifact::Shape kind)
 
 void ObjectController::saveSelectionAsPreset()
 {
-    const auto* bubble = qobject_cast<BubbleObject*>(m_overlayItems.value(m_selectedOverlay));
-    if (!bubble)
+    const Object* bubble = m_overlayItems.value(m_selectedOverlay);
+    if (!bubble || bubble->artifact().isArtwork())
         return;   // imported artwork has no look to save
 
     bool          ok   = false;
@@ -2005,8 +1983,8 @@ void ObjectController::duplicateSelectedOverlay()
         const double tw  = m_layout.targetWidth();
         const double off = tw > 0 ? k_duplicateOffset / tw : 0.0;
         m_selectNewOverlay = true;
-        if (auto* bubble = qobject_cast<BubbleObject*>(item)) {
-            emit artifactCreated(bubble->artifact(), o.xFrac + off, o.yFrac + off, o.wFrac,
+        if (!item->artifact().isArtwork()) {
+            emit artifactCreated(item->artifact(), o.xFrac + off, o.yFrac + off, o.wFrac,
                                  QString::fromStdString(o.anchorInputUid));
         } else {
             // Imported artwork has no authoring record to re-emit, so the copy goes through the import

@@ -74,8 +74,7 @@ public:
      * pixels, and then drawn through the same transform the picture is: they scale with it rather than
      * sliding about on it.
      */
-    void setArtifact(const TextArtifact& a);
-    [[nodiscard]] const TextArtifact& artifact() const { return m_artifact; }
+    void setArtifact(const TextArtifact& a) override;
 
 protected:
     void                 paintContent(QPainter& painter) override;
@@ -88,6 +87,19 @@ private:
     //! the canvas, one for the row's icon and for the size the picture says it is.
     void loadPicture(const QString& picture);
 
+    /**
+     * @brief Makes the record say what this object is: this picture, at its own pixels.
+     *
+     * The invariant behind `Object::artifact()`. A picture placed before pictures had a record, and one
+     * whose size was guessed at import, would otherwise hand back a record that reads as a default
+     * *speech balloon* — the value that has caused four shipped defects. Called wherever either half
+     * can change: a new file, or a record arriving from the panel. Takes the record rather than
+     * working on this object's own, so an arriving one is described **before** it is compared — a
+     * record that has to be repaired every time is otherwise a record that never compares equal, and
+     * a repaint on every feed.
+     */
+    void describePicture(TextArtifact& a) const;
+
     QString      m_picture;   //!< The file, so a feed can tell whether it changed.
     QPixmap      m_artwork;
     /**
@@ -98,7 +110,6 @@ private:
      * view is showing.
      */
     QSvgRenderer* m_svg = nullptr;
-    TextArtifact m_artifact;   //!< Which picture, and the words over it. See setArtifact().
     //! Drawn size. Seeded from the artwork's own pixels and then owned here, so a re-feed cannot undo a
     //! resize — and on a synced drive the file may still report its previous size just after a write.
     QSizeF  m_box;

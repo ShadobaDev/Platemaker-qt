@@ -9,8 +9,8 @@ namespace StripEdit {
 
 BubbleObject::BubbleObject(QString uid, TextArtifact artifact, QGraphicsItem* parent)
     : Object(std::move(uid), parent)
-    , m_artifact(std::move(artifact))
 {
+    m_artifact = std::move(artifact);
     rebuild();
 }
 

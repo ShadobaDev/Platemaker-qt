@@ -1,5 +1,6 @@
 #include "assetobject.h"
 
+#include <QFileInfo>
 #include <QImage>
 #include <QPainter>
 #include <QPainterPath>
@@ -57,6 +58,7 @@ void AssetObject::loadPicture(const QString& picture)
 {
     m_picture = picture;
     m_artwork = loadArtwork(picture);
+    describePicture(m_artifact);
 
     delete m_svg;
     m_svg = nullptr;
@@ -71,15 +73,34 @@ void AssetObject::loadPicture(const QString& picture)
 
 QString AssetObject::label() const
 {
-    return tr("(imported artwork)");
+    // What a row should say about a picture: its words if it has been lettered, otherwise the file —
+    // which is the only thing that distinguishes one picture from another in a list of them.
+    const QString said = m_artifact.text.body.section(QLatin1Char('\n'), 0, 0).trimmed();
+    if (!said.isEmpty())
+        return said;
+    const QString file = QFileInfo(m_picture).fileName();
+    return file.isEmpty() ? tr("(imported artwork)") : file;
 }
 
 void AssetObject::setArtifact(const TextArtifact& a)
 {
-    if (m_artifact == a)
+    TextArtifact next = a;
+    describePicture(next);   // whatever arrived, this object is still this picture at its own pixels
+    if (m_artifact == next)
         return;
-    m_artifact = a;
+    m_artifact = next;
     update();
+}
+
+void AssetObject::describePicture(TextArtifact& a) const
+{
+    a.artwork    = QFileInfo(m_picture).fileName();
+    a.shape.kind = TextArtifact::Shape::None;   // no silhouette of ours, said both ways
+    // **This object is the authority on how big the picture is**, not the record it was handed: the
+    // record may predate pictures having one, or carry a size guessed from a copy the importer could
+    // not read. An empty pixmap leaves the box alone — there is nothing better to say.
+    if (!m_artwork.isNull())
+        a.box = m_artwork.size();
 }
 
 void AssetObject::setBoxSize(QSizeF size)

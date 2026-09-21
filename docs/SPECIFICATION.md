@@ -802,12 +802,23 @@ valid baseline for every grade tried on it. Excluded pages are skipped, matching
   this refactor: ③ bound a **default balloon** to a selected picture, because `ArtifactMap::value()`
   returns one for a uid it does not hold — so the panel offered a shape, a fill and a line style for a
   photograph, and swallowed every edit, since only a `BubbleObject` is ever written to.
-  - **The object is the authority on how big a picture is.** A record's `box` is the picture's own
-    pixels, read by the one loader that asks an SVG its size rather than the image plugin, and carried
-    on the import signal because the far end sees only the copy it has just written. A record that
-    disagrees with the object — one placed before pictures had a record, or one whose size was guessed
-    — is repaired from the object when it is next selected, since `artifactToSvg()` refuses an empty
-    box and an unrepaired picture silently cannot be lettered.
+  - **Every object carries an authoring record, and `Object::artifact()` is how anything asks for
+    it.** A balloon's is everything about it; a picture's says which file it is and what words are over
+    it. The accessor used to be declared once per subclass, so a caller had to prove which subclass it
+    held before it could read a record — twenty-three `qobject_cast`s, against one use of `kind()` —
+    and a write path that proved only one of them dropped the other without saying so. What remains
+    cast is what only one kind *has*: a picture's pixmap, a balloon's library rasterisation.
+  - **The object is the authority on what a picture is.** `AssetObject` keeps its record describing
+    the file it loaded, at that file's own pixels (`describePicture()`), so asking any object for a
+    record can never hand back the default *speech balloon* that `ArtifactMap::value()` returns for a
+    uid it does not hold — the value behind four shipped defects. A record placed before pictures had
+    one, or one whose size was guessed at import, is repaired the moment the object adopts it. The box
+    matters because `artifactToSvg()` refuses an empty one, so an unrepaired picture silently cannot
+    be lettered; the size itself is read by the one loader that asks an SVG rather than the image
+    plugin, and carried on the import signal because the far end sees only the copy it just wrote.
+  - **A row names a picture by its lettering, or by its file.** `AssetObject::label()` returned the
+    constant *"(imported artwork)"*, which made every picture's row identical and two comments about
+    it false.
   - **Imported artwork has its own ③**, `AssetStatePanel`: it names the picture and offers the one
     thing about it that is ours to set — **its size, as a percentage of its own pixels**, where 100%
     is one image pixel per strip pixel. A percentage rather than a width because the artist's question

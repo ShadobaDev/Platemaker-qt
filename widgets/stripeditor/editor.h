@@ -44,7 +44,6 @@ class QMimeData;
 namespace StripEdit {
 
 class ArtworkOptionsPanel;
-class AssetStatePanel;
 
 class ColourPair;
 class GradePanel;
@@ -378,12 +377,10 @@ private:
     //! The same surface when the strip or one of its pages is selected: what *that* is.
     StripStatePanel*  m_stripState = nullptr;
     //! ...and when imported artwork is: its size, which is all of its state that is ours to set.
-    AssetStatePanel*  m_assetState = nullptr;
     //! What the properties stack actually switches between: each panel inside its own scroll area, so a
     //! selection cannot widen the column under the pointer. See `scrolled()` in the .cpp.
     QWidget*          m_objectPage = nullptr;
     QWidget*          m_stripPage  = nullptr;
-    QWidget*          m_assetPage  = nullptr;
     /**
      * @brief The grade as this editor last saw it — from the project, or from a live edit in progress.
      *

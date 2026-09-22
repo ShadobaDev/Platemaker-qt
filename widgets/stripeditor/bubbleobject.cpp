@@ -35,10 +35,16 @@ QRectF BubbleObject::computeBounds() const
 
 void BubbleObject::setArtifact(const TextArtifact& a)
 {
+    // The same values are not an edit: there is nothing to re-resolve, and the rasterisation still
+    // describes them. A settled edit is written here a second time, by the commit that follows the
+    // preview it was already drawn from, and re-laying an eleven-circle union and a text document for
+    // it would be work for a picture that cannot change.
+    if (a == m_artifact)
+        return;
+
     // Whatever was rasterised described the previous artifact. Showing it now would be showing an edit
     // that has not happened; the owner hands over a fresh one once this one settles.
-    if (!(a == m_artifact))
-        m_sharp = QImage();
+    m_sharp    = QImage();
     m_artifact = a;
     // A tail can reach outside the balloon, so the drawn extent moves for more reasons than a resize:
     // aiming one, bending it, or adding a second all change what this object covers.

@@ -293,28 +293,6 @@ public:
     //! What that percentage currently is, or 0 when the selection is not one piece of artwork.
     [[nodiscard]] double selectedArtworkPercent() const;
 
-    //! What to call the selected artwork in ③ — the object's own label, which is its file's name.
-    [[nodiscard]] QString selectedArtworkName() const;
-
-    /**
-     * @brief The selected artwork's record — which picture it is, and the lettering over it.
-     *
-     * A plain read of the object's own record, because the object keeps that record describing what it
-     * actually is (`AssetObject::describePicture`). This used to reconstruct one: a picture placed
-     * before records existed for them got an empty record from `ArtifactMap::value()`, the edit was
-     * refused for not being about a picture, and the panel kept re-binding nothing. Repairing it at
-     * the object rather than here fixes it for every reader instead of this one.
-     */
-    [[nodiscard]] TextArtifact selectedArtworkRecord() const;
-
-    /**
-     * @brief Writes @p record back onto the selected picture — the words, as they are typed.
-     *
-     * @param commit False while typing: the object is redrawn, the history is not touched. The panel's
-     *               own debounce decides when it settles, exactly as a balloon's lettering does.
-     */
-    void applyArtworkRecord(const TextArtifact& record, bool commit);   //!< See applyRecord().
-
     /**
      * @brief Gives every selected object the blend mode @p blend, as one history step.
      *
@@ -336,7 +314,7 @@ public:
      * @brief Removes everything selected, as one history step.
      *
      * Public because more than the menu asks for it: ③ offers Delete for whichever kind of object it
-     * is showing, and both panels are the editor's to wire. What it deletes is the selection, which is
+     * is showing. What it deletes is the selection, which is
      * the only thing any of them mean by it.
      */
     void deleteSelectedOverlay();

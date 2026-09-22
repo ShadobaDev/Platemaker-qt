@@ -14,7 +14,6 @@
 #include "shapeeditor.h"
 #include "stripstatepanel.h"
 #include "artworkoptionspanel.h"
-#include "assetstatepanel.h"
 #include "tooloptionspanel.h"
 
 #include <platemaker/models/colour_correction.hpp>
@@ -390,37 +389,6 @@ Editor::Editor(QWidget *parent)
         m_stripPage  = scrolled(m_stripState, ui->objectProperties);
         ui->objectProperties->addWidget(m_stripPage);
 
-        // And the third kind. Artwork has no property groups — somebody else drew it — but it does
-        // have a size, and a panel that says "nothing to edit" while the artist wants it half as big
-        // is a panel that has stopped answering the question.
-        m_assetState = new AssetStatePanel(ui->objectProperties);
-        m_assetPage  = scrolled(m_assetState, ui->objectProperties);
-        ui->objectProperties->addWidget(m_assetPage);
-        connect(m_assetState, &AssetStatePanel::scaleChanged, this, [this](double percent) {
-            if (m_objects)
-                m_objects->scaleSelectedArtwork(percent, /*commit=*/false);   // live, no history
-        });
-        connect(m_assetState, &AssetStatePanel::scaleCommitted, this, [this](double percent) {
-            if (m_objects)
-                m_objects->scaleSelectedArtwork(percent, /*commit=*/true);
-        });
-        connect(m_assetState, &AssetStatePanel::deleteRequested, this, [this] {
-            if (m_objects)
-                m_objects->deleteSelectedOverlay();
-        });
-        connect(m_assetState, &AssetStatePanel::changed, this, [this](const TextArtifact& r) {
-            if (m_objects)
-                m_objects->applyArtworkRecord(r, /*commit=*/false);
-        });
-        connect(m_assetState, &AssetStatePanel::committed, this, [this](const TextArtifact& r) {
-            if (m_objects)
-                m_objects->applyArtworkRecord(r, /*commit=*/true);
-        });
-        connect(m_assetState, &AssetStatePanel::blendPicked, this,
-                [this](Platemaker::Models::BlendMode b) {
-                    if (m_objects)
-                        m_objects->setSelectionBlend(b);
-                });
         connect(m_stripState, &StripStatePanel::excludedToggled, this,
                 [this](const QString& inputUid, bool excluded) {
             auto cc = m_cc;
@@ -624,15 +592,9 @@ void Editor::showSubject()
         break;
     }
 
-    // Which of the two object panels: the kind decides, as it decides everything else since §26.
-    if (m_objects->selectionIsArtwork()) {
-        m_assetState->showArtwork(m_objects->selectedArtworkName(),
-                                  m_objects->selectedArtworkPercent(),
-                                  m_objects->selectedArtworkRecord());
-        m_assetState->setSelectionBlend(m_objects->selectionBlend());
-        ui->objectProperties->setCurrentWidget(m_assetPage);
-        return;
-    }
+    // One object panel for every kind of object. There were two — a balloon's and a picture's — and
+    // the second was the first with its sections hidden, which is what deciding which sections apply
+    // already does. A picture's one extra question, how big it is drawn, is a row in the same panel.
     ui->objectProperties->setCurrentWidget(m_objectPage);
 }
 

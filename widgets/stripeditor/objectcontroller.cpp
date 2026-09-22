@@ -93,6 +93,10 @@ ObjectController::ObjectController(QGraphicsScene* scene, QGraphicsView* view, Q
             [this](const QList<TextArtifact>& objects) { applyPanelRecords(objects, /*commit=*/false); });
     connect(m_objectState, &ObjectStatePanel::committedMany, this,
             [this](const QList<TextArtifact>& objects) { applyPanelRecords(objects, /*commit=*/true); });
+    connect(m_objectState, &ObjectStatePanel::scaleChanged, this,
+            [this](double percent) { scaleSelectedArtwork(percent, /*commit=*/false); });
+    connect(m_objectState, &ObjectStatePanel::scaleCommitted, this,
+            [this](double percent) { scaleSelectedArtwork(percent, /*commit=*/true); });
     connect(m_objectState, &ObjectStatePanel::fitRequested, this, [this] {
         Object* item = m_overlayItems.value(m_selectedOverlay);
         if (!item || item->artifact().isArtwork())
@@ -1229,10 +1233,6 @@ void ObjectController::selectSubjects(const QStringList& uids, const QList<TailR
             m_objectState->setTail(primary->artifact(), m_selectedTail);
         } else if (!pickedTails.isEmpty()) {
             m_objectState->setMixedSubjects(selectedSubjectCount());
-        } else if (oneObject && !isParametric(picked.first())) {
-            // One picture on its own: ③ shows the page built for it (see Editor::showSubject), which
-            // writes through applyArtworkRecord(). Nothing here is answering for it.
-            m_objectState->clearSelection();
         } else if (oneObject) {
             m_panelSubjects = QStringList{m_selectedOverlay};
             m_objectState->setArtifact(recordFor(m_selectedOverlay));
@@ -1258,6 +1258,11 @@ void ObjectController::selectSubjects(const QStringList& uids, const QList<TailR
                                              ? selectionBlend()
                                              : std::nullopt,
                                          pickedTails.isEmpty() && !picked.isEmpty());
+        // The other thing that belongs to the overlay and not to the drawing. One picture on its own
+        // has a size to set; anything else has no single answer, so the row is not there to mislead.
+        m_objectState->setArtworkScale(selectionIsArtwork()
+                                           ? std::optional<double>(selectedArtworkPercent())
+                                           : std::nullopt);
     }
     emit subjectChanged(m_subject, m_selectedOverlay);
 }
@@ -1360,21 +1365,21 @@ void ObjectController::applyRecords(const QStringList& uids, const QList<TextArt
 
     // **Whichever kind the object is.** This loop used to reach for a BubbleObject and skip whatever
     // was not one, which since V5 meant dropping a picture's lettering without saying so.
-    int written = 0;
     for (int i = 0; i < uids.size(); ++i) {
-        Object* item = m_overlayItems.value(uids.at(i));
-        if (!item || item->artifact() == records.at(i))
-            continue;
-        item->setArtifact(records.at(i));
-        ++written;
+        if (Object* item = m_overlayItems.value(uids.at(i)))
+            item->setArtifact(records.at(i));   // itself a no-op when the record has not moved
     }
-    if (written == 0)
-        return;   // nothing moved, so there is nothing to preview and nothing to undo
 
     // Live edits repaint only. Persisting every keystroke would write a file and push a history step
     // per character; the panel debounces and says when it has settled.
     if (!commit)
         return;
+
+    // **A commit is a commit, whether or not this call is what changed the value.** Skipping the step
+    // when the records match what the objects already hold looks like it avoids an empty history entry,
+    // and instead avoids every real one: a panel previews each keystroke through this same function, so
+    // by the time the debounce says *settled* the objects are already holding the settled value. The
+    // decision not to make a step belongs to whoever decides an edit happened, not to the write.
 
     // Each object keeps its own width fraction: a colour does not change how much room the drawing
     // takes, but a longer line or a heavier stroke does, and the render draws the asset at wFrac of the
@@ -1473,22 +1478,6 @@ void ObjectController::placeArtworkAt(const QString& file, const QPointF& sceneP
                                 art.size(), m_layout.anchorUidForPage(page));
 }
 
-TextArtifact ObjectController::selectedArtworkRecord() const
-{
-    // **The object is the authority on what a picture is**, and it keeps its own record saying so
-    // (see AssetObject::describePicture). A record placed before pictures had one, or one whose size
-    // was guessed at import, is already repaired by the time it is stored here — which is what makes
-    // this a plain read rather than the reconstruction it used to be.
-    const Object* item = m_overlayItems.value(m_selectedOverlay);
-    return item ? item->artifact() : TextArtifact{};
-}
-
-QString ObjectController::selectedArtworkName() const
-{
-    const Object* item = m_overlayItems.value(m_selectedOverlay);
-    return item ? item->label() : tr("Imported artwork");
-}
-
 bool ObjectController::selectionIsArtwork() const
 {
     return m_selectedOverlays.size() == 1 && m_selectedTails.isEmpty()
@@ -1525,26 +1514,21 @@ void ObjectController::scaleSelectedArtwork(double percent, bool commit)
     const double wFrac = art->artwork().width() * percent / 100.0 / tw;
     bool         moved = false;
     for (auto& o : m_overlays) {
-        if (QString::fromStdString(o.uid) != m_selectedOverlay || qFuzzyCompare(o.wFrac, wFrac))
+        if (QString::fromStdString(o.uid) != m_selectedOverlay)
             continue;
+        moved   = !qFuzzyCompare(o.wFrac, wFrac);
         o.wFrac = wFrac;
-        moved   = true;
+        break;
     }
-    if (!moved)
+    if (moved)
+        syncItems();   // only a value that actually moved is worth re-placing every item for
+
+    // ...but the step is pushed whichever, for the reason applyRecords() gives: the spin box previews
+    // through this same function while it is dragged, so on release there is nothing left to differ.
+    if (!commit)
         return;
-
-    syncItems();
-    if (commit) {
-        refreshList();
-        pushOverlays(tr("Resize artwork"));
-    }
-}
-
-void ObjectController::applyArtworkRecord(const TextArtifact& record, bool commit)
-{
-    if (!record.isArtwork())
-        return;   // ③'s picture page answering about something that is no longer a picture
-    applyRecord(m_selectedOverlay, record, commit, tr("Edit artwork text"));
+    refreshList();
+    pushOverlays(tr("Resize artwork"));
 }
 
 void ObjectController::rebuildReanchorMenu()

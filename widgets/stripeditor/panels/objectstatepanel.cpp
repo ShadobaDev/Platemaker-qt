@@ -1,5 +1,7 @@
 #include "objectstatepanel.h"
 
+#include <QDoubleSpinBox>
+#include <QFormLayout>
 #include <QHBoxLayout>
 #include <QLabel>
 #include <QPushButton>
@@ -20,6 +22,9 @@
 namespace StripEdit {
 
 namespace {
+
+constexpr double k_minPercent = 1.0;      //!< Below this a picture is a dot nobody can grab back.
+constexpr double k_maxPercent = 2000.0;   //!< A sound effect ten times the strip's width is still work.
 
 
 //! Where an expanded section is remembered — a working preference, so it follows the artist.
@@ -101,6 +106,30 @@ ObjectStatePanel::ObjectStatePanel(PresetStore& presets, QWidget* parent)
     // Under the sections and above the actions: what the object *is* composited as. It is not one of
     // the groups — it belongs to the overlay, not to the record — so it sits outside them, and it is
     // the only row a picture and a balloon both have.
+    // A picture's size, in its own terms. Above blend because it is the bigger question about a
+    // picture, and both are the overlay's rather than the drawing's — which is why neither is a group.
+    m_scaleRow      = new QWidget(this);
+    auto* scaleForm = new QFormLayout(m_scaleRow);
+    scaleForm->setContentsMargins(0, 0, 0, 0);
+    m_scale = new QDoubleSpinBox(m_scaleRow);
+    m_scale->setRange(k_minPercent, k_maxPercent);
+    m_scale->setDecimals(1);
+    m_scale->setSuffix(tr(" %"));
+    m_scale->setSingleStep(5.0);
+    m_scale->setToolTip(tr("How big the picture is drawn, as a percentage of its own pixels. 100% is "
+                           "one image pixel per strip pixel — the size it was drawn at."));
+    scaleForm->addRow(tr("Size"), m_scale);
+    lay->addWidget(m_scaleRow);
+    // Live while it moves, settled when it settles — the contract every control in ③ follows.
+    connect(m_scale, &QDoubleSpinBox::valueChanged, this, [this](double v) {
+        if (!m_populating)
+            emit scaleChanged(v);
+    });
+    connect(m_scale, &QDoubleSpinBox::editingFinished, this, [this] {
+        if (!m_populating)
+            emit scaleCommitted(m_scale->value());
+    });
+
     m_blend = new BlendEditor(this);
     lay->addWidget(m_blend);
     connect(m_blend, &BlendEditor::blendPicked, this, &ObjectStatePanel::blendPicked);
@@ -167,13 +196,17 @@ void ObjectStatePanel::setArtifact(const TextArtifact& a)
     m_tailList->bindOne(m_artifact);
     m_populating = false;
 
-    m_subject->setText(m_artifact.hasSilhouette() ? tr("Bubble") : tr("Text"));
+    // A picture names itself by its file: one balloon is much like another, but which picture this is
+    // is the only thing that tells it from the next one.
+    m_subject->setText(m_artifact.isArtwork()      ? m_artifact.artwork
+                       : m_artifact.hasSilhouette() ? tr("Bubble")
+                                                    : tr("Text"));
     m_subject->setVisible(true);
     refreshLook();
     m_emptyHint->setText(m_emptyText);
     m_emptyHint->setVisible(false);
     m_actions->setVisible(true);
-    m_fitButton->setVisible(true);
+    m_fitButton->setVisible(!m_artifact.isArtwork());   // a picture's box is the picture's, not its words'
     m_deleteButton->setText(tr("Delete"));
     applyKindVisibility();
 }
@@ -193,6 +226,7 @@ void ObjectStatePanel::setMixedSubjects(int count)
     m_emptyHint->setVisible(true);
     m_actions->setVisible(true);
     m_fitButton->setVisible(false);
+    m_scaleRow->setVisible(false);
     m_deleteButton->setText(tr("Delete"));
     for (auto it = m_sections.cbegin(); it != m_sections.cend(); ++it)
         it.value()->setVisible(false);
@@ -231,6 +265,7 @@ void ObjectStatePanel::setArtifacts(const QList<TextArtifact>& objects)
     m_emptyHint->setVisible(false);
     m_actions->setVisible(true);
     m_fitButton->setVisible(false);   // one box cannot be fitted to several texts
+    m_scaleRow->setVisible(false);    // one spin box cannot be several pictures' sizes
     m_deleteButton->setText(tr("Delete"));
 
     // **The union**: a section is here when at least one of them carries that group — carriesGroup()
@@ -268,6 +303,7 @@ void ObjectStatePanel::setTail(const TextArtifact& a, int index)
     m_emptyHint->setVisible(false);
     m_actions->setVisible(true);
     m_fitButton->setVisible(false);   // a tail holds no text to fit
+    m_scaleRow->setVisible(false);
     m_deleteButton->setText(tr("Delete tail"));
     applyKindVisibility();
 }
@@ -286,6 +322,7 @@ void ObjectStatePanel::clearSelection()
     m_subject->setVisible(false);
     m_emptyHint->setVisible(true);
     m_actions->setVisible(false);
+    m_scaleRow->setVisible(false);
     for (CollapsibleSection* s : std::as_const(m_sections))
         s->setVisible(false);
 }
@@ -317,6 +354,16 @@ void ObjectStatePanel::applyKindVisibility()
 }
 
 
+void ObjectStatePanel::setArtworkScale(std::optional<double> percent)
+{
+    m_scaleRow->setVisible(percent.has_value());
+    if (!percent)
+        return;
+    m_populating = true;
+    m_scale->setValue(qBound(k_minPercent, *percent, k_maxPercent));
+    m_populating = false;
+}
+
 void ObjectStatePanel::setSelectionBlend(std::optional<Platemaker::Models::BlendMode> blend,
                                         bool applies)
 {
@@ -334,8 +381,9 @@ void ObjectStatePanel::refreshLook()
 
     QString text;
     QString detail;
-    if (m_tailIndex >= 0 || m_selectionCount == 0) {
-        // A tail has no look of its own, and nothing selected has nothing to report.
+    if (m_tailIndex >= 0 || m_selectionCount == 0 || (m_hasArtifact && m_artifact.isArtwork())) {
+        // A tail has no look of its own, nothing selected has nothing to report, and a picture's look
+        // is whoever drew it — a preset covers a shape, a fill and a line style it does not have.
     } else if (m_hasArtifact) {
         text   = m_presets.lookLabel(m_artifact);
         detail = m_presets.matching(m_artifact) >= 0

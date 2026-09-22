@@ -849,13 +849,17 @@ valid baseline for every grade tried on it. Excluded pages are skipped, matching
   - **A row names a picture by its lettering, or by its file.** `AssetObject::label()` returned the
     constant *"(imported artwork)"*, which made every picture's row identical and two comments about
     it false.
-  - **Imported artwork has its own ③**, `AssetStatePanel`: it names the picture and offers the one
-    thing about it that is ours to set — **its size, as a percentage of its own pixels**, where 100%
-    is one image pixel per strip pixel. A percentage rather than a width because the artist's question
-    is *how much bigger than I drew it*, and because the stored form is a fraction of the page, so the
-    same percentage survives a re-profile. Moving the spin box previews; releasing it is the one
-    history step. *Delete* is there too. Selected together with a balloon, the panel names the count
-    and offers nothing — they have only their position in common, as a balloon and a tail do.
+  - **One ③ for every kind of object.** A picture was given a panel of its own, on the grounds that
+    it had no property groups; V5 gave it lettering, and what was left was `ObjectStatePanel` with its
+    sections hidden — which is what deciding *which* sections apply already does (`carriesGroup()`).
+    So a picture is bound like any other object: its file names it, its lettering is the same section a
+    balloon's is, and its one extra question is a row. **Its size is a percentage of its own pixels**,
+    where 100% is one image pixel per strip pixel — a percentage rather than a width because the
+    artist's question is *how much bigger than I drew it*, and because the stored form is a fraction of
+    the page, so the same percentage survives a re-profile. Like blend it belongs to the overlay rather
+    than to the drawing, so it is not a property group and arrives through its own setter. Moving the
+    spin box previews; releasing it is the one history step. *Fit to text* is absent for a picture,
+    whose box is the picture's and not its words'.
   - **The object's menu offers artwork only what applies to it.** *Apply preset ▸*, *Save as preset…*,
     *Apply from tool options ▸* and the two colour entries are **absent** — not greyed — unless
     **every** selected object can take them: greying says *not now*, and these never apply to a picture

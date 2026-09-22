@@ -67,6 +67,10 @@
     tall enough to read the drawing, and it stays crisp on a scaled display. A picture is named by its
     lettering, or by its file when it has none — every one of them used to read *(imported artwork)*,
     which told you nothing about which was which.
+  - **A picture's properties are where every other object's are.** It used to get a panel of its
+    own that said it had nothing to re-type, which stopped being true once pictures could be lettered.
+    Selecting one now shows the same panel as a balloon — named by its file, with its words, its blend
+    and its size in one place.
   - **A balloon and a picture can be edited together.** Select both and the properties panel shows
     what they have in common — the lettering, and the blend mode — while fill and line style stay with
     the balloons that have a silhouette to put them on. Selecting the two used to say they had "only

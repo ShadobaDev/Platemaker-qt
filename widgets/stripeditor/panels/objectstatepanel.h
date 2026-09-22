@@ -10,6 +10,7 @@
 #include "propertygroupset.h"
 
 class CollapsibleSection;
+class QDoubleSpinBox;
 class QLabel;
 class QPushButton;
 class QTimer;
@@ -100,6 +101,19 @@ public:
      */
     void setSelectionBlend(std::optional<Platemaker::Models::BlendMode> blend, bool applies);
 
+    /**
+     * @brief How big an imported picture is drawn, as a **percentage of its own pixels** — or nothing.
+     *
+     * The one thing about a picture that is ours to decide. Like blend, it belongs to the overlay
+     * rather than to the drawing, so it is not a property group and arrives through its own setter;
+     * `std::nullopt` is every other kind, which has no such question and does not see the row.
+     *
+     * A percentage rather than a width because the artist's question is *how much bigger than it was
+     * drawn*, and because the stored form is a fraction of the page, so the same percentage survives a
+     * re-profile. 100% is one image pixel per strip pixel.
+     */
+    void setArtworkScale(std::optional<double> percent);
+
 
     //! Nothing is selected: the sections go away and the panel says why.
     void clearSelection();
@@ -114,6 +128,11 @@ signals:
     //! The same two, for a set: the objects in the order they were given to setArtifacts().
     void changedMany(const QList<TextArtifact>& objects);
     void committedMany(const QList<TextArtifact>& objects);
+    //! Live — while the spin box moves. The owner resizes the picture without a history step.
+    void scaleChanged(double percent);
+    //! Settled — one history step.
+    void scaleCommitted(double percent);
+
     //! A blend mode was picked for the whole selection. One history step, the owner's to name.
     void blendPicked(Platemaker::Models::BlendMode blend);
     void fitRequested();                    //!< "Fit to text" — the editor resizes the selected bubble.
@@ -140,6 +159,8 @@ private:
     QWidget*            m_lookChip  = nullptr;  //!< Shout / Custom / Mixed. Rebuilt, never relabelled.
     QLabel*             m_emptyHint = nullptr;  //!< Stands in for the sections when nothing is selected.
     BlendEditor*        m_blend     = nullptr;  //!< The one property every kind of object carries.
+    QWidget*            m_scaleRow  = nullptr;  //!< A picture's size; hidden for every other kind.
+    QDoubleSpinBox*     m_scale     = nullptr;
     QWidget*            m_actions   = nullptr;  //!< Fit / Delete — they act on the selection.
     QString             m_emptyText;            //!< What the hint says with nothing selected.
     QPushButton*        m_fitButton    = nullptr;

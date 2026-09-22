@@ -13,7 +13,7 @@
 #include <QPushButton>
 #include <QWidget>
 
-#include "textartifact.h"
+#include "propertygroup.h"   // PropertyGroup, and which groups a record carries
 
 namespace StripEdit {
 
@@ -42,14 +42,6 @@ inline constexpr int k_strokeWidthMax = 40;
 inline constexpr int k_tailWidthMinPx  = 4;     //!< Narrower than this and a tail stops reading as one.
 inline constexpr int k_tailWidthMaxPx  = 400;
 inline constexpr int k_tailBendPercent = 100;   //!< A tail bends ±this, as a percentage of its length.
-
-/**
- * @brief A named slice of an object's editable state.
- *
- * One editor is responsible for each, and only that editor writes it. `Tail` is a balloon's tails as a
- * collection; `TailItem` is one tail, the group of a selected tail object.
- */
-enum class PropertyGroup { Placement, Size, Compositing, Shape, Skin, Style, Text, Tail, TailItem };
 
 /**
  * @brief One property group's controls, bound to whatever is selected.

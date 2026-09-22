@@ -233,17 +233,19 @@ void ObjectStatePanel::setArtifacts(const QList<TextArtifact>& objects)
     m_fitButton->setVisible(false);   // one box cannot be fitted to several texts
     m_deleteButton->setText(tr("Delete"));
 
-    // The union: a section is here when at least one of them carries that group. Skin needs a silhouette
-    // to sit on; the lettering's colour every object has.
-    const bool anyShape = !shaped.isEmpty();
-    // Shape and the tails are **absent** for a set on purpose. Giving several objects one shape is a
-    // conversion, which is its own act with its own menu; adding a tail to five balloons is five
-    // objects, not one property.
+    // **The union**: a section is here when at least one of them carries that group — carriesGroup()
+    // answers for each, as it does for a single subject.
+    //
+    // Shape and the tails are **absent** for a set on purpose, and that is a policy of this surface
+    // rather than something about the records: giving several objects one shape is a conversion, which
+    // is its own act with its own menu, and adding a tail to five balloons is five objects, not one
+    // property.
     for (auto it = m_sections.cbegin(); it != m_sections.cend(); ++it) {
         const auto g = static_cast<PropertyGroup>(it.key());
-        const bool applies = g == PropertyGroup::Text
-                          || ((g == PropertyGroup::Skin || g == PropertyGroup::Style) && anyShape);
-        it.value()->setVisible(applies);
+        const bool forASet = g != PropertyGroup::Shape && g != PropertyGroup::Tail;
+        it.value()->setVisible(forASet
+                               && std::any_of(objects.cbegin(), objects.cend(),
+                                              [g](const TextArtifact& a) { return carriesGroup(a, g); }));
     }
 }
 
@@ -305,15 +307,12 @@ void ObjectStatePanel::applyKindVisibility()
     // group), so a hidden Shape editor holds the object's own `None` and hands it straight back — which
     // is exactly what must happen: a panel may not convert an object by being edited.
     const bool tailSubject = m_tailIndex >= 0;
-    const bool hasShape    = m_artifact.hasSilhouette();
     for (auto it = m_sections.cbegin(); it != m_sections.cend(); ++it) {
         const auto g = static_cast<PropertyGroup>(it.key());
-        bool applies = false;
-        if (g == PropertyGroup::TailItem)
-            applies = tailSubject;
-        else if (!tailSubject)
-            applies = (g == PropertyGroup::Text) ? true : hasShape;
-        it.value()->setVisible(applies);
+        // A selected tail is a subject of its own with exactly one section; otherwise the record
+        // answers, through the same rule a set is measured by.
+        it.value()->setVisible(tailSubject ? g == PropertyGroup::TailItem
+                                           : carriesGroup(m_artifact, g));
     }
 }
 

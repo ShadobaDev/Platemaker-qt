@@ -47,6 +47,9 @@ add_executable(platemaker-gui-tests
 target_include_directories(platemaker-gui-tests PRIVATE
     ${CMAKE_SOURCE_DIR}/widgets/textartifact
     ${CMAKE_SOURCE_DIR}/widgets/stripeditor
+    # carriesGroup() — which property groups a record carries. Header-only and QWidget-free on
+    # purpose, which is what lets the rule ③ lays itself out by be tested rather than only read.
+    ${CMAKE_SOURCE_DIR}/widgets/stripeditor/properties
     # The colour adjustments read libplatemaker's ColourCorrection, which is header-only. Its include path
     # and not its target: linking the target would make every test run need the library's DLL on PATH,
     # including the one gtest_discover_tests starts at build time.

@@ -16,7 +16,7 @@
 #include "artifactpainter.h"   // ArtifactPart: which part of an object a colour lands on
 #include "cursors.h"
 #include "object.h"   // recordFor()/isParametric() ask the object itself
-#include "propertygroupeditor.h"   // PropertyGroup: which group the menu hands over
+#include "propertygroup.h"   // PropertyGroup: which group the menu hands over
 #include "textartifact.h"
 
 #include <platemaker/models/project_item.hpp>

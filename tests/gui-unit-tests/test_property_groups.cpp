@@ -16,6 +16,7 @@
 #include <QJsonObject>
 
 #include "artifactsvg.h"
+#include "propertygroup.h"
 #include "textartifact.h"
 
 namespace {
@@ -499,4 +500,69 @@ TEST(Import, AWrapperNamesItsPicture)
     EXPECT_FALSE(a.hasSilhouette());
     EXPECT_EQ(a.artwork, QStringLiteral("art-0123456789abcdef.png"));
     EXPECT_EQ(a.text.body, QStringLiteral("KRAK!"));
+}
+
+// ---------------------------------------------------------------------------------------------------
+// Which groups a record carries. The rule ③ shows a subject by, and the rule its object menu offers a
+// selection by — written out twice in the panel before it had a name, and the two copies had drifted.
+// ---------------------------------------------------------------------------------------------------
+
+using StripEdit::carriesGroup;
+using StripEdit::PropertyGroup;
+
+//! Every kind is lettered — the one group a picture and a balloon genuinely share.
+TEST(Groups, TextIsCarriedByEveryKind)
+{
+    TextArtifact balloon;
+    balloon.shape.kind = TextArtifact::Shape::Speech;
+
+    TextArtifact text;
+    text.shape.kind = TextArtifact::Shape::None;
+
+    TextArtifact picture;
+    picture.artwork = QStringLiteral("art-0123456789abcdef.png");
+
+    for (const TextArtifact& a : {balloon, text, picture})
+        EXPECT_TRUE(carriesGroup(a, PropertyGroup::Text));
+}
+
+//! Fill, line style, shape and tails all need a silhouette to sit on.
+TEST(Groups, TheRestNeedASilhouette)
+{
+    TextArtifact balloon;
+    balloon.shape.kind = TextArtifact::Shape::Speech;
+    ASSERT_TRUE(balloon.hasSilhouette());
+
+    for (auto g : {PropertyGroup::Shape, PropertyGroup::Skin, PropertyGroup::Style, PropertyGroup::Tail})
+        EXPECT_TRUE(carriesGroup(balloon, g)) << "balloon, group " << int(g);
+
+    TextArtifact text;
+    text.shape.kind = TextArtifact::Shape::None;
+    for (auto g : {PropertyGroup::Shape, PropertyGroup::Skin, PropertyGroup::Style, PropertyGroup::Tail})
+        EXPECT_FALSE(carriesGroup(text, g)) << "shapeless, group " << int(g);
+}
+
+//! A picture carries nothing of ours to shape, fill or roughen — **whatever its shape field says**.
+TEST(Groups, APictureCarriesOnlyItsLettering)
+{
+    TextArtifact picture;
+    picture.artwork    = QStringLiteral("art-0123456789abcdef.png");
+    picture.shape.kind = TextArtifact::Shape::Speech;   // a stale value; isArtwork() outranks it
+
+    EXPECT_TRUE(carriesGroup(picture, PropertyGroup::Text));
+    for (auto g : {PropertyGroup::Shape, PropertyGroup::Skin, PropertyGroup::Style, PropertyGroup::Tail})
+        EXPECT_FALSE(carriesGroup(picture, g)) << "picture, group " << int(g);
+}
+
+//! A tail is not a record, so no record carries its group — nor the three that never grew an editor.
+TEST(Groups, NoRecordCarriesATailsOwnGroup)
+{
+    const TextArtifact a = loadedArtifact();
+    ASSERT_TRUE(a.hasSilhouette());
+    ASSERT_FALSE(a.tails.items.isEmpty());
+
+    EXPECT_FALSE(carriesGroup(a, PropertyGroup::TailItem));
+    EXPECT_FALSE(carriesGroup(a, PropertyGroup::Placement));
+    EXPECT_FALSE(carriesGroup(a, PropertyGroup::Size));
+    EXPECT_FALSE(carriesGroup(a, PropertyGroup::Compositing));
 }

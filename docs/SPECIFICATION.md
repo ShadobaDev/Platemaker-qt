@@ -802,6 +802,15 @@ valid baseline for every grade tried on it. Excluded pages are skipped, matching
   this refactor: ③ bound a **default balloon** to a selected picture, because `ArtifactMap::value()`
   returns one for a uid it does not hold — so the panel offered a shape, a fill and a line style for a
   photograph, and swallowed every edit, since only a `BubbleObject` is ever written to.
+  - **`carriesGroup(record, group)` is the one answer to "which sections apply".** The lettering is
+    the group every kind carries; shape, fill, line style and tails all need a silhouette to sit on;
+    `TailItem` belongs to a tail, which is not a record. ③ writes it out for a single subject and for a
+    set, and the object menu measures a selection by it — the panel used to carry two copies, one of
+    which enumerated the groups it wanted by name, so a group added to one was missing from the other.
+    A pure function of a record and header-only, which is what lets it be a test rather than a comment.
+    What each surface *does* with the answer stays that surface's: ③ shows a set the **union**, the
+    menu offers only the **intersection**, and a set is never offered Shape or Tails because giving
+    several objects one shape is a conversion.
   - **One write path, and pairing is stated rather than inferred.** `applyRecords(uids, records, …)`
     writes whichever kind each object is. There were three paths — one balloon, several balloons, one
     picture — differing in a `qobject_cast` and in what the history step was called, and the two that

@@ -890,10 +890,10 @@ valid baseline for every grade tried on it. Excluded pages are skipped, matching
   - **The namespace is `https://github.com/ShadobaDev/Platemaker-qt/ns/artifact/1`** — an identifier,
     not an address. XML compares a namespace name as a string and never fetches it, so it neither has
     to resolve nor may ever change once files carry it. It names the repository because that is a name
-    the project controls; it used to name `platemaker.dev`, which nobody had registered, and to say
-    *bubble*, which stopped being true when a picture gained lettering of its own. **Exactly one
-    namespace is accepted**: the feature is unreleased, so the only files carrying the old one were the
-    author's own, and a compatibility shim for one workspace is a shim that outlives its reason.
+    the project controls, and says *artifact* because the record describes pictures as well as
+    balloons. It is compared **whole and exactly** (`QXmlStreamAttributes::hasAttribute(ns, name)`), and
+    **exactly one namespace is accepted** — no alias for any earlier spelling. A file that does not
+    match is not an error: it has no recipe, so it is placed as a picture and still renders.
   - **Two version numbers, one rule each.** The URI's trailing `/1` changes only when a file becomes
     unreadable to an older build — an old reader *should* then fail to recognise it at all, which a
     different namespace achieves by itself. `pm:v` inside the file counts revisions that stay
@@ -930,11 +930,11 @@ valid baseline for every grade tried on it. Excluded pages are skipped, matching
     artwork record: that path may be the imported file, and the imported file is the one thing in the
     workspace we did not make.
 - **Imported artwork is the same overlay with fewer attributes.** *Import artwork…* copies a file into
-  `overlays/` under its content hash and registers it with **no** authoring record; with no `pm:`
-  parameters it becomes an `AssetObject` — placed, moved, re-anchored, muted, resized and rendered like
-  any bubble, but not re-typable. Duplicating one goes back through the import channel rather than
-  through creation, because there is no authoring record to re-emit and the library dedups the identical
-  bytes onto the file already there.
+  `overlays/` as `art-<sha16>.<ext>` and registers it with a **picture record** — `artwork` naming the
+  file, `shape` `None`, `box` the picture's own pixels — so it becomes an `AssetObject`: placed, moved,
+  re-anchored, muted, resized, lettered and rendered like any bubble, but its drawing is not ours to
+  re-type. Duplicating one goes back through the import channel rather than through creation, and the
+  library dedups the identical bytes onto the file already there.
 
 ##### Where a bubble lives, and when it becomes pixels
 
@@ -944,6 +944,7 @@ valid baseline for every grade tried on it. Excluded pages are skipped, matching
 |---|---|---|---|
 | library record | uid, `assetPath`, `sha256`, `anchorInputUid`, `xFrac`/`yFrac`/`wFrac`, enabled, blend | `Chapter_002.platemaker.json` → `projectItems[].stripOverlays[]` | lib |
 | the asset | resolved artwork **plus** the editor's `pm:` parameters | `D:\Comic\overlays\ovl-<sha16>.svg` | GUI |
+| an imported picture | the file as imported, byte for byte | `D:\Comic\overlays\art-<sha16>.<ext>` | GUI (copied, never rewritten) |
 
 **Two and not three**, because what a bubble *says* and what it *looks like* belong in one file. Holding
 shapes, fills, strokes and glyphs in a bespoke schema beside a bitmap is inventing a worse SVG; here the
@@ -966,10 +967,19 @@ the same function, which is why a tile cannot show a shape that placing it does 
 **A bubble owns one file for its lifetime.** `writeArtifactSvg()` names a *new* overlay by the content
 hash of the bytes about to be written (so identical bubbles share one file, matching the library's own
 dedup), and thereafter overwrites that same path. Naming every revision by its content instead would
-leave one file per settled edit — a dozen in a single lettering session. Undo does not need them:
-`fullSnapshot()` carries the complete authoring record, so `Project::rewriteOverlayAssets()` re-emits the
-file from the restored record. An overlay sharing a path with another (`addOverlay()` dedups identical
-content at creation) forks to a fresh file rather than re-lettering its twin.
+leave one file per settled edit — a dozen in a single lettering session. Undo does not need them: an
+overlay step's `OverlayState` carries the complete authoring record, and `restoreOverlayState()` calls
+`Project::rewriteOverlayAssets()` to re-emit the file from the restored record. An overlay sharing a path
+with another (`addOverlay()` dedups identical content at creation) forks to a fresh file rather than
+re-lettering its twin. A lettered picture is the exception: its wrapper is named by content on every
+write, so each settled edit to its words leaves a new `ovl-*.svg`.
+
+**Nothing is ever deleted from `overlays/`.** Deleting an object, re-lettering a picture, forking a shared
+file, discarding unsaved work and removing a chapter all leave their files behind; only an `art-*`
+picture is irreplaceable, and the undo history needs it for as long as the workspace is open. Nor does a
+workspace own the folder exclusively: every `*.platemaker.json` in one folder shares one `overlays/`, and
+*Save As* to another folder keeps the existing absolute `assetPath`s, so the copy goes on reading the
+original's folder. Both are open in `TODO.md`.
 
 A text or styling edit therefore rewrites the asset **and** the record's `sha256`; a move or a reorder
 rewrites neither, only the placement. `Project::applyOverlays()` re-emits exactly the artifacts whose
@@ -1002,7 +1012,7 @@ Project (one per open project dock)
   └── m_workspace : Workspace&         // reference to MainWindow's workspace
   └── m_projectIndex : int             // index into m_workspace.projectItems
   └── m_artifacts : ArtifactMap        // this project's slice of the store
-  └── m_workspacePath : QString        // where overlays/ and the sidecar live
+  └── m_workspacePath : QString        // overlays/ lives beside this file
 ```
 
 **Bubble authoring records are a cache, not a store.** What a bubble *says* — shape, text, font, colours
@@ -1015,14 +1025,15 @@ keep in step, and one more thing to lose separately from the artwork it describe
 
 The assets live in an `overlays/` folder beside the workspace file, which follows the storage split the
 rest of the app runs on (the library is a complete, OS-path-agnostic tool; the GUI decides where things
-live) and keeps a workspace self-contained: the two copy together. Deliberately **not** in
+live), so a folder holding the workspace and its `overlays/` copies as one — though not every workspace
+is confined to its own folder (see *Nothing is ever deleted* in §2.5.4). Deliberately **not** in
 `.platemaker-cache/`, which is regenerable and safe to delete. Each `Project` holds its own slice and
 pushes changes back via `Project::artifactsChanged`.
 
-**Undo covers both halves.** `Project::fullSnapshot()` is the library's project snapshot *plus* those
-authoring records, serialised together, so undoing a text edit restores what a bubble said and not merely
-where it sat. Without it the record would come back pointing at the *new* bitmap, and the strip would
-show text the render does not bake.
+**Undo covers both halves.** An overlay step records `OverlayState` — the project's `stripOverlays` *and*
+these authoring records, together — so undoing a text edit restores what a bubble said and not merely
+where it sat. Without it the record would come back pointing at the *new* file, and the strip would show
+text the render does not bake. A project step (`Project::fullSnapshot()`) is the other kind and leaves both alone.
 
 **Mutation goes through the library.** The workspace's profile palettes and the projects' profile-link
 fields are private in the model; the GUI edits them only through `Infrastructure::WorkspaceEditor`

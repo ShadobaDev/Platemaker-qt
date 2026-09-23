@@ -83,7 +83,7 @@ New, backward-compatible features. Several are gated on a lib version, noted in 
 
 - [~] **Infinite strip and lookup system** — *viewer DONE (GUI); lookup + preview-render deferred.*
   See the full strip as one continuous image during work, instead of per-slice tiles. Shipped: a
-  per-project **floating dock** (`widgets/stripeditor/`, `.ui` + `.cpp`/`.h`, opened from the Output tab's
+  per-project **floating dock** (`widgets/stripeditor/`, `.ui` + `.cpp`/`.hpp`, opened from the Output tab's
   *View strip*), a window onto the **lib-rendered output slices** reassembled — WYSIWYG, the viewer never
   re-derives pixels. It carries a **custom title bar** (native min/max on a dock misbehave; a floating
   dock otherwise shows only close) whose buttons **dock it tabbed beside Workspace** (minimise), **fill
@@ -157,8 +157,9 @@ New, backward-compatible features. Several are gated on a lib version, noted in 
     case — and drifts silently. Pinned by `test_overlay_anchoring.cpp` and `test_overlays.py`, each with a
     deliberate absolute-placement control.
   - **A bubble is a GUI object, a bitmap is what the lib sees.** `Artifact` (shape / box / tail /
-    text / font / colours) lives in a sidecar beside the workspace; the PNG in `overlays/` is what gets
-    composited. That is what keeps a bubble re-editable instead of flattened.
+    text / font / colours) lives inside the overlay's own SVG in `overlays/`, in a `pm:` namespace every
+    renderer ignores; the same file is what gets composited. That is what keeps a bubble re-editable
+    instead of flattened.
   - *Still open:* hand-drawn custom shapes, rich text, per-artifact blend modes in the UI (the model and
     render already carry them), re-rasterising every bubble when the output target width changes, and
     **SVG as the stored form** — see the note under "To establish / test".
@@ -245,7 +246,7 @@ New, backward-compatible features. Several are gated on a lib version, noted in 
     already said *artifact*; only the struct still said *Text*, and a reader's first question was *why
     does a "text artifact" have tails and a picture?* 396 occurrences in 49 files, crossing into
     `widgets/project/project.hpp` but not into the library. `widgets/textartifact/textartifact.{h,cpp}`
-    became `widgets/artifact/artifact.{h,cpp}`, which also makes the directory one thing: `artifact`,
+    became `widgets/artifact/artifact.{hpp,cpp}`, which also makes the directory one thing: `artifact`,
     `artifactsvg`, `artifactpainter`. No `using` alias — the feature is unreleased, so nothing had to
     keep the old spelling alive, and an alias would have kept two names for ever.
   - **`Artifact::artwork` is not necessarily art.** It holds whatever picture the artist placed — a
@@ -256,6 +257,38 @@ New, backward-compatible features. Several are gated on a lib version, noted in 
     code's, since the artist's word for it may legitimately differ.)
   - Expect more of these once the two above are pulled: the sweep is the point, not the individual
     rename.
+
+- [ ] **A workspace owns its overlay files — and cleans up the ones nobody uses.** Two problems that
+  have to be solved in this order, because the second one is unsafe without the first.
+  - **Ownership is not exclusive today.** `overlays/` sits beside the workspace *file*, so two
+    `*.platemaker.json` in one folder share one `overlays/`; and **Save As** to another folder keeps every
+    existing `assetPath` absolute and pointing into the *old* folder (`onSaveAs()` says so — "a
+    workspace-wide collect assets step is the general fix"). The copy therefore depends on the original's
+    folder, and anything that deletes from that folder can break a workspace it knows nothing about.
+    **Fix:** Save As *collects* — every overlay file outside the new `overlays/` is copied into it and
+    its `assetPath` / `sha256` rewritten, so after the save each workspace references only its own
+    folder. (Input pages are the user's files and stay where they are; this is only about files we made
+    or copied in.)
+  - **Nothing is ever deleted from `overlays/`.** Every path only writes: deleting a bubble or a picture,
+    re-lettering a picture (a new hash-named wrapper per settled edit), forking a shared file, a bubble
+    added and then discarded, removing a chapter, files from an older format. Measured on the test
+    workspace (2026-09-24): **46 files, 2 referenced**.
+  - **Fix: a sweep when a workspace is opened**, not when it is closed. Undo never needs the files
+    after a close — `closeWorkspace()` drops every history — but the in-memory state at close is not
+    what is on disk after *Discard*: delete a picture, discard, and a sweep by memory removes the only
+    copy of an `art-*` the saved file still uses. Quitting also bypasses `closeWorkspace()`, and a crash
+    bypasses everything. At open the model *is* the file and there is no history, so one call in
+    `loadWorkspace()` is always right, and it also cleans up after a crash.
+    - referenced = every `assetPath` of every project in **every `*.platemaker.json` in that folder**;
+    - only our own names are candidates (`ovl-*.svg`, `art-*.*`) — a file someone put there by hand is
+      not ours to judge;
+    - `QFile::moveToTrash()`, never `remove()` — an `art-*` is the only copy of the picture; if the trash
+      is unavailable (a synced drive may refuse), the file stays;
+    - reported in the Action log, like *Removed stale output* in `render.cpp`;
+    - one GUI unit test on a temp folder: referenced stays, unreferenced goes, foreign stays.
+  - *Not planned:* a manual *Clean up overlay files…* command with a preview (add it if the automatic
+    sweep turns out too quiet), and making a lettered picture overwrite its own wrapper instead of
+    minting a new one per edit (the sweep collects those anyway).
 
 - [ ] **Namespace hygiene for the `pm:` recipe** — three small things, together, before overlay files
   start travelling between people (which the import work makes routine):

@@ -382,7 +382,7 @@ TEST(Import, OnlyAFileCarryingTheRecipeIsAdopted)
     // is the reader's rule, and the rule is which namespace an attribute is in.
     const QByteArray ours =
         QByteArray("<svg xmlns=\"http://www.w3.org/2000/svg\" xmlns:pm=\"") + k_pmNamespace
-        + "\" width=\"10\" height=\"10\"><g pm:v=\"2\" pm:shape=\"thought\" pm:box=\"300,200\""
+        + "\" width=\"10\" height=\"10\"><g pm:shape=\"thought\" pm:box=\"300,200\""
           " pm:tails=\"40,260,30,0.2\" pm:text=\"Hello\"/></svg>";
 
     bool               ok   = false;
@@ -490,7 +490,7 @@ TEST(Import, AWrapperNamesItsPicture)
 {
     const QByteArray wrapper =
         QByteArray("<svg xmlns=\"http://www.w3.org/2000/svg\" xmlns:pm=\"") + k_pmNamespace
-        + "\" width=\"10\" height=\"10\"><g pm:v=\"2\" pm:shape=\"none\""
+        + "\" width=\"10\" height=\"10\"><g pm:shape=\"none\""
           " pm:artwork=\"art-0123456789abcdef.png\" pm:box=\"200,200\" pm:text=\"KRAK!\"/></svg>";
 
     bool               ok = false;

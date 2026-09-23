@@ -290,18 +290,20 @@ New, backward-compatible features. Several are gated on a lib version, noted in 
     sweep turns out too quiet), and making a lettered picture overwrite its own wrapper instead of
     minting a new one per edit (the sweep collects those anyway).
 
-- [ ] **Namespace hygiene for the `pm:` recipe** — three small things, together, before overlay files
+- [x] **Namespace hygiene for the `pm:` recipe** — three small things, together, before overlay files
   start travelling between people (which the import work makes routine):
   - ~~**`platemaker.dev` is not registered.**~~ **Done (2026-09-23).** The URI is now
     `https://github.com/ShadobaDev/Platemaker-qt/ns/artifact/1` — a name the project controls, and one
     that no longer claims the record is about bubbles. No back-compatibility: the feature is unreleased,
     so the only overlay files carrying the old namespace were the author's own and were re-made by hand.
     A file written before the change imports as ordinary artwork, which is what it now is to us.
-  - **We write `pm:v="2"` and never read it.** A version marker nobody checks is decoration.
-  - ~~**The two version numbers need a stated rule.**~~ **Stated (2026-09-23)**, in `artifactsvg.hpp`
-    and in the specification: the URI's `/1` changes only on a break, where an old reader *should* fail
-    to recognise the file at all; `pm:v` counts compatible revisions and is what a reader checks to say
-    "this was written by something newer than me". Reading it is still the open half, below.
+  - ~~**We write `pm:v="2"` and never read it.**~~ **Removed (2026-09-24).** A version marker nobody
+    checks is decoration, and before the first release there is no older reader for it to warn. The
+    first compatible revision that needs telling apart adds a version attribute; its absence then means
+    today's format, so dropping it now costs that future nothing.
+  - ~~**The two version numbers need a stated rule.**~~ **Stated (2026-09-23), simplified (2026-09-24)**
+    to one number, in `artifactsvg.hpp` and in the specification: the URI's `/1` changes only on a
+    break, where an old reader *should* fail to recognise the file at all.
 
 ---
 

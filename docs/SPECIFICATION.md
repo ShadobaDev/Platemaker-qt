@@ -894,11 +894,11 @@ valid baseline for every grade tried on it. Excluded pages are skipped, matching
     balloons. It is compared **whole and exactly** (`QXmlStreamAttributes::hasAttribute(ns, name)`), and
     **exactly one namespace is accepted** — no alias for any earlier spelling. A file that does not
     match is not an error: it has no recipe, so it is placed as a picture and still renders.
-  - **Two version numbers, one rule each.** The URI's trailing `/1` changes only when a file becomes
-    unreadable to an older build — an old reader *should* then fail to recognise it at all, which a
-    different namespace achieves by itself. `pm:v` inside the file counts revisions that stay
-    compatible, and is what a reader checks to say *this was written by something newer than me*. It is
-    written today and not yet read.
+  - **One version number.** The URI's trailing `/1` changes only when a file becomes unreadable to an
+    older build — an old reader *should* then fail to recognise it at all, which a different namespace
+    achieves by itself. The file carries no version attribute of its own: nothing would read one until a
+    released reader meets a newer file. The first compatible revision that has to be told apart adds
+    one, and a file without it is this format.
 - **There is one record type and three kinds of object.** `Artifact::artwork` names an imported
   picture — a file name inside the workspace's `overlays/` — and its presence *is* the kind: empty and
   the drawing is ours (a balloon when `shape` is not `None`, lettering when it is), non-empty and the

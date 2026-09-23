@@ -39,10 +39,11 @@
  * renamed this URI stays as it is: a stale link costs the convenience of pasting it into a browser and
  * nothing else.
  *
- * **The two version numbers, and the rule.** The `/1` at the end changes only when a file becomes
- * unreadable to an older build — an old reader *should* then fail to recognise it at all, which is
- * exactly what a different namespace achieves. `pm:v` inside the file counts revisions that stay
- * compatible, and is what a reader checks to say *this was written by something newer than me*.
+ * **Versioning.** The `/1` at the end changes only when a file becomes unreadable to an older build —
+ * an old reader *should* then fail to recognise it at all, which is exactly what a different namespace
+ * achieves. There is no version attribute inside the file: nothing would read it until a released
+ * reader meets a newer file. The first compatible revision that needs telling apart adds one, and its
+ * absence then means this format.
  */
 inline constexpr char k_pmNamespace[] = "https://github.com/ShadobaDev/Platemaker-qt/ns/artifact/1";
 

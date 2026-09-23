@@ -226,7 +226,6 @@ QByteArray artifactToSvg(const Artifact& a, const QByteArray& picture, const QSt
         // The same parameter group every file of ours carries, so this one is re-typable in the same
         // way — and so an import can tell it is ours (see artifactFromSvg).
         svg += QStringLiteral("  <g");
-        svg += attr(QStringLiteral("v"), 2);
         svg += attr(QStringLiteral("shape"), QString::fromLatin1(shapeName(a.shape.kind)));
         svg += attr(QStringLiteral("artwork"), a.artwork);
         svg += attr(QStringLiteral("box"),
@@ -275,7 +274,6 @@ QByteArray artifactToSvg(const Artifact& a, const QByteArray& picture, const QSt
     // Everything the editor needs to re-solve this bubble, in a namespace no renderer looks at. Losing
     // these leaves a perfectly good drawing that simply cannot be re-typed — the intended degradation.
     svg += QStringLiteral("  <g");
-    svg += attr(QStringLiteral("v"), 2);
     svg += attr(QStringLiteral("shape"), QString::fromLatin1(shapeName(a.shape.kind)));
     svg += attr(QStringLiteral("box"),
                 QStringLiteral("%1,%2").arg(a.box.width()).arg(a.box.height()));

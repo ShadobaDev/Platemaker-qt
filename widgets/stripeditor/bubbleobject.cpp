@@ -1,5 +1,5 @@
-#include "bubbleobject.h"
-#include "artifactpainter.h"
+#include "bubbleobject.hpp"
+#include "artifactpainter.hpp"
 
 #include <QPainter>
 
@@ -7,7 +7,7 @@
 
 namespace StripEdit {
 
-BubbleObject::BubbleObject(QString uid, TextArtifact artifact, QGraphicsItem* parent)
+BubbleObject::BubbleObject(QString uid, Artifact artifact, QGraphicsItem* parent)
     : Object(std::move(uid), parent)
 {
     m_artifact = std::move(artifact);
@@ -33,7 +33,7 @@ QRectF BubbleObject::computeBounds() const
     return artifactBoundsOf(m_artifact, m_silhouette, m_textPath);
 }
 
-void BubbleObject::setArtifact(const TextArtifact& a)
+void BubbleObject::setArtifact(const Artifact& a)
 {
     // The same values are not an edit: there is nothing to re-resolve, and the rasterisation still
     // describes them. A settled edit is written here a second time, by the commit that follows the

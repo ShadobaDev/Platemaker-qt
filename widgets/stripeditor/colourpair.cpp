@@ -1,4 +1,4 @@
-#include "colourpair.h"
+#include "colourpair.hpp"
 
 #include <utility>
 

@@ -1,4 +1,4 @@
-#include "badge.h"
+#include "badge.hpp"
 
 #include <QFont>
 #include <QFontMetrics>

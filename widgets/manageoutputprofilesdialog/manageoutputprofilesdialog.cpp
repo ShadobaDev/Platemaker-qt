@@ -1,6 +1,6 @@
-#include "manageoutputprofilesdialog.h"
+#include "manageoutputprofilesdialog.hpp"
 #include "ui_manageoutputprofilesdialog.h"
-#include "outputprofiledialog.h"
+#include "outputprofiledialog.hpp"
 
 #include <platemaker/models/output_profile.hpp>
 #include <platemaker/infrastructure/id_generator/id_generator.hpp>

@@ -1,13 +1,13 @@
-#include "project.h"
-#include "artifactpainter.h"
-#include "artifactsvg.h"
+#include "project.hpp"
+#include "artifactpainter.hpp"
+#include "artifactsvg.hpp"
 #include "ui_project.h"
-#include "imagetile.h"
-#include "projectsnapshotcommand.h"
-#include "overlaysnapshotcommand.h"
-#include "canvasprofiledialog.h"
-#include "outputformatoptionswidget.h"
-#include "stagecard.h"
+#include "imagetile.hpp"
+#include "projectsnapshotcommand.hpp"
+#include "overlaysnapshotcommand.hpp"
+#include "canvasprofiledialog.hpp"
+#include "outputformatoptionswidget.hpp"
+#include "stagecard.hpp"
 
 #include <platemaker/core/strip_overlay_compositor/strip_overlay_compositor.hpp>
 #include <platemaker/infrastructure/file/file_meta_data.hpp>
@@ -63,11 +63,15 @@
 using namespace Platemaker::Models;
 
 namespace {
-// Sort keys stored in comboBoxSortingOpt item data.
+/**
+ * @brief Sort keys stored in comboBoxSortingOpt item data.
+ */
 enum SortKey { SortByName = 0, SortByCreated = 1, SortByModified = 2 };
 
-// Image extensions Platemaker accepts as inputs — the same set the Add-from-directory scan uses,
-// as name filters (for QDir) and as a membership test (for individually dropped files).
+/** 
+ * @brief Image extensions Platemaker accepts as inputs — the same set the Add-from-directory scan uses,
+ * as name filters (for QDir) and as a membership test (for individually dropped files).
+ */
 const QStringList kImageNameFilters = {"*.jpg","*.jpeg","*.png","*.webp","*.tif","*.tiff"};
 
 bool isSupportedImage(const QFileInfo& fi)
@@ -76,9 +80,13 @@ bool isSupportedImage(const QFileInfo& fi)
     return exts.contains(fi.suffix().toLower());
 }
 
-// True when a drag carries at least one local file/folder — i.e. an external "add" drag, as opposed to
-// the input list's own InternalMove reorder (which carries no file URLs). Shared by the list-viewport
-// event filter and the whole-widget drop handlers.
+/** 
+ * @brief True when a drag carries at least one local file/folder — i.e. an external "add" drag, as opposed to
+ * the input list's own InternalMove reorder (which carries no file URLs). Shared by the list-viewport
+ * event filter and the whole-widget drop handlers.
+ * @param mime The drag's MIME data.
+ * @return True if the drag carries at least one local file/folder.
+ */
 bool hasLocalFileUrls(const QMimeData* mime)
 {
     return mime && mime->hasUrls() &&
@@ -86,13 +94,17 @@ bool hasLocalFileUrls(const QMimeData* mime)
                        [](const QUrl& u){ return u.isLocalFile(); });
 }
 
-// True for the input list's OWN InternalMove reorder drag, identified by the item-model MIME type it
-// carries (never file URLs). We accept the *drag phase* of everything else (external drops) by ruling
-// out this type — rather than by hasLocalFileUrls() — because a Windows OLE quirk makes an external file
-// drag intermittently report hasUrls()==false mid-drag; gating acceptance on that left the drop target
-// in a "reject" state whenever the last pre-release event flickered false, so the drop silently failed.
-// The actual add still gates on hasLocalFileUrls() at Drop time, which is reliable (data is materialised
-// on release).
+/** 
+ * @brief True for the input list's OWN InternalMove reorder drag, identified by the item-model MIME type it
+ * carries (never file URLs). We accept the *drag phase* of everything else (external drops) by ruling
+ * out this type — rather than by hasLocalFileUrls() — because a Windows OLE quirk makes an external file
+ * drag intermittently report hasUrls()==false mid-drag; gating acceptance on that left the drop target
+ * in a "reject" state whenever the last pre-release event flickered false, so the drop silently failed.
+ * The actual add still gates on hasLocalFileUrls() at Drop time, which is reliable (data is materialised
+ * on release).
+ * @param mime The drag's MIME data.
+ * @return True if the drag is an internal reorder (no file URLs).
+ */
 bool isInternalReorder(const QMimeData* mime)
 {
     return mime && mime->hasFormat(QStringLiteral("application/x-qabstractitemmodeldatalist"));
@@ -603,7 +615,7 @@ bool Project::eventFilter(QObject* watched, QEvent* event)
                 addDroppedUrls(urls);
                 return true;
             }
-            return false;                           // external drag with nothing droppable
+            return false; // external drag with nothing droppable
         }
         default:
             break;
@@ -730,6 +742,22 @@ void Project::addDroppedUrls(const QList<QUrl>& urls)
 namespace {
 
 /**
+ * @brief The media type of @p file, from its suffix — what a data URI has to declare.
+ * @param file The file to determine the media type for.
+ * @return The media type as a string.
+ */
+QString pictureMime(const QString& file)
+{
+    const QString ext = QFileInfo(file).suffix().toLower();
+    if (ext == QLatin1String("png"))  return QStringLiteral("image/png");
+    if (ext == QLatin1String("webp")) return QStringLiteral("image/webp");
+    if (ext == QLatin1String("svg"))  return QStringLiteral("image/svg+xml");
+    if (ext == QLatin1String("jpg") || ext == QLatin1String("jpeg"))
+        return QStringLiteral("image/jpeg");
+    return {};
+}
+
+/**
  * @brief Writes \p a into the workspace's overlays/ directory as an SVG.
  *
  * The file the library composites **is** the authoring record: the artwork every renderer can draw,
@@ -747,19 +775,7 @@ namespace {
  *
  * @return The asset's absolute path, or empty when it could not be written.
  */
-//! The media type of @p file, from its suffix — what a data URI has to declare.
-QString pictureMime(const QString& file)
-{
-    const QString ext = QFileInfo(file).suffix().toLower();
-    if (ext == QLatin1String("png"))  return QStringLiteral("image/png");
-    if (ext == QLatin1String("webp")) return QStringLiteral("image/webp");
-    if (ext == QLatin1String("svg"))  return QStringLiteral("image/svg+xml");
-    if (ext == QLatin1String("jpg") || ext == QLatin1String("jpeg"))
-        return QStringLiteral("image/jpeg");
-    return {};
-}
-
-QString writeArtifactSvg(const QString& overlaysDir, const TextArtifact& a,
+QString writeArtifactSvg(const QString& overlaysDir, const Artifact& a,
                          const QString& reusePath = {})
 {
     // **A picture with nothing written on it is its own file.** There is nothing of ours to draw, so
@@ -823,7 +839,7 @@ void Project::setArtifacts(ArtifactMap artifacts)
     m_artifacts = std::move(artifacts);
 }
 
-void Project::createOverlay(const TextArtifact& artifact, double xFrac, double yFrac, double wFrac,
+void Project::createOverlay(const Artifact& artifact, double xFrac, double yFrac, double wFrac,
                             const QString& anchorInputUid)
 {
     const QString dir = ArtifactStore::ensureOverlaysDir(m_workspacePath);
@@ -922,7 +938,7 @@ void Project::importOverlayArtwork(const QString& sourceFile, double xFrac, doub
     // filed as a picture of itself. A foreign SVG has no such recipe and stays artwork, which is the
     // honest answer: its paths are not something our ten silhouettes can express.
     bool               ours = false;
-    const TextArtifact adopted = artifactFromSvg(bytes, &ours);
+    const Artifact adopted = artifactFromSvg(bytes, &ours);
 
     commitOverlayEdit(ours ? tr("Import bubble") : tr("Import artwork"), [&] {
         auto& item = m_workspace.projectItems[m_projectIndex];
@@ -937,12 +953,12 @@ void Project::importOverlayArtwork(const QString& sourceFile, double xFrac, doub
             // **A picture gets a record too** — one that says it is a picture. It carries no geometry
             // of ours; what it is for is the lettering that can go over it, and knowing which file the
             // object is without asking the overlay.
-            TextArtifact record;
+            Artifact record;
             record.artwork = QFileInfo(dest).fileName();
             // No silhouette of ours, and the record says so in both ways it can. It matters for the
             // one reader that might not know about `artwork` — an older build, or a hand-edited file:
             // it degrades to lettering with no balloon rather than to a speech balloon nobody drew.
-            record.shape.kind = TextArtifact::Shape::None;
+            record.shape.kind = Artifact::Shape::None;
             // The picture's own pixels, as the side that could still see the original read them —
             // through the one loader that knows to ask an SVG rather than the image plugin. This is
             // what `artifactToSvg()` writes as the wrapper's width, height and viewBox once the

@@ -1,6 +1,6 @@
-#include "outputprofiledialog.h"
+#include "outputprofiledialog.hpp"
 #include "ui_outputprofiledialog.h"
-#include "outputformatoptionswidget.h"
+#include "outputformatoptionswidget.hpp"
 
 #include <platemaker/models/output_profile.hpp>
 

@@ -1,5 +1,5 @@
-#include "pagesource.h"
-#include "layout.h"
+#include "pagesource.hpp"
+#include "layout.hpp"
 
 #include <QDebug>
 #include <QFutureWatcher>

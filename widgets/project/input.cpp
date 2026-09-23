@@ -1,8 +1,8 @@
-#include "project.h"
+#include "project.hpp"
 #include "ui_project.h"
-#include "imagetile.h"
-#include "canvasprofiledialog.h"
-#include "outputformatoptionswidget.h"
+#include "imagetile.hpp"
+#include "canvasprofiledialog.hpp"
+#include "outputformatoptionswidget.hpp"
 
 #include <platemaker/infrastructure/project_editor/project_editor.hpp>
 #include <platemaker/infrastructure/workspace_editor/workspace_editor.hpp>

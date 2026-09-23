@@ -11,7 +11,7 @@
 
 #include <gtest/gtest.h>
 
-#include "colouradjustment.h"
+#include "colouradjustment.hpp"
 
 using Platemaker::Models::ColourCorrection;
 using StripEdit::ColourAdjustment;

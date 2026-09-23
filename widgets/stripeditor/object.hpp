@@ -1,0 +1,307 @@
+#ifndef STRIPEDIT_OBJECT_HPP
+#define STRIPEDIT_OBJECT_HPP
+
+#include <QGraphicsObject>
+#include <QPainterPath>
+#include <QPointF>
+#include <QRectF>
+#include <QSizeF>
+#include <QString>
+
+#include <platemaker/models/processing_steps.hpp>
+
+#include "artifact.hpp"
+
+namespace StripEdit {
+
+/**
+ * @brief One thing placed on the strip — whatever kind it is.
+ *
+ * Everything an author does to an object is the same for every kind of object: select it, move it,
+ * drag a corner, mute it, delete it, put it in front of another. All of that lives here, once. What a
+ * *kind* of object adds is only what it draws, how big that drawing is, and any extra handle it offers
+ * (a bubble's tail tip).
+ *
+ * This exists because the alternative was tested and failed. There used to be one item class that drew
+ * either a bubble or an imported asset depending on whether a pixmap had been handed to it, and the
+ * rest of the editor re-derived the same distinction from "is there an authoring record for this uid" —
+ * eight separate places. Two of them were written wrong and shipped: one loaded a *default* bubble into
+ * the panel for imported artwork, the other stored that default back over the artwork. Both are the
+ * same mistake, and neither is expressible once the two kinds are two types.
+ *
+ * The item's position is the object's top-left in scene coordinates, and the scene is the strip at 1:1,
+ * so `pos()` converts to the library's placement by subtracting the anchor page's top.
+ *
+ * Geometry edits are reported on **mouse release**, not while dragging: the owner persists each one as
+ * an undo step, and a per-pixel undo history would be unusable.
+ */
+class Object : public QGraphicsObject
+{
+    Q_OBJECT
+
+public:
+    /**
+     * @brief What an object is. Kept minimal on purpose — it exists for the few places that must ask.
+     */
+    enum class Kind { Bubble, Asset };
+
+    /**
+     * @brief What a press or a hover landed on. `Body` falls through to this class's own move handling.
+     */
+    enum class Grip { None, Body, TopLeft, TopRight, BottomLeft, BottomRight, Handle };
+
+    /**
+     * @brief Creates an object with @p uid, parented to @p parent. The uid is the one the owner will use to
+     *        feed it back to the library, and the one that will be stored in its record. The parent is the scene item that owns it, and the one that will be moved when the object is dragged.
+     * @param uid The unique identifier for this object, used to track it in the library and persist its state.
+     * @param parent The QGraphicsItem that will be the parent of this object in the scene graph. This is typically the scene or a container item that manages multiple objects.
+     */
+    explicit Object(QString uid, QGraphicsItem* parent = nullptr);
+
+    [[nodiscard]] const QString& uid() const { return m_uid; }  //!< The unique identifier for this object, used to track it in the library and persist its state.
+    [[nodiscard]] virtual Kind    kind() const = 0;     //!< What kind of object this is: a bubble or an imported asset.
+    [[nodiscard]] virtual QString label() const = 0;    //!< One line naming this object for the object list.
+
+    /**
+     * @brief The authoring record this object carries — **every kind has one**.
+     *
+     * A balloon's record is everything about it; a picture's says which file it is and what words are
+     * over it. Both were the same accessor declared twice, once per subclass, so every caller that
+     * wanted a record had to prove which subclass it was holding first — and the write paths that only
+     * proved one of them silently dropped the other.
+     *
+     * A record here is **never** a stand-in for "this object has none". The map this used to be read
+     * from returns a default *speech balloon* for a uid it does not hold, and that one value standing
+     * for two different things is the mechanism behind four shipped defects. Each kind keeps its record
+     * describing what it actually is, so asking any object is always safe.
+     * 
+     * @return The authoring record for this object, containing all relevant properties and settings.
+     */
+    [[nodiscard]] const Artifact& artifact() const { return m_artifact; }
+
+    /**
+     * @brief Adopts \p a and repaints. What that costs — re-resolving paths, a resize — is the kind's own.
+     * @param a The artifact to adopt.
+     */
+    virtual void setArtifact(const Artifact& a) = 0;
+
+    /**
+     * @brief How this object blends onto the strip — mapped to the matching QPainter composition mode.
+     * @param blend The blend mode to set.
+     */
+    void setBlend(Platemaker::Models::BlendMode blend);
+
+    /**
+     * @brief Greys the object out and stops interaction: its anchor page is not in the strip (see the list).
+     * @param orphaned Whether the object is orphaned.
+     */
+    void setOrphaned(bool orphaned);
+
+    /**
+     * @brief Whether the drag that just ended was reported through dragging() — so others may have travelled.
+     * @param reported Whether the drag was reported.
+     */
+    [[nodiscard]] bool isOrphaned() const { return m_orphaned; }
+
+    /**
+     * @brief Whether the drag that just ended was reported through dragging() — so others may have travelled.
+     * @return True if the drag was reported, false otherwise.
+     */ 
+    [[nodiscard]] bool reportedDrag() const { return m_dragReported; }
+
+    /**
+     * @brief Places handle @p index at @p local and rebuilds — how an owner moves a tail that is not the one
+     * @param index The handle index.
+     * @param local The local position to place the handle.
+     */
+    void moveHandle(int index, const QPointF& local);
+
+    /**
+     * @brief Where handle @p index sits, in this object's own units.
+     * @param index The handle index.
+     * @return The position of the handle.
+     */
+    [[nodiscard]] QPointF handleAt(int index) const { return handlePos(index); }
+
+    /**
+     * @brief Marks handle @p index as its tail's — the one selected — or none with -1. Drawn hollow.
+     * @param index The handle index.
+     */
+    void setFocusedHandle(int index);
+
+    /**
+     * @brief What sits under @p scenePos: a corner grip, a tail handle, the body, or nothing of this object.
+     * @param scenePos The scene position to check.
+     * @param handleIndex Optional pointer to store the index of the handle under the position.
+     * @return The grip under the position.
+     */
+    [[nodiscard]] Grip gripAtScene(const QPointF& scenePos, int* handleIndex = nullptr) const;
+
+    /**
+     * @brief Turns selection chrome off for **every** object, for one repaint.
+     *
+     * The box, the grips and the tail handles are the editor talking, not the comic. A repaint that has
+     * to answer *what does the page look like* — the eyedropper's, which samples one composited pixel —
+     * asks for them to be left out, because sampling a balloon that happens to be selected must give its
+     * fill and not the highlight colour.
+     * 
+     * @param on Whether to show or hide the chrome.
+     */
+    static void setChromeVisible(bool on);
+
+    /**
+     * @brief What this object actually draws, in item coordinates — origin may be negative.
+     *
+     * The offset between the item's position (the box's top-left) and the artwork's own top-left, which
+     * is what the library's record stores. A bubble's tail pointing up or left pushes the artwork above
+     * or left of the box; imported artwork has no such offset, because its pixmap starts at the origin.
+     * 
+     * @return The rectangle representing the content bounds of the object.
+     */
+    [[nodiscard]] QRectF contentBounds() const { return m_bounds; }
+
+    /**
+     * @brief The rectangle the corner grips move — the object's own size, before any tail.
+     *
+     * Not stored here: a bubble's box *is* its artifact's, and holding a second copy is how the two
+     * drift apart. Each kind answers from wherever its size actually lives.
+     */
+    [[nodiscard]] virtual QSizeF boxSize() const = 0;
+
+    QRectF boundingRect() const override;   //!< The rectangle that contains the object, including its grips and handles, in item coordinates.
+
+    /**
+     * @brief What is actually clickable: the box, the handles, and the grips while selected.
+     *
+     * Qt's default is `boundingRect()`, and this class's bounding rect is the drawn extent padded for
+     * grips — for a bubble that is one rectangle enclosing the balloon *and* wherever its tail points,
+     * most of which is empty. So a click in the blank space beside a tail selected the bubble, and with
+     * two that overlap, the upper one's rectangle reached down over the lower one's body and swallowed
+     * presses meant for it.
+     *
+     * The box is the hit area because the box is the object: a balloon is inscribed in it, a text block
+     * fills it, artwork is drawn into it. The tail *tips* are added because they are grabbable, and the
+     * corner grips while selected, because they sit outside the box and a selected object must stay
+     * resizable. The tail's shaft is deliberately left out — it is a thin sliver a long way from
+     * anything anyone is aiming at.
+     * 
+     * @return The shape that defines the clickable area of the object, in item coordinates.
+     */
+    QPainterPath shape() const override;
+
+    /**
+     * @brief Draws the object.
+     * @param painter The painter to use.
+     * @param option The style option for the graphics item.
+     * @param widget The widget to draw on.
+     */
+    void   paint(QPainter* painter, const QStyleOptionGraphicsItem* option, QWidget* widget) final;
+
+signals:
+    /**
+     * @brief A move / resize / handle drag has settled — the owner reads pos() and the object and persists it.
+     * @param uid The unique identifier of the object.
+     */
+    void geometryEdited(const QString& uid);
+
+    /**
+     * @brief The object was pressed — on handle @p handle, or on anything else when it is -1.
+     *
+     * Emitted after the base class has done its selecting, so the owner can narrow a selection it has
+     * already heard about: a press on a tail's handle selects that tail, and a press on the balloon while
+     * one of its tails is selected selects the balloon again.
+     * 
+     * @param uid The unique identifier of the object.
+     * @param handle The index of the handle that was pressed, or -1 if the press was on the body of the object.
+     */
+    void pressed(const QString& uid, int handle);
+
+    /**
+     * @brief This object is being dragged — @p delta from where the press landed, in scene units.
+     *
+     * Emitted per mouse-move while a drag is live, *after* this object has placed itself. @p handle is
+     * the tail being aimed, or -1 for a move of the body.
+     *
+     * The object moves itself and nothing else: **who else travels is the selection's business**, and the
+     * selection belongs to the controller. An object that reached for its neighbours would need to know
+     * what is selected, and a tail of some *other* balloon is not something it could reach at all.
+     * 
+     * @param uid The unique identifier of the object.
+     * @param delta The change in position from the original press point, in scene coordinates.
+     * @param handle The index of the handle being dragged, or -1 if the body
+     */
+    void dragging(const QString& uid, const QPointF& delta, int handle);
+
+protected:
+
+    /** @brief Draws the object itself, in item coordinates. Chrome and blending are the base class's job. */
+    virtual void paintContent(QPainter& painter) = 0;
+
+    /** @brief The extent this object draws into, recomputed whenever its geometry changes. */
+    [[nodiscard]] virtual QRectF computeBounds() const = 0;
+
+    /** @brief Applies a new box size. A kind that has to move other things with it (tails) does that here. */
+    virtual void setBoxSize(QSizeF size) = 0;
+
+    /**
+     * @brief True when a corner drag must scale uniformly rather than distort.
+     *
+     * Imported artwork says yes: its size travels as a single width fraction and its height follows
+     * the artwork's own aspect, so a distorted one is not expressible — which is also what anyone
+     * dragging the corner of a logo meant.
+     */
+    [[nodiscard]] virtual bool keepsAspect() const { return false; }
+
+    /** @brief Extra draggable points in item coordinates — a bubble's tail tips. None by default. */
+    [[nodiscard]] virtual int     handleCount() const { return 0; }
+    /** @brief Where handle @p index sits, in item coordinates. None by default. */
+    [[nodiscard]] virtual QPointF handlePos(int index) const { Q_UNUSED(index) return {}; }
+    /** @brief Places handle @p index at @p local, in item coordinates. None by default. */
+    virtual void                  setHandlePos(int index, const QPointF& local) { Q_UNUSED(index) Q_UNUSED(local) }
+
+    /** @brief Recomputes the drawn extent from computeBounds(), announcing a geometry change if it moved. */
+    void refreshBounds();
+
+    /**
+     * @brief True while a grip is being dragged.
+     *
+     * A kind that shows a pre-rendered image at rest has to fall back to drawing itself here: the image
+     * cannot be re-made per mouse-move, and the paths follow the mouse.
+     * 
+     * @return True if a grip is being dragged, false otherwise.
+     */
+    [[nodiscard]] bool isDragging() const { return m_active != Grip::None; }
+
+    void mousePressEvent(QGraphicsSceneMouseEvent* e) override;     //!< Starts a drag, or selects the object if it was not already selected.
+    void mouseMoveEvent(QGraphicsSceneMouseEvent* e) override;      //!< Moves the object or a handle, reporting the delta to the owner.
+    void mouseReleaseEvent(QGraphicsSceneMouseEvent* e) override;   //!< Ends a drag, reporting the final position to the owner.
+
+    /** @brief Written by each kind's setArtifact(), read by everyone through artifact(). See above. */
+    Artifact m_artifact;
+
+private:
+    /** @brief Which grip is under \p local. For Grip::Handle, \p handleIndex receives which one. */
+    [[nodiscard]] Grip   gripAt(const QPointF& local, int* handleIndex = nullptr) const;
+    [[nodiscard]] QRectF gripRect(Grip g) const;        //!< The rectangle a grip occupies, in item coordinates.
+    [[nodiscard]] QRectF handleRect(int index) const;   //!< The rectangle a handle occupies, in item coordinates.
+
+    QString m_uid;                   //!< The unique identifier for this object, used to track it in the library and persist its state.
+    QRectF  m_bounds;                //!< Cached content bounds — see refreshBounds().
+    Platemaker::Models::BlendMode m_blend = Platemaker::Models::BlendMode::Over; //!< How this object blends onto the strip — mapped to the matching QPainter composition mode.
+
+    Grip    m_active = Grip::None;  //!< Grip being dragged (None = not resizing/aiming).
+    int     m_activeHandle = -1;    //!< Which handle is being dragged, while m_active == Grip::Handle.
+    QRectF  m_startRect;            //!< Scene rect at press — resizing works against it, not per-delta.
+    QPointF m_startScenePos;        //!< Cursor at press, in scene coordinates.
+    bool    m_moved    = false;     //!< Whether this press actually changed anything worth reporting.
+    bool    m_orphaned = false;     //!< True when the anchor page is not in the strip, so the object is greyed out and cannot be moved.
+    int     m_focusedHandle = -1;   //!< The selected tail's handle, drawn hollow; -1 for none.
+
+    bool m_dragReported = false;    //!< A drag was live, so the owner may have moved others along.
+
+    static bool s_chromeVisible;    //!< Off while something samples what is drawn. See setChromeVisible().
+};
+
+}  // namespace StripEdit
+
+#endif // STRIPEDIT_OBJECT_HPP

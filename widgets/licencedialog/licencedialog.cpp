@@ -1,4 +1,4 @@
-#include "licencedialog.h"
+#include "licencedialog.hpp"
 #include "ui_licencedialog.h"
 
 #include <QFile>

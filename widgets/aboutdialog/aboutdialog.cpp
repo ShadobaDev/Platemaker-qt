@@ -1,7 +1,7 @@
-#include "aboutdialog.h"
+#include "aboutdialog.hpp"
 #include "ui_aboutdialog.h"
 
-#include "licencedialog.h"
+#include "licencedialog.hpp"
 
 #include <QApplication>
 #include <QDesktopServices>

@@ -1,17 +1,17 @@
-#include "objectcontroller.h"
-#include "objectstatepanel.h"
-#include "colourpair.h"
-#include "presetstore.h"
-#include "rowglyph.h"
-#include "tooloptionspanel.h"
-#include "layout.h"
-#include "assetobject.h"
-#include "bubbleobject.h"
-#include "object.h"
-#include "artifactpainter.h"
-#include "badgeitemdelegate.h"
-#include "blendeditor.h"   // blendModes(): the menu and ③'s row name the modes from one list
-#include "artifactsvg.h"
+#include "objectcontroller.hpp"
+#include "objectstatepanel.hpp"
+#include "colourpair.hpp"
+#include "presetstore.hpp"
+#include "rowglyph.hpp"
+#include "tooloptionspanel.hpp"
+#include "layout.hpp"
+#include "assetobject.hpp"
+#include "bubbleobject.hpp"
+#include "object.hpp"
+#include "artifactpainter.hpp"
+#include "badgeitemdelegate.hpp"
+#include "blendeditor.hpp"   // blendModes(): the menu and ③'s row name the modes from one list
+#include "artifactsvg.hpp"
 
 #include <QFileInfo>
 #include <platemaker/core/strip_overlay_compositor/strip_overlay_compositor.hpp>
@@ -84,15 +84,15 @@ ObjectController::ObjectController(QGraphicsScene* scene, QGraphicsView* view, Q
     , m_dialogParent(dialogParent)
 {
     connect(m_objectState, &ObjectStatePanel::changed, this,
-            [this](const TextArtifact& a) { applyPanelRecords({a}, /*commit=*/false); });
+            [this](const Artifact& a) { applyPanelRecords({a}, /*commit=*/false); });
     connect(m_objectState, &ObjectStatePanel::committed, this,
-            [this](const TextArtifact& a) { applyPanelRecords({a}, /*commit=*/true); });
+            [this](const Artifact& a) { applyPanelRecords({a}, /*commit=*/true); });
     connect(m_objectState, &ObjectStatePanel::blendPicked, this, &ObjectController::setSelectionBlend);
     connect(m_objectState, &ObjectStatePanel::deleteRequested, this, &ObjectController::deleteSelectedOverlay);
     connect(m_objectState, &ObjectStatePanel::changedMany, this,
-            [this](const QList<TextArtifact>& objects) { applyPanelRecords(objects, /*commit=*/false); });
+            [this](const QList<Artifact>& objects) { applyPanelRecords(objects, /*commit=*/false); });
     connect(m_objectState, &ObjectStatePanel::committedMany, this,
-            [this](const QList<TextArtifact>& objects) { applyPanelRecords(objects, /*commit=*/true); });
+            [this](const QList<Artifact>& objects) { applyPanelRecords(objects, /*commit=*/true); });
     connect(m_objectState, &ObjectStatePanel::scaleChanged, this,
             [this](double percent) { scaleSelectedArtwork(percent, /*commit=*/false); });
     connect(m_objectState, &ObjectStatePanel::scaleCommitted, this,
@@ -101,7 +101,7 @@ ObjectController::ObjectController(QGraphicsScene* scene, QGraphicsView* view, Q
         Object* item = m_overlayItems.value(m_selectedOverlay);
         if (!item || item->artifact().isArtwork())
             return;   // a picture's box is the picture's own pixels, not its words'
-        TextArtifact a = item->artifact();
+        Artifact a = item->artifact();
         a.box = fittedBox(a);
         applyRecord(m_selectedOverlay, a, /*commit=*/true);
         m_objectState->setArtifact(a);
@@ -198,7 +198,7 @@ ObjectController::ObjectController(QGraphicsScene* scene, QGraphicsView* view, Q
     m_actToText   = m_convertMenu->addAction(tr("Text"));
     m_actToText->setCheckable(true);
     connect(m_actToText, &QAction::triggered, this,
-            [this] { convertSelectionTo(TextArtifact::Shape::None); });
+            [this] { convertSelectionTo(Artifact::Shape::None); });
     m_actToBalloon = m_convertMenu->addAction(tr("Balloon"));
     m_actToBalloon->setCheckable(true);
     // The silhouette it arrives at is the one the tool's options are set to — the same source *Apply
@@ -641,7 +641,7 @@ void ObjectController::setSource(const std::vector<Platemaker::Models::StripOver
     }
 }
 
-QImage ObjectController::sharpRasterFor(const TextArtifact& a)
+QImage ObjectController::sharpRasterFor(const Artifact& a)
 {
     const QByteArray svg = artifactToSvg(a);
     if (svg.isEmpty())
@@ -729,11 +729,11 @@ void ObjectController::syncItems()
         // places — its constructor, above, and the adoption loop in setSource() — so by the time this
         // runs the object is holding the one that is current, including an edit previewed but not yet
         // settled. Reading the feed here would undo it.
-        const TextArtifact& a = item->artifact();
+        const Artifact& a = item->artifact();
         if (auto* bubble = qobject_cast<BubbleObject*>(item)) {
             // A styled bubble is drawn by the library, because its effect is an SVG filter Qt cannot
             // render. Unstyled ones keep drawing locally: same geometry, no round-trip.
-            bubble->setSharpRaster(a.style.kind != TextArtifact::Style::Clean ? sharpRasterFor(a) : QImage());
+            bubble->setSharpRaster(a.style.kind != Artifact::Style::Clean ? sharpRasterFor(a) : QImage());
         } else if (auto* art = qobject_cast<AssetObject*>(item)) {
             art->setPicture(pictureFor(o));   // the file may have changed under it
         }
@@ -768,7 +768,7 @@ ArtifactMap ObjectController::currentArtifacts() const
     ArtifactMap out;
     for (const auto& o : m_overlays) {
         const QString      uid = QString::fromStdString(o.uid);
-        const TextArtifact rec = recordFor(uid);
+        const Artifact rec = recordFor(uid);
         // **A picture with nothing written on it stays record-less if that is how it arrived.** Its
         // object describes itself so that every reader here is safe (AssetObject::describePicture), but
         // that description says nothing the file does not, and the owner reads an absent record as
@@ -846,7 +846,7 @@ void ObjectController::onOverlayGeometryEdited(const QString& uid)
 QString ObjectController::pictureFor(const Platemaker::Models::StripOverlay& o) const
 {
     const QString asset  = QString::fromStdString(o.assetPath);
-    const TextArtifact r = recordFor(QString::fromStdString(o.uid));
+    const Artifact r = recordFor(QString::fromStdString(o.uid));
     if (!r.isArtwork())
         return asset;   // a picture placed before pictures had records: the overlay's file is it
 
@@ -866,7 +866,7 @@ QIcon ObjectController::rowGlyph(const QString& uid)
         const auto* art = qobject_cast<const AssetObject*>(m_overlayItems.value(uid));
         return art ? assetGlyph(art->artwork(), k_rowGlyphPx, m_list->devicePixelRatioF()) : QIcon();
     }
-    const TextArtifact a = recordFor(uid);
+    const Artifact a = recordFor(uid);
 
     QString key = QStringLiteral("%1|%2|%3x%4|%5|%6")
                       .arg(static_cast<int>(a.shape.kind))
@@ -1244,7 +1244,7 @@ void ObjectController::selectSubjects(const QStringList& uids, const QList<TailR
             // (see onControlChanged), and the lettering to all of them. So the union is what shows, and
             // the write path takes whichever kind each object is.
             m_panelSubjects = picked;
-            QList<TextArtifact> subjects;
+            QList<Artifact> subjects;
             subjects.reserve(picked.size());
             for (const QString& uid : picked)
                 subjects.append(recordFor(uid));
@@ -1295,7 +1295,7 @@ bool ObjectController::applyColourAt(const QPointF& scenePos, const QTransform& 
         onScreen = 1.0;
     const qreal slack = k_pickSlackPx / onScreen;
 
-    TextArtifact       a    = bubble->artifact();
+    Artifact       a    = bubble->artifact();
     QString            step;
     const ArtifactPart part = artifactPartAt(a, bubble->mapFromScene(scenePos), slack);
     switch (part) {
@@ -1319,10 +1319,10 @@ bool ObjectController::applyColourAt(const QPointF& scenePos, const QTransform& 
     // the role it has: a fill lands on everything with a silhouette, the lettering's colour on everything.
     // An object outside the selection is a fresh subject, and painting it selects it as any click does.
     if (m_selectedOverlays.size() > 1 && m_selectedOverlays.contains(bubble->uid())) {
-        QList<TextArtifact> next;
+        QList<Artifact> next;
         next.reserve(m_selectedOverlays.size());
         for (const QString& uid : std::as_const(m_selectedOverlays)) {
-            TextArtifact each   = recordFor(uid);
+            Artifact each   = recordFor(uid);
             const bool   shaped = each.hasSilhouette();
             switch (part) {
             case ArtifactPart::Text:    each.text.colour = colour; break;
@@ -1351,13 +1351,13 @@ void ObjectController::applyPresetToSelection(int index)
         return;
     // keepShape is false: the shape section is on screen beside this menu, so a preset changing the
     // shape is visible and reversible — unlike the tool options under the Text tool, where it is not.
-    const TextArtifact a =
+    const Artifact a =
         PresetStore::applied(m_presets.presets().at(index), bubble->artifact(), /*keepShape=*/false);
     m_objectState->setArtifact(a);
     applyRecord(m_selectedOverlay, a, /*commit=*/true);
 }
 
-void ObjectController::applyRecords(const QStringList& uids, const QList<TextArtifact>& records,
+void ObjectController::applyRecords(const QStringList& uids, const QList<Artifact>& records,
                                     bool commit, const QString& undoText)
 {
     if (uids.size() != records.size())
@@ -1403,13 +1403,13 @@ void ObjectController::applyRecords(const QStringList& uids, const QList<TextArt
                                                        : tr("Edit bubble"));
 }
 
-void ObjectController::applyRecord(const QString& uid, const TextArtifact& record, bool commit,
+void ObjectController::applyRecord(const QString& uid, const Artifact& record, bool commit,
                                    const QString& undoText)
 {
-    applyRecords(QStringList{uid}, QList<TextArtifact>{record}, commit, undoText);
+    applyRecords(QStringList{uid}, QList<Artifact>{record}, commit, undoText);
 }
 
-void ObjectController::applyPanelRecords(const QList<TextArtifact>& records, bool commit)
+void ObjectController::applyPanelRecords(const QList<Artifact>& records, bool commit)
 {
     applyRecords(m_panelSubjects, records, commit);
 }
@@ -1582,7 +1582,7 @@ void ObjectController::deleteSelectedTail()
     const Object* bubble = m_overlayItems.value(m_selectedOverlay);
     if (!bubble)
         return;
-    TextArtifact a = bubble->artifact();
+    Artifact a = bubble->artifact();
     if (m_selectedTail < 0 || m_selectedTail >= a.tails.items.size())
         return;
     a.tails.items.removeAt(m_selectedTail);
@@ -1624,7 +1624,7 @@ void ObjectController::deleteSelectedOverlay()
             Object* bubble = m_overlayItems.value(it.key());
             if (!bubble)
                 continue;
-            TextArtifact a = bubble->artifact();
+            Artifact a = bubble->artifact();
             QList<int>   indexes = it.value();
             std::sort(indexes.begin(), indexes.end(), std::greater<int>());
             for (int i : std::as_const(indexes)) {
@@ -1679,10 +1679,10 @@ void ObjectController::applyColourToSelection(const QColor& colour, ArtifactPart
     if (!colour.isValid() || m_selectedOverlays.isEmpty())
         return;
 
-    QList<TextArtifact> next;
+    QList<Artifact> next;
     int                 changed = 0;
     for (const QString& uid : std::as_const(m_selectedOverlays)) {
-        TextArtifact each   = recordFor(uid);
+        Artifact each   = recordFor(uid);
         const bool   shaped = each.hasSilhouette();
         switch (role) {
         case ArtifactPart::Text:    each.text.colour = colour; ++changed; break;
@@ -1709,12 +1709,12 @@ void ObjectController::applyGroupToSelection(PropertyGroup group)
 {
     if (!m_toolOptions || m_selectedOverlays.isEmpty())
         return;
-    const TextArtifact source = m_toolOptions->prototype();
+    const Artifact source = m_toolOptions->prototype();
 
-    QList<TextArtifact> next;
+    QList<Artifact> next;
     int                 changed = 0;
     for (const QString& uid : std::as_const(m_selectedOverlays)) {
-        TextArtifact each   = recordFor(uid);
+        Artifact each   = recordFor(uid);
         const bool   shaped = each.hasSilhouette();
         switch (group) {
         case PropertyGroup::Shape:
@@ -1761,23 +1761,23 @@ void ObjectController::applyGroupToSelection(PropertyGroup group)
         m_objectState->setArtifact(next.first());
 }
 
-void ObjectController::convertSelectionTo(TextArtifact::Shape kind)
+void ObjectController::convertSelectionTo(Artifact::Shape kind)
 {
     if (m_selectedOverlays.isEmpty())
         return;
 
     // **What passes through is decided by the kind, not by the silhouette.** @p kind carries which
     // silhouette to arrive at, but a Thought balloon asked to become a Balloon is already one — and
-    // re-shaping it to whatever ④ happens to show would be this menu quietly doing the shape picker's
+    // re-shaping it to whatever TOOL VIEW happens to show would be this menu quietly doing the shape picker's
     // job on an object the artist only had along for the ride. Changing *which* balloon several objects
     // are is *Apply from tool options ▸ Shape*, and it says so.
-    const bool toSilhouette = kind != TextArtifact::Shape::None;
+    const bool toSilhouette = kind != Artifact::Shape::None;
 
-    QList<TextArtifact> next;
+    QList<Artifact> next;
     int                 converted = 0;
     int                 hidden    = 0;   //!< Tails that the new kind does not draw.
     for (const QString& uid : std::as_const(m_selectedOverlays)) {
-        TextArtifact each = recordFor(uid);
+        Artifact each = recordFor(uid);
         // Not an authored object, or already of this kind: it passes through, and since nothing here
         // touches the order, it keeps its place in the stack for free.
         const bool authored    = isParametric(uid) && !m_carriers.contains(uid);
@@ -1795,7 +1795,7 @@ void ObjectController::convertSelectionTo(TextArtifact::Shape kind)
 
     // Named after the kind it arrived at — *Balloon*, not *Speech balloon*: the silhouette it happens
     // to wear is a property, and a history entry should say what the step decided.
-    const QString what = kind == TextArtifact::Shape::None ? tr("text") : tr("a balloon");
+    const QString what = kind == Artifact::Shape::None ? tr("text") : tr("a balloon");
     applyRecords(m_selectedOverlays, next, /*commit=*/true,
                  converted == 1 ? tr("Convert to %1").arg(what)
                                 : tr("Convert %n objects to %1", "", converted).arg(what));
@@ -2062,7 +2062,7 @@ void ObjectController::finishPlacement()
 
     // Whatever the active tool places — shape included: the panel is the tool's side of the question,
     // and this controller knows nothing about which tool is armed.
-    TextArtifact a = m_toolOptions->prototype();
+    Artifact a = m_toolOptions->prototype();
     a.box = r.size().toSize();
     // The prototype's tail was placed against the panel's nominal box; re-aim it at the one just drawn,
     // just below the balloon, which is where a reader expects a new bubble to be speaking from.

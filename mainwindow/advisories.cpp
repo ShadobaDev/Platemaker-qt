@@ -8,13 +8,13 @@
  * outliving the problem it describes.
  */
 
-#include "mainwindow.h"
+#include "mainwindow.hpp"
 #include "ui_mainwindow.h"
 
-#include "advisories.h"
-#include "advisorybar.h"
-#include "editor.h"
-#include "project.h"
+#include "advisories.hpp"
+#include "advisorybar.hpp"
+#include "editor.hpp"
+#include "project.hpp"
 
 #include <QDockWidget>
 #include <QListWidgetItem>

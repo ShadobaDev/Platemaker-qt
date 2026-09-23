@@ -1,4 +1,4 @@
-#include "objectstatepanel.h"
+#include "objectstatepanel.hpp"
 
 #include <QDoubleSpinBox>
 #include <QFormLayout>
@@ -9,15 +9,15 @@
 #include <QTimer>
 #include <QVBoxLayout>
 
-#include "badge.h"
-#include "collapsiblesection.h"
-#include "presetstore.h"
-#include "shapeeditor.h"
-#include "skineditor.h"
-#include "styleeditor.h"
-#include "taileditor.h"
-#include "taillisteditor.h"
-#include "texteditor.h"
+#include "badge.hpp"
+#include "collapsiblesection.hpp"
+#include "presetstore.hpp"
+#include "shapeeditor.hpp"
+#include "skineditor.hpp"
+#include "styleeditor.hpp"
+#include "taileditor.hpp"
+#include "taillisteditor.hpp"
+#include "texteditor.hpp"
 
 namespace StripEdit {
 
@@ -183,7 +183,7 @@ ObjectStatePanel::ObjectStatePanel(PresetStore& presets, QWidget* parent)
     clearSelection();
 }
 
-void ObjectStatePanel::setArtifact(const TextArtifact& a)
+void ObjectStatePanel::setArtifact(const Artifact& a)
 {
     m_artifact      = a;
     m_tailIndex     = -1;
@@ -233,7 +233,7 @@ void ObjectStatePanel::setMixedSubjects(int count)
     refreshLook();
 }
 
-void ObjectStatePanel::setArtifacts(const QList<TextArtifact>& objects)
+void ObjectStatePanel::setArtifacts(const QList<Artifact>& objects)
 {
     m_subjects       = objects;
     m_hasArtifact    = false;   // no single artifact, so the single-subject signals stay quiet
@@ -247,7 +247,7 @@ void ObjectStatePanel::setArtifacts(const QList<TextArtifact>& objects)
     PropertyGroupEditor::Subjects all;
     PropertyGroupEditor::Subjects shaped;
     all.reserve(objects.size());
-    for (const TextArtifact& a : objects) {
+    for (const Artifact& a : objects) {
         all.append(&a);
         if (a.hasSilhouette())
             shaped.append(&a);
@@ -280,11 +280,11 @@ void ObjectStatePanel::setArtifacts(const QList<TextArtifact>& objects)
         const bool forASet = g != PropertyGroup::Shape && g != PropertyGroup::Tail;
         it.value()->setVisible(forASet
                                && std::any_of(objects.cbegin(), objects.cend(),
-                                              [g](const TextArtifact& a) { return carriesGroup(a, g); }));
+                                              [g](const Artifact& a) { return carriesGroup(a, g); }));
     }
 }
 
-void ObjectStatePanel::setTail(const TextArtifact& a, int index)
+void ObjectStatePanel::setTail(const Artifact& a, int index)
 {
     m_artifact      = a;
     m_tailIndex     = index;
@@ -392,7 +392,7 @@ void ObjectStatePanel::refreshLook()
     } else if (!m_subjects.isEmpty()) {
         const QString first = m_presets.lookLabel(m_subjects.first());
         const bool    agree = std::all_of(m_subjects.cbegin(), m_subjects.cend(),
-                                          [this, &first](const TextArtifact& a) {
+                                          [this, &first](const Artifact& a) {
                                               return m_presets.lookLabel(a) == first;
                                           });
         text   = agree ? first : tr("Mixed");
@@ -422,7 +422,7 @@ void ObjectStatePanel::onControlChanged()
 
     if (!m_subjects.isEmpty()) {
         // A set: every object takes what the artist touched and keeps everything else of its own.
-        for (TextArtifact& a : m_subjects) {
+        for (Artifact& a : m_subjects) {
             if (a.hasSilhouette()) {
                 m_groups.skin()->applyEditedTo(a);   // a caption with no balloon has no fill to take
                 m_groups.style()->applyEditedTo(a);

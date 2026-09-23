@@ -1,10 +1,10 @@
-#include "rowglyph.h"
+#include "rowglyph.hpp"
 
 #include <QFont>
 #include <QPainter>
 #include <QPainterPath>
 
-#include "artifactpainter.h"
+#include "artifactpainter.hpp"
 
 namespace StripEdit {
 
@@ -44,7 +44,7 @@ namespace {
 
 }  // namespace
 
-QIcon objectGlyph(const TextArtifact& a, const QPalette& pal, int px, qreal dpr)
+QIcon objectGlyph(const Artifact& a, const QPalette& pal, int px, qreal dpr)
 {
     QPixmap  pm = blank(px, dpr);
     QPainter p(&pm);

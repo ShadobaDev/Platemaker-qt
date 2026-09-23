@@ -1,4 +1,4 @@
-#include "taileditor.h"
+#include "taileditor.hpp"
 
 #include <QFormLayout>
 #include <QSignalBlocker>
@@ -47,7 +47,7 @@ void TailEditor::bind(const Subjects& subjects)
     m_populating = false;
 }
 
-void TailEditor::applyTo(TextArtifact& target) const
+void TailEditor::applyTo(Artifact& target) const
 {
     TailProperties next = TailProperties::from(target, m_index);   // the tip as it is now
     next.tail.baseWidth = m_width->value();

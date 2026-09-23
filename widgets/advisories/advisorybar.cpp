@@ -1,7 +1,7 @@
-#include "advisorybar.h"
+#include "advisorybar.hpp"
 
-#include "advisories.h"
-#include "badge.h"
+#include "advisories.hpp"
+#include "badge.hpp"
 
 #include <QHBoxLayout>
 #include <QLayoutItem>

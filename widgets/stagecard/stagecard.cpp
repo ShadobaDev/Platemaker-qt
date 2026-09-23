@@ -1,4 +1,4 @@
-#include "stagecard.h"
+#include "stagecard.hpp"
 
 #include <QFont>
 #include <QHBoxLayout>

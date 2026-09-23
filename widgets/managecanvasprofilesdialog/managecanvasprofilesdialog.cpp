@@ -1,6 +1,6 @@
-#include "managecanvasprofilesdialog.h"
+#include "managecanvasprofilesdialog.hpp"
 #include "ui_managecanvasprofilesdialog.h"
-#include "canvasprofiledialog.h"
+#include "canvasprofiledialog.hpp"
 
 #include <QListWidgetItem>
 #include <QMessageBox>

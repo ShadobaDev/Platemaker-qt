@@ -1,6 +1,6 @@
-#include "workspacesnapshotcommand.h"
+#include "workspacesnapshotcommand.hpp"
 
-#include "mainwindow.h"
+#include "mainwindow.hpp"
 
 #include <utility>
 

@@ -1,4 +1,4 @@
-#include "outputformatoptionswidget.h"
+#include "outputformatoptionswidget.hpp"
 #include "ui_outputformatoptionswidget.h"
 
 #include <QCheckBox>

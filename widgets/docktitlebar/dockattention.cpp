@@ -1,4 +1,4 @@
-#include "dockattention.h"
+#include "dockattention.hpp"
 
 #include <QApplication>
 #include <QDockWidget>

@@ -1,4 +1,4 @@
-#include "docktitlebar.h"
+#include "docktitlebar.hpp"
 
 #include <QDockWidget>
 #include <QHBoxLayout>

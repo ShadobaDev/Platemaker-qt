@@ -156,7 +156,7 @@ New, backward-compatible features. Several are gated on a lib version, noted in 
     onto different artwork the moment anything above it changes height — inserting a page is the everyday
     case — and drifts silently. Pinned by `test_overlay_anchoring.cpp` and `test_overlays.py`, each with a
     deliberate absolute-placement control.
-  - **A bubble is a GUI object, a bitmap is what the lib sees.** `TextArtifact` (shape / box / tail /
+  - **A bubble is a GUI object, a bitmap is what the lib sees.** `Artifact` (shape / box / tail /
     text / font / colours) lives in a sidecar beside the workspace; the PNG in `overlays/` is what gets
     composited. That is what keeps a bubble re-editable instead of flattened.
   - *Still open:* hand-drawn custom shapes, rich text, per-artifact blend modes in the UI (the model and
@@ -239,18 +239,16 @@ New, backward-compatible features. Several are gated on a lib version, noted in 
 
 - [ ] **Names that describe what things were, not what they are** — a sweep, deliberately deferred so it
   lands as one mechanical diff rather than as noise inside feature work. Nothing here changes behaviour.
-  - **`TextArtifact` → `Artifact`.** It is not the text: it is the whole authoring record of an
-    overlay — shape, skin, style, tails, the imported picture, *and* a `TextProperties text` field,
-    which is the part the name claims to be. The rest of the codebase already agreed: `ArtifactMap`,
-    `ArtifactPart`, `ArtifactStore`, `artifactToSvg`, `artifactFromSvg`, `artifactToJson`,
-    `artifactPainter`, `artifactLabel`, `artifactBounds`, `artifactSilhouette`, `artifactPartAt`,
-    `artifactCreated` — twenty symbols say *artifact*, and only the struct still says *Text*. The name
-    is a relic of the day it described nothing but a bubble with words in it, and it is the first thing
-    a reader trips over: *why does a "text artifact" have tails and a picture?* ≈390 occurrences in 49
-    files, crossing into `widgets/project/project.h` but **not** into the library. Files
-    `textartifact.{h,cpp}` rename with it. No `using` alias: the feature is unreleased, so nothing has
-    to keep the old spelling alive, and an alias would keep two names for ever.
-  - **`TextArtifact::artwork` is not necessarily art.** It holds whatever picture the artist placed — a
+  - ~~**`TextArtifact` → `Artifact`.**~~ **Done (2026-09-23).** It was never the text: it is the whole
+    authoring record of an overlay — shape, skin, style, tails, the imported picture, *and* a
+    `TextProperties text` field, which is the only part the old name described. Twenty sibling symbols
+    already said *artifact*; only the struct still said *Text*, and a reader's first question was *why
+    does a "text artifact" have tails and a picture?* 396 occurrences in 49 files, crossing into
+    `widgets/project/project.hpp` but not into the library. `widgets/textartifact/textartifact.{h,cpp}`
+    became `widgets/artifact/artifact.{h,cpp}`, which also makes the directory one thing: `artifact`,
+    `artifactsvg`, `artifactpainter`. No `using` alias — the feature is unreleased, so nothing had to
+    keep the old spelling alive, and an alias would have kept two names for ever.
+  - **`Artifact::artwork` is not necessarily art.** It holds whatever picture the artist placed — a
     sprite, a sound effect, a logo, a screen grab. *Artwork* reads as "someone's drawing", which is
     only sometimes true. Something like `picture`, `image` or `source` says what the field is without
     claiming what it is *for*. (The same word is worth auditing in `AssetObject`, `loadArtwork()`,
@@ -261,13 +259,16 @@ New, backward-compatible features. Several are gated on a lib version, noted in 
 
 - [ ] **Namespace hygiene for the `pm:` recipe** — three small things, together, before overlay files
   start travelling between people (which the import work makes routine):
-  - **`platemaker.dev` is not registered.** A namespace URI is an identifier and need not resolve, so
-    nothing is broken — but the convention is to mint one in a domain you control, precisely so nobody
-    else can legitimately use it. Either register it or move the URI to a domain we own.
+  - ~~**`platemaker.dev` is not registered.**~~ **Done (2026-09-23).** The URI is now
+    `https://github.com/ShadobaDev/Platemaker-qt/ns/artifact/1` — a name the project controls, and one
+    that no longer claims the record is about bubbles. No back-compatibility: the feature is unreleased,
+    so the only overlay files carrying the old namespace were the author's own and were re-made by hand.
+    A file written before the change imports as ordinary artwork, which is what it now is to us.
   - **We write `pm:v="2"` and never read it.** A version marker nobody checks is decoration.
-  - **The two version numbers need a stated rule**: the URI's `/1` changes only on a break, where an old
-    reader *should* fail to recognise the file at all; `pm:v` counts compatible revisions and is what a
-    reader checks to say "this was written by something newer than me".
+  - ~~**The two version numbers need a stated rule.**~~ **Stated (2026-09-23)**, in `artifactsvg.hpp`
+    and in the specification: the URI's `/1` changes only on a break, where an old reader *should* fail
+    to recognise the file at all; `pm:v` counts compatible revisions and is what a reader checks to say
+    "this was written by something newer than me". Reading it is still the open half, below.
 
 ---
 

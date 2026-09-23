@@ -1,7 +1,7 @@
-#include "profilepickerdialog.h"
+#include "profilepickerdialog.hpp"
 #include "ui_profilepickerdialog.h"
 
-#include "badgeitemdelegate.h"
+#include "badgeitemdelegate.hpp"
 
 #include <QDialogButtonBox>
 #include <QListWidgetItem>

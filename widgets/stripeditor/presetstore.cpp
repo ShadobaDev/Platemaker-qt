@@ -1,4 +1,4 @@
-#include "presetstore.h"
+#include "presetstore.hpp"
 
 #include <QFile>
 #include <QFileInfo>
@@ -11,6 +11,7 @@ namespace StripEdit {
 
 namespace {
 
+//! The QSettings key that carries the artist's own presets, as a JSON array of objects.
 const auto k_presetsKey = QStringLiteral("bubblePresets");
 //! Marks a file as a pack rather than any other JSON array that happens to parse.
 const auto k_packMarker = QStringLiteral("platemakerBubblePresets");
@@ -19,8 +20,9 @@ const auto k_packMarker = QStringLiteral("platemakerBubblePresets");
  * @brief A preset is an artifact with its content removed.
  *
  * Dropping the keys rather than listing the ones to keep is what makes this stay correct: a styling
- * field added to TextArtifact is carried by artifactToJson() and lands in presets for free, while a new
+ * field added to Artifact is carried by artifactToJson() and lands in presets for free, while a new
  * *content* field is the only thing that needs a line here.
+ * @param name  The name the artist gave this preset, which is what they pick it by.
  */
 QJsonObject presetToJson(const BubblePreset& p)
 {
@@ -32,12 +34,22 @@ QJsonObject presetToJson(const BubblePreset& p)
     return j;
 }
 
-//! The absent content keys fall back to TextArtifact's own defaults, which is exactly what is wanted.
+/**
+ * @brief The absent content keys fall back to Artifact's own defaults, which is exactly what is wanted.
+ * @param j  The JSON object representing the preset.
+ * @return The BubblePreset constructed from the JSON object.
+ */
 BubblePreset presetFromJson(const QJsonObject& j)
 {
     return {j.value(QStringLiteral("name")).toString(), artifactFromJson(j)};
 }
 
+/**
+ * @brief Converts a list of presets to a JSON array, starting at \p from.
+ * @param presets  The list of presets to convert.
+ * @param from     The index to start from in the list.
+ * @return A JSON array representing the presets.
+ */
 QJsonArray presetsToArray(const QList<BubblePreset>& presets, int from)
 {
     QJsonArray arr;
@@ -46,6 +58,11 @@ QJsonArray presetsToArray(const QList<BubblePreset>& presets, int from)
     return arr;
 }
 
+/**
+ * @brief Converts a JSON array to a list of presets.
+ * @param arr  The JSON array to convert.
+ * @return A list of BubblePreset constructed from the JSON array.
+ */
 QList<BubblePreset> presetsFromArray(const QJsonArray& arr)
 {
     QList<BubblePreset> out;
@@ -69,32 +86,32 @@ QList<BubblePreset> builtinPresets()
 {
     QList<BubblePreset> out;
 
-    TextArtifact dialogue;                       // the struct's own defaults are already a speech balloon
+    Artifact dialogue;                       // the struct's own defaults are already a speech balloon
     out.append({PresetStore::tr("Dialogue"), dialogue});
 
-    TextArtifact whisper = dialogue;
-    whisper.shape.kind       = TextArtifact::Shape::Ellipse;
+    Artifact whisper = dialogue;
+    whisper.shape.kind       = Artifact::Shape::Ellipse;
     whisper.skin.strokeWidth = 3;
     whisper.skin.stroke      = QColor(90, 90, 90);
     whisper.text.colour      = QColor(70, 70, 70);
     whisper.text.pixelSize   = 26;
     out.append({PresetStore::tr("Whisper"), whisper});
 
-    TextArtifact thought = dialogue;
-    thought.shape.kind       = TextArtifact::Shape::Thought;
+    Artifact thought = dialogue;
+    thought.shape.kind       = Artifact::Shape::Thought;
     thought.skin.strokeWidth = 4;
     out.append({PresetStore::tr("Thought"), thought});
 
-    TextArtifact shout = dialogue;
-    shout.shape.kind         = TextArtifact::Shape::Shout;
+    Artifact shout = dialogue;
+    shout.shape.kind         = Artifact::Shape::Shout;
     shout.text.bold          = true;
     shout.text.pixelSize     = 38;
     shout.skin.strokeWidth   = 7;
-    shout.style.kind         = TextArtifact::Style::Marker;
+    shout.style.kind         = Artifact::Style::Marker;
     out.append({PresetStore::tr("Shout"), shout});
 
-    TextArtifact caption = dialogue;
-    caption.shape.kind       = TextArtifact::Shape::Caption;
+    Artifact caption = dialogue;
+    caption.shape.kind       = Artifact::Shape::Caption;
     caption.skin.fill        = QColor(16, 16, 16);
     caption.text.colour      = QColor(245, 245, 245);
     caption.skin.stroke      = QColor(245, 245, 245);
@@ -140,7 +157,7 @@ void PresetStore::persist()
     emit changed();
 }
 
-int PresetStore::save(const QString& name, const TextArtifact& look, bool replaceExisting,
+int PresetStore::save(const QString& name, const Artifact& look, bool replaceExisting,
                       int* existingIndex)
 {
     BubblePreset p{name, look};
@@ -221,10 +238,10 @@ bool PresetStore::exportPack(const QString& path, QString* error) const
     return true;
 }
 
-int PresetStore::matching(const TextArtifact& a) const
+int PresetStore::matching(const Artifact& a) const
 {
     for (int i = 0; i < m_presets.size(); ++i) {
-        const TextArtifact look = applied(m_presets.at(i), a, /*keepShape=*/false);
+        const Artifact look = applied(m_presets.at(i), a, /*keepShape=*/false);
         if (look.shape == a.shape && look.skin == a.skin && look.style == a.style
             && look.text == a.text)
             return i;
@@ -232,15 +249,15 @@ int PresetStore::matching(const TextArtifact& a) const
     return -1;
 }
 
-QString PresetStore::lookLabel(const TextArtifact& a) const
+QString PresetStore::lookLabel(const Artifact& a) const
 {
     const int i = matching(a);
     return i < 0 ? tr("Custom") : m_presets.at(i).name;
 }
 
-TextArtifact PresetStore::applied(const BubblePreset& p, const TextArtifact& target, bool keepShape)
+Artifact PresetStore::applied(const BubblePreset& p, const Artifact& target, bool keepShape)
 {
-    TextArtifact a = p.artifact;
+    Artifact a = p.artifact;
 
     // A preset is a look, not a line: whatever the bubble says, how big it is and where its tails point
     // survive being restyled. Without this, picking a preset would erase the lettering.

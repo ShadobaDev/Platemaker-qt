@@ -1,4 +1,4 @@
-#include "tailseditor.h"
+#include "tailseditor.hpp"
 
 #include <QCheckBox>
 #include <QFormLayout>
@@ -6,7 +6,7 @@
 #include <QSize>
 #include <QSpinBox>
 
-#include "shapeeditor.h"   // shapeSpeaks()
+#include "shapeeditor.hpp"   // shapeSpeaks()
 
 namespace StripEdit {
 
@@ -50,7 +50,7 @@ void TailsEditor::bind(const Subjects& subjects)
 {
     if (subjects.isEmpty())
         return;
-    const TextArtifact& a = *subjects.first();
+    const Artifact& a = *subjects.first();
     m_values        = TailsProperties::from(a);
     m_box           = a.box;
     m_shapeCanSpeak = a.hasSilhouette();
@@ -69,7 +69,7 @@ void TailsEditor::bind(const Subjects& subjects)
     syncEnabled();
 }
 
-void TailsEditor::applyTo(TextArtifact& target) const
+void TailsEditor::applyTo(Artifact& target) const
 {
     TailsProperties next = m_values;
 
@@ -91,7 +91,7 @@ void TailsEditor::applyTo(TextArtifact& target) const
     next.applyTo(target);
 }
 
-void TailsEditor::applyToNew(TextArtifact& target) const
+void TailsEditor::applyToNew(Artifact& target) const
 {
     TailsProperties next;
     if (m_enabled->isChecked() && target.hasSilhouette()) {
@@ -104,9 +104,9 @@ void TailsEditor::applyToNew(TextArtifact& target) const
     next.applyTo(target);
 }
 
-void TailsEditor::shapeChanged(TextArtifact::Shape kind)
+void TailsEditor::shapeChanged(Artifact::Shape kind)
 {
-    m_shapeCanSpeak = kind != TextArtifact::Shape::None;
+    m_shapeCanSpeak = kind != Artifact::Shape::None;
     const QSignalBlocker block(m_enabled);
     m_enabled->setChecked(shapeSpeaks(kind));
     syncEnabled();

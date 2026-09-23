@@ -1,4 +1,4 @@
-#include "artworkoptionspanel.h"
+#include "artworkoptionspanel.hpp"
 
 #include <QApplication>
 #include <QDrag>
@@ -12,7 +12,7 @@
 #include <QUrl>
 #include <QVBoxLayout>
 
-#include "assetobject.h"
+#include "assetobject.hpp"
 
 namespace StripEdit {
 

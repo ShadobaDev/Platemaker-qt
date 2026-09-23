@@ -1,13 +1,13 @@
-#include "mainwindow.h"
+#include "mainwindow.hpp"
 #include "ui_mainwindow.h"
-#include "project.h"
-#include "canvasprofiledialog.h"
-#include "managecanvasprofilesdialog.h"
-#include "manageoutputprofilesdialog.h"
-#include "outputprofiledialog.h"
-#include "profilepickerdialog.h"
-#include "templatesdialog.h"
-#include "renderworker.h"
+#include "project.hpp"
+#include "canvasprofiledialog.hpp"
+#include "managecanvasprofilesdialog.hpp"
+#include "manageoutputprofilesdialog.hpp"
+#include "outputprofiledialog.hpp"
+#include "profilepickerdialog.hpp"
+#include "templatesdialog.hpp"
+#include "renderworker.hpp"
 
 #include <platemaker/infrastructure/profile_bundle_serializer/profile_bundle_serializer.hpp>
 #include <platemaker/infrastructure/workspace_editor/workspace_editor.hpp>

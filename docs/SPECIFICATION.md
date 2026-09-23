@@ -342,7 +342,7 @@ how it ended up a sliver).
     stand-in would answer with an average of the colours around the point rather than the colour at it.
   - The press is consumed, so sampling never changes the selection.
 - **Tool options** (bottom-left, under the rail) — a `QStackedWidget`, one page per *page* rather than
-  per tool: `GradePanel` for Grade, `ToolOptionsPanel` for every tool that authors a `TextArtifact`
+  per tool: `GradePanel` for Grade, `ToolOptionsPanel` for every tool that authors an `Artifact`
   (Bubble, Text, Caption), because they author the same object (§2.5.4) and two copies of those controls
   would drift. A tool with no options gets an empty page.
 - **Artifact list** (right-bottom) — `artifactList`, the overlays as a **stack**: row 0 is the front-most
@@ -391,7 +391,7 @@ valid baseline for every grade tried on it. Excluded pages are skipped, matching
 
 #### 2.5.4 Text & bubbles (Bubble / Text tools)
 
-- **One object, two tools.** A bubble is a `TextArtifact` (`widgets/textartifact/`): shape, box, tails,
+- **One object, two tools.** A bubble is an `Artifact` (`widgets/artifact/`): shape, box, tails,
   text, font, colours, line style. The Text tool is the same object with `shape == None`. Ten shapes;
   each brings the rectangle its text may occupy (`textSafeArea()`), which is the half that takes the
   thought — a path is a few lines, knowing where words fit inside it is what stops them crossing a
@@ -701,7 +701,7 @@ valid baseline for every grade tried on it. Excluded pages are skipped, matching
   panel moves only when the *kind* of the selection changes, which is a change worth seeing.
 - **A balloon's editable state is five property groups.** A group is a named struct with exactly one
   editor responsible for it; the editor reads through `bind()` and writes through `applyTo()`, which
-  touches only that group. `TextArtifact` composes them — `ShapeProperties`, `SkinProperties`,
+  touches only that group. `Artifact` composes them — `ShapeProperties`, `SkinProperties`,
   `StyleProperties`, `TextProperties`, `TailsProperties` — and `StripEdit::PropertyGroupEditor` is the
   contract their editors implement. One level down, **`TailProperties`** is one tail by index: its
   `applyTo()` writes that tail and no other, and an index the balloon no longer has writes nothing, so a
@@ -717,14 +717,14 @@ valid baseline for every grade tried on it. Excluded pages are skipped, matching
     reads the shape, because a shapeless artifact has nothing to grow a tail from; `TailEditor::applyTo()`
     reads the tail's tip, so a spin box cannot undo a drag made since.
   - **The enums live with their groups** — `ShapeProperties::Kind`, `StyleProperties::Kind` — with
-    `TextArtifact::Shape` and `::Style` kept as aliases, so every existing spelling still compiles and
+    `Artifact::Shape` and `::Style` kept as aliases, so every existing spelling still compiles and
     the persisted names are untouched.
   - The rule that makes it work: **an editor never knows which surface it is in.** A surface asks an
     editor to be compact; an editor never asks where it is, or the two surfaces drift into showing the
     same thing.
   - `tests/gui-unit-tests/` links `Qt6::Gui` and nothing else, so anything it can reach is free of
-    `QWidget` by construction. Nine tests: one per group, plus the two colour groups' boundary, the
-    seed, and the file format.
+    `QWidget` by construction. Thirty tests: one per group, the two colour groups' boundary, the seed,
+    the file format, the conversion and import rules, and which groups a record carries at all.
 - **Every placed thing is a `StripEdit::Object`.** One `QGraphicsObject` per overlay, and everything an
   author does to one is the same whatever kind it is: select, move, drag a corner, mute, delete,
   reorder. That all lives on the base class, once — including the grips, the drag state machine and the
@@ -783,17 +783,17 @@ valid baseline for every grade tried on it. Excluded pages are skipped, matching
     stops describing anything the moment a control moves. *Save…* and *Delete* act on the look the
     controls currently **are** — `matching()` again — rather than on a picker's selection.
 - **A preset is a bubble with nothing said in it.** `BubblePreset` (`widgets/stripeditor/panels/`) is a name
-  plus a `TextArtifact` whose `text`, `box`, `tails` and `styleSeed` are meaningless — applying one
+  plus an `Artifact` whose `text`, `box`, `tails` and `styleSeed` are meaningless — applying one
   copies the *look* over the selection and copies the content straight back, so restyling never touches
   the lettering. With nothing selected it restyles `prototype()` instead, which is what the next
   placement is built from. Serialised by taking `artifactToJson()` and removing those four keys: the
-  reader's defaults fill them back in, and a styling field added to `TextArtifact` is carried without
+  reader's defaults fill them back in, and a styling field added to `Artifact` is carried without
   being enumerated anywhere. Built-ins are code and are not deletable; the artist's own live in the
   application config (`QSettings`, key `bubblePresets`) because restyling follows the artist, not the
   chapter. A *pack* is the same array in a file, marked with `platemakerBubblePresets`, imported by
   replacing same-named presets rather than accumulating them.
 - **Both axes have a name, and one place each.** *Which silhouette* an object wears is a property;
-  *whether it has one* is `TextArtifact::hasSilhouette()`, the one structural question — it decides
+  *whether it has one* is `Artifact::hasSilhouette()`, the one structural question — it decides
   which property groups the object carries at all. *Whether we author the object* is
   `ObjectController::isParametric()`: true for something whose drawing we generate from a record, false
   for imported artwork. Both were written out by hand at every call site — the silhouette test twenty
@@ -887,7 +887,19 @@ valid baseline for every grade tried on it. Excluded pages are skipped, matching
     as a picture of itself. Matched on the **namespace URI**, never the prefix, which in XML is only a
     local shorthand. A drawing with no recipe stays artwork, which is the honest answer: someone else's
     paths are not something our silhouettes can express.
-- **There is one record type and three kinds of object.** `TextArtifact::artwork` names an imported
+  - **The namespace is `https://github.com/ShadobaDev/Platemaker-qt/ns/artifact/1`** — an identifier,
+    not an address. XML compares a namespace name as a string and never fetches it, so it neither has
+    to resolve nor may ever change once files carry it. It names the repository because that is a name
+    the project controls; it used to name `platemaker.dev`, which nobody had registered, and to say
+    *bubble*, which stopped being true when a picture gained lettering of its own. **Exactly one
+    namespace is accepted**: the feature is unreleased, so the only files carrying the old one were the
+    author's own, and a compatibility shim for one workspace is a shim that outlives its reason.
+  - **Two version numbers, one rule each.** The URI's trailing `/1` changes only when a file becomes
+    unreadable to an older build — an old reader *should* then fail to recognise it at all, which a
+    different namespace achieves by itself. `pm:v` inside the file counts revisions that stay
+    compatible, and is what a reader checks to say *this was written by something newer than me*. It is
+    written today and not yet read.
+- **There is one record type and three kinds of object.** `Artifact::artwork` names an imported
   picture — a file name inside the workspace's `overlays/` — and its presence *is* the kind: empty and
   the drawing is ours (a balloon when `shape` is not `None`, lettering when it is), non-empty and the
   drawing is somebody else's. A second map keyed by the same uid would be a second channel carrying the

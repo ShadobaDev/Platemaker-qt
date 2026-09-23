@@ -1,4 +1,4 @@
-#include "renderworker.h"
+#include "renderworker.hpp"
 
 RenderWorker::RenderWorker(std::vector<Platemaker::Models::InputFile>     inputs,
                            Platemaker::Models::OutputProfile              outProfile,

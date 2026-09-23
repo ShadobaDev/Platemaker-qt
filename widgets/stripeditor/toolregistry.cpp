@@ -1,4 +1,4 @@
-#include "toolregistry.h"
+#include "toolregistry.hpp"
 
 #include <QCoreApplication>
 
@@ -103,7 +103,7 @@ const QList<Tool>& tools()
          QT_TRANSLATE_NOOP("StripEdit::Tool", 
                            "Drag on the strip to place lettering\n"
                            "with no balloon around it."),
-         ToolKind::Create, TextArtifact::Shape::None, QStringLiteral("artifact"),
+         ToolKind::Create, Artifact::Shape::None, QStringLiteral("artifact"),
          CursorStyle::Cross, CursorStyle::Inherit},
 
     };

@@ -1,10 +1,10 @@
-#include "taillisteditor.h"
+#include "taillisteditor.hpp"
 
 #include <QHBoxLayout>
 #include <QLabel>
 #include <QPushButton>
 
-#include "shapeeditor.h"   // shapeSpeaks()
+#include "shapeeditor.hpp"   // shapeSpeaks()
 
 namespace StripEdit {
 
@@ -47,14 +47,14 @@ void TailListEditor::bind(const Subjects& subjects)
 {
     if (subjects.isEmpty())
         return;
-    const TextArtifact& a = *subjects.first();
+    const Artifact& a = *subjects.first();
     m_values        = TailsProperties::from(a);
     m_box           = a.box;
     m_shapeCanSpeak = a.hasSilhouette();
     refresh();
 }
 
-void TailListEditor::applyTo(TextArtifact& target) const
+void TailListEditor::applyTo(Artifact& target) const
 {
     TailsProperties next = m_values;
     if (!target.hasSilhouette())
@@ -62,9 +62,9 @@ void TailListEditor::applyTo(TextArtifact& target) const
     next.applyTo(target);
 }
 
-void TailListEditor::shapeChanged(TextArtifact::Shape kind)
+void TailListEditor::shapeChanged(Artifact::Shape kind)
 {
-    m_shapeCanSpeak = kind != TextArtifact::Shape::None;
+    m_shapeCanSpeak = kind != Artifact::Shape::None;
     if (!shapeSpeaks(kind)) {
         m_values.items.clear();
     } else if (m_values.items.isEmpty()) {

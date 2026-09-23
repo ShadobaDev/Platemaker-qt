@@ -1,4 +1,4 @@
-#include "texteditor.h"
+#include "texteditor.hpp"
 
 #include <QCheckBox>
 #include <QColorDialog>
@@ -120,7 +120,7 @@ void TextEditor::bind(const Subjects& subjects)
     m_subjects = static_cast<int>(subjects.size());
 
     m_mixedColour = m_mixedFamily = m_mixedSize = m_mixedBold = m_mixedAlign = false;
-    for (const TextArtifact* a : subjects) {
+    for (const Artifact* a : subjects) {
         const TextProperties t = TextProperties::from(*a);
         m_mixedColour = m_mixedColour || t.colour    != m_values.colour;
         m_mixedFamily = m_mixedFamily || t.family    != m_values.family;
@@ -133,12 +133,12 @@ void TextEditor::bind(const Subjects& subjects)
     syncFromValues();
 }
 
-void TextEditor::applyTo(TextArtifact& target) const
+void TextEditor::applyTo(Artifact& target) const
 {
     m_values.applyTo(target);
 }
 
-void TextEditor::applyEditedTo(TextArtifact& target) const
+void TextEditor::applyEditedTo(Artifact& target) const
 {
     // The lettering itself is never written to a set: five balloons do not share one line of dialogue.
     TextProperties t = TextProperties::from(target);

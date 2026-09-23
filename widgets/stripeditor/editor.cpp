@@ -1,20 +1,20 @@
-#include "editor.h"
+#include "editor.hpp"
 #include "ui_editor.h"
-#include "flowlayout.h"
-#include "advisorybar.h"
-#include "colouradjustment.h"
-#include "colourpair.h"
-#include "cursors.h"
-#include "gradepanel.h"
-#include "object.h"
-#include "objectcontroller.h"
-#include "pagesource.h"
-#include "objectstatepanel.h"
-#include "presetstore.h"
-#include "shapeeditor.h"
-#include "stripstatepanel.h"
-#include "artworkoptionspanel.h"
-#include "tooloptionspanel.h"
+#include "flowlayout.hpp"
+#include "advisorybar.hpp"
+#include "colouradjustment.hpp"
+#include "colourpair.hpp"
+#include "cursors.hpp"
+#include "gradepanel.hpp"
+#include "object.hpp"
+#include "objectcontroller.hpp"
+#include "pagesource.hpp"
+#include "objectstatepanel.hpp"
+#include "presetstore.hpp"
+#include "shapeeditor.hpp"
+#include "stripstatepanel.hpp"
+#include "artworkoptionspanel.hpp"
+#include "tooloptionspanel.hpp"
 
 #include <platemaker/models/colour_correction.hpp>
 
@@ -66,34 +66,23 @@ namespace StripEdit {
 namespace {
 
 /**
- * @brief Puts @p page into @p host inside a scroll area, and hands the area back to be added as the page.
- *
- * **A panel may not decide how wide its column is.** A stacked widget's minimum is its pages' minimum,
- * and a splitter may never take a child below that — so the right column grew the moment something was
- * selected and the properties appeared (measured: 18 points empty, 174 with one object's controls, and
- * more with the real panel). Every row in the list then slid sideways, out from under the pointer that
- * had just come down on a mute checkbox, and the click landed on the row instead. Inside a scroll area
- * the column's minimum is the scroll area's own — constant — and a panel too big for the column scrolls
- * rather than shoving it. That is also what lets the object list keep its third of the height when the
- * properties are long.
+ * The key for the tool-options page whose contents decide **which picture** a placement puts down.
+ * Three places need to name it: the page's own registration, and the two moments the editor has to
+ * know that a picture rather than a balloon is what the next drag will place. Those two used to ask
+ * `m_tool == "artwork"` — the tool's *id*, which the registry exists so that nothing outside it has
+ * to know. Which options page a tool shows is a property of its row, and it is the question actually
+ * being asked.
  */
-//! The tool-options page whose contents decide **which picture** a placement puts down.
-//!
-//! Three places need to name it: the page's own registration, and the two moments the editor has to
-//! know that a picture rather than a balloon is what the next drag will place. Those two used to ask
-//! `m_tool == "artwork"` — the tool's *id*, which the registry exists so that nothing outside it has
-//! to know. Which options page a tool shows is a property of its row, and it is the question actually
-//! being asked.
 constexpr QLatin1String k_artworkPage{"artwork"};
+/**
+ * @brief How wide a splitter's grab area is. Wider than the default 1 point, which was as hard to hit as it sounds.
+ */
+constexpr int k_splitterHandlePx = 6;
 
-[[nodiscard]] QScrollArea* scrolled(QWidget* page, QStackedWidget* host)
-{
-    auto* area = new QScrollArea(host);
-    area->setFrameShape(QFrame::NoFrame);   // the panel already sits in a framed column
-    area->setWidgetResizable(true);
-    area->setWidget(page);
-    return area;
-}
+/**
+ * @brief The least the tool's options may be squeezed to. Below this the panel is a heading with no controls under it, which says less than nothing about what the armed tool will do.
+ */
+constexpr int k_toolOptionsFloorPx = 140;
 
 /**
  * @brief How wide the **right** column starts, and the least it can be dragged to.
@@ -113,6 +102,36 @@ constexpr QLatin1String k_artworkPage{"artwork"};
 constexpr int k_rightColumnPx = 340;
 
 /**
+ * @brief Pages built beyond the viewport on each side. One page is several slices tall, so ±1 already covers a comfortable scroll ahead; a larger margin would multiply a much heavier unit of work.
+ */
+constexpr int k_prefetchPages = 1;
+
+/**
+ * @brief Wraps @p page in a scroll area to prevent the column from resizing when the panel's contents change.
+ *
+ * **A panel may not decide how wide its column is.** A stacked widget's minimum is its pages' minimum,
+ *  and a splitter may never take a child below that — so the right column grew the moment something was
+ *  selected and the properties appeared (measured: 18 points empty, 174 with one object's controls, and
+ *  more with the real panel). Every row in the list then slid sideways, out from under the pointer that
+ *  had just come down on a mute checkbox, and the click landed on the row instead. Inside a scroll area
+ *  the column's minimum is the scroll area's own — constant — and a panel too big for the column scrolls
+ *  rather than shoving it. That is also what lets the object list keep its third of the height when the
+ *  properties are long.
+ *
+ * @param page The widget to wrap.
+ * @param host The stacked widget that will contain the scroll area.
+ * @return A pointer to the created scroll area.
+ */
+[[nodiscard]] QScrollArea* scrolled(QWidget* page, QStackedWidget* host)
+{
+    auto* area = new QScrollArea(host);
+    area->setFrameShape(QFrame::NoFrame);   // the panel already sits in a framed column
+    area->setWidgetResizable(true);
+    area->setWidget(page);
+    return area;
+}
+
+/**
  * @brief How wide a column has to be to hold @p panel whole.
  *
  * The tool options **can** be asked, where the properties cannot: they describe the next object rather
@@ -127,14 +146,6 @@ constexpr int k_rightColumnPx = 340;
          + panel->style()->pixelMetric(QStyle::PM_ScrollBarExtent);   // the bar it will want first
 }
 
-//! How wide a splitter's grab area is. Wider than the default 1 point, which was as hard to hit as it
-//! sounds.
-constexpr int k_splitterHandlePx = 6;
-
-//! The least the tool's options may be squeezed to. Below this the panel is a heading with no controls
-//! under it, which says less than nothing about what the armed tool will do.
-constexpr int k_toolOptionsFloorPx = 140;
-
 /**
  * @brief Makes @p splitter's handles visible, in the palette's own colours.
  *
@@ -142,6 +153,8 @@ constexpr int k_toolOptionsFloorPx = 140;
  * one only widens the gap. Filling it does say where the seam is — and which of the two neighbouring
  * greys reads as a line depends on the theme, so it is chosen the same way `widgets/badge/` chooses a
  * chip's lightness: against the window's own.
+ * 
+ * @param splitter The splitter to show the handles of.
  */
 void showHandles(QSplitter* splitter)
 {
@@ -155,10 +168,6 @@ void showHandles(QSplitter* splitter)
     }
 }
 
-//! Pages built beyond the viewport on each side. One page is several slices tall, so ±1 already covers
-//! a comfortable scroll ahead; a larger margin would multiply a much heavier unit of work.
-constexpr int k_prefetchPages = 1;
-
 /**
  * @brief One graphics item that draws every input page as its own image — seam-free.
  *
@@ -171,14 +180,28 @@ constexpr int k_prefetchPages = 1;
 class StripItem : public QGraphicsItem
 {
 public:
+    /**
+     * @brief Creates a graphics item that draws the strip.
+     * @param owner The editor that owns the strip and supplies the pages.
+     */
     explicit StripItem(Editor *owner) : m_owner(owner) {}
 
+    /**
+     * @brief The bounding rectangle of the strip, in scene coordinates.
+     * @return The rectangle that contains the whole strip.
+     */
     QRectF boundingRect() const override
     {
         const QSize s = m_owner->stripSize();
         return QRectF(0, 0, s.width(), s.height());
     }
 
+    /**
+     * @brief Paints the strip.
+     * @param painter The painter to use.
+     * @param option The style options.
+     * @param widget The widget being painted.
+     */
     void paint(QPainter *painter, const QStyleOptionGraphicsItem *option, QWidget *) override
     {
         // Smooth the pixmap interior, but turn OFF edge antialiasing: with AA on, each drawPixmap
@@ -217,7 +240,7 @@ public:
     }
 
 private:
-    Editor *m_owner;
+    Editor *m_owner;    //!< The editor that owns the strip and supplies the pages.
 };
 
 } // namespace
@@ -251,7 +274,7 @@ Editor::Editor(QWidget *parent)
     // cursor look as though it followed the last *click*: it could only be re-decided on release. The
     // cursor is a promise about what a press would do here, so it has to be re-decided while hovering.
     m_view->viewport()->setMouseTracking(true);
-    m_view->viewport()->setAcceptDrops(true);   // pictures, from ④'s preview or a file manager
+    m_view->viewport()->setAcceptDrops(true);   // pictures, from TOOL VIEW's preview or a file manager
     // Build the pages that scroll into view (plus a prefetch margin).
     connect(m_view->verticalScrollBar(),   &QScrollBar::valueChanged, this, &Editor::updateVisiblePages);
     connect(m_view->horizontalScrollBar(), &QScrollBar::valueChanged, this, &Editor::updateVisiblePages);
@@ -326,7 +349,7 @@ Editor::Editor(QWidget *parent)
             if (m_objects)
                 m_objects->selectStrip();
         });
-        // One panel for every tool that authors a `TextArtifact` — Bubble, Text, Caption — because they
+        // One panel for every tool that authors an `Artifact` — Bubble, Text, Caption — because they
         // author the same object and differ only in the shape they place, which each tool's row says.
         m_presets     = new PresetStore(this);
         m_toolOptions = new ToolOptionsPanel(*m_presets, ui->toolOptions);
@@ -353,7 +376,7 @@ Editor::Editor(QWidget *parent)
             if (!t.icon.isEmpty())
                 b->setIcon(QIcon(t.icon));
             b->setIconSize(QSize(26, 26));
-            b->setToolTip(toolTooltip(t));   // the name, and the same sentence ④ shows
+            b->setToolTip(toolTooltip(t));   // the name, and the same sentence TOOL VIEW shows
             b->setCheckable(true);
             b->setAutoRaise(true);
             b->setToolButtonStyle(Qt::ToolButtonIconOnly);
@@ -520,7 +543,7 @@ void Editor::setTool(const QString& id)
         QString artwork;
         if (tool->page == k_artworkPage && m_artworkOptions) {
             // Arming with nothing chosen asks once, here: before any drag, so a file dialog never lands
-            // in the middle of one. A cancelled dialog arms nothing, and ④ says as much.
+            // in the middle of one. A cancelled dialog arms nothing, and TOOL VIEW says as much.
             if (m_artworkOptions->artwork().isEmpty())
                 m_artworkOptions->chooseArtwork();
             artwork = m_artworkOptions->artwork();
@@ -856,7 +879,7 @@ void Editor::resizeEvent(QResizeEvent *event)
 bool Editor::eventFilter(QObject *watched, QEvent *event)
 {
     // **A picture dropped on the strip is placed where it was dropped, at its own size.** Dragged out
-    // of ④'s preview, or straight from a file manager — both arrive as a file URL, so one handler
+    // of TOOL VIEW's preview, or straight from a file manager — both arrive as a file URL, so one handler
     // serves both and neither needs a tool to be armed.
     if (watched == m_view->viewport()
         && (event->type() == QEvent::DragEnter || event->type() == QEvent::DragMove)) {

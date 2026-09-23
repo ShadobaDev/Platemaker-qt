@@ -29,7 +29,7 @@ qt_add_executable(Platemaker
 
     # MainWindow — class split across per-concern .cpp (same MainWindow class).
     # Each .ui lives next to its .cpp, so AUTOUIC resolves ui_*.h by default.
-    mainwindow/mainwindow.cpp mainwindow/mainwindow.h
+    mainwindow/mainwindow.cpp mainwindow/mainwindow.hpp
     mainwindow/workspace.cpp mainwindow/projects.cpp mainwindow/render.cpp
     mainwindow/renderbatch.cpp
     mainwindow/profiles.cpp mainwindow/templates.cpp mainwindow/about.cpp
@@ -37,91 +37,91 @@ qt_add_executable(Platemaker
     mainwindow/mainwindow.ui
 
     # Project — class split across per-concern .cpp (same Project class).
-    widgets/project/project.cpp widgets/project/project.h
+    widgets/project/project.cpp widgets/project/project.hpp
     widgets/project/input.cpp widgets/project/output.cpp
-    widgets/project/projectsnapshotcommand.cpp widgets/project/projectsnapshotcommand.h
-    widgets/project/overlaysnapshotcommand.cpp widgets/project/overlaysnapshotcommand.h
-    widgets/project/overlaystate.h
-    widgets/project/workspacesnapshotcommand.cpp widgets/project/workspacesnapshotcommand.h
+    widgets/project/projectsnapshotcommand.cpp widgets/project/projectsnapshotcommand.hpp
+    widgets/project/overlaysnapshotcommand.cpp widgets/project/overlaysnapshotcommand.hpp
+    widgets/project/overlaystate.hpp
+    widgets/project/workspacesnapshotcommand.cpp widgets/project/workspacesnapshotcommand.hpp
     widgets/project/project.ui
 
-    # Widgets / dialogs — each in its own folder under widgets/ (.cpp/.h/.ui together).
-    widgets/imagetile/imagetile.cpp widgets/imagetile/imagetile.h widgets/imagetile/imagetile.ui
-    widgets/canvasprofiledialog/canvasprofiledialog.cpp widgets/canvasprofiledialog/canvasprofiledialog.h widgets/canvasprofiledialog/canvasprofiledialog.ui
-    widgets/managecanvasprofilesdialog/managecanvasprofilesdialog.cpp widgets/managecanvasprofilesdialog/managecanvasprofilesdialog.h widgets/managecanvasprofilesdialog/managecanvasprofilesdialog.ui
-    widgets/manageoutputprofilesdialog/manageoutputprofilesdialog.cpp widgets/manageoutputprofilesdialog/manageoutputprofilesdialog.h widgets/manageoutputprofilesdialog/manageoutputprofilesdialog.ui
-    widgets/outputprofiledialog/outputprofiledialog.cpp widgets/outputprofiledialog/outputprofiledialog.h widgets/outputprofiledialog/outputprofiledialog.ui
-    widgets/profilepickerdialog/profilepickerdialog.cpp widgets/profilepickerdialog/profilepickerdialog.h widgets/profilepickerdialog/profilepickerdialog.ui
-    widgets/templatesdialog/templatesdialog.cpp widgets/templatesdialog/templatesdialog.h widgets/templatesdialog/templatesdialog.ui
-    widgets/outputformatoptionswidget/outputformatoptionswidget.cpp widgets/outputformatoptionswidget/outputformatoptionswidget.h widgets/outputformatoptionswidget/outputformatoptionswidget.ui
-    widgets/aboutdialog/aboutdialog.cpp widgets/aboutdialog/aboutdialog.h widgets/aboutdialog/aboutdialog.ui
-    widgets/licencedialog/licencedialog.cpp widgets/licencedialog/licencedialog.h widgets/licencedialog/licencedialog.ui
-    widgets/renderworker/renderworker.cpp widgets/renderworker/renderworker.h
+    # Widgets / dialogs — each in its own folder under widgets/ (.cpp/.hpp/.ui together).
+    widgets/imagetile/imagetile.cpp widgets/imagetile/imagetile.hpp widgets/imagetile/imagetile.ui
+    widgets/canvasprofiledialog/canvasprofiledialog.cpp widgets/canvasprofiledialog/canvasprofiledialog.hpp widgets/canvasprofiledialog/canvasprofiledialog.ui
+    widgets/managecanvasprofilesdialog/managecanvasprofilesdialog.cpp widgets/managecanvasprofilesdialog/managecanvasprofilesdialog.hpp widgets/managecanvasprofilesdialog/managecanvasprofilesdialog.ui
+    widgets/manageoutputprofilesdialog/manageoutputprofilesdialog.cpp widgets/manageoutputprofilesdialog/manageoutputprofilesdialog.hpp widgets/manageoutputprofilesdialog/manageoutputprofilesdialog.ui
+    widgets/outputprofiledialog/outputprofiledialog.cpp widgets/outputprofiledialog/outputprofiledialog.hpp widgets/outputprofiledialog/outputprofiledialog.ui
+    widgets/profilepickerdialog/profilepickerdialog.cpp widgets/profilepickerdialog/profilepickerdialog.hpp widgets/profilepickerdialog/profilepickerdialog.ui
+    widgets/templatesdialog/templatesdialog.cpp widgets/templatesdialog/templatesdialog.hpp widgets/templatesdialog/templatesdialog.ui
+    widgets/outputformatoptionswidget/outputformatoptionswidget.cpp widgets/outputformatoptionswidget/outputformatoptionswidget.hpp widgets/outputformatoptionswidget/outputformatoptionswidget.ui
+    widgets/aboutdialog/aboutdialog.cpp widgets/aboutdialog/aboutdialog.hpp widgets/aboutdialog/aboutdialog.ui
+    widgets/licencedialog/licencedialog.cpp widgets/licencedialog/licencedialog.hpp widgets/licencedialog/licencedialog.ui
+    widgets/renderworker/renderworker.cpp widgets/renderworker/renderworker.hpp
 
     # Strip editor (namespace StripEdit) — the continuous "infinite strip" authoring surface built from
     # the project's input pages (QGraphicsView), the scene item that draws and edits one overlay on it,
     # the page geometry it answers placement questions from, and its two tool-options panels.
-    widgets/stripeditor/editor.cpp widgets/stripeditor/editor.h widgets/stripeditor/editor.ui
-    widgets/stripeditor/object.cpp widgets/stripeditor/object.h
-    widgets/stripeditor/bubbleobject.cpp widgets/stripeditor/bubbleobject.h
-    widgets/stripeditor/assetobject.cpp widgets/stripeditor/assetobject.h
-    widgets/stripeditor/layout.cpp widgets/stripeditor/layout.h
-    widgets/stripeditor/pagesource.cpp widgets/stripeditor/pagesource.h
-    widgets/stripeditor/objectcontroller.cpp widgets/stripeditor/objectcontroller.h
-    widgets/stripeditor/toolregistry.cpp widgets/stripeditor/toolregistry.h
-    widgets/stripeditor/colourpair.cpp widgets/stripeditor/colourpair.h
-    widgets/stripeditor/cursors.cpp widgets/stripeditor/cursors.h
-    widgets/stripeditor/rowglyph.cpp widgets/stripeditor/rowglyph.h
-    widgets/stripeditor/presetstore.cpp widgets/stripeditor/presetstore.h
-    widgets/stripeditor/properties/propertygroup.h
-    widgets/stripeditor/properties/propertygroupeditor.h
-    widgets/stripeditor/properties/blendeditor.cpp widgets/stripeditor/properties/blendeditor.h
-    widgets/stripeditor/properties/propertygroupset.cpp widgets/stripeditor/properties/propertygroupset.h
-    widgets/stripeditor/properties/shapeeditor.cpp widgets/stripeditor/properties/shapeeditor.h
-    widgets/stripeditor/properties/skineditor.cpp widgets/stripeditor/properties/skineditor.h
-    widgets/stripeditor/properties/styleeditor.cpp widgets/stripeditor/properties/styleeditor.h
-    widgets/stripeditor/properties/tailseditor.cpp widgets/stripeditor/properties/tailseditor.h
-    widgets/stripeditor/properties/taillisteditor.cpp widgets/stripeditor/properties/taillisteditor.h
-    widgets/stripeditor/properties/taileditor.cpp widgets/stripeditor/properties/taileditor.h
-    widgets/stripeditor/properties/texteditor.cpp widgets/stripeditor/properties/texteditor.h
-    widgets/stripeditor/colouradjustment.cpp widgets/stripeditor/colouradjustment.h
-    widgets/stripeditor/panels/gradepanel.cpp widgets/stripeditor/panels/gradepanel.h widgets/stripeditor/panels/gradepanel.ui
-    widgets/stripeditor/panels/tooloptionspanel.cpp widgets/stripeditor/panels/tooloptionspanel.h
-    widgets/stripeditor/panels/artworkoptionspanel.cpp widgets/stripeditor/panels/artworkoptionspanel.h
-    widgets/stripeditor/panels/objectstatepanel.cpp widgets/stripeditor/panels/objectstatepanel.h
-    widgets/stripeditor/panels/stripstatepanel.cpp widgets/stripeditor/panels/stripstatepanel.h
-    widgets/collapsiblesection/collapsiblesection.cpp widgets/collapsiblesection/collapsiblesection.h
+    widgets/stripeditor/editor.cpp widgets/stripeditor/editor.hpp widgets/stripeditor/editor.ui
+    widgets/stripeditor/object.cpp widgets/stripeditor/object.hpp
+    widgets/stripeditor/bubbleobject.cpp widgets/stripeditor/bubbleobject.hpp
+    widgets/stripeditor/assetobject.cpp widgets/stripeditor/assetobject.hpp
+    widgets/stripeditor/layout.cpp widgets/stripeditor/layout.hpp
+    widgets/stripeditor/pagesource.cpp widgets/stripeditor/pagesource.hpp
+    widgets/stripeditor/objectcontroller.cpp widgets/stripeditor/objectcontroller.hpp
+    widgets/stripeditor/toolregistry.cpp widgets/stripeditor/toolregistry.hpp
+    widgets/stripeditor/colourpair.cpp widgets/stripeditor/colourpair.hpp
+    widgets/stripeditor/cursors.cpp widgets/stripeditor/cursors.hpp
+    widgets/stripeditor/rowglyph.cpp widgets/stripeditor/rowglyph.hpp
+    widgets/stripeditor/presetstore.cpp widgets/stripeditor/presetstore.hpp
+    widgets/stripeditor/properties/propertygroup.hpp
+    widgets/stripeditor/properties/propertygroupeditor.hpp
+    widgets/stripeditor/properties/blendeditor.cpp widgets/stripeditor/properties/blendeditor.hpp
+    widgets/stripeditor/properties/propertygroupset.cpp widgets/stripeditor/properties/propertygroupset.hpp
+    widgets/stripeditor/properties/shapeeditor.cpp widgets/stripeditor/properties/shapeeditor.hpp
+    widgets/stripeditor/properties/skineditor.cpp widgets/stripeditor/properties/skineditor.hpp
+    widgets/stripeditor/properties/styleeditor.cpp widgets/stripeditor/properties/styleeditor.hpp
+    widgets/stripeditor/properties/tailseditor.cpp widgets/stripeditor/properties/tailseditor.hpp
+    widgets/stripeditor/properties/taillisteditor.cpp widgets/stripeditor/properties/taillisteditor.hpp
+    widgets/stripeditor/properties/taileditor.cpp widgets/stripeditor/properties/taileditor.hpp
+    widgets/stripeditor/properties/texteditor.cpp widgets/stripeditor/properties/texteditor.hpp
+    widgets/stripeditor/colouradjustment.cpp widgets/stripeditor/colouradjustment.hpp
+    widgets/stripeditor/panels/gradepanel.cpp widgets/stripeditor/panels/gradepanel.hpp widgets/stripeditor/panels/gradepanel.ui
+    widgets/stripeditor/panels/tooloptionspanel.cpp widgets/stripeditor/panels/tooloptionspanel.hpp
+    widgets/stripeditor/panels/artworkoptionspanel.cpp widgets/stripeditor/panels/artworkoptionspanel.hpp
+    widgets/stripeditor/panels/objectstatepanel.cpp widgets/stripeditor/panels/objectstatepanel.hpp
+    widgets/stripeditor/panels/stripstatepanel.cpp widgets/stripeditor/panels/stripstatepanel.hpp
+    widgets/collapsiblesection/collapsiblesection.cpp widgets/collapsiblesection/collapsiblesection.hpp
 
     # Text artifact — what a bubble IS (shape, text, styling), its sidecar codec and its rasteriser.
     # The library composites a flat RGBA bitmap and has no text engine, so the editable source lives here.
-    widgets/textartifact/textartifact.cpp widgets/textartifact/textartifact.h
-    widgets/textartifact/artifactpainter.cpp widgets/textartifact/artifactpainter.h
-    widgets/textartifact/artifactsvg.cpp widgets/textartifact/artifactsvg.h
+    widgets/artifact/artifact.cpp widgets/artifact/artifact.hpp
+    widgets/artifact/artifactpainter.cpp widgets/artifact/artifactpainter.hpp
+    widgets/artifact/artifactsvg.cpp widgets/artifact/artifactsvg.hpp
 
     # Stage card — one step in the Project "Workflow" pipeline map (custom-painted, no .ui).
-    widgets/stagecard/stagecard.cpp widgets/stagecard/stagecard.h
+    widgets/stagecard/stagecard.cpp widgets/stagecard/stagecard.hpp
 
     # Flow layout — wraps items to fit the width (the strip editor's reflowing tool grid).
-    widgets/flowlayout/flowlayout.cpp widgets/flowlayout/flowlayout.h
+    widgets/flowlayout/flowlayout.cpp widgets/flowlayout/flowlayout.hpp
 
     # Custom dock title bar (min = dock⇄detach, max = fill screen, close) shared by all docks.
-    widgets/docktitlebar/docktitlebar.cpp widgets/docktitlebar/docktitlebar.h
+    widgets/docktitlebar/docktitlebar.cpp widgets/docktitlebar/docktitlebar.hpp
 
     # Dock attention: undo/redo raises the dock that shows the step, and flashes it when it was
     # somewhere other than where the user was looking.
-    widgets/docktitlebar/dockattention.cpp widgets/docktitlebar/dockattention.h
+    widgets/docktitlebar/dockattention.cpp widgets/docktitlebar/dockattention.hpp
 
     # Badges — the rounded chips, shared by the item-view delegates and the status bar.
-    widgets/badge/badge.cpp widgets/badge/badge.h
-    widgets/badge/badgeitemdelegate.cpp widgets/badge/badgeitemdelegate.h
+    widgets/badge/badge.cpp widgets/badge/badge.hpp
+    widgets/badge/badgeitemdelegate.cpp widgets/badge/badgeitemdelegate.hpp
 
     # Advisories — the application-wide registry of "this will not do what you meant".
-    widgets/advisories/advisories.cpp widgets/advisories/advisories.h
-    widgets/advisories/advisorybar.cpp widgets/advisories/advisorybar.h
+    widgets/advisories/advisories.cpp widgets/advisories/advisories.hpp
+    widgets/advisories/advisorybar.cpp widgets/advisories/advisorybar.hpp
 )
 
 # Every class/header lives in its own folder; add each to the include path so
-# basename includes (#include "canvasprofiledialog.h", "mainwindow.h", …) resolve
+# basename includes (#include "canvasprofiledialog.hpp", "mainwindow.hpp", …) resolve
 # from any source file regardless of folder.
 target_include_directories(Platemaker PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/app/menubaricontextstyle
@@ -144,7 +144,7 @@ target_include_directories(Platemaker PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/widgets/stagecard
     ${CMAKE_CURRENT_SOURCE_DIR}/widgets/flowlayout
     ${CMAKE_CURRENT_SOURCE_DIR}/widgets/collapsiblesection
-    ${CMAKE_CURRENT_SOURCE_DIR}/widgets/textartifact
+    ${CMAKE_CURRENT_SOURCE_DIR}/widgets/artifact
     ${CMAKE_CURRENT_SOURCE_DIR}/widgets/docktitlebar
     ${CMAKE_CURRENT_SOURCE_DIR}/widgets/badge
     ${CMAKE_CURRENT_SOURCE_DIR}/widgets/advisories

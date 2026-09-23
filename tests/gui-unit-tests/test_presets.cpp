@@ -5,7 +5,7 @@
 
 #include <QCoreApplication>
 
-#include "presetstore.h"
+#include "presetstore.hpp"
 
 using namespace StripEdit;
 
@@ -23,10 +23,10 @@ protected:
 };
 
 //! A plain balloon with something in it, standing in for one the artist has placed.
-TextArtifact placed()
+Artifact placed()
 {
-    TextArtifact a;
-    a.shape.kind = TextArtifact::Shape::Speech;
+    Artifact a;
+    a.shape.kind = Artifact::Shape::Speech;
     a.box        = QSize(300, 160);
     a.text.body  = QStringLiteral("Hello");
     a.styleSeed  = 123456;
@@ -44,7 +44,7 @@ TEST_F(Presets, AnAppliedPresetIsRecognisedAsItself)
     ASSERT_FALSE(store.presets().isEmpty());
 
     for (int i = 0; i < store.presets().size(); ++i) {
-        const TextArtifact look = PresetStore::applied(store.presets().at(i), placed(), false);
+        const Artifact look = PresetStore::applied(store.presets().at(i), placed(), false);
         // The first match wins, and two presets may legitimately describe the same look, so the test is
         // that the *look* is recognised — not that this exact index comes back.
         const int found = store.matching(look);
@@ -56,7 +56,7 @@ TEST_F(Presets, AnAppliedPresetIsRecognisedAsItself)
 TEST_F(Presets, OneChangedPropertyIsCustom)
 {
     const PresetStore store;
-    TextArtifact      look = PresetStore::applied(store.presets().first(), placed(), false);
+    Artifact      look = PresetStore::applied(store.presets().first(), placed(), false);
 
     look.skin.fill = look.skin.fill == QColor(Qt::red) ? QColor(Qt::blue) : QColor(Qt::red);
 
@@ -67,7 +67,7 @@ TEST_F(Presets, OneChangedPropertyIsCustom)
 TEST_F(Presets, WhatAPresetNeverCarriedCannotBreakTheMatch)
 {
     const PresetStore store;
-    TextArtifact      look = PresetStore::applied(store.presets().first(), placed(), false);
+    Artifact      look = PresetStore::applied(store.presets().first(), placed(), false);
     const int         was  = store.matching(look);
     ASSERT_GE(was, 0);
 
@@ -87,13 +87,13 @@ TEST_F(Presets, WhatAPresetNeverCarriedCannotBreakTheMatch)
 TEST_F(Presets, AnObjectWithNoShapeMatchesNoBalloonPreset)
 {
     const PresetStore store;
-    TextArtifact      a = placed();
-    a.shape.kind        = TextArtifact::Shape::None;
+    Artifact      a = placed();
+    a.shape.kind        = Artifact::Shape::None;
     a.tails.items.clear();
 
     // Lettering with no balloon cannot be wearing a speech balloon's look, whatever its colours say.
     const int found = store.matching(a);
     if (found >= 0) {
-        EXPECT_EQ(store.presets().at(found).artifact.shape.kind, TextArtifact::Shape::None);
+        EXPECT_EQ(store.presets().at(found).artifact.shape.kind, Artifact::Shape::None);
     }
 }

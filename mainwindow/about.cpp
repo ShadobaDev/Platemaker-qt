@@ -1,5 +1,5 @@
-#include "mainwindow.h"
-#include "aboutdialog.h"
+#include "mainwindow.hpp"
+#include "aboutdialog.hpp"
 
 // About menu — Version / Authors / Help(manual) all open the one AboutDialog on
 // the matching tab. Read-only, so nothing here touches the workspace.

@@ -1,4 +1,4 @@
-#include "canvasprofiledialog.h"
+#include "canvasprofiledialog.hpp"
 #include "ui_canvasprofiledialog.h"
 
 #include <platemaker/models/canvas_profile.hpp>

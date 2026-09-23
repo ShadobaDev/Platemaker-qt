@@ -1,4 +1,4 @@
-#include "tooloptionspanel.h"
+#include "tooloptionspanel.hpp"
 
 #include <QAction>
 #include <QComboBox>
@@ -16,12 +16,12 @@
 #include <QToolButton>
 #include <QVBoxLayout>
 
-#include "presetstore.h"
-#include "shapeeditor.h"
-#include "skineditor.h"
-#include "styleeditor.h"
-#include "tailseditor.h"
-#include "texteditor.h"
+#include "presetstore.hpp"
+#include "shapeeditor.hpp"
+#include "skineditor.hpp"
+#include "styleeditor.hpp"
+#include "tailseditor.hpp"
+#include "texteditor.hpp"
 
 namespace StripEdit {
 
@@ -111,22 +111,22 @@ ToolOptionsPanel::ToolOptionsPanel(PresetStore& presets, QWidget* parent)
     syncFromModel();
 }
 
-TextArtifact::Shape ToolOptionsPanel::balloonShape() const
+Artifact::Shape ToolOptionsPanel::balloonShape() const
 {
-    TextArtifact picked;
+    Artifact picked;
     m_groups.shape()->applyTo(picked);
-    return picked.hasSilhouette() ? picked.shape.kind : TextArtifact::Shape::Speech;
+    return picked.hasSilhouette() ? picked.shape.kind : Artifact::Shape::Speech;
 }
 
-void ToolOptionsPanel::setToolShape(std::optional<TextArtifact::Shape> shape)
+void ToolOptionsPanel::setToolShape(std::optional<Artifact::Shape> shape)
 {
     m_toolShape = shape;
     m_shapeGroup->setVisible(!shape.has_value());
 }
 
-TextArtifact ToolOptionsPanel::prototype() const
+Artifact ToolOptionsPanel::prototype() const
 {
-    TextArtifact a;
+    Artifact a;
     // Shape first: the tails editor reads it, because a shapeless artifact has nothing to grow a tail
     // from. Everything else is order-independent by construction — no two groups touch a property.
     // The tool places its own kind if it has one; otherwise the tiles' balloon, which is never None.

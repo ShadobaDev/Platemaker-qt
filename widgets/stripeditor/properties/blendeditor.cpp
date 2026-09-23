@@ -1,4 +1,4 @@
-#include "blendeditor.h"
+#include "blendeditor.hpp"
 
 #include <QComboBox>
 #include <QFormLayout>

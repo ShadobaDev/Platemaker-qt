@@ -1,4 +1,4 @@
-#include "templatesdialog.h"
+#include "templatesdialog.hpp"
 #include "ui_templatesdialog.h"
 
 #include <platemaker/core/template_generator/template_generator.hpp>

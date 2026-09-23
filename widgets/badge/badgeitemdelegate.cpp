@@ -1,4 +1,4 @@
-#include "badgeitemdelegate.h"
+#include "badgeitemdelegate.hpp"
 
 #include <QAbstractItemView>
 #include <QApplication>

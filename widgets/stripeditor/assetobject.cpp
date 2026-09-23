@@ -1,4 +1,4 @@
-#include "assetobject.h"
+#include "assetobject.hpp"
 
 #include <QFileInfo>
 #include <QImage>
@@ -6,7 +6,7 @@
 #include <QPainterPath>
 #include <QSvgRenderer>
 
-#include "artifactpainter.h"
+#include "artifactpainter.hpp"
 #include <QSvgRenderer>
 
 #include <utility>
@@ -82,9 +82,9 @@ QString AssetObject::label() const
     return file.isEmpty() ? tr("(imported artwork)") : file;
 }
 
-void AssetObject::setArtifact(const TextArtifact& a)
+void AssetObject::setArtifact(const Artifact& a)
 {
-    TextArtifact next = a;
+    Artifact next = a;
     describePicture(next);   // whatever arrived, this object is still this picture at its own pixels
     if (m_artifact == next)
         return;
@@ -92,10 +92,10 @@ void AssetObject::setArtifact(const TextArtifact& a)
     update();
 }
 
-void AssetObject::describePicture(TextArtifact& a) const
+void AssetObject::describePicture(Artifact& a) const
 {
     a.artwork    = QFileInfo(m_picture).fileName();
-    a.shape.kind = TextArtifact::Shape::None;   // no silhouette of ours, said both ways
+    a.shape.kind = Artifact::Shape::None;   // no silhouette of ours, said both ways
     // **This object is the authority on how big the picture is**, not the record it was handed: the
     // record may predate pictures having one, or carry a size guessed from a copy the importer could
     // not read. An empty pixmap leaves the box alone — there is nothing better to say.

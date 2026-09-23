@@ -1,17 +1,17 @@
-#include "mainwindow.h"
+#include "mainwindow.hpp"
 #include "ui_mainwindow.h"
-#include "project.h"
-#include "workspacesnapshotcommand.h"
-#include "canvasprofiledialog.h"
-#include "managecanvasprofilesdialog.h"
-#include "manageoutputprofilesdialog.h"
-#include "outputprofiledialog.h"
-#include "templatesdialog.h"
-#include "renderworker.h"
-#include "editor.h"
-#include "docktitlebar.h"
-#include "dockattention.h"
-#include "advisories.h"
+#include "project.hpp"
+#include "workspacesnapshotcommand.hpp"
+#include "canvasprofiledialog.hpp"
+#include "managecanvasprofilesdialog.hpp"
+#include "manageoutputprofilesdialog.hpp"
+#include "outputprofiledialog.hpp"
+#include "templatesdialog.hpp"
+#include "renderworker.hpp"
+#include "editor.hpp"
+#include "docktitlebar.hpp"
+#include "dockattention.hpp"
+#include "advisories.hpp"
 
 #include <platemaker/infrastructure/workspace_editor/workspace_editor.hpp>
 
@@ -244,6 +244,7 @@ QDockWidget *MainWindow::dockForProject(int modelIndex) const
             return dock;
     return nullptr;
 }
+
 // ---------------------------------------------------------------------------
 // Project dock management
 // ---------------------------------------------------------------------------
@@ -369,7 +370,7 @@ void MainWindow::openProjectDock(int projectIndex)
     connect(this, &MainWindow::workspaceProfilesChanged,
             projectWidget, &Project::refreshProfileViews);
     newDock->setWidget(projectWidget);
-    // Same custom title bar as the workspace/strip/action docks (min = dock ⇄ detach, max, close).
+    // Same custom title bar as the workspace/strip/action docks (dock/detach, max, close).
     installDockTitleBar(newDock);
 
     // The stack is already in the group — historyFor() put it there, and it stays for the session
@@ -452,7 +453,7 @@ void MainWindow::installDockTitleBar(QDockWidget *dock)
     // show only while the dock floats or is docked alone.
     auto *bar = new DockTitleBar(dock, dock);
 
-    // Minimise → toggle dock ⇄ detach. Docking tabs it beside the Workspace, except the Workspace dock
+    // Minimise → toggle dock <-> detach. Docking tabs it beside the Workspace, except the Workspace dock
     // (the tab anchor) and the Action column (Right-only, never combined) which simply re-dock.
     connect(bar, &DockTitleBar::minimiseClicked, this, [this, dock] {
         if (dock->isFloating()) {
@@ -585,7 +586,7 @@ void MainWindow::openStripEditorDock(int projectIndex)
     // widget and no history, and the edit is dropped rather than applied untracked. Merely *closing*
     // the dock does not reach here — it hides, and the widget goes on recording.
     connect(viewer, &StripEdit::Editor::artifactCreated, this,
-            [this, projectIndex](const TextArtifact &artifact, double xFrac, double yFrac,
+            [this, projectIndex](const Artifact &artifact, double xFrac, double yFrac,
                                  double wFrac, const QString &anchorUid) {
         if (auto *pw = projectWidget(projectIndex))
             pw->createOverlay(artifact, xFrac, yFrac, wFrac, anchorUid);
@@ -617,7 +618,7 @@ void MainWindow::openStripEditorDock(int projectIndex)
 
     dock->setWidget(viewer);
 
-    // Shared custom title bar (minimise = dock ⇄ detach, maximise = fill screen, close = hide).
+    // Shared custom title bar (minimise = dock/detach, maximise = fill screen, close = hide).
     installDockTitleBar(dock);
 
     // Looking at the strip editor makes this project's history the one Ctrl+Z targets — the same stack

@@ -1,6 +1,6 @@
-#include "overlaysnapshotcommand.h"
+#include "overlaysnapshotcommand.hpp"
 
-#include "project.h"
+#include "project.hpp"
 
 #include <utility>
 

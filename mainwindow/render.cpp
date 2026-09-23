@@ -1,16 +1,16 @@
-#include "mainwindow.h"
-#include "advisories.h"
+#include "mainwindow.hpp"
+#include "advisories.hpp"
 #include <QAbstractButton>
 #include <QPushButton>
 #include <functional>
 #include "ui_mainwindow.h"
-#include "project.h"
-#include "canvasprofiledialog.h"
-#include "managecanvasprofilesdialog.h"
-#include "manageoutputprofilesdialog.h"
-#include "outputprofiledialog.h"
-#include "templatesdialog.h"
-#include "renderworker.h"
+#include "project.hpp"
+#include "canvasprofiledialog.hpp"
+#include "managecanvasprofilesdialog.hpp"
+#include "manageoutputprofilesdialog.hpp"
+#include "outputprofiledialog.hpp"
+#include "templatesdialog.hpp"
+#include "renderworker.hpp"
 
 #include <QApplication>
 #include <QClipboard>

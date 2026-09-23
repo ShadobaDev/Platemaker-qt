@@ -1,4 +1,4 @@
-#include "shapeeditor.h"
+#include "shapeeditor.hpp"
 
 #include <QAbstractButton>
 #include <QButtonGroup>
@@ -7,8 +7,8 @@
 #include <QToolButton>
 #include <QVBoxLayout>
 
-#include "artifactpainter.h"
-#include "flowlayout.h"
+#include "artifactpainter.hpp"
+#include "flowlayout.hpp"
 
 namespace StripEdit {
 
@@ -21,25 +21,25 @@ constexpr int k_shapeIconScale = 4;
 
 } // namespace
 
-bool shapeSpeaks(TextArtifact::Shape shape)
+bool shapeSpeaks(Artifact::Shape shape)
 {
     // Someone is talking: a tail belongs. A caption, a banner or a scroll is narration — it has no
     // speaker to point at, so placing one should not sprout a tail the author then has to turn off.
     switch (shape) {
-    case TextArtifact::Shape::Speech:
-    case TextArtifact::Shape::Shout:
-    case TextArtifact::Shape::Ellipse:
-    case TextArtifact::Shape::Thought:
+    case Artifact::Shape::Speech:
+    case Artifact::Shape::Shout:
+    case Artifact::Shape::Ellipse:
+    case Artifact::Shape::Thought:
         return true;
     default:
         return false;
     }
 }
 
-QPixmap bubbleThumbnail(TextArtifact::Shape shape, const QColor& fill, const QColor& stroke,
+QPixmap bubbleThumbnail(Artifact::Shape shape, const QColor& fill, const QColor& stroke,
                         const QColor& ink)
 {
-    TextArtifact a;
+    Artifact a;
     a.shape.kind       = shape;
     a.box              = QSize(k_bubbleThumbW * k_shapeIconScale, k_bubbleThumbH * k_shapeIconScale);
     // The tile's own stroke, not the artifact's: a preset authored at 5 px on a 280 px balloon would be
@@ -62,7 +62,7 @@ QPixmap bubbleThumbnail(TextArtifact::Shape shape, const QColor& fill, const QCo
                                                        Qt::KeepAspectRatio, Qt::SmoothTransformation));
 }
 
-QPixmap shapeThumbnail(TextArtifact::Shape shape, const QPalette& pal)
+QPixmap shapeThumbnail(Artifact::Shape shape, const QPalette& pal)
 {
     return bubbleThumbnail(shape, pal.color(QPalette::Base), pal.color(QPalette::WindowText),
                            pal.color(QPalette::WindowText));
@@ -84,9 +84,9 @@ ShapeEditor::ShapeEditor(QWidget* parent)
 
     m_tiles = new QButtonGroup(this);
     m_tiles->setExclusive(true);
-    // The tiles are the shape list, in the shape list's order — both from textartifact.h, so this
+    // The tiles are the shape list, in the shape list's order — both from artifact.hpp, so this
     // picker and *Convert to ▸* cannot come to offer different things or call them different names.
-    for (TextArtifact::Shape shape : shapeOrder()) {
+    for (Artifact::Shape shape : shapeOrder()) {
         auto* b = new QToolButton(tileHost);
         b->setCheckable(true);
         b->setAutoRaise(true);
@@ -97,12 +97,12 @@ ShapeEditor::ShapeEditor(QWidget* parent)
         m_tiles->addButton(b, int(shape));
     }
 
-    if (auto* first = m_tiles->button(int(TextArtifact::Shape::Speech)))
+    if (auto* first = m_tiles->button(int(Artifact::Shape::Speech)))
         first->setChecked(true);
     refreshTiles();
 
     connect(m_tiles, &QButtonGroup::idClicked, this, [this](int id) {
-        m_values.kind = static_cast<TextArtifact::Shape>(id);
+        m_values.kind = static_cast<Artifact::Shape>(id);
         emit edited();
     });
 }
@@ -117,7 +117,7 @@ void ShapeEditor::bind(const Subjects& subjects)
         tile->setChecked(true);
 }
 
-void ShapeEditor::applyTo(TextArtifact& target) const
+void ShapeEditor::applyTo(Artifact& target) const
 {
     m_values.applyTo(target);
 }
@@ -134,7 +134,7 @@ void ShapeEditor::refreshTiles()
     if (!m_tiles)
         return;
     for (QAbstractButton* b : m_tiles->buttons())
-        b->setIcon(QIcon(shapeThumbnail(static_cast<TextArtifact::Shape>(m_tiles->id(b)), palette())));
+        b->setIcon(QIcon(shapeThumbnail(static_cast<Artifact::Shape>(m_tiles->id(b)), palette())));
 }
 
 }  // namespace StripEdit

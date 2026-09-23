@@ -34,18 +34,18 @@ add_executable(platemaker-gui-tests
     test_property_groups.cpp
     test_colour_adjustments.cpp
     test_presets.cpp
-    ${CMAKE_SOURCE_DIR}/widgets/textartifact/textartifact.cpp
+    ${CMAKE_SOURCE_DIR}/widgets/artifact/artifact.cpp
     # The SVG a bubble is written to, and the geometry it is written from: both Qt6::Gui only, so the
     # rule above still holds — and the import's premise is worth a test of its own.
-    ${CMAKE_SOURCE_DIR}/widgets/textartifact/artifactsvg.cpp
-    ${CMAKE_SOURCE_DIR}/widgets/textartifact/artifactpainter.cpp
+    ${CMAKE_SOURCE_DIR}/widgets/artifact/artifactsvg.cpp
+    ${CMAKE_SOURCE_DIR}/widgets/artifact/artifactpainter.cpp
     ${CMAKE_SOURCE_DIR}/widgets/stripeditor/colouradjustment.cpp
     # The preset store is QtCore and a QObject — no widget in it — so the rule above still holds.
     ${CMAKE_SOURCE_DIR}/widgets/stripeditor/presetstore.cpp
 )
 
 target_include_directories(platemaker-gui-tests PRIVATE
-    ${CMAKE_SOURCE_DIR}/widgets/textartifact
+    ${CMAKE_SOURCE_DIR}/widgets/artifact
     ${CMAKE_SOURCE_DIR}/widgets/stripeditor
     # carriesGroup() — which property groups a record carries. Header-only and QWidget-free on
     # purpose, which is what lets the rule ③ lays itself out by be tested rather than only read.

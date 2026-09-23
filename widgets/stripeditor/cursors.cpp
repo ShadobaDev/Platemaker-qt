@@ -1,4 +1,4 @@
-#include "cursors.h"
+#include "cursors.hpp"
 
 namespace StripEdit {
 

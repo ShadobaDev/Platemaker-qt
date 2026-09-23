@@ -47,7 +47,7 @@ enum class CursorStyle { Arrow, Hand, Cross, Move, Inherit };
 struct Tool
 {
     QString  id;                 //!< Stable name: `setTool()`, settings, tests. Never shown.
-    QString  icon;               //!< Resource path, or empty to draw the shape this tool places.
+    QString  icon;               //!< Resource path to the rail button's glyph.
     //! What the rail calls it, untranslated: a static table is built once, and a language change must
     //! not freeze into it. A name, not a sentence — the sentence is below.
     const char* name = nullptr;

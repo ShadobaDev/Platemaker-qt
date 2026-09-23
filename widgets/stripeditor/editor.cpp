@@ -77,6 +77,15 @@ namespace {
  * rather than shoving it. That is also what lets the object list keep its third of the height when the
  * properties are long.
  */
+//! The tool-options page whose contents decide **which picture** a placement puts down.
+//!
+//! Three places need to name it: the page's own registration, and the two moments the editor has to
+//! know that a picture rather than a balloon is what the next drag will place. Those two used to ask
+//! `m_tool == "artwork"` — the tool's *id*, which the registry exists so that nothing outside it has
+//! to know. Which options page a tool shows is a property of its row, and it is the question actually
+//! being asked.
+constexpr QLatin1String k_artworkPage{"artwork"};
+
 [[nodiscard]] QScrollArea* scrolled(QWidget* page, QStackedWidget* host)
 {
     auto* area = new QScrollArea(host);
@@ -328,15 +337,16 @@ Editor::Editor(QWidget *parent)
         // rather than a section of the one above, because they describe different kinds of object — the
         // arrangement §26 exists to keep straight.
         m_artworkOptions = new ArtworkOptionsPanel(ui->toolOptions);
-        pageIndex.insert(QStringLiteral("artwork"),
+        pageIndex.insert(k_artworkPage,
                          ui->toolOptions->addWidget(scrolled(m_artworkOptions, ui->toolOptions)));
         connect(m_artworkOptions, &ArtworkOptionsPanel::artworkChanged, this, [this](const QString& f) {
-            if (m_objects && m_tool == QLatin1String("artwork"))
+            const Tool* armed = toolById(m_tool);
+            if (m_objects && armed && armed->page == k_artworkPage)
                 m_objects->setPlacementArtwork(f);
         });
 
         // The rail, built from the registry: a button per row, in the table's order, its id that row's
-        // index. A row with no icon file draws its own — see refreshGeneratedToolIcons().
+        // index.
         for (int i = 0; i < tools().size(); ++i) {
             const Tool& t = tools().at(i);
             auto* b = new QToolButton(m_toolTiles);
@@ -350,6 +360,9 @@ Editor::Editor(QWidget *parent)
             b->setFixedSize(40, 40);       // square tile
             railLay->addWidget(b);
             m_toolGroup->addButton(b, i);
+            // A row naming a page nobody registered would land on index 0 — the hint page — and look
+            // like a tool that simply has no options, which is the hardest kind of typo to see.
+            Q_ASSERT(pageIndex.contains(t.page));
             m_toolPage.insert(t.id, pageIndex.value(t.page));
         }
 
@@ -364,7 +377,6 @@ Editor::Editor(QWidget *parent)
         railRows->addLayout(colourRow);
         railRows->addStretch(1);        // both rows hug the top; the rest of the rail is empty space
 
-        refreshGeneratedToolIcons();   // the rows that carry no icon file draw their own
 
         // X and D over the canvas, as every drawing application binds them. Scoped to the view so that
         // typing an x into a balloon stays typing an x.
@@ -506,7 +518,7 @@ void Editor::setTool(const QString& id)
     // thing the controller is told about the active tool, and told at the moment it is armed.
     if (m_objects) {
         QString artwork;
-        if (m_tool == QLatin1String("artwork") && m_artworkOptions) {
+        if (tool->page == k_artworkPage && m_artworkOptions) {
             // Arming with nothing chosen asks once, here: before any drag, so a file dialog never lands
             // in the middle of one. A cancelled dialog arms nothing, and ④ says as much.
             if (m_artworkOptions->artwork().isEmpty())
@@ -1131,27 +1143,6 @@ bool Editor::isApplying() const
 {
     const Tool* tool = toolById(m_tool);
     return tool && tool->kind == ToolKind::Apply;
-}
-
-void Editor::refreshGeneratedToolIcons()
-{
-    if (!m_toolGroup)
-        return;
-    for (int i = 0; i < tools().size(); ++i) {
-        const Tool& t = tools().at(i);
-        if (!t.icon.isEmpty())
-            continue;
-        auto* b = m_toolGroup->button(i);
-        if (b && t.shape)
-            b->setIcon(QIcon(shapeThumbnail(*t.shape, palette())));
-    }
-}
-
-void Editor::changeEvent(QEvent* event)
-{
-    QWidget::changeEvent(event);
-    if (event->type() == QEvent::PaletteChange || event->type() == QEvent::ThemeChange)
-        refreshGeneratedToolIcons();
 }
 
 

@@ -17,10 +17,12 @@
 
 #include <cmath>
 
+#include "propertygroupeditor.h"   // k_commitDebounceMs — ③ and ④ settle at the same pace or they
+                                   // feel like different applications
+
 namespace StripEdit {
 
 namespace {
-constexpr int    k_commitDebounceMs = 300;    //!< Coalesce a drag into one undo step this long after it settles.
 constexpr double k_sliderScale      = 100.0;  //!< Slider steps per unit — the spin box's two decimals.
 constexpr int    k_spinMinWidth     = 84;     //!< Room for "-1,00" plus the step arrows.
 constexpr int    k_gridSpacing      = 6;

@@ -245,8 +245,6 @@ signals:
 protected:
     //! Ctrl+wheel over the view zooms; a plain wheel keeps the view's native vertical scroll.
     bool eventFilter(QObject *watched, QEvent *event) override;
-    //! Re-draws the generated rail icons when the theme flips — they are made of palette colours.
-    void changeEvent(QEvent* event) override;
 
     //! While the default zoom is still pending, re-applies it as the viewport gets its real size; also
     //! re-evaluates which pages to build.
@@ -307,7 +305,6 @@ private:
      * change under the application — the palette, the pair — so they are drawn here rather than once in
      * the constructor, and this runs again whenever either moves.
      */
-    void                  refreshGeneratedToolIcons();
     //! The picture in @p mime, or empty when it carries none. One rule for both drop sources.
     [[nodiscard]] static QString droppedArtwork(const ::QMimeData* mime);
 

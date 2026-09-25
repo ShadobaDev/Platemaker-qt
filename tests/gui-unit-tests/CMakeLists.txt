@@ -34,6 +34,7 @@ add_executable(platemaker-gui-tests
     test_property_groups.cpp
     test_colour_adjustments.cpp
     test_presets.cpp
+    test_workspace_folder.cpp
     ${CMAKE_SOURCE_DIR}/widgets/artifact/artifact.cpp
     # The SVG a bubble is written to, and the geometry it is written from: both Qt6::Gui only, so the
     # rule above still holds — and the import's premise is worth a test of its own.
@@ -42,6 +43,8 @@ add_executable(platemaker-gui-tests
     ${CMAKE_SOURCE_DIR}/widgets/stripeditor/colouradjustment.cpp
     # The preset store is QtCore and a QObject — no widget in it — so the rule above still holds.
     ${CMAKE_SOURCE_DIR}/widgets/stripeditor/presetstore.cpp
+    # The one-workspace-per-folder rule: QtCore and the file system, nothing else.
+    ${CMAKE_SOURCE_DIR}/widgets/workspacefolder/workspacefolder.cpp
 )
 
 target_include_directories(platemaker-gui-tests PRIVATE
@@ -50,6 +53,7 @@ target_include_directories(platemaker-gui-tests PRIVATE
     # carriesGroup() — which property groups a record carries. Header-only and QWidget-free on
     # purpose, which is what lets the rule ③ lays itself out by be tested rather than only read.
     ${CMAKE_SOURCE_DIR}/widgets/stripeditor/properties
+    ${CMAKE_SOURCE_DIR}/widgets/workspacefolder
     # The colour adjustments read libplatemaker's ColourCorrection, which is header-only. Its include path
     # and not its target: linking the target would make every test run need the library's DLL on PATH,
     # including the one gtest_discover_tests starts at build time.

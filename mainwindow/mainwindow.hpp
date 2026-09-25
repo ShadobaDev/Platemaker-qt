@@ -290,6 +290,33 @@ private:
     // --- Workspace helpers ---
     bool maybeSave();                           //!< True = safe to proceed
     void loadWorkspace(const QString &path);    //!< Loads a workspace from disk, replacing the current workspace
+
+    /**
+     * @brief Asks where a workspace file should go, and keeps asking until the answer is a folder no other
+     *        workspace lives in.
+     *
+     * New and Save As are where a second workspace would enter a folder, so this is where the one-per-folder
+     * rule (workspacefolder.hpp) is enforced: a folder that already holds one is refused, with the offer of
+     * a subfolder named after the new file.
+     *
+     * @param title   The file dialog's caption.
+     * @param startAt Where the dialog opens.
+     * @return The path to write, or empty when the user gave up.
+     */
+    [[nodiscard]] QString askWorkspaceFile(const QString &title, QString startAt);
+
+    /**
+     * @brief Opening a folder that holds several workspaces: which one stays.
+     *
+     * Such a folder is not opened as it is — the workspaces in it share every file beside them, and nothing
+     * that writes there can be safe. The user picks the one to keep; the others go to the Recycle Bin, where
+     * they can be restored from.
+     *
+     * @param path The workspace the user asked to open.
+     * @return The workspace to open now, or empty when the user cancelled or a file could not be moved.
+     *         \p path itself when its folder holds nothing else.
+     */
+    [[nodiscard]] QString resolveSharedFolder(const QString &path);
     void applyWorkspaceToUi();                  //!< Updates the UI to reflect the current workspace model
     void closeWorkspace();                      //!< Closes the current workspace, clearing the model and UI
     void setDirty(bool dirty);                  //!< Sets the dirty flag and updates the title bar. True = workspace has unsaved changes and the title bar will show '*'

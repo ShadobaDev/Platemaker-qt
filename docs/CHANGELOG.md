@@ -260,6 +260,12 @@
   horizontally *and* vertically, split, or tabbed together. The **Action** panel is pinned to its own
   right column: it can no longer be tab-combined with other docks and keeps a static default width that
   only a splitter drag changes.
+- **One workspace per folder.** A workspace keeps its bubbles, artwork and templates in the folder it is
+  saved in, so two workspace files in one folder would share them — and cleaning up after one would
+  delete the other's. *New* and *Save As* now refuse a folder that already holds a workspace and offer
+  to create a subfolder for it instead. Opening a folder that already holds several asks which one to
+  keep and moves the others to the Recycle Bin, from which they can be restored into a folder of their
+  own.
 - **Custom dock title bar.** The Workspace, project and strip docks share a title bar with real
   **minimise** (dock ⇄ detach — docking tabs it beside the Workspace, floating pops it out), **maximise**
   (fill the screen ⇄ restore) and **close** buttons — a floating dock previously showed only a close

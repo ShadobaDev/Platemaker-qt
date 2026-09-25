@@ -325,8 +325,14 @@ bool MainWindow::maybeSave()
     return false; // Cancel
 }
 
-void MainWindow::loadWorkspace(const QString &path)
+void MainWindow::loadWorkspace(const QString &requested)
 {
+    // Before anything is closed or read: a folder shared by two workspaces is resolved first, and a user
+    // who backs out of that keeps the workspace they already had open.
+    const QString path = resolveSharedFolder(requested);
+    if (path.isEmpty())
+        return;
+
     closeWorkspace();
 
     // The report carries any profile-identifier collisions the load had to repair; the

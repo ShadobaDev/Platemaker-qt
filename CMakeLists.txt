@@ -118,6 +118,9 @@ qt_add_executable(Platemaker
     # Advisories — the application-wide registry of "this will not do what you meant".
     widgets/advisories/advisories.cpp widgets/advisories/advisories.hpp
     widgets/advisories/advisorybar.cpp widgets/advisories/advisorybar.hpp
+
+    # The workspace folder — one workspace per folder, and what may be written in it.
+    widgets/workspacefolder/workspacefolder.cpp widgets/workspacefolder/workspacefolder.hpp
 )
 
 # Every class/header lives in its own folder; add each to the include path so
@@ -148,6 +151,7 @@ target_include_directories(Platemaker PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/widgets/docktitlebar
     ${CMAKE_CURRENT_SOURCE_DIR}/widgets/badge
     ${CMAKE_CURRENT_SOURCE_DIR}/widgets/advisories
+    ${CMAKE_CURRENT_SOURCE_DIR}/widgets/workspacefolder
 )
 
 # ---------------------------------------------------------------------------

@@ -976,10 +976,26 @@ write, so each settled edit to its words leaves a new `ovl-*.svg`.
 
 **Nothing is ever deleted from `overlays/`.** Deleting an object, re-lettering a picture, forking a shared
 file, discarding unsaved work and removing a chapter all leave their files behind; only an `art-*`
-picture is irreplaceable, and the undo history needs it for as long as the workspace is open. Nor does a
-workspace own the folder exclusively: every `*.platemaker.json` in one folder shares one `overlays/`, and
-*Save As* to another folder keeps the existing absolute `assetPath`s, so the copy goes on reading the
-original's folder. Both are open in `TODO.md`.
+picture is irreplaceable, and the undo history needs it for as long as the workspace is open. *Save As*
+to another folder keeps the existing absolute `assetPath`s, so the copy goes on reading the original's
+folder. Both are open in `TODO.md`.
+
+**A folder holds one workspace.** Everything written for a workspace — `overlays/`, `templates/`,
+`.platemaker-cache/` — sits beside its file, so a second workspace file in the same folder would share
+all of it, and anything that tidies one would delete the other's files: the failure Cubase documents
+for *Remove unused media*, and the reason Cubase and Ableton both ask for one project per folder. The
+rule is `workspacesInFolder()` (`widgets/workspacefolder/`), which counts `*.platemaker.json` directly in
+the folder — a profile bundle and the retired sidecar end differently, and a workspace in a subfolder
+owns that subfolder. It is enforced where a folder is *chosen* and where one is *found*:
+- **New and Save As** (`MainWindow::askWorkspaceFile()`) refuse a folder that holds a different
+  workspace — which includes Save As into the same folder under another name — and offer a subfolder
+  named after the file.
+- **Open** (`MainWindow::resolveSharedFolder()`, the first thing `loadWorkspace()` does, before the
+  current workspace is closed) does not open a folder holding several. It lists them, with last-saved
+  time, projects and objects so a synced drive's conflict copy can be told from the original, and asks
+  which to keep; the others go to the Recycle Bin. Cancelling leaves both files and the workspace that
+  was already open untouched. The folder is never opened as it is — a warning the user could dismiss
+  would leave every later cleanup unsafe.
 
 A text or styling edit therefore rewrites the asset **and** the record's `sha256`; a move or a reorder
 rewrites neither, only the placement. `Project::applyOverlays()` re-emits exactly the artifacts whose
@@ -1061,6 +1077,8 @@ list of all open projects update at once, without a manual refresh.
 ```
 File → Open Workspace
   → QFileDialog (*.platemaker.json)
+  → more than one *.platemaker.json in that folder?  → resolve wizard (keep one, the rest to the
+                                                       Recycle Bin), or cancel and keep what is open
   → WorkspaceSerializer::load(path)
   → populate workspace panel (project list)
   → restore open projects from last session (if desired)
@@ -1069,8 +1087,10 @@ File → Open Workspace
 ### 4.2 Create Workspace
 
 ```
-File → New Workspace
+File → New Workspace                (Save As goes through the same folder check)
   → QFileDialog (choose save location)
+  → folder already holds another workspace?  → refused: create a subfolder named after the file,
+                                               choose another location, or cancel
   → construct default Workspace (one default OutputProfile "Webtoon Standard")
   → WorkspaceSerializer::save(path)
   → open workspace panel

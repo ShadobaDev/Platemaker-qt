@@ -264,9 +264,9 @@ New, backward-compatible features. Several are gated on a lib version, noted in 
   one folder share `overlays/` and `templates/`, and a second instance opening the same workspace
   could sweep the first one's unsaved files. Cubase and Ableton both hit exactly this, and both
   answer with *one project per folder*. So the guarantees come first and the cleanup last:
-  1. **One workspace per folder.** New and Save As refuse a folder that holds another workspace and
-     offer a subfolder. A folder that already holds two does not open until a wizard resolves it
-     (the ones not kept go to the Recycle Bin).
+  1. ~~**One workspace per folder.**~~ **Done (2026-09-25).** New and Save As refuse a folder that
+     holds another workspace and offer a subfolder. A folder that already holds two does not open until
+     a wizard resolves it (the ones not kept go to the Recycle Bin).
   2. **A workspace lock** (`QLockFile`, `.platemaker.lock` in the folder). A stale lock on this machine
      goes by itself. A live one here is reported. One from another machine (synced drive) can be
      **taken over**, and the instance that lost it refuses its next write and says why.

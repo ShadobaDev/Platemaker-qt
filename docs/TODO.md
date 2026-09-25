@@ -258,37 +258,60 @@ New, backward-compatible features. Several are gated on a lib version, noted in 
   - Expect more of these once the two above are pulled: the sweep is the point, not the individual
     rename.
 
-- [ ] **A workspace owns its overlay files — and cleans up the ones nobody uses.** Two problems that
-  have to be solved in this order, because the second one is unsafe without the first.
-  - **Ownership is not exclusive today.** `overlays/` sits beside the workspace *file*, so two
-    `*.platemaker.json` in one folder share one `overlays/`; and **Save As** to another folder keeps every
-    existing `assetPath` absolute and pointing into the *old* folder (`onSaveAs()` says so — "a
-    workspace-wide collect assets step is the general fix"). The copy therefore depends on the original's
-    folder, and anything that deletes from that folder can break a workspace it knows nothing about.
-    **Fix:** Save As *collects* — every overlay file outside the new `overlays/` is copied into it and
-    its `assetPath` / `sha256` rewritten, so after the save each workspace references only its own
-    folder. (Input pages are the user's files and stay where they are; this is only about files we made
-    or copied in.)
-  - **Nothing is ever deleted from `overlays/`.** Every path only writes: deleting a bubble or a picture,
-    re-lettering a picture (a new hash-named wrapper per settled edit), forking a shared file, a bubble
-    added and then discarded, removing a chapter, files from an older format. Measured on the test
-    workspace (2026-09-24): **46 files, 2 referenced**.
-  - **Fix: a sweep when a workspace is opened**, not when it is closed. Undo never needs the files
-    after a close — `closeWorkspace()` drops every history — but the in-memory state at close is not
-    what is on disk after *Discard*: delete a picture, discard, and a sweep by memory removes the only
-    copy of an `art-*` the saved file still uses. Quitting also bypasses `closeWorkspace()`, and a crash
-    bypasses everything. At open the model *is* the file and there is no history, so one call in
-    `loadWorkspace()` is always right, and it also cleans up after a crash.
-    - referenced = every `assetPath` of every project in **every `*.platemaker.json` in that folder**;
-    - only our own names are candidates (`ovl-*.svg`, `art-*.*`) — a file someone put there by hand is
-      not ours to judge;
-    - `QFile::moveToTrash()`, never `remove()` — an `art-*` is the only copy of the picture; if the trash
-      is unavailable (a synced drive may refuse), the file stays;
-    - reported in the Action log, like *Removed stale output* in `render.cpp`;
-    - one GUI unit test on a temp folder: referenced stays, unreferenced goes, foreign stays.
-  - *Not planned:* a manual *Clean up overlay files…* command with a preview (add it if the automatic
-    sweep turns out too quiet), and making a lettered picture overwrite its own wrapper instead of
-    minting a new one per edit (the sweep collects those anyway).
+- [ ] **A workspace owns its folder — and cleans up the files nobody uses.** Nothing ever deletes from
+  `overlays/` (measured 2026-09-24: **46 files, 2 referenced**), and nothing guarantees that the
+  folder belongs to one workspace, or that only one process writes to it. Two `*.platemaker.json` in
+  one folder share `overlays/` and `templates/`, and a second instance opening the same workspace
+  could sweep the first one's unsaved files. Cubase and Ableton both hit exactly this, and both
+  answer with *one project per folder*. So the guarantees come first and the cleanup last:
+  1. **One workspace per folder.** New and Save As refuse a folder that holds another workspace and
+     offer a subfolder. A folder that already holds two does not open until a wizard resolves it
+     (the ones not kept go to the Recycle Bin).
+  2. **A workspace lock** (`QLockFile`, `.platemaker.lock` in the folder). A stale lock on this machine
+     goes by itself. A live one here is reported. One from another machine (synced drive) can be
+     **taken over**, and the instance that lost it refuses its next write and says why.
+  3. **Relative paths** *(lib)*: an overlay path inside the folder is also stored relative, and a
+     relative path is read in every path field, so the folder can be moved or zipped. Both forms are
+     kept, so older builds still read the file.
+  4. **Save As collects** what the workspace made: overlays, the pictures behind lettered pictures,
+     and templates. It is all or nothing, and it also runs on undo so a history never points back
+     into the old folder. This also fixes Save As breaking templates, whose paths are relative.
+  5. **Sweep at open, to the Recycle Bin**, only with one workspace in the folder and the lock held,
+     and only files with our own names (`ovl-*`, `art-*`, `templates/*`). It is reported with an
+     advisory offering *Show*. Measured: on the Google Drive `G:` the files land in the ordinary
+     Windows Recycle Bin. At open, not at close: after *Discard*, memory is not what is on disk.
+     *Delete template* stops deleting the file, which makes it undoable again.
+
+- [ ] **Bug: a missing font silently re-letters bubbles.** A bubble's text is baked into its SVG as
+  outlines through `QFont`. When the family is not installed, every re-emit bakes it in a fallback,
+  including **every overlay undo**, because `rewriteOverlayAssets()` rewrites *every* bubble, not
+  just the ones the step touched. Fix: rewrite only what a step changed; keep the intended family in
+  the record (already true); mark a fallback bake with `pm:fontFallback`; **heal at open** when the
+  font is back (re-bake, and mark the workspace modified); and warn at open and on entering the strip
+  editor instead of on every edit.
+
+- [ ] **Menu bar in the standard categories.** Today *Workspace* holds file commands, Undo/Redo and panel
+  toggles; *Templates* is separate from the canvas profiles it belongs to; *Process* and *About* are
+  not the standard names; and the new commands below have no home. Proposed: File · Edit · View ·
+  Canvas · Output · Tools · Render · Help, single-word names, flyouts one level deep (Microsoft's
+  menu guidelines). Every action keeps its shortcut. Open: bubble-preset import/export in *Tools*
+  needs one application-wide `PresetStore`, since today each strip editor owns its own.
+
+- [ ] **Workspace fonts.** A `fonts/` folder in the workspace, activated for the session at open
+  (`QFontDatabase::addApplicationFont`, no install, no admin), which is InDesign's *Document Fonts*
+  model. *Tools → Fonts…* groups them, with *Add font…* and *Install for me* (a per-user install,
+  Windows 10 1803+). Files dropped in by hand are picked up at the next open. To measure first: which
+  copy Qt draws with when the same family is also installed system-wide in another version.
+
+- [ ] **Export / open a workspace package.** One zip with the workspace, `overlays/`, `templates/`,
+  `inputs/` and `fonts/` (everything in `fonts/` plus the system fonts the bubbles use). Every path is
+  relative, uids and hashes are kept, and there are no outputs and no output directory: a package
+  carries what reproduces the outputs 1:1, not the outputs. A `package.json` manifest records versions
+  and missing pages; missing pages do not stop the export. The lib plans and writes (libarchive,
+  which already ships inside the libvips package; only the header has to be fetched), the GUI adds
+  what only it knows (fonts, the pictures behind lettered pictures), and the CLI gets
+  `workspace export`. *Open package…* unpacks into a new folder named after the package.
+  Needs: relative paths, and workspace fonts.
 
 - [x] **Namespace hygiene for the `pm:` recipe** — three small things, together, before overlay files
   start travelling between people (which the import work makes routine):

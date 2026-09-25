@@ -200,6 +200,12 @@ bool MainWindow::startRender(int projectIndex)
     // that distinction to move on to the next project instead of waiting for a
     // finished() signal that will never arrive.
 
+    // A render records hashes and writes outputs and logs; none of it over a folder taken over elsewhere.
+    if (!canWriteWorkspace()) {
+        m_batchSkipReason = tr("the workspace was taken over on another computer");
+        return false;
+    }
+
     // Skip if no workspace is loaded.
     if (m_workspacePath.isEmpty()) {
         QMessageBox::information(this, tr("No Workspace"), tr("Open a workspace first."));

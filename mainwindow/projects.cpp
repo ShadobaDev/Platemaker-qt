@@ -313,6 +313,7 @@ void MainWindow::openProjectDock(int projectIndex)
     const QString projectUid =
         QString::fromStdString(m_workspace.projectItems[projectIndex].uid);
     projectWidget->setWorkspacePath(m_workspacePath);
+    projectWidget->setWriteGuard([this] { return canWriteWorkspace(); });
     projectWidget->setArtifacts(m_overlayArtifacts.artifacts(projectUid));
     connect(projectWidget, &Project::artifactsChanged, this,
             [this, projectUid, newDock](const ArtifactMap& artifacts) {

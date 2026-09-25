@@ -266,6 +266,12 @@
   to create a subfolder for it instead. Opening a folder that already holds several asks which one to
   keep and moves the others to the Recycle Bin, from which they can be restored into a folder of their
   own.
+- **A workspace is open in one place at a time.** Opening a workspace that is already open in another
+  Platemaker window says so instead of opening it twice. One left open on another computer — on a
+  synced drive — can be **taken over**, for when that computer is off or Platemaker there crashed; if it
+  was in fact still open, that window stops saving to the folder, says so, and offers to save its
+  changes somewhere else. A workspace left locked by a crash or a reset on this computer opens without
+  asking. A small `.platemaker.lock` file marks the folder while it is open.
 - **Custom dock title bar.** The Workspace, project and strip docks share a title bar with real
   **minimise** (dock ⇄ detach — docking tabs it beside the Workspace, floating pops it out), **maximise**
   (fill the screen ⇄ restore) and **close** buttons — a floating dock previously showed only a close

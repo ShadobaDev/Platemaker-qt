@@ -267,9 +267,11 @@ New, backward-compatible features. Several are gated on a lib version, noted in 
   1. ~~**One workspace per folder.**~~ **Done (2026-09-25).** New and Save As refuse a folder that
      holds another workspace and offer a subfolder. A folder that already holds two does not open until
      a wizard resolves it (the ones not kept go to the Recycle Bin).
-  2. **A workspace lock** (`QLockFile`, `.platemaker.lock` in the folder). A stale lock on this machine
-     goes by itself. A live one here is reported. One from another machine (synced drive) can be
-     **taken over**, and the instance that lost it refuses its next write and says why.
+  2. ~~**A workspace lock.**~~ **Done (2026-09-25).** A stale lock on this machine goes by itself, a
+     live one here is reported, and one from another machine (synced drive) can be **taken over**; the
+     instance that lost it refuses its next write and says why. Two files, because a held `QLockFile`
+     cannot be written or deleted by anyone else (measured, also on `G:`): the process lock in local
+     application data, and a plain `.platemaker.lock` marker in the folder that a synced drive can carry.
   3. **Relative paths** *(lib)*: an overlay path inside the folder is also stored relative, and a
      relative path is read in every path field, so the folder can be moved or zipped. Both forms are
      kept, so older builds still read the file.

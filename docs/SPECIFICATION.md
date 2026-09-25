@@ -997,6 +997,29 @@ owns that subfolder. It is enforced where a folder is *chosen* and where one is 
   was already open untouched. The folder is never opened as it is — a warning the user could dismiss
   would leave every later cleanup unsafe.
 
+**A folder is written by one Platemaker at a time.** `WorkspaceLock` (`widgets/workspacefolder/`) is
+taken before anything is loaded or moved — before the shared-folder wizard too, so a folder in use
+elsewhere is never tidied — and let go when the workspace closes or the application quits. It is **two
+files**, because one cannot do both jobs:
+- a **process lock** — a `QLockFile` in the application's local data (`locks/`, named by a hash of the
+  folder), never in the workspace. It tells a live holder from a dead one on this machine, so a lock left
+  by a crash or a reset clears itself, and a second window here is told the workspace is already open.
+  It cannot live in the workspace folder: a held `QLockFile` keeps its file open, and an open lock file
+  can be neither written nor deleted by anyone else (measured, on a local disk and on the Google Drive
+  `G:`), so a synced drive could never deliver a takeover to the holder;
+- a **marker** — `.platemaker.lock` in the workspace folder, visible: the holder's machine, process and
+  the time it took the folder, written and closed at once so a synced drive carries it both ways. A
+  marker naming another computer is offered for **takeover** — the one case nothing here can detect is
+  that computer being off or Platemaker there having crashed.
+
+The holder reads the marker again **before every write to the folder** (saving, writing an overlay
+file, templates, a render) and **whenever the application is activated**. Once it names someone else,
+nothing more is written — `Project` asks through a write guard `MainWindow` hands it, and refuses an
+overlay edit whole rather than applying it without its file — and the user is offered *Save As…* (to
+another folder) or *Close workspace*, which discards. A marker deleted by hand is written again rather
+than read as a takeover; a folder that cannot be marked at all (read-only media) is opened unguarded
+rather than refused. The CLI does not take the lock.
+
 A text or styling edit therefore rewrites the asset **and** the record's `sha256`; a move or a reorder
 rewrites neither, only the placement. `Project::applyOverlays()` re-emits exactly the artifacts whose
 authoring record actually changed.

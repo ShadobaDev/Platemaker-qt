@@ -147,6 +147,15 @@ public:
     void setWorkspacePath(const QString& path) { m_workspacePath = path; }
 
     /**
+     * @brief Asked before any file is written to the workspace folder — false once another computer has
+     *        taken the folder over (see WorkspaceLock).
+     *
+     * A predicate rather than the lock itself: whether the folder is still ours, and what the user is told
+     * when it is not, are the main window's, which holds the lock for every project at once.
+     */
+    void setWriteGuard(std::function<bool()> guard) { m_writeGuard = std::move(guard); }
+
+    /**
      * @brief Adopts this project's authoring records (read back from its assets).
      * @param artifacts The map of artifacts to adopt.
      */
@@ -430,6 +439,10 @@ private:
     int m_projectIndex;                                     //!< Index of this project within m_workspace.projectItems (kept in sync via setProjectIndex()).
     Platemaker::Models::Workspace& m_workspace;             //!< Reference to the workspace owning this project's data.
     QString     m_workspacePath;                            //!< Workspace file path — the root of overlays/.
+    std::function<bool()> m_writeGuard;                     //!< See setWriteGuard(); unset means always.
+
+    //! Whether a file may be written to the workspace folder now.
+    [[nodiscard]] bool mayWrite() const { return !m_writeGuard || m_writeGuard(); }
     ArtifactMap m_artifacts;                                //!< Authoring records for this project's overlays, by uid.
     QString m_cacheDir;                                     //!< Directory where cached thumbnails and other temporary files are stored.
     OutputFormatOptionsWidget* m_formatOptions = nullptr;   //!< Shared widget for editing the selected output profile's format/options.

@@ -8,6 +8,7 @@
 #include "templatesdialog.hpp"
 #include "renderworker.hpp"
 #include "workspacefolder.hpp"
+#include "workspacelock.hpp"
 
 #include <platemaker/models/output_profile.hpp>
 
@@ -34,9 +35,11 @@
 #include <QPainter>
 #include <QPushButton>
 #include <QSettings>
+#include <QStandardPaths>
 #include <QStyledItemDelegate>
 #include <QTabBar>
 #include <QThread>
+#include <QTimer>
 #include <QTreeWidget>
 #include <QUrl>
 #include <QVBoxLayout>
@@ -75,6 +78,8 @@ void MainWindow::onNewWorkspace()
     // If the user selects a path, create a new workspace and save it to that path.
     const QString path = askWorkspaceFile(tr("New Workspace"), defaultDialogDir());
     if (path.isEmpty()) return;
+    std::unique_ptr<WorkspaceLock> lock = holdsFolderOf(path) ? std::move(m_lock) : lockFolderOf(path);
+    if (!lock) return;
 
     // Create a new workspace with a default output profile and save it to the selected path.
     closeWorkspace();
@@ -86,6 +91,7 @@ void MainWindow::onNewWorkspace()
     // `workspace create`, which also stores nothing until the settings diverge from a preset.
     m_workspace = Platemaker::Models::Workspace{};
     m_workspacePath = path;
+    m_lock = std::move(lock);
 
     try {
         m_serializer.save(m_workspace, path.toStdString());
@@ -108,6 +114,8 @@ void MainWindow::onSave()
 {
     // Skip if no workspace is loaded
     if (m_workspacePath.isEmpty()) { onSaveAs(); return; }
+    // Nothing is written over a folder another computer has taken over.
+    if (!canWriteWorkspace()) return;
 
     // Save the current workspace to disk. If the save operation fails, show an error message to the user.
     try {
@@ -129,6 +137,16 @@ void MainWindow::onSaveAs()
     const QString path = askWorkspaceFile(
         tr("Save Workspace As"), m_workspacePath.isEmpty() ? defaultDialogDir() : m_workspacePath);
     if (path.isEmpty()) return;
+
+    // A new folder is claimed before anything is written to it; the old one is let go once the workspace
+    // has left it (at the end of this function, whether or not the save succeeded — the path has moved).
+    std::unique_ptr<WorkspaceLock> previous;
+    if (!holdsFolderOf(path)) {
+        std::unique_ptr<WorkspaceLock> next = lockFolderOf(path);
+        if (!next) return;
+        previous = std::move(m_lock);
+        m_lock   = std::move(next);
+    }
 
     // Save the current workspace to the selected path.
     // If the save operation fails, show an error message to the user.
@@ -320,6 +338,108 @@ QString MainWindow::resolveSharedFolder(const QString &path)
         return {};
     }
     return keep;
+}
+
+// ---------------------------------------------------------------------------
+// The workspace lock (see workspacelock.hpp)
+// ---------------------------------------------------------------------------
+
+bool MainWindow::holdsFolderOf(const QString &workspacePath)
+{
+    return m_lock && QFileInfo(m_lock->folder()) == QFileInfo(QFileInfo(workspacePath).absolutePath())
+        && m_lock->stillOurs();
+}
+
+std::unique_ptr<WorkspaceLock> MainWindow::lockFolderOf(const QString &workspacePath)
+{
+    const QString folder = QFileInfo(workspacePath).absolutePath();
+    // Our own hold on this folder, lost to a takeover, would otherwise answer "open in another window".
+    if (m_lock && QFileInfo(m_lock->folder()) == QFileInfo(folder))
+        m_lock.reset();
+
+    // The process lock lives with the application, not with the workspace: it must never travel on a
+    // synced drive (see WorkspaceLock).
+    auto lock = std::make_unique<WorkspaceLock>(
+        folder, QDir(QStandardPaths::writableLocation(QStandardPaths::AppLocalDataLocation))
+                    .filePath(QStringLiteral("locks")));
+    const QString name = QFileInfo(workspacePath).fileName();
+
+    switch (lock->acquire()) {
+    case WorkspaceLock::Outcome::Acquired:
+        return lock;
+
+    case WorkspaceLock::Outcome::Unavailable:
+        // Read-only media or a full disk: better opened unguarded than not at all.
+        setProjectStatus(tr("The workspace folder could not be marked as in use — "
+                            "another Platemaker could open it at the same time."));
+        return lock;
+
+    case WorkspaceLock::Outcome::OpenHere:
+        QMessageBox::information(this, tr("Workspace already open"),
+                                 tr("%1 is already open in another Platemaker window.").arg(name));
+        return nullptr;
+
+    case WorkspaceLock::Outcome::OpenElsewhere: {
+        const WorkspaceLock::Holder holder = lock->holder();
+        QMessageBox box(QMessageBox::Warning, tr("Workspace open on another computer"),
+                        tr("%1 is open in Platemaker on %2 since %3.\n\n"
+                           "If that computer is off, or Platemaker there has crashed, you can take the "
+                           "workspace over. If it is still open there, it will stop saving to this folder "
+                           "and say so.")
+                            .arg(name, holder.host,
+                                 QLocale().toString(holder.since, QLocale::ShortFormat)),
+                        QMessageBox::NoButton, this);
+        QPushButton *takeBtn = box.addButton(tr("Take over"), QMessageBox::AcceptRole);
+        box.addButton(QMessageBox::Cancel);
+        box.setDefaultButton(QMessageBox::Cancel);
+        box.exec();
+        if (box.clickedButton() != takeBtn)
+            return nullptr;
+        if (!lock->takeOver()) {
+            QMessageBox::warning(this, tr("Workspace open on another computer"),
+                                 tr("Could not take %1 over — the folder cannot be written.").arg(name));
+            return nullptr;
+        }
+        return lock;
+    }
+    }
+    return nullptr;
+}
+
+bool MainWindow::canWriteWorkspace()
+{
+    if (!m_lock || m_lock->stillOurs())
+        return true;
+    // Asked from inside whatever was about to write — an edit settling on mouse release, a save — so the
+    // prompt waits for that to unwind rather than opening a Save As in the middle of it.
+    QTimer::singleShot(0, this, &MainWindow::onWorkspaceTakenOver);
+    return false;
+}
+
+void MainWindow::onWorkspaceTakenOver()
+{
+    if (m_takeoverPromptOpen || !m_lock || m_lock->stillOurs())
+        return;
+    m_takeoverPromptOpen = true;
+
+    const WorkspaceLock::Holder holder = m_lock->holder();
+    QMessageBox box(QMessageBox::Warning, tr("Workspace taken over"),
+                    tr("%1 was taken over by Platemaker on %2 at %3.\n\n"
+                       "Nothing more is saved to its folder from this window. Your unsaved changes can "
+                       "still be saved to another folder; closing the workspace discards them.")
+                        .arg(QFileInfo(m_workspacePath).fileName(), holder.host,
+                             QLocale().toString(holder.since, QLocale::ShortFormat)),
+                    QMessageBox::NoButton, this);
+    QPushButton *saveAsBtn = box.addButton(tr("Save As…"), QMessageBox::AcceptRole);
+    QPushButton *closeBtn  = box.addButton(tr("Close workspace"), QMessageBox::DestructiveRole);
+    box.setDefaultButton(saveAsBtn);
+    box.exec();
+    m_takeoverPromptOpen = false;
+
+    if (box.clickedButton() == saveAsBtn)
+        onSaveAs();
+    else if (box.clickedButton() == closeBtn)
+        closeWorkspace();   // no maybeSave(): saving here is exactly what can no longer be done
 }
 
 // ---------------------------------------------------------------------------

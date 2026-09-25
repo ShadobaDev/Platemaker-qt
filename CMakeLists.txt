@@ -1,5 +1,5 @@
 ﻿cmake_minimum_required(VERSION 3.25)
-project(Platemaker VERSION 1.4.4 LANGUAGES CXX)
+project(Platemaker VERSION 1.5.0 LANGUAGES CXX)
 
 find_package(Qt6 6.8 REQUIRED COMPONENTS Core Widgets Concurrent Svg)
 
@@ -121,6 +121,7 @@ qt_add_executable(Platemaker
 
     # The workspace folder — one workspace per folder, and what may be written in it.
     widgets/workspacefolder/workspacefolder.cpp widgets/workspacefolder/workspacefolder.hpp
+    widgets/workspacefolder/workspacelock.cpp widgets/workspacefolder/workspacelock.hpp
 )
 
 # Every class/header lives in its own folder; add each to the include path so

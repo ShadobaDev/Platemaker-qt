@@ -46,6 +46,9 @@ void MainWindow::onManageTemplates()
         return;
     }
 
+    // Templates are written into the workspace folder.
+    if (!canWriteWorkspace()) return;
+
     // Open the TemplatesDialog, passing the workspace and its directory. 
     // Connect the workspaceModified signal to mark the workspace as dirty 
     // when templates are generated or deleted.

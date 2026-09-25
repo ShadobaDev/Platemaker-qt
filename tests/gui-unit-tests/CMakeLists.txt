@@ -35,6 +35,7 @@ add_executable(platemaker-gui-tests
     test_colour_adjustments.cpp
     test_presets.cpp
     test_workspace_folder.cpp
+    test_workspace_lock.cpp
     ${CMAKE_SOURCE_DIR}/widgets/artifact/artifact.cpp
     # The SVG a bubble is written to, and the geometry it is written from: both Qt6::Gui only, so the
     # rule above still holds — and the import's premise is worth a test of its own.
@@ -45,6 +46,7 @@ add_executable(platemaker-gui-tests
     ${CMAKE_SOURCE_DIR}/widgets/stripeditor/presetstore.cpp
     # The one-workspace-per-folder rule: QtCore and the file system, nothing else.
     ${CMAKE_SOURCE_DIR}/widgets/workspacefolder/workspacefolder.cpp
+    ${CMAKE_SOURCE_DIR}/widgets/workspacefolder/workspacelock.cpp
 )
 
 target_include_directories(platemaker-gui-tests PRIVATE

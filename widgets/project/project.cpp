@@ -842,6 +842,8 @@ void Project::setArtifacts(ArtifactMap artifacts)
 void Project::createOverlay(const Artifact& artifact, double xFrac, double yFrac, double wFrac,
                             const QString& anchorInputUid)
 {
+    if (!mayWrite())
+        return;
     const QString dir = ArtifactStore::ensureOverlaysDir(m_workspacePath);
     if (dir.isEmpty()) {
         QMessageBox::warning(this, tr("Text & bubbles"),
@@ -872,6 +874,8 @@ void Project::createOverlay(const Artifact& artifact, double xFrac, double yFrac
 
 void Project::rewriteOverlayAssets()
 {
+    if (!mayWrite())
+        return;
     const QString dir = ArtifactStore::overlaysDir(m_workspacePath);
     if (dir.isEmpty())
         return;
@@ -887,6 +891,8 @@ void Project::rewriteOverlayAssets()
 void Project::importOverlayArtwork(const QString& sourceFile, double xFrac, double yFrac,
                                    double wFrac, QSize naturalSize, const QString& anchorInputUid)
 {
+    if (!mayWrite())
+        return;
     const QString dir = ArtifactStore::ensureOverlaysDir(m_workspacePath);
     if (dir.isEmpty()) {
         QMessageBox::warning(this, tr("Import artwork"),
@@ -997,6 +1003,11 @@ void Project::applyOverlays(std::vector<Platemaker::Models::StripOverlay> overla
                             ArtifactMap                                  artifacts,
                             const QString&                               undoText)
 {
+    // Refused whole rather than applied without its files: a record saying one thing while the file the
+    // render reads says another is worse than an edit that did not happen.
+    if (!mayWrite())
+        return;
+
     const QString dir = ArtifactStore::ensureOverlaysDir(m_workspacePath);
 
     // Re-write only what actually changed. A move or a reorder touches no artwork, so the common

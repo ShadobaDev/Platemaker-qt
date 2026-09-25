@@ -8,6 +8,7 @@
 #include <QStringList>
 
 #include <functional>
+#include <memory>
 #include <vector>
 
 #include "artifact.hpp"
@@ -31,6 +32,7 @@ class Advisories;
 class AdvisoryBar;
 class Project;
 class RenderWorker;
+class WorkspaceLock;
 
 /**
  * @brief The MainWindow class represents the main application window of Platemaker.
@@ -317,6 +319,30 @@ private:
      *         \p path itself when its folder holds nothing else.
      */
     [[nodiscard]] QString resolveSharedFolder(const QString &path);
+
+    /**
+     * @brief Claims the folder \p workspacePath lives in, asking the user where someone else holds it.
+     *
+     * Another window on this machine is reported and refused; another computer can be taken over, for the
+     * case nothing here can detect — that computer is off, or Platemaker crashed there. A folder that
+     * cannot be marked at all (read-only media) is opened unguarded rather than refused.
+     *
+     * @return The lock, or null when the user cancelled or the folder is open in another window here.
+     */
+    [[nodiscard]] std::unique_ptr<WorkspaceLock> lockFolderOf(const QString &workspacePath);
+
+    //! Whether the folder \p workspacePath lives in is the one this window holds, and still holds.
+    [[nodiscard]] bool holdsFolderOf(const QString &workspacePath);
+
+    /**
+     * @brief Asked before anything is written to the workspace folder: is it still ours?
+     *
+     * False once another computer has taken the folder over — and then the user is told, once, and offered
+     * the two ways out that do not write over the other computer's work.
+     */
+    [[nodiscard]] bool canWriteWorkspace();
+
+    void onWorkspaceTakenOver();   //!< The prompt canWriteWorkspace() and window activation raise.
     void applyWorkspaceToUi();                  //!< Updates the UI to reflect the current workspace model
     void closeWorkspace();                      //!< Closes the current workspace, clearing the model and UI
     void setDirty(bool dirty);                  //!< Sets the dirty flag and updates the title bar. True = workspace has unsaved changes and the title bar will show '*'
@@ -549,6 +575,8 @@ private:
      */
     ArtifactStore m_overlayArtifacts;
     Platemaker::Infrastructure::WorkspaceSerializer m_serializer;   //!< Serializes the workspace model to/from disk.
+    std::unique_ptr<WorkspaceLock> m_lock;      //!< The open workspace's folder, held; null when none is open.
+    bool m_takeoverPromptOpen = false;          //!< Keeps the takeover prompt from stacking on itself.
 
     // Undo/redo: a QUndoGroup holds one stack per open project plus the workspace stack; the active
     // stack follows the visible tab in the workspace dock area (Ctrl+Z/Ctrl+Y route to it). Depth 10.

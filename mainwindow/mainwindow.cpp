@@ -11,6 +11,7 @@
 #include "outputprofiledialog.hpp"
 #include "templatesdialog.hpp"
 #include "renderworker.hpp"
+#include "workspacelock.hpp"
 
 #include <platemaker/infrastructure/workspace_editor/workspace_editor.hpp>
 
@@ -27,6 +28,7 @@
 #include <QDockWidget>
 #include <QFileDialog>
 #include <QFileInfo>
+#include <QGuiApplication>
 #include <QIcon>
 #include <QInputDialog>
 #include <QKeySequence>
@@ -220,12 +222,21 @@ MainWindow::MainWindow(QWidget *parent)
     m_statusAdvisories = new AdvisoryBar(m_advisories, statusBar());
     statusBar()->addPermanentWidget(m_statusAdvisories);
 
+    // Coming back to this window is when a takeover from another computer is worth hearing about — before
+    // any more work goes into a workspace that can no longer be saved where it is.
+    connect(qApp, &QGuiApplication::applicationStateChanged, this, [this](Qt::ApplicationState state) {
+        if (state == Qt::ApplicationActive && m_lock && !m_lock->stillOurs())
+            QTimer::singleShot(0, this, &MainWindow::onWorkspaceTakenOver);
+    });
+
     updateTitleBar();
 }
 
 MainWindow::~MainWindow()
 {
     delete ui;
+    // m_lock lets the folder go here — which is also what covers quitting, since closeEvent() does not go
+    // through closeWorkspace().
 }
 
 // ---------------------------------------------------------------------------
@@ -329,9 +340,20 @@ void MainWindow::loadWorkspace(const QString &requested)
 {
     // Before anything is closed or read: a folder shared by two workspaces is resolved first, and a user
     // who backs out of that keeps the workspace they already had open.
+    // The folder is claimed first: one in use elsewhere is not ours to tidy, so the wizard below — which
+    // moves files to the Recycle Bin — only ever runs in a folder this window holds. Reopening the folder
+    // already held keeps that hold across the close below.
+    std::unique_ptr<WorkspaceLock> lock;
+    if (!holdsFolderOf(requested)) {
+        lock = lockFolderOf(requested);
+        if (!lock)
+            return;
+    }
     const QString path = resolveSharedFolder(requested);
     if (path.isEmpty())
         return;
+    if (!lock)
+        lock = std::move(m_lock);
 
     closeWorkspace();
 
@@ -347,6 +369,7 @@ void MainWindow::loadWorkspace(const QString &requested)
     }
 
     m_workspacePath = path;
+    m_lock          = std::move(lock);
     // Bubbles carry their own authoring parameters inside the SVG the library composites, so the
     // records are read back from the assets themselves — there is no sidecar to fall out of step with
     // them. An asset that is missing, or was drawn elsewhere, simply yields no record: the overlay
@@ -456,6 +479,7 @@ void MainWindow::closeWorkspace()
     m_savedSnapshot.clear();
     m_activeCanvasProfileName.clear();
     m_activeOutputProfileId.clear();
+    m_lock.reset();   // the folder is someone else's to open now
     setDirty(false);
 
     // Clear the project list in the UI and update the title bar.

@@ -8,6 +8,7 @@
 #include "canvasprofiledialog.hpp"
 #include "outputformatoptionswidget.hpp"
 #include "stagecard.hpp"
+#include "workspacefolder.hpp"
 
 #include <platemaker/core/strip_overlay_compositor/strip_overlay_compositor.hpp>
 #include <platemaker/infrastructure/file/file_meta_data.hpp>
@@ -337,8 +338,19 @@ OverlayState Project::overlayState() const
     return {m_workspace.projectItems[m_projectIndex].getStripOverlays(), m_artifacts};
 }
 
-void Project::restoreOverlayState(const OverlayState& state)
+void Project::restoreOverlayState(const OverlayState& recorded)
 {
+    // A step recorded before a Save As names the folder the workspace has since left. Bring what it
+    // needs into this one first, so undo never points the workspace back there — nor, through
+    // rewriteOverlayAssets() below, writes into it. Nothing to do, and nothing done, for a step
+    // recorded here.
+    OverlayState state = recorded;
+    if (mayWrite()) {
+        const QString dir = ArtifactStore::ensureOverlaysDir(m_workspacePath);
+        if (!dir.isEmpty())
+            (void)collectOverlayFiles(state.overlays, state.artifacts, dir);
+    }
+
     // Asked while the old state is still here, because it is the difference between the two that says
     // what the artist just watched change.
     const QStringList touched = movedUids(overlayState(), state);

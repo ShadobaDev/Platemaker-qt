@@ -976,9 +976,25 @@ write, so each settled edit to its words leaves a new `ovl-*.svg`.
 
 **Nothing is ever deleted from `overlays/`.** Deleting an object, re-lettering a picture, forking a shared
 file, discarding unsaved work and removing a chapter all leave their files behind; only an `art-*`
-picture is irreplaceable, and the undo history needs it for as long as the workspace is open. *Save As*
-to another folder keeps the existing absolute `assetPath`s, so the copy goes on reading the original's
-folder. Both are open in `TODO.md`.
+picture is irreplaceable, and the undo history needs it for as long as the workspace is open. The sweep
+that would collect them is open in `TODO.md`.
+
+**Save As takes the workspace's files along.** Before a byte is saved in another folder,
+`MainWindow::collectWorkspaceFiles()` copies in every project's overlay files and every canvas profile's
+template, and points the model at the copies, so the new workspace references only its own folder and
+the old one can be moved, zipped or deleted without breaking it. The overlays go through
+`collectOverlayFiles()` (`widgets/workspacefolder/`), which also carries **the picture behind a lettered
+picture** — named only by its record's `artwork`, beside the wrapper, so following `assetPath` alone would
+leave it behind. A name already taken by a different file is never overwritten: an overlay's own file is
+copied under its content hash instead, and a picture — whose name its record depends on — fails the Save
+As. It is all or nothing: the model changes only once every file has made it, a failure names the file,
+and the workspace stays where it was, holding its own folder. Open strip editors are re-fed afterwards,
+since each keeps its own copy of the overlays and its next edit would otherwise write the old paths back.
+Input pages stay where they are — they are the user's files.
+- **Undo follows.** A history recorded before the Save As still names the old folder, so
+  `Project::restoreOverlayState()` runs the same collect before restoring a step: undo never points the
+  workspace back there, nor — through `rewriteOverlayAssets()` — writes into it. A balloon whose file is
+  missing is pointed into the new folder anyway, where it is regenerated from its record.
 
 **Moving the folder is safe.** The library writes each overlay's path twice — absolute, and relative to
 the workspace file when it lies inside its folder — and prefers the relative one on load when it names a

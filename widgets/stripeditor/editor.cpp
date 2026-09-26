@@ -656,6 +656,10 @@ void Editor::refreshGradePreview()
 Editor::~Editor()
 {
     storeSplitterState();
+    // Children go in the order they were made, so the object list (ui's) is destroyed before the scene —
+    // and a scene removing a selected item announces a selection change on its way out, which the
+    // controller would answer by writing to that list. Nothing the scene says during teardown is for anyone.
+    m_scene->blockSignals(true);
     delete ui;
 }
 

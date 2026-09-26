@@ -277,9 +277,9 @@ New, backward-compatible features. Several are gated on a lib version, noted in 
      zipped; the absolute path is kept, so older builds still read the file. A rootless path is read
      against the folder for overlays, inputs and source maps; `outputDirectory` stays as written (a CLI
      `--output` is relative to the working directory).
-  4. **Save As collects** what the workspace made: overlays, the pictures behind lettered pictures,
-     and templates. It is all or nothing, and it also runs on undo so a history never points back
-     into the old folder. This also fixes Save As breaking templates, whose paths are relative.
+  4. ~~**Save As collects**~~ **Done (2026-09-26).** Overlays, the pictures behind lettered pictures,
+     and templates are copied into the new folder, all or nothing; the same collect runs on undo so a
+     history never points back into the old folder. This also fixed Save As breaking templates.
   5. **Sweep at open, to the Recycle Bin**, only with one workspace in the folder and the lock held,
      and only files with our own names (`ovl-*`, `art-*`, `templates/*`). It is reported with an
      advisory offering *Show*. Measured: on the Google Drive `G:` the files land in the ordinary

@@ -343,6 +343,20 @@ private:
     [[nodiscard]] bool canWriteWorkspace();
 
     void onWorkspaceTakenOver();   //!< The prompt canWriteWorkspace() and window activation raise.
+
+    /**
+     * @brief *Save As* to another folder: copies in everything the workspace made, and points it there.
+     *
+     * Every project's overlay files (and the pictures behind lettered pictures — see
+     * collectOverlayFiles()) and every canvas profile's template, so that after the save the workspace
+     * references only its own folder and the old one can be moved, zipped or deleted without breaking it.
+     * All or nothing: nothing in the model changes unless every file made it, and a failure names the file
+     * and stops the Save As before anything is written.
+     *
+     * @param newWorkspacePath Where the workspace is about to be saved.
+     * @return False when a file could not be copied; the user has been told which.
+     */
+    [[nodiscard]] bool collectWorkspaceFiles(const QString &newWorkspacePath);
     void applyWorkspaceToUi();                  //!< Updates the UI to reflect the current workspace model
     void closeWorkspace();                      //!< Closes the current workspace, clearing the model and UI
     void setDirty(bool dirty);                  //!< Sets the dirty flag and updates the title bar. True = workspace has unsaved changes and the title bar will show '*'

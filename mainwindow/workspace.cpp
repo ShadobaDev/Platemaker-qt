@@ -148,15 +148,26 @@ void MainWindow::onSaveAs()
         m_lock   = std::move(next);
     }
 
+    // Everything the workspace made comes along, before a byte of it is saved there. On failure the
+    // workspace stays where it was, still holding its own folder.
+    if (!collectWorkspaceFiles(path)) {
+        if (previous)
+            m_lock = std::move(previous);
+        return;
+    }
+
     // Save the current workspace to the selected path.
     // If the save operation fails, show an error message to the user.
     m_workspacePath = path;
     // New bubbles are written next to the workspace file, so every open project has to learn where that
-    // is now. (Bitmaps already registered keep their old absolute paths — the same way input pages do;
-    // a workspace-wide "collect assets" step is the general fix, and is not this round's.)
+    // is now. (Input pages keep the absolute paths they were added with — they are the user's files.)
     for (QDockWidget* dock : std::as_const(m_openProjectDocks))
         if (auto* pw = qobject_cast<Project*>(dock->widget()))
             pw->setWorkspacePath(m_workspacePath);
+    // An open strip editor holds its own copy of the overlays; left with the old paths, its next edit
+    // would write them back into the model.
+    for (QDockWidget* strip : std::as_const(m_openStripDocks))
+        refreshStripEditor(strip);
 
     onSave();
     if (!isWorkspaceModified())   // save succeeded
@@ -338,6 +349,60 @@ QString MainWindow::resolveSharedFolder(const QString &path)
         return {};
     }
     return keep;
+}
+
+bool MainWindow::collectWorkspaceFiles(const QString &newWorkspacePath)
+{
+    if (m_workspacePath.isEmpty())
+        return true;
+    const QString oldDir = QFileInfo(m_workspacePath).absolutePath();
+    const QString newDir = QFileInfo(newWorkspacePath).absolutePath();
+    if (QFileInfo(oldDir) == QFileInfo(newDir))
+        return true;   // same folder, same files
+
+    const auto refuse = [this](const QString &file) {
+        QMessageBox::warning(this, tr("Save Workspace As"),
+                             tr("Could not copy into the new folder:\n%1\n\n"
+                                "The workspace was not saved there.")
+                                 .arg(QDir::toNativeSeparators(file)));
+        return false;
+    };
+
+    // Overlays, per project — computed on copies, committed only once everything has made it.
+    const QString overlaysDir = ArtifactStore::ensureOverlaysDir(newWorkspacePath);
+    std::vector<std::vector<Platemaker::Models::StripOverlay>> collected;
+    collected.reserve(m_workspace.projectItems.size());
+    for (const auto &project : m_workspace.projectItems) {
+        auto    overlays = project.getStripOverlays();
+        QString failed;
+        if (!overlays.empty()) {
+            if (overlaysDir.isEmpty())
+                return refuse(ArtifactStore::overlaysDir(newWorkspacePath));
+            if (!collectOverlayFiles(overlays,
+                                     m_overlayArtifacts.artifacts(QString::fromStdString(project.uid)),
+                                     overlaysDir, &failed))
+                return refuse(failed);
+        }
+        collected.push_back(std::move(overlays));
+    }
+
+    // Templates are stored relative to the workspace folder, so without their files the copy would point
+    // at templates it does not have.
+    for (const auto &profile : m_workspace.canvasProfiles()) {
+        const QString rel = QString::fromStdString(profile.templateInfo.path);
+        if (rel.isEmpty() || QDir::isAbsolutePath(rel))
+            continue;
+        const QString source = QDir(oldDir).filePath(rel);
+        if (!QFileInfo::exists(source))
+            continue;   // already missing: nothing to carry, and nothing a copy would fix
+        const QString dest = QDir(newDir).filePath(rel);
+        if (!QDir().mkpath(QFileInfo(dest).absolutePath()) || !copyUnlessIdentical(source, dest))
+            return refuse(source);
+    }
+
+    for (std::size_t i = 0; i < collected.size(); ++i)
+        m_workspace.projectItems[i].getStripOverlays() = std::move(collected[i]);
+    return true;
 }
 
 // ---------------------------------------------------------------------------

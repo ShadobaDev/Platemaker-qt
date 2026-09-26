@@ -272,6 +272,9 @@
   was in fact still open, that window stops saving to the folder, says so, and offers to save its
   changes somewhere else. A workspace left locked by a crash or a reset on this computer opens without
   asking. A small `.platemaker.lock` file marks the folder while it is open.
+- **A workspace folder can be moved or zipped.** Bubbles and imported artwork are now found through their
+  place in the workspace folder, so a folder that is moved, renamed, or zipped and unpacked on another
+  computer opens with every overlay in place. (Input pages keep the location you picked them from.)
 - **Custom dock title bar.** The Workspace, project and strip docks share a title bar with real
   **minimise** (dock ⇄ detach — docking tabs it beside the Workspace, floating pops it out), **maximise**
   (fill the screen ⇄ restore) and **close** buttons — a floating dock previously showed only a close

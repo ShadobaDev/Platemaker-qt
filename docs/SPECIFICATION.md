@@ -980,6 +980,12 @@ picture is irreplaceable, and the undo history needs it for as long as the works
 to another folder keeps the existing absolute `assetPath`s, so the copy goes on reading the original's
 folder. Both are open in `TODO.md`.
 
+**Moving the folder is safe.** The library writes each overlay's path twice — absolute, and relative to
+the workspace file when it lies inside its folder — and prefers the relative one on load when it names a
+file that exists (`WorkspaceSerializer`, lib 0.6.0). The model the GUI receives holds absolute paths
+either way, so nothing here resolves anything; a folder moved, renamed or unzipped elsewhere simply loads
+with every overlay found.
+
 **A folder holds one workspace.** Everything written for a workspace — `overlays/`, `templates/`,
 `.platemaker-cache/` — sits beside its file, so a second workspace file in the same folder would share
 all of it, and anything that tidies one would delete the other's files: the failure Cubase documents

@@ -272,9 +272,11 @@ New, backward-compatible features. Several are gated on a lib version, noted in 
      instance that lost it refuses its next write and says why. Two files, because a held `QLockFile`
      cannot be written or deleted by anyone else (measured, also on `G:`): the process lock in local
      application data, and a plain `.platemaker.lock` marker in the folder that a synced drive can carry.
-  3. **Relative paths** *(lib)*: an overlay path inside the folder is also stored relative, and a
-     relative path is read in every path field, so the folder can be moved or zipped. Both forms are
-     kept, so older builds still read the file.
+  3. ~~**Relative paths** *(lib)*.~~ **Done (2026-09-26, lib 0.6.0).** An overlay path inside the folder
+     is also stored relative (`assetPathRelative`) and preferred on load, so the folder can be moved or
+     zipped; the absolute path is kept, so older builds still read the file. A rootless path is read
+     against the folder for overlays, inputs and source maps; `outputDirectory` stays as written (a CLI
+     `--output` is relative to the working directory).
   4. **Save As collects** what the workspace made: overlays, the pictures behind lettered pictures,
      and templates. It is all or nothing, and it also runs on undo so a history never points back
      into the old folder. This also fixes Save As breaking templates, whose paths are relative.

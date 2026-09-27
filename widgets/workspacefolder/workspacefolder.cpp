@@ -4,6 +4,7 @@
 #include <QDir>
 #include <QFile>
 #include <QFileInfo>
+#include <QSet>
 
 #include <utility>
 
@@ -121,4 +122,25 @@ bool collectOverlayFiles(std::vector<Platemaker::Models::StripOverlay>& overlays
     for (const auto& [i, path] : repointed)
         overlays[i].assetPath = path.toStdString();
     return true;
+}
+
+QStringList unusedWorkspaceFiles(const QString& folder, const QStringList& referenced)
+{
+    QSet<QString> used;
+    for (const QString& path : referenced) {
+        const QString canonical = QFileInfo(path).canonicalFilePath();
+        if (!canonical.isEmpty())
+            used.insert(canonical);
+    }
+
+    QStringList unused;
+    const auto scan = [&](const QString& sub, const QStringList& patterns) {
+        const QDir dir(QDir(folder).filePath(sub));
+        for (const QFileInfo& fi : dir.entryInfoList(patterns, QDir::Files, QDir::Name))
+            if (!used.contains(fi.canonicalFilePath()))
+                unused << fi.absoluteFilePath();
+    };
+    scan(QStringLiteral("overlays"), {QStringLiteral("ovl-*.svg"), QStringLiteral("art-*")});
+    scan(QStringLiteral("templates"), {QStringLiteral("*")});
+    return unused;
 }

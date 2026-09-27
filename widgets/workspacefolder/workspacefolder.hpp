@@ -77,4 +77,18 @@ inline constexpr char k_workspaceFilePattern[] = "*.platemaker.json";
                                        const QString&                                  overlaysDir,
                                        QString*                                        failed = nullptr);
 
+/**
+ * @brief The files in \p folder that Platemaker made and nothing in \p referenced uses — what the sweep
+ *        at open moves to the Recycle Bin.
+ *
+ * **Only our own names are candidates:** `overlays/ovl-*.svg`, `overlays/art-*`, and the files directly in
+ * `templates/`. Anything else in the folder — a file the user put there, `fonts/`, the lock, the cache — is
+ * not ours to judge. Compared as files, not strings, so a reference spelled differently still counts.
+ *
+ * @param folder     The workspace folder (the one holding its `*.platemaker.json`).
+ * @param referenced Every file the workspace uses, as paths; ones that do not exist are ignored.
+ * @return Absolute paths, in folder order.
+ */
+[[nodiscard]] QStringList unusedWorkspaceFiles(const QString& folder, const QStringList& referenced);
+
 #endif // WORKSPACEFOLDER_HPP

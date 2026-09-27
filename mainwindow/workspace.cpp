@@ -34,6 +34,7 @@
 #include <QMessageBox>
 #include <QPainter>
 #include <QPushButton>
+#include <QStatusBar>
 #include <QSettings>
 #include <QStandardPaths>
 #include <QStyledItemDelegate>
@@ -403,6 +404,81 @@ bool MainWindow::collectWorkspaceFiles(const QString &newWorkspacePath)
     for (std::size_t i = 0; i < collected.size(); ++i)
         m_workspace.projectItems[i].getStripOverlays() = std::move(collected[i]);
     return true;
+}
+
+QStringList MainWindow::referencedWorkspaceFiles() const
+{
+    QStringList used;
+    const QString folder = QFileInfo(m_workspacePath).absolutePath();
+    for (const auto &project : m_workspace.projectItems) {
+        const ArtifactMap records = m_overlayArtifacts.artifacts(QString::fromStdString(project.uid));
+        for (const auto &overlay : project.getStripOverlays()) {
+            const QString asset = QString::fromStdString(overlay.assetPath);
+            used << asset;
+            // A lettered picture's overlay is its wrapper; the picture sits beside it, named by the record.
+            const auto rec = records.constFind(QString::fromStdString(overlay.uid));
+            if (rec != records.constEnd() && rec->isArtwork())
+                used << QDir(QFileInfo(asset).absolutePath()).filePath(rec->artwork);
+        }
+    }
+    for (const auto &profile : m_workspace.canvasProfiles())
+        if (!profile.templateInfo.path.empty())
+            used << QDir(folder).filePath(QString::fromStdString(profile.templateInfo.path));
+    return used;
+}
+
+void MainWindow::sweepWorkspaceFolder()
+{
+    m_sweptToTrash = false;
+    if (m_workspacePath.isEmpty())
+        return;
+    const QString folder = QFileInfo(m_workspacePath).absolutePath();
+
+    // Both guarantees, or nothing: a folder another process may be writing into, or one another workspace
+    // shares, has files this workspace cannot see the use of.
+    if (!m_lock || !m_lock->isHeld() || !m_lock->stillOurs()) {
+        ui->textBrowserActionLogs->append(
+            tr("Unused files were not tidied: the workspace folder could not be locked."));
+        return;
+    }
+    if (workspacesInFolder(folder).size() != 1)
+        return;   // cannot happen after the open-time check (W1), and must not proceed if it somehow does
+
+    const QStringList unused = unusedWorkspaceFiles(folder, referencedWorkspaceFiles());
+    if (unused.isEmpty())
+        return;
+
+    const QDir  root(folder);
+    int         moved = 0;
+    QStringList refused;
+    for (const QString &file : unused) {
+        if (QFile::moveToTrash(file)) {
+            ++moved;
+            ui->textBrowserActionLogs->append(
+                tr("Moved unused file to the Recycle Bin: %1").arg(root.relativeFilePath(file)));
+        } else {
+            refused << file;
+        }
+    }
+    if (moved > 0) {
+        m_sweptToTrash = true;
+        statusBar()->showMessage(
+            tr("Moved %n unused file(s) to the Recycle Bin.", "", moved), k_noticeMs);
+    }
+
+    // No trash here (a network share, removable media): ask once, and ask again next time on Keep.
+    if (refused.isEmpty())
+        return;
+    const auto answer = QMessageBox::question(
+        this, tr("Unused files"),
+        tr("%n unused file(s) in this workspace's folder could not be moved to the Recycle Bin.\n\n"
+           "Delete them permanently? Nothing in the workspace uses them.", "", static_cast<int>(refused.size())),
+        QMessageBox::Yes | QMessageBox::No, QMessageBox::No);
+    if (answer != QMessageBox::Yes)
+        return;
+    for (const QString &file : std::as_const(refused))
+        if (QFile::remove(file))
+            ui->textBrowserActionLogs->append(tr("Deleted unused file: %1").arg(root.relativeFilePath(file)));
 }
 
 // ---------------------------------------------------------------------------

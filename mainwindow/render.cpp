@@ -30,6 +30,7 @@
 #include <QLocale>
 #include <QMenu>
 #include <QMessageBox>
+#include <QProcess>
 #include <QSet>
 #include <QSettings>
 #include <QTabBar>
@@ -577,6 +578,18 @@ void MainWindow::onActionLogContextMenu(const QPoint &pos)
                            && QFileInfo(m_lastRenderOutputDir).isDir());
     connect(openOutAct, &QAction::triggered, this, [this] {
         QDesktopServices::openUrl(QUrl::fromLocalFile(m_lastRenderOutputDir));
+    });
+
+    // Where the files the last open tidied away went — the Recycle Bin, which is also where they come back
+    // from. Measured: on the Google Drive G: too, moveToTrash() lands them in the ordinary Recycle Bin.
+    QAction *showTrashAct = menu.addAction(tr("Show Recycle Bin"));
+    showTrashAct->setEnabled(m_sweptToTrash);
+    connect(showTrashAct, &QAction::triggered, this, [] {
+#ifdef Q_OS_WIN
+        QProcess::startDetached(QStringLiteral("explorer.exe"), {QStringLiteral("shell:RecycleBinFolder")});
+#else
+        QDesktopServices::openUrl(QUrl(QStringLiteral("trash:///")));
+#endif
     });
 
     const QString logsDir = workspaceCacheDir().isEmpty()

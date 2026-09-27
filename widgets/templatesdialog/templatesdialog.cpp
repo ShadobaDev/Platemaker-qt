@@ -7,7 +7,6 @@
 #include <QDateTime>
 #include <QDesktopServices>
 #include <QDir>
-#include <QFile>
 #include <QFileInfo>
 #include <QFontMetrics>
 #include <QHeaderView>
@@ -285,12 +284,16 @@ void TemplatesDialog::onDeleteTemplate()
         QString::fromStdString(cp.templateInfo.path));
 
     if (QMessageBox::question(this, tr("Delete template"),
-            tr("Delete the template for \"%1\"?\n\n%2")
+            tr("Delete the template for \"%1\"?\n\n%2\n\n"
+               "The file goes to the Recycle Bin the next time the workspace is opened, unless undo "
+               "brings the template back first.")
                 .arg(QString::fromStdString(cp.name), abs))
         != QMessageBox::Yes)
         return;
 
-    QFile::remove(abs); // ignore result — the file may already be gone
+    // The file is left where it is. This edit is undoable, and an undo that restored the reference to a
+    // file already deleted would restore nothing; the sweep at the next open removes it once nothing
+    // references it (MainWindow::sweepWorkspaceFolder()).
     // Clear the template metadata through the editor (an exact empty value — a carry heuristic
     // could not express a deliberate clear).
     Platemaker::Infrastructure::WorkspaceEditor(m_workspace)

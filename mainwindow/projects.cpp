@@ -44,13 +44,6 @@
 #include <utility>
 #include <vector>
 
-namespace {
-//! How long a notice stays in the status bar. Long enough to read a sentence, short enough that it
-//! is gone before it becomes furniture — a message that never expires is a badge, and an event is
-//! not a condition (see the strip editor's `noted` signal).
-constexpr int k_noticeMs = 6000;
-}  // namespace
-
 // ---------------------------------------------------------------------------
 // Project panel slots
 // ---------------------------------------------------------------------------

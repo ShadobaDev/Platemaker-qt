@@ -404,6 +404,8 @@ void MainWindow::loadWorkspace(const QString &requested)
     QTimer::singleShot(0, this, [this, repair] {
         reportWorkspaceRepair(repair);
         warnIfCanvasConfigStale();
+        // Last: it may ask a question too, and it is housekeeping — the least of the three.
+        sweepWorkspaceFolder();
     });
 }
 

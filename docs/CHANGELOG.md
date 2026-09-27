@@ -272,6 +272,11 @@
   was in fact still open, that window stops saving to the folder, says so, and offers to save its
   changes somewhere else. A workspace left locked by a crash or a reset on this computer opens without
   asking. A small `.platemaker.lock` file marks the folder while it is open.
+- **Unused files are tidied away.** Bubbles and artwork that were deleted or replaced used to stay in the
+  workspace's `overlays` folder forever. When a workspace is opened, the files it no longer uses —
+  overlays and templates it created — now go to the Recycle Bin, from where they can be restored; the
+  Action log lists them and its menu can show the Recycle Bin. Files you put in the folder yourself are
+  never touched, and nothing is removed while a workspace is open, so undo keeps working.
 - **Save As takes the workspace with it.** Saving a workspace into another folder now copies its bubbles,
   imported artwork and templates there too, so the copy no longer depends on the original's folder, and
   undo in the copy never reaches back into it. If a file cannot be copied, Save As says which and leaves

@@ -207,3 +207,50 @@ TEST(CollectOverlayFiles, AMissingBalloonIsPointedHomeToBeRebuiltThere)
                 == QFileInfo(f.toDir()).absoluteFilePath());
     EXPECT_TRUE(QFileInfo(QString::fromStdString(overlays[1].assetPath)) == QFileInfo(f.from("art-gone.png")));
 }
+
+// ---------------------------------------------------------------------------
+// The sweep at open (unusedWorkspaceFiles): what it may take, and what it must leave
+// ---------------------------------------------------------------------------
+
+TEST(UnusedWorkspaceFiles, OnlyOurOwnUnreferencedFilesAreCandidates)
+{
+    QTemporaryDir tmp;
+    ASSERT_TRUE(tmp.isValid());
+    const QDir d(tmp.path());
+    const auto at = [&d](const char* rel) { return d.filePath(QString::fromLatin1(rel)); };
+
+    write(at("Chapter.platemaker.json"), "{}");
+    write(at("overlays/ovl-used.svg"), "used");
+    write(at("overlays/ovl-orphan.svg"), "orphan");
+    write(at("overlays/art-picture.png"), "picture behind a lettered picture");
+    write(at("overlays/art-orphan.png"), "orphan picture");
+    write(at("overlays/my-notes.txt"), "the user's");            // not our name
+    write(at("templates/3p-m.png"), "used template");
+    write(at("templates/old.png"), "deleted template");
+    write(at("fonts/Comic.ttf"), "a font");                       // never swept
+    write(at(".platemaker.lock"), "{}");
+
+    const QStringList unused = unusedWorkspaceFiles(
+        tmp.path(), {at("overlays/ovl-used.svg"), at("overlays/art-picture.png"), at("templates/3p-m.png"),
+                     at("overlays/does-not-exist.svg")});
+
+    QStringList names;
+    for (const QString& p : unused)
+        names << QDir(tmp.path()).relativeFilePath(p);
+    names.sort();
+    EXPECT_EQ(names, (QStringList{QStringLiteral("overlays/art-orphan.png"),
+                                  QStringLiteral("overlays/ovl-orphan.svg"),
+                                  QStringLiteral("templates/old.png")}));
+}
+
+TEST(UnusedWorkspaceFiles, AReferenceSpelledDifferentlyStillCounts)
+{
+    QTemporaryDir tmp;
+    ASSERT_TRUE(tmp.isValid());
+    const QString file = QDir(tmp.path()).filePath(QStringLiteral("overlays/ovl-a.svg"));
+    write(file, "used");
+
+    // The same file reached through a detour and native separators.
+    const QString detour = QDir::toNativeSeparators(QDir(tmp.path()).filePath(QStringLiteral("overlays/../overlays/ovl-a.svg")));
+    EXPECT_TRUE(unusedWorkspaceFiles(tmp.path(), {detour}).isEmpty());
+}

@@ -258,7 +258,7 @@ New, backward-compatible features. Several are gated on a lib version, noted in 
   - Expect more of these once the two above are pulled: the sweep is the point, not the individual
     rename.
 
-- [ ] **A workspace owns its folder — and cleans up the files nobody uses.** Nothing ever deletes from
+- [x] **A workspace owns its folder — and cleans up the files nobody uses.** *Done 2026-09-26.* Nothing ever deletes from
   `overlays/` (measured 2026-09-24: **46 files, 2 referenced**), and nothing guarantees that the
   folder belongs to one workspace, or that only one process writes to it. Two `*.platemaker.json` in
   one folder share `overlays/` and `templates/`, and a second instance opening the same workspace
@@ -280,11 +280,12 @@ New, backward-compatible features. Several are gated on a lib version, noted in 
   4. ~~**Save As collects**~~ **Done (2026-09-26).** Overlays, the pictures behind lettered pictures,
      and templates are copied into the new folder, all or nothing; the same collect runs on undo so a
      history never points back into the old folder. This also fixed Save As breaking templates.
-  5. **Sweep at open, to the Recycle Bin**, only with one workspace in the folder and the lock held,
-     and only files with our own names (`ovl-*`, `art-*`, `templates/*`). It is reported with an
-     advisory offering *Show*. Measured: on the Google Drive `G:` the files land in the ordinary
-     Windows Recycle Bin. At open, not at close: after *Discard*, memory is not what is on disk.
-     *Delete template* stops deleting the file, which makes it undoable again.
+  5. ~~**Sweep at open, to the Recycle Bin**~~ **Done (2026-09-26).** Only with one workspace in the
+     folder and the lock held, and only files with our own names (`ovl-*`, `art-*`, `templates/*`).
+     Reported in the Action log and the status bar, with *Show Recycle Bin* in the log's menu — not as
+     an advisory, which the registry reserves for standing conditions. Measured: on the Google Drive `G:`
+     the files land in the ordinary Windows Recycle Bin. At open, not at close: after *Discard*, memory
+     is not what is on disk. *Delete template* stopped deleting the file, which makes it undoable again.
 
 - [ ] **Bug: a missing font silently re-letters bubbles.** A bubble's text is baked into its SVG as
   outlines through `QFont`. When the family is not installed, every re-emit bakes it in a fallback,

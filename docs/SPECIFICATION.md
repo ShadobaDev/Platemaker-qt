@@ -974,10 +974,28 @@ with another (`addOverlay()` dedups identical content at creation) forks to a fr
 re-lettering its twin. A lettered picture is the exception: its wrapper is named by content on every
 write, so each settled edit to its words leaves a new `ovl-*.svg`.
 
-**Nothing is ever deleted from `overlays/`.** Deleting an object, re-lettering a picture, forking a shared
-file, discarding unsaved work and removing a chapter all leave their files behind; only an `art-*`
-picture is irreplaceable, and the undo history needs it for as long as the workspace is open. The sweep
-that would collect them is open in `TODO.md`.
+**Nothing is deleted during a session; what is unused is tidied at the next open.** Deleting an object,
+re-lettering a picture, forking a shared file, discarding unsaved work, removing a chapter and deleting a
+template all leave their files behind while the workspace is open — the undo history may still need
+them, and an `art-*` picture is the only copy. `MainWindow::sweepWorkspaceFolder()` collects them when a
+workspace **opens**, the one moment the model *is* the file and no history exists: at close, after
+*Discard*, memory is not what is on disk, and a sweep from memory would delete a picture the saved file
+still uses.
+- **What counts as used** (`referencedWorkspaceFiles()`): every overlay's `assetPath`, the picture behind
+  every lettered picture (its record's `artwork`, beside the wrapper), and every canvas profile's template.
+- **What may go** (`unusedWorkspaceFiles()`, `widgets/workspacefolder/`): only our own names —
+  `overlays/ovl-*.svg`, `overlays/art-*`, and the files in `templates/`. A file the user put there,
+  `fonts/`, the lock and the cache are never candidates.
+- **Only with both guarantees:** the folder held (the lock, and still ours) and holding this workspace
+  alone. Otherwise nothing is swept, and the Action log says why.
+- **To the Recycle Bin** (`QFile::moveToTrash`), from which it can be restored — measured on the Google
+  Drive `G:` as well, where the files land in the ordinary Windows Recycle Bin. Each file is listed in the
+  Action log, the status bar says how many, and the log's context menu offers *Show Recycle Bin*. It is an
+  event, not a standing condition, so it is not an advisory. Where there is no trash (a network share,
+  removable media) the user is asked once per open whether to delete permanently; *No* asks again next
+  time.
+- *Delete template* clears the reference and leaves the file, so the edit stays undoable; the next open
+  sweeps it.
 
 **Save As takes the workspace's files along.** Before a byte is saved in another folder,
 `MainWindow::collectWorkspaceFiles()` copies in every project's overlay files and every canvas profile's

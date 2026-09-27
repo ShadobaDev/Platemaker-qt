@@ -93,4 +93,29 @@ inline constexpr char k_pmNamespace[] = "https://github.com/ShadobaDev/Platemake
 [[nodiscard]] ArtifactMap artifactsFromOverlays(
     const std::vector<Platemaker::Models::StripOverlay>& overlays);
 
+/**
+ * @brief The media type of \p file, from its suffix — what a data URI has to declare.
+ */
+[[nodiscard]] QString pictureMime(const QString& file);
+
+/**
+ * @brief Writes \p a into a workspace's `overlays/` directory as an SVG — the file the render composites.
+ *
+ * @param reusePath The file this overlay already owns, overwritten in place; empty for a new overlay,
+ *                  which is then named by content hash. Ignored for a lettered picture, whose wrapper is
+ *                  always named by its content (the path may be the picture itself).
+ * @return The asset's absolute path, or empty when it could not be written.
+ */
+[[nodiscard]] QString writeArtifactSvg(const QString& overlaysDir, const Artifact& a,
+                                       const QString& reusePath = {});
+
+/**
+ * @brief The family a file's lettering was outlined in instead of its own — `pm:fontFallback` — or empty.
+ *
+ * Written when the record's family was not installed at the time (artifactFontFallback()), so a file
+ * baked in a stand-in can be told from one baked in its own font — both carry the same `pm:fontFamily` —
+ * and re-set once the font is back. Read the way the recipe is: by namespace, never by prefix.
+ */
+[[nodiscard]] QString bakedFontFallback(const QByteArray& svg);
+
 #endif // ARTIFACTSVG_HPP

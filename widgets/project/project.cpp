@@ -363,7 +363,7 @@ void Project::restoreOverlayState(const OverlayState& recorded)
     emit historyStepApplied(EditScope::StripEditor, touched);
 
     // The records are back; the files on disk still hold what the step being undone wrote.
-    rewriteOverlayAssets();
+    rewriteOverlayAssets(touched);
     emit artifactsChanged(m_artifacts);
 
     populate();
@@ -751,101 +751,6 @@ void Project::addDroppedUrls(const QList<QUrl>& urls)
 // sends.
 // ---------------------------------------------------------------------------
 
-namespace {
-
-/**
- * @brief The media type of @p file, from its suffix — what a data URI has to declare.
- * @param file The file to determine the media type for.
- * @return The media type as a string.
- */
-QString pictureMime(const QString& file)
-{
-    const QString ext = QFileInfo(file).suffix().toLower();
-    if (ext == QLatin1String("png"))  return QStringLiteral("image/png");
-    if (ext == QLatin1String("webp")) return QStringLiteral("image/webp");
-    if (ext == QLatin1String("svg"))  return QStringLiteral("image/svg+xml");
-    if (ext == QLatin1String("jpg") || ext == QLatin1String("jpeg"))
-        return QStringLiteral("image/jpeg");
-    return {};
-}
-
-/**
- * @brief Writes \p a into the workspace's overlays/ directory as an SVG.
- *
- * The file the library composites **is** the authoring record: the artwork every renderer can draw,
- * plus the editor's parameters in a namespace renderers ignore. There is no separate sidecar and no
- * intermediate raster.
- *
- * @param reusePath The file this overlay already owns, overwritten in place. Empty for a new overlay,
- *                  which is then named by content hash — that name is also what makes two identical
- *                  bubbles share one file, the same dedup the library's inventory performs.
- *
- * A bubble keeps **one** file for its lifetime. Naming every revision by its content instead would
- * leave one file per settled edit — a dozen in a single lettering session — and the reason to do that
- * has gone: the undo snapshot carries the full authoring record, so a previous rendering is regenerated
- * from it (see Project::rewriteOverlayAssets()) rather than recovered from a file kept alive for it.
- *
- * @return The asset's absolute path, or empty when it could not be written.
- */
-QString writeArtifactSvg(const QString& overlaysDir, const Artifact& a,
-                         const QString& reusePath = {})
-{
-    // **A picture with nothing written on it is its own file.** There is nothing of ours to draw, so
-    // generating one would be drawing our geometry over somebody's artwork — the E6a.1 mistake, in the
-    // one place that could still make it. Its overlay points straight at the imported picture.
-    if (a.isArtwork()) {
-        const QString picture = overlaysDir + QLatin1Char('/') + a.artwork;
-        if (a.text.body.isEmpty())
-            return picture;
-
-        // Lettered, so there *is* something of ours: a wrapper that embeds the picture and draws the
-        // words over it. Written to a file of its own and **never over the picture** — `reusePath` is
-        // deliberately ignored here, because for an artwork overlay that path may be the picture
-        // itself, and the picture is the one thing in the workspace we did not make.
-        QFile in(picture);
-        if (!in.open(QIODevice::ReadOnly))
-            return {};
-        const QByteArray bytes = in.readAll();
-        const QByteArray svg   = artifactToSvg(a, bytes, pictureMime(a.artwork));
-        if (svg.isEmpty())
-            return {};
-
-        const QString sha = QString::fromLatin1(
-            QCryptographicHash::hash(svg, QCryptographicHash::Sha256).toHex()).left(16);
-        const QString path = overlaysDir + QStringLiteral("/ovl-") + sha + QStringLiteral(".svg");
-        if (QFile::exists(path))
-            return path;
-        QFile out(path);
-        if (!out.open(QIODevice::WriteOnly | QIODevice::Truncate))
-            return {};
-        out.write(svg);
-        return out.error() == QFile::NoError ? path : QString{};
-    }
-
-    const QByteArray svg = artifactToSvg(a);
-    if (svg.isEmpty() || overlaysDir.isEmpty())
-        return {};
-
-    QString path = reusePath;
-    if (path.isEmpty()) {
-        // Hashed from the bytes about to be written, so the name matches what the library will hash
-        // when it inventories the file — no scratch file needed, unlike the raster path's encode-then-hash.
-        const QString sha = QString::fromLatin1(
-            QCryptographicHash::hash(svg, QCryptographicHash::Sha256).toHex()).left(16);
-        path = overlaysDir + QStringLiteral("/ovl-") + sha + QStringLiteral(".svg");
-        if (QFile::exists(path))
-            return path;               // same content, already stored
-    }
-
-    QFile f(path);
-    if (!f.open(QIODevice::WriteOnly | QIODevice::Truncate))
-        return {};
-    f.write(svg);
-    return f.error() == QFile::NoError ? path : QString{};
-}
-
-} // namespace
-
 void Project::setArtifacts(ArtifactMap artifacts)
 {
     m_artifacts = std::move(artifacts);
@@ -884,7 +789,7 @@ void Project::createOverlay(const Artifact& artifact, double xFrac, double yFrac
     });
 }
 
-void Project::rewriteOverlayAssets()
+void Project::rewriteOverlayAssets(const QStringList& uids)
 {
     if (!mayWrite())
         return;
@@ -893,10 +798,16 @@ void Project::rewriteOverlayAssets()
         return;
 
     for (const auto& o : m_workspace.projectItems[m_projectIndex].getStripOverlays()) {
-        const auto it = m_artifacts.constFind(QString::fromStdString(o.uid));
+        const QString uid = QString::fromStdString(o.uid);
+        const auto    it  = m_artifacts.constFind(uid);
         if (it == m_artifacts.constEnd() || o.assetPath.empty())
             continue;   // a flat asset has no record to re-emit from, and must be left exactly as it is
-        writeArtifactSvg(dir, it.value(), QString::fromStdString(o.assetPath));
+        const QString asset = QString::fromStdString(o.assetPath);
+        if (!uids.contains(uid) && QFileInfo::exists(asset))
+            continue;   // untouched by the step, and its file is there: leave it exactly as it is
+        // The path cannot move: a balloon keeps its own file, and a lettered picture's wrapper is named by
+        // its content, which the restored record reproduces.
+        (void)writeArtifactSvg(dir, it.value(), asset);
     }
 }
 

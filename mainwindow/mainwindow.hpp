@@ -371,6 +371,18 @@ private:
      * event, not a standing condition, so not an advisory.
      */
     void sweepWorkspaceFolder();
+
+    /**
+     * @brief Re-sets, in their own font, the bubbles whose file was baked in a stand-in — at open.
+     *
+     * A bubble edited while its font was missing is outlined in whatever Qt substituted, and the file says
+     * so (`pm:fontFallback`); its record still names the font it was meant to have. Once that font is
+     * installed (or brought by the workspace) this rewrites the file from the record, updates its hash and
+     * marks the workspace modified — the save is the artist's. Not an undo step: it repairs files to match
+     * their records. Runs before the sweep, since a lettered picture's wrapper is renamed by its content and
+     * the old one is then unused; and only with the folder held, since it writes there.
+     */
+    void healFontFallbacks();
     void applyWorkspaceToUi();                  //!< Updates the UI to reflect the current workspace model
     void closeWorkspace();                      //!< Closes the current workspace, clearing the model and UI
     void setDirty(bool dirty);                  //!< Sets the dirty flag and updates the title bar. True = workspace has unsaved changes and the title bar will show '*'
@@ -402,6 +414,8 @@ private:
     //! Opens the strip editor for @p projectUid with its unanchored objects picked out. An advisory's
     //! way out of itself, not a menu item.
     void showUnanchoredObjects(const QString& projectUid);
+    //! Opens \p projectUid's strip editor with \p uids selected — what an advisory's "Show them" does.
+    void showObjects(const QString& projectUid, const QStringList& uids);
     //! Deletes them, as one undoable step on that chapter's history. Offered only by the render gate.
     void deleteUnanchoredObjects(const QString& projectUid);
 

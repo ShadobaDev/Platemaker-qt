@@ -67,6 +67,17 @@ enum class ArtifactPart { None, Fill, Outline, Text };
 [[nodiscard]] QPainterPath artifactTextOutline(const Artifact& a);
 
 /**
+ * @brief The family \p a's lettering is actually outlined in when its own is not installed, or empty.
+ *
+ * `QFont` never fails on a missing family — it substitutes, silently — so an outline built while the font
+ * is absent is the same words in another face, and nothing in the record says so. This names the stand-in
+ * (Qt's own choice, as `QFontInfo` reports it), which is what the SVG records as `pm:fontFallback`. Empty
+ * when there are no words, no family is asked for, or the family is available — including one a workspace
+ * registered for itself.
+ */
+[[nodiscard]] QString artifactFontFallback(const Artifact& a);
+
+/**
  * @brief Everything the artifact actually covers, in balloon coordinates — origin may be negative.
  *
  * The balloon, its tails and its text, plus room for the stroke. A tail can point anywhere, so this is

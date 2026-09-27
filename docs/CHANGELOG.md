@@ -272,6 +272,11 @@
   was in fact still open, that window stops saving to the folder, says so, and offers to save its
   changes somewhere else. A workspace left locked by a crash or a reset on this computer opens without
   asking. A small `.platemaker.lock` file marks the folder while it is open.
+- **A missing font no longer changes your lettering behind your back.** Opening a workspace whose
+  bubbles use a font that is not installed now warns about it (and *Show them* selects those bubbles)
+  instead of silently re-setting their words in another font — which every undo used to do to every
+  bubble. A bubble edited meanwhile keeps the name of the font it was meant to have, and is set back in
+  that font the next time the workspace is opened with the font installed.
 - **Unused files are tidied away.** Bubbles and artwork that were deleted or replaced used to stay in the
   workspace's `overlays` folder forever. When a workspace is opened, the files it no longer uses —
   overlays and templates it created — now go to the Recycle Bin, from where they can be restored; the

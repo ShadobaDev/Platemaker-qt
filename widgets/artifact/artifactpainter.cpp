@@ -1,6 +1,8 @@
 #include "artifactpainter.hpp"
 
 #include <QFont>
+#include <QFontDatabase>
+#include <QFontInfo>
 #include <QObject>
 #include <QPainter>
 #include <QPainterPath>
@@ -341,8 +343,12 @@ QRectF textSafeArea(const Artifact& a, const QRectF& body)
 //! The laid-out text, ready to draw or measure. Width-bound; height falls out of the wrap.
 void layOutText(QTextDocument& doc, const Artifact& a, qreal width)
 {
+    // A family that is not installed is not handed to QFont: QFont would substitute through the platform's
+    // own table (on Windows, "MS Shell Dlg 2" → Tahoma), which is a different stand-in from the one an
+    // empty family gets. Leaving it unset gives both the application's default font, so "no font chosen"
+    // and "the chosen font is missing" look the same, and artifactFontFallback() can name it.
     QFont f;
-    if (!a.text.family.isEmpty())
+    if (!a.text.family.isEmpty() && QFontDatabase::hasFamily(a.text.family))
         f.setFamily(a.text.family);
     f.setPixelSize(qMax(1, a.text.pixelSize));
     f.setBold(a.text.bold);
@@ -486,6 +492,16 @@ QRectF artifactBoundsOf(const Artifact& a, const QPainterPath& silhouette, const
     const qreal left = qFloor(r.left());
     const qreal top  = qFloor(r.top());
     return QRectF(left, top, qCeil(r.right()) - left, qCeil(r.bottom()) - top);
+}
+
+QString artifactFontFallback(const Artifact& a)
+{
+    if (a.text.body.isEmpty() || a.text.family.isEmpty() || QFontDatabase::hasFamily(a.text.family))
+        return {};
+    // The stand-in layOutText() uses: the application's default font, never the platform's substitution.
+    QFont f;
+    f.setBold(a.text.bold);
+    return QFontInfo(f).family();
 }
 
 QPainterPath artifactTextOutline(const Artifact& a)

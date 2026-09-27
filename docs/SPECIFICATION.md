@@ -969,7 +969,9 @@ hash of the bytes about to be written (so identical bubbles share one file, matc
 dedup), and thereafter overwrites that same path. Naming every revision by its content instead would
 leave one file per settled edit — a dozen in a single lettering session. Undo does not need them: an
 overlay step's `OverlayState` carries the complete authoring record, and `restoreOverlayState()` calls
-`Project::rewriteOverlayAssets()` to re-emit the file from the restored record. An overlay sharing a path
+`Project::rewriteOverlayAssets()` to re-emit the files of the overlays the step changed (and any whose
+file is missing) from the restored records — not every bubble, since re-emitting re-outlines the lettering
+and a bubble whose font is not installed would be re-set in a stand-in. An overlay sharing a path
 with another (`addOverlay()` dedups identical content at creation) forks to a fresh file rather than
 re-lettering its twin. A lettered picture is the exception: its wrapper is named by content on every
 write, so each settled edit to its words leaves a new `ovl-*.svg`.
@@ -1063,6 +1065,29 @@ rather than refused. The CLI does not take the lock.
 A text or styling edit therefore rewrites the asset **and** the record's `sha256`; a move or a reorder
 rewrites neither, only the placement. `Project::applyOverlays()` re-emits exactly the artifacts whose
 authoring record actually changed.
+
+**A missing font never changes the render behind the artist's back.** The lettering is outlined through
+`QFont`, which never fails on a family that is not installed — it substitutes a stand-in, silently. So:
+- **The record keeps the family it was meant to have.** `TextEditor` writes a family only when the
+  artist picks one; the file's `pm:fontFamily` is always that.
+- **A file baked in a stand-in says so.** `artifactFontFallback()` names the family Qt actually used
+  (`QFontInfo`) when the record's is not available, and `artifactToSvg()` writes it as
+  `pm:fontFallback` — without it, a stand-in bake and a real one would carry the same `pm:fontFamily`
+  and could not be told apart.
+- **Only what an undo step changed is re-emitted** (`rewriteOverlayAssets(uids)`, plus any overlay whose
+  file is missing). Re-emitting every bubble on every undo used to re-set the lettering of bubbles the
+  step never touched.
+- **Healed at open.** `MainWindow::healFontFallbacks()` re-writes, from its record, every file in the
+  workspace folder that carries `pm:fontFallback` and whose font is now available — installed, or
+  brought by the workspace — updating its hash and marking the workspace modified, so saving is the
+  artist's call. Not an undo step: it repairs files to match their records. It runs before the sweep,
+  with the folder held, since a lettered picture's re-set wrapper gets a new name and the old one is
+  then unused.
+- **Warned as a condition, not per edit.** Each project with lettering in a missing font carries a
+  *font(s) missing* advisory (Warning) naming the families, with *Show them* selecting those objects —
+  in the status bar, and in the strip editor's own bar for that project. Editing does not ask: the
+  stand-in is recorded, so the next open with the font undoes it. The render itself is unaffected until
+  an edit, since the file holds outlines, not text.
 
 **A styled bubble is previewed by the library.** Marker and Ink are SVG filters, which Qt cannot draw at
 all, so `BubbleObject` shows an `OverlayRaster` obtained from `StripOverlayCompositor::rasterizeSvgRgba()`

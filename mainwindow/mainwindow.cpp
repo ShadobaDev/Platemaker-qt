@@ -404,7 +404,10 @@ void MainWindow::loadWorkspace(const QString &requested)
     QTimer::singleShot(0, this, [this, repair] {
         reportWorkspaceRepair(repair);
         warnIfCanvasConfigStale();
-        // Last: it may ask a question too, and it is housekeeping — the least of the three.
+        // Last: they write into the folder and may ask a question, and they are housekeeping — the least of
+        // these. The heal first: re-setting a lettered picture renames its wrapper, and the sweep has to see
+        // the final set of files.
+        healFontFallbacks();
         sweepWorkspaceFolder();
     });
 }

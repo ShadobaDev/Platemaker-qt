@@ -13,6 +13,7 @@
 
 #include "advisories.hpp"
 #include "advisorybar.hpp"
+#include "artifactpainter.hpp"
 #include "editor.hpp"
 #include "project.hpp"
 
@@ -26,7 +27,8 @@ namespace {
 
 // Key prefixes. One per condition, suffixed with the project's uid — an index would move under the
 // advisory the moment a lower-numbered project was removed.
-const QString k_unanchoredKey = QStringLiteral("unanchored/");
+const QString k_unanchoredKey   = QStringLiteral("unanchored/");
+const QString k_missingFontsKey = QStringLiteral("missingFonts/");
 
 //! The uids of this project's overlays that have no page under them, in composite order.
 [[nodiscard]] QStringList unanchoredUids(const Platemaker::Models::ProjectItem& project)
@@ -63,9 +65,9 @@ void MainWindow::refreshAdvisoriesFor(int projectIndex)
     const QString uid   = QString::fromStdString(project.uid);
     const QString name  = QString::fromStdString(project.name);
 
-    // One condition today. The other candidate — a grade the render would not run — cannot arise: a
-    // neutral grade is no grade and a grade that is not neutral always runs, so there is no state in
-    // between for anyone to be warned about.
+    // Two conditions. A third candidate — a grade the render would not run — cannot arise: a neutral
+    // grade is no grade and a grade that is not neutral always runs, so there is no state in between for
+    // anyone to be warned about.
 
     // --- objects with no page under them ------------------------------------
     const QStringList stranded = unanchoredUids(project);
@@ -85,6 +87,39 @@ void MainWindow::refreshAdvisoriesFor(int projectIndex)
         a.resolve     = [this, uid] { deleteUnanchoredObjects(uid); };
         m_advisories->raise(k_unanchoredKey + uid, a);
     }
+
+    // --- lettering whose font is not installed ------------------------------
+    // The render is unaffected — the words are outlines in the file — so this is a warning about editing:
+    // until the font is installed, an edit sets the words in a stand-in. The same answer the SVG writer
+    // gets (artifactFontFallback()), so the badge and the file can never disagree about what is missing.
+    const ArtifactMap records = m_overlayArtifacts.artifacts(uid);
+    QStringList       inStandIns;
+    QStringList       families;
+    for (const auto& overlay : project.getStripOverlays()) {
+        const auto rec = records.constFind(QString::fromStdString(overlay.uid));
+        if (rec == records.constEnd() || artifactFontFallback(*rec).isEmpty())
+            continue;
+        inStandIns << QString::fromStdString(overlay.uid);
+        if (!families.contains(rec->text.family))
+            families << rec->text.family;
+    }
+    if (inStandIns.isEmpty()) {
+        m_advisories->clear(k_missingFontsKey + uid);
+    } else {
+        Advisory a;
+        a.level      = Advisory::Level::Warning;
+        a.text       = tr("%n font(s) missing", "", families.size());
+        a.detail     = tr("%1: %2 — used by %3 of this chapter's objects — not installed on this computer. "
+                          "They render as they were last saved. Editing one sets its words in a stand-in "
+                          "until the font is installed; the next open after that sets them back in their "
+                          "own font.")
+                           .arg(name, families.join(QStringLiteral(", ")))
+                           .arg(inStandIns.size());
+        a.actionText = tr("Show them");
+        a.projectUid = uid;
+        a.action     = [this, uid, inStandIns] { showObjects(uid, inStandIns); };
+        m_advisories->raise(k_missingFontsKey + uid, a);
+    }
 }
 
 void MainWindow::refreshAllAdvisories()
@@ -100,6 +135,13 @@ void MainWindow::refreshAllAdvisories()
 void MainWindow::showUnanchoredObjects(const QString& projectUid)
 {
     const int idx = projectIndexForUid(projectUid);
+    if (idx >= 0)
+        showObjects(projectUid, unanchoredUids(m_workspace.projectItems[static_cast<std::size_t>(idx)]));
+}
+
+void MainWindow::showObjects(const QString& projectUid, const QStringList& uids)
+{
+    const int idx = projectIndexForUid(projectUid);
     if (idx < 0)
         return;
 
@@ -111,9 +153,9 @@ void MainWindow::showUnanchoredObjects(const QString& projectUid)
         return;
 
     // Armed and then fed, the same handshake an undo uses: the objects only exist in the editor once
-    // the feed builds them. An unanchored object is not selectable in the scene — it is not on the
-    // strip — so what this reaches is its row in the object stack, which is where it can be acted on.
-    viewer->selectAfterFeed(unanchoredUids(m_workspace.projectItems[static_cast<std::size_t>(idx)]));
+    // the feed builds them. An object that is not on the strip (unanchored) is not selectable in the
+    // scene, so for it what this reaches is its row in the object stack, where it can be acted on.
+    viewer->selectAfterFeed(uids);
     refreshStripEditor(strip);
 }
 

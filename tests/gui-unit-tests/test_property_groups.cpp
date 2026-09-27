@@ -474,6 +474,27 @@ TEST(Kinds, ArtworkSurvivesTheSnapshot)
  * wrapper without it would render as the lettering alone, floating over nothing — worse than no file,
  * because it would look deliberate.
  */
+TEST(Import, AFileBakedInAStandInSaysWhich)
+{
+    // pm:fontFamily is the font asked for and stays so; pm:fontFallback is what the outlines were set in
+    // while it was missing. The heal at open reads only the second — by namespace, like the recipe.
+    const QByteArray standIn =
+        QByteArray("<svg xmlns=\"http://www.w3.org/2000/svg\" xmlns:pm=\"") + k_pmNamespace
+        + "\" width=\"10\" height=\"10\"><g pm:shape=\"speech\" pm:box=\"10,10\" pm:text=\"Hi\""
+          " pm:fontFamily=\"Segoe Print\" pm:fontFallback=\"Segoe UI\"/></svg>";
+    EXPECT_EQ(bakedFontFallback(standIn), QStringLiteral("Segoe UI"));
+    EXPECT_EQ(artifactFromSvg(standIn).text.family, QStringLiteral("Segoe Print"));
+
+    QByteArray ownFont = standIn;
+    ownFont.replace(" pm:fontFallback=\"Segoe UI\"", "");
+    EXPECT_TRUE(bakedFontFallback(ownFont).isEmpty());
+
+    // Somebody else's namespace says nothing about our files.
+    QByteArray impostor = standIn;
+    impostor.replace(k_pmNamespace, "https://example.invalid/ns/1");
+    EXPECT_TRUE(bakedFontFallback(impostor).isEmpty());
+}
+
 TEST(Import, AWrapperWithoutItsPictureIsNotWritten)
 {
     Artifact a;

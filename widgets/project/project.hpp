@@ -162,15 +162,19 @@ public:
     void setArtifacts(ArtifactMap artifacts);
 
     /**
-     * @brief Re-writes every overlay's SVG from its authoring record.
+     * @brief Re-writes the SVGs of the overlays a restored step changed, from their authoring records.
      *
      * Undo and redo restore what each bubble *says*, but a bubble overwrites its own asset file rather
      * than leaving one behind per edit — so the file on disk still holds whatever the step being undone
-     * wrote. Re-emitting from the restored records puts the two back in agreement. Safe to call
-     * repeatedly: emission is a pure function of the record, so a file that already matches is rewritten
-     * with identical bytes.
+     * wrote. Re-emitting from the restored records puts the two back in agreement.
+     *
+     * **Only \p uids, plus any overlay whose file is missing.** Re-emitting is not free of consequence:
+     * the lettering is outlined through `QFont`, so a bubble whose font is not installed would be re-set
+     * in a stand-in — and rewriting every bubble on every undo re-set bubbles the step never touched.
+     *
+     * @param uids The overlays the step changed (movedUids()).
      */
-    void rewriteOverlayAssets();
+    void rewriteOverlayAssets(const QStringList& uids);
 
     /**
      * @brief Returns the map of artifacts associated with this project.

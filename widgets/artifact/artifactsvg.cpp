@@ -2,7 +2,9 @@
 
 #include "artifactpainter.hpp"
 
+#include <QCryptographicHash>
 #include <QFile>
+#include <QFileInfo>
 #include <QPainterPath>
 #include <QRectF>
 #include <QStringList>
@@ -232,6 +234,8 @@ QByteArray artifactToSvg(const Artifact& a, const QByteArray& picture, const QSt
                     QStringLiteral("%1,%2").arg(a.box.width()).arg(a.box.height()));
         svg += attr(QStringLiteral("text"), a.text.body);
         svg += attr(QStringLiteral("fontFamily"), a.text.family);
+        if (const QString fallback = artifactFontFallback(a); !fallback.isEmpty())
+            svg += attr(QStringLiteral("fontFallback"), fallback);   // the words were set in a stand-in
         svg += attr(QStringLiteral("fontSize"), a.text.pixelSize);
         svg += attr(QStringLiteral("bold"), a.text.bold ? 1 : 0);
         svg += attr(QStringLiteral("align"), a.text.align);
@@ -280,6 +284,10 @@ QByteArray artifactToSvg(const Artifact& a, const QByteArray& picture, const QSt
     svg += attr(QStringLiteral("tails"), tailsToText(a.tails.items));
     svg += attr(QStringLiteral("text"), a.text.body);
     svg += attr(QStringLiteral("fontFamily"), a.text.family);
+    // The family asked for is kept above whatever happened; this says what the outlines were actually set
+    // in when that family was not installed, so the file can be re-set once it is (MainWindow's heal).
+    if (const QString fallback = artifactFontFallback(a); !fallback.isEmpty())
+        svg += attr(QStringLiteral("fontFallback"), fallback);
     svg += attr(QStringLiteral("fontSize"), a.text.pixelSize);
     svg += attr(QStringLiteral("bold"), a.text.bold ? 1 : 0);
     svg += attr(QStringLiteral("align"), a.text.align);
@@ -401,4 +409,112 @@ ArtifactMap artifactsFromOverlays(const std::vector<Platemaker::Models::StripOve
         // map — the caller draws it from the file and does not offer to re-type it.
     }
     return map;
+}
+
+// ---------------------------------------------------------------------------------------------------
+// Writing an overlay file (moved from Project so a workspace can be repaired with no project open)
+// ---------------------------------------------------------------------------------------------------
+
+/**
+ * @brief The media type of @p file, from its suffix — what a data URI has to declare.
+ * @param file The file to determine the media type for.
+ * @return The media type as a string.
+ */
+QString pictureMime(const QString& file)
+{
+    const QString ext = QFileInfo(file).suffix().toLower();
+    if (ext == QLatin1String("png"))  return QStringLiteral("image/png");
+    if (ext == QLatin1String("webp")) return QStringLiteral("image/webp");
+    if (ext == QLatin1String("svg"))  return QStringLiteral("image/svg+xml");
+    if (ext == QLatin1String("jpg") || ext == QLatin1String("jpeg"))
+        return QStringLiteral("image/jpeg");
+    return {};
+}
+
+/**
+ * @brief Writes \p a into the workspace's overlays/ directory as an SVG.
+ *
+ * The file the library composites **is** the authoring record: the artwork every renderer can draw,
+ * plus the editor's parameters in a namespace renderers ignore. There is no separate sidecar and no
+ * intermediate raster.
+ *
+ * @param reusePath The file this overlay already owns, overwritten in place. Empty for a new overlay,
+ *                  which is then named by content hash — that name is also what makes two identical
+ *                  bubbles share one file, the same dedup the library's inventory performs.
+ *
+ * A bubble keeps **one** file for its lifetime. Naming every revision by its content instead would
+ * leave one file per settled edit — a dozen in a single lettering session — and the reason to do that
+ * has gone: the undo snapshot carries the full authoring record, so a previous rendering is regenerated
+ * from it (see Project::rewriteOverlayAssets()) rather than recovered from a file kept alive for it.
+ *
+ * @return The asset's absolute path, or empty when it could not be written.
+ */
+QString writeArtifactSvg(const QString& overlaysDir, const Artifact& a, const QString& reusePath)
+{
+    // **A picture with nothing written on it is its own file.** There is nothing of ours to draw, so
+    // generating one would be drawing our geometry over somebody's artwork — the E6a.1 mistake, in the
+    // one place that could still make it. Its overlay points straight at the imported picture.
+    if (a.isArtwork()) {
+        const QString picture = overlaysDir + QLatin1Char('/') + a.artwork;
+        if (a.text.body.isEmpty())
+            return picture;
+
+        // Lettered, so there *is* something of ours: a wrapper that embeds the picture and draws the
+        // words over it. Written to a file of its own and **never over the picture** — `reusePath` is
+        // deliberately ignored here, because for an artwork overlay that path may be the picture
+        // itself, and the picture is the one thing in the workspace we did not make.
+        QFile in(picture);
+        if (!in.open(QIODevice::ReadOnly))
+            return {};
+        const QByteArray bytes = in.readAll();
+        const QByteArray svg   = artifactToSvg(a, bytes, pictureMime(a.artwork));
+        if (svg.isEmpty())
+            return {};
+
+        const QString sha = QString::fromLatin1(
+            QCryptographicHash::hash(svg, QCryptographicHash::Sha256).toHex()).left(16);
+        const QString path = overlaysDir + QStringLiteral("/ovl-") + sha + QStringLiteral(".svg");
+        if (QFile::exists(path))
+            return path;
+        QFile out(path);
+        if (!out.open(QIODevice::WriteOnly | QIODevice::Truncate))
+            return {};
+        out.write(svg);
+        return out.error() == QFile::NoError ? path : QString{};
+    }
+
+    const QByteArray svg = artifactToSvg(a);
+    if (svg.isEmpty() || overlaysDir.isEmpty())
+        return {};
+
+    QString path = reusePath;
+    if (path.isEmpty()) {
+        // Hashed from the bytes about to be written, so the name matches what the library will hash
+        // when it inventories the file — no scratch file needed, unlike the raster path's encode-then-hash.
+        const QString sha = QString::fromLatin1(
+            QCryptographicHash::hash(svg, QCryptographicHash::Sha256).toHex()).left(16);
+        path = overlaysDir + QStringLiteral("/ovl-") + sha + QStringLiteral(".svg");
+        if (QFile::exists(path))
+            return path;               // same content, already stored
+    }
+
+    QFile f(path);
+    if (!f.open(QIODevice::WriteOnly | QIODevice::Truncate))
+        return {};
+    f.write(svg);
+    return f.error() == QFile::NoError ? path : QString{};
+}
+
+QString bakedFontFallback(const QByteArray& svg)
+{
+    QXmlStreamReader xml(svg);
+    const QString    ns = QLatin1String(k_pmNamespace);
+    while (!xml.atEnd()) {
+        if (xml.readNext() != QXmlStreamReader::StartElement)
+            continue;
+        const QXmlStreamAttributes at = xml.attributes();
+        if (at.hasAttribute(ns, QStringLiteral("shape")))   // the parameter group — the only place it goes
+            return at.value(ns, QStringLiteral("fontFallback")).toString();
+    }
+    return {};
 }

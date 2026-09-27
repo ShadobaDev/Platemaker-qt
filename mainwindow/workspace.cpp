@@ -7,9 +7,11 @@
 #include "outputprofiledialog.hpp"
 #include "templatesdialog.hpp"
 #include "renderworker.hpp"
+#include "artifactsvg.hpp"
 #include "workspacefolder.hpp"
 #include "workspacelock.hpp"
 
+#include <platemaker/infrastructure/file/file_meta_data.hpp>
 #include <platemaker/models/output_profile.hpp>
 
 #include <QCloseEvent>
@@ -24,6 +26,7 @@
 #include <QFile>
 #include <QFileDialog>
 #include <QFileInfo>
+#include <QFontDatabase>
 #include <QInputDialog>
 #include <QKeySequence>
 #include <QLabel>
@@ -479,6 +482,55 @@ void MainWindow::sweepWorkspaceFolder()
     for (const QString &file : std::as_const(refused))
         if (QFile::remove(file))
             ui->textBrowserActionLogs->append(tr("Deleted unused file: %1").arg(root.relativeFilePath(file)));
+}
+
+void MainWindow::healFontFallbacks()
+{
+    if (m_workspacePath.isEmpty() || !m_lock || !m_lock->isHeld() || !m_lock->stillOurs())
+        return;
+    const QString   dir = ArtifactStore::overlaysDir(m_workspacePath);
+    const QFileInfo home(dir);
+    const QDir      root(QFileInfo(m_workspacePath).absolutePath());
+
+    int         healed = 0;
+    QStringList families;
+    for (auto &project : m_workspace.projectItems) {
+        const ArtifactMap records = m_overlayArtifacts.artifacts(QString::fromStdString(project.uid));
+        for (auto &overlay : project.getStripOverlays()) {
+            const auto rec = records.constFind(QString::fromStdString(overlay.uid));
+            if (rec == records.constEnd() || rec->text.body.isEmpty() || rec->text.family.isEmpty()
+                || !QFontDatabase::hasFamily(rec->text.family))
+                continue;   // nothing lettered, or its font is still missing — nothing to re-set it in
+            const QString asset = QString::fromStdString(overlay.assetPath);
+            if (QFileInfo(QFileInfo(asset).absolutePath()) != home)
+                continue;   // not this folder's file — never written from here
+            QFile file(asset);
+            if (!file.open(QIODevice::ReadOnly) || bakedFontFallback(file.readAll()).isEmpty())
+                continue;   // baked in its own font already
+            file.close();
+
+            const QString written = writeArtifactSvg(dir, *rec, asset);
+            if (written.isEmpty())
+                continue;   // left as it was; it heals at the next open that can write
+            overlay.assetPath = written.toStdString();
+            try {
+                overlay.sha256 = Platemaker::Infrastructure::FileMetaData::computeFileSha256(overlay.assetPath);
+            } catch (const std::exception &) {
+                overlay.sha256.clear();
+            }
+            ++healed;
+            if (!families.contains(rec->text.family))
+                families << rec->text.family;
+            ui->textBrowserActionLogs->append(tr("Re-set in %1, now installed: %2")
+                                                  .arg(rec->text.family, root.relativeFilePath(written)));
+        }
+    }
+    if (healed == 0)
+        return;
+    setDirty(true);
+    statusBar()->showMessage(tr("%n object(s) re-set in %1, now installed.", "", healed)
+                                 .arg(families.join(QStringLiteral(", "))),
+                             k_noticeMs);
 }
 
 // ---------------------------------------------------------------------------

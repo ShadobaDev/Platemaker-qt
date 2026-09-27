@@ -287,7 +287,7 @@ New, backward-compatible features. Several are gated on a lib version, noted in 
      the files land in the ordinary Windows Recycle Bin. At open, not at close: after *Discard*, memory
      is not what is on disk. *Delete template* stopped deleting the file, which makes it undoable again.
 
-- [ ] **Bug: a missing font silently re-letters bubbles.** A bubble's text is baked into its SVG as
+- [x] **Bug: a missing font silently re-letters bubbles.** *Done 2026-09-27.* A bubble's text is baked into its SVG as
   outlines through `QFont`. When the family is not installed, every re-emit bakes it in a fallback,
   including **every overlay undo**, because `rewriteOverlayAssets()` rewrites *every* bubble, not
   just the ones the step touched. Fix: rewrite only what a step changed; keep the intended family in

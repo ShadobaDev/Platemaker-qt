@@ -1096,6 +1096,15 @@ authoring record actually changed.
 `QFont`, which never fails on a family that is not installed — it substitutes a stand-in, silently. So:
 - **The record keeps the family it was meant to have.** `TextEditor` writes a family only when the
   artist picks one; the file's `pm:fontFamily` is always that.
+- **A file always names its font.** An empty family means "the application's default font", which is a
+  property of the machine, not of the file. So the SVG writes the default's name in its place
+  (`artifactDefaultFamily()` — Segoe UI on Windows 11): a file drawn here, opened where the default
+  differs, then reads as a missing font like any other, instead of being re-set silently. A missing
+  family is drawn in that same default, never in the platform's own substitution (Tahoma on Windows),
+  so "no font chosen" and "chosen font missing" look alike. Presets keep an empty family — a preset that
+  picks no font means *the default*, wherever it is used — and `PresetStore::matching()` treats an empty
+  family and the default's name as the same font (`setDefaultFamily()`, handed in by `MainWindow`), so a
+  bubble reloaded from its file still reads as the preset it came from.
 - **A file baked in a stand-in says so.** `artifactFontFallback()` names the family Qt actually used
   (`QFontInfo`) when the record's is not available, and `artifactToSvg()` writes it as
   `pm:fontFallback` — without it, a stand-in bake and a real one would carry the same `pm:fontFamily`

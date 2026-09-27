@@ -84,6 +84,25 @@ TEST_F(Presets, WhatAPresetNeverCarriedCannotBreakTheMatch)
     EXPECT_EQ(store.matching(look), was);
 }
 
+TEST_F(Presets, APresetWithNoFontMatchesTheDefaultByName)
+{
+    // A bubble made from a built-in carries an empty family in memory, and the default's name once it has
+    // been written and read back. Both are the same font, so both are the same preset.
+    PresetStore store;
+    store.setDefaultFamily(QStringLiteral("Test Sans"));
+    const Artifact fresh = PresetStore::applied(store.presets().at(0), placed(), /*keepShape=*/false);
+    ASSERT_TRUE(fresh.text.family.isEmpty());
+    ASSERT_EQ(store.matching(fresh), 0);
+
+    Artifact reloaded   = fresh;
+    reloaded.text.family = QStringLiteral("Test Sans");
+    EXPECT_EQ(store.matching(reloaded), 0);
+
+    Artifact another   = fresh;
+    another.text.family = QStringLiteral("Comic Neue");   // a font the preset does not have is a change
+    EXPECT_EQ(store.matching(another), -1);
+}
+
 TEST_F(Presets, AnObjectWithNoShapeMatchesNoBalloonPreset)
 {
     const PresetStore store;

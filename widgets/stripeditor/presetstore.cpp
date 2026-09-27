@@ -240,10 +240,16 @@ bool PresetStore::exportPack(const QString& path, QString* error) const
 
 int PresetStore::matching(const Artifact& a) const
 {
+    // An empty family and the default's name are the same font.
+    const auto named = [this](TextProperties t) {
+        if (t.family.isEmpty())
+            t.family = m_defaultFamily;
+        return t;
+    };
     for (int i = 0; i < m_presets.size(); ++i) {
         const Artifact look = applied(m_presets.at(i), a, /*keepShape=*/false);
         if (look.shape == a.shape && look.skin == a.skin && look.style == a.style
-            && look.text == a.text)
+            && named(look.text) == named(a.text))
             return i;
     }
     return -1;

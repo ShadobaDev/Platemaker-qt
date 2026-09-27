@@ -123,6 +123,16 @@ public:
     [[nodiscard]] QString lookLabel(const Artifact& a) const;
 
     /**
+     * @brief The name an empty font family stands for on this machine (artifactDefaultFamily()).
+     *
+     * A preset that chooses no font means "the default", and a bubble reloaded from its file carries the
+     * default's name — so without this, every balloon made from Dialogue would read *Custom* after a reopen.
+     * Handed in rather than looked up, so the store stays free of the font database (and of a GUI
+     * application) for its own tests. Unset, only an empty family matches an empty one.
+     */
+    void setDefaultFamily(const QString& family) { m_defaultFamily = family; }
+
+    /**
      * @brief \p target restyled by \p p — the one place that knows what a preset does *not* carry.
      *
      * The lettering, the balloon's size, where its tails point and its own style seed all survive:
@@ -146,6 +156,7 @@ private:
 
     QList<BubblePreset> m_presets;          //!< Built-ins first, then the artist's own.
     int                 m_builtinCount = 0; //!< How many of the first entries are built-in, so the rest are the artist's own.
+    QString             m_defaultFamily;    //!< What an empty font family means here; see setDefaultFamily().
 };
 
 }  // namespace StripEdit

@@ -13,6 +13,7 @@
 #include "renderworker.hpp"
 #include "workspacelock.hpp"
 #include "presetstore.hpp"
+#include "artifactpainter.hpp"
 
 #include <platemaker/infrastructure/workspace_editor/workspace_editor.hpp>
 
@@ -72,6 +73,7 @@ MainWindow::MainWindow(QWidget *parent)
     ui->menu_About->menuAction()->setIcon(QIcon(QStringLiteral(":/icons/menu/about.svg")));
 
     m_presets = new StripEdit::PresetStore(this);
+    m_presets->setDefaultFamily(artifactDefaultFamily());
 
     setDockOptions(AnimatedDocks | AllowNestedDocks | AllowTabbedDocks);
 

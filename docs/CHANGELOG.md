@@ -281,7 +281,9 @@
   bubbles use a font that is not installed now warns about it (and *Show them* selects those bubbles)
   instead of silently re-setting their words in another font — which every undo used to do to every
   bubble. A bubble edited meanwhile keeps the name of the font it was meant to have, and is set back in
-  that font the next time the workspace is opened with the font installed.
+  that font the next time the workspace is opened with the font installed. A bubble in the default font
+  now records that font's name too, so moving to a computer with a different default is noticed the same
+  way; and a missing font is shown in the default font rather than in Tahoma.
 - **Unused files are tidied away.** Bubbles and artwork that were deleted or replaced used to stay in the
   workspace's `overlays` folder forever. When a workspace is opened, the files it no longer uses —
   overlays and templates it created — now go to the Recycle Bin, from where they can be restored; the

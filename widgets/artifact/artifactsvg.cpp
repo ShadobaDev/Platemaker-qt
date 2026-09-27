@@ -206,6 +206,18 @@ int intOf(const QStringView& v, int fallback)
 // Writing
 // ---------------------------------------------------------------------------
 
+namespace {
+
+//! The family a file records: the record's own, or — for an empty one, "the default" — the default's name
+//! on the machine that drew it. The outlines were set in that font, and a file that says so is one another
+//! machine can recognise as missing it, rather than silently re-set in its own default.
+QString fileFontFamily(const Artifact& a)
+{
+    return a.text.family.isEmpty() ? artifactDefaultFamily() : a.text.family;
+}
+
+} // namespace
+
 QByteArray artifactToSvg(const Artifact& a, const QByteArray& picture, const QString& mime)
 {
     if (a.box.isEmpty())
@@ -233,7 +245,7 @@ QByteArray artifactToSvg(const Artifact& a, const QByteArray& picture, const QSt
         svg += attr(QStringLiteral("box"),
                     QStringLiteral("%1,%2").arg(a.box.width()).arg(a.box.height()));
         svg += attr(QStringLiteral("text"), a.text.body);
-        svg += attr(QStringLiteral("fontFamily"), a.text.family);
+        svg += attr(QStringLiteral("fontFamily"), fileFontFamily(a));
         if (const QString fallback = artifactFontFallback(a); !fallback.isEmpty())
             svg += attr(QStringLiteral("fontFallback"), fallback);   // the words were set in a stand-in
         svg += attr(QStringLiteral("fontSize"), a.text.pixelSize);
@@ -283,7 +295,7 @@ QByteArray artifactToSvg(const Artifact& a, const QByteArray& picture, const QSt
                 QStringLiteral("%1,%2").arg(a.box.width()).arg(a.box.height()));
     svg += attr(QStringLiteral("tails"), tailsToText(a.tails.items));
     svg += attr(QStringLiteral("text"), a.text.body);
-    svg += attr(QStringLiteral("fontFamily"), a.text.family);
+    svg += attr(QStringLiteral("fontFamily"), fileFontFamily(a));
     // The family asked for is kept above whatever happened; this says what the outlines were actually set
     // in when that family was not installed, so the file can be re-set once it is (MainWindow's heal).
     if (const QString fallback = artifactFontFallback(a); !fallback.isEmpty())

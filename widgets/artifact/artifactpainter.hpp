@@ -78,6 +78,17 @@ enum class ArtifactPart { None, Fill, Outline, Text };
 [[nodiscard]] QString artifactFontFallback(const Artifact& a);
 
 /**
+ * @brief The family an empty `TextProperties::family` is drawn in on this machine — the application's
+ *        default font (Segoe UI on Windows 11).
+ *
+ * An empty family means "the default", and the default is a property of the machine, not of the file: a
+ * bubble drawn here in Segoe UI would be re-set in something else on a machine whose default differs, with
+ * nothing in the file to tell. So this is what a file records in place of an empty family, and what a
+ * preset with no font of its own is taken to mean when matching.
+ */
+[[nodiscard]] QString artifactDefaultFamily();
+
+/**
  * @brief Everything the artifact actually covers, in balloon coordinates — origin may be negative.
  *
  * The balloon, its tails and its text, plus room for the stroke. A tail can point anywhere, so this is

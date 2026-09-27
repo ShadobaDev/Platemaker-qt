@@ -499,9 +499,12 @@ QString artifactFontFallback(const Artifact& a)
     if (a.text.body.isEmpty() || a.text.family.isEmpty() || QFontDatabase::hasFamily(a.text.family))
         return {};
     // The stand-in layOutText() uses: the application's default font, never the platform's substitution.
-    QFont f;
-    f.setBold(a.text.bold);
-    return QFontInfo(f).family();
+    return artifactDefaultFamily();
+}
+
+QString artifactDefaultFamily()
+{
+    return QFontInfo(QFont()).family();
 }
 
 QPainterPath artifactTextOutline(const Artifact& a)

@@ -82,7 +82,7 @@ void MainWindow::refreshAdvisoriesFor(int projectIndex)
                           "the moment its page does.").arg(name).arg(stranded.size());
         a.actionText = tr("Show them");
         a.projectUid = uid;
-        a.action     = [this, uid] { showUnanchoredObjects(uid); };
+        a.action     = [this, uid, stranded] { showObjects(uid, stranded); };
         a.resolveText = tr("Delete the %n object(s)", "", stranded.size());
         a.resolve     = [this, uid] { deleteUnanchoredObjects(uid); };
         m_advisories->raise(k_unanchoredKey + uid, a);
@@ -131,13 +131,6 @@ void MainWindow::refreshAllAdvisories()
 // ---------------------------------------------------------------------------
 // The ways out that travel with them
 // ---------------------------------------------------------------------------
-
-void MainWindow::showUnanchoredObjects(const QString& projectUid)
-{
-    const int idx = projectIndexForUid(projectUid);
-    if (idx >= 0)
-        showObjects(projectUid, unanchoredUids(m_workspace.projectItems[static_cast<std::size_t>(idx)]));
-}
 
 void MainWindow::showObjects(const QString& projectUid, const QStringList& uids)
 {

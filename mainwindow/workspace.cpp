@@ -432,18 +432,9 @@ QStringList MainWindow::referencedWorkspaceFiles() const
 
 void MainWindow::sweepWorkspaceFolder()
 {
-    m_sweptToTrash = false;
-    if (m_workspacePath.isEmpty())
-        return;
     const QString folder = QFileInfo(m_workspacePath).absolutePath();
-
-    // Both guarantees, or nothing: a folder another process may be writing into, or one another workspace
-    // shares, has files this workspace cannot see the use of.
-    if (!m_lock || !m_lock->isHeld() || !m_lock->stillOurs()) {
-        ui->textBrowserActionLogs->append(
-            tr("Unused files were not tidied: the workspace folder could not be locked."));
-        return;
-    }
+    // The other guarantee (the lock is the caller's): a folder another workspace shares has files this one
+    // cannot see the use of.
     if (workspacesInFolder(folder).size() != 1)
         return;   // cannot happen after the open-time check (W1), and must not proceed if it somehow does
 
@@ -463,11 +454,9 @@ void MainWindow::sweepWorkspaceFolder()
             refused << file;
         }
     }
-    if (moved > 0) {
-        m_sweptToTrash = true;
+    if (moved > 0)
         statusBar()->showMessage(
             tr("Moved %n unused file(s) to the Recycle Bin.", "", moved), k_noticeMs);
-    }
 
     // No trash here (a network share, removable media): ask once, and ask again next time on Keep.
     if (refused.isEmpty())
@@ -486,8 +475,6 @@ void MainWindow::sweepWorkspaceFolder()
 
 void MainWindow::healFontFallbacks()
 {
-    if (m_workspacePath.isEmpty() || !m_lock || !m_lock->isHeld() || !m_lock->stillOurs())
-        return;
     const QString   dir = ArtifactStore::overlaysDir(m_workspacePath);
     const QFileInfo home(dir);
     const QDir      root(QFileInfo(m_workspacePath).absolutePath());

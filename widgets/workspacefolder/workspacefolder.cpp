@@ -127,11 +127,8 @@ bool collectOverlayFiles(std::vector<Platemaker::Models::StripOverlay>& overlays
 QStringList unusedWorkspaceFiles(const QString& folder, const QStringList& referenced)
 {
     QSet<QString> used;
-    for (const QString& path : referenced) {
-        const QString canonical = QFileInfo(path).canonicalFilePath();
-        if (!canonical.isEmpty())
-            used.insert(canonical);
-    }
+    for (const QString& path : referenced)
+        used.insert(QFileInfo(path).canonicalFilePath());   // "" for a missing file matches nothing
 
     QStringList unused;
     const auto scan = [&](const QString& sub, const QStringList& patterns) {

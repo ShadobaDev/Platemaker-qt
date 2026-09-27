@@ -349,8 +349,6 @@ bool MainWindow::maybeSave()
 
 void MainWindow::loadWorkspace(const QString &requested)
 {
-    // Before anything is closed or read: a folder shared by two workspaces is resolved first, and a user
-    // who backs out of that keeps the workspace they already had open.
     // The folder is claimed first: one in use elsewhere is not ours to tidy, so the wizard below — which
     // moves files to the Recycle Bin — only ever runs in a folder this window holds. Reopening the folder
     // already held keeps that hold across the close below.
@@ -416,10 +414,16 @@ void MainWindow::loadWorkspace(const QString &requested)
         reportWorkspaceRepair(repair);
         warnIfCanvasConfigStale();
         // Last: they write into the folder and may ask a question, and they are housekeeping — the least of
-        // these. The heal first: re-setting a lettered picture renames its wrapper, and the sweep has to see
-        // the final set of files.
-        healFontFallbacks();
-        sweepWorkspaceFolder();
+        // these. Only with the folder held: one another process may be writing into has files this workspace
+        // cannot see the use of. The heal first: re-setting a lettered picture renames its wrapper, and the
+        // sweep has to see the final set of files.
+        if (m_lock && m_lock->isHeld() && m_lock->stillOurs()) {
+            healFontFallbacks();
+            sweepWorkspaceFolder();
+        } else {
+            ui->textBrowserActionLogs->append(
+                tr("Unused files were not tidied: the workspace folder could not be locked."));
+        }
     });
 }
 

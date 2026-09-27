@@ -13,11 +13,6 @@
 
 namespace {
 
-QString thisHost()
-{
-    return QSysInfo::machineHostName();
-}
-
 //! One process lock per workspace folder, named by the folder rather than placed in it. Canonical where the
 //! folder exists, so two spellings of one folder share a lock.
 QString processLockName(const QString& folder)
@@ -77,7 +72,8 @@ bool WorkspaceLock::writeMarker()
     QSaveFile f(markerPath());
     if (!f.open(QIODevice::WriteOnly))
         return false;
-    f.write(markerFor(thisHost(), QCoreApplication::applicationPid(), QDateTime::currentDateTime()));
+    f.write(markerFor(QSysInfo::machineHostName(), QCoreApplication::applicationPid(),
+                      QDateTime::currentDateTime()));
     return f.commit();
 }
 
@@ -108,7 +104,7 @@ WorkspaceLock::Outcome WorkspaceLock::acquire()
         existing.close();
         // A marker from this machine whose window is gone (the process lock above was free) is a crash left
         // behind: ours to overwrite. One from another computer is not ours to judge.
-        if (!h.host.isEmpty() && h.host != thisHost()) {
+        if (!h.host.isEmpty() && h.host != QSysInfo::machineHostName()) {
             m_holder = h;
             return Outcome::OpenElsewhere;
         }
@@ -135,7 +131,7 @@ bool WorkspaceLock::stillOurs()
 
     const Holder h = parseMarker(f.readAll());
     f.close();
-    if (h.host == thisHost() && h.pid == QCoreApplication::applicationPid())
+    if (h.host == QSysInfo::machineHostName() && h.pid == QCoreApplication::applicationPid())
         return true;
     if (h.host.isEmpty())
         return writeMarker();   // not a claim anybody could have made — a truncated or foreign file

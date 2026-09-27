@@ -70,8 +70,6 @@ private:
     void applyPreset(int index);
     void onSavePreset();
     void onDeletePreset();
-    void onImportPack();
-    void onExportPack();
 
     PresetStore& m_presets;
 

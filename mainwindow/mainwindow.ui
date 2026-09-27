@@ -78,11 +78,10 @@ QTabWidget QTabBar::close-button {
    </property>
    <widget class="QMenu" name="menuPlatemaker">
     <property name="title">
-     <string>Workspace</string>
+     <string>File</string>
     </property>
-    <addaction name="separator"/>
-    <addaction name="actionOpen_workspace"/>
     <addaction name="actionNew_workspace"/>
+    <addaction name="actionOpen_workspace"/>
     <addaction name="actionOpen_recent_workspace"/>
     <addaction name="separator"/>
     <addaction name="actionSave_Ctrl_S"/>
@@ -90,49 +89,58 @@ QTabWidget QTabBar::close-button {
     <addaction name="separator"/>
     <addaction name="actionReveal_workspace_in_Explorer"/>
     <addaction name="separator"/>
-    <addaction name="actionShow_workspace_panel"/>
-    <addaction name="actionShow_action_panel"/>
-    <addaction name="separator"/>
     <addaction name="actionClose_workspace"/>
-    <addaction name="separator"/>
+    <addaction name="actionExit"/>
+   </widget>
+   <widget class="QMenu" name="menuEdit">
+    <property name="title">
+     <string>Edit</string>
+    </property>
     <addaction name="actionUndo"/>
     <addaction name="actionRedo"/>
    </widget>
+   <widget class="QMenu" name="menuView">
+    <property name="title">
+     <string>View</string>
+    </property>
+    <addaction name="actionShow_workspace_panel"/>
+    <addaction name="actionShow_action_panel"/>
+   </widget>
    <widget class="QMenu" name="menuCanvas_Profile">
     <property name="title">
-     <string>Canvas Profiles</string>
+     <string>Canvas</string>
     </property>
     <addaction name="actionNew_canvas_profile"/>
     <addaction name="actionEdit_active_profile"/>
-    <addaction name="separator"/>
     <addaction name="actionManage_profiles"/>
     <addaction name="separator"/>
     <addaction name="actionImport_canvas_profiles"/>
     <addaction name="actionExport_canvas_profiles"/>
+    <addaction name="separator"/>
+    <addaction name="actionManage_templates"/>
+    <addaction name="actionOpen_dir_templates"/>
    </widget>
    <widget class="QMenu" name="menu_Output_Settings">
     <property name="title">
      <string>Output</string>
     </property>
-    <addaction name="actionEdit_output_settings"/>
-    <addaction name="separator"/>
     <addaction name="actionNew_output_profile"/>
+    <addaction name="actionEdit_output_settings"/>
     <addaction name="actionManage_output_profiles"/>
     <addaction name="separator"/>
     <addaction name="actionImport_output_profiles"/>
     <addaction name="actionExport_output_profiles"/>
    </widget>
-   <widget class="QMenu" name="menuTemplates">
+   <widget class="QMenu" name="menuTools">
     <property name="title">
-     <string>Templates</string>
+     <string>Tools</string>
     </property>
-    <addaction name="actionManage_templates"/>
-    <addaction name="actionOpen_dir_templates"/>
-    <addaction name="separator"/>
+    <addaction name="actionImport_bubble_presets"/>
+    <addaction name="actionExport_bubble_presets"/>
    </widget>
    <widget class="QMenu" name="menu_Process">
     <property name="title">
-     <string>Process</string>
+     <string>Render</string>
     </property>
     <addaction name="actionRender_current_project_F5"/>
     <addaction name="actionRender_all_projects_F6"/>
@@ -141,7 +149,7 @@ QTabWidget QTabBar::close-button {
    </widget>
    <widget class="QMenu" name="menu_About">
     <property name="title">
-     <string>About</string>
+     <string>Help</string>
     </property>
     <addaction name="actionHelp"/>
     <addaction name="separator"/>
@@ -149,10 +157,12 @@ QTabWidget QTabBar::close-button {
     <addaction name="actionVersion"/>
    </widget>
    <addaction name="menuPlatemaker"/>
+   <addaction name="menuEdit"/>
+   <addaction name="menuView"/>
    <addaction name="menuCanvas_Profile"/>
    <addaction name="menu_Output_Settings"/>
+   <addaction name="menuTools"/>
    <addaction name="menu_Process"/>
-   <addaction name="menuTemplates"/>
    <addaction name="menu_About"/>
   </widget>
   <widget class="QStatusBar" name="statusbar"/>
@@ -296,12 +306,12 @@ QTabWidget QTabBar::close-button {
   </widget>
   <action name="actionOpen_workspace">
    <property name="text">
-    <string>Open workspace</string>
+    <string>Open workspace…</string>
    </property>
   </action>
   <action name="actionNew_workspace">
    <property name="text">
-    <string>New workspace</string>
+    <string>New workspace…</string>
    </property>
   </action>
   <action name="actionSave_as">
@@ -321,7 +331,7 @@ QTabWidget QTabBar::close-button {
   </action>
   <action name="actionSave_as_Ctrl_Shift_S">
    <property name="text">
-    <string>Save as</string>
+    <string>Save as…</string>
    </property>
   </action>
   <action name="actionSave_Ctrl_S">
@@ -362,37 +372,37 @@ QTabWidget QTabBar::close-button {
   </action>
   <action name="actionNew_canvas_profile">
    <property name="text">
-    <string>New canvas profile</string>
+    <string>New profile…</string>
    </property>
   </action>
   <action name="actionEdit_active_profile">
    <property name="text">
-    <string>Edit active profile</string>
+    <string>Edit active profile…</string>
    </property>
   </action>
   <action name="actionManage_profiles">
    <property name="text">
-    <string>Manage profiles</string>
+    <string>Manage profiles…</string>
    </property>
   </action>
   <action name="actionEdit_output_settings">
    <property name="text">
-    <string>Edit active output profile</string>
+    <string>Edit active profile…</string>
    </property>
   </action>
   <action name="actionNew_output_profile">
    <property name="text">
-    <string>New output profile</string>
+    <string>New profile…</string>
    </property>
   </action>
   <action name="actionManage_output_profiles">
    <property name="text">
-    <string>Manage output profiles</string>
+    <string>Manage profiles…</string>
    </property>
   </action>
   <action name="actionImport_canvas_profiles">
    <property name="text">
-    <string>Import canvas profiles</string>
+    <string>Import</string>
    </property>
    <property name="toolTip">
     <string>Copy canvas profiles from another workspace, a profile bundle, or your library</string>
@@ -400,7 +410,7 @@ QTabWidget QTabBar::close-button {
   </action>
   <action name="actionExport_canvas_profiles">
    <property name="text">
-    <string>Export canvas profiles</string>
+    <string>Export</string>
    </property>
    <property name="toolTip">
     <string>Save canvas profiles to a bundle file or your profile library</string>
@@ -408,7 +418,7 @@ QTabWidget QTabBar::close-button {
   </action>
   <action name="actionImport_output_profiles">
    <property name="text">
-    <string>Import output profiles</string>
+    <string>Import</string>
    </property>
    <property name="toolTip">
     <string>Copy output profiles from another workspace, a profile bundle, or your library</string>
@@ -416,7 +426,7 @@ QTabWidget QTabBar::close-button {
   </action>
   <action name="actionExport_output_profiles">
    <property name="text">
-    <string>Export output profiles</string>
+    <string>Export</string>
    </property>
    <property name="toolTip">
     <string>Save output profiles to a bundle file or your profile library</string>
@@ -444,17 +454,17 @@ QTabWidget QTabBar::close-button {
   </action>
   <action name="actionOpen_dir_templates">
    <property name="text">
-    <string>Open template directory</string>
+    <string>Open templates folder</string>
    </property>
   </action>
   <action name="actionManage_templates">
    <property name="text">
-    <string>Manage templates</string>
+    <string>Templates…</string>
    </property>
   </action>
   <action name="actionReveal_workspace_in_Explorer">
    <property name="text">
-    <string>Reveal workspace in Explorer</string>
+    <string>Reveal in Explorer</string>
    </property>
   </action>
   <action name="actionHelp">
@@ -474,17 +484,17 @@ QTabWidget QTabBar::close-button {
   </action>
   <action name="actionShow_workspace_panel">
    <property name="text">
-    <string>Show workspace panel</string>
+    <string>Workspace panel</string>
    </property>
   </action>
   <action name="actionShow_action_panel">
    <property name="text">
-    <string>Show action panel</string>
+    <string>Action panel</string>
    </property>
   </action>
   <action name="actionOpen_recent_workspace">
    <property name="text">
-    <string>Open recent workspace...</string>
+    <string>Open recent</string>
    </property>
   </action>
   <action name="actionUndo">
@@ -495,6 +505,21 @@ QTabWidget QTabBar::close-button {
   <action name="actionRedo">
    <property name="text">
     <string>Redo</string>
+   </property>
+  </action>
+  <action name="actionExit">
+   <property name="text">
+    <string>Exit</string>
+   </property>
+  </action>
+  <action name="actionImport_bubble_presets">
+   <property name="text">
+    <string>Import bubble presets…</string>
+   </property>
+  </action>
+  <action name="actionExport_bubble_presets">
+   <property name="text">
+    <string>Export bubble presets…</string>
    </property>
   </action>
  </widget>

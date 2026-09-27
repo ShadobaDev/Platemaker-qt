@@ -245,9 +245,10 @@ private:
 
 } // namespace
 
-Editor::Editor(QWidget *parent)
+Editor::Editor(PresetStore& presets, QWidget *parent)
     : QWidget(parent)
     , ui(new Ui::Editor)
+    , m_presets(&presets)
 {
     // Page memory: the feed, the proxy/sharp tiers and the graded previews. It reads m_layout, which
     // this widget owns and rebuilds, so it takes it by reference.
@@ -351,7 +352,6 @@ Editor::Editor(QWidget *parent)
         });
         // One panel for every tool that authors an `Artifact` — Bubble, Text, Caption — because they
         // author the same object and differ only in the shape they place, which each tool's row says.
-        m_presets     = new PresetStore(this);
         m_toolOptions = new ToolOptionsPanel(*m_presets, ui->toolOptions);
         pageIndex.insert(QStringLiteral("artifact"),
                          ui->toolOptions->addWidget(scrolled(m_toolOptions, ui->toolOptions)));

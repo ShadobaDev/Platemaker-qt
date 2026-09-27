@@ -99,9 +99,11 @@ class Editor : public QWidget
 public:
     /**
      * @brief Creates the editor.
-     * @param parent The parent widget.
+     * @param presets The application's bubble presets — one store for every editor, so a preset saved or
+     *                imported anywhere is offered everywhere at once. Not owned; it outlives the editor.
+     * @param parent  The parent widget.
      */
-    explicit Editor(QWidget *parent = nullptr);
+    explicit Editor(PresetStore& presets, QWidget *parent = nullptr);
     /**
      * @brief Destroys the editor.
      */
@@ -478,7 +480,7 @@ private:
      * The tool's options pick one for the next object; an object's context menu applies one to what is
      * selected. A model reachable only by going through a widget is a model that cannot be reached.
      */
-    PresetStore* m_presets = nullptr;
+    PresetStore* m_presets = nullptr;   //!< The application's (MainWindow's); not owned.
     /**
      * @brief Owns the overlay set, the scene items, the list and the selection. Declared after m_layout,
      *        which it holds by reference.

@@ -12,6 +12,7 @@
 #include "templatesdialog.hpp"
 #include "renderworker.hpp"
 #include "workspacelock.hpp"
+#include "presetstore.hpp"
 
 #include <platemaker/infrastructure/workspace_editor/workspace_editor.hpp>
 
@@ -62,11 +63,15 @@ MainWindow::MainWindow(QWidget *parent)
     // Top-level menu icons (SVG; replaces the old Unicode glyphs in the titles).
     // Requires the qsvg image plugin — pulled in by linking Qt::Svg.
     ui->menuPlatemaker->menuAction()->setIcon(QIcon(QStringLiteral(":/icons/menu/workspace.svg")));
+    ui->menuEdit->menuAction()->setIcon(QIcon(QStringLiteral(":/icons/menu/edit.svg")));
+    ui->menuView->menuAction()->setIcon(QIcon(QStringLiteral(":/icons/menu/view.svg")));
     ui->menuCanvas_Profile->menuAction()->setIcon(QIcon(QStringLiteral(":/icons/menu/canvas.svg")));
     ui->menu_Output_Settings->menuAction()->setIcon(QIcon(QStringLiteral(":/icons/menu/output.svg")));
+    ui->menuTools->menuAction()->setIcon(QIcon(QStringLiteral(":/icons/menu/tools.svg")));
     ui->menu_Process->menuAction()->setIcon(QIcon(QStringLiteral(":/icons/menu/process.svg")));
-    ui->menuTemplates->menuAction()->setIcon(QIcon(QStringLiteral(":/icons/menu/templates.svg")));
     ui->menu_About->menuAction()->setIcon(QIcon(QStringLiteral(":/icons/menu/about.svg")));
+
+    m_presets = new StripEdit::PresetStore(this);
 
     setDockOptions(AnimatedDocks | AllowNestedDocks | AllowTabbedDocks);
 
@@ -120,13 +125,19 @@ MainWindow::MainWindow(QWidget *parent)
     ui->actionSave_Ctrl_S->setShortcut(QKeySequence::Save);
     ui->actionSave_as_Ctrl_Shift_S->setShortcut(QKeySequence::SaveAs);
 
-    // --- Workspace menu ---
+    // --- File and View menus ---
     connect(ui->actionOpen_workspace,               &QAction::triggered, this, &MainWindow::onOpenWorkspace);
     connect(ui->actionNew_workspace,                &QAction::triggered, this, &MainWindow::onNewWorkspace);
     connect(ui->actionSave_Ctrl_S,                  &QAction::triggered, this, &MainWindow::onSave);
     connect(ui->actionSave_as_Ctrl_Shift_S,         &QAction::triggered, this, &MainWindow::onSaveAs);
     connect(ui->actionClose_workspace,              &QAction::triggered, this, &MainWindow::onCloseWorkspace);
     connect(ui->actionReveal_workspace_in_Explorer, &QAction::triggered, this, &MainWindow::onRevealInExplorer);
+    // Through close(), so quitting from the menu asks about unsaved changes exactly as the title bar does.
+    connect(ui->actionExit, &QAction::triggered, this, &QWidget::close);
+
+    // --- Tools menu ---
+    connect(ui->actionImport_bubble_presets, &QAction::triggered, this, &MainWindow::onImportBubblePresets);
+    connect(ui->actionExport_bubble_presets, &QAction::triggered, this, &MainWindow::onExportBubblePresets);
     connect(ui->actionShow_workspace_panel, &QAction::triggered, this, [this]{
         ui->dockWidgetWorkspace->show();
         ui->dockWidgetWorkspace->raise();
@@ -144,7 +155,7 @@ MainWindow::MainWindow(QWidget *parent)
     connect(m_recentMenu, &QMenu::aboutToShow, this, &MainWindow::rebuildRecentMenu);
     rebuildRecentMenu();
 
-    // --- Canvas Profiles menu ---
+    // --- Canvas menu ---
     connect(ui->actionManage_profiles,      &QAction::triggered, this, &MainWindow::onManageCanvasProfiles);
     connect(ui->actionNew_canvas_profile,   &QAction::triggered, this, &MainWindow::onNewCanvasProfile);
     connect(ui->actionEdit_active_profile,  &QAction::triggered, this, &MainWindow::onEditActiveCanvasProfile);
@@ -192,7 +203,7 @@ MainWindow::MainWindow(QWidget *parent)
     connect(ui->actionManage_templates,   &QAction::triggered, this, &MainWindow::onManageTemplates);
     connect(ui->actionOpen_dir_templates, &QAction::triggered, this, &MainWindow::onOpenTemplatesDir);
 
-    // --- Process menu / render ---
+    // --- Render menu ---
     // F5 is the primary render key (shown in the menu); Ctrl+R is an accepted alternate (the
     // "run" convention in many editors). setShortcuts keeps F5 as the displayed one.
     ui->actionRender_current_project_F5->setShortcuts(
@@ -213,7 +224,7 @@ MainWindow::MainWindow(QWidget *parent)
     connect(ui->actionAuthors, &QAction::triggered, this, &MainWindow::onShowAuthors);
     connect(ui->actionHelp,    &QAction::triggered, this, &MainWindow::onShowHelp);
 
-    // --- Undo / redo (Workspace-menu actions; group routes Ctrl+Z / Ctrl+Y to the active context) ---
+    // --- Undo / redo (Edit-menu actions; group routes Ctrl+Z / Ctrl+Y to the active context) ---
     setupUndo();
 
     // The registry knows nothing about what raises anything, and its subscribers know nothing about
@@ -533,7 +544,7 @@ void MainWindow::setupUndo()
     m_undoGroup->addStack(m_workspaceUndoStack);
     m_undoGroup->setActiveStack(m_workspaceUndoStack);
 
-    // Wire the existing Undo/Redo actions (defined in the .ui, in the Workspace menu) to the group.
+    // Wire the existing Undo/Redo actions (defined in the .ui, in the Edit menu) to the group.
     // The group always targets the *active* stack — whichever tab (a project dock, or the workspace
     // panel) is in front — so Ctrl+Z / Ctrl+Y do the right thing. We drive these actions ourselves
     // rather than use QUndoGroup::createUndoAction, because the actions already live in the .ui.

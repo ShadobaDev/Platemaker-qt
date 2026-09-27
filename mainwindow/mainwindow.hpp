@@ -33,6 +33,7 @@ class AdvisoryBar;
 class Project;
 class RenderWorker;
 class WorkspaceLock;
+namespace StripEdit { class PresetStore; }
 
 /**
  * @brief The MainWindow class represents the main application window of Platemaker.
@@ -81,7 +82,7 @@ signals:
     void workspaceProfilesChanged();
 
 private slots:
-    // Workspace menu
+    // File menu
     void onOpenWorkspace();     //!< Opens a workspace file (JSON) from disk, replacing the current workspace.
     void onNewWorkspace();      //!< Creates a new workspace (clears the current workspace).
     void onSave();              //!< Saves the current workspace to disk (overwrites the existing file).
@@ -111,6 +112,10 @@ private slots:
     void onManageOutputProfiles();      //!< Opens the output profile management dialog.
     void onNewOutputProfile();          //!< Prompts for a new output profile and adds it to the workspace.
     void onEditActiveOutputProfile();   //!< Opens the editor for the currently active output profile.
+
+    // Tools
+    void onImportBubblePresets();   //!< Imports a bubble-preset pack into the application's presets.
+    void onExportBubblePresets();   //!< Exports the artist's own bubble presets as a pack.
 
     // Template actions
     void onManageTemplates();       //!< Opens the template management dialog.
@@ -441,7 +446,7 @@ private:
     [[nodiscard]] QString activeProjectUid() const;   //!< The project the status bar is speaking about.
 
     // --- undo / redo ---
-    void setupUndo();   //!< Creates the QUndoGroup + workspace stack and wires the Workspace-menu actionUndo/actionRedo to it.
+    void setupUndo();   //!< Creates the QUndoGroup + workspace stack and wires the Edit-menu actionUndo/actionRedo to it.
 
     /**
      * @brief Records one undoable **workspace-scope** edit (profile CRUD, project rename, templates)
@@ -623,6 +628,10 @@ private:
     ArtifactStore m_overlayArtifacts;
     Platemaker::Infrastructure::WorkspaceSerializer m_serializer;   //!< Serializes the workspace model to/from disk.
     std::unique_ptr<WorkspaceLock> m_lock;      //!< The open workspace's folder, held; null when none is open.
+    //! The bubble presets, one store for the application: every strip editor is handed it, so a preset
+    //! saved, deleted or imported anywhere is offered everywhere at once. Presets follow the artist, not
+    //! the chapter — they live in the application's settings, and a workspace closing does not touch them.
+    StripEdit::PresetStore *m_presets = nullptr;
     bool m_takeoverPromptOpen = false;          //!< Keeps the takeover prompt from stacking on itself.
 
     // Undo/redo: a QUndoGroup holds one stack per open project plus the workspace stack; the active

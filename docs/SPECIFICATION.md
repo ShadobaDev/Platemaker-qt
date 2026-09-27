@@ -51,11 +51,37 @@ Dock-based host window.  Holds:
 | Workspace panel | Left dock | Lists projects in the open workspace, profile buttons |
 | Project docks | `QDockWidget` per open project | Each holds a `Project` widget, tabbed with the workspace panel (opened via `openProjectDock()`) |
 | Bottom dock | Log / progress | Pipeline output, progress bar, cancel button |
-| Menu bar | File / Workspace / Project / Process / Help | All application actions |
+| Menu bar | File / Edit / View / Canvas / Output / Tools / Render / Help | All application actions (below) |
 | Status bar | — | Current workspace path + dirty indicator |
 
 One `MainWindow` instance = one open workspace.  Switching workspace closes the
 current one (with save prompt) and re-opens with the new file.
+
+**The menu bar follows the standard categories** (Microsoft's menu guidelines: File, Edit and View on the
+left, Tools and Help on the right, single-word names, flyouts one level deep):
+
+```
+File    New workspace… · Open workspace… · Open recent ▸ │ Save · Save as… │ Reveal in Explorer │
+        Close workspace · Exit
+Edit    Undo · Redo
+View    Workspace panel · Action panel
+Canvas  New profile… · Edit active profile… · Manage profiles… │ Import ▸ · Export ▸ │
+        Templates… · Open templates folder
+Output  New profile… · Edit active profile… · Manage profiles… │ Import ▸ · Export ▸
+Tools   Import bubble presets… · Export bubble presets…
+Render  Render current project (F5) · Refresh all projects (F6) │ Stop (Esc)
+Help    Help │ Authors · Version
+```
+
+Templates sit under Canvas because a template *is* a canvas profile's file. *Exit* goes through
+`close()`, so it asks about unsaved changes as the title bar does.
+
+**One `PresetStore` for the application.** `MainWindow` owns the bubble presets and hands the same store
+to every strip editor (`StripEdit::Editor(PresetStore&, …)`), so a preset saved, deleted or imported in
+one is offered in all at once — every picker follows the store's `changed()`. Presets follow the artist,
+not the chapter: they live in the application's settings, and opening or closing a workspace does not
+touch them. Importing and exporting a pack moves a file, so it is in *Tools*, not in the editor's panel,
+whose `⋯` keeps only *Delete preset*.
 
 Every dock — Workspace, project, strip **and Action** — wears the same **custom title bar**, the
 reusable `DockTitleBar` widget (`widgets/docktitlebar/`), installed via
@@ -120,7 +146,7 @@ state.
 |---|---|---|
 | `CanvasProfileDialog` | `CanvasProfile` | Add / Edit in ManageCanvasProfilesDialog |
 | `OutputProfileDialog` | `OutputProfile` | Add / Edit in ManageOutputProfilesDialog |
-| `ManageCanvasProfilesDialog` | `Workspace::canvasProfiles()` | "Canvas Profiles…" action |
+| `ManageCanvasProfilesDialog` | `Workspace::canvasProfiles()` | *Canvas → Manage profiles…* |
 | `ManageOutputProfilesDialog` | `Workspace::outputProfiles()` | "Output Profiles…" action |
 
 `ManageCanvasProfilesDialog` also emits `generateTemplatesRequested(QList<CanvasProfile>)`
@@ -1187,7 +1213,7 @@ File → New Workspace                (Save As goes through the same folder chec
 ### 4.3 Open / Create Project
 
 ```
-Workspace panel → double-click project  OR  Workspace → New Project
+Workspace panel → double-click project  OR  right-click the list → New
   → Project dock opens (tabbed with the workspace panel), or is raised if already open
   → mergeFileScan() populates tile grid from input directory
   → thumbnails load asynchronously in background
@@ -1203,7 +1229,7 @@ via a queued connection, so the *reaction* (repainting tiles) happens on the mai
 render is never blocked on the UI.
 
 ```
-Process → Run  (or the project's Render button)
+Render → Render current project (F5)  (or the project's Render button)
   → startRender(projectIndex):
       project.sanitize(workspace.canvasProfiles())   // refresh statuses (disk + config)
       if up-to-date and no config change → inform user, skip
@@ -1269,7 +1295,7 @@ ManageCanvasProfilesDialog → "Generate Templates" button
 ### 4.7 Manage Canvas Profiles (CRUD)
 
 ```
-Workspace → Canvas Profiles…
+Canvas → Manage profiles…
   → ManageCanvasProfilesDialog opens on a COPY of workspace.canvasProfiles()
   → Add / Edit / Delete happen on that copy inside the dialog
   → OK  → WorkspaceEditor(m_workspace).replaceCanvasProfiles(copy)

@@ -47,9 +47,10 @@
     text, the balloon's size, its tails or where it sits. The picker in the tool's options sets what the
     **next** bubble starts from; **right-click an existing bubble → *Apply preset ▸*** restyles that one
     without touching its lettering. Five built-ins ship as code — Dialogue, Whisper, Thought, Shout,
-    Caption — and **Import pack… / Export pack…** carry your own between machines and people as one JSON
-    file. They live in the application config rather than the workspace: restyling is a habit of the
-    artist, not a property of one comic.
+    Caption — and **Tools → Import / Export bubble presets…** carry your own between machines and people
+    as one JSON file. They live in the application config rather than the workspace: restyling is a habit
+    of the artist, not a property of one comic, and a preset saved in one strip editor is offered in every
+    other at once.
   - **Select several objects at once** — Ctrl+click on the strip, Ctrl or Shift in the object list —
     and **recolour or delete them together**. The panel on the right names the selection (*3 objects*)
     and offers what they have in common: fill and outline for whatever has a balloon, and the lettering's
@@ -256,6 +257,10 @@
 
 ### Changed
 
+- **The menu bar is in the usual order.** *File, Edit, View, Canvas, Output, Tools, Render, Help* — Undo
+  and Redo moved to *Edit*, the panel toggles to *View*, *Templates* into *Canvas* (a template is a canvas
+  profile's file), *Process* is now *Render* and *About* is *Help*. *File* gained *Exit*. Every entry and
+  shortcut is still there; only where it sits changed.
 - **Freer docking layout.** Workspace and project docks can now be arranged freely — docked side by side
   horizontally *and* vertically, split, or tabbed together. The **Action** panel is pinned to its own
   right column: it can no longer be tab-combined with other docks and keeps a static default width that

@@ -295,7 +295,8 @@ New, backward-compatible features. Several are gated on a lib version, noted in 
   font is back (re-bake, and mark the workspace modified); and warn at open and on entering the strip
   editor instead of on every edit.
 
-- [ ] **Menu bar in the standard categories.** Today *Workspace* holds file commands, Undo/Redo and panel
+- [x] **Menu bar in the standard categories.** *Done 2026-09-28*, with one `PresetStore` for the application
+  (MainWindow owns it, every strip editor gets it; import and export of packs are in *Tools*). Today *Workspace* holds file commands, Undo/Redo and panel
   toggles; *Templates* is separate from the canvas profiles it belongs to; *Process* and *About* are
   not the standard names; and the new commands below have no home. Proposed: File · Edit · View ·
   Canvas · Output · Tools · Render · Help, single-word names, flyouts one level deep (Microsoft's

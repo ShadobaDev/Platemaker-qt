@@ -8,6 +8,7 @@
 #include "profilepickerdialog.hpp"
 #include "templatesdialog.hpp"
 #include "renderworker.hpp"
+#include "presetstore.hpp"
 
 #include <platemaker/infrastructure/profile_bundle_serializer/profile_bundle_serializer.hpp>
 #include <platemaker/infrastructure/workspace_editor/workspace_editor.hpp>
@@ -191,7 +192,7 @@ void MainWindow::onEditActiveCanvasProfile()
 
     if (it == profiles.end()) {
         QMessageBox::information(this, tr("No Active Profile"),
-            tr("No active canvas profile. Use Canvas Profiles → Manage to create one."));
+            tr("No active canvas profile. Use Canvas → Manage profiles to create one."));
         return;
     }
 
@@ -895,4 +896,49 @@ void MainWindow::exportProfilesFlow(bool canvasKind, bool toFile)
     addToRecentBundles(out); // surfaces under "Recent bundles" for future imports
     QMessageBox::information(this, tr("Export"),
         tr("Exported %1 profile(s) to:\n%2").arg(picked.size()).arg(QDir::toNativeSeparators(out)));
+}
+
+// ---------------------------------------------------------------------------
+// Bubble-preset packs (Tools) — the application's presets, not the workspace's
+// ---------------------------------------------------------------------------
+
+void MainWindow::onImportBubblePresets()
+{
+    const QString path = QFileDialog::getOpenFileName(
+        this, tr("Import bubble presets"),
+        QStandardPaths::writableLocation(QStandardPaths::DocumentsLocation),
+        tr("Bubble preset packs (*.json);;All files (*)"));
+    if (path.isEmpty())
+        return;
+
+    QString error;
+    const int n = m_presets->importPack(path, &error);
+    if (n < 0) {
+        QMessageBox::warning(this, tr("Import bubble presets"), error);
+        return;
+    }
+    // Every open editor's picker follows the store's changed() by itself.
+    QMessageBox::information(this, tr("Import bubble presets"), tr("Imported %n preset(s).", nullptr, n));
+}
+
+void MainWindow::onExportBubblePresets()
+{
+    if (m_presets->presets().size() <= m_presets->builtinCount()) {
+        QMessageBox::information(this, tr("Export bubble presets"),
+                                 tr("There are no saved presets to export yet."));
+        return;
+    }
+    QString path = QFileDialog::getSaveFileName(
+        this, tr("Export bubble presets"),
+        QStandardPaths::writableLocation(QStandardPaths::DocumentsLocation)
+            + QStringLiteral("/bubble-presets.json"),
+        tr("Bubble preset packs (*.json)"));
+    if (path.isEmpty())
+        return;
+    if (QFileInfo(path).suffix().isEmpty())
+        path += QStringLiteral(".json");
+
+    QString error;
+    if (!m_presets->exportPack(path, &error))
+        QMessageBox::warning(this, tr("Export bubble presets"), error);
 }

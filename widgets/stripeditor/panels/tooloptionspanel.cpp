@@ -2,8 +2,6 @@
 
 #include <QAction>
 #include <QComboBox>
-#include <QFileDialog>
-#include <QFileInfo>
 #include <QGroupBox>
 #include <QHBoxLayout>
 #include <QIcon>
@@ -12,7 +10,6 @@
 #include <QMenu>
 #include <QMessageBox>
 #include <QSignalBlocker>
-#include <QStandardPaths>
 #include <QToolButton>
 #include <QVBoxLayout>
 
@@ -55,9 +52,8 @@ ToolOptionsPanel::ToolOptionsPanel(PresetStore& presets, QWidget* parent)
     presetMore->setPopupMode(QToolButton::InstantPopup);
     auto* presetMenu = new QMenu(presetMore);
     m_presetDelete     = presetMenu->addAction(tr("Delete preset"));
-    presetMenu->addSeparator();
-    QAction* importAct = presetMenu->addAction(tr("Import pack…"));
-    QAction* exportAct = presetMenu->addAction(tr("Export pack…"));
+    // Importing and exporting a pack move a file between machines and people — the menu bar's business
+    // (Tools), where every other import and export is, rather than a panel's.
     presetMore->setMenu(presetMenu);
 
     auto* presetRow = new QHBoxLayout;
@@ -103,8 +99,6 @@ ToolOptionsPanel::ToolOptionsPanel(PresetStore& presets, QWidget* parent)
     connect(m_presetCombo, &QComboBox::activated, this, [this](int i) { applyPreset(i); });
     connect(presetSave,     &QToolButton::clicked, this, [this] { onSavePreset(); });
     connect(m_presetDelete, &QAction::triggered,   this, [this] { onDeletePreset(); });
-    connect(importAct,      &QAction::triggered,   this, [this] { onImportPack(); });
-    connect(exportAct,      &QAction::triggered,   this, [this] { onExportPack(); });
     connect(&m_presets, &PresetStore::changed, this, [this] { refreshPresetCombo(); });
 
     refreshPresetCombo();
@@ -248,48 +242,6 @@ void ToolOptionsPanel::onDeletePreset()
         return;
     m_presets.remove(i);
     refreshPresetCombo();   // the values stay as they are; they are simply nobody's preset now
-}
-
-void ToolOptionsPanel::onImportPack()
-{
-    const QString path = QFileDialog::getOpenFileName(
-        this, tr("Import preset pack"),
-        QStandardPaths::writableLocation(QStandardPaths::DocumentsLocation),
-        tr("Bubble preset packs (*.json);;All files (*)"));
-    if (path.isEmpty())
-        return;
-
-    QString error;
-    const int n = m_presets.importPack(path, &error);
-    if (n < 0) {
-        QMessageBox::warning(this, tr("Import preset pack"), error);
-        return;
-    }
-    refreshPresetCombo();
-    QMessageBox::information(this, tr("Import preset pack"),
-                             tr("Imported %n preset(s).", nullptr, n));
-}
-
-void ToolOptionsPanel::onExportPack()
-{
-    if (m_presets.presets().size() <= m_presets.builtinCount()) {
-        QMessageBox::information(this, tr("Export preset pack"),
-                                 tr("There are no saved presets to export yet."));
-        return;
-    }
-    QString path = QFileDialog::getSaveFileName(
-        this, tr("Export preset pack"),
-        QStandardPaths::writableLocation(QStandardPaths::DocumentsLocation)
-            + QStringLiteral("/bubble-presets.json"),
-        tr("Bubble preset packs (*.json)"));
-    if (path.isEmpty())
-        return;
-    if (QFileInfo(path).suffix().isEmpty())
-        path += QStringLiteral(".json");
-
-    QString error;
-    if (!m_presets.exportPack(path, &error))
-        QMessageBox::warning(this, tr("Export preset pack"), error);
 }
 
 }  // namespace StripEdit

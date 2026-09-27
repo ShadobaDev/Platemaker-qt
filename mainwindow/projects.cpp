@@ -372,7 +372,7 @@ void MainWindow::openProjectDock(int projectIndex)
     // the dock in front decides which that is (visibilityChanged below, and in the strip dock).
 
 
-    // Track which project is "current" for F5 / Process menu (the raised dock), and make this
+    // Track which project is "current" for F5 / the Render menu (the raised dock), and make this
     // project's undo stack active while its tab is visible.
     m_activeProjectIndex = projectIndex;
     connect(newDock, &QDockWidget::visibilityChanged, this,
@@ -559,7 +559,7 @@ void MainWindow::openStripEditorDock(int projectIndex)
     // is never tab-combined with Action.
     dock->setAllowedAreas(Qt::LeftDockWidgetArea | Qt::TopDockWidgetArea | Qt::BottomDockWidgetArea);
 
-    auto *viewer = new StripEdit::Editor(dock);
+    auto *viewer = new StripEdit::Editor(*m_presets, dock);
     // "Render & view": outputs are cheap/regenerable, so this just runs the normal render for the
     // project; onRenderFinished refreshes this viewer when it completes. If the project is already up to
     // date, startRender is a no-op and the already-loaded committed slices stay shown.

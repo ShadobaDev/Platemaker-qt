@@ -10,6 +10,7 @@
 #include "mainwindow.hpp"
 #include "ui_mainwindow.h"
 
+#include "fontfiles.hpp"
 #include "workspacefolder.hpp"
 
 #include <QDesktopServices>
@@ -31,6 +32,8 @@
 #include <QTreeWidget>
 #include <QUrl>
 #include <QVBoxLayout>
+
+#include <algorithm>
 
 #ifdef Q_OS_WIN
 #include <windows.h>
@@ -101,6 +104,11 @@ QString installForUser(const QString &file, const QString &displayName)
 
 } // namespace
 
+bool MainWindow::isInstalledFamily(const QString &family) const
+{
+    return m_installedFamilies.contains(family, Qt::CaseInsensitive) || !installedFontFiles(family).isEmpty();
+}
+
 void MainWindow::onFonts()
 {
     if (m_workspacePath.isEmpty()) {
@@ -149,11 +157,14 @@ void MainWindow::onFonts()
             row->setData(0, Qt::UserRole, file);
             row->setText(2, name);
             row->setToolTip(2, QDir::toNativeSeparators(file));
+            QStringList families;   // every name the font database lists this file under
             if (const auto id = m_workspaceFonts.constFind(name); id != m_workspaceFonts.constEnd()) {
                 // The family as the font database knows it — the name a bubble has to use.
-                row->setText(0, QFontDatabase::applicationFontFamilies(*id).join(QStringLiteral(", ")));
+                families = QFontDatabase::applicationFontFamilies(*id);
+                row->setText(0, families.join(QStringLiteral(", ")));
                 row->setText(3, tr("Active"));
             } else if (raw.isValid()) {
+                families = {raw.familyName()};
                 row->setText(0, raw.familyName());
                 row->setText(3, tr("Active from the next open"));
                 row->setToolTip(3, tr("Added to the folder while the workspace was open."));
@@ -162,8 +173,11 @@ void MainWindow::onFonts()
             }
             row->setText(1, raw.isValid() ? raw.styleName() : QString{});
             // Measured (PLAN-X M2.1): the workspace's copy wins over an installed one, so this says only
-            // that another copy exists — not which one is drawn.
-            if (!row->text(0).isEmpty() && m_installedFamilies.contains(row->text(0), Qt::CaseInsensitive)) {
+            // that another copy exists — not which one is drawn. Every name, not any: a style shares its Win32
+            // family with the others, so one installed style would otherwise vouch for one that is not.
+            if (!families.isEmpty()
+                && std::all_of(families.cbegin(), families.cend(),
+                               [this](const QString &f) { return isInstalledFamily(f); })) {
                 row->setText(4, tr("Yes"));
                 row->setToolTip(4, tr("This workspace's copy is the one used while it is open."));
             }

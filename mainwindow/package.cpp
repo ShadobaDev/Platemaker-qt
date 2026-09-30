@@ -1,6 +1,7 @@
 /**
  * @file package.cpp
- * @brief *File → Export package…*: the library's package of the workspace, plus what only the GUI knows.
+ * @brief *File → Export package… / Open package…*: the library's package of the workspace, plus what only
+ *        the GUI knows.
  *
  * The library plans every file the model names (WorkspacePackager::plan()). Two kinds of file the model
  * does not name are added here, so the package is editable on the other machine and not only renderable:
@@ -17,6 +18,7 @@
 #include "fontfiles.hpp"
 #include "workspacefolder.hpp"
 
+#include <platemaker/infrastructure/build_info/build_info.hpp>
 #include <platemaker/infrastructure/control/cancellation_token.hpp>
 #include <platemaker/infrastructure/workspace_packager/workspace_packager.hpp>
 
@@ -35,9 +37,12 @@
 #include <QProgressDialog>
 #include <QSet>
 #include <QStatusBar>
+#include <QTimer>
 #include <QtConcurrent/QtConcurrentRun>
 
+#include <functional>
 #include <memory>
+#include <optional>
 
 namespace {
 
@@ -49,6 +54,59 @@ constexpr char k_packageSuffix[] = ".platemaker.zip";
 
 //! The progress bar counts in these steps, whatever the byte count — an int cannot hold every package's.
 constexpr int k_progressSteps = 1000;
+
+using Platemaker::Infrastructure::PackageManifest;
+using Platemaker::Infrastructure::PackageProgress;
+using Platemaker::Infrastructure::UnpackedPackage;
+using Token = Platemaker::Infrastructure::CancellationToken;
+
+//! How a job run behind a progress dialog ended: finished, cancelled (neither set), or failed.
+struct Outcome {
+    bool    finished = false;
+    QString error;
+};
+
+/**
+ * Runs \p job on a worker behind a window-modal progress dialog with a Cancel button, and waits for it.
+ * \p job reports through the progress sink it is handed, checks the token between chunks, and returns false
+ * when it was cancelled; an exception it throws becomes the outcome's error.
+ */
+Outcome behindProgress(QWidget *parent, const QString &label,
+                       std::function<bool(const PackageProgress &, const Token *)> job)
+{
+    QProgressDialog progress(label, MainWindow::tr("Cancel"), 0, k_progressSteps, parent);
+    progress.setWindowModality(Qt::WindowModal);
+    progress.setMinimumDuration(0);
+    progress.setValue(0);
+
+    auto cancel = std::make_shared<Token>();
+    QObject::connect(&progress, &QProgressDialog::canceled, &progress, [cancel] { cancel->cancel(); });
+
+    // The dialog outlives the worker (the loop below waits for it), and a call still queued when the dialog
+    // goes is dropped with it, so a plain pointer is enough.
+    QProgressDialog        *bar = &progress;
+    QFutureWatcher<Outcome> watcher;
+    QEventLoop              wait;
+    QObject::connect(&watcher, &QFutureWatcher<Outcome>::finished, &wait, &QEventLoop::quit);
+    watcher.setFuture(QtConcurrent::run([job = std::move(job), cancel, bar]() {
+        Outcome out;
+        try {
+            out.finished = job(
+                [bar](std::uint64_t done, std::uint64_t total) {
+                    const int step = total == 0 ? k_progressSteps
+                                                : static_cast<int>(done * k_progressSteps / total);
+                    QMetaObject::invokeMethod(bar, [bar, step] { bar->setValue(step); }, Qt::QueuedConnection);
+                },
+                cancel.get());
+        } catch (const std::exception &e) {
+            out.error = QString::fromUtf8(e.what());
+        }
+        return out;
+    }));
+    wait.exec();
+    progress.reset();
+    return watcher.result();
+}
 
 //! A file compared as a file, not as a spelling.
 QString identity(const QString &path)
@@ -222,53 +280,119 @@ void MainWindow::onExportPackage()
     }
 
     // --- Written on a worker; the window waits, and can cancel --------------------------------------
-    QProgressDialog progress(tr("Exporting package…"), tr("Cancel"), 0, k_progressSteps, this);
-    progress.setWindowModality(Qt::WindowModal);
-    progress.setMinimumDuration(0);
-    progress.setValue(0);
-
-    auto cancel = std::make_shared<Platemaker::Infrastructure::CancellationToken>();
-    connect(&progress, &QProgressDialog::canceled, this, [cancel] { cancel->cancel(); });
-
-    struct Outcome {
-        bool    written = false;
-        QString error;
-    };
-    // The dialog outlives the worker (the loop below waits for it), and a call still queued when the dialog
-    // goes is dropped with it, so a plain pointer is enough.
-    QProgressDialog          *bar    = &progress;
-    const std::string         target = zip.toStdString();
-    QFutureWatcher<Outcome>   watcher;
-    QEventLoop                wait;
-    connect(&watcher, &QFutureWatcher<Outcome>::finished, &wait, &QEventLoop::quit);
-    watcher.setFuture(QtConcurrent::run([plan = std::move(plan), target, cancel, bar]() {
-        Outcome out;
-        try {
-            out.written = WorkspacePackager::write(
-                plan, target,
-                [bar](std::uint64_t done, std::uint64_t total) {
-                    const int step = total == 0 ? k_progressSteps
-                                                : static_cast<int>(done * k_progressSteps / total);
-                    QMetaObject::invokeMethod(bar, [bar, step] { bar->setValue(step); }, Qt::QueuedConnection);
-                },
-                cancel.get());
-        } catch (const std::exception &e) {
-            out.error = QString::fromUtf8(e.what());
-        }
-        return out;
-    }));
-    wait.exec();
-    progress.reset();
-
-    const Outcome out = watcher.result();
+    const std::string target = zip.toStdString();
+    const Outcome     out    = behindProgress(this, tr("Exporting package…"),
+                                     [plan = std::move(plan), target](const PackageProgress &p, const Token *c) {
+                                         return WorkspacePackager::write(plan, target, p, c);
+                                     });
     if (!out.error.isEmpty()) {
         QMessageBox::critical(this, tr("Export Package"), tr("The package was not written:\n%1").arg(out.error));
         return;
     }
-    if (!out.written) {
+    if (!out.finished) {
         statusBar()->showMessage(tr("Export cancelled — nothing was written."), k_noticeMs);
         return;
     }
     ui->textBrowserActionLogs->append(tr("Package exported: %1").arg(QDir::toNativeSeparators(zip)));
     statusBar()->showMessage(tr("Package exported: %1").arg(QFileInfo(zip).fileName()), k_noticeMs);
+}
+
+void MainWindow::onOpenPackage()
+{
+    if (m_rendering) { setProjectStatus(tr("Stop the current render first.")); return; }
+    if (!maybeSave()) return;
+
+    const QString zip = QFileDialog::getOpenFileName(
+        this, tr("Open Package"), defaultDialogDir(),
+        tr("Platemaker package (*%1);;Zip archives (*.zip)").arg(QLatin1String(k_packageSuffix)));
+    if (zip.isEmpty())
+        return;
+
+    // --- Into a new folder named after the package — never into one that exists, so nothing is overwritten
+    //     and the folder holds this one workspace (W1) by construction.
+    QString name = QFileInfo(zip).fileName();
+    if (name.endsWith(QLatin1String(k_packageSuffix), Qt::CaseInsensitive))
+        name.chop(static_cast<int>(qstrlen(k_packageSuffix)));
+    else
+        name = QFileInfo(zip).completeBaseName();
+
+    QString folder;
+    QString startAt = QFileInfo(zip).absolutePath();
+    for (;;) {
+        const QString where = QFileDialog::getExistingDirectory(
+            this, tr("Unpack \"%1\" into a new folder in…").arg(name), startAt);
+        if (where.isEmpty())
+            return;
+        folder = QDir(where).filePath(name);
+        if (!QFileInfo::exists(folder))
+            break;
+        QMessageBox::information(this, tr("Open Package"),
+                                 tr("There is already a folder named \"%1\" in\n%2\n\nChoose another place: a "
+                                    "package is always unpacked into a new folder of its own.")
+                                     .arg(name, QDir::toNativeSeparators(where)));
+        startAt = where;
+    }
+
+    std::optional<UnpackedPackage> unpacked;
+    const std::string              source = zip.toStdString();
+    const std::string              target = folder.toStdString();
+    const Outcome out = behindProgress(this, tr("Unpacking package…"),
+                                       [&unpacked, source, target](const PackageProgress &p, const Token *c) {
+                                           unpacked = WorkspacePackager::unpack(source, target, p, c);
+                                           return unpacked.has_value();
+                                       });
+    if (!out.error.isEmpty()) {
+        QMessageBox::critical(this, tr("Open Package"), tr("The package was not opened:\n%1").arg(out.error));
+        return;
+    }
+    if (!out.finished) {
+        statusBar()->showMessage(tr("Opening the package was cancelled — nothing was unpacked."), k_noticeMs);
+        return;
+    }
+    ui->textBrowserActionLogs->append(tr("Package unpacked into: %1").arg(QDir::toNativeSeparators(folder)));
+
+    // --- Opened like any workspace: the lock, its fonts/, the heal and the sweep all follow ---------------
+    const QString workspace = QString::fromStdString(unpacked->workspaceFile);
+    loadWorkspace(workspace);
+    if (m_workspacePath.isEmpty() || QFileInfo(m_workspacePath) != QFileInfo(workspace))
+        return;   // not opened (the load said why); the unpacked folder stays, and opens like any other
+
+    // After what the open itself reports (queued before this), so this reads as the last word on it.
+    const PackageManifest manifest = unpacked->manifest;
+    QTimer::singleShot(0, this, [this, manifest] {
+        // Nothing is blocked by a version difference; it only explains a byte difference in a render.
+        const QString app = QCoreApplication::applicationVersion();
+        const QString lib = QString::fromStdString(Platemaker::Infrastructure::buildInfo().version);
+        const QString byApp = QString::fromStdString(manifest.applicationVersion);
+        const QString byLib = QString::fromStdString(manifest.libraryVersion);
+        if ((!byApp.isEmpty() && byApp != app) || (!byLib.isEmpty() && byLib != lib)) {
+            const QString note = tr("This package was exported by %1 %2 (libplatemaker %3); this is Platemaker %4 "
+                                    "(libplatemaker %5). Renders from it may differ slightly.")
+                                     .arg(QString::fromStdString(manifest.applicationName), byApp, byLib, app, lib);
+            ui->textBrowserActionLogs->append(note);
+            statusBar()->showMessage(note, k_noticeMs);
+        }
+
+        const QJsonObject details =
+            QJsonDocument::fromJson(QByteArray::fromStdString(manifest.applicationDetails)).object();
+        if (details.contains(QStringLiteral("editable")) && !details.value(QStringLiteral("editable")).toBool())
+            ui->textBrowserActionLogs->append(
+                tr("This package was exported without some fonts or pictures behind lettering, so some "
+                   "lettering may not be editable as it was. It renders as it did."));
+
+        // The fonts it brought are active; offered once to be installed, for everything else too.
+        QStringList notInstalled;
+        for (const int id : std::as_const(m_workspaceFonts))
+            for (const QString &family : QFontDatabase::applicationFontFamilies(id))
+                if (!notInstalled.contains(family) && !isInstalledFamily(family))
+                    notInstalled << family;
+        if (!notInstalled.isEmpty()
+            && QMessageBox::question(this, tr("Open Package"),
+                                     tr("This package brought fonts that are not installed on this computer:\n%1\n\n"
+                                        "They are used while this workspace is open. Open Fonts to install them "
+                                        "for your account as well?")
+                                         .arg(notInstalled.join(QStringLiteral(", "))))
+                   == QMessageBox::Yes)
+            onFonts();
+    });
 }

@@ -117,6 +117,7 @@ private slots:
     void onImportBubblePresets();   //!< Imports a bubble-preset pack into the application's presets.
     void onExportBubblePresets();   //!< Exports the artist's own bubble presets as a pack.
     void onExportPackage();         //!< *File → Export package…*: the workspace and every file it uses, one zip.
+    void onOpenPackage();           //!< *File → Open package…*: unpacked into a new folder, then opened.
     void onFonts();                 //!< *Tools → Fonts…*: the workspace's own fonts, the missing ones, Add font….
 
     // Template actions
@@ -418,6 +419,12 @@ private:
     //! This project's lettered objects drawn in a stand-in because their font is missing, in composite
     //! order; \p families (when given) gets those fonts, once each. What the missing-fonts advisory and
     //! the Fonts dialog both report, so the two can never disagree.
+    //! Whether \p family is installed on this computer — as opposed to only brought by a workspace's fonts/.
+    //! One font answers to several names (Win32, DirectWrite, typographic), and Qt names a font added from a
+    //! file differently from the same font installed, so the start-up list alone misses some; DirectWrite's
+    //! installed fonts are asked by every name as well (installedFontFiles()).
+    [[nodiscard]] bool isInstalledFamily(const QString& family) const;
+
     [[nodiscard]] QStringList objectsInStandIns(const Platemaker::Models::ProjectItem& project,
                                                 QStringList* families = nullptr) const;
 

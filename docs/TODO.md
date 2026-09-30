@@ -314,7 +314,7 @@ New, backward-compatible features. Several are gated on a lib version, noted in 
   - ~~*Install*~~ **Done (2026-09-30).** Offering it when a package brings fonts is part of
     *Open package…* below.
 
-- [ ] **Export / open a workspace package.** One zip with the workspace, `overlays/`, `templates/`,
+- [x] **Export / open a workspace package.** One zip with the workspace, `overlays/`, `templates/`,
   `inputs/` and `fonts/` (everything in `fonts/` plus the installed fonts the bubbles name; the
   platform's default font is not packed). Every path is
   relative, uids and hashes are kept, and there are no outputs and no output directory: a package
@@ -328,7 +328,7 @@ New, backward-compatible features. Several are gated on a lib version, noted in 
     byte-identically from the unpacked copy with the original pages moved away.
   - ~~*Export package…*~~ **Done (2026-09-30).** Font files are found on Windows only (DirectWrite);
     fontconfig on Linux is still to do.
-  - *Open package…*.
+  - ~~*Open package…*~~ **Done (2026-10-01).**
 
 - [x] **Namespace hygiene for the `pm:` recipe** — three small things, together, before overlay files
   start travelling between people (which the import work makes routine):

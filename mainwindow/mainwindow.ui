@@ -87,6 +87,7 @@ QTabWidget QTabBar::close-button {
     <addaction name="actionSave_Ctrl_S"/>
     <addaction name="actionSave_as_Ctrl_Shift_S"/>
     <addaction name="separator"/>
+    <addaction name="actionOpen_package"/>
     <addaction name="actionExport_package"/>
     <addaction name="separator"/>
     <addaction name="actionReveal_workspace_in_Explorer"/>
@@ -524,6 +525,11 @@ QTabWidget QTabBar::close-button {
   <action name="actionExport_bubble_presets">
    <property name="text">
     <string>Export bubble presets…</string>
+   </property>
+  </action>
+  <action name="actionOpen_package">
+   <property name="text">
+    <string>Open package…</string>
    </property>
   </action>
   <action name="actionExport_package">

@@ -306,7 +306,9 @@
 - **Export package…** (*File*) puts a whole workspace in one `.platemaker.zip` for another computer or
   another person: the pages, bubbles, artwork, templates and the fonts the lettering uses, with nothing
   to fix after unpacking. Renders are not included — rendering the package reproduces them exactly. Files
-  that are missing are listed before exporting and stay listed in the package.
+  that are missing are listed before exporting and stay listed in the package. **Open package…** unpacks
+  one into a new folder of its own and opens it; if the package brought fonts you do not have, it offers
+  to install them.
 - **Custom dock title bar.** The Workspace, project and strip docks share a title bar with real
   **minimise** (dock ⇄ detach — docking tabs it beside the Workspace, floating pops it out), **maximise**
   (fill the screen ⇄ restore) and **close** buttons — a floating dock previously showed only a close

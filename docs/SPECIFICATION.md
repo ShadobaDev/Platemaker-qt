@@ -61,7 +61,8 @@ current one (with save prompt) and re-opens with the new file.
 left, Tools and Help on the right, single-word names, flyouts one level deep):
 
 ```
-File    New workspace… · Open workspace… · Open recent ▸ │ Save · Save as… │ Export package… │
+File    New workspace… · Open workspace… · Open recent ▸ │ Save · Save as… │ Open package… ·
+        Export package… │
         Reveal in Explorer │
         Close workspace · Exit
 Edit    Undo · Redo
@@ -1100,6 +1101,23 @@ cannot go in (missing pages, pictures, unresolvable fonts) is listed and the exp
 missing pages still travel as declared, so *Replace file…* fixes them after opening. The zip is written
 on a worker behind a cancellable progress dialog; the default location is beside the workspace's folder,
 not in it. Nothing in the workspace is written, so no lock is needed.
+
+**Open package…** unpacks a package into **a new folder named after it**, in a place the user picks; a
+place where that folder already exists is refused and asked again, so nothing is overwritten and the folder
+holds one workspace by construction. The library unpacks (`WorkspacePackager::unpack()`: whole or not at
+all through `<folder>.partial`, no entry outside the folder, the manifest must name a workspace file at the
+root), behind the same cancellable progress dialog as the export. The result is then opened through
+`loadWorkspace()` like any workspace — the lock, its `fonts/`, the heal and the sweep all follow — and the
+zip is left alone. Afterwards, once:
+- a package from another Platemaker or libplatemaker version says so in the Action log and the status bar
+  (renders may differ slightly; nothing is blocked);
+- a package whose manifest says it is not fully editable (a CLI export, a font that could not be packed)
+  says so in the Action log;
+- fonts the package brought that are not installed here are named, with an offer to open *Tools →
+  Fonts…* to install them.
+
+Missing pages arrive declared at their place in `inputs/`, so the Input tab shows them missing and
+*Replace file…* — or dropping the file there — fixes them.
 
 **A folder holds one workspace.** Everything written for a workspace — `overlays/`, `templates/`,
 `.platemaker-cache/` — sits beside its file, so a second workspace file in the same folder would share

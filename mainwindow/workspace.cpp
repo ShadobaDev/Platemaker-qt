@@ -404,6 +404,16 @@ bool MainWindow::collectWorkspaceFiles(const QString &newWorkspacePath)
             return refuse(source);
     }
 
+    // The workspace's own fonts, whole — a licence beside a font travels with it.
+    const QDir oldFonts(QDir(oldDir).filePath(QString::fromLatin1(k_workspaceFontsFolder)));
+    const QDir newFonts(QDir(newDir).filePath(QString::fromLatin1(k_workspaceFontsFolder)));
+    const QFileInfoList fonts = oldFonts.entryInfoList(QDir::Files, QDir::Name);
+    if (!fonts.isEmpty() && !QDir().mkpath(newFonts.path()))
+        return refuse(newFonts.path());
+    for (const QFileInfo &font : fonts)
+        if (!copyUnlessIdentical(font.absoluteFilePath(), newFonts.filePath(font.fileName())))
+            return refuse(font.absoluteFilePath());
+
     for (std::size_t i = 0; i < collected.size(); ++i)
         m_workspace.projectItems[i].getStripOverlays() = std::move(collected[i]);
     return true;

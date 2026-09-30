@@ -27,6 +27,16 @@
 //! sidecar (`*.platemaker.overlays.json`) end differently, so the pattern tells them apart by itself.
 inline constexpr char k_workspaceFilePattern[] = "*.platemaker.json";
 
+//! The workspace's own fonts: active while the workspace is open, nothing installed (InDesign's *Document
+//! Fonts*). The user's folder, not ours — never swept, and carried whole by Save As, licence files included.
+inline constexpr char k_workspaceFontsFolder[] = "fonts";
+
+/**
+ * @brief The font files in \p folder's `fonts/` — `.ttf`, `.otf`, `.ttc`, any case — as absolute paths in
+ *        name order. Not recursive; anything else there (a licence, a readme) is not a font.
+ */
+[[nodiscard]] QStringList workspaceFontFiles(const QString& folder);
+
 /**
  * @brief Every workspace file directly inside \p dir, as absolute paths in name order.
  *

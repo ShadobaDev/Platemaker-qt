@@ -18,6 +18,17 @@ QStringList workspacesInFolder(const QString& dir)
     return out;
 }
 
+QStringList workspaceFontFiles(const QString& folder)
+{
+    const QDir  d(QDir(folder).filePath(QString::fromLatin1(k_workspaceFontsFolder)));
+    QStringList out;
+    // Name filters ignore case unless QDir::CaseSensitive is asked for, on every platform.
+    for (const QString& name : d.entryList(
+             {QStringLiteral("*.ttf"), QStringLiteral("*.otf"), QStringLiteral("*.ttc")}, QDir::Files, QDir::Name))
+        out << d.absoluteFilePath(name);
+    return out;
+}
+
 QStringList otherWorkspacesBeside(const QString& workspacePath)
 {
     const QFileInfo self(workspacePath);

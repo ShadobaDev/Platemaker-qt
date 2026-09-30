@@ -254,3 +254,26 @@ TEST(UnusedWorkspaceFiles, AReferenceSpelledDifferentlyStillCounts)
     const QString detour = QDir::toNativeSeparators(QDir(tmp.path()).filePath(QStringLiteral("overlays/../overlays/ovl-a.svg")));
     EXPECT_TRUE(unusedWorkspaceFiles(tmp.path(), {detour}).isEmpty());
 }
+
+TEST(WorkspaceFontFiles, FontsInAnyCaseAndNothingElse)
+{
+    QTemporaryDir tmp;
+    ASSERT_TRUE(tmp.isValid());
+    const QDir d(tmp.path());
+    const auto at = [&d](const char* rel) { return d.filePath(QString::fromLatin1(rel)); };
+
+    write(at("fonts/Comic.ttf"), "a");
+    write(at("fonts/LOUD.OTF"), "b");
+    write(at("fonts/Family.ttc"), "c");
+    write(at("fonts/OFL.txt"), "the licence travels, but is no font");
+    write(at("fonts/nested/Deep.ttf"), "not recursive");
+    write(at("Stray.ttf"), "beside the workspace, not in fonts/");
+
+    QStringList names;
+    for (const QString& p : workspaceFontFiles(tmp.path()))
+        names << d.relativeFilePath(p);
+    names.sort(Qt::CaseInsensitive);
+    EXPECT_EQ(names, (QStringList{QStringLiteral("fonts/Comic.ttf"), QStringLiteral("fonts/Family.ttc"),
+                                  QStringLiteral("fonts/LOUD.OTF")}));
+    EXPECT_TRUE(workspaceFontFiles(d.filePath(QStringLiteral("no-such-folder"))).isEmpty());
+}

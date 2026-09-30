@@ -1026,8 +1026,8 @@ still uses.
   sweeps it.
 
 **Save As takes the workspace's files along.** Before a byte is saved in another folder,
-`MainWindow::collectWorkspaceFiles()` copies in every project's overlay files and every canvas profile's
-template, and points the model at the copies, so the new workspace references only its own folder and
+`MainWindow::collectWorkspaceFiles()` copies in every project's overlay files, every canvas profile's
+template and every file in `fonts/`, and points the model at the copies, so the new workspace references only its own folder and
 the old one can be moved, zipped or deleted without breaking it. The overlays go through
 `collectOverlayFiles()` (`widgets/workspacefolder/`), which also carries **the picture behind a lettered
 picture** — named only by its record's `artwork`, beside the wrapper, so following `assetPath` alone would
@@ -1041,6 +1041,16 @@ Input pages stay where they are — they are the user's files.
   `Project::restoreOverlayState()` runs the same collect before restoring a step: undo never points the
   workspace back there, nor — through `rewriteOverlayAssets()` — writes into it. A balloon whose file is
   missing is pointed into the new folder anyway, where it is regenerated from its record.
+
+**The workspace's own fonts.** Every `.ttf`, `.otf` and `.ttc` directly in the workspace's `fonts/`
+(`workspaceFontFiles()`) is registered with `QFontDatabase::addApplicationFont()` when the workspace
+opens — right after the model loads, before anything is drawn or checked — and removed when it closes.
+Nothing is installed and no rights are needed (InDesign's *Document Fonts*). A family the folder brings is
+then simply there: bubbles draw with it, the missing-fonts advisory does not report it, and the heal at
+open sets back what was set in a stand-in. Measured on Qt 6.11 (Windows): the registered copy wins over an
+installed copy of the same family, and the family is listed once. Files added while the workspace is open
+count from the next open; a file that will not load is named in the Action log. The folder is the
+user's: never swept, and carried whole — licence files included — by Save As.
 
 **Moving the folder is safe.** The library writes each overlay's path twice — absolute, and relative to
 the workspace file when it lies inside its folder — and prefers the relative one on load when it names a

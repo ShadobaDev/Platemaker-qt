@@ -12,6 +12,7 @@
 #include "templatesdialog.hpp"
 #include "renderworker.hpp"
 #include "workspacelock.hpp"
+#include "workspacefolder.hpp"
 #include "presetstore.hpp"
 #include "artifactpainter.hpp"
 
@@ -30,6 +31,7 @@
 #include <QDockWidget>
 #include <QFileDialog>
 #include <QFileInfo>
+#include <QFontDatabase>
 #include <QGuiApplication>
 #include <QIcon>
 #include <QInputDialog>
@@ -381,6 +383,17 @@ void MainWindow::loadWorkspace(const QString &requested)
 
     m_workspacePath = path;
     m_lock          = std::move(lock);
+    // The workspace's own fonts, before anything is drawn or checked: a family it brings is then simply
+    // there — for the bubbles, the missing-fonts advisory and the heal alike — and wins over an installed
+    // copy of the same family. Files added while it is open count from the next open.
+    for (const QString &font : workspaceFontFiles(QFileInfo(path).absolutePath())) {
+        const int id = QFontDatabase::addApplicationFont(font);
+        if (id < 0)
+            ui->textBrowserActionLogs->append(
+                tr("Font could not be loaded: %1").arg(QDir::toNativeSeparators(font)));
+        else
+            m_workspaceFontIds << id;
+    }
     // Bubbles carry their own authoring parameters inside the SVG the library composites, so the
     // records are read back from the assets themselves — there is no sidecar to fall out of step with
     // them. An asset that is missing, or was drawn elsewhere, simply yields no record: the overlay
@@ -502,6 +515,9 @@ void MainWindow::closeWorkspace()
     m_activeCanvasProfileName.clear();
     m_activeOutputProfileId.clear();
     m_lock.reset();   // the folder is someone else's to open now
+    for (const int id : std::as_const(m_workspaceFontIds))
+        QFontDatabase::removeApplicationFont(id);
+    m_workspaceFontIds.clear();
     setDirty(false);
 
     // Clear the project list in the UI and update the title bar.

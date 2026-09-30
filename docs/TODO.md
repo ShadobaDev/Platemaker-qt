@@ -306,11 +306,15 @@ New, backward-compatible features. Several are gated on a lib version, noted in 
 - [ ] **Workspace fonts.** A `fonts/` folder in the workspace, activated for the session at open
   (`QFontDatabase::addApplicationFont`, no install, no admin), which is InDesign's *Document Fonts*
   model. *Tools → Fonts…* groups them, with *Add font…* and *Install for me* (a per-user install,
-  Windows 10 1803+). Files dropped in by hand are picked up at the next open. To measure first: which
-  copy Qt draws with when the same family is also installed system-wide in another version.
+  Windows 10 1803+). Files dropped in by hand are picked up at the next open.
+  - ~~Measure precedence~~ **Done (2026-09-30).** The `fonts/` copy wins over an installed one of the
+    same family, which is listed once; a per-user install is seen by a new process only.
+  - ~~Activation and Save As~~ **Done (2026-09-30).**
+  - *Tools → Fonts…*, *Add font…*, *Install for me*.
 
 - [ ] **Export / open a workspace package.** One zip with the workspace, `overlays/`, `templates/`,
-  `inputs/` and `fonts/` (everything in `fonts/` plus the system fonts the bubbles use). Every path is
+  `inputs/` and `fonts/` (everything in `fonts/` plus the installed fonts the bubbles name; the
+  platform's default font is not packed). Every path is
   relative, uids and hashes are kept, and there are no outputs and no output directory: a package
   carries what reproduces the outputs 1:1, not the outputs. A `package.json` manifest records versions
   and missing pages; missing pages do not stop the export. The lib plans and writes (libarchive,

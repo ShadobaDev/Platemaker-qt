@@ -353,7 +353,7 @@ private:
      * @brief *Save As* to another folder: copies in everything the workspace made, and points it there.
      *
      * Every project's overlay files (and the pictures behind lettered pictures — see
-     * collectOverlayFiles()) and every canvas profile's template, so that after the save the workspace
+     * collectOverlayFiles()), every canvas profile's template and the whole `fonts/` folder, so that after the save the workspace
      * references only its own folder and the old one can be moved, zipped or deleted without breaking it.
      * All or nothing: nothing in the model changes unless every file made it, and a failure names the file
      * and stops the Save As before anything is written.
@@ -625,6 +625,7 @@ private:
     ArtifactStore m_overlayArtifacts;
     Platemaker::Infrastructure::WorkspaceSerializer m_serializer;   //!< Serializes the workspace model to/from disk.
     std::unique_ptr<WorkspaceLock> m_lock;      //!< The open workspace's folder, held; null when none is open.
+    QList<int> m_workspaceFontIds;              //!< The open workspace's `fonts/`, as registered with QFontDatabase.
     //! The bubble presets, one store for the application: every strip editor is handed it, so a preset
     //! saved, deleted or imported anywhere is offered everywhere at once. Presets follow the artist, not
     //! the chapter — they live in the application's settings, and a workspace closing does not touch them.

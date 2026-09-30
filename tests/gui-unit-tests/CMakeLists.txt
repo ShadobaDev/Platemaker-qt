@@ -47,6 +47,7 @@ add_executable(platemaker-gui-tests
     # The one-workspace-per-folder rule: QtCore and the file system, nothing else.
     ${CMAKE_SOURCE_DIR}/widgets/workspacefolder/workspacefolder.cpp
     ${CMAKE_SOURCE_DIR}/widgets/workspacefolder/workspacelock.cpp
+    ${CMAKE_SOURCE_DIR}/widgets/workspacefolder/fontfiles.cpp
 )
 
 target_include_directories(platemaker-gui-tests PRIVATE
@@ -66,6 +67,9 @@ target_link_libraries(platemaker-gui-tests PRIVATE
     Qt6::Gui
     GTest::gtest_main
 )
+if(WIN32)
+    target_link_libraries(platemaker-gui-tests PRIVATE dwrite)
+endif()
 
 include(GoogleTest)
 gtest_discover_tests(platemaker-gui-tests)

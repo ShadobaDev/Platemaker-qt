@@ -116,6 +116,7 @@ private slots:
     // Tools
     void onImportBubblePresets();   //!< Imports a bubble-preset pack into the application's presets.
     void onExportBubblePresets();   //!< Exports the artist's own bubble presets as a pack.
+    void onExportPackage();         //!< *File → Export package…*: the workspace and every file it uses, one zip.
     void onFonts();                 //!< *Tools → Fonts…*: the workspace's own fonts, the missing ones, Add font….
 
     // Template actions

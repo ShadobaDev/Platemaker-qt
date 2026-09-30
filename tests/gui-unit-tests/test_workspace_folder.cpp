@@ -8,7 +8,10 @@
 #include <QFileInfo>
 #include <QTemporaryDir>
 
+#include "fontfiles.hpp"
 #include "workspacefolder.hpp"
+
+#include <algorithm>
 
 namespace {
 
@@ -276,4 +279,20 @@ TEST(WorkspaceFontFiles, FontsInAnyCaseAndNothingElse)
     EXPECT_EQ(names, (QStringList{QStringLiteral("fonts/Comic.ttf"), QStringLiteral("fonts/Family.ttc"),
                                   QStringLiteral("fonts/LOUD.OTF")}));
     EXPECT_TRUE(workspaceFontFiles(d.filePath(QStringLiteral("no-such-folder"))).isEmpty());
+}
+
+TEST(InstalledFontFiles, AFamilyIsFoundByItsFilesAndAnUnknownOneIsNot)
+{
+#ifdef Q_OS_WIN
+    // Arial ships with every Windows, in several styles and one file per style.
+    const QStringList arial = installedFontFiles(QStringLiteral("Arial"));
+    EXPECT_GE(arial.size(), 2);
+    const bool hasRegular = std::any_of(arial.begin(), arial.end(), [](const QString& p) {
+        return QFileInfo(p).fileName().compare(QStringLiteral("arial.ttf"), Qt::CaseInsensitive) == 0;
+    });
+    EXPECT_TRUE(hasRegular) << arial.join(QLatin1Char('\n')).toStdString();
+    for (const QString& p : arial)
+        EXPECT_TRUE(QFileInfo::exists(p)) << p.toStdString();
+#endif
+    EXPECT_TRUE(installedFontFiles(QStringLiteral("No Such Family 7f3a")).isEmpty());
 }

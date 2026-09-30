@@ -141,6 +141,7 @@ MainWindow::MainWindow(QWidget *parent)
     connect(ui->actionSave_as_Ctrl_Shift_S,         &QAction::triggered, this, &MainWindow::onSaveAs);
     connect(ui->actionClose_workspace,              &QAction::triggered, this, &MainWindow::onCloseWorkspace);
     connect(ui->actionReveal_workspace_in_Explorer, &QAction::triggered, this, &MainWindow::onRevealInExplorer);
+    connect(ui->actionExport_package,               &QAction::triggered, this, &MainWindow::onExportPackage);
     // Through close(), so quitting from the menu asks about unsaved changes exactly as the title bar does.
     connect(ui->actionExit, &QAction::triggered, this, &QWidget::close);
 

@@ -303,6 +303,10 @@
 - **A workspace folder can be moved or zipped.** Bubbles and imported artwork are now found through their
   place in the workspace folder, so a folder that is moved, renamed, or zipped and unpacked on another
   computer opens with every overlay in place. (Input pages keep the location you picked them from.)
+- **Export package…** (*File*) puts a whole workspace in one `.platemaker.zip` for another computer or
+  another person: the pages, bubbles, artwork, templates and the fonts the lettering uses, with nothing
+  to fix after unpacking. Renders are not included — rendering the package reproduces them exactly. Files
+  that are missing are listed before exporting and stay listed in the package.
 - **Custom dock title bar.** The Workspace, project and strip docks share a title bar with real
   **minimise** (dock ⇄ detach — docking tabs it beside the Workspace, floating pops it out), **maximise**
   (fill the screen ⇄ restore) and **close** buttons — a floating dock previously showed only a close

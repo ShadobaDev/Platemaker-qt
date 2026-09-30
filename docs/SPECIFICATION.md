@@ -61,7 +61,8 @@ current one (with save prompt) and re-opens with the new file.
 left, Tools and Help on the right, single-word names, flyouts one level deep):
 
 ```
-File    New workspace… · Open workspace… · Open recent ▸ │ Save · Save as… │ Reveal in Explorer │
+File    New workspace… · Open workspace… · Open recent ▸ │ Save · Save as… │ Export package… │
+        Reveal in Explorer │
         Close workspace · Exit
 Edit    Undo · Redo
 View    Workspace panel · Action panel
@@ -1079,6 +1080,26 @@ the workspace file when it lies inside its folder — and prefers the relative o
 file that exists (`WorkspaceSerializer`, lib 0.6.0). The model the GUI receives holds absolute paths
 either way, so nothing here resolves anything; a folder moved, renamed or unzipped elsewhere simply loads
 with every overlay found.
+
+**Export package…** (`mainwindow/package.cpp`) hands the workspace to another machine or person: one
+`<name>.platemaker.zip` that opens there with nothing to fix, pages included. The library plans and writes
+it (`WorkspacePackager`, lib 0.6.0 — the copy with its paths rewritten, uids kept, no outputs and no trace
+of the last render, `package.json` last); the GUI adds what the model does not name:
+- **the picture behind every lettered picture**, beside its wrapper under the name its record gives;
+- **fonts:** the workspace's `fonts/`, whole, and the installed files of every family a bubble names
+  explicitly — every style of it (`installedFontFiles()`, DirectWrite; on Linux not yet, so such a family
+  is reported as not packed). A font belongs to the family when any name it carries says so — its Win32
+  family, its DirectWrite family or its typographic one — because Qt lists a font by its Win32 family, which
+  DirectWrite's own family lookup does not know (measured: Wieynk Fraktur's five files share the Win32
+  family "Wieynk Fraktur", which DirectWrite splits into "WieynkFraktur", "WieynkFrakturZier", …). The platform default — a record with no family — is not packed: it was not
+  chosen, and a machine without it says so through the missing-fonts advisory.
+
+The GUI's part of the manifest records the fonts packed, the families that could not be, the pictures that
+were missing, and `editable` — false when any of those is not empty. Before anything is written, what
+cannot go in (missing pages, pictures, unresolvable fonts) is listed and the export can be cancelled;
+missing pages still travel as declared, so *Replace file…* fixes them after opening. The zip is written
+on a worker behind a cancellable progress dialog; the default location is beside the workspace's folder,
+not in it. Nothing in the workspace is written, so no lock is needed.
 
 **A folder holds one workspace.** Everything written for a workspace — `overlays/`, `templates/`,
 `.platemaker-cache/` — sits beside its file, so a second workspace file in the same folder would share

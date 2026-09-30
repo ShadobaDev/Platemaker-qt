@@ -324,6 +324,11 @@ New, backward-compatible features. Several are gated on a lib version, noted in 
   what only it knows (fonts, the pictures behind lettered pictures), and the CLI gets
   `workspace export`. *Open package…* unpacks into a new folder named after the package.
   Needs: relative paths, and workspace fonts.
+  - ~~Lib: plan, write, manifest, CLI `workspace export`~~ **Done (2026-09-30).** A CLI package renders
+    byte-identically from the unpacked copy with the original pages moved away.
+  - ~~*Export package…*~~ **Done (2026-09-30).** Font files are found on Windows only (DirectWrite);
+    fontconfig on Linux is still to do.
+  - *Open package…*.
 
 - [x] **Namespace hygiene for the `pm:` recipe** — three small things, together, before overlay files
   start travelling between people (which the import work makes routine):

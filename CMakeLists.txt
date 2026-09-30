@@ -32,7 +32,7 @@ qt_add_executable(Platemaker
     mainwindow/mainwindow.cpp mainwindow/mainwindow.hpp
     mainwindow/workspace.cpp mainwindow/projects.cpp mainwindow/render.cpp
     mainwindow/renderbatch.cpp
-    mainwindow/profiles.cpp mainwindow/templates.cpp mainwindow/about.cpp mainwindow/fonts.cpp
+    mainwindow/profiles.cpp mainwindow/templates.cpp mainwindow/about.cpp mainwindow/fonts.cpp mainwindow/package.cpp
     mainwindow/advisories.cpp
     mainwindow/mainwindow.ui
 
@@ -122,6 +122,7 @@ qt_add_executable(Platemaker
     # The workspace folder — one workspace per folder, and what may be written in it.
     widgets/workspacefolder/workspacefolder.cpp widgets/workspacefolder/workspacefolder.hpp
     widgets/workspacefolder/workspacelock.cpp widgets/workspacefolder/workspacelock.hpp
+    widgets/workspacefolder/fontfiles.cpp widgets/workspacefolder/fontfiles.hpp
 )
 
 # Every class/header lives in its own folder; add each to the include path so
@@ -374,6 +375,10 @@ target_link_libraries(Platemaker
         Qt::Concurrent
         Qt::Svg   # pulls in the qsvg image plugin (SVG icons) — windeployqt deploys it
 )
+if(WIN32)
+    # DirectWrite: which files an installed font is made of, for the workspace package (fontfiles.cpp).
+    target_link_libraries(Platemaker PRIVATE dwrite)
+endif()
 
 install(TARGETS Platemaker
     BUNDLE  DESTINATION .

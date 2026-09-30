@@ -1061,7 +1061,14 @@ user's: never swept, and carried whole — licence files included — by Save As
   and re-evaluates the advisories. Objects already baked in a stand-in are re-set at once by the same heal
   that runs at open — not an undo step, since it repairs files to match their records; a step recorded
   before it still names the stand-in's bytes, which the next open heals again. *Show folder* opens
-  `fonts/` in Explorer.
+  `fonts/` in Explorer. ***Install*** installs the selected fonts that are usable and not installed
+  yet for this user only, with no administrator rights, the way Explorer's *Install* does: on Windows a
+  copy in `%LOCALAPPDATA%\Microsoft\Windows\Fonts`, a value under `HKCU\…\CurrentVersion\Fonts`,
+  `AddFontResource` and a `WM_FONTCHANGE` broadcast; elsewhere a copy in the user's font folder
+  (`QStandardPaths::FontsLocation`) and `fc-cache`. A different file already installed under the same
+  name is never overwritten. Measured: a program already running does not see a per-user install — nor
+  does Platemaker, whose font database was read at start-up — so the dialog says it takes a restart;
+  meanwhile the workspace keeps using its own copy.
 - **The strip editor follows the font database.** A font added or removed changes what a bubble's words
   are set in without changing its record, so `ObjectController` listens to
   `QGuiApplication::fontDatabaseChanged` (emitted synchronously by `addApplicationFont()` and

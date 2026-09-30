@@ -303,15 +303,16 @@ New, backward-compatible features. Several are gated on a lib version, noted in 
   menu guidelines). Every action keeps its shortcut. Open: bubble-preset import/export in *Tools*
   needs one application-wide `PresetStore`, since today each strip editor owns its own.
 
-- [ ] **Workspace fonts.** A `fonts/` folder in the workspace, activated for the session at open
+- [x] **Workspace fonts.** A `fonts/` folder in the workspace, activated for the session at open
   (`QFontDatabase::addApplicationFont`, no install, no admin), which is InDesign's *Document Fonts*
-  model. *Tools → Fonts…* groups them, with *Add font…* and *Install for me* (a per-user install,
+  model. *Tools → Fonts…* groups them, with *Add font…* and *Install* (a per-user install,
   Windows 10 1803+). Files dropped in by hand are picked up at the next open.
   - ~~Measure precedence~~ **Done (2026-09-30).** The `fonts/` copy wins over an installed one of the
     same family, which is listed once; a per-user install is seen by a new process only.
   - ~~Activation and Save As~~ **Done (2026-09-30).**
   - ~~*Tools → Fonts…*, *Add font…*~~ **Done (2026-09-30).**
-  - *Install for me*.
+  - ~~*Install*~~ **Done (2026-09-30).** Offering it when a package brings fonts is part of
+    *Open package…* below.
 
 - [ ] **Export / open a workspace package.** One zip with the workspace, `overlays/`, `templates/`,
   `inputs/` and `fonts/` (everything in `fonts/` plus the installed fonts the bubbles name; the

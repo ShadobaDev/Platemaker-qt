@@ -64,6 +64,10 @@ public:
      */
     void setSharpRaster(const QImage& img);
 
+    //! The fonts changed under the same record — one added or removed. The words are re-set in whatever is
+    //! available now; the owner hands over a fresh rasterisation, since the old one used the old fonts.
+    void refreshFonts();
+
     /**
      * @brief Returns the size of the bubble's box.
      * @return The size of the bubble's box.

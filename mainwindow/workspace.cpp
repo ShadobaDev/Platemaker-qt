@@ -525,6 +525,10 @@ void MainWindow::healFontFallbacks()
     if (healed == 0)
         return;
     setDirty(true);
+    // Open strip editors hold their own copy of the overlays; left with the old paths, their next edit
+    // would write them back. (At open there are none yet.)
+    for (QDockWidget *strip : std::as_const(m_openStripDocks))
+        refreshStripEditor(strip);
     statusBar()->showMessage(tr("%n object(s) re-set in %1, now installed.", "", healed)
                                  .arg(families.join(QStringLiteral(", "))),
                              k_noticeMs);

@@ -291,8 +291,10 @@
   never touched, and nothing is removed while a workspace is open, so undo keeps working.
 - **Fonts can travel with a workspace.** Font files placed in a `fonts` folder beside the workspace file
   are available while that workspace is open — no installing, no administrator rights — and are used even
-  when a different version of the same font is installed. Fonts added while it is open are picked up the
-  next time it is opened.
+  when a different version of the same font is installed. *Tools → Fonts…* shows them, lists the fonts
+  your bubbles use that are missing on this computer, and *Add font…* copies a font into the workspace
+  and makes it available at once. Fonts copied into the folder by hand are picked up the next time the
+  workspace is opened.
 - **Save As takes the workspace with it.** Saving a workspace into another folder now copies its bubbles,
   imported artwork, templates and fonts there too, so the copy no longer depends on the original's folder, and
   undo in the copy never reaches back into it. If a file cannot be copied, Save As says which and leaves

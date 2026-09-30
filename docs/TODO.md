@@ -310,7 +310,8 @@ New, backward-compatible features. Several are gated on a lib version, noted in 
   - ~~Measure precedence~~ **Done (2026-09-30).** The `fonts/` copy wins over an installed one of the
     same family, which is listed once; a per-user install is seen by a new process only.
   - ~~Activation and Save As~~ **Done (2026-09-30).**
-  - *Tools → Fonts…*, *Add font…*, *Install for me*.
+  - ~~*Tools → Fonts…*, *Add font…*~~ **Done (2026-09-30).**
+  - *Install for me*.
 
 - [ ] **Export / open a workspace package.** One zip with the workspace, `overlays/`, `templates/`,
   `inputs/` and `fonts/` (everything in `fonts/` plus the installed fonts the bubbles name; the

@@ -32,7 +32,7 @@ qt_add_executable(Platemaker
     mainwindow/mainwindow.cpp mainwindow/mainwindow.hpp
     mainwindow/workspace.cpp mainwindow/projects.cpp mainwindow/render.cpp
     mainwindow/renderbatch.cpp
-    mainwindow/profiles.cpp mainwindow/templates.cpp mainwindow/about.cpp
+    mainwindow/profiles.cpp mainwindow/templates.cpp mainwindow/about.cpp mainwindow/fonts.cpp
     mainwindow/advisories.cpp
     mainwindow/mainwindow.ui
 

@@ -17,6 +17,7 @@
 #include <platemaker/core/strip_overlay_compositor/strip_overlay_compositor.hpp>
 
 #include <QAbstractItemModel>
+#include <QGuiApplication>
 #include <QAction>
 #include <QMenu>
 #include <QCryptographicHash>
@@ -83,6 +84,15 @@ ObjectController::ObjectController(QGraphicsScene* scene, QGraphicsView* view, Q
     , m_layout(layout)
     , m_dialogParent(dialogParent)
 {
+    // A font added or removed (a workspace's fonts/, Add font…) changes what a bubble's words are set in
+    // without changing its record — so nothing else here would notice: setArtifact() ignores the same
+    // record, and the cached outline is the stand-in's until the object is rebuilt.
+    connect(qGuiApp, &QGuiApplication::fontDatabaseChanged, this, [this] {
+        for (Object* item : std::as_const(m_overlayItems))
+            if (auto* bubble = qobject_cast<BubbleObject*>(item))
+                bubble->refreshFonts();
+        syncItems();   // the styled ones: a fresh rasterisation, from a document set in the new font
+    });
     connect(m_objectState, &ObjectStatePanel::changed, this,
             [this](const Artifact& a) { applyPanelRecords({a}, /*commit=*/false); });
     connect(m_objectState, &ObjectStatePanel::committed, this,

@@ -74,6 +74,11 @@ MainWindow::MainWindow(QWidget *parent)
     ui->menu_Process->menuAction()->setIcon(QIcon(QStringLiteral(":/icons/menu/process.svg")));
     ui->menu_About->menuAction()->setIcon(QIcon(QStringLiteral(":/icons/menu/about.svg")));
 
+    // What is installed, as opposed to what a workspace brings: taken now, before any workspace's fonts are
+    // registered. Measured (PLAN-X M2.3): a font installed while Platemaker runs is not seen until a
+    // restart anyway, so the list cannot go stale in a way the font database itself would not.
+    m_installedFamilies = QFontDatabase::families();
+
     m_presets = new StripEdit::PresetStore(this);
     m_presets->setDefaultFamily(artifactDefaultFamily());
 
@@ -142,6 +147,7 @@ MainWindow::MainWindow(QWidget *parent)
     // --- Tools menu ---
     connect(ui->actionImport_bubble_presets, &QAction::triggered, this, &MainWindow::onImportBubblePresets);
     connect(ui->actionExport_bubble_presets, &QAction::triggered, this, &MainWindow::onExportBubblePresets);
+    connect(ui->actionFonts, &QAction::triggered, this, &MainWindow::onFonts);
     connect(ui->actionShow_workspace_panel, &QAction::triggered, this, [this]{
         ui->dockWidgetWorkspace->show();
         ui->dockWidgetWorkspace->raise();
@@ -392,7 +398,7 @@ void MainWindow::loadWorkspace(const QString &requested)
             ui->textBrowserActionLogs->append(
                 tr("Font could not be loaded: %1").arg(QDir::toNativeSeparators(font)));
         else
-            m_workspaceFontIds << id;
+            m_workspaceFonts.insert(QFileInfo(font).fileName(), id);
     }
     // Bubbles carry their own authoring parameters inside the SVG the library composites, so the
     // records are read back from the assets themselves — there is no sidecar to fall out of step with
@@ -515,9 +521,9 @@ void MainWindow::closeWorkspace()
     m_activeCanvasProfileName.clear();
     m_activeOutputProfileId.clear();
     m_lock.reset();   // the folder is someone else's to open now
-    for (const int id : std::as_const(m_workspaceFontIds))
+    for (const int id : std::as_const(m_workspaceFonts))
         QFontDatabase::removeApplicationFont(id);
-    m_workspaceFontIds.clear();
+    m_workspaceFonts.clear();
     setDirty(false);
 
     // Clear the project list in the UI and update the title bar.

@@ -92,17 +92,8 @@ void MainWindow::refreshAdvisoriesFor(int projectIndex)
     // The render is unaffected — the words are outlines in the file — so this is a warning about editing:
     // until the font is installed, an edit sets the words in a stand-in. The same answer the SVG writer
     // gets (artifactFontFallback()), so the badge and the file can never disagree about what is missing.
-    const ArtifactMap records = m_overlayArtifacts.artifacts(uid);
-    QStringList       inStandIns;
     QStringList       families;
-    for (const auto& overlay : project.getStripOverlays()) {
-        const auto rec = records.constFind(QString::fromStdString(overlay.uid));
-        if (rec == records.constEnd() || artifactFontFallback(*rec).isEmpty())
-            continue;
-        inStandIns << QString::fromStdString(overlay.uid);
-        if (!families.contains(rec->text.family))
-            families << rec->text.family;
-    }
+    const QStringList inStandIns = objectsInStandIns(project, &families);
     if (inStandIns.isEmpty()) {
         m_advisories->clear(k_missingFontsKey + uid);
     } else {
@@ -120,6 +111,22 @@ void MainWindow::refreshAdvisoriesFor(int projectIndex)
         a.action     = [this, uid, inStandIns] { showObjects(uid, inStandIns); };
         m_advisories->raise(k_missingFontsKey + uid, a);
     }
+}
+
+QStringList MainWindow::objectsInStandIns(const Platemaker::Models::ProjectItem& project,
+                                          QStringList*                         families) const
+{
+    const ArtifactMap records = m_overlayArtifacts.artifacts(QString::fromStdString(project.uid));
+    QStringList       out;
+    for (const auto& overlay : project.getStripOverlays()) {
+        const auto rec = records.constFind(QString::fromStdString(overlay.uid));
+        if (rec == records.constEnd() || artifactFontFallback(*rec).isEmpty())
+            continue;
+        out << QString::fromStdString(overlay.uid);
+        if (families && !families->contains(rec->text.family))
+            *families << rec->text.family;
+    }
+    return out;
 }
 
 void MainWindow::refreshAllAdvisories()

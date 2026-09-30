@@ -137,6 +137,8 @@ QTabWidget QTabBar::close-button {
     </property>
     <addaction name="actionImport_bubble_presets"/>
     <addaction name="actionExport_bubble_presets"/>
+    <addaction name="separator"/>
+    <addaction name="actionFonts"/>
    </widget>
    <widget class="QMenu" name="menu_Process">
     <property name="title">
@@ -520,6 +522,11 @@ QTabWidget QTabBar::close-button {
   <action name="actionExport_bubble_presets">
    <property name="text">
     <string>Export bubble presets…</string>
+   </property>
+  </action>
+  <action name="actionFonts">
+   <property name="text">
+    <string>Fonts…</string>
    </property>
   </action>
  </widget>

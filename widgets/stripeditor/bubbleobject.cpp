@@ -52,6 +52,13 @@ void BubbleObject::setArtifact(const Artifact& a)
     update();
 }
 
+void BubbleObject::refreshFonts()
+{
+    m_sharp = QImage();
+    rebuild();
+    update();
+}
+
 void BubbleObject::setSharpRaster(const QImage& img)
 {
     if (m_sharp.size() == img.size() && m_sharp.cacheKey() == img.cacheKey())

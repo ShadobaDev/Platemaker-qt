@@ -116,6 +116,7 @@ private slots:
     // Tools
     void onImportBubblePresets();   //!< Imports a bubble-preset pack into the application's presets.
     void onExportBubblePresets();   //!< Exports the artist's own bubble presets as a pack.
+    void onFonts();                 //!< *Tools → Fonts…*: the workspace's own fonts, the missing ones, Add font….
 
     // Template actions
     void onManageTemplates();       //!< Opens the template management dialog.
@@ -378,7 +379,8 @@ private:
     void sweepWorkspaceFolder();
 
     /**
-     * @brief Re-sets, in their own font, the bubbles whose file was baked in a stand-in — at open.
+     * @brief Re-sets, in their own font, the bubbles whose file was baked in a stand-in — at open, and
+     *        when *Add font…* brings the font. Open strip editors are re-fed when anything was re-set.
      *
      * A bubble edited while its font was missing is outlined in whatever Qt substituted, and the file says
      * so (`pm:fontFallback`); its record still names the font it was meant to have. Once that font is
@@ -411,6 +413,12 @@ private:
      */
     void refreshAdvisoriesFor(int projectIndex);
     void refreshAllAdvisories();      //!< The same, for every project in the workspace.
+
+    //! This project's lettered objects drawn in a stand-in because their font is missing, in composite
+    //! order; \p families (when given) gets those fonts, once each. What the missing-fonts advisory and
+    //! the Fonts dialog both report, so the two can never disagree.
+    [[nodiscard]] QStringList objectsInStandIns(const Platemaker::Models::ProjectItem& project,
+                                                QStringList* families = nullptr) const;
 
     //! Points the status bar's advisory strip at whichever project is being looked at. The strip keeps
     //! itself current with the registry; what it cannot know on its own is which chapter that is.
@@ -625,7 +633,8 @@ private:
     ArtifactStore m_overlayArtifacts;
     Platemaker::Infrastructure::WorkspaceSerializer m_serializer;   //!< Serializes the workspace model to/from disk.
     std::unique_ptr<WorkspaceLock> m_lock;      //!< The open workspace's folder, held; null when none is open.
-    QList<int> m_workspaceFontIds;              //!< The open workspace's `fonts/`, as registered with QFontDatabase.
+    QHash<QString, int> m_workspaceFonts;       //!< The open workspace's `fonts/`, as registered: file name → QFontDatabase id. By name, so it survives a Save As.
+    QStringList m_installedFamilies;            //!< The font families installed on this computer, taken before any workspace's are added.
     //! The bubble presets, one store for the application: every strip editor is handed it, so a preset
     //! saved, deleted or imported anywhere is offered everywhere at once. Presets follow the artist, not
     //! the chapter — they live in the application's settings, and a workspace closing does not touch them.

@@ -68,7 +68,7 @@ View    Workspace panel · Action panel
 Canvas  New profile… · Edit active profile… · Manage profiles… │ Import ▸ · Export ▸ │
         Templates… · Open templates folder
 Output  New profile… · Edit active profile… · Manage profiles… │ Import ▸ · Export ▸
-Tools   Import bubble presets… · Export bubble presets…
+Tools   Import bubble presets… · Export bubble presets… │ Fonts…
 Render  Render current project (F5) · Refresh all projects (F6) │ Stop (Esc)
 Help    Help │ Authors · Version
 ```
@@ -1051,6 +1051,21 @@ open sets back what was set in a stand-in. Measured on Qt 6.11 (Windows): the re
 installed copy of the same family, and the family is listed once. Files added while the workspace is open
 count from the next open; a file that will not load is named in the Action log. The folder is the
 user's: never swept, and carried whole — licence files included — by Save As.
+- ***Tools → Fonts…*** (`mainwindow/fonts.cpp`) lists the files in `fonts/` — family, style, file, whether
+  each is active (or active from the next open, when it was put there by hand meanwhile, or not a usable
+  font), and whether the same family is also installed. "Installed" is the font database as it stood
+  before any workspace's fonts were added, taken once at start-up. Below that, the families the bubbles
+  use that are missing, with how many objects each — the same answer as the missing-fonts advisory
+  (`objectsInStandIns()`). ***Add font…*** asks the lock (`canWriteWorkspace()`), copies the files into
+  `fonts/` (a different file under the same name is refused, never overwritten), activates them at once
+  and re-evaluates the advisories. Objects already baked in a stand-in are re-set at once by the same heal
+  that runs at open — not an undo step, since it repairs files to match their records; a step recorded
+  before it still names the stand-in's bytes, which the next open heals again. *Show folder* opens
+  `fonts/` in Explorer.
+- **The strip editor follows the font database.** A font added or removed changes what a bubble's words
+  are set in without changing its record, so `ObjectController` listens to
+  `QGuiApplication::fontDatabaseChanged` (emitted synchronously by `addApplicationFont()` and
+  `removeApplicationFont()`, measured) and rebuilds every bubble's outline and rasterisation.
 
 **Moving the folder is safe.** The library writes each overlay's path twice — absolute, and relative to
 the workspace file when it lies inside its folder — and prefers the relative one on load when it names a

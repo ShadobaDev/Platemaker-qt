@@ -1085,7 +1085,10 @@ with every overlay found.
 **Export package…** (`mainwindow/package.cpp`) hands the workspace to another machine or person: one
 `<name>.platemaker.zip` that opens there with nothing to fix, pages included. The library plans and writes
 it (`WorkspacePackager`, lib 0.6.0 — the copy with its paths rewritten, uids kept, no outputs and no trace
-of the last render, `package.json` last); the GUI adds what the model does not name:
+of the last render, `package.json` last). **The package mirrors the workspace folder**: `overlays/`,
+`templates/` and `fonts/` keep their places because they are where the GUI put them — the library knows none
+of them by name — and only pages and files from outside the folder come in, under `inputs/` and `external/`.
+An unpacked package is therefore the GUI's own layout again. The GUI adds what the model does not name:
 - **the picture behind every lettered picture**, beside its wrapper under the name its record gives;
 - **fonts:** the workspace's `fonts/`, whole, and the installed files of every family a bubble names
   explicitly — every style of it (`installedFontFiles()`, DirectWrite; on Linux not yet, so such a family

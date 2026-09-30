@@ -314,6 +314,23 @@ New, backward-compatible features. Several are gated on a lib version, noted in 
   - ~~*Install*~~ **Done (2026-09-30).** Offering it when a package brings fonts is part of
     *Open package…* below.
 
+- [ ] **A clickable workspace file (`<name>.platemaker`) — idea, to decide.** Today Platemaker has to be
+  started before a workspace can be opened, and `*.platemaker.json` cannot be associated with it: Windows
+  associates by the last extension, which is `.json`. The idea is **not** to replace the workspace file, but to
+  add a small GUI-owned file beside it that the operating system opens with Platemaker, and that holds what
+  belongs to the GUI rather than to the library's model — a layout version for the folder (a place to
+  migrate from), the window's state, the active profiles, the open docks.
+  - **Precedents:** VS Code's `.code-workspace` (a JSON file you open, naming folders and settings, beside the
+    code's own files); Sublime Text's `.sublime-project` (shared) and `.sublime-workspace` (per-user state);
+    Visual Studio's `.sln` above its projects, with per-user state in `.vs/`; Siemens TIA Portal's `.apNN`, the
+    file you double-click in a project folder whose data lives in subfolders beside it; Ableton Live's
+    `Ableton Project Info/` folder of metadata next to the `.als` set.
+  - **To settle:** which file the one-workspace-per-folder rule counts, and what opening the `.json` directly
+    still means; that Save As, the sweep and the package carry it (a package mirrors the folder, so it would
+    travel as is); the installer's file association; what happens when the two disagree.
+  - The package itself could get its own extension and association the same way (Ableton's `.alp` model) —
+    smaller, and independent of the rest.
+
 - [x] **Export / open a workspace package.** One zip with the workspace, `overlays/`, `templates/`,
   `inputs/` and `fonts/` (everything in `fonts/` plus the installed fonts the bubbles name; the
   platform's default font is not packed). Every path is

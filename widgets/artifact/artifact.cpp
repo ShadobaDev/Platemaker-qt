@@ -148,11 +148,14 @@ const QList<Artifact::Shape>& shapeOrder()
 
 Artifact::Shape shapeFromName(QStringView name)
 {
-    for (int i = 0; i <= int(Artifact::Shape::Banner); ++i) {
-        const auto s = static_cast<Artifact::Shape>(i);
+    // The picker's list and the one kind it leaves out — not a bound of our own. A bound written
+    // here (it was `<= Banner`) is passed silently by the next shape appended, which then loads from
+    // every file as a speech balloon; a shape missing from the picker is caught by the unit tests.
+    if (name == QLatin1String(shapeName(Artifact::Shape::None)))
+        return Artifact::Shape::None;
+    for (Artifact::Shape s : shapeOrder())
         if (name == QLatin1String(shapeName(s)))
             return s;
-    }
     return Artifact::Shape::Speech;
 }
 
@@ -168,7 +171,7 @@ const char* styleName(Artifact::Style s)
 
 Artifact::Style styleFromName(QStringView name)
 {
-    for (int i = 0; i <= int(Artifact::Style::Ink); ++i) {
+    for (int i = 0; i <= int(StyleProperties::k_lastKind); ++i) {
         const auto s = static_cast<Artifact::Style>(i);
         if (name == QLatin1String(styleName(s)))
             return s;

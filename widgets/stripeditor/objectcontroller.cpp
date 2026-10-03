@@ -31,6 +31,7 @@
 #include <QKeySequence>
 #include <QTreeWidget>
 #include <QInputDialog>
+#include <QJsonDocument>
 #include <QMessageBox>
 #include <QPainter>
 #include <QPen>
@@ -870,7 +871,9 @@ QIcon ObjectController::rowGlyph(const QString& uid)
 {
     // Drawn once per look, not once per feed. The silhouette is cheap but not free — a tail's base is
     // found by casting a ray at the outline — and a feed arrives after every edit, so the key is what the
-    // glyph is made of: the shape, the tails, the box's proportions and the two colours it wears.
+    // glyph is made of: the record, less the groups a glyph does not draw. Taken from the persisted form
+    // rather than listed field by field, because a field that changes the drawing is persisted anyway —
+    // a hand-written list missed the stroke width and a tail's width and bend.
     if (!isParametric(uid)) {
         // Imported artwork: no authoring record, so no silhouette. The art is its own glyph.
         const auto* art = qobject_cast<const AssetObject*>(m_overlayItems.value(uid));
@@ -878,14 +881,11 @@ QIcon ObjectController::rowGlyph(const QString& uid)
     }
     const Artifact a = recordFor(uid);
 
-    QString key = QStringLiteral("%1|%2|%3x%4|%5|%6")
-                      .arg(static_cast<int>(a.shape.kind))
-                      .arg(a.tails.items.size())
-                      .arg(a.box.width())
-                      .arg(a.box.height())
-                      .arg(a.skin.fill.name(QColor::HexArgb), a.skin.stroke.name(QColor::HexArgb));
-    for (const Tail& t : a.tails.items)
-        key += QStringLiteral("|%1,%2").arg(qRound(t.tip.x())).arg(qRound(t.tip.y()));
+    Artifact drawn  = a;
+    drawn.text      = {};   // a glyph is the silhouette; lettering is drawn as a fixed "Aa"
+    drawn.style     = {};   // line styles are SVG filters, applied by the render and never here
+    drawn.styleSeed = 0;
+    QString key = QString::fromUtf8(QJsonDocument(artifactToJson(drawn)).toJson(QJsonDocument::Compact));
     key += QStringLiteral("|@%1").arg(m_list->devicePixelRatioF());   // a window can move to another screen
 
     auto it = m_glyphs.constFind(uid);
@@ -1730,7 +1730,7 @@ void ObjectController::applyGroupToSelection(PropertyGroup group)
         case PropertyGroup::Shape:
             // The silhouette, to everything that has one. A shapeless object is **left alone**: giving
             // it a balloon would be a conversion, and a conversion is somewhere else on this menu.
-            if (shaped) { each.shape.kind = source.shape.kind; ++changed; }
+            if (shaped) { each.shape = source.shape; ++changed; }   // the group, not just its kind
             break;
         case PropertyGroup::Skin:
             if (shaped) { each.skin = source.skin; ++changed; }   // nothing to fill without a silhouette
@@ -1795,6 +1795,8 @@ void ObjectController::convertSelectionTo(Artifact::Shape kind)
         if (authored && hasSilhouette != toSilhouette) {
             if (!toSilhouette)
                 hidden += static_cast<int>(each.tails.items.size());
+            // The kind alone, on purpose: the rest of the shape group stays in the record, as the tails
+            // do, so converting back brings a shape's own settings back with it.
             each.shape.kind = kind;
             ++converted;
         }

@@ -125,6 +125,10 @@ struct ShapeProperties
      */
     enum class Kind { None, Speech, Shout, Caption, Ellipse, Diamond, Trapezoid, Thought, Scroll, Banner };
 
+    //! The enum's last value. **Appending a shape moves this** — it is how the unit tests know a shape
+    //! exists that the picker (shapeOrder()) does not offer, and which therefore would not load either.
+    static constexpr Kind k_lastKind = Kind::Banner;
+
     Kind kind = Kind::Speech;
 
     [[nodiscard]] static ShapeProperties from(const Artifact& a);
@@ -153,7 +157,11 @@ struct StyleProperties
      */
     enum class Kind { Clean, Marker, Ink };
 
-    Kind  kind   = Kind::Clean;  //!< Clean is a true no-op: no filter is emitted at all.
+    //! The enum's last value. **Appending a style moves this**: styleFromName() reads up to it, and a
+    //! style past it would load from every file as Clean.
+    static constexpr Kind k_lastKind = Kind::Ink;
+
+    Kind  kind  = Kind::Clean;  //!< Clean is a true no-op: no filter is emitted at all.
     qreal amount = 1.0;          //!< Scales the effect, 0..2. 1.0 is the preset's own strength.
 
     [[nodiscard]] static StyleProperties from(const Artifact& a);
@@ -307,7 +315,9 @@ struct Artifact
     TextProperties text;
     SkinProperties skin;   //!< Fill, stroke and stroke width — see SkinProperties.
 
-    //! True when a tail should be drawn. A shapeless artifact has nothing to grow a tail from.
+    //! Somebody else drew this one: the drawing is `artwork`, and none of our geometry applies to it.
+    [[nodiscard]] bool isArtwork() const { return !artwork.isEmpty(); }
+
     /**
      * @brief Whether this object has a balloon behind its lettering — **the one structural question**.
      *
@@ -318,11 +328,9 @@ struct Artifact
      *
      * Written out by hand in twenty places before it had a name, in both polarities.
      */
-    //! Somebody else drew this one: the drawing is `artwork`, and none of our geometry applies to it.
-    [[nodiscard]] bool isArtwork() const { return !artwork.isEmpty(); }
-
     [[nodiscard]] bool hasSilhouette() const { return !isArtwork() && shape.kind != Shape::None; }
 
+    //! True when a tail should be drawn. A shapeless artifact has nothing to grow a tail from.
     [[nodiscard]] bool hasTail() const { return hasSilhouette() && !tails.items.isEmpty(); }
 
     [[nodiscard]] bool operator==(const Artifact& o) const;

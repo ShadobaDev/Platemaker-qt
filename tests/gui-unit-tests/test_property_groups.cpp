@@ -51,6 +51,50 @@ Artifact loadedArtifact()
     return a;
 }
 
+// ---------------------------------------------------------------------------
+// What this file knows each group to hold. A field added to a group, and not here, stops the build.
+//
+// Each mirror lists the fields expectUntouched() checks, in the group's own order, so the two structs
+// are laid out by the same rules on every compiler and differ in size only when the group has grown.
+// A new field has to go into: the group's operator==, artifactToJson() / artifactFromJson(),
+// artifactToSvg() / artifactFromSvg() (`pm:*`), loadedArtifact(), expectUntouched() — and the mirror.
+//
+// ponytail: a size check. A field small enough to fit into existing padding (a bool after
+// StyleProperties::kind) passes unnoticed; counting members needs C++20, or reflection.
+// ---------------------------------------------------------------------------
+
+struct ShapeMirror { ShapeProperties::Kind kind; };
+static_assert(sizeof(ShapeProperties) == sizeof(ShapeMirror),
+              "ShapeProperties grew a field: place it (see above), then mirror it");
+
+struct SkinMirror { QColor fill, stroke; int strokeWidth; };
+static_assert(sizeof(SkinProperties) == sizeof(SkinMirror),
+              "SkinProperties grew a field: place it (see above), then mirror it");
+
+struct StyleMirror { StyleProperties::Kind kind; qreal amount; };
+static_assert(sizeof(StyleProperties) == sizeof(StyleMirror),
+              "StyleProperties grew a field: place it (see above), then mirror it");
+
+struct TextMirror { QString body, family; int pixelSize; bool bold; int align; QColor colour; };
+static_assert(sizeof(TextProperties) == sizeof(TextMirror),
+              "TextProperties grew a field: place it (see above), then mirror it");
+
+struct TailMirror { QPointF tip; qreal baseWidth, bend; };
+static_assert(sizeof(Tail) == sizeof(TailMirror),
+              "Tail grew a field: place it (see above), then mirror it");
+
+struct TailsMirror { QList<Tail> items; };
+static_assert(sizeof(TailsProperties) == sizeof(TailsMirror),
+              "TailsProperties grew a field: place it (see above), then mirror it");
+
+struct ArtifactMirror {
+    ShapeProperties shape; QString artwork; QSize box; TailsProperties tails; StyleProperties style;
+    quint32 styleSeed; TextProperties text; SkinProperties skin;
+};
+static_assert(sizeof(Artifact) == sizeof(ArtifactMirror),
+              "Artifact grew a field: place it (see above), then mirror it");
+
+
 //! Which group a test is applying, so everything else can be checked as untouched.
 enum class Group { Shape, Skin, Style, Text, Tails, Nothing };
 
@@ -59,8 +103,9 @@ enum class Group { Shape, Skin, Style, Text, Tails, Nothing };
  *
  * Listed property by property rather than through the groups' own operator==, on purpose: equality is
  * itself something that can be forgotten when a property is added, and a test leaning on it would
- * weaken silently at exactly the moment it is most needed. **Adding a property to Artifact should
- * break this function until someone has decided which group owns it.**
+ * weaken silently at exactly the moment it is most needed. **Adding a property to Artifact breaks the
+ * build above until someone has decided which group owns it**, and then this function is the next
+ * place it goes.
  */
 void expectUntouched(Group applied, const Artifact& before, const Artifact& after)
 {
@@ -307,6 +352,38 @@ TEST(PropertyGroupPersistence, RoundTrips)
     EXPECT_EQ(b, a);
 }
 
+/**
+ * @brief **Every** shape and every line style comes back from both files it is saved to — the undo
+ *        snapshot's JSON and the overlay's SVG.
+ *
+ * Both read a kind back by its name — the JSON's `shape` and the SVG's `pm:shape` go through the same
+ * shapeFromName() — and a reader that stops short of the last kind loads whatever lies past it as the
+ * fallback: a balloon appended after Banner came back from every file as a speech balloon. RoundTrips
+ * above tries one shape, which is how that went unseen.
+ *
+ * The SVG is not written here: writing one measures its lettering, which needs the QGuiApplication
+ * this target does not have (see the import tests below). The name is what both readers share.
+ */
+TEST(PropertyGroupPersistence, EveryShapeAndStyleRoundTrips)
+{
+    QList<Artifact::Shape> shapes{Artifact::Shape::None};
+    shapes += shapeOrder();
+    for (Artifact::Shape s : shapes) {
+        EXPECT_EQ(shapeFromName(QString::fromLatin1(shapeName(s))), s) << shapeName(s);
+        Artifact a   = loadedArtifact();
+        a.shape.kind = s;
+        EXPECT_EQ(artifactFromJson(artifactToJson(a)), a) << shapeName(s);
+    }
+
+    for (int i = 0; i <= int(StyleProperties::k_lastKind); ++i) {
+        const auto s = static_cast<Artifact::Style>(i);
+        EXPECT_EQ(styleFromName(QString::fromLatin1(styleName(s))), s) << styleName(s);
+        Artifact a   = loadedArtifact();
+        a.style.kind = s;
+        EXPECT_EQ(artifactFromJson(artifactToJson(a)), a) << styleName(s);
+    }
+}
+
 // ---------------------------------------------------------------------------
 // Conversion
 // ---------------------------------------------------------------------------
@@ -351,7 +428,7 @@ TEST(Conversion, ThePickerOffersEverySilhouetteAndNoKind)
 {
     EXPECT_FALSE(shapeOrder().contains(Artifact::Shape::None));
     // Every enumerated shape except None, and each of them once.
-    EXPECT_EQ(shapeOrder().size(), int(Artifact::Shape::Banner));
+    EXPECT_EQ(shapeOrder().size(), int(ShapeProperties::k_lastKind));
     for (Artifact::Shape s : shapeOrder()) {
         EXPECT_FALSE(shapeTitle(s).isEmpty()) << shapeName(s);
         EXPECT_EQ(shapeOrder().count(s), 1) << shapeName(s);

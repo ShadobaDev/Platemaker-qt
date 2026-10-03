@@ -123,7 +123,10 @@ Artifact ToolOptionsPanel::prototype() const
     Artifact a;
     // Shape first: the tails editor reads it, because a shapeless artifact has nothing to grow a tail
     // from. Everything else is order-independent by construction — no two groups touch a property.
-    // The tool places its own kind if it has one; otherwise the tiles' balloon, which is never None.
+    // The whole group through its editor, like every other group, so whatever a shape grows beyond its
+    // kind arrives with it. Then the kind: the tool's own if it has one, otherwise the tiles' balloon,
+    // which is never None.
+    m_groups.shape()->applyTo(a);
     a.shape.kind = m_toolShape ? *m_toolShape : balloonShape();
     m_groups.skin()->applyTo(a);
     m_groups.style()->applyTo(a);

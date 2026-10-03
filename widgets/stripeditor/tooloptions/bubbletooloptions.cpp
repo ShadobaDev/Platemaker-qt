@@ -1,4 +1,4 @@
-#include "tooloptions/tooloptionspanel.hpp"
+#include "tooloptions/bubbletooloptions.hpp"
 
 #include <QAction>
 #include <QComboBox>
@@ -17,12 +17,12 @@
 #include "properties/shapeeditor.hpp"
 #include "properties/skineditor.hpp"
 #include "properties/styleeditor.hpp"
-#include "properties/tailseditor.hpp"
+#include "properties/nexttaileditor.hpp"
 #include "properties/texteditor.hpp"
 
 namespace StripEdit {
 
-ToolOptionsPanel::ToolOptionsPanel(PresetStore& presets, QWidget* parent)
+BubbleToolOptions::BubbleToolOptions(PresetStore& presets, QWidget* parent)
     : QWidget(parent)
     , m_presets(presets)
     , m_groups(this)
@@ -67,7 +67,7 @@ ToolOptionsPanel::ToolOptionsPanel(PresetStore& presets, QWidget* parent)
     m_shapeGroup = new QGroupBox(tr("Shape"), this);
     auto* shapeLay = new QVBoxLayout(m_shapeGroup);
     shapeLay->addWidget(m_groups.shape());
-    m_tails = new TailsEditor(this);
+    m_tails = new NextTailEditor(this);
     shapeLay->addWidget(m_tails);
     shapeLay->addWidget(m_groups.skin());
     shapeLay->addWidget(m_groups.style());
@@ -105,20 +105,20 @@ ToolOptionsPanel::ToolOptionsPanel(PresetStore& presets, QWidget* parent)
     syncFromModel();
 }
 
-Artifact::Shape ToolOptionsPanel::balloonShape() const
+Artifact::Shape BubbleToolOptions::balloonShape() const
 {
     Artifact picked;
     m_groups.shape()->applyTo(picked);
     return picked.hasSilhouette() ? picked.shape.kind : Artifact::Shape::Speech;
 }
 
-void ToolOptionsPanel::setToolShape(std::optional<Artifact::Shape> shape)
+void BubbleToolOptions::setToolShape(std::optional<Artifact::Shape> shape)
 {
     m_toolShape = shape;
     m_shapeGroup->setVisible(!shape.has_value());
 }
 
-Artifact ToolOptionsPanel::prototype() const
+Artifact BubbleToolOptions::prototype() const
 {
     Artifact a;
     // Shape first: the tails editor reads it, because a shapeless artifact has nothing to grow a tail
@@ -147,7 +147,7 @@ Artifact ToolOptionsPanel::prototype() const
 
 // ---------------------------------------------------------------------------
 
-void ToolOptionsPanel::onControlChanged()
+void BubbleToolOptions::onControlChanged()
 {
     if (m_populating)
         return;
@@ -157,7 +157,7 @@ void ToolOptionsPanel::onControlChanged()
     // to preview and nothing to persist until one is placed.
 }
 
-void ToolOptionsPanel::syncFromModel()
+void BubbleToolOptions::syncFromModel()
 {
     m_populating = true;
     m_groups.bind(m_artifact);
@@ -169,7 +169,7 @@ void ToolOptionsPanel::syncFromModel()
 // Presets
 // ---------------------------------------------------------------------------
 
-void ToolOptionsPanel::refreshPresetCombo()
+void BubbleToolOptions::refreshPresetCombo()
 {
     const QSignalBlocker block(m_presetCombo);
     m_presetCombo->clear();
@@ -187,7 +187,7 @@ void ToolOptionsPanel::refreshPresetCombo()
     refreshLook();
 }
 
-void ToolOptionsPanel::refreshLook()
+void BubbleToolOptions::refreshLook()
 {
     // **Delete acts on the look, not on a picker's selection.** With nothing claimed above, the honest
     // subject is the preset these values *are*, and only if it is the artist's own: a built-in cannot be
@@ -195,7 +195,7 @@ void ToolOptionsPanel::refreshLook()
     m_presetDelete->setEnabled(m_presets.isCustom(m_presets.matching(m_artifact)));
 }
 
-void ToolOptionsPanel::applyPreset(int index)
+void BubbleToolOptions::applyPreset(int index)
 {
     m_presetDelete->setEnabled(m_presets.isCustom(index));
     m_presetCombo->setCurrentIndex(-1);   // it applied a look; it is not now *showing* one
@@ -206,7 +206,7 @@ void ToolOptionsPanel::applyPreset(int index)
     syncFromModel();
 }
 
-void ToolOptionsPanel::onSavePreset()
+void BubbleToolOptions::onSavePreset()
 {
     bool ok = false;
     // Offered back: the name these values already carry, so saving over a preset needs no retyping,
@@ -234,7 +234,7 @@ void ToolOptionsPanel::onSavePreset()
     refreshPresetCombo();
 }
 
-void ToolOptionsPanel::onDeletePreset()
+void BubbleToolOptions::onDeletePreset()
 {
     const int i = m_presets.matching(m_artifact);   // the one the chip names, and it is the artist's own
     if (!m_presets.isCustom(i))

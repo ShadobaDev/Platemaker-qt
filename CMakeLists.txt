@@ -64,8 +64,8 @@ qt_add_executable(Platemaker
     widgets/stripeditor/editor.cpp widgets/stripeditor/editor.hpp widgets/stripeditor/editor.ui
     widgets/stripeditor/objects/object.cpp widgets/stripeditor/objects/object.hpp
     widgets/stripeditor/objects/bubbleobject.cpp widgets/stripeditor/objects/bubbleobject.hpp
-    widgets/stripeditor/objects/assetobject.cpp widgets/stripeditor/objects/assetobject.hpp
-    widgets/stripeditor/objects/layout.cpp widgets/stripeditor/objects/layout.hpp
+    widgets/stripeditor/objects/artworkobject.cpp widgets/stripeditor/objects/artworkobject.hpp
+    widgets/stripeditor/objects/striplayout.cpp widgets/stripeditor/objects/striplayout.hpp
     widgets/stripeditor/canvas/pagesource.cpp widgets/stripeditor/canvas/pagesource.hpp
     widgets/stripeditor/objects/objectcontroller.cpp widgets/stripeditor/objects/objectcontroller.hpp
     widgets/stripeditor/toolrail/toolregistry.cpp widgets/stripeditor/toolrail/toolregistry.hpp
@@ -80,16 +80,16 @@ qt_add_executable(Platemaker
     widgets/stripeditor/properties/shapeeditor.cpp widgets/stripeditor/properties/shapeeditor.hpp
     widgets/stripeditor/properties/skineditor.cpp widgets/stripeditor/properties/skineditor.hpp
     widgets/stripeditor/properties/styleeditor.cpp widgets/stripeditor/properties/styleeditor.hpp
-    widgets/stripeditor/properties/tailseditor.cpp widgets/stripeditor/properties/tailseditor.hpp
+    widgets/stripeditor/properties/nexttaileditor.cpp widgets/stripeditor/properties/nexttaileditor.hpp
     widgets/stripeditor/properties/taillisteditor.cpp widgets/stripeditor/properties/taillisteditor.hpp
     widgets/stripeditor/properties/taileditor.cpp widgets/stripeditor/properties/taileditor.hpp
     widgets/stripeditor/properties/texteditor.cpp widgets/stripeditor/properties/texteditor.hpp
     widgets/stripeditor/properties/colouradjustment.cpp widgets/stripeditor/properties/colouradjustment.hpp
-    widgets/stripeditor/tooloptions/gradepanel.cpp widgets/stripeditor/tooloptions/gradepanel.hpp widgets/stripeditor/tooloptions/gradepanel.ui
-    widgets/stripeditor/tooloptions/tooloptionspanel.cpp widgets/stripeditor/tooloptions/tooloptionspanel.hpp
-    widgets/stripeditor/tooloptions/artworkoptionspanel.cpp widgets/stripeditor/tooloptions/artworkoptionspanel.hpp
-    widgets/stripeditor/objectstate/objectstatepanel.cpp widgets/stripeditor/objectstate/objectstatepanel.hpp
-    widgets/stripeditor/objectstate/stripstatepanel.cpp widgets/stripeditor/objectstate/stripstatepanel.hpp
+    widgets/stripeditor/tooloptions/gradetooloptions.cpp widgets/stripeditor/tooloptions/gradetooloptions.hpp widgets/stripeditor/tooloptions/gradetooloptions.ui
+    widgets/stripeditor/tooloptions/bubbletooloptions.cpp widgets/stripeditor/tooloptions/bubbletooloptions.hpp
+    widgets/stripeditor/tooloptions/artworktooloptions.cpp widgets/stripeditor/tooloptions/artworktooloptions.hpp
+    widgets/stripeditor/objectstate/objectstate.cpp widgets/stripeditor/objectstate/objectstate.hpp
+    widgets/stripeditor/objectstate/stripstate.cpp widgets/stripeditor/objectstate/stripstate.hpp
     widgets/collapsiblesection/collapsiblesection.cpp widgets/collapsiblesection/collapsiblesection.hpp
 
     # Text artifact — what a bubble IS (shape, text, styling), its sidecar codec and its rasteriser.

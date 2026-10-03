@@ -1,5 +1,5 @@
 #include "canvas/pagesource.hpp"
-#include "objects/layout.hpp"
+#include "objects/striplayout.hpp"
 
 #include <QDebug>
 #include <QFutureWatcher>
@@ -24,7 +24,7 @@ constexpr int k_proxyCacheKiB = 24 * 1024;   //!< Hundreds of 200px-wide proxies
 
 } // namespace
 
-PageSource::PageSource(const Layout& layout, QObject* parent)
+PageSource::PageSource(const StripLayout& layout, QObject* parent)
     : QObject(parent)
     , m_layout(layout)
 {

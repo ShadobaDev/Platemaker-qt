@@ -18,7 +18,7 @@
 
 namespace StripEdit {
 
-class Layout;
+class StripLayout;
 
 /**
  * @brief "Give me page \p n at the best fidelity available." — the strip's page memory.
@@ -29,7 +29,7 @@ class Layout;
  * discard results still in flight. The editor above it only ever asks for a page and repaints when
  * one arrives.
  *
- * It holds the \c Layout by reference rather than owning it: page geometry is what the *editor*
+ * It holds the \c StripLayout by reference rather than owning it: page geometry is what the *editor*
  * builds (and what every overlay placement question is asked of), while this class only needs to know
  * which input a page index maps to and how big it is.
  */
@@ -38,7 +38,7 @@ class PageSource : public QObject
     Q_OBJECT
 
 public:
-    explicit PageSource(const Layout& layout, QObject* parent = nullptr);
+    explicit PageSource(const StripLayout& layout, QObject* parent = nullptr);
 
     /**
      * @brief Adopts a new feed, and says whether it is actually a different strip.
@@ -66,7 +66,7 @@ public:
      */
     [[nodiscard]] std::vector<Platemaker::Core::PagePreviewGeometry> layoutPages() const;
 
-    //! The feed's inputs — the Layout needs them to turn the geometry above into drawable pages.
+    //! The feed's inputs — the StripLayout needs them to turn the geometry above into drawable pages.
     [[nodiscard]] const std::vector<Platemaker::Models::InputFile>& inputs() const { return m_inputs; }
 
     //! Where the render will cut, which is what the editor draws its seam guides at.
@@ -108,7 +108,7 @@ signals:
 
 private:
     //! Page geometry, owned by the editor. Only read here: which input, how big, which file.
-    const Layout& m_layout;
+    const StripLayout& m_layout;
 
     // --- the feed: everything the lib needs to put one input page through the page domain ---
     std::vector<Platemaker::Models::InputFile>     m_inputs;           //!< Project inputs in strip order.

@@ -9,7 +9,7 @@
 #include <QSize>
 #include <QString>
 
-#include "objects/layout.hpp"
+#include "objects/striplayout.hpp"
 #include "canvas/pagesource.hpp"
 #include "artifact.hpp"
 #include "toolrail/toolregistry.hpp"
@@ -43,14 +43,14 @@ class QMimeData;
 
 namespace StripEdit {
 
-class ArtworkOptionsPanel;
+class ArtworkToolOptions;
 
 class ColourPair;
-class GradePanel;
-class ObjectStatePanel;
-class StripStatePanel;
+class GradeToolOptions;
+class ObjectState;
+class StripState;
 class PresetStore;
-class ToolOptionsPanel;
+class BubbleToolOptions;
 class ObjectController;
 
 /**
@@ -85,7 +85,7 @@ class ObjectController;
  * ## Memory: proxy + async page build + prefetch
  * A scaled page is far bigger than a slice (~16 MB at 800×5120), and a chapter has many, so pages are
  * brought online lazily:
- *  - **Layout** comes from `layoutPagesFromHeaders` — a header read per page, no pixels decoded.
+ *  - **StripLayout** comes from `layoutPagesFromHeaders` — a header read per page, no pixels decoded.
  *  - **Proxy tier:** the input page's thumbnail from the lib ThumbnailCache the Input tab already warms
  *    (reused, not reinvented) — drawn instantly so a page is never blank.
  *  - **Sharp tier:** the page is built through the real page domain on a worker thread, only for pages
@@ -420,7 +420,7 @@ private:
      * @brief Where every drawable page landed (those the render would skip are dropped). Indices into this
      *        key every cache below, and every overlay placement question is asked of it.
      */
-    Layout         m_layout;
+    StripLayout         m_layout;
     QList<QGraphicsLineItem*> m_seamItems; //!< Slice-cut guide lines (owned by the scene).
     double m_zoom        = 1.0;              //!< Absolute zoom factor.
     bool   m_pendingFit  = false;            //!< Re-apply the default zoom on resize until the user zooms.
@@ -454,11 +454,11 @@ private:
      */
     QLabel            *m_toolTitle    = nullptr;   //!< The tool's name, in the tool-options stack.
     QLabel            *m_toolHint     = nullptr;   //!< What a press does, in the tool-options stack.
-    GradePanel        *m_gradePanel   = nullptr;   //!< The Grade tool-options page (colour-correction controls).
+    GradeToolOptions        *m_gradePanel   = nullptr;   //!< The Grade tool-options page (colour-correction controls).
     /**
      * @brief The Artwork tool's options: which picture a placement puts down. See `setTool()`.
      */
-    ArtworkOptionsPanel *m_artworkOptions = nullptr;
+    ArtworkToolOptions *m_artworkOptions = nullptr;
     AdvisoryBar       *m_advisoryBar  = nullptr;   //!< Bottom edge of this editor; absent until setAdvisories().
     QString            m_tool;                     //!< The active tool's registry id.
 
@@ -466,11 +466,11 @@ private:
     /**
      * @brief Right-top: what the selected object *is*. Inert, and says so, while nothing is selected.
      */
-    ObjectStatePanel* m_objectState = nullptr;
+    ObjectState* m_objectState = nullptr;
     /**
      * @brief The same surface when the strip or one of its pages is selected: what *that* is.
      */
-    StripStatePanel*  m_stripState = nullptr;
+    StripState*  m_stripState = nullptr;
     /**
      * @brief ...and when imported artwork is: its size, which is all of its state that is ours to set.
      *  What the properties stack actually switches between: each panel inside its own scroll area, so a
@@ -488,7 +488,7 @@ private:
     /**
      * @brief Bottom-left, under the tool rail: what the *next* object will be. Never edits anything.
      */
-    ToolOptionsPanel* m_toolOptions = nullptr;
+    BubbleToolOptions* m_toolOptions = nullptr;
     /**
      * @brief The preset library, owned here because more than one thing needs it.
      *

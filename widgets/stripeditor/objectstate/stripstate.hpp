@@ -1,5 +1,5 @@
-#ifndef STRIPEDIT_STRIPSTATEPANEL_HPP
-#define STRIPEDIT_STRIPSTATEPANEL_HPP
+#ifndef STRIPEDIT_STRIPSTATE_HPP
+#define STRIPEDIT_STRIPSTATE_HPP
 
 #include <QHash>
 #include <QList>
@@ -20,7 +20,7 @@ namespace StripEdit {
 /**
  * @brief What the strip, or one of its pages, *is* — ③ for the subjects that are not overlays.
  *
- * The same surface as `ObjectStatePanel`, and the same question — what is selected — asked of different
+ * The same surface as `ObjectState`, and the same question — what is selected — asked of different
  * things. It is a panel of its own rather than more sections in that one because nothing here is a
  * `Artifact`: a page has no fill and no tail, and pretending otherwise would mean a panel full of
  * sections that are always hidden.
@@ -30,12 +30,12 @@ namespace StripEdit {
  * and every page exclusion alone. **A page** is named, sized, and carries the one colour decision the
  * library lets a page make — whether the strip's grade skips it.
  */
-class StripStatePanel : public QWidget
+class StripState : public QWidget
 {
     Q_OBJECT
 
 public:
-    explicit StripStatePanel(QWidget* parent = nullptr);
+    explicit StripState(QWidget* parent = nullptr);
 
     //! The strip: its page count, how many of those the grade skips, and what the grade applies.
     void showStrip(int pageCount, int excludedCount, const Platemaker::Models::ColourCorrection& cc);
@@ -81,4 +81,4 @@ private:
 
 }  // namespace StripEdit
 
-#endif // STRIPEDIT_STRIPSTATEPANEL_HPP
+#endif // STRIPEDIT_STRIPSTATE_HPP

@@ -1,5 +1,5 @@
-#ifndef STRIPEDIT_LAYOUT_HPP
-#define STRIPEDIT_LAYOUT_HPP
+#ifndef STRIPEDIT_STRIPLAYOUT_HPP
+#define STRIPEDIT_STRIPLAYOUT_HPP
 
 #include <QList>
 #include <QPointF>
@@ -42,7 +42,7 @@ struct Page
  * **Strip coordinates are scene coordinates, 1:1**, so what this returns is directly usable as a scene
  * position — which is exactly why overlays need no coordinate-mapping layer of their own.
  */
-class Layout
+class StripLayout
 {
 public:
     /**
@@ -112,4 +112,4 @@ private:
 
 }  // namespace StripEdit
 
-#endif // STRIPEDIT_LAYOUT_HPP
+#endif // STRIPEDIT_STRIPLAYOUT_HPP

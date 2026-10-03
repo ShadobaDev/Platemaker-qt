@@ -1,12 +1,12 @@
-#ifndef STRIPEDIT_TOOLOPTIONSPANEL_HPP
-#define STRIPEDIT_TOOLOPTIONSPANEL_HPP
+#ifndef STRIPEDIT_BUBBLETOOLOPTIONS_HPP
+#define STRIPEDIT_BUBBLETOOLOPTIONS_HPP
 
 #include <optional>
 
 #include <QWidget>
 
 #include "properties/propertygroupset.hpp"
-#include "properties/tailseditor.hpp"
+#include "properties/nexttaileditor.hpp"
 
 class QAction;
 class QComboBox;
@@ -25,18 +25,18 @@ class PresetStore;
  *
  * It describes an object that **does not exist yet**, so it edits nothing and emits nothing. There is no
  * text to type into it, no tail to add to something that is not there, and nothing to delete. What *is*
- * selected belongs to `ObjectStatePanel`, which is a different class answering a different question —
+ * selected belongs to `ObjectState`, which is a different class answering a different question —
  * the arrangement that stops either of them meaning two things at once.
  *
  * The preset picker lives here because a preset is what the next object starts from. Applying one to an
  * object that already exists is a different act, and it has its own place: the object's context menu.
  */
-class ToolOptionsPanel : public QWidget
+class BubbleToolOptions : public QWidget
 {
     Q_OBJECT
 
 public:
-    ToolOptionsPanel(PresetStore& presets, QWidget* parent = nullptr);
+    BubbleToolOptions(PresetStore& presets, QWidget* parent = nullptr);
 
     /**
      * @brief The shape the active tool places — or no value, when the artist picks it here.
@@ -90,7 +90,7 @@ private:
 
     PropertyGroupSet m_groups;
     //! The next balloon's tail. Not in the set: an existing balloon's tails are edited as objects instead.
-    TailsEditor*     m_tails = nullptr;
+    NextTailEditor*     m_tails = nullptr;
 
     Artifact m_artifact;       //!< The next placement's working values.
     bool m_populating   = false;   //!< Suppresses change signals while binding.
@@ -101,4 +101,4 @@ private:
 
 }  // namespace StripEdit
 
-#endif // STRIPEDIT_TOOLOPTIONSPANEL_HPP
+#endif // STRIPEDIT_BUBBLETOOLOPTIONS_HPP

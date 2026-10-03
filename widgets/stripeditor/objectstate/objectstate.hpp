@@ -1,5 +1,5 @@
-#ifndef STRIPEDIT_OBJECTSTATEPANEL_HPP
-#define STRIPEDIT_OBJECTSTATEPANEL_HPP
+#ifndef STRIPEDIT_OBJECTSTATE_HPP
+#define STRIPEDIT_OBJECTSTATE_HPP
 
 #include <QHash>
 #include <QWidget>
@@ -43,16 +43,16 @@ class TailListEditor;
  * no balloon has no answer to give. Whether there is one at all is a kind, and kinds are changed by
  * *Convert to ▸* — which is what took that job over, as this comment used to predict it would.
  *
- * Follows the same contract as `GradePanel`: \c setArtifact() populates without emitting; editing emits
+ * Follows the same contract as `GradeToolOptions`: \c setArtifact() populates without emitting; editing emits
  * \c changed() continuously (live preview) and \c committed() once the controls settle (debounced) or on
  * a discrete action (persisted, one undo step).
  */
-class ObjectStatePanel : public QWidget
+class ObjectState : public QWidget
 {
     Q_OBJECT
 
 public:
-    ObjectStatePanel(PresetStore& presets, QWidget* parent = nullptr);
+    ObjectState(PresetStore& presets, QWidget* parent = nullptr);
 
     //! Shows \p a and names it in the header. Emits nothing.
     void setArtifact(const Artifact& a);
@@ -180,4 +180,4 @@ private:
 
 }  // namespace StripEdit
 
-#endif // STRIPEDIT_OBJECTSTATEPANEL_HPP
+#endif // STRIPEDIT_OBJECTSTATE_HPP

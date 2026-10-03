@@ -1,4 +1,4 @@
-#include "objects/layout.hpp"
+#include "objects/striplayout.hpp"
 
 namespace StripEdit {
 
@@ -11,7 +11,7 @@ const Page& nullPage()
 }
 } // namespace
 
-void Layout::build(const std::vector<Platemaker::Core::PagePreviewGeometry>& geometry,
+void StripLayout::build(const std::vector<Platemaker::Core::PagePreviewGeometry>& geometry,
                         const std::vector<Platemaker::Models::InputFile>&         inputs)
 {
     clear();
@@ -39,25 +39,25 @@ void Layout::build(const std::vector<Platemaker::Core::PagePreviewGeometry>& geo
     m_height = y;
 }
 
-void Layout::clear()
+void StripLayout::clear()
 {
     m_pages.clear();
     m_width  = 0;
     m_height = 0;
 }
 
-const Page& Layout::page(int i) const
+const Page& StripLayout::page(int i) const
 {
     return (i >= 0 && i < m_pages.size()) ? m_pages.at(i) : nullPage();
 }
 
-QRectF Layout::pageRect(int i) const
+QRectF StripLayout::pageRect(int i) const
 {
     const Page& p = page(i);
     return QRectF(0, p.top, p.size.width(), p.size.height());
 }
 
-int Layout::pageAtSceneY(qreal y) const
+int StripLayout::pageAtSceneY(qreal y) const
 {
     if (m_pages.isEmpty())
         return -1;
@@ -67,12 +67,12 @@ int Layout::pageAtSceneY(qreal y) const
     return 0;   // above the first page: clamp, never fall through to an absolute placement
 }
 
-QString Layout::anchorUidForPage(int page) const
+QString StripLayout::anchorUidForPage(int page) const
 {
     return this->page(page).inputUid;
 }
 
-int Layout::pageForAnchor(const QString& uid) const
+int StripLayout::pageForAnchor(const QString& uid) const
 {
     if (uid.isEmpty())
         return -1;
@@ -82,7 +82,7 @@ int Layout::pageForAnchor(const QString& uid) const
     return -1;
 }
 
-QPointF Layout::scenePosOf(const Platemaker::Models::StripOverlay& o) const
+QPointF StripLayout::scenePosOf(const Platemaker::Models::StripOverlay& o) const
 {
     const int page = pageForAnchor(QString::fromStdString(o.anchorInputUid));
     const int top  = (page >= 0) ? m_pages.at(page).top : 0;

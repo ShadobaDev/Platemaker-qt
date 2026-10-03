@@ -1,4 +1,4 @@
-#include "objectstate/objectstatepanel.hpp"
+#include "objectstate/objectstate.hpp"
 
 #include <QDoubleSpinBox>
 #include <QFormLayout>
@@ -42,12 +42,12 @@ bool expandedByDefault(PropertyGroup g)
 QString sectionTitle(PropertyGroup g)
 {
     switch (g) {
-    case PropertyGroup::Shape: return ObjectStatePanel::tr("Shape");
-    case PropertyGroup::Skin:  return ObjectStatePanel::tr("Fill && outline");
-    case PropertyGroup::Style: return ObjectStatePanel::tr("Line style");
-    case PropertyGroup::Text:  return ObjectStatePanel::tr("Text");
-    case PropertyGroup::Tail:  return ObjectStatePanel::tr("Tails");
-    case PropertyGroup::TailItem: return ObjectStatePanel::tr("Tail");
+    case PropertyGroup::Shape: return ObjectState::tr("Shape");
+    case PropertyGroup::Skin:  return ObjectState::tr("Fill && outline");
+    case PropertyGroup::Style: return ObjectState::tr("Line style");
+    case PropertyGroup::Text:  return ObjectState::tr("Text");
+    case PropertyGroup::Tail:  return ObjectState::tr("Tails");
+    case PropertyGroup::TailItem: return ObjectState::tr("Tail");
     default: break;
     }
     return {};
@@ -55,7 +55,7 @@ QString sectionTitle(PropertyGroup g)
 
 } // namespace
 
-ObjectStatePanel::ObjectStatePanel(PresetStore& presets, QWidget* parent)
+ObjectState::ObjectState(PresetStore& presets, QWidget* parent)
     : QWidget(parent)
     , m_presets(presets)
     , m_groups(this)
@@ -132,7 +132,7 @@ ObjectStatePanel::ObjectStatePanel(PresetStore& presets, QWidget* parent)
 
     m_blend = new BlendEditor(this);
     lay->addWidget(m_blend);
-    connect(m_blend, &BlendEditor::blendPicked, this, &ObjectStatePanel::blendPicked);
+    connect(m_blend, &BlendEditor::blendPicked, this, &ObjectState::blendPicked);
 
     // Fit and Delete act on the selection, so they live with the selection.
     m_actions = new QWidget(this);
@@ -183,7 +183,7 @@ ObjectStatePanel::ObjectStatePanel(PresetStore& presets, QWidget* parent)
     clearSelection();
 }
 
-void ObjectStatePanel::setArtifact(const Artifact& a)
+void ObjectState::setArtifact(const Artifact& a)
 {
     m_artifact      = a;
     m_tailIndex     = -1;
@@ -211,7 +211,7 @@ void ObjectStatePanel::setArtifact(const Artifact& a)
     applyKindVisibility();
 }
 
-void ObjectStatePanel::setMixedSubjects(int count)
+void ObjectState::setMixedSubjects(int count)
 {
     m_subjects.clear();
     m_hasArtifact    = false;
@@ -233,7 +233,7 @@ void ObjectStatePanel::setMixedSubjects(int count)
     refreshLook();
 }
 
-void ObjectStatePanel::setArtifacts(const QList<Artifact>& objects)
+void ObjectState::setArtifacts(const QList<Artifact>& objects)
 {
     m_subjects       = objects;
     m_hasArtifact    = false;   // no single artifact, so the single-subject signals stay quiet
@@ -284,7 +284,7 @@ void ObjectStatePanel::setArtifacts(const QList<Artifact>& objects)
     }
 }
 
-void ObjectStatePanel::setTail(const Artifact& a, int index)
+void ObjectState::setTail(const Artifact& a, int index)
 {
     m_artifact      = a;
     m_tailIndex     = index;
@@ -308,7 +308,7 @@ void ObjectStatePanel::setTail(const Artifact& a, int index)
     applyKindVisibility();
 }
 
-void ObjectStatePanel::clearSelection()
+void ObjectState::clearSelection()
 {
     m_hasArtifact    = false;
     m_selectionCount = 0;
@@ -327,12 +327,12 @@ void ObjectStatePanel::clearSelection()
         s->setVisible(false);
 }
 
-void ObjectStatePanel::focusText()
+void ObjectState::focusText()
 {
     m_groups.text()->focusContent();
 }
 
-void ObjectStatePanel::applyKindVisibility()
+void ObjectState::applyKindVisibility()
 {
     // A selected tail is a subject of its own with one section, and the balloon's groups stay the
     // balloon's. Otherwise: a shapeless object has no silhouette, so there is nothing to fill, nothing
@@ -354,7 +354,7 @@ void ObjectStatePanel::applyKindVisibility()
 }
 
 
-void ObjectStatePanel::setArtworkScale(std::optional<double> percent)
+void ObjectState::setArtworkScale(std::optional<double> percent)
 {
     m_scaleRow->setVisible(percent.has_value());
     if (!percent)
@@ -364,7 +364,7 @@ void ObjectStatePanel::setArtworkScale(std::optional<double> percent)
     m_populating = false;
 }
 
-void ObjectStatePanel::setSelectionBlend(std::optional<Platemaker::Models::BlendMode> blend,
+void ObjectState::setSelectionBlend(std::optional<Platemaker::Models::BlendMode> blend,
                                         bool applies)
 {
     m_blend->setVisible(applies);
@@ -372,7 +372,7 @@ void ObjectStatePanel::setSelectionBlend(std::optional<Platemaker::Models::Blend
         m_blend->setBlend(blend);
 }
 
-void ObjectStatePanel::refreshLook()
+void ObjectState::refreshLook()
 {
     // Rebuilt rather than relabelled: a painted chip carries its text, its colours and its tooltip
     // together, and a setter for each would be three ways to leave two of them disagreeing.
@@ -406,7 +406,7 @@ void ObjectStatePanel::refreshLook()
     m_header->insertWidget(1, m_lookChip);   // after the subject, before the stretch
 }
 
-void ObjectStatePanel::restoreExpansion()
+void ObjectState::restoreExpansion()
 {
     const QSettings st;
     for (auto it = m_sections.cbegin(); it != m_sections.cend(); ++it) {
@@ -415,7 +415,7 @@ void ObjectStatePanel::restoreExpansion()
     }
 }
 
-void ObjectStatePanel::onControlChanged()
+void ObjectState::onControlChanged()
 {
     if (m_populating)
         return;

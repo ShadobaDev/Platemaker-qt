@@ -1,4 +1,4 @@
-#include "tooloptions/artworkoptionspanel.hpp"
+#include "tooloptions/artworktooloptions.hpp"
 
 #include <QApplication>
 #include <QDrag>
@@ -12,7 +12,7 @@
 #include <QUrl>
 #include <QVBoxLayout>
 
-#include "objects/assetobject.hpp"
+#include "objects/artworkobject.hpp"
 
 namespace StripEdit {
 
@@ -26,12 +26,12 @@ constexpr int k_previewPx = 96;   //!< Enough to recognise a sound effect; not e
 //! What the file dialog offers. The same three the import has always taken.
 [[nodiscard]] QString artworkFilter()
 {
-    return ArtworkOptionsPanel::tr("Artwork (*.svg *.png *.webp);;All files (*)");
+    return ArtworkToolOptions::tr("Artwork (*.svg *.png *.webp);;All files (*)");
 }
 
 }  // namespace
 
-ArtworkOptionsPanel::ArtworkOptionsPanel(QWidget* parent)
+ArtworkToolOptions::ArtworkToolOptions(QWidget* parent)
     : QWidget(parent)
 {
     auto* lay = new QVBoxLayout(this);
@@ -64,7 +64,7 @@ ArtworkOptionsPanel::ArtworkOptionsPanel(QWidget* parent)
     refresh();
 }
 
-void ArtworkOptionsPanel::setArtwork(const QString& file)
+void ArtworkToolOptions::setArtwork(const QString& file)
 {
     if (file == m_file)
         return;
@@ -74,7 +74,7 @@ void ArtworkOptionsPanel::setArtwork(const QString& file)
     emit artworkChanged(m_file);
 }
 
-bool ArtworkOptionsPanel::chooseArtwork()
+bool ArtworkToolOptions::chooseArtwork()
 {
     const QString start = m_file.isEmpty() ? QString() : QFileInfo(m_file).absolutePath();
     const QString file  = QFileDialog::getOpenFileName(this, tr("Choose picture"), start,
@@ -85,7 +85,7 @@ bool ArtworkOptionsPanel::chooseArtwork()
     return true;
 }
 
-bool ArtworkOptionsPanel::eventFilter(QObject* watched, QEvent* event)
+bool ArtworkToolOptions::eventFilter(QObject* watched, QEvent* event)
 {
     if (watched != m_preview || m_file.isEmpty())
         return QWidget::eventFilter(watched, event);
@@ -117,7 +117,7 @@ bool ArtworkOptionsPanel::eventFilter(QObject* watched, QEvent* event)
     return QWidget::eventFilter(watched, event);
 }
 
-void ArtworkOptionsPanel::refresh()
+void ArtworkToolOptions::refresh()
 {
     if (m_file.isEmpty()) {
         m_preview->setPixmap({});

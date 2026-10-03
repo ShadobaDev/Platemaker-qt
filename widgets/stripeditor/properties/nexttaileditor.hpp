@@ -1,5 +1,5 @@
-#ifndef STRIPEDIT_TAILSEDITOR_HPP
-#define STRIPEDIT_TAILSEDITOR_HPP
+#ifndef STRIPEDIT_NEXTTAILEDITOR_HPP
+#define STRIPEDIT_NEXTTAILEDITOR_HPP
 
 #include "properties/propertygroupeditor.hpp"
 
@@ -21,12 +21,12 @@ namespace StripEdit {
  * applyTo() **reads** the target's shape and box before deciding what to write. Reading is not writing:
  * a shapeless artifact has nothing for a tail to grow from, and a first tail needs somewhere to point.
  */
-class TailsEditor : public PropertyGroupEditor
+class NextTailEditor : public PropertyGroupEditor
 {
     Q_OBJECT
 
 public:
-    explicit TailsEditor(QWidget* parent = nullptr);
+    explicit NextTailEditor(QWidget* parent = nullptr);
 
     [[nodiscard]] PropertyGroup group() const override { return PropertyGroup::Tail; }
 
@@ -67,4 +67,4 @@ private:
 
 }  // namespace StripEdit
 
-#endif // STRIPEDIT_TAILSEDITOR_HPP
+#endif // STRIPEDIT_NEXTTAILEDITOR_HPP

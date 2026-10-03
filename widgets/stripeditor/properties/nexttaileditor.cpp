@@ -1,4 +1,4 @@
-#include "properties/tailseditor.hpp"
+#include "properties/nexttaileditor.hpp"
 
 #include <QCheckBox>
 #include <QFormLayout>
@@ -10,7 +10,7 @@
 
 namespace StripEdit {
 
-TailsEditor::TailsEditor(QWidget* parent)
+NextTailEditor::NextTailEditor(QWidget* parent)
     : PropertyGroupEditor(parent)
 {
     auto* form = new QFormLayout(this);
@@ -46,7 +46,7 @@ TailsEditor::TailsEditor(QWidget* parent)
     syncEnabled();
 }
 
-void TailsEditor::bind(const Subjects& subjects)
+void NextTailEditor::bind(const Subjects& subjects)
 {
     if (subjects.isEmpty())
         return;
@@ -69,7 +69,7 @@ void TailsEditor::bind(const Subjects& subjects)
     syncEnabled();
 }
 
-void TailsEditor::applyTo(Artifact& target) const
+void NextTailEditor::applyTo(Artifact& target) const
 {
     TailsProperties next = m_values;
 
@@ -91,7 +91,7 @@ void TailsEditor::applyTo(Artifact& target) const
     next.applyTo(target);
 }
 
-void TailsEditor::applyToNew(Artifact& target) const
+void NextTailEditor::applyToNew(Artifact& target) const
 {
     TailsProperties next;
     if (m_enabled->isChecked() && target.hasSilhouette()) {
@@ -104,7 +104,7 @@ void TailsEditor::applyToNew(Artifact& target) const
     next.applyTo(target);
 }
 
-void TailsEditor::shapeChanged(Artifact::Shape kind)
+void NextTailEditor::shapeChanged(Artifact::Shape kind)
 {
     m_shapeCanSpeak = kind != Artifact::Shape::None;
     const QSignalBlocker block(m_enabled);
@@ -112,7 +112,7 @@ void TailsEditor::shapeChanged(Artifact::Shape kind)
     syncEnabled();
 }
 
-void TailsEditor::syncEnabled()
+void NextTailEditor::syncEnabled()
 {
     const bool want = m_enabled->isChecked() && m_shapeCanSpeak;
     m_width->setEnabled(want);

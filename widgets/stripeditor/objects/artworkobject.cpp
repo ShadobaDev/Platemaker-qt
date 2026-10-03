@@ -1,4 +1,4 @@
-#include "objects/assetobject.hpp"
+#include "objects/artworkobject.hpp"
 
 #include <QFileInfo>
 #include <QImage>
@@ -36,7 +36,7 @@ QPixmap loadArtwork(const QString& path)
     return QPixmap::fromImage(img);
 }
 
-AssetObject::AssetObject(QString uid, const QString& picture, QGraphicsItem* parent)
+ArtworkObject::ArtworkObject(QString uid, const QString& picture, QGraphicsItem* parent)
     : Object(std::move(uid), parent)
 {
     loadPicture(picture);
@@ -46,7 +46,7 @@ AssetObject::AssetObject(QString uid, const QString& picture, QGraphicsItem* par
     refreshBounds();
 }
 
-void AssetObject::setPicture(const QString& picture)
+void ArtworkObject::setPicture(const QString& picture)
 {
     if (picture == m_picture)
         return;
@@ -54,7 +54,7 @@ void AssetObject::setPicture(const QString& picture)
     update();   // the drawn size is the artist's and is deliberately left alone
 }
 
-void AssetObject::loadPicture(const QString& picture)
+void ArtworkObject::loadPicture(const QString& picture)
 {
     m_picture = picture;
     m_artwork = loadArtwork(picture);
@@ -71,7 +71,7 @@ void AssetObject::loadPicture(const QString& picture)
     }
 }
 
-QString AssetObject::label() const
+QString ArtworkObject::label() const
 {
     // What a row should say about a picture: its words if it has been lettered, otherwise the file —
     // which is the only thing that distinguishes one picture from another in a list of them.
@@ -82,7 +82,7 @@ QString AssetObject::label() const
     return file.isEmpty() ? tr("(imported artwork)") : file;
 }
 
-void AssetObject::setArtifact(const Artifact& a)
+void ArtworkObject::setArtifact(const Artifact& a)
 {
     Artifact next = a;
     describePicture(next);   // whatever arrived, this object is still this picture at its own pixels
@@ -92,7 +92,7 @@ void AssetObject::setArtifact(const Artifact& a)
     update();
 }
 
-void AssetObject::describePicture(Artifact& a) const
+void ArtworkObject::describePicture(Artifact& a) const
 {
     a.artwork    = QFileInfo(m_picture).fileName();
     a.shape.kind = Artifact::Shape::None;   // no silhouette of ours, said both ways
@@ -103,7 +103,7 @@ void AssetObject::describePicture(Artifact& a) const
         a.box = m_artwork.size();
 }
 
-void AssetObject::setBoxSize(QSizeF size)
+void ArtworkObject::setBoxSize(QSizeF size)
 {
     if (size == m_box)
         return;
@@ -111,7 +111,7 @@ void AssetObject::setBoxSize(QSizeF size)
     refreshBounds();
 }
 
-void AssetObject::paintContent(QPainter& painter)
+void ArtworkObject::paintContent(QPainter& painter)
 {
     const QRectF box(QPointF(0, 0), m_box);
     if (m_svg) {

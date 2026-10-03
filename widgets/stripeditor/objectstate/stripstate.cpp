@@ -1,4 +1,4 @@
-#include "objectstate/stripstatepanel.hpp"
+#include "objectstate/stripstate.hpp"
 
 #include <QCheckBox>
 #include <QHBoxLayout>
@@ -20,12 +20,12 @@ namespace {
 
 }  // namespace
 
-StripStatePanel::StripStatePanel(QWidget* parent)
+StripState::StripState(QWidget* parent)
     : QWidget(parent)
 {
     auto* lay = new QVBoxLayout(this);
 
-    // Named the way ObjectStatePanel names its subject, so the two read as one surface.
+    // Named the way ObjectState names its subject, so the two read as one surface.
     m_subject = new QLabel(this);
     m_subject->setTextFormat(Qt::PlainText);
     QFont bold = m_subject->font();
@@ -65,7 +65,7 @@ StripStatePanel::StripStatePanel(QWidget* parent)
     });
 }
 
-void StripStatePanel::showStrip(int pageCount, int excludedCount,
+void StripState::showStrip(int pageCount, int excludedCount,
                                 const Platemaker::Models::ColourCorrection& cc)
 {
     m_pageUid.clear();
@@ -83,7 +83,7 @@ void StripStatePanel::showStrip(int pageCount, int excludedCount,
     m_note->setVisible(false);
 }
 
-void StripStatePanel::showAdjustments(const Platemaker::Models::ColourCorrection& cc)
+void StripState::showAdjustments(const Platemaker::Models::ColourCorrection& cc)
 {
     QList<ColourAdjustment> applied;
     for (ColourAdjustment a : allColourAdjustments())
@@ -146,7 +146,7 @@ void StripStatePanel::showAdjustments(const Platemaker::Models::ColourCorrection
     }
 }
 
-void StripStatePanel::showPage(const QString& inputUid, const QString& label, QSize sizeInStrip,
+void StripState::showPage(const QString& inputUid, const QString& label, QSize sizeInStrip,
                                bool excluded, bool stripGraded)
 {
     m_pageUid = inputUid;

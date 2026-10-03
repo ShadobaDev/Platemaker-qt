@@ -43,7 +43,7 @@ public:
     /**
      * @brief What an object is. Kept minimal on purpose — it exists for the few places that must ask.
      */
-    enum class Kind { Bubble, Asset };
+    enum class Kind { Bubble, Artwork };
 
     /**
      * @brief What a press or a hover landed on. `Body` falls through to this class's own move handling.

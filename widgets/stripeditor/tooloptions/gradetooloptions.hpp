@@ -1,5 +1,5 @@
-#ifndef STRIPEDIT_GRADEPANEL_HPP
-#define STRIPEDIT_GRADEPANEL_HPP
+#ifndef STRIPEDIT_GRADETOOLOPTIONS_HPP
+#define STRIPEDIT_GRADETOOLOPTIONS_HPP
 
 #include <QWidget>
 
@@ -7,7 +7,7 @@
 
 #include "properties/colouradjustment.hpp"
 
-namespace Ui { class GradePanel; }
+namespace Ui { class GradeToolOptions; }
 class QDoubleSpinBox;
 class QGroupBox;
 class QLabel;
@@ -36,7 +36,7 @@ namespace StripEdit {
  * The panel works on a whole `ColourCorrection` and edits only the fields of the adjustment in front of it;
  * curves and page exclusions pass through untouched.
  */
-class GradePanel : public QWidget
+class GradeToolOptions : public QWidget
 {
     Q_OBJECT
 
@@ -48,8 +48,8 @@ public:
         Other,   //!< Nothing, or an overlay.
     };
 
-    explicit GradePanel(QWidget* parent = nullptr);
-    ~GradePanel() override;
+    explicit GradeToolOptions(QWidget* parent = nullptr);
+    ~GradeToolOptions() override;
 
     //! Populate the controls from \p cc without emitting change signals.
     void setColourCorrection(const Platemaker::Models::ColourCorrection& cc);
@@ -73,7 +73,7 @@ private:
     void refreshList();                                //!< Bold for what is applied, with its values in the tooltip.
     [[nodiscard]] ColourAdjustment currentAdjustment() const;
 
-    Ui::GradePanel*    ui;
+    Ui::GradeToolOptions*    ui;
     QLabel*         m_unavailable      = nullptr;   //!< Why the panel cannot act on the selection.
     QPushButton*    m_toStrip          = nullptr;   //!< ...and the way to something it can act on.
     QListWidget*    m_list             = nullptr;   //!< The adjustments, as an image editor's menu lists them.
@@ -94,4 +94,4 @@ private:
 
 }  // namespace StripEdit
 
-#endif // STRIPEDIT_GRADEPANEL_HPP
+#endif // STRIPEDIT_GRADETOOLOPTIONS_HPP

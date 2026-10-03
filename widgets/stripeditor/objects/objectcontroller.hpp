@@ -36,11 +36,11 @@ class QWidget;
 
 namespace StripEdit {
 
-class ObjectStatePanel;
+class ObjectState;
 class ColourPair;
 class PresetStore;
-class ToolOptionsPanel;
-class Layout;
+class BubbleToolOptions;
+class StripLayout;
 class Object;
 
 /**
@@ -118,8 +118,8 @@ public:
      * @param dialogParent Parent for the file/message dialogs this raises.
      */
     ObjectController(QGraphicsScene* scene, QGraphicsView* view, QTreeWidget* list,
-                     ObjectStatePanel* panel, ToolOptionsPanel* defaults, PresetStore& presets,
-                     const Layout& layout,
+                     ObjectState* panel, BubbleToolOptions* defaults, PresetStore& presets,
+                     const StripLayout& layout,
                      QWidget* dialogParent, QObject* parent = nullptr);
 
     /** 
@@ -645,8 +645,8 @@ private:
     QGraphicsScene* m_scene        = nullptr;   //!< The scene that draws the strip and its overlays.
     QGraphicsView*  m_view         = nullptr;   //!< The view that shows the scene, and whose transform is used for hit-testing. 
     QTreeWidget*    m_list         = nullptr;   //!< The object stack. A tree, so that objects can nest under the objects they belong to; for now
-    ObjectStatePanel* m_objectState = nullptr;  //!< every row is top level and it behaves exactly as the list it replaced.
-    ToolOptionsPanel* m_toolOptions = nullptr;  //!< Read for prototype(); never edited from here.
+    ObjectState* m_objectState = nullptr;  //!< every row is top level and it behaves exactly as the list it replaced.
+    BubbleToolOptions* m_toolOptions = nullptr;  //!< Read for prototype(); never edited from here.
     PresetStore&      m_presets;                //!< The store of named presets, which the menu reads from and the save action writes to.
     /**
      * @brief *Apply preset ▸* on the selection. Restyling something that exists is a different act from
@@ -658,7 +658,7 @@ private:
      *         the only way to move one that is not on the strip, where there is nothing to drag.
      */
     QMenu*            m_reanchorMenu = nullptr;
-    const Layout&   m_layout;                   //!< The layout that owns the strip, for page names and sizes.
+    const StripLayout&   m_layout;                   //!< The layout that owns the strip, for page names and sizes.
     QWidget*        m_dialogParent = nullptr;   
 
     std::vector<Platemaker::Models::StripOverlay> m_overlays;   //!< The project's overlays, in composite order.

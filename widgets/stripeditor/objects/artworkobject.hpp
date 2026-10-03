@@ -1,5 +1,5 @@
-#ifndef STRIPEDIT_ASSETOBJECT_HPP
-#define STRIPEDIT_ASSETOBJECT_HPP
+#ifndef STRIPEDIT_ARTWORKOBJECT_HPP
+#define STRIPEDIT_ARTWORKOBJECT_HPP
 
 #include <QPixmap>
 #include <QSizeF>
@@ -39,7 +39,7 @@ namespace StripEdit {
  * Its size is a width and the artwork's own aspect, which is why a corner drag scales it uniformly:
  * the library record stores one width fraction, so a distorted one is not expressible.
  */
-class AssetObject : public Object
+class ArtworkObject : public Object
 {
     Q_OBJECT
 
@@ -56,7 +56,7 @@ public:
      * @param uid The unique identifier for this object, which is the same as the record it carries.
      * @param picture The file the artist imported, which is what this object draws.
      */
-    AssetObject(QString uid, const QString& picture, QGraphicsItem* parent = nullptr);
+    ArtworkObject(QString uid, const QString& picture, QGraphicsItem* parent = nullptr);
 
     /**
      * @brief Points it at a different file. The drawn size is kept: it is the artist's, not the file's.
@@ -64,7 +64,7 @@ public:
      */
     void setPicture(const QString& picture);
 
-    [[nodiscard]] Kind    kind() const override { return Kind::Asset; } //!< The only kind of object that carries artwork.
+    [[nodiscard]] Kind    kind() const override { return Kind::Artwork; } //!< The only kind of object that carries artwork.
     [[nodiscard]] QString label() const override; //!< The file name, for the object list.
 
     [[nodiscard]] QSizeF boxSize() const override { return m_box; } //!< The artwork's own pixels, which is what the library draws.
@@ -151,4 +151,4 @@ private:
 
 }  // namespace StripEdit
 
-#endif // STRIPEDIT_ASSETOBJECT_HPP
+#endif // STRIPEDIT_ARTWORKOBJECT_HPP

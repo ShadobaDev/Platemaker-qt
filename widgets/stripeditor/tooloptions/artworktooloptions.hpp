@@ -1,5 +1,5 @@
-#ifndef STRIPEDIT_ARTWORKOPTIONSPANEL_HPP
-#define STRIPEDIT_ARTWORKOPTIONSPANEL_HPP
+#ifndef STRIPEDIT_ARTWORKTOOLOPTIONS_HPP
+#define STRIPEDIT_ARTWORKTOOLOPTIONS_HPP
 
 #include <QString>
 #include <QWidget>
@@ -11,7 +11,7 @@ namespace StripEdit {
 /**
  * @brief Options for the Artwork tool: **which picture the next placement puts down**.
  *
- * The counterpart of `ToolOptionsPanel` for the other create tool, and the same contract — it describes
+ * The counterpart of `BubbleToolOptions` for the other create tool, and the same contract — it describes
  * an object that does not exist yet, so it edits nothing and emits nothing about any object.
  *
  * It exists because importing was reachable only from the object list's context menu, which is a place
@@ -22,12 +22,12 @@ namespace StripEdit {
  * The chosen file is remembered in `QSettings` — a working preference that follows the artist rather
  * than the comic, exactly as the tool's other options are.
  */
-class ArtworkOptionsPanel : public QWidget
+class ArtworkToolOptions : public QWidget
 {
     Q_OBJECT
 
 public:
-    explicit ArtworkOptionsPanel(QWidget* parent = nullptr);
+    explicit ArtworkToolOptions(QWidget* parent = nullptr);
 
     //! The file the next placement uses, or empty — in which case the placement asks for one.
     [[nodiscard]] QString artwork() const { return m_file; }
@@ -71,4 +71,4 @@ private:
 
 }  // namespace StripEdit
 
-#endif // STRIPEDIT_ARTWORKOPTIONSPANEL_HPP
+#endif // STRIPEDIT_ARTWORKTOOLOPTIONS_HPP

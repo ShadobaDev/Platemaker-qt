@@ -1,5 +1,5 @@
-#include "tooloptions/gradepanel.hpp"
-#include "ui_gradepanel.h"
+#include "tooloptions/gradetooloptions.hpp"
+#include "ui_gradetooloptions.h"
 
 #include <QDoubleSpinBox>
 #include <QFont>
@@ -28,9 +28,9 @@ constexpr int    k_spinMinWidth     = 84;     //!< Room for "-1,00" plus the ste
 constexpr int    k_gridSpacing      = 6;
 }
 
-GradePanel::GradePanel(QWidget* parent)
+GradeToolOptions::GradeToolOptions(QWidget* parent)
     : QWidget(parent)
-    , ui(new Ui::GradePanel)
+    , ui(new Ui::GradeToolOptions)
 {
     ui->setupUi(this); // provides the empty verticalLayout container; the controls are built here
 
@@ -45,7 +45,7 @@ GradePanel::GradePanel(QWidget* parent)
     m_unavailable = new QLabel(this);
     m_unavailable->setWordWrap(true);
     m_toStrip = new QPushButton(tr("Select the strip"), this);
-    connect(m_toStrip, &QPushButton::clicked, this, &GradePanel::selectStripRequested);
+    connect(m_toStrip, &QPushButton::clicked, this, &GradeToolOptions::selectStripRequested);
     ui->verticalLayout->addWidget(m_unavailable);
     ui->verticalLayout->addWidget(m_toStrip);
 
@@ -145,19 +145,19 @@ GradePanel::GradePanel(QWidget* parent)
     setTarget(Target::Other);
 }
 
-GradePanel::~GradePanel()
+GradeToolOptions::~GradeToolOptions()
 {
     delete ui;
 }
 
-void GradePanel::setColourCorrection(const Platemaker::Models::ColourCorrection& cc)
+void GradeToolOptions::setColourCorrection(const Platemaker::Models::ColourCorrection& cc)
 {
     m_cc = cc;
     syncFromModel();
     refreshList();
 }
 
-void GradePanel::setTarget(Target target)
+void GradeToolOptions::setTarget(Target target)
 {
     const bool usable = target == Target::Strip;
     m_list->setEnabled(usable);
@@ -170,7 +170,7 @@ void GradePanel::setTarget(Target target)
         : tr("Colour adjustments apply to the strip. Select it to adjust its colours."));
 }
 
-void GradePanel::openAdjustment(ColourAdjustment a)
+void GradeToolOptions::openAdjustment(ColourAdjustment a)
 {
     for (int r = 0; r < m_list->count(); ++r) {
         if (static_cast<ColourAdjustment>(m_list->item(r)->data(Qt::UserRole).toInt()) == a) {
@@ -180,14 +180,14 @@ void GradePanel::openAdjustment(ColourAdjustment a)
     }
 }
 
-ColourAdjustment GradePanel::currentAdjustment() const
+ColourAdjustment GradeToolOptions::currentAdjustment() const
 {
     const QListWidgetItem* item = m_list->currentItem();
     return item ? static_cast<ColourAdjustment>(item->data(Qt::UserRole).toInt())
                 : ColourAdjustment::BrightnessContrast;
 }
 
-void GradePanel::onControlChanged(ColourAdjustment edited)
+void GradeToolOptions::onControlChanged(ColourAdjustment edited)
 {
     switch (edited) {
     case ColourAdjustment::BrightnessContrast:
@@ -206,7 +206,7 @@ void GradePanel::onControlChanged(ColourAdjustment edited)
     m_commitTimer->start();
 }
 
-void GradePanel::syncFromModel()
+void GradeToolOptions::syncFromModel()
 {
     m_populating = true;
     const auto set = [](QSlider* s, QDoubleSpinBox* box, double value) {
@@ -220,7 +220,7 @@ void GradePanel::syncFromModel()
     m_populating = false;
 }
 
-void GradePanel::refreshList()
+void GradeToolOptions::refreshList()
 {
     for (int r = 0; r < m_list->count(); ++r) {
         QListWidgetItem* item = m_list->item(r);

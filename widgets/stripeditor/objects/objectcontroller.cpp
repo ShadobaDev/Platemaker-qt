@@ -1,11 +1,11 @@
 #include "objects/objectcontroller.hpp"
-#include "objectstate/objectstatepanel.hpp"
+#include "objectstate/objectstate.hpp"
 #include "toolrail/colourpair.hpp"
 #include "presetstore.hpp"
 #include "objectstack/rowglyph.hpp"
-#include "tooloptions/tooloptionspanel.hpp"
-#include "objects/layout.hpp"
-#include "objects/assetobject.hpp"
+#include "tooloptions/bubbletooloptions.hpp"
+#include "objects/striplayout.hpp"
+#include "objects/artworkobject.hpp"
 #include "objects/bubbleobject.hpp"
 #include "objects/object.hpp"
 #include "artifactpainter.hpp"
@@ -72,8 +72,8 @@ constexpr int k_sharpCacheEntries = 64;
 } // namespace
 
 ObjectController::ObjectController(QGraphicsScene* scene, QGraphicsView* view, QTreeWidget* list,
-                                   ObjectStatePanel* panel, ToolOptionsPanel* defaults,
-                                   PresetStore& presets, const Layout& layout,
+                                   ObjectState* panel, BubbleToolOptions* defaults,
+                                   PresetStore& presets, const StripLayout& layout,
                                    QWidget* dialogParent, QObject* parent)
     : QObject(parent)
     , m_scene(scene)
@@ -94,21 +94,21 @@ ObjectController::ObjectController(QGraphicsScene* scene, QGraphicsView* view, Q
                 bubble->refreshFonts();
         syncItems();   // the styled ones: a fresh rasterisation, from a document set in the new font
     });
-    connect(m_objectState, &ObjectStatePanel::changed, this,
+    connect(m_objectState, &ObjectState::changed, this,
             [this](const Artifact& a) { applyPanelRecords({a}, /*commit=*/false); });
-    connect(m_objectState, &ObjectStatePanel::committed, this,
+    connect(m_objectState, &ObjectState::committed, this,
             [this](const Artifact& a) { applyPanelRecords({a}, /*commit=*/true); });
-    connect(m_objectState, &ObjectStatePanel::blendPicked, this, &ObjectController::setSelectionBlend);
-    connect(m_objectState, &ObjectStatePanel::deleteRequested, this, &ObjectController::deleteSelectedOverlay);
-    connect(m_objectState, &ObjectStatePanel::changedMany, this,
+    connect(m_objectState, &ObjectState::blendPicked, this, &ObjectController::setSelectionBlend);
+    connect(m_objectState, &ObjectState::deleteRequested, this, &ObjectController::deleteSelectedOverlay);
+    connect(m_objectState, &ObjectState::changedMany, this,
             [this](const QList<Artifact>& objects) { applyPanelRecords(objects, /*commit=*/false); });
-    connect(m_objectState, &ObjectStatePanel::committedMany, this,
+    connect(m_objectState, &ObjectState::committedMany, this,
             [this](const QList<Artifact>& objects) { applyPanelRecords(objects, /*commit=*/true); });
-    connect(m_objectState, &ObjectStatePanel::scaleChanged, this,
+    connect(m_objectState, &ObjectState::scaleChanged, this,
             [this](double percent) { scaleSelectedArtwork(percent, /*commit=*/false); });
-    connect(m_objectState, &ObjectStatePanel::scaleCommitted, this,
+    connect(m_objectState, &ObjectState::scaleCommitted, this,
             [this](double percent) { scaleSelectedArtwork(percent, /*commit=*/true); });
-    connect(m_objectState, &ObjectStatePanel::fitRequested, this, [this] {
+    connect(m_objectState, &ObjectState::fitRequested, this, [this] {
         Object* item = m_overlayItems.value(m_selectedOverlay);
         if (!item || item->artifact().isArtwork())
             return;   // a picture's box is the picture's own pixels, not its words'
@@ -249,7 +249,7 @@ ObjectController::ObjectController(QGraphicsScene* scene, QGraphicsView* view, Q
     connect(m_actNaturalSize, &QAction::triggered, this, [this] { scaleSelectedArtwork(100.0); });
     m_actFitToStrip = new QAction(tr("Fit to strip width"), this);
     connect(m_actFitToStrip, &QAction::triggered, this, [this] {
-        const auto* art = qobject_cast<const AssetObject*>(m_overlayItems.value(m_selectedOverlay));
+        const auto* art = qobject_cast<const ArtworkObject*>(m_overlayItems.value(m_selectedOverlay));
         const double tw = m_layout.targetWidth();
         if (art && tw > 0 && art->artwork().width() > 0)
             scaleSelectedArtwork(tw * 100.0 / art->artwork().width());
@@ -713,7 +713,7 @@ void ObjectController::syncItems()
 
         // **The one place the two kinds are told apart**, and it is a choice of constructor rather than
         // a test repeated downstream. An overlay whose asset carries no authoring parameters — art drawn
-        // elsewhere, or a file edited outside Platemaker — becomes an AssetObject: it still shows, still
+        // elsewhere, or a file edited outside Platemaker — becomes an ArtworkObject: it still shows, still
         // moves and still renders, it just cannot be re-typed. That is the intended degradation, and it
         // is what makes imported artwork a first-class object rather than an error.
         // **The feed's answer, not the object's.** isParametric() prefers the object, which is right
@@ -733,7 +733,7 @@ void ObjectController::syncItems()
         if (!item) {
             item = parametric
                 ? static_cast<Object*>(new BubbleObject(uid, m_feedRecords.value(uid)))
-                : static_cast<Object*>(new AssetObject(uid, pictureFor(o)));
+                : static_cast<Object*>(new ArtworkObject(uid, pictureFor(o)));
             connect(item, &Object::geometryEdited, this, &ObjectController::onOverlayGeometryEdited);
             connect(item, &Object::pressed,        this, &ObjectController::onObjectPressed);
             connect(item, &Object::dragging,       this, &ObjectController::onObjectDragged);
@@ -750,7 +750,7 @@ void ObjectController::syncItems()
             // A styled bubble is drawn by the library, because its effect is an SVG filter Qt cannot
             // render. Unstyled ones keep drawing locally: same geometry, no round-trip.
             bubble->setSharpRaster(a.style.kind != Artifact::Style::Clean ? sharpRasterFor(a) : QImage());
-        } else if (auto* art = qobject_cast<AssetObject*>(item)) {
+        } else if (auto* art = qobject_cast<ArtworkObject*>(item)) {
             art->setPicture(pictureFor(o));   // the file may have changed under it
         }
 
@@ -786,7 +786,7 @@ ArtifactMap ObjectController::currentArtifacts() const
         const QString      uid = QString::fromStdString(o.uid);
         const Artifact rec = recordFor(uid);
         // **A picture with nothing written on it stays record-less if that is how it arrived.** Its
-        // object describes itself so that every reader here is safe (AssetObject::describePicture), but
+        // object describes itself so that every reader here is safe (ArtworkObject::describePicture), but
         // that description says nothing the file does not, and the owner reads an absent record as
         // exactly that. Inventing one would make every legacy import look edited on the next save.
         if (rec.isArtwork() && rec.text.body.isEmpty() && !m_feedRecords.contains(uid))
@@ -885,7 +885,7 @@ QIcon ObjectController::rowGlyph(const QString& uid)
     // a hand-written list missed the stroke width and a tail's width and bend.
     if (!isParametric(uid)) {
         // Imported artwork: no authoring record, so no silhouette. The art is its own glyph.
-        const auto* art = qobject_cast<const AssetObject*>(m_overlayItems.value(uid));
+        const auto* art = qobject_cast<const ArtworkObject*>(m_overlayItems.value(uid));
         return art ? assetGlyph(art->artwork(), k_rowGlyphPx, m_list->devicePixelRatioF()) : QIcon();
     }
     const Artifact a = recordFor(uid);
@@ -1509,7 +1509,7 @@ bool ObjectController::selectionIsArtwork() const
 
 double ObjectController::selectedArtworkPercent() const
 {
-    const auto*  art = qobject_cast<const AssetObject*>(m_overlayItems.value(m_selectedOverlay));
+    const auto*  art = qobject_cast<const ArtworkObject*>(m_overlayItems.value(m_selectedOverlay));
     const double tw  = m_layout.targetWidth();
     if (!art || tw <= 0 || art->artwork().width() <= 0)
         return 0.0;
@@ -1527,7 +1527,7 @@ double ObjectController::selectedArtworkPercent() const
 
 void ObjectController::scaleSelectedArtwork(double percent, bool commit)
 {
-    const auto*  art = qobject_cast<const AssetObject*>(m_overlayItems.value(m_selectedOverlay));
+    const auto*  art = qobject_cast<const ArtworkObject*>(m_overlayItems.value(m_selectedOverlay));
     const double tw  = m_layout.targetWidth();
     if (!art || tw <= 0 || percent <= 0 || art->artwork().width() <= 0)
         return;
@@ -2005,7 +2005,7 @@ void ObjectController::duplicateSelectedOverlay()
             // channel instead: the library hashes the same bytes and dedups the new placement onto the
             // file that is already there. Routing it through creation would have written an SVG of a
             // *default* bubble — which is what it did before this was two types.
-            const auto* art = qobject_cast<AssetObject*>(item);
+            const auto* art = qobject_cast<ArtworkObject*>(item);
             emit artworkImportRequested(QString::fromStdString(o.assetPath),
                                         o.xFrac + off, o.yFrac + off, o.wFrac,
                                         art ? art->artwork().size() : QSize(),

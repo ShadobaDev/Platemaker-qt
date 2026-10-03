@@ -14,6 +14,7 @@
 #include "toolrail/toolrail.hpp"
 #include "tooloptions/tooloptionsstack.hpp"
 #include "objectstate/objectstate.hpp"
+#include "objectstack/objectmenu.hpp"
 #include "objectstack/objectstack.hpp"
 #include "objectstate/objectstatestack.hpp"
 #include "presetstore.hpp"
@@ -282,12 +283,14 @@ Editor::Editor(PresetStore& presets, QWidget *parent)
 
         // Everything placed on the strip. It drives the scene, the list and the panel; it owns no
         // persistence, so every edit leaves through one of its four signals and comes back as a re-feed.
-        m_objects = new ObjectController(m_scene, m_view, ui->objectStack, m_objectState,
+        m_objects = new ObjectController(m_scene, m_view, m_objectState,
                                          m_bubbleOptions, *m_presets, m_layout, this, this);
         // OBJECT STACK: the rows. A view of the controller, built before any feed can arrive.
         m_objectStack = new ObjectStack(ui->objectStack, *m_objects, m_layout, *m_presets, this, this);
-        // The object's menu spends the same pair the bucket does — it reads it, never writes it.
-        m_objects->setColourSource(m_colours);
+        // The object menu, on the stack and the canvas alike. It spends the same pair the bucket does —
+        // it reads it, never writes it.
+        m_objectMenu = new ObjectMenu(*m_objects, m_layout, *m_presets, ui->objectStack, m_view, this, this);
+        m_objectMenu->setColourSource(m_colours);
         connect(m_objects, &ObjectController::recordCreated,        this, &Editor::recordCreated);
         connect(m_objects, &ObjectController::overlaysCommitted,         this, &Editor::overlaysCommitted);
         connect(m_objects, &ObjectController::artworkImportRequested, this, &Editor::artworkImportRequested);

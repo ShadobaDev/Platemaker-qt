@@ -51,6 +51,7 @@ class ToolOptionsStack;
 class ToolRail;
 class GradeToolOptions;
 class ObjectState;
+class ObjectMenu;
 class ObjectStack;
 class ObjectStateStack;
 class StripState;
@@ -396,6 +397,7 @@ private:
     //! OBJECT STATE: which of the two panels above shows, and what it says about the strip.
     ObjectStateStack* m_stateStack = nullptr;
     ObjectStack*      m_objectStack = nullptr;   //!< OBJECT STACK: the rows, a view of m_objects.
+    ObjectMenu*       m_objectMenu  = nullptr;   //!< The object menu, on the stack and the canvas.
     /**
      * @brief The grade as this editor last saw it — from the project, or from a live edit in progress.
      *

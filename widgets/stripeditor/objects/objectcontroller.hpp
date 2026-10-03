@@ -23,21 +23,16 @@
 
 #include <vector>
 
-class QAction;
 class QGraphicsRectItem;
 class QGraphicsScene;
 class QGraphicsView;
 class QTimer;
-class QTreeWidget;
-class QTreeWidgetItem;
-class QMenu;
 class QTransform;
 class QWidget;
 
 namespace StripEdit {
 
 class ObjectState;
-class ColourPair;
 class PresetStore;
 class BubbleToolOptions;
 class StripLayout;
@@ -60,7 +55,7 @@ class Object;
  * will put it.
  *
  * **What lives where** — the .cpp's sections, in order:
- * - *The constructor* builds the object menu: every entry, its enabling rule and what it calls.
+ * - *The constructor* wires OBJECT STATE's panel and the scene's selection.
  * - *Pointer and selection* — what a press lands on (pointerTargetAt(), objectAt()), selecting the
  *   strip, a page or a tail, and an object's own press and drag.
  * - *The feed* — setSource() takes the owner's overlays and records; syncItems() turns them into scene
@@ -69,8 +64,9 @@ class Object;
  * - The rows of the OBJECT STACK are not here: ObjectStack (objectstack/) draws them from what this
  *   holds and reports back a selection, a mute or a new order (setStackOrder()).
  * - *Selection, and the properties panel it binds* — selectSubjects() decides what OBJECT STATE shows.
- * - *The object menu's actions* — colour, presets, artwork, re-anchor, delete, *Apply from tool
+ * - *Operations on the selection* — colour, presets, artwork, re-anchor, delete, *Apply from tool
  *   options ▸*, *Convert to ▸*, blend, stacking, duplicate; each ends in applyRecords() or a signal.
+ *   The object menu (ObjectMenu, objectstack/) names them; OBJECT STATE and the canvas call some too.
  * - *Placing a new bubble* — beginPlacement() / updatePlacement() / finishPlacement(): a Create
  *   tool's drag, and the prototype it places.
  *
@@ -112,13 +108,12 @@ public:
      *
      * @param scene        Where the objects are drawn (the editor's canvas scene).
      * @param view         Needed for hit-testing and for "where is the author looking" on import.
-     * @param list         The right-bottom list: composite order, mute toggles, selection.
      * @param panel        The selected object's properties — edited, and told what is selected.
      * @param defaults     The tool's own options, read (never written) for what a new object starts as.
      * @param layout       Page geometry, owned by the editor; every placement question is asked of it.
      * @param dialogParent Parent for the file/message dialogs this raises.
      */
-    ObjectController(QGraphicsScene* scene, QGraphicsView* view, QTreeWidget* list,
+    ObjectController(QGraphicsScene* scene, QGraphicsView* view,
                      ObjectState* panel, BubbleToolOptions* defaults, PresetStore& presets,
                      const StripLayout& layout,
                      QWidget* dialogParent, QObject* parent = nullptr);
@@ -192,6 +187,48 @@ public:
      * drag's take-and-insert dropped.
      */
     void setStackOrder(const QStringList& bottomUp);
+
+    // --- driven by the OBJECT MENU (objectstack/objectmenu.hpp), which this class does not know either ---
+    [[nodiscard]] const QString& selectedOverlay() const { return m_selectedOverlay; }   //!< The primary.
+    //! The silhouette TOOL OPTIONS would give a balloon now — what *Convert to ▸ Balloon* arrives at.
+    [[nodiscard]] ObjectRecord::Shape toolBalloonShape() const;
+    //! Places @p file on the page in the middle of the view, at a width that grows with the chapter.
+    void importArtworkFile(const QString& file);
+    void duplicateSelectedOverlay();   //!< Copies the selected bubble a little down and right.
+    /**
+     * @brief Makes every selected object the **kind** @p kind stands for, as one history step.
+     *
+     * @param kind `None` for lettering with no balloon; any silhouette for a balloon, and that is the
+     *             silhouette a converted object arrives at.
+     *
+     * **What passes through is decided by the kind, not by the silhouette.** An object that already has
+     * a balloon is untouched by *Convert to ▸ Balloon* even if it wears a different one — re-shaping it
+     * would be this menu doing the shape picker's job on an object the artist only had along for the
+     * ride. Changing *which* balloon a selection wears is `applyGroupToSelection(PropertyGroup::Shape)`.
+     *
+     * Passing through includes keeping its place in the stack, which nothing here reorders, so
+     * converting a mixed set is not two acts: select two texts and a balloon, convert to Balloon, and
+     * the balloon is simply not in the diff.
+     *
+     * The carry-over needs no per-pair code. Every kind is the same record, so a conversion writes one
+     * property and what the new kind cannot draw is **not drawn rather than destroyed**: a converted
+     * balloon's tails are still in its record and come back if it is converted back. What stopped being
+     * drawn is said once, in the status bar, because it is an event and not a condition.
+     * 
+     * @param kind  The kind to convert the selection to.
+     */
+    void convertSelectionTo(ObjectRecord::Shape kind);
+    /**
+     * @brief Moves the selected object one place towards the front (@p forward) or the back.
+     *
+     * The stack in the list **is** the composite order, and dragging a row has always said so; this says
+     * the same thing without a drag, which is what you want when the object is on the canvas and its row
+     * is somewhere off-screen. One object only: moving several needs a rule about their order among
+     * themselves, and inventing one to avoid greying a menu entry is the wrong trade.
+     * 
+     * @param forward  True to move the object towards the front, false to move it towards the back.
+     */
+    void moveSelectedInStack(bool forward);
     /**
      * @brief Selects the overlay with @p uid, or clears the selection if it does not exist.
      * @param uid  The uid of the overlay to select. If the overlay does not exist, the selection is cleared.
@@ -280,16 +317,6 @@ public:
     bool applyColourAt(const QPointF& scenePos, const QTransform& deviceTransform, const QColor& colour);
 
     /**
-     * @brief Where the menu's colour entries read from — the tool column's pair. Never written to.
-     *
-     * The pair is furniture, not a tool: the tools that spend it hold a reference rather than a colour of
-     * their own, and so does this menu. Without one, the two colour entries stay hidden.
-     * 
-     * @param pair  The source of the menu's colour entries.
-     */
-    void setColourSource(const ColourPair* pair);
-
-    /**
      * @brief Gives @p colour to the @p role of every selected object that has it, as one history step.
      *
      * The same rule the colour tool paints by, reached from the menu instead of the canvas: a fill lands
@@ -311,24 +338,11 @@ public:
     void applyGroupToSelection(PropertyGroup group);
 
     /**
-     * @brief Saves the selected object's look as a named preset — everything a preset carries, and no lettering.
-     */
-    void saveSelectionAsPreset();
-
-    /**
-     * @brief Rebuilds *Apply preset ▸* from the store, so a preset saved a moment ago is already there.
-     */
-    void rebuildPresetMenu();
-    /**
      * @brief Restyles the selected bubble with preset \p index, keeping what it says and where it points.
      * @param index  The index of the preset to apply, as it appears in the *Apply preset ▸* menu.
      */
     void applyPresetToSelection(int index);
 
-    /**
-     * @brief Rebuilds *Re-anchor to ▸* from the layout: one entry per page, the current one checked.
-     */
-    void rebuildReanchorMenu();
     /**
      * @brief Moves the selected object onto page @p pageUid, at the same offset from that page's top.
      * @param pageUid  The UID of the page to move the object to.
@@ -494,7 +508,7 @@ signals:
     void subjectChanged(StripEdit::ObjectController::Subject subject, const QString& uid);
     // --- for the OBJECT STACK: what changed, so the rows can follow ---
     void stackChanged();               //!< The objects, their order, labels, looks or pages changed.
-    void rowSelectionChanged();        //!< The selected objects and tails changed.
+    void selectionChanged();           //!< The selected objects and tails changed (rows, menu entries).
     void subjectRowChanged();          //!< The strip or a page became the selection.
     void revealSelectionRequested();   //!< An undo selected something: bring its row into view.
 
@@ -603,63 +617,16 @@ private:
      */
     void applyPanelRecords(const QList<ObjectRecord>& records, bool commit);
     void deleteSelectedTail();   //!< Takes the selected tail off its balloon, and selects the balloon.
-    void importArtwork();           //!< Asks for a file and drops it on the page currently in view.
-    void duplicateSelectedOverlay();   //!< Copies the selected bubble a little down and right.
 
 
-    /**
-     * @brief Makes every selected object the **kind** @p kind stands for, as one history step.
-     *
-     * @param kind `None` for lettering with no balloon; any silhouette for a balloon, and that is the
-     *             silhouette a converted object arrives at.
-     *
-     * **What passes through is decided by the kind, not by the silhouette.** An object that already has
-     * a balloon is untouched by *Convert to ▸ Balloon* even if it wears a different one — re-shaping it
-     * would be this menu doing the shape picker's job on an object the artist only had along for the
-     * ride. Changing *which* balloon a selection wears is `applyGroupToSelection(PropertyGroup::Shape)`.
-     *
-     * Passing through includes keeping its place in the stack, which nothing here reorders, so
-     * converting a mixed set is not two acts: select two texts and a balloon, convert to Balloon, and
-     * the balloon is simply not in the diff.
-     *
-     * The carry-over needs no per-pair code. Every kind is the same record, so a conversion writes one
-     * property and what the new kind cannot draw is **not drawn rather than destroyed**: a converted
-     * balloon's tails are still in its record and come back if it is converted back. What stopped being
-     * drawn is said once, in the status bar, because it is an event and not a condition.
-     * 
-     * @param kind  The kind to convert the selection to.
-     */
-    void convertSelectionTo(ObjectRecord::Shape kind);
 
-    /**
-     * @brief Moves the selected object one place towards the front (@p forward) or the back.
-     *
-     * The stack in the list **is** the composite order, and dragging a row has always said so; this says
-     * the same thing without a drag, which is what you want when the object is on the canvas and its row
-     * is somewhere off-screen. One object only: moving several needs a rule about their order among
-     * themselves, and inventing one to avoid greying a menu entry is the wrong trade.
-     * 
-     * @param forward  True to move the object towards the front, false to move it towards the back.
-     */
-    void moveSelectedInStack(bool forward);
 
     // --- collaborators, not owned ---
     QGraphicsScene* m_scene        = nullptr;   //!< The scene that draws the strip and its overlays.
     QGraphicsView*  m_view         = nullptr;   //!< The view that shows the scene, and whose transform is used for hit-testing. 
-    QTreeWidget*    m_stack         = nullptr;   //!< The object stack's tree — only to give it the object menu (see ObjectStack)
     ObjectState* m_objectState = nullptr;  //!< OBJECT STATE's object panel, which this binds to the selection.
     BubbleToolOptions* m_bubbleOptions = nullptr;  //!< Read for prototype(); never edited from here.
     PresetStore&      m_presets;                //!< The store of named presets, which the menu reads from and the save action writes to.
-    /**
-     * @brief *Apply preset ▸* on the selection. Restyling something that exists is a different act from
-     *        choosing what the next object will be, so it lives with the object rather than with the tool.
-     */
-    QMenu*            m_presetMenu = nullptr;
-    /**
-     * @brief *Re-anchor to ▸* on the selection — the explicit way back for an object whose page is gone, and
-     *         the only way to move one that is not on the strip, where there is nothing to drag.
-     */
-    QMenu*            m_reanchorMenu = nullptr;
     const StripLayout&   m_layout;                   //!< The layout that owns the strip, for page names and sizes.
     QWidget*        m_dialogParent = nullptr;   
 
@@ -716,24 +683,6 @@ private:
     //! How far off a hairline outline or a thin letter a press may land and still count, in screen px.
     static constexpr qreal k_pickSlackPx = 3.0;
 
-    // Duplicate / Delete, shared by the object stack's context menu and its keyboard shortcuts, and
-    // reachable from the canvas too — the two places a bubble is ever selected.
-    QAction*           m_actDuplicate    = nullptr;
-    QAction*           m_actDelete       = nullptr;
-    QAction*           m_actForward      = nullptr;   //!< Bring forward — one place up the stack.
-    QAction*           m_actBackward     = nullptr;   //!< Send back.
-    QMenu*             m_blendMenu       = nullptr;   //!< The six blend modes, checkable, on the selection.
-    QMenu*             m_convertMenu     = nullptr;   //!< The two kinds the selection can be made into.
-    QAction*           m_actToText       = nullptr;   //!< Convert to ▸ Text: no silhouette at all.
-    QAction*           m_actToBalloon    = nullptr;   //!< Convert to ▸ Balloon: the tiles' silhouette.
-    QAction*           m_actNaturalSize  = nullptr;   //!< Artwork at 100% — the size it was drawn at.
-    QAction*           m_actFitToStrip   = nullptr;   //!< Artwork as wide as the strip, and no wider.
-    QMenu*             m_groupMenu       = nullptr;   //!< *Apply this group ▸*, from the tool's options.
-    QAction*           m_actFill         = nullptr;   //!< Fill with the primary colour.
-    QAction*           m_actOutline      = nullptr;   //!< Outline with the secondary colour.
-    QAction*           m_actSavePreset   = nullptr;   //!< Saves the selected bubble's look as a named preset.
-    const ColourPair*  m_colours         = nullptr;   //!< The pair the two colour entries spend.
-    QAction*           m_actImport       = nullptr;   //!< Bring in artwork drawn outside Platemaker.
     QGraphicsRectItem* m_placementRubber = nullptr;         //!< Rubber band while a new bubble is drawn.
     QPointF            m_placementOrigin;                   //!< Where that drag started, in scene coordinates.
     QString            m_placementArtwork;                  //!< Empty: a placement makes a balloon.

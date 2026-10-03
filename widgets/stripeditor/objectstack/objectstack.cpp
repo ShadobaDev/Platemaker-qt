@@ -105,7 +105,7 @@ ObjectStack::ObjectStack(QTreeWidget* tree, ObjectController& objects, const Str
 
     // What the controller changes, the rows follow. It knows nothing of this tree: it says what changed.
     connect(&m_objects, &ObjectController::stackChanged,             this, &ObjectStack::refresh);
-    connect(&m_objects, &ObjectController::rowSelectionChanged,      this, &ObjectStack::showSelectedRows);
+    connect(&m_objects, &ObjectController::selectionChanged,         this, &ObjectStack::showSelectedRows);
     connect(&m_objects, &ObjectController::subjectRowChanged,        this, &ObjectStack::showSubjectRow);
     connect(&m_objects, &ObjectController::revealSelectionRequested, this, &ObjectStack::revealSelectedRow);
 }

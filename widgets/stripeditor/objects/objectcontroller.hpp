@@ -66,7 +66,8 @@ class Object;
  * - *The feed* — setSource() takes the owner's overlays and records; syncItems() turns them into scene
  *   items, and is **the one place an Object subclass is chosen**.
  * - *Geometry back out* — a settled move or resize, written as a placement and announced.
- * - *The object list* — rows, their glyphs (rowGlyph()) and the composite order.
+ * - The rows of the OBJECT STACK are not here: ObjectStack (objectstack/) draws them from what this
+ *   holds and reports back a selection, a mute or a new order (setStackOrder()).
  * - *Selection, and the properties panel it binds* — selectSubjects() decides what OBJECT STATE shows.
  * - *The object menu's actions* — colour, presets, artwork, re-anchor, delete, *Apply from tool
  *   options ▸*, *Convert to ▸*, blend, stacking, duplicate; each ends in applyRecords() or a signal.
@@ -159,6 +160,38 @@ public:
      * @param index  The index of the tail to select. If the bubble has no tail at that index, the bubble itself is selected instead.
      */
     void selectTail(const QString& uid, int index);
+
+    // --- read and driven by the OBJECT STACK (objectstack/objectstack.hpp), which this class does not know ---
+    [[nodiscard]] const std::vector<Platemaker::Models::StripOverlay>& overlays() const { return m_overlays; }   //!< Composite order.
+    //! The scene object for overlay @p uid, or nullptr before the strip has a layout to place it on.
+    [[nodiscard]] const Object* object(const QString& uid) const { return m_overlayItems.value(uid); }
+    //! Balloons selected only because one of their tails is: not subjects, and their own row stays plain.
+    [[nodiscard]] const QStringList& carriers() const { return m_carriers; }
+    /**
+     * @brief The tails in the selection, in the order they were picked.
+     */
+    [[nodiscard]] const QList<TailRef>& selectedTails() const { return m_selectedTails; }
+    void selectOverlay(const QString& uid);   //!< Selects one in the scene and the stack, and loads the panel.
+    /**
+     * @brief Selects @p uids and @p tails together — the general form, of which everything else is a case.
+     *
+     * A selection may hold objects and tails at once, because *position* is the role they share: a tail of
+     * one balloon and the body of another can be dragged as one thing. What they do **not** share is
+     * anything OBJECT STATE could edit, so a mixed selection shows no property sections at all.
+     *
+     * One tail on its own stays a selected tail: its balloon selected on the canvas so the
+     * handles exist, the handle drawn hollow, and OBJECT STATE showing that tail.
+     */
+    void selectSubjects(const QStringList& uids, const QList<TailRef>& tails);
+    void setOverlayEnabled(const QString& uid, bool on);  //!< A row's mute checkbox.
+    /**
+     * @brief Adopts @p bottomUp — overlay uids read from the back to the front — as the composite order.
+     *
+     * Ids that are not overlays (the strip's row) are skipped. An order that has lost or gained an
+     * overlay is refused and the rows are put back; an unchanged order only restores the selection the
+     * drag's take-and-insert dropped.
+     */
+    void setStackOrder(const QStringList& bottomUp);
     /**
      * @brief Selects the overlay with @p uid, or clears the selection if it does not exist.
      * @param uid  The uid of the overlay to select. If the overlay does not exist, the selection is cleared.
@@ -226,12 +259,6 @@ public:
     [[nodiscard]] const QStringList& selectedOverlays() const { return m_selectedOverlays; }
     [[nodiscard]] const QString& selectedPage() const { return m_selectedPage; }   //!< When subject() is Page.
     [[nodiscard]] int            selectedTail() const { return m_selectedTail; }   //!< When subject() is Tail.
-
-    /**
-     * @brief The pages the grade skips, so their rows can say so. Touches the rows only when the set changed.
-     * @param inputUids  The set of uids for the pages to exclude.
-     */
-    void setExcludedPages(const QSet<QString>& inputUids);
 
     /**
      * @brief Paints @p colour onto whatever is drawn at @p scenePos.
@@ -309,7 +336,6 @@ public:
     void reanchorSelection(const QString& pageUid);
 
     void syncItems();    //!< Reconciles the scene items with the overlay set, by uid.
-    void refreshList();  //!< Rebuilds the list from the overlay set (composite order).
     void reselect();     //!< Re-applies the current selection after the scene was rebuilt.
 
     /**
@@ -466,6 +492,11 @@ signals:
      * @param uid      The UID of the selected object, or an empty string if none.
      */
     void subjectChanged(StripEdit::ObjectController::Subject subject, const QString& uid);
+    // --- for the OBJECT STACK: what changed, so the rows can follow ---
+    void stackChanged();               //!< The objects, their order, labels, looks or pages changed.
+    void rowSelectionChanged();        //!< The selected objects and tails changed.
+    void subjectRowChanged();          //!< The strip or a page became the selection.
+    void revealSelectionRequested();   //!< An undo selected something: bring its row into view.
 
     /**
      * @brief Something happened that the artist should be told once — not a state they can fix.
@@ -502,7 +533,6 @@ private:
      * @return The rasterised image of the record, or an empty QImage if it cannot be produced.
      */
     [[nodiscard]] QImage sharpRasterFor(const ObjectRecord& a);
-    void selectOverlay(const QString& uid);   //!< Selects one in the scene and the list, and loads the panel.
 
     /**
      * @brief Selects exactly @p uids, in the order given. The **last** is the primary.
@@ -513,22 +543,7 @@ private:
      */
     void selectOverlays(const QStringList& uids);
 
-    /**
-     * @brief Selects @p uids and @p tails together — the general form, of which everything else is a case.
-     *
-     * A selection may hold objects and tails at once, because *position* is the role they share: a tail of
-     * one balloon and the body of another can be dragged as one thing. What they do **not** share is
-     * anything OBJECT STATE could edit, so a mixed selection shows no property sections at all.
-     *
-     * One tail on its own stays a selected tail: its balloon selected on the canvas so the
-     * handles exist, the handle drawn hollow, and OBJECT STATE showing that tail.
-     */
-    void selectSubjects(const QStringList& uids, const QList<TailRef>& tails);
 
-    /**
-     * @brief The tails in the selection, in the order they were picked.
-     */
-    [[nodiscard]] const QList<TailRef>& selectedTails() const { return m_selectedTails; }
 
     /**
      * @brief How many things the artist actually picked — a balloon carrying someone's selected tail is not one.
@@ -542,18 +557,6 @@ private:
      * @brief Which file an asset item draws: the imported picture, which is not always the overlay's own.
      */
     [[nodiscard]] QString pictureFor(const Platemaker::Models::StripOverlay& o) const;
-    /**
-     * @brief The tree row of the selected strip or page, or nullptr.
-     */
-    [[nodiscard]] QTreeWidgetItem* subjectRow() const;
-    /**
-     * @brief The glyph a row wears — the object drawn small, cached until the look it is made of changes.
-     */
-    [[nodiscard]] QIcon rowGlyph(const QString& uid);
-    /**
-     * @brief The tree row of tail @p index of bubble @p uid, or nullptr.
-     */
-    [[nodiscard]] QTreeWidgetItem* tailRow(const QString& uid, int index) const;
     /**
      * @brief Live edit from the panel -> item (+persist, as a step named @p undoText or for the subject).
      */
@@ -602,7 +605,6 @@ private:
     void deleteSelectedTail();   //!< Takes the selected tail off its balloon, and selects the balloon.
     void importArtwork();           //!< Asks for a file and drops it on the page currently in view.
     void duplicateSelectedOverlay();   //!< Copies the selected bubble a little down and right.
-    void setOverlayEnabled(const QString& uid, bool on);  //!< The list's mute checkbox (deferred, see the ctor).
 
 
     /**
@@ -640,13 +642,12 @@ private:
      * @param forward  True to move the object towards the front, false to move it towards the back.
      */
     void moveSelectedInStack(bool forward);
-    void commitListOrder();                               //!< Adopts the list's row order as composite order.
 
     // --- collaborators, not owned ---
     QGraphicsScene* m_scene        = nullptr;   //!< The scene that draws the strip and its overlays.
     QGraphicsView*  m_view         = nullptr;   //!< The view that shows the scene, and whose transform is used for hit-testing. 
-    QTreeWidget*    m_stack         = nullptr;   //!< The object stack. A tree, so that objects can nest under the objects they belong to; for now
-    ObjectState* m_objectState = nullptr;  //!< every row is top level and it behaves exactly as the list it replaced.
+    QTreeWidget*    m_stack         = nullptr;   //!< The object stack's tree — only to give it the object menu (see ObjectStack)
+    ObjectState* m_objectState = nullptr;  //!< OBJECT STATE's object panel, which this binds to the selection.
     BubbleToolOptions* m_bubbleOptions = nullptr;  //!< Read for prototype(); never edited from here.
     PresetStore&      m_presets;                //!< The store of named presets, which the menu reads from and the save action writes to.
     /**
@@ -704,11 +705,6 @@ private:
     //! their row in the tree is not highlighted.
     QStringList        m_carriers;
 
-    QHash<QString, QPair<QString, QIcon>> m_glyphs;   //!< uid -> (what the glyph is made of, the glyph).
-    QIcon                                 m_tailGlyph;  //!< One drawing; every tail row wears it.
-    QIcon                                 m_pageGlyph;  //!< Likewise for a page…
-    QIcon                                 m_stripGlyph; //!< …and for the strip itself.
-
     // --- a drag in flight: where everything stood when it started ---
     QHash<QString, QPointF>         m_dragStartPos;   //!< Object uid -> its position at the press.
     QList<QPair<TailRef, QPointF>>  m_dragStartTips;  //!< Tail -> its tip, in its balloon's own units.
@@ -717,16 +713,9 @@ private:
     QString            m_selectedPage;                      //!< Input uid of the selected page, when a page is.
     int                m_selectedTail      = -1;            //!< Index of the selected tail, when a tail is.
     int                m_selectedTailCount = 0;             //!< How many tails its bubble had when it was selected.
-    QSet<QString>      m_excludedPages;                     //!< Pages the grade skips — said on their rows.
-    //! Which kind of thing a tree row stands for, beside its id in Qt::UserRole.
     //! How far off a hairline outline or a thin letter a press may land and still count, in screen px.
     static constexpr qreal k_pickSlackPx = 3.0;
 
-    static constexpr int k_kindRole = Qt::UserRole + 1;
-    //! A tail row's position in its bubble's list, beside the bubble's uid in Qt::UserRole.
-    static constexpr int k_tailRole = Qt::UserRole + 2;
-    //! The strip row's id. Overlay uids are minted as "ovl-…" and page ids are input uids, so it is free.
-    static inline const QString k_stripId = QStringLiteral("strip");
     // Duplicate / Delete, shared by the object stack's context menu and its keyboard shortcuts, and
     // reachable from the canvas too — the two places a bubble is ever selected.
     QAction*           m_actDuplicate    = nullptr;
@@ -749,18 +738,7 @@ private:
     QPointF            m_placementOrigin;                   //!< Where that drag started, in scene coordinates.
     QString            m_placementArtwork;                  //!< Empty: a placement makes a balloon.
     bool               m_placing         = false;
-    bool               m_syncingList     = false;           //!< Guards the list<-> scene selection round-trip.
-    /**
-     * @brief Coalesces a drag in the tree into one commit. A tree moves a row by taking it out and inserting it
-     *        again, so one gesture can arrive as more than one model signal; they all restart this, and it
-     *        fires once, after the drop has finished.
-     */
-    QTimer*            m_orderCommit     = nullptr;
-    /**
-     * @brief Set from the moment a drag starts taking a row out until the commit above has run. Taking a row
-     *        out drops its selection, and without this the tree would report a deselection nobody asked for.
-     */
-    bool               m_rowsMoving      = false;
+    bool               m_syncingList     = false;           //!< Guards the scene's selection round-trip.
     /**
      * @brief Set when this controller asked for a new bubble; the uid only exists after the owner mints it, so
      *        the selection has to wait for the feed to come back.

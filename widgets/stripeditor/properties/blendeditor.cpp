@@ -19,6 +19,14 @@ const QList<QPair<Platemaker::Models::BlendMode, QString>>& blendModes()
     return modes;
 }
 
+QString blendName(Platemaker::Models::BlendMode mode)
+{
+    for (const auto& [m, name] : blendModes())
+        if (m == mode)
+            return name;
+    return {};
+}
+
 BlendEditor::BlendEditor(QWidget* parent)
     : QWidget(parent)
 {

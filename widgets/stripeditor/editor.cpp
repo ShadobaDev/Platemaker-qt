@@ -14,6 +14,7 @@
 #include "toolrail/toolrail.hpp"
 #include "tooloptions/tooloptionsstack.hpp"
 #include "objectstate/objectstate.hpp"
+#include "objectstack/objectstack.hpp"
 #include "objectstate/objectstatestack.hpp"
 #include "presetstore.hpp"
 #include "properties/shapeeditor.hpp"
@@ -283,6 +284,8 @@ Editor::Editor(PresetStore& presets, QWidget *parent)
         // persistence, so every edit leaves through one of its four signals and comes back as a re-feed.
         m_objects = new ObjectController(m_scene, m_view, ui->objectStack, m_objectState,
                                          m_bubbleOptions, *m_presets, m_layout, this, this);
+        // OBJECT STACK: the rows. A view of the controller, built before any feed can arrive.
+        m_objectStack = new ObjectStack(ui->objectStack, *m_objects, m_layout, *m_presets, this, this);
         // The object's menu spends the same pair the bucket does — it reads it, never writes it.
         m_objects->setColourSource(m_colours);
         connect(m_objects, &ObjectController::recordCreated,        this, &Editor::recordCreated);
@@ -421,7 +424,7 @@ void Editor::applyGrade(const Platemaker::Models::ColourCorrection& cc)
         QSet<QString> skipped;
         for (const auto& uid : cc.excludedInputUids)
             skipped.insert(QString::fromStdString(uid));
-        m_objects->setExcludedPages(skipped);
+        m_objectStack->setExcludedPages(skipped);
     }
     showSubject();   // a selected strip or page describes the grade, so it follows it
     if (m_pages->setColourCorrection(cc))
@@ -562,7 +565,7 @@ void Editor::rebuildScene()
     // Overlays are placed against the layout above, so they can only be built once it exists. The
     // scene's selection did not survive clear(), so re-apply it to whatever is still selected.
     m_objects->syncItems();
-    m_objects->refreshList();
+    m_objectStack->refresh();
     m_objects->reselect();
 
     // Default view: 100%. Re-applied on resize until the user zooms.

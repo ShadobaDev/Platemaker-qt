@@ -51,6 +51,7 @@ class ToolOptionsStack;
 class ToolRail;
 class GradeToolOptions;
 class ObjectState;
+class ObjectStack;
 class ObjectStateStack;
 class StripState;
 class PresetStore;
@@ -394,6 +395,7 @@ private:
     StripState*  m_stripState = nullptr;
     //! OBJECT STATE: which of the two panels above shows, and what it says about the strip.
     ObjectStateStack* m_stateStack = nullptr;
+    ObjectStack*      m_objectStack = nullptr;   //!< OBJECT STACK: the rows, a view of m_objects.
     /**
      * @brief The grade as this editor last saw it — from the project, or from a live edit in progress.
      *

@@ -501,7 +501,7 @@ void MainWindow::closeWorkspace()
         dock->deleteLater();
     m_openProjectDocks.clear();
 
-    // Strip viewer docks belong to the workspace's projects too — close them with it.
+    // Strip editor docks belong to the workspace's projects too — close them with it.
     for (QDockWidget *dock : std::as_const(m_openStripDocks))
         dock->deleteLater();
     m_openStripDocks.clear();

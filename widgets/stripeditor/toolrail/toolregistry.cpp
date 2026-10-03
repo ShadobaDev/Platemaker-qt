@@ -51,7 +51,7 @@ const QList<Tool>& tools()
          ToolKind::Grade, std::nullopt, QStringLiteral("grade"),
          CursorStyle::Arrow, CursorStyle::Inherit},   // it acts on the strip, not on what you point at
 
-        {QStringLiteral("colour"),
+        {QStringLiteral("bucket"),
          QStringLiteral(":/icons/tools/bucket.svg"),
          QT_TRANSLATE_NOOP("StripEdit::Tool", "Bucket paint"),
          QT_TRANSLATE_NOOP("StripEdit::Tool",
@@ -80,7 +80,7 @@ const QList<Tool>& tools()
          QT_TRANSLATE_NOOP("StripEdit::Tool", 
                            "Drag on the strip to place\n"
                            "a balloon in the shape below."),
-         ToolKind::Create, std::nullopt, QStringLiteral("artifact"),
+         ToolKind::Create, std::nullopt, QStringLiteral("bubble"),
          CursorStyle::Cross, CursorStyle::Inherit},
 
         // The third kind of object, and the reason this tool exists: artwork could only be added from
@@ -103,7 +103,7 @@ const QList<Tool>& tools()
          QT_TRANSLATE_NOOP("StripEdit::Tool", 
                            "Drag on the strip to place lettering\n"
                            "with no balloon around it."),
-         ToolKind::Create, Artifact::Shape::None, QStringLiteral("artifact"),
+         ToolKind::Create, Artifact::Shape::None, QStringLiteral("bubble"),
          CursorStyle::Cross, CursorStyle::Inherit},
 
     };

@@ -644,9 +644,9 @@ private:
     // --- collaborators, not owned ---
     QGraphicsScene* m_scene        = nullptr;   //!< The scene that draws the strip and its overlays.
     QGraphicsView*  m_view         = nullptr;   //!< The view that shows the scene, and whose transform is used for hit-testing. 
-    QTreeWidget*    m_list         = nullptr;   //!< The object stack. A tree, so that objects can nest under the objects they belong to; for now
+    QTreeWidget*    m_stack         = nullptr;   //!< The object stack. A tree, so that objects can nest under the objects they belong to; for now
     ObjectState* m_objectState = nullptr;  //!< every row is top level and it behaves exactly as the list it replaced.
-    BubbleToolOptions* m_toolOptions = nullptr;  //!< Read for prototype(); never edited from here.
+    BubbleToolOptions* m_bubbleOptions = nullptr;  //!< Read for prototype(); never edited from here.
     PresetStore&      m_presets;                //!< The store of named presets, which the menu reads from and the save action writes to.
     /**
      * @brief *Apply preset ▸* on the selection. Restyling something that exists is a different act from

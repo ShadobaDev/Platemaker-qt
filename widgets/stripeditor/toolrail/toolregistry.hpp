@@ -64,8 +64,9 @@ struct Tool
     //! `Create` only: the shape a placement gets. No value leaves the choice to the shape tiles in TOOL VIEW,
     //! which is the Bubble tool; `Shape::None` is the Text tool, letters with no balloon.
     std::optional<Artifact::Shape> shape;
-    //! Which tool-options page: empty for none, `grade`, or `artifact` (what the next object will be).
-    QString page;
+    //! Which tool-options page: empty for none, `grade`, `bubble` (what the next balloon or lettering
+    //! will be) or `artwork` (which picture the next placement puts down).
+    QString optionsPage;
 
     //! Over the bare strip. `Hand` is what `ScrollHandDrag` writes anyway, so the two agree.
     CursorStyle cursor = CursorStyle::Arrow;

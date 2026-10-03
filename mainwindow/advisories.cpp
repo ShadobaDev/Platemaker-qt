@@ -148,14 +148,14 @@ void MainWindow::showObjects(const QString& projectUid, const QStringList& uids)
     openStripEditorDock(idx);   // raises it when it is already open
 
     QDockWidget* strip = dockForStripEditor(idx);
-    auto* viewer = strip ? qobject_cast<StripEdit::Editor*>(strip->widget()) : nullptr;
-    if (!viewer)
+    auto* editor = strip ? qobject_cast<StripEdit::Editor*>(strip->widget()) : nullptr;
+    if (!editor)
         return;
 
     // Armed and then fed, the same handshake an undo uses: the objects only exist in the editor once
     // the feed builds them. An object that is not on the strip (unanchored) is not selectable in the
     // scene, so for it what this reaches is its row in the object stack, where it can be acted on.
-    viewer->selectAfterFeed(uids);
+    editor->selectAfterFeed(uids);
     refreshStripEditor(strip);
 }
 

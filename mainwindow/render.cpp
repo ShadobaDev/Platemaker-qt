@@ -830,8 +830,8 @@ void MainWindow::onRenderFinished()
 
     // Update the UI and reset the render state.
     if (auto *pw = projectWidget(idx)) pw->setRendering(false);
-    // If this project's strip viewer is open, refresh it from whatever the run left on disk (a full,
-    // partial or cancelled render all update the committed slices the viewer shows).
+    // If this project's strip editor is open, refresh it from whatever the run left on disk (a full,
+    // partial or cancelled render all update the committed slices the editor shows).
     if (QDockWidget *sd = dockForStripEditor(idx)) refreshStripEditor(sd);
     ui->pushButtonStop->setEnabled(false);
 

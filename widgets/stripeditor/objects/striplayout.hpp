@@ -35,7 +35,7 @@ struct Page
  *
  * Split out of the editor, where it lived as **four parallel QLists** indexed in lockstep — a struct
  * wearing four names, and one `append()` away from silently mismatching. It is also the part of the
- * viewer with no Qt widget in it: no scene, no view, no palette, nothing to construct. That makes it the
+ * editor with no Qt widget in it: no scene, no view, no palette, nothing to construct. That makes it the
  * one piece testable on its own, and it is the piece the overlay code interrogates constantly (every
  * placement, every re-anchor, every orphan check).
  *

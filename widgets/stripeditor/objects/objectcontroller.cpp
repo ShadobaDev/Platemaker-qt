@@ -78,9 +78,9 @@ ObjectController::ObjectController(QGraphicsScene* scene, QGraphicsView* view, Q
     : QObject(parent)
     , m_scene(scene)
     , m_view(view)
-    , m_list(list)
+    , m_stack(list)
     , m_objectState(panel)
-    , m_toolOptions(defaults)
+    , m_bubbleOptions(defaults)
     , m_presets(presets)
     , m_layout(layout)
     , m_dialogParent(dialogParent)
@@ -119,22 +119,22 @@ ObjectController::ObjectController(QGraphicsScene* scene, QGraphicsView* view, Q
     });
 
     // --- artifact list (right-bottom): composite order, mute toggles, selection ---
-    m_list->setDragDropMode(QAbstractItemView::InternalMove);
+    m_stack->setDragDropMode(QAbstractItemView::InternalMove);
     // Extended: Ctrl adds, Shift takes a run — the two gestures every list in the application uses.
-    m_list->setSelectionMode(QAbstractItemView::ExtendedSelection);
-    m_list->setHeaderHidden(true);
-    m_list->setColumnCount(1);
+    m_stack->setSelectionMode(QAbstractItemView::ExtendedSelection);
+    m_stack->setHeaderHidden(true);
+    m_stack->setColumnCount(1);
     // Branch decoration, because the strip nests its pages. Rows start collapsed; what the artist opens
     // stays open, since the rows are updated in place rather than rebuilt.
-    m_list->setRootIsDecorated(true);
+    m_stack->setRootIsDecorated(true);
     // The row grows to fit the glyph: a column of objects, not of labels. Icons are drawn at the screen's
     // own density (see rowglyph.cpp), so this is a size in points and not a reason for anything to be
     // scaled up afterwards.
-    m_list->setIconSize(QSize(k_rowGlyphPx, k_rowGlyphPx));
+    m_stack->setIconSize(QSize(k_rowGlyphPx, k_rowGlyphPx));
     // A row names its object; the chips after the name say what is true of it. The delegate hands any
     // row with nothing to report straight back to the style, so tails, pages and the strip are drawn
     // exactly as they were.
-    m_list->setItemDelegate(new BadgeItemDelegate(m_list));
+    m_stack->setItemDelegate(new BadgeItemDelegate(m_stack));
 
     // Duplicate / Delete as real QActions: Qt::ActionsContextMenu then builds the list's right-click
     // menu from them for free, and the same objects carry the keyboard shortcuts. They are added to
@@ -216,8 +216,8 @@ ObjectController::ObjectController(QGraphicsScene* scene, QGraphicsView* view, Q
     // The silhouette it arrives at is the one the tool's options are set to — the same source *Apply
     // from tool options ▸* spends, so there is one answer to "which balloon" and not two.
     connect(m_actToBalloon, &QAction::triggered, this, [this] {
-        if (m_toolOptions)
-            convertSelectionTo(m_toolOptions->balloonShape());
+        if (m_bubbleOptions)
+            convertSelectionTo(m_bubbleOptions->balloonShape());
     });
     connect(m_convertMenu, &QMenu::aboutToShow, this, [this] {
         // Ticked only when the selection agrees, exactly as Blend is: with a set that disagrees,
@@ -273,7 +273,7 @@ ObjectController::ObjectController(QGraphicsScene* scene, QGraphicsView* view, Q
         a->setSeparator(true);
         return a;
     };
-    for (QWidget* w : {static_cast<QWidget*>(m_list), static_cast<QWidget*>(m_view)}) {
+    for (QWidget* w : {static_cast<QWidget*>(m_stack), static_cast<QWidget*>(m_view)}) {
         w->addAction(m_presetMenu->menuAction());
         w->addAction(m_actSavePreset);
         w->addAction(m_groupMenu->menuAction());
@@ -296,14 +296,14 @@ ObjectController::ObjectController(QGraphicsScene* scene, QGraphicsView* view, Q
     // Both widgets, not just the list. The actions were added to the canvas from the start — which is why
     // the shortcuts worked there — but without this the canvas had nothing to build a menu *from*, so a
     // right-click on the strip did nothing at all.
-    m_list->setContextMenuPolicy(Qt::ActionsContextMenu);
+    m_stack->setContextMenuPolicy(Qt::ActionsContextMenu);
     m_view->setContextMenuPolicy(Qt::ActionsContextMenu);
-    connect(m_list, &QTreeWidget::itemSelectionChanged, this, [this] {
+    connect(m_stack, &QTreeWidget::itemSelectionChanged, this, [this] {
         // A drag moves a row by taking it out and putting it back, and the taking clears its selection.
         // That is the tree's mechanics, not the artist deselecting, so the selection stands until the
         // move has been committed and re-shown.
         if (m_syncingList || m_rowsMoving) return;
-        const auto sel = m_list->selectedItems();
+        const auto sel = m_stack->selectedItems();
         if (sel.isEmpty()) {
             selectOverlay(QString());
             return;
@@ -326,7 +326,7 @@ ObjectController::ObjectController(QGraphicsScene* scene, QGraphicsView* view, Q
     // Both list handlers are deferred to the next event-loop turn on purpose. Persisting an edit
     // round-trips through the owner and comes back as a re-feed that clears and refills this list —
     // which cannot safely happen inside the list's own itemChanged / rowsMoved emission.
-    connect(m_list, &QTreeWidget::itemChanged, this, [this](QTreeWidgetItem* row, int) {
+    connect(m_stack, &QTreeWidget::itemChanged, this, [this](QTreeWidgetItem* row, int) {
         if (m_syncingList || !row) return;
         const QString uid = row->data(0, Qt::UserRole).toString();
         const bool    on  = row->checkState(0) == Qt::Checked;
@@ -344,11 +344,11 @@ ObjectController::ObjectController(QGraphicsScene* scene, QGraphicsView* view, Q
         if (!m_syncingList)
             m_orderCommit->start();
     };
-    connect(m_list->model(), &QAbstractItemModel::rowsMoved,    this, orderMayHaveChanged);
-    connect(m_list->model(), &QAbstractItemModel::rowsInserted, this, orderMayHaveChanged);
+    connect(m_stack->model(), &QAbstractItemModel::rowsMoved,    this, orderMayHaveChanged);
+    connect(m_stack->model(), &QAbstractItemModel::rowsInserted, this, orderMayHaveChanged);
     // Outside a refresh, nothing but a drag removes a row — deleting an object goes through the model
     // and comes back as a refresh.
-    connect(m_list->model(), &QAbstractItemModel::rowsAboutToBeRemoved, this, [this] {
+    connect(m_stack->model(), &QAbstractItemModel::rowsAboutToBeRemoved, this, [this] {
         if (m_syncingList)
             return;
         m_rowsMoving = true;
@@ -438,8 +438,8 @@ void ObjectController::selectTail(const QString& uid, int index)
 
 QTreeWidgetItem* ObjectController::tailRow(const QString& uid, int index) const
 {
-    for (int r = 0; r < m_list->topLevelItemCount(); ++r) {
-        QTreeWidgetItem* top = m_list->topLevelItem(r);
+    for (int r = 0; r < m_stack->topLevelItemCount(); ++r) {
+        QTreeWidgetItem* top = m_stack->topLevelItem(r);
         if (top->data(0, k_kindRole).toInt() == static_cast<int>(Subject::Overlay)
             && top->data(0, Qt::UserRole).toString() == uid)
             return (index >= 0 && index < top->childCount()) ? top->child(index) : nullptr;
@@ -549,8 +549,8 @@ void ObjectController::selectSubject(Subject subject, const QString& pageUid)
 
 QTreeWidgetItem* ObjectController::subjectRow() const
 {
-    for (int r = 0; r < m_list->topLevelItemCount(); ++r) {
-        QTreeWidgetItem* top = m_list->topLevelItem(r);
+    for (int r = 0; r < m_stack->topLevelItemCount(); ++r) {
+        QTreeWidgetItem* top = m_stack->topLevelItem(r);
         if (top->data(0, k_kindRole).toInt() != static_cast<int>(Subject::Strip))
             continue;
         if (m_subject == Subject::Strip)
@@ -627,9 +627,9 @@ void ObjectController::setSource(const std::vector<Platemaker::Models::StripOver
             // both places the selection shows. ensureVisible() and scrollToItem() do nothing when the
             // target is already visible, which keeps an undo of what you are looking at perfectly still.
             m_view->ensureVisible(m_overlayItems.value(uid));
-            const QList<QTreeWidgetItem*> rows = m_list->selectedItems();
+            const QList<QTreeWidgetItem*> rows = m_stack->selectedItems();
             if (!rows.isEmpty())
-                m_list->scrollToItem(rows.first());
+                m_stack->scrollToItem(rows.first());
             return;
         }
         selectOverlay(QString());
@@ -886,7 +886,7 @@ QIcon ObjectController::rowGlyph(const QString& uid)
     if (!isParametric(uid)) {
         // Imported artwork: no authoring record, so no silhouette. The art is its own glyph.
         const auto* art = qobject_cast<const ArtworkObject*>(m_overlayItems.value(uid));
-        return art ? assetGlyph(art->artwork(), k_rowGlyphPx, m_list->devicePixelRatioF()) : QIcon();
+        return art ? assetGlyph(art->artwork(), k_rowGlyphPx, m_stack->devicePixelRatioF()) : QIcon();
     }
     const Artifact a = recordFor(uid);
 
@@ -895,20 +895,20 @@ QIcon ObjectController::rowGlyph(const QString& uid)
     drawn.style     = {};   // line styles are SVG filters, applied by the render and never here
     drawn.styleSeed = 0;
     QString key = QString::fromUtf8(QJsonDocument(artifactToJson(drawn)).toJson(QJsonDocument::Compact));
-    key += QStringLiteral("|@%1").arg(m_list->devicePixelRatioF());   // a window can move to another screen
+    key += QStringLiteral("|@%1").arg(m_stack->devicePixelRatioF());   // a window can move to another screen
 
     auto it = m_glyphs.constFind(uid);
     if (it != m_glyphs.constEnd() && it->first == key)
         return it->second;
 
-    const QIcon glyph = objectGlyph(a, m_list->palette(), k_rowGlyphPx, m_list->devicePixelRatioF());
+    const QIcon glyph = objectGlyph(a, m_stack->palette(), k_rowGlyphPx, m_stack->devicePixelRatioF());
     m_glyphs.insert(uid, {key, glyph});
     return glyph;
 }
 
 void ObjectController::refreshList()
 {
-    if (!m_list)
+    if (!m_stack)
         return;
 
     m_syncingList = true;
@@ -919,8 +919,8 @@ void ObjectController::refreshList()
     // using it. Rows are matched by id — an overlay's uid, the strip's fixed id, a page's input uid — and
     // only what changed is touched.
     QHash<QString, QTreeWidgetItem*> unused;
-    for (int r = 0; r < m_list->topLevelItemCount(); ++r) {
-        QTreeWidgetItem* row = m_list->topLevelItem(r);
+    for (int r = 0; r < m_stack->topLevelItemCount(); ++r) {
+        QTreeWidgetItem* row = m_stack->topLevelItem(r);
         unused.insert(row->data(0, Qt::UserRole).toString(), row);
     }
 
@@ -928,13 +928,13 @@ void ObjectController::refreshList()
     // take and an insert, and the view forgets whether a taken row was expanded — so that is carried
     // across by hand, or every reorder would fold up whatever the artist had opened.
     const auto placeTopLevel = [this](QTreeWidgetItem* row, int index) {
-        const int at = m_list->indexOfTopLevelItem(row);
+        const int at = m_stack->indexOfTopLevelItem(row);
         if (at == index)
             return;
         const bool open = at >= 0 && row->isExpanded();
         if (at >= 0)
-            m_list->takeTopLevelItem(at);
-        m_list->insertTopLevelItem(index, row);
+            m_stack->takeTopLevelItem(at);
+        m_stack->insertTopLevelItem(index, row);
         row->setExpanded(open);
     };
 
@@ -989,7 +989,7 @@ void ObjectController::refreshList()
         // the row's own checkbox already answers it, and a chip repeating a control next to it is a
         // second voice saying the same thing.
         QList<Badge> badges;
-        const QPalette pal = m_list->palette();
+        const QPalette pal = m_stack->palette();
         if (page < 0)
             badges << toneBadge(BadgeTone::Warning, tr("unanchored"),
                                 tr("The page this object was anchored to is not in the strip, so the "
@@ -1034,7 +1034,7 @@ void ObjectController::refreshList()
             tailItem->setData(0, k_tailRole, t);
             tailItem->setText(0, tr("Tail %1").arg(t + 1));
             if (m_tailGlyph.isNull())
-                m_tailGlyph = tailGlyph(m_list->palette(), k_rowGlyphPx, m_list->devicePixelRatioF());
+                m_tailGlyph = tailGlyph(m_stack->palette(), k_rowGlyphPx, m_stack->devicePixelRatioF());
             tailItem->setIcon(0, m_tailGlyph);
             tailItem->setSelected(m_selectedTails.contains(TailRef{uid, t}));
         }
@@ -1064,7 +1064,7 @@ void ObjectController::refreshList()
         placeTopLevel(strip, index);
         strip->setText(0, tr("Strip · %n page(s)", "", m_layout.pageCount()));
         if (m_stripGlyph.isNull())
-            m_stripGlyph = stripGlyph(m_list->palette(), k_rowGlyphPx, m_list->devicePixelRatioF());
+            m_stripGlyph = stripGlyph(m_stack->palette(), k_rowGlyphPx, m_stack->devicePixelRatioF());
         strip->setIcon(0, m_stripGlyph);
 
         // Its pages, in strip order, reconciled the same way — by input uid, in place, so a page the
@@ -1092,7 +1092,7 @@ void ObjectController::refreshList()
                                                 .arg(QFileInfo(page.sourcePath).fileName());
             row->setText(0, m_excludedPages.contains(page.inputUid) ? tr("%1 · excluded").arg(name) : name);
             if (m_pageGlyph.isNull())
-                m_pageGlyph = pageGlyph(m_list->palette(), k_rowGlyphPx, m_list->devicePixelRatioF());
+                m_pageGlyph = pageGlyph(m_stack->palette(), k_rowGlyphPx, m_stack->devicePixelRatioF());
             row->setIcon(0, m_pageGlyph);
             row->setSelected(m_subject == Subject::Page && page.inputUid == m_selectedPage);
         }
@@ -1177,9 +1177,9 @@ void ObjectController::selectSubjects(const QStringList& uids, const QList<TailR
             item->setFocusedHandle(t.index);
     }
 
-    m_list->clearSelection();
-    for (int r = 0; r < m_list->topLevelItemCount(); ++r) {
-        QTreeWidgetItem* row = m_list->topLevelItem(r);
+    m_stack->clearSelection();
+    for (int r = 0; r < m_stack->topLevelItemCount(); ++r) {
+        QTreeWidgetItem* row = m_stack->topLevelItem(r);
         if (row->data(0, k_kindRole).toInt() != static_cast<int>(Subject::Overlay))
             continue;
         const QString uid = row->data(0, Qt::UserRole).toString();
@@ -1730,9 +1730,9 @@ void ObjectController::applyColourToSelection(const QColor& colour, ArtifactPart
 
 void ObjectController::applyGroupToSelection(PropertyGroup group)
 {
-    if (!m_toolOptions || m_selectedOverlays.isEmpty())
+    if (!m_bubbleOptions || m_selectedOverlays.isEmpty())
         return;
-    const Artifact source = m_toolOptions->prototype();
+    const Artifact source = m_bubbleOptions->prototype();
 
     QList<Artifact> next;
     int                 changed = 0;
@@ -1949,9 +1949,9 @@ void ObjectController::commitListOrder()
 
     std::vector<Platemaker::Models::StripOverlay> reordered;
     reordered.reserve(m_overlays.size());
-    for (int r = m_list->topLevelItemCount() - 1; r >= 0; --r) {
+    for (int r = m_stack->topLevelItemCount() - 1; r >= 0; --r) {
         const auto it = byUid.find(
-            m_list->topLevelItem(r)->data(0, Qt::UserRole).toString().toStdString());
+            m_stack->topLevelItem(r)->data(0, Qt::UserRole).toString().toStdString());
         if (it != byUid.end())
             reordered.push_back(it->second);
     }
@@ -2053,7 +2053,7 @@ void ObjectController::finishPlacement()
     }
     m_placing = false;
 
-    if (m_layout.isEmpty() || !m_toolOptions)
+    if (m_layout.isEmpty() || !m_bubbleOptions)
         return;
 
     // Only a drag creates a bubble. Letting a bare click create one made every click on the artwork a
@@ -2087,7 +2087,7 @@ void ObjectController::finishPlacement()
 
     // Whatever the active tool places — shape included: the panel is the tool's side of the question,
     // and this controller knows nothing about which tool is armed.
-    Artifact a = m_toolOptions->prototype();
+    Artifact a = m_bubbleOptions->prototype();
     a.box = r.size().toSize();
     // The prototype's tail was placed against the panel's nominal box; re-aim it at the one just drawn,
     // just below the balloon, which is where a reader expects a new bubble to be speaking from.

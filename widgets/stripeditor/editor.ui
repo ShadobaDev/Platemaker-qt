@@ -201,15 +201,15 @@
         </size>
        </property>
       </widget>
-      <widget class="QStackedWidget" name="toolOptions"/>
+      <widget class="QStackedWidget" name="toolOptionsStack"/>
      </widget>
      <widget class="QGraphicsView" name="graphicsView"/>
      <widget class="QSplitter" name="rightPanel">
       <property name="orientation">
        <enum>Qt::Vertical</enum>
       </property>
-      <widget class="QStackedWidget" name="objectProperties"/>
-      <widget class="QTreeWidget" name="artifactList"/>
+      <widget class="QStackedWidget" name="objectStateStack"/>
+      <widget class="QTreeWidget" name="objectStack"/>
      </widget>
     </widget>
    </item>

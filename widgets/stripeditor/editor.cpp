@@ -174,7 +174,7 @@ void showHandles(QSplitter* splitter)
  * One QGraphicsPixmapItem per page leaves a 1px hairline at each join (QGraphicsView clips and rounds
  * each item's edge independently). Drawing all pages through one item, in one painter pass, tiles them
  * edge-to-edge with no seam at any zoom. The item is a thin view over the Editor: it owns no
- * pixels — it asks the viewer for each page's built pixmap (if ready) or its blurry proxy, so the
+ * pixels — it asks the editor for each page's built pixmap (if ready) or its blurry proxy, so the
  * lazy/async machinery lives in one place.
  */
 class StripItem : public QGraphicsItem
@@ -317,7 +317,7 @@ Editor::Editor(PresetStore& presets, QWidget *parent)
         // blank panel under an armed tool reads as *nothing is armed* — which is how the bucket gets
         // picked by accident, and the next click paints. It carries the tool's name and its one
         // sentence, both from the registry row, so a new tool cannot arrive without them.
-        auto* hintPage = new QWidget(ui->toolOptions);
+        auto* hintPage = new QWidget(ui->toolOptionsStack);
         auto* hintLay  = new QVBoxLayout(hintPage);
         m_toolTitle    = new QLabel(hintPage);
         QFont titleFont = m_toolTitle->font();
@@ -330,41 +330,41 @@ Editor::Editor(PresetStore& presets, QWidget *parent)
         hintLay->addWidget(m_toolHint);
         hintLay->addStretch(1);
         QHash<QString, int> pageIndex;
-        pageIndex.insert(QString(), ui->toolOptions->addWidget(scrolled(hintPage, ui->toolOptions)));
+        pageIndex.insert(QString(), ui->toolOptionsStack->addWidget(scrolled(hintPage, ui->toolOptionsStack)));
         // The Grade tool's options are an image editor's colour menu: which adjustment, and its controls, applied to the
         // selected object. What a selected strip's grade *is* is shown on the right, in its state.
-        m_gradePanel = new GradeToolOptions(ui->toolOptions);
+        m_gradeOptions = new GradeToolOptions(ui->toolOptionsStack);
         pageIndex.insert(QStringLiteral("grade"),
-                         ui->toolOptions->addWidget(scrolled(m_gradePanel, ui->toolOptions)));
-        connect(m_gradePanel, &GradeToolOptions::changed, this, [this](const Platemaker::Models::ColourCorrection& cc) {
+                         ui->toolOptionsStack->addWidget(scrolled(m_gradeOptions, ui->toolOptionsStack)));
+        connect(m_gradeOptions, &GradeToolOptions::changed, this, [this](const Platemaker::Models::ColourCorrection& cc) {
             // Live edit: apply it, but do NOT push it back into the panel — the panel is the source
             // here, and re-syncing its widgets mid-drag would fight the slider the user is holding.
             applyGrade(cc);
         });
-        connect(m_gradePanel, &GradeToolOptions::committed, this,
+        connect(m_gradeOptions, &GradeToolOptions::committed, this,
                 [this](const Platemaker::Models::ColourCorrection& cc, const QString& undoText) {
             emit colourCorrectionEdited(cc, undoText);   // settled: the owner persists it, one undo step
         });
         // The panel can only act on the strip; asked for it, it gets it.
-        connect(m_gradePanel, &GradeToolOptions::selectStripRequested, this, [this] {
+        connect(m_gradeOptions, &GradeToolOptions::selectStripRequested, this, [this] {
             if (m_objects)
                 m_objects->selectStrip();
         });
         // One panel for every tool that authors an `Artifact` — Bubble, Text, Caption — because they
         // author the same object and differ only in the shape they place, which each tool's row says.
-        m_toolOptions = new BubbleToolOptions(*m_presets, ui->toolOptions);
-        pageIndex.insert(QStringLiteral("artifact"),
-                         ui->toolOptions->addWidget(scrolled(m_toolOptions, ui->toolOptions)));
+        m_bubbleOptions = new BubbleToolOptions(*m_presets, ui->toolOptionsStack);
+        pageIndex.insert(QStringLiteral("bubble"),
+                         ui->toolOptionsStack->addWidget(scrolled(m_bubbleOptions, ui->toolOptionsStack)));
 
         // The other create tool's options: which picture the next placement puts down. A separate panel
         // rather than a section of the one above, because they describe different kinds of object, and an
         // options page describes one kind at a time.
-        m_artworkOptions = new ArtworkToolOptions(ui->toolOptions);
+        m_artworkOptions = new ArtworkToolOptions(ui->toolOptionsStack);
         pageIndex.insert(k_artworkPage,
-                         ui->toolOptions->addWidget(scrolled(m_artworkOptions, ui->toolOptions)));
+                         ui->toolOptionsStack->addWidget(scrolled(m_artworkOptions, ui->toolOptionsStack)));
         connect(m_artworkOptions, &ArtworkToolOptions::artworkChanged, this, [this](const QString& f) {
             const Tool* armed = toolById(m_tool);
-            if (m_objects && armed && armed->page == k_artworkPage)
+            if (m_objects && armed && armed->optionsPage == k_artworkPage)
                 m_objects->setPlacementArtwork(f);
         });
 
@@ -385,8 +385,8 @@ Editor::Editor(PresetStore& presets, QWidget *parent)
             m_toolGroup->addButton(b, i);
             // A row naming a page nobody registered would land on index 0 — the hint page — and look
             // like a tool that simply has no options, which is the hardest kind of typo to see.
-            Q_ASSERT(pageIndex.contains(t.page));
-            m_toolPage.insert(t.id, pageIndex.value(t.page));
+            Q_ASSERT(pageIndex.contains(t.optionsPage));
+            m_toolPage.insert(t.id, pageIndex.value(t.optionsPage));
         }
 
         // The colour pair is **furniture**, not a tool: it sits under the tiles and stays there whichever
@@ -414,15 +414,15 @@ Editor::Editor(PresetStore& presets, QWidget *parent)
         // The other question, and a different class for it: what the *selected* object is. The two used
         // to be one class sitting in two places, which is how they came to look like the same panel
         // twice. They now differ in what they contain, not only in what they mean.
-        m_objectState = new ObjectState(*m_presets, ui->objectProperties);
-        m_objectPage  = scrolled(m_objectState, ui->objectProperties);
-        ui->objectProperties->addWidget(m_objectPage);
+        m_objectState = new ObjectState(*m_presets, ui->objectStateStack);
+        m_objectPage  = scrolled(m_objectState, ui->objectStateStack);
+        ui->objectStateStack->addWidget(m_objectPage);
 
         // The strip and its pages are selected too, and they are not overlays — so they get the same
         // surface with different contents rather than an object panel full of sections that never apply.
-        m_stripState = new StripState(ui->objectProperties);
-        m_stripPage  = scrolled(m_stripState, ui->objectProperties);
-        ui->objectProperties->addWidget(m_stripPage);
+        m_stripState = new StripState(ui->objectStateStack);
+        m_stripPage  = scrolled(m_stripState, ui->objectStateStack);
+        ui->objectStateStack->addWidget(m_stripPage);
 
         connect(m_stripState, &StripState::excludedToggled, this,
                 [this](const QString& inputUid, bool excluded) {
@@ -444,7 +444,7 @@ Editor::Editor(PresetStore& presets, QWidget *parent)
         // An adjustment listed on the strip: reopened in the Grade tool, or taken off the strip.
         connect(m_stripState, &StripState::adjustmentEditRequested, this, [this](ColourAdjustment a) {
             setTool(QStringLiteral("grade"));
-            m_gradePanel->openAdjustment(a);
+            m_gradeOptions->openAdjustment(a);
         });
         connect(m_stripState, &StripState::adjustmentRemoveRequested, this, [this](ColourAdjustment a) {
             emit colourCorrectionEdited(withoutColourAdjustment(m_cc, a),
@@ -453,8 +453,8 @@ Editor::Editor(PresetStore& presets, QWidget *parent)
 
         // Everything placed on the strip. It drives the scene, the list and the panel; it owns no
         // persistence, so every edit leaves through one of its four signals and comes back as a re-feed.
-        m_objects = new ObjectController(m_scene, m_view, ui->artifactList, m_objectState,
-                                         m_toolOptions, *m_presets, m_layout, this, this);
+        m_objects = new ObjectController(m_scene, m_view, ui->objectStack, m_objectState,
+                                         m_bubbleOptions, *m_presets, m_layout, this, this);
         // The object's menu spends the same pair the bucket does — it reads it, never writes it.
         m_objects->setColourSource(m_colours);
         connect(m_objects, &ObjectController::artifactCreated,        this, &Editor::artifactCreated);
@@ -468,7 +468,7 @@ Editor::Editor(PresetStore& presets, QWidget *parent)
         ui->editorBody->setStretchFactor(2, 0);   // right panel
         // Neither side column can be dragged under what its panel needs. The tool column knows that
         // because its panel is complete; the right column is told, because its panel is not yet.
-        const int toolW = qMax(k_rightColumnPx, columnWidthFor(m_toolOptions));
+        const int toolW = qMax(k_rightColumnPx, columnWidthFor(m_bubbleOptions));
         ui->toolColumn->setMinimumWidth(toolW);
         ui->rightPanel->setMinimumWidth(k_rightColumnPx);
         ui->editorBody->setChildrenCollapsible(false);   // no column can be dragged out of existence
@@ -477,7 +477,7 @@ Editor::Editor(PresetStore& presets, QWidget *parent)
         ui->toolColumn->setStretchFactor(1, 1);    // the options absorb the rest
         // The tools are never negotiable — the rail's minimum follows its own wrapping (see
         // eventFilter) — and the options keep a floor of their own, so neither can be shut by a drag.
-        ui->toolOptions->setMinimumHeight(k_toolOptionsFloorPx);
+        ui->toolOptionsStack->setMinimumHeight(k_toolOptionsFloorPx);
         ui->toolColumn->setSizes({120, 600});
         ui->rightPanel->setStretchFactor(0, 2);    // object properties
         ui->rightPanel->setStretchFactor(1, 1);    // the object list
@@ -506,7 +506,7 @@ void Editor::setTool(const QString& id)
     m_tool = tool->id;
     if (auto* b = m_toolGroup->button(toolIndex(m_tool)))
         b->setChecked(true);
-    ui->toolOptions->setCurrentIndex(m_toolPage.value(m_tool));
+    ui->toolOptionsStack->setCurrentIndex(m_toolPage.value(m_tool));
     // Filled whichever page is showing: the hint page is the one that displays it, and writing it
     // unconditionally means there is no state to get wrong when tools are switched quickly.
     if (m_toolTitle)
@@ -534,14 +534,14 @@ void Editor::setTool(const QString& id)
     // a tool chosen minutes ago must not decide what a bubble's properties look like — selecting a
     // balloon under the Text tool used to show nothing but its lettering, an effect with no visible
     // cause. Which groups that panel shows comes from the selected object's own kind instead.
-    if (m_toolOptions)
-        m_toolOptions->setToolShape(tool->kind == ToolKind::Create ? tool->shape : std::nullopt);
+    if (m_bubbleOptions)
+        m_bubbleOptions->setToolShape(tool->kind == ToolKind::Create ? tool->shape : std::nullopt);
 
     // What a placement puts down: a picture, or — when this is empty — a balloon. The second and last
     // thing the controller is told about the active tool, and told at the moment it is armed.
     if (m_objects) {
         QString artwork;
-        if (tool->page == k_artworkPage && m_artworkOptions) {
+        if (tool->optionsPage == k_artworkPage && m_artworkOptions) {
             // Arming with nothing chosen asks once, here: before any drag, so a file dialog never lands
             // in the middle of one. A cancelled dialog arms nothing, and TOOL VIEW says as much.
             if (m_artworkOptions->artwork().isEmpty())
@@ -586,9 +586,9 @@ void Editor::showSubject()
         return;
 
     // The Grade tool acts on the selection, so it is told what that is whether or not it is showing.
-    if (m_gradePanel) {
+    if (m_gradeOptions) {
         const auto s = m_objects->subject();
-        m_gradePanel->setTarget(s == ObjectController::Subject::Strip ? GradeToolOptions::Target::Strip
+        m_gradeOptions->setTarget(s == ObjectController::Subject::Strip ? GradeToolOptions::Target::Strip
                                 : s == ObjectController::Subject::Page ? GradeToolOptions::Target::Page
                                                                          : GradeToolOptions::Target::Other);
     }
@@ -605,7 +605,7 @@ void Editor::showSubject()
             if (isSkipped(m_layout.page(i).inputUid))
                 ++excluded;
         m_stripState->showStrip(m_layout.pageCount(), excluded, m_cc);
-        ui->objectProperties->setCurrentWidget(m_stripPage);
+        ui->objectStateStack->setCurrentWidget(m_stripPage);
         return;
     }
     case ObjectController::Subject::Page: {
@@ -618,7 +618,7 @@ void Editor::showSubject()
                                               .arg(QFileInfo(page.sourcePath).fileName()),
                                page.size, isSkipped(page.inputUid),
                                !Platemaker::Models::isNeutral(m_cc));
-        ui->objectProperties->setCurrentWidget(m_stripPage);
+        ui->objectStateStack->setCurrentWidget(m_stripPage);
         return;
     }
     case ObjectController::Subject::None:
@@ -630,14 +630,14 @@ void Editor::showSubject()
     // One object panel for every kind of object. There were two — a balloon's and a picture's — and
     // the second was the first with its sections hidden, which is what deciding which sections apply
     // already does. A picture's one extra question, how big it is drawn, is a row in the same panel.
-    ui->objectProperties->setCurrentWidget(m_objectPage);
+    ui->objectStateStack->setCurrentWidget(m_objectPage);
 }
 
 void Editor::setColourCorrection(const Platemaker::Models::ColourCorrection& cc)
 {
     applyGrade(cc);
-    if (m_gradePanel)
-        m_gradePanel->setColourCorrection(cc);   // the project is the source here — show it in the panel
+    if (m_gradeOptions)
+        m_gradeOptions->setColourCorrection(cc);   // the project is the source here — show it in the panel
 }
 
 bool Editor::gradeActive() const  { return m_pages->gradeActive(); }

@@ -58,7 +58,7 @@ class ObjectController;
  *        processing steps (colour grade now, text/bubble overlays next).
  *
  * ## The strip is built from the INPUTS, not from the rendered output
- * The viewer stacks the project's *input pages*, each put through the library's page domain
+ * The editor stacks the project's *input pages*, each put through the library's page domain
  * (EXIF-upright → canvas-profile margin crop → scale to the output's target width) by
  * `ProcessingPipeline::layoutPagesFromHeaders` / `decodePageToRgba`. It never reads the committed
  * output slices.
@@ -66,13 +66,13 @@ class ObjectController;
  *  - **It works before the first render.** There is nothing to view otherwise, and a grade has to be
  *    authored before it is baked, not after.
  *  - **The grade is applied relative to the input**, so rendering the project does not change what the
- *    viewer shows. Feeding on committed output meant the render baked the grade in and the preview then
+ *    editor shows. Feeding on committed output meant the render baked the grade in and the preview then
  *    graded it a second time.
  *  - **Per-page exclusions are expressible.** The unit of work here is the page, exactly the unit the
  *    grade's `excludedInputUids` addresses; an output slice can straddle an excluded and an included
  *    page, so on that feed the exclusion has no meaning at display time.
  *
- * Slices are deliberately absent: they are an *output* artifact (files to publish). A viewer draws a
+ * Slices are deliberately absent: they are an *output* artifact (files to publish). A editor draws a
  * continuous strip and hides the joins anyway, so cutting the preview into them would buy nothing. The
  * slice grid still matters to the author — that is what the seam guides draw, at every slice height.
  *
@@ -160,7 +160,7 @@ public:
      * @brief Feeds the project's text/bubble overlays and their authoring records.
      *
      * Overlays are placed in the **page domain**: each carries the uid of the input page it rides on
-     * (`StripOverlay::anchorInputUid`) plus an offset from that page's top, and this viewer resolves the
+     * (`StripOverlay::anchorInputUid`) plus an offset from that page's top, and this editor resolves the
      * pair against the strip it just laid out — the same arithmetic `ProcessingPipeline::run()` does, so
      * the preview cannot disagree with the render about where a bubble lands. An overlay whose anchor
      * page is not in the strip is shown greyed and marked orphaned rather than dropped, because the
@@ -241,7 +241,7 @@ signals:
     /**
      * @brief A new bubble was drawn — the owner rasterises it and registers it with the library.
      *
-     * Creation is the one thing this viewer cannot finish on its own: the uid is minted by
+     * Creation is the one thing this editor cannot finish on its own: the uid is minted by
      * `ProjectItem::addOverlay()`, which also hashes the asset and dedups identical content. Sending
      * the intent instead of a half-built record keeps that inventory the library's.
      *
@@ -270,7 +270,7 @@ signals:
     /**
      * @brief The author picked artwork to bring in — the owner copies it and registers it.
      *
-     * Placement is decided here, because only the viewer knows which page is in front of the author;
+     * Placement is decided here, because only the editor knows which page is in front of the author;
      * everything after that is the owner's, exactly as it is for a drawn bubble.
      * 
      * @param sourceFile The file the author picked, anywhere on disk.
@@ -454,7 +454,7 @@ private:
      */
     QLabel            *m_toolTitle    = nullptr;   //!< The tool's name, in the tool-options stack.
     QLabel            *m_toolHint     = nullptr;   //!< What a press does, in the tool-options stack.
-    GradeToolOptions        *m_gradePanel   = nullptr;   //!< The Grade tool-options page (colour-correction controls).
+    GradeToolOptions        *m_gradeOptions   = nullptr;   //!< The Grade tool-options page (colour-correction controls).
     /**
      * @brief The Artwork tool's options: which picture a placement puts down. See `setTool()`.
      */
@@ -488,7 +488,7 @@ private:
     /**
      * @brief Bottom-left, under the tool rail: what the *next* object will be. Never edits anything.
      */
-    BubbleToolOptions* m_toolOptions = nullptr;
+    BubbleToolOptions* m_bubbleOptions = nullptr;
     /**
      * @brief The preset library, owned here because more than one thing needs it.
      *

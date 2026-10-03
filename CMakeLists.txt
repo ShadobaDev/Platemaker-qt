@@ -67,6 +67,7 @@ qt_add_executable(Platemaker
     widgets/stripeditor/objects/artworkobject.cpp widgets/stripeditor/objects/artworkobject.hpp
     widgets/stripeditor/objects/striplayout.cpp widgets/stripeditor/objects/striplayout.hpp
     widgets/stripeditor/canvas/pagesource.cpp widgets/stripeditor/canvas/pagesource.hpp
+    widgets/stripeditor/canvas/stripitem.cpp widgets/stripeditor/canvas/stripitem.hpp
     widgets/stripeditor/objects/objectcontroller.cpp widgets/stripeditor/objects/objectcontroller.hpp
     widgets/stripeditor/toolrail/toolregistry.cpp widgets/stripeditor/toolrail/toolregistry.hpp
     widgets/stripeditor/toolrail/colourpair.cpp widgets/stripeditor/toolrail/colourpair.hpp

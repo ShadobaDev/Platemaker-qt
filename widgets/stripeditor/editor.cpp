@@ -9,6 +9,7 @@
 #include "objects/object.hpp"
 #include "objects/objectcontroller.hpp"
 #include "canvas/pagesource.hpp"
+#include "canvas/stripitem.hpp"
 #include "objectstate/objectstate.hpp"
 #include "presetstore.hpp"
 #include "properties/shapeeditor.hpp"
@@ -168,81 +169,6 @@ void showHandles(QSplitter* splitter)
     }
 }
 
-/**
- * @brief One graphics item that draws every input page as its own image — seam-free.
- *
- * One QGraphicsPixmapItem per page leaves a 1px hairline at each join (QGraphicsView clips and rounds
- * each item's edge independently). Drawing all pages through one item, in one painter pass, tiles them
- * edge-to-edge with no seam at any zoom. The item is a thin view over the Editor: it owns no
- * pixels — it asks the editor for each page's built pixmap (if ready) or its blurry proxy, so the
- * lazy/async machinery lives in one place.
- */
-class StripItem : public QGraphicsItem
-{
-public:
-    /**
-     * @brief Creates a graphics item that draws the strip.
-     * @param owner The editor that owns the strip and supplies the pages.
-     */
-    explicit StripItem(Editor *owner) : m_owner(owner) {}
-
-    /**
-     * @brief The bounding rectangle of the strip, in scene coordinates.
-     * @return The rectangle that contains the whole strip.
-     */
-    QRectF boundingRect() const override
-    {
-        const QSize s = m_owner->stripSize();
-        return QRectF(0, 0, s.width(), s.height());
-    }
-
-    /**
-     * @brief Paints the strip.
-     * @param painter The painter to use.
-     * @param option The style options.
-     * @param widget The widget being painted.
-     */
-    void paint(QPainter *painter, const QStyleOptionGraphicsItem *option, QWidget *) override
-    {
-        // Smooth the pixmap interior, but turn OFF edge antialiasing: with AA on, each drawPixmap
-        // coverage-antialiases the destination rect's edges at fractional zoom, so the boundary row
-        // between two pages is only partially covered and the background hairlines through — that is
-        // the "1px frame". AA off makes adjacent pages tile with hard edges, each device row owned by
-        // exactly one page, no bleed. (Local to this item — the view keeps AA for text/seam lines.)
-        painter->setRenderHint(QPainter::Antialiasing, false);
-        painter->setRenderHint(QPainter::SmoothPixmapTransform, true);
-        const QRectF exposed = option->exposedRect;
-        for (int i = 0; i < m_owner->pageCount(); ++i) {
-            const QRectF r = m_owner->pageRect(i);
-            if (!r.intersects(exposed))
-                continue;
-
-            if (m_owner->gradeActive()) {
-                const QPixmap graded = m_owner->gradedOf(i);
-                if (!graded.isNull()) {
-                    painter->drawPixmap(r.topLeft(), graded); // live grade preview
-                    continue;
-                }
-                // not graded yet → briefly show the ungraded page below while the grade is produced
-            }
-
-            const QPixmap page = m_owner->pageOf(i);
-            if (!page.isNull()) {
-                painter->drawPixmap(r.topLeft(), page);     // sharp, at the strip's native scale
-                continue;
-            }
-            const QPixmap proxy = m_owner->proxyOf(i);
-            if (!proxy.isNull())
-                painter->drawPixmap(r, proxy, QRectF(proxy.rect())); // blurry proxy, scaled into the page rect
-            else
-                painter->fillRect(r, m_owner->palette().color(QPalette::Base)); // brief neutral placeholder
-        }
-    }
-
-private:
-    Editor *m_owner;    //!< The editor that owns the strip and supplies the pages.
-};
-
 } // namespace
 
 Editor::Editor(PresetStore& presets, QWidget *parent)
@@ -255,7 +181,7 @@ Editor::Editor(PresetStore& presets, QWidget *parent)
     m_pages = new PageSource(m_layout, this);
     connect(m_pages, &PageSource::pageReady, this, [this](int index) {
         if (m_item)
-            m_item->update(pageRect(index));
+            m_item->update(m_layout.pageRect(index));
     });
 
     // Toolbar buttons + the graphics view come from the Designer form; the runtime wiring is here.
@@ -640,11 +566,6 @@ void Editor::setColourCorrection(const Platemaker::Models::ColourCorrection& cc)
         m_gradeOptions->setColourCorrection(cc);   // the project is the source here — show it in the panel
 }
 
-bool Editor::gradeActive() const  { return m_pages->gradeActive(); }
-QPixmap Editor::gradedOf(int index) const { return m_pages->gradedOf(index); }
-QPixmap Editor::pageOf(int index) const   { return m_pages->pageOf(index); }
-QPixmap Editor::proxyOf(int index) const  { return m_pages->proxyOf(index); }
-
 void Editor::refreshGradePreview()
 {
     m_pages->clearGraded();    // the grade changed → previous previews are stale
@@ -730,8 +651,9 @@ void Editor::rebuildScene()
     }
 
     m_scene->setSceneRect(0, 0, m_layout.stripWidth(), m_layout.stripHeight());
-    // One item draws every page as its own image — no per-item seam. It pulls pixels lazily from us.
-    m_item = new StripItem(this);
+    // One item draws every page as its own image — no per-item seam. It pulls pixels lazily from the
+    // page memory, and the editor's palette for a page that has none yet.
+    m_item = new StripItem(m_layout, *m_pages, this);
     m_scene->addItem(m_item);
     addSeamItems();
 

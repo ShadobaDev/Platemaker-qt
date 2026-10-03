@@ -77,7 +77,8 @@ class ObjectController;
  * slice grid still matters to the author — that is what the seam guides draw, at every slice height.
  *
  * ## Rendering: one item, no seams
- * The strip is a *single* graphics item (StripItem, in the .cpp) that draws each page as its own image.
+ * The strip is a *single* graphics item (StripItem, `canvas/stripitem.hpp`) that draws each page as its
+ * own image.
  * One item per page would leave a 1px hairline at every join — QGraphicsView clips and rounds each
  * item's edge independently, so at fractional zoom the boundaries fall between device pixels and the
  * background shows through. Drawing all pages through one item removes that seam at any zoom.
@@ -215,14 +216,8 @@ public:
      */
     void setColourCorrection(const Platemaker::Models::ColourCorrection& cc);
 
-    // --- read by StripItem (the single painting item) ---
-    [[nodiscard]] int    pageCount() const { return m_layout.pageCount(); }             //!< Number of drawable pages.
-    [[nodiscard]] QRectF pageRect(int index) const { return m_layout.pageRect(index); } //!< Scene rect of page \p index.
-    [[nodiscard]] QSize  stripSize() const { return m_layout.stripSize(); }             //!< Whole-strip size (item boundingRect).
-    [[nodiscard]] QPixmap pageOf(int index) const;   //!< Built (ungraded) page if cached, else a null pixmap.
-    [[nodiscard]] QPixmap proxyOf(int index) const;  //!< Blurry proxy thumbnail if cached, else a null pixmap.
-    [[nodiscard]] bool    gradeActive() const;       //!< True when the live grade preview should be shown.
-    [[nodiscard]] QPixmap gradedOf(int index) const; //!< Graded preview of page \p index if cached, else null.
+    //! The whole strip's size, in strip pixels.
+    [[nodiscard]] QSize stripSize() const { return m_layout.stripSize(); }
 
 signals:
     /**

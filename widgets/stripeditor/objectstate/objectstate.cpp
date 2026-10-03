@@ -154,8 +154,8 @@ ObjectState::ObjectState(PresetStore& presets, QWidget* parent)
     connect(m_commitTimer, &QTimer::timeout, this, [this] {
         if (!m_subjects.isEmpty())
             emit committedMany(m_subjects);
-        else if (m_hasArtifact)
-            emit committed(m_artifact);
+        else if (m_hasRecord)
+            emit committed(m_record);
     });
 
     // A group editor reports the same two things whatever it edits, so every editor maps onto the two
@@ -165,8 +165,8 @@ ObjectState::ObjectState(PresetStore& presets, QWidget* parent)
         connect(e, &PropertyGroupEditor::committed, this, [this] {
             if (!m_subjects.isEmpty())
                 emit committedMany(m_subjects);
-            else if (m_hasArtifact)
-                emit committed(m_artifact);
+            else if (m_hasRecord)
+                emit committed(m_record);
         });
     }
     // Picking a shape gives you the shape its tile shows, tail and all — connected before the collector
@@ -175,38 +175,38 @@ ObjectState::ObjectState(PresetStore& presets, QWidget* parent)
         m_tailList->shapeChanged(m_groups.shape()->values().kind);
     });
 
-    connect(fitBtn, &QPushButton::clicked, this, [this] { if (m_hasArtifact) emit fitRequested(); });
-    // Delete asks how *many* are selected, not whether one artifact is bound: with several selected there
+    connect(fitBtn, &QPushButton::clicked, this, [this] { if (m_hasRecord) emit fitRequested(); });
+    // Delete asks how *many* are selected, not whether one record is bound: with several selected there
     // is nothing to bind and still everything to remove.
     connect(delBtn, &QPushButton::clicked, this, [this] { if (m_selectionCount > 0) emit deleteRequested(); });
 
     clearSelection();
 }
 
-void ObjectState::setArtifact(const Artifact& a)
+void ObjectState::setRecord(const ObjectRecord& a)
 {
-    m_artifact      = a;
+    m_record      = a;
     m_tailIndex     = -1;
-    m_hasArtifact   = true;
+    m_hasRecord   = true;
     m_selectionCount = 1;
 
     m_populating = true;
     m_subjects.clear();
-    m_groups.bind(m_artifact);
-    m_tailList->bindOne(m_artifact);
+    m_groups.bind(m_record);
+    m_tailList->bindOne(m_record);
     m_populating = false;
 
     // A picture names itself by its file: one balloon is much like another, but which picture this is
     // is the only thing that tells it from the next one.
-    m_subject->setText(m_artifact.isArtwork()      ? m_artifact.artwork
-                       : m_artifact.hasSilhouette() ? tr("Bubble")
+    m_subject->setText(m_record.isArtwork()      ? m_record.artwork
+                       : m_record.hasSilhouette() ? tr("Bubble")
                                                     : tr("Text"));
     m_subject->setVisible(true);
     refreshLook();
     m_emptyHint->setText(m_emptyText);
     m_emptyHint->setVisible(false);
     m_actions->setVisible(true);
-    m_fitButton->setVisible(!m_artifact.isArtwork());   // a picture's box is the picture's, not its words'
+    m_fitButton->setVisible(!m_record.isArtwork());   // a picture's box is the picture's, not its words'
     m_deleteButton->setText(tr("Delete"));
     applyKindVisibility();
 }
@@ -214,7 +214,7 @@ void ObjectState::setArtifact(const Artifact& a)
 void ObjectState::setMixedSubjects(int count)
 {
     m_subjects.clear();
-    m_hasArtifact    = false;
+    m_hasRecord    = false;
     m_selectionCount = count;
     m_tailIndex      = -1;
     m_commitTimer->stop();
@@ -233,10 +233,10 @@ void ObjectState::setMixedSubjects(int count)
     refreshLook();
 }
 
-void ObjectState::setArtifacts(const QList<Artifact>& objects)
+void ObjectState::setRecords(const QList<ObjectRecord>& objects)
 {
     m_subjects       = objects;
-    m_hasArtifact    = false;   // no single artifact, so the single-subject signals stay quiet
+    m_hasRecord    = false;   // no single record, so the single-subject signals stay quiet
     m_selectionCount = static_cast<int>(objects.size());
     m_tailIndex      = -1;
     m_commitTimer->stop();
@@ -247,7 +247,7 @@ void ObjectState::setArtifacts(const QList<Artifact>& objects)
     PropertyGroupEditor::Subjects all;
     PropertyGroupEditor::Subjects shaped;
     all.reserve(objects.size());
-    for (const Artifact& a : objects) {
+    for (const ObjectRecord& a : objects) {
         all.append(&a);
         if (a.hasSilhouette())
             shaped.append(&a);
@@ -280,21 +280,21 @@ void ObjectState::setArtifacts(const QList<Artifact>& objects)
         const bool forASet = g != PropertyGroup::Shape && g != PropertyGroup::Tail;
         it.value()->setVisible(forASet
                                && std::any_of(objects.cbegin(), objects.cend(),
-                                              [g](const Artifact& a) { return carriesGroup(a, g); }));
+                                              [g](const ObjectRecord& a) { return carriesGroup(a, g); }));
     }
 }
 
-void ObjectState::setTail(const Artifact& a, int index)
+void ObjectState::setTail(const ObjectRecord& a, int index)
 {
-    m_artifact      = a;
+    m_record      = a;
     m_tailIndex     = index;
-    m_hasArtifact   = true;
+    m_hasRecord   = true;
     m_selectionCount = 1;
 
     m_subjects.clear();
     m_populating = true;
     m_tail->setIndex(index);
-    m_tail->bindOne(m_artifact);
+    m_tail->bindOne(m_record);
     m_populating = false;
 
     m_subject->setText(tr("Tail %1").arg(index + 1));
@@ -310,7 +310,7 @@ void ObjectState::setTail(const Artifact& a, int index)
 
 void ObjectState::clearSelection()
 {
-    m_hasArtifact    = false;
+    m_hasRecord    = false;
     m_selectionCount = 0;
     m_tailIndex      = -1;
     m_subjects.clear();
@@ -349,7 +349,7 @@ void ObjectState::applyKindVisibility()
         // A selected tail is a subject of its own with exactly one section; otherwise the record
         // answers, through the same rule a set is measured by.
         it.value()->setVisible(tailSubject ? g == PropertyGroup::TailItem
-                                           : carriesGroup(m_artifact, g));
+                                           : carriesGroup(m_record, g));
     }
 }
 
@@ -381,18 +381,18 @@ void ObjectState::refreshLook()
 
     QString text;
     QString detail;
-    if (m_tailIndex >= 0 || m_selectionCount == 0 || (m_hasArtifact && m_artifact.isArtwork())) {
+    if (m_tailIndex >= 0 || m_selectionCount == 0 || (m_hasRecord && m_record.isArtwork())) {
         // A tail has no look of its own, nothing selected has nothing to report, and a picture's look
         // is whoever drew it — a preset covers a shape, a fill and a line style it does not have.
-    } else if (m_hasArtifact) {
-        text   = m_presets.lookLabel(m_artifact);
-        detail = m_presets.matching(m_artifact) >= 0
+    } else if (m_hasRecord) {
+        text   = m_presets.lookLabel(m_record);
+        detail = m_presets.matching(m_record) >= 0
                      ? tr("Every property a preset covers still matches “%1”.").arg(text)
                      : tr("The look of no preset: something a preset covers has been changed since.");
     } else if (!m_subjects.isEmpty()) {
         const QString first = m_presets.lookLabel(m_subjects.first());
         const bool    agree = std::all_of(m_subjects.cbegin(), m_subjects.cend(),
-                                          [this, &first](const Artifact& a) {
+                                          [this, &first](const ObjectRecord& a) {
                                               return m_presets.lookLabel(a) == first;
                                           });
         text   = agree ? first : tr("Mixed");
@@ -422,7 +422,7 @@ void ObjectState::onControlChanged()
 
     if (!m_subjects.isEmpty()) {
         // A set: every object takes what the artist touched and keeps everything else of its own.
-        for (Artifact& a : m_subjects) {
+        for (ObjectRecord& a : m_subjects) {
             if (a.hasSilhouette()) {
                 m_groups.skin()->applyEditedTo(a);   // a caption with no balloon has no fill to take
                 m_groups.style()->applyEditedTo(a);
@@ -435,24 +435,24 @@ void ObjectState::onControlChanged()
     }
 
     if (m_tailIndex >= 0) {
-        m_tail->applyTo(m_artifact);   // that tail, and nothing else about the balloon
+        m_tail->applyTo(m_record);   // that tail, and nothing else about the balloon
     } else {
-        m_groups.collect(m_artifact, m_tailList);
+        m_groups.collect(m_record, m_tailList);
 
         // A shape change can add or remove whole sections — the object is still the same object, so this
         // is the one moment the panel is allowed to re-lay itself out.
         applyKindVisibility();
-        m_subject->setText(m_artifact.hasSilhouette() ? tr("Bubble") : tr("Text"));
+        m_subject->setText(m_record.hasSilhouette() ? tr("Bubble") : tr("Text"));
     }
 
     // One changed property and it is no longer that preset. Computed, so it flips back by itself
     // if the artist edits the value to an exact match again.
     refreshLook();
 
-    if (!m_hasArtifact)
+    if (!m_hasRecord)
         return;
 
-    emit changed(m_artifact);
+    emit changed(m_record);
     m_commitTimer->start();
 }
 

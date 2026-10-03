@@ -5,15 +5,15 @@
 #include <QPainterPath>
 
 #include "objects/object.hpp"
-#include "artifact.hpp"
+#include "objectrecord.hpp"
 
 namespace StripEdit {
 
 /**
- * @brief A bubble Platemaker authored: a \c Artifact drawn from its parameters.
+ * @brief A bubble Platemaker authored: a \c ObjectRecord drawn from its parameters.
  *
  * Drawn from the **authoring model**, not from the file it will be written to — so typing updates the
- * strip with no round-trip, and the preview is the render because both go through paintArtifact().
+ * strip with no round-trip, and the preview is the render because both go through Painter::paint().
  *
  * Its tails are the object's handles: a tail tip is a draggable point that may sit well outside the
  * balloon, which is why the drawn extent is computed rather than taken from the box.
@@ -26,10 +26,10 @@ public:
     /**
      * @brief Constructs a new bubble object.
      * @param uid The unique identifier for the object.
-     * @param artifact The artifact representing the bubble's properties.
+     * @param record The record representing the bubble's properties.
      * @param parent The parent graphics item.
      */
-    BubbleObject(QString uid, Artifact artifact, QGraphicsItem* parent = nullptr);
+    BubbleObject(QString uid, ObjectRecord record, QGraphicsItem* parent = nullptr);
 
     /**
      * @brief Returns the kind of the object.
@@ -44,9 +44,9 @@ public:
 
     /**
      * @brief Adopts new authoring values and repaints (handles a box change, so it may resize the object).
-     * @param a The new artifact to set.
+     * @param a The new record to set.
      */
-    void setArtifact(const Artifact& a) override;
+    void setRecord(const ObjectRecord& a) override;
 
     /**
      * @brief Shows \p img — the library's own rasterisation of this bubble — instead of the local paths.
@@ -56,7 +56,7 @@ public:
      * quietly draw the unfiltered outline. Rather than approximate it, the editor asks the library for
      * the same pixels the render will bake.
      *
-     * Dropped whenever the artifact changes, so a stale rendering is never shown as current; the owner
+     * Dropped whenever the record changes, so a stale rendering is never shown as current; the owner
      * supplies a fresh one after the edit has settled and been written. A null image means "draw the
      * paths", which is what an unstyled bubble always does.
      * 
@@ -72,7 +72,7 @@ public:
      * @brief Returns the size of the bubble's box.
      * @return The size of the bubble's box.
      */
-    [[nodiscard]] QSizeF boxSize() const override { return QSizeF(m_artifact.box); }
+    [[nodiscard]] QSizeF boxSize() const override { return QSizeF(m_record.box); }
 
 protected:
     /**
@@ -95,7 +95,7 @@ protected:
      * @brief Returns the number of handles for the bubble object.
      * @return The number of handles for the bubble object.
      */
-    [[nodiscard]] int     handleCount() const override { return int(m_artifact.tails.items.size()); }
+    [[nodiscard]] int     handleCount() const override { return int(m_record.tails.items.size()); }
     /**
      * @brief Returns the position of a handle for the bubble object.
      * @param index The index of the handle.
@@ -110,7 +110,7 @@ protected:
     void                  setHandlePos(int index, const QPointF& local) override;
 
 private:
-    void rebuild();             //!< Re-resolves the cached paths after the artifact changed, then re-measures the extent.
+    void rebuild();             //!< Re-resolves the cached paths after the record changed, then re-measures the extent.
 
     QImage       m_sharp;       //!< Library rasterisation shown at rest for a styled bubble (see above).
     QPainterPath m_silhouette;  //!< Cached balloon + tails, so a repaint resolves no geometry.

@@ -147,9 +147,9 @@ TEST(CollectOverlayFiles, ALetteredPictureBringsThePictureItsRecordNames)
     write(f.from("ovl-wrapper.svg"), "wrapper");
     write(f.from("art-picture.png"), "picture");
 
-    Artifact record;
+    ObjectRecord record;
     record.artwork = QStringLiteral("art-picture.png");
-    const ArtifactMap records{{QStringLiteral("1"), record}};
+    const ObjectRecord::Map records{{QStringLiteral("1"), record}};
 
     std::vector overlays{overlayAt("1", f.from("ovl-wrapper.svg"))};
     ASSERT_TRUE(collectOverlayFiles(overlays, records, f.toDir()));
@@ -182,9 +182,9 @@ TEST(CollectOverlayFiles, APictureThatCannotKeepItsNameFailsAndChangesNothing)
     write(f.from("art-p.png"), "ours");
     write(f.to("art-p.png"), "someone else's");
 
-    Artifact picture;
+    ObjectRecord picture;
     picture.artwork = QStringLiteral("art-p.png");
-    const ArtifactMap records{{QStringLiteral("2"), picture}};
+    const ObjectRecord::Map records{{QStringLiteral("2"), picture}};
 
     std::vector overlays{overlayAt("1", f.from("ovl-a.svg")), overlayAt("2", f.from("art-p.png"))};
     const auto before = overlays;
@@ -200,9 +200,9 @@ TEST(CollectOverlayFiles, AMissingBalloonIsPointedHomeToBeRebuiltThere)
     // A balloon is drawn from its record, so a missing file is rewritten — here, never in the old folder.
     // A missing picture has nothing to be rebuilt from, and stays where it was.
     TwoFolders f;
-    Artifact picture;
+    ObjectRecord picture;
     picture.artwork = QStringLiteral("art-gone.png");
-    const ArtifactMap records{{QStringLiteral("1"), Artifact{}}, {QStringLiteral("2"), picture}};
+    const ObjectRecord::Map records{{QStringLiteral("1"), ObjectRecord{}}, {QStringLiteral("2"), picture}};
 
     std::vector overlays{overlayAt("1", f.from("ovl-gone.svg")), overlayAt("2", f.from("art-gone.png"))};
     ASSERT_TRUE(collectOverlayFiles(overlays, records, f.toDir()));

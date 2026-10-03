@@ -72,7 +72,7 @@ bool copyUnlessIdentical(const QString& source, const QString& dest)
 }
 
 bool collectOverlayFiles(std::vector<Platemaker::Models::StripOverlay>& overlays,
-                         const ArtifactMap&                              records,
+                         const ObjectRecord::Map&                              records,
                          const QString&                                  overlaysDir,
                          QString*                                        failed)
 {
@@ -96,7 +96,7 @@ bool collectOverlayFiles(std::vector<Platemaker::Models::StripOverlay>& overlays
 
         const auto     rec     = records.constFind(QString::fromStdString(overlays[i].uid));
         const bool     hasRec  = rec != records.constEnd();
-        const Artifact record  = hasRec ? *rec : Artifact{};
+        const ObjectRecord record  = hasRec ? *rec : ObjectRecord{};
 
         if (!sourceInfo.exists()) {
             // Nothing to copy. A balloon is drawn from its record, so its file belongs here and is written

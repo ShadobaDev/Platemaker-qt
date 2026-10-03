@@ -1,5 +1,5 @@
 /**
- * \file artifactsvg.hpp
+ * \file recordsvg.hpp
  * \brief A bubble as an SVG document — the on-disk format, and the way back from it.
  *
  * The overlay handed to the library **is** this file. There is no separate authoring sidecar and no
@@ -13,12 +13,12 @@
  *  - **A hand-drawn shape is the same file with no `pm:*`** — flat, still rendering, just not
  *    re-typable. One format, no second import path.
  *
- * Text is written as outlines (see artifactTextOutline()), so a rendered bubble needs no font
+ * Text is written as outlines (see Painter::textOutline()), so a rendered bubble needs no font
  * installed; `pm:text` and `pm:font` are what make it editable again on a machine that has one.
  */
 
-#ifndef ARTIFACTSVG_HPP
-#define ARTIFACTSVG_HPP
+#ifndef RECORDSVG_HPP
+#define RECORDSVG_HPP
 
 #include <QByteArray>
 #include <QString>
@@ -27,7 +27,9 @@
 
 #include <vector>
 
-#include "artifact.hpp"
+#include "objectrecord.hpp"
+
+namespace Svg {
 
 /**
  * @brief The private namespace the editor's parameters live in; ignored by every SVG renderer.
@@ -50,7 +52,7 @@ inline constexpr char k_pmNamespace[] = "https://github.com/ShadobaDev/Platemake
 /**
  * @brief Serialises \p a to a standalone SVG document.
  *
- * The viewBox is the artifact's box, in strip-scale pixels, so the library rasterises it 1:1 at scale
+ * The viewBox is the record's box, in strip-scale pixels, so the library rasterises it 1:1 at scale
  * 1.0 and re-renders it sharp at any other scale.
  *
  * @param picture For an **artwork** record only: the bytes of the picture it names. They are embedded
@@ -63,7 +65,7 @@ inline constexpr char k_pmNamespace[] = "https://github.com/ShadobaDev/Platemake
  * An artwork record with no bytes returns empty: a wrapper that cannot draw its picture is worse than
  * no file at all, since the object would silently render as its lettering alone.
  */
-[[nodiscard]] QByteArray artifactToSvg(const Artifact& a, const QByteArray& picture = {},
+[[nodiscard]] QByteArray write(const ObjectRecord& a, const QByteArray& picture = {},
                                        const QString& mime = {});
 
 /**
@@ -73,9 +75,9 @@ inline constexpr char k_pmNamespace[] = "https://github.com/ShadobaDev/Platemake
  * @param ok  Set to false when the file carries no `pm:*` parameters — a hand-drawn or externally
  *            edited asset. That is not an error: the caller keeps it as a flat, still-rendering
  *            overlay rather than replacing it with a default bubble.
- * @return The reconstructed artifact, or a default one when \p ok comes back false.
+ * @return The reconstructed record, or a default one when \p ok comes back false.
  */
-[[nodiscard]] Artifact artifactFromSvg(const QByteArray& svg, bool* ok = nullptr);
+[[nodiscard]] ObjectRecord read(const QByteArray& svg, bool* ok = nullptr);
 
 /**
  * @brief Reads one project's authoring records back out of its overlays' SVG assets.
@@ -88,9 +90,9 @@ inline constexpr char k_pmNamespace[] = "https://github.com/ShadobaDev/Platemake
  * the result — the caller shows it as a flat, still-rendering overlay.
  * 
  * @param overlays The overlays to read from.
- * @return A map of overlay uid → artifact, for every overlay that carries a readable asset with a `pm:*` group.
+ * @return A map of overlay uid → record, for every overlay that carries a readable asset with a `pm:*` group.
  */
-[[nodiscard]] ArtifactMap artifactsFromOverlays(
+[[nodiscard]] ObjectRecord::Map readOverlays(
     const std::vector<Platemaker::Models::StripOverlay>& overlays);
 
 /**
@@ -106,16 +108,18 @@ inline constexpr char k_pmNamespace[] = "https://github.com/ShadobaDev/Platemake
  *                  always named by its content (the path may be the picture itself).
  * @return The asset's absolute path, or empty when it could not be written.
  */
-[[nodiscard]] QString writeArtifactSvg(const QString& overlaysDir, const Artifact& a,
+[[nodiscard]] QString writeFile(const QString& overlaysDir, const ObjectRecord& a,
                                        const QString& reusePath = {});
 
 /**
  * @brief The family a file's lettering was outlined in instead of its own — `pm:fontFallback` — or empty.
  *
- * Written when the record's family was not installed at the time (artifactFontFallback()), so a file
+ * Written when the record's family was not installed at the time (Painter::fontFallback()), so a file
  * baked in a stand-in can be told from one baked in its own font — both carry the same `pm:fontFamily` —
  * and re-set once the font is back. Read the way the recipe is: by namespace, never by prefix.
  */
 [[nodiscard]] QString bakedFontFallback(const QByteArray& svg);
 
-#endif // ARTIFACTSVG_HPP
+} // namespace Svg
+
+#endif // RECORDSVG_HPP

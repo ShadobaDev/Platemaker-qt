@@ -1,6 +1,7 @@
 #include "project.hpp"
-#include "artifactpainter.hpp"
-#include "artifactsvg.hpp"
+#include "recordpainter.hpp"
+#include "recordstore.hpp"
+#include "recordsvg.hpp"
 #include "ui_project.h"
 #include "imagetile.hpp"
 #include "projectsnapshotcommand.hpp"
@@ -274,7 +275,7 @@ void Project::setupUndo()
 QString Project::fullSnapshot()
 {
     // The library's project snapshot plus this GUI's authoring records for the same project. Undo has to
-    // move both together: an overlay's record says *which* bitmap renders, its artifact says what that
+    // move both together: the overlay says *which* bitmap renders, its ObjectRecord says what that
     // bitmap contains, and restoring one without the other would leave the strip showing text the render
     // does not bake. The lib snapshot is itself JSON, carried here as a string — the library owns its
     // format and this wrapper has no business parsing it.
@@ -315,7 +316,7 @@ namespace {
 
 //! The uids an overlay-scope step moves between @p from and @p to — added, or changed in placement or in
 //! what they say. Only uids that exist in @p to, because a uid the step removes is nothing to point at.
-//! The artifacts are compared as well as the overlays: an edit to a bubble's text rewrites its asset,
+//! The records are compared as well as the overlays: an edit to a bubble's text rewrites its asset,
 //! and reading that as "changed" through the placement alone would depend on the hash having settled.
 [[nodiscard]] QStringList movedUids(const OverlayState& from, const OverlayState& to)
 {
@@ -325,7 +326,7 @@ namespace {
         const auto it = std::find_if(from.overlays.begin(), from.overlays.end(),
                                      [&](const auto& b) { return b.uid == after.uid; });
         if (it == from.overlays.end() || *it != after
-            || from.artifacts.value(uid) != to.artifacts.value(uid))
+            || from.records.value(uid) != to.records.value(uid))
             uids << uid;
     }
     return uids;
@@ -335,7 +336,7 @@ namespace {
 
 OverlayState Project::overlayState() const
 {
-    return {m_workspace.projectItems[m_projectIndex].getStripOverlays(), m_artifacts};
+    return {m_workspace.projectItems[m_projectIndex].getStripOverlays(), m_records};
 }
 
 void Project::restoreOverlayState(const OverlayState& recorded)
@@ -346,9 +347,9 @@ void Project::restoreOverlayState(const OverlayState& recorded)
     // recorded here.
     OverlayState state = recorded;
     if (mayWrite()) {
-        const QString dir = ArtifactStore::ensureOverlaysDir(m_workspacePath);
+        const QString dir = RecordStore::ensureOverlaysDir(m_workspacePath);
         if (!dir.isEmpty())
-            (void)collectOverlayFiles(state.overlays, state.artifacts, dir);
+            (void)collectOverlayFiles(state.overlays, state.records, dir);
     }
 
     // Asked while the old state is still here, because it is the difference between the two that says
@@ -356,7 +357,7 @@ void Project::restoreOverlayState(const OverlayState& recorded)
     const QStringList touched = movedUids(overlayState(), state);
 
     m_workspace.projectItems[m_projectIndex].getStripOverlays() = state.overlays;
-    m_artifacts = state.artifacts;
+    m_records = state.records;
 
     // Ahead of the views, not after them: this arms the editor to select what the step touched, and the
     // feed two lines down is what consumes the arming.
@@ -364,7 +365,7 @@ void Project::restoreOverlayState(const OverlayState& recorded)
 
     // The records are back; the files on disk still hold what the step being undone wrote.
     rewriteOverlayAssets(touched);
-    emit artifactsChanged(m_artifacts);
+    emit recordsChanged(m_records);
 
     populate();
     emit projectModified();
@@ -554,7 +555,7 @@ void Project::refreshWorkflowMap()
         c->setKind(StageCard::Kind::Optional);
         c->setTitle(tr("Text & bubbles"));
         c->setActive(tbOn);
-        c->setSubtitle(tbOn ? tr("%1 artifacts").arg(nOverlays) : tr("optional"));
+        c->setSubtitle(tbOn ? tr("%1 objects").arg(nOverlays) : tr("optional"));
         c->setActions(/*add*/false, /*edit*/true, /*remove*/tbOn);
         connect(c, &StageCard::editRequested,   this, openEditor);
         connect(c, &StageCard::clicked,         this, openEditor);
@@ -753,17 +754,17 @@ void Project::addDroppedUrls(const QList<QUrl>& urls)
 // sends.
 // ---------------------------------------------------------------------------
 
-void Project::setArtifacts(ArtifactMap artifacts)
+void Project::setRecords(ObjectRecord::Map records)
 {
-    m_artifacts = std::move(artifacts);
+    m_records = std::move(records);
 }
 
-void Project::createOverlay(const Artifact& artifact, double xFrac, double yFrac, double wFrac,
+void Project::createOverlay(const ObjectRecord& record, double xFrac, double yFrac, double wFrac,
                             const QString& anchorInputUid)
 {
     if (!mayWrite())
         return;
-    const QString dir = ArtifactStore::ensureOverlaysDir(m_workspacePath);
+    const QString dir = RecordStore::ensureOverlaysDir(m_workspacePath);
     if (dir.isEmpty()) {
         QMessageBox::warning(this, tr("Text & bubbles"),
                              tr("Save the workspace first — bubbles are stored next to the workspace "
@@ -771,7 +772,7 @@ void Project::createOverlay(const Artifact& artifact, double xFrac, double yFrac
         return;
     }
 
-    const QString asset = writeArtifactSvg(dir, artifact);
+    const QString asset = Svg::writeFile(dir, record);
     if (asset.isEmpty()) {
         QMessageBox::warning(this, tr("Text & bubbles"),
                              tr("Could not write the bubble to:\n%1").arg(dir));
@@ -784,8 +785,8 @@ void Project::createOverlay(const Artifact& artifact, double xFrac, double yFrac
         const std::string uid =
             item.addOverlay(asset.toStdString(), xFrac, yFrac, wFrac,
                             Platemaker::Models::BlendMode::Over, anchorInputUid.toStdString());
-        m_artifacts.insert(QString::fromStdString(uid), artifact);
-        emit artifactsChanged(m_artifacts);
+        m_records.insert(QString::fromStdString(uid), record);
+        emit recordsChanged(m_records);
         emit projectModified();
         populate();   // the workflow map counts overlays
     });
@@ -795,21 +796,21 @@ void Project::rewriteOverlayAssets(const QStringList& uids)
 {
     if (!mayWrite())
         return;
-    const QString dir = ArtifactStore::overlaysDir(m_workspacePath);
+    const QString dir = RecordStore::overlaysDir(m_workspacePath);
     if (dir.isEmpty())
         return;
 
     for (const auto& o : m_workspace.projectItems[m_projectIndex].getStripOverlays()) {
         const QString uid = QString::fromStdString(o.uid);
-        const auto    it  = m_artifacts.constFind(uid);
-        if (it == m_artifacts.constEnd() || o.assetPath.empty())
+        const auto    it  = m_records.constFind(uid);
+        if (it == m_records.constEnd() || o.assetPath.empty())
             continue;   // a flat asset has no record to re-emit from, and must be left exactly as it is
         const QString asset = QString::fromStdString(o.assetPath);
         if (!uids.contains(uid) && QFileInfo::exists(asset))
             continue;   // untouched by the step, and its file is there: leave it exactly as it is
         // The path cannot move: a balloon keeps its own file, and a lettered picture's wrapper is named by
         // its content, which the restored record reproduces.
-        (void)writeArtifactSvg(dir, it.value(), asset);
+        (void)Svg::writeFile(dir, it.value(), asset);
     }
 }
 
@@ -818,7 +819,7 @@ void Project::importOverlayArtwork(const QString& sourceFile, double xFrac, doub
 {
     if (!mayWrite())
         return;
-    const QString dir = ArtifactStore::ensureOverlaysDir(m_workspacePath);
+    const QString dir = RecordStore::ensureOverlaysDir(m_workspacePath);
     if (dir.isEmpty()) {
         QMessageBox::warning(this, tr("Import artwork"),
                              tr("Save the workspace first — artwork is stored next to the workspace "
@@ -864,12 +865,12 @@ void Project::importOverlayArtwork(const QString& sourceFile, double xFrac, doub
     }
 
     // **An SVG we wrote comes home as a balloon.** Our own files carry the parameters they were drawn
-    // from, in a namespace no renderer looks at, and `artifactFromSvg()` reads them back — so a bubble
+    // from, in a namespace no renderer looks at, and `Svg::read()` reads them back — so a bubble
     // shared with a collaborator, or copied out of another chapter, arrives re-typable instead of being
     // filed as a picture of itself. A foreign SVG has no such recipe and stays artwork, which is the
     // honest answer: its paths are not something our ten silhouettes can express.
     bool               ours = false;
-    const Artifact adopted = artifactFromSvg(bytes, &ours);
+    const ObjectRecord adopted = Svg::read(bytes, &ours);
 
     commitOverlayEdit(ours ? tr("Import bubble") : tr("Import artwork"), [&] {
         auto& item = m_workspace.projectItems[m_projectIndex];
@@ -879,25 +880,25 @@ void Project::importOverlayArtwork(const QString& sourceFile, double xFrac, doub
         if (ours) {
             // The record is what makes it an object we author rather than one we merely place. The file
             // beside it already matches, so nothing is rewritten until the first edit.
-            m_artifacts.insert(QString::fromStdString(uid), adopted);
+            m_records.insert(QString::fromStdString(uid), adopted);
         } else {
             // **A picture gets a record too** — one that says it is a picture. It carries no geometry
             // of ours; what it is for is the lettering that can go over it, and knowing which file the
             // object is without asking the overlay.
-            Artifact record;
+            ObjectRecord record;
             record.artwork = QFileInfo(dest).fileName();
             // No silhouette of ours, and the record says so in both ways it can. It matters for the
             // one reader that might not know about `artwork` — an older build, or a hand-edited file:
             // it degrades to lettering with no balloon rather than to a speech balloon nobody drew.
-            record.shape.kind = Artifact::Shape::None;
+            record.shape.kind = ObjectRecord::Shape::None;
             // The picture's own pixels, as the side that could still see the original read them —
             // through the one loader that knows to ask an SVG rather than the image plugin. This is
-            // what `artifactToSvg()` writes as the wrapper's width, height and viewBox once the
+            // what `Svg::write()` writes as the wrapper's width, height and viewBox once the
             // picture is lettered, so a guess here is a wrong aspect ratio in the render.
             record.box = naturalSize;
-            m_artifacts.insert(QString::fromStdString(uid), record);
+            m_records.insert(QString::fromStdString(uid), record);
         }
-        emit artifactsChanged(m_artifacts);
+        emit recordsChanged(m_records);
         emit projectModified();
         populate();
     });
@@ -917,15 +918,15 @@ void Project::deleteOverlays(const QStringList& uids, const QString& undoText)
 
     // The records go with their overlays. A record left behind would describe a bubble that no longer
     // exists, and would come back to life if an overlay ever reused its uid.
-    ArtifactMap artifacts = m_artifacts;
+    ObjectRecord::Map records = m_records;
     for (const QString& uid : uids)
-        artifacts.remove(uid);
+        records.remove(uid);
 
-    applyOverlays(std::move(kept), std::move(artifacts), undoText);
+    applyOverlays(std::move(kept), std::move(records), undoText);
 }
 
 void Project::applyOverlays(std::vector<Platemaker::Models::StripOverlay> overlays,
-                            ArtifactMap                                  artifacts,
+                            ObjectRecord::Map                                  records,
                             const QString&                               undoText)
 {
     // Refused whole rather than applied without its files: a record saying one thing while the file the
@@ -933,16 +934,16 @@ void Project::applyOverlays(std::vector<Platemaker::Models::StripOverlay> overla
     if (!mayWrite())
         return;
 
-    const QString dir = ArtifactStore::ensureOverlaysDir(m_workspacePath);
+    const QString dir = RecordStore::ensureOverlaysDir(m_workspacePath);
 
     // Re-write only what actually changed. A move or a reorder touches no artwork, so the common
     // gesture writes no files at all; a text or styling edit rewrites exactly one bubble.
     for (auto& o : overlays) {
         const QString uid = QString::fromStdString(o.uid);
-        const auto    it  = artifacts.constFind(uid);
-        if (it == artifacts.constEnd())
+        const auto    it  = records.constFind(uid);
+        if (it == records.constEnd())
             continue;                                   // flat asset: no parameters, nothing to re-emit
-        if (m_artifacts.contains(uid) && m_artifacts.value(uid) == it.value())
+        if (m_records.contains(uid) && m_records.value(uid) == it.value())
             continue;                                   // unchanged content
 
         // Overwrite the file this overlay owns — unless another overlay shares it, which happens when
@@ -955,7 +956,7 @@ void Project::applyOverlays(std::vector<Platemaker::Models::StripOverlay> overla
                                              }) > 1;
         const QString asset = dir.isEmpty()
             ? QString{}
-            : writeArtifactSvg(dir, it.value(), shared ? QString{} : owned);
+            : Svg::writeFile(dir, it.value(), shared ? QString{} : owned);
         if (asset.isEmpty())
             continue;                                   // keep the previous asset rather than lose it
 
@@ -972,8 +973,8 @@ void Project::applyOverlays(std::vector<Platemaker::Models::StripOverlay> overla
     commitOverlayEdit(undoText, [&] {
         auto& item = m_workspace.projectItems[m_projectIndex];
         item.getStripOverlays() = std::move(overlays);
-        m_artifacts             = std::move(artifacts);
-        emit artifactsChanged(m_artifacts);
+        m_records             = std::move(records);
+        emit recordsChanged(m_records);
         emit projectModified();
         populate();
     });

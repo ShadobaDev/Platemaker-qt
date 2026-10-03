@@ -19,7 +19,7 @@ namespace StripEdit {
  * A tail's **aim** is not here either: pointing at a speaker is a drag on the strip.
  *
  * applyTo() **reads** the target's shape and box before deciding what to write. Reading is not writing:
- * a shapeless artifact has nothing for a tail to grow from, and a first tail needs somewhere to point.
+ * a shapeless record has nothing for a tail to grow from, and a first tail needs somewhere to point.
  */
 class NextTailEditor : public PropertyGroupEditor
 {
@@ -31,7 +31,7 @@ public:
     [[nodiscard]] PropertyGroup group() const override { return PropertyGroup::Tail; }
 
     void bind(const Subjects& subjects) override;
-    void applyTo(Artifact& target) const override;
+    void applyTo(ObjectRecord& target) const override;
 
     /**
      * @brief Writes a fresh set onto an object that does not exist yet.
@@ -40,7 +40,7 @@ public:
      * currently selected, and copying it onto a new one would give every placement the last balloon's
      * aim — which is the sort of thing that looks like a rendering bug for a week.
      */
-    void applyToNew(Artifact& target) const;
+    void applyToNew(ObjectRecord& target) const;
 
     /**
      * @brief The shape changed, so the default answer to "does this speak?" changed with it.
@@ -48,7 +48,7 @@ public:
      * Picking a shape gives you the shape its tile shows — a narration box does not arrive wearing a
      * tail. The checkbox stays available for the cases that want one anyway.
      */
-    void shapeChanged(Artifact::Shape kind);
+    void shapeChanged(ObjectRecord::Shape kind);
 
 private:
     void syncEnabled();

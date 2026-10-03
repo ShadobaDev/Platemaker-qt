@@ -28,8 +28,8 @@ public:
     [[nodiscard]] PropertyGroup group() const override { return PropertyGroup::Skin; }
 
     void bind(const Subjects& subjects) override;
-    void applyTo(Artifact& target) const override;
-    void applyEditedTo(Artifact& target) const override;
+    void applyTo(ObjectRecord& target) const override;
+    void applyEditedTo(ObjectRecord& target) const override;
 
     //! The values the controls currently show — what applyTo() writes.
     [[nodiscard]] const SkinProperties& values() const { return m_values; }

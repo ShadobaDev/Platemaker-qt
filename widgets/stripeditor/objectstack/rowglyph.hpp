@@ -5,7 +5,7 @@
 #include <QPalette>
 #include <QPixmap>
 
-#include "artifact.hpp"
+#include "objectrecord.hpp"
 
 namespace StripEdit {
 
@@ -16,7 +16,7 @@ inline constexpr int k_rowGlyphPx = 24;
 /**
  * @brief The object itself, drawn small enough to sit in a row — **a glyph, not a picture**.
  *
- * Built from `artifactSilhouette()`, the same path the scene draws and the SVG writer serialises, so a
+ * Built from `Painter::silhouette()`, the same path the scene draws and the SVG writer serialises, so a
  * speech balloon with two tails is distinguishable from a caption box at a glance. There is no rendering
  * here and no library round-trip: the path is already geometry, and asking librsvg for an icon this size
  * would cost the whole filter pipeline to produce something nobody can read anyway.
@@ -30,7 +30,7 @@ inline constexpr int k_rowGlyphPx = 24;
  * @param dpr The screen's device pixel ratio. Drawing at one and letting the view scale up is what makes
  *            an icon look soft on a 150% display — so every glyph is drawn at the screen's own density.
  */
-[[nodiscard]] QIcon objectGlyph(const Artifact& a, const QPalette& pal, int px = k_rowGlyphPx,
+[[nodiscard]] QIcon objectGlyph(const ObjectRecord& a, const QPalette& pal, int px = k_rowGlyphPx,
                                 qreal dpr = 1.0);
 
 //! Imported artwork is its own glyph: the art itself, scaled down. It has no silhouette to borrow.

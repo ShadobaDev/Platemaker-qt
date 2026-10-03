@@ -1,7 +1,7 @@
 #ifndef STRIPEDIT_PROPERTYGROUP_HPP
 #define STRIPEDIT_PROPERTYGROUP_HPP
 
-#include "artifact.hpp"
+#include "objectrecord.hpp"
 
 namespace StripEdit {
 
@@ -27,7 +27,7 @@ enum class PropertyGroup { Placement, Size, Compositing, Shape, Skin, Style, Tex
  * drifted: the set's copy enumerated the groups it wanted by name, so a group added to one copy was
  * simply missing from the other.
  *
- * The rule itself is the one structural question — Artifact::hasSilhouette() — and nothing more.
+ * The rule itself is the one structural question — ObjectRecord::hasSilhouette() — and nothing more.
  * **The lettering is the one group every kind carries** — a balloon, a piece of standalone text and an
  * imported picture are all lettered. The rest need a silhouette: something to fill, something to
  * roughen, somewhere for a tail to leave from, and a choice of which silhouette it is. `TailItem`
@@ -37,7 +37,7 @@ enum class PropertyGroup { Placement, Size, Compositing, Shape, Skin, Style, Tex
  * objects carry, while the object menu offers only the **intersection**, because an entry that acts on part
  * of a selection is an entry that lied about its subject.
  */
-[[nodiscard]] inline bool carriesGroup(const Artifact& a, PropertyGroup g)
+[[nodiscard]] inline bool carriesGroup(const ObjectRecord& a, PropertyGroup g)
 {
     switch (g) {
     case PropertyGroup::Text:

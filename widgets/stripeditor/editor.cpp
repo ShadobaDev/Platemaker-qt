@@ -290,7 +290,7 @@ Editor::Editor(PresetStore& presets, QWidget *parent)
     });
     connect(ui->buttonRenderView, &QToolButton::clicked, this, [this] { emit renderAndViewRequested(); });
 
-    // --- Editor shell: the splitters, canvas, tool-options stack and artifact list come from the .ui
+    // --- Editor shell: the splitters, canvas, tool-options stack and object stack come from the .ui
     // (editorBody = toolbox | canvas | rightPanel). Here we only fill the toolbox with a flowing grid of
     // square tool tiles (a flow layout can't be expressed in a .ui), give the stack a page per tool, and
     // set the splitter sizing (not a .ui property). Pan (the default) keeps today's behaviour: hand-drag
@@ -350,7 +350,7 @@ Editor::Editor(PresetStore& presets, QWidget *parent)
             if (m_objects)
                 m_objects->selectStrip();
         });
-        // One panel for every tool that authors an `Artifact` — Bubble, Text, Caption — because they
+        // One panel for every tool that authors an `ObjectRecord` — Bubble, Text, Caption — because they
         // author the same object and differ only in the shape they place, which each tool's row says.
         m_bubbleOptions = new BubbleToolOptions(*m_presets, ui->toolOptionsStack);
         pageIndex.insert(QStringLiteral("bubble"),
@@ -457,7 +457,7 @@ Editor::Editor(PresetStore& presets, QWidget *parent)
                                          m_bubbleOptions, *m_presets, m_layout, this, this);
         // The object's menu spends the same pair the bucket does — it reads it, never writes it.
         m_objects->setColourSource(m_colours);
-        connect(m_objects, &ObjectController::artifactCreated,        this, &Editor::artifactCreated);
+        connect(m_objects, &ObjectController::recordCreated,        this, &Editor::recordCreated);
         connect(m_objects, &ObjectController::overlaysCommitted,         this, &Editor::overlaysCommitted);
         connect(m_objects, &ObjectController::artworkImportRequested, this, &Editor::artworkImportRequested);
         connect(m_objects, &ObjectController::subjectChanged,         this, [this] { showSubject(); });
@@ -989,7 +989,7 @@ bool Editor::eventFilter(QObject *watched, QEvent *event)
 
     // Bubble / Text: the left button draws a new bubble on empty strip. A press that lands on an
     // existing overlay is left alone, so the item's own move/resize handling still runs.
-    if (watched == m_view->viewport() && artifactToolActive()) {
+    if (watched == m_view->viewport() && createToolActive()) {
         if (event->type() == QEvent::MouseButtonPress) {
             auto* me = static_cast<QMouseEvent*>(event);
             if (me->button() == Qt::LeftButton) {
@@ -1055,9 +1055,9 @@ bool Editor::eventFilter(QObject *watched, QEvent *event)
 // ---------------------------------------------------------------------------
 
 void Editor::setOverlaySource(const std::vector<Platemaker::Models::StripOverlay>& overlays,
-                              const ArtifactMap&                                  artifacts)
+                              const ObjectRecord::Map&                                  records)
 {
-    m_objects->setSource(overlays, artifacts);
+    m_objects->setSource(overlays, records);
     updateCursor();   // an object may have arrived under, or vanished from beneath, a still pointer
 }
 
@@ -1154,7 +1154,7 @@ QString Editor::droppedArtwork(const QMimeData* mime)
     return {};
 }
 
-bool Editor::artifactToolActive() const
+bool Editor::createToolActive() const
 {
     const Tool* tool = toolById(m_tool);
     return tool && tool->kind == ToolKind::Create;

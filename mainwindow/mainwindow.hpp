@@ -11,7 +11,8 @@
 #include <memory>
 #include <vector>
 
-#include "artifact.hpp"
+#include "objectrecord.hpp"
+#include "recordstore.hpp"
 
 #include <platemaker/infrastructure/control/cancellation_token.hpp>
 #include <platemaker/infrastructure/workspace_serializer/workspace_serializer.hpp>
@@ -638,7 +639,7 @@ private:
      * Kept here rather than on the Project widget because a project has records whether or not its dock
      * happens to be open.
      */
-    ArtifactStore m_overlayArtifacts;
+    RecordStore m_overlayRecords;
     Platemaker::Infrastructure::WorkspaceSerializer m_serializer;   //!< Serializes the workspace model to/from disk.
     std::unique_ptr<WorkspaceLock> m_lock;      //!< The open workspace's folder, held; null when none is open.
     QHash<QString, int> m_workspaceFonts;       //!< The open workspace's `fonts/`, as registered: file name → QFontDatabase id. By name, so it survives a Save As.

@@ -10,7 +10,7 @@
 
 #include <platemaker/models/processing_steps.hpp>
 
-#include "artifact.hpp"
+#include "objectrecord.hpp"
 
 namespace StripEdit {
 
@@ -77,13 +77,13 @@ public:
      * 
      * @return The authoring record for this object, containing all relevant properties and settings.
      */
-    [[nodiscard]] const Artifact& artifact() const { return m_artifact; }
+    [[nodiscard]] const ObjectRecord& record() const { return m_record; }
 
     /**
      * @brief Adopts \p a and repaints. What that costs — re-resolving paths, a resize — is the kind's own.
-     * @param a The artifact to adopt.
+     * @param a The record to adopt.
      */
-    virtual void setArtifact(const Artifact& a) = 0;
+    virtual void setRecord(const ObjectRecord& a) = 0;
 
     /**
      * @brief How this object blends onto the strip — mapped to the matching QPainter composition mode.
@@ -163,7 +163,7 @@ public:
     /**
      * @brief The rectangle the corner grips move — the object's own size, before any tail.
      *
-     * Not stored here: a bubble's box *is* its artifact's, and holding a second copy is how the two
+     * Not stored here: a bubble's box *is* its record's, and holding a second copy is how the two
      * drift apart. Each kind answers from wherever its size actually lives.
      */
     [[nodiscard]] virtual QSizeF boxSize() const = 0;
@@ -276,8 +276,8 @@ protected:
     void mouseMoveEvent(QGraphicsSceneMouseEvent* e) override;      //!< Moves the object or a handle, reporting the delta to the owner.
     void mouseReleaseEvent(QGraphicsSceneMouseEvent* e) override;   //!< Ends a drag, reporting the final position to the owner.
 
-    /** @brief Written by each kind's setArtifact(), read by everyone through artifact(). See above. */
-    Artifact m_artifact;
+    /** @brief Written by each kind's setRecord(), read by everyone through record(). See above. */
+    ObjectRecord m_record;
 
 private:
     /** @brief Which grip is under \p local. For Grip::Handle, \p handleIndex receives which one. */

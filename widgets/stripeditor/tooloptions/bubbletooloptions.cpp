@@ -105,23 +105,23 @@ BubbleToolOptions::BubbleToolOptions(PresetStore& presets, QWidget* parent)
     syncFromModel();
 }
 
-Artifact::Shape BubbleToolOptions::balloonShape() const
+ObjectRecord::Shape BubbleToolOptions::balloonShape() const
 {
-    Artifact picked;
+    ObjectRecord picked;
     m_groups.shape()->applyTo(picked);
-    return picked.hasSilhouette() ? picked.shape.kind : Artifact::Shape::Speech;
+    return picked.hasSilhouette() ? picked.shape.kind : ObjectRecord::Shape::Speech;
 }
 
-void BubbleToolOptions::setToolShape(std::optional<Artifact::Shape> shape)
+void BubbleToolOptions::setToolShape(std::optional<ObjectRecord::Shape> shape)
 {
     m_toolShape = shape;
     m_shapeGroup->setVisible(!shape.has_value());
 }
 
-Artifact BubbleToolOptions::prototype() const
+ObjectRecord BubbleToolOptions::prototype() const
 {
-    Artifact a;
-    // Shape first: the tails editor reads it, because a shapeless artifact has nothing to grow a tail
+    ObjectRecord a;
+    // Shape first: the tails editor reads it, because a shapeless record has nothing to grow a tail
     // from. Everything else is order-independent by construction — no two groups touch a property.
     // The whole group through its editor, like every other group, so whatever a shape grows beyond its
     // kind arrives with it. Then the kind: the tool's own if it has one, otherwise the tiles' balloon,
@@ -151,7 +151,7 @@ void BubbleToolOptions::onControlChanged()
 {
     if (m_populating)
         return;
-    m_groups.collect(m_artifact, m_tails);
+    m_groups.collect(m_record, m_tails);
     refreshLook();   // one changed property and it is no longer that preset
     // Nothing is emitted: these values describe an object that does not exist yet, so there is nothing
     // to preview and nothing to persist until one is placed.
@@ -160,8 +160,8 @@ void BubbleToolOptions::onControlChanged()
 void BubbleToolOptions::syncFromModel()
 {
     m_populating = true;
-    m_groups.bind(m_artifact);
-    m_tails->bindOne(m_artifact);
+    m_groups.bind(m_record);
+    m_tails->bindOne(m_record);
     m_populating = false;
 }
 
@@ -177,8 +177,8 @@ void BubbleToolOptions::refreshPresetCombo()
     for (const BubblePreset& p : presets) {
         // No separator row between built-ins and the artist's own: a separator is an entry, and every
         // index here doubles as an index into the store.
-        m_presetCombo->addItem(QIcon(bubbleThumbnail(p.artifact.shape.kind, p.artifact.skin.fill,
-                                                     p.artifact.skin.stroke, p.artifact.text.colour)),
+        m_presetCombo->addItem(QIcon(bubbleThumbnail(p.record.shape.kind, p.record.skin.fill,
+                                                     p.record.skin.stroke, p.record.text.colour)),
                                p.name);
     }
     // No current entry, ever: see the placeholder above. Which preset the other two act on is the one
@@ -192,7 +192,7 @@ void BubbleToolOptions::refreshLook()
     // **Delete acts on the look, not on a picker's selection.** With nothing claimed above, the honest
     // subject is the preset these values *are*, and only if it is the artist's own: a built-in cannot be
     // removed, and a look that is nobody's preset is not a preset to remove.
-    m_presetDelete->setEnabled(m_presets.isCustom(m_presets.matching(m_artifact)));
+    m_presetDelete->setEnabled(m_presets.isCustom(m_presets.matching(m_record)));
 }
 
 void BubbleToolOptions::applyPreset(int index)
@@ -201,7 +201,7 @@ void BubbleToolOptions::applyPreset(int index)
     m_presetCombo->setCurrentIndex(-1);   // it applied a look; it is not now *showing* one
     if (index < 0 || index >= m_presets.presets().size())
         return;
-    m_artifact = PresetStore::applied(m_presets.presets().at(index), m_artifact,
+    m_record = PresetStore::applied(m_presets.presets().at(index), m_record,
                                       /*keepShape=*/m_toolShape.has_value());
     syncFromModel();
 }
@@ -211,7 +211,7 @@ void BubbleToolOptions::onSavePreset()
     bool ok = false;
     // Offered back: the name these values already carry, so saving over a preset needs no retyping,
     // and *Custom* offers nothing rather than a word nobody meant as a name.
-    const int     match   = m_presets.matching(m_artifact);
+    const int     match   = m_presets.matching(m_record);
     const QString suggest = match >= 0 ? m_presets.presets().at(match).name : QString();
     const QString name = QInputDialog::getText(this, tr("Save preset"), tr("Preset name:"),
                                                QLineEdit::Normal, suggest, &ok)
@@ -220,7 +220,7 @@ void BubbleToolOptions::onSavePreset()
         return;
 
     // What is saved is what the *controls* say: prototype() is already exactly "the panel as an
-    // artifact", minus the content a preset never carries.
+    // record", minus the content a preset never carries.
     int existing = -1;
     int at = m_presets.save(name, prototype(), /*replaceExisting=*/false, &existing);
     if (at < 0) {
@@ -236,7 +236,7 @@ void BubbleToolOptions::onSavePreset()
 
 void BubbleToolOptions::onDeletePreset()
 {
-    const int i = m_presets.matching(m_artifact);   // the one the chip names, and it is the artist's own
+    const int i = m_presets.matching(m_record);   // the one the chip names, and it is the artist's own
     if (!m_presets.isCustom(i))
         return;
     if (QMessageBox::question(this, tr("Delete preset"),

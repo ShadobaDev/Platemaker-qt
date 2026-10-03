@@ -8,7 +8,7 @@
 class QSvgRenderer;
 
 #include "objects/object.hpp"
-#include "artifact.hpp"
+#include "objectrecord.hpp"
 
 namespace StripEdit {
 
@@ -33,7 +33,7 @@ namespace StripEdit {
  *
  * It carries no authoring parameters, so there is nothing to re-type — and, being its own type, nothing
  * can hand it a default bubble by mistake. That used to be possible: the old single item class returned
- * a default \c Artifact for imported artwork, and two call sites persisted it, replacing the artwork
+ * a default \c ObjectRecord for imported artwork, and two call sites persisted it, replacing the artwork
  * with a blank balloon.
  *
  * Its size is a width and the artwork's own aspect, which is why a corner drag scales it uniformly:
@@ -86,7 +86,7 @@ public:
      * 
      * @param a The record this picture carries, which is always safe to ask for.
      */
-    void setArtifact(const Artifact& a) override;
+    void setRecord(const ObjectRecord& a) override;
 
 protected:
     /**
@@ -121,7 +121,7 @@ private:
     /**
      * @brief Makes the record say what this object is: this picture, at its own pixels.
      *
-     * The invariant behind `Object::artifact()`. A picture placed before pictures had a record, and one
+     * The invariant behind `Object::record()`. A picture placed before pictures had a record, and one
      * whose size was guessed at import, would otherwise hand back a record that reads as a default
      * *speech balloon* — the value that has caused four shipped defects. Called wherever either half
      * can change: a new file, or a record arriving from the panel. Takes the record rather than
@@ -131,7 +131,7 @@ private:
      * 
      * @param a The record to describe as this picture, at its own pixels.
      */
-    void describePicture(Artifact& a) const;
+    void describePicture(ObjectRecord& a) const;
 
     QString      m_picture;     //!< The file, so a feed can tell whether it changed.
     QPixmap      m_artwork;     //!< The picture at its own pixels, for the row's icon and for the size the picture says it is.

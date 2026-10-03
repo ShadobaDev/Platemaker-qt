@@ -1,7 +1,5 @@
-#include "artifact.hpp"
+#include "objectrecord.hpp"
 
-#include <QDir>
-#include <QFileInfo>
 #include <QJsonArray>
 #include <QRandomGenerator>
 
@@ -46,10 +44,10 @@ QList<Tail> tailsFromJson(const QJsonArray& arr)
 } // namespace
 
 // ---------------------------------------------------------------------------
-// Artifact
+// ObjectRecord
 // ---------------------------------------------------------------------------
 
-bool Artifact::operator==(const Artifact& o) const
+bool ObjectRecord::operator==(const ObjectRecord& o) const
 {
     // Group by group, so adding a property to a group cannot quietly fall out of equality: the
     // group's own operator== is the one place that has to know about it.
@@ -57,19 +55,19 @@ bool Artifact::operator==(const Artifact& o) const
         && text == o.text && style == o.style && styleSeed == o.styleSeed && skin == o.skin;
 }
 
-ShapeProperties ShapeProperties::from(const Artifact& a) { return a.shape; }
-void            ShapeProperties::applyTo(Artifact& a) const { a.shape = *this; }
+ShapeProperties ShapeProperties::from(const ObjectRecord& a) { return a.shape; }
+void            ShapeProperties::applyTo(ObjectRecord& a) const { a.shape = *this; }
 
-StyleProperties StyleProperties::from(const Artifact& a) { return a.style; }
-void            StyleProperties::applyTo(Artifact& a) const { a.style = *this; }
+StyleProperties StyleProperties::from(const ObjectRecord& a) { return a.style; }
+void            StyleProperties::applyTo(ObjectRecord& a) const { a.style = *this; }
 
-TextProperties  TextProperties::from(const Artifact& a) { return a.text; }
-void            TextProperties::applyTo(Artifact& a) const { a.text = *this; }
+TextProperties  TextProperties::from(const ObjectRecord& a) { return a.text; }
+void            TextProperties::applyTo(ObjectRecord& a) const { a.text = *this; }
 
-TailsProperties TailsProperties::from(const Artifact& a) { return a.tails; }
-void            TailsProperties::applyTo(Artifact& a) const { a.tails = *this; }
+TailsProperties TailsProperties::from(const ObjectRecord& a) { return a.tails; }
+void            TailsProperties::applyTo(ObjectRecord& a) const { a.tails = *this; }
 
-TailProperties TailProperties::from(const Artifact& a, int index)
+TailProperties TailProperties::from(const ObjectRecord& a, int index)
 {
     TailProperties p;
     p.index = index;
@@ -78,18 +76,18 @@ TailProperties TailProperties::from(const Artifact& a, int index)
     return p;
 }
 
-void TailProperties::applyTo(Artifact& a) const
+void TailProperties::applyTo(ObjectRecord& a) const
 {
     if (index >= 0 && index < a.tails.items.size())
         a.tails.items[index] = tail;
 }
 
-SkinProperties SkinProperties::from(const Artifact& a)
+SkinProperties SkinProperties::from(const ObjectRecord& a)
 {
     return a.skin;
 }
 
-void SkinProperties::applyTo(Artifact& a) const
+void SkinProperties::applyTo(ObjectRecord& a) const
 {
     a.skin = *this;
 }
@@ -98,47 +96,47 @@ void SkinProperties::applyTo(Artifact& a) const
 // JSON
 // ---------------------------------------------------------------------------
 
-const char* shapeName(Artifact::Shape s)
+const char* shapeName(ObjectRecord::Shape s)
 {
     // A switch with no default: adding a Shape without naming it here is a compiler warning, not a
     // silently mis-saved bubble.
     switch (s) {
-    case Artifact::Shape::None:      return "none";
-    case Artifact::Shape::Speech:    return "speech";
-    case Artifact::Shape::Shout:     return "shout";
-    case Artifact::Shape::Caption:   return "caption";
-    case Artifact::Shape::Ellipse:   return "ellipse";
-    case Artifact::Shape::Diamond:   return "diamond";
-    case Artifact::Shape::Trapezoid: return "trapezoid";
-    case Artifact::Shape::Thought:   return "thought";
-    case Artifact::Shape::Scroll:    return "scroll";
-    case Artifact::Shape::Banner:    return "banner";
+    case ObjectRecord::Shape::None:      return "none";
+    case ObjectRecord::Shape::Speech:    return "speech";
+    case ObjectRecord::Shape::Shout:     return "shout";
+    case ObjectRecord::Shape::Caption:   return "caption";
+    case ObjectRecord::Shape::Ellipse:   return "ellipse";
+    case ObjectRecord::Shape::Diamond:   return "diamond";
+    case ObjectRecord::Shape::Trapezoid: return "trapezoid";
+    case ObjectRecord::Shape::Thought:   return "thought";
+    case ObjectRecord::Shape::Scroll:    return "scroll";
+    case ObjectRecord::Shape::Banner:    return "banner";
     }
     return "speech";
 }
 
-QString shapeTitle(Artifact::Shape s)
+QString shapeTitle(ObjectRecord::Shape s)
 {
     // A switch with no default, for the same reason shapeName() has none: a new shape must be named
     // here too, and the compiler is what says so.
     switch (s) {
-    case Artifact::Shape::None:      return QObject::tr("Text only — no balloon");
-    case Artifact::Shape::Speech:    return QObject::tr("Speech balloon");
-    case Artifact::Shape::Shout:     return QObject::tr("Shout");
-    case Artifact::Shape::Caption:   return QObject::tr("Caption box");
-    case Artifact::Shape::Ellipse:   return QObject::tr("Round balloon");
-    case Artifact::Shape::Diamond:   return QObject::tr("Diamond");
-    case Artifact::Shape::Trapezoid: return QObject::tr("Caption plate");
-    case Artifact::Shape::Thought:   return QObject::tr("Thought balloon");
-    case Artifact::Shape::Scroll:    return QObject::tr("Scroll");
-    case Artifact::Shape::Banner:    return QObject::tr("Banner");
+    case ObjectRecord::Shape::None:      return QObject::tr("Text only — no balloon");
+    case ObjectRecord::Shape::Speech:    return QObject::tr("Speech balloon");
+    case ObjectRecord::Shape::Shout:     return QObject::tr("Shout");
+    case ObjectRecord::Shape::Caption:   return QObject::tr("Caption box");
+    case ObjectRecord::Shape::Ellipse:   return QObject::tr("Round balloon");
+    case ObjectRecord::Shape::Diamond:   return QObject::tr("Diamond");
+    case ObjectRecord::Shape::Trapezoid: return QObject::tr("Caption plate");
+    case ObjectRecord::Shape::Thought:   return QObject::tr("Thought balloon");
+    case ObjectRecord::Shape::Scroll:    return QObject::tr("Scroll");
+    case ObjectRecord::Shape::Banner:    return QObject::tr("Banner");
     }
     return {};
 }
 
-const QList<Artifact::Shape>& shapeOrder()
+const QList<ObjectRecord::Shape>& shapeOrder()
 {
-    using Shape = Artifact::Shape;
+    using Shape = ObjectRecord::Shape;
     static const QList<Shape> order{
         Shape::Speech, Shape::Ellipse, Shape::Thought,  Shape::Shout,  Shape::Caption,
         Shape::Trapezoid, Shape::Diamond, Shape::Banner, Shape::Scroll,
@@ -146,41 +144,42 @@ const QList<Artifact::Shape>& shapeOrder()
     return order;
 }
 
-Artifact::Shape shapeFromName(QStringView name)
+ObjectRecord::Shape shapeFromName(QStringView name)
 {
     // The picker's list and the one kind it leaves out — not a bound of our own. A bound written
     // here (it was `<= Banner`) is passed silently by the next shape appended, which then loads from
     // every file as a speech balloon; a shape missing from the picker is caught by the unit tests.
-    if (name == QLatin1String(shapeName(Artifact::Shape::None)))
-        return Artifact::Shape::None;
-    for (Artifact::Shape s : shapeOrder())
+    if (name == QLatin1String(shapeName(ObjectRecord::Shape::None)))
+        return ObjectRecord::Shape::None;
+    for (ObjectRecord::Shape s : shapeOrder())
         if (name == QLatin1String(shapeName(s)))
             return s;
-    return Artifact::Shape::Speech;
+    return ObjectRecord::Shape::Speech;
 }
 
-const char* styleName(Artifact::Style s)
+const char* styleName(ObjectRecord::Style s)
 {
     switch (s) {
-    case Artifact::Style::Clean:  return "clean";
-    case Artifact::Style::Marker: return "marker";
-    case Artifact::Style::Ink:    return "ink";
+    case ObjectRecord::Style::Clean:  return "clean";
+    case ObjectRecord::Style::Marker: return "marker";
+    case ObjectRecord::Style::Ink:    return "ink";
     }
     return "clean";
 }
 
-Artifact::Style styleFromName(QStringView name)
+ObjectRecord::Style styleFromName(QStringView name)
 {
     for (int i = 0; i <= int(StyleProperties::k_lastKind); ++i) {
-        const auto s = static_cast<Artifact::Style>(i);
+        const auto s = static_cast<ObjectRecord::Style>(i);
         if (name == QLatin1String(styleName(s)))
             return s;
     }
-    return Artifact::Style::Clean;
+    return ObjectRecord::Style::Clean;
 }
 
-QJsonObject artifactToJson(const Artifact& a)
+QJsonObject ObjectRecord::toJson() const
 {
+    const ObjectRecord& a = *this;
     return QJsonObject{
         {QStringLiteral("shape"),      QLatin1String(shapeName(a.shape.kind))},
         {QStringLiteral("artwork"),    a.artwork},
@@ -202,9 +201,9 @@ QJsonObject artifactToJson(const Artifact& a)
     };
 }
 
-Artifact artifactFromJson(const QJsonObject& j)
+ObjectRecord ObjectRecord::fromJson(const QJsonObject& j)
 {
-    Artifact a;
+    ObjectRecord a;
 
     a.shape.kind = shapeFromName(j.value(QStringLiteral("shape")).toString());
     a.artwork    = j.value(QStringLiteral("artwork")).toString();   // absent → an object we draw
@@ -229,58 +228,26 @@ Artifact artifactFromJson(const QJsonObject& j)
     return a;
 }
 
-QJsonObject artifactsToJsonObject(const ArtifactMap& m)
+QJsonObject ObjectRecord::mapToJson(const Map& m)
 {
     QJsonObject j;
     for (auto it = m.begin(); it != m.end(); ++it)
-        j.insert(it.key(), artifactToJson(it.value()));
+        j.insert(it.key(), it.value().toJson());
     return j;
 }
 
-ArtifactMap artifactsFromJsonObject(const QJsonObject& j)
+ObjectRecord::Map ObjectRecord::mapFromJson(const QJsonObject& j)
 {
-    ArtifactMap m;
+    Map m;
     for (auto it = j.begin(); it != j.end(); ++it)
-        m.insert(it.key(), artifactFromJson(it.value().toObject()));
+        m.insert(it.key(), fromJson(it.value().toObject()));
     return m;
 }
 
-// ---------------------------------------------------------------------------
-// ArtifactStore
-// ---------------------------------------------------------------------------
-
-QString ArtifactStore::overlaysDir(const QString& workspacePath)
-{
-    if (workspacePath.isEmpty())
-        return {};
-    return QFileInfo(workspacePath).absolutePath() + QStringLiteral("/overlays");
-}
-
-QString ArtifactStore::ensureOverlaysDir(const QString& workspacePath)
-{
-    const QString dir = overlaysDir(workspacePath);
-    if (dir.isEmpty())
-        return {};
-    return QDir().mkpath(dir) ? dir : QString{};
-}
-
-ArtifactMap ArtifactStore::artifacts(const QString& projectUid) const
-{
-    return m_byProject.value(projectUid);
-}
-
-void ArtifactStore::setArtifacts(const QString& projectUid, ArtifactMap map)
-{
-    if (map.isEmpty())
-        m_byProject.remove(projectUid);
-    else
-        m_byProject.insert(projectUid, std::move(map));
-}
-
-void topUpStyleSeed(Artifact& a)
+void topUpStyleSeed(ObjectRecord& a)
 {
     // A bubble authored before styles existed carries seed 0, and so would every other one — style a
     // page of them and they would all wear the same wobble. Give it one the first time it is styled.
-    if (a.style.kind != Artifact::Style::Clean && a.styleSeed == 0)
+    if (a.style.kind != ObjectRecord::Style::Clean && a.styleSeed == 0)
         a.styleSeed = QRandomGenerator::global()->generate();
 }

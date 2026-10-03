@@ -6,7 +6,7 @@
 #include <QList>
 #include <QString>
 
-#include "artifact.hpp"
+#include "objectrecord.hpp"
 
 namespace StripEdit {
 
@@ -63,7 +63,7 @@ struct Tool
     ToolKind kind = ToolKind::Select;   //!< What a press or a drag does to the canvas.
     //! `Create` only: the shape a placement gets. No value leaves the choice to the shape tiles in TOOL
     //! OPTIONS, which is the Bubble tool; `Shape::None` is the Text tool, letters with no balloon.
-    std::optional<Artifact::Shape> shape;
+    std::optional<ObjectRecord::Shape> shape;
     //! Which tool-options page: empty for none, `grade`, `bubble` (what the next balloon or lettering
     //! will be) or `artwork` (which picture the next placement puts down).
     QString optionsPage;

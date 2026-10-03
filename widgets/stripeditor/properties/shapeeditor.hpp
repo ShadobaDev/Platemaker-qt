@@ -21,11 +21,11 @@ inline constexpr int k_bubbleThumbH = 26;
  * generated, not drawn by hand. The caller chooses the colours, because a shape tile is UI chrome (it
  * wears the palette) while a preset's tile is a swatch of the preset itself.
  */
-[[nodiscard]] QPixmap bubbleThumbnail(Artifact::Shape shape, const QColor& fill,
+[[nodiscard]] QPixmap bubbleThumbnail(ObjectRecord::Shape shape, const QColor& fill,
                                       const QColor& stroke, const QColor& ink);
 
 //! The shape picker's tiles: UI chrome, so they wear the palette rather than three white blobs.
-[[nodiscard]] QPixmap shapeThumbnail(Artifact::Shape shape, const QPalette& pal);
+[[nodiscard]] QPixmap shapeThumbnail(ObjectRecord::Shape shape, const QPalette& pal);
 
 /**
  * @brief Whether a shape normally speaks.
@@ -33,7 +33,7 @@ inline constexpr int k_bubbleThumbH = 26;
  * Shared by the tile previews and by picking one, so a tile cannot promise a shape that placing it
  * does not give you.
  */
-[[nodiscard]] bool shapeSpeaks(Artifact::Shape shape);
+[[nodiscard]] bool shapeSpeaks(ObjectRecord::Shape shape);
 
 /**
  * @brief The shape picker: one checkable tile per shape, laid out like the editor's tool rail.
@@ -52,7 +52,7 @@ public:
     [[nodiscard]] PropertyGroup group() const override { return PropertyGroup::Shape; }
 
     void bind(const Subjects& subjects) override;
-    void applyTo(Artifact& target) const override;
+    void applyTo(ObjectRecord& target) const override;
 
     [[nodiscard]] const ShapeProperties& values() const { return m_values; }
 

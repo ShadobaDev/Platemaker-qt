@@ -19,7 +19,7 @@ class PresetStore;
 /**
  * @brief Options for the Bubble and Text tools: **what the next object will be**.
  *
- * One panel for both, because they author the same object — the Text tool is an `Artifact` with no
+ * One panel for both, because they author the same object — the Text tool is an `ObjectRecord` with no
  * shape. Switching between them hides the shape group rather than swapping in a second panel, so there
  * is one set of controls and no chance of two drifting apart.
  *
@@ -49,10 +49,10 @@ public:
      * A tool's options follow the tool, which is exactly what a panel describing a *selected object*
      * must never do.
      */
-    void setToolShape(std::optional<Artifact::Shape> shape);
+    void setToolShape(std::optional<ObjectRecord::Shape> shape);
 
-    //! A fresh artifact carrying the panel's current styling — what a new placement starts from.
-    [[nodiscard]] Artifact prototype() const;
+    //! A fresh record carrying the panel's current styling — what a new placement starts from.
+    [[nodiscard]] ObjectRecord prototype() const;
 
     /**
      * @brief The silhouette the tiles are set to — **the artist's own pick, never the active tool's**.
@@ -61,7 +61,7 @@ public:
      * no longer offer "no balloon", because that is a kind rather than a silhouette, so a `None` here
      * could only come from a settings file written before that was true.
      */
-    [[nodiscard]] Artifact::Shape balloonShape() const;
+    [[nodiscard]] ObjectRecord::Shape balloonShape() const;
 
 private:
     void onControlChanged();      //!< A group reported an edit → read it into the prototype's values.
@@ -92,11 +92,11 @@ private:
     //! The next balloon's tail. Not in the set: an existing balloon's tails are edited as objects instead.
     NextTailEditor*     m_tails = nullptr;
 
-    Artifact m_artifact;       //!< The next placement's working values.
+    ObjectRecord m_record;       //!< The next placement's working values.
     bool m_populating   = false;   //!< Suppresses change signals while binding.
     //! The active tool's fixed shape, if it has one → the tiles are hidden and a preset restyles
     //! without changing shape, because the shape is the tool's to say.
-    std::optional<Artifact::Shape> m_toolShape;
+    std::optional<ObjectRecord::Shape> m_toolShape;
 };
 
 }  // namespace StripEdit

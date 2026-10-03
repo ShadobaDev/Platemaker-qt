@@ -120,7 +120,7 @@ void TextEditor::bind(const Subjects& subjects)
     m_subjects = static_cast<int>(subjects.size());
 
     m_mixedColour = m_mixedFamily = m_mixedSize = m_mixedBold = m_mixedAlign = false;
-    for (const Artifact* a : subjects) {
+    for (const ObjectRecord* a : subjects) {
         const TextProperties t = TextProperties::from(*a);
         m_mixedColour = m_mixedColour || t.colour    != m_values.colour;
         m_mixedFamily = m_mixedFamily || t.family    != m_values.family;
@@ -133,12 +133,12 @@ void TextEditor::bind(const Subjects& subjects)
     syncFromValues();
 }
 
-void TextEditor::applyTo(Artifact& target) const
+void TextEditor::applyTo(ObjectRecord& target) const
 {
     m_values.applyTo(target);
 }
 
-void TextEditor::applyEditedTo(Artifact& target) const
+void TextEditor::applyEditedTo(ObjectRecord& target) const
 {
     // The lettering itself is never written to a set: five balloons do not share one line of dialogue.
     TextProperties t = TextProperties::from(target);

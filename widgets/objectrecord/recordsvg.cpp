@@ -1,6 +1,6 @@
-#include "artifactsvg.hpp"
+#include "recordsvg.hpp"
 
-#include "artifactpainter.hpp"
+#include "recordpainter.hpp"
 
 #include <QCryptographicHash>
 #include <QFile>
@@ -12,6 +12,8 @@
 #include <QXmlStreamReader>
 
 #include <cmath>
+
+namespace Svg {
 
 namespace {
 
@@ -162,13 +164,13 @@ QList<Tail> tailsFromText(const QString& s)
  * texture scales with the bubble rather than with the output resolution. A chapter re-profiled to twice
  * the width re-renders the same wobble, larger — not twice as much of it.
  */
-QString styleDefs(const Artifact& a, const QString& id)
+QString styleDefs(const ObjectRecord& a, const QString& id)
 {
-    if (a.style.kind == Artifact::Style::Clean)
+    if (a.style.kind == ObjectRecord::Style::Clean)
         return {};
 
     const qreal amount = qBound(0.0, a.style.amount, 2.0);
-    const bool  marker = a.style.kind == Artifact::Style::Marker;
+    const bool  marker = a.style.kind == ObjectRecord::Style::Marker;
 
     // A marker's edge wanders in long slow waves; ink bleeds in finer ones and then softens.
     const qreal freq  = marker ? 0.028 : 0.075;
@@ -211,14 +213,14 @@ namespace {
 //! The family a file records: the record's own, or — for an empty one, "the default" — the default's name
 //! on the machine that drew it. The outlines were set in that font, and a file that says so is one another
 //! machine can recognise as missing it, rather than silently re-set in its own default.
-QString fileFontFamily(const Artifact& a)
+QString fileFontFamily(const ObjectRecord& a)
 {
-    return a.text.family.isEmpty() ? artifactDefaultFamily() : a.text.family;
+    return a.text.family.isEmpty() ? Painter::defaultFamily() : a.text.family;
 }
 
 } // namespace
 
-QByteArray artifactToSvg(const Artifact& a, const QByteArray& picture, const QString& mime)
+QByteArray write(const ObjectRecord& a, const QByteArray& picture, const QString& mime)
 {
     if (a.box.isEmpty())
         return {};
@@ -238,7 +240,7 @@ QByteArray artifactToSvg(const Artifact& a, const QByteArray& picture, const QSt
                    .arg(num(a.box.width()), num(a.box.height()));
 
         // The same parameter group every file of ours carries, so this one is re-typable in the same
-        // way — and so an import can tell it is ours (see artifactFromSvg).
+        // way — and so an import can tell it is ours (see read).
         svg += QStringLiteral("  <g");
         svg += attr(QStringLiteral("shape"), QString::fromLatin1(shapeName(a.shape.kind)));
         svg += attr(QStringLiteral("artwork"), a.artwork);
@@ -246,7 +248,7 @@ QByteArray artifactToSvg(const Artifact& a, const QByteArray& picture, const QSt
                     QStringLiteral("%1,%2").arg(a.box.width()).arg(a.box.height()));
         svg += attr(QStringLiteral("text"), a.text.body);
         svg += attr(QStringLiteral("fontFamily"), fileFontFamily(a));
-        if (const QString fallback = artifactFontFallback(a); !fallback.isEmpty())
+        if (const QString fallback = Painter::fontFallback(a); !fallback.isEmpty())
             svg += attr(QStringLiteral("fontFallback"), fallback);   // the words were set in a stand-in
         svg += attr(QStringLiteral("fontSize"), a.text.pixelSize);
         svg += attr(QStringLiteral("bold"), a.text.bold ? 1 : 0);
@@ -259,7 +261,7 @@ QByteArray artifactToSvg(const Artifact& a, const QByteArray& picture, const QSt
                    .arg(num(a.box.width()), num(a.box.height()), mime,
                         QString::fromLatin1(picture.toBase64()));
 
-        const QPainterPath text = artifactTextOutline(a);
+        const QPainterPath text = Painter::textOutline(a);
         if (!text.isEmpty())
             svg += QStringLiteral("    <path d=\"%1\" fill-rule=\"%2\" %3/>\n")
                        .arg(pathData(text), fillRule(text), paint("fill", a.text.colour));
@@ -268,11 +270,11 @@ QByteArray artifactToSvg(const Artifact& a, const QByteArray& picture, const QSt
         return svg.toUtf8();
     }
 
-    // The viewBox is the artifact's *drawn* extent, not its balloon: a tail may reach above or left of
+    // The viewBox is the record's *drawn* extent, not its balloon: a tail may reach above or left of
     // the balloon, and SVG takes a negative viewBox origin natively — so the file itself carries the
     // offset and the placement stays a plain top-left. width/height are that extent, so the library
     // rasterises it 1:1 at scale 1.0.
-    const QRectF bounds = artifactBounds(a);
+    const QRectF bounds = Painter::bounds(a);
     if (bounds.isEmpty())
         return {};
 
@@ -298,7 +300,7 @@ QByteArray artifactToSvg(const Artifact& a, const QByteArray& picture, const QSt
     svg += attr(QStringLiteral("fontFamily"), fileFontFamily(a));
     // The family asked for is kept above whatever happened; this says what the outlines were actually set
     // in when that family was not installed, so the file can be re-set once it is (MainWindow's heal).
-    if (const QString fallback = artifactFontFallback(a); !fallback.isEmpty())
+    if (const QString fallback = Painter::fontFallback(a); !fallback.isEmpty())
         svg += attr(QStringLiteral("fontFallback"), fallback);
     svg += attr(QStringLiteral("fontSize"), a.text.pixelSize);
     svg += attr(QStringLiteral("bold"), a.text.bold ? 1 : 0);
@@ -312,13 +314,13 @@ QByteArray artifactToSvg(const Artifact& a, const QByteArray& picture, const QSt
     svg += attr(QStringLiteral("styleSeed"), QString::number(a.styleSeed));
     svg += QLatin1String(">\n");
 
-    const QPainterPath silhouette = artifactSilhouette(a);
+    const QPainterPath silhouette = Painter::silhouette(a);
     if (!silhouette.isEmpty()) {
         svg += QStringLiteral("    <path d=\"%1\" fill-rule=\"%2\" %3")
                    .arg(pathData(silhouette), fillRule(silhouette), paint("fill", a.skin.fill));
         // On the silhouette alone. A displacement filter on the whole group would drag the lettering
         // about with the outline — the balloon is what should look hand-drawn, not the words in it.
-        if (a.style.kind != Artifact::Style::Clean)
+        if (a.style.kind != ObjectRecord::Style::Clean)
             svg += QStringLiteral(" filter=\"url(#%1)\"").arg(filterId);
         if (a.skin.strokeWidth > 0)
             svg += QStringLiteral(" %1 stroke-width=\"%2\" stroke-linejoin=\"round\"")
@@ -326,7 +328,7 @@ QByteArray artifactToSvg(const Artifact& a, const QByteArray& picture, const QSt
         svg += QLatin1String("/>\n");
     }
 
-    const QPainterPath text = artifactTextOutline(a);
+    const QPainterPath text = Painter::textOutline(a);
     if (!text.isEmpty())
         svg += QStringLiteral("    <path d=\"%1\" fill-rule=\"%2\" %3/>\n")
                    .arg(pathData(text), fillRule(text), paint("fill", a.text.colour));
@@ -339,12 +341,12 @@ QByteArray artifactToSvg(const Artifact& a, const QByteArray& picture, const QSt
 // Reading
 // ---------------------------------------------------------------------------
 
-Artifact artifactFromSvg(const QByteArray& svg, bool* ok)
+ObjectRecord read(const QByteArray& svg, bool* ok)
 {
     if (ok)
         *ok = false;
 
-    Artifact a;
+    ObjectRecord a;
     QXmlStreamReader xml(svg);
     const QString ns = QLatin1String(k_pmNamespace);
 
@@ -403,9 +405,9 @@ Artifact artifactFromSvg(const QByteArray& svg, bool* ok)
     return a;   // no pm:* group — a hand-drawn or externally edited asset (ok stays false)
 }
 
-ArtifactMap artifactsFromOverlays(const std::vector<Platemaker::Models::StripOverlay>& overlays)
+ObjectRecord::Map readOverlays(const std::vector<Platemaker::Models::StripOverlay>& overlays)
 {
-    ArtifactMap map;
+    ObjectRecord::Map map;
     for (const auto& o : overlays) {
         if (o.assetPath.empty())
             continue;
@@ -414,7 +416,7 @@ ArtifactMap artifactsFromOverlays(const std::vector<Platemaker::Models::StripOve
             continue;   // missing asset: the overlay stays in the project and shows as unavailable
 
         bool               ok = false;
-        const Artifact a  = artifactFromSvg(f.readAll(), &ok);
+        const ObjectRecord a  = read(f.readAll(), &ok);
         if (ok)
             map.insert(QString::fromStdString(o.uid), a);
         // else: a flat asset (hand-drawn, or edited outside Platemaker). Deliberately left out of the
@@ -461,7 +463,7 @@ QString pictureMime(const QString& file)
  *
  * @return The asset's absolute path, or empty when it could not be written.
  */
-QString writeArtifactSvg(const QString& overlaysDir, const Artifact& a, const QString& reusePath)
+QString writeFile(const QString& overlaysDir, const ObjectRecord& a, const QString& reusePath)
 {
     // **A picture with nothing written on it is its own file.** There is nothing of ours to draw, so
     // generating one would be drawing our geometry over somebody's artwork — the mistake that once
@@ -480,7 +482,7 @@ QString writeArtifactSvg(const QString& overlaysDir, const Artifact& a, const QS
         if (!in.open(QIODevice::ReadOnly))
             return {};
         const QByteArray bytes = in.readAll();
-        const QByteArray svg   = artifactToSvg(a, bytes, pictureMime(a.artwork));
+        const QByteArray svg   = write(a, bytes, pictureMime(a.artwork));
         if (svg.isEmpty())
             return {};
 
@@ -496,7 +498,7 @@ QString writeArtifactSvg(const QString& overlaysDir, const Artifact& a, const QS
         return out.error() == QFile::NoError ? path : QString{};
     }
 
-    const QByteArray svg = artifactToSvg(a);
+    const QByteArray svg = write(a);
     if (svg.isEmpty() || overlaysDir.isEmpty())
         return {};
 
@@ -531,3 +533,5 @@ QString bakedFontFallback(const QByteArray& svg)
     }
     return {};
 }
+
+} // namespace Svg

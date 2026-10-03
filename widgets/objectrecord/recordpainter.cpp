@@ -1,4 +1,4 @@
-#include "artifactpainter.hpp"
+#include "recordpainter.hpp"
 
 #include <QFont>
 #include <QFontDatabase>
@@ -14,6 +14,8 @@
 #include <QtMath>
 
 #include <cmath>
+
+namespace Painter {
 
 namespace {
 
@@ -45,7 +47,7 @@ constexpr int   k_burstSpikes   = 12;
  */
 constexpr qreal k_burstInner    = 0.74;
 /**
- *  Re-measure passes in fittedBox(); it converges in two or three, this is headroom.
+ *  Re-measure passes in Painter::fittedBox(); it converges in two or three, this is headroom.
  */
 constexpr int   k_fitPasses     = 6;
 /**
@@ -85,11 +87,11 @@ constexpr qreal k_scrollBow     = 0.06;
 /**
  * @brief The balloon's own rectangle inside the box — the box, less room for the stroke.
  *
- * The box *is* the balloon now. It used to double as the artifact's whole extent, with a fixed 18 % of
+ * The box *is* the balloon now. It used to double as the record's whole extent, with a fixed 18 % of
  * its height reserved at the bottom for the tail to live in — which is what limited a tail to the
- * bottom edge and to inside the box. The drawn extent is computed instead (artifactBounds()).
+ * bottom edge and to inside the box. The drawn extent is computed instead (Painter::bounds()).
  */
-QRectF balloonRect(const Artifact& a)
+QRectF balloonRect(const ObjectRecord& a)
 {
     const qreal  sw = a.skin.strokeWidth / 2.0;
     QRectF body(0, 0, a.box.width(), a.box.height());
@@ -279,7 +281,7 @@ QPainterPath tailPath(const QPainterPath& outline, const QRectF& body, const Tai
  * diamond's slope. Every case here is the largest axis-aligned rectangle the outline actually contains,
  * then inset for the stroke.
  */
-QRectF textSafeArea(const Artifact& a, const QRectF& body)
+QRectF textSafeArea(const ObjectRecord& a, const QRectF& body)
 {
     if (!a.hasSilhouette())
         return QRectF(0, 0, a.box.width(), a.box.height());
@@ -288,7 +290,7 @@ QRectF textSafeArea(const Artifact& a, const QRectF& body)
     QRectF      usable;
 
     switch (a.shape.kind) {
-    case Artifact::Shape::Shout: {
+    case ObjectRecord::Shape::Shout: {
         // A star's usable interior is its *inner* radius, not its bounding box — inset accordingly, or
         // the text runs out between the spikes.
         const qreal kx = body.width()  * (1.0 - k_burstInner * 0.92) / 2.0;
@@ -296,43 +298,43 @@ QRectF textSafeArea(const Artifact& a, const QRectF& body)
         usable = body.adjusted(kx, ky, -kx, -ky);
         break;
     }
-    case Artifact::Shape::Ellipse:
+    case ObjectRecord::Shape::Ellipse:
         usable = inscribedInEllipse(body);
         break;
-    case Artifact::Shape::Thought:
+    case ObjectRecord::Shape::Thought:
         // The lobes eat into the ring, so the safe area is the inner ellipse rather than the whole one.
         usable = inscribedInEllipse(body.adjusted(qMin(body.width(), body.height()) * k_thoughtLobe * 0.5,
                                                   qMin(body.width(), body.height()) * k_thoughtLobe * 0.5,
                                                   -qMin(body.width(), body.height()) * k_thoughtLobe * 0.5,
                                                   -qMin(body.width(), body.height()) * k_thoughtLobe * 0.5));
         break;
-    case Artifact::Shape::Diamond:
+    case ObjectRecord::Shape::Diamond:
         // The largest rectangle inside a rhombus is half its width and half its height, centred.
         usable = body.adjusted(body.width() / 4.0, body.height() / 4.0,
                                -body.width() / 4.0, -body.height() / 4.0);
         break;
-    case Artifact::Shape::Trapezoid: {
+    case ObjectRecord::Shape::Trapezoid: {
         // Narrowest at the top, so the top width is the only one safe for every line.
         const qreal inset = body.width() * k_trapezoidSlant;
         usable = body.adjusted(inset, 0, -inset, 0);
         break;
     }
-    case Artifact::Shape::Scroll: {
+    case ObjectRecord::Shape::Scroll: {
         const qreal roll = qMin(body.width() * k_scrollRoll, body.height() / 2.0);
         const qreal bow  = body.height() * k_scrollBow;
         usable = body.adjusted(roll, bow, -roll, -bow);
         break;
     }
-    case Artifact::Shape::Banner: {
+    case ObjectRecord::Shape::Banner: {
         const qreal n = qMin(body.width() * k_bannerNotch, body.width() / 3.0);
         usable = body.adjusted(n, 0, -n, 0);
         break;
     }
-    case Artifact::Shape::Speech:
+    case ObjectRecord::Shape::Speech:
         usable = body.adjusted(6.0, 0, -6.0, 0);   // the rounded corners cost a little width
         break;
-    case Artifact::Shape::Caption:
-    case Artifact::Shape::None:
+    case ObjectRecord::Shape::Caption:
+    case ObjectRecord::Shape::None:
         usable = body;
         break;
     }
@@ -341,12 +343,12 @@ QRectF textSafeArea(const Artifact& a, const QRectF& body)
 }
 
 //! The laid-out text, ready to draw or measure. Width-bound; height falls out of the wrap.
-void layOutText(QTextDocument& doc, const Artifact& a, qreal width)
+void layOutText(QTextDocument& doc, const ObjectRecord& a, qreal width)
 {
     // A family that is not installed is not handed to QFont: QFont would substitute through the platform's
     // own table (on Windows, "MS Shell Dlg 2" → Tahoma), which is a different stand-in from the one an
     // empty family gets. Leaving it unset gives both the application's default font, so "no font chosen"
-    // and "the chosen font is missing" look the same, and artifactFontFallback() can name it.
+    // and "the chosen font is missing" look the same, and Painter::fontFallback() can name it.
     QFont f;
     if (!a.text.family.isEmpty() && QFontDatabase::hasFamily(a.text.family))
         f.setFamily(a.text.family);
@@ -370,7 +372,7 @@ void layOutText(QTextDocument& doc, const Artifact& a, qreal width)
 // Rasterising
 // ---------------------------------------------------------------------------
 
-ArtifactPart artifactPartAt(const Artifact& a, const QPointF& local, qreal slack)
+Part partAt(const ObjectRecord& a, const QPointF& local, qreal slack)
 {
     // ponytail: geometry, not pixels. A Marker or Ink balloon is drawn through an SVG filter that
     // displaces its edges by a pixel or two, so at a high style amount a press right on the visible
@@ -380,33 +382,33 @@ ArtifactPart artifactPartAt(const Artifact& a, const QPointF& local, qreal slack
 
     // Topmost first. The lettering is drawn over the balloon, so a letter standing on the fill answers
     // "text" — which is what the eye says too.
-    const QPainterPath text = artifactTextOutline(a);
+    const QPainterPath text = Painter::textOutline(a);
     if (!text.isEmpty()) {
         if (text.contains(local))
-            return ArtifactPart::Text;
+            return Part::Text;
         if (slack > 0.0) {
             QPainterPathStroker widen;
             widen.setWidth(slack * 2);
             if (widen.createStroke(text).contains(local))
-                return ArtifactPart::Text;
+                return Part::Text;
         }
     }
 
-    const QPainterPath silhouette = artifactSilhouette(a);
+    const QPainterPath silhouette = Painter::silhouette(a);
     if (silhouette.isEmpty())
-        return ArtifactPart::None;   // a shapeless artifact is its lettering and nothing else
+        return Part::None;   // a shapeless record is its lettering and nothing else
 
     // The stroke is painted centred on the silhouette, so the band a click can land on is the path
     // stroked to the pen's width — plus the slack, because a hairline outline is unhittable without it.
     QPainterPathStroker band;
     band.setWidth(qMax(1.0, static_cast<qreal>(a.skin.strokeWidth)) + slack * 2);
     if (band.createStroke(silhouette).contains(local))
-        return ArtifactPart::Outline;
+        return Part::Outline;
 
-    return silhouette.contains(local) ? ArtifactPart::Fill : ArtifactPart::None;
+    return silhouette.contains(local) ? Part::Fill : Part::None;
 }
 
-QPainterPath artifactSilhouette(const Artifact& a)
+QPainterPath silhouette(const ObjectRecord& a)
 {
     const QRectF body = balloonRect(a);
     if (!a.hasSilhouette() || body.isEmpty())
@@ -414,34 +416,34 @@ QPainterPath artifactSilhouette(const Artifact& a)
 
     QPainterPath path;
     switch (a.shape.kind) {
-    case Artifact::Shape::Speech:
+    case ObjectRecord::Shape::Speech:
         path.addRoundedRect(body, body.height() * 0.28, body.height() * 0.28);
         break;
-    case Artifact::Shape::Caption:
+    case ObjectRecord::Shape::Caption:
         path.addRoundedRect(body, 4, 4);
         break;
-    case Artifact::Shape::Shout:
+    case ObjectRecord::Shape::Shout:
         path = burstPath(body);
         break;
-    case Artifact::Shape::Ellipse:
+    case ObjectRecord::Shape::Ellipse:
         path.addEllipse(body);
         break;
-    case Artifact::Shape::Diamond:
+    case ObjectRecord::Shape::Diamond:
         path = diamondPath(body);
         break;
-    case Artifact::Shape::Trapezoid:
+    case ObjectRecord::Shape::Trapezoid:
         path = trapezoidPath(body);
         break;
-    case Artifact::Shape::Thought:
+    case ObjectRecord::Shape::Thought:
         path = thoughtPath(body);
         break;
-    case Artifact::Shape::Scroll:
+    case ObjectRecord::Shape::Scroll:
         path = scrollPath(body);
         break;
-    case Artifact::Shape::Banner:
+    case ObjectRecord::Shape::Banner:
         path = bannerPath(body);
         break;
-    case Artifact::Shape::None:
+    case ObjectRecord::Shape::None:
         break;
     }
     // Each tail is aimed at the *bare* outline, not at the accumulating union: otherwise the second
@@ -455,25 +457,25 @@ QPainterPath artifactSilhouette(const Artifact& a)
     return path;
 }
 
-QRectF artifactBounds(const Artifact& a)
+QRectF bounds(const ObjectRecord& a)
 {
-    return artifactBoundsOf(a, artifactSilhouette(a), artifactTextOutline(a));
+    return Painter::boundsOf(a, Painter::silhouette(a), Painter::textOutline(a));
 }
 
-qreal artifactStyleMargin(const Artifact& a)
+qreal styleMargin(const ObjectRecord& a)
 {
     const qreal amount = qBound(0.0, a.style.amount, 2.0);
     switch (a.style.kind) {
-    case Artifact::Style::Clean:  return 0.0;
-    case Artifact::Style::Marker: return k_markerScale * amount;
-    case Artifact::Style::Ink:    return k_inkScale * amount + 2.0;   // + the blur's own reach
+    case ObjectRecord::Style::Clean:  return 0.0;
+    case ObjectRecord::Style::Marker: return k_markerScale * amount;
+    case ObjectRecord::Style::Ink:    return k_inkScale * amount + 2.0;   // + the blur's own reach
     }
     return 0.0;
 }
 
-QRectF artifactBoundsOf(const Artifact& a, const QPainterPath& silhouette, const QPainterPath& text)
+QRectF boundsOf(const ObjectRecord& a, const QPainterPath& silhouette, const QPainterPath& text)
 {
-    // The balloon always counts, even when nothing is drawn in it — an empty shapeless artifact still
+    // The balloon always counts, even when nothing is drawn in it — an empty shapeless record still
     // occupies the box the author dragged.
     QRectF r(0, 0, a.box.width(), a.box.height());
 
@@ -484,7 +486,7 @@ QRectF artifactBoundsOf(const Artifact& a, const QPainterPath& silhouette, const
 
     // The stroke straddles the path, so half of it lies outside; one more pixel keeps antialiasing off
     // the edge of the buffer.
-    const qreal pad = a.skin.strokeWidth / 2.0 + 1.0 + artifactStyleMargin(a);
+    const qreal pad = a.skin.strokeWidth / 2.0 + 1.0 + Painter::styleMargin(a);
     r = r.adjusted(-pad, -pad, pad, pad);
 
     // Whole pixels, so the rasterised buffer and the SVG viewBox describe the same rectangle rather
@@ -494,20 +496,20 @@ QRectF artifactBoundsOf(const Artifact& a, const QPainterPath& silhouette, const
     return QRectF(left, top, qCeil(r.right()) - left, qCeil(r.bottom()) - top);
 }
 
-QString artifactFontFallback(const Artifact& a)
+QString fontFallback(const ObjectRecord& a)
 {
     if (a.text.body.isEmpty() || a.text.family.isEmpty() || QFontDatabase::hasFamily(a.text.family))
         return {};
     // The stand-in layOutText() uses: the application's default font, never the platform's substitution.
-    return artifactDefaultFamily();
+    return Painter::defaultFamily();
 }
 
-QString artifactDefaultFamily()
+QString defaultFamily()
 {
     return QFontInfo(QFont()).family();
 }
 
-QPainterPath artifactTextOutline(const Artifact& a)
+QPainterPath textOutline(const ObjectRecord& a)
 {
     if (a.text.body.isEmpty())
         return {};
@@ -560,12 +562,12 @@ QPainterPath artifactTextOutline(const Artifact& a)
     return out.intersected(clip);
 }
 
-void paintArtifact(QPainter& painter, const Artifact& a)
+void paint(QPainter& painter, const ObjectRecord& a)
 {
-    paintArtifactPaths(painter, a, artifactSilhouette(a), artifactTextOutline(a));
+    Painter::paintPaths(painter, a, Painter::silhouette(a), Painter::textOutline(a));
 }
 
-void paintArtifactPaths(QPainter& painter, const Artifact& a,
+void paintPaths(QPainter& painter, const ObjectRecord& a,
                         const QPainterPath& silhouette, const QPainterPath& text)
 {
     if (a.box.isEmpty())
@@ -583,7 +585,7 @@ void paintArtifactPaths(QPainter& painter, const Artifact& a,
         }
     }
 
-    // Filled outlines rather than drawn text, so that what is on screen is what artifactToSvg() writes
+    // Filled outlines rather than drawn text, so that what is on screen is what Svg::write() writes
     // and what the library rasterises — one geometry, three consumers.
     if (!text.isEmpty())
         painter.fillPath(text, a.text.colour);
@@ -591,12 +593,12 @@ void paintArtifactPaths(QPainter& painter, const Artifact& a,
     painter.restore();
 }
 
-QImage renderArtifact(const Artifact& a)
+QImage render(const ObjectRecord& a)
 {
     if (a.box.isEmpty())
         return {};
 
-    const QRectF bounds = artifactBounds(a);
+    const QRectF bounds = Painter::bounds(a);
     if (bounds.isEmpty())
         return {};
 
@@ -606,22 +608,22 @@ QImage renderArtifact(const Artifact& a)
     img.fill(Qt::transparent);
 
     QPainter p(&img);
-    // The artifact is drawn in balloon coordinates, and a tail can reach above or left of the balloon,
+    // The record is drawn in balloon coordinates, and a tail can reach above or left of the balloon,
     // so the buffer's origin is the bounds' origin rather than the balloon's.
     p.translate(-bounds.topLeft());
-    paintArtifact(p, a);
+    Painter::paint(p, a);
     p.end();
     return img;
 }
 
-QSize fittedBox(const Artifact& a)
+QSize fittedBox(const ObjectRecord& a)
 {
     if (a.text.body.isEmpty())
         return a.box;
 
     // How much taller the wrapped text is than the room it has. Negative means the balloon has slack.
     // 0 when there is no room to wrap into at all, which reads as "nothing to do" and stops the loops.
-    const auto overflowOf = [](const Artifact& p) -> qreal {
+    const auto overflowOf = [](const ObjectRecord& p) -> qreal {
         const QRectF safe = textSafeArea(p, balloonRect(p));
         if (safe.width() < 1)
             return 0.0;
@@ -635,7 +637,7 @@ QSize fittedBox(const Artifact& a)
     // them. Re-measure instead of deriving a closed form: growing leaves the stroke and the shape's
     // inset to pay for, so adding the shortfall once falls short, and this cannot drift out of step
     // with balloonRect() / textSafeArea() the way a duplicated formula would.
-    Artifact probe = a;
+    ObjectRecord probe = a;
     for (int pass = 0; pass < k_fitPasses; ++pass) {
         const qreal extra = overflowOf(probe);
         if (qAbs(extra) <= 0.5)
@@ -655,7 +657,7 @@ QSize fittedBox(const Artifact& a)
     return probe.box;
 }
 
-QString artifactLabel(const Artifact& a)
+QString label(const ObjectRecord& a)
 {
     const QString first = a.text.body.section(QLatin1Char('\n'), 0, 0).trimmed();
     if (!first.isEmpty()) {
@@ -664,10 +666,12 @@ QString artifactLabel(const Artifact& a)
     }
 
     switch (a.shape.kind) {
-    case Artifact::Shape::Speech:  return QObject::tr("(speech bubble)");
-    case Artifact::Shape::Shout:   return QObject::tr("(shout)");
-    case Artifact::Shape::Caption: return QObject::tr("(caption)");
-    case Artifact::Shape::None:    return QObject::tr("(text)");
+    case ObjectRecord::Shape::Speech:  return QObject::tr("(speech bubble)");
+    case ObjectRecord::Shape::Shout:   return QObject::tr("(shout)");
+    case ObjectRecord::Shape::Caption: return QObject::tr("(caption)");
+    case ObjectRecord::Shape::None:    return QObject::tr("(text)");
     }
     return QObject::tr("(overlay)");
 }
+
+} // namespace Painter

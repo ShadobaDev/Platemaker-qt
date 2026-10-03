@@ -10,9 +10,9 @@
 
 /**
  * @file
- * @brief The property groups an Artifact is made of — Shape, Skin, Style, Text, the tails and one tail.
+ * @brief The property groups an ObjectRecord is made of — Shape, Skin, Style, Text, the tails and one tail.
  *
- * Each group is a plain struct with from() / applyTo() / operator==, and the record (artifact.hpp) holds
+ * Each group is a plain struct with from() / applyTo() / operator==, and the record (objectrecord.hpp) holds
  * one of each. The editor that edits a group lives in `widgets/stripeditor/properties/`, one per group.
  */
 
@@ -20,7 +20,7 @@
  * @brief One tail: where it points, how wide it leaves the balloon, and how much it curves.
  *
  * The tip is in balloon coordinates and **may fall outside the balloon** — that is the whole point of a
- * tail, and it is why the artifact's drawn extent is computed rather than assumed (artifactBounds()).
+ * tail, and it is why the record's drawn extent is computed rather than assumed (Painter::bounds()).
  * Length is not stored: it is the distance from the balloon to the tip, so aiming and lengthening are
  * one gesture.
  */
@@ -56,7 +56,7 @@ struct Tail
     return {box.width() * 0.28, box.height() * 1.25};
 }
 
-struct Artifact;
+struct ObjectRecord;
 
 /**
  * @brief The balloon's own surface: what it is filled with, and the line drawn around it.
@@ -79,16 +79,16 @@ struct SkinProperties
     int    strokeWidth = 5;
 
     //! Reads this group out of \p a.
-    [[nodiscard]] static SkinProperties from(const Artifact& a);
+    [[nodiscard]] static SkinProperties from(const ObjectRecord& a);
 
     /**
      * @brief Writes this group into \p a — **and nothing else**.
      *
      * The single write path for everything that edits a balloon's surface. Guarded by
-     * `SkinPropertiesOwnership` in the unit tests, which applies a group to a randomised artifact and
+     * `SkinPropertiesOwnership` in the unit tests, which applies a group to a randomised record and
      * asserts that every property outside it is unchanged.
      */
-    void applyTo(Artifact& a) const;
+    void applyTo(ObjectRecord& a) const;
 
     [[nodiscard]] bool operator==(const SkinProperties& o) const
     {
@@ -120,8 +120,8 @@ struct ShapeProperties
 
     Kind kind = Kind::Speech;
 
-    [[nodiscard]] static ShapeProperties from(const Artifact& a);
-    void applyTo(Artifact& a) const;
+    [[nodiscard]] static ShapeProperties from(const ObjectRecord& a);
+    void applyTo(ObjectRecord& a) const;
 
     [[nodiscard]] bool operator==(const ShapeProperties& o) const { return kind == o.kind; }
     [[nodiscard]] bool operator!=(const ShapeProperties& o) const { return !(*this == o); }
@@ -153,8 +153,8 @@ struct StyleProperties
     Kind  kind  = Kind::Clean;  //!< Clean is a true no-op: no filter is emitted at all.
     qreal amount = 1.0;          //!< Scales the effect, 0..2. 1.0 is the preset's own strength.
 
-    [[nodiscard]] static StyleProperties from(const Artifact& a);
-    void applyTo(Artifact& a) const;
+    [[nodiscard]] static StyleProperties from(const ObjectRecord& a);
+    void applyTo(ObjectRecord& a) const;
 
     [[nodiscard]] bool operator==(const StyleProperties& o) const
     {
@@ -183,8 +183,8 @@ struct TextProperties
     int     align     = Qt::AlignHCenter;   //!< Horizontal alignment of the wrapped text.
     QColor  colour{20, 20, 20};
 
-    [[nodiscard]] static TextProperties from(const Artifact& a);
-    void applyTo(Artifact& a) const;
+    [[nodiscard]] static TextProperties from(const ObjectRecord& a);
+    void applyTo(ObjectRecord& a) const;
 
     [[nodiscard]] bool operator==(const TextProperties& o) const
     {
@@ -205,8 +205,8 @@ struct TailsProperties
 {
     QList<Tail> items;   //!< Empty = no tail. More than one = one sound, several speakers.
 
-    [[nodiscard]] static TailsProperties from(const Artifact& a);
-    void applyTo(Artifact& a) const;
+    [[nodiscard]] static TailsProperties from(const ObjectRecord& a);
+    void applyTo(ObjectRecord& a) const;
 
     [[nodiscard]] bool operator==(const TailsProperties& o) const { return items == o.items; }
     [[nodiscard]] bool operator!=(const TailsProperties& o) const { return !(*this == o); }
@@ -234,14 +234,14 @@ struct TailProperties
      * @return The tail at \p index, or an empty tail if the index is out of range.
      * @see applyTo()
      */
-    [[nodiscard]] static TailProperties from(const Artifact& a, int index);
+    [[nodiscard]] static TailProperties from(const ObjectRecord& a, int index);
     
     /**
      * @brief Writes the tail at \p index into \p a, or does nothing if the index is out of range.
      * @param a The balloon to write to.
      * @see from()
      */
-    void applyTo(Artifact& a) const;
+    void applyTo(ObjectRecord& a) const;
 
     /**
      * @brief Compares two tail properties for equality.

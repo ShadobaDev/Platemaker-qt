@@ -27,7 +27,7 @@ void Advisories::raise(const QString& key, Advisory advisory)
 
 void Advisories::clear(const QString& key)
 {
-    if (m_standing.remove(key) > 0)
+    if (m_standing.remove(key))   // QHash::remove() says whether there was one; QMap's would count
         emit changed();
 }
 

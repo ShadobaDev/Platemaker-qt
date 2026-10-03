@@ -92,11 +92,12 @@ qt_add_executable(Platemaker
     widgets/stripeditor/objectstate/stripstate.cpp widgets/stripeditor/objectstate/stripstate.hpp
     widgets/collapsiblesection/collapsiblesection.cpp widgets/collapsiblesection/collapsiblesection.hpp
 
-    # Text artifact — what a bubble IS (shape, text, styling), its sidecar codec and its rasteriser.
+    # The object record — what a bubble IS (shape, text, styling), its SVG codec and its rasteriser.
     # The library composites a flat RGBA bitmap and has no text engine, so the editable source lives here.
-    widgets/artifact/artifact.cpp widgets/artifact/artifact.hpp widgets/artifact/propertygroups.hpp
-    widgets/artifact/artifactpainter.cpp widgets/artifact/artifactpainter.hpp
-    widgets/artifact/artifactsvg.cpp widgets/artifact/artifactsvg.hpp
+    widgets/objectrecord/objectrecord.cpp widgets/objectrecord/objectrecord.hpp widgets/objectrecord/propertygroups.hpp
+    widgets/objectrecord/recordstore.cpp widgets/objectrecord/recordstore.hpp
+    widgets/objectrecord/recordpainter.cpp widgets/objectrecord/recordpainter.hpp
+    widgets/objectrecord/recordsvg.cpp widgets/objectrecord/recordsvg.hpp
 
     # Stage card — one step in the Project "Workflow" pipeline map (custom-painted, no .ui).
     widgets/stagecard/stagecard.cpp widgets/stagecard/stagecard.hpp
@@ -149,7 +150,7 @@ target_include_directories(Platemaker PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/widgets/stagecard
     ${CMAKE_CURRENT_SOURCE_DIR}/widgets/flowlayout
     ${CMAKE_CURRENT_SOURCE_DIR}/widgets/collapsiblesection
-    ${CMAKE_CURRENT_SOURCE_DIR}/widgets/artifact
+    ${CMAKE_CURRENT_SOURCE_DIR}/widgets/objectrecord
     ${CMAKE_CURRENT_SOURCE_DIR}/widgets/docktitlebar
     ${CMAKE_CURRENT_SOURCE_DIR}/widgets/badge
     ${CMAKE_CURRENT_SOURCE_DIR}/widgets/advisories

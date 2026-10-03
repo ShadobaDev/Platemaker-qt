@@ -13,11 +13,11 @@
 
 #include <optional>
 
-#include "artifactpainter.hpp"   // ArtifactPart: which part of an object a colour lands on
+#include "recordpainter.hpp"   // Painter::Part: which part of an object a colour lands on
 #include "toolrail/cursors.hpp"
 #include "objects/object.hpp"   // recordFor()/isParametric() ask the object itself
 #include "properties/propertygroup.hpp"   // PropertyGroup: which group the menu hands over
-#include "artifact.hpp"
+#include "objectrecord.hpp"
 
 #include <platemaker/models/project_item.hpp>
 
@@ -125,10 +125,10 @@ public:
     /** 
      * @brief Adopts the owner's complete state after an edit round-trips back. 
      * @param overlays  The new overlay set, in composite order.
-     * @param artifacts The new records for the overlays, keyed by uid.
+     * @param records The new records for the overlays, keyed by uid.
      */
     void setSource(const std::vector<Platemaker::Models::StripOverlay>& overlays,
-                   const ArtifactMap& artifacts);
+                   const ObjectRecord::Map& records);
 
     /**
      * @brief Select one of @p uids — the first that still exists — when the next feed arrives.
@@ -167,7 +167,7 @@ public:
     /**
      * @brief Whether @p uid is an object **we** author — one whose drawing we generate from a record.
      *
-     * **The one place this is decided.** It was `m_artifacts.contains(uid)` written out at eight call
+     * **The one place this is decided.** It was `m_records.contains(uid)` written out at eight call
      * sites, and that was the missing abstraction behind two shipped bugs: a default balloon loaded into
      * the panel for a piece of imported artwork, and that default then stored back over the artwork. A
      * third had survived until this refactor — see the panel binding in updateActionStates().
@@ -185,7 +185,7 @@ public:
     [[nodiscard]] bool isParametric(const QString& uid) const
     {
         if (const Object* item = m_overlayItems.value(uid))
-            return !item->artifact().isArtwork();
+            return !item->record().isArtwork();
         const auto it = m_feedRecords.constFind(uid);
         return it != m_feedRecords.constEnd() && !it->isArtwork();
     }
@@ -193,7 +193,7 @@ public:
     /**
      * @brief The record for @p uid — **from the object, which is where one lives**.
      *
-     * Every read of an authoring record goes through here. It used to be `m_artifacts.value(uid)`, and
+     * Every read of an authoring record goes through here. It used to be `m_records.value(uid)`, and
      * that returns a **default speech balloon** for a uid the map does not hold: one value standing for
      * both "a plain speech balloon" and "no record at all", which is the mechanism behind four shipped
      * defects. An object always has a record describing what it is, so asking one cannot go wrong; the
@@ -202,10 +202,10 @@ public:
      * @param uid  The uid of the overlay whose record is requested.
      * @return The record for the overlay, or a default speech balloon if it does not exist.
      */
-    [[nodiscard]] Artifact recordFor(const QString& uid) const
+    [[nodiscard]] ObjectRecord recordFor(const QString& uid) const
     {
         if (const Object* item = m_overlayItems.value(uid))
-            return item->artifact();
+            return item->record();
         return m_feedRecords.value(uid);
     }
 
@@ -218,7 +218,7 @@ public:
      * 
      * @return A map of every overlay's uid to its record, built from the objects.
      */
-    [[nodiscard]] ArtifactMap currentArtifacts() const;
+    [[nodiscard]] ObjectRecord::Map currentRecords() const;
 
     /**
      * @brief Everything selected, in the order it was picked. The last is the primary — see selectOverlays().
@@ -272,7 +272,7 @@ public:
      * @param colour  The colour to apply.
      * @param role    The part of the object to apply the colour to.
      */
-    void applyColourToSelection(const QColor& colour, ArtifactPart role);
+    void applyColourToSelection(const QColor& colour, Painter::Part role);
 
     /**
      * @brief Copies one property group from the tool's options onto every selected object.
@@ -327,7 +327,7 @@ public:
      */
     void forgetItems()
     {
-        m_feedRecords = currentArtifacts();
+        m_feedRecords = currentRecords();
         m_overlayItems.clear();
     }
 
@@ -433,20 +433,20 @@ public:
 signals:
     /**
      * @brief A bubble was drawn. Creation is the library's — it mints the uid and dedups identical artwork.
-     * @param artifact  The record for the new object.
+     * @param record  The record for the new object.
      * @param xFrac, yFrac, wFrac  The new object's position and size as fractions of the page dimensions.
      * @param anchorInputUid  The UID of the anchor input.
      */
-    void artifactCreated(const Artifact& artifact, double xFrac, double yFrac, double wFrac,
+    void recordCreated(const ObjectRecord& record, double xFrac, double yFrac, double wFrac,
                          const QString& anchorInputUid);
     /**
      * @brief Any other edit, as the complete new state: one channel rather than one signal per gesture.
      * @param overlays  The new overlay set, in composite order.
-     * @param artifacts  The new records for the overlays, keyed by uid.
+     * @param records  The new records for the overlays, keyed by uid.
      * @param undoText  The text to use for the undo step that will be created
      */
     void overlaysCommitted(const std::vector<Platemaker::Models::StripOverlay>& overlays,
-                        const ArtifactMap& artifacts, const QString& undoText);
+                        const ObjectRecord::Map& records, const QString& undoText);
     /**
      * @brief Artwork drawn elsewhere should be copied into the workspace and registered here.
      *
@@ -498,10 +498,10 @@ private:
     [[nodiscard]] qreal itemScaleFor(const Platemaker::Models::StripOverlay& o, qreal naturalWidth) const;
     /**
      * @brief The library's rasterisation of \p a, cached by the SVG it emits. Empty if it cannot be produced.
-     * @param a  The artifact to rasterise.
-     * @return The rasterised image of the artifact, or an empty QImage if it cannot be produced.
+     * @param a  The record to rasterise.
+     * @return The rasterised image of the record, or an empty QImage if it cannot be produced.
      */
-    [[nodiscard]] QImage sharpRasterFor(const Artifact& a);
+    [[nodiscard]] QImage sharpRasterFor(const ObjectRecord& a);
     void selectOverlay(const QString& uid);   //!< Selects one in the scene and the list, and loads the panel.
 
     /**
@@ -576,7 +576,7 @@ private:
      *               reaches the history. The panel's own debounce decides when an edit has settled.
      * @param undoText  The text to use for the undo step that will be created. If empty, a default text will be used.
      */
-    void applyRecords(const QStringList& uids, const QList<Artifact>& records, bool commit,
+    void applyRecords(const QStringList& uids, const QList<ObjectRecord>& records, bool commit,
                       const QString& undoText = QString());
 
     /**
@@ -585,7 +585,7 @@ private:
      * @param record  The record to apply to the object.
      * @param commit  False while a control is being dragged or typed in: the object
      */
-    void applyRecord(const QString& uid, const Artifact& record, bool commit,
+    void applyRecord(const QString& uid, const ObjectRecord& record, bool commit,
                      const QString& undoText = QString());
 
     /**
@@ -598,7 +598,7 @@ private:
      * @param records  The records to apply to the objects.
      * @param commit  False while a control is being dragged or typed in: the objects
      */
-    void applyPanelRecords(const QList<Artifact>& records, bool commit);
+    void applyPanelRecords(const QList<ObjectRecord>& records, bool commit);
     void deleteSelectedTail();   //!< Takes the selected tail off its balloon, and selects the balloon.
     void importArtwork();           //!< Asks for a file and drops it on the page currently in view.
     void duplicateSelectedOverlay();   //!< Copies the selected bubble a little down and right.
@@ -627,7 +627,7 @@ private:
      * 
      * @param kind  The kind to convert the selection to.
      */
-    void convertSelectionTo(Artifact::Shape kind);
+    void convertSelectionTo(ObjectRecord::Shape kind);
 
     /**
      * @brief Moves the selected object one place towards the front (@p forward) or the back.
@@ -671,7 +671,7 @@ private:
      * in step with edits, because the objects already are; keeping a second copy in step by hand is
      * what this member used to be for, and what it stopped being.
      */
-    ArtifactMap                                   m_feedRecords;
+    ObjectRecord::Map                                   m_feedRecords;
     QHash<QString, Object*>                       m_overlayItems; //!< Live scene objects, keyed by overlay uid.
     /**
      * @brief Library rasterisations of styled bubbles, keyed by the SVG document itself.
@@ -727,7 +727,7 @@ private:
     static constexpr int k_tailRole = Qt::UserRole + 2;
     //! The strip row's id. Overlay uids are minted as "ovl-…" and page ids are input uids, so it is free.
     static inline const QString k_stripId = QStringLiteral("strip");
-    // Duplicate / Delete, shared by the artifact list's context menu and its keyboard shortcuts, and
+    // Duplicate / Delete, shared by the object stack's context menu and its keyboard shortcuts, and
     // reachable from the canvas too — the two places a bubble is ever selected.
     QAction*           m_actDuplicate    = nullptr;
     QAction*           m_actDelete       = nullptr;

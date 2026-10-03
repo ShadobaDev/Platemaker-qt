@@ -23,10 +23,10 @@ protected:
 };
 
 //! A plain balloon with something in it, standing in for one the artist has placed.
-Artifact placed()
+ObjectRecord placed()
 {
-    Artifact a;
-    a.shape.kind = Artifact::Shape::Speech;
+    ObjectRecord a;
+    a.shape.kind = ObjectRecord::Shape::Speech;
     a.box        = QSize(300, 160);
     a.text.body  = QStringLiteral("Hello");
     a.styleSeed  = 123456;
@@ -44,7 +44,7 @@ TEST_F(Presets, AnAppliedPresetIsRecognisedAsItself)
     ASSERT_FALSE(store.presets().isEmpty());
 
     for (int i = 0; i < store.presets().size(); ++i) {
-        const Artifact look = PresetStore::applied(store.presets().at(i), placed(), false);
+        const ObjectRecord look = PresetStore::applied(store.presets().at(i), placed(), false);
         // The first match wins, and two presets may legitimately describe the same look, so the test is
         // that the *look* is recognised — not that this exact index comes back.
         const int found = store.matching(look);
@@ -56,7 +56,7 @@ TEST_F(Presets, AnAppliedPresetIsRecognisedAsItself)
 TEST_F(Presets, OneChangedPropertyIsCustom)
 {
     const PresetStore store;
-    Artifact      look = PresetStore::applied(store.presets().first(), placed(), false);
+    ObjectRecord      look = PresetStore::applied(store.presets().first(), placed(), false);
 
     look.skin.fill = look.skin.fill == QColor(Qt::red) ? QColor(Qt::blue) : QColor(Qt::red);
 
@@ -67,7 +67,7 @@ TEST_F(Presets, OneChangedPropertyIsCustom)
 TEST_F(Presets, WhatAPresetNeverCarriedCannotBreakTheMatch)
 {
     const PresetStore store;
-    Artifact      look = PresetStore::applied(store.presets().first(), placed(), false);
+    ObjectRecord      look = PresetStore::applied(store.presets().first(), placed(), false);
     const int         was  = store.matching(look);
     ASSERT_GE(was, 0);
 
@@ -78,7 +78,7 @@ TEST_F(Presets, WhatAPresetNeverCarriedCannotBreakTheMatch)
     look.tails.items.clear();
     EXPECT_EQ(store.matching(look), was);
 
-    // And the style seed belongs to no group at all. Comparing whole artifacts would have made a
+    // And the style seed belongs to no group at all. Comparing whole records would have made a
     // re-rolled outline report as a different look, which is the trap this comparison exists to avoid.
     look.styleSeed = 987654321;
     EXPECT_EQ(store.matching(look), was);
@@ -90,15 +90,15 @@ TEST_F(Presets, APresetWithNoFontMatchesTheDefaultByName)
     // been written and read back. Both are the same font, so both are the same preset.
     PresetStore store;
     store.setDefaultFamily(QStringLiteral("Test Sans"));
-    const Artifact fresh = PresetStore::applied(store.presets().at(0), placed(), /*keepShape=*/false);
+    const ObjectRecord fresh = PresetStore::applied(store.presets().at(0), placed(), /*keepShape=*/false);
     ASSERT_TRUE(fresh.text.family.isEmpty());
     ASSERT_EQ(store.matching(fresh), 0);
 
-    Artifact reloaded   = fresh;
+    ObjectRecord reloaded   = fresh;
     reloaded.text.family = QStringLiteral("Test Sans");
     EXPECT_EQ(store.matching(reloaded), 0);
 
-    Artifact another   = fresh;
+    ObjectRecord another   = fresh;
     another.text.family = QStringLiteral("Comic Neue");   // a font the preset does not have is a change
     EXPECT_EQ(store.matching(another), -1);
 }
@@ -106,13 +106,13 @@ TEST_F(Presets, APresetWithNoFontMatchesTheDefaultByName)
 TEST_F(Presets, AnObjectWithNoShapeMatchesNoBalloonPreset)
 {
     const PresetStore store;
-    Artifact      a = placed();
-    a.shape.kind        = Artifact::Shape::None;
+    ObjectRecord      a = placed();
+    a.shape.kind        = ObjectRecord::Shape::None;
     a.tails.items.clear();
 
     // Lettering with no balloon cannot be wearing a speech balloon's look, whatever its colours say.
     const int found = store.matching(a);
     if (found >= 0) {
-        EXPECT_EQ(store.presets().at(found).artifact.shape.kind, Artifact::Shape::None);
+        EXPECT_EQ(store.presets().at(found).record.shape.kind, ObjectRecord::Shape::None);
     }
 }

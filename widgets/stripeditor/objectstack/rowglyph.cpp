@@ -4,7 +4,7 @@
 #include <QPainter>
 #include <QPainterPath>
 
-#include "artifactpainter.hpp"
+#include "recordpainter.hpp"
 
 namespace StripEdit {
 
@@ -44,7 +44,7 @@ namespace {
 
 }  // namespace
 
-QIcon objectGlyph(const Artifact& a, const QPalette& pal, int px, qreal dpr)
+QIcon objectGlyph(const ObjectRecord& a, const QPalette& pal, int px, qreal dpr)
 {
     QPixmap  pm = blank(px, dpr);
     QPainter p(&pm);
@@ -73,7 +73,7 @@ QIcon objectGlyph(const Artifact& a, const QPalette& pal, int px, qreal dpr)
         return QIcon(pm);
     }
 
-    const QPainterPath silhouette = artifactSilhouette(a);
+    const QPainterPath silhouette = Painter::silhouette(a);
     const QRectF       extent     = silhouette.boundingRect();
     if (silhouette.isEmpty() || extent.isEmpty())
         return {};

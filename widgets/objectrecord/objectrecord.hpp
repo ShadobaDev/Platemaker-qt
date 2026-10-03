@@ -1,5 +1,5 @@
-#ifndef ARTIFACT_HPP
-#define ARTIFACT_HPP
+#ifndef OBJECTRECORD_HPP
+#define OBJECTRECORD_HPP
 
 #include <QColor>
 #include <QHash>
@@ -12,7 +12,7 @@
 #include <QSize>
 #include <QString>
 
-#include "propertygroups.hpp"   // the groups an Artifact is made of
+#include "propertygroups.hpp"   // the groups an ObjectRecord is made of
 
 /**
  * @brief What a bubble *is* — the editable source a strip overlay is rendered from.
@@ -20,20 +20,23 @@
  * The library rasterises artwork and deliberately never grows a text engine, so everything about a
  * bubble's content lives here, on the GUI side. This struct is the *working* form; the SVG in
  * `<workspace>/overlays/` is the stored one, and it carries these same values in a private namespace
- * so a bubble can be re-solved from the file it renders from (see artifactsvg.hpp).
+ * so a bubble can be re-solved from the file it renders from (see recordsvg.hpp).
  *
  * Coordinates are **strip-scale pixels**, the same scale the render composites at, so the scene preview
- * and the baked output are the same geometry by construction (see artifactpainter.hpp).
+ * and the baked output are the same geometry by construction (see recordpainter.hpp).
  *
  * One struct serves both rail tools: the Text tool is this with `shape == Shape::None`. Two entry
  * points, one object — so a caption can grow a balloon later without changing type, and there is one
  * rasteriser, one schema and one list.
  */
-struct Artifact
+struct ObjectRecord
 {
     //! The enums live with the groups that own them; these keep every existing spelling working.
     using Shape = ShapeProperties::Kind;
     using Style = StyleProperties::Kind;
+
+    //! Records for one project's overlays, keyed by `StripOverlay::uid`.
+    using Map = QHash<QString, ObjectRecord>;
 
     ShapeProperties shape;  //<! What silhouette is drawn behind the text, if any.
 
@@ -55,8 +58,8 @@ struct Artifact
     /**
      * @brief The **balloon** — what the author drags, and what text wraps inside.
      *
-     * Not the artifact's drawn extent: a tail may reach well outside it, so the size of the rendered
-     * artwork comes from artifactBounds(). Until tails could point anywhere these were one rectangle,
+     * Not the record's drawn extent: a tail may reach well outside it, so the size of the rendered
+     * artwork comes from Painter::bounds(). Until tails could point anywhere these were one rectangle,
      * with a fixed fraction of the height reserved at the bottom for the tail to live in.
      */
     QSize box{280, 160};
@@ -90,11 +93,18 @@ struct Artifact
      */
     [[nodiscard]] bool hasSilhouette() const { return !isArtwork() && shape.kind != Shape::None; }
 
-    //! True when a tail should be drawn. A shapeless artifact has nothing to grow a tail from.
+    //! True when a tail should be drawn. A shapeless record has nothing to grow a tail from.
     [[nodiscard]] bool hasTail() const { return hasSilhouette() && !tails.items.isEmpty(); }
 
-    [[nodiscard]] bool operator==(const Artifact& o) const;
-    [[nodiscard]] bool operator!=(const Artifact& o) const { return !(*this == o); }
+    // --- Persistence: the undo snapshot's form. The overlay's SVG is the other (recordsvg.hpp). ----
+    [[nodiscard]] QJsonObject     toJson() const;
+    [[nodiscard]] static ObjectRecord fromJson(const QJsonObject& j);
+    //! A whole map, keyed by overlay uid — the shape the undo snapshot stores.
+    [[nodiscard]] static QJsonObject mapToJson(const Map& m);
+    [[nodiscard]] static Map         mapFromJson(const QJsonObject& j);
+
+    [[nodiscard]] bool operator==(const ObjectRecord& o) const;
+    [[nodiscard]] bool operator!=(const ObjectRecord& o) const { return !(*this == o); }
 };
 
 /**
@@ -108,10 +118,7 @@ struct Artifact
  *
  * Idempotent: a record that already has a seed keeps it, so re-styling never re-rolls the wobble.
  */
-void topUpStyleSeed(Artifact& a);
-
-//! Authoring records for one project's overlays, keyed by `StripOverlay::uid`.
-using ArtifactMap = QHash<QString, Artifact>;
+void topUpStyleSeed(ObjectRecord& a);
 
 /**
  * @brief The persisted name of \p s, and the way back.
@@ -120,7 +127,7 @@ using ArtifactMap = QHash<QString, Artifact>;
  * used to be a positional array in one and a switch in the other, which meant appending a shape was
  * a silent out-of-bounds read on one side and a compiler error on neither.
  */
-[[nodiscard]] const char* shapeName(Artifact::Shape s);
+[[nodiscard]] const char* shapeName(ObjectRecord::Shape s);
 
 /**
  * @brief What to call \p s on screen, translated — as opposed to shapeName(), which is what it is
@@ -130,7 +137,7 @@ using ArtifactMap = QHash<QString, Artifact>;
  * free to. It lives here rather than in the shape picker because the picker is no longer the only
  * thing that names a shape — *Convert to ▸* does too, and two lists would drift.
  */
-[[nodiscard]] QString shapeTitle(Artifact::Shape s);
+[[nodiscard]] QString shapeTitle(ObjectRecord::Shape s);
 
 /**
  * @brief Every **silhouette**, in the order the pickers offer them. Not the enum's order, which is
@@ -141,51 +148,12 @@ using ArtifactMap = QHash<QString, Artifact>;
  * for a tail to leave from. Choosing it belongs to *Convert to ▸*, and a picker that offered it would
  * let a property control change what the object is.
  */
-[[nodiscard]] const QList<Artifact::Shape>& shapeOrder();
+[[nodiscard]] const QList<ObjectRecord::Shape>& shapeOrder();
 //! Parses \p name; anything unrecognised falls back to Speech, so an unknown shape still draws.
-[[nodiscard]] Artifact::Shape shapeFromName(QStringView name);
+[[nodiscard]] ObjectRecord::Shape shapeFromName(QStringView name);
 
 //! The persisted name of \p s, and the way back — same contract as shapeName().
-[[nodiscard]] const char* styleName(Artifact::Style s);
-[[nodiscard]] Artifact::Style styleFromName(QStringView name);
+[[nodiscard]] const char* styleName(ObjectRecord::Style s);
+[[nodiscard]] ObjectRecord::Style styleFromName(QStringView name);
 
-// ---------------------------------------------------------------------------
-// Persistence
-// ---------------------------------------------------------------------------
-
-[[nodiscard]] QJsonObject artifactToJson(const Artifact& a);
-[[nodiscard]] Artifact artifactFromJson(const QJsonObject& j);
-
-//! A whole map, keyed by overlay uid — the shape the undo snapshot stores.
-[[nodiscard]] QJsonObject artifactsToJsonObject(const ArtifactMap& m);
-[[nodiscard]] ArtifactMap artifactsFromJsonObject(const QJsonObject& j);
-
-/**
- * @brief Every open project's authoring records, keyed by project uid.
- *
- * A **cache**, not a store: the records live in the overlays' own SVG files (see artifactsvg.hpp), and
- * this holds the parsed form so a populate() does not re-read and re-parse the whole chapter. It is
- * repopulated from disk when a workspace is opened and written through whenever the editor commits.
- *
- * There is deliberately nothing to save here. An authoring sidecar would be a second copy of what the
- * asset already carries — one more file to keep in step, and one more thing to lose separately from the
- * artwork it describes.
- */
-class ArtifactStore
-{
-public:
-    //! `<workspace dir>/overlays` — where the SVG assets live; created on demand by ensureDir().
-    [[nodiscard]] static QString overlaysDir(const QString& workspacePath);
-    //! Creates the overlays directory if missing. Returns its path, or empty if it cannot be created.
-    [[nodiscard]] static QString ensureOverlaysDir(const QString& workspacePath);
-
-    void clear() { m_byProject.clear(); }
-
-    [[nodiscard]] ArtifactMap        artifacts(const QString& projectUid) const;
-    void                             setArtifacts(const QString& projectUid, ArtifactMap map);
-
-private:
-    QHash<QString, ArtifactMap> m_byProject;   //!< project uid → (overlay uid → artifact)
-};
-
-#endif // ARTIFACT_HPP
+#endif // OBJECTRECORD_HPP

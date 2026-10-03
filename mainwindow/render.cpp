@@ -473,7 +473,7 @@ void MainWindow::persistRenderLog()
     // Auto-save the finished run's log next to the workspace so it survives exit — and keep the last
     // few runs (not just the latest), so an environmental failure's log is not overwritten by whatever
     // the user renders next; those Io / "Unverified after render" faults may not reproduce, making the
-    // log the only forensic artifact. No workspace → nowhere to write. Best-effort: a filesystem hiccup
+    // log the only forensic record. No workspace → nowhere to write. Best-effort: a filesystem hiccup
     // must never disturb a completed render, so failures are swallowed.
     const QString cache = workspaceCacheDir();
     if (cache.isEmpty()) return;

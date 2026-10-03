@@ -43,7 +43,7 @@ class TailListEditor;
  * no balloon has no answer to give. Whether there is one at all is a kind, and kinds are changed by
  * *Convert to ▸* — which is what took that job over, as this comment used to predict it would.
  *
- * Follows the same contract as `GradeToolOptions`: \c setArtifact() populates without emitting; editing emits
+ * Follows the same contract as `GradeToolOptions`: \c setRecord() populates without emitting; editing emits
  * \c changed() continuously (live preview) and \c committed() once the controls settle (debounced) or on
  * a discrete action (persisted, one undo step).
  */
@@ -55,16 +55,16 @@ public:
     ObjectState(PresetStore& presets, QWidget* parent = nullptr);
 
     //! Shows \p a and names it in the header. Emits nothing.
-    void setArtifact(const Artifact& a);
+    void setRecord(const ObjectRecord& a);
 
     /**
      * @brief Shows tail @p index of \p a — a tail selected on its own. Emits nothing.
      *
      * One section, the tail's, and *Delete tail*. The balloon's own groups are the balloon's, and showing
      * them here would make an edit look as if it belonged to the tail. Edits still arrive as the whole
-     * artifact through changed() and committed(), with only that tail written.
+     * record through changed() and committed(), with only that tail written.
      */
-    void setTail(const Artifact& a, int index);
+    void setTail(const ObjectRecord& a, int index);
 
     /**
      * @brief Shows @p objects as one subject — the **union** of what they have in common. Emits nothing.
@@ -77,7 +77,7 @@ public:
      * Today that is the two colour groups: a swatch is the one control that can say *Mixed*. The rest of
      * the typography is hidden while a set is bound rather than showing one object's numbers.
      */
-    void setArtifacts(const QList<Artifact>& objects);
+    void setRecords(const QList<ObjectRecord>& objects);
 
     /**
      * @brief Names a selection of @p count things of **different kinds** — objects and tails together.
@@ -122,12 +122,12 @@ public:
     void focusText();
 
 signals:
-    void changed(const Artifact& a);    //!< Continuous — for the live preview.
-    void committed(const Artifact& a);  //!< Debounced / discrete — persist + undo.
+    void changed(const ObjectRecord& a);    //!< Continuous — for the live preview.
+    void committed(const ObjectRecord& a);  //!< Debounced / discrete — persist + undo.
 
-    //! The same two, for a set: the objects in the order they were given to setArtifacts().
-    void changedMany(const QList<Artifact>& objects);
-    void committedMany(const QList<Artifact>& objects);
+    //! The same two, for a set: the objects in the order they were given to setRecords().
+    void changedMany(const QList<ObjectRecord>& objects);
+    void committedMany(const QList<ObjectRecord>& objects);
     //! Live — while the spin box moves. The owner resizes the picture without a history step.
     void scaleChanged(double percent);
     //! Settled — one history step.
@@ -140,7 +140,7 @@ signals:
 
 private:
     void onControlChanged();   //!< A group reported an edit → collect, preview, arm the commit timer.
-    //! Shows the sections this artifact's kind has, and hides the rest.
+    //! Shows the sections this record's kind has, and hides the rest.
     void applyKindVisibility();
     //! Remembers which sections are open, so the choice follows the artist rather than the object.
     void restoreExpansion();
@@ -168,12 +168,12 @@ private:
     QTimer*             m_commitTimer = nullptr;
     QHash<int, CollapsibleSection*> m_sections; //!< Keyed by PropertyGroup.
 
-    Artifact m_artifact;
-    QList<Artifact> m_subjects;   //!< The whole selection, when there is more than one of it.        //!< Working copy of the selected object.
+    ObjectRecord m_record;
+    QList<ObjectRecord> m_subjects;   //!< The whole selection, when there is more than one of it.        //!< Working copy of the selected object.
     bool m_populating   = false;    //!< Suppresses change signals while binding.
-    //! One artifact is bound, so an edit may be emitted about it. False for a set — there is no single
+    //! One record is bound, so an edit may be emitted about it. False for a set — there is no single
     //! object those controls would be describing.
-    bool m_hasArtifact = false;
+    bool m_hasRecord = false;
     //! How many objects the panel is speaking for. Delete acts on all of them; 0 means nothing is selected.
     int  m_selectionCount = 0;
 };

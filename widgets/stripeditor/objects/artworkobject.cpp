@@ -6,7 +6,7 @@
 #include <QPainterPath>
 #include <QSvgRenderer>
 
-#include "artifactpainter.hpp"
+#include "recordpainter.hpp"
 #include <QSvgRenderer>
 
 #include <utility>
@@ -58,7 +58,7 @@ void ArtworkObject::loadPicture(const QString& picture)
 {
     m_picture = picture;
     m_artwork = loadArtwork(picture);
-    describePicture(m_artifact);
+    describePicture(m_record);
 
     delete m_svg;
     m_svg = nullptr;
@@ -75,27 +75,27 @@ QString ArtworkObject::label() const
 {
     // What a row should say about a picture: its words if it has been lettered, otherwise the file —
     // which is the only thing that distinguishes one picture from another in a list of them.
-    const QString said = m_artifact.text.body.section(QLatin1Char('\n'), 0, 0).trimmed();
+    const QString said = m_record.text.body.section(QLatin1Char('\n'), 0, 0).trimmed();
     if (!said.isEmpty())
         return said;
     const QString file = QFileInfo(m_picture).fileName();
     return file.isEmpty() ? tr("(imported artwork)") : file;
 }
 
-void ArtworkObject::setArtifact(const Artifact& a)
+void ArtworkObject::setRecord(const ObjectRecord& a)
 {
-    Artifact next = a;
+    ObjectRecord next = a;
     describePicture(next);   // whatever arrived, this object is still this picture at its own pixels
-    if (m_artifact == next)
+    if (m_record == next)
         return;
-    m_artifact = next;
+    m_record = next;
     update();
 }
 
-void ArtworkObject::describePicture(Artifact& a) const
+void ArtworkObject::describePicture(ObjectRecord& a) const
 {
     a.artwork    = QFileInfo(m_picture).fileName();
-    a.shape.kind = Artifact::Shape::None;   // no silhouette of ours, said both ways
+    a.shape.kind = ObjectRecord::Shape::None;   // no silhouette of ours, said both ways
     // **This object is the authority on how big the picture is**, not the record it was handed: the
     // record may predate pictures having one, or carry a size guessed from a copy the importer could
     // not read. An empty pixmap leaves the box alone — there is nothing better to say.
@@ -129,14 +129,14 @@ void ArtworkObject::paintContent(QPainter& painter)
     // The words over it, if there are any. Laid out in the record's box — the picture's own pixels —
     // and drawn through the same scale the picture is, so they sit on it rather than beside it however
     // the object is resized. This is the preview of what the wrapper SVG will render.
-    const QPainterPath text = artifactTextOutline(m_artifact);
-    if (text.isEmpty() || m_artifact.box.isEmpty())
+    const QPainterPath text = Painter::textOutline(m_record);
+    if (text.isEmpty() || m_record.box.isEmpty())
         return;
     painter.save();
     painter.setRenderHint(QPainter::Antialiasing, true);
-    painter.scale(m_box.width() / m_artifact.box.width(), m_box.height() / m_artifact.box.height());
+    painter.scale(m_box.width() / m_record.box.width(), m_box.height() / m_record.box.height());
     painter.setPen(Qt::NoPen);
-    painter.setBrush(m_artifact.text.colour);
+    painter.setBrush(m_record.text.colour);
     painter.drawPath(text);
     painter.restore();
 }

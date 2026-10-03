@@ -50,7 +50,7 @@ void NextTailEditor::bind(const Subjects& subjects)
 {
     if (subjects.isEmpty())
         return;
-    const Artifact& a = *subjects.first();
+    const ObjectRecord& a = *subjects.first();
     m_values        = TailsProperties::from(a);
     m_box           = a.box;
     m_shapeCanSpeak = a.hasSilhouette();
@@ -69,11 +69,11 @@ void NextTailEditor::bind(const Subjects& subjects)
     syncEnabled();
 }
 
-void NextTailEditor::applyTo(Artifact& target) const
+void NextTailEditor::applyTo(ObjectRecord& target) const
 {
     TailsProperties next = m_values;
 
-    // A shapeless artifact has nothing to grow a tail from, whatever the checkbox says.
+    // A shapeless record has nothing to grow a tail from, whatever the checkbox says.
     const bool want = m_enabled->isChecked() && target.hasSilhouette();
     if (!want) {
         next.items.clear();
@@ -91,7 +91,7 @@ void NextTailEditor::applyTo(Artifact& target) const
     next.applyTo(target);
 }
 
-void NextTailEditor::applyToNew(Artifact& target) const
+void NextTailEditor::applyToNew(ObjectRecord& target) const
 {
     TailsProperties next;
     if (m_enabled->isChecked() && target.hasSilhouette()) {
@@ -104,9 +104,9 @@ void NextTailEditor::applyToNew(Artifact& target) const
     next.applyTo(target);
 }
 
-void NextTailEditor::shapeChanged(Artifact::Shape kind)
+void NextTailEditor::shapeChanged(ObjectRecord::Shape kind)
 {
-    m_shapeCanSpeak = kind != Artifact::Shape::None;
+    m_shapeCanSpeak = kind != ObjectRecord::Shape::None;
     const QSignalBlocker block(m_enabled);
     m_enabled->setChecked(shapeSpeaks(kind));
     syncEnabled();

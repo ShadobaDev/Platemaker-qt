@@ -1,7 +1,7 @@
 #include "mainwindow.hpp"
 #include "advisories.hpp"
 #include "advisorybar.hpp"
-#include "artifactsvg.hpp"
+#include "recordsvg.hpp"
 #include "ui_mainwindow.h"
 #include "project.hpp"
 #include "workspacesnapshotcommand.hpp"
@@ -14,7 +14,7 @@
 #include "workspacelock.hpp"
 #include "workspacefolder.hpp"
 #include "presetstore.hpp"
-#include "artifactpainter.hpp"
+#include "recordpainter.hpp"
 
 #include <platemaker/infrastructure/workspace_editor/workspace_editor.hpp>
 
@@ -80,7 +80,7 @@ MainWindow::MainWindow(QWidget *parent)
     m_installedFamilies = QFontDatabase::families();
 
     m_presets = new StripEdit::PresetStore(this);
-    m_presets->setDefaultFamily(artifactDefaultFamily());
+    m_presets->setDefaultFamily(Painter::defaultFamily());
 
     setDockOptions(AnimatedDocks | AllowNestedDocks | AllowTabbedDocks);
 
@@ -406,10 +406,10 @@ void MainWindow::loadWorkspace(const QString &requested)
     // records are read back from the assets themselves — there is no sidecar to fall out of step with
     // them. An asset that is missing, or was drawn elsewhere, simply yields no record: the overlay
     // still renders, it just cannot be re-typed.
-    m_overlayArtifacts.clear();
+    m_overlayRecords.clear();
     for (const auto& project : m_workspace.projectItems)
-        m_overlayArtifacts.setArtifacts(QString::fromStdString(project.uid),
-                                        artifactsFromOverlays(project.getStripOverlays()));
+        m_overlayRecords.setRecords(QString::fromStdString(project.uid),
+                                        Svg::readOverlays(project.getStripOverlays()));
     m_activeCanvasProfileName = m_workspace.canvasProfiles().empty()
         ? QString{}
         : QString::fromStdString(m_workspace.canvasProfiles().front().name);
@@ -517,7 +517,7 @@ void MainWindow::closeWorkspace()
 
     // Clear the workspace model and reset state.
     m_workspace     = Platemaker::Models::Workspace{};
-    m_overlayArtifacts.clear();
+    m_overlayRecords.clear();
     m_workspacePath.clear();
     m_savedSnapshot.clear();
     m_activeCanvasProfileName.clear();

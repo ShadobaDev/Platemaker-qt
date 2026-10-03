@@ -22,7 +22,7 @@ namespace StripEdit {
  *
  * The same surface as `ObjectState`, and the same question — what is selected — asked of different
  * things. It is a panel of its own rather than more sections in that one because nothing here is a
- * `Artifact`: a page has no fill and no tail, and pretending otherwise would mean a panel full of
+ * `ObjectRecord`: a page has no fill and no tail, and pretending otherwise would mean a panel full of
  * sections that are always hidden.
  *
  * **The strip** lists its pages and **the colour adjustments applied to it**, the way an image editor lists the

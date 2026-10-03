@@ -1,5 +1,5 @@
 #include "objects/bubbleobject.hpp"
-#include "artifactpainter.hpp"
+#include "recordpainter.hpp"
 
 #include <QPainter>
 
@@ -7,45 +7,45 @@
 
 namespace StripEdit {
 
-BubbleObject::BubbleObject(QString uid, Artifact artifact, QGraphicsItem* parent)
+BubbleObject::BubbleObject(QString uid, ObjectRecord record, QGraphicsItem* parent)
     : Object(std::move(uid), parent)
 {
-    m_artifact = std::move(artifact);
+    m_record = std::move(record);
     rebuild();
 }
 
 QString BubbleObject::label() const
 {
-    return artifactLabel(m_artifact);
+    return Painter::label(m_record);
 }
 
 void BubbleObject::rebuild()
 {
     // Resolve once, here, and keep the paths: paint() must not rebuild an eleven-circle union or re-lay
     // a text document on every scroll and selection change.
-    m_silhouette = artifactSilhouette(m_artifact);
-    m_textPath   = artifactTextOutline(m_artifact);
+    m_silhouette = Painter::silhouette(m_record);
+    m_textPath   = Painter::textOutline(m_record);
     refreshBounds();
 }
 
 QRectF BubbleObject::computeBounds() const
 {
-    return artifactBoundsOf(m_artifact, m_silhouette, m_textPath);
+    return Painter::boundsOf(m_record, m_silhouette, m_textPath);
 }
 
-void BubbleObject::setArtifact(const Artifact& a)
+void BubbleObject::setRecord(const ObjectRecord& a)
 {
     // The same values are not an edit: there is nothing to re-resolve, and the rasterisation still
     // describes them. A settled edit is written here a second time, by the commit that follows the
     // preview it was already drawn from, and re-laying an eleven-circle union and a text document for
     // it would be work for a picture that cannot change.
-    if (a == m_artifact)
+    if (a == m_record)
         return;
 
-    // Whatever was rasterised described the previous artifact. Showing it now would be showing an edit
+    // Whatever was rasterised described the previous record. Showing it now would be showing an edit
     // that has not happened; the owner hands over a fresh one once this one settles.
     m_sharp    = QImage();
-    m_artifact = a;
+    m_record = a;
     // A tail can reach outside the balloon, so the drawn extent moves for more reasons than a resize:
     // aiming one, bending it, or adding a second all change what this object covers.
     rebuild();
@@ -70,35 +70,35 @@ void BubbleObject::setSharpRaster(const QImage& img)
 void BubbleObject::setBoxSize(QSizeF size)
 {
     const QSize newBox(qRound(size.width()), qRound(size.height()));
-    if (newBox == m_artifact.box)
+    if (newBox == m_record.box)
         return;
 
     // Keep every tail pointing the same relative way as the balloon changes size, and scale its width
     // with it — otherwise a tail keeps its absolute thickness and swamps a shrinking bubble.
-    if (!m_artifact.box.isEmpty()) {
-        const qreal sx = double(newBox.width())  / m_artifact.box.width();
-        const qreal sy = double(newBox.height()) / m_artifact.box.height();
-        for (Tail& t : m_artifact.tails.items) {
+    if (!m_record.box.isEmpty()) {
+        const qreal sx = double(newBox.width())  / m_record.box.width();
+        const qreal sy = double(newBox.height()) / m_record.box.height();
+        for (Tail& t : m_record.tails.items) {
             t.tip = QPointF(t.tip.x() * sx, t.tip.y() * sy);
             t.baseWidth *= (sx + sy) / 2.0;
         }
     }
-    m_artifact.box = newBox;
+    m_record.box = newBox;
     rebuild();
 }
 
 QPointF BubbleObject::handlePos(int index) const
 {
-    if (index < 0 || index >= int(m_artifact.tails.items.size()))
+    if (index < 0 || index >= int(m_record.tails.items.size()))
         return {};
-    return m_artifact.tails.items.at(index).tip;
+    return m_record.tails.items.at(index).tip;
 }
 
 void BubbleObject::setHandlePos(int index, const QPointF& local)
 {
-    if (index < 0 || index >= int(m_artifact.tails.items.size()))
+    if (index < 0 || index >= int(m_record.tails.items.size()))
         return;
-    m_artifact.tails.items[index].tip = local;
+    m_record.tails.items[index].tip = local;
     rebuild();
 }
 
@@ -110,7 +110,7 @@ void BubbleObject::paintContent(QPainter& painter)
         painter.drawImage(contentBounds().topLeft(), m_sharp);
         return;
     }
-    paintArtifactPaths(painter, m_artifact, m_silhouette, m_textPath);
+    Painter::paintPaths(painter, m_record, m_silhouette, m_textPath);
 }
 
 }  // namespace StripEdit

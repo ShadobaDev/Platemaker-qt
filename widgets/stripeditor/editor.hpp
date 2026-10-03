@@ -11,7 +11,7 @@
 
 #include "objects/striplayout.hpp"
 #include "canvas/pagesource.hpp"
-#include "artifact.hpp"
+#include "objectrecord.hpp"
 #include "toolrail/toolregistry.hpp"
 
 #include <platemaker/core/processing_pipeline/processing_pipeline.hpp>
@@ -72,7 +72,7 @@ class ObjectController;
  *    grade's `excludedInputUids` addresses; an output slice can straddle an excluded and an included
  *    page, so on that feed the exclusion has no meaning at display time.
  *
- * Slices are deliberately absent: they are an *output* artifact (files to publish). A editor draws a
+ * Slices are deliberately absent: they are an *output* product (files to publish). An editor draws a
  * continuous strip and hides the joins anyway, so cutting the preview into them would buy nothing. The
  * slice grid still matters to the author — that is what the seam guides draw, at every slice height.
  *
@@ -170,10 +170,10 @@ public:
      * and does not interrupt an interaction.
      * 
      * @param overlays The overlays to show, in any order.
-     * @param artifacts The authoring records for those overlays, keyed by uid.
+     * @param records The authoring records for those overlays, keyed by uid.
      */
     void setOverlaySource(const std::vector<Platemaker::Models::StripOverlay>& overlays,
-                          const ArtifactMap&                                  artifacts);
+                          const ObjectRecord::Map&                                  records);
 
     /**
      * @brief Select what an undone or redone step touched, when the feed carrying it arrives.
@@ -245,26 +245,26 @@ signals:
      * `ProjectItem::addOverlay()`, which also hashes the asset and dedups identical content. Sending
      * the intent instead of a half-built record keeps that inventory the library's.
      *
-     * @param artifact       Authoring record for the new bubble (its box is the placement rectangle).
+     * @param record       Authoring record for the new bubble (its box is the placement rectangle).
      * @param x,y            Top-left, relative to the anchor page's top edge.
      * @param anchorInputUid The page it was drawn on.
      */
-    void artifactCreated(const Artifact& artifact, double xFrac, double yFrac, double wFrac,
+    void recordCreated(const ObjectRecord& record, double xFrac, double yFrac, double wFrac,
                          const QString& anchorInputUid);
 
     /**
      * @brief Every other overlay edit, as the complete new state: move, restyle, delete, reorder, mute.
      *
      * One channel rather than one signal per gesture — the uids already exist, so the owner only has to
-     * store what it is given (re-rasterising the artifacts whose bitmaps no longer match) and push one
+     * store what it is given (re-rasterising the records whose bitmaps no longer match) and push one
      * undo step labelled @p undoText.
      * 
      * @param overlays The overlays to show, in any order.
-     * @param artifacts The authoring records for those overlays, keyed by uid.
+     * @param records The authoring records for those overlays, keyed by uid.
      * @param undoText The text to label the undo step with.
      */
     void overlaysCommitted(const std::vector<Platemaker::Models::StripOverlay>& overlays,
-                        const ArtifactMap&                                  artifacts,
+                        const ObjectRecord::Map&                                  records,
                         const QString&                                      undoText);
 
     /**
@@ -349,9 +349,9 @@ private:
 
     /**
      * @brief Returns true while a tool that authors overlays is active (Bubble or Text).
-     * @return True if an artifact tool is active, false otherwise.
+     * @return True if a Create tool is active, false otherwise.
      */
-    [[nodiscard]] bool    artifactToolActive() const;
+    [[nodiscard]] bool    createToolActive() const;
     /**
      * @brief Returns true if the active tool is reading the canvas rather than changing it.
      * @return True if the active tool is the eyedropper, false otherwise.
@@ -433,7 +433,7 @@ private:
     PageSource* m_pages = nullptr;
 
     // --- editor shell: the tool rail's flowing buttons are built in the ctor (a flow layout can't live in
-    // a .ui); the splitters, canvas, tool-options stack and artifact list all come from editor.ui ---
+    // a .ui); the splitters, canvas, tool-options stack and object stack all come from editor.ui ---
     QButtonGroup   *m_toolGroup = nullptr;   //!< The rail's buttons; a button's id is its row in tools().
     QHash<QString, int> m_toolPage;          //!< Tool id → its page in the options stack.
     ColourPair*     m_colours    = nullptr;  //!< The primary/secondary pair, under the rail. Furniture.

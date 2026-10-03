@@ -65,7 +65,7 @@ void SkinEditor::bind(const Subjects& subjects)
 
     // What the selection disagrees about is not a value this panel may show.
     m_mixedFill = m_mixedStroke = m_mixedWidth = false;
-    for (const Artifact* a : subjects) {
+    for (const ObjectRecord* a : subjects) {
         const SkinProperties s = SkinProperties::from(*a);
         m_mixedFill   = m_mixedFill   || s.fill        != m_values.fill;
         m_mixedStroke = m_mixedStroke || s.stroke      != m_values.stroke;
@@ -76,14 +76,14 @@ void SkinEditor::bind(const Subjects& subjects)
     syncFromValues();
 }
 
-void SkinEditor::applyTo(Artifact& target) const
+void SkinEditor::applyTo(ObjectRecord& target) const
 {
     // One line, and that is the point: the group's own applyTo() is the only write path, so this
     // editor cannot reach a property it does not own even by accident.
     m_values.applyTo(target);
 }
 
-void SkinEditor::applyEditedTo(Artifact& target) const
+void SkinEditor::applyEditedTo(ObjectRecord& target) const
 {
     // Still one write path — the group's — but only the properties that were actually picked. What the
     // artist did not touch stays each object's own, which is the whole point of editing a set.

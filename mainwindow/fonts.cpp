@@ -194,7 +194,7 @@ void MainWindow::onFonts()
         QHash<QString, int> objects;
         QStringList         order;
         for (const auto &project : m_workspace.projectItems) {
-            const ArtifactMap records = m_overlayArtifacts.artifacts(QString::fromStdString(project.uid));
+            const ObjectRecord::Map records = m_overlayRecords.records(QString::fromStdString(project.uid));
             for (const QString &uid : objectsInStandIns(project)) {
                 const QString family = records.value(uid).text.family;
                 if (!objects.contains(family))

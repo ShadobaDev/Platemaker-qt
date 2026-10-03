@@ -5,7 +5,7 @@
 #include <QObject>
 #include <QString>
 
-#include "artifact.hpp"
+#include "objectrecord.hpp"
 
 namespace StripEdit {
 
@@ -19,7 +19,7 @@ namespace StripEdit {
 struct BubblePreset
 {
     QString      name;      //!< What the artist calls this look, which is what they pick it by.
-    Artifact artifact;      //!< The look itself, with lettering, box and tails cleared out.
+    ObjectRecord record;      //!< The look itself, with lettering, box and tails cleared out.
 };
 
 /**
@@ -77,7 +77,7 @@ public:
      * @param existingIndex  If not null, receives the index of an existing entry with the same name.
      * @return The entry's index, or -1 when it stopped.
      */
-    int save(const QString& name, const Artifact& look, bool replaceExisting, int* existingIndex = nullptr);
+    int save(const QString& name, const ObjectRecord& look, bool replaceExisting, int* existingIndex = nullptr);
 
     void remove(int index); //!< Removes one of the artist's own. Built-ins are ignored.
 
@@ -110,20 +110,20 @@ public:
      * the style seed belongs to no group at all: it would make an object that matches in every visible
      * way report as something else.
      * 
-     * @param a  The artifact to check against the presets.
+     * @param a  The record to check against the presets.
      * @return The index of the matching preset, or -1 if none match.
      */
-    [[nodiscard]] int matching(const Artifact& a) const;
+    [[nodiscard]] int matching(const ObjectRecord& a) const;
 
     /**
      * @brief What to call that look: the preset's name, or *Custom* when it is nobody's.
-     * @param a  The artifact to label.
-     * @return The label for the artifact.
+     * @param a  The record to label.
+     * @return The label for the record.
      */
-    [[nodiscard]] QString lookLabel(const Artifact& a) const;
+    [[nodiscard]] QString lookLabel(const ObjectRecord& a) const;
 
     /**
-     * @brief The name an empty font family stands for on this machine (artifactDefaultFamily()).
+     * @brief The name an empty font family stands for on this machine (Painter::defaultFamily()).
      *
      * A preset that chooses no font means "the default", and a bubble reloaded from its file carries the
      * default's name — so without this, every balloon made from Dialogue would read *Custom* after a reopen.
@@ -140,11 +140,11 @@ public:
      * jump for a reason nobody asked for.
      *
      * @param p  The preset to apply.
-     * @param target  The artifact to restyle.
+     * @param target  The record to restyle.
      * @param keepShape  True where the shape picker is not on screen, so a preset cannot change a
      *                   shape the artist can neither see nor put back.
      */
-    [[nodiscard]] static Artifact applied(const BubblePreset& p, const Artifact& target,
+    [[nodiscard]] static ObjectRecord applied(const BubblePreset& p, const ObjectRecord& target,
                                               bool keepShape);
 
 signals:

@@ -307,10 +307,10 @@ void MainWindow::openProjectDock(int projectIndex)
         QString::fromStdString(m_workspace.projectItems[projectIndex].uid);
     projectWidget->setWorkspacePath(m_workspacePath);
     projectWidget->setWriteGuard([this] { return canWriteWorkspace(); });
-    projectWidget->setArtifacts(m_overlayArtifacts.artifacts(projectUid));
-    connect(projectWidget, &Project::artifactsChanged, this,
-            [this, projectUid, newDock](const ArtifactMap& artifacts) {
-        m_overlayArtifacts.setArtifacts(projectUid, artifacts);
+    projectWidget->setRecords(m_overlayRecords.records(projectUid));
+    connect(projectWidget, &Project::recordsChanged, this,
+            [this, projectUid, newDock](const ObjectRecord::Map& records) {
+        m_overlayRecords.setRecords(projectUid, records);
         // A record edit changes what a bubble says without moving a page, so the strip has to be told
         // explicitly — the feed signature it guards itself with would not see it.
         if (QDockWidget* strip = dockForStripEditor(newDock->property("projectIndex").toInt()))
@@ -478,7 +478,7 @@ void MainWindow::closeDock(QDockWidget *dock)
         return;
     }
     // Hidden, not destroyed. The dock is the way in, not the thing itself: an open strip editor keeps
-    // sending edits to this widget, and those edits need its artifacts, its overlay directory and its
+    // sending edits to this widget, and those edits need its records, its overlay directory and its
     // history. Destroying it dropped all three silently — the editor went on showing changes nobody
     // had recorded. Reopening from the project list finds this dock and raises it.
     dock->hide();
@@ -530,7 +530,7 @@ void MainWindow::refreshStripEditor(QDockWidget *dock)
     // resolves each overlay's page anchor against the layout it just built — the same arithmetic the
     // render does — so a bubble previews exactly where it will be baked.
     editor->setOverlaySource(project.getStripOverlays(),
-                             m_overlayArtifacts.artifacts(QString::fromStdString(project.uid)));
+                             m_overlayRecords.records(QString::fromStdString(project.uid)));
 }
 
 void MainWindow::openStripEditorDock(int projectIndex)
@@ -579,11 +579,11 @@ void MainWindow::openStripEditorDock(int projectIndex)
     // undo step. Both are guarded the same way the grade is: a project that has been removed has no
     // widget and no history, and the edit is dropped rather than applied untracked. Merely *closing*
     // the dock does not reach here — it hides, and the widget goes on recording.
-    connect(editor, &StripEdit::Editor::artifactCreated, this,
-            [this, projectIndex](const Artifact &artifact, double xFrac, double yFrac,
+    connect(editor, &StripEdit::Editor::recordCreated, this,
+            [this, projectIndex](const ObjectRecord &record, double xFrac, double yFrac,
                                  double wFrac, const QString &anchorUid) {
         if (auto *pw = projectWidget(projectIndex))
-            pw->createOverlay(artifact, xFrac, yFrac, wFrac, anchorUid);
+            pw->createOverlay(record, xFrac, yFrac, wFrac, anchorUid);
     });
     connect(editor, &StripEdit::Editor::artworkImportRequested, this,
             [this, projectIndex](const QString &file, double xFrac, double yFrac, double wFrac,
@@ -593,9 +593,9 @@ void MainWindow::openStripEditorDock(int projectIndex)
     });
     connect(editor, &StripEdit::Editor::overlaysCommitted, this,
             [this, projectIndex](const std::vector<Platemaker::Models::StripOverlay> &overlays,
-                                 const ArtifactMap &artifacts, const QString &undoText) {
+                                 const ObjectRecord::Map &records, const QString &undoText) {
         if (auto *pw = projectWidget(projectIndex))
-            pw->applyOverlays(overlays, artifacts, undoText);
+            pw->applyOverlays(overlays, records, undoText);
     });
     // Its own advisory strip, along the bottom. Dragged out, this dock is a top-level window with no
     // status bar; maximised, it covers the one behind it. Either way the chapter's problems would be

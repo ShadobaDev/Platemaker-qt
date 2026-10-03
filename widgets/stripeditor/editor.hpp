@@ -46,6 +46,8 @@ namespace StripEdit {
 class ArtworkToolOptions;
 
 class ColourPair;
+class ToolOptionsStack;
+class ToolRail;
 class GradeToolOptions;
 class ObjectState;
 class StripState;
@@ -429,8 +431,8 @@ private:
 
     // --- editor shell: the tool rail's flowing buttons are built in the ctor (a flow layout can't live in
     // a .ui); the splitters, canvas, tool-options stack and object stack all come from editor.ui ---
-    QButtonGroup   *m_toolGroup = nullptr;   //!< The rail's buttons; a button's id is its row in tools().
-    QHash<QString, int> m_toolPage;          //!< Tool id → its page in the options stack.
+    ToolRail*         m_rail        = nullptr;  //!< TOOL RAIL: the tiles and the colour pair.
+    ToolOptionsStack* m_toolOptions = nullptr;  //!< TOOL OPTIONS: a page per options-page key.
     ColourPair*     m_colours    = nullptr;  //!< The primary/secondary pair, under the rail. Furniture.
     /**
      * @brief Where the middle-button pan last was, in viewport points; x < 0 when no such pan is in flight.
@@ -439,17 +441,6 @@ private:
     QPoint          m_pointerPos {-1, -1};   //!< Last hovered viewport point, so the cursor can be
                                              //!< re-decided when the pointer has not moved but the
                                              //!< scene under it has.
-    /**
-     * @brief The tool tiles' own row in the rail. Held because its minimum height has to follow the flow
-     *        layout's wrapping — see `eventFilter()` — or a drag can hide a row of tools.
-     */
-    QWidget           *m_toolTiles    = nullptr;
-    /**
-     * @brief The TOOL OPTIONS page for a tool that has no options: the tool's name and what a press does.
-     * Never empty —        see `toolregistry.hpp`, where both come from the tool's own row.
-     */
-    QLabel            *m_toolTitle    = nullptr;   //!< The tool's name, in the tool-options stack.
-    QLabel            *m_toolHint     = nullptr;   //!< What a press does, in the tool-options stack.
     GradeToolOptions        *m_gradeOptions   = nullptr;   //!< The Grade tool-options page (colour-correction controls).
     /**
      * @brief The Artwork tool's options: which picture a placement puts down. See `setTool()`.
@@ -470,7 +461,7 @@ private:
     /**
      * @brief ...and when imported artwork is: its size, which is all of its state that is ours to set.
      *  What the properties stack actually switches between: each panel inside its own scroll area, so a
-     *  selection cannot widen the column under the pointer. See `scrolled()` in the .cpp.
+     *  selection cannot widen the column under the pointer. See `scrolled()`, scrolledpage.hpp.
      */
     QWidget*          m_objectPage = nullptr;
     QWidget*          m_stripPage  = nullptr;   //!< The same surface when the strip or one of its pages is selected: what *that* is.

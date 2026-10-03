@@ -1,6 +1,5 @@
 #include "editor.hpp"
 #include "ui_editor.h"
-#include "flowlayout.hpp"
 #include "advisorybar.hpp"
 #include "properties/colouradjustment.hpp"
 #include "toolrail/colourpair.hpp"
@@ -10,6 +9,9 @@
 #include "objects/objectcontroller.hpp"
 #include "canvas/pagesource.hpp"
 #include "canvas/stripitem.hpp"
+#include "scrolledpage.hpp"
+#include "toolrail/toolrail.hpp"
+#include "tooloptions/tooloptionsstack.hpp"
 #include "objectstate/objectstate.hpp"
 #include "presetstore.hpp"
 #include "properties/shapeeditor.hpp"
@@ -22,7 +24,6 @@
 #include <algorithm>
 
 #include <QFileInfo>
-#include <QButtonGroup>
 #include <QDebug>
 #include <QEnterEvent>
 #include <QEvent>
@@ -106,31 +107,6 @@ constexpr int k_rightColumnPx = 340;
  * @brief Pages built beyond the viewport on each side. One page is several slices tall, so ±1 already covers a comfortable scroll ahead; a larger margin would multiply a much heavier unit of work.
  */
 constexpr int k_prefetchPages = 1;
-
-/**
- * @brief Wraps @p page in a scroll area to prevent the column from resizing when the panel's contents change.
- *
- * **A panel may not decide how wide its column is.** A stacked widget's minimum is its pages' minimum,
- *  and a splitter may never take a child below that — so the right column grew the moment something was
- *  selected and the properties appeared (measured: 18 points empty, 174 with one object's controls, and
- *  more with the real panel). Every row in the list then slid sideways, out from under the pointer that
- *  had just come down on a mute checkbox, and the click landed on the row instead. Inside a scroll area
- *  the column's minimum is the scroll area's own — constant — and a panel too big for the column scrolls
- *  rather than shoving it. That is also what lets the object list keep its third of the height when the
- *  properties are long.
- *
- * @param page The widget to wrap.
- * @param host The stacked widget that will contain the scroll area.
- * @return A pointer to the created scroll area.
- */
-[[nodiscard]] QScrollArea* scrolled(QWidget* page, QStackedWidget* host)
-{
-    auto* area = new QScrollArea(host);
-    area->setFrameShape(QFrame::NoFrame);   // the panel already sits in a framed column
-    area->setWidgetResizable(true);
-    area->setWidget(page);
-    return area;
-}
 
 /**
  * @brief How wide a column has to be to hold @p panel whole.
@@ -222,46 +198,17 @@ Editor::Editor(PresetStore& presets, QWidget *parent)
     // set the splitter sizing (not a .ui property). Pan (the default) keeps today's behaviour: hand-drag
     // pan and no side panel.
     {
-        // The rail is two rows, not one flow: the tiles, and under them the colour pair. They used to
-        // share the flow, which worked and read badly — the pair took its turn in the grid as though it
-        // were a ninth tool, and it is furniture.
-        auto* railRows = new QVBoxLayout(ui->toolRail);
-        railRows->setContentsMargins(0, 0, 0, 0);
-        railRows->setSpacing(0);
-        m_toolTiles   = new QWidget(ui->toolRail);
-        auto* railLay = new FlowLayout(m_toolTiles, 6, 4, 4); // margin, hSpacing, vSpacing — wraps to fit
-        railRows->addWidget(m_toolTiles);
-        m_toolTiles->installEventFilter(this);   // see eventFilter: the tiles keep their own minimum
-        m_toolGroup = new QButtonGroup(this);
-        m_toolGroup->setExclusive(true);
+        // TOOL RAIL: the tiles, one per row of the registry, and the colour pair under them.
+        m_rail    = new ToolRail(ui->toolRail);
+        m_colours = m_rail->colours();
 
-        // The tool-options pages, under the rail — the tool's own settings, in the place every drawing
-        // application puts them. One widget per *page*, not per tool: tools that author the same object
-        // name the same page, so there is one set of controls and no chance of two drifting apart. A
-        // tool with no options gets the hint page, which is never blank.
-        // **A tool with no options is not a tool with nothing to say.** The page used to be blank, and a
-        // blank panel under an armed tool reads as *nothing is armed* — which is how the bucket gets
-        // picked by accident, and the next click paints. It carries the tool's name and its one
-        // sentence, both from the registry row, so a new tool cannot arrive without them.
-        auto* hintPage = new QWidget(ui->toolOptionsStack);
-        auto* hintLay  = new QVBoxLayout(hintPage);
-        m_toolTitle    = new QLabel(hintPage);
-        QFont titleFont = m_toolTitle->font();
-        titleFont.setBold(true);
-        m_toolTitle->setFont(titleFont);
-        m_toolHint = new QLabel(hintPage);
-        m_toolHint->setWordWrap(true);
-        m_toolHint->setForegroundRole(QPalette::PlaceholderText);   // a remark, not an instruction
-        hintLay->addWidget(m_toolTitle);
-        hintLay->addWidget(m_toolHint);
-        hintLay->addStretch(1);
-        QHash<QString, int> pageIndex;
-        pageIndex.insert(QString(), ui->toolOptionsStack->addWidget(scrolled(hintPage, ui->toolOptionsStack)));
+        // TOOL OPTIONS: a page per options-page key, plus the hint page for a tool that has none. The
+        // pages are built and wired here; the stack only holds them and knows which one a tool shows.
+        m_toolOptions = new ToolOptionsStack(ui->toolOptionsStack);
         // The Grade tool's options are an image editor's colour menu: which adjustment, and its controls, applied to the
         // selected object. What a selected strip's grade *is* is shown on the right, in its state.
         m_gradeOptions = new GradeToolOptions(ui->toolOptionsStack);
-        pageIndex.insert(QStringLiteral("grade"),
-                         ui->toolOptionsStack->addWidget(scrolled(m_gradeOptions, ui->toolOptionsStack)));
+        m_toolOptions->addPage(QStringLiteral("grade"), m_gradeOptions);
         connect(m_gradeOptions, &GradeToolOptions::changed, this, [this](const Platemaker::Models::ColourCorrection& cc) {
             // Live edit: apply it, but do NOT push it back into the panel — the panel is the source
             // here, and re-syncing its widgets mid-drag would fight the slider the user is holding.
@@ -279,53 +226,20 @@ Editor::Editor(PresetStore& presets, QWidget *parent)
         // One panel for every tool that authors an `ObjectRecord` — Bubble, Text, Caption — because they
         // author the same object and differ only in the shape they place, which each tool's row says.
         m_bubbleOptions = new BubbleToolOptions(*m_presets, ui->toolOptionsStack);
-        pageIndex.insert(QStringLiteral("bubble"),
-                         ui->toolOptionsStack->addWidget(scrolled(m_bubbleOptions, ui->toolOptionsStack)));
+        m_toolOptions->addPage(QStringLiteral("bubble"), m_bubbleOptions);
 
         // The other create tool's options: which picture the next placement puts down. A separate panel
         // rather than a section of the one above, because they describe different kinds of object, and an
         // options page describes one kind at a time.
         m_artworkOptions = new ArtworkToolOptions(ui->toolOptionsStack);
-        pageIndex.insert(k_artworkPage,
-                         ui->toolOptionsStack->addWidget(scrolled(m_artworkOptions, ui->toolOptionsStack)));
+        m_toolOptions->addPage(k_artworkPage, m_artworkOptions);
         connect(m_artworkOptions, &ArtworkToolOptions::artworkChanged, this, [this](const QString& f) {
             const Tool* armed = toolById(m_tool);
             if (m_objects && armed && armed->optionsPage == k_artworkPage)
                 m_objects->setPlacementArtwork(f);
         });
 
-        // The rail, built from the registry: a button per row, in the table's order, its id that row's
-        // index.
-        for (int i = 0; i < tools().size(); ++i) {
-            const Tool& t = tools().at(i);
-            auto* b = new QToolButton(m_toolTiles);
-            if (!t.icon.isEmpty())
-                b->setIcon(QIcon(t.icon));
-            b->setIconSize(QSize(26, 26));
-            b->setToolTip(toolTooltip(t));   // the name, and the same sentence TOOL OPTIONS shows
-            b->setCheckable(true);
-            b->setAutoRaise(true);
-            b->setToolButtonStyle(Qt::ToolButtonIconOnly);
-            b->setFixedSize(40, 40);       // square tile
-            railLay->addWidget(b);
-            m_toolGroup->addButton(b, i);
-            // A row naming a page nobody registered would land on index 0 — the hint page — and look
-            // like a tool that simply has no options, which is the hardest kind of typo to see.
-            Q_ASSERT(pageIndex.contains(t.optionsPage));
-            m_toolPage.insert(t.id, pageIndex.value(t.optionsPage));
-        }
-
-        // The colour pair is **furniture**, not a tool: it sits under the tiles and stays there whichever
-        // tool is active, because the tools that use it — the eyedropper fills it, an applicator spends
-        // it — hold a reference to it rather than a colour of their own.
-        m_colours       = new ColourPair(ui->toolRail);
-        auto* colourRow = new QHBoxLayout;
-        colourRow->setContentsMargins(6, 2, 6, 6);
-        colourRow->addWidget(m_colours);
-        colourRow->addStretch(1);       // left, where the tiles start
-        railRows->addLayout(colourRow);
-        railRows->addStretch(1);        // both rows hug the top; the rest of the rail is empty space
-
+        m_toolOptions->assertEveryToolHasAPage();
 
         // X and D over the canvas, as every drawing application binds them. Scoped to the view so that
         // typing an x into a balloon stays typing an x.
@@ -415,8 +329,7 @@ Editor::Editor(PresetStore& presets, QWidget *parent)
         for (QSplitter* s : {ui->editorBody, ui->toolColumn, ui->rightPanel})
             showHandles(s);
 
-        connect(m_toolGroup, &QButtonGroup::idClicked, this,
-                [this](int id) { setTool(tools().at(id).id); });
+        connect(m_rail, &ToolRail::toolPicked, this, &Editor::setTool);
 
         setTool(QStringLiteral("select"));   // the default state: select and move, no tool armed
     }
@@ -430,15 +343,8 @@ void Editor::setTool(const QString& id)
     if (!tool)
         return;
     m_tool = tool->id;
-    if (auto* b = m_toolGroup->button(toolIndex(m_tool)))
-        b->setChecked(true);
-    ui->toolOptionsStack->setCurrentIndex(m_toolPage.value(m_tool));
-    // Filled whichever page is showing: the hint page is the one that displays it, and writing it
-    // unconditionally means there is no state to get wrong when tools are switched quickly.
-    if (m_toolTitle)
-        m_toolTitle->setText(toolName(*tool));
-    if (m_toolHint)
-        m_toolHint->setText(toolHint(*tool));
+    m_rail->setCurrent(m_tool);
+    m_toolOptions->show(*tool);
 
     // What a left-drag on the **bare strip** does — the view's own business, and one property, which is
     // why Select and Pan are two tools. Both modes only act on a press no item took, so dragging an
@@ -823,18 +729,6 @@ bool Editor::eventFilter(QObject *watched, QEvent *event)
             m_objects->placeArtworkAt(file, m_view->mapToScene(drop->position().toPoint()));
             drop->acceptProposedAction();
             return true;
-        }
-    }
-
-    // **The tools are always all visible.** A flow layout's minimum is one tile, so a splitter was free
-    // to shorten the rail until the last row of tools was simply not drawn — and a tool you cannot see
-    // is a tool you do not know you have. The rail's minimum height is therefore whatever its own
-    // wrapping needs at its current width, recomputed whenever that width changes.
-    if (watched == m_toolTiles && event->type() == QEvent::Resize) {
-        if (QLayout* flow = m_toolTiles->layout()) {
-            const int needed = flow->heightForWidth(m_toolTiles->width());
-            if (needed > 0 && needed != m_toolTiles->minimumHeight())
-                m_toolTiles->setMinimumHeight(needed);
         }
     }
 

@@ -70,10 +70,12 @@ qt_add_executable(Platemaker
     widgets/stripeditor/canvas/stripitem.cpp widgets/stripeditor/canvas/stripitem.hpp
     widgets/stripeditor/objects/objectcontroller.cpp widgets/stripeditor/objects/objectcontroller.hpp
     widgets/stripeditor/toolrail/toolregistry.cpp widgets/stripeditor/toolrail/toolregistry.hpp
+    widgets/stripeditor/toolrail/toolrail.cpp widgets/stripeditor/toolrail/toolrail.hpp
     widgets/stripeditor/toolrail/colourpair.cpp widgets/stripeditor/toolrail/colourpair.hpp
     widgets/stripeditor/toolrail/cursors.cpp widgets/stripeditor/toolrail/cursors.hpp
     widgets/stripeditor/objectstack/rowglyph.cpp widgets/stripeditor/objectstack/rowglyph.hpp
     widgets/stripeditor/presetstore.cpp widgets/stripeditor/presetstore.hpp
+    widgets/stripeditor/scrolledpage.hpp
     widgets/stripeditor/properties/propertygroup.hpp
     widgets/stripeditor/properties/propertygroupeditor.hpp
     widgets/stripeditor/properties/blendeditor.cpp widgets/stripeditor/properties/blendeditor.hpp
@@ -88,6 +90,7 @@ qt_add_executable(Platemaker
     widgets/stripeditor/properties/colouradjustment.cpp widgets/stripeditor/properties/colouradjustment.hpp
     widgets/stripeditor/tooloptions/gradetooloptions.cpp widgets/stripeditor/tooloptions/gradetooloptions.hpp widgets/stripeditor/tooloptions/gradetooloptions.ui
     widgets/stripeditor/tooloptions/bubbletooloptions.cpp widgets/stripeditor/tooloptions/bubbletooloptions.hpp
+    widgets/stripeditor/tooloptions/tooloptionsstack.cpp widgets/stripeditor/tooloptions/tooloptionsstack.hpp
     widgets/stripeditor/tooloptions/artworktooloptions.cpp widgets/stripeditor/tooloptions/artworktooloptions.hpp
     widgets/stripeditor/objectstate/objectstate.cpp widgets/stripeditor/objectstate/objectstate.hpp
     widgets/stripeditor/objectstate/stripstate.cpp widgets/stripeditor/objectstate/stripstate.hpp

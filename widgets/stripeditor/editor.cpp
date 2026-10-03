@@ -8,6 +8,8 @@
 #include "objects/object.hpp"
 #include "objects/objectcontroller.hpp"
 #include "canvas/pagesource.hpp"
+#include "canvas/canvasinput.hpp"
+#include "canvas/sampling.hpp"
 #include "canvas/stripitem.hpp"
 #include "toolrail/toolrail.hpp"
 #include "tooloptions/tooloptionsstack.hpp"
@@ -24,7 +26,6 @@
 #include <algorithm>
 
 #include <QDebug>
-#include <QEnterEvent>
 #include <QEvent>
 #include <QGraphicsItem>
 #include <QGraphicsLineItem>
@@ -37,13 +38,8 @@
 #include <QLabel>
 #include <QKeyEvent>
 #include <QListWidget>
-#include <QDragEnterEvent>
-#include <QDropEvent>
-#include <QMimeData>
-#include <QMouseEvent>
 #include <QPainter>
 #include <QPen>
-#include <QScrollArea>
 #include <QScrollBar>
 #include <QShortcut>
 #include <QSettings>
@@ -51,11 +47,9 @@
 #include <QSplitterHandle>
 #include <QStyle>
 #include <QStackedWidget>
-#include <QStyleOptionGraphicsItem>
 #include <QToolButton>
 #include <QTransform>
 #include <QVBoxLayout>
-#include <QWheelEvent>
 
 #include <algorithm>
 #include <string>
@@ -171,7 +165,6 @@ Editor::Editor(PresetStore& presets, QWidget *parent)
     m_view->setDragMode(QGraphicsView::ScrollHandDrag);
     m_view->setAlignment(Qt::AlignHCenter | Qt::AlignTop);
     m_view->setRenderHints(QPainter::Antialiasing | QPainter::SmoothPixmapTransform);
-    m_view->viewport()->installEventFilter(this);   // Ctrl+wheel zoom, and the pointer's own answer
     // Without this a widget hears about the mouse only while a button is held, which is what made the
     // cursor look as though it followed the last *click*: it could only be re-decided on release. The
     // cursor is a promise about what a press would do here, so it has to be re-decided while hovering.
@@ -297,6 +290,31 @@ Editor::Editor(PresetStore& presets, QWidget *parent)
         connect(m_objects, &ObjectController::artworkImportRequested, this, &Editor::artworkImportRequested);
         connect(m_objects, &ObjectController::subjectChanged,         this, [this] { showSubject(); });
         connect(m_objects, &ObjectController::noted,                  this, &Editor::noted);
+
+        // CANVAS: what a press, a drag, a drop or a wheel on the strip does under the armed tool. It does
+        // the canvas's own part and reports the rest, which is wired here because it belongs elsewhere:
+        // the colour pair to the rail, zoom to this shell, a dropped picture to the objects' import.
+        m_input = new CanvasInput(m_view, m_objects, this);
+        connect(m_input, &CanvasInput::artworkDropped, this, [this](const QString& file, QPointF at) {
+            m_objects->placeArtworkAt(file, at);
+        });
+        connect(m_input, &CanvasInput::sampleRequested, this, [this](QPointF at, bool secondary) {
+            if (!m_colours || !m_pages)
+                return;
+            if (const auto picked = sampleCanvas(*m_scene, m_layout, *m_pages, m_seamItems, at))
+                m_colours->set(*picked, secondary);
+        });
+        connect(m_input, &CanvasInput::colourApplyRequested, this, [this](QPointF at, bool secondary) {
+            if (m_colours)
+                m_objects->applyColourAt(at, m_view->transform(),
+                                         secondary ? m_colours->secondary() : m_colours->primary());
+        });
+        connect(m_input, &CanvasInput::zoomStepRequested, this, [this](int direction) {
+            if (direction > 0)
+                zoomIn();
+            else
+                zoomOut();
+        });
         // Splitter behaviour (not expressible in the .ui): canvas absorbs resize, panels keep their width.
         ui->editorBody->setStretchFactor(0, 0);   // toolbox
         ui->editorBody->setStretchFactor(1, 1);   // canvas
@@ -311,7 +329,7 @@ Editor::Editor(PresetStore& presets, QWidget *parent)
         ui->toolColumn->setStretchFactor(0, 0);    // the tile rail takes what it needs
         ui->toolColumn->setStretchFactor(1, 1);    // the options absorb the rest
         // The tools are never negotiable — the rail's minimum follows its own wrapping (see
-        // eventFilter) — and the options keep a floor of their own, so neither can be shut by a drag.
+        // ToolRail) — and the options keep a floor of their own, so neither can be shut by a drag.
         ui->toolOptionsStack->setMinimumHeight(k_toolOptionsFloorPx);
         ui->toolColumn->setSizes({120, 600});
         ui->rightPanel->setStretchFactor(0, 2);    // object properties
@@ -340,6 +358,8 @@ void Editor::setTool(const QString& id)
     m_tool = tool->id;
     m_rail->setCurrent(m_tool);
     m_toolOptions->show(*tool);
+    if (m_input)
+        m_input->setTool(*tool);
 
     // What a left-drag on the **bare strip** does — the view's own business, and one property, which is
     // why Select and Pan are two tools. Both modes only act on a press no item took, so dragging an
@@ -351,7 +371,8 @@ void Editor::setTool(const QString& id)
     m_view->setDragMode(tool->kind == ToolKind::Pan      ? QGraphicsView::ScrollHandDrag
                         : tool->kind == ToolKind::Select ? QGraphicsView::RubberBandDrag
                                                          : QGraphicsView::NoDrag);
-    updateCursor();
+    if (m_input)
+        m_input->updateCursor();
 
     // Only the *tool's own options* follow the tool: a tool that places one shape says so, and the
     // Bubble tool leaves the choice on the tiles. This replaced two gates that each existed to say
@@ -625,17 +646,6 @@ void Editor::updateVisiblePages()
 // Zoom
 // ---------------------------------------------------------------------------
 
-void Editor::updateCursor()
-{
-    const Tool* tool = toolById(m_tool);
-    if (!tool || !m_view || !m_view->viewport())
-        return;
-    PointerTarget target = PointerTarget::BareStrip;
-    if (m_objects && m_pointerPos.x() >= 0)
-        target = m_objects->pointerTargetAt(m_view->mapToScene(m_pointerPos), m_view->transform());
-    m_view->viewport()->setCursor(cursorFor(*tool, target));
-}
-
 void Editor::applyZoom(double z)
 {
     m_zoom = qBound(0.02, z, 8.0);
@@ -644,7 +654,8 @@ void Editor::applyZoom(double z)
     m_view->setTransform(t);
     m_zoomLabel->setText(QStringLiteral("%1%").arg(qRound(m_zoom * 100.0)));
     updateVisiblePages();       // zoom changes how many pages are on screen
-    updateCursor();             // ...and what sits under a pointer that never moved
+    if (m_input)
+        m_input->updateCursor();   // ...and what sits under a pointer that never moved
 }
 
 void Editor::userZoom(double z)
@@ -683,160 +694,6 @@ void Editor::resizeEvent(QResizeEvent *event)
     updateVisiblePages();
 }
 
-bool Editor::eventFilter(QObject *watched, QEvent *event)
-{
-    // **A picture dropped on the strip is placed where it was dropped, at its own size.** Dragged out
-    // of the TOOL OPTIONS preview, or straight from a file manager — both arrive as a file URL, so one
-    // handler serves both and neither needs a tool to be armed.
-    if (watched == m_view->viewport()
-        && (event->type() == QEvent::DragEnter || event->type() == QEvent::DragMove)) {
-        auto* de = static_cast<QDragMoveEvent*>(event);
-        if (!droppedArtwork(de->mimeData()).isEmpty()) {
-            de->setDropAction(Qt::CopyAction);
-            de->accept();
-            return true;
-        }
-    }
-    if (watched == m_view->viewport() && event->type() == QEvent::Drop) {
-        auto*         drop = static_cast<QDropEvent*>(event);
-        const QString file = droppedArtwork(drop->mimeData());
-        if (!file.isEmpty() && m_objects) {
-            m_objects->placeArtworkAt(file, m_view->mapToScene(drop->position().toPoint()));
-            drop->acceptProposedAction();
-            return true;
-        }
-    }
-
-    // The middle button scrolls the strip under **every** tool, so no tool has to give up its left
-    // button for something as ordinary as looking somewhere else. Qt's own hand-drag is the left
-    // button's, and only the Pan tool arms it.
-    if (watched == m_view->viewport()) {
-        auto* me = event->type() == QEvent::MouseButtonPress || event->type() == QEvent::MouseMove
-                           || event->type() == QEvent::MouseButtonRelease
-                       ? static_cast<QMouseEvent*>(event)
-                       : nullptr;
-        if (me && event->type() == QEvent::MouseButtonPress && me->button() == Qt::MiddleButton) {
-            m_panFrom = me->position().toPoint();
-            m_view->viewport()->setCursor(Qt::ClosedHandCursor);
-            return true;
-        }
-        if (me && event->type() == QEvent::MouseMove && m_panFrom.x() >= 0) {
-            const QPoint now  = me->position().toPoint();
-            const QPoint step = now - m_panFrom;
-            m_panFrom         = now;
-            // Scrollbars take whole steps, so this follows the mouse rather than a remembered origin:
-            // there is no fraction left over to drift with.
-            m_view->horizontalScrollBar()->setValue(m_view->horizontalScrollBar()->value() - step.x());
-            m_view->verticalScrollBar()->setValue(m_view->verticalScrollBar()->value() - step.y());
-            return true;
-        }
-        if (me && event->type() == QEvent::MouseButtonRelease && me->button() == Qt::MiddleButton) {
-            m_panFrom = {-1, -1};
-            updateCursor();
-            return true;
-        }
-    }
-
-    // The eyedropper: a press takes the colour that is on the strip there, wherever it lands — over an
-    // object as much as over a page, because what is sampled is what is drawn.
-    if (watched == m_view->viewport() && isSampling()) {
-        if (event->type() == QEvent::MouseButtonPress) {
-            auto* me = static_cast<QMouseEvent*>(event);
-            // Left fills the primary half, right the secondary — as every eyedropper does. Ctrl+left
-            // does the same as right, for a tablet with one barrel button bound to nothing.
-            const bool left  = me->button() == Qt::LeftButton;
-            const bool right = me->button() == Qt::RightButton;
-            if (left || right) {
-                sampleColourAt(m_view->mapToScene(me->position().toPoint()),
-                               right || (me->modifiers() & Qt::ControlModifier));
-                return true;
-            }
-        } else if (event->type() == QEvent::ContextMenu) {
-            return true;   // the right button is the tool's here, so it opens no menu
-        }
-    }
-
-    // The colour tool: a press spends the pair on **what is under the pointer** — the lettering, the
-    // outline or the fill, decided by the picture rather than by a setting. Shift spends the other half.
-    //
-    // The left button only. The right one belongs to the context menu, and a tool that quietly took it
-    // away would be a mode nobody can see — the same mistake the Text tool made when it stripped the
-    // object panel.
-    if (watched == m_view->viewport() && isApplying() && m_colours
-        && event->type() == QEvent::MouseButtonPress) {
-        auto* me = static_cast<QMouseEvent*>(event);
-        // A corner grip and a tail tip belong to the canvas under every tool, and the cursor says so —
-        // so a press there resizes or aims rather than painting. The tool gets everything else.
-        const bool affordance = isCanvasAffordance(
-            m_objects->pointerTargetAt(m_view->mapToScene(me->position().toPoint()),
-                                       m_view->transform()));
-        if (me->button() == Qt::LeftButton && !affordance) {
-            const bool other = me->modifiers() & Qt::ShiftModifier;
-            m_objects->applyColourAt(m_view->mapToScene(me->position().toPoint()), m_view->transform(),
-                                     other ? m_colours->secondary() : m_colours->primary());
-            return true;
-        }
-    }
-
-    // Bubble / Text: the left button draws a new bubble on empty strip. A press that lands on an
-    // existing overlay is left alone, so the item's own move/resize handling still runs.
-    if (watched == m_view->viewport() && createToolActive()) {
-        if (event->type() == QEvent::MouseButtonPress) {
-            auto* me = static_cast<QMouseEvent*>(event);
-            if (me->button() == Qt::LeftButton) {
-                const QPointF scenePos = m_view->mapToScene(me->position().toPoint());
-                if (!m_objects->objectAt(scenePos, m_view->transform())) {
-                    m_objects->beginPlacement(scenePos);
-                    return true;
-                }
-            }
-        } else if (event->type() == QEvent::MouseMove && m_objects->isPlacing()) {
-            auto* me = static_cast<QMouseEvent*>(event);
-            m_objects->updatePlacement(m_view->mapToScene(me->position().toPoint()));
-            return true;
-        } else if (event->type() == QEvent::MouseButtonRelease && m_objects->isPlacing()) {
-            m_objects->finishPlacement();
-            return true;
-        }
-    }
-
-    if (watched == m_view->viewport()) {
-        if (event->type() == QEvent::MouseMove) {
-            auto* me = static_cast<QMouseEvent*>(event);
-            m_pointerPos = me->position().toPoint();
-            // Only while nothing is held: mid-drag the view writes a closed hand, and an object being
-            // dragged is not "what the pointer is over" in any useful sense.
-            if (me->buttons() == Qt::NoButton)
-                updateCursor();
-        } else if (event->type() == QEvent::MouseButtonRelease) {
-            // **Queued, and it has to be.** Under ScrollHandDrag the view restores an open hand on every
-            // left release — even one that never panned, because the press was taken by an item — and its
-            // handler runs after this filter. Deciding here would be overwritten a moment later, which is
-            // what made a click on a balloon flash the hand until the mouse moved a pixel. Deciding after
-            // the event has been handled puts us last again.
-            QMetaObject::invokeMethod(this, [this] { updateCursor(); }, Qt::QueuedConnection);
-        } else if (event->type() == QEvent::Enter) {
-            m_pointerPos = static_cast<QEnterEvent*>(event)->position().toPoint();
-            updateCursor();   // coming back onto the canvas is a hover like any other
-        } else if (event->type() == QEvent::Leave) {
-            m_pointerPos = {-1, -1};
-        }
-    }
-
-    if (watched == m_view->viewport() && event->type() == QEvent::Wheel) {
-        auto *we = static_cast<QWheelEvent *>(event);
-        if (we->modifiers() & Qt::ControlModifier) {
-            const int d = we->angleDelta().y();
-            if (d > 0)
-                zoomIn();
-            else if (d < 0)
-                zoomOut();
-            return true;        // consumed — plain wheel still scrolls vertically
-        }
-    }
-    return QWidget::eventFilter(watched, event);
-}
-
 // ---------------------------------------------------------------------------
 // Text & bubbles
 //
@@ -849,7 +706,8 @@ void Editor::setOverlaySource(const std::vector<Platemaker::Models::StripOverlay
                               const ObjectRecord::Map&                                  records)
 {
     m_objects->setSource(overlays, records);
-    updateCursor();   // an object may have arrived under, or vanished from beneath, a still pointer
+    if (m_input)
+        m_input->updateCursor();   // an object may have arrived under, or vanished from beneath, a still pointer
 }
 
 void Editor::selectAfterFeed(const QStringList& uids)
@@ -876,92 +734,6 @@ void Editor::setAdvisoriesActive(bool active)
         m_advisoryBar->setActive(active);
 }
 
-bool Editor::sampleColourAt(const QPointF& scenePos, bool secondary)
-{
-    if (!m_colours || !m_pages || m_layout.isEmpty())
-        return false;
-    const int page = m_layout.pageAtSceneY(scenePos.y());
-    if (page < 0 || !m_layout.pageRect(page).contains(scenePos))
-        return false;   // the gutter between two pages is not a colour anyone means to pick
-
-    // A page still showing its blurry proxy is not sampled: a stand-in would answer with an average of
-    // the colours around the point rather than the colour at it. Ask for the real pixels instead.
-    if (m_pages->gradedOf(page).isNull() && m_pages->pageOf(page).isNull()) {
-        m_pages->request(page);
-        return false;
-    }
-
-    // **What is drawn is what is picked.** One pixel of the scene, composited: the page through its
-    // grade, and every balloon, caption and imported asset over it, each with its own blend mode and
-    // opacity — the same pixels the render will produce. Sampling the page pixmap alone was defensible
-    // and still wrong: clicking a balloon gave the paper behind it.
-    //
-    // Two things in the scene are the editor talking rather than the comic, and they are hidden for the
-    // one repaint: selection chrome, and the seam guides.
-    QList<QGraphicsLineItem*> hiddenSeams;
-    for (QGraphicsLineItem* seam : std::as_const(m_seamItems)) {
-        if (seam->isVisible()) {
-            seam->setVisible(false);
-            hiddenSeams.append(seam);
-        }
-    }
-    Object::setChromeVisible(false);
-
-    QImage pixel(1, 1, QImage::Format_ARGB32);
-    pixel.fill(Qt::transparent);
-    {
-        QPainter p(&pixel);
-        m_scene->render(&p, QRectF(0, 0, 1, 1),                       // the pixel under the cursor,
-                        QRectF(scenePos - QPointF(0.5, 0.5), QSizeF(1, 1)),   // not the one past it
-                        Qt::IgnoreAspectRatio);
-    }
-
-    Object::setChromeVisible(true);
-    for (QGraphicsLineItem* seam : std::as_const(hiddenSeams))
-        seam->setVisible(true);
-
-    const QColor picked = pixel.pixelColor(0, 0);
-    if (picked.alpha() == 0)
-        return false;   // nothing was drawn there after all
-    m_colours->set(picked, secondary);
-    return true;
-}
-
-
-QString Editor::droppedArtwork(const QMimeData* mime)
-{
-    // A picture, by what it *is* rather than by where it came from: the same three suffixes the import
-    // has always taken. Anything else — a page, a workspace, a folder — is not for this canvas.
-    if (!mime || !mime->hasUrls())
-        return {};
-    for (const QUrl& url : mime->urls()) {
-        if (!url.isLocalFile())
-            continue;
-        const QString path = url.toLocalFile();
-        for (const char* ext : {".svg", ".png", ".webp"})
-            if (path.endsWith(QLatin1String(ext), Qt::CaseInsensitive))
-                return path;
-    }
-    return {};
-}
-
-bool Editor::createToolActive() const
-{
-    const Tool* tool = toolById(m_tool);
-    return tool && tool->kind == ToolKind::Create;
-}
-
-bool Editor::isSampling() const
-{
-    const Tool* tool = toolById(m_tool);
-    return tool && tool->kind == ToolKind::Sample;
-}
-
-bool Editor::isApplying() const
-{
-    const Tool* tool = toolById(m_tool);
-    return tool && tool->kind == ToolKind::Apply;
-}
 
 
 }  // namespace StripEdit

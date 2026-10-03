@@ -45,6 +45,7 @@ namespace StripEdit {
 
 class ArtworkToolOptions;
 
+class CanvasInput;
 class ColourPair;
 class ToolOptionsStack;
 class ToolRail;
@@ -107,9 +108,9 @@ class ObjectController;
  * In the .cpp, in order: the **constructor** builds the rail from tools(), registers each tool-options
  * page under the key a tool row names (a page nobody registered asserts), and wires the panels;
  * **setTool()** applies a row — drag mode, cursor, options page; then the grade, the scene and its
- * seams, **lazy page build**, **zoom**, and **eventFilter()**, which routes a press by the active
- * tool's `ToolKind` (place, sample, apply, or the canvas's own select and drag). Extending any of it:
- * `docs/EXTENDING.md`.
+ * seams, **lazy page build** and **zoom**. A press, drag or drop on the strip is CanvasInput's
+ * (`canvas/canvasinput.hpp`), which routes it by the armed tool's `ToolKind` and reports what belongs
+ * to another region; the constructor wires those reports. Extending any of it: `docs/EXTENDING.md`.
  */
 class Editor : public QWidget
 {
@@ -294,15 +295,6 @@ signals:
 
 protected:
     /**
-     * @brief Filters events for the view.
-     * Ctrl+wheel over the view zooms; a plain wheel keeps the view's native vertical scroll.
-     * 
-     * @param watched The object being watched.
-     * @param event The event to filter.
-     */
-    bool eventFilter(QObject *watched, QEvent *event) override;
-
-    /**
      * @brief Handles the resize event for the view.
      * While the default zoom is still pending, re-applies it as the viewport gets its real size; also
      * re-evaluates which pages to build.
@@ -346,59 +338,6 @@ private:
     void applyGrade(const Platemaker::Models::ColourCorrection& cc);
 
     /**
-     * @brief Returns true while a tool that authors overlays is active (Bubble or Text).
-     * @return True if a Create tool is active, false otherwise.
-     */
-    [[nodiscard]] bool    createToolActive() const;
-    /**
-     * @brief Returns true if the active tool is reading the canvas rather than changing it.
-     * @return True if the active tool is the eyedropper, false otherwise.
-     */
-    [[nodiscard]] bool    isSampling() const;
-    /**
-     * @brief Returns true if the active tool is applying a colour.
-     * @return True if the active tool is the colour applicator, false otherwise.
-     */
-    [[nodiscard]] bool    isApplying() const;
-
-    /**
-     * @brief Re-decides the viewport cursor for the tool and whatever the pointer is over.
-     *
-     * Called on hover, after a press is released, when the tool changes, when the zoom changes and after
-     * a feed — every moment at which either half of *(tool, target)* can have moved, including the ones
-     * where the pointer itself did not.
-     *
-     * **Nothing else sets the viewport cursor.** The view's drag mode still writes one of its own, and
-     * `cursorFor()` answers the same cursor in that state so the two agree rather than take turns.
-     */
-    void                  updateCursor();
-    /**
-     * @brief Draws the rail buttons that carry no icon file.
-     *
-     * Two tools draw their own: one that places a single shape is drawn by the rasteriser that draws
-     * that shape, and the colour tool *is* a swatch of the primary colour. Both are made of things that
-     * change under the application — the palette, the pair — so they are drawn here rather than once in
-     * the constructor, and this runs again whenever either moves.
-     *
-     * @param mime The picture in @p mime, or empty when it carries none. One rule for both drop sources.
-     */
-    [[nodiscard]] static QString droppedArtwork(const ::QMimeData* mime);
-
-    /**
-     * @brief Reads the colour at @p scenePos into the pair — the secondary half when @p secondary.
-     *
-     * Takes what is **drawn**: one composited pixel of the scene — the page through its grade, with every
-     * balloon, caption and asset over it — which is the same pixel the render will produce. Selection
-     * chrome and the seam guides are left out of that one repaint: they are the editor talking, not the
-     * comic. A page still showing its proxy is not sampled — a blurry stand-in would hand back an average
-     * of the colours around the point rather than the colour at it — so the page is requested and the
-     * press does nothing.
-     *
-     * @return Whether a colour was taken.
-     */
-    bool sampleColourAt(const QPointF& scenePos, bool secondary);
-
-    /**
      * @brief Grade state changed: drop the graded cache and re-grade what's visible.
      */
     void refreshGradePreview();
@@ -435,13 +374,7 @@ private:
     ToolRail*         m_rail        = nullptr;  //!< TOOL RAIL: the tiles and the colour pair.
     ToolOptionsStack* m_toolOptions = nullptr;  //!< TOOL OPTIONS: a page per options-page key.
     ColourPair*     m_colours    = nullptr;  //!< The primary/secondary pair, under the rail. Furniture.
-    /**
-     * @brief Where the middle-button pan last was, in viewport points; x < 0 when no such pan is in flight.
-     */
-    QPoint          m_panFrom {-1, -1};      //!< Last middle-button press point, in viewport coordinates; -1 when no pan is in flight.
-    QPoint          m_pointerPos {-1, -1};   //!< Last hovered viewport point, so the cursor can be
-                                             //!< re-decided when the pointer has not moved but the
-                                             //!< scene under it has.
+    CanvasInput*    m_input      = nullptr;  //!< CANVAS: presses, drags, drops and the wheel, by tool.
     GradeToolOptions        *m_gradeOptions   = nullptr;   //!< The Grade tool-options page (colour-correction controls).
     /**
      * @brief The Artwork tool's options: which picture a placement puts down. See `setTool()`.

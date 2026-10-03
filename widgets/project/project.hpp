@@ -36,7 +36,7 @@ class QUrl;
  */
 enum class EditScope {
     ProjectDock,   //!< Inputs, links, profiles, the output directory.
-    StripEditor,   //!< Text & bubbles.
+    StripEditor,   //!< Text & bubbles, and the colour grade, which only the strip editor edits.
 };
 
 /**
@@ -259,8 +259,9 @@ public:
     /**
      * @brief Applies a snapshot of the project state, restoring everything **except** the overlays.
      * @param snapshot The snapshot to apply.
+     * @param scope    Where the step is seen; announced through historyStepApplied().
      */
-    void applyProjectSnapshot(const QString& snapshot);
+    void applyProjectSnapshot(const QString& snapshot, EditScope scope);
 
     /**
      * @brief Returns the state of the strip overlays and their authoring records.
@@ -416,8 +417,11 @@ private:
      * @param text   Short label for the operation (shown in the undo action's text).
      * @param mutate The operation to perform (add / clear / reorder / sort / link / output selection /
      *               output dir). It still does its own populate()/projectModified().
+     * @param scope  Where undoing it takes the artist. The project dock, except for an edit that is
+     *               seen and made somewhere else — the colour grade, which lives on the strip.
      */
-    void commitEdit(const QString& text, const std::function<void()>& mutate);
+    void commitEdit(const QString& text, const std::function<void()>& mutate,
+                    EditScope scope = EditScope::ProjectDock);
 
     /**
      * @brief Records one undoable **text & bubbles** edit — same history, other half of the document.

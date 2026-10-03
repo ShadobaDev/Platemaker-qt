@@ -6,6 +6,7 @@
 #include <QUndoCommand>
 
 class Project;
+enum class EditScope;
 
 /**
  * @brief One undoable project-scope edit (inputs, canvas links, output-profile selection, output dir).
@@ -31,11 +32,13 @@ public:
      * @param before  ProjectEditor::snapshot() taken before the edit — restored on undo().
      * @param after   ProjectEditor::snapshot() taken after the edit — restored on a redo() after undo.
      * @param text    Short operation label (e.g. "Reorder inputs").
+     * @param scope   Where the step is seen when it is undone or redone — see EditScope.
      */
     ProjectSnapshotCommand(Project* project,
                            QString before,
                            QString after,
-                           const QString& text);
+                           const QString& text,
+                           EditScope scope);
 
     void undo() override;   //!< Restore the "before" project snapshot.
     void redo() override;   //!< No-op on the first call (push); restore the "after" snapshot thereafter.
@@ -44,6 +47,7 @@ private:
     QPointer<Project> m_project; //!< Target project; null once it has been removed.
     QString  m_before;           //!< Serialized project state before the edit.
     QString  m_after;            //!< Serialized project state after the edit.
+    EditScope m_scope;           //!< Where undo and redo take the artist.
     bool     m_firstRedo = true; //!< Swallows the redo QUndoStack::push() fires.
 };
 

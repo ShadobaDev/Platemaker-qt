@@ -286,7 +286,7 @@ QString Project::fullSnapshot()
     return QString::fromUtf8(QJsonDocument(j).toJson(QJsonDocument::Compact));
 }
 
-void Project::applyProjectSnapshot(const QString& snapshot)
+void Project::applyProjectSnapshot(const QString& snapshot, EditScope scope)
 {
     // Restore the project (inputs, links, output-profile selection, output dir) from a ProjectEditor
     // snapshot. The project's name is workspace-owned and deliberately preserved by
@@ -308,7 +308,7 @@ void Project::applyProjectSnapshot(const QString& snapshot)
 
     populate();
     emit projectModified();
-    emit historyStepApplied(EditScope::ProjectDock, {});
+    emit historyStepApplied(scope, {});
 }
 
 namespace {
@@ -382,7 +382,7 @@ void Project::commitOverlayEdit(const QString& text, const std::function<void()>
     m_undoStack->push(new OverlaySnapshotCommand(this, before, std::move(after), text));
 }
 
-void Project::commitEdit(const QString& text, const std::function<void()>& mutate)
+void Project::commitEdit(const QString& text, const std::function<void()>& mutate, EditScope scope)
 {
     const QString before = fullSnapshot();
     mutate();                                   // the existing operation (does its own populate/emit)
@@ -391,7 +391,7 @@ void Project::commitEdit(const QString& text, const std::function<void()>& mutat
     if (after == before)                        // no effective change (e.g. re-sorting sorted inputs)
         return;                                 // — don't pollute the undo history
 
-    m_undoStack->push(new ProjectSnapshotCommand(this, before, std::move(after), text));
+    m_undoStack->push(new ProjectSnapshotCommand(this, before, std::move(after), text, scope));
 }
 
 void Project::commitWorkspaceEdit(const QString& text, const std::function<void()>& mutate)
@@ -441,11 +441,13 @@ void Project::populate()
 
 void Project::applyColourCorrection(const ColourCorrection& cc, const QString& undoText)
 {
+    // Undone on the strip, wherever it was made: the grade is seen there and its controls live there,
+    // so taking the artist to the workflow card would show them nothing of what changed.
     commitEdit(undoText, [this, &cc] {
         m_workspace.projectItems[m_projectIndex].colourCorrection = cc;
         emit projectModified();
         populate(); // refresh the workflow map (CC on/off, exclusions) and the rest of the views
-    });
+    }, EditScope::StripEditor);
 }
 
 

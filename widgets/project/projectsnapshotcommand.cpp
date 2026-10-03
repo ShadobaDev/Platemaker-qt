@@ -7,17 +7,19 @@
 ProjectSnapshotCommand::ProjectSnapshotCommand(Project* project,
                                                QString before,
                                                QString after,
-                                               const QString& text)
+                                               const QString& text,
+                                               EditScope scope)
     : QUndoCommand(text)
     , m_project(project)
     , m_before(std::move(before))
     , m_after(std::move(after))
+    , m_scope(scope)
 {}
 
 void ProjectSnapshotCommand::undo()
 {
     if (m_project)
-        m_project->applyProjectSnapshot(m_before);
+        m_project->applyProjectSnapshot(m_before, m_scope);
 }
 
 void ProjectSnapshotCommand::redo()
@@ -29,5 +31,5 @@ void ProjectSnapshotCommand::redo()
         return;
     }
     if (m_project)
-        m_project->applyProjectSnapshot(m_after);
+        m_project->applyProjectSnapshot(m_after, m_scope);
 }

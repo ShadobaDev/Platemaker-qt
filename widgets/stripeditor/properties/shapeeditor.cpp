@@ -1,4 +1,4 @@
-#include "shapeeditor.hpp"
+#include "properties/shapeeditor.hpp"
 
 #include <QAbstractButton>
 #include <QButtonGroup>

@@ -1,9 +1,9 @@
-#include "propertygroupset.hpp"
+#include "properties/propertygroupset.hpp"
 
-#include "shapeeditor.hpp"
-#include "skineditor.hpp"
-#include "styleeditor.hpp"
-#include "texteditor.hpp"
+#include "properties/shapeeditor.hpp"
+#include "properties/skineditor.hpp"
+#include "properties/styleeditor.hpp"
+#include "properties/texteditor.hpp"
 
 namespace StripEdit {
 

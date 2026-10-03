@@ -1,7 +1,7 @@
 #ifndef STRIPEDIT_SKINEDITOR_HPP
 #define STRIPEDIT_SKINEDITOR_HPP
 
-#include "propertygroupeditor.hpp"
+#include "properties/propertygroupeditor.hpp"
 
 class QPushButton;
 class QSpinBox;

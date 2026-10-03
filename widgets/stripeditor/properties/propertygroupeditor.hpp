@@ -13,7 +13,7 @@
 #include <QPushButton>
 #include <QWidget>
 
-#include "propertygroup.hpp"   // PropertyGroup, and which groups a record carries
+#include "properties/propertygroup.hpp"   // PropertyGroup, and which groups a record carries
 
 namespace StripEdit {
 

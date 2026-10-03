@@ -9,10 +9,10 @@
 #include <QSize>
 #include <QString>
 
-#include "layout.hpp"
-#include "pagesource.hpp"
+#include "objects/layout.hpp"
+#include "canvas/pagesource.hpp"
 #include "artifact.hpp"
-#include "toolregistry.hpp"
+#include "toolrail/toolregistry.hpp"
 
 #include <platemaker/core/processing_pipeline/processing_pipeline.hpp>
 #include <platemaker/models/canvas_profile.hpp>

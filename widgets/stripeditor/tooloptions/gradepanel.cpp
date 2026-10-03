@@ -1,4 +1,4 @@
-#include "gradepanel.hpp"
+#include "tooloptions/gradepanel.hpp"
 #include "ui_gradepanel.h"
 
 #include <QDoubleSpinBox>
@@ -17,7 +17,7 @@
 
 #include <cmath>
 
-#include "propertygroupeditor.hpp"   // k_commitDebounceMs — ③ and TOOL VIEW settle at the same pace or they
+#include "properties/propertygroupeditor.hpp"   // k_commitDebounceMs — ③ and TOOL VIEW settle at the same pace or they
                                    // feel like different applications
 
 namespace StripEdit {

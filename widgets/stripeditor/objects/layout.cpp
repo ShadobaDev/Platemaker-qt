@@ -1,4 +1,4 @@
-#include "layout.hpp"
+#include "objects/layout.hpp"
 
 namespace StripEdit {
 

@@ -4,7 +4,7 @@
 #include <QList>
 #include <QObject>
 
-#include "propertygroupeditor.hpp"
+#include "properties/propertygroupeditor.hpp"
 
 namespace StripEdit {
 

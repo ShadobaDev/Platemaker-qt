@@ -5,7 +5,7 @@
 
 #include <platemaker/models/colour_correction.hpp>
 
-#include "colouradjustment.hpp"
+#include "properties/colouradjustment.hpp"
 
 namespace Ui { class GradePanel; }
 class QDoubleSpinBox;

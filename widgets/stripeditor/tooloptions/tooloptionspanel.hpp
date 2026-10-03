@@ -5,8 +5,8 @@
 
 #include <QWidget>
 
-#include "propertygroupset.hpp"
-#include "tailseditor.hpp"
+#include "properties/propertygroupset.hpp"
+#include "properties/tailseditor.hpp"
 
 class QAction;
 class QComboBox;

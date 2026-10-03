@@ -6,8 +6,8 @@
 
 #include <optional>
 
-#include "blendeditor.hpp"
-#include "propertygroupset.hpp"
+#include "properties/blendeditor.hpp"
+#include "properties/propertygroupset.hpp"
 
 class CollapsibleSection;
 class QDoubleSpinBox;

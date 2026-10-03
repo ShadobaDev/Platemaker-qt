@@ -1,4 +1,4 @@
-#include "tailseditor.hpp"
+#include "properties/tailseditor.hpp"
 
 #include <QCheckBox>
 #include <QFormLayout>
@@ -6,7 +6,7 @@
 #include <QSize>
 #include <QSpinBox>
 
-#include "shapeeditor.hpp"   // shapeSpeaks()
+#include "properties/shapeeditor.hpp"   // shapeSpeaks()
 
 namespace StripEdit {
 

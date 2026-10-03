@@ -1,4 +1,4 @@
-#include "skineditor.hpp"
+#include "properties/skineditor.hpp"
 
 #include <QColorDialog>
 #include <QFormLayout>

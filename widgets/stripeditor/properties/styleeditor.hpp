@@ -1,7 +1,7 @@
 #ifndef STRIPEDIT_STYLEEDITOR_HPP
 #define STRIPEDIT_STYLEEDITOR_HPP
 
-#include "propertygroupeditor.hpp"
+#include "properties/propertygroupeditor.hpp"
 
 class QComboBox;
 class QSpinBox;

@@ -1,10 +1,10 @@
-#include "taillisteditor.hpp"
+#include "properties/taillisteditor.hpp"
 
 #include <QHBoxLayout>
 #include <QLabel>
 #include <QPushButton>
 
-#include "shapeeditor.hpp"   // shapeSpeaks()
+#include "properties/shapeeditor.hpp"   // shapeSpeaks()
 
 namespace StripEdit {
 

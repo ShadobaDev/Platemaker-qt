@@ -1,4 +1,4 @@
-#include "texteditor.hpp"
+#include "properties/texteditor.hpp"
 
 #include <QCheckBox>
 #include <QColorDialog>

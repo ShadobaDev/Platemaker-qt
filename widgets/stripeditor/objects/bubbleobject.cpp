@@ -1,4 +1,4 @@
-#include "bubbleobject.hpp"
+#include "objects/bubbleobject.hpp"
 #include "artifactpainter.hpp"
 
 #include <QPainter>

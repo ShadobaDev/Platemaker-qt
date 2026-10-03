@@ -1,4 +1,4 @@
-#include "object.hpp"
+#include "objects/object.hpp"
 
 #include <QGraphicsScene>
 #include <QGraphicsSceneMouseEvent>

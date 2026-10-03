@@ -62,16 +62,16 @@ qt_add_executable(Platemaker
     # the project's input pages (QGraphicsView), the scene item that draws and edits one overlay on it,
     # the page geometry it answers placement questions from, and its two tool-options panels.
     widgets/stripeditor/editor.cpp widgets/stripeditor/editor.hpp widgets/stripeditor/editor.ui
-    widgets/stripeditor/object.cpp widgets/stripeditor/object.hpp
-    widgets/stripeditor/bubbleobject.cpp widgets/stripeditor/bubbleobject.hpp
-    widgets/stripeditor/assetobject.cpp widgets/stripeditor/assetobject.hpp
-    widgets/stripeditor/layout.cpp widgets/stripeditor/layout.hpp
-    widgets/stripeditor/pagesource.cpp widgets/stripeditor/pagesource.hpp
-    widgets/stripeditor/objectcontroller.cpp widgets/stripeditor/objectcontroller.hpp
-    widgets/stripeditor/toolregistry.cpp widgets/stripeditor/toolregistry.hpp
-    widgets/stripeditor/colourpair.cpp widgets/stripeditor/colourpair.hpp
-    widgets/stripeditor/cursors.cpp widgets/stripeditor/cursors.hpp
-    widgets/stripeditor/rowglyph.cpp widgets/stripeditor/rowglyph.hpp
+    widgets/stripeditor/objects/object.cpp widgets/stripeditor/objects/object.hpp
+    widgets/stripeditor/objects/bubbleobject.cpp widgets/stripeditor/objects/bubbleobject.hpp
+    widgets/stripeditor/objects/assetobject.cpp widgets/stripeditor/objects/assetobject.hpp
+    widgets/stripeditor/objects/layout.cpp widgets/stripeditor/objects/layout.hpp
+    widgets/stripeditor/canvas/pagesource.cpp widgets/stripeditor/canvas/pagesource.hpp
+    widgets/stripeditor/objects/objectcontroller.cpp widgets/stripeditor/objects/objectcontroller.hpp
+    widgets/stripeditor/toolrail/toolregistry.cpp widgets/stripeditor/toolrail/toolregistry.hpp
+    widgets/stripeditor/toolrail/colourpair.cpp widgets/stripeditor/toolrail/colourpair.hpp
+    widgets/stripeditor/toolrail/cursors.cpp widgets/stripeditor/toolrail/cursors.hpp
+    widgets/stripeditor/objectstack/rowglyph.cpp widgets/stripeditor/objectstack/rowglyph.hpp
     widgets/stripeditor/presetstore.cpp widgets/stripeditor/presetstore.hpp
     widgets/stripeditor/properties/propertygroup.hpp
     widgets/stripeditor/properties/propertygroupeditor.hpp
@@ -84,17 +84,17 @@ qt_add_executable(Platemaker
     widgets/stripeditor/properties/taillisteditor.cpp widgets/stripeditor/properties/taillisteditor.hpp
     widgets/stripeditor/properties/taileditor.cpp widgets/stripeditor/properties/taileditor.hpp
     widgets/stripeditor/properties/texteditor.cpp widgets/stripeditor/properties/texteditor.hpp
-    widgets/stripeditor/colouradjustment.cpp widgets/stripeditor/colouradjustment.hpp
-    widgets/stripeditor/panels/gradepanel.cpp widgets/stripeditor/panels/gradepanel.hpp widgets/stripeditor/panels/gradepanel.ui
-    widgets/stripeditor/panels/tooloptionspanel.cpp widgets/stripeditor/panels/tooloptionspanel.hpp
-    widgets/stripeditor/panels/artworkoptionspanel.cpp widgets/stripeditor/panels/artworkoptionspanel.hpp
-    widgets/stripeditor/panels/objectstatepanel.cpp widgets/stripeditor/panels/objectstatepanel.hpp
-    widgets/stripeditor/panels/stripstatepanel.cpp widgets/stripeditor/panels/stripstatepanel.hpp
+    widgets/stripeditor/properties/colouradjustment.cpp widgets/stripeditor/properties/colouradjustment.hpp
+    widgets/stripeditor/tooloptions/gradepanel.cpp widgets/stripeditor/tooloptions/gradepanel.hpp widgets/stripeditor/tooloptions/gradepanel.ui
+    widgets/stripeditor/tooloptions/tooloptionspanel.cpp widgets/stripeditor/tooloptions/tooloptionspanel.hpp
+    widgets/stripeditor/tooloptions/artworkoptionspanel.cpp widgets/stripeditor/tooloptions/artworkoptionspanel.hpp
+    widgets/stripeditor/objectstate/objectstatepanel.cpp widgets/stripeditor/objectstate/objectstatepanel.hpp
+    widgets/stripeditor/objectstate/stripstatepanel.cpp widgets/stripeditor/objectstate/stripstatepanel.hpp
     widgets/collapsiblesection/collapsiblesection.cpp widgets/collapsiblesection/collapsiblesection.hpp
 
     # Text artifact — what a bubble IS (shape, text, styling), its sidecar codec and its rasteriser.
     # The library composites a flat RGBA bitmap and has no text engine, so the editable source lives here.
-    widgets/artifact/artifact.cpp widgets/artifact/artifact.hpp
+    widgets/artifact/artifact.cpp widgets/artifact/artifact.hpp widgets/artifact/propertygroups.hpp
     widgets/artifact/artifactpainter.cpp widgets/artifact/artifactpainter.hpp
     widgets/artifact/artifactsvg.cpp widgets/artifact/artifactsvg.hpp
 
@@ -143,9 +143,9 @@ target_include_directories(Platemaker PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/widgets/aboutdialog
     ${CMAKE_CURRENT_SOURCE_DIR}/widgets/licencedialog
     ${CMAKE_CURRENT_SOURCE_DIR}/widgets/renderworker
+    # The strip editor is one include root: its files include each other by folder
+    # (#include "objects/object.hpp"), so an include line says which screen region it reaches into.
     ${CMAKE_CURRENT_SOURCE_DIR}/widgets/stripeditor
-    ${CMAKE_CURRENT_SOURCE_DIR}/widgets/stripeditor/panels
-    ${CMAKE_CURRENT_SOURCE_DIR}/widgets/stripeditor/properties
     ${CMAKE_CURRENT_SOURCE_DIR}/widgets/stagecard
     ${CMAKE_CURRENT_SOURCE_DIR}/widgets/flowlayout
     ${CMAKE_CURRENT_SOURCE_DIR}/widgets/collapsiblesection

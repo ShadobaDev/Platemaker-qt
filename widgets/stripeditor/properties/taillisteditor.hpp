@@ -3,7 +3,7 @@
 
 #include <QSize>
 
-#include "propertygroupeditor.hpp"
+#include "properties/propertygroupeditor.hpp"
 
 class QLabel;
 class QPushButton;

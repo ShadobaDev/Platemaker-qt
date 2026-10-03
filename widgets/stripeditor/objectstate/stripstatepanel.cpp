@@ -1,4 +1,4 @@
-#include "stripstatepanel.hpp"
+#include "objectstate/stripstatepanel.hpp"
 
 #include <QCheckBox>
 #include <QHBoxLayout>

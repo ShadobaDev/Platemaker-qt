@@ -1,4 +1,4 @@
-#include "cursors.hpp"
+#include "toolrail/cursors.hpp"
 
 namespace StripEdit {
 

@@ -1,4 +1,4 @@
-#include "styleeditor.hpp"
+#include "properties/styleeditor.hpp"
 
 #include <QComboBox>
 #include <QFormLayout>

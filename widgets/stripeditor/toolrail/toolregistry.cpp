@@ -1,4 +1,4 @@
-#include "toolregistry.hpp"
+#include "toolrail/toolregistry.hpp"
 
 #include <QCoreApplication>
 

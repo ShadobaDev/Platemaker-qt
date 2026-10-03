@@ -1,5 +1,5 @@
-#include "pagesource.hpp"
-#include "layout.hpp"
+#include "canvas/pagesource.hpp"
+#include "objects/layout.hpp"
 
 #include <QDebug>
 #include <QFutureWatcher>

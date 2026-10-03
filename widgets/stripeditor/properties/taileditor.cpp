@@ -1,4 +1,4 @@
-#include "taileditor.hpp"
+#include "properties/taileditor.hpp"
 
 #include <QFormLayout>
 #include <QSignalBlocker>

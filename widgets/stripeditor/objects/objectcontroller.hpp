@@ -14,9 +14,9 @@
 #include <optional>
 
 #include "artifactpainter.hpp"   // ArtifactPart: which part of an object a colour lands on
-#include "cursors.hpp"
-#include "object.hpp"   // recordFor()/isParametric() ask the object itself
-#include "propertygroup.hpp"   // PropertyGroup: which group the menu hands over
+#include "toolrail/cursors.hpp"
+#include "objects/object.hpp"   // recordFor()/isParametric() ask the object itself
+#include "properties/propertygroup.hpp"   // PropertyGroup: which group the menu hands over
 #include "artifact.hpp"
 
 #include <platemaker/models/project_item.hpp>

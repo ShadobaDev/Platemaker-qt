@@ -1,7 +1,7 @@
 #ifndef STRIPEDIT_TAILEDITOR_HPP
 #define STRIPEDIT_TAILEDITOR_HPP
 
-#include "propertygroupeditor.hpp"
+#include "properties/propertygroupeditor.hpp"
 
 class QSpinBox;
 

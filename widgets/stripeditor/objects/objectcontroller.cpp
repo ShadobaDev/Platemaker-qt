@@ -1,16 +1,16 @@
-#include "objectcontroller.hpp"
-#include "objectstatepanel.hpp"
-#include "colourpair.hpp"
+#include "objects/objectcontroller.hpp"
+#include "objectstate/objectstatepanel.hpp"
+#include "toolrail/colourpair.hpp"
 #include "presetstore.hpp"
-#include "rowglyph.hpp"
-#include "tooloptionspanel.hpp"
-#include "layout.hpp"
-#include "assetobject.hpp"
-#include "bubbleobject.hpp"
-#include "object.hpp"
+#include "objectstack/rowglyph.hpp"
+#include "tooloptions/tooloptionspanel.hpp"
+#include "objects/layout.hpp"
+#include "objects/assetobject.hpp"
+#include "objects/bubbleobject.hpp"
+#include "objects/object.hpp"
 #include "artifactpainter.hpp"
 #include "badgeitemdelegate.hpp"
-#include "blendeditor.hpp"   // blendModes(): the menu and ③'s row name the modes from one list
+#include "properties/blendeditor.hpp"   // blendModes(): the menu and ③'s row name the modes from one list
 #include "artifactsvg.hpp"
 
 #include <QFileInfo>

@@ -1,4 +1,4 @@
-#include "tooloptionspanel.hpp"
+#include "tooloptions/tooloptionspanel.hpp"
 
 #include <QAction>
 #include <QComboBox>
@@ -14,11 +14,11 @@
 #include <QVBoxLayout>
 
 #include "presetstore.hpp"
-#include "shapeeditor.hpp"
-#include "skineditor.hpp"
-#include "styleeditor.hpp"
-#include "tailseditor.hpp"
-#include "texteditor.hpp"
+#include "properties/shapeeditor.hpp"
+#include "properties/skineditor.hpp"
+#include "properties/styleeditor.hpp"
+#include "properties/tailseditor.hpp"
+#include "properties/texteditor.hpp"
 
 namespace StripEdit {
 

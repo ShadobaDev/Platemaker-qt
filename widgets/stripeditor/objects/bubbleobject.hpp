@@ -4,7 +4,7 @@
 #include <QImage>
 #include <QPainterPath>
 
-#include "object.hpp"
+#include "objects/object.hpp"
 #include "artifact.hpp"
 
 namespace StripEdit {

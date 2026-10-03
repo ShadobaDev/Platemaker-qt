@@ -16,7 +16,7 @@
 #include <QJsonObject>
 
 #include "artifactsvg.hpp"
-#include "propertygroup.hpp"
+#include "properties/propertygroup.hpp"
 #include "artifact.hpp"
 
 namespace {

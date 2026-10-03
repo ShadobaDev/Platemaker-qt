@@ -4,7 +4,7 @@
 #include <QPalette>
 #include <QPixmap>
 
-#include "propertygroupeditor.hpp"
+#include "properties/propertygroupeditor.hpp"
 
 class QButtonGroup;
 

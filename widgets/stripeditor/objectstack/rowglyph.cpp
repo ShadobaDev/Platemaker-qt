@@ -1,4 +1,4 @@
-#include "rowglyph.hpp"
+#include "objectstack/rowglyph.hpp"
 
 #include <QFont>
 #include <QPainter>

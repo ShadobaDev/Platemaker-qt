@@ -1,4 +1,4 @@
-#include "objectstatepanel.hpp"
+#include "objectstate/objectstatepanel.hpp"
 
 #include <QDoubleSpinBox>
 #include <QFormLayout>
@@ -12,12 +12,12 @@
 #include "badge.hpp"
 #include "collapsiblesection.hpp"
 #include "presetstore.hpp"
-#include "shapeeditor.hpp"
-#include "skineditor.hpp"
-#include "styleeditor.hpp"
-#include "taileditor.hpp"
-#include "taillisteditor.hpp"
-#include "texteditor.hpp"
+#include "properties/shapeeditor.hpp"
+#include "properties/skineditor.hpp"
+#include "properties/styleeditor.hpp"
+#include "properties/taileditor.hpp"
+#include "properties/taillisteditor.hpp"
+#include "properties/texteditor.hpp"
 
 namespace StripEdit {
 

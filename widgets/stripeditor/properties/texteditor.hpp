@@ -1,7 +1,7 @@
 #ifndef STRIPEDIT_TEXTEDITOR_HPP
 #define STRIPEDIT_TEXTEDITOR_HPP
 
-#include "propertygroupeditor.hpp"
+#include "properties/propertygroupeditor.hpp"
 
 class QCheckBox;
 class QComboBox;

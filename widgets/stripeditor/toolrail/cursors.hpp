@@ -3,7 +3,7 @@
 
 #include <QCursor>
 
-#include "toolregistry.hpp"
+#include "toolrail/toolregistry.hpp"
 
 namespace StripEdit {
 

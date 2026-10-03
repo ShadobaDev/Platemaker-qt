@@ -1,4 +1,4 @@
-#include "assetobject.hpp"
+#include "objects/assetobject.hpp"
 
 #include <QFileInfo>
 #include <QImage>

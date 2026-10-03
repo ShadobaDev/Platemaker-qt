@@ -7,7 +7,7 @@
 
 class QSvgRenderer;
 
-#include "object.hpp"
+#include "objects/object.hpp"
 #include "artifact.hpp"
 
 namespace StripEdit {

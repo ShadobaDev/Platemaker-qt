@@ -1,4 +1,4 @@
-#include "colouradjustment.hpp"
+#include "properties/colouradjustment.hpp"
 
 #include <QLocale>
 #include <QObject>

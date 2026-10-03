@@ -9,7 +9,7 @@
 
 #include <platemaker/models/colour_correction.hpp>
 
-#include "colouradjustment.hpp"
+#include "properties/colouradjustment.hpp"
 
 class QCheckBox;
 class QLabel;

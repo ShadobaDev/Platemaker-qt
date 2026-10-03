@@ -50,6 +50,7 @@ class ToolOptionsStack;
 class ToolRail;
 class GradeToolOptions;
 class ObjectState;
+class ObjectStateStack;
 class StripState;
 class PresetStore;
 class BubbleToolOptions;
@@ -458,13 +459,8 @@ private:
      * @brief The same surface when the strip or one of its pages is selected: what *that* is.
      */
     StripState*  m_stripState = nullptr;
-    /**
-     * @brief ...and when imported artwork is: its size, which is all of its state that is ours to set.
-     *  What the properties stack actually switches between: each panel inside its own scroll area, so a
-     *  selection cannot widen the column under the pointer. See `scrolled()`, scrolledpage.hpp.
-     */
-    QWidget*          m_objectPage = nullptr;
-    QWidget*          m_stripPage  = nullptr;   //!< The same surface when the strip or one of its pages is selected: what *that* is.
+    //! OBJECT STATE: which of the two panels above shows, and what it says about the strip.
+    ObjectStateStack* m_stateStack = nullptr;
     /**
      * @brief The grade as this editor last saw it — from the project, or from a live edit in progress.
      *

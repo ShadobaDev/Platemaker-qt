@@ -9,10 +9,10 @@
 #include "objects/objectcontroller.hpp"
 #include "canvas/pagesource.hpp"
 #include "canvas/stripitem.hpp"
-#include "scrolledpage.hpp"
 #include "toolrail/toolrail.hpp"
 #include "tooloptions/tooloptionsstack.hpp"
 #include "objectstate/objectstate.hpp"
+#include "objectstate/objectstatestack.hpp"
 #include "presetstore.hpp"
 #include "properties/shapeeditor.hpp"
 #include "objectstate/stripstate.hpp"
@@ -23,7 +23,6 @@
 
 #include <algorithm>
 
-#include <QFileInfo>
 #include <QDebug>
 #include <QEnterEvent>
 #include <QEvent>
@@ -255,14 +254,10 @@ Editor::Editor(PresetStore& presets, QWidget *parent)
         // to be one class sitting in two places, which is how they came to look like the same panel
         // twice. They now differ in what they contain, not only in what they mean.
         m_objectState = new ObjectState(*m_presets, ui->objectStateStack);
-        m_objectPage  = scrolled(m_objectState, ui->objectStateStack);
-        ui->objectStateStack->addWidget(m_objectPage);
-
         // The strip and its pages are selected too, and they are not overlays — so they get the same
         // surface with different contents rather than an object panel full of sections that never apply.
-        m_stripState = new StripState(ui->objectStateStack);
-        m_stripPage  = scrolled(m_stripState, ui->objectStateStack);
-        ui->objectStateStack->addWidget(m_stripPage);
+        m_stripState  = new StripState(ui->objectStateStack);
+        m_stateStack  = new ObjectStateStack(ui->objectStateStack, m_objectState, m_stripState);
 
         connect(m_stripState, &StripState::excludedToggled, this,
                 [this](const QString& inputUid, bool excluded) {
@@ -414,7 +409,7 @@ void Editor::applyGrade(const Platemaker::Models::ColourCorrection& cc)
 
 void Editor::showSubject()
 {
-    if (!m_objects || !m_stripState || !m_objectState)
+    if (!m_objects || !m_stateStack)
         return;
 
     // The Grade tool acts on the selection, so it is told what that is whether or not it is showing.
@@ -425,32 +420,16 @@ void Editor::showSubject()
                                                                          : GradeToolOptions::Target::Other);
     }
 
-    const auto isSkipped = [this](const QString& inputUid) {
-        const auto& skipped = m_cc.excludedInputUids;
-        return std::find(skipped.begin(), skipped.end(), inputUid.toStdString()) != skipped.end();
-    };
-
+    // Which panel answers is the selection's to decide; what it says is the stack's.
     switch (m_objects->subject()) {
-    case ObjectController::Subject::Strip: {
-        int excluded = 0;
-        for (int i = 0; i < m_layout.pageCount(); ++i)
-            if (isSkipped(m_layout.page(i).inputUid))
-                ++excluded;
-        m_stripState->showStrip(m_layout.pageCount(), excluded, m_cc);
-        ui->objectStateStack->setCurrentWidget(m_stripPage);
+    case ObjectController::Subject::Strip:
+        m_stateStack->showStrip(m_layout, m_cc);
         return;
-    }
     case ObjectController::Subject::Page: {
         const int i = m_layout.pageForAnchor(m_objects->selectedPage());
         if (i < 0)
             break;
-        const Page& page = m_layout.page(i);
-        m_stripState->showPage(page.inputUid,
-                               tr("p.%1 — %2").arg(i + 1, 2, 10, QLatin1Char('0'))
-                                              .arg(QFileInfo(page.sourcePath).fileName()),
-                               page.size, isSkipped(page.inputUid),
-                               !Platemaker::Models::isNeutral(m_cc));
-        ui->objectStateStack->setCurrentWidget(m_stripPage);
+        m_stateStack->showPage(m_layout, i, m_cc);
         return;
     }
     case ObjectController::Subject::None:
@@ -458,11 +437,7 @@ void Editor::showSubject()
     case ObjectController::Subject::Tail:
         break;
     }
-
-    // One object panel for every kind of object. There were two — a balloon's and a picture's — and
-    // the second was the first with its sections hidden, which is what deciding which sections apply
-    // already does. A picture's one extra question, how big it is drawn, is a row in the same panel.
-    ui->objectStateStack->setCurrentWidget(m_objectPage);
+    m_stateStack->showObject();
 }
 
 void Editor::setColourCorrection(const Platemaker::Models::ColourCorrection& cc)

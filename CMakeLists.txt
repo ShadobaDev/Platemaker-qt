@@ -94,6 +94,7 @@ qt_add_executable(Platemaker
     widgets/stripeditor/tooloptions/artworktooloptions.cpp widgets/stripeditor/tooloptions/artworktooloptions.hpp
     widgets/stripeditor/objectstate/objectstate.cpp widgets/stripeditor/objectstate/objectstate.hpp
     widgets/stripeditor/objectstate/stripstate.cpp widgets/stripeditor/objectstate/stripstate.hpp
+    widgets/stripeditor/objectstate/objectstatestack.cpp widgets/stripeditor/objectstate/objectstatestack.hpp
     widgets/collapsiblesection/collapsiblesection.cpp widgets/collapsiblesection/collapsiblesection.hpp
 
     # The object record — what a bubble IS (shape, text, styling), its SVG codec and its rasteriser.

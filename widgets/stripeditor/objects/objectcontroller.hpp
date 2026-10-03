@@ -67,7 +67,7 @@ class Object;
  *   items, and is **the one place an Object subclass is chosen**.
  * - *Geometry back out* — a settled move or resize, written as a placement and announced.
  * - *The object list* — rows, their glyphs (rowGlyph()) and the composite order.
- * - *Selection, and the properties panel it binds* — selectSubjects() decides what ③ shows.
+ * - *Selection, and the properties panel it binds* — selectSubjects() decides what OBJECT STATE shows.
  * - *The object menu's actions* — colour, presets, artwork, re-anchor, delete, *Apply from tool
  *   options ▸*, *Convert to ▸*, blend, stacking, duplicate; each ends in applyRecords() or a signal.
  * - *Placing a new bubble* — beginPlacement() / updatePlacement() / finishPlacement(): a Create
@@ -242,8 +242,8 @@ public:
      * outside its silhouette paints nothing, and imported artwork takes nothing — it is pixels somebody
      * else drew. The tool therefore needs no "what am I painting" setting: the picture is the setting.
      *
-     * The object it lands on becomes the **selection**, so ③ shows what just changed and the same edit
-     * is one Ctrl+Z away. One undo step per press, named after what it painted.
+     * The object it lands on becomes the **selection**, so OBJECT STATE shows what just changed and the same
+     * edit is one Ctrl+Z away. One undo step per press, named after what it painted.
      *
      * @param scenePos  The pointer's position in the scene, which is the strip at 1:1.
      * @param deviceTransform  The view's transform, for hit-testing the scene position against the objects' silhouettes.
@@ -279,7 +279,7 @@ public:
      *
      * This is where the *style applicator* went. As a rail tool it would have to carry a current
      * style, which a stateless tool may not; as a menu entry it carries nothing — the value is whatever
-     * TOOL VIEW is set to, which is the panel that already holds "what the next object will be".
+     * TOOL OPTIONS is set to, which is the panel that already holds "what the next object will be".
      */
     void applyGroupToSelection(PropertyGroup group);
 
@@ -364,7 +364,8 @@ public:
     void setPlacementArtwork(const QString& file) { m_placementArtwork = file; }
 
     /**
-     * @brief Puts @p file down centred on @p scenePos, **at its own size** — a drop from TOOL VIEW's preview.
+     * @brief Puts @p file down centred on @p scenePos, **at its own size** — a drop from the TOOL OPTIONS
+     * preview.
      *
      * Its own size, deliberately, and not fitted to anything: a sound effect that reaches past the
      * strip's edge is a thing artists want, and a placement that quietly shrank it would be a decision
@@ -403,8 +404,8 @@ public:
     /**
      * @brief The mode the whole selection is composited in, or no value when they disagree.
      *
-     * One computation for the menu's tick and for ③'s row, because they answer the same question and
-     * a tick that disagreed with the row beside it would make one of them wrong.
+     * One computation for the menu's tick and for OBJECT STATE's row, because they answer the same question
+     * and a tick that disagreed with the row beside it would make one of them wrong.
      * 
      * @return The blend mode of the selection, or std::nullopt if they disagree.
      */
@@ -413,14 +414,14 @@ public:
     /**
      * @brief Removes everything selected, as one history step.
      *
-     * Public because more than the menu asks for it: ③ offers Delete for whichever kind of object it
-     * is showing. What it deletes is the selection, which is
-     * the only thing any of them mean by it.
+     * Public because more than the menu asks for it: OBJECT STATE offers Delete for whichever kind of object
+     * it is showing. What it deletes is the selection, which is the only thing any of them mean by it.
      */
     void deleteSelectedOverlay();
 
     /**
-     * @brief Checks if exactly one piece of imported artwork is selected — what ③ and the menu both ask.
+     * @brief Checks if exactly one piece of imported artwork is selected — what OBJECT STATE and the menu
+     * both ask.
      * @return True if exactly one piece of imported artwork is selected, false otherwise.
      */
     [[nodiscard]] bool selectionIsArtwork() const;
@@ -506,9 +507,9 @@ private:
     /**
      * @brief Selects exactly @p uids, in the order given. The **last** is the primary.
      *
-     * The primary is what a single-subject action acts on and what ③ shows when there is only one —
-     * "the thing I just clicked", which is the last one picked. Everything written before the selection
-     * was a set still reads selectedOverlay(), which is now that primary.
+     * The primary is what a single-subject action acts on and what OBJECT STATE shows when there is only one
+     * — "the thing I just clicked", which is the last one picked. Everything written before the selection was
+     * a set still reads selectedOverlay(), which is now that primary.
      */
     void selectOverlays(const QStringList& uids);
 
@@ -517,10 +518,10 @@ private:
      *
      * A selection may hold objects and tails at once, because *position* is the role they share: a tail of
      * one balloon and the body of another can be dragged as one thing. What they do **not** share is
-     * anything ③ could edit, so a mixed selection shows no property sections at all.
+     * anything OBJECT STATE could edit, so a mixed selection shows no property sections at all.
      *
-     * One tail on its own stays the subject it was in T5c: its balloon selected on the canvas so the
-     * handles exist, the handle drawn hollow, and ③ showing that tail.
+     * One tail on its own stays a selected tail: its balloon selected on the canvas so the
+     * handles exist, the handle drawn hollow, and OBJECT STATE showing that tail.
      */
     void selectSubjects(const QStringList& uids, const QList<TailRef>& tails);
 
@@ -588,7 +589,7 @@ private:
                      const QString& undoText = QString());
 
     /**
-     * @brief What ③ just said, written to the objects ③ was bound to.
+     * @brief What OBJECT STATE just said, written to the objects OBJECT STATE was bound to.
      *
      * The panel answers with records and no uids, because it was handed records and no uids. Which
      * objects those were is remembered in \c m_panelSubjects at the moment it was bound, so a selection
@@ -690,7 +691,7 @@ private:
     QString            m_selectedOverlay;                   //!< The primary: last of m_selectedOverlays.
     QStringList        m_selectedOverlays;                  //!< Everything selected, in pick order.
     /**
-     * @brief The objects ③ is currently bound to, in the order its records are in.
+     * @brief The objects OBJECT STATE is currently bound to, in the order its records are in.
      *
      * Not the same thing as the selection, and that is the point: the panel answers about what it was
      * shown, which may no longer be what is selected. Empty whenever the panel is showing something

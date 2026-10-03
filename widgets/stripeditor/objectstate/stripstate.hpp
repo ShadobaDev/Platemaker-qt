@@ -18,7 +18,7 @@ class QVBoxLayout;
 namespace StripEdit {
 
 /**
- * @brief What the strip, or one of its pages, *is* — ③ for the subjects that are not overlays.
+ * @brief What the strip, or one of its pages, *is* — OBJECT STATE for the subjects that are not overlays.
  *
  * The same surface as `ObjectState`, and the same question — what is selected — asked of different
  * things. It is a panel of its own rather than more sections in that one because nothing here is a

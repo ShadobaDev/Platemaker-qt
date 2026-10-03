@@ -10,7 +10,8 @@
 #include "objects/object.hpp"
 #include "artifactpainter.hpp"
 #include "badgeitemdelegate.hpp"
-#include "properties/blendeditor.hpp"   // blendModes(): the menu and ③'s row name the modes from one list
+// blendModes(): the menu and OBJECT STATE's row name the modes from one list.
+#include "properties/blendeditor.hpp"
 #include "artifactsvg.hpp"
 
 #include <QFileInfo>
@@ -161,8 +162,8 @@ ObjectController::ObjectController(QGraphicsScene* scene, QGraphicsView* view, Q
         connect(a, &QAction::triggered, this, [this, mode] { setSelectionBlend(mode); });
     }
     connect(m_blendMenu, &QMenu::aboutToShow, this, [this] {
-        // Ticked from the same answer ③'s row shows: with a set that disagrees, nothing is ticked and
-        // the row says *Mixed*. One question, one computation.
+        // Ticked from the same answer OBJECT STATE's row shows: with a set that disagrees, nothing is ticked
+        // and the row says *Mixed*. One question, one computation.
         const auto shared = selectionBlend();
         for (QAction* a : m_blendMenu->actions())
             a->setChecked(shared && a->data().toInt() == static_cast<int>(*shared));
@@ -199,8 +200,8 @@ ObjectController::ObjectController(QGraphicsScene* scene, QGraphicsView* view, Q
 
     // **Convert crosses the one boundary there is.** An object either has a silhouette — to fill, to
     // roughen, to grow tails from — or it has not, and that decides which property groups it carries at
-    // all. *Which* silhouette is a property, edited in ③ and applied to a set from *Apply from tool
-    // options ▸*; it has no business in a menu about kinds. Two entries, therefore, not ten.
+    // all. *Which* silhouette is a property, edited in OBJECT STATE and applied to a set from *Apply from
+    // tool options ▸*; it has no business in a menu about kinds. Two entries, therefore, not ten.
     //
     // A menu offers only what applies to every selected object, and here that intersection is either
     // both or neither: every authored object can become either
@@ -221,8 +222,8 @@ ObjectController::ObjectController(QGraphicsScene* scene, QGraphicsView* view, Q
     });
     connect(m_convertMenu, &QMenu::aboutToShow, this, [this] {
         // Ticked only when the selection agrees, exactly as Blend is: with a set that disagrees,
-        // nothing is ticked, which is the same answer ③ gives when it says Mixed. The tick is on the
-        // *kind*, so any silhouette ticks Balloon — the shape tiles say which one.
+        // nothing is ticked, which is the same answer OBJECT STATE gives when it says Mixed. The tick is on
+        // the *kind*, so any silhouette ticks Balloon — the shape tiles say which one.
         std::optional<bool> shaped;
         bool                agree = true;
         for (const QString& uid : std::as_const(m_selectedOverlays)) {
@@ -537,7 +538,7 @@ void ObjectController::selectSubject(Subject subject, const QString& pageUid)
 
     m_subject       = subject;
     m_selectedPage  = subject == Subject::Page ? pageUid : QString();
-    m_panelSubjects.clear();   // ③ is showing the strip or a page; no object panel is answering
+    m_panelSubjects.clear();   // OBJECT STATE is showing the strip or a page; no object panel is answering
 
     m_syncingList = true;
     if (QTreeWidgetItem* row = subjectRow())
@@ -996,7 +997,7 @@ void ObjectController::refreshList()
                                    "render skips it. Re-anchor it from the object's menu."), pal);
         // The preset this object still looks like, when it looks like one. **Named or nothing**: a row
         // is scanned, and *Custom* on every hand-made balloon would be a column of chips reporting that
-        // there is nothing to report. ③ says *Custom* because there the question was asked.
+        // there is nothing to report. OBJECT STATE says *Custom* because there the question was asked.
         if (isParametric(uid)) {
             const int preset = m_presets.matching(recordFor(uid));
             if (preset >= 0)
@@ -1154,7 +1155,7 @@ void ObjectController::selectSubjects(const QStringList& uids, const QList<TailR
     m_selectedOverlay  = picked.isEmpty() ? QString() : picked.last();
     m_selectedPage.clear();
 
-    // One tail, on its own balloon, is the subject T5c built: the handle drawn hollow and ③ showing that
+    // One tail, on its own balloon, is a selected tail: the handle drawn hollow and OBJECT STATE showing that
     // tail. Anything else with a tail in it is a set whose only common property is where it sits.
     const bool singleTail = pickedTails.size() == 1 && picked.size() == 1
                          && picked.first() == pickedTails.first().uid;
@@ -1240,10 +1241,10 @@ void ObjectController::selectSubjects(const QStringList& uids, const QList<TailR
            });
     if (m_convertMenu) m_convertMenu->menuAction()->setEnabled(authoredOnly);
 
-    // **Which objects ③ is about to be bound to, in the order its records go in.** Set here and only
-    // here, because this is the one place that decides what the panel is showing. A branch that binds
-    // something uneditable leaves it empty, so a signal arriving from a panel that cannot be edited
-    // writes nothing rather than writing to whatever happens to be selected now.
+    // **Which objects OBJECT STATE is about to be bound to, in the order its records go in.** Set here and
+    // only here, because this is the one place that decides what the panel is showing. A branch that binds
+    // something uneditable leaves it empty, so a signal arriving from a panel that cannot be edited writes
+    // nothing rather than writing to whatever happens to be selected now.
     m_panelSubjects.clear();
 
     if (m_objectState) {
@@ -1791,9 +1792,9 @@ void ObjectController::convertSelectionTo(Artifact::Shape kind)
 
     // **What passes through is decided by the kind, not by the silhouette.** @p kind carries which
     // silhouette to arrive at, but a Thought balloon asked to become a Balloon is already one — and
-    // re-shaping it to whatever TOOL VIEW happens to show would be this menu quietly doing the shape picker's
-    // job on an object the artist only had along for the ride. Changing *which* balloon several objects
-    // are is *Apply from tool options ▸ Shape*, and it says so.
+    // re-shaping it to whatever TOOL OPTIONS happens to show would be this menu quietly doing the shape
+    // picker's job on an object the artist only had along for the ride. Changing *which* balloon several
+    // objects are is *Apply from tool options ▸ Shape*, and it says so.
     const bool toSilhouette = kind != Artifact::Shape::None;
 
     QList<Artifact> next;

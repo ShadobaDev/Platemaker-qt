@@ -406,7 +406,8 @@ private:
     void refreshGradePreview();
 
     /**
-     * @brief Shows the selected strip or page in ③, with current data — or the object panel for anything else.
+     * @brief Shows the selected strip or page in OBJECT STATE, with current data — or the object panel for
+     * anything else.
      */
     void showSubject();
 
@@ -449,8 +450,8 @@ private:
      */
     QWidget           *m_toolTiles    = nullptr;
     /**
-     * @brief TOOL VIEW's page for a tool that has no options: the tool's name and what a press does. Never empty —
-     *        see `toolregistry.hpp`, where both come from the tool's own row.
+     * @brief The TOOL OPTIONS page for a tool that has no options: the tool's name and what a press does.
+     * Never empty —        see `toolregistry.hpp`, where both come from the tool's own row.
      */
     QLabel            *m_toolTitle    = nullptr;   //!< The tool's name, in the tool-options stack.
     QLabel            *m_toolHint     = nullptr;   //!< What a press does, in the tool-options stack.

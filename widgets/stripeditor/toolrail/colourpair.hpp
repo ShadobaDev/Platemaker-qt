@@ -21,7 +21,7 @@ namespace StripEdit {
  * tool*. The swatches are real buttons rather than painted regions, so they keep the theme's hover and
  * focus states and stay reachable from the keyboard.
  *
- * It is **independent of the colours in ③**: setting a balloon's fill does not touch the pair, and
+ * It is **independent of the colours in OBJECT STATE**: setting a balloon's fill does not touch the pair, and
  * changing the pair does not touch any object. A pair that silently followed the selection would be a
  * second, invisible way of editing an object.
  *

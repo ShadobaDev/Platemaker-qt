@@ -20,7 +20,7 @@ namespace StripEdit {
 /**
  * @brief How long typing is coalesced before it becomes one history step.
  *
- * Part of the panels' shared contract rather than one panel's number: ③'s two object panels both
+ * Part of the panels' shared contract rather than one panel's number: OBJECT STATE's two object panels both
  * debounce, and two copies of a timing that is supposed to feel the same is how they come to feel
  * different.
  */

@@ -17,8 +17,9 @@
 
 #include <cmath>
 
-#include "properties/propertygroupeditor.hpp"   // k_commitDebounceMs — ③ and TOOL VIEW settle at the same pace or they
-                                   // feel like different applications
+// k_commitDebounceMs: OBJECT STATE and TOOL OPTIONS settle at the same pace, or they feel like different
+// applications.
+#include "properties/propertygroupeditor.hpp"
 
 namespace StripEdit {
 

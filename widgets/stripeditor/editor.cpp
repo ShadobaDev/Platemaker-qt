@@ -275,7 +275,7 @@ Editor::Editor(PresetStore& presets, QWidget *parent)
     // cursor look as though it followed the last *click*: it could only be re-decided on release. The
     // cursor is a promise about what a press would do here, so it has to be re-decided while hovering.
     m_view->viewport()->setMouseTracking(true);
-    m_view->viewport()->setAcceptDrops(true);   // pictures, from TOOL VIEW's preview or a file manager
+    m_view->viewport()->setAcceptDrops(true);   // pictures, from the TOOL OPTIONS preview or a file manager
     // Build the pages that scroll into view (plus a prefetch margin).
     connect(m_view->verticalScrollBar(),   &QScrollBar::valueChanged, this, &Editor::updateVisiblePages);
     connect(m_view->horizontalScrollBar(), &QScrollBar::valueChanged, this, &Editor::updateVisiblePages);
@@ -376,7 +376,7 @@ Editor::Editor(PresetStore& presets, QWidget *parent)
             if (!t.icon.isEmpty())
                 b->setIcon(QIcon(t.icon));
             b->setIconSize(QSize(26, 26));
-            b->setToolTip(toolTooltip(t));   // the name, and the same sentence TOOL VIEW shows
+            b->setToolTip(toolTooltip(t));   // the name, and the same sentence TOOL OPTIONS shows
             b->setCheckable(true);
             b->setAutoRaise(true);
             b->setToolButtonStyle(Qt::ToolButtonIconOnly);
@@ -543,7 +543,7 @@ void Editor::setTool(const QString& id)
         QString artwork;
         if (tool->optionsPage == k_artworkPage && m_artworkOptions) {
             // Arming with nothing chosen asks once, here: before any drag, so a file dialog never lands
-            // in the middle of one. A cancelled dialog arms nothing, and TOOL VIEW says as much.
+            // in the middle of one. A cancelled dialog arms nothing, and TOOL OPTIONS says as much.
             if (m_artworkOptions->artwork().isEmpty())
                 m_artworkOptions->chooseArtwork();
             artwork = m_artworkOptions->artwork();
@@ -883,8 +883,8 @@ void Editor::resizeEvent(QResizeEvent *event)
 bool Editor::eventFilter(QObject *watched, QEvent *event)
 {
     // **A picture dropped on the strip is placed where it was dropped, at its own size.** Dragged out
-    // of TOOL VIEW's preview, or straight from a file manager — both arrive as a file URL, so one handler
-    // serves both and neither needs a tool to be armed.
+    // of the TOOL OPTIONS preview, or straight from a file manager — both arrive as a file URL, so one
+    // handler serves both and neither needs a tool to be armed.
     if (watched == m_view->viewport()
         && (event->type() == QEvent::DragEnter || event->type() == QEvent::DragMove)) {
         auto* de = static_cast<QDragMoveEvent*>(event);

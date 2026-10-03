@@ -601,8 +601,9 @@ TEST(Import, AWrapperNamesItsPicture)
 }
 
 // ---------------------------------------------------------------------------------------------------
-// Which groups a record carries. The rule ③ shows a subject by, and the rule its object menu offers a
-// selection by — written out twice in the panel before it had a name, and the two copies had drifted.
+// Which groups a record carries. The rule OBJECT STATE shows a subject by, and the rule its object menu
+// offers a selection by — written out twice in the panel before it had a name, and the two copies had
+// drifted.
 // ---------------------------------------------------------------------------------------------------
 
 using StripEdit::carriesGroup;

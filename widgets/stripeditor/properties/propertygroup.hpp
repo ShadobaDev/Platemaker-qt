@@ -33,9 +33,9 @@ enum class PropertyGroup { Placement, Size, Compositing, Shape, Skin, Style, Tex
  * roughen, somewhere for a tail to leave from, and a choice of which silhouette it is. `TailItem`
  * belongs to a *tail*, which is not a record, so no record ever carries it.
  *
- * What a surface does with the answer is the surface's: ③ shows a set the **union** of what its objects
- * carry, while the object menu offers only the **intersection**, because an entry that acts on part of
- * a selection is an entry that lied about its subject.
+ * What a surface does with the answer is the surface's: OBJECT STATE shows a set the **union** of what its
+ * objects carry, while the object menu offers only the **intersection**, because an entry that acts on part
+ * of a selection is an entry that lied about its subject.
  */
 [[nodiscard]] inline bool carriesGroup(const Artifact& a, PropertyGroup g)
 {

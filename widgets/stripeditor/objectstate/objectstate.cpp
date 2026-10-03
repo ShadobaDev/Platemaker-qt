@@ -120,7 +120,7 @@ ObjectState::ObjectState(PresetStore& presets, QWidget* parent)
                            "one image pixel per strip pixel — the size it was drawn at."));
     scaleForm->addRow(tr("Size"), m_scale);
     lay->addWidget(m_scaleRow);
-    // Live while it moves, settled when it settles — the contract every control in ③ follows.
+    // Live while it moves, settled when it settles — the contract every control in OBJECT STATE follows.
     connect(m_scale, &QDoubleSpinBox::valueChanged, this, [this](double v) {
         if (!m_populating)
             emit scaleChanged(v);

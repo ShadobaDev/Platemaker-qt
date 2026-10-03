@@ -54,15 +54,15 @@ struct Tool
     /**
      * @brief One sentence: what a press or a drag with this tool does. Untranslated, as above.
      *
-     * **A tool with no options page shows this in TOOL VIEW**, because an empty options panel reads as *nothing
-     * is armed* — which is how a tool gets picked by accident and the artist then looks for the fault
-     * somewhere else entirely. It is also the second half of the rail button's tooltip, so the sentence
+     * **A tool with no options page shows this in TOOL OPTIONS**, because an empty options panel reads as
+     * *nothing is armed* — which is how a tool gets picked by accident and the artist then looks for the
+     * fault somewhere else entirely. It is also the second half of the rail button's tooltip, so the sentence
      * is written once rather than once per place it is read; `toolTooltip()` joins the two.
      */
     const char* hint = nullptr;
     ToolKind kind = ToolKind::Select;   //!< What a press or a drag does to the canvas.
-    //! `Create` only: the shape a placement gets. No value leaves the choice to the shape tiles in TOOL VIEW,
-    //! which is the Bubble tool; `Shape::None` is the Text tool, letters with no balloon.
+    //! `Create` only: the shape a placement gets. No value leaves the choice to the shape tiles in TOOL
+    //! OPTIONS, which is the Bubble tool; `Shape::None` is the Text tool, letters with no balloon.
     std::optional<Artifact::Shape> shape;
     //! Which tool-options page: empty for none, `grade`, `bubble` (what the next balloon or lettering
     //! will be) or `artwork` (which picture the next placement puts down).

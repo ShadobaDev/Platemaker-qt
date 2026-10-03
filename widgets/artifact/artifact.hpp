@@ -282,7 +282,7 @@ struct Artifact
      *
      * Empty for an object we draw ourselves. Non-empty and the drawing is somebody else's: our
      * silhouette, our line style and our tails have nothing to act on, and what is left that we can
-     * still do is put lettering over it (V5b) and decide how big it is drawn.
+     * still do is put lettering over it and decide how big it is drawn.
      *
      * **This is the third kind, and it lives in the same record on purpose.** A second map keyed by the
      * same uid would be a second channel carrying the same object, and the two would drift; a record

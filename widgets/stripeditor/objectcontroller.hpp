@@ -58,6 +58,23 @@ class Object;
  * The strip's scene *is* the strip at 1:1, so an overlay's scene position is its library placement plus
  * its anchor page's top — no coordinate mapping layer, and the preview lands exactly where the render
  * will put it.
+ *
+ * **What lives where** — the .cpp's sections, in order:
+ * - *The constructor* builds the object menu: every entry, its enabling rule and what it calls.
+ * - *Pointer and selection* — what a press lands on (pointerTargetAt(), objectAt()), selecting the
+ *   strip, a page or a tail, and an object's own press and drag.
+ * - *The feed* — setSource() takes the owner's overlays and records; syncItems() turns them into scene
+ *   items, and is **the one place an Object subclass is chosen**.
+ * - *Geometry back out* — a settled move or resize, written as a placement and announced.
+ * - *The object list* — rows, their glyphs (rowGlyph()) and the composite order.
+ * - *Selection, and the properties panel it binds* — selectSubjects() decides what ③ shows.
+ * - *The object menu's actions* — colour, presets, artwork, re-anchor, delete, *Apply from tool
+ *   options ▸*, *Convert to ▸*, blend, stacking, duplicate; each ends in applyRecords() or a signal.
+ * - *Placing a new bubble* — beginPlacement() / updatePlacement() / finishPlacement(): a Create
+ *   tool's drag, and the prototype it places.
+ *
+ * Adding a kind of object reaches syncItems() and every isParametric() / `isArtwork()` decision in
+ * here; adding a shape reaches none of it. See `docs/EXTENDING.md`.
  */
 class ObjectController : public QObject
 {
@@ -151,10 +168,9 @@ public:
      * @brief Whether @p uid is an object **we** author — one whose drawing we generate from a record.
      *
      * **The one place this is decided.** It was `m_artifacts.contains(uid)` written out at eight call
-     * sites, and the review counted that as the missing abstraction behind two shipped bugs (E6a,
-     * E6a.1): a default balloon loaded into the panel for a piece of imported artwork, and that default
-     * then stored back over the artwork. A third had survived until this refactor — see the panel
-     * binding in updateActionStates().
+     * sites, and that was the missing abstraction behind two shipped bugs: a default balloon loaded into
+     * the panel for a piece of imported artwork, and that default then stored back over the artwork. A
+     * third had survived until this refactor — see the panel binding in updateActionStates().
      *
      * False therefore means *imported artwork*: a picture somebody else drew, which we place, move,
      * mute, re-anchor and render, but cannot re-type.
@@ -239,7 +255,7 @@ public:
     /**
      * @brief Where the menu's colour entries read from — the tool column's pair. Never written to.
      *
-     * The pair is furniture (§5.2): the tools that spend it hold a reference rather than a colour of
+     * The pair is furniture, not a tool: the tools that spend it hold a reference rather than a colour of
      * their own, and so does this menu. Without one, the two colour entries stay hidden.
      * 
      * @param pair  The source of the menu's colour entries.
@@ -261,7 +277,7 @@ public:
     /**
      * @brief Copies one property group from the tool's options onto every selected object.
      *
-     * This is where the *style applicator* went (§23.8). As a rail tool it would have to carry a current
+     * This is where the *style applicator* went. As a rail tool it would have to carry a current
      * style, which a stateless tool may not; as a menu entry it carries nothing — the value is whatever
      * TOOL VIEW is set to, which is the panel that already holds "what the next object will be".
      */
@@ -547,11 +563,11 @@ private:
      * There were three: one for a single balloon, one for several, and one for a picture. They differed
      * in a `qobject_cast` and in what the history step was called, and the two that only accepted a
      * balloon dropped a picture silently — so the bucket, applied to a balloon and a lettered picture
-     * together, coloured one of them and told the panel it had coloured both (REPORT-D2 §4.3).
+     * together, coloured one of them and told the panel it had coloured both.
      *
      * **Pairing is stated, not inferred.** The old multi-object path matched its list to
      * `m_selectedOverlays` by position and refused when the two lengths disagreed, which is what made a
-     * mixed selection uneditable (V4b). Here the caller says which object each record is for.
+     * mixed selection uneditable. Here the caller says which object each record is for.
      *
      * @param uids     The uids of the objects to apply the records to.
      * @param records  The records to apply to the objects.
@@ -599,7 +615,7 @@ private:
      * would be this menu doing the shape picker's job on an object the artist only had along for the
      * ride. Changing *which* balloon a selection wears is `applyGroupToSelection(PropertyGroup::Shape)`.
      *
-     * Passing through includes keeping its place in the stack, which nothing here reorders (Q46), so
+     * Passing through includes keeping its place in the stack, which nothing here reorders, so
      * converting a mixed set is not two acts: select two texts and a balloon, convert to Balloon, and
      * the balloon is simply not in the diff.
      *

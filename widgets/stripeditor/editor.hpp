@@ -91,6 +91,21 @@ class ObjectController;
  *  - **Sharp tier:** the page is built through the real page domain on a worker thread, only for pages
  *    in view plus a prefetch margin, and kept in a memory-capped LRU cache. Off-screen pages are
  *    evicted, so RAM tracks the viewport, not the chapter length.
+ *
+ * ## What lives where
+ * The editor is the shell: the canvas, the tools and the panels around them. The rest is delegated:
+ *  - **ObjectController** — everything placed on the strip: objects, the object list, selection, the
+ *    object menu, placement. Its header has a map of its own.
+ *  - **PageSource** — the page memory above (proxy, sharp, graded).
+ *  - **toolregistry** — the rail as a table; **panels/** — the surfaces (tool options, object and strip
+ *    state, grade); **properties/** — one editor per property group, placed by those panels.
+ *
+ * In the .cpp, in order: the **constructor** builds the rail from tools(), registers each tool-options
+ * page under the key a tool row names (a page nobody registered asserts), and wires the panels;
+ * **setTool()** applies a row — drag mode, cursor, options page; then the grade, the scene and its
+ * seams, **lazy page build**, **zoom**, and **eventFilter()**, which routes a press by the active
+ * tool's `ToolKind` (place, sample, apply, or the canvas's own select and drag). Extending any of it:
+ * `docs/EXTENDING.md`.
  */
 class Editor : public QWidget
 {

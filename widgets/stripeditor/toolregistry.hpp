@@ -73,7 +73,8 @@ struct Tool
     CursorStyle cursorOnObject = CursorStyle::Inherit;
 };
 
-//! Every tool the rail offers, in rail order. **Adding a tool is one row here and nothing else.**
+//! Every tool the rail offers, in rail order. **A tool that reuses an existing ToolKind and options page
+//! is one row here and nothing else**; a new page or kind reaches the Editor too (docs/EXTENDING.md).
 [[nodiscard]] const QList<Tool>& tools();
 
 //! What to call the tool, translated.

@@ -29,7 +29,7 @@ namespace StripEdit {
  * undoable. An adjustment the grade applies is shown in bold.
  *
  * **What it applies to is the selection**, and today that can only be the strip: the library holds one
- * grade per chapter, and a page's only colour decision is whether that grade skips it (Q65). With anything
+ * grade per chapter, and a page's only colour decision is whether that grade skips it. With anything
  * else selected the panel stays visible, says why it cannot act, and offers the way to the strip — a tool
  * that silently does nothing is worse than one that explains itself.
  *

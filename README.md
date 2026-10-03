@@ -100,7 +100,7 @@ don't have to trust a hash *we* published.
 | CMake | 3.25+ | Presets format v6 |
 | MSVC 2022 or MinGW (MSYS2) | — | Windows |
 | GCC / Clang | — | Linux |
-| libplatemaker | 0.5.0+ | See **Linking libplatemaker** below |
+| libplatemaker | `LIBPLATEMAKER_VERSION` in `CMakeLists.txt` | See **Linking libplatemaker** below |
 
 ---
 
@@ -120,7 +120,7 @@ cmake --build .\build\Desktop_Qt_6_11_1_MinGW_64_bit-Debug\ --target installer
 1. **`LIBPLATEMAKER_DIR` cache variable** (preferred during development)
 2. System `find_package` / `CMAKE_PREFIX_PATH`
 3. Automatic download from GitHub Releases (version pinned by `LIBPLATEMAKER_VERSION`
-   in `CMakeLists.txt`, currently 0.2.1)
+   in `CMakeLists.txt` — the one place the required version is stated)
 
 **Setting `LIBPLATEMAKER_DIR` in Qt Creator:**
 
@@ -129,7 +129,7 @@ cmake --build .\build\Desktop_Qt_6_11_1_MinGW_64_bit-Debug\ --target installer
 3. Name: `LIBPLATEMAKER_DIR`  
    Value: path to the dev package, e.g.
    ```
-   D:/Users/Shadoba/Dev/PlateMaker/install/windows-msvc
+   D:/Users/Shadoba/Dev/PlateMaker/install/msvc-release
    ```
 4. Click **Apply Configuration Changes** → **Build**
 
@@ -139,10 +139,10 @@ The value is cached in `build/.../CMakeCache.txt` and survives reconfigures.
 
 ```powershell
 # In the PlateMaker repository
-cmake --preset windows-msvc
-cmake --build --preset windows-msvc
-cmake --install build/windows-msvc --config Release
-# → install/windows-msvc/  (use this path as LIBPLATEMAKER_DIR)
+cmake --preset msvc-release
+cmake --build --preset msvc-release
+cmake --install build/msvc-release --config Release
+# → install/msvc-release/  (use this path as LIBPLATEMAKER_DIR)
 ```
 
 ### Windows: runtime DLLs
@@ -158,9 +158,8 @@ run from Qt Creator or the build directory.
 ### Branching
 
 ```
-main          — stable, matches latest release tag
-dev           — active development (default target for feature branches)
-feature/<name>
+main          — development; every release is a tag on it
+feature/<name> — short-lived, merged into main
 fix/<name>
 ```
 
@@ -193,34 +192,31 @@ When libplatemaker changes its public API (new model fields, renamed methods):
 Platemaker/
 ├── CMakeLists.txt
 ├── Platemaker.iss                 — Inno Setup installer script
-├── app.rc                         — Windows app manifest / icon binding
-├── app/
-│   └── main.cpp
-├── mainwindow/                    — application shell (MDI + docks)
-│   ├── mainwindow.h / .cpp
-│   ├── workspace.cpp
-│   ├── projects.cpp
-│   ├── render.cpp
-│   ├── profiles.cpp
-│   └── templates.cpp
-├── widgets/
-│   ├── project/                   — per-chapter image tile grid
-│   │   ├── project.h / .cpp
-│   │   ├── input.cpp
-│   │   └── output.cpp
-│   ├── imagetile/                 — single source image card
-│   ├── canvasprofiledialog/
-│   ├── managecanvasprofilesdialog/
-│   ├── manageoutputprofilesdialog/
-│   ├── outputprofiledialog/
-│   ├── outputformatoptionswidget/
-│   ├── renderworker/
-│   └── templatesdialog/
-│                                    (each folder holds its own .cpp/.h/.ui together)
-├── icons/                         — .ico + source .png files (16–256 px)
+├── app/                           — main.cpp, resources.qrc, app.rc (manifest, icon, version)
+├── mainwindow/                    — the application shell, one .cpp per concern
+│                                    (workspace, projects, render, profiles, templates,
+│                                     fonts, package, advisories, about)
+├── widgets/                       — one folder per widget, its .cpp/.hpp/.ui together
+│   ├── project/                   — a chapter: inputs, outputs and its undo history
+│   ├── stripeditor/               — the strip editor (see docs/EXTENDING.md)
+│   │   ├── (root)                 — the editor shell, objects, the object controller,
+│   │   │                            the tool registry, page memory
+│   │   ├── panels/                — tool options, object and strip state, grade
+│   │   └── properties/            — one editor per property group
+│   ├── artifact/                  — what a balloon is, how it is drawn, how it is saved
+│   ├── workspacefolder/           — the workspace folder: lock, fonts, layout
+│   ├── renderworker/              — the background render
+│   ├── advisories/, badge/, …     — shared widgets
+│   └── …dialog/                   — the profile, template and about dialogs
+├── tests/gui-unit-tests/          — GoogleTest, the property model (PLATEMAKER_GUI_BUILD_TESTS)
+├── icons/                         — app icons; tools/ and menu/ hold the SVG glyphs
+├── cmake/, scripts/               — installer and portable-package builds
+├── sbom/                          — the dependency manifest
 └── docs/
-    ├── SPECIFICATION.md           — GUI feature specification
-    └── TODO.md                    — implementation checklist
+    ├── SPECIFICATION.md           — what the GUI does, as it is now
+    ├── EXTENDING.md               — how to add a tool, a shape or a kind of object
+    ├── CHANGELOG.md               — release to release
+    └── TODO.md                    — the roadmap
 ```
 
 ---
@@ -254,5 +250,5 @@ projects are routinely flagged by ML heuristics without anything actually being 
 
 ## Contributing
 
-Contributions are welcome. By opening a pull request you agree to the **[Contributor License Agreement](CLA.md)**
+Contributions are welcome — open an issue first for anything significant. To extend the strip editor, start with **[docs/EXTENDING.md](docs/EXTENDING.md)**; the wiki's [Development](https://github.com/ShadobaDev/Platemaker-qt/wiki/Development) pages explain how the rest is put together. By opening a pull request you agree to the **[Contributor License Agreement](CLA.md)**
 and the **[Code of Conduct](CODE_OF_CONDUCT.md)**.

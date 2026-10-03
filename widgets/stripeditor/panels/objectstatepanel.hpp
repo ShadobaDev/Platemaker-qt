@@ -83,7 +83,7 @@ public:
      * @brief Names a selection of @p count things of **different kinds** — objects and tails together.
      *
      * The union of their roles is *position*, and position is not edited here: it is edited by dragging.
-     * So the panel says how many things are selected and offers nothing else, which §6.4 calls a
+     * So the panel says how many things are selected and offers nothing else, which is a
      * legitimate state — "these things have nothing in common but where they are". Delete still acts on
      * all of them.
      *

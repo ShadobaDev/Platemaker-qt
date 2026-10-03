@@ -202,7 +202,8 @@ ObjectController::ObjectController(QGraphicsScene* scene, QGraphicsView* view, Q
     // all. *Which* silhouette is a property, edited in ③ and applied to a set from *Apply from tool
     // options ▸*; it has no business in a menu about kinds. Two entries, therefore, not ten.
     //
-    // The intersection Q32 asks for is either both or neither: every authored object can become either
+    // A menu offers only what applies to every selected object, and here that intersection is either
+    // both or neither: every authored object can become either
     // kind, and something that is not an authored object — imported artwork, or a tail — can become
     // nothing, which is what greys the menu.
     m_convertMenu = new QMenu(tr("Convert to"), dialogParent);
@@ -367,6 +368,8 @@ ObjectController::ObjectController(QGraphicsScene* scene, QGraphicsView* view, Q
         selectOverlays(picked);
     });
 }
+
+// --- pointer and selection --------------------------------------------------
 
 PointerTarget ObjectController::pointerTargetAt(const QPointF&     scenePos,
                                                 const QTransform& deviceTransform) const
@@ -558,6 +561,8 @@ QTreeWidgetItem* ObjectController::subjectRow() const
     }
     return nullptr;
 }
+
+// --- the feed: records in, scene items out ----------------------------------
 
 void ObjectController::setExcludedPages(const QSet<QString>& inputUids)
 {
@@ -791,6 +796,8 @@ ArtifactMap ObjectController::currentArtifacts() const
     return out;
 }
 
+// --- geometry back out ------------------------------------------------------
+
 void ObjectController::writePlacement(const QString& uid)
 {
     Object* item = m_overlayItems.value(uid);
@@ -866,6 +873,8 @@ QString ObjectController::pictureFor(const Platemaker::Models::StripOverlay& o) 
     // words would show them twice. The record names the picture; it sits beside the wrapper.
     return QFileInfo(asset).absolutePath() + QLatin1Char('/') + r.artwork;
 }
+
+// --- the object list --------------------------------------------------------
 
 QIcon ObjectController::rowGlyph(const QString& uid)
 {
@@ -1033,7 +1042,7 @@ void ObjectController::refreshList()
 
     // The strip, pinned last — under every object, because it is what they all sit on. It is not an
     // overlay: nothing can drag it, nothing can be dropped on it, and it has no mute, because a strip
-    // that could be hidden would no longer show what renders (Q62). Absent until there is a layout.
+    // that could be hidden would no longer show what renders. Absent until there is a layout.
     // Rows for overlays that are gone go *before* the strip is placed. Left in until the end they would
     // still occupy positions above it, and the strip would be moved — taken and re-inserted — on every
     // deletion, when all that had changed was a row above it disappearing.
@@ -1095,6 +1104,8 @@ void ObjectController::refreshList()
 }
 
 
+
+// --- selection, and the properties panel it binds ---------------------------
 
 void ObjectController::selectOverlay(const QString& uid)
 {
@@ -1203,7 +1214,7 @@ void ObjectController::selectSubjects(const QStringList& uids, const QList<TailR
     // it, and nothing to re-type. A balloon's menu is a balloon's.
     //
     // **Every** selected object has to be able to take it, not merely one of them — the same
-    // intersection rule *Convert to ▸* follows (Q32). Offering *Fill with primary colour* for a
+    // intersection rule *Convert to ▸* follows. Offering *Fill with primary colour* for a
     // selection of a balloon and a picture would be offering to do it to both, and it would quietly
     // do it to one: a menu that acts on part of what is selected is a menu that lied about its
     // subject.
@@ -1248,8 +1259,8 @@ void ObjectController::selectSubjects(const QStringList& uids, const QList<TailR
             m_objectState->setArtifact(recordFor(m_selectedOverlay));
         } else {
             // **Whatever kinds are in it.** This used to refuse any set containing a picture, on the
-            // grounds that a picture and a balloon had nothing in common — true until V5 gave a picture
-            // lettering of its own, and false since. The panel already sorts records into roles: skin
+            // grounds that a picture and a balloon had nothing in common — true until a picture could be
+            // lettered too, and false since. The panel already sorts records into roles: skin
             // and line style are bound to the objects with a silhouette and written back only to those
             // (see onControlChanged), and the lettering to all of them. So the union is what shows, and
             // the write path takes whichever kind each object is.
@@ -1279,6 +1290,8 @@ void ObjectController::selectSubjects(const QStringList& uids, const QList<TailR
 
 
 
+
+// --- the object menu's actions ----------------------------------------------
 
 void ObjectController::rebuildPresetMenu()
 {
@@ -1374,7 +1387,7 @@ void ObjectController::applyRecords(const QStringList& uids, const QList<Artifac
         return;   // a caller answering about objects it no longer has; writing half of it is worse
 
     // **Whichever kind the object is.** This loop used to reach for a BubbleObject and skip whatever
-    // was not one, which since V5 meant dropping a picture's lettering without saying so.
+    // was not one, which, once pictures could be lettered, meant dropping their lettering without saying so.
     for (int i = 0; i < uids.size(); ++i) {
         if (Object* item = m_overlayItems.value(uids.at(i)))
             item->setArtifact(records.at(i));   // itself a no-op when the record has not moved

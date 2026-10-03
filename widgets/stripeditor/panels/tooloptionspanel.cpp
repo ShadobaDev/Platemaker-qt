@@ -152,7 +152,7 @@ void ToolOptionsPanel::onControlChanged()
     if (m_populating)
         return;
     m_groups.collect(m_artifact, m_tails);
-    refreshLook();   // one changed property and it is no longer that preset (Q40)
+    refreshLook();   // one changed property and it is no longer that preset
     // Nothing is emitted: these values describe an object that does not exist yet, so there is nothing
     // to preview and nothing to persist until one is placed.
 }

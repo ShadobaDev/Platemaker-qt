@@ -357,8 +357,8 @@ Editor::Editor(PresetStore& presets, QWidget *parent)
                          ui->toolOptions->addWidget(scrolled(m_toolOptions, ui->toolOptions)));
 
         // The other create tool's options: which picture the next placement puts down. A separate panel
-        // rather than a section of the one above, because they describe different kinds of object — the
-        // arrangement §26 exists to keep straight.
+        // rather than a section of the one above, because they describe different kinds of object, and an
+        // options page describes one kind at a time.
         m_artworkOptions = new ArtworkOptionsPanel(ui->toolOptions);
         pageIndex.insert(k_artworkPage,
                          ui->toolOptions->addWidget(scrolled(m_artworkOptions, ui->toolOptions)));

@@ -298,11 +298,12 @@ how it ended up a sliver).
   than by the view, because Qt's hand-drag is the left button's. A tool decides what a *placement* creates; selecting, moving and resizing what is
   already there is available under every one of them (§2.5.4).
 - **The rail is built from a table, and a tool is a record.** `StripEdit::tools()` holds one `Tool` per
-  rail entry — id, icon, tooltip, `ToolKind` (`Select`, `Create`, `Grade`), the shape a `Create` tool
+  rail entry — id, icon, tooltip, `ToolKind` (`Select`, `Pan`, `Create`, `Grade`, `Sample`, `Apply`), the shape a `Create` tool
   places, and which options page it shows — and the rail, the options stack, the drag mode and the cursor
-  are all read off it. **Adding a tool is a row there and nothing else.** A tool is stateless, so it needs
+  are all read off it. **A tool that reuses an existing `ToolKind` and options page is a row there and
+  nothing else**; a new options page or `ToolKind` reaches the editor itself (`docs/EXTENDING.md`). A tool is stateless, so it needs
   no object and no class per button; the record gains a hook the day a tool needs behaviour of its own.
-  - A `Create` tool that fixes its shape (Text places none, Caption places a caption) says so in its row,
+  - A `Create` tool that fixes its shape (Text places none) says so in its row,
     and `ToolOptionsPanel::prototype()` applies it over the artist's pick without disturbing it — which
     is why switching Text → Bubble brings back the shape chosen before. It replaced two gates that each
     existed to say *this tool makes a shapeless object*, one in the panel and one in `ObjectController`,
@@ -420,7 +421,7 @@ valid baseline for every grade tried on it. Excluded pages are skipped, matching
 #### 2.5.4 Text & bubbles (Bubble / Text tools)
 
 - **One object, two tools.** A bubble is an `Artifact` (`widgets/artifact/`): shape, box, tails,
-  text, font, colours, line style. The Text tool is the same object with `shape == None`. Ten shapes;
+  text, font, colours, line style. The Text tool is the same object with `shape == None`. Nine silhouettes (`shapeOrder()`), plus `None`;
   each brings the rectangle its text may occupy (`textSafeArea()`), which is the half that takes the
   thought — a path is a few lines, knowing where words fit inside it is what stops them crossing a
   stroke.

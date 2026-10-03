@@ -445,7 +445,7 @@ void ObjectStatePanel::onControlChanged()
         m_subject->setText(m_artifact.hasSilhouette() ? tr("Bubble") : tr("Text"));
     }
 
-    // One changed property and it is no longer that preset (Q40). Computed, so it flips back by itself
+    // One changed property and it is no longer that preset. Computed, so it flips back by itself
     // if the artist edits the value to an exact match again.
     refreshLook();
 

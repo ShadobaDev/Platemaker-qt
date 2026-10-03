@@ -331,6 +331,27 @@ New, backward-compatible features. Several are gated on a lib version, noted in 
   - The package itself could get its own extension and association the same way (Ableton's `.alp` model) —
     smaller, and independent of the rest.
 
+- [ ] **Shape registry: lands with the first shape that has parameters.** Today a shape is an enum value
+  plus a case in seven places (`shapeName`, `shapeTitle`, `shapeOrder`, `shapeFromName`,
+  `artifactSilhouette`, `textSafeArea`, `artifactLabel`). The plan is the tool rail's own pattern one level
+  down: a `ShapeDescriptor` table (persisted name, title, `outline(body, Artifact)`, `textSafeArea(body,
+  Artifact)`, a parameter list that `ShapeEditor` builds its controls from), with one file per shape under
+  `widgets/artifact/shapes/`. Adding a shape then means copying one file and adding one row, which is
+  [EXTENDING](EXTENDING.md)'s recipe made literal.
+  - **Trigger:** the first field in `ShapeProperties` beyond `kind` (e.g. a *Scribble* balloon's amplitude
+    and lobes). Before that, the table replaces seven working switches for no new capability.
+  - **The move first, the shape on top:** the golden render, overlay SVGs and shape tiles byte-identical
+    before and after the move, then the new shape as its own step.
+  - **Seeds:** a noisy outline reads `styleSeed` (hence `outline` takes the `Artifact`), never a seed of its
+    own, so a preset cannot copy a wobble. The shape that needs it brings a **Re-roll** action (one undo
+    step) on the object menu.
+  - Optionally in the same step: a tool row names its options page through a factory, so `Editor`'s
+    constructor stops listing the panels by hand.
+  - **Later idea, not planned:** shapes loaded from a file (a parameterised SVG path, or a script) are
+    the same table with rows read at run time. The library needs nothing, since it composites the
+    finished SVG. A package would have to carry such a file, as it carries `fonts/`. Plugins as DLLs:
+    no, since a stable binary interface is not worth keeping.
+
 - [x] **Export / open a workspace package.** One zip with the workspace, `overlays/`, `templates/`,
   `inputs/` and `fonts/` (everything in `fonts/` plus the installed fonts the bubbles name; the
   platform's default font is not packed). Every path is

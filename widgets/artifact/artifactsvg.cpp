@@ -464,8 +464,9 @@ QString pictureMime(const QString& file)
 QString writeArtifactSvg(const QString& overlaysDir, const Artifact& a, const QString& reusePath)
 {
     // **A picture with nothing written on it is its own file.** There is nothing of ours to draw, so
-    // generating one would be drawing our geometry over somebody's artwork — the E6a.1 mistake, in the
-    // one place that could still make it. Its overlay points straight at the imported picture.
+    // generating one would be drawing our geometry over somebody's artwork — the mistake that once
+    // stored a default balloon over an imported picture, in the one place that could still make it.
+    // Its overlay points straight at the imported picture.
     if (a.isArtwork()) {
         const QString picture = overlaysDir + QLatin1Char('/') + a.artwork;
         if (a.text.body.isEmpty())

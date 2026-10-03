@@ -202,7 +202,7 @@ signals:
      * @brief A move / resize / handle drag has settled — the owner reads pos() and the object and persists it.
      * @param uid The unique identifier of the object.
      */
-    void geometryEdited(const QString& uid);
+    void geometryCommitted(const QString& uid);
 
     /**
      * @brief The object was pressed — on handle @p handle, or on anything else when it is -1.

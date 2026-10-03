@@ -236,7 +236,7 @@ signals:
      *        @p undoText. Named here, where it is known what was done — an adjustment moved, reset or removed, a
      *        page excluded — rather than guessed afterwards from a before-and-after that cannot tell them apart.
      */
-    void colourCorrectionEdited(const Platemaker::Models::ColourCorrection& cc, const QString& undoText);
+    void colourCorrectionCommitted(const Platemaker::Models::ColourCorrection& cc, const QString& undoText);
 
     /**
      * @brief A new bubble was drawn — the owner rasterises it and registers it with the library.
@@ -263,7 +263,7 @@ signals:
      * @param artifacts The authoring records for those overlays, keyed by uid.
      * @param undoText The text to label the undo step with.
      */
-    void overlaysEdited(const std::vector<Platemaker::Models::StripOverlay>& overlays,
+    void overlaysCommitted(const std::vector<Platemaker::Models::StripOverlay>& overlays,
                         const ArtifactMap&                                  artifacts,
                         const QString&                                      undoText);
 

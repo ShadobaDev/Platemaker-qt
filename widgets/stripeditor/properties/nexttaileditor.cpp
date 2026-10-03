@@ -33,15 +33,15 @@ NextTailEditor::NextTailEditor(QWidget* parent)
     m_bend->setToolTip(tr("Curves the tail sideways. 0 is straight."));
     form->addRow(tr("Tail bend:"), m_bend);
 
-    const auto changed = [this] {
+    const auto controlMoved = [this] {
         if (m_populating)
             return;
         syncEnabled();
-        emit edited();
+        emit changed();
     };
-    connect(m_enabled, &QCheckBox::toggled,     this, changed);
-    connect(m_width,   &QSpinBox::valueChanged, this, changed);
-    connect(m_bend,    &QSpinBox::valueChanged, this, changed);
+    connect(m_enabled, &QCheckBox::toggled,     this, controlMoved);
+    connect(m_width,   &QSpinBox::valueChanged, this, controlMoved);
+    connect(m_bend,    &QSpinBox::valueChanged, this, controlMoved);
 
     syncEnabled();
 }

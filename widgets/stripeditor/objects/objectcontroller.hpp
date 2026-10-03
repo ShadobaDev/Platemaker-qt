@@ -212,7 +212,7 @@ public:
     /**
      * @brief Every object's record, as the owner should store it — **built from the objects**.
      *
-     * What goes out on overlaysEdited(). Derived rather than maintained: the map used to be written by
+     * What goes out on overlaysCommitted(). Derived rather than maintained: the map used to be written by
      * hand at ten sites beside the object that had just been given the same record, and a write path
      * that updated one of the two left the other describing something that is not on screen.
      * 
@@ -444,7 +444,7 @@ signals:
      * @param artifacts  The new records for the overlays, keyed by uid.
      * @param undoText  The text to use for the undo step that will be created
      */
-    void overlaysEdited(const std::vector<Platemaker::Models::StripOverlay>& overlays,
+    void overlaysCommitted(const std::vector<Platemaker::Models::StripOverlay>& overlays,
                         const ArtifactMap& artifacts, const QString& undoText);
     /**
      * @brief Artwork drawn elsewhere should be copied into the workspace and registered here.
@@ -478,7 +478,7 @@ signals:
      */
     void noted(const QString& text);
 private:
-    void onOverlayGeometryEdited(const QString& uid); //!< An item settled a move/resize/tail drag.
+    void onOverlayGeometryCommitted(const QString& uid); //!< An item settled a move/resize/tail drag.
     void writePlacement(const QString& uid); //<! Writes where object @p uid now stands back into its record — placement, width and anchor page.
     void onObjectPressed(const QString& uid, int handle); //!< A press on a tail's handle selects that tail.
     void onObjectDragged(const QString& uid, const QPointF& delta, int handle); //<! An object reports a live drag; the selection decides what else travels with it.
@@ -556,7 +556,7 @@ private:
     /**
      * @brief Live edit from the panel -> item (+persist, as a step named @p undoText or for the subject).
      */
-    void pushOverlays(const QString& undoText); //!< Emits overlaysEdited() with the current state.
+    void pushOverlays(const QString& undoText); //!< Emits overlaysCommitted() with the current state.
     /**
      * @brief Writes @p records onto the objects @p uids names — **the one write path**.
      *

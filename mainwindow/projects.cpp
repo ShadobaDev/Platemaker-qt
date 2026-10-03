@@ -568,7 +568,7 @@ void MainWindow::openStripEditorDock(int projectIndex)
     });
     // A settled grade edit → persist it onto the project as one undo step, named by the editor, which
     // knows what was done (undoable, via the Project dock).
-    connect(editor, &StripEdit::Editor::colourCorrectionEdited, this,
+    connect(editor, &StripEdit::Editor::colourCorrectionCommitted, this,
             [this, projectIndex](const Platemaker::Models::ColourCorrection &cc, const QString &undoText) {
         if (auto *pw = projectWidget(projectIndex))
             pw->applyColourCorrection(cc, undoText);
@@ -591,7 +591,7 @@ void MainWindow::openStripEditorDock(int projectIndex)
         if (auto *pw = projectWidget(projectIndex))
             pw->importOverlayArtwork(file, xFrac, yFrac, wFrac, naturalSize, anchorUid);
     });
-    connect(editor, &StripEdit::Editor::overlaysEdited, this,
+    connect(editor, &StripEdit::Editor::overlaysCommitted, this,
             [this, projectIndex](const std::vector<Platemaker::Models::StripOverlay> &overlays,
                                  const ArtifactMap &artifacts, const QString &undoText) {
         if (auto *pw = projectWidget(projectIndex))

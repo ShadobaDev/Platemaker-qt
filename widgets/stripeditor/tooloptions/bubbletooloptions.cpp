@@ -87,12 +87,12 @@ BubbleToolOptions::BubbleToolOptions(PresetStore& presets, QWidget* parent)
     // The one cross-group rule, connected first so it runs first: picking a shape gives you the shape
     // its tile shows, tail and all, and the tails editor has to hear about it before the change is
     // collected. Qt runs slots in connection order, which is the whole reason this line is up here.
-    connect(m_groups.shape(), &ShapeEditor::edited, this, [this] {
+    connect(m_groups.shape(), &ShapeEditor::changed, this, [this] {
         m_tails->shapeChanged(m_groups.shape()->values().kind);
     });
     for (PropertyGroupEditor* e : m_groups.all())
-        connect(e, &PropertyGroupEditor::edited, this, [this] { onControlChanged(); });
-    connect(m_tails, &PropertyGroupEditor::edited, this, [this] { onControlChanged(); });
+        connect(e, &PropertyGroupEditor::changed, this, [this] { onControlChanged(); });
+    connect(m_tails, &PropertyGroupEditor::changed, this, [this] { onControlChanged(); });
 
     // activated(), not currentIndexChanged(): only a human picking an entry applies a preset, so
     // rebuilding the list never restyles anything, and re-picking the current entry re-applies it.

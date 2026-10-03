@@ -361,7 +361,7 @@ void Object::mouseReleaseEvent(QGraphicsSceneMouseEvent* e)
     // per mouse-move would bury the history under a pixel-by-pixel trail.
     if (!report)
         return;
-    emit geometryEdited(m_uid);
+    emit geometryCommitted(m_uid);
 }
 
 }  // namespace StripEdit

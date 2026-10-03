@@ -37,7 +37,7 @@ TailListEditor::TailListEditor(QWidget* parent)
         }
         m_values.items.append(t);
         refresh();
-        emit edited();
+        emit changed();
     });
 
     refresh();

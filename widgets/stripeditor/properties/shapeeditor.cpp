@@ -103,7 +103,7 @@ ShapeEditor::ShapeEditor(QWidget* parent)
 
     connect(m_tiles, &QButtonGroup::idClicked, this, [this](int id) {
         m_values.kind = static_cast<Artifact::Shape>(id);
-        emit edited();
+        emit changed();
     });
 }
 

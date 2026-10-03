@@ -37,7 +37,7 @@ SkinEditor::SkinEditor(QWidget* parent)
             m_mixedWidth = false;   // they have taken a position, so the sentinel goes
         m_values.strokeWidth = v;
         m_widthTouched       = true;
-        emit edited();
+        emit changed();
     });
     connect(m_fillSwatch, &QPushButton::clicked, this, [this] {
         if (pickColour(m_values.fill, m_fillSwatch)) {
@@ -117,7 +117,7 @@ bool SkinEditor::pickColour(QColor& target, QPushButton* swatch)
         return false;
     target = picked;
     paintColourSwatch(swatch, picked);
-    emit edited();
+    emit changed();
     emit committed();   // a dialog choice is discrete — commit it without waiting on a timer
     return true;
 }

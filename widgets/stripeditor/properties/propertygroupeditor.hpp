@@ -58,7 +58,7 @@ inline constexpr int k_tailBendPercent = 100;   //!< A tail bends ±this, as a p
  * carried an enum naming its own seat, and the visible result was two panels showing the same
  * controls a few hundred pixels apart.
  *
- * Two signals, following the contract both existing panels already use: \c edited() continuously,
+ * Two signals, following the contract both existing panels already use: \c changed() continuously,
  * for the live preview, and \c committed() once for a settled edit, which is one undo step.
  */
 class PropertyGroupEditor : public QWidget
@@ -99,7 +99,7 @@ public:
     virtual void applyEditedTo(Artifact& target) const { applyTo(target); }
 
 signals:
-    void edited();     //!< A control moved — live preview, no history step.
+    void changed();     //!< A control moved — live preview, no history step.
     void committed();  //!< The edit settled, or a dialog returned — one history step.
 };
 

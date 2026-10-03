@@ -343,7 +343,7 @@ Editor::Editor(PresetStore& presets, QWidget *parent)
         });
         connect(m_gradeOptions, &GradeToolOptions::committed, this,
                 [this](const Platemaker::Models::ColourCorrection& cc, const QString& undoText) {
-            emit colourCorrectionEdited(cc, undoText);   // settled: the owner persists it, one undo step
+            emit colourCorrectionCommitted(cc, undoText);   // settled: the owner persists it, one undo step
         });
         // The panel can only act on the strip; asked for it, it gets it.
         connect(m_gradeOptions, &GradeToolOptions::selectStripRequested, this, [this] {
@@ -438,7 +438,7 @@ Editor::Editor(PresetStore& presets, QWidget *parent)
                 skipped.erase(it);
             // The owner persists it as one undo step and feeds it back, which is what updates the preview,
             // the page's row and this panel — the same round trip every grade edit takes.
-            emit colourCorrectionEdited(cc, excluded ? tr("Exclude page from colour correction")
+            emit colourCorrectionCommitted(cc, excluded ? tr("Exclude page from colour correction")
                                                      : tr("Include page in colour correction"));
         });
         // An adjustment listed on the strip: reopened in the Grade tool, or taken off the strip.
@@ -447,7 +447,7 @@ Editor::Editor(PresetStore& presets, QWidget *parent)
             m_gradeOptions->openAdjustment(a);
         });
         connect(m_stripState, &StripState::adjustmentRemoveRequested, this, [this](ColourAdjustment a) {
-            emit colourCorrectionEdited(withoutColourAdjustment(m_cc, a),
+            emit colourCorrectionCommitted(withoutColourAdjustment(m_cc, a),
                                         tr("Remove %1").arg(colourAdjustmentName(a)));
         });
 
@@ -458,7 +458,7 @@ Editor::Editor(PresetStore& presets, QWidget *parent)
         // The object's menu spends the same pair the bucket does — it reads it, never writes it.
         m_objects->setColourSource(m_colours);
         connect(m_objects, &ObjectController::artifactCreated,        this, &Editor::artifactCreated);
-        connect(m_objects, &ObjectController::overlaysEdited,         this, &Editor::overlaysEdited);
+        connect(m_objects, &ObjectController::overlaysCommitted,         this, &Editor::overlaysCommitted);
         connect(m_objects, &ObjectController::artworkImportRequested, this, &Editor::artworkImportRequested);
         connect(m_objects, &ObjectController::subjectChanged,         this, [this] { showSubject(); });
         connect(m_objects, &ObjectController::noted,                  this, &Editor::noted);

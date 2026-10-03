@@ -734,7 +734,7 @@ void ObjectController::syncItems()
             item = parametric
                 ? static_cast<Object*>(new BubbleObject(uid, m_feedRecords.value(uid)))
                 : static_cast<Object*>(new ArtworkObject(uid, pictureFor(o)));
-            connect(item, &Object::geometryEdited, this, &ObjectController::onOverlayGeometryEdited);
+            connect(item, &Object::geometryCommitted, this, &ObjectController::onOverlayGeometryCommitted);
             connect(item, &Object::pressed,        this, &ObjectController::onObjectPressed);
             connect(item, &Object::dragging,       this, &ObjectController::onObjectDragged);
             m_scene->addItem(item);
@@ -829,7 +829,7 @@ void ObjectController::writePlacement(const QString& uid)
     }
 }
 
-void ObjectController::onOverlayGeometryEdited(const QString& uid)
+void ObjectController::onOverlayGeometryCommitted(const QString& uid)
 {
     Object* item = m_overlayItems.value(uid);
     if (!item)
@@ -2017,7 +2017,7 @@ void ObjectController::duplicateSelectedOverlay()
 
 void ObjectController::pushOverlays(const QString& undoText)
 {
-    emit overlaysEdited(m_overlays, currentArtifacts(), undoText);
+    emit overlaysCommitted(m_overlays, currentArtifacts(), undoText);
 }
 
 // --- placing a new bubble ---------------------------------------------------

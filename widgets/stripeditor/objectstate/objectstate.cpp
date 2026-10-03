@@ -161,7 +161,7 @@ ObjectState::ObjectState(PresetStore& presets, QWidget* parent)
     // A group editor reports the same two things whatever it edits, so every editor maps onto the two
     // signals this panel emits, once.
     for (PropertyGroupEditor* e : editors) {
-        connect(e, &PropertyGroupEditor::edited,    this, [this] { onControlChanged(); });
+        connect(e, &PropertyGroupEditor::changed,    this, [this] { onControlChanged(); });
         connect(e, &PropertyGroupEditor::committed, this, [this] {
             if (!m_subjects.isEmpty())
                 emit committedMany(m_subjects);
@@ -171,7 +171,7 @@ ObjectState::ObjectState(PresetStore& presets, QWidget* parent)
     }
     // Picking a shape gives you the shape its tile shows, tail and all — connected before the collector
     // above runs, because Qt calls slots in connection order and the tails editor has to hear first.
-    connect(m_groups.shape(), &ShapeEditor::edited, this, [this] {
+    connect(m_groups.shape(), &ShapeEditor::changed, this, [this] {
         m_tailList->shapeChanged(m_groups.shape()->values().kind);
     });
 

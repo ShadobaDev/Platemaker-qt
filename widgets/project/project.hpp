@@ -129,7 +129,7 @@ public:
      * decision and apply again the moment the strip is graded again. There is no separate toggle that could
      * leave a grade parked where the render would not run it.
      *
-     * Called by MainWindow on StripEdit::Editor::colourCorrectionEdited, and by the workflow card.
+     * Called by MainWindow on StripEdit::Editor::colourCorrectionCommitted, and by the workflow card.
      * @param cc The new colour correction to apply.
      * @param undoText The text to display for the undo action.
      */

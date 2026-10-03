@@ -34,7 +34,7 @@ StyleEditor::StyleEditor(QWidget* parent)
         m_kindTouched = true;
         m_mixedKind   = false;
         m_amount->setEnabled(m_values.kind != Artifact::Style::Clean);
-        emit edited();
+        emit changed();
     });
     connect(m_amount, &QSpinBox::valueChanged, this, [this](int v) {
         if (m_populating)
@@ -43,7 +43,7 @@ StyleEditor::StyleEditor(QWidget* parent)
             m_mixedAmount = false;
         m_values.amount = v / 100.0;
         m_amountTouched = true;
-        emit edited();
+        emit changed();
     });
 
     syncFromValues();

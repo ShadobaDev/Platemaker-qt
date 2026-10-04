@@ -1,7 +1,17 @@
 # Platemaker GUI — specification (outline)
 
 This page is the outline. The detail lives in the repository's **wiki**:
-**https://github.com/ShadobaDev/Platemaker-qt/wiki/Development**
+**https://github.com/ShadobaDev/Platemaker-qt/wiki/Development**, checked out here as a git submodule
+at [`docs/wiki/`](wiki/).
+
+```
+git clone --recurse-submodules https://github.com/ShadobaDev/Platemaker-qt.git
+# or, in an existing clone:
+git submodule update --init docs/wiki
+```
+
+The submodule pins one wiki commit. After editing the wiki, push it, then commit the new pin here
+(`git add docs/wiki`) so the two stay in step.
 
 The domain itself (the pipeline, the data models, serialisation, profile matching) is the library's,
 specified in [libplatemaker's wiki](https://github.com/ShadobaDev/PlateMaker/wiki).

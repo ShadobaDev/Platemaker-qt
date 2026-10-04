@@ -167,6 +167,18 @@ target_include_directories(Platemaker PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/widgets/workspacefolder
 )
 
+# The strip editor's layer rules (which region may include which), checked before every build: a
+# violation stops it with file:line. Always out of date on purpose; it reads the sources in well under
+# a second. The rules and their exceptions are in the script.
+set(PLATEMAKER_CHECK_LAYERS
+    ${CMAKE_COMMAND} "-DROOT=${CMAKE_CURRENT_SOURCE_DIR}/widgets/stripeditor"
+                     -P "${CMAKE_CURRENT_SOURCE_DIR}/cmake/check_layers.cmake")
+add_custom_target(check_layers ALL
+    COMMAND ${PLATEMAKER_CHECK_LAYERS}
+    COMMENT "Checking the strip editor's layer rules"
+    VERBATIM)
+add_dependencies(${PROJECT_NAME} check_layers)
+
 # ---------------------------------------------------------------------------
 # Unit tests — off by default, so an ordinary Qt Creator build is unaffected.
 #
@@ -250,6 +262,7 @@ option(PLATEMAKER_GUI_BUILD_TESTS "Build the GUI unit tests (GoogleTest)" OFF)
 if(PLATEMAKER_GUI_BUILD_TESTS)
     enable_testing()
     add_subdirectory(tests/gui-unit-tests)
+    add_test(NAME strip_editor_layers COMMAND ${PLATEMAKER_CHECK_LAYERS})
 endif()
 
 # About-dialog metadata injected as compile definitions — only the two facts this app owns:

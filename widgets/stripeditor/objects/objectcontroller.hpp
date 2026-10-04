@@ -32,7 +32,6 @@ class QWidget;
 
 namespace StripEdit {
 
-class ObjectState;
 class PresetStore;
 class StripLayout;
 class Object;
@@ -108,11 +107,9 @@ public:
      *
      * @param scene        Where the objects are drawn (the editor's canvas scene).
      * @param view         Needed for hit-testing and for "where is the author looking" on import.
-     * @param panel        The selected object's properties — edited, and told what is selected.
      * @param layout       Page geometry, owned by the editor; every placement question is asked of it.
      */
-    ObjectController(QGraphicsScene* scene, QGraphicsView* view,
-                     ObjectState* panel, PresetStore& presets,
+    ObjectController(QGraphicsScene* scene, QGraphicsView* view, PresetStore& presets,
                      const StripLayout& layout,
                      QObject* parent = nullptr);
 
@@ -449,6 +446,21 @@ public:
      */
     [[nodiscard]] bool selectionIsArtwork() const;
 
+    // --- what OBJECT STATE says: its edits come in here, wired by the Editor ---
+    /**
+     * @brief What OBJECT STATE just said, written to the objects OBJECT STATE was bound to.
+     *
+     * The panel answers with records and no uids, because it was handed records and no uids. Which
+     * objects those were is remembered in \c m_panelSubjects at the moment it was bound, so a selection
+     * that has changed since cannot make this write the right records onto the wrong objects.
+     * 
+     * @param records  The records to apply to the objects.
+     * @param commit  False while a control is being dragged or typed in: the objects
+     */
+    void applyPanelRecords(const QList<ObjectRecord>& records, bool commit);
+    //! OBJECT STATE's *Fit*: grows or shrinks the selected object's box to its words. Not a picture.
+    void fitSelectionToText();
+
     // --- a new object: asked for here, created by the owner, selected when it comes back in the feed ---
     //! Asks the owner for a new authored object; it is selected when the feed brings it back.
     void requestRecord(const ObjectRecord& record, double xFrac, double yFrac, double wFrac,
@@ -513,6 +525,18 @@ signals:
     void selectionChanged();           //!< The selected objects and tails changed (rows, menu entries).
     void subjectRowChanged();          //!< The strip or a page became the selection.
     void revealSelectionRequested();   //!< An undo selected something: bring its row into view.
+
+    // --- for OBJECT STATE: what it is bound to now. The Editor wires these; this class has no panel. ---
+    void boundToRecord(const ObjectRecord& record);            //!< One object.
+    void boundToTail(const ObjectRecord& record, int index);   //!< One tail, of the balloon @p record.
+    void boundToRecords(const QList<ObjectRecord>& records);   //!< Several objects, of any kinds.
+    void boundToMixed(int count);   //!< Objects and tails together: nothing editable in common.
+    void boundToNothing();          //!< Nothing is selected.
+    //! The selection's blend mode, none when they disagree; @p applies is false for a tail or nothing.
+    void blendBound(std::optional<Platemaker::Models::BlendMode> blend, bool applies);
+    //! One picture's scale in percent; no value for anything else.
+    void artworkScaleBound(std::optional<double> percent);
+    void textFocusRequested();      //!< A bubble just placed: put the caret in its text.
 
     /**
      * @brief Something happened that the artist should be told once — not a state they can fix.
@@ -607,17 +631,6 @@ private:
     void applyRecord(const QString& uid, const ObjectRecord& record, bool commit,
                      const QString& undoText = QString());
 
-    /**
-     * @brief What OBJECT STATE just said, written to the objects OBJECT STATE was bound to.
-     *
-     * The panel answers with records and no uids, because it was handed records and no uids. Which
-     * objects those were is remembered in \c m_panelSubjects at the moment it was bound, so a selection
-     * that has changed since cannot make this write the right records onto the wrong objects.
-     * 
-     * @param records  The records to apply to the objects.
-     * @param commit  False while a control is being dragged or typed in: the objects
-     */
-    void applyPanelRecords(const QList<ObjectRecord>& records, bool commit);
     void deleteSelectedTail();   //!< Takes the selected tail off its balloon, and selects the balloon.
 
 
@@ -626,7 +639,6 @@ private:
     // --- collaborators, not owned ---
     QGraphicsScene* m_scene        = nullptr;   //!< The scene that draws the strip and its overlays.
     QGraphicsView*  m_view         = nullptr;   //!< The view that shows the scene, and whose transform is used for hit-testing. 
-    ObjectState* m_objectState = nullptr;  //!< OBJECT STATE's object panel, which this binds to the selection.
     ToolDefaults       m_toolDefaults;                //!< What TOOL OPTIONS says the next object is.
     PresetStore&      m_presets;                //!< The store of named presets, which the menu reads from and the save action writes to.
     const StripLayout&   m_layout;                   //!< The layout that owns the strip, for page names and sizes.

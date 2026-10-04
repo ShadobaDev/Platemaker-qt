@@ -1,5 +1,4 @@
 #include "objects/objectcontroller.hpp"
-#include "objectstate/objectstate.hpp"
 #include "presetstore.hpp"
 #include "objects/striplayout.hpp"
 #include "objects/artworkobject.hpp"
@@ -48,13 +47,11 @@ constexpr int k_sharpCacheEntries = 64;
 } // namespace
 
 ObjectController::ObjectController(QGraphicsScene* scene, QGraphicsView* view,
-                                   ObjectState* panel,
                                    PresetStore& presets, const StripLayout& layout,
                                    QObject* parent)
     : QObject(parent)
     , m_scene(scene)
     , m_view(view)
-    , m_objectState(panel)
     , m_presets(presets)
     , m_layout(layout)
 {
@@ -66,29 +63,6 @@ ObjectController::ObjectController(QGraphicsScene* scene, QGraphicsView* view,
             if (auto* bubble = qobject_cast<BubbleObject*>(item))
                 bubble->refreshFonts();
         syncItems();   // the styled ones: a fresh rasterisation, from a document set in the new font
-    });
-    connect(m_objectState, &ObjectState::changed, this,
-            [this](const ObjectRecord& a) { applyPanelRecords({a}, /*commit=*/false); });
-    connect(m_objectState, &ObjectState::committed, this,
-            [this](const ObjectRecord& a) { applyPanelRecords({a}, /*commit=*/true); });
-    connect(m_objectState, &ObjectState::blendPicked, this, &ObjectController::setSelectionBlend);
-    connect(m_objectState, &ObjectState::deleteRequested, this, &ObjectController::deleteSelectedOverlay);
-    connect(m_objectState, &ObjectState::changedMany, this,
-            [this](const QList<ObjectRecord>& objects) { applyPanelRecords(objects, /*commit=*/false); });
-    connect(m_objectState, &ObjectState::committedMany, this,
-            [this](const QList<ObjectRecord>& objects) { applyPanelRecords(objects, /*commit=*/true); });
-    connect(m_objectState, &ObjectState::scaleChanged, this,
-            [this](double percent) { scaleSelectedArtwork(percent, /*commit=*/false); });
-    connect(m_objectState, &ObjectState::scaleCommitted, this,
-            [this](double percent) { scaleSelectedArtwork(percent, /*commit=*/true); });
-    connect(m_objectState, &ObjectState::fitRequested, this, [this] {
-        Object* item = m_overlayItems.value(m_selectedOverlay);
-        if (!item || item->record().isArtwork())
-            return;   // a picture's box is the picture's own pixels, not its words'
-        ObjectRecord a = item->record();
-        a.box = Painter::fittedBox(a);
-        applyRecord(m_selectedOverlay, a, /*commit=*/true);
-        m_objectState->setRecord(a);
     });
 
     // The scene is the other half of the selection: clicking a bubble on the strip drives the list
@@ -309,8 +283,7 @@ void ObjectController::setSource(const std::vector<Platemaker::Models::StripOver
     if (m_selectNewOverlay && !m_overlays.empty()) {
         m_selectNewOverlay = false;
         selectOverlay(QString::fromStdString(m_overlays.back().uid));
-        if (m_objectState)
-            m_objectState->focusText();
+        emit textFocusRequested();
         return;
     }
     m_selectNewOverlay = false;
@@ -550,12 +523,12 @@ void ObjectController::onOverlayGeometryCommitted(const QString& uid)
     // Only when the panel is about this one object. A set of several — or one of two kinds — is already
     // showing what it should, and rebinding it to the thing that happened to move would be the panel
     // changing subject on its own.
-    if (uid == m_selectedOverlay && m_objectState && m_selectedOverlays.size() == 1) {
+    if (uid == m_selectedOverlay && m_selectedOverlays.size() == 1) {
         // A tail's drag leaves that tail selected, so the panel shows the tail again, not the balloon.
         if (m_subject == Subject::Tail)
-            m_objectState->setTail(item->record(), m_selectedTail);
+            emit boundToTail(item->record(), m_selectedTail);
         else if (m_selectedTails.isEmpty())
-            m_objectState->setRecord(item->record());
+            emit boundToRecord(item->record());
     }
     emit stackChanged();
     pushOverlays(group ? tr("Move %n objects", "", travelled) : tr("Move bubble"));
@@ -657,45 +630,40 @@ void ObjectController::selectSubjects(const QStringList& uids, const QList<TailR
     // nothing rather than writing to whatever happens to be selected now.
     m_panelSubjects.clear();
 
-    if (m_objectState) {
-        if (picked.isEmpty()) {
-            m_objectState->clearSelection();
-        } else if (singleTail) {
-            m_panelSubjects = QStringList{m_selectedOverlay};   // the tail's balloon owns the record
-            m_objectState->setTail(primary->record(), m_selectedTail);
-        } else if (!pickedTails.isEmpty()) {
-            m_objectState->setMixedSubjects(selectedSubjectCount());
-        } else if (oneObject) {
-            m_panelSubjects = QStringList{m_selectedOverlay};
-            m_objectState->setRecord(recordFor(m_selectedOverlay));
-        } else {
-            // **Whatever kinds are in it.** This used to refuse any set containing a picture, on the
-            // grounds that a picture and a balloon had nothing in common — true until a picture could be
-            // lettered too, and false since. The panel already sorts records into roles: skin
-            // and line style are bound to the objects with a silhouette and written back only to those
-            // (see onControlChanged), and the lettering to all of them. So the union is what shows, and
-            // the write path takes whichever kind each object is.
-            m_panelSubjects = picked;
-            QList<ObjectRecord> subjects;
-            subjects.reserve(picked.size());
-            for (const QString& uid : picked)
-                subjects.append(recordFor(uid));
-            m_objectState->setRecords(subjects);
-        }
-
-        // Whatever the panel is showing, it is showing it for objects that all have a blend mode —
-        // the one property every kind carries. A tail is the exception: it is part of a balloon, and
-        // the balloon's composite is the balloon's.
-        m_objectState->setSelectionBlend(pickedTails.isEmpty() && !picked.isEmpty()
-                                             ? selectionBlend()
-                                             : std::nullopt,
-                                         pickedTails.isEmpty() && !picked.isEmpty());
-        // The other thing that belongs to the overlay and not to the drawing. One picture on its own
-        // has a size to set; anything else has no single answer, so the row is not there to mislead.
-        m_objectState->setArtworkScale(selectionIsArtwork()
-                                           ? std::optional<double>(selectedArtworkPercent())
-                                           : std::nullopt);
+    if (picked.isEmpty()) {
+        emit boundToNothing();
+    } else if (singleTail) {
+        m_panelSubjects = QStringList{m_selectedOverlay};   // the tail's balloon owns the record
+        emit boundToTail(primary->record(), m_selectedTail);
+    } else if (!pickedTails.isEmpty()) {
+        emit boundToMixed(selectedSubjectCount());
+    } else if (oneObject) {
+        m_panelSubjects = QStringList{m_selectedOverlay};
+        emit boundToRecord(recordFor(m_selectedOverlay));
+    } else {
+        // **Whatever kinds are in it.** This used to refuse any set containing a picture, on the
+        // grounds that a picture and a balloon had nothing in common — true until a picture could be
+        // lettered too, and false since. The panel already sorts records into roles: skin
+        // and line style are bound to the objects with a silhouette and written back only to those
+        // (see onControlChanged), and the lettering to all of them. So the union is what shows, and
+        // the write path takes whichever kind each object is.
+        m_panelSubjects = picked;
+        QList<ObjectRecord> subjects;
+        subjects.reserve(picked.size());
+        for (const QString& uid : picked)
+            subjects.append(recordFor(uid));
+        emit boundToRecords(subjects);
     }
+
+    // Whatever the panel is showing, it is showing it for objects that all have a blend mode —
+    // the one property every kind carries. A tail is the exception: it is part of a balloon, and
+    // the balloon's composite is the balloon's.
+    emit blendBound(pickedTails.isEmpty() && !picked.isEmpty() ? selectionBlend() : std::nullopt,
+                    pickedTails.isEmpty() && !picked.isEmpty());
+    // The other thing that belongs to the overlay and not to the drawing. One picture on its own
+    // has a size to set; anything else has no single answer, so the row is not there to mislead.
+    emit artworkScaleBound(selectionIsArtwork() ? std::optional<double>(selectedArtworkPercent())
+                                                : std::nullopt);
     emit subjectChanged(m_subject, m_selectedOverlay);
 }
 
@@ -757,15 +725,25 @@ bool ObjectController::applyColourAt(const QPointF& scenePos, const QTransform& 
             next.append(each);
         }
         applyRecords(m_selectedOverlays, next, /*commit=*/true, step);
-        if (m_objectState)
-            m_objectState->setRecords(next);
+        emit boundToRecords(next);
         return true;
     }
 
     selectOverlay(bubble->uid());
-    m_objectState->setRecord(a);
+    emit boundToRecord(a);
     applyRecord(bubble->uid(), a, /*commit=*/true, step);
     return true;
+}
+
+void ObjectController::fitSelectionToText()
+{
+    Object* item = m_overlayItems.value(m_selectedOverlay);
+    if (!item || item->record().isArtwork())
+        return;   // a picture's box is the picture's own pixels, not its words'
+    ObjectRecord a = item->record();
+    a.box = Painter::fittedBox(a);
+    applyRecord(m_selectedOverlay, a, /*commit=*/true);
+    emit boundToRecord(a);
 }
 
 void ObjectController::applyPresetToSelection(int index)
@@ -777,7 +755,7 @@ void ObjectController::applyPresetToSelection(int index)
     // shape is visible and reversible — unlike the tool options under the Text tool, where it is not.
     const ObjectRecord a =
         PresetStore::applied(m_presets.presets().at(index), bubble->record(), /*keepShape=*/false);
-    m_objectState->setRecord(a);
+    emit boundToRecord(a);
     applyRecord(m_selectedOverlay, a, /*commit=*/true);
 }
 
@@ -979,8 +957,7 @@ void ObjectController::deleteSelectedTail()
     const QString uid = m_selectedOverlay;
     selectOverlay(uid);
     applyRecord(m_selectedOverlay, a, /*commit=*/true, tr("Delete tail"));
-    if (m_objectState)
-        m_objectState->setRecord(a);
+    emit boundToRecord(a);
 }
 
 void ObjectController::deleteSelectedOverlay()
@@ -1078,10 +1055,10 @@ void ObjectController::applyColourToSelection(const QColor& colour, Painter::Par
                        : role == Painter::Part::Outline   ? tr("Apply outline colour")
                                                          : tr("Apply fill colour");
     applyRecords(m_selectedOverlays, next, /*commit=*/true, step);
-    if (m_objectState && m_selectedOverlays.size() > 1)
-        m_objectState->setRecords(next);
-    else if (m_objectState)
-        m_objectState->setRecord(next.first());
+    if (m_selectedOverlays.size() > 1)
+        emit boundToRecords(next);
+    else
+        emit boundToRecord(next.first());
 }
 
 void ObjectController::applyGroupToSelection(PropertyGroup group)
@@ -1134,10 +1111,10 @@ void ObjectController::applyGroupToSelection(PropertyGroup group)
                        : group == PropertyGroup::Style ? tr("Apply line style")
                                                        : tr("Apply text style");
     applyRecords(m_selectedOverlays, next, /*commit=*/true, step);
-    if (m_objectState && m_selectedOverlays.size() > 1)
-        m_objectState->setRecords(next);
-    else if (m_objectState)
-        m_objectState->setRecord(next.first());
+    if (m_selectedOverlays.size() > 1)
+        emit boundToRecords(next);
+    else
+        emit boundToRecord(next.first());
 }
 
 ObjectRecord::Shape ObjectController::toolBalloonShape() const
@@ -1192,10 +1169,10 @@ void ObjectController::convertSelectionTo(ObjectRecord::Shape kind)
     if (hidden > 0)
         emit noted(tr("%n tail(s) are no longer drawn — converting back brings them back.", "", hidden));
 
-    if (m_objectState && m_selectedOverlays.size() > 1)
-        m_objectState->setRecords(next);
-    else if (m_objectState)
-        m_objectState->setRecord(next.first());
+    if (m_selectedOverlays.size() > 1)
+        emit boundToRecords(next);
+    else
+        emit boundToRecord(next.first());
 }
 
 std::optional<Platemaker::Models::BlendMode> ObjectController::selectionBlend() const

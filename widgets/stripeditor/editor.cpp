@@ -284,7 +284,40 @@ Editor::Editor(PresetStore& presets, QWidget *parent)
 
         // Everything placed on the strip. It drives the scene, the list and the panel; it owns no
         // persistence, so every edit leaves through one of its four signals and comes back as a re-feed.
-        m_objects = new ObjectController(m_scene, m_view, m_objectState, *m_presets, m_layout, this);
+        m_objects = new ObjectController(m_scene, m_view, *m_presets, m_layout, this);
+        // OBJECT STATE and the objects, both ways. The panel's edits go to the objects it was bound to;
+        // the controller says what it is bound to now. Neither includes the other — they meet here.
+        connect(m_objectState, &ObjectState::changed, m_objects,
+                [this](const ObjectRecord& a) { m_objects->applyPanelRecords({a}, /*commit=*/false); });
+        connect(m_objectState, &ObjectState::committed, m_objects,
+                [this](const ObjectRecord& a) { m_objects->applyPanelRecords({a}, /*commit=*/true); });
+        connect(m_objectState, &ObjectState::blendPicked, m_objects, &ObjectController::setSelectionBlend);
+        connect(m_objectState, &ObjectState::deleteRequested, m_objects,
+                &ObjectController::deleteSelectedOverlay);
+        connect(m_objectState, &ObjectState::changedMany, m_objects,
+                [this](const QList<ObjectRecord>& objects) {
+            m_objects->applyPanelRecords(objects, /*commit=*/false);
+        });
+        connect(m_objectState, &ObjectState::committedMany, m_objects,
+                [this](const QList<ObjectRecord>& objects) {
+            m_objects->applyPanelRecords(objects, /*commit=*/true);
+        });
+        connect(m_objectState, &ObjectState::scaleChanged, m_objects,
+                [this](double percent) { m_objects->scaleSelectedArtwork(percent, /*commit=*/false); });
+        connect(m_objectState, &ObjectState::scaleCommitted, m_objects,
+                [this](double percent) { m_objects->scaleSelectedArtwork(percent, /*commit=*/true); });
+        connect(m_objectState, &ObjectState::fitRequested, m_objects,
+                &ObjectController::fitSelectionToText);
+        using OC = ObjectController;
+        using OS = ObjectState;
+        connect(m_objects, &OC::boundToRecord,      m_objectState, &OS::setRecord);
+        connect(m_objects, &OC::boundToTail,        m_objectState, &OS::setTail);
+        connect(m_objects, &OC::boundToRecords,     m_objectState, &OS::setRecords);
+        connect(m_objects, &OC::boundToMixed,       m_objectState, &OS::setMixedSubjects);
+        connect(m_objects, &OC::boundToNothing,     m_objectState, &OS::clearSelection);
+        connect(m_objects, &OC::blendBound,         m_objectState, &OS::setSelectionBlend);
+        connect(m_objects, &OC::artworkScaleBound,  m_objectState, &OS::setArtworkScale);
+        connect(m_objects, &OC::textFocusRequested, m_objectState, &OS::focusText);
         // What TOOL OPTIONS says the next object is, for *Apply from tool options ▸* and *Convert to ▸
         // Balloon*. Told as functions, so the objects need no tool-options panel.
         m_objects->setToolDefaults({[this] { return m_bubbleOptions->prototype(); },

@@ -127,30 +127,3 @@ because it answers in the controller, the panels and the project. That is the co
 a window is checked by hand. The layer rules are checked on every build (`cmake/check_layers.cmake`).
 Before significant work, open an issue; see
 [Contributing](https://github.com/ShadobaDev/Platemaker-qt/wiki/Development-Contributing).
-
----
-
-## Where each former section went
-
-Until 2026-10-04 this file was the whole specification, in numbered sections. `CHANGELOG.md` cites them
-and is not rewritten, so the numbers are kept here.
-
-| Was | Section | Now |
-|---|---|---|
-| §1 | Overview | [Architecture](https://github.com/ShadobaDev/Platemaker-qt/wiki/Development-Architecture) |
-| §2–§2.4 | Main window, project view, image tile, profile dialogs | [Main window](https://github.com/ShadobaDev/Platemaker-qt/wiki/Development-Main-Window) |
-| §2.5–§2.5.3 | Strip editor, its shell, rendering and memory, the grade | [Strip editor shell](https://github.com/ShadobaDev/Platemaker-qt/wiki/Development-Strip-Editor-Shell) |
-| §2.5.4 | Text & bubbles: objects, tails, placement, presets, artwork | [Strip editor objects](https://github.com/ShadobaDev/Platemaker-qt/wiki/Development-Strip-Editor-Objects) |
-| §2.5.4 | — one history per project | [History and undo](https://github.com/ShadobaDev/Platemaker-qt/wiki/Development-Strip-Editor-History) |
-| §2.5.4 | — badges | [Advisories](https://github.com/ShadobaDev/Platemaker-qt/wiki/Development-Advisories) |
-| §2.5.4 | — the grade as its own switch | [Strip editor shell](https://github.com/ShadobaDev/Platemaker-qt/wiki/Development-Strip-Editor-Shell) |
-| §2.5.4 | — selection and the object menu | [Panels](https://github.com/ShadobaDev/Platemaker-qt/wiki/Development-Strip-Editor-Panels) |
-| §2.5.4 | — property groups | [Property groups](https://github.com/ShadobaDev/Platemaker-qt/wiki/Development-Strip-Editor-Properties) |
-| §2.5.4 | — where a bubble lives, and when it becomes pixels | [Workspace folder ownership](https://github.com/ShadobaDev/Platemaker-qt/wiki/Development-Workspace-Ownership) |
-| §3 | Application state | [Main window](https://github.com/ShadobaDev/Platemaker-qt/wiki/Development-Main-Window) |
-| §4–§4.7 | Key workflows | [Workflows](https://github.com/ShadobaDev/Platemaker-qt/wiki/Development-Workflows) |
-| §5, §6 | Thumbnail loading, background threads | [Main window](https://github.com/ShadobaDev/Platemaker-qt/wiki/Development-Main-Window) |
-| §7, §8 | Cross-platform notes, UI style | [Architecture](https://github.com/ShadobaDev/Platemaker-qt/wiki/Development-Architecture) |
-| §9–§9.3 | Windows security hardening | [Windows hardening](https://github.com/ShadobaDev/Platemaker-qt/wiki/Development-Windows-Hardening) |
-
-`docs/EXTENDING.md` was folded into *Extending the strip editor* above.

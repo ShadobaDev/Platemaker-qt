@@ -114,6 +114,10 @@ Bug fixes, cosmetics and internal cleanups — no new capability, no change to a
 New, backward-compatible features. Several are gated on a lib version, noted in the item body.
 (The `[x]` items below shipped/ready to ship; the open ones re-derive to the next MINOR.)
 
+- [ ] **Strip editor: a text outline.** Colour and width in `TextProperties`, drawn outside the glyph
+  (stroke at twice the width, then fill), written to the SVG as two draws rather than `paint-order`. The
+  design is on the wiki's Property groups page; nothing of it is built yet.
+
 - [~] **Infinite strip and lookup system** — *viewer DONE (GUI); lookup + preview-render deferred.*
   See the full strip as one continuous image during work, instead of per-slice tiles. Shipped: a
   per-project **floating dock** (`widgets/stripeditor/`, `.ui` + `.cpp`/`.hpp`, opened from the Output tab's

@@ -96,7 +96,7 @@ MSVC does not warn about a missing `switch` case; MinGW does.
 
 **Not caught by any test:** the outline must be **star-shaped around its centre** (a tail leaves the
 balloon along a ray from the centre); every constant is named; noise uses `styleSeed` and nothing else
-(`topUpStyleSeed()` mints it; the object menu offers *Re-roll*).
+(`topUpStyleSeed()` mints it; a *Re-roll* entry on the object menu is planned, not built).
 
 **With parameters of its own** (no shape has any yet; the first brings the shape registry, see
 `TODO.md`): the fields in `ShapeProperties` **and its `operator==`** (equality gates the file rewrite),

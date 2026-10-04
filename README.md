@@ -198,7 +198,7 @@ Platemaker/
 │                                     fonts, package, advisories, about)
 ├── widgets/                       — one folder per widget, its .cpp/.hpp/.ui together
 │   ├── project/                   — a chapter: inputs, outputs and its undo history
-│   ├── stripeditor/               — the strip editor (see docs/EXTENDING.md)
+│   ├── stripeditor/               — the strip editor (see docs/SPECIFICATION.md)
 │   │   ├── (root)                 — the editor shell, objects, the object controller,
 │   │   │                            the tool registry, page memory
 │   │   ├── panels/                — tool options, object and strip state, grade
@@ -214,7 +214,6 @@ Platemaker/
 ├── sbom/                          — the dependency manifest
 └── docs/
     ├── SPECIFICATION.md           — what the GUI does, as it is now
-    ├── EXTENDING.md               — how to add a tool, a shape or a kind of object
     ├── CHANGELOG.md               — release to release
     └── TODO.md                    — the roadmap
 ```
@@ -250,5 +249,5 @@ projects are routinely flagged by ML heuristics without anything actually being 
 
 ## Contributing
 
-Contributions are welcome — open an issue first for anything significant. To extend the strip editor, start with **[docs/EXTENDING.md](docs/EXTENDING.md)**; the wiki's [Development](https://github.com/ShadobaDev/Platemaker-qt/wiki/Development) pages explain how the rest is put together. By opening a pull request you agree to the **[Contributor License Agreement](CLA.md)**
+Contributions are welcome — open an issue first for anything significant. To extend the strip editor, start with **[*Extending the strip editor*](docs/SPECIFICATION.md#extending-the-strip-editor)**; the wiki's [Development](https://github.com/ShadobaDev/Platemaker-qt/wiki/Development) pages explain how the rest is put together. By opening a pull request you agree to the **[Contributor License Agreement](CLA.md)**
 and the **[Code of Conduct](CODE_OF_CONDUCT.md)**.

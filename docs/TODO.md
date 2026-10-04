@@ -66,6 +66,39 @@ Bug fixes, cosmetics and internal cleanups — no new capability, no change to a
     authoritative check.
 
 
+- [ ] **Strip editor: *Convert to ▸ Balloon* clips the lettering.** The conversion writes only
+  `shape.kind` and keeps the box; a text object's box is its lettering's own size, and a balloon's
+  lettering must fit inside `textSafeArea()`, which is smaller. Fix: after converting **to** a
+  silhouette, `a.box = Painter::fittedBox(a)` in `ObjectController::convertSelectionTo`'s loop when the
+  text no longer fits — what OBJECT STATE's *Fit* already does. Converting back keeps the larger box.
+
+- [ ] **Strip editor: *Fit to strip width* leaves the picture hanging off the strip.** It calls
+  `scaleSelectedArtwork()`, which writes only `wFrac`, so the top-left corner stays where it was. Fix:
+  the action also sets `xFrac = 0` in the same history step — a small controller method of its own,
+  because `scaleSelectedArtwork()` is also the scale spin box's live path and must keep the position.
+
+- [ ] **Strip editor: artwork's corner grips are not the same size on screen.** `gripSpan()`
+  (`objects/object.cpp`) divides 9 screen px by the zoom **and** the item's own scale, then clamps to
+  6–18 **item** units. A picture is drawn at an item scale often far from 1, where the clamp wins and the
+  grip shrinks or grows on screen. Balloons have scale 1, so they never show it. The clamp exists because
+  `boundingRect()` reserves a fixed `k_gripMargin`. Fix: clamp in screen pixels and derive the margin from
+  the same span (`prepareGeometryChange()` when zoom or scale changes).
+
+- [ ] **Strip editor: a single selected tail offers the whole balloon's menu entries.** `selectTail()`
+  stores the balloon's uid itself as selected, so `anyObject` is true and *Fill*, *Outline*, *Blend* and
+  *Apply from tool options ▸* act on the whole balloon. The comment in `ObjectMenu::updateEntries()` says
+  "a tail can only be deleted". Decide which is meant; if the comment, `anyObject` must not count a
+  single tail's balloon.
+
+- [ ] **Each workflow card's *Edit* arms its tool.** The Colour correction and Text & bubbles cards share
+  one `openEditor` (`widgets/project/project.cpp`) and `viewStripRequested` carries only the project
+  index, so *Edit* on the CC card opens the strip editor on whatever tool was armed last. Fix:
+  `viewStripRequested(projectIndex, toolId)`; MainWindow calls `editor->setTool(toolId)` after opening
+  the dock. The CC card passes `"grade"` and selects the strip; the bubbles card passes `"bubble"`.
+
+- [ ] **Plan tags left in `mainwindow/` comments** (`M2.1`, `M2.3`, `W1`, `W2`): rewrite each as what
+  the code does, as the strip editor's were.
+
 - [ ] **ImageTile** rework to be more eye-appealing
 
 - [x] **Grey out the Auto-sort rules group until it works** — the `groupBoxAutosort` fields
@@ -96,7 +129,7 @@ New, backward-compatible features. Several are gated on a lib version, noted in 
   (instant, no scroll gaps), and a **sharp** native decode of visible + prefetch slices on `QtConcurrent`
   into an LRU cache — off-screen slices evicted, so RAM tracks the viewport, not chapter length.
   Native-width default (shrink-to-fit only, never enlarged), fit-width / 100% / Ctrl+wheel zoom, optional
-  slice-seam guides. See SPECIFICATION §2.5.
+  slice-seam guides. See the wiki's [Strip editor shell](https://github.com/ShadobaDev/Platemaker-qt/wiki/Development-Strip-Editor-Shell).
   - **Feed changed (2026-09-04): the strip is built from the project's INPUT pages, not its committed
     output.** The original choice (committed output + a *Render & view* button, outputs being cheap and
     regenerable) did not survive contact with the authoring work it was meant to host: there is nothing
@@ -150,7 +183,8 @@ New, backward-compatible features. Several are gated on a lib version, noted in 
 - [x] **Text and Text bubble creator — DONE (lib 0.6.0 + GUI).** Option 2 was taken: the library gained
   a strip-domain step that composites consumer-rasterised RGBA bitmaps onto each output slice
   (`Core::StripOverlayCompositor`), so raw input files are never touched. Storage, the rasterising
-  contract and the anchoring rule are documented in **SPECIFICATION §2.5.4**.
+  contract and the anchoring rule are documented in the wiki's **[Strip editor objects](https://github.com/ShadobaDev/Platemaker-qt/wiki/Development-Strip-Editor-Objects)** and
+  **[Workspace folder ownership](https://github.com/ShadobaDev/Platemaker-qt/wiki/Development-Workspace-Ownership)**.
   - **Placement is page-anchored** (`StripOverlay::anchorInputUid` + an offset from that page's top,
     resolved by `Models::resolveOverlayAnchors()`), not an absolute strip-Y. An absolute placement drifts
     onto different artwork the moment anything above it changes height — inserting a page is the everyday
@@ -334,10 +368,10 @@ New, backward-compatible features. Several are gated on a lib version, noted in 
 - [ ] **Shape registry: lands with the first shape that has parameters.** Today a shape is an enum value
   plus a case in seven places (`shapeName`, `shapeTitle`, `shapeOrder`, `shapeFromName`,
   `artifactSilhouette`, `textSafeArea`, `artifactLabel`). The plan is the tool rail's own pattern one level
-  down: a `ShapeDescriptor` table (persisted name, title, `outline(body, Artifact)`, `textSafeArea(body,
-  Artifact)`, a parameter list that `ShapeEditor` builds its controls from), with one file per shape under
-  `widgets/artifact/shapes/`. Adding a shape then means copying one file and adding one row, which is
-  [EXTENDING](EXTENDING.md)'s recipe made literal.
+  down: a `ShapeDescriptor` table (persisted name, title, `outline(body, ObjectRecord)`, `textSafeArea(body,
+  ObjectRecord)`, a parameter list that `ShapeEditor` builds its controls from), with one file per shape under
+  `widgets/objectrecord/shapes/`. Adding a shape then means copying one file and adding one row, which is
+  [the shape recipe](SPECIFICATION.md#a-shape) made literal.
   - **Trigger:** the first field in `ShapeProperties` beyond `kind` (e.g. a *Scribble* balloon's amplitude
     and lobes). Before that, the table replaces seven working switches for no new capability.
   - **The move first, the shape on top:** the golden render, overlay SVGs and shape tiles byte-identical
@@ -406,7 +440,7 @@ Investigations, testing and manual/wiki work that ships no code change on their 
 
 - [x] **Store bubbles as SVG instead of PNG — the library already accepts it, measured. DONE.**
   Shipped: the SVG carries the artwork *and* the editor parameters in a `pm:` namespace, so it replaced
-  the PNG **and** the authoring sidecar. See the CHANGELOG entry and SPECIFICATION 2.5.4.
+  the PNG **and** the authoring sidecar. See the CHANGELOG entry and the wiki's [Workspace folder ownership](https://github.com/ShadobaDev/Platemaker-qt/wiki/Development-Workspace-Ownership).
   The overlay compositor opens `assetPath` with `vips_image_new_from_file()`, so it takes **any format libvips can
   read**, SVG included (via librsvg). Verified end-to-end: pointing a `StripOverlay` at
   `fixtures/overlays/bubble-speech.svg` and rendering through the CLI composited the balloon on the right

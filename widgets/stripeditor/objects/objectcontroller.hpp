@@ -70,7 +70,7 @@ class Object;
  *   selected when the feed brings it back. The drag that describes one is Placement's.
  *
  * Adding a kind of object reaches syncItems() and every isParametric() / `isArtwork()` decision in
- * here; adding a shape reaches none of it. See `docs/EXTENDING.md`.
+ * here; adding a shape reaches none of it. See docs/SPECIFICATION.md, "Extending the strip editor".
  */
 class ObjectController : public QObject
 {

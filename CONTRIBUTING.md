@@ -14,7 +14,8 @@ The project is not looking for collaborators, but that is not a rule against con
 anything significant, open an issue first and ask whether it fits.
 
 - **Extending the strip editor** (a tool, a balloon shape, a kind of object):
-  [docs/EXTENDING.md](docs/EXTENDING.md), which says which files each one touches.
+  [*Extending the strip editor*](docs/SPECIFICATION.md#extending-the-strip-editor) in
+  `docs/SPECIFICATION.md`, which says which files each one touches.
 - **How the rest is put together:** the wiki's
   [Development](https://github.com/ShadobaDev/Platemaker-qt/wiki/Development) pages. They cover
   architecture, the strip editor's vocabulary, building, commit messages and spelling.

@@ -32,7 +32,7 @@
 // DLL loaded *after* this point (Qt plugins, libvips operation DLLs at render time); the exe's static
 // imports are already resolved before main() runs, so startup linkage is unaffected. It does NOT stop
 // hook-based injection (that would need ProcessExtensionPointDisablePolicy, deliberately deferred — see
-// docs/SPECIFICATION.md) and does NOT affect SmartScreen. Resolved dynamically so this degrades to a
+// the wiki's Development-Windows-Hardening page) and does NOT affect SmartScreen. Resolved dynamically so this degrades to a
 // no-op on pre-Windows-8 hosts instead of failing to load, and sidesteps MinGW header quirks.
 static void restrictDllSearchPath()
 {

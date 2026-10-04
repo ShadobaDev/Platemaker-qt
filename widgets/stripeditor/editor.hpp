@@ -113,7 +113,7 @@ class Placement;
  * **setTool()** applies a row — drag mode, cursor, options page; then the grade, the scene and its
  * seams, **lazy page build** and **zoom**. A press, drag or drop on the strip is CanvasInput's
  * (`canvas/canvasinput.hpp`), which routes it by the armed tool's `ToolKind` and reports what belongs
- * to another region; the constructor wires those reports. Extending any of it: `docs/EXTENDING.md`.
+ * to another region; the constructor wires those reports. Extending any of it: docs/SPECIFICATION.md, "Extending the strip editor".
  */
 class Editor : public QWidget
 {

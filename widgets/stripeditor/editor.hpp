@@ -58,6 +58,7 @@ class StripState;
 class PresetStore;
 class BubbleToolOptions;
 class ObjectController;
+class Placement;
 
 /**
  * @brief Continuous "infinite strip" editor for a project — the authoring surface for the optional
@@ -421,6 +422,7 @@ private:
      *        which it holds by reference.
      */
     ObjectController* m_objects = nullptr;
+    Placement*        m_placement = nullptr;   //!< A Create tool's drag, and the object it places.
 };
 
 }  // namespace StripEdit

@@ -1,7 +1,6 @@
 #include "objects/objectcontroller.hpp"
 #include "objectstate/objectstate.hpp"
 #include "presetstore.hpp"
-#include "tooloptions/bubbletooloptions.hpp"
 #include "objects/striplayout.hpp"
 #include "objects/artworkobject.hpp"
 #include "objects/bubbleobject.hpp"
@@ -16,14 +15,12 @@
 
 #include <QGuiApplication>
 #include <QCryptographicHash>
-#include <QGraphicsRectItem>
 #include <QGraphicsScene>
 #include <QGuiApplication>
 
 #include <optional>
 #include <QGraphicsView>
 #include <QPainter>
-#include <QPen>
 #include <QSet>
 #include <QSvgRenderer>
 #include <QTimer>
@@ -39,8 +36,6 @@ namespace StripEdit {
 
 namespace {
 
-//! Shortest drag, in either axis, that counts as drawing a bubble rather than clicking on the strip.
-constexpr int k_minPlacementDrag = 24;
 //! Scene Z: the strip is 0, seam guides 1, overlays start here (in composite order).
 constexpr int k_overlayZBase = 2;
 //! How far a duplicate lands from its original, so it is visibly a second bubble and not a mis-click.
@@ -53,17 +48,15 @@ constexpr int k_sharpCacheEntries = 64;
 } // namespace
 
 ObjectController::ObjectController(QGraphicsScene* scene, QGraphicsView* view,
-                                   ObjectState* panel, BubbleToolOptions* defaults,
+                                   ObjectState* panel,
                                    PresetStore& presets, const StripLayout& layout,
-                                   QWidget* dialogParent, QObject* parent)
+                                   QObject* parent)
     : QObject(parent)
     , m_scene(scene)
     , m_view(view)
     , m_objectState(panel)
-    , m_bubbleOptions(defaults)
     , m_presets(presets)
     , m_layout(layout)
-    , m_dialogParent(dialogParent)
 {
     // A font added or removed (a workspace's fonts/, Add font…) changes what a bubble's words are set in
     // without changing its record — so nothing else here would notice: setRecord() ignores the same
@@ -1093,9 +1086,9 @@ void ObjectController::applyColourToSelection(const QColor& colour, Painter::Par
 
 void ObjectController::applyGroupToSelection(PropertyGroup group)
 {
-    if (!m_bubbleOptions || m_selectedOverlays.isEmpty())
+    if (!m_toolDefaults.prototype || m_selectedOverlays.isEmpty())
         return;
-    const ObjectRecord source = m_bubbleOptions->prototype();
+    const ObjectRecord source = m_toolDefaults.prototype();
 
     QList<ObjectRecord> next;
     int                 changed = 0;
@@ -1149,7 +1142,7 @@ void ObjectController::applyGroupToSelection(PropertyGroup group)
 
 ObjectRecord::Shape ObjectController::toolBalloonShape() const
 {
-    return m_bubbleOptions ? m_bubbleOptions->balloonShape() : ObjectRecord::Shape::Speech;
+    return m_toolDefaults.balloonShape ? m_toolDefaults.balloonShape() : ObjectRecord::Shape::Speech;
 }
 
 void ObjectController::convertSelectionTo(ObjectRecord::Shape kind)
@@ -1356,95 +1349,20 @@ void ObjectController::pushOverlays(const QString& undoText)
     emit overlaysCommitted(m_overlays, currentRecords(), undoText);
 }
 
-// --- placing a new bubble ---------------------------------------------------
+// --- a new object -----------------------------------------------------------
 
-void ObjectController::beginPlacement(const QPointF& scenePos)
+void ObjectController::requestRecord(const ObjectRecord& record, double xFrac, double yFrac, double wFrac,
+                                     const QString& anchorInputUid)
 {
-    m_placing         = true;
-    m_placementOrigin = scenePos;
-
-    QColor c = m_dialogParent->palette().color(QPalette::Highlight);
-    QPen pen(c);
-    pen.setCosmetic(true);
-    pen.setStyle(Qt::DashLine);
-    c.setAlpha(40);
-
-    m_placementRubber = m_scene->addRect(QRectF(scenePos, QSizeF(0, 0)), pen, c);
-    m_placementRubber->setZValue(1000);   // above everything while it is being drawn
-}
-
-void ObjectController::updatePlacement(const QPointF& scenePos)
-{
-    if (m_placementRubber)
-        m_placementRubber->setRect(QRectF(m_placementOrigin, scenePos).normalized());
-}
-
-void ObjectController::finishPlacement()
-{
-    QRectF r = m_placementRubber ? m_placementRubber->rect() : QRectF();
-    if (m_placementRubber) {
-        m_scene->removeItem(m_placementRubber);
-        delete m_placementRubber;
-        m_placementRubber = nullptr;
-    }
-    m_placing = false;
-
-    if (m_layout.isEmpty() || !m_bubbleOptions)
-        return;
-
-    // Only a drag creates a bubble. Letting a bare click create one made every click on the artwork a
-    // placement — including the click that just deselects the bubble you finished — so the canvas
-    // quietly filled up with empty balloons. A click now means what it means everywhere else: deselect.
-    if (r.width() < k_minPlacementDrag || r.height() < k_minPlacementDrag) {
-        selectOverlay(QString());
-        return;
-    }
-
-    const int page = m_layout.pageAtSceneY(r.top());
-    if (page < 0)
-        return;
-
-    const double targetWidth = m_layout.targetWidth();
-    if (targetWidth <= 0)
-        return;
-
-    // **A picture, if that is what the tool places.** The drag says where and how wide; the file says
-    // what — and which file is the tool's business, not this class's: it is armed with one or it places
-    // balloons. Arming the Artwork tool with nothing chosen is what raises the file dialog (Editor).
-    if (!m_placementArtwork.isEmpty()) {
-        m_selectNewOverlay = true;
-        emit artworkImportRequested(m_placementArtwork, r.left() / targetWidth,
-                                    (r.top() - m_layout.page(page).top) / targetWidth,
-                                    r.width() / targetWidth,
-                                    loadArtwork(m_placementArtwork).size(),
-                                    m_layout.anchorUidForPage(page));
-        return;
-    }
-
-    // Whatever the active tool places — shape included: the panel is the tool's side of the question,
-    // and this controller knows nothing about which tool is armed.
-    ObjectRecord a = m_bubbleOptions->prototype();
-    a.box = r.size().toSize();
-    // The prototype's tail was placed against the panel's nominal box; re-aim it at the one just drawn,
-    // just below the balloon, which is where a reader expects a new bubble to be speaking from.
-    for (Tail& t : a.tails.items)
-        t.tip = firstTailTip(a.box);
-
-    // Creation is the library's: it mints the uid, hashes the asset and dedups identical content, so
-    // the owner finishes this and feeds the result back — where it gets selected (see setOverlaySource).
-    const double tw = m_layout.targetWidth();
-    if (tw <= 0)
-        return;
-
     m_selectNewOverlay = true;
-    // The drag was in strip pixels at the width the editor is laid out at, and the SVG about to be
-    // written is in those same pixels — so the artwork's own width *is* this fraction of the page, and
-    // the bubble comes back at scale 1.
-    const QRectF  bounds = Painter::bounds(a);
-    const QPointF origin = r.topLeft() + bounds.topLeft();
-    emit recordCreated(a, origin.x() / tw, (origin.y() - m_layout.page(page).top) / tw,
-                         bounds.width() / tw,
-                         m_layout.anchorUidForPage(page));
+    emit recordCreated(record, xFrac, yFrac, wFrac, anchorInputUid);
+}
+
+void ObjectController::requestArtwork(const QString& file, double xFrac, double yFrac, double wFrac,
+                                      QSize naturalSize, const QString& anchorInputUid)
+{
+    m_selectNewOverlay = true;
+    emit artworkImportRequested(file, xFrac, yFrac, wFrac, naturalSize, anchorInputUid);
 }
 
 }  // namespace StripEdit

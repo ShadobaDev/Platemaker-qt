@@ -11,6 +11,7 @@
 #include <QString>
 #include <QStringList>
 
+#include <functional>
 #include <optional>
 
 #include "recordpainter.hpp"   // Painter::Part: which part of an object a colour lands on
@@ -23,7 +24,6 @@
 
 #include <vector>
 
-class QGraphicsRectItem;
 class QGraphicsScene;
 class QGraphicsView;
 class QTimer;
@@ -34,7 +34,6 @@ namespace StripEdit {
 
 class ObjectState;
 class PresetStore;
-class BubbleToolOptions;
 class StripLayout;
 class Object;
 
@@ -43,8 +42,9 @@ class Object;
  *
  * One sentence, no "and": it owns the overlay set and keeps three views of it in agreement — the scene
  * items, the composite-order list, and the properties panel showing whichever one is selected. The
- * editor above it owns the canvas and the tools; it hands this class the mouse while a placement drag
- * is in flight, and tells it one thing about the active tool — whether a placement gets a balloon.
+ * editor above it owns the canvas and the tools, and tells it what TOOL OPTIONS says the next object
+ * is (setToolDefaults()); a Create tool's drag is Placement's (placement.hpp), which asks this class for
+ * the object it describes.
  *
  * It **owns no persistence**. Every mutation is announced on one of the four signals below and only
  * becomes real when the owner writes it and feeds the new state back through setSource() — which is
@@ -67,8 +67,8 @@ class Object;
  * - *Operations on the selection* — colour, presets, artwork, re-anchor, delete, *Apply from tool
  *   options ▸*, *Convert to ▸*, blend, stacking, duplicate; each ends in applyRecords() or a signal.
  *   The object menu (ObjectMenu, objectstack/) names them; OBJECT STATE and the canvas call some too.
- * - *Placing a new bubble* — beginPlacement() / updatePlacement() / finishPlacement(): a Create
- *   tool's drag, and the prototype it places.
+ * - *A new object* — requestRecord() / requestArtwork(): asked for here, created by the owner,
+ *   selected when the feed brings it back. The drag that describes one is Placement's.
  *
  * Adding a kind of object reaches syncItems() and every isParametric() / `isArtwork()` decision in
  * here; adding a shape reaches none of it. See `docs/EXTENDING.md`.
@@ -109,14 +109,12 @@ public:
      * @param scene        Where the objects are drawn (the editor's canvas scene).
      * @param view         Needed for hit-testing and for "where is the author looking" on import.
      * @param panel        The selected object's properties — edited, and told what is selected.
-     * @param defaults     The tool's own options, read (never written) for what a new object starts as.
      * @param layout       Page geometry, owned by the editor; every placement question is asked of it.
-     * @param dialogParent Parent for the file/message dialogs this raises.
      */
     ObjectController(QGraphicsScene* scene, QGraphicsView* view,
-                     ObjectState* panel, BubbleToolOptions* defaults, PresetStore& presets,
+                     ObjectState* panel, PresetStore& presets,
                      const StripLayout& layout,
-                     QWidget* dialogParent, QObject* parent = nullptr);
+                     QObject* parent = nullptr);
 
     /** 
      * @brief Adopts the owner's complete state after an edit round-trips back. 
@@ -371,11 +369,6 @@ public:
         m_overlayItems.clear();
     }
 
-    // --- placement, driven by the editor's event filter ---
-    /**
-     * @brief Returns true if an object is currently being placed.
-     */
-    [[nodiscard]] bool isPlacing() const { return m_placing; }
     /**
      * @brief Returns true if an existing object sits under \p scenePos.
      * @param scenePos  The position to check.
@@ -392,16 +385,6 @@ public:
      */
     [[nodiscard]] PointerTarget pointerTargetAt(const QPointF& scenePos,
                                                 const QTransform& deviceTransform) const;
-    /**
-     * @brief What the next placement puts down: this picture, or — when empty — a balloon.
-     *
-     * The second and last thing this class is told about the active tool, beside the shape. It is a
-     * *file*, not a kind flag, because the Artwork tool's whole state is which picture it stamps; an
-     * empty one still places, by asking for a file at that moment and keeping the answer.
-     * 
-     * @param file  The file to place, or empty for a balloon.
-     */
-    void setPlacementArtwork(const QString& file) { m_placementArtwork = file; }
 
     /**
      * @brief Puts @p file down centred on @p scenePos, **at its own size** — a drop from the TOOL OPTIONS
@@ -466,9 +449,28 @@ public:
      */
     [[nodiscard]] bool selectionIsArtwork() const;
 
-    void beginPlacement(const QPointF& scenePos);   //!< Starts a placement drag, with the pointer at @p scenePos.
-    void updatePlacement(const QPointF& scenePos);  //!< Moves the placement preview to @p scenePos, and updates the preview's size if it is artwork.
-    void finishPlacement();                         //!< Ends the placement drag, and either creates the new object or cancels the placement if it was not valid.
+    // --- a new object: asked for here, created by the owner, selected when it comes back in the feed ---
+    //! Asks the owner for a new authored object; it is selected when the feed brings it back.
+    void requestRecord(const ObjectRecord& record, double xFrac, double yFrac, double wFrac,
+                       const QString& anchorInputUid);
+    //! Asks the owner to import @p file as a new picture; it is selected when the feed brings it back.
+    void requestArtwork(const QString& file, double xFrac, double yFrac, double wFrac, QSize naturalSize,
+                        const QString& anchorInputUid);
+
+    /**
+     * @brief What TOOL OPTIONS says the next object is — read, never written.
+     *
+     * Two questions, given as functions so that this class needs no tool-options panel: the prototype a
+     * balloon would be placed as, which *Apply from tool options ▸* copies a group from, and the
+     * silhouette a balloon would wear, which *Convert to ▸ Balloon* arrives at (never `None`, even while
+     * the Text tool is armed). The Editor, which owns both regions, wires them.
+     */
+    struct ToolDefaults
+    {
+        std::function<ObjectRecord()>        prototype;
+        std::function<ObjectRecord::Shape()> balloonShape;
+    };
+    void setToolDefaults(ToolDefaults defaults) { m_toolDefaults = std::move(defaults); }
 
 signals:
     /**
@@ -625,10 +627,9 @@ private:
     QGraphicsScene* m_scene        = nullptr;   //!< The scene that draws the strip and its overlays.
     QGraphicsView*  m_view         = nullptr;   //!< The view that shows the scene, and whose transform is used for hit-testing. 
     ObjectState* m_objectState = nullptr;  //!< OBJECT STATE's object panel, which this binds to the selection.
-    BubbleToolOptions* m_bubbleOptions = nullptr;  //!< Read for prototype(); never edited from here.
+    ToolDefaults       m_toolDefaults;                //!< What TOOL OPTIONS says the next object is.
     PresetStore&      m_presets;                //!< The store of named presets, which the menu reads from and the save action writes to.
     const StripLayout&   m_layout;                   //!< The layout that owns the strip, for page names and sizes.
-    QWidget*        m_dialogParent = nullptr;   
 
     std::vector<Platemaker::Models::StripOverlay> m_overlays;   //!< The project's overlays, in composite order.
     /**
@@ -683,10 +684,6 @@ private:
     //! How far off a hairline outline or a thin letter a press may land and still count, in screen px.
     static constexpr qreal k_pickSlackPx = 3.0;
 
-    QGraphicsRectItem* m_placementRubber = nullptr;         //!< Rubber band while a new bubble is drawn.
-    QPointF            m_placementOrigin;                   //!< Where that drag started, in scene coordinates.
-    QString            m_placementArtwork;                  //!< Empty: a placement makes a balloon.
-    bool               m_placing         = false;
     bool               m_syncingList     = false;           //!< Guards the scene's selection round-trip.
     /**
      * @brief Set when this controller asked for a new bubble; the uid only exists after the owner mints it, so

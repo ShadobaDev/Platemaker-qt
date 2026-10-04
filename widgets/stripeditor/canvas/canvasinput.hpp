@@ -12,6 +12,7 @@ class QMimeData;
 namespace StripEdit {
 
 class ObjectController;
+class Placement;
 struct Tool;
 
 /**
@@ -31,8 +32,9 @@ class CanvasInput : public QObject
     Q_OBJECT
 
 public:
-    //! Filters @p view's viewport. @p objects takes a Create tool's drag and answers what is under the pointer.
-    CanvasInput(QGraphicsView* view, ObjectController* objects, QObject* parent);
+    //! Filters @p view's viewport. @p objects answers what is under the pointer; @p placement takes a
+    //! Create tool's drag.
+    CanvasInput(QGraphicsView* view, ObjectController* objects, Placement* placement, QObject* parent);
 
     //! The armed tool. Kept as the registry's row, which outlives this.
     void setTool(const Tool& tool);
@@ -63,7 +65,8 @@ private:
     [[nodiscard]] static QString droppedArtwork(const QMimeData* mime);
 
     QGraphicsView*    m_view    = nullptr;
-    ObjectController* m_objects = nullptr;
+    ObjectController* m_objects   = nullptr;
+    Placement*        m_placement = nullptr;
     const Tool*       m_tool    = nullptr;
     QPoint            m_panFrom {-1, -1};      //!< Last middle-button point, viewport coordinates; -1 when none.
     QPoint            m_pointerPos {-1, -1};   //!< Last hovered viewport point, so the cursor can be

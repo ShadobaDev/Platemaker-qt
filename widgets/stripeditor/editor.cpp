@@ -7,6 +7,7 @@
 #include "tooloptions/gradetooloptions.hpp"
 #include "objects/object.hpp"
 #include "objects/objectcontroller.hpp"
+#include "objects/placement.hpp"
 #include "canvas/pagesource.hpp"
 #include "canvas/canvasinput.hpp"
 #include "canvas/sampling.hpp"
@@ -229,8 +230,8 @@ Editor::Editor(PresetStore& presets, QWidget *parent)
         m_toolOptions->addPage(k_artworkPage, m_artworkOptions);
         connect(m_artworkOptions, &ArtworkToolOptions::artworkChanged, this, [this](const QString& f) {
             const Tool* armed = toolById(m_tool);
-            if (m_objects && armed && armed->optionsPage == k_artworkPage)
-                m_objects->setPlacementArtwork(f);
+            if (m_placement && armed && armed->optionsPage == k_artworkPage)
+                m_placement->setArtwork(f);
         });
 
         m_toolOptions->assertEveryToolHasAPage();
@@ -283,8 +284,15 @@ Editor::Editor(PresetStore& presets, QWidget *parent)
 
         // Everything placed on the strip. It drives the scene, the list and the panel; it owns no
         // persistence, so every edit leaves through one of its four signals and comes back as a re-feed.
-        m_objects = new ObjectController(m_scene, m_view, m_objectState,
-                                         m_bubbleOptions, *m_presets, m_layout, this, this);
+        m_objects = new ObjectController(m_scene, m_view, m_objectState, *m_presets, m_layout, this);
+        // What TOOL OPTIONS says the next object is, for *Apply from tool options ▸* and *Convert to ▸
+        // Balloon*. Told as functions, so the objects need no tool-options panel.
+        m_objects->setToolDefaults({[this] { return m_bubbleOptions->prototype(); },
+                                    [this] { return m_bubbleOptions->balloonShape(); }});
+        // A Create tool's drag on empty strip, and the object it places: the balloon TOOL OPTIONS
+        // describes, or the picture the Artwork tool is armed with.
+        m_placement = new Placement(m_scene, *m_objects, m_layout, this, this);
+        m_placement->setPrototype([this] { return m_bubbleOptions->prototype(); });
         // OBJECT STACK: the rows. A view of the controller, built before any feed can arrive.
         m_objectStack = new ObjectStack(ui->objectStack, *m_objects, m_layout, *m_presets, this, this);
         // The object menu, on the stack and the canvas alike. It spends the same pair the bucket does —
@@ -300,7 +308,7 @@ Editor::Editor(PresetStore& presets, QWidget *parent)
         // CANVAS: what a press, a drag, a drop or a wheel on the strip does under the armed tool. It does
         // the canvas's own part and reports the rest, which is wired here because it belongs elsewhere:
         // the colour pair to the rail, zoom to this shell, a dropped picture to the objects' import.
-        m_input = new CanvasInput(m_view, m_objects, this);
+        m_input = new CanvasInput(m_view, m_objects, m_placement, this);
         connect(m_input, &CanvasInput::artworkDropped, this, [this](const QString& file, QPointF at) {
             m_objects->placeArtworkAt(file, at);
         });
@@ -391,9 +399,9 @@ void Editor::setTool(const QString& id)
     if (m_bubbleOptions)
         m_bubbleOptions->setToolShape(tool->kind == ToolKind::Create ? tool->shape : std::nullopt);
 
-    // What a placement puts down: a picture, or — when this is empty — a balloon. The second and last
-    // thing the controller is told about the active tool, and told at the moment it is armed.
-    if (m_objects) {
+    // What a placement puts down: a picture, or — when this is empty — a balloon. Told to the placement at
+    // the moment the tool is armed.
+    if (m_placement) {
         QString artwork;
         if (tool->optionsPage == k_artworkPage && m_artworkOptions) {
             // Arming with nothing chosen asks once, here: before any drag, so a file dialog never lands
@@ -402,7 +410,7 @@ void Editor::setTool(const QString& id)
                 m_artworkOptions->chooseArtwork();
             artwork = m_artworkOptions->artwork();
         }
-        m_objects->setPlacementArtwork(artwork);
+        m_placement->setArtwork(artwork);
     }
 
     // The right column stays put under every tool, and **live** under every tool. It was briefly

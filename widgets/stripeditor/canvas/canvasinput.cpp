@@ -1,6 +1,7 @@
 #include "canvas/canvasinput.hpp"
 
 #include "objects/objectcontroller.hpp"
+#include "objects/placement.hpp"
 #include "toolrail/cursors.hpp"
 #include "toolrail/toolregistry.hpp"
 
@@ -18,10 +19,12 @@
 
 namespace StripEdit {
 
-CanvasInput::CanvasInput(QGraphicsView* view, ObjectController* objects, QObject* parent)
+CanvasInput::CanvasInput(QGraphicsView* view, ObjectController* objects, Placement* placement,
+                         QObject* parent)
     : QObject(parent)
     , m_view(view)
     , m_objects(objects)
+    , m_placement(placement)
 {
     m_view->viewport()->installEventFilter(this);   // Ctrl+wheel zoom, and the pointer's own answer
 }
@@ -146,16 +149,16 @@ bool CanvasInput::eventFilter(QObject *watched, QEvent *event)
             if (me->button() == Qt::LeftButton) {
                 const QPointF scenePos = m_view->mapToScene(me->position().toPoint());
                 if (!m_objects->objectAt(scenePos, m_view->transform())) {
-                    m_objects->beginPlacement(scenePos);
+                    m_placement->begin(scenePos);
                     return true;
                 }
             }
-        } else if (event->type() == QEvent::MouseMove && m_objects->isPlacing()) {
+        } else if (event->type() == QEvent::MouseMove && m_placement->isPlacing()) {
             auto* me = static_cast<QMouseEvent*>(event);
-            m_objects->updatePlacement(m_view->mapToScene(me->position().toPoint()));
+            m_placement->update(m_view->mapToScene(me->position().toPoint()));
             return true;
-        } else if (event->type() == QEvent::MouseButtonRelease && m_objects->isPlacing()) {
-            m_objects->finishPlacement();
+        } else if (event->type() == QEvent::MouseButtonRelease && m_placement->isPlacing()) {
+            m_placement->finish();
             return true;
         }
     }

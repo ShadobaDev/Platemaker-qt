@@ -2,8 +2,8 @@
 
 Qt 6 desktop frontend for [libplatemaker](https://github.com/ShadobaDev/PlateMaker) — a comic artist tool for pre- and post-processing Webtoon-format artwork.
 
-> **Library documentation:** See the `PlateMaker` repository for the domain specification,
-> data models, CLI reference, and pipeline details.
+> **Library documentation:** the domain specification, data models, CLI reference and pipeline
+> details are in [libplatemaker's wiki](https://github.com/ShadobaDev/PlateMaker/wiki).
 
 ---
 
@@ -56,7 +56,7 @@ Since it isn't signed, you can verify the download yourself:
 **1. Checksum (SHA-256)** — confirm the file is byte-for-byte what was published:
 
 ```powershell
-Get-FileHash .\Platemaker-1.3.0-Setup.exe -Algorithm SHA256
+Get-FileHash .\Platemaker-<version>-Setup.exe -Algorithm SHA256
 ```
 
 **2. Provenance — proof GitHub itself built it from this repo.** Every release carries a GitHub
@@ -78,17 +78,8 @@ don't have to trust a hash *we* published.
   A `✓ Verification succeeded!` confirms the file's digest matches and that it was built by this repo's
   `release.yml`.
 
-**3. Malware scan** — the installer is scanned on VirusTotal.
-
-### Latest verified build (1.3.0)
-
-- **File:** `Platemaker-1.3.0-Setup.exe`
-- **SHA-256:** `6d1b95c6dc68d94c9d7a8b4ea7a7c41f2135538d3ea4ab1bade091551cae7602`
-- **VirusTotal:** [0 / 68 — clean](https://www.virustotal.com/gui/file/6d1b95c6dc68d94c9d7a8b4ea7a7c41f2135538d3ea4ab1bade091551cae7602)
-
-> Each release has its own hash and scan; the values above are for 1.3.0. For newer builds, use the
-> checksum and scan link published on that release's
-> [Releases](https://github.com/ShadobaDev/Platemaker-qt/releases) page.
+**3. Malware scan** — each installer is scanned on VirusTotal. The checksum and the scan link for a
+build are published on its [Releases](https://github.com/ShadobaDev/Platemaker-qt/releases) page.
 
 ---
 
@@ -96,23 +87,24 @@ don't have to trust a hash *we* published.
 
 | Tool | Version | Notes |
 |---|---|---|
-| Qt | 6.8+ | Widgets module and setColorScheme required |
-| CMake | 3.25+ | Presets format v6 |
-| MSVC 2022 or MinGW (MSYS2) | — | Windows |
+| Qt | 6.8+ | Widgets, Svg, Concurrent |
+| CMake | 3.25+ | |
+| MSVC 2022 or MinGW (MSYS2) | — | Windows; MSVC is the shipping toolchain |
 | GCC / Clang | — | Linux |
-| libplatemaker | `LIBPLATEMAKER_VERSION` in `CMakeLists.txt` | See **Linking libplatemaker** below |
+| libplatemaker | `LIBPLATEMAKER_VERSION` in `CMakeLists.txt` | see **Linking libplatemaker** below |
 
 ---
 
 ## Building
 
-The project is built and run from **Qt Creator**.  Open `CMakeLists.txt` as a
-Qt Creator project and configure the kit (MSVC 2022 or MinGW 64-bit).
+Open `CMakeLists.txt` in **Qt Creator** and pick a kit. The post-build step copies `platemaker.dll` and
+the libvips DLLs next to the executable.
 
-```bash
-cmake -B .\build\Desktop_Qt_6_11_1_MinGW_64_bit-Debug\ -S .      
-cmake --build .\build\Desktop_Qt_6_11_1_MinGW_64_bit-Debug\ --target installer
-```
+- **Commands** (the installer, the portable ZIP, deploying to a prefix): [docs/CHEATSHEET.md](docs/CHEATSHEET.md)
+- **Details** (a local library build, `LIBPLATEMAKER_DIR`, common failures): the wiki's
+  [Building](https://github.com/ShadobaDev/Platemaker-qt/wiki/Development-Building) page
+- **Tests:** configure with `PLATEMAKER_GUI_BUILD_TESTS=ON` and run `platemaker-gui-tests`
+
 ### Linking libplatemaker
 
 `CMakeLists.txt` resolves `libplatemaker` in three steps, in order:
@@ -135,54 +127,16 @@ cmake --build .\build\Desktop_Qt_6_11_1_MinGW_64_bit-Debug\ --target installer
 
 The value is cached in `build/.../CMakeCache.txt` and survives reconfigures.
 
-**Building the dev package from source:**
-
-```powershell
-# In the PlateMaker repository
-cmake --preset msvc-release
-cmake --build --preset msvc-release
-cmake --install build/msvc-release --config Release
-# → install/msvc-release/  (use this path as LIBPLATEMAKER_DIR)
-```
-
-### Windows: runtime DLLs
-
-The CMake post-build step automatically copies `platemaker.dll` and all libvips
-runtime DLLs next to the executable.  No manual PATH configuration is needed to
-run from Qt Creator or the build directory.
-
 ---
 
-## Development Workflow
+## Documentation
 
-### Branching
-
-```
-main          — development; every release is a tag on it
-feature/<name> — short-lived, merged into main
-fix/<name>
-```
-
-### Modifying UI files
-
-UI forms (`.ui`) are edited in **Qt Designer** launched from within Qt Creator.  
-Do **not** edit `.ui` XML files by hand — Qt Creator regenerates the `ui_*.h`
-headers from them at build time and hand edits will be overwritten.
-
-When adding a new widget to a dialog or window:
-1. Open the `.ui` file in Qt Designer inside Qt Creator.
-2. Drag and drop the widget.
-3. Set the object name and properties.
-4. Build — Qt will regenerate the header.
-5. Reference the new widget via `ui->objectName` in the `.cpp`.
-
-### Keeping in sync with libplatemaker
-
-When libplatemaker changes its public API (new model fields, renamed methods):
-
-1. Update `LIBPLATEMAKER_DIR` to point to the freshly installed dev package.
-2. Click **Apply Configuration Changes** in Qt Creator.
-3. Rebuild — the compiler will surface any API breaks immediately.
+| Where | What |
+|---|---|
+| [Wiki](https://github.com/ShadobaDev/Platemaker-qt/wiki/) | the user manual, comic-production guides, and the developer pages; checked out at `docs/wiki/` (`git submodule update --init docs/wiki`) |
+| [docs/SPECIFICATION.md](docs/SPECIFICATION.md) | the outline: what the GUI is, where each part is specified, how to extend the strip editor |
+| [docs/CHANGELOG.md](docs/CHANGELOG.md) | release to release |
+| [docs/TODO.md](docs/TODO.md) | the roadmap |
 
 ---
 
@@ -198,22 +152,21 @@ Platemaker/
 │                                     fonts, package, advisories, about)
 ├── widgets/                       — one folder per widget, its .cpp/.hpp/.ui together
 │   ├── project/                   — a chapter: inputs, outputs and its undo history
-│   ├── stripeditor/               — the strip editor (see docs/SPECIFICATION.md)
-│   │   ├── (root)                 — the editor shell, objects, the object controller,
-│   │   │                            the tool registry, page memory
-│   │   ├── panels/                — tool options, object and strip state, grade
-│   │   └── properties/            — one editor per property group
-│   ├── artifact/                  — what a balloon is, how it is drawn, how it is saved
+│   ├── stripeditor/               — the strip editor, one folder per screen region
+│   │                                (the wiki's Code map page says which)
+│   ├── objectrecord/              — what a balloon is, how it is drawn, how it is saved
 │   ├── workspacefolder/           — the workspace folder: lock, fonts, layout
 │   ├── renderworker/              — the background render
 │   ├── advisories/, badge/, …     — shared widgets
 │   └── …dialog/                   — the profile, template and about dialogs
 ├── tests/gui-unit-tests/          — GoogleTest, the property model (PLATEMAKER_GUI_BUILD_TESTS)
 ├── icons/                         — app icons; tools/ and menu/ hold the SVG glyphs
-├── cmake/, scripts/               — installer and portable-package builds
+├── cmake/, scripts/               — installer and portable builds, the layer check
 ├── sbom/                          — the dependency manifest
 └── docs/
-    ├── SPECIFICATION.md           — what the GUI does, as it is now
+    ├── wiki/                      — the wiki, as a git submodule
+    ├── SPECIFICATION.md           — the outline, and how to extend the strip editor
+    ├── CHEATSHEET.md              — build and release commands
     ├── CHANGELOG.md               — release to release
     └── TODO.md                    — the roadmap
 ```
@@ -249,5 +202,5 @@ projects are routinely flagged by ML heuristics without anything actually being 
 
 ## Contributing
 
-Contributions are welcome — open an issue first for anything significant. To extend the strip editor, start with **[*Extending the strip editor*](docs/SPECIFICATION.md#extending-the-strip-editor)**; the wiki's [Development](https://github.com/ShadobaDev/Platemaker-qt/wiki/Development) pages explain how the rest is put together. By opening a pull request you agree to the **[Contributor License Agreement](CLA.md)**
+Contributions are welcome — open an issue first for anything significant. To extend the strip editor, start with **[*Extending the strip editor*](docs/SPECIFICATION.md#extending-the-strip-editor)**; the wiki's [Development](https://github.com/ShadobaDev/Platemaker-qt/wiki/Development) pages explain how the rest is put together, and [Contributing](https://github.com/ShadobaDev/Platemaker-qt/wiki/Development-Contributing) covers branches and commit messages. By opening a pull request you agree to the **[Contributor License Agreement](CLA.md)**
 and the **[Code of Conduct](CODE_OF_CONDUCT.md)**.

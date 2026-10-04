@@ -7,7 +7,8 @@
 #include "outputprofiledialog.hpp"
 #include "templatesdialog.hpp"
 #include "renderworker.hpp"
-#include "artifactsvg.hpp"
+#include "recordstore.hpp"
+#include "recordsvg.hpp"
 #include "workspacefolder.hpp"
 #include "workspacelock.hpp"
 
@@ -373,7 +374,7 @@ bool MainWindow::collectWorkspaceFiles(const QString &newWorkspacePath)
     };
 
     // Overlays, per project — computed on copies, committed only once everything has made it.
-    const QString overlaysDir = ArtifactStore::ensureOverlaysDir(newWorkspacePath);
+    const QString overlaysDir = RecordStore::ensureOverlaysDir(newWorkspacePath);
     std::vector<std::vector<Platemaker::Models::StripOverlay>> collected;
     collected.reserve(m_workspace.projectItems.size());
     for (const auto &project : m_workspace.projectItems) {
@@ -381,9 +382,9 @@ bool MainWindow::collectWorkspaceFiles(const QString &newWorkspacePath)
         QString failed;
         if (!overlays.empty()) {
             if (overlaysDir.isEmpty())
-                return refuse(ArtifactStore::overlaysDir(newWorkspacePath));
+                return refuse(RecordStore::overlaysDir(newWorkspacePath));
             if (!collectOverlayFiles(overlays,
-                                     m_overlayArtifacts.artifacts(QString::fromStdString(project.uid)),
+                                     m_overlayRecords.records(QString::fromStdString(project.uid)),
                                      overlaysDir, &failed))
                 return refuse(failed);
         }
@@ -424,7 +425,7 @@ QStringList MainWindow::referencedWorkspaceFiles() const
     QStringList used;
     const QString folder = QFileInfo(m_workspacePath).absolutePath();
     for (const auto &project : m_workspace.projectItems) {
-        const ArtifactMap records = m_overlayArtifacts.artifacts(QString::fromStdString(project.uid));
+        const ObjectRecord::Map records = m_overlayRecords.records(QString::fromStdString(project.uid));
         for (const auto &overlay : project.getStripOverlays()) {
             const QString asset = QString::fromStdString(overlay.assetPath);
             used << asset;
@@ -485,14 +486,14 @@ void MainWindow::sweepWorkspaceFolder()
 
 void MainWindow::healFontFallbacks()
 {
-    const QString   dir = ArtifactStore::overlaysDir(m_workspacePath);
+    const QString   dir = RecordStore::overlaysDir(m_workspacePath);
     const QFileInfo home(dir);
     const QDir      root(QFileInfo(m_workspacePath).absolutePath());
 
     int         healed = 0;
     QStringList families;
     for (auto &project : m_workspace.projectItems) {
-        const ArtifactMap records = m_overlayArtifacts.artifacts(QString::fromStdString(project.uid));
+        const ObjectRecord::Map records = m_overlayRecords.records(QString::fromStdString(project.uid));
         for (auto &overlay : project.getStripOverlays()) {
             const auto rec = records.constFind(QString::fromStdString(overlay.uid));
             if (rec == records.constEnd() || rec->text.body.isEmpty() || rec->text.family.isEmpty()
@@ -502,11 +503,11 @@ void MainWindow::healFontFallbacks()
             if (QFileInfo(QFileInfo(asset).absolutePath()) != home)
                 continue;   // not this folder's file — never written from here
             QFile file(asset);
-            if (!file.open(QIODevice::ReadOnly) || bakedFontFallback(file.readAll()).isEmpty())
+            if (!file.open(QIODevice::ReadOnly) || Svg::bakedFontFallback(file.readAll()).isEmpty())
                 continue;   // baked in its own font already
             file.close();
 
-            const QString written = writeArtifactSvg(dir, *rec, asset);
+            const QString written = Svg::writeFile(dir, *rec, asset);
             if (written.isEmpty())
                 continue;   // left as it was; it heals at the next open that can write
             overlay.assetPath = written.toStdString();

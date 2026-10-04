@@ -1,4 +1,4 @@
-#include "shapeeditor.hpp"
+#include "properties/shapeeditor.hpp"
 
 #include <QAbstractButton>
 #include <QButtonGroup>
@@ -7,7 +7,7 @@
 #include <QToolButton>
 #include <QVBoxLayout>
 
-#include "artifactpainter.hpp"
+#include "recordpainter.hpp"
 #include "flowlayout.hpp"
 
 namespace StripEdit {
@@ -21,28 +21,28 @@ constexpr int k_shapeIconScale = 4;
 
 } // namespace
 
-bool shapeSpeaks(Artifact::Shape shape)
+bool shapeSpeaks(ObjectRecord::Shape shape)
 {
     // Someone is talking: a tail belongs. A caption, a banner or a scroll is narration — it has no
     // speaker to point at, so placing one should not sprout a tail the author then has to turn off.
     switch (shape) {
-    case Artifact::Shape::Speech:
-    case Artifact::Shape::Shout:
-    case Artifact::Shape::Ellipse:
-    case Artifact::Shape::Thought:
+    case ObjectRecord::Shape::Speech:
+    case ObjectRecord::Shape::Shout:
+    case ObjectRecord::Shape::Ellipse:
+    case ObjectRecord::Shape::Thought:
         return true;
     default:
         return false;
     }
 }
 
-QPixmap bubbleThumbnail(Artifact::Shape shape, const QColor& fill, const QColor& stroke,
+QPixmap bubbleThumbnail(ObjectRecord::Shape shape, const QColor& fill, const QColor& stroke,
                         const QColor& ink)
 {
-    Artifact a;
+    ObjectRecord a;
     a.shape.kind       = shape;
     a.box              = QSize(k_bubbleThumbW * k_shapeIconScale, k_bubbleThumbH * k_shapeIconScale);
-    // The tile's own stroke, not the artifact's: a preset authored at 5 px on a 280 px balloon would be
+    // The tile's own stroke, not the record's: a preset authored at 5 px on a 280 px balloon would be
     // a hairline here, and the icon is meant to say *which shape and what colours*, not how heavy.
     a.skin.strokeWidth = 2 * k_shapeIconScale;
     a.text.body        = QStringLiteral("Aa");
@@ -58,11 +58,11 @@ QPixmap bubbleThumbnail(Artifact::Shape shape, const QColor& fill, const QColor&
         t.baseWidth   = a.box.width() * 0.18;
         a.tails.items = {t};
     }
-    return QPixmap::fromImage(renderArtifact(a).scaled(QSize(k_bubbleThumbW, k_bubbleThumbH),
+    return QPixmap::fromImage(Painter::render(a).scaled(QSize(k_bubbleThumbW, k_bubbleThumbH),
                                                        Qt::KeepAspectRatio, Qt::SmoothTransformation));
 }
 
-QPixmap shapeThumbnail(Artifact::Shape shape, const QPalette& pal)
+QPixmap shapeThumbnail(ObjectRecord::Shape shape, const QPalette& pal)
 {
     return bubbleThumbnail(shape, pal.color(QPalette::Base), pal.color(QPalette::WindowText),
                            pal.color(QPalette::WindowText));
@@ -84,9 +84,9 @@ ShapeEditor::ShapeEditor(QWidget* parent)
 
     m_tiles = new QButtonGroup(this);
     m_tiles->setExclusive(true);
-    // The tiles are the shape list, in the shape list's order — both from artifact.hpp, so this
+    // The tiles are the shape list, in the shape list's order — both from objectrecord.hpp, so this
     // picker and *Convert to ▸* cannot come to offer different things or call them different names.
-    for (Artifact::Shape shape : shapeOrder()) {
+    for (ObjectRecord::Shape shape : shapeOrder()) {
         auto* b = new QToolButton(tileHost);
         b->setCheckable(true);
         b->setAutoRaise(true);
@@ -97,13 +97,13 @@ ShapeEditor::ShapeEditor(QWidget* parent)
         m_tiles->addButton(b, int(shape));
     }
 
-    if (auto* first = m_tiles->button(int(Artifact::Shape::Speech)))
+    if (auto* first = m_tiles->button(int(ObjectRecord::Shape::Speech)))
         first->setChecked(true);
     refreshTiles();
 
     connect(m_tiles, &QButtonGroup::idClicked, this, [this](int id) {
-        m_values.kind = static_cast<Artifact::Shape>(id);
-        emit edited();
+        m_values.kind = static_cast<ObjectRecord::Shape>(id);
+        emit changed();
     });
 }
 
@@ -117,7 +117,7 @@ void ShapeEditor::bind(const Subjects& subjects)
         tile->setChecked(true);
 }
 
-void ShapeEditor::applyTo(Artifact& target) const
+void ShapeEditor::applyTo(ObjectRecord& target) const
 {
     m_values.applyTo(target);
 }
@@ -134,7 +134,7 @@ void ShapeEditor::refreshTiles()
     if (!m_tiles)
         return;
     for (QAbstractButton* b : m_tiles->buttons())
-        b->setIcon(QIcon(shapeThumbnail(static_cast<Artifact::Shape>(m_tiles->id(b)), palette())));
+        b->setIcon(QIcon(shapeThumbnail(static_cast<ObjectRecord::Shape>(m_tiles->id(b)), palette())));
 }
 
 }  // namespace StripEdit

@@ -36,12 +36,12 @@ add_executable(platemaker-gui-tests
     test_presets.cpp
     test_workspace_folder.cpp
     test_workspace_lock.cpp
-    ${CMAKE_SOURCE_DIR}/widgets/artifact/artifact.cpp
+    ${CMAKE_SOURCE_DIR}/widgets/objectrecord/objectrecord.cpp
     # The SVG a bubble is written to, and the geometry it is written from: both Qt6::Gui only, so the
     # rule above still holds — and the import's premise is worth a test of its own.
-    ${CMAKE_SOURCE_DIR}/widgets/artifact/artifactsvg.cpp
-    ${CMAKE_SOURCE_DIR}/widgets/artifact/artifactpainter.cpp
-    ${CMAKE_SOURCE_DIR}/widgets/stripeditor/colouradjustment.cpp
+    ${CMAKE_SOURCE_DIR}/widgets/objectrecord/recordsvg.cpp
+    ${CMAKE_SOURCE_DIR}/widgets/objectrecord/recordpainter.cpp
+    ${CMAKE_SOURCE_DIR}/widgets/stripeditor/properties/colouradjustment.cpp
     # The preset store is QtCore and a QObject — no widget in it — so the rule above still holds.
     ${CMAKE_SOURCE_DIR}/widgets/stripeditor/presetstore.cpp
     # The one-workspace-per-folder rule: QtCore and the file system, nothing else.
@@ -51,11 +51,10 @@ add_executable(platemaker-gui-tests
 )
 
 target_include_directories(platemaker-gui-tests PRIVATE
-    ${CMAKE_SOURCE_DIR}/widgets/artifact
+    ${CMAKE_SOURCE_DIR}/widgets/objectrecord
+    # One root, as in the app: includes name their folder, e.g. "properties/propertygroup.hpp" for
+    # carriesGroup(), which is header-only and QWidget-free so the rule can be tested.
     ${CMAKE_SOURCE_DIR}/widgets/stripeditor
-    # carriesGroup() — which property groups a record carries. Header-only and QWidget-free on
-    # purpose, which is what lets the rule ③ lays itself out by be tested rather than only read.
-    ${CMAKE_SOURCE_DIR}/widgets/stripeditor/properties
     ${CMAKE_SOURCE_DIR}/widgets/workspacefolder
     # The colour adjustments read libplatemaker's ColourCorrection, which is header-only. Its include path
     # and not its target: linking the target would make every test run need the library's DLL on PATH,

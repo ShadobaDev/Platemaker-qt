@@ -13,7 +13,7 @@
 
 #include "advisories.hpp"
 #include "advisorybar.hpp"
-#include "artifactpainter.hpp"
+#include "recordpainter.hpp"
 #include "editor.hpp"
 #include "project.hpp"
 
@@ -91,7 +91,7 @@ void MainWindow::refreshAdvisoriesFor(int projectIndex)
     // --- lettering whose font is not installed ------------------------------
     // The render is unaffected — the words are outlines in the file — so this is a warning about editing:
     // until the font is installed, an edit sets the words in a stand-in. The same answer the SVG writer
-    // gets (artifactFontFallback()), so the badge and the file can never disagree about what is missing.
+    // gets (Painter::fontFallback()), so the badge and the file can never disagree about what is missing.
     QStringList       families;
     const QStringList inStandIns = objectsInStandIns(project, &families);
     if (inStandIns.isEmpty()) {
@@ -116,11 +116,11 @@ void MainWindow::refreshAdvisoriesFor(int projectIndex)
 QStringList MainWindow::objectsInStandIns(const Platemaker::Models::ProjectItem& project,
                                           QStringList*                         families) const
 {
-    const ArtifactMap records = m_overlayArtifacts.artifacts(QString::fromStdString(project.uid));
+    const ObjectRecord::Map records = m_overlayRecords.records(QString::fromStdString(project.uid));
     QStringList       out;
     for (const auto& overlay : project.getStripOverlays()) {
         const auto rec = records.constFind(QString::fromStdString(overlay.uid));
-        if (rec == records.constEnd() || artifactFontFallback(*rec).isEmpty())
+        if (rec == records.constEnd() || Painter::fontFallback(*rec).isEmpty())
             continue;
         out << QString::fromStdString(overlay.uid);
         if (families && !families->contains(rec->text.family))
@@ -148,14 +148,14 @@ void MainWindow::showObjects(const QString& projectUid, const QStringList& uids)
     openStripEditorDock(idx);   // raises it when it is already open
 
     QDockWidget* strip = dockForStripEditor(idx);
-    auto* viewer = strip ? qobject_cast<StripEdit::Editor*>(strip->widget()) : nullptr;
-    if (!viewer)
+    auto* editor = strip ? qobject_cast<StripEdit::Editor*>(strip->widget()) : nullptr;
+    if (!editor)
         return;
 
     // Armed and then fed, the same handshake an undo uses: the objects only exist in the editor once
     // the feed builds them. An object that is not on the strip (unanchored) is not selectable in the
     // scene, so for it what this reaches is its row in the object stack, where it can be acted on.
-    viewer->selectAfterFeed(uids);
+    editor->selectAfterFeed(uids);
     refreshStripEditor(strip);
 }
 

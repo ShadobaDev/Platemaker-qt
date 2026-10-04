@@ -3,7 +3,7 @@
 
 #include <QWidget>
 
-#include "artifact.hpp"
+#include "objectrecord.hpp"
 #include "overlaystate.hpp"
 #include <QList>
 #include <QSize>
@@ -129,7 +129,7 @@ public:
      * decision and apply again the moment the strip is graded again. There is no separate toggle that could
      * leave a grade parked where the render would not run it.
      *
-     * Called by MainWindow on StripEdit::Editor::colourCorrectionEdited, and by the workflow card.
+     * Called by MainWindow on StripEdit::Editor::colourCorrectionCommitted, and by the workflow card.
      * @param cc The new colour correction to apply.
      * @param undoText The text to display for the undo action.
      */
@@ -157,9 +157,9 @@ public:
 
     /**
      * @brief Adopts this project's authoring records (read back from its assets).
-     * @param artifacts The map of artifacts to adopt.
+     * @param records The map of records to adopt.
      */
-    void setArtifacts(ArtifactMap artifacts);
+    void setRecords(ObjectRecord::Map records);
 
     /**
      * @brief Re-writes the SVGs of the overlays a restored step changed, from their authoring records.
@@ -177,10 +177,10 @@ public:
     void rewriteOverlayAssets(const QStringList& uids);
 
     /**
-     * @brief Returns the map of artifacts associated with this project.
-     * @return The artifact map.
+     * @brief Returns the map of records associated with this project.
+     * @return The record map.
      */
-    [[nodiscard]] const ArtifactMap& artifacts() const { return m_artifacts; }
+    [[nodiscard]] const ObjectRecord::Map& records() const { return m_records; }
 
     /**
      * @brief Registers a newly drawn bubble: writes its SVG, then lets the library inventory the file.
@@ -193,7 +193,7 @@ public:
      * @param wFrac          The artwork's rendered width in that same unit.
      * @param anchorInputUid The input page the bubble rides on.
      */
-    void createOverlay(const Artifact& artifact, double xFrac, double yFrac, double wFrac,
+    void createOverlay(const ObjectRecord& record, double xFrac, double yFrac, double wFrac,
                        const QString& anchorInputUid);
 
     /**
@@ -221,11 +221,11 @@ public:
      *        undo step, re-writing the assets whose authoring record changed.
      * 
      * @param overlays The new overlays, in the order they are drawn.
-     * @param artifacts The new authoring records for those overlays, keyed by `StripOverlay::uid`.
+     * @param records The new authoring records for those overlays, keyed by `StripOverlay::uid`.
      * @param undoText The text to display for the undo action.
      */
     void applyOverlays(std::vector<Platemaker::Models::StripOverlay> overlays,
-                       ArtifactMap                                  artifacts,
+                       ObjectRecord::Map                                  records,
                        const QString&                               undoText);
 
     /**
@@ -299,7 +299,7 @@ protected:
 signals:
     void projectModified();                         //!< emitted when the project is modified (inputs, outputs, profiles, etc.)
     void renderToggleRequested(int projectIndex);   //!< Render/Stop button clicked
-    void viewStripRequested(int projectIndex);      //!< "View strip" button clicked — open the strip viewer for this project
+    void viewStripRequested(int projectIndex);      //!< "View strip" button clicked — open the strip editor for this project
 
     /**
      * @brief A workspace-level edit was made from this project dock (canvas-profile content edit,
@@ -313,9 +313,9 @@ signals:
 
     /**
      * @brief This project's authoring records changed — MainWindow folds them back into its per-project cache.
-     * @param artifacts The new artifact map for this project.
+     * @param records The new record map for this project.
      */
-    void artifactsChanged(const ArtifactMap& artifacts);
+    void recordsChanged(const ObjectRecord::Map& records);
 
     /**
      * @brief A step was undone or redone: @p scope says which dock shows the difference, and @p uids
@@ -451,7 +451,7 @@ private:
 
     //! Whether a file may be written to the workspace folder now.
     [[nodiscard]] bool mayWrite() const { return !m_writeGuard || m_writeGuard(); }
-    ArtifactMap m_artifacts;                                //!< Authoring records for this project's overlays, by uid.
+    ObjectRecord::Map m_records;                                //!< Authoring records for this project's overlays, by uid.
     QString m_cacheDir;                                     //!< Directory where cached thumbnails and other temporary files are stored.
     OutputFormatOptionsWidget* m_formatOptions = nullptr;   //!< Shared widget for editing the selected output profile's format/options.
     QVBoxLayout* m_workflowStack = nullptr;                  //!< Vertical stack of the Workflow tab's StageCards (built in the ctor, rebuilt by refreshWorkflowMap()).

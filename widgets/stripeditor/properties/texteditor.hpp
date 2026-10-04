@@ -1,7 +1,7 @@
 #ifndef STRIPEDIT_TEXTEDITOR_HPP
 #define STRIPEDIT_TEXTEDITOR_HPP
 
-#include "propertygroupeditor.hpp"
+#include "properties/propertygroupeditor.hpp"
 
 class QCheckBox;
 class QComboBox;
@@ -35,8 +35,8 @@ public:
     [[nodiscard]] PropertyGroup group() const override { return PropertyGroup::Text; }
 
     void bind(const Subjects& subjects) override;
-    void applyTo(Artifact& target) const override;
-    void applyEditedTo(Artifact& target) const override;
+    void applyTo(ObjectRecord& target) const override;
+    void applyEditedTo(ObjectRecord& target) const override;
 
     [[nodiscard]] const TextProperties& values() const { return m_values; }
 

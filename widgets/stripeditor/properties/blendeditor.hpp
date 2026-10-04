@@ -18,6 +18,9 @@ namespace StripEdit {
 //! row and a tick can never name the same mode differently.
 [[nodiscard]] const QList<QPair<Platemaker::Models::BlendMode, QString>>& blendModes();
 
+//! What blendModes() calls @p mode; empty for one it does not list.
+[[nodiscard]] QString blendName(Platemaker::Models::BlendMode mode);
+
 /**
  * @brief How an object is composited onto what is under it — **the one property every kind carries**.
  *

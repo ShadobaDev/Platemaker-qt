@@ -1,29 +1,34 @@
 #include "editor.hpp"
 #include "ui_editor.h"
-#include "flowlayout.hpp"
 #include "advisorybar.hpp"
-#include "colouradjustment.hpp"
-#include "colourpair.hpp"
-#include "cursors.hpp"
-#include "gradepanel.hpp"
-#include "object.hpp"
-#include "objectcontroller.hpp"
-#include "pagesource.hpp"
-#include "objectstatepanel.hpp"
+#include "properties/colouradjustment.hpp"
+#include "toolrail/colourpair.hpp"
+#include "toolrail/cursors.hpp"
+#include "tooloptions/gradetooloptions.hpp"
+#include "objects/object.hpp"
+#include "objects/objectcontroller.hpp"
+#include "objects/placement.hpp"
+#include "canvas/pagesource.hpp"
+#include "canvas/canvasinput.hpp"
+#include "canvas/sampling.hpp"
+#include "canvas/stripitem.hpp"
+#include "toolrail/toolrail.hpp"
+#include "tooloptions/tooloptionsstack.hpp"
+#include "objectstate/objectstate.hpp"
+#include "objectstack/objectmenu.hpp"
+#include "objectstack/objectstack.hpp"
+#include "objectstate/objectstatestack.hpp"
 #include "presetstore.hpp"
-#include "shapeeditor.hpp"
-#include "stripstatepanel.hpp"
-#include "artworkoptionspanel.hpp"
-#include "tooloptionspanel.hpp"
+#include "properties/shapeeditor.hpp"
+#include "objectstate/stripstate.hpp"
+#include "tooloptions/artworktooloptions.hpp"
+#include "tooloptions/bubbletooloptions.hpp"
 
 #include <platemaker/models/colour_correction.hpp>
 
 #include <algorithm>
 
-#include <QFileInfo>
-#include <QButtonGroup>
 #include <QDebug>
-#include <QEnterEvent>
 #include <QEvent>
 #include <QGraphicsItem>
 #include <QGraphicsLineItem>
@@ -36,13 +41,8 @@
 #include <QLabel>
 #include <QKeyEvent>
 #include <QListWidget>
-#include <QDragEnterEvent>
-#include <QDropEvent>
-#include <QMimeData>
-#include <QMouseEvent>
 #include <QPainter>
 #include <QPen>
-#include <QScrollArea>
 #include <QScrollBar>
 #include <QShortcut>
 #include <QSettings>
@@ -50,11 +50,9 @@
 #include <QSplitterHandle>
 #include <QStyle>
 #include <QStackedWidget>
-#include <QStyleOptionGraphicsItem>
 #include <QToolButton>
 #include <QTransform>
 #include <QVBoxLayout>
-#include <QWheelEvent>
 
 #include <algorithm>
 #include <string>
@@ -107,31 +105,6 @@ constexpr int k_rightColumnPx = 340;
 constexpr int k_prefetchPages = 1;
 
 /**
- * @brief Wraps @p page in a scroll area to prevent the column from resizing when the panel's contents change.
- *
- * **A panel may not decide how wide its column is.** A stacked widget's minimum is its pages' minimum,
- *  and a splitter may never take a child below that — so the right column grew the moment something was
- *  selected and the properties appeared (measured: 18 points empty, 174 with one object's controls, and
- *  more with the real panel). Every row in the list then slid sideways, out from under the pointer that
- *  had just come down on a mute checkbox, and the click landed on the row instead. Inside a scroll area
- *  the column's minimum is the scroll area's own — constant — and a panel too big for the column scrolls
- *  rather than shoving it. That is also what lets the object list keep its third of the height when the
- *  properties are long.
- *
- * @param page The widget to wrap.
- * @param host The stacked widget that will contain the scroll area.
- * @return A pointer to the created scroll area.
- */
-[[nodiscard]] QScrollArea* scrolled(QWidget* page, QStackedWidget* host)
-{
-    auto* area = new QScrollArea(host);
-    area->setFrameShape(QFrame::NoFrame);   // the panel already sits in a framed column
-    area->setWidgetResizable(true);
-    area->setWidget(page);
-    return area;
-}
-
-/**
  * @brief How wide a column has to be to hold @p panel whole.
  *
  * The tool options **can** be asked, where the properties cannot: they describe the next object rather
@@ -168,81 +141,6 @@ void showHandles(QSplitter* splitter)
     }
 }
 
-/**
- * @brief One graphics item that draws every input page as its own image — seam-free.
- *
- * One QGraphicsPixmapItem per page leaves a 1px hairline at each join (QGraphicsView clips and rounds
- * each item's edge independently). Drawing all pages through one item, in one painter pass, tiles them
- * edge-to-edge with no seam at any zoom. The item is a thin view over the Editor: it owns no
- * pixels — it asks the viewer for each page's built pixmap (if ready) or its blurry proxy, so the
- * lazy/async machinery lives in one place.
- */
-class StripItem : public QGraphicsItem
-{
-public:
-    /**
-     * @brief Creates a graphics item that draws the strip.
-     * @param owner The editor that owns the strip and supplies the pages.
-     */
-    explicit StripItem(Editor *owner) : m_owner(owner) {}
-
-    /**
-     * @brief The bounding rectangle of the strip, in scene coordinates.
-     * @return The rectangle that contains the whole strip.
-     */
-    QRectF boundingRect() const override
-    {
-        const QSize s = m_owner->stripSize();
-        return QRectF(0, 0, s.width(), s.height());
-    }
-
-    /**
-     * @brief Paints the strip.
-     * @param painter The painter to use.
-     * @param option The style options.
-     * @param widget The widget being painted.
-     */
-    void paint(QPainter *painter, const QStyleOptionGraphicsItem *option, QWidget *) override
-    {
-        // Smooth the pixmap interior, but turn OFF edge antialiasing: with AA on, each drawPixmap
-        // coverage-antialiases the destination rect's edges at fractional zoom, so the boundary row
-        // between two pages is only partially covered and the background hairlines through — that is
-        // the "1px frame". AA off makes adjacent pages tile with hard edges, each device row owned by
-        // exactly one page, no bleed. (Local to this item — the view keeps AA for text/seam lines.)
-        painter->setRenderHint(QPainter::Antialiasing, false);
-        painter->setRenderHint(QPainter::SmoothPixmapTransform, true);
-        const QRectF exposed = option->exposedRect;
-        for (int i = 0; i < m_owner->pageCount(); ++i) {
-            const QRectF r = m_owner->pageRect(i);
-            if (!r.intersects(exposed))
-                continue;
-
-            if (m_owner->gradeActive()) {
-                const QPixmap graded = m_owner->gradedOf(i);
-                if (!graded.isNull()) {
-                    painter->drawPixmap(r.topLeft(), graded); // live grade preview
-                    continue;
-                }
-                // not graded yet → briefly show the ungraded page below while the grade is produced
-            }
-
-            const QPixmap page = m_owner->pageOf(i);
-            if (!page.isNull()) {
-                painter->drawPixmap(r.topLeft(), page);     // sharp, at the strip's native scale
-                continue;
-            }
-            const QPixmap proxy = m_owner->proxyOf(i);
-            if (!proxy.isNull())
-                painter->drawPixmap(r, proxy, QRectF(proxy.rect())); // blurry proxy, scaled into the page rect
-            else
-                painter->fillRect(r, m_owner->palette().color(QPalette::Base)); // brief neutral placeholder
-        }
-    }
-
-private:
-    Editor *m_owner;    //!< The editor that owns the strip and supplies the pages.
-};
-
 } // namespace
 
 Editor::Editor(PresetStore& presets, QWidget *parent)
@@ -255,7 +153,7 @@ Editor::Editor(PresetStore& presets, QWidget *parent)
     m_pages = new PageSource(m_layout, this);
     connect(m_pages, &PageSource::pageReady, this, [this](int index) {
         if (m_item)
-            m_item->update(pageRect(index));
+            m_item->update(m_layout.pageRect(index));
     });
 
     // Toolbar buttons + the graphics view come from the Designer form; the runtime wiring is here.
@@ -270,12 +168,11 @@ Editor::Editor(PresetStore& presets, QWidget *parent)
     m_view->setDragMode(QGraphicsView::ScrollHandDrag);
     m_view->setAlignment(Qt::AlignHCenter | Qt::AlignTop);
     m_view->setRenderHints(QPainter::Antialiasing | QPainter::SmoothPixmapTransform);
-    m_view->viewport()->installEventFilter(this);   // Ctrl+wheel zoom, and the pointer's own answer
     // Without this a widget hears about the mouse only while a button is held, which is what made the
     // cursor look as though it followed the last *click*: it could only be re-decided on release. The
     // cursor is a promise about what a press would do here, so it has to be re-decided while hovering.
     m_view->viewport()->setMouseTracking(true);
-    m_view->viewport()->setAcceptDrops(true);   // pictures, from TOOL VIEW's preview or a file manager
+    m_view->viewport()->setAcceptDrops(true);   // pictures, from the TOOL OPTIONS preview or a file manager
     // Build the pages that scroll into view (plus a prefetch margin).
     connect(m_view->verticalScrollBar(),   &QScrollBar::valueChanged, this, &Editor::updateVisiblePages);
     connect(m_view->horizontalScrollBar(), &QScrollBar::valueChanged, this, &Editor::updateVisiblePages);
@@ -290,116 +187,54 @@ Editor::Editor(PresetStore& presets, QWidget *parent)
     });
     connect(ui->buttonRenderView, &QToolButton::clicked, this, [this] { emit renderAndViewRequested(); });
 
-    // --- Editor shell: the splitters, canvas, tool-options stack and artifact list come from the .ui
+    // --- Editor shell: the splitters, canvas, tool-options stack and object stack come from the .ui
     // (editorBody = toolbox | canvas | rightPanel). Here we only fill the toolbox with a flowing grid of
     // square tool tiles (a flow layout can't be expressed in a .ui), give the stack a page per tool, and
     // set the splitter sizing (not a .ui property). Pan (the default) keeps today's behaviour: hand-drag
     // pan and no side panel.
     {
-        // The rail is two rows, not one flow: the tiles, and under them the colour pair. They used to
-        // share the flow, which worked and read badly — the pair took its turn in the grid as though it
-        // were a ninth tool, and it is furniture.
-        auto* railRows = new QVBoxLayout(ui->toolRail);
-        railRows->setContentsMargins(0, 0, 0, 0);
-        railRows->setSpacing(0);
-        m_toolTiles   = new QWidget(ui->toolRail);
-        auto* railLay = new FlowLayout(m_toolTiles, 6, 4, 4); // margin, hSpacing, vSpacing — wraps to fit
-        railRows->addWidget(m_toolTiles);
-        m_toolTiles->installEventFilter(this);   // see eventFilter: the tiles keep their own minimum
-        m_toolGroup = new QButtonGroup(this);
-        m_toolGroup->setExclusive(true);
+        // TOOL RAIL: the tiles, one per row of the registry, and the colour pair under them.
+        m_rail    = new ToolRail(ui->toolRail);
+        m_colours = m_rail->colours();
 
-        // The tool-options pages, under the rail — the tool's own settings, in the place every drawing
-        // application puts them. One widget per *page*, not per tool: tools that author the same object
-        // name the same page, so there is one set of controls and no chance of two drifting apart. A
-        // tool with no options gets the hint page, which is never blank.
-        // **A tool with no options is not a tool with nothing to say.** The page used to be blank, and a
-        // blank panel under an armed tool reads as *nothing is armed* — which is how the bucket gets
-        // picked by accident, and the next click paints. It carries the tool's name and its one
-        // sentence, both from the registry row, so a new tool cannot arrive without them.
-        auto* hintPage = new QWidget(ui->toolOptions);
-        auto* hintLay  = new QVBoxLayout(hintPage);
-        m_toolTitle    = new QLabel(hintPage);
-        QFont titleFont = m_toolTitle->font();
-        titleFont.setBold(true);
-        m_toolTitle->setFont(titleFont);
-        m_toolHint = new QLabel(hintPage);
-        m_toolHint->setWordWrap(true);
-        m_toolHint->setForegroundRole(QPalette::PlaceholderText);   // a remark, not an instruction
-        hintLay->addWidget(m_toolTitle);
-        hintLay->addWidget(m_toolHint);
-        hintLay->addStretch(1);
-        QHash<QString, int> pageIndex;
-        pageIndex.insert(QString(), ui->toolOptions->addWidget(scrolled(hintPage, ui->toolOptions)));
+        // TOOL OPTIONS: a page per options-page key, plus the hint page for a tool that has none. The
+        // pages are built and wired here; the stack only holds them and knows which one a tool shows.
+        m_toolOptions = new ToolOptionsStack(ui->toolOptionsStack);
         // The Grade tool's options are an image editor's colour menu: which adjustment, and its controls, applied to the
         // selected object. What a selected strip's grade *is* is shown on the right, in its state.
-        m_gradePanel = new GradePanel(ui->toolOptions);
-        pageIndex.insert(QStringLiteral("grade"),
-                         ui->toolOptions->addWidget(scrolled(m_gradePanel, ui->toolOptions)));
-        connect(m_gradePanel, &GradePanel::changed, this, [this](const Platemaker::Models::ColourCorrection& cc) {
+        m_gradeOptions = new GradeToolOptions(ui->toolOptionsStack);
+        m_toolOptions->addPage(QStringLiteral("grade"), m_gradeOptions);
+        connect(m_gradeOptions, &GradeToolOptions::changed, this, [this](const Platemaker::Models::ColourCorrection& cc) {
             // Live edit: apply it, but do NOT push it back into the panel — the panel is the source
             // here, and re-syncing its widgets mid-drag would fight the slider the user is holding.
             applyGrade(cc);
         });
-        connect(m_gradePanel, &GradePanel::committed, this,
+        connect(m_gradeOptions, &GradeToolOptions::committed, this,
                 [this](const Platemaker::Models::ColourCorrection& cc, const QString& undoText) {
-            emit colourCorrectionEdited(cc, undoText);   // settled: the owner persists it, one undo step
+            emit colourCorrectionCommitted(cc, undoText);   // settled: the owner persists it, one undo step
         });
         // The panel can only act on the strip; asked for it, it gets it.
-        connect(m_gradePanel, &GradePanel::selectStripRequested, this, [this] {
+        connect(m_gradeOptions, &GradeToolOptions::selectStripRequested, this, [this] {
             if (m_objects)
                 m_objects->selectStrip();
         });
-        // One panel for every tool that authors an `Artifact` — Bubble, Text, Caption — because they
+        // One panel for every tool that authors an `ObjectRecord` — Bubble, Text, Caption — because they
         // author the same object and differ only in the shape they place, which each tool's row says.
-        m_toolOptions = new ToolOptionsPanel(*m_presets, ui->toolOptions);
-        pageIndex.insert(QStringLiteral("artifact"),
-                         ui->toolOptions->addWidget(scrolled(m_toolOptions, ui->toolOptions)));
+        m_bubbleOptions = new BubbleToolOptions(*m_presets, ui->toolOptionsStack);
+        m_toolOptions->addPage(QStringLiteral("bubble"), m_bubbleOptions);
 
         // The other create tool's options: which picture the next placement puts down. A separate panel
         // rather than a section of the one above, because they describe different kinds of object, and an
         // options page describes one kind at a time.
-        m_artworkOptions = new ArtworkOptionsPanel(ui->toolOptions);
-        pageIndex.insert(k_artworkPage,
-                         ui->toolOptions->addWidget(scrolled(m_artworkOptions, ui->toolOptions)));
-        connect(m_artworkOptions, &ArtworkOptionsPanel::artworkChanged, this, [this](const QString& f) {
+        m_artworkOptions = new ArtworkToolOptions(ui->toolOptionsStack);
+        m_toolOptions->addPage(k_artworkPage, m_artworkOptions);
+        connect(m_artworkOptions, &ArtworkToolOptions::artworkChanged, this, [this](const QString& f) {
             const Tool* armed = toolById(m_tool);
-            if (m_objects && armed && armed->page == k_artworkPage)
-                m_objects->setPlacementArtwork(f);
+            if (m_placement && armed && armed->optionsPage == k_artworkPage)
+                m_placement->setArtwork(f);
         });
 
-        // The rail, built from the registry: a button per row, in the table's order, its id that row's
-        // index.
-        for (int i = 0; i < tools().size(); ++i) {
-            const Tool& t = tools().at(i);
-            auto* b = new QToolButton(m_toolTiles);
-            if (!t.icon.isEmpty())
-                b->setIcon(QIcon(t.icon));
-            b->setIconSize(QSize(26, 26));
-            b->setToolTip(toolTooltip(t));   // the name, and the same sentence TOOL VIEW shows
-            b->setCheckable(true);
-            b->setAutoRaise(true);
-            b->setToolButtonStyle(Qt::ToolButtonIconOnly);
-            b->setFixedSize(40, 40);       // square tile
-            railLay->addWidget(b);
-            m_toolGroup->addButton(b, i);
-            // A row naming a page nobody registered would land on index 0 — the hint page — and look
-            // like a tool that simply has no options, which is the hardest kind of typo to see.
-            Q_ASSERT(pageIndex.contains(t.page));
-            m_toolPage.insert(t.id, pageIndex.value(t.page));
-        }
-
-        // The colour pair is **furniture**, not a tool: it sits under the tiles and stays there whichever
-        // tool is active, because the tools that use it — the eyedropper fills it, an applicator spends
-        // it — hold a reference to it rather than a colour of their own.
-        m_colours       = new ColourPair(ui->toolRail);
-        auto* colourRow = new QHBoxLayout;
-        colourRow->setContentsMargins(6, 2, 6, 6);
-        colourRow->addWidget(m_colours);
-        colourRow->addStretch(1);       // left, where the tiles start
-        railRows->addLayout(colourRow);
-        railRows->addStretch(1);        // both rows hug the top; the rest of the rail is empty space
-
+        m_toolOptions->assertEveryToolHasAPage();
 
         // X and D over the canvas, as every drawing application binds them. Scoped to the view so that
         // typing an x into a balloon stays typing an x.
@@ -414,17 +249,13 @@ Editor::Editor(PresetStore& presets, QWidget *parent)
         // The other question, and a different class for it: what the *selected* object is. The two used
         // to be one class sitting in two places, which is how they came to look like the same panel
         // twice. They now differ in what they contain, not only in what they mean.
-        m_objectState = new ObjectStatePanel(*m_presets, ui->objectProperties);
-        m_objectPage  = scrolled(m_objectState, ui->objectProperties);
-        ui->objectProperties->addWidget(m_objectPage);
-
+        m_objectState = new ObjectState(*m_presets, ui->objectStateStack);
         // The strip and its pages are selected too, and they are not overlays — so they get the same
         // surface with different contents rather than an object panel full of sections that never apply.
-        m_stripState = new StripStatePanel(ui->objectProperties);
-        m_stripPage  = scrolled(m_stripState, ui->objectProperties);
-        ui->objectProperties->addWidget(m_stripPage);
+        m_stripState  = new StripState(ui->objectStateStack);
+        m_stateStack  = new ObjectStateStack(ui->objectStateStack, m_objectState, m_stripState);
 
-        connect(m_stripState, &StripStatePanel::excludedToggled, this,
+        connect(m_stripState, &StripState::excludedToggled, this,
                 [this](const QString& inputUid, bool excluded) {
             auto cc = m_cc;
             auto& skipped = cc.excludedInputUids;
@@ -438,37 +269,106 @@ Editor::Editor(PresetStore& presets, QWidget *parent)
                 skipped.erase(it);
             // The owner persists it as one undo step and feeds it back, which is what updates the preview,
             // the page's row and this panel — the same round trip every grade edit takes.
-            emit colourCorrectionEdited(cc, excluded ? tr("Exclude page from colour correction")
+            emit colourCorrectionCommitted(cc, excluded ? tr("Exclude page from colour correction")
                                                      : tr("Include page in colour correction"));
         });
         // An adjustment listed on the strip: reopened in the Grade tool, or taken off the strip.
-        connect(m_stripState, &StripStatePanel::adjustmentEditRequested, this, [this](ColourAdjustment a) {
+        connect(m_stripState, &StripState::adjustmentEditRequested, this, [this](ColourAdjustment a) {
             setTool(QStringLiteral("grade"));
-            m_gradePanel->openAdjustment(a);
+            m_gradeOptions->openAdjustment(a);
         });
-        connect(m_stripState, &StripStatePanel::adjustmentRemoveRequested, this, [this](ColourAdjustment a) {
-            emit colourCorrectionEdited(withoutColourAdjustment(m_cc, a),
+        connect(m_stripState, &StripState::adjustmentRemoveRequested, this, [this](ColourAdjustment a) {
+            emit colourCorrectionCommitted(withoutColourAdjustment(m_cc, a),
                                         tr("Remove %1").arg(colourAdjustmentName(a)));
         });
 
         // Everything placed on the strip. It drives the scene, the list and the panel; it owns no
         // persistence, so every edit leaves through one of its four signals and comes back as a re-feed.
-        m_objects = new ObjectController(m_scene, m_view, ui->artifactList, m_objectState,
-                                         m_toolOptions, *m_presets, m_layout, this, this);
-        // The object's menu spends the same pair the bucket does — it reads it, never writes it.
-        m_objects->setColourSource(m_colours);
-        connect(m_objects, &ObjectController::artifactCreated,        this, &Editor::artifactCreated);
-        connect(m_objects, &ObjectController::overlaysEdited,         this, &Editor::overlaysEdited);
+        m_objects = new ObjectController(m_scene, m_view, *m_presets, m_layout, this);
+        // OBJECT STATE and the objects, both ways. The panel's edits go to the objects it was bound to;
+        // the controller says what it is bound to now. Neither includes the other — they meet here.
+        connect(m_objectState, &ObjectState::changed, m_objects,
+                [this](const ObjectRecord& a) { m_objects->applyPanelRecords({a}, /*commit=*/false); });
+        connect(m_objectState, &ObjectState::committed, m_objects,
+                [this](const ObjectRecord& a) { m_objects->applyPanelRecords({a}, /*commit=*/true); });
+        connect(m_objectState, &ObjectState::blendPicked, m_objects, &ObjectController::setSelectionBlend);
+        connect(m_objectState, &ObjectState::deleteRequested, m_objects,
+                &ObjectController::deleteSelectedOverlay);
+        connect(m_objectState, &ObjectState::changedMany, m_objects,
+                [this](const QList<ObjectRecord>& objects) {
+            m_objects->applyPanelRecords(objects, /*commit=*/false);
+        });
+        connect(m_objectState, &ObjectState::committedMany, m_objects,
+                [this](const QList<ObjectRecord>& objects) {
+            m_objects->applyPanelRecords(objects, /*commit=*/true);
+        });
+        connect(m_objectState, &ObjectState::scaleChanged, m_objects,
+                [this](double percent) { m_objects->scaleSelectedArtwork(percent, /*commit=*/false); });
+        connect(m_objectState, &ObjectState::scaleCommitted, m_objects,
+                [this](double percent) { m_objects->scaleSelectedArtwork(percent, /*commit=*/true); });
+        connect(m_objectState, &ObjectState::fitRequested, m_objects,
+                &ObjectController::fitSelectionToText);
+        using OC = ObjectController;
+        using OS = ObjectState;
+        connect(m_objects, &OC::boundToRecord,      m_objectState, &OS::setRecord);
+        connect(m_objects, &OC::boundToTail,        m_objectState, &OS::setTail);
+        connect(m_objects, &OC::boundToRecords,     m_objectState, &OS::setRecords);
+        connect(m_objects, &OC::boundToMixed,       m_objectState, &OS::setMixedSubjects);
+        connect(m_objects, &OC::boundToNothing,     m_objectState, &OS::clearSelection);
+        connect(m_objects, &OC::blendBound,         m_objectState, &OS::setSelectionBlend);
+        connect(m_objects, &OC::artworkScaleBound,  m_objectState, &OS::setArtworkScale);
+        connect(m_objects, &OC::textFocusRequested, m_objectState, &OS::focusText);
+        // What TOOL OPTIONS says the next object is, for *Apply from tool options ▸* and *Convert to ▸
+        // Balloon*. Told as functions, so the objects need no tool-options panel.
+        m_objects->setToolDefaults({[this] { return m_bubbleOptions->prototype(); },
+                                    [this] { return m_bubbleOptions->balloonShape(); }});
+        // A Create tool's drag on empty strip, and the object it places: the balloon TOOL OPTIONS
+        // describes, or the picture the Artwork tool is armed with.
+        m_placement = new Placement(m_scene, *m_objects, m_layout, this, this);
+        m_placement->setPrototype([this] { return m_bubbleOptions->prototype(); });
+        // OBJECT STACK: the rows. A view of the controller, built before any feed can arrive.
+        m_objectStack = new ObjectStack(ui->objectStack, *m_objects, m_layout, *m_presets, this, this);
+        // The object menu, on the stack and the canvas alike. It spends the same pair the bucket does —
+        // it reads it, never writes it.
+        m_objectMenu = new ObjectMenu(*m_objects, m_layout, *m_presets, ui->objectStack, m_view, this, this);
+        m_objectMenu->setColourSource(m_colours);
+        connect(m_objects, &ObjectController::recordCreated,        this, &Editor::recordCreated);
+        connect(m_objects, &ObjectController::overlaysCommitted,         this, &Editor::overlaysCommitted);
         connect(m_objects, &ObjectController::artworkImportRequested, this, &Editor::artworkImportRequested);
         connect(m_objects, &ObjectController::subjectChanged,         this, [this] { showSubject(); });
         connect(m_objects, &ObjectController::noted,                  this, &Editor::noted);
+
+        // CANVAS: what a press, a drag, a drop or a wheel on the strip does under the armed tool. It does
+        // the canvas's own part and reports the rest, which is wired here because it belongs elsewhere:
+        // the colour pair to the rail, zoom to this shell, a dropped picture to the objects' import.
+        m_input = new CanvasInput(m_view, m_objects, m_placement, this);
+        connect(m_input, &CanvasInput::artworkDropped, this, [this](const QString& file, QPointF at) {
+            m_objects->placeArtworkAt(file, at);
+        });
+        connect(m_input, &CanvasInput::sampleRequested, this, [this](QPointF at, bool secondary) {
+            if (!m_colours || !m_pages)
+                return;
+            if (const auto picked = sampleCanvas(*m_scene, m_layout, *m_pages, m_seamItems, at))
+                m_colours->set(*picked, secondary);
+        });
+        connect(m_input, &CanvasInput::colourApplyRequested, this, [this](QPointF at, bool secondary) {
+            if (m_colours)
+                m_objects->applyColourAt(at, m_view->transform(),
+                                         secondary ? m_colours->secondary() : m_colours->primary());
+        });
+        connect(m_input, &CanvasInput::zoomStepRequested, this, [this](int direction) {
+            if (direction > 0)
+                zoomIn();
+            else
+                zoomOut();
+        });
         // Splitter behaviour (not expressible in the .ui): canvas absorbs resize, panels keep their width.
         ui->editorBody->setStretchFactor(0, 0);   // toolbox
         ui->editorBody->setStretchFactor(1, 1);   // canvas
         ui->editorBody->setStretchFactor(2, 0);   // right panel
         // Neither side column can be dragged under what its panel needs. The tool column knows that
         // because its panel is complete; the right column is told, because its panel is not yet.
-        const int toolW = qMax(k_rightColumnPx, columnWidthFor(m_toolOptions));
+        const int toolW = qMax(k_rightColumnPx, columnWidthFor(m_bubbleOptions));
         ui->toolColumn->setMinimumWidth(toolW);
         ui->rightPanel->setMinimumWidth(k_rightColumnPx);
         ui->editorBody->setChildrenCollapsible(false);   // no column can be dragged out of existence
@@ -476,8 +376,8 @@ Editor::Editor(PresetStore& presets, QWidget *parent)
         ui->toolColumn->setStretchFactor(0, 0);    // the tile rail takes what it needs
         ui->toolColumn->setStretchFactor(1, 1);    // the options absorb the rest
         // The tools are never negotiable — the rail's minimum follows its own wrapping (see
-        // eventFilter) — and the options keep a floor of their own, so neither can be shut by a drag.
-        ui->toolOptions->setMinimumHeight(k_toolOptionsFloorPx);
+        // ToolRail) — and the options keep a floor of their own, so neither can be shut by a drag.
+        ui->toolOptionsStack->setMinimumHeight(k_toolOptionsFloorPx);
         ui->toolColumn->setSizes({120, 600});
         ui->rightPanel->setStretchFactor(0, 2);    // object properties
         ui->rightPanel->setStretchFactor(1, 1);    // the object list
@@ -489,8 +389,7 @@ Editor::Editor(PresetStore& presets, QWidget *parent)
         for (QSplitter* s : {ui->editorBody, ui->toolColumn, ui->rightPanel})
             showHandles(s);
 
-        connect(m_toolGroup, &QButtonGroup::idClicked, this,
-                [this](int id) { setTool(tools().at(id).id); });
+        connect(m_rail, &ToolRail::toolPicked, this, &Editor::setTool);
 
         setTool(QStringLiteral("select"));   // the default state: select and move, no tool armed
     }
@@ -504,15 +403,10 @@ void Editor::setTool(const QString& id)
     if (!tool)
         return;
     m_tool = tool->id;
-    if (auto* b = m_toolGroup->button(toolIndex(m_tool)))
-        b->setChecked(true);
-    ui->toolOptions->setCurrentIndex(m_toolPage.value(m_tool));
-    // Filled whichever page is showing: the hint page is the one that displays it, and writing it
-    // unconditionally means there is no state to get wrong when tools are switched quickly.
-    if (m_toolTitle)
-        m_toolTitle->setText(toolName(*tool));
-    if (m_toolHint)
-        m_toolHint->setText(toolHint(*tool));
+    m_rail->setCurrent(m_tool);
+    m_toolOptions->show(*tool);
+    if (m_input)
+        m_input->setTool(*tool);
 
     // What a left-drag on the **bare strip** does — the view's own business, and one property, which is
     // why Select and Pan are two tools. Both modes only act on a press no item took, so dragging an
@@ -524,7 +418,8 @@ void Editor::setTool(const QString& id)
     m_view->setDragMode(tool->kind == ToolKind::Pan      ? QGraphicsView::ScrollHandDrag
                         : tool->kind == ToolKind::Select ? QGraphicsView::RubberBandDrag
                                                          : QGraphicsView::NoDrag);
-    updateCursor();
+    if (m_input)
+        m_input->updateCursor();
 
     // Only the *tool's own options* follow the tool: a tool that places one shape says so, and the
     // Bubble tool leaves the choice on the tiles. This replaced two gates that each existed to say
@@ -534,21 +429,21 @@ void Editor::setTool(const QString& id)
     // a tool chosen minutes ago must not decide what a bubble's properties look like — selecting a
     // balloon under the Text tool used to show nothing but its lettering, an effect with no visible
     // cause. Which groups that panel shows comes from the selected object's own kind instead.
-    if (m_toolOptions)
-        m_toolOptions->setToolShape(tool->kind == ToolKind::Create ? tool->shape : std::nullopt);
+    if (m_bubbleOptions)
+        m_bubbleOptions->setToolShape(tool->kind == ToolKind::Create ? tool->shape : std::nullopt);
 
-    // What a placement puts down: a picture, or — when this is empty — a balloon. The second and last
-    // thing the controller is told about the active tool, and told at the moment it is armed.
-    if (m_objects) {
+    // What a placement puts down: a picture, or — when this is empty — a balloon. Told to the placement at
+    // the moment the tool is armed.
+    if (m_placement) {
         QString artwork;
-        if (tool->page == k_artworkPage && m_artworkOptions) {
+        if (tool->optionsPage == k_artworkPage && m_artworkOptions) {
             // Arming with nothing chosen asks once, here: before any drag, so a file dialog never lands
-            // in the middle of one. A cancelled dialog arms nothing, and TOOL VIEW says as much.
+            // in the middle of one. A cancelled dialog arms nothing, and TOOL OPTIONS says as much.
             if (m_artworkOptions->artwork().isEmpty())
                 m_artworkOptions->chooseArtwork();
             artwork = m_artworkOptions->artwork();
         }
-        m_objects->setPlacementArtwork(artwork);
+        m_placement->setArtwork(artwork);
     }
 
     // The right column stays put under every tool, and **live** under every tool. It was briefly
@@ -573,7 +468,7 @@ void Editor::applyGrade(const Platemaker::Models::ColourCorrection& cc)
         QSet<QString> skipped;
         for (const auto& uid : cc.excludedInputUids)
             skipped.insert(QString::fromStdString(uid));
-        m_objects->setExcludedPages(skipped);
+        m_objectStack->setExcludedPages(skipped);
     }
     showSubject();   // a selected strip or page describes the grade, so it follows it
     if (m_pages->setColourCorrection(cc))
@@ -582,43 +477,27 @@ void Editor::applyGrade(const Platemaker::Models::ColourCorrection& cc)
 
 void Editor::showSubject()
 {
-    if (!m_objects || !m_stripState || !m_objectState)
+    if (!m_objects || !m_stateStack)
         return;
 
     // The Grade tool acts on the selection, so it is told what that is whether or not it is showing.
-    if (m_gradePanel) {
+    if (m_gradeOptions) {
         const auto s = m_objects->subject();
-        m_gradePanel->setTarget(s == ObjectController::Subject::Strip ? GradePanel::Target::Strip
-                                : s == ObjectController::Subject::Page ? GradePanel::Target::Page
-                                                                         : GradePanel::Target::Other);
+        m_gradeOptions->setTarget(s == ObjectController::Subject::Strip ? GradeToolOptions::Target::Strip
+                                : s == ObjectController::Subject::Page ? GradeToolOptions::Target::Page
+                                                                         : GradeToolOptions::Target::Other);
     }
 
-    const auto isSkipped = [this](const QString& inputUid) {
-        const auto& skipped = m_cc.excludedInputUids;
-        return std::find(skipped.begin(), skipped.end(), inputUid.toStdString()) != skipped.end();
-    };
-
+    // Which panel answers is the selection's to decide; what it says is the stack's.
     switch (m_objects->subject()) {
-    case ObjectController::Subject::Strip: {
-        int excluded = 0;
-        for (int i = 0; i < m_layout.pageCount(); ++i)
-            if (isSkipped(m_layout.page(i).inputUid))
-                ++excluded;
-        m_stripState->showStrip(m_layout.pageCount(), excluded, m_cc);
-        ui->objectProperties->setCurrentWidget(m_stripPage);
+    case ObjectController::Subject::Strip:
+        m_stateStack->showStrip(m_layout, m_cc);
         return;
-    }
     case ObjectController::Subject::Page: {
         const int i = m_layout.pageForAnchor(m_objects->selectedPage());
         if (i < 0)
             break;
-        const Page& page = m_layout.page(i);
-        m_stripState->showPage(page.inputUid,
-                               tr("p.%1 — %2").arg(i + 1, 2, 10, QLatin1Char('0'))
-                                              .arg(QFileInfo(page.sourcePath).fileName()),
-                               page.size, isSkipped(page.inputUid),
-                               !Platemaker::Models::isNeutral(m_cc));
-        ui->objectProperties->setCurrentWidget(m_stripPage);
+        m_stateStack->showPage(m_layout, i, m_cc);
         return;
     }
     case ObjectController::Subject::None:
@@ -626,24 +505,15 @@ void Editor::showSubject()
     case ObjectController::Subject::Tail:
         break;
     }
-
-    // One object panel for every kind of object. There were two — a balloon's and a picture's — and
-    // the second was the first with its sections hidden, which is what deciding which sections apply
-    // already does. A picture's one extra question, how big it is drawn, is a row in the same panel.
-    ui->objectProperties->setCurrentWidget(m_objectPage);
+    m_stateStack->showObject();
 }
 
 void Editor::setColourCorrection(const Platemaker::Models::ColourCorrection& cc)
 {
     applyGrade(cc);
-    if (m_gradePanel)
-        m_gradePanel->setColourCorrection(cc);   // the project is the source here — show it in the panel
+    if (m_gradeOptions)
+        m_gradeOptions->setColourCorrection(cc);   // the project is the source here — show it in the panel
 }
-
-bool Editor::gradeActive() const  { return m_pages->gradeActive(); }
-QPixmap Editor::gradedOf(int index) const { return m_pages->gradedOf(index); }
-QPixmap Editor::pageOf(int index) const   { return m_pages->pageOf(index); }
-QPixmap Editor::proxyOf(int index) const  { return m_pages->proxyOf(index); }
 
 void Editor::refreshGradePreview()
 {
@@ -730,15 +600,16 @@ void Editor::rebuildScene()
     }
 
     m_scene->setSceneRect(0, 0, m_layout.stripWidth(), m_layout.stripHeight());
-    // One item draws every page as its own image — no per-item seam. It pulls pixels lazily from us.
-    m_item = new StripItem(this);
+    // One item draws every page as its own image — no per-item seam. It pulls pixels lazily from the
+    // page memory, and the editor's palette for a page that has none yet.
+    m_item = new StripItem(m_layout, *m_pages, this);
     m_scene->addItem(m_item);
     addSeamItems();
 
     // Overlays are placed against the layout above, so they can only be built once it exists. The
     // scene's selection did not survive clear(), so re-apply it to whatever is still selected.
     m_objects->syncItems();
-    m_objects->refreshList();
+    m_objectStack->refresh();
     m_objects->reselect();
 
     // Default view: 100%. Re-applied on resize until the user zooms.
@@ -822,17 +693,6 @@ void Editor::updateVisiblePages()
 // Zoom
 // ---------------------------------------------------------------------------
 
-void Editor::updateCursor()
-{
-    const Tool* tool = toolById(m_tool);
-    if (!tool || !m_view || !m_view->viewport())
-        return;
-    PointerTarget target = PointerTarget::BareStrip;
-    if (m_objects && m_pointerPos.x() >= 0)
-        target = m_objects->pointerTargetAt(m_view->mapToScene(m_pointerPos), m_view->transform());
-    m_view->viewport()->setCursor(cursorFor(*tool, target));
-}
-
 void Editor::applyZoom(double z)
 {
     m_zoom = qBound(0.02, z, 8.0);
@@ -841,7 +701,8 @@ void Editor::applyZoom(double z)
     m_view->setTransform(t);
     m_zoomLabel->setText(QStringLiteral("%1%").arg(qRound(m_zoom * 100.0)));
     updateVisiblePages();       // zoom changes how many pages are on screen
-    updateCursor();             // ...and what sits under a pointer that never moved
+    if (m_input)
+        m_input->updateCursor();   // ...and what sits under a pointer that never moved
 }
 
 void Editor::userZoom(double z)
@@ -880,172 +741,6 @@ void Editor::resizeEvent(QResizeEvent *event)
     updateVisiblePages();
 }
 
-bool Editor::eventFilter(QObject *watched, QEvent *event)
-{
-    // **A picture dropped on the strip is placed where it was dropped, at its own size.** Dragged out
-    // of TOOL VIEW's preview, or straight from a file manager — both arrive as a file URL, so one handler
-    // serves both and neither needs a tool to be armed.
-    if (watched == m_view->viewport()
-        && (event->type() == QEvent::DragEnter || event->type() == QEvent::DragMove)) {
-        auto* de = static_cast<QDragMoveEvent*>(event);
-        if (!droppedArtwork(de->mimeData()).isEmpty()) {
-            de->setDropAction(Qt::CopyAction);
-            de->accept();
-            return true;
-        }
-    }
-    if (watched == m_view->viewport() && event->type() == QEvent::Drop) {
-        auto*         drop = static_cast<QDropEvent*>(event);
-        const QString file = droppedArtwork(drop->mimeData());
-        if (!file.isEmpty() && m_objects) {
-            m_objects->placeArtworkAt(file, m_view->mapToScene(drop->position().toPoint()));
-            drop->acceptProposedAction();
-            return true;
-        }
-    }
-
-    // **The tools are always all visible.** A flow layout's minimum is one tile, so a splitter was free
-    // to shorten the rail until the last row of tools was simply not drawn — and a tool you cannot see
-    // is a tool you do not know you have. The rail's minimum height is therefore whatever its own
-    // wrapping needs at its current width, recomputed whenever that width changes.
-    if (watched == m_toolTiles && event->type() == QEvent::Resize) {
-        if (QLayout* flow = m_toolTiles->layout()) {
-            const int needed = flow->heightForWidth(m_toolTiles->width());
-            if (needed > 0 && needed != m_toolTiles->minimumHeight())
-                m_toolTiles->setMinimumHeight(needed);
-        }
-    }
-
-    // The middle button scrolls the strip under **every** tool, so no tool has to give up its left
-    // button for something as ordinary as looking somewhere else. Qt's own hand-drag is the left
-    // button's, and only the Pan tool arms it.
-    if (watched == m_view->viewport()) {
-        auto* me = event->type() == QEvent::MouseButtonPress || event->type() == QEvent::MouseMove
-                           || event->type() == QEvent::MouseButtonRelease
-                       ? static_cast<QMouseEvent*>(event)
-                       : nullptr;
-        if (me && event->type() == QEvent::MouseButtonPress && me->button() == Qt::MiddleButton) {
-            m_panFrom = me->position().toPoint();
-            m_view->viewport()->setCursor(Qt::ClosedHandCursor);
-            return true;
-        }
-        if (me && event->type() == QEvent::MouseMove && m_panFrom.x() >= 0) {
-            const QPoint now  = me->position().toPoint();
-            const QPoint step = now - m_panFrom;
-            m_panFrom         = now;
-            // Scrollbars take whole steps, so this follows the mouse rather than a remembered origin:
-            // there is no fraction left over to drift with.
-            m_view->horizontalScrollBar()->setValue(m_view->horizontalScrollBar()->value() - step.x());
-            m_view->verticalScrollBar()->setValue(m_view->verticalScrollBar()->value() - step.y());
-            return true;
-        }
-        if (me && event->type() == QEvent::MouseButtonRelease && me->button() == Qt::MiddleButton) {
-            m_panFrom = {-1, -1};
-            updateCursor();
-            return true;
-        }
-    }
-
-    // The eyedropper: a press takes the colour that is on the strip there, wherever it lands — over an
-    // object as much as over a page, because what is sampled is what is drawn.
-    if (watched == m_view->viewport() && isSampling()) {
-        if (event->type() == QEvent::MouseButtonPress) {
-            auto* me = static_cast<QMouseEvent*>(event);
-            // Left fills the primary half, right the secondary — as every eyedropper does. Ctrl+left
-            // does the same as right, for a tablet with one barrel button bound to nothing.
-            const bool left  = me->button() == Qt::LeftButton;
-            const bool right = me->button() == Qt::RightButton;
-            if (left || right) {
-                sampleColourAt(m_view->mapToScene(me->position().toPoint()),
-                               right || (me->modifiers() & Qt::ControlModifier));
-                return true;
-            }
-        } else if (event->type() == QEvent::ContextMenu) {
-            return true;   // the right button is the tool's here, so it opens no menu
-        }
-    }
-
-    // The colour tool: a press spends the pair on **what is under the pointer** — the lettering, the
-    // outline or the fill, decided by the picture rather than by a setting. Shift spends the other half.
-    //
-    // The left button only. The right one belongs to the context menu, and a tool that quietly took it
-    // away would be a mode nobody can see — the same mistake the Text tool made when it stripped the
-    // object panel.
-    if (watched == m_view->viewport() && isApplying() && m_colours
-        && event->type() == QEvent::MouseButtonPress) {
-        auto* me = static_cast<QMouseEvent*>(event);
-        // A corner grip and a tail tip belong to the canvas under every tool, and the cursor says so —
-        // so a press there resizes or aims rather than painting. The tool gets everything else.
-        const bool affordance = isCanvasAffordance(
-            m_objects->pointerTargetAt(m_view->mapToScene(me->position().toPoint()),
-                                       m_view->transform()));
-        if (me->button() == Qt::LeftButton && !affordance) {
-            const bool other = me->modifiers() & Qt::ShiftModifier;
-            m_objects->applyColourAt(m_view->mapToScene(me->position().toPoint()), m_view->transform(),
-                                     other ? m_colours->secondary() : m_colours->primary());
-            return true;
-        }
-    }
-
-    // Bubble / Text: the left button draws a new bubble on empty strip. A press that lands on an
-    // existing overlay is left alone, so the item's own move/resize handling still runs.
-    if (watched == m_view->viewport() && artifactToolActive()) {
-        if (event->type() == QEvent::MouseButtonPress) {
-            auto* me = static_cast<QMouseEvent*>(event);
-            if (me->button() == Qt::LeftButton) {
-                const QPointF scenePos = m_view->mapToScene(me->position().toPoint());
-                if (!m_objects->objectAt(scenePos, m_view->transform())) {
-                    m_objects->beginPlacement(scenePos);
-                    return true;
-                }
-            }
-        } else if (event->type() == QEvent::MouseMove && m_objects->isPlacing()) {
-            auto* me = static_cast<QMouseEvent*>(event);
-            m_objects->updatePlacement(m_view->mapToScene(me->position().toPoint()));
-            return true;
-        } else if (event->type() == QEvent::MouseButtonRelease && m_objects->isPlacing()) {
-            m_objects->finishPlacement();
-            return true;
-        }
-    }
-
-    if (watched == m_view->viewport()) {
-        if (event->type() == QEvent::MouseMove) {
-            auto* me = static_cast<QMouseEvent*>(event);
-            m_pointerPos = me->position().toPoint();
-            // Only while nothing is held: mid-drag the view writes a closed hand, and an object being
-            // dragged is not "what the pointer is over" in any useful sense.
-            if (me->buttons() == Qt::NoButton)
-                updateCursor();
-        } else if (event->type() == QEvent::MouseButtonRelease) {
-            // **Queued, and it has to be.** Under ScrollHandDrag the view restores an open hand on every
-            // left release — even one that never panned, because the press was taken by an item — and its
-            // handler runs after this filter. Deciding here would be overwritten a moment later, which is
-            // what made a click on a balloon flash the hand until the mouse moved a pixel. Deciding after
-            // the event has been handled puts us last again.
-            QMetaObject::invokeMethod(this, [this] { updateCursor(); }, Qt::QueuedConnection);
-        } else if (event->type() == QEvent::Enter) {
-            m_pointerPos = static_cast<QEnterEvent*>(event)->position().toPoint();
-            updateCursor();   // coming back onto the canvas is a hover like any other
-        } else if (event->type() == QEvent::Leave) {
-            m_pointerPos = {-1, -1};
-        }
-    }
-
-    if (watched == m_view->viewport() && event->type() == QEvent::Wheel) {
-        auto *we = static_cast<QWheelEvent *>(event);
-        if (we->modifiers() & Qt::ControlModifier) {
-            const int d = we->angleDelta().y();
-            if (d > 0)
-                zoomIn();
-            else if (d < 0)
-                zoomOut();
-            return true;        // consumed — plain wheel still scrolls vertically
-        }
-    }
-    return QWidget::eventFilter(watched, event);
-}
-
 // ---------------------------------------------------------------------------
 // Text & bubbles
 //
@@ -1055,10 +750,11 @@ bool Editor::eventFilter(QObject *watched, QEvent *event)
 // ---------------------------------------------------------------------------
 
 void Editor::setOverlaySource(const std::vector<Platemaker::Models::StripOverlay>& overlays,
-                              const ArtifactMap&                                  artifacts)
+                              const ObjectRecord::Map&                                  records)
 {
-    m_objects->setSource(overlays, artifacts);
-    updateCursor();   // an object may have arrived under, or vanished from beneath, a still pointer
+    m_objects->setSource(overlays, records);
+    if (m_input)
+        m_input->updateCursor();   // an object may have arrived under, or vanished from beneath, a still pointer
 }
 
 void Editor::selectAfterFeed(const QStringList& uids)
@@ -1085,92 +781,6 @@ void Editor::setAdvisoriesActive(bool active)
         m_advisoryBar->setActive(active);
 }
 
-bool Editor::sampleColourAt(const QPointF& scenePos, bool secondary)
-{
-    if (!m_colours || !m_pages || m_layout.isEmpty())
-        return false;
-    const int page = m_layout.pageAtSceneY(scenePos.y());
-    if (page < 0 || !m_layout.pageRect(page).contains(scenePos))
-        return false;   // the gutter between two pages is not a colour anyone means to pick
-
-    // A page still showing its blurry proxy is not sampled: a stand-in would answer with an average of
-    // the colours around the point rather than the colour at it. Ask for the real pixels instead.
-    if (m_pages->gradedOf(page).isNull() && m_pages->pageOf(page).isNull()) {
-        m_pages->request(page);
-        return false;
-    }
-
-    // **What is drawn is what is picked.** One pixel of the scene, composited: the page through its
-    // grade, and every balloon, caption and imported asset over it, each with its own blend mode and
-    // opacity — the same pixels the render will produce. Sampling the page pixmap alone was defensible
-    // and still wrong: clicking a balloon gave the paper behind it.
-    //
-    // Two things in the scene are the editor talking rather than the comic, and they are hidden for the
-    // one repaint: selection chrome, and the seam guides.
-    QList<QGraphicsLineItem*> hiddenSeams;
-    for (QGraphicsLineItem* seam : std::as_const(m_seamItems)) {
-        if (seam->isVisible()) {
-            seam->setVisible(false);
-            hiddenSeams.append(seam);
-        }
-    }
-    Object::setChromeVisible(false);
-
-    QImage pixel(1, 1, QImage::Format_ARGB32);
-    pixel.fill(Qt::transparent);
-    {
-        QPainter p(&pixel);
-        m_scene->render(&p, QRectF(0, 0, 1, 1),                       // the pixel under the cursor,
-                        QRectF(scenePos - QPointF(0.5, 0.5), QSizeF(1, 1)),   // not the one past it
-                        Qt::IgnoreAspectRatio);
-    }
-
-    Object::setChromeVisible(true);
-    for (QGraphicsLineItem* seam : std::as_const(hiddenSeams))
-        seam->setVisible(true);
-
-    const QColor picked = pixel.pixelColor(0, 0);
-    if (picked.alpha() == 0)
-        return false;   // nothing was drawn there after all
-    m_colours->set(picked, secondary);
-    return true;
-}
-
-
-QString Editor::droppedArtwork(const QMimeData* mime)
-{
-    // A picture, by what it *is* rather than by where it came from: the same three suffixes the import
-    // has always taken. Anything else — a page, a workspace, a folder — is not for this canvas.
-    if (!mime || !mime->hasUrls())
-        return {};
-    for (const QUrl& url : mime->urls()) {
-        if (!url.isLocalFile())
-            continue;
-        const QString path = url.toLocalFile();
-        for (const char* ext : {".svg", ".png", ".webp"})
-            if (path.endsWith(QLatin1String(ext), Qt::CaseInsensitive))
-                return path;
-    }
-    return {};
-}
-
-bool Editor::artifactToolActive() const
-{
-    const Tool* tool = toolById(m_tool);
-    return tool && tool->kind == ToolKind::Create;
-}
-
-bool Editor::isSampling() const
-{
-    const Tool* tool = toolById(m_tool);
-    return tool && tool->kind == ToolKind::Sample;
-}
-
-bool Editor::isApplying() const
-{
-    const Tool* tool = toolById(m_tool);
-    return tool && tool->kind == ToolKind::Apply;
-}
 
 
 }  // namespace StripEdit

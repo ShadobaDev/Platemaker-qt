@@ -1,7 +1,7 @@
 #ifndef STRIPEDIT_STYLEEDITOR_HPP
 #define STRIPEDIT_STYLEEDITOR_HPP
 
-#include "propertygroupeditor.hpp"
+#include "properties/propertygroupeditor.hpp"
 
 class QComboBox;
 class QSpinBox;
@@ -14,7 +14,7 @@ namespace StripEdit {
  * The **seed is not here**, and that is the group model earning its keep. A seed is per balloon and set
  * once at placement; a group's applyTo() writes the whole group, so a seed inside it would be copied
  * along by every preset and a page of marker balloons would wear one repeated wobble. It stays a bare
- * field on the artifact, written by whoever places a bubble and by nobody else.
+ * field on the record, written by whoever places a bubble and by nobody else.
  */
 class StyleEditor : public PropertyGroupEditor
 {
@@ -26,8 +26,8 @@ public:
     [[nodiscard]] PropertyGroup group() const override { return PropertyGroup::Style; }
 
     void bind(const Subjects& subjects) override;
-    void applyTo(Artifact& target) const override;
-    void applyEditedTo(Artifact& target) const override;
+    void applyTo(ObjectRecord& target) const override;
+    void applyEditedTo(ObjectRecord& target) const override;
 
     [[nodiscard]] const StyleProperties& values() const { return m_values; }
 

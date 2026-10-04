@@ -1,7 +1,7 @@
 #ifndef STRIPEDIT_SKINEDITOR_HPP
 #define STRIPEDIT_SKINEDITOR_HPP
 
-#include "propertygroupeditor.hpp"
+#include "properties/propertygroupeditor.hpp"
 
 class QPushButton;
 class QSpinBox;
@@ -28,8 +28,8 @@ public:
     [[nodiscard]] PropertyGroup group() const override { return PropertyGroup::Skin; }
 
     void bind(const Subjects& subjects) override;
-    void applyTo(Artifact& target) const override;
-    void applyEditedTo(Artifact& target) const override;
+    void applyTo(ObjectRecord& target) const override;
+    void applyEditedTo(ObjectRecord& target) const override;
 
     //! The values the controls currently show — what applyTo() writes.
     [[nodiscard]] const SkinProperties& values() const { return m_values; }
@@ -47,7 +47,7 @@ private:
     QSpinBox*    m_strokeWidth  = nullptr;
 
     SkinProperties m_values;
-    bool m_populating = false;   //!< Suppresses edited() while bind() runs.
+    bool m_populating = false;   //!< Suppresses changed() while bind() runs.
 
     // --- what a *set* of subjects made of this group ---
     int  m_subjects     = 0;       //!< How many objects are bound. Above one, the stroke width is hidden.

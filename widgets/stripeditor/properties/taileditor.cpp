@@ -1,4 +1,4 @@
-#include "taileditor.hpp"
+#include "properties/taileditor.hpp"
 
 #include <QFormLayout>
 #include <QSignalBlocker>
@@ -24,12 +24,12 @@ TailEditor::TailEditor(QWidget* parent)
     m_bend->setToolTip(tr("Curves this tail sideways. 0 is straight."));
     form->addRow(tr("Bend:"), m_bend);
 
-    const auto changed = [this] {
+    const auto controlMoved = [this] {
         if (!m_populating)
-            emit edited();
+            emit changed();
     };
-    connect(m_width, &QSpinBox::valueChanged, this, changed);
-    connect(m_bend,  &QSpinBox::valueChanged, this, changed);
+    connect(m_width, &QSpinBox::valueChanged, this, controlMoved);
+    connect(m_bend,  &QSpinBox::valueChanged, this, controlMoved);
 }
 
 void TailEditor::bind(const Subjects& subjects)
@@ -47,7 +47,7 @@ void TailEditor::bind(const Subjects& subjects)
     m_populating = false;
 }
 
-void TailEditor::applyTo(Artifact& target) const
+void TailEditor::applyTo(ObjectRecord& target) const
 {
     TailProperties next = TailProperties::from(target, m_index);   // the tip as it is now
     next.tail.baseWidth = m_width->value();

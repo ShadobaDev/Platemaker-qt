@@ -9,10 +9,10 @@
 #include <QSize>
 #include <QString>
 
-#include "layout.hpp"
-#include "pagesource.hpp"
-#include "artifact.hpp"
-#include "toolregistry.hpp"
+#include "objects/striplayout.hpp"
+#include "canvas/pagesource.hpp"
+#include "objectrecord.hpp"
+#include "toolrail/toolregistry.hpp"
 
 #include <platemaker/core/processing_pipeline/processing_pipeline.hpp>
 #include <platemaker/models/canvas_profile.hpp>
@@ -43,22 +43,29 @@ class QMimeData;
 
 namespace StripEdit {
 
-class ArtworkOptionsPanel;
+class ArtworkToolOptions;
 
+class CanvasInput;
 class ColourPair;
-class GradePanel;
-class ObjectStatePanel;
-class StripStatePanel;
+class ToolOptionsStack;
+class ToolRail;
+class GradeToolOptions;
+class ObjectState;
+class ObjectMenu;
+class ObjectStack;
+class ObjectStateStack;
+class StripState;
 class PresetStore;
-class ToolOptionsPanel;
+class BubbleToolOptions;
 class ObjectController;
+class Placement;
 
 /**
  * @brief Continuous "infinite strip" editor for a project — the authoring surface for the optional
  *        processing steps (colour grade now, text/bubble overlays next).
  *
  * ## The strip is built from the INPUTS, not from the rendered output
- * The viewer stacks the project's *input pages*, each put through the library's page domain
+ * The editor stacks the project's *input pages*, each put through the library's page domain
  * (EXIF-upright → canvas-profile margin crop → scale to the output's target width) by
  * `ProcessingPipeline::layoutPagesFromHeaders` / `decodePageToRgba`. It never reads the committed
  * output slices.
@@ -66,18 +73,19 @@ class ObjectController;
  *  - **It works before the first render.** There is nothing to view otherwise, and a grade has to be
  *    authored before it is baked, not after.
  *  - **The grade is applied relative to the input**, so rendering the project does not change what the
- *    viewer shows. Feeding on committed output meant the render baked the grade in and the preview then
+ *    editor shows. Feeding on committed output meant the render baked the grade in and the preview then
  *    graded it a second time.
  *  - **Per-page exclusions are expressible.** The unit of work here is the page, exactly the unit the
  *    grade's `excludedInputUids` addresses; an output slice can straddle an excluded and an included
  *    page, so on that feed the exclusion has no meaning at display time.
  *
- * Slices are deliberately absent: they are an *output* artifact (files to publish). A viewer draws a
+ * Slices are deliberately absent: they are an *output* product (files to publish). An editor draws a
  * continuous strip and hides the joins anyway, so cutting the preview into them would buy nothing. The
  * slice grid still matters to the author — that is what the seam guides draw, at every slice height.
  *
  * ## Rendering: one item, no seams
- * The strip is a *single* graphics item (StripItem, in the .cpp) that draws each page as its own image.
+ * The strip is a *single* graphics item (StripItem, `canvas/stripitem.hpp`) that draws each page as its
+ * own image.
  * One item per page would leave a 1px hairline at every join — QGraphicsView clips and rounds each
  * item's edge independently, so at fractional zoom the boundaries fall between device pixels and the
  * background shows through. Drawing all pages through one item removes that seam at any zoom.
@@ -85,7 +93,7 @@ class ObjectController;
  * ## Memory: proxy + async page build + prefetch
  * A scaled page is far bigger than a slice (~16 MB at 800×5120), and a chapter has many, so pages are
  * brought online lazily:
- *  - **Layout** comes from `layoutPagesFromHeaders` — a header read per page, no pixels decoded.
+ *  - **StripLayout** comes from `layoutPagesFromHeaders` — a header read per page, no pixels decoded.
  *  - **Proxy tier:** the input page's thumbnail from the lib ThumbnailCache the Input tab already warms
  *    (reused, not reinvented) — drawn instantly so a page is never blank.
  *  - **Sharp tier:** the page is built through the real page domain on a worker thread, only for pages
@@ -103,9 +111,9 @@ class ObjectController;
  * In the .cpp, in order: the **constructor** builds the rail from tools(), registers each tool-options
  * page under the key a tool row names (a page nobody registered asserts), and wires the panels;
  * **setTool()** applies a row — drag mode, cursor, options page; then the grade, the scene and its
- * seams, **lazy page build**, **zoom**, and **eventFilter()**, which routes a press by the active
- * tool's `ToolKind` (place, sample, apply, or the canvas's own select and drag). Extending any of it:
- * `docs/EXTENDING.md`.
+ * seams, **lazy page build** and **zoom**. A press, drag or drop on the strip is CanvasInput's
+ * (`canvas/canvasinput.hpp`), which routes it by the armed tool's `ToolKind` and reports what belongs
+ * to another region; the constructor wires those reports. Extending any of it: `docs/EXTENDING.md`.
  */
 class Editor : public QWidget
 {
@@ -160,7 +168,7 @@ public:
      * @brief Feeds the project's text/bubble overlays and their authoring records.
      *
      * Overlays are placed in the **page domain**: each carries the uid of the input page it rides on
-     * (`StripOverlay::anchorInputUid`) plus an offset from that page's top, and this viewer resolves the
+     * (`StripOverlay::anchorInputUid`) plus an offset from that page's top, and this editor resolves the
      * pair against the strip it just laid out — the same arithmetic `ProcessingPipeline::run()` does, so
      * the preview cannot disagree with the render about where a bubble lands. An overlay whose anchor
      * page is not in the strip is shown greyed and marked orphaned rather than dropped, because the
@@ -170,10 +178,10 @@ public:
      * and does not interrupt an interaction.
      * 
      * @param overlays The overlays to show, in any order.
-     * @param artifacts The authoring records for those overlays, keyed by uid.
+     * @param records The authoring records for those overlays, keyed by uid.
      */
     void setOverlaySource(const std::vector<Platemaker::Models::StripOverlay>& overlays,
-                          const ArtifactMap&                                  artifacts);
+                          const ObjectRecord::Map&                                  records);
 
     /**
      * @brief Select what an undone or redone step touched, when the feed carrying it arrives.
@@ -215,14 +223,8 @@ public:
      */
     void setColourCorrection(const Platemaker::Models::ColourCorrection& cc);
 
-    // --- read by StripItem (the single painting item) ---
-    [[nodiscard]] int    pageCount() const { return m_layout.pageCount(); }             //!< Number of drawable pages.
-    [[nodiscard]] QRectF pageRect(int index) const { return m_layout.pageRect(index); } //!< Scene rect of page \p index.
-    [[nodiscard]] QSize  stripSize() const { return m_layout.stripSize(); }             //!< Whole-strip size (item boundingRect).
-    [[nodiscard]] QPixmap pageOf(int index) const;   //!< Built (ungraded) page if cached, else a null pixmap.
-    [[nodiscard]] QPixmap proxyOf(int index) const;  //!< Blurry proxy thumbnail if cached, else a null pixmap.
-    [[nodiscard]] bool    gradeActive() const;       //!< True when the live grade preview should be shown.
-    [[nodiscard]] QPixmap gradedOf(int index) const; //!< Graded preview of page \p index if cached, else null.
+    //! The whole strip's size, in strip pixels.
+    [[nodiscard]] QSize stripSize() const { return m_layout.stripSize(); }
 
 signals:
     /**
@@ -236,41 +238,41 @@ signals:
      *        @p undoText. Named here, where it is known what was done — an adjustment moved, reset or removed, a
      *        page excluded — rather than guessed afterwards from a before-and-after that cannot tell them apart.
      */
-    void colourCorrectionEdited(const Platemaker::Models::ColourCorrection& cc, const QString& undoText);
+    void colourCorrectionCommitted(const Platemaker::Models::ColourCorrection& cc, const QString& undoText);
 
     /**
      * @brief A new bubble was drawn — the owner rasterises it and registers it with the library.
      *
-     * Creation is the one thing this viewer cannot finish on its own: the uid is minted by
+     * Creation is the one thing this editor cannot finish on its own: the uid is minted by
      * `ProjectItem::addOverlay()`, which also hashes the asset and dedups identical content. Sending
      * the intent instead of a half-built record keeps that inventory the library's.
      *
-     * @param artifact       Authoring record for the new bubble (its box is the placement rectangle).
+     * @param record       Authoring record for the new bubble (its box is the placement rectangle).
      * @param x,y            Top-left, relative to the anchor page's top edge.
      * @param anchorInputUid The page it was drawn on.
      */
-    void artifactCreated(const Artifact& artifact, double xFrac, double yFrac, double wFrac,
+    void recordCreated(const ObjectRecord& record, double xFrac, double yFrac, double wFrac,
                          const QString& anchorInputUid);
 
     /**
      * @brief Every other overlay edit, as the complete new state: move, restyle, delete, reorder, mute.
      *
      * One channel rather than one signal per gesture — the uids already exist, so the owner only has to
-     * store what it is given (re-rasterising the artifacts whose bitmaps no longer match) and push one
+     * store what it is given (re-rasterising the records whose bitmaps no longer match) and push one
      * undo step labelled @p undoText.
      * 
      * @param overlays The overlays to show, in any order.
-     * @param artifacts The authoring records for those overlays, keyed by uid.
+     * @param records The authoring records for those overlays, keyed by uid.
      * @param undoText The text to label the undo step with.
      */
-    void overlaysEdited(const std::vector<Platemaker::Models::StripOverlay>& overlays,
-                        const ArtifactMap&                                  artifacts,
+    void overlaysCommitted(const std::vector<Platemaker::Models::StripOverlay>& overlays,
+                        const ObjectRecord::Map&                                  records,
                         const QString&                                      undoText);
 
     /**
      * @brief The author picked artwork to bring in — the owner copies it and registers it.
      *
-     * Placement is decided here, because only the viewer knows which page is in front of the author;
+     * Placement is decided here, because only the editor knows which page is in front of the author;
      * everything after that is the owner's, exactly as it is for a drawn bubble.
      * 
      * @param sourceFile The file the author picked, anywhere on disk.
@@ -295,15 +297,6 @@ signals:
     void noted(const QString& text);
 
 protected:
-    /**
-     * @brief Filters events for the view.
-     * Ctrl+wheel over the view zooms; a plain wheel keeps the view's native vertical scroll.
-     * 
-     * @param watched The object being watched.
-     * @param event The event to filter.
-     */
-    bool eventFilter(QObject *watched, QEvent *event) override;
-
     /**
      * @brief Handles the resize event for the view.
      * While the default zoom is still pending, re-applies it as the viewport gets its real size; also
@@ -348,65 +341,13 @@ private:
     void applyGrade(const Platemaker::Models::ColourCorrection& cc);
 
     /**
-     * @brief Returns true while a tool that authors overlays is active (Bubble or Text).
-     * @return True if an artifact tool is active, false otherwise.
-     */
-    [[nodiscard]] bool    artifactToolActive() const;
-    /**
-     * @brief Returns true if the active tool is reading the canvas rather than changing it.
-     * @return True if the active tool is the eyedropper, false otherwise.
-     */
-    [[nodiscard]] bool    isSampling() const;
-    /**
-     * @brief Returns true if the active tool is applying a colour.
-     * @return True if the active tool is the colour applicator, false otherwise.
-     */
-    [[nodiscard]] bool    isApplying() const;
-
-    /**
-     * @brief Re-decides the viewport cursor for the tool and whatever the pointer is over.
-     *
-     * Called on hover, after a press is released, when the tool changes, when the zoom changes and after
-     * a feed — every moment at which either half of *(tool, target)* can have moved, including the ones
-     * where the pointer itself did not.
-     *
-     * **Nothing else sets the viewport cursor.** The view's drag mode still writes one of its own, and
-     * `cursorFor()` answers the same cursor in that state so the two agree rather than take turns.
-     */
-    void                  updateCursor();
-    /**
-     * @brief Draws the rail buttons that carry no icon file.
-     *
-     * Two tools draw their own: one that places a single shape is drawn by the rasteriser that draws
-     * that shape, and the colour tool *is* a swatch of the primary colour. Both are made of things that
-     * change under the application — the palette, the pair — so they are drawn here rather than once in
-     * the constructor, and this runs again whenever either moves.
-     *
-     * @param mime The picture in @p mime, or empty when it carries none. One rule for both drop sources.
-     */
-    [[nodiscard]] static QString droppedArtwork(const ::QMimeData* mime);
-
-    /**
-     * @brief Reads the colour at @p scenePos into the pair — the secondary half when @p secondary.
-     *
-     * Takes what is **drawn**: one composited pixel of the scene — the page through its grade, with every
-     * balloon, caption and asset over it — which is the same pixel the render will produce. Selection
-     * chrome and the seam guides are left out of that one repaint: they are the editor talking, not the
-     * comic. A page still showing its proxy is not sampled — a blurry stand-in would hand back an average
-     * of the colours around the point rather than the colour at it — so the page is requested and the
-     * press does nothing.
-     *
-     * @return Whether a colour was taken.
-     */
-    bool sampleColourAt(const QPointF& scenePos, bool secondary);
-
-    /**
      * @brief Grade state changed: drop the graded cache and re-grade what's visible.
      */
     void refreshGradePreview();
 
     /**
-     * @brief Shows the selected strip or page in ③, with current data — or the object panel for anything else.
+     * @brief Shows the selected strip or page in OBJECT STATE, with current data — or the object panel for
+     * anything else.
      */
     void showSubject();
 
@@ -420,7 +361,7 @@ private:
      * @brief Where every drawable page landed (those the render would skip are dropped). Indices into this
      *        key every cache below, and every overlay placement question is asked of it.
      */
-    Layout         m_layout;
+    StripLayout         m_layout;
     QList<QGraphicsLineItem*> m_seamItems; //!< Slice-cut guide lines (owned by the scene).
     double m_zoom        = 1.0;              //!< Absolute zoom factor.
     bool   m_pendingFit  = false;            //!< Re-apply the default zoom on resize until the user zooms.
@@ -432,33 +373,16 @@ private:
     PageSource* m_pages = nullptr;
 
     // --- editor shell: the tool rail's flowing buttons are built in the ctor (a flow layout can't live in
-    // a .ui); the splitters, canvas, tool-options stack and artifact list all come from editor.ui ---
-    QButtonGroup   *m_toolGroup = nullptr;   //!< The rail's buttons; a button's id is its row in tools().
-    QHash<QString, int> m_toolPage;          //!< Tool id → its page in the options stack.
+    // a .ui); the splitters, canvas, tool-options stack and object stack all come from editor.ui ---
+    ToolRail*         m_rail        = nullptr;  //!< TOOL RAIL: the tiles and the colour pair.
+    ToolOptionsStack* m_toolOptions = nullptr;  //!< TOOL OPTIONS: a page per options-page key.
     ColourPair*     m_colours    = nullptr;  //!< The primary/secondary pair, under the rail. Furniture.
-    /**
-     * @brief Where the middle-button pan last was, in viewport points; x < 0 when no such pan is in flight.
-     */
-    QPoint          m_panFrom {-1, -1};      //!< Last middle-button press point, in viewport coordinates; -1 when no pan is in flight.
-    QPoint          m_pointerPos {-1, -1};   //!< Last hovered viewport point, so the cursor can be
-                                             //!< re-decided when the pointer has not moved but the
-                                             //!< scene under it has.
-    /**
-     * @brief The tool tiles' own row in the rail. Held because its minimum height has to follow the flow
-     *        layout's wrapping — see `eventFilter()` — or a drag can hide a row of tools.
-     */
-    QWidget           *m_toolTiles    = nullptr;
-    /**
-     * @brief TOOL VIEW's page for a tool that has no options: the tool's name and what a press does. Never empty —
-     *        see `toolregistry.hpp`, where both come from the tool's own row.
-     */
-    QLabel            *m_toolTitle    = nullptr;   //!< The tool's name, in the tool-options stack.
-    QLabel            *m_toolHint     = nullptr;   //!< What a press does, in the tool-options stack.
-    GradePanel        *m_gradePanel   = nullptr;   //!< The Grade tool-options page (colour-correction controls).
+    CanvasInput*    m_input      = nullptr;  //!< CANVAS: presses, drags, drops and the wheel, by tool.
+    GradeToolOptions        *m_gradeOptions   = nullptr;   //!< The Grade tool-options page (colour-correction controls).
     /**
      * @brief The Artwork tool's options: which picture a placement puts down. See `setTool()`.
      */
-    ArtworkOptionsPanel *m_artworkOptions = nullptr;
+    ArtworkToolOptions *m_artworkOptions = nullptr;
     AdvisoryBar       *m_advisoryBar  = nullptr;   //!< Bottom edge of this editor; absent until setAdvisories().
     QString            m_tool;                     //!< The active tool's registry id.
 
@@ -466,18 +390,15 @@ private:
     /**
      * @brief Right-top: what the selected object *is*. Inert, and says so, while nothing is selected.
      */
-    ObjectStatePanel* m_objectState = nullptr;
+    ObjectState* m_objectState = nullptr;
     /**
      * @brief The same surface when the strip or one of its pages is selected: what *that* is.
      */
-    StripStatePanel*  m_stripState = nullptr;
-    /**
-     * @brief ...and when imported artwork is: its size, which is all of its state that is ours to set.
-     *  What the properties stack actually switches between: each panel inside its own scroll area, so a
-     *  selection cannot widen the column under the pointer. See `scrolled()` in the .cpp.
-     */
-    QWidget*          m_objectPage = nullptr;
-    QWidget*          m_stripPage  = nullptr;   //!< The same surface when the strip or one of its pages is selected: what *that* is.
+    StripState*  m_stripState = nullptr;
+    //! OBJECT STATE: which of the two panels above shows, and what it says about the strip.
+    ObjectStateStack* m_stateStack = nullptr;
+    ObjectStack*      m_objectStack = nullptr;   //!< OBJECT STACK: the rows, a view of m_objects.
+    ObjectMenu*       m_objectMenu  = nullptr;   //!< The object menu, on the stack and the canvas.
     /**
      * @brief The grade as this editor last saw it — from the project, or from a live edit in progress.
      *
@@ -488,7 +409,7 @@ private:
     /**
      * @brief Bottom-left, under the tool rail: what the *next* object will be. Never edits anything.
      */
-    ToolOptionsPanel* m_toolOptions = nullptr;
+    BubbleToolOptions* m_bubbleOptions = nullptr;
     /**
      * @brief The preset library, owned here because more than one thing needs it.
      *
@@ -501,6 +422,7 @@ private:
      *        which it holds by reference.
      */
     ObjectController* m_objects = nullptr;
+    Placement*        m_placement = nullptr;   //!< A Create tool's drag, and the object it places.
 };
 
 }  // namespace StripEdit

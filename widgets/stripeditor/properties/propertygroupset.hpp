@@ -4,7 +4,7 @@
 #include <QList>
 #include <QObject>
 
-#include "propertygroupeditor.hpp"
+#include "properties/propertygroupeditor.hpp"
 
 namespace StripEdit {
 
@@ -50,7 +50,7 @@ public:
     [[nodiscard]] QList<PropertyGroupEditor*> all() const;
 
     //! Shows \p a in every editor. Emits nothing, by the editors' own contract.
-    void bind(const Artifact& a) const;
+    void bind(const ObjectRecord& a) const;
 
     /**
      * @brief Writes every group into \p a in the one order that matters, then tops up the seed.
@@ -58,7 +58,7 @@ public:
      * @param tails The surface's own tails editor, applied after the shape it reads; none, for a caller
      *              whose subject has no tails to write.
      */
-    void collect(Artifact& a, const PropertyGroupEditor* tails = nullptr) const;
+    void collect(ObjectRecord& a, const PropertyGroupEditor* tails = nullptr) const;
 
 private:
     ShapeEditor* m_shape = nullptr;

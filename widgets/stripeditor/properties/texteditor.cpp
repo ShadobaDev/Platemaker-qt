@@ -1,4 +1,4 @@
-#include "texteditor.hpp"
+#include "properties/texteditor.hpp"
 
 #include <QCheckBox>
 #include <QColorDialog>
@@ -53,13 +53,13 @@ TextEditor::TextEditor(QWidget* parent)
 
     // Each control records that *it* was the one moved. Bound to a set, only what was moved is written,
     // and everything else stays each object's own — see applyEditedTo().
-    const auto changed = [this] {
+    const auto bodyEdited = [this] {
         if (m_populating)
             return;
         m_values.body = m_body->toPlainText();
-        emit edited();
+        emit changed();
     };
-    connect(m_body, &QPlainTextEdit::textChanged, this, changed);
+    connect(m_body, &QPlainTextEdit::textChanged, this, bodyEdited);
 
     connect(m_family, &QFontComboBox::currentFontChanged, this, [this](const QFont& f) {
         if (m_populating)
@@ -67,7 +67,7 @@ TextEditor::TextEditor(QWidget* parent)
         m_values.family = f.family();
         m_familyTouched = true;
         m_mixedFamily   = false;
-        emit edited();
+        emit changed();
     });
     connect(m_size, &QSpinBox::valueChanged, this, [this](int v) {
         if (m_populating)
@@ -76,7 +76,7 @@ TextEditor::TextEditor(QWidget* parent)
             m_mixedSize = false;
         m_values.pixelSize = v;
         m_sizeTouched      = true;
-        emit edited();
+        emit changed();
     });
     connect(m_bold, &QCheckBox::toggled, this, [this](bool on) {
         if (m_populating)
@@ -85,7 +85,7 @@ TextEditor::TextEditor(QWidget* parent)
         m_values.bold = on;
         m_boldTouched = true;
         m_mixedBold   = false;
-        emit edited();
+        emit changed();
     });
     connect(m_align, &QComboBox::currentIndexChanged, this, [this](int i) {
         if (m_populating || i < 0)
@@ -93,7 +93,7 @@ TextEditor::TextEditor(QWidget* parent)
         m_values.align = m_align->currentData().toInt();
         m_alignTouched = true;
         m_mixedAlign   = false;
-        emit edited();
+        emit changed();
     });
 
     connect(m_swatch, &QPushButton::clicked, this, [this] {
@@ -104,7 +104,7 @@ TextEditor::TextEditor(QWidget* parent)
         m_colourTouched = true;
         m_mixedColour   = false;   // they all take this one now
         paintColourSwatch(m_swatch, picked);
-        emit edited();
+        emit changed();
         emit committed();   // a dialog choice is discrete — commit it without waiting on a timer
     });
 
@@ -120,7 +120,7 @@ void TextEditor::bind(const Subjects& subjects)
     m_subjects = static_cast<int>(subjects.size());
 
     m_mixedColour = m_mixedFamily = m_mixedSize = m_mixedBold = m_mixedAlign = false;
-    for (const Artifact* a : subjects) {
+    for (const ObjectRecord* a : subjects) {
         const TextProperties t = TextProperties::from(*a);
         m_mixedColour = m_mixedColour || t.colour    != m_values.colour;
         m_mixedFamily = m_mixedFamily || t.family    != m_values.family;
@@ -133,12 +133,12 @@ void TextEditor::bind(const Subjects& subjects)
     syncFromValues();
 }
 
-void TextEditor::applyTo(Artifact& target) const
+void TextEditor::applyTo(ObjectRecord& target) const
 {
     m_values.applyTo(target);
 }
 
-void TextEditor::applyEditedTo(Artifact& target) const
+void TextEditor::applyEditedTo(ObjectRecord& target) const
 {
     // The lettering itself is never written to a set: five balloons do not share one line of dialogue.
     TextProperties t = TextProperties::from(target);

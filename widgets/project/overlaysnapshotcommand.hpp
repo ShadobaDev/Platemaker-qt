@@ -18,8 +18,8 @@ class Project;
  * leaving these two alone. So restoring the lettering does not reload the project, restoring the project
  * does not rewind the lettering, and neither has to know what the other did.
  *
- * The two move together and are never split from each other: an overlay's record says *which* file
- * renders, its artifact says what that file contains, and restoring one without the other would leave
+ * The two move together and are never split from each other: the overlay says *which* file
+ * renders, its ObjectRecord says what that file contains, and restoring one without the other would leave
  * the strip showing text the render does not bake.
  *
  * Snapshot-based, like its project-scope sibling: the originating handler performs the mutation and
@@ -41,7 +41,7 @@ public:
     OverlaySnapshotCommand(Project* project, OverlayState before, OverlayState after,
                            const QString& text);
 
-    void undo() override;   //!< Restore the "before" overlays and artifacts.
+    void undo() override;   //!< Restore the "before" overlays and records.
     void redo() override;   //!< No-op on the first call (push); restore the "after" state thereafter.
 
 private:

@@ -15,17 +15,17 @@
 
 #include <QJsonObject>
 
-#include "artifactsvg.hpp"
-#include "propertygroup.hpp"
-#include "artifact.hpp"
+#include "recordsvg.hpp"
+#include "properties/propertygroup.hpp"
+#include "objectrecord.hpp"
 
 namespace {
 
-//! An artifact with **every** property moved off its default, so an accidental write is visible.
-Artifact loadedArtifact()
+//! A record with **every** property moved off its default, so an accidental write is visible.
+ObjectRecord loadedRecord()
 {
-    Artifact a;
-    a.shape.kind       = Artifact::Shape::Thought;
+    ObjectRecord a;
+    a.shape.kind       = ObjectRecord::Shape::Thought;
     a.box              = QSize(321, 123);
 
     Tail t;
@@ -34,7 +34,7 @@ Artifact loadedArtifact()
     t.bend             = 0.4;
     a.tails.items      = {t};
 
-    a.style.kind       = Artifact::Style::Ink;
+    a.style.kind       = ObjectRecord::Style::Ink;
     a.style.amount     = 1.7;
     a.styleSeed        = 0xC0FFEEu;
 
@@ -56,8 +56,8 @@ Artifact loadedArtifact()
 //
 // Each mirror lists the fields expectUntouched() checks, in the group's own order, so the two structs
 // are laid out by the same rules on every compiler and differ in size only when the group has grown.
-// A new field has to go into: the group's operator==, artifactToJson() / artifactFromJson(),
-// artifactToSvg() / artifactFromSvg() (`pm:*`), loadedArtifact(), expectUntouched() — and the mirror.
+// A new field has to go into: the group's operator==, ().toJson() / ObjectRecord::fromJson(),
+// Svg::write() / Svg::read() (`pm:*`), loadedRecord(), expectUntouched() — and the mirror.
 //
 // ponytail: a size check. A field small enough to fit into existing padding (a bool after
 // StyleProperties::kind) passes unnoticed; counting members needs C++20, or reflection.
@@ -87,12 +87,12 @@ struct TailsMirror { QList<Tail> items; };
 static_assert(sizeof(TailsProperties) == sizeof(TailsMirror),
               "TailsProperties grew a field: place it (see above), then mirror it");
 
-struct ArtifactMirror {
+struct RecordMirror {
     ShapeProperties shape; QString artwork; QSize box; TailsProperties tails; StyleProperties style;
     quint32 styleSeed; TextProperties text; SkinProperties skin;
 };
-static_assert(sizeof(Artifact) == sizeof(ArtifactMirror),
-              "Artifact grew a field: place it (see above), then mirror it");
+static_assert(sizeof(ObjectRecord) == sizeof(RecordMirror),
+              "ObjectRecord grew a field: place it (see above), then mirror it");
 
 
 //! Which group a test is applying, so everything else can be checked as untouched.
@@ -103,11 +103,11 @@ enum class Group { Shape, Skin, Style, Text, Tails, Nothing };
  *
  * Listed property by property rather than through the groups' own operator==, on purpose: equality is
  * itself something that can be forgotten when a property is added, and a test leaning on it would
- * weaken silently at exactly the moment it is most needed. **Adding a property to Artifact breaks the
+ * weaken silently at exactly the moment it is most needed. **Adding a property to ObjectRecord breaks the
  * build above until someone has decided which group owns it**, and then this function is the next
  * place it goes.
  */
-void expectUntouched(Group applied, const Artifact& before, const Artifact& after)
+void expectUntouched(Group applied, const ObjectRecord& before, const ObjectRecord& after)
 {
     if (applied != Group::Shape) {
         EXPECT_EQ(after.shape.kind, before.shape.kind);
@@ -137,7 +137,7 @@ void expectUntouched(Group applied, const Artifact& before, const Artifact& afte
     }
 
     // Owned by no group, so never written by an editor and never skipped here. The box belongs to the
-    // object rather than to the artifact's look; the style seed is per balloon and set once at
+    // object rather than to the record's look; the style seed is per balloon and set once at
     // placement, which is why a preset must not carry it.
     EXPECT_EQ(after.box,       before.box);
     EXPECT_EQ(after.styleSeed, before.styleSeed);
@@ -151,8 +151,8 @@ void expectUntouched(Group applied, const Artifact& before, const Artifact& afte
 
 TEST(PropertyGroupOwnership, Skin)
 {
-    const Artifact before = loadedArtifact();
-    Artifact       after  = before;
+    const ObjectRecord before = loadedRecord();
+    ObjectRecord       after  = before;
 
     SkinProperties s;
     s.fill        = QColor(200, 100, 50);
@@ -167,11 +167,11 @@ TEST(PropertyGroupOwnership, Skin)
 
 TEST(PropertyGroupOwnership, Shape)
 {
-    const Artifact before = loadedArtifact();
-    Artifact       after  = before;
+    const ObjectRecord before = loadedRecord();
+    ObjectRecord       after  = before;
 
     ShapeProperties s;
-    s.kind = Artifact::Shape::Banner;
+    s.kind = ObjectRecord::Shape::Banner;
     s.applyTo(after);
 
     EXPECT_EQ(after.shape, s);
@@ -181,11 +181,11 @@ TEST(PropertyGroupOwnership, Shape)
 
 TEST(PropertyGroupOwnership, Style)
 {
-    const Artifact before = loadedArtifact();
-    Artifact       after  = before;
+    const ObjectRecord before = loadedRecord();
+    ObjectRecord       after  = before;
 
     StyleProperties s;
-    s.kind   = Artifact::Style::Marker;
+    s.kind   = ObjectRecord::Style::Marker;
     s.amount = 0.25;
     s.applyTo(after);
 
@@ -197,11 +197,11 @@ TEST(PropertyGroupOwnership, Style)
 //! The seed is part of the style and deliberately not part of its group — see StyleProperties.
 TEST(PropertyGroupOwnership, StyleLeavesTheSeedAlone)
 {
-    Artifact a = loadedArtifact();
+    ObjectRecord a = loadedRecord();
     const quint32 seed = a.styleSeed;
 
     StyleProperties s;
-    s.kind   = Artifact::Style::Marker;
+    s.kind   = ObjectRecord::Style::Marker;
     s.applyTo(a);
 
     EXPECT_EQ(a.styleSeed, seed);
@@ -209,8 +209,8 @@ TEST(PropertyGroupOwnership, StyleLeavesTheSeedAlone)
 
 TEST(PropertyGroupOwnership, Text)
 {
-    const Artifact before = loadedArtifact();
-    Artifact       after  = before;
+    const ObjectRecord before = loadedRecord();
+    ObjectRecord       after  = before;
 
     TextProperties s;
     s.body      = QStringLiteral("Co tu sie odprawia");
@@ -228,8 +228,8 @@ TEST(PropertyGroupOwnership, Text)
 
 TEST(PropertyGroupOwnership, Tails)
 {
-    const Artifact before = loadedArtifact();
-    Artifact       after  = before;
+    const ObjectRecord before = loadedRecord();
+    ObjectRecord       after  = before;
 
     Tail one;
     one.tip       = QPointF(-5, 300);
@@ -252,7 +252,7 @@ TEST(PropertyGroupOwnership, Tails)
  */
 TEST(PropertyGroupOwnership, OneTail)
 {
-    Artifact before = loadedArtifact();
+    ObjectRecord before = loadedRecord();
     Tail first = before.tails.items.first();
     Tail last  = first;
     last.tip       = QPointF(250, -40);
@@ -261,7 +261,7 @@ TEST(PropertyGroupOwnership, OneTail)
     Tail middle = first;
     middle.tip  = QPointF(90, 200);
     before.tails.items = {first, middle, last};
-    Artifact after = before;
+    ObjectRecord after = before;
 
     TailProperties edited = TailProperties::from(before, 1);
     edited.tail.baseWidth = 77.0;
@@ -279,8 +279,8 @@ TEST(PropertyGroupOwnership, OneTail)
 //! A tail selected before an undo removed it has nowhere to go. Writing it must not bring it back.
 TEST(PropertyGroupOwnership, OneTailOutOfRangeWritesNothing)
 {
-    const Artifact before = loadedArtifact();   // one tail
-    Artifact       after  = before;
+    const ObjectRecord before = loadedRecord();   // one tail
+    ObjectRecord       after  = before;
 
     TailProperties gone;
     gone.index      = 3;
@@ -298,7 +298,7 @@ TEST(PropertyGroupOwnership, OneTailOutOfRangeWritesNothing)
  */
 TEST(PropertyGroupOwnership, SkinAndTextColoursAreSeparate)
 {
-    Artifact a = loadedArtifact();
+    ObjectRecord a = loadedRecord();
     a.text.colour  = QColor(123, 45, 67);
 
     SkinProperties s = SkinProperties::from(a);
@@ -322,8 +322,8 @@ TEST(PropertyGroupOwnership, SkinAndTextColoursAreSeparate)
 
 TEST(PropertyGroupPersistence, KeepsTheFlatKeys)
 {
-    const Artifact a = loadedArtifact();
-    const QJsonObject  j = artifactToJson(a);
+    const ObjectRecord a = loadedRecord();
+    const QJsonObject  j = a.toJson();
 
     EXPECT_EQ(j.value(QStringLiteral("strokeWidth")).toInt(),  a.skin.strokeWidth);
     EXPECT_EQ(j.value(QStringLiteral("fill")).toString(),      a.skin.fill.name(QColor::HexArgb));
@@ -334,15 +334,15 @@ TEST(PropertyGroupPersistence, KeepsTheFlatKeys)
     EXPECT_EQ(j.value(QStringLiteral("align")).toInt(),        a.text.align);
     EXPECT_EQ(j.value(QStringLiteral("styleAmount")).toDouble(), a.style.amount);
 
-    // No grouping crept into the file: an artifact saved before the groups existed still loads.
+    // No grouping crept into the file: a record saved before the groups existed still loads.
     for (const char* nested : {"skin", "shape", "style", "tails"})
         EXPECT_FALSE(j.value(QLatin1String(nested)).isObject()) << nested;
 }
 
 TEST(PropertyGroupPersistence, RoundTrips)
 {
-    const Artifact a = loadedArtifact();
-    const Artifact b = artifactFromJson(artifactToJson(a));
+    const ObjectRecord a = loadedRecord();
+    const ObjectRecord b = ObjectRecord::fromJson(a.toJson());
 
     EXPECT_EQ(b.shape, a.shape);
     EXPECT_EQ(b.skin,  a.skin);
@@ -366,21 +366,21 @@ TEST(PropertyGroupPersistence, RoundTrips)
  */
 TEST(PropertyGroupPersistence, EveryShapeAndStyleRoundTrips)
 {
-    QList<Artifact::Shape> shapes{Artifact::Shape::None};
+    QList<ObjectRecord::Shape> shapes{ObjectRecord::Shape::None};
     shapes += shapeOrder();
-    for (Artifact::Shape s : shapes) {
+    for (ObjectRecord::Shape s : shapes) {
         EXPECT_EQ(shapeFromName(QString::fromLatin1(shapeName(s))), s) << shapeName(s);
-        Artifact a   = loadedArtifact();
+        ObjectRecord a   = loadedRecord();
         a.shape.kind = s;
-        EXPECT_EQ(artifactFromJson(artifactToJson(a)), a) << shapeName(s);
+        EXPECT_EQ(ObjectRecord::fromJson(a.toJson()), a) << shapeName(s);
     }
 
     for (int i = 0; i <= int(StyleProperties::k_lastKind); ++i) {
-        const auto s = static_cast<Artifact::Style>(i);
+        const auto s = static_cast<ObjectRecord::Style>(i);
         EXPECT_EQ(styleFromName(QString::fromLatin1(styleName(s))), s) << styleName(s);
-        Artifact a   = loadedArtifact();
+        ObjectRecord a   = loadedRecord();
         a.style.kind = s;
-        EXPECT_EQ(artifactFromJson(artifactToJson(a)), a) << styleName(s);
+        EXPECT_EQ(ObjectRecord::fromJson(a.toJson()), a) << styleName(s);
     }
 }
 
@@ -399,19 +399,19 @@ TEST(PropertyGroupPersistence, EveryShapeAndStyleRoundTrips)
  */
 TEST(Conversion, AKindHidesTailsRatherThanDestroyingThem)
 {
-    Artifact a = loadedArtifact();
-    a.shape.kind   = Artifact::Shape::Speech;
+    ObjectRecord a = loadedRecord();
+    a.shape.kind   = ObjectRecord::Shape::Speech;
     ASSERT_FALSE(a.tails.items.isEmpty());
     ASSERT_TRUE(a.hasTail());
 
     const TailsProperties kept = a.tails;
 
-    a.shape.kind = Artifact::Shape::None;   // what the conversion does, and all it does
+    a.shape.kind = ObjectRecord::Shape::None;   // what the conversion does, and all it does
     EXPECT_FALSE(a.hasSilhouette());            // the one structural question, and its whole answer
     EXPECT_FALSE(a.hasTail());                  // no balloon, so nothing for a tail to leave
     EXPECT_EQ(a.tails, kept);                   // ...but the record still has them
 
-    a.shape.kind = Artifact::Shape::Caption;
+    a.shape.kind = ObjectRecord::Shape::Caption;
     EXPECT_TRUE(a.hasSilhouette());
     EXPECT_TRUE(a.hasTail());
     EXPECT_EQ(a.tails, kept);
@@ -426,15 +426,15 @@ TEST(Conversion, AKindHidesTailsRatherThanDestroyingThem)
  */
 TEST(Conversion, ThePickerOffersEverySilhouetteAndNoKind)
 {
-    EXPECT_FALSE(shapeOrder().contains(Artifact::Shape::None));
+    EXPECT_FALSE(shapeOrder().contains(ObjectRecord::Shape::None));
     // Every enumerated shape except None, and each of them once.
     EXPECT_EQ(shapeOrder().size(), int(ShapeProperties::k_lastKind));
-    for (Artifact::Shape s : shapeOrder()) {
+    for (ObjectRecord::Shape s : shapeOrder()) {
         EXPECT_FALSE(shapeTitle(s).isEmpty()) << shapeName(s);
         EXPECT_EQ(shapeOrder().count(s), 1) << shapeName(s);
     }
     // Named all the same, because a kind still has to be spelled somewhere.
-    EXPECT_FALSE(shapeTitle(Artifact::Shape::None).isEmpty());
+    EXPECT_FALSE(shapeTitle(ObjectRecord::Shape::None).isEmpty());
 }
 
 // ---------------------------------------------------------------------------
@@ -454,18 +454,18 @@ TEST(Conversion, ThePickerOffersEverySilhouetteAndNoKind)
  */
 TEST(Import, OnlyAFileCarryingTheRecipeIsAdopted)
 {
-    // Built by hand rather than through artifactToSvg(): writing one measures its lettering, and
+    // Built by hand rather than through Svg::write(): writing one measures its lettering, and
     // measuring text needs a QGuiApplication this target deliberately does not have. What is under test
     // is the reader's rule, and the rule is which namespace an attribute is in.
     const QByteArray ours =
-        QByteArray("<svg xmlns=\"http://www.w3.org/2000/svg\" xmlns:pm=\"") + k_pmNamespace
+        QByteArray("<svg xmlns=\"http://www.w3.org/2000/svg\" xmlns:pm=\"") + Svg::k_pmNamespace
         + "\" width=\"10\" height=\"10\"><g pm:shape=\"thought\" pm:box=\"300,200\""
           " pm:tails=\"40,260,30,0.2\" pm:text=\"Hello\"/></svg>";
 
     bool               ok   = false;
-    const Artifact back = artifactFromSvg(ours, &ok);
+    const ObjectRecord back = Svg::read(ours, &ok);
     EXPECT_TRUE(ok);
-    EXPECT_EQ(back.shape.kind, Artifact::Shape::Thought);
+    EXPECT_EQ(back.shape.kind, ObjectRecord::Shape::Thought);
     EXPECT_EQ(back.box, QSize(300, 200));
     EXPECT_EQ(back.tails.items.size(), 1);
     EXPECT_EQ(back.text.body, QStringLiteral("Hello"));
@@ -476,7 +476,7 @@ TEST(Import, OnlyAFileCarryingTheRecipeIsAdopted)
     renamed.replace("pm:", "x:").replace("xmlns:x=", "xmlns:x=");
     renamed.replace("xmlns:pm=", "xmlns:x=");
     ok = false;
-    artifactFromSvg(renamed, &ok);
+    Svg::read(renamed, &ok);
     EXPECT_TRUE(ok);
 
     // A drawing with no recipe: read, and declined.
@@ -484,7 +484,7 @@ TEST(Import, OnlyAFileCarryingTheRecipeIsAdopted)
         "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"10\" height=\"10\">"
         "<rect width=\"10\" height=\"10\"/></svg>";
     ok = true;
-    artifactFromSvg(foreign, &ok);
+    Svg::read(foreign, &ok);
     EXPECT_FALSE(ok);
 
     // The same attributes under somebody else's namespace are somebody else's attributes.
@@ -492,7 +492,7 @@ TEST(Import, OnlyAFileCarryingTheRecipeIsAdopted)
         "<svg xmlns=\"http://www.w3.org/2000/svg\" xmlns:pm=\"https://example.invalid/ns/1\""
         " width=\"10\" height=\"10\"><g pm:shape=\"speech\" pm:box=\"10,10\"/></svg>";
     ok = true;
-    artifactFromSvg(impostor, &ok);
+    Svg::read(impostor, &ok);
     EXPECT_FALSE(ok);
 }
 
@@ -510,8 +510,8 @@ TEST(Import, OnlyAFileCarryingTheRecipeIsAdopted)
  */
 TEST(Kinds, ArtworkHasNoGeometryOfOurs)
 {
-    Artifact a = loadedArtifact();
-    a.shape.kind   = Artifact::Shape::Speech;
+    ObjectRecord a = loadedRecord();
+    a.shape.kind   = ObjectRecord::Shape::Speech;
     ASSERT_TRUE(a.hasSilhouette());
     ASSERT_TRUE(a.hasTail());
 
@@ -529,18 +529,18 @@ TEST(Kinds, ArtworkHasNoGeometryOfOurs)
 //! be the E6a bug arriving by a different road.
 TEST(Kinds, ArtworkSurvivesTheSnapshot)
 {
-    Artifact a = loadedArtifact();
+    ObjectRecord a = loadedRecord();
     a.artwork      = QStringLiteral("art-0123456789abcdef.png");
 
-    const Artifact back = artifactFromJson(artifactToJson(a));
+    const ObjectRecord back = ObjectRecord::fromJson(a.toJson());
     EXPECT_EQ(back.artwork, a.artwork);
     EXPECT_TRUE(back.isArtwork());
     EXPECT_EQ(back, a);
 
     // A snapshot written before the field existed loads as what it was: something we draw.
-    QJsonObject older = artifactToJson(a);
+    QJsonObject older = a.toJson();
     older.remove(QStringLiteral("artwork"));
-    EXPECT_FALSE(artifactFromJson(older).isArtwork());
+    EXPECT_FALSE(ObjectRecord::fromJson(older).isArtwork());
 }
 
 /**
@@ -556,43 +556,43 @@ TEST(Import, AFileBakedInAStandInSaysWhich)
     // pm:fontFamily is the font asked for and stays so; pm:fontFallback is what the outlines were set in
     // while it was missing. The heal at open reads only the second — by namespace, like the recipe.
     const QByteArray standIn =
-        QByteArray("<svg xmlns=\"http://www.w3.org/2000/svg\" xmlns:pm=\"") + k_pmNamespace
+        QByteArray("<svg xmlns=\"http://www.w3.org/2000/svg\" xmlns:pm=\"") + Svg::k_pmNamespace
         + "\" width=\"10\" height=\"10\"><g pm:shape=\"speech\" pm:box=\"10,10\" pm:text=\"Hi\""
           " pm:fontFamily=\"Segoe Print\" pm:fontFallback=\"Segoe UI\"/></svg>";
-    EXPECT_EQ(bakedFontFallback(standIn), QStringLiteral("Segoe UI"));
-    EXPECT_EQ(artifactFromSvg(standIn).text.family, QStringLiteral("Segoe Print"));
+    EXPECT_EQ(Svg::bakedFontFallback(standIn), QStringLiteral("Segoe UI"));
+    EXPECT_EQ(Svg::read(standIn).text.family, QStringLiteral("Segoe Print"));
 
     QByteArray ownFont = standIn;
     ownFont.replace(" pm:fontFallback=\"Segoe UI\"", "");
-    EXPECT_TRUE(bakedFontFallback(ownFont).isEmpty());
+    EXPECT_TRUE(Svg::bakedFontFallback(ownFont).isEmpty());
 
     // Somebody else's namespace says nothing about our files.
     QByteArray impostor = standIn;
-    impostor.replace(k_pmNamespace, "https://example.invalid/ns/1");
-    EXPECT_TRUE(bakedFontFallback(impostor).isEmpty());
+    impostor.replace(Svg::k_pmNamespace, "https://example.invalid/ns/1");
+    EXPECT_TRUE(Svg::bakedFontFallback(impostor).isEmpty());
 }
 
 TEST(Import, AWrapperWithoutItsPictureIsNotWritten)
 {
-    Artifact a;
+    ObjectRecord a;
     a.artwork   = QStringLiteral("art-0123456789abcdef.png");
     a.box       = QSize(200, 200);
     a.text.body = QStringLiteral("KRAK!");
 
-    EXPECT_TRUE(artifactToSvg(a).isEmpty());                                   // no bytes at all
-    EXPECT_TRUE(artifactToSvg(a, QByteArray("nonsense"), QString()).isEmpty()); // ...and no media type
+    EXPECT_TRUE(Svg::write(a).isEmpty());                                   // no bytes at all
+    EXPECT_TRUE(Svg::write(a, QByteArray("nonsense"), QString()).isEmpty()); // ...and no media type
 }
 
 //! A wrapper says which picture it wraps, so re-importing one brings the object back whole.
 TEST(Import, AWrapperNamesItsPicture)
 {
     const QByteArray wrapper =
-        QByteArray("<svg xmlns=\"http://www.w3.org/2000/svg\" xmlns:pm=\"") + k_pmNamespace
+        QByteArray("<svg xmlns=\"http://www.w3.org/2000/svg\" xmlns:pm=\"") + Svg::k_pmNamespace
         + "\" width=\"10\" height=\"10\"><g pm:shape=\"none\""
           " pm:artwork=\"art-0123456789abcdef.png\" pm:box=\"200,200\" pm:text=\"KRAK!\"/></svg>";
 
     bool               ok = false;
-    const Artifact a  = artifactFromSvg(wrapper, &ok);
+    const ObjectRecord a  = Svg::read(wrapper, &ok);
     EXPECT_TRUE(ok);
     EXPECT_TRUE(a.isArtwork());
     EXPECT_FALSE(a.hasSilhouette());
@@ -601,8 +601,9 @@ TEST(Import, AWrapperNamesItsPicture)
 }
 
 // ---------------------------------------------------------------------------------------------------
-// Which groups a record carries. The rule ③ shows a subject by, and the rule its object menu offers a
-// selection by — written out twice in the panel before it had a name, and the two copies had drifted.
+// Which groups a record carries. The rule OBJECT STATE shows a subject by, and the rule its object menu
+// offers a selection by — written out twice in the panel before it had a name, and the two copies had
+// drifted.
 // ---------------------------------------------------------------------------------------------------
 
 using StripEdit::carriesGroup;
@@ -611,31 +612,31 @@ using StripEdit::PropertyGroup;
 //! Every kind is lettered — the one group a picture and a balloon genuinely share.
 TEST(Groups, TextIsCarriedByEveryKind)
 {
-    Artifact balloon;
-    balloon.shape.kind = Artifact::Shape::Speech;
+    ObjectRecord balloon;
+    balloon.shape.kind = ObjectRecord::Shape::Speech;
 
-    Artifact text;
-    text.shape.kind = Artifact::Shape::None;
+    ObjectRecord text;
+    text.shape.kind = ObjectRecord::Shape::None;
 
-    Artifact picture;
+    ObjectRecord picture;
     picture.artwork = QStringLiteral("art-0123456789abcdef.png");
 
-    for (const Artifact& a : {balloon, text, picture})
+    for (const ObjectRecord& a : {balloon, text, picture})
         EXPECT_TRUE(carriesGroup(a, PropertyGroup::Text));
 }
 
 //! Fill, line style, shape and tails all need a silhouette to sit on.
 TEST(Groups, TheRestNeedASilhouette)
 {
-    Artifact balloon;
-    balloon.shape.kind = Artifact::Shape::Speech;
+    ObjectRecord balloon;
+    balloon.shape.kind = ObjectRecord::Shape::Speech;
     ASSERT_TRUE(balloon.hasSilhouette());
 
     for (auto g : {PropertyGroup::Shape, PropertyGroup::Skin, PropertyGroup::Style, PropertyGroup::Tail})
         EXPECT_TRUE(carriesGroup(balloon, g)) << "balloon, group " << int(g);
 
-    Artifact text;
-    text.shape.kind = Artifact::Shape::None;
+    ObjectRecord text;
+    text.shape.kind = ObjectRecord::Shape::None;
     for (auto g : {PropertyGroup::Shape, PropertyGroup::Skin, PropertyGroup::Style, PropertyGroup::Tail})
         EXPECT_FALSE(carriesGroup(text, g)) << "shapeless, group " << int(g);
 }
@@ -643,9 +644,9 @@ TEST(Groups, TheRestNeedASilhouette)
 //! A picture carries nothing of ours to shape, fill or roughen — **whatever its shape field says**.
 TEST(Groups, APictureCarriesOnlyItsLettering)
 {
-    Artifact picture;
+    ObjectRecord picture;
     picture.artwork    = QStringLiteral("art-0123456789abcdef.png");
-    picture.shape.kind = Artifact::Shape::Speech;   // a stale value; isArtwork() outranks it
+    picture.shape.kind = ObjectRecord::Shape::Speech;   // a stale value; isArtwork() outranks it
 
     EXPECT_TRUE(carriesGroup(picture, PropertyGroup::Text));
     for (auto g : {PropertyGroup::Shape, PropertyGroup::Skin, PropertyGroup::Style, PropertyGroup::Tail})
@@ -655,7 +656,7 @@ TEST(Groups, APictureCarriesOnlyItsLettering)
 //! A tail is not a record, so no record carries its group — nor the three that never grew an editor.
 TEST(Groups, NoRecordCarriesATailsOwnGroup)
 {
-    const Artifact a = loadedArtifact();
+    const ObjectRecord a = loadedRecord();
     ASSERT_TRUE(a.hasSilhouette());
     ASSERT_FALSE(a.tails.items.isEmpty());
 

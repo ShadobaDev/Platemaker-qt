@@ -13,14 +13,14 @@
 #include <QPushButton>
 #include <QWidget>
 
-#include "propertygroup.hpp"   // PropertyGroup, and which groups a record carries
+#include "properties/propertygroup.hpp"   // PropertyGroup, and which groups a record carries
 
 namespace StripEdit {
 
 /**
  * @brief How long typing is coalesced before it becomes one history step.
  *
- * Part of the panels' shared contract rather than one panel's number: ③'s two object panels both
+ * Part of the panels' shared contract rather than one panel's number: OBJECT STATE's two object panels both
  * debounce, and two copies of a timing that is supposed to feel the same is how they come to feel
  * different.
  */
@@ -49,7 +49,7 @@ inline constexpr int k_tailBendPercent = 100;   //!< A tail bends ±this, as a p
  * The contract that stops two editors overwriting each other. An editor **reads** its subject through
  * bind() and **writes** through applyTo(), which touches only the properties its group owns — so
  * "an editor wrote a field that was not its own" becomes unstateable rather than something to
- * remember. The panel that used to do this kept a whole copy of the selected artifact and wrote the
+ * remember. The panel that used to do this kept a whole copy of the selected record and wrote the
  * whole copy back on every control change, which is why a canvas resize had to be pushed into it by
  * hand to stop the stale copy writing the old box back.
  *
@@ -58,7 +58,7 @@ inline constexpr int k_tailBendPercent = 100;   //!< A tail bends ±this, as a p
  * carried an enum naming its own seat, and the visible result was two panels showing the same
  * controls a few hundred pixels apart.
  *
- * Two signals, following the contract both existing panels already use: \c edited() continuously,
+ * Two signals, following the contract both existing panels already use: \c changed() continuously,
  * for the live preview, and \c committed() once for a settled edit, which is one undo step.
  */
 class PropertyGroupEditor : public QWidget
@@ -67,14 +67,14 @@ class PropertyGroupEditor : public QWidget
 
 public:
     /**
-     * @brief What is being edited — one artifact today, several once multi-selection lands.
+     * @brief What is being edited — one record today, several once multi-selection lands.
      *
      * Plural from the first line of code on purpose: retrofitting many subjects into every editor
      * later is the expensive version of this change. Until a selection model can produce more than
      * one, an editor binding several may show the first; rendering a disagreement as *Mixed* arrives
      * with multi-selection, which is the increment that can also produce it.
      */
-    using Subjects = QList<const Artifact*>;
+    using Subjects = QList<const ObjectRecord*>;
 
     explicit PropertyGroupEditor(QWidget* parent = nullptr) : QWidget(parent) {}
 
@@ -84,10 +84,10 @@ public:
     virtual void bind(const Subjects& subjects) = 0;
 
     //! Writes this group's properties into \p target, and nothing else.
-    virtual void applyTo(Artifact& target) const = 0;
+    virtual void applyTo(ObjectRecord& target) const = 0;
 
     //! The single-subject case, which is every caller until multi-selection lands.
-    void bindOne(const Artifact& subject) { bind(Subjects{&subject}); }
+    void bindOne(const ObjectRecord& subject) { bind(Subjects{&subject}); }
 
     /**
      * @brief Writes into @p target only the properties the artist has **touched** since bind().
@@ -96,10 +96,10 @@ public:
      * object's other values onto everything else in the selection. Editors that can be bound to a set
      * override this; the default is the group, which is what a single subject wants.
      */
-    virtual void applyEditedTo(Artifact& target) const { applyTo(target); }
+    virtual void applyEditedTo(ObjectRecord& target) const { applyTo(target); }
 
 signals:
-    void edited();     //!< A control moved — live preview, no history step.
+    void changed();     //!< A control moved — live preview, no history step.
     void committed();  //!< The edit settled, or a dialog returned — one history step.
 };
 

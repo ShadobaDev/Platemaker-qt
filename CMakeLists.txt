@@ -62,17 +62,25 @@ qt_add_executable(Platemaker
     # the project's input pages (QGraphicsView), the scene item that draws and edits one overlay on it,
     # the page geometry it answers placement questions from, and its two tool-options panels.
     widgets/stripeditor/editor.cpp widgets/stripeditor/editor.hpp widgets/stripeditor/editor.ui
-    widgets/stripeditor/object.cpp widgets/stripeditor/object.hpp
-    widgets/stripeditor/bubbleobject.cpp widgets/stripeditor/bubbleobject.hpp
-    widgets/stripeditor/assetobject.cpp widgets/stripeditor/assetobject.hpp
-    widgets/stripeditor/layout.cpp widgets/stripeditor/layout.hpp
-    widgets/stripeditor/pagesource.cpp widgets/stripeditor/pagesource.hpp
-    widgets/stripeditor/objectcontroller.cpp widgets/stripeditor/objectcontroller.hpp
-    widgets/stripeditor/toolregistry.cpp widgets/stripeditor/toolregistry.hpp
-    widgets/stripeditor/colourpair.cpp widgets/stripeditor/colourpair.hpp
-    widgets/stripeditor/cursors.cpp widgets/stripeditor/cursors.hpp
-    widgets/stripeditor/rowglyph.cpp widgets/stripeditor/rowglyph.hpp
+    widgets/stripeditor/objects/object.cpp widgets/stripeditor/objects/object.hpp
+    widgets/stripeditor/objects/bubbleobject.cpp widgets/stripeditor/objects/bubbleobject.hpp
+    widgets/stripeditor/objects/artworkobject.cpp widgets/stripeditor/objects/artworkobject.hpp
+    widgets/stripeditor/objects/striplayout.cpp widgets/stripeditor/objects/striplayout.hpp
+    widgets/stripeditor/canvas/pagesource.cpp widgets/stripeditor/canvas/pagesource.hpp
+    widgets/stripeditor/canvas/stripitem.cpp widgets/stripeditor/canvas/stripitem.hpp
+    widgets/stripeditor/canvas/canvasinput.cpp widgets/stripeditor/canvas/canvasinput.hpp
+    widgets/stripeditor/canvas/sampling.cpp widgets/stripeditor/canvas/sampling.hpp
+    widgets/stripeditor/objects/objectcontroller.cpp widgets/stripeditor/objects/objectcontroller.hpp
+    widgets/stripeditor/objects/placement.cpp widgets/stripeditor/objects/placement.hpp
+    widgets/stripeditor/toolrail/toolregistry.cpp widgets/stripeditor/toolrail/toolregistry.hpp
+    widgets/stripeditor/toolrail/toolrail.cpp widgets/stripeditor/toolrail/toolrail.hpp
+    widgets/stripeditor/toolrail/colourpair.cpp widgets/stripeditor/toolrail/colourpair.hpp
+    widgets/stripeditor/toolrail/cursors.cpp widgets/stripeditor/toolrail/cursors.hpp
+    widgets/stripeditor/objectstack/rowglyph.cpp widgets/stripeditor/objectstack/rowglyph.hpp
+    widgets/stripeditor/objectstack/objectstack.cpp widgets/stripeditor/objectstack/objectstack.hpp
+    widgets/stripeditor/objectstack/objectmenu.cpp widgets/stripeditor/objectstack/objectmenu.hpp
     widgets/stripeditor/presetstore.cpp widgets/stripeditor/presetstore.hpp
+    widgets/stripeditor/scrolledpage.hpp
     widgets/stripeditor/properties/propertygroup.hpp
     widgets/stripeditor/properties/propertygroupeditor.hpp
     widgets/stripeditor/properties/blendeditor.cpp widgets/stripeditor/properties/blendeditor.hpp
@@ -80,23 +88,26 @@ qt_add_executable(Platemaker
     widgets/stripeditor/properties/shapeeditor.cpp widgets/stripeditor/properties/shapeeditor.hpp
     widgets/stripeditor/properties/skineditor.cpp widgets/stripeditor/properties/skineditor.hpp
     widgets/stripeditor/properties/styleeditor.cpp widgets/stripeditor/properties/styleeditor.hpp
-    widgets/stripeditor/properties/tailseditor.cpp widgets/stripeditor/properties/tailseditor.hpp
+    widgets/stripeditor/properties/nexttaileditor.cpp widgets/stripeditor/properties/nexttaileditor.hpp
     widgets/stripeditor/properties/taillisteditor.cpp widgets/stripeditor/properties/taillisteditor.hpp
     widgets/stripeditor/properties/taileditor.cpp widgets/stripeditor/properties/taileditor.hpp
     widgets/stripeditor/properties/texteditor.cpp widgets/stripeditor/properties/texteditor.hpp
-    widgets/stripeditor/colouradjustment.cpp widgets/stripeditor/colouradjustment.hpp
-    widgets/stripeditor/panels/gradepanel.cpp widgets/stripeditor/panels/gradepanel.hpp widgets/stripeditor/panels/gradepanel.ui
-    widgets/stripeditor/panels/tooloptionspanel.cpp widgets/stripeditor/panels/tooloptionspanel.hpp
-    widgets/stripeditor/panels/artworkoptionspanel.cpp widgets/stripeditor/panels/artworkoptionspanel.hpp
-    widgets/stripeditor/panels/objectstatepanel.cpp widgets/stripeditor/panels/objectstatepanel.hpp
-    widgets/stripeditor/panels/stripstatepanel.cpp widgets/stripeditor/panels/stripstatepanel.hpp
+    widgets/stripeditor/properties/colouradjustment.cpp widgets/stripeditor/properties/colouradjustment.hpp
+    widgets/stripeditor/tooloptions/gradetooloptions.cpp widgets/stripeditor/tooloptions/gradetooloptions.hpp widgets/stripeditor/tooloptions/gradetooloptions.ui
+    widgets/stripeditor/tooloptions/bubbletooloptions.cpp widgets/stripeditor/tooloptions/bubbletooloptions.hpp
+    widgets/stripeditor/tooloptions/tooloptionsstack.cpp widgets/stripeditor/tooloptions/tooloptionsstack.hpp
+    widgets/stripeditor/tooloptions/artworktooloptions.cpp widgets/stripeditor/tooloptions/artworktooloptions.hpp
+    widgets/stripeditor/objectstate/objectstate.cpp widgets/stripeditor/objectstate/objectstate.hpp
+    widgets/stripeditor/objectstate/stripstate.cpp widgets/stripeditor/objectstate/stripstate.hpp
+    widgets/stripeditor/objectstate/objectstatestack.cpp widgets/stripeditor/objectstate/objectstatestack.hpp
     widgets/collapsiblesection/collapsiblesection.cpp widgets/collapsiblesection/collapsiblesection.hpp
 
-    # Text artifact — what a bubble IS (shape, text, styling), its sidecar codec and its rasteriser.
+    # The object record — what a bubble IS (shape, text, styling), its SVG codec and its rasteriser.
     # The library composites a flat RGBA bitmap and has no text engine, so the editable source lives here.
-    widgets/artifact/artifact.cpp widgets/artifact/artifact.hpp
-    widgets/artifact/artifactpainter.cpp widgets/artifact/artifactpainter.hpp
-    widgets/artifact/artifactsvg.cpp widgets/artifact/artifactsvg.hpp
+    widgets/objectrecord/objectrecord.cpp widgets/objectrecord/objectrecord.hpp widgets/objectrecord/propertygroups.hpp
+    widgets/objectrecord/recordstore.cpp widgets/objectrecord/recordstore.hpp
+    widgets/objectrecord/recordpainter.cpp widgets/objectrecord/recordpainter.hpp
+    widgets/objectrecord/recordsvg.cpp widgets/objectrecord/recordsvg.hpp
 
     # Stage card — one step in the Project "Workflow" pipeline map (custom-painted, no .ui).
     widgets/stagecard/stagecard.cpp widgets/stagecard/stagecard.hpp
@@ -143,18 +154,30 @@ target_include_directories(Platemaker PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/widgets/aboutdialog
     ${CMAKE_CURRENT_SOURCE_DIR}/widgets/licencedialog
     ${CMAKE_CURRENT_SOURCE_DIR}/widgets/renderworker
+    # The strip editor is one include root: its files include each other by folder
+    # (#include "objects/object.hpp"), so an include line says which screen region it reaches into.
     ${CMAKE_CURRENT_SOURCE_DIR}/widgets/stripeditor
-    ${CMAKE_CURRENT_SOURCE_DIR}/widgets/stripeditor/panels
-    ${CMAKE_CURRENT_SOURCE_DIR}/widgets/stripeditor/properties
     ${CMAKE_CURRENT_SOURCE_DIR}/widgets/stagecard
     ${CMAKE_CURRENT_SOURCE_DIR}/widgets/flowlayout
     ${CMAKE_CURRENT_SOURCE_DIR}/widgets/collapsiblesection
-    ${CMAKE_CURRENT_SOURCE_DIR}/widgets/artifact
+    ${CMAKE_CURRENT_SOURCE_DIR}/widgets/objectrecord
     ${CMAKE_CURRENT_SOURCE_DIR}/widgets/docktitlebar
     ${CMAKE_CURRENT_SOURCE_DIR}/widgets/badge
     ${CMAKE_CURRENT_SOURCE_DIR}/widgets/advisories
     ${CMAKE_CURRENT_SOURCE_DIR}/widgets/workspacefolder
 )
+
+# The strip editor's layer rules (which region may include which), checked before every build: a
+# violation stops it with file:line. Always out of date on purpose; it reads the sources in well under
+# a second. The rules and their exceptions are in the script.
+set(PLATEMAKER_CHECK_LAYERS
+    ${CMAKE_COMMAND} "-DROOT=${CMAKE_CURRENT_SOURCE_DIR}/widgets/stripeditor"
+                     -P "${CMAKE_CURRENT_SOURCE_DIR}/cmake/check_layers.cmake")
+add_custom_target(check_layers ALL
+    COMMAND ${PLATEMAKER_CHECK_LAYERS}
+    COMMENT "Checking the strip editor's layer rules"
+    VERBATIM)
+add_dependencies(${PROJECT_NAME} check_layers)
 
 # ---------------------------------------------------------------------------
 # Unit tests — off by default, so an ordinary Qt Creator build is unaffected.
@@ -239,6 +262,7 @@ option(PLATEMAKER_GUI_BUILD_TESTS "Build the GUI unit tests (GoogleTest)" OFF)
 if(PLATEMAKER_GUI_BUILD_TESTS)
     enable_testing()
     add_subdirectory(tests/gui-unit-tests)
+    add_test(NAME strip_editor_layers COMMAND ${PLATEMAKER_CHECK_LAYERS})
 endif()
 
 # About-dialog metadata injected as compile definitions — only the two facts this app owns:

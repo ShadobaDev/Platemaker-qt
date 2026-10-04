@@ -1,4 +1,4 @@
-#include "blendeditor.hpp"
+#include "properties/blendeditor.hpp"
 
 #include <QComboBox>
 #include <QFormLayout>
@@ -17,6 +17,14 @@ const QList<QPair<Platemaker::Models::BlendMode, QString>>& blendModes()
         {BlendMode::Lighten,  BlendEditor::tr("Lighten")},
     };
     return modes;
+}
+
+QString blendName(Platemaker::Models::BlendMode mode)
+{
+    for (const auto& [m, name] : blendModes())
+        if (m == mode)
+            return name;
+    return {};
 }
 
 BlendEditor::BlendEditor(QWidget* parent)

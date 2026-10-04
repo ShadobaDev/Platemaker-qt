@@ -198,7 +198,7 @@ void MainWindow::removeProject(int modelIndex)
         m_openProjectDocks.removeOne(dock);
         dock->deleteLater();
     }
-    // ...and its strip viewer dock, if open.
+    // ...and its strip editor dock, if open.
     if (QDockWidget *strip = dockForStripEditor(modelIndex)) {
         m_openStripDocks.removeOne(strip);
         strip->deleteLater();
@@ -307,10 +307,10 @@ void MainWindow::openProjectDock(int projectIndex)
         QString::fromStdString(m_workspace.projectItems[projectIndex].uid);
     projectWidget->setWorkspacePath(m_workspacePath);
     projectWidget->setWriteGuard([this] { return canWriteWorkspace(); });
-    projectWidget->setArtifacts(m_overlayArtifacts.artifacts(projectUid));
-    connect(projectWidget, &Project::artifactsChanged, this,
-            [this, projectUid, newDock](const ArtifactMap& artifacts) {
-        m_overlayArtifacts.setArtifacts(projectUid, artifacts);
+    projectWidget->setRecords(m_overlayRecords.records(projectUid));
+    connect(projectWidget, &Project::recordsChanged, this,
+            [this, projectUid, newDock](const ObjectRecord::Map& records) {
+        m_overlayRecords.setRecords(projectUid, records);
         // A record edit changes what a bubble says without moving a page, so the strip has to be told
         // explicitly — the feed signature it guards itself with would not see it.
         if (QDockWidget* strip = dockForStripEditor(newDock->property("projectIndex").toInt()))
@@ -344,8 +344,8 @@ void MainWindow::openProjectDock(int projectIndex)
             return;
         // Armed before the state goes out: the objects do not exist here until the feed that follows
         // this signal builds them.
-        if (auto* viewer = qobject_cast<StripEdit::Editor*>(strip->widget()))
-            viewer->selectAfterFeed(uids);
+        if (auto* editor = qobject_cast<StripEdit::Editor*>(strip->widget()))
+            editor->selectAfterFeed(uids);
         showDockAttention(strip);
     });
     connect(projectWidget, &Project::renderToggleRequested,
@@ -478,14 +478,14 @@ void MainWindow::closeDock(QDockWidget *dock)
         return;
     }
     // Hidden, not destroyed. The dock is the way in, not the thing itself: an open strip editor keeps
-    // sending edits to this widget, and those edits need its artifacts, its overlay directory and its
+    // sending edits to this widget, and those edits need its records, its overlay directory and its
     // history. Destroying it dropped all three silently — the editor went on showing changes nobody
     // had recorded. Reopening from the project list finds this dock and raises it.
     dock->hide();
 }
 
 // ---------------------------------------------------------------------------
-// Strip viewer dock (per-project, floating, custom title bar)
+// Strip editor dock (per-project, floating, custom title bar)
 // ---------------------------------------------------------------------------
 
 QDockWidget *MainWindow::dockForStripEditor(int modelIndex) const
@@ -499,24 +499,24 @@ QDockWidget *MainWindow::dockForStripEditor(int modelIndex) const
 void MainWindow::refreshStripEditor(QDockWidget *dock)
 {
     if (!dock) return;
-    auto *viewer = qobject_cast<StripEdit::Editor *>(dock->widget());
-    if (!viewer) return;
+    auto *editor = qobject_cast<StripEdit::Editor *>(dock->widget());
+    if (!editor) return;
 
     const int idx = dock->property("projectIndex").toInt();
     if (idx < 0 || idx >= static_cast<int>(m_workspace.projectItems.size())) {
-        viewer->setPreviewSource({}, {}, {}, {}, workspaceCacheDir());   // project gone → empty state
+        editor->setPreviewSource({}, {}, {}, {}, workspaceCacheDir());   // project gone → empty state
         return;
     }
 
-    // The strip is built from the project's INPUT pages, not from the rendered output: the viewer has to
+    // The strip is built from the project's INPUT pages, not from the rendered output: the editor has to
     // work before the first render, and a grade previewed on the committed output would be applied on
     // top of the one the render already baked in. Everything the library needs to put a page through its
     // page domain goes across: the inputs in strip order, the resolved output profile (target width +
     // slice height), and the canvas profiles that decide margins. The workspace cache dir feeds the
-    // viewer's proxy thumbnails — already warm, the Input tab's tiles use the same cache for the same
+    // editor's proxy thumbnails — already warm, the Input tab's tiles use the same cache for the same
     // files.
     const auto &project = m_workspace.projectItems[static_cast<std::size_t>(idx)];
-    viewer->setPreviewSource(project.inputsInOrder(),
+    editor->setPreviewSource(project.inputsInOrder(),
                              resolveOutputProfileFor(project),
                              m_workspace.canvasProfiles(),
                              project.canvasProfileIds(),
@@ -524,13 +524,13 @@ void MainWindow::refreshStripEditor(QDockWidget *dock)
 
     // Feed the Grade panel + live preview. The strip's pixels are ungraded by construction, so this
     // previews cleanly whether or not a render has happened, and a render does not change the view.
-    viewer->setColourCorrection(project.colourCorrection);
+    editor->setColourCorrection(project.colourCorrection);
 
-    // Text & bubbles: the library's placements plus the GUI's authoring records for them. The viewer
+    // Text & bubbles: the library's placements plus the GUI's authoring records for them. The editor
     // resolves each overlay's page anchor against the layout it just built — the same arithmetic the
     // render does — so a bubble previews exactly where it will be baked.
-    viewer->setOverlaySource(project.getStripOverlays(),
-                             m_overlayArtifacts.artifacts(QString::fromStdString(project.uid)));
+    editor->setOverlaySource(project.getStripOverlays(),
+                             m_overlayRecords.records(QString::fromStdString(project.uid)));
 }
 
 void MainWindow::openStripEditorDock(int projectIndex)
@@ -559,16 +559,16 @@ void MainWindow::openStripEditorDock(int projectIndex)
     // is never tab-combined with Action.
     dock->setAllowedAreas(Qt::LeftDockWidgetArea | Qt::TopDockWidgetArea | Qt::BottomDockWidgetArea);
 
-    auto *viewer = new StripEdit::Editor(*m_presets, dock);
+    auto *editor = new StripEdit::Editor(*m_presets, dock);
     // "Render & view": outputs are cheap/regenerable, so this just runs the normal render for the
-    // project; onRenderFinished refreshes this viewer when it completes. If the project is already up to
+    // project; onRenderFinished refreshes this editor when it completes. If the project is already up to
     // date, startRender is a no-op and the already-loaded committed slices stay shown.
-    connect(viewer, &StripEdit::Editor::renderAndViewRequested, this, [this, projectIndex] {
+    connect(editor, &StripEdit::Editor::renderAndViewRequested, this, [this, projectIndex] {
         (void)startRender(projectIndex);
     });
     // A settled grade edit → persist it onto the project as one undo step, named by the editor, which
     // knows what was done (undoable, via the Project dock).
-    connect(viewer, &StripEdit::Editor::colourCorrectionEdited, this,
+    connect(editor, &StripEdit::Editor::colourCorrectionCommitted, this,
             [this, projectIndex](const Platemaker::Models::ColourCorrection &cc, const QString &undoText) {
         if (auto *pw = projectWidget(projectIndex))
             pw->applyColourCorrection(cc, undoText);
@@ -579,38 +579,38 @@ void MainWindow::openStripEditorDock(int projectIndex)
     // undo step. Both are guarded the same way the grade is: a project that has been removed has no
     // widget and no history, and the edit is dropped rather than applied untracked. Merely *closing*
     // the dock does not reach here — it hides, and the widget goes on recording.
-    connect(viewer, &StripEdit::Editor::artifactCreated, this,
-            [this, projectIndex](const Artifact &artifact, double xFrac, double yFrac,
+    connect(editor, &StripEdit::Editor::recordCreated, this,
+            [this, projectIndex](const ObjectRecord &record, double xFrac, double yFrac,
                                  double wFrac, const QString &anchorUid) {
         if (auto *pw = projectWidget(projectIndex))
-            pw->createOverlay(artifact, xFrac, yFrac, wFrac, anchorUid);
+            pw->createOverlay(record, xFrac, yFrac, wFrac, anchorUid);
     });
-    connect(viewer, &StripEdit::Editor::artworkImportRequested, this,
+    connect(editor, &StripEdit::Editor::artworkImportRequested, this,
             [this, projectIndex](const QString &file, double xFrac, double yFrac, double wFrac,
                                  QSize naturalSize, const QString &anchorUid) {
         if (auto *pw = projectWidget(projectIndex))
             pw->importOverlayArtwork(file, xFrac, yFrac, wFrac, naturalSize, anchorUid);
     });
-    connect(viewer, &StripEdit::Editor::overlaysEdited, this,
+    connect(editor, &StripEdit::Editor::overlaysCommitted, this,
             [this, projectIndex](const std::vector<Platemaker::Models::StripOverlay> &overlays,
-                                 const ArtifactMap &artifacts, const QString &undoText) {
+                                 const ObjectRecord::Map &records, const QString &undoText) {
         if (auto *pw = projectWidget(projectIndex))
-            pw->applyOverlays(overlays, artifacts, undoText);
+            pw->applyOverlays(overlays, records, undoText);
     });
     // Its own advisory strip, along the bottom. Dragged out, this dock is a top-level window with no
     // status bar; maximised, it covers the one behind it. Either way the chapter's problems would be
     // invisible in the very window they are worked on. Docked, the strip stands down — the main
     // window's status bar is already saying it, and saying it twice teaches nothing.
-    viewer->setAdvisories(m_advisories,
+    editor->setAdvisories(m_advisories,
                           QString::fromStdString(m_workspace.projectItems[projectIndex].uid));
-    viewer->setAdvisoriesActive(dock->isFloating());
-    connect(dock, &QDockWidget::topLevelChanged, viewer, &StripEdit::Editor::setAdvisoriesActive);
+    editor->setAdvisoriesActive(dock->isFloating());
+    connect(dock, &QDockWidget::topLevelChanged, editor, &StripEdit::Editor::setAdvisoriesActive);
     // What has happened, as opposed to what is wrong: the bar's left side, which expires on its own.
     // The advisories keep the right side, where a badge lives as long as its condition does.
-    connect(viewer, &StripEdit::Editor::noted, this,
+    connect(editor, &StripEdit::Editor::noted, this,
             [this](const QString& text) { statusBar()->showMessage(text, k_noticeMs); });
 
-    dock->setWidget(viewer);
+    dock->setWidget(editor);
 
     // Shared custom title bar (minimise = dock/detach, maximise = fill screen, close = hide).
     installDockTitleBar(dock);
@@ -640,7 +640,7 @@ void MainWindow::openStripEditorDock(int projectIndex)
 
     // Size: the output/strip width plus a 100px margin on each side, and 80% of the screen height. Fall
     // back to a typical webtoon width when the project has no pages yet (strip width unknown).
-    const int stripW = viewer->stripSize().width();
+    const int stripW = editor->stripSize().width();
     const int dockW  = (stripW > 0 ? stripW : 800) + 200;
     const QScreen *scr = screen() ? screen() : QGuiApplication::primaryScreen();
     const QRect avail  = scr ? scr->availableGeometry() : QRect(0, 0, 1280, 800);

@@ -1,9 +1,9 @@
-#include "propertygroupset.hpp"
+#include "properties/propertygroupset.hpp"
 
-#include "shapeeditor.hpp"
-#include "skineditor.hpp"
-#include "styleeditor.hpp"
-#include "texteditor.hpp"
+#include "properties/shapeeditor.hpp"
+#include "properties/skineditor.hpp"
+#include "properties/styleeditor.hpp"
+#include "properties/texteditor.hpp"
 
 namespace StripEdit {
 
@@ -20,13 +20,13 @@ QList<PropertyGroupEditor*> PropertyGroupSet::all() const
     return {m_shape, m_skin, m_style, m_text};
 }
 
-void PropertyGroupSet::bind(const Artifact& a) const
+void PropertyGroupSet::bind(const ObjectRecord& a) const
 {
     for (PropertyGroupEditor* e : all())
         e->bindOne(a);
 }
 
-void PropertyGroupSet::collect(Artifact& a, const PropertyGroupEditor* tails) const
+void PropertyGroupSet::collect(ObjectRecord& a, const PropertyGroupEditor* tails) const
 {
     m_shape->applyTo(a);
     m_skin->applyTo(a);

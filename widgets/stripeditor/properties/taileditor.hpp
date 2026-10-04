@@ -1,7 +1,7 @@
 #ifndef STRIPEDIT_TAILEDITOR_HPP
 #define STRIPEDIT_TAILEDITOR_HPP
 
-#include "propertygroupeditor.hpp"
+#include "properties/propertygroupeditor.hpp"
 
 class QSpinBox;
 
@@ -31,7 +31,7 @@ public:
     void setIndex(int index) { m_index = index; }
 
     void bind(const Subjects& subjects) override;
-    void applyTo(Artifact& target) const override;
+    void applyTo(ObjectRecord& target) const override;
 
 private:
     QSpinBox* m_width = nullptr;

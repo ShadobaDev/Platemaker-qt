@@ -1,10 +1,10 @@
-#include "taillisteditor.hpp"
+#include "properties/taillisteditor.hpp"
 
 #include <QHBoxLayout>
 #include <QLabel>
 #include <QPushButton>
 
-#include "shapeeditor.hpp"   // shapeSpeaks()
+#include "properties/shapeeditor.hpp"   // shapeSpeaks()
 
 namespace StripEdit {
 
@@ -37,7 +37,7 @@ TailListEditor::TailListEditor(QWidget* parent)
         }
         m_values.items.append(t);
         refresh();
-        emit edited();
+        emit changed();
     });
 
     refresh();
@@ -47,14 +47,14 @@ void TailListEditor::bind(const Subjects& subjects)
 {
     if (subjects.isEmpty())
         return;
-    const Artifact& a = *subjects.first();
+    const ObjectRecord& a = *subjects.first();
     m_values        = TailsProperties::from(a);
     m_box           = a.box;
     m_shapeCanSpeak = a.hasSilhouette();
     refresh();
 }
 
-void TailListEditor::applyTo(Artifact& target) const
+void TailListEditor::applyTo(ObjectRecord& target) const
 {
     TailsProperties next = m_values;
     if (!target.hasSilhouette())
@@ -62,9 +62,9 @@ void TailListEditor::applyTo(Artifact& target) const
     next.applyTo(target);
 }
 
-void TailListEditor::shapeChanged(Artifact::Shape kind)
+void TailListEditor::shapeChanged(ObjectRecord::Shape kind)
 {
-    m_shapeCanSpeak = kind != Artifact::Shape::None;
+    m_shapeCanSpeak = kind != ObjectRecord::Shape::None;
     if (!shapeSpeaks(kind)) {
         m_values.items.clear();
     } else if (m_values.items.isEmpty()) {

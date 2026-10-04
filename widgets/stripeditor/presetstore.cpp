@@ -17,16 +17,16 @@ const auto k_presetsKey = QStringLiteral("bubblePresets");
 const auto k_packMarker = QStringLiteral("platemakerBubblePresets");
 
 /**
- * @brief A preset is an artifact with its content removed.
+ * @brief A preset is a record with its content removed.
  *
  * Dropping the keys rather than listing the ones to keep is what makes this stay correct: a styling
- * field added to Artifact is carried by artifactToJson() and lands in presets for free, while a new
+ * field added to ObjectRecord is carried by ().toJson() and lands in presets for free, while a new
  * *content* field is the only thing that needs a line here.
  * @param name  The name the artist gave this preset, which is what they pick it by.
  */
 QJsonObject presetToJson(const BubblePreset& p)
 {
-    QJsonObject j = artifactToJson(p.artifact);
+    QJsonObject j = p.record.toJson();
     for (const QString& key : {QStringLiteral("text"), QStringLiteral("w"), QStringLiteral("h"),
                                QStringLiteral("tails"), QStringLiteral("styleSeed")})
         j.remove(key);
@@ -35,13 +35,13 @@ QJsonObject presetToJson(const BubblePreset& p)
 }
 
 /**
- * @brief The absent content keys fall back to Artifact's own defaults, which is exactly what is wanted.
+ * @brief The absent content keys fall back to ObjectRecord's own defaults, which is exactly what is wanted.
  * @param j  The JSON object representing the preset.
  * @return The BubblePreset constructed from the JSON object.
  */
 BubblePreset presetFromJson(const QJsonObject& j)
 {
-    return {j.value(QStringLiteral("name")).toString(), artifactFromJson(j)};
+    return {j.value(QStringLiteral("name")).toString(), ObjectRecord::fromJson(j)};
 }
 
 /**
@@ -86,32 +86,32 @@ QList<BubblePreset> builtinPresets()
 {
     QList<BubblePreset> out;
 
-    Artifact dialogue;                       // the struct's own defaults are already a speech balloon
+    ObjectRecord dialogue;                       // the struct's own defaults are already a speech balloon
     out.append({PresetStore::tr("Dialogue"), dialogue});
 
-    Artifact whisper = dialogue;
-    whisper.shape.kind       = Artifact::Shape::Ellipse;
+    ObjectRecord whisper = dialogue;
+    whisper.shape.kind       = ObjectRecord::Shape::Ellipse;
     whisper.skin.strokeWidth = 3;
     whisper.skin.stroke      = QColor(90, 90, 90);
     whisper.text.colour      = QColor(70, 70, 70);
     whisper.text.pixelSize   = 26;
     out.append({PresetStore::tr("Whisper"), whisper});
 
-    Artifact thought = dialogue;
-    thought.shape.kind       = Artifact::Shape::Thought;
+    ObjectRecord thought = dialogue;
+    thought.shape.kind       = ObjectRecord::Shape::Thought;
     thought.skin.strokeWidth = 4;
     out.append({PresetStore::tr("Thought"), thought});
 
-    Artifact shout = dialogue;
-    shout.shape.kind         = Artifact::Shape::Shout;
+    ObjectRecord shout = dialogue;
+    shout.shape.kind         = ObjectRecord::Shape::Shout;
     shout.text.bold          = true;
     shout.text.pixelSize     = 38;
     shout.skin.strokeWidth   = 7;
-    shout.style.kind         = Artifact::Style::Marker;
+    shout.style.kind         = ObjectRecord::Style::Marker;
     out.append({PresetStore::tr("Shout"), shout});
 
-    Artifact caption = dialogue;
-    caption.shape.kind       = Artifact::Shape::Caption;
+    ObjectRecord caption = dialogue;
+    caption.shape.kind       = ObjectRecord::Shape::Caption;
     caption.skin.fill        = QColor(16, 16, 16);
     caption.text.colour      = QColor(245, 245, 245);
     caption.skin.stroke      = QColor(245, 245, 245);
@@ -157,12 +157,12 @@ void PresetStore::persist()
     emit changed();
 }
 
-int PresetStore::save(const QString& name, const Artifact& look, bool replaceExisting,
+int PresetStore::save(const QString& name, const ObjectRecord& look, bool replaceExisting,
                       int* existingIndex)
 {
     BubblePreset p{name, look};
-    p.artifact.tails.items.clear();
-    p.artifact.styleSeed = 0;   // content, not style: a stored seed would clone one bubble's wobble
+    p.record.tails.items.clear();
+    p.record.styleSeed = 0;   // content, not style: a stored seed would clone one bubble's wobble
 
     for (int i = m_builtinCount; i < m_presets.size(); ++i) {
         if (m_presets.at(i).name.compare(name, Qt::CaseInsensitive) != 0)
@@ -238,7 +238,7 @@ bool PresetStore::exportPack(const QString& path, QString* error) const
     return true;
 }
 
-int PresetStore::matching(const Artifact& a) const
+int PresetStore::matching(const ObjectRecord& a) const
 {
     // An empty family and the default's name are the same font.
     const auto named = [this](TextProperties t) {
@@ -247,7 +247,7 @@ int PresetStore::matching(const Artifact& a) const
         return t;
     };
     for (int i = 0; i < m_presets.size(); ++i) {
-        const Artifact look = applied(m_presets.at(i), a, /*keepShape=*/false);
+        const ObjectRecord look = applied(m_presets.at(i), a, /*keepShape=*/false);
         if (look.shape == a.shape && look.skin == a.skin && look.style == a.style
             && named(look.text) == named(a.text))
             return i;
@@ -255,15 +255,15 @@ int PresetStore::matching(const Artifact& a) const
     return -1;
 }
 
-QString PresetStore::lookLabel(const Artifact& a) const
+QString PresetStore::lookLabel(const ObjectRecord& a) const
 {
     const int i = matching(a);
     return i < 0 ? tr("Custom") : m_presets.at(i).name;
 }
 
-Artifact PresetStore::applied(const BubblePreset& p, const Artifact& target, bool keepShape)
+ObjectRecord PresetStore::applied(const BubblePreset& p, const ObjectRecord& target, bool keepShape)
 {
-    Artifact a = p.artifact;
+    ObjectRecord a = p.record;
 
     // A preset is a look, not a line: whatever the bubble says, how big it is and where its tails point
     // survive being restyled. Without this, picking a preset would erase the lettering.

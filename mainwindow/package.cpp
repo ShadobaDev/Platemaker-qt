@@ -193,7 +193,7 @@ void MainWindow::onExportPackage()
 
     QSet<QString> named;   // families a bubble asks for by name
     for (const auto &project : m_workspace.projectItems) {
-        const ArtifactMap records = m_overlayArtifacts.artifacts(QString::fromStdString(project.uid));
+        const ObjectRecord::Map records = m_overlayRecords.records(QString::fromStdString(project.uid));
         for (const auto &overlay : project.getStripOverlays()) {
             const auto rec = records.constFind(QString::fromStdString(overlay.uid));
             if (rec == records.constEnd())

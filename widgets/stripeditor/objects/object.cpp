@@ -22,6 +22,8 @@ constexpr qreal k_gripMin = 6.0;
 constexpr qreal k_gripMax = 18.0;
 //! Room reserved around the box for grips — half of k_gripMax, rounded up.
 constexpr qreal k_gripMargin = 10.0;
+//! Opacity for unanchored objects — present but not rendering is visually semi-transparent.
+constexpr qreal k_unanchoredOpacity = 0.35;
 
 QPainter::CompositionMode compositionFor(Platemaker::Models::BlendMode b)
 {
@@ -151,7 +153,7 @@ void Object::paint(QPainter* painter, const QStyleOptionGraphicsItem* option, QW
 {
     painter->save();
     if (m_orphaned)
-        painter->setOpacity(0.35);   // present but not rendering — see the object list's "re-anchor"
+        painter->setOpacity(k_unanchoredOpacity);   // present but not rendering
 
     painter->setCompositionMode(compositionFor(m_blend));
     paintContent(*painter);

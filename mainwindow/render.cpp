@@ -379,8 +379,7 @@ bool MainWindow::startRender(int projectIndex)
     // cache hit and never re-reads a slice the render is still writing (the read/write race). The dir is
     // the same .platemaker-cache the tiles read from; empty when no workspace is open (no warming then).
     worker->setThumbnailCacheDir(workspaceCacheDir().toStdString());
-    // Optional render-time processing steps, copied from the project into the worker. Default / disabled
-    // (CC enabled==false, no overlays) → the pipeline is byte-identical to a build without them.
+    // Optional render-time processing steps, copied from the project into the worker.
     worker->setColourCorrection(project.colourCorrection);
     worker->setStripOverlays(project.getStripOverlays());
     auto *thread = new QThread(this);

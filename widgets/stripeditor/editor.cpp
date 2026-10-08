@@ -578,12 +578,14 @@ void Editor::setPreviewSource(const std::vector<Platemaker::Models::InputFile>& 
 
 void Editor::rebuildScene()
 {
+    // The objects' records are read *before* the scene deletes them: forgetItems() harvests them, and
+    // after clear() every tracked pointer is dangling.
+    m_objects->forgetItems();
     m_objects->setSyncing(true);  // scene->clear() drops the selection; that is not a user action
-    m_scene->clear();           // deletes every item (incl. the StripItem); the tracked pointers are now stale
+    m_scene->clear();           // deletes every item (incl. the StripItem)
     m_objects->setSyncing(false);
     m_item = nullptr;
     m_seamItems.clear();
-    m_objects->forgetItems();   // owned by the scene — already deleted, just forget them
     m_layout.clear();
     m_pages->reset();
 
@@ -643,12 +645,12 @@ void Editor::addSeamItems()
 
 void Editor::showEmptyState()
 {
+    m_objects->forgetItems();   // before clear(), for the reason given in rebuildScene()
     m_objects->setSyncing(true);
     m_scene->clear();
     m_objects->setSyncing(false);
     m_item = nullptr;
     m_seamItems.clear();
-    m_objects->forgetItems();
     m_layout.clear();
 
     auto *text = m_scene->addSimpleText(

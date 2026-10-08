@@ -354,11 +354,12 @@ public:
     void setSyncing(bool on) { m_syncingList = on; }
 
     /**
-     * @brief The scene deleted every item; drop the pointers.
+     * @brief The scene is about to delete every item; harvest their records and drop the pointers.
      *
-     * Their records are harvested into the feed's first, because the objects are where a record lives
-     * between feeds — an edit previewed but not yet settled exists only on the object, and rebuilding
-     * the scene from a feed that never heard about it would quietly undo it.
+     * Call it **before** `QGraphicsScene::clear()`: it reads every object. Their records are harvested
+     * into the feed's first, because the objects are where a record lives between feeds — an edit
+     * previewed but not yet settled exists only on the object, and rebuilding the scene from a feed that
+     * never heard about it would quietly undo it.
      */
     void forgetItems()
     {

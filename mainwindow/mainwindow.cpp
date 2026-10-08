@@ -75,7 +75,7 @@ MainWindow::MainWindow(QWidget *parent)
     ui->menu_About->menuAction()->setIcon(QIcon(QStringLiteral(":/icons/menu/about.svg")));
 
     // What is installed, as opposed to what a workspace brings: taken now, before any workspace's fonts are
-    // registered. Measured (PLAN-X M2.3): a font installed while Platemaker runs is not seen until a
+    // registered. Measured (Windows): a font installed while Platemaker runs is not seen until a
     // restart anyway, so the list cannot go stale in a way the font database itself would not.
     m_installedFamilies = QFontDatabase::families();
 

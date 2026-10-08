@@ -375,7 +375,7 @@ private:
      *
      * At open because that is the one moment the model *is* the file and no undo history exists: at close,
      * after *Discard*, memory is not what is on disk; during the session, undo may still need a file. Runs
-     * only with the folder held (W2) and holding this workspace alone (W1); anything the trash refuses is
+     * only with the folder held (the lock) and holding this workspace alone; anything the trash refuses is
      * offered for permanent deletion, once per open. Reported in the Action log and the status bar — an
      * event, not a standing condition, so not an advisory. The caller checks the lock.
      */

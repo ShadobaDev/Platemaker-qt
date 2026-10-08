@@ -172,7 +172,7 @@ void MainWindow::onFonts()
                 row->setText(3, tr("Not a font Platemaker can use"));
             }
             row->setText(1, raw.isValid() ? raw.styleName() : QString{});
-            // Measured (PLAN-X M2.1): the workspace's copy wins over an installed one, so this says only
+            // Measured (Qt 6.11, Windows): the workspace's copy wins over an installed one, so this says only
             // that another copy exists — not which one is drawn. Every name, not any: a style shares its Win32
             // family with the others, so one installed style would otherwise vouch for one that is not.
             if (!families.isEmpty()
@@ -243,7 +243,7 @@ void MainWindow::onFonts()
         }
         installed.removeDuplicates();
         if (!installed.isEmpty())
-            // Measured (PLAN-X M2.3): a running program does not see a font installed after it started —
+            // Measured (Windows): a running program does not see a font installed after it started —
             // Platemaker included, which is why it says so; this workspace keeps using its own copy.
             QMessageBox::information(&dlg, tr("Install"),
                                      tr("Installed for you: %1.\n\nPrograms that are already running — "

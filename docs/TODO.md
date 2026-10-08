@@ -96,9 +96,6 @@ Bug fixes, cosmetics and internal cleanups — no new capability, no change to a
   `viewStripRequested(projectIndex, toolId)`; MainWindow calls `editor->setTool(toolId)` after opening
   the dock. The CC card passes `"grade"` and selects the strip; the bubbles card passes `"bubble"`.
 
-- [ ] **Plan tags left in `mainwindow/` comments** (`M2.1`, `M2.3`, `W1`, `W2`): rewrite each as what
-  the code does, as the strip editor's were.
-
 - [ ] **ImageTile** rework to be more eye-appealing
 
 - [x] **Grey out the Auto-sort rules group until it works** — the `groupBoxAutosort` fields
@@ -371,7 +368,7 @@ New, backward-compatible features. Several are gated on a lib version, noted in 
 
 - [ ] **Shape registry: lands with the first shape that has parameters.** Today a shape is an enum value
   plus a case in seven places (`shapeName`, `shapeTitle`, `shapeOrder`, `shapeFromName`,
-  `artifactSilhouette`, `textSafeArea`, `artifactLabel`). The plan is the tool rail's own pattern one level
+  `Painter::silhouette`, `Painter::textSafeArea`, `Painter::label`). The plan is the tool rail's own pattern one level
   down: a `ShapeDescriptor` table (persisted name, title, `outline(body, ObjectRecord)`, `textSafeArea(body,
   ObjectRecord)`, a parameter list that `ShapeEditor` builds its controls from), with one file per shape under
   `widgets/objectrecord/shapes/`. Adding a shape then means copying one file and adding one row, which is
@@ -380,7 +377,7 @@ New, backward-compatible features. Several are gated on a lib version, noted in 
     and lobes). Before that, the table replaces seven working switches for no new capability.
   - **The move first, the shape on top:** the golden render, overlay SVGs and shape tiles byte-identical
     before and after the move, then the new shape as its own step.
-  - **Seeds:** a noisy outline reads `styleSeed` (hence `outline` takes the `Artifact`), never a seed of its
+  - **Seeds:** a noisy outline reads `styleSeed` (hence `outline` takes the `ObjectRecord`), never a seed of its
     own, so a preset cannot copy a wobble. The shape that needs it brings a **Re-roll** action (one undo
     step) on the object menu.
   - Optionally in the same step: a tool row names its options page through a factory, so `Editor`'s
@@ -389,6 +386,10 @@ New, backward-compatible features. Several are gated on a lib version, noted in 
     the same table with rows read at run time. The library needs nothing, since it composites the
     finished SVG. A package would have to carry such a file, as it carries `fonts/`. Plugins as DLLs:
     no, since a stable binary interface is not worth keeping.
+  - **Not planned: a folder per object kind.** `stripeditor/kinds/<kind>/` behind an `ObjectKind` interface
+    (item, prototype, options page, label, glyph, conversion rules) would turn the controller's kind checks
+    into virtual calls. With two kinds that is one interface for two implementations; revisit when a third
+    kind arrives (a masked picture, a panel frame). It must keep one `ObjectRecord` for every kind.
 
 - [x] **Export / open a workspace package.** One zip with the workspace, `overlays/`, `templates/`,
   `inputs/` and `fonts/` (everything in `fonts/` plus the installed fonts the bubbles name; the

@@ -309,7 +309,7 @@ void MainWindow::onOpenPackage()
         return;
 
     // --- Into a new folder named after the package — never into one that exists, so nothing is overwritten
-    //     and the folder holds this one workspace (W1) by construction.
+    //     and the folder holds this one workspace by construction.
     QString name = QFileInfo(zip).fileName();
     if (name.endsWith(QLatin1String(k_packageSuffix), Qt::CaseInsensitive))
         name.chop(static_cast<int>(qstrlen(k_packageSuffix)));

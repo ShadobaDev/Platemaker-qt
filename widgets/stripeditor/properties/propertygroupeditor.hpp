@@ -86,7 +86,7 @@ public:
     //! Writes this group's properties into \p target, and nothing else.
     virtual void applyTo(ObjectRecord& target) const = 0;
 
-    //! The single-subject case, which is every caller until multi-selection lands.
+    //! The single-subject case: one selected object, a tail, or the tool options' prototype.
     void bindOne(const ObjectRecord& subject) { bind(Subjects{&subject}); }
 
     /**

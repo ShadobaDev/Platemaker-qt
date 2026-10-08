@@ -447,7 +447,7 @@ void MainWindow::sweepWorkspaceFolder()
     // The other guarantee (the lock is the caller's): a folder another workspace shares has files this one
     // cannot see the use of.
     if (workspacesInFolder(folder).size() != 1)
-        return;   // cannot happen after the open-time check (W1), and must not proceed if it somehow does
+        return;   // cannot happen after resolveSharedFolder() at open, and must not proceed if it somehow does
 
     const QStringList unused = unusedWorkspaceFiles(folder, referencedWorkspaceFiles());
     if (unused.isEmpty())

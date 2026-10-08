@@ -526,7 +526,7 @@ TEST(Kinds, ArtworkHasNoGeometryOfOurs)
 }
 
 //! The kind survives being saved, like every other property — a picture that loaded as a balloon would
-//! be the E6a bug arriving by a different road.
+//! be a default balloon written over imported artwork, arriving by a different road.
 TEST(Kinds, ArtworkSurvivesTheSnapshot)
 {
     ObjectRecord a = loadedRecord();

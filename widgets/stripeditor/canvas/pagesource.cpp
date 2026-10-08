@@ -22,6 +22,22 @@ namespace {
 constexpr int k_pageCacheKiB  = 96 * 1024;   //!< ~6 scaled pages: visible + prefetch, with headroom.
 constexpr int k_proxyCacheKiB = 24 * 1024;   //!< Hundreds of 200px-wide proxies.
 
+/**
+ * @brief Caches @p pm, growing @p cache's cap first if the page alone would not fit.
+ *
+ * QCache silently refuses an object costing more than its cap. An artist who draws the whole chapter
+ * as one long strip hands over a page of 800×65500 — about 200 MiB — and a refused page is decoded
+ * again on every scroll, never shown sharp. The cap grows to that page **plus** the usual budget, so
+ * the pages beside it still fit and do not evict it in turn. reset() takes it back down.
+ */
+void insertPage(QCache<int, QPixmap>& cache, int index, const QPixmap& pm, int baseKiB)
+{
+    const int cost = qMax(1, int(qint64(pm.width()) * pm.height() * 4 / 1024));
+    if (cost > cache.maxCost())
+        cache.setMaxCost(cost + baseKiB);
+    cache.insert(index, new QPixmap(pm), cost);
+}
+
 } // namespace
 
 PageSource::PageSource(const StripLayout& layout, QObject* parent)
@@ -84,6 +100,8 @@ void PageSource::reset()
     m_pageCache.clear();
     m_proxyCache.clear();
     m_gradedCache.clear();
+    m_pageCache.setMaxCost(k_pageCacheKiB);     // a long page's growth goes with it
+    m_gradedCache.setMaxCost(k_pageCacheKiB);
     m_pageInFlight.clear();
     m_proxyInFlight.clear();
 }
@@ -135,9 +153,7 @@ void PageSource::request(int index)
             m_pageInFlight.remove(index);
             if (img.isNull())
                 return;
-            const QPixmap pm = QPixmap::fromImage(img);
-            m_pageCache.insert(index, new QPixmap(pm),
-                               qMax(1, (pm.width() * pm.height() * 4) / 1024));
+            insertPage(m_pageCache, index, QPixmap::fromImage(img), k_pageCacheKiB);
             produceGraded(index); // grade the freshly-built page if the grade is on
             emit pageReady(index);
         });
@@ -250,8 +266,7 @@ void PageSource::produceGraded(int index)
         qWarning() << "StripEdit::PageSource: grade preview failed for page" << index;
         return;
     }
-    const QPixmap g = QPixmap::fromImage(img);
-    m_gradedCache.insert(index, new QPixmap(g), qMax(1, (g.width() * g.height() * 4) / 1024));
+    insertPage(m_gradedCache, index, QPixmap::fromImage(img), k_pageCacheKiB);
     emit pageReady(index);
 }
 

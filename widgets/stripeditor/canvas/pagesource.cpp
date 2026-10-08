@@ -12,6 +12,7 @@
 
 #include <algorithm>
 #include <string>
+#include <utility>
 
 namespace StripEdit {
 
@@ -146,14 +147,18 @@ void PageSource::request(int index)
 
         auto *watcher = new QFutureWatcher<QImage>(this);
         connect(watcher, &QFutureWatcher<QImage>::finished, this, [this, watcher, index, gen] {
-            const QImage img = watcher->result();
+            // **Taken**, not copied: the future keeps its own reference to a result it was only asked
+            // for, and a shared buffer makes fromImage() below copy the whole page — 200 MiB for a
+            // long strip. Taken, this is the one owner, and the pixels move into the pixmap.
+            QImage img = watcher->future().takeResult();
             watcher->deleteLater();
             if (gen != m_generation)   // superseded by a rebuild — its in-flight set was already cleared
                 return;
             m_pageInFlight.remove(index);
             if (img.isNull())
                 return;
-            insertPage(m_pageCache, index, QPixmap::fromImage(img), k_pageCacheKiB);
+            const QPixmap pm = QPixmap::fromImage(std::move(img));
+            insertPage(m_pageCache, index, pm, k_pageCacheKiB);
             produceGraded(index); // grade the freshly-built page if the grade is on
             emit pageReady(index);
         });
@@ -171,6 +176,11 @@ void PageSource::request(int index)
                 } catch (...) {
                     return {};   // the page stays on its proxy; the layout already knows its size
                 }
+                // A pixmap keeps its pixels in the screen's own premultiplied layout, so fromImage()
+                // would otherwise convert every one of them on the UI thread — ~45 ms for a long strip on
+                // a fast machine, a visible freeze on a slow one. Here it costs the worker instead, in the
+                // same buffer.
+                img.convertTo(QImage::Format_ARGB32_Premultiplied);
                 return img;
             }));
     }

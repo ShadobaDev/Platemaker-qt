@@ -12,6 +12,9 @@
   what lets *Render & view* bake exactly what is on screen. Pages are built lazily for the viewport plus
   one either side and evicted behind it, so memory tracks the viewport rather than the chapter and a long
   chapter opens instantly.
+  A chapter drawn as **one long strip** is a page like any other: one taller than the usual memory budget
+  (up to the 65,500 px a JPEG allows) still stays resident while it is in view, and it is prepared for
+  display off the UI thread, so it sharpens without freezing the editor.
 
   **Text & bubbles.** The Bubble, Text and Caption box tools draw a balloon where you **drag** one out; a click just
   deselects, so clicking away cannot leave a stray behind, and a new bubble arrives selected with the

@@ -552,7 +552,7 @@ signals:
     void noted(const QString& text);
 private:
     void onOverlayGeometryCommitted(const QString& uid); //!< An item settled a move/resize/tail drag.
-    void writePlacement(const QString& uid); //<! Writes where object @p uid now stands back into its record — placement, width and anchor page.
+    void writePlacement(const QString& uid, bool rehome = true); //<! Writes where object @p uid now stands back into its record — placement, width and, if @p rehome, anchor page.
     void onObjectPressed(const QString& uid, int handle); //!< A press on a tail's handle selects that tail.
     void onObjectDragged(const QString& uid, const QPointF& delta, int handle); //<! An object reports a live drag; the selection decides what else travels with it.
     void beginDrag(const QString& uid, int handle); //<! Records where everything selected stands, so a group drag can place each from its own start.

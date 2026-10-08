@@ -471,7 +471,7 @@ ObjectRecord::Map ObjectController::currentRecords() const
 
 // --- geometry back out ------------------------------------------------------
 
-void ObjectController::writePlacement(const QString& uid)
+void ObjectController::writePlacement(const QString& uid, bool rehome)
 {
     Object* item = m_overlayItems.value(uid);
     const double tw = m_layout.targetWidth();
@@ -492,7 +492,11 @@ void ObjectController::writePlacement(const QString& uid)
         // leaves the editor, which is what keeps the stored form independent of the profile in use.
         o.xFrac = p.x() / tw;
         o.wFrac = item->contentBounds().width() * k / tw;
-        if (page >= 0) {
+        if (!rehome) {
+            // The same page as before, measured the way StripLayout::scenePosOf() reads it back.
+            const int own = m_layout.pageForAnchor(QString::fromStdString(o.anchorInputUid));
+            o.yFrac = (p.y() - (own >= 0 ? m_layout.page(own).top : 0)) / tw;
+        } else if (page >= 0) {
             o.anchorInputUid = m_layout.anchorUidForPage(page).toStdString();
             o.yFrac          = (p.y() - m_layout.page(page).top) / tw;
         } else {
@@ -783,19 +787,13 @@ void ObjectController::applyRecords(const QStringList& uids, const QList<ObjectR
     // by the time the debounce says *settled* the objects are already holding the settled value. The
     // decision not to make a step belongs to whoever decides an edit happened, not to the write.
 
-    // Each object keeps its own width fraction: a colour does not change how much room the drawing
-    // takes, but a longer line or a heavier stroke does, and the render draws the asset at wFrac of the
-    // page rather than at whatever size the file happens to come out. For a picture, whose box is the
-    // artist's and not its words', this recomputes the value it already had.
-    if (const double tw = m_layout.targetWidth(); tw > 0) {
-        for (auto& o : m_overlays) {
-            const QString uid = QString::fromStdString(o.uid);
-            if (!uids.contains(uid))
-                continue;
-            if (const Object* item = m_overlayItems.value(uid))
-                o.wFrac = item->contentBounds().width() * item->scale() / tw;
-        }
-    }
+    // Each object's placement is measured again, because the drawing's extent moves with the record: a
+    // longer line or a heavier stroke widens it, and a line style or an outline grows it on **every**
+    // side, so its top-left moves up and left while the balloon stays put. The stored placement is that
+    // top-left; left as it was, the next sync would draw the balloon down and right by the growth. Not
+    // re-homed — editing a property is not moving the object.
+    for (const QString& uid : uids)
+        writePlacement(uid, /*rehome=*/false);
 
     emit stackChanged();   // a row wears its object, and its label is what the object says
     pushOverlays(!undoText.isEmpty()            ? undoText

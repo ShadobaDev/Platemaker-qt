@@ -15,6 +15,8 @@
 #include "workspacefolder.hpp"
 #include "presetstore.hpp"
 #include "recordpainter.hpp"
+#include "docktitlebar.hpp"
+#include "verticallabel.hpp"
 
 #include <platemaker/infrastructure/workspace_editor/workspace_editor.hpp>
 
@@ -23,6 +25,7 @@
 #include <QEvent>
 #include <QHBoxLayout>
 #include <QMouseEvent>
+#include <QProgressBar>
 #include <QResizeEvent>
 #include <QCollator>
 #include <QDateTime>
@@ -42,12 +45,15 @@
 #include <QMenuBar>
 #include <QMessageBox>
 #include <QSettings>
+#include <QStyle>
 #include <QTabBar>
 #include <QThread>
 #include <QTimer>
+#include <QToolButton>
 #include <QUndoGroup>
 #include <QUndoStack>
 #include <QUrl>
+#include <QVBoxLayout>
 
 #include <algorithm>
 #include <utility>
@@ -109,7 +115,7 @@ MainWindow::MainWindow(QWidget *parent)
     ui->dockWidgetAction->setFixedWidth(m_actionDockWidth);
 
     // Wrap the Action content as [grip | content] so the grip sits on the panel's inner-left edge.
-    QWidget *actionContent = ui->dockWidgetAction->widget();
+    m_actionContent = ui->dockWidgetAction->widget();
     auto    *actionWrapper = new QWidget(ui->dockWidgetAction);
     auto    *wrapperLayout = new QHBoxLayout(actionWrapper);
     wrapperLayout->setContentsMargins(0, 0, 0, 0);
@@ -119,7 +125,35 @@ MainWindow::MainWindow(QWidget *parent)
     m_actionGrip->setCursor(Qt::SplitHCursor);
     m_actionGrip->installEventFilter(this);
     wrapperLayout->addWidget(m_actionGrip);
-    wrapperLayout->addWidget(actionContent);
+    wrapperLayout->addWidget(m_actionContent);
+
+    // The collapsed form: a narrow column under the title bar's stacked buttons that keeps in view what the
+    // full panel says about the job (its status, progress and the project status) and a way to stop it.
+    // Mirrors, fed by the same setters, rather than the full panel's widgets: those cannot turn on their side.
+    m_actionCompact = new QWidget(actionWrapper);
+    auto *compactLayout = new QVBoxLayout(m_actionCompact);
+    compactLayout->setContentsMargins(0, 0, 0, 0);
+    m_compactActionStatus = new VerticalLabel(m_actionCompact);
+    m_compactActionStatus->setText(ui->textBrowserActionStatus->placeholderText());
+    m_compactProgress = new QProgressBar(m_actionCompact);
+    m_compactProgress->setOrientation(Qt::Vertical);
+    m_compactProgress->setTextVisible(false);
+    m_compactProgress->setMaximumHeight(k_compactProgressMaxLength);
+    m_compactProjectStatus = new VerticalLabel(m_actionCompact);
+    m_compactProjectStatus->setText(ui->textBrowserProjectStatus->placeholderText());
+    m_compactStop = new QToolButton(m_actionCompact);
+    m_compactStop->setIcon(style()->standardIcon(QStyle::SP_TitleBarCloseButton));
+    m_compactStop->setToolTip(ui->pushButtonStop->text());
+    m_compactStop->setFocusPolicy(Qt::NoFocus);
+    // Stacked at the bottom, where the full panel keeps its Stop. The texts take what they need and the
+    // progress bar up to its cap; the rest is empty space above them.
+    compactLayout->addStretch(1);
+    compactLayout->addWidget(m_compactActionStatus, 0, Qt::AlignHCenter);
+    compactLayout->addWidget(m_compactProgress, 1, Qt::AlignHCenter);
+    compactLayout->addWidget(m_compactProjectStatus, 0, Qt::AlignHCenter);
+    compactLayout->addWidget(m_compactStop, 0, Qt::AlignHCenter);
+    m_actionCompact->hide();
+    wrapperLayout->addWidget(m_actionCompact);
     ui->dockWidgetAction->setWidget(actionWrapper);
 
     // Give the Workspace and Action docks the same custom title bar as the project / strip docks
@@ -127,6 +161,12 @@ MainWindow::MainWindow(QWidget *parent)
     // fixed-width grip content underneath — the title bar sits above it.
     installDockTitleBar(ui->dockWidgetWorkspace);
     installDockTitleBar(ui->dockWidgetAction);
+
+    // Only the Action panel collapses, and it comes back the way it was left.
+    auto *actionBar = qobject_cast<DockTitleBar *>(ui->dockWidgetAction->titleBarWidget());
+    actionBar->enableCollapse();
+    connect(actionBar, &DockTitleBar::collapseToggled, this, &MainWindow::setActionCollapsed);
+    actionBar->setCollapsed(QSettings().value(QStringLiteral("actionPanelCollapsed"), false).toBool());
 
     // Keyboard shortcuts (the .ui already sets text labels, we only add keys)
     ui->actionOpen_workspace->setShortcut(QKeySequence::Open);
@@ -229,7 +269,8 @@ MainWindow::MainWindow(QWidget *parent)
             this, &MainWindow::onRefreshAllProjects);
     connect(ui->actionStop_Esc, &QAction::triggered, this, &MainWindow::cancelRender);
     connect(ui->pushButtonStop, &QPushButton::clicked, this, &MainWindow::cancelRender);
-    ui->pushButtonStop->setEnabled(false);
+    connect(m_compactStop, &QToolButton::clicked, this, &MainWindow::cancelRender);
+    setStopEnabled(false);
 
     // --- About menu ---
     connect(ui->actionVersion, &QAction::triggered, this, &MainWindow::onShowVersion);
@@ -281,6 +322,17 @@ void MainWindow::closeEvent(QCloseEvent *event)
 void MainWindow::resizeEvent(QResizeEvent *event)
 {
     QMainWindow::resizeEvent(event);
+    applyActionDockWidth();
+}
+
+void MainWindow::applyActionDockWidth()
+{
+    // Collapsed, the column is as wide as the wider of its stacked title-bar buttons and its mirrors.
+    if (m_actionCollapsed) {
+        const QWidget *bar = ui->dockWidgetAction->titleBarWidget();
+        ui->dockWidgetAction->setFixedWidth(qMax(bar->sizeHint().width(), m_actionCompact->sizeHint().width()));
+        return;
+    }
     // If the window shrank below what the chosen Action width needs, shrink the panel to fit (never more
     // than half the window, never below its minimum). m_actionDockWidth — the user's choice — is left
     // untouched, so growing the window back restores it. setFixedWidth remains the thing that stops the
@@ -288,6 +340,19 @@ void MainWindow::resizeEvent(QResizeEvent *event)
     const int maxW    = qMax(k_actionDockDefaultWidth, width() / 2);
     const int applied = qBound(k_actionDockDefaultWidth, m_actionDockWidth, maxW);
     ui->dockWidgetAction->setFixedWidth(applied);
+}
+
+void MainWindow::setActionCollapsed(bool collapsed)
+{
+    m_actionCollapsed = collapsed;
+    // Remember the choice, not what shows now: a floating panel shows expanded but stays collapsed by choice.
+    const auto *bar = qobject_cast<DockTitleBar *>(ui->dockWidgetAction->titleBarWidget());
+    QSettings().setValue(QStringLiteral("actionPanelCollapsed"), bar->isCollapsed());
+    // The grip resizes the full panel only; the collapsed column has the one width it needs.
+    m_actionGrip->setVisible(!collapsed);
+    m_actionContent->setVisible(!collapsed);
+    m_actionCompact->setVisible(collapsed);
+    applyActionDockWidth();
 }
 
 bool MainWindow::eventFilter(QObject *watched, QEvent *event)

@@ -11,6 +11,7 @@
 #include "outputprofiledialog.hpp"
 #include "templatesdialog.hpp"
 #include "renderworker.hpp"
+#include "verticallabel.hpp"
 
 #include <QApplication>
 #include <QClipboard>
@@ -31,10 +32,12 @@
 #include <QMenu>
 #include <QMessageBox>
 #include <QProcess>
+#include <QProgressBar>
 #include <QSet>
 #include <QSettings>
 #include <QTabBar>
 #include <QThread>
+#include <QToolButton>
 #include <QUrl>
 
 #include <algorithm>
@@ -75,6 +78,7 @@ void MainWindow::setActionStatus(const QString &projectName, const QString &acti
     // Set the action status message in the UI for the specified project.
     // This is displayed in the Action Status text browser.
     ui->textBrowserActionStatus->setPlainText(projectName + ": " + action);
+    m_compactActionStatus->setText(ui->textBrowserActionStatus->toPlainText());
 }
 
 void MainWindow::setProjectStatus(const QString &message)
@@ -82,6 +86,7 @@ void MainWindow::setProjectStatus(const QString &message)
     // Set the project status message in the UI (e.g., "Rendering...", "Finished", etc.).
     // This is displayed in the Project Status text browser.
     ui->textBrowserProjectStatus->setPlainText(message);
+    m_compactProjectStatus->setText(message);
 }
 
 void MainWindow::setProgressValue(int percent, bool error)
@@ -89,17 +94,29 @@ void MainWindow::setProgressValue(int percent, bool error)
     // A slim (15px) bordered bar: dark trough for the empty part, grey fill, red on error/halt.
     // The whole sheet is (re)written each call — the only thing that varies is the chunk colour, and
     // this is called at most once per slice, so re-parsing the QSS is negligible.
+    // The collapsed panel's vertical bar takes the same sheet, slim across its width instead.
+    const auto sheet = [error](QLatin1String across) {
+        return QStringLiteral(
+            "QProgressBar {"
+            "  border: 1px solid #555555;"
+            "  border-radius: 2px;"
+            "  background-color: #2b2b2b;"
+            "  min-%1: 15px; max-%1: 15px;"
+            "  text-align: center; color: #dddddd;"
+            "}"
+            "QProgressBar::chunk { background-color: %2; }")
+            .arg(across, error ? QStringLiteral("#b41414") : QStringLiteral("#888888"));
+    };
     ui->progressBar->setValue(percent);
-    ui->progressBar->setStyleSheet(QStringLiteral(
-        "QProgressBar {"
-        "  border: 1px solid #555555;"
-        "  border-radius: 2px;"
-        "  background-color: #2b2b2b;"
-        "  min-height: 15px; max-height: 15px;"
-        "  text-align: center; color: #dddddd;"
-        "}"
-        "QProgressBar::chunk { background-color: %1; }")
-        .arg(error ? QStringLiteral("#b41414") : QStringLiteral("#888888")));
+    ui->progressBar->setStyleSheet(sheet(QLatin1String("height")));
+    m_compactProgress->setValue(percent);
+    m_compactProgress->setStyleSheet(sheet(QLatin1String("width")));
+}
+
+void MainWindow::setStopEnabled(bool enabled)
+{
+    ui->pushButtonStop->setEnabled(enabled);
+    m_compactStop->setEnabled(enabled);
 }
 
 void MainWindow::onRenderToggle(int projectIndex)
@@ -408,7 +425,7 @@ bool MainWindow::startRender(int projectIndex)
     else
         ui->textBrowserActionLogs->append(tr("── %1 ──").arg(name));
     setProgressValue(0, false);
-    ui->pushButtonStop->setEnabled(true);
+    setStopEnabled(true);
     if (auto *pw = projectWidget(projectIndex)) pw->setRendering(true);
 
     m_renderTimer.start(); // wall-clock for this render's action-log summary
@@ -422,7 +439,7 @@ void MainWindow::cancelRender()
     if (!m_rendering) return;
     m_cancelToken.cancel();
     setProjectStatus(tr("Cancelling…"));
-    ui->pushButtonStop->setEnabled(false);
+    setStopEnabled(false);
 }
 
 void MainWindow::deleteOrphanedOutputs(const Platemaker::Models::ProjectItem &project)
@@ -832,7 +849,7 @@ void MainWindow::onRenderFinished()
     // If this project's strip editor is open, refresh it from whatever the run left on disk (a full,
     // partial or cancelled render all update the committed slices the editor shows).
     if (QDockWidget *sd = dockForStripEditor(idx)) refreshStripEditor(sd);
-    ui->pushButtonStop->setEnabled(false);
+    setStopEnabled(false);
 
     m_rendering          = false;
     m_renderWorker       = nullptr;   // deleted via thread.finished → deleteLater

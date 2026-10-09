@@ -111,6 +111,11 @@ Bug fixes, cosmetics and internal cleanups — no new capability, no change to a
 New, backward-compatible features. Several are gated on a lib version, noted in the item body.
 (The `[x]` items below shipped/ready to ship; the open ones re-derive to the next MINOR.)
 
+- [ ] **Reopen a workspace the way it was left.** Which project docks and strip editors were open, and
+  where (docked, tabbed, floating), is forgotten on close. Only the Action panel's collapse is remembered
+  today (QSettings, app-wide). Open docks are per workspace, so this belongs with the workspace, not in
+  QSettings; `QMainWindow::saveState()` needs stable `objectName`s on the per-project docks first.
+
 - [ ] **Strip editor: a text outline.** Colour and width in `TextProperties`, drawn outside the glyph
   (stroke at twice the width, then fill), written to the SVG as two draws rather than `paint-order`. The
   design is on the wiki's Property groups page; nothing of it is built yet.

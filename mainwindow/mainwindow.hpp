@@ -25,14 +25,17 @@ QT_END_NAMESPACE
 class QDockWidget;
 class QListWidgetItem;
 class QMenu;
+class QProgressBar;
 class QTabBar;
 class QThread;
+class QToolButton;
 class QUndoGroup;
 class QUndoStack;
 class Advisories;
 class AdvisoryBar;
 class Project;
 class RenderWorker;
+class VerticalLabel;
 class WorkspaceLock;
 namespace StripEdit { class PresetStore; }
 
@@ -297,6 +300,13 @@ private:
     void setActionStatus(const QString &projectName, const QString &action);    //!< Sets the action status message in the UI for the specified project.
     void setProjectStatus(const QString &message);      //!< Sets the project status message in the UI (e.g., "Rendering...", "Finished", etc.).
     void setProgressValue(int percent, bool error);     //!< Sets the progress bar value and color (red if error is true).
+    void setStopEnabled(bool enabled);                  //!< Enables the Action panel's Stop, in both its full and collapsed form.
+
+    //! Shows the Action panel full or as its collapsed column (the title bar's `>|`), and remembers which.
+    void setActionCollapsed(bool collapsed);
+    //! Applies the Action column's fixed width: the collapsed column's own, or the chosen width clamped to
+    //! the window (see resizeEvent).
+    void applyActionDockWidth();
 
     // --- Workspace helpers ---
     bool maybeSave();                           //!< True = safe to proceed
@@ -607,6 +617,7 @@ private:
     static constexpr int k_maxRenderLogs       = 10;     //!< Maximum number of timestamped render logs kept in the workspace cache.
     static constexpr int k_actionDockDefaultWidth = 350; //!< Startup width of the Action right column (also its minimum); changed only by dragging its grip.
     static constexpr int k_actionGripWidth        = 6;   //!< Width of the Action column's left-edge drag handle.
+    static constexpr int k_compactProgressMaxLength = 200; //!< Longest the collapsed Action column's vertical progress bar grows.
     //! How long a notice stays in the status bar. Long enough to read a sentence, short enough that it is
     //! gone before it becomes furniture — a message that never expires is a badge, and an event is not a
     //! condition (see the strip editor's `noted` signal).
@@ -620,6 +631,14 @@ private:
     int      m_actionGripStartX   = 0;          //!< Global mouse X at grip-drag start.
     int      m_actionGripStartWidth = 0;        //!< Action column width at grip-drag start.
     int      m_actionDockWidth    = k_actionDockDefaultWidth; //!< Current fixed width of the Action column.
+    // The Action panel shows either its full content or, collapsed, a narrow column mirroring the job.
+    bool           m_actionCollapsed      = false;
+    QWidget       *m_actionContent        = nullptr;   //!< The full content (the .ui's), beside the grip.
+    QWidget       *m_actionCompact        = nullptr;   //!< The collapsed column.
+    VerticalLabel *m_compactActionStatus  = nullptr;   //!< Mirrors textBrowserActionStatus.
+    QProgressBar  *m_compactProgress      = nullptr;   //!< Mirrors progressBar, vertically.
+    VerticalLabel *m_compactProjectStatus = nullptr;   //!< Mirrors textBrowserProjectStatus.
+    QToolButton   *m_compactStop          = nullptr;   //!< Mirrors pushButtonStop.
     QMenu *m_recentMenu = nullptr;              //!< Submenu attached to actionOpen_recent_workspace
     // Import/Export submenus, attached to the profile actions and (re)populated on aboutToShow.
     QMenu *m_importCanvasMenu = nullptr;    //!< Submenu for importing canvas profiles (Browse, user library, recent workspaces/bundles).

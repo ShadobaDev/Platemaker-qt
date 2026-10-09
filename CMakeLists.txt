@@ -122,6 +122,9 @@ qt_add_executable(Platemaker
     # somewhere other than where the user was looking.
     widgets/docktitlebar/dockattention.cpp widgets/docktitlebar/dockattention.hpp
 
+    # Vertical label — one line of text read bottom to top (the collapsed Action panel).
+    widgets/verticallabel/verticallabel.cpp widgets/verticallabel/verticallabel.hpp
+
     # Badges — the rounded chips, shared by the item-view delegates and the status bar.
     widgets/badge/badge.cpp widgets/badge/badge.hpp
     widgets/badge/badgeitemdelegate.cpp widgets/badge/badgeitemdelegate.hpp
@@ -162,6 +165,7 @@ target_include_directories(Platemaker PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/widgets/collapsiblesection
     ${CMAKE_CURRENT_SOURCE_DIR}/widgets/objectrecord
     ${CMAKE_CURRENT_SOURCE_DIR}/widgets/docktitlebar
+    ${CMAKE_CURRENT_SOURCE_DIR}/widgets/verticallabel
     ${CMAKE_CURRENT_SOURCE_DIR}/widgets/badge
     ${CMAKE_CURRENT_SOURCE_DIR}/widgets/advisories
     ${CMAKE_CURRENT_SOURCE_DIR}/widgets/workspacefolder

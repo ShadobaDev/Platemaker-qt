@@ -54,8 +54,8 @@ void MainWindow::onRefreshAllProjects()
     if (m_configChangePolicy != ConfigChangePolicy::AlreadyConfirmed)
         m_configChangePolicy = ConfigChangePolicy::AskOnceForBatch;
 
-    ui->textBrowserActionLogs->clear();
-    ui->textBrowserActionLogs->append(
+    ui->treeWidgetActionLogs->clear();
+    logAction(LogLevel::Info,
         tr("Refreshing %1 project(s)…").arg(m_batchTotal));
 
     advanceBatch();
@@ -86,7 +86,7 @@ void MainWindow::advanceBatch()
                                    ? tr("skipped")
                                    : m_batchSkipReason;
         m_batchSkipped << tr("%1 (%2)").arg(name, reason);
-        ui->textBrowserActionLogs->append(tr("Skipped %1 — %2").arg(name, reason));
+        logAction(LogLevel::Warning, tr("Skipped %1 — %2").arg(name, reason));
     }
 
     finishBatch();
@@ -98,13 +98,13 @@ void MainWindow::finishBatch()
     const int skipped = m_batchSkipped.size();
     const int failed  = m_batchFailed.size();
 
-    ui->textBrowserActionLogs->append(
+    logAction(LogLevel::Info,
         tr("Batch finished: %1 rendered, %2 skipped, %3 failed (of %4) in %5.")
             .arg(done).arg(skipped).arg(failed).arg(m_batchTotal)
             .arg(humanReadableDuration(m_batchTimer.elapsed())));
 
     if (!m_batchFailed.isEmpty())
-        ui->textBrowserActionLogs->append(
+        logAction(LogLevel::Error,
             tr("Failed: %1").arg(m_batchFailed.join(QStringLiteral(", "))));
 
     setProjectStatus(

@@ -239,7 +239,7 @@ void MainWindow::onFonts()
             installed << family;
             if (!m_installedFamilies.contains(family, Qt::CaseInsensitive))
                 m_installedFamilies << family;
-            ui->textBrowserActionLogs->append(tr("Font installed for this user: %1").arg(row->text(2)));
+            logAction(LogLevel::Info, tr("Font installed for this user: %1").arg(row->text(2)));
         }
         installed.removeDuplicates();
         if (!installed.isEmpty())
@@ -293,7 +293,7 @@ void MainWindow::onFonts()
             }
             m_workspaceFonts.insert(name, id);
             added << QFontDatabase::applicationFontFamilies(id);
-            ui->textBrowserActionLogs->append(tr("Font added to the workspace: %1").arg(name));
+            logAction(LogLevel::Info, tr("Font added to the workspace: %1").arg(name));
         }
 
         if (!added.isEmpty()) {

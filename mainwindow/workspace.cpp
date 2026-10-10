@@ -459,7 +459,7 @@ void MainWindow::sweepWorkspaceFolder()
     for (const QString &file : unused) {
         if (QFile::moveToTrash(file)) {
             ++moved;
-            ui->textBrowserActionLogs->append(
+            logAction(LogLevel::Info,
                 tr("Moved unused file to the Recycle Bin: %1").arg(root.relativeFilePath(file)));
         } else {
             refused << file;
@@ -481,7 +481,7 @@ void MainWindow::sweepWorkspaceFolder()
         return;
     for (const QString &file : std::as_const(refused))
         if (QFile::remove(file))
-            ui->textBrowserActionLogs->append(tr("Deleted unused file: %1").arg(root.relativeFilePath(file)));
+            logAction(LogLevel::Info, tr("Deleted unused file: %1").arg(root.relativeFilePath(file)));
 }
 
 void MainWindow::healFontFallbacks()
@@ -519,7 +519,7 @@ void MainWindow::healFontFallbacks()
             ++healed;
             if (!families.contains(rec->text.family))
                 families << rec->text.family;
-            ui->textBrowserActionLogs->append(tr("Re-set in %1, now installed: %2")
+            logAction(LogLevel::Info, tr("Re-set in %1, now installed: %2")
                                                   .arg(rec->text.family, root.relativeFilePath(written)));
         }
     }

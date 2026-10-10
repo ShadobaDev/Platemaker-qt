@@ -36,6 +36,7 @@
 #include <QFileInfo>
 #include <QFontDatabase>
 #include <QGuiApplication>
+#include <QHeaderView>
 #include <QIcon>
 #include <QInputDialog>
 #include <QKeySequence>
@@ -138,6 +139,7 @@ MainWindow::MainWindow(QWidget *parent)
     m_compactProgress = new QProgressBar(m_actionCompact);
     m_compactProgress->setOrientation(Qt::Vertical);
     m_compactProgress->setTextVisible(false);
+    m_compactProgress->setInvertedAppearance(true);   // fills top to bottom, the way the column reads
     m_compactProgress->setMaximumHeight(k_compactProgressMaxLength);
     m_compactProjectStatus = new VerticalLabel(m_actionCompact);
     m_compactProjectStatus->setText(ui->textBrowserProjectStatus->placeholderText());
@@ -166,6 +168,7 @@ MainWindow::MainWindow(QWidget *parent)
     auto *actionBar = qobject_cast<DockTitleBar *>(ui->dockWidgetAction->titleBarWidget());
     actionBar->enableCollapse();
     connect(actionBar, &DockTitleBar::collapseToggled, this, &MainWindow::setActionCollapsed);
+    connect(ui->dockWidgetAction, &QDockWidget::topLevelChanged, this, [this] { applyActionDockWidth(); });
     actionBar->setCollapsed(QSettings().value(QStringLiteral("actionPanelCollapsed"), false).toBool());
 
     // Keyboard shortcuts (the .ui already sets text labels, we only add keys)
@@ -244,8 +247,10 @@ MainWindow::MainWindow(QWidget *parent)
             this, &MainWindow::onProjectsContextMenu);
 
     // --- Action log (right-click: Copy/Select All + Save log as… / Clear) ---
-    ui->textBrowserActionLogs->setContextMenuPolicy(Qt::CustomContextMenu);
-    connect(ui->textBrowserActionLogs, &QWidget::customContextMenuRequested,
+    // A narrow icon column, then the message, wrapped to the panel's width.
+    ui->treeWidgetActionLogs->header()->setSectionResizeMode(0, QHeaderView::ResizeToContents);
+    ui->treeWidgetActionLogs->setContextMenuPolicy(Qt::CustomContextMenu);
+    connect(ui->treeWidgetActionLogs, &QWidget::customContextMenuRequested,
             this, &MainWindow::onActionLogContextMenu);
 
     // Apply the slim styled progress bar look at rest (idle 0%), before the first render.
@@ -327,6 +332,15 @@ void MainWindow::resizeEvent(QResizeEvent *event)
 
 void MainWindow::applyActionDockWidth()
 {
+    // Detached, the panel is a window like any other: resized freely by its edges, down to the docked
+    // minimum. The grip and the fixed width are for the docked column only.
+    const bool floating = ui->dockWidgetAction->isFloating();
+    m_actionGrip->setVisible(!m_actionCollapsed && !floating);
+    if (floating) {
+        ui->dockWidgetAction->setMinimumWidth(k_actionDockDefaultWidth);
+        ui->dockWidgetAction->setMaximumWidth(QWIDGETSIZE_MAX);
+        return;
+    }
     // Collapsed, the column is as wide as the wider of its stacked title-bar buttons and its mirrors.
     if (m_actionCollapsed) {
         const QWidget *bar = ui->dockWidgetAction->titleBarWidget();
@@ -348,8 +362,6 @@ void MainWindow::setActionCollapsed(bool collapsed)
     // Remember the choice, not what shows now: a floating panel shows expanded but stays collapsed by choice.
     const auto *bar = qobject_cast<DockTitleBar *>(ui->dockWidgetAction->titleBarWidget());
     QSettings().setValue(QStringLiteral("actionPanelCollapsed"), bar->isCollapsed());
-    // The grip resizes the full panel only; the collapsed column has the one width it needs.
-    m_actionGrip->setVisible(!collapsed);
     m_actionContent->setVisible(!collapsed);
     m_actionCompact->setVisible(collapsed);
     applyActionDockWidth();
@@ -462,7 +474,7 @@ void MainWindow::loadWorkspace(const QString &requested)
     for (const QString &font : workspaceFontFiles(QFileInfo(path).absolutePath())) {
         const int id = QFontDatabase::addApplicationFont(font);
         if (id < 0)
-            ui->textBrowserActionLogs->append(
+            logAction(LogLevel::Warning,
                 tr("Font could not be loaded: %1").arg(QDir::toNativeSeparators(font)));
         else
             m_workspaceFonts.insert(QFileInfo(font).fileName(), id);
@@ -509,7 +521,7 @@ void MainWindow::loadWorkspace(const QString &requested)
             healFontFallbacks();
             sweepWorkspaceFolder();
         } else {
-            ui->textBrowserActionLogs->append(
+            logAction(LogLevel::Warning,
                 tr("Unused files were not tidied: the workspace folder could not be locked."));
         }
     });

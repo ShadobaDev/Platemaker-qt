@@ -27,6 +27,7 @@ class QListWidgetItem;
 class QMenu;
 class QProgressBar;
 class QTabBar;
+class QTreeWidgetItem;
 class QThread;
 class QToolButton;
 class QUndoGroup;
@@ -300,12 +301,25 @@ private:
     void setActionStatus(const QString &projectName, const QString &action);    //!< Sets the action status message in the UI for the specified project.
     void setProjectStatus(const QString &message);      //!< Sets the project status message in the UI (e.g., "Rendering...", "Finished", etc.).
     void setProgressValue(int percent, bool error);     //!< Sets the progress bar value and color (red if error is true).
+    //! How much an action-log line matters; shown as its icon, written to a saved log as its prefix.
+    enum class LogLevel {
+        Info,
+        Warning,
+        Error,
+        Section,   //!< A heading between the projects of a batch: bold, no icon.
+    };
+    //! Adds a line to the Action panel's log, following the end if the log was already showing it.
+    void logAction(LogLevel level, const QString &message);
+    //! The log as text, one line per row with its `[error] ` / `[warn] ` prefix: what a saved log holds.
+    //! All rows, or only @p rows (in log order).
+    [[nodiscard]] QString actionLogText(QList<QTreeWidgetItem *> rows = {}) const;
+
     void setStopEnabled(bool enabled);                  //!< Enables the Action panel's Stop, in both its full and collapsed form.
 
     //! Shows the Action panel full or as its collapsed column (the title bar's `>|`), and remembers which.
     void setActionCollapsed(bool collapsed);
     //! Applies the Action column's fixed width: the collapsed column's own, or the chosen width clamped to
-    //! the window (see resizeEvent).
+    //! the window (see resizeEvent). Detached, it lifts the fixed width so the window resizes freely.
     void applyActionDockWidth();
 
     // --- Workspace helpers ---

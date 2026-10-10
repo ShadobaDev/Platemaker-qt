@@ -221,7 +221,33 @@ QTabWidget QTabBar::close-button {
            </widget>
           </item>
           <item>
-           <widget class="QTextBrowser" name="textBrowserActionLogs"/>
+           <widget class="QTreeWidget" name="treeWidgetActionLogs">
+            <property name="selectionMode">
+             <enum>QAbstractItemView::SelectionMode::ExtendedSelection</enum>
+            </property>
+            <property name="rootIsDecorated">
+             <bool>false</bool>
+            </property>
+            <property name="uniformRowHeights">
+             <bool>false</bool>
+            </property>
+            <property name="wordWrap">
+             <bool>true</bool>
+            </property>
+            <property name="headerHidden">
+             <bool>true</bool>
+            </property>
+            <column>
+             <property name="text">
+              <string notr="true">Level</string>
+             </property>
+            </column>
+            <column>
+             <property name="text">
+              <string notr="true">Message</string>
+             </property>
+            </column>
+           </widget>
           </item>
          </layout>
         </item>

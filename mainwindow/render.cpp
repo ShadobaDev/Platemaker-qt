@@ -22,8 +22,10 @@
 #include <QDir>
 #include <QDockWidget>
 #include <QFile>
+#include <QFont>
 #include <QFileDialog>
 #include <QFileInfo>
+#include <QIcon>
 #include <QInputDialog>
 #include <QKeySequence>
 #include <QLineEdit>
@@ -36,6 +38,8 @@
 #include <QSet>
 #include <QSettings>
 #include <QTabBar>
+#include <QTreeWidget>
+#include <QScrollBar>
 #include <QThread>
 #include <QToolButton>
 #include <QUrl>
@@ -421,9 +425,9 @@ bool MainWindow::startRender(int projectIndex)
     // so clearing per project would wipe the record of everything rendered before this
     // one. A single render still starts from a clean log.
     if (m_batchTotal == 0)
-        ui->textBrowserActionLogs->clear();
+        ui->treeWidgetActionLogs->clear();
     else
-        ui->textBrowserActionLogs->append(tr("── %1 ──").arg(name));
+        logAction(LogLevel::Section, tr("── %1 ──").arg(name));
     setProgressValue(0, false);
     setStopEnabled(true);
     if (auto *pw = projectWidget(projectIndex)) pw->setRendering(true);
@@ -461,11 +465,11 @@ void MainWindow::deleteOrphanedOutputs(const Platemaker::Models::ProjectItem &pr
         if (produced.contains(fileName)) continue;
         if (QFile::remove(dir.filePath(fileName))) {
             ++removed;
-            ui->textBrowserActionLogs->append(tr("Removed stale output: %1").arg(fileName));
+            logAction(LogLevel::Info, tr("Removed stale output: %1").arg(fileName));
         }
     }
     if (removed > 0)
-        ui->textBrowserActionLogs->append(
+        logAction(LogLevel::Info,
             tr("Cleaned up %1 stale output file(s) from the previous configuration.")
                 .arg(removed));
 }
@@ -479,9 +483,55 @@ void MainWindow::onRenderProgress(int done, int total, QString sliceName)
 
 void MainWindow::onRenderLog(int level, QString message)
 {
-    // Log a message from the rendering process. The log level indicates the severity of the message.
-    const char *tag = (level == 2) ? "[error] " : (level == 1) ? "[warn] " : "";
-    ui->textBrowserActionLogs->append(QString::fromLatin1(tag) + message);
+    // Log a message from the rendering process: the lib's 0 / 1 / 2 are info, warning and error.
+    logAction(level == 2 ? LogLevel::Error : level == 1 ? LogLevel::Warning : LogLevel::Info, message);
+}
+
+void MainWindow::logAction(LogLevel level, const QString &message)
+{
+    QTreeWidget *log = ui->treeWidgetActionLogs;
+    // Follow the end only when the user was already there, not when they scrolled up to read.
+    const QScrollBar *sb = log->verticalScrollBar();
+    const bool atEnd = sb->value() == sb->maximum();
+
+    auto *row = new QTreeWidgetItem(log);
+    row->setData(0, Qt::UserRole, static_cast<int>(level));
+    row->setText(1, message);
+    row->setToolTip(1, message);
+    switch (level) {
+    case LogLevel::Info:    row->setIcon(0, QIcon(QStringLiteral(":/icons/log/info.svg")));    break;
+    case LogLevel::Warning: row->setIcon(0, QIcon(QStringLiteral(":/icons/log/warning.svg"))); break;
+    case LogLevel::Error:   row->setIcon(0, QIcon(QStringLiteral(":/icons/log/error.svg")));   break;
+    case LogLevel::Section: {
+        QFont bold = row->font(1);
+        bold.setBold(true);
+        row->setFont(1, bold);
+        break;
+    }
+    }
+    if (atEnd) log->scrollToItem(row);
+}
+
+QString MainWindow::actionLogText(QList<QTreeWidgetItem *> rows) const
+{
+    const QTreeWidget *log = ui->treeWidgetActionLogs;
+    if (rows.isEmpty()) {
+        for (int i = 0; i < log->topLevelItemCount(); ++i) rows << log->topLevelItem(i);
+    } else {
+        // A selection lists rows in the order they were picked; a log reads in the order it was written.
+        std::sort(rows.begin(), rows.end(), [log](QTreeWidgetItem *a, QTreeWidgetItem *b) {
+            return log->indexOfTopLevelItem(a) < log->indexOfTopLevelItem(b);
+        });
+    }
+    QStringList lines;
+    for (const QTreeWidgetItem *row : std::as_const(rows)) {
+        const auto level = static_cast<LogLevel>(row->data(0, Qt::UserRole).toInt());
+        const QString tag = level == LogLevel::Error   ? QStringLiteral("[error] ")
+                          : level == LogLevel::Warning ? QStringLiteral("[warn] ")
+                                                       : QString{};
+        lines << tag + row->text(1);
+    }
+    return lines.join('\n');
 }
 
 void MainWindow::persistRenderLog()
@@ -501,7 +551,7 @@ void MainWindow::persistRenderLog()
     const QString stamp = QDateTime::currentDateTime().toString(QStringLiteral("yyyyMMdd-HHmmss"));
     QFile file(logsDir + "/render-" + stamp + ".log");
     if (file.open(QIODevice::WriteOnly | QIODevice::Truncate | QIODevice::Text))
-        file.write(ui->textBrowserActionLogs->toPlainText().toUtf8());
+        file.write(actionLogText().toUtf8());
     file.close();
 
     // Prune to the newest k_maxRenderLogs (QDir::Name sorts the timestamped names oldest-first).
@@ -567,23 +617,24 @@ void MainWindow::onActionLogContextMenu(const QPoint &pos)
 {
     // Built from scratch (not createStandardContextMenu, which carries a never-enabled "Copy Link
     // Location") so the menu holds exactly what the log needs. No toolbar buttons — everything is here.
-    auto *log = ui->textBrowserActionLogs;
+    auto *log = ui->treeWidgetActionLogs;
     QMenu menu(this);
 
     QAction *copyAct = menu.addAction(tr("Copy"));
-    copyAct->setEnabled(log->textCursor().hasSelection());
-    connect(copyAct, &QAction::triggered, log, &QTextBrowser::copy);
+    copyAct->setEnabled(!log->selectedItems().isEmpty());
+    connect(copyAct, &QAction::triggered, this,
+            [this, log] { QApplication::clipboard()->setText(actionLogText(log->selectedItems())); });
 
-    const bool hasText = !log->toPlainText().isEmpty();
+    const bool hasText = log->topLevelItemCount() > 0;
 
     QAction *copyAllAct = menu.addAction(tr("Copy all"));
     copyAllAct->setEnabled(hasText);
     connect(copyAllAct, &QAction::triggered, this,
-            [log] { QApplication::clipboard()->setText(log->toPlainText()); });
+            [this] { QApplication::clipboard()->setText(actionLogText()); });
 
     QAction *selectAllAct = menu.addAction(tr("Select all"));
     selectAllAct->setEnabled(hasText);
-    connect(selectAllAct, &QAction::triggered, log, &QTextBrowser::selectAll);
+    connect(selectAllAct, &QAction::triggered, log, &QTreeWidget::selectAll);
 
     menu.addSeparator();
 
@@ -620,7 +671,7 @@ void MainWindow::onActionLogContextMenu(const QPoint &pos)
 
     QAction *saveAct = menu.addAction(tr("Save log as…"));
     saveAct->setEnabled(hasText);
-    connect(saveAct, &QAction::triggered, this, [this, log] {
+    connect(saveAct, &QAction::triggered, this, [this] {
         const QString stem = m_workspacePath.isEmpty()
             ? QStringLiteral("render")
             : QFileInfo(m_workspacePath).baseName();
@@ -632,7 +683,7 @@ void MainWindow::onActionLogContextMenu(const QPoint &pos)
         if (path.isEmpty()) return;
         QFile file(path);
         if (file.open(QIODevice::WriteOnly | QIODevice::Truncate | QIODevice::Text))
-            file.write(log->toPlainText().toUtf8());
+            file.write(actionLogText().toUtf8());
         else
             QMessageBox::warning(this, tr("Save Render Log"),
                                  tr("Could not write the log to:\n%1").arg(path));
@@ -640,7 +691,7 @@ void MainWindow::onActionLogContextMenu(const QPoint &pos)
 
     QAction *clearAct = menu.addAction(tr("Clear log"));
     clearAct->setEnabled(hasText);
-    connect(clearAct, &QAction::triggered, log, &QTextBrowser::clear);
+    connect(clearAct, &QAction::triggered, log, &QTreeWidget::clear);
 
     menu.exec(log->viewport()->mapToGlobal(pos));
 }
@@ -795,23 +846,23 @@ void MainWindow::onRenderFinished()
         // Keep the status line short and consistent with the other outcomes; the full lib error
         // (which can be several lines — a vips write failure, say) goes to the action log below.
         setProjectStatus(tr("Render failed — see the action log."));
-        ui->textBrowserActionLogs->append(tr("FAILED %1 — %2").arg(name, why));
+        logAction(LogLevel::Error, tr("FAILED %1 — %2").arg(name, why));
     } else if (outcome.cancelled) {
         setActionStatus(name, tr("Require action"));
         setProjectStatus(tr("Render cancelled (partial output kept)."));
-        ui->textBrowserActionLogs->append(
+        logAction(LogLevel::Warning,
             tr("Cancelled %1 (partial output kept).").arg(name));
     } else if (!outcome.skippedPages.empty()) {
         setActionStatus(name, tr("Require action"));
         setProjectStatus(tr("Finished with %1 skipped page(s).")
                              .arg(outcome.skippedPages.size()));
-        ui->textBrowserActionLogs->append(
+        logAction(LogLevel::Warning,
             tr("Finished %1 with %2 skipped page(s).")
                 .arg(name).arg(outcome.skippedPages.size()));
     } else {
         setActionStatus(name, tr("Finished"));
         setProjectStatus(tr("Render finished."));
-        ui->textBrowserActionLogs->append(tr("Finished %1.").arg(name));
+        logAction(LogLevel::Info, tr("Finished %1.").arg(name));
     }
 
     // Rendered but unverifiable inputs (now FileStatus::Error): the render succeeded, so this is not a
@@ -822,7 +873,7 @@ void MainWindow::onRenderFinished()
         setProjectStatus(tr("%1 input(s) could not be verified after render (check file access).")
                              .arg(postRenderUnverified.size()));
         for (const QString& f : postRenderUnverified)
-            ui->textBrowserActionLogs->append(tr("Unverified after render: %1").arg(f));
+            logAction(LogLevel::Warning, tr("Unverified after render: %1").arg(f));
     }
 
     // An exception while applying results is a bug, not a normal outcome — surface it as a failure with
@@ -830,7 +881,7 @@ void MainWindow::onRenderFinished()
     if (!applyError.isEmpty()) {
         setActionStatus(name, tr("Failed"));
         setProjectStatus(tr("Render failed — see the action log."));
-        ui->textBrowserActionLogs->append(tr("FAILED %1 — %2").arg(name, applyError));
+        logAction(LogLevel::Error, tr("FAILED %1 — %2").arg(name, applyError));
     }
 
     // One-line "what this run produced" summary — only on a successful render (not failed / cancelled /
@@ -841,7 +892,7 @@ void MainWindow::onRenderFinished()
         const QStringList summary = renderSummaryLines(
             m_workspace.projectItems[static_cast<std::size_t>(idx)], m_renderTimer.elapsed());
         for (const QString &line : summary)
-            ui->textBrowserActionLogs->append(line);
+            logAction(LogLevel::Info, line);
     }
 
     // Update the UI and reset the render state.
@@ -868,7 +919,7 @@ void MainWindow::onRenderFinished()
         if (renderCancelled) {
             // Stop cancels the whole batch, not just the current project.
             m_batchQueue.clear();
-            ui->textBrowserActionLogs->append(tr("Batch cancelled."));
+            logAction(LogLevel::Warning, tr("Batch cancelled."));
             finishBatch();
             return;
         }

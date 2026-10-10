@@ -19,5 +19,8 @@
     <file alias="tools/bucket.svg">../icons/tools/bucket.svg</file>
     <file alias="tools/text.svg">../icons/tools/text.svg</file>
     <file alias="tools/artwork.svg">../icons/tools/artwork.svg</file>
+    <file alias="log/info.svg">../icons/log/info.svg</file>
+    <file alias="log/warning.svg">../icons/log/warning.svg</file>
+    <file alias="log/error.svg">../icons/log/error.svg</file>
   </qresource>
 </RCC>

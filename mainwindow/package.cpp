@@ -293,7 +293,7 @@ void MainWindow::onExportPackage()
         statusBar()->showMessage(tr("Export cancelled — nothing was written."), k_noticeMs);
         return;
     }
-    ui->textBrowserActionLogs->append(tr("Package exported: %1").arg(QDir::toNativeSeparators(zip)));
+    logAction(LogLevel::Info, tr("Package exported: %1").arg(QDir::toNativeSeparators(zip)));
     statusBar()->showMessage(tr("Package exported: %1").arg(QFileInfo(zip).fileName()), k_noticeMs);
 }
 
@@ -349,7 +349,7 @@ void MainWindow::onOpenPackage()
         statusBar()->showMessage(tr("Opening the package was cancelled — nothing was unpacked."), k_noticeMs);
         return;
     }
-    ui->textBrowserActionLogs->append(tr("Package unpacked into: %1").arg(QDir::toNativeSeparators(folder)));
+    logAction(LogLevel::Info, tr("Package unpacked into: %1").arg(QDir::toNativeSeparators(folder)));
 
     // --- Opened like any workspace: the lock, its fonts/, the heal and the sweep all follow ---------------
     const QString workspace = QString::fromStdString(unpacked->workspaceFile);
@@ -369,14 +369,14 @@ void MainWindow::onOpenPackage()
             const QString note = tr("This package was exported by %1 %2 (libplatemaker %3); this is Platemaker %4 "
                                     "(libplatemaker %5). Renders from it may differ slightly.")
                                      .arg(QString::fromStdString(manifest.applicationName), byApp, byLib, app, lib);
-            ui->textBrowserActionLogs->append(note);
+            logAction(LogLevel::Info, note);
             statusBar()->showMessage(note, k_noticeMs);
         }
 
         const QJsonObject details =
             QJsonDocument::fromJson(QByteArray::fromStdString(manifest.applicationDetails)).object();
         if (details.contains(QStringLiteral("editable")) && !details.value(QStringLiteral("editable")).toBool())
-            ui->textBrowserActionLogs->append(
+            logAction(LogLevel::Info,
                 tr("This package was exported without some fonts or pictures behind lettering, so some "
                    "lettering may not be editable as it was. It renders as it did."));
 

@@ -269,7 +269,8 @@
   right column: it can no longer be tab-combined with other docks and keeps a static default width that
   only a splitter drag changes. The first button on its title bar, **`>|`**, folds it into a narrow column
   that still shows the job, its progress, the project status and **Stop**; **`<|`** unfolds it. It opens
-  the way you left it.
+  the way you left it. Its log is a list with an icon per line — **error**, **warning** or **info** — so a
+  failure stands out from a long render; *Copy* takes the selected lines, and a saved log reads as before.
 - **One workspace per folder.** A workspace keeps its bubbles, artwork and templates in the folder it is
   saved in, so two workspace files in one folder would share them — and cleaning up after one would
   delete the other's. *New* and *Save As* now refuse a folder that already holds a workspace and offer

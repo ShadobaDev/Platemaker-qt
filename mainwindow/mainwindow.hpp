@@ -314,7 +314,15 @@ private:
     //! All rows, or only @p rows (in log order).
     [[nodiscard]] QString actionLogText(QList<QTreeWidgetItem *> rows = {}) const;
 
-    void setStopEnabled(bool enabled);                  //!< Enables the Action panel's Stop, in both its full and collapsed form.
+    void setStopEnabled(bool enabled);      //!< Enables the Action panel's Stop, in both its full and collapsed form.
+
+    //! Names the current project in the actions that act on it (View → Strip editor, Render → Render) and
+    //! disables them when there is none. Run when a menu opens and when the current project changes, so a
+    //! shortcut is never left disabled by a stale state.
+    void refreshProjectActions();
+    //! Fills View → Strip editors with every project, in the project list's order; ✓ marks a project whose
+    //! strip editor exists.
+    void rebuildStripEditorsMenu();
 
     //! Shows the Action panel full or as its collapsed column (the title bar's `>|`), and remembers which.
     void setActionCollapsed(bool collapsed);
@@ -482,7 +490,13 @@ private:
     [[nodiscard]] RenderGate askRenderGate(int projectIndex);
 
     [[nodiscard]] int     projectIndexForUid(const QString& projectUid) const;   //!< -1 when it is gone.
+    //! The project being looked at: the one whose dock (project or strip) was raised last while it is still
+    //! in sight, else the project list's current row; -1 for none. F5, Ctrl+E and the status bar all ask this.
+    [[nodiscard]] int currentProjectIndex() const;
     [[nodiscard]] QString activeProjectUid() const;   //!< The project the status bar is speaking about.
+    //! Re-picks the raised project after a view of it went out of sight (closed, or its project removed):
+    //! @p preferred if one of its docks is still visible, else any project with a visible dock, else none.
+    void retargetActiveProject(int preferred);
 
     // --- undo / redo ---
     void setupUndo();   //!< Creates the QUndoGroup + workspace stack and wires the Edit-menu actionUndo/actionRedo to it.
@@ -654,6 +668,7 @@ private:
     VerticalLabel *m_compactProjectStatus = nullptr;   //!< Mirrors textBrowserProjectStatus.
     QToolButton   *m_compactStop          = nullptr;   //!< Mirrors pushButtonStop.
     QMenu *m_recentMenu = nullptr;              //!< Submenu attached to actionOpen_recent_workspace
+    QMenu *m_stripEditorsMenu = nullptr;        //!< Submenu attached to actionStrip_editors, rebuilt on show.
     // Import/Export submenus, attached to the profile actions and (re)populated on aboutToShow.
     QMenu *m_importCanvasMenu = nullptr;    //!< Submenu for importing canvas profiles (Browse, user library, recent workspaces/bundles).
     QMenu *m_importOutputMenu = nullptr;    //!< Submenu for importing output profiles (Browse, user library, recent workspaces/bundles).
@@ -744,7 +759,7 @@ private:
     RenderWorker *m_renderWorker        = nullptr;  //!< The current RenderWorker instance (if any).
     bool          m_rendering           = false;    //!< True if a render operation is currently in progress.
     int           m_renderProjectIndex  = -1;       //!< Index of the project currently being rendered (in m_workspace.projectItems), -1 if none.
-    int           m_activeProjectIndex  = -1;       //!< Index of the project dock that was last raised (for F5/menu).
+    int           m_activeProjectIndex  = -1;       //!< The project whose dock was raised last and is still in sight; -1 for none. Read through currentProjectIndex().
     QElapsedTimer m_renderTimer;                    //!< Wall-clock timer for the current single render (started in startRender), read for the action-log summary.
     QString       m_lastRenderOutputDir;            //!< Output directory of the most recent render (set in startRender), for the log's "Open output folder" action.
 

@@ -5,7 +5,8 @@
 ### Added
 
 - **Strip editor — the chapter as one continuous strip, and the lettering authored on it.** *View strip*
-  on a project's Output tab (or a card on the Workflow map) opens the whole chapter in a floating dock:
+  on a project's Output tab, a card on the Workflow map, or **View → Strip editor** (**Ctrl+E**, for the
+  project in front; *View → Strip editors* lists every project) opens the whole chapter in a floating dock:
   scroll it, zoom it (fit-width / 100% / Ctrl+wheel), and toggle guides marking where the output will be
   **cut**. It shows the project's **input pages** rather than rendered slices, so it works before the
   first render, follows input and profile edits live, and previews the grade against the input — which is
@@ -263,7 +264,8 @@
 - **The menu bar is in the usual order.** *File, Edit, View, Canvas, Output, Tools, Render, Help* — Undo
   and Redo moved to *Edit*, the panel toggles to *View*, *Templates* into *Canvas* (a template is a canvas
   profile's file), *Process* is now *Render* and *About* is *Help*. *File* gained *Exit*. Every entry and
-  shortcut is still there; only where it sits changed.
+  shortcut is still there; only where it sits changed. *Render* names the project F5 will render, and is
+  greyed out when no project is open.
 - **Freer docking layout.** Workspace and project docks can now be arranged freely — docked side by side
   horizontally *and* vertically, split, or tabbed together. The **Action** panel is pinned to its own
   right column: it can no longer be tab-combined with other docks and keeps a static default width that
@@ -320,6 +322,12 @@
   (fill the screen ⇄ restore) and **close** buttons — a floating dock previously showed only a close
   button, and the OS min/max misbehaved on a dock. (A tabified dock is still detached by double-clicking
   its tab.)
+
+### Fixed
+
+- **F5 renders the project you are looking at.** After opening another workspace, or removing a
+  project, F5 could render a different project from the one in front. Closing a project's dock now hands
+  F5 to another project in view, or to the one selected in the project list.
 
 ## [1.4.3] — 23.08.2026
 

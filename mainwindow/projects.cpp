@@ -207,6 +207,10 @@ void MainWindow::removeProject(int modelIndex)
     // Erase from the model.
     m_workspace.projectItems.erase(
         m_workspace.projectItems.begin() + modelIndex);
+    // The raised project shifts down with the rest, or, if it was this one, is re-picked below.
+    const bool wasActive = m_activeProjectIndex == modelIndex;
+    if (m_activeProjectIndex > modelIndex)
+        --m_activeProjectIndex;
 
     // Reindex any still-open docks that referenced a higher model index — the
     // vector shifted down by one.
@@ -224,6 +228,8 @@ void MainWindow::removeProject(int modelIndex)
         if (idx > modelIndex)
             strip->setProperty("projectIndex", idx - 1);
     }
+    if (wasActive)
+        retargetActiveProject(-1);
 
     setDirty(true);
     applyWorkspaceToUi();
@@ -375,12 +381,17 @@ void MainWindow::openProjectDock(int projectIndex)
     // Track which project is "current" for F5 / the Render menu (the raised dock), and make this
     // project's undo stack active while its tab is visible.
     m_activeProjectIndex = projectIndex;
+    refreshProjectActions();
     connect(newDock, &QDockWidget::visibilityChanged, this,
             [this, newDock, projectWidget](bool visible) {
+        const int idx = newDock->property("projectIndex").toInt();
         if (visible) {
-            m_activeProjectIndex = newDock->property("projectIndex").toInt();
+            m_activeProjectIndex = idx;
+            refreshProjectActions();
             m_undoGroup->setActiveStack(projectWidget->undoStack());
             retargetStatusAdvisories();   // the bar speaks about the project being looked at
+        } else if (idx == m_activeProjectIndex) {
+            retargetActiveProject(idx);   // its strip may still be in sight
         }
     });
 
@@ -619,15 +630,19 @@ void MainWindow::openStripEditorDock(int projectIndex)
     // its project dock uses, since it is the same document and the same train of thought. What the
     // window decides is the *project*, not which half of the work is undoable.
     connect(dock, &QDockWidget::visibilityChanged, this, [this, dock](bool visible) {
-        if (!visible)
-            return;
         const int idx = dock->property("projectIndex").toInt();
+        if (!visible) {
+            if (idx == m_activeProjectIndex)
+                retargetActiveProject(idx);   // its project dock may still be in sight
+            return;
+        }
         if (idx < 0 || idx >= int(m_workspace.projectItems.size()))
             return;
         m_undoGroup->setActiveStack(historyFor(idx));
         // Looking at a chapter's strip is looking at that chapter, for the status bar as much as for
         // Ctrl+Z — otherwise the bar would go on describing whichever project dock was raised last.
         m_activeProjectIndex = idx;
+        refreshProjectActions();
         retargetStatusAdvisories();
     });
 

@@ -80,7 +80,7 @@ private:
 
     QSet<QString>       m_excludedPages;   //!< Pages the grade skips — said on their rows.
 
-    QHash<QString, QPair<QString, QIcon>> m_glyphs;   //!< uid -> (what the glyph is made of, the glyph).
+    QHash<QString, QPair<QString, QIcon>> m_glyphs;   //!< uid → (what the glyph is made of, the glyph).
     QIcon                                 m_tailGlyph;  //!< One drawing; every tail row wears it.
     QIcon                                 m_pageGlyph;  //!< Likewise for a page…
     QIcon                                 m_stripGlyph; //!< …and for the strip itself.

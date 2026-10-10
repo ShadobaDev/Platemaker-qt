@@ -201,6 +201,15 @@ MainWindow::MainWindow(QWidget *parent)
         ui->dockWidgetAction->show();
         ui->dockWidgetAction->raise();
     });
+    // Below the application's panels, the project's: the current project's strip editor, and any
+    // project's from the submenu. Both open it, or raise it when it is already open.
+    ui->actionStrip_editor->setShortcut(QKeySequence(QStringLiteral("Ctrl+E")));
+    connect(ui->actionStrip_editor, &QAction::triggered, this, [this]{ openStripEditorDock(currentProjectIndex()); });
+    m_stripEditorsMenu = new QMenu(this);
+    ui->actionStrip_editors->setMenu(m_stripEditorsMenu);
+    connect(m_stripEditorsMenu, &QMenu::aboutToShow, this, &MainWindow::rebuildStripEditorsMenu);
+    connect(ui->menuView, &QMenu::aboutToShow, this, &MainWindow::refreshProjectActions);
+    connect(ui->menu_Process, &QMenu::aboutToShow, this, &MainWindow::refreshProjectActions);
 
     // "Open recent workspace" — attach a dynamic submenu to the existing action.
     // Rebuilt on every show so it always reflects the current QSettings list.
@@ -239,7 +248,7 @@ MainWindow::MainWindow(QWidget *parent)
     // --- Projects panel (managed via the workspace dock's context menu) ---
     // Picking a chapter in the list is looking at that chapter, for as long as no dock has been raised.
     connect(ui->listWidgetProjects, &QListWidget::currentItemChanged,
-            this, [this]{ retargetStatusAdvisories(); });
+            this, [this]{ retargetStatusAdvisories(); refreshProjectActions(); });
     connect(ui->listWidgetProjects, &QListWidget::itemDoubleClicked,
             this, &MainWindow::onProjectDoubleClicked);
     ui->listWidgetProjects->setContextMenuPolicy(Qt::CustomContextMenu);
@@ -268,7 +277,7 @@ MainWindow::MainWindow(QWidget *parent)
     ui->actionRender_all_projects_F6->setShortcut(Qt::Key_F6);
     ui->actionStop_Esc->setShortcut(Qt::Key_Escape);
     connect(ui->actionRender_current_project_F5, &QAction::triggered, this, [this]{
-        if (m_activeProjectIndex >= 0) (void)startRender(m_activeProjectIndex);
+        if (const int idx = currentProjectIndex(); idx >= 0) (void)startRender(idx);
     });
     connect(ui->actionRender_all_projects_F6, &QAction::triggered,
             this, &MainWindow::onRefreshAllProjects);
@@ -298,6 +307,7 @@ MainWindow::MainWindow(QWidget *parent)
             QTimer::singleShot(0, this, &MainWindow::onWorkspaceTakenOver);
     });
 
+    refreshProjectActions();
     updateTitleBar();
 }
 
@@ -527,6 +537,41 @@ void MainWindow::loadWorkspace(const QString &requested)
     });
 }
 
+void MainWindow::refreshProjectActions()
+{
+    const int  idx = currentProjectIndex();
+    const bool has = idx >= 0;
+    // A project name is user text: an '&' in it would otherwise turn into a mnemonic.
+    QString name = has ? QString::fromStdString(m_workspace.projectItems[static_cast<std::size_t>(idx)].name)
+                       : QString{};
+    name.replace('&', QStringLiteral("&&"));
+
+    ui->actionStrip_editor->setText(has ? tr("Strip editor — %1").arg(name)
+                                        : tr("Strip editor (no project open)"));
+    ui->actionStrip_editor->setEnabled(has);
+    ui->actionRender_current_project_F5->setText(has ? tr("Render — %1").arg(name)
+                                                     : tr("Render current project (no project open)"));
+    ui->actionRender_current_project_F5->setEnabled(has);
+    ui->actionStrip_editors->setEnabled(!m_workspace.projectItems.empty());
+}
+
+void MainWindow::rebuildStripEditorsMenu()
+{
+    // The project list is already in natural order (Chapter 9 before Chapter 12) and carries each row's
+    // model index, so the menu reads it rather than sorting the workspace again.
+    m_stripEditorsMenu->clear();
+    for (int row = 0; row < ui->listWidgetProjects->count(); ++row) {
+        const QListWidgetItem *item = ui->listWidgetProjects->item(row);
+        const int idx = item->data(Qt::UserRole).toInt();
+        QString label = item->text();
+        label.replace('&', QStringLiteral("&&"));
+        QAction *act = m_stripEditorsMenu->addAction(label);
+        act->setCheckable(true);
+        act->setChecked(dockForStripEditor(idx) != nullptr);
+        connect(act, &QAction::triggered, this, [this, idx]{ openStripEditorDock(idx); });
+    }
+}
+
 void MainWindow::applyWorkspaceToUi()
 {
     ui->listWidgetProjects->clear();
@@ -557,6 +602,7 @@ void MainWindow::applyWorkspaceToUi()
     // Every view of the workspace has just been rebuilt from the model, and the advisories are one of
     // them: this is the path a freshly opened workspace arrives by, with its conditions already true.
     refreshAllAdvisories();
+    refreshProjectActions();
 
     updateTitleBar();
 }
@@ -582,6 +628,10 @@ void MainWindow::closeWorkspace()
     for (QDockWidget *dock : std::as_const(m_openStripDocks))
         dock->deleteLater();
     m_openStripDocks.clear();
+
+    // An index into a workspace that is going: kept, it would name a project of the next one.
+    m_activeProjectIndex = -1;
+    refreshProjectActions();
 
     // Drop the workspace-scope undo history (a new/closed workspace starts fresh).
     if (m_workspaceUndoStack)

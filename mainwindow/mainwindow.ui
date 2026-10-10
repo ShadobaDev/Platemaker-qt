@@ -108,6 +108,9 @@ QTabWidget QTabBar::close-button {
     </property>
     <addaction name="actionShow_workspace_panel"/>
     <addaction name="actionShow_action_panel"/>
+    <addaction name="separator"/>
+    <addaction name="actionStrip_editor"/>
+    <addaction name="actionStrip_editors"/>
    </widget>
    <widget class="QMenu" name="menuCanvas_Profile">
     <property name="title">
@@ -521,6 +524,16 @@ QTabWidget QTabBar::close-button {
   <action name="actionShow_action_panel">
    <property name="text">
     <string>Action panel</string>
+   </property>
+  </action>
+  <action name="actionStrip_editor">
+   <property name="text">
+    <string>Strip editor</string>
+   </property>
+  </action>
+  <action name="actionStrip_editors">
+   <property name="text">
+    <string>Strip editors</string>
    </property>
   </action>
   <action name="actionOpen_recent_workspace">

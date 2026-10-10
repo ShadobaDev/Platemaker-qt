@@ -599,7 +599,7 @@ private:
      */
     [[nodiscard]] QString pictureFor(const Platemaker::Models::StripOverlay& o) const;
     /**
-     * @brief Live edit from the panel -> item (+persist, as a step named @p undoText or for the subject).
+     * @brief Live edit from the panel → item (+persist, as a step named @p undoText or for the subject).
      */
     void pushOverlays(const QString& undoText); //!< Emits overlaysCommitted() with the current state.
     /**
@@ -687,8 +687,8 @@ private:
     QStringList        m_carriers;
 
     // --- a drag in flight: where everything stood when it started ---
-    QHash<QString, QPointF>         m_dragStartPos;   //!< Object uid -> its position at the press.
-    QList<QPair<TailRef, QPointF>>  m_dragStartTips;  //!< Tail -> its tip, in its balloon's own units.
+    QHash<QString, QPointF>         m_dragStartPos;   //!< Object uid → its position at the press.
+    QList<QPair<TailRef, QPointF>>  m_dragStartTips;  //!< Tail → its tip, in its balloon's own units.
     bool                            m_dragIsGroup = false;
     Subject            m_subject = Subject::None;           //!< What the selection is.
     QString            m_selectedPage;                      //!< Input uid of the selected page, when a page is.

@@ -18,6 +18,7 @@
 #include "project.hpp"
 
 #include <QDockWidget>
+#include <QUndoGroup>
 #include <QListWidgetItem>
 #include <QWidget>
 
@@ -186,19 +187,45 @@ int MainWindow::projectIndexForUid(const QString& projectUid) const
     return -1;
 }
 
-QString MainWindow::activeProjectUid() const
+int MainWindow::currentProjectIndex() const
 {
     // The raised dock, when there is one. Failing that the project list's current row — a workspace
     // just opened has focused no dock yet, and that is exactly the moment a chapter's problems are
     // worth hearing about rather than the moment to stay silent about them.
+    const int count = static_cast<int>(m_workspace.projectItems.size());
     int index = m_activeProjectIndex;
-    if (index < 0 || index >= static_cast<int>(m_workspace.projectItems.size())) {
+    if (index < 0 || index >= count) {
         const QListWidgetItem* row = ui->listWidgetProjects->currentItem();
         index = row ? row->data(Qt::UserRole).toInt() : -1;
     }
-    if (index < 0 || index >= static_cast<int>(m_workspace.projectItems.size()))
+    return index >= 0 && index < count ? index : -1;
+}
+
+QString MainWindow::activeProjectUid() const
+{
+    const int index = currentProjectIndex();
+    if (index < 0)
         return {};
     return QString::fromStdString(m_workspace.projectItems[static_cast<std::size_t>(index)].uid);
+}
+
+void MainWindow::retargetActiveProject(int preferred)
+{
+    // Closing a dock leaves nothing raised, so "the dock raised last" must not go on naming a project
+    // nobody can see. Another view in sight takes over; with none, the project list's row speaks.
+    QList<int> inSight;
+    for (const QList<QDockWidget*>* docks : {&m_openProjectDocks, &m_openStripDocks})
+        for (const QDockWidget* dock : *docks)
+            if (dock->isVisible())
+                inSight << dock->property("projectIndex").toInt();
+    m_activeProjectIndex = inSight.contains(preferred) ? preferred
+                         : inSight.isEmpty()           ? -1
+                                                       : inSight.first();
+    // Ctrl+Z follows the project being looked at, as it does when a dock is raised.
+    if (m_activeProjectIndex >= 0)
+        m_undoGroup->setActiveStack(historyFor(m_activeProjectIndex));
+    refreshProjectActions();
+    retargetStatusAdvisories();
 }
 
 // ---------------------------------------------------------------------------

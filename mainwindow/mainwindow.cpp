@@ -246,9 +246,7 @@ MainWindow::MainWindow(QWidget *parent)
     connect(m_exportOutputMenu, &QMenu::aboutToShow, this, [this]{ populateExportMenu(m_exportOutputMenu, false); });
 
     // --- Projects panel (managed via the workspace dock's context menu) ---
-    // Picking a chapter in the list is looking at that chapter, for as long as no dock has been raised.
-    connect(ui->listWidgetProjects, &QListWidget::currentItemChanged,
-            this, [this]{ retargetStatusAdvisories(); refreshProjectActions(); });
+    // Selecting a chapter in the list does not open it: only its window does (currentProjectIndex()).
     connect(ui->listWidgetProjects, &QListWidget::itemDoubleClicked,
             this, &MainWindow::onProjectDoubleClicked);
     ui->listWidgetProjects->setContextMenuPolicy(Qt::CustomContextMenu);
@@ -567,7 +565,8 @@ void MainWindow::rebuildStripEditorsMenu()
         label.replace('&', QStringLiteral("&&"));
         QAction *act = m_stripEditorsMenu->addAction(label);
         act->setCheckable(true);
-        act->setChecked(dockForStripEditor(idx) != nullptr);
+        const QDockWidget *strip = dockForStripEditor(idx);
+        act->setChecked(strip && !strip->isHidden());   // open, as isProjectOpen() reads a window
         connect(act, &QAction::triggered, this, [this, idx]{ openStripEditorDock(idx); });
     }
 }

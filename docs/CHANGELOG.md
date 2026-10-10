@@ -326,8 +326,9 @@
 ### Fixed
 
 - **F5 renders the project you are looking at.** After opening another workspace, or removing a
-  project, F5 could render a different project from the one in front. Closing a project's dock now hands
-  F5 to another project in view, or to the one selected in the project list.
+  project, F5 could render a different project from the one in front. F5, Ctrl+E, Undo and the status bar
+  act only on a chapter with a window open — its panel or its strip editor; with none open, they are
+  greyed out or silent.
 
 ## [1.4.3] — 23.08.2026
 

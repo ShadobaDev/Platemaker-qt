@@ -36,6 +36,7 @@
 #include <QGraphicsSimpleTextItem>
 #include <QGraphicsView>
 #include <QHBoxLayout>
+#include <QHideEvent>
 #include <QIcon>
 #include <QImage>
 #include <QLabel>
@@ -45,11 +46,13 @@
 #include <QPen>
 #include <QScrollBar>
 #include <QShortcut>
+#include <QShowEvent>
 #include <QSettings>
 #include <QSplitter>
 #include <QSplitterHandle>
 #include <QStyle>
 #include <QStackedWidget>
+#include <QTimer>
 #include <QToolButton>
 #include <QTransform>
 #include <QVBoxLayout>
@@ -669,6 +672,10 @@ void Editor::updateVisiblePages()
 {
     if (m_layout.isEmpty())
         return;
+    // A closed editor builds nothing: it gave its pages back when it closed (hideEvent) and asks for the
+    // ones on screen again when it is shown. A tab behind another is not closed, and keeps building.
+    if (!isVisible())
+        return;
 
     // The viewport mapped into scene coordinates → which pages intersect it.
     const QRectF vis = m_view->mapToScene(m_view->viewport()->rect()).boundingRect();
@@ -733,6 +740,27 @@ void Editor::fitWidth()
     const int vw = m_view->viewport()->width() - m_view->verticalScrollBar()->width();
     if (vw > 0)
         userZoom(static_cast<double>(vw) / static_cast<double>(m_layout.stripWidth()));
+}
+
+void Editor::hideEvent(QHideEvent *event)
+{
+    QWidget::hideEvent(event);
+    // A closed editor gives its pages back — a long strip's are hundreds of MiB, and a closed editor is
+    // only hidden (its project still needs it). Not on a minimised window (spontaneous), and not on the
+    // hide Qt does in passing while a dock floats, docks or maximises: that one is shown again before the
+    // event loop turns, so the release waits for it and lets a window still in use keep its pages.
+    if (event->spontaneous())
+        return;
+    QTimer::singleShot(0, this, [this] {
+        if (!isVisible())
+            m_pages->reset();
+    });
+}
+
+void Editor::showEvent(QShowEvent *event)
+{
+    QWidget::showEvent(event);
+    updateVisiblePages();   // what a closed editor gave back, and what it skipped while closed
 }
 
 void Editor::resizeEvent(QResizeEvent *event)

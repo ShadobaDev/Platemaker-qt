@@ -304,6 +304,11 @@ protected:
      * @param event The resize event.
      */
     void resizeEvent(QResizeEvent *event) override;
+    //! Closed (hidden, not minimised): gives the page memory back, once the hide proves not to be the
+    //! passing one of a float / dock / maximise.
+    void hideEvent(QHideEvent *event) override;
+    //! Shown: builds the pages on screen again.
+    void showEvent(QShowEvent *event) override;
 
 private:
     /**

@@ -16,6 +16,8 @@
   A chapter drawn as **one long strip** is a page like any other: one taller than the usual memory budget
   (up to the 65,500 px a JPEG allows) still stays resident while it is in view, and it is prepared for
   display off the UI thread, so it sharpens without freezing the editor.
+  A closed strip editor gives its pages back and does no work in the background; reopened, it shows
+  the proxies at once and sharpens what is on screen.
 
   **Text & bubbles.** The Bubble, Text and Caption box tools draw a balloon where you **drag** one out; a click just
   deselects, so clicking away cannot leave a stray behind, and a new bubble arrives selected with the

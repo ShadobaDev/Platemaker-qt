@@ -624,13 +624,13 @@ private:
     //! custom title bar's close button.
     void closeDock(QDockWidget *dock);
 
-    // --- strip editor dock (per-project, floating) ---
+    // --- strip editor dock (per-project) ---
 
     /**
      * @brief Opens (or raises + refreshes) the continuous strip editor for the project at @p projectIndex.
      *
-     * A dedicated per-project dock, defaulting to floating; allowed Left/Top/Bottom but never the Action
-     * column, and never tab-combined. It carries a **custom title bar** whose buttons dock it (minimise),
+     * A dedicated per-project dock, opened as a tab beside the Workspace; allowed Left/Top/Bottom but never
+     * the Action column. It carries a **custom title bar** whose buttons dock it (minimise),
      * fill the screen (maximise ⇄ restore) or close it — a floating QDockWidget otherwise shows only a
      * close button, and native min/max on a dock misbehave. Fed the project's committed output slices; a
      * render's finish hook refreshes an open one. Raise-if-open, tracked in m_openStripDocks,

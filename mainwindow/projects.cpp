@@ -23,14 +23,12 @@
 #include <QDockWidget>
 #include <QFileDialog>
 #include <QFileInfo>
-#include <QGuiApplication>
 #include <QInputDialog>
 #include <QKeySequence>
 #include <QLineEdit>
 #include <QListWidgetItem>
 #include <QMenu>
 #include <QMessageBox>
-#include <QScreen>
 #include <QSettings>
 #include <QSize>
 #include <QStatusBar>
@@ -646,23 +644,14 @@ void MainWindow::openStripEditorDock(int projectIndex)
         retargetStatusAdvisories();
     });
 
-    // Register it in a dock area first (its home when docked), then float it.
-    addDockWidget(Qt::LeftDockWidgetArea, dock);
-    dock->setFloating(true);
+    // Default placement on open: a tab beside the workspace panel, like a project dock. From there it is
+    // free to split out, float (the title bar's minimise) or re-dock where it is dropped.
+    tabifyDockWidget(ui->dockWidgetWorkspace, dock);
 
     m_openStripDocks.append(dock);
     refreshStripEditor(dock);   // lay the strip out from the inputs (also settles the strip width)
 
-    // Size: the output/strip width plus a 100px margin on each side, and 80% of the screen height. Fall
-    // back to a typical webtoon width when the project has no pages yet (strip width unknown).
-    const int stripW = editor->stripSize().width();
-    const int dockW  = (stripW > 0 ? stripW : 800) + 200;
-    const QScreen *scr = screen() ? screen() : QGuiApplication::primaryScreen();
-    const QRect avail  = scr ? scr->availableGeometry() : QRect(0, 0, 1280, 800);
-    const int dockH    = static_cast<int>(avail.height() * 0.8);
-    dock->resize(dockW, dockH);
-    dock->move(avail.center() - QPoint(dockW / 2, dockH / 2));   // centre on the screen
-
     dock->show();
     dock->raise();
+    wireDockTabBars();
 }

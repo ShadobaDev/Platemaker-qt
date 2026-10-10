@@ -6,7 +6,8 @@
 
 - **Strip editor — the chapter as one continuous strip, and the lettering authored on it.** *View strip*
   on a project's Output tab, a card on the Workflow map, or **View → Strip editor** (**Ctrl+E**, for the
-  project in front; *View → Strip editors* lists every project) opens the whole chapter in a floating dock:
+  project in front; *View → Strip editors* lists every project) opens the whole chapter in a tab beside the
+  Workspace — float it or split it out from there:
   scroll it, zoom it (fit-width / 100% / Ctrl+wheel), and toggle guides marking where the output will be
   **cut**. It shows the project's **input pages** rather than rendered slices, so it works before the
   first render, follows input and profile edits live, and previews the grade against the input — which is

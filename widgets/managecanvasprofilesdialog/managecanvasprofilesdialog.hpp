@@ -1,6 +1,7 @@
 #ifndef MANAGECANVASPROFILESDIALOG_HPP
 #define MANAGECANVASPROFILESDIALOG_HPP
 
+#include <vector>
 #include <QDialog>
 #include <QList>
 #include <platemaker/models/canvas_profile.hpp>
@@ -56,6 +57,7 @@ private slots:
 
 private:
     void rebuildList();             //!< Rebuilds the list widget to reflect the current profiles and active profile. Called after any changes to the profiles.
+    [[nodiscard]] std::vector<Platemaker::Models::CanvasProfile> profilePalette() const; //!< m_profiles as the library takes a palette.
     void updateButtonStates();      //!< Updates the enabled/disabled state of the buttons based on the current selection and profile list.
     int  selectedRow() const;       //!< Returns the index of the currently selected row in the profile list, or -1 if no selection.
 

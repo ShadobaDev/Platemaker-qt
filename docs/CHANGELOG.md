@@ -17,6 +17,18 @@
   other format writes a new file beside the old one, so it no longer asks to overwrite anything.
   **Regenerate all** applies the settings shown to every canvas profile and regenerates every
   template — say, an empty layer in all of them at once.
+- **A template says why it is out of date, and a PNG and a PSD are both kept.** *Outdated* comes with
+  its reason — *Resolution 25.4 → 300 dpi*, *Changed outside Platemaker*, *File missing* — the first in
+  the Status column, all of them in its tooltip. Each profile keeps one template per format, with a chip
+  for each file and its own state; switching formats no longer orphans the other file. The status bar
+  reports the outdated templates of the open chapter's profiles, with a way to the Templates dialog.
+- **Canvas profiles may share a name, and are told apart.** Where profiles are listed — the profile
+  manager, the Templates dialog, a chapter's profile list and the list a profile is linked from — one
+  that shares its name with a different profile shows what sets it apart (*2000×8080*), and an identical
+  one is marked *Duplicate*, with a remark in the status bar. Their templates no longer overwrite each
+  other: the file name carries the same difference (`3p-m_2000x8080.psd`). Saving a profile identical
+  to another warns, but no longer refuses a repeated name. Linking a profile to a chapter picked the
+  first profile of the chosen name; it now links the one chosen.
 
 - **Strip editor — the chapter as one continuous strip, and the lettering authored on it.** *View strip*
   on a project's Output tab, a card on the Workflow map, or **View → Strip editor** (**Ctrl+E**, for the

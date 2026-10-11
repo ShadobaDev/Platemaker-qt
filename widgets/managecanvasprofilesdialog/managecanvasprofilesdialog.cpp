@@ -1,6 +1,8 @@
 #include "managecanvasprofilesdialog.hpp"
 #include "ui_managecanvasprofilesdialog.h"
 #include "canvasprofiledialog.hpp"
+#include "badgeitemdelegate.hpp"
+#include "profiledistinction.hpp"
 
 #include <QListWidgetItem>
 #include <QMessageBox>
@@ -11,6 +13,8 @@ ManageCanvasProfilesDialog::ManageCanvasProfilesDialog(QWidget *parent)
 {
     ui->setupUi(this);
     setWindowFlags(windowFlags() & ~Qt::WindowContextHelpButtonHint);
+    // Profiles that share a name carry chips: what sets each apart, or that it is a duplicate.
+    ui->listWidgetProfiles->setItemDelegate(new BadgeItemDelegate(ui->listWidgetProfiles));
 
     connect(ui->listWidgetProfiles,      &QListWidget::itemSelectionChanged,
             this, &ManageCanvasProfilesDialog::onSelectionChanged);
@@ -70,19 +74,12 @@ void ManageCanvasProfilesDialog::onSelectionChanged()
 void ManageCanvasProfilesDialog::onNewClicked()
 {
     // Open the CanvasProfileDialog for creating a new profile. If the user accepts, add the new profile to the list.
+    // A name may repeat — the list tells such profiles apart — and an identical one is warned about.
     CanvasProfileDialog dlg(this);
+    dlg.setExistingProfiles(profilePalette());
     if (dlg.exec() != QDialog::Accepted) return;
 
     Platemaker::Models::CanvasProfile newProfile = dlg.profile();
-
-    // Guard: name must be unique
-    for (const auto &p : std::as_const(m_profiles)) {
-        if (QString::fromStdString(p.name) == QString::fromStdString(newProfile.name)) {
-            QMessageBox::warning(this, "Duplicate name",
-                "A profile with that name already exists. Choose a different name.");
-            return;
-        }
-    }
 
     m_profiles.append(newProfile);
 
@@ -100,11 +97,12 @@ void ManageCanvasProfilesDialog::onEditClicked()
 
     CanvasProfileDialog dlg(this);
     dlg.setProfile(m_profiles[row]);
+    dlg.setExistingProfiles(profilePalette());
 
     if (dlg.exec() != QDialog::Accepted) return;
 
     // CanvasProfileDialog hands back the profile it was given with its fields applied, so the id
-    // (project links) and templateInfo survive the edit. If template-affecting fields changed, the
+    // (project links) and templates survive the edit. If template-affecting fields changed, the
     // fingerprint check flags the template Outdated.
     const QString oldName = QString::fromStdString(m_profiles[row].name);
     m_profiles[row]       = dlg.profile();
@@ -128,15 +126,16 @@ void ManageCanvasProfilesDialog::onDuplicateClicked()
     Platemaker::Models::CanvasProfile copy = m_profiles[row];
     copy.name += " (copy)";
     copy.id.clear();             // MainWindow assigns a fresh id on write-back (avoid collision)
-    copy.templateInfo = {};      // a duplicate has no template of its own yet
+    copy.templates.clear();      // a duplicate has no template of its own yet
 
     CanvasProfileDialog dlg(this);
     dlg.setProfile(copy);
+    dlg.setExistingProfiles(profilePalette());
     // Atomic: cancelling the editor abandons the whole action — nothing is inserted, so a stray
     // Duplicate never leaves an unwanted "… (copy)" behind. Only an accepted edit adds the profile.
     if (dlg.exec() != QDialog::Accepted) return;
 
-    // The copy went in without id or templateInfo and comes back so — exactly what a duplicate should
+    // The copy went in without id or templates and comes back so — exactly what a duplicate should
     // carry (id minted by MainWindow, no template of its own yet) — so it is inserted as-is.
     m_profiles.insert(row + 1, dlg.profile());
     rebuildList();
@@ -192,6 +191,11 @@ void ManageCanvasProfilesDialog::onGenerateTemplatesClicked()
 // Private helpers
 // ---------------------------------------------------------------------------
 
+std::vector<Platemaker::Models::CanvasProfile> ManageCanvasProfilesDialog::profilePalette() const
+{
+    return {m_profiles.begin(), m_profiles.end()};
+}
+
 void ManageCanvasProfilesDialog::rebuildList()
 {
     // Preserve the current selection so we can restore it after rebuilding the list.
@@ -203,6 +207,9 @@ void ManageCanvasProfilesDialog::rebuildList()
         const QString name = QString::fromStdString(p.name);
         const bool    isActive = (name == m_activeProfileName);
         auto *item = new QListWidgetItem(isActive ? "★  " + name : "     " + name);
+        // A name may repeat: what sets this profile apart from its namesakes, or that it is a duplicate.
+        item->setData(BadgeItemDelegate::k_badgesRole,
+                      QVariant::fromValue(profileDistinctionBadges(profilePalette(), p, ui->listWidgetProfiles->palette())));
         if (isActive) {
             QFont f = item->font();
             f.setBold(true);

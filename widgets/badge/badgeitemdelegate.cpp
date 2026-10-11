@@ -45,8 +45,12 @@ QList<QRect> layOutLine(QPainter* painter, const QFont& base, const QString& tex
                         const QList<Badge>& badges, const QRect& line, int lineH)
 {
     const QFontMetrics fm(base);
-    const QString      shown =
-        fm.elidedText(text, Qt::ElideRight, qMax(0, line.width() - badgesWidth(base, badges)));
+    // The text names the row, so it keeps its room first: all of it, or a few characters of a long one.
+    // Chips take what is left, and those that then do not fit are dropped by layOutBadges() — a row of
+    // chips with no name under them says nothing about which row it is.
+    const int     keep  = qMin(fm.horizontalAdvance(text), fm.horizontalAdvance(QStringLiteral("MMMMMMMM")));
+    const int     room  = qMin(line.width(), qMax(keep, line.width() - badgesWidth(base, badges)));
+    const QString shown = fm.elidedText(text, Qt::ElideRight, qMax(0, room));
     if (painter) {
         painter->setFont(base);
         painter->setPen(colour);
@@ -131,11 +135,13 @@ void BadgeItemDelegate::paint(QPainter* painter, const QStyleOptionViewItem& opt
 QSize BadgeItemDelegate::sizeHint(const QStyleOptionViewItem& option, const QModelIndex& index) const
 {
     const QSize base = QStyledItemDelegate::sizeHint(option, index);
-    if (index.data(k_subtitleRole).toString().isEmpty())
-        return base;   // one line: the row is whatever the style asks for, the icon included
-
     QStyleOptionViewItem opt = option;
     initStyleOption(&opt, index);
+    // One line: what the style asks for — the icon and the text — plus the chips after the text, so a
+    // column sized to its contents holds them; measured the way paint() lays them out.
+    if (index.data(k_subtitleRole).toString().isEmpty())
+        return {base.width() + badgesWidth(opt.font, badgesAt(index, k_badgesRole)), base.height()};
+
     const int lineH = QFontMetrics(opt.font).height();
     // Width nought, not the base's: the second line is a summary that elides, and a hint wide enough to
     // hold it would hand the view a horizontal scrollbar for text the row was never going to show whole.

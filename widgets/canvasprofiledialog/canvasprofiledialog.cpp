@@ -4,6 +4,7 @@
 #include <platemaker/models/canvas_profile.hpp>
 
 #include <QColorDialog>
+#include <QMessageBox>
 #include <QEvent>
 #include <QFrame>
 #include <QPushButton>
@@ -153,12 +154,35 @@ Platemaker::Models::CanvasProfile CanvasProfileDialog::profile() const
 // Private slots
 // ---------------------------------------------------------------------------
 
+void CanvasProfileDialog::setExistingProfiles(const std::vector<Platemaker::Models::CanvasProfile>& profiles)
+{
+    m_existing = profiles;
+}
+
 void CanvasProfileDialog::onSaveClicked()
 {
     if (ui->lineEditName->text().trimmed().isEmpty()) {
         ui->lineEditName->setFocus();
         ui->lineEditName->setStyleSheet("border: 1px solid #e06060;");
         return;
+    }
+
+    // An identical profile is worth a word, not a wall: names may repeat, and this may be a step on the
+    // way (a copy about to be changed, two names being swapped). The profile itself is not compared —
+    // a profile being edited has the same id as its saved self; a new or duplicated one has none.
+    const auto edited = profile();
+    for (const auto& other : m_existing) {
+        if ((!edited.id.empty() && other.id == edited.id)
+            || !Platemaker::Models::sameProfileContent(other, edited))
+            continue;
+        const auto answer = QMessageBox::warning(this, tr("Identical profile"),
+            tr("This profile is identical in every setting to \"%1\". Pages would match either one the "
+               "same way, so two of them only make the lists harder to read.\n\nSave it anyway?")
+                .arg(QString::fromStdString(other.name)),
+            QMessageBox::Save | QMessageBox::Cancel, QMessageBox::Cancel);
+        if (answer != QMessageBox::Save)
+            return;
+        break;
     }
     accept();
 }

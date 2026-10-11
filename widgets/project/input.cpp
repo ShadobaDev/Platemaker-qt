@@ -2,6 +2,7 @@
 #include "ui_project.h"
 #include "imagetile.hpp"
 #include "canvasprofiledialog.hpp"
+#include "profiledistinction.hpp"
 #include "outputformatoptionswidget.hpp"
 
 #include <platemaker/infrastructure/project_editor/project_editor.hpp>
@@ -136,6 +137,9 @@ void Project::refreshCanvasProfilesList()
 
             // Add the name label and remove button to the layout of the custom row widget, set the size hint of the list item to match the row's size, and set the row as the widget for the list item.
             layout->addWidget(nameLabel);
+            // A name may repeat: what sets this profile apart from its namesakes, or that it is a duplicate.
+            for (const Badge& chip : profileDistinctionBadges(wsProfiles, cp, palette()))
+                layout->addWidget(makeBadge(chip, row));
             layout->addWidget(removeBtn);
 
             // Set the size hint of the list item to match the custom row widget's size and set the row as the widget for the list item.
@@ -173,14 +177,20 @@ void Project::onAssignCanvasProfiles()
 
     // Build a list of available profiles that are not already assigned to this project. 
     // If all profiles are already assigned, inform the user and return.
+    // Each entry says what sets it apart from a profile of the same name ("3p-m — 2000×8080"), and the
+    // choice is resolved by its position, not its name: a name may repeat.
     QStringList available;
+    std::vector<std::string> availableIds;
     for (const auto& cp : wsProfiles) {
         const bool linked = std::find(
             project.canvasProfileIds().begin(),
             project.canvasProfileIds().end(),
             cp.id) != project.canvasProfileIds().end();
-        if (!linked)
-            available << QString::fromStdString(cp.name);
+        if (linked) continue;
+        const QString distinction = profileDistinctionText(wsProfiles, cp);
+        available << (distinction.isEmpty() ? QString::fromStdString(cp.name)
+                                            : QString::fromStdString(cp.name) + QStringLiteral(" — ") + distinction);
+        availableIds.push_back(cp.id);
     }
 
     // Guard: if there are no available profiles to assign, inform the user and return.
@@ -198,16 +208,12 @@ void Project::onAssignCanvasProfiles()
         available, 0, false, &ok);
     if (!ok || chosen.isEmpty()) return;
 
-    // Find the ID of the chosen profile by matching its name in the workspace profiles. 
-    // If found, add it to the project's assigned canvasProfileIds. 
+    // The chosen entry's profile, by position (two entries may read alike — a duplicate and its twin —
+    // and then either is the same profile in every setting).
     // If a conflict occurs (e.g., a linked profile already has the same canvas dimensions), inform the user and return.
-    std::string profileId;
-    for (const auto& cp : wsProfiles) {
-        if (QString::fromStdString(cp.name) == chosen) {
-            profileId = cp.id;
-            break;
-        }
-    }
+    const auto chosenAt = available.indexOf(chosen);
+    if (chosenAt < 0) return;
+    const std::string profileId = availableIds[static_cast<std::size_t>(chosenAt)];
 
     // Do the guarded link inside the undo bracket; only a successful add changes the project (and so
     // records a step). A dimension conflict leaves the project untouched → no undo step + a warning.
@@ -244,10 +250,11 @@ void Project::onCanvasProfileDoubleClicked(QListWidgetItem* item)
     if (it == wsProfiles.end()) return;
 
     // Open the CanvasProfileDialog for editing the selected profile. It hands back the profile it was
-    // given with its fields applied, so the id and templateInfo survive — the kept fingerprint lets the
+    // given with its fields applied, so the id and templates survive — the kept fingerprint lets the
     // Templates dialog still detect a now-outdated template.
     CanvasProfileDialog dlg(this);
     dlg.setProfile(*it);
+    dlg.setExistingProfiles(wsProfiles);
     if (dlg.exec() != QDialog::Accepted) return;
     *it = dlg.profile();
 

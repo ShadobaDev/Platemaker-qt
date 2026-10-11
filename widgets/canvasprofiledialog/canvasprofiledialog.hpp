@@ -5,6 +5,8 @@
 #include <QColor>
 #include <platemaker/models/canvas_profile.hpp>
 
+#include <vector>
+
 namespace Ui {
 class CanvasProfileDialog;
 }
@@ -32,11 +34,18 @@ public:
     /**
      * @brief Retrieves the profile filled in the dialog.
      * Call after exec() == Accepted. It is the profile given to setProfile() (a new one if none was)
-     * with the dialog's fields applied, so what the dialog does not show — id, templateInfo, template
+     * with the dialog's fields applied, so what the dialog does not show — id, templates, template
      * settings — comes back unchanged.
      * @return The edited profile.
      */
     Platemaker::Models::CanvasProfile profile() const;
+
+    /**
+     * @brief The workspace's profiles, so Save can warn when this one is identical in every setting to
+     *        another — two such profiles can never be told apart. It warns, it does not refuse: names
+     *        may repeat, and a duplicate on its way to being edited is the user's business.
+     */
+    void setExistingProfiles(const std::vector<Platemaker::Models::CanvasProfile>& profiles);
 
     ~CanvasProfileDialog() override;    //!< Destroys the dialog and cleans up resources.
 
@@ -62,6 +71,7 @@ private:
     QColor m_bgColour;                  //!< The background colour selected in the dialog.
     bool   m_safeAreaMode = false;      //!< Whether the dialog is in safe-area mode (true) or absolute size mode (false).
     Platemaker::Models::CanvasProfile m_profile;   //!< The profile given to setProfile(); profile() returns it with the dialog's fields applied.
+    std::vector<Platemaker::Models::CanvasProfile> m_existing; //!< setExistingProfiles(): what Save compares against.
 };
 
 #endif // CANVASPROFILEDIALOG_HPP

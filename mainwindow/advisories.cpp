@@ -13,14 +13,17 @@
 
 #include "advisories.hpp"
 #include "advisorybar.hpp"
+#include "templatesdialog.hpp"
 #include "recordpainter.hpp"
 #include "editor.hpp"
 #include "project.hpp"
 
+#include <QFileInfo>
 #include <QDockWidget>
 #include <QUndoGroup>
 #include <QWidget>
 
+#include <algorithm>
 #include <set>
 
 namespace {
@@ -29,6 +32,8 @@ namespace {
 // advisory the moment a lower-numbered project was removed.
 const QString k_unanchoredKey   = QStringLiteral("unanchored/");
 const QString k_missingFontsKey = QStringLiteral("missingFonts/");
+const QString k_templatesKey    = QStringLiteral("templates/");
+const QString k_duplicatesKey   = QStringLiteral("duplicateProfiles/");
 
 //! The uids of this project's overlays that have no page under them, in composite order.
 [[nodiscard]] QStringList unanchoredUids(const Platemaker::Models::ProjectItem& project)
@@ -110,6 +115,64 @@ void MainWindow::refreshAdvisoriesFor(int projectIndex)
         a.projectUid = uid;
         a.action     = [this, uid, inStandIns] { showObjects(uid, inStandIns); };
         m_advisories->raise(k_missingFontsKey + uid, a);
+    }
+
+    // --- this chapter's canvas profiles: their templates, and duplicates ----
+    // The profiles a page of this chapter can match: its own, or every one when it names none.
+    const auto& palette = m_workspace.canvasProfiles();
+    std::vector<const Platemaker::Models::CanvasProfile*> profiles;
+    for (const auto& cp : palette)
+        if (project.canvasProfileIds().empty()
+            || std::find(project.canvasProfileIds().begin(), project.canvasProfileIds().end(), cp.id)
+                   != project.canvasProfileIds().end())
+            profiles.push_back(&cp);
+
+    // A template that was generated and no longer is what its profile asks for. One never generated is
+    // not reported — not everybody draws over one.
+    QStringList stale;
+    if (!m_workspacePath.isEmpty()) {
+        const QString dir = QFileInfo(m_workspacePath).absolutePath();
+        for (const auto* cp : profiles) {
+            const auto state = TemplatesDialog::stateOf(palette, *cp, dir);
+            if (state.entry && state.status != TemplatesDialog::TemplateStatus::UpToDate)
+                stale << QStringLiteral("%1: %2").arg(QString::fromStdString(cp->name),
+                                                      TemplatesDialog::stateText(state));
+        }
+    }
+    if (stale.isEmpty()) {
+        m_advisories->clear(k_templatesKey + uid);
+    } else {
+        Advisory a;
+        a.level      = Advisory::Level::Warning;
+        a.text       = tr("%n template(s) outdated", "", stale.size());
+        a.detail     = tr("%1: templates of its canvas profiles are not what the profiles ask for — a "
+                          "drawing started on one would not match. Rendering is unaffected.\n\n%2")
+                           .arg(name, stale.join(QStringLiteral("\n")));
+        a.actionText = tr("Open templates");
+        a.projectUid = uid;
+        a.action     = [this] { onManageTemplates(); };
+        m_advisories->raise(k_templatesKey + uid, a);
+    }
+
+    // A profile identical to another of its name: harmless to a render, confusing in every list.
+    QStringList duplicates;
+    for (const auto* cp : profiles)
+        if (Platemaker::Models::distinguishProfile(palette, *cp).duplicate)
+            duplicates << QString::fromStdString(cp->name);
+    duplicates.removeDuplicates();
+    if (duplicates.isEmpty()) {
+        m_advisories->clear(k_duplicatesKey + uid);
+    } else {
+        Advisory a;
+        a.level      = Advisory::Level::Info;
+        a.text       = tr("Duplicate canvas profile");
+        a.detail     = tr("%1: %2 — two or more profiles with this name are identical in every setting. A "
+                          "page matches them the same way, so one is enough; the others only make lists "
+                          "harder to read.").arg(name, duplicates.join(QStringLiteral(", ")));
+        a.actionText = tr("Manage profiles");
+        a.projectUid = uid;
+        a.action     = [this] { onManageCanvasProfiles(); };
+        m_advisories->raise(k_duplicatesKey + uid, a);
     }
 }
 

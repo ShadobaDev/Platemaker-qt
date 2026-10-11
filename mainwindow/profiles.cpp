@@ -67,8 +67,8 @@ void MainWindow::onManageCanvasProfiles()
 
     // Open the dialog with a copy of the workspace's profiles. The dialog edits
     // copies, and we only write the results back to the workspace if the user
-    // clicks Accept. The dialog preserves templateInfo by id, so we can snapshot
-    // it before the dialog and re-attach it afterward (the dialog never edits it).
+    // clicks Accept. The dialog preserves templates by id, so we can snapshot
+    // them before the dialog and re-attach them afterward (the dialog never edits them).
     ManageCanvasProfilesDialog dlg(this);
 
     QList<Platemaker::Models::CanvasProfile> profiles(
@@ -76,7 +76,7 @@ void MainWindow::onManageCanvasProfiles()
     dlg.setProfiles(profiles, m_activeCanvasProfileName);
 
     // Quick-generate from the selected profile. The dialog edits copies, so we
-    // write the resulting templateInfo into the LIVE profile (matched by id);
+    // write the resulting templates into the LIVE profile (matched by id);
     // it is preserved across the dialog's Accept below (preserve-by-id).
     const QString workspaceDir = QFileInfo(m_workspacePath).absolutePath();
     connect(&dlg, &ManageCanvasProfilesDialog::generateTemplatesRequested,
@@ -98,9 +98,9 @@ void MainWindow::onManageCanvasProfiles()
             // Ask before overwriting an existing template. Check the dialog's
             // current (possibly edited) values — `selected` — not the live profile,
             // whose canvas fields are only updated when the dialog is accepted.
-            // `selected` carries the preserved templateInfo, so the status reflects
+            // `selected` carries the preserved templates, so the status reflects
             // any just-made edit (→ Outdated) rather than the stale live state.
-            if (!TemplatesDialog::confirmOverwrite(this, selected, workspaceDir))
+            if (!TemplatesDialog::confirmOverwrite(this, m_workspace.canvasProfiles(), selected, workspaceDir))
                 return;
 
             // Render from the dialog's current field values (a copy), then write the
@@ -112,7 +112,8 @@ void MainWindow::onManageCanvasProfiles()
                 return;
             }
             Platemaker::Infrastructure::WorkspaceEditor(m_workspace)
-                .setCanvasProfileTemplateInfo(selected.id, render.templateInfo);
+                .setCanvasProfileTemplates(selected.id, render.templates);
+            refreshAllAdvisories();   // a template it reported may be up to date now
             QMessageBox::information(this, tr("Template"),
                 tr("Template generated for \"%1\".")
                     .arg(QString::fromStdString(selected.name)));
@@ -121,7 +122,7 @@ void MainWindow::onManageCanvasProfiles()
     if (dlg.exec() != QDialog::Accepted) return;
 
     // Hand the whole edited palette to the editor: it mints ids for new profiles, deduplicates,
-    // and carries templateInfo from the current profile of the same id (the manage dialog drops
+    // and carries templates from the current profile of the same id (the manage dialog drops
     // that field on its round trip). This replaces the former snapshot / assign / mint / re-attach
     // done by hand here.
     const auto result = dlg.profiles();
@@ -142,21 +143,14 @@ void MainWindow::onNewCanvasProfile()
         return;
     }
 
-    // Prompt for a new profile. The dialog returns a fresh profile without an id or templateInfo; we generate a stable id and leave templateInfo empty.
+    // Prompt for a new profile. The dialog returns a fresh profile without an id or templates; we generate a stable id and leave templates empty.
+    // A name may repeat: profiles of one name are told apart by what differs (profiledistinction), and
+    // the dialog warns about an identical one instead of refusing it.
     CanvasProfileDialog dlg(this);
+    dlg.setExistingProfiles(m_workspace.canvasProfiles());
     if (dlg.exec() != QDialog::Accepted) return;
 
     auto profile = dlg.profile();
-
-    // Ensure the name is unique within the workspace.
-    for (const auto& p : m_workspace.canvasProfiles()) {
-        if (p.name == profile.name) {
-            QMessageBox::warning(this, tr("Duplicate name"),
-                tr("A canvas profile named \"%1\" already exists.")
-                    .arg(QString::fromStdString(profile.name)));
-            return;
-        }
-    }
 
     commitWorkspaceEdit(tr("New canvas profile"), [&]{
         // The editor mints a stable id and appends it to the workspace palette.
@@ -181,10 +175,10 @@ void MainWindow::onEditActiveCanvasProfile()
 
     // Find the active profile by name. The dialog edits a copy, 
     // and we only write the results back to the workspace if the user clicks Accept. 
-    // The dialog preserves templateInfo by id, so we can snapshot it before 
-    // the dialog and re-attach it afterward (the dialog never edits it).
+    // The dialog preserves templates by id, so we can snapshot them before
+    // the dialog and re-attach them afterward (the dialog never edits them).
     // Edit a copy of the palette, then hand it back through the editor (it preserves the ids and
-    // carries templateInfo). The vectors are private, so we cannot mutate a live profile in place.
+    // carries templates). The vectors are private, so we cannot mutate a live profile in place.
     auto profiles = std::vector<Platemaker::Models::CanvasProfile>(
         m_workspace.canvasProfiles().begin(), m_workspace.canvasProfiles().end());
     const auto it = std::find_if(profiles.begin(), profiles.end(),
@@ -198,11 +192,12 @@ void MainWindow::onEditActiveCanvasProfile()
 
     CanvasProfileDialog dlg(this);
     dlg.setProfile(*it);
+    dlg.setExistingProfiles(m_workspace.canvasProfiles());
     if (dlg.exec() != QDialog::Accepted) return;
 
     const std::string oldName = it->name;
     // CanvasProfileDialog hands back the profile it was given with its fields applied, so the id
-    // (project links) and templateInfo survive: if a canvas-affecting field changed, the kept
+    // (project links) and templates survive: if a canvas-affecting field changed, the kept
     // fingerprint won't match → Outdated.
     *it = dlg.profile();
 

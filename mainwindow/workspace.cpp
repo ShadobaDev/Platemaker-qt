@@ -394,15 +394,17 @@ bool MainWindow::collectWorkspaceFiles(const QString &newWorkspacePath)
     // Templates are stored relative to the workspace folder, so without their files the copy would point
     // at templates it does not have.
     for (const auto &profile : m_workspace.canvasProfiles()) {
-        const QString rel = QString::fromStdString(profile.templateInfo.path);
-        if (rel.isEmpty() || QDir::isAbsolutePath(rel))
-            continue;
-        const QString source = QDir(oldDir).filePath(rel);
-        if (!QFileInfo::exists(source))
-            continue;   // already missing: nothing to carry, and nothing a copy would fix
-        const QString dest = QDir(newDir).filePath(rel);
-        if (!QDir().mkpath(QFileInfo(dest).absolutePath()) || !copyUnlessIdentical(source, dest))
-            return refuse(source);
+        for (const auto &tpl : profile.templates) {   // a PNG and a PSD are both the user's
+            const QString rel = QString::fromStdString(tpl.path);
+            if (rel.isEmpty() || QDir::isAbsolutePath(rel))
+                continue;
+            const QString source = QDir(oldDir).filePath(rel);
+            if (!QFileInfo::exists(source))
+                continue;   // already missing: nothing to carry, and nothing a copy would fix
+            const QString dest = QDir(newDir).filePath(rel);
+            if (!QDir().mkpath(QFileInfo(dest).absolutePath()) || !copyUnlessIdentical(source, dest))
+                return refuse(source);
+        }
     }
 
     // The workspace's own fonts, whole — a licence beside a font travels with it.
@@ -436,8 +438,9 @@ QStringList MainWindow::referencedWorkspaceFiles() const
         }
     }
     for (const auto &profile : m_workspace.canvasProfiles())
-        if (!profile.templateInfo.path.empty())
-            used << QDir(folder).filePath(QString::fromStdString(profile.templateInfo.path));
+        for (const auto &tpl : profile.templates)   // every format: a PNG beside a PSD stays
+            if (!tpl.path.empty())
+                used << QDir(folder).filePath(QString::fromStdString(tpl.path));
     return used;
 }
 

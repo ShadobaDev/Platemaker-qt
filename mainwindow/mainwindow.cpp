@@ -697,6 +697,10 @@ void MainWindow::setupUndo()
     // group as their docks open (see openProjectDock).
     m_workspaceUndoStack = new QUndoStack(this);
     m_workspaceUndoStack->setUndoLimit(10);
+    // Every workspace-level change — a profile edited from any dialog or dock, templates generated, and
+    // each undo or redo of those — moves this stack, so this one connection keeps the advisories derived
+    // from profiles and templates (outdated templates, duplicate profiles) in step with all of them.
+    connect(m_workspaceUndoStack, &QUndoStack::indexChanged, this, [this]{ refreshAllAdvisories(); });
     m_undoGroup->addStack(m_workspaceUndoStack);
     m_undoGroup->setActiveStack(m_workspaceUndoStack);
 

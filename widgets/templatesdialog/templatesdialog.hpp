@@ -10,11 +10,11 @@ namespace Ui { class TemplatesDialog; }
 /**
  * @brief Manage and (re)generate canvas-profile templates for one workspace.
  *
- * Operates on a live Workspace reference (like the Project widget). Template
- * PNGs are written into a "templates" subfolder beside the workspace; each
- * profile's CanvasProfile::templateInfo records the relative path, a canvas-only
- * fingerprint, and a timestamp so the dialog can show whether a template is still
- * up to date.
+ * Operates on a live Workspace reference (like the Project widget). Templates (PSD or PNG, per the
+ * profile's templateSettings, at its dpi) are written into a "templates" subfolder beside the
+ * workspace; each profile's CanvasProfile::templateInfo records the relative path, a canvas-only
+ * fingerprint, and a timestamp so the dialog can show whether a template is still up to date. The
+ * selected profile's template settings are edited here; its resolution belongs to the canvas profile.
  */
 class TemplatesDialog : public QDialog
 {
@@ -22,7 +22,7 @@ class TemplatesDialog : public QDialog
 
 public:
     /**
-     * @brief  Staleness of a canvas profile's generated template PNG, relative to its current dimensions.
+     * @brief  Staleness of a canvas profile's generated template, relative to its current canvas and resolution.
      */
     enum class TemplateStatus {
         NotGenerated,   //!< No template has ever been generated for this profile.
@@ -43,8 +43,9 @@ public:
     ~TemplatesDialog() override;   //!< Destroys the dialog and cleans up resources.
 
     /**
-     * @brief Generates the template for \p cp into <workspaceDir>/templates/, updating
-     * cp.templateInfo on success. Reused by MainWindow's quick-generate button.
+     * @brief Generates the template for \p cp into <workspaceDir>/templates/ as the profile asks
+     * (TemplateGenerator::optionsFor: its dpi, format and empty layer), updating cp.templateInfo on
+     * success. Reused by MainWindow's quick-generate button, so both give the same file.
      * @param ws The workspace supplying the default output profile used for slice-guide lines.
      * @param workspaceDir The workspace's directory (templates are written under its "templates" subfolder).
      * @param cp The canvas profile to generate a template for; its templateInfo is updated on success.
@@ -66,8 +67,9 @@ public:
                                    const QString& workspaceDir);
 
     /**
-     * @brief When a template file already exists for \p cp, asks the user to confirm
-     * overwriting it (the message states whether it is up to date or outdated).
+     * @brief When the file a generation would write already exists — the profile's template in the
+     * format its settings ask for — asks the user to confirm overwriting it (the message states
+     * whether it is up to date or outdated). A template in the other format is written beside it.
      * @param parent The parent widget for the confirmation dialog.
      * @param cp The canvas profile whose template would be overwritten.
      * @param workspaceDir The workspace's directory, used to resolve the template's stored relative path.
@@ -84,17 +86,22 @@ private slots:
     void onSelectionChanged();  //!< Slot for table selection changes. Enables/disables the Generate/Delete buttons based on the selected row's template state.
     void onGenerateSelected();  //!< Slot for the "Generate" button. Confirms overwrite if needed, generates the template for the selected profile, and refreshes the table.
     void onGenerateAll();       //!< Slot for the "Generate All" button. Generates templates for every profile that is not already up to date, then reports successes/failures.
+    void onRegenerateAll();     //!< Slot for the "Regenerate all" button. Applies the selected profile's template settings to every profile, then regenerates every template.
     void onOpenFolder();        //!< Slot for the "Open Folder" button. Opens the workspace's templates folder in the system file explorer.
     void onDeleteTemplate();    //!< Slot for the "Delete" button. Confirms and deletes the selected profile's template file, then clears its templateInfo.
+    void onSettingsEdited();    //!< Slot for the format combo / empty-layer box: writes the selected profile's templateSettings.
 
 private:
     void rebuildTable();                                //!< Rebuilds tableTemplates from m_workspace.canvasProfiles(), preserving the current selection where possible.
+    void syncSettings();                                //!< Shows the selected profile's template settings and resolution (disabled with no selection).
+    void generateMany(bool onlyOutdated);               //!< Generates every profile's template (or only those not up to date), writes the results back and reports.
     int  selectedRow() const;                           //!< Returns the currently selected table row, or -1 if none is selected.
     static QString statusText(TemplateStatus status);   //!< Returns the user-facing label for a TemplateStatus value.
 
     Ui::TemplatesDialog* ui;                    //!< Qt Designer-generated UI for this dialog.
     Platemaker::Models::Workspace& m_workspace; //!< Reference to the workspace whose canvas profiles/templates are managed.
     QString m_workspaceDir;                     //!< The workspace's directory, used to resolve the "templates" subfolder.
+    bool m_syncing = false;                     //!< True while syncSettings() fills the controls, so their signals are not edits.
 };
 
 #endif // TEMPLATESDIALOG_HPP

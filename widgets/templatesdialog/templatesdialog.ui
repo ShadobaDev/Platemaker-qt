@@ -7,13 +7,13 @@
     <x>0</x>
     <y>0</y>
     <width>833</width>
-    <height>400</height>
+    <height>600</height>
    </rect>
   </property>
   <property name="minimumSize">
    <size>
     <width>800</width>
-    <height>400</height>
+    <height>600</height>
    </size>
   </property>
   <property name="windowTitle">
@@ -109,7 +109,7 @@ QPushButton#buttonDeleteTemplate:hover {
       <string notr="true">color: #888888; font-size: 11px;</string>
      </property>
      <property name="text">
-      <string>Templates are saved as PNG into a &quot;templates&quot; folder next to the workspace. A template is &quot;Outdated&quot; when its canvas profile changed since it was generated.</string>
+      <string>Templates are saved as PSD or PNG into a &quot;templates&quot; folder next to the workspace. A PSD opens in Procreate as a canvas of exactly the profile's size; a PNG is placed on one. A template is &quot;Outdated&quot; when its canvas profile changed since it was generated.</string>
      </property>
      <property name="wordWrap">
       <bool>true</bool>
@@ -136,6 +136,60 @@ QPushButton#buttonDeleteTemplate:hover {
     </widget>
    </item>
    <item>
+    <widget class="QGroupBox" name="groupBoxSettings">
+     <property name="title">
+      <string>Template settings</string>
+     </property>
+     <layout class="QFormLayout" name="formLayoutSettings">
+      <item row="0" column="0">
+       <widget class="QLabel" name="labelFormat">
+        <property name="text">
+         <string>Format:</string>
+        </property>
+       </widget>
+      </item>
+      <item row="0" column="1">
+       <widget class="QComboBox" name="comboFormat">
+        <item>
+         <property name="text">
+          <string>PSD — opens as the canvas</string>
+         </property>
+        </item>
+        <item>
+         <property name="text">
+          <string>PNG — an image to place</string>
+         </property>
+        </item>
+       </widget>
+      </item>
+      <item row="1" column="1">
+       <widget class="QCheckBox" name="checkEmptyLayer">
+        <property name="text">
+         <string>Empty layer above the template</string>
+        </property>
+       </widget>
+      </item>
+      <item row="2" column="0">
+       <widget class="QLabel" name="labelDpiTitle">
+        <property name="text">
+         <string>Resolution:</string>
+        </property>
+       </widget>
+      </item>
+      <item row="2" column="1">
+       <widget class="QLabel" name="labelDpi"/>
+      </item>
+      <item row="3" column="1">
+       <widget class="QLabel" name="labelSizeWarning">
+        <property name="wordWrap">
+         <bool>true</bool>
+        </property>
+       </widget>
+      </item>
+     </layout>
+    </widget>
+   </item>
+   <item>
     <layout class="QHBoxLayout" name="horizontalLayoutButtons">
      <property name="spacing">
       <number>8</number>
@@ -148,6 +202,9 @@ QPushButton#buttonDeleteTemplate:hover {
        <property name="text">
         <string>Generate selected</string>
        </property>
+       <property name="toolTip">
+        <string>Generate selected</string>
+       </property>
       </widget>
      </item>
      <item>
@@ -155,12 +212,31 @@ QPushButton#buttonDeleteTemplate:hover {
        <property name="text">
         <string>Generate all outdated</string>
        </property>
+       <property name="toolTip">
+        <string>Generate all outdated</string>
+       </property>
+      </widget>
+     </item>
+     <item>
+      <widget class="QPushButton" name="buttonRegenerateAll">
+       <property name="enabled">
+        <bool>false</bool>
+       </property>
+       <property name="text">
+        <string>Regenerate all</string>
+       </property>
+       <property name="toolTip">
+        <string>Will apply current settings to all templates</string>
+       </property>
       </widget>
      </item>
      <item>
       <widget class="QPushButton" name="buttonOpenFolder">
        <property name="text">
         <string>Open folder</string>
+       </property>
+       <property name="toolTip">
+        <string>Open folder where templates are stored</string>
        </property>
       </widget>
      </item>
@@ -170,6 +246,9 @@ QPushButton#buttonDeleteTemplate:hover {
         <bool>false</bool>
        </property>
        <property name="text">
+        <string>Delete template</string>
+       </property>
+       <property name="toolTip">
         <string>Delete template</string>
        </property>
       </widget>
@@ -191,6 +270,9 @@ QPushButton#buttonDeleteTemplate:hover {
       <widget class="QPushButton" name="buttonClose">
        <property name="text">
         <string>Close</string>
+       </property>
+       <property name="toolTip">
+        <string>Close this dialog</string>
        </property>
        <property name="default">
         <bool>true</bool>

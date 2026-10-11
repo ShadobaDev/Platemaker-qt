@@ -243,18 +243,13 @@ void Project::onCanvasProfileDoubleClicked(QListWidgetItem* item)
         [&](const CanvasProfile& p){ return p.id == id.toStdString(); });
     if (it == wsProfiles.end()) return;
 
-    // Open the CanvasProfileDialog for editing the selected profile. If the user accepts, update the profile in the workspace while preserving its ID and templateInfo.
+    // Open the CanvasProfileDialog for editing the selected profile. It hands back the profile it was
+    // given with its fields applied, so the id and templateInfo survive — the kept fingerprint lets the
+    // Templates dialog still detect a now-outdated template.
     CanvasProfileDialog dlg(this);
     dlg.setProfile(*it);
     if (dlg.exec() != QDialog::Accepted) return;
-
-    // Preserve id + templateInfo (the dialog returns them empty); keeping the
-    // fingerprint lets the Templates dialog still detect a now-outdated template.
-    const std::string savedId = it->id;
-    const auto savedTpl = it->templateInfo;
     *it = dlg.profile();
-    it->id           = savedId;
-    it->templateInfo = savedTpl;
 
     // Editing a canvas profile changes a *workspace* palette (shared by every project), so it goes on
     // the workspace undo timeline, not this project's.

@@ -4,6 +4,20 @@
 
 ### Added
 
+- **Templates open as the canvas itself.** A template is now a layered **PSD** by default: open it in
+  Procreate and it is a canvas of exactly the profile's size and resolution, the template on its own
+  layer — nothing to import or place, so nothing for the app to resize by a pixel on the way in, which
+  is how the stray template-coloured edge on the left and bottom of a page got there. *Canvas →
+  Templates…* gains **Template settings** for the selected profile: the format (PSD, or PNG as before),
+  an optional empty layer above the template, and the profile's resolution. A PSD over 16384 px a side
+  is still written but warns that Procreate will not open it. *Generate template from selected…* in
+  the profile manager writes the same file. Each row's name carries a **PSD** or **PNG** chip for the
+  file on disk, and a template whose profile now asks for the other format, or a different empty
+  layer, reads **Outdated** — so do the PNG templates made before this, once. Regenerating in the
+  other format writes a new file beside the old one, so it no longer asks to overwrite anything.
+  **Regenerate all** applies the settings shown to every canvas profile and regenerates every
+  template — say, an empty layer in all of them at once.
+
 - **Strip editor — the chapter as one continuous strip, and the lettering authored on it.** *View strip*
   on a project's Output tab, a card on the Workflow map, or **View → Strip editor** (**Ctrl+E**, for the
   project in front; *View → Strip editors* lists every project) opens the whole chapter in a tab beside the

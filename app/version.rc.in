@@ -20,7 +20,7 @@ BEGIN
             VALUE "FileDescription",  "Platemaker - comic & webtoon canvas tool"
             VALUE "FileVersion",      "@PROJECT_VERSION@"
             VALUE "InternalName",     "Platemaker"
-            VALUE "LegalCopyright",   "Copyright (C) 2026 ShadobaDev (Bartlomiej Mucha) - GPL-3.0-or-later"
+            VALUE "LegalCopyright",   "Copyright (C) 2026 Bartlomiej Mucha - GPL-3.0-or-later"
             VALUE "OriginalFilename", "Platemaker.exe"
             VALUE "ProductName",      "Platemaker"
             VALUE "ProductVersion",   "@PROJECT_VERSION@"

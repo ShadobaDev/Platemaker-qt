@@ -6,6 +6,7 @@
 #include <QApplication>
 #include <QDesktopServices>
 #include <QDir>
+#include <QFileInfo>
 #include <QMargins>
 #include <QPixmap>
 #include <QString>
@@ -47,17 +48,16 @@ QString orUnknown(QString v)
     return v.isEmpty() ? QStringLiteral("unknown") : v;
 }
 
-// Maps an SPDX identifier to the licence-text file shipped in credits/licenses/. Files are named by
-// SPDX id and deduplicated by identical text: Qt's LGPL-3.0-only shares the LGPL-3.0 body the lib
-// ships as LGPL-3.0-or-later.txt; nlohmann/json's MIT carries its own copyright, so it is a
-// component-qualified file. An unmapped id yields an empty string → the viewer's "not bundled" notice.
+// The licence-text file in credits/licenses/ for the rows the GUI itself knows — Platemaker, the lib and
+// Qt. The lib's linked components name their own file (LinkedComponent::licenceFile): the lib writes
+// that directory. Qt's LGPL-3.0-only shares the LGPL-3.0 body the lib ships as LGPL-3.0-or-later.txt.
+// An unmapped id yields an empty string → the viewer's "not bundled" notice.
 QString licenceFileForSpdx(const QString& spdx)
 {
     if (spdx == QLatin1String("LGPL-2.1-or-later")) return QStringLiteral("LGPL-2.1-or-later.txt");
     if (spdx == QLatin1String("LGPL-3.0-or-later")) return QStringLiteral("LGPL-3.0-or-later.txt");
     if (spdx == QLatin1String("LGPL-3.0-only"))     return QStringLiteral("LGPL-3.0-or-later.txt");
     if (spdx == QLatin1String("GPL-3.0-only"))      return QStringLiteral("GPL-3.0-only.txt");
-    if (spdx == QLatin1String("MIT"))               return QStringLiteral("nlohmann_json.MIT.txt");
     return QString();
 }
 } // namespace
@@ -107,13 +107,21 @@ AboutDialog::AboutDialog(Tab initial, QWidget* parent)
     //
     // Cell values are data, not prose, so they stay outside tr() — only the headings are translated.
     const auto row = [](const QString& component, const QString& url, const QString& version,
-                        const QString& spdx) {
+                        const QString& spdx, const QString& licenceFile = QString()) {
         const QString name = url.isEmpty()
             ? component.toHtmlEscaped()
             : QStringLiteral("<a href=\"%1\">%2</a>").arg(url.toHtmlEscaped(), component.toHtmlEscaped());
-        // pm-licence:<spdx>?c=<component> — the query keeps the component name for the dialog title.
-        const QString licenceHref =
-            QStringLiteral("%1:%2?c=%3").arg(QLatin1String(kLicenceScheme), spdx, component);
+        // pm-licence:<spdx>?c=<component>[&f=<file>] — the component name titles the dialog; the file,
+        // when the lib named one, is the text to open.
+        QUrl licenceUrl;
+        licenceUrl.setScheme(QLatin1String(kLicenceScheme));
+        licenceUrl.setPath(spdx);
+        QUrlQuery query;
+        query.addQueryItem(QStringLiteral("c"), component);
+        if (!licenceFile.isEmpty())
+            query.addQueryItem(QStringLiteral("f"), licenceFile);
+        licenceUrl.setQuery(query);
+        const QString licenceHref = licenceUrl.toString(QUrl::FullyEncoded);
         const QString licence =
             QStringLiteral("<a href=\"%1\">%2</a>").arg(licenceHref.toHtmlEscaped(), spdx.toHtmlEscaped());
         return QStringLiteral("<tr><td>%1</td><td>%2</td><td>%3</td></tr>")
@@ -133,12 +141,12 @@ AboutDialog::AboutDialog(Tab initial, QWidget* parent)
         + row(QStringLiteral("Qt"),            QString::fromLatin1(kQtRepoUrl),  QStringLiteral(QT_VERSION_STR),
               QStringLiteral(PLATEMAKER_QT_LICENCE));
 
-    // The lib's own linked dependencies (libvips, nlohmann/json), reported by the lib with the
+    // The lib's own linked dependencies (libvips, libarchive, nlohmann/json, minipsd), reported by the lib with the
     // runtime version and a GitHub url the lib guarantees.
     for (const auto& c : Platemaker::Infrastructure::linkedComponents()) {
         table += row(QString::fromStdString(c.name), QString::fromStdString(c.url),
                      orUnknown(QString::fromStdString(c.version)),
-                     QString::fromStdString(c.licence));
+                     QString::fromStdString(c.licence), QString::fromStdString(c.licenceFile));
     }
     table += QStringLiteral("</table>");
 
@@ -193,9 +201,12 @@ AboutDialog::AboutDialog(Tab initial, QWidget* parent)
             return;
         }
         if (link.scheme() == QLatin1String(kLicenceScheme)) {
-            const QString spdx      = link.path();
-            const QString component = QUrlQuery(link).queryItemValue(QStringLiteral("c"));
-            const QString file      = licenceFileForSpdx(spdx);
+            const QString   spdx      = link.path();
+            const QUrlQuery query(link);
+            const QString   component = query.queryItemValue(QStringLiteral("c"), QUrl::FullyDecoded);
+            // The lib's components carry their file; the GUI's own rows are mapped from the SPDX id.
+            const QString named = QFileInfo(query.queryItemValue(QStringLiteral("f"), QUrl::FullyDecoded)).fileName();
+            const QString file  = named.isEmpty() ? licenceFileForSpdx(spdx) : named;
             const QString path = file.isEmpty()
                 ? QString()
                 : QDir(QCoreApplication::applicationDirPath())

@@ -306,6 +306,11 @@ if(NOT DEFINED platemaker_CREDITS_DIR OR NOT EXISTS "${platemaker_CREDITS_DIR}/s
         "(platemaker_CREDITS_DIR='${platemaker_CREDITS_DIR}'). Update the lib package to >= 0.2.2.")
 endif()
 
+# credits/ is assembled at configure time, so a reinstalled lib must re-run configure — otherwise the
+# build keeps the previous lib's licence set (a new component would show "not bundled").
+set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS
+    "${platemaker_CREDITS_DIR}/sbom.spdx.json")
+
 set(_pm_app_credits "${CMAKE_BINARY_DIR}/credits")
 file(REMOVE_RECURSE "${_pm_app_credits}")
 file(MAKE_DIRECTORY "${_pm_app_credits}/licenses")
@@ -345,12 +350,12 @@ set(_pm_app_pkg "{
   \"SPDXID\": \"SPDXRef-Package-Platemaker\",
   \"name\": \"Platemaker\",
   \"versionInfo\": \"${PROJECT_VERSION}\",
-  \"supplier\": \"Person: ShadobaDev (Bartlomiej Mucha)\",
+  \"supplier\": \"Person: Bartlomiej Mucha (shadobadev@gmail.com)\",
   \"downloadLocation\": \"https://github.com/ShadobaDev/Platemaker-qt\",
   \"filesAnalyzed\": false,
   \"licenseConcluded\": \"GPL-3.0-only\",
   \"licenseDeclared\": \"GPL-3.0-only\",
-  \"copyrightText\": \"Copyright (c) 2026 ShadobaDev (Bartlomiej Mucha)\",
+  \"copyrightText\": \"Copyright (c) 2026 Bartlomiej Mucha <shadobadev@gmail.com>\",
   \"externalRefs\": [ { \"referenceCategory\": \"PACKAGE-MANAGER\", \"referenceType\": \"purl\", \"referenceLocator\": \"pkg:github/ShadobaDev/Platemaker-qt@${PROJECT_VERSION}\" } ]
 }")
 string(JSON _pm_sbom SET "${_pm_sbom}" packages "${_pm_npkg}" "${_pm_qt_pkg}")

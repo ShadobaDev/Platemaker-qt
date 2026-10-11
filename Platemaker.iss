@@ -27,7 +27,7 @@ UninstallDisplayIcon={app}\bin\{#MyAppExeName}
 ; but leaves FileVersion, LegalCopyright and OriginalFilename empty unless set here.
 ; (InternalName has no Inno directive and stays empty.)
 VersionInfoVersion={#MyAppVersion}
-VersionInfoCopyright=Copyright (C) 2026 {#MyAppPublisher} - GPL-3.0-or-later
+VersionInfoCopyright=Copyright (C) 2026 Bartlomiej Mucha - GPL-3.0-or-later
 VersionInfoOriginalFileName=Platemaker-{#MyAppVersion}-Setup.exe
 LicenseFile=LICENSE
 Compression=lzma2/ultra64

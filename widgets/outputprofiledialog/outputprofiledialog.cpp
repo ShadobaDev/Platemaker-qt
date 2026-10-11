@@ -34,6 +34,8 @@ OutputProfileDialog::~OutputProfileDialog()
 void OutputProfileDialog::setProfile(const Platemaker::Models::OutputProfile &profile)
 {
     // Set the profile to be edited in the dialog. Call before exec() to populate fields when editing an existing profile.
+    // Kept whole, so profile() hands back what this dialog does not edit.
+    m_profile = profile;
     ui->lineEditName->setText(QString::fromStdString(profile.name));
 
     // Format + per-format options (shared widget).
@@ -43,6 +45,7 @@ void OutputProfileDialog::setProfile(const Platemaker::Models::OutputProfile &pr
     ui->spinBoxTargetWidth->setValue(profile.targetWidth);
     ui->spinBoxSliceHeight->setValue(profile.sliceHeight);
     ui->spinBoxStartIndex->setValue(profile.startIndex);
+    ui->spinBoxDpi->setValue(profile.dpi);
 
     // Last slice policy radio buttons
     switch (profile.lastSlicePolicy) {
@@ -54,7 +57,7 @@ void OutputProfileDialog::setProfile(const Platemaker::Models::OutputProfile &pr
 
 Platemaker::Models::OutputProfile OutputProfileDialog::profile() const
 {
-    Platemaker::Models::OutputProfile p;
+    Platemaker::Models::OutputProfile p = m_profile;   // the fields this dialog does not show, unchanged
 
     p.name = ui->lineEditName->text().trimmed().toStdString();
 
@@ -65,6 +68,7 @@ Platemaker::Models::OutputProfile OutputProfileDialog::profile() const
     p.targetWidth  = ui->spinBoxTargetWidth->value();
     p.sliceHeight  = ui->spinBoxSliceHeight->value();
     p.startIndex   = ui->spinBoxStartIndex->value();
+    p.dpi          = ui->spinBoxDpi->value();
 
     // Last slice policy radio buttons
     if      (ui->radioButtonPadWhite->isChecked()) p.lastSlicePolicy = Platemaker::Models::LastSlicePolicy::PadWhite;

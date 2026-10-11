@@ -71,7 +71,11 @@ bool TemplatesDialog::generateTemplate(const Workspace& ws,
         ? Platemaker::Models::webtoonStandardPreset() : ws.outputProfiles().front();
 
     try {
-        TemplateGenerator{}.generate(cp, op, absPath.toStdString());
+        // The profile's resolution — part of the template's signature, so the file must carry it. The
+        // format stays PNG here until this dialog offers the profile's template settings.
+        auto options   = TemplateGenerator::optionsFor(cp);
+        options.format = Platemaker::Models::TemplateFormat::Png;
+        TemplateGenerator{}.generate(cp, op, absPath.toStdString(), options);
     } catch (const std::exception& e) {
         err = tr("Template generation failed:\n%1").arg(e.what());
         return false;

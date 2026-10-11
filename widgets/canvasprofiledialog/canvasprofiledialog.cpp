@@ -69,6 +69,9 @@ CanvasProfileDialog::~CanvasProfileDialog()
 
 void CanvasProfileDialog::setProfile(const Platemaker::Models::CanvasProfile &profile)
 {
+    // Kept whole, so profile() hands back what this dialog does not edit (id, template settings…).
+    m_profile = profile;
+
     // Restore the safe-area-mode radio state from the hint stored in the profile.
     m_safeAreaMode = profile.hintUserSafeAreaSelect;
     ui->radioButtonSafeArea->blockSignals(true);
@@ -107,13 +110,15 @@ void CanvasProfileDialog::setProfile(const Platemaker::Models::CanvasProfile &pr
     applyColourToButton(ui->buttonVisualColour, m_visualColour);
     applyColourToButton(ui->buttonBgColour,     m_bgColour);
 
+    ui->spinBoxDpi->setValue(profile.dpi);
+
     updatePreview();
     updateSizeInfoLabel();
 }
 
 Platemaker::Models::CanvasProfile CanvasProfileDialog::profile() const
 {
-    Platemaker::Models::CanvasProfile cp;
+    Platemaker::Models::CanvasProfile cp = m_profile;   // the fields this dialog does not show, unchanged
     cp.name = ui->lineEditName->text().toStdString();
 
     const int mT = ui->spinBoxMarginTop->value();
@@ -140,6 +145,7 @@ Platemaker::Models::CanvasProfile CanvasProfileDialog::profile() const
                              static_cast<uint8_t>(m_bgColour.green()),
                              static_cast<uint8_t>(m_bgColour.blue()),
                              static_cast<uint8_t>(m_bgColour.alpha()) };
+    cp.dpi = ui->spinBoxDpi->value();
     return cp;
 }
 

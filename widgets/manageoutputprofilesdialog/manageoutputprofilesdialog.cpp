@@ -115,12 +115,9 @@ void ManageOutputProfilesDialog::onEditClicked()
     dlg.setProfile(m_profiles[row]);
     if (dlg.exec() != QDialog::Accepted) return;
 
-    // OutputProfileDialog returns a profile without an id — restore the stable id
-    // so projects referencing this profile (by id) survive the edit. The id is unchanged,
-    // so the active profile (tracked by id) needs no update even if the name changed.
-    const std::string savedId = m_profiles[row].id;
-    m_profiles[row]           = dlg.profile();
-    m_profiles[row].id        = savedId;
+    // OutputProfileDialog hands back the profile it was given with its fields applied, so the id —
+    // which projects reference, and which tracks the active profile — survives the edit.
+    m_profiles[row] = dlg.profile();
 
     rebuildList();
 }
@@ -145,11 +142,9 @@ void ManageOutputProfilesDialog::onDuplicateClicked()
     // Duplicate never leaves an unwanted "… (copy)" behind. Only an accepted edit adds the profile.
     if (dlg.exec() != QDialog::Accepted) return;
 
-    // OutputProfileDialog returns a profile without an id — restore the freshly-minted one so the
-    // copy is trackable (as the active profile, and on write-back).
-    const std::string copyId = copy.id;
-    copy    = dlg.profile();
-    copy.id = copyId;
+    // The copy keeps its freshly-minted id through the dialog, so it is trackable (as the active
+    // profile, and on write-back).
+    copy = dlg.profile();
 
     m_profiles.insert(row + 1, copy);
     rebuildList();

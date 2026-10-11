@@ -103,16 +103,11 @@ void ManageCanvasProfilesDialog::onEditClicked()
 
     if (dlg.exec() != QDialog::Accepted) return;
 
-    // CanvasProfileDialog returns a fresh profile without id/templateInfo — restore
-    // them so project links (keyed by id) and template tracking survive the edit.
-    // If template-affecting fields changed, the fingerprint check flags it Outdated.
-    const std::string savedId  = m_profiles[row].id;
-    const auto         savedTpl = m_profiles[row].templateInfo;
-
+    // CanvasProfileDialog hands back the profile it was given with its fields applied, so the id
+    // (project links) and templateInfo survive the edit. If template-affecting fields changed, the
+    // fingerprint check flags the template Outdated.
     const QString oldName = QString::fromStdString(m_profiles[row].name);
     m_profiles[row]       = dlg.profile();
-    m_profiles[row].id           = savedId;
-    m_profiles[row].templateInfo = savedTpl;
     const QString newName = QString::fromStdString(m_profiles[row].name);
 
     // Keep activeProfileName in sync if this was the active one
@@ -141,8 +136,8 @@ void ManageCanvasProfilesDialog::onDuplicateClicked()
     // Duplicate never leaves an unwanted "… (copy)" behind. Only an accepted edit adds the profile.
     if (dlg.exec() != QDialog::Accepted) return;
 
-    // CanvasProfileDialog returns a fresh profile without id/templateInfo — exactly what a duplicate
-    // should carry (id minted by MainWindow, no template of its own yet) — so it is inserted as-is.
+    // The copy went in without id or templateInfo and comes back so — exactly what a duplicate should
+    // carry (id minted by MainWindow, no template of its own yet) — so it is inserted as-is.
     m_profiles.insert(row + 1, dlg.profile());
     rebuildList();
     ui->listWidgetProfiles->setCurrentRow(row + 1);

@@ -31,7 +31,9 @@ public:
 
     /**
      * @brief Retrieves the profile filled in the dialog.
-     * Call after exec() == Accepted to retrieve the filled-in profile.
+     * Call after exec() == Accepted. It is the profile given to setProfile() (a new one if none was)
+     * with the dialog's fields applied, so what the dialog does not show — id, templateInfo, template
+     * settings — comes back unchanged.
      * @return The edited profile.
      */
     Platemaker::Models::CanvasProfile profile() const;
@@ -59,6 +61,7 @@ private:
     QColor m_visualColour;              //!< The visual/margin colour selected in the dialog.
     QColor m_bgColour;                  //!< The background colour selected in the dialog.
     bool   m_safeAreaMode = false;      //!< Whether the dialog is in safe-area mode (true) or absolute size mode (false).
+    Platemaker::Models::CanvasProfile m_profile;   //!< The profile given to setProfile(); profile() returns it with the dialog's fields applied.
 };
 
 #endif // CANVASPROFILEDIALOG_HPP

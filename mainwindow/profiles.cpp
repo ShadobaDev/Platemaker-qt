@@ -201,14 +201,10 @@ void MainWindow::onEditActiveCanvasProfile()
     if (dlg.exec() != QDialog::Accepted) return;
 
     const std::string oldName = it->name;
-    const std::string savedId = it->id;
-    // CanvasProfileDialog returns a fresh profile without id/templateInfo. Preserve
-    // both so project links survive and template staleness is still detectable: if a
-    // canvas-affecting field changed, the kept fingerprint won't match → Outdated.
-    const auto savedTpl = it->templateInfo;
+    // CanvasProfileDialog hands back the profile it was given with its fields applied, so the id
+    // (project links) and templateInfo survive: if a canvas-affecting field changed, the kept
+    // fingerprint won't match → Outdated.
     *it = dlg.profile();
-    it->id           = savedId;
-    it->templateInfo = savedTpl;
 
     if (m_activeCanvasProfileName == QString::fromStdString(oldName))
         m_activeCanvasProfileName = QString::fromStdString(it->name);
@@ -339,13 +335,9 @@ void MainWindow::onEditActiveOutputProfile()
     dlg.setProfile(*it);
     if (dlg.exec() != QDialog::Accepted) return;
 
-    // OutputProfileDialog returns a profile without an id — preserve the stable id so projects
-    // that reference this profile keep working. The id is unchanged, so the active profile
-    // (tracked by id) needs no update even if the name changed. (An empty id would be minted by
-    // replaceOutputProfiles below, but activeId is non-empty here by construction.)
-    const std::string savedId = it->id;
+    // OutputProfileDialog hands back the profile it was given with its fields applied, so the id
+    // projects reference — and the active profile is tracked by — is unchanged even if the name is.
     *it = dlg.profile();
-    it->id = savedId;
 
     commitWorkspaceEdit(tr("Edit output profile"), [&]{
         Platemaker::Infrastructure::WorkspaceEditor(m_workspace).replaceOutputProfiles(std::move(profiles));

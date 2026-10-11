@@ -186,6 +186,32 @@ QFrame#previewFrame {
             </item>
            </layout>
           </item>
+          <item row="3" column="0">
+           <widget class="QLabel" name="labelDpi">
+            <property name="text">
+             <string>Resolution (dpi):</string>
+            </property>
+           </widget>
+          </item>
+          <item row="3" column="1">
+           <widget class="QDoubleSpinBox" name="spinBoxDpi">
+            <property name="toolTip">
+             <string>The resolution you draw at. The template records it, so a drawing app sizes the canvas as intended. Rendering works in pixels and ignores it.</string>
+            </property>
+            <property name="decimals">
+             <number>1</number>
+            </property>
+            <property name="minimum">
+             <double>1.000000000000000</double>
+            </property>
+            <property name="maximum">
+             <double>9999.000000000000000</double>
+            </property>
+            <property name="value">
+             <double>300.000000000000000</double>
+            </property>
+           </widget>
+          </item>
          </layout>
         </widget>
        </item>

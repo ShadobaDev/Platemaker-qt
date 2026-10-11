@@ -264,6 +264,13 @@
 
 ### Changed
 
+- **Profiles have a resolution.** The canvas profile editor gains *Resolution (dpi)* — the resolution you
+  draw at, 300 by default — and the template now records it, where it used to say 25.4 DPI, a value
+  nobody chose, which a drawing app could resample by on import. Changing it marks the template
+  outdated. The output profile editor gains one too, 72 by default: every slice now records it, in
+  every format, instead of whatever its page said. Screens ignore it; nothing about the pixels changes,
+  but every project rendered before reads as outdated once and renders again.
+
 - **The menu bar is in the usual order.** *File, Edit, View, Canvas, Output, Tools, Render, Help* — Undo
   and Redo moved to *Edit*, the panel toggles to *View*, *Templates* into *Canvas* (a template is a canvas
   profile's file), *Process* is now *Render* and *About* is *Help*. *File* gained *Exit*. Every entry and

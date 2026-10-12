@@ -4,7 +4,6 @@
 #include <QGraphicsSceneMouseEvent>
 #include <QGraphicsView>
 #include <QPainter>
-#include <QPen>
 #include <QStyleOptionGraphicsItem>
 
 #include <utility>
@@ -15,12 +14,12 @@ namespace {
 
 //! Smallest box the author can resize to — below this the grips overlap and it stops being draggable.
 constexpr int k_minBox = 40;
-//! Grip size in *screen* pixels, converted to scene units against the current zoom (see gripSpan()).
-constexpr qreal k_gripScreenPx = 9.0;
-//! Bounds on that conversion, so boundingRect() can reserve a fixed margin and stay valid at any zoom.
+//! Bounds on a tail tip's hit square in item units, so boundingRect() can reserve a fixed margin and
+//! stay valid at any zoom. The chrome draws the handles at a true screen size; this is only the area
+//! that answers a press on a tip of an object that is *not* selected.
 constexpr qreal k_gripMin = 6.0;
 constexpr qreal k_gripMax = 18.0;
-//! Room reserved around the box for grips — half of k_gripMax, rounded up.
+//! Room reserved around the drawn extent for a tip's hit square — half of k_gripMax, rounded up.
 constexpr qreal k_gripMargin = 10.0;
 //! Opacity for unanchored objects — present but not rendering is visually semi-transparent.
 constexpr qreal k_unanchoredOpacity = 0.35;
@@ -39,15 +38,14 @@ QPainter::CompositionMode compositionFor(Platemaker::Models::BlendMode b)
     return QPainter::CompositionMode_SourceOver;
 }
 
-//! Grip size in scene units for the current zoom, so it stays roughly constant on screen.
+//! A tip's hit square in item units for the current zoom, so it stays roughly constant on screen.
 qreal gripSpan(const QGraphicsItem* item)
 {
     qreal scale = 1.0;
     if (const QGraphicsScene* s = item->scene(); s && !s->views().isEmpty())
         scale = s->views().first()->transform().m11();
-    // The item may carry a scale of its own (ObjectController::itemScaleFor), and a grip is chrome: it
-    // has to be the same size on screen whatever the object is drawn at. Both transforms apply to
-    // anything the item paints, so both have to be divided back out.
+    // The item may carry a scale of its own (ObjectController::itemScaleFor); both transforms apply to
+    // anything in item units, so both have to be divided back out.
     scale *= item->scale();
     if (scale <= 0.0)
         scale = 1.0;
@@ -60,10 +58,12 @@ Object::Object(QString uid, QGraphicsItem* parent)
     : QGraphicsObject(parent)
     , m_uid(std::move(uid))
 {
-    // Selectable but not ItemIsMovable: a press can land on a resize or handle grip, and letting the
-    // base class move the item as well would drag the object while the author is resizing it. Movement
-    // is handled here, in one place, for whichever grip the press actually hit.
+    // Selectable but not ItemIsMovable: a press can land on a tail tip, and letting the base class move
+    // the item as well would drag the object while the author is aiming. Movement is handled here, in
+    // one place, for whichever grip the press actually hit.
     setFlag(ItemIsSelectable, true);
+    // The selection chrome follows this object from outside, so it has to hear about every move.
+    setFlag(ItemSendsGeometryChanges, true);
 }
 
 void Object::setBlend(Platemaker::Models::BlendMode blend)
@@ -85,6 +85,9 @@ void Object::setOrphaned(bool orphaned)
 
 void Object::refreshBounds()
 {
+    // The chrome is told even when the extent did not move: a box can change inside the same extent
+    // (a tail reaching further than the balloon), and a tail tip can move without changing either.
+    emit chromeChanged();
     const QRectF next = computeBounds();
     if (next == m_bounds)
         return;
@@ -103,21 +106,18 @@ QRectF Object::boundingRect() const
 QPainterPath Object::shape() const
 {
     // Rectangles only, and all of them wound the same way, so the winding rule can be trusted where they
-    // overlap — a grip sitting on a corner of the box must add to the hit area, not punch a hole in it,
-    // which is exactly what the default odd-even rule would do.
+    // overlap — a tip sitting on the box must add to the hit area, not punch a hole in it, which is
+    // exactly what the default odd-even rule would do.
     QPainterPath p;
     p.setFillRule(Qt::WindingFill);
     p.addRect(QRectF(QPointF(0, 0), boxSize()));
 
     // A tail tip is grabbable whether or not the object is selected — it is how a bubble is aimed, and
-    // it is usually the only part of it out there.
+    // it is usually the only part of it out there. Not one hidden inside its balloon: that spot shows
+    // nothing, so a press there is a press on the balloon.
     for (int i = 0; i < handleCount(); ++i)
-        p.addRect(handleRect(i));
-
-    if (isSelected()) {
-        for (const Grip g : {Grip::TopLeft, Grip::TopRight, Grip::BottomLeft, Grip::BottomRight})
-            p.addRect(gripRect(g));
-    }
+        if (handleDrawn(i))
+            p.addRect(handleRect(i));
     return p;
 }
 
@@ -146,71 +146,40 @@ void Object::setFocusedHandle(int index)
     if (m_focusedHandle == index)
         return;
     m_focusedHandle = index;
-    update();
+    emit chromeChanged();
 }
 
-void Object::paint(QPainter* painter, const QStyleOptionGraphicsItem* option, QWidget*)
+void Object::paint(QPainter* painter, const QStyleOptionGraphicsItem*, QWidget*)
 {
+    // The object only. Its selection chrome is drawn by the chrome item, above every object.
     painter->save();
     if (m_orphaned)
         painter->setOpacity(k_unanchoredOpacity);   // present but not rendering
 
     painter->setCompositionMode(compositionFor(m_blend));
     paintContent(*painter);
-    painter->setCompositionMode(QPainter::CompositionMode_SourceOver);
-
-    if (s_chromeVisible && (option->state & QStyle::State_Selected)) {
-        // Selection chrome in the palette's highlight colour, cosmetic so it stays 1px at any zoom
-        // (no hardcoded colours — the app is themed).
-        QPen pen(option->palette.color(QPalette::Highlight));
-        pen.setCosmetic(true);
-
-        // The box and its corners are the object's; while one of its tails is the subject they are not
-        // shown, so what looks selected is what an edit will change.
-        if (m_focusedHandle < 0) {
-            pen.setStyle(Qt::DashLine);
-            painter->setPen(pen);
-            painter->setBrush(Qt::NoBrush);
-            painter->drawRect(QRectF(QPointF(0, 0), boxSize()));
-
-            pen.setStyle(Qt::SolidLine);
-            painter->setPen(pen);
-            painter->setBrush(option->palette.color(QPalette::Base));
-            for (const Grip g : {Grip::TopLeft, Grip::TopRight, Grip::BottomLeft, Grip::BottomRight})
-                painter->drawRect(gripRect(g));
-        }
-        painter->setPen(pen);
-
-        // The selected tail's handle is drawn hollow, so among several tails the one being edited is
-        // visible on the strip as well as in the list — inside its own rectangle, where it cannot reach
-        // past what the item has promised to repaint.
-        for (int i = 0; i < handleCount(); ++i) {
-            painter->setBrush(option->palette.color(i == m_focusedHandle ? QPalette::Base : QPalette::Highlight));
-            painter->drawEllipse(handleRect(i));
-        }
-    }
     painter->restore();
+}
+
+QVariant Object::itemChange(GraphicsItemChange change, const QVariant& value)
+{
+    switch (change) {
+    case ItemPositionHasChanged:
+    case ItemSelectedHasChanged:
+    case ItemScaleHasChanged:
+    case ItemTransformHasChanged:
+    case ItemVisibleHasChanged:
+        emit chromeChanged();
+        break;
+    default:
+        break;
+    }
+    return QGraphicsObject::itemChange(change, value);
 }
 
 // ---------------------------------------------------------------------------
 // Grips
 // ---------------------------------------------------------------------------
-
-QRectF Object::gripRect(Grip g) const
-{
-    const qreal  s = gripSpan(this);
-    const QRectF box(QPointF(0, 0), boxSize());
-
-    QPointF c;
-    switch (g) {
-    case Grip::TopLeft:     c = box.topLeft();     break;
-    case Grip::TopRight:    c = box.topRight();    break;
-    case Grip::BottomLeft:  c = box.bottomLeft();  break;
-    case Grip::BottomRight: c = box.bottomRight(); break;
-    default:                return {};
-    }
-    return QRectF(c.x() - s / 2, c.y() - s / 2, s, s);
-}
 
 QRectF Object::handleRect(int index) const
 {
@@ -230,28 +199,94 @@ Object::Grip Object::gripAt(const QPointF& local, int* handleIndex) const
 {
     if (handleIndex)
         *handleIndex = -1;
-    if (!isSelected())
-        return Grip::Body;   // grips only exist on the selected object; a press elsewhere is a move
-
-    // Handles first: a tail tip can sit near a corner, and aiming is the more specific intent there.
+    // Only the tips that can be seen: the box's grips, and the handles of hidden tips, are the
+    // selection chrome's, and a press that reaches the object itself never landed on them.
     for (int i = 0; i < handleCount(); ++i) {
-        if (handleRect(i).contains(local)) {
+        if (handleDrawn(i) && handleRect(i).contains(local)) {
             if (handleIndex)
                 *handleIndex = i;
             return Grip::Handle;
         }
     }
-    if (m_focusedHandle >= 0)
-        return Grip::Body;   // corners are not shown while a tail is the subject, so they do not resize
-    for (const Grip g : {Grip::TopLeft, Grip::TopRight, Grip::BottomLeft, Grip::BottomRight})
-        if (gripRect(g).contains(local))
-            return g;
     return Grip::Body;
 }
 
 // ---------------------------------------------------------------------------
 // Interaction
 // ---------------------------------------------------------------------------
+
+void Object::beginDrag(Grip grip, int handle, const QPointF& scenePos)
+{
+    m_active        = grip;
+    m_activeHandle  = grip == Grip::Handle ? handle : -1;
+    m_startRect     = sceneBox();
+    m_startScenePos = scenePos;
+    m_moved         = false;
+    m_dragReported  = false;
+    emit pressed(m_uid, m_activeHandle);
+}
+
+void Object::dragTo(const QPointF& scenePos, Qt::KeyboardModifiers modifiers)
+{
+    if (m_active == Grip::None)
+        return;
+
+    const QPointF delta = scenePos - m_startScenePos;
+    m_moved = true;
+
+    if (m_active == Grip::Body) {
+        setPos(m_startRect.topLeft() + delta);
+        m_dragReported = true;
+        emit dragging(m_uid, delta, -1);   // the owner decides whether anything travels with it
+        return;
+    }
+
+    if (m_active == Grip::Handle) {
+        if (m_activeHandle < 0 || m_activeHandle >= handleCount())
+            return;
+        // Unclamped on purpose: the artwork's extent is computed from where its handles actually point,
+        // so a tip well outside the box makes the object bigger rather than being cropped away.
+        setHandlePos(m_activeHandle, mapFromScene(scenePos));
+        refreshBounds();
+        update();
+        m_dragReported = true;
+        emit dragging(m_uid, delta, m_activeHandle);
+        return;
+    }
+
+    // A corner or an edge. The maths is in scene units — that is where the pointer is — and the box is
+    // in the item's own, which differ by the item's scale (artwork drawn at another size). Snapping to
+    // one item unit keeps the box whole and the anchored side exactly where it was.
+    const qreal k = scale() > 0.0 ? scale() : 1.0;
+    ResizeRule rule;
+    rule.keepAspect = keepsAspect() || modifiers.testFlag(Qt::ShiftModifier);
+    rule.fromCentre = modifiers.testFlag(Qt::ControlModifier);
+    rule.minSize    = k_minBox * k;
+    rule.snap       = k;
+    const std::optional<QRectF> r = resizedRect(m_startRect, m_active, delta, rule);
+    if (!r)
+        return;   // refused, not clamped: the box keeps its last good size
+
+    const QSizeF box(qRound(r->width() / k), qRound(r->height() / k));
+    if (box != boxSize()) {
+        setBoxSize(box);
+        refreshBounds();
+    }
+    setPos(r->topLeft());
+    update();
+}
+
+void Object::endDrag()
+{
+    const bool report = m_moved && m_active != Grip::None;
+    m_active = Grip::None;
+    m_moved  = false;
+
+    // Only a settled drag is persisted: the owner turns each report into one undo step, and reporting
+    // per mouse-move would bury the history under a pixel-by-pixel trail.
+    if (report)
+        emit geometryCommitted(m_uid);
+}
 
 void Object::mousePressEvent(QGraphicsSceneMouseEvent* e)
 {
@@ -278,17 +313,13 @@ void Object::mousePressEvent(QGraphicsSceneMouseEvent* e)
         return;
     }
 
-    // Let the base class run the selection logic (which may select this object), then read the grip —
-    // gripAt() depends on being selected, so the order matters.
+    // Let the base class run the selection logic (which may select this object), then start the drag.
     QGraphicsObject::mousePressEvent(e);
 
-    m_active        = gripAt(e->pos(), &m_activeHandle);
-    m_startRect     = QRectF(pos(), boxSize());
-    m_startScenePos = e->scenePos();
-    m_moved         = false;
-    m_dragReported  = false;
+    int handle = -1;
+    const Grip grip = gripAt(e->pos(), &handle);
     e->accept();
-    emit pressed(m_uid, m_active == Grip::Handle ? m_activeHandle : -1);
+    beginDrag(grip, handle, e->scenePos());
 }
 
 void Object::mouseMoveEvent(QGraphicsSceneMouseEvent* e)
@@ -297,73 +328,15 @@ void Object::mouseMoveEvent(QGraphicsSceneMouseEvent* e)
         QGraphicsObject::mouseMoveEvent(e);
         return;
     }
-
-    const QPointF delta = e->scenePos() - m_startScenePos;
-    m_moved = true;
-
-    if (m_active == Grip::Body) {
-        setPos(m_startRect.topLeft() + delta);
-        m_dragReported = true;
-        emit dragging(m_uid, delta, -1);   // the owner decides whether anything travels with it
-        return;
-    }
-
-    if (m_active == Grip::Handle && m_activeHandle >= 0 && m_activeHandle < handleCount()) {
-        // Unclamped on purpose: the artwork's extent is computed from where its handles actually point,
-        // so a tip well outside the box makes the object bigger rather than being cropped away.
-        setHandlePos(m_activeHandle, e->pos());
-        refreshBounds();
-        update();
-        m_dragReported = true;
-        emit dragging(m_uid, delta, m_activeHandle);
-        return;
-    }
-
-    // Corner resize: work from the rect at press rather than accumulating per-move deltas, so a fast
-    // drag cannot accumulate rounding error.
-    QRectF r = m_startRect;
-    switch (m_active) {
-    case Grip::TopLeft:     r.setTopLeft(r.topLeft() + delta);         break;
-    case Grip::TopRight:    r.setTopRight(r.topRight() + delta);       break;
-    case Grip::BottomLeft:  r.setBottomLeft(r.bottomLeft() + delta);   break;
-    case Grip::BottomRight: r.setBottomRight(r.bottomRight() + delta); break;
-    default: break;
-    }
-    r = r.normalized();
-    if (r.width() < k_minBox || r.height() < k_minBox)
-        return;   // refuse rather than clamp: clamping makes the box "stick" and jump on the way back
-
-    // The corner opposite the dragged one stays put, because r was built by moving only that one.
-    if (keepsAspect() && m_startRect.height() > 0.0 && m_startRect.width() > 0.0) {
-        const qreal h = r.width() * (m_startRect.height() / m_startRect.width());
-        if (m_active == Grip::TopLeft || m_active == Grip::TopRight)
-            r.setTop(r.bottom() - h);
-        else
-            r.setBottom(r.top() + h);
-    }
-
-    const QSizeF newBox(qRound(r.width()), qRound(r.height()));
-    if (newBox != boxSize()) {
-        setBoxSize(newBox);
-        refreshBounds();
-    }
-    setPos(r.topLeft());
-    update();
+    dragTo(e->scenePos(), e->modifiers());
 }
 
 void Object::mouseReleaseEvent(QGraphicsSceneMouseEvent* e)
 {
-    const bool report = m_moved && m_active != Grip::None;
-    m_active = Grip::None;
-    m_moved  = false;
-
+    // The base class only changes the selection on a release that did not move, and a drag that did
+    // not move reports nothing — so the order of the two does not matter.
+    endDrag();
     QGraphicsObject::mouseReleaseEvent(e);
-
-    // Only a settled drag is persisted: the owner turns each report into one undo step, and reporting
-    // per mouse-move would bury the history under a pixel-by-pixel trail.
-    if (!report)
-        return;
-    emit geometryCommitted(m_uid);
 }
 
 }  // namespace StripEdit

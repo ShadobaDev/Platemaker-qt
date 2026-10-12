@@ -63,6 +63,8 @@ qt_add_executable(Platemaker
     # the page geometry it answers placement questions from, and its two tool-options panels.
     widgets/stripeditor/editor.cpp widgets/stripeditor/editor.hpp widgets/stripeditor/editor.ui
     widgets/stripeditor/objects/object.cpp widgets/stripeditor/objects/object.hpp
+    widgets/stripeditor/objects/resize.cpp widgets/stripeditor/objects/resize.hpp
+    widgets/stripeditor/objects/selectionchrome.cpp widgets/stripeditor/objects/selectionchrome.hpp
     widgets/stripeditor/objects/bubbleobject.cpp widgets/stripeditor/objects/bubbleobject.hpp
     widgets/stripeditor/objects/artworkobject.cpp widgets/stripeditor/objects/artworkobject.hpp
     widgets/stripeditor/objects/striplayout.cpp widgets/stripeditor/objects/striplayout.hpp

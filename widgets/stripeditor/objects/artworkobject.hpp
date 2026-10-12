@@ -88,6 +88,9 @@ public:
      */
     void setRecord(const ObjectRecord& a) override;
 
+    //! A picture scales as one number, so it keeps its aspect and is offered no edge grips.
+    [[nodiscard]] bool keepsAspect() const override { return true; }
+
 protected:
     /**
      * @brief Draws the picture and any lettering over it, at the artwork's own pixels.
@@ -104,11 +107,6 @@ protected:
      * @param size The new size.
      */
     void                 setBoxSize(QSizeF size) override;
-    /**
-     * @brief Checks if the object should keep its aspect ratio.
-     * @return true if the object should keep its aspect ratio, false otherwise.
-     */
-    [[nodiscard]] bool   keepsAspect() const override { return true; }
 
 private:
     /**

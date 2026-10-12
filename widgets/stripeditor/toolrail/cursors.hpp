@@ -21,6 +21,8 @@ enum class PointerTarget {
     Orphan,       //!< An object whose page is gone. Not on the strip, so nothing acts on it.
     ResizeFDiag,  //!< Top-left / bottom-right corner grip.
     ResizeBDiag,  //!< Top-right / bottom-left corner grip.
+    ResizeVer,    //!< Top / bottom edge grip.
+    ResizeHor,    //!< Left / right edge grip.
     TailHandle,   //!< A tail's tip.
 };
 

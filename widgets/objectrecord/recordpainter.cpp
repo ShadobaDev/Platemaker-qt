@@ -408,9 +408,11 @@ Part partAt(const ObjectRecord& a, const QPointF& local, qreal slack)
     return silhouette.contains(local) ? Part::Fill : Part::None;
 }
 
-QPainterPath silhouette(const ObjectRecord& a)
+namespace {
+
+//! The balloon's own outline — the shape alone, no tails. Empty for a shapeless record.
+QPainterPath outlineOf(const ObjectRecord& a, const QRectF& body)
 {
-    const QRectF body = balloonRect(a);
     if (!a.hasSilhouette() || body.isEmpty())
         return {};
 
@@ -446,6 +448,17 @@ QPainterPath silhouette(const ObjectRecord& a)
     case ObjectRecord::Shape::None:
         break;
     }
+    return path;
+}
+
+} // namespace
+
+QPainterPath silhouette(const ObjectRecord& a)
+{
+    const QRectF body = balloonRect(a);
+    QPainterPath path = outlineOf(a, body);
+    if (path.isEmpty())
+        return {};
     // Each tail is aimed at the *bare* outline, not at the accumulating union: otherwise the second
     // tail would ray-cast against the first one and emerge from its flank.
     const QPainterPath outline = path;
@@ -455,6 +468,17 @@ QPainterPath silhouette(const ObjectRecord& a)
             path = path.united(tp);
     }
     return path;
+}
+
+QList<bool> tailsDrawn(const ObjectRecord& a)
+{
+    const QRectF       body    = balloonRect(a);
+    const QPainterPath outline = outlineOf(a, body);
+    QList<bool>        drawn;
+    drawn.reserve(a.tails.items.size());
+    for (const Tail& t : a.tails.items)
+        drawn.append(!outline.isEmpty() && !tailPath(outline, body, t).isEmpty());
+    return drawn;
 }
 
 QRectF bounds(const ObjectRecord& a)

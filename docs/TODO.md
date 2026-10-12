@@ -77,12 +77,11 @@ Bug fixes, cosmetics and internal cleanups — no new capability, no change to a
   the action also sets `xFrac = 0` in the same history step — a small controller method of its own,
   because `scaleSelectedArtwork()` is also the scale spin box's live path and must keep the position.
 
-- [ ] **Strip editor: artwork's corner grips are not the same size on screen.** `gripSpan()`
-  (`objects/object.cpp`) divides 9 screen px by the zoom **and** the item's own scale, then clamps to
-  6–18 **item** units. A picture is drawn at an item scale often far from 1, where the clamp wins and the
-  grip shrinks or grows on screen. Balloons have scale 1, so they never show it. The clamp exists because
-  `boundingRect()` reserves a fixed `k_gripMargin`. Fix: clamp in screen pixels and derive the margin from
-  the same span (`prepareGeometryChange()` when zoom or scale changes).
+- [x] **Strip editor: artwork's corner grips are not the same size on screen.** Fixed by moving the
+  selection chrome out of the objects: the box, the grips and the tail handles are now one item above
+  every object (`objects/selectionchrome.*`), drawn in scene units at a fixed screen size, so an item's
+  own scale no longer reaches them. The same move keeps a selected object's grips and tail handles
+  visible and grabbable under objects stacked above it.
 
 - [ ] **Strip editor: a single selected tail offers the whole balloon's menu entries.** `selectTail()`
   stores the balloon's uid itself as selected, so `anyObject` is true and *Fill*, *Outline*, *Blend* and

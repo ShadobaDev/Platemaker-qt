@@ -709,6 +709,8 @@ void Editor::applyZoom(double z)
     t.scale(m_zoom, m_zoom);
     m_view->setTransform(t);
     m_zoomLabel->setText(QStringLiteral("%1%").arg(qRound(m_zoom * 100.0)));
+    if (m_objects)
+        m_objects->refreshChrome();   // the grips are a fixed size on screen, so their extent changes
     updateVisiblePages();       // zoom changes how many pages are on screen
     if (m_input)
         m_input->updateCursor();   // ...and what sits under a pointer that never moved

@@ -22,16 +22,19 @@ namespace {
 bool isCanvasAffordance(PointerTarget target)
 {
     return target == PointerTarget::ResizeFDiag || target == PointerTarget::ResizeBDiag
+        || target == PointerTarget::ResizeVer || target == PointerTarget::ResizeHor
         || target == PointerTarget::TailHandle;
 }
 
 QCursor cursorFor(const Tool& tool, PointerTarget target)
 {
     switch (target) {
-    // The canvas's, whatever the tool: a corner resizes and a tail tip aims under every one of them, so
+    // The canvas's, whatever the tool: a grip resizes and a tail tip aims under every one of them, so
     // a cursor that showed the tool here would promise something a drag does not do.
     case PointerTarget::ResizeFDiag: return Qt::SizeFDiagCursor;
     case PointerTarget::ResizeBDiag: return Qt::SizeBDiagCursor;
+    case PointerTarget::ResizeVer:   return Qt::SizeVerCursor;
+    case PointerTarget::ResizeHor:   return Qt::SizeHorCursor;
     case PointerTarget::TailHandle:  return Qt::CrossCursor;
 
     // An unanchored object is not on the strip; there is nothing to do to it until it is re-anchored.

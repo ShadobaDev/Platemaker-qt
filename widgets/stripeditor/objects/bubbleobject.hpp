@@ -2,6 +2,7 @@
 #define STRIPEDIT_BUBBLEOBJECT_HPP
 
 #include <QImage>
+#include <QList>
 #include <QPainterPath>
 
 #include "objects/object.hpp"
@@ -36,6 +37,9 @@ public:
      * @return The kind of the object.
      */
     [[nodiscard]] Kind    kind() const override { return Kind::Bubble; }
+
+    //! A tail whose tip lies inside the balloon draws nothing; its handle is the chrome's only.
+    [[nodiscard]] bool handleDrawn(int index) const override;
     /**
      * @brief Returns the label for the object.
      * @return The label for the object.
@@ -115,6 +119,7 @@ private:
     QImage       m_sharp;       //!< Library rasterisation shown at rest for a styled bubble (see above).
     QPainterPath m_silhouette;  //!< Cached balloon + tails, so a repaint resolves no geometry.
     QPainterPath m_textPath;    //!< Cached glyph outlines, likewise.
+    QList<bool>  m_tailDrawn;   //!< Per tail: whether it is drawn (its tip is outside the balloon).
 };
 
 }  // namespace StripEdit

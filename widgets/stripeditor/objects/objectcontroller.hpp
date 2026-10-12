@@ -35,6 +35,7 @@ namespace StripEdit {
 class PresetStore;
 class StripLayout;
 class Object;
+class SelectionChrome;
 
 /**
  * @brief Everything the author *places* on the strip: the objects, the list, the selection, the drag.
@@ -365,7 +366,14 @@ public:
     {
         m_feedRecords = currentRecords();
         m_overlayItems.clear();
+        m_chrome = nullptr;   // the scene's too; syncItems() makes a new one
     }
+
+    /**
+     * @brief Re-reads where the selection's grips are. The objects report their own changes; the zoom is
+     *        the owner's to report, because the grips are a fixed size on screen.
+     */
+    void refreshChrome();
 
     /**
      * @brief Returns true if an existing object sits under \p scenePos.
@@ -655,6 +663,7 @@ private:
      */
     ObjectRecord::Map                                   m_feedRecords;
     QHash<QString, Object*>                       m_overlayItems; //!< Live scene objects, keyed by overlay uid.
+    SelectionChrome*                              m_chrome = nullptr; //!< The selection's grips, above every object; owned by the scene.
     /**
      * @brief Library rasterisations of styled bubbles, keyed by the SVG document itself.
      *

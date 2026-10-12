@@ -164,7 +164,7 @@ QPushButton#buttonGenerateTemplates:hover {
         </widget>
        </item>
        <item>
-        <widget class="QFrame" name="frame">
+        <widget class="QFrame" name="frame_1">
          <property name="styleSheet">
           <string>color: #3d3d3d;</string>
          </property>
@@ -190,7 +190,7 @@ QPushButton#buttonGenerateTemplates:hover {
         </widget>
        </item>
        <item>
-        <widget class="QFrame" name="frame">
+        <widget class="QFrame" name="frame_2">
          <property name="styleSheet">
           <string>color: #3d3d3d;</string>
          </property>

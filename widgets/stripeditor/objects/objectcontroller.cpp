@@ -4,6 +4,7 @@
 #include "objects/artworkobject.hpp"
 #include "objects/bubbleobject.hpp"
 #include "objects/object.hpp"
+#include "objects/selectionchrome.hpp"
 #include "recordpainter.hpp"
 // blendModes(): the menu and OBJECT STATE's row name the modes from one list.
 #include "properties/blendeditor.hpp"
@@ -77,6 +78,9 @@ ObjectController::ObjectController(QGraphicsScene* scene, QGraphicsView* view,
                 picked.append(obj->uid());
         selectOverlays(picked);
     });
+    // An object removed while selected leaves the selection without a word to the chrome from the
+    // object itself — the scene's own signal covers that case.
+    connect(m_scene, &QGraphicsScene::selectionChanged, this, &ObjectController::refreshChrome);
 }
 
 // --- pointer and selection --------------------------------------------------
@@ -84,27 +88,43 @@ ObjectController::ObjectController(QGraphicsScene* scene, QGraphicsView* view,
 PointerTarget ObjectController::pointerTargetAt(const QPointF&     scenePos,
                                                 const QTransform& deviceTransform) const
 {
+    // The selection's grips first: they are drawn above every object, so they are what is under the
+    // pointer wherever they are — even over another object.
+    if (m_chrome) {
+        switch (m_chrome->hitAt(scenePos).grip) {
+        case Grip::TopLeft:
+        case Grip::BottomRight: return PointerTarget::ResizeFDiag;
+        case Grip::TopRight:
+        case Grip::BottomLeft:  return PointerTarget::ResizeBDiag;
+        case Grip::Top:
+        case Grip::Bottom:      return PointerTarget::ResizeVer;
+        case Grip::Left:
+        case Grip::Right:       return PointerTarget::ResizeHor;
+        case Grip::Handle:      return PointerTarget::TailHandle;
+        case Grip::Body:
+        case Grip::None:        break;
+        }
+    }
+
     auto* obj = dynamic_cast<Object*>(m_scene->itemAt(scenePos, deviceTransform));
     if (!obj)
         return PointerTarget::BareStrip;
     if (obj->isOrphaned())
         return PointerTarget::Orphan;
-
-    switch (obj->gripAtScene(scenePos)) {
-    case Object::Grip::TopLeft:
-    case Object::Grip::BottomRight: return PointerTarget::ResizeFDiag;
-    case Object::Grip::TopRight:
-    case Object::Grip::BottomLeft:  return PointerTarget::ResizeBDiag;
-    case Object::Grip::Handle:      return PointerTarget::TailHandle;
-    case Object::Grip::Body:
-    case Object::Grip::None:        break;
-    }
-    return PointerTarget::Object;
+    return obj->gripAtScene(scenePos) == Grip::Handle ? PointerTarget::TailHandle : PointerTarget::Object;
 }
 
 bool ObjectController::objectAt(const QPointF& scenePos, const QTransform& deviceTransform) const
 {
+    if (m_chrome && m_chrome->hitAt(scenePos).object)
+        return true;   // a grip of the selection, which a Create tool's press must resize, not draw over
     return dynamic_cast<Object*>(m_scene->itemAt(scenePos, deviceTransform)) != nullptr;
+}
+
+void ObjectController::refreshChrome()
+{
+    if (m_chrome)
+        m_chrome->refresh();
 }
 
 void ObjectController::reselect()
@@ -364,6 +384,13 @@ void ObjectController::syncItems()
     if (!m_scene)
         return;
 
+    // The selection chrome is the scene's like everything else, so a scene clear takes it too
+    // (forgetItems()); it comes back with the first sync after.
+    if (!m_chrome) {
+        m_chrome = new SelectionChrome(m_view);
+        m_scene->addItem(m_chrome);
+    }
+
     // Drop items whose overlay is gone.
     QSet<QString> live;
     for (const auto& o : m_overlays)
@@ -410,6 +437,7 @@ void ObjectController::syncItems()
             connect(item, &Object::geometryCommitted, this, &ObjectController::onOverlayGeometryCommitted);
             connect(item, &Object::pressed,        this, &ObjectController::onObjectPressed);
             connect(item, &Object::dragging,       this, &ObjectController::onObjectDragged);
+            connect(item, &Object::chromeChanged,  this, &ObjectController::refreshChrome);
             m_scene->addItem(item);
             m_overlayItems.insert(uid, item);
         }

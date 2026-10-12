@@ -25,6 +25,7 @@ void BubbleObject::rebuild()
     // a text document on every scroll and selection change.
     m_silhouette = Painter::silhouette(m_record);
     m_textPath   = Painter::textOutline(m_record);
+    m_tailDrawn  = Painter::tailsDrawn(m_record);
     refreshBounds();
 }
 
@@ -85,6 +86,11 @@ void BubbleObject::setBoxSize(QSizeF size)
     }
     m_record.box = newBox;
     rebuild();
+}
+
+bool BubbleObject::handleDrawn(int index) const
+{
+    return m_tailDrawn.value(index, false);
 }
 
 QPointF BubbleObject::handlePos(int index) const

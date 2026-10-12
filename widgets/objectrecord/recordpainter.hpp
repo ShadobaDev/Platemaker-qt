@@ -14,6 +14,7 @@
 #define RECORDPAINTER_HPP
 
 #include <QImage>
+#include <QList>
 #include <QPainterPath>
 #include <QRectF>
 #include <QSize>
@@ -34,6 +35,15 @@ namespace Painter {
 
 //! The balloon (and its tail) as one path, in box coordinates. Empty for a shapeless record.
 [[nodiscard]] QPainterPath silhouette(const ObjectRecord& a);
+
+/**
+ * @brief Which of \p a's tails are actually drawn, one entry per tail.
+ *
+ * A tail whose tip lies inside the balloon draws nothing — there is no room for it to emerge — but it
+ * still exists, and its handle still has to be reachable. The editor asks this to know which tips are
+ * visible to the eye and which only to the selection chrome.
+ */
+[[nodiscard]] QList<bool> tailsDrawn(const ObjectRecord& a);
 
 //! What a record is made of where a point lands — the three things that carry a colour, and a miss.
 enum class Part { None, Fill, Outline, Text };

@@ -11,6 +11,7 @@
 #include <platemaker/models/processing_steps.hpp>
 
 #include "objectrecord.hpp"
+#include "objects/resize.hpp"
 
 namespace StripEdit {
 
@@ -18,7 +19,7 @@ namespace StripEdit {
  * @brief One thing placed on the strip — whatever kind it is.
  *
  * Everything an author does to an object is the same for every kind of object: select it, move it,
- * drag a corner, mute it, delete it, put it in front of another. All of that lives here, once. What a
+ * drag a grip, mute it, delete it, put it in front of another. All of that lives here, once. What a
  * *kind* of object adds is only what it draws, how big that drawing is, and any extra handle it offers
  * (a bubble's tail tip).
  *
@@ -31,6 +32,11 @@ namespace StripEdit {
  *
  * The item's position is the object's top-left in scene coordinates, and the scene is the strip at 1:1,
  * so `pos()` converts to the library's placement by subtracting the anchor page's top.
+ *
+ * **The selection chrome is not drawn here.** The box, the eight grips and the tail handles of whatever
+ * is selected are one item above every object (selectionchrome.hpp), so an object stacked higher can
+ * neither hide them nor take a press meant for them. This class keeps the drag itself — beginDrag(),
+ * dragTo(), endDrag() — and the chrome drives it.
  *
  * Geometry edits are reported on **mouse release**, not while dragging: the owner persists each one as
  * an undo step, and a per-pixel undo history would be unusable.
@@ -45,10 +51,8 @@ public:
      */
     enum class Kind { Bubble, Artwork };
 
-    /**
-     * @brief What a press or a hover landed on. `Body` falls through to this class's own move handling.
-     */
-    enum class Grip { None, Body, TopLeft, TopRight, BottomLeft, BottomRight, Handle };
+    //! What a press or a hover landed on — declared beside the resize maths (resize.hpp).
+    using Grip = StripEdit::Grip;
 
     /**
      * @brief Creates an object with @p uid, parented to @p parent. The uid is the one the owner will use to
@@ -74,7 +78,7 @@ public:
      * from returns a default *speech balloon* for a uid it does not hold, and that one value standing
      * for two different things is the mechanism behind four shipped defects. Each kind keeps its record
      * describing what it actually is, so asking any object is always safe.
-     * 
+     *
      * @return The authoring record for this object, containing all relevant properties and settings.
      */
     [[nodiscard]] const ObjectRecord& record() const { return m_record; }
@@ -106,7 +110,7 @@ public:
     /**
      * @brief Whether the drag that just ended was reported through dragging() — so others may have travelled.
      * @return True if the drag was reported, false otherwise.
-     */ 
+     */
     [[nodiscard]] bool reportedDrag() const { return m_dragReported; }
 
     /**
@@ -129,13 +133,60 @@ public:
      */
     void setFocusedHandle(int index);
 
+    //! The selected tail's handle, drawn hollow; -1 for none. While one is set, the box does not resize.
+    [[nodiscard]] int focusedHandle() const { return m_focusedHandle; }
+
+    //! How many extra draggable points this object has — a bubble's tail tips.
+    [[nodiscard]] int tipCount() const { return handleCount(); }
+
     /**
-     * @brief What sits under @p scenePos: a corner grip, a tail handle, the body, or nothing of this object.
+     * @brief Whether handle @p index can be seen on the strip — false for a tail whose tip is inside the
+     *        balloon, which draws nothing.
+     *
+     * Such a tip is still grabbable, but only through the selection chrome, where its handle is drawn: a
+     * press on a spot that shows nothing must move the object, not aim a tail nobody can see.
+     */
+    [[nodiscard]] virtual bool handleDrawn(int index) const { Q_UNUSED(index) return true; }
+
+    /**
+     * @brief True when a resize must scale uniformly rather than distort.
+     *
+     * Imported artwork says yes: its size travels as a single width fraction and its height follows
+     * the artwork's own aspect, so a distorted one is not expressible — which is also what anyone
+     * dragging the corner of a logo meant. Such an object is offered no edge grips.
+     */
+    [[nodiscard]] virtual bool keepsAspect() const { return false; }
+
+    //! The box — what the grips move — in scene coordinates.
+    [[nodiscard]] QRectF sceneBox() const { return mapRectToScene(QRectF(QPointF(0, 0), boxSize())); }
+
+    /**
+     * @brief Starts a drag of @p grip (and @p handle, for Grip::Handle) at @p scenePos.
+     *
+     * The object's own mouse handling calls this, and so does the selection chrome, which draws the
+     * grips above every object and so takes the presses meant for them. Emits pressed().
+     */
+    void beginDrag(Grip grip, int handle, const QPointF& scenePos);
+
+    //! Continues the drag to @p scenePos. Shift keeps the aspect, Ctrl resizes from the centre.
+    void dragTo(const QPointF& scenePos, Qt::KeyboardModifiers modifiers);
+
+    //! Ends the drag, reporting it through geometryCommitted() if anything changed.
+    void endDrag();
+
+    /**
+     * @brief What sits under @p scenePos: a visible tail handle, the body, or nothing of this object.
+     *
+     * The grips are not answered here: they belong to the selection chrome (selectionchrome.hpp).
+     *
      * @param scenePos The scene position to check.
      * @param handleIndex Optional pointer to store the index of the handle under the position.
-     * @return The grip under the position.
+     * @return Grip::Handle or Grip::Body.
      */
     [[nodiscard]] Grip gripAtScene(const QPointF& scenePos, int* handleIndex = nullptr) const;
+
+    //! Whether selection chrome is drawn at all. See setChromeVisible().
+    [[nodiscard]] static bool chromeVisible() { return s_chromeVisible; }
 
     /**
      * @brief Turns selection chrome off for **every** object, for one repaint.
@@ -144,7 +195,7 @@ public:
      * to answer *what does the page look like* — the eyedropper's, which samples one composited pixel —
      * asks for them to be left out, because sampling a balloon that happens to be selected must give its
      * fill and not the highlight colour.
-     * 
+     *
      * @param on Whether to show or hide the chrome.
      */
     static void setChromeVisible(bool on);
@@ -155,36 +206,36 @@ public:
      * The offset between the item's position (the box's top-left) and the artwork's own top-left, which
      * is what the library's record stores. A bubble's tail pointing up or left pushes the artwork above
      * or left of the box; imported artwork has no such offset, because its pixmap starts at the origin.
-     * 
+     *
      * @return The rectangle representing the content bounds of the object.
      */
     [[nodiscard]] QRectF contentBounds() const { return m_bounds; }
 
     /**
-     * @brief The rectangle the corner grips move — the object's own size, before any tail.
+     * @brief The rectangle the grips move — the object's own size, before any tail.
      *
      * Not stored here: a bubble's box *is* its record's, and holding a second copy is how the two
      * drift apart. Each kind answers from wherever its size actually lives.
      */
     [[nodiscard]] virtual QSizeF boxSize() const = 0;
 
-    QRectF boundingRect() const override;   //!< The rectangle that contains the object, including its grips and handles, in item coordinates.
+    QRectF boundingRect() const override;   //!< The rectangle that contains the object and its tail tips, in item coordinates.
 
     /**
-     * @brief What is actually clickable: the box, the handles, and the grips while selected.
+     * @brief What is actually clickable: the box, and the tail tips that can be seen.
      *
      * Qt's default is `boundingRect()`, and this class's bounding rect is the drawn extent padded for
-     * grips — for a bubble that is one rectangle enclosing the balloon *and* wherever its tail points,
+     * handles — for a bubble that is one rectangle enclosing the balloon *and* wherever its tail points,
      * most of which is empty. So a click in the blank space beside a tail selected the bubble, and with
      * two that overlap, the upper one's rectangle reached down over the lower one's body and swallowed
      * presses meant for it.
      *
      * The box is the hit area because the box is the object: a balloon is inscribed in it, a text block
-     * fills it, artwork is drawn into it. The tail *tips* are added because they are grabbable, and the
-     * corner grips while selected, because they sit outside the box and a selected object must stay
-     * resizable. The tail's shaft is deliberately left out — it is a thin sliver a long way from
-     * anything anyone is aiming at.
-     * 
+     * fills it, artwork is drawn into it. The tail *tips* are added because they are grabbable — those
+     * that are drawn; a tip hidden inside its balloon is reachable through the selection chrome only.
+     * The grips are the chrome's too. The tail's shaft is deliberately left out — it is a thin sliver a
+     * long way from anything anyone is aiming at.
+     *
      * @return The shape that defines the clickable area of the object, in item coordinates.
      */
     QPainterPath shape() const override;
@@ -210,7 +261,7 @@ signals:
      * Emitted after the base class has done its selecting, so the owner can narrow a selection it has
      * already heard about: a press on a tail's handle selects that tail, and a press on the balloon while
      * one of its tails is selected selects the balloon again.
-     * 
+     *
      * @param uid The unique identifier of the object.
      * @param handle The index of the handle that was pressed, or -1 if the press was on the body of the object.
      */
@@ -225,16 +276,23 @@ signals:
      * The object moves itself and nothing else: **who else travels is the selection's business**, and the
      * selection belongs to the controller. An object that reached for its neighbours would need to know
      * what is selected, and a tail of some *other* balloon is not something it could reach at all.
-     * 
+     *
      * @param uid The unique identifier of the object.
      * @param delta The change in position from the original press point, in scene coordinates.
      * @param handle The index of the handle being dragged, or -1 if the body
      */
     void dragging(const QString& uid, const QPointF& delta, int handle);
 
+    /**
+     * @brief Something the selection chrome draws has changed: position, size, selection, a tail, scale.
+     *
+     * The chrome is a separate item above every object, so it cannot see this one change; it is told.
+     */
+    void chromeChanged();
+
 protected:
 
-    /** @brief Draws the object itself, in item coordinates. Chrome and blending are the base class's job. */
+    /** @brief Draws the object itself, in item coordinates. Blending is the base class's job. */
     virtual void paintContent(QPainter& painter) = 0;
 
     /** @brief The extent this object draws into, recomputed whenever its geometry changes. */
@@ -242,15 +300,6 @@ protected:
 
     /** @brief Applies a new box size. A kind that has to move other things with it (tails) does that here. */
     virtual void setBoxSize(QSizeF size) = 0;
-
-    /**
-     * @brief True when a corner drag must scale uniformly rather than distort.
-     *
-     * Imported artwork says yes: its size travels as a single width fraction and its height follows
-     * the artwork's own aspect, so a distorted one is not expressible — which is also what anyone
-     * dragging the corner of a logo meant.
-     */
-    [[nodiscard]] virtual bool keepsAspect() const { return false; }
 
     /** @brief Extra draggable points in item coordinates — a bubble's tail tips. None by default. */
     [[nodiscard]] virtual int     handleCount() const { return 0; }
@@ -267,7 +316,7 @@ protected:
      *
      * A kind that shows a pre-rendered image at rest has to fall back to drawing itself here: the image
      * cannot be re-made per mouse-move, and the paths follow the mouse.
-     * 
+     *
      * @return True if a grip is being dragged, false otherwise.
      */
     [[nodiscard]] bool isDragging() const { return m_active != Grip::None; }
@@ -275,6 +324,7 @@ protected:
     void mousePressEvent(QGraphicsSceneMouseEvent* e) override;     //!< Starts a drag, or selects the object if it was not already selected.
     void mouseMoveEvent(QGraphicsSceneMouseEvent* e) override;      //!< Moves the object or a handle, reporting the delta to the owner.
     void mouseReleaseEvent(QGraphicsSceneMouseEvent* e) override;   //!< Ends a drag, reporting the final position to the owner.
+    QVariant itemChange(GraphicsItemChange change, const QVariant& value) override;   //!< Tells the chrome.
 
     /** @brief Written by each kind's setRecord(), read by everyone through record(). See above. */
     ObjectRecord m_record;
@@ -282,7 +332,6 @@ protected:
 private:
     /** @brief Which grip is under \p local. For Grip::Handle, \p handleIndex receives which one. */
     [[nodiscard]] Grip   gripAt(const QPointF& local, int* handleIndex = nullptr) const;
-    [[nodiscard]] QRectF gripRect(Grip g) const;        //!< The rectangle a grip occupies, in item coordinates.
     [[nodiscard]] QRectF handleRect(int index) const;   //!< The rectangle a handle occupies, in item coordinates.
 
     QString m_uid;                   //!< The unique identifier for this object, used to track it in the library and persist its state.
@@ -291,7 +340,7 @@ private:
 
     Grip    m_active = Grip::None;  //!< Grip being dragged (None = not resizing/aiming).
     int     m_activeHandle = -1;    //!< Which handle is being dragged, while m_active == Grip::Handle.
-    QRectF  m_startRect;            //!< Scene rect at press — resizing works against it, not per-delta.
+    QRectF  m_startRect;            //!< Scene box at press — resizing works against it, not per-delta.
     QPointF m_startScenePos;        //!< Cursor at press, in scene coordinates.
     bool    m_moved    = false;     //!< Whether this press actually changed anything worth reporting.
     bool    m_orphaned = false;     //!< True when the anchor page is not in the strip, so the object is greyed out and cannot be moved.

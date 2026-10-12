@@ -100,7 +100,8 @@ Bug fixes, cosmetics and internal cleanups — no new capability, no change to a
 - [x] **Grey out the Auto-sort rules group until it works** — the `groupBoxAutosort` fields
   (`lineEditInputNameRegex` / `Prepended` / `Appended`, `pushButtonAutosortApply`) were fully
   interactive but wired to nothing, inviting input that does nothing. Done: the group is now disabled
-  and its fields show a "Coming soon" placeholder (`project.cpp`, constructor). A stopgap — remove it
+  and hidden, and its fields show a "Coming soon" placeholder (`project.cpp`, constructor; drop the
+  `setVisible(false)` line to preview it greyed out). A stopgap — remove it
   when the Auto-sort feature lands (see the MINOR item).
 
 ---

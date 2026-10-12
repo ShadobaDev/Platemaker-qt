@@ -13,6 +13,10 @@ _Project view — input files_
 
 ![Project input view](docs/pics/Project_Input.png)
 
+_Project view — workflow_
+
+![Project output processing](docs/pics/Project_Workflow.png)
+
 _Project view — output settings_
 
 ![Project output view](docs/pics/Project_Output.png)
@@ -21,13 +25,13 @@ _Project view — output out of sync_
 
 ![Project output out of sync](docs/pics/Project_Output_Out_Of_Sync.png)
 
-_Project view — output out of sync, warning before render_ 
+_Project view — output missing_
 
-![Project output processing](docs/pics/Project_Output_Out_Of_Sync_Warning.png)
+![Project output out of sync](docs/pics/Project_Output_Missing.png)
 
-_Project view — processing in progress_
+_Strip editor_ 
 
-![Project output processing](docs/pics/Project_Output_Processing.png)
+![Strip Editor](docs/pics/Strip_Editor.png)
 
 _Canvas profile dialog_
 

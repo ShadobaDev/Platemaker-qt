@@ -90,6 +90,7 @@ void ArtworkObject::setRecord(const ObjectRecord& a)
         return;
     m_record = next;
     update();
+    emit chromeChanged();   // its lettering may now fit, or not
 }
 
 void ArtworkObject::describePicture(ObjectRecord& a) const

@@ -18,6 +18,7 @@
 #include <QPainterPath>
 #include <QRectF>
 #include <QSize>
+#include <QSizeF>
 #include <QString>
 
 #include "objectrecord.hpp"
@@ -177,11 +178,58 @@ void paintPaths(QPainter& painter, const ObjectRecord& a,
 [[nodiscard]] QImage render(const ObjectRecord& a);
 
 /**
- * @brief The box height that fits \p a's text at its current width (its width, and a sane floor, are kept).
- * @param a The record to check.
- * @return The fitted box size.
+ * @brief The rectangle \p a's lettering may occupy, in box coordinates — inside the outline, less the
+ *        stroke and the padding. A text object's whole box.
+ */
+[[nodiscard]] QRectF textArea(const ObjectRecord& a);
+
+/**
+ * @brief The size of \p a's laid-out lettering — the widest line by the height of all of them.
+ *
+ * Independent of the box: the lettering is never wrapped, so where the box is and how big does not
+ * change it. Empty when there is no text.
+ */
+[[nodiscard]] QSizeF textBlockSize(const ObjectRecord& a);
+
+/**
+ * @brief Whether a block of lettering of size \p block fits \p a's text area.
+ *
+ * Pure geometry — no font is touched — so it is the half of fitting that can be tested anywhere.
+ * Half a pixel of slack, so a box rounded to whole pixels does not overflow by its own rounding.
+ */
+[[nodiscard]] bool fits(const ObjectRecord& a, const QSizeF& block);
+
+//! True when \p a's lettering does not fit its text area — what the selection shows in red.
+[[nodiscard]] bool textOverflows(const ObjectRecord& a);
+
+/**
+ * @brief The smallest box, **on both axes**, whose text area holds a block of size \p block.
+ *
+ * Neither side goes below the grips' own minimum (40 px), so a short word cannot collapse the shape.
+ * With a negative padding the text area is larger than the box, and the floor is often where it stops.
+ * Pure geometry, like fits(): fittedBox() is this with the lettering measured.
+ */
+[[nodiscard]] QSize fitBoxFor(const ObjectRecord& a, const QSizeF& block);
+
+/**
+ * @brief The smallest box that holds \p a's lettering, on both axes — *Fit to text*.
+ * @param a The record to fit. Its box is the starting point only.
+ * @return The fitted box size; the current box when there is no text.
  */
 [[nodiscard]] QSize fittedBox(const ObjectRecord& a);
+
+/**
+ * @brief The largest padding, no higher than \p a's own, at which a block of size \p block fits —
+ *        below zero if the lettering has to reach past the outline.
+ *
+ * The box stays as it is; the padding gives way. It only ever lowers the padding: lettering that
+ * already fits keeps the room the author gave it. A text object has no padding to give, so its own
+ * value comes back. Pure geometry, like fitBoxFor().
+ */
+[[nodiscard]] int paddingToFit(const ObjectRecord& a, const QSizeF& block);
+
+//! paddingToFit() with \p a's lettering measured — *Fix padding*.
+[[nodiscard]] int fittingPadding(const ObjectRecord& a);
 
 /**
  *  Human-readable label for the object stack — the first line of text, or the shape's name if empty.

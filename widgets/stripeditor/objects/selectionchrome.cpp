@@ -8,6 +8,8 @@
 
 #include <algorithm>
 
+#include "recordpainter.hpp"
+
 namespace StripEdit {
 
 namespace {
@@ -17,6 +19,10 @@ constexpr qreal k_chromeZ = 1.0e6;
 //! An edge grip is offered only when the edge is at least this many grip spans long on screen, so its
 //! midpoint square never collides with the corners — the GIMP rule for small boxes.
 constexpr qreal k_edgeMinSpans = 3.0;
+
+//! The overflow outline's colour. The palette has no role that means "something is wrong", and the
+//! highlight it does have is what the rest of the chrome is drawn in — so this one is said outright.
+const QColor k_overflowColour(220, 40, 40);
 
 constexpr Grip k_corners[] = {Grip::TopLeft, Grip::TopRight, Grip::BottomLeft, Grip::BottomRight};
 constexpr Grip k_edges[]   = {Grip::Top, Grip::Bottom, Grip::Left, Grip::Right};
@@ -97,14 +103,34 @@ QRectF SelectionChrome::handleRect(const Object* o, int index, qreal s) const
     return square(o->mapToScene(o->handleAt(index)), s);
 }
 
+QRectF SelectionChrome::overflowRect(const Object* o)
+{
+    const ObjectRecord& r = o->record();
+    if (r.text.body.isEmpty() || r.box.isEmpty() || !Painter::textOverflows(r))
+        return {};
+    // The text area is in the record's box units. A balloon is drawn at exactly those; a picture's
+    // lettering is laid out in the record's box and drawn stretched to the picture's (ArtworkObject).
+    const QRectF area = Painter::textArea(r);
+    const qreal  sx   = o->boxSize().width()  / r.box.width();
+    const qreal  sy   = o->boxSize().height() / r.box.height();
+    return o->mapRectToScene(QRectF(area.x() * sx, area.y() * sy, area.width() * sx, area.height() * sy));
+}
+
 void SelectionChrome::refresh()
 {
     const qreal s = span();
     QRectF      next;
+    m_overflows.clear();
     for (const Object* o : subjects()) {
         next = next.united(o->sceneBox().adjusted(-s, -s, s, s));
         for (int i = 0; i < o->tipCount(); ++i)
             next = next.united(handleRect(o, i, s).adjusted(-1, -1, 1, 1));
+        // Measured here, not in paint(): laying out the lettering on every repaint would be paid on
+        // every scroll. This runs when the object reports a change, which is when the answer can move.
+        if (const QRectF r = overflowRect(o); !r.isEmpty()) {
+            m_overflows.append(r);
+            next = next.united(r.adjusted(-1, -1, 1, 1));
+        }
     }
     if (next != m_bounds) {
         prepareGeometryChange();
@@ -196,6 +222,15 @@ void SelectionChrome::paint(QPainter* painter, const QStyleOptionGraphicsItem* o
             painter->drawEllipse(handleRect(o, i, s));
         }
     }
+
+    QPen overflow(k_overflowColour);
+    overflow.setCosmetic(true);
+    overflow.setStyle(Qt::DashLine);
+    overflow.setWidth(2);
+    painter->setPen(overflow);
+    painter->setBrush(Qt::NoBrush);
+    for (const QRectF& r : std::as_const(m_overflows))
+        painter->drawRect(r);
     painter->restore();
 }
 

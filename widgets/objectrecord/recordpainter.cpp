@@ -49,13 +49,22 @@ constexpr int   k_burstSpikes   = 12;
  */
 constexpr qreal k_burstInner    = 0.74;
 /**
- *  Re-measure passes in Painter::fittedBox(); it converges in two or three, this is headroom.
+ *  Rounds of fitting one axis and then the other in Painter::fitBoxFor(); two or three settle it.
  */
 constexpr int   k_fitPasses     = 6;
 /**
+ *  How far the lettering may exceed its text area before it counts as not fitting — half a pixel, so a
+ *  box rounded to whole pixels is not reported as overflowing by its own rounding.
+ */
+constexpr qreal k_fitSlack      = 0.5;
+/**
+ *  Largest side a fit will consider — far past any page; it only stops a search that cannot succeed.
+ */
+constexpr int   k_maxFitSize    = 1 << 16;
+/**
  *  Floor for a fit, matching the resize grips' own minimum — a short line must not collapse the shape.
  */
-constexpr int   k_minFitHeight  = 40;
+constexpr int   k_minFitSize    = 40;
 /**
  *  1/sqrt(2) — the half-axis fraction at which a rectangle inscribes an ellipse.
  */
@@ -660,45 +669,110 @@ QImage render(const ObjectRecord& a)
     return img;
 }
 
-QSize fittedBox(const ObjectRecord& a)
+QRectF textArea(const ObjectRecord& a)
+{
+    return textSafeArea(a, balloonRect(a));
+}
+
+QSizeF textBlockSize(const ObjectRecord& a)
 {
     if (a.text.body.isEmpty())
+        return {};
+    // Never wrapped, so the block is the same whatever box it sits in: the widest line by the lines.
+    QTextDocument doc;
+    layOutText(doc, a, 1);
+    return QSizeF(doc.idealWidth(), doc.size().height());
+}
+
+bool fits(const ObjectRecord& a, const QSizeF& block)
+{
+    if (block.isEmpty())
+        return true;
+    const QRectF area = textArea(a);
+    return block.width() <= area.width() + k_fitSlack && block.height() <= area.height() + k_fitSlack;
+}
+
+bool textOverflows(const ObjectRecord& a)
+{
+    return !fits(a, textBlockSize(a));
+}
+
+QSize fitBoxFor(const ObjectRecord& a, const QSizeF& block)
+{
+    if (block.isEmpty())
         return a.box;
 
-    // How much taller the wrapped text is than the room it has. Negative means the balloon has slack.
-    // 0 when there is no room to wrap into at all, which reads as "nothing to do" and stops the loops.
-    const auto overflowOf = [](const ObjectRecord& p) -> qreal {
-        const QRectF safe = textSafeArea(p, balloonRect(p));
-        if (safe.width() < 1)
-            return 0.0;
-        QTextDocument doc;
-        layOutText(doc, p, safe.width());
-        return doc.size().height() - safe.height();
+    // The smallest box side, on one axis, whose text area holds @p need on that axis — the other side
+    // held where it is. A text area grows with its own side for every shape (a thought balloon's lobes
+    // and a scroll's rolls eat into it, but by less than the side grows), so a binary search is exact.
+    const auto smallest = [](ObjectRecord probe, bool horizontal, qreal need) {
+        const auto room = [&](int side) {
+            if (horizontal)
+                probe.box.setWidth(side);
+            else
+                probe.box.setHeight(side);
+            const QRectF area = textArea(probe);
+            return (horizontal ? area.width() : area.height()) + k_fitSlack >= need;
+        };
+        int hi = qMax(k_minFitSize, qCeil(need) * 2);
+        while (!room(hi) && hi < k_maxFitSize)
+            hi *= 2;
+        int lo = k_minFitSize;
+        if (room(lo))
+            return lo;   // the floor already holds it — a negative padding can do that
+        while (hi - lo > 1) {
+            const int mid = (lo + hi) / 2;
+            (room(mid) ? hi : lo) = mid;
+        }
+        return hi;
     };
 
-    // Converge on "as tall as the text needs", shrinking as readily as growing. Growing alone made the
-    // button do nothing in the common case — a balloon drawn larger than its line, which is most of
-    // them. Re-measure instead of deriving a closed form: growing leaves the stroke and the shape's
-    // inset to pay for, so adding the shortfall once falls short, and this cannot drift out of step
-    // with balloonRect() / textSafeArea() the way a duplicated formula would.
+    // Each axis on its own, then again: in a thought balloon the lobes are sized by the *shorter* side,
+    // so settling the height can take a little width back. Two or three rounds settle it; this is
+    // headroom.
     ObjectRecord probe = a;
     for (int pass = 0; pass < k_fitPasses; ++pass) {
-        const qreal extra = overflowOf(probe);
-        if (qAbs(extra) <= 0.5)
+        const QSize before = probe.box;
+        probe.box.setWidth(smallest(probe, true, block.width()));
+        probe.box.setHeight(smallest(probe, false, block.height()));
+        if (probe.box == before)
             break;
-        probe.box.setHeight(qMax(k_minFitHeight, qRound(probe.box.height() + extra)));
-    }
-
-    // A shape whose safe width moves with its height — an ellipse, a burst — can leave the loop above
-    // mid-oscillation, one pass short of fitting. Let the last word be "it fits": grow-only passes,
-    // which can only ever add room.
-    for (int pass = 0; pass < k_fitPasses; ++pass) {
-        const qreal extra = overflowOf(probe);
-        if (extra <= 0.5)
-            break;
-        probe.box.setHeight(qRound(probe.box.height() + extra));
     }
     return probe.box;
+}
+
+QSize fittedBox(const ObjectRecord& a)
+{
+    return fitBoxFor(a, textBlockSize(a));
+}
+
+int paddingToFit(const ObjectRecord& a, const QSizeF& block)
+{
+    if (!a.hasSilhouette() || fits(a, block))
+        return a.text.padding;   // nothing to fix — and a fix only ever lowers it
+
+    // The text area shrinks as the padding grows, on every shape, so the largest padding that still
+    // holds the block is a binary search below the current one. Asked of fits() itself rather than
+    // solved from the shape formulas, so it cannot disagree with what the red outline says.
+    ObjectRecord probe = a;
+    const auto   holds = [&](int padding) {
+        probe.text.padding = padding;
+        return fits(probe, block);
+    };
+    int lo = a.text.padding - k_maxFitSize;   // far below anything; the area outgrows any block there
+    int hi = a.text.padding;                  // does not hold, or we would have returned above
+    if (!holds(lo))
+        return lo;
+    while (hi - lo > 1) {
+        const int mid = lo + (hi - lo) / 2;
+        (holds(mid) ? lo : hi) = mid;
+    }
+    return lo;
+}
+
+int fittingPadding(const ObjectRecord& a)
+{
+    return paddingToFit(a, textBlockSize(a));
 }
 
 QString label(const ObjectRecord& a)

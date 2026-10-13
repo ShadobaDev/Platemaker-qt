@@ -84,8 +84,12 @@
     the **library** for the same pixels the render will produce. The noise is seeded per bubble and
     measured in the drawing's own units, so the texture scales with the balloon rather than with the
     output resolution. Clean emits no filter at all.
-  - **Fit to text** converges on the height the line actually needs, floored so a short line cannot
-    collapse the shape.
+  - **Fit to text** gives the smallest balloon that holds the lettering, on **both** axes, floored so a
+    short line cannot collapse the shape. When the lettering does not fit — the box dragged too small, or
+    a line typed too long — the selected object's text area is **outlined in red**; the overflow is
+    clipped as before, the outline is what tells you so. **Fix padding** keeps the balloon's size and
+    lowers its padding instead, below zero if the lettering has to reach past the outline. Both are in
+    OBJECT STATE and on the right-click menu.
   - **Presets** — a named look: colours, stroke, line style, font, alignment and shape, but never the
     text, the balloon's size, its tails or where it sits. The picker in the tool's options sets what the
     **next** bubble starts from; **right-click an existing bubble → *Apply preset ▸*** restyles that one

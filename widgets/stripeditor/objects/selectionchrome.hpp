@@ -25,6 +25,10 @@ namespace StripEdit {
  *
  * Drawn in scene coordinates, at a fixed size on screen: the grips of a picture drawn at another scale
  * are the same size as a balloon's, which they were not while each object drew its own.
+ *
+ * It also says when a selected object's lettering does not fit: the text area is outlined in red, the
+ * way a layout program marks overset text. The lettering is clipped there as before; the outline is
+ * what tells the author it is.
  */
 class SelectionChrome : public QGraphicsItem
 {
@@ -66,9 +70,12 @@ private:
     [[nodiscard]] QRectF gripRect(const Object* o, Grip grip, qreal s) const;
     //! The square a tail handle occupies, in scene units.
     [[nodiscard]] QRectF handleRect(const Object* o, int index, qreal s) const;
+    //! @p o's text area in scene units when its lettering does not fit it; empty when it does.
+    [[nodiscard]] static QRectF overflowRect(const Object* o);
 
     const QGraphicsView* m_view;
     QRectF               m_bounds;
+    QList<QRectF>        m_overflows;   //!< Text areas the lettering spills out of, in scene units.
     QPointer<Object>     m_target;   //!< The object a press handed its drag to, until the release.
 };
 

@@ -151,6 +151,13 @@ ObjectMenu::ObjectMenu(ObjectController& objects, const StripLayout& layout, Pre
             m_objects.scaleSelectedArtwork(tw * 100.0 / art->artwork().width());
     });
 
+    // The same two OBJECT STATE offers under the panel — a right-click is where sizing an object is
+    // looked for, beside the artwork's own two.
+    m_actFitToText = new QAction(tr("Fit to text"), this);
+    connect(m_actFitToText, &QAction::triggered, &m_objects, &ObjectController::fitSelectionToText);
+    m_actFixPadding = new QAction(tr("Fix padding"), this);
+    connect(m_actFixPadding, &QAction::triggered, &m_objects, &ObjectController::fixSelectionPadding);
+
     m_actDelete = new QAction(tr("Delete"), this);
     m_actDelete->setShortcut(QKeySequence::Delete);
     m_actDelete->setShortcutContext(Qt::WidgetShortcut);
@@ -181,6 +188,8 @@ ObjectMenu::ObjectMenu(ObjectController& objects, const StripLayout& layout, Pre
         w->addAction(m_actBackward);
         w->addAction(m_actNaturalSize);
         w->addAction(m_actFitToStrip);
+        w->addAction(m_actFitToText);
+        w->addAction(m_actFixPadding);
         w->addAction(separator());
         w->addAction(m_convertMenu->menuAction());
         w->addAction(m_reanchorMenu->menuAction());
@@ -243,6 +252,17 @@ void ObjectMenu::updateEntries()
     const bool artwork = m_objects.selectionIsArtwork();
     if (m_actNaturalSize) m_actNaturalSize->setVisible(artwork);
     if (m_actFitToStrip)  m_actFitToStrip->setVisible(artwork);
+    // One object's box or one balloon's padding, as in OBJECT STATE: absent for a picture (its box is
+    // its pixels) and for lettering with no balloon (no outline to keep from); greyed for a set.
+    const ObjectRecord one = oneObject ? m_objects.recordFor(picked.first()) : ObjectRecord();
+    if (m_actFitToText) {
+        m_actFitToText->setVisible(allParametric);
+        m_actFitToText->setEnabled(oneObject);
+    }
+    if (m_actFixPadding) {
+        m_actFixPadding->setVisible(allParametric && (!oneObject || one.hasSilhouette()));
+        m_actFixPadding->setEnabled(oneObject && one.hasSilhouette());
+    }
     // A kind is something only an authored object has. One that is not — imported artwork, or a tail —
     // can reach nothing, and the intersection of "everything" with "nothing" is what greys this out.
     const bool authoredOnly =

@@ -37,6 +37,7 @@ add_executable(platemaker-gui-tests
     test_workspace_folder.cpp
     test_workspace_lock.cpp
     test_resize.cpp
+    test_text_fit.cpp
     ${CMAKE_SOURCE_DIR}/widgets/objectrecord/objectrecord.cpp
     # The SVG a bubble is written to, and the geometry it is written from: both Qt6::Gui only, so the
     # rule above still holds — and the import's premise is worth a test of its own.

@@ -110,6 +110,8 @@ private:
     QAction*           m_actToBalloon    = nullptr;   //!< Convert to ▸ Balloon: the tiles' silhouette.
     QAction*           m_actNaturalSize  = nullptr;   //!< Artwork at 100% — the size it was drawn at.
     QAction*           m_actFitToStrip   = nullptr;   //!< Artwork as wide as the strip, and no wider.
+    QAction*           m_actFitToText    = nullptr;   //!< The box sized to the lettering — OBJECT STATE's *Fit*.
+    QAction*           m_actFixPadding   = nullptr;   //!< A balloon's padding lowered until the lettering fits.
     QMenu*             m_groupMenu       = nullptr;   //!< *Apply this group ▸*, from the tool's options.
     QAction*           m_actFill         = nullptr;   //!< Fill with the primary colour.
     QAction*           m_actOutline      = nullptr;   //!< Outline with the secondary colour.

@@ -311,6 +311,8 @@ Editor::Editor(PresetStore& presets, QWidget *parent)
                 [this](double percent) { m_objects->scaleSelectedArtwork(percent, /*commit=*/true); });
         connect(m_objectState, &ObjectState::fitRequested, m_objects,
                 &ObjectController::fitSelectionToText);
+        connect(m_objectState, &ObjectState::fixPaddingRequested, m_objects,
+                &ObjectController::fixSelectionPadding);
         using OC = ObjectController;
         using OS = ObjectState;
         connect(m_objects, &OC::boundToRecord,      m_objectState, &OS::setRecord);

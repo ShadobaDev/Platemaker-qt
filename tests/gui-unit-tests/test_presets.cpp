@@ -5,6 +5,8 @@
 
 #include <QCoreApplication>
 
+#include <functional>
+
 #include "presetstore.hpp"
 
 using namespace StripEdit;
@@ -55,13 +57,33 @@ TEST_F(Presets, AnAppliedPresetIsRecognisedAsItself)
 
 TEST_F(Presets, OneChangedPropertyIsCustom)
 {
+    const PresetStore  store;
+    const ObjectRecord applied = PresetStore::applied(store.presets().first(), placed(), false);
+
+    // A preset carries the padding and the line spacing too, so moving either is leaving the look.
+    const QList<std::function<void(ObjectRecord&)>> edits{
+        [](ObjectRecord& a) { a.skin.fill = a.skin.fill == QColor(Qt::red) ? QColor(Qt::blue) : QColor(Qt::red); },
+        [](ObjectRecord& a) { a.text.padding += 5; },
+        [](ObjectRecord& a) { a.text.lineSpacing += 10; },
+    };
+    for (int i = 0; i < edits.size(); ++i) {
+        ObjectRecord look = applied;
+        edits.at(i)(look);
+        EXPECT_EQ(store.matching(look), -1) << "edit " << i;
+        EXPECT_EQ(store.lookLabel(look), QStringLiteral("Custom")) << "edit " << i;
+    }
+}
+
+TEST_F(Presets, APresetBringsItsPaddingAndLineSpacing)
+{
     const PresetStore store;
-    ObjectRecord      look = PresetStore::applied(store.presets().first(), placed(), false);
+    BubblePreset      p = store.presets().first();
+    p.record.text.padding    = -4;
+    p.record.text.lineSpacing = 90;
 
-    look.skin.fill = look.skin.fill == QColor(Qt::red) ? QColor(Qt::blue) : QColor(Qt::red);
-
-    EXPECT_EQ(store.matching(look), -1);
-    EXPECT_EQ(store.lookLabel(look), QStringLiteral("Custom"));
+    const ObjectRecord look = PresetStore::applied(p, placed(), /*keepShape=*/true);
+    EXPECT_EQ(look.text.padding, -4);
+    EXPECT_EQ(look.text.lineSpacing, 90);
 }
 
 TEST_F(Presets, WhatAPresetNeverCarriedCannotBreakTheMatch)

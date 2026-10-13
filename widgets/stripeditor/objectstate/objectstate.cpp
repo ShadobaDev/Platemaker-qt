@@ -323,6 +323,9 @@ void ObjectState::clearSelection()
     m_emptyHint->setVisible(true);
     m_actions->setVisible(false);
     m_scaleRow->setVisible(false);
+    // The blend row is shown by the controller (setSelectionBlend()), and the controller says nothing
+    // until something is selected — so a panel that has never had a subject showed it from the start.
+    m_blend->setVisible(false);
     for (CollapsibleSection* s : std::as_const(m_sections))
         s->setVisible(false);
 }

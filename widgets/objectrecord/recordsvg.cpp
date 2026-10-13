@@ -253,6 +253,7 @@ QByteArray write(const ObjectRecord& a, const QByteArray& picture, const QString
         svg += attr(QStringLiteral("fontSize"), a.text.pixelSize);
         svg += attr(QStringLiteral("bold"), a.text.bold ? 1 : 0);
         svg += attr(QStringLiteral("align"), a.text.align);
+        svg += attr(QStringLiteral("lineSpacing"), a.text.lineSpacing);
         svg += attr(QStringLiteral("textColour"), a.text.colour.name(QColor::HexArgb));
         svg += QLatin1String(">\n");
 
@@ -305,6 +306,8 @@ QByteArray write(const ObjectRecord& a, const QByteArray& picture, const QString
     svg += attr(QStringLiteral("fontSize"), a.text.pixelSize);
     svg += attr(QStringLiteral("bold"), a.text.bold ? 1 : 0);
     svg += attr(QStringLiteral("align"), a.text.align);
+    svg += attr(QStringLiteral("lineSpacing"), a.text.lineSpacing);
+    svg += attr(QStringLiteral("padding"), a.text.padding);
     svg += attr(QStringLiteral("fill"), a.skin.fill.name(QColor::HexArgb));
     svg += attr(QStringLiteral("stroke"), a.skin.stroke.name(QColor::HexArgb));
     svg += attr(QStringLiteral("textColour"), a.text.colour.name(QColor::HexArgb));
@@ -377,6 +380,8 @@ ObjectRecord read(const QByteArray& svg, bool* ok)
         a.text.pixelSize = intOf(at.value(ns, QStringLiteral("fontSize")), a.text.pixelSize);
         a.text.bold          = intOf(at.value(ns, QStringLiteral("bold")), 0) != 0;
         a.text.align         = intOf(at.value(ns, QStringLiteral("align")), a.text.align);
+        a.text.lineSpacing   = intOf(at.value(ns, QStringLiteral("lineSpacing")), a.text.lineSpacing);
+        a.text.padding      = intOf(at.value(ns, QStringLiteral("padding")), a.text.padding);
         a.skin.strokeWidth = intOf(at.value(ns, QStringLiteral("strokeWidth")), a.skin.strokeWidth);
         a.style.kind         = styleFromName(at.value(ns, QStringLiteral("style")));
         {

@@ -50,7 +50,7 @@
   deselects, so clicking away cannot leave a stray behind, and a new bubble arrives selected with the
   caret already in the text box. Objects are selectable, movable and resizable under every tool — a tool
   decides what a *new* object will be, never whether the existing ones can be touched — and a bubble is
-  hit where it is drawn: its box, its tail tips, and its corner grips while selected.
+  hit where it is drawn: its box and its tail tips.
 
   The tool's own options sit **bottom-left**, under the tool rail, and say what the next object will be.
   The **right-hand panel describes whatever is selected** and nothing else: a collapsible section per
@@ -63,6 +63,16 @@
   at the same scale.
   - **Ten shapes**, each bringing the rectangle its text may occupy — speech, round, thought, shout,
     caption, caption plate, diamond, banner, scroll, and text-only.
+  - **Resize from eight grips, as in GIMP.** A selected object has a grip on each corner and each edge;
+    the opposite corner or edge stays put. **Shift** keeps the proportions, **Ctrl** resizes from the
+    centre. The grips and tail handles of what is selected are drawn above every other object, at the
+    same size on screen whatever the zoom, so a balloon under another one stays resizable and a tail tip
+    hidden under a balloon can still be aimed. Artwork scales as one, so it has corner grips only.
+  - **The lettering is broken where you break it.** Lines are never wrapped for you; a long word is
+    left whole. **Line spacing** (TEXT) tightens or loosens the lines, as a percentage of the font's
+    own. **Padding** (TEXT, on a balloon) sets how far the lettering keeps from the outline — negative
+    lets it burst out of the balloon. *Show whitespace* under the text box marks spaces, tabs and line ends in the box
+    itself; the balloon is always drawn as it will render.
   - **Tails point anywhere, curve, and come in numbers** — a tail is a tip, a width and a bend, and one
     sound may have several speakers. The base is found where a ray from the balloon's centre crosses its
     outline, so it works for every shape and can leave any edge. **Each tail is its own object**: select
@@ -186,7 +196,7 @@
     armed. It now names the tool and says in a line what a click or a drag with it does; the same
     sentence is in the button's tooltip. The bucket's tooltip was also missing half its text.
   - **The pointer now says what the tool will do** and stays saying it: a hand over the strip under
-    Pan, a move cross over an object, resize arrows on a corner, a crosshair under the drawing tools.
+    Pan, a move cross over an object, resize arrows on a grip, a crosshair under the drawing tools.
     It used to flip between an arrow and a hand depending on whether you had panned yet.
   - **The eyedropper and the colour pair.** The tool column carries a primary and a secondary colour
     under the tool tiles — overlapping swatches with **swap** and **reset to black and white**,

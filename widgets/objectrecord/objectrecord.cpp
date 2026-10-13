@@ -182,6 +182,7 @@ QJsonObject ObjectRecord::toJson() const
     const ObjectRecord& a = *this;
     return QJsonObject{
         {QStringLiteral("shape"),      QLatin1String(shapeName(a.shape.kind))},
+        {QStringLiteral("padding"),    a.text.padding},
         {QStringLiteral("artwork"),    a.artwork},
         {QStringLiteral("w"),          a.box.width()},
         {QStringLiteral("h"),          a.box.height()},
@@ -191,6 +192,7 @@ QJsonObject ObjectRecord::toJson() const
         {QStringLiteral("fontSize"),   a.text.pixelSize},
         {QStringLiteral("bold"),       a.text.bold},
         {QStringLiteral("align"),      a.text.align},
+        {QStringLiteral("lineSpacing"),a.text.lineSpacing},
         {QStringLiteral("fill"),       a.skin.fill.name(QColor::HexArgb)},
         {QStringLiteral("stroke"),     a.skin.stroke.name(QColor::HexArgb)},
         {QStringLiteral("textColour"), a.text.colour.name(QColor::HexArgb)},
@@ -206,6 +208,7 @@ ObjectRecord ObjectRecord::fromJson(const QJsonObject& j)
     ObjectRecord a;
 
     a.shape.kind = shapeFromName(j.value(QStringLiteral("shape")).toString());
+    a.text.padding = j.value(QStringLiteral("padding")).toInt(a.text.padding);
     a.artwork    = j.value(QStringLiteral("artwork")).toString();   // absent → an object we draw
 
     // Every field is read defensively with the struct's own default as the fallback, so a snapshot
@@ -218,6 +221,7 @@ ObjectRecord ObjectRecord::fromJson(const QJsonObject& j)
     a.text.pixelSize = j.value(QStringLiteral("fontSize")).toInt(a.text.pixelSize);
     a.text.bold          = j.value(QStringLiteral("bold")).toBool(a.text.bold);
     a.text.align         = j.value(QStringLiteral("align")).toInt(a.text.align);
+    a.text.lineSpacing   = j.value(QStringLiteral("lineSpacing")).toInt(a.text.lineSpacing);
     a.skin.strokeWidth = j.value(QStringLiteral("strokeWidth")).toInt(a.skin.strokeWidth);
     a.skin.fill     = colourFromJson(j, "fill",       a.skin.fill);
     a.skin.stroke   = colourFromJson(j, "stroke",     a.skin.stroke);

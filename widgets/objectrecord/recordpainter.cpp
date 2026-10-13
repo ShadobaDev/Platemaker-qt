@@ -8,6 +8,8 @@
 #include <QPainterPath>
 #include <QPen>
 #include <QTextBlock>
+#include <QTextBlockFormat>
+#include <QTextCursor>
 #include <QTextDocument>
 #include <QTextLayout>
 #include <QTextOption>
@@ -286,7 +288,9 @@ QRectF textSafeArea(const ObjectRecord& a, const QRectF& body)
     if (!a.hasSilhouette())
         return QRectF(0, 0, a.box.width(), a.box.height());
 
-    const qreal pad = a.skin.strokeWidth + 8.0;
+    // The author's padding (TextProperties::padding), on top of the stroke. Negative widens the area
+    // past the outline — an impact balloon's lettering bursting out of it.
+    const qreal pad = a.skin.strokeWidth + a.text.padding;
     QRectF      usable;
 
     switch (a.shape.kind) {
@@ -342,7 +346,13 @@ QRectF textSafeArea(const ObjectRecord& a, const QRectF& body)
     return usable.adjusted(pad, pad, -pad, -pad);
 }
 
-//! The laid-out text, ready to draw or measure. Width-bound; height falls out of the wrap.
+/**
+ * @brief The laid-out text, ready to draw or measure.
+ *
+ * **Never wrapped.** The lines are the author's line breaks, exactly — lettering is broken by hand, and
+ * a long word grows its box rather than being split. @p width only places each line according to the
+ * alignment; a line wider than it overflows, it is not re-broken.
+ */
 void layOutText(QTextDocument& doc, const ObjectRecord& a, qreal width)
 {
     // A family that is not installed is not handed to QFont: QFont would substitute through the platform's
@@ -357,12 +367,22 @@ void layOutText(QTextDocument& doc, const ObjectRecord& a, qreal width)
 
     QTextOption opt;
     opt.setAlignment(static_cast<Qt::Alignment>(a.text.align));
-    opt.setWrapMode(QTextOption::WrapAtWordBoundaryOrAnywhere);
+    opt.setWrapMode(QTextOption::NoWrap);
 
     doc.setDefaultFont(f);
     doc.setDefaultTextOption(opt);
     doc.setDocumentMargin(0);
     doc.setPlainText(a.text.body);
+
+    // The font's own pitch is left exactly as it is at 100 %: a proportional height of 100 is not the
+    // same arithmetic as the default single height, and the default is what every bubble so far used.
+    if (a.text.lineSpacing != 100) {
+        QTextBlockFormat pitch;
+        pitch.setLineHeight(qMax(1, a.text.lineSpacing), QTextBlockFormat::ProportionalHeight);
+        QTextCursor all(&doc);
+        all.select(QTextCursor::Document);
+        all.mergeBlockFormat(pitch);
+    }
     doc.setTextWidth(qMax(qreal(1), width));
 }
 

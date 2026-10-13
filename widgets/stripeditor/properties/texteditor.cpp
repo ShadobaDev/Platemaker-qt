@@ -1,4 +1,5 @@
 #include "properties/texteditor.hpp"
+#include "recordpainter.hpp"
 
 #include <QCheckBox>
 #include <QColorDialog>
@@ -7,6 +8,9 @@
 #include <QFormLayout>
 #include <QPlainTextEdit>
 #include <QPushButton>
+#include <QSettings>
+#include <QTextDocument>
+#include <QTextOption>
 #include <QSignalBlocker>
 #include <QSpinBox>
 #include <QVBoxLayout>
@@ -24,11 +28,39 @@ TextEditor::TextEditor(QWidget* parent)
     m_body->setMinimumHeight(70);
     lay->addWidget(m_body);
 
+    // Spaces, tabs and line ends made visible — in this box only. The balloon is always drawn as it
+    // will render, and whitespace is text there like anything else: a trailing empty line is a line.
+    // A viewer's preference, so it is remembered for the application, not stored in the workspace.
+    m_showWhitespace = new QCheckBox(tr("Show whitespace"), this);
+    m_showWhitespace->setToolTip(tr("Show spaces (·), tabs (→) and line ends (¶) in this box.\n"
+                                    "Only here — the balloon is drawn as it will render."));
+    lay->addWidget(m_showWhitespace);
+    const auto showWhitespace = [this](bool on) {
+        QTextOption o = m_body->document()->defaultTextOption();
+        QTextOption::Flags flags = o.flags();
+        flags.setFlag(QTextOption::ShowTabsAndSpaces, on);
+        flags.setFlag(QTextOption::ShowLineAndParagraphSeparators, on);
+        o.setFlags(flags);
+        m_body->document()->setDefaultTextOption(o);
+    };
+    connect(m_showWhitespace, &QCheckBox::toggled, this, [showWhitespace](bool on) {
+        showWhitespace(on);
+        QSettings().setValue(QStringLiteral("stripEditor/showWhitespace"), on);
+    });
+    const bool remembered = QSettings().value(QStringLiteral("stripEditor/showWhitespace"), false).toBool();
+    m_showWhitespace->setChecked(remembered);
+    showWhitespace(remembered);   // toggled() does not fire when the remembered value is the default
+
     auto* form = new QFormLayout;
     form->setContentsMargins(0, 0, 0, 0);
     lay->addLayout(form);
+    m_form = form;
 
     m_family = new QFontComboBox(this);
+    // A font combo asks for the width of the longest family name it knows, which is what pushed the
+    // panel past its narrowest and brought up a horizontal scroll bar. It takes the room it is given.
+    m_family->setSizeAdjustPolicy(QComboBox::AdjustToMinimumContentsLengthWithIcon);
+    m_family->setMinimumContentsLength(8);
     form->addRow(tr("Font"), m_family);
 
     m_size = new QSpinBox(this);
@@ -41,6 +73,20 @@ TextEditor::TextEditor(QWidget* parent)
 
     m_bold = new QCheckBox(tr("Bold"), this);
     form->addRow(QString(), m_bold);
+
+    m_lineSpacing = new QSpinBox(this);
+    m_lineSpacing->setRange(k_lineSpacingMin, k_lineSpacingMax);
+    m_lineSpacing->setSingleStep(5);
+    m_lineSpacing->setSuffix(tr(" %"));
+    m_lineSpacing->setToolTip(tr("Distance between lines, as a percentage of the font's own."));
+    form->addRow(tr("Line spacing"), m_lineSpacing);
+
+    m_padding = new QSpinBox(this);
+    m_padding->setRange(k_paddingMin, k_paddingMax);
+    m_padding->setSuffix(tr(" px"));
+    m_padding->setToolTip(tr("Room between the balloon's outline and the lettering.\n"
+                             "Negative lets the lettering reach past the outline."));
+    form->addRow(tr("Padding"), m_padding);
 
     m_align = new QComboBox(this);
     m_align->addItem(tr("Centre"), int(Qt::AlignHCenter));
@@ -76,6 +122,24 @@ TextEditor::TextEditor(QWidget* parent)
             m_mixedSize = false;
         m_values.pixelSize = v;
         m_sizeTouched      = true;
+        emit changed();
+    });
+    connect(m_lineSpacing, &QSpinBox::valueChanged, this, [this](int v) {
+        if (m_populating)
+            return;
+        if (restoreSpin(m_lineSpacing, k_lineSpacingMin))
+            m_mixedLineSpacing = false;
+        m_values.lineSpacing = v;
+        m_lineSpacingTouched = true;
+        emit changed();
+    });
+    connect(m_padding, &QSpinBox::valueChanged, this, [this](int v) {
+        if (m_populating)
+            return;
+        if (restoreSpin(m_padding, k_paddingMin))
+            m_mixedPadding = false;
+        m_values.padding = v;
+        m_paddingTouched = true;
         emit changed();
     });
     connect(m_bold, &QCheckBox::toggled, this, [this](bool on) {
@@ -119,7 +183,9 @@ void TextEditor::bind(const Subjects& subjects)
     m_values   = TextProperties::from(*subjects.first());
     m_subjects = static_cast<int>(subjects.size());
 
-    m_mixedColour = m_mixedFamily = m_mixedSize = m_mixedBold = m_mixedAlign = false;
+    m_mixedColour = m_mixedFamily = m_mixedSize = m_mixedBold = m_mixedAlign = m_mixedLineSpacing = false;
+    m_mixedPadding = false;
+    m_anyBalloon   = false;
     for (const ObjectRecord* a : subjects) {
         const TextProperties t = TextProperties::from(*a);
         m_mixedColour = m_mixedColour || t.colour    != m_values.colour;
@@ -127,8 +193,12 @@ void TextEditor::bind(const Subjects& subjects)
         m_mixedSize   = m_mixedSize   || t.pixelSize != m_values.pixelSize;
         m_mixedBold   = m_mixedBold   || t.bold      != m_values.bold;
         m_mixedAlign  = m_mixedAlign  || t.align     != m_values.align;
+        m_mixedLineSpacing = m_mixedLineSpacing || t.lineSpacing != m_values.lineSpacing;
+        m_mixedPadding     = m_mixedPadding     || t.padding     != m_values.padding;
+        m_anyBalloon       = m_anyBalloon       || a->hasSilhouette();
     }
     m_colourTouched = m_familyTouched = m_sizeTouched = m_boldTouched = m_alignTouched = false;
+    m_lineSpacingTouched = m_paddingTouched = false;
 
     syncFromValues();
 }
@@ -147,6 +217,8 @@ void TextEditor::applyEditedTo(ObjectRecord& target) const
     if (m_sizeTouched)   t.pixelSize = m_values.pixelSize;
     if (m_boldTouched)   t.bold      = m_values.bold;
     if (m_alignTouched)  t.align     = m_values.align;
+    if (m_lineSpacingTouched) t.lineSpacing = m_values.lineSpacing;
+    if (m_paddingTouched)     t.padding     = m_values.padding;
     t.applyTo(target);
 }
 
@@ -160,6 +232,7 @@ void TextEditor::setContentVisible(bool on)
 {
     m_bodyVisible = on;
     m_body->setVisible(on && m_subjects <= 1);
+    m_showWhitespace->setVisible(m_body->isVisibleTo(this));
 }
 
 void TextEditor::setContentEnabled(bool on)
@@ -179,12 +252,22 @@ void TextEditor::syncFromValues()
         // A font combo is a list of fonts, so "Mixed" cannot be an entry in it: no current entry, and
         // the placeholder says which state that is.
         m_family->setPlaceholderText(tr("Mixed"));
+        // An empty family is not "leave the combo alone" — it is the default font, and has to be shown
+        // as that. Skipping it left whatever the combo held from the previous object (a balloon's
+        // Segoe Script on a fresh text object in Segoe UI), and picking that same font again then did
+        // nothing, because a combo does not report choosing what it already shows.
         if (m_mixedFamily)
             m_family->setCurrentIndex(-1);
-        else if (!m_values.family.isEmpty())
-            m_family->setCurrentFont(QFont(m_values.family));
+        else
+            m_family->setCurrentFont(QFont(m_values.family.isEmpty() ? Painter::defaultFamily()
+                                                                     : m_values.family));
     }
     showSpin(m_size, m_mixedSize, m_values.pixelSize, k_textSizeMin, k_textSizeMax);
+    showSpin(m_lineSpacing, m_mixedLineSpacing, m_values.lineSpacing, k_lineSpacingMin, k_lineSpacingMax);
+    showSpin(m_padding, m_mixedPadding, m_values.padding, k_paddingMin, k_paddingMax);
+    // A text object has no outline to keep from. Shown when anything bound has one: a value typed for
+    // a set lands on the text objects in it too, where it is carried and ignored.
+    m_form->setRowVisible(m_padding, m_anyBalloon);
     showCheck(m_bold, m_mixedBold, m_values.bold);
     showCombo(m_align, m_mixedAlign, m_align->findData(m_values.align));
     if (m_mixedColour)
@@ -194,6 +277,7 @@ void TextEditor::syncFromValues()
 
     // The lettering itself is the one thing a set never shares: five balloons do not share one line.
     m_body->setVisible(m_subjects <= 1 && m_bodyVisible);
+    m_showWhitespace->setVisible(m_subjects <= 1 && m_bodyVisible);   // it is the box's, and goes with it
     m_populating = false;
 }
 

@@ -8,6 +8,7 @@ class QComboBox;
 class QFontComboBox;
 class QPlainTextEdit;
 class QPushButton;
+class QFormLayout;
 class QSpinBox;
 
 namespace StripEdit {
@@ -59,6 +60,10 @@ private:
     QCheckBox*      m_bold   = nullptr;
     QComboBox*      m_align  = nullptr;
     QPushButton*    m_swatch = nullptr;
+    QSpinBox*       m_lineSpacing = nullptr;
+    QSpinBox*       m_padding = nullptr;    //!< Only while something bound has a balloon to keep from.
+    QFormLayout*    m_form = nullptr;
+    QCheckBox*      m_showWhitespace = nullptr;   //!< The text box's own view; never the balloon's.
 
     TextProperties m_values;
     bool m_populating = false;
@@ -76,6 +81,11 @@ private:
     bool m_bodyVisible   = true;   //!< What setContentVisible() was last told; a set hides the box too.
     bool m_mixedColour   = false;
     bool m_colourTouched = false;
+    bool m_mixedLineSpacing   = false;
+    bool m_lineSpacingTouched = false;
+    bool m_mixedPadding       = false;
+    bool m_paddingTouched     = false;
+    bool m_anyBalloon         = true;   //!< Whether the padding row means anything for what is bound.
 };
 
 }  // namespace StripEdit

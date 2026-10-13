@@ -180,8 +180,21 @@ struct TextProperties
     QString family;                   //!< Empty = the application's default family.
     int     pixelSize = 30;           //!< Strip-scale pixels, so it means the same thing in the output.
     bool    bold      = false;
-    int     align     = Qt::AlignHCenter;   //!< Horizontal alignment of the wrapped text.
+    int     align     = Qt::AlignHCenter;   //!< Horizontal alignment of each line.
     QColor  colour{20, 20, 20};
+    //! Line pitch as a percentage of the font's own — for faces that set their lines too far apart.
+    int     lineSpacing = 100;
+    /**
+     * @brief How far the lettering keeps from the balloon's outline, in strip pixels, on top of the
+     *        stroke — an inset of the shape's own text area.
+     *
+     * The lettering's, not the balloon's: it is how the words sit, and it is set beside the rest of how
+     * they are set. **Only a balloon uses it** — a text object has no outline to keep away from, so
+     * the value is carried and ignored, and the editor does not offer it there. **May be negative**:
+     * the text area then reaches past the outline, which an impact balloon with lettering bursting out
+     * of it needs. 8 is the inset every balloon had before it was a property.
+     */
+    int     padding = 8;
 
     [[nodiscard]] static TextProperties from(const ObjectRecord& a);
     void applyTo(ObjectRecord& a) const;
@@ -189,7 +202,8 @@ struct TextProperties
     [[nodiscard]] bool operator==(const TextProperties& o) const
     {
         return body == o.body && family == o.family && pixelSize == o.pixelSize && bold == o.bold
-            && align == o.align && colour == o.colour;
+            && align == o.align && colour == o.colour && lineSpacing == o.lineSpacing
+            && padding == o.padding;
     }
     [[nodiscard]] bool operator!=(const TextProperties& o) const { return !(*this == o); }
 };

@@ -35,6 +35,10 @@ inline constexpr int k_styleAmountMax = 200;
 
 inline constexpr int k_textSizeMin = 6;      //!< Below this the lettering stops being lettering.
 inline constexpr int k_textSizeMax = 400;
+inline constexpr int k_lineSpacingMin = 25;    //!< Percent. Below this the lines sit on each other.
+inline constexpr int k_lineSpacingMax = 400;
+inline constexpr int k_paddingMin = -200;      //!< Strip px. Negative lets the lettering leave the balloon.
+inline constexpr int k_paddingMax = 200;
 
 inline constexpr int k_strokeWidthMin = 0;    //!< A balloon with no outline at all is a legitimate look.
 inline constexpr int k_strokeWidthMax = 40;

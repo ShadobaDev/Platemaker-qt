@@ -805,6 +805,26 @@ void ObjectController::applyPresetToSelection(int index)
     applyRecord(m_selectedOverlay, a, /*commit=*/true);
 }
 
+QPointF ObjectController::settleBox(const Object* item, ObjectRecord& next) const
+{
+    const ObjectRecord& prev = item->record();
+    if (next.isArtwork() || next.box == prev.box)
+        return {};   // a picture's box is its pixels, not its words'; an unchanged box moves nothing
+
+    // **No growing on edit.** It was tried (an edit grew the box where the words overflowed, never
+    // shrinking it) and taken out: deleting letters left the box grown, and any edit to a box dragged
+    // smaller on purpose grew it back. The red outline says when the words do not fit; *Fit to text*
+    // and *Fix padding* are how the author answers it.
+    //
+    // **The lettering does not move.** Whatever changed the box — *Fit*, *Convert* — the object
+    // is moved so that the lettering's anchor keeps its place on the strip, and every tail tip moves
+    // back by the same amount, so it keeps pointing at its speaker.
+    const QPointF shift = Painter::textAnchor(prev) - Painter::textAnchor(next);
+    for (Tail& t : next.tails.items)
+        t.tip -= shift;
+    return shift;
+}
+
 void ObjectController::applyRecords(const QStringList& uids, const QList<ObjectRecord>& records,
                                     bool commit, const QString& undoText)
 {
@@ -814,8 +834,14 @@ void ObjectController::applyRecords(const QStringList& uids, const QList<ObjectR
     // **Whichever kind the object is.** This loop used to reach for a BubbleObject and skip whatever
     // was not one, which, once pictures could be lettered, meant dropping their lettering without saying so.
     for (int i = 0; i < uids.size(); ++i) {
-        if (Object* item = m_overlayItems.value(uids.at(i)))
-            item->setRecord(records.at(i));   // itself a no-op when the record has not moved
+        Object* item = m_overlayItems.value(uids.at(i));
+        if (!item)
+            continue;
+        ObjectRecord  next  = records.at(i);
+        const QPointF shift = settleBox(item, next);
+        item->setRecord(next);   // itself a no-op when the record has not moved
+        if (!shift.isNull())
+            item->setPos(item->pos() + shift * (item->scale() > 0.0 ? item->scale() : 1.0));
     }
 
     // Live edits repaint only. Persisting every keystroke would write a file and push a history step
@@ -853,7 +879,24 @@ void ObjectController::applyRecord(const QString& uid, const ObjectRecord& recor
 
 void ObjectController::applyPanelRecords(const QList<ObjectRecord>& records, bool commit)
 {
-    applyRecords(m_panelSubjects, records, commit);
+    // **The panel edits properties, not geometry.** Its record was copied when it was bound, and the
+    // box and the tail tips belong to no property group — they move on the canvas, and since the
+    // lettering learnt to grow its box, under the panel's feet while it types. Taken from the panel they
+    // would put back a box the last keystroke outgrew and tips from before it moved. So they are taken
+    // from the object, which is where they live.
+    QList<ObjectRecord> merged = records;
+    for (int i = 0; i < merged.size() && i < m_panelSubjects.size(); ++i) {
+        const Object* item = m_overlayItems.value(m_panelSubjects.at(i));
+        if (!item)
+            continue;
+        const ObjectRecord& held = item->record();
+        merged[i].box = held.box;
+        // By position: a panel adds a tail at the end and removes none (Delete tail is the controller's).
+        const auto shared = qMin(held.tails.items.size(), merged[i].tails.items.size());
+        for (qsizetype t = 0; t < shared; ++t)
+            merged[i].tails.items[t].tip = held.tails.items.at(t).tip;
+    }
+    applyRecords(m_panelSubjects, merged, commit);
 }
 
 void ObjectController::importArtworkFile(const QString& file)
@@ -1189,6 +1232,12 @@ void ObjectController::convertSelectionTo(ObjectRecord::Shape kind)
             // The kind alone, on purpose: the rest of the shape group stays in the record, as the tails
             // do, so converting back brings a shape's own settings back with it.
             each.shape.kind = kind;
+            // ...and a box that fits the lettering in its new kind. A text object's box is its words' own
+            // size, which a balloon's smaller text area could not hold — the words were clipped. Fitted
+            // rather than only grown, both ways: converting back gives the words' own box again. Where
+            // the box lands is applyRecords()' business — the words stay put and the balloon appears
+            // under them.
+            each.box = Painter::fitBoxFor(each, Painter::textBlockSize(each));
             ++converted;
         }
         next.append(each);

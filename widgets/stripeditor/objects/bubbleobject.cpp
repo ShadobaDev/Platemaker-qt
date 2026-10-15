@@ -68,21 +68,22 @@ void BubbleObject::setSharpRaster(const QImage& img)
     update();
 }
 
-void BubbleObject::setBoxSize(QSizeF size)
+void BubbleObject::setBoxSize(QSizeF size, const QPointF& handleShift)
 {
     const QSize newBox(qRound(size.width()), qRound(size.height()));
-    if (newBox == m_record.box)
+    if (newBox == m_record.box && handleShift.isNull())
         return;
 
-    // Keep every tail pointing the same relative way as the balloon changes size, and scale its width
-    // with it — otherwise a tail keeps its absolute thickness and swamps a shrinking bubble.
-    if (!m_record.box.isEmpty()) {
-        const qreal sx = double(newBox.width())  / m_record.box.width();
-        const qreal sy = double(newBox.height()) / m_record.box.height();
-        for (Tail& t : m_record.tails.items) {
-            t.tip = QPointF(t.tip.x() * sx, t.tip.y() * sy);
-            t.baseWidth *= (sx + sy) / 2.0;
-        }
+    // **A tip stays where it points.** It is aimed at a speaker, and resizing the balloon does not move
+    // the speaker — so the tip keeps its place on the strip, which in the balloon's own units means
+    // moving back by however far the box's corner moved. Only the tail's *width* follows the balloon:
+    // a tail that kept its thickness would swamp a shrinking bubble.
+    const qreal widthScale = m_record.box.isEmpty()
+        ? 1.0
+        : (double(newBox.width()) / m_record.box.width() + double(newBox.height()) / m_record.box.height()) / 2.0;
+    for (Tail& t : m_record.tails.items) {
+        t.tip       += handleShift;
+        t.baseWidth *= widthScale;
     }
     m_record.box = newBox;
     rebuild();

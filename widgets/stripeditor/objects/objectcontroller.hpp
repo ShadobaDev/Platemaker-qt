@@ -643,6 +643,14 @@ private:
     void applyRecord(const QString& uid, const ObjectRecord& record, bool commit,
                      const QString& undoText = QString());
 
+    /**
+     * @brief When @p next's box differs from what @p item holds — *Fit*, *Convert* — moves the tail tips
+     *        back so they keep pointing where they did.
+     * @return How far the item has to move, in its own units, for the lettering to stay where it is on
+     *         the strip; null when the box did not change.
+     */
+    [[nodiscard]] QPointF settleBox(const Object* item, ObjectRecord& next) const;
+
     void deleteSelectedTail();   //!< Takes the selected tail off its balloon, and selects the balloon.
 
 

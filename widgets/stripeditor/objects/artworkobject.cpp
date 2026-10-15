@@ -104,8 +104,9 @@ void ArtworkObject::describePicture(ObjectRecord& a) const
         a.box = m_artwork.size();
 }
 
-void ArtworkObject::setBoxSize(QSizeF size)
+void ArtworkObject::setBoxSize(QSizeF size, const QPointF&)
 {
+    // A picture has no handles to keep in place.
     if (size == m_box)
         return;
     m_box = size;

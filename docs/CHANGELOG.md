@@ -90,6 +90,10 @@
     clipped as before, the outline is what tells you so. **Fix padding** keeps the balloon's size and
     lowers its padding instead, below zero if the lettering has to reach past the outline. Both are in
     OBJECT STATE and on the right-click menu.
+  - **The lettering stays where you put it.** *Fit to text* and *Convert to ▸* resize the box around
+    the words, from the side they are aligned to, so converting text to a balloon draws the balloon
+    under the words instead of clipping them. **A tail tip stays on its speaker** through all of it,
+    and through dragging a grip too; only moving the balloon carries its tails along.
   - **Presets** — a named look: colours, stroke, line style, font, alignment and shape, but never the
     text, the balloon's size, its tails or where it sits. The picker in the tool's options sets what the
     **next** bubble starts from; **right-click an existing bubble → *Apply preset ▸*** restyles that one

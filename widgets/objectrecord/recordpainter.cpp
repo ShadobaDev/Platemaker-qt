@@ -775,6 +775,25 @@ int fittingPadding(const ObjectRecord& a)
     return paddingToFit(a, textBlockSize(a));
 }
 
+QPointF textAnchorFor(const ObjectRecord& a, const QSizeF& block)
+{
+    // The same placement textOutline() gives the block: each line aligned within the text area, the
+    // block centred in it — or pinned to its top when it is taller than the area.
+    const QRectF area  = textArea(a);
+    const int    align = a.text.align & Qt::AlignHorizontal_Mask;
+    const qreal  x     = (align & Qt::AlignLeft)  ? area.left()
+                       : (align & Qt::AlignRight) ? area.right()
+                                                  : area.center().x();
+    const qreal  y     = area.top() + qMax(qreal(0), (area.height() - block.height()) / 2.0)
+                       + block.height() / 2.0;
+    return {x, y};
+}
+
+QPointF textAnchor(const ObjectRecord& a)
+{
+    return textAnchorFor(a, textBlockSize(a));
+}
+
 QString label(const ObjectRecord& a)
 {
     const QString first = a.text.body.section(QLatin1Char('\n'), 0, 0).trimmed();

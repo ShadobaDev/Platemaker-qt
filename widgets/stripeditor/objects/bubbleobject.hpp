@@ -90,10 +90,12 @@ protected:
      */
     [[nodiscard]] QRectF  computeBounds() const override;
     /**
-     * @brief Sets the size of the bubble's box.
+     * @brief Sets the size of the bubble's box; every tail tip moves by @p handleShift, so it keeps
+     *        pointing where it pointed on the strip.
      * @param size The new size.
+     * @param handleShift How far the box's top-left moved, negated, in the bubble's own units.
      */
-    void                  setBoxSize(QSizeF size) override;
+    void                  setBoxSize(QSizeF size, const QPointF& handleShift) override;
 
     /**
      * @brief Returns the number of handles for the bubble object.

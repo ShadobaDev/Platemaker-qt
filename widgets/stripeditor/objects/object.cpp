@@ -268,8 +268,11 @@ void Object::dragTo(const QPointF& scenePos, Qt::KeyboardModifiers modifiers)
         return;   // refused, not clamped: the box keeps its last good size
 
     const QSizeF box(qRound(r->width() / k), qRound(r->height() / k));
-    if (box != boxSize()) {
-        setBoxSize(box);
+    // How far the top-left moves, in item units — what a tail tip has to move back by to keep pointing
+    // where it pointed.
+    const QPointF shift = (pos() - r->topLeft()) / k;
+    if (box != boxSize() || !shift.isNull()) {
+        setBoxSize(box, shift);
         refreshBounds();
     }
     setPos(r->topLeft());

@@ -66,11 +66,9 @@ Bug fixes, cosmetics and internal cleanups — no new capability, no change to a
     authoritative check.
 
 
-- [ ] **Strip editor: *Convert to ▸ Balloon* clips the lettering.** The conversion writes only
-  `shape.kind` and keeps the box; a text object's box is its lettering's own size, and a balloon's
-  lettering must fit inside `textSafeArea()`, which is smaller. Fix: after converting **to** a
-  silhouette, `a.box = Painter::fittedBox(a)` in `ObjectController::convertSelectionTo`'s loop when the
-  text no longer fits — what OBJECT STATE's *Fit* already does. Converting back keeps the larger box.
+- [x] **Strip editor: *Convert to ▸ Balloon* clips the lettering.** Convert now fits the box to the
+  lettering in its new kind, both ways, and moves the object so the words stay where they were — the
+  balloon appears under them (`ObjectController::settleBox()`).
 
 - [ ] **Strip editor: *Fit to strip width* leaves the picture hanging off the strip.** It calls
   `scaleSelectedArtwork()`, which writes only `wFrac`, so the top-left corner stays where it was. Fix:

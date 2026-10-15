@@ -106,7 +106,7 @@ protected:
      * @brief Sets the size of the object's bounding box.
      * @param size The new size.
      */
-    void                 setBoxSize(QSizeF size) override;
+    void                 setBoxSize(QSizeF size, const QPointF& handleShift) override;
 
 private:
     /**

@@ -232,6 +232,19 @@ void paintPaths(QPainter& painter, const ObjectRecord& a,
 [[nodiscard]] int fittingPadding(const ObjectRecord& a);
 
 /**
+ * @brief The point of \p a's lettering that stays put when its box changes, in box coordinates.
+ *
+ * Horizontally the side the lines are aligned to — the left edge, the right edge, or the middle — and
+ * vertically the middle of the block. A box that changes for the lettering's sake (it grew to hold it,
+ * *Fit*, *Convert*) is moved so that this point keeps its place on the strip, which is what keeps the
+ * words where the author put them. Pure geometry given the block's size, like fits().
+ */
+[[nodiscard]] QPointF textAnchorFor(const ObjectRecord& a, const QSizeF& block);
+
+//! textAnchorFor() with \p a's lettering measured.
+[[nodiscard]] QPointF textAnchor(const ObjectRecord& a);
+
+/**
  *  Human-readable label for the object stack — the first line of text, or the shape's name if empty.
  *  How much of the lettering names an object in a list. Long enough to tell two lines apart, short
  *  enough to leave room for what else a row carries.

@@ -145,3 +145,36 @@ TEST(TextFit, FixPaddingLeavesWhatAlreadyFitsAlone)
     text.box          = QSize(50, 40);
     EXPECT_EQ(Painter::paddingToFit(text, QSizeF(200, 36)), 8);    // no outline, no padding to give
 }
+
+TEST(TextFit, TheAnchorIsTheAlignedSideAndTheMiddleOfTheBlock)
+{
+    ObjectRecord a   = withShape(ObjectRecord::Shape::None);
+    a.box            = QSize(300, 100);
+    const QSizeF blk(120, 40);
+
+    a.text.align = Qt::AlignHCenter;
+    EXPECT_EQ(Painter::textAnchorFor(a, blk), QPointF(150, 50));
+    a.text.align = Qt::AlignLeft;
+    EXPECT_EQ(Painter::textAnchorFor(a, blk), QPointF(0, 50));
+    a.text.align = Qt::AlignRight;
+    EXPECT_EQ(Painter::textAnchorFor(a, blk), QPointF(300, 50));
+
+    // Taller than its area, the block is pinned to the top, as textOutline() draws it.
+    EXPECT_EQ(Painter::textAnchorFor(a, QSizeF(120, 160)).y(), 80);
+}
+
+TEST(TextFit, ConvertingFitsTheLetteringInEveryShape)
+{
+    // The TODO this closes: a text object's box is its words' own size, and converted to a balloon
+    // without a new box the smaller text area clipped them. Convert fits the box to the new kind.
+    const QSizeF block(180, 72);
+    ObjectRecord text = withShape(ObjectRecord::Shape::None);
+    text.box          = Painter::fitBoxFor(text, block);
+    for (const ObjectRecord::Shape shape : shapeOrder()) {
+        ObjectRecord balloon = text;
+        balloon.shape.kind   = shape;
+        EXPECT_FALSE(Painter::fits(balloon, block)) << shapeName(shape) << " (the old behaviour clipped)";
+        balloon.box = Painter::fitBoxFor(balloon, block);
+        EXPECT_TRUE(Painter::fits(balloon, block)) << shapeName(shape);
+    }
+}

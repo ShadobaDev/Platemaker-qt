@@ -298,8 +298,14 @@ protected:
     /** @brief The extent this object draws into, recomputed whenever its geometry changes. */
     [[nodiscard]] virtual QRectF computeBounds() const = 0;
 
-    /** @brief Applies a new box size. A kind that has to move other things with it (tails) does that here. */
-    virtual void setBoxSize(QSizeF size) = 0;
+    /**
+     * @brief Applies a new box size, the box's top-left having moved so that anything in item units has
+     *        to move by @p handleShift to stay where it is on the strip.
+     *
+     * A kind with handles (a bubble's tail tips) moves them by exactly that: a tip is aimed at a
+     * speaker, and the speaker did not move because the balloon was resized.
+     */
+    virtual void setBoxSize(QSizeF size, const QPointF& handleShift) = 0;
 
     /** @brief Extra draggable points in item coordinates — a bubble's tail tips. None by default. */
     [[nodiscard]] virtual int     handleCount() const { return 0; }

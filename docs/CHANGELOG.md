@@ -87,7 +87,11 @@
   - **Line style Flash.** The balloon is ringed by narrow, randomly varied triangles, like brush
     strokes, pointing out of the edge and into it, in the outline colour; they replace the solid
     outline. Any shape wears it, tails included, and it is drawn on the strip directly, as fast as a
-    clean balloon.
+    clean balloon. The Style panel sets the strokes' spacing, length and width inside and outside, how
+    much their place and length vary, and their **direction**: from the centre, or from a line along a
+    long box, so they stand square to its straight sides. *Auto* takes each shape's own direction and
+    follows the shape; a direction set by hand stays when the shape changes. New built-in preset
+    **Flash**.
   - **Fit to text** gives the smallest balloon that holds the lettering, on **both** axes, floored so a
     short line cannot collapse the shape. When the lettering does not fit — the box dragged too small, or
     a line typed too long — the selected object's text area is **outlined in red**; the overflow is

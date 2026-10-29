@@ -170,6 +170,9 @@ struct StyleProperties
     //! style past it would load from every file as Clean.
     static constexpr Kind k_lastKind = Kind::Flash;
 
+    //! `flashCoreStretch`'s "follow the shape" value.
+    static constexpr int k_autoStretch = -1;
+
     Kind  kind  = Kind::Clean;  //!< Clean is a true no-op: no filter is emitted at all.
     qreal amount = 1.0;          //!< Scales a filter's effect, 0..2. 1.0 is the preset's own strength.
 
@@ -191,9 +194,11 @@ struct StyleProperties
     int   flashInnerLengthJitter = 50;
     /**
      * What the strokes point away from, in %: 0 is the box's centre; more stretches it into a line
-     * along the longer axis, which squares the strokes up with a long straight side.
+     * along the longer axis, which squares the strokes up with a long straight side. **k_autoStretch**
+     * (the default) takes the shape's own value (ShapeInfo::flashStretch) instead, so it follows the
+     * shape; a value set by hand stays through any change of shape.
      */
-    int   flashCoreStretch       = 0;
+    int   flashCoreStretch       = k_autoStretch;
     /** @} */
 
     //! The fields, with the keys they are saved under (fields.hpp).

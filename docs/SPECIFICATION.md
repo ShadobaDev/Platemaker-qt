@@ -119,7 +119,10 @@ previews through the library (`hasFilter()`) and has an amount to scale. Strokes
 from the record and its silhouette to closed paths filled in the stroke colour, with an `inkReach` that
 says how far they reach past the silhouette; a style with ink leaves the solid outline off
 (`hasOutline()`) and is drawn locally. The flash is the worked example. Its parameters are members of
-`StyleProperties` with a `flash` prefix, one line each in its `fields()` list. Caught by the same table, round-trip and golden
+`StyleProperties` with a `flash` prefix, one line each in its `fields()` list; the Style panel builds a
+spin for every `flash…` field from that list, and takes its label, range and tooltip from `k_flashRows`
+in `styleeditor.cpp` (a field with no row there stops a debug build). The core stretch's *Auto* comes
+from `ShapeInfo::flashStretch`, one value per shape in `shapes.cpp`. Caught by the same table, round-trip and golden
 tests as a shape.
 
 ### A kind of object

@@ -110,6 +110,12 @@ QList<BubblePreset> builtinPresets()
     shout.style.kind         = ObjectRecord::Style::Marker;
     out.append({PresetStore::tr("Shout"), shout});
 
+    ObjectRecord flash = dialogue;
+    flash.shape.kind         = ObjectRecord::Shape::Ellipse;
+    flash.text.bold          = true;
+    flash.style.kind         = ObjectRecord::Style::Flash;   // its strokes, on Auto, from the struct
+    out.append({PresetStore::tr("Flash"), flash});
+
     ObjectRecord caption = dialogue;
     caption.shape.kind       = ObjectRecord::Shape::Caption;
     caption.skin.fill        = QColor(16, 16, 16);

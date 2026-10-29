@@ -534,7 +534,7 @@ TEST(Style, AFlashStaysInsideItsBounds)
         EXPECT_FALSE(Geometry::hasOutline(a));
         EXPECT_FALSE(Geometry::hasFilter(a));
 
-        for (int stretch : {0, 100}) {
+        for (int stretch : {StyleProperties::k_autoStretch, 0, 100}) {
             for (quint32 seed : {1u, 2u, 0xC0FFEEu, 0xFFFFFFFFu}) {
                 a.style.flashCoreStretch = stretch;
                 a.styleSeed              = seed;
@@ -544,6 +544,26 @@ TEST(Style, AFlashStaysInsideItsBounds)
                     << shapeName(shape) << " stretch " << stretch << " seed " << seed;
             }
         }
+    }
+}
+
+//! A flash left on Auto points its strokes exactly as the shape's own stretch would (PLAN-S A18, A19).
+TEST(Style, AutoStretchIsTheShapes)
+{
+    for (int i = 0; i <= int(ShapeProperties::k_lastKind); ++i) {
+        ObjectRecord a;
+        a.shape.kind = static_cast<ObjectRecord::Shape>(i);
+        a.box        = QSize(300, 140);
+        a.style.kind = ObjectRecord::Style::Flash;
+        a.styleSeed  = 7;
+        const int own = Geometry::shapeInfo(a.shape.kind).flashStretch;
+        EXPECT_GE(own, 0) << shapeName(a.shape.kind);
+        EXPECT_LE(own, 100) << shapeName(a.shape.kind);
+
+        ASSERT_EQ(a.style.flashCoreStretch, StyleProperties::k_autoStretch);   // the default is Auto
+        const QPainterPath autoInk = Geometry::ink(a, Geometry::silhouette(a));
+        a.style.flashCoreStretch   = own;
+        EXPECT_TRUE(autoInk == Geometry::ink(a, Geometry::silhouette(a))) << shapeName(a.shape.kind);
     }
 }
 

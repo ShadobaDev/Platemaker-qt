@@ -46,6 +46,12 @@ struct ShapeInfo
      * wide balloon spilling its words out between a burst's spikes or past a diamond's slope.
      */
     QRectF (*safeArea)(const QRectF& body);
+    /**
+     * How far a flash's core is stretched on this shape while the balloon leaves it on *Auto*, in %
+     * (`StyleProperties::flashCoreStretch`). Round shapes and those of five sides or more point from the
+     * centre (0); long straight sides want the line (100), so their strokes stand square to them.
+     */
+    int flashStretch;
 };
 
 //! The entry for @p kind. Every kind up to `ShapeProperties::k_lastKind` has one.

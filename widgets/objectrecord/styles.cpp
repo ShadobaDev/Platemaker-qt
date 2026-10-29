@@ -3,6 +3,7 @@
 
 #include "styles.hpp"
 #include "geometry.hpp"
+#include "shapes.hpp"
 
 #include <QLineF>
 #include <QObject>
@@ -144,8 +145,11 @@ QPainterPath flashInk(const ObjectRecord& a, const QPainterPath& silhouette)
     // What the strokes point away from: the centre, stretched into a line along the box's longer axis.
     // At 100 % the line runs between the centres of the two circles that fit the box's ends, so every
     // stroke on a long straight side is square to it and only the ends fan out; a square box keeps a
-    // point whatever the stretch.
-    const qreal  stretch = qBound(0, s.flashCoreStretch, 100) / 100.0;
+    // point whatever the stretch. On Auto the shape says how far.
+    const int    percent = s.flashCoreStretch == StyleProperties::k_autoStretch
+                               ? shapeInfo(a.shape.kind).flashStretch
+                               : s.flashCoreStretch;
+    const qreal  stretch = qBound(0, percent, 100) / 100.0;
     const QSizeF half(stretch * qMax(0, a.box.width() - a.box.height()) / 2.0,
                       stretch * qMax(0, a.box.height() - a.box.width()) / 2.0);
     const QRectF core(centre.x() - half.width(), centre.y() - half.height(), 2 * half.width(),

@@ -279,17 +279,18 @@ QRectF bannerArea(const QRectF& body)
 using Kind = ShapeProperties::Kind;
 
 //! In the enum's order, so a kind is its own index; shapeInfo() checks every entry names its kind.
+// The flash stretches were chosen by eye, shape by shape, on rendered sheets (PLAN-S A18).
 const std::array<ShapeInfo, int(ShapeProperties::k_lastKind) + 1> k_shapes{{
-    {Kind::None,      "none",      QT_TRANSLATE_NOOP("QObject", "Text only — no balloon"), false, nullptr,       wholeArea},
-    {Kind::Speech,    "speech",    QT_TRANSLATE_NOOP("QObject", "Speech balloon"),         true,  speechPath,    speechArea},
-    {Kind::Shout,     "shout",     QT_TRANSLATE_NOOP("QObject", "Shout"),                  true,  burstPath,     burstArea},
-    {Kind::Caption,   "caption",   QT_TRANSLATE_NOOP("QObject", "Caption box"),            false, captionPath,   wholeArea},
-    {Kind::Ellipse,   "ellipse",   QT_TRANSLATE_NOOP("QObject", "Round balloon"),          true,  ellipsePath,   inscribedInEllipse},
-    {Kind::Diamond,   "diamond",   QT_TRANSLATE_NOOP("QObject", "Diamond"),                false, diamondPath,   diamondArea},
-    {Kind::Trapezoid, "trapezoid", QT_TRANSLATE_NOOP("QObject", "Caption plate"),          false, trapezoidPath, trapezoidArea},
-    {Kind::Thought,   "thought",   QT_TRANSLATE_NOOP("QObject", "Thought balloon"),        true,  thoughtPath,   thoughtArea},
-    {Kind::Scroll,    "scroll",    QT_TRANSLATE_NOOP("QObject", "Scroll"),                 false, scrollPath,    scrollArea},
-    {Kind::Banner,    "banner",    QT_TRANSLATE_NOOP("QObject", "Banner"),                 false, bannerPath,    bannerArea},
+    {Kind::None,      "none",      QT_TRANSLATE_NOOP("QObject", "Text only — no balloon"), false, nullptr,       wholeArea,          0},
+    {Kind::Speech,    "speech",    QT_TRANSLATE_NOOP("QObject", "Speech balloon"),         true,  speechPath,    speechArea,         0},
+    {Kind::Shout,     "shout",     QT_TRANSLATE_NOOP("QObject", "Shout"),                  true,  burstPath,     burstArea,          0},
+    {Kind::Caption,   "caption",   QT_TRANSLATE_NOOP("QObject", "Caption box"),            false, captionPath,   wholeArea,          100},
+    {Kind::Ellipse,   "ellipse",   QT_TRANSLATE_NOOP("QObject", "Round balloon"),          true,  ellipsePath,   inscribedInEllipse, 0},
+    {Kind::Diamond,   "diamond",   QT_TRANSLATE_NOOP("QObject", "Diamond"),                false, diamondPath,   diamondArea,        0},
+    {Kind::Trapezoid, "trapezoid", QT_TRANSLATE_NOOP("QObject", "Caption plate"),          false, trapezoidPath, trapezoidArea,      50},
+    {Kind::Thought,   "thought",   QT_TRANSLATE_NOOP("QObject", "Thought balloon"),        true,  thoughtPath,   thoughtArea,        0},
+    {Kind::Scroll,    "scroll",    QT_TRANSLATE_NOOP("QObject", "Scroll"),                 false, scrollPath,    scrollArea,         50},
+    {Kind::Banner,    "banner",    QT_TRANSLATE_NOOP("QObject", "Banner"),                 false, bannerPath,    bannerArea,         100},
 }};
 
 } // namespace

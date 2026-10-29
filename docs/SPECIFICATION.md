@@ -113,9 +113,13 @@ A value of a type no group holds yet needs an overload in each of the three walk
 
 A value of `StyleProperties::Kind` (append only, move `k_lastKind`) and **one entry in `k_styles`**
 (`widgets/objectrecord/styles.cpp`), in the enum's order: the persisted name, the title the Style panel
-lists, and its recipe. A recipe is an SVG noise filter (`NoiseRecipe`): the filter in `recordsvg.cpp`
-and the margin it needs (`styleMargin()`) both read it, and a style with one previews through the
-library (`hasFilter()`) and has an amount to scale. Caught by the same table, round-trip and golden
+lists, and either a recipe or strokes of its own. A recipe is an SVG noise filter (`NoiseRecipe`): the
+filter in `recordsvg.cpp` and the margin it needs (`styleMargin()`) both read it, and a style with one
+previews through the library (`hasFilter()`) and has an amount to scale. Strokes are an `ink` function,
+from the record and its silhouette to closed paths filled in the stroke colour, with an `inkReach` that
+says how far they reach past the silhouette; a style with ink leaves the solid outline off
+(`hasOutline()`) and is drawn locally. The flash is the worked example. Its parameters are members of
+`StyleProperties` with a `flash` prefix, one line each in its `fields()` list. Caught by the same table, round-trip and golden
 tests as a shape.
 
 ### A kind of object

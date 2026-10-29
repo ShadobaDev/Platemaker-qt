@@ -44,10 +44,11 @@ void paint(QPainter& painter, const ObjectRecord& a);
  * @param painter The painter to draw into.
  * @param a The record to draw.
  * @param silhouette The silhouette path (Geometry::silhouette()).
+ * @param ink The style's own strokes (Geometry::ink()), filled in the stroke colour; empty for most.
  * @param text The text path (Geometry::textOutline()).
  */
 void paintPaths(QPainter& painter, const ObjectRecord& a, const QPainterPath& silhouette,
-                const QPainterPath& text);
+                const QPainterPath& ink, const QPainterPath& text);
 
 /**
  * @brief Rasterises \p a to a transparent ARGB32 image the size of its box — what the library composites.

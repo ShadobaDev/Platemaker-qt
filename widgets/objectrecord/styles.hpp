@@ -1,16 +1,19 @@
 /**
  * \file styles.hpp
- * \brief Every line style, one table entry each: its names and its recipe.
+ * \brief Every line style, one table entry each: its names, and either a filter's recipe or strokes
+ *        of its own (ink).
  *
  * **Adding a style is a value in `StyleProperties::Kind` and an entry here** (styles.cpp). Everything
  * else asks the table: the file names (styleName), the Style panel's list (styleTitle), the SVG filter
- * (recordsvg.cpp), the room it needs past the geometry (styleMargin) and whether the library has to
- * draw its preview (hasFilter).
+ * (recordsvg.cpp), the ink and whether the solid outline is drawn (the painter, the SVG, the hit test),
+ * the room it needs past the geometry (styleMargin) and whether the library has to draw its preview
+ * (hasFilter).
  */
 
 #ifndef STYLES_HPP
 #define STYLES_HPP
 
+#include <QPainterPath>
 #include <QtGlobal>
 
 #include "objectrecord.hpp"
@@ -44,6 +47,13 @@ struct StyleInfo
      * previews through the library, and only a style with one has an `amount` to scale.
      */
     const NoiseRecipe* noise;
+    /**
+     * Strokes of its own, drawn in the stroke colour over the fill, or nullptr for none. A style with
+     * ink **replaces the solid outline**: its strokes are the edge. Plain paths, so Qt draws them.
+     */
+    QPainterPath (*ink)(const ObjectRecord& a, const QPainterPath& silhouette);
+    //! How far the ink reaches past the silhouette, in balloon pixels. Set whenever `ink` is.
+    qreal (*inkReach)(const ObjectRecord& a);
 };
 
 //! The entry for @p kind. Every kind up to `StyleProperties::k_lastKind` has one.
@@ -51,6 +61,16 @@ struct StyleInfo
 
 //! \p a's style is an SVG filter, which only the library draws.
 [[nodiscard]] bool hasFilter(const ObjectRecord& a);
+
+/**
+ * @brief \p a's style's own strokes around \p silhouette, in box coordinates; empty for a style without.
+ *
+ * Filled with the non-zero rule, every stroke wound the same way, so overlapping strokes paint as one.
+ */
+[[nodiscard]] QPainterPath ink(const ObjectRecord& a, const QPainterPath& silhouette);
+
+//! \p a's style draws the solid outline: every style but one with ink of its own.
+[[nodiscard]] bool hasOutline(const ObjectRecord& a);
 
 }  // namespace Geometry
 

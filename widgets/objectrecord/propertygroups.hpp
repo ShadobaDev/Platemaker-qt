@@ -156,28 +156,63 @@ struct ShapeProperties
 struct StyleProperties
 {
     /**
-     * @brief Every value but `Clean` is an SVG filter, so the artwork stays the same geometry and the
-     * effect happens at rasterise time — which means librsvg applies it and Qt cannot. That is the
-     * whole reason a styled bubble is previewed through the library instead of being drawn locally: an
-     * effect only the committed output could show would be an effect nobody could author.
+     * @brief Marker and Ink are SVG filters, so the artwork stays the same geometry and the effect
+     * happens at rasterise time — which means librsvg applies it and Qt cannot. That is the whole reason
+     * such a bubble is previewed through the library instead of being drawn locally: an effect only the
+     * committed output could show would be an effect nobody could author. Flash is plain geometry
+     * instead, its strokes, so Qt draws it like a clean balloon. The table is in styles.cpp.
      *
      * **Append only**, and persisted by name — see styleName().
      */
-    enum class Kind { Clean, Marker, Ink };
+    enum class Kind { Clean, Marker, Ink, Flash };
 
     //! The enum's last value. **Appending a style moves this**: styleFromName() reads up to it, and a
     //! style past it would load from every file as Clean.
-    static constexpr Kind k_lastKind = Kind::Ink;
+    static constexpr Kind k_lastKind = Kind::Flash;
 
     Kind  kind  = Kind::Clean;  //!< Clean is a true no-op: no filter is emitted at all.
-    qreal amount = 1.0;          //!< Scales the effect, 0..2. 1.0 is the preset's own strength.
+    qreal amount = 1.0;          //!< Scales a filter's effect, 0..2. 1.0 is the preset's own strength.
+
+    /**
+     * @name The flash: narrow triangles ringing the silhouette, outwards and inwards (styles.cpp).
+     * Read only while `kind` is Flash, and carried unchanged by every other style, so switching back
+     * finds them as they were. Lengths in balloon pixels; jitter in % of the pitch or the length.
+     * @{
+     */
+    qreal flashOuterPitch        = 5.0;   //!< One outer stroke every this many pixels along the edge.
+    qreal flashInnerPitch        = 7.0;   //!< Likewise, inside.
+    qreal flashOuterLength       = 18.0;  //!< How far an outer stroke reaches out from the edge.
+    qreal flashInnerLength       = 10.0;  //!< How far an inner stroke reaches in.
+    qreal flashOuterBase         = 4.0;   //!< An outer stroke's width where it leaves the edge.
+    qreal flashInnerBase         = 3.0;   //!< Likewise, inside.
+    int   flashOuterPitchJitter  = 60;    //!< How much each outer stroke's place varies.
+    int   flashInnerPitchJitter  = 60;
+    int   flashOuterLengthJitter = 50;    //!< How much each outer stroke's length varies.
+    int   flashInnerLengthJitter = 50;
+    /**
+     * What the strokes point away from, in %: 0 is the box's centre; more stretches it into a line
+     * along the longer axis, which squares the strokes up with a long straight side.
+     */
+    int   flashCoreStretch       = 0;
+    /** @} */
 
     //! The fields, with the keys they are saved under (fields.hpp).
     template <class V>
     static void fields(V&& v)
     {
-        v("style",       &StyleProperties::kind);
-        v("styleAmount", &StyleProperties::amount);
+        v("style",                  &StyleProperties::kind);
+        v("styleAmount",            &StyleProperties::amount);
+        v("flashOuterPitch",        &StyleProperties::flashOuterPitch);
+        v("flashInnerPitch",        &StyleProperties::flashInnerPitch);
+        v("flashOuterLength",       &StyleProperties::flashOuterLength);
+        v("flashInnerLength",       &StyleProperties::flashInnerLength);
+        v("flashOuterBase",         &StyleProperties::flashOuterBase);
+        v("flashInnerBase",         &StyleProperties::flashInnerBase);
+        v("flashOuterPitchJitter",  &StyleProperties::flashOuterPitchJitter);
+        v("flashInnerPitchJitter",  &StyleProperties::flashInnerPitchJitter);
+        v("flashOuterLengthJitter", &StyleProperties::flashOuterLengthJitter);
+        v("flashInnerLengthJitter", &StyleProperties::flashInnerLengthJitter);
+        v("flashCoreStretch",       &StyleProperties::flashCoreStretch);
     }
 
     [[nodiscard]] static StyleProperties from(const ObjectRecord& a);

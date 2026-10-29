@@ -120,6 +120,7 @@ private:
 
     QImage       m_sharp;       //!< Library rasterisation shown at rest for a styled bubble (see above).
     QPainterPath m_silhouette;  //!< Cached balloon + tails, so a repaint resolves no geometry.
+    QPainterPath m_ink;         //!< Cached style strokes (a flash's triangles), likewise.
     QPainterPath m_textPath;    //!< Cached glyph outlines, likewise.
     QList<bool>  m_tailDrawn;   //!< Per tail: whether it is drawn (its tip is outside the balloon).
 };

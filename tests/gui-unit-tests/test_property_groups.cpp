@@ -41,6 +41,17 @@ ObjectRecord loadedRecord()
 
     a.style.kind       = ObjectRecord::Style::Ink;
     a.style.amount     = 1.7;
+    a.style.flashOuterPitch        = 3.5;
+    a.style.flashInnerPitch        = 4.5;
+    a.style.flashOuterLength       = 21.0;
+    a.style.flashInnerLength       = 12.5;
+    a.style.flashOuterBase         = 2.5;
+    a.style.flashInnerBase         = 1.5;
+    a.style.flashOuterPitchJitter  = 11;
+    a.style.flashInnerPitchJitter  = 12;
+    a.style.flashOuterLengthJitter = 13;
+    a.style.flashInnerLengthJitter = 14;
+    a.style.flashCoreStretch       = 15;
     a.styleSeed        = 0xC0FFEEu;
 
     a.text.body        = QStringLiteral("Nie wiem, co sie dzieje");
@@ -78,7 +89,12 @@ struct SkinMirror { QColor fill, stroke; int strokeWidth; };
 static_assert(sizeof(SkinProperties) == sizeof(SkinMirror),
               "SkinProperties grew a field: place it (see above), then mirror it");
 
-struct StyleMirror { StyleProperties::Kind kind; qreal amount; };
+struct StyleMirror {
+    StyleProperties::Kind kind; qreal amount;
+    qreal flashOuterPitch, flashInnerPitch, flashOuterLength, flashInnerLength, flashOuterBase, flashInnerBase;
+    int flashOuterPitchJitter, flashInnerPitchJitter, flashOuterLengthJitter, flashInnerLengthJitter;
+    int flashCoreStretch;
+};
 static_assert(sizeof(StyleProperties) == sizeof(StyleMirror),
               "StyleProperties grew a field: place it (see above), then mirror it");
 
@@ -128,6 +144,17 @@ void expectUntouched(Group applied, const ObjectRecord& before, const ObjectReco
     if (applied != Group::Style) {
         EXPECT_EQ(after.style.kind, before.style.kind);
         EXPECT_DOUBLE_EQ(after.style.amount, before.style.amount);
+        EXPECT_DOUBLE_EQ(after.style.flashOuterPitch,  before.style.flashOuterPitch);
+        EXPECT_DOUBLE_EQ(after.style.flashInnerPitch,  before.style.flashInnerPitch);
+        EXPECT_DOUBLE_EQ(after.style.flashOuterLength, before.style.flashOuterLength);
+        EXPECT_DOUBLE_EQ(after.style.flashInnerLength, before.style.flashInnerLength);
+        EXPECT_DOUBLE_EQ(after.style.flashOuterBase,   before.style.flashOuterBase);
+        EXPECT_DOUBLE_EQ(after.style.flashInnerBase,   before.style.flashInnerBase);
+        EXPECT_EQ(after.style.flashOuterPitchJitter,  before.style.flashOuterPitchJitter);
+        EXPECT_EQ(after.style.flashInnerPitchJitter,  before.style.flashInnerPitchJitter);
+        EXPECT_EQ(after.style.flashOuterLengthJitter, before.style.flashOuterLengthJitter);
+        EXPECT_EQ(after.style.flashInnerLengthJitter, before.style.flashInnerLengthJitter);
+        EXPECT_EQ(after.style.flashCoreStretch,       before.style.flashCoreStretch);
     }
     if (applied != Group::Text) {
         EXPECT_EQ(after.text.body,      before.text.body);
@@ -453,7 +480,7 @@ TEST(Conversion, ThePickerOffersEverySilhouetteAndNoKind)
 /**
  * @brief Every shape has its own entry in the shape table (shapes.cpp), in the enum's order, with a
  *        name, a title, an outline and a text area — except `None`, which has no outline to draw. So
- *        has every line style (styles.cpp), with a recipe for each but Clean.
+ *        has every line style (styles.cpp), with a filter or strokes for each but Clean.
  *
  * The tables are indexed by the enum, so an entry out of order would give a shape another's geometry;
  * and an appended shape with no entry would be drawn as the speech balloon shapeInfo() falls back to.
@@ -466,7 +493,10 @@ TEST(Conversion, EveryShapeAndStyleHasATableEntry)
         EXPECT_EQ(info.kind, kind) << "style entry " << i << " is out of the enum's order";
         EXPECT_NE(info.name, nullptr) << i;
         EXPECT_NE(info.title, nullptr) << i;
-        EXPECT_EQ(info.noise == nullptr, kind == ObjectRecord::Style::Clean) << styleName(kind);
+        // Every style but Clean is either a filter or strokes of its own, never both; strokes reserve room.
+        const int effects = int(info.noise != nullptr) + int(info.ink != nullptr);
+        EXPECT_EQ(effects, kind == ObjectRecord::Style::Clean ? 0 : 1) << styleName(kind);
+        EXPECT_EQ(info.ink == nullptr, info.inkReach == nullptr) << styleName(kind);
     }
 
     for (int i = 0; i <= int(ShapeProperties::k_lastKind); ++i) {
@@ -477,6 +507,43 @@ TEST(Conversion, EveryShapeAndStyleHasATableEntry)
         EXPECT_NE(info.title, nullptr) << i;
         EXPECT_NE(info.safeArea, nullptr) << i;
         EXPECT_EQ(info.outline == nullptr, kind == ObjectRecord::Shape::None) << shapeName(kind);
+    }
+}
+
+/**
+ * @brief A flash rings the silhouette, draws no solid outline, and stays inside the room reserved for it.
+ *
+ * The bounds are the buffer and the viewBox, so a stroke past them is clipped off in the render. The
+ * strokes are random, so several seeds, at the largest jitter, on shapes with corners and a tail.
+ */
+TEST(Style, AFlashStaysInsideItsBounds)
+{
+    for (ObjectRecord::Shape shape : {ObjectRecord::Shape::Ellipse, ObjectRecord::Shape::Caption,
+                                      ObjectRecord::Shape::Speech}) {
+        ObjectRecord a;
+        a.shape.kind = shape;
+        a.box        = QSize(280, 160);
+        if (shape == ObjectRecord::Shape::Speech) {
+            Tail t;
+            t.tip = QPointF(60, 230);
+            a.tails.items = {t};
+        }
+        a.style.kind                   = ObjectRecord::Style::Flash;
+        a.style.flashOuterPitchJitter  = 100;
+        a.style.flashOuterLengthJitter = 100;
+        EXPECT_FALSE(Geometry::hasOutline(a));
+        EXPECT_FALSE(Geometry::hasFilter(a));
+
+        for (int stretch : {0, 100}) {
+            for (quint32 seed : {1u, 2u, 0xC0FFEEu, 0xFFFFFFFFu}) {
+                a.style.flashCoreStretch = stretch;
+                a.styleSeed              = seed;
+                const QPainterPath ink = Geometry::ink(a, Geometry::silhouette(a));
+                ASSERT_FALSE(ink.isEmpty()) << shapeName(shape);
+                EXPECT_TRUE(Geometry::bounds(a).contains(ink.boundingRect()))
+                    << shapeName(shape) << " stretch " << stretch << " seed " << seed;
+            }
+        }
     }
 }
 

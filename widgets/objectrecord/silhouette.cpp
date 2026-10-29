@@ -3,6 +3,7 @@
 
 #include "geometry.hpp"
 #include "shapes.hpp"
+#include "styles.hpp"
 
 #include <QPainterPathStroker>
 #include <QtMath>
@@ -138,6 +139,11 @@ Part partAt(const ObjectRecord& a, const QPointF& local, qreal slack)
     const QPainterPath shape = silhouette(a);
     if (shape.isEmpty())
         return Part::None;   // a shapeless record is its lettering and nothing else
+
+    // A style's own strokes are the edge where it has them, so a press on one is a press on the outline.
+    const QPainterPath strokes = ink(a, shape);
+    if (!strokes.isEmpty() && strokes.contains(local))
+        return Part::Outline;
 
     // The stroke is painted centred on the silhouette, so the band a click can land on is the path
     // stroked to the pen's width — plus the slack, because a hairline outline is unhittable without it.

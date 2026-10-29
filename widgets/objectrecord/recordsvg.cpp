@@ -371,10 +371,16 @@ QByteArray write(const ObjectRecord& a, const QByteArray& picture, const QString
         // about with the outline — the balloon is what should look hand-drawn, not the words in it.
         if (Geometry::hasFilter(a))
             svg += QStringLiteral(" filter=\"url(#%1)\"").arg(filterId);
-        if (a.skin.strokeWidth > 0)
+        if (a.skin.strokeWidth > 0 && Geometry::hasOutline(a))
             svg += QStringLiteral(" %1 stroke-width=\"%2\" stroke-linejoin=\"round\"")
                        .arg(paint("stroke", a.skin.stroke)).arg(a.skin.strokeWidth);
         svg += QLatin1String("/>\n");
+
+        // A style's own strokes, in the stroke colour, over the fill and under the words.
+        const QPainterPath ink = Geometry::ink(a, silhouette);
+        if (!ink.isEmpty())
+            svg += QStringLiteral("    <path d=\"%1\" fill-rule=\"%2\" %3/>\n")
+                       .arg(pathData(ink), fillRule(ink), paint("fill", a.skin.stroke));
     }
 
     const QPainterPath text = Geometry::textOutline(a);

@@ -85,7 +85,8 @@ enum class Part { None, Fill, Outline, Text };
  *
  * A displacement filter moves pixels *outward* as well as in, so the artwork covers more than its paths
  * do. The bounds — and therefore the buffer and the SVG's filter region — have to allow for it, or the
- * effect is neatly clipped off at the edge it was meant to roughen.
+ * effect is neatly clipped off at the edge it was meant to roughen. Read from the style's recipe
+ * (styles.cpp), the same numbers its filter is written from.
  *
  * @param a The record to check.
  * @return The extra margin the style adds, in balloon coordinates.

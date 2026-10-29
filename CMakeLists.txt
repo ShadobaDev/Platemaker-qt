@@ -111,6 +111,7 @@ qt_add_executable(Platemaker
     widgets/objectrecord/recordstore.cpp widgets/objectrecord/recordstore.hpp
     widgets/objectrecord/geometry.hpp
     widgets/objectrecord/shapes.cpp widgets/objectrecord/shapes.hpp
+    widgets/objectrecord/styles.cpp widgets/objectrecord/styles.hpp
     widgets/objectrecord/silhouette.cpp widgets/objectrecord/lettering.cpp
     widgets/objectrecord/recordpainter.cpp widgets/objectrecord/recordpainter.hpp
     widgets/objectrecord/recordsvg.cpp widgets/objectrecord/recordsvg.hpp

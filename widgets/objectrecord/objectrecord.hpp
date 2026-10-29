@@ -167,5 +167,7 @@ inline constexpr int k_labelChars = 32;
 //! The persisted name of \p s, and the way back — same contract as shapeName().
 [[nodiscard]] const char* styleName(ObjectRecord::Style s);
 [[nodiscard]] ObjectRecord::Style styleFromName(QStringView name);
+//! What to call \p s on screen, translated — same contract as shapeTitle().
+[[nodiscard]] QString styleTitle(ObjectRecord::Style s);
 
 #endif // OBJECTRECORD_HPP

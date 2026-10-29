@@ -14,15 +14,6 @@ namespace Geometry {
 namespace {
 
 /**
- *  Displacement of the Marker style at amount 1.0, in balloon pixels — a dried felt-tip wanders
- *  about this far off a straight line.
- */
-constexpr qreal k_markerScale   = 6.0;
-/**
- *  Ink bleeds less than a marker wanders, but blurs where a marker does not.
- */
-constexpr qreal k_inkScale      = 3.0;
-/**
  *  How far the tail's base is pulled back inside the silhouette, as a fraction of its width. Enough
  *  that the union is watertight, little enough that the taper still reads from where it emerges.
  */
@@ -161,17 +152,6 @@ Part partAt(const ObjectRecord& a, const QPointF& local, qreal slack)
 QRectF bounds(const ObjectRecord& a)
 {
     return boundsOf(a, silhouette(a), textOutline(a));
-}
-
-qreal styleMargin(const ObjectRecord& a)
-{
-    const qreal amount = qBound(0.0, a.style.amount, 2.0);
-    switch (a.style.kind) {
-    case ObjectRecord::Style::Clean:  return 0.0;
-    case ObjectRecord::Style::Marker: return k_markerScale * amount;
-    case ObjectRecord::Style::Ink:    return k_inkScale * amount + 2.0;   // + the blur's own reach
-    }
-    return 0.0;
 }
 
 QRectF boundsOf(const ObjectRecord& a, const QPainterPath& silhouette, const QPainterPath& text)

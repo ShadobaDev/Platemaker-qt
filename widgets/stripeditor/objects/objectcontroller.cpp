@@ -6,6 +6,7 @@
 #include "objects/object.hpp"
 #include "objects/selectionchrome.hpp"
 #include "geometry.hpp"
+#include "styles.hpp"
 // blendModes(): the menu and OBJECT STATE's row name the modes from one list.
 #include "properties/blendeditor.hpp"
 #include "recordsvg.hpp"
@@ -448,9 +449,9 @@ void ObjectController::syncItems()
         // settled. Reading the feed here would undo it.
         const ObjectRecord& a = item->record();
         if (auto* bubble = qobject_cast<BubbleObject*>(item)) {
-            // A styled bubble is drawn by the library, because its effect is an SVG filter Qt cannot
-            // render. Unstyled ones keep drawing locally: same geometry, no round-trip.
-            bubble->setSharpRaster(a.style.kind != ObjectRecord::Style::Clean ? sharpRasterFor(a) : QImage());
+            // A bubble whose style is an SVG filter is drawn by the library, because Qt cannot render
+            // the filter. The rest keep drawing locally: same geometry, no round-trip.
+            bubble->setSharpRaster(Geometry::hasFilter(a) ? sharpRasterFor(a) : QImage());
         } else if (auto* art = qobject_cast<ArtworkObject*>(item)) {
             art->setPicture(pictureFor(o));   // the file may have changed under it
         }

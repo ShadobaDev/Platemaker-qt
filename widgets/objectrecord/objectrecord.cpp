@@ -1,5 +1,6 @@
 #include "objectrecord.hpp"
 #include "shapes.hpp"
+#include "styles.hpp"
 
 #include <QJsonArray>
 #include <QObject>
@@ -180,12 +181,12 @@ ObjectRecord::Shape shapeFromName(QStringView name)
 
 const char* styleName(ObjectRecord::Style s)
 {
-    switch (s) {
-    case ObjectRecord::Style::Clean:  return "clean";
-    case ObjectRecord::Style::Marker: return "marker";
-    case ObjectRecord::Style::Ink:    return "ink";
-    }
-    return "clean";
+    return Geometry::styleInfo(s).name;
+}
+
+QString styleTitle(ObjectRecord::Style s)
+{
+    return QObject::tr(Geometry::styleInfo(s).title);
 }
 
 ObjectRecord::Style styleFromName(QStringView name)

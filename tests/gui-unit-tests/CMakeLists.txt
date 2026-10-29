@@ -43,6 +43,7 @@ add_executable(platemaker-gui-tests
     # rule above still holds — and the import's premise is worth a test of its own.
     ${CMAKE_SOURCE_DIR}/widgets/objectrecord/recordsvg.cpp
     ${CMAKE_SOURCE_DIR}/widgets/objectrecord/shapes.cpp
+    ${CMAKE_SOURCE_DIR}/widgets/objectrecord/styles.cpp
     ${CMAKE_SOURCE_DIR}/widgets/objectrecord/silhouette.cpp
     ${CMAKE_SOURCE_DIR}/widgets/objectrecord/lettering.cpp
     ${CMAKE_SOURCE_DIR}/widgets/objectrecord/recordpainter.cpp

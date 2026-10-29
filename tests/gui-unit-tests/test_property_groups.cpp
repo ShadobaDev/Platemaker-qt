@@ -20,6 +20,7 @@
 #include "geometry.hpp"
 #include "recordsvg.hpp"
 #include "shapes.hpp"
+#include "styles.hpp"
 #include "properties/propertygroup.hpp"
 #include "objectrecord.hpp"
 
@@ -451,13 +452,23 @@ TEST(Conversion, ThePickerOffersEverySilhouetteAndNoKind)
 
 /**
  * @brief Every shape has its own entry in the shape table (shapes.cpp), in the enum's order, with a
- *        name, a title, an outline and a text area — except `None`, which has no outline to draw.
+ *        name, a title, an outline and a text area — except `None`, which has no outline to draw. So
+ *        has every line style (styles.cpp), with a recipe for each but Clean.
  *
- * The table is indexed by the enum, so an entry out of order would give a shape another's geometry; and
- * an appended shape with no entry would be drawn as the speech balloon shapeInfo() falls back to.
+ * The tables are indexed by the enum, so an entry out of order would give a shape another's geometry;
+ * and an appended shape with no entry would be drawn as the speech balloon shapeInfo() falls back to.
  */
-TEST(Conversion, EveryShapeHasATableEntry)
+TEST(Conversion, EveryShapeAndStyleHasATableEntry)
 {
+    for (int i = 0; i <= int(StyleProperties::k_lastKind); ++i) {
+        const auto                 kind = static_cast<ObjectRecord::Style>(i);
+        const Geometry::StyleInfo& info = Geometry::styleInfo(kind);
+        EXPECT_EQ(info.kind, kind) << "style entry " << i << " is out of the enum's order";
+        EXPECT_NE(info.name, nullptr) << i;
+        EXPECT_NE(info.title, nullptr) << i;
+        EXPECT_EQ(info.noise == nullptr, kind == ObjectRecord::Style::Clean) << styleName(kind);
+    }
+
     for (int i = 0; i <= int(ShapeProperties::k_lastKind); ++i) {
         const auto                 kind = static_cast<ObjectRecord::Shape>(i);
         const Geometry::ShapeInfo& info = Geometry::shapeInfo(kind);

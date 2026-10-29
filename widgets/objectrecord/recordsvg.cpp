@@ -1,6 +1,7 @@
 #include "recordsvg.hpp"
 
 #include "geometry.hpp"
+#include "styles.hpp"
 
 #include <QCryptographicHash>
 #include <QFile>
@@ -166,16 +167,12 @@ QList<Tail> tailsFromText(const QString& s)
  */
 QString styleDefs(const ObjectRecord& a, const QString& id)
 {
-    if (a.style.kind == ObjectRecord::Style::Clean)
+    const Geometry::NoiseRecipe* noise = Geometry::styleInfo(a.style.kind).noise;
+    if (!noise)
         return {};
 
-    const qreal amount = qBound(0.0, a.style.amount, 2.0);
-    const bool  marker = a.style.kind == ObjectRecord::Style::Marker;
-
-    // A marker's edge wanders in long slow waves; ink bleeds in finer ones and then softens.
-    const qreal freq  = marker ? 0.028 : 0.075;
-    const qreal scale = (marker ? 6.0 : 3.0) * amount;
-    const int   oct   = marker ? 3 : 2;
+    const qreal amount  = qBound(0.0, a.style.amount, 2.0);
+    const bool  blurred = noise->blur > 0.0;
 
     QString d;
     d += QStringLiteral("  <defs>\n");
@@ -184,13 +181,14 @@ QString styleDefs(const ObjectRecord& a, const QString& id)
              .arg(id);
     d += QStringLiteral("      <feTurbulence type=\"fractalNoise\" baseFrequency=\"%1\" numOctaves=\"%2\" "
                         "seed=\"%3\" result=\"pmNoise\"/>\n")
-             .arg(num(freq)).arg(oct).arg(a.styleSeed % 65536u);
+             .arg(num(noise->frequency)).arg(noise->octaves).arg(a.styleSeed % 65536u);
     d += QStringLiteral("      <feDisplacementMap in=\"SourceGraphic\" in2=\"pmNoise\" scale=\"%1\" "
                         "xChannelSelector=\"R\" yChannelSelector=\"G\"%2/>\n")
-             .arg(num(scale), marker ? QString() : QStringLiteral(" result=\"pmBled\""));
-    if (!marker)
+             .arg(num(noise->displacement * amount),
+                  blurred ? QStringLiteral(" result=\"pmBled\"") : QString());
+    if (blurred)
         d += QStringLiteral("      <feGaussianBlur in=\"pmBled\" stdDeviation=\"%1\"/>\n")
-                 .arg(num(0.6 * amount));
+                 .arg(num(noise->blur * amount));
     d += QStringLiteral("    </filter>\n  </defs>\n");
     return d;
 }
@@ -371,7 +369,7 @@ QByteArray write(const ObjectRecord& a, const QByteArray& picture, const QString
                    .arg(pathData(silhouette), fillRule(silhouette), paint("fill", a.skin.fill));
         // On the silhouette alone. A displacement filter on the whole group would drag the lettering
         // about with the outline — the balloon is what should look hand-drawn, not the words in it.
-        if (a.style.kind != ObjectRecord::Style::Clean)
+        if (Geometry::hasFilter(a))
             svg += QStringLiteral(" filter=\"url(#%1)\"").arg(filterId);
         if (a.skin.strokeWidth > 0)
             svg += QStringLiteral(" %1 stroke-width=\"%2\" stroke-linejoin=\"round\"")

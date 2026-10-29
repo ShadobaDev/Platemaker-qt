@@ -89,7 +89,7 @@ row glyphs come free. Copy **Thought** (`thoughtPath()`, `thoughtArea()`).
 3. `widgets/objectrecord/objectrecord.cpp`: its place in `shapeOrder()`, the picker's order.
 4. *Optional:* a built-in preset in `presetstore.cpp`.
 
-**Caught by** `tests/gui-unit-tests/test_property_groups.cpp`: `Conversion.EveryShapeHasATableEntry`
+**Caught by** `tests/gui-unit-tests/test_property_groups.cpp`: `Conversion.EveryShapeAndStyleHasATableEntry`
 (no entry, or one out of order), `Conversion.ThePickerOffersEverySilhouetteAndNoKind` (missing from
 `shapeOrder()`), `PropertyGroupPersistence.EveryShapeAndStyleRoundTrips` (missing name), and
 `Golden.EveryShapeAndStyleIsWrittenAsBefore`, which fails until the new shape's SVG is accepted with
@@ -108,6 +108,15 @@ controls in `shapeeditor.cpp` (`bind()` emits nothing, a change emits `changed()
 until the member is placed. `Fields.EveryFieldIsComparedAndSaved` then checks the new field on its own.
 A value of a type no group holds yet needs an overload in each of the three walks (`Fields::same()`,
 `toJsonValue()`/`fromJsonValue()`, `attrValue()`/`fromAttr()`).
+
+### A line style
+
+A value of `StyleProperties::Kind` (append only, move `k_lastKind`) and **one entry in `k_styles`**
+(`widgets/objectrecord/styles.cpp`), in the enum's order: the persisted name, the title the Style panel
+lists, and its recipe. A recipe is an SVG noise filter (`NoiseRecipe`): the filter in `recordsvg.cpp`
+and the margin it needs (`styleMargin()`) both read it, and a style with one previews through the
+library (`hasFilter()`) and has an amount to scale. Caught by the same table, round-trip and golden
+tests as a shape.
 
 ### A kind of object
 

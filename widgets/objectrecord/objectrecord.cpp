@@ -7,11 +7,45 @@
 
 namespace {
 
-QColor colourFromJson(const QJsonObject& j, const char* key, QColor fallback)
+// ---------------------------------------------------------------------------
+// A field's value in the JSON, and back — one overload per type a group holds (fields.hpp). Reading
+// falls back to the value already there, which for a fresh record is the struct's own default.
+// ---------------------------------------------------------------------------
+
+QJsonValue toJsonValue(int v) { return v; }
+QJsonValue toJsonValue(bool v) { return v; }
+QJsonValue toJsonValue(qreal v) { return v; }
+QJsonValue toJsonValue(const QString& v) { return v; }
+QJsonValue toJsonValue(const QColor& v) { return v.name(QColor::HexArgb); }
+QJsonValue toJsonValue(ObjectRecord::Shape v) { return QLatin1String(shapeName(v)); }
+QJsonValue toJsonValue(ObjectRecord::Style v) { return QLatin1String(styleName(v)); }
+
+void fromJsonValue(const QJsonValue& j, int& v) { v = j.toInt(v); }
+void fromJsonValue(const QJsonValue& j, bool& v) { v = j.toBool(v); }
+void fromJsonValue(const QJsonValue& j, qreal& v) { v = j.toDouble(v); }
+void fromJsonValue(const QJsonValue& j, QString& v) { v = j.toString(v); }
+void fromJsonValue(const QJsonValue& j, QColor& v)
 {
-    const QString s = j.value(QLatin1String(key)).toString();
-    const QColor  c(s);
-    return c.isValid() ? c : fallback;
+    const QColor c(j.toString());
+    if (c.isValid())
+        v = c;
+}
+// An unknown or missing name reads as the reader's own fallback (Speech, Clean), as it always has.
+void fromJsonValue(const QJsonValue& j, ObjectRecord::Shape& v) { v = shapeFromName(j.toString()); }
+void fromJsonValue(const QJsonValue& j, ObjectRecord::Style& v) { v = styleFromName(j.toString()); }
+
+//! Every field of \p g into \p j, under its key.
+template <class Group>
+void writeJson(const Group& g, QJsonObject& j)
+{
+    Group::fields([&](const char* key, auto member) { j.insert(QLatin1String(key), toJsonValue(g.*member)); });
+}
+
+//! Every field of \p g out of \p j; a key \p j does not have leaves its field as it is.
+template <class Group>
+void readJson(Group& g, const QJsonObject& j)
+{
+    Group::fields([&](const char* key, auto member) { fromJsonValue(j.value(QLatin1String(key)), g.*member); });
 }
 
 QJsonArray tailsToJson(const QList<Tail>& tails)
@@ -167,55 +201,35 @@ ObjectRecord::Style styleFromName(QStringView name)
 QJsonObject ObjectRecord::toJson() const
 {
     const ObjectRecord& a = *this;
-    return QJsonObject{
-        {QStringLiteral("shape"),      QLatin1String(shapeName(a.shape.kind))},
-        {QStringLiteral("padding"),    a.text.padding},
-        {QStringLiteral("artwork"),    a.artwork},
-        {QStringLiteral("w"),          a.box.width()},
-        {QStringLiteral("h"),          a.box.height()},
-        {QStringLiteral("tails"),      tailsToJson(a.tails.items)},
-        {QStringLiteral("text"),       a.text.body},
-        {QStringLiteral("fontFamily"), a.text.family},
-        {QStringLiteral("fontSize"),   a.text.pixelSize},
-        {QStringLiteral("bold"),       a.text.bold},
-        {QStringLiteral("align"),      a.text.align},
-        {QStringLiteral("lineSpacing"),a.text.lineSpacing},
-        {QStringLiteral("fill"),       a.skin.fill.name(QColor::HexArgb)},
-        {QStringLiteral("stroke"),     a.skin.stroke.name(QColor::HexArgb)},
-        {QStringLiteral("textColour"), a.text.colour.name(QColor::HexArgb)},
-        {QStringLiteral("strokeWidth"),a.skin.strokeWidth},
-        {QStringLiteral("style"),      QLatin1String(styleName(a.style.kind))},
-        {QStringLiteral("styleAmount"),a.style.amount},
-        {QStringLiteral("styleSeed"),  double(a.styleSeed)},
+    // The record's own fields, which are not groups of scalars, by hand; then every group's list.
+    QJsonObject j{
+        {QStringLiteral("artwork"),   a.artwork},
+        {QStringLiteral("w"),         a.box.width()},
+        {QStringLiteral("h"),         a.box.height()},
+        {QStringLiteral("tails"),     tailsToJson(a.tails.items)},
+        {QStringLiteral("styleSeed"), double(a.styleSeed)},
     };
+    writeJson(a.shape, j);
+    writeJson(a.text, j);
+    writeJson(a.skin, j);
+    writeJson(a.style, j);
+    return j;
 }
 
 ObjectRecord ObjectRecord::fromJson(const QJsonObject& j)
 {
-    ObjectRecord a;
-
-    a.shape.kind = shapeFromName(j.value(QStringLiteral("shape")).toString());
-    a.text.padding = j.value(QStringLiteral("padding")).toInt(a.text.padding);
-    a.artwork    = j.value(QStringLiteral("artwork")).toString();   // absent → an object we draw
-
     // Every field is read defensively with the struct's own default as the fallback, so a snapshot
     // written by an older build loads as a usable bubble rather than a blank.
-    a.box  = QSize(j.value(QStringLiteral("w")).toInt(a.box.width()),
-                   j.value(QStringLiteral("h")).toInt(a.box.height()));
+    ObjectRecord a;
+    a.artwork     = j.value(QStringLiteral("artwork")).toString();   // absent → an object we draw
+    a.box         = QSize(j.value(QStringLiteral("w")).toInt(a.box.width()),
+                          j.value(QStringLiteral("h")).toInt(a.box.height()));
     a.tails.items = tailsFromJson(j.value(QStringLiteral("tails")).toArray());
-    a.text.body          = j.value(QStringLiteral("text")).toString();
-    a.text.family    = j.value(QStringLiteral("fontFamily")).toString();
-    a.text.pixelSize = j.value(QStringLiteral("fontSize")).toInt(a.text.pixelSize);
-    a.text.bold          = j.value(QStringLiteral("bold")).toBool(a.text.bold);
-    a.text.align         = j.value(QStringLiteral("align")).toInt(a.text.align);
-    a.text.lineSpacing   = j.value(QStringLiteral("lineSpacing")).toInt(a.text.lineSpacing);
-    a.skin.strokeWidth = j.value(QStringLiteral("strokeWidth")).toInt(a.skin.strokeWidth);
-    a.skin.fill     = colourFromJson(j, "fill",       a.skin.fill);
-    a.skin.stroke   = colourFromJson(j, "stroke",     a.skin.stroke);
-    a.text.colour    = colourFromJson(j, "textColour", a.text.colour);
-    a.style.kind         = styleFromName(j.value(QStringLiteral("style")).toString());
-    a.style.amount   = j.value(QStringLiteral("styleAmount")).toDouble(a.style.amount);
-    a.styleSeed     = quint32(j.value(QStringLiteral("styleSeed")).toDouble(0));
+    a.styleSeed   = quint32(j.value(QStringLiteral("styleSeed")).toDouble(0));
+    readJson(a.shape, j);
+    readJson(a.text, j);
+    readJson(a.skin, j);
+    readJson(a.style, j);
     return a;
 }
 

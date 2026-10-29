@@ -202,6 +202,59 @@ int intOf(const QStringView& v, int fallback)
     return ok ? n : fallback;
 }
 
+// ---------------------------------------------------------------------------
+// A field's value as a `pm:` attribute, and back — one overload per type a group holds (fields.hpp).
+// Reading falls back to the value already there, which for a fresh record is the struct's own default.
+// ---------------------------------------------------------------------------
+
+QString attrValue(int v) { return QString::number(v); }
+QString attrValue(bool v) { return v ? QStringLiteral("1") : QStringLiteral("0"); }
+QString attrValue(qreal v) { return num(v); }
+QString attrValue(const QString& v) { return v; }
+QString attrValue(const QColor& v) { return v.name(QColor::HexArgb); }
+QString attrValue(ObjectRecord::Shape v) { return QString::fromLatin1(shapeName(v)); }
+QString attrValue(ObjectRecord::Style v) { return QString::fromLatin1(styleName(v)); }
+
+void fromAttr(QStringView s, int& v) { v = intOf(s, v); }
+void fromAttr(QStringView s, bool& v) { v = intOf(s, v ? 1 : 0) != 0; }
+void fromAttr(QStringView s, qreal& v)
+{
+    bool        ok = false;
+    const qreal d  = s.toDouble(&ok);
+    if (ok)
+        v = d;
+}
+void fromAttr(QStringView s, QString& v) { v = s.toString(); }
+void fromAttr(QStringView s, QColor& v)
+{
+    const QColor c(s.toString());
+    if (c.isValid())
+        v = c;
+}
+// An unknown or missing name reads as the reader's own fallback (Speech, Clean), as it always has.
+void fromAttr(QStringView s, ObjectRecord::Shape& v) { v = shapeFromName(s); }
+void fromAttr(QStringView s, ObjectRecord::Style& v) { v = styleFromName(s); }
+
+//! Every field of \p g as a `pm:` attribute, under its key.
+template <class Group>
+QString groupAttrs(const Group& g)
+{
+    QString out;
+    Group::fields([&](const char* key, auto member) { out += attr(QLatin1String(key), attrValue(g.*member)); });
+    return out;
+}
+
+//! Every field of \p g out of the `pm:` attributes in \p at; a missing one leaves its field as it is.
+template <class Group>
+void readGroup(Group& g, const QXmlStreamAttributes& at, const QString& ns)
+{
+    Group::fields([&](const char* key, auto member) {
+        const QString name = QLatin1String(key);
+        if (at.hasAttribute(ns, name))
+            fromAttr(at.value(ns, name), g.*member);
+    });
+}
+
 } // namespace
 
 // ---------------------------------------------------------------------------
@@ -216,6 +269,23 @@ namespace {
 QString fileFontFamily(const ObjectRecord& a)
 {
     return a.text.family.isEmpty() ? Geometry::defaultFamily() : a.text.family;
+}
+
+/**
+ * @brief The lettering's `pm:` attributes, with the family a file records (fileFontFamily()), and then
+ *        `pm:fontFallback` when the words were set in a stand-in.
+ *
+ * The family asked for is kept whatever happened; the fallback says what the outlines were actually set
+ * in when that family was not installed, so the file can be re-set once it is (MainWindow's heal).
+ */
+QString letteringAttrs(const ObjectRecord& a)
+{
+    TextProperties text = a.text;
+    text.family         = fileFontFamily(a);
+    QString out         = groupAttrs(text);
+    if (const QString fallback = Geometry::fontFallback(a); !fallback.isEmpty())
+        out += attr(QStringLiteral("fontFallback"), fallback);
+    return out;
 }
 
 } // namespace
@@ -242,19 +312,11 @@ QByteArray write(const ObjectRecord& a, const QByteArray& picture, const QString
         // The same parameter group every file of ours carries, so this one is re-typable in the same
         // way — and so an import can tell it is ours (see read).
         svg += QStringLiteral("  <g");
-        svg += attr(QStringLiteral("shape"), QString::fromLatin1(shapeName(a.shape.kind)));
+        svg += groupAttrs(a.shape);
         svg += attr(QStringLiteral("artwork"), a.artwork);
         svg += attr(QStringLiteral("box"),
                     QStringLiteral("%1,%2").arg(a.box.width()).arg(a.box.height()));
-        svg += attr(QStringLiteral("text"), a.text.body);
-        svg += attr(QStringLiteral("fontFamily"), fileFontFamily(a));
-        if (const QString fallback = Geometry::fontFallback(a); !fallback.isEmpty())
-            svg += attr(QStringLiteral("fontFallback"), fallback);   // the words were set in a stand-in
-        svg += attr(QStringLiteral("fontSize"), a.text.pixelSize);
-        svg += attr(QStringLiteral("bold"), a.text.bold ? 1 : 0);
-        svg += attr(QStringLiteral("align"), a.text.align);
-        svg += attr(QStringLiteral("lineSpacing"), a.text.lineSpacing);
-        svg += attr(QStringLiteral("textColour"), a.text.colour.name(QColor::HexArgb));
+        svg += letteringAttrs(a);
         svg += QLatin1String(">\n");
 
         svg += QStringLiteral("    <image x=\"0\" y=\"0\" width=\"%1\" height=\"%2\" "
@@ -293,27 +355,13 @@ QByteArray write(const ObjectRecord& a, const QByteArray& picture, const QString
     // Everything the editor needs to re-solve this bubble, in a namespace no renderer looks at. Losing
     // these leaves a perfectly good drawing that simply cannot be re-typed — the intended degradation.
     svg += QStringLiteral("  <g");
-    svg += attr(QStringLiteral("shape"), QString::fromLatin1(shapeName(a.shape.kind)));
+    svg += groupAttrs(a.shape);
     svg += attr(QStringLiteral("box"),
                 QStringLiteral("%1,%2").arg(a.box.width()).arg(a.box.height()));
     svg += attr(QStringLiteral("tails"), tailsToText(a.tails.items));
-    svg += attr(QStringLiteral("text"), a.text.body);
-    svg += attr(QStringLiteral("fontFamily"), fileFontFamily(a));
-    // The family asked for is kept above whatever happened; this says what the outlines were actually set
-    // in when that family was not installed, so the file can be re-set once it is (MainWindow's heal).
-    if (const QString fallback = Geometry::fontFallback(a); !fallback.isEmpty())
-        svg += attr(QStringLiteral("fontFallback"), fallback);
-    svg += attr(QStringLiteral("fontSize"), a.text.pixelSize);
-    svg += attr(QStringLiteral("bold"), a.text.bold ? 1 : 0);
-    svg += attr(QStringLiteral("align"), a.text.align);
-    svg += attr(QStringLiteral("lineSpacing"), a.text.lineSpacing);
-    svg += attr(QStringLiteral("padding"), a.text.padding);
-    svg += attr(QStringLiteral("fill"), a.skin.fill.name(QColor::HexArgb));
-    svg += attr(QStringLiteral("stroke"), a.skin.stroke.name(QColor::HexArgb));
-    svg += attr(QStringLiteral("textColour"), a.text.colour.name(QColor::HexArgb));
-    svg += attr(QStringLiteral("strokeWidth"), a.skin.strokeWidth);
-    svg += attr(QStringLiteral("style"), QString::fromLatin1(styleName(a.style.kind)));
-    svg += attr(QStringLiteral("styleAmount"), num(a.style.amount));
+    svg += letteringAttrs(a);
+    svg += groupAttrs(a.skin);
+    svg += groupAttrs(a.style);
     svg += attr(QStringLiteral("styleSeed"), QString::number(a.styleSeed));
     svg += QLatin1String(">\n");
 
@@ -363,7 +411,11 @@ ObjectRecord read(const QByteArray& svg, bool* ok)
 
         // Every field falls back to the struct's own default, so a file written by an older build, or
         // hand-edited, loads as a usable bubble rather than a blank one.
-        a.shape.kind = shapeFromName(at.value(ns, QStringLiteral("shape")));
+        readGroup(a.shape, at, ns);
+        readGroup(a.text, at, ns);
+        readGroup(a.skin, at, ns);
+        readGroup(a.style, at, ns);
+
         // A wrapper says which picture it is wrapping; a balloon carries no such attribute and stays
         // an object we draw.
         a.artwork = at.value(ns, QStringLiteral("artwork")).toString();
@@ -375,32 +427,10 @@ ObjectRecord read(const QByteArray& svg, bool* ok)
 
         a.tails.items = tailsFromText(at.value(ns, QStringLiteral("tails")).toString());
 
-        a.text.body          = at.value(ns, QStringLiteral("text")).toString();
-        a.text.family    = at.value(ns, QStringLiteral("fontFamily")).toString();
-        a.text.pixelSize = intOf(at.value(ns, QStringLiteral("fontSize")), a.text.pixelSize);
-        a.text.bold          = intOf(at.value(ns, QStringLiteral("bold")), 0) != 0;
-        a.text.align         = intOf(at.value(ns, QStringLiteral("align")), a.text.align);
-        a.text.lineSpacing   = intOf(at.value(ns, QStringLiteral("lineSpacing")), a.text.lineSpacing);
-        a.text.padding      = intOf(at.value(ns, QStringLiteral("padding")), a.text.padding);
-        a.skin.strokeWidth = intOf(at.value(ns, QStringLiteral("strokeWidth")), a.skin.strokeWidth);
-        a.style.kind         = styleFromName(at.value(ns, QStringLiteral("style")));
-        {
-            bool        ok  = false;
-            const qreal amt = at.value(ns, QStringLiteral("styleAmount")).toDouble(&ok);
-            if (ok)
-                a.style.amount = amt;
-            const auto seed = at.value(ns, QStringLiteral("styleSeed")).toULongLong(&ok);
-            if (ok)
-                a.styleSeed = quint32(seed);
-        }
-
-        const auto colour = [&](const char* name, QColor fallback) {
-            const QColor c(at.value(ns, QLatin1String(name)).toString());
-            return c.isValid() ? c : fallback;
-        };
-        a.skin.fill   = colour("fill",       a.skin.fill);
-        a.skin.stroke = colour("stroke",     a.skin.stroke);
-        a.text.colour = colour("textColour", a.text.colour);
+        bool       seedOk = false;
+        const auto seed   = at.value(ns, QStringLiteral("styleSeed")).toULongLong(&seedOk);
+        if (seedOk)
+            a.styleSeed = quint32(seed);
 
         if (ok)
             *ok = true;

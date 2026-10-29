@@ -62,8 +62,8 @@ ObjectRecord loadedRecord()
 //
 // Each mirror lists the fields expectUntouched() checks, in the group's own order, so the two structs
 // are laid out by the same rules on every compiler and differ in size only when the group has grown.
-// A new field has to go into: the group's operator==, ().toJson() / ObjectRecord::fromJson(),
-// Svg::write() / Svg::read() (`pm:*`), loadedRecord(), expectUntouched() — and the mirror.
+// A new field has to go into: its group's fields() list (which gives it equality, the JSON and the
+// `pm:*` attributes), loadedRecord(), expectUntouched() — and the mirror.
 //
 // ponytail: a size check. A field small enough to fit into existing padding (a bool after
 // StyleProperties::kind) passes unnoticed; counting members needs C++20, or reflection.
@@ -701,6 +701,79 @@ TEST(Groups, NoRecordCarriesATailsOwnGroup)
 }
 
 // ---------------------------------------------------------------------------
+// Field lists
+// ---------------------------------------------------------------------------
+
+namespace {
+
+//! A different value of the same field — for each type a group holds.
+void bump(int& v) { v += 7; }
+void bump(bool& v) { v = !v; }
+void bump(qreal& v) { v += 0.25; }
+void bump(QString& v) { v += QStringLiteral("x"); }
+void bump(QColor& v) { v = QColor(v.red() ^ 0x55, v.green() ^ 0x55, v.blue() ^ 0x55, v.alpha()); }
+void bump(ObjectRecord::Shape& v)
+{
+    v = static_cast<ObjectRecord::Shape>((int(v) + 1) % (int(ShapeProperties::k_lastKind) + 1));
+}
+void bump(ObjectRecord::Style& v)
+{
+    v = static_cast<ObjectRecord::Style>((int(v) + 1) % (int(StyleProperties::k_lastKind) + 1));
+}
+
+/**
+ * @brief For every field of the group at \p group: changing it alone makes the group unequal, and the
+ *        changed record comes back the same from the JSON and from the SVG.
+ *
+ * The SVG is written with no lettering, because writing lettering measures a font, which needs the
+ * QGuiApplication this target does not have; the body's own `pm:text` is read by the import test.
+ */
+template <class Group>
+void expectEveryFieldCounts(Group ObjectRecord::*group)
+{
+    Group::fields([&](const char* key, auto member) {
+        ObjectRecord a = loadedRecord();
+        a.text.body.clear();
+        ObjectRecord b = a;
+        bump((b.*group).*member);
+
+        EXPECT_FALSE(a.*group == b.*group) << key << ": not compared";
+        EXPECT_EQ(ObjectRecord::fromJson(b.toJson()), b) << key << ": not in the JSON";
+        if (b.text.body.isEmpty()) {
+            bool ok = false;
+            EXPECT_EQ(Svg::read(Svg::write(b), &ok), b) << key << ": not in the SVG";
+            EXPECT_TRUE(ok) << key;
+        }
+    });
+}
+
+} // namespace
+
+TEST(Fields, EveryFieldIsComparedAndSaved)
+{
+    expectEveryFieldCounts(&ObjectRecord::shape);
+    expectEveryFieldCounts(&ObjectRecord::text);
+    expectEveryFieldCounts(&ObjectRecord::skin);
+    expectEveryFieldCounts(&ObjectRecord::style);
+}
+
+//! Every key a record is saved under is its own: two fields sharing one would overwrite each other.
+TEST(Fields, EveryKeyIsUnique)
+{
+    // The record's own, written by hand, and then every group's list.
+    QStringList keys{QStringLiteral("artwork"), QStringLiteral("w"), QStringLiteral("h"),
+                     QStringLiteral("box"), QStringLiteral("tails"), QStringLiteral("styleSeed"),
+                     QStringLiteral("fontFallback")};
+    const auto collect = [&](const char* key, auto) { keys << QString::fromLatin1(key); };
+    ShapeProperties::fields(collect);
+    TextProperties::fields(collect);
+    SkinProperties::fields(collect);
+    StyleProperties::fields(collect);
+    for (const QString& k : keys)
+        EXPECT_EQ(keys.count(k), 1) << k.toStdString();
+}
+
+// ---------------------------------------------------------------------------
 // Golden files
 // ---------------------------------------------------------------------------
 
@@ -784,6 +857,7 @@ TEST(Golden, EveryShapeAndStyleIsWrittenAsBefore)
         const QString g = i < got.size() ? got[i] : QStringLiteral("<end of output>");
         if (w.startsWith(QStringLiteral("=== ")))
             section = w;
-        ASSERT_EQ(g, w) << "first difference at line " << i + 1 << ", in " << section.toStdString();
+        ASSERT_EQ(g.toStdString(), w.toStdString())
+            << "first difference at line " << i + 1 << ", in " << section.toStdString();
     }
 }

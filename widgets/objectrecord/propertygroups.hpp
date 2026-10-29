@@ -8,12 +8,18 @@
 #include <QString>
 #include <QtGlobal>
 
+#include "fields.hpp"
+
 /**
  * @file
  * @brief The property groups an ObjectRecord is made of — Shape, Skin, Style, Text, the tails and one tail.
  *
  * Each group is a plain struct with from() / applyTo() / operator==, and the record (objectrecord.hpp) holds
  * one of each. The editor that edits a group lives in `widgets/stripeditor/properties/`, one per group.
+ *
+ * A group of scalars lists its fields once, in `fields()`: the key each is saved under and the member it
+ * is (fields.hpp). Its operator==, its JSON and its `pm:` attributes are all walks over that list, so a
+ * new property is one line there.
  */
 
 /**
@@ -78,6 +84,15 @@ struct SkinProperties
     QColor stroke{20, 20, 20};
     int    strokeWidth = 5;
 
+    //! The fields, with the keys they are saved under (fields.hpp).
+    template <class V>
+    static void fields(V&& v)
+    {
+        v("fill",        &SkinProperties::fill);
+        v("stroke",      &SkinProperties::stroke);
+        v("strokeWidth", &SkinProperties::strokeWidth);
+    }
+
     //! Reads this group out of \p a.
     [[nodiscard]] static SkinProperties from(const ObjectRecord& a);
 
@@ -90,10 +105,7 @@ struct SkinProperties
      */
     void applyTo(ObjectRecord& a) const;
 
-    [[nodiscard]] bool operator==(const SkinProperties& o) const
-    {
-        return fill == o.fill && stroke == o.stroke && strokeWidth == o.strokeWidth;
-    }
+    [[nodiscard]] bool operator==(const SkinProperties& o) const { return Fields::equal(*this, o); }
     [[nodiscard]] bool operator!=(const SkinProperties& o) const { return !(*this == o); }
 };
 
@@ -120,10 +132,17 @@ struct ShapeProperties
 
     Kind kind = Kind::Speech;
 
+    //! The fields, with the keys they are saved under (fields.hpp).
+    template <class V>
+    static void fields(V&& v)
+    {
+        v("shape", &ShapeProperties::kind);
+    }
+
     [[nodiscard]] static ShapeProperties from(const ObjectRecord& a);
     void applyTo(ObjectRecord& a) const;
 
-    [[nodiscard]] bool operator==(const ShapeProperties& o) const { return kind == o.kind; }
+    [[nodiscard]] bool operator==(const ShapeProperties& o) const { return Fields::equal(*this, o); }
     [[nodiscard]] bool operator!=(const ShapeProperties& o) const { return !(*this == o); }
 };
 
@@ -153,13 +172,18 @@ struct StyleProperties
     Kind  kind  = Kind::Clean;  //!< Clean is a true no-op: no filter is emitted at all.
     qreal amount = 1.0;          //!< Scales the effect, 0..2. 1.0 is the preset's own strength.
 
+    //! The fields, with the keys they are saved under (fields.hpp).
+    template <class V>
+    static void fields(V&& v)
+    {
+        v("style",       &StyleProperties::kind);
+        v("styleAmount", &StyleProperties::amount);
+    }
+
     [[nodiscard]] static StyleProperties from(const ObjectRecord& a);
     void applyTo(ObjectRecord& a) const;
 
-    [[nodiscard]] bool operator==(const StyleProperties& o) const
-    {
-        return kind == o.kind && qFuzzyCompare(1.0 + amount, 1.0 + o.amount);
-    }
+    [[nodiscard]] bool operator==(const StyleProperties& o) const { return Fields::equal(*this, o); }
     [[nodiscard]] bool operator!=(const StyleProperties& o) const { return !(*this == o); }
 };
 
@@ -196,15 +220,25 @@ struct TextProperties
      */
     int     padding = 8;
 
+    //! The fields, with the keys they are saved under (fields.hpp). The keys predate the members'
+    //! names, which is why three of them differ.
+    template <class V>
+    static void fields(V&& v)
+    {
+        v("text",        &TextProperties::body);
+        v("fontFamily",  &TextProperties::family);
+        v("fontSize",    &TextProperties::pixelSize);
+        v("bold",        &TextProperties::bold);
+        v("align",       &TextProperties::align);
+        v("lineSpacing", &TextProperties::lineSpacing);
+        v("padding",     &TextProperties::padding);
+        v("textColour",  &TextProperties::colour);
+    }
+
     [[nodiscard]] static TextProperties from(const ObjectRecord& a);
     void applyTo(ObjectRecord& a) const;
 
-    [[nodiscard]] bool operator==(const TextProperties& o) const
-    {
-        return body == o.body && family == o.family && pixelSize == o.pixelSize && bold == o.bold
-            && align == o.align && colour == o.colour && lineSpacing == o.lineSpacing
-            && padding == o.padding;
-    }
+    [[nodiscard]] bool operator==(const TextProperties& o) const { return Fields::equal(*this, o); }
     [[nodiscard]] bool operator!=(const TextProperties& o) const { return !(*this == o); }
 };
 

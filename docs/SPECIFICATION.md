@@ -99,11 +99,15 @@ row glyphs come free. Copy **Thought** (`thoughtPath()`, `thoughtArea()`).
 balloon along a ray from the centre); every constant is named; noise uses `styleSeed` and nothing else
 (`topUpStyleSeed()` mints it; a *Re-roll* entry on the object menu is planned, not built).
 
-**With parameters of its own** (no shape has any yet; the first brings the shape registry, see
-`TODO.md`): the fields in `ShapeProperties` **and its `operator==`** (equality gates the file rewrite),
-flat JSON keys with defaults in `objectrecord.cpp`, a `pm:` attribute in `recordsvg.cpp`, controls in
-`shapeeditor.cpp` (`bind()` emits nothing, a change emits `changed()`), and the test's mirror struct,
-whose `static_assert` stops the build until every place lists the field.
+**With parameters of its own** (no shape has any yet): each parameter is a member of
+`ShapeProperties` and **one line in its `fields()` list** — the key it is saved under and the member
+(`widgets/objectrecord/fields.hpp`). That one line gives it equality (which gates the file rewrite), a
+JSON key and a `pm:` attribute, with the struct's default as the fallback when a file lacks it. Then
+controls in `shapeeditor.cpp` (`bind()` emits nothing, a change emits `changed()`), `loadedRecord()` and
+`expectUntouched()` in the test, and the test's mirror struct, whose `static_assert` stops the build
+until the member is placed. `Fields.EveryFieldIsComparedAndSaved` then checks the new field on its own.
+A value of a type no group holds yet needs an overload in each of the three walks (`Fields::same()`,
+`toJsonValue()`/`fromJsonValue()`, `attrValue()`/`fromAttr()`).
 
 ### A kind of object
 

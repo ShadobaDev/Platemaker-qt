@@ -16,7 +16,7 @@ inline constexpr int k_rowGlyphPx = 24;
 /**
  * @brief The object itself, drawn small enough to sit in a row — **a glyph, not a picture**.
  *
- * Built from `Painter::silhouette()`, the same path the scene draws and the SVG writer serialises, so a
+ * Built from `Geometry::silhouette()`, the same path the scene draws and the SVG writer serialises, so a
  * speech balloon with two tails is distinguishable from a caption box at a glance. There is no rendering
  * here and no library round-trip: the path is already geometry, and asking librsvg for an icon this size
  * would cost the whole filter pipeline to produce something nobody can read anyway.

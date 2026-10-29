@@ -70,12 +70,12 @@ ObjectMenu::ObjectMenu(ObjectController& objects, const StripLayout& layout, Pre
     m_actFill = new QAction(tr("Fill with primary colour"), this);
     connect(m_actFill, &QAction::triggered, this, [this] {
         if (m_colours)
-            m_objects.applyColourToSelection(m_colours->primary(), Painter::Part::Fill);
+            m_objects.applyColourToSelection(m_colours->primary(), Geometry::Part::Fill);
     });
     m_actOutline = new QAction(tr("Outline with secondary colour"), this);
     connect(m_actOutline, &QAction::triggered, this, [this] {
         if (m_colours)
-            m_objects.applyColourToSelection(m_colours->secondary(), Painter::Part::Outline);
+            m_objects.applyColourToSelection(m_colours->secondary(), Geometry::Part::Outline);
     });
 
     // One property group at a time, taken from what the tool's options are set to.

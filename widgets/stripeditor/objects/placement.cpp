@@ -3,7 +3,7 @@
 #include "objects/artworkobject.hpp"   // loadArtwork(): a picture's own size
 #include "objects/objectcontroller.hpp"
 #include "objects/striplayout.hpp"
-#include "recordpainter.hpp"
+#include "geometry.hpp"
 
 #include <QGraphicsRectItem>
 #include <QGraphicsScene>
@@ -109,7 +109,7 @@ void Placement::finish()
     // The drag was in strip pixels at the width the editor is laid out at, and the SVG about to be
     // written is in those same pixels — so the artwork's own width *is* this fraction of the page, and
     // the bubble comes back at scale 1.
-    const QRectF  bounds = Painter::bounds(a);
+    const QRectF  bounds = Geometry::bounds(a);
     const QPointF origin = r.topLeft() + bounds.topLeft();
     m_objects.requestRecord(a, origin.x() / tw, (origin.y() - m_layout.page(page).top) / tw,
                             bounds.width() / tw,

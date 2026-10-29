@@ -369,18 +369,12 @@ New, backward-compatible features. Several are gated on a lib version, noted in 
   - The package itself could get its own extension and association the same way (Ableton's `.alp` model) —
     smaller, and independent of the rest.
 
-- [ ] **Shape registry: lands with the first shape that has parameters.** Today a shape is an enum value
-  plus a case in seven places (`shapeName`, `shapeTitle`, `shapeOrder`, `shapeFromName`,
-  `Painter::silhouette`, `Painter::textSafeArea`, `Painter::label`). The plan is the tool rail's own pattern one level
-  down: a `ShapeDescriptor` table (persisted name, title, `outline(body, ObjectRecord)`, `textSafeArea(body,
-  ObjectRecord)`, a parameter list that `ShapeEditor` builds its controls from), with one file per shape under
-  `widgets/objectrecord/shapes/`. Adding a shape then means copying one file and adding one row, which is
-  [the shape recipe](SPECIFICATION.md#a-shape) made literal.
-  - **Trigger:** the first field in `ShapeProperties` beyond `kind` (e.g. a *Scribble* balloon's amplitude
-    and lobes). Before that, the table replaces seven working switches for no new capability.
-  - **The move first, the shape on top:** the golden render, overlay SVGs and shape tiles byte-identical
-    before and after the move, then the new shape as its own step.
-  - **Seeds:** a noisy outline reads `styleSeed` (hence `outline` takes the `ObjectRecord`), never a seed of its
+- [x] **Shape registry** — built in PLAN-S S1 (2026-10-29), ahead of the first parameter: one table,
+  `k_shapes` in `widgets/objectrecord/shapes.cpp`, one entry per shape (name, title, tail, outline, text
+  area), in one file rather than one file per shape. The parameter list comes with S2's field lists.
+  What it replaced: an enum value plus a case in seven places (`shapeName`, `shapeTitle`, `shapeOrder`,
+  `shapeFromName`, `Painter::silhouette`, `Painter::textSafeArea`, `Painter::label`). Moved byte for byte, checked by `Golden.EveryShapeAndStyleIsWrittenAsBefore`.
+  - **Seeds:** a noisy outline reads `styleSeed` (an `outline` that needs it then takes the `ObjectRecord`), never a seed of its
     own, so a preset cannot copy a wobble. The shape that needs it brings a **Re-roll** action (one undo
     step) on the object menu.
   - Optionally in the same step: a tool row names its options page through a factory, so `Editor`'s

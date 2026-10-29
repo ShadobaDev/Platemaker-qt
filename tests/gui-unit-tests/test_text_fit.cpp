@@ -1,11 +1,11 @@
 // Fitting a box to its lettering: the geometry half, which needs no font. The block of lettering is
-// given as a size — what Painter::textBlockSize() would measure — so every shape can be tried without
+// given as a size — what Geometry::textBlockSize() would measure — so every shape can be tried without
 // the QGuiApplication this target deliberately does not have.
 
 #include <gtest/gtest.h>
 
 #include "objectrecord.hpp"
-#include "recordpainter.hpp"
+#include "geometry.hpp"
 
 namespace {
 
@@ -38,8 +38,8 @@ TEST(TextFit, TheFittedBoxHoldsTheBlockInEveryShape)
     for (const ObjectRecord::Shape shape : everyKind()) {
         for (const QSizeF& block : k_blocks) {
             ObjectRecord a = withShape(shape);
-            a.box          = Painter::fitBoxFor(a, block);
-            EXPECT_TRUE(Painter::fits(a, block)) << shapeName(shape) << " " << block.width() << "x" << block.height();
+            a.box          = Geometry::fitBoxFor(a, block);
+            EXPECT_TRUE(Geometry::fits(a, block)) << shapeName(shape) << " " << block.width() << "x" << block.height();
         }
     }
 }
@@ -50,17 +50,17 @@ TEST(TextFit, TheFitIsTightOnBothAxes)
     for (const ObjectRecord::Shape shape : everyKind()) {
         for (const QSizeF& block : k_blocks) {
             ObjectRecord a = withShape(shape);
-            const QSize  fit = Painter::fitBoxFor(a, block);
+            const QSize  fit = Geometry::fitBoxFor(a, block);
 
             ObjectRecord narrower = a;
             narrower.box = QSize(fit.width() - 1, fit.height());
             if (fit.width() > k_floor)
-                EXPECT_FALSE(Painter::fits(narrower, block)) << shapeName(shape) << " width";
+                EXPECT_FALSE(Geometry::fits(narrower, block)) << shapeName(shape) << " width";
 
             ObjectRecord shorter = a;
             shorter.box = QSize(fit.width(), fit.height() - 1);
             if (fit.height() > k_floor)
-                EXPECT_FALSE(Painter::fits(shorter, block)) << shapeName(shape) << " height";
+                EXPECT_FALSE(Geometry::fits(shorter, block)) << shapeName(shape) << " height";
         }
     }
 }
@@ -71,13 +71,13 @@ TEST(TextFit, TheStartingBoxDoesNotMatter)
     ObjectRecord small = big;
     big.box   = QSize(900, 50);
     small.box = QSize(41, 700);
-    EXPECT_EQ(Painter::fitBoxFor(big, QSizeF(200, 36)), Painter::fitBoxFor(small, QSizeF(200, 36)));
+    EXPECT_EQ(Geometry::fitBoxFor(big, QSizeF(200, 36)), Geometry::fitBoxFor(small, QSizeF(200, 36)));
 }
 
 TEST(TextFit, NeitherSideGoesBelowTheFloor)
 {
     for (const ObjectRecord::Shape shape : everyKind()) {
-        const QSize fit = Painter::fitBoxFor(withShape(shape), QSizeF(3, 3));
+        const QSize fit = Geometry::fitBoxFor(withShape(shape), QSizeF(3, 3));
         EXPECT_GE(fit.width(), k_floor) << shapeName(shape);
         EXPECT_GE(fit.height(), k_floor) << shapeName(shape);
     }
@@ -86,9 +86,9 @@ TEST(TextFit, NeitherSideGoesBelowTheFloor)
 TEST(TextFit, PaddingGrowsTheBoxAndANegativeOneShrinksIt)
 {
     const QSizeF block(200, 60);
-    const QSize  tight = Painter::fitBoxFor(withShape(ObjectRecord::Shape::Speech, 0), block);
-    const QSize  roomy = Painter::fitBoxFor(withShape(ObjectRecord::Shape::Speech, 20), block);
-    const QSize  burst = Painter::fitBoxFor(withShape(ObjectRecord::Shape::Speech, -20), block);
+    const QSize  tight = Geometry::fitBoxFor(withShape(ObjectRecord::Shape::Speech, 0), block);
+    const QSize  roomy = Geometry::fitBoxFor(withShape(ObjectRecord::Shape::Speech, 20), block);
+    const QSize  burst = Geometry::fitBoxFor(withShape(ObjectRecord::Shape::Speech, -20), block);
     EXPECT_GT(roomy.width(), tight.width());
     EXPECT_GT(roomy.height(), tight.height());
     EXPECT_LT(burst.width(), tight.width());
@@ -99,17 +99,17 @@ TEST(TextFit, PaddingGrowsTheBoxAndANegativeOneShrinksIt)
 TEST(TextFit, PaddingDoesNothingWithoutABalloon)
 {
     const QSizeF block(200, 36);
-    EXPECT_EQ(Painter::fitBoxFor(withShape(ObjectRecord::Shape::None, 0), block),
-              Painter::fitBoxFor(withShape(ObjectRecord::Shape::None, 50), block));
+    EXPECT_EQ(Geometry::fitBoxFor(withShape(ObjectRecord::Shape::None, 0), block),
+              Geometry::fitBoxFor(withShape(ObjectRecord::Shape::None, 50), block));
     // A text object's text area is its box: the fit is the block itself, rounded up, above the floor.
-    EXPECT_EQ(Painter::fitBoxFor(withShape(ObjectRecord::Shape::None), block), QSize(200, k_floor));
+    EXPECT_EQ(Geometry::fitBoxFor(withShape(ObjectRecord::Shape::None), block), QSize(200, k_floor));
 }
 
 TEST(TextFit, NoTextKeepsTheBox)
 {
     const ObjectRecord a = withShape(ObjectRecord::Shape::Ellipse);
-    EXPECT_EQ(Painter::fitBoxFor(a, QSizeF()), a.box);
-    EXPECT_TRUE(Painter::fits(a, QSizeF()));
+    EXPECT_EQ(Geometry::fitBoxFor(a, QSizeF()), a.box);
+    EXPECT_TRUE(Geometry::fits(a, QSizeF()));
 }
 
 TEST(TextFit, FixPaddingLowersItUntilTheLetteringFits)
@@ -118,32 +118,32 @@ TEST(TextFit, FixPaddingLowersItUntilTheLetteringFits)
 
     // The box Fit gives at padding 0: at padding 8 the lettering overflows, and 0 is the most it can keep.
     ObjectRecord a = withShape(ObjectRecord::Shape::Speech, 0);
-    a.box          = Painter::fitBoxFor(a, block);
+    a.box          = Geometry::fitBoxFor(a, block);
     a.text.padding = 8;
-    ASSERT_FALSE(Painter::fits(a, block));
-    EXPECT_EQ(Painter::paddingToFit(a, block), 0);
+    ASSERT_FALSE(Geometry::fits(a, block));
+    EXPECT_EQ(Geometry::paddingToFit(a, block), 0);
 
     // A balloon smaller than its lettering: the padding goes below zero, past the outline.
     ObjectRecord burst = withShape(ObjectRecord::Shape::Speech, -20);
-    burst.box          = Painter::fitBoxFor(burst, block);
+    burst.box          = Geometry::fitBoxFor(burst, block);
     burst.text.padding = 8;
-    const int fixed    = Painter::paddingToFit(burst, block);
+    const int fixed    = Geometry::paddingToFit(burst, block);
     EXPECT_EQ(fixed, -20);
     burst.text.padding = fixed;
-    EXPECT_TRUE(Painter::fits(burst, block));
+    EXPECT_TRUE(Geometry::fits(burst, block));
     burst.text.padding = fixed + 1;
-    EXPECT_FALSE(Painter::fits(burst, block));   // and it is the largest that does
+    EXPECT_FALSE(Geometry::fits(burst, block));   // and it is the largest that does
 }
 
 TEST(TextFit, FixPaddingLeavesWhatAlreadyFitsAlone)
 {
     ObjectRecord roomy = withShape(ObjectRecord::Shape::Ellipse, 8);
     roomy.box          = QSize(900, 600);
-    EXPECT_EQ(Painter::paddingToFit(roomy, QSizeF(200, 36)), 8);   // never raised to take up the room
+    EXPECT_EQ(Geometry::paddingToFit(roomy, QSizeF(200, 36)), 8);   // never raised to take up the room
 
     ObjectRecord text = withShape(ObjectRecord::Shape::None, 8);
     text.box          = QSize(50, 40);
-    EXPECT_EQ(Painter::paddingToFit(text, QSizeF(200, 36)), 8);    // no outline, no padding to give
+    EXPECT_EQ(Geometry::paddingToFit(text, QSizeF(200, 36)), 8);    // no outline, no padding to give
 }
 
 TEST(TextFit, TheAnchorIsTheAlignedSideAndTheMiddleOfTheBlock)
@@ -153,14 +153,14 @@ TEST(TextFit, TheAnchorIsTheAlignedSideAndTheMiddleOfTheBlock)
     const QSizeF blk(120, 40);
 
     a.text.align = Qt::AlignHCenter;
-    EXPECT_EQ(Painter::textAnchorFor(a, blk), QPointF(150, 50));
+    EXPECT_EQ(Geometry::textAnchorFor(a, blk), QPointF(150, 50));
     a.text.align = Qt::AlignLeft;
-    EXPECT_EQ(Painter::textAnchorFor(a, blk), QPointF(0, 50));
+    EXPECT_EQ(Geometry::textAnchorFor(a, blk), QPointF(0, 50));
     a.text.align = Qt::AlignRight;
-    EXPECT_EQ(Painter::textAnchorFor(a, blk), QPointF(300, 50));
+    EXPECT_EQ(Geometry::textAnchorFor(a, blk), QPointF(300, 50));
 
     // Taller than its area, the block is pinned to the top, as textOutline() draws it.
-    EXPECT_EQ(Painter::textAnchorFor(a, QSizeF(120, 160)).y(), 80);
+    EXPECT_EQ(Geometry::textAnchorFor(a, QSizeF(120, 160)).y(), 80);
 }
 
 TEST(TextFit, ConvertingFitsTheLetteringInEveryShape)
@@ -169,12 +169,12 @@ TEST(TextFit, ConvertingFitsTheLetteringInEveryShape)
     // without a new box the smaller text area clipped them. Convert fits the box to the new kind.
     const QSizeF block(180, 72);
     ObjectRecord text = withShape(ObjectRecord::Shape::None);
-    text.box          = Painter::fitBoxFor(text, block);
+    text.box          = Geometry::fitBoxFor(text, block);
     for (const ObjectRecord::Shape shape : shapeOrder()) {
         ObjectRecord balloon = text;
         balloon.shape.kind   = shape;
-        EXPECT_FALSE(Painter::fits(balloon, block)) << shapeName(shape) << " (the old behaviour clipped)";
-        balloon.box = Painter::fitBoxFor(balloon, block);
-        EXPECT_TRUE(Painter::fits(balloon, block)) << shapeName(shape);
+        EXPECT_FALSE(Geometry::fits(balloon, block)) << shapeName(shape) << " (the old behaviour clipped)";
+        balloon.box = Geometry::fitBoxFor(balloon, block);
+        EXPECT_TRUE(Geometry::fits(balloon, block)) << shapeName(shape);
     }
 }

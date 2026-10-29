@@ -8,7 +8,7 @@
 
 #include <algorithm>
 
-#include "recordpainter.hpp"
+#include "geometry.hpp"
 
 namespace StripEdit {
 
@@ -106,11 +106,11 @@ QRectF SelectionChrome::handleRect(const Object* o, int index, qreal s) const
 QRectF SelectionChrome::overflowRect(const Object* o)
 {
     const ObjectRecord& r = o->record();
-    if (r.text.body.isEmpty() || r.box.isEmpty() || !Painter::textOverflows(r))
+    if (r.text.body.isEmpty() || r.box.isEmpty() || !Geometry::textOverflows(r))
         return {};
     // The text area is in the record's box units. A balloon is drawn at exactly those; a picture's
     // lettering is laid out in the record's box and drawn stretched to the picture's (ArtworkObject).
-    const QRectF area = Painter::textArea(r);
+    const QRectF area = Geometry::textArea(r);
     const qreal  sx   = o->boxSize().width()  / r.box.width();
     const qreal  sy   = o->boxSize().height() / r.box.height();
     return o->mapRectToScene(QRectF(area.x() * sx, area.y() * sy, area.width() * sx, area.height() * sy));

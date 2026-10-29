@@ -8,6 +8,7 @@
 #include <QVBoxLayout>
 
 #include "recordpainter.hpp"
+#include "shapes.hpp"
 #include "flowlayout.hpp"
 
 namespace StripEdit {
@@ -23,17 +24,7 @@ constexpr int k_shapeIconScale = 4;
 
 bool shapeSpeaks(ObjectRecord::Shape shape)
 {
-    // Someone is talking: a tail belongs. A caption, a banner or a scroll is narration — it has no
-    // speaker to point at, so placing one should not sprout a tail the author then has to turn off.
-    switch (shape) {
-    case ObjectRecord::Shape::Speech:
-    case ObjectRecord::Shape::Shout:
-    case ObjectRecord::Shape::Ellipse:
-    case ObjectRecord::Shape::Thought:
-        return true;
-    default:
-        return false;
-    }
+    return Geometry::shapeInfo(shape).speaks;   // the shape table says who is talking (shapes.hpp)
 }
 
 QPixmap bubbleThumbnail(ObjectRecord::Shape shape, const QColor& fill, const QColor& stroke,

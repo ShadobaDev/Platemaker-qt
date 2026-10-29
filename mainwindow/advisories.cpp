@@ -14,7 +14,7 @@
 #include "advisories.hpp"
 #include "advisorybar.hpp"
 #include "templatesdialog.hpp"
-#include "recordpainter.hpp"
+#include "geometry.hpp"
 #include "editor.hpp"
 #include "project.hpp"
 
@@ -96,7 +96,7 @@ void MainWindow::refreshAdvisoriesFor(int projectIndex)
     // --- lettering whose font is not installed ------------------------------
     // The render is unaffected — the words are outlines in the file — so this is a warning about editing:
     // until the font is installed, an edit sets the words in a stand-in. The same answer the SVG writer
-    // gets (Painter::fontFallback()), so the badge and the file can never disagree about what is missing.
+    // gets (Geometry::fontFallback()), so the badge and the file can never disagree about what is missing.
     QStringList       families;
     const QStringList inStandIns = objectsInStandIns(project, &families);
     if (inStandIns.isEmpty()) {
@@ -183,7 +183,7 @@ QStringList MainWindow::objectsInStandIns(const Platemaker::Models::ProjectItem&
     QStringList       out;
     for (const auto& overlay : project.getStripOverlays()) {
         const auto rec = records.constFind(QString::fromStdString(overlay.uid));
-        if (rec == records.constEnd() || Painter::fontFallback(*rec).isEmpty())
+        if (rec == records.constEnd() || Geometry::fontFallback(*rec).isEmpty())
             continue;
         out << QString::fromStdString(overlay.uid);
         if (families && !families->contains(rec->text.family))

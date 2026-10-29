@@ -58,7 +58,7 @@ picture the GUI writes.
 | You want… | You are adding… | Cost |
 |---|---|---|
 | a rail button doing what an existing kind of tool does | **a tool row** | one table row |
-| a new balloon outline | **a shape** | about five files; parameters add five more |
+| a new balloon outline | **a shape** | an enum value and one table entry; parameters add five more files |
 | something on the strip that is neither a balloon nor a picture | **a kind of object** | the last took 19 files |
 
 **A tool is a row of data and holds no state**, so a rail row is a kind of object, never a value of one
@@ -79,20 +79,21 @@ Beyond that it is no longer a row: a **new options page** goes in `tooloptions/`
 ### A shape
 
 A value of `ShapeProperties::Kind`; move, resize, tails, lettering, undo, presets, the tiles and the
-row glyphs come free. Copy **Thought** (`thoughtPath()`).
+row glyphs come free. Copy **Thought** (`thoughtPath()`, `thoughtArea()`).
 
 1. `widgets/objectrecord/propertygroups.hpp`: append to `Kind` (**append only**, persisted by name) and
    move `k_lastKind`.
-2. `widgets/objectrecord/objectrecord.cpp`: `shapeName()` (persisted, never changes), `shapeTitle()`,
-   `shapeOrder()`.
-3. `widgets/objectrecord/recordpainter.cpp`: named constants at the top, `<name>Path()`, and a case in
-   `silhouette()`, `textSafeArea()` and `label()`.
-4. `properties/shapeeditor.cpp`: a case in `shapeSpeaks()` (does a placed one get a tail?).
-5. *Optional:* a built-in preset in `presetstore.cpp`.
+2. `widgets/objectrecord/shapes.cpp`: its named constants, `<name>Path()` and `<name>Area()` (the largest
+   rectangle the outline contains), and **one entry in `k_shapes`**, in the enum's order: the persisted
+   name (never changes), the title, whether a placed one gets a tail, and the two functions.
+3. `widgets/objectrecord/objectrecord.cpp`: its place in `shapeOrder()`, the picker's order.
+4. *Optional:* a built-in preset in `presetstore.cpp`.
 
-**Caught by** `tests/gui-unit-tests/test_property_groups.cpp`: `Conversion.ThePickerOffersEverySilhouetteAndNoKind`
-(missing from `shapeOrder()`), `PropertyGroupPersistence.EveryShapeAndStyleRoundTrips` (missing name).
-MSVC does not warn about a missing `switch` case; MinGW does.
+**Caught by** `tests/gui-unit-tests/test_property_groups.cpp`: `Conversion.EveryShapeHasATableEntry`
+(no entry, or one out of order), `Conversion.ThePickerOffersEverySilhouetteAndNoKind` (missing from
+`shapeOrder()`), `PropertyGroupPersistence.EveryShapeAndStyleRoundTrips` (missing name), and
+`Golden.EveryShapeAndStyleIsWrittenAsBefore`, which fails until the new shape's SVG is accepted with
+`PLATEMAKER_UPDATE_GOLDEN=1` and its diff reviewed.
 
 **Not caught by any test:** the outline must be **star-shaped around its centre** (a tail leaves the
 balloon along a ray from the centre); every constant is named; noise uses `styleSeed` and nothing else

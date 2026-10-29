@@ -14,7 +14,7 @@
 #include "workspacelock.hpp"
 #include "workspacefolder.hpp"
 #include "presetstore.hpp"
-#include "recordpainter.hpp"
+#include "geometry.hpp"
 #include "docktitlebar.hpp"
 #include "verticallabel.hpp"
 
@@ -87,7 +87,7 @@ MainWindow::MainWindow(QWidget *parent)
     m_installedFamilies = QFontDatabase::families();
 
     m_presets = new StripEdit::PresetStore(this);
-    m_presets->setDefaultFamily(Painter::defaultFamily());
+    m_presets->setDefaultFamily(Geometry::defaultFamily());
 
     setDockOptions(AnimatedDocks | AllowNestedDocks | AllowTabbedDocks);
 

@@ -9,7 +9,7 @@
 #include "objectstack/rowglyph.hpp"
 #include "presetstore.hpp"
 #include "properties/blendeditor.hpp"   // blendName(): a row names a blend mode the way the menu does
-#include "recordpainter.hpp"
+#include "geometry.hpp"
 
 #include <QAbstractItemModel>
 #include <QFileInfo>
@@ -194,7 +194,7 @@ void ObjectStack::refresh()
         // refreshed before the strip has a layout, where syncItems() has nothing to place anything against.
         const Object* item  = m_objects.object(uid);
         const QString label = item ? item->label()
-                                   : (m_objects.isParametric(uid) ? Painter::label(m_objects.recordFor(uid))
+                                   : (m_objects.isParametric(uid) ? recordLabel(m_objects.recordFor(uid))
                                                         : tr("(imported artwork)"));
         // The page it sits on, when it sits on one. An unanchored object used to carry the word *orphan*
         // where the page number goes; that is what the chip says now, and saying it twice cost the row

@@ -42,6 +42,9 @@ add_executable(platemaker-gui-tests
     # The SVG a bubble is written to, and the geometry it is written from: both Qt6::Gui only, so the
     # rule above still holds — and the import's premise is worth a test of its own.
     ${CMAKE_SOURCE_DIR}/widgets/objectrecord/recordsvg.cpp
+    ${CMAKE_SOURCE_DIR}/widgets/objectrecord/shapes.cpp
+    ${CMAKE_SOURCE_DIR}/widgets/objectrecord/silhouette.cpp
+    ${CMAKE_SOURCE_DIR}/widgets/objectrecord/lettering.cpp
     ${CMAKE_SOURCE_DIR}/widgets/objectrecord/recordpainter.cpp
     ${CMAKE_SOURCE_DIR}/widgets/stripeditor/properties/colouradjustment.cpp
     # The preset store is QtCore and a QObject — no widget in it — so the rule above still holds.
@@ -65,6 +68,10 @@ target_include_directories(platemaker-gui-tests PRIVATE
     # including the one gtest_discover_tests starts at build time.
     $<TARGET_PROPERTY:Platemaker::platemaker,INTERFACE_INCLUDE_DIRECTORIES>
 )
+
+# The golden files a test compares against, in the source tree so a regenerated one shows in git diff.
+target_compile_definitions(platemaker-gui-tests PRIVATE
+    PLATEMAKER_GOLDEN_DIR="${CMAKE_CURRENT_SOURCE_DIR}/golden")
 
 target_link_libraries(platemaker-gui-tests PRIVATE
     Qt6::Gui

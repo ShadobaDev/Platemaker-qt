@@ -108,6 +108,9 @@ qt_add_executable(Platemaker
     # The library composites a flat RGBA bitmap and has no text engine, so the editable source lives here.
     widgets/objectrecord/objectrecord.cpp widgets/objectrecord/objectrecord.hpp widgets/objectrecord/propertygroups.hpp
     widgets/objectrecord/recordstore.cpp widgets/objectrecord/recordstore.hpp
+    widgets/objectrecord/geometry.hpp
+    widgets/objectrecord/shapes.cpp widgets/objectrecord/shapes.hpp
+    widgets/objectrecord/silhouette.cpp widgets/objectrecord/lettering.cpp
     widgets/objectrecord/recordpainter.cpp widgets/objectrecord/recordpainter.hpp
     widgets/objectrecord/recordsvg.cpp widgets/objectrecord/recordsvg.hpp
 

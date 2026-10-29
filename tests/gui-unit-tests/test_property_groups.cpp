@@ -13,9 +13,13 @@
 
 #include <gtest/gtest.h>
 
+#include <QFile>
+#include <QJsonDocument>
 #include <QJsonObject>
 
+#include "geometry.hpp"
 #include "recordsvg.hpp"
+#include "shapes.hpp"
 #include "properties/propertygroup.hpp"
 #include "objectrecord.hpp"
 
@@ -445,6 +449,26 @@ TEST(Conversion, ThePickerOffersEverySilhouetteAndNoKind)
     EXPECT_FALSE(shapeTitle(ObjectRecord::Shape::None).isEmpty());
 }
 
+/**
+ * @brief Every shape has its own entry in the shape table (shapes.cpp), in the enum's order, with a
+ *        name, a title, an outline and a text area — except `None`, which has no outline to draw.
+ *
+ * The table is indexed by the enum, so an entry out of order would give a shape another's geometry; and
+ * an appended shape with no entry would be drawn as the speech balloon shapeInfo() falls back to.
+ */
+TEST(Conversion, EveryShapeHasATableEntry)
+{
+    for (int i = 0; i <= int(ShapeProperties::k_lastKind); ++i) {
+        const auto                 kind = static_cast<ObjectRecord::Shape>(i);
+        const Geometry::ShapeInfo& info = Geometry::shapeInfo(kind);
+        EXPECT_EQ(info.kind, kind) << "entry " << i << " is out of the enum's order";
+        EXPECT_NE(info.name, nullptr) << i;
+        EXPECT_NE(info.title, nullptr) << i;
+        EXPECT_NE(info.safeArea, nullptr) << i;
+        EXPECT_EQ(info.outline == nullptr, kind == ObjectRecord::Shape::None) << shapeName(kind);
+    }
+}
+
 // ---------------------------------------------------------------------------
 // Import
 // ---------------------------------------------------------------------------
@@ -674,4 +698,92 @@ TEST(Groups, NoRecordCarriesATailsOwnGroup)
     EXPECT_FALSE(carriesGroup(a, PropertyGroup::Placement));
     EXPECT_FALSE(carriesGroup(a, PropertyGroup::Size));
     EXPECT_FALSE(carriesGroup(a, PropertyGroup::Compositing));
+}
+
+// ---------------------------------------------------------------------------
+// Golden files
+// ---------------------------------------------------------------------------
+
+namespace {
+
+//! Where the golden file lives, in the source tree, so a regenerated one shows up in `git diff`.
+QString goldenPath()
+{
+    return QStringLiteral(PLATEMAKER_GOLDEN_DIR "/records.txt");
+}
+
+/**
+ * @brief Everything a record is written as, for every shape × line style × with and without a tail.
+ *
+ * The balloon's SVG, its text area and its undo-snapshot JSON, one section per case. The lettering is
+ * left empty and its family named, so nothing here measures a font: writing lettering needs the
+ * QGuiApplication this target does not have, and the text area covers what the lettering is fitted to.
+ */
+QString goldenRecords()
+{
+    QList<ObjectRecord::Shape> shapes{ObjectRecord::Shape::None};
+    shapes += shapeOrder();
+
+    QString out;
+    for (ObjectRecord::Shape shape : shapes) {
+        for (int st = 0; st <= int(StyleProperties::k_lastKind); ++st) {
+            for (bool tail : {false, true}) {
+                ObjectRecord a = loadedRecord();
+                a.shape.kind   = shape;
+                a.style.kind   = static_cast<ObjectRecord::Style>(st);
+                a.text.body.clear();
+                if (!tail)
+                    a.tails.items.clear();
+
+                const QRectF area = Geometry::textArea(a);
+                out += QStringLiteral("=== %1 / %2 / %3 ===\n")
+                           .arg(QLatin1String(shapeName(shape)), QLatin1String(styleName(a.style.kind)),
+                                tail ? QStringLiteral("tail") : QStringLiteral("no tail"));
+                out += QString::fromUtf8(Svg::write(a));
+                out += QStringLiteral("\ntextArea: %1 %2 %3 %4\n")
+                           .arg(area.x(), 0, 'f', 3).arg(area.y(), 0, 'f', 3)
+                           .arg(area.width(), 0, 'f', 3).arg(area.height(), 0, 'f', 3);
+                out += QStringLiteral("json: ")
+                     + QString::fromUtf8(QJsonDocument(a.toJson()).toJson(QJsonDocument::Compact)) + u'\n';
+            }
+        }
+    }
+    return out;
+}
+
+} // namespace
+
+/**
+ * @brief What a record is written as does not change unless it is meant to — **byte for byte**.
+ *
+ * The guard for refactoring the geometry and the persistence (PLAN-S): moving a shape's path, a style's
+ * filter or a property's key to another file must leave every file written exactly as it was. A change
+ * that is meant is accepted by regenerating the golden file and reviewing its diff: run the tests with
+ * `PLATEMAKER_UPDATE_GOLDEN=1` in the environment.
+ */
+TEST(Golden, EveryShapeAndStyleIsWrittenAsBefore)
+{
+    const QString actual = goldenRecords();
+    QFile         file(goldenPath());
+
+    if (qEnvironmentVariableIsSet("PLATEMAKER_UPDATE_GOLDEN")) {
+        ASSERT_TRUE(file.open(QIODevice::WriteOnly | QIODevice::Truncate)) << goldenPath().toStdString();
+        file.write(actual.toUtf8());
+        GTEST_SKIP() << "golden file written: " << goldenPath().toStdString();
+    }
+
+    ASSERT_TRUE(file.open(QIODevice::ReadOnly))
+        << goldenPath().toStdString() << " is missing: run once with PLATEMAKER_UPDATE_GOLDEN=1";
+    const QStringList want = QString::fromUtf8(file.readAll()).split(u'\n');
+    const QStringList got  = actual.split(u'\n');
+
+    // The first differing line and the case it is in, rather than two 400 KB strings.
+    QString section;
+    for (qsizetype i = 0; i < qMax(want.size(), got.size()); ++i) {
+        const QString w = i < want.size() ? want[i] : QStringLiteral("<end of file>");
+        const QString g = i < got.size() ? got[i] : QStringLiteral("<end of output>");
+        if (w.startsWith(QStringLiteral("=== ")))
+            section = w;
+        ASSERT_EQ(g, w) << "first difference at line " << i + 1 << ", in " << section.toStdString();
+    }
 }

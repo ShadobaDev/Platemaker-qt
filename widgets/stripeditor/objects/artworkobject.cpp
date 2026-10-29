@@ -6,7 +6,7 @@
 #include <QPainterPath>
 #include <QSvgRenderer>
 
-#include "recordpainter.hpp"
+#include "geometry.hpp"
 #include <QSvgRenderer>
 
 #include <utility>
@@ -131,7 +131,7 @@ void ArtworkObject::paintContent(QPainter& painter)
     // The words over it, if there are any. Laid out in the record's box — the picture's own pixels —
     // and drawn through the same scale the picture is, so they sit on it rather than beside it however
     // the object is resized. This is the preview of what the wrapper SVG will render.
-    const QPainterPath text = Painter::textOutline(m_record);
+    const QPainterPath text = Geometry::textOutline(m_record);
     if (text.isEmpty() || m_record.box.isEmpty())
         return;
     painter.save();

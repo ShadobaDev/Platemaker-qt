@@ -5,7 +5,7 @@
 #include "objects/bubbleobject.hpp"
 #include "objects/object.hpp"
 #include "objects/selectionchrome.hpp"
-#include "recordpainter.hpp"
+#include "geometry.hpp"
 // blendModes(): the menu and OBJECT STATE's row name the modes from one list.
 #include "properties/blendeditor.hpp"
 #include "recordsvg.hpp"
@@ -721,21 +721,21 @@ bool ObjectController::applyColourAt(const QPointF& scenePos, const QTransform& 
 
     ObjectRecord       a    = bubble->record();
     QString            step;
-    const Painter::Part part = Painter::partAt(a, bubble->mapFromScene(scenePos), slack);
+    const Geometry::Part part = Geometry::partAt(a, bubble->mapFromScene(scenePos), slack);
     switch (part) {
-    case Painter::Part::Text:
+    case Geometry::Part::Text:
         a.text.colour = colour;
         step          = tr("Apply text colour");
         break;
-    case Painter::Part::Outline:
+    case Geometry::Part::Outline:
         a.skin.stroke = colour;
         step          = tr("Apply outline colour");
         break;
-    case Painter::Part::Fill:
+    case Geometry::Part::Fill:
         a.skin.fill = colour;
         step        = tr("Apply fill colour");
         break;
-    case Painter::Part::None:
+    case Geometry::Part::None:
         return false;   // the transparent corner of the box is not the balloon
     }
 
@@ -749,10 +749,10 @@ bool ObjectController::applyColourAt(const QPointF& scenePos, const QTransform& 
             ObjectRecord each   = recordFor(uid);
             const bool   shaped = each.hasSilhouette();
             switch (part) {
-            case Painter::Part::Text:    each.text.colour = colour; break;
-            case Painter::Part::Outline: if (shaped) each.skin.stroke = colour; break;
-            case Painter::Part::Fill:    if (shaped) each.skin.fill   = colour; break;
-            case Painter::Part::None:    break;
+            case Geometry::Part::Text:    each.text.colour = colour; break;
+            case Geometry::Part::Outline: if (shaped) each.skin.stroke = colour; break;
+            case Geometry::Part::Fill:    if (shaped) each.skin.fill   = colour; break;
+            case Geometry::Part::None:    break;
             }
             next.append(each);
         }
@@ -773,7 +773,7 @@ void ObjectController::fitSelectionToText()
     if (!item || item->record().isArtwork())
         return;   // a picture's box is the picture's own pixels, not its words'
     ObjectRecord a = item->record();
-    a.box = Painter::fittedBox(a);
+    a.box = Geometry::fittedBox(a);
     applyRecord(m_selectedOverlay, a, /*commit=*/true);
     emit boundToRecord(a);
 }
@@ -784,7 +784,7 @@ void ObjectController::fixSelectionPadding()
     if (!item || !item->record().hasSilhouette())
         return;   // only a balloon has an outline to keep the lettering from
     ObjectRecord a      = item->record();
-    const int    fitted = Painter::fittingPadding(a);
+    const int    fitted = Geometry::fittingPadding(a);
     if (fitted == a.text.padding)
         return;   // it fits already — not an edit, and not a history step
     a.text.padding = fitted;
@@ -819,7 +819,7 @@ QPointF ObjectController::settleBox(const Object* item, ObjectRecord& next) cons
     // **The lettering does not move.** Whatever changed the box — *Fit*, *Convert* — the object
     // is moved so that the lettering's anchor keeps its place on the strip, and every tail tip moves
     // back by the same amount, so it keeps pointing at its speaker.
-    const QPointF shift = Painter::textAnchor(prev) - Painter::textAnchor(next);
+    const QPointF shift = Geometry::textAnchor(prev) - Geometry::textAnchor(next);
     for (Tail& t : next.tails.items)
         t.tip -= shift;
     return shift;
@@ -1113,7 +1113,7 @@ void ObjectController::deleteSelectedOverlay()
 
 
 
-void ObjectController::applyColourToSelection(const QColor& colour, Painter::Part role)
+void ObjectController::applyColourToSelection(const QColor& colour, Geometry::Part role)
 {
     if (!colour.isValid() || m_selectedOverlays.isEmpty())
         return;
@@ -1124,18 +1124,18 @@ void ObjectController::applyColourToSelection(const QColor& colour, Painter::Par
         ObjectRecord each   = recordFor(uid);
         const bool   shaped = each.hasSilhouette();
         switch (role) {
-        case Painter::Part::Text:    each.text.colour = colour; ++changed; break;
-        case Painter::Part::Outline: if (shaped) { each.skin.stroke = colour; ++changed; } break;
-        case Painter::Part::Fill:    if (shaped) { each.skin.fill   = colour; ++changed; } break;
-        case Painter::Part::None:    break;
+        case Geometry::Part::Text:    each.text.colour = colour; ++changed; break;
+        case Geometry::Part::Outline: if (shaped) { each.skin.stroke = colour; ++changed; } break;
+        case Geometry::Part::Fill:    if (shaped) { each.skin.fill   = colour; ++changed; } break;
+        case Geometry::Part::None:    break;
         }
         next.append(each);
     }
     if (changed == 0)
         return;   // nothing in the selection has that role, so there is nothing to undo either
 
-    const QString step = role == Painter::Part::Text      ? tr("Apply text colour")
-                       : role == Painter::Part::Outline   ? tr("Apply outline colour")
+    const QString step = role == Geometry::Part::Text      ? tr("Apply text colour")
+                       : role == Geometry::Part::Outline   ? tr("Apply outline colour")
                                                          : tr("Apply fill colour");
     applyRecords(m_selectedOverlays, next, /*commit=*/true, step);
     if (m_selectedOverlays.size() > 1)
@@ -1237,7 +1237,7 @@ void ObjectController::convertSelectionTo(ObjectRecord::Shape kind)
             // rather than only grown, both ways: converting back gives the words' own box again. Where
             // the box lands is applyRecords()' business — the words stay put and the balloon appears
             // under them.
-            each.box = Painter::fitBoxFor(each, Painter::textBlockSize(each));
+            each.box = Geometry::fitBoxFor(each, Geometry::textBlockSize(each));
             ++converted;
         }
         next.append(each);

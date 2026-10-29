@@ -16,22 +16,22 @@ BubbleObject::BubbleObject(QString uid, ObjectRecord record, QGraphicsItem* pare
 
 QString BubbleObject::label() const
 {
-    return Painter::label(m_record);
+    return recordLabel(m_record);
 }
 
 void BubbleObject::rebuild()
 {
     // Resolve once, here, and keep the paths: paint() must not rebuild an eleven-circle union or re-lay
     // a text document on every scroll and selection change.
-    m_silhouette = Painter::silhouette(m_record);
-    m_textPath   = Painter::textOutline(m_record);
-    m_tailDrawn  = Painter::tailsDrawn(m_record);
+    m_silhouette = Geometry::silhouette(m_record);
+    m_textPath   = Geometry::textOutline(m_record);
+    m_tailDrawn  = Geometry::tailsDrawn(m_record);
     refreshBounds();
 }
 
 QRectF BubbleObject::computeBounds() const
 {
-    return Painter::boundsOf(m_record, m_silhouette, m_textPath);
+    return Geometry::boundsOf(m_record, m_silhouette, m_textPath);
 }
 
 void BubbleObject::setRecord(const ObjectRecord& a)

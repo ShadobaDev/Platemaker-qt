@@ -123,7 +123,7 @@ public:
     [[nodiscard]] QString lookLabel(const ObjectRecord& a) const;
 
     /**
-     * @brief The name an empty font family stands for on this machine (Painter::defaultFamily()).
+     * @brief The name an empty font family stands for on this machine (Geometry::defaultFamily()).
      *
      * A preset that chooses no font means "the default", and a bubble reloaded from its file carries the
      * default's name — so without this, every balloon made from Dialogue would read *Custom* after a reopen.

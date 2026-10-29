@@ -1,6 +1,8 @@
 #include "objectrecord.hpp"
+#include "shapes.hpp"
 
 #include <QJsonArray>
+#include <QObject>
 #include <QRandomGenerator>
 
 namespace {
@@ -98,40 +100,25 @@ void SkinProperties::applyTo(ObjectRecord& a) const
 
 const char* shapeName(ObjectRecord::Shape s)
 {
-    // A switch with no default: adding a Shape without naming it here is a compiler warning, not a
-    // silently mis-saved bubble.
-    switch (s) {
-    case ObjectRecord::Shape::None:      return "none";
-    case ObjectRecord::Shape::Speech:    return "speech";
-    case ObjectRecord::Shape::Shout:     return "shout";
-    case ObjectRecord::Shape::Caption:   return "caption";
-    case ObjectRecord::Shape::Ellipse:   return "ellipse";
-    case ObjectRecord::Shape::Diamond:   return "diamond";
-    case ObjectRecord::Shape::Trapezoid: return "trapezoid";
-    case ObjectRecord::Shape::Thought:   return "thought";
-    case ObjectRecord::Shape::Scroll:    return "scroll";
-    case ObjectRecord::Shape::Banner:    return "banner";
-    }
-    return "speech";
+    return Geometry::shapeInfo(s).name;
 }
 
 QString shapeTitle(ObjectRecord::Shape s)
 {
-    // A switch with no default, for the same reason shapeName() has none: a new shape must be named
-    // here too, and the compiler is what says so.
-    switch (s) {
-    case ObjectRecord::Shape::None:      return QObject::tr("Text only — no balloon");
-    case ObjectRecord::Shape::Speech:    return QObject::tr("Speech balloon");
-    case ObjectRecord::Shape::Shout:     return QObject::tr("Shout");
-    case ObjectRecord::Shape::Caption:   return QObject::tr("Caption box");
-    case ObjectRecord::Shape::Ellipse:   return QObject::tr("Round balloon");
-    case ObjectRecord::Shape::Diamond:   return QObject::tr("Diamond");
-    case ObjectRecord::Shape::Trapezoid: return QObject::tr("Caption plate");
-    case ObjectRecord::Shape::Thought:   return QObject::tr("Thought balloon");
-    case ObjectRecord::Shape::Scroll:    return QObject::tr("Scroll");
-    case ObjectRecord::Shape::Banner:    return QObject::tr("Banner");
+    return QObject::tr(Geometry::shapeInfo(s).title);
+}
+
+QString recordLabel(const ObjectRecord& a)
+{
+    const QString first = a.text.body.section(QLatin1Char('\n'), 0, 0).trimmed();
+    if (!first.isEmpty()) {
+        return first.length() > k_labelChars ? first.left(k_labelChars - 1) + QStringLiteral("…")
+                                             : first;
     }
-    return {};
+    // No words: what it is instead — every shape by its own title, so none is listed as "(overlay)".
+    if (a.shape.kind == ObjectRecord::Shape::None)
+        return QObject::tr("(text)");
+    return QStringLiteral("(%1)").arg(shapeTitle(a.shape.kind).toLower());
 }
 
 const QList<ObjectRecord::Shape>& shapeOrder()

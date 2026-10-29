@@ -1,6 +1,6 @@
 #include "recordsvg.hpp"
 
-#include "recordpainter.hpp"
+#include "geometry.hpp"
 
 #include <QCryptographicHash>
 #include <QFile>
@@ -215,7 +215,7 @@ namespace {
 //! machine can recognise as missing it, rather than silently re-set in its own default.
 QString fileFontFamily(const ObjectRecord& a)
 {
-    return a.text.family.isEmpty() ? Painter::defaultFamily() : a.text.family;
+    return a.text.family.isEmpty() ? Geometry::defaultFamily() : a.text.family;
 }
 
 } // namespace
@@ -248,7 +248,7 @@ QByteArray write(const ObjectRecord& a, const QByteArray& picture, const QString
                     QStringLiteral("%1,%2").arg(a.box.width()).arg(a.box.height()));
         svg += attr(QStringLiteral("text"), a.text.body);
         svg += attr(QStringLiteral("fontFamily"), fileFontFamily(a));
-        if (const QString fallback = Painter::fontFallback(a); !fallback.isEmpty())
+        if (const QString fallback = Geometry::fontFallback(a); !fallback.isEmpty())
             svg += attr(QStringLiteral("fontFallback"), fallback);   // the words were set in a stand-in
         svg += attr(QStringLiteral("fontSize"), a.text.pixelSize);
         svg += attr(QStringLiteral("bold"), a.text.bold ? 1 : 0);
@@ -262,7 +262,7 @@ QByteArray write(const ObjectRecord& a, const QByteArray& picture, const QString
                    .arg(num(a.box.width()), num(a.box.height()), mime,
                         QString::fromLatin1(picture.toBase64()));
 
-        const QPainterPath text = Painter::textOutline(a);
+        const QPainterPath text = Geometry::textOutline(a);
         if (!text.isEmpty())
             svg += QStringLiteral("    <path d=\"%1\" fill-rule=\"%2\" %3/>\n")
                        .arg(pathData(text), fillRule(text), paint("fill", a.text.colour));
@@ -275,7 +275,7 @@ QByteArray write(const ObjectRecord& a, const QByteArray& picture, const QString
     // the balloon, and SVG takes a negative viewBox origin natively — so the file itself carries the
     // offset and the placement stays a plain top-left. width/height are that extent, so the library
     // rasterises it 1:1 at scale 1.0.
-    const QRectF bounds = Painter::bounds(a);
+    const QRectF bounds = Geometry::bounds(a);
     if (bounds.isEmpty())
         return {};
 
@@ -301,7 +301,7 @@ QByteArray write(const ObjectRecord& a, const QByteArray& picture, const QString
     svg += attr(QStringLiteral("fontFamily"), fileFontFamily(a));
     // The family asked for is kept above whatever happened; this says what the outlines were actually set
     // in when that family was not installed, so the file can be re-set once it is (MainWindow's heal).
-    if (const QString fallback = Painter::fontFallback(a); !fallback.isEmpty())
+    if (const QString fallback = Geometry::fontFallback(a); !fallback.isEmpty())
         svg += attr(QStringLiteral("fontFallback"), fallback);
     svg += attr(QStringLiteral("fontSize"), a.text.pixelSize);
     svg += attr(QStringLiteral("bold"), a.text.bold ? 1 : 0);
@@ -317,7 +317,7 @@ QByteArray write(const ObjectRecord& a, const QByteArray& picture, const QString
     svg += attr(QStringLiteral("styleSeed"), QString::number(a.styleSeed));
     svg += QLatin1String(">\n");
 
-    const QPainterPath silhouette = Painter::silhouette(a);
+    const QPainterPath silhouette = Geometry::silhouette(a);
     if (!silhouette.isEmpty()) {
         svg += QStringLiteral("    <path d=\"%1\" fill-rule=\"%2\" %3")
                    .arg(pathData(silhouette), fillRule(silhouette), paint("fill", a.skin.fill));
@@ -331,7 +331,7 @@ QByteArray write(const ObjectRecord& a, const QByteArray& picture, const QString
         svg += QLatin1String("/>\n");
     }
 
-    const QPainterPath text = Painter::textOutline(a);
+    const QPainterPath text = Geometry::textOutline(a);
     if (!text.isEmpty())
         svg += QStringLiteral("    <path d=\"%1\" fill-rule=\"%2\" %3/>\n")
                    .arg(pathData(text), fillRule(text), paint("fill", a.text.colour));

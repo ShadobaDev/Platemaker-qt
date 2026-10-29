@@ -13,7 +13,7 @@
  *  - **A hand-drawn shape is the same file with no `pm:*`** — flat, still rendering, just not
  *    re-typable. One format, no second import path.
  *
- * Text is written as outlines (see Painter::textOutline()), so a rendered bubble needs no font
+ * Text is written as outlines (see Geometry::textOutline()), so a rendered bubble needs no font
  * installed; `pm:text` and `pm:font` are what make it editable again on a machine that has one.
  */
 
@@ -114,7 +114,7 @@ inline constexpr char k_pmNamespace[] = "https://github.com/ShadobaDev/Platemake
 /**
  * @brief The family a file's lettering was outlined in instead of its own — `pm:fontFallback` — or empty.
  *
- * Written when the record's family was not installed at the time (Painter::fontFallback()), so a file
+ * Written when the record's family was not installed at the time (Geometry::fontFallback()), so a file
  * baked in a stand-in can be told from one baked in its own font — both carry the same `pm:fontFamily` —
  * and re-set once the font is back. Read the way the recipe is: by namespace, never by prefix.
  */

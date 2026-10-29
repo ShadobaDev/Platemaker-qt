@@ -20,7 +20,7 @@
  * @brief One tail: where it points, how wide it leaves the balloon, and how much it curves.
  *
  * The tip is in balloon coordinates and **may fall outside the balloon** — that is the whole point of a
- * tail, and it is why the record's drawn extent is computed rather than assumed (Painter::bounds()).
+ * tail, and it is why the record's drawn extent is computed rather than assumed (Geometry::bounds()).
  * Length is not stored: it is the distance from the balloon to the tip, so aiming and lengthening are
  * one gesture.
  */

@@ -1,5 +1,5 @@
 #include "properties/texteditor.hpp"
-#include "recordpainter.hpp"
+#include "geometry.hpp"
 
 #include <QCheckBox>
 #include <QColorDialog>
@@ -259,7 +259,7 @@ void TextEditor::syncFromValues()
         if (m_mixedFamily)
             m_family->setCurrentIndex(-1);
         else
-            m_family->setCurrentFont(QFont(m_values.family.isEmpty() ? Painter::defaultFamily()
+            m_family->setCurrentFont(QFont(m_values.family.isEmpty() ? Geometry::defaultFamily()
                                                                      : m_values.family));
     }
     showSpin(m_size, m_mixedSize, m_values.pixelSize, k_textSizeMin, k_textSizeMax);

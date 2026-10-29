@@ -23,7 +23,7 @@
  * so a bubble can be re-solved from the file it renders from (see recordsvg.hpp).
  *
  * Coordinates are **strip-scale pixels**, the same scale the render composites at, so the scene preview
- * and the baked output are the same geometry by construction (see recordpainter.hpp).
+ * and the baked output are the same geometry by construction (see geometry.hpp).
  *
  * One struct serves both rail tools: the Text tool is this with `shape == Shape::None`. Two entry
  * points, one object — so a caption can grow a balloon later without changing type, and there is one
@@ -59,7 +59,7 @@ struct ObjectRecord
      * @brief The **balloon** — what the author drags, and what text wraps inside.
      *
      * Not the record's drawn extent: a tail may reach well outside it, so the size of the rendered
-     * artwork comes from Painter::bounds(). Until tails could point anywhere these were one rectangle,
+     * artwork comes from Geometry::bounds(). Until tails could point anywhere these were one rectangle,
      * with a fixed fraction of the height reserved at the bottom for the tail to live in.
      */
     QSize box{280, 160};
@@ -149,6 +149,18 @@ void topUpStyleSeed(ObjectRecord& a);
  * let a property control change what the object is.
  */
 [[nodiscard]] const QList<ObjectRecord::Shape>& shapeOrder();
+/**
+ *  How much of the lettering names an object in a list. Long enough to tell two lines apart, short
+ *  enough to leave room for what else a row carries.
+ */
+inline constexpr int k_labelChars = 32;
+
+/**
+ * @brief What to call \p a in the object stack: the first line of its lettering, or, with no words, its
+ *        shape's title in parentheses.
+ */
+[[nodiscard]] QString recordLabel(const ObjectRecord& a);
+
 //! Parses \p name; anything unrecognised falls back to Speech, so an unknown shape still draws.
 [[nodiscard]] ObjectRecord::Shape shapeFromName(QStringView name);
 

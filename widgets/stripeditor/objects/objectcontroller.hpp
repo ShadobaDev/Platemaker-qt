@@ -14,7 +14,7 @@
 #include <functional>
 #include <optional>
 
-#include "recordpainter.hpp"   // Painter::Part: which part of an object a colour lands on
+#include "geometry.hpp"   // Geometry::Part: which part of an object a colour lands on
 #include "toolrail/cursors.hpp"
 #include "objects/object.hpp"   // recordFor()/isParametric() ask the object itself
 #include "properties/propertygroup.hpp"   // PropertyGroup: which group the menu hands over
@@ -322,7 +322,7 @@ public:
      * @param colour  The colour to apply.
      * @param role    The part of the object to apply the colour to.
      */
-    void applyColourToSelection(const QColor& colour, Painter::Part role);
+    void applyColourToSelection(const QColor& colour, Geometry::Part role);
 
     /**
      * @brief Copies one property group from the tool's options onto every selected object.

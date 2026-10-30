@@ -369,6 +369,15 @@ New, backward-compatible features. Several are gated on a lib version, noted in 
   - The package itself could get its own extension and association the same way (Ableton's `.alp` model) —
     smaller, and independent of the rest.
 
+- [ ] **Marker's and Ink's parameters for the author** —   frequency, octaves, displacement and blur 
+  as `StyleProperties` fields, written to `pm:` and the JSON   through the field list, 
+  edited as rows like the flash's. Settled already: a file without them reads as the recipes 
+  in `styles.cpp` (frequency 0.03 Marker, 0.07 Ink — what every file has always rendered).
+  To settle: choosing a style loads its recipe (proposed); whether `amount` stays a multiplier (files
+  unchanged) or is absorbed into the parameters (files change); whether the 0.01 that `num()` keeps is
+  the spin's step, or the filter gets its own formatter. The flash's direction could also be chosen from
+  a shape's convex and concave vertices instead of the per-shape `flashStretch` — an idea, not planned.
+
 - [x] **Shape registry** — built in PLAN-S S1 (2026-10-29), ahead of the first parameter: one table,
   `k_shapes` in `widgets/objectrecord/shapes.cpp`, one entry per shape (name, title, tail, outline, text
   area), in one file rather than one file per shape. The parameter list comes with S2's field lists.

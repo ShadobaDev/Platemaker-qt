@@ -676,7 +676,7 @@ private:
     QHash<QString, Object*>                       m_overlayItems; //!< Live scene objects, keyed by overlay uid.
     SelectionChrome*                              m_chrome = nullptr; //!< The selection's grips, above every object; owned by the scene.
     /**
-     * @brief Library rasterisations of styled bubbles, keyed by the SVG document itself.
+     * @brief Library rasterisations of bubbles with a filter style, keyed by the SVG document itself.
      *
      * Keyed by the bytes rather than by the overlay's stored hash, and rendered from those same bytes
      * rather than from the file — because the file is the wrong thing to ask. A workspace can live on a
@@ -684,10 +684,10 @@ private:
      * content; keying and rendering off the buffer in hand makes the preview show what is being edited,
      * and leaves the file to matter only when a render reads it.
      *
-     * Only styled bubbles are in here — an unstyled one is the same geometry either way, so rasterising
-     * it would buy nothing.
+     * Only bubbles with a filter (Geometry::hasFilter()) are in here — any other is the same geometry
+     * either way, a flash included, so rasterising it would buy nothing.
      * ponytail: rasterised synchronously, on the UI thread. One bubble per settled edit is a few ms;
-     * opening a chapter with dozens of styled bubbles is the case that would want QtConcurrent.
+     * opening a chapter with dozens of filtered bubbles is the case that would want QtConcurrent.
      */
     QHash<QString, QImage>  m_sharpCache;
     QString            m_selectedOverlay;                   //!< The primary: last of m_selectedOverlays.

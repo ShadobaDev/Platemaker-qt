@@ -41,7 +41,7 @@ namespace {
 constexpr int k_overlayZBase = 2;
 //! How far a duplicate lands from its original, so it is visibly a second bubble and not a mis-click.
 constexpr int k_duplicateOffset = 28;
-//! Rasterised styled bubbles held before the cache is dropped wholesale. Generous for a chapter,
+//! Rasterised filtered bubbles held before the cache is dropped wholesale. Generous for a chapter,
 //! nothing next to the page caches above.
 constexpr int k_sharpCacheEntries = 64;
 

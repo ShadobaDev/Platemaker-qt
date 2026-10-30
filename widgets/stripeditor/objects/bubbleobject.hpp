@@ -55,14 +55,14 @@ public:
     /**
      * @brief Shows \p img — the library's own rasterisation of this bubble — instead of the local paths.
      *
-     * How a styled bubble is previewed. Its style is an SVG filter, so the effect exists only once
+     * How a Marker or Ink bubble is previewed. Its style is an SVG filter, so the effect exists only once
      * librsvg has rasterised it; Qt implements neither feTurbulence nor feDisplacementMap and would
      * quietly draw the unfiltered outline. Rather than approximate it, the editor asks the library for
      * the same pixels the render will bake.
      *
      * Dropped whenever the record changes, so a stale rendering is never shown as current; the owner
      * supplies a fresh one after the edit has settled and been written. A null image means "draw the
-     * paths", which is what an unstyled bubble always does.
+     * paths", which is what a bubble without a filter (Clean, Flash) always does.
      * 
      * @param img The library's rasterisation of this bubble, or a null image to show the local paths.
      */
@@ -118,7 +118,7 @@ protected:
 private:
     void rebuild();             //!< Re-resolves the cached paths after the record changed, then re-measures the extent.
 
-    QImage       m_sharp;       //!< Library rasterisation shown at rest for a styled bubble (see above).
+    QImage       m_sharp;       //!< Library rasterisation shown at rest for a filtered bubble (see above).
     QPainterPath m_silhouette;  //!< Cached balloon + tails, so a repaint resolves no geometry.
     QPainterPath m_ink;         //!< Cached style strokes (a flash's triangles), likewise.
     QPainterPath m_textPath;    //!< Cached glyph outlines, likewise.

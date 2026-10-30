@@ -80,7 +80,7 @@
     bend or to delete it — the other tails keep theirs. *Add tail* on the bubble adds one shaped like the
     last.
   - **Line styles — Clean, Marker, Ink.** Marker and Ink are SVG filters (`feTurbulence` /
-    `feDisplacementMap`), which librsvg applies and Qt cannot, so a styled bubble is previewed by asking
+    `feDisplacementMap`), which librsvg applies and Qt cannot, so such a bubble is previewed by asking
     the **library** for the same pixels the render will produce. The noise is seeded per bubble and
     measured in the drawing's own units, so the texture scales with the balloon rather than with the
     output resolution. Clean emits no filter at all.

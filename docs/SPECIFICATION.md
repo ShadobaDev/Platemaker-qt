@@ -122,8 +122,9 @@ says how far they reach past the silhouette; a style with ink leaves the solid o
 `StyleProperties` with a `flash` prefix, one line each in its `fields()` list; the Style panel builds a
 spin for every `flash…` field from that list, and takes its label, range and tooltip from `k_flashRows`
 in `styleeditor.cpp` (a field with no row there stops a debug build). The core stretch's *Auto* comes
-from `ShapeInfo::flashStretch`, one value per shape in `shapes.cpp`. Caught by the same table, round-trip and golden
-tests as a shape.
+from `ShapeInfo::flashStretch`, one value per shape in `shapes.cpp`. Caught by the same table,
+round-trip and golden tests as a shape; strokes are also checked against the room reserved for them
+(`Style.AFlashStaysInsideItsBounds`) and Auto against the shape's value (`Style.AutoStretchIsTheShapes`).
 
 ### A kind of object
 

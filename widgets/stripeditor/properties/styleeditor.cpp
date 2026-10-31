@@ -4,11 +4,9 @@
 
 #include <QComboBox>
 #include <QFormLayout>
-#include <QSignalBlocker>
 #include <QSpinBox>
 
 #include <cstring>
-#include <type_traits>
 
 namespace StripEdit {
 
@@ -74,18 +72,12 @@ protected:
 
 namespace {
 
-//! What the panel calls a flash field, and what its spin offers. Lengths in strip pixels.
-struct FlashRowSpec
-{
-    const char* key;
-    const char* title;
-    int         min, max;
-    const char* suffix;
-    const char* tip;
-};
+//! The context the rows' strings are translated in: this panel's own.
+constexpr char k_trContext[] = "StripEdit::StyleEditor";
 
+//! What the panel calls a flash field, and what its spin offers. Lengths in strip pixels.
 #define PM_TR(s) QT_TRANSLATE_NOOP("StripEdit::StyleEditor", s)
-const FlashRowSpec k_flashRows[] = {
+const FieldRowSpec k_flashRows[] = {
     {"flashOuterPitch",        PM_TR("Outer spacing:"),  1, 100, " px", PM_TR("One stroke every this many pixels along the outside of the edge.")},
     {"flashInnerPitch",        PM_TR("Inner spacing:"),  1, 100, " px", PM_TR("One stroke every this many pixels along the inside of the edge.")},
     {"flashOuterLength",       PM_TR("Outer length:"),   0, 200, " px", PM_TR("How far an outer stroke reaches out from the edge.")},
@@ -102,14 +94,6 @@ const FlashRowSpec k_flashRows[] = {
            "own, and follows it when the shape changes; a value set here stays.")},
 };
 #undef PM_TR
-
-const FlashRowSpec* flashRowSpec(const char* key)
-{
-    for (const FlashRowSpec& s : k_flashRows)
-        if (std::strcmp(s.key, key) == 0)
-            return &s;
-    return nullptr;
-}
 
 } // namespace
 
@@ -135,44 +119,12 @@ StyleEditor::StyleEditor(QWidget* parent)
 
     // One row per flash field, in the field list's order: a field added to the list and not given a row
     // above stops a debug build here.
-    StyleProperties::fields([&](const char* key, auto member) {
-        if (std::strncmp(key, "flash", 5) != 0)
-            return;
-        const FlashRowSpec* spec = flashRowSpec(key);
-        Q_ASSERT_X(spec, "StyleEditor", "a flash field with no row in k_flashRows");
-        if (!spec)
-            return;
-
-        QSpinBox* spin = nullptr;
-        if (std::strcmp(key, "flashCoreStretch") == 0)
-            spin = m_stretch = new StretchSpin(this);
-        else
-            spin = new QSpinBox(this);
-        spin->setRange(spec->min, spec->max);
-        spin->setSuffix(QString::fromLatin1(spec->suffix));
-        spin->setToolTip(tr(spec->tip));
-        m_form->addRow(tr(spec->title), spin);
-
-        using T = std::remove_reference_t<decltype(m_values.*member)>;
-        FlashRow row;
-        row.spin = spin;
-        row.min  = spec->min;
-        row.get  = [member](const StyleProperties& v) { return int(qRound(double(v.*member))); };
-        row.set  = [member](StyleProperties& v, int x) { v.*member = T(x); };
-        m_flash.push_back(row);
-
-        const size_t index = m_flash.size() - 1;
-        connect(spin, &QSpinBox::valueChanged, this, [this, index](int v) {
-            if (m_populating)
-                return;
-            FlashRow& r = m_flash[index];
-            if (restoreSpin(r.spin, r.min))
-                r.mixed = false;
-            r.set(m_values, v);
-            r.touched = true;
-            emit changed();
-        });
-    });
+    m_flash.build(this, m_form, "flash", k_flashRows, k_trContext, m_values, m_populating,
+                  [this] { emit changed(); }, [this](const char* key) -> QSpinBox* {
+                      if (std::strcmp(key, "flashCoreStretch") != 0)
+                          return nullptr;
+                      return m_stretch = new StretchSpin(this);
+                  });
 
     connect(m_kind, &QComboBox::currentIndexChanged, this, [this](int i) {
         if (m_populating || i < 0)
@@ -203,15 +155,13 @@ void StyleEditor::bind(const Subjects& subjects)
     m_values = StyleProperties::from(*subjects.first());
 
     m_mixedKind = m_mixedAmount = false;
-    for (FlashRow& r : m_flash)
-        r.mixed = r.touched = false;
+    m_flash.reset();
     bool sameShape = true;
     for (const ObjectRecord* a : subjects) {
         const StyleProperties v = StyleProperties::from(*a);
         m_mixedKind   = m_mixedKind   || v.kind   != m_values.kind;
         m_mixedAmount = m_mixedAmount || !qFuzzyCompare(v.amount + 1.0, m_values.amount + 1.0);
-        for (FlashRow& r : m_flash)
-            r.mixed = r.mixed || r.get(v) != r.get(m_values);
+        m_flash.compare(v, m_values);
         sameShape = sameShape && a->shape.kind == subjects.first()->shape.kind;
     }
     m_kindTouched = m_amountTouched = false;
@@ -231,9 +181,7 @@ void StyleEditor::applyEditedTo(ObjectRecord& target) const
     StyleProperties t = StyleProperties::from(target);
     if (m_kindTouched)   t.kind   = m_values.kind;
     if (m_amountTouched) t.amount = m_values.amount;
-    for (const FlashRow& r : m_flash)
-        if (r.touched)
-            r.set(t, r.get(m_values));
+    m_flash.applyEdited(m_values, t);
     t.applyTo(target);
 }
 
@@ -242,8 +190,7 @@ void StyleEditor::syncFromValues()
     m_populating = true;
     showCombo(m_kind, m_mixedKind, m_kind->findData(int(m_values.kind)));
     showSpin(m_amount, m_mixedAmount, qRound(m_values.amount * 100.0), k_styleAmountMin, k_styleAmountMax);
-    for (const FlashRow& r : m_flash)
-        showSpin(r.spin, r.mixed, r.get(m_values), r.min, r.spin->maximum());
+    m_flash.show(m_values);
     showRows();
     m_populating = false;
 }
@@ -257,8 +204,7 @@ void StyleEditor::showRows()
     // keeps it, disabled, as before.
     m_form->setRowVisible(m_amount, m_mixedKind || !info.ink);
     m_amount->setEnabled(m_mixedKind || info.noise);
-    for (const FlashRow& r : m_flash)
-        m_form->setRowVisible(r.spin, flash);
+    m_flash.setVisible(m_form, flash);
 }
 
 }  // namespace StripEdit

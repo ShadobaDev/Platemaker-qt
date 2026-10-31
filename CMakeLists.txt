@@ -85,6 +85,7 @@ qt_add_executable(Platemaker
     widgets/stripeditor/scrolledpage.hpp
     widgets/stripeditor/properties/propertygroup.hpp
     widgets/stripeditor/properties/propertygroupeditor.hpp
+    widgets/stripeditor/properties/fieldrows.hpp
     widgets/stripeditor/properties/blendeditor.cpp widgets/stripeditor/properties/blendeditor.hpp
     widgets/stripeditor/properties/propertygroupset.cpp widgets/stripeditor/properties/propertygroupset.hpp
     widgets/stripeditor/properties/shapeeditor.cpp widgets/stripeditor/properties/shapeeditor.hpp

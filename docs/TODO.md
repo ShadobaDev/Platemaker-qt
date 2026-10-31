@@ -369,14 +369,25 @@ New, backward-compatible features. Several are gated on a lib version, noted in 
   - The package itself could get its own extension and association the same way (Ableton's `.alp` model) —
     smaller, and independent of the rest.
 
-- [ ] **Marker's and Ink's parameters for the author** —   frequency, octaves, displacement and blur 
-  as `StyleProperties` fields, written to `pm:` and the JSON   through the field list, 
-  edited as rows like the flash's. Settled already: a file without them reads as the recipes 
-  in `styles.cpp` (frequency 0.03 Marker, 0.07 Ink — what every file has always rendered).
-  To settle: choosing a style loads its recipe (proposed); whether `amount` stays a multiplier (files
-  unchanged) or is absorbed into the parameters (files change); whether the 0.01 that `num()` keeps is
-  the spin's step, or the filter gets its own formatter. The flash's direction could also be chosen from
-  a shape's convex and concave vertices instead of the per-shape `flashStretch` — an idea, not planned.
+- [ ] **Line styles and balloon shapes** — `temp/PLAN-L-styles-and-shapes.md` (planned 2026-10-31,
+  being built). Shapes become families (Box, Ellipse, Polygon, Curve, Cloud) with templates for the
+  ready-made outlines, edited on the strip in an edit mode; styles become two axes, line × texture,
+  with Marker and Ink merged into Rough (four parameters, `amount` gone); then the Brush, edge
+  modulation, fills and effects. Still open from the earlier item: whether the 0.01 that `num()` keeps
+  is the frequency spin's step, or the filter gets its own formatter (P6). The flash's direction could
+  also be chosen from a shape's convex and concave vertices instead of a per-family value — an idea,
+  not planned.
+
+- [ ] **Text area and lettering effects** — a plan of its own, after PLAN-L, which keeps it possible
+  (PLAN-L §3.8). Requirements from PLAN-L (B28, B29, B31):
+  - **Padding is two numbers:** left/right (one value, both sides) and top.
+  - **The text area is anchored by its top edge** and centred across the balloon. Its height follows
+    the number of lines, so the words are never cut by its bottom. The balloon does not grow to the
+    text; the text area's chrome shows when the words leave the area valid for that balloon.
+  - **In shape edit mode, a click on the words** gives the text area the focus. Its grips are
+    **arrows on the left, right and top edges only**, shown only while it has the focus, and they drag
+    the two paddings.
+  - **Lettering effects** (B24): styling the words, hung on the lettering's own SVG element.
 
 - [x] **Shape registry** — built in PLAN-S S1 (2026-10-29), ahead of the first parameter: one table,
   `k_shapes` in `widgets/objectrecord/shapes.cpp`, one entry per shape (name, title, tail, outline, text

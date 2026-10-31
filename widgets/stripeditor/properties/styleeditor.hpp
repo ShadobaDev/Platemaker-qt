@@ -1,10 +1,8 @@
 #ifndef STRIPEDIT_STYLEEDITOR_HPP
 #define STRIPEDIT_STYLEEDITOR_HPP
 
+#include "properties/fieldrows.hpp"
 #include "properties/propertygroupeditor.hpp"
-
-#include <functional>
-#include <vector>
 
 class QComboBox;
 class QFormLayout;
@@ -41,17 +39,6 @@ public:
     [[nodiscard]] const StyleProperties& values() const { return m_values; }
 
 private:
-    //! One `flash…` field's spin, and how to reach the field. Lengths are whole pixels on screen.
-    struct FlashRow
-    {
-        QSpinBox*                                 spin = nullptr;
-        int                                       min  = 0;
-        std::function<int(const StyleProperties&)> get;
-        std::function<void(StyleProperties&, int)> set;
-        bool                                      mixed   = false;
-        bool                                      touched = false;
-    };
-
     void syncFromValues();
     void showRows();
 
@@ -59,7 +46,7 @@ private:
     QComboBox*   m_kind   = nullptr;
     QSpinBox*    m_amount = nullptr;   //!< How strongly, as a percentage of the preset.
     StretchSpin* m_stretch = nullptr;  //!< The flash's core stretch, which reads "Auto (n %)".
-    std::vector<FlashRow> m_flash;
+    FieldRows<StyleProperties> m_flash;   //!< One spin per `flash…` field. Lengths are whole pixels.
 
     StyleProperties m_values;
     bool m_populating = false;

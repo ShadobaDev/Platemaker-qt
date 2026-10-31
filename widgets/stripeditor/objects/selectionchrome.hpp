@@ -5,9 +5,13 @@
 #include <QPointer>
 #include <QRectF>
 
+#include <map>
+#include <memory>
+
 #include "objects/object.hpp"
 
 class QGraphicsView;
+class QSvgRenderer;
 
 namespace StripEdit {
 
@@ -25,6 +29,9 @@ namespace StripEdit {
  *
  * Drawn in scene coordinates, at a fixed size on screen: the grips of a picture drawn at another scale
  * are the same size as a balloon's, which they were not while each object drew its own.
+ *
+ * While an object's shape is edited, the outline is traced instead of the box and its own handles take
+ * the grips' place (Object::setShapeEditing()); a press on one is handed over as Grip::Shape.
  *
  * It also says when a selected object's lettering does not fit: the text area is outlined in red, the
  * way a layout program marks overset text. The lettering is clipped there as before; the outline is
@@ -70,13 +77,19 @@ private:
     [[nodiscard]] QRectF gripRect(const Object* o, Grip grip, qreal s) const;
     //! The square a tail handle occupies, in scene units.
     [[nodiscard]] QRectF handleRect(const Object* o, int index, qreal s) const;
+    //! @p o's outline handles while its shape is edited, in its item coordinates; none otherwise.
+    [[nodiscard]] static QList<Geometry::ShapeHandle> shapeHandles(const Object* o);
     //! @p o's text area in scene units when its lettering does not fit it; empty when it does.
     [[nodiscard]] static QRectF overflowRect(const Object* o);
+    //! The radius handle's arrow in @p fill, edged in @p edge, made once per pair.
+    QSvgRenderer& radiusArrow(const QColor& fill, const QColor& edge);
 
     const QGraphicsView* m_view;
     QRectF               m_bounds;
     QList<QRectF>        m_overflows;   //!< Text areas the lettering spills out of, in scene units.
     QPointer<Object>     m_target;   //!< The object a press handed its drag to, until the release.
+    //! The radius arrows made so far, by colour: two per theme, the plain one and the pressed one.
+    std::map<QString, std::unique_ptr<QSvgRenderer>> m_arrows;
 };
 
 }  // namespace StripEdit

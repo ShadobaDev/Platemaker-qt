@@ -14,7 +14,10 @@ namespace StripEdit {
  * Declared here rather than inside Object so the resize maths below can be tested without a scene —
  * Object spells it `Object::Grip` all the same.
  */
-enum class Grip { None, Body, TopLeft, TopRight, BottomLeft, BottomRight, Handle, Top, Bottom, Left, Right };
+enum class Grip {
+    None, Body, TopLeft, TopRight, BottomLeft, BottomRight, Handle, Top, Bottom, Left, Right,
+    Shape,   //!< One of the outline's own handles, in shape editing (Object::shapeHandles()).
+};
 
 //! True for the four corner grips.
 [[nodiscard]] constexpr bool isCorner(Grip g)

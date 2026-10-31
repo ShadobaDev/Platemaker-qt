@@ -78,6 +78,10 @@ public:
      */
     [[nodiscard]] QSizeF boxSize() const override { return QSizeF(m_record.box); }
 
+    [[nodiscard]] bool                         canEditShape() const override;
+    [[nodiscard]] QList<Geometry::ShapeHandle> shapeHandles() const override;
+    [[nodiscard]] QPainterPath                 editOutline() const override;
+
 protected:
     /**
      * @brief Paints the bubble object.
@@ -115,14 +119,23 @@ protected:
      */
     void                  setHandlePos(int index, const QPointF& local) override;
 
+    bool beginShapeDrag(int index) override;
+    void dragShapeTo(const QPointF& scenePos) override;
+
 private:
     void rebuild();             //!< Re-resolves the cached paths after the record changed, then re-measures the extent.
+    //! How far the radius dot keeps in from its arc, in balloon units: clear of a corner's handle at any zoom.
+    [[nodiscard]] qreal radiusClearance() const;
 
     QImage       m_sharp;       //!< Library rasterisation shown at rest for a filtered bubble (see above).
     QPainterPath m_silhouette;  //!< Cached balloon + tails, so a repaint resolves no geometry.
     QPainterPath m_ink;         //!< Cached style strokes (a flash's triangles), likewise.
     QPainterPath m_textPath;    //!< Cached glyph outlines, likewise.
     QList<bool>  m_tailDrawn;   //!< Per tail: whether it is drawn (its tip is outside the balloon).
+
+    ObjectRecord          m_shapeStart;      //!< The record at a shape handle's press; the drag works against it.
+    QPointF               m_shapeStartPos;   //!< pos() at that press: a node dragged past the box moves the item.
+    Geometry::ShapeHandle m_shapeHandle;     //!< The handle being dragged; a "+" pressed has become its node.
 };
 
 }  // namespace StripEdit

@@ -93,6 +93,7 @@ PointerTarget ObjectController::pointerTargetAt(const QPointF&     scenePos,
     // pointer wherever they are — even over another object.
     if (m_chrome) {
         switch (m_chrome->hitAt(scenePos).grip) {
+        case Grip::Shape:       return PointerTarget::TailHandle;
         case Grip::TopLeft:
         case Grip::BottomRight: return PointerTarget::ResizeFDiag;
         case Grip::TopRight:
@@ -198,6 +199,41 @@ void ObjectController::onObjectPressed(const QString& uid, int handle)
     if (m_subject == Subject::Tail && uid == m_selectedOverlay && !add)
         selectOverlay(uid);
     beginDrag(uid, handle);
+
+    // In shape editing, a press on a node picks it (what Delete takes), and a press on the words is a
+    // press on the text: OBJECT STATE takes the caret (PLAN-L B27).
+    const Object* item = uid == m_shapeEditing ? m_overlayItems.value(uid) : nullptr;
+    if (!item)
+        return;
+    if (item->dragGrip() == Grip::Shape)
+        emit shapeEditingChanged();
+    else if (Geometry::partAt(item->record(), item->mapFromScene(item->pressScenePos()), 0.0) == Geometry::Part::Text)
+        emit textFocusRequested();
+}
+
+bool ObjectController::canEditShape() const
+{
+    const Object* item = m_overlayItems.value(m_selectedOverlay);
+    return item && m_selectedOverlays.size() == 1 && item->canEditShape();
+}
+
+bool ObjectController::hasPickedVertex() const
+{
+    const Object* item = m_overlayItems.value(m_shapeEditing);
+    return item && item->pickedVertex() >= 0;
+}
+
+void ObjectController::setShapeEditing(bool on)
+{
+    const QString uid = on && canEditShape() ? m_selectedOverlay : QString();
+    if (uid == m_shapeEditing)
+        return;
+    if (Object* was = m_overlayItems.value(m_shapeEditing))
+        was->setShapeEditing(false);
+    m_shapeEditing = uid;
+    if (Object* item = m_overlayItems.value(uid))
+        item->setShapeEditing(true);
+    emit shapeEditingChanged();
 }
 
 void ObjectController::beginDrag(const QString& uid, int handle)
@@ -294,6 +330,9 @@ void ObjectController::setSource(const std::vector<Platemaker::Models::StripOver
         if (rec != m_feedRecords.constEnd() && it.value()->record() != *rec)
             it.value()->setRecord(*rec);
     }
+    // An undo can take the edited shape's handles away (back to an ellipse), or the object itself.
+    if (const Object* edited = m_overlayItems.value(m_shapeEditing); !edited || !edited->canEditShape())
+        setShapeEditing(false);
 
     syncItems();
     emit stackChanged();
@@ -439,6 +478,11 @@ void ObjectController::syncItems()
             connect(item, &Object::pressed,        this, &ObjectController::onObjectPressed);
             connect(item, &Object::dragging,       this, &ObjectController::onObjectDragged);
             connect(item, &Object::chromeChanged,  this, &ObjectController::refreshChrome);
+            // A double-click on the one selected balloon enters shape editing, and another leaves it.
+            connect(item, &Object::doubleClicked,  this, [this](const QString& uid) {
+                if (m_selectedOverlays == QStringList{uid})
+                    setShapeEditing(m_shapeEditing != uid);
+            });
             m_scene->addItem(item);
             m_overlayItems.insert(uid, item);
         }
@@ -564,7 +608,9 @@ void ObjectController::onOverlayGeometryCommitted(const QString& uid)
             emit boundToRecord(item->record());
     }
     emit stackChanged();
-    pushOverlays(group ? tr("Move %n objects", "", travelled) : tr("Move bubble"));
+    pushOverlays(item->dragGrip() == Grip::Shape ? tr("Edit shape")
+                 : group                         ? tr("Move %n objects", "", travelled)
+                                                 : tr("Move bubble"));
 }
 
 QString ObjectController::pictureFor(const Platemaker::Models::StripOverlay& o) const
@@ -622,6 +668,11 @@ void ObjectController::selectSubjects(const QStringList& uids, const QList<TailR
             }
         }
     }
+
+    // Shape editing is of one object, and ends when the selection becomes anything else: a click
+    // outside the balloon, on another object, or on the empty strip.
+    if (!m_shapeEditing.isEmpty() && picked != QStringList{m_shapeEditing})
+        setShapeEditing(false);
 
     m_selectedOverlays = picked;
     m_selectedTails    = pickedTails;
@@ -844,6 +895,9 @@ void ObjectController::applyRecords(const QStringList& uids, const QList<ObjectR
         if (!shift.isNull())
             item->setPos(item->pos() + shift * (item->scale() > 0.0 ? item->scale() : 1.0));
     }
+    // A shape tile can take the edited shape's handles away (an ellipse has none yet).
+    if (const Object* edited = m_overlayItems.value(m_shapeEditing); edited && !edited->canEditShape())
+        setShapeEditing(false);
 
     // Live edits repaint only. Persisting every keystroke would write a file and push a history step
     // per character; the panel debounces and says when it has settled.
@@ -1046,6 +1100,19 @@ void ObjectController::deleteSelectedTail()
 
 void ObjectController::deleteSelectedOverlay()
 {
+    // In shape editing with a node picked, Delete takes that node and never the balloon; a polygon
+    // keeps three, and Delete on the third does nothing.
+    if (Object* edited = m_overlayItems.value(m_shapeEditing); edited && edited->pickedVertex() >= 0) {
+        ObjectRecord a = edited->record();
+        a.shape        = Geometry::withVertexRemoved(a.shape, edited->pickedVertex());
+        if (a.shape == edited->record().shape)
+            return;
+        edited->setPickedVertex(-1);
+        applyRecord(m_shapeEditing, a, /*commit=*/true, tr("Delete point"));
+        emit boundToRecord(a);
+        emit shapeEditingChanged();
+        return;
+    }
     if (m_subject == Subject::Tail) {
         deleteSelectedTail();
         return;

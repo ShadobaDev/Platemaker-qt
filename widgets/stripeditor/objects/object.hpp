@@ -12,6 +12,7 @@
 
 #include "objectrecord.hpp"
 #include "objects/resize.hpp"
+#include "shapes.hpp"
 
 namespace StripEdit {
 
@@ -138,6 +139,39 @@ public:
 
     //! How many extra draggable points this object has — a bubble's tail tips.
     [[nodiscard]] int tipCount() const { return handleCount(); }
+
+    /**
+     * @brief Shape editing (PLAN-L B13, B27): the outline's own handles instead of the box's grips.
+     *
+     * Switched by the controller, which decides which object is being edited; the selection chrome reads
+     * it, traces the outline and draws the shape handles, and hides the box's grips while it is on.
+     * Switching it off forgets the picked node.
+     */
+    void setShapeEditing(bool on);
+    [[nodiscard]] bool shapeEditing() const { return m_shapeEditing; }
+
+    //! Whether this object has an outline with handles to edit: a balloon of a kind that offers them.
+    [[nodiscard]] virtual bool canEditShape() const { return false; }
+
+    //! The handles shape editing offers, in item coordinates. None by default.
+    [[nodiscard]] virtual QList<Geometry::ShapeHandle> shapeHandles() const { return {}; }
+
+    //! The bare outline shape editing traces, in item coordinates. None by default.
+    [[nodiscard]] virtual QPainterPath editOutline() const { return {}; }
+
+    //! The node last pressed or added in shape editing, which Delete removes; -1 for none.
+    [[nodiscard]] int pickedVertex() const { return m_pickedVertex; }
+    //! Marks node @p index as the picked one, or none with -1.
+    void setPickedVertex(int index);
+
+    //! The grip of the drag under way, or of the last one: what a settled drag was.
+    [[nodiscard]] Grip dragGrip() const { return m_dragGrip; }
+
+    //! The shape handle being pressed or dragged, as an index of shapeHandles(); -1 for none.
+    [[nodiscard]] int activeShapeHandle() const { return m_active == Grip::Shape ? m_activeHandle : -1; }
+
+    //! Where the drag under way, or the last one, was pressed, in scene coordinates.
+    [[nodiscard]] QPointF pressScenePos() const { return m_startScenePos; }
 
     /**
      * @brief Whether handle @p index can be seen on the strip — false for a tail whose tip is inside the
@@ -290,6 +324,9 @@ signals:
      */
     void chromeChanged();
 
+    //! The object was double-clicked: how shape editing is asked for (PLAN-L B13).
+    void doubleClicked(const QString& uid);
+
 protected:
 
     /** @brief Draws the object itself, in item coordinates. Blending is the base class's job. */
@@ -314,6 +351,17 @@ protected:
     /** @brief Places handle @p index at @p local, in item coordinates. None by default. */
     virtual void                  setHandlePos(int index, const QPointF& local) { Q_UNUSED(index) Q_UNUSED(local) }
 
+    /**
+     * @brief A press on shape handle @p index of shapeHandles(). True when the press alone changed the
+     *        record (a "+" adding a node), so the drag is reported even if the pointer never moves.
+     */
+    virtual bool beginShapeDrag(int index) { Q_UNUSED(index) return false; }
+    //! Continues the drag of the shape handle pressed in beginShapeDrag() to @p scenePos.
+    virtual void dragShapeTo(const QPointF& scenePos) { Q_UNUSED(scenePos) }
+
+    //! A grip's size in this object's own units at the current zoom: what a handle needs to stay clear of another.
+    [[nodiscard]] qreal gripSpanHere() const;
+
     /** @brief Recomputes the drawn extent from computeBounds(), announcing a geometry change if it moved. */
     void refreshBounds();
 
@@ -330,6 +378,7 @@ protected:
     void mousePressEvent(QGraphicsSceneMouseEvent* e) override;     //!< Starts a drag, or selects the object if it was not already selected.
     void mouseMoveEvent(QGraphicsSceneMouseEvent* e) override;      //!< Moves the object or a handle, reporting the delta to the owner.
     void mouseReleaseEvent(QGraphicsSceneMouseEvent* e) override;   //!< Ends a drag, reporting the final position to the owner.
+    void mouseDoubleClickEvent(QGraphicsSceneMouseEvent* e) override;   //!< Asks for shape editing.
     QVariant itemChange(GraphicsItemChange change, const QVariant& value) override;   //!< Tells the chrome.
 
     /** @brief Written by each kind's setRecord(), read by everyone through record(). See above. */
@@ -351,6 +400,9 @@ private:
     bool    m_moved    = false;     //!< Whether this press actually changed anything worth reporting.
     bool    m_orphaned = false;     //!< True when the anchor page is not in the strip, so the object is greyed out and cannot be moved.
     int     m_focusedHandle = -1;   //!< The selected tail's handle, drawn hollow; -1 for none.
+    Grip    m_dragGrip = Grip::None;   //!< The grip of the drag under way or the last one (dragGrip()).
+    bool    m_shapeEditing = false;    //!< See setShapeEditing().
+    int     m_pickedVertex = -1;       //!< See pickedVertex().
 
     bool m_dragReported = false;    //!< A drag was live, so the owner may have moved others along.
 

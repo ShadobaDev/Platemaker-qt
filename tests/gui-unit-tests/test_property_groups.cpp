@@ -654,6 +654,45 @@ TEST(Shapes, APolygonsCornersRoundAsABoxsDo)
     EXPECT_TRUE(body.adjusted(-0.01, -0.01, 0.01, 0.01).contains(drawn));
 }
 
+/**
+ * @brief Shape editing's handles (PLAN-L P3): one dragged onto where it already is changes nothing, and
+ *        a Polygon's nodes are added in the middle of an edge and removed down to three, never fewer.
+ *
+ * The drag is the inverse of where a handle is drawn; a pair that disagreed would make a handle jump
+ * the moment it is pressed. Every template that has handles, with its radius at 0 and off it.
+ */
+TEST(Shapes, AHandleDraggedOntoItselfChangesNothing)
+{
+    const QRectF body(5, 5, 270, 150);
+    const qreal  clearance = 12.0;
+    for (const Geometry::ShapeTemplate& t : Geometry::shapeTemplates()) {
+        const Geometry::ShapeInfo& info = Geometry::shapeInfo(t.shape.kind);
+        if (!info.handles)
+            continue;
+        for (qreal radius : {0.0, 20.0}) {
+            ShapeProperties shape = t.shape;
+            shape.cornerRadius    = radius;
+            for (const Geometry::ShapeHandle& h : info.handles(shape, body, clearance)) {
+                if (h.role == Geometry::ShapeHandle::Role::AddVertex)
+                    continue;   // a press adds a node; it has nothing to drag
+                const ShapeProperties dragged = info.dragHandle(shape, body, h, h.at, clearance);
+                EXPECT_TRUE(dragged == shape) << t.id << " radius " << radius << " handle " << int(h.role)
+                                              << ":" << h.index;
+            }
+        }
+    }
+
+    ShapeProperties diamond = Geometry::shapeTemplate("diamond").shape;
+    const ShapeProperties five = Geometry::withVertexAdded(diamond, 0);
+    ASSERT_EQ(five.nodes.size(), 5);
+    const QPointF middle = (diamond.nodes.at(0) + diamond.nodes.at(1)) / 2.0;
+    EXPECT_NEAR(five.nodes.at(1).x(), middle.x(), 1e-9);
+    EXPECT_NEAR(five.nodes.at(1).y(), middle.y(), 1e-9);
+    diamond = Geometry::withVertexRemoved(diamond, 0);
+    EXPECT_EQ(diamond.nodes.size(), 3);
+    EXPECT_TRUE(Geometry::withVertexRemoved(diamond, 0) == diamond);   // three is the fewest
+}
+
 // ---------------------------------------------------------------------------
 // Import
 // ---------------------------------------------------------------------------

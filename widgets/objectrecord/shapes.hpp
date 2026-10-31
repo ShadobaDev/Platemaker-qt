@@ -21,6 +21,22 @@
 namespace Geometry {
 
 /**
+ * @brief A point a shape offers to be dragged in edit mode, in the balloon's own coordinates.
+ */
+struct ShapeHandle
+{
+    enum class Role {
+        Radius,      //!< The corner radius: a dot inside the first corner's arc.
+        Vertex,      //!< A Polygon's node `index`.
+        AddVertex,   //!< The middle of the edge after node `index`: a press there adds a node.
+    };
+    Role    role  = Role::Vertex;
+    int     index = 0;
+    QPointF at;
+    QPointF axis;   //!< For the radius: the unit direction from the handle into its corner.
+};
+
+/**
  * @brief One kind: everything about it that is not the record's own state.
  *
  * Both functions take the shape group and the balloon's rectangle (balloonRect()), and nothing else of
@@ -59,6 +75,18 @@ struct ShapeInfo
      * is a speech balloon as often as a caption box, so it takes the middle (PLAN-L B22).
      */
     int flashStretch;
+    /**
+     * The handles edit mode offers on an outline in @p body; nullptr for a kind with none, which is not
+     * offered edit mode. @p clearance keeps the radius dot that far in from its corner's arc, so it never
+     * sits on the corner's own handle.
+     */
+    QList<ShapeHandle> (*handles)(const ShapeProperties& shape, const QRectF& body, qreal clearance) = nullptr;
+    /**
+     * @p shape with @p handle dragged to @p to, both in the balloon's coordinates. A node may land past
+     * the body (outside 0..1); growing the box to it is the caller's (PLAN-L B10).
+     */
+    ShapeProperties (*dragHandle)(const ShapeProperties& shape, const QRectF& body, const ShapeHandle& handle,
+                                  const QPointF& to, qreal clearance) = nullptr;
 };
 
 //! The entry for @p kind. Every kind up to `ShapeProperties::k_lastKind` has one.
@@ -95,6 +123,12 @@ struct ShapeTemplate
 
 //! The largest corner radius a balloon of @p size shows: half the shorter side, which makes the ends round.
 [[nodiscard]] qreal cornerRadiusLimit(const QSizeF& size);
+
+//! @p shape with a node added in the middle of the edge after node @p edge: a Polygon's "+".
+[[nodiscard]] ShapeProperties withVertexAdded(const ShapeProperties& shape, int edge);
+
+//! @p shape without node @p index; unchanged when that would leave fewer than three.
+[[nodiscard]] ShapeProperties withVertexRemoved(const ShapeProperties& shape, int index);
 
 /**
  * @brief The balloon's own rectangle inside the box — the box, less room for the stroke.

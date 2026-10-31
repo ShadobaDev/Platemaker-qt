@@ -1,12 +1,17 @@
 #include "objects/selectionchrome.hpp"
 
+#include <QFile>
 #include <QGraphicsScene>
 #include <QGraphicsSceneMouseEvent>
 #include <QGraphicsView>
 #include <QPainter>
 #include <QStyleOptionGraphicsItem>
 
+#include <QSvgRenderer>
+#include <QtMath>
+
 #include <algorithm>
+#include <cmath>
 
 #include "geometry.hpp"
 
@@ -31,6 +36,30 @@ constexpr Grip k_edges[]   = {Grip::Top, Grip::Bottom, Grip::Left, Grip::Right};
 QRectF square(const QPointF& c, qreal s)
 {
     return QRectF(c.x() - s / 2, c.y() - s / 2, s, s);
+}
+
+//! How much of a grip span a "+" is drawn across: smaller than a node, so the two read apart.
+constexpr qreal k_plusSpan = 0.7;
+//! The radius arrow's length, in grip spans.
+constexpr qreal k_arrowSpan = 2.4;
+//! The square that answers a press on the radius arrow, in grip spans: wider than the arrow, which is
+//! thin across, so it is easy to hit.
+constexpr qreal k_arrowHitSpan = 3.2;
+
+//! The square a shape handle answers a press in.
+QRectF shapeHandleRect(const QPointF& at, Geometry::ShapeHandle::Role role, qreal s)
+{
+    return square(at, role == Geometry::ShapeHandle::Role::Radius ? s * k_arrowHitSpan : s);
+}
+
+//! The radius handle's drawing, pointing along x, with its FILL and OUTLINE still to be coloured.
+const QByteArray& radiusArrowSvg()
+{
+    static const QByteArray svg = [] {
+        QFile f(QStringLiteral(":/icons/handles/radius.svg"));
+        return f.open(QIODevice::ReadOnly) ? f.readAll() : QByteArray();
+    }();
+    return svg;
 }
 
 } // namespace
@@ -68,8 +97,9 @@ QList<Object*> SelectionChrome::subjects() const
 QRectF SelectionChrome::gripRect(const Object* o, Grip grip, qreal s) const
 {
     // While one of its tails is the subject, the box is not: its grips are not shown, so they do not
-    // resize either — what looks selected is what an edit will change.
-    if (o->focusedHandle() >= 0)
+    // resize either — what looks selected is what an edit will change. Nor while its shape is edited,
+    // when the outline's own handles take their place.
+    if (o->focusedHandle() >= 0 || o->shapeEditing())
         return {};
 
     const QRectF box = o->sceneBox();
@@ -103,6 +133,11 @@ QRectF SelectionChrome::handleRect(const Object* o, int index, qreal s) const
     return square(o->mapToScene(o->handleAt(index)), s);
 }
 
+QList<Geometry::ShapeHandle> SelectionChrome::shapeHandles(const Object* o)
+{
+    return o->shapeEditing() ? o->shapeHandles() : QList<Geometry::ShapeHandle>();
+}
+
 QRectF SelectionChrome::overflowRect(const Object* o)
 {
     const ObjectRecord& r = o->record();
@@ -125,6 +160,10 @@ void SelectionChrome::refresh()
         next = next.united(o->sceneBox().adjusted(-s, -s, s, s));
         for (int i = 0; i < o->tipCount(); ++i)
             next = next.united(handleRect(o, i, s).adjusted(-1, -1, 1, 1));
+        if (o->shapeEditing())
+            next = next.united(o->mapToScene(o->editOutline()).boundingRect().adjusted(-1, -1, 1, 1));
+        for (const Geometry::ShapeHandle& h : shapeHandles(o))
+            next = next.united(shapeHandleRect(o->mapToScene(h.at), h.role, s).adjusted(-2, -2, 2, 2));
         // Measured here, not in paint(): laying out the lettering on every repaint would be paid on
         // every scroll. This runs when the object reports a change, which is when the answer can move.
         if (const QRectF r = overflowRect(o); !r.isEmpty()) {
@@ -150,6 +189,11 @@ SelectionChrome::Hit SelectionChrome::hitAt(const QPointF& scenePos) const
         for (int i = 0; i < o->tipCount(); ++i)
             if (handleRect(o, i, s).contains(scenePos))
                 return {o, Grip::Handle, i};
+        // Then the outline's own, in the order the shape lists them (a node before a "+").
+        const QList<Geometry::ShapeHandle> handles = shapeHandles(o);
+        for (int i = 0; i < handles.size(); ++i)
+            if (shapeHandleRect(o->mapToScene(handles.at(i).at), handles.at(i).role, s).contains(scenePos))
+                return {o, Grip::Shape, i};
         for (const Grip g : k_corners)
             if (gripRect(o, g, s).contains(scenePos))
                 return {o, g, -1};
@@ -170,6 +214,8 @@ QPainterPath SelectionChrome::shape() const
     for (const Object* o : subjects()) {
         for (int i = 0; i < o->tipCount(); ++i)
             p.addRect(handleRect(o, i, s));
+        for (const Geometry::ShapeHandle& h : shapeHandles(o))
+            p.addRect(shapeHandleRect(o->mapToScene(h.at), h.role, s));
         for (const Grip g : k_corners)
             if (const QRectF r = gripRect(o, g, s); !r.isEmpty())
                 p.addRect(r);
@@ -197,7 +243,14 @@ void SelectionChrome::paint(QPainter* painter, const QStyleOptionGraphicsItem* o
     QList<Object*> objects = subjects();
     std::reverse(objects.begin(), objects.end());   // bottom first, so the topmost's chrome ends on top
     for (const Object* o : std::as_const(objects)) {
-        if (o->focusedHandle() < 0) {
+        // Shape editing has a chrome of its own (PLAN-L B27): the outline itself, traced, instead of the
+        // dashed box — so the mode is plain at a glance.
+        if (o->shapeEditing()) {
+            pen.setStyle(Qt::SolidLine);
+            painter->setPen(pen);
+            painter->setBrush(Qt::NoBrush);
+            painter->drawPath(o->mapToScene(o->editOutline()));
+        } else if (o->focusedHandle() < 0) {
             pen.setStyle(Qt::DashLine);
             painter->setPen(pen);
             painter->setBrush(Qt::NoBrush);
@@ -221,6 +274,44 @@ void SelectionChrome::paint(QPainter* painter, const QStyleOptionGraphicsItem* o
             painter->setBrush(i == o->focusedHandle() ? base : highlight);
             painter->drawEllipse(handleRect(o, i, s));
         }
+
+        // The outline's handles: a node is a square, unlike a tail's dot, filled when it is the picked
+        // one; the radius is an arrow into its corner; a "+" adds a node where it sits.
+        using Role = Geometry::ShapeHandle::Role;
+        const QList<Geometry::ShapeHandle> handles = shapeHandles(o);
+        for (int i = 0; i < handles.size(); ++i) {
+            const Geometry::ShapeHandle& h  = handles.at(i);
+            const QPointF                at = o->mapToScene(h.at);
+            switch (h.role) {
+            case Role::Vertex:
+                painter->setBrush(h.index == o->pickedVertex() ? highlight : base);
+                painter->drawRect(square(at, s));
+                break;
+            case Role::Radius: {
+                // The arrow (icons/handles/radius.svg) in the highlight, edged in the colour that reads
+                // on it so it shows on any fill, turned along the corner's diagonal; pressed, the two
+                // colours swap.
+                const QColor  light   = option->palette.color(QPalette::HighlightedText);
+                const bool    pressed = i == o->activeShapeHandle();
+                QSvgRenderer& arrow   = pressed ? radiusArrow(light, highlight.color())
+                                                : radiusArrow(highlight.color(), light);
+                const qreal   len   = s * k_arrowSpan;
+                painter->save();
+                painter->setRenderHint(QPainter::Antialiasing);
+                painter->translate(at);
+                painter->rotate(qRadiansToDegrees(std::atan2(h.axis.y(), h.axis.x())));
+                arrow.render(painter, QRectF(-len / 2, -len / 2, len, len));
+                painter->restore();
+                break;
+            }
+            case Role::AddVertex: {
+                const qreal half = s * k_plusSpan / 2;
+                painter->drawLine(at - QPointF(half, 0), at + QPointF(half, 0));
+                painter->drawLine(at - QPointF(0, half), at + QPointF(0, half));
+                break;
+            }
+            }
+        }
     }
 
     QPen overflow(k_overflowColour);
@@ -232,6 +323,18 @@ void SelectionChrome::paint(QPainter* painter, const QStyleOptionGraphicsItem* o
     for (const QRectF& r : std::as_const(m_overflows))
         painter->drawRect(r);
     painter->restore();
+}
+
+QSvgRenderer& SelectionChrome::radiusArrow(const QColor& fill, const QColor& edge)
+{
+    std::unique_ptr<QSvgRenderer>& renderer = m_arrows[fill.name() + edge.name()];
+    if (!renderer) {
+        QByteArray svg = radiusArrowSvg();
+        svg.replace("FILL", fill.name().toLatin1());
+        svg.replace("OUTLINE", edge.name().toLatin1());
+        renderer = std::make_unique<QSvgRenderer>(svg);
+    }
+    return *renderer;
 }
 
 void SelectionChrome::mousePressEvent(QGraphicsSceneMouseEvent* e)

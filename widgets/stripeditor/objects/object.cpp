@@ -141,6 +141,28 @@ void Object::setChromeVisible(bool on)
     s_chromeVisible = on;
 }
 
+void Object::setShapeEditing(bool on)
+{
+    if (m_shapeEditing == on)
+        return;
+    m_shapeEditing = on;
+    m_pickedVertex = -1;
+    emit chromeChanged();
+}
+
+void Object::setPickedVertex(int index)
+{
+    if (m_pickedVertex == index)
+        return;
+    m_pickedVertex = index;
+    emit chromeChanged();
+}
+
+qreal Object::gripSpanHere() const
+{
+    return gripSpan(this);
+}
+
 void Object::setFocusedHandle(int index)
 {
     if (m_focusedHandle == index)
@@ -218,12 +240,16 @@ Object::Grip Object::gripAt(const QPointF& local, int* handleIndex) const
 void Object::beginDrag(Grip grip, int handle, const QPointF& scenePos)
 {
     m_active        = grip;
-    m_activeHandle  = grip == Grip::Handle ? handle : -1;
+    m_dragGrip      = grip;
+    m_activeHandle  = grip == Grip::Handle || grip == Grip::Shape ? handle : -1;
     m_startRect     = sceneBox();
     m_startScenePos = scenePos;
-    m_moved         = false;
+    m_moved         = grip == Grip::Shape && beginShapeDrag(handle);
     m_dragReported  = false;
-    emit pressed(m_uid, m_activeHandle);
+    // A shape handle is not a tail: to the owner it is a press on the object, which keeps it selected.
+    emit pressed(m_uid, grip == Grip::Handle ? handle : -1);
+    if (grip == Grip::Shape)
+        emit chromeChanged();   // the pressed handle is drawn as pressed
 }
 
 void Object::dragTo(const QPointF& scenePos, Qt::KeyboardModifiers modifiers)
@@ -238,6 +264,11 @@ void Object::dragTo(const QPointF& scenePos, Qt::KeyboardModifiers modifiers)
         setPos(m_startRect.topLeft() + delta);
         m_dragReported = true;
         emit dragging(m_uid, delta, -1);   // the owner decides whether anything travels with it
+        return;
+    }
+
+    if (m_active == Grip::Shape) {
+        dragShapeTo(scenePos);
         return;
     }
 
@@ -282,8 +313,11 @@ void Object::dragTo(const QPointF& scenePos, Qt::KeyboardModifiers modifiers)
 void Object::endDrag()
 {
     const bool report = m_moved && m_active != Grip::None;
+    const bool shape  = m_active == Grip::Shape;
     m_active = Grip::None;
     m_moved  = false;
+    if (shape)
+        emit chromeChanged();   // ...and no longer
 
     // Only a settled drag is persisted: the owner turns each report into one undo step, and reporting
     // per mouse-move would bury the history under a pixel-by-pixel trail.
@@ -332,6 +366,18 @@ void Object::mouseMoveEvent(QGraphicsSceneMouseEvent* e)
         return;
     }
     dragTo(e->scenePos(), e->modifiers());
+}
+
+void Object::mouseDoubleClickEvent(QGraphicsSceneMouseEvent* e)
+{
+    // The second press of a double-click asks for shape editing; it starts no second drag, so the
+    // release that follows has nothing to report.
+    if (!m_orphaned && e->button() == Qt::LeftButton) {
+        e->accept();
+        emit doubleClicked(m_uid);
+        return;
+    }
+    QGraphicsObject::mouseDoubleClickEvent(e);
 }
 
 void Object::mouseReleaseEvent(QGraphicsSceneMouseEvent* e)

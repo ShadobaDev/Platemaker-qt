@@ -112,6 +112,7 @@ private:
     QAction*           m_actFitToStrip   = nullptr;   //!< Artwork as wide as the strip, and no wider.
     QAction*           m_actFitToText    = nullptr;   //!< The box sized to the lettering — OBJECT STATE's *Fit*.
     QAction*           m_actFixPadding   = nullptr;   //!< A balloon's padding lowered until the lettering fits.
+    QAction*           m_actEditShape    = nullptr;   //!< Shape editing of one balloon, on and off.
     QMenu*             m_groupMenu       = nullptr;   //!< *Apply this group ▸*, from the tool's options.
     QAction*           m_actFill         = nullptr;   //!< Fill with the primary colour.
     QAction*           m_actOutline      = nullptr;   //!< Outline with the secondary colour.

@@ -447,6 +447,21 @@ public:
     void deleteSelectedOverlay();
 
     /**
+     * @brief Shape editing of the one selected object (PLAN-L B13): on or off.
+     *
+     * On only for one selected object whose shape has handles (Object::canEditShape()); asking for it
+     * otherwise does nothing. It ends by itself when the selection becomes anything else — a click
+     * outside the balloon — or the object stops having handles. While it is on, Delete removes the
+     * picked node instead of the object.
+     */
+    void setShapeEditing(bool on);
+    [[nodiscard]] bool shapeEditing() const { return !m_shapeEditing.isEmpty(); }
+    //! Whether shape editing can be switched on for the selection as it is.
+    [[nodiscard]] bool canEditShape() const;
+    //! Whether a node is picked in shape editing, so Delete would remove it.
+    [[nodiscard]] bool hasPickedVertex() const;
+
+    /**
      * @brief Checks if exactly one piece of imported artwork is selected — what OBJECT STATE and the menu
      * both ask.
      * @return True if exactly one piece of imported artwork is selected, false otherwise.
@@ -546,7 +561,9 @@ signals:
     void blendBound(std::optional<Platemaker::Models::BlendMode> blend, bool applies);
     //! One picture's scale in percent; no value for anything else.
     void artworkScaleBound(std::optional<double> percent);
-    void textFocusRequested();      //!< A bubble just placed: put the caret in its text.
+    void textFocusRequested();      //!< A bubble just placed, or its words pressed in shape editing: the caret to its text.
+    //! Shape editing started or ended, or its picked node changed: the menu's entries follow.
+    void shapeEditingChanged();
 
     /**
      * @brief Something happened that the artist should be told once — not a state they can fix.
@@ -703,6 +720,7 @@ private:
     //! only while its balloon is selected. They are not subjects: they are not counted, not deleted, and
     //! their row in the tree is not highlighted.
     QStringList        m_carriers;
+    QString            m_shapeEditing;   //!< The object whose shape is being edited; empty for none.
 
     // --- a drag in flight: where everything stood when it started ---
     QHash<QString, QPointF>         m_dragStartPos;   //!< Object uid → its position at the press.

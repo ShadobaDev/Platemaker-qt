@@ -3,10 +3,60 @@
 #include "styles.hpp"
 
 #include <QPainter>
+#include <QtMath>
 
+#include <algorithm>
 #include <utility>
 
 namespace StripEdit {
+
+namespace {
+
+//! The radius handle's distance in from its arc, in grip spans: its arrow, a span either side of it,
+//! then stays clear of the corner's own node.
+constexpr qreal k_radiusDotClearance = 2.2;
+
+/**
+ * @brief Grows @p a's box to take in every node (PLAN-L B10), in the units of @p body's box.
+ *
+ * The nodes are re-measured against the grown body, and the tail tips move back by as much as the box's
+ * corner moved, so nothing moves on the strip but the node being dragged. A box that holds every node
+ * already is left as it is.
+ *
+ * @return How far the box's top-left moved, in the units it was in.
+ */
+QPointF growToNodes(ObjectRecord& a, const QRectF& body)
+{
+    qreal left = 0.0, top = 0.0, right = 1.0, bottom = 1.0;
+    for (const QPointF& n : std::as_const(a.shape.nodes)) {
+        left   = qMin(left, n.x());
+        top    = qMin(top, n.y());
+        right  = qMax(right, n.x());
+        bottom = qMax(bottom, n.y());
+    }
+    if (left >= 0.0 && top >= 0.0 && right <= 1.0 && bottom <= 1.0)
+        return {};
+
+    // The grown body, and the box around it in whole pixels, the stroke's half outside it as
+    // balloonRect() takes it off.
+    const qreal  inset = a.skin.strokeWidth / 2.0;
+    const QRectF grown(body.left() + left * body.width(), body.top() + top * body.height(),
+                       (right - left) * body.width(), (bottom - top) * body.height());
+    const QPointF corner(grown.left() - inset, grown.top() - inset);
+    a.box = QSize(qCeil(grown.width() + 2 * inset), qCeil(grown.height() + 2 * inset));
+
+    const QRectF next = Geometry::balloonRect(a);
+    for (QPointF& n : a.shape.nodes) {
+        const QPointF at(body.left() + n.x() * body.width() - corner.x(),
+                         body.top() + n.y() * body.height() - corner.y());
+        n = QPointF((at.x() - next.left()) / next.width(), (at.y() - next.top()) / next.height());
+    }
+    for (Tail& t : a.tails.items)
+        t.tip -= corner;
+    return corner;
+}
+
+} // namespace
 
 BubbleObject::BubbleObject(QString uid, ObjectRecord record, QGraphicsItem* parent)
     : Object(std::move(uid), parent)
@@ -109,6 +159,72 @@ void BubbleObject::setHandlePos(int index, const QPointF& local)
         return;
     m_record.tails.items[index].tip = local;
     rebuild();
+}
+
+bool BubbleObject::canEditShape() const
+{
+    return m_record.hasSilhouette() && Geometry::shapeInfo(m_record.shape.kind).handles != nullptr;
+}
+
+qreal BubbleObject::radiusClearance() const
+{
+    return gripSpanHere() * k_radiusDotClearance;
+}
+
+QList<Geometry::ShapeHandle> BubbleObject::shapeHandles() const
+{
+    if (!canEditShape())
+        return {};
+    return Geometry::shapeInfo(m_record.shape.kind)
+        .handles(m_record.shape, Geometry::balloonRect(m_record), radiusClearance());
+}
+
+QPainterPath BubbleObject::editOutline() const
+{
+    return Geometry::outlineOf(m_record, Geometry::balloonRect(m_record));
+}
+
+bool BubbleObject::beginShapeDrag(int index)
+{
+    const QList<Geometry::ShapeHandle> handles = shapeHandles();
+    if (index < 0 || index >= handles.size())
+        return false;
+    m_shapeStart    = m_record;
+    m_shapeStartPos = pos();
+    m_shapeHandle   = handles.at(index);
+
+    using Role   = Geometry::ShapeHandle::Role;
+    bool changed = false;
+    if (m_shapeHandle.role == Role::AddVertex) {
+        // A "+" adds its node at once, and the drag that follows is that node's.
+        m_shapeStart.shape = Geometry::withVertexAdded(m_record.shape, m_shapeHandle.index);
+        m_shapeHandle      = {Role::Vertex, m_shapeHandle.index + 1, m_shapeHandle.at};
+        m_record           = m_shapeStart;
+        rebuild();
+        update();
+        changed = true;
+    }
+    setPickedVertex(m_shapeHandle.role == Role::Vertex ? m_shapeHandle.index : -1);
+    return changed;
+}
+
+void BubbleObject::dragShapeTo(const QPointF& scenePos)
+{
+    // In the units of the box as it was at the press: a node past the box moves the item, and measuring
+    // against where it has moved to would chase the pointer.
+    const qreal   k    = scale() > 0.0 ? scale() : 1.0;
+    const QPointF to   = (scenePos - m_shapeStartPos) / k;
+    const QRectF  body = Geometry::balloonRect(m_shapeStart);
+
+    ObjectRecord next = m_shapeStart;
+    next.shape = Geometry::shapeInfo(next.shape.kind)
+                     .dragHandle(next.shape, body, m_shapeHandle, to, radiusClearance());
+    const QPointF moved = m_shapeHandle.role == Geometry::ShapeHandle::Role::Vertex ? growToNodes(next, body)
+                                                                                     : QPointF();
+    m_record = next;
+    setPos(m_shapeStartPos + moved * k);
+    rebuild();
+    update();
 }
 
 void BubbleObject::paintContent(QPainter& painter)

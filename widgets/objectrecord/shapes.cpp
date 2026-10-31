@@ -124,11 +124,17 @@ QPainterPath ellipsePath(const ShapeProperties&, const QRectF& r)
 // Polygon
 // ---------------------------------------------------------------------------
 
-//! A Polygon's vertices in @p r: its nodes, or the rectangle's corners when it has fewer than three.
-QList<QPointF> polygonPoints(const ShapeProperties& shape, const QRectF& r)
+//! A Polygon's nodes: its own, or the rectangle's corners when it has fewer than three.
+const QList<QPointF>& polygonNodes(const ShapeProperties& shape)
 {
     static const QList<QPointF> k_rectangle{{0, 0}, {1, 0}, {1, 1}, {0, 1}};
-    const QList<QPointF>& nodes = shape.nodes.size() >= 3 ? shape.nodes : k_rectangle;
+    return shape.nodes.size() >= 3 ? shape.nodes : k_rectangle;
+}
+
+//! A Polygon's vertices in @p r.
+QList<QPointF> polygonPoints(const ShapeProperties& shape, const QRectF& r)
+{
+    const QList<QPointF>& nodes = polygonNodes(shape);
     QList<QPointF>        out;
     out.reserve(nodes.size());
     for (const QPointF& n : nodes)
@@ -307,6 +313,124 @@ QRectF polygonArea(const ShapeProperties& shape, const QRectF& body)
 }
 
 // ---------------------------------------------------------------------------
+// Edit-mode handles
+// ---------------------------------------------------------------------------
+
+/**
+ * @brief One corner, as far as its rounding is concerned: where the middle of its arc sits for a radius,
+ *        and back. The same rule polygonPath() rounds by, and the Box's, whose corners are right angles.
+ */
+struct Corner
+{
+    QPointF vertex;
+    QPointF bisector;          //!< Towards the arc, between the two edges.
+    qreal   perRadius = 0.0;   //!< From the vertex to the arc's middle, per unit of radius: 1/sin(θ/2) − 1.
+    qreal   maxRadius = 0.0;   //!< The radius whose arc reaches the middle of the shorter edge.
+
+    [[nodiscard]] bool valid() const { return perRadius > k_hairpinCorner; }
+};
+
+Corner cornerAt(const QPointF& prev, const QPointF& vertex, const QPointF& next)
+{
+    Corner        c{vertex};
+    const QPointF a  = prev - vertex;
+    const QPointF b  = next - vertex;
+    const qreal   la = std::hypot(a.x(), a.y());
+    const qreal   lb = std::hypot(b.x(), b.y());
+    if (la <= 0.0 || lb <= 0.0)
+        return c;
+    const QPointF sum = a / la + b / lb;
+    const qreal   ls  = std::hypot(sum.x(), sum.y());
+    const qreal   half = std::acos(qBound(-1.0, (a.x() * b.x() + a.y() * b.y()) / (la * lb), 1.0)) / 2.0;
+    if (ls <= k_hairpinCorner || std::sin(half) <= k_hairpinCorner)
+        return c;   // a straight run or a hairpin: no arc to put a dot on
+    c.bisector  = sum / ls;
+    c.perRadius = 1.0 / std::sin(half) - 1.0;
+    c.maxRadius = qMin(la, lb) / 2.0 * std::tan(half);
+    return c;
+}
+
+//! The radius handle of @p corner rounded by @p radius: in the middle of the arc drawn, @p clearance further in.
+QPointF radiusDot(const Corner& corner, qreal radius, qreal clearance)
+{
+    return corner.vertex + corner.bisector * (qBound(0.0, radius, corner.maxRadius) * corner.perRadius + clearance);
+}
+
+//! The radius whose dot sits nearest @p to, in whole pixels, from 0 to @p limit.
+qreal radiusAt(const Corner& corner, const QPointF& to, qreal clearance, qreal limit)
+{
+    const QPointF d     = to - corner.vertex;
+    const qreal   along = d.x() * corner.bisector.x() + d.y() * corner.bisector.y() - clearance;
+    return qBound(0.0, qreal(qRound(along / corner.perRadius)), limit);
+}
+
+//! The Box's first corner, the top-left one.
+Corner boxCorner(const QRectF& body)
+{
+    return cornerAt(body.bottomLeft(), body.topLeft(), body.topRight());
+}
+
+QList<ShapeHandle> boxHandles(const ShapeProperties& shape, const QRectF& body, qreal clearance)
+{
+    const Corner c = boxCorner(body);
+    return {{ShapeHandle::Role::Radius, 0, radiusDot(c, shape.cornerRadius, clearance), -c.bisector}};
+}
+
+ShapeProperties dragBoxHandle(const ShapeProperties& shape, const QRectF& body, const ShapeHandle& handle,
+                              const QPointF& to, qreal clearance)
+{
+    ShapeProperties s = shape;
+    if (handle.role == ShapeHandle::Role::Radius)
+        s.cornerRadius = radiusAt(boxCorner(body), to, clearance, cornerRadiusLimit(body.size()));
+    return s;
+}
+
+//! The Polygon's first corner, at node 0, whose dot sets the radius every corner shares.
+Corner polygonCorner(const QList<QPointF>& pts)
+{
+    return cornerAt(pts.last(), pts.first(), pts[1]);
+}
+
+/**
+ * Every node, then the radius dot, then a "+" in the middle of each edge: the order a press is answered
+ * in, so a node wins over a "+" on a short edge.
+ */
+QList<ShapeHandle> polygonHandles(const ShapeProperties& shape, const QRectF& body, qreal clearance)
+{
+    const QList<QPointF> pts = polygonPoints(shape, body);
+    const int            n   = int(pts.size());
+    QList<ShapeHandle>   out;
+    for (int i = 0; i < n; ++i)
+        out.append({ShapeHandle::Role::Vertex, i, pts[i]});
+    if (const Corner c = polygonCorner(pts); c.valid())
+        out.append({ShapeHandle::Role::Radius, 0, radiusDot(c, shape.cornerRadius, clearance), -c.bisector});
+    for (int i = 0; i < n; ++i)
+        out.append({ShapeHandle::Role::AddVertex, i, (pts[i] + pts[(i + 1) % n]) / 2.0});
+    return out;
+}
+
+ShapeProperties dragPolygonHandle(const ShapeProperties& shape, const QRectF& body, const ShapeHandle& handle,
+                                  const QPointF& to, qreal clearance)
+{
+    ShapeProperties s = shape;
+    switch (handle.role) {
+    case ShapeHandle::Role::Vertex:
+        s.nodes = polygonNodes(shape);   // a Polygon drawing the box's rectangle gets nodes of its own
+        if (handle.index >= 0 && handle.index < s.nodes.size() && !body.isEmpty())
+            s.nodes[handle.index] = QPointF((to.x() - body.left()) / body.width(),
+                                            (to.y() - body.top()) / body.height());
+        break;
+    case ShapeHandle::Role::Radius:
+        if (const Corner c = polygonCorner(polygonPoints(shape, body)); c.valid())
+            s.cornerRadius = radiusAt(c, to, clearance, cornerRadiusLimit(body.size()));
+        break;
+    case ShapeHandle::Role::AddVertex:
+        break;   // a press adds the node (withVertexAdded()); the drag is that node's
+    }
+    return s;
+}
+
+// ---------------------------------------------------------------------------
 // Thought
 // ---------------------------------------------------------------------------
 
@@ -385,9 +509,11 @@ using Kind = ShapeProperties::Kind;
 // a round number between its two templates' old values, to be checked by eye (PLAN-L B22).
 const std::array<ShapeInfo, int(ShapeProperties::k_lastKind) + 1> k_shapes{{
     {Kind::None,      "none",      QT_TRANSLATE_NOOP("QObject", "Text only — no balloon"), false, false, nullptr,       wholeArea,          0},
-    {Kind::Box,       "box",       QT_TRANSLATE_NOOP("QObject", "Box"),                    true,  true,  boxPath,       boxArea,            50},
+    {Kind::Box,       "box",       QT_TRANSLATE_NOOP("QObject", "Box"),                    true,  true,  boxPath,       boxArea,            50,
+     boxHandles, dragBoxHandle},
     {Kind::Ellipse,   "ellipse",   QT_TRANSLATE_NOOP("QObject", "Round balloon"),          true,  false, ellipsePath,   inscribedInEllipse, 0},
-    {Kind::Polygon,   "polygon",   QT_TRANSLATE_NOOP("QObject", "Polygon"),                false, true,  polygonPath,   polygonArea,        0},
+    {Kind::Polygon,   "polygon",   QT_TRANSLATE_NOOP("QObject", "Polygon"),                false, true,  polygonPath,   polygonArea,        0,
+     polygonHandles, dragPolygonHandle},
     {Kind::Thought,   "thought",   QT_TRANSLATE_NOOP("QObject", "Thought balloon"),        true,  false, thoughtPath,   thoughtArea,        0},
     {Kind::Scroll,    "scroll",    QT_TRANSLATE_NOOP("QObject", "Scroll"),                 false, false, scrollPath,    scrollArea,         50},
 }};
@@ -496,6 +622,27 @@ bool shapeSpeaks(const ShapeProperties& shape)
 qreal cornerRadiusLimit(const QSizeF& size)
 {
     return qMin(size.width(), size.height()) / 2.0;
+}
+
+ShapeProperties withVertexAdded(const ShapeProperties& shape, int edge)
+{
+    ShapeProperties s = shape;
+    s.nodes           = polygonNodes(shape);
+    const int n       = int(s.nodes.size());
+    if (edge < 0 || edge >= n)
+        return shape;
+    s.nodes.insert(edge + 1, (s.nodes[edge] + s.nodes[(edge + 1) % n]) / 2.0);
+    return s;
+}
+
+ShapeProperties withVertexRemoved(const ShapeProperties& shape, int index)
+{
+    ShapeProperties s = shape;
+    s.nodes           = polygonNodes(shape);
+    if (s.nodes.size() <= 3 || index < 0 || index >= s.nodes.size())
+        return shape;
+    s.nodes.removeAt(index);
+    return s;
 }
 
 QRectF balloonRect(const ObjectRecord& a)

@@ -17,6 +17,7 @@
 #include <QKeySequence>
 #include <QMenu>
 #include <QMessageBox>
+#include <QShortcut>
 
 #include <algorithm>
 #include <optional>
@@ -162,6 +163,16 @@ ObjectMenu::ObjectMenu(ObjectController& objects, const StripLayout& layout, Pre
     m_actFixPadding = new QAction(tr("Fix padding"), this);
     connect(m_actFixPadding, &QAction::triggered, &m_objects, &ObjectController::fixSelectionPadding);
 
+    // Shape editing (PLAN-L B13): entered here or by a double-click on the balloon, left here, by Esc, or
+    // by a click outside it. Esc is a shortcut of its own, not an entry: the menu has nothing to show
+    // for it.
+    m_actEditShape = new QAction(tr("Edit shape"), this);
+    m_actEditShape->setCheckable(true);
+    connect(m_actEditShape, &QAction::triggered, &m_objects, &ObjectController::setShapeEditing);
+    new QShortcut(QKeySequence(Qt::Key_Escape), m_view, [this] { m_objects.setShapeEditing(false); },
+                  Qt::WidgetShortcut);
+    connect(&m_objects, &ObjectController::shapeEditingChanged, this, &ObjectMenu::updateEntries);
+
     m_actDelete = new QAction(tr("Delete"), this);
     m_actDelete->setShortcut(QKeySequence::Delete);
     m_actDelete->setShortcutContext(Qt::WidgetShortcut);
@@ -194,6 +205,7 @@ ObjectMenu::ObjectMenu(ObjectController& objects, const StripLayout& layout, Pre
         w->addAction(m_actFitToStrip);
         w->addAction(m_actFitToText);
         w->addAction(m_actFixPadding);
+        w->addAction(m_actEditShape);
         w->addAction(separator());
         w->addAction(m_convertMenu->menuAction());
         w->addAction(m_reanchorMenu->menuAction());
@@ -275,6 +287,16 @@ void ObjectMenu::updateEntries()
                return m_objects.isParametric(uid) && !m_objects.carriers().contains(uid);
            });
     if (m_convertMenu) m_convertMenu->menuAction()->setEnabled(authoredOnly);
+
+    // A balloon's, like Fit to text: absent for a picture, greyed for a shape with no handles yet.
+    if (m_actEditShape) {
+        m_actEditShape->setVisible(allParametric);
+        m_actEditShape->setEnabled(m_objects.canEditShape());
+        m_actEditShape->setChecked(m_objects.shapeEditing());
+    }
+    // Delete says what it will take: the picked node, in shape editing.
+    if (m_actDelete)
+        m_actDelete->setText(m_objects.hasPickedVertex() ? tr("Delete point") : tr("Delete"));
 }
 
 void ObjectMenu::setColourSource(const ColourPair* pair)

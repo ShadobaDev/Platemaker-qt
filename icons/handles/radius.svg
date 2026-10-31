@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
+  <!-- The corner radius handle: a two-headed arrow along a corner's diagonal, the way it rounds. Drawn
+       pointing along x and turned by the selection chrome, so one head sits in the corner.
+       FILL and OUTLINE are placeholders the chrome replaces with the palette's colours, so the
+       handle follows the theme: FILL is the highlight and OUTLINE the colour that reads on it, so the
+       arrow shows on any fill; pressed, the two swap. -->
+  <path d="M1 12 L7.5 6.5 L7.5 10.5 L16.5 10.5 L16.5 6.5 L23 12 L16.5 17.5 L16.5 13.5 L7.5 13.5 L7.5 17.5 Z"
+        fill="FILL" stroke="OUTLINE" stroke-width="2" stroke-linejoin="miter"/>
+</svg>

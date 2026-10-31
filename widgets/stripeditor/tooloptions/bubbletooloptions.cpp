@@ -105,11 +105,11 @@ BubbleToolOptions::BubbleToolOptions(PresetStore& presets, QWidget* parent)
     syncFromModel();
 }
 
-ObjectRecord::Shape BubbleToolOptions::balloonShape() const
+ShapeProperties BubbleToolOptions::balloonShape() const
 {
     ObjectRecord picked;
     m_groups.shape()->applyTo(picked);
-    return picked.hasSilhouette() ? picked.shape.kind : ObjectRecord::Shape::Box;
+    return picked.hasSilhouette() ? picked.shape : ShapeProperties();
 }
 
 void BubbleToolOptions::setToolShape(std::optional<ObjectRecord::Shape> shape)
@@ -123,11 +123,11 @@ ObjectRecord BubbleToolOptions::prototype() const
     ObjectRecord a;
     // Shape first: the tails editor reads it, because a shapeless record has nothing to grow a tail
     // from. Everything else is order-independent by construction — no two groups touch a property.
-    // The whole group through its editor, like every other group, so whatever a shape grows beyond its
-    // kind arrives with it. Then the kind: the tool's own if it has one, otherwise the tiles' balloon,
-    // which is never None.
-    m_groups.shape()->applyTo(a);
-    a.shape.kind = m_toolShape ? *m_toolShape : balloonShape();
+    // The whole group, so whatever a shape grows beyond its kind (a radius, a polygon's nodes) arrives
+    // with it: the tiles' balloon, which is never None. Then the tool's own kind over it, if it has one.
+    a.shape = balloonShape();
+    if (m_toolShape)
+        a.shape.kind = *m_toolShape;
     m_groups.skin()->applyTo(a);
     m_groups.style()->applyTo(a);
     m_groups.text()->applyTo(a);

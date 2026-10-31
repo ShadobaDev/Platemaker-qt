@@ -125,18 +125,29 @@ struct ShapeProperties
      * is unreleased, so a kind may still be renamed or merged (PLAN-L B3): a file naming one that is gone
      * loads as a Box.
      */
-    enum class Kind { None, Box, Shout, Ellipse, Diamond, Trapezoid, Thought, Scroll, Banner };
+    enum class Kind { None, Box, Ellipse, Polygon, Thought, Scroll };
 
     //! The enum's last value. **Adding a shape moves this** — it is how the unit tests know a shape
     //! exists that the picker (shapeOrder()) does not offer, and which therefore would not load either.
-    static constexpr Kind k_lastKind = Kind::Banner;
+    static constexpr Kind k_lastKind = Kind::Scroll;
+
+    //! Decimal places a node is saved with in the SVG; a template's nodes are rounded to them, so a
+    //! placed template reads back as itself. 4 is a fifth of a pixel on a 2000 px balloon.
+    static constexpr int k_nodeDecimals = 4;
 
     Kind  kind         = Kind::Box;
     /**
-     * A Box's corner radius, in balloon pixels, capped at half the shorter side. The default is the
-     * speech balloon's (shapes.cpp), so a default record is the speech balloon it always was.
+     * A Box's or a Polygon's corner radius, in balloon pixels. A Box caps it at half its shorter side, a
+     * Polygon each corner at half its shorter edge. The default is the speech balloon's (shapes.cpp), so
+     * a default record is the speech balloon it always was.
      */
     qreal cornerRadius = 45.0;
+    /**
+     * A Polygon's vertices, in order, **relative to the balloon**: 0..1 across its width and its height,
+     * so resizing the box scales the shape and a template fits any size. Fewer than three draw the box's
+     * own rectangle.
+     */
+    QList<QPointF> nodes;
 
     //! The fields, with the keys they are saved under (fields.hpp).
     template <class V>
@@ -144,6 +155,7 @@ struct ShapeProperties
     {
         v("shape",        &ShapeProperties::kind);
         v("cornerRadius", &ShapeProperties::cornerRadius);
+        v("nodes",        &ShapeProperties::nodes);
     }
 
     [[nodiscard]] static ShapeProperties from(const ObjectRecord& a);

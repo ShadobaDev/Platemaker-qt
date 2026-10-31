@@ -20,18 +20,24 @@ namespace {
  */
 constexpr qreal k_tailBaseInset = 0.6;
 /**
- *  Binary-search steps for the silhouette crossing. 24 halvings resolve a 4000px balloon to well under
- *  a pixel, and each step is one QPainterPath::contains().
+ *  Samples on the way from a tail's tip to the centre, looking for the first one inside the outline. 64
+ *  misses only a dent narrower than a sixty-fourth of the tail's reach.
+ */
+constexpr int   k_tailSamples   = 64;
+/**
+ *  Binary-search steps for the silhouette crossing, between the two samples that bracket it. 24
+ *  halvings put it far under a pixel, and each step is one QPainterPath::contains().
  */
 constexpr int   k_edgeSteps     = 24;
 
 /**
- * @brief One tail, from wherever the ray to its tip leaves the silhouette out to that tip.
+ * @brief One tail, from where the line to its tip leaves the silhouette out to that tip.
  *
- * Shape-agnostic by construction. Rather than knowing where a given outline's edge is, it casts a ray
- * from the balloon's centre toward the tip and binary-searches for the crossing with
- * QPainterPath::contains(). That works for a rounded rectangle, a burst, and anything added later,
- * and it is what lets a tail leave any edge instead of only the bottom one.
+ * Shape-agnostic by construction. Rather than knowing where a given outline's edge is, it walks the
+ * line from the tip towards the balloon's centre until a sample lands inside, then binary-searches that
+ * step for the crossing with QPainterPath::contains(). Walking **from the tip** finds the crossing
+ * nearest it, which is the edge the tail is seen to leave even where a concave outline crosses the line
+ * more than once (PLAN-L B12); it is what lets a tail leave any edge instead of only the bottom one.
  *
  * The base is pulled back *inside* the silhouette so the union is watertight — everything inside
  * disappears into it anyway, and what shows is the taper from the point it emerges.
@@ -46,14 +52,23 @@ QPainterPath tailPath(const QPainterPath& outline, const QRectF& body, const Tai
     const qreal   len    = std::hypot(ray.x(), ray.y());
     if (len < 1.0 || t.baseWidth < 1.0)
         return {};                       // tip on the centre, or a tail too thin to see
+    if (outline.contains(t.tip))
+        return {};                       // the tip sits inside the balloon: nothing would show
     ray /= len;
 
-    // Find the crossing as a fraction of the distance to the tip. Extend past the tip first if it lies
-    // inside the balloon, so the search always brackets an inside/outside pair.
+    // The crossing as a fraction of the distance from the centre: the first sample inside, walking in
+    // from the tip, and the one before it bracket it.
     qreal outside = 1.0;
-    while (outside < 8.0 && outline.contains(centre + ray * (len * outside)))
-        outside *= 1.5;
-    qreal inside = 0.0;
+    qreal inside  = -1.0;
+    for (int i = 1; i <= k_tailSamples && inside < 0.0; ++i) {
+        const qreal f = 1.0 - qreal(i) / k_tailSamples;
+        if (outline.contains(centre + ray * (len * f)))
+            inside = f;
+        else
+            outside = f;
+    }
+    if (inside < 0.0)
+        return {};                       // the line never enters the balloon: nothing to leave from
     for (int i = 0; i < k_edgeSteps; ++i) {
         const qreal mid = (inside + outside) / 2.0;
         if (outline.contains(centre + ray * (len * mid)))
@@ -63,8 +78,6 @@ QPainterPath tailPath(const QPainterPath& outline, const QRectF& body, const Tai
     }
 
     const qreal edge = len * inside;
-    if (edge >= len)
-        return {};                       // the tip sits inside the balloon: nothing would show
 
     const QPointF perp(-ray.y(), ray.x());
     const qreal   half = t.baseWidth / 2.0;

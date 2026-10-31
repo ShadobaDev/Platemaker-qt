@@ -104,7 +104,7 @@ QList<BubblePreset> builtinPresets()
     out.append({PresetStore::tr("Thought"), thought});
 
     ObjectRecord shout = dialogue;
-    shout.shape.kind         = ObjectRecord::Shape::Shout;
+    shout.shape              = Geometry::shapeTemplate("shout").shape;
     shout.text.bold          = true;
     shout.text.pixelSize     = 38;
     shout.skin.strokeWidth   = 7;
@@ -279,7 +279,7 @@ ObjectRecord PresetStore::applied(const BubblePreset& p, const ObjectRecord& tar
     a.tails.items = target.tails.items;
 
     if (keepShape)
-        a.shape.kind = target.shape.kind;
+        a.shape = target.shape;
     if (!a.hasSilhouette())
         a.tails.items.clear();
 

@@ -40,14 +40,16 @@ struct ShapeInfo
     //! Whether the kind reads `cornerRadius`. The Shape panel shows the row only then.
     bool rounded;
     /**
-     * The outline in @p body, **star-shaped around its centre**: a tail leaves the balloon along a ray
-     * from the centre, so every such ray must cross the outline once. nullptr for `None`, which has none.
+     * The outline in @p body, any shape, concave included: a tail finds where it leaves the balloon by
+     * walking from its tip towards the centre (silhouette.cpp). nullptr for `None`, which has none.
      */
     QPainterPath (*outline)(const ShapeProperties& shape, const QRectF& body);
     /**
      * The largest axis-aligned rectangle the outline actually contains, before the stroke and the
      * padding are taken off. This is the half of a shape that takes the thought: it is what stops a
-     * wide balloon spilling its words out between a burst's spikes or past a diamond's slope.
+     * wide balloon spilling its words out between a burst's spikes or past a diamond's slope. A kind
+     * with no formula for it (the Polygon) computes it from its outline. An area, never a placement:
+     * where the words sit in it is lettering.cpp's alone.
      */
     QRectF (*safeArea)(const ShapeProperties& shape, const QRectF& body);
     /**

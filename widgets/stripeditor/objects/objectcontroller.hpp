@@ -186,16 +186,16 @@ public:
 
     // --- driven by the OBJECT MENU (objectstack/objectmenu.hpp), which this class does not know either ---
     [[nodiscard]] const QString& selectedOverlay() const { return m_selectedOverlay; }   //!< The primary.
-    //! The silhouette TOOL OPTIONS would give a balloon now — what *Convert to ▸ Balloon* arrives at.
-    [[nodiscard]] ObjectRecord::Shape toolBalloonShape() const;
+    //! The silhouette TOOL OPTIONS would give a balloon now, whole — what *Convert to ▸ Balloon* arrives at.
+    [[nodiscard]] ShapeProperties toolBalloonShape() const;
     //! Places @p file on the page in the middle of the view, at a width that grows with the chapter.
     void importArtworkFile(const QString& file);
     void duplicateSelectedOverlay();   //!< Copies the selected bubble a little down and right.
     /**
-     * @brief Makes every selected object the **kind** @p kind stands for, as one history step.
+     * @brief Makes every selected object the **kind** @p shape stands for, as one history step.
      *
-     * @param kind `None` for lettering with no balloon; any silhouette for a balloon, and that is the
-     *             silhouette a converted object arrives at.
+     * @param shape Of kind `None` for lettering with no balloon; any silhouette for a balloon, and that
+     *              whole shape, parameters and nodes included, is what a converted object arrives at.
      *
      * **What passes through is decided by the kind, not by the silhouette.** An object that already has
      * a balloon is untouched by *Convert to ▸ Balloon* even if it wears a different one — re-shaping it
@@ -206,14 +206,12 @@ public:
      * converting a mixed set is not two acts: select two texts and a balloon, convert to Balloon, and
      * the balloon is simply not in the diff.
      *
-     * The carry-over needs no per-pair code. Every kind is the same record, so a conversion writes one
-     * property and what the new kind cannot draw is **not drawn rather than destroyed**: a converted
+     * The carry-over needs no per-pair code. Every kind is the same record, so a conversion writes the
+     * shape and what the new kind cannot draw is **not drawn rather than destroyed**: a converted
      * balloon's tails are still in its record and come back if it is converted back. What stopped being
      * drawn is said once, in the status bar, because it is an event and not a condition.
-     * 
-     * @param kind  The kind to convert the selection to.
      */
-    void convertSelectionTo(ObjectRecord::Shape kind);
+    void convertSelectionTo(const ShapeProperties& shape);
     /**
      * @brief Moves the selected object one place towards the front (@p forward) or the back.
      *
@@ -492,7 +490,7 @@ public:
     struct ToolDefaults
     {
         std::function<ObjectRecord()>        prototype;
-        std::function<ObjectRecord::Shape()> balloonShape;
+        std::function<ShapeProperties()>     balloonShape;
     };
     void setToolDefaults(ToolDefaults defaults) { m_toolDefaults = std::move(defaults); }
 

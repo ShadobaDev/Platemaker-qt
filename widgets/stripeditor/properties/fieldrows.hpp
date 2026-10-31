@@ -58,45 +58,48 @@ public:
     {
         const size_t prefixLength = std::strlen(prefix);
         Group::fields([&](const char* key, auto member) {
-            if (std::strncmp(key, prefix, prefixLength) != 0)
-                return;
-            const FieldRowSpec* spec = nullptr;
-            for (const FieldRowSpec& s : specs)
-                if (std::strcmp(s.key, key) == 0)
-                    spec = &s;
-            Q_ASSERT_X(spec, "FieldRows", "a field with the prefix and no row in the spec table");
-            if (!spec)
-                return;
-
-            QSpinBox* spin = makeSpin ? makeSpin(key) : nullptr;
-            if (!spin)
-                spin = new QSpinBox(owner);
-            spin->setRange(spec->min, spec->max);
-            spin->setSuffix(QString::fromLatin1(spec->suffix));
-            spin->setToolTip(QCoreApplication::translate(context, spec->tip));
-            form->addRow(QCoreApplication::translate(context, spec->title), spin);
-
             using T = std::remove_reference_t<decltype(values.*member)>;
-            Row row;
-            row.key  = key;
-            row.spin = spin;
-            row.min  = spec->min;
-            row.get  = [member](const Group& v) { return int(qRound(double(v.*member))); };
-            row.set  = [member](Group& v, int x) { v.*member = T(x); };
-            m_rows.push_back(row);
+            // A spin holds a number: a list (a Polygon's nodes) is never a row, and is not compiled as one.
+            if constexpr (std::is_arithmetic_v<T> || std::is_enum_v<T>) {
+                if (std::strncmp(key, prefix, prefixLength) != 0)
+                    return;
+                const FieldRowSpec* spec = nullptr;
+                for (const FieldRowSpec& s : specs)
+                    if (std::strcmp(s.key, key) == 0)
+                        spec = &s;
+                Q_ASSERT_X(spec, "FieldRows", "a field with the prefix and no row in the spec table");
+                if (!spec)
+                    return;
 
-            const size_t index = m_rows.size() - 1;
-            QObject::connect(spin, &QSpinBox::valueChanged, owner,
-                             [this, index, &values, &populating, edited](int v) {
-                                 if (populating)
-                                     return;
-                                 Row& r = m_rows[index];
-                                 if (restoreSpin(r.spin, r.min))
-                                     r.mixed = false;
-                                 r.set(values, v);
-                                 r.touched = true;
-                                 edited();
-                             });
+                QSpinBox* spin = makeSpin ? makeSpin(key) : nullptr;
+                if (!spin)
+                    spin = new QSpinBox(owner);
+                spin->setRange(spec->min, spec->max);
+                spin->setSuffix(QString::fromLatin1(spec->suffix));
+                spin->setToolTip(QCoreApplication::translate(context, spec->tip));
+                form->addRow(QCoreApplication::translate(context, spec->title), spin);
+
+                Row row;
+                row.key  = key;
+                row.spin = spin;
+                row.min  = spec->min;
+                row.get  = [member](const Group& v) { return int(qRound(double(v.*member))); };
+                row.set  = [member](Group& v, int x) { v.*member = T(x); };
+                m_rows.push_back(row);
+
+                const size_t index = m_rows.size() - 1;
+                QObject::connect(spin, &QSpinBox::valueChanged, owner,
+                                 [this, index, &values, &populating, edited](int v) {
+                                     if (populating)
+                                         return;
+                                     Row& r = m_rows[index];
+                                     if (restoreSpin(r.spin, r.min))
+                                         r.mixed = false;
+                                     r.set(values, v);
+                                     r.touched = true;
+                                     edited();
+                                 });
+            }
         });
     }
 

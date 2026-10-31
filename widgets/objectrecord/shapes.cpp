@@ -4,7 +4,10 @@
 #include <QObject>
 #include <QtMath>
 
+#include <algorithm>
 #include <array>
+#include <cmath>
+#include <vector>
 
 namespace Geometry {
 
@@ -26,6 +29,10 @@ constexpr qreal k_burstInner     = 0.74;
  *  1/sqrt(2) — the half-axis fraction at which a rectangle inscribes an ellipse.
  */
 constexpr qreal k_invSqrt2       = 0.70710678118654752;
+/**
+ *  Below this tan(θ/2) a polygon's corner folds back on itself, and no arc fits in it.
+ */
+constexpr qreal k_hairpinCorner  = 1e-6;
 /**
  *  Fraction of the width the trapezoid's top edge loses on each side.
  */
@@ -51,6 +58,15 @@ constexpr qreal k_scrollRoll     = 0.10;
  *  How far a scroll's long edges bow inward, as a fraction of its height.
  */
 constexpr qreal k_scrollBow      = 0.06;
+/**
+ *  Samples across each side of the grid a free outline's text area is found on (largestInscribedRect()).
+ *  64 puts the rectangle within a sixty-fourth of the side of the true largest, well inside the padding.
+ */
+constexpr int   k_areaSamples    = 64;
+/**
+ *  Halvings that push each side of that rectangle back out to the outline: a cell to a thousandth.
+ */
+constexpr int   k_growSteps      = 10;
 /**
  *  A caption box's corner radius, in balloon pixels. The speech balloon's is the struct's default
  *  (ShapeProperties::cornerRadius): 0.28 of the default 160 px height, as it was before it was a number.
@@ -105,79 +121,189 @@ QPainterPath ellipsePath(const ShapeProperties&, const QRectF& r)
 }
 
 // ---------------------------------------------------------------------------
-// Shout
+// Polygon
 // ---------------------------------------------------------------------------
 
-//! A star polygon inscribed in \p r — the "shout" silhouette.
-QPainterPath burstPath(const ShapeProperties&, const QRectF& r)
+//! A Polygon's vertices in @p r: its nodes, or the rectangle's corners when it has fewer than three.
+QList<QPointF> polygonPoints(const ShapeProperties& shape, const QRectF& r)
 {
-    const QPointF c  = r.center();
-    const qreal   rx = r.width()  / 2.0;
-    const qreal   ry = r.height() / 2.0;
+    static const QList<QPointF> k_rectangle{{0, 0}, {1, 0}, {1, 1}, {0, 1}};
+    const QList<QPointF>& nodes = shape.nodes.size() >= 3 ? shape.nodes : k_rectangle;
+    QList<QPointF>        out;
+    out.reserve(nodes.size());
+    for (const QPointF& n : nodes)
+        out.append(QPointF(r.left() + n.x() * r.width(), r.top() + n.y() * r.height()));
+    return out;
+}
+
+/**
+ * @brief The nodes joined by straight edges, each corner rounded by an arc of `cornerRadius`.
+ *
+ * A corner's arc is tangent to both its edges, and never reaches past the middle of either, so two
+ * neighbouring corners cannot overlap; a sharp corner therefore rounds less than a wide one. The arc is
+ * one cubic. Self-intersecting nodes are allowed, and filled by the non-zero rule.
+ */
+QPainterPath polygonPath(const ShapeProperties& shape, const QRectF& r)
+{
+    const QList<QPointF> pts    = polygonPoints(shape, r);
+    const qreal          radius = qMax(0.0, shape.cornerRadius);
+    const int            n      = int(pts.size());
 
     QPainterPath p;
-    const int steps = k_burstSpikes * 2;
-    for (int i = 0; i < steps; ++i) {
-        const qreal ang = (2.0 * M_PI * i) / steps - M_PI / 2.0;
-        const qreal k   = (i % 2 == 0) ? 1.0 : k_burstInner;
-        const QPointF pt(c.x() + qCos(ang) * rx * k, c.y() + qSin(ang) * ry * k);
-        if (i == 0) p.moveTo(pt); else p.lineTo(pt);
+    p.setFillRule(Qt::WindingFill);
+    for (int i = 0; i < n; ++i) {
+        const QPointF v  = pts[i];
+        const QPointF a  = pts[(i + n - 1) % n] - v;   // towards the previous vertex
+        const QPointF b  = pts[(i + 1) % n] - v;       // towards the next one
+        const qreal   la = std::hypot(a.x(), a.y());
+        const qreal   lb = std::hypot(b.x(), b.y());
+
+        // How far the arc's ends sit from the vertex: r / tan(θ/2) for a corner of angle θ, no further
+        // than half the shorter edge. Nothing to round at a zero-length edge or a hairpin.
+        qreal tanHalf = 0.0;
+        qreal reach   = 0.0;
+        if (radius > 0.0 && la > 0.0 && lb > 0.0) {
+            const qreal cosine = qBound(-1.0, (a.x() * b.x() + a.y() * b.y()) / (la * lb), 1.0);
+            tanHalf            = std::tan(std::acos(cosine) / 2.0);
+            if (tanHalf > k_hairpinCorner)
+                reach = qMin(radius / tanHalf, qMin(la, lb) / 2.0);
+        }
+        if (reach <= 0.0) {
+            if (i == 0) p.moveTo(v); else p.lineTo(v);
+            continue;
+        }
+
+        const QPointF ua   = a / la;
+        const QPointF ub   = b / lb;
+        const QPointF from = v + ua * reach;
+        const QPointF to   = v + ub * reach;
+        // A circular arc of sweep φ as one cubic: handles 4/3·tan(φ/4)·r long, along the edges.
+        const qreal arcRadius = reach * tanHalf;
+        const qreal sweep     = M_PI - 2.0 * std::atan(tanHalf);
+        const qreal handle    = 4.0 / 3.0 * std::tan(sweep / 4.0) * arcRadius;
+        if (i == 0) p.moveTo(from); else p.lineTo(from);
+        p.cubicTo(from - ua * handle, to - ub * handle, to);
     }
     p.closeSubpath();
     return p;
 }
 
-QRectF burstArea(const ShapeProperties&, const QRectF& body)
+/**
+ * @brief The largest axis-aligned rectangle inside @p outline, found on a grid of samples over @p body.
+ *
+ * For an outline with no formula of its own: each row of samples is filled between the outline's
+ * crossings (by its own fill rule), and the largest rectangle of inside samples wins, the one nearest the
+ * middle among equals; then each side is pushed out to the outline. It stays inside but for a notch
+ * narrower than a cell. The grid is relative to the body, so an outline that scales with the box gives a
+ * rectangle that scales with it too, which is what the box fit's search relies on. It returns an area
+ * and places nothing.
+ *
+ * ponytail: a grid, not the exact polygon answer, so a rectangle of another proportion that is a little
+ * larger can be missed by under a cell; the exact one is a polygon algorithm, if that ever shows.
+ */
+QRectF largestInscribedRect(const QPainterPath& outline, const QRectF& body)
 {
-    // A star's usable interior is its *inner* radius, not its bounding box — inset accordingly, or the
-    // text runs out between the spikes.
-    const qreal kx = body.width()  * (1.0 - k_burstInner * 0.92) / 2.0;
-    const qreal ky = body.height() * (1.0 - k_burstInner * 0.92) / 2.0;
-    return body.adjusted(kx, ky, -kx, -ky);
+    constexpr int n  = k_areaSamples;
+    const qreal   sx = body.width() / n;
+    const qreal   sy = body.height() / n;
+    const auto    at = [&](int col, int row) {
+        return QPointF(body.left() + (col + 0.5) * sx, body.top() + (row + 0.5) * sy);
+    };
+
+    // Which samples are inside: each row against the outline's edges.
+    const QList<QPolygonF> rings   = outline.toSubpathPolygons();
+    const bool             winding = outline.fillRule() == Qt::WindingFill;
+    std::array<std::array<bool, n>, n> inside{};
+    std::vector<std::pair<qreal, int>> crossings;
+    for (int row = 0; row < n; ++row) {
+        const qreal y = at(0, row).y();
+        crossings.clear();
+        for (const QPolygonF& ring : rings) {
+            for (qsizetype k = 0; k < ring.size(); ++k) {
+                const QPointF e0 = ring[k];
+                const QPointF e1 = ring[(k + 1) % ring.size()];
+                if ((e0.y() <= y) == (e1.y() <= y))
+                    continue;
+                const qreal x = e0.x() + (y - e0.y()) * (e1.x() - e0.x()) / (e1.y() - e0.y());
+                crossings.push_back({x, e1.y() > e0.y() ? 1 : -1});
+            }
+        }
+        std::sort(crossings.begin(), crossings.end());
+        size_t next  = 0;
+        int    count = 0;
+        for (int col = 0; col < n; ++col) {
+            const qreal x = at(col, row).x();
+            for (; next < crossings.size() && crossings[next].first < x; ++next)
+                count += winding ? crossings[next].second : 1;
+            inside[row][col] = winding ? count != 0 : (count % 2) != 0;
+        }
+    }
+
+    // The largest rectangle of inside samples: each row is the floor of a histogram of the columns'
+    // runs of inside samples above it, and a histogram's largest rectangle is one pass with a stack.
+    std::array<int, n> run{};
+    int                bestArea = 0;
+    qreal              bestOff  = 0.0;
+    QRect              best;
+    const qreal        middle   = (n - 1) / 2.0;
+    std::vector<int>   stack;
+    for (int row = 0; row < n; ++row) {
+        for (int col = 0; col < n; ++col)
+            run[col] = inside[row][col] ? run[col] + 1 : 0;
+        stack.clear();
+        for (int col = 0; col <= n; ++col) {
+            const int h = col < n ? run[col] : 0;
+            while (!stack.empty() && run[stack.back()] >= h) {
+                const int height = run[stack.back()];
+                stack.pop_back();
+                const int left = stack.empty() ? 0 : stack.back() + 1;
+                const int area = height * (col - left);
+                if (area == 0 || area < bestArea)
+                    continue;
+                // Among equals, the one whose middle is nearest the balloon's.
+                const qreal cx  = (left + col - 1) / 2.0 - middle;
+                const qreal cy  = (2 * row - height + 1) / 2.0 - middle;
+                const qreal off = std::hypot(cx, cy);
+                if (area > bestArea || off < bestOff) {
+                    bestArea = area;
+                    bestOff  = off;
+                    best     = QRect(left, row - height + 1, col - left, height);
+                }
+            }
+            stack.push_back(col);
+        }
+    }
+    if (bestArea == 0)
+        return QRectF(body.center(), QSizeF(0, 0));
+
+    // The grid's rectangle runs between sample centres, so it stops up to a cell short of the outline
+    // on every side. Each side is pushed back out, as far as the outline lets it, within that cell.
+    // Asked of the even-odd copy: for a non-zero path, QPainterPath::contains(QRectF) answers a
+    // rectangle that crosses the outline by sampling a few points, which let a side through a notch.
+    QPainterPath strict = outline;
+    strict.setFillRule(Qt::OddEvenFill);
+    QRectF rect(at(best.left(), best.top()), at(best.right(), best.bottom()));
+    const auto grow = [&](auto moveSide, qreal cell) {
+        qreal fits = 0.0;
+        qreal past = cell;
+        for (int i = 0; i < k_growSteps; ++i) {
+            const qreal mid   = (fits + past) / 2.0;
+            QRectF      trial = rect;
+            moveSide(trial, mid);
+            (strict.contains(trial) ? fits : past) = mid;
+        }
+        moveSide(rect, fits);
+    };
+    grow([](QRectF& r, qreal d) { r.setLeft(r.left() - d); }, sx);
+    grow([](QRectF& r, qreal d) { r.setRight(r.right() + d); }, sx);
+    grow([](QRectF& r, qreal d) { r.setTop(r.top() - d); }, sy);
+    grow([](QRectF& r, qreal d) { r.setBottom(r.bottom() + d); }, sy);
+    return rect;
 }
 
-// ---------------------------------------------------------------------------
-// Diamond, Trapezoid
-// ---------------------------------------------------------------------------
-
-//! A rhombus with its vertices at the midpoints of \p r's edges.
-QPainterPath diamondPath(const ShapeProperties&, const QRectF& r)
+QRectF polygonArea(const ShapeProperties& shape, const QRectF& body)
 {
-    const QPointF c = r.center();
-    QPainterPath p;
-    p.moveTo(c.x(), r.top());
-    p.lineTo(r.right(), c.y());
-    p.lineTo(c.x(), r.bottom());
-    p.lineTo(r.left(), c.y());
-    p.closeSubpath();
-    return p;
-}
-
-QRectF diamondArea(const ShapeProperties&, const QRectF& body)
-{
-    // The largest rectangle inside a rhombus is half its width and half its height, centred.
-    return body.adjusted(body.width() / 4.0, body.height() / 4.0, -body.width() / 4.0, -body.height() / 4.0);
-}
-
-//! A trapezoid: full width at the bottom, narrowed at the top. Reads as a caption plate seen in
-//! perspective, which is what it is usually for.
-QPainterPath trapezoidPath(const ShapeProperties&, const QRectF& r)
-{
-    const qreal inset = r.width() * k_trapezoidSlant;
-    QPainterPath p;
-    p.moveTo(r.left() + inset, r.top());
-    p.lineTo(r.right() - inset, r.top());
-    p.lineTo(r.right(), r.bottom());
-    p.lineTo(r.left(), r.bottom());
-    p.closeSubpath();
-    return p;
-}
-
-QRectF trapezoidArea(const ShapeProperties&, const QRectF& body)
-{
-    // Narrowest at the top, so the top width is the only one safe for every line.
-    const qreal inset = body.width() * k_trapezoidSlant;
-    return body.adjusted(inset, 0, -inset, 0);
+    return largestInscribedRect(polygonPath(shape, body), body);
 }
 
 // ---------------------------------------------------------------------------
@@ -228,7 +354,7 @@ QPainterPath scrollPath(const ShapeProperties& shape, const QRectF& r)
     const qreal  bow  = r.height() * k_scrollBow;
     const QRectF body = r.adjusted(roll, 0, -roll, 0);
     if (body.width() <= 1.0)
-        return trapezoidPath(shape, r);   // too narrow to roll: fall back to something still drawable
+        return boxPath(shape, r);   // too narrow to roll: fall back to something still drawable
 
     QPainterPath p;
     p.moveTo(body.left(), body.top());
@@ -248,27 +374,6 @@ QRectF scrollArea(const ShapeProperties&, const QRectF& body)
     return body.adjusted(roll, bow, -roll, -bow);
 }
 
-//! A ribbon with a V notched into each end.
-QPainterPath bannerPath(const ShapeProperties&, const QRectF& r)
-{
-    const qreal n = qMin(r.width() * k_bannerNotch, r.width() / 3.0);
-    QPainterPath p;
-    p.moveTo(r.left(), r.top());
-    p.lineTo(r.right(), r.top());
-    p.lineTo(r.right() - n, r.center().y());
-    p.lineTo(r.right(), r.bottom());
-    p.lineTo(r.left(), r.bottom());
-    p.lineTo(r.left() + n, r.center().y());
-    p.closeSubpath();
-    return p;
-}
-
-QRectF bannerArea(const ShapeProperties&, const QRectF& body)
-{
-    const qreal n = qMin(body.width() * k_bannerNotch, body.width() / 3.0);
-    return body.adjusted(n, 0, -n, 0);
-}
-
 // ---------------------------------------------------------------------------
 // The table
 // ---------------------------------------------------------------------------
@@ -281,13 +386,10 @@ using Kind = ShapeProperties::Kind;
 const std::array<ShapeInfo, int(ShapeProperties::k_lastKind) + 1> k_shapes{{
     {Kind::None,      "none",      QT_TRANSLATE_NOOP("QObject", "Text only — no balloon"), false, false, nullptr,       wholeArea,          0},
     {Kind::Box,       "box",       QT_TRANSLATE_NOOP("QObject", "Box"),                    true,  true,  boxPath,       boxArea,            50},
-    {Kind::Shout,     "shout",     QT_TRANSLATE_NOOP("QObject", "Shout"),                  true,  false, burstPath,     burstArea,          0},
     {Kind::Ellipse,   "ellipse",   QT_TRANSLATE_NOOP("QObject", "Round balloon"),          true,  false, ellipsePath,   inscribedInEllipse, 0},
-    {Kind::Diamond,   "diamond",   QT_TRANSLATE_NOOP("QObject", "Diamond"),                false, false, diamondPath,   diamondArea,        0},
-    {Kind::Trapezoid, "trapezoid", QT_TRANSLATE_NOOP("QObject", "Caption plate"),          false, false, trapezoidPath, trapezoidArea,      50},
+    {Kind::Polygon,   "polygon",   QT_TRANSLATE_NOOP("QObject", "Polygon"),                false, true,  polygonPath,   polygonArea,        0},
     {Kind::Thought,   "thought",   QT_TRANSLATE_NOOP("QObject", "Thought balloon"),        true,  false, thoughtPath,   thoughtArea,        0},
     {Kind::Scroll,    "scroll",    QT_TRANSLATE_NOOP("QObject", "Scroll"),                 false, false, scrollPath,    scrollArea,         50},
-    {Kind::Banner,    "banner",    QT_TRANSLATE_NOOP("QObject", "Banner"),                 false, false, bannerPath,    bannerArea,         100},
 }};
 
 //! A kind with every parameter at its default — the template of a kind that has no parameters.
@@ -304,6 +406,32 @@ ShapeProperties box(qreal radius)
     ShapeProperties s = plain(Kind::Box);
     s.cornerRadius    = radius;
     return s;
+}
+
+/**
+ * @brief A sharp-cornered Polygon through @p nodes, rounded to the decimals a node is saved with, so a
+ *        placed template reads back from its file as itself.
+ */
+ShapeProperties polygon(const QList<QPointF>& nodes)
+{
+    const qreal     scale = std::pow(10.0, ShapeProperties::k_nodeDecimals);
+    ShapeProperties s     = plain(Kind::Polygon);
+    s.cornerRadius        = 0.0;
+    for (const QPointF& n : nodes)
+        s.nodes.append(QPointF(qRound(n.x() * scale) / scale, qRound(n.y() * scale) / scale));
+    return s;
+}
+
+//! A star of @p spikes points, its inner vertices at @p inner of the outer radius, the first one on top.
+QList<QPointF> starNodes(int spikes, qreal inner)
+{
+    QList<QPointF> out;
+    for (int i = 0; i < spikes * 2; ++i) {
+        const qreal ang = (M_PI * i) / spikes - M_PI / 2.0;
+        const qreal k   = (i % 2 == 0) ? 0.5 : 0.5 * inner;
+        out.append(QPointF(0.5 + qCos(ang) * k, 0.5 + qSin(ang) * k));
+    }
+    return out;
 }
 
 } // namespace
@@ -326,11 +454,17 @@ const QList<ShapeTemplate>& shapeTemplates()
         {"speech",    QT_TRANSLATE_NOOP("QObject", "Speech balloon"),  plain(Kind::Box),       true},
         {"ellipse",   QT_TRANSLATE_NOOP("QObject", "Round balloon"),   plain(Kind::Ellipse),   true},
         {"thought",   QT_TRANSLATE_NOOP("QObject", "Thought balloon"), plain(Kind::Thought),   true},
-        {"shout",     QT_TRANSLATE_NOOP("QObject", "Shout"),           plain(Kind::Shout),     true},
+        {"shout",     QT_TRANSLATE_NOOP("QObject", "Shout"),
+         polygon(starNodes(k_burstSpikes, k_burstInner)), true},
         {"caption",   QT_TRANSLATE_NOOP("QObject", "Caption box"),     box(k_captionCorner),   false},
-        {"trapezoid", QT_TRANSLATE_NOOP("QObject", "Caption plate"),   plain(Kind::Trapezoid), false},
-        {"diamond",   QT_TRANSLATE_NOOP("QObject", "Diamond"),         plain(Kind::Diamond),   false},
-        {"banner",    QT_TRANSLATE_NOOP("QObject", "Banner"),          plain(Kind::Banner),    false},
+        // A caption plate seen in perspective: full width at the bottom, narrowed at the top.
+        {"trapezoid", QT_TRANSLATE_NOOP("QObject", "Caption plate"),
+         polygon({{k_trapezoidSlant, 0}, {1 - k_trapezoidSlant, 0}, {1, 1}, {0, 1}}), false},
+        {"diamond",   QT_TRANSLATE_NOOP("QObject", "Diamond"),
+         polygon({{0.5, 0}, {1, 0.5}, {0.5, 1}, {0, 0.5}}), false},
+        // A ribbon with a V notched into each end.
+        {"banner",    QT_TRANSLATE_NOOP("QObject", "Banner"),
+         polygon({{0, 0}, {1, 0}, {1 - k_bannerNotch, 0.5}, {1, 1}, {0, 1}, {k_bannerNotch, 0.5}}), false},
         {"scroll",    QT_TRANSLATE_NOOP("QObject", "Scroll"),          plain(Kind::Scroll),    false},
     };
     return templates;

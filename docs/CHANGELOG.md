@@ -99,6 +99,13 @@
     included, and only picking a tile adds or drops the tail, so turning a caption's corners does not
     give it one. The lettering's room now stays inside the rounded corners. Files from before name
     `speech` and `caption`, which load as a default Box.
+  - **Shout, diamond, caption plate and banner are one shape, the Polygon**, its corners rounded by the
+    same **Corner radius** row. Their tiles stay as four ready-made starts. The lettering's room in a
+    polygon is worked out from the outline itself, as the largest rectangle inside it, so in a shout
+    it no longer reaches between the spikes. A tail leaves a balloon from the edge nearest its tip, on a
+    shape with a notch too. *Convert to ▸ Balloon*, and a preset applied while the Text tool is armed,
+    carry the whole shape (its corners and its points), not only which kind it is. Files from before
+    naming `shout`, `diamond`, `trapezoid` or `banner` load as a default Box.
   - **Fit to text** gives the smallest balloon that holds the lettering, on **both** axes, floored so a
     short line cannot collapse the shape. When the lettering does not fit — the box dragged too small, or
     a line typed too long — the selected object's text area is **outlined in red**; the overflow is

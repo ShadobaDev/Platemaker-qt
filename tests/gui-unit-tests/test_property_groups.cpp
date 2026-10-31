@@ -32,6 +32,7 @@ ObjectRecord loadedRecord()
     ObjectRecord a;
     a.shape.kind       = ObjectRecord::Shape::Thought;
     a.shape.cornerRadius = 33.0;
+    a.shape.nodes      = {{0.1, 0.2}, {0.9, 0.15}, {0.55, 0.95}};
     a.box              = QSize(321, 123);
 
     Tail t;
@@ -82,7 +83,7 @@ ObjectRecord loadedRecord()
 // StyleProperties::kind) passes unnoticed; counting members needs C++20, or reflection.
 // ---------------------------------------------------------------------------
 
-struct ShapeMirror { ShapeProperties::Kind kind; qreal cornerRadius; };
+struct ShapeMirror { ShapeProperties::Kind kind; qreal cornerRadius; QList<QPointF> nodes; };
 static_assert(sizeof(ShapeProperties) == sizeof(ShapeMirror),
               "ShapeProperties grew a field: place it (see above), then mirror it");
 
@@ -136,6 +137,7 @@ void expectUntouched(Group applied, const ObjectRecord& before, const ObjectReco
     if (applied != Group::Shape) {
         EXPECT_EQ(after.shape.kind, before.shape.kind);
         EXPECT_DOUBLE_EQ(after.shape.cornerRadius, before.shape.cornerRadius);
+        EXPECT_TRUE(Fields::same(after.shape.nodes, before.shape.nodes));
     }
 
     if (applied != Group::Skin) {
@@ -209,8 +211,9 @@ TEST(PropertyGroupOwnership, Shape)
     ObjectRecord       after  = before;
 
     ShapeProperties s;
-    s.kind         = ObjectRecord::Shape::Banner;
+    s.kind         = ObjectRecord::Shape::Polygon;
     s.cornerRadius = 12.0;
+    s.nodes        = {{0, 0}, {1, 0.5}, {0, 1}};
     s.applyTo(after);
 
     EXPECT_EQ(after.shape, s);
@@ -404,8 +407,9 @@ TEST(PropertyGroupPersistence, RoundTrips)
  * fallback: a balloon appended after Banner came back from every file as a speech balloon. RoundTrips
  * above tries one shape, which is how that went unseen.
  *
- * The SVG is not written here: writing one measures its lettering, which needs the QGuiApplication
- * this target does not have (see the import tests below). The name is what both readers share.
+ * The kinds go through the name both readers share. The templates are written to the SVG as well, with
+ * no lettering: writing lettering measures it, which needs the QGuiApplication this target does not
+ * have (see the import tests below).
  */
 TEST(PropertyGroupPersistence, EveryShapeAndStyleRoundTrips)
 {
@@ -416,6 +420,17 @@ TEST(PropertyGroupPersistence, EveryShapeAndStyleRoundTrips)
         ObjectRecord a   = loadedRecord();
         a.shape.kind = s;
         EXPECT_EQ(ObjectRecord::fromJson(a.toJson()), a) << shapeName(s);
+    }
+
+    // Every template, from the SVG too (with no lettering, which would need a font): a placed one must
+    // read back as itself, or its tile stops being current once the file is reopened.
+    for (const Geometry::ShapeTemplate& t : Geometry::shapeTemplates()) {
+        ObjectRecord a = loadedRecord();
+        a.shape        = t.shape;
+        a.text.body.clear();
+        bool ok = false;
+        EXPECT_EQ(Svg::read(Svg::write(a), &ok).shape, t.shape) << t.id;
+        EXPECT_EQ(ObjectRecord::fromJson(a.toJson()), a) << t.id;
     }
 
     for (int i = 0; i <= int(StyleProperties::k_lastKind); ++i) {
@@ -580,6 +595,63 @@ TEST(Style, AutoStretchIsTheShapes)
         a.style.flashCoreStretch   = own;
         EXPECT_TRUE(autoInk == Geometry::ink(a, Geometry::silhouette(a))) << shapeName(a.shape.kind);
     }
+}
+
+/**
+ * @brief A tail leaves a concave outline from the crossing nearest its tip (PLAN-L B12).
+ *
+ * A box with a notch cut down into its top: the line from the centre to a tip up and to the left runs
+ * through the notch, back into the left prong, and out of the prong's top. The tail is seen to leave
+ * the prong, so it must start there, and the notch it passed over stays empty. A search outwards from the
+ * centre stopped at the notch's floor and drew the tail across the gap.
+ */
+TEST(Tails, AConcaveOutlineIsLeftNearestTheTip)
+{
+    ObjectRecord a;
+    a.shape.kind         = ObjectRecord::Shape::Polygon;
+    a.shape.cornerRadius = 0.0;
+    a.shape.nodes = {{0, 0}, {0.3, 0}, {0.3, 0.4}, {0.7, 0.4}, {0.7, 0}, {1, 0}, {1, 1}, {0, 1}};
+    a.box              = QSize(200, 200);
+    a.skin.strokeWidth = 0;   // the balloon is then the box, and the nodes are these pixels
+    Tail t;
+    t.tip         = QPointF(-40, -200);
+    a.tails.items = {t};
+
+    ASSERT_TRUE(Geometry::tailsDrawn(a).value(0));
+    const QPointF inTheNotch(72, 40);   // on the line, between the notch's floor and the prong
+    ASSERT_FALSE(Geometry::outlineOf(a, Geometry::balloonRect(a)).contains(inTheNotch));
+    EXPECT_FALSE(Geometry::silhouette(a).contains(inTheNotch));
+    EXPECT_TRUE(Geometry::silhouette(a).contains(QPointF(16, -80)));   // ...and the tail is there, on its line
+}
+
+/**
+ * @brief A Polygon's corner radius rounds as a Box's does, and never past half an edge.
+ *
+ * A square Polygon and a Box of the same radius are the same outline: a press in a corner falls outside
+ * both, and one just inside the arc inside both. A radius past what the edges allow stops at half the
+ * shorter one, so the outline stays in its box.
+ */
+TEST(Shapes, APolygonsCornersRoundAsABoxsDo)
+{
+    ObjectRecord box;
+    box.shape.kind         = ObjectRecord::Shape::Box;
+    box.shape.cornerRadius = 30.0;
+    box.box                = QSize(200, 100);
+    box.skin.strokeWidth   = 0;
+    ObjectRecord square = box;
+    square.shape.kind   = ObjectRecord::Shape::Polygon;
+    square.shape.nodes  = {{0, 0}, {1, 0}, {1, 1}, {0, 1}};
+
+    const QRectF       body = Geometry::balloonRect(box);
+    const QPainterPath a    = Geometry::outlineOf(box, body);
+    const QPainterPath b    = Geometry::outlineOf(square, body);
+    for (const QPointF& p : {QPointF(3, 3), QPointF(12, 12), QPointF(197, 97), QPointF(100, 1), QPointF(1, 50)})
+        EXPECT_EQ(a.contains(p), b.contains(p)) << p.x() << "," << p.y();
+    EXPECT_FALSE(b.contains(QPointF(3, 3)));   // the corner is cut, not bulged
+
+    square.shape.cornerRadius = 1000.0;
+    const QRectF drawn = Geometry::outlineOf(square, body).boundingRect();
+    EXPECT_TRUE(body.adjusted(-0.01, -0.01, 0.01, 0.01).contains(drawn));
 }
 
 // ---------------------------------------------------------------------------
@@ -825,6 +897,7 @@ void bump(bool& v) { v = !v; }
 void bump(qreal& v) { v += 0.25; }
 void bump(QString& v) { v += QStringLiteral("x"); }
 void bump(QColor& v) { v = QColor(v.red() ^ 0x55, v.green() ^ 0x55, v.blue() ^ 0x55, v.alpha()); }
+void bump(QList<QPointF>& v) { v.append(QPointF(0.25, 0.75)); }
 void bump(ObjectRecord::Shape& v)
 {
     v = static_cast<ObjectRecord::Shape>((int(v) + 1) % (int(ShapeProperties::k_lastKind) + 1));

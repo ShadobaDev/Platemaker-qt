@@ -107,7 +107,11 @@ ObjectMenu::ObjectMenu(ObjectController& objects, const StripLayout& layout, Pre
     m_actToText   = m_convertMenu->addAction(tr("Text"));
     m_actToText->setCheckable(true);
     connect(m_actToText, &QAction::triggered, this,
-            [this] { m_objects.convertSelectionTo(ObjectRecord::Shape::None); });
+            [this] {
+                ShapeProperties text;
+                text.kind = ObjectRecord::Shape::None;
+                m_objects.convertSelectionTo(text);
+            });
     m_actToBalloon = m_convertMenu->addAction(tr("Balloon"));
     m_actToBalloon->setCheckable(true);
     // The silhouette it arrives at is the one the tool's options are set to — the same source *Apply

@@ -86,8 +86,9 @@ the speech balloon and the caption box are two templates of one kind, the Box. *
 existing kind can describe is one template row**, and nothing else.
 
 A new kind gets move, resize, tails, lettering, undo, presets, the tiles and the row glyphs for free. Copy
-**Thought** (`thoughtPath()`, `thoughtArea()`), or **Box** (`boxPath()`, `boxArea()`) for one with a
-parameter.
+**Thought** (`thoughtPath()`, `thoughtArea()`), **Box** (`boxPath()`, `boxArea()`) for one with a
+parameter, or **Polygon** (`polygonPath()`, `polygonArea()`) for one with no formula for its text area:
+`largestInscribedRect()` finds it from the outline.
 
 1. `widgets/objectrecord/propertygroups.hpp`: add to `Kind` (persisted by name; the strip editor is
    unreleased, so a kind may still be renamed or merged) and move `k_lastKind`.
@@ -107,9 +108,11 @@ parameter.
 SVG is accepted with `PLATEMAKER_UPDATE_GOLDEN=1` and its diff reviewed. The table test also checks that
 every template is a balloon, is found by `templateOf()` as itself, and that every kind has one.
 
-**Not caught by any test:** the outline must be **star-shaped around its centre** (a tail leaves the
-balloon along a ray from the centre); every constant is named; noise uses `styleSeed` and nothing else
-(`topUpStyleSeed()` mints it; a *Re-roll* entry on the object menu is planned, not built).
+**Not caught by any test:** every constant is named; noise uses `styleSeed` and nothing else
+(`topUpStyleSeed()` mints it; a *Re-roll* entry on the object menu is planned, not built). Any outline
+takes a tail, concave included: the tail walks from its tip towards the centre and leaves from the first
+edge it meets (`Tails.AConcaveOutlineIsLeftNearestTheTip`); only a balloon whose centre lies outside it
+gets none.
 
 **With parameters of its own** (the Box's `cornerRadius` is the worked example): each parameter is a
 member of `ShapeProperties` and **one line in its `fields()` list** — the key it is saved under and the
@@ -119,7 +122,11 @@ default as the fallback when a file lacks it. Then a row in `shapeeditor.cpp`, t
 spec table, shown only for the kinds that read it; `loadedRecord()` and `expectUntouched()` in the test,
 and the test's mirror struct, whose `static_assert` stops the build until the member is placed. `Fields.EveryFieldIsComparedAndSaved` then checks the new field on its own.
 A value of a type no group holds yet needs an overload in each of the three walks (`Fields::same()`,
-`toJsonValue()`/`fromJsonValue()`, `attrValue()`/`fromAttr()`).
+`toJsonValue()`/`fromJsonValue()`, `attrValue()`/`fromAttr()`) and a `bump()` in the test. The
+Polygon's `nodes` is the worked example: a list, relative to the box, saved at full precision in the JSON
+and at `k_nodeDecimals` in the SVG, so a template's nodes are rounded to those decimals and a placed one
+reads back as itself. `FieldRows` skips a field that is not a number at compile time, so a list never
+becomes a row.
 
 ### A line style
 

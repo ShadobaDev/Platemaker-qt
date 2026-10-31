@@ -21,11 +21,11 @@ namespace {
 //! Decimal places for path coordinates. Two is well under a rendered pixel and keeps files small.
 constexpr int k_precision = 2;
 
-QString num(qreal v)
+QString num(qreal v, int precision = k_precision)
 {
     // 'f' then trim, rather than 'g': 'g' switches to scientific notation for small values and SVG has
     // no such syntax, so a coordinate like 1e-05 would silently become an invalid path.
-    QString s = QString::number(v, 'f', k_precision);
+    QString s = QString::number(v, 'f', precision);
     if (s.contains(QLatin1Char('.'))) {
         while (s.endsWith(QLatin1Char('0')))
             s.chop(1);
@@ -212,6 +212,16 @@ QString attrValue(const QString& v) { return v; }
 QString attrValue(const QColor& v) { return v.name(QColor::HexArgb); }
 QString attrValue(ObjectRecord::Shape v) { return QString::fromLatin1(shapeName(v)); }
 QString attrValue(ObjectRecord::Style v) { return QString::fromLatin1(styleName(v)); }
+//! Nodes as "x,y" pairs joined by ";", as the tails are.
+QString attrValue(const QList<QPointF>& v)
+{
+    QStringList parts;
+    parts.reserve(v.size());
+    for (const QPointF& p : v)
+        parts << num(p.x(), ShapeProperties::k_nodeDecimals) + QLatin1Char(',')
+                     + num(p.y(), ShapeProperties::k_nodeDecimals);
+    return parts.join(QLatin1Char(';'));
+}
 
 void fromAttr(QStringView s, int& v) { v = intOf(s, v); }
 void fromAttr(QStringView s, bool& v) { v = intOf(s, v ? 1 : 0) != 0; }
@@ -232,6 +242,15 @@ void fromAttr(QStringView s, QColor& v)
 // An unknown or missing name reads as the reader's own fallback (Box, Clean).
 void fromAttr(QStringView s, ObjectRecord::Shape& v) { v = shapeFromName(s); }
 void fromAttr(QStringView s, ObjectRecord::Style& v) { v = styleFromName(s); }
+void fromAttr(QStringView s, QList<QPointF>& v)
+{
+    v.clear();
+    for (QStringView g : s.split(QLatin1Char(';'), Qt::SkipEmptyParts)) {
+        const auto xy = g.split(QLatin1Char(','));
+        if (xy.size() == 2)
+            v.append(QPointF(xy[0].toDouble(), xy[1].toDouble()));
+    }
+}
 
 //! Every field of \p g as a `pm:` attribute, under its key.
 template <class Group>

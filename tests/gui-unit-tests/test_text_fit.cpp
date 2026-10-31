@@ -6,26 +6,41 @@
 
 #include "objectrecord.hpp"
 #include "geometry.hpp"
+#include "shapes.hpp"
 
 namespace {
 
 //! The grips' own minimum, which a fit does not go below either.
 constexpr int k_floor = 40;
 
-ObjectRecord withShape(ObjectRecord::Shape shape, int padding = 8)
+ObjectRecord withShape(const ShapeProperties& shape, int padding = 8)
 {
     ObjectRecord a;
-    a.shape.kind   = shape;
+    a.shape        = shape;
     a.text.padding = padding;
     a.box          = QSize(500, 500);   // a fit's starting point must not matter
     return a;
 }
 
-QList<ObjectRecord::Shape> everyKind()
+ObjectRecord withShape(ObjectRecord::Shape kind, int padding = 8)
 {
-    QList<ObjectRecord::Shape> kinds{ObjectRecord::Shape::None};
-    kinds += shapeOrder();
-    return kinds;
+    ShapeProperties shape;
+    shape.kind = kind;
+    return withShape(shape, padding);
+}
+
+//! Every outline the picker offers, by its template's id, and no balloon at all.
+QList<QPair<const char*, ShapeProperties>> everyShape(bool withNone = true)
+{
+    QList<QPair<const char*, ShapeProperties>> out;
+    if (withNone) {
+        ShapeProperties none;
+        none.kind = ObjectRecord::Shape::None;
+        out.append({"none", none});
+    }
+    for (const Geometry::ShapeTemplate& t : Geometry::shapeTemplates())
+        out.append({t.id, t.shape});
+    return out;
 }
 
 //! Blocks of lettering: one wide line, a tall narrow stack, a single short word.
@@ -35,11 +50,11 @@ const QList<QSizeF> k_blocks{QSizeF(200, 36), QSizeF(80, 150), QSizeF(12, 20)};
 
 TEST(TextFit, TheFittedBoxHoldsTheBlockInEveryShape)
 {
-    for (const ObjectRecord::Shape shape : everyKind()) {
+    for (const auto& [id, shape] : everyShape()) {
         for (const QSizeF& block : k_blocks) {
             ObjectRecord a = withShape(shape);
             a.box          = Geometry::fitBoxFor(a, block);
-            EXPECT_TRUE(Geometry::fits(a, block)) << shapeName(shape) << " " << block.width() << "x" << block.height();
+            EXPECT_TRUE(Geometry::fits(a, block)) << id << " " << block.width() << "x" << block.height();
         }
     }
 }
@@ -47,7 +62,7 @@ TEST(TextFit, TheFittedBoxHoldsTheBlockInEveryShape)
 TEST(TextFit, TheFitIsTightOnBothAxes)
 {
     // One pixel less on either side and the block no longer fits — unless that side is at the floor.
-    for (const ObjectRecord::Shape shape : everyKind()) {
+    for (const auto& [id, shape] : everyShape()) {
         for (const QSizeF& block : k_blocks) {
             ObjectRecord a = withShape(shape);
             const QSize  fit = Geometry::fitBoxFor(a, block);
@@ -55,12 +70,12 @@ TEST(TextFit, TheFitIsTightOnBothAxes)
             ObjectRecord narrower = a;
             narrower.box = QSize(fit.width() - 1, fit.height());
             if (fit.width() > k_floor)
-                EXPECT_FALSE(Geometry::fits(narrower, block)) << shapeName(shape) << " width";
+                EXPECT_FALSE(Geometry::fits(narrower, block)) << id << " width";
 
             ObjectRecord shorter = a;
             shorter.box = QSize(fit.width(), fit.height() - 1);
             if (fit.height() > k_floor)
-                EXPECT_FALSE(Geometry::fits(shorter, block)) << shapeName(shape) << " height";
+                EXPECT_FALSE(Geometry::fits(shorter, block)) << id << " height";
         }
     }
 }
@@ -76,10 +91,10 @@ TEST(TextFit, TheStartingBoxDoesNotMatter)
 
 TEST(TextFit, NeitherSideGoesBelowTheFloor)
 {
-    for (const ObjectRecord::Shape shape : everyKind()) {
+    for (const auto& [id, shape] : everyShape()) {
         const QSize fit = Geometry::fitBoxFor(withShape(shape), QSizeF(3, 3));
-        EXPECT_GE(fit.width(), k_floor) << shapeName(shape);
-        EXPECT_GE(fit.height(), k_floor) << shapeName(shape);
+        EXPECT_GE(fit.width(), k_floor) << id;
+        EXPECT_GE(fit.height(), k_floor) << id;
     }
 }
 
@@ -170,11 +185,11 @@ TEST(TextFit, ConvertingFitsTheLetteringInEveryShape)
     const QSizeF block(180, 72);
     ObjectRecord text = withShape(ObjectRecord::Shape::None);
     text.box          = Geometry::fitBoxFor(text, block);
-    for (const ObjectRecord::Shape shape : shapeOrder()) {
+    for (const auto& [id, shape] : everyShape(/*withNone=*/false)) {
         ObjectRecord balloon = text;
-        balloon.shape.kind   = shape;
-        EXPECT_FALSE(Geometry::fits(balloon, block)) << shapeName(shape) << " (the old behaviour clipped)";
+        balloon.shape        = shape;
+        EXPECT_FALSE(Geometry::fits(balloon, block)) << id << " (the old behaviour clipped)";
         balloon.box = Geometry::fitBoxFor(balloon, block);
-        EXPECT_TRUE(Geometry::fits(balloon, block)) << shapeName(shape);
+        EXPECT_TRUE(Geometry::fits(balloon, block)) << id;
     }
 }

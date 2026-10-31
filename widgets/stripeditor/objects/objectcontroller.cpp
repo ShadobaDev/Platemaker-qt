@@ -1201,13 +1201,14 @@ void ObjectController::applyGroupToSelection(PropertyGroup group)
         emit boundToRecord(next.first());
 }
 
-ObjectRecord::Shape ObjectController::toolBalloonShape() const
+ShapeProperties ObjectController::toolBalloonShape() const
 {
-    return m_toolDefaults.balloonShape ? m_toolDefaults.balloonShape() : ObjectRecord::Shape::Box;
+    return m_toolDefaults.balloonShape ? m_toolDefaults.balloonShape() : ShapeProperties();
 }
 
-void ObjectController::convertSelectionTo(ObjectRecord::Shape kind)
+void ObjectController::convertSelectionTo(const ShapeProperties& shape)
 {
+    const ObjectRecord::Shape kind = shape.kind;
     if (m_selectedOverlays.isEmpty())
         return;
 
@@ -1230,9 +1231,13 @@ void ObjectController::convertSelectionTo(ObjectRecord::Shape kind)
         if (authored && hasSilhouette != toSilhouette) {
             if (!toSilhouette)
                 hidden += static_cast<int>(each.tails.items.size());
-            // The kind alone, on purpose: the rest of the shape group stays in the record, as the tails
-            // do, so converting back brings a shape's own settings back with it.
-            each.shape.kind = kind;
+            // To a balloon, the whole shape TOOL OPTIONS shows: a kind alone would arrive without the
+            // nodes and the radius that make it the shape the tiles say. To text, the kind alone: the
+            // rest of the group stays in the record unread, as the tails do.
+            if (toSilhouette)
+                each.shape = shape;
+            else
+                each.shape.kind = kind;
             // ...and a box that fits the lettering in its new kind. A text object's box is its words' own
             // size, which a balloon's smaller text area could not hold — the words were clipped. Fitted
             // rather than only grown, both ways: converting back gives the words' own box again. Where

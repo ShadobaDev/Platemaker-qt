@@ -12,14 +12,17 @@
  * the SVG, and it may differ from the member's name (`fontFamily` for `TextProperties::family`): the list
  * is where that mapping is written down. **A key never changes** once a file carries it.
  *
- * What is not a group of scalars stays written by hand: the box, the tails, the artwork's file name and
- * the style seed (ObjectRecord's own fields).
+ * What is not a group of fields stays written by hand: the box, the tails, the artwork's file name and
+ * the style seed (ObjectRecord's own fields). A field may be a list (a Polygon's nodes), with one
+ * overload of its own in each walk.
  */
 
 #ifndef FIELDS_HPP
 #define FIELDS_HPP
 
 #include <QColor>
+#include <QList>
+#include <QPointF>
 #include <QString>
 #include <QtGlobal>
 
@@ -34,6 +37,15 @@ inline bool same(bool a, bool b) { return a == b; }
 inline bool same(qreal a, qreal b) { return qFuzzyCompare(1.0 + a, 1.0 + b); }
 inline bool same(const QString& a, const QString& b) { return a == b; }
 inline bool same(const QColor& a, const QColor& b) { return a == b; }
+inline bool same(const QList<QPointF>& a, const QList<QPointF>& b)
+{
+    if (a.size() != b.size())
+        return false;
+    for (qsizetype i = 0; i < a.size(); ++i)
+        if (!same(a[i].x(), b[i].x()) || !same(a[i].y(), b[i].y()))
+            return false;
+    return true;
+}
 template <class E, std::enable_if_t<std::is_enum_v<E>, int> = 0>
 bool same(E a, E b)
 {

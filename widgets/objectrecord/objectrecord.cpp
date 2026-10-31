@@ -20,6 +20,14 @@ QJsonValue toJsonValue(const QString& v) { return v; }
 QJsonValue toJsonValue(const QColor& v) { return v.name(QColor::HexArgb); }
 QJsonValue toJsonValue(ObjectRecord::Shape v) { return QLatin1String(shapeName(v)); }
 QJsonValue toJsonValue(ObjectRecord::Style v) { return QLatin1String(styleName(v)); }
+//! Nodes as [x, y] pairs, at full precision: an undo step restores exactly what was there.
+QJsonValue toJsonValue(const QList<QPointF>& v)
+{
+    QJsonArray arr;
+    for (const QPointF& p : v)
+        arr.append(QJsonArray{p.x(), p.y()});
+    return arr;
+}
 
 void fromJsonValue(const QJsonValue& j, int& v) { v = j.toInt(v); }
 void fromJsonValue(const QJsonValue& j, bool& v) { v = j.toBool(v); }
@@ -34,6 +42,17 @@ void fromJsonValue(const QJsonValue& j, QColor& v)
 // An unknown or missing name reads as the reader's own fallback (Box, Clean).
 void fromJsonValue(const QJsonValue& j, ObjectRecord::Shape& v) { v = shapeFromName(j.toString()); }
 void fromJsonValue(const QJsonValue& j, ObjectRecord::Style& v) { v = styleFromName(j.toString()); }
+void fromJsonValue(const QJsonValue& j, QList<QPointF>& v)
+{
+    if (!j.isArray())
+        return;   // missing: the list already there stays
+    v.clear();
+    for (const QJsonValue& p : j.toArray()) {
+        const QJsonArray xy = p.toArray();
+        if (xy.size() == 2)
+            v.append(QPointF(xy[0].toDouble(), xy[1].toDouble()));
+    }
+}
 
 //! Every field of \p g into \p j, under its key.
 template <class Group>
@@ -163,8 +182,7 @@ const QList<ObjectRecord::Shape>& shapeOrder()
 {
     using Shape = ObjectRecord::Shape;
     static const QList<Shape> order{
-        Shape::Box, Shape::Ellipse, Shape::Thought, Shape::Shout,
-        Shape::Trapezoid, Shape::Diamond, Shape::Banner, Shape::Scroll,
+        Shape::Box, Shape::Ellipse, Shape::Thought, Shape::Polygon, Shape::Scroll,
     };   // Shape::None is not a silhouette — see the header
     return order;
 }

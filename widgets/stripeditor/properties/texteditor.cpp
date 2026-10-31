@@ -14,8 +14,38 @@
 #include <QSignalBlocker>
 #include <QSpinBox>
 #include <QVBoxLayout>
+#include <QtMath>
 
 namespace StripEdit {
+
+namespace {
+
+//! Lines of lettering the box asks room for; it grows past them when the panel has room to spare.
+constexpr int k_bodyLines = 4;
+
+/**
+ * @brief The lettering box, asking for a few lines' height rather than Qt's 192 px.
+ *
+ * OBJECT STATE is laid out at its rows' *preferred* heights: the shape tiles reflow with the width, and
+ * a scroll area sizes a page with such a row by its height for that width, which sums the preferred
+ * heights. A plain text edit prefers 256 × 192, so a one-line balloon's box took a third of the panel
+ * and brought up the scroll bar.
+ */
+class LetteringBox : public QPlainTextEdit
+{
+public:
+    using QPlainTextEdit::QPlainTextEdit;
+
+    QSize sizeHint() const override
+    {
+        QSize s = QPlainTextEdit::sizeHint();
+        s.setHeight(fontMetrics().lineSpacing() * k_bodyLines
+                    + qCeil(2 * document()->documentMargin()) + 2 * frameWidth());
+        return s;
+    }
+};
+
+} // namespace
 
 TextEditor::TextEditor(QWidget* parent)
     : PropertyGroupEditor(parent)
@@ -23,7 +53,7 @@ TextEditor::TextEditor(QWidget* parent)
     auto* lay = new QVBoxLayout(this);
     lay->setContentsMargins(0, 0, 0, 0);
 
-    m_body = new QPlainTextEdit(this);
+    m_body = new LetteringBox(this);
     m_body->setPlaceholderText(tr("Type the line…"));
     m_body->setMinimumHeight(70);
     lay->addWidget(m_body);

@@ -42,8 +42,7 @@ public:
      * @brief The shape the active tool places — or no value, when the artist picks it here.
      *
      * The Bubble tool passes no value and the shape tiles are shown; the Text tool passes `Shape::None`
-     * and the Caption tool `Shape::Caption`, and the tiles go away, because a tool that places one shape
-     * has already answered that question. prototype() then applies it **over** the artist's pick without
+     * and the tiles go away, because a tool that places one shape has already answered that question. prototype() then applies it **over** the artist's pick without
      * disturbing it, so switching back to the Bubble tool brings back the shape that was chosen before.
      *
      * A tool's options follow the tool, which is exactly what a panel describing a *selected object*

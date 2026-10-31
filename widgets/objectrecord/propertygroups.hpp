@@ -110,33 +110,40 @@ struct SkinProperties
 };
 
 /**
- * @brief Which silhouette is drawn behind the text.
+ * @brief Which silhouette is drawn behind the text, and its parameters.
  *
- * One property, and still a group: it has an owner, an editor and an ownership test like every other,
- * and a group with one property today is a group with room tomorrow.
+ * A kind is a **family** — a way of describing an outline — and its parameters say which one. The
+ * ready-made outlines the picker offers (a speech balloon, a caption box) are **templates**: values of
+ * this group (shapes.hpp). A parameter the current kind does not read is carried unchanged.
  */
 struct ShapeProperties
 {
     /**
      * @brief The silhouette drawn behind the text. `None` is the Text tool: letters with no balloon.
      *
-     * **Append only.** These are persisted by name, not by number (see shapeName()), so the order here
-     * is free — but an existing value must keep its name or every saved bubble using it silently becomes
-     * a speech balloon on the next load.
+     * Persisted by name, not by number (see shapeName()), so the order here is free. The strip editor
+     * is unreleased, so a kind may still be renamed or merged (PLAN-L B3): a file naming one that is gone
+     * loads as a Box.
      */
-    enum class Kind { None, Speech, Shout, Caption, Ellipse, Diamond, Trapezoid, Thought, Scroll, Banner };
+    enum class Kind { None, Box, Shout, Ellipse, Diamond, Trapezoid, Thought, Scroll, Banner };
 
-    //! The enum's last value. **Appending a shape moves this** — it is how the unit tests know a shape
+    //! The enum's last value. **Adding a shape moves this** — it is how the unit tests know a shape
     //! exists that the picker (shapeOrder()) does not offer, and which therefore would not load either.
     static constexpr Kind k_lastKind = Kind::Banner;
 
-    Kind kind = Kind::Speech;
+    Kind  kind         = Kind::Box;
+    /**
+     * A Box's corner radius, in balloon pixels, capped at half the shorter side. The default is the
+     * speech balloon's (shapes.cpp), so a default record is the speech balloon it always was.
+     */
+    qreal cornerRadius = 45.0;
 
     //! The fields, with the keys they are saved under (fields.hpp).
     template <class V>
     static void fields(V&& v)
     {
-        v("shape", &ShapeProperties::kind);
+        v("shape",        &ShapeProperties::kind);
+        v("cornerRadius", &ShapeProperties::cornerRadius);
     }
 
     [[nodiscard]] static ShapeProperties from(const ObjectRecord& a);

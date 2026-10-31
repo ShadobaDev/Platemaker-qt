@@ -58,7 +58,8 @@ picture the GUI writes.
 | You want… | You are adding… | Cost |
 |---|---|---|
 | a rail button doing what an existing kind of tool does | **a tool row** | one table row |
-| a new balloon outline | **a shape** | an enum value and one table entry; parameters add five more files |
+| a new ready-made outline of an existing kind | **a template** | one table row |
+| a new way of describing an outline | **a shape** (a kind) | an enum value, one table entry and a template; parameters add four more files |
 | something on the strip that is neither a balloon nor a picture | **a kind of object** | the last took 19 files |
 
 **A tool is a row of data and holds no state**, so a rail row is a kind of object, never a value of one
@@ -78,34 +79,45 @@ Beyond that it is no longer a row: a **new options page** goes in `tooloptions/`
 
 ### A shape
 
-A value of `ShapeProperties::Kind`; move, resize, tails, lettering, undo, presets, the tiles and the
-row glyphs come free. Copy **Thought** (`thoughtPath()`, `thoughtArea()`).
+A **kind** is a way of describing an outline: a value of `ShapeProperties::Kind`, read with the
+parameters in `ShapeProperties`. A **template** is a ready-made outline, a value of that group with a
+title and whether it speaks; the picker's tiles are the templates (`shapeTemplates()` in `shapes.cpp`), so
+the speech balloon and the caption box are two templates of one kind, the Box. **A new outline that an
+existing kind can describe is one template row**, and nothing else.
 
-1. `widgets/objectrecord/propertygroups.hpp`: append to `Kind` (**append only**, persisted by name) and
-   move `k_lastKind`.
+A new kind gets move, resize, tails, lettering, undo, presets, the tiles and the row glyphs for free. Copy
+**Thought** (`thoughtPath()`, `thoughtArea()`), or **Box** (`boxPath()`, `boxArea()`) for one with a
+parameter.
+
+1. `widgets/objectrecord/propertygroups.hpp`: add to `Kind` (persisted by name; the strip editor is
+   unreleased, so a kind may still be renamed or merged) and move `k_lastKind`.
 2. `widgets/objectrecord/shapes.cpp`: its named constants, `<name>Path()` and `<name>Area()` (the largest
-   rectangle the outline contains), and **one entry in `k_shapes`**, in the enum's order: the persisted
-   name (never changes), the title, whether a placed one gets a tail, and the two functions.
-3. `widgets/objectrecord/objectrecord.cpp`: its place in `shapeOrder()`, the picker's order.
+   rectangle the outline contains), both taking the shape group and the body, and **one entry in
+   `k_shapes`**, in the enum's order: the persisted name, the title, whether an outline matching no
+   template speaks, whether it reads `cornerRadius`, the two functions, and the flash's Auto stretch.
+   Then **at least one template** in `shapeTemplates()`, in the picker's order.
+3. `widgets/objectrecord/objectrecord.cpp`: its place in `shapeOrder()`, which is what names are read
+   back from.
 4. *Optional:* a built-in preset in `presetstore.cpp`.
 
 **Caught by** `tests/gui-unit-tests/test_property_groups.cpp`: `Conversion.EveryShapeAndStyleHasATableEntry`
 (no entry, or one out of order), `Conversion.ThePickerOffersEverySilhouetteAndNoKind` (missing from
 `shapeOrder()`), `PropertyGroupPersistence.EveryShapeAndStyleRoundTrips` (missing name), and
-`Golden.EveryShapeAndStyleIsWrittenAsBefore`, which fails until the new shape's SVG is accepted with
-`PLATEMAKER_UPDATE_GOLDEN=1` and its diff reviewed.
+`Golden.EveryShapeAndStyleIsWrittenAsBefore` (one case per template), which fails until the new shape's
+SVG is accepted with `PLATEMAKER_UPDATE_GOLDEN=1` and its diff reviewed. The table test also checks that
+every template is a balloon, is found by `templateOf()` as itself, and that every kind has one.
 
 **Not caught by any test:** the outline must be **star-shaped around its centre** (a tail leaves the
 balloon along a ray from the centre); every constant is named; noise uses `styleSeed` and nothing else
 (`topUpStyleSeed()` mints it; a *Re-roll* entry on the object menu is planned, not built).
 
-**With parameters of its own** (no shape has any yet): each parameter is a member of
-`ShapeProperties` and **one line in its `fields()` list** — the key it is saved under and the member
-(`widgets/objectrecord/fields.hpp`). That one line gives it equality (which gates the file rewrite), a
-JSON key and a `pm:` attribute, with the struct's default as the fallback when a file lacks it. Then
-controls in `shapeeditor.cpp` (`bind()` emits nothing, a change emits `changed()`), `loadedRecord()` and
-`expectUntouched()` in the test, and the test's mirror struct, whose `static_assert` stops the build
-until the member is placed. `Fields.EveryFieldIsComparedAndSaved` then checks the new field on its own.
+**With parameters of its own** (the Box's `cornerRadius` is the worked example): each parameter is a
+member of `ShapeProperties` and **one line in its `fields()` list** — the key it is saved under and the
+member (`widgets/objectrecord/fields.hpp`). That one line gives it equality (which gates the file
+rewrite, and decides which template a shape is), a JSON key and a `pm:` attribute, with the struct's
+default as the fallback when a file lacks it. Then a row in `shapeeditor.cpp`, through `FieldRows` and a
+spec table, shown only for the kinds that read it; `loadedRecord()` and `expectUntouched()` in the test,
+and the test's mirror struct, whose `static_assert` stops the build until the member is placed. `Fields.EveryFieldIsComparedAndSaved` then checks the new field on its own.
 A value of a type no group holds yet needs an overload in each of the three walks (`Fields::same()`,
 `toJsonValue()`/`fromJsonValue()`, `attrValue()`/`fromAttr()`).
 

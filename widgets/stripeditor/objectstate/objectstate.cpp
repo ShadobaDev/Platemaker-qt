@@ -176,8 +176,8 @@ ObjectState::ObjectState(PresetStore& presets, QWidget* parent)
     }
     // Picking a shape gives you the shape its tile shows, tail and all — connected before the collector
     // above runs, because Qt calls slots in connection order and the tails editor has to hear first.
-    connect(m_groups.shape(), &ShapeEditor::changed, this, [this] {
-        m_tailList->shapeChanged(m_groups.shape()->values().kind);
+    connect(m_groups.shape(), &ShapeEditor::picked, this, [this] {
+        m_tailList->shapeChanged(m_groups.shape()->values());
     });
 
     connect(fitBtn, &QPushButton::clicked, this, [this] { if (m_hasRecord) emit fitRequested(); });

@@ -140,8 +140,8 @@ void topUpStyleSeed(ObjectRecord& a);
 [[nodiscard]] QString shapeTitle(ObjectRecord::Shape s);
 
 /**
- * @brief Every **silhouette**, in the order the pickers offer them. Not the enum's order, which is
- *        append-only and therefore historical.
+ * @brief Every **kind of silhouette**, in a fixed order: what shapeFromName() reads and the tests walk.
+ *        The picker offers templates instead (shapes.hpp), several of which may share a kind.
  *
  * `Shape::None` is deliberately **not** in it. It is not a silhouette to choose between; it is the
  * absence of one, which is a different *kind* of object — no fill, no outline, no line style, nothing
@@ -161,7 +161,7 @@ inline constexpr int k_labelChars = 32;
  */
 [[nodiscard]] QString recordLabel(const ObjectRecord& a);
 
-//! Parses \p name; anything unrecognised falls back to Speech, so an unknown shape still draws.
+//! Parses \p name; anything unrecognised falls back to a Box, so an unknown shape still draws.
 [[nodiscard]] ObjectRecord::Shape shapeFromName(QStringView name);
 
 //! The persisted name of \p s, and the way back — same contract as shapeName().

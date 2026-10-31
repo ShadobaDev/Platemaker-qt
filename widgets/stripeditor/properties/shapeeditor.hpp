@@ -4,9 +4,11 @@
 #include <QPalette>
 #include <QPixmap>
 
+#include "properties/fieldrows.hpp"
 #include "properties/propertygroupeditor.hpp"
 
 class QButtonGroup;
+class QFormLayout;
 
 namespace StripEdit {
 
@@ -19,28 +21,24 @@ inline constexpr int k_bubbleThumbH = 26;
  *
  * Reusing it means a tile cannot misrepresent its shape, and it costs no icon assets: the picker is
  * generated, not drawn by hand. The caller chooses the colours, because a shape tile is UI chrome (it
- * wears the palette) while a preset's tile is a swatch of the preset itself.
+ * wears the palette) while a preset's tile is a swatch of the preset itself. A shape that speaks
+ * (Geometry::shapeSpeaks()) is drawn with a tail, so a tile cannot promise a shape that placing it does
+ * not give you.
  */
-[[nodiscard]] QPixmap bubbleThumbnail(ObjectRecord::Shape shape, const QColor& fill,
+[[nodiscard]] QPixmap bubbleThumbnail(const ShapeProperties& shape, const QColor& fill,
                                       const QColor& stroke, const QColor& ink);
 
 //! The shape picker's tiles: UI chrome, so they wear the palette rather than three white blobs.
-[[nodiscard]] QPixmap shapeThumbnail(ObjectRecord::Shape shape, const QPalette& pal);
+[[nodiscard]] QPixmap shapeThumbnail(const ShapeProperties& shape, const QPalette& pal);
 
 /**
- * @brief Whether a shape normally speaks.
- *
- * Shared by the tile previews and by picking one, so a tile cannot promise a shape that placing it
- * does not give you.
- */
-[[nodiscard]] bool shapeSpeaks(ObjectRecord::Shape shape);
-
-/**
- * @brief The shape picker: one checkable tile per shape, laid out like the editor's tool rail.
+ * @brief The shape picker: one checkable tile per template, laid out like the editor's tool rail, and
+ *        the rows of the kind's parameters under it.
  *
  * A grid of previews rather than a drop-down, because a bubble shape is a *look* — a name in a list
  * makes you open it to find out what it is. Each tile's icon is produced by the same rasteriser that
- * draws the bubble, so the tile is a true miniature of what placing it gives you.
+ * draws the bubble, so the tile is a true miniature of what placing it gives you. A tile is current
+ * while the shape equals its template; a parameter edited off every template leaves none current.
  */
 class ShapeEditor : public PropertyGroupEditor
 {
@@ -56,15 +54,29 @@ public:
 
     [[nodiscard]] const ShapeProperties& values() const { return m_values; }
 
+signals:
+    /**
+     * @brief A tile was picked, before the changed() it also brings.
+     *
+     * What the tails follow: picking a speaking shape grows a tail, picking a caption drops it. Editing a
+     * parameter is changed() alone, so turning a caption's corners does not give it a tail.
+     */
+    void picked();
+
 protected:
     //! Re-renders the tiles when the theme flips — they are drawn in the palette's colours.
     void changeEvent(QEvent* e) override;
 
 private:
     void refreshTiles();
+    //! Checks the tile whose template the shape is, or none, and shows the kind's rows.
+    void syncFromValues();
 
-    QButtonGroup*   m_tiles = nullptr;
-    ShapeProperties m_values;
+    QButtonGroup*               m_tiles = nullptr;
+    QFormLayout*                m_form  = nullptr;
+    FieldRows<ShapeProperties>  m_corner;   //!< The corner radius, for a kind that is rounded.
+    ShapeProperties             m_values;
+    bool                        m_populating = false;
 };
 
 }  // namespace StripEdit

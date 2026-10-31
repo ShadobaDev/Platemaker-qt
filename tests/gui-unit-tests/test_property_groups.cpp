@@ -31,6 +31,7 @@ ObjectRecord loadedRecord()
 {
     ObjectRecord a;
     a.shape.kind       = ObjectRecord::Shape::Thought;
+    a.shape.cornerRadius = 33.0;
     a.box              = QSize(321, 123);
 
     Tail t;
@@ -81,7 +82,7 @@ ObjectRecord loadedRecord()
 // StyleProperties::kind) passes unnoticed; counting members needs C++20, or reflection.
 // ---------------------------------------------------------------------------
 
-struct ShapeMirror { ShapeProperties::Kind kind; };
+struct ShapeMirror { ShapeProperties::Kind kind; qreal cornerRadius; };
 static_assert(sizeof(ShapeProperties) == sizeof(ShapeMirror),
               "ShapeProperties grew a field: place it (see above), then mirror it");
 
@@ -134,6 +135,7 @@ void expectUntouched(Group applied, const ObjectRecord& before, const ObjectReco
 {
     if (applied != Group::Shape) {
         EXPECT_EQ(after.shape.kind, before.shape.kind);
+        EXPECT_DOUBLE_EQ(after.shape.cornerRadius, before.shape.cornerRadius);
     }
 
     if (applied != Group::Skin) {
@@ -207,7 +209,8 @@ TEST(PropertyGroupOwnership, Shape)
     ObjectRecord       after  = before;
 
     ShapeProperties s;
-    s.kind = ObjectRecord::Shape::Banner;
+    s.kind         = ObjectRecord::Shape::Banner;
+    s.cornerRadius = 12.0;
     s.applyTo(after);
 
     EXPECT_EQ(after.shape, s);
@@ -440,7 +443,7 @@ TEST(PropertyGroupPersistence, EveryShapeAndStyleRoundTrips)
 TEST(Conversion, AKindHidesTailsRatherThanDestroyingThem)
 {
     ObjectRecord a = loadedRecord();
-    a.shape.kind   = ObjectRecord::Shape::Speech;
+    a.shape.kind   = ObjectRecord::Shape::Box;
     ASSERT_FALSE(a.tails.items.isEmpty());
     ASSERT_TRUE(a.hasTail());
 
@@ -451,7 +454,7 @@ TEST(Conversion, AKindHidesTailsRatherThanDestroyingThem)
     EXPECT_FALSE(a.hasTail());                  // no balloon, so nothing for a tail to leave
     EXPECT_EQ(a.tails, kept);                   // ...but the record still has them
 
-    a.shape.kind = ObjectRecord::Shape::Caption;
+    a.shape.kind = ObjectRecord::Shape::Ellipse;
     EXPECT_TRUE(a.hasSilhouette());
     EXPECT_TRUE(a.hasTail());
     EXPECT_EQ(a.tails, kept);
@@ -483,7 +486,8 @@ TEST(Conversion, ThePickerOffersEverySilhouetteAndNoKind)
  *        has every line style (styles.cpp), with a filter or strokes for each but Clean.
  *
  * The tables are indexed by the enum, so an entry out of order would give a shape another's geometry;
- * and an appended shape with no entry would be drawn as the speech balloon shapeInfo() falls back to.
+ * and an appended shape with no entry would be drawn as the Box shapeInfo() falls back to. Every
+ * template is a balloon, named once, found by templateOf() as itself, and every kind has one.
  */
 TEST(Conversion, EveryShapeAndStyleHasATableEntry)
 {
@@ -508,6 +512,17 @@ TEST(Conversion, EveryShapeAndStyleHasATableEntry)
         EXPECT_NE(info.safeArea, nullptr) << i;
         EXPECT_EQ(info.outline == nullptr, kind == ObjectRecord::Shape::None) << shapeName(kind);
     }
+
+    QList<ObjectRecord::Shape> templated;
+    for (const Geometry::ShapeTemplate& t : Geometry::shapeTemplates()) {
+        EXPECT_NE(t.shape.kind, ObjectRecord::Shape::None) << t.id;
+        EXPECT_NE(t.title, nullptr) << t.id;
+        EXPECT_EQ(Geometry::templateOf(t.shape), &t) << t.id << " equals an earlier template";
+        EXPECT_EQ(&Geometry::shapeTemplate(t.id), &t) << t.id << " is not the only one of its id";
+        templated << t.shape.kind;
+    }
+    for (ObjectRecord::Shape s : shapeOrder())
+        EXPECT_TRUE(templated.contains(s)) << shapeName(s) << " has no template, so no tile";
 }
 
 /**
@@ -518,12 +533,12 @@ TEST(Conversion, EveryShapeAndStyleHasATableEntry)
  */
 TEST(Style, AFlashStaysInsideItsBounds)
 {
-    for (ObjectRecord::Shape shape : {ObjectRecord::Shape::Ellipse, ObjectRecord::Shape::Caption,
-                                      ObjectRecord::Shape::Speech}) {
+    for (const char* id : {"ellipse", "caption", "speech"}) {
         ObjectRecord a;
-        a.shape.kind = shape;
-        a.box        = QSize(280, 160);
-        if (shape == ObjectRecord::Shape::Speech) {
+        a.shape = Geometry::shapeTemplate(id).shape;
+        a.box   = QSize(280, 160);
+        const ObjectRecord::Shape shape = a.shape.kind;
+        if (qstrcmp(id, "speech") == 0) {
             Tail t;
             t.tip = QPointF(60, 230);
             a.tails.items = {t};
@@ -539,9 +554,9 @@ TEST(Style, AFlashStaysInsideItsBounds)
                 a.style.flashCoreStretch = stretch;
                 a.styleSeed              = seed;
                 const QPainterPath ink = Geometry::ink(a, Geometry::silhouette(a));
-                ASSERT_FALSE(ink.isEmpty()) << shapeName(shape);
+                ASSERT_FALSE(ink.isEmpty()) << id;
                 EXPECT_TRUE(Geometry::bounds(a).contains(ink.boundingRect()))
-                    << shapeName(shape) << " stretch " << stretch << " seed " << seed;
+                    << id << " (" << shapeName(shape) << ") stretch " << stretch << " seed " << seed;
             }
         }
     }
@@ -643,7 +658,7 @@ TEST(Import, OnlyAFileCarryingTheRecipeIsAdopted)
 TEST(Kinds, ArtworkHasNoGeometryOfOurs)
 {
     ObjectRecord a = loadedRecord();
-    a.shape.kind   = ObjectRecord::Shape::Speech;
+    a.shape.kind   = ObjectRecord::Shape::Box;
     ASSERT_TRUE(a.hasSilhouette());
     ASSERT_TRUE(a.hasTail());
 
@@ -745,7 +760,7 @@ using StripEdit::PropertyGroup;
 TEST(Groups, TextIsCarriedByEveryKind)
 {
     ObjectRecord balloon;
-    balloon.shape.kind = ObjectRecord::Shape::Speech;
+    balloon.shape.kind = ObjectRecord::Shape::Box;
 
     ObjectRecord text;
     text.shape.kind = ObjectRecord::Shape::None;
@@ -761,7 +776,7 @@ TEST(Groups, TextIsCarriedByEveryKind)
 TEST(Groups, TheRestNeedASilhouette)
 {
     ObjectRecord balloon;
-    balloon.shape.kind = ObjectRecord::Shape::Speech;
+    balloon.shape.kind = ObjectRecord::Shape::Box;
     ASSERT_TRUE(balloon.hasSilhouette());
 
     for (auto g : {PropertyGroup::Shape, PropertyGroup::Skin, PropertyGroup::Style, PropertyGroup::Tail})
@@ -778,7 +793,7 @@ TEST(Groups, APictureCarriesOnlyItsLettering)
 {
     ObjectRecord picture;
     picture.artwork    = QStringLiteral("art-0123456789abcdef.png");
-    picture.shape.kind = ObjectRecord::Shape::Speech;   // a stale value; isArtwork() outranks it
+    picture.shape.kind = ObjectRecord::Shape::Box;   // a stale value; isArtwork() outranks it
 
     EXPECT_TRUE(carriesGroup(picture, PropertyGroup::Text));
     for (auto g : {PropertyGroup::Shape, PropertyGroup::Skin, PropertyGroup::Style, PropertyGroup::Tail})
@@ -884,7 +899,8 @@ QString goldenPath()
 }
 
 /**
- * @brief Everything a record is written as, for every shape × line style × with and without a tail.
+ * @brief Everything a record is written as, for every template (and no shape) × line style × with and
+ *        without a tail. A case is named by its template's id.
  *
  * The balloon's SVG, its text area and its undo-snapshot JSON, one section per case. The lettering is
  * left empty and its family named, so nothing here measures a font: writing lettering needs the
@@ -892,15 +908,18 @@ QString goldenPath()
  */
 QString goldenRecords()
 {
-    QList<ObjectRecord::Shape> shapes{ObjectRecord::Shape::None};
-    shapes += shapeOrder();
+    ShapeProperties none = loadedRecord().shape;
+    none.kind            = ObjectRecord::Shape::None;
+    QList<QPair<QString, ShapeProperties>> shapes{{QStringLiteral("none"), none}};
+    for (const Geometry::ShapeTemplate& t : Geometry::shapeTemplates())
+        shapes.append({QString::fromLatin1(t.id), t.shape});
 
     QString out;
-    for (ObjectRecord::Shape shape : shapes) {
+    for (const auto& [name, shape] : std::as_const(shapes)) {
         for (int st = 0; st <= int(StyleProperties::k_lastKind); ++st) {
             for (bool tail : {false, true}) {
                 ObjectRecord a = loadedRecord();
-                a.shape.kind   = shape;
+                a.shape        = shape;
                 a.style.kind   = static_cast<ObjectRecord::Style>(st);
                 a.text.body.clear();
                 if (!tail)
@@ -908,7 +927,7 @@ QString goldenRecords()
 
                 const QRectF area = Geometry::textArea(a);
                 out += QStringLiteral("=== %1 / %2 / %3 ===\n")
-                           .arg(QLatin1String(shapeName(shape)), QLatin1String(styleName(a.style.kind)),
+                           .arg(name, QLatin1String(styleName(a.style.kind)),
                                 tail ? QStringLiteral("tail") : QStringLiteral("no tail"));
                 out += QString::fromUtf8(Svg::write(a));
                 out += QStringLiteral("\ntextArea: %1 %2 %3 %4\n")

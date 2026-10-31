@@ -3,9 +3,11 @@
 #include <QAbstractButton>
 #include <QButtonGroup>
 #include <QEvent>
+#include <QFormLayout>
 #include <QIcon>
 #include <QToolButton>
 #include <QVBoxLayout>
+#include <QtMath>
 
 #include "recordpainter.hpp"
 #include "shapes.hpp"
@@ -20,18 +22,23 @@ constexpr int k_shapeTilePx    = 44;
 //! Supersampling factor for a tile's preview — rendered big, scaled down, so the stroke stays smooth.
 constexpr int k_shapeIconScale = 4;
 
+//! The context the rows' strings are translated in: this panel's own.
+constexpr char k_trContext[] = "StripEdit::ShapeEditor";
+
+#define PM_TR(s) QT_TRANSLATE_NOOP("StripEdit::ShapeEditor", s)
+const FieldRowSpec k_cornerRows[] = {
+    {"cornerRadius", PM_TR("Corner radius:"), 0, 500, " px",
+     PM_TR("How round the corners are. Never more than half the shorter side, which makes the ends round.")},
+};
+#undef PM_TR
+
 } // namespace
 
-bool shapeSpeaks(ObjectRecord::Shape shape)
-{
-    return Geometry::shapeInfo(shape).speaks;   // the shape table says who is talking (shapes.hpp)
-}
-
-QPixmap bubbleThumbnail(ObjectRecord::Shape shape, const QColor& fill, const QColor& stroke,
+QPixmap bubbleThumbnail(const ShapeProperties& shape, const QColor& fill, const QColor& stroke,
                         const QColor& ink)
 {
     ObjectRecord a;
-    a.shape.kind       = shape;
+    a.shape            = shape;
     a.box              = QSize(k_bubbleThumbW * k_shapeIconScale, k_bubbleThumbH * k_shapeIconScale);
     // The tile's own stroke, not the record's: a preset authored at 5 px on a 280 px balloon would be
     // a hairline here, and the icon is meant to say *which shape and what colours*, not how heavy.
@@ -41,7 +48,7 @@ QPixmap bubbleThumbnail(ObjectRecord::Shape shape, const QColor& fill, const QCo
     a.skin.fill        = fill;
     a.skin.stroke      = stroke;
     a.text.colour      = ink;
-    if (shapeSpeaks(shape)) {
+    if (Geometry::shapeSpeaks(shape)) {
         Tail t;
         // A short tail: the tile is scaled to fit, so a long one would shrink the balloon itself and
         // leave the speaking shapes visibly smaller than the rest of the grid.
@@ -53,7 +60,7 @@ QPixmap bubbleThumbnail(ObjectRecord::Shape shape, const QColor& fill, const QCo
                                                        Qt::KeepAspectRatio, Qt::SmoothTransformation));
 }
 
-QPixmap shapeThumbnail(ObjectRecord::Shape shape, const QPalette& pal)
+QPixmap shapeThumbnail(const ShapeProperties& shape, const QPalette& pal)
 {
     return bubbleThumbnail(shape, pal.color(QPalette::Base), pal.color(QPalette::WindowText),
                            pal.color(QPalette::WindowText));
@@ -74,28 +81,37 @@ ShapeEditor::ShapeEditor(QWidget* parent)
     lay->addWidget(tileHost);
 
     m_tiles = new QButtonGroup(this);
-    m_tiles->setExclusive(true);
-    // The tiles are the shape list, in the shape list's order — both from objectrecord.hpp, so this
-    // picker and *Convert to ▸* cannot come to offer different things or call them different names.
-    for (ObjectRecord::Shape shape : shapeOrder()) {
+    // The tiles are the templates, in their order (shapes.hpp); a tile's id is its template's index.
+    const QList<Geometry::ShapeTemplate>& templates = Geometry::shapeTemplates();
+    for (int i = 0; i < templates.size(); ++i) {
         auto* b = new QToolButton(tileHost);
         b->setCheckable(true);
         b->setAutoRaise(true);
-        b->setToolTip(shapeTitle(shape));
+        b->setToolTip(QObject::tr(templates[i].title));
         b->setIconSize(QSize(k_bubbleThumbW, k_bubbleThumbH));
         b->setFixedSize(k_shapeTilePx, k_shapeTilePx);
         tileLay->addWidget(b);
-        m_tiles->addButton(b, int(shape));
+        m_tiles->addButton(b, i);
     }
-
-    if (auto* first = m_tiles->button(int(ObjectRecord::Shape::Speech)))
-        first->setChecked(true);
     refreshTiles();
 
-    connect(m_tiles, &QButtonGroup::idClicked, this, [this](int id) {
-        m_values.kind = static_cast<ObjectRecord::Shape>(id);
+    m_form = new QFormLayout;
+    m_form->setContentsMargins(0, 0, 0, 0);
+    lay->addLayout(m_form);
+    m_corner.build(this, m_form, "corner", k_cornerRows, k_trContext, m_values, m_populating, [this] {
+        syncFromValues();   // off its template, the tile is no longer current
         emit changed();
     });
+
+    connect(m_tiles, &QButtonGroup::idClicked, this, [this](int id) {
+        // The whole template: its kind and every parameter, so a tile gives exactly what it shows.
+        m_values = Geometry::shapeTemplates().at(id).shape;
+        syncFromValues();
+        emit picked();
+        emit changed();
+    });
+
+    syncFromValues();
 }
 
 void ShapeEditor::bind(const Subjects& subjects)
@@ -103,9 +119,27 @@ void ShapeEditor::bind(const Subjects& subjects)
     if (subjects.isEmpty())
         return;
     m_values = ShapeProperties::from(*subjects.first());
-    // Checkable buttons in an exclusive group do not emit on setChecked(), so no blocker is needed.
-    if (auto* tile = m_tiles->button(int(m_values.kind)))
-        tile->setChecked(true);
+    m_corner.reset();
+    // No higher than the balloon can show: past it the outline stops changing (Shape is one subject only).
+    m_corner.setMaximum("cornerRadius", qFloor(Geometry::cornerRadiusLimit(subjects.first()->box)));
+    syncFromValues();
+}
+
+void ShapeEditor::syncFromValues()
+{
+    m_populating = true;
+    const Geometry::ShapeTemplate* current = Geometry::templateOf(m_values);
+    const int                      id      = current ? int(current - Geometry::shapeTemplates().constData()) : -1;
+    // An exclusive group cannot show no tile checked, so it is released while one is unchecked. Checkable
+    // buttons do not emit idClicked() on setChecked(), so nothing here reads as a pick.
+    m_tiles->setExclusive(false);
+    for (QAbstractButton* b : m_tiles->buttons())
+        b->setChecked(m_tiles->id(b) == id);
+    m_tiles->setExclusive(true);
+
+    m_corner.show(m_values);
+    m_corner.setVisible(m_form, Geometry::shapeInfo(m_values.kind).rounded);
+    m_populating = false;
 }
 
 void ShapeEditor::applyTo(ObjectRecord& target) const
@@ -125,7 +159,7 @@ void ShapeEditor::refreshTiles()
     if (!m_tiles)
         return;
     for (QAbstractButton* b : m_tiles->buttons())
-        b->setIcon(QIcon(shapeThumbnail(static_cast<ObjectRecord::Shape>(m_tiles->id(b)), palette())));
+        b->setIcon(QIcon(shapeThumbnail(Geometry::shapeTemplates().at(m_tiles->id(b)).shape, palette())));
 }
 
 }  // namespace StripEdit

@@ -1,4 +1,5 @@
 #include "presetstore.hpp"
+#include "shapes.hpp"
 
 #include <QFile>
 #include <QFileInfo>
@@ -117,7 +118,7 @@ QList<BubblePreset> builtinPresets()
     out.append({PresetStore::tr("Flash"), flash});
 
     ObjectRecord caption = dialogue;
-    caption.shape.kind       = ObjectRecord::Shape::Caption;
+    caption.shape            = Geometry::shapeTemplate("caption").shape;
     caption.skin.fill        = QColor(16, 16, 16);
     caption.text.colour      = QColor(245, 245, 245);
     caption.skin.stroke      = QColor(245, 245, 245);

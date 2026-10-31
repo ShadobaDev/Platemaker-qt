@@ -157,15 +157,14 @@ inline void paintColourSwatch(QPushButton* swatch, const QColor& c)
 inline void showSpin(QSpinBox* spin, bool mixed, int value, int min, int max)
 {
     const QSignalBlocker block(spin);
-    if (mixed) {
-        spin->setRange(min - 1, max);
-        spin->setSpecialValueText(QObject::tr("Mixed"));
-        spin->setValue(min - 1);
-    } else {
-        spin->setSpecialValueText(QString());
-        spin->setRange(min, max);
-        spin->setValue(value);
-    }
+    // Only what differs: setRange() stops a held arrow's auto-repeat, and a spin is re-shown while held.
+    const int     low     = mixed ? min - 1 : min;
+    const QString special = mixed ? QObject::tr("Mixed") : QString();
+    if (spin->specialValueText() != special)
+        spin->setSpecialValueText(special);
+    if (spin->minimum() != low || spin->maximum() != max)
+        spin->setRange(low, max);
+    spin->setValue(mixed ? low : value);
 }
 
 //! Takes the Mixed sentinel away once the artist has moved @p spin. Returns false if it was never there.

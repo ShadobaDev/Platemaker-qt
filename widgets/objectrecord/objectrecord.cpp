@@ -31,7 +31,7 @@ void fromJsonValue(const QJsonValue& j, QColor& v)
     if (c.isValid())
         v = c;
 }
-// An unknown or missing name reads as the reader's own fallback (Speech, Clean), as it always has.
+// An unknown or missing name reads as the reader's own fallback (Box, Clean).
 void fromJsonValue(const QJsonValue& j, ObjectRecord::Shape& v) { v = shapeFromName(j.toString()); }
 void fromJsonValue(const QJsonValue& j, ObjectRecord::Style& v) { v = styleFromName(j.toString()); }
 
@@ -150,17 +150,20 @@ QString recordLabel(const ObjectRecord& a)
         return first.length() > k_labelChars ? first.left(k_labelChars - 1) + QStringLiteral("…")
                                              : first;
     }
-    // No words: what it is instead — every shape by its own title, so none is listed as "(overlay)".
+    // No words: what it is instead — its template's title, or its kind's when it matches none, so none
+    // is listed as "(overlay)".
     if (a.shape.kind == ObjectRecord::Shape::None)
         return QObject::tr("(text)");
-    return QStringLiteral("(%1)").arg(shapeTitle(a.shape.kind).toLower());
+    const Geometry::ShapeTemplate* t = Geometry::templateOf(a.shape);
+    const QString title = t ? QObject::tr(t->title) : shapeTitle(a.shape.kind);
+    return QStringLiteral("(%1)").arg(title.toLower());
 }
 
 const QList<ObjectRecord::Shape>& shapeOrder()
 {
     using Shape = ObjectRecord::Shape;
     static const QList<Shape> order{
-        Shape::Speech, Shape::Ellipse, Shape::Thought,  Shape::Shout,  Shape::Caption,
+        Shape::Box, Shape::Ellipse, Shape::Thought, Shape::Shout,
         Shape::Trapezoid, Shape::Diamond, Shape::Banner, Shape::Scroll,
     };   // Shape::None is not a silhouette — see the header
     return order;
@@ -170,13 +173,13 @@ ObjectRecord::Shape shapeFromName(QStringView name)
 {
     // The picker's list and the one kind it leaves out — not a bound of our own. A bound written
     // here (it was `<= Banner`) is passed silently by the next shape appended, which then loads from
-    // every file as a speech balloon; a shape missing from the picker is caught by the unit tests.
+    // every file as a Box; a shape missing from the picker is caught by the unit tests.
     if (name == QLatin1String(shapeName(ObjectRecord::Shape::None)))
         return ObjectRecord::Shape::None;
     for (ObjectRecord::Shape s : shapeOrder())
         if (name == QLatin1String(shapeName(s)))
             return s;
-    return ObjectRecord::Shape::Speech;
+    return ObjectRecord::Shape::Box;
 }
 
 const char* styleName(ObjectRecord::Style s)

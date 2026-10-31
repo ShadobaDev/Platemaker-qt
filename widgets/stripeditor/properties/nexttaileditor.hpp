@@ -48,7 +48,7 @@ public:
      * Picking a shape gives you the shape its tile shows — a narration box does not arrive wearing a
      * tail. The checkbox stays available for the cases that want one anyway.
      */
-    void shapeChanged(ObjectRecord::Shape kind);
+    void shapeChanged(const ShapeProperties& shape);
 
 private:
     void syncEnabled();

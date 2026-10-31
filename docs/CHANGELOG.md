@@ -92,6 +92,13 @@
     long box, so they stand square to its straight sides. *Auto* takes each shape's own direction and
     follows the shape; a direction set by hand stays when the shape changes. New built-in preset
     **Flash**.
+  - **Speech balloon and caption box are one shape, the Box, with a corner radius.** Their tiles stay
+    as two ready-made starts (45 px and 4 px). The Shape panel shows a **Corner radius** row under the
+    tiles for a Box: from square corners to fully round ends. A balloon whose radius matches neither
+    tile is still a Box, and no tile is shown as current. A tile gives its whole shape, radius
+    included, and only picking a tile adds or drops the tail, so turning a caption's corners does not
+    give it one. The lettering's room now stays inside the rounded corners. Files from before name
+    `speech` and `caption`, which load as a default Box.
   - **Fit to text** gives the smallest balloon that holds the lettering, on **both** axes, floored so a
     short line cannot collapse the shape. When the lettering does not fit — the box dragged too small, or
     a line typed too long — the selected object's text area is **outlined in red**; the overflow is

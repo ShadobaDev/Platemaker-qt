@@ -41,7 +41,7 @@ public:
      * Picking a shape gives the shape its tile shows: a narration box arrives without a tail, a speech
      * balloon with one. A balloon that already has tails and still speaks keeps them.
      */
-    void shapeChanged(ObjectRecord::Shape kind);
+    void shapeChanged(const ShapeProperties& shape);
 
 private:
     void refresh();   //!< The count, and whether a tail can be added at all.

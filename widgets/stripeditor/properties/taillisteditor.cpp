@@ -4,7 +4,7 @@
 #include <QLabel>
 #include <QPushButton>
 
-#include "properties/shapeeditor.hpp"   // shapeSpeaks()
+#include "shapes.hpp"   // Geometry::shapeSpeaks()
 
 namespace StripEdit {
 
@@ -62,10 +62,10 @@ void TailListEditor::applyTo(ObjectRecord& target) const
     next.applyTo(target);
 }
 
-void TailListEditor::shapeChanged(ObjectRecord::Shape kind)
+void TailListEditor::shapeChanged(const ShapeProperties& shape)
 {
-    m_shapeCanSpeak = kind != ObjectRecord::Shape::None;
-    if (!shapeSpeaks(kind)) {
+    m_shapeCanSpeak = shape.kind != ObjectRecord::Shape::None;
+    if (!Geometry::shapeSpeaks(shape)) {
         m_values.items.clear();
     } else if (m_values.items.isEmpty()) {
         Tail t;

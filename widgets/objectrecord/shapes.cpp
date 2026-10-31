@@ -1,5 +1,6 @@
 #include "shapes.hpp"
 
+#include <QByteArray>
 #include <QObject>
 #include <QtMath>
 
@@ -51,20 +52,13 @@ constexpr qreal k_scrollRoll     = 0.10;
  */
 constexpr qreal k_scrollBow      = 0.06;
 /**
- *  A speech balloon's corner radius, as a fraction of its height.
- */
-constexpr qreal k_speechCorner   = 0.28;
-/**
- *  What the speech balloon's rounded corners cost the lettering in width, on each side.
- */
-constexpr qreal k_speechInset    = 6.0;
-/**
- *  A caption box's corner radius, in balloon pixels.
+ *  A caption box's corner radius, in balloon pixels. The speech balloon's is the struct's default
+ *  (ShapeProperties::cornerRadius): 0.28 of the default 160 px height, as it was before it was a number.
  */
 constexpr qreal k_captionCorner  = 4.0;
 
 //! The largest axis-aligned rectangle inside the ellipse inscribed in \p r.
-QRectF inscribedInEllipse(const QRectF& r)
+QRectF inscribedInEllipse(const ShapeProperties&, const QRectF& r)
 {
     const qreal kx = r.width()  * (1.0 - k_invSqrt2) / 2.0;
     const qreal ky = r.height() * (1.0 - k_invSqrt2) / 2.0;
@@ -72,35 +66,38 @@ QRectF inscribedInEllipse(const QRectF& r)
 }
 
 //! The whole rectangle: the lettering may use all of it.
-QRectF wholeArea(const QRectF& body)
+QRectF wholeArea(const ShapeProperties&, const QRectF& body)
 {
     return body;
 }
 
 // ---------------------------------------------------------------------------
-// Speech, Caption, Ellipse
+// Box, Ellipse
 // ---------------------------------------------------------------------------
 
-QPainterPath speechPath(const QRectF& r)
+//! The corner radius a Box in @p r actually gets: never negative, never past half the shorter side.
+qreal boxRadius(const ShapeProperties& shape, const QRectF& r)
 {
+    return qBound(0.0, shape.cornerRadius, cornerRadiusLimit(r.size()));
+}
+
+QPainterPath boxPath(const ShapeProperties& shape, const QRectF& r)
+{
+    const qreal radius = boxRadius(shape, r);
     QPainterPath p;
-    p.addRoundedRect(r, r.height() * k_speechCorner, r.height() * k_speechCorner);
+    p.addRoundedRect(r, radius, radius);
     return p;
 }
 
-QRectF speechArea(const QRectF& body)
+QRectF boxArea(const ShapeProperties& shape, const QRectF& body)
 {
-    return body.adjusted(k_speechInset, 0, -k_speechInset, 0);   // the rounded corners cost a little width
+    // In from every side by where a corner's arc crosses its diagonal: the rectangle's corners then sit
+    // on the arcs, so no letter in a corner pokes past the outline.
+    const qreal in = boxRadius(shape, body) * (1.0 - k_invSqrt2);
+    return body.adjusted(in, in, -in, -in);
 }
 
-QPainterPath captionPath(const QRectF& r)
-{
-    QPainterPath p;
-    p.addRoundedRect(r, k_captionCorner, k_captionCorner);
-    return p;
-}
-
-QPainterPath ellipsePath(const QRectF& r)
+QPainterPath ellipsePath(const ShapeProperties&, const QRectF& r)
 {
     QPainterPath p;
     p.addEllipse(r);
@@ -112,7 +109,7 @@ QPainterPath ellipsePath(const QRectF& r)
 // ---------------------------------------------------------------------------
 
 //! A star polygon inscribed in \p r — the "shout" silhouette.
-QPainterPath burstPath(const QRectF& r)
+QPainterPath burstPath(const ShapeProperties&, const QRectF& r)
 {
     const QPointF c  = r.center();
     const qreal   rx = r.width()  / 2.0;
@@ -130,7 +127,7 @@ QPainterPath burstPath(const QRectF& r)
     return p;
 }
 
-QRectF burstArea(const QRectF& body)
+QRectF burstArea(const ShapeProperties&, const QRectF& body)
 {
     // A star's usable interior is its *inner* radius, not its bounding box — inset accordingly, or the
     // text runs out between the spikes.
@@ -144,7 +141,7 @@ QRectF burstArea(const QRectF& body)
 // ---------------------------------------------------------------------------
 
 //! A rhombus with its vertices at the midpoints of \p r's edges.
-QPainterPath diamondPath(const QRectF& r)
+QPainterPath diamondPath(const ShapeProperties&, const QRectF& r)
 {
     const QPointF c = r.center();
     QPainterPath p;
@@ -156,7 +153,7 @@ QPainterPath diamondPath(const QRectF& r)
     return p;
 }
 
-QRectF diamondArea(const QRectF& body)
+QRectF diamondArea(const ShapeProperties&, const QRectF& body)
 {
     // The largest rectangle inside a rhombus is half its width and half its height, centred.
     return body.adjusted(body.width() / 4.0, body.height() / 4.0, -body.width() / 4.0, -body.height() / 4.0);
@@ -164,7 +161,7 @@ QRectF diamondArea(const QRectF& body)
 
 //! A trapezoid: full width at the bottom, narrowed at the top. Reads as a caption plate seen in
 //! perspective, which is what it is usually for.
-QPainterPath trapezoidPath(const QRectF& r)
+QPainterPath trapezoidPath(const ShapeProperties&, const QRectF& r)
 {
     const qreal inset = r.width() * k_trapezoidSlant;
     QPainterPath p;
@@ -176,7 +173,7 @@ QPainterPath trapezoidPath(const QRectF& r)
     return p;
 }
 
-QRectF trapezoidArea(const QRectF& body)
+QRectF trapezoidArea(const ShapeProperties&, const QRectF& body)
 {
     // Narrowest at the top, so the top width is the only one safe for every line.
     const qreal inset = body.width() * k_trapezoidSlant;
@@ -194,7 +191,7 @@ QRectF trapezoidArea(const QRectF& body)
  * stroke follows the scalloped edge. The inner ellipse is what keeps the middle solid when the lobes
  * are small relative to the balloon.
  */
-QPainterPath thoughtPath(const QRectF& r)
+QPainterPath thoughtPath(const ShapeProperties&, const QRectF& r)
 {
     const QPointF c    = r.center();
     const qreal   rx   = r.width()  / 2.0;
@@ -213,11 +210,11 @@ QPainterPath thoughtPath(const QRectF& r)
     return p;
 }
 
-QRectF thoughtArea(const QRectF& body)
+QRectF thoughtArea(const ShapeProperties& shape, const QRectF& body)
 {
     // The lobes eat into the ring, so the safe area is the inner ellipse rather than the whole one.
     const qreal lobe = qMin(body.width(), body.height()) * k_thoughtLobe * 0.5;
-    return inscribedInEllipse(body.adjusted(lobe, lobe, -lobe, -lobe));
+    return inscribedInEllipse(shape, body.adjusted(lobe, lobe, -lobe, -lobe));
 }
 
 // ---------------------------------------------------------------------------
@@ -225,13 +222,13 @@ QRectF thoughtArea(const QRectF& body)
 // ---------------------------------------------------------------------------
 
 //! An unrolled scroll: a panel with bowed long edges and a rolled end on each side.
-QPainterPath scrollPath(const QRectF& r)
+QPainterPath scrollPath(const ShapeProperties& shape, const QRectF& r)
 {
     const qreal  roll = qMax(2.0, qMin(r.width() * k_scrollRoll, r.height() / 2.0));
     const qreal  bow  = r.height() * k_scrollBow;
     const QRectF body = r.adjusted(roll, 0, -roll, 0);
     if (body.width() <= 1.0)
-        return trapezoidPath(r);   // too narrow to roll: fall back to something still drawable
+        return trapezoidPath(shape, r);   // too narrow to roll: fall back to something still drawable
 
     QPainterPath p;
     p.moveTo(body.left(), body.top());
@@ -244,7 +241,7 @@ QPainterPath scrollPath(const QRectF& r)
     return p;
 }
 
-QRectF scrollArea(const QRectF& body)
+QRectF scrollArea(const ShapeProperties&, const QRectF& body)
 {
     const qreal roll = qMin(body.width() * k_scrollRoll, body.height() / 2.0);
     const qreal bow  = body.height() * k_scrollBow;
@@ -252,7 +249,7 @@ QRectF scrollArea(const QRectF& body)
 }
 
 //! A ribbon with a V notched into each end.
-QPainterPath bannerPath(const QRectF& r)
+QPainterPath bannerPath(const ShapeProperties&, const QRectF& r)
 {
     const qreal n = qMin(r.width() * k_bannerNotch, r.width() / 3.0);
     QPainterPath p;
@@ -266,7 +263,7 @@ QPainterPath bannerPath(const QRectF& r)
     return p;
 }
 
-QRectF bannerArea(const QRectF& body)
+QRectF bannerArea(const ShapeProperties&, const QRectF& body)
 {
     const qreal n = qMin(body.width() * k_bannerNotch, body.width() / 3.0);
     return body.adjusted(n, 0, -n, 0);
@@ -279,31 +276,92 @@ QRectF bannerArea(const QRectF& body)
 using Kind = ShapeProperties::Kind;
 
 //! In the enum's order, so a kind is its own index; shapeInfo() checks every entry names its kind.
-// The flash stretches were chosen by eye, shape by shape, on rendered sheets (PLAN-S A18).
+// The flash stretches were chosen by eye, shape by shape, on rendered sheets (PLAN-S A18); the Box's is
+// a round number between its two templates' old values, to be checked by eye (PLAN-L B22).
 const std::array<ShapeInfo, int(ShapeProperties::k_lastKind) + 1> k_shapes{{
-    {Kind::None,      "none",      QT_TRANSLATE_NOOP("QObject", "Text only — no balloon"), false, nullptr,       wholeArea,          0},
-    {Kind::Speech,    "speech",    QT_TRANSLATE_NOOP("QObject", "Speech balloon"),         true,  speechPath,    speechArea,         0},
-    {Kind::Shout,     "shout",     QT_TRANSLATE_NOOP("QObject", "Shout"),                  true,  burstPath,     burstArea,          0},
-    {Kind::Caption,   "caption",   QT_TRANSLATE_NOOP("QObject", "Caption box"),            false, captionPath,   wholeArea,          100},
-    {Kind::Ellipse,   "ellipse",   QT_TRANSLATE_NOOP("QObject", "Round balloon"),          true,  ellipsePath,   inscribedInEllipse, 0},
-    {Kind::Diamond,   "diamond",   QT_TRANSLATE_NOOP("QObject", "Diamond"),                false, diamondPath,   diamondArea,        0},
-    {Kind::Trapezoid, "trapezoid", QT_TRANSLATE_NOOP("QObject", "Caption plate"),          false, trapezoidPath, trapezoidArea,      50},
-    {Kind::Thought,   "thought",   QT_TRANSLATE_NOOP("QObject", "Thought balloon"),        true,  thoughtPath,   thoughtArea,        0},
-    {Kind::Scroll,    "scroll",    QT_TRANSLATE_NOOP("QObject", "Scroll"),                 false, scrollPath,    scrollArea,         50},
-    {Kind::Banner,    "banner",    QT_TRANSLATE_NOOP("QObject", "Banner"),                 false, bannerPath,    bannerArea,         100},
+    {Kind::None,      "none",      QT_TRANSLATE_NOOP("QObject", "Text only — no balloon"), false, false, nullptr,       wholeArea,          0},
+    {Kind::Box,       "box",       QT_TRANSLATE_NOOP("QObject", "Box"),                    true,  true,  boxPath,       boxArea,            50},
+    {Kind::Shout,     "shout",     QT_TRANSLATE_NOOP("QObject", "Shout"),                  true,  false, burstPath,     burstArea,          0},
+    {Kind::Ellipse,   "ellipse",   QT_TRANSLATE_NOOP("QObject", "Round balloon"),          true,  false, ellipsePath,   inscribedInEllipse, 0},
+    {Kind::Diamond,   "diamond",   QT_TRANSLATE_NOOP("QObject", "Diamond"),                false, false, diamondPath,   diamondArea,        0},
+    {Kind::Trapezoid, "trapezoid", QT_TRANSLATE_NOOP("QObject", "Caption plate"),          false, false, trapezoidPath, trapezoidArea,      50},
+    {Kind::Thought,   "thought",   QT_TRANSLATE_NOOP("QObject", "Thought balloon"),        true,  false, thoughtPath,   thoughtArea,        0},
+    {Kind::Scroll,    "scroll",    QT_TRANSLATE_NOOP("QObject", "Scroll"),                 false, false, scrollPath,    scrollArea,         50},
+    {Kind::Banner,    "banner",    QT_TRANSLATE_NOOP("QObject", "Banner"),                 false, false, bannerPath,    bannerArea,         100},
 }};
+
+//! A kind with every parameter at its default — the template of a kind that has no parameters.
+ShapeProperties plain(Kind kind)
+{
+    ShapeProperties s;
+    s.kind = kind;
+    return s;
+}
+
+//! A Box with corner radius @p radius.
+ShapeProperties box(qreal radius)
+{
+    ShapeProperties s = plain(Kind::Box);
+    s.cornerRadius    = radius;
+    return s;
+}
 
 } // namespace
 
 const ShapeInfo& shapeInfo(ShapeProperties::Kind kind)
 {
     const int i = int(kind);
-    // A kind past the table is a file from a newer build, or a corrupt value: draw a speech balloon,
-    // the fallback the readers already use, rather than reading past the end.
+    // A kind past the table is a file from a newer build, or a corrupt value: draw a Box, the fallback
+    // the readers already use, rather than reading past the end.
     if (i < 0 || i >= int(k_shapes.size()))
-        return k_shapes[int(Kind::Speech)];
+        return k_shapes[int(Kind::Box)];
     Q_ASSERT(k_shapes[i].kind == kind);   // the table is out of the enum's order
     return k_shapes[i];
+}
+
+const QList<ShapeTemplate>& shapeTemplates()
+{
+    // The picker's order: the speaking shapes first, the most used of them leading.
+    static const QList<ShapeTemplate> templates{
+        {"speech",    QT_TRANSLATE_NOOP("QObject", "Speech balloon"),  plain(Kind::Box),       true},
+        {"ellipse",   QT_TRANSLATE_NOOP("QObject", "Round balloon"),   plain(Kind::Ellipse),   true},
+        {"thought",   QT_TRANSLATE_NOOP("QObject", "Thought balloon"), plain(Kind::Thought),   true},
+        {"shout",     QT_TRANSLATE_NOOP("QObject", "Shout"),           plain(Kind::Shout),     true},
+        {"caption",   QT_TRANSLATE_NOOP("QObject", "Caption box"),     box(k_captionCorner),   false},
+        {"trapezoid", QT_TRANSLATE_NOOP("QObject", "Caption plate"),   plain(Kind::Trapezoid), false},
+        {"diamond",   QT_TRANSLATE_NOOP("QObject", "Diamond"),         plain(Kind::Diamond),   false},
+        {"banner",    QT_TRANSLATE_NOOP("QObject", "Banner"),          plain(Kind::Banner),    false},
+        {"scroll",    QT_TRANSLATE_NOOP("QObject", "Scroll"),          plain(Kind::Scroll),    false},
+    };
+    return templates;
+}
+
+const ShapeTemplate& shapeTemplate(const char* id)
+{
+    for (const ShapeTemplate& t : shapeTemplates())
+        if (qstrcmp(t.id, id) == 0)
+            return t;
+    Q_ASSERT_X(false, "shapeTemplate", "no template has this id");
+    return shapeTemplates().first();
+}
+
+const ShapeTemplate* templateOf(const ShapeProperties& shape)
+{
+    for (const ShapeTemplate& t : shapeTemplates())
+        if (t.shape == shape)
+            return &t;
+    return nullptr;
+}
+
+bool shapeSpeaks(const ShapeProperties& shape)
+{
+    const ShapeTemplate* t = templateOf(shape);
+    return t ? t->speaks : shapeInfo(shape.kind).speaks;
+}
+
+qreal cornerRadiusLimit(const QSizeF& size)
+{
+    return qMin(size.width(), size.height()) / 2.0;
 }
 
 QRectF balloonRect(const ObjectRecord& a)
@@ -319,7 +377,7 @@ QPainterPath outlineOf(const ObjectRecord& a, const QRectF& body)
     if (!a.hasSilhouette() || body.isEmpty())
         return {};
     const auto outline = shapeInfo(a.shape.kind).outline;
-    return outline ? outline(body) : QPainterPath();
+    return outline ? outline(a.shape, body) : QPainterPath();
 }
 
 }  // namespace Geometry

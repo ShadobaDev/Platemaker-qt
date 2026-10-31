@@ -1203,7 +1203,7 @@ void ObjectController::applyGroupToSelection(PropertyGroup group)
 
 ObjectRecord::Shape ObjectController::toolBalloonShape() const
 {
-    return m_toolDefaults.balloonShape ? m_toolDefaults.balloonShape() : ObjectRecord::Shape::Speech;
+    return m_toolDefaults.balloonShape ? m_toolDefaults.balloonShape() : ObjectRecord::Shape::Box;
 }
 
 void ObjectController::convertSelectionTo(ObjectRecord::Shape kind)

@@ -229,7 +229,7 @@ void fromAttr(QStringView s, QColor& v)
     if (c.isValid())
         v = c;
 }
-// An unknown or missing name reads as the reader's own fallback (Speech, Clean), as it always has.
+// An unknown or missing name reads as the reader's own fallback (Box, Clean).
 void fromAttr(QStringView s, ObjectRecord::Shape& v) { v = shapeFromName(s); }
 void fromAttr(QStringView s, ObjectRecord::Style& v) { v = styleFromName(s); }
 

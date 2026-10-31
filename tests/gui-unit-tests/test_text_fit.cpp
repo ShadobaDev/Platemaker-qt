@@ -86,9 +86,9 @@ TEST(TextFit, NeitherSideGoesBelowTheFloor)
 TEST(TextFit, PaddingGrowsTheBoxAndANegativeOneShrinksIt)
 {
     const QSizeF block(200, 60);
-    const QSize  tight = Geometry::fitBoxFor(withShape(ObjectRecord::Shape::Speech, 0), block);
-    const QSize  roomy = Geometry::fitBoxFor(withShape(ObjectRecord::Shape::Speech, 20), block);
-    const QSize  burst = Geometry::fitBoxFor(withShape(ObjectRecord::Shape::Speech, -20), block);
+    const QSize  tight = Geometry::fitBoxFor(withShape(ObjectRecord::Shape::Box, 0), block);
+    const QSize  roomy = Geometry::fitBoxFor(withShape(ObjectRecord::Shape::Box, 20), block);
+    const QSize  burst = Geometry::fitBoxFor(withShape(ObjectRecord::Shape::Box, -20), block);
     EXPECT_GT(roomy.width(), tight.width());
     EXPECT_GT(roomy.height(), tight.height());
     EXPECT_LT(burst.width(), tight.width());
@@ -117,14 +117,14 @@ TEST(TextFit, FixPaddingLowersItUntilTheLetteringFits)
     const QSizeF block(200, 60);
 
     // The box Fit gives at padding 0: at padding 8 the lettering overflows, and 0 is the most it can keep.
-    ObjectRecord a = withShape(ObjectRecord::Shape::Speech, 0);
+    ObjectRecord a = withShape(ObjectRecord::Shape::Box, 0);
     a.box          = Geometry::fitBoxFor(a, block);
     a.text.padding = 8;
     ASSERT_FALSE(Geometry::fits(a, block));
     EXPECT_EQ(Geometry::paddingToFit(a, block), 0);
 
     // A balloon smaller than its lettering: the padding goes below zero, past the outline.
-    ObjectRecord burst = withShape(ObjectRecord::Shape::Speech, -20);
+    ObjectRecord burst = withShape(ObjectRecord::Shape::Box, -20);
     burst.box          = Geometry::fitBoxFor(burst, block);
     burst.text.padding = 8;
     const int fixed    = Geometry::paddingToFit(burst, block);

@@ -78,6 +78,7 @@ public:
 
             using T = std::remove_reference_t<decltype(values.*member)>;
             Row row;
+            row.key  = key;
             row.spin = spin;
             row.min  = spec->min;
             row.get  = [member](const Group& v) { return int(qRound(double(v.*member))); };
@@ -120,6 +121,14 @@ public:
             showSpin(r.spin, r.mixed, r.get(values), r.min, r.spin->maximum());
     }
 
+    //! Lowers or raises @p key's ceiling, e.g. to what the bound object can show. Call it before show().
+    void setMaximum(const char* key, int max) const
+    {
+        for (const Row& r : m_rows)
+            if (std::strcmp(r.key, key) == 0 && r.spin->maximum() != max)
+                r.spin->setMaximum(qMax(r.min, max));   // only on a change: setRange() stops a held arrow
+    }
+
     void setVisible(QFormLayout* form, bool visible) const
     {
         for (const Row& r : m_rows)
@@ -138,6 +147,7 @@ private:
     //! One field's spin, and how to reach the field. Values are whole numbers on screen.
     struct Row
     {
+        const char*                      key  = nullptr;
         QSpinBox*                        spin = nullptr;
         int                              min  = 0;
         std::function<int(const Group&)>  get;

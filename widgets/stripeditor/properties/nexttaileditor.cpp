@@ -6,7 +6,7 @@
 #include <QSize>
 #include <QSpinBox>
 
-#include "properties/shapeeditor.hpp"   // shapeSpeaks()
+#include "shapes.hpp"   // Geometry::shapeSpeaks()
 
 namespace StripEdit {
 
@@ -104,11 +104,11 @@ void NextTailEditor::applyToNew(ObjectRecord& target) const
     next.applyTo(target);
 }
 
-void NextTailEditor::shapeChanged(ObjectRecord::Shape kind)
+void NextTailEditor::shapeChanged(const ShapeProperties& shape)
 {
-    m_shapeCanSpeak = kind != ObjectRecord::Shape::None;
+    m_shapeCanSpeak = shape.kind != ObjectRecord::Shape::None;
     const QSignalBlocker block(m_enabled);
-    m_enabled->setChecked(shapeSpeaks(kind));
+    m_enabled->setChecked(Geometry::shapeSpeaks(shape));
     syncEnabled();
 }
 

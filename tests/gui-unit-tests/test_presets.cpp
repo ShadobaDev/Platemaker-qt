@@ -28,7 +28,7 @@ protected:
 ObjectRecord placed()
 {
     ObjectRecord a;
-    a.shape.kind = ObjectRecord::Shape::Speech;
+    a.shape.kind = ObjectRecord::Shape::Box;
     a.box        = QSize(300, 160);
     a.text.body  = QStringLiteral("Hello");
     a.styleSeed  = 123456;

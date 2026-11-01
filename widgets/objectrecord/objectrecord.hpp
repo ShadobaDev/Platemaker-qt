@@ -34,7 +34,7 @@ struct ObjectRecord
     //! The enums live with the groups that own them; these keep every existing spelling working.
     using Shape   = ShapeProperties::Kind;
     using Edge    = ShapeProperties::Edge;
-    using Fill    = SkinProperties::Fill;
+    using Pattern = Paint::Kind;
     using Line    = StyleProperties::Line;
     using Texture = TextureProperties::Kind;
 
@@ -177,9 +177,9 @@ inline constexpr int k_labelChars = 32;
 [[nodiscard]] ObjectRecord::Shape shapeFromName(QStringView name);
 
 //! The persisted name of a fill, and the way back (unknown: Solid); what to call it on screen.
-[[nodiscard]] const char* fillName(ObjectRecord::Fill f);
-[[nodiscard]] ObjectRecord::Fill fillFromName(QStringView name);
-[[nodiscard]] QString fillTitle(ObjectRecord::Fill f);
+[[nodiscard]] const char* patternName(ObjectRecord::Pattern f);
+[[nodiscard]] ObjectRecord::Pattern patternFromName(QStringView name);
+[[nodiscard]] QString patternTitle(ObjectRecord::Pattern f);
 
 //! The persisted name of an edge, and the way back (unknown: None); what to call it on screen.
 [[nodiscard]] const char* edgeName(ObjectRecord::Edge e);

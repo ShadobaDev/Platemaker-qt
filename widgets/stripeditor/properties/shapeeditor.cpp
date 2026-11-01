@@ -59,8 +59,8 @@ QPixmap bubbleThumbnail(const ShapeProperties& shape, const QColor& fill, const 
     a.style.strokeWidth = 2 * k_shapeIconScale;
     a.text.body        = QStringLiteral("Aa");
     a.text.pixelSize   = a.box.height() / 3;
-    a.skin.fill        = fill;
-    a.style.stroke      = stroke;
+    a.skin.fill.colour        = fill;
+    a.style.stroke.colour      = stroke;
     a.text.colour      = ink;
     if (Geometry::shapeSpeaks(shape)) {
         Tail t;

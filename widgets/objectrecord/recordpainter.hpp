@@ -59,10 +59,10 @@ void paintPaths(QPainter& painter, const ObjectRecord& a, const QPainterPath& si
 [[nodiscard]] QImage render(const ObjectRecord& a);
 
 /**
- * @brief What @p s fills a balloon with: its colour, or a pattern's tile (Geometry::toneCell()) laid from
- *        the painter's origin, the box's corner, as the SVG's `<pattern>` is.
+ * @brief What @p p paints with: its colour, or a pattern's tile (Geometry::patternCell()) laid from the
+ *        painter's origin, the box's corner, as the SVG's `<pattern>` is.
  */
-[[nodiscard]] QBrush fillBrush(const SkinProperties& s);
+[[nodiscard]] QBrush paintBrush(const Paint& p);
 
 } // namespace Painter
 

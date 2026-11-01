@@ -140,15 +140,23 @@ JSON, `k_nodeDecimals` in the SVG, so a template's nodes are rounded to those de
 reads back as itself. `FieldRows` skips a field that is not a number at compile time, so a list never
 becomes a row.
 
-### A fill
+### A paint, and a pattern
 
-A value of `SkinProperties::Fill` (move `k_lastFill`), one entry in `k_fills` (`styles.cpp`, its names)
-and its drawing in two places that must agree: the painter's brush (`Painter::fillBrush()`) and the SVG's
-`<pattern>` (`fillDefs()` in `recordsvg.cpp`). Both are drawn from one description of the pattern's cell
-(the screentone's is `toneCell()`), and both are laid from the box's corner (the brush from the painter's
-origin, the pattern in `userSpaceOnUse`), so the preview and the output match. A pattern's own colour is
-`fillSecond`; its numbers are `SkinProperties` fields with a prefix of their own (`tone…`), rows of the
-*Fill* section through `FieldRows` (`k_toneRows` in `skineditor.cpp`).
+A **Paint** (`propertygroups.hpp`) is what a part of the balloon is painted with: a colour, or a pattern
+of a second colour over it. The fill (`SkinProperties::fill`), the line (`StyleProperties::stroke`: the
+outline and a flash's or a brush's strokes) and the shadow (`EffectProperties::shadowFill`) each hold one.
+It is a **sub-group**: its fields are listed once (`Paint::members()`), and a group lists them under keys
+of its own with `Paint::fieldsAs()`, so the files stay flat (`fill`, `fillKind`, `fillSpacing`…). Every
+walk reaches a field through `Fields::at()`, which takes a plain member or a `Fields::Nested` one. One
+editor, `PaintRows` (`properties/paintrows.hpp`), shows a Paint in any section.
+
+A pattern is a value of `Paint::Kind` (move `k_lastKind`), one entry in `k_patterns` (`styles.cpp`, its
+names) and its marks in `patternCell()`: the cell's square, its angle, and the marks as one non-zero
+path. Both the painter's brush (`Painter::paintBrush()`) and the SVG's `<pattern>` (`patternDefs()` in
+`recordsvg.cpp`) are drawn from that cell and laid from the box's corner (the brush from the painter's
+origin, the pattern in `userSpaceOnUse`), so the preview and the output match. Anything that a pattern
+paints is written in the box's coordinates, never under a `transform` (the shadow is the moved outline),
+or its pattern would move with it.
 
 ### An effect
 

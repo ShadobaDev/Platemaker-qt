@@ -124,14 +124,14 @@ StyleEditor::StyleEditor(QWidget* parent)
     m_line->setToolTip(tr("How the edge is drawn: a solid line, a flash's strokes ringing it, or a few "
                           "brush strokes laid along it."));
     m_form->addRow(tr("Line:"), m_line);
-    m_strokeSwatch = new QPushButton(tr("Colour"), this);
-    m_strokeSwatch->setToolTip(tr("The line's colour: the outline's, or a flash's or a brush's strokes'."));
-    m_form->addRow(tr("Colour:"), m_strokeSwatch);
     m_strokeWidth = new QSpinBox(this);
     m_strokeWidth->setRange(k_strokeWidthMin, k_strokeWidthMax);
     m_strokeWidth->setSuffix(tr(" px"));
     m_strokeWidth->setToolTip(tr("How wide the outline is, and a brush's strokes. 0 draws no line."));
     m_form->addRow(tr("Width:"), m_strokeWidth);
+    // The line's paint: the outline's, or a flash's or a brush's strokes'.
+    m_stroke.build(this, m_form, &StyleProperties::stroke, tr("Colour:"), m_values, m_populating,
+                   [this] { emit changed(); }, [this] { emit committed(); });
     m_flash.build(this, m_form, "flash", k_flashRows, k_trContext, m_values, m_populating,
                   [this] { emit changed(); }, [this](const char* key) -> QSpinBox* {
                       if (std::strcmp(key, "flashCoreStretch") != 0)
@@ -159,17 +159,7 @@ StyleEditor::StyleEditor(QWidget* parent)
         m_widthTouched       = true;
         emit changed();
     });
-    connect(m_strokeSwatch, &QPushButton::clicked, this, [this] {
-        const QColor picked = QColorDialog::getColor(m_values.stroke, this, tr("Choose colour"));
-        if (!picked.isValid())
-            return;
-        m_values.stroke = picked;
-        m_strokeTouched = true;
-        m_mixedStroke   = false;
-        paintColourSwatch(m_strokeSwatch, picked);
-        emit changed();
-        emit committed();   // a dialog choice is discrete — commit it without waiting on a timer
-    });
+
 
     syncFromValues();
 }
@@ -180,20 +170,21 @@ void StyleEditor::bind(const Subjects& subjects)
         return;
     m_values = StyleProperties::from(*subjects.first());
 
-    m_mixedLine = m_mixedStroke = m_mixedWidth = false;
+    m_mixedLine = m_mixedWidth = false;
+    m_stroke.reset();
     m_flash.reset();
     m_brush.reset();
     bool sameShape = true;
     for (const ObjectRecord* a : subjects) {
         const StyleProperties v = StyleProperties::from(*a);
         m_mixedLine   = m_mixedLine   || v.line        != m_values.line;
-        m_mixedStroke = m_mixedStroke || v.stroke      != m_values.stroke;
+        m_stroke.compare(v, m_values);
         m_mixedWidth  = m_mixedWidth  || v.strokeWidth != m_values.strokeWidth;
         m_flash.compare(v, m_values);
         m_brush.compare(v, m_values);
         sameShape = sameShape && a->shape.kind == subjects.first()->shape.kind;
     }
-    m_lineTouched = m_strokeTouched = m_widthTouched = false;
+    m_lineTouched = m_widthTouched = false;
     if (m_stretch)
         m_stretch->shapeStretch = sameShape ? Geometry::shapeInfo(subjects.first()->shape.kind).flashStretch : -1;
 
@@ -209,7 +200,7 @@ void StyleEditor::applyEditedTo(ObjectRecord& target) const
 {
     StyleProperties t = StyleProperties::from(target);
     if (m_lineTouched)   t.line        = m_values.line;
-    if (m_strokeTouched) t.stroke      = m_values.stroke;
+    m_stroke.applyEdited(m_values, t);
     if (m_widthTouched)  t.strokeWidth = m_values.strokeWidth;
     m_flash.applyEdited(m_values, t);
     m_brush.applyEdited(m_values, t);
@@ -221,10 +212,7 @@ void StyleEditor::syncFromValues()
     m_populating = true;
     showCombo(m_line, m_mixedLine, m_line->findData(int(m_values.line)));
     showSpin(m_strokeWidth, m_mixedWidth, m_values.strokeWidth, k_strokeWidthMin, k_strokeWidthMax);
-    if (m_mixedStroke)
-        paintMixedSwatch(m_strokeSwatch, palette());
-    else
-        paintColourSwatch(m_strokeSwatch, m_values.stroke);
+    m_stroke.show(m_values);
     m_flash.show(m_values);
     m_brush.show(m_values);
     showRows();

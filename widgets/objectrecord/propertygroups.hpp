@@ -8,6 +8,9 @@
 #include <QString>
 #include <QtGlobal>
 
+#include <type_traits>
+#include <utility>
+
 #include "fields.hpp"
 
 /**
@@ -63,6 +66,77 @@ struct Tail
 }
 
 struct ObjectRecord;
+
+/**
+ * @brief What a part of the balloon is painted with (PLAN-L B33): a colour, or a pattern of a second colour
+ *        over it — dots, lines or a grid, a halftone. One type for the fill, the line and the shadow.
+ *
+ * A **sub-group**: a group holds one as a member and lists its fields with keys of its own (fieldsAs()),
+ * so the files stay flat (`fill`, `fillKind`, `fillSpacing`…) and the list of a Paint's fields is
+ * written once (members()). Drawn alike by the painter's brush and the SVG's pattern, from one cell
+ * (Geometry::patternCell()), laid from the box's corner.
+ */
+struct Paint
+{
+    /**
+     * @brief The pattern, or none. Persisted by name — see patternName(). The table is in styles.cpp.
+     */
+    enum class Kind { Solid, Dots, Lines, Grid };
+    //! The enum's last value. **Adding a pattern moves this**: patternFromName() reads up to it.
+    static constexpr Kind k_lastKind = Kind::Grid;
+
+    QColor colour{255, 255, 255};   //!< The colour; under a pattern, its ground.
+    Kind   kind = Kind::Solid;
+    QColor second{20, 20, 20};      //!< The pattern's own colour, over the ground.
+    /**
+     * @name A pattern's cell: a square grid, turned. Read only while `kind` is not Solid. In balloon pixels
+     * and degrees, so it is the same on screen and in the output.
+     * @{
+     */
+    qreal  spacing = 6.0;   //!< From one dot, or line, to the next.
+    qreal  size    = 3.0;   //!< A dot's diameter, or a line's width. Past the spacing they merge.
+    int    angle   = 45;    //!< How far the grid is turned, clockwise.
+    /** @} */
+
+    Paint() = default;
+    Paint(QColor colour, QColor second) : colour(colour), second(second) {}
+
+    //! Each field with its place in a key table: the one list both fields() and fieldsAs() walk.
+    template <class V>
+    static void members(V&& v)
+    {
+        v(0, &Paint::colour);
+        v(1, &Paint::kind);
+        v(2, &Paint::second);
+        v(3, &Paint::spacing);
+        v(4, &Paint::size);
+        v(5, &Paint::angle);
+    }
+
+    //! The fields under plain keys: what a Paint's own editor (PaintRows) walks.
+    template <class V>
+    static void fields(V&& v)
+    {
+        static constexpr const char* k_keys[] = {"colour", "kind", "second", "spacing", "size", "angle"};
+        members([&](int i, auto member) { v(k_keys[i], member); });
+    }
+
+    /**
+     * @brief The fields of the Paint @p group holds as @p paint, under @p keys (in members()' order): what
+     *        that group's own fields() lists, so its files keep their flat keys.
+     */
+    template <class V, class Group>
+    static void fieldsAs(V&& v, Paint Group::* paint, const char* const (&keys)[6])
+    {
+        members([&](int i, auto member) {
+            using T = std::remove_reference_t<decltype(std::declval<Paint&>().*member)>;
+            v(keys[i], Fields::Nested<Group, Paint, T>{paint, member});
+        });
+    }
+
+    [[nodiscard]] bool operator==(const Paint& o) const { return Fields::equal(*this, o); }
+    [[nodiscard]] bool operator!=(const Paint& o) const { return !(*this == o); }
+};
 
 /**
  * @brief One node of a free outline, a Polygon's or a Curve's, **relative to the balloon**: 0..1 across
@@ -135,40 +209,15 @@ struct ShapeNode
  */
 struct SkinProperties
 {
-    /**
-     * @brief What the balloon is filled with (PLAN-L M13): one colour, or a pattern of the fill and a second
-     * colour. Plain geometry either way, so Qt draws it as it draws a solid fill. The table is in
-     * styles.cpp; persisted by name (fillName()).
-     */
-    enum class Fill { Solid, Screentone };
-    //! The enum's last value. **Adding a fill moves this**: fillFromName() reads up to it.
-    static constexpr Fill k_lastFill = Fill::Screentone;
-
-    QColor fill{255, 255, 255};
-
-    Fill   fillKind = Fill::Solid;
-    QColor fillSecond{20, 20, 20};   //!< A pattern's own colour, over the fill: a screentone's dots.
-    /**
-     * @name A screentone: dots on a square grid, turned. Read only while `fillKind` is Screentone. In
-     * balloon pixels and degrees, the grid laid from the box's corner, so it is the same on screen and
-     * in the output.
-     * @{
-     */
-    qreal  toneSpacing = 6.0;   //!< From one dot to the next.
-    qreal  toneDot     = 3.0;   //!< A dot's diameter. Past the spacing the dots merge.
-    int    toneAngle   = 45;    //!< How far the grid is turned, clockwise.
-    /** @} */
+    //! What the balloon is filled with: white by default, a pattern's dots dark over it.
+    Paint fill{QColor(255, 255, 255), QColor(20, 20, 20)};
 
     //! The fields, with the keys they are saved under (fields.hpp).
     template <class V>
     static void fields(V&& v)
     {
-        v("fill",        &SkinProperties::fill);
-        v("fillKind",    &SkinProperties::fillKind);
-        v("fillSecond",  &SkinProperties::fillSecond);
-        v("toneSpacing", &SkinProperties::toneSpacing);
-        v("toneDot",     &SkinProperties::toneDot);
-        v("toneAngle",   &SkinProperties::toneAngle);
+        static constexpr const char* k_fill[] = {"fill", "fillKind", "fillSecond", "fillSpacing", "fillSize", "fillAngle"};
+        Paint::fieldsAs(v, &SkinProperties::fill, k_fill);
     }
 
     //! Reads this group out of \p a.
@@ -354,9 +403,10 @@ struct StyleProperties
     //! `flashCoreStretch`'s "follow the shape" value.
     static constexpr int k_autoStretch = -1;
 
-    Line   line = Line::Clean;
-    QColor stroke{20, 20, 20};   //!< The outline's colour, and a flash's or a brush's strokes'.
-    int    strokeWidth = 5;      //!< The outline's width; a brush's too. 0 draws no line.
+    Line  line = Line::Clean;
+    //! The outline's paint, and a flash's or a brush's strokes': near black, a pattern's lines white over it.
+    Paint stroke{QColor(20, 20, 20), QColor(255, 255, 255)};
+    int   strokeWidth = 5;      //!< The outline's width; a brush's too. 0 draws no line.
 
     /**
      * @name The flash: narrow triangles ringing the silhouette, outwards and inwards (styles.cpp).
@@ -401,8 +451,10 @@ struct StyleProperties
     template <class V>
     static void fields(V&& v)
     {
+        static constexpr const char* k_stroke[] = {"stroke",       "strokeKind", "strokeSecond",
+                                                   "strokeSpacing", "strokeSize", "strokeAngle"};
         v("line",                   &StyleProperties::line);
-        v("stroke",                 &StyleProperties::stroke);
+        Paint::fieldsAs(v, &StyleProperties::stroke, k_stroke);
         v("strokeWidth",            &StyleProperties::strokeWidth);
         v("flashOuterPitch",        &StyleProperties::flashOuterPitch);
         v("flashInnerPitch",        &StyleProperties::flashInnerPitch);
@@ -448,7 +500,8 @@ struct EffectProperties
     qreal  shadowX        = 6.0;           //!< How far right, in balloon pixels; negative is left.
     qreal  shadowY        = 6.0;           //!< How far down; negative is up.
     qreal  shadowSoftness = 0.0;           //!< The blur's deviation, in balloon pixels; 0 is a hard edge.
-    QColor shadowColour{0, 0, 0, 110};     //!< Its alpha is how dark it is.
+    //! Its paint: a colour, whose alpha is how dark it is, or a halftone of it.
+    Paint  shadowFill{QColor(0, 0, 0, 110), QColor(0, 0, 0)};
     /** @} */
 
     //! The fields, with the keys they are saved under (fields.hpp).
@@ -459,7 +512,9 @@ struct EffectProperties
         v("shadowX",        &EffectProperties::shadowX);
         v("shadowY",        &EffectProperties::shadowY);
         v("shadowSoftness", &EffectProperties::shadowSoftness);
-        v("shadowColour",   &EffectProperties::shadowColour);
+        static constexpr const char* k_shadowFill[] = {"shadowColour",  "shadowKind", "shadowSecond",
+                                                       "shadowSpacing", "shadowSize", "shadowAngle"};
+        Paint::fieldsAs(v, &EffectProperties::shadowFill, k_shadowFill);
     }
 
     [[nodiscard]] static EffectProperties from(const ObjectRecord& a);

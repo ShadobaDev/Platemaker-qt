@@ -94,7 +94,7 @@ QList<BubblePreset> builtinPresets()
     ObjectRecord whisper = dialogue;
     whisper.shape.kind       = ObjectRecord::Shape::Ellipse;
     whisper.style.strokeWidth = 3;
-    whisper.style.stroke      = QColor(90, 90, 90);
+    whisper.style.stroke.colour      = QColor(90, 90, 90);
     whisper.text.colour      = QColor(70, 70, 70);
     whisper.text.pixelSize   = 26;
     out.append({PresetStore::tr("Whisper"), whisper});
@@ -130,9 +130,9 @@ QList<BubblePreset> builtinPresets()
 
     ObjectRecord caption = dialogue;
     caption.shape            = Geometry::shapeTemplate("caption").shape;
-    caption.skin.fill        = QColor(16, 16, 16);
+    caption.skin.fill.colour        = QColor(16, 16, 16);
     caption.text.colour      = QColor(245, 245, 245);
-    caption.style.stroke      = QColor(245, 245, 245);
+    caption.style.stroke.colour      = QColor(245, 245, 245);
     caption.style.strokeWidth = 2;
     caption.text.align       = Qt::AlignLeft;
     out.append({PresetStore::tr("Caption"), caption});

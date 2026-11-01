@@ -50,12 +50,42 @@ bool same(E a, E b)
     return a == b;
 }
 
+/**
+ * @brief A field inside a field: member @p inner of the struct a group holds as @p outer (a Paint).
+ *
+ * C++ cannot make one pointer-to-member of the two, so a group's `fields()` hands this to the visitor
+ * where a sub-group's field is, under a key of the group's own (`fillKind` for the fill's Paint's kind).
+ * Every walk reaches a field through at(), which takes either.
+ */
+template <class Group, class Sub, class T>
+struct Nested
+{
+    Sub Group::* outer;
+    T Sub::*     inner;
+};
+
+//! The field @p member of @p g: a member of the group, or a member of one of its sub-groups.
+template <class Group, class T>
+T& at(Group& g, T Group::* member) { return g.*member; }
+template <class Group, class T>
+const T& at(const Group& g, T Group::* member) { return g.*member; }
+template <class Group, class Sub, class T>
+T& at(Group& g, Nested<Group, Sub, T> n) { return (g.*n.outer).*n.inner; }
+template <class Group, class Sub, class T>
+const T& at(const Group& g, Nested<Group, Sub, T> n) { return (g.*n.outer).*n.inner; }
+
+//! Whether @p M names a sub-group's field (Nested) rather than the group's own.
+template <class M>
+inline constexpr bool isNested = false;
+template <class Group, class Sub, class T>
+inline constexpr bool isNested<Nested<Group, Sub, T>> = true;
+
 //! Every field of \p a equal to the same field of \p b — a group's operator==.
 template <class Group>
 bool equal(const Group& a, const Group& b)
 {
     bool all = true;
-    Group::fields([&](const char*, auto member) { all = all && same(a.*member, b.*member); });
+    Group::fields([&](const char*, auto member) { all = all && same(at(a, member), at(b, member)); });
     return all;
 }
 

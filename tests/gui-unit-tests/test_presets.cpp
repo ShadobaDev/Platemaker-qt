@@ -62,7 +62,7 @@ TEST_F(Presets, OneChangedPropertyIsCustom)
 
     // A preset carries the padding and the line spacing too, so moving either is leaving the look.
     const QList<std::function<void(ObjectRecord&)>> edits{
-        [](ObjectRecord& a) { a.skin.fill = a.skin.fill == QColor(Qt::red) ? QColor(Qt::blue) : QColor(Qt::red); },
+        [](ObjectRecord& a) { a.skin.fill.colour = a.skin.fill.colour == QColor(Qt::red) ? QColor(Qt::blue) : QColor(Qt::red); },
         [](ObjectRecord& a) { a.text.padding += 5; },
         [](ObjectRecord& a) { a.text.lineSpacing += 10; },
     };

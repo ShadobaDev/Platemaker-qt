@@ -17,23 +17,20 @@ constexpr int k_tileOversample = 4;
 
 } // namespace
 
-QBrush fillBrush(const SkinProperties& s)
+QBrush paintBrush(const Paint& paint)
 {
-    if (s.fillKind != SkinProperties::Fill::Screentone)
-        return s.fill;
+    if (paint.kind == Paint::Kind::Solid)
+        return paint.colour;
 
-    const Geometry::ToneCell cell = Geometry::toneCell(s);
-    const int                side = qMax(1, qCeil(cell.size * k_tileOversample));
-    QImage                   tile(side, side, QImage::Format_ARGB32_Premultiplied);
-    tile.fill(s.fill);
+    const Geometry::PatternCell cell = Geometry::patternCell(paint);
+    const int                   side = qMax(1, qCeil(cell.size * k_tileOversample));
+    QImage                      tile(side, side, QImage::Format_ARGB32_Premultiplied);
+    tile.fill(paint.colour);
     {
         QPainter p(&tile);
         p.setRenderHint(QPainter::Antialiasing, true);
         p.scale(side / cell.size, side / cell.size);
-        p.setPen(Qt::NoPen);
-        p.setBrush(s.fillSecond);
-        for (const QPointF& c : cell.dots)
-            p.drawEllipse(c, cell.radius, cell.radius);
+        p.fillPath(cell.marks, paint.second);
     }
     // Back to balloon pixels, then turned: the same transform the SVG's pattern carries.
     QBrush     brush(tile);
@@ -65,17 +62,17 @@ void paintPaths(QPainter& painter, const ObjectRecord& a, const QPainterPath& si
         // The shadow under it: hard here, whatever its softness — a soft one is the library's to draw,
         // and a balloon with one is previewed from there at rest (Geometry::hasFilter()).
         if (const QPainterPath shadow = Geometry::shadowOf(a, silhouette); !shadow.isEmpty())
-            painter.fillPath(shadow, a.effects.shadowColour);
-        painter.fillPath(silhouette, fillBrush(a.skin));
+            painter.fillPath(shadow, paintBrush(a.effects.shadowFill));
+        painter.fillPath(silhouette, paintBrush(a.skin.fill));
         // A style with strokes of its own draws them instead of the outline: they are the edge.
         if (a.style.strokeWidth > 0 && Geometry::hasOutline(a)) {
-            QPen pen(a.style.stroke, a.style.strokeWidth);
+            QPen pen(paintBrush(a.style.stroke), a.style.strokeWidth);
             pen.setJoinStyle(Qt::RoundJoin);
             painter.strokePath(silhouette, pen);
         }
     }
     if (!ink.isEmpty())
-        painter.fillPath(ink, a.style.stroke);
+        painter.fillPath(ink, paintBrush(a.style.stroke));
 
     // Filled outlines rather than drawn text, so that what is on screen is what Svg::write() writes
     // and what the library rasterises — one geometry, three consumers.

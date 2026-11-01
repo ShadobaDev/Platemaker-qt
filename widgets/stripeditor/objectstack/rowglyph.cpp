@@ -88,7 +88,7 @@ QIcon objectGlyph(const ObjectRecord& a, const QPalette& pal, int px, qreal dpr)
 
     // The object's own fill, the palette's outline. A black balloon on a dark panel would otherwise be a
     // hole, and a white one on a light panel nothing at all.
-    p.setBrush(a.skin.fill);
+    p.setBrush(a.skin.fill.colour);
     QPen pen = outlinePen(pal, 1.0);
     pen.setWidthF(qMax(0.5, 1.0 / k));   // one point on screen, whatever the balloon's own size
     p.setPen(pen);

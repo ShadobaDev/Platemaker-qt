@@ -2,6 +2,7 @@
 #define STRIPEDIT_EFFECTSEDITOR_HPP
 
 #include "properties/fieldrows.hpp"
+#include "properties/paintrows.hpp"
 #include "properties/propertygroupeditor.hpp"
 
 class QCheckBox;
@@ -36,17 +37,15 @@ private:
 
     QFormLayout* m_form   = nullptr;
     QCheckBox*   m_shadow = nullptr;
-    QPushButton* m_colour = nullptr;
-    FieldRows<EffectProperties> m_rows;   //!< The offset and the softness.
+    FieldRows<EffectProperties> m_rows;    //!< The offset and the softness.
+    PaintRows<EffectProperties> m_paint;   //!< Its paint.
 
     EffectProperties m_values;
     bool m_populating = false;
 
     // --- bound to a set ---
     bool m_mixedShadow   = false;
-    bool m_mixedColour   = false;
     bool m_shadowTouched = false;
-    bool m_colourTouched = false;
 };
 
 }  // namespace StripEdit

@@ -48,33 +48,37 @@ struct TextureInfo
     qreal (*reach)(const TextureProperties& t);
 };
 
-//! One fill: its names. How it is drawn is the painter's (a brush) and the SVG's (a pattern), from the
-//! same description of its cell (toneCell()).
-struct FillInfo
+//! One pattern of a Paint: its names. How it is drawn is the painter's (a brush) and the SVG's (a
+//! `<pattern>`), both from one description of its cell (patternCell()).
+struct PatternInfo
 {
-    SkinProperties::Fill kind;    //!< Which fill this entry is; the table is checked against it.
-    const char*          name;    //!< Persisted, in the JSON and the SVG. **Never changes** once saved.
-    const char*          title;   //!< Shown on screen, translated through QObject::tr().
+    Paint::Kind kind;    //!< Which pattern this entry is; the table is checked against it.
+    const char* name;    //!< Persisted, in the JSON and the SVG. **Never changes** once saved.
+    const char* title;   //!< Shown on screen, translated through QObject::tr().
 };
 
-//! The entry for @p kind. Every kind up to `SkinProperties::k_lastFill` has one.
-[[nodiscard]] const FillInfo& fillInfo(SkinProperties::Fill kind);
+//! The entry for @p kind. Every kind up to `Paint::k_lastKind` has one.
+[[nodiscard]] const PatternInfo& patternInfo(Paint::Kind kind);
 
 /**
- * @brief A screentone's repeating cell: a square of the fill with a dot of the second colour in its
- *        middle, the grid turned by `angle`. One description that both the painter's brush and the SVG's
- *        `<pattern>` are drawn from, so the preview and the output cannot disagree.
+ * @brief A pattern's repeating cell: a square of the Paint's colour with its marks in the second colour —
+ *        a dot, a line across, or a line each way — the grid turned by `angle`. One description that both
+ *        the painter's brush and the SVG's `<pattern>` are drawn from, so the preview and the output
+ *        cannot disagree.
  */
-struct ToneCell
+struct PatternCell
 {
-    qreal          size   = 0.0;   //!< The square's side: the spacing.
-    qreal          radius = 0.0;   //!< A dot's radius.
-    qreal          angle  = 0.0;   //!< Degrees, clockwise.
-    //! The dots to draw in the square: its own, and its neighbours' where a large dot reaches in.
-    QList<QPointF> dots;
+    qreal        size  = 0.0;   //!< The square's side: the spacing.
+    qreal        angle = 0.0;   //!< Degrees, clockwise.
+    /**
+     * The marks in the square, non-zero filled so where two overlap (a grid's crossing, merging dots)
+     * they paint once: a dot spilling past the square brings its neighbours' back in.
+     */
+    QPainterPath marks;
 };
 
-[[nodiscard]] ToneCell toneCell(const SkinProperties& s);
+//! @p p's cell; empty marks for a solid Paint.
+[[nodiscard]] PatternCell patternCell(const Paint& p);
 
 //! The entry for @p kind. Every kind up to `StyleProperties::k_lastLine` has one.
 [[nodiscard]] const LineInfo& lineInfo(StyleProperties::Line kind);

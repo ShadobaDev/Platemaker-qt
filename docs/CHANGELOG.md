@@ -133,10 +133,10 @@
   - **The panel follows how a balloon is drawn**: *Shape*, *Fill*, *Line*, *Texture*, *Effects*,
     *Text*. The outline's colour and width are in *Line* now, beside the line's kind, so a brush's width
     sits with the brush; *Apply from tool options ▸* offers the same sections.
-  - **Screentone fills.** *Fill* has a **Pattern** choice: the fill colour alone, or a
-    **screentone** of dots in a second colour (**Pattern colour**) over it, with rows for the dots'
-    spacing, size and angle. It is drawn on the strip as it is in the output, the grid laid from the
-    balloon's corner.
+  - **Halftone patterns.** The fill, the line and the shadow each take a **Pattern**: the colour alone,
+    or **dots**, **lines** or a **grid** in a second colour (**Pattern colour**) over it, with rows for
+    their spacing, size and angle. A pattern is drawn on the strip as it is in the output, its grid laid
+    from the balloon's corner, and colours may be transparent.
   - **Shadows.** Under *Effects*, a balloon can **drop a shadow**: its whole shape, tails and all, moved
     and filled with a colour (with transparency) under it. Hard by default, drawn as you edit; give it
     **softness** and it is blurred, shown exactly as it will be baked. A texture roughens the shadow

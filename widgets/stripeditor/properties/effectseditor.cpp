@@ -34,10 +34,10 @@ EffectsEditor::EffectsEditor(QWidget* parent)
     m_shadow = new QCheckBox(tr("Drop a shadow"), this);
     m_shadow->setToolTip(tr("The balloon's whole shape, tails and all, moved and filled under it."));
     m_form->addRow(tr("Shadow"), m_shadow);
-    m_colour = new QPushButton(tr("Colour"), this);
-    m_colour->setToolTip(tr("The shadow's colour; its transparency is how dark it is."));
-    m_form->addRow(tr("Shadow colour"), m_colour);
     m_rows.build(this, m_form, "shadow", k_shadowRows, k_trContext, m_values, m_populating, [this] { emit changed(); });
+    // Its paint, whose transparency is how dark it is; or a halftone.
+    m_paint.build(this, m_form, &EffectProperties::shadowFill, tr("Shadow colour"), m_values, m_populating,
+                  [this] { emit changed(); }, [this] { emit committed(); });
 
     connect(m_shadow, &QCheckBox::toggled, this, [this](bool on) {
         if (m_populating)
@@ -50,19 +50,6 @@ EffectsEditor::EffectsEditor(QWidget* parent)
         emit changed();
         emit committed();   // a tick is discrete, like a dialog's choice
     });
-    connect(m_colour, &QPushButton::clicked, this, [this] {
-        // With an alpha channel: a shadow's transparency is how dark it is.
-        const QColor picked = QColorDialog::getColor(m_values.shadowColour, this, tr("Shadow colour"),
-                                                     QColorDialog::ShowAlphaChannel);
-        if (!picked.isValid())
-            return;
-        m_values.shadowColour = picked;
-        m_colourTouched       = true;
-        m_mixedColour         = false;
-        paintColourSwatch(m_colour, picked);
-        emit changed();
-        emit committed();
-    });
 
     syncFromValues();
 }
@@ -72,15 +59,16 @@ void EffectsEditor::bind(const Subjects& subjects)
     if (subjects.isEmpty())
         return;
     m_values      = EffectProperties::from(*subjects.first());
-    m_mixedShadow = m_mixedColour = false;
+    m_mixedShadow = false;
     m_rows.reset();
+    m_paint.reset();
     for (const ObjectRecord* a : subjects) {
         const EffectProperties e = EffectProperties::from(*a);
         m_mixedShadow = m_mixedShadow || e.shadow != m_values.shadow;
-        m_mixedColour = m_mixedColour || e.shadowColour != m_values.shadowColour;
         m_rows.compare(e, m_values);
+        m_paint.compare(e, m_values);
     }
-    m_shadowTouched = m_colourTouched = false;
+    m_shadowTouched = false;
     syncFromValues();
 }
 
@@ -93,8 +81,8 @@ void EffectsEditor::applyEditedTo(ObjectRecord& target) const
 {
     EffectProperties t = EffectProperties::from(target);
     if (m_shadowTouched) t.shadow       = m_values.shadow;
-    if (m_colourTouched) t.shadowColour = m_values.shadowColour;
     m_rows.applyEdited(m_values, t);
+    m_paint.applyEdited(m_values, t);
     t.applyTo(target);
 }
 
@@ -102,11 +90,8 @@ void EffectsEditor::syncFromValues()
 {
     m_populating = true;
     showCheck(m_shadow, m_mixedShadow, m_values.shadow);
-    if (m_mixedColour)
-        paintMixedSwatch(m_colour, palette());
-    else
-        paintColourSwatch(m_colour, m_values.shadowColour);
     m_rows.show(m_values);
+    m_paint.show(m_values);
     showRows();
     m_populating = false;
 }
@@ -115,8 +100,8 @@ void EffectsEditor::showRows()
 {
     // A selection that disagrees shows the rows at least one of them has.
     const bool on = m_mixedShadow || m_values.shadow;
-    m_form->setRowVisible(m_colour, on);
     m_rows.setVisible(m_form, on);
+    m_paint.setVisible(on);
 }
 
 }  // namespace StripEdit

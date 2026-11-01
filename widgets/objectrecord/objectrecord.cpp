@@ -20,7 +20,7 @@ QJsonValue toJsonValue(const QString& v) { return v; }
 QJsonValue toJsonValue(const QColor& v) { return v.name(QColor::HexArgb); }
 QJsonValue toJsonValue(ObjectRecord::Shape v) { return QLatin1String(shapeName(v)); }
 QJsonValue toJsonValue(ObjectRecord::Edge v) { return QLatin1String(edgeName(v)); }
-QJsonValue toJsonValue(ObjectRecord::Fill v) { return QLatin1String(fillName(v)); }
+QJsonValue toJsonValue(ObjectRecord::Pattern v) { return QLatin1String(patternName(v)); }
 QJsonValue toJsonValue(ObjectRecord::Line v) { return QLatin1String(lineName(v)); }
 QJsonValue toJsonValue(ObjectRecord::Texture v) { return QLatin1String(textureName(v)); }
 //! Nodes as [x, y], or [x, y, type, inX, inY, outX, outY] for a Curve's node with handles, at full
@@ -52,7 +52,7 @@ void fromJsonValue(const QJsonValue& j, QColor& v)
 // An unknown or missing name reads as the reader's own fallback (Box, Clean, None).
 void fromJsonValue(const QJsonValue& j, ObjectRecord::Shape& v) { v = shapeFromName(j.toString()); }
 void fromJsonValue(const QJsonValue& j, ObjectRecord::Edge& v) { v = edgeFromName(j.toString()); }
-void fromJsonValue(const QJsonValue& j, ObjectRecord::Fill& v) { v = fillFromName(j.toString()); }
+void fromJsonValue(const QJsonValue& j, ObjectRecord::Pattern& v) { v = patternFromName(j.toString()); }
 void fromJsonValue(const QJsonValue& j, ObjectRecord::Line& v) { v = lineFromName(j.toString()); }
 void fromJsonValue(const QJsonValue& j, ObjectRecord::Texture& v) { v = textureFromName(j.toString()); }
 void fromJsonValue(const QJsonValue& j, QList<ShapeNode>& v)
@@ -74,14 +74,14 @@ void fromJsonValue(const QJsonValue& j, QList<ShapeNode>& v)
 template <class Group>
 void writeJson(const Group& g, QJsonObject& j)
 {
-    Group::fields([&](const char* key, auto member) { j.insert(QLatin1String(key), toJsonValue(g.*member)); });
+    Group::fields([&](const char* key, auto member) { j.insert(QLatin1String(key), toJsonValue(Fields::at(g, member))); });
 }
 
 //! Every field of \p g out of \p j; a key \p j does not have leaves its field as it is.
 template <class Group>
 void readJson(Group& g, const QJsonObject& j)
 {
-    Group::fields([&](const char* key, auto member) { fromJsonValue(j.value(QLatin1String(key)), g.*member); });
+    Group::fields([&](const char* key, auto member) { fromJsonValue(j.value(QLatin1String(key)), Fields::at(g, member)); });
 }
 
 QJsonArray tailsToJson(const QList<Tail>& tails)
@@ -223,24 +223,24 @@ ObjectRecord::Shape shapeFromName(QStringView name)
     return ObjectRecord::Shape::Box;
 }
 
-const char* fillName(ObjectRecord::Fill f)
+const char* patternName(ObjectRecord::Pattern f)
 {
-    return Geometry::fillInfo(f).name;
+    return Geometry::patternInfo(f).name;
 }
 
-QString fillTitle(ObjectRecord::Fill f)
+QString patternTitle(ObjectRecord::Pattern f)
 {
-    return QObject::tr(Geometry::fillInfo(f).title);
+    return QObject::tr(Geometry::patternInfo(f).title);
 }
 
-ObjectRecord::Fill fillFromName(QStringView name)
+ObjectRecord::Pattern patternFromName(QStringView name)
 {
-    for (int i = 0; i <= int(SkinProperties::k_lastFill); ++i) {
-        const auto f = static_cast<ObjectRecord::Fill>(i);
-        if (name == QLatin1String(fillName(f)))
+    for (int i = 0; i <= int(Paint::k_lastKind); ++i) {
+        const auto f = static_cast<ObjectRecord::Pattern>(i);
+        if (name == QLatin1String(patternName(f)))
             return f;
     }
-    return ObjectRecord::Fill::Solid;
+    return ObjectRecord::Pattern::Solid;
 }
 
 const char* edgeName(ObjectRecord::Edge e)

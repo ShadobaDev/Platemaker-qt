@@ -285,17 +285,19 @@ const std::array<LineInfo, int(StyleProperties::k_lastLine) + 1> k_lines{{
     {Line::Brush, "brush", QT_TRANSLATE_NOOP("QObject", "Brush"), brushInk, brushReach},
 }};
 
-//! Likewise, for fillInfo().
-const std::array<FillInfo, int(SkinProperties::k_lastFill) + 1> k_fills{{
-    {SkinProperties::Fill::Solid,      "solid",      QT_TRANSLATE_NOOP("QObject", "Solid")},
-    {SkinProperties::Fill::Screentone, "screentone", QT_TRANSLATE_NOOP("QObject", "Screentone")},
+//! Likewise, for patternInfo().
+const std::array<PatternInfo, int(Paint::k_lastKind) + 1> k_patterns{{
+    {Paint::Kind::Solid, "solid", QT_TRANSLATE_NOOP("QObject", "Solid")},
+    {Paint::Kind::Dots,  "dots",  QT_TRANSLATE_NOOP("QObject", "Dots")},
+    {Paint::Kind::Lines, "lines", QT_TRANSLATE_NOOP("QObject", "Lines")},
+    {Paint::Kind::Grid,  "grid",  QT_TRANSLATE_NOOP("QObject", "Grid")},
 }};
 
 /**
- *  The closest a screentone's dots may be, in balloon pixels: below it the tone is a flat grey, and the
- *  pattern's cell would vanish.
+ *  The closest a pattern's marks may be, in balloon pixels: below it the pattern is a flat tone, and its
+ *  cell would vanish.
  */
-constexpr qreal k_minToneSpacing = 1.0;
+constexpr qreal k_minPatternSpacing = 1.0;
 
 //! Likewise, for textureInfo().
 const std::array<TextureInfo, int(TextureProperties::k_lastKind) + 1> k_textures{{
@@ -325,28 +327,44 @@ const TextureInfo& textureInfo(TextureProperties::Kind kind)
     return k_textures[i];
 }
 
-const FillInfo& fillInfo(SkinProperties::Fill kind)
+const PatternInfo& patternInfo(Paint::Kind kind)
 {
     const int i = int(kind);
-    if (i < 0 || i >= int(k_fills.size()))
-        return k_fills[int(SkinProperties::Fill::Solid)];
-    Q_ASSERT(k_fills[i].kind == kind);
-    return k_fills[i];
+    if (i < 0 || i >= int(k_patterns.size()))
+        return k_patterns[int(Paint::Kind::Solid)];
+    Q_ASSERT(k_patterns[i].kind == kind);
+    return k_patterns[i];
 }
 
-ToneCell toneCell(const SkinProperties& s)
+PatternCell patternCell(const Paint& p)
 {
-    ToneCell cell;
-    cell.size   = qMax(s.toneSpacing, k_minToneSpacing);
-    cell.radius = qMax(s.toneDot, 0.0) / 2.0;
-    cell.angle  = s.toneAngle;
-    const qreal mid = cell.size / 2.0;
-    // A dot no wider than the square stays inside it; a larger one spills into its neighbours, so theirs
-    // spill back in, and the dots merge as a real tone's do.
-    const int reach = cell.radius <= mid ? 0 : 1;
-    for (int dy = -reach; dy <= reach; ++dy)
-        for (int dx = -reach; dx <= reach; ++dx)
-            cell.dots.append(QPointF(mid + dx * cell.size, mid + dy * cell.size));
+    PatternCell cell;
+    cell.size  = qMax(p.spacing, k_minPatternSpacing);
+    cell.angle = p.angle;
+    cell.marks.setFillRule(Qt::WindingFill);
+    const qreal side = cell.size;
+    const qreal mid  = side / 2.0;
+    const qreal size = qMax(p.size, 0.0);
+    switch (p.kind) {
+    case Paint::Kind::Solid:
+        break;
+    case Paint::Kind::Dots: {
+        // A dot no wider than the square stays inside it; a larger one spills into its neighbours, so
+        // theirs spill back in, and the dots merge as a real tone's do.
+        const qreal radius = size / 2.0;
+        const int   reach  = radius <= mid ? 0 : 1;
+        for (int dy = -reach; dy <= reach; ++dy)
+            for (int dx = -reach; dx <= reach; ++dx)
+                cell.marks.addEllipse(QPointF(mid + dx * side, mid + dy * side), radius, radius);
+        break;
+    }
+    case Paint::Kind::Grid:
+        cell.marks.addRect(QRectF(mid - qMin(size, side) / 2.0, 0.0, qMin(size, side), side));
+        Q_FALLTHROUGH();   // ...and the line across, as Lines have
+    case Paint::Kind::Lines:
+        cell.marks.addRect(QRectF(0.0, mid - qMin(size, side) / 2.0, side, qMin(size, side)));
+        break;
+    }
     return cell;
 }
 

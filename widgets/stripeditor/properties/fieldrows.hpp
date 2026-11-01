@@ -65,11 +65,12 @@ public:
     {
         const size_t prefixLength = std::strlen(prefix);
         Group::fields([&](const char* key, auto member) {
-            using T = std::remove_reference_t<decltype(values.*member)>;
+            using T = std::remove_cv_t<std::remove_reference_t<decltype(Fields::at(values, member))>>;
             // A spin holds a number: a list (a Polygon's nodes) is never a row, and is not compiled as one;
             // nor is a choice (an enum, e.g. the edge's kind; a bool, e.g. whether there is a shadow), which
             // its panel shows as a combo or a check box.
-            if constexpr (std::is_arithmetic_v<T> && !std::is_same_v<T, bool>) {
+            // A sub-group's field (a Paint's) is its own editor's (PaintRows), whatever its key.
+            if constexpr (!Fields::isNested<decltype(member)> && std::is_arithmetic_v<T> && !std::is_same_v<T, bool>) {
                 if (std::strncmp(key, prefix, prefixLength) != 0)
                     return;
                 const FieldRowSpec* spec = nullptr;
@@ -89,21 +90,21 @@ public:
                     row.decimal->setSingleStep(spec->step > 0.0 ? spec->step : std::pow(10.0, -spec->decimals));
                     row.decimal->setRange(spec->min, spec->max);
                     row.box = row.decimal;
-                    row.get = [member](const Group& v) { return double(v.*member); };
+                    row.get = [member](const Group& v) { return double(Fields::at(v, member)); };
                 } else {
                     row.whole = makeSpin ? makeSpin(key) : nullptr;
                     if (!row.whole)
                         row.whole = new QSpinBox(owner);
                     row.whole->setRange(int(spec->min), int(spec->max));
                     row.box = row.whole;
-                    row.get = [member](const Group& v) { return double(qRound(double(v.*member))); };
+                    row.get = [member](const Group& v) { return double(qRound(double(Fields::at(v, member)))); };
                 }
                 // Into the member's own type: an integer field rounds what it is given.
                 row.set = [member](Group& v, double x) {
                     if constexpr (std::is_floating_point_v<T>)
-                        v.*member = T(x);
+                        Fields::at(v, member) = T(x);
                     else
-                        v.*member = T(qRound(x));
+                        Fields::at(v, member) = T(qRound(x));
                 };
                 const QString suffix = QString::fromUtf8(spec->suffix);   // a suffix may be "°"
                 if (row.whole)

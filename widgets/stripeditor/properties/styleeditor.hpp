@@ -2,6 +2,7 @@
 #define STRIPEDIT_STYLEEDITOR_HPP
 
 #include "properties/fieldrows.hpp"
+#include "properties/paintrows.hpp"
 #include "properties/propertygroupeditor.hpp"
 
 class QComboBox;
@@ -46,8 +47,8 @@ private:
 
     QFormLayout* m_form         = nullptr;
     QComboBox*   m_line         = nullptr;
-    QPushButton* m_strokeSwatch = nullptr;   //!< The line's colour.
     QSpinBox*    m_strokeWidth  = nullptr;   //!< The line's width.
+    PaintRows<StyleProperties> m_stroke;     //!< The line's paint.
     StretchSpin* m_stretch      = nullptr;   //!< The flash's core stretch, which reads "Auto (n %)".
     FieldRows<StyleProperties> m_flash;   //!< One spin per `flash…` field. Lengths are whole pixels.
     FieldRows<StyleProperties> m_brush;   //!< One spin per `brush…` field.
@@ -57,10 +58,8 @@ private:
 
     // --- bound to a set ---
     bool m_mixedLine     = false;
-    bool m_mixedStroke   = false;
     bool m_mixedWidth    = false;
     bool m_lineTouched   = false;
-    bool m_strokeTouched = false;
     bool m_widthTouched  = false;
 };
 

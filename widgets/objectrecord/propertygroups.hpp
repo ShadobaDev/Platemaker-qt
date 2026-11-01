@@ -180,7 +180,7 @@ struct ShapeProperties
      * is unreleased, so a kind may still be renamed or merged (PLAN-L B3): a file naming one that is gone
      * loads as a Box.
      */
-    enum class Kind { None, Box, Ellipse, Polygon, Thought, Curve };
+    enum class Kind { None, Box, Ellipse, Polygon, Cloud, Curve };
 
     //! The enum's last value. **Adding a shape moves this** — it is how the unit tests know a shape
     //! exists that the picker (shapeOrder()) does not offer, and which therefore would not load either.
@@ -202,6 +202,10 @@ struct ShapeProperties
      * any size. Fewer than three draw the box's own rectangle.
      */
     QList<ShapeNode> nodes;
+    //! A Cloud's lobes, the circles around its edge. The defaults are the thought balloon's.
+    int lobes    = 11;
+    //! A lobe's radius, in % of the balloon's shorter half-axis.
+    int lobeSize = 40;
 
     //! The fields, with the keys they are saved under (fields.hpp).
     template <class V>
@@ -210,6 +214,8 @@ struct ShapeProperties
         v("shape",        &ShapeProperties::kind);
         v("cornerRadius", &ShapeProperties::cornerRadius);
         v("nodes",        &ShapeProperties::nodes);
+        v("lobes",        &ShapeProperties::lobes);
+        v("lobeSize",     &ShapeProperties::lobeSize);
     }
 
     [[nodiscard]] static ShapeProperties from(const ObjectRecord& a);

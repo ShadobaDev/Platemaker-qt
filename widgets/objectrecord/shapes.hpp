@@ -20,6 +20,13 @@
 
 namespace Geometry {
 
+//! The fewest lobes a Cloud has (three already close it), and the most, past what reads as a cloud.
+constexpr int k_minLobes    = 3;
+constexpr int k_maxLobes    = 40;
+//! A lobe's radius, smallest and largest, in % of the shorter half-axis: at 100 % they meet in the middle.
+constexpr int k_minLobeSize = 5;
+constexpr int k_maxLobeSize = 100;
+
 /**
  * @brief A point a shape offers to be dragged in edit mode, in the balloon's own coordinates.
  */

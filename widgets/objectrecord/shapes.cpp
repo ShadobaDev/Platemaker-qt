@@ -7,6 +7,7 @@
 #include <algorithm>
 #include <array>
 #include <cmath>
+#include <functional>
 #include <vector>
 
 namespace Geometry {
@@ -38,14 +39,23 @@ constexpr qreal k_hairpinCorner  = 1e-6;
  */
 constexpr qreal k_trapezoidSlant = 0.16;
 /**
- *  Lobes around a thought balloon. Odd, so no two sit exactly opposite and it reads as drawn, not
- *  generated.
+ *  A lobe never smaller than this, in balloon pixels, so a tiny balloon still has an outline.
  */
-constexpr int   k_thoughtLobes   = 11;
+constexpr qreal k_minLobePx      = 2.0;
 /**
- *  Lobe radius, as a fraction of the balloon's shorter half-axis.
+ *  A lobe's arc longer than this, in turns, is one its neighbours cover (the angle wrapped round): it is
+ *  left out.
  */
-constexpr qreal k_thoughtLobe    = 0.40;
+constexpr qreal k_coveredArc     = 0.95;
+/**
+ *  How far in from the edge a Cloud's inner ellipse is, in lobe radii: a little short of the lobes'
+ *  centres, so it is covered wherever two lobes meet and fills the gap wherever they do not.
+ */
+constexpr qreal k_innerReach     = 0.95;
+//! The inner ellipse's smallest radius, in balloon pixels.
+constexpr qreal k_minInnerPx     = 1.0;
+//! Halvings that find where a lobe crosses the inner ellipse: well under a thousandth of a pixel.
+constexpr int   k_crossingSteps  = 40;
 /**
  *  Depth of a banner's end notch, as a fraction of its width.
  */
@@ -625,40 +635,164 @@ ShapeNode::Type typeOf(const ShapeNode& node, const QRectF& body)
 }
 
 // ---------------------------------------------------------------------------
-// Thought
+// Cloud
 // ---------------------------------------------------------------------------
 
 /**
- * @brief A thought balloon: a ring of overlapping circles around an inner ellipse.
+ * @brief Appends the arc of the ellipse round @p c with radii @p rx, @p ry, from parameter @p start on by
+ *        @p sweep (radians, clockwise on screen), as cubics of at most a quarter turn; @p p is at its start.
  *
- * United rather than drawn as separate circles, so the arcs *inside* the outline disappear and one
- * stroke follows the scalloped edge. The inner ellipse is what keeps the middle solid when the lobes
- * are small relative to the balloon.
+ * Not QPainterPath::arcTo(): that finds the arc's first point on its own Bézier approximation, a few
+ * thousandths of a pixel off the curve, and joins it with a line — a sliver, and a node of its own once
+ * the outline is converted to a Curve. A circle is the ellipse with equal radii.
  */
-QPainterPath thoughtPath(const ShapeProperties&, const QRectF& r)
+void addArc(QPainterPath& p, const QPointF& c, qreal rx, qreal ry, qreal start, qreal sweep)
 {
+    const int   pieces = qMax(1, qCeil(sweep / (M_PI / 2.0)));
+    const qreal step   = sweep / pieces;
+    const qreal handle = 4.0 / 3.0 * std::tan(step / 4.0);
+    const auto  at     = [&](qreal t) { return c + QPointF(rx * qCos(t), ry * qSin(t)); };
+    const auto  ahead  = [&](qreal t) { return QPointF(-rx * qSin(t), ry * qCos(t)) * handle; };
+    for (int j = 0; j < pieces; ++j) {
+        const qreal a0 = start + j * step;
+        const qreal a1 = a0 + step;
+        p.cubicTo(at(a0) + ahead(a0), at(a1) - ahead(a1), at(a1));
+    }
+}
+
+//! A Cloud's lobe radius in @p r.
+qreal lobeRadius(const ShapeProperties& shape, const QRectF& r)
+{
+    const int size = qBound(k_minLobeSize, shape.lobeSize, k_maxLobeSize);
+    return qMax(k_minLobePx, qMin(r.width(), r.height()) / 2.0 * size / 100.0);
+}
+
+//! Lobe @p i of a Cloud's @p n's centre: on the ellipse a lobe's radius in from @p r's edge, the first on the right.
+QPointF lobeCentre(int i, int n, qreal lobe, const QRectF& r)
+{
+    const qreal ang = (2.0 * M_PI * i) / n;
+    return {r.center().x() + qCos(ang) * qMax(0.0, r.width() / 2.0 - lobe),
+            r.center().y() + qSin(ang) * qMax(0.0, r.height() / 2.0 - lobe)};
+}
+
+/**
+ * @brief The parameter between @p from and @p to where the inner ellipse @p at crosses the circle round
+ *        @p c of radius @p radius, inside it at @p from and outside at @p to (or the other way round).
+ */
+qreal crossing(const std::function<QPointF(qreal)>& at, const QPointF& c, qreal radius, qreal from, qreal to)
+{
+    const auto inside = [&](qreal t) { return length(at(t) - c) < radius; };
+    const bool startIn = inside(from);
+    for (int k = 0; k < k_crossingSteps; ++k) {
+        const qreal mid = (from + to) / 2.0;
+        (inside(mid) == startIn ? from : to) = mid;
+    }
+    return (from + to) / 2.0;
+}
+
+/**
+ * @brief A cloud: a ring of circles around an inner ellipse, the outline of their union.
+ *
+ * Built from arcs rather than by uniting circles, so the path is a few cubics a lobe (and *Convert to
+ * Curve* gets a node per arc piece, not a polygon of hundreds), and nothing is computed by clipping.
+ * Each lobe's outer arc runs from where it meets the lobe before to where it meets the one after: their
+ * outer crossing, or, where two lobes do not meet outside the inner ellipse (the long sides of a wide
+ * cloud), the ellipse itself carries the outline from one to the next. The inner ellipse is what keeps
+ * the middle solid when the lobes are small.
+ */
+QPainterPath cloudPath(const ShapeProperties& shape, const QRectF& r)
+{
+    const int     n    = qBound(k_minLobes, shape.lobes, k_maxLobes);
+    const qreal   lobe = lobeRadius(shape, r);
     const QPointF c    = r.center();
-    const qreal   rx   = r.width()  / 2.0;
-    const qreal   ry   = r.height() / 2.0;
-    const qreal   lobe = qMax(2.0, qMin(rx, ry) * k_thoughtLobe);
+    const qreal   ex   = qMax(k_minInnerPx, r.width() / 2.0 - lobe * k_innerReach);
+    const qreal   ey   = qMax(k_minInnerPx, r.height() / 2.0 - lobe * k_innerReach);
+    const auto    onInner = [&](qreal t) { return c + QPointF(ex * qCos(t), ey * qSin(t)); };
+    const auto    outsideInner = [&](const QPointF& q) {
+        const qreal x = (q.x() - c.x()) / ex, y = (q.y() - c.y()) / ey;
+        return x * x + y * y > 1.0;
+    };
+    QList<QPointF> centre;
+    for (int i = 0; i < n; ++i)
+        centre.append(lobeCentre(i, n, lobe, r));
+
+    // Where each lobe is left for the next (exit) and the next one taken up (entry). Where they meet
+    // outside the ellipse, the two are one point; else each is where its lobe crosses the ellipse, and
+    // the ellipse runs between them (bridge, its parameters).
+    QList<QPointF>                 exit(n), entry(n);
+    QList<std::pair<qreal, qreal>> bridge(n, {0.0, 0.0});
+    for (int i = 0; i < n; ++i) {
+        const int     j = (i + 1) % n;
+        const QPointF v = centre[j] - centre[i];
+        const qreal   d = length(v);
+        // Outwards from the chord: the ring runs clockwise on screen, so its outside is on the left of
+        // the way it goes. Two lobes on one spot (they meet in the middle) take the direction between.
+        const qreal   mid = (2.0 * M_PI * (i + 0.5)) / n;
+        const QPointF out = d > k_hairpinCorner ? QPointF(v.y(), -v.x()) / d : QPointF(qCos(mid), qSin(mid));
+        if (d <= 2.0 * lobe) {
+            const QPointF meet = (centre[i] + centre[j]) / 2.0 + out * std::sqrt(lobe * lobe - d * d / 4.0);
+            if (outsideInner(meet)) {
+                exit[i] = entry[j] = meet;
+                continue;
+            }
+        }
+        const qreal a = (2.0 * M_PI * i) / n;
+        const qreal b = a + 2.0 * M_PI / n;
+        bridge[i]     = {crossing(onInner, centre[i], lobe, a, b), crossing(onInner, centre[j], lobe, a, b)};
+        exit[i]       = onInner(bridge[i].first);
+        entry[j]      = onInner(bridge[i].second);
+    }
 
     QPainterPath p;
-    p.addEllipse(c, qMax(1.0, rx - lobe * 0.95), qMax(1.0, ry - lobe * 0.95));
-    for (int i = 0; i < k_thoughtLobes; ++i) {
-        const qreal   ang = (2.0 * M_PI * i) / k_thoughtLobes;
-        const QPointF at(c.x() + qCos(ang) * (rx - lobe), c.y() + qSin(ang) * (ry - lobe));
-        QPainterPath  bump;
-        bump.addEllipse(at, lobe, lobe);
-        p = p.united(bump);
+    p.setFillRule(Qt::WindingFill);
+    p.moveTo(entry[0]);
+    for (int i = 0; i < n; ++i) {
+        const QPointF from = entry[i] - centre[i];
+        const QPointF to   = exit[i] - centre[i];
+        // Clockwise on screen, from the entry round the outside to the exit.
+        const qreal start = std::atan2(from.y(), from.x());
+        qreal       sweep = std::atan2(to.y(), to.x()) - start;
+        while (sweep < 0.0)
+            sweep += 2.0 * M_PI;
+        if (sweep <= k_coveredArc * 2.0 * M_PI)
+            addArc(p, centre[i], lobe, lobe, start, sweep);
+        else
+            p.lineTo(exit[i]);   // covered by its neighbours: straight on to where the next one starts
+        if (const auto [t0, t1] = bridge[i]; t1 > t0)
+            addArc(p, c, ex, ey, t0, t1 - t0);
     }
+    p.closeSubpath();
     return p;
 }
 
-QRectF thoughtArea(const ShapeProperties& shape, const QRectF& body)
+QRectF cloudArea(const ShapeProperties& shape, const QRectF& body)
 {
-    // The lobes eat into the ring, so the safe area is the inner ellipse rather than the whole one.
-    const qreal lobe = qMin(body.width(), body.height()) * k_thoughtLobe * 0.5;
+    // The lobes eat into the ring, so the safe area is inside the ellipse through their centres.
+    const qreal lobe = lobeRadius(shape, body);
     return inscribedInEllipse(shape, body.adjusted(lobe, lobe, -lobe, -lobe));
+}
+
+/**
+ * The lobe size: an arrow at the first lobe's centre, along the way the lobe grows (outwards). The
+ * centre is a lobe's radius in from the edge, so dragging it in grows the lobes.
+ */
+QList<ShapeHandle> cloudHandles(const ShapeProperties& shape, const QRectF& body, qreal, int)
+{
+    const qreal lobe = lobeRadius(shape, body);
+    return {{ShapeHandle::Role::Radius, 0, lobeCentre(0, qBound(k_minLobes, shape.lobes, k_maxLobes), lobe, body),
+             QPointF(1, 0)}};
+}
+
+ShapeProperties dragCloudHandle(const ShapeProperties& shape, const QRectF& body, const ShapeHandle& handle,
+                                const QPointF& to, qreal)
+{
+    ShapeProperties s     = shape;
+    const qreal     shortHalf = qMin(body.width(), body.height()) / 2.0;
+    if (handle.role != ShapeHandle::Role::Radius || shortHalf <= 0.0)
+        return s;
+    const qreal lobe = body.right() - to.x();   // the first lobe's centre is a radius in from the right
+    s.lobeSize       = qBound(k_minLobeSize, qRound(lobe / shortHalf * 100.0), k_maxLobeSize);
+    return s;
 }
 
 // ---------------------------------------------------------------------------
@@ -677,7 +811,8 @@ const std::array<ShapeInfo, int(ShapeProperties::k_lastKind) + 1> k_shapes{{
     {Kind::Ellipse,   "ellipse",   QT_TRANSLATE_NOOP("QObject", "Round balloon"),          true,  false, ellipsePath,   inscribedInEllipse, 0},
     {Kind::Polygon,   "polygon",   QT_TRANSLATE_NOOP("QObject", "Polygon"),                false, true,  polygonPath,   polygonArea,        0,
      polygonHandles, dragPolygonHandle},
-    {Kind::Thought,   "thought",   QT_TRANSLATE_NOOP("QObject", "Thought balloon"),        true,  false, thoughtPath,   thoughtArea,        0},
+    {Kind::Cloud,     "cloud",     QT_TRANSLATE_NOOP("QObject", "Cloud"),                  true,  false, cloudPath,     cloudArea,          0,
+     cloudHandles, dragCloudHandle},
     {Kind::Curve,     "curve",     QT_TRANSLATE_NOOP("QObject", "Curve"),                  false, false, curvePath,     curveArea,          0,
      curveHandles, dragCurveHandle},
 }};
@@ -781,7 +916,7 @@ const QList<ShapeTemplate>& shapeTemplates()
     static const QList<ShapeTemplate> templates{
         {"speech",    QT_TRANSLATE_NOOP("QObject", "Speech balloon"),  plain(Kind::Box),       true},
         {"ellipse",   QT_TRANSLATE_NOOP("QObject", "Round balloon"),   plain(Kind::Ellipse),   true},
-        {"thought",   QT_TRANSLATE_NOOP("QObject", "Thought balloon"), plain(Kind::Thought),   true},
+        {"thought",   QT_TRANSLATE_NOOP("QObject", "Thought balloon"), plain(Kind::Cloud),     true},
         {"shout",     QT_TRANSLATE_NOOP("QObject", "Shout"),
          polygon(starNodes(k_burstSpikes, k_burstInner)), true},
         {"caption",   QT_TRANSLATE_NOOP("QObject", "Caption box"),     box(k_captionCorner),   false},

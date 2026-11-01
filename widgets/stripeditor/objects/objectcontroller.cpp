@@ -251,14 +251,10 @@ void ObjectController::setPickedNodeType(ShapeNode::Type type)
 
 bool ObjectController::canConvertToCurve() const
 {
-    // Not the thought balloon: united circles would come back as a polygon of hundreds of points. Its
-    // own family (the Cloud, PLAN-L P5) is where it gets a conversion worth having.
-    using Kind = ShapeProperties::Kind;
     const Object* item = m_overlayItems.value(m_selectedOverlay);
     if (!item || m_selectedOverlays.size() != 1 || !item->record().hasSilhouette() || item->record().isArtwork())
         return false;
-    const Kind kind = item->record().shape.kind;
-    return kind != Kind::Curve && kind != Kind::Thought;
+    return item->record().shape.kind != ShapeProperties::Kind::Curve;
 }
 
 void ObjectController::convertSelectionToCurve()

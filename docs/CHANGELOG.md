@@ -113,8 +113,12 @@
     handles, which bend the curve on each side of it; a **+** halfway along each piece adds a point
     there without changing the outline. Right-click a point for **Point type**: *Corner* (its handles
     move apart), *Smooth* (on one line) or *Symmetric* (on one line and as long as each other).
-    **Convert to curve** on a box, round balloon or polygon's context menu makes it a curve of the same
-    outline, ready to edit.
+    **Convert to curve** on a balloon's context menu makes it a curve of the same outline, ready to
+    edit.
+  - **The thought balloon is a Cloud** with two rows of its own in the Shape panel: **Lobes**, how many
+    circles make its edge, and **Lobe size**. In shape editing, an arrow at the right-hand lobe sizes
+    them all. Its tile is a ready-made start, and it looks as before. Files from before naming
+    `thought` load as a default Box.
   - **Edit a balloon's shape on the strip.** Double-click a box or polygon balloon, or pick **Edit
     shape** on its context menu: the outline is traced instead of the dashed box, and its own handles
     replace the grips. Drag the two-headed arrow in the corner to round the corners; on a polygon, drag a square to move a

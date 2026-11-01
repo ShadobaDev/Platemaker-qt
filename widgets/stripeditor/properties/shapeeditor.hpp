@@ -75,6 +75,7 @@ private:
     QButtonGroup*               m_tiles = nullptr;
     QFormLayout*                m_form  = nullptr;
     FieldRows<ShapeProperties>  m_corner;   //!< The corner radius, for a kind that is rounded.
+    FieldRows<ShapeProperties>  m_lobes;    //!< A Cloud's lobes and their size.
     ShapeProperties             m_values;
     bool                        m_populating = false;
 };

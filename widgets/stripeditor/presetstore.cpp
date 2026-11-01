@@ -99,7 +99,7 @@ QList<BubblePreset> builtinPresets()
     out.append({PresetStore::tr("Whisper"), whisper});
 
     ObjectRecord thought = dialogue;
-    thought.shape.kind       = ObjectRecord::Shape::Thought;
+    thought.shape            = Geometry::shapeTemplate("thought").shape;
     thought.skin.strokeWidth = 4;
     out.append({PresetStore::tr("Thought"), thought});
 

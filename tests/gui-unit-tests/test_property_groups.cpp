@@ -30,9 +30,11 @@ namespace {
 ObjectRecord loadedRecord()
 {
     ObjectRecord a;
-    a.shape.kind       = ObjectRecord::Shape::Thought;
+    a.shape.kind       = ObjectRecord::Shape::Cloud;
     a.shape.cornerRadius = 33.0;
     a.shape.nodes      = {{0.1, 0.2}, {0.9, 0.15}, {0.55, 0.95}};
+    a.shape.lobes      = 9;
+    a.shape.lobeSize   = 33;
     a.box              = QSize(321, 123);
 
     Tail t;
@@ -83,7 +85,7 @@ ObjectRecord loadedRecord()
 // StyleProperties::kind) passes unnoticed; counting members needs C++20, or reflection.
 // ---------------------------------------------------------------------------
 
-struct ShapeMirror { ShapeProperties::Kind kind; qreal cornerRadius; QList<ShapeNode> nodes; };
+struct ShapeMirror { ShapeProperties::Kind kind; qreal cornerRadius; QList<ShapeNode> nodes; int lobes, lobeSize; };
 static_assert(sizeof(ShapeProperties) == sizeof(ShapeMirror),
               "ShapeProperties grew a field: place it (see above), then mirror it");
 
@@ -138,6 +140,8 @@ void expectUntouched(Group applied, const ObjectRecord& before, const ObjectReco
         EXPECT_EQ(after.shape.kind, before.shape.kind);
         EXPECT_DOUBLE_EQ(after.shape.cornerRadius, before.shape.cornerRadius);
         EXPECT_TRUE(Fields::same(after.shape.nodes, before.shape.nodes));
+        EXPECT_EQ(after.shape.lobes,    before.shape.lobes);
+        EXPECT_EQ(after.shape.lobeSize, before.shape.lobeSize);
     }
 
     if (applied != Group::Skin) {
@@ -721,7 +725,7 @@ int pointsInOnlyOne(const QPainterPath& a, const QPainterPath& b, const QRectF& 
 
 /**
  * @brief A Curve keeps its outline through the edits that should not change it (PLAN-L P4): *Convert to
- *        Curve* from a Box, an Ellipse and a rounded Polygon; a segment split by its "+"; and a node made
+ *        Curve* from a Box, an Ellipse, a rounded Polygon and a Cloud, in a node per piece; a segment split by its "+"; and a node made
  *        Corner. A node made Symmetric gets two handles on one line, as long as each other.
  */
 TEST(Shapes, ACurveKeepsItsOutlineThroughItsEdits)
@@ -729,13 +733,16 @@ TEST(Shapes, ACurveKeepsItsOutlineThroughItsEdits)
     const QRectF body(5, 5, 270, 150);
     ShapeProperties rounded = Geometry::shapeTemplate("shout").shape;
     rounded.cornerRadius    = 6.0;
-    for (const ShapeProperties& from : {Geometry::shapeTemplate("speech").shape,
-                                        Geometry::shapeTemplate("ellipse").shape, rounded}) {
+    for (const ShapeProperties& from : {Geometry::shapeTemplate("speech").shape, Geometry::shapeTemplate("ellipse").shape,
+                                        rounded, Geometry::shapeTemplate("thought").shape}) {
         const QPainterPath    before = Geometry::shapeInfo(from.kind).outline(from, body);
         const ShapeProperties curve  = Geometry::curveOf(before, body);
         EXPECT_EQ(curve.kind, ObjectRecord::Shape::Curve);
         EXPECT_EQ(pointsInOnlyOne(before, Geometry::shapeInfo(curve.kind).outline(curve, body), body), 0)
             << shapeName(from.kind);
+        // A node per cubic the path has, not a polygon: a cloud's lobe is a few arc pieces.
+        if (from.kind == ObjectRecord::Shape::Cloud)
+            EXPECT_LE(curve.nodes.size(), 4 * from.lobes);
     }
     // An ellipse's four quarters meet smoothly, each node's handles as long as each other.
     const ShapeProperties round = Geometry::curveOf(
@@ -785,13 +792,13 @@ TEST(Import, OnlyAFileCarryingTheRecipeIsAdopted)
     // is the reader's rule, and the rule is which namespace an attribute is in.
     const QByteArray ours =
         QByteArray("<svg xmlns=\"http://www.w3.org/2000/svg\" xmlns:pm=\"") + Svg::k_pmNamespace
-        + "\" width=\"10\" height=\"10\"><g pm:shape=\"thought\" pm:box=\"300,200\""
+        + "\" width=\"10\" height=\"10\"><g pm:shape=\"cloud\" pm:box=\"300,200\""
           " pm:tails=\"40,260,30,0.2\" pm:text=\"Hello\" pm:padding=\"-6\" pm:lineSpacing=\"80\"/></svg>";
 
     bool               ok   = false;
     const ObjectRecord back = Svg::read(ours, &ok);
     EXPECT_TRUE(ok);
-    EXPECT_EQ(back.shape.kind, ObjectRecord::Shape::Thought);
+    EXPECT_EQ(back.shape.kind, ObjectRecord::Shape::Cloud);
     EXPECT_EQ(back.box, QSize(300, 200));
     EXPECT_EQ(back.tails.items.size(), 1);
     EXPECT_EQ(back.text.body, QStringLiteral("Hello"));

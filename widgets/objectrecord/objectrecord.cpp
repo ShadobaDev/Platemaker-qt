@@ -192,7 +192,7 @@ const QList<ObjectRecord::Shape>& shapeOrder()
 {
     using Shape = ObjectRecord::Shape;
     static const QList<Shape> order{
-        Shape::Box, Shape::Ellipse, Shape::Thought, Shape::Polygon, Shape::Curve,
+        Shape::Box, Shape::Ellipse, Shape::Cloud, Shape::Polygon, Shape::Curve,
     };   // Shape::None is not a silhouette — see the header
     return order;
 }

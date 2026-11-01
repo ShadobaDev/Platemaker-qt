@@ -82,7 +82,7 @@ TEST(TextFit, TheFitIsTightOnBothAxes)
 
 TEST(TextFit, TheStartingBoxDoesNotMatter)
 {
-    ObjectRecord big   = withShape(ObjectRecord::Shape::Thought);
+    ObjectRecord big   = withShape(ObjectRecord::Shape::Cloud);
     ObjectRecord small = big;
     big.box   = QSize(900, 50);
     small.box = QSize(41, 700);

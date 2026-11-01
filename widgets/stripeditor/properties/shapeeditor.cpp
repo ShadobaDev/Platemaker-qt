@@ -30,6 +30,13 @@ const FieldRowSpec k_cornerRows[] = {
     {"cornerRadius", PM_TR("Corner radius:"), 0, 500, " px",
      PM_TR("How round the corners are. Never more than half the shorter side, which makes the ends round.")},
 };
+// The bounds are the ones the outline keeps to.
+const FieldRowSpec k_lobeRows[] = {
+    {"lobes",    PM_TR("Lobes:"),     Geometry::k_minLobes,    Geometry::k_maxLobes,    "",
+     PM_TR("How many circles make the cloud's edge.")},
+    {"lobeSize", PM_TR("Lobe size:"), Geometry::k_minLobeSize, Geometry::k_maxLobeSize, " %",
+     PM_TR("How big each circle is, against half the balloon's shorter side. At 100 % they meet in the middle.")},
+};
 #undef PM_TR
 
 } // namespace
@@ -98,10 +105,12 @@ ShapeEditor::ShapeEditor(QWidget* parent)
     m_form = new QFormLayout;
     m_form->setContentsMargins(0, 0, 0, 0);
     lay->addLayout(m_form);
-    m_corner.build(this, m_form, "corner", k_cornerRows, k_trContext, m_values, m_populating, [this] {
+    const auto edited = [this] {
         syncFromValues();   // off its template, the tile is no longer current
         emit changed();
-    });
+    };
+    m_corner.build(this, m_form, "corner", k_cornerRows, k_trContext, m_values, m_populating, edited);
+    m_lobes.build(this, m_form, "lobe", k_lobeRows, k_trContext, m_values, m_populating, edited);
 
     connect(m_tiles, &QButtonGroup::idClicked, this, [this](int id) {
         // The whole template: its kind and every parameter, so a tile gives exactly what it shows.
@@ -120,6 +129,7 @@ void ShapeEditor::bind(const Subjects& subjects)
         return;
     m_values = ShapeProperties::from(*subjects.first());
     m_corner.reset();
+    m_lobes.reset();
     // No higher than the balloon can show: past it the outline stops changing (Shape is one subject only).
     m_corner.setMaximum("cornerRadius", qFloor(Geometry::cornerRadiusLimit(subjects.first()->box)));
     syncFromValues();
@@ -139,6 +149,8 @@ void ShapeEditor::syncFromValues()
 
     m_corner.show(m_values);
     m_corner.setVisible(m_form, Geometry::shapeInfo(m_values.kind).rounded);
+    m_lobes.show(m_values);
+    m_lobes.setVisible(m_form, m_values.kind == ShapeProperties::Kind::Cloud);
     m_populating = false;
 }
 

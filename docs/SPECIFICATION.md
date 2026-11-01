@@ -86,8 +86,8 @@ the speech balloon and the caption box are two templates of one kind, the Box. *
 existing kind can describe is one template row**, and nothing else.
 
 A new kind gets move, resize, tails, lettering, undo, presets, the tiles and the row glyphs for free. Copy
-**Thought** (`thoughtPath()`, `thoughtArea()`), **Box** (`boxPath()`, `boxArea()`) for one with a
-parameter, or **Polygon** (`polygonPath()`, `polygonArea()`) and **Curve** (`curvePath()`,
+**Ellipse** (`ellipsePath()`, `inscribedInEllipse()`) for one with no parameter, **Box** (`boxPath()`,
+`boxArea()`) or **Cloud** (`cloudPath()`, `cloudArea()`) for one with parameters, or **Polygon** (`polygonPath()`, `polygonArea()`) and **Curve** (`curvePath()`,
 `curveArea()`) for one with no formula for its text area: `largestInscribedRect()` finds it from the
 outline.
 

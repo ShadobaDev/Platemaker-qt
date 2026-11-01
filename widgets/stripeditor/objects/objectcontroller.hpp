@@ -466,8 +466,8 @@ public:
     void setPickedNodeType(ShapeNode::Type type);
 
     /**
-     * @brief *Convert to Curve*: the one selected balloon's outline, a Box, an Ellipse or a Polygon, as the
-     *        Curve that draws it (Geometry::curveOf()), one history step; then edits its shape, which is
+     * @brief *Convert to Curve*: the one selected balloon's outline, of any other kind, as the Curve that
+     *        draws it (Geometry::curveOf()), one history step; then edits its shape, which is
      *        what the conversion is for.
      */
     void convertSelectionToCurve();

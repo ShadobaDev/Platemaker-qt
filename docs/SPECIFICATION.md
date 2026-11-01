@@ -102,6 +102,15 @@ outline.
    back from.
 4. *Optional:* a built-in preset in `presetstore.cpp`.
 
+**An edge** (a modulation any kind takes, PLAN-L M11) is a value of `ShapeProperties::Edge` (move
+`k_lastEdge`) and one entry in `k_edges` (`shapes.cpp`): its names and a `modulate` function from the
+bare outline to the modulated one. `outlineOf()` applies it before any tail is united in, so tails stay
+smooth. Build it on `pushedIn()`, which takes a depth profile along the edge (`EdgeWalk`) and keeps the
+outline's corners, fading the push near a sharp one so a spike does not fold into a loop; the teeth
+go **in** by at most `edgeDepth`, which is what `edgeInset()` takes off the text area. Zigzag is the
+worked example. A template does not set the edge: `templateOf()` ignores it and a picked tile keeps it
+(`withEdgeOf()`).
+
 **Caught by** `tests/gui-unit-tests/test_property_groups.cpp`: `Conversion.EveryShapeAndStyleHasATableEntry`
 (no entry, or one out of order), `Conversion.ThePickerOffersEverySilhouetteAndNoKind` (missing from
 `shapeOrder()`), `PropertyGroupPersistence.EveryShapeAndStyleRoundTrips` (missing name), and

@@ -1,7 +1,9 @@
 #include "shapes.hpp"
+#include "edgewalk.hpp"
 
 #include <QByteArray>
 #include <QObject>
+#include <QRandomGenerator>
 #include <QtMath>
 
 #include <algorithm>
@@ -516,6 +518,8 @@ ShapeProperties dragPolygonHandle(const ShapeProperties& shape, const QRectF& bo
     case ShapeHandle::Role::InHandle:
     case ShapeHandle::Role::OutHandle:
         break;   // a Curve's
+    case ShapeHandle::Role::Depth:
+        break;   // the edge's (dragShapeHandle())
     }
     return s;
 }
@@ -609,7 +613,8 @@ ShapeProperties dragCurveHandle(const ShapeProperties& shape, const QRectF& body
         break;
     case ShapeHandle::Role::Radius:
     case ShapeHandle::Role::AddVertex:
-        break;   // no radius; a press on a "+" adds the node (withVertexAdded())
+    case ShapeHandle::Role::Depth:
+        break;   // no radius; a press on a "+" adds the node (withVertexAdded()); the edge's is not here
     }
     return s;
 }
@@ -798,6 +803,200 @@ ShapeProperties dragCloudHandle(const ShapeProperties& shape, const QRectF& body
 // ---------------------------------------------------------------------------
 // The table
 // ---------------------------------------------------------------------------
+// Edges: the outline pushed in along it, in a pattern (PLAN-L M11)
+// ---------------------------------------------------------------------------
+
+//! The closest two teeth may be, in balloon pixels: below it the edge is a blur, and the count unbounded.
+constexpr qreal   k_minEdgePitch = 2.0;
+//! The fewest teeth round an edge: fewer reads as a polygon, not as a modulated edge.
+constexpr int     k_minTeeth     = 3;
+//! Mixed into the style seed for the edge's irregularity, so it draws from a stream of its own.
+constexpr quint32 k_edgeStream   = 0xC2B2AE35u;
+//! A corner whose fade would be shorter than this, in balloon pixels, does not fade: it is flat enough.
+constexpr qreal   k_fadeFrom     = 0.5;
+//! How much of the room to a sharp corner's middle a push may take: half, so the two sides never meet.
+constexpr qreal   k_fadeShare    = 0.5;
+
+//! Twice @p ring's signed area: positive when it runs clockwise on screen (y down).
+qreal signedArea2(const QPolygonF& ring)
+{
+    qreal sum = 0.0;
+    for (qsizetype i = 0; i < ring.size(); ++i) {
+        const QPointF& p = ring[i];
+        const QPointF& q = ring[(i + 1) % ring.size()];
+        sum += p.x() * q.y() - q.x() * p.y();
+    }
+    return sum;
+}
+
+//! The unit normal at @p p pointing into a ring that runs clockwise (@p clockwise) or the other way.
+QPointF inwards(const EdgeWalk::Point& p, bool clockwise)
+{
+    const QPointF n(-p.tangent.y(), p.tangent.x());   // into a clockwise ring
+    return clockwise ? n : -n;
+}
+
+//! How many teeth go round an edge of @p length, and how far apart: whole, so there is no seam.
+std::pair<int, qreal> teethOf(qreal length, const ShapeProperties& shape)
+{
+    const int teeth = qMax(k_minTeeth, qRound(length / qMax(shape.edgePitch, k_minEdgePitch)));
+    return {teeth, length / teeth};
+}
+
+/**
+ * @brief @p walk's edge pushed in by @p depthAt(s) at each of @p stations (distances along it) and at each
+ *        of its own corners, in order; never deeper than @p depth.
+ *
+ * The corners are what keep the shape: a point between two stations would otherwise be cut off by the
+ * straight line between them (a star loses its spikes). A corner is pushed along the line between its
+ * two edges, so it stays a corner; anywhere else, straight in.
+ *
+ * Near a sharp outward corner the push fades to nothing at the corner itself: the two edges pushed in
+ * would otherwise cross where the shape is narrower than twice the depth, and a spike's tip would turn
+ * into a loop. At a distance x from a corner of half-angle a the edges are x · tan(a) from its middle,
+ * and either may go half of that deep there (`k_fadeShare`), so the two never meet. A smooth curve's corners are nearly flat, so they barely
+ * fade at all.
+ */
+template <class DepthAt>
+QPolygonF pushedIn(const EdgeWalk& walk, bool clockwise, const std::vector<qreal>& stations, qreal depth,
+                   DepthAt depthAt)
+{
+    const std::vector<qreal>& corners = walk.corners();
+    const qreal               length  = walk.length();
+    const auto                before  = [&](qreal s) {
+        // walk.at() at a corner answers for the edge after it; the one before is a hair back.
+        return walk.at(s > k_hairpinCorner ? s - k_hairpinCorner : s - k_hairpinCorner + length);
+    };
+
+    // The outward corners sharp enough to fade near: where, and tan of half their angle.
+    std::vector<std::pair<qreal, qreal>> sharp;
+    for (size_t i = 0; i + 1 < corners.size(); ++i) {
+        const QPointF a     = before(corners[i]).tangent;
+        const QPointF b     = walk.at(corners[i]).tangent;
+        const qreal   cross = a.x() * b.y() - a.y() * b.x();
+        if ((cross > 0.0) != clockwise)
+            continue;   // turning away from the inside: an inward corner, wide enough inside
+        const qreal turn     = std::atan2(std::abs(cross), a.x() * b.x() + a.y() * b.y());
+        const qreal tanHalf  = std::tan((M_PI - turn) / 2.0);
+        if (depth / (k_fadeShare * qMax(tanHalf, k_hairpinCorner)) > k_fadeFrom)
+            sharp.push_back({corners[i], tanHalf});
+    }
+    const auto fade = [&](qreal s) {
+        qreal f = 1.0;
+        for (const auto& [at, tanHalf] : sharp) {
+            const qreal d = std::abs(s - at);
+            const qreal x = qMin(d, length - d);   // round the edge, either way
+            f             = qMin(f, k_fadeShare * x * tanHalf / depth);
+        }
+        return qBound(0.0, f, 1.0);
+    };
+
+    std::vector<std::pair<qreal, bool>> at;   // a distance along the edge, and whether it is a corner
+    at.reserve(stations.size() + corners.size());
+    for (qreal s : stations)
+        at.push_back({s, false});
+    for (size_t i = 0; i + 1 < corners.size(); ++i)   // the last is the first again
+        at.push_back({corners[i], true});
+    std::sort(at.begin(), at.end(), [](const auto& a, const auto& b) { return a.first < b.first; });
+
+    QPolygonF poly;
+    poly.reserve(qsizetype(at.size()));
+    for (const auto& [s, corner] : at) {
+        const EdgeWalk::Point p = walk.at(s);
+        QPointF               n = inwards(p, clockwise);
+        if (corner) {
+            const QPointF both = n + inwards(before(s), clockwise);
+            if (const qreal l = std::hypot(both.x(), both.y()); l > k_hairpinCorner)
+                n = both / l;
+        }
+        poly << p.at + n * qMin(depthAt(s), depth) * fade(s);
+    }
+    return poly;
+}
+
+/**
+ * @brief A zigzag: straight teeth from the outline in to a valley `edgeDepth` deep, halfway between.
+ *
+ * The points stay on the outline and the valleys go in, so the balloon keeps its bounds. Irregularity
+ * makes each valley shallower by up to its share and moves it along by up to a quarter of a tooth,
+ * seeded, so it stays put while the balloon is edited. The outline's own corners ride on the teeth
+ * (pushedIn()), so a polygon keeps its points.
+ */
+QPainterPath zigzagEdge(const QPainterPath& outline, const ShapeProperties& shape, quint32 seed)
+{
+    const qreal depth = qMax(shape.edgeDepth, 0.0);
+    const qreal irr   = qBound(0, shape.edgeIrregularity, 100) / 100.0;
+    if (depth <= 0.0)
+        return outline;
+    QRandomGenerator rng(seed ^ k_edgeStream);
+    QPainterPath     out;
+    out.setFillRule(Qt::WindingFill);
+    for (const QPolygonF& ring : outline.toSubpathPolygons()) {
+        const EdgeWalk walk(ring);
+        if (walk.length() <= 0.0)
+            continue;
+        // Not a structured binding: a C++17 lambda cannot capture one.
+        const std::pair<int, qreal> spacing = teethOf(walk.length(), shape);
+        const int                   teeth   = spacing.first;
+        const qreal                 step    = spacing.second;
+        std::vector<qreal>          deep(static_cast<size_t>(teeth)), valley(static_cast<size_t>(teeth)), stations;
+        stations.reserve(size_t(teeth) * 2);
+        for (int k = 0; k < teeth; ++k) {
+            // Both drawn before either is used, so a change to one does not re-deal the other.
+            deep[size_t(k)]   = depth * (1.0 - irr * rng.generateDouble());
+            valley[size_t(k)] = k * step + step / 2.0 + irr * (rng.generateDouble() - 0.5) * step / 2.0;
+            stations.push_back(k * step);
+            stations.push_back(valley[size_t(k)]);
+        }
+        // Straight from a point (0 deep) down to its tooth's valley and up to the next point.
+        const auto depthAt = [&](qreal s) {
+            const int   k    = qBound(0, int(s / step), teeth - 1);
+            const qreal from = k * step;
+            const qreal v    = valley[size_t(k)];
+            const qreal to   = from + step;
+            const qreal f    = s <= v ? (s - from) / (v - from) : (to - s) / (to - v);
+            return deep[size_t(k)] * qBound(0.0, f, 1.0);
+        };
+        out.addPolygon(pushedIn(walk, signedArea2(ring) > 0.0, stations, depth, depthAt));
+        out.closeSubpath();
+    }
+    return out;
+}
+
+//! In the enum's order; edgeInfo() checks every entry names its kind.
+const std::array<EdgeInfo, int(ShapeProperties::k_lastEdge) + 1> k_edges{{
+    {ShapeProperties::Edge::None,   "none",   QT_TRANSLATE_NOOP("QObject", "None"),   nullptr},
+    {ShapeProperties::Edge::Zigzag, "zigzag", QT_TRANSLATE_NOOP("QObject", "Zigzag"), zigzagEdge},
+}};
+
+/**
+ * @brief Where the edge's depth handle sits: on the bare outline at its first valley, and the way in
+ *        there. Invalid with no edge, or no outline.
+ */
+struct DepthAnchor
+{
+    QPointF base;
+    QPointF inward;
+    bool    valid = false;
+};
+
+DepthAnchor depthAnchor(const ShapeProperties& shape, const QRectF& body)
+{
+    const auto outline = shapeInfo(shape.kind).outline;
+    if (shape.edge == ShapeProperties::Edge::None || !outline || body.isEmpty())
+        return {};
+    const QList<QPolygonF> rings = outline(shape, body).toSubpathPolygons();
+    if (rings.isEmpty())
+        return {};
+    const EdgeWalk walk(rings.first());
+    if (walk.length() <= 0.0)
+        return {};
+    const qreal           step = teethOf(walk.length(), shape).second;
+    const EdgeWalk::Point v    = walk.at(step / 2.0);
+    return {v.at, inwards(v, signedArea2(rings.first()) > 0.0), true};
+}
+
+// ---------------------------------------------------------------------------
 
 using Kind = ShapeProperties::Kind;
 
@@ -944,10 +1143,65 @@ const ShapeTemplate& shapeTemplate(const char* id)
 
 const ShapeTemplate* templateOf(const ShapeProperties& shape)
 {
+    // The edge is laid over any outline and kept by a picked tile, so it does not tell templates apart.
     for (const ShapeTemplate& t : shapeTemplates())
-        if (t.shape == shape)
+        if (withEdgeOf(t.shape, shape) == shape)
             return &t;
     return nullptr;
+}
+
+const EdgeInfo& edgeInfo(ShapeProperties::Edge kind)
+{
+    const int i = int(kind);
+    if (i < 0 || i >= int(k_edges.size()))
+        return k_edges[int(ShapeProperties::Edge::None)];
+    Q_ASSERT(k_edges[i].kind == kind);   // the table is out of the enum's order
+    return k_edges[i];
+}
+
+qreal edgeInset(const ShapeProperties& shape)
+{
+    return edgeInfo(shape.edge).modulate ? qMax(shape.edgeDepth, 0.0) : 0.0;
+}
+
+ShapeProperties withEdgeOf(ShapeProperties shape, const ShapeProperties& from)
+{
+    shape.edge             = from.edge;
+    shape.edgePitch        = from.edgePitch;
+    shape.edgeDepth        = from.edgeDepth;
+    shape.edgeIrregularity = from.edgeIrregularity;
+    return shape;
+}
+
+bool hasShapeHandles(const ShapeProperties& shape)
+{
+    return shapeInfo(shape.kind).handles != nullptr || edgeInfo(shape.edge).modulate != nullptr;
+}
+
+QList<ShapeHandle> shapeHandles(const ShapeProperties& shape, const QRectF& body, qreal clearance, int picked)
+{
+    const ShapeInfo&   info = shapeInfo(shape.kind);
+    QList<ShapeHandle> out  = info.handles ? info.handles(shape, body, clearance, picked) : QList<ShapeHandle>();
+    if (const DepthAnchor d = depthAnchor(shape, body); d.valid)
+        out.append({ShapeHandle::Role::Depth, 0, d.base + d.inward * qMax(shape.edgeDepth, 0.0), d.inward});
+    return out;
+}
+
+ShapeProperties dragShapeHandle(const ShapeProperties& shape, const QRectF& body, const ShapeHandle& handle,
+                                const QPointF& to, qreal clearance)
+{
+    if (handle.role != ShapeHandle::Role::Depth) {
+        const ShapeInfo& info = shapeInfo(shape.kind);
+        return info.dragHandle ? info.dragHandle(shape, body, handle, to, clearance) : shape;
+    }
+    ShapeProperties   s = shape;
+    const DepthAnchor d = depthAnchor(shape, body);
+    if (d.valid) {
+        const QPointF along = to - d.base;
+        const qreal   depth = along.x() * d.inward.x() + along.y() * d.inward.y();
+        s.edgeDepth         = qBound(0.0, qreal(qRound(depth)), cornerRadiusLimit(body.size()));
+    }
+    return s;
 }
 
 bool shapeSpeaks(const ShapeProperties& shape)
@@ -1074,7 +1328,11 @@ QPainterPath outlineOf(const ObjectRecord& a, const QRectF& body)
     if (!a.hasSilhouette() || body.isEmpty())
         return {};
     const auto outline = shapeInfo(a.shape.kind).outline;
-    return outline ? outline(a.shape, body) : QPainterPath();
+    if (!outline)
+        return {};
+    // The edge on the bare outline, before any tail is united into it (PLAN-L B26).
+    const auto modulate = edgeInfo(a.shape.edge).modulate;
+    return modulate ? modulate(outline(a.shape, body), a.shape, a.styleSeed) : outline(a.shape, body);
 }
 
 }  // namespace Geometry

@@ -125,8 +125,13 @@
     each narrowing to a point at both ends and swelling and wandering along the way. Its width is the
     outline's stroke width; its rows set how many strokes, how far they overlap, how long the points
     are, how much they swell and how far they wander. A brush can be rough.
+  - **Edges.** Any balloon's outline can take a **zigzag** edge: teeth pushed in along it, with rows
+    for their spacing, depth and irregularity under the Shape panel's **Edge**. The tails stay smooth,
+    the balloon keeps its size and the lettering's room gives up the depth; a star's points stay
+    sharp. In shape editing an arrow sets the depth, on a round balloon too. Picking another shape keeps
+    the edge.
   - **Re-roll**, on a balloon's context menu, deals a flash's or a brush's strokes, or a texture's
-    wobble, again. One undo step.
+    wobble, or an irregular edge's teeth, again. One undo step.
   - **The thought balloon is a Cloud** with two rows of its own in the Shape panel: **Lobes**, how many
     circles make its edge, and **Lobe size**. In shape editing, an arrow at the right-hand lobe sizes
     them all. Its tile is a ready-made start, and it looks as before. Files from before naming

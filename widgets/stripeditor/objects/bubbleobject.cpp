@@ -167,7 +167,7 @@ void BubbleObject::setHandlePos(int index, const QPointF& local)
 
 bool BubbleObject::canEditShape() const
 {
-    return m_record.hasSilhouette() && Geometry::shapeInfo(m_record.shape.kind).handles != nullptr;
+    return m_record.hasSilhouette() && Geometry::hasShapeHandles(m_record.shape);
 }
 
 qreal BubbleObject::radiusClearance() const
@@ -179,8 +179,8 @@ QList<Geometry::ShapeHandle> BubbleObject::shapeHandles() const
 {
     if (!canEditShape())
         return {};
-    return Geometry::shapeInfo(m_record.shape.kind)
-        .handles(m_record.shape, Geometry::balloonRect(m_record), radiusClearance(), pickedVertex());
+    return Geometry::shapeHandles(m_record.shape, Geometry::balloonRect(m_record), radiusClearance(),
+                                  pickedVertex());
 }
 
 QPainterPath BubbleObject::editOutline() const
@@ -224,8 +224,7 @@ void BubbleObject::dragShapeTo(const QPointF& scenePos)
     const QRectF  body = Geometry::balloonRect(m_shapeStart);
 
     ObjectRecord next = m_shapeStart;
-    next.shape = Geometry::shapeInfo(next.shape.kind)
-                     .dragHandle(next.shape, body, m_shapeHandle, to, radiusClearance());
+    next.shape = Geometry::dragShapeHandle(next.shape, body, m_shapeHandle, to, radiusClearance());
     const QPointF moved = m_shapeHandle.role == Geometry::ShapeHandle::Role::Vertex ? growToNodes(next, body)
                                                                                      : QPointF();
     m_record = next;

@@ -209,6 +209,7 @@ QString attrValue(qreal v) { return num(v); }
 QString attrValue(const QString& v) { return v; }
 QString attrValue(const QColor& v) { return v.name(QColor::HexArgb); }
 QString attrValue(ObjectRecord::Shape v) { return QString::fromLatin1(shapeName(v)); }
+QString attrValue(ObjectRecord::Edge v) { return QString::fromLatin1(edgeName(v)); }
 QString attrValue(ObjectRecord::Line v) { return QString::fromLatin1(lineName(v)); }
 QString attrValue(ObjectRecord::Texture v) { return QString::fromLatin1(textureName(v)); }
 //! Nodes joined by ";", as the tails are: "x,y", or "x,y,type,inX,inY,outX,outY" for a Curve's node with
@@ -245,6 +246,7 @@ void fromAttr(QStringView s, QColor& v)
 }
 // An unknown or missing name reads as the reader's own fallback (Box, Clean, None).
 void fromAttr(QStringView s, ObjectRecord::Shape& v) { v = shapeFromName(s); }
+void fromAttr(QStringView s, ObjectRecord::Edge& v) { v = edgeFromName(s); }
 void fromAttr(QStringView s, ObjectRecord::Line& v) { v = lineFromName(s); }
 void fromAttr(QStringView s, ObjectRecord::Texture& v) { v = textureFromName(s); }
 void fromAttr(QStringView s, QList<ShapeNode>& v)

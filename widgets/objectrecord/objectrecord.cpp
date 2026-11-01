@@ -19,6 +19,7 @@ QJsonValue toJsonValue(qreal v) { return v; }
 QJsonValue toJsonValue(const QString& v) { return v; }
 QJsonValue toJsonValue(const QColor& v) { return v.name(QColor::HexArgb); }
 QJsonValue toJsonValue(ObjectRecord::Shape v) { return QLatin1String(shapeName(v)); }
+QJsonValue toJsonValue(ObjectRecord::Edge v) { return QLatin1String(edgeName(v)); }
 QJsonValue toJsonValue(ObjectRecord::Line v) { return QLatin1String(lineName(v)); }
 QJsonValue toJsonValue(ObjectRecord::Texture v) { return QLatin1String(textureName(v)); }
 //! Nodes as [x, y], or [x, y, type, inX, inY, outX, outY] for a Curve's node with handles, at full
@@ -49,6 +50,7 @@ void fromJsonValue(const QJsonValue& j, QColor& v)
 }
 // An unknown or missing name reads as the reader's own fallback (Box, Clean, None).
 void fromJsonValue(const QJsonValue& j, ObjectRecord::Shape& v) { v = shapeFromName(j.toString()); }
+void fromJsonValue(const QJsonValue& j, ObjectRecord::Edge& v) { v = edgeFromName(j.toString()); }
 void fromJsonValue(const QJsonValue& j, ObjectRecord::Line& v) { v = lineFromName(j.toString()); }
 void fromJsonValue(const QJsonValue& j, ObjectRecord::Texture& v) { v = textureFromName(j.toString()); }
 void fromJsonValue(const QJsonValue& j, QList<ShapeNode>& v)
@@ -212,6 +214,26 @@ ObjectRecord::Shape shapeFromName(QStringView name)
     return ObjectRecord::Shape::Box;
 }
 
+const char* edgeName(ObjectRecord::Edge e)
+{
+    return Geometry::edgeInfo(e).name;
+}
+
+QString edgeTitle(ObjectRecord::Edge e)
+{
+    return QObject::tr(Geometry::edgeInfo(e).title);
+}
+
+ObjectRecord::Edge edgeFromName(QStringView name)
+{
+    for (int i = 0; i <= int(ShapeProperties::k_lastEdge); ++i) {
+        const auto e = static_cast<ObjectRecord::Edge>(i);
+        if (name == QLatin1String(edgeName(e)))
+            return e;
+    }
+    return ObjectRecord::Edge::None;
+}
+
 const char* lineName(ObjectRecord::Line l)
 {
     return Geometry::lineInfo(l).name;
@@ -303,11 +325,18 @@ ObjectRecord::Map ObjectRecord::mapFromJson(const QJsonObject& j)
     return m;
 }
 
+bool usesSeed(const ObjectRecord& a)
+{
+    const bool irregularEdge = a.shape.edge != ObjectRecord::Edge::None && a.shape.edgeIrregularity > 0;
+    return a.hasSilhouette()
+        && (a.style.line != ObjectRecord::Line::Clean || a.style.texture != ObjectRecord::Texture::None
+            || irregularEdge);
+}
+
 void topUpStyleSeed(ObjectRecord& a)
 {
     // A bubble authored before styles existed carries seed 0, and so would every other one — style a
     // page of them and they would all wear the same wobble. Give it one the first time it is styled.
-    const bool styled = a.style.line != ObjectRecord::Line::Clean || a.style.texture != ObjectRecord::Texture::None;
-    if (styled && a.styleSeed == 0)
+    if (usesSeed(a) && a.styleSeed == 0)
         a.styleSeed = QRandomGenerator::global()->generate();
 }

@@ -2,6 +2,8 @@
 
 #include <QAbstractButton>
 #include <QButtonGroup>
+#include <QComboBox>
+#include <QFrame>
 #include <QEvent>
 #include <QFormLayout>
 #include <QIcon>
@@ -36,6 +38,11 @@ const FieldRowSpec k_lobeRows[] = {
      PM_TR("How many circles make the cloud's edge.")},
     {"lobeSize", PM_TR("Lobe size:"), Geometry::k_minLobeSize, Geometry::k_maxLobeSize, " %",
      PM_TR("How big each circle is, against half the balloon's shorter side. At 100 % they meet in the middle.")},
+};
+const FieldRowSpec k_edgeRows[] = {
+    {"edgePitch",        PM_TR("Spacing:"),      2, 200, " px", PM_TR("One tooth every this many pixels along the edge."), 1},
+    {"edgeDepth",        PM_TR("Depth:"),        0, 200, " px", PM_TR("How far in from the outline a tooth reaches. The lettering's room gives it up."), 1},
+    {"edgeIrregularity", PM_TR("Irregularity:"), 0, 100, " %",  PM_TR("How much each tooth's depth and place vary. Re-roll deals them again.")},
 };
 #undef PM_TR
 
@@ -112,9 +119,30 @@ ShapeEditor::ShapeEditor(QWidget* parent)
     m_corner.build(this, m_form, "corner", k_cornerRows, k_trContext, m_values, m_populating, edited);
     m_lobes.build(this, m_form, "lobe", k_lobeRows, k_trContext, m_values, m_populating, edited);
 
+    // The edge: laid over whichever outline, so ruled off from the family's own rows.
+    auto* rule = new QFrame(this);
+    rule->setFrameShape(QFrame::HLine);
+    rule->setFrameShadow(QFrame::Sunken);
+    m_form->addRow(rule);
+    m_edge = new QComboBox(this);
+    for (int i = 0; i <= int(ShapeProperties::k_lastEdge); ++i)
+        m_edge->addItem(edgeTitle(static_cast<ObjectRecord::Edge>(i)), i);
+    m_edge->setToolTip(tr("What is done to the outline's edge: teeth pushed in along it. The tails stay "
+                          "smooth, and the edge stays when another shape is picked."));
+    m_form->addRow(tr("Edge:"), m_edge);
+    m_edgeRows.build(this, m_form, "edge", k_edgeRows, k_trContext, m_values, m_populating, edited);
+    connect(m_edge, &QComboBox::currentIndexChanged, this, [this](int i) {
+        if (m_populating || i < 0)
+            return;
+        m_values.edge = static_cast<ObjectRecord::Edge>(m_edge->currentData().toInt());
+        syncFromValues();
+        emit changed();
+    });
+
     connect(m_tiles, &QButtonGroup::idClicked, this, [this](int id) {
-        // The whole template: its kind and every parameter, so a tile gives exactly what it shows.
-        m_values = Geometry::shapeTemplates().at(id).shape;
+        // The whole template: its kind and every parameter, so a tile gives exactly what it shows — but
+        // the edge, which is laid over any outline and stays.
+        m_values = Geometry::withEdgeOf(Geometry::shapeTemplates().at(id).shape, m_values);
         syncFromValues();
         emit picked();
         emit changed();
@@ -130,6 +158,7 @@ void ShapeEditor::bind(const Subjects& subjects)
     m_values = ShapeProperties::from(*subjects.first());
     m_corner.reset();
     m_lobes.reset();
+    m_edgeRows.reset();
     // No higher than the balloon can show: past it the outline stops changing (Shape is one subject only).
     m_corner.setMaximum("cornerRadius", qFloor(Geometry::cornerRadiusLimit(subjects.first()->box)));
     syncFromValues();
@@ -151,6 +180,12 @@ void ShapeEditor::syncFromValues()
     m_corner.setVisible(m_form, Geometry::shapeInfo(m_values.kind).rounded);
     m_lobes.show(m_values);
     m_lobes.setVisible(m_form, m_values.kind == ShapeProperties::Kind::Cloud);
+    {
+        const QSignalBlocker block(m_edge);
+        m_edge->setCurrentIndex(m_edge->findData(int(m_values.edge)));
+    }
+    m_edgeRows.show(m_values);
+    m_edgeRows.setVisible(m_form, m_values.edge != ShapeProperties::Edge::None);
     m_populating = false;
 }
 

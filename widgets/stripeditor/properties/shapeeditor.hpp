@@ -8,6 +8,7 @@
 #include "properties/propertygroupeditor.hpp"
 
 class QButtonGroup;
+class QComboBox;
 class QFormLayout;
 
 namespace StripEdit {
@@ -76,6 +77,8 @@ private:
     QFormLayout*                m_form  = nullptr;
     FieldRows<ShapeProperties>  m_corner;   //!< The corner radius, for a kind that is rounded.
     FieldRows<ShapeProperties>  m_lobes;    //!< A Cloud's lobes and their size.
+    QComboBox*                  m_edge = nullptr;   //!< The edge's modulation, any family.
+    FieldRows<ShapeProperties>  m_edgeRows;         //!< Its spacing, depth and irregularity.
     ShapeProperties             m_values;
     bool                        m_populating = false;
 };

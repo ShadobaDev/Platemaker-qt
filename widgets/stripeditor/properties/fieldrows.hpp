@@ -66,8 +66,9 @@ public:
         const size_t prefixLength = std::strlen(prefix);
         Group::fields([&](const char* key, auto member) {
             using T = std::remove_reference_t<decltype(values.*member)>;
-            // A spin holds a number: a list (a Polygon's nodes) is never a row, and is not compiled as one.
-            if constexpr (std::is_arithmetic_v<T> || std::is_enum_v<T>) {
+            // A spin holds a number: a list (a Polygon's nodes) is never a row, and is not compiled as one;
+            // nor is a choice (an enum, e.g. the edge's kind), which its panel shows as a combo.
+            if constexpr (std::is_arithmetic_v<T>) {
                 if (std::strncmp(key, prefix, prefixLength) != 0)
                     return;
                 const FieldRowSpec* spec = nullptr;

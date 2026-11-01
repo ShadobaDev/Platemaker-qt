@@ -38,11 +38,12 @@ struct ShapeHandle
         AddVertex,   //!< The middle of the edge after node `index`: a press there adds a node.
         InHandle,    //!< A Curve's node `index`: the handle its segment from the previous node arrives along.
         OutHandle,   //!< ...and the one its segment to the next node leaves along.
+        Depth,       //!< The edge's depth: an arrow at its first valley, any kind with an edge.
     };
     Role    role  = Role::Vertex;
     int     index = 0;
     QPointF at;
-    QPointF axis;     //!< For the radius: the unit direction from the handle into its corner.
+    QPointF axis;     //!< For the radius, the unit direction into its corner; for the depth, inwards.
     QPointF origin;   //!< For a Curve's handle: its node, which the line to it is drawn from.
 };
 
@@ -105,6 +106,45 @@ struct ShapeInfo
 [[nodiscard]] const ShapeInfo& shapeInfo(ShapeProperties::Kind kind);
 
 /**
+ * @brief One edge modulation (PLAN-L M11): its names, and the outline with its teeth pushed in.
+ *
+ * Adding one is a value in `ShapeProperties::Edge` and an entry here (shapes.cpp): its function walks the
+ * bare outline (EdgeWalk) and moves it in by at most `edgeDepth`, so the text area's inset (edgeInset())
+ * holds for every one.
+ */
+struct EdgeInfo
+{
+    ShapeProperties::Edge kind;
+    const char*           name;    //!< Persisted. **Never changes** once saved.
+    const char*           title;   //!< Shown on screen, translated through QObject::tr().
+    //! @p outline with its edge modulated, seeded by @p seed; nullptr for None, which leaves it as it is.
+    QPainterPath (*modulate)(const QPainterPath& outline, const ShapeProperties& shape, quint32 seed);
+};
+
+//! The entry for @p kind. Every kind up to `ShapeProperties::k_lastEdge` has one.
+[[nodiscard]] const EdgeInfo& edgeInfo(ShapeProperties::Edge kind);
+
+//! How far in from the outline @p shape's edge reaches: its depth, or 0 with no edge.
+[[nodiscard]] qreal edgeInset(const ShapeProperties& shape);
+
+/**
+ * @brief Every handle edit mode offers on @p shape in @p body: its kind's own (ShapeInfo::handles), then
+ *        its edge's depth. What the controls ask, so an Ellipse with an edge is edited too.
+ */
+[[nodiscard]] QList<ShapeHandle> shapeHandles(const ShapeProperties& shape, const QRectF& body,
+                                              qreal clearance, int picked);
+
+//! @p shape with @p handle dragged to @p to: shapeHandles()' inverse, the kind's or the edge's.
+[[nodiscard]] ShapeProperties dragShapeHandle(const ShapeProperties& shape, const QRectF& body,
+                                              const ShapeHandle& handle, const QPointF& to, qreal clearance);
+
+//! Whether @p shape offers edit mode at all: a kind with handles, or an edge.
+[[nodiscard]] bool hasShapeHandles(const ShapeProperties& shape);
+
+//! @p shape with @p from's edge: what a picked tile keeps, since a template does not set the edge.
+[[nodiscard]] ShapeProperties withEdgeOf(ShapeProperties shape, const ShapeProperties& from);
+
+/**
  * @brief A ready-made outline: a value of the shape group, as the picker offers it.
  *
  * A record never stores which template it came from, only the shape it has. A tile is current when the
@@ -127,7 +167,7 @@ struct ShapeTemplate
 //! The template called @p id. Asserts on an unknown one, and then returns the first.
 [[nodiscard]] const ShapeTemplate& shapeTemplate(const char* id);
 
-//! The template @p shape is, or nullptr when it matches none.
+//! The template @p shape is, its edge aside, or nullptr when it matches none.
 [[nodiscard]] const ShapeTemplate* templateOf(const ShapeProperties& shape);
 
 //! Whether @p shape speaks: its template's answer, or its kind's when it matches none.

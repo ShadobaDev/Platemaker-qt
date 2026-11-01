@@ -35,6 +35,10 @@ ObjectRecord loadedRecord()
     a.shape.nodes      = {{0.1, 0.2}, {0.9, 0.15}, {0.55, 0.95}};
     a.shape.lobes      = 9;
     a.shape.lobeSize   = 33;
+    a.shape.edge             = ObjectRecord::Edge::Zigzag;
+    a.shape.edgePitch        = 12.5;
+    a.shape.edgeDepth        = 4.5;
+    a.shape.edgeIrregularity = 25;
     a.box              = QSize(321, 123);
 
     Tail t;
@@ -94,7 +98,10 @@ ObjectRecord loadedRecord()
 // StyleProperties::kind) passes unnoticed; counting members needs C++20, or reflection.
 // ---------------------------------------------------------------------------
 
-struct ShapeMirror { ShapeProperties::Kind kind; qreal cornerRadius; QList<ShapeNode> nodes; int lobes, lobeSize; };
+struct ShapeMirror {
+    ShapeProperties::Kind kind; qreal cornerRadius; QList<ShapeNode> nodes; int lobes, lobeSize;
+    ShapeProperties::Edge edge; qreal edgePitch, edgeDepth; int edgeIrregularity;
+};
 static_assert(sizeof(ShapeProperties) == sizeof(ShapeMirror),
               "ShapeProperties grew a field: place it (see above), then mirror it");
 
@@ -153,6 +160,10 @@ void expectUntouched(Group applied, const ObjectRecord& before, const ObjectReco
         EXPECT_TRUE(Fields::same(after.shape.nodes, before.shape.nodes));
         EXPECT_EQ(after.shape.lobes,    before.shape.lobes);
         EXPECT_EQ(after.shape.lobeSize, before.shape.lobeSize);
+        EXPECT_EQ(after.shape.edge, before.shape.edge);
+        EXPECT_DOUBLE_EQ(after.shape.edgePitch, before.shape.edgePitch);
+        EXPECT_DOUBLE_EQ(after.shape.edgeDepth, before.shape.edgeDepth);
+        EXPECT_EQ(after.shape.edgeIrregularity, before.shape.edgeIrregularity);
     }
 
     if (applied != Group::Skin) {
@@ -711,32 +722,37 @@ TEST(Shapes, APolygonsCornersRoundAsABoxsDo)
 }
 
 /**
- * @brief Shape editing's handles (PLAN-L P3, P4): one dragged onto where it already is changes nothing,
- *        and a Polygon's nodes are added in the middle of an edge and removed down to three, never fewer.
+ * @brief Shape editing's handles (PLAN-L P3, P4, P8): one dragged onto where it already is changes
+ *        nothing, and a Polygon's nodes are added in the middle of an edge and removed down to three,
+ *        never fewer.
  *
  * The drag is the inverse of where a handle is drawn; a pair that disagreed would make a handle jump
- * the moment it is pressed. Every template that has handles, with its radius at 0 and off it, and with
- * each node picked in turn, so a Curve's tangent handles are dragged too (a Smooth or Symmetric node's
- * other handle is put back where its type says, which must be where it was).
+ * the moment it is pressed. Every template, plain and with a zigzag edge (whose depth arrow any kind
+ * offers, an Ellipse too), with its radius at 0 and off it, and with each node picked in turn, so a
+ * Curve's tangent handles are dragged too (a Smooth or Symmetric node's other handle is put back where
+ * its type says, which must be where it was).
  */
 TEST(Shapes, AHandleDraggedOntoItselfChangesNothing)
 {
     const QRectF body(5, 5, 270, 150);
     const qreal  clearance = 12.0;
     for (const Geometry::ShapeTemplate& t : Geometry::shapeTemplates()) {
-        const Geometry::ShapeInfo& info = Geometry::shapeInfo(t.shape.kind);
-        if (!info.handles)
-            continue;
-        for (qreal radius : {0.0, 20.0}) {
+        for (ObjectRecord::Edge edge : {ObjectRecord::Edge::None, ObjectRecord::Edge::Zigzag}) {
             ShapeProperties shape = t.shape;
-            shape.cornerRadius    = radius;
-            for (int picked = -1; picked < int(shape.nodes.size()); ++picked) {
-                for (const Geometry::ShapeHandle& h : info.handles(shape, body, clearance, picked)) {
-                    if (h.role == Geometry::ShapeHandle::Role::AddVertex)
-                        continue;   // a press adds a node; it has nothing to drag
-                    const ShapeProperties dragged = info.dragHandle(shape, body, h, h.at, clearance);
-                    EXPECT_TRUE(dragged == shape) << t.id << " radius " << radius << " picked " << picked
-                                                  << " handle " << int(h.role) << ":" << h.index;
+            shape.edge            = edge;
+            if (!Geometry::hasShapeHandles(shape))
+                continue;
+            for (qreal radius : {0.0, 20.0}) {
+                shape.cornerRadius = radius;
+                for (int picked = -1; picked < int(shape.nodes.size()); ++picked) {
+                    for (const Geometry::ShapeHandle& h : Geometry::shapeHandles(shape, body, clearance, picked)) {
+                        if (h.role == Geometry::ShapeHandle::Role::AddVertex)
+                            continue;   // a press adds a node; it has nothing to drag
+                        const ShapeProperties dragged = Geometry::dragShapeHandle(shape, body, h, h.at, clearance);
+                        EXPECT_TRUE(dragged == shape) << t.id << " edge " << edgeName(edge) << " radius " << radius
+                                                      << " picked " << picked << " handle " << int(h.role) << ":"
+                                                      << h.index;
+                    }
                 }
             }
         }
@@ -751,6 +767,39 @@ TEST(Shapes, AHandleDraggedOntoItselfChangesNothing)
     diamond = Geometry::withVertexRemoved(diamond, 0);
     EXPECT_EQ(diamond.nodes.size(), 3);
     EXPECT_TRUE(Geometry::withVertexRemoved(diamond, 0) == diamond);   // three is the fewest
+}
+
+/**
+ * @brief An edge goes in from the outline (PLAN-L P8): the balloon keeps its bounds, the lettering's room
+ *        gives up the depth, a tile is still current under it, and the same seed lays the same teeth.
+ */
+TEST(Shapes, AnEdgeGoesInAndTheLetteringGivesUpItsDepth)
+{
+    for (const char* id : {"speech", "ellipse", "shout", "scroll", "thought"}) {
+        ObjectRecord plain;
+        plain.shape = Geometry::shapeTemplate(id).shape;
+        plain.box   = QSize(300, 160);
+        ObjectRecord edged           = plain;
+        edged.shape.edge             = ObjectRecord::Edge::Zigzag;
+        edged.shape.edgeDepth        = 9.0;
+        edged.shape.edgeIrregularity = 50;
+        edged.styleSeed              = 7;
+
+        const QRectF body = Geometry::balloonRect(plain);
+        const QRectF bare = Geometry::outlineOf(plain, body).boundingRect();
+        EXPECT_TRUE(bare.adjusted(-0.01, -0.01, 0.01, 0.01).contains(Geometry::outlineOf(edged, body).boundingRect()))
+            << id;
+        const QRectF a = Geometry::textArea(plain);
+        const QRectF b = Geometry::textArea(edged);
+        EXPECT_NEAR(b.width(), a.width() - 2 * 9.0, 1e-6) << id;
+        EXPECT_NEAR(b.height(), a.height() - 2 * 9.0, 1e-6) << id;
+        EXPECT_EQ(Geometry::templateOf(edged.shape), &Geometry::shapeTemplate(id)) << id;
+
+        const QPainterPath once = Geometry::outlineOf(edged, body);
+        EXPECT_TRUE(once == Geometry::outlineOf(edged, body)) << id;
+        edged.styleSeed = 8;
+        EXPECT_FALSE(once == Geometry::outlineOf(edged, body)) << id;
+    }
 }
 
 namespace {
@@ -1064,6 +1113,10 @@ void bump(qreal& v) { v += 0.25; }
 void bump(QString& v) { v += QStringLiteral("x"); }
 void bump(QColor& v) { v = QColor(v.red() ^ 0x55, v.green() ^ 0x55, v.blue() ^ 0x55, v.alpha()); }
 void bump(QList<ShapeNode>& v) { v.append(ShapeNode(0.25, 0.75)); }
+void bump(ObjectRecord::Edge& v)
+{
+    v = static_cast<ObjectRecord::Edge>((int(v) + 1) % (int(ShapeProperties::k_lastEdge) + 1));
+}
 void bump(ObjectRecord::Shape& v)
 {
     v = static_cast<ObjectRecord::Shape>((int(v) + 1) % (int(ShapeProperties::k_lastKind) + 1));
@@ -1157,6 +1210,12 @@ QString goldenRecords()
     QList<QPair<QString, ShapeProperties>> shapes{{QStringLiteral("none"), none}};
     for (const Geometry::ShapeTemplate& t : Geometry::shapeTemplates())
         shapes.append({QString::fromLatin1(t.id), t.shape});
+    // A zigzag edge on one template of each kind that draws a line or a curve (PLAN-L P8).
+    for (const char* id : {"speech", "ellipse", "shout", "scroll"}) {
+        ShapeProperties zigzag = Geometry::shapeTemplate(id).shape;
+        zigzag.edge            = ObjectRecord::Edge::Zigzag;
+        shapes.append({QString::fromLatin1(id) + QStringLiteral(" zigzag"), zigzag});
+    }
 
     // The looks, each a style over the loaded record's flash numbers; Rough at a look's own numbers.
     StyleProperties clean = loadedRecord().style;

@@ -55,7 +55,8 @@ constexpr qreal k_arrowHitSpan = 3.2;
 //! The square a shape handle answers a press in.
 QRectF shapeHandleRect(const QPointF& at, Geometry::ShapeHandle::Role role, qreal s)
 {
-    return square(at, role == Geometry::ShapeHandle::Role::Radius ? s * k_arrowHitSpan : s);
+    using Role = Geometry::ShapeHandle::Role;
+    return square(at, role == Role::Radius || role == Role::Depth ? s * k_arrowHitSpan : s);
 }
 
 //! The radius handle's drawing, pointing along x, with its FILL and OUTLINE still to be coloured.
@@ -312,10 +313,11 @@ void SelectionChrome::paint(QPainter* painter, const QStyleOptionGraphicsItem* o
                     painter->drawRect(square(at, s));
                 });
                 break;
-            case Role::Radius: {
+            case Role::Radius:
+            case Role::Depth: {
                 // The arrow (icons/handles/radius.svg) in the highlight, edged in the colour that reads
-                // on it so it shows on any fill, turned along the corner's diagonal; pressed, the two
-                // colours swap.
+                // on it so it shows on any fill, turned along its axis (a corner's diagonal, or into the
+                // balloon for the edge's depth); pressed, the two colours swap.
                 const QColor  light   = option->palette.color(QPalette::HighlightedText);
                 const bool    pressed = i == o->activeShapeHandle();
                 QSvgRenderer& arrow   = pressed ? radiusArrow(light, highlight.color())

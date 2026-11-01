@@ -186,6 +186,15 @@ struct ShapeProperties
     //! exists that the picker (shapeOrder()) does not offer, and which therefore would not load either.
     static constexpr Kind k_lastKind = Kind::Curve;
 
+    /**
+     * @brief What is done to the outline's edge (PLAN-L B14, M11): pushed in along it in a pattern, any
+     * family alike, before the tails are united into it so a tail stays smooth (B26). The table is in
+     * shapes.cpp; persisted by name (edgeName()).
+     */
+    enum class Edge { None, Zigzag };
+    //! The enum's last value. **Adding an edge moves this**: edgeFromName() reads up to it.
+    static constexpr Edge k_lastEdge = Edge::Zigzag;
+
     //! Decimal places a node is saved with in the SVG; a template's nodes are rounded to them, so a
     //! placed template reads back as itself. 4 is a fifth of a pixel on a 2000 px balloon.
     static constexpr int k_nodeDecimals = 4;
@@ -207,6 +216,19 @@ struct ShapeProperties
     //! A lobe's radius, in % of the balloon's shorter half-axis.
     int lobeSize = 40;
 
+    /**
+     * @name The edge's modulation: its kind, and how it is laid along the outline. Every family takes
+     * them, and a template does not set them: picking a tile keeps the edge. Read only while `edge` is
+     * not None. The teeth go **in** from the outline, so the balloon keeps its bounds and its text area
+     * gives up the depth.
+     * @{
+     */
+    Edge  edge             = Edge::None;
+    qreal edgePitch        = 16.0;   //!< One tooth every this many balloon pixels along the edge.
+    qreal edgeDepth        = 6.0;    //!< How far in a tooth's valley reaches, in balloon pixels.
+    int   edgeIrregularity = 0;      //!< How much each tooth's depth and place vary, in %.
+    /** @} */
+
     //! The fields, with the keys they are saved under (fields.hpp).
     template <class V>
     static void fields(V&& v)
@@ -216,6 +238,10 @@ struct ShapeProperties
         v("nodes",        &ShapeProperties::nodes);
         v("lobes",        &ShapeProperties::lobes);
         v("lobeSize",     &ShapeProperties::lobeSize);
+        v("edge",             &ShapeProperties::edge);
+        v("edgePitch",        &ShapeProperties::edgePitch);
+        v("edgeDepth",        &ShapeProperties::edgeDepth);
+        v("edgeIrregularity", &ShapeProperties::edgeIrregularity);
     }
 
     [[nodiscard]] static ShapeProperties from(const ObjectRecord& a);

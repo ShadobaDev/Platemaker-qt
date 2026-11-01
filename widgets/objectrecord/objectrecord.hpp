@@ -33,6 +33,7 @@ struct ObjectRecord
 {
     //! The enums live with the groups that own them; these keep every existing spelling working.
     using Shape   = ShapeProperties::Kind;
+    using Edge    = ShapeProperties::Edge;
     using Line    = StyleProperties::Line;
     using Texture = StyleProperties::Texture;
 
@@ -109,7 +110,14 @@ struct ObjectRecord
 };
 
 /**
- * @brief Gives \p a a style seed if it is styled and has none — **the one place that mints one**.
+ * @brief Whether \p a draws anything at random from its style seed: a line but the solid one, a texture,
+ *        or an irregular edge — so it needs a seed, and *Re-roll* has something to deal again.
+ */
+[[nodiscard]] bool usesSeed(const ObjectRecord& a);
+
+/**
+ * @brief Gives \p a a style seed if it uses one (usesSeed()) and has none — **the one place that mints
+ *        one**.
  *
  * The seed belongs to no property group, precisely so that no editor and no preset can copy it: a page
  * of marker balloons all wearing the same wobble is the failure it exists to prevent. That makes *who
@@ -164,6 +172,11 @@ inline constexpr int k_labelChars = 32;
 
 //! Parses \p name; anything unrecognised falls back to a Box, so an unknown shape still draws.
 [[nodiscard]] ObjectRecord::Shape shapeFromName(QStringView name);
+
+//! The persisted name of an edge, and the way back (unknown: None); what to call it on screen.
+[[nodiscard]] const char* edgeName(ObjectRecord::Edge e);
+[[nodiscard]] ObjectRecord::Edge edgeFromName(QStringView name);
+[[nodiscard]] QString edgeTitle(ObjectRecord::Edge e);
 
 //! The persisted name of a line or a texture, and the way back (unknown: Clean, None) — same contract as
 //! shapeName().

@@ -40,6 +40,9 @@ public:
     //! The point @p s along the edge, for @p s in [0, length()].
     [[nodiscard]] Point at(qreal s) const;
 
+    //! How far along the edge each of its points is, from 0 to length() (the closing point, the first again).
+    [[nodiscard]] const std::vector<qreal>& corners() const { return m_at; }
+
 private:
     QPolygonF          m_edge;
     std::vector<qreal> m_at;   //!< How far along the edge each of its points is.

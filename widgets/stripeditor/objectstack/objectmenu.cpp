@@ -84,7 +84,7 @@ ObjectMenu::ObjectMenu(ObjectController& objects, const StripLayout& layout, Pre
     const QList<QPair<PropertyGroup, QString>> groups{
         {PropertyGroup::Shape, tr("Shape")},
         {PropertyGroup::Skin,  tr("Fill && outline")},
-        {PropertyGroup::Style, tr("Line style")},
+        {PropertyGroup::Style, tr("Style")},
         {PropertyGroup::Text,  tr("Text style")},
     };
     for (const auto& [group, name] : groups) {

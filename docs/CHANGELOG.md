@@ -115,6 +115,12 @@
     move apart), *Smooth* (on one line) or *Symmetric* (on one line and as long as each other).
     **Convert to curve** on a balloon's context menu makes it a curve of the same outline, ready to
     edit.
+  - **Line and texture are two choices.** The Style panel's *Line* is how the edge is drawn (a solid
+    line or a flash) and *Texture* what is done to the whole balloon as it is rendered, line and all, never
+    the words. The first texture is **Rough**, with four rows: grain, detail, displacement and bleed. It
+    replaces Marker and Ink, which are now two built-in presets of it, and *Style amount* is gone: the
+    rows set the strength. A flash can be rough. Files from before naming `marker` or `ink` load as a
+    clean line with no texture.
   - **The thought balloon is a Cloud** with two rows of its own in the Shape panel: **Lobes**, how many
     circles make its edge, and **Lobe size**. In shape editing, an arrow at the right-hand lobe sizes
     them all. Its tile is a ready-made start, and it looks as before. Files from before naming

@@ -1,5 +1,6 @@
 #include "presetstore.hpp"
 #include "shapes.hpp"
+#include "styles.hpp"
 
 #include <QFile>
 #include <QFileInfo>
@@ -108,14 +109,24 @@ QList<BubblePreset> builtinPresets()
     shout.text.bold          = true;
     shout.text.pixelSize     = 38;
     shout.skin.strokeWidth   = 7;
-    shout.style.kind         = ObjectRecord::Style::Marker;
+    shout.style.texture      = ObjectRecord::Texture::Rough;   // the Marker look: Rough's own defaults
     out.append({PresetStore::tr("Shout"), shout});
 
     ObjectRecord flash = dialogue;
     flash.shape.kind         = ObjectRecord::Shape::Ellipse;
     flash.text.bold          = true;
-    flash.style.kind         = ObjectRecord::Style::Flash;   // its strokes, on Auto, from the struct
+    flash.style.line         = ObjectRecord::Line::Flash;   // its strokes, on Auto, from the struct
     out.append({PresetStore::tr("Flash"), flash});
+
+    // The two looks Rough replaced (PLAN-L B2): a felt-tip's long slow wobble, and ink's finer one that
+    // bleeds.
+    ObjectRecord marker = dialogue;
+    marker.style.texture     = ObjectRecord::Texture::Rough;
+    out.append({PresetStore::tr("Marker"), marker});
+
+    ObjectRecord ink = dialogue;
+    ink.style                = Geometry::inkRough(ink.style);
+    out.append({PresetStore::tr("Ink"), ink});
 
     ObjectRecord caption = dialogue;
     caption.shape            = Geometry::shapeTemplate("caption").shape;

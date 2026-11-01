@@ -2,10 +2,12 @@
 #define STRIPEDIT_FIELDROWS_HPP
 
 #include "properties/propertygroupeditor.hpp"   // showSpin(), restoreSpin()
+#include "fields.hpp"                           // Fields::same(): a number with decimals is compared fuzzily
 
 #include <QCoreApplication>
 #include <QFormLayout>
 
+#include <cmath>
 #include <cstring>
 #include <functional>
 #include <type_traits>
@@ -18,9 +20,11 @@ struct FieldRowSpec
 {
     const char* key;
     const char* title;
-    int         min, max;
+    double      min, max;
     const char* suffix;
     const char* tip;
+    //! Places after the point; 0 shows whole numbers (a length in whole pixels), more a decimal spin.
+    int         decimals = 0;
 };
 
 /**
@@ -71,34 +75,55 @@ public:
                 if (!spec)
                     return;
 
-                QSpinBox* spin = makeSpin ? makeSpin(key) : nullptr;
-                if (!spin)
-                    spin = new QSpinBox(owner);
-                spin->setRange(spec->min, spec->max);
-                spin->setSuffix(QString::fromLatin1(spec->suffix));
-                spin->setToolTip(QCoreApplication::translate(context, spec->tip));
-                form->addRow(QCoreApplication::translate(context, spec->title), spin);
-
                 Row row;
-                row.key  = key;
-                row.spin = spin;
-                row.min  = spec->min;
-                row.get  = [member](const Group& v) { return int(qRound(double(v.*member))); };
-                row.set  = [member](Group& v, int x) { v.*member = T(x); };
+                row.key = key;
+                row.min = spec->min;
+                if (spec->decimals > 0) {
+                    row.decimal = new QDoubleSpinBox(owner);
+                    row.decimal->setDecimals(spec->decimals);
+                    row.decimal->setSingleStep(std::pow(10.0, -spec->decimals));
+                    row.decimal->setRange(spec->min, spec->max);
+                    row.box = row.decimal;
+                    row.get = [member](const Group& v) { return double(v.*member); };
+                } else {
+                    row.whole = makeSpin ? makeSpin(key) : nullptr;
+                    if (!row.whole)
+                        row.whole = new QSpinBox(owner);
+                    row.whole->setRange(int(spec->min), int(spec->max));
+                    row.box = row.whole;
+                    row.get = [member](const Group& v) { return double(qRound(double(v.*member))); };
+                }
+                // Into the member's own type: an integer field rounds what it is given.
+                row.set = [member](Group& v, double x) {
+                    if constexpr (std::is_floating_point_v<T>)
+                        v.*member = T(x);
+                    else
+                        v.*member = T(qRound(x));
+                };
+                const QString suffix = QString::fromLatin1(spec->suffix);
+                if (row.whole)
+                    row.whole->setSuffix(suffix);
+                else
+                    row.decimal->setSuffix(suffix);
+                row.box->setToolTip(QCoreApplication::translate(context, spec->tip));
+                form->addRow(QCoreApplication::translate(context, spec->title), row.box);
                 m_rows.push_back(row);
 
-                const size_t index = m_rows.size() - 1;
-                QObject::connect(spin, &QSpinBox::valueChanged, owner,
-                                 [this, index, &values, &populating, edited](int v) {
-                                     if (populating)
-                                         return;
-                                     Row& r = m_rows[index];
-                                     if (restoreSpin(r.spin, r.min))
-                                         r.mixed = false;
-                                     r.set(values, v);
-                                     r.touched = true;
-                                     edited();
-                                 });
+                const size_t index  = m_rows.size() - 1;
+                const auto   onEdit = [this, index, &values, &populating, edited](double v) {
+                    if (populating)
+                        return;
+                    Row& r = m_rows[index];
+                    if (r.whole ? restoreSpin(r.whole, int(r.min)) : restoreSpin(r.decimal, r.min))
+                        r.mixed = false;
+                    r.set(values, v);
+                    r.touched = true;
+                    edited();
+                };
+                if (row.whole)
+                    QObject::connect(row.whole, &QSpinBox::valueChanged, owner, [onEdit](int v) { onEdit(v); });
+                else
+                    QObject::connect(row.decimal, &QDoubleSpinBox::valueChanged, owner, onEdit);
             }
         });
     }
@@ -114,28 +139,32 @@ public:
     void compare(const Group& subject, const Group& shown)
     {
         for (Row& r : m_rows)
-            r.mixed = r.mixed || r.get(subject) != r.get(shown);
+            r.mixed = r.mixed || !Fields::same(r.get(subject), r.get(shown));
     }
 
     //! Shows @p values, or *Mixed*. Call it inside the panel's populating guard.
     void show(const Group& values) const
     {
-        for (const Row& r : m_rows)
-            showSpin(r.spin, r.mixed, r.get(values), r.min, r.spin->maximum());
+        for (const Row& r : m_rows) {
+            if (r.whole)
+                showSpin(r.whole, r.mixed, qRound(r.get(values)), int(r.min), r.whole->maximum());
+            else
+                showSpin(r.decimal, r.mixed, r.get(values), r.min, r.decimal->maximum());
+        }
     }
 
     //! Lowers or raises @p key's ceiling, e.g. to what the bound object can show. Call it before show().
     void setMaximum(const char* key, int max) const
     {
         for (const Row& r : m_rows)
-            if (std::strcmp(r.key, key) == 0 && r.spin->maximum() != max)
-                r.spin->setMaximum(qMax(r.min, max));   // only on a change: setRange() stops a held arrow
+            if (std::strcmp(r.key, key) == 0 && r.whole && r.whole->maximum() != max)
+                r.whole->setMaximum(qMax(int(r.min), max));   // only on a change: setRange() stops a held arrow
     }
 
     void setVisible(QFormLayout* form, bool visible) const
     {
         for (const Row& r : m_rows)
-            form->setRowVisible(r.spin, visible);
+            form->setRowVisible(r.box, visible);
     }
 
     //! Copies into @p target the rows the artist has touched, from @p values.
@@ -147,16 +176,18 @@ public:
     }
 
 private:
-    //! One field's spin, and how to reach the field. Values are whole numbers on screen.
+    //! One field's spin, and how to reach the field: whole numbers on screen, or with decimals.
     struct Row
     {
-        const char*                      key  = nullptr;
-        QSpinBox*                        spin = nullptr;
-        int                              min  = 0;
-        std::function<int(const Group&)>  get;
-        std::function<void(Group&, int)>  set;
-        bool                             mixed   = false;
-        bool                             touched = false;
+        const char*                         key     = nullptr;
+        QAbstractSpinBox*                   box     = nullptr;   //!< whichever of the two it is
+        QSpinBox*                           whole   = nullptr;
+        QDoubleSpinBox*                     decimal = nullptr;
+        double                              min     = 0.0;
+        std::function<double(const Group&)> get;     //!< As the spin shows it (rounded for a whole one).
+        std::function<void(Group&, double)> set;
+        bool                                mixed   = false;
+        bool                                touched = false;
     };
 
     std::vector<Row> m_rows;

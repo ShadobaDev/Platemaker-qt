@@ -226,7 +226,11 @@ struct ShapeProperties
 };
 
 /**
- * @brief How the outline is drawn, as opposed to what it is.
+ * @brief How the outline is drawn, as opposed to what it is: a line and a texture (PLAN-L B4).
+ *
+ * The line is how the edge is drawn: a solid outline, or strokes of its own (a flash). The texture is
+ * what is done to the balloon as it is rasterised: an SVG filter on the outline and its strokes, never
+ * on the words. The two are independent, so a flash can be rough.
  *
  * The **seed is not in here**, deliberately. It is per balloon and set once at placement, so a preset
  * that carried it would give a whole chapter one repeated wobble — and a group's applyTo() writes the
@@ -235,29 +239,50 @@ struct ShapeProperties
 struct StyleProperties
 {
     /**
-     * @brief Marker and Ink are SVG filters, so the artwork stays the same geometry and the effect
-     * happens at rasterise time — which means librsvg applies it and Qt cannot. That is the whole reason
-     * such a bubble is previewed through the library instead of being drawn locally: an effect only the
-     * committed output could show would be an effect nobody could author. Flash is plain geometry
-     * instead, its strokes, so Qt draws it like a clean balloon. The table is in styles.cpp.
+     * @brief How the edge is drawn. Clean is the solid outline; Flash is strokes of its own, plain
+     * geometry, so Qt draws it as it draws a clean balloon. The table is in styles.cpp.
      *
-     * **Append only**, and persisted by name — see styleName().
+     * Persisted by name — see lineName(). The strip editor is unreleased (PLAN-L B3), so the order is
+     * free.
      */
-    enum class Kind { Clean, Marker, Ink, Flash };
+    enum class Line { Clean, Flash };
+    //! The enum's last value. **Adding a line moves this**: lineFromName() reads up to it.
+    static constexpr Line k_lastLine = Line::Flash;
 
-    //! The enum's last value. **Appending a style moves this**: styleFromName() reads up to it, and a
-    //! style past it would load from every file as Clean.
-    static constexpr Kind k_lastKind = Kind::Flash;
+    /**
+     * @brief What is done to the balloon as it is rasterised. A texture is an SVG filter, so librsvg
+     * applies it and Qt cannot: that is the whole reason such a balloon is previewed through the
+     * library instead of being drawn locally — an effect only the committed output could show would be
+     * an effect nobody could author. None is a true no-op: no filter is emitted at all.
+     *
+     * Persisted by name — see textureName().
+     */
+    enum class Texture { None, Rough };
+    //! The enum's last value. **Adding a texture moves this**: textureFromName() reads up to it.
+    static constexpr Texture k_lastTexture = Texture::Rough;
 
     //! `flashCoreStretch`'s "follow the shape" value.
     static constexpr int k_autoStretch = -1;
 
-    Kind  kind  = Kind::Clean;  //!< Clean is a true no-op: no filter is emitted at all.
-    qreal amount = 1.0;          //!< Scales a filter's effect, 0..2. 1.0 is the preset's own strength.
+    Line    line    = Line::Clean;
+    Texture texture = Texture::None;
+
+    /**
+     * @name Rough: turbulence displacing the outline, then a blur (PLAN-L B2). Read only while `texture`
+     * is Rough, and carried unchanged otherwise. The defaults are the old Marker's numbers; the Ink look
+     * is a built-in preset (Geometry::inkRough()). Lengths in balloon pixels, so the wobble scales with
+     * the balloon, not with the output's resolution.
+     * @{
+     */
+    qreal roughFrequency    = 0.03;   //!< feTurbulence's baseFrequency: higher is a finer grain.
+    int   roughOctaves      = 3;      //!< How many finer wobbles ride on the first.
+    qreal roughDisplacement = 6.0;    //!< How far the outline wanders (feDisplacementMap's scale).
+    qreal roughBlur         = 0.0;    //!< The bleed after it (feGaussianBlur's deviation); 0 for none.
+    /** @} */
 
     /**
      * @name The flash: narrow triangles ringing the silhouette, outwards and inwards (styles.cpp).
-     * Read only while `kind` is Flash, and carried unchanged by every other style, so switching back
+     * Read only while `line` is Flash, and carried unchanged by every other line, so switching back
      * finds them as they were. Lengths in balloon pixels; jitter in % of the pitch or the length.
      * @{
      */
@@ -284,8 +309,12 @@ struct StyleProperties
     template <class V>
     static void fields(V&& v)
     {
-        v("style",                  &StyleProperties::kind);
-        v("styleAmount",            &StyleProperties::amount);
+        v("line",                   &StyleProperties::line);
+        v("texture",                &StyleProperties::texture);
+        v("roughFrequency",         &StyleProperties::roughFrequency);
+        v("roughOctaves",           &StyleProperties::roughOctaves);
+        v("roughDisplacement",      &StyleProperties::roughDisplacement);
+        v("roughBlur",              &StyleProperties::roughBlur);
         v("flashOuterPitch",        &StyleProperties::flashOuterPitch);
         v("flashInnerPitch",        &StyleProperties::flashInnerPitch);
         v("flashOuterLength",       &StyleProperties::flashOuterLength);

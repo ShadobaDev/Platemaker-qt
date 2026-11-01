@@ -131,20 +131,31 @@ JSON, `k_nodeDecimals` in the SVG, so a template's nodes are rounded to those de
 reads back as itself. `FieldRows` skips a field that is not a number at compile time, so a list never
 becomes a row.
 
-### A line style
+### A line or a texture
 
-A value of `StyleProperties::Kind` (append only, move `k_lastKind`) and **one entry in `k_styles`**
+A style is two independent choices: a **line** (how the edge is drawn) and a **texture** (what is done
+to the balloon as it is rasterised).
+
+A line is a value of `StyleProperties::Line` (move `k_lastLine`) and **one entry in `k_lines`**
 (`widgets/objectrecord/styles.cpp`), in the enum's order: the persisted name, the title the Style panel
-lists, and either a recipe or strokes of its own. A recipe is an SVG noise filter (`NoiseRecipe`): the
-filter in `recordsvg.cpp` and the margin it needs (`styleMargin()`) both read it, and a style with one
-previews through the library (`hasFilter()`) and has an amount to scale. Strokes are an `ink` function,
-from the record and its silhouette to closed paths filled in the stroke colour, with an `inkReach` that
-says how far they reach past the silhouette; a style with ink leaves the solid outline off
-(`hasOutline()`) and is drawn locally. The flash is the worked example. Its parameters are members of
+lists, and strokes of its own or none. Strokes are an `ink` function, from the record and its silhouette
+to closed paths filled in the stroke colour, with an `inkReach` that says how far they reach past the
+silhouette; a line with ink leaves the solid outline off (`hasOutline()`) and is drawn locally.
+
+A texture is a value of `StyleProperties::Texture` (move `k_lastTexture`), **one entry in
+`k_textures`** (its name, title and `reach`, how far it moves the balloon past its geometry) and its SVG
+filter in `styleDefs()` (`recordsvg.cpp`), written from the texture's own fields. The filter hangs on the
+balloon's group, its silhouette and its line's strokes, never on the lettering's group; a balloon with
+one previews through the library (`hasFilter()`), and `styleMargin()` adds its reach to the line's.
+Rough is the worked example: four `rough…` fields, the defaults the Marker look's, and the Ink look a
+built-in preset (`inkRough()`).
+
+The flash is the worked example of a line. Its parameters are members of
 `StyleProperties` with a `flash` prefix, one line each in its `fields()` list; the Style panel builds a
 spin for every `flash…` field from that list (`FieldRows`, `properties/fieldrows.hpp`, which any panel
 can use for a prefix of its group's fields), and takes its label, range and tooltip from `k_flashRows`
-in `styleeditor.cpp` (a field with no row there stops a debug build). The core stretch's *Auto* comes
+in `styleeditor.cpp` (a field with no row there stops a debug build; a row with `decimals` is a
+decimal spin, as Rough's are in `k_roughRows`). The core stretch's *Auto* comes
 from `ShapeInfo::flashStretch`, one value per shape in `shapes.cpp`. Caught by the same table,
 round-trip and golden tests as a shape; strokes are also checked against the room reserved for them
 (`Style.AFlashStaysInsideItsBounds`) and Auto against the shape's value (`Style.AutoStretchIsTheShapes`).

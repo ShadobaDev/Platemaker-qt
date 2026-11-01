@@ -44,7 +44,7 @@ QString sectionTitle(PropertyGroup g)
     switch (g) {
     case PropertyGroup::Shape: return ObjectState::tr("Shape");
     case PropertyGroup::Skin:  return ObjectState::tr("Fill && outline");
-    case PropertyGroup::Style: return ObjectState::tr("Line style");
+    case PropertyGroup::Style: return ObjectState::tr("Style");
     case PropertyGroup::Text:  return ObjectState::tr("Text");
     case PropertyGroup::Tail:  return ObjectState::tr("Tails");
     case PropertyGroup::TailItem: return ObjectState::tr("Tail");

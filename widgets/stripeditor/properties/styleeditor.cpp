@@ -4,6 +4,7 @@
 
 #include <QComboBox>
 #include <QFormLayout>
+#include <QFrame>
 #include <QSpinBox>
 
 #include <cstring>
@@ -93,6 +94,14 @@ const FieldRowSpec k_flashRows[] = {
            "longer side, which stands the strokes square to a long straight edge. Auto takes the shape's "
            "own, and follows it when the shape changes; a value set here stays.")},
 };
+
+//! Rough's numbers. Lengths in strip pixels, with a decimal: a bleed's useful range is around a pixel.
+const FieldRowSpec k_roughRows[] = {
+    {"roughFrequency",    PM_TR("Grain:"),        0.001, 0.5, "",    PM_TR("How fine the wobble is: higher gives smaller, closer waves."), 3},
+    {"roughOctaves",      PM_TR("Detail:"),       1,     8,   "",    PM_TR("How many finer wobbles ride on the first.")},
+    {"roughDisplacement", PM_TR("Displacement:"), 0,     50,  " px", PM_TR("How far the outline wanders off its line."), 1},
+    {"roughBlur",         PM_TR("Bleed:"),        0,     10,  " px", PM_TR("How much the line softens after it, as ink bleeding into paper. 0 keeps it sharp."), 1},
+};
 #undef PM_TR
 
 } // namespace
@@ -103,22 +112,13 @@ StyleEditor::StyleEditor(QWidget* parent)
     m_form = new QFormLayout(this);
     m_form->setContentsMargins(0, 0, 0, 0);
 
-    m_kind = new QComboBox(this);
-    for (int i = 0; i <= int(StyleProperties::k_lastKind); ++i)
-        m_kind->addItem(styleTitle(static_cast<ObjectRecord::Style>(i)), i);
-    m_kind->setToolTip(tr("How the outline is drawn. Marker and Ink roughen it as it is rendered, shown "
-                          "here exactly as it will be baked, because the library draws them. Flash rings "
-                          "it with strokes instead of a solid line."));
-    m_form->addRow(tr("Line style:"), m_kind);
-
-    m_amount = new QSpinBox(this);
-    m_amount->setRange(k_styleAmountMin, k_styleAmountMax);
-    m_amount->setSuffix(tr(" %"));
-    m_amount->setToolTip(tr("How strong the line style is. 100% is the preset's own strength."));
-    m_form->addRow(tr("Style amount:"), m_amount);
-
-    // One row per flash field, in the field list's order: a field added to the list and not given a row
-    // above stops a debug build here.
+    // The line, then its rows; the texture, then its rows. A field added to the list and not given a
+    // row above stops a debug build here.
+    m_line = new QComboBox(this);
+    for (int i = 0; i <= int(StyleProperties::k_lastLine); ++i)
+        m_line->addItem(lineTitle(static_cast<ObjectRecord::Line>(i)), i);
+    m_line->setToolTip(tr("How the edge is drawn: a solid line, or a flash's strokes ringing it."));
+    m_form->addRow(tr("Line:"), m_line);
     m_flash.build(this, m_form, "flash", k_flashRows, k_trContext, m_values, m_populating,
                   [this] { emit changed(); }, [this](const char* key) -> QSpinBox* {
                       if (std::strcmp(key, "flashCoreStretch") != 0)
@@ -126,22 +126,38 @@ StyleEditor::StyleEditor(QWidget* parent)
                       return m_stretch = new StretchSpin(this);
                   });
 
-    connect(m_kind, &QComboBox::currentIndexChanged, this, [this](int i) {
+    // A rule between the two choices and their rows, so the texture does not read as one of the line's.
+    auto* rule = new QFrame(this);
+    rule->setFrameShape(QFrame::HLine);
+    rule->setFrameShadow(QFrame::Sunken);
+    m_form->addRow(rule);
+
+    m_texture = new QComboBox(this);
+    for (int i = 0; i <= int(StyleProperties::k_lastTexture); ++i)
+        m_texture->addItem(textureTitle(static_cast<ObjectRecord::Texture>(i)), i);
+    m_texture->setToolTip(tr("What is done to the balloon as it is rendered, line and all, never to the "
+                             "words. Rough makes the edge wander, as a felt-tip or ink does; it is shown "
+                             "here exactly as it will be baked, because the library draws it."));
+    m_form->addRow(tr("Texture:"), m_texture);
+    m_rough.build(this, m_form, "rough", k_roughRows, k_trContext, m_values, m_populating,
+                  [this] { emit changed(); });
+
+    connect(m_line, &QComboBox::currentIndexChanged, this, [this](int i) {
         if (m_populating || i < 0)
             return;
-        m_values.kind = static_cast<ObjectRecord::Style>(m_kind->currentData().toInt());
-        m_kindTouched = true;
-        m_mixedKind   = false;
+        m_values.line = static_cast<ObjectRecord::Line>(m_line->currentData().toInt());
+        m_lineTouched = true;
+        m_mixedLine   = false;
         showRows();
         emit changed();
     });
-    connect(m_amount, &QSpinBox::valueChanged, this, [this](int v) {
-        if (m_populating)
+    connect(m_texture, &QComboBox::currentIndexChanged, this, [this](int i) {
+        if (m_populating || i < 0)
             return;
-        if (restoreSpin(m_amount, k_styleAmountMin))
-            m_mixedAmount = false;
-        m_values.amount = v / 100.0;
-        m_amountTouched = true;
+        m_values.texture = static_cast<ObjectRecord::Texture>(m_texture->currentData().toInt());
+        m_textureTouched = true;
+        m_mixedTexture   = false;
+        showRows();
         emit changed();
     });
 
@@ -154,17 +170,19 @@ void StyleEditor::bind(const Subjects& subjects)
         return;
     m_values = StyleProperties::from(*subjects.first());
 
-    m_mixedKind = m_mixedAmount = false;
+    m_mixedLine = m_mixedTexture = false;
     m_flash.reset();
+    m_rough.reset();
     bool sameShape = true;
     for (const ObjectRecord* a : subjects) {
         const StyleProperties v = StyleProperties::from(*a);
-        m_mixedKind   = m_mixedKind   || v.kind   != m_values.kind;
-        m_mixedAmount = m_mixedAmount || !qFuzzyCompare(v.amount + 1.0, m_values.amount + 1.0);
+        m_mixedLine    = m_mixedLine    || v.line    != m_values.line;
+        m_mixedTexture = m_mixedTexture || v.texture != m_values.texture;
         m_flash.compare(v, m_values);
+        m_rough.compare(v, m_values);
         sameShape = sameShape && a->shape.kind == subjects.first()->shape.kind;
     }
-    m_kindTouched = m_amountTouched = false;
+    m_lineTouched = m_textureTouched = false;
     if (m_stretch)
         m_stretch->shapeStretch = sameShape ? Geometry::shapeInfo(subjects.first()->shape.kind).flashStretch : -1;
 
@@ -179,32 +197,29 @@ void StyleEditor::applyTo(ObjectRecord& target) const
 void StyleEditor::applyEditedTo(ObjectRecord& target) const
 {
     StyleProperties t = StyleProperties::from(target);
-    if (m_kindTouched)   t.kind   = m_values.kind;
-    if (m_amountTouched) t.amount = m_values.amount;
+    if (m_lineTouched)    t.line    = m_values.line;
+    if (m_textureTouched) t.texture = m_values.texture;
     m_flash.applyEdited(m_values, t);
+    m_rough.applyEdited(m_values, t);
     t.applyTo(target);
 }
 
 void StyleEditor::syncFromValues()
 {
     m_populating = true;
-    showCombo(m_kind, m_mixedKind, m_kind->findData(int(m_values.kind)));
-    showSpin(m_amount, m_mixedAmount, qRound(m_values.amount * 100.0), k_styleAmountMin, k_styleAmountMax);
+    showCombo(m_line, m_mixedLine, m_line->findData(int(m_values.line)));
+    showCombo(m_texture, m_mixedTexture, m_texture->findData(int(m_values.texture)));
     m_flash.show(m_values);
+    m_rough.show(m_values);
     showRows();
     m_populating = false;
 }
 
 void StyleEditor::showRows()
 {
-    // A selection that disagrees about the style shows what at least one of them has.
-    const Geometry::StyleInfo& info  = Geometry::styleInfo(m_values.kind);
-    const bool                 flash = m_mixedKind || m_values.kind == ObjectRecord::Style::Flash;
-    // The amount scales a filter. A flash has none (its rows describe it whole), so the row goes; Clean
-    // keeps it, disabled, as before.
-    m_form->setRowVisible(m_amount, m_mixedKind || !info.ink);
-    m_amount->setEnabled(m_mixedKind || info.noise);
-    m_flash.setVisible(m_form, flash);
+    // A selection that disagrees shows the rows at least one of them has.
+    m_flash.setVisible(m_form, m_mixedLine || m_values.line == ObjectRecord::Line::Flash);
+    m_rough.setVisible(m_form, m_mixedTexture || m_values.texture == ObjectRecord::Texture::Rough);
 }
 
 }  // namespace StripEdit

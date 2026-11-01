@@ -30,9 +30,6 @@ inline constexpr int k_commitDebounceMs = 300;
 //! Side of a colour chip, in pixels. Small enough to read as a swatch rather than a picture.
 inline constexpr int k_swatchPx = 16;
 
-inline constexpr int k_styleAmountMin = 0;    //!< Per cent of the style's own strength.
-inline constexpr int k_styleAmountMax = 200;
-
 inline constexpr int k_textSizeMin = 6;      //!< Below this the lettering stops being lettering.
 inline constexpr int k_textSizeMax = 400;
 inline constexpr int k_lineSpacingMin = 25;    //!< Percent. Below this the lines sit on each other.
@@ -171,6 +168,31 @@ inline void showSpin(QSpinBox* spin, bool mixed, int value, int min, int max)
 inline bool restoreSpin(QSpinBox* spin, int min)
 {
     if (spin->minimum() == min)
+        return false;
+    const QSignalBlocker block(spin);
+    spin->setSpecialValueText(QString());
+    spin->setRange(min, spin->maximum());
+    return true;
+}
+
+//! showSpin() for a number with decimals: the sentinel is one step below the minimum.
+inline void showSpin(QDoubleSpinBox* spin, bool mixed, double value, double min, double max)
+{
+    const QSignalBlocker block(spin);
+    const double  low     = mixed ? min - spin->singleStep() : min;
+    const QString special = mixed ? QObject::tr("Mixed") : QString();
+    if (spin->specialValueText() != special)
+        spin->setSpecialValueText(special);
+    // +1 so a bound of exactly 0 compares: qFuzzyCompare() never calls 0 equal to anything.
+    if (!qFuzzyCompare(1.0 + spin->minimum(), 1.0 + low) || !qFuzzyCompare(1.0 + spin->maximum(), 1.0 + max))
+        spin->setRange(low, max);
+    spin->setValue(mixed ? low : value);
+}
+
+//! restoreSpin() for a number with decimals.
+inline bool restoreSpin(QDoubleSpinBox* spin, double min)
+{
+    if (spin->specialValueText().isEmpty())
         return false;
     const QSignalBlocker block(spin);
     spin->setSpecialValueText(QString());

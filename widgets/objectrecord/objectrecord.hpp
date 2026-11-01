@@ -32,8 +32,9 @@
 struct ObjectRecord
 {
     //! The enums live with the groups that own them; these keep every existing spelling working.
-    using Shape = ShapeProperties::Kind;
-    using Style = StyleProperties::Kind;
+    using Shape   = ShapeProperties::Kind;
+    using Line    = StyleProperties::Line;
+    using Texture = StyleProperties::Texture;
 
     //! Records for one project's overlays, keyed by `StripOverlay::uid`.
     using Map = QHash<QString, ObjectRecord>;
@@ -164,10 +165,14 @@ inline constexpr int k_labelChars = 32;
 //! Parses \p name; anything unrecognised falls back to a Box, so an unknown shape still draws.
 [[nodiscard]] ObjectRecord::Shape shapeFromName(QStringView name);
 
-//! The persisted name of \p s, and the way back — same contract as shapeName().
-[[nodiscard]] const char* styleName(ObjectRecord::Style s);
-[[nodiscard]] ObjectRecord::Style styleFromName(QStringView name);
-//! What to call \p s on screen, translated — same contract as shapeTitle().
-[[nodiscard]] QString styleTitle(ObjectRecord::Style s);
+//! The persisted name of a line or a texture, and the way back (unknown: Clean, None) — same contract as
+//! shapeName().
+[[nodiscard]] const char* lineName(ObjectRecord::Line l);
+[[nodiscard]] ObjectRecord::Line lineFromName(QStringView name);
+[[nodiscard]] const char* textureName(ObjectRecord::Texture t);
+[[nodiscard]] ObjectRecord::Texture textureFromName(QStringView name);
+//! What to call a line or a texture on screen, translated — same contract as shapeTitle().
+[[nodiscard]] QString lineTitle(ObjectRecord::Line l);
+[[nodiscard]] QString textureTitle(ObjectRecord::Texture t);
 
 #endif // OBJECTRECORD_HPP

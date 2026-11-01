@@ -1,4 +1,4 @@
-// The line styles: one table entry each, the flash's strokes, and the room each style needs past the
+// The lines and the textures: one table entry each, the flash's strokes, and the room each needs past the
 // geometry.
 
 #include "styles.hpp"
@@ -20,15 +20,17 @@ namespace Geometry {
 namespace {
 
 /**
- *  A dried felt-tip: the edge wanders in long slow waves, about 6 px off a straight line, and stays
- *  sharp.
+ *  The Ink look: ink bleeds in finer waves and less far than a marker wanders (the struct's defaults: a
+ *  dried felt-tip's long slow waves, about 6 px off a straight line), then softens.
  */
-constexpr NoiseRecipe k_marker{0.03, 3, 6.0, 0.0, 0.0};
+constexpr qreal k_inkFrequency    = 0.07;
+constexpr int   k_inkOctaves      = 2;
+constexpr qreal k_inkDisplacement = 3.0;
+constexpr qreal k_inkBlur         = 0.6;
 /**
- *  Ink bleeds in finer waves and less far than a marker wanders, then softens. The blur's reach is
- *  reserved whole, whatever the amount.
+ *  How far a blur spreads, in deviations: past three, under half a percent of the ink is left.
  */
-constexpr NoiseRecipe k_ink{0.07, 2, 3.0, 0.6, 2.0};
+constexpr qreal k_blurReach       = 3.0;
 
 // ---------------------------------------------------------------------------
 // Flash: narrow triangles ringing the silhouette, outwards and inwards
@@ -184,51 +186,89 @@ qreal flashReach(const ObjectRecord& a)
 // The table
 // ---------------------------------------------------------------------------
 
-using Kind = StyleProperties::Kind;
+// ---------------------------------------------------------------------------
+// Rough: turbulence displacing the outline, then a blur (the filter is in recordsvg.cpp)
+// ---------------------------------------------------------------------------
 
-//! In the enum's order, so a kind is its own index; styleInfo() checks every entry names its kind.
-const std::array<StyleInfo, int(StyleProperties::k_lastKind) + 1> k_styles{{
-    {Kind::Clean,  "clean",  QT_TRANSLATE_NOOP("QObject", "Clean"),  nullptr,   nullptr,  nullptr},
-    {Kind::Marker, "marker", QT_TRANSLATE_NOOP("QObject", "Marker"), &k_marker, nullptr,  nullptr},
-    {Kind::Ink,    "ink",    QT_TRANSLATE_NOOP("QObject", "Ink"),    &k_ink,    nullptr,  nullptr},
-    {Kind::Flash,  "flash",  QT_TRANSLATE_NOOP("QObject", "Flash"),  nullptr,   flashInk, flashReach},
+//! The displacement, and the blur's spread past it.
+qreal roughReach(const StyleProperties& s)
+{
+    return qMax(s.roughDisplacement, 0.0) + k_blurReach * qMax(s.roughBlur, 0.0);
+}
+
+// ---------------------------------------------------------------------------
+// The tables
+// ---------------------------------------------------------------------------
+
+using Line    = StyleProperties::Line;
+using Texture = StyleProperties::Texture;
+
+//! In the enum's order, so a kind is its own index; lineInfo() checks every entry names its kind.
+const std::array<LineInfo, int(StyleProperties::k_lastLine) + 1> k_lines{{
+    {Line::Clean, "clean", QT_TRANSLATE_NOOP("QObject", "Clean"), nullptr,  nullptr},
+    {Line::Flash, "flash", QT_TRANSLATE_NOOP("QObject", "Flash"), flashInk, flashReach},
+}};
+
+//! Likewise, for textureInfo().
+const std::array<TextureInfo, int(StyleProperties::k_lastTexture) + 1> k_textures{{
+    {Texture::None,  "none",  QT_TRANSLATE_NOOP("QObject", "None"),  nullptr},
+    {Texture::Rough, "rough", QT_TRANSLATE_NOOP("QObject", "Rough"), roughReach},
 }};
 
 } // namespace
 
-const StyleInfo& styleInfo(StyleProperties::Kind kind)
+const LineInfo& lineInfo(StyleProperties::Line kind)
 {
     const int i = int(kind);
     // A kind past the table is a file from a newer build, or a corrupt value: draw it clean, the
     // fallback the readers already use, rather than reading past the end.
-    if (i < 0 || i >= int(k_styles.size()))
-        return k_styles[int(Kind::Clean)];
-    Q_ASSERT(k_styles[i].kind == kind);   // the table is out of the enum's order
-    return k_styles[i];
+    if (i < 0 || i >= int(k_lines.size()))
+        return k_lines[int(Line::Clean)];
+    Q_ASSERT(k_lines[i].kind == kind);   // the table is out of the enum's order
+    return k_lines[i];
+}
+
+const TextureInfo& textureInfo(StyleProperties::Texture kind)
+{
+    const int i = int(kind);
+    if (i < 0 || i >= int(k_textures.size()))
+        return k_textures[int(Texture::None)];
+    Q_ASSERT(k_textures[i].kind == kind);
+    return k_textures[i];
+}
+
+StyleProperties inkRough(StyleProperties s)
+{
+    s.texture           = Texture::Rough;
+    s.roughFrequency    = k_inkFrequency;
+    s.roughOctaves      = k_inkOctaves;
+    s.roughDisplacement = k_inkDisplacement;
+    s.roughBlur         = k_inkBlur;
+    return s;
 }
 
 bool hasFilter(const ObjectRecord& a)
 {
-    return styleInfo(a.style.kind).noise != nullptr;
+    return textureInfo(a.style.texture).reach != nullptr;
 }
 
 bool hasOutline(const ObjectRecord& a)
 {
-    return styleInfo(a.style.kind).ink == nullptr;
+    return lineInfo(a.style.line).ink == nullptr;
 }
 
 QPainterPath ink(const ObjectRecord& a, const QPainterPath& silhouette)
 {
-    const auto fn = styleInfo(a.style.kind).ink;
+    const auto fn = lineInfo(a.style.line).ink;
     return fn && !silhouette.isEmpty() ? fn(a, silhouette) : QPainterPath();
 }
 
 qreal styleMargin(const ObjectRecord& a)
 {
-    const StyleInfo& info = styleInfo(a.style.kind);
-    if (info.noise)
-        return info.noise->displacement * qBound(0.0, a.style.amount, 2.0) + info.noise->blurReach;
-    return info.inkReach ? info.inkReach(a) : 0.0;
+    // The texture's filter moves the line's strokes too (it hangs on both), so the two add.
+    const LineInfo&    line    = lineInfo(a.style.line);
+    const TextureInfo& texture = textureInfo(a.style.texture);
+    return (line.inkReach ? line.inkReach(a) : 0.0) + (texture.reach ? texture.reach(a.style) : 0.0);
 }
 
 }  // namespace Geometry

@@ -43,8 +43,12 @@ ObjectRecord loadedRecord()
     t.bend             = 0.4;
     a.tails.items      = {t};
 
-    a.style.kind       = ObjectRecord::Style::Ink;
-    a.style.amount     = 1.7;
+    a.style.line              = ObjectRecord::Line::Flash;
+    a.style.texture           = ObjectRecord::Texture::Rough;
+    a.style.roughFrequency    = 0.05;
+    a.style.roughOctaves      = 4;
+    a.style.roughDisplacement = 7.5;
+    a.style.roughBlur         = 1.25;
     a.style.flashOuterPitch        = 3.5;
     a.style.flashInnerPitch        = 4.5;
     a.style.flashOuterLength       = 21.0;
@@ -94,7 +98,8 @@ static_assert(sizeof(SkinProperties) == sizeof(SkinMirror),
               "SkinProperties grew a field: place it (see above), then mirror it");
 
 struct StyleMirror {
-    StyleProperties::Kind kind; qreal amount;
+    StyleProperties::Line line; StyleProperties::Texture texture;
+    qreal roughFrequency; int roughOctaves; qreal roughDisplacement, roughBlur;
     qreal flashOuterPitch, flashInnerPitch, flashOuterLength, flashInnerLength, flashOuterBase, flashInnerBase;
     int flashOuterPitchJitter, flashInnerPitchJitter, flashOuterLengthJitter, flashInnerLengthJitter;
     int flashCoreStretch;
@@ -150,8 +155,12 @@ void expectUntouched(Group applied, const ObjectRecord& before, const ObjectReco
         EXPECT_EQ(after.skin.strokeWidth, before.skin.strokeWidth);
     }
     if (applied != Group::Style) {
-        EXPECT_EQ(after.style.kind, before.style.kind);
-        EXPECT_DOUBLE_EQ(after.style.amount, before.style.amount);
+        EXPECT_EQ(after.style.line,    before.style.line);
+        EXPECT_EQ(after.style.texture, before.style.texture);
+        EXPECT_DOUBLE_EQ(after.style.roughFrequency,    before.style.roughFrequency);
+        EXPECT_EQ(after.style.roughOctaves,             before.style.roughOctaves);
+        EXPECT_DOUBLE_EQ(after.style.roughDisplacement, before.style.roughDisplacement);
+        EXPECT_DOUBLE_EQ(after.style.roughBlur,         before.style.roughBlur);
         EXPECT_DOUBLE_EQ(after.style.flashOuterPitch,  before.style.flashOuterPitch);
         EXPECT_DOUBLE_EQ(after.style.flashInnerPitch,  before.style.flashInnerPitch);
         EXPECT_DOUBLE_EQ(after.style.flashOuterLength, before.style.flashOuterLength);
@@ -231,8 +240,8 @@ TEST(PropertyGroupOwnership, Style)
     ObjectRecord       after  = before;
 
     StyleProperties s;
-    s.kind   = ObjectRecord::Style::Marker;
-    s.amount = 0.25;
+    s.texture   = ObjectRecord::Texture::Rough;
+    s.roughBlur = 0.25;
     s.applyTo(after);
 
     EXPECT_EQ(after.style, s);
@@ -247,7 +256,7 @@ TEST(PropertyGroupOwnership, StyleLeavesTheSeedAlone)
     const quint32 seed = a.styleSeed;
 
     StyleProperties s;
-    s.kind   = ObjectRecord::Style::Marker;
+    s.texture = ObjectRecord::Texture::Rough;
     s.applyTo(a);
 
     EXPECT_EQ(a.styleSeed, seed);
@@ -382,7 +391,7 @@ TEST(PropertyGroupPersistence, KeepsTheFlatKeys)
     EXPECT_EQ(j.value(QStringLiteral("align")).toInt(),        a.text.align);
     EXPECT_EQ(j.value(QStringLiteral("lineSpacing")).toInt(),  a.text.lineSpacing);
     EXPECT_EQ(j.value(QStringLiteral("padding")).toInt(),      a.text.padding);
-    EXPECT_EQ(j.value(QStringLiteral("styleAmount")).toDouble(), a.style.amount);
+    EXPECT_EQ(j.value(QStringLiteral("texture")).toString(),   QStringLiteral("rough"));
 
     // No grouping crept into the file: a record saved before the groups existed still loads.
     for (const char* nested : {"skin", "shape", "style", "tails"})
@@ -439,12 +448,19 @@ TEST(PropertyGroupPersistence, EveryShapeAndStyleRoundTrips)
         EXPECT_EQ(ObjectRecord::fromJson(a.toJson()), a) << t.id;
     }
 
-    for (int i = 0; i <= int(StyleProperties::k_lastKind); ++i) {
-        const auto s = static_cast<ObjectRecord::Style>(i);
-        EXPECT_EQ(styleFromName(QString::fromLatin1(styleName(s))), s) << styleName(s);
-        ObjectRecord a   = loadedRecord();
-        a.style.kind = s;
-        EXPECT_EQ(ObjectRecord::fromJson(a.toJson()), a) << styleName(s);
+    for (int i = 0; i <= int(StyleProperties::k_lastLine); ++i) {
+        const auto l = static_cast<ObjectRecord::Line>(i);
+        EXPECT_EQ(lineFromName(QString::fromLatin1(lineName(l))), l) << lineName(l);
+        ObjectRecord a = loadedRecord();
+        a.style.line   = l;
+        EXPECT_EQ(ObjectRecord::fromJson(a.toJson()), a) << lineName(l);
+    }
+    for (int i = 0; i <= int(StyleProperties::k_lastTexture); ++i) {
+        const auto t = static_cast<ObjectRecord::Texture>(i);
+        EXPECT_EQ(textureFromName(QString::fromLatin1(textureName(t))), t) << textureName(t);
+        ObjectRecord a  = loadedRecord();
+        a.style.texture = t;
+        EXPECT_EQ(ObjectRecord::fromJson(a.toJson()), a) << textureName(t);
     }
 }
 
@@ -504,7 +520,8 @@ TEST(Conversion, ThePickerOffersEverySilhouetteAndNoKind)
 /**
  * @brief Every shape has its own entry in the shape table (shapes.cpp), in the enum's order, with a
  *        name, a title, an outline and a text area — except `None`, which has no outline to draw. So
- *        has every line style (styles.cpp), with a filter or strokes for each but Clean.
+ *        has every line (strokes for each but Clean) and every texture (a filter's reach for each but
+ *        None), in styles.cpp.
  *
  * The tables are indexed by the enum, so an entry out of order would give a shape another's geometry;
  * and an appended shape with no entry would be drawn as the Box shapeInfo() falls back to. Every
@@ -512,16 +529,24 @@ TEST(Conversion, ThePickerOffersEverySilhouetteAndNoKind)
  */
 TEST(Conversion, EveryShapeAndStyleHasATableEntry)
 {
-    for (int i = 0; i <= int(StyleProperties::k_lastKind); ++i) {
-        const auto                 kind = static_cast<ObjectRecord::Style>(i);
-        const Geometry::StyleInfo& info = Geometry::styleInfo(kind);
-        EXPECT_EQ(info.kind, kind) << "style entry " << i << " is out of the enum's order";
+    for (int i = 0; i <= int(StyleProperties::k_lastLine); ++i) {
+        const auto                kind = static_cast<ObjectRecord::Line>(i);
+        const Geometry::LineInfo& info = Geometry::lineInfo(kind);
+        EXPECT_EQ(info.kind, kind) << "line entry " << i << " is out of the enum's order";
         EXPECT_NE(info.name, nullptr) << i;
         EXPECT_NE(info.title, nullptr) << i;
-        // Every style but Clean is either a filter or strokes of its own, never both; strokes reserve room.
-        const int effects = int(info.noise != nullptr) + int(info.ink != nullptr);
-        EXPECT_EQ(effects, kind == ObjectRecord::Style::Clean ? 0 : 1) << styleName(kind);
-        EXPECT_EQ(info.ink == nullptr, info.inkReach == nullptr) << styleName(kind);
+        // Every line but Clean has strokes of its own, and strokes reserve room.
+        EXPECT_EQ(info.ink == nullptr, kind == ObjectRecord::Line::Clean) << lineName(kind);
+        EXPECT_EQ(info.ink == nullptr, info.inkReach == nullptr) << lineName(kind);
+    }
+    for (int i = 0; i <= int(StyleProperties::k_lastTexture); ++i) {
+        const auto                   kind = static_cast<ObjectRecord::Texture>(i);
+        const Geometry::TextureInfo& info = Geometry::textureInfo(kind);
+        EXPECT_EQ(info.kind, kind) << "texture entry " << i << " is out of the enum's order";
+        EXPECT_NE(info.name, nullptr) << i;
+        EXPECT_NE(info.title, nullptr) << i;
+        // Every texture but None is a filter, and a filter reserves room.
+        EXPECT_EQ(info.reach == nullptr, kind == ObjectRecord::Texture::None) << textureName(kind);
     }
 
     for (int i = 0; i <= int(ShapeProperties::k_lastKind); ++i) {
@@ -564,7 +589,7 @@ TEST(Style, AFlashStaysInsideItsBounds)
             t.tip = QPointF(60, 230);
             a.tails.items = {t};
         }
-        a.style.kind                   = ObjectRecord::Style::Flash;
+        a.style.line                   = ObjectRecord::Line::Flash;
         a.style.flashOuterPitchJitter  = 100;
         a.style.flashOuterLengthJitter = 100;
         EXPECT_FALSE(Geometry::hasOutline(a));
@@ -590,7 +615,7 @@ TEST(Style, AutoStretchIsTheShapes)
         ObjectRecord a;
         a.shape.kind = static_cast<ObjectRecord::Shape>(i);
         a.box        = QSize(300, 140);
-        a.style.kind = ObjectRecord::Style::Flash;
+        a.style.line = ObjectRecord::Line::Flash;
         a.styleSeed  = 7;
         const int own = Geometry::shapeInfo(a.shape.kind).flashStretch;
         EXPECT_GE(own, 0) << shapeName(a.shape.kind);
@@ -1018,9 +1043,13 @@ void bump(ObjectRecord::Shape& v)
 {
     v = static_cast<ObjectRecord::Shape>((int(v) + 1) % (int(ShapeProperties::k_lastKind) + 1));
 }
-void bump(ObjectRecord::Style& v)
+void bump(ObjectRecord::Line& v)
 {
-    v = static_cast<ObjectRecord::Style>((int(v) + 1) % (int(StyleProperties::k_lastKind) + 1));
+    v = static_cast<ObjectRecord::Line>((int(v) + 1) % (int(StyleProperties::k_lastLine) + 1));
+}
+void bump(ObjectRecord::Texture& v)
+{
+    v = static_cast<ObjectRecord::Texture>((int(v) + 1) % (int(StyleProperties::k_lastTexture) + 1));
 }
 
 /**
@@ -1088,8 +1117,9 @@ QString goldenPath()
 }
 
 /**
- * @brief Everything a record is written as, for every template (and no shape) × line style × with and
- *        without a tail. A case is named by its template's id.
+ * @brief Everything a record is written as, for every template (and no shape) × look × with and without
+ *        a tail. A case is named by its template's id and its look: clean, marker and ink (Rough at the
+ *        Marker's and the Ink's numbers), flash, and a rough flash.
  *
  * The balloon's SVG, its text area and its undo-snapshot JSON, one section per case. The lettering is
  * left empty and its family named, so nothing here measures a font: writing lettering needs the
@@ -1103,21 +1133,42 @@ QString goldenRecords()
     for (const Geometry::ShapeTemplate& t : Geometry::shapeTemplates())
         shapes.append({QString::fromLatin1(t.id), t.shape});
 
+    // The looks, each a style over the loaded record's flash numbers; Rough at a look's own numbers.
+    StyleProperties clean = loadedRecord().style;
+    clean.line            = ObjectRecord::Line::Clean;
+    clean.texture         = ObjectRecord::Texture::None;
+    StyleProperties marker = clean;
+    marker.texture           = ObjectRecord::Texture::Rough;
+    marker.roughFrequency    = StyleProperties().roughFrequency;
+    marker.roughOctaves      = StyleProperties().roughOctaves;
+    marker.roughDisplacement = StyleProperties().roughDisplacement;
+    marker.roughBlur         = StyleProperties().roughBlur;
+    StyleProperties flash      = clean;
+    flash.line                 = ObjectRecord::Line::Flash;
+    StyleProperties roughFlash = marker;
+    roughFlash.line            = ObjectRecord::Line::Flash;
+    const QList<QPair<QString, StyleProperties>> looks{
+        {QStringLiteral("clean"), clean},
+        {QStringLiteral("marker"), marker},
+        {QStringLiteral("ink"), Geometry::inkRough(clean)},
+        {QStringLiteral("flash"), flash},
+        {QStringLiteral("rough flash"), roughFlash},
+    };
+
     QString out;
     for (const auto& [name, shape] : std::as_const(shapes)) {
-        for (int st = 0; st <= int(StyleProperties::k_lastKind); ++st) {
+        for (const auto& [look, style] : looks) {
             for (bool tail : {false, true}) {
                 ObjectRecord a = loadedRecord();
                 a.shape        = shape;
-                a.style.kind   = static_cast<ObjectRecord::Style>(st);
+                a.style        = style;
                 a.text.body.clear();
                 if (!tail)
                     a.tails.items.clear();
 
                 const QRectF area = Geometry::textArea(a);
                 out += QStringLiteral("=== %1 / %2 / %3 ===\n")
-                           .arg(name, QLatin1String(styleName(a.style.kind)),
-                                tail ? QStringLiteral("tail") : QStringLiteral("no tail"));
+                           .arg(name, look, tail ? QStringLiteral("tail") : QStringLiteral("no tail"));
                 out += QString::fromUtf8(Svg::write(a));
                 out += QStringLiteral("\ntextArea: %1 %2 %3 %4\n")
                            .arg(area.x(), 0, 'f', 3).arg(area.y(), 0, 'f', 3)

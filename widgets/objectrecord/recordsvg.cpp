@@ -167,12 +167,11 @@ QList<Tail> tailsFromText(const QString& s)
  */
 QString styleDefs(const ObjectRecord& a, const QString& id)
 {
-    const Geometry::NoiseRecipe* noise = Geometry::styleInfo(a.style.kind).noise;
-    if (!noise)
+    if (a.style.texture != ObjectRecord::Texture::Rough)
         return {};
 
-    const qreal amount  = qBound(0.0, a.style.amount, 2.0);
-    const bool  blurred = noise->blur > 0.0;
+    const StyleProperties& s       = a.style;
+    const bool             blurred = s.roughBlur > 0.0;
 
     QString d;
     d += QStringLiteral("  <defs>\n");
@@ -181,14 +180,13 @@ QString styleDefs(const ObjectRecord& a, const QString& id)
              .arg(id);
     d += QStringLiteral("      <feTurbulence type=\"fractalNoise\" baseFrequency=\"%1\" numOctaves=\"%2\" "
                         "seed=\"%3\" result=\"pmNoise\"/>\n")
-             .arg(num(noise->frequency)).arg(noise->octaves).arg(a.styleSeed % 65536u);
+             .arg(num(qMax(s.roughFrequency, 0.0))).arg(qMax(s.roughOctaves, 1)).arg(a.styleSeed % 65536u);
     d += QStringLiteral("      <feDisplacementMap in=\"SourceGraphic\" in2=\"pmNoise\" scale=\"%1\" "
                         "xChannelSelector=\"R\" yChannelSelector=\"G\"%2/>\n")
-             .arg(num(noise->displacement * amount),
+             .arg(num(qMax(s.roughDisplacement, 0.0)),
                   blurred ? QStringLiteral(" result=\"pmBled\"") : QString());
     if (blurred)
-        d += QStringLiteral("      <feGaussianBlur in=\"pmBled\" stdDeviation=\"%1\"/>\n")
-                 .arg(num(noise->blur * amount));
+        d += QStringLiteral("      <feGaussianBlur in=\"pmBled\" stdDeviation=\"%1\"/>\n").arg(num(s.roughBlur));
     d += QStringLiteral("    </filter>\n  </defs>\n");
     return d;
 }
@@ -211,7 +209,8 @@ QString attrValue(qreal v) { return num(v); }
 QString attrValue(const QString& v) { return v; }
 QString attrValue(const QColor& v) { return v.name(QColor::HexArgb); }
 QString attrValue(ObjectRecord::Shape v) { return QString::fromLatin1(shapeName(v)); }
-QString attrValue(ObjectRecord::Style v) { return QString::fromLatin1(styleName(v)); }
+QString attrValue(ObjectRecord::Line v) { return QString::fromLatin1(lineName(v)); }
+QString attrValue(ObjectRecord::Texture v) { return QString::fromLatin1(textureName(v)); }
 //! Nodes joined by ";", as the tails are: "x,y", or "x,y,type,inX,inY,outX,outY" for a Curve's node with
 //! handles.
 QString attrValue(const QList<ShapeNode>& v)
@@ -244,9 +243,10 @@ void fromAttr(QStringView s, QColor& v)
     if (c.isValid())
         v = c;
 }
-// An unknown or missing name reads as the reader's own fallback (Box, Clean).
+// An unknown or missing name reads as the reader's own fallback (Box, Clean, None).
 void fromAttr(QStringView s, ObjectRecord::Shape& v) { v = shapeFromName(s); }
-void fromAttr(QStringView s, ObjectRecord::Style& v) { v = styleFromName(s); }
+void fromAttr(QStringView s, ObjectRecord::Line& v) { v = lineFromName(s); }
+void fromAttr(QStringView s, ObjectRecord::Texture& v) { v = textureFromName(s); }
 void fromAttr(QStringView s, QList<ShapeNode>& v)
 {
     v.clear();
@@ -390,29 +390,34 @@ QByteArray write(const ObjectRecord& a, const QByteArray& picture, const QString
     svg += attr(QStringLiteral("styleSeed"), QString::number(a.styleSeed));
     svg += QLatin1String(">\n");
 
+    // Two groups (PLAN-L M16): the balloon — its silhouette and its line's strokes — and the lettering.
+    // The texture's filter hangs on the balloon's: a displacement on the lettering would drag the words
+    // about with the outline, and the balloon is what should look hand-drawn, not the words in it. The
+    // lettering's own group is where a text style will hang.
     const QPainterPath silhouette = Geometry::silhouette(a);
     if (!silhouette.isEmpty()) {
-        svg += QStringLiteral("    <path d=\"%1\" fill-rule=\"%2\" %3")
-                   .arg(pathData(silhouette), fillRule(silhouette), paint("fill", a.skin.fill));
-        // On the silhouette alone. A displacement filter on the whole group would drag the lettering
-        // about with the outline — the balloon is what should look hand-drawn, not the words in it.
+        svg += QLatin1String("    <g");
         if (Geometry::hasFilter(a))
             svg += QStringLiteral(" filter=\"url(#%1)\"").arg(filterId);
+        svg += QLatin1String(">\n");
+        svg += QStringLiteral("      <path d=\"%1\" fill-rule=\"%2\" %3")
+                   .arg(pathData(silhouette), fillRule(silhouette), paint("fill", a.skin.fill));
         if (a.skin.strokeWidth > 0 && Geometry::hasOutline(a))
             svg += QStringLiteral(" %1 stroke-width=\"%2\" stroke-linejoin=\"round\"")
                        .arg(paint("stroke", a.skin.stroke)).arg(a.skin.strokeWidth);
         svg += QLatin1String("/>\n");
 
-        // A style's own strokes, in the stroke colour, over the fill and under the words.
+        // A line's own strokes, in the stroke colour, over the fill and under the words.
         const QPainterPath ink = Geometry::ink(a, silhouette);
         if (!ink.isEmpty())
-            svg += QStringLiteral("    <path d=\"%1\" fill-rule=\"%2\" %3/>\n")
+            svg += QStringLiteral("      <path d=\"%1\" fill-rule=\"%2\" %3/>\n")
                        .arg(pathData(ink), fillRule(ink), paint("fill", a.skin.stroke));
+        svg += QLatin1String("    </g>\n");
     }
 
     const QPainterPath text = Geometry::textOutline(a);
     if (!text.isEmpty())
-        svg += QStringLiteral("    <path d=\"%1\" fill-rule=\"%2\" %3/>\n")
+        svg += QStringLiteral("    <g>\n      <path d=\"%1\" fill-rule=\"%2\" %3/>\n    </g>\n")
                    .arg(pathData(text), fillRule(text), paint("fill", a.text.colour));
 
     svg += QLatin1String("  </g>\n</svg>\n");

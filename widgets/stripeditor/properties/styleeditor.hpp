@@ -13,15 +13,15 @@ namespace StripEdit {
 class StretchSpin;
 
 /**
- * @brief How the outline is drawn: the line style, how strongly a filter acts, and a flash's strokes.
+ * @brief How the outline is drawn: its line and its texture (PLAN-L B4), and each one's numbers.
  *
  * The **seed is not here**, and that is the group model earning its keep. A seed is per balloon and set
  * once at placement; a group's applyTo() writes the whole group, so a seed inside it would be copied
  * along by every preset and a page of marker balloons would wear one repeated wobble. It stays a bare
  * field on the record, written by whoever places a bubble and by nobody else.
  *
- * The flash's rows are built from StyleProperties' field list, one spin per `flash…` field, and shown
- * only while Flash is selected; the amount shows only for a style it scales.
+ * The flash's rows and Rough's are built from StyleProperties' field list, one spin per `flash…` or
+ * `rough…` field, and shown only while that line or texture is chosen.
  */
 class StyleEditor : public PropertyGroupEditor
 {
@@ -42,20 +42,21 @@ private:
     void syncFromValues();
     void showRows();
 
-    QFormLayout* m_form   = nullptr;
-    QComboBox*   m_kind   = nullptr;
-    QSpinBox*    m_amount = nullptr;   //!< How strongly, as a percentage of the preset.
+    QFormLayout* m_form    = nullptr;
+    QComboBox*   m_line    = nullptr;
+    QComboBox*   m_texture = nullptr;
     StretchSpin* m_stretch = nullptr;  //!< The flash's core stretch, which reads "Auto (n %)".
     FieldRows<StyleProperties> m_flash;   //!< One spin per `flash…` field. Lengths are whole pixels.
+    FieldRows<StyleProperties> m_rough;   //!< One spin per `rough…` field.
 
     StyleProperties m_values;
     bool m_populating = false;
 
     // --- bound to a set ---
-    bool m_mixedKind    = false;
-    bool m_mixedAmount  = false;
-    bool m_kindTouched  = false;
-    bool m_amountTouched = false;
+    bool m_mixedLine      = false;
+    bool m_mixedTexture   = false;
+    bool m_lineTouched    = false;
+    bool m_textureTouched = false;
 };
 
 }  // namespace StripEdit

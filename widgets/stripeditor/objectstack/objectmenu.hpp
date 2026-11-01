@@ -115,6 +115,7 @@ private:
     QAction*           m_actEditShape    = nullptr;   //!< Shape editing of one balloon, on and off.
     QMenu*             m_nodeTypeMenu    = nullptr;   //!< *Point type ▸*: the picked Curve node's type.
     QAction*           m_actToCurve      = nullptr;   //!< One balloon's outline made a Curve.
+    QAction*           m_actReroll       = nullptr;   //!< A new style seed for the selected balloons.
     QMenu*             m_groupMenu       = nullptr;   //!< *Apply this group ▸*, from the tool's options.
     QAction*           m_actFill         = nullptr;   //!< Fill with the primary colour.
     QAction*           m_actOutline      = nullptr;   //!< Outline with the secondary colour.

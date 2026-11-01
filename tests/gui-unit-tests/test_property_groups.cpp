@@ -60,6 +60,11 @@ ObjectRecord loadedRecord()
     a.style.flashOuterLengthJitter = 13;
     a.style.flashInnerLengthJitter = 14;
     a.style.flashCoreStretch       = 15;
+    a.style.brushStrokes           = 5;
+    a.style.brushOverlap           = 33;
+    a.style.brushTaper             = 17;
+    a.style.brushSwell             = 61;
+    a.style.brushDrift             = 2.75;
     a.styleSeed        = 0xC0FFEEu;
 
     a.text.body        = QStringLiteral("Nie wiem, co sie dzieje");
@@ -103,6 +108,7 @@ struct StyleMirror {
     qreal flashOuterPitch, flashInnerPitch, flashOuterLength, flashInnerLength, flashOuterBase, flashInnerBase;
     int flashOuterPitchJitter, flashInnerPitchJitter, flashOuterLengthJitter, flashInnerLengthJitter;
     int flashCoreStretch;
+    int brushStrokes, brushOverlap, brushTaper, brushSwell; qreal brushDrift;
 };
 static_assert(sizeof(StyleProperties) == sizeof(StyleMirror),
               "StyleProperties grew a field: place it (see above), then mirror it");
@@ -172,6 +178,11 @@ void expectUntouched(Group applied, const ObjectRecord& before, const ObjectReco
         EXPECT_EQ(after.style.flashOuterLengthJitter, before.style.flashOuterLengthJitter);
         EXPECT_EQ(after.style.flashInnerLengthJitter, before.style.flashInnerLengthJitter);
         EXPECT_EQ(after.style.flashCoreStretch,       before.style.flashCoreStretch);
+        EXPECT_EQ(after.style.brushStrokes,           before.style.brushStrokes);
+        EXPECT_EQ(after.style.brushOverlap,           before.style.brushOverlap);
+        EXPECT_EQ(after.style.brushTaper,             before.style.brushTaper);
+        EXPECT_EQ(after.style.brushSwell,             before.style.brushSwell);
+        EXPECT_DOUBLE_EQ(after.style.brushDrift,      before.style.brushDrift);
     }
     if (applied != Group::Text) {
         EXPECT_EQ(after.text.body,      before.text.body);
@@ -572,12 +583,14 @@ TEST(Conversion, EveryShapeAndStyleHasATableEntry)
 }
 
 /**
- * @brief A flash rings the silhouette, draws no solid outline, and stays inside the room reserved for it.
+ * @brief A flash and a brush draw no solid outline, stay inside the room reserved for them, and are the
+ *        same strokes for the same seed and others for another (PLAN-L P7).
  *
  * The bounds are the buffer and the viewBox, so a stroke past them is clipped off in the render. The
- * strokes are random, so several seeds, at the largest jitter, on shapes with corners and a tail.
+ * strokes are random, so several seeds, at the largest jitter, swell and drift, on shapes with corners
+ * and a tail.
  */
-TEST(Style, AFlashStaysInsideItsBounds)
+TEST(Style, ALinesStrokesStayInsideTheirBounds)
 {
     for (const char* id : {"ellipse", "caption", "speech"}) {
         ObjectRecord a;
@@ -589,21 +602,33 @@ TEST(Style, AFlashStaysInsideItsBounds)
             t.tip = QPointF(60, 230);
             a.tails.items = {t};
         }
-        a.style.line                   = ObjectRecord::Line::Flash;
         a.style.flashOuterPitchJitter  = 100;
         a.style.flashOuterLengthJitter = 100;
-        EXPECT_FALSE(Geometry::hasOutline(a));
-        EXPECT_FALSE(Geometry::hasFilter(a));
+        a.style.brushSwell             = 100;
+        a.style.brushDrift             = 6.0;
+        a.skin.strokeWidth             = 9;
+        for (ObjectRecord::Line line : {ObjectRecord::Line::Flash, ObjectRecord::Line::Brush}) {
+            a.style.line = line;
+            EXPECT_FALSE(Geometry::hasOutline(a));
+            EXPECT_FALSE(Geometry::hasFilter(a));
 
-        for (int stretch : {StyleProperties::k_autoStretch, 0, 100}) {
-            for (quint32 seed : {1u, 2u, 0xC0FFEEu, 0xFFFFFFFFu}) {
-                a.style.flashCoreStretch = stretch;
-                a.styleSeed              = seed;
-                const QPainterPath ink = Geometry::ink(a, Geometry::silhouette(a));
-                ASSERT_FALSE(ink.isEmpty()) << id;
-                EXPECT_TRUE(Geometry::bounds(a).contains(ink.boundingRect()))
-                    << id << " (" << shapeName(shape) << ") stretch " << stretch << " seed " << seed;
+            for (int stretch : {StyleProperties::k_autoStretch, 0, 100}) {
+                for (quint32 seed : {1u, 2u, 0xC0FFEEu, 0xFFFFFFFFu}) {
+                    a.style.flashCoreStretch = stretch;
+                    a.styleSeed              = seed;
+                    const QPainterPath ink = Geometry::ink(a, Geometry::silhouette(a));
+                    ASSERT_FALSE(ink.isEmpty()) << id << " " << lineName(line);
+                    EXPECT_TRUE(Geometry::bounds(a).contains(ink.boundingRect()))
+                        << id << " (" << shapeName(shape) << ") " << lineName(line) << " stretch " << stretch
+                        << " seed " << seed;
+                }
             }
+
+            a.styleSeed             = 7;
+            const QPainterPath once = Geometry::ink(a, Geometry::silhouette(a));
+            EXPECT_TRUE(once == Geometry::ink(a, Geometry::silhouette(a))) << id << " " << lineName(line);
+            a.styleSeed = 8;
+            EXPECT_FALSE(once == Geometry::ink(a, Geometry::silhouette(a))) << id << " " << lineName(line);
         }
     }
 }
@@ -1119,7 +1144,7 @@ QString goldenPath()
 /**
  * @brief Everything a record is written as, for every template (and no shape) × look × with and without
  *        a tail. A case is named by its template's id and its look: clean, marker and ink (Rough at the
- *        Marker's and the Ink's numbers), flash, and a rough flash.
+ *        Marker's and the Ink's numbers), flash, a rough flash, and brush.
  *
  * The balloon's SVG, its text area and its undo-snapshot JSON, one section per case. The lettering is
  * left empty and its family named, so nothing here measures a font: writing lettering needs the
@@ -1147,12 +1172,15 @@ QString goldenRecords()
     flash.line                 = ObjectRecord::Line::Flash;
     StyleProperties roughFlash = marker;
     roughFlash.line            = ObjectRecord::Line::Flash;
+    StyleProperties brush      = clean;
+    brush.line                 = ObjectRecord::Line::Brush;
     const QList<QPair<QString, StyleProperties>> looks{
         {QStringLiteral("clean"), clean},
         {QStringLiteral("marker"), marker},
         {QStringLiteral("ink"), Geometry::inkRough(clean)},
         {QStringLiteral("flash"), flash},
         {QStringLiteral("rough flash"), roughFlash},
+        {QStringLiteral("brush"), brush},
     };
 
     QString out;

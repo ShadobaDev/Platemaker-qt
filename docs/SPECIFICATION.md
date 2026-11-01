@@ -150,6 +150,11 @@ one previews through the library (`hasFilter()`), and `styleMargin()` adds its r
 Rough is the worked example: four `rough…` fields, the defaults the Marker look's, and the Ink look a
 built-in preset (`inkRough()`).
 
+A line that follows the outline walks it by arc length (`EdgeWalk`, `edgeWalks()` in `edgewalk.*`) and
+varies what it lays there with `smoothNoise()`, seeded from `styleSeed`, so it stays put while the
+balloon is edited and *Re-roll* deals it again. The brush (`brushInk()`) is the example: ribbons about
+the edge, as wide as the outline (`SkinProperties::strokeWidth`, not a number of its own).
+
 The flash is the worked example of a line. Its parameters are members of
 `StyleProperties` with a `flash` prefix, one line each in its `fields()` list; the Style panel builds a
 spin for every `flash…` field from that list (`FieldRows`, `properties/fieldrows.hpp`, which any panel

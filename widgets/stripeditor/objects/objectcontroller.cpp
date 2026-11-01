@@ -22,6 +22,7 @@
 #include <optional>
 #include <QGraphicsView>
 #include <QPainter>
+#include <QRandomGenerator>
 #include <QSet>
 #include <QSvgRenderer>
 #include <QTimer>
@@ -267,6 +268,45 @@ void ObjectController::convertSelectionToCurve()
     applyRecord(m_selectedOverlay, a, /*commit=*/true, tr("Convert to curve"));
     emit boundToRecord(a);
     setShapeEditing(true);
+}
+
+namespace {
+
+//! Whether @p a's style draws on its seed: any line but the solid one, or any texture.
+bool seeded(const ObjectRecord& a)
+{
+    return a.hasSilhouette()
+        && (a.style.line != ObjectRecord::Line::Clean || a.style.texture != ObjectRecord::Texture::None);
+}
+
+}  // namespace
+
+bool ObjectController::canReroll() const
+{
+    return std::any_of(m_selectedOverlays.cbegin(), m_selectedOverlays.cend(), [this](const QString& uid) {
+        const Object* item = m_overlayItems.value(uid);
+        return item && !m_carriers.contains(uid) && seeded(item->record());
+    });
+}
+
+void ObjectController::rerollSelection()
+{
+    QStringList         uids;
+    QList<ObjectRecord> records;
+    for (const QString& uid : std::as_const(m_selectedOverlays)) {
+        const Object* item = m_overlayItems.value(uid);
+        if (!item || m_carriers.contains(uid) || !seeded(item->record()))
+            continue;
+        ObjectRecord a = item->record();
+        // Never the seed it had: a re-roll that changed nothing would look like a broken button.
+        const quint32 was = a.styleSeed;
+        while (a.styleSeed == was || a.styleSeed == 0)
+            a.styleSeed = QRandomGenerator::global()->generate();
+        uids << uid;
+        records << a;
+    }
+    if (!uids.isEmpty())
+        applyRecords(uids, records, /*commit=*/true, tr("Re-roll"));
 }
 
 void ObjectController::setShapeEditing(bool on)

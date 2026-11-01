@@ -95,6 +95,15 @@ const FieldRowSpec k_flashRows[] = {
            "own, and follows it when the shape changes; a value set here stays.")},
 };
 
+//! The brush's numbers. Its width is the outline's, in *Fill & outline*.
+const FieldRowSpec k_brushRows[] = {
+    {"brushStrokes", PM_TR("Strokes:"), 1, 12,  "",    PM_TR("How many strokes go round the edge.")},
+    {"brushOverlap", PM_TR("Overlap:"), 0, 100, " %",  PM_TR("How far each stroke runs past where the next begins, as a share of its length.")},
+    {"brushTaper",   PM_TR("Taper:"),   0, 50,  " %",  PM_TR("How much of a stroke, at each end, narrows to its point.")},
+    {"brushSwell",   PM_TR("Swell:"),   0, 100, " %",  PM_TR("How much a stroke's width varies along it. Its width is the outline's stroke width.")},
+    {"brushDrift",   PM_TR("Drift:"),   0, 20,  " px", PM_TR("How far a stroke wanders off the edge."), 1},
+};
+
 //! Rough's numbers. Lengths in strip pixels, with a decimal: a blur's useful range is around a pixel.
 const FieldRowSpec k_roughRows[] = {
     // A step of 0.005: a wave's length is 1 / grain, so a change shows in proportion, and a thousandth
@@ -121,7 +130,8 @@ StyleEditor::StyleEditor(QWidget* parent)
     m_line = new QComboBox(this);
     for (int i = 0; i <= int(StyleProperties::k_lastLine); ++i)
         m_line->addItem(lineTitle(static_cast<ObjectRecord::Line>(i)), i);
-    m_line->setToolTip(tr("How the edge is drawn: a solid line, or a flash's strokes ringing it."));
+    m_line->setToolTip(tr("How the edge is drawn: a solid line, a flash's strokes ringing it, or a few "
+                          "brush strokes laid along it."));
     m_form->addRow(tr("Line:"), m_line);
     m_flash.build(this, m_form, "flash", k_flashRows, k_trContext, m_values, m_populating,
                   [this] { emit changed(); }, [this](const char* key) -> QSpinBox* {
@@ -129,6 +139,8 @@ StyleEditor::StyleEditor(QWidget* parent)
                           return nullptr;
                       return m_stretch = new StretchSpin(this);
                   });
+    m_brush.build(this, m_form, "brush", k_brushRows, k_trContext, m_values, m_populating,
+                  [this] { emit changed(); });
 
     // A rule between the two choices and their rows, so the texture does not read as one of the line's.
     auto* rule = new QFrame(this);
@@ -177,6 +189,7 @@ void StyleEditor::bind(const Subjects& subjects)
     m_mixedLine = m_mixedTexture = false;
     m_flash.reset();
     m_rough.reset();
+    m_brush.reset();
     bool sameShape = true;
     for (const ObjectRecord* a : subjects) {
         const StyleProperties v = StyleProperties::from(*a);
@@ -184,6 +197,7 @@ void StyleEditor::bind(const Subjects& subjects)
         m_mixedTexture = m_mixedTexture || v.texture != m_values.texture;
         m_flash.compare(v, m_values);
         m_rough.compare(v, m_values);
+        m_brush.compare(v, m_values);
         sameShape = sameShape && a->shape.kind == subjects.first()->shape.kind;
     }
     m_lineTouched = m_textureTouched = false;
@@ -205,6 +219,7 @@ void StyleEditor::applyEditedTo(ObjectRecord& target) const
     if (m_textureTouched) t.texture = m_values.texture;
     m_flash.applyEdited(m_values, t);
     m_rough.applyEdited(m_values, t);
+    m_brush.applyEdited(m_values, t);
     t.applyTo(target);
 }
 
@@ -215,6 +230,7 @@ void StyleEditor::syncFromValues()
     showCombo(m_texture, m_mixedTexture, m_texture->findData(int(m_values.texture)));
     m_flash.show(m_values);
     m_rough.show(m_values);
+    m_brush.show(m_values);
     showRows();
     m_populating = false;
 }
@@ -223,6 +239,7 @@ void StyleEditor::showRows()
 {
     // A selection that disagrees shows the rows at least one of them has.
     m_flash.setVisible(m_form, m_mixedLine || m_values.line == ObjectRecord::Line::Flash);
+    m_brush.setVisible(m_form, m_mixedLine || m_values.line == ObjectRecord::Line::Brush);
     m_rough.setVisible(m_form, m_mixedTexture || m_values.texture == ObjectRecord::Texture::Rough);
 }
 

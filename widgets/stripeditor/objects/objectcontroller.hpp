@@ -475,6 +475,14 @@ public:
     [[nodiscard]] bool canConvertToCurve() const;
 
     /**
+     * @brief *Re-roll* (PLAN-L B17): a new style seed for every selected balloon whose style draws on one
+     *        (a flash, a brush, a texture), so its strokes or its wobble are dealt again. One history step.
+     */
+    void rerollSelection();
+    //! Whether rerollSelection() has a balloon to re-roll.
+    [[nodiscard]] bool canReroll() const;
+
+    /**
      * @brief Checks if exactly one piece of imported artwork is selected — what OBJECT STATE and the menu
      * both ask.
      * @return True if exactly one piece of imported artwork is selected, false otherwise.

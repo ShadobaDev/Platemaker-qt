@@ -7,11 +7,14 @@
 #include "shapes.hpp"
 
 #include <QObject>
+#include <QPolygonF>
 #include <QRandomGenerator>
+#include <QtMath>
 
 #include <algorithm>
 #include <array>
 #include <cmath>
+#include <vector>
 
 namespace Geometry {
 
@@ -164,8 +167,99 @@ qreal flashReach(const ObjectRecord& a)
 }
 
 // ---------------------------------------------------------------------------
-// The table
+// Brush: a few strokes along the edge, tapering at both ends, swelling and wandering
 // ---------------------------------------------------------------------------
+
+/**
+ *  How long one swell or one wander is along a stroke, in balloon pixels: the noise's span. About a
+ *  brush's hand-width, so a stroke changes a few times along a balloon's side.
+ */
+constexpr qreal   k_brushWave    = 60.0;
+/**
+ *  How far a stroke's ends are moved off an even share of the edge, in shares: so the joins do not sit
+ *  where a pattern would put them.
+ */
+constexpr qreal   k_brushScatter = 0.15;
+//! The ribbon's samples along the edge, in balloon pixels: finer than a curve's flattening shows.
+constexpr qreal   k_brushStep    = 2.0;
+/**
+ *  Mixed into the seed for the joins' scatter, and per stroke for its swell and its wander, so each draws
+ *  from a stream of its own. Odd constants (2^32 / phi, and a 32-bit mixer's multiplier).
+ */
+constexpr quint32 k_brushStream  = 0x9E3779B9u;
+constexpr quint32 k_strokeStream = 0x85EBCA6Bu;
+
+//! A stroke's width at @p u (0..1 along it): its full width but for the ends, which narrow to a point.
+qreal taperAt(qreal u, qreal taper)
+{
+    if (taper <= 0.0)
+        return 1.0;
+    const qreal f = qBound(0.0, qMin(u, 1.0 - u) / taper, 1.0);
+    return std::sin(f * M_PI / 2.0);   // eased into the full width, not a straight wedge
+}
+
+/**
+ * @brief The brush's strokes along every closed edge of @p silhouette.
+ *
+ * Each edge is shared out among `brushStrokes` strokes, their joins scattered off the even share and
+ * each running `brushOverlap` past the next one's start, so they overlap and do not quite close. A stroke
+ * is a ribbon about the edge, as wide as the outline, narrowing to a point over `brushTaper` of its
+ * length at each end, its width varied by `brushSwell` and its middle moved off the edge by
+ * `brushDrift`, both along smooth noise. Every ribbon winds the same way, so overlaps paint as one.
+ */
+QPainterPath brushInk(const ObjectRecord& a, const QPainterPath& silhouette)
+{
+    const StyleProperties& s     = a.style;
+    const qreal            half  = qMax(a.skin.strokeWidth, 0) / 2.0;
+    const int              count = qMax(1, s.brushStrokes);
+    const qreal            over  = qBound(0, s.brushOverlap, 100) / 100.0;
+    const qreal            taper = qBound(0, s.brushTaper, 50) / 100.0;
+    const qreal            swell = qBound(0, s.brushSwell, 100) / 100.0;
+
+    QPainterPath out;
+    out.setFillRule(Qt::WindingFill);
+    if (half <= 0.0)
+        return out;   // no outline, no brush: its width is the outline's
+    QRandomGenerator rng(a.styleSeed ^ k_brushStream);
+    quint32          stroke = 0;   // a number per stroke, for its own noise
+    for (const EdgeWalk& edge : edgeWalks(silhouette)) {
+        const qreal length = edge.length();
+        const qreal share  = length / count;
+        std::vector<qreal> join(size_t(count) + 1);
+        for (int j = 0; j < count; ++j)
+            join[size_t(j)] = (j + k_brushScatter * (2.0 * rng.generateDouble() - 1.0)) * share;
+        join[size_t(count)] = join[0] + length;   // the last stroke ends where the first begins, round
+
+        for (int j = 0; j < count; ++j, ++stroke) {
+            const qreal   from    = join[size_t(j)] - over * share / 2.0;
+            const qreal   to      = join[size_t(j) + 1] + over * share / 2.0;
+            const int     samples = qMax(2, qCeil((to - from) / k_brushStep));
+            const quint32 seed    = a.styleSeed ^ ((stroke + 1) * k_strokeStream);
+            QPolygonF     left, right;
+            for (int k = 0; k <= samples; ++k) {
+                const qreal  u  = qreal(k) / samples;
+                const qreal  at = from + (to - from) * u;
+                const auto   p  = edge.at(at - std::floor(at / length) * length);
+                const QPointF n(-p.tangent.y(), p.tangent.x());
+                const qreal  w  = half * taperAt(u, taper) * (1.0 + swell * smoothNoise(seed, at / k_brushWave));
+                const qreal  c  = s.brushDrift * smoothNoise(seed ^ k_brushStream, at / k_brushWave);
+                left << p.at + n * (c + w);
+                right.prepend(p.at + n * (c - w));
+            }
+            out.addPolygon(left + right);
+            out.closeSubpath();
+        }
+    }
+    return out;
+}
+
+//! Half the outline at its widest swell, and as far as a stroke wanders.
+qreal brushReach(const ObjectRecord& a)
+{
+    const StyleProperties& s = a.style;
+    return qMax(a.skin.strokeWidth, 0) / 2.0 * (1.0 + qBound(0, s.brushSwell, 100) / 100.0)
+         + std::abs(s.brushDrift);
+}
 
 // ---------------------------------------------------------------------------
 // Rough: turbulence displacing the outline, then a blur (the filter is in recordsvg.cpp)
@@ -188,6 +282,7 @@ using Texture = StyleProperties::Texture;
 const std::array<LineInfo, int(StyleProperties::k_lastLine) + 1> k_lines{{
     {Line::Clean, "clean", QT_TRANSLATE_NOOP("QObject", "Clean"), nullptr,  nullptr},
     {Line::Flash, "flash", QT_TRANSLATE_NOOP("QObject", "Flash"), flashInk, flashReach},
+    {Line::Brush, "brush", QT_TRANSLATE_NOOP("QObject", "Brush"), brushInk, brushReach},
 }};
 
 //! Likewise, for textureInfo().

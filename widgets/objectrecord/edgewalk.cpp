@@ -3,6 +3,7 @@
 #include <QLineF>
 
 #include <algorithm>
+#include <cmath>
 #include <utility>
 
 namespace Geometry {
@@ -32,6 +33,26 @@ EdgeWalk::Point EdgeWalk::at(qreal s) const
     const QPointF a   = m_edge[int(k)];
     const QPointF d   = m_edge[int(k) + 1] - a;
     return {a + d * t, seg > 0.0 ? d / seg : QPointF()};
+}
+
+qreal smoothNoise(quint32 seed, qreal x)
+{
+    // The value at a whole number: the seed and the number hashed together (a 32-bit mixer), as a
+    // fraction. A hash, not a generator, so any point can be asked for without walking to it.
+    const auto lattice = [seed](qint64 k) {
+        quint32 h = seed ^ (quint32(k) * 0x9E3779B1u);
+        h ^= h >> 16;
+        h *= 0x7FEB352Du;
+        h ^= h >> 15;
+        h *= 0x846CA68Bu;
+        h ^= h >> 16;
+        return h / qreal(0xFFFFFFFFu) * 2.0 - 1.0;
+    };
+    const qreal  whole = std::floor(x);
+    const qint64 k     = qint64(whole);
+    const qreal  t     = x - whole;
+    const qreal  ease  = t * t * (3.0 - 2.0 * t);   // smoothstep: no kink where two spans meet
+    return lattice(k) + (lattice(k + 1) - lattice(k)) * ease;
 }
 
 QList<EdgeWalk> edgeWalks(const QPainterPath& path)

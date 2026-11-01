@@ -190,6 +190,12 @@ ObjectMenu::ObjectMenu(ObjectController& objects, const StripLayout& layout, Pre
     m_actToCurve = new QAction(tr("Convert to curve"), this);
     connect(m_actToCurve, &QAction::triggered, &m_objects, &ObjectController::convertSelectionToCurve);
 
+    // A new deal of whatever the style draws at random: a flash's strokes, a brush's, a texture's wobble.
+    m_actReroll = new QAction(tr("Re-roll"), this);
+    m_actReroll->setToolTip(tr("Deal the style's randomness again: a flash's or a brush's strokes, a "
+                               "texture's wobble."));
+    connect(m_actReroll, &QAction::triggered, &m_objects, &ObjectController::rerollSelection);
+
     m_actDelete = new QAction(tr("Delete"), this);
     m_actDelete->setShortcut(QKeySequence::Delete);
     m_actDelete->setShortcutContext(Qt::WidgetShortcut);
@@ -225,6 +231,7 @@ ObjectMenu::ObjectMenu(ObjectController& objects, const StripLayout& layout, Pre
         w->addAction(m_actEditShape);
         w->addAction(m_nodeTypeMenu->menuAction());
         w->addAction(m_actToCurve);
+        w->addAction(m_actReroll);
         w->addAction(separator());
         w->addAction(m_convertMenu->menuAction());
         w->addAction(m_reanchorMenu->menuAction());
@@ -240,6 +247,8 @@ ObjectMenu::ObjectMenu(ObjectController& objects, const StripLayout& layout, Pre
     m_view->setContextMenuPolicy(Qt::ActionsContextMenu);
 
     connect(&m_objects, &ObjectController::selectionChanged, this, &ObjectMenu::updateEntries);
+    // ...and after an edit: a style changed in the panel can make Re-roll apply, or stop it applying.
+    connect(&m_objects, &ObjectController::stackChanged, this, &ObjectMenu::updateEntries);
 }
 
 void ObjectMenu::updateEntries()
@@ -323,6 +332,11 @@ void ObjectMenu::updateEntries()
     if (m_actToCurve) {
         m_actToCurve->setVisible(allParametric);
         m_actToCurve->setEnabled(m_objects.canConvertToCurve());
+    }
+    // A balloon's, greyed for one whose style deals nothing at random (a clean line, no texture).
+    if (m_actReroll) {
+        m_actReroll->setVisible(allParametric);
+        m_actReroll->setEnabled(m_objects.canReroll());
     }
     // Delete says what it will take: the picked node, in shape editing.
     if (m_actDelete)

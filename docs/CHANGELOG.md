@@ -121,6 +121,12 @@
     replaces Marker and Ink, which are now two built-in presets of it, and *Style amount* is gone: the
     rows set the strength. A flash can be rough. Files from before naming `marker` or `ink` load as a
     clean line with no texture.
+  - **Brush**, a new line: a few brush strokes laid along the outline, overlapping where they meet,
+    each narrowing to a point at both ends and swelling and wandering along the way. Its width is the
+    outline's stroke width; its rows set how many strokes, how far they overlap, how long the points
+    are, how much they swell and how far they wander. A brush can be rough.
+  - **Re-roll**, on a balloon's context menu, deals a flash's or a brush's strokes, or a texture's
+    wobble, again. One undo step.
   - **The thought balloon is a Cloud** with two rows of its own in the Shape panel: **Lobes**, how many
     circles make its edge, and **Lobe size**. In shape editing, an arrow at the right-hand lobe sizes
     them all. Its tile is a ready-made start, and it looks as before. Files from before naming

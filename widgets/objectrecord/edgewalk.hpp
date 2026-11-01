@@ -1,6 +1,7 @@
 /**
  * \file edgewalk.hpp
- * \brief A closed edge walked by arc length: where a point that far along it is, and which way it runs.
+ * \brief A closed edge walked by arc length: where a point that far along it is, and which way it runs;
+ *        and the smooth noise that varies what follows it.
  *
  * The walk every style that follows the outline shares (PLAN-L M10): the flash spreads its strokes along
  * it, a brush lays its ribbon on it. Distances along a polygon, not angles, so a wide oval is not crowded
@@ -14,6 +15,7 @@
 #include <QPainterPath>
 #include <QPointF>
 #include <QPolygonF>
+#include <QtGlobal>
 
 #include <vector>
 
@@ -45,6 +47,13 @@ private:
 
 //! One walk for every closed edge of @p path (QPainterPath::toSubpathPolygons()), the empty ones left out.
 [[nodiscard]] QList<EdgeWalk> edgeWalks(const QPainterPath& path);
+
+/**
+ * @brief Smooth seeded noise along a line, in [-1, 1]: a random value at every whole @p x, eased from one
+ *        to the next. The same @p seed gives the same curve, so whatever follows it stays put while the
+ *        balloon is edited.
+ */
+[[nodiscard]] qreal smoothNoise(quint32 seed, qreal x);
 
 }  // namespace Geometry
 

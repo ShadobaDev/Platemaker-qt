@@ -20,8 +20,8 @@ class StretchSpin;
  * along by every preset and a page of marker balloons would wear one repeated wobble. It stays a bare
  * field on the record, written by whoever places a bubble and by nobody else.
  *
- * The flash's rows and Rough's are built from StyleProperties' field list, one spin per `flash…` or
- * `rough…` field, and shown only while that line or texture is chosen.
+ * The flash's, the brush's and Rough's rows are built from StyleProperties' field list, one spin per
+ * `flash…`, `brush…` or `rough…` field, and shown only while that line or texture is chosen.
  */
 class StyleEditor : public PropertyGroupEditor
 {
@@ -48,6 +48,7 @@ private:
     StretchSpin* m_stretch = nullptr;  //!< The flash's core stretch, which reads "Auto (n %)".
     FieldRows<StyleProperties> m_flash;   //!< One spin per `flash…` field. Lengths are whole pixels.
     FieldRows<StyleProperties> m_rough;   //!< One spin per `rough…` field.
+    FieldRows<StyleProperties> m_brush;   //!< One spin per `brush…` field.
 
     StyleProperties m_values;
     bool m_populating = false;

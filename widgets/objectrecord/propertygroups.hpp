@@ -239,15 +239,15 @@ struct ShapeProperties
 struct StyleProperties
 {
     /**
-     * @brief How the edge is drawn. Clean is the solid outline; Flash is strokes of its own, plain
-     * geometry, so Qt draws it as it draws a clean balloon. The table is in styles.cpp.
+     * @brief How the edge is drawn. Clean is the solid outline; Flash and Brush are strokes of their
+     * own, plain geometry, so Qt draws them as it draws a clean balloon. The table is in styles.cpp.
      *
      * Persisted by name — see lineName(). The strip editor is unreleased (PLAN-L B3), so the order is
      * free.
      */
-    enum class Line { Clean, Flash };
+    enum class Line { Clean, Flash, Brush };
     //! The enum's last value. **Adding a line moves this**: lineFromName() reads up to it.
-    static constexpr Line k_lastLine = Line::Flash;
+    static constexpr Line k_lastLine = Line::Brush;
 
     /**
      * @brief What is done to the balloon as it is rasterised. A texture is an SVG filter, so librsvg
@@ -305,6 +305,20 @@ struct StyleProperties
     int   flashCoreStretch       = k_autoStretch;
     /** @} */
 
+    /**
+     * @name The brush: a few strokes laid along the edge, each tapering to a point at both ends and
+     * swelling and wandering along the way (styles.cpp). Read only while `line` is Brush. Its width is the
+     * outline's (SkinProperties::strokeWidth), not a number of its own. In % of a stroke's share of the
+     * edge, of its length, of its width, or in balloon pixels.
+     * @{
+     */
+    int   brushStrokes = 3;     //!< How many strokes go round each edge.
+    int   brushOverlap = 20;    //!< How far each runs past where the next begins, in % of its share.
+    int   brushTaper   = 30;    //!< How much of a stroke, at each end, narrows to its point, in %.
+    int   brushSwell   = 40;    //!< How much a stroke's width varies along it, in %.
+    qreal brushDrift   = 1.5;   //!< How far a stroke wanders off the edge, in balloon pixels.
+    /** @} */
+
     //! The fields, with the keys they are saved under (fields.hpp).
     template <class V>
     static void fields(V&& v)
@@ -326,6 +340,11 @@ struct StyleProperties
         v("flashOuterLengthJitter", &StyleProperties::flashOuterLengthJitter);
         v("flashInnerLengthJitter", &StyleProperties::flashInnerLengthJitter);
         v("flashCoreStretch",       &StyleProperties::flashCoreStretch);
+        v("brushStrokes",           &StyleProperties::brushStrokes);
+        v("brushOverlap",           &StyleProperties::brushOverlap);
+        v("brushTaper",             &StyleProperties::brushTaper);
+        v("brushSwell",             &StyleProperties::brushSwell);
+        v("brushDrift",             &StyleProperties::brushDrift);
     }
 
     [[nodiscard]] static StyleProperties from(const ObjectRecord& a);

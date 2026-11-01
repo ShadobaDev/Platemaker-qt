@@ -21,6 +21,7 @@
 #include <functional>
 
 #include "objectrecord.hpp"
+#include "shapes.hpp"   // ShapeHandle: the fade's cross
 
 namespace Geometry {
 
@@ -92,6 +93,32 @@ struct PatternCell
  */
 [[nodiscard]] QPainterPath halftoneMarks(const Paint& p, const QRectF& area,
                                          const std::function<qreal(const QPointF&)>& tone, qreal step);
+
+//! @p p's pattern fades by its cross (an arm's start short of its side): drawn as halftoneMarks(), not a tile.
+[[nodiscard]] bool fades(const Paint& p);
+
+/**
+ * @brief How much of @p p's pattern is left at @p at, 1 to 0, by its fade's cross on @p body (the balloon's
+ *        rectangle, balloonRect()): along each arm, whole up to its start and gone past its end, the two
+ *        directions combined as a distance. Laid on the balloon, so moving a tail does not move it.
+ */
+[[nodiscard]] qreal fadeTone(const Paint& p, const QRectF& body, const QPointF& at);
+
+/**
+ * @brief The marks of \p a's fill where it fades (PLAN-L P13c), over \p silhouette's extent; empty for a
+ *        fill that does not. Drawn in the pattern's colour over the ground, clipped to the silhouette.
+ */
+[[nodiscard]] QPainterPath fillTone(const ObjectRecord& a, const QPainterPath& silhouette);
+
+/**
+ * @brief The fade's cross for @p p on @p body, as shape-editing handles: on each arm a dot where the fade
+ *        starts and one where the pattern is gone; none for a solid Paint. At rest every dot is on its
+ *        side, which is no fade.
+ */
+[[nodiscard]] QList<ShapeHandle> fadeHandles(const Paint& p, const QRectF& body);
+
+//! @p p with fade @p handle dragged to @p to (balloon coordinates): fadeHandles()' inverse.
+[[nodiscard]] Paint dragFadeHandle(const Paint& p, const QRectF& body, const ShapeHandle& handle, const QPointF& to);
 
 //! The entry for @p kind. Every kind up to `StyleProperties::k_lastLine` has one.
 [[nodiscard]] const LineInfo& lineInfo(StyleProperties::Line kind);

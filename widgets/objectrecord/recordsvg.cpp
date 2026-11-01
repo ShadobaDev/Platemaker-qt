@@ -430,7 +430,8 @@ QByteArray write(const ObjectRecord& a, const QByteArray& picture, const QString
     const QString shadowId     = QStringLiteral("pm-shadow");
     const QString shadowFillId = QStringLiteral("pm-shadow-fill");
     svg += styleDefs(a, filterId);
-    svg += patternDefs(a.skin.fill, fillId);
+    if (!Geometry::fades(a.skin.fill))
+        svg += patternDefs(a.skin.fill, fillId);
     svg += patternDefs(a.style.stroke, strokeId);
     svg += shadowDefs(a, shadowId);
     if (a.effects.shadow)
@@ -471,8 +472,21 @@ QByteArray write(const ObjectRecord& a, const QByteArray& picture, const QString
                 svg += QStringLiteral(" filter=\"url(#%1)\"").arg(shadowId);
             svg += QLatin1String("/>\n");
         }
-        svg += QStringLiteral("      <path d=\"%1\" fill-rule=\"%2\" %3")
-                   .arg(pathData(silhouette), fillRule(silhouette), paintAttr("fill", a.skin.fill, fillId));
+        const QPainterPath tone = Geometry::fillTone(a, silhouette);
+        if (tone.isEmpty()) {
+            svg += QStringLiteral("      <path d=\"%1\" fill-rule=\"%2\" %3")
+                       .arg(pathData(silhouette), fillRule(silhouette), paintAttr("fill", a.skin.fill, fillId));
+        } else {
+            // A fading fill: the ground, then its marks clipped to the balloon, then the line over both.
+            const QString area = QStringLiteral("pm-fill-area");
+            svg += QStringLiteral("      <path d=\"%1\" fill-rule=\"%2\" %3/>\n")
+                       .arg(pathData(silhouette), fillRule(silhouette), paint("fill", a.skin.fill.colour));
+            svg += QStringLiteral("      <clipPath id=\"%1\"><path d=\"%2\" clip-rule=\"%3\"/></clipPath>\n")
+                       .arg(area, pathData(silhouette), fillRule(silhouette));
+            svg += QStringLiteral("      <path d=\"%1\" fill-rule=\"nonzero\" %2 clip-path=\"url(#%3)\"/>\n")
+                       .arg(pathData(tone), paint("fill", a.skin.fill.second), area);
+            svg += QStringLiteral("      <path d=\"%1\" fill=\"none\"").arg(pathData(silhouette));
+        }
         if (a.style.strokeWidth > 0 && Geometry::hasOutline(a))
             svg += QStringLiteral(" %1 stroke-width=\"%2\" stroke-linejoin=\"round\"")
                        .arg(paintAttr("stroke", a.style.stroke, strokeId)).arg(a.style.strokeWidth);

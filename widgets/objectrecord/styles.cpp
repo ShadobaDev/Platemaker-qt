@@ -544,6 +544,118 @@ QPainterPath halftoneMarks(const Paint& p, const QRectF& area, const std::functi
     return marks;
 }
 
+namespace {
+
+//! One arm of a fade's cross: its two fields, and which way it points.
+struct FadeArm
+{
+    qreal Paint::* from;
+    qreal Paint::* to;
+    QPointF        axis;
+};
+
+//! Left, right, top, bottom: a fade handle's index.
+const std::array<FadeArm, 4> k_fadeArms{{
+    {&Paint::fadeLeftFrom,   &Paint::fadeLeftTo,   QPointF(-1, 0)},
+    {&Paint::fadeRightFrom,  &Paint::fadeRightTo,  QPointF(1, 0)},
+    {&Paint::fadeTopFrom,    &Paint::fadeTopTo,    QPointF(0, -1)},
+    {&Paint::fadeBottomFrom, &Paint::fadeBottomTo, QPointF(0, 1)},
+}};
+
+//! How far an arm reaches from the centre, at 100 %: to the side it points at.
+qreal armReach(const FadeArm& arm, const QRectF& body)
+{
+    return arm.axis.x() != 0.0 ? body.width() / 2.0 : body.height() / 2.0;
+}
+
+/**
+ * How much has faded at @p u along an arm (0 at the centre, 1 at the side): none up to `from`, all past
+ * `to`, in a line between; none at all on an arm that does not fade.
+ */
+qreal fadedAlong(qreal u, qreal from, qreal to)
+{
+    from /= 100.0;
+    to /= 100.0;
+    if (from >= 1.0 || u <= from)
+        return 0.0;
+    if (to <= from)
+        return 1.0;
+    return qMin(1.0, (u - from) / (to - from));
+}
+
+} // namespace
+
+bool fades(const Paint& p)
+{
+    if (p.kind == Paint::Kind::Solid)
+        return false;
+    for (const FadeArm& arm : k_fadeArms)
+        if (p.*arm.from < 100.0)
+            return true;
+    return false;
+}
+
+qreal fadeTone(const Paint& p, const QRectF& body, const QPointF& at)
+{
+    const QPointF d     = at - body.center();
+    const qreal   halfW = body.width() / 2.0;
+    const qreal   halfH = body.height() / 2.0;
+    const FadeArm& h    = k_fadeArms[d.x() < 0.0 ? 0 : 1];
+    const FadeArm& v    = k_fadeArms[d.y() < 0.0 ? 2 : 3];
+    const qreal   fx    = halfW > 0.0 ? fadedAlong(std::abs(d.x()) / halfW, p.*h.from, p.*h.to) : 0.0;
+    const qreal   fy    = halfH > 0.0 ? fadedAlong(std::abs(d.y()) / halfH, p.*v.from, p.*v.to) : 0.0;
+    // As a distance: one arm alone is a straight fade, two neighbours round the corner between them.
+    return qMax(0.0, 1.0 - std::hypot(fx, fy));
+}
+
+QPainterPath fillTone(const ObjectRecord& a, const QPainterPath& silhouette)
+{
+    const Paint& p = a.skin.fill;
+    if (!fades(p) || silhouette.isEmpty())
+        return {};
+    const QRectF body = balloonRect(a);
+    // A bar's width is sampled about every half cell: a fade spans a good part of the balloon.
+    return halftoneMarks(p, silhouette.boundingRect(), [&](const QPointF& at) { return fadeTone(p, body, at); },
+                         qMax(p.spacing, k_minPatternSpacing) / 2.0);
+}
+
+QList<ShapeHandle> fadeHandles(const Paint& p, const QRectF& body)
+{
+    QList<ShapeHandle> out;
+    if (p.kind == Paint::Kind::Solid || body.isEmpty())
+        return out;
+    // Every start before every end: where the two sit together (a side that does not fade), a press takes
+    // the start, and pulling it in is what begins a fade.
+    for (const auto role : {ShapeHandle::Role::FadeFrom, ShapeHandle::Role::FadeTo})
+        for (int i = 0; i < int(k_fadeArms.size()); ++i) {
+            const FadeArm& arm = k_fadeArms[size_t(i)];
+            const qreal    pct = p.*(role == ShapeHandle::Role::FadeFrom ? arm.from : arm.to);
+            out.append({role, i, body.center() + arm.axis * armReach(arm, body) * pct / 100.0, arm.axis,
+                        body.center()});
+        }
+    return out;
+}
+
+Paint dragFadeHandle(const Paint& p, const QRectF& body, const ShapeHandle& handle, const QPointF& to)
+{
+    if (handle.index < 0 || handle.index >= int(k_fadeArms.size()) || body.isEmpty())
+        return p;
+    const FadeArm& arm   = k_fadeArms[size_t(handle.index)];
+    const QPointF  along = to - body.center();
+    const qreal    pct   = std::clamp(QPointF::dotProduct(along, arm.axis) / armReach(arm, body) * 100.0, 0.0, 100.0);
+    const qreal    at    = qRound(pct * 10.0) / 10.0;   // a tenth of a per cent: steady numbers in the file
+    Paint          next  = p;
+    // The start never passes the end: whichever is dragged takes the other along.
+    if (handle.role == ShapeHandle::Role::FadeFrom) {
+        next.*arm.from = at;
+        next.*arm.to   = qMax(next.*arm.to, at);
+    } else if (handle.role == ShapeHandle::Role::FadeTo) {
+        next.*arm.to   = at;
+        next.*arm.from = qMin(next.*arm.from, at);
+    }
+    return next;
+}
+
 TextureProperties inkRough(TextureProperties t)
 {
     t.kind              = Texture::Rough;

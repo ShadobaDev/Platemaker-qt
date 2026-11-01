@@ -122,16 +122,28 @@ QBrush paintBrush(const Paint& paint)
     return brush;
 }
 
-void paint(QPainter& painter, const ObjectRecord& a)
+Paths resolve(const ObjectRecord& a)
 {
-    const QPainterPath silhouette = Geometry::silhouette(a);
-    paintPaths(painter, a, silhouette, Geometry::shadowOf(a, silhouette), Geometry::ink(a, silhouette),
-               Geometry::textOutline(a));
+    Paths p;
+    p.silhouette = Geometry::silhouette(a);
+    p.shadow     = Geometry::shadowOf(a, p.silhouette);
+    p.fillTone   = Geometry::fillTone(a, p.silhouette);
+    p.ink        = Geometry::ink(a, p.silhouette);
+    p.text       = Geometry::textOutline(a);
+    return p;
 }
 
-void paintPaths(QPainter& painter, const ObjectRecord& a, const QPainterPath& silhouette,
-                const QPainterPath& shadow, const QPainterPath& ink, const QPainterPath& text)
+void paint(QPainter& painter, const ObjectRecord& a)
 {
+    paintPaths(painter, a, resolve(a));
+}
+
+void paintPaths(QPainter& painter, const ObjectRecord& a, const Paths& paths)
+{
+    const QPainterPath& silhouette = paths.silhouette;
+    const QPainterPath& shadow     = paths.shadow;
+    const QPainterPath& ink        = paths.ink;
+    const QPainterPath& text       = paths.text;
     if (a.box.isEmpty())
         return;
 
@@ -147,7 +159,16 @@ void paintPaths(QPainter& painter, const ObjectRecord& a, const QPainterPath& si
             fillMarks(painter, shadow, a.effects.shadowFill.colour);
         else if (!shadow.isEmpty())
             painter.fillPath(shadow, paintBrush(Geometry::shadowPaint(a)));
-        painter.fillPath(silhouette, paintBrush(a.skin.fill));
+        if (paths.fillTone.isEmpty()) {
+            painter.fillPath(silhouette, paintBrush(a.skin.fill));
+        } else {
+            // A fading fill: the ground, then its marks inside the balloon, under the line.
+            painter.fillPath(silhouette, a.skin.fill.colour);
+            painter.save();
+            painter.setClipPath(silhouette, Qt::IntersectClip);
+            fillMarks(painter, paths.fillTone, a.skin.fill.second);
+            painter.restore();
+        }
         // A style with strokes of its own draws them instead of the outline: they are the edge.
         if (a.style.strokeWidth > 0 && Geometry::hasOutline(a)) {
             QPen pen(paintBrush(a.style.stroke), a.style.strokeWidth);

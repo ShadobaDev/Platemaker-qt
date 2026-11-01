@@ -101,7 +101,6 @@ ObjectRecord loadedRecord()
     a.effects.shadowSoftness = 2.5;
     a.effects.shadowFill.colour   = QColor(13, 14, 15, 99);
     a.effects.shadowFill.kind     = ObjectRecord::Pattern::Grid;
-    a.effects.shadowFill.second   = QColor(19, 20, 21, 77);
     a.effects.shadowFill.spacing  = 8.5;
     a.effects.shadowFill.size     = 2.0;
     a.effects.shadowFill.angle    = 15;
@@ -127,7 +126,10 @@ struct ShapeMirror {
 static_assert(sizeof(ShapeProperties) == sizeof(ShapeMirror),
               "ShapeProperties grew a field: place it (see above), then mirror it");
 
-struct PaintMirror { QColor colour; Paint::Kind kind; QColor second; qreal spacing, size; int angle; };
+struct PaintMirror {
+    QColor colour; Paint::Kind kind; QColor second; qreal spacing, size; int angle;
+    qreal fadeLeftFrom, fadeLeftTo, fadeRightFrom, fadeRightTo, fadeTopFrom, fadeTopTo, fadeBottomFrom, fadeBottomTo;
+};
 static_assert(sizeof(Paint) == sizeof(PaintMirror), "Paint grew a field: place it (see above), then mirror it");
 
 struct SkinMirror { Paint fill; };
@@ -184,6 +186,14 @@ void expectSamePaint(const Paint& after, const Paint& before, const char* which)
     EXPECT_DOUBLE_EQ(after.spacing, before.spacing) << which;
     EXPECT_DOUBLE_EQ(after.size, before.size) << which;
     EXPECT_EQ(after.angle, before.angle) << which;
+    EXPECT_DOUBLE_EQ(after.fadeLeftFrom, before.fadeLeftFrom) << which;
+    EXPECT_DOUBLE_EQ(after.fadeLeftTo, before.fadeLeftTo) << which;
+    EXPECT_DOUBLE_EQ(after.fadeRightFrom, before.fadeRightFrom) << which;
+    EXPECT_DOUBLE_EQ(after.fadeRightTo, before.fadeRightTo) << which;
+    EXPECT_DOUBLE_EQ(after.fadeTopFrom, before.fadeTopFrom) << which;
+    EXPECT_DOUBLE_EQ(after.fadeTopTo, before.fadeTopTo) << which;
+    EXPECT_DOUBLE_EQ(after.fadeBottomFrom, before.fadeBottomFrom) << which;
+    EXPECT_DOUBLE_EQ(after.fadeBottomTo, before.fadeBottomTo) << which;
 }
 
 //! Which group a test is applying, so everything else can be checked as untouched.
@@ -991,6 +1001,80 @@ TEST(Effects, AHalftoneShadowReplacesTheShadowAndFadesOverItsSoftness)
     EXPECT_FALSE(marks.intersects(QRectF(body.left() - 20, body.top(), 8, body.height())));
 }
 
+/**
+ * @brief A fill fades by a cross at the balloon's centre: along each arm, whole up to its start and gone
+ *        past its end; one arm is a straight fade, all four a round one (PLAN-L P13c).
+ */
+TEST(Paint, AFadingFillThinsOutAlongItsCross)
+{
+    ObjectRecord a;
+    a.shape           = Geometry::shapeTemplate("caption").shape;
+    a.box             = QSize(400, 200);
+    a.style.strokeWidth = 0;   // the balloon's rectangle is the box
+    Paint& p          = a.skin.fill;
+    p.kind            = Paint::Kind::Dots;
+    p.spacing         = 8.0;
+    p.size            = 6.0;
+    p.angle           = 0;
+    const QRectF       body       = Geometry::balloonRect(a);
+    const QPainterPath silhouette = Geometry::silhouette(a);
+    ASSERT_EQ(body, QRectF(0, 0, 400, 200));
+    EXPECT_FALSE(Geometry::fades(p)) << "every arm on its side: no fade";
+    EXPECT_TRUE(Geometry::fillTone(a, silhouette).isEmpty());
+
+    // Down only, from half way to the side.
+    p.fadeBottomFrom = 50.0;
+    EXPECT_TRUE(Geometry::fades(p));
+    EXPECT_DOUBLE_EQ(Geometry::fadeTone(p, body, QPointF(200, 10)), 1.0);    // above: untouched
+    EXPECT_DOUBLE_EQ(Geometry::fadeTone(p, body, QPointF(200, 140)), 1.0);   // before its start
+    EXPECT_DOUBLE_EQ(Geometry::fadeTone(p, body, QPointF(200, 175)), 0.5);   // half way along
+    EXPECT_DOUBLE_EQ(Geometry::fadeTone(p, body, QPointF(390, 175)), 0.5);   // the same across
+    EXPECT_DOUBLE_EQ(Geometry::fadeTone(p, body, QPointF(200, 200)), 0.0);   // at the side
+
+    const QPainterPath marks = Geometry::fillTone(a, silhouette);
+    ASSERT_FALSE(marks.isEmpty());
+    const auto dotAt = [&](int i, int j) { return QPointF((i + 0.5) * p.spacing, (j + 0.5) * p.spacing); };
+    EXPECT_TRUE(marks.contains(dotAt(25, 2) + QPointF(0.9 * p.size / 2.0, 0)));   // whole, up top
+    EXPECT_TRUE(marks.contains(dotAt(25, 21)));                                   // y 172: smaller
+    EXPECT_FALSE(marks.contains(dotAt(25, 21) + QPointF(0.9 * p.size / 2.0, 0)));
+    EXPECT_FALSE(marks.intersects(QRectF(0, 199, 400, 1)));
+
+    // All four from the centre: round, gone at the sides and in the corners.
+    p.fadeLeftFrom = p.fadeRightFrom = p.fadeTopFrom = p.fadeBottomFrom = 0.0;
+    EXPECT_DOUBLE_EQ(Geometry::fadeTone(p, body, QPointF(200, 100)), 1.0);
+    EXPECT_NEAR(Geometry::fadeTone(p, body, QPointF(320, 100)), 0.4, 1e-9);   // 0.6 of the way right
+    EXPECT_NEAR(Geometry::fadeTone(p, body, QPointF(200 + 0.6 * 200, 100 + 0.8 * 100)), 0.0, 1e-9);
+    EXPECT_DOUBLE_EQ(Geometry::fadeTone(p, body, QPointF(0, 0)), 0.0);
+
+    // The cross: a start and an end on each arm, every one on its side for a fill that does not fade.
+    Paint still;
+    still.kind = Paint::Kind::Lines;
+    const QList<Geometry::ShapeHandle> cross = Geometry::fadeHandles(still, body);
+    ASSERT_EQ(cross.size(), 8);
+    EXPECT_EQ(cross.at(0).role, Geometry::ShapeHandle::Role::FadeFrom);
+    EXPECT_EQ(cross.at(4).role, Geometry::ShapeHandle::Role::FadeTo);
+    EXPECT_EQ(cross.at(3).at, QPointF(200, 200));   // the bottom arm's start, on its side
+    EXPECT_TRUE(Geometry::fadeHandles(Paint(), body).isEmpty()) << "a solid fill has no cross";
+    // Pulling the bottom start in begins a fade; pushing it past its end takes the end along, and the
+    // end pulled in past the start takes the start.
+    Paint dragged = Geometry::dragFadeHandle(still, body, cross.at(3), QPointF(200, 150));
+    EXPECT_DOUBLE_EQ(dragged.fadeBottomFrom, 50.0);
+    EXPECT_DOUBLE_EQ(dragged.fadeBottomTo, 100.0);
+    dragged = Geometry::dragFadeHandle(dragged, body, cross.at(7), QPointF(260, 120));   // across is ignored
+    EXPECT_DOUBLE_EQ(dragged.fadeBottomTo, 20.0);
+    EXPECT_DOUBLE_EQ(dragged.fadeBottomFrom, 20.0);
+    dragged = Geometry::dragFadeHandle(dragged, body, cross.at(3), QPointF(200, 400));   // past the side
+    EXPECT_DOUBLE_EQ(dragged.fadeBottomFrom, 100.0);
+    EXPECT_DOUBLE_EQ(dragged.fadeBottomTo, 100.0);
+
+    // Only the fill lists the fade, and the shadow's pattern no colour of its own: neither is saved there.
+    ObjectRecord b = a;
+    b.style.stroke.fadeBottomFrom = 10.0;
+    b.effects.shadowFill.second   = QColor(1, 2, 3);
+    EXPECT_TRUE(b.style == a.style);
+    EXPECT_TRUE(b.effects == a.effects);
+}
+
 namespace {
 
 /**
@@ -1524,6 +1608,31 @@ QString goldenRecords()
         a.style.strokeWidth   = 14;
         a.effects.shadowFill.kind = pattern;
         write(QStringLiteral("speech"), QStringLiteral("pattern ") + QLatin1String(patternName(pattern)), true, a);
+    }
+    // A fill that fades by its cross, one way per pattern (PLAN-L P13c): dots down, lines up and down,
+    // a grid round from the middle.
+    for (int k = 1; k <= int(Paint::k_lastKind); ++k) {
+        const auto   pattern = static_cast<ObjectRecord::Pattern>(k);
+        ObjectRecord a       = loadedRecord();
+        a.shape              = Geometry::shapeTemplate("speech").shape;
+        a.style              = looks.first().style;
+        a.texture            = looks.first().texture;
+        a.effects.shadow     = false;
+        Paint& p             = a.skin.fill;
+        p.kind               = pattern;
+        p.colour             = QColor(250, 250, 250);
+        p.second             = QColor(30, 30, 200, 200);
+        p.fadeBottomFrom     = 30.0;
+        p.fadeBottomTo       = 90.0;
+        if (pattern != ObjectRecord::Pattern::Dots) {
+            p.fadeTopFrom = 30.0;
+            p.fadeTopTo   = 90.0;
+        }
+        if (pattern == ObjectRecord::Pattern::Grid) {
+            p.fadeLeftFrom = p.fadeRightFrom = 20.0;
+            p.fadeLeftTo = p.fadeRightTo = 100.0;
+        }
+        write(QStringLiteral("speech"), QStringLiteral("fading ") + QLatin1String(patternName(pattern)), true, a);
     }
     // A halftone shadow, hard: the pattern's marks on nothing (PLAN-L P13; the cases above fade, soft).
     {

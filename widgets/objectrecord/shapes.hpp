@@ -39,12 +39,16 @@ struct ShapeHandle
         InHandle,    //!< A Curve's node `index`: the handle its segment from the previous node arrives along.
         OutHandle,   //!< ...and the one its segment to the next node leaves along.
         Depth,       //!< The edge's depth: an arrow at its first valley, any kind with an edge.
+        FadeFrom,    //!< The fill's fade, side `index` (left, right, top, bottom): where it starts.
+        FadeTo,      //!< ...and where the pattern is gone (fadeHandles(), styles.hpp).
     };
     Role    role  = Role::Vertex;
     int     index = 0;
     QPointF at;
-    QPointF axis;     //!< For the radius, the unit direction into its corner; for the depth, inwards.
-    QPointF origin;   //!< For a Curve's handle: its node, which the line to it is drawn from.
+    QPointF axis;     //!< For the radius, the unit direction into its corner; for the depth, inwards; for a
+                      //!< fade's dot, outwards along its arm.
+    QPointF origin;   //!< For a Curve's handle: its node, which the line to it is drawn from; for a fade's
+                      //!< dot, the cross's centre.
 };
 
 /**

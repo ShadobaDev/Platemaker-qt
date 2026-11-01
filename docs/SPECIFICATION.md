@@ -119,7 +119,8 @@ SVG is accepted with `PLATEMAKER_UPDATE_GOLDEN=1` and its diff reviewed. The tab
 every template is a balloon, is found by `templateOf()` as itself, and that every kind has one.
 
 **Not caught by any test:** every constant is named; noise uses `styleSeed` and nothing else
-(`topUpStyleSeed()` mints it; a *Re-roll* entry on the object menu is planned, not built). Any outline
+(`topUpStyleSeed()` mints it; *Re-roll* on the object menu deals it again, for a record that
+`usesSeed()`). Any outline
 takes a tail, concave included: the tail walks from its tip towards the centre and leaves from the first
 edge it meets (`Tails.AConcaveOutlineIsLeftNearestTheTip`); only a balloon whose centre lies outside it
 gets none.
@@ -147,8 +148,10 @@ of a second colour over it. The fill (`SkinProperties::fill`), the line (`StyleP
 outline and a flash's or a brush's strokes) and the shadow (`EffectProperties::shadowFill`) each hold one.
 It is a **sub-group**: its fields are listed once (`Paint::members()`), and a group lists them under keys
 of its own with `Paint::fieldsAs()`, so the files stay flat (`fill`, `fillKind`, `fillSpacing`…). Every
-walk reaches a field through `Fields::at()`, which takes a plain member or a `Fields::Nested` one. One
-editor, `PaintRows` (`properties/paintrows.hpp`), shows a Paint in any section.
+walk reaches a field through `Fields::at()`, which takes a plain member or a `Fields::Nested` one. **A
+place lists only the parts it uses**: a null key leaves a field out of that group, unsaved and
+uncompared (the shadow has no `second`, only the fill fades). One editor, `PaintRows`
+(`properties/paintrows.hpp`), shows a Paint in any section, and asks the group's list which rows to offer.
 
 A pattern is a value of `Paint::Kind` (move `k_lastKind`), one entry in `k_patterns` (`styles.cpp`, its
 names) and its marks in `patternCell()`: the cell's square, its angle, and the marks as one non-zero
@@ -165,6 +168,15 @@ PLAN-L B37) is geometry, not a filter: `halftoneMarks()` lays the same grid and 
 (`SignedDistance`, bucketed). The painter fills such marks in pieces (`fillMarks()`: Qt's antialiased
 rasteriser slows sharply on one path of thousands of marks) through a layer of their own, drawn once with
 the colour's alpha, so marks that overlap paint once, as in the SVG.
+
+A **fill that fades** (PLAN-L P13c) is the same marks with another tone, set by a **cross** at the centre
+of the balloon's rectangle (`balloonRect()`): on each arm `fade…From` and `fade…To`, in % of the way to
+that side, whole before the one and gone past the other. `fadeTone()` combines the two directions as a
+distance, so one arm is a straight fade, two opposite a band, all four a round one; at 100 % a side does
+not fade. `fillTone()` lays the marks; both the painter and the SVG draw the ground, then the marks
+clipped to the silhouette, then the outline over both. The cross is shape editing's (`fadeHandles()`,
+`dragFadeHandle()`, roles `FadeFrom`/`FadeTo`, appended by `BubbleObject` after the outline's own), so a
+patterned fill makes any balloon editable; it has no rows in the panel.
 
 ### An effect
 
@@ -183,13 +195,13 @@ A style is two independent choices: a **line** (how the edge is drawn) and a **t
 to the balloon as it is rasterised).
 
 A line is a value of `StyleProperties::Line` (move `k_lastLine`) and **one entry in `k_lines`**
-(`widgets/objectrecord/styles.cpp`), in the enum's order: the persisted name, the title the Style panel
-lists, and strokes of its own or none. Strokes are an `ink` function, from the record and its silhouette
+(`widgets/objectrecord/styles.cpp`), in the enum's order: the persisted name, the title the *Line*
+section lists, and strokes of its own or none. Strokes are an `ink` function, from the record and its silhouette
 to closed paths filled in the stroke colour, with an `inkReach` that says how far they reach past the
 silhouette; a line with ink leaves the solid outline off (`hasOutline()`) and is drawn locally.
 
-A texture is a value of `StyleProperties::Texture` (move `k_lastTexture`), **one entry in
-`k_textures`** (its name, title and `reach`, how far it moves the balloon past its geometry) and its SVG
+A texture is a value of `TextureProperties::Kind` (move `k_lastKind`; a group of its own, the *Texture*
+section, `TextureEditor`), **one entry in `k_textures`** (its name, title and `reach`, how far it moves the balloon past its geometry) and its SVG
 filter in `styleDefs()` (`recordsvg.cpp`), written from the texture's own fields. The filter hangs on the
 balloon's group, its silhouette and its line's strokes, never on the lettering's group; a balloon with
 one previews through the library (`hasFilter()`), and `styleMargin()` adds its reach to the line's.
@@ -202,11 +214,12 @@ balloon is edited and *Re-roll* deals it again. The brush (`brushInk()`) is the 
 the edge, as wide as the outline (the line's own `strokeWidth`, not a number of its own).
 
 The flash is the worked example of a line. Its parameters are members of
-`StyleProperties` with a `flash` prefix, one line each in its `fields()` list; the Style panel builds a
+`StyleProperties` with a `flash` prefix, one line each in its `fields()` list; the *Line* section
+(`StyleEditor`) builds a
 spin for every `flash…` field from that list (`FieldRows`, `properties/fieldrows.hpp`, which any panel
 can use for a prefix of its group's fields), and takes its label, range and tooltip from `k_flashRows`
 in `styleeditor.cpp` (a field with no row there stops a debug build; a row with `decimals` is a
-decimal spin, as Rough's are in `k_roughRows`). The core stretch's *Auto* comes
+decimal spin, as Rough's are in `k_roughRows`, `textureeditor.cpp`). The core stretch's *Auto* comes
 from `ShapeInfo::flashStretch`, one value per shape in `shapes.cpp`. Caught by the same table,
 round-trip and golden tests as a shape; strokes are also checked against the room reserved for them
 (`Style.AFlashStaysInsideItsBounds`) and Auto against the shape's value (`Style.AutoStretchIsTheShapes`).

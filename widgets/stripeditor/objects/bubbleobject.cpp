@@ -78,17 +78,14 @@ void BubbleObject::rebuild()
 {
     // Resolve once, here, and keep the paths: paint() must not rebuild an eleven-circle union or re-lay
     // a text document on every scroll and selection change.
-    m_silhouette = Geometry::silhouette(m_record);
-    m_shadow     = Geometry::shadowOf(m_record, m_silhouette);
-    m_ink        = Geometry::ink(m_record, m_silhouette);
-    m_textPath   = Geometry::textOutline(m_record);
+    m_paths      = Painter::resolve(m_record);
     m_tailDrawn  = Geometry::tailsDrawn(m_record);
     refreshBounds();
 }
 
 QRectF BubbleObject::computeBounds() const
 {
-    return Geometry::boundsOf(m_record, m_silhouette, m_textPath);
+    return Geometry::boundsOf(m_record, m_paths.silhouette, m_paths.text);
 }
 
 void BubbleObject::setRecord(const ObjectRecord& a)
@@ -168,7 +165,9 @@ void BubbleObject::setHandlePos(int index, const QPointF& local)
 
 bool BubbleObject::canEditShape() const
 {
-    return m_record.hasSilhouette() && Geometry::hasShapeHandles(m_record.shape);
+    // A patterned fill has its fade's cross, so a balloon with no handles of its own is edited for that.
+    return m_record.hasSilhouette()
+        && (Geometry::hasShapeHandles(m_record.shape) || m_record.skin.fill.kind != Paint::Kind::Solid);
 }
 
 qreal BubbleObject::radiusClearance() const
@@ -180,8 +179,11 @@ QList<Geometry::ShapeHandle> BubbleObject::shapeHandles() const
 {
     if (!canEditShape())
         return {};
-    return Geometry::shapeHandles(m_record.shape, Geometry::balloonRect(m_record), radiusClearance(),
-                                  pickedVertex());
+    const QRectF                 body = Geometry::balloonRect(m_record);
+    QList<Geometry::ShapeHandle> out  = Geometry::shapeHandles(m_record.shape, body, radiusClearance(), pickedVertex());
+    // The fill's fade last: where a dot sits on a node or a "+", the outline's own handle is the one pressed.
+    out.append(Geometry::fadeHandles(m_record.skin.fill, body));
+    return out;
 }
 
 QPainterPath BubbleObject::editOutline() const
@@ -224,10 +226,13 @@ void BubbleObject::dragShapeTo(const QPointF& scenePos)
     const QPointF to   = (scenePos - m_shapeStartPos) / k;
     const QRectF  body = Geometry::balloonRect(m_shapeStart);
 
+    using Role        = Geometry::ShapeHandle::Role;
     ObjectRecord next = m_shapeStart;
-    next.shape = Geometry::dragShapeHandle(next.shape, body, m_shapeHandle, to, radiusClearance());
-    const QPointF moved = m_shapeHandle.role == Geometry::ShapeHandle::Role::Vertex ? growToNodes(next, body)
-                                                                                     : QPointF();
+    if (m_shapeHandle.role == Role::FadeFrom || m_shapeHandle.role == Role::FadeTo)
+        next.skin.fill = Geometry::dragFadeHandle(next.skin.fill, body, m_shapeHandle, to);
+    else
+        next.shape = Geometry::dragShapeHandle(next.shape, body, m_shapeHandle, to, radiusClearance());
+    const QPointF moved = m_shapeHandle.role == Role::Vertex ? growToNodes(next, body) : QPointF();
     m_record = next;
     setPos(m_shapeStartPos + moved * k);
     rebuild();
@@ -243,7 +248,7 @@ void BubbleObject::paintContent(QPainter& painter)
         painter.drawImage(contentBounds().topLeft(), m_sharp);
         return;
     }
-    Painter::paintPaths(painter, m_record, m_silhouette, m_shadow, m_ink, m_textPath);
+    Painter::paintPaths(painter, m_record, m_paths);
 }
 
 }  // namespace StripEdit

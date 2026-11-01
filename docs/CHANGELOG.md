@@ -54,7 +54,7 @@
 
   The tool's own options sit **bottom-left**, under the tool rail, and say what the next object will be.
   The **right-hand panel describes whatever is selected** and nothing else: a collapsible section per
-  thing a bubble has — shape, fill and outline, line style, text, tails — showing only the sections that
+  thing a bubble has — shape, fill, line, texture, effects, text, tails — showing only the sections that
   apply, so a caption with no balloon is not offered a fill it has nowhere to put. Which sections you
   leave open is remembered. The object list beneath shows the strip's contents as a stack — row 0 is
   front-most, drag to reorder, tick to mute, **Duplicate (Ctrl+D) / Delete** from the context menu.
@@ -79,15 +79,15 @@
     it under its bubble in the object list, or press its handle on the strip, to give it its own width and
     bend or to delete it — the other tails keep theirs. *Add tail* on the bubble adds one shaped like the
     last.
-  - **Line styles — Clean, Marker, Ink.** Marker and Ink are SVG filters (`feTurbulence` /
-    `feDisplacementMap`), which librsvg applies and Qt cannot, so such a bubble is previewed by asking
-    the **library** for the same pixels the render will produce. The noise is seeded per bubble and
-    measured in the drawing's own units, so the texture scales with the balloon rather than with the
-    output resolution. Clean emits no filter at all.
+  - **Textures are drawn by the library.** A texture is an SVG filter (`feTurbulence` /
+    `feDisplacementMap`), which librsvg applies and Qt cannot, so a textured bubble is previewed by
+    asking the **library** for the same pixels the render will produce. The noise is seeded per bubble
+    and measured in the drawing's own units, so the texture scales with the balloon rather than with the
+    output resolution. A balloon with no texture emits no filter at all.
   - **Line style Flash.** The balloon is ringed by narrow, randomly varied triangles, like brush
     strokes, pointing out of the edge and into it, in the outline colour; they replace the solid
     outline. Any shape wears it, tails included, and it is drawn on the strip directly, as fast as a
-    clean balloon. The Style panel sets the strokes' spacing, length and width inside and outside, how
+    clean balloon. The *Line* section sets the strokes' spacing, length and width inside and outside, how
     much their place and length vary, and their **direction**: from the centre, or from a line along a
     long box, so they stand square to its straight sides. *Auto* takes each shape's own direction and
     follows the shape; a direction set by hand stays when the shape changes. New built-in preset
@@ -97,30 +97,26 @@
     tiles for a Box: from square corners to fully round ends. A balloon whose radius matches neither
     tile is still a Box, and no tile is shown as current. A tile gives its whole shape, radius
     included, and only picking a speaking tile adds a tail (to a balloon with none), so turning a
-    caption's corners does not give it one. No tile takes a balloon's tails away. The lettering's room now stays inside the rounded corners. Files from before name
-    `speech` and `caption`, which load as a default Box.
+    caption's corners does not give it one. No tile takes a balloon's tails away. The lettering's room now stays inside the rounded corners.
   - **Shout, diamond, caption plate and banner are one shape, the Polygon**, its corners rounded by the
     same **Corner radius** row. Their tiles stay as four ready-made starts. The lettering's room in a
     polygon is worked out from the outline itself, as the largest rectangle inside it, so in a shout
     it no longer reaches between the spikes. A tail leaves a balloon from the edge nearest its tip, on a
     shape with a notch too. *Convert to ▸ Balloon*, and a preset applied while the Text tool is armed,
-    carry the whole shape (its corners and its points), not only which kind it is. Files from before
-    naming `shout`, `diamond`, `trapezoid` or `banner` load as a default Box.
+    carry the whole shape (its corners and its points), not only which kind it is.
   - **The scroll is a Curve**, a shape drawn with Bézier curves, and its tile a ready-made start. It
     looks as before; the lettering's room is worked out from the outline, as a polygon's is, so it now
-    reaches into the rolled ends. Files from before naming `scroll` load as a default Box.
+    reaches into the rolled ends.
   - **Edit a curve's shape on the strip.** In shape editing, a click on a curve's point shows its two
     handles, which bend the curve on each side of it; a **+** halfway along each piece adds a point
     there without changing the outline. Right-click a point for **Point type**: *Corner* (its handles
     move apart), *Smooth* (on one line) or *Symmetric* (on one line and as long as each other).
     **Convert to curve** on a balloon's context menu makes it a curve of the same outline, ready to
     edit.
-  - **Line and texture are two choices.** The Style panel's *Line* is how the edge is drawn (a solid
-    line or a flash) and *Texture* what is done to the whole balloon as it is rendered, line and all, never
-    the words. The first texture is **Rough**, with four rows: grain, detail, displacement and blur. It
-    replaces Marker and Ink, which are now two built-in presets of it, and *Style amount* is gone: the
-    rows set the strength. A flash can be rough. Files from before naming `marker` or `ink` load as a
-    clean line with no texture.
+  - **Line and texture are two choices.** *Line* is how the edge is drawn (a solid line, a flash or a
+    brush) and *Texture* what is done to the whole balloon as it is rendered, line and all, never the
+    words. The first texture is **Rough**, with four rows: grain, detail, displacement and blur; the
+    **Marker** and **Ink** looks are two built-in presets of it. A flash can be rough.
   - **Brush**, a new line: a few brush strokes laid along the outline, overlapping where they meet,
     each narrowing to a point at both ends and swelling and wandering along the way. Its width is the
     outline's stroke width; its rows set how many strokes, how far they overlap, how long the points
@@ -136,7 +132,10 @@
   - **Halftone patterns.** The fill, the line and the shadow each take a **Pattern**: the colour alone,
     or **dots**, **lines** or a **grid** in a second colour (**Pattern colour**) over it, with rows for
     their spacing, size and angle. A pattern is drawn on the strip as it is in the output, its grid laid
-    from the balloon's corner, and colours may be transparent.
+    from the balloon's corner, and colours may be transparent. A fill's pattern can **fade out**: in shape
+    editing a cross sits in the middle of the balloon, and pulling the dots on its arms in from the sides
+    sets where the pattern starts to thin out and where it is gone — towards one side, two, or all four for
+    a round fade.
   - **Shadows.** Under *Effects*, a balloon can **drop a shadow**: its whole shape, tails and all, grown
     by a **spread** and moved by an **offset**, filled with a colour (with transparency) under it. By
     default it is centred, a rim all round; give it an offset and it falls to a side. Hard by default,
@@ -148,8 +147,7 @@
     wobble, or an irregular edge's teeth, again. One undo step.
   - **The thought balloon is a Cloud** with two rows of its own in the Shape panel: **Lobes**, how many
     circles make its edge, and **Lobe size**. In shape editing, an arrow at the right-hand lobe sizes
-    them all. Its tile is a ready-made start, and it looks as before. Files from before naming
-    `thought` load as a default Box.
+    them all. Its tile is a ready-made start, and it looks as before.
   - **Edit a balloon's shape on the strip.** Double-click a box or polygon balloon, or pick **Edit
     shape** on its context menu: the outline is traced instead of the dashed box, and its own handles
     replace the grips. Drag the two-headed arrow in the corner to round the corners; on a polygon, drag a square to move a

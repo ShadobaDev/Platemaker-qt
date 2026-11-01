@@ -370,10 +370,13 @@ New, backward-compatible features. Several are gated on a lib version, noted in 
     smaller, and independent of the rest.
 
 - [ ] **Line styles and balloon shapes** — `temp/PLAN-L-styles-and-shapes.md` (planned 2026-10-31,
-  being built). Shapes become families (Box, Ellipse, Polygon, Curve, Cloud) with templates for the
-  ready-made outlines, edited on the strip in an edit mode; styles become two axes, line × texture,
-  with Marker and Ink merged into Rough (four parameters, `amount` gone); then the Brush, edge
-  modulation, fills and effects. Still open from the earlier item: whether the 0.01 that `num()` keeps
+  built through P13, 2026-11-01). Built: shapes as families (Box, Ellipse, Polygon, Curve, Cloud) with
+  templates, edited on the strip; line × texture (Clean, Flash, Brush × None, Rough); the zigzag edge;
+  the panel in drawing order (Shape · Fill · Line · Texture · Effects · Text); Paint with halftone
+  patterns on the fill, the line and the shadow; a shadow with spread; a halftone shadow that fades, and
+  a fill whose halftone fades along a direction.
+  **Left:** §6's later items (Dashed, Double, regular polygon
+  and star, Sketch, Dry brush, Dry ink, the other edges, hatching, glow, fine-tuning). Still open from the earlier item: whether the 0.01 that `num()` keeps
   is the frequency spin's step, or the filter gets its own formatter (P6). The flash's direction could
   also be chosen from a shape's convex and concave vertices instead of a per-family value — an idea,
   not planned.

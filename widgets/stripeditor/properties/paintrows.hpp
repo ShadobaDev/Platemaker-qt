@@ -24,9 +24,9 @@ constexpr char k_trContext[] = "StripEdit::PaintRows";
 #define PM_TR(s) QT_TRANSLATE_NOOP("StripEdit::PaintRows", s)
 //! A pattern's numbers, in strip pixels and degrees.
 inline const FieldRowSpec k_patternRows[] = {
-    {"spacing", PM_TR("Spacing:"), 1,   100, " px", PM_TR("From one dot, or line, to the next."), 1},
-    {"size",    PM_TR("Size:"),    0,   100, " px", PM_TR("A dot's width, or a line's. Past the spacing they merge into a solid tone."), 1},
-    {"angle",   PM_TR("Angle:"),   -90, 90,  "°",   PM_TR("How far the grid is turned, clockwise.")},
+    {"cellSpacing", PM_TR("Spacing:"), 1,   100, " px", PM_TR("From one dot, or line, to the next."), 1},
+    {"cellSize",    PM_TR("Size:"),    0,   100, " px", PM_TR("A dot's width, or a line's. Past the spacing they merge into a solid tone."), 1},
+    {"cellAngle",   PM_TR("Angle:"),   -90, 90,  "°",   PM_TR("How far the grid is turned, clockwise.")},
 };
 #undef PM_TR
 
@@ -38,7 +38,10 @@ inline const FieldRowSpec k_patternRows[] = {
  *
  * The panel contract as FieldRows keeps it: *Mixed* while a bound selection disagrees, and *touched*
  * once the artist moves a control, so applyEdited() writes only that. The numbers are a FieldRows over the
- * Paint's own field list. Header-only, a template over the group; it holds no QObject and connects through
+ * Paint's own field list (its `cell…` fields). **Which rows a place offers is its group's field list**: a
+ * part the group does not list (Paint::fieldsAs() with a null key) is not used there and has no row — a
+ * shadow's pattern has no colour of its own. A fill's fade has no rows: it is set by its cross on the
+ * strip, in shape editing (Geometry::fadeHandles()). Header-only, a template over the group; it holds no QObject and connects through
  * the owning panel, and must not move once built.
  */
 template <class Group>
@@ -51,17 +54,15 @@ public:
      * @param values      The panel's own copy of the group, written on every edit.
      * @param edited      Called after an edit is in @p values: the panel emits changed() there.
      * @param committed   Called after a discrete choice (a colour picked): the panel emits committed().
-     * @param grounded    A pattern lies over the colour, in a colour of its own (a fill, a line). Without, the
-     *                    pattern is the colour's marks on nothing (a shadow), and has no colour row of its own.
      */
     void build(QWidget* owner, QFormLayout* form, Paint Group::* paint, const QString& colourTitle, Group& values,
-               const bool& populating, std::function<void()> edited, std::function<void()> committed,
-               bool grounded = true)
+               const bool& populating, std::function<void()> edited, std::function<void()> committed)
     {
         using namespace PaintRowsDetail;
         m_form     = form;
-        m_grounded = grounded;
-        m_paint = paint;
+        m_paint    = paint;
+        m_grounded = uses(&Paint::second);
+        const bool grounded = m_grounded;
         m_shown = &(values.*paint);
         Paint& p = values.*paint;
 
@@ -80,7 +81,7 @@ public:
         m_second = new QPushButton(QCoreApplication::translate(k_trContext, "Pattern colour"), owner);
         m_second->setToolTip(QCoreApplication::translate(k_trContext, "The pattern's own colour, over the ground."));
         form->addRow(QCoreApplication::translate(k_trContext, "Pattern colour"), m_second);
-        m_rows.build(owner, form, "", k_patternRows, k_trContext, p, populating, edited);
+        m_rows.build(owner, form, "cell", k_patternRows, k_trContext, p, populating, edited);
 
         QObject::connect(m_kind, &QComboBox::currentIndexChanged, owner, [this, &p, &populating, edited](int i) {
             if (populating || i < 0)
@@ -164,6 +165,21 @@ public:
     }
 
 private:
+    //! Whether the group lists @p field of this Paint: a place offers only the parts it uses.
+    template <class T>
+    [[nodiscard]] bool uses(T Paint::* field) const
+    {
+        bool used = false;
+        Group::fields([&](const char*, auto member) {
+            if constexpr (Fields::isNested<decltype(member)>) {
+                if constexpr (std::is_same_v<decltype(member.outer), Paint Group::*>
+                              && std::is_same_v<decltype(member.inner), T Paint::*>)
+                    used = used || (member.outer == m_paint && member.inner == field);
+            }
+        });
+        return used;
+    }
+
     void refresh()
     {
         // A selection that disagrees shows the rows at least one of them has.
@@ -182,7 +198,7 @@ private:
     QPushButton*     m_second = nullptr;
     FieldRows<Paint> m_rows;               //!< Spacing, size and angle.
     bool m_visible       = true;
-    bool m_grounded      = true;   //!< A pattern lies over the colour, in the pattern colour.
+    bool m_grounded      = true;   //!< A pattern lies over the colour, in the pattern colour (not a shadow's).
     bool m_mixedColour   = false;
     bool m_mixedKind     = false;
     bool m_mixedSecond   = false;

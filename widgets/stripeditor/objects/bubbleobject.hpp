@@ -7,6 +7,7 @@
 
 #include "objects/object.hpp"
 #include "objectrecord.hpp"
+#include "recordpainter.hpp"
 
 namespace StripEdit {
 
@@ -128,10 +129,7 @@ private:
     [[nodiscard]] qreal radiusClearance() const;
 
     QImage       m_sharp;       //!< Library rasterisation shown at rest for a filtered bubble (see above).
-    QPainterPath m_silhouette;  //!< Cached balloon + tails, so a repaint resolves no geometry.
-    QPainterPath m_shadow;      //!< Cached shadow (grown, or a fading halftone's marks), likewise.
-    QPainterPath m_ink;         //!< Cached style strokes (a flash's triangles), likewise.
-    QPainterPath m_textPath;    //!< Cached glyph outlines, likewise.
+    Painter::Paths m_paths;     //!< The paths it is drawn from, cached so a repaint resolves no geometry.
     QList<bool>  m_tailDrawn;   //!< Per tail: whether it is drawn (its tip is outside the balloon).
 
     ObjectRecord          m_shapeStart;      //!< The record at a shape handle's press; the drag works against it.

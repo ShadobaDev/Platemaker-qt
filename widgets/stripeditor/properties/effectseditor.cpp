@@ -40,7 +40,7 @@ EffectsEditor::EffectsEditor(QWidget* parent)
     m_rows.build(this, m_form, "shadow", k_shadowRows, k_trContext, m_values, m_populating, [this] { emit changed(); });
     // Its paint, whose transparency is how dark it is; or a halftone of it, with no ground under.
     m_paint.build(this, m_form, &EffectProperties::shadowFill, tr("Shadow colour"), m_values, m_populating,
-                  [this] { emit changed(); }, [this] { emit committed(); }, false);
+                  [this] { emit changed(); }, [this] { emit committed(); });
 
     connect(m_shadow, &QCheckBox::toggled, this, [this](bool on) {
         if (m_populating)

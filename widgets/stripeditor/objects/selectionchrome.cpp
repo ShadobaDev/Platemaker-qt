@@ -51,6 +51,12 @@ constexpr qreal k_arrowSpan = 2.4;
 //! The square that answers a press on the radius arrow, in grip spans: wider than the arrow, which is
 //! thin across, so it is easy to hit.
 constexpr qreal k_arrowHitSpan = 3.2;
+//! The fade cross's dots, in grip spans: the start a ring, the end a dot that fits inside it, so the two
+//! sitting together (a side that does not fade) still read as two.
+constexpr qreal k_fadeRingSpan  = 1.0;
+constexpr qreal k_fadeDotSpan   = 0.5;
+//! How far the cross's arms keep from its centre, in grip spans: four lines meeting would cross pixels.
+constexpr qreal k_fadeCentreGap = 0.5;
 
 //! The square a shape handle answers a press in.
 QRectF shapeHandleRect(const QPointF& at, Geometry::ShapeHandle::Role role, qreal s)
@@ -340,6 +346,35 @@ void SelectionChrome::paint(QPainter* painter, const QStyleOptionGraphicsItem* o
                 plus.moveTo(at - QPointF(0, half));
                 plus.lineTo(at + QPointF(0, half));
                 inNegative([&] { painter->drawPath(plus); });
+                break;
+            }
+            case Role::FadeFrom:
+                // The fade's cross: a ring where it starts; the arm is drawn with its end, below.
+                inNegative([&] { painter->drawEllipse(at, s * k_fadeRingSpan / 2, s * k_fadeRingSpan / 2); });
+                break;
+            case Role::FadeTo: {
+                // The arm from the centre to its end, broken round the start's ring and short of the centre
+                // and of the end's dot, so no pixel is crossed twice; the end a dot inside the ring's room.
+                const QPointF from  = o->mapToScene(h.origin);
+                const QPointF start = o->mapToScene(handles.at(i - 4).at);   // the same arm's start
+                const QPointF d     = at - from;
+                const qreal   len   = std::hypot(d.x(), d.y());
+                const qreal   ring  = s * k_fadeRingSpan / 2;
+                const qreal   dot   = s * k_fadeDotSpan / 2;
+                inNegative([&] {
+                    if (len > 0.0) {
+                        const QPointF u   = d / len;
+                        const qreal   in  = std::hypot(start.x() - from.x(), start.y() - from.y());
+                        const qreal   gap = s * k_fadeCentreGap;
+                        if (in - ring > gap)
+                            painter->drawLine(from + u * gap, start - u * ring);
+                        if (len - dot > in + ring)
+                            painter->drawLine(start + u * ring, at - u * dot);
+                    }
+                    painter->setPen(Qt::NoPen);
+                    painter->setBrush(Qt::white);
+                    painter->drawEllipse(at, dot, dot);
+                });
                 break;
             }
             case Role::InHandle:

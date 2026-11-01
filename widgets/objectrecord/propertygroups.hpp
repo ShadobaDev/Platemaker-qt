@@ -97,6 +97,27 @@ struct Paint
     qreal  size    = 3.0;   //!< A dot's diameter, or a line's width. Past the spacing they merge.
     int    angle   = 45;    //!< How far the grid is turned, clockwise.
     /** @} */
+    /**
+     * @name A fade (PLAN-L P13c): a cross at the balloon's centre, an arm towards each side. Along an arm
+     * the pattern is whole up to `…From` and gone past `…To`, in % of the way from the centre to that side
+     * (100 is the side); the ground stays. The two directions combine as a distance, so fading towards two
+     * neighbouring sides rounds the corner between them, and all four make a round fade. A side whose
+     * `…From` is 100 does not fade. Read only while `kind` is not Solid, and only where a group lists these
+     * fields (the fill). Set on the strip, by the cross's dots in shape editing.
+     * @{
+     */
+    qreal fadeLeftFrom   = 100.0;
+    qreal fadeLeftTo     = 100.0;
+    qreal fadeRightFrom  = 100.0;
+    qreal fadeRightTo    = 100.0;
+    qreal fadeTopFrom    = 100.0;
+    qreal fadeTopTo      = 100.0;
+    qreal fadeBottomFrom = 100.0;
+    qreal fadeBottomTo   = 100.0;
+    /** @} */
+
+    //! How many fields members() lists: the length of a key table.
+    static constexpr int k_fieldCount = 14;
 
     Paint() = default;
     Paint(QColor colour, QColor second) : colour(colour), second(second) {}
@@ -111,26 +132,42 @@ struct Paint
         v(3, &Paint::spacing);
         v(4, &Paint::size);
         v(5, &Paint::angle);
+        v(6, &Paint::fadeLeftFrom);
+        v(7, &Paint::fadeLeftTo);
+        v(8, &Paint::fadeRightFrom);
+        v(9, &Paint::fadeRightTo);
+        v(10, &Paint::fadeTopFrom);
+        v(11, &Paint::fadeTopTo);
+        v(12, &Paint::fadeBottomFrom);
+        v(13, &Paint::fadeBottomTo);
     }
 
     //! The fields under plain keys: what a Paint's own editor (PaintRows) walks.
     template <class V>
     static void fields(V&& v)
     {
-        static constexpr const char* k_keys[] = {"colour", "kind", "second", "spacing", "size", "angle"};
+        // The cell's numbers share a prefix, which is what PaintRows' rows are built from.
+        static constexpr const char* k_keys[] = {
+            "colour",        "kind",        "second",         "cellSpacing",  "cellSize",
+            "cellAngle",     "fadeLeftFrom", "fadeLeftTo",    "fadeRightFrom", "fadeRightTo",
+            "fadeTopFrom",   "fadeTopTo",   "fadeBottomFrom", "fadeBottomTo"};
         members([&](int i, auto member) { v(k_keys[i], member); });
     }
 
     /**
      * @brief The fields of the Paint @p group holds as @p paint, under @p keys (in members()' order): what
      *        that group's own fields() lists, so its files keep their flat keys.
+     *
+     * A null key leaves that field out: the place does not use it (a shadow's pattern has no colour of its
+     * own, only the fill fades), so it is neither saved, compared nor offered (PaintRows asks the list).
      */
     template <class V, class Group>
-    static void fieldsAs(V&& v, Paint Group::* paint, const char* const (&keys)[6])
+    static void fieldsAs(V&& v, Paint Group::* paint, const char* const (&keys)[k_fieldCount])
     {
         members([&](int i, auto member) {
             using T = std::remove_reference_t<decltype(std::declval<Paint&>().*member)>;
-            v(keys[i], Fields::Nested<Group, Paint, T>{paint, member});
+            if (keys[i])
+                v(keys[i], Fields::Nested<Group, Paint, T>{paint, member});
         });
     }
 
@@ -216,7 +253,11 @@ struct SkinProperties
     template <class V>
     static void fields(V&& v)
     {
-        static constexpr const char* k_fill[] = {"fill", "fillKind", "fillSecond", "fillSpacing", "fillSize", "fillAngle"};
+        static constexpr const char* k_fill[] = {
+            "fill",              "fillKind",            "fillSecond",         "fillSpacing",
+            "fillSize",          "fillAngle",           "fillFadeLeftFrom",   "fillFadeLeftTo",
+            "fillFadeRightFrom", "fillFadeRightTo",     "fillFadeTopFrom",    "fillFadeTopTo",
+            "fillFadeBottomFrom", "fillFadeBottomTo"};
         Paint::fieldsAs(v, &SkinProperties::fill, k_fill);
     }
 
@@ -451,8 +492,10 @@ struct StyleProperties
     template <class V>
     static void fields(V&& v)
     {
-        static constexpr const char* k_stroke[] = {"stroke",       "strokeKind", "strokeSecond",
-                                                   "strokeSpacing", "strokeSize", "strokeAngle"};
+        static constexpr const char* k_stroke[] = {
+            "stroke",     "strokeKind",  "strokeSecond", "strokeSpacing", "strokeSize", "strokeAngle",
+            nullptr,      nullptr,       nullptr,        nullptr,         nullptr,      nullptr,
+            nullptr,      nullptr};   // a line does not fade   // a line does not fade
         v("line",                   &StyleProperties::line);
         Paint::fieldsAs(v, &StyleProperties::stroke, k_stroke);
         v("strokeWidth",            &StyleProperties::strokeWidth);
@@ -515,8 +558,12 @@ struct EffectProperties
         v("shadowX",        &EffectProperties::shadowX);
         v("shadowY",        &EffectProperties::shadowY);
         v("shadowSoftness", &EffectProperties::shadowSoftness);
-        static constexpr const char* k_shadowFill[] = {"shadowColour",  "shadowKind", "shadowSecond",
-                                                       "shadowSpacing", "shadowSize", "shadowAngle"};
+        // A shadow's pattern is its colour in marks on nothing (no second colour), and it fades by its
+        // softness, not by a cross.
+        static constexpr const char* k_shadowFill[] = {
+            "shadowColour", "shadowKind", nullptr, "shadowSpacing", "shadowSize", "shadowAngle",
+            nullptr,        nullptr,      nullptr, nullptr,         nullptr,      nullptr,
+            nullptr,        nullptr};
         Paint::fieldsAs(v, &EffectProperties::shadowFill, k_shadowFill);
     }
 

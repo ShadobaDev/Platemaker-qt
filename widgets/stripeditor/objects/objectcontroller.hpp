@@ -460,6 +460,19 @@ public:
     [[nodiscard]] bool canEditShape() const;
     //! Whether a node is picked in shape editing, so Delete would remove it.
     [[nodiscard]] bool hasPickedVertex() const;
+    //! The type of the Curve's node picked in shape editing; none when no Curve's node is picked.
+    [[nodiscard]] std::optional<ShapeNode::Type> pickedNodeType() const;
+    //! Makes the picked Curve node a @p type node (Geometry::withNodeType()), as one history step.
+    void setPickedNodeType(ShapeNode::Type type);
+
+    /**
+     * @brief *Convert to Curve*: the one selected balloon's outline, a Box, an Ellipse or a Polygon, as the
+     *        Curve that draws it (Geometry::curveOf()), one history step; then edits its shape, which is
+     *        what the conversion is for.
+     */
+    void convertSelectionToCurve();
+    //! Whether convertSelectionToCurve() has something to do.
+    [[nodiscard]] bool canConvertToCurve() const;
 
     /**
      * @brief Checks if exactly one piece of imported artwork is selected — what OBJECT STATE and the menu

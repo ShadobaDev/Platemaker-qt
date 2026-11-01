@@ -40,6 +40,12 @@ QRectF square(const QPointF& c, qreal s)
 
 //! How much of a grip span a "+" is drawn across: smaller than a node, so the two read apart.
 constexpr qreal k_plusSpan = 0.7;
+//! A Curve's handle, a diamond, across in grip spans: smaller than the node it leaves.
+constexpr qreal k_tangentSpan = 0.9;
+//! Where the line to a Curve's handle starts, in grip spans from its node: past the node square's corner.
+constexpr qreal k_tangentGap = 0.75;
+//! The stroke of the handles drawn as the negative of what is under them, in screen pixels.
+constexpr qreal k_negativePx = 2.0;
 //! The radius arrow's length, in grip spans.
 constexpr qreal k_arrowSpan = 2.4;
 //! The square that answers a press on the radius arrow, in grip spans: wider than the arrow, which is
@@ -276,16 +282,35 @@ void SelectionChrome::paint(QPainter* painter, const QStyleOptionGraphicsItem* o
         }
 
         // The outline's handles: a node is a square, unlike a tail's dot, filled when it is the picked
-        // one; the radius is an arrow into its corner; a "+" adds a node where it sits.
+        // one; the radius is an arrow into its corner; a "+" adds a node where it sits. All but the arrow
+        // are the negative of what lies under them (white in Difference), so they read on a black flash,
+        // on white paper and on screentone alike. Each is one stroke or one fill: a pixel painted twice
+        // in Difference turns back.
         using Role = Geometry::ShapeHandle::Role;
+        QPen negative(Qt::white, k_negativePx);
+        negative.setCosmetic(true);
+        negative.setJoinStyle(Qt::MiterJoin);
+        const auto inNegative = [&](const auto& draw) {
+            painter->save();
+            painter->setCompositionMode(QPainter::CompositionMode_Difference);
+            painter->setPen(negative);
+            painter->setBrush(Qt::NoBrush);
+            draw();
+            painter->restore();
+        };
         const QList<Geometry::ShapeHandle> handles = shapeHandles(o);
         for (int i = 0; i < handles.size(); ++i) {
             const Geometry::ShapeHandle& h  = handles.at(i);
             const QPointF                at = o->mapToScene(h.at);
             switch (h.role) {
             case Role::Vertex:
-                painter->setBrush(h.index == o->pickedVertex() ? highlight : base);
-                painter->drawRect(square(at, s));
+                inNegative([&] {
+                    if (h.index == o->pickedVertex()) {
+                        painter->setPen(Qt::NoPen);
+                        painter->setBrush(Qt::white);
+                    }
+                    painter->drawRect(square(at, s));
+                });
                 break;
             case Role::Radius: {
                 // The arrow (icons/handles/radius.svg) in the highlight, edged in the colour that reads
@@ -305,9 +330,31 @@ void SelectionChrome::paint(QPainter* painter, const QStyleOptionGraphicsItem* o
                 break;
             }
             case Role::AddVertex: {
-                const qreal half = s * k_plusSpan / 2;
-                painter->drawLine(at - QPointF(half, 0), at + QPointF(half, 0));
-                painter->drawLine(at - QPointF(0, half), at + QPointF(0, half));
+                // One path, so the middle where the arms cross is stroked once.
+                const qreal  half = s * k_plusSpan / 2;
+                QPainterPath plus;
+                plus.moveTo(at - QPointF(half, 0));
+                plus.lineTo(at + QPointF(half, 0));
+                plus.moveTo(at - QPointF(0, half));
+                plus.lineTo(at + QPointF(0, half));
+                inNegative([&] { painter->drawPath(plus); });
+                break;
+            }
+            case Role::InHandle:
+            case Role::OutHandle: {
+                // A line from its node, and a diamond: unlike a node's square and a tail's dot. The line
+                // stops short of both, so no pixel is crossed twice.
+                const qreal   half = s * k_tangentSpan / 2;
+                const QPointF from = o->mapToScene(h.origin);
+                const QPointF d    = at - from;
+                const qreal   len  = std::hypot(d.x(), d.y());
+                const qreal   gap  = s * k_tangentGap;
+                inNegative([&] {
+                    if (len > gap + half)
+                        painter->drawLine(from + d / len * gap, at - d / len * half);
+                    painter->drawPolygon(QPolygonF{at - QPointF(half, 0), at - QPointF(0, half),
+                                                   at + QPointF(half, 0), at + QPointF(0, half)});
+                });
                 break;
             }
             }

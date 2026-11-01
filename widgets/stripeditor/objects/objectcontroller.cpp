@@ -223,6 +223,56 @@ bool ObjectController::hasPickedVertex() const
     return item && item->pickedVertex() >= 0;
 }
 
+std::optional<ShapeNode::Type> ObjectController::pickedNodeType() const
+{
+    const Object* item = m_overlayItems.value(m_shapeEditing);
+    if (!item || item->record().shape.kind != ShapeProperties::Kind::Curve)
+        return std::nullopt;
+    const QList<ShapeNode>& nodes = item->record().shape.nodes;
+    const int               i     = item->pickedVertex();
+    if (i < 0 || i >= nodes.size())
+        return std::nullopt;
+    return nodes.at(i).type;
+}
+
+void ObjectController::setPickedNodeType(ShapeNode::Type type)
+{
+    Object* item = m_overlayItems.value(m_shapeEditing);
+    if (!pickedNodeType() || !item)
+        return;
+    ObjectRecord a = item->record();
+    a.shape        = Geometry::withNodeType(a.shape, Geometry::balloonRect(a), item->pickedVertex(), type);
+    if (a.shape == item->record().shape)
+        return;
+    applyRecord(m_shapeEditing, a, /*commit=*/true, tr("Point type"));
+    emit boundToRecord(a);
+    emit shapeEditingChanged();   // the menu's tick, and the handles drawn
+}
+
+bool ObjectController::canConvertToCurve() const
+{
+    // Not the thought balloon: united circles would come back as a polygon of hundreds of points. Its
+    // own family (the Cloud, PLAN-L P5) is where it gets a conversion worth having.
+    using Kind = ShapeProperties::Kind;
+    const Object* item = m_overlayItems.value(m_selectedOverlay);
+    if (!item || m_selectedOverlays.size() != 1 || !item->record().hasSilhouette() || item->record().isArtwork())
+        return false;
+    const Kind kind = item->record().shape.kind;
+    return kind != Kind::Curve && kind != Kind::Thought;
+}
+
+void ObjectController::convertSelectionToCurve()
+{
+    if (!canConvertToCurve())
+        return;
+    ObjectRecord a    = m_overlayItems.value(m_selectedOverlay)->record();
+    const QRectF body = Geometry::balloonRect(a);
+    a.shape           = Geometry::curveOf(Geometry::outlineOf(a, body), body);
+    applyRecord(m_selectedOverlay, a, /*commit=*/true, tr("Convert to curve"));
+    emit boundToRecord(a);
+    setShapeEditing(true);
+}
+
 void ObjectController::setShapeEditing(bool on)
 {
     const QString uid = on && canEditShape() ? m_selectedOverlay : QString();

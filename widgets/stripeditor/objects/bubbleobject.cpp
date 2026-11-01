@@ -180,7 +180,7 @@ QList<Geometry::ShapeHandle> BubbleObject::shapeHandles() const
     if (!canEditShape())
         return {};
     return Geometry::shapeInfo(m_record.shape.kind)
-        .handles(m_record.shape, Geometry::balloonRect(m_record), radiusClearance());
+        .handles(m_record.shape, Geometry::balloonRect(m_record), radiusClearance(), pickedVertex());
 }
 
 QPainterPath BubbleObject::editOutline() const
@@ -208,7 +208,10 @@ bool BubbleObject::beginShapeDrag(int index)
         update();
         changed = true;
     }
-    setPickedVertex(m_shapeHandle.role == Role::Vertex ? m_shapeHandle.index : -1);
+    // A node, or one of its handles, picks that node: its handles show, and Delete or its type act on it.
+    const bool ofNode = m_shapeHandle.role == Role::Vertex || m_shapeHandle.role == Role::InHandle
+                     || m_shapeHandle.role == Role::OutHandle;
+    setPickedVertex(ofNode ? m_shapeHandle.index : -1);
     return changed;
 }
 

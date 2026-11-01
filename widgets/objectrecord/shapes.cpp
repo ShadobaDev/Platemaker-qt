@@ -64,6 +64,16 @@ constexpr qreal k_scrollBow      = 0.06;
  */
 constexpr qreal k_quarterArc     = 0.5522847498307936;
 /**
+ *  How far from one line, and from one length, a node's two handles may be and still read as Smooth or
+ *  Symmetric when an outline is converted to a Curve: as a fraction (a sine, a ratio of lengths).
+ */
+constexpr qreal k_smoothTolerance = 1e-3;
+/**
+ *  A handle drawn for a node that has none, when it is made Smooth: this fraction of the way to its
+ *  neighbour, as a straight segment's handles would sit.
+ */
+constexpr qreal k_newHandle      = 1.0 / 3.0;
+/**
  *  Samples across each side of the grid a free outline's text area is found on (largestInscribedRect()).
  *  64 puts the rectangle within a sixty-fourth of the side of the true largest, well inside the padding.
  */
@@ -140,6 +150,29 @@ const QList<ShapeNode>& freeNodes(const ShapeProperties& shape)
 QPointF inBody(const QPointF& p, const QRectF& r)
 {
     return {r.left() + p.x() * r.width(), r.top() + p.y() * r.height()};
+}
+
+//! inBody()'s inverse: a point in @p r's coordinates, relative to it.
+QPointF relativeTo(const QPointF& p, const QRectF& r)
+{
+    return {(p.x() - r.left()) / r.width(), (p.y() - r.top()) / r.height()};
+}
+
+//! A handle (an offset, relative to @p r) in @p r's pixels, where lengths and angles mean what they look.
+QPointF toPixels(const QPointF& offset, const QRectF& r)
+{
+    return {offset.x() * r.width(), offset.y() * r.height()};
+}
+
+//! toPixels()'s inverse.
+QPointF fromPixels(const QPointF& offset, const QRectF& r)
+{
+    return {offset.x() / r.width(), offset.y() / r.height()};
+}
+
+qreal length(const QPointF& v)
+{
+    return std::hypot(v.x(), v.y());
 }
 
 //! A Polygon's vertices in @p r.
@@ -414,7 +447,7 @@ Corner boxCorner(const QRectF& body)
     return cornerAt(body.bottomLeft(), body.topLeft(), body.topRight());
 }
 
-QList<ShapeHandle> boxHandles(const ShapeProperties& shape, const QRectF& body, qreal clearance)
+QList<ShapeHandle> boxHandles(const ShapeProperties& shape, const QRectF& body, qreal clearance, int)
 {
     const Corner c = boxCorner(body);
     return {{ShapeHandle::Role::Radius, 0, radiusDot(c, shape.cornerRadius, clearance), -c.bisector}};
@@ -439,7 +472,7 @@ Corner polygonCorner(const QList<QPointF>& pts)
  * Every node, then the radius dot, then a "+" in the middle of each edge: the order a press is answered
  * in, so a node wins over a "+" on a short edge.
  */
-QList<ShapeHandle> polygonHandles(const ShapeProperties& shape, const QRectF& body, qreal clearance)
+QList<ShapeHandle> polygonHandles(const ShapeProperties& shape, const QRectF& body, qreal clearance, int)
 {
     const QList<QPointF> pts = polygonPoints(shape, body);
     const int            n   = int(pts.size());
@@ -470,8 +503,125 @@ ShapeProperties dragPolygonHandle(const ShapeProperties& shape, const QRectF& bo
         break;
     case ShapeHandle::Role::AddVertex:
         break;   // a press adds the node (withVertexAdded()); the drag is that node's
+    case ShapeHandle::Role::InHandle:
+    case ShapeHandle::Role::OutHandle:
+        break;   // a Curve's
     }
     return s;
+}
+
+/**
+ * @brief A cubic segment from @p a to @p b cut in half (de Casteljau), relative to the body as the nodes
+ *        are: the halves' new handles and the point between them. A straight one is cut at its middle,
+ *        with no handles.
+ */
+struct Split
+{
+    QPointF aOut;            //!< @p a's out-handle, for the first half.
+    QPointF mid;             //!< The point halfway along.
+    QPointF midIn, midOut;   //!< Its handles.
+    QPointF bIn;             //!< @p b's in-handle, for the second half.
+};
+
+Split splitSegment(const ShapeNode& a, const ShapeNode& b)
+{
+    const QPointF p0 = a.at, p1 = a.at + a.out, p2 = b.at + b.in, p3 = b.at;
+    const QPointF p01 = (p0 + p1) / 2.0, p12 = (p1 + p2) / 2.0, p23 = (p2 + p3) / 2.0;
+    const QPointF p012 = (p01 + p12) / 2.0, p123 = (p12 + p23) / 2.0;
+    const QPointF mid  = (p012 + p123) / 2.0;
+    if (a.out.isNull() && b.in.isNull())
+        return {{}, mid, {}, {}, {}};
+    return {p01 - p0, mid, p012 - mid, p123 - mid, p23 - p3};
+}
+
+/**
+ * The picked node's two handles (the ones it has), then every node, then a "+" halfway along each
+ * segment: the order a press is answered in, so a handle wins over the node it leaves.
+ */
+QList<ShapeHandle> curveHandles(const ShapeProperties& shape, const QRectF& body, qreal, int picked)
+{
+    const QList<ShapeNode>& nodes = freeNodes(shape);
+    const int               n     = int(nodes.size());
+    QList<ShapeHandle>      out;
+    if (picked >= 0 && picked < n) {
+        const ShapeNode& p  = nodes[picked];
+        const QPointF    at = inBody(p.at, body);
+        if (!p.in.isNull())
+            out.append({ShapeHandle::Role::InHandle, picked, inBody(p.at + p.in, body), {}, at});
+        if (!p.out.isNull())
+            out.append({ShapeHandle::Role::OutHandle, picked, inBody(p.at + p.out, body), {}, at});
+    }
+    for (int i = 0; i < n; ++i)
+        out.append({ShapeHandle::Role::Vertex, i, inBody(nodes[i].at, body)});
+    for (int i = 0; i < n; ++i)
+        out.append({ShapeHandle::Role::AddVertex, i, inBody(splitSegment(nodes[i], nodes[(i + 1) % n]).mid, body)});
+    return out;
+}
+
+/**
+ * @brief @p node's other handle put where its type says, after the one @p movedOut names was moved: on
+ *        one line through the node, for a Smooth one as long as it was, for a Symmetric one as long as
+ *        the moved one. In pixels, where "on one line" and "as long" are what the eye sees.
+ */
+void keepType(ShapeNode& node, bool movedOut, const QRectF& body)
+{
+    if (node.type == ShapeNode::Type::Corner)
+        return;
+    const QPointF moved = toPixels(movedOut ? node.out : node.in, body);
+    QPointF&      other = movedOut ? node.in : node.out;
+    const qreal   lm    = length(moved);
+    if (lm <= 0.0)
+        return;
+    const qreal lo = node.type == ShapeNode::Type::Symmetric ? lm : length(toPixels(other, body));
+    other          = fromPixels(-moved / lm * lo, body);
+}
+
+ShapeProperties dragCurveHandle(const ShapeProperties& shape, const QRectF& body, const ShapeHandle& handle,
+                                const QPointF& to, qreal)
+{
+    ShapeProperties s = shape;
+    s.nodes           = freeNodes(shape);   // a Curve drawing the box's rectangle gets nodes of its own
+    if (handle.index < 0 || handle.index >= s.nodes.size() || body.isEmpty())
+        return shape;
+    ShapeNode&    node = s.nodes[handle.index];
+    const QPointF rel  = relativeTo(to, body);
+    switch (handle.role) {
+    case ShapeHandle::Role::Vertex:
+        node.at = rel;   // its handles are offsets, so they come along
+        break;
+    case ShapeHandle::Role::InHandle:
+        node.in = rel - node.at;
+        keepType(node, false, body);
+        break;
+    case ShapeHandle::Role::OutHandle:
+        node.out = rel - node.at;
+        keepType(node, true, body);
+        break;
+    case ShapeHandle::Role::Radius:
+    case ShapeHandle::Role::AddVertex:
+        break;   // no radius; a press on a "+" adds the node (withVertexAdded())
+    }
+    return s;
+}
+
+/**
+ * Which type @p node reads as, from its handles in @p body: Smooth when they point opposite ways along
+ * one line, Symmetric when they are as long as each other too, else Corner.
+ */
+ShapeNode::Type typeOf(const ShapeNode& node, const QRectF& body)
+{
+    const QPointF in  = toPixels(node.in, body);
+    const QPointF out = toPixels(node.out, body);
+    const qreal   li  = length(in);
+    const qreal   lo  = length(out);
+    if (li <= 0.0 || lo <= 0.0)
+        return ShapeNode::Type::Corner;
+    const qreal sine   = (in.x() * out.y() - in.y() * out.x()) / (li * lo);
+    const qreal cosine = (in.x() * out.x() + in.y() * out.y()) / (li * lo);
+    if (std::abs(sine) > k_smoothTolerance || cosine >= 0.0)
+        return ShapeNode::Type::Corner;
+    return std::abs(li - lo) <= k_smoothTolerance * qMax(li, lo) ? ShapeNode::Type::Symmetric
+                                                                  : ShapeNode::Type::Smooth;
 }
 
 // ---------------------------------------------------------------------------
@@ -528,7 +678,8 @@ const std::array<ShapeInfo, int(ShapeProperties::k_lastKind) + 1> k_shapes{{
     {Kind::Polygon,   "polygon",   QT_TRANSLATE_NOOP("QObject", "Polygon"),                false, true,  polygonPath,   polygonArea,        0,
      polygonHandles, dragPolygonHandle},
     {Kind::Thought,   "thought",   QT_TRANSLATE_NOOP("QObject", "Thought balloon"),        true,  false, thoughtPath,   thoughtArea,        0},
-    {Kind::Curve,     "curve",     QT_TRANSLATE_NOOP("QObject", "Curve"),                  false, false, curvePath,     curveArea,          0},
+    {Kind::Curve,     "curve",     QT_TRANSLATE_NOOP("QObject", "Curve"),                  false, false, curvePath,     curveArea,          0,
+     curveHandles, dragCurveHandle},
 }};
 
 //! A kind with every parameter at its default — the template of a kind that has no parameters.
@@ -682,7 +833,18 @@ ShapeProperties withVertexAdded(const ShapeProperties& shape, int edge)
     const int n       = int(s.nodes.size());
     if (edge < 0 || edge >= n)
         return shape;
-    s.nodes.insert(edge + 1, ShapeNode((s.nodes[edge].at + s.nodes[(edge + 1) % n].at) / 2.0, {}, {}));
+    ShapeNode& a = s.nodes[edge];
+    ShapeNode& b = s.nodes[(edge + 1) % n];
+    if (shape.kind != ShapeProperties::Kind::Curve) {   // a Polygon's edge is straight, whatever its nodes hold
+        s.nodes.insert(edge + 1, ShapeNode((a.at + b.at) / 2.0, {}, {}));
+        return s;
+    }
+    const Split half = splitSegment(a, b);
+    a.out            = half.aOut;
+    b.in             = half.bIn;
+    // A cut curve leaves its new node with its handles on one line; a straight one with none.
+    const ShapeNode::Type type = half.midIn.isNull() ? ShapeNode::Type::Corner : ShapeNode::Type::Smooth;
+    s.nodes.insert(edge + 1, ShapeNode(half.mid, half.midIn, half.midOut, type));
     return s;
 }
 
@@ -693,6 +855,74 @@ ShapeProperties withVertexRemoved(const ShapeProperties& shape, int index)
     if (s.nodes.size() <= 3 || index < 0 || index >= s.nodes.size())
         return shape;
     s.nodes.removeAt(index);
+    return s;
+}
+
+ShapeProperties withNodeType(const ShapeProperties& shape, const QRectF& body, int index, ShapeNode::Type type)
+{
+    ShapeProperties s = shape;
+    s.nodes           = freeNodes(shape);
+    const int n       = int(s.nodes.size());
+    if (index < 0 || index >= n || body.isEmpty())
+        return shape;
+    ShapeNode& node = s.nodes[index];
+    node.type       = type;
+    if (type == ShapeNode::Type::Corner)
+        return s;   // the handles stay where they are, now free of each other
+
+    const QPointF prev = toPixels(node.at - s.nodes[(index + n - 1) % n].at, body);
+    const QPointF next = toPixels(s.nodes[(index + 1) % n].at - node.at, body);
+    const QPointF in   = toPixels(node.in, body);
+    const QPointF out  = toPixels(node.out, body);
+    // Along the line the handles lean along, out from the in-handle to the out-handle; with no handles,
+    // along the neighbours'.
+    QPointF dir = out - in;
+    if (length(dir) <= 0.0)
+        dir = prev + next;
+    if (length(dir) <= 0.0)
+        return s;
+    dir /= length(dir);
+    qreal li = length(in) > 0.0 ? length(in) : length(prev) * k_newHandle;
+    qreal lo = length(out) > 0.0 ? length(out) : length(next) * k_newHandle;
+    if (type == ShapeNode::Type::Symmetric)
+        li = lo = (li + lo) / 2.0;
+    node.in  = fromPixels(-dir * li, body);
+    node.out = fromPixels(dir * lo, body);
+    return s;
+}
+
+ShapeProperties curveOf(const QPainterPath& outline, const QRectF& body)
+{
+    ShapeProperties s;
+    s.kind = ShapeProperties::Kind::Curve;
+    if (body.isEmpty())
+        return s;
+    QList<ShapeNode>& nodes = s.nodes;
+    const auto        point = [&](int i) { return relativeTo(outline.elementAt(i), body); };
+    for (int i = 0; i < outline.elementCount(); ++i) {
+        const QPainterPath::Element e = outline.elementAt(i);
+        const QPointF               p = point(i);
+        if (e.isMoveTo()) {
+            if (!nodes.isEmpty())
+                break;   // the first subpath only: the outlines converted have one
+            nodes.append(ShapeNode(p, {}, {}));
+        } else if (e.isLineTo()) {
+            if (!Fields::same(p, nodes.last().at))
+                nodes.append(ShapeNode(p, {}, {}));
+        } else if (e.isCurveTo() && i + 2 < outline.elementCount()) {
+            nodes.last().out = p - nodes.last().at;   // p is the first control point
+            const QPointF end = point(i + 2);
+            nodes.append(ShapeNode(end, point(i + 1) - end, {}));
+            i += 2;
+        }
+    }
+    // A closed path comes back to where it began: that last node is the first one.
+    if (nodes.size() > 1 && Fields::same(nodes.last().at, nodes.first().at)) {
+        nodes.first().in = nodes.last().in;
+        nodes.removeLast();
+    }
+    for (ShapeNode& node : nodes)
+        node.type = typeOf(node, body);
     return s;
 }
 

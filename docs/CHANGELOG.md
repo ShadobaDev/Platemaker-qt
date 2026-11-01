@@ -109,6 +109,12 @@
   - **The scroll is a Curve**, a shape drawn with Bézier curves, and its tile a ready-made start. It
     looks as before; the lettering's room is worked out from the outline, as a polygon's is, so it now
     reaches into the rolled ends. Files from before naming `scroll` load as a default Box.
+  - **Edit a curve's shape on the strip.** In shape editing, a click on a curve's point shows its two
+    handles, which bend the curve on each side of it; a **+** halfway along each piece adds a point
+    there without changing the outline. Right-click a point for **Point type**: *Corner* (its handles
+    move apart), *Smooth* (on one line) or *Symmetric* (on one line and as long as each other).
+    **Convert to curve** on a box, round balloon or polygon's context menu makes it a curve of the same
+    outline, ready to edit.
   - **Edit a balloon's shape on the strip.** Double-click a box or polygon balloon, or pick **Edit
     shape** on its context menu: the outline is traced instead of the dashed box, and its own handles
     replace the grips. Drag the two-headed arrow in the corner to round the corners; on a polygon, drag a square to move a

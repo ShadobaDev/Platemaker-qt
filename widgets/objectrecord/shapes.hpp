@@ -27,13 +27,16 @@ struct ShapeHandle
 {
     enum class Role {
         Radius,      //!< The corner radius: a dot inside the first corner's arc.
-        Vertex,      //!< A Polygon's node `index`.
+        Vertex,      //!< A Polygon's or a Curve's node `index`.
         AddVertex,   //!< The middle of the edge after node `index`: a press there adds a node.
+        InHandle,    //!< A Curve's node `index`: the handle its segment from the previous node arrives along.
+        OutHandle,   //!< ...and the one its segment to the next node leaves along.
     };
     Role    role  = Role::Vertex;
     int     index = 0;
     QPointF at;
-    QPointF axis;   //!< For the radius: the unit direction from the handle into its corner.
+    QPointF axis;     //!< For the radius: the unit direction from the handle into its corner.
+    QPointF origin;   //!< For a Curve's handle: its node, which the line to it is drawn from.
 };
 
 /**
@@ -78,9 +81,11 @@ struct ShapeInfo
     /**
      * The handles edit mode offers on an outline in @p body; nullptr for a kind with none, which is not
      * offered edit mode. @p clearance keeps the radius dot that far in from its corner's arc, so it never
-     * sits on the corner's own handle.
+     * sits on the corner's own handle. @p picked is the node picked in edit mode, -1 for none: a Curve
+     * shows that one's two handles.
      */
-    QList<ShapeHandle> (*handles)(const ShapeProperties& shape, const QRectF& body, qreal clearance) = nullptr;
+    QList<ShapeHandle> (*handles)(const ShapeProperties& shape, const QRectF& body, qreal clearance,
+                                  int picked) = nullptr;
     /**
      * @p shape with @p handle dragged to @p to, both in the balloon's coordinates. A node may land past
      * the body (outside 0..1); growing the box to it is the caller's (PLAN-L B10).
@@ -124,11 +129,30 @@ struct ShapeTemplate
 //! The largest corner radius a balloon of @p size shows: half the shorter side, which makes the ends round.
 [[nodiscard]] qreal cornerRadiusLimit(const QSizeF& size);
 
-//! @p shape with a node added in the middle of the edge after node @p edge: a Polygon's "+".
+/**
+ * @p shape with a node added in the middle of the edge after node @p edge: the "+". A Curve's segment is
+ * split there (de Casteljau), so the outline keeps its shape.
+ */
 [[nodiscard]] ShapeProperties withVertexAdded(const ShapeProperties& shape, int edge);
 
 //! @p shape without node @p index; unchanged when that would leave fewer than three.
 [[nodiscard]] ShapeProperties withVertexRemoved(const ShapeProperties& shape, int index);
+
+/**
+ * @p shape with node @p index made a @p type node, its handles in @p body brought into line: a Smooth or
+ * Symmetric node's handles are put on one line through it, the line they lean along (or its neighbours'
+ * when it has none), and a missing one is drawn a third of the way to its neighbour.
+ */
+[[nodiscard]] ShapeProperties withNodeType(const ShapeProperties& shape, const QRectF& body, int index,
+                                           ShapeNode::Type type);
+
+/**
+ * @brief The Curve that draws @p outline (its first subpath) in @p body: *Convert to Curve*.
+ *
+ * Each line and cubic of the path becomes a segment, so the outline is the same; a node whose handles
+ * lie on one line is Smooth, and Symmetric when they are as long as each other too.
+ */
+[[nodiscard]] ShapeProperties curveOf(const QPainterPath& outline, const QRectF& body);
 
 /**
  * @brief The balloon's own rectangle inside the box — the box, less room for the stroke.

@@ -173,6 +173,23 @@ ObjectMenu::ObjectMenu(ObjectController& objects, const StripLayout& layout, Pre
                   Qt::WidgetShortcut);
     connect(&m_objects, &ObjectController::shapeEditingChanged, this, &ObjectMenu::updateEntries);
 
+    // A Curve's own (PLAN-L B21): the type of the node picked in shape editing — a right-click on a node
+    // picks it, so the menu it opens is that node's — and the conversion that makes a Curve of a balloon.
+    m_nodeTypeMenu = new QMenu(tr("Point type"), dialogParent);
+    const QList<QPair<ShapeNode::Type, QString>> types{
+        {ShapeNode::Type::Corner,    tr("Corner")},
+        {ShapeNode::Type::Smooth,    tr("Smooth")},
+        {ShapeNode::Type::Symmetric, tr("Symmetric")},
+    };
+    for (const auto& [type, name] : types) {
+        QAction* a = m_nodeTypeMenu->addAction(name);
+        a->setCheckable(true);
+        a->setData(static_cast<int>(type));
+        connect(a, &QAction::triggered, this, [this, type] { m_objects.setPickedNodeType(type); });
+    }
+    m_actToCurve = new QAction(tr("Convert to curve"), this);
+    connect(m_actToCurve, &QAction::triggered, &m_objects, &ObjectController::convertSelectionToCurve);
+
     m_actDelete = new QAction(tr("Delete"), this);
     m_actDelete->setShortcut(QKeySequence::Delete);
     m_actDelete->setShortcutContext(Qt::WidgetShortcut);
@@ -206,6 +223,8 @@ ObjectMenu::ObjectMenu(ObjectController& objects, const StripLayout& layout, Pre
         w->addAction(m_actFitToText);
         w->addAction(m_actFixPadding);
         w->addAction(m_actEditShape);
+        w->addAction(m_nodeTypeMenu->menuAction());
+        w->addAction(m_actToCurve);
         w->addAction(separator());
         w->addAction(m_convertMenu->menuAction());
         w->addAction(m_reanchorMenu->menuAction());
@@ -293,6 +312,17 @@ void ObjectMenu::updateEntries()
         m_actEditShape->setVisible(allParametric);
         m_actEditShape->setEnabled(m_objects.canEditShape());
         m_actEditShape->setChecked(m_objects.shapeEditing());
+    }
+    // A Curve's node, picked: absent with none, since there is nothing it would be about.
+    if (m_nodeTypeMenu) {
+        const std::optional<ShapeNode::Type> type = m_objects.pickedNodeType();
+        m_nodeTypeMenu->menuAction()->setVisible(type.has_value());
+        for (QAction* a : m_nodeTypeMenu->actions())
+            a->setChecked(type && a->data().toInt() == static_cast<int>(*type));
+    }
+    if (m_actToCurve) {
+        m_actToCurve->setVisible(allParametric);
+        m_actToCurve->setEnabled(m_objects.canConvertToCurve());
     }
     // Delete says what it will take: the picked node, in shape editing.
     if (m_actDelete)

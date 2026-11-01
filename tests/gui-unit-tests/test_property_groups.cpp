@@ -657,11 +657,13 @@ TEST(Shapes, APolygonsCornersRoundAsABoxsDo)
 }
 
 /**
- * @brief Shape editing's handles (PLAN-L P3): one dragged onto where it already is changes nothing, and
- *        a Polygon's nodes are added in the middle of an edge and removed down to three, never fewer.
+ * @brief Shape editing's handles (PLAN-L P3, P4): one dragged onto where it already is changes nothing,
+ *        and a Polygon's nodes are added in the middle of an edge and removed down to three, never fewer.
  *
  * The drag is the inverse of where a handle is drawn; a pair that disagreed would make a handle jump
- * the moment it is pressed. Every template that has handles, with its radius at 0 and off it.
+ * the moment it is pressed. Every template that has handles, with its radius at 0 and off it, and with
+ * each node picked in turn, so a Curve's tangent handles are dragged too (a Smooth or Symmetric node's
+ * other handle is put back where its type says, which must be where it was).
  */
 TEST(Shapes, AHandleDraggedOntoItselfChangesNothing)
 {
@@ -674,12 +676,14 @@ TEST(Shapes, AHandleDraggedOntoItselfChangesNothing)
         for (qreal radius : {0.0, 20.0}) {
             ShapeProperties shape = t.shape;
             shape.cornerRadius    = radius;
-            for (const Geometry::ShapeHandle& h : info.handles(shape, body, clearance)) {
-                if (h.role == Geometry::ShapeHandle::Role::AddVertex)
-                    continue;   // a press adds a node; it has nothing to drag
-                const ShapeProperties dragged = info.dragHandle(shape, body, h, h.at, clearance);
-                EXPECT_TRUE(dragged == shape) << t.id << " radius " << radius << " handle " << int(h.role)
-                                              << ":" << h.index;
+            for (int picked = -1; picked < int(shape.nodes.size()); ++picked) {
+                for (const Geometry::ShapeHandle& h : info.handles(shape, body, clearance, picked)) {
+                    if (h.role == Geometry::ShapeHandle::Role::AddVertex)
+                        continue;   // a press adds a node; it has nothing to drag
+                    const ShapeProperties dragged = info.dragHandle(shape, body, h, h.at, clearance);
+                    EXPECT_TRUE(dragged == shape) << t.id << " radius " << radius << " picked " << picked
+                                                  << " handle " << int(h.role) << ":" << h.index;
+                }
             }
         }
     }
@@ -693,6 +697,70 @@ TEST(Shapes, AHandleDraggedOntoItselfChangesNothing)
     diamond = Geometry::withVertexRemoved(diamond, 0);
     EXPECT_EQ(diamond.nodes.size(), 3);
     EXPECT_TRUE(Geometry::withVertexRemoved(diamond, 0) == diamond);   // three is the fewest
+}
+
+namespace {
+
+/**
+ * How many of a grid of points over @p body one outline holds and the other does not. The grid is offset
+ * off whole pixels, so no point sits on an edge both outlines share, where rounding could go either way.
+ */
+int pointsInOnlyOne(const QPainterPath& a, const QPainterPath& b, const QRectF& body)
+{
+    constexpr int n      = 60;
+    int           differ = 0;
+    for (int i = 0; i < n; ++i)
+        for (int j = 0; j < n; ++j) {
+            const QPointF p(body.left() + (i + 0.37) * body.width() / n, body.top() + (j + 0.61) * body.height() / n);
+            differ += a.contains(p) != b.contains(p) ? 1 : 0;
+        }
+    return differ;
+}
+
+}  // namespace
+
+/**
+ * @brief A Curve keeps its outline through the edits that should not change it (PLAN-L P4): *Convert to
+ *        Curve* from a Box, an Ellipse and a rounded Polygon; a segment split by its "+"; and a node made
+ *        Corner. A node made Symmetric gets two handles on one line, as long as each other.
+ */
+TEST(Shapes, ACurveKeepsItsOutlineThroughItsEdits)
+{
+    const QRectF body(5, 5, 270, 150);
+    ShapeProperties rounded = Geometry::shapeTemplate("shout").shape;
+    rounded.cornerRadius    = 6.0;
+    for (const ShapeProperties& from : {Geometry::shapeTemplate("speech").shape,
+                                        Geometry::shapeTemplate("ellipse").shape, rounded}) {
+        const QPainterPath    before = Geometry::shapeInfo(from.kind).outline(from, body);
+        const ShapeProperties curve  = Geometry::curveOf(before, body);
+        EXPECT_EQ(curve.kind, ObjectRecord::Shape::Curve);
+        EXPECT_EQ(pointsInOnlyOne(before, Geometry::shapeInfo(curve.kind).outline(curve, body), body), 0)
+            << shapeName(from.kind);
+    }
+    // An ellipse's four quarters meet smoothly, each node's handles as long as each other.
+    const ShapeProperties round = Geometry::curveOf(
+        Geometry::shapeInfo(ObjectRecord::Shape::Ellipse).outline(Geometry::shapeTemplate("ellipse").shape, body), body);
+    ASSERT_EQ(round.nodes.size(), 4);
+    for (const ShapeNode& node : round.nodes)
+        EXPECT_EQ(node.type, ShapeNode::Type::Symmetric);
+
+    const auto            outline = Geometry::shapeInfo(ObjectRecord::Shape::Curve).outline;
+    const ShapeProperties scroll  = Geometry::shapeTemplate("scroll").shape;
+    for (int edge = 0; edge < scroll.nodes.size(); ++edge) {
+        const ShapeProperties split = Geometry::withVertexAdded(scroll, edge);
+        ASSERT_EQ(split.nodes.size(), scroll.nodes.size() + 1);
+        EXPECT_EQ(pointsInOnlyOne(outline(scroll, body), outline(split, body), body), 0) << "edge " << edge;
+    }
+    const ShapeProperties corner = Geometry::withNodeType(scroll, body, 2, ShapeNode::Type::Corner);
+    EXPECT_EQ(pointsInOnlyOne(outline(scroll, body), outline(corner, body), body), 0);
+
+    // Node 0 is a corner whose handles point two ways; Symmetric puts them on one line, of one length.
+    const ShapeNode node = Geometry::withNodeType(scroll, body, 0, ShapeNode::Type::Symmetric).nodes.at(0);
+    const QPointF   in(node.in.x() * body.width(), node.in.y() * body.height());
+    const QPointF   out(node.out.x() * body.width(), node.out.y() * body.height());
+    EXPECT_NEAR(in.x() + out.x(), 0.0, 1e-9);
+    EXPECT_NEAR(in.y() + out.y(), 0.0, 1e-9);
+    EXPECT_EQ(node.type, ShapeNode::Type::Symmetric);
 }
 
 // ---------------------------------------------------------------------------

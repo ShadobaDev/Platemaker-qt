@@ -3,7 +3,6 @@
 #include <QAbstractButton>
 #include <QButtonGroup>
 #include <QComboBox>
-#include <QFrame>
 #include <QEvent>
 #include <QFormLayout>
 #include <QIcon>
@@ -109,9 +108,10 @@ ShapeEditor::ShapeEditor(QWidget* parent)
     }
     refreshTiles();
 
-    m_form = new QFormLayout;
+    // The parameters on a widget of their own, which the panel lays out apart from the tiles.
+    m_parameters = new QWidget(this);
+    m_form       = new QFormLayout(m_parameters);
     m_form->setContentsMargins(0, 0, 0, 0);
-    lay->addLayout(m_form);
     const auto edited = [this] {
         syncFromValues();   // off its template, the tile is no longer current
         emit changed();
@@ -119,11 +119,7 @@ ShapeEditor::ShapeEditor(QWidget* parent)
     m_corner.build(this, m_form, "corner", k_cornerRows, k_trContext, m_values, m_populating, edited);
     m_lobes.build(this, m_form, "lobe", k_lobeRows, k_trContext, m_values, m_populating, edited);
 
-    // The edge: laid over whichever outline, so ruled off from the family's own rows.
-    auto* rule = new QFrame(this);
-    rule->setFrameShape(QFrame::HLine);
-    rule->setFrameShadow(QFrame::Sunken);
-    m_form->addRow(rule);
+    // The edge: laid over whichever outline.
     m_edge = new QComboBox(this);
     for (int i = 0; i <= int(ShapeProperties::k_lastEdge); ++i)
         m_edge->addItem(edgeTitle(static_cast<ObjectRecord::Edge>(i)), i);

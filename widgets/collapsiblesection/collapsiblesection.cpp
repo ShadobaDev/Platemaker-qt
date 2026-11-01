@@ -39,9 +39,8 @@ void CollapsibleSection::setContent(QWidget* content)
         return;
 
     m_content->setParent(this);
-    // Indented, so a collapsed stack of headers reads as a list and an expanded one as a tree.
     auto* row = new QHBoxLayout;
-    row->setContentsMargins(12, 0, 0, 0);
+    row->setContentsMargins(k_contentIndent, 0, 0, 0);
     row->addWidget(m_content);
     m_lay->addLayout(row);
     m_content->setVisible(m_header->isChecked());

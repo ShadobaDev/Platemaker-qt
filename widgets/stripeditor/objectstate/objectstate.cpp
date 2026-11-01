@@ -1,6 +1,7 @@
 #include "objectstate/objectstate.hpp"
 
 #include <QDoubleSpinBox>
+#include <QEvent>
 #include <QFormLayout>
 #include <QFrame>
 #include <QHBoxLayout>
@@ -58,6 +59,64 @@ QString sectionTitle(PropertyGroup g)
     return {};
 }
 
+/**
+ * Shows @p follower while any of @p watched is shown, as they are shown and hidden: a rule above a block
+ * of rows, or rows kept apart from their section. One place for it, rather than at every call that shows
+ * or hides a block.
+ */
+void followVisibility(QWidget* follower, const QList<QWidget*>& watched)
+{
+    struct Follower : QObject
+    {
+        QWidget*        follower;
+        QList<QWidget*> watched;
+        Follower(QWidget* f, const QList<QWidget*>& w) : QObject(f), follower(f), watched(w) {}
+        void sync() const
+        {
+            follower->setVisible(std::any_of(watched.cbegin(), watched.cend(),
+                                             [](const QWidget* w) { return !w->isHidden(); }));
+        }
+        bool eventFilter(QObject* o, QEvent* e) override
+        {
+            if (e->type() == QEvent::ShowToParent || e->type() == QEvent::HideToParent)
+                sync();
+            return QObject::eventFilter(o, e);
+        }
+    };
+    auto* f = new Follower(follower, watched);
+    for (QWidget* w : watched)
+        w->installEventFilter(f);
+    f->sync();
+}
+
+/**
+ * Widens the labels of every form in @p panel to the widest one's, less the indent of a form inside a
+ * section, so the forms stacked one under another read as one column: every field starts at one place,
+ * whichever rows and sections are shown. The panel's rows are all built with it; none are added later.
+ */
+void alignLabels(QWidget* panel)
+{
+    struct Label
+    {
+        QWidget* widget;
+        int      indent;
+    };
+    QList<Label> labels;
+    for (QFormLayout* form : panel->findChildren<QFormLayout*>()) {
+        bool inside = false;
+        for (const QWidget* w = form->parentWidget(); w && w != panel && !inside; w = w->parentWidget())
+            inside = qobject_cast<const CollapsibleSection*>(w) != nullptr;
+        for (int row = 0; row < form->rowCount(); ++row)
+            if (QLayoutItem* item = form->itemAt(row, QFormLayout::LabelRole); item && item->widget())
+                labels.append({item->widget(), inside ? CollapsibleSection::k_contentIndent : 0});
+    }
+    int column = 0;
+    for (const Label& l : std::as_const(labels))
+        column = qMax(column, l.indent + l.widget->sizeHint().width());
+    for (const Label& l : std::as_const(labels))
+        l.widget->setMinimumWidth(column - l.indent);
+}
+
 } // namespace
 
 ObjectState::ObjectState(PresetStore& presets, QWidget* parent)
@@ -108,6 +167,19 @@ ObjectState::ObjectState(PresetStore& presets, QWidget* parent)
     }
     restoreExpansion();
 
+    // One rule under the sections, while any is shown: what follows is not a group's.
+    auto* rule = new QFrame(this);
+    rule->setFrameShape(QFrame::HLine);
+    rule->setFrameShadow(QFrame::Sunken);
+    lay->addWidget(rule);
+    followVisibility(rule, QList<QWidget*>(m_sections.cbegin(), m_sections.cend()));
+
+    // The shape's parameters under the sections: its tiles stay in its section at the top, and the rows
+    // show with it.
+    QWidget* shapeParameters = m_groups.shape()->parameters();
+    lay->addWidget(shapeParameters);
+    followVisibility(shapeParameters, {m_sections.value(int(PropertyGroup::Shape))});
+
     // Under the sections and above the actions: what the object *is* composited as. It is not one of
     // the groups — it belongs to the overlay, not to the record — so it sits outside them, and it is
     // the only row a picture and a balloon both have.
@@ -157,6 +229,7 @@ ObjectState::ObjectState(PresetStore& presets, QWidget* parent)
     actionRow->addWidget(delBtn);
     lay->addWidget(m_actions);
     lay->addStretch(1);
+    alignLabels(this);
 
     m_commitTimer = new QTimer(this);
     m_commitTimer->setSingleShot(true);

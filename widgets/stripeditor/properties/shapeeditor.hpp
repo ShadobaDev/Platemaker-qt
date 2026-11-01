@@ -34,7 +34,7 @@ inline constexpr int k_bubbleThumbH = 26;
 
 /**
  * @brief The shape picker: one checkable tile per template, laid out like the editor's tool rail, and
- *        the rows of the kind's parameters under it.
+ *        the rows of the kind's parameters, on a widget of their own (parameters()).
  *
  * A grid of previews rather than a drop-down, because a bubble shape is a *look* — a name in a list
  * makes you open it to find out what it is. Each tile's icon is produced by the same rasteriser that
@@ -55,6 +55,12 @@ public:
 
     [[nodiscard]] const ShapeProperties& values() const { return m_values; }
 
+    /**
+     * @brief The kind's parameter rows (the corner, the lobes, the edge), apart from the tiles: the panel
+     *        lays them out where it wants them (ObjectState: under the sections). Not in this widget's layout.
+     */
+    [[nodiscard]] QWidget* parameters() const { return m_parameters; }
+
 signals:
     /**
      * @brief A tile was picked, before the changed() it also brings.
@@ -74,6 +80,7 @@ private:
     void syncFromValues();
 
     QButtonGroup*               m_tiles = nullptr;
+    QWidget*                    m_parameters = nullptr;
     QFormLayout*                m_form  = nullptr;
     FieldRows<ShapeProperties>  m_corner;   //!< The corner radius, for a kind that is rounded.
     FieldRows<ShapeProperties>  m_lobes;    //!< A Cloud's lobes and their size.

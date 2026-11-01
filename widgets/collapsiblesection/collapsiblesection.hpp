@@ -23,6 +23,10 @@ class CollapsibleSection : public QWidget
     Q_OBJECT
 
 public:
+    //! How far the content is indented, in pixels: a collapsed stack of headers reads as a list and an
+    //! expanded one as a tree.
+    static constexpr int k_contentIndent = 12;
+
     explicit CollapsibleSection(const QString& title, QWidget* parent = nullptr);
 
     /**

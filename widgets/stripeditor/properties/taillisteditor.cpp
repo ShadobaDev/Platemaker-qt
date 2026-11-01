@@ -65,9 +65,9 @@ void TailListEditor::applyTo(ObjectRecord& target) const
 void TailListEditor::shapeChanged(const ShapeProperties& shape)
 {
     m_shapeCanSpeak = shape.kind != ObjectRecord::Shape::None;
-    if (!Geometry::shapeSpeaks(shape)) {
-        m_values.items.clear();
-    } else if (m_values.items.isEmpty()) {
+    // Never dropped: a tail is aimed at a speaker, and a new outline does not move the speaker. A tile
+    // that speaks gives one to a balloon with none, as its tile shows.
+    if (Geometry::shapeSpeaks(shape) && m_values.items.isEmpty()) {
         Tail t;
         t.tip = firstTailTip(m_box);
         m_values.items.append(t);

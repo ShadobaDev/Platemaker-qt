@@ -96,8 +96,8 @@
     as two ready-made starts (45 px and 4 px). The Shape panel shows a **Corner radius** row under the
     tiles for a Box: from square corners to fully round ends. A balloon whose radius matches neither
     tile is still a Box, and no tile is shown as current. A tile gives its whole shape, radius
-    included, and only picking a tile adds or drops the tail, so turning a caption's corners does not
-    give it one. The lettering's room now stays inside the rounded corners. Files from before name
+    included, and only picking a speaking tile adds a tail (to a balloon with none), so turning a
+    caption's corners does not give it one. No tile takes a balloon's tails away. The lettering's room now stays inside the rounded corners. Files from before name
     `speech` and `caption`, which load as a default Box.
   - **Shout, diamond, caption plate and banner are one shape, the Polygon**, its corners rounded by the
     same **Corner radius** row. Their tiles stay as four ready-made starts. The lettering's room in a

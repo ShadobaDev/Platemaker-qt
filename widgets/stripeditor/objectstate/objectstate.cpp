@@ -174,8 +174,9 @@ ObjectState::ObjectState(PresetStore& presets, QWidget* parent)
                 emit committed(m_record);
         });
     }
-    // Picking a shape gives you the shape its tile shows, tail and all — connected before the collector
-    // above runs, because Qt calls slots in connection order and the tails editor has to hear first.
+    // Picking a speaking shape gives a tail to a balloon with none, and no shape drops one — connected
+    // before the collector above runs, because Qt calls slots in connection order and the tails editor
+    // has to hear first.
     connect(m_groups.shape(), &ShapeEditor::picked, this, [this] {
         m_tailList->shapeChanged(m_groups.shape()->values());
     });

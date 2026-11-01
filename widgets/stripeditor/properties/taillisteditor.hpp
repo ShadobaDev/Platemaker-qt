@@ -38,8 +38,9 @@ public:
     /**
      * @brief The shape changed, so the default answer to "does this speak?" changed with it.
      *
-     * Picking a shape gives the shape its tile shows: a narration box arrives without a tail, a speech
-     * balloon with one. A balloon that already has tails and still speaks keeps them.
+     * A balloon keeps its tails through any picked shape: they are aimed at a speaker, and a new outline
+     * does not move the speaker. A shape that speaks gives a tail to a balloon with none, as its tile
+     * shows; one that does not adds none.
      */
     void shapeChanged(const ShapeProperties& shape);
 

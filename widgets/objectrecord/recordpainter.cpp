@@ -5,6 +5,8 @@
 #include <QPen>
 #include <QtMath>
 
+#include <cmath>
+
 namespace Painter {
 
 namespace {
@@ -14,6 +16,85 @@ namespace {
  *  is zoomed in, since the tile is drawn once and scaled.
  */
 constexpr int k_tileOversample = 4;
+
+/**
+ *  How much outline one fill takes, in device pixels. Qt's antialiased rasteriser slows down sharply on a
+ *  single path with a great deal of outline over a large area (a 600 × 400 halftone at a 4 px spacing:
+ *  150 to 250 ms a paint); in pieces of this much, 10 to 20 ms. Measured: smaller gains nothing more.
+ */
+constexpr qreal k_outlinePerFill = 512.0;
+
+/**
+ * @brief Fills @p marks (many small subpaths) with @p colour, in pieces, through a layer of its own.
+ *
+ * Pieces overlap where marks do (a grid's crossings, dots large enough to merge), and a transparent colour
+ * filled piece by piece would darken there. So they are filled opaque into a layer at device resolution,
+ * which is drawn once with the colour's alpha: the marks paint as one, as they do in the SVG.
+ */
+void fillMarks(QPainter& painter, const QPainterPath& marks, const QColor& colour)
+{
+    const QPaintDevice* device = painter.device();
+    const qreal         dpr    = device->devicePixelRatio();
+    // The device's extent bounds the layer when zoomed far in (an image's width is in pixels already, so
+    // there it is generous; a bound only).
+    const QRect         screen(0, 0, qCeil(device->width() * dpr), qCeil(device->height() * dpr));
+    // To the layer's pixels: the painter's transform with the pixel ratio, which is where resetTransform()
+    // leaves drawImage(). Not deviceTransform(): on a widget that also holds the widget's place in its
+    // window, which Qt adds again on drawing, so the layer landed that far off (seen on the strip).
+    const QTransform    toPixels = painter.combinedTransform();
+    const QRect         area     = toPixels.mapRect(marks.boundingRect()).toAlignedRect().intersected(screen);
+    if (area.isEmpty())
+        return;
+
+    QImage layer(area.size(), QImage::Format_ARGB32_Premultiplied);
+    layer.fill(Qt::transparent);
+    {
+        QPainter p(&layer);
+        p.setRenderHint(QPainter::Antialiasing, true);
+        p.setTransform(toPixels * QTransform::fromTranslate(-area.left(), -area.top()));
+        QColor opaque = colour;
+        opaque.setAlpha(255);
+        // A piece ends at a mark's start once it holds enough outline (a cubic counted by its control
+        // polygon, which is longer than the curve: on the safe side).
+        const qreal  scale = std::sqrt(std::abs(toPixels.determinant()));
+        QPainterPath piece;
+        qreal        outline = 0.0;
+        QPointF      last;
+        const auto   walk = [&](const QPointF& to) {
+            outline += QLineF(last, to).length() * scale;
+            last = to;
+        };
+        for (int i = 0; i < marks.elementCount(); ++i) {
+            const QPainterPath::Element e = marks.elementAt(i);
+            if (e.isMoveTo()) {
+                if (outline > k_outlinePerFill) {
+                    p.fillPath(piece, opaque);
+                    piece   = QPainterPath();
+                    outline = 0.0;
+                }
+                piece.moveTo(e);
+                last = e;
+            } else if (e.isLineTo()) {
+                piece.lineTo(e);
+                walk(e);
+            } else if (e.isCurveTo()) {
+                const QPointF c2 = marks.elementAt(i + 1), end = marks.elementAt(i + 2);
+                piece.cubicTo(e, c2, end);
+                walk(e);
+                walk(c2);
+                walk(end);
+                i += 2;
+            }
+        }
+        p.fillPath(piece, opaque);
+    }
+    layer.setDevicePixelRatio(dpr);
+    painter.save();
+    painter.resetTransform();
+    painter.setOpacity(painter.opacity() * colour.alphaF());
+    painter.drawImage(QPointF(area.topLeft()) / dpr, layer);
+    painter.restore();
+}
 
 } // namespace
 
@@ -44,11 +125,12 @@ QBrush paintBrush(const Paint& paint)
 void paint(QPainter& painter, const ObjectRecord& a)
 {
     const QPainterPath silhouette = Geometry::silhouette(a);
-    paintPaths(painter, a, silhouette, Geometry::ink(a, silhouette), Geometry::textOutline(a));
+    paintPaths(painter, a, silhouette, Geometry::shadowOf(a, silhouette), Geometry::ink(a, silhouette),
+               Geometry::textOutline(a));
 }
 
 void paintPaths(QPainter& painter, const ObjectRecord& a, const QPainterPath& silhouette,
-                const QPainterPath& ink, const QPainterPath& text)
+                const QPainterPath& shadow, const QPainterPath& ink, const QPainterPath& text)
 {
     if (a.box.isEmpty())
         return;
@@ -59,10 +141,12 @@ void paintPaths(QPainter& painter, const ObjectRecord& a, const QPainterPath& si
     painter.setRenderHint(QPainter::SmoothPixmapTransform, true);
 
     if (!silhouette.isEmpty()) {
-        // The shadow under it: hard here, whatever its softness — a soft one is the library's to draw,
-        // and a balloon with one is previewed from there at rest (Geometry::hasFilter()).
-        if (const QPainterPath shadow = Geometry::shadowOf(a, silhouette); !shadow.isEmpty())
-            painter.fillPath(shadow, paintBrush(a.effects.shadowFill));
+        // The shadow under it: hard here when it is blurred — that is the library's to draw, and a balloon
+        // with one is previewed from there at rest (Geometry::hasFilter()). A halftone's fade is geometry.
+        if (Geometry::fadesShadow(a))
+            fillMarks(painter, shadow, a.effects.shadowFill.colour);
+        else if (!shadow.isEmpty())
+            painter.fillPath(shadow, paintBrush(Geometry::shadowPaint(a)));
         painter.fillPath(silhouette, paintBrush(a.skin.fill));
         // A style with strokes of its own draws them instead of the outline: they are the edge.
         if (a.style.strokeWidth > 0 && Geometry::hasOutline(a)) {

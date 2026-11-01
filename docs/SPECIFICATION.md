@@ -158,12 +158,21 @@ origin, the pattern in `userSpaceOnUse`), so the preview and the output match. A
 paints is written in the box's coordinates, never under a `transform` (the shadow is the outline grown and
 moved), or its pattern would move with it.
 
+A shadow's pattern has **no ground**: it is the shadow's colour in marks on nothing (`shadowPaint()`), so
+`PaintRows` is built without its *Pattern colour* row there. A **halftone that fades** (a soft shadow's,
+PLAN-L B37) is geometry, not a filter: `halftoneMarks()` lays the same grid and sizes each mark by a tone
+(0 to 1) at its place; the shadow's tone is a blurred edge's, from the distance to its outline
+(`SignedDistance`, bucketed). The painter fills such marks in pieces (`fillMarks()`: Qt's antialiased
+rasteriser slows sharply on one path of thousands of marks) through a layer of their own, drawn once with
+the colour's alpha, so marks that overlap paint once, as in the SVG.
+
 ### An effect
 
 An effect is a field of `EffectProperties` (a group of its own, PLAN-L B23), drawn in three places that
 must agree: the geometry (`shadowOf()` in `styles.cpp`), the painter (`recordpainter.cpp`) and the SVG
 (`recordsvg.cpp`, inside the balloon's group so a texture acts on it too). Its reach goes into
-`styleMargin()`; one that needs an SVG filter (a soft shadow) makes `hasFilter()` true, so the balloon is
+`styleMargin()`; one that needs an SVG filter (a soft shadow of one colour, `blursShadow()`) makes
+`hasFilter()` true, so the balloon is
 previewed through the library. Its editor, `EffectsEditor`, is a section of its own, and *Apply from
 tool options ▸ Effects* applies it. The shadow is the worked
 example.

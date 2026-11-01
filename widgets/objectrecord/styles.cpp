@@ -9,12 +9,15 @@
 #include <QObject>
 #include <QPainterPathStroker>
 #include <QPolygonF>
+#include <QTransform>
 #include <QRandomGenerator>
 #include <QtMath>
 
 #include <algorithm>
 #include <array>
 #include <cmath>
+#include <functional>
+#include <limits>
 #include <vector>
 
 namespace Geometry {
@@ -300,6 +303,98 @@ const std::array<PatternInfo, int(Paint::k_lastKind) + 1> k_patterns{{
  */
 constexpr qreal k_minPatternSpacing = 1.0;
 
+//! The smallest mark a fading halftone keeps, in balloon pixels: below it a dot or a bar is not drawn.
+constexpr qreal k_minMark = 0.1;
+
+/**
+ * @brief How far points lie from a shape's edge, up to a limit: positive inside, negative outside, in
+ *        balloon pixels; a point further than the limit is given the limit, with its sign.
+ *
+ * The shape is flattened once into edges, filed in square buckets as wide as the limit, so the nearest
+ * edge within it is in a point's bucket or the eight round it; and in rows as tall, so the crossings that
+ * say whether a point is inside (under the shape's own fill rule) are counted along its row only.
+ */
+class SignedDistance
+{
+public:
+    SignedDistance(const QPainterPath& shape, qreal limit)
+        : m_winding(shape.fillRule() == Qt::WindingFill)
+        , m_limit(limit)
+        , m_cell(qMax(limit, 4.0))
+        , m_origin(shape.boundingRect().topLeft())
+    {
+        const QRectF box = shape.boundingRect();
+        m_cols           = qMax(1, qCeil(box.width() / m_cell) + 1);
+        m_rows           = qMax(1, qCeil(box.height() / m_cell) + 1);
+        m_buckets.resize(size_t(m_cols) * m_rows);
+        m_bands.resize(size_t(m_rows));
+        for (const QPolygonF& ring : shape.toSubpathPolygons()) {
+            for (int i = 0; i + 1 < ring.size(); ++i)
+                add(ring[i], ring[i + 1]);
+            if (ring.size() > 2 && ring.first() != ring.last())
+                add(ring.last(), ring.first());   // a subpath is filled as if closed
+        }
+    }
+
+    qreal operator()(const QPointF& p) const
+    {
+        const int col = qFloor((p.x() - m_origin.x()) / m_cell);
+        const int row = qFloor((p.y() - m_origin.y()) / m_cell);
+        qreal     nearest = m_limit * m_limit;
+        for (int r = qMax(row - 1, 0); r <= qMin(row + 1, m_rows - 1); ++r)
+            for (int c = qMax(col - 1, 0); c <= qMin(col + 1, m_cols - 1); ++c)
+                for (int e : m_buckets[size_t(r) * m_cols + c])
+                    nearest = qMin(nearest, squaredDistance(p, m_edges[size_t(e)]));
+        int winding = 0;
+        if (row >= 0 && row < m_rows)
+            for (int e : m_bands[size_t(row)]) {
+                const auto& [a, b] = m_edges[size_t(e)];
+                if ((a.y() <= p.y()) != (b.y() <= p.y())
+                    && a.x() + (p.y() - a.y()) * (b.x() - a.x()) / (b.y() - a.y()) > p.x())
+                    winding += b.y() > a.y() ? 1 : -1;
+            }
+        const bool inside = m_winding ? winding != 0 : (winding % 2) != 0;
+        return inside ? std::sqrt(nearest) : -std::sqrt(nearest);
+    }
+
+private:
+    using Edge = std::pair<QPointF, QPointF>;
+
+    static qreal squaredDistance(const QPointF& p, const Edge& e)
+    {
+        const QPointF ab  = e.second - e.first;
+        const qreal   len = QPointF::dotProduct(ab, ab);
+        const qreal   t   = len > 0.0 ? std::clamp(QPointF::dotProduct(p - e.first, ab) / len, 0.0, 1.0) : 0.0;
+        const QPointF off = p - (e.first + t * ab);
+        return QPointF::dotProduct(off, off);
+    }
+
+    void add(const QPointF& a, const QPointF& b)
+    {
+        const int e = int(m_edges.size());
+        m_edges.push_back({a, b});
+        const int c0 = std::clamp(qFloor((qMin(a.x(), b.x()) - m_origin.x()) / m_cell), 0, m_cols - 1);
+        const int c1 = std::clamp(qFloor((qMax(a.x(), b.x()) - m_origin.x()) / m_cell), 0, m_cols - 1);
+        const int r0 = std::clamp(qFloor((qMin(a.y(), b.y()) - m_origin.y()) / m_cell), 0, m_rows - 1);
+        const int r1 = std::clamp(qFloor((qMax(a.y(), b.y()) - m_origin.y()) / m_cell), 0, m_rows - 1);
+        for (int r = r0; r <= r1; ++r) {
+            m_bands[size_t(r)].push_back(e);
+            for (int c = c0; c <= c1; ++c)
+                m_buckets[size_t(r) * m_cols + c].push_back(e);
+        }
+    }
+
+    bool                          m_winding;
+    qreal                         m_limit;
+    qreal                         m_cell;
+    QPointF                       m_origin;
+    int                           m_cols = 1;
+    int                           m_rows = 1;
+    std::vector<Edge>             m_edges;
+    std::vector<std::vector<int>> m_buckets;   //!< The edges crossing each square, row by row.
+    std::vector<std::vector<int>> m_bands;     //!< The edges crossing each row.
+};
+
 //! Likewise, for textureInfo().
 const std::array<TextureInfo, int(TextureProperties::k_lastKind) + 1> k_textures{{
     {Texture::None,  "none",  QT_TRANSLATE_NOOP("QObject", "None"),  nullptr},
@@ -369,6 +464,86 @@ PatternCell patternCell(const Paint& p)
     return cell;
 }
 
+QPainterPath halftoneMarks(const Paint& p, const QRectF& area, const std::function<qreal(const QPointF&)>& tone,
+                           qreal step)
+{
+    QPainterPath marks;
+    marks.setFillRule(Qt::WindingFill);
+    if (p.kind == Paint::Kind::Solid || area.isEmpty())
+        return marks;
+    const qreal side = qMax(p.spacing, k_minPatternSpacing);
+    const qreal size = qMax(p.size, 0.0);
+    // The grid of patternCell(), turned the same way, over the area seen from the grid.
+    QTransform turn;
+    turn.rotate(p.angle);
+    const QRectF grid = turn.inverted().mapRect(area.adjusted(-size, -size, size, size));
+    const int    i0   = qFloor(grid.left() / side);
+    const int    i1   = qCeil(grid.right() / side);
+    const int    j0   = qFloor(grid.top() / side);
+    const int    j1   = qCeil(grid.bottom() / side);
+
+    if (p.kind == Paint::Kind::Dots) {
+        // A dot's area follows the tone, as ink coverage does.
+        for (int j = j0; j <= j1; ++j)
+            for (int i = i0; i <= i1; ++i) {
+                const QPointF centre = turn.map(QPointF((i + 0.5) * side, (j + 0.5) * side));
+                const qreal   radius = size / 2.0 * std::sqrt(std::clamp(tone(centre), 0.0, 1.0));
+                if (radius >= k_minMark)
+                    marks.addEllipse(centre, radius, radius);
+            }
+        return marks;
+    }
+
+    // A bar along a line of the grid, its width the tone's share of the full one, sampled every `step`.
+    // Wound one way whichever its direction (the side it starts on is a quarter turn from its
+    // direction), so a grid's crossings paint once.
+    const qreal full = qMin(size, side);
+    const qreal ds   = qMax(step, 0.25);
+    const auto  bar  = [&](const QPointF& from, const QPointF& dir, qreal length) {
+        const QPointF  normal(-dir.y(), dir.x());
+        QList<QPointF> spine;
+        QList<qreal>   half;
+        const auto     flush = [&] {
+            if (spine.size() >= 2) {
+                QPolygonF ring;
+                for (int k = 0; k < spine.size(); ++k)
+                    ring << turn.map(spine[k] - normal * half[k]);
+                for (int k = spine.size() - 1; k >= 0; --k)
+                    ring << turn.map(spine[k] + normal * half[k]);
+                ring << ring.first();
+                marks.addPolygon(ring);
+            }
+            spine.clear();
+            half.clear();
+        };
+        const int n = qMax(1, qCeil(length / ds));
+        for (int k = 0; k <= n; ++k) {
+            const QPointF at = from + dir * (length * k / n);
+            const qreal   h  = full / 2.0 * std::clamp(tone(turn.map(at)), 0.0, 1.0);
+            if (h < k_minMark / 2.0) {
+                flush();
+                continue;
+            }
+            // A sample between two of the same width adds nothing: a flat run is one quad.
+            if (half.size() >= 2 && std::abs(half.last() - h) < 1e-3 && std::abs(half[half.size() - 2] - h) < 1e-3) {
+                spine.last() = at;
+                continue;
+            }
+            spine << at;
+            half << h;
+        }
+        flush();
+    };
+    const qreal width  = (i1 - i0) * side;
+    const qreal height = (j1 - j0) * side;
+    for (int j = j0; j < j1; ++j)
+        bar(QPointF(i0 * side, (j + 0.5) * side), QPointF(1, 0), width);
+    if (p.kind == Paint::Kind::Grid)
+        for (int i = i0; i < i1; ++i)
+            bar(QPointF((i + 0.5) * side, j0 * side), QPointF(0, 1), height);
+    return marks;
+}
+
 TextureProperties inkRough(TextureProperties t)
 {
     t.kind              = Texture::Rough;
@@ -379,10 +554,31 @@ TextureProperties inkRough(TextureProperties t)
     return t;
 }
 
+bool blursShadow(const ObjectRecord& a)
+{
+    return a.effects.shadow && a.effects.shadowSoftness > 0.0 && a.effects.shadowFill.kind == Paint::Kind::Solid;
+}
+
+bool fadesShadow(const ObjectRecord& a)
+{
+    return a.effects.shadow && a.effects.shadowSoftness > 0.0 && a.effects.shadowFill.kind != Paint::Kind::Solid;
+}
+
 bool hasFilter(const ObjectRecord& a)
 {
-    const bool softShadow = a.effects.shadow && a.effects.shadowSoftness > 0.0;
-    return textureInfo(a.texture.kind).reach != nullptr || softShadow;
+    return textureInfo(a.texture.kind).reach != nullptr || blursShadow(a);
+}
+
+Paint shadowPaint(const ObjectRecord& a)
+{
+    Paint p = a.effects.shadowFill;
+    if (fadesShadow(a)) {
+        p.kind = Paint::Kind::Solid;   // the path is its marks already
+    } else if (p.kind != Paint::Kind::Solid) {
+        p.second = p.colour;           // the marks in the shadow's colour, on nothing
+        p.colour = Qt::transparent;
+    }
+    return p;
 }
 
 QPainterPath shadowOf(const ObjectRecord& a, const QPainterPath& silhouette)
@@ -398,7 +594,17 @@ QPainterPath shadowOf(const ObjectRecord& a, const QPainterPath& silhouette)
         rim.setCapStyle(Qt::RoundCap);
         grown = silhouette.united(rim.createStroke(silhouette));
     }
-    return grown.translated(a.effects.shadowX, a.effects.shadowY);
+    grown.translate(a.effects.shadowX, a.effects.shadowY);
+    if (!fadesShadow(a))
+        return grown;
+    // A halftone fades as a blur does: a mark's tone is the blurred edge's at its centre, half at the
+    // edge itself, and gone three deviations out.
+    const qreal          deviation = a.effects.shadowSoftness;
+    const qreal          reach     = k_blurReach * deviation;
+    const SignedDistance distance(grown, reach);   // past it the tone is whole, or nothing
+    return halftoneMarks(a.effects.shadowFill, grown.boundingRect().adjusted(-reach, -reach, reach, reach),
+                         [&](const QPointF& at) { return 0.5 * std::erfc(-distance(at) / (deviation * M_SQRT2)); },
+                         deviation / 2.0);
 }
 
 bool hasOutline(const ObjectRecord& a)

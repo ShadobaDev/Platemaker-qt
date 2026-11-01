@@ -936,6 +936,61 @@ TEST(Effects, AShadowStaysInItsBoundsAndOnlyASoftOneIsAFilter)
     }
 }
 
+/**
+ * @brief A halftone shadow is the shadow's colour in marks on nothing, not marks over the shadow; a soft
+ *        one fades as geometry, as a blur would, and is no filter (PLAN-L P13).
+ */
+TEST(Effects, AHalftoneShadowReplacesTheShadowAndFadesOverItsSoftness)
+{
+    ObjectRecord a;
+    a.shape                      = Geometry::shapeTemplate("speech").shape;
+    a.effects.shadow             = true;
+    a.effects.shadowSpread       = 0.0;
+    a.effects.shadowX            = 0.0;
+    a.effects.shadowY            = 0.0;
+    a.effects.shadowFill.colour  = QColor(10, 20, 30, 200);
+    a.effects.shadowFill.spacing = 8.0;
+    a.effects.shadowFill.size    = 4.0;
+    a.effects.shadowFill.angle   = 0;
+    const QPainterPath silhouette = Geometry::silhouette(a);
+
+    for (int k = 1; k <= int(Paint::k_lastKind); ++k) {
+        a.effects.shadowFill.kind = static_cast<Paint::Kind>(k);
+        // Hard: the moved shape, filled with the pattern's marks in the shadow's colour, and no ground.
+        a.effects.shadowSoftness = 0.0;
+        EXPECT_FALSE(Geometry::fadesShadow(a));
+        EXPECT_TRUE(Geometry::shadowOf(a, silhouette) == silhouette);
+        const Paint hard = Geometry::shadowPaint(a);
+        EXPECT_EQ(hard.kind, a.effects.shadowFill.kind);
+        EXPECT_EQ(hard.colour.alpha(), 0) << "a halftone shadow has no ground";
+        EXPECT_EQ(hard.second, a.effects.shadowFill.colour);
+
+        // Soft: its marks, filled in the colour; no filter, and within the blur's reach.
+        a.effects.shadowSoftness = 4.0;
+        EXPECT_TRUE(Geometry::fadesShadow(a));
+        EXPECT_FALSE(Geometry::hasFilter(a));
+        EXPECT_EQ(Geometry::shadowPaint(a).kind, Paint::Kind::Solid);
+        EXPECT_EQ(Geometry::shadowPaint(a).colour, a.effects.shadowFill.colour);
+        const QPainterPath marks = Geometry::shadowOf(a, silhouette);
+        ASSERT_FALSE(marks.isEmpty()) << k;
+        const qreal  reach = 3.0 * a.effects.shadowSoftness;
+        const QRectF outer = silhouette.boundingRect().adjusted(-reach, -reach, reach, reach);
+        EXPECT_TRUE(outer.contains(marks.boundingRect())) << k;
+        EXPECT_TRUE(Geometry::bounds(a).contains(marks.boundingRect())) << k;
+    }
+
+    // Deep inside, a dot is the pattern's own; well outside, there is none.
+    a.effects.shadowFill.kind = Paint::Kind::Dots;
+    const QPainterPath marks  = Geometry::shadowOf(a, silhouette);
+    const qreal        side   = a.effects.shadowFill.spacing;
+    const QPointF      middle = silhouette.boundingRect().center();
+    const QPointF      dot((std::floor(middle.x() / side) + 0.5) * side, (std::floor(middle.y() / side) + 0.5) * side);
+    EXPECT_TRUE(marks.contains(dot + QPointF(0.9 * a.effects.shadowFill.size / 2.0, 0)));
+    EXPECT_FALSE(marks.contains(dot + QPointF(1.1 * a.effects.shadowFill.size / 2.0, 0)));
+    const QRectF body = silhouette.boundingRect();
+    EXPECT_FALSE(marks.intersects(QRectF(body.left() - 20, body.top(), 8, body.height())));
+}
+
 namespace {
 
 /**
@@ -1469,6 +1524,17 @@ QString goldenRecords()
         a.style.strokeWidth   = 14;
         a.effects.shadowFill.kind = pattern;
         write(QStringLiteral("speech"), QStringLiteral("pattern ") + QLatin1String(patternName(pattern)), true, a);
+    }
+    // A halftone shadow, hard: the pattern's marks on nothing (PLAN-L P13; the cases above fade, soft).
+    {
+        ObjectRecord a            = loadedRecord();
+        a.shape                   = Geometry::shapeTemplate("speech").shape;
+        a.style                   = looks.first().style;
+        a.texture                 = looks.first().texture;
+        a.skin.fill.kind          = ObjectRecord::Pattern::Solid;
+        a.effects.shadowSoftness  = 0.0;
+        a.effects.shadowFill.kind = ObjectRecord::Pattern::Dots;
+        write(QStringLiteral("speech"), QStringLiteral("hard halftone shadow"), true, a);
     }
     return out;
 }

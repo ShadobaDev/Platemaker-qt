@@ -18,6 +18,8 @@
 #include <QPointF>
 #include <QtGlobal>
 
+#include <functional>
+
 #include "objectrecord.hpp"
 
 namespace Geometry {
@@ -80,6 +82,17 @@ struct PatternCell
 //! @p p's cell; empty marks for a solid Paint.
 [[nodiscard]] PatternCell patternCell(const Paint& p);
 
+/**
+ * @brief @p p's marks over @p area, each as large as @p tone (0 to 1) says at its place: a halftone that
+ *        fades (PLAN-L B37). Geometry, so the strip and the output draw the same path.
+ *
+ * The grid is patternCell()'s, laid from the box's corner and turned alike, so at a tone of 1 the marks are
+ * the pattern's. A dot's area follows the tone; a bar's width does, sampled every @p step along it. Fill
+ * it with the non-zero rule in the marks' colour; empty for a solid Paint.
+ */
+[[nodiscard]] QPainterPath halftoneMarks(const Paint& p, const QRectF& area,
+                                         const std::function<qreal(const QPointF&)>& tone, qreal step);
+
 //! The entry for @p kind. Every kind up to `StyleProperties::k_lastLine` has one.
 [[nodiscard]] const LineInfo& lineInfo(StyleProperties::Line kind);
 
@@ -98,8 +111,23 @@ struct PatternCell
  */
 [[nodiscard]] bool hasFilter(const ObjectRecord& a);
 
-//! \p a's shadow: \p silhouette moved by its offset; empty with no shadow. Under the balloon, in its colour.
+//! \p a's shadow is soft and of one colour: blurred, by an SVG filter.
+[[nodiscard]] bool blursShadow(const ObjectRecord& a);
+
+//! \p a's shadow is soft and a halftone: its marks fade over the softness, as geometry (PLAN-L P13).
+[[nodiscard]] bool fadesShadow(const ObjectRecord& a);
+
+/**
+ * @brief \p a's shadow: \p silhouette grown by its spread and moved by its offset; for one that fades, the
+ *        halftone's marks over that. Empty with no shadow. Filled under the balloon with shadowPaint().
+ */
 [[nodiscard]] QPainterPath shadowOf(const ObjectRecord& a, const QPainterPath& silhouette);
+
+/**
+ * @brief What shadowOf() is filled with: the shadow's colour, or its pattern's marks in that colour on no
+ *        ground (a shadow is replaced by its halftone, not covered by it); for one that fades, the colour.
+ */
+[[nodiscard]] Paint shadowPaint(const ObjectRecord& a);
 
 /**
  * @brief \p a's line's own strokes around \p silhouette, in box coordinates; empty for a line without.

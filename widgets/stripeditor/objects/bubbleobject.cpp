@@ -79,6 +79,7 @@ void BubbleObject::rebuild()
     // Resolve once, here, and keep the paths: paint() must not rebuild an eleven-circle union or re-lay
     // a text document on every scroll and selection change.
     m_silhouette = Geometry::silhouette(m_record);
+    m_shadow     = Geometry::shadowOf(m_record, m_silhouette);
     m_ink        = Geometry::ink(m_record, m_silhouette);
     m_textPath   = Geometry::textOutline(m_record);
     m_tailDrawn  = Geometry::tailsDrawn(m_record);
@@ -242,7 +243,7 @@ void BubbleObject::paintContent(QPainter& painter)
         painter.drawImage(contentBounds().topLeft(), m_sharp);
         return;
     }
-    Painter::paintPaths(painter, m_record, m_silhouette, m_ink, m_textPath);
+    Painter::paintPaths(painter, m_record, m_silhouette, m_shadow, m_ink, m_textPath);
 }
 
 }  // namespace StripEdit

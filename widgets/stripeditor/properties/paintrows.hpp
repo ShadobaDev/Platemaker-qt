@@ -51,24 +51,31 @@ public:
      * @param values      The panel's own copy of the group, written on every edit.
      * @param edited      Called after an edit is in @p values: the panel emits changed() there.
      * @param committed   Called after a discrete choice (a colour picked): the panel emits committed().
+     * @param grounded    A pattern lies over the colour, in a colour of its own (a fill, a line). Without, the
+     *                    pattern is the colour's marks on nothing (a shadow), and has no colour row of its own.
      */
     void build(QWidget* owner, QFormLayout* form, Paint Group::* paint, const QString& colourTitle, Group& values,
-               const bool& populating, std::function<void()> edited, std::function<void()> committed)
+               const bool& populating, std::function<void()> edited, std::function<void()> committed,
+               bool grounded = true)
     {
         using namespace PaintRowsDetail;
-        m_form  = form;
+        m_form     = form;
+        m_grounded = grounded;
         m_paint = paint;
         m_shown = &(values.*paint);
         Paint& p = values.*paint;
 
         m_colour = new QPushButton(QCoreApplication::translate(k_trContext, "Colour"), owner);
-        m_colour->setToolTip(QCoreApplication::translate(k_trContext, "The colour; under a pattern, its ground."));
+        m_colour->setToolTip(grounded ? QCoreApplication::translate(k_trContext, "The colour; under a pattern, its ground.")
+                                      : QCoreApplication::translate(k_trContext, "The colour, or a pattern's marks."));
         form->addRow(colourTitle, m_colour);
         m_kind = new QComboBox(owner);
         for (int i = 0; i <= int(Paint::k_lastKind); ++i)
             m_kind->addItem(patternTitle(static_cast<ObjectRecord::Pattern>(i)), i);
-        m_kind->setToolTip(QCoreApplication::translate(
-            k_trContext, "The colour alone, or a halftone of a second colour over it: dots, lines or a grid."));
+        m_kind->setToolTip(grounded ? QCoreApplication::translate(k_trContext,
+                                          "The colour alone, or a halftone of a second colour over it: dots, lines or a grid.")
+                                    : QCoreApplication::translate(k_trContext,
+                                          "The colour alone, or a halftone of it: dots, lines or a grid, on nothing."));
         form->addRow(QCoreApplication::translate(k_trContext, "Pattern"), m_kind);
         m_second = new QPushButton(QCoreApplication::translate(k_trContext, "Pattern colour"), owner);
         m_second->setToolTip(QCoreApplication::translate(k_trContext, "The pattern's own colour, over the ground."));
@@ -163,7 +170,7 @@ private:
         const bool patterned = m_mixedKind || m_shown->kind != Paint::Kind::Solid;
         m_form->setRowVisible(m_colour, m_visible);
         m_form->setRowVisible(m_kind, m_visible);
-        m_form->setRowVisible(m_second, m_visible && patterned);
+        m_form->setRowVisible(m_second, m_visible && patterned && m_grounded);
         m_rows.setVisible(m_form, m_visible && patterned);
     }
 
@@ -175,6 +182,7 @@ private:
     QPushButton*     m_second = nullptr;
     FieldRows<Paint> m_rows;               //!< Spacing, size and angle.
     bool m_visible       = true;
+    bool m_grounded      = true;   //!< A pattern lies over the colour, in the pattern colour.
     bool m_mixedColour   = false;
     bool m_mixedKind     = false;
     bool m_mixedSecond   = false;

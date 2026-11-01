@@ -214,11 +214,12 @@ QString patternDefs(const Paint& p, const QString& id)
     return d;
 }
 
-//! The `<defs>` block for a soft shadow's blur, or nothing for none or a hard one.
-QString shadowDefs(const EffectProperties& e, const QString& id)
+//! The `<defs>` block for a soft shadow's blur, or nothing for none, a hard one or a fading halftone.
+QString shadowDefs(const ObjectRecord& a, const QString& id)
 {
-    if (!e.shadow || e.shadowSoftness <= 0.0)
+    if (!Geometry::blursShadow(a))
         return {};
+    const EffectProperties& e = a.effects;
     // A generous region: the blur spreads past the shape, and a filter region is a hard clip.
     return QStringLiteral("  <defs>\n"
                           "    <filter id=\"%1\" x=\"-50%\" y=\"-50%\" width=\"200%\" height=\"200%\">\n"
@@ -431,9 +432,9 @@ QByteArray write(const ObjectRecord& a, const QByteArray& picture, const QString
     svg += styleDefs(a, filterId);
     svg += patternDefs(a.skin.fill, fillId);
     svg += patternDefs(a.style.stroke, strokeId);
-    svg += shadowDefs(a.effects, shadowId);
+    svg += shadowDefs(a, shadowId);
     if (a.effects.shadow)
-        svg += patternDefs(a.effects.shadowFill, shadowFillId);
+        svg += patternDefs(Geometry::shadowPaint(a), shadowFillId);
 
     // Everything the editor needs to re-solve this bubble, in a namespace no renderer looks at. Losing
     // these leaves a perfectly good drawing that simply cannot be re-typed — the intended degradation.
@@ -457,7 +458,7 @@ QByteArray write(const ObjectRecord& a, const QByteArray& picture, const QString
     const QPainterPath silhouette = Geometry::silhouette(a);
     if (!silhouette.isEmpty()) {
         svg += QLatin1String("    <g");
-        if (Geometry::hasFilter(a))
+        if (!styleDefs(a, filterId).isEmpty())
             svg += QStringLiteral(" filter=\"url(#%1)\"").arg(filterId);
         svg += QLatin1String(">\n");
         // The shadow first, under the balloon and inside its group, so a texture roughens it alike. The
@@ -465,8 +466,8 @@ QByteArray write(const ObjectRecord& a, const QByteArray& picture, const QString
         // the painter lays every pattern from the box's corner.
         if (const QPainterPath shadow = Geometry::shadowOf(a, silhouette); !shadow.isEmpty()) {
             svg += QStringLiteral("      <path d=\"%1\" fill-rule=\"%2\" %3")
-                       .arg(pathData(shadow), fillRule(shadow), paintAttr("fill", a.effects.shadowFill, shadowFillId));
-            if (a.effects.shadowSoftness > 0.0)
+                       .arg(pathData(shadow), fillRule(shadow), paintAttr("fill", Geometry::shadowPaint(a), shadowFillId));
+            if (Geometry::blursShadow(a))
                 svg += QStringLiteral(" filter=\"url(#%1)\"").arg(shadowId);
             svg += QLatin1String("/>\n");
         }

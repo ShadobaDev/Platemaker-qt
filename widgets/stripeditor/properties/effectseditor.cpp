@@ -21,7 +21,8 @@ const FieldRowSpec k_shadowRows[] = {
     {"shadowY",        PM_TR("Offset down:"),   -100, 100, " px", PM_TR("How far down the shadow falls; negative is up."), 1},
     {"shadowSoftness", PM_TR("Softness:"),      0,    50,  " px",
      PM_TR("How blurred its edge is. 0 is a hard shadow, drawn as you edit; above it the library draws the "
-           "balloon, exactly as it will be baked."), 1},
+           "balloon, exactly as it will be baked. A halftone shadow fades instead: its dots or lines thin out "
+           "over this width, drawn as you edit."), 1},
 };
 #undef PM_TR
 
@@ -37,9 +38,9 @@ EffectsEditor::EffectsEditor(QWidget* parent)
     m_shadow->setToolTip(tr("The balloon's whole shape, tails and all, grown, moved and filled under it."));
     m_form->addRow(tr("Shadow"), m_shadow);
     m_rows.build(this, m_form, "shadow", k_shadowRows, k_trContext, m_values, m_populating, [this] { emit changed(); });
-    // Its paint, whose transparency is how dark it is; or a halftone.
+    // Its paint, whose transparency is how dark it is; or a halftone of it, with no ground under.
     m_paint.build(this, m_form, &EffectProperties::shadowFill, tr("Shadow colour"), m_values, m_populating,
-                  [this] { emit changed(); }, [this] { emit committed(); });
+                  [this] { emit changed(); }, [this] { emit committed(); }, false);
 
     connect(m_shadow, &QCheckBox::toggled, this, [this](bool on) {
         if (m_populating)

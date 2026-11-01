@@ -129,6 +129,7 @@ private:
 
     QImage       m_sharp;       //!< Library rasterisation shown at rest for a filtered bubble (see above).
     QPainterPath m_silhouette;  //!< Cached balloon + tails, so a repaint resolves no geometry.
+    QPainterPath m_shadow;      //!< Cached shadow (grown, or a fading halftone's marks), likewise.
     QPainterPath m_ink;         //!< Cached style strokes (a flash's triangles), likewise.
     QPainterPath m_textPath;    //!< Cached glyph outlines, likewise.
     QList<bool>  m_tailDrawn;   //!< Per tail: whether it is drawn (its tip is outside the balloon).

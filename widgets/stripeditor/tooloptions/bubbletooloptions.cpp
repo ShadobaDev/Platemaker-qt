@@ -11,11 +11,13 @@
 #include <QMessageBox>
 #include <QSignalBlocker>
 #include <QToolButton>
+#include <QFrame>
 #include <QVBoxLayout>
 
 #include "presetstore.hpp"
 #include "properties/shapeeditor.hpp"
 #include "properties/skineditor.hpp"
+#include "properties/effectseditor.hpp"
 #include "properties/styleeditor.hpp"
 #include "properties/nexttaileditor.hpp"
 #include "properties/texteditor.hpp"
@@ -71,6 +73,11 @@ BubbleToolOptions::BubbleToolOptions(PresetStore& presets, QWidget* parent)
     shapeLay->addWidget(m_tails);
     shapeLay->addWidget(m_groups.skin());
     shapeLay->addWidget(m_groups.style());
+    auto* effectsRule = new QFrame(m_shapeGroup);   // with the line and the texture, as OBJECT STATE has it
+    effectsRule->setFrameShape(QFrame::HLine);
+    effectsRule->setFrameShadow(QFrame::Sunken);
+    shapeLay->addWidget(effectsRule);
+    shapeLay->addWidget(m_groups.effects());
     lay->addWidget(m_shapeGroup);
 
     // --- Text (both tools) --------------------------------------------------------------------------
@@ -130,6 +137,7 @@ ObjectRecord BubbleToolOptions::prototype() const
         a.shape.kind = *m_toolShape;
     m_groups.skin()->applyTo(a);
     m_groups.style()->applyTo(a);
+    m_groups.effects()->applyTo(a);
     m_groups.text()->applyTo(a);
 
     // A placement takes the look and not the line. The same distinction a preset makes — everything a

@@ -134,6 +134,10 @@
     **screentone** of dots in a second colour (**Pattern colour**) over it, with rows for the dots'
     spacing, size and angle. It is drawn on the strip as it is in the output, the grid laid from the
     balloon's corner.
+  - **Shadows.** Under *Style*, a balloon can **drop a shadow**: its whole shape, tails and all, moved
+    and filled with a colour (with transparency) under it. Hard by default, drawn as you edit; give it
+    **softness** and it is blurred, shown exactly as it will be baked. A texture roughens the shadow
+    too. Presets carry it, and *Apply from tool options ▸ Style* applies it with the line and texture.
   - **Re-roll**, on a balloon's context menu, deals a flash's or a brush's strokes, or a texture's
     wobble, or an irregular edge's teeth, again. One undo step.
   - **The thought balloon is a Cloud** with two rows of its own in the Shape panel: **Lobes**, how many

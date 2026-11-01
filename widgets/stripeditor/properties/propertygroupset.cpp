@@ -1,5 +1,6 @@
 #include "properties/propertygroupset.hpp"
 
+#include "properties/effectseditor.hpp"
 #include "properties/shapeeditor.hpp"
 #include "properties/skineditor.hpp"
 #include "properties/styleeditor.hpp"
@@ -11,13 +12,14 @@ PropertyGroupSet::PropertyGroupSet(QWidget* host)
     : m_shape(new ShapeEditor(host))
     , m_skin(new SkinEditor(host))
     , m_style(new StyleEditor(host))
+    , m_effects(new EffectsEditor(host))
     , m_text(new TextEditor(host))
 {
 }
 
 QList<PropertyGroupEditor*> PropertyGroupSet::all() const
 {
-    return {m_shape, m_skin, m_style, m_text};
+    return {m_shape, m_skin, m_style, m_effects, m_text};
 }
 
 void PropertyGroupSet::bind(const ObjectRecord& a) const
@@ -31,6 +33,7 @@ void PropertyGroupSet::collect(ObjectRecord& a, const PropertyGroupEditor* tails
     m_shape->applyTo(a);
     m_skin->applyTo(a);
     m_style->applyTo(a);
+    m_effects->applyTo(a);
     m_text->applyTo(a);
     if (tails)
         tails->applyTo(a);   // last: it reads the shape that was just written

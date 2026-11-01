@@ -69,6 +69,7 @@ struct ObjectRecord
 
     TailsProperties tails;
     StyleProperties style;
+    EffectProperties effects;
 
     /**
      * @brief Seeds the filter's noise, so two bubbles do not wear identical wobble.

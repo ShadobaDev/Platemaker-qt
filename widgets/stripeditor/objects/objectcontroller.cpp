@@ -1313,7 +1313,10 @@ void ObjectController::applyGroupToSelection(PropertyGroup group)
             break;
         case PropertyGroup::Style:
             if (shaped) {
-                each.style = source.style;
+                // The Style section's two groups, as the panel shows them together: line, texture and
+                // effects.
+                each.style   = source.style;
+                each.effects = source.effects;
                 // The seed belongs to no group precisely so that nothing can copy it — but an object
                 // that has just become styled needs one of its own.
                 topUpStyleSeed(each);

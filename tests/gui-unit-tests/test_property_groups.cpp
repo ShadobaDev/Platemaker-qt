@@ -88,6 +88,12 @@ ObjectRecord loadedRecord()
     a.skin.toneSpacing = 7.5;
     a.skin.toneDot     = 2.5;
     a.skin.toneAngle   = 30;
+
+    a.effects.shadow         = true;
+    a.effects.shadowX        = -4.5;
+    a.effects.shadowY        = 7.5;
+    a.effects.shadowSoftness = 2.5;
+    a.effects.shadowColour   = QColor(13, 14, 15, 99);
     return a;
 }
 
@@ -140,16 +146,20 @@ struct TailsMirror { QList<Tail> items; };
 static_assert(sizeof(TailsProperties) == sizeof(TailsMirror),
               "TailsProperties grew a field: place it (see above), then mirror it");
 
+struct EffectMirror { bool shadow; qreal shadowX, shadowY, shadowSoftness; QColor shadowColour; };
+static_assert(sizeof(EffectProperties) == sizeof(EffectMirror),
+              "EffectProperties grew a field: place it (see above), then mirror it");
+
 struct RecordMirror {
     ShapeProperties shape; QString artwork; QSize box; TailsProperties tails; StyleProperties style;
-    quint32 styleSeed; TextProperties text; SkinProperties skin;
+    EffectProperties effects; quint32 styleSeed; TextProperties text; SkinProperties skin;
 };
 static_assert(sizeof(ObjectRecord) == sizeof(RecordMirror),
               "ObjectRecord grew a field: place it (see above), then mirror it");
 
 
 //! Which group a test is applying, so everything else can be checked as untouched.
-enum class Group { Shape, Skin, Style, Text, Tails, Nothing };
+enum class Group { Shape, Skin, Style, Effects, Text, Tails, Nothing };
 
 /**
  * @brief Asserts that every property outside \p applied is byte-identical.
@@ -207,6 +217,13 @@ void expectUntouched(Group applied, const ObjectRecord& before, const ObjectReco
         EXPECT_EQ(after.style.brushTaper,             before.style.brushTaper);
         EXPECT_EQ(after.style.brushSwell,             before.style.brushSwell);
         EXPECT_DOUBLE_EQ(after.style.brushDrift,      before.style.brushDrift);
+    }
+    if (applied != Group::Effects) {
+        EXPECT_EQ(after.effects.shadow, before.effects.shadow);
+        EXPECT_DOUBLE_EQ(after.effects.shadowX,        before.effects.shadowX);
+        EXPECT_DOUBLE_EQ(after.effects.shadowY,        before.effects.shadowY);
+        EXPECT_DOUBLE_EQ(after.effects.shadowSoftness, before.effects.shadowSoftness);
+        EXPECT_EQ(after.effects.shadowColour, before.effects.shadowColour);
     }
     if (applied != Group::Text) {
         EXPECT_EQ(after.text.body,      before.text.body);
@@ -295,6 +312,21 @@ TEST(PropertyGroupOwnership, StyleLeavesTheSeedAlone)
     s.applyTo(a);
 
     EXPECT_EQ(a.styleSeed, seed);
+}
+
+TEST(PropertyGroupOwnership, Effects)
+{
+    const ObjectRecord before = loadedRecord();
+    ObjectRecord       after  = before;
+
+    EffectProperties e;
+    e.shadowX      = 3.0;
+    e.shadowColour = QColor(1, 1, 1, 200);
+    e.applyTo(after);
+
+    EXPECT_EQ(after.effects, e);
+    EXPECT_EQ(EffectProperties::from(after), e);
+    expectUntouched(Group::Effects, before, after);
 }
 
 TEST(PropertyGroupOwnership, Text)
@@ -815,6 +847,37 @@ TEST(Shapes, AnEdgeGoesInAndTheLetteringGivesUpItsDepth)
     }
 }
 
+/**
+ * @brief A shadow is the silhouette moved, inside the room reserved for it, and only a soft one is a filter
+ *        (PLAN-L P9): a hard one is drawn as it is edited, a soft one by the library.
+ */
+TEST(Effects, AShadowStaysInItsBoundsAndOnlyASoftOneIsAFilter)
+{
+    ObjectRecord a;
+    a.shape = Geometry::shapeTemplate("speech").shape;
+    Tail t;
+    t.tip         = QPointF(60, 230);
+    a.tails.items = {t};
+    EXPECT_TRUE(Geometry::shadowOf(a, Geometry::silhouette(a)).isEmpty());
+
+    a.effects.shadow = true;
+    for (const QPointF offset : {QPointF(12, 9), QPointF(-20, -3), QPointF(0, 30)}) {
+        for (qreal softness : {0.0, 4.0}) {
+            a.effects.shadowX        = offset.x();
+            a.effects.shadowY        = offset.y();
+            a.effects.shadowSoftness = softness;
+            const QPainterPath silhouette = Geometry::silhouette(a);
+            const QPainterPath shadow     = Geometry::shadowOf(a, silhouette);
+            EXPECT_TRUE(shadow == silhouette.translated(offset));
+            // The blur reaches three deviations past the moved shape.
+            const qreal  spread = 3.0 * softness;
+            const QRectF reach  = shadow.boundingRect().adjusted(-spread, -spread, spread, spread);
+            EXPECT_TRUE(Geometry::bounds(a).contains(reach)) << offset.x() << "," << offset.y() << " soft " << softness;
+            EXPECT_EQ(Geometry::hasFilter(a), softness > 0.0);
+        }
+    }
+}
+
 namespace {
 
 /**
@@ -1181,6 +1244,7 @@ TEST(Fields, EveryFieldIsComparedAndSaved)
     expectEveryFieldCounts(&ObjectRecord::text);
     expectEveryFieldCounts(&ObjectRecord::skin);
     expectEveryFieldCounts(&ObjectRecord::style);
+    expectEveryFieldCounts(&ObjectRecord::effects);
 }
 
 //! Every key a record is saved under is its own: two fields sharing one would overwrite each other.
@@ -1280,7 +1344,8 @@ QString goldenRecords()
                 ObjectRecord a  = loadedRecord();
                 a.shape         = shape;
                 a.style         = style;
-                a.skin.fillKind = ObjectRecord::Fill::Solid;   // the fills have cases of their own, below
+                a.skin.fillKind = ObjectRecord::Fill::Solid;   // the fills and the shadow have cases of
+                a.effects.shadow = false;                       // their own, below
                 write(name, look, tail, a);
             }
         }
@@ -1291,7 +1356,20 @@ QString goldenRecords()
             ObjectRecord a = loadedRecord();
             a.shape        = Geometry::shapeTemplate(id).shape;
             a.style        = looks.first().second;
+            a.effects.shadow = false;
             write(QString::fromLatin1(id), QStringLiteral("screentone"), tail, a);
+        }
+    }
+    // A shadow, hard and soft, on two templates (PLAN-L P9).
+    for (const char* id : {"speech", "shout"}) {
+        for (qreal softness : {0.0, 2.5}) {
+            ObjectRecord a           = loadedRecord();
+            a.shape                  = Geometry::shapeTemplate(id).shape;
+            a.style                  = looks.first().second;
+            a.skin.fillKind          = ObjectRecord::Fill::Solid;
+            a.effects.shadowSoftness = softness;
+            write(QString::fromLatin1(id), softness > 0.0 ? QStringLiteral("soft shadow") : QStringLiteral("shadow"),
+                  true, a);
         }
     }
     return out;

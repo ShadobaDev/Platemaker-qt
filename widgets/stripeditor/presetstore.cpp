@@ -266,7 +266,7 @@ int PresetStore::matching(const ObjectRecord& a) const
     };
     for (int i = 0; i < m_presets.size(); ++i) {
         const ObjectRecord look = applied(m_presets.at(i), a, /*keepShape=*/false);
-        if (look.shape == a.shape && look.skin == a.skin && look.style == a.style
+        if (look.shape == a.shape && look.skin == a.skin && look.style == a.style && look.effects == a.effects
             && named(look.text) == named(a.text))
             return i;
     }

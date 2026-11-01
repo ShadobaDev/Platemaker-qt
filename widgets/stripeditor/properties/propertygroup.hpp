@@ -17,7 +17,7 @@ namespace StripEdit {
  * is remembered under `stripEditor/objectState/expanded/<int>`, so dropping a value would silently
  * shift every section after it onto somebody else's remembered state.
  */
-enum class PropertyGroup { Placement, Size, Compositing, Shape, Skin, Style, Text, Tail, TailItem };
+enum class PropertyGroup { Placement, Size, Compositing, Shape, Skin, Style, Text, Tail, TailItem, Effects };
 
 /**
  * @brief Whether @p a carries @p g at all — **the one answer to "which sections apply"**.
@@ -45,6 +45,7 @@ enum class PropertyGroup { Placement, Size, Compositing, Shape, Skin, Style, Tex
     case PropertyGroup::Shape:
     case PropertyGroup::Skin:
     case PropertyGroup::Style:
+    case PropertyGroup::Effects:
     case PropertyGroup::Tail:
         return a.hasSilhouette();
     case PropertyGroup::TailItem:      // a tail's own group; a record never carries it

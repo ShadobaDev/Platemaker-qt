@@ -67,8 +67,9 @@ public:
         Group::fields([&](const char* key, auto member) {
             using T = std::remove_reference_t<decltype(values.*member)>;
             // A spin holds a number: a list (a Polygon's nodes) is never a row, and is not compiled as one;
-            // nor is a choice (an enum, e.g. the edge's kind), which its panel shows as a combo.
-            if constexpr (std::is_arithmetic_v<T>) {
+            // nor is a choice (an enum, e.g. the edge's kind; a bool, e.g. whether there is a shadow), which
+            // its panel shows as a combo or a check box.
+            if constexpr (std::is_arithmetic_v<T> && !std::is_same_v<T, bool>) {
                 if (std::strncmp(key, prefix, prefixLength) != 0)
                     return;
                 const FieldRowSpec* spec = nullptr;
@@ -104,7 +105,7 @@ public:
                     else
                         v.*member = T(qRound(x));
                 };
-                const QString suffix = QString::fromLatin1(spec->suffix);
+                const QString suffix = QString::fromUtf8(spec->suffix);   // a suffix may be "°"
                 if (row.whole)
                     row.whole->setSuffix(suffix);
                 else

@@ -62,6 +62,10 @@ void paintPaths(QPainter& painter, const ObjectRecord& a, const QPainterPath& si
     painter.setRenderHint(QPainter::SmoothPixmapTransform, true);
 
     if (!silhouette.isEmpty()) {
+        // The shadow under it: hard here, whatever its softness — a soft one is the library's to draw,
+        // and a balloon with one is previewed from there at rest (Geometry::hasFilter()).
+        if (const QPainterPath shadow = Geometry::shadowOf(a, silhouette); !shadow.isEmpty())
+            painter.fillPath(shadow, a.effects.shadowColour);
         painter.fillPath(silhouette, fillBrush(a.skin));
         // A style with strokes of its own draws them instead of the outline: they are the edge.
         if (a.skin.strokeWidth > 0 && Geometry::hasOutline(a)) {

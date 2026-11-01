@@ -2,6 +2,7 @@
 
 #include <QDoubleSpinBox>
 #include <QFormLayout>
+#include <QFrame>
 #include <QHBoxLayout>
 #include <QLabel>
 #include <QPushButton>
@@ -12,6 +13,7 @@
 #include "badge.hpp"
 #include "collapsiblesection.hpp"
 #include "presetstore.hpp"
+#include "properties/effectseditor.hpp"
 #include "properties/shapeeditor.hpp"
 #include "properties/skineditor.hpp"
 #include "properties/styleeditor.hpp"
@@ -37,6 +39,24 @@ QString expansionKey(PropertyGroup g)
 bool expandedByDefault(PropertyGroup g)
 {
     return g == PropertyGroup::Text || g == PropertyGroup::Skin || g == PropertyGroup::TailItem;
+}
+
+/**
+ * @brief The Style section's content: the line and the texture, then, ruled off, the effects (PLAN-L B23).
+ *        Two groups and two editors, shown as one place for how the balloon is drawn.
+ */
+QWidget* withEffects(QWidget* style, QWidget* effects)
+{
+    auto* box = new QWidget(style->parentWidget());
+    auto* lay = new QVBoxLayout(box);
+    lay->setContentsMargins(0, 0, 0, 0);
+    lay->addWidget(style);
+    auto* rule = new QFrame(box);
+    rule->setFrameShape(QFrame::HLine);
+    rule->setFrameShadow(QFrame::Sunken);
+    lay->addWidget(rule);
+    lay->addWidget(effects);
+    return box;
 }
 
 QString sectionTitle(PropertyGroup g)
@@ -92,8 +112,10 @@ ObjectState::ObjectState(PresetStore& presets, QWidget* parent)
     // One section per group, in a fixed order, so a group present on two consecutive selections stays
     // where it was and the panel does not shuffle under the cursor.
     for (PropertyGroupEditor* e : editors) {
+        if (e->group() == PropertyGroup::Effects)
+            continue;   // in the Style section, below
         auto* section = new CollapsibleSection(sectionTitle(e->group()), this);
-        section->setContent(e);
+        section->setContent(e->group() == PropertyGroup::Style ? withEffects(e, m_groups.effects()) : e);
         lay->addWidget(section);
         m_sections.insert(int(e->group()), section);
 
@@ -265,6 +287,7 @@ void ObjectState::setRecords(const QList<ObjectRecord>& objects)
     m_populating = true;
     m_groups.skin()->bind(shaped);
     m_groups.style()->bind(shaped);   // a line style roughens an outline; a caption has none to roughen
+    m_groups.effects()->bind(shaped);
     m_groups.text()->bind(all);
     m_populating = false;
 
@@ -440,6 +463,7 @@ void ObjectState::onControlChanged()
             if (a.hasSilhouette()) {
                 m_groups.skin()->applyEditedTo(a);   // a caption with no balloon has no fill to take
                 m_groups.style()->applyEditedTo(a);
+                m_groups.effects()->applyEditedTo(a);
             }
             m_groups.text()->applyEditedTo(a);
         }

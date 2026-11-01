@@ -215,6 +215,20 @@ QString fillDefs(const SkinProperties& s, const QString& id)
     return d;
 }
 
+//! The `<defs>` block for a soft shadow's blur, or nothing for none or a hard one.
+QString shadowDefs(const EffectProperties& e, const QString& id)
+{
+    if (!e.shadow || e.shadowSoftness <= 0.0)
+        return {};
+    // A generous region: the blur spreads past the shape, and a filter region is a hard clip.
+    return QStringLiteral("  <defs>\n"
+                          "    <filter id=\"%1\" x=\"-50%\" y=\"-50%\" width=\"200%\" height=\"200%\">\n"
+                          "      <feGaussianBlur stdDeviation=\"%2\"/>\n"
+                          "    </filter>\n"
+                          "  </defs>\n")
+        .arg(id, num(e.shadowSoftness));
+}
+
 //! The silhouette's fill: its colour, or the pattern defined as @p id.
 QString fillPaint(const SkinProperties& s, const QString& id)
 {
@@ -412,8 +426,10 @@ QByteArray write(const ObjectRecord& a, const QByteArray& picture, const QString
     // The filter and the fill's pattern are defined before what references them, as SVG requires.
     const QString filterId = QStringLiteral("pm-style");
     const QString fillId   = QStringLiteral("pm-fill");
+    const QString shadowId = QStringLiteral("pm-shadow");
     svg += styleDefs(a, filterId);
     svg += fillDefs(a.skin, fillId);
+    svg += shadowDefs(a.effects, shadowId);
 
     // Everything the editor needs to re-solve this bubble, in a namespace no renderer looks at. Losing
     // these leaves a perfectly good drawing that simply cannot be re-typed — the intended degradation.
@@ -425,6 +441,7 @@ QByteArray write(const ObjectRecord& a, const QByteArray& picture, const QString
     svg += letteringAttrs(a);
     svg += groupAttrs(a.skin);
     svg += groupAttrs(a.style);
+    svg += groupAttrs(a.effects);
     svg += attr(QStringLiteral("styleSeed"), QString::number(a.styleSeed));
     svg += QLatin1String(">\n");
 
@@ -438,6 +455,15 @@ QByteArray write(const ObjectRecord& a, const QByteArray& picture, const QString
         if (Geometry::hasFilter(a))
             svg += QStringLiteral(" filter=\"url(#%1)\"").arg(filterId);
         svg += QLatin1String(">\n");
+        // The shadow first, under the balloon and inside its group, so a texture roughens it alike.
+        if (a.effects.shadow) {
+            svg += QStringLiteral("      <path d=\"%1\" fill-rule=\"%2\" transform=\"translate(%3 %4)\" %5")
+                       .arg(pathData(silhouette), fillRule(silhouette), num(a.effects.shadowX),
+                            num(a.effects.shadowY), paint("fill", a.effects.shadowColour));
+            if (a.effects.shadowSoftness > 0.0)
+                svg += QStringLiteral(" filter=\"url(#%1)\"").arg(shadowId);
+            svg += QLatin1String("/>\n");
+        }
         svg += QStringLiteral("      <path d=\"%1\" fill-rule=\"%2\" %3")
                    .arg(pathData(silhouette), fillRule(silhouette), fillPaint(a.skin, fillId));
         if (a.skin.strokeWidth > 0 && Geometry::hasOutline(a))
@@ -489,6 +515,7 @@ ObjectRecord read(const QByteArray& svg, bool* ok)
         readGroup(a.text, at, ns);
         readGroup(a.skin, at, ns);
         readGroup(a.style, at, ns);
+        readGroup(a.effects, at, ns);
 
         // A wrapper says which picture it is wrapping; a balloon carries no such attribute and stays
         // an object we draw.

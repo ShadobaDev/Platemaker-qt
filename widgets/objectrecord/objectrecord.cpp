@@ -124,7 +124,8 @@ bool ObjectRecord::operator==(const ObjectRecord& o) const
     // Group by group, so adding a property to a group cannot quietly fall out of equality: the
     // group's own operator== is the one place that has to know about it.
     return shape == o.shape && artwork == o.artwork && box == o.box && tails == o.tails
-        && text == o.text && style == o.style && styleSeed == o.styleSeed && skin == o.skin;
+        && text == o.text && style == o.style && effects == o.effects && styleSeed == o.styleSeed
+        && skin == o.skin;
 }
 
 ShapeProperties ShapeProperties::from(const ObjectRecord& a) { return a.shape; }
@@ -132,6 +133,9 @@ void            ShapeProperties::applyTo(ObjectRecord& a) const { a.shape = *thi
 
 StyleProperties StyleProperties::from(const ObjectRecord& a) { return a.style; }
 void            StyleProperties::applyTo(ObjectRecord& a) const { a.style = *this; }
+
+EffectProperties EffectProperties::from(const ObjectRecord& a) { return a.effects; }
+void             EffectProperties::applyTo(ObjectRecord& a) const { a.effects = *this; }
 
 TextProperties  TextProperties::from(const ObjectRecord& a) { return a.text; }
 void            TextProperties::applyTo(ObjectRecord& a) const { a.text = *this; }
@@ -311,6 +315,7 @@ QJsonObject ObjectRecord::toJson() const
     writeJson(a.text, j);
     writeJson(a.skin, j);
     writeJson(a.style, j);
+    writeJson(a.effects, j);
     return j;
 }
 
@@ -328,6 +333,7 @@ ObjectRecord ObjectRecord::fromJson(const QJsonObject& j)
     readJson(a.text, j);
     readJson(a.skin, j);
     readJson(a.style, j);
+    readJson(a.effects, j);
     return a;
 }
 

@@ -35,6 +35,8 @@ class TextEditor;
  * placement; where they go is the surface's business, and none of them is ever told which surface it
  * ended up in.
  */
+class EffectsEditor;
+
 class PropertyGroupSet
 {
 public:
@@ -44,6 +46,8 @@ public:
     [[nodiscard]] ShapeEditor* shape() const { return m_shape; }
     [[nodiscard]] SkinEditor*  skin()  const { return m_skin; }
     [[nodiscard]] StyleEditor* style() const { return m_style; }
+    //! Laid out by each surface inside the Style section, under the line and the texture (PLAN-L B23).
+    [[nodiscard]] EffectsEditor* effects() const { return m_effects; }
     [[nodiscard]] TextEditor*  text()  const { return m_text; }
 
     //! All four, in the order a panel should show them.
@@ -64,6 +68,7 @@ private:
     ShapeEditor* m_shape = nullptr;
     SkinEditor*  m_skin  = nullptr;
     StyleEditor* m_style = nullptr;
+    EffectsEditor* m_effects = nullptr;
     TextEditor*  m_text  = nullptr;
 };
 

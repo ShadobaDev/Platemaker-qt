@@ -88,8 +88,14 @@ struct ToneCell
  */
 [[nodiscard]] StyleProperties inkRough(StyleProperties s);
 
-//! \p a has a texture: an SVG filter, which only the library draws.
+/**
+ * @brief \p a has an SVG filter anywhere, which only the library draws (PLAN-L M17): a texture, or a
+ *        soft shadow. The one question the controller asks to decide how a balloon is previewed.
+ */
 [[nodiscard]] bool hasFilter(const ObjectRecord& a);
+
+//! \p a's shadow: \p silhouette moved by its offset; empty with no shadow. Under the balloon, in its colour.
+[[nodiscard]] QPainterPath shadowOf(const ObjectRecord& a, const QPainterPath& silhouette);
 
 /**
  * @brief \p a's line's own strokes around \p silhouette, in box coordinates; empty for a line without.

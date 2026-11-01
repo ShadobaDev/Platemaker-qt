@@ -91,6 +91,7 @@ qt_add_executable(Platemaker
     widgets/stripeditor/properties/shapeeditor.cpp widgets/stripeditor/properties/shapeeditor.hpp
     widgets/stripeditor/properties/skineditor.cpp widgets/stripeditor/properties/skineditor.hpp
     widgets/stripeditor/properties/styleeditor.cpp widgets/stripeditor/properties/styleeditor.hpp
+    widgets/stripeditor/properties/effectseditor.cpp widgets/stripeditor/properties/effectseditor.hpp
     widgets/stripeditor/properties/nexttaileditor.cpp widgets/stripeditor/properties/nexttaileditor.hpp
     widgets/stripeditor/properties/taillisteditor.cpp widgets/stripeditor/properties/taillisteditor.hpp
     widgets/stripeditor/properties/taileditor.cpp widgets/stripeditor/properties/taileditor.hpp

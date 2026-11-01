@@ -408,6 +408,46 @@ struct StyleProperties
 };
 
 /**
+ * @brief What is drawn about the balloon, beside its outline and its fill (PLAN-L M14, B23): a shadow so far.
+ *
+ * A group of its own, so applying a look's line does not apply its shadow by accident, and an effect
+ * added later (a glow) is a field here. Its editor is laid out in the Style section, beside the line and
+ * the texture, so the artist sees one place for how the balloon is drawn.
+ */
+struct EffectProperties
+{
+    /**
+     * @name The shadow: the whole silhouette, tails and all, moved by the offset and filled with the colour,
+     * under the balloon. Hard at softness 0, drawn as it is on the strip; above it, blurred by the
+     * library (an SVG filter), and the balloon is then previewed through the library.
+     * @{
+     */
+    bool   shadow         = false;
+    qreal  shadowX        = 6.0;           //!< How far right, in balloon pixels; negative is left.
+    qreal  shadowY        = 6.0;           //!< How far down; negative is up.
+    qreal  shadowSoftness = 0.0;           //!< The blur's deviation, in balloon pixels; 0 is a hard edge.
+    QColor shadowColour{0, 0, 0, 110};     //!< Its alpha is how dark it is.
+    /** @} */
+
+    //! The fields, with the keys they are saved under (fields.hpp).
+    template <class V>
+    static void fields(V&& v)
+    {
+        v("shadow",         &EffectProperties::shadow);
+        v("shadowX",        &EffectProperties::shadowX);
+        v("shadowY",        &EffectProperties::shadowY);
+        v("shadowSoftness", &EffectProperties::shadowSoftness);
+        v("shadowColour",   &EffectProperties::shadowColour);
+    }
+
+    [[nodiscard]] static EffectProperties from(const ObjectRecord& a);
+    void applyTo(ObjectRecord& a) const;
+
+    [[nodiscard]] bool operator==(const EffectProperties& o) const { return Fields::equal(*this, o); }
+    [[nodiscard]] bool operator!=(const EffectProperties& o) const { return !(*this == o); }
+};
+
+/**
  * @brief What the balloon says, and how it is set.
  *
  * Content and typography in one group because one widget edits both, and because the split that

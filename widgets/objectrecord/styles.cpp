@@ -362,7 +362,15 @@ StyleProperties inkRough(StyleProperties s)
 
 bool hasFilter(const ObjectRecord& a)
 {
-    return textureInfo(a.style.texture).reach != nullptr;
+    const bool softShadow = a.effects.shadow && a.effects.shadowSoftness > 0.0;
+    return textureInfo(a.style.texture).reach != nullptr || softShadow;
+}
+
+QPainterPath shadowOf(const ObjectRecord& a, const QPainterPath& silhouette)
+{
+    if (!a.effects.shadow || silhouette.isEmpty())
+        return {};
+    return silhouette.translated(a.effects.shadowX, a.effects.shadowY);
 }
 
 bool hasOutline(const ObjectRecord& a)
@@ -378,10 +386,16 @@ QPainterPath ink(const ObjectRecord& a, const QPainterPath& silhouette)
 
 qreal styleMargin(const ObjectRecord& a)
 {
-    // The texture's filter moves the line's strokes too (it hangs on both), so the two add.
-    const LineInfo&    line    = lineInfo(a.style.line);
-    const TextureInfo& texture = textureInfo(a.style.texture);
-    return (line.inkReach ? line.inkReach(a) : 0.0) + (texture.reach ? texture.reach(a.style) : 0.0);
+    // The texture's filter moves the line's strokes too (it hangs on both), so the two add. A shadow
+    // reaches as far as it is moved and its blur spreads, on every side, which is generous but simple.
+    const LineInfo&         line    = lineInfo(a.style.line);
+    const TextureInfo&      texture = textureInfo(a.style.texture);
+    const EffectProperties& e       = a.effects;
+    const qreal shadow = e.shadow ? qMax(std::abs(e.shadowX), std::abs(e.shadowY))
+                                        + k_blurReach * qMax(e.shadowSoftness, 0.0)
+                                  : 0.0;
+    return qMax((line.inkReach ? line.inkReach(a) : 0.0) + (texture.reach ? texture.reach(a.style) : 0.0),
+                shadow + (texture.reach ? texture.reach(a.style) : 0.0));
 }
 
 }  // namespace Geometry

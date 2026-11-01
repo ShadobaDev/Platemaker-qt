@@ -155,8 +155,8 @@ names) and its marks in `patternCell()`: the cell's square, its angle, and the m
 path. Both the painter's brush (`Painter::paintBrush()`) and the SVG's `<pattern>` (`patternDefs()` in
 `recordsvg.cpp`) are drawn from that cell and laid from the box's corner (the brush from the painter's
 origin, the pattern in `userSpaceOnUse`), so the preview and the output match. Anything that a pattern
-paints is written in the box's coordinates, never under a `transform` (the shadow is the moved outline),
-or its pattern would move with it.
+paints is written in the box's coordinates, never under a `transform` (the shadow is the outline grown and
+moved), or its pattern would move with it.
 
 ### An effect
 

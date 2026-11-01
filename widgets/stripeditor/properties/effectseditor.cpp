@@ -15,6 +15,8 @@ constexpr char k_trContext[] = "StripEdit::EffectsEditor";
 #define PM_TR(s) QT_TRANSLATE_NOOP("StripEdit::EffectsEditor", s)
 //! The shadow's numbers, in strip pixels.
 const FieldRowSpec k_shadowRows[] = {
+    {"shadowSpread",   PM_TR("Spread:"),        0,    50,  " px",
+     PM_TR("How far the shadow grows past the balloon on every side; with no offset, a rim all round."), 1},
     {"shadowX",        PM_TR("Offset across:"), -100, 100, " px", PM_TR("How far right the shadow falls; negative is left."), 1},
     {"shadowY",        PM_TR("Offset down:"),   -100, 100, " px", PM_TR("How far down the shadow falls; negative is up."), 1},
     {"shadowSoftness", PM_TR("Softness:"),      0,    50,  " px",
@@ -32,7 +34,7 @@ EffectsEditor::EffectsEditor(QWidget* parent)
     m_form->setContentsMargins(0, 0, 0, 0);
 
     m_shadow = new QCheckBox(tr("Drop a shadow"), this);
-    m_shadow->setToolTip(tr("The balloon's whole shape, tails and all, moved and filled under it."));
+    m_shadow->setToolTip(tr("The balloon's whole shape, tails and all, grown, moved and filled under it."));
     m_form->addRow(tr("Shadow"), m_shadow);
     m_rows.build(this, m_form, "shadow", k_shadowRows, k_trContext, m_values, m_populating, [this] { emit changed(); });
     // Its paint, whose transparency is how dark it is; or a halftone.

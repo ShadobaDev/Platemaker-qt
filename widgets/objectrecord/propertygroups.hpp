@@ -491,14 +491,16 @@ struct StyleProperties
 struct EffectProperties
 {
     /**
-     * @name The shadow: the whole silhouette, tails and all, moved by the offset and filled with the colour,
-     * under the balloon. Hard at softness 0, drawn as it is on the strip; above it, blurred by the
-     * library (an SVG filter), and the balloon is then previewed through the library.
+     * @name The shadow: the whole silhouette, tails and all, grown by the spread, moved by the offset and
+     * filled with its paint, under the balloon. Hard at softness 0, drawn as it is on the strip; above it,
+     * blurred by the library (an SVG filter), and the balloon is then previewed through the library. By
+     * default it is centred: a rim on every side (B36).
      * @{
      */
     bool   shadow         = false;
-    qreal  shadowX        = 6.0;           //!< How far right, in balloon pixels; negative is left.
-    qreal  shadowY        = 6.0;           //!< How far down; negative is up.
+    qreal  shadowSpread   = 6.0;           //!< How far it grows past the balloon on every side, in balloon pixels.
+    qreal  shadowX        = 0.0;           //!< How far right, in balloon pixels; negative is left.
+    qreal  shadowY        = 0.0;           //!< How far down; negative is up.
     qreal  shadowSoftness = 0.0;           //!< The blur's deviation, in balloon pixels; 0 is a hard edge.
     //! Its paint: a colour, whose alpha is how dark it is, or a halftone of it.
     Paint  shadowFill{QColor(0, 0, 0, 110), QColor(0, 0, 0)};
@@ -509,6 +511,7 @@ struct EffectProperties
     static void fields(V&& v)
     {
         v("shadow",         &EffectProperties::shadow);
+        v("shadowSpread",   &EffectProperties::shadowSpread);
         v("shadowX",        &EffectProperties::shadowX);
         v("shadowY",        &EffectProperties::shadowY);
         v("shadowSoftness", &EffectProperties::shadowSoftness);

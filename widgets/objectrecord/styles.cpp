@@ -7,6 +7,7 @@
 #include "shapes.hpp"
 
 #include <QObject>
+#include <QPainterPathStroker>
 #include <QPolygonF>
 #include <QRandomGenerator>
 #include <QtMath>
@@ -388,7 +389,16 @@ QPainterPath shadowOf(const ObjectRecord& a, const QPainterPath& silhouette)
 {
     if (!a.effects.shadow || silhouette.isEmpty())
         return {};
-    return silhouette.translated(a.effects.shadowX, a.effects.shadowY);
+    QPainterPath grown = silhouette;
+    if (a.effects.shadowSpread > 0.0) {
+        // Grown on every side: united with a round stroke as wide as the spread each way.
+        QPainterPathStroker rim;
+        rim.setWidth(2.0 * a.effects.shadowSpread);
+        rim.setJoinStyle(Qt::RoundJoin);
+        rim.setCapStyle(Qt::RoundCap);
+        grown = silhouette.united(rim.createStroke(silhouette));
+    }
+    return grown.translated(a.effects.shadowX, a.effects.shadowY);
 }
 
 bool hasOutline(const ObjectRecord& a)
@@ -405,11 +415,12 @@ QPainterPath ink(const ObjectRecord& a, const QPainterPath& silhouette)
 qreal styleMargin(const ObjectRecord& a)
 {
     // The texture's filter moves the line's strokes too (it hangs on both), so the two add. A shadow
-    // reaches as far as it is moved and its blur spreads, on every side, which is generous but simple.
+    // reaches as far as it grows and is moved and its blur spreads, on every side, which is generous but
+    // simple.
     const LineInfo&         line    = lineInfo(a.style.line);
     const TextureInfo&      texture = textureInfo(a.texture.kind);
     const EffectProperties& e       = a.effects;
-    const qreal shadow = e.shadow ? qMax(std::abs(e.shadowX), std::abs(e.shadowY))
+    const qreal shadow = e.shadow ? qMax(e.shadowSpread, 0.0) + qMax(std::abs(e.shadowX), std::abs(e.shadowY))
                                         + k_blurReach * qMax(e.shadowSoftness, 0.0)
                                   : 0.0;
     const qreal rough = texture.reach ? texture.reach(a.texture) : 0.0;

@@ -95,6 +95,7 @@ ObjectRecord loadedRecord()
     a.skin.fill.angle   = 30;
 
     a.effects.shadow         = true;
+    a.effects.shadowSpread   = 0.0;   // the shadow P9b drew, so the golden's older cases stay as they were
     a.effects.shadowX        = -4.5;
     a.effects.shadowY        = 7.5;
     a.effects.shadowSoftness = 2.5;
@@ -161,7 +162,7 @@ struct TailsMirror { QList<Tail> items; };
 static_assert(sizeof(TailsProperties) == sizeof(TailsMirror),
               "TailsProperties grew a field: place it (see above), then mirror it");
 
-struct EffectMirror { bool shadow; qreal shadowX, shadowY, shadowSoftness; Paint shadowFill; };
+struct EffectMirror { bool shadow; qreal shadowSpread, shadowX, shadowY, shadowSoftness; Paint shadowFill; };
 static_assert(sizeof(EffectProperties) == sizeof(EffectMirror),
               "EffectProperties grew a field: place it (see above), then mirror it");
 
@@ -244,6 +245,7 @@ void expectUntouched(Group applied, const ObjectRecord& before, const ObjectReco
     }
     if (applied != Group::Effects) {
         EXPECT_EQ(after.effects.shadow, before.effects.shadow);
+        EXPECT_DOUBLE_EQ(after.effects.shadowSpread,   before.effects.shadowSpread);
         EXPECT_DOUBLE_EQ(after.effects.shadowX,        before.effects.shadowX);
         EXPECT_DOUBLE_EQ(after.effects.shadowY,        before.effects.shadowY);
         EXPECT_DOUBLE_EQ(after.effects.shadowSoftness, before.effects.shadowSoftness);
@@ -892,8 +894,8 @@ TEST(Shapes, AnEdgeGoesInAndTheLetteringGivesUpItsDepth)
 }
 
 /**
- * @brief A shadow is the silhouette moved, inside the room reserved for it, and only a soft one is a filter
- *        (PLAN-L P9): a hard one is drawn as it is edited, a soft one by the library.
+ * @brief A shadow is the silhouette grown and moved, inside the room reserved for it, and only a soft one
+ *        is a filter (PLAN-L P9, P12): a hard one is drawn as it is edited, a soft one by the library.
  */
 TEST(Effects, AShadowStaysInItsBoundsAndOnlyASoftOneIsAFilter)
 {
@@ -905,19 +907,31 @@ TEST(Effects, AShadowStaysInItsBoundsAndOnlyASoftOneIsAFilter)
     EXPECT_TRUE(Geometry::shadowOf(a, Geometry::silhouette(a)).isEmpty());
 
     a.effects.shadow = true;
-    for (const QPointF offset : {QPointF(12, 9), QPointF(-20, -3), QPointF(0, 30)}) {
-        for (qreal softness : {0.0, 4.0}) {
-            a.effects.shadowX        = offset.x();
-            a.effects.shadowY        = offset.y();
-            a.effects.shadowSoftness = softness;
-            const QPainterPath silhouette = Geometry::silhouette(a);
-            const QPainterPath shadow     = Geometry::shadowOf(a, silhouette);
-            EXPECT_TRUE(shadow == silhouette.translated(offset));
-            // The blur reaches three deviations past the moved shape.
-            const qreal  spread = 3.0 * softness;
-            const QRectF reach  = shadow.boundingRect().adjusted(-spread, -spread, spread, spread);
-            EXPECT_TRUE(Geometry::bounds(a).contains(reach)) << offset.x() << "," << offset.y() << " soft " << softness;
-            EXPECT_EQ(Geometry::hasFilter(a), softness > 0.0);
+    for (const QPointF offset : {QPointF(12, 9), QPointF(-20, -3), QPointF(0, 30), QPointF(0, 0)}) {
+        for (qreal grow : {0.0, 6.0, 15.0}) {
+            for (qreal softness : {0.0, 4.0}) {
+                a.effects.shadowSpread   = grow;
+                a.effects.shadowX        = offset.x();
+                a.effects.shadowY        = offset.y();
+                a.effects.shadowSoftness = softness;
+                const QPainterPath silhouette = Geometry::silhouette(a);
+                const QPainterPath shadow     = Geometry::shadowOf(a, silhouette);
+                if (grow <= 0.0) {
+                    EXPECT_TRUE(shadow == silhouette.translated(offset));   // P9b's
+                } else {
+                    // Grown by the spread on every side: it holds the moved balloon, and reaches that far out.
+                    const QRectF moved = silhouette.boundingRect().translated(offset);
+                    EXPECT_TRUE(shadow.contains(silhouette.translated(offset)));
+                    EXPECT_NEAR(shadow.boundingRect().left(), moved.left() - grow, 0.5);
+                    EXPECT_NEAR(shadow.boundingRect().bottom(), moved.bottom() + grow, 0.5);
+                }
+                // The blur reaches three deviations past the grown, moved shape.
+                const qreal  blur  = 3.0 * softness;
+                const QRectF reach = shadow.boundingRect().adjusted(-blur, -blur, blur, blur);
+                EXPECT_TRUE(Geometry::bounds(a).contains(reach))
+                    << offset.x() << "," << offset.y() << " spread " << grow << " soft " << softness;
+                EXPECT_EQ(Geometry::hasFilter(a), softness > 0.0);
+            }
         }
     }
 }
@@ -1423,6 +1437,23 @@ QString goldenRecords()
             write(QString::fromLatin1(id), softness > 0.0 ? QStringLiteral("soft shadow") : QStringLiteral("shadow"),
                   true, a);
         }
+    }
+    // A centred shadow, hard and soft: the default spread and no offset (PLAN-L P12).
+    for (qreal softness : {0.0, 2.5}) {
+        ObjectRecord a            = loadedRecord();
+        a.shape                   = Geometry::shapeTemplate("speech").shape;
+        a.style                   = looks.first().style;
+        a.texture                 = looks.first().texture;
+        a.skin.fill.kind          = ObjectRecord::Pattern::Solid;
+        a.skin.fill.colour        = Qt::white;
+        a.style.strokeWidth       = StyleProperties().strokeWidth;   // a thick line would hide the rim
+        a.effects.shadowSpread    = EffectProperties().shadowSpread;
+        a.effects.shadowX         = 0.0;
+        a.effects.shadowY         = 0.0;
+        a.effects.shadowSoftness  = softness;
+        a.effects.shadowFill.kind = ObjectRecord::Pattern::Solid;
+        write(QStringLiteral("speech"), softness > 0.0 ? QStringLiteral("soft centred shadow")
+                                                       : QStringLiteral("centred shadow"), true, a);
     }
     // Every pattern in every place it paints (PLAN-L P11): the fill, a thick line, and a shadow.
     for (int k = 1; k <= int(Paint::k_lastKind); ++k) {

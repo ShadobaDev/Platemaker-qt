@@ -20,6 +20,7 @@ QJsonValue toJsonValue(const QString& v) { return v; }
 QJsonValue toJsonValue(const QColor& v) { return v.name(QColor::HexArgb); }
 QJsonValue toJsonValue(ObjectRecord::Shape v) { return QLatin1String(shapeName(v)); }
 QJsonValue toJsonValue(ObjectRecord::Edge v) { return QLatin1String(edgeName(v)); }
+QJsonValue toJsonValue(ObjectRecord::Fill v) { return QLatin1String(fillName(v)); }
 QJsonValue toJsonValue(ObjectRecord::Line v) { return QLatin1String(lineName(v)); }
 QJsonValue toJsonValue(ObjectRecord::Texture v) { return QLatin1String(textureName(v)); }
 //! Nodes as [x, y], or [x, y, type, inX, inY, outX, outY] for a Curve's node with handles, at full
@@ -51,6 +52,7 @@ void fromJsonValue(const QJsonValue& j, QColor& v)
 // An unknown or missing name reads as the reader's own fallback (Box, Clean, None).
 void fromJsonValue(const QJsonValue& j, ObjectRecord::Shape& v) { v = shapeFromName(j.toString()); }
 void fromJsonValue(const QJsonValue& j, ObjectRecord::Edge& v) { v = edgeFromName(j.toString()); }
+void fromJsonValue(const QJsonValue& j, ObjectRecord::Fill& v) { v = fillFromName(j.toString()); }
 void fromJsonValue(const QJsonValue& j, ObjectRecord::Line& v) { v = lineFromName(j.toString()); }
 void fromJsonValue(const QJsonValue& j, ObjectRecord::Texture& v) { v = textureFromName(j.toString()); }
 void fromJsonValue(const QJsonValue& j, QList<ShapeNode>& v)
@@ -212,6 +214,26 @@ ObjectRecord::Shape shapeFromName(QStringView name)
         if (name == QLatin1String(shapeName(s)))
             return s;
     return ObjectRecord::Shape::Box;
+}
+
+const char* fillName(ObjectRecord::Fill f)
+{
+    return Geometry::fillInfo(f).name;
+}
+
+QString fillTitle(ObjectRecord::Fill f)
+{
+    return QObject::tr(Geometry::fillInfo(f).title);
+}
+
+ObjectRecord::Fill fillFromName(QStringView name)
+{
+    for (int i = 0; i <= int(SkinProperties::k_lastFill); ++i) {
+        const auto f = static_cast<ObjectRecord::Fill>(i);
+        if (name == QLatin1String(fillName(f)))
+            return f;
+    }
+    return ObjectRecord::Fill::Solid;
 }
 
 const char* edgeName(ObjectRecord::Edge e)

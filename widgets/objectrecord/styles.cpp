@@ -285,6 +285,18 @@ const std::array<LineInfo, int(StyleProperties::k_lastLine) + 1> k_lines{{
     {Line::Brush, "brush", QT_TRANSLATE_NOOP("QObject", "Brush"), brushInk, brushReach},
 }};
 
+//! Likewise, for fillInfo().
+const std::array<FillInfo, int(SkinProperties::k_lastFill) + 1> k_fills{{
+    {SkinProperties::Fill::Solid,      "solid",      QT_TRANSLATE_NOOP("QObject", "Solid")},
+    {SkinProperties::Fill::Screentone, "screentone", QT_TRANSLATE_NOOP("QObject", "Screentone")},
+}};
+
+/**
+ *  The closest a screentone's dots may be, in balloon pixels: below it the tone is a flat grey, and the
+ *  pattern's cell would vanish.
+ */
+constexpr qreal k_minToneSpacing = 1.0;
+
 //! Likewise, for textureInfo().
 const std::array<TextureInfo, int(StyleProperties::k_lastTexture) + 1> k_textures{{
     {Texture::None,  "none",  QT_TRANSLATE_NOOP("QObject", "None"),  nullptr},
@@ -311,6 +323,31 @@ const TextureInfo& textureInfo(StyleProperties::Texture kind)
         return k_textures[int(Texture::None)];
     Q_ASSERT(k_textures[i].kind == kind);
     return k_textures[i];
+}
+
+const FillInfo& fillInfo(SkinProperties::Fill kind)
+{
+    const int i = int(kind);
+    if (i < 0 || i >= int(k_fills.size()))
+        return k_fills[int(SkinProperties::Fill::Solid)];
+    Q_ASSERT(k_fills[i].kind == kind);
+    return k_fills[i];
+}
+
+ToneCell toneCell(const SkinProperties& s)
+{
+    ToneCell cell;
+    cell.size   = qMax(s.toneSpacing, k_minToneSpacing);
+    cell.radius = qMax(s.toneDot, 0.0) / 2.0;
+    cell.angle  = s.toneAngle;
+    const qreal mid = cell.size / 2.0;
+    // A dot no wider than the square stays inside it; a larger one spills into its neighbours, so theirs
+    // spill back in, and the dots merge as a real tone's do.
+    const int reach = cell.radius <= mid ? 0 : 1;
+    for (int dy = -reach; dy <= reach; ++dy)
+        for (int dx = -reach; dx <= reach; ++dx)
+            cell.dots.append(QPointF(mid + dx * cell.size, mid + dy * cell.size));
+    return cell;
 }
 
 StyleProperties inkRough(StyleProperties s)

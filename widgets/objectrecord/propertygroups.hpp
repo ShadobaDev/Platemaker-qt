@@ -131,13 +131,35 @@ struct ShapeNode
  * lettering, so the colour tool's two swatches are the fill and the stroke, and the text's colour
  * belongs with the text.
  *
- * Persisted as three flat keys, exactly as before — the struct changed, the file format did not.
+ * Persisted as flat keys, as every group is.
  */
 struct SkinProperties
 {
+    /**
+     * @brief What the balloon is filled with (PLAN-L M13): one colour, or a pattern of the fill and a second
+     * colour. Plain geometry either way, so Qt draws it as it draws a solid fill. The table is in
+     * styles.cpp; persisted by name (fillName()).
+     */
+    enum class Fill { Solid, Screentone };
+    //! The enum's last value. **Adding a fill moves this**: fillFromName() reads up to it.
+    static constexpr Fill k_lastFill = Fill::Screentone;
+
     QColor fill{255, 255, 255};
     QColor stroke{20, 20, 20};
     int    strokeWidth = 5;
+
+    Fill   fillKind = Fill::Solid;
+    QColor fillSecond{20, 20, 20};   //!< A pattern's own colour, over the fill: a screentone's dots.
+    /**
+     * @name A screentone: dots on a square grid, turned. Read only while `fillKind` is Screentone. In
+     * balloon pixels and degrees, the grid laid from the box's corner, so it is the same on screen and
+     * in the output.
+     * @{
+     */
+    qreal  toneSpacing = 6.0;   //!< From one dot to the next.
+    qreal  toneDot     = 3.0;   //!< A dot's diameter. Past the spacing the dots merge.
+    int    toneAngle   = 45;    //!< How far the grid is turned, clockwise.
+    /** @} */
 
     //! The fields, with the keys they are saved under (fields.hpp).
     template <class V>
@@ -146,6 +168,11 @@ struct SkinProperties
         v("fill",        &SkinProperties::fill);
         v("stroke",      &SkinProperties::stroke);
         v("strokeWidth", &SkinProperties::strokeWidth);
+        v("fillKind",    &SkinProperties::fillKind);
+        v("fillSecond",  &SkinProperties::fillSecond);
+        v("toneSpacing", &SkinProperties::toneSpacing);
+        v("toneDot",     &SkinProperties::toneDot);
+        v("toneAngle",   &SkinProperties::toneAngle);
     }
 
     //! Reads this group out of \p a.

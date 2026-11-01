@@ -83,6 +83,11 @@ ObjectRecord loadedRecord()
     a.skin.fill        = QColor(4, 5, 6);
     a.skin.stroke      = QColor(7, 8, 9);
     a.skin.strokeWidth = 11;
+    a.skin.fillKind    = ObjectRecord::Fill::Screentone;
+    a.skin.fillSecond  = QColor(10, 11, 12);
+    a.skin.toneSpacing = 7.5;
+    a.skin.toneDot     = 2.5;
+    a.skin.toneAngle   = 30;
     return a;
 }
 
@@ -105,7 +110,10 @@ struct ShapeMirror {
 static_assert(sizeof(ShapeProperties) == sizeof(ShapeMirror),
               "ShapeProperties grew a field: place it (see above), then mirror it");
 
-struct SkinMirror { QColor fill, stroke; int strokeWidth; };
+struct SkinMirror {
+    QColor fill, stroke; int strokeWidth;
+    SkinProperties::Fill fillKind; QColor fillSecond; qreal toneSpacing, toneDot; int toneAngle;
+};
 static_assert(sizeof(SkinProperties) == sizeof(SkinMirror),
               "SkinProperties grew a field: place it (see above), then mirror it");
 
@@ -170,6 +178,11 @@ void expectUntouched(Group applied, const ObjectRecord& before, const ObjectReco
         EXPECT_EQ(after.skin.fill,        before.skin.fill);
         EXPECT_EQ(after.skin.stroke,      before.skin.stroke);
         EXPECT_EQ(after.skin.strokeWidth, before.skin.strokeWidth);
+        EXPECT_EQ(after.skin.fillKind,    before.skin.fillKind);
+        EXPECT_EQ(after.skin.fillSecond,  before.skin.fillSecond);
+        EXPECT_DOUBLE_EQ(after.skin.toneSpacing, before.skin.toneSpacing);
+        EXPECT_DOUBLE_EQ(after.skin.toneDot,     before.skin.toneDot);
+        EXPECT_EQ(after.skin.toneAngle,   before.skin.toneAngle);
     }
     if (applied != Group::Style) {
         EXPECT_EQ(after.style.line,    before.style.line);
@@ -1113,6 +1126,10 @@ void bump(qreal& v) { v += 0.25; }
 void bump(QString& v) { v += QStringLiteral("x"); }
 void bump(QColor& v) { v = QColor(v.red() ^ 0x55, v.green() ^ 0x55, v.blue() ^ 0x55, v.alpha()); }
 void bump(QList<ShapeNode>& v) { v.append(ShapeNode(0.25, 0.75)); }
+void bump(ObjectRecord::Fill& v)
+{
+    v = static_cast<ObjectRecord::Fill>((int(v) + 1) % (int(SkinProperties::k_lastFill) + 1));
+}
 void bump(ObjectRecord::Edge& v)
 {
     v = static_cast<ObjectRecord::Edge>((int(v) + 1) % (int(ShapeProperties::k_lastEdge) + 1));
@@ -1242,27 +1259,39 @@ QString goldenRecords()
         {QStringLiteral("brush"), brush},
     };
 
-    QString out;
+    QString    out;
+    const auto write = [&out](const QString& name, const QString& look, bool tail, ObjectRecord a) {
+        a.text.body.clear();
+        if (!tail)
+            a.tails.items.clear();
+        const QRectF area = Geometry::textArea(a);
+        out += QStringLiteral("=== %1 / %2 / %3 ===\n")
+                   .arg(name, look, tail ? QStringLiteral("tail") : QStringLiteral("no tail"));
+        out += QString::fromUtf8(Svg::write(a));
+        out += QStringLiteral("\ntextArea: %1 %2 %3 %4\n")
+                   .arg(area.x(), 0, 'f', 3).arg(area.y(), 0, 'f', 3)
+                   .arg(area.width(), 0, 'f', 3).arg(area.height(), 0, 'f', 3);
+        out += QStringLiteral("json: ")
+             + QString::fromUtf8(QJsonDocument(a.toJson()).toJson(QJsonDocument::Compact)) + u'\n';
+    };
     for (const auto& [name, shape] : std::as_const(shapes)) {
         for (const auto& [look, style] : looks) {
             for (bool tail : {false, true}) {
-                ObjectRecord a = loadedRecord();
-                a.shape        = shape;
-                a.style        = style;
-                a.text.body.clear();
-                if (!tail)
-                    a.tails.items.clear();
-
-                const QRectF area = Geometry::textArea(a);
-                out += QStringLiteral("=== %1 / %2 / %3 ===\n")
-                           .arg(name, look, tail ? QStringLiteral("tail") : QStringLiteral("no tail"));
-                out += QString::fromUtf8(Svg::write(a));
-                out += QStringLiteral("\ntextArea: %1 %2 %3 %4\n")
-                           .arg(area.x(), 0, 'f', 3).arg(area.y(), 0, 'f', 3)
-                           .arg(area.width(), 0, 'f', 3).arg(area.height(), 0, 'f', 3);
-                out += QStringLiteral("json: ")
-                     + QString::fromUtf8(QJsonDocument(a.toJson()).toJson(QJsonDocument::Compact)) + u'\n';
+                ObjectRecord a  = loadedRecord();
+                a.shape         = shape;
+                a.style         = style;
+                a.skin.fillKind = ObjectRecord::Fill::Solid;   // the fills have cases of their own, below
+                write(name, look, tail, a);
             }
+        }
+    }
+    // A screentone fill on two templates, clean (PLAN-L P9).
+    for (const char* id : {"speech", "shout"}) {
+        for (bool tail : {false, true}) {
+            ObjectRecord a = loadedRecord();
+            a.shape        = Geometry::shapeTemplate(id).shape;
+            a.style        = looks.first().second;
+            write(QString::fromLatin1(id), QStringLiteral("screentone"), tail, a);
         }
     }
     return out;

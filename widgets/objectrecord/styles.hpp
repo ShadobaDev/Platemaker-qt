@@ -13,7 +13,9 @@
 #ifndef STYLES_HPP
 #define STYLES_HPP
 
+#include <QList>
 #include <QPainterPath>
+#include <QPointF>
 #include <QtGlobal>
 
 #include "objectrecord.hpp"
@@ -45,6 +47,34 @@ struct TextureInfo
     //! for None, which is no filter.
     qreal (*reach)(const StyleProperties& s);
 };
+
+//! One fill: its names. How it is drawn is the painter's (a brush) and the SVG's (a pattern), from the
+//! same description of its cell (toneCell()).
+struct FillInfo
+{
+    SkinProperties::Fill kind;    //!< Which fill this entry is; the table is checked against it.
+    const char*          name;    //!< Persisted, in the JSON and the SVG. **Never changes** once saved.
+    const char*          title;   //!< Shown on screen, translated through QObject::tr().
+};
+
+//! The entry for @p kind. Every kind up to `SkinProperties::k_lastFill` has one.
+[[nodiscard]] const FillInfo& fillInfo(SkinProperties::Fill kind);
+
+/**
+ * @brief A screentone's repeating cell: a square of the fill with a dot of the second colour in its
+ *        middle, the grid turned by `angle`. One description that both the painter's brush and the SVG's
+ *        `<pattern>` are drawn from, so the preview and the output cannot disagree.
+ */
+struct ToneCell
+{
+    qreal          size   = 0.0;   //!< The square's side: the spacing.
+    qreal          radius = 0.0;   //!< A dot's radius.
+    qreal          angle  = 0.0;   //!< Degrees, clockwise.
+    //! The dots to draw in the square: its own, and its neighbours' where a large dot reaches in.
+    QList<QPointF> dots;
+};
+
+[[nodiscard]] ToneCell toneCell(const SkinProperties& s);
 
 //! The entry for @p kind. Every kind up to `StyleProperties::k_lastLine` has one.
 [[nodiscard]] const LineInfo& lineInfo(StyleProperties::Line kind);

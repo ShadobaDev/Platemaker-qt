@@ -191,6 +191,38 @@ QString styleDefs(const ObjectRecord& a, const QString& id)
     return d;
 }
 
+/**
+ * @brief The `<defs>` block for @p s's fill pattern, or nothing for a solid fill.
+ *
+ * In the user space of the whole drawing (`userSpaceOnUse`), which is the box's, so the grid is laid from
+ * the box's corner as the painter's brush is (Painter::fillBrush()), from the same cell.
+ */
+QString fillDefs(const SkinProperties& s, const QString& id)
+{
+    if (s.fillKind != SkinProperties::Fill::Screentone)
+        return {};
+    const Geometry::ToneCell cell = Geometry::toneCell(s);
+    QString d;
+    d += QStringLiteral("  <defs>\n");
+    d += QStringLiteral("    <pattern id=\"%1\" patternUnits=\"userSpaceOnUse\" width=\"%2\" height=\"%2\" "
+                        "patternTransform=\"rotate(%3)\">\n")
+             .arg(id, num(cell.size), num(cell.angle));
+    d += QStringLiteral("      <rect width=\"%1\" height=\"%1\" %2/>\n").arg(num(cell.size), paint("fill", s.fill));
+    for (const QPointF& c : cell.dots)
+        d += QStringLiteral("      <circle cx=\"%1\" cy=\"%2\" r=\"%3\" %4/>\n")
+                 .arg(num(c.x()), num(c.y()), num(cell.radius), paint("fill", s.fillSecond));
+    d += QStringLiteral("    </pattern>\n  </defs>\n");
+    return d;
+}
+
+//! The silhouette's fill: its colour, or the pattern defined as @p id.
+QString fillPaint(const SkinProperties& s, const QString& id)
+{
+    if (s.fillKind != SkinProperties::Fill::Screentone)
+        return paint("fill", s.fill);
+    return QStringLiteral("fill=\"url(#%1)\"").arg(id);
+}
+
 int intOf(const QStringView& v, int fallback)
 {
     bool      ok = false;
@@ -210,6 +242,7 @@ QString attrValue(const QString& v) { return v; }
 QString attrValue(const QColor& v) { return v.name(QColor::HexArgb); }
 QString attrValue(ObjectRecord::Shape v) { return QString::fromLatin1(shapeName(v)); }
 QString attrValue(ObjectRecord::Edge v) { return QString::fromLatin1(edgeName(v)); }
+QString attrValue(ObjectRecord::Fill v) { return QString::fromLatin1(fillName(v)); }
 QString attrValue(ObjectRecord::Line v) { return QString::fromLatin1(lineName(v)); }
 QString attrValue(ObjectRecord::Texture v) { return QString::fromLatin1(textureName(v)); }
 //! Nodes joined by ";", as the tails are: "x,y", or "x,y,type,inX,inY,outX,outY" for a Curve's node with
@@ -247,6 +280,7 @@ void fromAttr(QStringView s, QColor& v)
 // An unknown or missing name reads as the reader's own fallback (Box, Clean, None).
 void fromAttr(QStringView s, ObjectRecord::Shape& v) { v = shapeFromName(s); }
 void fromAttr(QStringView s, ObjectRecord::Edge& v) { v = edgeFromName(s); }
+void fromAttr(QStringView s, ObjectRecord::Fill& v) { v = fillFromName(s); }
 void fromAttr(QStringView s, ObjectRecord::Line& v) { v = lineFromName(s); }
 void fromAttr(QStringView s, ObjectRecord::Texture& v) { v = textureFromName(s); }
 void fromAttr(QStringView s, QList<ShapeNode>& v)
@@ -375,9 +409,11 @@ QByteArray write(const ObjectRecord& a, const QByteArray& picture, const QString
                .arg(num(bounds.width()), num(bounds.height()),
                     num(bounds.left()),  num(bounds.top()));
 
-    // The filter is defined before the group that references it, as SVG requires.
+    // The filter and the fill's pattern are defined before what references them, as SVG requires.
     const QString filterId = QStringLiteral("pm-style");
+    const QString fillId   = QStringLiteral("pm-fill");
     svg += styleDefs(a, filterId);
+    svg += fillDefs(a.skin, fillId);
 
     // Everything the editor needs to re-solve this bubble, in a namespace no renderer looks at. Losing
     // these leaves a perfectly good drawing that simply cannot be re-typed — the intended degradation.
@@ -403,7 +439,7 @@ QByteArray write(const ObjectRecord& a, const QByteArray& picture, const QString
             svg += QStringLiteral(" filter=\"url(#%1)\"").arg(filterId);
         svg += QLatin1String(">\n");
         svg += QStringLiteral("      <path d=\"%1\" fill-rule=\"%2\" %3")
-                   .arg(pathData(silhouette), fillRule(silhouette), paint("fill", a.skin.fill));
+                   .arg(pathData(silhouette), fillRule(silhouette), fillPaint(a.skin, fillId));
         if (a.skin.strokeWidth > 0 && Geometry::hasOutline(a))
             svg += QStringLiteral(" %1 stroke-width=\"%2\" stroke-linejoin=\"round\"")
                        .arg(paint("stroke", a.skin.stroke)).arg(a.skin.strokeWidth);

@@ -13,6 +13,7 @@
 #ifndef RECORDPAINTER_HPP
 #define RECORDPAINTER_HPP
 
+#include <QBrush>
 #include <QImage>
 #include <QPainterPath>
 
@@ -56,6 +57,12 @@ void paintPaths(QPainter& painter, const ObjectRecord& a, const QPainterPath& si
  * @return The rasterised image.
  */
 [[nodiscard]] QImage render(const ObjectRecord& a);
+
+/**
+ * @brief What @p s fills a balloon with: its colour, or a pattern's tile (Geometry::toneCell()) laid from
+ *        the painter's origin, the box's corner, as the SVG's `<pattern>` is.
+ */
+[[nodiscard]] QBrush fillBrush(const SkinProperties& s);
 
 } // namespace Painter
 

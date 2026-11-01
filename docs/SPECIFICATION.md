@@ -140,6 +140,16 @@ JSON, `k_nodeDecimals` in the SVG, so a template's nodes are rounded to those de
 reads back as itself. `FieldRows` skips a field that is not a number at compile time, so a list never
 becomes a row.
 
+### A fill
+
+A value of `SkinProperties::Fill` (move `k_lastFill`), one entry in `k_fills` (`styles.cpp`, its names)
+and its drawing in two places that must agree: the painter's brush (`Painter::fillBrush()`) and the SVG's
+`<pattern>` (`fillDefs()` in `recordsvg.cpp`). Both are drawn from one description of the pattern's cell
+(the screentone's is `toneCell()`), and both are laid from the box's corner (the brush from the painter's
+origin, the pattern in `userSpaceOnUse`), so the preview and the output match. A pattern's own colour is
+`fillSecond`; its numbers are `SkinProperties` fields with a prefix of their own (`tone…`), rows of the
+*Fill & outline* panel through `FieldRows` (`k_toneRows` in `skineditor.cpp`).
+
 ### A line or a texture
 
 A style is two independent choices: a **line** (how the edge is drawn) and a **texture** (what is done

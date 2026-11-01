@@ -3,8 +3,46 @@
 
 #include <QPainter>
 #include <QPen>
+#include <QtMath>
 
 namespace Painter {
+
+namespace {
+
+/**
+ *  How many tile pixels a balloon pixel of a pattern gets: enough that the dots stay round when the strip
+ *  is zoomed in, since the tile is drawn once and scaled.
+ */
+constexpr int k_tileOversample = 4;
+
+} // namespace
+
+QBrush fillBrush(const SkinProperties& s)
+{
+    if (s.fillKind != SkinProperties::Fill::Screentone)
+        return s.fill;
+
+    const Geometry::ToneCell cell = Geometry::toneCell(s);
+    const int                side = qMax(1, qCeil(cell.size * k_tileOversample));
+    QImage                   tile(side, side, QImage::Format_ARGB32_Premultiplied);
+    tile.fill(s.fill);
+    {
+        QPainter p(&tile);
+        p.setRenderHint(QPainter::Antialiasing, true);
+        p.scale(side / cell.size, side / cell.size);
+        p.setPen(Qt::NoPen);
+        p.setBrush(s.fillSecond);
+        for (const QPointF& c : cell.dots)
+            p.drawEllipse(c, cell.radius, cell.radius);
+    }
+    // Back to balloon pixels, then turned: the same transform the SVG's pattern carries.
+    QBrush     brush(tile);
+    QTransform t;
+    t.rotate(cell.angle);
+    t.scale(cell.size / side, cell.size / side);
+    brush.setTransform(t);
+    return brush;
+}
 
 void paint(QPainter& painter, const ObjectRecord& a)
 {
@@ -20,9 +58,11 @@ void paintPaths(QPainter& painter, const ObjectRecord& a, const QPainterPath& si
 
     painter.save();
     painter.setRenderHint(QPainter::Antialiasing, true);
+    // A pattern's tile is scaled and turned: sampled smoothly, its dots keep the edges librsvg gives them.
+    painter.setRenderHint(QPainter::SmoothPixmapTransform, true);
 
     if (!silhouette.isEmpty()) {
-        painter.fillPath(silhouette, a.skin.fill);
+        painter.fillPath(silhouette, fillBrush(a.skin));
         // A style with strokes of its own draws them instead of the outline: they are the edge.
         if (a.skin.strokeWidth > 0 && Geometry::hasOutline(a)) {
             QPen pen(a.skin.stroke, a.skin.strokeWidth);

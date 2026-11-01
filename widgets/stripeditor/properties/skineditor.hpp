@@ -1,8 +1,11 @@
 #ifndef STRIPEDIT_SKINEDITOR_HPP
 #define STRIPEDIT_SKINEDITOR_HPP
 
+#include "properties/fieldrows.hpp"
 #include "properties/propertygroupeditor.hpp"
 
+class QComboBox;
+class QFormLayout;
 class QPushButton;
 class QSpinBox;
 
@@ -41,10 +44,16 @@ private:
 
     //! Pushes m_values into the controls with their signals blocked.
     void syncFromValues();
+    //! Shows the pattern's rows for a fill that has them.
+    void showRows();
 
+    QFormLayout* m_form         = nullptr;
     QPushButton* m_fillSwatch   = nullptr;
     QPushButton* m_strokeSwatch = nullptr;
     QSpinBox*    m_strokeWidth  = nullptr;
+    QComboBox*   m_fillKind     = nullptr;   //!< Solid, or a pattern.
+    QPushButton* m_secondSwatch = nullptr;   //!< A pattern's own colour.
+    FieldRows<SkinProperties> m_tone;        //!< One spin per `tone…` field.
 
     SkinProperties m_values;
     bool m_populating = false;   //!< Suppresses changed() while bind() runs.
@@ -54,9 +63,13 @@ private:
     bool m_mixedFill    = false;   //!< The selection disagrees about this colour, so the swatch says so.
     bool m_mixedStroke  = false;
     bool m_mixedWidth   = false;
+    bool m_mixedKind    = false;
+    bool m_mixedSecond  = false;
     bool m_fillTouched   = false;  //!< The artist picked since bind(), so this colour is theirs to spend.
     bool m_strokeTouched = false;
     bool m_widthTouched  = false;
+    bool m_kindTouched   = false;
+    bool m_secondTouched = false;
 };
 
 }  // namespace StripEdit

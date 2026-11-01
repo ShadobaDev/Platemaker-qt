@@ -2,18 +2,16 @@
 // geometry.
 
 #include "styles.hpp"
+#include "edgewalk.hpp"
 #include "geometry.hpp"
 #include "shapes.hpp"
 
-#include <QLineF>
 #include <QObject>
-#include <QPolygonF>
 #include <QRandomGenerator>
 
 #include <algorithm>
 #include <array>
 #include <cmath>
-#include <vector>
 
 namespace Geometry {
 
@@ -72,26 +70,14 @@ qreal spread(QRandomGenerator& rng, int percent)
  * walk meets its start. Each stroke points along the ray from the nearest point of @p core through its
  * place on the edge (A14): away from it outside, towards it inside, where it is cut short at the core.
  */
-void addRing(QPainterPath& out, const QList<QPolygonF>& edges, const QRectF& core, const Ring& r,
+void addRing(QPainterPath& out, const QList<EdgeWalk>& edges, const QRectF& core, const Ring& r,
              QRandomGenerator& rng)
 {
     const qreal pitch = qMax(r.pitch, k_minPitch);
     const qreal half  = qMax(r.base, 0.0) / 2.0;
 
-    for (QPolygonF edge : edges) {
-        if (edge.size() < 2)
-            continue;
-        if (edge.first() != edge.last())
-            edge << edge.first();
-
-        // How far along the edge each vertex is.
-        std::vector<qreal> at(size_t(edge.size()), 0.0);
-        for (int i = 1; i < edge.size(); ++i)
-            at[size_t(i)] = at[size_t(i - 1)] + QLineF(edge[i - 1], edge[i]).length();
-        const qreal perimeter = at.back();
-        if (perimeter <= 0.0)
-            continue;
-
+    for (const EdgeWalk& edge : edges) {
+        const qreal perimeter = edge.length();
         const int   count = qMax(1, qRound(perimeter / pitch));
         const qreal step  = perimeter / count;
         for (int i = 0; i < count; ++i) {
@@ -100,14 +86,9 @@ void addRing(QPainterPath& out, const QList<QPolygonF>& edges, const QRectF& cor
             const qreal shift  = 0.5 * (spread(rng, r.pitchJitter) - 1.0);   // ± half a step at 100 %
             qreal       length = r.length * spread(rng, r.lengthJitter);
 
-            // Where along the edge, and on which segment of it.
-            const qreal  s    = std::fmod((i + shift) * step + perimeter, perimeter);
-            const auto   next = std::upper_bound(at.begin(), at.end(), s);
-            const size_t k    = size_t(std::clamp<std::ptrdiff_t>(next - at.begin(), 1,
-                                                                  std::ptrdiff_t(at.size()) - 1)) - 1;
-            const qreal  seg  = at[k + 1] - at[k];
-            const qreal  t    = seg > 0.0 ? (s - at[k]) / seg : 0.0;
-            const QPointF p   = edge[int(k)] + (edge[int(k) + 1] - edge[int(k)]) * t;
+            // Where along the edge.
+            const qreal   s = std::fmod((i + shift) * step + perimeter, perimeter);
+            const QPointF p = edge.at(s).at;
 
             // From the nearest point of the core; a point on or inside it falls back to the core's centre.
             const QPointF near(qBound(core.left(), p.x(), core.right()),
@@ -141,7 +122,7 @@ void addRing(QPainterPath& out, const QList<QPolygonF>& edges, const QRectF& cor
 QPainterPath flashInk(const ObjectRecord& a, const QPainterPath& silhouette)
 {
     const StyleProperties& s      = a.style;
-    const QList<QPolygonF> edges  = silhouette.toSubpathPolygons();
+    const QList<EdgeWalk>  edges  = edgeWalks(silhouette);
     const QPointF          centre = QRectF(0, 0, a.box.width(), a.box.height()).center();
 
     // What the strokes point away from: the centre, stretched into a line along the box's longer axis.

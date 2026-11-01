@@ -55,9 +55,14 @@ constexpr qreal k_bannerNotch    = 0.12;
  */
 constexpr qreal k_scrollRoll     = 0.10;
 /**
- *  How far a scroll's long edges bow inward, as a fraction of its height.
+ *  How far a scroll's long edges bow inward, as a fraction of its height: where a quadratic's middle
+ *  handle sits, so the edge itself dips half of it.
  */
 constexpr qreal k_scrollBow      = 0.06;
+/**
+ *  A quarter of an ellipse as one cubic: each handle is this fraction of its radius long.
+ */
+constexpr qreal k_quarterArc     = 0.5522847498307936;
 /**
  *  Samples across each side of the grid a free outline's text area is found on (largestInscribedRect()).
  *  64 puts the rectangle within a sixty-fourth of the side of the true largest, well inside the padding.
@@ -124,21 +129,27 @@ QPainterPath ellipsePath(const ShapeProperties&, const QRectF& r)
 // Polygon
 // ---------------------------------------------------------------------------
 
-//! A Polygon's nodes: its own, or the rectangle's corners when it has fewer than three.
-const QList<QPointF>& polygonNodes(const ShapeProperties& shape)
+//! A Polygon's or a Curve's nodes: its own, or the rectangle's corners when it has fewer than three.
+const QList<ShapeNode>& freeNodes(const ShapeProperties& shape)
 {
-    static const QList<QPointF> k_rectangle{{0, 0}, {1, 0}, {1, 1}, {0, 1}};
+    static const QList<ShapeNode> k_rectangle{{0, 0}, {1, 0}, {1, 1}, {0, 1}};
     return shape.nodes.size() >= 3 ? shape.nodes : k_rectangle;
+}
+
+//! A point relative to @p r (a node, or a node plus a handle) in @p r's own coordinates.
+QPointF inBody(const QPointF& p, const QRectF& r)
+{
+    return {r.left() + p.x() * r.width(), r.top() + p.y() * r.height()};
 }
 
 //! A Polygon's vertices in @p r.
 QList<QPointF> polygonPoints(const ShapeProperties& shape, const QRectF& r)
 {
-    const QList<QPointF>& nodes = polygonNodes(shape);
-    QList<QPointF>        out;
+    const QList<ShapeNode>& nodes = freeNodes(shape);
+    QList<QPointF>          out;
     out.reserve(nodes.size());
-    for (const QPointF& n : nodes)
-        out.append(QPointF(r.left() + n.x() * r.width(), r.top() + n.y() * r.height()));
+    for (const ShapeNode& n : nodes)
+        out.append(inBody(n.at, r));
     return out;
 }
 
@@ -313,6 +324,39 @@ QRectF polygonArea(const ShapeProperties& shape, const QRectF& body)
 }
 
 // ---------------------------------------------------------------------------
+// Curve
+// ---------------------------------------------------------------------------
+
+/**
+ * @brief The nodes joined by cubic segments, each leaving a node along its out-handle and arriving along
+ *        the next one's in-handle; straight where neither has one. Filled by the non-zero rule, as a
+ *        Polygon is.
+ */
+QPainterPath curvePath(const ShapeProperties& shape, const QRectF& r)
+{
+    const QList<ShapeNode>& nodes = freeNodes(shape);
+    const qsizetype         n     = nodes.size();
+    QPainterPath            p;
+    p.setFillRule(Qt::WindingFill);
+    p.moveTo(inBody(nodes.first().at, r));
+    for (qsizetype i = 0; i < n; ++i) {
+        const ShapeNode& a = nodes[i];
+        const ShapeNode& b = nodes[(i + 1) % n];
+        if (a.out.isNull() && b.in.isNull())
+            p.lineTo(inBody(b.at, r));
+        else
+            p.cubicTo(inBody(a.at + a.out, r), inBody(b.at + b.in, r), inBody(b.at, r));
+    }
+    p.closeSubpath();
+    return p;
+}
+
+QRectF curveArea(const ShapeProperties& shape, const QRectF& body)
+{
+    return largestInscribedRect(curvePath(shape, body), body);
+}
+
+// ---------------------------------------------------------------------------
 // Edit-mode handles
 // ---------------------------------------------------------------------------
 
@@ -415,10 +459,10 @@ ShapeProperties dragPolygonHandle(const ShapeProperties& shape, const QRectF& bo
     ShapeProperties s = shape;
     switch (handle.role) {
     case ShapeHandle::Role::Vertex:
-        s.nodes = polygonNodes(shape);   // a Polygon drawing the box's rectangle gets nodes of its own
+        s.nodes = freeNodes(shape);   // a Polygon drawing the box's rectangle gets nodes of its own
         if (handle.index >= 0 && handle.index < s.nodes.size() && !body.isEmpty())
-            s.nodes[handle.index] = QPointF((to.x() - body.left()) / body.width(),
-                                            (to.y() - body.top()) / body.height());
+            s.nodes[handle.index].at = QPointF((to.x() - body.left()) / body.width(),
+                                               (to.y() - body.top()) / body.height());
         break;
     case ShapeHandle::Role::Radius:
         if (const Corner c = polygonCorner(polygonPoints(shape, body)); c.valid())
@@ -468,37 +512,6 @@ QRectF thoughtArea(const ShapeProperties& shape, const QRectF& body)
 }
 
 // ---------------------------------------------------------------------------
-// Scroll, Banner
-// ---------------------------------------------------------------------------
-
-//! An unrolled scroll: a panel with bowed long edges and a rolled end on each side.
-QPainterPath scrollPath(const ShapeProperties& shape, const QRectF& r)
-{
-    const qreal  roll = qMax(2.0, qMin(r.width() * k_scrollRoll, r.height() / 2.0));
-    const qreal  bow  = r.height() * k_scrollBow;
-    const QRectF body = r.adjusted(roll, 0, -roll, 0);
-    if (body.width() <= 1.0)
-        return boxPath(shape, r);   // too narrow to roll: fall back to something still drawable
-
-    QPainterPath p;
-    p.moveTo(body.left(), body.top());
-    p.quadTo(body.center().x(), body.top() + bow, body.right(), body.top());
-    // Qt measures arcs in counter-clockwise degrees; a -180 sweep from the top bulges the roll outward.
-    p.arcTo(QRectF(body.right() - roll, body.top(), roll * 2.0, body.height()), 90.0, -180.0);
-    p.quadTo(body.center().x(), body.bottom() - bow, body.left(), body.bottom());
-    p.arcTo(QRectF(body.left() - roll, body.top(), roll * 2.0, body.height()), -90.0, -180.0);
-    p.closeSubpath();
-    return p;
-}
-
-QRectF scrollArea(const ShapeProperties&, const QRectF& body)
-{
-    const qreal roll = qMin(body.width() * k_scrollRoll, body.height() / 2.0);
-    const qreal bow  = body.height() * k_scrollBow;
-    return body.adjusted(roll, bow, -roll, -bow);
-}
-
-// ---------------------------------------------------------------------------
 // The table
 // ---------------------------------------------------------------------------
 
@@ -515,7 +528,7 @@ const std::array<ShapeInfo, int(ShapeProperties::k_lastKind) + 1> k_shapes{{
     {Kind::Polygon,   "polygon",   QT_TRANSLATE_NOOP("QObject", "Polygon"),                false, true,  polygonPath,   polygonArea,        0,
      polygonHandles, dragPolygonHandle},
     {Kind::Thought,   "thought",   QT_TRANSLATE_NOOP("QObject", "Thought balloon"),        true,  false, thoughtPath,   thoughtArea,        0},
-    {Kind::Scroll,    "scroll",    QT_TRANSLATE_NOOP("QObject", "Scroll"),                 false, false, scrollPath,    scrollArea,         50},
+    {Kind::Curve,     "curve",     QT_TRANSLATE_NOOP("QObject", "Curve"),                  false, false, curvePath,     curveArea,          0},
 }};
 
 //! A kind with every parameter at its default — the template of a kind that has no parameters.
@@ -534,18 +547,56 @@ ShapeProperties box(qreal radius)
     return s;
 }
 
+//! @p p rounded to the decimals a node is saved with.
+QPointF saved(const QPointF& p)
+{
+    const qreal scale = std::pow(10.0, ShapeProperties::k_nodeDecimals);
+    return {qRound(p.x() * scale) / scale, qRound(p.y() * scale) / scale};
+}
+
 /**
  * @brief A sharp-cornered Polygon through @p nodes, rounded to the decimals a node is saved with, so a
  *        placed template reads back from its file as itself.
  */
 ShapeProperties polygon(const QList<QPointF>& nodes)
 {
-    const qreal     scale = std::pow(10.0, ShapeProperties::k_nodeDecimals);
-    ShapeProperties s     = plain(Kind::Polygon);
-    s.cornerRadius        = 0.0;
+    ShapeProperties s = plain(Kind::Polygon);
+    s.cornerRadius    = 0.0;
     for (const QPointF& n : nodes)
-        s.nodes.append(QPointF(qRound(n.x() * scale) / scale, qRound(n.y() * scale) / scale));
+        s.nodes.append(ShapeNode(saved(n), {}, {}));
     return s;
+}
+
+//! A Curve through @p nodes, rounded to the decimals a node is saved with, as polygon()'s are.
+ShapeProperties curve(const QList<ShapeNode>& nodes)
+{
+    ShapeProperties s = plain(Kind::Curve);
+    for (const ShapeNode& n : nodes)
+        s.nodes.append(ShapeNode(saved(n.at), saved(n.in), saved(n.out), n.type));
+    return s;
+}
+
+/**
+ * @brief An unrolled scroll: bowed long edges, and a rolled end on each side that is half an ellipse.
+ *
+ * Each long edge is a quadratic, as a cubic: its handles two thirds of the way to the quadratic's one.
+ * Each rolled end is two quarters of an ellipse, through the end's outermost point.
+ */
+QList<ShapeNode> scrollNodes()
+{
+    using Type       = ShapeNode::Type;
+    const qreal roll = k_scrollRoll;
+    const qreal arc  = k_quarterArc;
+    const qreal run  = 2.0 / 3.0 * (0.5 - roll);   // a long edge's handles, along it...
+    const qreal sag  = 2.0 / 3.0 * k_scrollBow;     // ...and in towards the middle
+    return {
+        {{roll, 0},     {-arc * roll, 0}, {run, sag}},
+        {{1 - roll, 0}, {-run, sag},      {arc * roll, 0}},
+        {{1, 0.5},      {0, -arc / 2},    {0, arc / 2},     Type::Symmetric},
+        {{1 - roll, 1}, {arc * roll, 0},  {-run, -sag}},
+        {{roll, 1},     {run, -sag},      {-arc * roll, 0}},
+        {{0, 0.5},      {0, arc / 2},     {0, -arc / 2},    Type::Symmetric},
+    };
 }
 
 //! A star of @p spikes points, its inner vertices at @p inner of the outer radius, the first one on top.
@@ -591,7 +642,7 @@ const QList<ShapeTemplate>& shapeTemplates()
         // A ribbon with a V notched into each end.
         {"banner",    QT_TRANSLATE_NOOP("QObject", "Banner"),
          polygon({{0, 0}, {1, 0}, {1 - k_bannerNotch, 0.5}, {1, 1}, {0, 1}, {k_bannerNotch, 0.5}}), false},
-        {"scroll",    QT_TRANSLATE_NOOP("QObject", "Scroll"),          plain(Kind::Scroll),    false},
+        {"scroll",    QT_TRANSLATE_NOOP("QObject", "Scroll"),          curve(scrollNodes()),   false},
     };
     return templates;
 }
@@ -627,18 +678,18 @@ qreal cornerRadiusLimit(const QSizeF& size)
 ShapeProperties withVertexAdded(const ShapeProperties& shape, int edge)
 {
     ShapeProperties s = shape;
-    s.nodes           = polygonNodes(shape);
+    s.nodes           = freeNodes(shape);
     const int n       = int(s.nodes.size());
     if (edge < 0 || edge >= n)
         return shape;
-    s.nodes.insert(edge + 1, (s.nodes[edge] + s.nodes[(edge + 1) % n]) / 2.0);
+    s.nodes.insert(edge + 1, ShapeNode((s.nodes[edge].at + s.nodes[(edge + 1) % n].at) / 2.0, {}, {}));
     return s;
 }
 
 ShapeProperties withVertexRemoved(const ShapeProperties& shape, int index)
 {
     ShapeProperties s = shape;
-    s.nodes           = polygonNodes(shape);
+    s.nodes           = freeNodes(shape);
     if (s.nodes.size() <= 3 || index < 0 || index >= s.nodes.size())
         return shape;
     s.nodes.removeAt(index);

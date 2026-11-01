@@ -65,6 +65,61 @@ struct Tail
 struct ObjectRecord;
 
 /**
+ * @brief One node of a free outline, a Polygon's or a Curve's, **relative to the balloon**: 0..1 across
+ *        its width and its height, so resizing the box scales the shape (PLAN-L §3.4).
+ *
+ * A Polygon reads only the point. A Curve also reads the two handles, kept as offsets from the point so
+ * a node dragged takes its handles along; a zero handle is none, and a segment with none at either end
+ * is straight. The type says how a drag of one handle moves the other (PLAN-L B21).
+ */
+struct ShapeNode
+{
+    enum class Type {
+        Corner,      //!< The handles are independent.
+        Smooth,      //!< The handles stay on one line through the point.
+        Symmetric,   //!< On one line, and as long as each other.
+    };
+
+    QPointF at;
+    QPointF in;    //!< Towards the handle the segment from the previous node arrives along.
+    QPointF out;   //!< Towards the handle the segment to the next node leaves along.
+    Type    type = Type::Corner;
+
+    ShapeNode() = default;
+    ShapeNode(qreal x, qreal y) : at(x, y) {}
+    ShapeNode(QPointF at, QPointF in, QPointF out, Type type = Type::Corner)
+        : at(at), in(in), out(out), type(type) {}
+
+    //! A Polygon's vertex: a corner with no handles, saved as its point alone.
+    [[nodiscard]] bool plain() const { return type == Type::Corner && in.isNull() && out.isNull(); }
+
+    //! Persisted, in the JSON and the SVG. **Never changes** once saved.
+    [[nodiscard]] static const char* typeName(Type t)
+    {
+        switch (t) {
+        case Type::Smooth:    return "smooth";
+        case Type::Symmetric: return "symmetric";
+        case Type::Corner:    break;
+        }
+        return "corner";
+    }
+    //! An unknown name reads as a corner, which leaves both handles where they are.
+    [[nodiscard]] static Type typeFromName(QStringView name)
+    {
+        for (Type t : {Type::Smooth, Type::Symmetric})
+            if (name == QLatin1String(typeName(t)))
+                return t;
+        return Type::Corner;
+    }
+
+    [[nodiscard]] bool operator==(const ShapeNode& o) const
+    {
+        return Fields::same(at, o.at) && Fields::same(in, o.in) && Fields::same(out, o.out) && type == o.type;
+    }
+    [[nodiscard]] bool operator!=(const ShapeNode& o) const { return !(*this == o); }
+};
+
+/**
  * @brief The balloon's own surface: what it is filled with, and the line drawn around it.
  *
  * The first **property group** — a named slice of an object's state with exactly one editor
@@ -125,11 +180,11 @@ struct ShapeProperties
      * is unreleased, so a kind may still be renamed or merged (PLAN-L B3): a file naming one that is gone
      * loads as a Box.
      */
-    enum class Kind { None, Box, Ellipse, Polygon, Thought, Scroll };
+    enum class Kind { None, Box, Ellipse, Polygon, Thought, Curve };
 
     //! The enum's last value. **Adding a shape moves this** — it is how the unit tests know a shape
     //! exists that the picker (shapeOrder()) does not offer, and which therefore would not load either.
-    static constexpr Kind k_lastKind = Kind::Scroll;
+    static constexpr Kind k_lastKind = Kind::Curve;
 
     //! Decimal places a node is saved with in the SVG; a template's nodes are rounded to them, so a
     //! placed template reads back as itself. 4 is a fifth of a pixel on a 2000 px balloon.
@@ -143,11 +198,10 @@ struct ShapeProperties
      */
     qreal cornerRadius = 45.0;
     /**
-     * A Polygon's vertices, in order, **relative to the balloon**: 0..1 across its width and its height,
-     * so resizing the box scales the shape and a template fits any size. Fewer than three draw the box's
-     * own rectangle.
+     * A Polygon's or a Curve's nodes, in order (ShapeNode), relative to the balloon so a template fits
+     * any size. Fewer than three draw the box's own rectangle.
      */
-    QList<QPointF> nodes;
+    QList<ShapeNode> nodes;
 
     //! The fields, with the keys they are saved under (fields.hpp).
     template <class V>

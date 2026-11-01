@@ -64,7 +64,7 @@ struct ShapeInfo
      * The largest axis-aligned rectangle the outline actually contains, before the stroke and the
      * padding are taken off. This is the half of a shape that takes the thought: it is what stops a
      * wide balloon spilling its words out between a burst's spikes or past a diamond's slope. A kind
-     * with no formula for it (the Polygon) computes it from its outline. An area, never a placement:
+     * with no formula for it (the Polygon, the Curve) computes it from its outline. An area, never a placement:
      * where the words sit in it is lettering.cpp's alone.
      */
     QRectF (*safeArea)(const ShapeProperties& shape, const QRectF& body);

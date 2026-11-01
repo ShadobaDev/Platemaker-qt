@@ -20,12 +20,19 @@ QJsonValue toJsonValue(const QString& v) { return v; }
 QJsonValue toJsonValue(const QColor& v) { return v.name(QColor::HexArgb); }
 QJsonValue toJsonValue(ObjectRecord::Shape v) { return QLatin1String(shapeName(v)); }
 QJsonValue toJsonValue(ObjectRecord::Style v) { return QLatin1String(styleName(v)); }
-//! Nodes as [x, y] pairs, at full precision: an undo step restores exactly what was there.
-QJsonValue toJsonValue(const QList<QPointF>& v)
+//! Nodes as [x, y], or [x, y, type, inX, inY, outX, outY] for a Curve's node with handles, at full
+//! precision: an undo step restores exactly what was there.
+QJsonValue toJsonValue(const QList<ShapeNode>& v)
 {
     QJsonArray arr;
-    for (const QPointF& p : v)
-        arr.append(QJsonArray{p.x(), p.y()});
+    for (const ShapeNode& n : v) {
+        QJsonArray node{n.at.x(), n.at.y()};
+        if (!n.plain())
+            for (const QJsonValue& f : {QJsonValue(QLatin1String(ShapeNode::typeName(n.type))), QJsonValue(n.in.x()),
+                                        QJsonValue(n.in.y()), QJsonValue(n.out.x()), QJsonValue(n.out.y())})
+                node.append(f);
+        arr.append(node);
+    }
     return arr;
 }
 
@@ -42,15 +49,18 @@ void fromJsonValue(const QJsonValue& j, QColor& v)
 // An unknown or missing name reads as the reader's own fallback (Box, Clean).
 void fromJsonValue(const QJsonValue& j, ObjectRecord::Shape& v) { v = shapeFromName(j.toString()); }
 void fromJsonValue(const QJsonValue& j, ObjectRecord::Style& v) { v = styleFromName(j.toString()); }
-void fromJsonValue(const QJsonValue& j, QList<QPointF>& v)
+void fromJsonValue(const QJsonValue& j, QList<ShapeNode>& v)
 {
     if (!j.isArray())
         return;   // missing: the list already there stays
     v.clear();
     for (const QJsonValue& p : j.toArray()) {
-        const QJsonArray xy = p.toArray();
-        if (xy.size() == 2)
-            v.append(QPointF(xy[0].toDouble(), xy[1].toDouble()));
+        const QJsonArray f = p.toArray();
+        if (f.size() == 2)
+            v.append(ShapeNode(f[0].toDouble(), f[1].toDouble()));
+        else if (f.size() == 7)
+            v.append(ShapeNode({f[0].toDouble(), f[1].toDouble()}, {f[3].toDouble(), f[4].toDouble()},
+                               {f[5].toDouble(), f[6].toDouble()}, ShapeNode::typeFromName(f[2].toString())));
     }
 }
 
@@ -182,7 +192,7 @@ const QList<ObjectRecord::Shape>& shapeOrder()
 {
     using Shape = ObjectRecord::Shape;
     static const QList<Shape> order{
-        Shape::Box, Shape::Ellipse, Shape::Thought, Shape::Polygon, Shape::Scroll,
+        Shape::Box, Shape::Ellipse, Shape::Thought, Shape::Polygon, Shape::Curve,
     };   // Shape::None is not a silhouette — see the header
     return order;
 }

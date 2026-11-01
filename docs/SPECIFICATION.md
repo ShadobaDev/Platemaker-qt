@@ -87,8 +87,9 @@ existing kind can describe is one template row**, and nothing else.
 
 A new kind gets move, resize, tails, lettering, undo, presets, the tiles and the row glyphs for free. Copy
 **Thought** (`thoughtPath()`, `thoughtArea()`), **Box** (`boxPath()`, `boxArea()`) for one with a
-parameter, or **Polygon** (`polygonPath()`, `polygonArea()`) for one with no formula for its text area:
-`largestInscribedRect()` finds it from the outline.
+parameter, or **Polygon** (`polygonPath()`, `polygonArea()`) and **Curve** (`curvePath()`,
+`curveArea()`) for one with no formula for its text area: `largestInscribedRect()` finds it from the
+outline.
 
 1. `widgets/objectrecord/propertygroups.hpp`: add to `Kind` (persisted by name; the strip editor is
    unreleased, so a kind may still be renamed or merged) and move `k_lastKind`.
@@ -123,8 +124,10 @@ spec table, shown only for the kinds that read it; `loadedRecord()` and `expectU
 and the test's mirror struct, whose `static_assert` stops the build until the member is placed. `Fields.EveryFieldIsComparedAndSaved` then checks the new field on its own.
 A value of a type no group holds yet needs an overload in each of the three walks (`Fields::same()`,
 `toJsonValue()`/`fromJsonValue()`, `attrValue()`/`fromAttr()`) and a `bump()` in the test. The
-Polygon's `nodes` is the worked example: a list, relative to the box, saved at full precision in the JSON
-and at `k_nodeDecimals` in the SVG, so a template's nodes are rounded to those decimals and a placed one
+`nodes` is the worked example: a list of `ShapeNode`, relative to the box, which a Polygon and a Curve
+share. A node is a point, and for a Curve two handles (offsets from it) and a type; one with neither is
+saved as its point alone (`x,y`), one with handles as `x,y,type,inX,inY,outX,outY`. Full precision in the
+JSON, `k_nodeDecimals` in the SVG, so a template's nodes are rounded to those decimals and a placed one
 reads back as itself. `FieldRows` skips a field that is not a number at compile time, so a list never
 becomes a row.
 

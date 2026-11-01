@@ -28,11 +28,11 @@ constexpr qreal k_radiusDotClearance = 2.2;
 QPointF growToNodes(ObjectRecord& a, const QRectF& body)
 {
     qreal left = 0.0, top = 0.0, right = 1.0, bottom = 1.0;
-    for (const QPointF& n : std::as_const(a.shape.nodes)) {
-        left   = qMin(left, n.x());
-        top    = qMin(top, n.y());
-        right  = qMax(right, n.x());
-        bottom = qMax(bottom, n.y());
+    for (const ShapeNode& n : std::as_const(a.shape.nodes)) {
+        left   = qMin(left, n.at.x());
+        top    = qMin(top, n.at.y());
+        right  = qMax(right, n.at.x());
+        bottom = qMax(bottom, n.at.y());
     }
     if (left >= 0.0 && top >= 0.0 && right <= 1.0 && bottom <= 1.0)
         return {};
@@ -45,11 +45,15 @@ QPointF growToNodes(ObjectRecord& a, const QRectF& body)
     const QPointF corner(grown.left() - inset, grown.top() - inset);
     a.box = QSize(qCeil(grown.width() + 2 * inset), qCeil(grown.height() + 2 * inset));
 
-    const QRectF next = Geometry::balloonRect(a);
-    for (QPointF& n : a.shape.nodes) {
-        const QPointF at(body.left() + n.x() * body.width() - corner.x(),
-                         body.top() + n.y() * body.height() - corner.y());
-        n = QPointF((at.x() - next.left()) / next.width(), (at.y() - next.top()) / next.height());
+    // A handle is an offset from its node, so it only rescales.
+    const QRectF  next = Geometry::balloonRect(a);
+    const QPointF scale(body.width() / next.width(), body.height() / next.height());
+    for (ShapeNode& n : a.shape.nodes) {
+        const QPointF at(body.left() + n.at.x() * body.width() - corner.x(),
+                         body.top() + n.at.y() * body.height() - corner.y());
+        n.at  = QPointF((at.x() - next.left()) / next.width(), (at.y() - next.top()) / next.height());
+        n.in  = QPointF(n.in.x() * scale.x(), n.in.y() * scale.y());
+        n.out = QPointF(n.out.x() * scale.x(), n.out.y() * scale.y());
     }
     for (Tail& t : a.tails.items)
         t.tip -= corner;

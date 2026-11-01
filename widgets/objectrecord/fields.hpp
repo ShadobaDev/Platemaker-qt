@@ -37,14 +37,12 @@ inline bool same(bool a, bool b) { return a == b; }
 inline bool same(qreal a, qreal b) { return qFuzzyCompare(1.0 + a, 1.0 + b); }
 inline bool same(const QString& a, const QString& b) { return a == b; }
 inline bool same(const QColor& a, const QColor& b) { return a == b; }
-inline bool same(const QList<QPointF>& a, const QList<QPointF>& b)
+inline bool same(const QPointF& a, const QPointF& b) { return same(a.x(), b.x()) && same(a.y(), b.y()); }
+//! A list of a type of the groups' own (a node), by its operator==, which compares numbers as same() does.
+template <class T>
+bool same(const QList<T>& a, const QList<T>& b)
 {
-    if (a.size() != b.size())
-        return false;
-    for (qsizetype i = 0; i < a.size(); ++i)
-        if (!same(a[i].x(), b[i].x()) || !same(a[i].y(), b[i].y()))
-            return false;
-    return true;
+    return a == b;
 }
 template <class E, std::enable_if_t<std::is_enum_v<E>, int> = 0>
 bool same(E a, E b)

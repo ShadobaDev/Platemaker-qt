@@ -212,14 +212,19 @@ QString attrValue(const QString& v) { return v; }
 QString attrValue(const QColor& v) { return v.name(QColor::HexArgb); }
 QString attrValue(ObjectRecord::Shape v) { return QString::fromLatin1(shapeName(v)); }
 QString attrValue(ObjectRecord::Style v) { return QString::fromLatin1(styleName(v)); }
-//! Nodes as "x,y" pairs joined by ";", as the tails are.
-QString attrValue(const QList<QPointF>& v)
+//! Nodes joined by ";", as the tails are: "x,y", or "x,y,type,inX,inY,outX,outY" for a Curve's node with
+//! handles.
+QString attrValue(const QList<ShapeNode>& v)
 {
+    const auto  pair = [](const QPointF& p) {
+        return num(p.x(), ShapeProperties::k_nodeDecimals) + QLatin1Char(',') + num(p.y(), ShapeProperties::k_nodeDecimals);
+    };
     QStringList parts;
     parts.reserve(v.size());
-    for (const QPointF& p : v)
-        parts << num(p.x(), ShapeProperties::k_nodeDecimals) + QLatin1Char(',')
-                     + num(p.y(), ShapeProperties::k_nodeDecimals);
+    for (const ShapeNode& n : v)
+        parts << (n.plain() ? pair(n.at)
+                            : QStringList{pair(n.at), QLatin1String(ShapeNode::typeName(n.type)), pair(n.in), pair(n.out)}
+                                  .join(QLatin1Char(',')));
     return parts.join(QLatin1Char(';'));
 }
 
@@ -242,13 +247,16 @@ void fromAttr(QStringView s, QColor& v)
 // An unknown or missing name reads as the reader's own fallback (Box, Clean).
 void fromAttr(QStringView s, ObjectRecord::Shape& v) { v = shapeFromName(s); }
 void fromAttr(QStringView s, ObjectRecord::Style& v) { v = styleFromName(s); }
-void fromAttr(QStringView s, QList<QPointF>& v)
+void fromAttr(QStringView s, QList<ShapeNode>& v)
 {
     v.clear();
     for (QStringView g : s.split(QLatin1Char(';'), Qt::SkipEmptyParts)) {
-        const auto xy = g.split(QLatin1Char(','));
-        if (xy.size() == 2)
-            v.append(QPointF(xy[0].toDouble(), xy[1].toDouble()));
+        const auto f = g.split(QLatin1Char(','));
+        if (f.size() == 2)
+            v.append(ShapeNode(f[0].toDouble(), f[1].toDouble()));
+        else if (f.size() == 7)
+            v.append(ShapeNode({f[0].toDouble(), f[1].toDouble()}, {f[3].toDouble(), f[4].toDouble()},
+                               {f[5].toDouble(), f[6].toDouble()}, ShapeNode::typeFromName(f[2])));
     }
 }
 

@@ -83,7 +83,7 @@ ObjectRecord loadedRecord()
 // StyleProperties::kind) passes unnoticed; counting members needs C++20, or reflection.
 // ---------------------------------------------------------------------------
 
-struct ShapeMirror { ShapeProperties::Kind kind; qreal cornerRadius; QList<QPointF> nodes; };
+struct ShapeMirror { ShapeProperties::Kind kind; qreal cornerRadius; QList<ShapeNode> nodes; };
 static_assert(sizeof(ShapeProperties) == sizeof(ShapeMirror),
               "ShapeProperties grew a field: place it (see above), then mirror it");
 
@@ -387,7 +387,9 @@ TEST(PropertyGroupPersistence, KeepsTheFlatKeys)
 
 TEST(PropertyGroupPersistence, RoundTrips)
 {
-    const ObjectRecord a = loadedRecord();
+    ObjectRecord a = loadedRecord();
+    // A Curve's node with handles among a Polygon's plain ones, so both forms are saved and read.
+    a.shape.nodes.insert(1, ShapeNode({0.5, 0.1}, {0.05, -0.1}, {-0.02, 0.2}, ShapeNode::Type::Smooth));
     const ObjectRecord b = ObjectRecord::fromJson(a.toJson());
 
     EXPECT_EQ(b.shape, a.shape);
@@ -685,9 +687,9 @@ TEST(Shapes, AHandleDraggedOntoItselfChangesNothing)
     ShapeProperties diamond = Geometry::shapeTemplate("diamond").shape;
     const ShapeProperties five = Geometry::withVertexAdded(diamond, 0);
     ASSERT_EQ(five.nodes.size(), 5);
-    const QPointF middle = (diamond.nodes.at(0) + diamond.nodes.at(1)) / 2.0;
-    EXPECT_NEAR(five.nodes.at(1).x(), middle.x(), 1e-9);
-    EXPECT_NEAR(five.nodes.at(1).y(), middle.y(), 1e-9);
+    const QPointF middle = (diamond.nodes.at(0).at + diamond.nodes.at(1).at) / 2.0;
+    EXPECT_NEAR(five.nodes.at(1).at.x(), middle.x(), 1e-9);
+    EXPECT_NEAR(five.nodes.at(1).at.y(), middle.y(), 1e-9);
     diamond = Geometry::withVertexRemoved(diamond, 0);
     EXPECT_EQ(diamond.nodes.size(), 3);
     EXPECT_TRUE(Geometry::withVertexRemoved(diamond, 0) == diamond);   // three is the fewest
@@ -936,7 +938,7 @@ void bump(bool& v) { v = !v; }
 void bump(qreal& v) { v += 0.25; }
 void bump(QString& v) { v += QStringLiteral("x"); }
 void bump(QColor& v) { v = QColor(v.red() ^ 0x55, v.green() ^ 0x55, v.blue() ^ 0x55, v.alpha()); }
-void bump(QList<QPointF>& v) { v.append(QPointF(0.25, 0.75)); }
+void bump(QList<ShapeNode>& v) { v.append(ShapeNode(0.25, 0.75)); }
 void bump(ObjectRecord::Shape& v)
 {
     v = static_cast<ObjectRecord::Shape>((int(v) + 1) % (int(ShapeProperties::k_lastKind) + 1));

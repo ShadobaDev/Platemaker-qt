@@ -106,6 +106,9 @@
     shape with a notch too. *Convert to ▸ Balloon*, and a preset applied while the Text tool is armed,
     carry the whole shape (its corners and its points), not only which kind it is. Files from before
     naming `shout`, `diamond`, `trapezoid` or `banner` load as a default Box.
+  - **The scroll is a Curve**, a shape drawn with Bézier curves, and its tile a ready-made start. It
+    looks as before; the lettering's room is worked out from the outline, as a polygon's is, so it now
+    reaches into the rolled ends. Files from before naming `scroll` load as a default Box.
   - **Edit a balloon's shape on the strip.** Double-click a box or polygon balloon, or pick **Edit
     shape** on its context menu: the outline is traced instead of the dashed box, and its own handles
     replace the grips. Drag the two-headed arrow in the corner to round the corners; on a polygon, drag a square to move a

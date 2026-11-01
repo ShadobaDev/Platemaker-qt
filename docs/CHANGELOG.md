@@ -117,7 +117,7 @@
     edit.
   - **Line and texture are two choices.** The Style panel's *Line* is how the edge is drawn (a solid
     line or a flash) and *Texture* what is done to the whole balloon as it is rendered, line and all, never
-    the words. The first texture is **Rough**, with four rows: grain, detail, displacement and bleed. It
+    the words. The first texture is **Rough**, with four rows: grain, detail, displacement and blur. It
     replaces Marker and Ink, which are now two built-in presets of it, and *Style amount* is gone: the
     rows set the strength. A flash can be rough. Files from before naming `marker` or `ink` load as a
     clean line with no texture.

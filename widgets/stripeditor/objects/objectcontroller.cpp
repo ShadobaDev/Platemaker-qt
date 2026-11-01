@@ -938,6 +938,10 @@ void ObjectController::applyRecords(const QStringList& uids, const QList<ObjectR
         ObjectRecord  next  = records.at(i);
         const QPointF shift = settleBox(item, next);
         item->setRecord(next);   // itself a no-op when the record has not moved
+        // A textured balloon's picture is the library's: a preview rasterises the edit at once rather
+        // than leaving the untextured paths up until the commit that follows (the sync's refresh).
+        if (auto* bubble = qobject_cast<BubbleObject*>(item); bubble && Geometry::hasFilter(next))
+            bubble->setSharpRaster(sharpRasterFor(next));
         if (!shift.isNull())
             item->setPos(item->pos() + shift * (item->scale() > 0.0 ? item->scale() : 1.0));
     }

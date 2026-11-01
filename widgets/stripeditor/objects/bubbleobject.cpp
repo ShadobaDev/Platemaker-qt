@@ -236,9 +236,10 @@ void BubbleObject::dragShapeTo(const QPointF& scenePos)
 
 void BubbleObject::paintContent(QPainter& painter)
 {
-    if (!m_sharp.isNull() && !isDragging()) {
-        // At rest, and styled: show the library's rendering. Mid-drag the paths are used instead — they
-        // follow the mouse, and a rasterisation cannot be produced per mouse-move anyway.
+    // Styled: show the library's rendering, at rest and while the whole object is carried, which moves
+    // it and changes nothing it draws. A drag that reshapes it (a tail, a grip, a node) shows the paths
+    // instead: they follow the mouse, and a rasterisation cannot be produced per mouse-move anyway.
+    if (!m_sharp.isNull() && (!isDragging() || dragGrip() == Grip::Body)) {
         painter.drawImage(contentBounds().topLeft(), m_sharp);
         return;
     }

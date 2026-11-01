@@ -314,10 +314,16 @@ void Object::endDrag()
 {
     const bool report = m_moved && m_active != Grip::None;
     const bool shape  = m_active == Grip::Shape;
+    const bool was    = m_active != Grip::None;
     m_active = Grip::None;
     m_moved  = false;
     if (shape)
         emit chromeChanged();   // ...and no longer
+    // At rest an object may draw otherwise than mid-drag (a textured balloon shows the library's
+    // rasterisation), and a click that moved nothing triggers no other repaint: without this the press's
+    // picture stayed.
+    if (was)
+        update();
 
     // Only a settled drag is persisted: the owner turns each report into one undo step, and reporting
     // per mouse-move would bury the history under a pixel-by-pixel trail.

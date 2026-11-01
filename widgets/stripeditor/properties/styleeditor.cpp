@@ -95,12 +95,16 @@ const FieldRowSpec k_flashRows[] = {
            "own, and follows it when the shape changes; a value set here stays.")},
 };
 
-//! Rough's numbers. Lengths in strip pixels, with a decimal: a bleed's useful range is around a pixel.
+//! Rough's numbers. Lengths in strip pixels, with a decimal: a blur's useful range is around a pixel.
 const FieldRowSpec k_roughRows[] = {
-    {"roughFrequency",    PM_TR("Grain:"),        0.001, 0.5, "",    PM_TR("How fine the wobble is: higher gives smaller, closer waves."), 3},
+    // A step of 0.005: a wave's length is 1 / grain, so a change shows in proportion, and a thousandth
+    // at the Marker's 0.03 is a wave 3 % shorter, nothing the eye sees.
+    {"roughFrequency",    PM_TR("Grain:"),        0.001, 0.5, "",
+     PM_TR("How fine the wobble is: about one wave every 1 / grain pixels, so 0.03 is a wave every 33 px "
+           "and 0.07 one every 14 px. Higher gives smaller, closer waves."), 3, 0.005},
     {"roughOctaves",      PM_TR("Detail:"),       1,     8,   "",    PM_TR("How many finer wobbles ride on the first.")},
     {"roughDisplacement", PM_TR("Displacement:"), 0,     50,  " px", PM_TR("How far the outline wanders off its line."), 1},
-    {"roughBlur",         PM_TR("Bleed:"),        0,     10,  " px", PM_TR("How much the line softens after it, as ink bleeding into paper. 0 keeps it sharp."), 1},
+    {"roughBlur",         PM_TR("Blur:"),         0,     10,  " px", PM_TR("How much the balloon softens after the wobble, as ink bleeding into paper. 0 keeps it sharp."), 1},
 };
 #undef PM_TR
 

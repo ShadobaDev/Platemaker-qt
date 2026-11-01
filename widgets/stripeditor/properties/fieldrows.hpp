@@ -25,6 +25,9 @@ struct FieldRowSpec
     const char* tip;
     //! Places after the point; 0 shows whole numbers (a length in whole pixels), more a decimal spin.
     int         decimals = 0;
+    //! What an arrow adds, for a decimal spin; 0 is one unit of the last place. A number whose effect is
+    //! in proportion to it wants steps that show at its usual size, and typing keeps every place.
+    double      step = 0.0;
 };
 
 /**
@@ -81,7 +84,7 @@ public:
                 if (spec->decimals > 0) {
                     row.decimal = new QDoubleSpinBox(owner);
                     row.decimal->setDecimals(spec->decimals);
-                    row.decimal->setSingleStep(std::pow(10.0, -spec->decimals));
+                    row.decimal->setSingleStep(spec->step > 0.0 ? spec->step : std::pow(10.0, -spec->decimals));
                     row.decimal->setRange(spec->min, spec->max);
                     row.box = row.decimal;
                     row.get = [member](const Group& v) { return double(v.*member); };

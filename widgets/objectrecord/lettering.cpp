@@ -50,7 +50,7 @@ QRectF textSafeArea(const ObjectRecord& a, const QRectF& body)
     // The author's padding (TextProperties::padding), on top of the stroke. Negative widens the area
     // past the outline — an impact balloon's lettering bursting out of it.
     // An edge's teeth go in from the outline, so the area gives up their depth as well.
-    const qreal  pad    = a.skin.strokeWidth + a.text.padding + edgeInset(a.shape);
+    const qreal  pad    = a.style.strokeWidth + a.text.padding + edgeInset(a.shape);
     const QRectF usable = shapeInfo(a.shape.kind).safeArea(a.shape, body);
     return usable.adjusted(pad, pad, -pad, -pad);
 }

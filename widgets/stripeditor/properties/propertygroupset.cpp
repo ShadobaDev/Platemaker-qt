@@ -5,6 +5,7 @@
 #include "properties/skineditor.hpp"
 #include "properties/styleeditor.hpp"
 #include "properties/texteditor.hpp"
+#include "properties/textureeditor.hpp"
 
 namespace StripEdit {
 
@@ -12,6 +13,7 @@ PropertyGroupSet::PropertyGroupSet(QWidget* host)
     : m_shape(new ShapeEditor(host))
     , m_skin(new SkinEditor(host))
     , m_style(new StyleEditor(host))
+    , m_texture(new TextureEditor(host))
     , m_effects(new EffectsEditor(host))
     , m_text(new TextEditor(host))
 {
@@ -19,7 +21,9 @@ PropertyGroupSet::PropertyGroupSet(QWidget* host)
 
 QList<PropertyGroupEditor*> PropertyGroupSet::all() const
 {
-    return {m_shape, m_skin, m_style, m_effects, m_text};
+    // The order the balloon is drawn in (PLAN-L B32): its shape, its fill, its line, the texture over
+    // them, the effects about it; then the words.
+    return {m_shape, m_skin, m_style, m_texture, m_effects, m_text};
 }
 
 void PropertyGroupSet::bind(const ObjectRecord& a) const
@@ -33,6 +37,7 @@ void PropertyGroupSet::collect(ObjectRecord& a, const PropertyGroupEditor* tails
     m_shape->applyTo(a);
     m_skin->applyTo(a);
     m_style->applyTo(a);
+    m_texture->applyTo(a);
     m_effects->applyTo(a);
     m_text->applyTo(a);
     if (tails)

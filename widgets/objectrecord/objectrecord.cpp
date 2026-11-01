@@ -124,7 +124,7 @@ bool ObjectRecord::operator==(const ObjectRecord& o) const
     // Group by group, so adding a property to a group cannot quietly fall out of equality: the
     // group's own operator== is the one place that has to know about it.
     return shape == o.shape && artwork == o.artwork && box == o.box && tails == o.tails
-        && text == o.text && style == o.style && effects == o.effects && styleSeed == o.styleSeed
+        && text == o.text && style == o.style && texture == o.texture && effects == o.effects && styleSeed == o.styleSeed
         && skin == o.skin;
 }
 
@@ -133,6 +133,9 @@ void            ShapeProperties::applyTo(ObjectRecord& a) const { a.shape = *thi
 
 StyleProperties StyleProperties::from(const ObjectRecord& a) { return a.style; }
 void            StyleProperties::applyTo(ObjectRecord& a) const { a.style = *this; }
+
+TextureProperties TextureProperties::from(const ObjectRecord& a) { return a.texture; }
+void              TextureProperties::applyTo(ObjectRecord& a) const { a.texture = *this; }
 
 EffectProperties EffectProperties::from(const ObjectRecord& a) { return a.effects; }
 void             EffectProperties::applyTo(ObjectRecord& a) const { a.effects = *this; }
@@ -292,7 +295,7 @@ QString textureTitle(ObjectRecord::Texture t)
 
 ObjectRecord::Texture textureFromName(QStringView name)
 {
-    for (int i = 0; i <= int(StyleProperties::k_lastTexture); ++i) {
+    for (int i = 0; i <= int(TextureProperties::k_lastKind); ++i) {
         const auto t = static_cast<ObjectRecord::Texture>(i);
         if (name == QLatin1String(textureName(t)))
             return t;
@@ -315,6 +318,7 @@ QJsonObject ObjectRecord::toJson() const
     writeJson(a.text, j);
     writeJson(a.skin, j);
     writeJson(a.style, j);
+    writeJson(a.texture, j);
     writeJson(a.effects, j);
     return j;
 }
@@ -333,6 +337,7 @@ ObjectRecord ObjectRecord::fromJson(const QJsonObject& j)
     readJson(a.text, j);
     readJson(a.skin, j);
     readJson(a.style, j);
+    readJson(a.texture, j);
     readJson(a.effects, j);
     return a;
 }
@@ -357,7 +362,7 @@ bool usesSeed(const ObjectRecord& a)
 {
     const bool irregularEdge = a.shape.edge != ObjectRecord::Edge::None && a.shape.edgeIrregularity > 0;
     return a.hasSilhouette()
-        && (a.style.line != ObjectRecord::Line::Clean || a.style.texture != ObjectRecord::Texture::None
+        && (a.style.line != ObjectRecord::Line::Clean || a.texture.kind != ObjectRecord::Texture::None
             || irregularEdge);
 }
 

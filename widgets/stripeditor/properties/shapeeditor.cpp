@@ -56,11 +56,11 @@ QPixmap bubbleThumbnail(const ShapeProperties& shape, const QColor& fill, const 
     a.box              = QSize(k_bubbleThumbW * k_shapeIconScale, k_bubbleThumbH * k_shapeIconScale);
     // The tile's own stroke, not the record's: a preset authored at 5 px on a 280 px balloon would be
     // a hairline here, and the icon is meant to say *which shape and what colours*, not how heavy.
-    a.skin.strokeWidth = 2 * k_shapeIconScale;
+    a.style.strokeWidth = 2 * k_shapeIconScale;
     a.text.body        = QStringLiteral("Aa");
     a.text.pixelSize   = a.box.height() / 3;
     a.skin.fill        = fill;
-    a.skin.stroke      = stroke;
+    a.style.stroke      = stroke;
     a.text.colour      = ink;
     if (Geometry::shapeSpeaks(shape)) {
         Tail t;

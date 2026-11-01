@@ -49,8 +49,6 @@ private:
 
     QFormLayout* m_form         = nullptr;
     QPushButton* m_fillSwatch   = nullptr;
-    QPushButton* m_strokeSwatch = nullptr;
-    QSpinBox*    m_strokeWidth  = nullptr;
     QComboBox*   m_fillKind     = nullptr;   //!< Solid, or a pattern.
     QPushButton* m_secondSwatch = nullptr;   //!< A pattern's own colour.
     FieldRows<SkinProperties> m_tone;        //!< One spin per `tone…` field.
@@ -59,15 +57,11 @@ private:
     bool m_populating = false;   //!< Suppresses changed() while bind() runs.
 
     // --- what a *set* of subjects made of this group ---
-    int  m_subjects     = 0;       //!< How many objects are bound. Above one, the stroke width is hidden.
+    int  m_subjects     = 0;       //!< How many objects are bound.
     bool m_mixedFill    = false;   //!< The selection disagrees about this colour, so the swatch says so.
-    bool m_mixedStroke  = false;
-    bool m_mixedWidth   = false;
     bool m_mixedKind    = false;
     bool m_mixedSecond  = false;
     bool m_fillTouched   = false;  //!< The artist picked since bind(), so this colour is theirs to spend.
-    bool m_strokeTouched = false;
-    bool m_widthTouched  = false;
     bool m_kindTouched   = false;
     bool m_secondTouched = false;
 };

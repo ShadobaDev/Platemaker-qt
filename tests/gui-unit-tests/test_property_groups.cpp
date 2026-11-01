@@ -48,11 +48,11 @@ ObjectRecord loadedRecord()
     a.tails.items      = {t};
 
     a.style.line              = ObjectRecord::Line::Flash;
-    a.style.texture           = ObjectRecord::Texture::Rough;
-    a.style.roughFrequency    = 0.05;
-    a.style.roughOctaves      = 4;
-    a.style.roughDisplacement = 7.5;
-    a.style.roughBlur         = 1.25;
+    a.texture.kind              = ObjectRecord::Texture::Rough;
+    a.texture.roughFrequency    = 0.05;
+    a.texture.roughOctaves      = 4;
+    a.texture.roughDisplacement = 7.5;
+    a.texture.roughBlur         = 1.25;
     a.style.flashOuterPitch        = 3.5;
     a.style.flashInnerPitch        = 4.5;
     a.style.flashOuterLength       = 21.0;
@@ -81,8 +81,8 @@ ObjectRecord loadedRecord()
     a.text.padding     = -13;   // negative on purpose: an impact balloon's lettering may leave it
 
     a.skin.fill        = QColor(4, 5, 6);
-    a.skin.stroke      = QColor(7, 8, 9);
-    a.skin.strokeWidth = 11;
+    a.style.stroke     = QColor(7, 8, 9);
+    a.style.strokeWidth = 11;
     a.skin.fillKind    = ObjectRecord::Fill::Screentone;
     a.skin.fillSecond  = QColor(10, 11, 12);
     a.skin.toneSpacing = 7.5;
@@ -117,15 +117,20 @@ static_assert(sizeof(ShapeProperties) == sizeof(ShapeMirror),
               "ShapeProperties grew a field: place it (see above), then mirror it");
 
 struct SkinMirror {
-    QColor fill, stroke; int strokeWidth;
+    QColor fill;
     SkinProperties::Fill fillKind; QColor fillSecond; qreal toneSpacing, toneDot; int toneAngle;
 };
 static_assert(sizeof(SkinProperties) == sizeof(SkinMirror),
               "SkinProperties grew a field: place it (see above), then mirror it");
 
+struct TextureMirror {
+    TextureProperties::Kind kind; qreal roughFrequency; int roughOctaves; qreal roughDisplacement, roughBlur;
+};
+static_assert(sizeof(TextureProperties) == sizeof(TextureMirror),
+              "TextureProperties grew a field: place it (see above), then mirror it");
+
 struct StyleMirror {
-    StyleProperties::Line line; StyleProperties::Texture texture;
-    qreal roughFrequency; int roughOctaves; qreal roughDisplacement, roughBlur;
+    StyleProperties::Line line; QColor stroke; int strokeWidth;
     qreal flashOuterPitch, flashInnerPitch, flashOuterLength, flashInnerLength, flashOuterBase, flashInnerBase;
     int flashOuterPitchJitter, flashInnerPitchJitter, flashOuterLengthJitter, flashInnerLengthJitter;
     int flashCoreStretch;
@@ -152,14 +157,15 @@ static_assert(sizeof(EffectProperties) == sizeof(EffectMirror),
 
 struct RecordMirror {
     ShapeProperties shape; QString artwork; QSize box; TailsProperties tails; StyleProperties style;
-    EffectProperties effects; quint32 styleSeed; TextProperties text; SkinProperties skin;
+    TextureProperties texture; EffectProperties effects; quint32 styleSeed; TextProperties text;
+    SkinProperties skin;
 };
 static_assert(sizeof(ObjectRecord) == sizeof(RecordMirror),
               "ObjectRecord grew a field: place it (see above), then mirror it");
 
 
 //! Which group a test is applying, so everything else can be checked as untouched.
-enum class Group { Shape, Skin, Style, Effects, Text, Tails, Nothing };
+enum class Group { Shape, Skin, Style, Texture, Effects, Text, Tails, Nothing };
 
 /**
  * @brief Asserts that every property outside \p applied is byte-identical.
@@ -186,8 +192,6 @@ void expectUntouched(Group applied, const ObjectRecord& before, const ObjectReco
 
     if (applied != Group::Skin) {
         EXPECT_EQ(after.skin.fill,        before.skin.fill);
-        EXPECT_EQ(after.skin.stroke,      before.skin.stroke);
-        EXPECT_EQ(after.skin.strokeWidth, before.skin.strokeWidth);
         EXPECT_EQ(after.skin.fillKind,    before.skin.fillKind);
         EXPECT_EQ(after.skin.fillSecond,  before.skin.fillSecond);
         EXPECT_DOUBLE_EQ(after.skin.toneSpacing, before.skin.toneSpacing);
@@ -195,12 +199,9 @@ void expectUntouched(Group applied, const ObjectRecord& before, const ObjectReco
         EXPECT_EQ(after.skin.toneAngle,   before.skin.toneAngle);
     }
     if (applied != Group::Style) {
-        EXPECT_EQ(after.style.line,    before.style.line);
-        EXPECT_EQ(after.style.texture, before.style.texture);
-        EXPECT_DOUBLE_EQ(after.style.roughFrequency,    before.style.roughFrequency);
-        EXPECT_EQ(after.style.roughOctaves,             before.style.roughOctaves);
-        EXPECT_DOUBLE_EQ(after.style.roughDisplacement, before.style.roughDisplacement);
-        EXPECT_DOUBLE_EQ(after.style.roughBlur,         before.style.roughBlur);
+        EXPECT_EQ(after.style.line,        before.style.line);
+        EXPECT_EQ(after.style.stroke,      before.style.stroke);
+        EXPECT_EQ(after.style.strokeWidth, before.style.strokeWidth);
         EXPECT_DOUBLE_EQ(after.style.flashOuterPitch,  before.style.flashOuterPitch);
         EXPECT_DOUBLE_EQ(after.style.flashInnerPitch,  before.style.flashInnerPitch);
         EXPECT_DOUBLE_EQ(after.style.flashOuterLength, before.style.flashOuterLength);
@@ -217,6 +218,13 @@ void expectUntouched(Group applied, const ObjectRecord& before, const ObjectReco
         EXPECT_EQ(after.style.brushTaper,             before.style.brushTaper);
         EXPECT_EQ(after.style.brushSwell,             before.style.brushSwell);
         EXPECT_DOUBLE_EQ(after.style.brushDrift,      before.style.brushDrift);
+    }
+    if (applied != Group::Texture) {
+        EXPECT_EQ(after.texture.kind, before.texture.kind);
+        EXPECT_DOUBLE_EQ(after.texture.roughFrequency,    before.texture.roughFrequency);
+        EXPECT_EQ(after.texture.roughOctaves,             before.texture.roughOctaves);
+        EXPECT_DOUBLE_EQ(after.texture.roughDisplacement, before.texture.roughDisplacement);
+        EXPECT_DOUBLE_EQ(after.texture.roughBlur,         before.texture.roughBlur);
     }
     if (applied != Group::Effects) {
         EXPECT_EQ(after.effects.shadow, before.effects.shadow);
@@ -261,8 +269,7 @@ TEST(PropertyGroupOwnership, Skin)
 
     SkinProperties s;
     s.fill        = QColor(200, 100, 50);
-    s.stroke      = QColor(10, 220, 30);
-    s.strokeWidth = 37;
+    s.toneDot     = 1.5;
     s.applyTo(after);
 
     EXPECT_EQ(after.skin, s);
@@ -292,13 +299,29 @@ TEST(PropertyGroupOwnership, Style)
     ObjectRecord       after  = before;
 
     StyleProperties s;
-    s.texture   = ObjectRecord::Texture::Rough;
-    s.roughBlur = 0.25;
+    s.line        = ObjectRecord::Line::Brush;
+    s.stroke      = QColor(10, 220, 30);
+    s.strokeWidth = 37;
     s.applyTo(after);
 
     EXPECT_EQ(after.style, s);
     EXPECT_EQ(StyleProperties::from(after), s);
     expectUntouched(Group::Style, before, after);
+}
+
+TEST(PropertyGroupOwnership, Texture)
+{
+    const ObjectRecord before = loadedRecord();
+    ObjectRecord       after  = before;
+
+    TextureProperties t;
+    t.kind      = ObjectRecord::Texture::Rough;
+    t.roughBlur = 0.25;
+    t.applyTo(after);
+
+    EXPECT_EQ(after.texture, t);
+    EXPECT_EQ(TextureProperties::from(after), t);
+    expectUntouched(Group::Texture, before, after);
 }
 
 //! The seed is part of the style and deliberately not part of its group — see StyleProperties.
@@ -308,8 +331,11 @@ TEST(PropertyGroupOwnership, StyleLeavesTheSeedAlone)
     const quint32 seed = a.styleSeed;
 
     StyleProperties s;
-    s.texture = ObjectRecord::Texture::Rough;
+    s.line = ObjectRecord::Line::Flash;
     s.applyTo(a);
+    TextureProperties t;
+    t.kind = ObjectRecord::Texture::Rough;
+    t.applyTo(a);
 
     EXPECT_EQ(a.styleSeed, seed);
 }
@@ -449,9 +475,9 @@ TEST(PropertyGroupPersistence, KeepsTheFlatKeys)
     const ObjectRecord a = loadedRecord();
     const QJsonObject  j = a.toJson();
 
-    EXPECT_EQ(j.value(QStringLiteral("strokeWidth")).toInt(),  a.skin.strokeWidth);
+    EXPECT_EQ(j.value(QStringLiteral("strokeWidth")).toInt(),  a.style.strokeWidth);
     EXPECT_EQ(j.value(QStringLiteral("fill")).toString(),      a.skin.fill.name(QColor::HexArgb));
-    EXPECT_EQ(j.value(QStringLiteral("stroke")).toString(),    a.skin.stroke.name(QColor::HexArgb));
+    EXPECT_EQ(j.value(QStringLiteral("stroke")).toString(),    a.style.stroke.name(QColor::HexArgb));
     EXPECT_EQ(j.value(QStringLiteral("text")).toString(),      a.text.body);
     EXPECT_EQ(j.value(QStringLiteral("fontFamily")).toString(),a.text.family);
     EXPECT_EQ(j.value(QStringLiteral("fontSize")).toInt(),     a.text.pixelSize);
@@ -522,11 +548,11 @@ TEST(PropertyGroupPersistence, EveryShapeAndStyleRoundTrips)
         a.style.line   = l;
         EXPECT_EQ(ObjectRecord::fromJson(a.toJson()), a) << lineName(l);
     }
-    for (int i = 0; i <= int(StyleProperties::k_lastTexture); ++i) {
+    for (int i = 0; i <= int(TextureProperties::k_lastKind); ++i) {
         const auto t = static_cast<ObjectRecord::Texture>(i);
         EXPECT_EQ(textureFromName(QString::fromLatin1(textureName(t))), t) << textureName(t);
-        ObjectRecord a  = loadedRecord();
-        a.style.texture = t;
+        ObjectRecord a = loadedRecord();
+        a.texture.kind = t;
         EXPECT_EQ(ObjectRecord::fromJson(a.toJson()), a) << textureName(t);
     }
 }
@@ -606,7 +632,7 @@ TEST(Conversion, EveryShapeAndStyleHasATableEntry)
         EXPECT_EQ(info.ink == nullptr, kind == ObjectRecord::Line::Clean) << lineName(kind);
         EXPECT_EQ(info.ink == nullptr, info.inkReach == nullptr) << lineName(kind);
     }
-    for (int i = 0; i <= int(StyleProperties::k_lastTexture); ++i) {
+    for (int i = 0; i <= int(TextureProperties::k_lastKind); ++i) {
         const auto                   kind = static_cast<ObjectRecord::Texture>(i);
         const Geometry::TextureInfo& info = Geometry::textureInfo(kind);
         EXPECT_EQ(info.kind, kind) << "texture entry " << i << " is out of the enum's order";
@@ -662,7 +688,7 @@ TEST(Style, ALinesStrokesStayInsideTheirBounds)
         a.style.flashOuterLengthJitter = 100;
         a.style.brushSwell             = 100;
         a.style.brushDrift             = 6.0;
-        a.skin.strokeWidth             = 9;
+        a.style.strokeWidth             = 9;
         for (ObjectRecord::Line line : {ObjectRecord::Line::Flash, ObjectRecord::Line::Brush}) {
             a.style.line = line;
             EXPECT_FALSE(Geometry::hasOutline(a));
@@ -724,7 +750,7 @@ TEST(Tails, AConcaveOutlineIsLeftNearestTheTip)
     a.shape.cornerRadius = 0.0;
     a.shape.nodes = {{0, 0}, {0.3, 0}, {0.3, 0.4}, {0.7, 0.4}, {0.7, 0}, {1, 0}, {1, 1}, {0, 1}};
     a.box              = QSize(200, 200);
-    a.skin.strokeWidth = 0;   // the balloon is then the box, and the nodes are these pixels
+    a.style.strokeWidth = 0;   // the balloon is then the box, and the nodes are these pixels
     Tail t;
     t.tip         = QPointF(-40, -200);
     a.tails.items = {t};
@@ -749,7 +775,7 @@ TEST(Shapes, APolygonsCornersRoundAsABoxsDo)
     box.shape.kind         = ObjectRecord::Shape::Box;
     box.shape.cornerRadius = 30.0;
     box.box                = QSize(200, 100);
-    box.skin.strokeWidth   = 0;
+    box.style.strokeWidth   = 0;
     ObjectRecord square = box;
     square.shape.kind   = ObjectRecord::Shape::Polygon;
     square.shape.nodes  = {{0, 0}, {1, 0}, {1, 1}, {0, 1}};
@@ -1207,7 +1233,7 @@ void bump(ObjectRecord::Line& v)
 }
 void bump(ObjectRecord::Texture& v)
 {
-    v = static_cast<ObjectRecord::Texture>((int(v) + 1) % (int(StyleProperties::k_lastTexture) + 1));
+    v = static_cast<ObjectRecord::Texture>((int(v) + 1) % (int(TextureProperties::k_lastKind) + 1));
 }
 
 /**
@@ -1244,6 +1270,7 @@ TEST(Fields, EveryFieldIsComparedAndSaved)
     expectEveryFieldCounts(&ObjectRecord::text);
     expectEveryFieldCounts(&ObjectRecord::skin);
     expectEveryFieldCounts(&ObjectRecord::style);
+    expectEveryFieldCounts(&ObjectRecord::texture);
     expectEveryFieldCounts(&ObjectRecord::effects);
 }
 
@@ -1298,29 +1325,31 @@ QString goldenRecords()
         shapes.append({QString::fromLatin1(id) + QStringLiteral(" zigzag"), zigzag});
     }
 
-    // The looks, each a style over the loaded record's flash numbers; Rough at a look's own numbers.
+    // The looks: a line over the loaded record's flash and brush numbers, and a texture, Rough at a
+    // look's own numbers (the Marker's are the struct's defaults).
+    struct Look
+    {
+        QString           name;
+        StyleProperties   style;
+        TextureProperties texture;
+    };
     StyleProperties clean = loadedRecord().style;
     clean.line            = ObjectRecord::Line::Clean;
-    clean.texture         = ObjectRecord::Texture::None;
-    StyleProperties marker = clean;
-    marker.texture           = ObjectRecord::Texture::Rough;
-    marker.roughFrequency    = StyleProperties().roughFrequency;
-    marker.roughOctaves      = StyleProperties().roughOctaves;
-    marker.roughDisplacement = StyleProperties().roughDisplacement;
-    marker.roughBlur         = StyleProperties().roughBlur;
-    StyleProperties flash      = clean;
-    flash.line                 = ObjectRecord::Line::Flash;
-    StyleProperties roughFlash = marker;
-    roughFlash.line            = ObjectRecord::Line::Flash;
-    StyleProperties brush      = clean;
-    brush.line                 = ObjectRecord::Line::Brush;
-    const QList<QPair<QString, StyleProperties>> looks{
-        {QStringLiteral("clean"), clean},
-        {QStringLiteral("marker"), marker},
-        {QStringLiteral("ink"), Geometry::inkRough(clean)},
-        {QStringLiteral("flash"), flash},
-        {QStringLiteral("rough flash"), roughFlash},
-        {QStringLiteral("brush"), brush},
+    StyleProperties flash = clean;
+    flash.line            = ObjectRecord::Line::Flash;
+    StyleProperties brush = clean;
+    brush.line            = ObjectRecord::Line::Brush;
+    TextureProperties untextured = loadedRecord().texture;   // its Rough numbers carried, unused
+    untextured.kind              = ObjectRecord::Texture::None;
+    TextureProperties marker;
+    marker.kind = ObjectRecord::Texture::Rough;
+    const QList<Look> looks{
+        {QStringLiteral("clean"), clean, untextured},
+        {QStringLiteral("marker"), clean, marker},
+        {QStringLiteral("ink"), clean, Geometry::inkRough(untextured)},
+        {QStringLiteral("flash"), flash, untextured},
+        {QStringLiteral("rough flash"), flash, marker},
+        {QStringLiteral("brush"), brush, untextured},
     };
 
     QString    out;
@@ -1339,14 +1368,15 @@ QString goldenRecords()
              + QString::fromUtf8(QJsonDocument(a.toJson()).toJson(QJsonDocument::Compact)) + u'\n';
     };
     for (const auto& [name, shape] : std::as_const(shapes)) {
-        for (const auto& [look, style] : looks) {
+        for (const Look& look : looks) {
             for (bool tail : {false, true}) {
                 ObjectRecord a  = loadedRecord();
                 a.shape         = shape;
-                a.style         = style;
+                a.style         = look.style;
+                a.texture       = look.texture;
                 a.skin.fillKind = ObjectRecord::Fill::Solid;   // the fills and the shadow have cases of
                 a.effects.shadow = false;                       // their own, below
-                write(name, look, tail, a);
+                write(name, look.name, tail, a);
             }
         }
     }
@@ -1355,7 +1385,8 @@ QString goldenRecords()
         for (bool tail : {false, true}) {
             ObjectRecord a = loadedRecord();
             a.shape        = Geometry::shapeTemplate(id).shape;
-            a.style        = looks.first().second;
+            a.style        = looks.first().style;
+            a.texture      = looks.first().texture;
             a.effects.shadow = false;
             write(QString::fromLatin1(id), QStringLiteral("screentone"), tail, a);
         }
@@ -1365,7 +1396,8 @@ QString goldenRecords()
         for (qreal softness : {0.0, 2.5}) {
             ObjectRecord a           = loadedRecord();
             a.shape                  = Geometry::shapeTemplate(id).shape;
-            a.style                  = looks.first().second;
+            a.style                  = looks.first().style;
+            a.texture                = looks.first().texture;
             a.skin.fillKind          = ObjectRecord::Fill::Solid;
             a.effects.shadowSoftness = softness;
             write(QString::fromLatin1(id), softness > 0.0 ? QStringLiteral("soft shadow") : QStringLiteral("shadow"),

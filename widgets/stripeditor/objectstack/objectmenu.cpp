@@ -83,8 +83,10 @@ ObjectMenu::ObjectMenu(ObjectController& objects, const StripLayout& layout, Pre
     m_groupMenu = new QMenu(tr("Apply from tool options"), dialogParent);
     const QList<QPair<PropertyGroup, QString>> groups{
         {PropertyGroup::Shape, tr("Shape")},
-        {PropertyGroup::Skin,  tr("Fill && outline")},
-        {PropertyGroup::Style, tr("Style")},
+        {PropertyGroup::Skin,    tr("Fill")},
+        {PropertyGroup::Style,   tr("Line")},
+        {PropertyGroup::Texture, tr("Texture")},
+        {PropertyGroup::Effects, tr("Effects")},
         {PropertyGroup::Text,  tr("Text style")},
     };
     for (const auto& [group, name] : groups) {

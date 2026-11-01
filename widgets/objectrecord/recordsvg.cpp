@@ -167,11 +167,11 @@ QList<Tail> tailsFromText(const QString& s)
  */
 QString styleDefs(const ObjectRecord& a, const QString& id)
 {
-    if (a.style.texture != ObjectRecord::Texture::Rough)
+    if (a.texture.kind != ObjectRecord::Texture::Rough)
         return {};
 
-    const StyleProperties& s       = a.style;
-    const bool             blurred = s.roughBlur > 0.0;
+    const TextureProperties& s       = a.texture;
+    const bool               blurred = s.roughBlur > 0.0;
 
     QString d;
     d += QStringLiteral("  <defs>\n");
@@ -441,6 +441,7 @@ QByteArray write(const ObjectRecord& a, const QByteArray& picture, const QString
     svg += letteringAttrs(a);
     svg += groupAttrs(a.skin);
     svg += groupAttrs(a.style);
+    svg += groupAttrs(a.texture);
     svg += groupAttrs(a.effects);
     svg += attr(QStringLiteral("styleSeed"), QString::number(a.styleSeed));
     svg += QLatin1String(">\n");
@@ -466,16 +467,16 @@ QByteArray write(const ObjectRecord& a, const QByteArray& picture, const QString
         }
         svg += QStringLiteral("      <path d=\"%1\" fill-rule=\"%2\" %3")
                    .arg(pathData(silhouette), fillRule(silhouette), fillPaint(a.skin, fillId));
-        if (a.skin.strokeWidth > 0 && Geometry::hasOutline(a))
+        if (a.style.strokeWidth > 0 && Geometry::hasOutline(a))
             svg += QStringLiteral(" %1 stroke-width=\"%2\" stroke-linejoin=\"round\"")
-                       .arg(paint("stroke", a.skin.stroke)).arg(a.skin.strokeWidth);
+                       .arg(paint("stroke", a.style.stroke)).arg(a.style.strokeWidth);
         svg += QLatin1String("/>\n");
 
         // A line's own strokes, in the stroke colour, over the fill and under the words.
         const QPainterPath ink = Geometry::ink(a, silhouette);
         if (!ink.isEmpty())
             svg += QStringLiteral("      <path d=\"%1\" fill-rule=\"%2\" %3/>\n")
-                       .arg(pathData(ink), fillRule(ink), paint("fill", a.skin.stroke));
+                       .arg(pathData(ink), fillRule(ink), paint("fill", a.style.stroke));
         svg += QLatin1String("    </g>\n");
     }
 
@@ -515,6 +516,7 @@ ObjectRecord read(const QByteArray& svg, bool* ok)
         readGroup(a.text, at, ns);
         readGroup(a.skin, at, ns);
         readGroup(a.style, at, ns);
+        readGroup(a.texture, at, ns);
         readGroup(a.effects, at, ns);
 
         // A wrapper says which picture it is wrapping; a balloon carries no such attribute and stays

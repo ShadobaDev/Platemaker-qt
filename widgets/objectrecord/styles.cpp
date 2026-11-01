@@ -210,7 +210,7 @@ qreal taperAt(qreal u, qreal taper)
 QPainterPath brushInk(const ObjectRecord& a, const QPainterPath& silhouette)
 {
     const StyleProperties& s     = a.style;
-    const qreal            half  = qMax(a.skin.strokeWidth, 0) / 2.0;
+    const qreal            half  = qMax(a.style.strokeWidth, 0) / 2.0;
     const int              count = qMax(1, s.brushStrokes);
     const qreal            over  = qBound(0, s.brushOverlap, 100) / 100.0;
     const qreal            taper = qBound(0, s.brushTaper, 50) / 100.0;
@@ -257,7 +257,7 @@ QPainterPath brushInk(const ObjectRecord& a, const QPainterPath& silhouette)
 qreal brushReach(const ObjectRecord& a)
 {
     const StyleProperties& s = a.style;
-    return qMax(a.skin.strokeWidth, 0) / 2.0 * (1.0 + qBound(0, s.brushSwell, 100) / 100.0)
+    return qMax(a.style.strokeWidth, 0) / 2.0 * (1.0 + qBound(0, s.brushSwell, 100) / 100.0)
          + std::abs(s.brushDrift);
 }
 
@@ -266,9 +266,9 @@ qreal brushReach(const ObjectRecord& a)
 // ---------------------------------------------------------------------------
 
 //! The displacement, and the blur's spread past it.
-qreal roughReach(const StyleProperties& s)
+qreal roughReach(const TextureProperties& t)
 {
-    return qMax(s.roughDisplacement, 0.0) + k_blurReach * qMax(s.roughBlur, 0.0);
+    return qMax(t.roughDisplacement, 0.0) + k_blurReach * qMax(t.roughBlur, 0.0);
 }
 
 // ---------------------------------------------------------------------------
@@ -276,7 +276,7 @@ qreal roughReach(const StyleProperties& s)
 // ---------------------------------------------------------------------------
 
 using Line    = StyleProperties::Line;
-using Texture = StyleProperties::Texture;
+using Texture = TextureProperties::Kind;
 
 //! In the enum's order, so a kind is its own index; lineInfo() checks every entry names its kind.
 const std::array<LineInfo, int(StyleProperties::k_lastLine) + 1> k_lines{{
@@ -298,7 +298,7 @@ const std::array<FillInfo, int(SkinProperties::k_lastFill) + 1> k_fills{{
 constexpr qreal k_minToneSpacing = 1.0;
 
 //! Likewise, for textureInfo().
-const std::array<TextureInfo, int(StyleProperties::k_lastTexture) + 1> k_textures{{
+const std::array<TextureInfo, int(TextureProperties::k_lastKind) + 1> k_textures{{
     {Texture::None,  "none",  QT_TRANSLATE_NOOP("QObject", "None"),  nullptr},
     {Texture::Rough, "rough", QT_TRANSLATE_NOOP("QObject", "Rough"), roughReach},
 }};
@@ -316,7 +316,7 @@ const LineInfo& lineInfo(StyleProperties::Line kind)
     return k_lines[i];
 }
 
-const TextureInfo& textureInfo(StyleProperties::Texture kind)
+const TextureInfo& textureInfo(TextureProperties::Kind kind)
 {
     const int i = int(kind);
     if (i < 0 || i >= int(k_textures.size()))
@@ -350,20 +350,20 @@ ToneCell toneCell(const SkinProperties& s)
     return cell;
 }
 
-StyleProperties inkRough(StyleProperties s)
+TextureProperties inkRough(TextureProperties t)
 {
-    s.texture           = Texture::Rough;
-    s.roughFrequency    = k_inkFrequency;
-    s.roughOctaves      = k_inkOctaves;
-    s.roughDisplacement = k_inkDisplacement;
-    s.roughBlur         = k_inkBlur;
-    return s;
+    t.kind              = Texture::Rough;
+    t.roughFrequency    = k_inkFrequency;
+    t.roughOctaves      = k_inkOctaves;
+    t.roughDisplacement = k_inkDisplacement;
+    t.roughBlur         = k_inkBlur;
+    return t;
 }
 
 bool hasFilter(const ObjectRecord& a)
 {
     const bool softShadow = a.effects.shadow && a.effects.shadowSoftness > 0.0;
-    return textureInfo(a.style.texture).reach != nullptr || softShadow;
+    return textureInfo(a.texture.kind).reach != nullptr || softShadow;
 }
 
 QPainterPath shadowOf(const ObjectRecord& a, const QPainterPath& silhouette)
@@ -389,13 +389,13 @@ qreal styleMargin(const ObjectRecord& a)
     // The texture's filter moves the line's strokes too (it hangs on both), so the two add. A shadow
     // reaches as far as it is moved and its blur spreads, on every side, which is generous but simple.
     const LineInfo&         line    = lineInfo(a.style.line);
-    const TextureInfo&      texture = textureInfo(a.style.texture);
+    const TextureInfo&      texture = textureInfo(a.texture.kind);
     const EffectProperties& e       = a.effects;
     const qreal shadow = e.shadow ? qMax(std::abs(e.shadowX), std::abs(e.shadowY))
                                         + k_blurReach * qMax(e.shadowSoftness, 0.0)
                                   : 0.0;
-    return qMax((line.inkReach ? line.inkReach(a) : 0.0) + (texture.reach ? texture.reach(a.style) : 0.0),
-                shadow + (texture.reach ? texture.reach(a.style) : 0.0));
+    const qreal rough = texture.reach ? texture.reach(a.texture) : 0.0;
+    return qMax((line.inkReach ? line.inkReach(a) : 0.0) + rough, shadow + rough);
 }
 
 }  // namespace Geometry

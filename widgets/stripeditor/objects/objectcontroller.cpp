@@ -855,8 +855,8 @@ bool ObjectController::applyColourAt(const QPointF& scenePos, const QTransform& 
         step          = tr("Apply text colour");
         break;
     case Geometry::Part::Outline:
-        a.skin.stroke = colour;
-        step          = tr("Apply outline colour");
+        a.style.stroke = colour;
+        step           = tr("Apply outline colour");
         break;
     case Geometry::Part::Fill:
         a.skin.fill = colour;
@@ -877,7 +877,7 @@ bool ObjectController::applyColourAt(const QPointF& scenePos, const QTransform& 
             const bool   shaped = each.hasSilhouette();
             switch (part) {
             case Geometry::Part::Text:    each.text.colour = colour; break;
-            case Geometry::Part::Outline: if (shaped) each.skin.stroke = colour; break;
+            case Geometry::Part::Outline: if (shaped) each.style.stroke = colour; break;
             case Geometry::Part::Fill:    if (shaped) each.skin.fill   = colour; break;
             case Geometry::Part::None:    break;
             }
@@ -1272,7 +1272,7 @@ void ObjectController::applyColourToSelection(const QColor& colour, Geometry::Pa
         const bool   shaped = each.hasSilhouette();
         switch (role) {
         case Geometry::Part::Text:    each.text.colour = colour; ++changed; break;
-        case Geometry::Part::Outline: if (shaped) { each.skin.stroke = colour; ++changed; } break;
+        case Geometry::Part::Outline: if (shaped) { each.style.stroke = colour; ++changed; } break;
         case Geometry::Part::Fill:    if (shaped) { each.skin.fill   = colour; ++changed; } break;
         case Geometry::Part::None:    break;
         }
@@ -1313,15 +1313,18 @@ void ObjectController::applyGroupToSelection(PropertyGroup group)
             break;
         case PropertyGroup::Style:
             if (shaped) {
-                // The Style section's two groups, as the panel shows them together: line, texture and
-                // effects.
-                each.style   = source.style;
-                each.effects = source.effects;
+                each.style = source.style;
                 // The seed belongs to no group precisely so that nothing can copy it — but an object
                 // that has just become styled needs one of its own.
                 topUpStyleSeed(each);
                 ++changed;
             }
+            break;
+        case PropertyGroup::Texture:
+            if (shaped) { each.texture = source.texture; topUpStyleSeed(each); ++changed; }   // its wobble's seed
+            break;
+        case PropertyGroup::Effects:
+            if (shaped) { each.effects = source.effects; ++changed; }
             break;
         case PropertyGroup::Text: {
             // Everything about the lettering except the lettering: five balloons do not share one line.
@@ -1340,9 +1343,11 @@ void ObjectController::applyGroupToSelection(PropertyGroup group)
         return;
 
     const QString step = group == PropertyGroup::Shape ? tr("Apply shape")
-                       : group == PropertyGroup::Skin  ? tr("Apply fill & outline")
-                       : group == PropertyGroup::Style ? tr("Apply line style")
-                                                       : tr("Apply text style");
+                       : group == PropertyGroup::Skin    ? tr("Apply fill")
+                       : group == PropertyGroup::Style   ? tr("Apply line")
+                       : group == PropertyGroup::Texture ? tr("Apply texture")
+                       : group == PropertyGroup::Effects ? tr("Apply effects")
+                                                         : tr("Apply text style");
     applyRecords(m_selectedOverlays, next, /*commit=*/true, step);
     if (m_selectedOverlays.size() > 1)
         emit boundToRecords(next);

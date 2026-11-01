@@ -40,12 +40,12 @@ struct LineInfo
 //! One texture: an SVG filter (recordsvg.cpp), which only the library draws.
 struct TextureInfo
 {
-    StyleProperties::Texture kind;   //!< Which texture this entry is; the table is checked against it.
+    TextureProperties::Kind  kind;   //!< Which texture this entry is; the table is checked against it.
     const char*              name;   //!< Persisted, in the JSON and the SVG. **Never changes** once saved.
     const char*              title;  //!< Shown on screen, translated through QObject::tr().
     //! How far the filter moves or spreads the balloon past its geometry, in balloon pixels; nullptr
     //! for None, which is no filter.
-    qreal (*reach)(const StyleProperties& s);
+    qreal (*reach)(const TextureProperties& t);
 };
 
 //! One fill: its names. How it is drawn is the painter's (a brush) and the SVG's (a pattern), from the
@@ -79,14 +79,14 @@ struct ToneCell
 //! The entry for @p kind. Every kind up to `StyleProperties::k_lastLine` has one.
 [[nodiscard]] const LineInfo& lineInfo(StyleProperties::Line kind);
 
-//! The entry for @p kind. Every kind up to `StyleProperties::k_lastTexture` has one.
-[[nodiscard]] const TextureInfo& textureInfo(StyleProperties::Texture kind);
+//! The entry for @p kind. Every kind up to `TextureProperties::k_lastKind` has one.
+[[nodiscard]] const TextureInfo& textureInfo(TextureProperties::Kind kind);
 
 /**
  * @brief @p s made Rough with the Ink look's numbers: a finer and smaller wobble than the Marker's (the
  *        struct's defaults), then a bleed. A built-in preset (PLAN-L B2).
  */
-[[nodiscard]] StyleProperties inkRough(StyleProperties s);
+[[nodiscard]] TextureProperties inkRough(TextureProperties t);
 
 /**
  * @brief \p a has an SVG filter anywhere, which only the library draws (PLAN-L M17): a texture, or a

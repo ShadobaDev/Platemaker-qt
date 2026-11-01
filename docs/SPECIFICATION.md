@@ -148,7 +148,7 @@ and its drawing in two places that must agree: the painter's brush (`Painter::fi
 (the screentone's is `toneCell()`), and both are laid from the box's corner (the brush from the painter's
 origin, the pattern in `userSpaceOnUse`), so the preview and the output match. A pattern's own colour is
 `fillSecond`; its numbers are `SkinProperties` fields with a prefix of their own (`tone…`), rows of the
-*Fill & outline* panel through `FieldRows` (`k_toneRows` in `skineditor.cpp`).
+*Fill* section through `FieldRows` (`k_toneRows` in `skineditor.cpp`).
 
 ### An effect
 
@@ -156,8 +156,8 @@ An effect is a field of `EffectProperties` (a group of its own, PLAN-L B23), dra
 must agree: the geometry (`shadowOf()` in `styles.cpp`), the painter (`recordpainter.cpp`) and the SVG
 (`recordsvg.cpp`, inside the balloon's group so a texture acts on it too). Its reach goes into
 `styleMargin()`; one that needs an SVG filter (a soft shadow) makes `hasFilter()` true, so the balloon is
-previewed through the library. Its editor, `EffectsEditor`, is laid out by both surfaces inside the Style
-section, and *Apply from tool options ▸ Style* applies it with the style. The shadow is the worked
+previewed through the library. Its editor, `EffectsEditor`, is a section of its own, and *Apply from
+tool options ▸ Effects* applies it. The shadow is the worked
 example.
 
 ### A line or a texture
@@ -182,7 +182,7 @@ built-in preset (`inkRough()`).
 A line that follows the outline walks it by arc length (`EdgeWalk`, `edgeWalks()` in `edgewalk.*`) and
 varies what it lays there with `smoothNoise()`, seeded from `styleSeed`, so it stays put while the
 balloon is edited and *Re-roll* deals it again. The brush (`brushInk()`) is the example: ribbons about
-the edge, as wide as the outline (`SkinProperties::strokeWidth`, not a number of its own).
+the edge, as wide as the outline (the line's own `strokeWidth`, not a number of its own).
 
 The flash is the worked example of a line. Its parameters are members of
 `StyleProperties` with a `flash` prefix, one line each in its `fields()` list; the Style panel builds a

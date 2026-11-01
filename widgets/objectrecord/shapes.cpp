@@ -1317,7 +1317,7 @@ ShapeProperties curveOf(const QPainterPath& outline, const QRectF& body)
 
 QRectF balloonRect(const ObjectRecord& a)
 {
-    const qreal  sw = a.skin.strokeWidth / 2.0;
+    const qreal  sw = a.style.strokeWidth / 2.0;
     QRectF body(0, 0, a.box.width(), a.box.height());
     body.adjust(sw, sw, -sw, -sw);
     return body.normalized();

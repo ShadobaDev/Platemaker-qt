@@ -39,7 +39,7 @@ QPointF growToNodes(ObjectRecord& a, const QRectF& body)
 
     // The grown body, and the box around it in whole pixels, the stroke's half outside it as
     // balloonRect() takes it off.
-    const qreal  inset = a.skin.strokeWidth / 2.0;
+    const qreal  inset = a.style.strokeWidth / 2.0;
     const QRectF grown(body.left() + left * body.width(), body.top() + top * body.height(),
                        (right - left) * body.width(), (bottom - top) * body.height());
     const QPointF corner(grown.left() - inset, grown.top() - inset);

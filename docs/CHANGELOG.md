@@ -130,14 +130,17 @@
     the balloon keeps its size and the lettering's room gives up the depth; a star's points stay
     sharp. In shape editing an arrow sets the depth, on a round balloon too. Picking another shape keeps
     the edge.
-  - **Screentone fills.** *Fill & outline* has a **Fill** choice: the fill colour alone, or a
+  - **The panel follows how a balloon is drawn**: *Shape*, *Fill*, *Line*, *Texture*, *Effects*,
+    *Text*. The outline's colour and width are in *Line* now, beside the line's kind, so a brush's width
+    sits with the brush; *Apply from tool options ▸* offers the same sections.
+  - **Screentone fills.** *Fill* has a **Pattern** choice: the fill colour alone, or a
     **screentone** of dots in a second colour (**Pattern colour**) over it, with rows for the dots'
     spacing, size and angle. It is drawn on the strip as it is in the output, the grid laid from the
     balloon's corner.
-  - **Shadows.** Under *Style*, a balloon can **drop a shadow**: its whole shape, tails and all, moved
+  - **Shadows.** Under *Effects*, a balloon can **drop a shadow**: its whole shape, tails and all, moved
     and filled with a colour (with transparency) under it. Hard by default, drawn as you edit; give it
     **softness** and it is blurred, shown exactly as it will be baked. A texture roughens the shadow
-    too. Presets carry it, and *Apply from tool options ▸ Style* applies it with the line and texture.
+    too. Presets carry it.
   - **Re-roll**, on a balloon's context menu, deals a flash's or a brush's strokes, or a texture's
     wobble, or an irregular edge's teeth, again. One undo step.
   - **The thought balloon is a Cloud** with two rows of its own in the Shape panel: **Lobes**, how many

@@ -6,6 +6,7 @@
 
 class QComboBox;
 class QFormLayout;
+class QPushButton;
 class QSpinBox;
 
 namespace StripEdit {
@@ -13,15 +14,16 @@ namespace StripEdit {
 class StretchSpin;
 
 /**
- * @brief How the outline is drawn: its line and its texture (PLAN-L B4), and each one's numbers.
+ * @brief The Line section: the line's kind, its colour and width, and the kind's numbers (PLAN-L B32).
  *
  * The **seed is not here**, and that is the group model earning its keep. A seed is per balloon and set
  * once at placement; a group's applyTo() writes the whole group, so a seed inside it would be copied
  * along by every preset and a page of marker balloons would wear one repeated wobble. It stays a bare
  * field on the record, written by whoever places a bubble and by nobody else.
  *
- * The flash's, the brush's and Rough's rows are built from StyleProperties' field list, one spin per
- * `flash…`, `brush…` or `rough…` field, and shown only while that line or texture is chosen.
+ * The flash's and the brush's rows are built from StyleProperties' field list, one spin per `flash…` or
+ * `brush…` field, and shown only while that line is chosen. The texture is a group and a section of its
+ * own (TextureEditor).
  */
 class StyleEditor : public PropertyGroupEditor
 {
@@ -42,22 +44,24 @@ private:
     void syncFromValues();
     void showRows();
 
-    QFormLayout* m_form    = nullptr;
-    QComboBox*   m_line    = nullptr;
-    QComboBox*   m_texture = nullptr;
-    StretchSpin* m_stretch = nullptr;  //!< The flash's core stretch, which reads "Auto (n %)".
+    QFormLayout* m_form         = nullptr;
+    QComboBox*   m_line         = nullptr;
+    QPushButton* m_strokeSwatch = nullptr;   //!< The line's colour.
+    QSpinBox*    m_strokeWidth  = nullptr;   //!< The line's width.
+    StretchSpin* m_stretch      = nullptr;   //!< The flash's core stretch, which reads "Auto (n %)".
     FieldRows<StyleProperties> m_flash;   //!< One spin per `flash…` field. Lengths are whole pixels.
-    FieldRows<StyleProperties> m_rough;   //!< One spin per `rough…` field.
     FieldRows<StyleProperties> m_brush;   //!< One spin per `brush…` field.
 
     StyleProperties m_values;
     bool m_populating = false;
 
     // --- bound to a set ---
-    bool m_mixedLine      = false;
-    bool m_mixedTexture   = false;
-    bool m_lineTouched    = false;
-    bool m_textureTouched = false;
+    bool m_mixedLine     = false;
+    bool m_mixedStroke   = false;
+    bool m_mixedWidth    = false;
+    bool m_lineTouched   = false;
+    bool m_strokeTouched = false;
+    bool m_widthTouched  = false;
 };
 
 }  // namespace StripEdit

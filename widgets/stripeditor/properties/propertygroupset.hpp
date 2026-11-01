@@ -36,6 +36,7 @@ class TextEditor;
  * ended up in.
  */
 class EffectsEditor;
+class TextureEditor;
 
 class PropertyGroupSet
 {
@@ -46,7 +47,7 @@ public:
     [[nodiscard]] ShapeEditor* shape() const { return m_shape; }
     [[nodiscard]] SkinEditor*  skin()  const { return m_skin; }
     [[nodiscard]] StyleEditor* style() const { return m_style; }
-    //! Laid out by each surface inside the Style section, under the line and the texture (PLAN-L B23).
+    [[nodiscard]] TextureEditor* texture() const { return m_texture; }
     [[nodiscard]] EffectsEditor* effects() const { return m_effects; }
     [[nodiscard]] TextEditor*  text()  const { return m_text; }
 
@@ -68,6 +69,7 @@ private:
     ShapeEditor* m_shape = nullptr;
     SkinEditor*  m_skin  = nullptr;
     StyleEditor* m_style = nullptr;
+    TextureEditor* m_texture = nullptr;
     EffectsEditor* m_effects = nullptr;
     TextEditor*  m_text  = nullptr;
 };

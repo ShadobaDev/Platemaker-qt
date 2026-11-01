@@ -18,6 +18,7 @@
 #include "properties/shapeeditor.hpp"
 #include "properties/skineditor.hpp"
 #include "properties/effectseditor.hpp"
+#include "properties/textureeditor.hpp"
 #include "properties/styleeditor.hpp"
 #include "properties/nexttaileditor.hpp"
 #include "properties/texteditor.hpp"
@@ -71,13 +72,16 @@ BubbleToolOptions::BubbleToolOptions(PresetStore& presets, QWidget* parent)
     shapeLay->addWidget(m_groups.shape());
     m_tails = new NextTailEditor(this);
     shapeLay->addWidget(m_tails);
-    shapeLay->addWidget(m_groups.skin());
-    shapeLay->addWidget(m_groups.style());
-    auto* effectsRule = new QFrame(m_shapeGroup);   // with the line and the texture, as OBJECT STATE has it
-    effectsRule->setFrameShape(QFrame::HLine);
-    effectsRule->setFrameShadow(QFrame::Sunken);
-    shapeLay->addWidget(effectsRule);
-    shapeLay->addWidget(m_groups.effects());
+    // Fill, line, texture, effects: OBJECT STATE's sections, in its order (PLAN-L B32), ruled apart here
+    // since this page has no sections of its own.
+    for (QWidget* part : {static_cast<QWidget*>(m_groups.skin()), static_cast<QWidget*>(m_groups.style()),
+                          static_cast<QWidget*>(m_groups.texture()), static_cast<QWidget*>(m_groups.effects())}) {
+        auto* rule = new QFrame(m_shapeGroup);
+        rule->setFrameShape(QFrame::HLine);
+        rule->setFrameShadow(QFrame::Sunken);
+        shapeLay->addWidget(rule);
+        shapeLay->addWidget(part);
+    }
     lay->addWidget(m_shapeGroup);
 
     // --- Text (both tools) --------------------------------------------------------------------------
@@ -137,6 +141,7 @@ ObjectRecord BubbleToolOptions::prototype() const
         a.shape.kind = *m_toolShape;
     m_groups.skin()->applyTo(a);
     m_groups.style()->applyTo(a);
+    m_groups.texture()->applyTo(a);
     m_groups.effects()->applyTo(a);
     m_groups.text()->applyTo(a);
 
@@ -186,7 +191,7 @@ void BubbleToolOptions::refreshPresetCombo()
         // No separator row between built-ins and the artist's own: a separator is an entry, and every
         // index here doubles as an index into the store.
         m_presetCombo->addItem(QIcon(bubbleThumbnail(p.record.shape, p.record.skin.fill,
-                                                     p.record.skin.stroke, p.record.text.colour)),
+                                                     p.record.style.stroke, p.record.text.colour)),
                                p.name);
     }
     // No current entry, ever: see the placeholder above. Which preset the other two act on is the one

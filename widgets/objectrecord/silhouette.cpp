@@ -161,7 +161,7 @@ Part partAt(const ObjectRecord& a, const QPointF& local, qreal slack)
     // The stroke is painted centred on the silhouette, so the band a click can land on is the path
     // stroked to the pen's width — plus the slack, because a hairline outline is unhittable without it.
     QPainterPathStroker band;
-    band.setWidth(qMax(1.0, static_cast<qreal>(a.skin.strokeWidth)) + slack * 2);
+    band.setWidth(qMax(1.0, static_cast<qreal>(a.style.strokeWidth)) + slack * 2);
     if (band.createStroke(shape).contains(local))
         return Part::Outline;
 
@@ -186,7 +186,7 @@ QRectF boundsOf(const ObjectRecord& a, const QPainterPath& silhouette, const QPa
 
     // The stroke straddles the path, so half of it lies outside; one more pixel keeps antialiasing off
     // the edge of the buffer.
-    const qreal pad = a.skin.strokeWidth / 2.0 + 1.0 + styleMargin(a);
+    const qreal pad = a.style.strokeWidth / 2.0 + 1.0 + styleMargin(a);
     r = r.adjusted(-pad, -pad, pad, pad);
 
     // Whole pixels, so the rasterised buffer and the SVG viewBox describe the same rectangle rather

@@ -68,14 +68,14 @@ void paintPaths(QPainter& painter, const ObjectRecord& a, const QPainterPath& si
             painter.fillPath(shadow, a.effects.shadowColour);
         painter.fillPath(silhouette, fillBrush(a.skin));
         // A style with strokes of its own draws them instead of the outline: they are the edge.
-        if (a.skin.strokeWidth > 0 && Geometry::hasOutline(a)) {
-            QPen pen(a.skin.stroke, a.skin.strokeWidth);
+        if (a.style.strokeWidth > 0 && Geometry::hasOutline(a)) {
+            QPen pen(a.style.stroke, a.style.strokeWidth);
             pen.setJoinStyle(Qt::RoundJoin);
             painter.strokePath(silhouette, pen);
         }
     }
     if (!ink.isEmpty())
-        painter.fillPath(ink, a.skin.stroke);
+        painter.fillPath(ink, a.style.stroke);
 
     // Filled outlines rather than drawn text, so that what is on screen is what Svg::write() writes
     // and what the library rasterises — one geometry, three consumers.

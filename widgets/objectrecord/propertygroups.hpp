@@ -120,16 +120,16 @@ struct ShapeNode
 };
 
 /**
- * @brief The balloon's own surface: what it is filled with, and the line drawn around it.
+ * @brief The balloon's own surface: what it is filled with. The line drawn round it is the line's
+ *        (StyleProperties), with its colour and width (PLAN-L B32).
  *
  * The first **property group** — a named slice of an object's state with exactly one editor
  * responsible for it. Groups exist so that two editors can never write the same field: an editor
  * writes through applyTo() and applyTo() assigns one member, so "this editor touched something that
  * was not its own" stops being expressible rather than being something to remember.
  *
- * The text's colour is deliberately **not** here. Editing a balloon's frame does not edit its
- * lettering, so the colour tool's two swatches are the fill and the stroke, and the text's colour
- * belongs with the text.
+ * The text's colour is deliberately **not** here. Editing a balloon's surface does not edit its
+ * lettering, so the text's colour belongs with the text.
  *
  * Persisted as flat keys, as every group is.
  */
@@ -145,8 +145,6 @@ struct SkinProperties
     static constexpr Fill k_lastFill = Fill::Screentone;
 
     QColor fill{255, 255, 255};
-    QColor stroke{20, 20, 20};
-    int    strokeWidth = 5;
 
     Fill   fillKind = Fill::Solid;
     QColor fillSecond{20, 20, 20};   //!< A pattern's own colour, over the fill: a screentone's dots.
@@ -166,8 +164,6 @@ struct SkinProperties
     static void fields(V&& v)
     {
         v("fill",        &SkinProperties::fill);
-        v("stroke",      &SkinProperties::stroke);
-        v("strokeWidth", &SkinProperties::strokeWidth);
         v("fillKind",    &SkinProperties::fillKind);
         v("fillSecond",  &SkinProperties::fillSecond);
         v("toneSpacing", &SkinProperties::toneSpacing);
@@ -279,11 +275,64 @@ struct ShapeProperties
 };
 
 /**
- * @brief How the outline is drawn, as opposed to what it is: a line and a texture (PLAN-L B4).
+ * @brief What is done to the balloon as it is rasterised (PLAN-L B4): its texture, an SVG filter on the
+ *        balloon's group — its silhouette, its line's strokes, its shadow — never on the words.
  *
- * The line is how the edge is drawn: a solid outline, or strokes of its own (a flash). The texture is
- * what is done to the balloon as it is rasterised: an SVG filter on the outline and its strokes, never
- * on the words. The two are independent, so a flash can be rough.
+ * Its own group, and its own section of the panel (B32), apart from the line: the two are independent,
+ * so a flash or a brush can be rough.
+ */
+struct TextureProperties
+{
+    /**
+     * @brief A texture is an SVG filter, so librsvg applies it and Qt cannot: that is the whole reason
+     * such a balloon is previewed through the library instead of being drawn locally — an effect only the
+     * committed output could show would be an effect nobody could author. None is a true no-op: no filter
+     * is emitted at all.
+     *
+     * Persisted by name — see textureName().
+     */
+    enum class Kind { None, Rough };
+    //! The enum's last value. **Adding a texture moves this**: textureFromName() reads up to it.
+    static constexpr Kind k_lastKind = Kind::Rough;
+
+    Kind kind = Kind::None;
+
+    /**
+     * @name Rough: turbulence displacing the outline, then a blur (PLAN-L B2). Read only while `kind` is
+     * Rough, and carried unchanged otherwise. The defaults are the old Marker's numbers; the Ink look is
+     * a built-in preset (Geometry::inkRough()). Lengths in balloon pixels, so the wobble scales with the
+     * balloon, not with the output's resolution.
+     * @{
+     */
+    qreal roughFrequency    = 0.03;   //!< feTurbulence's baseFrequency: higher is a finer grain.
+    int   roughOctaves      = 3;      //!< How many finer wobbles ride on the first.
+    qreal roughDisplacement = 6.0;    //!< How far the outline wanders (feDisplacementMap's scale).
+    qreal roughBlur         = 0.0;    //!< The bleed after it (feGaussianBlur's deviation); 0 for none.
+    /** @} */
+
+    //! The fields, with the keys they are saved under (fields.hpp).
+    template <class V>
+    static void fields(V&& v)
+    {
+        v("texture",           &TextureProperties::kind);
+        v("roughFrequency",    &TextureProperties::roughFrequency);
+        v("roughOctaves",      &TextureProperties::roughOctaves);
+        v("roughDisplacement", &TextureProperties::roughDisplacement);
+        v("roughBlur",         &TextureProperties::roughBlur);
+    }
+
+    [[nodiscard]] static TextureProperties from(const ObjectRecord& a);
+    void applyTo(ObjectRecord& a) const;
+
+    [[nodiscard]] bool operator==(const TextureProperties& o) const { return Fields::equal(*this, o); }
+    [[nodiscard]] bool operator!=(const TextureProperties& o) const { return !(*this == o); }
+};
+
+/**
+ * @brief The line drawn round the balloon: what kind, in what colour, how wide, and each kind's numbers.
+ *
+ * Clean is a solid outline; Flash and Brush are strokes of their own. The colour and the width are the
+ * line's (PLAN-L B32), so a brush's width sits with the brush; the panel's Line section is this group.
  *
  * The **seed is not in here**, deliberately. It is per balloon and set once at placement, so a preset
  * that carried it would give a whole chapter one repeated wobble — and a group's applyTo() writes the
@@ -302,36 +351,12 @@ struct StyleProperties
     //! The enum's last value. **Adding a line moves this**: lineFromName() reads up to it.
     static constexpr Line k_lastLine = Line::Brush;
 
-    /**
-     * @brief What is done to the balloon as it is rasterised. A texture is an SVG filter, so librsvg
-     * applies it and Qt cannot: that is the whole reason such a balloon is previewed through the
-     * library instead of being drawn locally — an effect only the committed output could show would be
-     * an effect nobody could author. None is a true no-op: no filter is emitted at all.
-     *
-     * Persisted by name — see textureName().
-     */
-    enum class Texture { None, Rough };
-    //! The enum's last value. **Adding a texture moves this**: textureFromName() reads up to it.
-    static constexpr Texture k_lastTexture = Texture::Rough;
-
     //! `flashCoreStretch`'s "follow the shape" value.
     static constexpr int k_autoStretch = -1;
 
-    Line    line    = Line::Clean;
-    Texture texture = Texture::None;
-
-    /**
-     * @name Rough: turbulence displacing the outline, then a blur (PLAN-L B2). Read only while `texture`
-     * is Rough, and carried unchanged otherwise. The defaults are the old Marker's numbers; the Ink look
-     * is a built-in preset (Geometry::inkRough()). Lengths in balloon pixels, so the wobble scales with
-     * the balloon, not with the output's resolution.
-     * @{
-     */
-    qreal roughFrequency    = 0.03;   //!< feTurbulence's baseFrequency: higher is a finer grain.
-    int   roughOctaves      = 3;      //!< How many finer wobbles ride on the first.
-    qreal roughDisplacement = 6.0;    //!< How far the outline wanders (feDisplacementMap's scale).
-    qreal roughBlur         = 0.0;    //!< The bleed after it (feGaussianBlur's deviation); 0 for none.
-    /** @} */
+    Line   line = Line::Clean;
+    QColor stroke{20, 20, 20};   //!< The outline's colour, and a flash's or a brush's strokes'.
+    int    strokeWidth = 5;      //!< The outline's width; a brush's too. 0 draws no line.
 
     /**
      * @name The flash: narrow triangles ringing the silhouette, outwards and inwards (styles.cpp).
@@ -361,7 +386,7 @@ struct StyleProperties
     /**
      * @name The brush: a few strokes laid along the edge, each tapering to a point at both ends and
      * swelling and wandering along the way (styles.cpp). Read only while `line` is Brush. Its width is the
-     * outline's (SkinProperties::strokeWidth), not a number of its own. In % of a stroke's share of the
+     * outline's (`strokeWidth`), not a number of its own. In % of a stroke's share of the
      * edge, of its length, of its width, or in balloon pixels.
      * @{
      */
@@ -377,11 +402,8 @@ struct StyleProperties
     static void fields(V&& v)
     {
         v("line",                   &StyleProperties::line);
-        v("texture",                &StyleProperties::texture);
-        v("roughFrequency",         &StyleProperties::roughFrequency);
-        v("roughOctaves",           &StyleProperties::roughOctaves);
-        v("roughDisplacement",      &StyleProperties::roughDisplacement);
-        v("roughBlur",              &StyleProperties::roughBlur);
+        v("stroke",                 &StyleProperties::stroke);
+        v("strokeWidth",            &StyleProperties::strokeWidth);
         v("flashOuterPitch",        &StyleProperties::flashOuterPitch);
         v("flashInnerPitch",        &StyleProperties::flashInnerPitch);
         v("flashOuterLength",       &StyleProperties::flashOuterLength);

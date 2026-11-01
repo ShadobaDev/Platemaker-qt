@@ -2,8 +2,10 @@
 #include "shapes.hpp"
 #include "styles.hpp"
 
+#include <QColorDialog>
 #include <QComboBox>
 #include <QFormLayout>
+#include <QPushButton>
 #include <QFrame>
 #include <QSpinBox>
 
@@ -95,7 +97,7 @@ const FieldRowSpec k_flashRows[] = {
            "own, and follows it when the shape changes; a value set here stays.")},
 };
 
-//! The brush's numbers. Its width is the outline's, in *Fill & outline*.
+//! The brush's numbers. Its width is the line's own, the *Width* row above them.
 const FieldRowSpec k_brushRows[] = {
     {"brushStrokes", PM_TR("Strokes:"), 1, 12,  "",    PM_TR("How many strokes go round the edge.")},
     {"brushOverlap", PM_TR("Overlap:"), 0, 100, " %",  PM_TR("How far each stroke runs past where the next begins, as a share of its length.")},
@@ -104,17 +106,6 @@ const FieldRowSpec k_brushRows[] = {
     {"brushDrift",   PM_TR("Drift:"),   0, 20,  " px", PM_TR("How far a stroke wanders off the edge."), 1},
 };
 
-//! Rough's numbers. Lengths in strip pixels, with a decimal: a blur's useful range is around a pixel.
-const FieldRowSpec k_roughRows[] = {
-    // A step of 0.005: a wave's length is 1 / grain, so a change shows in proportion, and a thousandth
-    // at the Marker's 0.03 is a wave 3 % shorter, nothing the eye sees.
-    {"roughFrequency",    PM_TR("Grain:"),        0.001, 0.5, "",
-     PM_TR("How fine the wobble is: about one wave every 1 / grain pixels, so 0.03 is a wave every 33 px "
-           "and 0.07 one every 14 px. Higher gives smaller, closer waves."), 3, 0.005},
-    {"roughOctaves",      PM_TR("Detail:"),       1,     8,   "",    PM_TR("How many finer wobbles ride on the first.")},
-    {"roughDisplacement", PM_TR("Displacement:"), 0,     50,  " px", PM_TR("How far the outline wanders off its line."), 1},
-    {"roughBlur",         PM_TR("Blur:"),         0,     10,  " px", PM_TR("How much the balloon softens after the wobble, as ink bleeding into paper. 0 keeps it sharp."), 1},
-};
 #undef PM_TR
 
 } // namespace
@@ -125,14 +116,22 @@ StyleEditor::StyleEditor(QWidget* parent)
     m_form = new QFormLayout(this);
     m_form->setContentsMargins(0, 0, 0, 0);
 
-    // The line, then its rows; the texture, then its rows. A field added to the list and not given a
-    // row above stops a debug build here.
+    // The line's kind, its colour and width, then the kind's own rows. A field added to the list and not
+    // given a row above stops a debug build here.
     m_line = new QComboBox(this);
     for (int i = 0; i <= int(StyleProperties::k_lastLine); ++i)
         m_line->addItem(lineTitle(static_cast<ObjectRecord::Line>(i)), i);
     m_line->setToolTip(tr("How the edge is drawn: a solid line, a flash's strokes ringing it, or a few "
                           "brush strokes laid along it."));
     m_form->addRow(tr("Line:"), m_line);
+    m_strokeSwatch = new QPushButton(tr("Colour"), this);
+    m_strokeSwatch->setToolTip(tr("The line's colour: the outline's, or a flash's or a brush's strokes'."));
+    m_form->addRow(tr("Colour:"), m_strokeSwatch);
+    m_strokeWidth = new QSpinBox(this);
+    m_strokeWidth->setRange(k_strokeWidthMin, k_strokeWidthMax);
+    m_strokeWidth->setSuffix(tr(" px"));
+    m_strokeWidth->setToolTip(tr("How wide the outline is, and a brush's strokes. 0 draws no line."));
+    m_form->addRow(tr("Width:"), m_strokeWidth);
     m_flash.build(this, m_form, "flash", k_flashRows, k_trContext, m_values, m_populating,
                   [this] { emit changed(); }, [this](const char* key) -> QSpinBox* {
                       if (std::strcmp(key, "flashCoreStretch") != 0)
@@ -140,22 +139,6 @@ StyleEditor::StyleEditor(QWidget* parent)
                       return m_stretch = new StretchSpin(this);
                   });
     m_brush.build(this, m_form, "brush", k_brushRows, k_trContext, m_values, m_populating,
-                  [this] { emit changed(); });
-
-    // A rule between the two choices and their rows, so the texture does not read as one of the line's.
-    auto* rule = new QFrame(this);
-    rule->setFrameShape(QFrame::HLine);
-    rule->setFrameShadow(QFrame::Sunken);
-    m_form->addRow(rule);
-
-    m_texture = new QComboBox(this);
-    for (int i = 0; i <= int(StyleProperties::k_lastTexture); ++i)
-        m_texture->addItem(textureTitle(static_cast<ObjectRecord::Texture>(i)), i);
-    m_texture->setToolTip(tr("What is done to the balloon as it is rendered, line and all, never to the "
-                             "words. Rough makes the edge wander, as a felt-tip or ink does; it is shown "
-                             "here exactly as it will be baked, because the library draws it."));
-    m_form->addRow(tr("Texture:"), m_texture);
-    m_rough.build(this, m_form, "rough", k_roughRows, k_trContext, m_values, m_populating,
                   [this] { emit changed(); });
 
     connect(m_line, &QComboBox::currentIndexChanged, this, [this](int i) {
@@ -167,14 +150,25 @@ StyleEditor::StyleEditor(QWidget* parent)
         showRows();
         emit changed();
     });
-    connect(m_texture, &QComboBox::currentIndexChanged, this, [this](int i) {
-        if (m_populating || i < 0)
+    connect(m_strokeWidth, &QSpinBox::valueChanged, this, [this](int v) {
+        if (m_populating)
             return;
-        m_values.texture = static_cast<ObjectRecord::Texture>(m_texture->currentData().toInt());
-        m_textureTouched = true;
-        m_mixedTexture   = false;
-        showRows();
+        if (restoreSpin(m_strokeWidth, k_strokeWidthMin))
+            m_mixedWidth = false;   // they have taken a position, so the sentinel goes
+        m_values.strokeWidth = v;
+        m_widthTouched       = true;
         emit changed();
+    });
+    connect(m_strokeSwatch, &QPushButton::clicked, this, [this] {
+        const QColor picked = QColorDialog::getColor(m_values.stroke, this, tr("Choose colour"));
+        if (!picked.isValid())
+            return;
+        m_values.stroke = picked;
+        m_strokeTouched = true;
+        m_mixedStroke   = false;
+        paintColourSwatch(m_strokeSwatch, picked);
+        emit changed();
+        emit committed();   // a dialog choice is discrete — commit it without waiting on a timer
     });
 
     syncFromValues();
@@ -186,21 +180,20 @@ void StyleEditor::bind(const Subjects& subjects)
         return;
     m_values = StyleProperties::from(*subjects.first());
 
-    m_mixedLine = m_mixedTexture = false;
+    m_mixedLine = m_mixedStroke = m_mixedWidth = false;
     m_flash.reset();
-    m_rough.reset();
     m_brush.reset();
     bool sameShape = true;
     for (const ObjectRecord* a : subjects) {
         const StyleProperties v = StyleProperties::from(*a);
-        m_mixedLine    = m_mixedLine    || v.line    != m_values.line;
-        m_mixedTexture = m_mixedTexture || v.texture != m_values.texture;
+        m_mixedLine   = m_mixedLine   || v.line        != m_values.line;
+        m_mixedStroke = m_mixedStroke || v.stroke      != m_values.stroke;
+        m_mixedWidth  = m_mixedWidth  || v.strokeWidth != m_values.strokeWidth;
         m_flash.compare(v, m_values);
-        m_rough.compare(v, m_values);
         m_brush.compare(v, m_values);
         sameShape = sameShape && a->shape.kind == subjects.first()->shape.kind;
     }
-    m_lineTouched = m_textureTouched = false;
+    m_lineTouched = m_strokeTouched = m_widthTouched = false;
     if (m_stretch)
         m_stretch->shapeStretch = sameShape ? Geometry::shapeInfo(subjects.first()->shape.kind).flashStretch : -1;
 
@@ -215,10 +208,10 @@ void StyleEditor::applyTo(ObjectRecord& target) const
 void StyleEditor::applyEditedTo(ObjectRecord& target) const
 {
     StyleProperties t = StyleProperties::from(target);
-    if (m_lineTouched)    t.line    = m_values.line;
-    if (m_textureTouched) t.texture = m_values.texture;
+    if (m_lineTouched)   t.line        = m_values.line;
+    if (m_strokeTouched) t.stroke      = m_values.stroke;
+    if (m_widthTouched)  t.strokeWidth = m_values.strokeWidth;
     m_flash.applyEdited(m_values, t);
-    m_rough.applyEdited(m_values, t);
     m_brush.applyEdited(m_values, t);
     t.applyTo(target);
 }
@@ -227,9 +220,12 @@ void StyleEditor::syncFromValues()
 {
     m_populating = true;
     showCombo(m_line, m_mixedLine, m_line->findData(int(m_values.line)));
-    showCombo(m_texture, m_mixedTexture, m_texture->findData(int(m_values.texture)));
+    showSpin(m_strokeWidth, m_mixedWidth, m_values.strokeWidth, k_strokeWidthMin, k_strokeWidthMax);
+    if (m_mixedStroke)
+        paintMixedSwatch(m_strokeSwatch, palette());
+    else
+        paintColourSwatch(m_strokeSwatch, m_values.stroke);
     m_flash.show(m_values);
-    m_rough.show(m_values);
     m_brush.show(m_values);
     showRows();
     m_populating = false;
@@ -240,7 +236,6 @@ void StyleEditor::showRows()
     // A selection that disagrees shows the rows at least one of them has.
     m_flash.setVisible(m_form, m_mixedLine || m_values.line == ObjectRecord::Line::Flash);
     m_brush.setVisible(m_form, m_mixedLine || m_values.line == ObjectRecord::Line::Brush);
-    m_rough.setVisible(m_form, m_mixedTexture || m_values.texture == ObjectRecord::Texture::Rough);
 }
 
 }  // namespace StripEdit

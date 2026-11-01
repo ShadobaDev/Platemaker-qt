@@ -36,7 +36,7 @@ struct ObjectRecord
     using Edge    = ShapeProperties::Edge;
     using Fill    = SkinProperties::Fill;
     using Line    = StyleProperties::Line;
-    using Texture = StyleProperties::Texture;
+    using Texture = TextureProperties::Kind;
 
     //! Records for one project's overlays, keyed by `StripOverlay::uid`.
     using Map = QHash<QString, ObjectRecord>;
@@ -69,6 +69,7 @@ struct ObjectRecord
 
     TailsProperties tails;
     StyleProperties style;
+    TextureProperties texture;
     EffectProperties effects;
 
     /**

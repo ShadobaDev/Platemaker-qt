@@ -93,23 +93,23 @@ QList<BubblePreset> builtinPresets()
 
     ObjectRecord whisper = dialogue;
     whisper.shape.kind       = ObjectRecord::Shape::Ellipse;
-    whisper.skin.strokeWidth = 3;
-    whisper.skin.stroke      = QColor(90, 90, 90);
+    whisper.style.strokeWidth = 3;
+    whisper.style.stroke      = QColor(90, 90, 90);
     whisper.text.colour      = QColor(70, 70, 70);
     whisper.text.pixelSize   = 26;
     out.append({PresetStore::tr("Whisper"), whisper});
 
     ObjectRecord thought = dialogue;
     thought.shape            = Geometry::shapeTemplate("thought").shape;
-    thought.skin.strokeWidth = 4;
+    thought.style.strokeWidth = 4;
     out.append({PresetStore::tr("Thought"), thought});
 
     ObjectRecord shout = dialogue;
     shout.shape              = Geometry::shapeTemplate("shout").shape;
     shout.text.bold          = true;
     shout.text.pixelSize     = 38;
-    shout.skin.strokeWidth   = 7;
-    shout.style.texture      = ObjectRecord::Texture::Rough;   // the Marker look: Rough's own defaults
+    shout.style.strokeWidth   = 7;
+    shout.texture.kind      = ObjectRecord::Texture::Rough;   // the Marker look: Rough's own defaults
     out.append({PresetStore::tr("Shout"), shout});
 
     ObjectRecord flash = dialogue;
@@ -121,19 +121,19 @@ QList<BubblePreset> builtinPresets()
     // The two looks Rough replaced (PLAN-L B2): a felt-tip's long slow wobble, and ink's finer one that
     // bleeds.
     ObjectRecord marker = dialogue;
-    marker.style.texture     = ObjectRecord::Texture::Rough;
+    marker.texture.kind     = ObjectRecord::Texture::Rough;
     out.append({PresetStore::tr("Marker"), marker});
 
     ObjectRecord ink = dialogue;
-    ink.style                = Geometry::inkRough(ink.style);
+    ink.texture              = Geometry::inkRough(ink.texture);
     out.append({PresetStore::tr("Ink"), ink});
 
     ObjectRecord caption = dialogue;
     caption.shape            = Geometry::shapeTemplate("caption").shape;
     caption.skin.fill        = QColor(16, 16, 16);
     caption.text.colour      = QColor(245, 245, 245);
-    caption.skin.stroke      = QColor(245, 245, 245);
-    caption.skin.strokeWidth = 2;
+    caption.style.stroke      = QColor(245, 245, 245);
+    caption.style.strokeWidth = 2;
     caption.text.align       = Qt::AlignLeft;
     out.append({PresetStore::tr("Caption"), caption});
 
@@ -266,7 +266,8 @@ int PresetStore::matching(const ObjectRecord& a) const
     };
     for (int i = 0; i < m_presets.size(); ++i) {
         const ObjectRecord look = applied(m_presets.at(i), a, /*keepShape=*/false);
-        if (look.shape == a.shape && look.skin == a.skin && look.style == a.style && look.effects == a.effects
+        if (look.shape == a.shape && look.skin == a.skin && look.style == a.style && look.texture == a.texture
+            && look.effects == a.effects
             && named(look.text) == named(a.text))
             return i;
     }

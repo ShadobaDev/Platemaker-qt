@@ -99,8 +99,9 @@ struct PatternCell
 
 /**
  * @brief How much of @p p's pattern is left at @p at, 1 to 0, by its fade's cross on @p body (the balloon's
- *        rectangle, balloonRect()): along each arm, whole up to its start and gone past its end, the two
- *        directions combined as a distance. Laid on the balloon, so moving a tail does not move it.
+ *        rectangle, balloonRect()): along each arm from the cross's centre, whole up to its start and gone
+ *        past its end, the two directions combined as a distance; the other way round when reversed. Laid
+ *        on the balloon, so moving a tail does not move it.
  */
 [[nodiscard]] qreal fadeTone(const Paint& p, const QRectF& body, const QPointF& at);
 
@@ -112,8 +113,8 @@ struct PatternCell
 
 /**
  * @brief The fade's cross for @p p on @p body, as shape-editing handles: on each arm a dot where the fade
- *        starts and one where the pattern is gone; none for a solid Paint. At rest every dot is on its
- *        side, which is no fade.
+ *        starts and one where it ends, then the centre; none for a solid Paint. At rest every dot is on
+ *        its side, which is no fade, wherever the centre is.
  */
 [[nodiscard]] QList<ShapeHandle> fadeHandles(const Paint& p, const QRectF& body);
 

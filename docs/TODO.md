@@ -374,7 +374,7 @@ New, backward-compatible features. Several are gated on a lib version, noted in 
   templates, edited on the strip; line × texture (Clean, Flash, Brush × None, Rough); the zigzag edge;
   the panel in drawing order (Shape · Fill · Line · Texture · Effects · Text); Paint with halftone
   patterns on the fill, the line and the shadow; a shadow with spread; a halftone shadow that fades, and
-  a fill whose halftone fades along a direction.
+  a fill whose halftone fades by a cross that moves, either way.
   **Left:** §6's later items (Dashed, Double, regular polygon
   and star, Sketch, Dry brush, Dry ink, the other edges, hatching, glow, fine-tuning). Still open from the earlier item: whether the 0.01 that `num()` keeps
   is the frequency spin's step, or the filter gets its own formatter (P6). The flash's direction could

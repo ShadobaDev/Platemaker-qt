@@ -129,6 +129,7 @@ static_assert(sizeof(ShapeProperties) == sizeof(ShapeMirror),
 struct PaintMirror {
     QColor colour; Paint::Kind kind; QColor second; qreal spacing, size; int angle;
     qreal fadeLeftFrom, fadeLeftTo, fadeRightFrom, fadeRightTo, fadeTopFrom, fadeTopTo, fadeBottomFrom, fadeBottomTo;
+    qreal fadeCentreX, fadeCentreY; bool fadeReversed;
 };
 static_assert(sizeof(Paint) == sizeof(PaintMirror), "Paint grew a field: place it (see above), then mirror it");
 
@@ -194,6 +195,9 @@ void expectSamePaint(const Paint& after, const Paint& before, const char* which)
     EXPECT_DOUBLE_EQ(after.fadeTopTo, before.fadeTopTo) << which;
     EXPECT_DOUBLE_EQ(after.fadeBottomFrom, before.fadeBottomFrom) << which;
     EXPECT_DOUBLE_EQ(after.fadeBottomTo, before.fadeBottomTo) << which;
+    EXPECT_DOUBLE_EQ(after.fadeCentreX, before.fadeCentreX) << which;
+    EXPECT_DOUBLE_EQ(after.fadeCentreY, before.fadeCentreY) << which;
+    EXPECT_EQ(after.fadeReversed, before.fadeReversed) << which;
 }
 
 //! Which group a test is applying, so everything else can be checked as untouched.
@@ -1002,8 +1006,9 @@ TEST(Effects, AHalftoneShadowReplacesTheShadowAndFadesOverItsSoftness)
 }
 
 /**
- * @brief A fill fades by a cross at the balloon's centre: along each arm, whole up to its start and gone
- *        past its end; one arm is a straight fade, all four a round one (PLAN-L P13c).
+ * @brief A fill fades by a cross in the balloon: along each arm, whole up to its start and gone past its
+ *        end; one arm is a straight fade, all four a round one (PLAN-L P13c). The centre moves, and the fade
+ *        turns over (P13d).
  */
 TEST(Paint, AFadingFillThinsOutAlongItsCross)
 {
@@ -1045,14 +1050,31 @@ TEST(Paint, AFadingFillThinsOutAlongItsCross)
     EXPECT_NEAR(Geometry::fadeTone(p, body, QPointF(320, 100)), 0.4, 1e-9);   // 0.6 of the way right
     EXPECT_NEAR(Geometry::fadeTone(p, body, QPointF(200 + 0.6 * 200, 100 + 0.8 * 100)), 0.0, 1e-9);
     EXPECT_DOUBLE_EQ(Geometry::fadeTone(p, body, QPointF(0, 0)), 0.0);
+    // Turned over: gone at the centre, whole past the ends.
+    p.fadeReversed = true;
+    EXPECT_DOUBLE_EQ(Geometry::fadeTone(p, body, QPointF(200, 100)), 0.0);
+    EXPECT_NEAR(Geometry::fadeTone(p, body, QPointF(320, 100)), 0.6, 1e-9);
+    EXPECT_DOUBLE_EQ(Geometry::fadeTone(p, body, QPointF(0, 0)), 1.0);
+    p.fadeReversed = false;
 
-    // The cross: a start and an end on each arm, every one on its side for a fill that does not fade.
+    // The centre moved to a quarter across: each arm is still measured to its own side, so the left one is
+    // shorter than the right.
+    p.fadeCentreX = 25.0;
+    EXPECT_DOUBLE_EQ(Geometry::fadeTone(p, body, QPointF(100, 100)), 1.0);
+    EXPECT_NEAR(Geometry::fadeTone(p, body, QPointF(50, 100)), 0.5, 1e-9);    // half of 100 left
+    EXPECT_NEAR(Geometry::fadeTone(p, body, QPointF(250, 100)), 0.5, 1e-9);   // half of 300 right
+    p.fadeCentreX = 50.0;
+
+    // The cross: a start and an end on each arm, every one on its side for a fill that does not fade, then
+    // the centre.
     Paint still;
     still.kind = Paint::Kind::Lines;
     const QList<Geometry::ShapeHandle> cross = Geometry::fadeHandles(still, body);
-    ASSERT_EQ(cross.size(), 8);
+    ASSERT_EQ(cross.size(), 9);
     EXPECT_EQ(cross.at(0).role, Geometry::ShapeHandle::Role::FadeFrom);
     EXPECT_EQ(cross.at(4).role, Geometry::ShapeHandle::Role::FadeTo);
+    EXPECT_EQ(cross.at(8).role, Geometry::ShapeHandle::Role::FadeCentre);
+    EXPECT_EQ(cross.at(8).at, QPointF(200, 100));
     EXPECT_EQ(cross.at(3).at, QPointF(200, 200));   // the bottom arm's start, on its side
     EXPECT_TRUE(Geometry::fadeHandles(Paint(), body).isEmpty()) << "a solid fill has no cross";
     // Pulling the bottom start in begins a fade; pushing it past its end takes the end along, and the
@@ -1066,6 +1088,19 @@ TEST(Paint, AFadingFillThinsOutAlongItsCross)
     dragged = Geometry::dragFadeHandle(dragged, body, cross.at(3), QPointF(200, 400));   // past the side
     EXPECT_DOUBLE_EQ(dragged.fadeBottomFrom, 100.0);
     EXPECT_DOUBLE_EQ(dragged.fadeBottomTo, 100.0);
+    // The centre goes anywhere in the rectangle, no further; the arms keep their per cents, so at rest
+    // they still sit on their sides.
+    dragged.fadeBottomFrom = 50.0;
+    dragged = Geometry::dragFadeHandle(dragged, body, cross.at(8), QPointF(100, 250));
+    EXPECT_DOUBLE_EQ(dragged.fadeCentreX, 25.0);
+    EXPECT_DOUBLE_EQ(dragged.fadeCentreY, 100.0);
+    EXPECT_DOUBLE_EQ(dragged.fadeBottomFrom, 50.0);
+    const QList<Geometry::ShapeHandle> moved = Geometry::fadeHandles(dragged, body);
+    EXPECT_EQ(moved.at(0).at, QPointF(0, 200));     // the left start, on its side
+    EXPECT_EQ(moved.at(2).at, QPointF(100, 0));     // the top start
+    EXPECT_EQ(moved.at(3).at, QPointF(100, 200));   // the bottom arm has no length left
+    EXPECT_EQ(Geometry::dragFadeHandle(dragged, body, moved.at(3), QPointF(100, 150)), dragged)
+        << "an arm with no length does not drag";
 
     // Only the fill lists the fade, and the shadow's pattern no colour of its own: neither is saved there.
     ObjectRecord b = a;
@@ -1633,6 +1668,14 @@ QString goldenRecords()
             p.fadeLeftTo = p.fadeRightTo = 100.0;
         }
         write(QStringLiteral("speech"), QStringLiteral("fading ") + QLatin1String(patternName(pattern)), true, a);
+        // ...and the same with its cross moved up and left, then turned over (PLAN-L P13d).
+        p.fadeCentreX = 30.0;
+        p.fadeCentreY = 35.0;
+        write(QStringLiteral("speech"), QStringLiteral("fading ") + QLatin1String(patternName(pattern)) + QStringLiteral(", moved"),
+              true, a);
+        p.fadeReversed = true;
+        write(QStringLiteral("speech"), QStringLiteral("fading ") + QLatin1String(patternName(pattern)) + QStringLiteral(", reversed"),
+              true, a);
     }
     // A halftone shadow, hard: the pattern's marks on nothing (PLAN-L P13; the cases above fade, soft).
     {

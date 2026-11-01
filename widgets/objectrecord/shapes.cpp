@@ -522,6 +522,7 @@ ShapeProperties dragPolygonHandle(const ShapeProperties& shape, const QRectF& bo
         break;   // the edge's (dragShapeHandle())
     case ShapeHandle::Role::FadeFrom:
     case ShapeHandle::Role::FadeTo:
+    case ShapeHandle::Role::FadeCentre:
         break;   // the fill's (dragFadeHandle())
     }
     return s;
@@ -619,6 +620,7 @@ ShapeProperties dragCurveHandle(const ShapeProperties& shape, const QRectF& body
     case ShapeHandle::Role::Depth:
     case ShapeHandle::Role::FadeFrom:
     case ShapeHandle::Role::FadeTo:
+    case ShapeHandle::Role::FadeCentre:
         break;   // no radius; a press on a "+" adds the node (withVertexAdded()); the edge's and the fill's are not here
     }
     return s;

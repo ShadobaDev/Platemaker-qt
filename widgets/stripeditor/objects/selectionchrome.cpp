@@ -55,8 +55,10 @@ constexpr qreal k_arrowHitSpan = 3.2;
 //! sitting together (a side that does not fade) still read as two.
 constexpr qreal k_fadeRingSpan  = 1.0;
 constexpr qreal k_fadeDotSpan   = 0.5;
-//! How far the cross's arms keep from its centre, in grip spans: four lines meeting would cross pixels.
-constexpr qreal k_fadeCentreGap = 0.5;
+//! The cross's centre, a dot across in grip spans, larger than an end's; its arms keep further than its
+//! edge from it, so no pixel is crossed twice.
+constexpr qreal k_fadeCentreSpan = 0.8;
+constexpr qreal k_fadeCentreGap  = 0.7;
 
 //! The square a shape handle answers a press in.
 QRectF shapeHandleRect(const QPointF& at, Geometry::ShapeHandle::Role role, qreal s)
@@ -377,6 +379,13 @@ void SelectionChrome::paint(QPainter* painter, const QStyleOptionGraphicsItem* o
                 });
                 break;
             }
+            case Role::FadeCentre:
+                inNegative([&] {
+                    painter->setPen(Qt::NoPen);
+                    painter->setBrush(Qt::white);
+                    painter->drawEllipse(at, s * k_fadeCentreSpan / 2, s * k_fadeCentreSpan / 2);
+                });
+                break;
             case Role::InHandle:
             case Role::OutHandle: {
                 // A line from its node, and a diamond: unlike a node's square and a tail's dot. The line

@@ -228,7 +228,8 @@ void BubbleObject::dragShapeTo(const QPointF& scenePos)
 
     using Role        = Geometry::ShapeHandle::Role;
     ObjectRecord next = m_shapeStart;
-    if (m_shapeHandle.role == Role::FadeFrom || m_shapeHandle.role == Role::FadeTo)
+    if (m_shapeHandle.role == Role::FadeFrom || m_shapeHandle.role == Role::FadeTo
+        || m_shapeHandle.role == Role::FadeCentre)
         next.skin.fill = Geometry::dragFadeHandle(next.skin.fill, body, m_shapeHandle, to);
     else
         next.shape = Geometry::dragShapeHandle(next.shape, body, m_shapeHandle, to, radiusClearance());

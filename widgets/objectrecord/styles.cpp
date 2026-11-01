@@ -562,10 +562,23 @@ const std::array<FadeArm, 4> k_fadeArms{{
     {&Paint::fadeBottomFrom, &Paint::fadeBottomTo, QPointF(0, 1)},
 }};
 
-//! How far an arm reaches from the centre, at 100 %: to the side it points at.
-qreal armReach(const FadeArm& arm, const QRectF& body)
+//! Where the cross stands in @p body.
+QPointF fadeCentre(const Paint& p, const QRectF& body)
 {
-    return arm.axis.x() != 0.0 ? body.width() / 2.0 : body.height() / 2.0;
+    return body.topLeft() + QPointF(body.width() * p.fadeCentreX, body.height() * p.fadeCentreY) / 100.0;
+}
+
+//! How far an arm reaches from the cross's centre, at 100 %: to the side it points at.
+qreal armReach(const FadeArm& arm, const QRectF& body, const QPointF& centre)
+{
+    const QPointF side(arm.axis.x() < 0.0 ? body.left() : body.right(), arm.axis.y() < 0.0 ? body.top() : body.bottom());
+    return std::abs(arm.axis.x()) > 0.5 ? std::abs(side.x() - centre.x()) : std::abs(side.y() - centre.y());
+}
+
+//! A tenth of a per cent: steady numbers in the file.
+qreal tenth(qreal pct)
+{
+    return qRound(pct * 10.0) / 10.0;
 }
 
 /**
@@ -597,15 +610,17 @@ bool fades(const Paint& p)
 
 qreal fadeTone(const Paint& p, const QRectF& body, const QPointF& at)
 {
-    const QPointF d     = at - body.center();
-    const qreal   halfW = body.width() / 2.0;
-    const qreal   halfH = body.height() / 2.0;
-    const FadeArm& h    = k_fadeArms[d.x() < 0.0 ? 0 : 1];
-    const FadeArm& v    = k_fadeArms[d.y() < 0.0 ? 2 : 3];
-    const qreal   fx    = halfW > 0.0 ? fadedAlong(std::abs(d.x()) / halfW, p.*h.from, p.*h.to) : 0.0;
-    const qreal   fy    = halfH > 0.0 ? fadedAlong(std::abs(d.y()) / halfH, p.*v.from, p.*v.to) : 0.0;
+    const QPointF  centre = fadeCentre(p, body);
+    const QPointF  d      = at - centre;
+    const FadeArm& h      = k_fadeArms[d.x() < 0.0 ? 0 : 1];
+    const FadeArm& v      = k_fadeArms[d.y() < 0.0 ? 2 : 3];
+    const qreal    reachX = armReach(h, body, centre);
+    const qreal    reachY = armReach(v, body, centre);
+    const qreal    fx     = reachX > 0.0 ? fadedAlong(std::abs(d.x()) / reachX, p.*h.from, p.*h.to) : 0.0;
+    const qreal    fy     = reachY > 0.0 ? fadedAlong(std::abs(d.y()) / reachY, p.*v.from, p.*v.to) : 0.0;
     // As a distance: one arm alone is a straight fade, two neighbours round the corner between them.
-    return qMax(0.0, 1.0 - std::hypot(fx, fy));
+    const qreal faded = qMin(1.0, std::hypot(fx, fy));
+    return p.fadeReversed ? faded : 1.0 - faded;
 }
 
 QPainterPath fillTone(const ObjectRecord& a, const QPainterPath& silhouette)
@@ -624,27 +639,39 @@ QList<ShapeHandle> fadeHandles(const Paint& p, const QRectF& body)
     QList<ShapeHandle> out;
     if (p.kind == Paint::Kind::Solid || body.isEmpty())
         return out;
+    const QPointF centre = fadeCentre(p, body);
     // Every start before every end: where the two sit together (a side that does not fade), a press takes
     // the start, and pulling it in is what begins a fade.
     for (const auto role : {ShapeHandle::Role::FadeFrom, ShapeHandle::Role::FadeTo})
         for (int i = 0; i < int(k_fadeArms.size()); ++i) {
             const FadeArm& arm = k_fadeArms[size_t(i)];
             const qreal    pct = p.*(role == ShapeHandle::Role::FadeFrom ? arm.from : arm.to);
-            out.append({role, i, body.center() + arm.axis * armReach(arm, body) * pct / 100.0, arm.axis,
-                        body.center()});
+            out.append({role, i, centre + arm.axis * armReach(arm, body, centre) * pct / 100.0, arm.axis, centre});
         }
+    // The centre last: a start pulled all the way in sits on it, and must still come out again.
+    out.append({ShapeHandle::Role::FadeCentre, 0, centre, QPointF(), centre});
     return out;
 }
 
 Paint dragFadeHandle(const Paint& p, const QRectF& body, const ShapeHandle& handle, const QPointF& to)
 {
-    if (handle.index < 0 || handle.index >= int(k_fadeArms.size()) || body.isEmpty())
+    if (body.isEmpty())
         return p;
-    const FadeArm& arm   = k_fadeArms[size_t(handle.index)];
-    const QPointF  along = to - body.center();
-    const qreal    pct   = std::clamp(QPointF::dotProduct(along, arm.axis) / armReach(arm, body) * 100.0, 0.0, 100.0);
-    const qreal    at    = qRound(pct * 10.0) / 10.0;   // a tenth of a per cent: steady numbers in the file
-    Paint          next  = p;
+    Paint next = p;
+    if (handle.role == ShapeHandle::Role::FadeCentre) {
+        // Anywhere in the rectangle; the arms keep their per cents, so they still reach their sides.
+        next.fadeCentreX = tenth(std::clamp((to.x() - body.left()) / body.width() * 100.0, 0.0, 100.0));
+        next.fadeCentreY = tenth(std::clamp((to.y() - body.top()) / body.height() * 100.0, 0.0, 100.0));
+        return next;
+    }
+    if (handle.index < 0 || handle.index >= int(k_fadeArms.size()))
+        return p;
+    const FadeArm& arm    = k_fadeArms[size_t(handle.index)];
+    const QPointF  centre = fadeCentre(p, body);
+    const qreal    reach  = armReach(arm, body, centre);
+    if (reach <= 0.0)
+        return p;   // the centre on this side: the arm has no length to drag along
+    const qreal at = tenth(std::clamp(QPointF::dotProduct(to - centre, arm.axis) / reach * 100.0, 0.0, 100.0));
     // The start never passes the end: whichever is dragged takes the other along.
     if (handle.role == ShapeHandle::Role::FadeFrom) {
         next.*arm.from = at;

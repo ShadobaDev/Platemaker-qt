@@ -169,14 +169,17 @@ PLAN-L B37) is geometry, not a filter: `halftoneMarks()` lays the same grid and 
 rasteriser slows sharply on one path of thousands of marks) through a layer of their own, drawn once with
 the colour's alpha, so marks that overlap paint once, as in the SVG.
 
-A **fill that fades** (PLAN-L P13c) is the same marks with another tone, set by a **cross** at the centre
-of the balloon's rectangle (`balloonRect()`): on each arm `fade…From` and `fade…To`, in % of the way to
+A **fill that fades** (PLAN-L P13c, P13d) is the same marks with another tone, set by a **cross** in the
+balloon's rectangle (`balloonRect()`), centred at `fadeCentreX`, `fadeCentreY` (% of its width and
+height, the middle by default): on each arm `fade…From` and `fade…To`, in % of the way from the centre to
 that side, whole before the one and gone past the other. `fadeTone()` combines the two directions as a
 distance, so one arm is a straight fade, two opposite a band, all four a round one; at 100 % a side does
-not fade. `fillTone()` lays the marks; both the painter and the SVG draw the ground, then the marks
-clipped to the silhouette, then the outline over both. The cross is shape editing's (`fadeHandles()`,
-`dragFadeHandle()`, roles `FadeFrom`/`FadeTo`, appended by `BubbleObject` after the outline's own), so a
-patterned fill makes any balloon editable; it has no rows in the panel.
+not fade, wherever the centre is. `fadeReversed` turns the tone over: gone at the centre, whole past the
+ends. `fillTone()` lays the marks; both the painter and the SVG draw the ground, then the marks clipped
+to the silhouette, then the outline over both. The cross is shape editing's (`fadeHandles()`,
+`dragFadeHandle()`, roles `FadeFrom`/`FadeTo`/`FadeCentre`, appended by `BubbleObject` after the
+outline's own, the centre last), so a patterned fill makes any balloon editable; in the panel the fade has
+only its reversal, a check box `PaintRows` offers where the group lists `fadeReversed`.
 
 ### An effect
 

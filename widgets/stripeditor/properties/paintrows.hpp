@@ -5,6 +5,7 @@
 #include "properties/propertygroupeditor.hpp"   // showCombo(), paintColourSwatch(), paintMixedSwatch()
 #include "objectrecord.hpp"                      // patternTitle()
 
+#include <QCheckBox>
 #include <QColorDialog>
 #include <QComboBox>
 #include <QCoreApplication>
@@ -40,9 +41,10 @@ inline const FieldRowSpec k_patternRows[] = {
  * once the artist moves a control, so applyEdited() writes only that. The numbers are a FieldRows over the
  * Paint's own field list (its `cell…` fields). **Which rows a place offers is its group's field list**: a
  * part the group does not list (Paint::fieldsAs() with a null key) is not used there and has no row — a
- * shadow's pattern has no colour of its own. A fill's fade has no rows: it is set by its cross on the
- * strip, in shape editing (Geometry::fadeHandles()). Header-only, a template over the group; it holds no QObject and connects through
- * the owning panel, and must not move once built.
+ * shadow's pattern has no colour of its own. A fill's fade is set by its cross on the strip, in shape
+ * editing (Geometry::fadeHandles()); here it has only the check box that turns it over. Header-only, a
+ * template over the group; it holds no QObject and connects through the owning panel, and must not move
+ * once built.
  */
 template <class Group>
 class PaintRows
@@ -82,6 +84,23 @@ public:
         m_second->setToolTip(QCoreApplication::translate(k_trContext, "The pattern's own colour, over the ground."));
         form->addRow(QCoreApplication::translate(k_trContext, "Pattern colour"), m_second);
         m_rows.build(owner, form, "cell", k_patternRows, k_trContext, p, populating, edited);
+        if (uses(&Paint::fadeReversed)) {
+            m_reversed = new QCheckBox(QCoreApplication::translate(k_trContext, "From the centre"), owner);
+            m_reversed->setToolTip(QCoreApplication::translate(k_trContext,
+                "Turns the fade over: the pattern is gone at the cross's centre and whole past its ends. "
+                "The cross is set on the balloon, in shape editing."));
+            form->addRow(QCoreApplication::translate(k_trContext, "Fade"), m_reversed);
+            QObject::connect(m_reversed, &QCheckBox::toggled, owner, [this, &p, &populating, edited, committed](bool on) {
+                if (populating)
+                    return;
+                m_reversed->setTristate(false);   // they have taken a position
+                p.fadeReversed    = on;
+                m_reversedTouched = true;
+                m_mixedReversed   = false;
+                edited();
+                committed();   // a tick is discrete, like a dialog's choice
+            });
+        }
 
         QObject::connect(m_kind, &QComboBox::currentIndexChanged, owner, [this, &p, &populating, edited](int i) {
             if (populating || i < 0)
@@ -113,8 +132,8 @@ public:
     //! Starts a bind: nothing mixed, nothing touched.
     void reset()
     {
-        m_mixedColour = m_mixedKind = m_mixedSecond = false;
-        m_colourTouched = m_kindTouched = m_secondTouched = false;
+        m_mixedColour = m_mixedKind = m_mixedSecond = m_mixedReversed = false;
+        m_colourTouched = m_kindTouched = m_secondTouched = m_reversedTouched = false;
         m_rows.reset();
     }
 
@@ -126,6 +145,7 @@ public:
         m_mixedColour  = m_mixedColour || a.colour != b.colour;
         m_mixedKind    = m_mixedKind || a.kind != b.kind;
         m_mixedSecond  = m_mixedSecond || a.second != b.second;
+        m_mixedReversed = m_mixedReversed || a.fadeReversed != b.fadeReversed;
         m_rows.compare(a, b);
     }
 
@@ -142,6 +162,8 @@ public:
             paintMixedSwatch(m_second, m_second->palette());
         else
             paintColourSwatch(m_second, p.second);
+        if (m_reversed)
+            showCheck(m_reversed, m_mixedReversed, p.fadeReversed);
         m_rows.show(p);
         refresh();
     }
@@ -161,6 +183,7 @@ public:
         if (m_colourTouched) t.colour = v.colour;
         if (m_kindTouched)   t.kind   = v.kind;
         if (m_secondTouched) t.second = v.second;
+        if (m_reversedTouched) t.fadeReversed = v.fadeReversed;
         m_rows.applyEdited(v, t);
     }
 
@@ -188,6 +211,8 @@ private:
         m_form->setRowVisible(m_kind, m_visible);
         m_form->setRowVisible(m_second, m_visible && patterned && m_grounded);
         m_rows.setVisible(m_form, m_visible && patterned);
+        if (m_reversed)
+            m_form->setRowVisible(m_reversed, m_visible && patterned);
     }
 
     QFormLayout*     m_form   = nullptr;
@@ -196,6 +221,7 @@ private:
     QPushButton*     m_colour = nullptr;
     QComboBox*       m_kind   = nullptr;
     QPushButton*     m_second = nullptr;
+    QCheckBox*       m_reversed = nullptr;   //!< Only where the group lists the fade (the fill).
     FieldRows<Paint> m_rows;               //!< Spacing, size and angle.
     bool m_visible       = true;
     bool m_grounded      = true;   //!< A pattern lies over the colour, in the pattern colour (not a shadow's).
@@ -205,6 +231,8 @@ private:
     bool m_colourTouched = false;
     bool m_kindTouched   = false;
     bool m_secondTouched = false;
+    bool m_mixedReversed   = false;
+    bool m_reversedTouched = false;
 };
 
 }  // namespace StripEdit

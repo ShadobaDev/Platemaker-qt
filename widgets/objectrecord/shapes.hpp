@@ -40,7 +40,8 @@ struct ShapeHandle
         OutHandle,   //!< ...and the one its segment to the next node leaves along.
         Depth,       //!< The edge's depth: an arrow at its first valley, any kind with an edge.
         FadeFrom,    //!< The fill's fade, side `index` (left, right, top, bottom): where it starts.
-        FadeTo,      //!< ...and where the pattern is gone (fadeHandles(), styles.hpp).
+        FadeTo,      //!< ...and where it ends (fadeHandles(), styles.hpp).
+        FadeCentre,  //!< ...and the cross's centre.
     };
     Role    role  = Role::Vertex;
     int     index = 0;

@@ -18,6 +18,7 @@
 #include <cmath>
 #include <functional>
 #include <limits>
+#include <utility>
 #include <vector>
 
 namespace Geometry {
@@ -596,6 +597,47 @@ qreal fadedAlong(qreal u, qreal from, qreal to)
     return qMin(1.0, (u - from) / (to - from));
 }
 
+/**
+ * How far from the centre, along unit direction @p c, a quarter ellipse with half-axes @p a across and
+ * @p b down reaches: 0 where the direction has a part along a half-axis of 0, infinite for two infinite.
+ */
+qreal ellipseReach(qreal a, qreal b, const QPointF& c)
+{
+    qreal k = 0.0;
+    for (const auto& [half, along] : {std::pair{a, c.x()}, std::pair{b, c.y()}}) {
+        if (qFuzzyIsNull(along))
+            continue;
+        if (half <= 0.0)
+            return 0.0;
+        k += (along / half) * (along / half);
+    }
+    return k > 0.0 ? 1.0 / std::sqrt(k) : std::numeric_limits<qreal>::infinity();
+}
+
+/**
+ * How much has faded at @p d from the centre on ellipses: the starts of @p h and @p v (that quarter's arms)
+ * the half-axes of one, their ends of the other, and a line between along the ray. An arm whose start is at
+ * 100 % does not fade, so both its half-axes are infinite: one arm alone is the same straight fade as
+ * without ellipses.
+ */
+qreal fadedRound(const Paint& p, const FadeArm& h, const FadeArm& v, qreal reachX, qreal reachY, const QPointF& d)
+{
+    const qreal r = std::hypot(d.x(), d.y());
+    if (r <= 0.0)
+        return 0.0;
+    const auto half = [&p](const FadeArm& arm, qreal Paint::* end, qreal reach) {
+        return p.*arm.from >= 100.0 ? std::numeric_limits<qreal>::infinity() : reach * (p.*end) / 100.0;
+    };
+    const QPointF c    = d / r;
+    const qreal   from = ellipseReach(half(h, h.from, reachX), half(v, v.from, reachY), c);
+    const qreal   to   = ellipseReach(half(h, h.to, reachX), half(v, v.to, reachY), c);
+    if (r <= from)
+        return 0.0;
+    if (to <= from)
+        return 1.0;
+    return qMin(1.0, (r - from) / (to - from));
+}
+
 } // namespace
 
 bool fades(const Paint& p)
@@ -616,10 +658,15 @@ qreal fadeTone(const Paint& p, const QRectF& body, const QPointF& at)
     const FadeArm& v      = k_fadeArms[d.y() < 0.0 ? 2 : 3];
     const qreal    reachX = armReach(h, body, centre);
     const qreal    reachY = armReach(v, body, centre);
-    const qreal    fx     = reachX > 0.0 ? fadedAlong(std::abs(d.x()) / reachX, p.*h.from, p.*h.to) : 0.0;
-    const qreal    fy     = reachY > 0.0 ? fadedAlong(std::abs(d.y()) / reachY, p.*v.from, p.*v.to) : 0.0;
-    // As a distance: one arm alone is a straight fade, two neighbours round the corner between them.
-    const qreal faded = qMin(1.0, std::hypot(fx, fy));
+    qreal          faded  = 0.0;
+    if (p.fadeRound) {
+        faded = fadedRound(p, h, v, reachX, reachY, d);
+    } else {
+        const qreal fx = reachX > 0.0 ? fadedAlong(std::abs(d.x()) / reachX, p.*h.from, p.*h.to) : 0.0;
+        const qreal fy = reachY > 0.0 ? fadedAlong(std::abs(d.y()) / reachY, p.*v.from, p.*v.to) : 0.0;
+        // As a distance: one arm alone is a straight fade, two neighbours round the corner between them.
+        faded = qMin(1.0, std::hypot(fx, fy));
+    }
     return p.fadeReversed ? faded : 1.0 - faded;
 }
 

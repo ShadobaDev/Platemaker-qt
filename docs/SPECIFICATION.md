@@ -174,12 +174,15 @@ balloon's rectangle (`balloonRect()`), centred at `fadeCentreX`, `fadeCentreY` (
 height, the middle by default): on each arm `fade…From` and `fade…To`, in % of the way from the centre to
 that side, whole before the one and gone past the other. `fadeTone()` combines the two directions as a
 distance, so one arm is a straight fade, two opposite a band, all four a round one; at 100 % a side does
-not fade, wherever the centre is. `fadeReversed` turns the tone over: gone at the centre, whole past the
-ends. `fillTone()` lays the marks; both the painter and the SVG draw the ground, then the marks clipped
+not fade, wherever the centre is. With `fadeRound` the fade lies on ellipses instead, the starts' and the
+ends' (half-axes from that quarter's two arms, infinite for an arm that does not fade), and runs along
+each ray from one to the other: four arms make an ellipse, one alone is still straight. `fadeReversed`
+turns the tone over: gone at the centre, whole past the ends. `fillTone()` lays the marks; both the painter and the SVG draw the ground, then the marks clipped
 to the silhouette, then the outline over both. The cross is shape editing's (`fadeHandles()`,
 `dragFadeHandle()`, roles `FadeFrom`/`FadeTo`/`FadeCentre`, appended by `BubbleObject` after the
 outline's own, the centre last), so a patterned fill makes any balloon editable; in the panel the fade has
-only its reversal, a check box `PaintRows` offers where the group lists `fadeReversed`.
+only its shape (*Rectangle* or *Ellipse*) and its reversal, which `PaintRows` offers where the group lists
+`fadeRound` and `fadeReversed`.
 
 ### An effect
 

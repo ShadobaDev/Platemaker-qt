@@ -103,9 +103,11 @@ struct Paint
      * pattern is whole up to `…From` and gone past `…To`, in % of the way from the centre to that side (100
      * is the side); the ground stays. The two directions combine as a distance, so fading towards two
      * neighbouring sides rounds the corner between them, and all four make a round fade. A side whose
-     * `…From` is 100 does not fade. `fadeReversed` turns the tone over: gone at the centre, whole past the
-     * ends. Read only while `kind` is not Solid, and only where a group lists these fields (the fill). Set
-     * on the strip, by the cross in shape editing, all but the reversal (a check box in the panel).
+     * `…From` is 100 does not fade. `fadeRound` lays the fade on ellipses instead: the starts on one, the
+     * ends on another, so all four arms make an ellipse and not a rounded rectangle. `fadeReversed` turns
+     * the tone over: gone at the centre, whole past the ends. Read only while `kind` is not Solid, and only
+     * where a group lists these fields (the fill). Set on the strip, by the cross in shape editing, all but
+     * the shape and the reversal (the panel's).
      * @{
      */
     qreal fadeLeftFrom   = 100.0;
@@ -119,10 +121,11 @@ struct Paint
     qreal fadeCentreX    = 50.0;
     qreal fadeCentreY    = 50.0;
     bool  fadeReversed   = false;
+    bool  fadeRound      = false;
     /** @} */
 
     //! How many fields members() lists: the length of a key table.
-    static constexpr int k_fieldCount = 17;
+    static constexpr int k_fieldCount = 18;
 
     Paint() = default;
     Paint(QColor colour, QColor second) : colour(colour), second(second) {}
@@ -148,6 +151,7 @@ struct Paint
         v(14, &Paint::fadeCentreX);
         v(15, &Paint::fadeCentreY);
         v(16, &Paint::fadeReversed);
+        v(17, &Paint::fadeRound);
     }
 
     //! The fields under plain keys: what a Paint's own editor (PaintRows) walks.
@@ -159,7 +163,7 @@ struct Paint
             "colour",        "kind",        "second",         "cellSpacing",  "cellSize",
             "cellAngle",     "fadeLeftFrom", "fadeLeftTo",    "fadeRightFrom", "fadeRightTo",
             "fadeTopFrom",   "fadeTopTo",   "fadeBottomFrom", "fadeBottomTo", "fadeCentreX",
-            "fadeCentreY",   "fadeReversed"};
+            "fadeCentreY",   "fadeReversed", "fadeRound"};
         members([&](int i, auto member) { v(k_keys[i], member); });
     }
 
@@ -267,7 +271,7 @@ struct SkinProperties
             "fillSize",          "fillAngle",           "fillFadeLeftFrom",   "fillFadeLeftTo",
             "fillFadeRightFrom", "fillFadeRightTo",     "fillFadeTopFrom",    "fillFadeTopTo",
             "fillFadeBottomFrom", "fillFadeBottomTo",   "fillFadeCentreX",    "fillFadeCentreY",
-            "fillFadeReversed"};
+            "fillFadeReversed",  "fillFadeRound"};
         Paint::fieldsAs(v, &SkinProperties::fill, k_fill);
     }
 
@@ -505,7 +509,7 @@ struct StyleProperties
         static constexpr const char* k_stroke[] = {
             "stroke",     "strokeKind",  "strokeSecond", "strokeSpacing", "strokeSize", "strokeAngle",
             nullptr,      nullptr,       nullptr,        nullptr,         nullptr,      nullptr,
-            nullptr,      nullptr,       nullptr,        nullptr,         nullptr};   // a line does not fade
+            nullptr,      nullptr,       nullptr,        nullptr,         nullptr,      nullptr};   // a line does not fade
         v("line",                   &StyleProperties::line);
         Paint::fieldsAs(v, &StyleProperties::stroke, k_stroke);
         v("strokeWidth",            &StyleProperties::strokeWidth);
@@ -573,7 +577,7 @@ struct EffectProperties
         static constexpr const char* k_shadowFill[] = {
             "shadowColour", "shadowKind", nullptr, "shadowSpacing", "shadowSize", "shadowAngle",
             nullptr,        nullptr,      nullptr, nullptr,         nullptr,      nullptr,
-            nullptr,        nullptr,      nullptr, nullptr,         nullptr};
+            nullptr,        nullptr,      nullptr, nullptr,         nullptr,      nullptr};
         Paint::fieldsAs(v, &EffectProperties::shadowFill, k_shadowFill);
     }
 

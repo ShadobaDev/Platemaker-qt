@@ -129,7 +129,7 @@ static_assert(sizeof(ShapeProperties) == sizeof(ShapeMirror),
 struct PaintMirror {
     QColor colour; Paint::Kind kind; QColor second; qreal spacing, size; int angle;
     qreal fadeLeftFrom, fadeLeftTo, fadeRightFrom, fadeRightTo, fadeTopFrom, fadeTopTo, fadeBottomFrom, fadeBottomTo;
-    qreal fadeCentreX, fadeCentreY; bool fadeReversed;
+    qreal fadeCentreX, fadeCentreY; bool fadeReversed, fadeRound;
 };
 static_assert(sizeof(Paint) == sizeof(PaintMirror), "Paint grew a field: place it (see above), then mirror it");
 
@@ -198,6 +198,7 @@ void expectSamePaint(const Paint& after, const Paint& before, const char* which)
     EXPECT_DOUBLE_EQ(after.fadeCentreX, before.fadeCentreX) << which;
     EXPECT_DOUBLE_EQ(after.fadeCentreY, before.fadeCentreY) << which;
     EXPECT_EQ(after.fadeReversed, before.fadeReversed) << which;
+    EXPECT_EQ(after.fadeRound, before.fadeRound) << which;
 }
 
 //! Which group a test is applying, so everything else can be checked as untouched.
@@ -1008,7 +1009,7 @@ TEST(Effects, AHalftoneShadowReplacesTheShadowAndFadesOverItsSoftness)
 /**
  * @brief A fill fades by a cross in the balloon: along each arm, whole up to its start and gone past its
  *        end; one arm is a straight fade, all four a round one (PLAN-L P13c). The centre moves, and the fade
- *        turns over (P13d).
+ *        turns over (P13d); on ellipses, all four make an ellipse, and one arm is still straight (P13e).
  */
 TEST(Paint, AFadingFillThinsOutAlongItsCross)
 {
@@ -1056,6 +1057,22 @@ TEST(Paint, AFadingFillThinsOutAlongItsCross)
     EXPECT_NEAR(Geometry::fadeTone(p, body, QPointF(320, 100)), 0.6, 1e-9);
     EXPECT_DOUBLE_EQ(Geometry::fadeTone(p, body, QPointF(0, 0)), 1.0);
     p.fadeReversed = false;
+
+    // On ellipses: from half way, a point at 0.45 of the way on both axes is inside the rectangle's whole
+    // middle, but past the starts' ellipse (0.45·√2 of the way, the ends' at 1).
+    p.fadeLeftFrom = p.fadeRightFrom = p.fadeTopFrom = p.fadeBottomFrom = 50.0;
+    const QPointF inner(200 + 0.45 * 200, 100 + 0.45 * 100);
+    EXPECT_DOUBLE_EQ(Geometry::fadeTone(p, body, inner), 1.0);
+    p.fadeRound = true;
+    EXPECT_NEAR(Geometry::fadeTone(p, body, inner), 1.0 - (0.45 * std::sqrt(2.0) - 0.5) / 0.5, 1e-9);
+    EXPECT_NEAR(Geometry::fadeTone(p, body, QPointF(350, 100)), 0.5, 1e-9);   // on an axis, as before
+    EXPECT_DOUBLE_EQ(Geometry::fadeTone(p, body, QPointF(200, 100)), 1.0);
+    // One arm alone: the others do not fade, so it is the same straight fade.
+    p.fadeLeftFrom = p.fadeRightFrom = p.fadeTopFrom = 100.0;
+    EXPECT_NEAR(Geometry::fadeTone(p, body, QPointF(390, 175)), 0.5, 1e-9);
+    EXPECT_DOUBLE_EQ(Geometry::fadeTone(p, body, QPointF(5, 140)), 1.0);
+    p.fadeRound = false;
+    p.fadeLeftFrom = p.fadeRightFrom = p.fadeTopFrom = p.fadeBottomFrom = 0.0;
 
     // The centre moved to a quarter across: each arm is still measured to its own side, so the left one is
     // shorter than the right.
@@ -1676,6 +1693,11 @@ QString goldenRecords()
         p.fadeReversed = true;
         write(QStringLiteral("speech"), QStringLiteral("fading ") + QLatin1String(patternName(pattern)) + QStringLiteral(", reversed"),
               true, a);
+        // ...and on ellipses (PLAN-L P13e), where all four arms fade: the grid.
+        if (pattern == ObjectRecord::Pattern::Grid) {
+            p.fadeRound = true;
+            write(QStringLiteral("speech"), QStringLiteral("fading grid, reversed, round"), true, a);
+        }
     }
     // A halftone shadow, hard: the pattern's marks on nothing (PLAN-L P13; the cases above fade, soft).
     {

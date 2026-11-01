@@ -135,8 +135,9 @@
     from the balloon's corner, and colours may be transparent. A fill's pattern can **fade out**: in shape
     editing a cross sits in the middle of the balloon, and pulling the dots on its arms in from the sides
     sets where the pattern starts to thin out and where it is gone — towards one side, two, or all four for
-    a round fade. The cross's centre can be dragged anywhere in the balloon, and *Fade: From the centre*
-    turns the fade over, so the pattern is gone in the middle and whole at the edges.
+    a round fade. The cross's centre can be dragged anywhere in the balloon; *Fade* makes it a
+    rectangle or an ellipse, and *From the centre* turns it over, so the pattern is gone in the middle and
+    whole at the edges.
   - **Shadows.** Under *Effects*, a balloon can **drop a shadow**: its whole shape, tails and all, grown
     by a **spread** and moved by an **offset**, filled with a colour (with transparency) under it. By
     default it is centred, a rim all round; give it an offset and it falls to a side. Hard by default,

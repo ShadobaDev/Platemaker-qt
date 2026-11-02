@@ -93,6 +93,7 @@ QJsonArray tailsToJson(const QList<Tail>& tails)
             {QStringLiteral("y"),     t.tip.y()},
             {QStringLiteral("width"), t.baseWidth},
             {QStringLiteral("bend"),  t.bend},
+            {QStringLiteral("look"),  t.look.toText()},
         });
     return arr;
 }
@@ -108,12 +109,36 @@ QList<Tail> tailsFromJson(const QJsonArray& arr)
                               o.value(QStringLiteral("y")).toDouble());
         t.baseWidth = o.value(QStringLiteral("width")).toDouble(t.baseWidth);
         t.bend      = o.value(QStringLiteral("bend")).toDouble(t.bend);
+        t.look      = TailLook::fromFields(o.value(QStringLiteral("look")).toString().split(QLatin1Char(',')));
         tails.append(t);
     }
     return tails;
 }
 
 } // namespace
+
+QString TailLook::toText() const
+{
+    return QStringList{style == Style::Circles ? QStringLiteral("circles") : QStringLiteral("plain"),
+                       QString::number(circles), QString::number(pitch), QString::number(offset)}
+        .join(QLatin1Char(','));
+}
+
+TailLook TailLook::fromFields(const QStringList& fields, qsizetype first)
+{
+    TailLook   look;
+    const auto field = [&](qsizetype i) { return first + i < fields.size() ? fields[first + i] : QString(); };
+    if (field(0) == QLatin1String("circles"))
+        look.style = Style::Circles;
+    bool ok = false;
+    if (const int n = field(1).toInt(&ok); ok)
+        look.circles = n;
+    if (const qreal v = field(2).toDouble(&ok); ok)
+        look.pitch = v;
+    if (const qreal v = field(3).toDouble(&ok); ok)
+        look.offset = v;
+    return look;
+}
 
 // ---------------------------------------------------------------------------
 // ObjectRecord
@@ -157,8 +182,11 @@ TailProperties TailProperties::from(const ObjectRecord& a, int index)
 
 void TailProperties::applyTo(ObjectRecord& a) const
 {
-    if (index >= 0 && index < a.tails.items.size())
-        a.tails.items[index] = tail;
+    if (index < 0 || index >= a.tails.items.size())
+        return;
+    if (a.tails.items.at(index).look != tail.look)
+        a.tails.nextLook = tail.look;   // a look picked: the next tail takes it
+    a.tails.items[index] = tail;
 }
 
 SkinProperties SkinProperties::from(const ObjectRecord& a)
@@ -312,6 +340,7 @@ QJsonObject ObjectRecord::toJson() const
         {QStringLiteral("w"),         a.box.width()},
         {QStringLiteral("h"),         a.box.height()},
         {QStringLiteral("tails"),     tailsToJson(a.tails.items)},
+        {QStringLiteral("nextTail"),  a.tails.nextLook.toText()},
         {QStringLiteral("styleSeed"), double(a.styleSeed)},
     };
     writeJson(a.shape, j);
@@ -332,6 +361,7 @@ ObjectRecord ObjectRecord::fromJson(const QJsonObject& j)
     a.box         = QSize(j.value(QStringLiteral("w")).toInt(a.box.width()),
                           j.value(QStringLiteral("h")).toInt(a.box.height()));
     a.tails.items = tailsFromJson(j.value(QStringLiteral("tails")).toArray());
+    a.tails.nextLook = TailLook::fromFields(j.value(QStringLiteral("nextTail")).toString().split(QLatin1Char(',')));
     a.styleSeed   = quint32(j.value(QStringLiteral("styleSeed")).toDouble(0));
     readJson(a.shape, j);
     readJson(a.text, j);

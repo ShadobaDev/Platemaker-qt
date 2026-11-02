@@ -13,6 +13,8 @@
 
 #include <gtest/gtest.h>
 
+#include <algorithm>
+
 #include <QFile>
 #include <QJsonDocument>
 #include <QJsonObject>
@@ -45,7 +47,14 @@ ObjectRecord loadedRecord()
     t.tip              = QPointF(17, 42);
     t.baseWidth        = 29.0;
     t.bend             = 0.4;
+    t.look.circles     = 4;      // Plain still: the numbers are carried, the render is the plain tail's
+    t.look.pitch       = 7.5;
+    t.look.offset      = -3.25;
     a.tails.items      = {t};
+    a.tails.nextLook.style   = TailLook::Style::Circles;
+    a.tails.nextLook.circles = 5;
+    a.tails.nextLook.pitch   = 2.5;
+    a.tails.nextLook.offset  = 4.0;
 
     a.style.line              = ObjectRecord::Line::Flash;
     a.texture.kind              = ObjectRecord::Texture::Rough;
@@ -161,11 +170,15 @@ struct TextMirror { QString body, family; int pixelSize; bool bold; int align; Q
 static_assert(sizeof(TextProperties) == sizeof(TextMirror),
               "TextProperties grew a field: place it (see above), then mirror it");
 
-struct TailMirror { QPointF tip; qreal baseWidth, bend; };
+struct TailLookMirror { TailLook::Style style; int circles; qreal pitch, offset; };
+static_assert(sizeof(TailLook) == sizeof(TailLookMirror),
+              "TailLook grew a field: place it (see above), then mirror it");
+
+struct TailMirror { QPointF tip; qreal baseWidth, bend; TailLook look; };
 static_assert(sizeof(Tail) == sizeof(TailMirror),
               "Tail grew a field: place it (see above), then mirror it");
 
-struct TailsMirror { QList<Tail> items; };
+struct TailsMirror { QList<Tail> items; TailLook nextLook; };
 static_assert(sizeof(TailsProperties) == sizeof(TailsMirror),
               "TailsProperties grew a field: place it (see above), then mirror it");
 
@@ -464,7 +477,20 @@ TEST(PropertyGroupOwnership, OneTail)
     EXPECT_EQ(after.tails.items.at(1), edited.tail);
     EXPECT_EQ(after.tails.items.at(2), before.tails.items.at(2));
     EXPECT_EQ(TailProperties::from(after, 1), edited);
+    EXPECT_EQ(after.tails.nextLook, before.tails.nextLook);   // a width and a bend are not a look picked
     expectUntouched(Group::Tails, before, after);   // and nothing outside the tails
+
+    // Its look picked: the balloon's next tail takes it, whichever was picked last (PLAN-L P14b).
+    TailProperties looked = TailProperties::from(after, 2);
+    looked.tail.look.style   = TailLook::Style::Circles;
+    looked.tail.look.circles = 6;
+    looked.applyTo(after);
+    EXPECT_EQ(after.tails.nextLook, looked.tail.look);
+    TailProperties plain = TailProperties::from(after, 0);
+    plain.tail.look.style = TailLook::Style::Plain;
+    plain.tail.look.pitch = 1.5;
+    plain.applyTo(after);
+    EXPECT_EQ(after.tails.nextLook, plain.tail.look);
 }
 
 //! A tail selected before an undo removed it has nowhere to go. Writing it must not bring it back.
@@ -867,6 +893,49 @@ TEST(Style, ADrybrushKeepsItsCoreAndThinsOutwards)
             for (const QPointF& off : {QPointF(-4, -lane), QPointF(-lane, -4)})
                 EXPECT_FALSE(ink.contains(inside + off)) << seed << " at " << off.x() << "," << off.y();
     }
+}
+
+/**
+ * @brief A Circles tail is a chain of ellipses on the tail's curve, shrinking from its width to the tip,
+ *        `pitch` apart, the first `offset` from the balloon and the last ending at the tip (PLAN-L P14b).
+ *
+ * A straight tail down from an ellipse's bottom, so each ellipse's extent across is its width and along
+ * is down the page.
+ */
+TEST(Tails, ACirclesTailIsAChainShrinkingToItsTip)
+{
+    ObjectRecord a;
+    a.shape             = Geometry::shapeTemplate("ellipse").shape;
+    a.box               = QSize(280, 160);
+    a.style.strokeWidth = 0;
+    Tail t;
+    t.tip               = QPointF(140, 400);
+    t.baseWidth         = 40.0;
+    t.look.style        = TailLook::Style::Circles;
+    t.look.circles      = 3;
+    t.look.pitch        = 10.0;
+    t.look.offset       = -8.0;   // a gap below the balloon
+    a.tails.items       = {t};
+    const QRectF body   = Geometry::balloonRect(a);
+
+    QList<QPolygonF> rings = Geometry::silhouette(a).toSubpathPolygons();
+    ASSERT_EQ(rings.size(), 4);   // the balloon, and three ellipses apart from it and from each other
+    std::sort(rings.begin(), rings.end(),
+              [](const QPolygonF& l, const QPolygonF& r) { return l.boundingRect().top() < r.boundingRect().top(); });
+    const QRectF first = rings[1].boundingRect();
+    const QRectF last  = rings[3].boundingRect();
+    EXPECT_NEAR(first.width(), t.baseWidth, 0.5);
+    EXPECT_NEAR(last.width(), t.baseWidth * TailLook::k_lastCircle, 0.5);
+    EXPECT_GT(first.width(), rings[2].boundingRect().width());
+    EXPECT_GT(rings[2].boundingRect().width(), last.width());
+    EXPECT_NEAR(first.top(), body.bottom() + 8.0, 0.5);
+    EXPECT_NEAR(last.bottom(), t.tip.y(), 0.5);
+    EXPECT_NEAR(rings[2].boundingRect().top() - first.bottom(), t.look.pitch, 0.5);
+    EXPECT_NEAR(last.top() - rings[2].boundingRect().bottom(), t.look.pitch, 0.5);
+
+    // Sunk into the balloon, the first one melts into it.
+    a.tails.items.first().look.offset = 8.0;
+    EXPECT_EQ(Geometry::silhouette(a).toSubpathPolygons().size(), 3);
 }
 
 //! A flash left on Auto points its strokes exactly as the shape's own stretch would (PLAN-S A18, A19).
@@ -1741,6 +1810,34 @@ QString goldenRecords()
         a.effects.shadow      = false;
         a.tails.items.first().tip = QPointF(90, 230);
         write(QString::fromLatin1(id), QStringLiteral("drybrush"), true, a);
+    }
+    // A Circles tail (PLAN-L P14b): on a clean speech balloon, apart from it; and the author's reference, a
+    // white dry brush on a black ellipse, the chain sunk into it.
+    for (bool reference : {false, true}) {
+        ObjectRecord a   = loadedRecord();
+        a.shape          = Geometry::shapeTemplate(reference ? "ellipse" : "speech").shape;
+        a.style          = looks.first().style;
+        a.texture        = looks.first().texture;
+        a.skin.fill.kind = ObjectRecord::Pattern::Solid;
+        a.effects.shadow = false;
+        Tail& t          = a.tails.items.first();
+        t.tip            = QPointF(250, 230);
+        t.bend           = 0.2;
+        t.look.style     = TailLook::Style::Circles;
+        t.look.circles   = 3;
+        t.look.pitch     = 5.0;
+        t.look.offset    = reference ? 6.0 : -6.0;
+        if (reference) {
+            a.style.line             = ObjectRecord::Line::Drybrush;
+            a.style.stroke.colour    = Qt::white;
+            a.style.strokeWidth      = 10;
+            a.style.drybrushCore     = StyleProperties().drybrushCore;
+            a.style.drybrushBristles = StyleProperties().drybrushBristles;
+            a.style.drybrushDryness  = StyleProperties().drybrushDryness;
+            a.skin.fill.colour       = Qt::black;
+        }
+        write(QString::fromLatin1(reference ? "ellipse" : "speech"),
+              reference ? QStringLiteral("circles, drybrush") : QStringLiteral("circles"), true, a);
     }
     // A screentone fill on two templates, clean (PLAN-L P9).
     for (const char* id : {"speech", "shout"}) {

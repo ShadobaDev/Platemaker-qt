@@ -25,6 +25,7 @@ TailListEditor::TailListEditor(QWidget* parent)
 
     connect(m_add, &QPushButton::clicked, this, [this] {
         Tail t;
+        t.look = m_values.nextLook;   // the look picked last on this balloon
         if (m_values.items.isEmpty()) {
             t.tip = firstTailTip(m_box);
         } else {

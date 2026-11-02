@@ -127,14 +127,14 @@ QString attr(const QString& name, int value)
     return attr(name, QString::number(value));
 }
 
-//! Tails as "x,y,width,bend" groups joined by ";" — one attribute however many there are.
+//! Tails as "x,y,width,bend,look…" groups joined by ";" — one attribute however many there are.
 QString tailsToText(const QList<Tail>& tails)
 {
     QStringList parts;
     parts.reserve(tails.size());
     for (const Tail& t : tails)
         parts << (num(t.tip.x()) + QLatin1Char(',') + num(t.tip.y()) + QLatin1Char(',')
-                  + num(t.baseWidth) + QLatin1Char(',') + num(t.bend));
+                  + num(t.baseWidth) + QLatin1Char(',') + num(t.bend) + QLatin1Char(',') + t.look.toText());
     return parts.join(QLatin1Char(';'));
 }
 
@@ -149,6 +149,7 @@ QList<Tail> tailsFromText(const QString& s)
         t.tip = QPointF(f[0].toDouble(), f[1].toDouble());
         if (f.size() > 2) t.baseWidth = f[2].toDouble();
         if (f.size() > 3) t.bend      = f[3].toDouble();
+        t.look = TailLook::fromFields(f, 4);
         tails.append(t);
     }
     return tails;
@@ -444,6 +445,7 @@ QByteArray write(const ObjectRecord& a, const QByteArray& picture, const QString
     svg += attr(QStringLiteral("box"),
                 QStringLiteral("%1,%2").arg(a.box.width()).arg(a.box.height()));
     svg += attr(QStringLiteral("tails"), tailsToText(a.tails.items));
+    svg += attr(QStringLiteral("nextTail"), a.tails.nextLook.toText());
     svg += letteringAttrs(a);
     svg += groupAttrs(a.skin);
     svg += groupAttrs(a.style);
@@ -548,7 +550,8 @@ ObjectRecord read(const QByteArray& svg, bool* ok)
             a.box = QSize(intOf(QStringView(box[0]), a.box.width()),
                           intOf(QStringView(box[1]), a.box.height()));
 
-        a.tails.items = tailsFromText(at.value(ns, QStringLiteral("tails")).toString());
+        a.tails.items    = tailsFromText(at.value(ns, QStringLiteral("tails")).toString());
+        a.tails.nextLook = TailLook::fromFields(at.value(ns, QStringLiteral("nextTail")).toString().split(QLatin1Char(',')));
 
         bool       seedOk = false;
         const auto seed   = at.value(ns, QStringLiteral("styleSeed")).toULongLong(&seedOk);

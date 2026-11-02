@@ -79,6 +79,10 @@
     it under its bubble in the object list, or press its handle on the strip, to give it its own width and
     bend or to delete it — the other tails keep theirs. *Add tail* on the bubble adds one shaped like the
     last.
+  - **Thought tails.** A tail's *Style* is *Plain* or *Circles*: a chain of ellipses getting smaller
+    towards the tip, a thought's, with its *Number*, the *Pitch* between them and a *Starting offset* that
+    sinks the first one into the balloon or leaves a gap. The chain follows the tail's bend and always
+    ends at the tip. A tail added to a bubble takes the style picked last on it.
   - **Textures are drawn by the library.** A texture is an SVG filter (`feTurbulence` /
     `feDisplacementMap`), which librsvg applies and Qt cannot, so a textured bubble is previewed by
     asking the **library** for the same pixels the render will produce. The noise is seeded per bubble

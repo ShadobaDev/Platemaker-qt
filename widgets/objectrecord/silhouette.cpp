@@ -6,9 +6,11 @@
 #include "styles.hpp"
 
 #include <QPainterPathStroker>
+#include <QTransform>
 #include <QtMath>
 
 #include <cmath>
+#include <vector>
 
 namespace Geometry {
 
@@ -29,6 +31,49 @@ constexpr int   k_tailSamples   = 64;
  *  halvings put it far under a pixel, and each step is one QPainterPath::contains().
  */
 constexpr int   k_edgeSteps     = 24;
+//! The least an ellipse of a Circles tail is along it, in balloon pixels: gaps wider than the way leave this.
+constexpr qreal k_minCircle     = 1.0;
+//! Either side of a point on a tail's middle, as a share of it, for the way it runs there.
+constexpr qreal k_spineProbe    = 0.001;
+
+/**
+ * @brief A Circles tail's ellipses along @p spine, the tail's middle from where the chain starts to the tip
+ *        (TailLook): shrinking towards the tip, `pitch` apart, the last ending at it.
+ *
+ * Every ellipse is the same path turned and moved, so they all wind one way, and the winding rule unites
+ * any that overlap (a negative pitch, a chain sunk into the balloon) rather than cutting holes.
+ */
+QPainterPath circlesAlong(const QPainterPath& spine, const Tail& t)
+{
+    const qreal length = spine.length();
+    const int   count  = qMax(1, t.look.circles);
+    std::vector<qreal> share(static_cast<size_t>(count));
+    qreal              total = 0.0;
+    for (int i = 0; i < count; ++i) {
+        share[size_t(i)] = count > 1 ? 1.0 - (1.0 - TailLook::k_lastCircle) * i / (count - 1) : 1.0;
+        total += share[size_t(i)];
+    }
+    const qreal scale = qMax(length - (count - 1) * t.look.pitch, count * k_minCircle) / total;
+
+    QPainterPath out;
+    out.setFillRule(Qt::WindingFill);
+    qreal at = 0.0;
+    for (int i = 0; i < count; ++i) {
+        const qreal   along  = share[size_t(i)] * scale;
+        const qreal   across = t.baseWidth * share[size_t(i)];
+        const qreal   pct    = spine.percentAtLength(qBound(0.0, at + along / 2.0, length));
+        const QPointF way    = spine.pointAtPercent(qMin(1.0, pct + k_spineProbe))
+                             - spine.pointAtPercent(qMax(0.0, pct - k_spineProbe));
+        QTransform    place;
+        place.translate(spine.pointAtPercent(pct).x(), spine.pointAtPercent(pct).y());
+        place.rotateRadians(std::atan2(way.y(), way.x()));
+        QPainterPath ellipse;
+        ellipse.addEllipse(QPointF(), along / 2.0, across / 2.0);
+        out.addPath(place.map(ellipse));
+        at += along + t.look.pitch;
+    }
+    return out;
+}
 
 /**
  * @brief One tail, from where the line to its tip leaves the silhouette out to that tip.
@@ -41,6 +86,9 @@ constexpr int   k_edgeSteps     = 24;
  *
  * The base is pulled back *inside* the silhouette so the union is watertight — everything inside
  * disappears into it anyway, and what shows is the taper from the point it emerges.
+ *
+ * A Circles tail is a chain of ellipses on that same curve instead (circlesAlong()), from the crossing
+ * moved by its offset to the tip.
  *
  * @param outline The bare silhouette, without any tail already merged into it: each tail must be aimed
  *                at the balloon, not at a neighbour's outline.
@@ -80,6 +128,19 @@ QPainterPath tailPath(const QPainterPath& outline, const QRectF& body, const Tai
     const qreal edge = len * inside;
 
     const QPointF perp(-ray.y(), ray.x());
+
+    if (t.look.style == TailLook::Style::Circles) {
+        // The chain lies on the plain tail's middle, bend and all, from the crossing (moved in by the
+        // offset, or out by a negative one) to the tip.
+        const qreal from = edge - t.look.offset;
+        if (len - from < 1.0)
+            return {};   // a gap past the tip: nothing left to draw
+        const QPointF start = centre + ray * from;
+        QPainterPath  spine(start);
+        spine.quadTo((start + t.tip) / 2.0 + perp * (t.bend * (len - from)), t.tip);
+        return circlesAlong(spine, t);
+    }
+
     const qreal   half = t.baseWidth / 2.0;
     const QPointF base = centre + ray * qMax(0.0, edge - t.baseWidth * k_tailBaseInset);
     const QPointF b1   = base + perp * half;

@@ -3,12 +3,16 @@
 
 #include "properties/propertygroupeditor.hpp"
 
+class QComboBox;
+class QDoubleSpinBox;
+class QFormLayout;
 class QSpinBox;
 
 namespace StripEdit {
 
 /**
- * @brief One selected tail: how wide it leaves the balloon, and how much it bends.
+ * @brief One selected tail: how wide it leaves the balloon, how much it bends, and how it is drawn — one
+ *        taper, or a chain of ellipses with its own rows (TailLook).
  *
  * The property group `TailProperties` — one tail, addressed by its position in the balloon's list — with
  * the same contract as every other group, one level down: it writes that tail and nothing else, so the
@@ -34,10 +38,18 @@ public:
     void applyTo(ObjectRecord& target) const override;
 
 private:
-    QSpinBox* m_width = nullptr;
-    QSpinBox* m_bend  = nullptr;
-    int       m_index = -1;
-    bool      m_populating = false;
+    //! The chain's rows, shown while the style is Circles.
+    void showRows();
+
+    QFormLayout*    m_form    = nullptr;
+    QSpinBox*       m_width   = nullptr;
+    QSpinBox*       m_bend    = nullptr;
+    QComboBox*      m_style   = nullptr;
+    QSpinBox*       m_circles = nullptr;
+    QDoubleSpinBox* m_pitch   = nullptr;
+    QDoubleSpinBox* m_offset  = nullptr;
+    int             m_index   = -1;
+    bool            m_populating = false;
 };
 
 }  // namespace StripEdit

@@ -6,6 +6,7 @@
 #include <QPointF>
 #include <QSize>
 #include <QString>
+#include <QStringList>
 #include <QtGlobal>
 
 #include <type_traits>
@@ -33,17 +34,54 @@
  * Length is not stored: it is the distance from the balloon to the tip, so aiming and lengthening are
  * one gesture.
  */
+/**
+ * @brief How a tail is drawn: one taper (**Plain**), or a chain of ellipses shrinking towards its tip
+ *        (**Circles**), a thought's (PLAN-L P14b).
+ *
+ * The ellipses lie on the plain tail's own curve, bend and all, from where it leaves the balloon (moved by
+ * `offset`) to the tip, the last one ending there. Across, the first is the tail's width and the last
+ * `k_lastCircle` of it; along, they share what the gaps leave of the way in the same proportion. So the
+ * tip stays on the chain however it is dragged, and a short tail's ellipses come out flat, a long one's
+ * tall. The numbers are kept while the style is Plain, so switching back finds them as they were.
+ */
+struct TailLook
+{
+    enum class Style { Plain, Circles };
+    //! The last ellipse's width, against the first's.
+    static constexpr qreal k_lastCircle = 0.4;
+
+    Style style   = Style::Plain;
+    int   circles = 3;     //!< How many ellipses make a Circles tail.
+    qreal pitch   = 6.0;   //!< The gap between two of them along the tail, in balloon pixels; less than 0 overlaps.
+    qreal offset  = 0.0;   //!< How far into the balloon the first starts, in balloon pixels: less than 0 leaves a gap.
+
+    //! As text, "plain,3,6,0": the style's name, then the numbers. How a file carries it.
+    [[nodiscard]] QString toText() const;
+    //! Out of the fields toText() writes, from @p first on; what is missing or unknown keeps its default.
+    [[nodiscard]] static TailLook fromFields(const QStringList& fields, qsizetype first = 0);
+
+    [[nodiscard]] bool operator==(const TailLook& o) const
+    {
+        return style == o.style && circles == o.circles
+            && qFuzzyCompare(1.0 + pitch, 1.0 + o.pitch)   // +1 so an exact 0.0 compares equal
+            && qFuzzyCompare(1.0 + offset, 1.0 + o.offset);
+    }
+    [[nodiscard]] bool operator!=(const TailLook& o) const { return !(*this == o); }
+};
+
 struct Tail
 {
-    QPointF tip;                //!< Balloon coordinates; outside the balloon is normal.
-    qreal   baseWidth = 34.0;   //!< Width where it emerges from the silhouette, in balloon pixels.
-    qreal   bend      = 0.0;    //!< -1..+1 — sideways offset of the curve, as a fraction of its length.
+    QPointF  tip;                //!< Balloon coordinates; outside the balloon is normal.
+    qreal    baseWidth = 34.0;   //!< Width where it emerges from the silhouette, in balloon pixels.
+    qreal    bend      = 0.0;    //!< -1..+1 — sideways offset of the curve, as a fraction of its length.
+    TailLook look;               //!< Plain, or a chain of ellipses.
 
     [[nodiscard]] bool operator==(const Tail& o) const
     {
         return tip == o.tip
             && qFuzzyCompare(baseWidth, o.baseWidth)
-            && qFuzzyCompare(1.0 + bend, 1.0 + o.bend);   // +1 so an exact 0.0 compares equal
+            && qFuzzyCompare(1.0 + bend, 1.0 + o.bend)   // +1 so an exact 0.0 compares equal
+            && look == o.look;
     }
     [[nodiscard]] bool operator!=(const Tail& o) const { return !(*this == o); }
 };
@@ -667,11 +705,19 @@ struct TextProperties
 struct TailsProperties
 {
     QList<Tail> items;   //!< Empty = no tail. More than one = one sound, several speakers.
+    /**
+     * The look last picked for any of the balloon's tails (TailProperties::applyTo()), which a tail added
+     * to it takes: pick Circles on one, and the next is a chain too; pick Plain on any, and it is plain.
+     */
+    TailLook    nextLook;
 
     [[nodiscard]] static TailsProperties from(const ObjectRecord& a);
     void applyTo(ObjectRecord& a) const;
 
-    [[nodiscard]] bool operator==(const TailsProperties& o) const { return items == o.items; }
+    [[nodiscard]] bool operator==(const TailsProperties& o) const
+    {
+        return items == o.items && nextLook == o.nextLook;
+    }
     [[nodiscard]] bool operator!=(const TailsProperties& o) const { return !(*this == o); }
 };
 
@@ -701,6 +747,10 @@ struct TailProperties
     
     /**
      * @brief Writes the tail at \p index into \p a, or does nothing if the index is out of range.
+     *
+     * A tail whose look this changes also makes it the balloon's `nextLook`, the one a tail added later
+     * takes; editing only its width or bend leaves that as it was.
+     *
      * @param a The balloon to write to.
      * @see from()
      */

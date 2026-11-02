@@ -19,7 +19,8 @@ namespace StripEdit {
  * had been given; that is the reason this editor has no such control.
  *
  * *Add tail* seeds the new tail from the last one — its width and bend, and a tip opposite it so it does
- * not land on top. A starting value, not a link: from the moment it exists it is edited on its own.
+ * not land on top — and takes the look picked last on the balloon (`TailsProperties::nextLook`). A
+ * starting value, not a link: from the moment it exists it is edited on its own.
  *
  * applyTo() **reads** the target's shape: a shapeless record has nothing for a tail to grow from.
  */

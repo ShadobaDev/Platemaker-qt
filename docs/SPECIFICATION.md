@@ -123,7 +123,12 @@ every template is a balloon, is found by `templateOf()` as itself, and that ever
 `usesSeed()`). Any outline
 takes a tail, concave included: the tail walks from its tip towards the centre and leaves from the first
 edge it meets (`Tails.AConcaveOutlineIsLeftNearestTheTip`); only a balloon whose centre lies outside it
-gets none.
+gets none. A tail's look (`TailLook`) is Plain, the taper, or Circles: ellipses on the same curve
+(`circlesAlong()` in `silhouette.cpp`), from the crossing moved by `offset` to the tip, the first the
+tail's width across and the last `k_lastCircle` of it, sharing along what the `pitch` gaps leave, so the
+last ends at the tip (`Tails.ACirclesTailIsAChainShrinkingToItsTip`). `silhouetteParts()` gives the
+balloon and each drawn tail apart; `silhouette()` is their union. A tail whose look is edited makes it the
+balloon's `TailsProperties::nextLook`, which *Add tail* gives the new one.
 
 **With parameters of its own** (the Box's `cornerRadius` is the worked example): each parameter is a
 member of `ShapeProperties` and **one line in its `fields()` list** — the key it is saved under and the

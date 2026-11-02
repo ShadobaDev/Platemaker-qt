@@ -132,7 +132,7 @@ QPainterPath textOutline(const ObjectRecord& a)
     layOutText(doc, a, safe.width());
 
     // Vertically centred in the safe area — a bubble's text sits in the middle of the balloon. A block
-    // taller than the area stops at its top, the top padding, and goes on downwards (PLAN-T C2).
+    // taller than the area stops at its top, the top padding, and goes on downwards.
     const qreal   h = doc.size().height();
     const QPointF origin(safe.left(), safe.top() + qMax(qreal(0), (safe.height() - h) / 2.0));
 
@@ -165,7 +165,7 @@ QPainterPath textOutline(const ObjectRecord& a)
         return out;
 
     // The paddings are the clip, so an overlong line cannot bleed past the stroke: on the sides and at the
-    // top. Not at the bottom: lines the balloon has no room for go on out of it, never cut (PLAN-T C15),
+    // top. Not at the bottom: lines the balloon has no room for go on out of it, never cut,
     // and the red text area says so. A text object and a picture's words keep their box as it was (C10).
     // Intersecting keeps that in vector form, so it survives into the SVG.
     QRectF open = safe;
@@ -259,7 +259,7 @@ TextProperties paddingsToFit(const ObjectRecord& a, const QSizeF& block)
     if (!a.hasSilhouette() || block.isEmpty())
         return out;   // no outline, no padding to give
 
-    // Each padding gives way in its own direction only (PLAN-T C16): the side one is all that narrows the
+    // Each padding gives way in its own direction only: the side one is all that narrows the
     // area, the top one (mirrored at the bottom) all that shortens it. Within one direction the area
     // shrinks as the padding grows, on every shape, so the largest padding that still holds the block is
     // a binary search below the current one. A fix only ever lowers a padding.

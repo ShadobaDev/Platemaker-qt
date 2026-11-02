@@ -364,6 +364,9 @@ QString letteringAttrs(const ObjectRecord& a)
     return out;
 }
 
+//! The id of the lettering's outline pattern, beside the balloon's own (`pm-fill`, `pm-stroke`…).
+const QString k_textOutlineId = QStringLiteral("pm-text-outline");
+
 /**
  * @brief The lettering's elements, @p text (Geometry::textOutline()), each on a line of its own at
  *        @p indent: the one place words are written, over a balloon (in its own group) and over a picture
@@ -373,8 +376,24 @@ QString letteringElements(const ObjectRecord& a, const QPainterPath& text, QLati
 {
     if (text.isEmpty())
         return {};
-    return indent + QStringLiteral("<path d=\"%1\" fill-rule=\"%2\" %3/>\n")
+    QString out;
+    // The outline first, under the letters, stroked at twice its width: two draws, not `paint-order`,
+    // which is what librsvg is sure to render alike.
+    if (a.text.outlineWidth > 0.0)
+        out += indent + QStringLiteral("<path d=\"%1\" fill=\"none\" %2 stroke-width=\"%3\" "
+                                       "stroke-linejoin=\"round\" stroke-linecap=\"round\"/>\n")
+                            .arg(pathData(text), paintAttr("stroke", a.text.outline, k_textOutlineId),
+                                 num(2.0 * a.text.outlineWidth));
+    out += indent + QStringLiteral("<path d=\"%1\" fill-rule=\"%2\" %3/>\n")
                         .arg(pathData(text), fillRule(text), paint("fill", a.text.colour));
+    return out;
+}
+
+//! The `<defs>` the lettering's elements reference: its outline's pattern, or nothing.
+QString letteringDefs(const ObjectRecord& a)
+{
+    return a.text.outlineWidth > 0.0 && !a.text.body.isEmpty() ? patternDefs(a.text.outline, k_textOutlineId)
+                                                                : QString();
 }
 
 } // namespace
@@ -397,6 +416,7 @@ QByteArray write(const ObjectRecord& a, const QByteArray& picture, const QString
                               "     width=\"%2\" height=\"%3\" viewBox=\"0 0 %2 %3\">\n")
                    .arg(QLatin1String(k_pmNamespace))
                    .arg(num(a.box.width()), num(a.box.height()));
+        svg += letteringDefs(a);
 
         // The same parameter group every file of ours carries, so this one is re-typable in the same
         // way — and so an import can tell it is ours (see read).
@@ -447,6 +467,7 @@ QByteArray write(const ObjectRecord& a, const QByteArray& picture, const QString
     svg += shadowDefs(a, shadowId);
     if (a.effects.shadow)
         svg += patternDefs(Geometry::shadowPaint(a), shadowFillId);
+    svg += letteringDefs(a);
 
     // Everything the editor needs to re-solve this bubble, in a namespace no renderer looks at. Losing
     // these leaves a perfectly good drawing that simply cannot be re-typed — the intended degradation.

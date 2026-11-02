@@ -111,7 +111,7 @@ TEST(TextFit, PaddingGrowsTheBoxAndANegativeOneShrinksIt)
     // Negative enough, the lettering is wider than its own balloon — an impact balloon's look.
     EXPECT_LT(burst.width(), block.width());
 
-    // Each in its own direction (PLAN-T C1): the side padding widens the box only, the top one (mirrored
+    // Each in its own direction: the side padding widens the box only, the top one (mirrored
     // at the bottom) heightens it only.
     ObjectRecord side       = withShape(ObjectRecord::Shape::Box, 0);
     side.text.paddingSide   = 20;
@@ -155,7 +155,7 @@ TEST(TextFit, FixPaddingLowersEachUntilTheLetteringFits)
     EXPECT_EQ(fixed.paddingSide, 0);
     EXPECT_EQ(fixed.paddingTop, 0);
 
-    // Each in its own direction only (PLAN-T C16): too wide lowers the side and leaves the top alone...
+    // Each in its own direction only: too wide lowers the side and leaves the top alone...
     ObjectRecord wide = a;
     wide.box.setHeight(a.box.height() + 100);
     fixed = Geometry::paddingsToFit(wide, block);
@@ -197,7 +197,7 @@ TEST(TextFit, FixPaddingLeavesWhatAlreadyFitsAlone)
 }
 
 /**
- * @brief The text area's arrows (PLAN-T C4) sit on its left, right and top edges, and dragging one moves
+ * @brief The text area's arrows sit on its left, right and top edges, and dragging one moves
  *        that edge with the pointer: the side padding for either side, the top padding for the top.
  */
 TEST(TextFit, TheTextAreaArrowsDragThePaddings)
@@ -234,6 +234,25 @@ TEST(TextFit, TheTextAreaArrowsDragThePaddings)
 
     // No balloon, no paddings, no arrows.
     EXPECT_TRUE(Geometry::textAreaHandles(withShape(ObjectRecord::Shape::None)).isEmpty());
+}
+
+/**
+ * @brief The letters' outline is drawn outside them, so the record's bounds grow by its width
+ *        round the lettering, and not at all without one.
+ */
+TEST(TextFit, TheLettersOutlineGrowsTheBounds)
+{
+    ObjectRecord a = withShape(ObjectRecord::Shape::None);
+    a.box          = QSize(100, 60);
+    QPainterPath letters;                    // standing in for the glyphs, which need a font to lay out
+    letters.addRect(QRectF(-20, 10, 140, 30));   // wider than the box, so the lettering sets the bounds
+    const QRectF bare = Geometry::boundsOf(a, {}, letters);
+    a.text.outlineWidth = 6.0;
+    const QRectF outlined = Geometry::boundsOf(a, {}, letters);
+    EXPECT_DOUBLE_EQ(outlined.left(), bare.left() - 6.0);
+    EXPECT_DOUBLE_EQ(outlined.right(), bare.right() + 6.0);
+    a.text.outlineWidth = 0.0;
+    EXPECT_EQ(Geometry::boundsOf(a, {}, letters), bare);
 }
 
 TEST(TextFit, TheAnchorIsTheAlignedSideAndTheMiddleOfTheBlock)

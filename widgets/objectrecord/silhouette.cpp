@@ -213,9 +213,10 @@ Part partAt(const ObjectRecord& a, const QPointF& local, qreal slack)
     if (!text.isEmpty()) {
         if (text.contains(local))
             return Part::Text;
-        if (slack > 0.0) {
+        // The letters' outline is theirs too.
+        if (const qreal reach = slack + qMax(a.text.outlineWidth, 0.0); reach > 0.0) {
             QPainterPathStroker widen;
-            widen.setWidth(slack * 2);
+            widen.setWidth(reach * 2);
             if (widen.createStroke(text).contains(local))
                 return Part::Text;
         }
@@ -253,8 +254,10 @@ QRectF boundsOf(const ObjectRecord& a, const QPainterPath& silhouette, const QPa
 
     if (!silhouette.isEmpty())
         r = r.united(silhouette.boundingRect());
-    if (!text.isEmpty())
-        r = r.united(text.boundingRect());
+    if (!text.isEmpty()) {
+        const qreal outline = qMax(a.text.outlineWidth, 0.0);   // drawn outside the letters
+        r = r.united(text.boundingRect().adjusted(-outline, -outline, outline, outline));
+    }
 
     // The stroke straddles the path, so half of it lies outside; one more pixel keeps antialiasing off
     // the edge of the buffer.

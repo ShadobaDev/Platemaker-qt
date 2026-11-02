@@ -89,7 +89,7 @@ private:
     const QGraphicsView* m_view;
     QRectF               m_bounds;
     QList<QRectF>        m_overflows;   //!< Text areas the lettering spills out of, in scene units.
-    QList<QRectF>        m_textAreas;   //!< Text areas in shape editing (PLAN-T C19), in scene units.
+    QList<QRectF>        m_textAreas;   //!< Text areas in shape editing, in scene units.
     QPointer<Object>     m_target;   //!< The object a press handed its drag to, until the release.
     //! The radius arrows made so far, by colour: two per theme, the plain one and the pressed one.
     std::map<QString, std::unique_ptr<QSvgRenderer>> m_arrows;

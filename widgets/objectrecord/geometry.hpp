@@ -209,7 +209,7 @@ enum class Part { None, Fill, Outline, Text };
 [[nodiscard]] TextProperties fittingPaddings(const ObjectRecord& a);
 
 /**
- * @brief The text area's arrows (PLAN-T C4), in balloon coordinates: one at the middle of its left edge
+ * @brief The text area's arrows, in balloon coordinates: one at the middle of its left edge
  *        and one of its right (`TextSide`, index 0 and 1), which drag the side padding, and one at the middle
  *        of its top (`TextTop`), which drags the top padding. Each points across its edge. None without a
  *        balloon, which has no paddings.

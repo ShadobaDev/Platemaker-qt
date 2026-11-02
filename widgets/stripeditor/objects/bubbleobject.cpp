@@ -165,7 +165,7 @@ void BubbleObject::setHandlePos(int index, const QPointF& local)
 
 bool BubbleObject::canEditShape() const
 {
-    // A patterned fill has its fade's cross, and words their text area's arrows (PLAN-T C4), so a balloon
+    // A patterned fill has its fade's cross, and words their text area's arrows, so a balloon
     // with no handles of its own is edited for those.
     return m_record.hasSilhouette()
         && (Geometry::hasShapeHandles(m_record.shape) || m_record.skin.fill.kind != Paint::Kind::Solid
@@ -185,7 +185,7 @@ QList<Geometry::ShapeHandle> BubbleObject::shapeHandles() const
     QList<Geometry::ShapeHandle> out  = Geometry::shapeHandles(m_record.shape, body, radiusClearance(), pickedVertex());
     // The fill's fade last: where a dot sits on a node or a "+", the outline's own handle is the one pressed.
     out.append(Geometry::fadeHandles(m_record.skin.fill, body));
-    // The text area's arrows last of all, whenever there are words (PLAN-T C19).
+    // The text area's arrows last of all, whenever there are words.
     if (!m_record.text.body.isEmpty())
         out.append(Geometry::textAreaHandles(m_record));
     return out;

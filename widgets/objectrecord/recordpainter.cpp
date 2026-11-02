@@ -188,8 +188,16 @@ void paintLettering(QPainter& painter, const ObjectRecord& a, const QPainterPath
 {
     // Filled outlines rather than drawn text, so that what is on screen is what Svg::write() writes
     // and what the library rasterises — one geometry, three consumers.
-    if (!text.isEmpty())
-        painter.fillPath(text, a.text.colour);
+    if (text.isEmpty())
+        return;
+    // The outline under the letters, stroked at twice its width, so only its outer half shows.
+    if (a.text.outlineWidth > 0.0) {
+        QPen pen(paintBrush(a.text.outline), 2.0 * a.text.outlineWidth);
+        pen.setJoinStyle(Qt::RoundJoin);
+        pen.setCapStyle(Qt::RoundCap);
+        painter.strokePath(text, pen);
+    }
+    painter.fillPath(text, a.text.colour);
 }
 
 QImage render(const ObjectRecord& a)

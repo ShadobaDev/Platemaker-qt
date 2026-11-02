@@ -73,7 +73,9 @@
     own. **Padding sides** and **Padding top** (TEXT, on a balloon) set how far the lettering keeps from
     the outline — negative lets it burst out of the balloon. The lettering starts in the middle of the
     balloon and each new line grows it up and down alike; once it reaches the top padding, further lines
-    go on downwards, out of the balloon, and are never cut off there. *Show whitespace* under the text box marks spaces, tabs and line ends in the box
+    go on downwards, out of the balloon, and are never cut off there. **Outline** (TEXT) draws a band
+    round each letter, outside it, so the letters keep their weight: a width (0 is none), a colour, or a
+    halftone of dots, lines or a grid. It is what lettering on a picture or a dark balloon needs. *Show whitespace* under the text box marks spaces, tabs and line ends in the box
     itself; the balloon is always drawn as it will render.
   - **Tails point anywhere, curve, and come in numbers** — a tail is a tip, a width and a bend, and one
     sound may have several speakers. The base is found where a ray from the balloon's centre crosses its

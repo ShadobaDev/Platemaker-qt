@@ -2,6 +2,7 @@
 #define STRIPEDIT_TEXTEDITOR_HPP
 
 #include "properties/fieldrows.hpp"
+#include "properties/paintrows.hpp"
 #include "properties/propertygroupeditor.hpp"
 
 class QCheckBox;
@@ -54,6 +55,8 @@ public:
 
 private:
     void syncFromValues();
+    //! The outline's paint rows, shown while anything bound, or the value shown, has an outline.
+    void showOutline();
 
     QPlainTextEdit* m_body   = nullptr;
     QFontComboBox*  m_family = nullptr;
@@ -63,6 +66,8 @@ private:
     QPushButton*    m_swatch = nullptr;
     QSpinBox*       m_lineSpacing = nullptr;
     FieldRows<TextProperties> m_paddings;   //!< Side and top; only while something bound has a balloon to keep from.
+    FieldRows<TextProperties> m_outlineWidth;   //!< The letters' outline; 0 is none.
+    PaintRows<TextProperties> m_outline;        //!< ...and its paint.
     QFormLayout*    m_form = nullptr;
     QCheckBox*      m_showWhitespace = nullptr;   //!< The text box's own view; never the balloon's.
 
@@ -85,6 +90,7 @@ private:
     bool m_mixedLineSpacing   = false;
     bool m_lineSpacingTouched = false;
     bool m_anyBalloon         = true;   //!< Whether the padding rows mean anything for what is bound.
+    bool m_anyOutline         = false;  //!< Whether anything bound has an outline (showOutline()).
 };
 
 }  // namespace StripEdit

@@ -92,6 +92,13 @@ ObjectRecord loadedRecord()
     a.text.lineSpacing = 85;
     a.text.paddingSide = -13;   // negative on purpose: an impact balloon's lettering may leave it
     a.text.paddingTop  = 17;    // and not the side's, so the two are told apart
+    a.text.outline.colour  = QColor(21, 22, 23);
+    a.text.outline.kind    = ObjectRecord::Pattern::Dots;
+    a.text.outline.second  = QColor(24, 25, 26);
+    a.text.outline.spacing = 4.5;
+    a.text.outline.size    = 1.25;
+    a.text.outline.angle   = -35;
+    a.text.outlineWidth    = 2.5;
 
     a.skin.fill.colour        = QColor(4, 5, 6);
     a.style.stroke.colour     = QColor(7, 8, 9);
@@ -167,7 +174,8 @@ struct StyleMirror {
 static_assert(sizeof(StyleProperties) == sizeof(StyleMirror),
               "StyleProperties grew a field: place it (see above), then mirror it");
 
-struct TextMirror { QString body, family; int pixelSize; bool bold; int align; QColor colour; int lineSpacing, paddingSide, paddingTop; };
+struct TextMirror { QString body, family; int pixelSize; bool bold; int align; QColor colour; int lineSpacing, paddingSide, paddingTop;
+                    Paint outline; qreal outlineWidth; };
 static_assert(sizeof(TextProperties) == sizeof(TextMirror),
               "TextProperties grew a field: place it (see above), then mirror it");
 
@@ -297,6 +305,8 @@ void expectUntouched(Group applied, const ObjectRecord& before, const ObjectReco
         EXPECT_EQ(after.text.lineSpacing, before.text.lineSpacing);
         EXPECT_EQ(after.text.paddingSide, before.text.paddingSide);
         EXPECT_EQ(after.text.paddingTop,  before.text.paddingTop);
+        expectSamePaint(after.text.outline, before.text.outline, "text outline");
+        EXPECT_DOUBLE_EQ(after.text.outlineWidth, before.text.outlineWidth);
     }
     if (applied != Group::Tails) {
         ASSERT_EQ(after.tails.items.size(), before.tails.items.size());
@@ -426,6 +436,9 @@ TEST(PropertyGroupOwnership, Text)
     s.lineSpacing = 140;
     s.paddingSide = 21;
     s.paddingTop  = -4;
+    s.outline.colour = QColor(60, 50, 40);
+    s.outline.kind   = ObjectRecord::Pattern::Lines;
+    s.outlineWidth   = 3.5;
     s.applyTo(after);
 
     EXPECT_EQ(after.text, s);
@@ -556,6 +569,8 @@ TEST(PropertyGroupPersistence, KeepsTheFlatKeys)
     EXPECT_EQ(j.value(QStringLiteral("lineSpacing")).toInt(),  a.text.lineSpacing);
     EXPECT_EQ(j.value(QStringLiteral("paddingSide")).toInt(),  a.text.paddingSide);
     EXPECT_EQ(j.value(QStringLiteral("paddingTop")).toInt(),   a.text.paddingTop);
+    EXPECT_DOUBLE_EQ(j.value(QStringLiteral("textOutlineWidth")).toDouble(), a.text.outlineWidth);
+    EXPECT_EQ(j.value(QStringLiteral("textOutlineKind")).toString(), QStringLiteral("dots"));
     EXPECT_EQ(j.value(QStringLiteral("texture")).toString(),   QStringLiteral("rough"));
 
     // No grouping crept into the file: a record saved before the groups existed still loads.

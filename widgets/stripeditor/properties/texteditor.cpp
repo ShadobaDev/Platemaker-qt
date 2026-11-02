@@ -49,7 +49,7 @@ public:
 constexpr char k_trContext[] = "StripEdit::TextEditor";
 
 #define PM_TR(s) QT_TRANSLATE_NOOP("StripEdit::TextEditor", s)
-//! The two paddings (PLAN-T C1), in strip pixels. Negative lets the lettering reach past the outline.
+//! The two paddings, in strip pixels. Negative lets the lettering reach past the outline.
 const FieldRowSpec k_paddingRows[] = {
     {"paddingSide", PM_TR("Padding sides"), k_paddingMin, k_paddingMax, " px",
      PM_TR("Room between the balloon's outline and the lettering, left and right.\n"
@@ -58,6 +58,11 @@ const FieldRowSpec k_paddingRows[] = {
      PM_TR("Room above the lettering, and as much below it while it is centred. Each new line grows\n"
            "the lettering up and down alike until it meets this; further lines go on downwards, out of\n"
            "the balloon. Negative lets the lettering reach past the outline.")},
+};
+//! The letters' outline, in strip pixels; 0 is none.
+const FieldRowSpec k_outlineRows[] = {
+    {"textOutlineWidth", PM_TR("Outline"), 0, 50, " px",
+     PM_TR("A band round each letter, outside it, so the letters keep their weight. 0 is none."), 1},
 };
 #undef PM_TR
 
@@ -139,6 +144,14 @@ TextEditor::TextEditor(QWidget* parent)
     m_swatch = new QPushButton(tr("Colour"), this);
     form->addRow(tr("Colour"), m_swatch);
 
+    // The outline: its width, 0 for none, then its paint, shown once there is one.
+    m_outlineWidth.build(this, form, "textOutline", k_outlineRows, k_trContext, m_values, m_populating, [this] {
+        showOutline();
+        emit changed();
+    });
+    m_outline.build(this, form, &TextProperties::outline, tr("Outline colour"), m_values, m_populating,
+                    [this] { emit changed(); }, [this] { emit committed(); });
+
     // Each control records that *it* was the one moved. Bound to a set, only what was moved is written,
     // and everything else stays each object's own — see applyEditedTo().
     const auto bodyEdited = [this] {
@@ -218,7 +231,10 @@ void TextEditor::bind(const Subjects& subjects)
 
     m_mixedColour = m_mixedFamily = m_mixedSize = m_mixedBold = m_mixedAlign = m_mixedLineSpacing = false;
     m_paddings.reset();
+    m_outlineWidth.reset();
+    m_outline.reset();
     m_anyBalloon   = false;
+    m_anyOutline   = false;
     for (const ObjectRecord* a : subjects) {
         const TextProperties t = TextProperties::from(*a);
         m_mixedColour = m_mixedColour || t.colour    != m_values.colour;
@@ -228,7 +244,10 @@ void TextEditor::bind(const Subjects& subjects)
         m_mixedAlign  = m_mixedAlign  || t.align     != m_values.align;
         m_mixedLineSpacing = m_mixedLineSpacing || t.lineSpacing != m_values.lineSpacing;
         m_paddings.compare(t, m_values);
+        m_outlineWidth.compare(t, m_values);
+        m_outline.compare(t, m_values);
         m_anyBalloon       = m_anyBalloon       || a->hasSilhouette();
+        m_anyOutline       = m_anyOutline       || t.outlineWidth > 0.0;
     }
     m_colourTouched = m_familyTouched = m_sizeTouched = m_boldTouched = m_alignTouched = false;
     m_lineSpacingTouched = false;
@@ -252,6 +271,8 @@ void TextEditor::applyEditedTo(ObjectRecord& target) const
     if (m_alignTouched)  t.align     = m_values.align;
     if (m_lineSpacingTouched) t.lineSpacing = m_values.lineSpacing;
     m_paddings.applyEdited(m_values, t);
+    m_outlineWidth.applyEdited(m_values, t);
+    m_outline.applyEdited(m_values, t);
     t.applyTo(target);
 }
 
@@ -307,11 +328,20 @@ void TextEditor::syncFromValues()
         paintMixedSwatch(m_swatch, palette());
     else
         paintColourSwatch(m_swatch, m_values.colour);
+    m_outlineWidth.show(m_values);
+    m_outline.show(m_values);
+    showOutline();
 
     // The lettering itself is the one thing a set never shares: five balloons do not share one line.
     m_body->setVisible(m_subjects <= 1 && m_bodyVisible);
     m_showWhitespace->setVisible(m_subjects <= 1 && m_bodyVisible);   // it is the box's, and goes with it
     m_populating = false;
+}
+
+void TextEditor::showOutline()
+{
+    // A selection where any has an outline shows its paint, as one where all agree on one does.
+    m_outline.setVisible(m_anyOutline || m_values.outlineWidth > 0.0);
 }
 
 }  // namespace StripEdit

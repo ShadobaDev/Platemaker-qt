@@ -37,6 +37,11 @@ constexpr int   k_maxFitSize    = 1 << 16;
  *  Floor for a fit, matching the resize grips' own minimum — a short line must not collapse the shape.
  */
 constexpr int   k_minFitSize    = 40;
+/**
+ *  Half the narrowest text area an arrow can drag it to, in balloon pixels: its edges stop this short of
+ *  the middle, so the area never turns inside out (dragTextAreaHandle()).
+ */
+constexpr qreal k_minTextHalf   = 1.0;
 
 /**
  * @brief The rectangle text may occupy — the shape's own text area (ShapeInfo::safeArea), inset so
@@ -286,6 +291,35 @@ TextProperties paddingsToFit(const ObjectRecord& a, const QSizeF& block)
 TextProperties fittingPaddings(const ObjectRecord& a)
 {
     return paddingsToFit(a, textBlockSize(a));
+}
+
+QList<ShapeHandle> textAreaHandles(const ObjectRecord& a)
+{
+    if (!a.hasSilhouette())
+        return {};
+    const QRectF  area = textArea(a);
+    const QPointF mid  = area.center();
+    return {{ShapeHandle::Role::TextSide, 0, QPointF(area.left(), mid.y()), QPointF(1, 0)},
+            {ShapeHandle::Role::TextSide, 1, QPointF(area.right(), mid.y()), QPointF(-1, 0)},
+            {ShapeHandle::Role::TextTop, 0, QPointF(mid.x(), area.top()), QPointF(0, 1)}};
+}
+
+TextProperties dragTextAreaHandle(const ObjectRecord& a, const ShapeHandle& handle, const QPointF& to)
+{
+    // How far the edge moves inwards, up to its share of the area less its own minimum: the side padding
+    // is one value and the top one mirrored, so either edge meets its partner at the middle.
+    TextProperties out   = a.text;
+    const QRectF   area  = textArea(a);
+    const auto     inBy  = [](qreal moved, qreal extent) {
+        return qRound(qMin(moved, qMax(qreal(0), extent / 2.0 - k_minTextHalf)));
+    };
+    if (handle.role == ShapeHandle::Role::TextSide) {
+        const qreal moved = handle.index == 0 ? to.x() - area.left() : area.right() - to.x();
+        out.paddingSide   = a.text.paddingSide + inBy(moved, area.width());
+    } else if (handle.role == ShapeHandle::Role::TextTop) {
+        out.paddingTop = a.text.paddingTop + inBy(to.y() - area.top(), area.height());
+    }
+    return out;
 }
 
 QPointF textAnchorFor(const ObjectRecord& a, const QSizeF& block)

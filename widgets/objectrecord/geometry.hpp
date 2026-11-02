@@ -26,6 +26,7 @@
 #include <QString>
 
 #include "objectrecord.hpp"
+#include "shapes.hpp"   // ShapeHandle: the text area's arrows
 
 namespace Geometry {
 
@@ -206,6 +207,21 @@ enum class Part { None, Fill, Outline, Text };
 
 //! paddingsToFit() with \p a's lettering measured — *Fix padding*.
 [[nodiscard]] TextProperties fittingPaddings(const ObjectRecord& a);
+
+/**
+ * @brief The text area's arrows (PLAN-T C4), in balloon coordinates: one at the middle of its left edge
+ *        and one of its right (`TextSide`, index 0 and 1), which drag the side padding, and one at the middle
+ *        of its top (`TextTop`), which drags the top padding. Each points across its edge. None without a
+ *        balloon, which has no paddings.
+ */
+[[nodiscard]] QList<ShapeHandle> textAreaHandles(const ObjectRecord& a);
+
+/**
+ * @brief \p a's lettering with text-area \p handle dragged to \p to (balloon coordinates): textAreaHandles()'
+ *        inverse. The edge follows the pointer, and its padding is what that leaves; it stops short of the
+ *        area's middle, so the area never turns inside out. Measured against \p a as it was at the press.
+ */
+[[nodiscard]] TextProperties dragTextAreaHandle(const ObjectRecord& a, const ShapeHandle& handle, const QPointF& to);
 
 /**
  * @brief The point of \p a's lettering that stays put when its box changes, in box coordinates.

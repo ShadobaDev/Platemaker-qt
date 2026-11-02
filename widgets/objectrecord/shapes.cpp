@@ -524,6 +524,9 @@ ShapeProperties dragPolygonHandle(const ShapeProperties& shape, const QRectF& bo
     case ShapeHandle::Role::FadeTo:
     case ShapeHandle::Role::FadeCentre:
         break;   // the fill's (dragFadeHandle())
+    case ShapeHandle::Role::TextSide:
+    case ShapeHandle::Role::TextTop:
+        break;   // the lettering's (dragTextAreaHandle())
     }
     return s;
 }
@@ -621,7 +624,9 @@ ShapeProperties dragCurveHandle(const ShapeProperties& shape, const QRectF& body
     case ShapeHandle::Role::FadeFrom:
     case ShapeHandle::Role::FadeTo:
     case ShapeHandle::Role::FadeCentre:
-        break;   // no radius; a press on a "+" adds the node (withVertexAdded()); the edge's and the fill's are not here
+    case ShapeHandle::Role::TextSide:
+    case ShapeHandle::Role::TextTop:
+        break;   // no radius; a press on a "+" adds the node (withVertexAdded()); the edge's, the fill's and the lettering's are not here
     }
     return s;
 }

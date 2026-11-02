@@ -42,6 +42,9 @@ struct ShapeHandle
         FadeFrom,    //!< The fill's fade, side `index` (left, right, top, bottom): where it starts.
         FadeTo,      //!< ...and where it ends (fadeHandles(), styles.hpp).
         FadeCentre,  //!< ...and the cross's centre.
+        TextSide,    //!< The text area's side `index` (0 left, 1 right): the side padding (textAreaHandles(),
+                     //!< geometry.hpp).
+        TextTop,     //!< ...and its top: the top padding.
     };
     Role    role  = Role::Vertex;
     int     index = 0;

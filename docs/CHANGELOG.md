@@ -165,8 +165,10 @@
     shape** on its context menu: the outline is traced instead of the dashed box, and its own handles
     replace the grips. Drag the two-headed arrow in the corner to round the corners; on a polygon, drag a square to move a
     point (the balloon grows to follow a point pulled past it), press a **+** in the middle of an edge to
-    add one there, and **Delete** removes the picked point, down to three. A click on the words puts the
-    caret in OBJECT STATE's text. Another double-click, **Esc**, a click outside the balloon or the
+    add one there, and **Delete** removes the picked point, down to three. The **text area** shows too,
+    with an arrow on its left, right and top edges: drag a side one to set *Padding sides*, the top one
+    to set *Padding top*. Any balloon with words can be edited this way, an ellipse too. A click on the
+    words puts the caret in OBJECT STATE's text. Another double-click, **Esc**, a click outside the balloon or the
     menu entry ends it. Each
     drag is one undo step.
   - **Fit to text** gives the smallest balloon that holds the lettering, on **both** axes, floored so a

@@ -64,7 +64,8 @@ constexpr qreal k_fadeCentreGap  = 0.7;
 QRectF shapeHandleRect(const QPointF& at, Geometry::ShapeHandle::Role role, qreal s)
 {
     using Role = Geometry::ShapeHandle::Role;
-    return square(at, role == Role::Radius || role == Role::Depth ? s * k_arrowHitSpan : s);
+    const bool arrow = role == Role::Radius || role == Role::Depth || role == Role::TextSide || role == Role::TextTop;
+    return square(at, arrow ? s * k_arrowHitSpan : s);
 }
 
 //! The radius handle's drawing, pointing along x, with its FILL and OUTLINE still to be coloured.
@@ -155,8 +156,13 @@ QList<Geometry::ShapeHandle> SelectionChrome::shapeHandles(const Object* o)
 
 QRectF SelectionChrome::overflowRect(const Object* o)
 {
+    return Geometry::textOverflows(o->record()) ? textAreaRect(o) : QRectF();
+}
+
+QRectF SelectionChrome::textAreaRect(const Object* o)
+{
     const ObjectRecord& r = o->record();
-    if (r.text.body.isEmpty() || r.box.isEmpty() || !Geometry::textOverflows(r))
+    if (r.text.body.isEmpty() || r.box.isEmpty())
         return {};
     // The text area is in the record's box units. A balloon is drawn at exactly those; a picture's
     // lettering is laid out in the record's box and drawn stretched to the picture's (ArtworkObject).
@@ -171,6 +177,7 @@ void SelectionChrome::refresh()
     const qreal s = span();
     QRectF      next;
     m_overflows.clear();
+    m_textAreas.clear();
     for (const Object* o : subjects()) {
         next = next.united(o->sceneBox().adjusted(-s, -s, s, s));
         for (int i = 0; i < o->tipCount(); ++i)
@@ -184,6 +191,12 @@ void SelectionChrome::refresh()
         if (const QRectF r = overflowRect(o); !r.isEmpty()) {
             m_overflows.append(r);
             next = next.united(r.adjusted(-1, -1, 1, 1));
+        }
+        if (o->shapeEditing()) {
+            if (const QRectF r = textAreaRect(o); !r.isEmpty()) {
+                m_textAreas.append(r);
+                next = next.united(r.adjusted(-1, -1, 1, 1));
+            }
         }
     }
     if (next != m_bounds) {
@@ -322,7 +335,9 @@ void SelectionChrome::paint(QPainter* painter, const QStyleOptionGraphicsItem* o
                 });
                 break;
             case Role::Radius:
-            case Role::Depth: {
+            case Role::Depth:
+            case Role::TextSide:
+            case Role::TextTop: {
                 // The arrow (icons/handles/radius.svg) in the highlight, edged in the colour that reads
                 // on it so it shows on any fill, turned along its axis (a corner's diagonal, or into the
                 // balloon for the edge's depth); pressed, the two colours swap.
@@ -406,6 +421,14 @@ void SelectionChrome::paint(QPainter* painter, const QStyleOptionGraphicsItem* o
             }
         }
     }
+
+    // In shape editing, the text area in the highlight, dashed like the selection's box; red over it when
+    // the words do not fit, which is the same rectangle.
+    pen.setStyle(Qt::DashLine);
+    painter->setPen(pen);
+    painter->setBrush(Qt::NoBrush);
+    for (const QRectF& r : std::as_const(m_textAreas))
+        painter->drawRect(r);
 
     QPen overflow(k_overflowColour);
     overflow.setCosmetic(true);

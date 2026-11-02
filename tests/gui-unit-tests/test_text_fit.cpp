@@ -196,6 +196,46 @@ TEST(TextFit, FixPaddingLeavesWhatAlreadyFitsAlone)
     EXPECT_EQ(Geometry::paddingsToFit(text, QSizeF(200, 36)), text.text);     // no outline, no padding to give
 }
 
+/**
+ * @brief The text area's arrows (PLAN-T C4) sit on its left, right and top edges, and dragging one moves
+ *        that edge with the pointer: the side padding for either side, the top padding for the top.
+ */
+TEST(TextFit, TheTextAreaArrowsDragThePaddings)
+{
+    using Role         = Geometry::ShapeHandle::Role;
+    ObjectRecord a     = withShape(ObjectRecord::Shape::Box);
+    a.box              = QSize(300, 200);
+    const QRectF area  = Geometry::textArea(a);
+    const QList<Geometry::ShapeHandle> arrows = Geometry::textAreaHandles(a);
+    ASSERT_EQ(arrows.size(), 3);
+    EXPECT_EQ(arrows[0].role, Role::TextSide);
+    EXPECT_EQ(arrows[0].at, QPointF(area.left(), area.center().y()));
+    EXPECT_EQ(arrows[1].role, Role::TextSide);
+    EXPECT_EQ(arrows[1].at, QPointF(area.right(), area.center().y()));
+    EXPECT_EQ(arrows[2].role, Role::TextTop);
+    EXPECT_EQ(arrows[2].at, QPointF(area.center().x(), area.top()));
+
+    // Each edge follows the pointer; the other padding stays.
+    TextProperties t = Geometry::dragTextAreaHandle(a, arrows[0], arrows[0].at + QPointF(10, 40));
+    EXPECT_EQ(t.paddingSide, a.text.paddingSide + 10);
+    EXPECT_EQ(t.paddingTop, a.text.paddingTop);
+    t = Geometry::dragTextAreaHandle(a, arrows[1], arrows[1].at + QPointF(5, 0));   // out past the outline
+    EXPECT_EQ(t.paddingSide, a.text.paddingSide - 5);
+    t = Geometry::dragTextAreaHandle(a, arrows[2], arrows[2].at + QPointF(-30, 7));
+    EXPECT_EQ(t.paddingTop, a.text.paddingTop + 7);
+    EXPECT_EQ(t.paddingSide, a.text.paddingSide);
+
+    // Dragged past the middle, an edge stops short of it: the area never turns inside out.
+    ObjectRecord thin = a;
+    thin.text         = Geometry::dragTextAreaHandle(a, arrows[0], QPointF(area.right() + 50, 0));
+    EXPECT_GT(Geometry::textArea(thin).width(), 0.0);
+    thin.text         = Geometry::dragTextAreaHandle(a, arrows[2], QPointF(0, area.bottom() + 50));
+    EXPECT_GT(Geometry::textArea(thin).height(), 0.0);
+
+    // No balloon, no paddings, no arrows.
+    EXPECT_TRUE(Geometry::textAreaHandles(withShape(ObjectRecord::Shape::None)).isEmpty());
+}
+
 TEST(TextFit, TheAnchorIsTheAlignedSideAndTheMiddleOfTheBlock)
 {
     ObjectRecord a   = withShape(ObjectRecord::Shape::None);

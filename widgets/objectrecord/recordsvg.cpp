@@ -364,6 +364,19 @@ QString letteringAttrs(const ObjectRecord& a)
     return out;
 }
 
+/**
+ * @brief The lettering's elements, @p text (Geometry::textOutline()), each on a line of its own at
+ *        @p indent: the one place words are written, over a balloon (in its own group) and over a picture
+ *        alike. Nothing for no words.
+ */
+QString letteringElements(const ObjectRecord& a, const QPainterPath& text, QLatin1String indent)
+{
+    if (text.isEmpty())
+        return {};
+    return indent + QStringLiteral("<path d=\"%1\" fill-rule=\"%2\" %3/>\n")
+                        .arg(pathData(text), fillRule(text), paint("fill", a.text.colour));
+}
+
 } // namespace
 
 QByteArray write(const ObjectRecord& a, const QByteArray& picture, const QString& mime)
@@ -400,10 +413,7 @@ QByteArray write(const ObjectRecord& a, const QByteArray& picture, const QString
                    .arg(num(a.box.width()), num(a.box.height()), mime,
                         QString::fromLatin1(picture.toBase64()));
 
-        const QPainterPath text = Geometry::textOutline(a);
-        if (!text.isEmpty())
-            svg += QStringLiteral("    <path d=\"%1\" fill-rule=\"%2\" %3/>\n")
-                       .arg(pathData(text), fillRule(text), paint("fill", a.text.colour));
+        svg += letteringElements(a, Geometry::textOutline(a), QLatin1String("    "));
 
         svg += QLatin1String("  </g>\n</svg>\n");
         return svg.toUtf8();
@@ -502,10 +512,9 @@ QByteArray write(const ObjectRecord& a, const QByteArray& picture, const QString
         svg += QLatin1String("    </g>\n");
     }
 
-    const QPainterPath text = Geometry::textOutline(a);
-    if (!text.isEmpty())
-        svg += QStringLiteral("    <g>\n      <path d=\"%1\" fill-rule=\"%2\" %3/>\n    </g>\n")
-                   .arg(pathData(text), fillRule(text), paint("fill", a.text.colour));
+    if (const QString lettering = letteringElements(a, Geometry::textOutline(a), QLatin1String("      "));
+        !lettering.isEmpty())
+        svg += QLatin1String("    <g>\n") + lettering + QLatin1String("    </g>\n");
 
     svg += QLatin1String("  </g>\n</svg>\n");
     return svg.toUtf8();

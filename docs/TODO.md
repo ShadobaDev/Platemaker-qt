@@ -114,10 +114,6 @@ New, backward-compatible features. Several are gated on a lib version, noted in 
   today (QSettings, app-wide). Open docks are per workspace, so this belongs with the workspace, not in
   QSettings; `QMainWindow::saveState()` needs stable `objectName`s on the per-project docks first.
 
-- [ ] **Strip editor: a text outline.** Colour and width in `TextProperties`, drawn outside the glyph
-  (stroke at twice the width, then fill), written to the SVG as two draws rather than `paint-order`. The
-  design is on the wiki's Property groups page; nothing of it is built yet.
-
 - [~] **Infinite strip and lookup system** — *viewer DONE (GUI); lookup + preview-render deferred.*
   See the full strip as one continuous image during work, instead of per-slice tiles. Shipped: a
   per-project **floating dock** (`widgets/stripeditor/`, `.ui` + `.cpp`/`.hpp`, opened from the Output tab's
@@ -369,20 +365,45 @@ New, backward-compatible features. Several are gated on a lib version, noted in 
   - The package itself could get its own extension and association the same way (Ableton's `.alp` model) —
     smaller, and independent of the rest.
 
-- [ ] **Line styles and balloon shapes** — `temp/PLAN-L-styles-and-shapes.md` (planned 2026-10-31,
-  built through P13, 2026-11-01). Built: shapes as families (Box, Ellipse, Polygon, Curve, Cloud) with
-  templates, edited on the strip; line × texture (Clean, Flash, Brush, Drybrush × None, Rough); the zigzag edge;
-  the panel in drawing order (Shape · Fill · Line · Texture · Effects · Text); Paint with halftone
-  patterns on the fill, the line and the shadow; a shadow with spread; a halftone shadow that fades, and
-  a fill whose halftone fades by a cross that moves, either way; a thought tail (Circles).
-  **Left:** §6's later items (Dashed, Double, regular polygon
-  and star, Sketch, Dry ink, the other edges, hatching, glow, fine-tuning). Still open from the earlier item: whether the 0.01 that `num()` keeps
-  is the frequency spin's step, or the filter gets its own formatter (P6). The flash's direction could
-  also be chosen from a shape's convex and concave vertices instead of a per-family value — an idea,
-  not planned.
+- [x] **Line styles and balloon shapes** — *Done 2026-11-02.*
+  Built: shapes as families (Box, Ellipse, Polygon, Curve,
+  Cloud) with templates, edited on the strip; line × texture (Clean, Flash, Brush, Drybrush × None,
+  Rough); the zigzag edge; the panel in drawing order (Shape · Fill · Line · Texture · Effects · Text);
+  Paint with halftone patterns on the fill, the line and the shadow; a shadow with spread; a halftone
+  shadow that fades, and a fill whose halftone fades by a cross that moves, either way; a thought tail
+  (Circles). What is left is the next item.
 
-- [ ] **Text area and lettering effects** — a plan of its own, after PLAN-L, which keeps it possible
-  (PLAN-L §3.8). Requirements from PLAN-L (B28, B29, B31):
+- [ ] **Line styles and balloon shapes.**
+  - Later lines and shapes: Dashed, Double, regular polygon and star, Dry ink, the other edges (wave,
+    scallop, spike, drip), hatching, glow, fine-tuning. The sketched line is under *Bubble outline*.
+  - Whether the 0.01 that `num()` keeps is the frequency spin's step, or the filter gets its own
+    formatter.
+  - The flash's direction could be chosen from a shape's convex and concave vertices instead of a
+    per-family value — an idea, not planned.
+  - The dry brush: a tail's root that turns less than a corner (`k_cornerTurn`, 35°) is followed
+    round, and an offset turned round a tight concave bend may fold; left for when it shows. Its hidden-
+    part run-on (`k_partRunOn`) and corner thresholds are constants, not rows.
+  - The thought tail: the next balloon's tail (`NextTailEditor`) has no look of its own; a chain's
+    ellipses take their length along the tail from its length, so a fixed aspect would need a row of its
+    own and would loosen the tip from the last one.
+
+- [ ] **Bubble outline.** Two balloon looks from manga references, neither buildable today.
+  - **A sketched line.** The outline is not one line but several loose pen strokes going round it. Each
+    is an open arc covering a part of the lap, from a quarter to more than half, tapering at both ends.
+    Each lies a little in or out from the true outline, so in places two or three run side by side and
+    cross at a narrow angle. Their ends overshoot one another. Here and there a stroke is broken into
+    short dashes with small gaps. The width varies along each stroke. The fill stays the plain
+    silhouette. It is a line kind, over the same edge walk and noise as Brush and Drybrush: the
+    number of strokes, their spread in and out, the overshoot, the breaks and the taper as rows, the
+    wobble from `styleSeed` with Re-roll.
+  - **A burst with concave edges.** A rough rectangle whose points are joined by arcs bowing inwards
+    instead of straight edges. The points are irregular: long sharp spikes at the corners, short stubs
+    between them, at uneven spacing, and the arcs between them of uneven depth. The line is clean and
+    even. The Polygon (Shout) has the points but straight edges. The Cloud has arcs, but they bow
+    outwards and are all alike. Candidates: a bow for a Polygon's edges (inwards below 0), or an inward
+    scallop edge with irregularity, plus irregular point lengths from the regular polygon / star action.
+
+- [ ] **Text area and lettering effects** — planned 2026-11-02, not started.
   - **Padding is two numbers:** left/right (one value, both sides) and top.
   - **The text area is anchored by its top edge** and centred across the balloon. Its height follows
     the number of lines, so the words are never cut by its bottom. The balloon does not grow to the
@@ -390,11 +411,20 @@ New, backward-compatible features. Several are gated on a lib version, noted in 
   - **In shape edit mode, a click on the words** gives the text area the focus. Its grips are
     **arrows on the left, right and top edges only**, shown only while it has the focus, and they drag
     the two paddings.
-  - **Lettering effects** (B24): styling the words, hung on the lettering's own SVG element.
+  - **A text outline.** A colour and a width in strip pixels, drawn outside the glyph. The glyph path is
+    stroked at twice the width with round joins, then filled on top, so the letterform keeps the weight
+    its typeface gives it. It is written to the SVG as two draws, not with `paint-order`, inside the
+    lettering's own `<g>`, which the writer already has. Three places draw lettering today and all need
+    it: `recordpainter.cpp`, `artworkobject.cpp` and both branches of `recordsvg.cpp`. `boundsOf()` and
+    `partAt()` must grow by it. It is needed most on a text object and on a lettered picture, where no
+    balloon stands behind the words. The design is on the wiki's Property groups page. Nothing of it is
+    built yet.
+  - **Other lettering effects**, in the lettering's group: a shadow, a second outline, a Paint on the
+    letters, a glow. Which of them, and in what order, is open.
 
-- [x] **Shape registry** — built in PLAN-S S1 (2026-10-29), ahead of the first parameter: one table,
+- [x] **Shape registry** — built 2026-10-29, ahead of the first parameter: one table,
   `k_shapes` in `widgets/objectrecord/shapes.cpp`, one entry per shape (name, title, tail, outline, text
-  area), in one file rather than one file per shape. The parameter list comes with S2's field lists.
+  area), in one file rather than one file per shape. The parameters came after it, as field lists.
   What it replaced: an enum value plus a case in seven places (`shapeName`, `shapeTitle`, `shapeOrder`,
   `shapeFromName`, `Painter::silhouette`, `Painter::textSafeArea`, `Painter::label`). Moved byte for byte, checked by `Golden.EveryShapeAndStyleIsWrittenAsBefore`.
   - **Seeds:** a noisy outline reads `styleSeed` (an `outline` that needs it then takes the `ObjectRecord`), never a seed of its

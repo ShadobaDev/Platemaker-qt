@@ -179,12 +179,17 @@ void paintPaths(QPainter& painter, const ObjectRecord& a, const Paths& paths)
     if (!ink.isEmpty())
         painter.fillPath(ink, paintBrush(a.style.stroke));
 
+    paintLettering(painter, a, text);
+
+    painter.restore();
+}
+
+void paintLettering(QPainter& painter, const ObjectRecord& a, const QPainterPath& text)
+{
     // Filled outlines rather than drawn text, so that what is on screen is what Svg::write() writes
     // and what the library rasterises — one geometry, three consumers.
     if (!text.isEmpty())
         painter.fillPath(text, a.text.colour);
-
-    painter.restore();
 }
 
 QImage render(const ObjectRecord& a)

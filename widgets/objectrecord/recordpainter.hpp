@@ -59,6 +59,12 @@ struct Paths
 void paintPaths(QPainter& painter, const ObjectRecord& a, const Paths& paths);
 
 /**
+ * @brief Draws @p a's lettering, @p text (Geometry::textOutline()), in the box's coordinates: the one
+ *        place words are drawn on a painter, over a balloon (paintPaths()) and over a picture alike.
+ */
+void paintLettering(QPainter& painter, const ObjectRecord& a, const QPainterPath& text);
+
+/**
  * @brief Rasterises \p a to a transparent ARGB32 image the size of its box — what the library composites.
  * @param a The record to rasterise.
  * @return The rasterised image.

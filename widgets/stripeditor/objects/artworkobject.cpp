@@ -6,7 +6,7 @@
 #include <QPainterPath>
 #include <QSvgRenderer>
 
-#include "geometry.hpp"
+#include "recordpainter.hpp"
 #include <QSvgRenderer>
 
 #include <utility>
@@ -137,9 +137,7 @@ void ArtworkObject::paintContent(QPainter& painter)
     painter.save();
     painter.setRenderHint(QPainter::Antialiasing, true);
     painter.scale(m_box.width() / m_record.box.width(), m_box.height() / m_record.box.height());
-    painter.setPen(Qt::NoPen);
-    painter.setBrush(m_record.text.colour);
-    painter.drawPath(text);
+    Painter::paintLettering(painter, m_record, text);
     painter.restore();
 }
 

@@ -1146,14 +1146,14 @@ TextureProperties inkRough(TextureProperties t)
     return t;
 }
 
-bool blursShadow(const ObjectRecord& a)
+bool blursShadow(const Shadow& s, const Paint& fill)
 {
-    return a.effects.shadow && a.effects.shadowSoftness > 0.0 && a.effects.shadowFill.kind == Paint::Kind::Solid;
+    return s.on && s.softness > 0.0 && fill.kind == Paint::Kind::Solid;
 }
 
-bool fadesShadow(const ObjectRecord& a)
+bool fadesShadow(const Shadow& s, const Paint& fill)
 {
-    return a.effects.shadow && a.effects.shadowSoftness > 0.0 && a.effects.shadowFill.kind != Paint::Kind::Solid;
+    return s.on && s.softness > 0.0 && fill.kind != Paint::Kind::Solid;
 }
 
 bool hasFilter(const ObjectRecord& a)
@@ -1161,10 +1161,10 @@ bool hasFilter(const ObjectRecord& a)
     return textureInfo(a.texture.kind).reach != nullptr || blursShadow(a);
 }
 
-Paint shadowPaint(const ObjectRecord& a)
+Paint shadowPaint(const Shadow& s, const Paint& fill)
 {
-    Paint p = a.effects.shadowFill;
-    if (fadesShadow(a)) {
+    Paint p = fill;
+    if (fadesShadow(s, fill)) {
         p.kind = Paint::Kind::Solid;   // the path is its marks already
     } else if (p.kind != Paint::Kind::Solid) {
         p.second = p.colour;           // the marks in the shadow's colour, on nothing
@@ -1173,30 +1173,57 @@ Paint shadowPaint(const ObjectRecord& a)
     return p;
 }
 
-QPainterPath shadowOf(const ObjectRecord& a, const QPainterPath& silhouette)
+QPainterPath shadowOf(const Shadow& s, const Paint& fill, const QPainterPath& caster)
 {
-    if (!a.effects.shadow || silhouette.isEmpty())
+    if (!s.on || caster.isEmpty())
         return {};
-    QPainterPath grown = silhouette;
-    if (a.effects.shadowSpread > 0.0) {
+    QPainterPath grown = caster;
+    if (s.spread > 0.0) {
         // Grown on every side: united with a round stroke as wide as the spread each way.
         QPainterPathStroker rim;
-        rim.setWidth(2.0 * a.effects.shadowSpread);
+        rim.setWidth(2.0 * s.spread);
         rim.setJoinStyle(Qt::RoundJoin);
         rim.setCapStyle(Qt::RoundCap);
-        grown = silhouette.united(rim.createStroke(silhouette));
+        grown = caster.united(rim.createStroke(caster));
     }
-    grown.translate(a.effects.shadowX, a.effects.shadowY);
-    if (!fadesShadow(a))
+    grown.translate(s.x, s.y);
+    if (!fadesShadow(s, fill))
         return grown;
     // A halftone fades as a blur does: a mark's tone is the blurred edge's at its centre, half at the
     // edge itself, and gone three deviations out.
-    const qreal          deviation = a.effects.shadowSoftness;
+    const qreal          deviation = s.softness;
     const qreal          reach     = k_blurReach * deviation;
     const SignedDistance distance(grown, reach);   // past it the tone is whole, or nothing
-    return halftoneMarks(a.effects.shadowFill, grown.boundingRect().adjusted(-reach, -reach, reach, reach),
+    return halftoneMarks(fill, grown.boundingRect().adjusted(-reach, -reach, reach, reach),
                          [&](const QPointF& at) { return 0.5 * std::erfc(-distance(at) / (deviation * M_SQRT2)); },
                          deviation / 2.0);
+}
+
+qreal shadowReach(const Shadow& s)
+{
+    // As far as it grows and is moved and its blur spreads, on every side, which is generous but simple.
+    return s.on ? qMax(s.spread, 0.0) + qMax(std::abs(s.x), std::abs(s.y)) + k_blurReach * qMax(s.softness, 0.0)
+                : 0.0;
+}
+
+bool blursShadow(const ObjectRecord& a)
+{
+    return blursShadow(a.effects.shadow, a.effects.shadowFill);
+}
+
+bool fadesShadow(const ObjectRecord& a)
+{
+    return fadesShadow(a.effects.shadow, a.effects.shadowFill);
+}
+
+QPainterPath shadowOf(const ObjectRecord& a, const QPainterPath& silhouette)
+{
+    return shadowOf(a.effects.shadow, a.effects.shadowFill, silhouette);
+}
+
+Paint shadowPaint(const ObjectRecord& a)
+{
+    return shadowPaint(a.effects.shadow, a.effects.shadowFill);
 }
 
 bool hasOutline(const ObjectRecord& a)
@@ -1212,16 +1239,12 @@ QPainterPath ink(const ObjectRecord& a, const QPainterPath& silhouette)
 
 qreal styleMargin(const ObjectRecord& a)
 {
-    // The texture's filter moves the line's strokes too (it hangs on both), so the two add. A shadow
-    // reaches as far as it grows and is moved and its blur spreads, on every side, which is generous but
-    // simple.
-    const LineInfo&         line    = lineInfo(a.style.line);
-    const TextureInfo&      texture = textureInfo(a.texture.kind);
-    const EffectProperties& e       = a.effects;
-    const qreal shadow = e.shadow ? qMax(e.shadowSpread, 0.0) + qMax(std::abs(e.shadowX), std::abs(e.shadowY))
-                                        + k_blurReach * qMax(e.shadowSoftness, 0.0)
-                                  : 0.0;
-    const qreal rough = texture.reach ? texture.reach(a.texture) : 0.0;
+    // The texture's filter moves the line's strokes too (it hangs on both), so the two add; the shadow's
+    // too, which reaches as shadowReach() says.
+    const LineInfo&    line    = lineInfo(a.style.line);
+    const TextureInfo& texture = textureInfo(a.texture.kind);
+    const qreal        shadow  = shadowReach(a.effects.shadow);
+    const qreal        rough   = texture.reach ? texture.reach(a.texture) : 0.0;
     return qMax((line.inkReach ? line.inkReach(a) : 0.0) + rough, shadow + rough);
 }
 

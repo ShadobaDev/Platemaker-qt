@@ -114,11 +114,11 @@ ObjectRecord loadedRecord()
     a.skin.fill.size     = 2.5;
     a.skin.fill.angle   = 30;
 
-    a.effects.shadow         = true;
-    a.effects.shadowSpread   = 0.0;   // the shadow P9b drew, so the golden's older cases stay as they were
-    a.effects.shadowX        = -4.5;
-    a.effects.shadowY        = 7.5;
-    a.effects.shadowSoftness = 2.5;
+    a.effects.shadow.on         = true;
+    a.effects.shadow.spread   = 0.0;   // the shadow P9b drew, so the golden's older cases stay as they were
+    a.effects.shadow.x        = -4.5;
+    a.effects.shadow.y        = 7.5;
+    a.effects.shadow.softness = 2.5;
     a.effects.shadowFill.colour   = QColor(13, 14, 15, 99);
     a.effects.shadowFill.kind     = ObjectRecord::Pattern::Grid;
     a.effects.shadowFill.spacing  = 8.5;
@@ -191,7 +191,11 @@ struct TailsMirror { QList<Tail> items; TailLook nextLook; };
 static_assert(sizeof(TailsProperties) == sizeof(TailsMirror),
               "TailsProperties grew a field: place it (see above), then mirror it");
 
-struct EffectMirror { bool shadow; qreal shadowSpread, shadowX, shadowY, shadowSoftness; Paint shadowFill; };
+struct ShadowMirror { bool on; qreal spread, x, y, softness; };
+static_assert(sizeof(Shadow) == sizeof(ShadowMirror),
+              "Shadow grew a field: place it (see above), then mirror it");
+
+struct EffectMirror { Shadow shadow; Paint shadowFill; };
 static_assert(sizeof(EffectProperties) == sizeof(EffectMirror),
               "EffectProperties grew a field: place it (see above), then mirror it");
 
@@ -288,11 +292,11 @@ void expectUntouched(Group applied, const ObjectRecord& before, const ObjectReco
         EXPECT_DOUBLE_EQ(after.texture.roughBlur,         before.texture.roughBlur);
     }
     if (applied != Group::Effects) {
-        EXPECT_EQ(after.effects.shadow, before.effects.shadow);
-        EXPECT_DOUBLE_EQ(after.effects.shadowSpread,   before.effects.shadowSpread);
-        EXPECT_DOUBLE_EQ(after.effects.shadowX,        before.effects.shadowX);
-        EXPECT_DOUBLE_EQ(after.effects.shadowY,        before.effects.shadowY);
-        EXPECT_DOUBLE_EQ(after.effects.shadowSoftness, before.effects.shadowSoftness);
+        EXPECT_EQ(after.effects.shadow.on, before.effects.shadow.on);
+        EXPECT_DOUBLE_EQ(after.effects.shadow.spread,   before.effects.shadow.spread);
+        EXPECT_DOUBLE_EQ(after.effects.shadow.x,        before.effects.shadow.x);
+        EXPECT_DOUBLE_EQ(after.effects.shadow.y,        before.effects.shadow.y);
+        EXPECT_DOUBLE_EQ(after.effects.shadow.softness, before.effects.shadow.softness);
         expectSamePaint(after.effects.shadowFill, before.effects.shadowFill, "shadow");
     }
     if (applied != Group::Text) {
@@ -412,7 +416,7 @@ TEST(PropertyGroupOwnership, Effects)
     ObjectRecord       after  = before;
 
     EffectProperties e;
-    e.shadowX           = 3.0;
+    e.shadow.x           = 3.0;
     e.shadowFill.colour = QColor(1, 1, 1, 200);
     e.applyTo(after);
 
@@ -1128,14 +1132,14 @@ TEST(Effects, AShadowStaysInItsBoundsAndOnlyASoftOneIsAFilter)
     a.tails.items = {t};
     EXPECT_TRUE(Geometry::shadowOf(a, Geometry::silhouette(a)).isEmpty());
 
-    a.effects.shadow = true;
+    a.effects.shadow.on = true;
     for (const QPointF offset : {QPointF(12, 9), QPointF(-20, -3), QPointF(0, 30), QPointF(0, 0)}) {
         for (qreal grow : {0.0, 6.0, 15.0}) {
             for (qreal softness : {0.0, 4.0}) {
-                a.effects.shadowSpread   = grow;
-                a.effects.shadowX        = offset.x();
-                a.effects.shadowY        = offset.y();
-                a.effects.shadowSoftness = softness;
+                a.effects.shadow.spread   = grow;
+                a.effects.shadow.x        = offset.x();
+                a.effects.shadow.y        = offset.y();
+                a.effects.shadow.softness = softness;
                 const QPainterPath silhouette = Geometry::silhouette(a);
                 const QPainterPath shadow     = Geometry::shadowOf(a, silhouette);
                 if (grow <= 0.0) {
@@ -1166,10 +1170,10 @@ TEST(Effects, AHalftoneShadowReplacesTheShadowAndFadesOverItsSoftness)
 {
     ObjectRecord a;
     a.shape                      = Geometry::shapeTemplate("speech").shape;
-    a.effects.shadow             = true;
-    a.effects.shadowSpread       = 0.0;
-    a.effects.shadowX            = 0.0;
-    a.effects.shadowY            = 0.0;
+    a.effects.shadow.on             = true;
+    a.effects.shadow.spread       = 0.0;
+    a.effects.shadow.x            = 0.0;
+    a.effects.shadow.y            = 0.0;
     a.effects.shadowFill.colour  = QColor(10, 20, 30, 200);
     a.effects.shadowFill.spacing = 8.0;
     a.effects.shadowFill.size    = 4.0;
@@ -1179,7 +1183,7 @@ TEST(Effects, AHalftoneShadowReplacesTheShadowAndFadesOverItsSoftness)
     for (int k = 1; k <= int(Paint::k_lastKind); ++k) {
         a.effects.shadowFill.kind = static_cast<Paint::Kind>(k);
         // Hard: the moved shape, filled with the pattern's marks in the shadow's colour, and no ground.
-        a.effects.shadowSoftness = 0.0;
+        a.effects.shadow.softness = 0.0;
         EXPECT_FALSE(Geometry::fadesShadow(a));
         EXPECT_TRUE(Geometry::shadowOf(a, silhouette) == silhouette);
         const Paint hard = Geometry::shadowPaint(a);
@@ -1188,14 +1192,14 @@ TEST(Effects, AHalftoneShadowReplacesTheShadowAndFadesOverItsSoftness)
         EXPECT_EQ(hard.second, a.effects.shadowFill.colour);
 
         // Soft: its marks, filled in the colour; no filter, and within the blur's reach.
-        a.effects.shadowSoftness = 4.0;
+        a.effects.shadow.softness = 4.0;
         EXPECT_TRUE(Geometry::fadesShadow(a));
         EXPECT_FALSE(Geometry::hasFilter(a));
         EXPECT_EQ(Geometry::shadowPaint(a).kind, Paint::Kind::Solid);
         EXPECT_EQ(Geometry::shadowPaint(a).colour, a.effects.shadowFill.colour);
         const QPainterPath marks = Geometry::shadowOf(a, silhouette);
         ASSERT_FALSE(marks.isEmpty()) << k;
-        const qreal  reach = 3.0 * a.effects.shadowSoftness;
+        const qreal  reach = 3.0 * a.effects.shadow.softness;
         const QRectF outer = silhouette.boundingRect().adjusted(-reach, -reach, reach, reach);
         EXPECT_TRUE(outer.contains(marks.boundingRect())) << k;
         EXPECT_TRUE(Geometry::bounds(a).contains(marks.boundingRect())) << k;
@@ -1807,7 +1811,7 @@ QString goldenRecords()
                 a.style         = look.style;
                 a.texture       = look.texture;
                 a.skin.fill.kind = ObjectRecord::Pattern::Solid;   // the fills and the shadow have cases of
-                a.effects.shadow = false;                       // their own, below
+                a.effects.shadow.on = false;                       // their own, below
                 write(name, look.name, tail, a);
             }
         }
@@ -1827,7 +1831,7 @@ QString goldenRecords()
         a.texture             = looks.first().texture;
         a.skin.fill.kind      = ObjectRecord::Pattern::Solid;
         a.skin.fill.colour    = Qt::black;
-        a.effects.shadow      = false;
+        a.effects.shadow.on      = false;
         a.tails.items.first().tip = QPointF(90, 230);
         write(QString::fromLatin1(id), QStringLiteral("drybrush"), true, a);
     }
@@ -1839,7 +1843,7 @@ QString goldenRecords()
         a.style          = looks.first().style;
         a.texture        = looks.first().texture;
         a.skin.fill.kind = ObjectRecord::Pattern::Solid;
-        a.effects.shadow = false;
+        a.effects.shadow.on = false;
         Tail& t          = a.tails.items.first();
         t.tip            = QPointF(250, 230);
         t.bend           = 0.2;
@@ -1866,7 +1870,7 @@ QString goldenRecords()
             a.shape        = Geometry::shapeTemplate(id).shape;
             a.style        = looks.first().style;
             a.texture      = looks.first().texture;
-            a.effects.shadow = false;
+            a.effects.shadow.on = false;
             write(QString::fromLatin1(id), QStringLiteral("screentone"), tail, a);
         }
     }
@@ -1878,7 +1882,7 @@ QString goldenRecords()
             a.style                  = looks.first().style;
             a.texture                = looks.first().texture;
             a.skin.fill.kind          = ObjectRecord::Pattern::Solid;
-            a.effects.shadowSoftness  = softness;
+            a.effects.shadow.softness  = softness;
             a.effects.shadowFill.kind = ObjectRecord::Pattern::Solid;
             write(QString::fromLatin1(id), softness > 0.0 ? QStringLiteral("soft shadow") : QStringLiteral("shadow"),
                   true, a);
@@ -1893,10 +1897,10 @@ QString goldenRecords()
         a.skin.fill.kind          = ObjectRecord::Pattern::Solid;
         a.skin.fill.colour        = Qt::white;
         a.style.strokeWidth       = StyleProperties().strokeWidth;   // a thick line would hide the rim
-        a.effects.shadowSpread    = EffectProperties().shadowSpread;
-        a.effects.shadowX         = 0.0;
-        a.effects.shadowY         = 0.0;
-        a.effects.shadowSoftness  = softness;
+        a.effects.shadow.spread    = EffectProperties().shadow.spread;
+        a.effects.shadow.x         = 0.0;
+        a.effects.shadow.y         = 0.0;
+        a.effects.shadow.softness  = softness;
         a.effects.shadowFill.kind = ObjectRecord::Pattern::Solid;
         write(QStringLiteral("speech"), softness > 0.0 ? QStringLiteral("soft centred shadow")
                                                        : QStringLiteral("centred shadow"), true, a);
@@ -1924,7 +1928,7 @@ QString goldenRecords()
         a.shape              = Geometry::shapeTemplate("speech").shape;
         a.style              = looks.first().style;
         a.texture            = looks.first().texture;
-        a.effects.shadow     = false;
+        a.effects.shadow.on     = false;
         Paint& p             = a.skin.fill;
         p.kind               = pattern;
         p.colour             = QColor(250, 250, 250);
@@ -1961,7 +1965,7 @@ QString goldenRecords()
         a.style                   = looks.first().style;
         a.texture                 = looks.first().texture;
         a.skin.fill.kind          = ObjectRecord::Pattern::Solid;
-        a.effects.shadowSoftness  = 0.0;
+        a.effects.shadow.softness  = 0.0;
         a.effects.shadowFill.kind = ObjectRecord::Pattern::Dots;
         write(QStringLiteral("speech"), QStringLiteral("hard halftone shadow"), true, a);
     }

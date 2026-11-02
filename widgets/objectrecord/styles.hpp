@@ -139,23 +139,37 @@ struct PatternCell
  */
 [[nodiscard]] bool hasFilter(const ObjectRecord& a);
 
-//! \p a's shadow is soft and of one colour: blurred, by an SVG filter.
-[[nodiscard]] bool blursShadow(const ObjectRecord& a);
+/**
+ * @name A shadow (Shadow) and the Paint it is filled with, whoever casts it: the balloon (its effects) or
+ * the lettering. Each also has a form taking the record, for the balloon's.
+ * @{
+ */
+//! \p s is soft and of one colour: blurred, by an SVG filter.
+[[nodiscard]] bool blursShadow(const Shadow& s, const Paint& fill);
 
-//! \p a's shadow is soft and a halftone: its marks fade over the softness, as geometry (PLAN-L P13).
-[[nodiscard]] bool fadesShadow(const ObjectRecord& a);
+//! \p s is soft and a halftone: its marks fade over the softness, as geometry.
+[[nodiscard]] bool fadesShadow(const Shadow& s, const Paint& fill);
 
 /**
- * @brief \p a's shadow: \p silhouette grown by its spread and moved by its offset; for one that fades, the
- *        halftone's marks over that. Empty with no shadow. Filled under the balloon with shadowPaint().
+ * @brief \p s cast by \p caster: \p caster grown by its spread and moved by its offset; for one that fades,
+ *        the halftone's marks over that. Empty with no shadow. Filled under the caster with shadowPaint().
  */
-[[nodiscard]] QPainterPath shadowOf(const ObjectRecord& a, const QPainterPath& silhouette);
+[[nodiscard]] QPainterPath shadowOf(const Shadow& s, const Paint& fill, const QPainterPath& caster);
 
 /**
  * @brief What shadowOf() is filled with: the shadow's colour, or its pattern's marks in that colour on no
  *        ground (a shadow is replaced by its halftone, not covered by it); for one that fades, the colour.
  */
-[[nodiscard]] Paint shadowPaint(const ObjectRecord& a);
+[[nodiscard]] Paint shadowPaint(const Shadow& s, const Paint& fill);
+
+//! How far past its caster \p s reaches on any side: its spread, its offset and its blur. 0 with none.
+[[nodiscard]] qreal shadowReach(const Shadow& s);
+
+[[nodiscard]] bool         blursShadow(const ObjectRecord& a);   //!< The balloon's.
+[[nodiscard]] bool         fadesShadow(const ObjectRecord& a);   //!< The balloon's.
+[[nodiscard]] QPainterPath shadowOf(const ObjectRecord& a, const QPainterPath& silhouette);   //!< The balloon's.
+[[nodiscard]] Paint        shadowPaint(const ObjectRecord& a);   //!< The balloon's.
+/** @} */
 
 /**
  * @brief \p a's line's own strokes around \p silhouette, in box coordinates; empty for a line without.

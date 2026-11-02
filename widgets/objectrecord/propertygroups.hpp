@@ -227,6 +227,60 @@ struct Paint
 };
 
 /**
+ * @brief A shadow: what casts it (a balloon's silhouette, or the letters with their outline) grown by the
+ *        spread, moved by the offset and filled with a Paint the group holds beside it.
+ *
+ * A **sub-group**, like Paint: the balloon's effects and the lettering each hold one, with keys of their own
+ * (fieldsAs()). Its Paint is not inside it but the group's own sibling member, since a field list nests one
+ * level only. Hard at softness 0, drawn as it is on the strip; above it, blurred by the library (an SVG
+ * filter), or, as a halftone, its marks fading as geometry (Geometry::shadowOf()). By default it is
+ * centred: a rim on every side.
+ */
+struct Shadow
+{
+    bool  on       = false;
+    qreal spread   = 6.0;   //!< How far it grows past what casts it, on every side, in strip pixels.
+    qreal x        = 0.0;   //!< How far right, in strip pixels; negative is left.
+    qreal y        = 0.0;   //!< How far down; negative is up.
+    qreal softness = 0.0;   //!< The blur's deviation, in strip pixels; 0 is a hard edge.
+
+    //! How many fields members() lists: the length of a key table.
+    static constexpr int k_fieldCount = 5;
+
+    //! Each field with its place in a key table: the one list both fields() and fieldsAs() walk.
+    template <class V>
+    static void members(V&& v)
+    {
+        v(0, &Shadow::on);
+        v(1, &Shadow::spread);
+        v(2, &Shadow::x);
+        v(3, &Shadow::y);
+        v(4, &Shadow::softness);
+    }
+
+    //! The fields under plain keys: what a shadow's own editor (ShadowRows) walks.
+    template <class V>
+    static void fields(V&& v)
+    {
+        static constexpr const char* k_keys[] = {"on", "spread", "x", "y", "softness"};
+        members([&](int i, auto member) { v(k_keys[i], member); });
+    }
+
+    //! The fields of the Shadow @p group holds as @p shadow, under @p keys (in members()' order).
+    template <class V, class Group>
+    static void fieldsAs(V&& v, Shadow Group::* shadow, const char* const (&keys)[k_fieldCount])
+    {
+        members([&](int i, auto member) {
+            using T = std::remove_reference_t<decltype(std::declval<Shadow&>().*member)>;
+            v(keys[i], Fields::Nested<Group, Shadow, T>{shadow, member});
+        });
+    }
+
+    [[nodiscard]] bool operator==(const Shadow& o) const { return Fields::equal(*this, o); }
+    [[nodiscard]] bool operator!=(const Shadow& o) const { return !(*this == o); }
+};
+
+/**
  * @brief One node of a free outline, a Polygon's or a Curve's, **relative to the balloon**: 0..1 across
  *        its width and its height, so resizing the box scales the shape (PLAN-L §3.4).
  *
@@ -600,17 +654,11 @@ struct StyleProperties
 struct EffectProperties
 {
     /**
-     * @name The shadow: the whole silhouette, tails and all, grown by the spread, moved by the offset and
-     * filled with its paint, under the balloon. Hard at softness 0, drawn as it is on the strip; above it,
-     * blurred by the library (an SVG filter), and the balloon is then previewed through the library. By
-     * default it is centred: a rim on every side (B36).
+     * @name The shadow: the whole silhouette, tails and all, grown, moved and filled under the balloon
+     * (Shadow). Blurred, the balloon is previewed through the library.
      * @{
      */
-    bool   shadow         = false;
-    qreal  shadowSpread   = 6.0;           //!< How far it grows past the balloon on every side, in balloon pixels.
-    qreal  shadowX        = 0.0;           //!< How far right, in balloon pixels; negative is left.
-    qreal  shadowY        = 0.0;           //!< How far down; negative is up.
-    qreal  shadowSoftness = 0.0;           //!< The blur's deviation, in balloon pixels; 0 is a hard edge.
+    Shadow shadow;
     //! Its paint: a colour, whose alpha is how dark it is, or a halftone of it.
     Paint  shadowFill{QColor(0, 0, 0, 110), QColor(0, 0, 0)};
     /** @} */
@@ -619,11 +667,8 @@ struct EffectProperties
     template <class V>
     static void fields(V&& v)
     {
-        v("shadow",         &EffectProperties::shadow);
-        v("shadowSpread",   &EffectProperties::shadowSpread);
-        v("shadowX",        &EffectProperties::shadowX);
-        v("shadowY",        &EffectProperties::shadowY);
-        v("shadowSoftness", &EffectProperties::shadowSoftness);
+        static constexpr const char* k_shadow[] = {"shadow", "shadowSpread", "shadowX", "shadowY", "shadowSoftness"};
+        Shadow::fieldsAs(v, &EffectProperties::shadow, k_shadow);
         // A shadow's pattern is its colour in marks on nothing (no second colour), and it fades by its
         // softness, not by a cross.
         static constexpr const char* k_shadowFill[] = {

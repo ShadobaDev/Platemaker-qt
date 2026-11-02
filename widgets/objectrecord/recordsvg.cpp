@@ -216,18 +216,17 @@ QString patternDefs(const Paint& p, const QString& id)
 }
 
 //! The `<defs>` block for a soft shadow's blur, or nothing for none, a hard one or a fading halftone.
-QString shadowDefs(const ObjectRecord& a, const QString& id)
+QString shadowDefs(const Shadow& s, const Paint& fill, const QString& id)
 {
-    if (!Geometry::blursShadow(a))
+    if (!Geometry::blursShadow(s, fill))
         return {};
-    const EffectProperties& e = a.effects;
     // A generous region: the blur spreads past the shape, and a filter region is a hard clip.
     return QStringLiteral("  <defs>\n"
                           "    <filter id=\"%1\" x=\"-50%\" y=\"-50%\" width=\"200%\" height=\"200%\">\n"
                           "      <feGaussianBlur stdDeviation=\"%2\"/>\n"
                           "    </filter>\n"
                           "  </defs>\n")
-        .arg(id, num(e.shadowSoftness));
+        .arg(id, num(s.softness));
 }
 
 //! @p attr (`fill` or `stroke`) painted with @p p: its colour, or the pattern defined as @p id.
@@ -464,8 +463,8 @@ QByteArray write(const ObjectRecord& a, const QByteArray& picture, const QString
     if (!Geometry::fades(a.skin.fill))
         svg += patternDefs(a.skin.fill, fillId);
     svg += patternDefs(a.style.stroke, strokeId);
-    svg += shadowDefs(a, shadowId);
-    if (a.effects.shadow)
+    svg += shadowDefs(a.effects.shadow, a.effects.shadowFill, shadowId);
+    if (a.effects.shadow.on)
         svg += patternDefs(Geometry::shadowPaint(a), shadowFillId);
     svg += letteringDefs(a);
 

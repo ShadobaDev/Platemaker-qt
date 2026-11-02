@@ -137,7 +137,7 @@ void ArtworkObject::paintContent(QPainter& painter)
     painter.save();
     painter.setRenderHint(QPainter::Antialiasing, true);
     painter.scale(m_box.width() / m_record.box.width(), m_box.height() / m_record.box.height());
-    Painter::paintLettering(painter, m_record, text);
+    Painter::paintLettering(painter, m_record, text, Geometry::textShadowOf(m_record, text));
     painter.restore();
 }
 

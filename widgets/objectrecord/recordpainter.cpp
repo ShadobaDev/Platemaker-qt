@@ -96,6 +96,19 @@ void fillMarks(QPainter& painter, const QPainterPath& marks, const QColor& colou
     painter.restore();
 }
 
+/**
+ * @brief Shadow @p s, @p path (Geometry::shadowOf()), filled with @p fill: hard here when it is blurred,
+ *        which is the library's to draw (a record with one is previewed from there at rest,
+ *        Geometry::hasFilter()). A halftone's fade is geometry. The balloon's and the letters' alike.
+ */
+void paintShadow(QPainter& painter, const Shadow& s, const Paint& fill, const QPainterPath& path)
+{
+    if (Geometry::fadesShadow(s, fill))
+        fillMarks(painter, path, fill.colour);
+    else if (!path.isEmpty())
+        painter.fillPath(path, paintBrush(Geometry::shadowPaint(s, fill)));
+}
+
 } // namespace
 
 QBrush paintBrush(const Paint& paint)
@@ -130,6 +143,7 @@ Paths resolve(const ObjectRecord& a)
     p.fillTone   = Geometry::fillTone(a, p.silhouette);
     p.ink        = Geometry::ink(a, p.silhouette);
     p.text       = Geometry::textOutline(a);
+    p.textShadow = Geometry::textShadowOf(a, p.text);
     return p;
 }
 
@@ -153,12 +167,7 @@ void paintPaths(QPainter& painter, const ObjectRecord& a, const Paths& paths)
     painter.setRenderHint(QPainter::SmoothPixmapTransform, true);
 
     if (!silhouette.isEmpty()) {
-        // The shadow under it: hard here when it is blurred — that is the library's to draw, and a balloon
-        // with one is previewed from there at rest (Geometry::hasFilter()). A halftone's fade is geometry.
-        if (Geometry::fadesShadow(a))
-            fillMarks(painter, shadow, a.effects.shadowFill.colour);
-        else if (!shadow.isEmpty())
-            painter.fillPath(shadow, paintBrush(Geometry::shadowPaint(a)));
+        paintShadow(painter, a.effects.shadow, a.effects.shadowFill, shadow);   // under it
         if (paths.fillTone.isEmpty()) {
             painter.fillPath(silhouette, paintBrush(a.skin.fill));
         } else {
@@ -179,17 +188,18 @@ void paintPaths(QPainter& painter, const ObjectRecord& a, const Paths& paths)
     if (!ink.isEmpty())
         painter.fillPath(ink, paintBrush(a.style.stroke));
 
-    paintLettering(painter, a, text);
+    paintLettering(painter, a, text, paths.textShadow);
 
     painter.restore();
 }
 
-void paintLettering(QPainter& painter, const ObjectRecord& a, const QPainterPath& text)
+void paintLettering(QPainter& painter, const ObjectRecord& a, const QPainterPath& text, const QPainterPath& shadow)
 {
     // Filled outlines rather than drawn text, so that what is on screen is what Svg::write() writes
     // and what the library rasterises — one geometry, three consumers.
     if (text.isEmpty())
         return;
+    paintShadow(painter, a.text.shadow, a.text.shadowFill, shadow);   // under the outline and the letters
     // The outline under the letters, stroked at twice its width, so only its outer half shows.
     if (a.text.outlineWidth > 0.0) {
         QPen pen(paintBrush(a.text.outline), 2.0 * a.text.outlineWidth);

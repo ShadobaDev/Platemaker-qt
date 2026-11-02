@@ -253,6 +253,36 @@ TEST(TextFit, TheLettersOutlineGrowsTheBounds)
     EXPECT_DOUBLE_EQ(outlined.right(), bare.right() + 6.0);
     a.text.outlineWidth = 0.0;
     EXPECT_EQ(Geometry::boundsOf(a, {}, letters), bare);
+
+    // Their shadow reaches past the outline: by its spread and its offset, on every side.
+    a.text.outlineWidth = 6.0;
+    a.text.shadow.on    = true;
+    a.text.shadow.spread = 2.0;
+    a.text.shadow.y      = 3.0;
+    const QRectF shadowed = Geometry::boundsOf(a, {}, letters);
+    EXPECT_DOUBLE_EQ(shadowed.left(), bare.left() - 6.0 - 2.0 - 3.0);
+}
+
+/**
+ * @brief The letters' shadow is cast by them with their outline: grown by the outline's width and the
+ *        spread together, then moved; nothing without a shadow or without words.
+ */
+TEST(TextFit, TheLettersShadowIsCastWithTheirOutline)
+{
+    ObjectRecord a = withShape(ObjectRecord::Shape::None);
+    QPainterPath letters;
+    letters.addRect(QRectF(10, 20, 100, 30));
+    EXPECT_TRUE(Geometry::textShadowOf(a, letters).isEmpty());   // off by default
+
+    a.text.shadow.on     = true;
+    a.text.shadow.spread = 2.0;
+    a.text.shadow.x      = 5.0;
+    a.text.outlineWidth  = 3.0;
+    const QRectF cast    = Geometry::textShadowOf(a, letters).boundingRect();
+    EXPECT_NEAR(cast.left(), 10 - 5.0 + 5.0, 0.5);    // grown by 3 + 2, moved right by 5
+    EXPECT_NEAR(cast.top(), 20 - 5.0, 0.5);
+    EXPECT_NEAR(cast.right(), 110 + 5.0 + 5.0, 0.5);
+    EXPECT_TRUE(Geometry::textShadowOf(a, QPainterPath()).isEmpty());
 }
 
 TEST(TextFit, TheAnchorIsTheAlignedSideAndTheMiddleOfTheBlock)

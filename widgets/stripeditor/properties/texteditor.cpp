@@ -152,6 +152,12 @@ TextEditor::TextEditor(QWidget* parent)
     m_outline.build(this, form, &TextProperties::outline, tr("Outline colour"), m_values, m_populating,
                     [this] { emit changed(); }, [this] { emit committed(); });
 
+    // The shadow, the balloon's own rows: solid with no offset it is a second outline, soft a glow.
+    m_shadow.build(this, form, &TextProperties::shadow, &TextProperties::shadowFill, tr("Shadow"),
+                   tr("The letters with their outline, grown, moved and filled under them. Solid with no\n"
+                      "offset it reads as a second outline; soft with no offset, as a glow."),
+                   m_values, m_populating, [this] { emit changed(); }, [this] { emit committed(); });
+
     // Each control records that *it* was the one moved. Bound to a set, only what was moved is written,
     // and everything else stays each object's own — see applyEditedTo().
     const auto bodyEdited = [this] {
@@ -233,6 +239,7 @@ void TextEditor::bind(const Subjects& subjects)
     m_paddings.reset();
     m_outlineWidth.reset();
     m_outline.reset();
+    m_shadow.reset();
     m_anyBalloon   = false;
     m_anyOutline   = false;
     for (const ObjectRecord* a : subjects) {
@@ -246,6 +253,7 @@ void TextEditor::bind(const Subjects& subjects)
         m_paddings.compare(t, m_values);
         m_outlineWidth.compare(t, m_values);
         m_outline.compare(t, m_values);
+        m_shadow.compare(t, m_values);
         m_anyBalloon       = m_anyBalloon       || a->hasSilhouette();
         m_anyOutline       = m_anyOutline       || t.outlineWidth > 0.0;
     }
@@ -273,6 +281,7 @@ void TextEditor::applyEditedTo(ObjectRecord& target) const
     m_paddings.applyEdited(m_values, t);
     m_outlineWidth.applyEdited(m_values, t);
     m_outline.applyEdited(m_values, t);
+    m_shadow.applyEdited(m_values, t);
     t.applyTo(target);
 }
 
@@ -331,6 +340,7 @@ void TextEditor::syncFromValues()
     m_outlineWidth.show(m_values);
     m_outline.show(m_values);
     showOutline();
+    m_shadow.show(m_values);
 
     // The lettering itself is the one thing a set never shares: five balloons do not share one line.
     m_body->setVisible(m_subjects <= 1 && m_bodyVisible);

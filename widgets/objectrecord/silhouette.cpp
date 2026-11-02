@@ -255,8 +255,9 @@ QRectF boundsOf(const ObjectRecord& a, const QPainterPath& silhouette, const QPa
     if (!silhouette.isEmpty())
         r = r.united(silhouette.boundingRect());
     if (!text.isEmpty()) {
-        const qreal outline = qMax(a.text.outlineWidth, 0.0);   // drawn outside the letters
-        r = r.united(text.boundingRect().adjusted(-outline, -outline, outline, outline));
+        // The outline is drawn outside the letters, and their shadow reaches past it.
+        const qreal around = qMax(a.text.outlineWidth, 0.0) + shadowReach(a.text.shadow);
+        r = r.united(text.boundingRect().adjusted(-around, -around, around, around));
     }
 
     // The stroke straddles the path, so half of it lies outside; one more pixel keeps antialiasing off

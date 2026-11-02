@@ -43,6 +43,7 @@ struct Paths
     QPainterPath fillTone;     //!< A fading fill's marks (Geometry::fillTone()); empty for most.
     QPainterPath ink;          //!< The line's own strokes (Geometry::ink()); empty for most.
     QPainterPath text;         //!< The lettering as glyph outlines (Geometry::textOutline()).
+    QPainterPath textShadow;   //!< Its shadow (Geometry::textShadowOf()); empty with none.
 };
 
 //! \p a's paths, resolved.
@@ -59,10 +60,11 @@ struct Paths
 void paintPaths(QPainter& painter, const ObjectRecord& a, const Paths& paths);
 
 /**
- * @brief Draws @p a's lettering, @p text (Geometry::textOutline()), in the box's coordinates: the one
- *        place words are drawn on a painter, over a balloon (paintPaths()) and over a picture alike.
+ * @brief Draws @p a's lettering, @p text (Geometry::textOutline()), with its @p shadow
+ *        (Geometry::textShadowOf()) and its outline, in the box's coordinates: the one place words are
+ *        drawn on a painter, over a balloon (paintPaths()) and over a picture alike.
  */
-void paintLettering(QPainter& painter, const ObjectRecord& a, const QPainterPath& text);
+void paintLettering(QPainter& painter, const ObjectRecord& a, const QPainterPath& text, const QPainterPath& shadow);
 
 /**
  * @brief Rasterises \p a to a transparent ARGB32 image the size of its box — what the library composites.

@@ -99,6 +99,14 @@ ObjectRecord loadedRecord()
     a.text.outline.size    = 1.25;
     a.text.outline.angle   = -35;
     a.text.outlineWidth    = 2.5;
+    a.text.shadow.on         = true;
+    a.text.shadow.spread     = 3.5;
+    a.text.shadow.x          = 1.5;
+    a.text.shadow.y          = -2.25;
+    a.text.shadow.softness   = 4.0;
+    a.text.shadowFill.colour = QColor(27, 28, 29, 150);
+    a.text.shadowFill.kind   = ObjectRecord::Pattern::Grid;
+    a.text.shadowFill.spacing = 6.5;
 
     a.skin.fill.colour        = QColor(4, 5, 6);
     a.style.stroke.colour     = QColor(7, 8, 9);
@@ -175,7 +183,7 @@ static_assert(sizeof(StyleProperties) == sizeof(StyleMirror),
               "StyleProperties grew a field: place it (see above), then mirror it");
 
 struct TextMirror { QString body, family; int pixelSize; bool bold; int align; QColor colour; int lineSpacing, paddingSide, paddingTop;
-                    Paint outline; qreal outlineWidth; };
+                    Paint outline; qreal outlineWidth; Shadow shadow; Paint shadowFill; };
 static_assert(sizeof(TextProperties) == sizeof(TextMirror),
               "TextProperties grew a field: place it (see above), then mirror it");
 
@@ -311,6 +319,8 @@ void expectUntouched(Group applied, const ObjectRecord& before, const ObjectReco
         EXPECT_EQ(after.text.paddingTop,  before.text.paddingTop);
         expectSamePaint(after.text.outline, before.text.outline, "text outline");
         EXPECT_DOUBLE_EQ(after.text.outlineWidth, before.text.outlineWidth);
+        EXPECT_EQ(after.text.shadow, before.text.shadow);
+        expectSamePaint(after.text.shadowFill, before.text.shadowFill, "text shadow");
     }
     if (applied != Group::Tails) {
         ASSERT_EQ(after.tails.items.size(), before.tails.items.size());
@@ -443,6 +453,9 @@ TEST(PropertyGroupOwnership, Text)
     s.outline.colour = QColor(60, 50, 40);
     s.outline.kind   = ObjectRecord::Pattern::Lines;
     s.outlineWidth   = 3.5;
+    s.shadow.on      = true;
+    s.shadow.x       = -6.0;
+    s.shadowFill.colour = QColor(9, 8, 7, 100);
     s.applyTo(after);
 
     EXPECT_EQ(after.text, s);
@@ -575,6 +588,9 @@ TEST(PropertyGroupPersistence, KeepsTheFlatKeys)
     EXPECT_EQ(j.value(QStringLiteral("paddingTop")).toInt(),   a.text.paddingTop);
     EXPECT_DOUBLE_EQ(j.value(QStringLiteral("textOutlineWidth")).toDouble(), a.text.outlineWidth);
     EXPECT_EQ(j.value(QStringLiteral("textOutlineKind")).toString(), QStringLiteral("dots"));
+    EXPECT_DOUBLE_EQ(j.value(QStringLiteral("textShadowY")).toDouble(), a.text.shadow.y);
+    EXPECT_EQ(j.value(QStringLiteral("textShadowKind")).toString(), QStringLiteral("grid"));
+    EXPECT_FALSE(j.contains(QStringLiteral("textShadowSecond")));   // a shadow's pattern has no colour of its own
     EXPECT_EQ(j.value(QStringLiteral("texture")).toString(),   QStringLiteral("rough"));
 
     // No grouping crept into the file: a record saved before the groups existed still loads.

@@ -1158,7 +1158,8 @@ bool fadesShadow(const Shadow& s, const Paint& fill)
 
 bool hasFilter(const ObjectRecord& a)
 {
-    return textureInfo(a.texture.kind).reach != nullptr || blursShadow(a);
+    return textureInfo(a.texture.kind).reach != nullptr || blursShadow(a)
+        || (!a.text.body.isEmpty() && blursShadow(a.text.shadow, a.text.shadowFill));
 }
 
 Paint shadowPaint(const Shadow& s, const Paint& fill)

@@ -363,8 +363,11 @@ QString letteringAttrs(const ObjectRecord& a)
     return out;
 }
 
-//! The id of the lettering's outline pattern, beside the balloon's own (`pm-fill`, `pm-stroke`…).
-const QString k_textOutlineId = QStringLiteral("pm-text-outline");
+//! The ids of the lettering's outline pattern, its shadow's blur and its shadow's pattern, beside the
+//! balloon's own (`pm-fill`, `pm-stroke`, `pm-shadow`…).
+const QString k_textOutlineId    = QStringLiteral("pm-text-outline");
+const QString k_textShadowId     = QStringLiteral("pm-text-shadow");
+const QString k_textShadowFillId = QStringLiteral("pm-text-shadow-fill");
 
 /**
  * @brief The lettering's elements, @p text (Geometry::textOutline()), each on a line of its own at
@@ -376,8 +379,18 @@ QString letteringElements(const ObjectRecord& a, const QPainterPath& text, QLati
     if (text.isEmpty())
         return {};
     QString out;
-    // The outline first, under the letters, stroked at twice its width: two draws, not `paint-order`,
-    // which is what librsvg is sure to render alike.
+    // The shadow first, under the outline and the letters, as the balloon's is written.
+    const TextProperties& t = a.text;
+    if (const QPainterPath shadow = Geometry::textShadowOf(a, text); !shadow.isEmpty()) {
+        out += indent + QStringLiteral("<path d=\"%1\" fill-rule=\"%2\" %3")
+                            .arg(pathData(shadow), fillRule(shadow),
+                                 paintAttr("fill", Geometry::shadowPaint(t.shadow, t.shadowFill), k_textShadowFillId));
+        if (Geometry::blursShadow(t.shadow, t.shadowFill))
+            out += QStringLiteral(" filter=\"url(#%1)\"").arg(k_textShadowId);
+        out += QLatin1String("/>\n");
+    }
+    // The outline, under the letters, stroked at twice its width: two draws, not `paint-order`, which is
+    // what librsvg is sure to render alike.
     if (a.text.outlineWidth > 0.0)
         out += indent + QStringLiteral("<path d=\"%1\" fill=\"none\" %2 stroke-width=\"%3\" "
                                        "stroke-linejoin=\"round\" stroke-linecap=\"round\"/>\n")
@@ -388,11 +401,20 @@ QString letteringElements(const ObjectRecord& a, const QPainterPath& text, QLati
     return out;
 }
 
-//! The `<defs>` the lettering's elements reference: its outline's pattern, or nothing.
+//! The `<defs>` the lettering's elements reference: its outline's pattern, its shadow's blur and pattern.
 QString letteringDefs(const ObjectRecord& a)
 {
-    return a.text.outlineWidth > 0.0 && !a.text.body.isEmpty() ? patternDefs(a.text.outline, k_textOutlineId)
-                                                                : QString();
+    const TextProperties& t = a.text;
+    if (t.body.isEmpty())
+        return {};
+    QString d;
+    if (t.outlineWidth > 0.0)
+        d += patternDefs(t.outline, k_textOutlineId);
+    if (t.shadow.on) {
+        d += shadowDefs(t.shadow, t.shadowFill, k_textShadowId);
+        d += patternDefs(Geometry::shadowPaint(t.shadow, t.shadowFill), k_textShadowFillId);
+    }
+    return d;
 }
 
 } // namespace

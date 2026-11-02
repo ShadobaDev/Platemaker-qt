@@ -132,6 +132,13 @@ enum class Part { None, Fill, Outline, Text };
 [[nodiscard]] QPainterPath textOutline(const ObjectRecord& a);
 
 /**
+ * @brief \p a's lettering's shadow, cast by \p text (textOutline()) with its outline: grown by the outline's
+ *        width and the shadow's spread together, which is the same as the outlined letters grown by the
+ *        spread. Empty with no shadow or no words. Filled under them with shadowPaint() of the lettering's.
+ */
+[[nodiscard]] QPainterPath textShadowOf(const ObjectRecord& a, const QPainterPath& text);
+
+/**
  * @brief The family \p a's lettering is actually outlined in when its own is not installed, or empty.
  *
  * `QFont` never fails on a missing family — it substitutes, silently — so an outline built while the font

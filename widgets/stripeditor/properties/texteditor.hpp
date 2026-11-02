@@ -3,6 +3,7 @@
 
 #include "properties/fieldrows.hpp"
 #include "properties/paintrows.hpp"
+#include "properties/shadowrows.hpp"
 #include "properties/propertygroupeditor.hpp"
 
 class QCheckBox;
@@ -68,6 +69,7 @@ private:
     FieldRows<TextProperties> m_paddings;   //!< Side and top; only while something bound has a balloon to keep from.
     FieldRows<TextProperties> m_outlineWidth;   //!< The letters' outline; 0 is none.
     PaintRows<TextProperties> m_outline;        //!< ...and its paint.
+    ShadowRows<TextProperties> m_shadow;        //!< The letters' shadow, the balloon's rows.
     QFormLayout*    m_form = nullptr;
     QCheckBox*      m_showWhitespace = nullptr;   //!< The text box's own view; never the balloon's.
 

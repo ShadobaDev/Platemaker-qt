@@ -733,6 +733,14 @@ struct TextProperties
     Paint   outline;
     qreal   outlineWidth = 0.0;
     /** @} */
+    /**
+     * @name The shadow: the letters with their outline, grown, moved and filled under them (Shadow), off by
+     * default. Solid with no offset it reads as a second outline, soft with no offset as a glow.
+     * @{
+     */
+    Shadow  shadow;
+    Paint   shadowFill{QColor(0, 0, 0, 110), QColor(0, 0, 0)};
+    /** @} */
 
     //! The fields, with the keys they are saved under (fields.hpp). The keys predate the members'
     //! names, which is why three of them differ.
@@ -756,6 +764,17 @@ struct TextProperties
             nullptr,       nullptr};   // an outline does not fade
         Paint::fieldsAs(v, &TextProperties::outline, k_outline);
         v("textOutlineWidth", &TextProperties::outlineWidth);
+        static constexpr const char* k_shadow[] = {"textShadow", "textShadowSpread", "textShadowX", "textShadowY",
+                                                   "textShadowSoftness"};
+        Shadow::fieldsAs(v, &TextProperties::shadow, k_shadow);
+        // As the balloon's: its pattern is its colour in marks on nothing, and it fades by its softness.
+        static constexpr const char* k_shadowFill[] = {
+            "textShadowColour", "textShadowKind", nullptr, "textShadowSpacing", "textShadowSize",
+            "textShadowAngle",
+            nullptr,            nullptr,          nullptr, nullptr,             nullptr,
+            nullptr,            nullptr,          nullptr, nullptr,             nullptr,
+            nullptr,            nullptr};
+        Paint::fieldsAs(v, &TextProperties::shadowFill, k_shadowFill);
     }
 
     [[nodiscard]] static TextProperties from(const ObjectRecord& a);

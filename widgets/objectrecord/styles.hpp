@@ -135,7 +135,8 @@ struct PatternCell
 
 /**
  * @brief \p a has an SVG filter anywhere, which only the library draws (PLAN-L M17): a texture, or a
- *        soft shadow. The one question the controller asks to decide how a balloon is previewed.
+ *        soft shadow, the balloon's or its letters'. The one question the controller asks to decide how a
+ *        balloon is previewed.
  */
 [[nodiscard]] bool hasFilter(const ObjectRecord& a);
 

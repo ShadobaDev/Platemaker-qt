@@ -75,7 +75,10 @@
     balloon and each new line grows it up and down alike; once it reaches the top padding, further lines
     go on downwards, out of the balloon, and are never cut off there. **Outline** (TEXT) draws a band
     round each letter, outside it, so the letters keep their weight: a width (0 is none), a colour, or a
-    halftone of dots, lines or a grid. It is what lettering on a picture or a dark balloon needs. *Show whitespace* under the text box marks spaces, tabs and line ends in the box
+    halftone of dots, lines or a grid. It is what lettering on a picture or a dark balloon needs.
+    **Shadow** (TEXT) is the balloon's shadow for the letters with their outline: grown, moved,
+    blurred, or a halftone. Solid with no offset it reads as a second outline; soft with no offset, as
+    a glow. *Show whitespace* under the text box marks spaces, tabs and line ends in the box
     itself; the balloon is always drawn as it will render.
   - **Tails point anywhere, curve, and come in numbers** — a tail is a tip, a width and a bend, and one
     sound may have several speakers. The base is found where a ray from the balloon's centre crosses its

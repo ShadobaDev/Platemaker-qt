@@ -52,6 +52,7 @@ private:
     StretchSpin* m_stretch      = nullptr;   //!< The flash's core stretch, which reads "Auto (n %)".
     FieldRows<StyleProperties> m_flash;   //!< One spin per `flash…` field. Lengths are whole pixels.
     FieldRows<StyleProperties> m_brush;   //!< One spin per `brush…` field.
+    FieldRows<StyleProperties> m_drybrush;   //!< One spin per `drybrush…` field.
 
     StyleProperties m_values;
     bool m_populating = false;

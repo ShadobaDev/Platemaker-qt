@@ -55,8 +55,11 @@ private:
  * @brief Smooth seeded noise along a line, in [-1, 1]: a random value at every whole @p x, eased from one
  *        to the next. The same @p seed gives the same curve, so whatever follows it stays put while the
  *        balloon is edited.
+ *
+ * With a @p period (whole numbers) the values repeat every @p period, so noise laid round a loop that
+ * many units long closes on itself; 0 never repeats.
  */
-[[nodiscard]] qreal smoothNoise(quint32 seed, qreal x);
+[[nodiscard]] qreal smoothNoise(quint32 seed, qreal x, qint64 period = 0);
 
 }  // namespace Geometry
 

@@ -267,6 +267,411 @@ qreal brushReach(const ObjectRecord& a)
 }
 
 // ---------------------------------------------------------------------------
+// Drybrush: a thin whole core along the edge, and hairs either side of it that thin out away from it
+// ---------------------------------------------------------------------------
+
+//! How long one hair or one gap is along the line, in balloon pixels: the noise's span.
+constexpr qreal   k_bristleWave   = 32.0;
+//! A hair's half-width, in lanes: thin, with the dark between them.
+constexpr qreal   k_bristleHair   = 0.4;
+/**
+ *  How much drier the outermost lane is than the one by the core, as a share of the way from the dryness
+ *  to bone dry: the hairs thin out outwards but do not quite stop.
+ */
+constexpr qreal   k_bristleThinning = 0.75;
+//! How far a hair wanders off its lane, in lanes.
+constexpr qreal   k_bristleWander = 0.2;
+/**
+ *  How far under the dry level the noise falls before a hair is its full width, in noise units: so a
+ *  hair narrows to its ends rather than stopping square.
+ */
+constexpr qreal   k_bristleSwell  = 0.35;
+//! The turn at a vertex, in degrees, from which it is a corner the hairs do not follow round.
+constexpr qreal   k_cornerTurn    = 35.0;
+//! How long a hair narrows away over before the other side's core at a concave corner, in lanes.
+constexpr qreal   k_rootTaper     = 2.0;
+/**
+ *  How far a hair runs on under another part of the silhouette, in half line widths: a balloon's into a
+ *  tail's root, a tail's back into the balloon. At most; its own noise may end it sooner, and the last
+ *  third of the way it narrows away.
+ */
+constexpr qreal   k_partRunOn     = 3.0;
+/**
+ *  How far from a concave corner its other side's core can stop a hair, in half line widths, along the
+ *  edge or past the corner: further off, a curving edge is not that side's business.
+ */
+constexpr qreal   k_rootReach     = 4.0;
+//! A convex corner narrower than this, in degrees, is a point: the hairs run into it.
+constexpr qreal   k_pointAngle    = 45.0;
+//! How far either side of a vertex its turn is measured, in balloon pixels: a flattened curve's own
+//! small steps are not corners, one corner split by a sliver of an edge still is.
+constexpr qreal   k_cornerProbe   = 1.5;
+/**
+ *  How far past the other side's hairs a hair runs on across a corner, in half line widths, so that they
+ *  cross into a hatch; each hair's own run varies up to half as much again.
+ */
+constexpr qreal   k_hatchReach    = 0.4;
+/**
+ *  The core's miter limit, in its widths (QPainterPathStroker): long enough that a point down to about
+ *  ten degrees is mitred to its tip, short enough that a sliver of an edge does not spike.
+ */
+constexpr qreal   k_coreMiter     = 6.0;
+//! Mixed into the seed per lane (a 32-bit mixer's multiplier), like a brush's strokes.
+constexpr quint32 k_bristleStream = 0xC2B2AE35u;
+
+/**
+ * @brief Smooth noise round a closed edge @p length long, about @p wave per span: a whole number of
+ *        spans to the lap, repeating, so it closes on itself where the walk does.
+ */
+qreal loopedNoise(quint32 seed, qreal at, qreal length, qreal wave)
+{
+    const qint64 spans = qMax<qint64>(1, qRound64(length / wave));
+    return smoothNoise(seed, at / length * spans, spans);
+}
+
+//! Twice @p ring's signed area (the shoelace): a ribbon, left side forward and right side back, is negative.
+qreal shoelace(const QPolygonF& ring)
+{
+    qreal area = 0.0;
+    for (int i = 0; i < ring.size(); ++i) {
+        const QPointF& p = ring[i];
+        const QPointF& q = ring[(i + 1) % ring.size()];
+        area += p.x() * q.y() - q.x() * p.y();
+    }
+    return area;
+}
+
+//! How many times @p rings wind round @p p, counted the shoelace's way.
+int windingAt(const QList<QPolygonF>& rings, const QPointF& p)
+{
+    int w = 0;
+    for (const QPolygonF& ring : rings)
+        for (int i = 0; i < ring.size(); ++i) {
+            const QPointF& a     = ring[i];
+            const QPointF& b     = ring[(i + 1) % ring.size()];
+            const qreal    cross = (b.x() - a.x()) * (p.y() - a.y()) - (p.x() - a.x()) * (b.y() - a.y());
+            if (a.y() <= p.y() && b.y() > p.y() && cross > 0.0)
+                ++w;
+            else if (a.y() > p.y() && b.y() <= p.y() && cross < 0.0)
+                --w;
+        }
+    return w;
+}
+
+//! A vertex the hairs do not follow round: where along the edge, and how far it turns (radians, signed).
+struct EdgeCorner
+{
+    qreal at;
+    qreal turn;
+};
+
+//! The corners of @p edge, one per turn: of vertices closer than the probe, the sharpest.
+std::vector<EdgeCorner> cornersOf(const EdgeWalk& edge)
+{
+    const qreal length = edge.length();
+    const auto  wrap   = [length](qreal at) { return at - std::floor(at / length) * length; };
+    std::vector<EdgeCorner> out;
+    const std::vector<qreal>& at = edge.corners();
+    for (size_t i = 0; i + 1 < at.size(); ++i) {   // the last is the first again
+        const QPointF t1   = edge.at(wrap(at[i] - k_cornerProbe)).tangent;
+        const QPointF t2   = edge.at(wrap(at[i] + k_cornerProbe)).tangent;
+        const qreal   turn = std::atan2(t1.x() * t2.y() - t1.y() * t2.x(), QPointF::dotProduct(t1, t2));
+        if (std::abs(turn) < qDegreesToRadians(k_cornerTurn))
+            continue;
+        if (!out.empty() && at[i] - out.back().at < 2.0 * k_cornerProbe) {
+            if (std::abs(turn) > std::abs(out.back().turn))
+                out.back() = {at[i], turn};
+            continue;
+        }
+        out.push_back({at[i], turn});
+    }
+    if (out.size() > 1 && out.front().at + length - out.back().at < 2.0 * k_cornerProbe) {
+        if (std::abs(out.back().turn) > std::abs(out.front().turn))
+            out.front() = out.back();
+        out.pop_back();
+    }
+    return out;
+}
+
+/**
+ * @brief The dry brush round every closed edge of @p silhouette.
+ *
+ * A **core**, `drybrushCore` of the line's width, is the plain outline, mitred so a point stays a
+ * point: always whole, so the fill is never open to what is round it. Either side of it the rest of the
+ * width is shared into lanes, `drybrushBristles` in all, one **hair** each: a thin ribbon along the
+ * edge, wandering in its lane, there where its noise is under a dry level and narrowing away over it.
+ * The level rises from `drybrushDryness` next to the core most of the way to bone dry at the line's
+ * edge (`k_bristleThinning`), so the hairs thin out away from it.
+ *
+ * The core follows the joined silhouette; the hairs follow each **part** of it on its own edge
+ * (silhouetteParts(): the balloon, each tail). Where a part's edge goes under another part, its hairs run
+ * on along it from where it was in sight, until their noise ends them, `k_partRunOn` half-widths at most:
+ * the balloon's on into a tail's root, the tail's back into the balloon, crossing into a natural hatch.
+ * So a tail's root is no corner at all.
+ *
+ * The hairs do not follow a **corner** of a part round (an offset turned round one folds over itself).
+ * Between corners they run edge to edge; at a convex corner each runs on straight past where the other
+ * side's hairs lie, so the two sides cross in a hatch, narrowing away over that run. At a **concave** one
+ * (between a shout's spikes) each runs on straight until it meets the other side's core (its line carried
+ * on past the corner), narrowing away just before it (`k_rootTaper`). At a **point** (a convex corner
+ * under `k_pointAngle`, a tail's tip) they run into it instead, closing on the core so it ends sharp.
+ *
+ * Built only of rings wound one way (the core's turned to match), so the winding rule paints their
+ * overlaps as one and nothing is subtracted: a boolean on paths this dense costs a frame.
+ */
+QPainterPath drybrushInk(const ObjectRecord& a, const QPainterPath& silhouette)
+{
+    const StyleProperties& s       = a.style;
+    const qreal            half    = qMax(s.strokeWidth, 0) / 2.0;
+    const qreal            core    = half * qBound(0, s.drybrushCore, 100) / 100.0;
+    const int              perSide = qMax(1, s.drybrushBristles / 2);
+    const qreal            lane    = (half - core) / perSide;
+    const qreal            dryness = qBound(0, s.drybrushDryness, 100) / 100.0;
+    const qreal            rootTaper = k_rootTaper * qMax(lane, k_brushStep / 2.0);   // a lane may be none
+
+    QPainterPath out;
+    out.setFillRule(Qt::WindingFill);
+    if (half <= 0.0)
+        return out;   // no outline, no brush: its width is the outline's
+    QPainterPathStroker pen;
+    pen.setWidth(2.0 * core);
+    pen.setJoinStyle(Qt::MiterJoin);
+    pen.setMiterLimit(k_coreMiter);
+
+    // The core, along the joined silhouette, wound as the hairs are.
+    for (const QPolygonF& ring : silhouette.toSubpathPolygons()) {
+        if (ring.size() < 3)
+            continue;
+        QPainterPath outline;
+        outline.addPolygon(ring);
+        outline.closeSubpath();
+        QList<QPolygonF> rings = pen.createStroke(outline).toSubpathPolygons();
+        if (windingAt(rings, ring.first()) > 0)
+            for (QPolygonF& r : rings)
+                std::reverse(r.begin(), r.end());
+        for (const QPolygonF& r : std::as_const(rings)) {
+            out.addPolygon(r);
+            out.closeSubpath();
+        }
+    }
+
+    // The hairs, along each part's own edge.
+    const QList<QPainterPath> parts      = silhouetteParts(a);
+    const qreal               underReach = k_partRunOn * half;
+    quint32                   stream     = 0;   // a number per lane, for its own noise
+    for (qsizetype part = 0; part < parts.size(); ++part)
+    for (const QPolygonF& ring : parts[part].toSubpathPolygons()) {
+        const EdgeWalk edge(ring);
+        const qreal    length = edge.length();
+        if (length <= 0.0)
+            continue;
+        const auto wrap = [length](qreal at) { return at - std::floor(at / length) * length; };
+
+        // Where the edge is under another part, every step along it.
+        const int         marks = qMax(1, qCeil(length / k_brushStep));
+        std::vector<char> under(size_t(marks), 0);
+        for (int k = 0; k < marks; ++k) {
+            const QPointF p = edge.at(length * k / marks).at;
+            for (qsizetype other = 0; other < parts.size() && !under[size_t(k)]; ++other)
+                under[size_t(k)] = other != part && parts[other].contains(p);
+        }
+        const auto hidden = [&](qreal at) { return under[size_t(qRound(wrap(at) / length * marks) % marks)] != 0; };
+
+        // The stretches between corners; with none, one round the whole loop.
+        const std::vector<EdgeCorner> corners   = cornersOf(edge);
+        const bool                    convexWay = shoelace(ring) > 0.0;   // a turn this way is convex
+        struct Stretch
+        {
+            qreal             from, to;
+            const EdgeCorner* start;
+            const EdgeCorner* end;
+        };
+        std::vector<Stretch> stretches;
+        if (corners.empty())
+            stretches.push_back({0.0, length, nullptr, nullptr});
+        for (size_t i = 0; i < corners.size(); ++i) {
+            const EdgeCorner& c    = corners[i];
+            const EdgeCorner& next = corners[(i + 1) % corners.size()];
+            stretches.push_back({c.at, next.at + (next.at > c.at ? 0.0 : length), &c, &next});
+        }
+        const auto concave = [&](const EdgeCorner* c) { return c && (c->turn > 0.0) != convexWay; };
+        // How far from a point its hairs start closing on it: where the line's two edges meet.
+        const auto closing = [&](const EdgeCorner* c) {
+            if (!c || concave(c))
+                return 0.0;
+            const qreal inner = M_PI - std::abs(c->turn);
+            return inner < qDegreesToRadians(k_pointAngle) ? half / std::tan(inner / 2.0) : 0.0;
+        };
+
+        for (int b = 0; b < 2 * perSide; ++b, ++stream) {
+            const int     side   = b < perSide ? -1 : 1;
+            const int     away   = b % perSide;                 // lanes from the core
+            const qreal   offset = side * (core + lane * (away + 0.5));
+            const qreal   dry    = dryness + (1.0 - dryness) * k_bristleThinning * (away + 0.5) / perSide;
+            const qreal   level  = 1.0 + k_bristleSwell - (2.0 + k_bristleSwell) * dry;
+            const quint32 seed   = a.styleSeed ^ ((stream + 1) * k_bristleStream);
+            // The hair's half-width @p at along the edge: where its noise is under the dry level.
+            const auto width = [&](qreal at) {
+                return lane * k_bristleHair
+                     * qBound(0.0, (level - loopedNoise(seed, wrap(at), length, k_bristleWave)) / k_bristleSwell, 1.0);
+            };
+
+            for (const Stretch& st : stretches) {
+                // The hair's middle and its normal at each step, then its half-width: the runs where that
+                // is over nothing become ribbons.
+                struct Step
+                {
+                    QPointF mid, n;
+                    qreal   w;
+                    qreal   at     = 0.0;
+                    bool    hidden = false;   //!< Under another part.
+                };
+                std::vector<Step> steps;
+                const qreal closeStart = closing(st.start);
+                const qreal closeEnd   = closing(st.end);
+                // At a concave end, the other side's core: the line through the corner along that side, its
+                // normal turned towards this side, so a hair is stopped where its distance to it is the core's.
+                struct Root
+                {
+                    QPointF at, n;
+                    qreal   along = -1.0;   //!< Where along the edge the corner is; none if not concave.
+                };
+                const auto rootOf = [&](const EdgeCorner* c, qreal mine) {   // mine: -1 this side before it
+                    Root r;
+                    if (!concave(c))
+                        return r;
+                    r.at                = edge.at(wrap(c->at)).at;
+                    const QPointF other = edge.at(wrap(c->at - mine * k_cornerProbe)).tangent;
+                    const QPointF own   = edge.at(wrap(c->at + mine * k_cornerProbe)).tangent;
+                    r.n                 = QPointF(-other.y(), other.x());
+                    if (QPointF::dotProduct(own * mine, r.n) < 0.0)
+                        r.n = -r.n;
+                    r.along = c->at;
+                    return r;
+                };
+                const Root rootStart = rootOf(st.start, 1.0);
+                const Root rootEnd   = rootOf(st.end, -1.0);
+                // How much of a hair is left at @p p by a root's other side: none at its core, whole a little
+                // before it. Only near the corner.
+                const auto stop = [&](const Root& r, const QPointF& p) {
+                    if (r.along < 0.0 || QLineF(p, r.at).length() > k_rootReach * half)
+                        return 1.0;
+                    return qBound(0.0, (QPointF::dotProduct(p - r.at, r.n) - core) / rootTaper, 1.0);
+                };
+                const qreal span       = st.to - st.from;
+                const int   count      = qMax(2, qCeil(span / k_brushStep));
+                for (int k = 0; k <= count; ++k) {
+                    // Just inside the stretch at its ends, so the tangent is this side's, not the corner's.
+                    const qreal   at   = st.from + qBound(0.01, span * k / count, span - 0.01);
+                    const auto    p    = edge.at(wrap(at));
+                    const QPointF n(-p.tangent.y(), p.tangent.x());
+                    qreal         into = 1.0;   // 0 at a point, 1 clear of it
+                    if (closeStart > 0.0)
+                        into = qMin(into, (at - st.from) / closeStart);
+                    if (closeEnd > 0.0)
+                        into = qMin(into, (st.to - at) / closeEnd);
+                    into = qBound(0.0, into, 1.0);
+                    const qreal   c   = (offset + lane * k_bristleWander
+                                                * loopedNoise(seed ^ k_brushStream, wrap(at), length, k_bristleWave)) * into;
+                    const QPointF mid = p.at + n * c;
+                    steps.push_back({mid, n, width(at) * into * stop(rootStart, mid) * stop(rootEnd, mid), at,
+                                     hidden(at)});
+                }
+                // Under another part, a hair runs on from where it was in sight, either way, as long as its
+                // noise lets it and no further than the reach, narrowing over its last third; then it is gone
+                // for good, so nothing starts again in there.
+                const auto runUnder = [&](Step& s, qreal d) {
+                    if (s.w <= 0.0 || d > underReach)
+                        return false;
+                    s.w *= qMin(1.0, 3.0 * (1.0 - d / underReach));
+                    return true;
+                };
+                for (size_t i = 0; i < steps.size();) {
+                    if (!steps[i].hidden) {
+                        ++i;
+                        continue;
+                    }
+                    size_t j = i;
+                    while (j < steps.size() && steps[j].hidden)
+                        ++j;
+                    size_t k = i;   // [i, k) runs on from before, [m, j) from after, the rest is gone
+                    while (i > 0 && k < j && runUnder(steps[k], steps[k].at - steps[i - 1].at))
+                        ++k;
+                    size_t m = j;
+                    while (j < steps.size() && m > k && runUnder(steps[m - 1], steps[j].at - steps[m - 1].at))
+                        --m;
+                    for (size_t q = k; q < m; ++q)
+                        steps[q].w = 0.0;
+                    i = j;
+                }
+                // Across a corner that is not a point, the hair runs on straight. Past a convex one it narrows
+                // away over a fixed run; past a concave one it keeps its own width (its noise read on along the
+                // edge) until the other side's core stops it, or the noise does.
+                const auto runOn = [&](const Step& from, qreal dir, const EdgeCorner* c, qreal close,
+                                       const Root& root) {
+                    std::vector<Step> more;
+                    if (!c || close > 0.0 || from.w <= 0.0)
+                        return more;
+                    const QPointF t(from.n.y(), -from.n.x());   // the tangent back from the normal
+                    if (root.along >= 0.0) {
+                        for (qreal past = k_brushStep; past <= k_rootReach * half; past += k_brushStep) {
+                            const QPointF mid = from.mid + t * (dir * past);
+                            const qreal   w   = width(c->at + dir * past) * stop(root, mid);
+                            if (w <= 0.0)
+                                break;   // ended: it does not start again past the corner
+                            more.push_back({mid, from.n, w});
+                        }
+                        return more;
+                    }
+                    const qreal   reach = (std::abs(offset) + k_hatchReach * half)
+                                        * (1.25 + 0.25 * smoothNoise(seed ^ k_bristleStream, c->at / k_bristleWave));
+                    const int     n     = qMax(2, qCeil(reach / k_brushStep));
+                    for (int k = 1; k <= n; ++k)
+                        more.push_back({from.mid + t * (dir * reach * k / n), from.n,
+                                        from.w * (1.0 - qreal(k) / n)});
+                    return more;
+                };
+                std::vector<Step> before = runOn(steps.front(), -1.0, st.start, closeStart, rootStart);
+                std::vector<Step> after  = runOn(steps.back(), 1.0, st.end, closeEnd, rootEnd);
+                std::reverse(before.begin(), before.end());
+                steps.insert(steps.begin(), before.begin(), before.end());
+                steps.insert(steps.end(), after.begin(), after.end());
+
+                QPolygonF left, right;
+                const auto flush = [&] {
+                    if (left.size() > 1) {
+                        out.addPolygon(left + right);
+                        out.closeSubpath();
+                    }
+                    left.clear();
+                    right.clear();
+                };
+                for (const Step& step : steps) {
+                    if (step.w <= 0.0) {
+                        flush();
+                        continue;
+                    }
+                    left << step.mid + step.n * step.w;
+                    right.prepend(step.mid - step.n * step.w);
+                }
+                flush();
+            }
+        }
+    }
+    return out;
+}
+
+/**
+ * @brief The line's half-width three times over, a hair run on across a corner reaching past it by its
+ *        lane and as far again; or the core's miter at a point, if a thick core reaches further.
+ */
+qreal drybrushReach(const ObjectRecord& a)
+{
+    const qreal core = qBound(0, a.style.drybrushCore, 100) / 100.0;
+    return qMax(3.0, 2.0 * k_coreMiter * core) * qMax(a.style.strokeWidth, 0) / 2.0;
+}
+
+// ---------------------------------------------------------------------------
 // Rough: turbulence displacing the outline, then a blur (the filter is in recordsvg.cpp)
 // ---------------------------------------------------------------------------
 
@@ -288,6 +693,7 @@ const std::array<LineInfo, int(StyleProperties::k_lastLine) + 1> k_lines{{
     {Line::Clean, "clean", QT_TRANSLATE_NOOP("QObject", "Clean"), nullptr,  nullptr},
     {Line::Flash, "flash", QT_TRANSLATE_NOOP("QObject", "Flash"), flashInk, flashReach},
     {Line::Brush, "brush", QT_TRANSLATE_NOOP("QObject", "Brush"), brushInk, brushReach},
+    {Line::Drybrush, "drybrush", QT_TRANSLATE_NOOP("QObject", "Drybrush"), drybrushInk, drybrushReach},
 }};
 
 //! Likewise, for patternInfo().

@@ -121,6 +121,11 @@
     each narrowing to a point at both ends and swelling and wandering along the way. Its width is the
     outline's stroke width; its rows set how many strokes, how far they overlap, how long the points
     are, how much they swell and how far they wander. A brush can be rough.
+  - **Drybrush**, a new line: a thin unbroken line with dry brush hairs either side of it, thinning out
+    away from it. At a corner the hairs cross into a hatch, and at a tail's root the balloon's and the
+    tail's run on into each other; a tail's tip stays a sharp point. Its width
+    is the outline's; its rows set how wide the unbroken line is, how many hairs and how dry the brush
+    is.
   - **Edges.** Any balloon's outline can take a **zigzag** edge: teeth pushed in along it, with rows
     for their spacing, depth and irregularity under the Shape panel's **Edge**. The tails stay smooth,
     the balloon keeps its size and the lettering's room gives up the depth; a star's points stay

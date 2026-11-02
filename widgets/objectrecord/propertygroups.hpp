@@ -445,15 +445,15 @@ struct TextureProperties
 struct StyleProperties
 {
     /**
-     * @brief How the edge is drawn. Clean is the solid outline; Flash and Brush are strokes of their
-     * own, plain geometry, so Qt draws them as it draws a clean balloon. The table is in styles.cpp.
+     * @brief How the edge is drawn. Clean is the solid outline; Flash, Brush and Drybrush are strokes
+     * of their own, plain geometry, so Qt draws them as it draws a clean balloon. The table is in styles.cpp.
      *
      * Persisted by name — see lineName(). The strip editor is unreleased (PLAN-L B3), so the order is
      * free.
      */
-    enum class Line { Clean, Flash, Brush };
+    enum class Line { Clean, Flash, Brush, Drybrush };
     //! The enum's last value. **Adding a line moves this**: lineFromName() reads up to it.
-    static constexpr Line k_lastLine = Line::Brush;
+    static constexpr Line k_lastLine = Line::Drybrush;
 
     //! `flashCoreStretch`'s "follow the shape" value.
     static constexpr int k_autoStretch = -1;
@@ -502,6 +502,17 @@ struct StyleProperties
     qreal brushDrift   = 1.5;   //!< How far a stroke wanders off the edge, in balloon pixels.
     /** @} */
 
+    /**
+     * @name The dry brush: a thin whole core along the edge, and hairs either side of it that thin out
+     * away from it (styles.cpp). Read only while `line` is Drybrush. Its width is the outline's
+     * (`strokeWidth`): `drybrushCore` of it the core, the rest shared among the hairs' lanes.
+     * @{
+     */
+    int   drybrushCore     = 20;   //!< The whole thin line in the middle, in % of the width.
+    int   drybrushBristles = 12;   //!< How many hairs lie across the line, half each side of the core.
+    int   drybrushDryness  = 20;   //!< How much of the hairs by the core are gaps, in %: 100 leaves the core alone.
+    /** @} */
+
     //! The fields, with the keys they are saved under (fields.hpp).
     template <class V>
     static void fields(V&& v)
@@ -529,6 +540,9 @@ struct StyleProperties
         v("brushTaper",             &StyleProperties::brushTaper);
         v("brushSwell",             &StyleProperties::brushSwell);
         v("brushDrift",             &StyleProperties::brushDrift);
+        v("drybrushCore",           &StyleProperties::drybrushCore);
+        v("drybrushBristles",       &StyleProperties::drybrushBristles);
+        v("drybrushDryness",        &StyleProperties::drybrushDryness);
     }
 
     [[nodiscard]] static StyleProperties from(const ObjectRecord& a);

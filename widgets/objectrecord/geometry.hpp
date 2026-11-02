@@ -37,6 +37,15 @@ namespace Geometry {
 [[nodiscard]] QPainterPath silhouette(const ObjectRecord& a);
 
 /**
+ * @brief What the silhouette is the union of: the balloon's outline first, then each tail that is drawn,
+ *        each whole, overlapping where they join. Empty for a shapeless record.
+ *
+ * For a line that follows each part's own edge rather than the joined one (the dry brush's hairs run on
+ * past a tail's root along the balloon, and start inside it along the tail).
+ */
+[[nodiscard]] QList<QPainterPath> silhouetteParts(const ObjectRecord& a);
+
+/**
  * @brief Which of \p a's tails are actually drawn, one entry per tail.
  *
  * A tail whose tip lies inside the balloon draws nothing — there is no room for it to emerge — but it

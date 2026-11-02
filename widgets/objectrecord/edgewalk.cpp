@@ -35,11 +35,13 @@ EdgeWalk::Point EdgeWalk::at(qreal s) const
     return {a + d * t, seg > 0.0 ? d / seg : QPointF()};
 }
 
-qreal smoothNoise(quint32 seed, qreal x)
+qreal smoothNoise(quint32 seed, qreal x, qint64 period)
 {
     // The value at a whole number: the seed and the number hashed together (a 32-bit mixer), as a
     // fraction. A hash, not a generator, so any point can be asked for without walking to it.
-    const auto lattice = [seed](qint64 k) {
+    const auto lattice = [seed, period](qint64 k) {
+        if (period > 0)
+            k = ((k % period) + period) % period;
         quint32 h = seed ^ (quint32(k) * 0x9E3779B1u);
         h ^= h >> 16;
         h *= 0x7FEB352Du;

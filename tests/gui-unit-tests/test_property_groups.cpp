@@ -69,6 +69,9 @@ ObjectRecord loadedRecord()
     a.style.brushTaper             = 17;
     a.style.brushSwell             = 61;
     a.style.brushDrift             = 2.75;
+    a.style.drybrushCore           = 31;
+    a.style.drybrushBristles       = 9;
+    a.style.drybrushDryness        = 42;
     a.styleSeed        = 0xC0FFEEu;
 
     a.text.body        = QStringLiteral("Nie wiem, co sie dzieje");
@@ -149,6 +152,7 @@ struct StyleMirror {
     int flashOuterPitchJitter, flashInnerPitchJitter, flashOuterLengthJitter, flashInnerLengthJitter;
     int flashCoreStretch;
     int brushStrokes, brushOverlap, brushTaper, brushSwell; qreal brushDrift;
+    int drybrushCore, drybrushBristles, drybrushDryness;
 };
 static_assert(sizeof(StyleProperties) == sizeof(StyleMirror),
               "StyleProperties grew a field: place it (see above), then mirror it");
@@ -250,6 +254,9 @@ void expectUntouched(Group applied, const ObjectRecord& before, const ObjectReco
         EXPECT_EQ(after.style.brushTaper,             before.style.brushTaper);
         EXPECT_EQ(after.style.brushSwell,             before.style.brushSwell);
         EXPECT_DOUBLE_EQ(after.style.brushDrift,      before.style.brushDrift);
+        EXPECT_EQ(after.style.drybrushCore,           before.style.drybrushCore);
+        EXPECT_EQ(after.style.drybrushBristles,       before.style.drybrushBristles);
+        EXPECT_EQ(after.style.drybrushDryness,        before.style.drybrushDryness);
     }
     if (applied != Group::Texture) {
         EXPECT_EQ(after.texture.kind, before.texture.kind);
@@ -724,7 +731,8 @@ TEST(Style, ALinesStrokesStayInsideTheirBounds)
         a.style.brushSwell             = 100;
         a.style.brushDrift             = 6.0;
         a.style.strokeWidth             = 9;
-        for (ObjectRecord::Line line : {ObjectRecord::Line::Flash, ObjectRecord::Line::Brush}) {
+        for (ObjectRecord::Line line : {ObjectRecord::Line::Flash, ObjectRecord::Line::Brush,
+                                        ObjectRecord::Line::Drybrush}) {
             a.style.line = line;
             EXPECT_FALSE(Geometry::hasOutline(a));
             EXPECT_FALSE(Geometry::hasFilter(a));
@@ -747,6 +755,117 @@ TEST(Style, ALinesStrokesStayInsideTheirBounds)
             a.styleSeed = 8;
             EXPECT_FALSE(once == Geometry::ink(a, Geometry::silhouette(a))) << id << " " << lineName(line);
         }
+    }
+}
+
+/**
+ * @brief A dry brush keeps a whole core, and its hairs thin out away from it and as it dries
+ *        (PLAN-L P14a); a tail ends in a point.
+ *
+ * Measured every two pixels round the silhouette's edge, at offsets across the line: on the core, in the
+ * two lanes next to it and in the two at the line's edges, both sides.
+ */
+TEST(Style, ADrybrushKeepsItsCoreAndThinsOutwards)
+{
+    ObjectRecord a;
+    a.shape                  = Geometry::shapeTemplate("ellipse").shape;
+    a.box                    = QSize(280, 160);
+    a.style.line             = ObjectRecord::Line::Drybrush;
+    a.style.strokeWidth      = 16;   // half 8: a core of 2, four lanes of 1.5 a side
+    a.style.drybrushCore     = 25;
+    a.style.drybrushBristles = 8;
+    a.styleSeed              = 0xC0FFEEu;
+    const QPainterPath silhouette = Geometry::silhouette(a);
+    const QPolygonF    edge       = silhouette.toFillPolygon();
+    const auto inked = [&](int dryness, std::initializer_list<qreal> offsets) {
+        a.style.drybrushDryness = dryness;
+        const QPainterPath ink  = Geometry::ink(a, silhouette);
+        int                hits = 0;
+        int                all  = 0;
+        for (int i = 0; i + 1 < edge.size(); ++i) {
+            const QLineF  side(edge[i], edge[i + 1]);
+            const QPointF across = QPointF(-side.dy(), side.dx()) / side.length();
+            for (qreal t = 0.0; t < side.length(); t += 2.0)
+                for (qreal f : offsets)
+                    for (qreal sign : {-1.0, 1.0}) {
+                        hits += ink.contains(side.pointAt(t / side.length()) + across * (sign * f)) ? 1 : 0;
+                        ++all;
+                    }
+        }
+        return qreal(hits) / all;
+    };
+    const std::initializer_list<qreal> core{0.0, 1.5};
+    const std::initializer_list<qreal> near{2.4, 3.0, 3.6, 4.2, 4.8};
+    const std::initializer_list<qreal> far{5.4, 6.0, 6.6, 7.2, 7.8};
+    for (int dryness : {0, 50, 100})
+        EXPECT_DOUBLE_EQ(inked(dryness, core), 1.0) << dryness;   // the fill is never open
+    EXPECT_GT(inked(0, near), 1.5 * inked(0, far));               // sparser away from the core
+    EXPECT_GT(inked(0, far), 0.0);
+    EXPECT_LT(inked(60, near), 0.7 * inked(0, near));             // and as it dries
+    EXPECT_DOUBLE_EQ(inked(100, near), 0.0);                      // bone dry, the core alone
+    EXPECT_DOUBLE_EQ(inked(100, far), 0.0);
+
+    // A tail ends in a point: its tip is inked, and beside it, across the tail, nothing is: the hairs
+    // close on it and the core is mitred, where a round join or folded hairs would spread it.
+    Tail t;
+    t.tip         = QPointF(60, 260);
+    a.tails.items = {t};
+    a.style.drybrushDryness = 0;
+    const QLineF  axis(Geometry::balloonRect(a).center(), t.tip);
+    const QPointF beside = QPointF(-axis.dy(), axis.dx()) / axis.length() * 4.8;
+    for (quint32 seed : {1u, 2u, 0xC0FFEEu}) {
+        a.styleSeed            = seed;
+        const QPainterPath ink = Geometry::ink(a, Geometry::silhouette(a));
+        EXPECT_TRUE(ink.contains(t.tip)) << seed;
+        EXPECT_FALSE(ink.contains(t.tip + beside)) << seed;
+        EXPECT_FALSE(ink.contains(t.tip - beside)) << seed;
+    }
+
+    // The hairs follow each part on its own edge and run on under another only a little: the balloon's
+    // outline deep under a wide tail, far from both roots and from the tail's sides, has none.
+    {
+        ObjectRecord e = a;
+        e.shape        = Geometry::shapeTemplate("ellipse").shape;
+        e.box          = QSize(280, 160);
+        Tail wide;
+        wide.tip       = QPointF(140, 420);
+        wide.baseWidth = 160;
+        e.tails.items  = {wide};
+        const QRectF  body   = Geometry::balloonRect(e);
+        const QPointF bottom(body.center().x(), body.bottom());
+        for (quint32 seed = 1; seed <= 8; ++seed) {
+            e.styleSeed            = seed;
+            const QPainterPath ink = Geometry::ink(e, Geometry::silhouette(e));
+            for (qreal off : {-6.0, -3.0, 0.0, 3.0, 6.0})
+                EXPECT_FALSE(ink.contains(bottom + QPointF(0, off))) << seed << " at " << off;
+        }
+    }
+
+    // A concave corner (an L's inside, as a tail's root): each hair runs on to the other side's core and
+    // stops there. Outside, the two sides' hairs cross in the angle, so the line halving it is inked here
+    // and there; inside, nothing runs on into the fill, past where either side's band is.
+    a.tails.items.clear();
+    a.shape.kind         = ObjectRecord::Shape::Polygon;
+    a.shape.cornerRadius = 0.0;
+    a.shape.nodes        = {{0, 0}, {1, 0}, {1, 0.5}, {0.5, 0.5}, {0.5, 1}, {0, 1}};
+    a.box                = QSize(200, 200);
+    const QRectF  body   = Geometry::balloonRect(a);
+    const QPointF inside = body.topLeft() + QPointF(body.width() / 2, body.height() / 2);
+    a.style.drybrushDryness = 0;
+    int rootHits = 0;
+    for (quint32 seed = 1; seed <= 8; ++seed) {
+        a.styleSeed            = seed;
+        const QPainterPath ink = Geometry::ink(a, Geometry::silhouette(a));
+        for (qreal d : {4.5, 6.0, 7.5, 9.0})
+            rootHits += ink.contains(inside + QPointF(d, d) / std::sqrt(2.0)) ? 1 : 0;
+    }
+    EXPECT_GT(rootHits, 0);
+    for (quint32 seed = 1; seed <= 8; ++seed) {
+        a.styleSeed            = seed;
+        const QPainterPath ink = Geometry::ink(a, Geometry::silhouette(a));
+        for (qreal lane : {2.75, 4.25, 5.75, 7.25})   // a hair run on past the corner, either side
+            for (const QPointF& off : {QPointF(-4, -lane), QPointF(-lane, -4)})
+                EXPECT_FALSE(ink.contains(inside + off)) << seed << " at " << off.x() << "," << off.y();
     }
 }
 
@@ -1603,6 +1722,25 @@ QString goldenRecords()
                 write(name, look.name, tail, a);
             }
         }
+    }
+    // A dry brush on two templates, a white line on a black balloon with a pointed tail, at the dry
+    // brush's own numbers (PLAN-L P14a).
+    for (const char* id : {"speech", "shout"}) {
+        ObjectRecord a        = loadedRecord();
+        a.shape               = Geometry::shapeTemplate(id).shape;
+        a.style               = looks.first().style;
+        a.style.line          = ObjectRecord::Line::Drybrush;
+        a.style.stroke.colour = Qt::white;
+        a.style.strokeWidth   = 14;
+        a.style.drybrushCore     = StyleProperties().drybrushCore;
+        a.style.drybrushBristles = StyleProperties().drybrushBristles;
+        a.style.drybrushDryness  = StyleProperties().drybrushDryness;
+        a.texture             = looks.first().texture;
+        a.skin.fill.kind      = ObjectRecord::Pattern::Solid;
+        a.skin.fill.colour    = Qt::black;
+        a.effects.shadow      = false;
+        a.tails.items.first().tip = QPointF(90, 230);
+        write(QString::fromLatin1(id), QStringLiteral("drybrush"), true, a);
     }
     // A screentone fill on two templates, clean (PLAN-L P9).
     for (const char* id : {"speech", "shout"}) {

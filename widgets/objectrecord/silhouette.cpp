@@ -99,20 +99,31 @@ QPainterPath tailPath(const QPainterPath& outline, const QRectF& body, const Tai
 
 } // namespace
 
-QPainterPath silhouette(const ObjectRecord& a)
+QList<QPainterPath> silhouetteParts(const ObjectRecord& a)
 {
-    const QRectF body = balloonRect(a);
-    QPainterPath path = outlineOf(a, body);
-    if (path.isEmpty())
+    const QRectF       body    = balloonRect(a);
+    const QPainterPath outline = outlineOf(a, body);
+    if (outline.isEmpty())
         return {};
     // Each tail is aimed at the *bare* outline, not at the accumulating union: otherwise the second
     // tail would ray-cast against the first one and emerge from its flank.
-    const QPainterPath outline = path;
+    QList<QPainterPath> parts{outline};
     for (const Tail& t : a.tails.items) {
         const QPainterPath tp = tailPath(outline, body, t);
         if (!tp.isEmpty())
-            path = path.united(tp);
+            parts.append(tp);
     }
+    return parts;
+}
+
+QPainterPath silhouette(const ObjectRecord& a)
+{
+    const QList<QPainterPath> parts = silhouetteParts(a);
+    if (parts.isEmpty())
+        return {};
+    QPainterPath path = parts.first();
+    for (qsizetype i = 1; i < parts.size(); ++i)
+        path = path.united(parts[i]);
     return path;
 }
 

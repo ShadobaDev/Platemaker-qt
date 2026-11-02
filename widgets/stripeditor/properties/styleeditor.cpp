@@ -106,6 +106,13 @@ const FieldRowSpec k_brushRows[] = {
     {"brushDrift",   PM_TR("Drift:"),   0, 20,  " px", PM_TR("How far a stroke wanders off the edge."), 1},
 };
 
+//! The dry brush's numbers. Its width is the line's own too, shared among the bristles.
+const FieldRowSpec k_drybrushRows[] = {
+    {"drybrushCore",     PM_TR("Outline:"),  0, 100, " %", PM_TR("How wide the unbroken line in the middle is, as a share of the width. It keeps the fill apart from what is round it; the hairs share the rest.")},
+    {"drybrushBristles", PM_TR("Bristles:"), 1, 40,  "",   PM_TR("How many hairs across the line, half each side of its thin core: more makes them finer.")},
+    {"drybrushDryness",  PM_TR("Dryness:"),  0, 100, " %", PM_TR("How dry the brush is: the share of gaps in the hairs by the core. They thin out away from it; the core always stays.")},
+};
+
 #undef PM_TR
 
 } // namespace
@@ -121,8 +128,8 @@ StyleEditor::StyleEditor(QWidget* parent)
     m_line = new QComboBox(this);
     for (int i = 0; i <= int(StyleProperties::k_lastLine); ++i)
         m_line->addItem(lineTitle(static_cast<ObjectRecord::Line>(i)), i);
-    m_line->setToolTip(tr("How the edge is drawn: a solid line, a flash's strokes ringing it, or a few "
-                          "brush strokes laid along it."));
+    m_line->setToolTip(tr("How the edge is drawn: a solid line, a flash's strokes ringing it, a few "
+                          "brush strokes laid along it, or a dry brush: a thin line with hairs thinning out either side."));
     m_form->addRow(tr("Line:"), m_line);
     m_strokeWidth = new QSpinBox(this);
     m_strokeWidth->setRange(k_strokeWidthMin, k_strokeWidthMax);
@@ -140,6 +147,8 @@ StyleEditor::StyleEditor(QWidget* parent)
                   });
     m_brush.build(this, m_form, "brush", k_brushRows, k_trContext, m_values, m_populating,
                   [this] { emit changed(); });
+    m_drybrush.build(this, m_form, "drybrush", k_drybrushRows, k_trContext, m_values, m_populating,
+                     [this] { emit changed(); });
 
     connect(m_line, &QComboBox::currentIndexChanged, this, [this](int i) {
         if (m_populating || i < 0)
@@ -174,6 +183,7 @@ void StyleEditor::bind(const Subjects& subjects)
     m_stroke.reset();
     m_flash.reset();
     m_brush.reset();
+    m_drybrush.reset();
     bool sameShape = true;
     for (const ObjectRecord* a : subjects) {
         const StyleProperties v = StyleProperties::from(*a);
@@ -182,6 +192,7 @@ void StyleEditor::bind(const Subjects& subjects)
         m_mixedWidth  = m_mixedWidth  || v.strokeWidth != m_values.strokeWidth;
         m_flash.compare(v, m_values);
         m_brush.compare(v, m_values);
+        m_drybrush.compare(v, m_values);
         sameShape = sameShape && a->shape.kind == subjects.first()->shape.kind;
     }
     m_lineTouched = m_widthTouched = false;
@@ -204,6 +215,7 @@ void StyleEditor::applyEditedTo(ObjectRecord& target) const
     if (m_widthTouched)  t.strokeWidth = m_values.strokeWidth;
     m_flash.applyEdited(m_values, t);
     m_brush.applyEdited(m_values, t);
+    m_drybrush.applyEdited(m_values, t);
     t.applyTo(target);
 }
 
@@ -215,6 +227,7 @@ void StyleEditor::syncFromValues()
     m_stroke.show(m_values);
     m_flash.show(m_values);
     m_brush.show(m_values);
+    m_drybrush.show(m_values);
     showRows();
     m_populating = false;
 }
@@ -224,6 +237,7 @@ void StyleEditor::showRows()
     // A selection that disagrees shows the rows at least one of them has.
     m_flash.setVisible(m_form, m_mixedLine || m_values.line == ObjectRecord::Line::Flash);
     m_brush.setVisible(m_form, m_mixedLine || m_values.line == ObjectRecord::Line::Brush);
+    m_drybrush.setVisible(m_form, m_mixedLine || m_values.line == ObjectRecord::Line::Drybrush);
 }
 
 }  // namespace StripEdit

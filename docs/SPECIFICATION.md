@@ -217,7 +217,18 @@ built-in preset (`inkRough()`).
 A line that follows the outline walks it by arc length (`EdgeWalk`, `edgeWalks()` in `edgewalk.*`) and
 varies what it lays there with `smoothNoise()`, seeded from `styleSeed`, so it stays put while the
 balloon is edited and *Re-roll* deals it again. The brush (`brushInk()`) is the example: ribbons about
-the edge, as wide as the outline (the line's own `strokeWidth`, not a number of its own).
+the edge, as wide as the outline (the line's own `strokeWidth`, not a number of its own). The dry brush
+(`drybrushInk()`) is a thin core (`drybrushCore` of the width), the outline mitred so a point stays one,
+always whole so the fill is never open; and hairs either side, thin ribbons in lanes, gone where the
+lane's noise is over a level that rises from `drybrushDryness` by the core towards bone dry at the line's
+edge. The core follows the joined silhouette, the hairs each part of it (`silhouetteParts()`: the
+balloon, each tail) on its own edge: where that edge goes under another part they run on, a few
+half-widths at most, so a tail's root is a natural hatch and no corner. They run between a part's
+corners, never round one: at a convex corner they run on straight and cross into a hatch, at a point (a
+tail's tip) they close on the core, and at a concave one they run on straight until the other side's core
+stops them. Nothing is subtracted: every ring winds one way and the winding rule unites them;
+`loopedNoise()` lays a whole number of the noise's spans round the loop (`smoothNoise()`'s period), so it
+has no seam.
 
 The flash is the worked example of a line. Its parameters are members of
 `StyleProperties` with a `flash` prefix, one line each in its `fields()` list; the *Line* section

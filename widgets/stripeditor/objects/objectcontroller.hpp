@@ -503,8 +503,9 @@ public:
     void applyPanelRecords(const QList<ObjectRecord>& records, bool commit);
     //! OBJECT STATE's *Fit*: grows or shrinks the selected object's box to its words. Not a picture.
     void fitSelectionToText();
-    //! *Fix padding*: lowers the selected balloon's padding until its words fit — past the outline if
-    //! need be — and leaves the box alone. Nothing to do for lettering that already fits.
+    //! *Fix padding*: lowers the selected balloon's paddings, each in its own direction, until its words
+    //! fit — past the outline if need be — and leaves the box alone. Nothing to do for lettering that
+    //! already fits.
     void fixSelectionPadding();
 
     // --- a new object: asked for here, created by the owner, selected when it comes back in the feed ---

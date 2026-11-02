@@ -16,8 +16,9 @@ constexpr int k_floor = 40;
 ObjectRecord withShape(const ShapeProperties& shape, int padding = 8)
 {
     ObjectRecord a;
-    a.shape        = shape;
-    a.text.padding = padding;
+    a.shape            = shape;
+    a.text.paddingSide = padding;
+    a.text.paddingTop  = padding;
     a.box          = QSize(500, 500);   // a fit's starting point must not matter
     return a;
 }
@@ -109,6 +110,19 @@ TEST(TextFit, PaddingGrowsTheBoxAndANegativeOneShrinksIt)
     EXPECT_LT(burst.width(), tight.width());
     // Negative enough, the lettering is wider than its own balloon — an impact balloon's look.
     EXPECT_LT(burst.width(), block.width());
+
+    // Each in its own direction (PLAN-T C1): the side padding widens the box only, the top one (mirrored
+    // at the bottom) heightens it only.
+    ObjectRecord side       = withShape(ObjectRecord::Shape::Box, 0);
+    side.text.paddingSide   = 20;
+    ObjectRecord top        = withShape(ObjectRecord::Shape::Box, 0);
+    top.text.paddingTop     = 20;
+    const QSize  wide       = Geometry::fitBoxFor(side, block);
+    const QSize  tall       = Geometry::fitBoxFor(top, block);
+    EXPECT_EQ(wide.width(), roomy.width());
+    EXPECT_EQ(wide.height(), tight.height());
+    EXPECT_EQ(tall.width(), tight.width());
+    EXPECT_EQ(tall.height(), roomy.height());
 }
 
 TEST(TextFit, PaddingDoesNothingWithoutABalloon)
@@ -127,38 +141,59 @@ TEST(TextFit, NoTextKeepsTheBox)
     EXPECT_TRUE(Geometry::fits(a, QSizeF()));
 }
 
-TEST(TextFit, FixPaddingLowersItUntilTheLetteringFits)
+TEST(TextFit, FixPaddingLowersEachUntilTheLetteringFits)
 {
     const QSizeF block(200, 60);
 
-    // The box Fit gives at padding 0: at padding 8 the lettering overflows, and 0 is the most it can keep.
+    // The box Fit gives at padding 0: at padding 8 the lettering overflows both ways, and 0 is the most
+    // either can keep.
     ObjectRecord a = withShape(ObjectRecord::Shape::Box, 0);
     a.box          = Geometry::fitBoxFor(a, block);
-    a.text.padding = 8;
+    a.text.paddingSide = a.text.paddingTop = 8;
     ASSERT_FALSE(Geometry::fits(a, block));
-    EXPECT_EQ(Geometry::paddingToFit(a, block), 0);
+    TextProperties fixed = Geometry::paddingsToFit(a, block);
+    EXPECT_EQ(fixed.paddingSide, 0);
+    EXPECT_EQ(fixed.paddingTop, 0);
 
-    // A balloon smaller than its lettering: the padding goes below zero, past the outline.
+    // Each in its own direction only (PLAN-T C16): too wide lowers the side and leaves the top alone...
+    ObjectRecord wide = a;
+    wide.box.setHeight(a.box.height() + 100);
+    fixed = Geometry::paddingsToFit(wide, block);
+    EXPECT_EQ(fixed.paddingSide, 0);
+    EXPECT_EQ(fixed.paddingTop, 8);
+    // ...and too tall lowers the top and leaves the side alone.
+    ObjectRecord tall = a;
+    tall.box.setWidth(a.box.width() + 100);
+    fixed = Geometry::paddingsToFit(tall, block);
+    EXPECT_EQ(fixed.paddingSide, 8);
+    EXPECT_EQ(fixed.paddingTop, 0);
+
+    // A balloon smaller than its lettering: the paddings go below zero, past the outline, each to the
+    // largest that holds.
     ObjectRecord burst = withShape(ObjectRecord::Shape::Box, -20);
     burst.box          = Geometry::fitBoxFor(burst, block);
-    burst.text.padding = 8;
-    const int fixed    = Geometry::paddingToFit(burst, block);
-    EXPECT_EQ(fixed, -20);
-    burst.text.padding = fixed;
+    burst.text.paddingSide = burst.text.paddingTop = 8;
+    fixed = Geometry::paddingsToFit(burst, block);
+    EXPECT_EQ(fixed.paddingSide, -20);
+    burst.text = fixed;
     EXPECT_TRUE(Geometry::fits(burst, block));
-    burst.text.padding = fixed + 1;
-    EXPECT_FALSE(Geometry::fits(burst, block));   // and it is the largest that does
+    ObjectRecord over = burst;
+    ++over.text.paddingSide;
+    EXPECT_FALSE(Geometry::fits(over, block));   // and it is the largest that does
+    over = burst;
+    ++over.text.paddingTop;
+    EXPECT_FALSE(Geometry::fits(over, block));
 }
 
 TEST(TextFit, FixPaddingLeavesWhatAlreadyFitsAlone)
 {
     ObjectRecord roomy = withShape(ObjectRecord::Shape::Ellipse, 8);
     roomy.box          = QSize(900, 600);
-    EXPECT_EQ(Geometry::paddingToFit(roomy, QSizeF(200, 36)), 8);   // never raised to take up the room
+    EXPECT_EQ(Geometry::paddingsToFit(roomy, QSizeF(200, 36)), roomy.text);   // never raised to take up the room
 
     ObjectRecord text = withShape(ObjectRecord::Shape::None, 8);
     text.box          = QSize(50, 40);
-    EXPECT_EQ(Geometry::paddingToFit(text, QSizeF(200, 36)), 8);    // no outline, no padding to give
+    EXPECT_EQ(Geometry::paddingsToFit(text, QSizeF(200, 36)), text.text);     // no outline, no padding to give
 }
 
 TEST(TextFit, TheAnchorIsTheAlignedSideAndTheMiddleOfTheBlock)

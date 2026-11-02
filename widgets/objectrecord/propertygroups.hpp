@@ -662,16 +662,23 @@ struct TextProperties
     //! Line pitch as a percentage of the font's own — for faces that set their lines too far apart.
     int     lineSpacing = 100;
     /**
-     * @brief How far the lettering keeps from the balloon's outline, in strip pixels, on top of the
-     *        stroke — an inset of the shape's own text area.
+     * @name How far the lettering keeps from the balloon's outline, in strip pixels, on top of the stroke:
+     *       an inset of the shape's own text area (PLAN-T C1).
      *
      * The lettering's, not the balloon's: it is how the words sit, and it is set beside the rest of how
-     * they are set. **Only a balloon uses it** — a text object has no outline to keep away from, so
-     * the value is carried and ignored, and the editor does not offer it there. **May be negative**:
-     * the text area then reaches past the outline, which an impact balloon with lettering bursting out
-     * of it needs. 8 is the inset every balloon had before it was a property.
+     * they are set. **Only a balloon uses them**: a text object has no outline to keep away from, so the
+     * values are carried and ignored, and the editor does not offer them there. **May be negative**: the
+     * text area then reaches past the outline, which an impact balloon with lettering bursting out of it
+     * needs. 8 is the inset every balloon had before it was a property.
+     *
+     * The words start centred, and each line grows the block up and down alike until its top meets the top
+     * padding; from there it grows only downwards, out of the balloon, and is never cut there
+     * (Geometry::textOutline()). So the top padding is mirrored at the bottom for the centring and the fit.
+     * @{
      */
-    int     padding = 8;
+    int     paddingSide = 8;   //!< Left and right, one value.
+    int     paddingTop  = 8;   //!< The top, which the block stops at.
+    /** @} */
 
     //! The fields, with the keys they are saved under (fields.hpp). The keys predate the members'
     //! names, which is why three of them differ.
@@ -684,7 +691,8 @@ struct TextProperties
         v("bold",        &TextProperties::bold);
         v("align",       &TextProperties::align);
         v("lineSpacing", &TextProperties::lineSpacing);
-        v("padding",     &TextProperties::padding);
+        v("paddingSide", &TextProperties::paddingSide);
+        v("paddingTop",  &TextProperties::paddingTop);
         v("textColour",  &TextProperties::colour);
     }
 

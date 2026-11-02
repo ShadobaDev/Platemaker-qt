@@ -40,19 +40,22 @@ constexpr int   k_minFitSize    = 40;
 
 /**
  * @brief The rectangle text may occupy — the shape's own text area (ShapeInfo::safeArea), inset so
- *        letters do not touch the stroke, and by the author's padding.
+ *        letters do not touch the stroke, and by the author's paddings: the side one left and right, the
+ *        top one at the top and, mirrored, at the bottom, which the block is centred between.
  */
 QRectF textSafeArea(const ObjectRecord& a, const QRectF& body)
 {
     if (!a.hasSilhouette())
         return QRectF(0, 0, a.box.width(), a.box.height());
 
-    // The author's padding (TextProperties::padding), on top of the stroke. Negative widens the area
-    // past the outline — an impact balloon's lettering bursting out of it.
+    // The author's paddings (TextProperties), on top of the stroke. Negative widens the area past the
+    // outline — an impact balloon's lettering bursting out of it.
     // An edge's teeth go in from the outline, so the area gives up their depth as well.
-    const qreal  pad    = a.style.strokeWidth + a.text.padding + edgeInset(a.shape);
+    const qreal  inset  = a.style.strokeWidth + edgeInset(a.shape);
+    const qreal  side   = inset + a.text.paddingSide;
+    const qreal  top    = inset + a.text.paddingTop;
     const QRectF usable = shapeInfo(a.shape.kind).safeArea(a.shape, body);
-    return usable.adjusted(pad, pad, -pad, -pad);
+    return usable.adjusted(side, top, -side, -top);
 }
 
 /**
@@ -123,8 +126,8 @@ QPainterPath textOutline(const ObjectRecord& a)
     QTextDocument doc;
     layOutText(doc, a, safe.width());
 
-    // Vertically centred in the safe area — a bubble's text sits in the middle of the balloon, never
-    // pinned to its top edge.
+    // Vertically centred in the safe area — a bubble's text sits in the middle of the balloon. A block
+    // taller than the area stops at its top, the top padding, and goes on downwards (PLAN-T C2).
     const qreal   h = doc.size().height();
     const QPointF origin(safe.left(), safe.top() + qMax(qreal(0), (safe.height() - h) / 2.0));
 
@@ -156,10 +159,15 @@ QPainterPath textOutline(const ObjectRecord& a)
     if (out.isEmpty())
         return out;
 
-    // The old painter clipped to the safe area so an overlong string could not bleed past the stroke.
-    // Intersecting keeps that guarantee in vector form, so it survives into the SVG too.
+    // The paddings are the clip, so an overlong line cannot bleed past the stroke: on the sides and at the
+    // top. Not at the bottom: lines the balloon has no room for go on out of it, never cut (PLAN-T C15),
+    // and the red text area says so. A text object and a picture's words keep their box as it was (C10).
+    // Intersecting keeps that in vector form, so it survives into the SVG.
+    QRectF open = safe;
+    if (a.hasSilhouette())
+        open.setBottom(qMax(safe.bottom(), out.boundingRect().bottom()));
     QPainterPath clip;
-    clip.addRect(safe);
+    clip.addRect(open);
     return out.intersected(clip);
 }
 
@@ -240,33 +248,44 @@ QSize fittedBox(const ObjectRecord& a)
     return fitBoxFor(a, textBlockSize(a));
 }
 
-int paddingToFit(const ObjectRecord& a, const QSizeF& block)
+TextProperties paddingsToFit(const ObjectRecord& a, const QSizeF& block)
 {
-    if (!a.hasSilhouette() || fits(a, block))
-        return a.text.padding;   // nothing to fix — and a fix only ever lowers it
+    TextProperties out = a.text;
+    if (!a.hasSilhouette() || block.isEmpty())
+        return out;   // no outline, no padding to give
 
-    // The text area shrinks as the padding grows, on every shape, so the largest padding that still
-    // holds the block is a binary search below the current one. Asked of fits() itself rather than
-    // solved from the shape formulas, so it cannot disagree with what the red outline says.
-    ObjectRecord probe = a;
-    const auto   holds = [&](int padding) {
-        probe.text.padding = padding;
-        return fits(probe, block);
-    };
-    int lo = a.text.padding - k_maxFitSize;   // far below anything; the area outgrows any block there
-    int hi = a.text.padding;                  // does not hold, or we would have returned above
-    if (!holds(lo))
+    // Each padding gives way in its own direction only (PLAN-T C16): the side one is all that narrows the
+    // area, the top one (mirrored at the bottom) all that shortens it. Within one direction the area
+    // shrinks as the padding grows, on every shape, so the largest padding that still holds the block is
+    // a binary search below the current one. A fix only ever lowers a padding.
+    const auto lowered = [&](int TextProperties::* padding, bool across) {
+        ObjectRecord probe = a;
+        const qreal  need  = across ? block.width() : block.height();
+        const auto   holds = [&](int value) {
+            probe.text.*padding = value;
+            const QRectF area   = textArea(probe);
+            return (across ? area.width() : area.height()) + k_fitSlack >= need;
+        };
+        int hi = a.text.*padding;
+        if (holds(hi))
+            return hi;                    // nothing to fix in this direction
+        int lo = hi - k_maxFitSize;       // far below anything; the area outgrows any block there
+        if (!holds(lo))
+            return lo;
+        while (hi - lo > 1) {
+            const int mid = lo + (hi - lo) / 2;
+            (holds(mid) ? lo : hi) = mid;
+        }
         return lo;
-    while (hi - lo > 1) {
-        const int mid = lo + (hi - lo) / 2;
-        (holds(mid) ? lo : hi) = mid;
-    }
-    return lo;
+    };
+    out.paddingSide = lowered(&TextProperties::paddingSide, true);
+    out.paddingTop  = lowered(&TextProperties::paddingTop, false);
+    return out;
 }
 
-int fittingPadding(const ObjectRecord& a)
+TextProperties fittingPaddings(const ObjectRecord& a)
 {
-    return paddingToFit(a, textBlockSize(a));
+    return paddingsToFit(a, textBlockSize(a));
 }
 
 QPointF textAnchorFor(const ObjectRecord& a, const QSizeF& block)

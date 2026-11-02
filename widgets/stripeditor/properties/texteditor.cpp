@@ -45,6 +45,22 @@ public:
     }
 };
 
+//! The context the rows' strings are translated in: this panel's own.
+constexpr char k_trContext[] = "StripEdit::TextEditor";
+
+#define PM_TR(s) QT_TRANSLATE_NOOP("StripEdit::TextEditor", s)
+//! The two paddings (PLAN-T C1), in strip pixels. Negative lets the lettering reach past the outline.
+const FieldRowSpec k_paddingRows[] = {
+    {"paddingSide", PM_TR("Padding sides"), k_paddingMin, k_paddingMax, " px",
+     PM_TR("Room between the balloon's outline and the lettering, left and right.\n"
+           "Negative lets the lettering reach past the outline.")},
+    {"paddingTop",  PM_TR("Padding top"),   k_paddingMin, k_paddingMax, " px",
+     PM_TR("Room above the lettering, and as much below it while it is centred. Each new line grows\n"
+           "the lettering up and down alike until it meets this; further lines go on downwards, out of\n"
+           "the balloon. Negative lets the lettering reach past the outline.")},
+};
+#undef PM_TR
+
 } // namespace
 
 TextEditor::TextEditor(QWidget* parent)
@@ -111,12 +127,8 @@ TextEditor::TextEditor(QWidget* parent)
     m_lineSpacing->setToolTip(tr("Distance between lines, as a percentage of the font's own."));
     form->addRow(tr("Line spacing"), m_lineSpacing);
 
-    m_padding = new QSpinBox(this);
-    m_padding->setRange(k_paddingMin, k_paddingMax);
-    m_padding->setSuffix(tr(" px"));
-    m_padding->setToolTip(tr("Room between the balloon's outline and the lettering.\n"
-                             "Negative lets the lettering reach past the outline."));
-    form->addRow(tr("Padding"), m_padding);
+    m_paddings.build(this, form, "padding", k_paddingRows, k_trContext, m_values, m_populating,
+                     [this] { emit changed(); });
 
     m_align = new QComboBox(this);
     m_align->addItem(tr("Centre"), int(Qt::AlignHCenter));
@@ -163,15 +175,6 @@ TextEditor::TextEditor(QWidget* parent)
         m_lineSpacingTouched = true;
         emit changed();
     });
-    connect(m_padding, &QSpinBox::valueChanged, this, [this](int v) {
-        if (m_populating)
-            return;
-        if (restoreSpin(m_padding, k_paddingMin))
-            m_mixedPadding = false;
-        m_values.padding = v;
-        m_paddingTouched = true;
-        emit changed();
-    });
     connect(m_bold, &QCheckBox::toggled, this, [this](bool on) {
         if (m_populating)
             return;
@@ -214,7 +217,7 @@ void TextEditor::bind(const Subjects& subjects)
     m_subjects = static_cast<int>(subjects.size());
 
     m_mixedColour = m_mixedFamily = m_mixedSize = m_mixedBold = m_mixedAlign = m_mixedLineSpacing = false;
-    m_mixedPadding = false;
+    m_paddings.reset();
     m_anyBalloon   = false;
     for (const ObjectRecord* a : subjects) {
         const TextProperties t = TextProperties::from(*a);
@@ -224,11 +227,11 @@ void TextEditor::bind(const Subjects& subjects)
         m_mixedBold   = m_mixedBold   || t.bold      != m_values.bold;
         m_mixedAlign  = m_mixedAlign  || t.align     != m_values.align;
         m_mixedLineSpacing = m_mixedLineSpacing || t.lineSpacing != m_values.lineSpacing;
-        m_mixedPadding     = m_mixedPadding     || t.padding     != m_values.padding;
+        m_paddings.compare(t, m_values);
         m_anyBalloon       = m_anyBalloon       || a->hasSilhouette();
     }
     m_colourTouched = m_familyTouched = m_sizeTouched = m_boldTouched = m_alignTouched = false;
-    m_lineSpacingTouched = m_paddingTouched = false;
+    m_lineSpacingTouched = false;
 
     syncFromValues();
 }
@@ -248,7 +251,7 @@ void TextEditor::applyEditedTo(ObjectRecord& target) const
     if (m_boldTouched)   t.bold      = m_values.bold;
     if (m_alignTouched)  t.align     = m_values.align;
     if (m_lineSpacingTouched) t.lineSpacing = m_values.lineSpacing;
-    if (m_paddingTouched)     t.padding     = m_values.padding;
+    m_paddings.applyEdited(m_values, t);
     t.applyTo(target);
 }
 
@@ -294,10 +297,10 @@ void TextEditor::syncFromValues()
     }
     showSpin(m_size, m_mixedSize, m_values.pixelSize, k_textSizeMin, k_textSizeMax);
     showSpin(m_lineSpacing, m_mixedLineSpacing, m_values.lineSpacing, k_lineSpacingMin, k_lineSpacingMax);
-    showSpin(m_padding, m_mixedPadding, m_values.padding, k_paddingMin, k_paddingMax);
+    m_paddings.show(m_values);
     // A text object has no outline to keep from. Shown when anything bound has one: a value typed for
     // a set lands on the text objects in it too, where it is carried and ignored.
-    m_form->setRowVisible(m_padding, m_anyBalloon);
+    m_paddings.setVisible(m_form, m_anyBalloon);
     showCheck(m_bold, m_mixedBold, m_values.bold);
     showCombo(m_align, m_mixedAlign, m_align->findData(m_values.align));
     if (m_mixedColour)

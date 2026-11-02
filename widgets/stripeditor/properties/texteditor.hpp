@@ -1,6 +1,7 @@
 #ifndef STRIPEDIT_TEXTEDITOR_HPP
 #define STRIPEDIT_TEXTEDITOR_HPP
 
+#include "properties/fieldrows.hpp"
 #include "properties/propertygroupeditor.hpp"
 
 class QCheckBox;
@@ -61,7 +62,7 @@ private:
     QComboBox*      m_align  = nullptr;
     QPushButton*    m_swatch = nullptr;
     QSpinBox*       m_lineSpacing = nullptr;
-    QSpinBox*       m_padding = nullptr;    //!< Only while something bound has a balloon to keep from.
+    FieldRows<TextProperties> m_paddings;   //!< Side and top; only while something bound has a balloon to keep from.
     QFormLayout*    m_form = nullptr;
     QCheckBox*      m_showWhitespace = nullptr;   //!< The text box's own view; never the balloon's.
 
@@ -83,9 +84,7 @@ private:
     bool m_colourTouched = false;
     bool m_mixedLineSpacing   = false;
     bool m_lineSpacingTouched = false;
-    bool m_mixedPadding       = false;
-    bool m_paddingTouched     = false;
-    bool m_anyBalloon         = true;   //!< Whether the padding row means anything for what is bound.
+    bool m_anyBalloon         = true;   //!< Whether the padding rows mean anything for what is bound.
 };
 
 }  // namespace StripEdit

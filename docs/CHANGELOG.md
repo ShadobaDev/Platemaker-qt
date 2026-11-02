@@ -70,8 +70,10 @@
     hidden under a balloon can still be aimed. Artwork scales as one, so it has corner grips only.
   - **The lettering is broken where you break it.** Lines are never wrapped for you; a long word is
     left whole. **Line spacing** (TEXT) tightens or loosens the lines, as a percentage of the font's
-    own. **Padding** (TEXT, on a balloon) sets how far the lettering keeps from the outline — negative
-    lets it burst out of the balloon. *Show whitespace* under the text box marks spaces, tabs and line ends in the box
+    own. **Padding sides** and **Padding top** (TEXT, on a balloon) set how far the lettering keeps from
+    the outline — negative lets it burst out of the balloon. The lettering starts in the middle of the
+    balloon and each new line grows it up and down alike; once it reaches the top padding, further lines
+    go on downwards, out of the balloon, and are never cut off there. *Show whitespace* under the text box marks spaces, tabs and line ends in the box
     itself; the balloon is always drawn as it will render.
   - **Tails point anywhere, curve, and come in numbers** — a tail is a tip, a width and a bend, and one
     sound may have several speakers. The base is found where a ray from the balloon's centre crosses its
@@ -169,9 +171,10 @@
     drag is one undo step.
   - **Fit to text** gives the smallest balloon that holds the lettering, on **both** axes, floored so a
     short line cannot collapse the shape. When the lettering does not fit — the box dragged too small, or
-    a line typed too long — the selected object's text area is **outlined in red**; the overflow is
-    clipped as before, the outline is what tells you so. **Fix padding** keeps the balloon's size and
-    lowers its padding instead, below zero if the lettering has to reach past the outline. Both are in
+    a line typed too long — the selected object's text area is **outlined in red**; a line too wide is
+    clipped at the sides, lines too many run on below. **Fix padding** keeps the balloon's size and
+    lowers its paddings instead, each in its own direction (the top one for too many lines, the side one
+    for a line too wide), below zero if the lettering has to reach past the outline. Both are in
     OBJECT STATE and on the right-click menu.
   - **The lettering stays where you put it.** *Fit to text* and *Convert to ▸* resize the box around
     the words, from the side they are aligned to, so converting text to a balloon draws the balloon

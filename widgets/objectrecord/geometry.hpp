@@ -121,8 +121,9 @@ enum class Part { None, Fill, Outline, Text };
  *
  * Outlines rather than a string, because that is what lets the library render a bubble with no font
  * stack and no font installed: by the time the artwork leaves here it is pure geometry. The wrapping is
- * still the text document's, so line breaks are exactly what the editor showed. Clipped to the shape's
- * safe area, so an overlong string cannot bleed past the stroke.
+ * still the text document's, so line breaks are exactly what the editor showed. Centred in the text area,
+ * or from its top when taller. Clipped to it on the sides and the top, so an overlong line cannot bleed
+ * past the stroke; a balloon's lines are not cut at the bottom, where they go on out of it.
  *
  * @param a The record to check.
  * @return The text outlines, or an empty path if there is no lettering.
@@ -153,7 +154,7 @@ enum class Part { None, Fill, Outline, Text };
 
 /**
  * @brief The rectangle \p a's lettering may occupy, in box coordinates — inside the outline, less the
- *        stroke and the padding. A text object's whole box.
+ *        stroke and the paddings (the top one mirrored at the bottom). A text object's whole box.
  */
 [[nodiscard]] QRectF textArea(const ObjectRecord& a);
 
@@ -193,17 +194,18 @@ enum class Part { None, Fill, Outline, Text };
 [[nodiscard]] QSize fittedBox(const ObjectRecord& a);
 
 /**
- * @brief The largest padding, no higher than \p a's own, at which a block of size \p block fits —
- *        below zero if the lettering has to reach past the outline.
+ * @brief \p a's lettering with each padding lowered, in its own direction only, to the largest value at
+ *        which a block of size \p block fits — below zero if it has to reach past the outline.
  *
- * The box stays as it is; the padding gives way. It only ever lowers the padding: lettering that
- * already fits keeps the room the author gave it. A text object has no padding to give, so its own
- * value comes back. Pure geometry, like fitBoxFor().
+ * Too wide lowers the side padding, too tall the top one; the other is left alone. The box stays as it
+ * is; the paddings give way. A fix only ever lowers them: lettering that already fits keeps the room the
+ * author gave it. A text object has no padding to give, so its own values come back. Pure geometry, like
+ * fitBoxFor().
  */
-[[nodiscard]] int paddingToFit(const ObjectRecord& a, const QSizeF& block);
+[[nodiscard]] TextProperties paddingsToFit(const ObjectRecord& a, const QSizeF& block);
 
-//! paddingToFit() with \p a's lettering measured — *Fix padding*.
-[[nodiscard]] int fittingPadding(const ObjectRecord& a);
+//! paddingsToFit() with \p a's lettering measured — *Fix padding*.
+[[nodiscard]] TextProperties fittingPaddings(const ObjectRecord& a);
 
 /**
  * @brief The point of \p a's lettering that stays put when its box changes, in box coordinates.

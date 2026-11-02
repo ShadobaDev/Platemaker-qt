@@ -218,8 +218,9 @@ ObjectState::ObjectState(PresetStore& presets, QWidget* parent)
     auto* fitBtn = new QPushButton(tr("Fit to text"), m_actions);
     fitBtn->setToolTip(tr("Size the bubble to the line it holds."));
     auto* padBtn = new QPushButton(tr("Fix padding"), m_actions);
-    padBtn->setToolTip(tr("Lower the padding until the lettering fits the balloon — below zero if it\n"
-                          "has to reach past the outline. The balloon keeps its size."));
+    padBtn->setToolTip(tr("Lower the paddings until the lettering fits the balloon: the top one if it is\n"
+                          "too tall, the side one if it is too wide, below zero if it has to reach past\n"
+                          "the outline. The balloon keeps its size."));
     auto* delBtn = new QPushButton(tr("Delete"), m_actions);
     m_fitButton    = fitBtn;
     m_padButton    = padBtn;

@@ -60,10 +60,11 @@ TEST_F(Presets, OneChangedPropertyIsCustom)
     const PresetStore  store;
     const ObjectRecord applied = PresetStore::applied(store.presets().first(), placed(), false);
 
-    // A preset carries the padding and the line spacing too, so moving either is leaving the look.
+    // A preset carries the paddings and the line spacing too, so moving either is leaving the look.
     const QList<std::function<void(ObjectRecord&)>> edits{
         [](ObjectRecord& a) { a.skin.fill.colour = a.skin.fill.colour == QColor(Qt::red) ? QColor(Qt::blue) : QColor(Qt::red); },
-        [](ObjectRecord& a) { a.text.padding += 5; },
+        [](ObjectRecord& a) { a.text.paddingSide += 5; },
+        [](ObjectRecord& a) { a.text.paddingTop += 5; },
         [](ObjectRecord& a) { a.text.lineSpacing += 10; },
     };
     for (int i = 0; i < edits.size(); ++i) {
@@ -78,11 +79,13 @@ TEST_F(Presets, APresetBringsItsPaddingAndLineSpacing)
 {
     const PresetStore store;
     BubblePreset      p = store.presets().first();
-    p.record.text.padding    = -4;
+    p.record.text.paddingSide = -4;
+    p.record.text.paddingTop  = 12;
     p.record.text.lineSpacing = 90;
 
     const ObjectRecord look = PresetStore::applied(p, placed(), /*keepShape=*/true);
-    EXPECT_EQ(look.text.padding, -4);
+    EXPECT_EQ(look.text.paddingSide, -4);
+    EXPECT_EQ(look.text.paddingTop, 12);
     EXPECT_EQ(look.text.lineSpacing, 90);
 }
 

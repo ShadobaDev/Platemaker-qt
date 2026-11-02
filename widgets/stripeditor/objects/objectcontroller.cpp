@@ -910,11 +910,11 @@ void ObjectController::fixSelectionPadding()
     Object* item = m_overlayItems.value(m_selectedOverlay);
     if (!item || !item->record().hasSilhouette())
         return;   // only a balloon has an outline to keep the lettering from
-    ObjectRecord a      = item->record();
-    const int    fitted = Geometry::fittingPadding(a);
-    if (fitted == a.text.padding)
+    ObjectRecord         a      = item->record();
+    const TextProperties fitted = Geometry::fittingPaddings(a);
+    if (fitted == a.text)
         return;   // it fits already — not an edit, and not a history step
-    a.text.padding = fitted;
+    a.text = fitted;
     applyRecord(m_selectedOverlay, a, /*commit=*/true, tr("Fix padding"));
     emit boundToRecord(a);
 }

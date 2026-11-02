@@ -90,7 +90,8 @@ ObjectRecord loadedRecord()
     a.text.align       = Qt::AlignRight;
     a.text.colour      = QColor(1, 2, 3);
     a.text.lineSpacing = 85;
-    a.text.padding     = -13;   // negative on purpose: an impact balloon's lettering may leave it
+    a.text.paddingSide = -13;   // negative on purpose: an impact balloon's lettering may leave it
+    a.text.paddingTop  = 17;    // and not the side's, so the two are told apart
 
     a.skin.fill.colour        = QColor(4, 5, 6);
     a.style.stroke.colour     = QColor(7, 8, 9);
@@ -166,7 +167,7 @@ struct StyleMirror {
 static_assert(sizeof(StyleProperties) == sizeof(StyleMirror),
               "StyleProperties grew a field: place it (see above), then mirror it");
 
-struct TextMirror { QString body, family; int pixelSize; bool bold; int align; QColor colour; int lineSpacing, padding; };
+struct TextMirror { QString body, family; int pixelSize; bool bold; int align; QColor colour; int lineSpacing, paddingSide, paddingTop; };
 static_assert(sizeof(TextProperties) == sizeof(TextMirror),
               "TextProperties grew a field: place it (see above), then mirror it");
 
@@ -294,7 +295,8 @@ void expectUntouched(Group applied, const ObjectRecord& before, const ObjectReco
         EXPECT_EQ(after.text.align,     before.text.align);
         EXPECT_EQ(after.text.colour,    before.text.colour);
         EXPECT_EQ(after.text.lineSpacing, before.text.lineSpacing);
-        EXPECT_EQ(after.text.padding,     before.text.padding);
+        EXPECT_EQ(after.text.paddingSide, before.text.paddingSide);
+        EXPECT_EQ(after.text.paddingTop,  before.text.paddingTop);
     }
     if (applied != Group::Tails) {
         ASSERT_EQ(after.tails.items.size(), before.tails.items.size());
@@ -422,7 +424,8 @@ TEST(PropertyGroupOwnership, Text)
     s.align     = Qt::AlignLeft;
     s.colour    = QColor(90, 80, 70);
     s.lineSpacing = 140;
-    s.padding     = 21;
+    s.paddingSide = 21;
+    s.paddingTop  = -4;
     s.applyTo(after);
 
     EXPECT_EQ(after.text, s);
@@ -551,7 +554,8 @@ TEST(PropertyGroupPersistence, KeepsTheFlatKeys)
     EXPECT_EQ(j.value(QStringLiteral("fontSize")).toInt(),     a.text.pixelSize);
     EXPECT_EQ(j.value(QStringLiteral("align")).toInt(),        a.text.align);
     EXPECT_EQ(j.value(QStringLiteral("lineSpacing")).toInt(),  a.text.lineSpacing);
-    EXPECT_EQ(j.value(QStringLiteral("padding")).toInt(),      a.text.padding);
+    EXPECT_EQ(j.value(QStringLiteral("paddingSide")).toInt(),  a.text.paddingSide);
+    EXPECT_EQ(j.value(QStringLiteral("paddingTop")).toInt(),   a.text.paddingTop);
     EXPECT_EQ(j.value(QStringLiteral("texture")).toString(),   QStringLiteral("rough"));
 
     // No grouping crept into the file: a record saved before the groups existed still loads.
@@ -1405,7 +1409,7 @@ TEST(Import, OnlyAFileCarryingTheRecipeIsAdopted)
     const QByteArray ours =
         QByteArray("<svg xmlns=\"http://www.w3.org/2000/svg\" xmlns:pm=\"") + Svg::k_pmNamespace
         + "\" width=\"10\" height=\"10\"><g pm:shape=\"cloud\" pm:box=\"300,200\""
-          " pm:tails=\"40,260,30,0.2\" pm:text=\"Hello\" pm:padding=\"-6\" pm:lineSpacing=\"80\"/></svg>";
+          " pm:tails=\"40,260,30,0.2\" pm:text=\"Hello\" pm:paddingSide=\"-6\" pm:paddingTop=\"3\" pm:lineSpacing=\"80\"/></svg>";
 
     bool               ok   = false;
     const ObjectRecord back = Svg::read(ours, &ok);
@@ -1414,7 +1418,8 @@ TEST(Import, OnlyAFileCarryingTheRecipeIsAdopted)
     EXPECT_EQ(back.box, QSize(300, 200));
     EXPECT_EQ(back.tails.items.size(), 1);
     EXPECT_EQ(back.text.body, QStringLiteral("Hello"));
-    EXPECT_EQ(back.text.padding, -6);
+    EXPECT_EQ(back.text.paddingSide, -6);
+    EXPECT_EQ(back.text.paddingTop, 3);
     EXPECT_EQ(back.text.lineSpacing, 80);
 
     // The prefix is a local shorthand and carries no meaning: the same file with a different prefix,

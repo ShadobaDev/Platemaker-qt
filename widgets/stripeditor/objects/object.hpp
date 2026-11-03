@@ -141,7 +141,7 @@ public:
     [[nodiscard]] int tipCount() const { return handleCount(); }
 
     /**
-     * @brief Shape editing (PLAN-L B13, B27): the outline's own handles instead of the box's grips.
+     * @brief Shape editing: the outline's own handles instead of the box's grips.
      *
      * Switched by the controller, which decides which object is being edited; the selection chrome reads
      * it, traces the outline and draws the shape handles, and hides the box's grips while it is on.
@@ -324,7 +324,7 @@ signals:
      */
     void chromeChanged();
 
-    //! The object was double-clicked: how shape editing is asked for (PLAN-L B13).
+    //! The object was double-clicked: how shape editing is asked for.
     void doubleClicked(const QString& uid);
 
 protected:

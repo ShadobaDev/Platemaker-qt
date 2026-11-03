@@ -36,7 +36,7 @@
  */
 /**
  * @brief How a tail is drawn: one taper (**Plain**), or a chain of ellipses shrinking towards its tip
- *        (**Circles**), a thought's (PLAN-L P14b).
+ *        (**Circles**), a thought's.
  *
  * The ellipses lie on the plain tail's own curve, bend and all, from where it leaves the balloon (moved by
  * `offset`) to the tip, the last one ending there. Across, the first is the tail's width and the last
@@ -106,7 +106,7 @@ struct Tail
 struct ObjectRecord;
 
 /**
- * @brief What a part of the balloon is painted with (PLAN-L B33): a colour, or a pattern of a second colour
+ * @brief What a part of the balloon is painted with: a colour, or a pattern of a second colour
  *        over it — dots, lines or a grid, a halftone. One type for the fill, the line and the shadow.
  *
  * A **sub-group**: a group holds one as a member and lists its fields with keys of its own (fieldsAs()),
@@ -136,7 +136,7 @@ struct Paint
     int    angle   = 45;    //!< How far the grid is turned, clockwise.
     /** @} */
     /**
-     * @name A fade (PLAN-L P13c, P13d): a cross in the balloon's rectangle, at `fadeCentreX`, `fadeCentreY`
+     * @name A fade: a cross in the balloon's rectangle, at `fadeCentreX`, `fadeCentreY`
      * (% of its width and height, the middle by default), an arm towards each side. Along an arm the
      * pattern is whole up to `…From` and gone past `…To`, in % of the way from the centre to that side (100
      * is the side); the ground stays. The two directions combine as a distance, so fading towards two
@@ -282,11 +282,11 @@ struct Shadow
 
 /**
  * @brief One node of a free outline, a Polygon's or a Curve's, **relative to the balloon**: 0..1 across
- *        its width and its height, so resizing the box scales the shape (PLAN-L §3.4).
+ *        its width and its height, so resizing the box scales the shape.
  *
  * A Polygon reads only the point. A Curve also reads the two handles, kept as offsets from the point so
  * a node dragged takes its handles along; a zero handle is none, and a segment with none at either end
- * is straight. The type says how a drag of one handle moves the other (PLAN-L B21).
+ * is straight. The type says how a drag of one handle moves the other.
  */
 struct ShapeNode
 {
@@ -337,7 +337,7 @@ struct ShapeNode
 
 /**
  * @brief The balloon's own surface: what it is filled with. The line drawn round it is the line's
- *        (StyleProperties), with its colour and width (PLAN-L B32).
+ *        (StyleProperties), with its colour and width.
  *
  * The first **property group** — a named slice of an object's state with exactly one editor
  * responsible for it. Groups exist so that two editors can never write the same field: an editor
@@ -396,7 +396,7 @@ struct ShapeProperties
      * @brief The silhouette drawn behind the text. `None` is the Text tool: letters with no balloon.
      *
      * Persisted by name, not by number (see shapeName()), so the order here is free. The strip editor
-     * is unreleased, so a kind may still be renamed or merged (PLAN-L B3): a file naming one that is gone
+     * is unreleased, so a kind may still be renamed or merged: a file naming one that is gone
      * loads as a Box.
      */
     enum class Kind { None, Box, Ellipse, Polygon, Cloud, Curve };
@@ -406,8 +406,8 @@ struct ShapeProperties
     static constexpr Kind k_lastKind = Kind::Curve;
 
     /**
-     * @brief What is done to the outline's edge (PLAN-L B14, M11): pushed in along it in a pattern, any
-     * family alike, before the tails are united into it so a tail stays smooth (B26). The table is in
+     * @brief What is done to the outline's edge: pushed in along it in a pattern, any
+     * family alike, before the tails are united into it so a tail stays smooth. The table is in
      * shapes.cpp; persisted by name (edgeName()).
      */
     enum class Edge { None, Zigzag };
@@ -471,10 +471,10 @@ struct ShapeProperties
 };
 
 /**
- * @brief What is done to the balloon as it is rasterised (PLAN-L B4): its texture, an SVG filter on the
+ * @brief What is done to the balloon as it is rasterised: its texture, an SVG filter on the
  *        balloon's group — its silhouette, its line's strokes, its shadow — never on the words.
  *
- * Its own group, and its own section of the panel (B32), apart from the line: the two are independent,
+ * Its own group, and its own section of the panel, apart from the line: the two are independent,
  * so a flash or a brush can be rough.
  */
 struct TextureProperties
@@ -494,7 +494,7 @@ struct TextureProperties
     Kind kind = Kind::None;
 
     /**
-     * @name Rough: turbulence displacing the outline, then a blur (PLAN-L B2). Read only while `kind` is
+     * @name Rough: turbulence displacing the outline, then a blur. Read only while `kind` is
      * Rough, and carried unchanged otherwise. The defaults are the old Marker's numbers; the Ink look is
      * a built-in preset (Geometry::inkRough()). Lengths in balloon pixels, so the wobble scales with the
      * balloon, not with the output's resolution.
@@ -528,7 +528,7 @@ struct TextureProperties
  * @brief The line drawn round the balloon: what kind, in what colour, how wide, and each kind's numbers.
  *
  * Clean is a solid outline; Flash and Brush are strokes of their own. The colour and the width are the
- * line's (PLAN-L B32), so a brush's width sits with the brush; the panel's Line section is this group.
+ * line's, so a brush's width sits with the brush; the panel's Line section is this group.
  *
  * The **seed is not in here**, deliberately. It is per balloon and set once at placement, so a preset
  * that carried it would give a whole chapter one repeated wobble — and a group's applyTo() writes the
@@ -540,7 +540,7 @@ struct StyleProperties
      * @brief How the edge is drawn. Clean is the solid outline; Flash, Brush and Drybrush are strokes
      * of their own, plain geometry, so Qt draws them as it draws a clean balloon. The table is in styles.cpp.
      *
-     * Persisted by name — see lineName(). The strip editor is unreleased (PLAN-L B3), so the order is
+     * Persisted by name — see lineName(). The strip editor is unreleased, so the order is
      * free.
      */
     enum class Line { Clean, Flash, Brush, Drybrush };
@@ -645,7 +645,7 @@ struct StyleProperties
 };
 
 /**
- * @brief What is drawn about the balloon, beside its outline and its fill (PLAN-L M14, B23): a shadow so far.
+ * @brief What is drawn about the balloon, beside its outline and its fill: a shadow so far.
  *
  * A group of its own, so applying a look's line does not apply its shadow by accident, and an effect
  * added later (a glow) is a field here. Its editor is laid out in the Style section, beside the line and
@@ -728,8 +728,8 @@ struct TextProperties
     /** @} */
     /**
      * @name The outline: a band round each letter, outside it, so the letterform keeps the
-     * weight its typeface gives it — the glyphs stroked at twice the width, then filled over (C6). Painted
-     * with a colour, or a halftone of a second over it (C12). In strip pixels; 0 is none, the default (C14).
+     * weight its typeface gives it — the glyphs stroked at twice the width, then filled over. Painted
+     * with a colour, or a halftone of a second over it. In strip pixels; 0 is none, the default.
      * @{
      */
     Paint   outline;

@@ -21,7 +21,7 @@ PropertyGroupSet::PropertyGroupSet(QWidget* host)
 
 QList<PropertyGroupEditor*> PropertyGroupSet::all() const
 {
-    // The order the balloon is drawn in (PLAN-L B32): its shape, its fill, its line, the texture over
+    // The order the balloon is drawn in: its shape, its fill, its line, the texture over
     // them, the effects about it; then the words.
     return {m_shape, m_skin, m_style, m_texture, m_effects, m_text};
 }

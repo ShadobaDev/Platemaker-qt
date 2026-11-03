@@ -118,7 +118,7 @@ QList<BubblePreset> builtinPresets()
     flash.style.line         = ObjectRecord::Line::Flash;   // its strokes, on Auto, from the struct
     out.append({PresetStore::tr("Flash"), flash});
 
-    // The two looks Rough replaced (PLAN-L B2): a felt-tip's long slow wobble, and ink's finer one that
+    // The two looks Rough replaced: a felt-tip's long slow wobble, and ink's finer one that
     // bleeds.
     ObjectRecord marker = dialogue;
     marker.texture.kind     = ObjectRecord::Texture::Rough;

@@ -3,7 +3,7 @@
  * \brief A closed edge walked by arc length: where a point that far along it is, and which way it runs;
  *        and the smooth noise that varies what follows it.
  *
- * The walk every style that follows the outline shares (PLAN-L M10): the flash spreads its strokes along
+ * The walk every style that follows the outline shares: the flash spreads its strokes along
  * it, a brush lays its ribbon on it. Distances along a polygon, not angles, so a wide oval is not crowded
  * at its ends.
  */

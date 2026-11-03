@@ -76,7 +76,7 @@ qreal spread(QRandomGenerator& rng, int percent)
  * Strokes are spread evenly by arc length, not by angle, which would crowd them at the ends of a wide
  * oval: the edge's perimeter is divided into whole steps near the pitch, so there is no seam where the
  * walk meets its start. Each stroke points along the ray from the nearest point of @p core through its
- * place on the edge (A14): away from it outside, towards it inside, where it is cut short at the core.
+ * place on the edge: away from it outside, towards it inside, where it is cut short at the core.
  */
 void addRing(QPainterPath& out, const QList<EdgeWalk>& edges, const QRectF& core, const Ring& r,
              QRandomGenerator& rng)
@@ -148,7 +148,7 @@ QPainterPath flashInk(const ObjectRecord& a, const QPainterPath& silhouette)
 
     QPainterPath out;
     out.setFillRule(Qt::WindingFill);
-    // The seed is the balloon's own (A5), so its strokes stay put while it is edited.
+    // The seed is the balloon's own, so its strokes stay put while it is edited.
     QRandomGenerator outer(a.styleSeed);
     QRandomGenerator inner(a.styleSeed ^ k_innerStream);
     addRing(out, edges, core,

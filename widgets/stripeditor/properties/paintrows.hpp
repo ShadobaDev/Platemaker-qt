@@ -34,7 +34,7 @@ inline const FieldRowSpec k_patternRows[] = {
 }  // namespace PaintRowsDetail
 
 /**
- * @brief The rows that edit one Paint a group holds (PLAN-L B33): its colour, its pattern, the pattern's
+ * @brief The rows that edit one Paint a group holds: its colour, its pattern, the pattern's
  *        colour and its numbers. The same rows in the Fill, the Line and the Effects sections.
  *
  * The panel contract as FieldRows keeps it: *Mixed* while a bound selection disagrees, and *touched*

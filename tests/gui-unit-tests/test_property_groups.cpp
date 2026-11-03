@@ -128,7 +128,7 @@ ObjectRecord loadedRecord()
     a.skin.fill.angle   = 30;
 
     a.effects.shadow.on         = true;
-    a.effects.shadow.spread   = 0.0;   // the shadow P9b drew, so the golden's older cases stay as they were
+    a.effects.shadow.spread   = 0.0;   // the hard shadow first drawn, so the golden's older cases stay as they were
     a.effects.shadow.x        = -4.5;
     a.effects.shadow.y        = 7.5;
     a.effects.shadow.softness = 2.5;
@@ -519,7 +519,7 @@ TEST(PropertyGroupOwnership, OneTail)
     EXPECT_EQ(after.tails.nextLook, before.tails.nextLook);   // a width and a bend are not a look picked
     expectUntouched(Group::Tails, before, after);   // and nothing outside the tails
 
-    // Its look picked: the balloon's next tail takes it, whichever was picked last (PLAN-L P14b).
+    // Its look picked: the balloon's next tail takes it, whichever was picked last.
     TailProperties looked = TailProperties::from(after, 2);
     looked.tail.look.style   = TailLook::Style::Circles;
     looked.tail.look.circles = 6;
@@ -779,7 +779,7 @@ TEST(Conversion, EveryShapeAndStyleHasATableEntry)
 
 /**
  * @brief A flash and a brush draw no solid outline, stay inside the room reserved for them, and are the
- *        same strokes for the same seed and others for another (PLAN-L P7).
+ *        same strokes for the same seed and others for another.
  *
  * The bounds are the buffer and the viewBox, so a stroke past them is clipped off in the render. The
  * strokes are random, so several seeds, at the largest jitter, swell and drift, on shapes with corners
@@ -830,8 +830,8 @@ TEST(Style, ALinesStrokesStayInsideTheirBounds)
 }
 
 /**
- * @brief A dry brush keeps a whole core, and its hairs thin out away from it and as it dries
- *        (PLAN-L P14a); a tail ends in a point.
+ * @brief A dry brush keeps a whole core, and its hairs thin out away from it and as it dries; a tail ends
+ *        in a point.
  *
  * Measured every two pixels round the silhouette's edge, at offsets across the line: on the core, in the
  * two lanes next to it and in the two at the line's edges, both sides.
@@ -942,7 +942,7 @@ TEST(Style, ADrybrushKeepsItsCoreAndThinsOutwards)
 
 /**
  * @brief A Circles tail is a chain of ellipses on the tail's curve, shrinking from its width to the tip,
- *        `pitch` apart, the first `offset` from the balloon and the last ending at the tip (PLAN-L P14b).
+ *        `pitch` apart, the first `offset` from the balloon and the last ending at the tip.
  *
  * A straight tail down from an ellipse's bottom, so each ellipse's extent across is its width and along
  * is down the page.
@@ -983,7 +983,7 @@ TEST(Tails, ACirclesTailIsAChainShrinkingToItsTip)
     EXPECT_EQ(Geometry::silhouette(a).toSubpathPolygons().size(), 3);
 }
 
-//! A flash left on Auto points its strokes exactly as the shape's own stretch would (PLAN-S A18, A19).
+//! A flash left on Auto points its strokes exactly as the shape's own stretch would.
 TEST(Style, AutoStretchIsTheShapes)
 {
     for (int i = 0; i <= int(ShapeProperties::k_lastKind); ++i) {
@@ -1004,7 +1004,7 @@ TEST(Style, AutoStretchIsTheShapes)
 }
 
 /**
- * @brief A tail leaves a concave outline from the crossing nearest its tip (PLAN-L B12).
+ * @brief A tail leaves a concave outline from the crossing nearest its tip.
  *
  * A box with a notch cut down into its top: the line from the centre to a tip up and to the left runs
  * through the notch, back into the left prong, and out of the prong's top. The tail is seen to leave
@@ -1061,7 +1061,7 @@ TEST(Shapes, APolygonsCornersRoundAsABoxsDo)
 }
 
 /**
- * @brief Shape editing's handles (PLAN-L P3, P4, P8): one dragged onto where it already is changes
+ * @brief Shape editing's handles: one dragged onto where it already is changes
  *        nothing, and a Polygon's nodes are added in the middle of an edge and removed down to three,
  *        never fewer.
  *
@@ -1109,7 +1109,7 @@ TEST(Shapes, AHandleDraggedOntoItselfChangesNothing)
 }
 
 /**
- * @brief An edge goes in from the outline (PLAN-L P8): the balloon keeps its bounds, the lettering's room
+ * @brief An edge goes in from the outline: the balloon keeps its bounds, the lettering's room
  *        gives up the depth, a tile is still current under it, and the same seed lays the same teeth.
  */
 TEST(Shapes, AnEdgeGoesInAndTheLetteringGivesUpItsDepth)
@@ -1181,7 +1181,7 @@ TEST(Effects, AShadowStaysInItsBoundsAndOnlyASoftOneIsAFilter)
 
 /**
  * @brief A halftone shadow is the shadow's colour in marks on nothing, not marks over the shadow; a soft
- *        one fades as geometry, as a blur would, and is no filter (PLAN-L P13).
+ *        one fades as geometry, as a blur would, and is no filter.
  */
 TEST(Effects, AHalftoneShadowReplacesTheShadowAndFadesOverItsSoftness)
 {
@@ -1244,8 +1244,8 @@ TEST(Effects, AHalftoneShadowReplacesTheShadowAndFadesOverItsSoftness)
 
 /**
  * @brief A fill fades by a cross in the balloon: along each arm, whole up to its start and gone past its
- *        end; one arm is a straight fade, all four a round one (PLAN-L P13c). The centre moves, and the fade
- *        turns over (P13d); on ellipses, all four make an ellipse, and one arm is still straight (P13e).
+ *        end; one arm is a straight fade, all four a round one. The centre moves, and the fade
+ *        turns over; on ellipses, all four make an ellipse, and one arm is still straight.
  */
 TEST(Paint, AFadingFillThinsOutAlongItsCross)
 {
@@ -1384,7 +1384,7 @@ int pointsInOnlyOne(const QPainterPath& a, const QPainterPath& b, const QRectF& 
 }  // namespace
 
 /**
- * @brief A Curve keeps its outline through the edits that should not change it (PLAN-L P4): *Convert to
+ * @brief A Curve keeps its outline through the edits that should not change it: *Convert to
  *        Curve* from a Box, an Ellipse, a rounded Polygon and a Cloud, in a node per piece; a segment split by its "+"; and a node made
  *        Corner. A node made Symmetric gets two handles on one line, as long as each other.
  */
@@ -1778,7 +1778,7 @@ QString goldenRecords()
     QList<QPair<QString, ShapeProperties>> shapes{{QStringLiteral("none"), none}};
     for (const Geometry::ShapeTemplate& t : Geometry::shapeTemplates())
         shapes.append({QString::fromLatin1(t.id), t.shape});
-    // A zigzag edge on one template of each kind that draws a line or a curve (PLAN-L P8).
+    // A zigzag edge on one template of each kind that draws a line or a curve.
     for (const char* id : {"speech", "ellipse", "shout", "scroll"}) {
         ShapeProperties zigzag = Geometry::shapeTemplate(id).shape;
         zigzag.edge            = ObjectRecord::Edge::Zigzag;
@@ -1842,7 +1842,7 @@ QString goldenRecords()
         }
     }
     // A dry brush on two templates, a white line on a black balloon with a pointed tail, at the dry
-    // brush's own numbers (PLAN-L P14a).
+    // brush's own numbers.
     for (const char* id : {"speech", "shout"}) {
         ObjectRecord a        = loadedRecord();
         a.shape               = Geometry::shapeTemplate(id).shape;
@@ -1860,7 +1860,7 @@ QString goldenRecords()
         a.tails.items.first().tip = QPointF(90, 230);
         write(QString::fromLatin1(id), QStringLiteral("drybrush"), true, a);
     }
-    // A Circles tail (PLAN-L P14b): on a clean speech balloon, apart from it; and the author's reference, a
+    // A Circles tail: on a clean speech balloon, apart from it; and the author's reference, a
     // white dry brush on a black ellipse, the chain sunk into it.
     for (bool reference : {false, true}) {
         ObjectRecord a   = loadedRecord();
@@ -1888,7 +1888,7 @@ QString goldenRecords()
         write(QString::fromLatin1(reference ? "ellipse" : "speech"),
               reference ? QStringLiteral("circles, drybrush") : QStringLiteral("circles"), true, a);
     }
-    // A screentone fill on two templates, clean (PLAN-L P9).
+    // A screentone fill on two templates, clean.
     for (const char* id : {"speech", "shout"}) {
         for (bool tail : {false, true}) {
             ObjectRecord a = loadedRecord();
@@ -1899,7 +1899,7 @@ QString goldenRecords()
             write(QString::fromLatin1(id), QStringLiteral("screentone"), tail, a);
         }
     }
-    // A shadow, hard and soft, on two templates (PLAN-L P9).
+    // A shadow, hard and soft, on two templates.
     for (const char* id : {"speech", "shout"}) {
         for (qreal softness : {0.0, 2.5}) {
             ObjectRecord a           = loadedRecord();
@@ -1913,7 +1913,7 @@ QString goldenRecords()
                   true, a);
         }
     }
-    // A centred shadow, hard and soft: the default spread and no offset (PLAN-L P12).
+    // A centred shadow, hard and soft: the default spread and no offset.
     for (qreal softness : {0.0, 2.5}) {
         ObjectRecord a            = loadedRecord();
         a.shape                   = Geometry::shapeTemplate("speech").shape;
@@ -1930,7 +1930,7 @@ QString goldenRecords()
         write(QStringLiteral("speech"), softness > 0.0 ? QStringLiteral("soft centred shadow")
                                                        : QStringLiteral("centred shadow"), true, a);
     }
-    // Every pattern in every place it paints (PLAN-L P11): the fill, a thick line, and a shadow.
+    // Every pattern in every place it paints: the fill, a thick line, and a shadow.
     for (int k = 1; k <= int(Paint::k_lastKind); ++k) {
         const auto pattern = static_cast<ObjectRecord::Pattern>(k);
         ObjectRecord a     = loadedRecord();
@@ -1945,7 +1945,7 @@ QString goldenRecords()
         a.effects.shadowFill.kind = pattern;
         write(QStringLiteral("speech"), QStringLiteral("pattern ") + QLatin1String(patternName(pattern)), true, a);
     }
-    // A fill that fades by its cross, one way per pattern (PLAN-L P13c): dots down, lines up and down,
+    // A fill that fades by its cross, one way per pattern: dots down, lines up and down,
     // a grid round from the middle.
     for (int k = 1; k <= int(Paint::k_lastKind); ++k) {
         const auto   pattern = static_cast<ObjectRecord::Pattern>(k);
@@ -1969,7 +1969,7 @@ QString goldenRecords()
             p.fadeLeftTo = p.fadeRightTo = 100.0;
         }
         write(QStringLiteral("speech"), QStringLiteral("fading ") + QLatin1String(patternName(pattern)), true, a);
-        // ...and the same with its cross moved up and left, then turned over (PLAN-L P13d).
+        // ...and the same with its cross moved up and left, then turned over.
         p.fadeCentreX = 30.0;
         p.fadeCentreY = 35.0;
         write(QStringLiteral("speech"), QStringLiteral("fading ") + QLatin1String(patternName(pattern)) + QStringLiteral(", moved"),
@@ -1977,13 +1977,13 @@ QString goldenRecords()
         p.fadeReversed = true;
         write(QStringLiteral("speech"), QStringLiteral("fading ") + QLatin1String(patternName(pattern)) + QStringLiteral(", reversed"),
               true, a);
-        // ...and on ellipses (PLAN-L P13e), where all four arms fade: the grid.
+        // ...and on ellipses, where all four arms fade: the grid.
         if (pattern == ObjectRecord::Pattern::Grid) {
             p.fadeRound = true;
             write(QStringLiteral("speech"), QStringLiteral("fading grid, reversed, round"), true, a);
         }
     }
-    // A halftone shadow, hard: the pattern's marks on nothing (PLAN-L P13; the cases above fade, soft).
+    // A halftone shadow, hard: the pattern's marks on nothing (the cases above fade, soft).
     {
         ObjectRecord a            = loadedRecord();
         a.shape                   = Geometry::shapeTemplate("speech").shape;
@@ -2002,7 +2002,7 @@ QString goldenRecords()
 /**
  * @brief What a record is written as does not change unless it is meant to — **byte for byte**.
  *
- * The guard for refactoring the geometry and the persistence (PLAN-S): moving a shape's path, a style's
+ * The guard for refactoring the geometry and the persistence: moving a shape's path, a style's
  * filter or a property's key to another file must leave every file written exactly as it was. A change
  * that is meant is accepted by regenerating the golden file and reviewing its diff: run the tests with
  * `PLATEMAKER_UPDATE_GOLDEN=1` in the environment.

@@ -72,7 +72,7 @@ BubbleToolOptions::BubbleToolOptions(PresetStore& presets, QWidget* parent)
     shapeLay->addWidget(m_groups.shape());
     m_tails = new NextTailEditor(this);
     shapeLay->addWidget(m_tails);
-    // Fill, line, texture, effects: OBJECT STATE's sections, in its order (PLAN-L B32), ruled apart here
+    // Fill, line, texture, effects: OBJECT STATE's sections, in its order, ruled apart here
     // since this page has no sections of its own.
     for (QWidget* part : {static_cast<QWidget*>(m_groups.skin()), static_cast<QWidget*>(m_groups.style()),
                           static_cast<QWidget*>(m_groups.texture()), static_cast<QWidget*>(m_groups.effects())}) {

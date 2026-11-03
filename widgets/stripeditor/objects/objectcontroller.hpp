@@ -447,7 +447,7 @@ public:
     void deleteSelectedOverlay();
 
     /**
-     * @brief Shape editing of the one selected object (PLAN-L B13): on or off.
+     * @brief Shape editing of the one selected object: on or off.
      *
      * On only for one selected object whose shape has handles (Object::canEditShape()); asking for it
      * otherwise does nothing. It ends by itself when the selection becomes anything else — a click
@@ -475,7 +475,7 @@ public:
     [[nodiscard]] bool canConvertToCurve() const;
 
     /**
-     * @brief *Re-roll* (PLAN-L B17): a new style seed for every selected balloon whose style draws on one
+     * @brief *Re-roll*: a new style seed for every selected balloon whose style draws on one
      *        (a flash, a brush, a texture), so its strokes or its wobble are dealt again. One history step.
      */
     void rerollSelection();

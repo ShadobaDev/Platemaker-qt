@@ -202,7 +202,7 @@ void ObjectController::onObjectPressed(const QString& uid, int handle)
     beginDrag(uid, handle);
 
     // In shape editing, a press on a node picks it (what Delete takes), and a press on the words is a
-    // press on the text: OBJECT STATE takes the caret (PLAN-L B27).
+    // press on the text: OBJECT STATE takes the caret.
     const Object* item = uid == m_shapeEditing ? m_overlayItems.value(uid) : nullptr;
     if (!item)
         return;

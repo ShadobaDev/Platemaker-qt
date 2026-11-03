@@ -102,7 +102,7 @@ outline.
    back from.
 4. *Optional:* a built-in preset in `presetstore.cpp`.
 
-**An edge** (a modulation any kind takes, PLAN-L M11) is a value of `ShapeProperties::Edge` (move
+**An edge** (a modulation any kind takes) is a value of `ShapeProperties::Edge` (move
 `k_lastEdge`) and one entry in `k_edges` (`shapes.cpp`): its names and a `modulate` function from the
 bare outline to the modulated one. `outlineOf()` applies it before any tail is united in, so tails stay
 smooth. Build it on `pushedIn()`, which takes a depth profile along the edge (`EdgeWalk`) and keeps the
@@ -148,9 +148,11 @@ becomes a row.
 
 ### A paint, and a pattern
 
-A **Paint** (`propertygroups.hpp`) is what a part of the balloon is painted with: a colour, or a pattern
-of a second colour over it. The fill (`SkinProperties::fill`), the line (`StyleProperties::stroke`: the
-outline and a flash's or a brush's strokes) and the shadow (`EffectProperties::shadowFill`) each hold one.
+A **Paint** (`propertygroups.hpp`) is what a part of the balloon or of its lettering is painted with: a
+colour, or a pattern of a second colour over it. The fill (`SkinProperties::fill`), the line
+(`StyleProperties::stroke`: the outline and a flash's or a brush's strokes), the shadow
+(`EffectProperties::shadowFill`), and the letters, their outline and their shadow (`TextProperties::fill`,
+`outline`, `shadowFill`) each hold one.
 It is a **sub-group**: its fields are listed once (`Paint::members()`), and a group lists them under keys
 of its own with `Paint::fieldsAs()`, so the files stay flat (`fill`, `fillKind`, `fillSpacing`…). Every
 walk reaches a field through `Fields::at()`, which takes a plain member or a `Fields::Nested` one. **A
@@ -163,18 +165,18 @@ names) and its marks in `patternCell()`: the cell's square, its angle, and the m
 path. Both the painter's brush (`Painter::paintBrush()`) and the SVG's `<pattern>` (`patternDefs()` in
 `recordsvg.cpp`) are drawn from that cell and laid from the box's corner (the brush from the painter's
 origin, the pattern in `userSpaceOnUse`), so the preview and the output match. Anything that a pattern
-paints is written in the box's coordinates, never under a `transform` (the shadow is the outline grown and
+paints is written in the box's coordinates, never under a `transform` (a shadow is its caster's path
 moved), or its pattern would move with it.
 
 A shadow's pattern has **no ground**: it is the shadow's colour in marks on nothing (`shadowPaint()`), so
-`PaintRows` is built without its *Pattern colour* row there. A **halftone that fades** (a soft shadow's,
-PLAN-L B37) is geometry, not a filter: `halftoneMarks()` lays the same grid and sizes each mark by a tone
-(0 to 1) at its place; the shadow's tone is a blurred edge's, from the distance to its outline
-(`SignedDistance`, bucketed). The painter fills such marks in pieces (`fillMarks()`: Qt's antialiased
+`PaintRows` is built without its *Pattern colour* row there. A **halftone that fades** (a soft shadow's)
+is geometry, not a filter: `halftoneMarks()` lays the same grid and sizes each mark by a tone (0 to 1) at
+its place; the shadow's tone is a blurred edge's, from the distance to its caster (`SignedDistance`,
+bucketed, positive inside) plus its spread. The painter fills such marks in pieces (`fillMarks()`: Qt's antialiased
 rasteriser slows sharply on one path of thousands of marks) through a layer of their own, drawn once with
 the colour's alpha, so marks that overlap paint once, as in the SVG.
 
-A **fill that fades** (PLAN-L P13c, P13d) is the same marks with another tone, set by a **cross** in the
+A **fill that fades** is the same marks with another tone, set by a **cross** in the
 balloon's rectangle (`balloonRect()`), centred at `fadeCentreX`, `fadeCentreY` (% of its width and
 height, the middle by default): on each arm `fade…From` and `fade…To`, in % of the way from the centre to
 that side, whole before the one and gone past the other. `fadeTone()` combines the two directions as a
@@ -191,14 +193,49 @@ only its shape (*Rectangle* or *Ellipse*) and its reversal, which `PaintRows` of
 
 ### An effect
 
-An effect is a field of `EffectProperties` (a group of its own, PLAN-L B23), drawn in three places that
-must agree: the geometry (`shadowOf()` in `styles.cpp`), the painter (`recordpainter.cpp`) and the SVG
-(`recordsvg.cpp`, inside the balloon's group so a texture acts on it too). Its reach goes into
-`styleMargin()`; one that needs an SVG filter (a soft shadow of one colour, `blursShadow()`) makes
-`hasFilter()` true, so the balloon is
-previewed through the library. Its editor, `EffectsEditor`, is a section of its own, and *Apply from
-tool options ▸ Effects* applies it. The shadow is the worked
-example.
+An effect is a field of `EffectProperties` (a group of its own), drawn in three places that must agree:
+the geometry (`styles.cpp`), the painter (`recordpainter.cpp`) and the SVG (`recordsvg.cpp`, inside the
+balloon's group so a texture acts on it too). Its reach goes into `styleMargin()`; one that needs an SVG
+filter (a soft shadow of one colour, `blursShadow()`) makes `hasFilter()` true, so the balloon is
+previewed through the library, at strip scale, as the output will carry it. Its editor, `EffectsEditor`,
+is a section of its own, and *Apply from tool options ▸ Effects* applies it.
+
+The shadow is the worked example, and a **sub-group** like a Paint: `Shadow` (on, spread, offset,
+softness) is held by the balloon's effects and by the lettering, each with its Paint beside it (a field
+list nests one level only) and keys of its own (`Shadow::fieldsAs()`), and edited by the same rows
+(`ShadowRows`, `properties/shadowrows.hpp`). Its functions take the shadow and its Paint, whoever casts
+it. `shadowOf()` returns `ShadowPaths`: the caster moved, and how far it grows. **It never unites the
+caster with its growth**: a union costs as the square of the outline, and a line of lettering took a
+second and a half. The body and a round stroke `2 × grow` wide are drawn together, opaque, in one layer
+(the painter's `drawInLayer()`) or one SVG group (`shadowElements()`), given the shadow's alpha once
+(`shadowLayerPaint()`), so where they overlap they do not darken twice; a shadow that does not grow is
+one path. Its reach is `shadowReach()`.
+
+### The lettering
+
+The words are laid out in `lettering.cpp`, which alone places them, and drawn in one place per output:
+`Painter::paintLettering()` (a balloon and a lettered picture alike) and `letteringElements()` with
+`letteringDefs()` in `recordsvg.cpp`, in a `<g>` of its own after the balloon's, so a texture never moves
+them. Whatever the lettering wears goes into those two functions, in drawing order: the shadow, the
+outline, the letters.
+
+- **Placement.** The text area is the shape's (`textSafeArea()`), inset by the stroke, the edge's depth
+  and the two paddings, `paddingSide` left and right and `paddingTop` at the top and, mirrored, at the
+  bottom. The block starts centred and grows both ways with each line; once its top meets the top
+  padding it stays there and grows downwards, out of the balloon. A balloon's words are clipped at the
+  sides and the top only, never at the bottom; a text object's and a picture's keep their box, centred.
+  The red text area shows when they do not fit (`fits()`), and *Fix padding* (`paddingsToFit()`) lowers
+  each padding in its own direction.
+- **The text area on the strip.** In shape editing a balloon with words shows its text area and three
+  arrows (`textAreaHandles()`, roles `TextSide` and `TextTop`, dragged by `dragTextAreaHandle()`), which
+  set the paddings; so shape editing is offered to any balloon with words.
+- **What the letters wear**, fields of `TextProperties`, off by default: their **fill** (a Paint, its
+  colour still saved as `textColour`), an **outline** (a Paint and a width, drawn outside the glyphs:
+  stroked at twice the width under them, two draws in the SVG, not `paint-order`), and a **shadow** (the
+  balloon's `Shadow`, cast by the letters with their outline: `textShadowOf()` grows them by the outline's
+  width and the spread together). Solid at no offset, the shadow is a second outline; soft at no offset,
+  a glow. The outline and the shadow's reach grow `boundsOf()`, the outline `partAt()`'s text; a soft
+  shadow makes `hasFilter()` true.
 
 ### A line or a texture
 

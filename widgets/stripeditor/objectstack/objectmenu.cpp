@@ -165,7 +165,7 @@ ObjectMenu::ObjectMenu(ObjectController& objects, const StripLayout& layout, Pre
     m_actFixPadding = new QAction(tr("Fix padding"), this);
     connect(m_actFixPadding, &QAction::triggered, &m_objects, &ObjectController::fixSelectionPadding);
 
-    // Shape editing (PLAN-L B13): entered here or by a double-click on the balloon, left here, by Esc, or
+    // Shape editing: entered here or by a double-click on the balloon, left here, by Esc, or
     // by a click outside it. Esc is a shortcut of its own, not an entry: the menu has nothing to show
     // for it.
     m_actEditShape = new QAction(tr("Edit shape"), this);
@@ -175,7 +175,7 @@ ObjectMenu::ObjectMenu(ObjectController& objects, const StripLayout& layout, Pre
                   Qt::WidgetShortcut);
     connect(&m_objects, &ObjectController::shapeEditingChanged, this, &ObjectMenu::updateEntries);
 
-    // A Curve's own (PLAN-L B21): the type of the node picked in shape editing — a right-click on a node
+    // A Curve's own: the type of the node picked in shape editing — a right-click on a node
     // picks it, so the menu it opens is that node's — and the conversion that makes a Curve of a balloon.
     m_nodeTypeMenu = new QMenu(tr("Point type"), dialogParent);
     const QList<QPair<ShapeNode::Type, QString>> types{

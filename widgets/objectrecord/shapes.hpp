@@ -91,7 +91,7 @@ struct ShapeInfo
      * How far a flash's core is stretched on this kind while the balloon leaves it on *Auto*, in %
      * (`StyleProperties::flashCoreStretch`). Round shapes and those of five sides or more point from the
      * centre (0); long straight sides want the line (100), so their strokes stand square to them. A Box
-     * is a speech balloon as often as a caption box, so it takes the middle (PLAN-L B22).
+     * is a speech balloon as often as a caption box, so it takes the middle.
      */
     int flashStretch;
     /**
@@ -104,7 +104,7 @@ struct ShapeInfo
                                   int picked) = nullptr;
     /**
      * @p shape with @p handle dragged to @p to, both in the balloon's coordinates. A node may land past
-     * the body (outside 0..1); growing the box to it is the caller's (PLAN-L B10).
+     * the body (outside 0..1); growing the box to it is the caller's.
      */
     ShapeProperties (*dragHandle)(const ShapeProperties& shape, const QRectF& body, const ShapeHandle& handle,
                                   const QPointF& to, qreal clearance) = nullptr;
@@ -114,7 +114,7 @@ struct ShapeInfo
 [[nodiscard]] const ShapeInfo& shapeInfo(ShapeProperties::Kind kind);
 
 /**
- * @brief One edge modulation (PLAN-L M11): its names, and the outline with its teeth pushed in.
+ * @brief One edge modulation: its names, and the outline with its teeth pushed in.
  *
  * Adding one is a value in `ShapeProperties::Edge` and an entry here (shapes.cpp): its function walks the
  * bare outline (EdgeWalk) and moves it in by at most `edgeDepth`, so the text area's inset (edgeInset())

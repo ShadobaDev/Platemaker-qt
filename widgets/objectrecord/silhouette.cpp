@@ -82,7 +82,7 @@ QPainterPath circlesAlong(const QPainterPath& spine, const Tail& t)
  * line from the tip towards the balloon's centre until a sample lands inside, then binary-searches that
  * step for the crossing with QPainterPath::contains(). Walking **from the tip** finds the crossing
  * nearest it, which is the edge the tail is seen to leave even where a concave outline crosses the line
- * more than once (PLAN-L B12); it is what lets a tail leave any edge instead of only the bottom one.
+ * more than once; it is what lets a tail leave any edge instead of only the bottom one.
  *
  * The base is pulled back *inside* the silhouette so the union is watertight — everything inside
  * disappears into it anyway, and what shows is the taper from the point it emerges.

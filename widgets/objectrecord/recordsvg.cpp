@@ -553,7 +553,7 @@ QByteArray write(const ObjectRecord& a, const QByteArray& picture, const QString
     svg += attr(QStringLiteral("styleSeed"), QString::number(a.styleSeed));
     svg += QLatin1String(">\n");
 
-    // Two groups (PLAN-L M16): the balloon — its silhouette and its line's strokes — and the lettering.
+    // Two groups: the balloon — its silhouette and its line's strokes — and the lettering.
     // The texture's filter hangs on the balloon's: a displacement on the lettering would drag the words
     // about with the outline, and the balloon is what should look hand-drawn, not the words in it. The
     // lettering's own group is where a text style will hang.

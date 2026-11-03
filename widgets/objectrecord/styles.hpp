@@ -85,7 +85,7 @@ struct PatternCell
 
 /**
  * @brief @p p's marks over @p area, each as large as @p tone (0 to 1) says at its place: a halftone that
- *        fades (PLAN-L B37). Geometry, so the strip and the output draw the same path.
+ *        fades. Geometry, so the strip and the output draw the same path.
  *
  * The grid is patternCell()'s, laid from the box's corner and turned alike, so at a tone of 1 the marks are
  * the pattern's. A dot's area follows the tone; a bar's width does, sampled every @p step along it. Fill
@@ -106,7 +106,7 @@ struct PatternCell
 [[nodiscard]] qreal fadeTone(const Paint& p, const QRectF& body, const QPointF& at);
 
 /**
- * @brief The marks of \p a's fill where it fades (PLAN-L P13c), over \p silhouette's extent; empty for a
+ * @brief The marks of \p a's fill where it fades, over \p silhouette's extent; empty for a
  *        fill that does not. Drawn in the pattern's colour over the ground, clipped to the silhouette.
  */
 [[nodiscard]] QPainterPath fillTone(const ObjectRecord& a, const QPainterPath& silhouette);
@@ -129,12 +129,12 @@ struct PatternCell
 
 /**
  * @brief @p s made Rough with the Ink look's numbers: a finer and smaller wobble than the Marker's (the
- *        struct's defaults), then a bleed. A built-in preset (PLAN-L B2).
+ *        struct's defaults), then a bleed. A built-in preset.
  */
 [[nodiscard]] TextureProperties inkRough(TextureProperties t);
 
 /**
- * @brief \p a has an SVG filter anywhere, which only the library draws (PLAN-L M17): a texture, or a
+ * @brief \p a has an SVG filter anywhere, which only the library draws: a texture, or a
  *        soft shadow, the balloon's or its letters'. The one question the controller asks to decide how a
  *        balloon is previewed.
  */

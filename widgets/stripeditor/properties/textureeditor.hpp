@@ -12,7 +12,7 @@ namespace StripEdit {
 /**
  * @brief What is done to the balloon as it is rendered: its texture, and the texture's numbers.
  *
- * Its own section of the panel (PLAN-L B32), after the line: a texture acts on the whole balloon, line
+ * Its own section of the panel, after the line: a texture acts on the whole balloon, line
  * and shadow, never on the words. Rough's rows are built from TextureProperties' field list, one spin per
  * `rough…` field, and shown only while Rough is chosen.
  */

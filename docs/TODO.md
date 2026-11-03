@@ -403,24 +403,21 @@ New, backward-compatible features. Several are gated on a lib version, noted in 
     outwards and are all alike. Candidates: a bow for a Polygon's edges (inwards below 0), or an inward
     scallop edge with irregularity, plus irregular point lengths from the regular polygon / star action.
 
-- [ ] **Text area and lettering effects** — planned 2026-11-02, not started.
-  - **Padding is two numbers:** left/right (one value, both sides) and top.
-  - **The text area is anchored by its top edge** and centred across the balloon. Its height follows
-    the number of lines, so the words are never cut by its bottom. The balloon does not grow to the
-    text; the text area's chrome shows when the words leave the area valid for that balloon.
-  - **In shape edit mode, a click on the words** gives the text area the focus. Its grips are
-    **arrows on the left, right and top edges only**, shown only while it has the focus, and they drag
-    the two paddings.
-  - **A text outline.** A colour and a width in strip pixels, drawn outside the glyph. The glyph path is
-    stroked at twice the width with round joins, then filled on top, so the letterform keeps the weight
-    its typeface gives it. It is written to the SVG as two draws, not with `paint-order`, inside the
-    lettering's own `<g>`, which the writer already has. Three places draw lettering today and all need
-    it: `recordpainter.cpp`, `artworkobject.cpp` and both branches of `recordsvg.cpp`. `boundsOf()` and
-    `partAt()` must grow by it. It is needed most on a text object and on a lettered picture, where no
-    balloon stands behind the words. The design is on the wiki's Property groups page. Nothing of it is
-    built yet.
-  - **Other lettering effects**, in the lettering's group: a shadow, a second outline, a Paint on the
-    letters, a glow. Which of them, and in what order, is open.
+- [x] **Text area and lettering effects** — *Done 2026-11-03.* Built:
+  - **Two paddings**, sides and top. The words start centred and grow both ways with each line; once
+    they reach the top padding they grow downwards, out of the balloon, never cut at the bottom (the
+    sides and the top still clip). *Fix padding* lowers each padding in its own direction.
+  - **The text area on the strip**: in shape editing a balloon with words shows it, with arrows on the
+    left, right and top edges that drag the paddings.
+  - **What the letters wear**, each off by default and in the Text section: their colour as a Paint (a
+    halftone too), an **outline** outside the glyphs (a Paint and a width), and a **shadow**, the
+    balloon's own, cast by the letters with their outline; solid at no offset it is a second outline,
+    soft a glow.
+  - A shadow is never a union of its caster and its growth: drawn as the body and a band in one layer or
+    group (a union of a line of lettering took 1.5 s).
+  - **Left, only if asked:** a style per word, letter spacing, a warp along a curve. A lettered picture's
+    soft shadow shows hard on the strip (the picture is drawn by its own item, not through the library)
+    and blurred in the output.
 
 - [x] **Shape registry** — built 2026-10-29, ahead of the first parameter: one table,
   `k_shapes` in `widgets/objectrecord/shapes.cpp`, one entry per shape (name, title, tail, outline, text

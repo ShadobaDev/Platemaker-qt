@@ -815,7 +815,7 @@ ShapeProperties dragCloudHandle(const ShapeProperties& shape, const QRectF& body
 // ---------------------------------------------------------------------------
 // The table
 // ---------------------------------------------------------------------------
-// Edges: the outline pushed in along it, in a pattern (PLAN-L M11)
+// Edges: the outline pushed in along it, in a pattern
 // ---------------------------------------------------------------------------
 
 //! The closest two teeth may be, in balloon pixels: below it the edge is a blur, and the count unbounded.
@@ -1013,8 +1013,8 @@ DepthAnchor depthAnchor(const ShapeProperties& shape, const QRectF& body)
 using Kind = ShapeProperties::Kind;
 
 //! In the enum's order, so a kind is its own index; shapeInfo() checks every entry names its kind.
-// The flash stretches were chosen by eye, shape by shape, on rendered sheets (PLAN-S A18); the Box's is
-// a round number between its two templates' old values, to be checked by eye (PLAN-L B22).
+// The flash stretches were chosen by eye, shape by shape, on rendered sheets; the Box's is
+// a round number between its two templates' old values, to be checked by eye.
 const std::array<ShapeInfo, int(ShapeProperties::k_lastKind) + 1> k_shapes{{
     {Kind::None,      "none",      QT_TRANSLATE_NOOP("QObject", "Text only — no balloon"), false, false, nullptr,       wholeArea,          0},
     {Kind::Box,       "box",       QT_TRANSLATE_NOOP("QObject", "Box"),                    true,  true,  boxPath,       boxArea,            50,
@@ -1342,7 +1342,7 @@ QPainterPath outlineOf(const ObjectRecord& a, const QRectF& body)
     const auto outline = shapeInfo(a.shape.kind).outline;
     if (!outline)
         return {};
-    // The edge on the bare outline, before any tail is united into it (PLAN-L B26).
+    // The edge on the bare outline, before any tail is united into it.
     const auto modulate = edgeInfo(a.shape.edge).modulate;
     return modulate ? modulate(outline(a.shape, body), a.shape, a.styleSeed) : outline(a.shape, body);
 }

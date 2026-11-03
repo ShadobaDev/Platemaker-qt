@@ -271,7 +271,7 @@ void SelectionChrome::paint(QPainter* painter, const QStyleOptionGraphicsItem* o
     QList<Object*> objects = subjects();
     std::reverse(objects.begin(), objects.end());   // bottom first, so the topmost's chrome ends on top
     for (const Object* o : std::as_const(objects)) {
-        // Shape editing has a chrome of its own (PLAN-L B27): the outline itself, traced, instead of the
+        // Shape editing has a chrome of its own: the outline itself, traced, instead of the
         // dashed box — so the mode is plain at a glance.
         if (o->shapeEditing()) {
             pen.setStyle(Qt::SolidLine);

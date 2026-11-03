@@ -15,7 +15,7 @@ namespace StripEdit {
 class StretchSpin;
 
 /**
- * @brief The Line section: the line's kind, its colour and width, and the kind's numbers (PLAN-L B32).
+ * @brief The Line section: the line's kind, its colour and width, and the kind's numbers.
  *
  * The **seed is not here**, and that is the group model earning its keep. A seed is per balloon and set
  * once at placement; a group's applyTo() writes the whole group, so a seed inside it would be copied

@@ -167,7 +167,7 @@ QPainterPath textOutline(const ObjectRecord& a)
 
     // The paddings are the clip, so an overlong line cannot bleed past the stroke: on the sides and at the
     // top. Not at the bottom: lines the balloon has no room for go on out of it, never cut,
-    // and the red text area says so. A text object and a picture's words keep their box as it was (C10).
+    // and the red text area says so. A text object and a picture's words keep their box as it was.
     // Intersecting keeps that in vector form, so it survives into the SVG.
     QRectF open = safe;
     if (a.hasSilhouette())

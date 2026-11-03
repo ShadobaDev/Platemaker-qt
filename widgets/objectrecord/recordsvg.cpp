@@ -3,6 +3,8 @@
 #include "geometry.hpp"
 #include "styles.hpp"
 
+#include <QDebug>          // [shadow-perf] temporary
+#include <QElapsedTimer>   // [shadow-perf] temporary
 #include <QCryptographicHash>
 #include <QFile>
 #include <QFileInfo>
@@ -237,6 +239,49 @@ QString paintAttr(const char* attr, const Paint& p, const QString& id)
     return QStringLiteral("%1=\"url(#%2)\"").arg(QLatin1String(attr), id);
 }
 
+/**
+ * @brief The Paint shadow @p s, drawn as @p paths, is written with, and the opacity of the group it is in:
+ *        shadowPaint() for one that does not grow, shadowLayerPaint() for one that does.
+ */
+Paint shadowPaintFor(const Shadow& s, const Paint& fill, const Geometry::ShadowPaths& paths, qreal* opacity)
+{
+    if (paths.grow > 0.0)
+        return Geometry::shadowLayerPaint(s, fill, opacity);
+    if (opacity)
+        *opacity = 1.0;
+    return Geometry::shadowPaint(s, fill);
+}
+
+/**
+ * @brief Shadow @p s, drawn as @p paths (Geometry::shadowOf()), at @p indent: the balloon's and the
+ *        letters' alike. One that does not grow is its path; one that does is a group, given the shadow's
+ *        alpha once, of its body and a round stroke `2 × grow` wide over it, both opaque, so they do not
+ *        darken where they overlap. Blurred by @p blurId, patterned by @p fillId (their `<defs>`).
+ */
+QString shadowElements(const Shadow& s, const Paint& fill, const Geometry::ShadowPaths& paths, const QString& fillId,
+                       const QString& blurId, QLatin1String indent)
+{
+    if (paths.isEmpty())
+        return {};
+    qreal         opacity = 1.0;
+    const Paint   p       = shadowPaintFor(s, fill, paths, &opacity);
+    const QString blur    = Geometry::blursShadow(s, fill) ? QStringLiteral(" filter=\"url(#%1)\"").arg(blurId) : QString();
+    if (paths.grow <= 0.0)
+        return indent + QStringLiteral("<path d=\"%1\" fill-rule=\"%2\" %3%4/>\n")
+                            .arg(pathData(paths.body), fillRule(paths.body), paintAttr("fill", p, fillId), blur);
+    QString out = indent + QLatin1String("<g");
+    if (opacity < 1.0)
+        out += QStringLiteral(" opacity=\"%1\"").arg(num(opacity));
+    out += blur + QLatin1String(">\n");
+    out += indent + QStringLiteral("  <path d=\"%1\" fill-rule=\"%2\" %3/>\n")
+                        .arg(pathData(paths.body), fillRule(paths.body), paintAttr("fill", p, fillId));
+    out += indent + QStringLiteral("  <path d=\"%1\" fill=\"none\" %2 stroke-width=\"%3\" "
+                                   "stroke-linejoin=\"round\" stroke-linecap=\"round\"/>\n")
+                        .arg(pathData(paths.body), paintAttr("stroke", p, fillId), num(2.0 * paths.grow));
+    out += indent + QLatin1String("</g>\n");
+    return out;
+}
+
 int intOf(const QStringView& v, int fallback)
 {
     bool      ok = false;
@@ -370,25 +415,19 @@ const QString k_textShadowId     = QStringLiteral("pm-text-shadow");
 const QString k_textShadowFillId = QStringLiteral("pm-text-shadow-fill");
 
 /**
- * @brief The lettering's elements, @p text (Geometry::textOutline()), each on a line of its own at
+ * @brief The lettering's elements, @p text (Geometry::textOutline()) and its @p shadow
+ *        (Geometry::textShadowOf()), each on a line of its own at
  *        @p indent: the one place words are written, over a balloon (in its own group) and over a picture
  *        alike. Nothing for no words.
  */
-QString letteringElements(const ObjectRecord& a, const QPainterPath& text, QLatin1String indent)
+QString letteringElements(const ObjectRecord& a, const QPainterPath& text, const Geometry::ShadowPaths& shadow,
+                          QLatin1String indent)
 {
     if (text.isEmpty())
         return {};
     QString out;
     // The shadow first, under the outline and the letters, as the balloon's is written.
-    const TextProperties& t = a.text;
-    if (const QPainterPath shadow = Geometry::textShadowOf(a, text); !shadow.isEmpty()) {
-        out += indent + QStringLiteral("<path d=\"%1\" fill-rule=\"%2\" %3")
-                            .arg(pathData(shadow), fillRule(shadow),
-                                 paintAttr("fill", Geometry::shadowPaint(t.shadow, t.shadowFill), k_textShadowFillId));
-        if (Geometry::blursShadow(t.shadow, t.shadowFill))
-            out += QStringLiteral(" filter=\"url(#%1)\"").arg(k_textShadowId);
-        out += QLatin1String("/>\n");
-    }
+    out += shadowElements(a.text.shadow, a.text.shadowFill, shadow, k_textShadowFillId, k_textShadowId, indent);
     // The outline, under the letters, stroked at twice its width: two draws, not `paint-order`, which is
     // what librsvg is sure to render alike.
     if (a.text.outlineWidth > 0.0)
@@ -402,17 +441,17 @@ QString letteringElements(const ObjectRecord& a, const QPainterPath& text, QLati
 }
 
 //! The `<defs>` the lettering's elements reference: its outline's pattern, its shadow's blur and pattern.
-QString letteringDefs(const ObjectRecord& a)
+QString letteringDefs(const ObjectRecord& a, const QPainterPath& text, const Geometry::ShadowPaths& shadow)
 {
     const TextProperties& t = a.text;
-    if (t.body.isEmpty())
+    if (text.isEmpty())
         return {};
     QString d;
     if (t.outlineWidth > 0.0)
         d += patternDefs(t.outline, k_textOutlineId);
     if (t.shadow.on) {
         d += shadowDefs(t.shadow, t.shadowFill, k_textShadowId);
-        d += patternDefs(Geometry::shadowPaint(t.shadow, t.shadowFill), k_textShadowFillId);
+        d += patternDefs(shadowPaintFor(t.shadow, t.shadowFill, shadow, nullptr), k_textShadowFillId);
     }
     return d;
 }
@@ -423,6 +462,8 @@ QByteArray write(const ObjectRecord& a, const QByteArray& picture, const QString
 {
     if (a.box.isEmpty())
         return {};
+    QElapsedTimer perf;   // [shadow-perf] temporary
+    perf.start();
 
     // **A picture with words over it.** The geometry is the picture's own box — no tails to reach past
     // it — so the viewBox is the box, and the lettering is laid out in it exactly as a shapeless
@@ -430,6 +471,8 @@ QByteArray write(const ObjectRecord& a, const QByteArray& picture, const QString
     if (a.isArtwork()) {
         if (picture.isEmpty() || mime.isEmpty())
             return {};
+        const QPainterPath          text       = Geometry::textOutline(a);
+        const Geometry::ShadowPaths textShadow = Geometry::textShadowOf(a, text);
 
         QString svg;
         svg += QStringLiteral("<svg xmlns=\"http://www.w3.org/2000/svg\" "
@@ -437,7 +480,7 @@ QByteArray write(const ObjectRecord& a, const QByteArray& picture, const QString
                               "     width=\"%2\" height=\"%3\" viewBox=\"0 0 %2 %3\">\n")
                    .arg(QLatin1String(k_pmNamespace))
                    .arg(num(a.box.width()), num(a.box.height()));
-        svg += letteringDefs(a);
+        svg += letteringDefs(a, text, textShadow);
 
         // The same parameter group every file of ours carries, so this one is re-typable in the same
         // way — and so an import can tell it is ours (see read).
@@ -454,7 +497,7 @@ QByteArray write(const ObjectRecord& a, const QByteArray& picture, const QString
                    .arg(num(a.box.width()), num(a.box.height()), mime,
                         QString::fromLatin1(picture.toBase64()));
 
-        svg += letteringElements(a, Geometry::textOutline(a), QLatin1String("    "));
+        svg += letteringElements(a, text, textShadow, QLatin1String("    "));
 
         svg += QLatin1String("  </g>\n</svg>\n");
         return svg.toUtf8();
@@ -475,6 +518,13 @@ QByteArray write(const ObjectRecord& a, const QByteArray& picture, const QString
                .arg(num(bounds.width()), num(bounds.height()),
                     num(bounds.left()),  num(bounds.top()));
 
+    // The balloon, the letters and their shadows, resolved before the defs, which a shadow's paint
+    // depends on.
+    const QPainterPath          silhouette = Geometry::silhouette(a);
+    const Geometry::ShadowPaths shadow     = Geometry::shadowOf(a, silhouette);
+    const QPainterPath          text       = Geometry::textOutline(a);
+    const Geometry::ShadowPaths textShadow = Geometry::textShadowOf(a, text);
+
     // The filters and the Paints' patterns are defined before what references them, as SVG requires.
     const QString filterId     = QStringLiteral("pm-style");
     const QString fillId       = QStringLiteral("pm-fill");
@@ -487,8 +537,8 @@ QByteArray write(const ObjectRecord& a, const QByteArray& picture, const QString
     svg += patternDefs(a.style.stroke, strokeId);
     svg += shadowDefs(a.effects.shadow, a.effects.shadowFill, shadowId);
     if (a.effects.shadow.on)
-        svg += patternDefs(Geometry::shadowPaint(a), shadowFillId);
-    svg += letteringDefs(a);
+        svg += patternDefs(shadowPaintFor(a.effects.shadow, a.effects.shadowFill, shadow, nullptr), shadowFillId);
+    svg += letteringDefs(a, text, textShadow);
 
     // Everything the editor needs to re-solve this bubble, in a namespace no renderer looks at. Losing
     // these leaves a perfectly good drawing that simply cannot be re-typed — the intended degradation.
@@ -510,7 +560,6 @@ QByteArray write(const ObjectRecord& a, const QByteArray& picture, const QString
     // The texture's filter hangs on the balloon's: a displacement on the lettering would drag the words
     // about with the outline, and the balloon is what should look hand-drawn, not the words in it. The
     // lettering's own group is where a text style will hang.
-    const QPainterPath silhouette = Geometry::silhouette(a);
     if (!silhouette.isEmpty()) {
         svg += QLatin1String("    <g");
         if (!styleDefs(a, filterId).isEmpty())
@@ -519,13 +568,8 @@ QByteArray write(const ObjectRecord& a, const QByteArray& picture, const QString
         // The shadow first, under the balloon and inside its group, so a texture roughens it alike. The
         // moved outline itself, not a transform: a transform would carry its pattern along with it, where
         // the painter lays every pattern from the box's corner.
-        if (const QPainterPath shadow = Geometry::shadowOf(a, silhouette); !shadow.isEmpty()) {
-            svg += QStringLiteral("      <path d=\"%1\" fill-rule=\"%2\" %3")
-                       .arg(pathData(shadow), fillRule(shadow), paintAttr("fill", Geometry::shadowPaint(a), shadowFillId));
-            if (Geometry::blursShadow(a))
-                svg += QStringLiteral(" filter=\"url(#%1)\"").arg(shadowId);
-            svg += QLatin1String("/>\n");
-        }
+        svg += shadowElements(a.effects.shadow, a.effects.shadowFill, shadow, shadowFillId, shadowId,
+                              QLatin1String("      "));
         const QPainterPath tone = Geometry::fillTone(a, silhouette);
         if (tone.isEmpty()) {
             svg += QStringLiteral("      <path d=\"%1\" fill-rule=\"%2\" %3")
@@ -554,11 +598,12 @@ QByteArray write(const ObjectRecord& a, const QByteArray& picture, const QString
         svg += QLatin1String("    </g>\n");
     }
 
-    if (const QString lettering = letteringElements(a, Geometry::textOutline(a), QLatin1String("      "));
+    if (const QString lettering = letteringElements(a, text, textShadow, QLatin1String("      "));
         !lettering.isEmpty())
         svg += QLatin1String("    <g>\n") + lettering + QLatin1String("    </g>\n");
 
     svg += QLatin1String("  </g>\n</svg>\n");
+    qDebug().nospace() << "[shadow-perf] Svg::write: " << perf.elapsed() << " ms, " << svg.size() << " chars";
     return svg.toUtf8();
 }
 

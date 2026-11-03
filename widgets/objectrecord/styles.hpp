@@ -152,10 +152,34 @@ struct PatternCell
 [[nodiscard]] bool fadesShadow(const Shadow& s, const Paint& fill);
 
 /**
- * @brief \p s cast by \p caster: \p caster grown by its spread and moved by its offset; for one that fades,
- *        the halftone's marks over that. Empty with no shadow. Filled under the caster with shadowPaint().
+ * @brief What a shadow is drawn from, with no boolean operation on its caster: the caster moved, and how far
+ *        it grows, drawn as a round stroke `2 × grow` wide over it in the same paint.
+ *
+ * A union of the caster with its stroke would be the grown shape as one path, but a union costs as the
+ * square of the outline: a balloon's is quick, a line of lettering's took a second and a half. Drawn
+ * together instead, the body and its band are filled opaque and given the shadow's alpha once (a layer on a
+ * painter, a group's `opacity` in the SVG), so where they overlap they do not darken twice.
  */
-[[nodiscard]] QPainterPath shadowOf(const Shadow& s, const Paint& fill, const QPainterPath& caster);
+struct ShadowPaths
+{
+    QPainterPath body;          //!< The caster moved by the offset; for a fading halftone, its marks (grown already).
+    qreal        grow = 0.0;    //!< How far the body grows on every side, as a stroke; 0 for none and for marks.
+
+    [[nodiscard]] bool isEmpty() const { return body.isEmpty(); }
+};
+
+/**
+ * @brief \p s cast by \p caster: ShadowPaths, grown by its spread and moved by its offset; for one that
+ *        fades, the halftone's marks over that. Empty with no shadow. Painted with shadowPaint(), or with
+ *        shadowLayerPaint() while it grows.
+ */
+[[nodiscard]] ShadowPaths shadowOf(const Shadow& s, const Paint& fill, const QPainterPath& caster);
+
+/**
+ * @brief What a growing shadow's body and band are painted with together: shadowPaint() made opaque, its
+ *        alpha given to \p opacity for the layer or group they are drawn in.
+ */
+[[nodiscard]] Paint shadowLayerPaint(const Shadow& s, const Paint& fill, qreal* opacity);
 
 /**
  * @brief What shadowOf() is filled with: the shadow's colour, or its pattern's marks in that colour on no
@@ -168,7 +192,7 @@ struct PatternCell
 
 [[nodiscard]] bool         blursShadow(const ObjectRecord& a);   //!< The balloon's.
 [[nodiscard]] bool         fadesShadow(const ObjectRecord& a);   //!< The balloon's.
-[[nodiscard]] QPainterPath shadowOf(const ObjectRecord& a, const QPainterPath& silhouette);   //!< The balloon's.
+[[nodiscard]] ShadowPaths  shadowOf(const ObjectRecord& a, const QPainterPath& silhouette);   //!< The balloon's.
 [[nodiscard]] Paint        shadowPaint(const ObjectRecord& a);   //!< The balloon's.
 /** @} */
 

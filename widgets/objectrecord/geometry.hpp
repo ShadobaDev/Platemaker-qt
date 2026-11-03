@@ -27,6 +27,7 @@
 
 #include "objectrecord.hpp"
 #include "shapes.hpp"   // ShapeHandle: the text area's arrows
+#include "styles.hpp"   // ShadowPaths: the lettering's shadow
 
 namespace Geometry {
 
@@ -136,7 +137,7 @@ enum class Part { None, Fill, Outline, Text };
  *        width and the shadow's spread together, which is the same as the outlined letters grown by the
  *        spread. Empty with no shadow or no words. Filled under them with shadowPaint() of the lettering's.
  */
-[[nodiscard]] QPainterPath textShadowOf(const ObjectRecord& a, const QPainterPath& text);
+[[nodiscard]] ShadowPaths textShadowOf(const ObjectRecord& a, const QPainterPath& text);
 
 /**
  * @brief The family \p a's lettering is actually outlined in when its own is not installed, or empty.

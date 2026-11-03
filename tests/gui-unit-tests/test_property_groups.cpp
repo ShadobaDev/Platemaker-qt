@@ -1136,8 +1136,9 @@ TEST(Shapes, AnEdgeGoesInAndTheLetteringGivesUpItsDepth)
 }
 
 /**
- * @brief A shadow is the silhouette grown and moved, inside the room reserved for it, and only a soft one
- *        is a filter (PLAN-L P9, P12): a hard one is drawn as it is edited, a soft one by the library.
+ * @brief A shadow is the silhouette moved, and grown by a band as wide as its spread drawn over it (no union
+ *        of the two), inside the room reserved for it; only a soft one is a filter: a hard one is drawn as
+ *        it is edited, a soft one by the library.
  */
 TEST(Effects, AShadowStaysInItsBoundsAndOnlyASoftOneIsAFilter)
 {
@@ -1156,20 +1157,14 @@ TEST(Effects, AShadowStaysInItsBoundsAndOnlyASoftOneIsAFilter)
                 a.effects.shadow.x        = offset.x();
                 a.effects.shadow.y        = offset.y();
                 a.effects.shadow.softness = softness;
-                const QPainterPath silhouette = Geometry::silhouette(a);
-                const QPainterPath shadow     = Geometry::shadowOf(a, silhouette);
-                if (grow <= 0.0) {
-                    EXPECT_TRUE(shadow == silhouette.translated(offset));   // P9b's
-                } else {
-                    // Grown by the spread on every side: it holds the moved balloon, and reaches that far out.
-                    const QRectF moved = silhouette.boundingRect().translated(offset);
-                    EXPECT_TRUE(shadow.contains(silhouette.translated(offset)));
-                    EXPECT_NEAR(shadow.boundingRect().left(), moved.left() - grow, 0.5);
-                    EXPECT_NEAR(shadow.boundingRect().bottom(), moved.bottom() + grow, 0.5);
-                }
-                // The blur reaches three deviations past the grown, moved shape.
-                const qreal  blur  = 3.0 * softness;
-                const QRectF reach = shadow.boundingRect().adjusted(-blur, -blur, blur, blur);
+                const QPainterPath          silhouette = Geometry::silhouette(a);
+                const Geometry::ShadowPaths shadow     = Geometry::shadowOf(a, silhouette);
+                // The moved balloon, grown on every side by a band as wide as the spread.
+                EXPECT_TRUE(shadow.body == silhouette.translated(offset));
+                EXPECT_DOUBLE_EQ(shadow.grow, grow);
+                // The band and the blur reach that far, and three deviations, past the moved shape.
+                const qreal  out   = grow + 3.0 * softness;
+                const QRectF reach = shadow.body.boundingRect().adjusted(-out, -out, out, out);
                 EXPECT_TRUE(Geometry::bounds(a).contains(reach))
                     << offset.x() << "," << offset.y() << " spread " << grow << " soft " << softness;
                 EXPECT_EQ(Geometry::hasFilter(a), softness > 0.0);
@@ -1201,7 +1196,7 @@ TEST(Effects, AHalftoneShadowReplacesTheShadowAndFadesOverItsSoftness)
         // Hard: the moved shape, filled with the pattern's marks in the shadow's colour, and no ground.
         a.effects.shadow.softness = 0.0;
         EXPECT_FALSE(Geometry::fadesShadow(a));
-        EXPECT_TRUE(Geometry::shadowOf(a, silhouette) == silhouette);
+        EXPECT_TRUE(Geometry::shadowOf(a, silhouette).body == silhouette);
         const Paint hard = Geometry::shadowPaint(a);
         EXPECT_EQ(hard.kind, a.effects.shadowFill.kind);
         EXPECT_EQ(hard.colour.alpha(), 0) << "a halftone shadow has no ground";
@@ -1213,8 +1208,9 @@ TEST(Effects, AHalftoneShadowReplacesTheShadowAndFadesOverItsSoftness)
         EXPECT_FALSE(Geometry::hasFilter(a));
         EXPECT_EQ(Geometry::shadowPaint(a).kind, Paint::Kind::Solid);
         EXPECT_EQ(Geometry::shadowPaint(a).colour, a.effects.shadowFill.colour);
-        const QPainterPath marks = Geometry::shadowOf(a, silhouette);
+        const QPainterPath marks = Geometry::shadowOf(a, silhouette).body;
         ASSERT_FALSE(marks.isEmpty()) << k;
+        EXPECT_DOUBLE_EQ(Geometry::shadowOf(a, silhouette).grow, 0.0);   // marks are grown already
         const qreal  reach = 3.0 * a.effects.shadow.softness;
         const QRectF outer = silhouette.boundingRect().adjusted(-reach, -reach, reach, reach);
         EXPECT_TRUE(outer.contains(marks.boundingRect())) << k;
@@ -1223,7 +1219,7 @@ TEST(Effects, AHalftoneShadowReplacesTheShadowAndFadesOverItsSoftness)
 
     // Deep inside, a dot is the pattern's own; well outside, there is none.
     a.effects.shadowFill.kind = Paint::Kind::Dots;
-    const QPainterPath marks  = Geometry::shadowOf(a, silhouette);
+    const QPainterPath marks  = Geometry::shadowOf(a, silhouette).body;
     const qreal        side   = a.effects.shadowFill.spacing;
     const QPointF      middle = silhouette.boundingRect().center();
     const QPointF      dot((std::floor(middle.x() / side) + 0.5) * side, (std::floor(middle.y() / side) + 0.5) * side);
@@ -1231,6 +1227,13 @@ TEST(Effects, AHalftoneShadowReplacesTheShadowAndFadesOverItsSoftness)
     EXPECT_FALSE(marks.contains(dot + QPointF(1.1 * a.effects.shadowFill.size / 2.0, 0)));
     const QRectF body = silhouette.boundingRect();
     EXPECT_FALSE(marks.intersects(QRectF(body.left() - 20, body.top(), 8, body.height())));
+
+    // Spread, it fades about the grown edge, measured from the balloon's with no union: marks reach out
+    // past the balloon by about the spread, and there, 20 px out, are some.
+    a.effects.shadow.spread    = 20.0;
+    const QPainterPath spread  = Geometry::shadowOf(a, silhouette).body;
+    EXPECT_LT(spread.boundingRect().left(), body.left() - 15.0);
+    EXPECT_TRUE(spread.intersects(QRectF(body.left() - 20, body.top(), 8, body.height())));
 }
 
 /**

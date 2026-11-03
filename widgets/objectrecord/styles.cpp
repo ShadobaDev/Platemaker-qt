@@ -6,6 +6,8 @@
 #include "geometry.hpp"
 #include "shapes.hpp"
 
+#include <QDebug>          // [shadow-perf] temporary
+#include <QElapsedTimer>   // [shadow-perf] temporary
 #include <QObject>
 #include <QPainterPathStroker>
 #include <QPolygonF>
@@ -1174,30 +1176,42 @@ Paint shadowPaint(const Shadow& s, const Paint& fill)
     return p;
 }
 
-QPainterPath shadowOf(const Shadow& s, const Paint& fill, const QPainterPath& caster)
+ShadowPaths shadowOf(const Shadow& s, const Paint& fill, const QPainterPath& caster)
 {
     if (!s.on || caster.isEmpty())
         return {};
-    QPainterPath grown = caster;
-    if (s.spread > 0.0) {
-        // Grown on every side: united with a round stroke as wide as the spread each way.
-        QPainterPathStroker rim;
-        rim.setWidth(2.0 * s.spread);
-        rim.setJoinStyle(Qt::RoundJoin);
-        rim.setCapStyle(Qt::RoundCap);
-        grown = caster.united(rim.createStroke(caster));
-    }
-    grown.translate(s.x, s.y);
+    QElapsedTimer perf;   // [shadow-perf] temporary
+    perf.start();
+    const QPainterPath moved = caster.translated(s.x, s.y);
+    const qreal        grow  = qMax(s.spread, 0.0);
     if (!fadesShadow(s, fill))
-        return grown;
+        return {moved, grow};
     // A halftone fades as a blur does: a mark's tone is the blurred edge's at its centre, half at the
-    // edge itself, and gone three deviations out.
+    // edge itself, and gone three deviations out. The edge is the grown one's: the signed distance from the
+    // moved caster (positive inside) plus the spread, which a round growth is exactly.
     const qreal          deviation = s.softness;
     const qreal          reach     = k_blurReach * deviation;
-    const SignedDistance distance(grown, reach);   // past it the tone is whole, or nothing
-    return halftoneMarks(fill, grown.boundingRect().adjusted(-reach, -reach, reach, reach),
-                         [&](const QPointF& at) { return 0.5 * std::erfc(-distance(at) / (deviation * M_SQRT2)); },
-                         deviation / 2.0);
+    const SignedDistance distance(moved, reach + grow);   // past it the tone is whole, or nothing
+    const qreal          out       = reach + grow;
+    ShadowPaths marks{halftoneMarks(fill, moved.boundingRect().adjusted(-out, -out, out, out),
+                                    [&](const QPointF& at) {
+                                        return 0.5 * std::erfc(-(distance(at) + grow) / (deviation * M_SQRT2));
+                                    },
+                                    deviation / 2.0),
+                      0.0};
+    qDebug().nospace() << "[shadow-perf] shadowOf: fading marks over " << caster.elementCount() << " elements in "
+                       << perf.elapsed() << " ms";
+    return marks;
+}
+
+Paint shadowLayerPaint(const Shadow& s, const Paint& fill, qreal* opacity)
+{
+    Paint   p      = shadowPaint(s, fill);
+    QColor& colour = p.kind == Paint::Kind::Solid ? p.colour : p.second;   // a pattern's marks are its colour
+    if (opacity)
+        *opacity = colour.alphaF();
+    colour.setAlpha(255);
+    return p;
 }
 
 qreal shadowReach(const Shadow& s)
@@ -1217,7 +1231,7 @@ bool fadesShadow(const ObjectRecord& a)
     return fadesShadow(a.effects.shadow, a.effects.shadowFill);
 }
 
-QPainterPath shadowOf(const ObjectRecord& a, const QPainterPath& silhouette)
+ShadowPaths shadowOf(const ObjectRecord& a, const QPainterPath& silhouette)
 {
     return shadowOf(a.effects.shadow, a.effects.shadowFill, silhouette);
 }

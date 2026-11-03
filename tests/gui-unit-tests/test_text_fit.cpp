@@ -278,10 +278,9 @@ TEST(TextFit, TheLettersShadowIsCastWithTheirOutline)
     a.text.shadow.spread = 2.0;
     a.text.shadow.x      = 5.0;
     a.text.outlineWidth  = 3.0;
-    const QRectF cast    = Geometry::textShadowOf(a, letters).boundingRect();
-    EXPECT_NEAR(cast.left(), 10 - 5.0 + 5.0, 0.5);    // grown by 3 + 2, moved right by 5
-    EXPECT_NEAR(cast.top(), 20 - 5.0, 0.5);
-    EXPECT_NEAR(cast.right(), 110 + 5.0 + 5.0, 0.5);
+    const Geometry::ShadowPaths cast = Geometry::textShadowOf(a, letters);
+    EXPECT_TRUE(cast.body == letters.translated(5.0, 0.0));   // moved right by 5...
+    EXPECT_DOUBLE_EQ(cast.grow, 3.0 + 2.0);                    // ...and grown by the outline and the spread
     EXPECT_TRUE(Geometry::textShadowOf(a, QPainterPath()).isEmpty());
 }
 

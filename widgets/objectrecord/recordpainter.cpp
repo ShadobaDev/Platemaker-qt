@@ -1,11 +1,14 @@
 #include "recordpainter.hpp"
 #include "styles.hpp"
 
+#include <QDebug>          // [shadow-perf] temporary
+#include <QElapsedTimer>   // [shadow-perf] temporary
 #include <QPainter>
 #include <QPen>
 #include <QtMath>
 
 #include <cmath>
+#include <functional>
 
 namespace Painter {
 
@@ -25,13 +28,14 @@ constexpr int k_tileOversample = 4;
 constexpr qreal k_outlinePerFill = 512.0;
 
 /**
- * @brief Fills @p marks (many small subpaths) with @p colour, in pieces, through a layer of its own.
+ * @brief Runs @p draw on a layer of its own at device resolution, covering @p bounds (in the painter's
+ *        coordinates), and draws the layer once at @p opacity.
  *
- * Pieces overlap where marks do (a grid's crossings, dots large enough to merge), and a transparent colour
- * filled piece by piece would darken there. So they are filled opaque into a layer at device resolution,
- * which is drawn once with the colour's alpha: the marks paint as one, as they do in the SVG.
+ * What is drawn into it opaque and overlaps itself (a grid's crossings, a shadow's body and its band)
+ * then paints as one, as it does in an SVG group with an opacity.
  */
-void fillMarks(QPainter& painter, const QPainterPath& marks, const QColor& colour)
+void drawInLayer(QPainter& painter, const QRectF& bounds, qreal opacity,
+                 const std::function<void(QPainter&, const QTransform& toPixels)>& draw)
 {
     const QPaintDevice* device = painter.device();
     const qreal         dpr    = device->devicePixelRatio();
@@ -42,7 +46,7 @@ void fillMarks(QPainter& painter, const QPainterPath& marks, const QColor& colou
     // leaves drawImage(). Not deviceTransform(): on a widget that also holds the widget's place in its
     // window, which Qt adds again on drawing, so the layer landed that far off (seen on the strip).
     const QTransform    toPixels = painter.combinedTransform();
-    const QRect         area     = toPixels.mapRect(marks.boundingRect()).toAlignedRect().intersected(screen);
+    const QRect         area     = toPixels.mapRect(bounds).toAlignedRect().intersected(screen);
     if (area.isEmpty())
         return;
 
@@ -52,6 +56,26 @@ void fillMarks(QPainter& painter, const QPainterPath& marks, const QColor& colou
         QPainter p(&layer);
         p.setRenderHint(QPainter::Antialiasing, true);
         p.setTransform(toPixels * QTransform::fromTranslate(-area.left(), -area.top()));
+        draw(p, toPixels);
+    }
+    layer.setDevicePixelRatio(dpr);
+    painter.save();
+    painter.resetTransform();
+    painter.setOpacity(painter.opacity() * opacity);
+    painter.drawImage(QPointF(area.topLeft()) / dpr, layer);
+    painter.restore();
+}
+
+/**
+ * @brief Fills @p marks (many small subpaths) with @p colour, in pieces, through a layer of its own.
+ *
+ * Pieces overlap where marks do (a grid's crossings, dots large enough to merge), and a transparent colour
+ * filled piece by piece would darken there. So they are filled opaque into a layer (drawInLayer()), which
+ * is drawn once with the colour's alpha: the marks paint as one, as they do in the SVG.
+ */
+void fillMarks(QPainter& painter, const QPainterPath& marks, const QColor& colour)
+{
+    drawInLayer(painter, marks.boundingRect(), colour.alphaF(), [&](QPainter& p, const QTransform& toPixels) {
         QColor opaque = colour;
         opaque.setAlpha(255);
         // A piece ends at a mark's start once it holds enough outline (a cubic counted by its control
@@ -87,26 +111,35 @@ void fillMarks(QPainter& painter, const QPainterPath& marks, const QColor& colou
             }
         }
         p.fillPath(piece, opaque);
-    }
-    layer.setDevicePixelRatio(dpr);
-    painter.save();
-    painter.resetTransform();
-    painter.setOpacity(painter.opacity() * colour.alphaF());
-    painter.drawImage(QPointF(area.topLeft()) / dpr, layer);
-    painter.restore();
+    });
 }
 
 /**
- * @brief Shadow @p s, @p path (Geometry::shadowOf()), filled with @p fill: hard here when it is blurred,
+ * @brief Shadow @p s, @p paths (Geometry::shadowOf()), painted with @p fill: hard here when it is blurred,
  *        which is the library's to draw (a record with one is previewed from there at rest,
- *        Geometry::hasFilter()). A halftone's fade is geometry. The balloon's and the letters' alike.
+ *        Geometry::hasFilter()). A halftone's fade is geometry. A growing one is its body and a round band
+ *        over it, opaque in a layer given the shadow's alpha once. The balloon's and the letters' alike.
  */
-void paintShadow(QPainter& painter, const Shadow& s, const Paint& fill, const QPainterPath& path)
+void paintShadow(QPainter& painter, const Shadow& s, const Paint& fill, const Geometry::ShadowPaths& paths)
 {
-    if (Geometry::fadesShadow(s, fill))
-        fillMarks(painter, path, fill.colour);
-    else if (!path.isEmpty())
-        painter.fillPath(path, paintBrush(Geometry::shadowPaint(s, fill)));
+    if (Geometry::fadesShadow(s, fill)) {
+        fillMarks(painter, paths.body, fill.colour);
+    } else if (paths.isEmpty()) {
+        return;
+    } else if (paths.grow <= 0.0) {
+        painter.fillPath(paths.body, paintBrush(Geometry::shadowPaint(s, fill)));
+    } else {
+        qreal        opacity = 1.0;
+        const QBrush brush   = paintBrush(Geometry::shadowLayerPaint(s, fill, &opacity));
+        const qreal  g       = paths.grow;
+        drawInLayer(painter, paths.body.boundingRect().adjusted(-g, -g, g, g), opacity, [&](QPainter& p, const QTransform&) {
+            p.fillPath(paths.body, brush);
+            QPen band(brush, 2.0 * g);
+            band.setJoinStyle(Qt::RoundJoin);
+            band.setCapStyle(Qt::RoundCap);
+            p.strokePath(paths.body, band);
+        });
+    }
 }
 
 } // namespace
@@ -137,13 +170,21 @@ QBrush paintBrush(const Paint& paint)
 
 Paths resolve(const ObjectRecord& a)
 {
+    QElapsedTimer perf;   // [shadow-perf] temporary
+    perf.start();
     Paths p;
     p.silhouette = Geometry::silhouette(a);
+    const qint64 tSilhouette = perf.elapsed();
     p.shadow     = Geometry::shadowOf(a, p.silhouette);
     p.fillTone   = Geometry::fillTone(a, p.silhouette);
     p.ink        = Geometry::ink(a, p.silhouette);
+    const qint64 tBalloon = perf.elapsed();
     p.text       = Geometry::textOutline(a);
+    const qint64 tText = perf.elapsed();
     p.textShadow = Geometry::textShadowOf(a, p.text);
+    qDebug().nospace() << "[shadow-perf] resolve: " << perf.elapsed() << " ms (silhouette " << tSilhouette
+                       << ", balloon's shadow/fill/ink " << tBalloon - tSilhouette << ", text " << tText - tBalloon
+                       << ", text shadow " << perf.elapsed() - tText << ")";
     return p;
 }
 
@@ -155,7 +196,7 @@ void paint(QPainter& painter, const ObjectRecord& a)
 void paintPaths(QPainter& painter, const ObjectRecord& a, const Paths& paths)
 {
     const QPainterPath& silhouette = paths.silhouette;
-    const QPainterPath& shadow     = paths.shadow;
+    const Geometry::ShadowPaths& shadow = paths.shadow;
     const QPainterPath& ink        = paths.ink;
     const QPainterPath& text       = paths.text;
     if (a.box.isEmpty())
@@ -193,7 +234,8 @@ void paintPaths(QPainter& painter, const ObjectRecord& a, const Paths& paths)
     painter.restore();
 }
 
-void paintLettering(QPainter& painter, const ObjectRecord& a, const QPainterPath& text, const QPainterPath& shadow)
+void paintLettering(QPainter& painter, const ObjectRecord& a, const QPainterPath& text,
+                    const Geometry::ShadowPaths& shadow)
 {
     // Filled outlines rather than drawn text, so that what is on screen is what Svg::write() writes
     // and what the library rasterises — one geometry, three consumers.

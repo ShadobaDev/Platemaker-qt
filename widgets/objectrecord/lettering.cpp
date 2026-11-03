@@ -6,6 +6,8 @@
 #include "shapes.hpp"
 #include "styles.hpp"   // shadowOf(): the lettering's shadow is the balloon's kind
 
+#include <QDebug>          // [shadow-perf] temporary
+#include <QElapsedTimer>   // [shadow-perf] temporary
 #include <QFont>
 #include <QFontDatabase>
 #include <QFontInfo>
@@ -177,14 +179,20 @@ QPainterPath textOutline(const ObjectRecord& a)
     return out.intersected(clip);
 }
 
-QPainterPath textShadowOf(const ObjectRecord& a, const QPainterPath& text)
+ShadowPaths textShadowOf(const ObjectRecord& a, const QPainterPath& text)
 {
     if (text.isEmpty())
         return {};
     // A round band as wide as the outline, then one as wide as the spread, is one as wide as the two.
     Shadow s = a.text.shadow;
     s.spread = qMax(s.spread, 0.0) + qMax(a.text.outlineWidth, 0.0);
-    return shadowOf(s, a.text.shadowFill, text);
+    QElapsedTimer perf;   // [shadow-perf] temporary
+    perf.start();
+    ShadowPaths out = shadowOf(s, a.text.shadowFill, text);
+    if (s.on)
+        qDebug().nospace() << "[shadow-perf] textShadowOf: " << perf.elapsed() << " ms, text "
+                           << text.elementCount() << " elements";
+    return out;
 }
 
 QRectF textArea(const ObjectRecord& a)

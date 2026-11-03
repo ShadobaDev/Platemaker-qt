@@ -3,8 +3,6 @@
 #include "geometry.hpp"
 #include "styles.hpp"
 
-#include <QDebug>          // [shadow-perf] temporary
-#include <QElapsedTimer>   // [shadow-perf] temporary
 #include <QCryptographicHash>
 #include <QFile>
 #include <QFileInfo>
@@ -462,8 +460,6 @@ QByteArray write(const ObjectRecord& a, const QByteArray& picture, const QString
 {
     if (a.box.isEmpty())
         return {};
-    QElapsedTimer perf;   // [shadow-perf] temporary
-    perf.start();
 
     // **A picture with words over it.** The geometry is the picture's own box — no tails to reach past
     // it — so the viewBox is the box, and the lettering is laid out in it exactly as a shapeless
@@ -603,7 +599,6 @@ QByteArray write(const ObjectRecord& a, const QByteArray& picture, const QString
         svg += QLatin1String("    <g>\n") + lettering + QLatin1String("    </g>\n");
 
     svg += QLatin1String("  </g>\n</svg>\n");
-    qDebug().nospace() << "[shadow-perf] Svg::write: " << perf.elapsed() << " ms, " << svg.size() << " chars";
     return svg.toUtf8();
 }
 

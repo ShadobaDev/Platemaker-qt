@@ -1,8 +1,6 @@
 #include "recordpainter.hpp"
 #include "styles.hpp"
 
-#include <QDebug>          // [shadow-perf] temporary
-#include <QElapsedTimer>   // [shadow-perf] temporary
 #include <QPainter>
 #include <QPen>
 #include <QtMath>
@@ -170,21 +168,13 @@ QBrush paintBrush(const Paint& paint)
 
 Paths resolve(const ObjectRecord& a)
 {
-    QElapsedTimer perf;   // [shadow-perf] temporary
-    perf.start();
     Paths p;
     p.silhouette = Geometry::silhouette(a);
-    const qint64 tSilhouette = perf.elapsed();
     p.shadow     = Geometry::shadowOf(a, p.silhouette);
     p.fillTone   = Geometry::fillTone(a, p.silhouette);
     p.ink        = Geometry::ink(a, p.silhouette);
-    const qint64 tBalloon = perf.elapsed();
     p.text       = Geometry::textOutline(a);
-    const qint64 tText = perf.elapsed();
     p.textShadow = Geometry::textShadowOf(a, p.text);
-    qDebug().nospace() << "[shadow-perf] resolve: " << perf.elapsed() << " ms (silhouette " << tSilhouette
-                       << ", balloon's shadow/fill/ink " << tBalloon - tSilhouette << ", text " << tText - tBalloon
-                       << ", text shadow " << perf.elapsed() - tText << ")";
     return p;
 }
 

@@ -11,8 +11,6 @@
 #include "properties/blendeditor.hpp"
 #include "recordsvg.hpp"
 
-#include <QDebug>          // [shadow-perf] temporary
-#include <QElapsedTimer>   // [shadow-perf] temporary
 #include <QFileInfo>
 #include <platemaker/core/strip_overlay_compositor/strip_overlay_compositor.hpp>
 
@@ -469,8 +467,6 @@ void ObjectController::setSource(const std::vector<Platemaker::Models::StripOver
 
 QImage ObjectController::sharpRasterFor(const ObjectRecord& a)
 {
-    QElapsedTimer perf;   // [shadow-perf] temporary
-    perf.start();
     const QByteArray svg = Svg::write(a);
     if (svg.isEmpty())
         return {};
@@ -478,17 +474,12 @@ QImage ObjectController::sharpRasterFor(const ObjectRecord& a)
     // Keyed by the document, so the entry cannot outlive what produced it.
     const QString key = QString::fromLatin1(
         QCryptographicHash::hash(svg, QCryptographicHash::Sha256).toHex());
-    if (const auto it = m_sharpCache.constFind(key); it != m_sharpCache.constEnd()) {
-        qDebug().nospace() << "[shadow-perf] sharpRasterFor: cached, " << perf.elapsed() << " ms";
+    if (const auto it = m_sharpCache.constFind(key); it != m_sharpCache.constEnd())
         return it.value();
-    }
 
     // The render's own rasteriser, at strip scale — the scene is 1:1 with the strip, so what appears
     // here is what the committed slice will carry. From the bytes, not the path: see m_sharpCache.
-    const qint64 written = perf.elapsed();
     const auto raster = Platemaker::Core::StripOverlayCompositor{}.rasterizeSvgRgba(svg.toStdString(), 1.0);
-    qDebug().nospace() << "[shadow-perf] sharpRasterFor: write " << written << " ms, library raster "
-                       << perf.elapsed() - written << " ms";
     QImage img;
     if (raster.isValid()) {
         // copy(): the QImage would otherwise reference the vector's buffer, which dies with the call.
@@ -966,9 +957,6 @@ void ObjectController::applyRecords(const QStringList& uids, const QList<ObjectR
 {
     if (uids.size() != records.size())
         return;   // a caller answering about objects it no longer has; writing half of it is worse
-    QElapsedTimer perf;   // [shadow-perf] temporary
-    perf.start();
-    qDebug().nospace() << "[shadow-perf] applyRecords: " << uids.size() << " object(s), commit " << commit;
 
     // **Whichever kind the object is.** This loop used to reach for a BubbleObject and skip whatever
     // was not one, which, once pictures could be lettered, meant dropping their lettering without saying so.
@@ -992,7 +980,6 @@ void ObjectController::applyRecords(const QStringList& uids, const QList<ObjectR
 
     // Live edits repaint only. Persisting every keystroke would write a file and push a history step
     // per character; the panel debounces and says when it has settled.
-    qDebug().nospace() << "[shadow-perf] applyRecords: objects updated in " << perf.elapsed() << " ms";
     if (!commit)
         return;
 
@@ -1016,8 +1003,6 @@ void ObjectController::applyRecords(const QStringList& uids, const QList<ObjectR
                  : m_subject == Subject::Tail   ? tr("Edit tail")
                  : recordFor(uids.first()).isArtwork() ? tr("Edit artwork")
                                                        : tr("Edit bubble"));
-    qDebug().nospace() << "[shadow-perf] applyRecords: committed (placement, stack, overlays) in "
-                       << perf.elapsed() << " ms";
 }
 
 void ObjectController::applyRecord(const QString& uid, const ObjectRecord& record, bool commit,

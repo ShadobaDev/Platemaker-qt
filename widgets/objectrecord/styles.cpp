@@ -6,8 +6,6 @@
 #include "geometry.hpp"
 #include "shapes.hpp"
 
-#include <QDebug>          // [shadow-perf] temporary
-#include <QElapsedTimer>   // [shadow-perf] temporary
 #include <QObject>
 #include <QPainterPathStroker>
 #include <QPolygonF>
@@ -1180,8 +1178,6 @@ ShadowPaths shadowOf(const Shadow& s, const Paint& fill, const QPainterPath& cas
 {
     if (!s.on || caster.isEmpty())
         return {};
-    QElapsedTimer perf;   // [shadow-perf] temporary
-    perf.start();
     const QPainterPath moved = caster.translated(s.x, s.y);
     const qreal        grow  = qMax(s.spread, 0.0);
     if (!fadesShadow(s, fill))
@@ -1193,15 +1189,12 @@ ShadowPaths shadowOf(const Shadow& s, const Paint& fill, const QPainterPath& cas
     const qreal          reach     = k_blurReach * deviation;
     const SignedDistance distance(moved, reach + grow);   // past it the tone is whole, or nothing
     const qreal          out       = reach + grow;
-    ShadowPaths marks{halftoneMarks(fill, moved.boundingRect().adjusted(-out, -out, out, out),
-                                    [&](const QPointF& at) {
-                                        return 0.5 * std::erfc(-(distance(at) + grow) / (deviation * M_SQRT2));
-                                    },
-                                    deviation / 2.0),
-                      0.0};
-    qDebug().nospace() << "[shadow-perf] shadowOf: fading marks over " << caster.elementCount() << " elements in "
-                       << perf.elapsed() << " ms";
-    return marks;
+    return {halftoneMarks(fill, moved.boundingRect().adjusted(-out, -out, out, out),
+                          [&](const QPointF& at) {
+                              return 0.5 * std::erfc(-(distance(at) + grow) / (deviation * M_SQRT2));
+                          },
+                          deviation / 2.0),
+            0.0};
 }
 
 Paint shadowLayerPaint(const Shadow& s, const Paint& fill, qreal* opacity)

@@ -239,7 +239,7 @@ void paintLettering(QPainter& painter, const ObjectRecord& a, const QPainterPath
         pen.setCapStyle(Qt::RoundCap);
         painter.strokePath(text, pen);
     }
-    painter.fillPath(text, a.text.colour);
+    painter.fillPath(text, paintBrush(a.text.fill));
 }
 
 QImage render(const ObjectRecord& a)

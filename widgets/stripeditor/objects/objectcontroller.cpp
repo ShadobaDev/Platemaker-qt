@@ -851,7 +851,7 @@ bool ObjectController::applyColourAt(const QPointF& scenePos, const QTransform& 
     const Geometry::Part part = Geometry::partAt(a, bubble->mapFromScene(scenePos), slack);
     switch (part) {
     case Geometry::Part::Text:
-        a.text.colour = colour;
+        a.text.fill.colour = colour;
         step          = tr("Apply text colour");
         break;
     case Geometry::Part::Outline:
@@ -876,7 +876,7 @@ bool ObjectController::applyColourAt(const QPointF& scenePos, const QTransform& 
             ObjectRecord each   = recordFor(uid);
             const bool   shaped = each.hasSilhouette();
             switch (part) {
-            case Geometry::Part::Text:    each.text.colour = colour; break;
+            case Geometry::Part::Text:    each.text.fill.colour = colour; break;
             case Geometry::Part::Outline: if (shaped) each.style.stroke.colour = colour; break;
             case Geometry::Part::Fill:    if (shaped) each.skin.fill.colour   = colour; break;
             case Geometry::Part::None:    break;
@@ -1271,7 +1271,7 @@ void ObjectController::applyColourToSelection(const QColor& colour, Geometry::Pa
         ObjectRecord each   = recordFor(uid);
         const bool   shaped = each.hasSilhouette();
         switch (role) {
-        case Geometry::Part::Text:    each.text.colour = colour; ++changed; break;
+        case Geometry::Part::Text:    each.text.fill.colour = colour; ++changed; break;
         case Geometry::Part::Outline: if (shaped) { each.style.stroke.colour = colour; ++changed; } break;
         case Geometry::Part::Fill:    if (shaped) { each.skin.fill.colour   = colour; ++changed; } break;
         case Geometry::Part::None:    break;

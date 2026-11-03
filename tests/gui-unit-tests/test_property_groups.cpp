@@ -88,7 +88,12 @@ ObjectRecord loadedRecord()
     a.text.pixelSize   = 44;
     a.text.bold        = true;
     a.text.align       = Qt::AlignRight;
-    a.text.colour      = QColor(1, 2, 3);
+    a.text.fill.colour = QColor(1, 2, 3);
+    a.text.fill.kind   = ObjectRecord::Pattern::Lines;
+    a.text.fill.second = QColor(30, 31, 32);
+    a.text.fill.spacing = 3.5;
+    a.text.fill.size   = 1.75;
+    a.text.fill.angle  = 15;
     a.text.lineSpacing = 85;
     a.text.paddingSide = -13;   // negative on purpose: an impact balloon's lettering may leave it
     a.text.paddingTop  = 17;    // and not the side's, so the two are told apart
@@ -182,7 +187,7 @@ struct StyleMirror {
 static_assert(sizeof(StyleProperties) == sizeof(StyleMirror),
               "StyleProperties grew a field: place it (see above), then mirror it");
 
-struct TextMirror { QString body, family; int pixelSize; bool bold; int align; QColor colour; int lineSpacing, paddingSide, paddingTop;
+struct TextMirror { QString body, family; int pixelSize; bool bold; int align; Paint fill; int lineSpacing, paddingSide, paddingTop;
                     Paint outline; qreal outlineWidth; Shadow shadow; Paint shadowFill; };
 static_assert(sizeof(TextProperties) == sizeof(TextMirror),
               "TextProperties grew a field: place it (see above), then mirror it");
@@ -313,7 +318,7 @@ void expectUntouched(Group applied, const ObjectRecord& before, const ObjectReco
         EXPECT_EQ(after.text.pixelSize, before.text.pixelSize);
         EXPECT_EQ(after.text.bold,      before.text.bold);
         EXPECT_EQ(after.text.align,     before.text.align);
-        EXPECT_EQ(after.text.colour,    before.text.colour);
+        expectSamePaint(after.text.fill, before.text.fill, "text");
         EXPECT_EQ(after.text.lineSpacing, before.text.lineSpacing);
         EXPECT_EQ(after.text.paddingSide, before.text.paddingSide);
         EXPECT_EQ(after.text.paddingTop,  before.text.paddingTop);
@@ -446,7 +451,8 @@ TEST(PropertyGroupOwnership, Text)
     s.pixelSize = 19;
     s.bold      = false;
     s.align     = Qt::AlignLeft;
-    s.colour    = QColor(90, 80, 70);
+    s.fill.colour = QColor(90, 80, 70);
+    s.fill.kind   = ObjectRecord::Pattern::Dots;
     s.lineSpacing = 140;
     s.paddingSide = 21;
     s.paddingTop  = -4;
@@ -549,21 +555,21 @@ TEST(PropertyGroupOwnership, OneTailOutOfRangeWritesNothing)
 TEST(PropertyGroupOwnership, SkinAndTextColoursAreSeparate)
 {
     ObjectRecord a = loadedRecord();
-    a.text.colour  = QColor(123, 45, 67);
+    a.text.fill.colour = QColor(123, 45, 67);
 
     SkinProperties s = SkinProperties::from(a);
     s.fill.colour = QColor(123, 45, 67);
     s.applyTo(a);
 
     EXPECT_EQ(a.skin.fill.colour,   QColor(123, 45, 67));
-    EXPECT_EQ(a.text.colour, QColor(123, 45, 67));
+    EXPECT_EQ(a.text.fill.colour, QColor(123, 45, 67));
 
     TextProperties t = TextProperties::from(a);
-    t.colour = QColor(9, 9, 9);
+    t.fill.colour = QColor(9, 9, 9);
     t.applyTo(a);
 
     EXPECT_EQ(a.skin.fill.colour,   QColor(123, 45, 67));   // still the balloon's
-    EXPECT_EQ(a.text.colour, QColor(9, 9, 9));
+    EXPECT_EQ(a.text.fill.colour, QColor(9, 9, 9));
 }
 
 // ---------------------------------------------------------------------------

@@ -406,8 +406,9 @@ QString letteringAttrs(const ObjectRecord& a)
     return out;
 }
 
-//! The ids of the lettering's outline pattern, its shadow's blur and its shadow's pattern, beside the
+//! The ids of the lettering's own pattern, its outline's, its shadow's blur and its shadow's pattern, beside the
 //! balloon's own (`pm-fill`, `pm-stroke`, `pm-shadow`…).
+const QString k_textFillId       = QStringLiteral("pm-text-fill");
 const QString k_textOutlineId    = QStringLiteral("pm-text-outline");
 const QString k_textShadowId     = QStringLiteral("pm-text-shadow");
 const QString k_textShadowFillId = QStringLiteral("pm-text-shadow-fill");
@@ -434,17 +435,17 @@ QString letteringElements(const ObjectRecord& a, const QPainterPath& text, const
                             .arg(pathData(text), paintAttr("stroke", a.text.outline, k_textOutlineId),
                                  num(2.0 * a.text.outlineWidth));
     out += indent + QStringLiteral("<path d=\"%1\" fill-rule=\"%2\" %3/>\n")
-                        .arg(pathData(text), fillRule(text), paint("fill", a.text.colour));
+                        .arg(pathData(text), fillRule(text), paintAttr("fill", a.text.fill, k_textFillId));
     return out;
 }
 
-//! The `<defs>` the lettering's elements reference: its outline's pattern, its shadow's blur and pattern.
+//! The `<defs>` the lettering's elements reference: its own pattern, its outline's, its shadow's blur and pattern.
 QString letteringDefs(const ObjectRecord& a, const QPainterPath& text, const Geometry::ShadowPaths& shadow)
 {
     const TextProperties& t = a.text;
     if (text.isEmpty())
         return {};
-    QString d;
+    QString d = patternDefs(t.fill, k_textFillId);
     if (t.outlineWidth > 0.0)
         d += patternDefs(t.outline, k_textOutlineId);
     if (t.shadow.on) {

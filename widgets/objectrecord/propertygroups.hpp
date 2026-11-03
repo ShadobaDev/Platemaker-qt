@@ -690,8 +690,9 @@ struct EffectProperties
  *
  * Content and typography in one group because one widget edits both, and because the split that
  * matters is elsewhere: a **preset** carries the typography and never the content — *everything a
- * balloon is, minus everything it says*. The colour is here rather than with the fill and stroke for
- * the same reason the colour tool has only two swatches: editing a frame is not editing its lettering.
+ * balloon is, minus everything it says*. The letters' paint is here rather than with the balloon's fill
+ * and stroke for the same reason the colour tool has only two swatches: editing a frame is not editing
+ * its lettering.
  *
  * Shared, unchanged, by whatever has text — a balloon, a caption, and eventually a standalone text
  * object — rather than each kind carrying its own copy of the same six properties.
@@ -703,7 +704,8 @@ struct TextProperties
     int     pixelSize = 30;           //!< Strip-scale pixels, so it means the same thing in the output.
     bool    bold      = false;
     int     align     = Qt::AlignHCenter;   //!< Horizontal alignment of each line.
-    QColor  colour{20, 20, 20};
+    //! The letters' paint: a colour, or a halftone of a second colour over it (dots, lines, a grid).
+    Paint   fill{QColor(20, 20, 20), QColor(255, 255, 255)};
     //! Line pitch as a percentage of the font's own — for faces that set their lines too far apart.
     int     lineSpacing = 100;
     /**
@@ -755,7 +757,12 @@ struct TextProperties
         v("lineSpacing", &TextProperties::lineSpacing);
         v("paddingSide", &TextProperties::paddingSide);
         v("paddingTop",  &TextProperties::paddingTop);
-        v("textColour",  &TextProperties::colour);
+        // The colour keeps the key it had as a plain colour; a pattern does not fade here.
+        static constexpr const char* k_fill[] = {
+            "textColour", "textKind", "textSecond", "textSpacing", "textSize", "textAngle",
+            nullptr,      nullptr,    nullptr,      nullptr,       nullptr,    nullptr,
+            nullptr,      nullptr,    nullptr,      nullptr,       nullptr,    nullptr};
+        Paint::fieldsAs(v, &TextProperties::fill, k_fill);
         static constexpr const char* k_outline[] = {
             "textOutline", "textOutlineKind", "textOutlineSecond", "textOutlineSpacing", "textOutlineSize",
             "textOutlineAngle",

@@ -2,12 +2,10 @@
 #include "geometry.hpp"
 
 #include <QCheckBox>
-#include <QColorDialog>
 #include <QComboBox>
 #include <QFontComboBox>
 #include <QFormLayout>
 #include <QPlainTextEdit>
-#include <QPushButton>
 #include <QSettings>
 #include <QTextDocument>
 #include <QTextOption>
@@ -141,8 +139,9 @@ TextEditor::TextEditor(QWidget* parent)
     m_align->addItem(tr("Right"),  int(Qt::AlignRight));
     form->addRow(tr("Align"), m_align);
 
-    m_swatch = new QPushButton(tr("Colour"), this);
-    form->addRow(tr("Colour"), m_swatch);
+    // The letters' paint: a colour, or a halftone over it.
+    m_fill.build(this, form, &TextProperties::fill, tr("Colour"), m_values, m_populating,
+                 [this] { emit changed(); }, [this] { emit committed(); });
 
     // The outline: its width, 0 for none, then its paint, shown once there is one.
     m_outlineWidth.build(this, form, "textOutline", k_outlineRows, k_trContext, m_values, m_populating, [this] {
@@ -212,18 +211,6 @@ TextEditor::TextEditor(QWidget* parent)
         emit changed();
     });
 
-    connect(m_swatch, &QPushButton::clicked, this, [this] {
-        const QColor picked = QColorDialog::getColor(m_values.colour, this, tr("Choose colour"));
-        if (!picked.isValid())
-            return;
-        m_values.colour = picked;
-        m_colourTouched = true;
-        m_mixedColour   = false;   // they all take this one now
-        paintColourSwatch(m_swatch, picked);
-        emit changed();
-        emit committed();   // a dialog choice is discrete — commit it without waiting on a timer
-    });
-
     syncFromValues();
 }
 
@@ -235,7 +222,8 @@ void TextEditor::bind(const Subjects& subjects)
     m_values   = TextProperties::from(*subjects.first());
     m_subjects = static_cast<int>(subjects.size());
 
-    m_mixedColour = m_mixedFamily = m_mixedSize = m_mixedBold = m_mixedAlign = m_mixedLineSpacing = false;
+    m_mixedFamily = m_mixedSize = m_mixedBold = m_mixedAlign = m_mixedLineSpacing = false;
+    m_fill.reset();
     m_paddings.reset();
     m_outlineWidth.reset();
     m_outline.reset();
@@ -244,7 +232,7 @@ void TextEditor::bind(const Subjects& subjects)
     m_anyOutline   = false;
     for (const ObjectRecord* a : subjects) {
         const TextProperties t = TextProperties::from(*a);
-        m_mixedColour = m_mixedColour || t.colour    != m_values.colour;
+        m_fill.compare(t, m_values);
         m_mixedFamily = m_mixedFamily || t.family    != m_values.family;
         m_mixedSize   = m_mixedSize   || t.pixelSize != m_values.pixelSize;
         m_mixedBold   = m_mixedBold   || t.bold      != m_values.bold;
@@ -257,7 +245,7 @@ void TextEditor::bind(const Subjects& subjects)
         m_anyBalloon       = m_anyBalloon       || a->hasSilhouette();
         m_anyOutline       = m_anyOutline       || t.outlineWidth > 0.0;
     }
-    m_colourTouched = m_familyTouched = m_sizeTouched = m_boldTouched = m_alignTouched = false;
+    m_familyTouched = m_sizeTouched = m_boldTouched = m_alignTouched = false;
     m_lineSpacingTouched = false;
 
     syncFromValues();
@@ -272,7 +260,7 @@ void TextEditor::applyEditedTo(ObjectRecord& target) const
 {
     // The lettering itself is never written to a set: five balloons do not share one line of dialogue.
     TextProperties t = TextProperties::from(target);
-    if (m_colourTouched) t.colour    = m_values.colour;
+    m_fill.applyEdited(m_values, t);
     if (m_familyTouched) t.family    = m_values.family;
     if (m_sizeTouched)   t.pixelSize = m_values.pixelSize;
     if (m_boldTouched)   t.bold      = m_values.bold;
@@ -333,10 +321,7 @@ void TextEditor::syncFromValues()
     m_paddings.setVisible(m_form, m_anyBalloon);
     showCheck(m_bold, m_mixedBold, m_values.bold);
     showCombo(m_align, m_mixedAlign, m_align->findData(m_values.align));
-    if (m_mixedColour)
-        paintMixedSwatch(m_swatch, palette());
-    else
-        paintColourSwatch(m_swatch, m_values.colour);
+    m_fill.show(m_values);
     m_outlineWidth.show(m_values);
     m_outline.show(m_values);
     showOutline();

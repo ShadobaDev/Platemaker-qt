@@ -191,7 +191,7 @@ void BubbleToolOptions::refreshPresetCombo()
         // No separator row between built-ins and the artist's own: a separator is an entry, and every
         // index here doubles as an index into the store.
         m_presetCombo->addItem(QIcon(bubbleThumbnail(p.record.shape, p.record.skin.fill.colour,
-                                                     p.record.style.stroke.colour, p.record.text.colour)),
+                                                     p.record.style.stroke.colour, p.record.text.fill.colour)),
                                p.name);
     }
     // No current entry, ever: see the placeholder above. Which preset the other two act on is the one

@@ -60,7 +60,7 @@ QPixmap bubbleThumbnail(const ShapeProperties& shape, const QColor& fill, const 
     a.text.pixelSize   = a.box.height() / 3;
     a.skin.fill.colour        = fill;
     a.style.stroke.colour      = stroke;
-    a.text.colour      = ink;
+    a.text.fill.colour = ink;
     if (Geometry::shapeSpeaks(shape)) {
         Tail t;
         // A short tail: the tile is scaled to fit, so a long one would shrink the balloon itself and

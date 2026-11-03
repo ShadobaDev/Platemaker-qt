@@ -10,7 +10,6 @@ class QCheckBox;
 class QComboBox;
 class QFontComboBox;
 class QPlainTextEdit;
-class QPushButton;
 class QFormLayout;
 class QSpinBox;
 
@@ -64,9 +63,9 @@ private:
     QSpinBox*       m_size   = nullptr;
     QCheckBox*      m_bold   = nullptr;
     QComboBox*      m_align  = nullptr;
-    QPushButton*    m_swatch = nullptr;
     QSpinBox*       m_lineSpacing = nullptr;
     FieldRows<TextProperties> m_paddings;   //!< Side and top; only while something bound has a balloon to keep from.
+    PaintRows<TextProperties> m_fill;           //!< The letters' paint.
     FieldRows<TextProperties> m_outlineWidth;   //!< The letters' outline; 0 is none.
     PaintRows<TextProperties> m_outline;        //!< ...and its paint.
     ShadowRows<TextProperties> m_shadow;        //!< The letters' shadow, the balloon's rows.
@@ -76,7 +75,7 @@ private:
     TextProperties m_values;
     bool m_populating = false;
 
-    // --- bound to a set: only the colour is shown, because only a swatch can say "Mixed" yet ---
+    // --- bound to a set ---
     int  m_subjects      = 0;
     bool m_mixedFamily   = false;
     bool m_mixedSize     = false;
@@ -87,8 +86,6 @@ private:
     bool m_boldTouched   = false;
     bool m_alignTouched  = false;
     bool m_bodyVisible   = true;   //!< What setContentVisible() was last told; a set hides the box too.
-    bool m_mixedColour   = false;
-    bool m_colourTouched = false;
     bool m_mixedLineSpacing   = false;
     bool m_lineSpacingTouched = false;
     bool m_anyBalloon         = true;   //!< Whether the padding rows mean anything for what is bound.

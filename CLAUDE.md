@@ -33,6 +33,7 @@ the new pin is committed here.
 ## Build and test
 
 The GUI is built in Qt Creator against an installed `libplatemaker` (`LIBPLATEMAKER_DIR`, see
-`Development-Building.md`). A library API change needs a re-install of the library first.
+`Development-Building.md`). A library API change needs a re-install of the library first. A new,
+moved or split source file goes into the source list in `CMakeLists.txt` (`qt_add_executable`).
 `tests/gui-unit-tests/` (configure with `PLATEMAKER_GUI_BUILD_TESTS=ON`) covers the property model;
 everything with a window is verified by running the application.

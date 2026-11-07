@@ -13,7 +13,7 @@
 class QPalette;
 
 /**
- * @brief How a canvas profile is told from others of its name — names may repeat — in every place a
+ * \brief How a canvas profile is told from others of its name — names may repeat — in every place a
  *        profile is listed: the profile manager, the Templates dialog, a project's profile list and the
  *        list a profile is linked from.
  *
@@ -33,7 +33,7 @@ class QPalette;
                                              const Platemaker::Models::CanvasProfile&              cp);
 
 /**
- * @brief The same for a file name: "_2000x8080" — so the template files of two profiles of one name do
+ * \brief The same for a file name: "_2000x8080" — so the template files of two profiles of one name do
  *        not overwrite each other, and the title a drawing app shows tells them apart too.
  *
  * Empty for a unique name, and for a duplicate with nothing else different: its file would be byte for

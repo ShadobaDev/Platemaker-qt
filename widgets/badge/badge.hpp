@@ -15,7 +15,7 @@ class QPalette;
 class QWidget;
 
 /**
- * @brief A small rounded chip: a few words on a coloured ground, with a tooltip behind it.
+ * \brief A small rounded chip: a few words on a coloured ground, with a tooltip behind it.
  *
  * Used in two shapes that used to have nothing in common — painted inside an item view's rows, and
  * standing on its own in the status bar. A delegate cannot hand out widgets and a status bar cannot
@@ -47,7 +47,7 @@ struct Badge
 Q_DECLARE_METATYPE(Badge)
 
 /**
- * @brief What a chip means. The three advisory levels plus the tone that means nothing at all.
+ * \brief What a chip means. The three advisory levels plus the tone that means nothing at all.
  *
  * Neutral is for the chips that **report** rather than advise — *blend*, *muted*, *Shout* on an object
  * row. They are not a fourth severity; they are the absence of one.
@@ -55,7 +55,7 @@ Q_DECLARE_METATYPE(Badge)
 enum class BadgeTone { Info, Warning, Error, Neutral };
 
 /**
- * @brief A chip in one of the four tones — the one place their colours are decided.
+ * \brief A chip in one of the four tones — the one place their colours are decided.
  *
  * Derived against @p palette rather than fixed, so the same call reads on a light theme and on a dark
  * one: the hue carries the meaning and the lightness follows the window it is drawn in. Nowhere else in
@@ -71,7 +71,7 @@ enum class BadgeTone { Info, Warning, Error, Neutral };
 void paintBadge(QPainter& painter, const QRect& chip, const Badge& badge, const QFont& base);
 
 /**
- * @brief Lays a run of chips out left to right from @p left, and paints them when @p painter is given.
+ * \brief Lays a run of chips out left to right from @p left, and paints them when @p painter is given.
  *
  * **One code path for drawing and for hit-testing.** Pass a null painter to measure — that is how a
  * view answers "which chip is under the cursor" without a second copy of the layout arithmetic, which
@@ -87,7 +87,7 @@ QList<QRect> layOutBadges(QPainter* painter, const QFont& base,
                                         int left, int top, int lineHeight, int right);
 
 /**
- * @brief One chip as a widget, for a status bar or any layout.
+ * \brief One chip as a widget, for a status bar or any layout.
  *
  * Carries its own tooltip, so unlike the painted form there is nothing for the host to answer.
  *

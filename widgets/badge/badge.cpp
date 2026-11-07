@@ -39,7 +39,7 @@ constexpr int k_darkStep = 150; //!< How much darker the derived border is than 
 }
 
 /**
- * @brief The hue for a tone, set to a lightness that reads against @p palette's Base.
+ * \brief The hue for a tone, set to a lightness that reads against @p palette's Base.
  *
  * The hue carries the meaning — red is wrong, amber is worth knowing, blue is a remark — and only the
  * lightness follows the theme. Choosing a whole second palette for dark mode would mean maintaining two

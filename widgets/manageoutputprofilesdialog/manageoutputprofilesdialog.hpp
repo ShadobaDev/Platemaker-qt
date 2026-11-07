@@ -10,7 +10,7 @@ class ManageOutputProfilesDialog;
 }
 
 /**
- * @brief The ManageOutputProfilesDialog class provides a dialog for managing output profiles.
+ * \brief The ManageOutputProfilesDialog class provides a dialog for managing output profiles.
  * It allows users to view, create, edit, duplicate, delete, and set the active output profile. 
  * The dialog displays a list of profiles and provides buttons for various actions.
  */
@@ -23,9 +23,9 @@ public:
     ~ManageOutputProfilesDialog() override;                         //< Destroys the dialog and cleans up resources.
 
     /**
-     * @brief Populates the list of output profiles before calling exec().
-     * @param profiles The list of output profiles to display.
-     * @param activeProfileId The id of the currently active profile (names may repeat — a
+     * \brief Populates the list of output profiles before calling exec().
+     * \param profiles The list of output profiles to display.
+     * \param activeProfileId The id of the currently active profile (names may repeat — a
      *                        workspace can hold a "Webtoon Standard" of its own beside the preset
      *                        of the same name — so the active profile is tracked by id, not name).
      */
@@ -33,8 +33,8 @@ public:
                      const QString &activeProfileId);
 
     /**
-     * @brief Retrieves the updated list of output profiles after the dialog is accepted.
-     * @return The list of output profiles.
+     * \brief Retrieves the updated list of output profiles after the dialog is accepted.
+     * \return The list of output profiles.
      */
     QList<Platemaker::Models::OutputProfile> profiles() const;
     QString activeProfileId() const;                          //!< Retrieves the id of the currently active profile after the dialog is accepted.

@@ -9,7 +9,7 @@ class QToolButton;
 namespace StripEdit {
 
 /**
- * @brief The primary/secondary colour pair — **furniture**, not a tool.
+ * \brief The primary/secondary colour pair — **furniture**, not a tool.
  *
  * It sits in the tool column under the rail and stays there whichever tool is active, because the tools
  * that consume it (the eyedropper fills it; an applicator spends it) are ordinary tools holding a

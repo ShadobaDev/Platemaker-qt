@@ -41,7 +41,7 @@ class WorkspaceLock;
 namespace StripEdit { class PresetStore; }
 
 /**
- * @brief The MainWindow class represents the main application window of Platemaker.
+ * \brief The MainWindow class represents the main application window of Platemaker.
  * It manages the workspace, projects, canvas profiles, output profiles, templates,
  * and rendering processes. It provides a user interface for interacting with these
  * components and orchestrates their behavior.
@@ -55,7 +55,7 @@ public:
     ~MainWindow() override;                         //!< Destroys the main window and cleans up resources.
 
     /**
-     * @brief Restores workspace-level metadata (profiles + project names) from a
+     * \brief Restores workspace-level metadata (profiles + project names) from a
      *        WorkspaceEditor::snapshotMeta string and refreshes every view. Called by
      *        WorkspaceSnapshotCommand on undo/redo. Project *contents* are untouched (they live on
      *        each project's own undo stack).
@@ -65,7 +65,7 @@ public:
 protected:
     /**
      * Handles the window close event.
-     * @param event The close event.
+     * \param event The close event.
      */
     void closeEvent(QCloseEvent *event) override;
 
@@ -99,10 +99,10 @@ private slots:
     void onNewProject();    //!< Prompts for a new project name and adds it to the workspace.
     
     /**
-     * @brief Opens the dock for the double-clicked project, or brings it to front if already open.
+     * \brief Opens the dock for the double-clicked project, or brings it to front if already open.
      * It will detach projects from the list and open them in a separate dock window, 
      * or if already detached, it will bring the dock to the front.
-     * @param item The list widget item that was double-clicked.
+     * \param item The list widget item that was double-clicked.
      */
     void onProjectDoubleClicked(QListWidgetItem *item); //!< Handle attach/detach action of porject dock window
     void onProjectsContextMenu(const QPoint &pos);      //!< Shows a context menu for the project list (rename, remove, etc.) on right click.
@@ -138,7 +138,7 @@ private slots:
     void onRenderToggle(int projectIndex);   //!< Render/Stop from a Project widget
 
     /**
-     * @brief Sweeps every project in the workspace, rendering the ones that need it (F6).
+     * \brief Sweeps every project in the workspace, rendering the ones that need it (F6).
      *
      * Projects are rendered one at a time; see the batch helpers in renderbatch.cpp for
      * why this is sequential rather than parallel.
@@ -146,41 +146,41 @@ private slots:
     void onRefreshAllProjects();
 
     /**
-     * @brief Update the rendering progress for the specified project.
+     * \brief Update the rendering progress for the specified project.
      * This is called by the RenderWorker to report progress back to the MainWindow.
      *
-     * @param done The number of slices that have been processed so far.
-     * @param total The total number of slices to process.
-     * @param sliceName The name of the slice currently being processed (may be empty).
+     * \param done The number of slices that have been processed so far.
+     * \param total The total number of slices to process.
+     * \param sliceName The name of the slice currently being processed (may be empty).
      */
     void onRenderProgress(int done, int total, QString sliceName); 
 
     /**
-     * @brief Logs a message from the rendering process.
+     * \brief Logs a message from the rendering process.
      * This is called by the RenderWorker to report log messages back to the MainWindow.
-     * @param level The log level (e.g., info, warning, error).
-     * @param message The log message.
+     * \param level The log level (e.g., info, warning, error).
+     * \param message The log message.
      */
     void onRenderLog(int level, QString message);
 
     /**
-     * @brief Called when a slice has been saved during rendering.
+     * \brief Called when a slice has been saved during rendering.
      * This is called by the RenderWorker to notify the MainWindow that a slice has been saved.
-     * @param name The name of the slice that was saved.
-     * @param fullPath The full file path where the slice was saved.
+     * \param name The name of the slice that was saved.
+     * \param fullPath The full file path where the slice was saved.
      */
     void onRenderSliceSaved(int index, QString name, QString fullPath);
 
     /**
-     * @brief Called once per input during a render (phase 1), to update its tile live.
-     * @param path The input file's absolute path.
-     * @param status A Core::InputStatus value (appended / skipped-with-reason), mapped to a
+     * \brief Called once per input during a render (phase 1), to update its tile live.
+     * \param path The input file's absolute path.
+     * \param status A Core::InputStatus value (appended / skipped-with-reason), mapped to a
      *               FileStatus for the tile.
      */
     void onRenderInput(QString path, int status);
 
     /**
-     * @brief Called when the rendering process has finished.
+     * \brief Called when the rendering process has finished.
      * This is called by the RenderWorker to notify the MainWindow that rendering has completed.
      */
     void onRenderFinished();
@@ -189,10 +189,10 @@ private:
     // --- render orchestration ---
 
     /**
-     * @brief Starts the rendering process for the specified project index.
+     * \brief Starts the rendering process for the specified project index.
      *
-     * @param projectIndex Index into m_workspace.projectItems.
-     * @return true only when a worker was actually started; false when the project was
+     * \param projectIndex Index into m_workspace.projectItems.
+     * \return true only when a worker was actually started; false when the project was
      *         skipped for any reason (no output profile / directory / inputs, already
      *         up to date, config-change prompt declined, output directory not creatable).
      *         The batch queue relies on this to tell "skipped" from "started" — without
@@ -205,7 +205,7 @@ private:
     // --- batch render (F6) — see renderbatch.cpp ---
 
     /**
-     * @brief Starts the next project in the batch queue, skipping ones that need no work.
+     * \brief Starts the next project in the batch queue, skipping ones that need no work.
      *
      * Loops rather than recurses: whole runs of projects can be skipped (e.g. all up to
      * date), and a loop handles that without deep recursion or re-entering a slot. Returns
@@ -218,7 +218,7 @@ private:
     void finishBatch();
 
     /**
-     * @brief Warns once, after opening a workspace, if canvas profiles moved on since the
+     * \brief Warns once, after opening a workspace, if canvas profiles moved on since the
      *        last render — and offers to refresh right away.
      *
      * Editing a canvas profile leaves every file byte-identical, so the only visible sign
@@ -229,7 +229,7 @@ private:
     void warnIfCanvasConfigStale();
 
     /**
-     * @brief Tells the user, once after opening a workspace, that colliding profile
+     * \brief Tells the user, once after opening a workspace, that colliding profile
      *        identifiers had to be repaired — and saves the repaired workspace.
      *
      * Profiles used to be given an id derived from the clock, so several created in one
@@ -241,59 +241,59 @@ private:
      * Saving matters — without it captureSnapshot() would treat the repaired state as the
      * baseline, the fix would never reach disk, and the dialog would return on every open.
      *
-     * @param report What load() repaired; does nothing when empty.
+     * \param report What load() repaired; does nothing when empty.
      */
     void reportWorkspaceRepair(
         const Platemaker::Infrastructure::WorkspaceRepairReport &report);
 
     /**
-     * @brief Asks whether the batch should continue after a project failed.
+     * \brief Asks whether the batch should continue after a project failed.
      *
      * The whole error policy lives here, so switching to "log and continue" is a one-line
      * change rather than an edit spread across onRenderFinished().
      *
-     * @param projectName Name of the project that failed.
-     * @return true to keep going with the remaining projects.
+     * \param projectName Name of the project that failed.
+     * \return true to keep going with the remaining projects.
      */
     [[nodiscard]] bool batchShouldContinueAfterFailure(const QString &projectName);
 
     /**
-     * @brief Deletes confirmed orphan output files (m_renderOrphanCandidates) that the
+     * \brief Deletes confirmed orphan output files (m_renderOrphanCandidates) that the
      * freshly-rendered project no longer produces.
-     * @param project The project for which to delete orphaned outputs.
+     * \param project The project for which to delete orphaned outputs.
      */
     void deleteOrphanedOutputs(const Platemaker::Models::ProjectItem &project);
 
     /**
-     * @brief Writes the current action-log text to a timestamped file in the workspace cache and
+     * \brief Writes the current action-log text to a timestamped file in the workspace cache and
      * prunes to the newest k_maxRenderLogs runs. Called at each render session's end (single render or
      * batch). A no-op when no workspace is loaded; best-effort (write/prune failures are ignored).
      */
     void persistRenderLog();
 
     /**
-     * @brief Builds the render summary block for the action log: slice count / input count / elapsed
+     * \brief Builds the render summary block for the action log: slice count / input count / elapsed
      * time, the heaviest slice (name + size), and the total output size — one line each (the heaviest
      * line is omitted when there are no slices).
-     * @param project    The just-rendered project (for output/input counts and the output directory).
-     * @param elapsedMs  Wall-clock render time in milliseconds.
+     * \param project    The just-rendered project (for output/input counts and the output directory).
+     * \param elapsedMs  Wall-clock render time in milliseconds.
      */
     [[nodiscard]] QStringList renderSummaryLines(
         const Platemaker::Models::ProjectItem &project, qint64 elapsedMs) const;
 
-    /** @brief Formats a millisecond duration for humans ("820 ms", "3.2 s", "1 m 05 s"). */
+    /** \brief Formats a millisecond duration for humans ("820 ms", "3.2 s", "1 m 05 s"). */
     [[nodiscard]] static QString humanReadableDuration(qint64 ms);
 
     // --- UI helpers ---
     [[nodiscard]] Project *projectWidget(int projectIndex) const;   //!< Gets the Project widget for the specified project index, nullptr if not found.
 
     /**
-     * @brief Resolves the output profile for the given project.
+     * \brief Resolves the output profile for the given project.
      * This function determines the effective output profile for a project, taking into account
      * the project's selected output profile and any workspace-level defaults.
      *
-     * @param project The project for which to resolve the output profile.
-     * @return The resolved output profile for the project.
+     * \param project The project for which to resolve the output profile.
+     * \return The resolved output profile for the project.
      */
     [[nodiscard]] Platemaker::Models::OutputProfile resolveOutputProfileFor(
         const Platemaker::Models::ProjectItem &project) const;
@@ -335,40 +335,40 @@ private:
     void loadWorkspace(const QString &path);    //!< Loads a workspace from disk, replacing the current workspace
 
     /**
-     * @brief Asks where a workspace file should go, and keeps asking until the answer is a folder no other
+     * \brief Asks where a workspace file should go, and keeps asking until the answer is a folder no other
      *        workspace lives in.
      *
      * New and Save As are where a second workspace would enter a folder, so this is where the one-per-folder
      * rule (workspacefolder.hpp) is enforced: a folder that already holds one is refused, with the offer of
      * a subfolder named after the new file.
      *
-     * @param title   The file dialog's caption.
-     * @param startAt Where the dialog opens.
-     * @return The path to write, or empty when the user gave up.
+     * \param title   The file dialog's caption.
+     * \param startAt Where the dialog opens.
+     * \return The path to write, or empty when the user gave up.
      */
     [[nodiscard]] QString askWorkspaceFile(const QString &title, QString startAt);
 
     /**
-     * @brief Opening a folder that holds several workspaces: which one stays.
+     * \brief Opening a folder that holds several workspaces: which one stays.
      *
      * Such a folder is not opened as it is — the workspaces in it share every file beside them, and nothing
      * that writes there can be safe. The user picks the one to keep; the others go to the Recycle Bin, where
      * they can be restored from.
      *
-     * @param path The workspace the user asked to open.
-     * @return The workspace to open now, or empty when the user cancelled or a file could not be moved.
+     * \param path The workspace the user asked to open.
+     * \return The workspace to open now, or empty when the user cancelled or a file could not be moved.
      *         \p path itself when its folder holds nothing else.
      */
     [[nodiscard]] QString resolveSharedFolder(const QString &path);
 
     /**
-     * @brief Claims the folder \p workspacePath lives in, asking the user where someone else holds it.
+     * \brief Claims the folder \p workspacePath lives in, asking the user where someone else holds it.
      *
      * Another window on this machine is reported and refused; another computer can be taken over, for the
      * case nothing here can detect — that computer is off, or Platemaker crashed there. A folder that
      * cannot be marked at all (read-only media) is opened unguarded rather than refused.
      *
-     * @return The lock, or null when the user cancelled or the folder is open in another window here.
+     * \return The lock, or null when the user cancelled or the folder is open in another window here.
      */
     [[nodiscard]] std::unique_ptr<WorkspaceLock> lockFolderOf(const QString &workspacePath);
 
@@ -376,7 +376,7 @@ private:
     [[nodiscard]] bool holdsFolderOf(const QString &workspacePath);
 
     /**
-     * @brief Asked before anything is written to the workspace folder: is it still ours?
+     * \brief Asked before anything is written to the workspace folder: is it still ours?
      *
      * False once another computer has taken the folder over — and then the user is told, once, and offered
      * the two ways out that do not write over the other computer's work.
@@ -386,7 +386,7 @@ private:
     void onWorkspaceTakenOver();   //!< The prompt canWriteWorkspace() and window activation raise.
 
     /**
-     * @brief *Save As* to another folder: copies in everything the workspace made, and points it there.
+     * \brief *Save As* to another folder: copies in everything the workspace made, and points it there.
      *
      * Every project's overlay files (and the pictures behind lettered pictures — see
      * collectOverlayFiles()), every canvas profile's template and the whole `fonts/` folder, so that after the save the workspace
@@ -394,8 +394,8 @@ private:
      * All or nothing: nothing in the model changes unless every file made it, and a failure names the file
      * and stops the Save As before anything is written.
      *
-     * @param newWorkspacePath Where the workspace is about to be saved.
-     * @return False when a file could not be copied; the user has been told which.
+     * \param newWorkspacePath Where the workspace is about to be saved.
+     * \return False when a file could not be copied; the user has been told which.
      */
     [[nodiscard]] bool collectWorkspaceFiles(const QString &newWorkspacePath);
 
@@ -403,7 +403,7 @@ private:
     [[nodiscard]] QStringList referencedWorkspaceFiles() const;
 
     /**
-     * @brief Moves what the workspace made and no longer uses to the Recycle Bin — at open.
+     * \brief Moves what the workspace made and no longer uses to the Recycle Bin — at open.
      *
      * At open because that is the one moment the model *is* the file and no undo history exists: at close,
      * after *Discard*, memory is not what is on disk; during the session, undo may still need a file. Runs
@@ -414,7 +414,7 @@ private:
     void sweepWorkspaceFolder();
 
     /**
-     * @brief Re-sets, in their own font, the bubbles whose file was baked in a stand-in — at open, and
+     * \brief Re-sets, in their own font, the bubbles whose file was baked in a stand-in — at open, and
      *        when *Add font…* brings the font. Open strip editors are re-fed when anything was re-set.
      *
      * A bubble edited while its font was missing is outlined in whatever Qt substituted, and the file says
@@ -431,7 +431,7 @@ private:
     void updateTitleBar();                      //!< Updates the window title to reflect the current workspace and dirty state.
 
     /**
-     * @brief Captures the current workspace's serialized form as the "saved" baseline.
+     * \brief Captures the current workspace's serialized form as the "saved" baseline.
      * Call after every successful load/save; clears the dirty flag.
      */
     void captureSnapshot();
@@ -439,7 +439,7 @@ private:
     // --- advisories and the status bar (see advisories.cpp) ---
 
     /**
-     * @brief Re-evaluates every condition this window can observe about one project, raising or
+     * \brief Re-evaluates every condition this window can observe about one project, raising or
      *        withdrawing its advisories to match.
      *
      * Cheap and idempotent on purpose, so it can be called from anything that changes a project
@@ -479,7 +479,7 @@ private:
     };
 
     /**
-     * @brief The render gate: a render stops and asks while any **Error** advisory stands for the project.
+     * \brief The render gate: a render stops and asks while any **Error** advisory stands for the project.
      *
      * One rule rather than a list of checks, and every button comes from an advisory — its way to look
      * and its way to resolve — so a second kind of error brings its own ways out and nothing here
@@ -507,7 +507,7 @@ private:
     void setupUndo();   //!< Creates the QUndoGroup + workspace stack and wires the Edit-menu actionUndo/actionRedo to it.
 
     /**
-     * @brief Records one undoable **workspace-scope** edit (profile CRUD, project rename, templates)
+     * \brief Records one undoable **workspace-scope** edit (profile CRUD, project rename, templates)
      *        onto the workspace undo stack.
      *
      * Brackets \p mutate with WorkspaceEditor::snapshotMeta before/after and pushes a
@@ -516,7 +516,7 @@ private:
     void commitWorkspaceEdit(const QString& text, const std::function<void()>& mutate);
 
     /**
-     * @brief Authoritative change check: true if the workspace differs from the last
+     * \brief Authoritative change check: true if the workspace differs from the last
      * captured snapshot. Robust against any action that forgot to setDirty().
      */
     [[nodiscard]] bool isWorkspaceModified() const;
@@ -577,42 +577,42 @@ private:
 
     // --- project dock management ---
     /**
-     * @brief Opens a dock for the project at the given model index.
+     * \brief Opens a dock for the project at the given model index.
      * If the dock is already open, it is raised to the front.
-     * @param projectIndex The index of the project in the workspace model.
+     * \param projectIndex The index of the project in the workspace model.
      */
     void openProjectDock(int projectIndex);
 
     /**
-     * @brief Closes the dock for the project at the given model index.
+     * \brief Closes the dock for the project at the given model index.
      * If the dock is not open, this function does nothing.
-     * @param index The index of the project in the workspace model.
+     * \param index The index of the project in the workspace model.
      */
     void closeProjectByIndex(int index);
 
     /**
-     * @brief Toggles the floating state of the dock for the project at the given model index.
+     * \brief Toggles the floating state of the dock for the project at the given model index.
      * If the dock is not open, this function does nothing.
-     * @param index The index of the project in the workspace model.
+     * \param index The index of the project in the workspace model.
      */
     void toggleProjectFloatState(int index);
 
     /**
-     * @brief (Re)wires every dock tab bar so its tabs are closable and route close / double-click to the
+     * \brief (Re)wires every dock tab bar so its tabs are closable and route close / double-click to the
      * resolvers below. Idempotent — call it after any change that adds a dock to a tab group (opening a
      * project, tabifying the strip). The workspace, project and strip docks can share one tab bar.
      */
     void wireDockTabBars();
 
     /**
-     * @brief The dock whose tab is at @p index in tab bar @p bar, resolved by window title across the
+     * \brief The dock whose tab is at @p index in tab bar @p bar, resolved by window title across the
      * workspace, project and strip docks (a shared tab bar means a raw index into any one list is wrong).
-     * @return The matching dock, or nullptr.
+     * \return The matching dock, or nullptr.
      */
     [[nodiscard]] QDockWidget *dockForTabBarTab(const QTabBar *bar, int index) const;
 
     /**
-     * @brief Installs the shared `DockTitleBar` on @p dock and wires its dock-specific behaviour: minimise
+     * \brief Installs the shared `DockTitleBar` on @p dock and wires its dock-specific behaviour: minimise
      * toggles dock ⇄ detach (docking tabs it beside the Workspace, except the Workspace anchor and the
      * Action column which just re-dock); close routes to closeDock(). Maximise is handled inside
      * DockTitleBar. Used for the Workspace, project, strip and Action docks.
@@ -627,7 +627,7 @@ private:
     // --- strip editor dock (per-project) ---
 
     /**
-     * @brief Opens (or raises + refreshes) the continuous strip editor for the project at @p projectIndex.
+     * \brief Opens (or raises + refreshes) the continuous strip editor for the project at @p projectIndex.
      *
      * A dedicated per-project dock, opened as a tab beside the Workspace; allowed Left/Top/Bottom but never
      * the Action column. It carries a **custom title bar** whose buttons dock it (minimise),
@@ -683,7 +683,7 @@ private:
     Platemaker::Models::Workspace m_workspace;  //!< The authoritative workspace model (projects, profiles, templates).
 
     /**
-     * @brief Parsed authoring records for every project's text/bubble overlays.
+     * \brief Parsed authoring records for every project's text/bubble overlays.
      *
      * A cache, not a store: the records live inside the overlays' own SVG assets, and are read back
      * from them when a workspace opens. Nothing here is written to disk — an authoring sidecar would be
@@ -708,7 +708,7 @@ private:
     QUndoGroup* m_undoGroup         = nullptr;  //!< Owns the per-context stacks; provides the Undo/Redo actions.
 
     /**
-     * @brief Every project's history, for the life of the session, keyed by `ProjectItem::uid`.
+     * \brief Every project's history, for the life of the session, keyed by `ProjectItem::uid`.
      *
      * **One stack per project**, covering both the project dock and its strip editor, because both edit
      * one document and the artist edits it in one train of thought. A history per window would make
@@ -732,7 +732,7 @@ private:
     QUndoStack* m_workspaceUndoStack = nullptr; //!< Workspace-scope history (profiles, project rename, templates).
 
     /**
-     * @brief Every standing advisory in the application — conditions, not events.
+     * \brief Every standing advisory in the application — conditions, not events.
      *
      * Owned here rather than by the strip editor's framework because the conditions are not a tool's:
      * a tool notices that the grade will not run once you are inside the editor, but the switch that
@@ -741,7 +741,7 @@ private:
     Advisories* m_advisories = nullptr;
 
     /**
-     * @brief The status bar's advisory strip — **one** widget holding every chip.
+     * \brief The status bar's advisory strip — **one** widget holding every chip.
      *
      * One rather than several because `QStatusBar` frames every item it is given, and a frame per chip
      * is a vertical rule between each pair. The same widget class the strip editor hosts along its own
@@ -782,13 +782,13 @@ private:
     QStringList      m_batchFailed;     //!< Projects whose render failed.
 
     /** 
-     * @brief Why the last startRender() bailed out, so the batch can report a useful reason
+     * \brief Why the last startRender() bailed out, so the batch can report a useful reason
      * instead of a bare "skipped". Set by startRender(), consumed by advanceBatch().
      */
     QString          m_batchSkipReason;
 
     /** 
-     * @brief How a config change (format / slice size / canvas profile) is confirmed before a destructive re-render.
+     * \brief How a config change (format / slice size / canvas profile) is confirmed before a destructive re-render.
      * 
      * A batch answers once for the whole sweep: asking per project would defeat the point
      * of "refresh everything in one go". The first project that actually hits a config
@@ -803,7 +803,7 @@ private:
     };
 
     /** 
-     * @brief Reset to AskPerProject by finishBatch(); leaving a batch-wide answer in place would
+     * \brief Reset to AskPerProject by finishBatch(); leaving a batch-wide answer in place would
      *  let a later single render skip the destructive prompt silently.
      */
     ConfigChangePolicy m_configChangePolicy = ConfigChangePolicy::AskPerProject;

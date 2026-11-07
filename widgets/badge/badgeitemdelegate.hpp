@@ -6,7 +6,7 @@
 #include "badge.hpp"
 
 /**
- * @brief Paints a view's row as its own text followed by chips — what the row *is*, then what is *true*
+ * \brief Paints a view's row as its own text followed by chips — what the row *is*, then what is *true*
  *        of it.
  *
  * Extracted from the profile picker, where it was a file-local class, because the strip editor's object
@@ -44,7 +44,7 @@ protected:
     QSize sizeHint(const QStyleOptionViewItem& option, const QModelIndex& index) const override;
 
     /**
-     * @brief Answers the tooltip of whichever chip is under the cursor.
+     * \brief Answers the tooltip of whichever chip is under the cursor.
      *
      * A painted badge is not a widget, so there is nothing for `setToolTip()` to attach to and the view
      * has to be asked instead — this is the hook for that. The chip rectangles come from the same call

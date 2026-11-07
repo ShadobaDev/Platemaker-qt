@@ -11,7 +11,7 @@ class ManageCanvasProfilesDialog;
 }
 
 /**
- * @brief The ManageCanvasProfilesDialog class provides a dialog for managing canvas profiles.
+ * \brief The ManageCanvasProfilesDialog class provides a dialog for managing canvas profiles.
  * It allows users to view, create, edit, duplicate, delete, and set the active canvas profile. 
  * The dialog displays a list of profiles and provides buttons for various actions.
  */
@@ -24,25 +24,25 @@ public:
     ~ManageCanvasProfilesDialog() override;                         //< Destroys the dialog and cleans up resources.
 
     /**
-     * @brief Populates the list of canvas profiles before calling exec().
-     * @param profiles The list of canvas profiles to display.
-     * @param activeProfileName The name of the currently active profile.
+     * \brief Populates the list of canvas profiles before calling exec().
+     * \param profiles The list of canvas profiles to display.
+     * \param activeProfileName The name of the currently active profile.
      */
     void setProfiles(const QList<Platemaker::Models::CanvasProfile> &profiles,
                      const QString &activeProfileName);
 
     /**
-     * @brief Retrieves the updated list of canvas profiles after the dialog is accepted.
-     * @return The list of canvas profiles.
+     * \brief Retrieves the updated list of canvas profiles after the dialog is accepted.
+     * \return The list of canvas profiles.
      */
     QList<Platemaker::Models::CanvasProfile> profiles() const;
     QString activeProfileName() const;                              //!< Retrieves the name of the currently active profile after the dialog is accepted.
 
 signals:
     /**
-     * @brief Emitted when the user clicks "Generate templates from active".
+     * \brief Emitted when the user clicks "Generate templates from active".
      * Connect in MainWindow to trigger the actual generation.
-     * @param activeProfile The active canvas profile.
+     * \param activeProfile The active canvas profile.
      */
     void generateTemplatesRequested(const Platemaker::Models::CanvasProfile &activeProfile);
 

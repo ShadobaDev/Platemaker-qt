@@ -32,14 +32,14 @@ constexpr int k_twoLinePad = 12;   //!< The padding a two-line row carries, abov
 }
 
 /**
- * @brief Lays one line out — the text, then its chips — and draws it when @p painter is given.
+ * \brief Lays one line out — the text, then its chips — and draws it when @p painter is given.
  *
  * **The chips win the space.** A label is a preview of something legible elsewhere; a chip is a fact
  * about the object written nowhere else, and `layOutBadges` drops a chip that would cross the edge —
  * silently, which on a long label would mean the row quietly stops reporting. So the text is elided to
  * what is left over, and the chips are always on the row.
  *
- * @return One rect per chip drawn, for the caller that is hit-testing rather than painting.
+ * \return One rect per chip drawn, for the caller that is hit-testing rather than painting.
  */
 QList<QRect> layOutLine(QPainter* painter, const QFont& base, const QString& text, const QColor& colour,
                         const QList<Badge>& badges, const QRect& line, int lineH)

@@ -9,7 +9,7 @@ class QFormLayout;
 namespace StripEdit {
 
 /**
- * @brief The Fill section: what the balloon is filled with — its Paint, a colour or a halftone. The line
+ * \brief The Fill section: what the balloon is filled with — its Paint, a colour or a halftone. The line
  *        round it is the Line section's.
  */
 class SkinEditor : public PropertyGroupEditor

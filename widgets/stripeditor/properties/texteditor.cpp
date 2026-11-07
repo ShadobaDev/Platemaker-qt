@@ -22,7 +22,7 @@ namespace {
 constexpr int k_bodyLines = 4;
 
 /**
- * @brief The lettering box, asking for a few lines' height rather than Qt's 192 px.
+ * \brief The lettering box, asking for a few lines' height rather than Qt's 192 px.
  *
  * OBJECT STATE is laid out at its rows' *preferred* heights: the shape tiles reflow with the width, and
  * a scroll area sizes a page with such a row by its height for that width, which sums the preferred

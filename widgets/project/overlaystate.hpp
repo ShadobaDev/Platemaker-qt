@@ -8,7 +8,7 @@
 #include "objectrecord.hpp"
 
 /**
- * @brief A project's text & bubbles, whole — the strip editor's half of the document.
+ * \brief A project's text & bubbles, whole — the strip editor's half of the document.
  *
  * The two halves travel together and are never split from each other: the overlay says *which*
  * file renders, its ObjectRecord says what that file contains, and restoring one without the other would
@@ -24,18 +24,18 @@ struct OverlayState
     ObjectRecord::Map                                   records;    //!< The authoring records for those overlays, keyed by `StripOverlay::uid`.
 
     /**
-     * @brief Compares two overlay states for equality.
-     * @param o The other overlay state to compare with.
-     * @return True if the overlay states are equal, false otherwise.
+     * \brief Compares two overlay states for equality.
+     * \param o The other overlay state to compare with.
+     * \return True if the overlay states are equal, false otherwise.
      */
     [[nodiscard]] bool operator==(const OverlayState& o) const
     {
         return overlays == o.overlays && records == o.records;
     }
     /**
-     * @brief Compares two overlay states for inequality.
-     * @param o The other overlay state to compare with.
-     * @return True if the overlay states are not equal, false otherwise.
+     * \brief Compares two overlay states for inequality.
+     * \param o The other overlay state to compare with.
+     * \return True if the overlay states are not equal, false otherwise.
      */
     [[nodiscard]] bool operator!=(const OverlayState& o) const { return !(*this == o); }
 };

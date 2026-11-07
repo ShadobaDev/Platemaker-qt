@@ -12,7 +12,7 @@ class CanvasProfileDialog;
 }
 
 /**
- * @brief The CanvasProfileDialog class provides a dialog for creating or editing canvas profiles.
+ * \brief The CanvasProfileDialog class provides a dialog for creating or editing canvas profiles.
  * It allows users to specify the name, dimensions, margins, visual colour, and background colour
  * of a canvas profile. The dialog also provides a live preview of the canvas based on the current settings.
  */
@@ -24,24 +24,24 @@ public:
     explicit CanvasProfileDialog(QWidget *parent = nullptr);    //!< Constructs the dialog and initializes the UI.
 
     /**
-     * @brief Sets the profile to be edited in the dialog. 
+     * \brief Sets the profile to be edited in the dialog. 
      * Call before exec() to populate fields when editing an existing profile.
      * Leave uncalled (or call with default-constructed profile) for a new profile.
-     * @param profile The profile to be edited.
+     * \param profile The profile to be edited.
      */
     void setProfile(const Platemaker::Models::CanvasProfile &profile);
 
     /**
-     * @brief Retrieves the profile filled in the dialog.
+     * \brief Retrieves the profile filled in the dialog.
      * Call after exec() == Accepted. It is the profile given to setProfile() (a new one if none was)
      * with the dialog's fields applied, so what the dialog does not show — id, templates, template
      * settings — comes back unchanged.
-     * @return The edited profile.
+     * \return The edited profile.
      */
     Platemaker::Models::CanvasProfile profile() const;
 
     /**
-     * @brief The workspace's profiles, so Save can warn when this one is identical in every setting to
+     * \brief The workspace's profiles, so Save can warn when this one is identical in every setting to
      *        another — two such profiles can never be told apart. It warns, it does not refuse: names
      *        may repeat, and a duplicate on its way to being edited is the user's business.
      */

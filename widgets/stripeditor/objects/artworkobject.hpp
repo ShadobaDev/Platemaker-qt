@@ -13,7 +13,7 @@ class QSvgRenderer;
 namespace StripEdit {
 
 /**
- * @brief Reads imported artwork from @p path — **raster or vector, drawn the way it will be placed**.
+ * \brief Reads imported artwork from @p path — **raster or vector, drawn the way it will be placed**.
  *
  * Vector assets go through `QSvgRenderer` explicitly rather than through QPixmap's image plugin: the
  * plugin path depends on qsvg being deployed and gives no control over the size it picks. Raster assets
@@ -23,13 +23,13 @@ namespace StripEdit {
  * and both the object on the strip and the tool's preview must answer it identically. It was private to
  * the object controller until the Artwork tool needed to show the artist what they picked.
  * 
- * @param path The file to read, which may be a raster or vector image.
- * @return A pixmap of the artwork at its own pixels, or null if the file
+ * \param path The file to read, which may be a raster or vector image.
+ * \return A pixmap of the artwork at its own pixels, or null if the file
  */
 [[nodiscard]] QPixmap loadArtwork(const QString& path);
 
 /**
- * @brief Artwork the author made elsewhere, placed as it is: a balloon inked on a tablet, a logo.
+ * \brief Artwork the author made elsewhere, placed as it is: a balloon inked on a tablet, a logo.
  *
  * It carries no authoring parameters, so there is nothing to re-type — and, being its own type, nothing
  * can hand it a default bubble by mistake. That used to be possible: the old single item class returned
@@ -45,7 +45,7 @@ class ArtworkObject : public Object
 
 public:
     /**
-     * @brief Draws the picture at @p picture — **the file the artist imported**, not the file the
+     * \brief Draws the picture at @p picture — **the file the artist imported**, not the file the
      *        library renders.
      *
      * Those are the same thing until the picture is lettered; after that the overlay points at a
@@ -53,14 +53,14 @@ public:
      * that would draw the lettering twice — once from the wrapper and once itself. So it is given the
      * picture, and the words stay this class's to draw.
      * 
-     * @param uid The unique identifier for this object, which is the same as the record it carries.
-     * @param picture The file the artist imported, which is what this object draws.
+     * \param uid The unique identifier for this object, which is the same as the record it carries.
+     * \param picture The file the artist imported, which is what this object draws.
      */
     ArtworkObject(QString uid, const QString& picture, QGraphicsItem* parent = nullptr);
 
     /**
-     * @brief Points it at a different file. The drawn size is kept: it is the artist's, not the file's.
-     * @param picture The new file to display.
+     * \brief Points it at a different file. The drawn size is kept: it is the artist's, not the file's.
+     * \param picture The new file to display.
      */
     void setPicture(const QString& picture);
 
@@ -70,13 +70,13 @@ public:
     [[nodiscard]] QSizeF boxSize() const override { return m_box; } //!< The artwork's own pixels, which is what the library draws.
 
     /**
-     * @brief The art itself — what a list row wears, since imported artwork has no silhouette to borrow.
-     * @return A reference to the rasterised picture, for icons and for the size the picture says it is.
+     * \brief The art itself — what a list row wears, since imported artwork has no silhouette to borrow.
+     * \return A reference to the rasterised picture, for icons and for the size the picture says it is.
      */
     [[nodiscard]] const QPixmap& artwork() const { return m_artwork; }
 
     /**
-     * @brief The record this picture carries: which file it is, and the lettering put over it.
+     * \brief The record this picture carries: which file it is, and the lettering put over it.
      *
      * Artwork has no geometry of ours, but it may have **words** — a hand-drawn balloon typeset, a
      * sound effect captioned — and the preview has to show them, or the strip stops being what the
@@ -84,7 +84,7 @@ public:
      * pixels, and then drawn through the same transform the picture is: they scale with it rather than
      * sliding about on it.
      * 
-     * @param a The record this picture carries, which is always safe to ask for.
+     * \param a The record this picture carries, which is always safe to ask for.
      */
     void setRecord(const ObjectRecord& a) override;
 
@@ -93,31 +93,31 @@ public:
 
 protected:
     /**
-     * @brief Draws the picture and any lettering over it, at the artwork's own pixels.
-     * @param painter The painter to use for drawing.
+     * \brief Draws the picture and any lettering over it, at the artwork's own pixels.
+     * \param painter The painter to use for drawing.
      */
     void                 paintContent(QPainter& painter) override;
     /**
-     * @brief Computes the bounding rectangle for the object.
-     * @return The bounding rectangle.
+     * \brief Computes the bounding rectangle for the object.
+     * \return The bounding rectangle.
      */
     [[nodiscard]] QRectF computeBounds() const override { return QRectF(QPointF(0, 0), m_box); }
     /**
-     * @brief Sets the size of the object's bounding box.
-     * @param size The new size.
+     * \brief Sets the size of the object's bounding box.
+     * \param size The new size.
      */
     void                 setBoxSize(QSizeF size, const QPointF& handleShift) override;
 
 private:
     /**
-     * @brief Reads @p picture into both forms: the renderer when it is vector, the pixmap always — one for
+     * \brief Reads @p picture into both forms: the renderer when it is vector, the pixmap always — one for
      * the canvas, one for the row's icon and for the size the picture says it is.
-     * @param picture The file path of the picture to load.
+     * \param picture The file path of the picture to load.
      */
     void loadPicture(const QString& picture);
 
     /**
-     * @brief Makes the record say what this object is: this picture, at its own pixels.
+     * \brief Makes the record say what this object is: this picture, at its own pixels.
      *
      * The invariant behind `Object::record()`. A picture placed before pictures had a record, and one
      * whose size was guessed at import, would otherwise hand back a record that reads as a default
@@ -127,14 +127,14 @@ private:
      * record that has to be repaired every time is otherwise a record that never compares equal, and
      * a repaint on every feed.
      * 
-     * @param a The record to describe as this picture, at its own pixels.
+     * \param a The record to describe as this picture, at its own pixels.
      */
     void describePicture(ObjectRecord& a) const;
 
     QString      m_picture;     //!< The file, so a feed can tell whether it changed.
     QPixmap      m_artwork;     //!< The picture at its own pixels, for the row's icon and for the size the picture says it is.
     /**
-     * @brief Set when the picture is vector — and then it, not the pixmap, is what the canvas draws.
+     * \brief Set when the picture is vector — and then it, not the pixmap, is what the canvas draws.
      *
      * A rasterised SVG is sharp at one size and soft at every other, which on a canvas that zooms is
      * every size but one. Keeping the renderer costs a parse at load and draws at whatever scale the
@@ -142,7 +142,7 @@ private:
      */
     QSvgRenderer* m_svg = nullptr;
     /**
-     * @brief Drawn size. Seeded from the artwork's own pixels and then owned here, so a re-feed cannot undo a resize — and on a synced drive the file may still report its previous size just after a write.
+     * \brief Drawn size. Seeded from the artwork's own pixels and then owned here, so a re-feed cannot undo a resize — and on a synced drive the file may still report its previous size just after a write.
      */
     QSizeF  m_box;
 };

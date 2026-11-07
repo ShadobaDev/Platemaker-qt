@@ -1,6 +1,6 @@
 /**
- * @file package.cpp
- * @brief *File → Export package… / Open package…*: the library's package of the workspace, plus what only
+ * \file package.cpp
+ * \brief *File → Export package… / Open package…*: the library's package of the workspace, plus what only
  *        the GUI knows.
  *
  * The library plans every file the model names (WorkspacePackager::plan()). Two kinds of file the model

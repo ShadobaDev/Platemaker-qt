@@ -22,7 +22,7 @@ namespace StripEdit {
 [[nodiscard]] QString blendName(Platemaker::Models::BlendMode mode);
 
 /**
- * @brief How an object is composited onto what is under it — **the one property every kind carries**.
+ * \brief How an object is composited onto what is under it — **the one property every kind carries**.
  *
  * Not a `PropertyGroupEditor`: blend lives on `StripOverlay`, not on the authoring record, so it is not
  * one of a balloon's property groups and has no place in `PropertyGroupSet`. It belongs to the object

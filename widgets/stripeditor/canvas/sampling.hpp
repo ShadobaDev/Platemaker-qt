@@ -16,7 +16,7 @@ class PageSource;
 class StripLayout;
 
 /**
- * @brief The colour drawn at @p scenePos — what the eyedropper takes. Nothing when there is no answer yet.
+ * \brief The colour drawn at @p scenePos — what the eyedropper takes. Nothing when there is no answer yet.
  *
  * **What is drawn is what is picked.** One pixel of the scene, composited: the page through its grade,
  * and every balloon, caption and imported asset over it, each with its own blend mode and opacity — the
@@ -29,7 +29,7 @@ class StripLayout;
  *   the point. The real pixels are requested instead, so the next press has them;
  * - where nothing is drawn at all.
  *
- * @param seams The seam guides, hidden for the one repaint along with selection chrome: both are the
+ * \param seams The seam guides, hidden for the one repaint along with selection chrome: both are the
  *              editor talking rather than the comic.
  */
 [[nodiscard]] std::optional<QColor> sampleCanvas(QGraphicsScene& scene, const StripLayout& layout,

@@ -18,7 +18,7 @@ class QVBoxLayout;
 namespace StripEdit {
 
 /**
- * @brief What the strip, or one of its pages, *is* — OBJECT STATE for the subjects that are not overlays.
+ * \brief What the strip, or one of its pages, *is* — OBJECT STATE for the subjects that are not overlays.
  *
  * The same surface as `ObjectState`, and the same question — what is selected — asked of different
  * things. It is a panel of its own rather than more sections in that one because nothing here is a
@@ -41,9 +41,9 @@ public:
     void showStrip(int pageCount, int excludedCount, const Platemaker::Models::ColourCorrection& cc);
 
     /**
-     * @brief One page of the strip.
+     * \brief One page of the strip.
      *
-     * @param stripGraded Whether the strip carries any grade at all. Excluding a page from a grade that
+     * \param stripGraded Whether the strip carries any grade at all. Excluding a page from a grade that
      *                    changes nothing is allowed and remembered, and the panel says it has no effect
      *                    yet rather than leaving a checkbox that appears to do nothing.
      */

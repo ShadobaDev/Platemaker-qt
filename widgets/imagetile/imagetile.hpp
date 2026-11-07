@@ -9,7 +9,7 @@
 namespace Ui { class imagetile; }
 
 /**
- * @brief The ImageTile class represents a single image tile in the UI.
+ * \brief The ImageTile class represents a single image tile in the UI.
  * It displays the image thumbnail, filename, and status, and provides buttons
  * to move the tile up or down in a list. The tile can asynchronously load
  * its thumbnail from a cache directory.
@@ -23,11 +23,11 @@ public:
     ~ImageTile();                                   //!< Destroys the image tile widget and cleans up resources.
 
     /**
-     * @brief Sets the file information for the image tile.
-     * @param filePath The path to the image file.
-     * @param status The status of the file.
-     * @param cacheDir The directory where thumbnails are cached.
-     * @param renderedWithoutProfile When true and \p status is Processed, the tile reads
+     * \brief Sets the file information for the image tile.
+     * \param filePath The path to the image file.
+     * \param status The status of the file.
+     * \param cacheDir The directory where thumbnails are cached.
+     * \param renderedWithoutProfile When true and \p status is Processed, the tile reads
      *        "Processed (no canvas profile)" in cyan — the page was rendered implicitly, without a
      *        canvas profile (no margins). Ignored for any other status. Default false.
      */
@@ -39,31 +39,31 @@ public:
     void setThumbnail(const QPixmap& pixmap);   //!< Sets the thumbnail image for the tile. The pixmap is scaled to fit within the fixed label area while maintaining aspect ratio.
 
     /**
-     * @brief Shows or hides the ▲/▼ move buttons.
+     * \brief Shows or hides the ▲/▼ move buttons.
      *
      * Only input tiles are reorderable; output-tile order is derived from the render and cannot be
      * changed, so their move buttons are hidden to avoid implying otherwise. Visible by default.
-     * @param visible false to hide the move-button column and reclaim its space.
+     * \param visible false to hide the move-button column and reclaim its space.
      */
     void setMoveControlsVisible(bool visible);
 
     /**
-     * @brief Updates only the status label + colour, leaving the thumbnail untouched.
+     * \brief Updates only the status label + colour, leaving the thumbnail untouched.
      *
      * Used for live status updates during a render (e.g. an input goes green as it is appended to
      * the strip, or violet "Skipped" when it is left out), where reloading the thumbnail would be
      * wasteful. \c setFileInfo() routes through this too.
-     * @param status The new file status.
-     * @param renderedWithoutProfile When true and \p status is Processed, the tile reads
+     * \param status The new file status.
+     * \param renderedWithoutProfile When true and \p status is Processed, the tile reads
      *        "Processed (no canvas profile)" in cyan (implicit render, no canvas profile). Default false.
      */
     void setStatus(Platemaker::Models::FileStatus status,
                    bool renderedWithoutProfile = false);
 
     /**
-     * @brief Sets the name of the image tile.
+     * \brief Sets the name of the image tile.
      * UNUSED. Legacy code may have used this to set the label text, but now it is primarily for display purposes. The name is typically derived from the file path.
-     * @param name The name to set.
+     * \param name The name to set.
      */
     void setTileName(const QString& name);
 

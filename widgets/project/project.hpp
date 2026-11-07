@@ -28,7 +28,7 @@ class QMimeData;
 class QUrl;
 
 /**
- * @brief Where an undone or redone step is visible — the two windows one project is edited from.
+ * \brief Where an undone or redone step is visible — the two windows one project is edited from.
  *
  * A project has **one** history covering both, so a step can land in a window the user is not looking
  * at. This is what lets undo take them there. It is not a second history and it is not a filter: every
@@ -40,7 +40,7 @@ enum class EditScope {
 };
 
 /**
- * @brief The Project class represents a single project within the Platemaker application.
+ * \brief The Project class represents a single project within the Platemaker application.
  * It provides a user interface for managing input files, canvas profiles, output profiles,
  * and rendering settings. The class allows users to add, remove, and reorder input files,
  * select canvas and output profiles, configure output format options, and initiate rendering.
@@ -51,20 +51,20 @@ class Project : public QWidget
 
 public:
     /**
-     * @brief Constructs a Project widget for the specified project index within the given workspace.
+     * \brief Constructs a Project widget for the specified project index within the given workspace.
      * 
      * Builds the dock's contents for one project.
      * The stack is **owned by MainWindow and lives for the session**. This widget uses it; it does not
      * own it, because a history that dies with a dock is a history the artist loses by tidying up.
-     * @param projectIndex The index of the project within the workspace.
-     * @param workspace A reference to the workspace containing the project data.
-     * @param cacheDir The directory where cached thumbnails and other temporary files are stored.
-     * @param history  Everything this project records: inputs, links, profiles, the output directory,
+     * \param projectIndex The index of the project within the workspace.
+     * \param workspace A reference to the workspace containing the project data.
+     * \param cacheDir The directory where cached thumbnails and other temporary files are stored.
+     * \param history  Everything this project records: inputs, links, profiles, the output directory,
      *                 and text & bubbles. One history, because one document is being edited — an edit
      *                 made in the strip editor and an edit made here are steps in the same session of
      *                 work, and a Ctrl+Z that skips over the last one to undo the one before it is a
      *                 worse surprise than a Ctrl+Z whose effect is in the other window.
-     * @param parent The parent widget, if any.
+     * \param parent The parent widget, if any.
      */
     explicit Project(int projectIndex,
                      Platemaker::Models::Workspace& workspace,
@@ -76,40 +76,40 @@ public:
     void populate();    //!< Populates the UI with the current state of the project, including input files, canvas profiles, output profile selection, format controls, output directory display, and output tiles.
 
     /**
-     * @brief Updates the workspace index this widget refers to. Used when a lower-indexed
+     * \brief Updates the workspace index this widget refers to. Used when a lower-indexed
      * project is removed and the vector shifts (the widget reads the index live).
-     * @param index The new project index.
+     * \param index The new project index.
      */
     void setProjectIndex(int index) { m_projectIndex = index; }
 
     // --- render UI (driven by MainWindow, which owns the render state) ---
     /** 
-     * @brief Sets the rendering state of the project.
+     * \brief Sets the rendering state of the project.
      *  flips Render<->Stop + disables output controls
-     * @param rendering True if rendering is in progress, false otherwise.
+     * \param rendering True if rendering is in progress, false otherwise.
      */
     void setRendering(bool rendering);
 
     /** 
-     * @brief Updates the output tile at the specified index.
+     * \brief Updates the output tile at the specified index.
      *  live positional update during a render - creates or replaces the tile at row \p index
-     * @param index The index of the tile to update.
-     * @param name The name of the tile.
-     * @param fullPath The full path of the tile.
+     * \param index The index of the tile to update.
+     * \param name The name of the tile.
+     * \param fullPath The full path of the tile.
      */
     void setOutputTile(int index, const QString& name, const QString& fullPath);
     /** 
-     * @brief Updates the status of an input tile.
+     * \brief Updates the status of an input tile.
      *  live per-input update during a render - repaints the input tile matching \p filePath (cyan when Processed without a canvas profile)
-     * @param filePath The path of the input file.
-     * @param status The new status of the input tile.
-     * @param renderedWithoutProfile True if the file was rendered without a canvas profile.
+     * \param filePath The path of the input file.
+     * \param status The new status of the input tile.
+     * \param renderedWithoutProfile True if the file was rendered without a canvas profile.
      */
     void setInputTileStatus(const QString& filePath, 
                             Platemaker::Models::FileStatus status,
                             bool renderedWithoutProfile = false);
     /**
-     * @brief Rebuilds the output tiles from getOutputImages().
+     * \brief Rebuilds the output tiles from getOutputImages().
      *
      * Also marks outputs still reported as done as out of sync when the output profile has changed
      * since they were rendered — a change there leaves the old files on disk and hash-matching, so it
@@ -118,7 +118,7 @@ public:
     void refreshOutputTiles();
 
     /**
-     * @brief Persist a settled colour-correction edit onto this project as one undoable step named
+     * \brief Persist a settled colour-correction edit onto this project as one undoable step named
      *        @p undoText (also refreshes the workflow map).
      *
      * The name comes from the caller, which knows what was done — an adjustment moved or removed, a page
@@ -130,24 +130,24 @@ public:
      * leave a grade parked where the render would not run it.
      *
      * Called by MainWindow on StripEdit::Editor::colourCorrectionCommitted, and by the workflow card.
-     * @param cc The new colour correction to apply.
-     * @param undoText The text to display for the undo action.
+     * \param cc The new colour correction to apply.
+     * \param undoText The text to display for the undo action.
      */
     void applyColourCorrection(const Platemaker::Models::ColourCorrection& cc, const QString& undoText);
 
     // --- text & bubble overlays -------------------------------------------------------------
     /**
-     * @brief Where the workspace file lives — the root of `overlays/`.
+     * \brief Where the workspace file lives — the root of `overlays/`.
      *
      * Set by MainWindow, and re-set after "Save as": the assets a project references have to follow
      * the workspace they belong to, or a moved workspace renders bubbles from the old directory.
      * 
-     * @param path The path to the workspace file.
+     * \param path The path to the workspace file.
      */
     void setWorkspacePath(const QString& path) { m_workspacePath = path; }
 
     /**
-     * @brief Asked before any file is written to the workspace folder — false once another computer has
+     * \brief Asked before any file is written to the workspace folder — false once another computer has
      *        taken the folder over (see WorkspaceLock).
      *
      * A predicate rather than the lock itself: whether the folder is still ours, and what the user is told
@@ -156,13 +156,13 @@ public:
     void setWriteGuard(std::function<bool()> guard) { m_writeGuard = std::move(guard); }
 
     /**
-     * @brief Adopts this project's authoring records (read back from its assets).
-     * @param records The map of records to adopt.
+     * \brief Adopts this project's authoring records (read back from its assets).
+     * \param records The map of records to adopt.
      */
     void setRecords(ObjectRecord::Map records);
 
     /**
-     * @brief Re-writes the SVGs of the overlays a restored step changed, from their authoring records.
+     * \brief Re-writes the SVGs of the overlays a restored step changed, from their authoring records.
      *
      * Undo and redo restore what each bubble *says*, but a bubble overwrites its own asset file rather
      * than leaving one behind per edit — so the file on disk still holds whatever the step being undone
@@ -172,32 +172,32 @@ public:
      * the lettering is outlined through `QFont`, so a bubble whose font is not installed would be re-set
      * in a stand-in — and rewriting every bubble on every undo re-set bubbles the step never touched.
      *
-     * @param uids The overlays the step changed (movedUids()).
+     * \param uids The overlays the step changed (movedUids()).
      */
     void rewriteOverlayAssets(const QStringList& uids);
 
     /**
-     * @brief Returns the map of records associated with this project.
-     * @return The record map.
+     * \brief Returns the map of records associated with this project.
+     * \return The record map.
      */
     [[nodiscard]] const ObjectRecord::Map& records() const { return m_records; }
 
     /**
-     * @brief Registers a newly drawn bubble: writes its SVG, then lets the library inventory the file.
+     * \brief Registers a newly drawn bubble: writes its SVG, then lets the library inventory the file.
      *
      * The library mints the uid, hashes the file and dedups identical content, so creation goes through
      * `ProjectItem::addOverlay()` rather than being assembled here. One undo step.
      *
-     * @param xFrac,yFrac    Top-left as fractions of the render's target width — page-relative to the
+     * \param xFrac,yFrac    Top-left as fractions of the render's target width — page-relative to the
      *                       anchor page's top edge.
-     * @param wFrac          The artwork's rendered width in that same unit.
-     * @param anchorInputUid The input page the bubble rides on.
+     * \param wFrac          The artwork's rendered width in that same unit.
+     * \param anchorInputUid The input page the bubble rides on.
      */
     void createOverlay(const ObjectRecord& record, double xFrac, double yFrac, double wFrac,
                        const QString& anchorInputUid);
 
     /**
-     * @brief Registers artwork the author drew elsewhere as an overlay, exactly as it is.
+     * \brief Registers artwork the author drew elsewhere as an overlay, exactly as it is.
      *
      * The file is copied into the workspace's `overlays/` under its content hash — never referenced
      * where it was found, so the workspace stays self-contained and moving it does not break a bubble.
@@ -207,36 +207,36 @@ public:
      * re-typable. That case already exists for a bubble whose parameters were lost, so importing needs
      * no separate kind of overlay — it is the same one, arrived at deliberately.
      * 
-     * @param sourceFile The file to copy into the workspace.
-     * @param xFrac,yFrac Top-left as fractions of the render's target width — page-relative to the anchor page's top edge.
-     * @param wFrac       The artwork's rendered width in that same unit.
-     * @param naturalSize The artwork's natural size, so the library can scale it to the target width and preserve its aspect ratio.
-     * @param anchorInputUid The input page the bubble rides on.
+     * \param sourceFile The file to copy into the workspace.
+     * \param xFrac,yFrac Top-left as fractions of the render's target width — page-relative to the anchor page's top edge.
+     * \param wFrac       The artwork's rendered width in that same unit.
+     * \param naturalSize The artwork's natural size, so the library can scale it to the target width and preserve its aspect ratio.
+     * \param anchorInputUid The input page the bubble rides on.
      */
     void importOverlayArtwork(const QString& sourceFile, double xFrac, double yFrac, double wFrac,
                               QSize naturalSize, const QString& anchorInputUid);
 
     /**
-     * @brief Stores a complete new overlay state — move, restyle, delete, reorder or mute — as one
+     * \brief Stores a complete new overlay state — move, restyle, delete, reorder or mute — as one
      *        undo step, re-writing the assets whose authoring record changed.
      * 
-     * @param overlays The new overlays, in the order they are drawn.
-     * @param records The new authoring records for those overlays, keyed by `StripOverlay::uid`.
-     * @param undoText The text to display for the undo action.
+     * \param overlays The new overlays, in the order they are drawn.
+     * \param records The new authoring records for those overlays, keyed by `StripOverlay::uid`.
+     * \param undoText The text to display for the undo action.
      */
     void applyOverlays(std::vector<Platemaker::Models::StripOverlay> overlays,
                        ObjectRecord::Map                                  records,
                        const QString&                               undoText);
 
     /**
-     * @brief Deletes the overlays @p uids, with their authoring records, as one undo step. Through
-     * @brief applyOverlays(), the same door every other overlay edit goes through.
-     * @param uids The UIDs of the overlays to delete.
-     * @param undoText The text to display for the undo action.
+     * \brief Deletes the overlays @p uids, with their authoring records, as one undo step. Through
+     * \brief applyOverlays(), the same door every other overlay edit goes through.
+     * \param uids The UIDs of the overlays to delete.
+     * \param undoText The text to display for the undo action.
      */
     void deleteOverlays(const QStringList& uids, const QString& undoText);
     /**
-     * @brief Rebuilds the palette-derived views (canvas list, output combo, format controls) after a
+     * \brief Rebuilds the palette-derived views (canvas list, output combo, format controls) after a
      * workspace-level profile edit.
      * 
      * rebuilds the palette-derived views (canvas list, output combo, format controls) after a workspace-level profile edit — see MainWindow::workspaceProfilesChanged
@@ -252,42 +252,42 @@ public:
     // WorkspaceEditor::snapshotMeta and forwarded to MainWindow via workspaceEditCommitted so they land
     // on the workspace timeline instead.
     /**
-     * @brief Returns the undo stack associated with this project.
-     * @return A pointer to the QUndoStack used for undo/redo operations in this project.
+     * \brief Returns the undo stack associated with this project.
+     * \return A pointer to the QUndoStack used for undo/redo operations in this project.
      */
     [[nodiscard]] QUndoStack* undoStack() const { return m_undoStack; }
     /**
-     * @brief Applies a snapshot of the project state, restoring everything **except** the overlays.
-     * @param snapshot The snapshot to apply.
-     * @param scope    Where the step is seen; announced through historyStepApplied().
+     * \brief Applies a snapshot of the project state, restoring everything **except** the overlays.
+     * \param snapshot The snapshot to apply.
+     * \param scope    Where the step is seen; announced through historyStepApplied().
      */
     void applyProjectSnapshot(const QString& snapshot, EditScope scope);
 
     /**
-     * @brief Returns the state of the strip overlays and their authoring records.
-     * @return The overlay state.
+     * \brief Returns the state of the strip overlays and their authoring records.
+     * \return The overlay state.
      */
     [[nodiscard]] OverlayState overlayState() const;
     /**
-     * @brief Restores the overlay state.
-     * @param state The overlay state to restore.
+     * \brief Restores the overlay state.
+     * \param state The overlay state to restore.
      */
     void restoreOverlayState(const OverlayState& state);
 
 protected:
     /**
-     * @brief Intercepts drag/drop on the input list's viewport so images (or folders) dropped from
+     * \brief Intercepts drag/drop on the input list's viewport so images (or folders) dropped from
      * the file manager are added via the same path as Add files / Add from directory. Internal
      * reorder drags (which carry no file URLs) fall through to the list's own InternalMove handling.
      * 
-     * @param watched The object being watched for events.
-     * @param event The event being filtered.
-     * @return True if the event was handled, false otherwise.
+     * \param watched The object being watched for events.
+     * \param event The event being filtered.
+     * \return True if the event was handled, false otherwise.
      */
     bool eventFilter(QObject* watched, QEvent* event) override;
 
     /**
-     * @brief Whole-widget drop target: images / folders dropped **anywhere** on the project panel
+     * \brief Whole-widget drop target: images / folders dropped **anywhere** on the project panel
      * (not only on the input tile list) are added via the same path as Add files / Add from directory.
      * Drops that land directly on the input list are still handled by eventFilter() (so its InternalMove
      * reorder keeps working); these three catch every other area of the panel.
@@ -302,23 +302,23 @@ signals:
     void viewStripRequested(int projectIndex);      //!< "View strip" button clicked — open the strip editor for this project
 
     /**
-     * @brief A workspace-level edit was made from this project dock (canvas-profile content edit,
+     * \brief A workspace-level edit was made from this project dock (canvas-profile content edit,
      *        output-format edit). Carries the WorkspaceEditor::snapshotMeta strings from before/after
      *        the edit so MainWindow can push it onto the workspace undo stack.
-     * @param text The text to display for the undo action.
-     * @param before The workspace metadata snapshot before the edit.
-     * @param after The workspace metadata snapshot after the edit.
+     * \param text The text to display for the undo action.
+     * \param before The workspace metadata snapshot before the edit.
+     * \param after The workspace metadata snapshot after the edit.
      */
     void workspaceEditCommitted(const QString& text, const QString& before, const QString& after);
 
     /**
-     * @brief This project's authoring records changed — MainWindow folds them back into its per-project cache.
-     * @param records The new record map for this project.
+     * \brief This project's authoring records changed — MainWindow folds them back into its per-project cache.
+     * \param records The new record map for this project.
      */
     void recordsChanged(const ObjectRecord::Map& records);
 
     /**
-     * @brief A step was undone or redone: @p scope says which dock shows the difference, and @p uids
+     * \brief A step was undone or redone: @p scope says which dock shows the difference, and @p uids
      *        names the objects it touched (empty for a project-scope step, which has none).
      *
      * Emitted only by the restores, never by the edit that created the step: an edit is already on
@@ -329,8 +329,8 @@ signals:
      * **Emitted before the state goes out to the views**, because the selection is armed on the editor
      * and consumed by the feed that follows.
      * 
-     * @param scope The scope of the edit that was undone or redone (ProjectDock or StripEditor).
-     * @param uids The UIDs of the objects touched by the edit (empty for a project-scope edit).
+     * \param scope The scope of the edit that was undone or redone (ProjectDock or StripEditor).
+     * \param uids The UIDs of the objects touched by the edit (empty for a project-scope edit).
      */
     void historyStepApplied(EditScope scope, const QStringList& uids);
 
@@ -363,31 +363,31 @@ private:
     void addInputPaths(const QStringList& newPaths);                        //!< Merges new paths with the existing inputs (order-preserving, de-duplicated) and re-scans them.
 
     /**
-     * @brief Asks for a replacement for the input at @p currentPath and swaps it in, **keeping the page**.
+     * \brief Asks for a replacement for the input at @p currentPath and swaps it in, **keeping the page**.
      *
      * The operation for "I have a newer scan of page 4". Removing the input and adding the new file
      * would mint a new uid and strand every object anchored to the old one; this keeps the uid, so
      * nothing unanchors, because anchoring was never about the file.
      * 
-     * @param currentPath The path of the input file to be replaced.
+     * \param currentPath The path of the input file to be replaced.
      */
     void replaceInput(const QString& currentPath);
 
     /**
-     * @brief Removes every input not in @p remainingPaths, after asking — and says what it strands.
+     * \brief Removes every input not in @p remainingPaths, after asking — and says what it strands.
      *
      * Both ways of removing inputs come through here, so neither can forget the question. When objects
      * are anchored to a page being removed, the confirmation says how many and offers to delete them
      * in the same step: one click, one undo, though it is two kinds of edit underneath. Keeping them is
      * the default, because they are not lost — they wait, unanchored, for a page to be given back.
      *
-     * @param question  The confirmation's first sentence, specific to the caller.
+     * \param question  The confirmation's first sentence, specific to the caller.
      */
     void removeInputs(const std::vector<std::string>& remainingPaths, const QString& title,
                       const QString& question, const QString& undoText);
     void addDroppedUrls(const QList<QUrl>& urls);                           //!< Turns dropped file/folder URLs into image paths (folders scanned like Add from directory) and adds them as one undo step.
     /**
-     * @brief Rebuilds the "Workflow" tab's pipeline map from the current project — a read-only row of
+     * \brief Rebuilds the "Workflow" tab's pipeline map from the current project — a read-only row of
      * StageCards (Inputs → Margin crop → Colour correction → Resize → Slice → Text & bubbles → Output)
      * that doubles as a launchpad: fixed stages jump to the Input/Output tab, the optional CC/text
      * stages open the strip editor (and enable themselves). Called from populate().
@@ -400,31 +400,31 @@ private:
     void refreshFormatControls();          //!< Reflects the selected output profile in m_formatOptions (or disables it if none selected).
 
     /**
-     * @brief Checks whether the project's existing outputs are stale relative to
+     * \brief Checks whether the project's existing outputs are stale relative to
      * the current output configuration (format/size/quality changed since they
      * were rendered). Drives the "Out of sync" badge shown after Refresh.
-     * @return true if the outputs no longer match the current configuration.
+     * \return true if the outputs no longer match the current configuration.
      */
     [[nodiscard]] bool outputsConfigStale() const;
 
     void setupUndo();   //!< Creates this project's undo stack (depth 10). MainWindow adds it to the group.
 
     /**
-     * @brief Records one undoable **project-scope** edit onto this project's stack.
+     * \brief Records one undoable **project-scope** edit onto this project's stack.
      *
      * Brackets \p mutate with ProjectEditor::snapshot() before/after and pushes a
      * ProjectSnapshotCommand if the project actually changed (a no-op edit records nothing).
-     * @param text   Short label for the operation (shown in the undo action's text).
-     * @param mutate The operation to perform (add / clear / reorder / sort / link / output selection /
+     * \param text   Short label for the operation (shown in the undo action's text).
+     * \param mutate The operation to perform (add / clear / reorder / sort / link / output selection /
      *               output dir). It still does its own populate()/projectModified().
-     * @param scope  Where undoing it takes the artist. The project dock, except for an edit that is
+     * \param scope  Where undoing it takes the artist. The project dock, except for an edit that is
      *               seen and made somewhere else — the colour grade, which lives on the strip.
      */
     void commitEdit(const QString& text, const std::function<void()>& mutate,
                     EditScope scope = EditScope::ProjectDock);
 
     /**
-     * @brief Records one undoable **text & bubbles** edit — same history, other half of the document.
+     * \brief Records one undoable **text & bubbles** edit — same history, other half of the document.
      *
      * The same bracket as commitEdit() over a much smaller snapshot, which is the reason the two are
      * separate methods: restoring the lettering does not have to reload the project, and neither can
@@ -435,7 +435,7 @@ private:
     void commitOverlayEdit(const QString& text, const std::function<void()>& mutate);
 
     /**
-     * @brief Records one undoable **workspace-scope** edit triggered from this dock onto the workspace
+     * \brief Records one undoable **workspace-scope** edit triggered from this dock onto the workspace
      *        timeline (canvas-profile content edit, output-format edit).
      *
      * Brackets \p mutate with WorkspaceEditor::snapshotMeta before/after and, if anything changed,

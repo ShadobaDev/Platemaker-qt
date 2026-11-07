@@ -8,7 +8,7 @@
 namespace Ui { class OutputFormatOptionsWidget; }
 
 /**
- * @brief Reusable editor for an OutputProfile's image format + per-format encoding
+ * \brief Reusable editor for an OutputProfile's image format + per-format encoding
  *        options (PNG / JPEG / WebP).
  *
  * A format dropdown reveals exactly one options group. The single source of truth
@@ -24,15 +24,15 @@ public:
     ~OutputFormatOptionsWidget() override;                              //!< Destroys the widget and cleans up resources.
 
     /**
-     * @brief Load the format + all option structs from \p profile (does not emit edited()).
+     * \brief Load the format + all option structs from \p profile (does not emit edited()).
      * Call before exec() to populate fields when editing an existing profile.
-     * @param profile The profile to be loaded into the widget.
+     * \param profile The profile to be loaded into the widget.
      */
     void setFromProfile(const Platemaker::Models::OutputProfile& profile);
 
     /**
-     * @brief Write the format + all option structs into \p profile (name/slicing untouched).
-     * @param profile The profile into which to write the format and options.
+     * \brief Write the format + all option structs into \p profile (name/slicing untouched).
+     * \param profile The profile into which to write the format and options.
      */
     void applyToProfile(Platemaker::Models::OutputProfile& profile) const;
 

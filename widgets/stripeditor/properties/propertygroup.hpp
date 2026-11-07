@@ -6,7 +6,7 @@
 namespace StripEdit {
 
 /**
- * @brief A named slice of an object's editable state.
+ * \brief A named slice of an object's editable state.
  *
  * One editor is responsible for each, and only that editor writes it. `Tail` is a balloon's tails as a
  * collection; `TailItem` is one tail, the group of a selected tail object.
@@ -20,7 +20,7 @@ namespace StripEdit {
 enum class PropertyGroup { Placement, Size, Compositing, Shape, Skin, Style, Text, Tail, TailItem, Effects, Texture };
 
 /**
- * @brief Whether @p a carries @p g at all — **the one answer to "which sections apply"**.
+ * \brief Whether @p a carries @p g at all — **the one answer to "which sections apply"**.
  *
  * A pure function of a record, which is what lets the rule be tested rather than only looked at. It was
  * written out twice in the panel, once for a single subject and once for a set, and the two had already

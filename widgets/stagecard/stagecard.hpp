@@ -10,7 +10,7 @@ class QMouseEvent;
 class QPaintEvent;
 
 /**
- * @brief One step in the Project "Workflow" pipeline map (built by Project::refreshWorkflowMap).
+ * \brief One step in the Project "Workflow" pipeline map (built by Project::refreshWorkflowMap).
  *
  * A short bar: title on the left, a state line on the right, and — for the optional steps — action
  * buttons. Fixed stages are informational and jump to their tab on click (clicked()). Optional stages

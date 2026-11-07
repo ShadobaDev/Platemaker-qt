@@ -20,7 +20,7 @@ class QTimer;
 namespace StripEdit {
 
 /**
- * @brief The Grade tool's options — an image editor's colour menu, applied to the selected object.
+ * \brief The Grade tool's options — an image editor's colour menu, applied to the selected object.
  *
  * A list of adjustments at the top, the way an image editor's colour menu lists them, and the chosen one's
  * controls below it.

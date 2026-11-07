@@ -10,7 +10,7 @@
 class Project;
 
 /**
- * @brief One undoable edit to a project's **text & bubbles** — and nothing else about the project.
+ * \brief One undoable edit to a project's **text & bubbles** — and nothing else about the project.
  *
  * A **typed step**, not a second history: it shares one stack with `ProjectSnapshotCommand` and the two
  * are undone in the order they were made. What is typed is the reach — this one covers exactly
@@ -33,10 +33,10 @@ class OverlaySnapshotCommand : public QUndoCommand
 {
 public:
     /**
-     * @param project The project these overlays belong to.
-     * @param before  Project::overlayState() taken before the edit — restored on undo().
-     * @param after   Project::overlayState() taken after the edit — restored on a later redo().
-     * @param text    Short operation label (e.g. "Add bubble").
+     * \param project The project these overlays belong to.
+     * \param before  Project::overlayState() taken before the edit — restored on undo().
+     * \param after   Project::overlayState() taken after the edit — restored on a later redo().
+     * \param text    Short operation label (e.g. "Add bubble").
      */
     OverlaySnapshotCommand(Project* project, OverlayState before, OverlayState after,
                            const QString& text);

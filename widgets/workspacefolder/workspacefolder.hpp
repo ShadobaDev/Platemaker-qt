@@ -32,13 +32,13 @@ inline constexpr char k_workspaceFilePattern[] = "*.platemaker.json";
 inline constexpr char k_workspaceFontsFolder[] = "fonts";
 
 /**
- * @brief The font files in \p folder's `fonts/` — `.ttf`, `.otf`, `.ttc`, any case — as absolute paths in
+ * \brief The font files in \p folder's `fonts/` — `.ttf`, `.otf`, `.ttc`, any case — as absolute paths in
  *        name order. Not recursive; anything else there (a licence, a readme) is not a font.
  */
 [[nodiscard]] QStringList workspaceFontFiles(const QString& folder);
 
 /**
- * @brief Every workspace file directly inside \p dir, as absolute paths in name order.
+ * \brief Every workspace file directly inside \p dir, as absolute paths in name order.
  *
  * Not recursive: a workspace in a subfolder owns that subfolder, which is exactly the arrangement the
  * rule asks for. An unreadable or missing folder holds no workspaces.
@@ -46,7 +46,7 @@ inline constexpr char k_workspaceFontsFolder[] = "fonts";
 [[nodiscard]] QStringList workspacesInFolder(const QString& dir);
 
 /**
- * @brief The workspaces in \p workspacePath's folder other than that file itself.
+ * \brief The workspaces in \p workspacePath's folder other than that file itself.
  *
  * What New and Save As must refuse to join, and what makes a folder unsafe to open. Compared as files,
  * not as strings, so a path spelled with different case or separators is still the same workspace.
@@ -54,15 +54,15 @@ inline constexpr char k_workspaceFontsFolder[] = "fonts";
 [[nodiscard]] QStringList otherWorkspacesBeside(const QString& workspacePath);
 
 /**
- * @brief Puts a copy of \p source at \p dest, unless an identical file is already there.
+ * \brief Puts a copy of \p source at \p dest, unless an identical file is already there.
  *
- * @return False when the copy failed, or when a **different** file already has that name — which is
+ * \return False when the copy failed, or when a **different** file already has that name — which is
  *         never overwritten: it is somebody's.
  */
 [[nodiscard]] bool copyUnlessIdentical(const QString& source, const QString& dest);
 
 /**
- * @brief Brings every file these overlays need into \p overlaysDir, and points the overlays at the copies.
+ * \brief Brings every file these overlays need into \p overlaysDir, and points the overlays at the copies.
  *
  * What *Save As* runs so a workspace references only its own folder, and what restoring an undo step runs,
  * since a history taken before a Save As still names the old folder. Carried along:
@@ -79,8 +79,8 @@ inline constexpr char k_workspaceFontsFolder[] = "fonts";
  * **All or nothing:** every copy is made before any path changes, so on failure \p overlays is exactly as
  * it was. Copies already made are harmless — nothing references them, and the sweep at open collects them.
  *
- * @param failed Set to the file that could not be carried, when the result is false.
- * @return True when every file is in place (or there was nothing to do).
+ * \param failed Set to the file that could not be carried, when the result is false.
+ * \return True when every file is in place (or there was nothing to do).
  */
 [[nodiscard]] bool collectOverlayFiles(std::vector<Platemaker::Models::StripOverlay>& overlays,
                                        const ObjectRecord::Map&                              records,
@@ -88,16 +88,16 @@ inline constexpr char k_workspaceFontsFolder[] = "fonts";
                                        QString*                                        failed = nullptr);
 
 /**
- * @brief The files in \p folder that Platemaker made and nothing in \p referenced uses — what the sweep
+ * \brief The files in \p folder that Platemaker made and nothing in \p referenced uses — what the sweep
  *        at open moves to the Recycle Bin.
  *
  * **Only our own names are candidates:** `overlays/ovl-*.svg`, `overlays/art-*`, and the files directly in
  * `templates/`. Anything else in the folder — a file the user put there, `fonts/`, the lock, the cache — is
  * not ours to judge. Compared as files, not strings, so a reference spelled differently still counts.
  *
- * @param folder     The workspace folder (the one holding its `*.platemaker.json`).
- * @param referenced Every file the workspace uses, as paths; ones that do not exist are ignored.
- * @return Absolute paths, in folder order.
+ * \param folder     The workspace folder (the one holding its `*.platemaker.json`).
+ * \param referenced Every file the workspace uses, as paths; ones that do not exist are ignored.
+ * \return Absolute paths, in folder order.
  */
 [[nodiscard]] QStringList unusedWorkspaceFiles(const QString& folder, const QStringList& referenced);
 

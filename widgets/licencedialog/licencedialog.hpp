@@ -6,7 +6,7 @@
 namespace Ui { class LicenceDialog; }
 
 /**
- * @brief Modal viewer for a single third-party licence text.
+ * \brief Modal viewer for a single third-party licence text.
  *
  * Opened from the About dialog when a licence identifier is clicked. The licence texts are shipped
  * beside the executable in credits/licenses/ (see the product SBOM); this dialog reads the file for
@@ -22,9 +22,9 @@ public:
     ~LicenceDialog() override;
 
     /**
-     * @brief Show the licence text for one component.
-     * @param componentLabel Heading, e.g. "libvips — LGPL-2.1-or-later".
-     * @param licenceFilePath Absolute path to the licence text file (may not exist).
+     * \brief Show the licence text for one component.
+     * \param componentLabel Heading, e.g. "libvips — LGPL-2.1-or-later".
+     * \param licenceFilePath Absolute path to the licence text file (may not exist).
      */
     void showLicence(const QString& componentLabel, const QString& licenceFilePath);
 

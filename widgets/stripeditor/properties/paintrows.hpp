@@ -34,7 +34,7 @@ inline const FieldRowSpec k_patternRows[] = {
 }  // namespace PaintRowsDetail
 
 /**
- * @brief The rows that edit one Paint a group holds: its colour, its pattern, the pattern's
+ * \brief The rows that edit one Paint a group holds: its colour, its pattern, the pattern's
  *        colour and its numbers. The same rows in the Fill, the Line and the Effects sections.
  *
  * The panel contract as FieldRows keeps it: *Mixed* while a bound selection disagrees, and *touched*
@@ -51,11 +51,11 @@ class PaintRows
 {
 public:
     /**
-     * @param paint       Which Paint of the group these rows edit.
-     * @param colourTitle The colour row's label, already translated ("Colour", "Shadow colour").
-     * @param values      The panel's own copy of the group, written on every edit.
-     * @param edited      Called after an edit is in @p values: the panel emits changed() there.
-     * @param committed   Called after a discrete choice (a colour picked): the panel emits committed().
+     * \param paint       Which Paint of the group these rows edit.
+     * \param colourTitle The colour row's label, already translated ("Colour", "Shadow colour").
+     * \param values      The panel's own copy of the group, written on every edit.
+     * \param edited      Called after an edit is in @p values: the panel emits changed() there.
+     * \param committed   Called after a discrete choice (a colour picked): the panel emits committed().
      */
     void build(QWidget* owner, QFormLayout* form, Paint Group::* paint, const QString& colourTitle, Group& values,
                const bool& populating, std::function<void()> edited, std::function<void()> committed)

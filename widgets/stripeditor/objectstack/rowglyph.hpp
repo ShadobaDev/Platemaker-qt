@@ -14,7 +14,7 @@ namespace StripEdit {
 inline constexpr int k_rowGlyphPx = 24;
 
 /**
- * @brief The object itself, drawn small enough to sit in a row — **a glyph, not a picture**.
+ * \brief The object itself, drawn small enough to sit in a row — **a glyph, not a picture**.
  *
  * Built from `Geometry::silhouette()`, the same path the scene draws and the SVG writer serialises, so a
  * speech balloon with two tails is distinguishable from a caption box at a glance. There is no rendering
@@ -27,7 +27,7 @@ inline constexpr int k_rowGlyphPx = 24;
  * The fill is the object's own; the outline is the palette's, which is what keeps a black balloon visible
  * on a dark panel and a white one on a light panel.
  *
- * @param dpr The screen's device pixel ratio. Drawing at one and letting the view scale up is what makes
+ * \param dpr The screen's device pixel ratio. Drawing at one and letting the view scale up is what makes
  *            an icon look soft on a 150% display — so every glyph is drawn at the screen's own density.
  */
 [[nodiscard]] QIcon objectGlyph(const ObjectRecord& a, const QPalette& pal, int px = k_rowGlyphPx,

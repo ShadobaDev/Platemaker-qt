@@ -26,7 +26,7 @@ constexpr int k_tileOversample = 4;
 constexpr qreal k_outlinePerFill = 512.0;
 
 /**
- * @brief Runs @p draw on a layer of its own at device resolution, covering @p bounds (in the painter's
+ * \brief Runs @p draw on a layer of its own at device resolution, covering @p bounds (in the painter's
  *        coordinates), and draws the layer once at @p opacity.
  *
  * What is drawn into it opaque and overlaps itself (a grid's crossings, a shadow's body and its band)
@@ -65,7 +65,7 @@ void drawInLayer(QPainter& painter, const QRectF& bounds, qreal opacity,
 }
 
 /**
- * @brief Fills @p marks (many small subpaths) with @p colour, in pieces, through a layer of its own.
+ * \brief Fills @p marks (many small subpaths) with @p colour, in pieces, through a layer of its own.
  *
  * Pieces overlap where marks do (a grid's crossings, dots large enough to merge), and a transparent colour
  * filled piece by piece would darken there. So they are filled opaque into a layer (drawInLayer()), which
@@ -113,7 +113,7 @@ void fillMarks(QPainter& painter, const QPainterPath& marks, const QColor& colou
 }
 
 /**
- * @brief Shadow @p s, @p paths (Geometry::shadowOf()), painted with @p fill: hard here when it is blurred,
+ * \brief Shadow @p s, @p paths (Geometry::shadowOf()), painted with @p fill: hard here when it is blurred,
  *        which is the library's to draw (a record with one is previewed from there at rest,
  *        Geometry::hasFilter()). A halftone's fade is geometry. A growing one is its body and a round band
  *        over it, opaque in a layer given the shadow's alpha once. The balloon's and the letters' alike.

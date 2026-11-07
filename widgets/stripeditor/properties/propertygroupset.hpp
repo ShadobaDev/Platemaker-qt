@@ -14,7 +14,7 @@ class StyleEditor;
 class TextEditor;
 
 /**
- * @brief The four editors of a balloon's look, and the two rules about applying them.
+ * \brief The four editors of a balloon's look, and the two rules about applying them.
  *
  * Both surfaces that show a balloon's properties own one of these: the panel describing the selected
  * object, and the panel describing what the next object will be. Neither lays the editors out the same
@@ -58,9 +58,9 @@ public:
     void bind(const ObjectRecord& a) const;
 
     /**
-     * @brief Writes every group into \p a in the one order that matters, then tops up the seed.
+     * \brief Writes every group into \p a in the one order that matters, then tops up the seed.
      *
-     * @param tails The surface's own tails editor, applied after the shape it reads; none, for a caller
+     * \param tails The surface's own tails editor, applied after the shape it reads; none, for a caller
      *              whose subject has no tails to write.
      */
     void collect(ObjectRecord& a, const PropertyGroupEditor* tails = nullptr) const;

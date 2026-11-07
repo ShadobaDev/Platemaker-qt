@@ -16,7 +16,7 @@ class PresetStore;
 class StripLayout;
 
 /**
- * @brief The object menu — one right-click menu, on the OBJECT STACK and on the canvas alike.
+ * \brief The object menu — one right-click menu, on the OBJECT STACK and on the canvas alike.
  *
  * The menu is the two widgets' own action list (Qt::ActionsContextMenu), so they cannot drift apart and
  * every entry keeps its shortcut. Sections are separators in that same list: what the object *looks
@@ -36,29 +36,29 @@ class ObjectMenu : public QObject
 
 public:
     /**
-     * @param objects       What the entries act on, and whose selection decides which apply.
-     * @param layout        The strip's pages, for *Re-anchor to ▸* and *Fit to strip width*.
-     * @param presets       For *Apply preset ▸* and *Save as preset…*.
-     * @param tree          The OBJECT STACK's tree, which gets the menu.
-     * @param view          The canvas, which gets it too.
-     * @param dialogParent  Parent of the submenus and the dialogs.
+     * \param objects       What the entries act on, and whose selection decides which apply.
+     * \param layout        The strip's pages, for *Re-anchor to ▸* and *Fit to strip width*.
+     * \param presets       For *Apply preset ▸* and *Save as preset…*.
+     * \param tree          The OBJECT STACK's tree, which gets the menu.
+     * \param view          The canvas, which gets it too.
+     * \param dialogParent  Parent of the submenus and the dialogs.
      */
     ObjectMenu(ObjectController& objects, const StripLayout& layout, PresetStore& presets,
                QWidget* tree, QGraphicsView* view, QWidget* dialogParent, QObject* parent);
 
     /**
-     * @brief Where the menu's colour entries read from — the tool column's pair. Never written to.
+     * \brief Where the menu's colour entries read from — the tool column's pair. Never written to.
      *
      * The pair is furniture, not a tool: the tools that spend it hold a reference rather than a colour of
      * their own, and so does this menu. Without one, the two colour entries stay hidden.
      * 
-     * @param pair  The source of the menu's colour entries.
+     * \param pair  The source of the menu's colour entries.
      */
     void setColourSource(const ColourPair* pair);
 
 private:
     /**
-     * @brief Which entries the selection can take: enabled, greyed or absent.
+     * \brief Which entries the selection can take: enabled, greyed or absent.
      *
      * An entry that acts on one object stays disabled while several things are selected rather than
      * quietly acting on the primary, and every selected object has to be able to take an entry, not
@@ -67,15 +67,15 @@ private:
      */
     void updateEntries();
     /**
-     * @brief Rebuilds *Apply preset ▸* from the store, so a preset saved a moment ago is already there.
+     * \brief Rebuilds *Apply preset ▸* from the store, so a preset saved a moment ago is already there.
      */
     void rebuildPresetMenu();
     /**
-     * @brief Rebuilds *Re-anchor to ▸* from the layout: one entry per page, the current one checked.
+     * \brief Rebuilds *Re-anchor to ▸* from the layout: one entry per page, the current one checked.
      */
     void rebuildReanchorMenu();
     /**
-     * @brief Saves the selected object's look as a named preset — everything a preset carries, and no lettering.
+     * \brief Saves the selected object's look as a named preset — everything a preset carries, and no lettering.
      */
     void saveSelectionAsPreset();
     //! Asks for a picture and hands it to the objects to place; says why not when there is no page yet.
@@ -89,12 +89,12 @@ private:
     QWidget*           m_dialogParent = nullptr;
 
     /**
-     * @brief *Apply preset ▸* on the selection. Restyling something that exists is a different act from
+     * \brief *Apply preset ▸* on the selection. Restyling something that exists is a different act from
      *        choosing what the next object will be, so it lives with the object rather than with the tool.
      */
     QMenu*            m_presetMenu = nullptr;
     /**
-     * @brief *Re-anchor to ▸* on the selection — the explicit way back for an object whose page is gone, and
+     * \brief *Re-anchor to ▸* on the selection — the explicit way back for an object whose page is gone, and
      *         the only way to move one that is not on the strip, where there is nothing to drag.
      */
     QMenu*            m_reanchorMenu = nullptr;

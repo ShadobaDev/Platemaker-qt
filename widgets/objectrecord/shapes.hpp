@@ -28,7 +28,7 @@ constexpr int k_minLobeSize = 5;
 constexpr int k_maxLobeSize = 100;
 
 /**
- * @brief A point a shape offers to be dragged in edit mode, in the balloon's own coordinates.
+ * \brief A point a shape offers to be dragged in edit mode, in the balloon's own coordinates.
  */
 struct ShapeHandle
 {
@@ -56,7 +56,7 @@ struct ShapeHandle
 };
 
 /**
- * @brief One kind: everything about it that is not the record's own state.
+ * \brief One kind: everything about it that is not the record's own state.
  *
  * Both functions take the shape group and the balloon's rectangle (balloonRect()), and nothing else of
  * the record: the stroke and the author's padding are applied by the caller, the same way for every
@@ -114,7 +114,7 @@ struct ShapeInfo
 [[nodiscard]] const ShapeInfo& shapeInfo(ShapeProperties::Kind kind);
 
 /**
- * @brief One edge modulation: its names, and the outline with its teeth pushed in.
+ * \brief One edge modulation: its names, and the outline with its teeth pushed in.
  *
  * Adding one is a value in `ShapeProperties::Edge` and an entry here (shapes.cpp): its function walks the
  * bare outline (EdgeWalk) and moves it in by at most `edgeDepth`, so the text area's inset (edgeInset())
@@ -136,7 +136,7 @@ struct EdgeInfo
 [[nodiscard]] qreal edgeInset(const ShapeProperties& shape);
 
 /**
- * @brief Every handle edit mode offers on @p shape in @p body: its kind's own (ShapeInfo::handles), then
+ * \brief Every handle edit mode offers on @p shape in @p body: its kind's own (ShapeInfo::handles), then
  *        its edge's depth. What the controls ask, so an Ellipse with an edge is edited too.
  */
 [[nodiscard]] QList<ShapeHandle> shapeHandles(const ShapeProperties& shape, const QRectF& body,
@@ -153,7 +153,7 @@ struct EdgeInfo
 [[nodiscard]] ShapeProperties withEdgeOf(ShapeProperties shape, const ShapeProperties& from);
 
 /**
- * @brief A ready-made outline: a value of the shape group, as the picker offers it.
+ * \brief A ready-made outline: a value of the shape group, as the picker offers it.
  *
  * A record never stores which template it came from, only the shape it has. A tile is current when the
  * record's shape equals its template (templateOf()). An outline edited off every template is still its
@@ -202,7 +202,7 @@ struct ShapeTemplate
                                            ShapeNode::Type type);
 
 /**
- * @brief The Curve that draws @p outline (its first subpath) in @p body: *Convert to Curve*.
+ * \brief The Curve that draws @p outline (its first subpath) in @p body: *Convert to Curve*.
  *
  * Each line and cubic of the path becomes a segment, so the outline is the same; a node whose handles
  * lie on one line is Smooth, and Symmetric when they are as long as each other too.
@@ -210,7 +210,7 @@ struct ShapeTemplate
 [[nodiscard]] ShapeProperties curveOf(const QPainterPath& outline, const QRectF& body);
 
 /**
- * @brief The balloon's own rectangle inside the box — the box, less room for the stroke.
+ * \brief The balloon's own rectangle inside the box — the box, less room for the stroke.
  *
  * The box *is* the balloon. It used to double as the record's whole extent, with a fixed 18 % of its
  * height reserved at the bottom for the tail to live in — which is what limited a tail to the bottom

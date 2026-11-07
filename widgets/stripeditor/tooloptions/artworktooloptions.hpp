@@ -9,7 +9,7 @@ class QLabel;
 namespace StripEdit {
 
 /**
- * @brief Options for the Artwork tool: **which picture the next placement puts down**.
+ * \brief Options for the Artwork tool: **which picture the next placement puts down**.
  *
  * The counterpart of `BubbleToolOptions` for the other create tool, and the same contract — it describes
  * an object that does not exist yet, so it edits nothing and emits nothing about any object.
@@ -33,14 +33,14 @@ public:
     [[nodiscard]] QString artwork() const { return m_file; }
 
     /**
-     * @brief Chooses @p file without a dialog — what a placement calls after asking for one itself.
+     * \brief Chooses @p file without a dialog — what a placement calls after asking for one itself.
      *
      * So the file a placement had to ask for becomes the tool's file, and the second placement does not
      * ask again.
      */
     void setArtwork(const QString& file);
 
-    //! Opens the file dialog. @return whether a file was chosen.
+    //! Opens the file dialog. \return whether a file was chosen.
     bool chooseArtwork();
 
 signals:
@@ -52,7 +52,7 @@ private:
 
 protected:
     /**
-     * @brief Starts a drag from the preview, carrying the file.
+     * \brief Starts a drag from the preview, carrying the file.
      *
      * **The picture is dragged out of the panel rather than drawn onto the strip**, because a drag on
      * the canvas would have to mean a size, and the size artwork wants is its own — a sound effect

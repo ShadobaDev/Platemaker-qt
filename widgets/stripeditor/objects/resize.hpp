@@ -9,7 +9,7 @@
 namespace StripEdit {
 
 /**
- * @brief What a press or a hover landed on. `Body` falls through to the object's own move handling.
+ * \brief What a press or a hover landed on. `Body` falls through to the object's own move handling.
  *
  * Declared here rather than inside Object so the resize maths below can be tested without a scene —
  * Object spells it `Object::Grip` all the same.
@@ -32,7 +32,7 @@ enum class Grip {
 }
 
 /**
- * @brief How a resize is constrained — the object's own rule and the modifiers held during the drag.
+ * \brief How a resize is constrained — the object's own rule and the modifiers held during the drag.
  */
 struct ResizeRule
 {
@@ -46,7 +46,7 @@ struct ResizeRule
 inline constexpr qreal k_gripScreenPx = 9.0;
 
 /**
- * @brief The rectangle a grip drag arrives at — the GIMP model.
+ * \brief The rectangle a grip drag arrives at — the GIMP model.
  *
  * Dragging a corner moves that corner and an edge moves that edge; the opposite corner or edge is the
  * anchor and does not move. With `fromCentre` the anchor is the centre instead, and the opposite side
@@ -57,12 +57,12 @@ inline constexpr qreal k_gripScreenPx = 9.0;
  * Worked from the rectangle at press plus the total delta, never per mouse-move, so a fast drag cannot
  * accumulate rounding error.
  *
- * @param start The box at press, in scene coordinates.
- * @param grip  The grip being dragged — a corner or an edge; anything else returns @p start.
- * @param delta Pointer travel since the press, in scene coordinates.
- * @param rule  Aspect, centre, the minimum size and the snap. The size is snapped *before* the anchor
+ * \param start The box at press, in scene coordinates.
+ * \param grip  The grip being dragged — a corner or an edge; anything else returns @p start.
+ * \param delta Pointer travel since the press, in scene coordinates.
+ * \param rule  Aspect, centre, the minimum size and the snap. The size is snapped *before* the anchor
  *              is applied, so the anchored side stays exactly where it was.
- * @return The new box, or nothing when it would be smaller than `rule.minSize` on either axis — the
+ * \return The new box, or nothing when it would be smaller than `rule.minSize` on either axis — the
  *         caller keeps the last good one. Refusing rather than clamping keeps the box from "sticking"
  *         and then jumping on the way back; it also means a box is never turned inside out.
  */

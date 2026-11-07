@@ -10,7 +10,7 @@
 namespace StripEdit {
 
 /**
- * @brief A scroll area whose page is as wide with the vertical bar as without it.
+ * \brief A scroll area whose page is as wide with the vertical bar as without it.
  *
  * The bar's width is kept free while the bar is hidden, so its showing up does not narrow the page: the
  * shape tiles reflow with the width, and a section opening far below them pushed the last tile onto a
@@ -36,7 +36,7 @@ private:
 };
 
 /**
- * @brief Wraps @p page in a scroll area to prevent the column from resizing when the panel's contents change.
+ * \brief Wraps @p page in a scroll area to prevent the column from resizing when the panel's contents change.
  *
  * **A panel may not decide how wide its column is.** A stacked widget's minimum is its pages' minimum,
  *  and a splitter may never take a child below that — so the right column grew the moment something was
@@ -49,9 +49,9 @@ private:
  *
  * Shared by both stacks a column holds — TOOL OPTIONS and OBJECT STATE — which is why it lives here.
  *
- * @param page The widget to wrap.
- * @param host The stacked widget that will contain the scroll area.
- * @return A pointer to the created scroll area.
+ * \param page The widget to wrap.
+ * \param host The stacked widget that will contain the scroll area.
+ * \return A pointer to the created scroll area.
  */
 [[nodiscard]] inline QScrollArea* scrolled(QWidget* page, QStackedWidget* host)
 {

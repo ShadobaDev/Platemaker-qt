@@ -1,6 +1,6 @@
 /**
- * @file
- * @brief Property-group ownership: applying a group writes that group and nothing else.
+ * \file
+ * \brief Property-group ownership: applying a group writes that group and nothing else.
  *
  * These exist for a specific reason. The strip editor has shipped the same class of bug three times —
  * code writing a field that was not its own, because the invariant lived in a comment rather than in a
@@ -248,7 +248,7 @@ void expectSamePaint(const Paint& after, const Paint& before, const char* which)
 enum class Group { Shape, Skin, Style, Texture, Effects, Text, Tails, Nothing };
 
 /**
- * @brief Asserts that every property outside \p applied is byte-identical.
+ * \brief Asserts that every property outside \p applied is byte-identical.
  *
  * Listed property by property rather than through the groups' own operator==, on purpose: equality is
  * itself something that can be forgotten when a property is added, and a test leaning on it would
@@ -488,7 +488,7 @@ TEST(PropertyGroupOwnership, Tails)
 }
 
 /**
- * @brief One tail is a group of its own: editing tail 2 leaves tail 1 and tail 3 as they were.
+ * \brief One tail is a group of its own: editing tail 2 leaves tail 1 and tail 3 as they were.
  *
  * The reason tails became objects. When one editor wrote a width and bend onto every tail, a balloon with
  * two differently shaped tails lost the difference the next time anything else about it was edited.
@@ -547,7 +547,7 @@ TEST(PropertyGroupOwnership, OneTailOutOfRangeWritesNothing)
 }
 
 /**
- * @brief The two colour groups are next door to each other and must stay there.
+ * \brief The two colour groups are next door to each other and must stay there.
  *
  * Editing a balloon's frame does not edit its lettering, which is why the colour tool has two swatches
  * and not three. Both set to the same colour, so a group writing across the boundary cannot pass.
@@ -620,7 +620,7 @@ TEST(PropertyGroupPersistence, RoundTrips)
 }
 
 /**
- * @brief **Every** shape and every line style comes back from both files it is saved to — the undo
+ * \brief **Every** shape and every line style comes back from both files it is saved to — the undo
  *        snapshot's JSON and the overlay's SVG.
  *
  * Both read a kind back by its name — the JSON's `shape` and the SVG's `pm:shape` go through the same
@@ -675,7 +675,7 @@ TEST(PropertyGroupPersistence, EveryShapeAndStyleRoundTrips)
 // ---------------------------------------------------------------------------
 
 /**
- * @brief What *Convert to ▸* promises: a kind the record cannot draw hides properties, never destroys
+ * \brief What *Convert to ▸* promises: a kind the record cannot draw hides properties, never destroys
  *        them, so converting back brings them with it.
  *
  * The promise is made in the menu's own message ("converting back brings them back"), and everything
@@ -704,7 +704,7 @@ TEST(Conversion, AKindHidesTailsRatherThanDestroyingThem)
 }
 
 /**
- * @brief The picker offers every silhouette exactly once — and offers "no balloon" never.
+ * \brief The picker offers every silhouette exactly once — and offers "no balloon" never.
  *
  * `Shape::None` is a *kind*, not a silhouette: it is the absence of one, and an object without a
  * silhouette has no fill, no outline, no line style and nothing for a tail to leave from. A picker that
@@ -724,7 +724,7 @@ TEST(Conversion, ThePickerOffersEverySilhouetteAndNoKind)
 }
 
 /**
- * @brief Every shape has its own entry in the shape table (shapes.cpp), in the enum's order, with a
+ * \brief Every shape has its own entry in the shape table (shapes.cpp), in the enum's order, with a
  *        name, a title, an outline and a text area — except `None`, which has no outline to draw. So
  *        has every line (strokes for each but Clean) and every texture (a filter's reach for each but
  *        None), in styles.cpp.
@@ -778,7 +778,7 @@ TEST(Conversion, EveryShapeAndStyleHasATableEntry)
 }
 
 /**
- * @brief A flash and a brush draw no solid outline, stay inside the room reserved for them, and are the
+ * \brief A flash and a brush draw no solid outline, stay inside the room reserved for them, and are the
  *        same strokes for the same seed and others for another.
  *
  * The bounds are the buffer and the viewBox, so a stroke past them is clipped off in the render. The
@@ -830,7 +830,7 @@ TEST(Style, ALinesStrokesStayInsideTheirBounds)
 }
 
 /**
- * @brief A dry brush keeps a whole core, and its hairs thin out away from it and as it dries; a tail ends
+ * \brief A dry brush keeps a whole core, and its hairs thin out away from it and as it dries; a tail ends
  *        in a point.
  *
  * Measured every two pixels round the silhouette's edge, at offsets across the line: on the core, in the
@@ -941,7 +941,7 @@ TEST(Style, ADrybrushKeepsItsCoreAndThinsOutwards)
 }
 
 /**
- * @brief A Circles tail is a chain of ellipses on the tail's curve, shrinking from its width to the tip,
+ * \brief A Circles tail is a chain of ellipses on the tail's curve, shrinking from its width to the tip,
  *        `pitch` apart, the first `offset` from the balloon and the last ending at the tip.
  *
  * A straight tail down from an ellipse's bottom, so each ellipse's extent across is its width and along
@@ -1004,7 +1004,7 @@ TEST(Style, AutoStretchIsTheShapes)
 }
 
 /**
- * @brief A tail leaves a concave outline from the crossing nearest its tip.
+ * \brief A tail leaves a concave outline from the crossing nearest its tip.
  *
  * A box with a notch cut down into its top: the line from the centre to a tip up and to the left runs
  * through the notch, back into the left prong, and out of the prong's top. The tail is seen to leave
@@ -1031,7 +1031,7 @@ TEST(Tails, AConcaveOutlineIsLeftNearestTheTip)
 }
 
 /**
- * @brief A Polygon's corner radius rounds as a Box's does, and never past half an edge.
+ * \brief A Polygon's corner radius rounds as a Box's does, and never past half an edge.
  *
  * A square Polygon and a Box of the same radius are the same outline: a press in a corner falls outside
  * both, and one just inside the arc inside both. A radius past what the edges allow stops at half the
@@ -1061,7 +1061,7 @@ TEST(Shapes, APolygonsCornersRoundAsABoxsDo)
 }
 
 /**
- * @brief Shape editing's handles: one dragged onto where it already is changes
+ * \brief Shape editing's handles: one dragged onto where it already is changes
  *        nothing, and a Polygon's nodes are added in the middle of an edge and removed down to three,
  *        never fewer.
  *
@@ -1109,7 +1109,7 @@ TEST(Shapes, AHandleDraggedOntoItselfChangesNothing)
 }
 
 /**
- * @brief An edge goes in from the outline: the balloon keeps its bounds, the lettering's room
+ * \brief An edge goes in from the outline: the balloon keeps its bounds, the lettering's room
  *        gives up the depth, a tile is still current under it, and the same seed lays the same teeth.
  */
 TEST(Shapes, AnEdgeGoesInAndTheLetteringGivesUpItsDepth)
@@ -1142,7 +1142,7 @@ TEST(Shapes, AnEdgeGoesInAndTheLetteringGivesUpItsDepth)
 }
 
 /**
- * @brief A shadow is the silhouette moved, and grown by a band as wide as its spread drawn over it (no union
+ * \brief A shadow is the silhouette moved, and grown by a band as wide as its spread drawn over it (no union
  *        of the two), inside the room reserved for it; only a soft one is a filter: a hard one is drawn as
  *        it is edited, a soft one by the library.
  */
@@ -1180,7 +1180,7 @@ TEST(Effects, AShadowStaysInItsBoundsAndOnlyASoftOneIsAFilter)
 }
 
 /**
- * @brief A halftone shadow is the shadow's colour in marks on nothing, not marks over the shadow; a soft
+ * \brief A halftone shadow is the shadow's colour in marks on nothing, not marks over the shadow; a soft
  *        one fades as geometry, as a blur would, and is no filter.
  */
 TEST(Effects, AHalftoneShadowReplacesTheShadowAndFadesOverItsSoftness)
@@ -1243,7 +1243,7 @@ TEST(Effects, AHalftoneShadowReplacesTheShadowAndFadesOverItsSoftness)
 }
 
 /**
- * @brief A fill fades by a cross in the balloon: along each arm, whole up to its start and gone past its
+ * \brief A fill fades by a cross in the balloon: along each arm, whole up to its start and gone past its
  *        end; one arm is a straight fade, all four a round one. The centre moves, and the fade
  *        turns over; on ellipses, all four make an ellipse, and one arm is still straight.
  */
@@ -1384,7 +1384,7 @@ int pointsInOnlyOne(const QPainterPath& a, const QPainterPath& b, const QRectF& 
 }  // namespace
 
 /**
- * @brief A Curve keeps its outline through the edits that should not change it: *Convert to
+ * \brief A Curve keeps its outline through the edits that should not change it: *Convert to
  *        Curve* from a Box, an Ellipse, a rounded Polygon and a Cloud, in a node per piece; a segment split by its "+"; and a node made
  *        Corner. A node made Symmetric gets two handles on one line, as long as each other.
  */
@@ -1435,7 +1435,7 @@ TEST(Shapes, ACurveKeepsItsOutlineThroughItsEdits)
 // ---------------------------------------------------------------------------
 
 /**
- * @brief What an import decides by: **our own file carries a recipe, and nobody else's does**.
+ * \brief What an import decides by: **our own file carries a recipe, and nobody else's does**.
  *
  * A bubble's SVG is an ordinary drawing plus the parameters it was drawn from, in a namespace no
  * renderer looks at. That is what lets one come home as a re-typable balloon instead of being filed as
@@ -1497,7 +1497,7 @@ TEST(Import, OnlyAFileCarryingTheRecipeIsAdopted)
 // ---------------------------------------------------------------------------
 
 /**
- * @brief A record that names a picture **is** that picture, and none of our geometry applies to it.
+ * \brief A record that names a picture **is** that picture, and none of our geometry applies to it.
  *
  * One record type carries all three kinds — lettering, a balloon, and somebody else's drawing — because
  * a second map keyed by the same uid would be a second channel carrying the same object, and the two
@@ -1540,7 +1540,7 @@ TEST(Kinds, ArtworkSurvivesTheSnapshot)
 }
 
 /**
- * @brief A wrapper is written only when it can draw its picture, and reads back as one.
+ * \brief A wrapper is written only when it can draw its picture, and reads back as one.
  *
  * The library hands the renderer a buffer with no base path (`vips_svgload_buffer` → librsvg), so a
  * relative `href` has nothing to resolve against: the picture is embedded or the file is useless. A
@@ -1697,7 +1697,7 @@ void bump(ObjectRecord::Texture& v)
 }
 
 /**
- * @brief For every field of the group at \p group: changing it alone makes the group unequal, and the
+ * \brief For every field of the group at \p group: changing it alone makes the group unequal, and the
  *        changed record comes back the same from the JSON and from the SVG.
  *
  * The SVG is written with no lettering, because writing lettering measures a font, which needs the
@@ -1763,7 +1763,7 @@ QString goldenPath()
 }
 
 /**
- * @brief Everything a record is written as, for every template (and no shape) × look × with and without
+ * \brief Everything a record is written as, for every template (and no shape) × look × with and without
  *        a tail. A case is named by its template's id and its look: clean, marker and ink (Rough at the
  *        Marker's and the Ink's numbers), flash, a rough flash, and brush.
  *
@@ -2000,7 +2000,7 @@ QString goldenRecords()
 } // namespace
 
 /**
- * @brief What a record is written as does not change unless it is meant to — **byte for byte**.
+ * \brief What a record is written as does not change unless it is meant to — **byte for byte**.
  *
  * The guard for refactoring the geometry and the persistence: moving a shape's path, a style's
  * filter or a property's key to another file must leave every file written exactly as it was. A change

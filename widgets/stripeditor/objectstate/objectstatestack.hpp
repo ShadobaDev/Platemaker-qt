@@ -15,7 +15,7 @@ class StripLayout;
 class StripState;
 
 /**
- * @brief OBJECT STATE: which panel describes the selection, and what it says about the strip.
+ * \brief OBJECT STATE: which panel describes the selection, and what it says about the strip.
  *
  * Two panels share the column. ObjectState describes placed objects — one, several, or a tail — and
  * StripState describes the strip or one of its pages, which are selected too but are not overlays, so

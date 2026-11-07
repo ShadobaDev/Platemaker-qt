@@ -25,7 +25,7 @@ class TailEditor;
 class TailListEditor;
 
 /**
- * @brief What the selected object **is** — the right-hand panel, and nothing else's business.
+ * \brief What the selected object **is** — the right-hand panel, and nothing else's business.
  *
  * It follows the selection and never the active tool. A tool chosen minutes ago is a cause the artist
  * cannot see, so it decides what a *placement* creates and nothing about what is already there.
@@ -58,7 +58,7 @@ public:
     void setRecord(const ObjectRecord& a);
 
     /**
-     * @brief Shows tail @p index of \p a — a tail selected on its own. Emits nothing.
+     * \brief Shows tail @p index of \p a — a tail selected on its own. Emits nothing.
      *
      * One section, the tail's, and *Delete tail*. The balloon's own groups are the balloon's, and showing
      * them here would make an edit look as if it belonged to the tail. Edits still arrive as the whole
@@ -67,7 +67,7 @@ public:
     void setTail(const ObjectRecord& a, int index);
 
     /**
-     * @brief Shows @p objects as one subject — the **union** of what they have in common. Emits nothing.
+     * \brief Shows @p objects as one subject — the **union** of what they have in common. Emits nothing.
      *
      * The sections that appear are those at least one selected object carries; a control whose value
      * differs across the selection says **Mixed** rather than showing the first object's. An edit then
@@ -80,7 +80,7 @@ public:
     void setRecords(const QList<ObjectRecord>& objects);
 
     /**
-     * @brief Names a selection of @p count things of **different kinds** — objects and tails together.
+     * \brief Names a selection of @p count things of **different kinds** — objects and tails together.
      *
      * The union of their roles is *position*, and position is not edited here: it is edited by dragging.
      * So the panel says how many things are selected and offers nothing else, which is a
@@ -92,7 +92,7 @@ public:
 
 
     /**
-     * @brief Shows how the selection is composited — @p blend, or *Mixed* when it has no one answer.
+     * \brief Shows how the selection is composited — @p blend, or *Mixed* when it has no one answer.
      *
      * Separate from the setters above because it is not one of the object's property groups: blend
      * belongs to the overlay rather than to the record a balloon is drawn from, and every kind of
@@ -102,7 +102,7 @@ public:
     void setSelectionBlend(std::optional<Platemaker::Models::BlendMode> blend, bool applies);
 
     /**
-     * @brief How big an imported picture is drawn, as a **percentage of its own pixels** — or nothing.
+     * \brief How big an imported picture is drawn, as a **percentage of its own pixels** — or nothing.
      *
      * The one thing about a picture that is ours to decide. Like blend, it belongs to the overlay
      * rather than to the drawing, so it is not a property group and arrives through its own setter;

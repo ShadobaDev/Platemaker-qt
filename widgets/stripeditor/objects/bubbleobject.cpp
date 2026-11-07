@@ -17,13 +17,13 @@ namespace {
 constexpr qreal k_radiusDotClearance = 2.2;
 
 /**
- * @brief Grows @p a's box to take in every node, in the units of @p body's box.
+ * \brief Grows @p a's box to take in every node, in the units of @p body's box.
  *
  * The nodes are re-measured against the grown body, and the tail tips move back by as much as the box's
  * corner moved, so nothing moves on the strip but the node being dragged. A box that holds every node
  * already is left as it is.
  *
- * @return How far the box's top-left moved, in the units it was in.
+ * \return How far the box's top-left moved, in the units it was in.
  */
 QPointF growToNodes(ObjectRecord& a, const QRectF& body)
 {

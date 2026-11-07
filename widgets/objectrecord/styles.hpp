@@ -64,7 +64,7 @@ struct PatternInfo
 [[nodiscard]] const PatternInfo& patternInfo(Paint::Kind kind);
 
 /**
- * @brief A pattern's repeating cell: a square of the Paint's colour with its marks in the second colour —
+ * \brief A pattern's repeating cell: a square of the Paint's colour with its marks in the second colour —
  *        a dot, a line across, or a line each way — the grid turned by `angle`. One description that both
  *        the painter's brush and the SVG's `<pattern>` are drawn from, so the preview and the output
  *        cannot disagree.
@@ -84,7 +84,7 @@ struct PatternCell
 [[nodiscard]] PatternCell patternCell(const Paint& p);
 
 /**
- * @brief @p p's marks over @p area, each as large as @p tone (0 to 1) says at its place: a halftone that
+ * \brief @p p's marks over @p area, each as large as @p tone (0 to 1) says at its place: a halftone that
  *        fades. Geometry, so the strip and the output draw the same path.
  *
  * The grid is patternCell()'s, laid from the box's corner and turned alike, so at a tone of 1 the marks are
@@ -98,7 +98,7 @@ struct PatternCell
 [[nodiscard]] bool fades(const Paint& p);
 
 /**
- * @brief How much of @p p's pattern is left at @p at, 1 to 0, by its fade's cross on @p body (the balloon's
+ * \brief How much of @p p's pattern is left at @p at, 1 to 0, by its fade's cross on @p body (the balloon's
  *        rectangle, balloonRect()): along each arm from the cross's centre, whole up to its start and gone
  *        past its end, the two directions combined as a distance; the other way round when reversed. Laid
  *        on the balloon, so moving a tail does not move it.
@@ -106,13 +106,13 @@ struct PatternCell
 [[nodiscard]] qreal fadeTone(const Paint& p, const QRectF& body, const QPointF& at);
 
 /**
- * @brief The marks of \p a's fill where it fades, over \p silhouette's extent; empty for a
+ * \brief The marks of \p a's fill where it fades, over \p silhouette's extent; empty for a
  *        fill that does not. Drawn in the pattern's colour over the ground, clipped to the silhouette.
  */
 [[nodiscard]] QPainterPath fillTone(const ObjectRecord& a, const QPainterPath& silhouette);
 
 /**
- * @brief The fade's cross for @p p on @p body, as shape-editing handles: on each arm a dot where the fade
+ * \brief The fade's cross for @p p on @p body, as shape-editing handles: on each arm a dot where the fade
  *        starts and one where it ends, then the centre; none for a solid Paint. At rest every dot is on
  *        its side, which is no fade, wherever the centre is.
  */
@@ -128,13 +128,13 @@ struct PatternCell
 [[nodiscard]] const TextureInfo& textureInfo(TextureProperties::Kind kind);
 
 /**
- * @brief @p s made Rough with the Ink look's numbers: a finer and smaller wobble than the Marker's (the
+ * \brief @p s made Rough with the Ink look's numbers: a finer and smaller wobble than the Marker's (the
  *        struct's defaults), then a bleed. A built-in preset.
  */
 [[nodiscard]] TextureProperties inkRough(TextureProperties t);
 
 /**
- * @brief \p a has an SVG filter anywhere, which only the library draws: a texture, or a
+ * \brief \p a has an SVG filter anywhere, which only the library draws: a texture, or a
  *        soft shadow, the balloon's or its letters'. The one question the controller asks to decide how a
  *        balloon is previewed.
  */
@@ -152,7 +152,7 @@ struct PatternCell
 [[nodiscard]] bool fadesShadow(const Shadow& s, const Paint& fill);
 
 /**
- * @brief What a shadow is drawn from, with no boolean operation on its caster: the caster moved, and how far
+ * \brief What a shadow is drawn from, with no boolean operation on its caster: the caster moved, and how far
  *        it grows, drawn as a round stroke `2 × grow` wide over it in the same paint.
  *
  * A union of the caster with its stroke would be the grown shape as one path, but a union costs as the
@@ -169,20 +169,20 @@ struct ShadowPaths
 };
 
 /**
- * @brief \p s cast by \p caster: ShadowPaths, grown by its spread and moved by its offset; for one that
+ * \brief \p s cast by \p caster: ShadowPaths, grown by its spread and moved by its offset; for one that
  *        fades, the halftone's marks over that. Empty with no shadow. Painted with shadowPaint(), or with
  *        shadowLayerPaint() while it grows.
  */
 [[nodiscard]] ShadowPaths shadowOf(const Shadow& s, const Paint& fill, const QPainterPath& caster);
 
 /**
- * @brief What a growing shadow's body and band are painted with together: shadowPaint() made opaque, its
+ * \brief What a growing shadow's body and band are painted with together: shadowPaint() made opaque, its
  *        alpha given to \p opacity for the layer or group they are drawn in.
  */
 [[nodiscard]] Paint shadowLayerPaint(const Shadow& s, const Paint& fill, qreal* opacity);
 
 /**
- * @brief What shadowOf() is filled with: the shadow's colour, or its pattern's marks in that colour on no
+ * \brief What shadowOf() is filled with: the shadow's colour, or its pattern's marks in that colour on no
  *        ground (a shadow is replaced by its halftone, not covered by it); for one that fades, the colour.
  */
 [[nodiscard]] Paint shadowPaint(const Shadow& s, const Paint& fill);
@@ -197,7 +197,7 @@ struct ShadowPaths
 /** @} */
 
 /**
- * @brief \p a's line's own strokes around \p silhouette, in box coordinates; empty for a line without.
+ * \brief \p a's line's own strokes around \p silhouette, in box coordinates; empty for a line without.
  *
  * Filled with the non-zero rule, every stroke wound the same way, so overlapping strokes paint as one.
  */

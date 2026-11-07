@@ -11,7 +11,7 @@ class QSpinBox;
 namespace StripEdit {
 
 /**
- * @brief One selected tail: how wide it leaves the balloon, how much it bends, and how it is drawn — one
+ * \brief One selected tail: how wide it leaves the balloon, how much it bends, and how it is drawn — one
  *        taper, or a chain of ellipses with its own rows (TailLook).
  *
  * The property group `TailProperties` — one tail, addressed by its position in the balloon's list — with

@@ -9,7 +9,7 @@ class Project;
 enum class EditScope;
 
 /**
- * @brief One undoable project-scope edit (inputs, canvas links, output-profile selection, output dir).
+ * \brief One undoable project-scope edit (inputs, canvas links, output-profile selection, output dir).
  *
  * Snapshot-based: it holds the project's serialized state before and after the edit (from the lib's
  * ProjectEditor::snapshot) and restores one or the other. A single command type therefore covers every
@@ -28,11 +28,11 @@ class ProjectSnapshotCommand : public QUndoCommand
 {
 public:
     /**
-     * @param project The project this edit belongs to (owns/repaints itself on restore).
-     * @param before  ProjectEditor::snapshot() taken before the edit — restored on undo().
-     * @param after   ProjectEditor::snapshot() taken after the edit — restored on a redo() after undo.
-     * @param text    Short operation label (e.g. "Reorder inputs").
-     * @param scope   Where the step is seen when it is undone or redone — see EditScope.
+     * \param project The project this edit belongs to (owns/repaints itself on restore).
+     * \param before  ProjectEditor::snapshot() taken before the edit — restored on undo().
+     * \param after   ProjectEditor::snapshot() taken after the edit — restored on a redo() after undo.
+     * \param text    Short operation label (e.g. "Reorder inputs").
+     * \param scope   Where the step is seen when it is undone or redone — see EditScope.
      */
     ProjectSnapshotCommand(Project* project,
                            QString before,

@@ -8,7 +8,7 @@
 namespace StripEdit {
 
 /**
- * @brief What the pointer is over — the other half of "which cursor".
+ * \brief What the pointer is over — the other half of "which cursor".
  *
  * A cursor is a function of two things, the active tool and what is under the pointer, and this is the
  * second. Three of these are **the canvas's own affordances**: every object can be moved, resized and
@@ -30,7 +30,7 @@ enum class PointerTarget {
 [[nodiscard]] bool isCanvasAffordance(PointerTarget target);
 
 /**
- * @brief The cursor for @p tool over @p target.
+ * \brief The cursor for @p tool over @p target.
  *
  * The **one** place a cursor is decided. Three writers used to disagree here: the view's drag mode, the
  * editor on every tool change, and each item on every hover — which is why the pointer flickered between

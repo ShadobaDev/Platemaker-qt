@@ -76,17 +76,17 @@ namespace {
  */
 constexpr QLatin1String k_artworkPage{"artwork"};
 /**
- * @brief How wide a splitter's grab area is. Wider than the default 1 point, which was as hard to hit as it sounds.
+ * \brief How wide a splitter's grab area is. Wider than the default 1 point, which was as hard to hit as it sounds.
  */
 constexpr int k_splitterHandlePx = 6;
 
 /**
- * @brief The least the tool's options may be squeezed to. Below this the panel is a heading with no controls under it, which says less than nothing about what the armed tool will do.
+ * \brief The least the tool's options may be squeezed to. Below this the panel is a heading with no controls under it, which says less than nothing about what the armed tool will do.
  */
 constexpr int k_toolOptionsFloorPx = 140;
 
 /**
- * @brief How wide the **right** column starts, and the least it can be dragged to.
+ * \brief How wide the **right** column starts, and the least it can be dragged to.
  *
  * A number rather than a question, and the difference between this column and the tool column is the
  * whole reason: the properties panel builds its controls when something is *selected*, so at
@@ -103,12 +103,12 @@ constexpr int k_toolOptionsFloorPx = 140;
 constexpr int k_rightColumnPx = 340;
 
 /**
- * @brief Pages built beyond the viewport on each side. One page is several slices tall, so ±1 already covers a comfortable scroll ahead; a larger margin would multiply a much heavier unit of work.
+ * \brief Pages built beyond the viewport on each side. One page is several slices tall, so ±1 already covers a comfortable scroll ahead; a larger margin would multiply a much heavier unit of work.
  */
 constexpr int k_prefetchPages = 1;
 
 /**
- * @brief How wide a column has to be to hold @p panel whole.
+ * \brief How wide a column has to be to hold @p panel whole.
  *
  * The tool options **can** be asked, where the properties cannot: they describe the next object rather
  * than a selected one, so every control exists from the moment the panel is built and the answer is
@@ -123,14 +123,14 @@ constexpr int k_prefetchPages = 1;
 }
 
 /**
- * @brief Makes @p splitter's handles visible, in the palette's own colours.
+ * \brief Makes @p splitter's handles visible, in the palette's own colours.
  *
  * Neither the native style nor Fusion paints anything on a splitter handle (checked, both), so widening
  * one only widens the gap. Filling it does say where the seam is — and which of the two neighbouring
  * greys reads as a line depends on the theme, so it is chosen the same way `widgets/badge/` chooses a
  * chip's lightness: against the window's own.
  * 
- * @param splitter The splitter to show the handles of.
+ * \param splitter The splitter to show the handles of.
  */
 void showHandles(QSplitter* splitter)
 {

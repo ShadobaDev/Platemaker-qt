@@ -1,6 +1,6 @@
 /**
- * @file advisories.cpp
- * @brief The conditions this window can observe, and the status bar that reports them.
+ * \file advisories.cpp
+ * \brief The conditions this window can observe, and the status bar that reports them.
  *
  * Every condition here is derived from the workspace, so it is re-evaluated rather than remembered:
  * `raise()` replaces its own entry under a fixed key, and the condition going away is what withdraws

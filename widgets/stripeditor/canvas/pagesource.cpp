@@ -24,7 +24,7 @@ constexpr int k_pageCacheKiB  = 96 * 1024;   //!< ~6 scaled pages: visible + pre
 constexpr int k_proxyCacheKiB = 24 * 1024;   //!< Hundreds of 200px-wide proxies.
 
 /**
- * @brief Caches @p pm, growing @p cache's cap first if the page alone would not fit.
+ * \brief Caches @p pm, growing @p cache's cap first if the page alone would not fit.
  *
  * QCache silently refuses an object costing more than its cap. An artist who draws the whole chapter
  * as one long strip hands over a page of 800×65500 — about 200 MiB — and a refused page is decoded

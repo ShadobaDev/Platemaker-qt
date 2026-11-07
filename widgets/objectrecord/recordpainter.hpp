@@ -25,13 +25,13 @@ class QPainter;
 namespace Painter {
 
 /**
- * @brief Draws \p a into the rectangle (0, 0, a.box), on whatever painter is given.
+ * \brief Draws \p a into the rectangle (0, 0, a.box), on whatever painter is given.
  *
  * The scene preview and the PNG both go through here, so "what you see" and "what is baked" cannot
  * drift apart — they are the same code path over the same numbers.
  *
- * @param painter The painter to draw into.
- * @param a The record to draw.
+ * \param painter The painter to draw into.
+ * \param a The record to draw.
  */
 void paint(QPainter& painter, const ObjectRecord& a);
 
@@ -50,7 +50,7 @@ struct Paths
 [[nodiscard]] Paths resolve(const ObjectRecord& a);
 
 /**
- * @brief Draws \p a from paths already resolved, so a repaint costs no geometry.
+ * \brief Draws \p a from paths already resolved, so a repaint costs no geometry.
  *
  * Resolving is not cheap — a thought balloon unions eleven circles, a halftone lays thousands of marks,
  * and any shape with text lays out a document and builds glyph outlines — while a repaint happens on
@@ -60,7 +60,7 @@ struct Paths
 void paintPaths(QPainter& painter, const ObjectRecord& a, const Paths& paths);
 
 /**
- * @brief Draws @p a's lettering, @p text (Geometry::textOutline()), with its @p shadow
+ * \brief Draws @p a's lettering, @p text (Geometry::textOutline()), with its @p shadow
  *        (Geometry::textShadowOf()) and its outline, in the box's coordinates: the one place words are
  *        drawn on a painter, over a balloon (paintPaths()) and over a picture alike.
  */
@@ -68,14 +68,14 @@ void paintLettering(QPainter& painter, const ObjectRecord& a, const QPainterPath
                     const Geometry::ShadowPaths& shadow);
 
 /**
- * @brief Rasterises \p a to a transparent ARGB32 image the size of its box — what the library composites.
- * @param a The record to rasterise.
- * @return The rasterised image.
+ * \brief Rasterises \p a to a transparent ARGB32 image the size of its box — what the library composites.
+ * \param a The record to rasterise.
+ * \return The rasterised image.
  */
 [[nodiscard]] QImage render(const ObjectRecord& a);
 
 /**
- * @brief What @p p paints with: its colour, or a pattern's tile (Geometry::patternCell()) laid from the
+ * \brief What @p p paints with: its colour, or a pattern's tile (Geometry::patternCell()) laid from the
  *        painter's origin, the box's corner, as the SVG's `<pattern>` is.
  */
 [[nodiscard]] QBrush paintBrush(const Paint& p);

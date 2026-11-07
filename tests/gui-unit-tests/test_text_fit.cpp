@@ -197,7 +197,7 @@ TEST(TextFit, FixPaddingLeavesWhatAlreadyFitsAlone)
 }
 
 /**
- * @brief The text area's arrows sit on its left, right and top edges, and dragging one moves
+ * \brief The text area's arrows sit on its left, right and top edges, and dragging one moves
  *        that edge with the pointer: the side padding for either side, the top padding for the top.
  */
 TEST(TextFit, TheTextAreaArrowsDragThePaddings)
@@ -237,7 +237,7 @@ TEST(TextFit, TheTextAreaArrowsDragThePaddings)
 }
 
 /**
- * @brief The letters' outline is drawn outside them, so the record's bounds grow by its width
+ * \brief The letters' outline is drawn outside them, so the record's bounds grow by its width
  *        round the lettering, and not at all without one.
  */
 TEST(TextFit, TheLettersOutlineGrowsTheBounds)
@@ -264,7 +264,7 @@ TEST(TextFit, TheLettersOutlineGrowsTheBounds)
 }
 
 /**
- * @brief The letters' shadow is cast by them with their outline: grown by the outline's width and the
+ * \brief The letters' shadow is cast by them with their outline: grown by the outline's width and the
  *        spread together, then moved; nothing without a shadow or without words.
  */
 TEST(TextFit, TheLettersShadowIsCastWithTheirOutline)

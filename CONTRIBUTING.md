@@ -26,3 +26,9 @@ anything significant, open an issue first and ask whether it fits.
 1. Fork the repository and create a branch from `main`.
 2. Make your changes and ensure the project builds cleanly.
 3. Open a pull request with a clear description of what and why.
+
+## AI-assisted contributions
+
+Contributions written with an AI assistant are welcome; the author answers for every line. Commits
+made with one say so in a `Co-Authored-By` trailer. [CLAUDE.md](CLAUDE.md) gives an agent the map
+of this repository.

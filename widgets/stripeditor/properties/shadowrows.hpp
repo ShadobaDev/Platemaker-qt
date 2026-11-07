@@ -35,7 +35,7 @@ inline const FieldRowSpec k_rows[] = {
 }  // namespace ShadowRowsDetail
 
 /**
- * @brief The rows that edit one Shadow a group holds, and the Paint it holds beside it: a check box, the
+ * \brief The rows that edit one Shadow a group holds, and the Paint it holds beside it: a check box, the
  *        numbers while it is on, and the paint. The same rows for the balloon's shadow and the letters'.
  *
  * The panel contract as PaintRows keeps it: *Mixed* while a bound selection disagrees, and *touched* once
@@ -48,13 +48,13 @@ class ShadowRows
 {
 public:
     /**
-     * @param shadow     Which Shadow of the group these rows edit.
-     * @param fill       ...and which Paint fills it.
-     * @param title      The check box's row label, already translated ("Shadow").
-     * @param tip        The check box's tooltip, already translated: what casts the shadow.
-     * @param values     The panel's own copy of the group, written on every edit.
-     * @param edited     Called after an edit is in @p values: the panel emits changed() there.
-     * @param committed  Called after a discrete choice (a tick, a colour): the panel emits committed().
+     * \param shadow     Which Shadow of the group these rows edit.
+     * \param fill       ...and which Paint fills it.
+     * \param title      The check box's row label, already translated ("Shadow").
+     * \param tip        The check box's tooltip, already translated: what casts the shadow.
+     * \param values     The panel's own copy of the group, written on every edit.
+     * \param edited     Called after an edit is in @p values: the panel emits changed() there.
+     * \param committed  Called after a discrete choice (a tick, a colour): the panel emits committed().
      */
     void build(QWidget* owner, QFormLayout* form, Shadow Group::* shadow, Paint Group::* fill,
                const QString& title, const QString& tip, Group& values, const bool& populating,

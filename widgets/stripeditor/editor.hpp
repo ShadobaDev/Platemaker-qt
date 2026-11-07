@@ -61,7 +61,7 @@ class ObjectController;
 class Placement;
 
 /**
- * @brief Continuous "infinite strip" editor for a project — the authoring surface for the optional
+ * \brief Continuous "infinite strip" editor for a project — the authoring surface for the optional
  *        processing steps (colour grade now, text/bubble overlays next).
  *
  * ## The strip is built from the INPUTS, not from the rendered output
@@ -121,31 +121,31 @@ class Editor : public QWidget
 
 public:
     /**
-     * @brief Creates the editor.
-     * @param presets The application's bubble presets — one store for every editor, so a preset saved or
+     * \brief Creates the editor.
+     * \param presets The application's bubble presets — one store for every editor, so a preset saved or
      *                imported anywhere is offered everywhere at once. Not owned; it outlives the editor.
-     * @param parent  The parent widget.
+     * \param parent  The parent widget.
      */
     explicit Editor(PresetStore& presets, QWidget *parent = nullptr);
     /**
-     * @brief Destroys the editor.
+     * \brief Destroys the editor.
      */
     ~Editor() override;
 
     /**
-     * @brief Feeds the project's input pages and rebuilds the strip.
+     * \brief Feeds the project's input pages and rebuilds the strip.
      *
      * Lays the strip out through `ProcessingPipeline::layoutPagesFromHeaders`, which reads each page's header
      * and decodes nothing; pixels are built lazily, per page, off the UI thread. Pages the render would
      * skip (missing or unreadable) are dropped here exactly as the render drops them, so the preview's
      * page offsets match what a render produces.
      *
-     * @param inputs           The project's inputs in strip order (`ProjectItem::inputsInOrder()`).
-     * @param outProfile       The project's resolved output profile — supplies the target width every
+     * \param inputs           The project's inputs in strip order (`ProjectItem::inputsInOrder()`).
+     * \param outProfile       The project's resolved output profile — supplies the target width every
      *                         page is scaled to, and the slice height the seam guides mark.
-     * @param canvasProfiles   The workspace's canvas-profile palette (margins).
-     * @param canvasProfileIds The profiles linked to this project, in priority order.
-     * @param cacheDir         Workspace `.platemaker-cache` for the proxy thumbnails (empty → no
+     * \param canvasProfiles   The workspace's canvas-profile palette (margins).
+     * \param canvasProfileIds The profiles linked to this project, in priority order.
+     * \param cacheDir         Workspace `.platemaker-cache` for the proxy thumbnails (empty → no
      *                         proxies; pages show a neutral placeholder until their build arrives).
      */
     void setPreviewSource(const std::vector<Platemaker::Models::InputFile>&     inputs,
@@ -155,17 +155,17 @@ public:
                           const QString&                                        cacheDir);
 
     /**
-     * @brief Selects the tool with registry id @p id: rail button, options page, drag mode, cursor.
+     * \brief Selects the tool with registry id @p id: rail button, options page, drag mode, cursor.
      *
      * Everything this does it reads off that tool's row in `tools()`, which is what lets a tool be
      * added without this class hearing about it.
      * 
-     * @param id The tool's registry id.
+     * \param id The tool's registry id.
      */
     void setTool(const QString& id);
 
     /**
-     * @brief Feeds the project's text/bubble overlays and their authoring records.
+     * \brief Feeds the project's text/bubble overlays and their authoring records.
      *
      * Overlays are placed in the **page domain**: each carries the uid of the input page it rides on
      * (`StripOverlay::anchorInputUid`) plus an offset from that page's top, and this editor resolves the
@@ -177,49 +177,49 @@ public:
      * Items are reconciled by uid rather than rebuilt, so a re-feed after an edit keeps the selection
      * and does not interrupt an interaction.
      * 
-     * @param overlays The overlays to show, in any order.
-     * @param records The authoring records for those overlays, keyed by uid.
+     * \param overlays The overlays to show, in any order.
+     * \param records The authoring records for those overlays, keyed by uid.
      */
     void setOverlaySource(const std::vector<Platemaker::Models::StripOverlay>& overlays,
                           const ObjectRecord::Map&                                  records);
 
     /**
-     * @brief Select what an undone or redone step touched, when the feed carrying it arrives.
+     * \brief Select what an undone or redone step touched, when the feed carrying it arrives.
      *
      * Armed by the owner immediately before that feed, because the objects only become real here when
      * the new state comes back. @p uids is a list: one step can touch several objects, and the first
      * one still standing is the one selected.
      * 
-     * @param uids The uids of the objects that were changed, in the order they were changed.
+     * \param uids The uids of the objects that were changed, in the order they were changed.
      */
     void selectAfterFeed(const QStringList& uids);
 
     /**
-     * @brief Gives this editor its own advisory bar, along the bottom edge, for @p projectUid.
+     * \brief Gives this editor its own advisory bar, along the bottom edge, for @p projectUid.
      *
      * It exists because this widget's window is not always the main window: dragged out, the dock is a
      * top level of its own with no status bar, and maximised it covers the one behind it. The chapter's
      * problems would then be invisible in the window where they are worked on.
      *
-     * @param registry The application's advisory registry; the bar subscribes and keeps itself current.
-     * @param projectUid The project whose advisories the bar should show.
+     * \param registry The application's advisory registry; the bar subscribes and keeps itself current.
+     * \param projectUid The project whose advisories the bar should show.
      */
     void setAdvisories(Advisories* registry, const QString& projectUid);
 
     /**
-     * @brief Turns that bar off while this editor's window already shows the same advisories elsewhere —
-     * @param active Whether the advisories should be active.
+     * \brief Turns that bar off while this editor's window already shows the same advisories elsewhere —
+     * \param active Whether the advisories should be active.
      */
     void setAdvisoriesActive(bool active);
 
     /**
-     * @brief Feeds the project's colour grade to the Grade panel and the live preview.
+     * \brief Feeds the project's colour grade to the Grade panel and the live preview.
      *
      * The strip's pixels are ungraded by construction, so this always previews cleanly — before a
      * render and after one alike. No grade edit ever re-reads a file: the colour step does not change
      * how a page is read, so the resident pixels stay a valid baseline for every grade tried on them.
      * 
-     * @param cc The colour correction to apply.
+     * \param cc The colour correction to apply.
      */
     void setColourCorrection(const Platemaker::Models::ColourCorrection& cc);
 
@@ -228,80 +228,80 @@ public:
 
 signals:
     /**
-     * @brief The "Render & view" button — asks the owner (MainWindow) to (re)render this project. The strip
+     * \brief The "Render & view" button — asks the owner (MainWindow) to (re)render this project. The strip
      *        shows the same pixels before and after, so this is about producing the output files, not the view.
      */
     void renderAndViewRequested();
 
     /**
-     * @brief A settled grade edit — the owner (MainWindow) persists it onto the project as one undo step named
+     * \brief A settled grade edit — the owner (MainWindow) persists it onto the project as one undo step named
      *        @p undoText. Named here, where it is known what was done — an adjustment moved, reset or removed, a
      *        page excluded — rather than guessed afterwards from a before-and-after that cannot tell them apart.
      */
     void colourCorrectionCommitted(const Platemaker::Models::ColourCorrection& cc, const QString& undoText);
 
     /**
-     * @brief A new bubble was drawn — the owner rasterises it and registers it with the library.
+     * \brief A new bubble was drawn — the owner rasterises it and registers it with the library.
      *
      * Creation is the one thing this editor cannot finish on its own: the uid is minted by
      * `ProjectItem::addOverlay()`, which also hashes the asset and dedups identical content. Sending
      * the intent instead of a half-built record keeps that inventory the library's.
      *
-     * @param record       Authoring record for the new bubble (its box is the placement rectangle).
-     * @param x,y            Top-left, relative to the anchor page's top edge.
-     * @param anchorInputUid The page it was drawn on.
+     * \param record       Authoring record for the new bubble (its box is the placement rectangle).
+     * \param x,y            Top-left, relative to the anchor page's top edge.
+     * \param anchorInputUid The page it was drawn on.
      */
     void recordCreated(const ObjectRecord& record, double xFrac, double yFrac, double wFrac,
                          const QString& anchorInputUid);
 
     /**
-     * @brief Every other overlay edit, as the complete new state: move, restyle, delete, reorder, mute.
+     * \brief Every other overlay edit, as the complete new state: move, restyle, delete, reorder, mute.
      *
      * One channel rather than one signal per gesture — the uids already exist, so the owner only has to
      * store what it is given (re-rasterising the records whose bitmaps no longer match) and push one
      * undo step labelled @p undoText.
      * 
-     * @param overlays The overlays to show, in any order.
-     * @param records The authoring records for those overlays, keyed by uid.
-     * @param undoText The text to label the undo step with.
+     * \param overlays The overlays to show, in any order.
+     * \param records The authoring records for those overlays, keyed by uid.
+     * \param undoText The text to label the undo step with.
      */
     void overlaysCommitted(const std::vector<Platemaker::Models::StripOverlay>& overlays,
                         const ObjectRecord::Map&                                  records,
                         const QString&                                      undoText);
 
     /**
-     * @brief The author picked artwork to bring in — the owner copies it and registers it.
+     * \brief The author picked artwork to bring in — the owner copies it and registers it.
      *
      * Placement is decided here, because only the editor knows which page is in front of the author;
      * everything after that is the owner's, exactly as it is for a drawn bubble.
      * 
-     * @param sourceFile The file the author picked, anywhere on disk.
-     * @param xFrac, yFrac      The bubble's top-left X, relative to the anchor page's left edge.
-     * @param wFrac      The bubble's width, relative to the anchor page's width.
-     * @param naturalSize The natural size of the imported artwork.
-     * @param anchorInputUid The page it was drawn on.
+     * \param sourceFile The file the author picked, anywhere on disk.
+     * \param xFrac, yFrac      The bubble's top-left X, relative to the anchor page's left edge.
+     * \param wFrac      The bubble's width, relative to the anchor page's width.
+     * \param naturalSize The natural size of the imported artwork.
+     * \param anchorInputUid The page it was drawn on.
      */
     void artworkImportRequested(const QString& sourceFile, double xFrac, double yFrac, double wFrac,
                                 QSize naturalSize, const QString& anchorInputUid);
 
     /**
-     * @brief Something happened that the artist should be told once — not a state they can fix.
+     * \brief Something happened that the artist should be told once — not a state they can fix.
      *
      * **An event, deliberately not a badge.** A badge is derived from state, so whoever raised it
      * re-evaluates and clears it; *"converting hid 2 tails"* has already happened and nothing can make
      * it stop being true. Events belong in the status bar's temporary message area, which is what its
      * left side is for, while the advisories keep the right.
      * 
-     * @param text The message to show.
+     * \param text The message to show.
      */
     void noted(const QString& text);
 
 protected:
     /**
-     * @brief Handles the resize event for the view.
+     * \brief Handles the resize event for the view.
      * While the default zoom is still pending, re-applies it as the viewport gets its real size; also
      * re-evaluates which pages to build.
-     * @param event The resize event.
+     * \param event The resize event.
      */
     void resizeEvent(QResizeEvent *event) override;
     //! Closed (hidden, not minimised): gives the page memory back, once the hide proves not to be the
@@ -312,7 +312,7 @@ protected:
 
 private:
     /**
-     * @brief Restores / stores the three splitters' positions across sessions.
+     * \brief Restores / stores the three splitters' positions across sessions.
      *
      * How wide the tool options are, and how the right column divides between an object's properties
      * and the list of objects, is a working preference — the kind that is infuriating to re-drag every
@@ -333,25 +333,25 @@ private:
     void fitWidth();            //!< Scales so the whole strip width fits the viewport (may enlarge past 100%).
 
     /**
-     * @brief Requests a build of every page in view plus a prefetch margin.
+     * \brief Requests a build of every page in view plus a prefetch margin.
      * Called on scroll / zoom / resize.
      */
     void updateVisiblePages();
 
     /**
-     * @brief Adopts a new grade and re-grades the resident pages.
+     * \brief Adopts a new grade and re-grades the resident pages.
      * Does not touch the Grade panel.
-     * @param cc The colour correction to apply.
+     * \param cc The colour correction to apply.
      */
     void applyGrade(const Platemaker::Models::ColourCorrection& cc);
 
     /**
-     * @brief Grade state changed: drop the graded cache and re-grade what's visible.
+     * \brief Grade state changed: drop the graded cache and re-grade what's visible.
      */
     void refreshGradePreview();
 
     /**
-     * @brief Shows the selected strip or page in OBJECT STATE, with current data — or the object panel for
+     * \brief Shows the selected strip or page in OBJECT STATE, with current data — or the object panel for
      * anything else.
      */
     void showSubject();
@@ -363,7 +363,7 @@ private:
     QLabel         *m_zoomLabel  = nullptr; //!< == ui->labelZoom (cached).
 
     /**
-     * @brief Where every drawable page landed (those the render would skip are dropped). Indices into this
+     * \brief Where every drawable page landed (those the render would skip are dropped). Indices into this
      *        key every cache below, and every overlay placement question is asked of it.
      */
     StripLayout         m_layout;
@@ -372,7 +372,7 @@ private:
     bool   m_pendingFit  = false;            //!< Re-apply the default zoom on resize until the user zooms.
 
     /**
-     * @brief Where a page's pixels come from: the feed, the proxy/sharp/graded tiers and their caches.
+     * \brief Where a page's pixels come from: the feed, the proxy/sharp/graded tiers and their caches.
      *        Declared after m_layout because it holds a reference to it.
      */
     PageSource* m_pages = nullptr;
@@ -385,7 +385,7 @@ private:
     CanvasInput*    m_input      = nullptr;  //!< CANVAS: presses, drags, drops and the wheel, by tool.
     GradeToolOptions        *m_gradeOptions   = nullptr;   //!< The Grade tool-options page (colour-correction controls).
     /**
-     * @brief The Artwork tool's options: which picture a placement puts down. See `setTool()`.
+     * \brief The Artwork tool's options: which picture a placement puts down. See `setTool()`.
      */
     ArtworkToolOptions *m_artworkOptions = nullptr;
     AdvisoryBar       *m_advisoryBar  = nullptr;   //!< Bottom edge of this editor; absent until setAdvisories().
@@ -393,11 +393,11 @@ private:
 
     // --- the objects on the strip ---
     /**
-     * @brief Right-top: what the selected object *is*. Inert, and says so, while nothing is selected.
+     * \brief Right-top: what the selected object *is*. Inert, and says so, while nothing is selected.
      */
     ObjectState* m_objectState = nullptr;
     /**
-     * @brief The same surface when the strip or one of its pages is selected: what *that* is.
+     * \brief The same surface when the strip or one of its pages is selected: what *that* is.
      */
     StripState*  m_stripState = nullptr;
     //! OBJECT STATE: which of the two panels above shows, and what it says about the strip.
@@ -405,25 +405,25 @@ private:
     ObjectStack*      m_objectStack = nullptr;   //!< OBJECT STACK: the rows, a view of m_objects.
     ObjectMenu*       m_objectMenu  = nullptr;   //!< The object menu, on the stack and the canvas.
     /**
-     * @brief The grade as this editor last saw it — from the project, or from a live edit in progress.
+     * \brief The grade as this editor last saw it — from the project, or from a live edit in progress.
      *
      * What a page's exclusion is toggled against. Taken from the last thing shown rather than asked of the
      * project, so a toggle can never write back a grade older than the one on screen.
      */
     Platemaker::Models::ColourCorrection m_cc;
     /**
-     * @brief Bottom-left, under the tool rail: what the *next* object will be. Never edits anything.
+     * \brief Bottom-left, under the tool rail: what the *next* object will be. Never edits anything.
      */
     BubbleToolOptions* m_bubbleOptions = nullptr;
     /**
-     * @brief The preset library, owned here because more than one thing needs it.
+     * \brief The preset library, owned here because more than one thing needs it.
      *
      * The tool's options pick one for the next object; an object's context menu applies one to what is
      * selected. A model reachable only by going through a widget is a model that cannot be reached.
      */
     PresetStore* m_presets = nullptr;   //!< The application's (MainWindow's); not owned.
     /**
-     * @brief Owns the overlay set, the scene items, the list and the selection. Declared after m_layout,
+     * \brief Owns the overlay set, the scene items, the list and the selection. Declared after m_layout,
      *        which it holds by reference.
      */
     ObjectController* m_objects = nullptr;

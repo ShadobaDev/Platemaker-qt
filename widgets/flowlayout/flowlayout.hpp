@@ -7,7 +7,7 @@
 #include <QStyle>
 
 /**
- * @brief A layout that arranges its items left-to-right and wraps to a new row when it runs out of width
+ * \brief A layout that arranges its items left-to-right and wraps to a new row when it runs out of width
  *        — like a toolbox that fits as many buttons per row as the current width allows.
  *
  * The canonical Qt "Flow Layout" example (height-for-width). Used by the strip editor's tool rail so the

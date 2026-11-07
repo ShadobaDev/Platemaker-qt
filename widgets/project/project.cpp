@@ -66,12 +66,12 @@ using namespace Platemaker::Models;
 
 namespace {
 /**
- * @brief Sort keys stored in comboBoxSortingOpt item data.
+ * \brief Sort keys stored in comboBoxSortingOpt item data.
  */
 enum SortKey { SortByName = 0, SortByCreated = 1, SortByModified = 2 };
 
 /** 
- * @brief Image extensions Platemaker accepts as inputs — the same set the Add-from-directory scan uses,
+ * \brief Image extensions Platemaker accepts as inputs — the same set the Add-from-directory scan uses,
  * as name filters (for QDir) and as a membership test (for individually dropped files).
  */
 const QStringList kImageNameFilters = {"*.jpg","*.jpeg","*.png","*.webp","*.tif","*.tiff"};
@@ -83,11 +83,11 @@ bool isSupportedImage(const QFileInfo& fi)
 }
 
 /** 
- * @brief True when a drag carries at least one local file/folder — i.e. an external "add" drag, as opposed to
+ * \brief True when a drag carries at least one local file/folder — i.e. an external "add" drag, as opposed to
  * the input list's own InternalMove reorder (which carries no file URLs). Shared by the list-viewport
  * event filter and the whole-widget drop handlers.
- * @param mime The drag's MIME data.
- * @return True if the drag carries at least one local file/folder.
+ * \param mime The drag's MIME data.
+ * \return True if the drag carries at least one local file/folder.
  */
 bool hasLocalFileUrls(const QMimeData* mime)
 {
@@ -97,15 +97,15 @@ bool hasLocalFileUrls(const QMimeData* mime)
 }
 
 /** 
- * @brief True for the input list's OWN InternalMove reorder drag, identified by the item-model MIME type it
+ * \brief True for the input list's OWN InternalMove reorder drag, identified by the item-model MIME type it
  * carries (never file URLs). We accept the *drag phase* of everything else (external drops) by ruling
  * out this type — rather than by hasLocalFileUrls() — because a Windows OLE quirk makes an external file
  * drag intermittently report hasUrls()==false mid-drag; gating acceptance on that left the drop target
  * in a "reject" state whenever the last pre-release event flickered false, so the drop silently failed.
  * The actual add still gates on hasLocalFileUrls() at Drop time, which is reliable (data is materialised
  * on release).
- * @param mime The drag's MIME data.
- * @return True if the drag is an internal reorder (no file URLs).
+ * \param mime The drag's MIME data.
+ * \return True if the drag is an internal reorder (no file URLs).
  */
 bool isInternalReorder(const QMimeData* mime)
 {

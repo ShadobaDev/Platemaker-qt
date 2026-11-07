@@ -4,7 +4,7 @@
 class QDockWidget;
 
 /**
- * @brief Takes the user to @p dock: shows it, raises it, gives it focus — and, **only if it was not
+ * \brief Takes the user to @p dock: shows it, raises it, gives it focus — and, **only if it was not
  *        already the focused dock**, outlines it briefly so the eye finds what changed.
  *
  * Undo and redo are the reason this exists. A project has one history covering both the project dock

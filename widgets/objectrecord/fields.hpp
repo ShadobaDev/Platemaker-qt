@@ -51,7 +51,7 @@ bool same(E a, E b)
 }
 
 /**
- * @brief A field inside a field: member @p inner of the struct a group holds as @p outer (a Paint).
+ * \brief A field inside a field: member @p inner of the struct a group holds as @p outer (a Paint).
  *
  * C++ cannot make one pointer-to-member of the two, so a group's `fields()` hands this to the visitor
  * where a sub-group's field is, under a key of the group's own (`fillKind` for the fill's Paint's kind).

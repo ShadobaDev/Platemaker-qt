@@ -7,7 +7,7 @@
 #include "objectrecord.hpp"
 
 /**
- * @brief Every open project's authoring records, keyed by project uid.
+ * \brief Every open project's authoring records, keyed by project uid.
  *
  * A **cache**, not a store: the records live in the overlays' own SVG files (see recordsvg.hpp), and
  * this holds the parsed form so a populate() does not re-read and re-parse the whole chapter. It is

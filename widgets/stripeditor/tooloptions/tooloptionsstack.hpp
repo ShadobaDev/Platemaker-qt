@@ -14,7 +14,7 @@ namespace StripEdit {
 struct Tool;
 
 /**
- * @brief TOOL OPTIONS: one page per *options page key*, and the page a tool with no options shows.
+ * \brief TOOL OPTIONS: one page per *options page key*, and the page a tool with no options shows.
  *
  * The tool's own settings, under the rail, in the place every drawing application puts them. One page
  * per *key*, not per tool: tools that author the same object name the same page (`Tool::optionsPage`),
@@ -36,7 +36,7 @@ public:
     void addPage(const QString& key, QWidget* page);
 
     /**
-     * @brief Asserts that every row of tools() names a page that was registered.
+     * \brief Asserts that every row of tools() names a page that was registered.
      *
      * A row naming a page nobody registered would land on index 0 — the hint page — and look like a
      * tool that simply has no options, which is the hardest kind of typo to see. Called once, after the

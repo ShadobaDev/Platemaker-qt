@@ -9,7 +9,7 @@
 #include <functional>
 
 /**
- * @brief One thing that is set up in a way that will not do what the artist meant.
+ * \brief One thing that is set up in a way that will not do what the artist meant.
  *
  * **The action travels with the warning.** *"grade not run"* is an annoyance; *"grade not run —
  * **turn the step on**"* is help. An advisory that cannot say what to do about itself is usually not
@@ -35,7 +35,7 @@ struct Advisory
     std::function<void()> action;   //!< What @c actionText does. Absent means there is nothing to offer.
 
     /**
-     * @brief Optional — a way to make the condition go away here and now, which may destroy something.
+     * \brief Optional — a way to make the condition go away here and now, which may destroy something.
      *
      * Kept apart from @c action because the two are offered differently. An action only takes the
      * artist somewhere, so it is one click on a chip. A resolution can delete work, so it is **only
@@ -45,7 +45,7 @@ struct Advisory
     std::function<void()> resolve;   //!< What @c resolveText does.
 
     /**
-     * @brief Which project this is about; empty means the application itself.
+     * \brief Which project this is about; empty means the application itself.
      *
      * The status bar shows one project's advisories at a time, and the render gate asks about one
      * project, so an advisory that could not say which project it meant would be reported against
@@ -55,7 +55,7 @@ struct Advisory
 };
 
 /**
- * @brief Every standing advisory, for the whole application.
+ * \brief Every standing advisory, for the whole application.
  *
  * **Not part of the tool framework**, and the reason is concrete: a tool only notices that the grade
  * will not run once you are in the strip editor, but the condition it reports is set in the Workflow
@@ -80,7 +80,7 @@ public:
     void clear(const QString& key);
 
     /**
-     * @brief Withdraw everything about @p projectUid — it has been removed, so nothing is true of it.
+     * \brief Withdraw everything about @p projectUid — it has been removed, so nothing is true of it.
      *
      * By the advisory's own scope rather than by a list of keys the caller remembers, so a condition
      * added later is withdrawn here on the day it is added rather than on the day someone notices.
@@ -91,7 +91,7 @@ public:
     void clearAll();
 
     /**
-     * @brief What stands for @p projectUid, plus everything application-wide, **worst first**.
+     * \brief What stands for @p projectUid, plus everything application-wide, **worst first**.
      *
      * Worst first because the first badge is the one that gets read, and because a render gate that
      * has to name one reason should name the one that stopped it.

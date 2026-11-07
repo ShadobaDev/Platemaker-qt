@@ -11,7 +11,7 @@ class QPushButton;
 namespace StripEdit {
 
 /**
- * @brief An existing balloon's tails, as a collection: how many there are, and one more.
+ * \brief An existing balloon's tails, as a collection: how many there are, and one more.
  *
  * Nothing here edits a tail. Each tail is an object of its own — selected in the object list or by its
  * handle on the strip — and its width and bend belong to `TailEditor`, one tail at a time. A control here
@@ -37,7 +37,7 @@ public:
     void applyTo(ObjectRecord& target) const override;
 
     /**
-     * @brief The shape changed, so the default answer to "does this speak?" changed with it.
+     * \brief The shape changed, so the default answer to "does this speak?" changed with it.
      *
      * A balloon keeps its tails through any picked shape: they are aimed at a speaker, and a new outline
      * does not move the speaker. A shape that speaks gives a tail to a balloon with none, as its tile

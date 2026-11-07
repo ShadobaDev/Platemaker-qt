@@ -13,7 +13,7 @@ class QSpacerItem;
 class QToolButton;
 
 /**
- * @brief A custom title bar for a QDockWidget.
+ * \brief A custom title bar for a QDockWidget.
  *
  * A live title label plus minimise / maximise / close buttons styled after the native window controls
  * (small `SP_TitleBar*` glyphs, a slightly longer minimise dash, roomy spacing). Set it with

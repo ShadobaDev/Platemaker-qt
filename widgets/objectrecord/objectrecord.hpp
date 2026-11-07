@@ -15,7 +15,7 @@
 #include "propertygroups.hpp"   // the groups an ObjectRecord is made of
 
 /**
- * @brief What a bubble *is* — the editable source a strip overlay is rendered from.
+ * \brief What a bubble *is* — the editable source a strip overlay is rendered from.
  *
  * The library rasterises artwork and deliberately never grows a text engine, so everything about a
  * bubble's content lives here, on the GUI side. This struct is the *working* form; the SVG in
@@ -44,7 +44,7 @@ struct ObjectRecord
     ShapeProperties shape;  //<! What silhouette is drawn behind the text, if any.
 
     /**
-     * @brief The imported picture this object **is** — a file name in the workspace's `overlays/`.
+     * \brief The imported picture this object **is** — a file name in the workspace's `overlays/`.
      *
      * Empty for an object we draw ourselves. Non-empty and the drawing is somebody else's: our
      * silhouette, our line style and our tails have nothing to act on, and what is left that we can
@@ -59,7 +59,7 @@ struct ObjectRecord
     QString artwork;
 
     /**
-     * @brief The **balloon** — what the author drags, and what text wraps inside.
+     * \brief The **balloon** — what the author drags, and what text wraps inside.
      *
      * Not the record's drawn extent: a tail may reach well outside it, so the size of the rendered
      * artwork comes from Geometry::bounds(). Until tails could point anywhere these were one rectangle,
@@ -73,7 +73,7 @@ struct ObjectRecord
     EffectProperties effects;
 
     /**
-     * @brief Seeds the filter's noise, so two bubbles do not wear identical wobble.
+     * \brief Seeds the filter's noise, so two bubbles do not wear identical wobble.
      *
      * Stored rather than derived, because it must survive an edit: re-rolling it on every keystroke
      * would make the outline crawl while you type. Set once, when the bubble is placed.
@@ -87,7 +87,7 @@ struct ObjectRecord
     [[nodiscard]] bool isArtwork() const { return !artwork.isEmpty(); }
 
     /**
-     * @brief Whether this object has a balloon behind its lettering — **the one structural question**.
+     * \brief Whether this object has a balloon behind its lettering — **the one structural question**.
      *
      * It decides which property groups the object carries at all: a fill and an outline to paint, a
      * line style to roughen them with, and something for a tail to leave from. Everything else about
@@ -113,13 +113,13 @@ struct ObjectRecord
 };
 
 /**
- * @brief Whether \p a draws anything at random from its style seed: a line but the solid one, a texture,
+ * \brief Whether \p a draws anything at random from its style seed: a line but the solid one, a texture,
  *        or an irregular edge — so it needs a seed, and *Re-roll* has something to deal again.
  */
 [[nodiscard]] bool usesSeed(const ObjectRecord& a);
 
 /**
- * @brief Gives \p a a style seed if it uses one (usesSeed()) and has none — **the one place that mints
+ * \brief Gives \p a a style seed if it uses one (usesSeed()) and has none — **the one place that mints
  *        one**.
  *
  * The seed belongs to no property group, precisely so that no editor and no preset can copy it: a page
@@ -133,7 +133,7 @@ struct ObjectRecord
 void topUpStyleSeed(ObjectRecord& a);
 
 /**
- * @brief The persisted name of \p s, and the way back.
+ * \brief The persisted name of \p s, and the way back.
  *
  * One mapping, used by both persistence paths — the undo snapshot's JSON and the SVG's `pm:shape`. It
  * used to be a positional array in one and a switch in the other, which meant appending a shape was
@@ -142,7 +142,7 @@ void topUpStyleSeed(ObjectRecord& a);
 [[nodiscard]] const char* shapeName(ObjectRecord::Shape s);
 
 /**
- * @brief What to call \p s on screen, translated — as opposed to shapeName(), which is what it is
+ * \brief What to call \p s on screen, translated — as opposed to shapeName(), which is what it is
  *        called in a file.
  *
  * The two are deliberately separate: a persisted name may never change, and a displayed one must be
@@ -152,7 +152,7 @@ void topUpStyleSeed(ObjectRecord& a);
 [[nodiscard]] QString shapeTitle(ObjectRecord::Shape s);
 
 /**
- * @brief Every **kind of silhouette**, in a fixed order: what shapeFromName() reads and the tests walk.
+ * \brief Every **kind of silhouette**, in a fixed order: what shapeFromName() reads and the tests walk.
  *        The picker offers templates instead (shapes.hpp), several of which may share a kind.
  *
  * `Shape::None` is deliberately **not** in it. It is not a silhouette to choose between; it is the
@@ -168,7 +168,7 @@ void topUpStyleSeed(ObjectRecord& a);
 inline constexpr int k_labelChars = 32;
 
 /**
- * @brief What to call \p a in the object stack: the first line of its lettering, or, with no words, its
+ * \brief What to call \p a in the object stack: the first line of its lettering, or, with no words, its
  *        shape's title in parentheses.
  */
 [[nodiscard]] QString recordLabel(const ObjectRecord& a);

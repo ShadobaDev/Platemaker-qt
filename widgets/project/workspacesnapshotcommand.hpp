@@ -7,7 +7,7 @@
 class MainWindow;
 
 /**
- * @brief One undoable workspace-scope edit (profile CRUD, project rename, template gen/delete).
+ * \brief One undoable workspace-scope edit (profile CRUD, project rename, template gen/delete).
  *
  * Snapshot-based on the lib's WorkspaceEditor::snapshotMeta — the profile palettes plus the project
  * (uid, name) roster, *without* project contents (those live on each project's own undo stack). So the
@@ -21,10 +21,10 @@ class WorkspaceSnapshotCommand : public QUndoCommand
 {
 public:
     /**
-     * @param window The main window (applies the snapshot and refreshes the UI on restore).
-     * @param before WorkspaceEditor::snapshotMeta() before the edit — restored on undo().
-     * @param after  WorkspaceEditor::snapshotMeta() after the edit — restored on a redo() after undo.
-     * @param text   Short operation label (e.g. "Rename project").
+     * \param window The main window (applies the snapshot and refreshes the UI on restore).
+     * \param before WorkspaceEditor::snapshotMeta() before the edit — restored on undo().
+     * \param after  WorkspaceEditor::snapshotMeta() after the edit — restored on a redo() after undo.
+     * \param text   Short operation label (e.g. "Rename project").
      */
     WorkspaceSnapshotCommand(MainWindow* window,
                              QString before,

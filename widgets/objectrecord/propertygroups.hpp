@@ -15,8 +15,8 @@
 #include "fields.hpp"
 
 /**
- * @file
- * @brief The property groups an ObjectRecord is made of — Shape, Skin, Style, Text, the tails and one tail.
+ * \file
+ * \brief The property groups an ObjectRecord is made of — Shape, Skin, Style, Text, the tails and one tail.
  *
  * Each group is a plain struct with from() / applyTo() / operator==, and the record (objectrecord.hpp) holds
  * one of each. The editor that edits a group lives in `widgets/stripeditor/properties/`, one per group.
@@ -27,7 +27,7 @@
  */
 
 /**
- * @brief One tail: where it points, how wide it leaves the balloon, and how much it curves.
+ * \brief One tail: where it points, how wide it leaves the balloon, and how much it curves.
  *
  * The tip is in balloon coordinates and **may fall outside the balloon** — that is the whole point of a
  * tail, and it is why the record's drawn extent is computed rather than assumed (Geometry::bounds()).
@@ -35,7 +35,7 @@
  * one gesture.
  */
 /**
- * @brief How a tail is drawn: one taper (**Plain**), or a chain of ellipses shrinking towards its tip
+ * \brief How a tail is drawn: one taper (**Plain**), or a chain of ellipses shrinking towards its tip
  *        (**Circles**), a thought's.
  *
  * The ellipses lie on the plain tail's own curve, bend and all, from where it leaves the balloon (moved by
@@ -87,7 +87,7 @@ struct Tail
 };
 
 /**
- * @brief Where a balloon's **first** tail points: down and a little left of centre.
+ * \brief Where a balloon's **first** tail points: down and a little left of centre.
  *
  * Which is where a reader expects a speech balloon to be speaking from. It lives beside the tail rather
  * than in whichever editor happens to seed one, because three of them do — the tails editor, the tail
@@ -106,7 +106,7 @@ struct Tail
 struct ObjectRecord;
 
 /**
- * @brief What a part of the balloon is painted with: a colour, or a pattern of a second colour
+ * \brief What a part of the balloon is painted with: a colour, or a pattern of a second colour
  *        over it — dots, lines or a grid, a halftone. One type for the fill, the line and the shadow.
  *
  * A **sub-group**: a group holds one as a member and lists its fields with keys of its own (fieldsAs()),
@@ -117,7 +117,7 @@ struct ObjectRecord;
 struct Paint
 {
     /**
-     * @brief The pattern, or none. Persisted by name — see patternName(). The table is in styles.cpp.
+     * \brief The pattern, or none. Persisted by name — see patternName(). The table is in styles.cpp.
      */
     enum class Kind { Solid, Dots, Lines, Grid };
     //! The enum's last value. **Adding a pattern moves this**: patternFromName() reads up to it.
@@ -206,7 +206,7 @@ struct Paint
     }
 
     /**
-     * @brief The fields of the Paint @p group holds as @p paint, under @p keys (in members()' order): what
+     * \brief The fields of the Paint @p group holds as @p paint, under @p keys (in members()' order): what
      *        that group's own fields() lists, so its files keep their flat keys.
      *
      * A null key leaves that field out: the place does not use it (a shadow's pattern has no colour of its
@@ -227,7 +227,7 @@ struct Paint
 };
 
 /**
- * @brief A shadow: what casts it (a balloon's silhouette, or the letters with their outline) grown by the
+ * \brief A shadow: what casts it (a balloon's silhouette, or the letters with their outline) grown by the
  *        spread, moved by the offset and filled with a Paint the group holds beside it.
  *
  * A **sub-group**, like Paint: the balloon's effects and the lettering each hold one, with keys of their own
@@ -281,7 +281,7 @@ struct Shadow
 };
 
 /**
- * @brief One node of a free outline, a Polygon's or a Curve's, **relative to the balloon**: 0..1 across
+ * \brief One node of a free outline, a Polygon's or a Curve's, **relative to the balloon**: 0..1 across
  *        its width and its height, so resizing the box scales the shape.
  *
  * A Polygon reads only the point. A Curve also reads the two handles, kept as offsets from the point so
@@ -336,7 +336,7 @@ struct ShapeNode
 };
 
 /**
- * @brief The balloon's own surface: what it is filled with. The line drawn round it is the line's
+ * \brief The balloon's own surface: what it is filled with. The line drawn round it is the line's
  *        (StyleProperties), with its colour and width.
  *
  * The first **property group** — a named slice of an object's state with exactly one editor
@@ -371,7 +371,7 @@ struct SkinProperties
     [[nodiscard]] static SkinProperties from(const ObjectRecord& a);
 
     /**
-     * @brief Writes this group into \p a — **and nothing else**.
+     * \brief Writes this group into \p a — **and nothing else**.
      *
      * The single write path for everything that edits a balloon's surface. Guarded by
      * `SkinPropertiesOwnership` in the unit tests, which applies a group to a randomised record and
@@ -384,7 +384,7 @@ struct SkinProperties
 };
 
 /**
- * @brief Which silhouette is drawn behind the text, and its parameters.
+ * \brief Which silhouette is drawn behind the text, and its parameters.
  *
  * A kind is a **family** — a way of describing an outline — and its parameters say which one. The
  * ready-made outlines the picker offers (a speech balloon, a caption box) are **templates**: values of
@@ -393,7 +393,7 @@ struct SkinProperties
 struct ShapeProperties
 {
     /**
-     * @brief The silhouette drawn behind the text. `None` is the Text tool: letters with no balloon.
+     * \brief The silhouette drawn behind the text. `None` is the Text tool: letters with no balloon.
      *
      * Persisted by name, not by number (see shapeName()), so the order here is free. The strip editor
      * is unreleased, so a kind may still be renamed or merged: a file naming one that is gone
@@ -406,7 +406,7 @@ struct ShapeProperties
     static constexpr Kind k_lastKind = Kind::Curve;
 
     /**
-     * @brief What is done to the outline's edge: pushed in along it in a pattern, any
+     * \brief What is done to the outline's edge: pushed in along it in a pattern, any
      * family alike, before the tails are united into it so a tail stays smooth. The table is in
      * shapes.cpp; persisted by name (edgeName()).
      */
@@ -471,7 +471,7 @@ struct ShapeProperties
 };
 
 /**
- * @brief What is done to the balloon as it is rasterised: its texture, an SVG filter on the
+ * \brief What is done to the balloon as it is rasterised: its texture, an SVG filter on the
  *        balloon's group — its silhouette, its line's strokes, its shadow — never on the words.
  *
  * Its own group, and its own section of the panel, apart from the line: the two are independent,
@@ -480,7 +480,7 @@ struct ShapeProperties
 struct TextureProperties
 {
     /**
-     * @brief A texture is an SVG filter, so librsvg applies it and Qt cannot: that is the whole reason
+     * \brief A texture is an SVG filter, so librsvg applies it and Qt cannot: that is the whole reason
      * such a balloon is previewed through the library instead of being drawn locally — an effect only the
      * committed output could show would be an effect nobody could author. None is a true no-op: no filter
      * is emitted at all.
@@ -525,7 +525,7 @@ struct TextureProperties
 };
 
 /**
- * @brief The line drawn round the balloon: what kind, in what colour, how wide, and each kind's numbers.
+ * \brief The line drawn round the balloon: what kind, in what colour, how wide, and each kind's numbers.
  *
  * Clean is a solid outline; Flash and Brush are strokes of their own. The colour and the width are the
  * line's, so a brush's width sits with the brush; the panel's Line section is this group.
@@ -537,7 +537,7 @@ struct TextureProperties
 struct StyleProperties
 {
     /**
-     * @brief How the edge is drawn. Clean is the solid outline; Flash, Brush and Drybrush are strokes
+     * \brief How the edge is drawn. Clean is the solid outline; Flash, Brush and Drybrush are strokes
      * of their own, plain geometry, so Qt draws them as it draws a clean balloon. The table is in styles.cpp.
      *
      * Persisted by name — see lineName(). The strip editor is unreleased, so the order is
@@ -645,7 +645,7 @@ struct StyleProperties
 };
 
 /**
- * @brief What is drawn about the balloon, beside its outline and its fill: a shadow so far.
+ * \brief What is drawn about the balloon, beside its outline and its fill: a shadow so far.
  *
  * A group of its own, so applying a look's line does not apply its shadow by accident, and an effect
  * added later (a glow) is a field here. Its editor is laid out in the Style section, beside the line and
@@ -686,7 +686,7 @@ struct EffectProperties
 };
 
 /**
- * @brief What the balloon says, and how it is set.
+ * \brief What the balloon says, and how it is set.
  *
  * Content and typography in one group because one widget edits both, and because the split that
  * matters is elsewhere: a **preset** carries the typography and never the content — *everything a
@@ -792,7 +792,7 @@ struct TextProperties
 };
 
 /**
- * @brief Every tail on the balloon.
+ * \brief Every tail on the balloon.
  *
  * The whole list is one group today because a tail is not yet addressable on its own: there is no way
  * to say *which* tail, which is why one can be added and never removed. When tails become objects in
@@ -818,7 +818,7 @@ struct TailsProperties
 };
 
 /**
- * @brief One tail of a balloon — the group a selected tail is edited through.
+ * \brief One tail of a balloon — the group a selected tail is edited through.
  *
  * A tail is an object of its own, and this is its state. It is addressed by **position** in the balloon's
  * list rather than by an id: undo restores whole states and holds no tail by number, so an index is enough,
@@ -833,36 +833,36 @@ struct TailProperties
     Tail tail;          //<! The tail's own state, which applyTo() writes into the balloon at `index`.
 
     /**
-     * @brief Reads the tail at \p index out of \p a, or an empty tail if the index is out of range.
-     * @param a The balloon to read from.
-     * @param index The tail to read, 0..n-1. Out of range = no tail, and applyTo() will write nothing.
-     * @return The tail at \p index, or an empty tail if the index is out of range.
+     * \brief Reads the tail at \p index out of \p a, or an empty tail if the index is out of range.
+     * \param a The balloon to read from.
+     * \param index The tail to read, 0..n-1. Out of range = no tail, and applyTo() will write nothing.
+     * \return The tail at \p index, or an empty tail if the index is out of range.
      * @see applyTo()
      */
     [[nodiscard]] static TailProperties from(const ObjectRecord& a, int index);
     
     /**
-     * @brief Writes the tail at \p index into \p a, or does nothing if the index is out of range.
+     * \brief Writes the tail at \p index into \p a, or does nothing if the index is out of range.
      *
      * A tail whose look this changes also makes it the balloon's `nextLook`, the one a tail added later
      * takes; editing only its width or bend leaves that as it was.
      *
-     * @param a The balloon to write to.
+     * \param a The balloon to write to.
      * @see from()
      */
     void applyTo(ObjectRecord& a) const;
 
     /**
-     * @brief Compares two tail properties for equality.
-     * @param o The other tail properties to compare with.
-     * @return True if the tail properties are equal, false otherwise.
+     * \brief Compares two tail properties for equality.
+     * \param o The other tail properties to compare with.
+     * \return True if the tail properties are equal, false otherwise.
      */
     [[nodiscard]] bool operator==(const TailProperties& o) const { return index == o.index && tail == o.tail; }
 
     /**
-     * @brief Compares two tail properties for inequality.
-     * @param o The other tail properties to compare with.
-     * @return True if the tail properties are not equal, false otherwise.
+     * \brief Compares two tail properties for inequality.
+     * \param o The other tail properties to compare with.
+     * \return True if the tail properties are not equal, false otherwise.
      */
     [[nodiscard]] bool operator!=(const TailProperties& o) const { return !(*this == o); }
 };

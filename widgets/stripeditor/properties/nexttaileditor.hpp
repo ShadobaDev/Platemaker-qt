@@ -9,7 +9,7 @@ class QSpinBox;
 namespace StripEdit {
 
 /**
- * @brief The tail the **next** balloon starts with — whether it has one, how wide, how bent.
+ * \brief The tail the **next** balloon starts with — whether it has one, how wide, how bent.
  *
  * The tool's side of tails. An object that does not exist yet has at most one tail and nothing to select,
  * so its width and bend are set here directly. An existing balloon's tails are objects of their own and are
@@ -34,7 +34,7 @@ public:
     void applyTo(ObjectRecord& target) const override;
 
     /**
-     * @brief Writes a fresh set onto an object that does not exist yet.
+     * \brief Writes a fresh set onto an object that does not exist yet.
      *
      * One tail if tails are on, aimed where a first tail goes. The bound list belongs to the balloon
      * currently selected, and copying it onto a new one would give every placement the last balloon's
@@ -43,7 +43,7 @@ public:
     void applyToNew(ObjectRecord& target) const;
 
     /**
-     * @brief The shape changed, so the default answer to "does this speak?" changed with it.
+     * \brief The shape changed, so the default answer to "does this speak?" changed with it.
      *
      * Picking a shape gives you the shape its tile shows — a narration box does not arrive wearing a
      * tail. The checkbox stays available for the cases that want one anyway.

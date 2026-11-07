@@ -27,7 +27,7 @@ const auto k_primaryKey   = QLatin1String("StripEditor/primaryColour");
 const auto k_secondaryKey = QLatin1String("StripEditor/secondaryColour");
 
 /**
- * @brief A rounded swatch of @p colour, framed in the palette's text colour.
+ * \brief A rounded swatch of @p colour, framed in the palette's text colour.
  *
  * The frame is what makes a white swatch visible on a light theme and a black one on a dark theme, and
  * the chequer behind it is what tells a transparent colour from a pale one — a flat swatch of a 10%

@@ -39,7 +39,7 @@ namespace Geometry {
 [[nodiscard]] QPainterPath silhouette(const ObjectRecord& a);
 
 /**
- * @brief What the silhouette is the union of: the balloon's outline first, then each tail that is drawn,
+ * \brief What the silhouette is the union of: the balloon's outline first, then each tail that is drawn,
  *        each whole, overlapping where they join. Empty for a shapeless record.
  *
  * For a line that follows each part's own edge rather than the joined one (the dry brush's hairs run on
@@ -48,7 +48,7 @@ namespace Geometry {
 [[nodiscard]] QList<QPainterPath> silhouetteParts(const ObjectRecord& a);
 
 /**
- * @brief Which of \p a's tails are actually drawn, one entry per tail.
+ * \brief Which of \p a's tails are actually drawn, one entry per tail.
  *
  * A tail whose tip lies inside the balloon draws nothing — there is no room for it to emerge — but it
  * still exists, and its handle still has to be reachable. The editor asks this to know which tips are
@@ -60,24 +60,24 @@ namespace Geometry {
 enum class Part { None, Fill, Outline, Text };
 
 /**
- * @brief What is drawn at @p local (box coordinates), with @p slack units of forgiveness.
+ * \brief What is drawn at @p local (box coordinates), with @p slack units of forgiveness.
  *
  * The same geometry the scene draws, asked a different question — so a tool that acts on *what you are
  * pointing at* cannot disagree with what is on screen. Answered in painting order, topmost first: the
  * lettering, then the stroke band around the silhouette, then the silhouette's inside. A point outside
  * all three is \c None: the transparent corner of a balloon's box is not the balloon.
  *
- * @param a The record to check.
- * @param local The point to check, in box coordinates.
- * @param slack Widens the lettering and the stroke band by this much on each side. A 1px outline and a
+ * \param a The record to check.
+ * \param local The point to check, in box coordinates.
+ * \param slack Widens the lettering and the stroke band by this much on each side. A 1px outline and a
  *              thin letter are as hard to hit as each other, and the caller knows what a few *screen*
  *              pixels are worth in box units at the current zoom.
- * @return The part of the record that is drawn at \p local, or \c None if nothing is.
+ * \return The part of the record that is drawn at \p local, or \c None if nothing is.
  */
 [[nodiscard]] Part partAt(const ObjectRecord& a, const QPointF& local, qreal slack);
 
 /**
- * @brief Everything the record actually covers, in balloon coordinates — origin may be negative.
+ * \brief Everything the record actually covers, in balloon coordinates — origin may be negative.
  *
  * The balloon, its tails and its text, plus room for the stroke. A tail can point anywhere, so this is
  * computed rather than assumed: it is the size of the rasterised buffer, the SVG's viewBox, and the
@@ -86,31 +86,31 @@ enum class Part { None, Fill, Outline, Text };
  * Snapped to whole pixels, so the buffer and the viewBox describe one rectangle rather than two
  * roundings of it.
  *
- * @param a The record to check.
- * @return The rectangle that contains everything the record draws, in box coordinates.
+ * \param a The record to check.
+ * \return The rectangle that contains everything the record draws, in box coordinates.
  */
 [[nodiscard]] QRectF bounds(const ObjectRecord& a);
 
 /**
- * @brief How far \p a's style pushes ink beyond the geometry, in balloon pixels.
+ * \brief How far \p a's style pushes ink beyond the geometry, in balloon pixels.
  *
  * A displacement filter moves pixels *outward* as well as in, so the artwork covers more than its paths
  * do. The bounds — and therefore the buffer and the SVG's filter region — have to allow for it, or the
  * effect is neatly clipped off at the edge it was meant to roughen. Read from the style's recipe
  * (styles.cpp), the same numbers its filter is written from.
  *
- * @param a The record to check.
- * @return The extra margin the style adds, in balloon coordinates.
+ * \param a The record to check.
+ * \return The extra margin the style adds, in balloon coordinates.
  */
 [[nodiscard]] qreal styleMargin(const ObjectRecord& a);
 
 /**
- * @brief The bounds of the record, given its silhouette and text paths.
+ * \brief The bounds of the record, given its silhouette and text paths.
  *
- * @param a The record to check.
- * @param silhouette The silhouette path.
- * @param text The text path.
- * @return The rectangle that contains everything the record draws, in box coordinates.
+ * \param a The record to check.
+ * \param silhouette The silhouette path.
+ * \param text The text path.
+ * \return The rectangle that contains everything the record draws, in box coordinates.
  */
 [[nodiscard]] QRectF boundsOf(const ObjectRecord& a, const QPainterPath& silhouette, const QPainterPath& text);
 
@@ -119,7 +119,7 @@ enum class Part { None, Fill, Outline, Text };
 // ---------------------------------------------------------------------------
 
 /**
- * @brief The laid-out text as **glyph outlines**, positioned in box coordinates.
+ * \brief The laid-out text as **glyph outlines**, positioned in box coordinates.
  *
  * Outlines rather than a string, because that is what lets the library render a bubble with no font
  * stack and no font installed: by the time the artwork leaves here it is pure geometry. The wrapping is
@@ -127,20 +127,20 @@ enum class Part { None, Fill, Outline, Text };
  * or from its top when taller. Clipped to it on the sides and the top, so an overlong line cannot bleed
  * past the stroke; a balloon's lines are not cut at the bottom, where they go on out of it.
  *
- * @param a The record to check.
- * @return The text outlines, or an empty path if there is no lettering.
+ * \param a The record to check.
+ * \return The text outlines, or an empty path if there is no lettering.
  */
 [[nodiscard]] QPainterPath textOutline(const ObjectRecord& a);
 
 /**
- * @brief \p a's lettering's shadow, cast by \p text (textOutline()) with its outline: grown by the outline's
+ * \brief \p a's lettering's shadow, cast by \p text (textOutline()) with its outline: grown by the outline's
  *        width and the shadow's spread together, which is the same as the outlined letters grown by the
  *        spread. Empty with no shadow or no words. Filled under them with shadowPaint() of the lettering's.
  */
 [[nodiscard]] ShadowPaths textShadowOf(const ObjectRecord& a, const QPainterPath& text);
 
 /**
- * @brief The family \p a's lettering is actually outlined in when its own is not installed, or empty.
+ * \brief The family \p a's lettering is actually outlined in when its own is not installed, or empty.
  *
  * `QFont` never fails on a missing family — it substitutes, silently — so an outline built while the font
  * is absent is the same words in another face, and nothing in the record says so. This names the stand-in
@@ -151,7 +151,7 @@ enum class Part { None, Fill, Outline, Text };
 [[nodiscard]] QString fontFallback(const ObjectRecord& a);
 
 /**
- * @brief The family an empty `TextProperties::family` is drawn in on this machine — the application's
+ * \brief The family an empty `TextProperties::family` is drawn in on this machine — the application's
  *        default font (Segoe UI on Windows 11).
  *
  * An empty family means "the default", and the default is a property of the machine, not of the file: a
@@ -162,13 +162,13 @@ enum class Part { None, Fill, Outline, Text };
 [[nodiscard]] QString defaultFamily();
 
 /**
- * @brief The rectangle \p a's lettering may occupy, in box coordinates — inside the outline, less the
+ * \brief The rectangle \p a's lettering may occupy, in box coordinates — inside the outline, less the
  *        stroke and the paddings (the top one mirrored at the bottom). A text object's whole box.
  */
 [[nodiscard]] QRectF textArea(const ObjectRecord& a);
 
 /**
- * @brief The size of \p a's laid-out lettering — the widest line by the height of all of them.
+ * \brief The size of \p a's laid-out lettering — the widest line by the height of all of them.
  *
  * Independent of the box: the lettering is never wrapped, so where the box is and how big does not
  * change it. Empty when there is no text.
@@ -176,7 +176,7 @@ enum class Part { None, Fill, Outline, Text };
 [[nodiscard]] QSizeF textBlockSize(const ObjectRecord& a);
 
 /**
- * @brief Whether a block of lettering of size \p block fits \p a's text area.
+ * \brief Whether a block of lettering of size \p block fits \p a's text area.
  *
  * Pure geometry — no font is touched — so it is the half of fitting that can be tested anywhere.
  * Half a pixel of slack, so a box rounded to whole pixels does not overflow by its own rounding.
@@ -187,7 +187,7 @@ enum class Part { None, Fill, Outline, Text };
 [[nodiscard]] bool textOverflows(const ObjectRecord& a);
 
 /**
- * @brief The smallest box, **on both axes**, whose text area holds a block of size \p block.
+ * \brief The smallest box, **on both axes**, whose text area holds a block of size \p block.
  *
  * Neither side goes below the grips' own minimum (40 px), so a short word cannot collapse the shape.
  * With a negative padding the text area is larger than the box, and the floor is often where it stops.
@@ -196,14 +196,14 @@ enum class Part { None, Fill, Outline, Text };
 [[nodiscard]] QSize fitBoxFor(const ObjectRecord& a, const QSizeF& block);
 
 /**
- * @brief The smallest box that holds \p a's lettering, on both axes — *Fit to text*.
- * @param a The record to fit. Its box is the starting point only.
- * @return The fitted box size; the current box when there is no text.
+ * \brief The smallest box that holds \p a's lettering, on both axes — *Fit to text*.
+ * \param a The record to fit. Its box is the starting point only.
+ * \return The fitted box size; the current box when there is no text.
  */
 [[nodiscard]] QSize fittedBox(const ObjectRecord& a);
 
 /**
- * @brief \p a's lettering with each padding lowered, in its own direction only, to the largest value at
+ * \brief \p a's lettering with each padding lowered, in its own direction only, to the largest value at
  *        which a block of size \p block fits — below zero if it has to reach past the outline.
  *
  * Too wide lowers the side padding, too tall the top one; the other is left alone. The box stays as it
@@ -217,7 +217,7 @@ enum class Part { None, Fill, Outline, Text };
 [[nodiscard]] TextProperties fittingPaddings(const ObjectRecord& a);
 
 /**
- * @brief The text area's arrows, in balloon coordinates: one at the middle of its left edge
+ * \brief The text area's arrows, in balloon coordinates: one at the middle of its left edge
  *        and one of its right (`TextSide`, index 0 and 1), which drag the side padding, and one at the middle
  *        of its top (`TextTop`), which drags the top padding. Each points across its edge. None without a
  *        balloon, which has no paddings.
@@ -225,14 +225,14 @@ enum class Part { None, Fill, Outline, Text };
 [[nodiscard]] QList<ShapeHandle> textAreaHandles(const ObjectRecord& a);
 
 /**
- * @brief \p a's lettering with text-area \p handle dragged to \p to (balloon coordinates): textAreaHandles()'
+ * \brief \p a's lettering with text-area \p handle dragged to \p to (balloon coordinates): textAreaHandles()'
  *        inverse. The edge follows the pointer, and its padding is what that leaves; it stops short of the
  *        area's middle, so the area never turns inside out. Measured against \p a as it was at the press.
  */
 [[nodiscard]] TextProperties dragTextAreaHandle(const ObjectRecord& a, const ShapeHandle& handle, const QPointF& to);
 
 /**
- * @brief The point of \p a's lettering that stays put when its box changes, in box coordinates.
+ * \brief The point of \p a's lettering that stays put when its box changes, in box coordinates.
  *
  * Horizontally the side the lines are aligned to — the left edge, the right edge, or the middle — and
  * vertically the middle of the block. A box that changes for the lettering's sake (*Fit*, *Convert*) is

@@ -37,7 +37,7 @@ constexpr qreal k_minCircle     = 1.0;
 constexpr qreal k_spineProbe    = 0.001;
 
 /**
- * @brief A Circles tail's ellipses along @p spine, the tail's middle from where the chain starts to the tip
+ * \brief A Circles tail's ellipses along @p spine, the tail's middle from where the chain starts to the tip
  *        (TailLook): shrinking towards the tip, `pitch` apart, the last ending at it.
  *
  * Every ellipse is the same path turned and moved, so they all wind one way, and the winding rule unites
@@ -76,7 +76,7 @@ QPainterPath circlesAlong(const QPainterPath& spine, const Tail& t)
 }
 
 /**
- * @brief One tail, from where the line to its tip leaves the silhouette out to that tip.
+ * \brief One tail, from where the line to its tip leaves the silhouette out to that tip.
  *
  * Shape-agnostic by construction. Rather than knowing where a given outline's edge is, it walks the
  * line from the tip towards the balloon's centre until a sample lands inside, then binary-searches that
@@ -90,7 +90,7 @@ QPainterPath circlesAlong(const QPainterPath& spine, const Tail& t)
  * A Circles tail is a chain of ellipses on that same curve instead (circlesAlong()), from the crossing
  * moved by its offset to the tip.
  *
- * @param outline The bare silhouette, without any tail already merged into it: each tail must be aimed
+ * \param outline The bare silhouette, without any tail already merged into it: each tail must be aimed
  *                at the balloon, not at a neighbour's outline.
  */
 QPainterPath tailPath(const QPainterPath& outline, const QRectF& body, const Tail& t)

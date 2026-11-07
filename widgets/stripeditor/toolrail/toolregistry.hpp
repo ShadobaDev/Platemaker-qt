@@ -11,7 +11,7 @@
 namespace StripEdit {
 
 /**
- * @brief What a tool does to the canvas. There are exactly these, and every tool is one of them.
+ * \brief What a tool does to the canvas. There are exactly these, and every tool is one of them.
  *
  * Selecting, moving and dragging a handle are **not** here: they are what the canvas does under every
  * tool, so no tool grants them. `Select` is the default state rather than a tool that permits anything.
@@ -26,7 +26,7 @@ enum class ToolKind {
 };
 
 /**
- * @brief The cursor a tool asks for. `Inherit` means "whatever this tool shows over the bare strip".
+ * \brief The cursor a tool asks for. `Inherit` means "whatever this tool shows over the bare strip".
  *
  * A style rather than a `QCursor`, so the table stays data: what a style is drawn as belongs to
  * `cursors.cpp`, which is also where a generated tool-glyph cursor will come from.
@@ -34,7 +34,7 @@ enum class ToolKind {
 enum class CursorStyle { Arrow, Hand, Cross, Move, Inherit };
 
 /**
- * @brief One entry on the tool rail — a record, because a tool is stateless.
+ * \brief One entry on the tool rail — a record, because a tool is stateless.
  *
  * What the editor asks of a tool is a name, an icon, a tooltip, what it does to the canvas and which
  * tool-options page it shows. That is data, so the framework is a table rather than a class hierarchy:
@@ -52,7 +52,7 @@ struct Tool
     //! not freeze into it. A name, not a sentence — the sentence is below.
     const char* name = nullptr;
     /**
-     * @brief One sentence: what a press or a drag with this tool does. Untranslated, as above.
+     * \brief One sentence: what a press or a drag with this tool does. Untranslated, as above.
      *
      * **A tool with no options page shows this in TOOL OPTIONS**, because an empty options panel reads as
      * *nothing is armed* — which is how a tool gets picked by accident and the artist then looks for the

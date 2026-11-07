@@ -15,7 +15,7 @@ class ProfilePickerDialog;
 }
 
 /**
- * @brief A type-agnostic cherry-pick dialog: a checkable list of rows with a per-row inspection panel.
+ * \brief A type-agnostic cherry-pick dialog: a checkable list of rows with a per-row inspection panel.
  *
  * Deliberately knows nothing about CanvasProfile / OutputProfile — the caller turns each profile into
  * a Row (title + one-line summary + a ready-made read-only widget for inspection), and reads back which

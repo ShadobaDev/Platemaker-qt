@@ -18,7 +18,7 @@ inline constexpr int k_bubbleThumbW = 34;
 inline constexpr int k_bubbleThumbH = 26;
 
 /**
- * @brief A miniature of \p shape, drawn by the very rasteriser that draws the real bubble.
+ * \brief A miniature of \p shape, drawn by the very rasteriser that draws the real bubble.
  *
  * Reusing it means a tile cannot misrepresent its shape, and it costs no icon assets: the picker is
  * generated, not drawn by hand. The caller chooses the colours, because a shape tile is UI chrome (it
@@ -33,7 +33,7 @@ inline constexpr int k_bubbleThumbH = 26;
 [[nodiscard]] QPixmap shapeThumbnail(const ShapeProperties& shape, const QPalette& pal);
 
 /**
- * @brief The shape picker: one checkable tile per template, laid out like the editor's tool rail, and
+ * \brief The shape picker: one checkable tile per template, laid out like the editor's tool rail, and
  *        the rows of the kind's parameters, on a widget of their own (parameters()).
  *
  * A grid of previews rather than a drop-down, because a bubble shape is a *look* — a name in a list
@@ -56,14 +56,14 @@ public:
     [[nodiscard]] const ShapeProperties& values() const { return m_values; }
 
     /**
-     * @brief The kind's parameter rows (the corner, the lobes, the edge), apart from the tiles: the panel
+     * \brief The kind's parameter rows (the corner, the lobes, the edge), apart from the tiles: the panel
      *        lays them out where it wants them (ObjectState: under the sections). Not in this widget's layout.
      */
     [[nodiscard]] QWidget* parameters() const { return m_parameters; }
 
 signals:
     /**
-     * @brief A tile was picked, before the changed() it also brings.
+     * \brief A tile was picked, before the changed() it also brings.
      *
      * What the tails follow: picking a speaking shape grows a tail, picking a caption drops it. Editing a
      * parameter is changed() alone, so turning a caption's corners does not give it a tail.

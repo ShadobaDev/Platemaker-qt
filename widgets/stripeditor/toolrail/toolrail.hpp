@@ -12,7 +12,7 @@ namespace StripEdit {
 class ColourPair;
 
 /**
- * @brief The TOOL RAIL: a tile per row of tools(), and the colour pair under them.
+ * \brief The TOOL RAIL: a tile per row of tools(), and the colour pair under them.
  *
  * Builds both into the form's rail widget and keeps them there; what a picked tool *does* is the
  * Editor's (setTool()). Two rows rather than one flow: the tiles, and under them the colour pair. They

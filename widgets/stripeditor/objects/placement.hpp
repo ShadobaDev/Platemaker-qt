@@ -19,7 +19,7 @@ class ObjectController;
 class StripLayout;
 
 /**
- * @brief A Create tool's drag on empty strip: the rubber band, and the object it places.
+ * \brief A Create tool's drag on empty strip: the rubber band, and the object it places.
  *
  * The canvas starts, moves and ends it (CanvasInput); this draws the band and, on release, asks the
  * ObjectController for the new object — a balloon or lettering built from the prototype TOOL OPTIONS
@@ -33,8 +33,8 @@ class Placement : public QObject
 {
 public:
     /**
-     * @param objects  Where a finished placement goes, and what a bare click deselects.
-     * @param palette  Whose highlight colour the band is drawn in — the editor's.
+     * \param objects  Where a finished placement goes, and what a bare click deselects.
+     * \param palette  Whose highlight colour the band is drawn in — the editor's.
      */
     Placement(QGraphicsScene* scene, ObjectController& objects, const StripLayout& layout,
               const QWidget* palette, QObject* parent);
@@ -50,7 +50,7 @@ public:
     void begin(const QPointF& scenePos);    //!< Starts the drag, with the band at the press point.
     void update(const QPointF& scenePos);   //!< Moves the band's far corner to @p scenePos.
     /**
-     * @brief Ends the drag: places the object the band describes, or — for a click — deselects.
+     * \brief Ends the drag: places the object the band describes, or — for a click — deselects.
      *
      * Only a drag creates one. Letting a bare click create one made every click on the artwork a
      * placement, including the click that just deselects the bubble you finished.

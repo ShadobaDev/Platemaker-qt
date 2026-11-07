@@ -11,7 +11,7 @@ namespace StripEdit {
 namespace {
 
 /**
- * @brief Starts a glyph: a transparent pixmap at the **screen's** density, ready for antialiased drawing.
+ * \brief Starts a glyph: a transparent pixmap at the **screen's** density, ready for antialiased drawing.
  *
  * The painter still works in points, so everything drawn against @p px lands where it should — the extra
  * pixels only make the edges sharp. Drawing at a ratio of one and letting the view scale the result up is

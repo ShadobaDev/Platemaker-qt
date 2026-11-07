@@ -15,7 +15,7 @@ constexpr qreal   k_cornerPx = 4.0;     //!< Slight rounding, so it reads as a f
 const     QString k_name     = QStringLiteral("dockAttentionOverlay");
 
 /**
- * @brief The flash: a click-through child covering its dock, drawing a border that fades out.
+ * \brief The flash: a click-through child covering its dock, drawing a border that fades out.
  *
  * A child widget rather than a stylesheet on the dock. A stylesheet set here would have to be merged
  * with whatever the dock already carries and then unset again, and its selectors would reach every

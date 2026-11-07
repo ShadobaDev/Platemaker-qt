@@ -45,7 +45,7 @@ constexpr int   k_minFitSize    = 40;
 constexpr qreal k_minTextHalf   = 1.0;
 
 /**
- * @brief The rectangle text may occupy — the shape's own text area (ShapeInfo::safeArea), inset so
+ * \brief The rectangle text may occupy — the shape's own text area (ShapeInfo::safeArea), inset so
  *        letters do not touch the stroke, and by the author's paddings: the side one left and right, the
  *        top one at the top and, mirrored, at the bottom, which the block is centred between.
  */
@@ -65,7 +65,7 @@ QRectF textSafeArea(const ObjectRecord& a, const QRectF& body)
 }
 
 /**
- * @brief The laid-out text, ready to draw or measure.
+ * \brief The laid-out text, ready to draw or measure.
  *
  * **Never wrapped.** The lines are the author's line breaks, exactly — lettering is broken by hand, and
  * a long word grows its box rather than being split. @p width only places each line according to the

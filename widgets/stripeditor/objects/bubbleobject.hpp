@@ -12,7 +12,7 @@
 namespace StripEdit {
 
 /**
- * @brief A bubble Platemaker authored: a \c ObjectRecord drawn from its parameters.
+ * \brief A bubble Platemaker authored: a \c ObjectRecord drawn from its parameters.
  *
  * Drawn from the **authoring model**, not from the file it will be written to — so typing updates the
  * strip with no round-trip, and the preview is the render because both go through Painter::paint().
@@ -26,35 +26,35 @@ class BubbleObject : public Object
 
 public:
     /**
-     * @brief Constructs a new bubble object.
-     * @param uid The unique identifier for the object.
-     * @param record The record representing the bubble's properties.
-     * @param parent The parent graphics item.
+     * \brief Constructs a new bubble object.
+     * \param uid The unique identifier for the object.
+     * \param record The record representing the bubble's properties.
+     * \param parent The parent graphics item.
      */
     BubbleObject(QString uid, ObjectRecord record, QGraphicsItem* parent = nullptr);
 
     /**
-     * @brief Returns the kind of the object.
-     * @return The kind of the object.
+     * \brief Returns the kind of the object.
+     * \return The kind of the object.
      */
     [[nodiscard]] Kind    kind() const override { return Kind::Bubble; }
 
     //! A tail whose tip lies inside the balloon draws nothing; its handle is the chrome's only.
     [[nodiscard]] bool handleDrawn(int index) const override;
     /**
-     * @brief Returns the label for the object.
-     * @return The label for the object.
+     * \brief Returns the label for the object.
+     * \return The label for the object.
      */
     [[nodiscard]] QString label() const override;
 
     /**
-     * @brief Adopts new authoring values and repaints (handles a box change, so it may resize the object).
-     * @param a The new record to set.
+     * \brief Adopts new authoring values and repaints (handles a box change, so it may resize the object).
+     * \param a The new record to set.
      */
     void setRecord(const ObjectRecord& a) override;
 
     /**
-     * @brief Shows \p img — the library's own rasterisation of this bubble — instead of the local paths.
+     * \brief Shows \p img — the library's own rasterisation of this bubble — instead of the local paths.
      *
      * How a Marker or Ink bubble is previewed. Its style is an SVG filter, so the effect exists only once
      * librsvg has rasterised it; Qt implements neither feTurbulence nor feDisplacementMap and would
@@ -65,7 +65,7 @@ public:
      * supplies a fresh one after the edit has settled and been written. A null image means "draw the
      * paths", which is what a bubble without a filter (Clean, Flash) always does.
      * 
-     * @param img The library's rasterisation of this bubble, or a null image to show the local paths.
+     * \param img The library's rasterisation of this bubble, or a null image to show the local paths.
      */
     void setSharpRaster(const QImage& img);
 
@@ -74,8 +74,8 @@ public:
     void refreshFonts();
 
     /**
-     * @brief Returns the size of the bubble's box.
-     * @return The size of the bubble's box.
+     * \brief Returns the size of the bubble's box.
+     * \return The size of the bubble's box.
      */
     [[nodiscard]] QSizeF boxSize() const override { return QSizeF(m_record.box); }
 
@@ -85,38 +85,38 @@ public:
 
 protected:
     /**
-     * @brief Paints the bubble object.
-     * @param painter The painter to use for painting.
+     * \brief Paints the bubble object.
+     * \param painter The painter to use for painting.
      */
     void                  paintContent(QPainter& painter) override;
     /**
-     * @brief Computes the bounding rectangle of the bubble object.
-     * @return The bounding rectangle of the bubble object.
+     * \brief Computes the bounding rectangle of the bubble object.
+     * \return The bounding rectangle of the bubble object.
      */
     [[nodiscard]] QRectF  computeBounds() const override;
     /**
-     * @brief Sets the size of the bubble's box; every tail tip moves by @p handleShift, so it keeps
+     * \brief Sets the size of the bubble's box; every tail tip moves by @p handleShift, so it keeps
      *        pointing where it pointed on the strip.
-     * @param size The new size.
-     * @param handleShift How far the box's top-left moved, negated, in the bubble's own units.
+     * \param size The new size.
+     * \param handleShift How far the box's top-left moved, negated, in the bubble's own units.
      */
     void                  setBoxSize(QSizeF size, const QPointF& handleShift) override;
 
     /**
-     * @brief Returns the number of handles for the bubble object.
-     * @return The number of handles for the bubble object.
+     * \brief Returns the number of handles for the bubble object.
+     * \return The number of handles for the bubble object.
      */
     [[nodiscard]] int     handleCount() const override { return int(m_record.tails.items.size()); }
     /**
-     * @brief Returns the position of a handle for the bubble object.
-     * @param index The index of the handle.
-     * @return The position of the handle.
+     * \brief Returns the position of a handle for the bubble object.
+     * \param index The index of the handle.
+     * \return The position of the handle.
      */
     [[nodiscard]] QPointF handlePos(int index) const override;
     /**
-     * @brief Sets the position of a handle for the bubble object.
-     * @param index The index of the handle.
-     * @param local The new position of the handle.
+     * \brief Sets the position of a handle for the bubble object.
+     * \param index The index of the handle.
+     * \param local The new position of the handle.
      */
     void                  setHandlePos(int index, const QPointF& local) override;
 

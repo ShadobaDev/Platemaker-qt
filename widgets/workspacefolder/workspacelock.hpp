@@ -9,7 +9,7 @@
 class QLockFile;
 
 /**
- * @brief Who may write to a workspace folder right now — and how that is found out when it changes.
+ * \brief Who may write to a workspace folder right now — and how that is found out when it changes.
  *
  * **Two files, because one cannot do both jobs.** A `QLockFile` is what tells a live holder from a dead
  * one on this machine (it records the process and checks it is still running, so a lock left by a crash
@@ -48,8 +48,8 @@ public:
     };
 
     /**
-     * @param workspaceFolder The folder being locked.
-     * @param processLockDir  A local, unsynced folder for the process lock; created when missing.
+     * \param workspaceFolder The folder being locked.
+     * \param processLockDir  A local, unsynced folder for the process lock; created when missing.
      */
     WorkspaceLock(QString workspaceFolder, QString processLockDir);
     ~WorkspaceLock();   //!< Lets the folder go — deleting the marker only if it is still ours.
@@ -60,7 +60,7 @@ public:
     [[nodiscard]] Outcome acquire();
 
     /**
-     * @brief After OpenElsewhere: claims the folder from the computer the marker names.
+     * \brief After OpenElsewhere: claims the folder from the computer the marker names.
      *
      * For a computer that is off, or where Platemaker crashed — the one case that cannot be detected from
      * here. If it is in fact still running, it finds out before its next write (stillOurs()).
@@ -68,7 +68,7 @@ public:
     [[nodiscard]] bool takeOver();
 
     /**
-     * @brief Whether the marker still names this process — asked before every write to the folder.
+     * \brief Whether the marker still names this process — asked before every write to the folder.
      *
      * True when the folder could not be marked at all (Unavailable): there is nothing to have lost. A marker
      * deleted by hand is written again rather than read as a takeover.

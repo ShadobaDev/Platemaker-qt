@@ -16,7 +16,7 @@ class Placement;
 struct Tool;
 
 /**
- * @brief What a press, a drag, a drop or a wheel on the strip does — routed by the armed tool.
+ * \brief What a press, a drag, a drop or a wheel on the strip does — routed by the armed tool.
  *
  * The viewport's event filter. Everything that is the **canvas's** own it does: the middle-button pan
  * under every tool, the cursor (a promise about what a press would do here, so re-decided while
@@ -40,7 +40,7 @@ public:
     void setTool(const Tool& tool);
 
     /**
-     * @brief Re-decides the viewport cursor for the tool and whatever the pointer is over.
+     * \brief Re-decides the viewport cursor for the tool and whatever the pointer is over.
      *
      * Called on hover, after a press is released, when the tool changes, when the zoom changes and after
      * a feed — every moment at which either half of *(tool, target)* can have moved, including the ones

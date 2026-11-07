@@ -31,7 +31,7 @@ struct FieldRowSpec
 };
 
 /**
- * @brief One spin per field of a group's field list, for the fields whose key starts with a prefix.
+ * \brief One spin per field of a group's field list, for the fields whose key starts with a prefix.
  *
  * The rows a parameterised style or shape shows: built by walking `Group::fields()`, so a field added to
  * the list gets its row with no hand-written widget, and labelled from a spec table the panel owns. A
@@ -50,13 +50,13 @@ public:
     using SpinFactory = std::function<QSpinBox*(const char* key)>;
 
     /**
-     * @brief Adds the rows to @p form, in the field list's order.
-     * @param owner      Parents the spins, and is the context of their connections.
-     * @param prefix     Which fields get a row.
-     * @param specs      Labels, ranges and tooltips, translated in @p context.
-     * @param values     The panel's own copy of the group, written on every edit.
-     * @param populating The panel's guard: while true, a spin's change is the panel showing a value.
-     * @param edited     Called after a row's edit is in @p values: the panel emits changed() there.
+     * \brief Adds the rows to @p form, in the field list's order.
+     * \param owner      Parents the spins, and is the context of their connections.
+     * \param prefix     Which fields get a row.
+     * \param specs      Labels, ranges and tooltips, translated in @p context.
+     * \param values     The panel's own copy of the group, written on every edit.
+     * \param populating The panel's guard: while true, a spin's change is the panel showing a value.
+     * \param edited     Called after a row's edit is in @p values: the panel emits changed() there.
      */
     template <size_t N>
     void build(QWidget* owner, QFormLayout* form, const char* prefix, const FieldRowSpec (&specs)[N],

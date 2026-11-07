@@ -13,14 +13,14 @@
 #include <QStringList>
 
 /**
- * @brief Every file of the installed font family \p family — all its styles, since a bubble's text may be
+ * \brief Every file of the installed font family \p family — all its styles, since a bubble's text may be
  *        set in any of them — as absolute paths, each once.
  *
  * Windows: DirectWrite's system collection (which includes fonts installed for the current user), each
  * font's face → its files → the local loader's path. A face Windows synthesises (a bold made by
  * emboldening the regular) is skipped: it has no file of its own.
  *
- * @return Empty when the family is not installed, when its files are not local, or on a platform this
+ * \return Empty when the family is not installed, when its files are not local, or on a platform this
  *         does not know yet — which a caller reports as a font that could not be packed.
  */
 [[nodiscard]] QStringList installedFontFiles(const QString& family);

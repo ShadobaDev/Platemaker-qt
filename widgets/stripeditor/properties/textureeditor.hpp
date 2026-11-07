@@ -10,7 +10,7 @@ class QFormLayout;
 namespace StripEdit {
 
 /**
- * @brief What is done to the balloon as it is rendered: its texture, and the texture's numbers.
+ * \brief What is done to the balloon as it is rendered: its texture, and the texture's numbers.
  *
  * Its own section of the panel, after the line: a texture acts on the whole balloon, line
  * and shadow, never on the words. Rough's rows are built from TextureProperties' field list, one spin per

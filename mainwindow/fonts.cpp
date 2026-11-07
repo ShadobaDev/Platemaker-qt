@@ -1,6 +1,6 @@
 /**
- * @file fonts.cpp
- * @brief *Tools → Fonts…*: the workspace's own fonts, the ones its bubbles miss, adding one, and installing
+ * \file fonts.cpp
+ * \brief *Tools → Fonts…*: the workspace's own fonts, the ones its bubbles miss, adding one, and installing
  *        one for this user.
  *
  * The workspace's `fonts/` is activated when it opens (loadWorkspace()); this is where it is looked at and
@@ -55,7 +55,7 @@ constexpr UINT k_broadcastTimeoutMs = 1000;
 #endif
 
 /**
- * @brief Installs \p file for the current user only — no administrator rights — the way Explorer's
+ * \brief Installs \p file for the current user only — no administrator rights — the way Explorer's
  *        *Install* does (as opposed to *Install for all users*).
  *
  * Windows 10 1803+: a copy in `%LOCALAPPDATA%\Microsoft\Windows\Fonts`, a value under `HKCU\…\Fonts`
@@ -64,8 +64,8 @@ constexpr UINT k_broadcastTimeoutMs = 1000;
  *
  * A different file already installed under the same file name is never overwritten.
  *
- * @param displayName What the registry value is called: family and style, as Explorer names it.
- * @return Why it failed, or an empty string.
+ * \param displayName What the registry value is called: family and style, as Explorer names it.
+ * \return Why it failed, or an empty string.
  */
 QString installForUser(const QString &file, const QString &displayName)
 {

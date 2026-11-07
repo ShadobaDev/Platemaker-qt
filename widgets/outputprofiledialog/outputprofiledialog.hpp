@@ -10,7 +10,7 @@ class OutputProfileDialog;
 class OutputFormatOptionsWidget;
 
 /**
- * @brief The OutputProfileDialog class provides a dialog for creating or editing output profiles.
+ * \brief The OutputProfileDialog class provides a dialog for creating or editing output profiles.
  * It allows users to specify the name, output format, per-format encoding options, slicing parameters,
  * and last slice policy of an output profile. The dialog uses a shared OutputFormatOptionsWidget for
  * editing the format and its options.
@@ -24,10 +24,10 @@ public:
     ~OutputProfileDialog() override;                                //!< Destroys the dialog and cleans up resources.
 
     /**
-     * @brief Sets the profile to be edited in the dialog. 
+     * \brief Sets the profile to be edited in the dialog. 
      * Call before exec() to populate fields when editing an existing profile.
      * Leave uncalled (or call with default-constructed profile) for a new profile.
-     * @param profile The profile to be edited.
+     * \param profile The profile to be edited.
      */
     void setProfile(const Platemaker::Models::OutputProfile &profile);
     Platemaker::Models::OutputProfile profile() const;              //!< The profile given to setProfile() (a new one if none was) with the dialog's fields applied; call after exec() == Accepted.

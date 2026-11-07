@@ -17,7 +17,7 @@
 namespace StripEdit {
 
 /**
- * @brief One thing placed on the strip — whatever kind it is.
+ * \brief One thing placed on the strip — whatever kind it is.
  *
  * Everything an author does to an object is the same for every kind of object: select it, move it,
  * drag a grip, mute it, delete it, put it in front of another. All of that lives here, once. What a
@@ -48,7 +48,7 @@ class Object : public QGraphicsObject
 
 public:
     /**
-     * @brief What an object is. Kept minimal on purpose — it exists for the few places that must ask.
+     * \brief What an object is. Kept minimal on purpose — it exists for the few places that must ask.
      */
     enum class Kind { Bubble, Artwork };
 
@@ -56,10 +56,10 @@ public:
     using Grip = StripEdit::Grip;
 
     /**
-     * @brief Creates an object with @p uid, parented to @p parent. The uid is the one the owner will use to
+     * \brief Creates an object with @p uid, parented to @p parent. The uid is the one the owner will use to
      *        feed it back to the library, and the one that will be stored in its record. The parent is the scene item that owns it, and the one that will be moved when the object is dragged.
-     * @param uid The unique identifier for this object, used to track it in the library and persist its state.
-     * @param parent The QGraphicsItem that will be the parent of this object in the scene graph. This is typically the scene or a container item that manages multiple objects.
+     * \param uid The unique identifier for this object, used to track it in the library and persist its state.
+     * \param parent The QGraphicsItem that will be the parent of this object in the scene graph. This is typically the scene or a container item that manages multiple objects.
      */
     explicit Object(QString uid, QGraphicsItem* parent = nullptr);
 
@@ -68,7 +68,7 @@ public:
     [[nodiscard]] virtual QString label() const = 0;    //!< One line naming this object for the object list.
 
     /**
-     * @brief The authoring record this object carries — **every kind has one**.
+     * \brief The authoring record this object carries — **every kind has one**.
      *
      * A balloon's record is everything about it; a picture's says which file it is and what words are
      * over it. Both were the same accessor declared twice, once per subclass, so every caller that
@@ -80,57 +80,57 @@ public:
      * for two different things is the mechanism behind four shipped defects. Each kind keeps its record
      * describing what it actually is, so asking any object is always safe.
      *
-     * @return The authoring record for this object, containing all relevant properties and settings.
+     * \return The authoring record for this object, containing all relevant properties and settings.
      */
     [[nodiscard]] const ObjectRecord& record() const { return m_record; }
 
     /**
-     * @brief Adopts \p a and repaints. What that costs — re-resolving paths, a resize — is the kind's own.
-     * @param a The record to adopt.
+     * \brief Adopts \p a and repaints. What that costs — re-resolving paths, a resize — is the kind's own.
+     * \param a The record to adopt.
      */
     virtual void setRecord(const ObjectRecord& a) = 0;
 
     /**
-     * @brief How this object blends onto the strip — mapped to the matching QPainter composition mode.
-     * @param blend The blend mode to set.
+     * \brief How this object blends onto the strip — mapped to the matching QPainter composition mode.
+     * \param blend The blend mode to set.
      */
     void setBlend(Platemaker::Models::BlendMode blend);
 
     /**
-     * @brief Greys the object out and stops interaction: its anchor page is not in the strip (see the list).
-     * @param orphaned Whether the object is orphaned.
+     * \brief Greys the object out and stops interaction: its anchor page is not in the strip (see the list).
+     * \param orphaned Whether the object is orphaned.
      */
     void setOrphaned(bool orphaned);
 
     /**
-     * @brief Whether the drag that just ended was reported through dragging() — so others may have travelled.
-     * @param reported Whether the drag was reported.
+     * \brief Whether the drag that just ended was reported through dragging() — so others may have travelled.
+     * \param reported Whether the drag was reported.
      */
     [[nodiscard]] bool isOrphaned() const { return m_orphaned; }
 
     /**
-     * @brief Whether the drag that just ended was reported through dragging() — so others may have travelled.
-     * @return True if the drag was reported, false otherwise.
+     * \brief Whether the drag that just ended was reported through dragging() — so others may have travelled.
+     * \return True if the drag was reported, false otherwise.
      */
     [[nodiscard]] bool reportedDrag() const { return m_dragReported; }
 
     /**
-     * @brief Places handle @p index at @p local and rebuilds — how an owner moves a tail that is not the one
-     * @param index The handle index.
-     * @param local The local position to place the handle.
+     * \brief Places handle @p index at @p local and rebuilds — how an owner moves a tail that is not the one
+     * \param index The handle index.
+     * \param local The local position to place the handle.
      */
     void moveHandle(int index, const QPointF& local);
 
     /**
-     * @brief Where handle @p index sits, in this object's own units.
-     * @param index The handle index.
-     * @return The position of the handle.
+     * \brief Where handle @p index sits, in this object's own units.
+     * \param index The handle index.
+     * \return The position of the handle.
      */
     [[nodiscard]] QPointF handleAt(int index) const { return handlePos(index); }
 
     /**
-     * @brief Marks handle @p index as its tail's — the one selected — or none with -1. Drawn hollow.
-     * @param index The handle index.
+     * \brief Marks handle @p index as its tail's — the one selected — or none with -1. Drawn hollow.
+     * \param index The handle index.
      */
     void setFocusedHandle(int index);
 
@@ -141,7 +141,7 @@ public:
     [[nodiscard]] int tipCount() const { return handleCount(); }
 
     /**
-     * @brief Shape editing: the outline's own handles instead of the box's grips.
+     * \brief Shape editing: the outline's own handles instead of the box's grips.
      *
      * Switched by the controller, which decides which object is being edited; the selection chrome reads
      * it, traces the outline and draws the shape handles, and hides the box's grips while it is on.
@@ -174,7 +174,7 @@ public:
     [[nodiscard]] QPointF pressScenePos() const { return m_startScenePos; }
 
     /**
-     * @brief Whether handle @p index can be seen on the strip — false for a tail whose tip is inside the
+     * \brief Whether handle @p index can be seen on the strip — false for a tail whose tip is inside the
      *        balloon, which draws nothing.
      *
      * Such a tip is still grabbable, but only through the selection chrome, where its handle is drawn: a
@@ -183,7 +183,7 @@ public:
     [[nodiscard]] virtual bool handleDrawn(int index) const { Q_UNUSED(index) return true; }
 
     /**
-     * @brief True when a resize must scale uniformly rather than distort.
+     * \brief True when a resize must scale uniformly rather than distort.
      *
      * Imported artwork says yes: its size travels as a single width fraction and its height follows
      * the artwork's own aspect, so a distorted one is not expressible — which is also what anyone
@@ -195,7 +195,7 @@ public:
     [[nodiscard]] QRectF sceneBox() const { return mapRectToScene(QRectF(QPointF(0, 0), boxSize())); }
 
     /**
-     * @brief Starts a drag of @p grip (and @p handle, for Grip::Handle) at @p scenePos.
+     * \brief Starts a drag of @p grip (and @p handle, for Grip::Handle) at @p scenePos.
      *
      * The object's own mouse handling calls this, and so does the selection chrome, which draws the
      * grips above every object and so takes the presses meant for them. Emits pressed().
@@ -209,13 +209,13 @@ public:
     void endDrag();
 
     /**
-     * @brief What sits under @p scenePos: a visible tail handle, the body, or nothing of this object.
+     * \brief What sits under @p scenePos: a visible tail handle, the body, or nothing of this object.
      *
      * The grips are not answered here: they belong to the selection chrome (selectionchrome.hpp).
      *
-     * @param scenePos The scene position to check.
-     * @param handleIndex Optional pointer to store the index of the handle under the position.
-     * @return Grip::Handle or Grip::Body.
+     * \param scenePos The scene position to check.
+     * \param handleIndex Optional pointer to store the index of the handle under the position.
+     * \return Grip::Handle or Grip::Body.
      */
     [[nodiscard]] Grip gripAtScene(const QPointF& scenePos, int* handleIndex = nullptr) const;
 
@@ -223,30 +223,30 @@ public:
     [[nodiscard]] static bool chromeVisible() { return s_chromeVisible; }
 
     /**
-     * @brief Turns selection chrome off for **every** object, for one repaint.
+     * \brief Turns selection chrome off for **every** object, for one repaint.
      *
      * The box, the grips and the tail handles are the editor talking, not the comic. A repaint that has
      * to answer *what does the page look like* — the eyedropper's, which samples one composited pixel —
      * asks for them to be left out, because sampling a balloon that happens to be selected must give its
      * fill and not the highlight colour.
      *
-     * @param on Whether to show or hide the chrome.
+     * \param on Whether to show or hide the chrome.
      */
     static void setChromeVisible(bool on);
 
     /**
-     * @brief What this object actually draws, in item coordinates — origin may be negative.
+     * \brief What this object actually draws, in item coordinates — origin may be negative.
      *
      * The offset between the item's position (the box's top-left) and the artwork's own top-left, which
      * is what the library's record stores. A bubble's tail pointing up or left pushes the artwork above
      * or left of the box; imported artwork has no such offset, because its pixmap starts at the origin.
      *
-     * @return The rectangle representing the content bounds of the object.
+     * \return The rectangle representing the content bounds of the object.
      */
     [[nodiscard]] QRectF contentBounds() const { return m_bounds; }
 
     /**
-     * @brief The rectangle the grips move — the object's own size, before any tail.
+     * \brief The rectangle the grips move — the object's own size, before any tail.
      *
      * Not stored here: a bubble's box *is* its record's, and holding a second copy is how the two
      * drift apart. Each kind answers from wherever its size actually lives.
@@ -256,7 +256,7 @@ public:
     QRectF boundingRect() const override;   //!< The rectangle that contains the object and its tail tips, in item coordinates.
 
     /**
-     * @brief What is actually clickable: the box, and the tail tips that can be seen.
+     * \brief What is actually clickable: the box, and the tail tips that can be seen.
      *
      * Qt's default is `boundingRect()`, and this class's bounding rect is the drawn extent padded for
      * handles — for a bubble that is one rectangle enclosing the balloon *and* wherever its tail points,
@@ -270,39 +270,39 @@ public:
      * The grips are the chrome's too. The tail's shaft is deliberately left out — it is a thin sliver a
      * long way from anything anyone is aiming at.
      *
-     * @return The shape that defines the clickable area of the object, in item coordinates.
+     * \return The shape that defines the clickable area of the object, in item coordinates.
      */
     QPainterPath shape() const override;
 
     /**
-     * @brief Draws the object.
-     * @param painter The painter to use.
-     * @param option The style option for the graphics item.
-     * @param widget The widget to draw on.
+     * \brief Draws the object.
+     * \param painter The painter to use.
+     * \param option The style option for the graphics item.
+     * \param widget The widget to draw on.
      */
     void   paint(QPainter* painter, const QStyleOptionGraphicsItem* option, QWidget* widget) final;
 
 signals:
     /**
-     * @brief A move / resize / handle drag has settled — the owner reads pos() and the object and persists it.
-     * @param uid The unique identifier of the object.
+     * \brief A move / resize / handle drag has settled — the owner reads pos() and the object and persists it.
+     * \param uid The unique identifier of the object.
      */
     void geometryCommitted(const QString& uid);
 
     /**
-     * @brief The object was pressed — on handle @p handle, or on anything else when it is -1.
+     * \brief The object was pressed — on handle @p handle, or on anything else when it is -1.
      *
      * Emitted after the base class has done its selecting, so the owner can narrow a selection it has
      * already heard about: a press on a tail's handle selects that tail, and a press on the balloon while
      * one of its tails is selected selects the balloon again.
      *
-     * @param uid The unique identifier of the object.
-     * @param handle The index of the handle that was pressed, or -1 if the press was on the body of the object.
+     * \param uid The unique identifier of the object.
+     * \param handle The index of the handle that was pressed, or -1 if the press was on the body of the object.
      */
     void pressed(const QString& uid, int handle);
 
     /**
-     * @brief This object is being dragged — @p delta from where the press landed, in scene units.
+     * \brief This object is being dragged — @p delta from where the press landed, in scene units.
      *
      * Emitted per mouse-move while a drag is live, *after* this object has placed itself. @p handle is
      * the tail being aimed, or -1 for a move of the body.
@@ -311,14 +311,14 @@ signals:
      * selection belongs to the controller. An object that reached for its neighbours would need to know
      * what is selected, and a tail of some *other* balloon is not something it could reach at all.
      *
-     * @param uid The unique identifier of the object.
-     * @param delta The change in position from the original press point, in scene coordinates.
-     * @param handle The index of the handle being dragged, or -1 if the body
+     * \param uid The unique identifier of the object.
+     * \param delta The change in position from the original press point, in scene coordinates.
+     * \param handle The index of the handle being dragged, or -1 if the body
      */
     void dragging(const QString& uid, const QPointF& delta, int handle);
 
     /**
-     * @brief Something the selection chrome draws has changed: position, size, selection, a tail, scale.
+     * \brief Something the selection chrome draws has changed: position, size, selection, a tail, scale.
      *
      * The chrome is a separate item above every object, so it cannot see this one change; it is told.
      */
@@ -329,14 +329,14 @@ signals:
 
 protected:
 
-    /** @brief Draws the object itself, in item coordinates. Blending is the base class's job. */
+    /** \brief Draws the object itself, in item coordinates. Blending is the base class's job. */
     virtual void paintContent(QPainter& painter) = 0;
 
-    /** @brief The extent this object draws into, recomputed whenever its geometry changes. */
+    /** \brief The extent this object draws into, recomputed whenever its geometry changes. */
     [[nodiscard]] virtual QRectF computeBounds() const = 0;
 
     /**
-     * @brief Applies a new box size, the box's top-left having moved so that anything in item units has
+     * \brief Applies a new box size, the box's top-left having moved so that anything in item units has
      *        to move by @p handleShift to stay where it is on the strip.
      *
      * A kind with handles (a bubble's tail tips) moves them by exactly that: a tip is aimed at a
@@ -344,15 +344,15 @@ protected:
      */
     virtual void setBoxSize(QSizeF size, const QPointF& handleShift) = 0;
 
-    /** @brief Extra draggable points in item coordinates — a bubble's tail tips. None by default. */
+    /** \brief Extra draggable points in item coordinates — a bubble's tail tips. None by default. */
     [[nodiscard]] virtual int     handleCount() const { return 0; }
-    /** @brief Where handle @p index sits, in item coordinates. None by default. */
+    /** \brief Where handle @p index sits, in item coordinates. None by default. */
     [[nodiscard]] virtual QPointF handlePos(int index) const { Q_UNUSED(index) return {}; }
-    /** @brief Places handle @p index at @p local, in item coordinates. None by default. */
+    /** \brief Places handle @p index at @p local, in item coordinates. None by default. */
     virtual void                  setHandlePos(int index, const QPointF& local) { Q_UNUSED(index) Q_UNUSED(local) }
 
     /**
-     * @brief A press on shape handle @p index of shapeHandles(). True when the press alone changed the
+     * \brief A press on shape handle @p index of shapeHandles(). True when the press alone changed the
      *        record (a "+" adding a node), so the drag is reported even if the pointer never moves.
      */
     virtual bool beginShapeDrag(int index) { Q_UNUSED(index) return false; }
@@ -362,16 +362,16 @@ protected:
     //! A grip's size in this object's own units at the current zoom: what a handle needs to stay clear of another.
     [[nodiscard]] qreal gripSpanHere() const;
 
-    /** @brief Recomputes the drawn extent from computeBounds(), announcing a geometry change if it moved. */
+    /** \brief Recomputes the drawn extent from computeBounds(), announcing a geometry change if it moved. */
     void refreshBounds();
 
     /**
-     * @brief True while a grip is being dragged.
+     * \brief True while a grip is being dragged.
      *
      * A kind that shows a pre-rendered image at rest has to fall back to drawing itself here: the image
      * cannot be re-made per mouse-move, and the paths follow the mouse.
      *
-     * @return True if a grip is being dragged, false otherwise.
+     * \return True if a grip is being dragged, false otherwise.
      */
     [[nodiscard]] bool isDragging() const { return m_active != Grip::None; }
 
@@ -381,11 +381,11 @@ protected:
     void mouseDoubleClickEvent(QGraphicsSceneMouseEvent* e) override;   //!< Asks for shape editing.
     QVariant itemChange(GraphicsItemChange change, const QVariant& value) override;   //!< Tells the chrome.
 
-    /** @brief Written by each kind's setRecord(), read by everyone through record(). See above. */
+    /** \brief Written by each kind's setRecord(), read by everyone through record(). See above. */
     ObjectRecord m_record;
 
 private:
-    /** @brief Which grip is under \p local. For Grip::Handle, \p handleIndex receives which one. */
+    /** \brief Which grip is under \p local. For Grip::Handle, \p handleIndex receives which one. */
     [[nodiscard]] Grip   gripAt(const QPointF& local, int* handleIndex = nullptr) const;
     [[nodiscard]] QRectF handleRect(int index) const;   //!< The rectangle a handle occupies, in item coordinates.
 

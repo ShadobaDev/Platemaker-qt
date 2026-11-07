@@ -71,7 +71,7 @@ qreal spread(QRandomGenerator& rng, int percent)
 }
 
 /**
- * @brief Adds one ring of strokes along every closed edge in @p edges.
+ * \brief Adds one ring of strokes along every closed edge in @p edges.
  *
  * Strokes are spread evenly by arc length, not by angle, which would crowd them at the ends of a wide
  * oval: the edge's perimeter is divided into whole steps near the pitch, so there is no seam where the
@@ -204,7 +204,7 @@ qreal taperAt(qreal u, qreal taper)
 }
 
 /**
- * @brief The brush's strokes along every closed edge of @p silhouette.
+ * \brief The brush's strokes along every closed edge of @p silhouette.
  *
  * Each edge is shared out among `brushStrokes` strokes, their joins scattered off the even share and
  * each running `brushOverlap` past the next one's start, so they overlap and do not quite close. A stroke
@@ -320,7 +320,7 @@ constexpr qreal   k_coreMiter     = 6.0;
 constexpr quint32 k_bristleStream = 0xC2B2AE35u;
 
 /**
- * @brief Smooth noise round a closed edge @p length long, about @p wave per span: a whole number of
+ * \brief Smooth noise round a closed edge @p length long, about @p wave per span: a whole number of
  *        spans to the lap, repeating, so it closes on itself where the walk does.
  */
 qreal loopedNoise(quint32 seed, qreal at, qreal length, qreal wave)
@@ -394,7 +394,7 @@ std::vector<EdgeCorner> cornersOf(const EdgeWalk& edge)
 }
 
 /**
- * @brief The dry brush round every closed edge of @p silhouette.
+ * \brief The dry brush round every closed edge of @p silhouette.
  *
  * A **core**, `drybrushCore` of the line's width, is the plain outline, mitred so a point stays a
  * point: always whole, so the fill is never open to what is round it. Either side of it the rest of the
@@ -662,7 +662,7 @@ QPainterPath drybrushInk(const ObjectRecord& a, const QPainterPath& silhouette)
 }
 
 /**
- * @brief The line's half-width three times over, a hair run on across a corner reaching past it by its
+ * \brief The line's half-width three times over, a hair run on across a corner reaching past it by its
  *        lane and as far again; or the core's miter at a point, if a thick core reaches further.
  */
 qreal drybrushReach(const ObjectRecord& a)
@@ -714,7 +714,7 @@ constexpr qreal k_minPatternSpacing = 1.0;
 constexpr qreal k_minMark = 0.1;
 
 /**
- * @brief How far points lie from a shape's edge, up to a limit: positive inside, negative outside, in
+ * \brief How far points lie from a shape's edge, up to a limit: positive inside, negative outside, in
  *        balloon pixels; a point further than the limit is given the limit, with its sign.
  *
  * The shape is flattened once into edges, filed in square buckets as wide as the limit, so the nearest

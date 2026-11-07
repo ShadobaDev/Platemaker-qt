@@ -41,7 +41,7 @@ QString pt(const QPointF& p)
 }
 
 /**
- * @brief A QPainterPath as SVG path data. Qt paths hold only moves, lines and cubics, so this is total.
+ * \brief A QPainterPath as SVG path data. Qt paths hold only moves, lines and cubics, so this is total.
  *
  * **Every subpath is closed with its own Z**, not just the last one. That matters for stroking rather
  * than filling: SVG fills an open subpath as if it were closed, but strokes it as an open line, so a
@@ -156,7 +156,7 @@ QList<Tail> tailsFromText(const QString& s)
 }
 
 /**
- * @brief The `<defs>` block for \p a's style, and the `filter="..."` to hang on the group.
+ * \brief The `<defs>` block for \p a's style, and the `filter="..."` to hang on the group.
  *
  * Only primitives librsvg implements. Qt SVG implements neither feTurbulence nor feDisplacementMap, so
  * anything written here is invisible to Qt — which is precisely why a styled bubble is previewed by
@@ -193,7 +193,7 @@ QString styleDefs(const ObjectRecord& a, const QString& id)
 }
 
 /**
- * @brief The `<defs>` block for @p p's pattern, or nothing for a solid Paint.
+ * \brief The `<defs>` block for @p p's pattern, or nothing for a solid Paint.
  *
  * In the user space of the whole drawing (`userSpaceOnUse`), which is the box's, so the grid is laid from
  * the box's corner as the painter's brush is (Painter::paintBrush()), from the same cell.
@@ -238,7 +238,7 @@ QString paintAttr(const char* attr, const Paint& p, const QString& id)
 }
 
 /**
- * @brief The Paint shadow @p s, drawn as @p paths, is written with, and the opacity of the group it is in:
+ * \brief The Paint shadow @p s, drawn as @p paths, is written with, and the opacity of the group it is in:
  *        shadowPaint() for one that does not grow, shadowLayerPaint() for one that does.
  */
 Paint shadowPaintFor(const Shadow& s, const Paint& fill, const Geometry::ShadowPaths& paths, qreal* opacity)
@@ -251,7 +251,7 @@ Paint shadowPaintFor(const Shadow& s, const Paint& fill, const Geometry::ShadowP
 }
 
 /**
- * @brief Shadow @p s, drawn as @p paths (Geometry::shadowOf()), at @p indent: the balloon's and the
+ * \brief Shadow @p s, drawn as @p paths (Geometry::shadowOf()), at @p indent: the balloon's and the
  *        letters' alike. One that does not grow is its path; one that does is a group, given the shadow's
  *        alpha once, of its body and a round stroke `2 × grow` wide over it, both opaque, so they do not
  *        darken where they overlap. Blurred by @p blurId, patterned by @p fillId (their `<defs>`).
@@ -390,7 +390,7 @@ QString fileFontFamily(const ObjectRecord& a)
 }
 
 /**
- * @brief The lettering's `pm:` attributes, with the family a file records (fileFontFamily()), and then
+ * \brief The lettering's `pm:` attributes, with the family a file records (fileFontFamily()), and then
  *        `pm:fontFallback` when the words were set in a stand-in.
  *
  * The family asked for is kept whatever happened; the fallback says what the outlines were actually set
@@ -414,7 +414,7 @@ const QString k_textShadowId     = QStringLiteral("pm-text-shadow");
 const QString k_textShadowFillId = QStringLiteral("pm-text-shadow-fill");
 
 /**
- * @brief The lettering's elements, @p text (Geometry::textOutline()) and its @p shadow
+ * \brief The lettering's elements, @p text (Geometry::textOutline()) and its @p shadow
  *        (Geometry::textShadowOf()), each on a line of its own at
  *        @p indent: the one place words are written, over a balloon (in its own group) and over a picture
  *        alike. Nothing for no words.
@@ -683,9 +683,9 @@ ObjectRecord::Map readOverlays(const std::vector<Platemaker::Models::StripOverla
 // ---------------------------------------------------------------------------------------------------
 
 /**
- * @brief The media type of @p file, from its suffix — what a data URI has to declare.
- * @param file The file to determine the media type for.
- * @return The media type as a string.
+ * \brief The media type of @p file, from its suffix — what a data URI has to declare.
+ * \param file The file to determine the media type for.
+ * \return The media type as a string.
  */
 QString pictureMime(const QString& file)
 {
@@ -699,13 +699,13 @@ QString pictureMime(const QString& file)
 }
 
 /**
- * @brief Writes \p a into the workspace's overlays/ directory as an SVG.
+ * \brief Writes \p a into the workspace's overlays/ directory as an SVG.
  *
  * The file the library composites **is** the authoring record: the artwork every renderer can draw,
  * plus the editor's parameters in a namespace renderers ignore. There is no separate sidecar and no
  * intermediate raster.
  *
- * @param reusePath The file this overlay already owns, overwritten in place. Empty for a new overlay,
+ * \param reusePath The file this overlay already owns, overwritten in place. Empty for a new overlay,
  *                  which is then named by content hash — that name is also what makes two identical
  *                  bubbles share one file, the same dedup the library's inventory performs.
  *
@@ -714,7 +714,7 @@ QString pictureMime(const QString& file)
  * has gone: the undo snapshot carries the full authoring record, so a previous rendering is regenerated
  * from it (see Project::rewriteOverlayAssets()) rather than recovered from a file kept alive for it.
  *
- * @return The asset's absolute path, or empty when it could not be written.
+ * \return The asset's absolute path, or empty when it could not be written.
  */
 QString writeFile(const QString& overlaysDir, const ObjectRecord& a, const QString& reusePath)
 {

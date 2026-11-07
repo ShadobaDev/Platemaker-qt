@@ -12,7 +12,7 @@
 namespace Ui { class TemplatesDialog; }
 
 /**
- * @brief Manage and (re)generate canvas-profile templates for one workspace.
+ * \brief Manage and (re)generate canvas-profile templates for one workspace.
  *
  * Operates on a live Workspace reference (like the Project widget). Templates (PSD or PNG, per the
  * profile's templateSettings, at its dpi) are written into a "templates" subfolder beside the
@@ -27,7 +27,7 @@ class TemplatesDialog : public QDialog
 
 public:
     /**
-     * @brief  Staleness of a canvas profile's generated template, relative to its current canvas and resolution.
+     * \brief  Staleness of a canvas profile's generated template, relative to its current canvas and resolution.
      */
     enum class TemplateStatus {
         NotGenerated,   //!< No template has been generated in this format for this profile.
@@ -37,7 +37,7 @@ public:
     };
 
     /**
-     * @brief One template of a profile, checked: its status and, when it is not up to date, why — in
+     * \brief One template of a profile, checked: its status and, when it is not up to date, why — in
      *        words for the status column, its tooltip and the status bar.
      */
     struct TemplateState {
@@ -47,10 +47,10 @@ public:
     };
 
     /**
-     * @brief Constructs the dialog and populates the template table for \p workspace.
-     * @param workspace A reference to the workspace whose canvas profiles are managed.
-     * @param workspaceDir The workspace's directory, used to resolve/locate the "templates" subfolder.
-     * @param parent The parent widget, if any.
+     * \brief Constructs the dialog and populates the template table for \p workspace.
+     * \param workspace A reference to the workspace whose canvas profiles are managed.
+     * \param workspaceDir The workspace's directory, used to resolve/locate the "templates" subfolder.
+     * \param parent The parent widget, if any.
      */
     explicit TemplatesDialog(Platemaker::Models::Workspace& workspace,
                              const QString& workspaceDir,
@@ -58,15 +58,15 @@ public:
     ~TemplatesDialog() override;   //!< Destroys the dialog and cleans up resources.
 
     /**
-     * @brief Generates the template for \p cp into <workspaceDir>/templates/ as the profile asks
+     * \brief Generates the template for \p cp into <workspaceDir>/templates/ as the profile asks
      * (TemplateGenerator::optionsFor: its dpi, format and empty layer), replacing that format's entry in
      * cp.templates on success (the other format's stays). The file is named after the profile, plus
      * what sets it apart from a different profile of the same name. Reused by MainWindow's
      * quick-generate button, so both give the same file.
-     * @param ws The workspace supplying the default output profile used for slice-guide lines.
-     * @param workspaceDir The workspace's directory (templates are written under its "templates" subfolder).
-     * @param cp The canvas profile to generate a template for; its templates are updated on success.
-     * @param err Filled with an error message on failure.
+     * \param ws The workspace supplying the default output profile used for slice-guide lines.
+     * \param workspaceDir The workspace's directory (templates are written under its "templates" subfolder).
+     * \param cp The canvas profile to generate a template for; its templates are updated on success.
+     * \param err Filled with an error message on failure.
      * \return true on success; false on failure (cp is left untouched).
      */
     static bool generateTemplate(const Platemaker::Models::Workspace& ws,
@@ -75,9 +75,9 @@ public:
                                  QString& err);
 
     /**
-     * @brief Checks @p cp's template in @p format against the profile and the file
+     * \brief Checks @p cp's template in @p format against the profile and the file
      *        (Core::TemplateGenerator::check()), with the reasons put into words.
-     * @param palette Every canvas profile — to notice a different profile that overwrote the same file.
+     * \param palette Every canvas profile — to notice a different profile that overwrote the same file.
      */
     static TemplateState stateOf(const std::vector<Platemaker::Models::CanvasProfile>& palette,
                                  const Platemaker::Models::CanvasProfile& cp,
@@ -92,12 +92,12 @@ public:
     static QString statusText(TemplateStatus status);   //!< Returns the user-facing label for a TemplateStatus value.
 
     /**
-     * @brief When the file a generation would write already exists — the profile's template in the
+     * \brief When the file a generation would write already exists — the profile's template in the
      * format its settings ask for — asks the user to confirm overwriting it (the message states
      * whether it is up to date or outdated). A template in the other format is written beside it.
-     * @param parent The parent widget for the confirmation dialog.
-     * @param cp The canvas profile whose template would be overwritten.
-     * @param workspaceDir The workspace's directory, used to resolve the template's stored relative path.
+     * \param parent The parent widget for the confirmation dialog.
+     * \param cp The canvas profile whose template would be overwritten.
+     * \param workspaceDir The workspace's directory, used to resolve the template's stored relative path.
      * \return true to proceed; always true when there is nothing to overwrite.
      */
     static bool confirmOverwrite(QWidget* parent,

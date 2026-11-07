@@ -16,7 +16,7 @@ class QSpinBox;
 namespace StripEdit {
 
 /**
- * @brief What the balloon says, and how it is set.
+ * \brief What the balloon says, and how it is set.
  *
  * Content and typography in one editor because one person sets both in one pass, and because the split
  * that matters is elsewhere: a **preset** carries the typography and never the content.

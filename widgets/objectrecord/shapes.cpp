@@ -199,7 +199,7 @@ QList<QPointF> polygonPoints(const ShapeProperties& shape, const QRectF& r)
 }
 
 /**
- * @brief The nodes joined by straight edges, each corner rounded by an arc of `cornerRadius`.
+ * \brief The nodes joined by straight edges, each corner rounded by an arc of `cornerRadius`.
  *
  * A corner's arc is tangent to both its edges, and never reaches past the middle of either, so two
  * neighbouring corners cannot overlap; a sharp corner therefore rounds less than a wide one. The arc is
@@ -251,7 +251,7 @@ QPainterPath polygonPath(const ShapeProperties& shape, const QRectF& r)
 }
 
 /**
- * @brief The largest axis-aligned rectangle inside @p outline, found on a grid of samples over @p body.
+ * \brief The largest axis-aligned rectangle inside @p outline, found on a grid of samples over @p body.
  *
  * For an outline with no formula of its own: each row of samples is filled between the outline's
  * crossings (by its own fill rule), and the largest rectangle of inside samples wins, the one nearest the
@@ -373,7 +373,7 @@ QRectF polygonArea(const ShapeProperties& shape, const QRectF& body)
 // ---------------------------------------------------------------------------
 
 /**
- * @brief The nodes joined by cubic segments, each leaving a node along its out-handle and arriving along
+ * \brief The nodes joined by cubic segments, each leaving a node along its out-handle and arriving along
  *        the next one's in-handle; straight where neither has one. Filled by the non-zero rule, as a
  *        Polygon is.
  */
@@ -406,7 +406,7 @@ QRectF curveArea(const ShapeProperties& shape, const QRectF& body)
 // ---------------------------------------------------------------------------
 
 /**
- * @brief One corner, as far as its rounding is concerned: where the middle of its arc sits for a radius,
+ * \brief One corner, as far as its rounding is concerned: where the middle of its arc sits for a radius,
  *        and back. The same rule polygonPath() rounds by, and the Box's, whose corners are right angles.
  */
 struct Corner
@@ -532,7 +532,7 @@ ShapeProperties dragPolygonHandle(const ShapeProperties& shape, const QRectF& bo
 }
 
 /**
- * @brief A cubic segment from @p a to @p b cut in half (de Casteljau), relative to the body as the nodes
+ * \brief A cubic segment from @p a to @p b cut in half (de Casteljau), relative to the body as the nodes
  *        are: the halves' new handles and the point between them. A straight one is cut at its middle,
  *        with no handles.
  */
@@ -580,7 +580,7 @@ QList<ShapeHandle> curveHandles(const ShapeProperties& shape, const QRectF& body
 }
 
 /**
- * @brief @p node's other handle put where its type says, after the one @p movedOut names was moved: on
+ * \brief @p node's other handle put where its type says, after the one @p movedOut names was moved: on
  *        one line through the node, for a Smooth one as long as it was, for a Symmetric one as long as
  *        the moved one. In pixels, where "on one line" and "as long" are what the eye sees.
  */
@@ -656,7 +656,7 @@ ShapeNode::Type typeOf(const ShapeNode& node, const QRectF& body)
 // ---------------------------------------------------------------------------
 
 /**
- * @brief Appends the arc of the ellipse round @p c with radii @p rx, @p ry, from parameter @p start on by
+ * \brief Appends the arc of the ellipse round @p c with radii @p rx, @p ry, from parameter @p start on by
  *        @p sweep (radians, clockwise on screen), as cubics of at most a quarter turn; @p p is at its start.
  *
  * Not QPainterPath::arcTo(): that finds the arc's first point on its own Bézier approximation, a few
@@ -693,7 +693,7 @@ QPointF lobeCentre(int i, int n, qreal lobe, const QRectF& r)
 }
 
 /**
- * @brief The parameter between @p from and @p to where the inner ellipse @p at crosses the circle round
+ * \brief The parameter between @p from and @p to where the inner ellipse @p at crosses the circle round
  *        @p c of radius @p radius, inside it at @p from and outside at @p to (or the other way round).
  */
 qreal crossing(const std::function<QPointF(qreal)>& at, const QPointF& c, qreal radius, qreal from, qreal to)
@@ -708,7 +708,7 @@ qreal crossing(const std::function<QPointF(qreal)>& at, const QPointF& c, qreal 
 }
 
 /**
- * @brief A cloud: a ring of circles around an inner ellipse, the outline of their union.
+ * \brief A cloud: a ring of circles around an inner ellipse, the outline of their union.
  *
  * Built from arcs rather than by uniting circles, so the path is a few cubics a lobe (and *Convert to
  * Curve* gets a node per arc piece, not a polygon of hundreds), and nothing is computed by clipping.
@@ -856,7 +856,7 @@ std::pair<int, qreal> teethOf(qreal length, const ShapeProperties& shape)
 }
 
 /**
- * @brief @p walk's edge pushed in by @p depthAt(s) at each of @p stations (distances along it) and at each
+ * \brief @p walk's edge pushed in by @p depthAt(s) at each of @p stations (distances along it) and at each
  *        of its own corners, in order; never deeper than @p depth.
  *
  * The corners are what keep the shape: a point between two stations would otherwise be cut off by the
@@ -927,7 +927,7 @@ QPolygonF pushedIn(const EdgeWalk& walk, bool clockwise, const std::vector<qreal
 }
 
 /**
- * @brief A zigzag: straight teeth from the outline in to a valley `edgeDepth` deep, halfway between.
+ * \brief A zigzag: straight teeth from the outline in to a valley `edgeDepth` deep, halfway between.
  *
  * The points stay on the outline and the valleys go in, so the balloon keeps its bounds. Irregularity
  * makes each valley shallower by up to its share and moves it along by up to a quarter of a tooth,
@@ -982,7 +982,7 @@ const std::array<EdgeInfo, int(ShapeProperties::k_lastEdge) + 1> k_edges{{
 }};
 
 /**
- * @brief Where the edge's depth handle sits: on the bare outline at its first valley, and the way in
+ * \brief Where the edge's depth handle sits: on the bare outline at its first valley, and the way in
  *        there. Invalid with no edge, or no outline.
  */
 struct DepthAnchor
@@ -1052,7 +1052,7 @@ QPointF saved(const QPointF& p)
 }
 
 /**
- * @brief A sharp-cornered Polygon through @p nodes, rounded to the decimals a node is saved with, so a
+ * \brief A sharp-cornered Polygon through @p nodes, rounded to the decimals a node is saved with, so a
  *        placed template reads back from its file as itself.
  */
 ShapeProperties polygon(const QList<QPointF>& nodes)
@@ -1074,7 +1074,7 @@ ShapeProperties curve(const QList<ShapeNode>& nodes)
 }
 
 /**
- * @brief An unrolled scroll: bowed long edges, and a rolled end on each side that is half an ellipse.
+ * \brief An unrolled scroll: bowed long edges, and a rolled end on each side that is half an ellipse.
  *
  * Each long edge is a quadratic, as a cubic: its handles two thirds of the way to the quadratic's one.
  * Each rolled end is two quarters of an ellipse, through the end's outermost point.

@@ -20,7 +20,7 @@ class PresetStore;
 class StripLayout;
 
 /**
- * @brief OBJECT STACK: every object in composite order, with the strip and its pages pinned under them.
+ * \brief OBJECT STACK: every object in composite order, with the strip and its pages pinned under them.
  *
  * A **stack**: row 0 is the front-most object, and a row covers every row below it wherever they
  * overlap. A bubble's tails are rows of their own, nested under it; the strip's pages nest under the
@@ -39,11 +39,11 @@ class ObjectStack : public QObject
 
 public:
     /**
-     * @param tree     The form's object stack.
-     * @param objects  What the rows show, and what they report to.
-     * @param layout   The strip's pages, for the strip's own rows.
-     * @param presets  For the chip naming the preset an object still matches.
-     * @param palette  Whose palette greys an unanchored row — the editor's.
+     * \param tree     The form's object stack.
+     * \param objects  What the rows show, and what they report to.
+     * \param layout   The strip's pages, for the strip's own rows.
+     * \param presets  For the chip naming the preset an object still matches.
+     * \param palette  Whose palette greys an unanchored row — the editor's.
      */
     ObjectStack(QTreeWidget* tree, ObjectController& objects, const StripLayout& layout,
                 PresetStore& presets, const QWidget* palette, QObject* parent);
@@ -52,7 +52,7 @@ public:
     void setExcludedPages(const QSet<QString>& inputUids);
 
     /**
-     * @brief Brings every row in line with the controller — **updated in place, never cleared and refilled**.
+     * \brief Brings every row in line with the controller — **updated in place, never cleared and refilled**.
      *
      * The tree is where an object is picked out precisely, and every edit comes back as a feed, so a tree
      * rebuilt on each feed would lose what the artist had opened, selected or scrolled to at exactly the
@@ -87,13 +87,13 @@ private:
 
     bool    m_syncing = false;   //!< Set while this class moves the rows, so the tree's signals are its own echo.
     /**
-     * @brief Coalesces a drag in the tree into one commit. A tree moves a row by taking it out and inserting it
+     * \brief Coalesces a drag in the tree into one commit. A tree moves a row by taking it out and inserting it
      *        again, so one gesture can arrive as more than one model signal; they all restart this, and it
      *        fires once, after the drop has finished.
      */
     QTimer* m_orderCommit = nullptr;
     /**
-     * @brief Set from the moment a drag starts taking a row out until the commit above has run. Taking a row
+     * \brief Set from the moment a drag starts taking a row out until the commit above has run. Taking a row
      *        out drops its selection, and without this the tree would report a deselection nobody asked for.
      */
     bool    m_rowsMoving = false;

@@ -15,7 +15,7 @@
 #include <platemaker/models/project_item.hpp>
 
 /**
- * @brief Runs Core::ProcessingPipeline on a worker thread, marshalling progress,
+ * \brief Runs Core::ProcessingPipeline on a worker thread, marshalling progress,
  *        logs and per-slice notifications to the GUI via queued signals.
  *
  * The worker is constructed with COPIES of everything it needs (input files,
@@ -30,15 +30,15 @@ class RenderWorker : public QObject
 
 public:
     /**
-     * @brief Constructs a worker holding copies of everything needed to run a render,
+     * \brief Constructs a worker holding copies of everything needed to run a render,
      * so it never touches the live workspace.
-     * @param inputs The input files to process.
-     * @param outProfile The output profile (format/size/quality) to render with.
-     * @param canvasProfiles The workspace's canvas profiles, copied for lookup by ID.
-     * @param canvasProfileIds The IDs of the canvas profiles assigned to the project being rendered.
-     * @param outputDir The directory slices are written into.
-     * @param cancel A cancellation token owned by MainWindow, checked during the run; must outlive the worker.
-     * @param parent The parent object, if any.
+     * \param inputs The input files to process.
+     * \param outProfile The output profile (format/size/quality) to render with.
+     * \param canvasProfiles The workspace's canvas profiles, copied for lookup by ID.
+     * \param canvasProfileIds The IDs of the canvas profiles assigned to the project being rendered.
+     * \param outputDir The directory slices are written into.
+     * \param cancel A cancellation token owned by MainWindow, checked during the run; must outlive the worker.
+     * \param parent The parent object, if any.
      */
     RenderWorker(std::vector<Platemaker::Models::InputFile>     inputs,
                  Platemaker::Models::OutputProfile              outProfile,

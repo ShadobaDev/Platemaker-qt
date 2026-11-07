@@ -9,7 +9,7 @@ class Advisories;
 class QHBoxLayout;
 
 /**
- * @brief A strip of advisory chips for one project, kept in step with the registry by itself.
+ * \brief A strip of advisory chips for one project, kept in step with the registry by itself.
  *
  * The registry was always meant to have more than one subscriber; what was missing was a **surface**
  * any window could host. A floating strip editor is its own top-level window with no status bar, so
@@ -31,7 +31,7 @@ class AdvisoryBar : public QWidget
 
 public:
     /**
-     * @param registry What to subscribe to. Held as a `QPointer` — the registry belongs to the
+     * \param registry What to subscribe to. Held as a `QPointer` — the registry belongs to the
      *                 application and a bar can be destroyed with its window at any time, but the
      *                 reverse also has to be survivable.
      */
@@ -41,7 +41,7 @@ public:
     void setProjectUid(const QString& projectUid);
 
     /**
-     * @brief Whether this bar is wanted at all.
+     * \brief Whether this bar is wanted at all.
      *
      * A host whose window already shows these advisories somewhere else turns its bar off rather than
      * destroying it, so it can come back the moment that stops being true — a dock being dragged out

@@ -8,7 +8,7 @@ class QToolButton;
 class QVBoxLayout;
 
 /**
- * @brief A titled row that folds one widget away.
+ * \brief A titled row that folds one widget away.
  *
  * Qt has no such thing: a checkable `QGroupBox` puts a checkbox in the title that means *enabled*, not
  * *expanded*, and reads as "turn this off" to anyone who has met one before. This is the other idiom —
@@ -30,7 +30,7 @@ public:
     explicit CollapsibleSection(const QString& title, QWidget* parent = nullptr);
 
     /**
-     * @brief Puts \p content inside, taking it into this widget's layout.
+     * \brief Puts \p content inside, taking it into this widget's layout.
      *
      * One content widget per section. Calling it again replaces the previous one, which is not the
      * expected use — a section is built once and then bound to different subjects.

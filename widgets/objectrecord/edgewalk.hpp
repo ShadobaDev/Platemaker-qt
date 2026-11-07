@@ -52,7 +52,7 @@ private:
 [[nodiscard]] QList<EdgeWalk> edgeWalks(const QPainterPath& path);
 
 /**
- * @brief Smooth seeded noise along a line, in [-1, 1]: a random value at every whole @p x, eased from one
+ * \brief Smooth seeded noise along a line, in [-1, 1]: a random value at every whole @p x, eased from one
  *        to the next. The same @p seed gives the same curve, so whatever follows it stays put while the
  *        balloon is edited.
  *

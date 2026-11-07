@@ -14,7 +14,7 @@
 namespace StripEdit {
 
 /**
- * @brief The core stretch's spin: its lowest value is *Auto*, shown with the value the shape gives.
+ * \brief The core stretch's spin: its lowest value is *Auto*, shown with the value the shape gives.
  *
  * `specialValueText` is already taken by *Mixed* (showSpin()), so Auto is drawn by textFromValue().
  */

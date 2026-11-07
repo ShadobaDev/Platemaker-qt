@@ -18,7 +18,7 @@
 namespace StripEdit {
 
 /**
- * @brief How long typing is coalesced before it becomes one history step.
+ * \brief How long typing is coalesced before it becomes one history step.
  *
  * Part of the panels' shared contract rather than one panel's number: OBJECT STATE's two object panels both
  * debounce, and two copies of a timing that is supposed to feel the same is how they come to feel
@@ -45,7 +45,7 @@ inline constexpr int k_tailWidthMaxPx  = 400;
 inline constexpr int k_tailBendPercent = 100;   //!< A tail bends ±this, as a percentage of its length.
 
 /**
- * @brief One property group's controls, bound to whatever is selected.
+ * \brief One property group's controls, bound to whatever is selected.
  *
  * The contract that stops two editors overwriting each other. An editor **reads** its subject through
  * bind() and **writes** through applyTo(), which touches only the properties its group owns — so
@@ -68,7 +68,7 @@ class PropertyGroupEditor : public QWidget
 
 public:
     /**
-     * @brief What is being edited — one record today, several once multi-selection lands.
+     * \brief What is being edited — one record today, several once multi-selection lands.
      *
      * Plural from the first line of code on purpose: retrofitting many subjects into every editor
      * later is the expensive version of this change. Until a selection model can produce more than
@@ -91,7 +91,7 @@ public:
     void bindOne(const ObjectRecord& subject) { bind(Subjects{&subject}); }
 
     /**
-     * @brief Writes into @p target only the properties the artist has **touched** since bind().
+     * \brief Writes into @p target only the properties the artist has **touched** since bind().
      *
      * The whole-group write is right for one object and wrong for several: it would stamp the first
      * object's other values onto everything else in the selection. Editors that can be bound to a set
@@ -105,13 +105,13 @@ signals:
 };
 
 /**
- * @brief Puts \p c on \p swatch as an icon.
+ * \brief Puts \p c on \p swatch as an icon.
  *
  * An icon rather than a stylesheet: the button keeps the theme's own look (see the "inherit, don't
  * hardcode colours" rule) and only carries the chosen colour as a chip.
  */
 /**
- * @brief Shows @p c on @p swatch — framed, chequered under transparency, and named in the tooltip.
+ * \brief Shows @p c on @p swatch — framed, chequered under transparency, and named in the tooltip.
  *
  * A bare square of colour is unreadable at both ends of the range: black on a dark theme and white on a
  * light one vanish into the button, which is exactly when the artist most needs to see what they picked.
@@ -145,7 +145,7 @@ inline void paintColourSwatch(QPushButton* swatch, const QColor& c)
 }
 
 /**
- * @brief Shows @p value in @p spin, or **Mixed** when the selection disagrees.
+ * \brief Shows @p value in @p spin, or **Mixed** when the selection disagrees.
  *
  * A spin box has no third state, so the value one below its minimum becomes the sentinel and Qt's own
  * `specialValueText` renders it. Stepping or typing leaves the sentinel behind, which is what tells the
@@ -201,7 +201,7 @@ inline bool restoreSpin(QDoubleSpinBox* spin, double min)
 }
 
 /**
- * @brief Shows entry @p index in @p combo, or **Mixed** when the selection disagrees.
+ * \brief Shows entry @p index in @p combo, or **Mixed** when the selection disagrees.
  *
  * No fake entry in the list: an unset combo shows its placeholder, so *Mixed* cannot be picked by
  * accident and cannot end up written to anything.
@@ -222,7 +222,7 @@ inline void showCheck(QCheckBox* box, bool mixed, bool on)
 }
 
 /**
- * @brief Marks a colour swatch as **Mixed** — the selection disagrees about this colour.
+ * \brief Marks a colour swatch as **Mixed** — the selection disagrees about this colour.
  *
  * A chequer rather than one of the colours, because showing any single value here would be the panel
  * claiming something about objects that do not have it. Pressing it still picks, and the pick then

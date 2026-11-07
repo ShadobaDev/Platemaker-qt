@@ -17,7 +17,7 @@ namespace StripEdit {
 class PresetStore;
 
 /**
- * @brief Options for the Bubble and Text tools: **what the next object will be**.
+ * \brief Options for the Bubble and Text tools: **what the next object will be**.
  *
  * One panel for both, because they author the same object — the Text tool is an `ObjectRecord` with no
  * shape. Switching between them hides the shape group rather than swapping in a second panel, so there
@@ -39,7 +39,7 @@ public:
     BubbleToolOptions(PresetStore& presets, QWidget* parent = nullptr);
 
     /**
-     * @brief The shape the active tool places — or no value, when the artist picks it here.
+     * \brief The shape the active tool places — or no value, when the artist picks it here.
      *
      * The Bubble tool passes no value and the shape tiles are shown; the Text tool passes `Shape::None`
      * and the tiles go away, because a tool that places one shape has already answered that question. prototype() then applies it **over** the artist's pick without
@@ -54,7 +54,7 @@ public:
     [[nodiscard]] ObjectRecord prototype() const;
 
     /**
-     * @brief The silhouette the tiles are set to — **the artist's own pick, never the active tool's**.
+     * \brief The silhouette the tiles are set to — **the artist's own pick, never the active tool's**.
      *
      * The whole shape group, parameters and nodes included: what *Convert to ▸ Balloon* arrives at, and
      * what the Bubble tool places. Never `None`: the tiles do not offer "no balloon", because that is a
@@ -74,7 +74,7 @@ private:
     PresetStore& m_presets;
 
     /**
-     * @brief Re-decides what *Delete* acts on: the preset these values **are**, if they are one.
+     * \brief Re-decides what *Delete* acts on: the preset these values **are**, if they are one.
      *
      * There is no chip here. OBJECT STATE wears one because a selected object's look is a question the panel
      * cannot otherwise answer; here every property a preset covers is on screen a few points below, so

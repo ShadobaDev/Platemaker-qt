@@ -21,7 +21,7 @@ namespace StripEdit {
 class StripLayout;
 
 /**
- * @brief "Give me page \p n at the best fidelity available." — the strip's page memory.
+ * \brief "Give me page \p n at the best fidelity available." — the strip's page memory.
  *
  * One sentence, no "and": everything about *how a page becomes pixels* lives here — the feed the
  * library needs, the blurry-proxy and sharp tiers, the graded previews, the LRU caps that keep RAM
@@ -41,7 +41,7 @@ public:
     explicit PageSource(const StripLayout& layout, QObject* parent = nullptr);
 
     /**
-     * @brief Adopts a new feed, and says whether it is actually a different strip.
+     * \brief Adopts a new feed, and says whether it is actually a different strip.
      *
      * Everything that can move a page on the strip, and nothing else, goes into a signature. The owner
      * refreshes the editor on any project edit — a settled slider drag included — and a rebuild drops
@@ -50,7 +50,7 @@ public:
      * render stamps without any page moving. A page edited on disk therefore does not refresh by
      * itself; re-opening the editor or rendering picks it up.
      *
-     * @return \c true when the feed changed and the strip must be rebuilt.
+     * \return \c true when the feed changed and the strip must be rebuilt.
      */
     bool setFeed(const std::vector<Platemaker::Models::InputFile>&     inputs,
                  const Platemaker::Models::OutputProfile&              outProfile,
@@ -59,7 +59,7 @@ public:
                  const QString&                                        cacheDir);
 
     /**
-     * @brief Where each page lands, from the library's page domain — header reads only, no decoding.
+     * \brief Where each page lands, from the library's page domain — header reads only, no decoding.
      *
      * The numbers come from the same code a render uses, so the strip laid out from this is the strip
      * a render would build, before any render exists.
@@ -83,7 +83,7 @@ public:
     [[nodiscard]] QPixmap gradedOf(int index) const; //!< Graded preview. Null when the grade is off.
 
     /**
-     * @brief Adopts a grade, and says whether it actually changed anything.
+     * \brief Adopts a grade, and says whether it actually changed anything.
      *
      * The same grade arrives repeatedly — the owner re-feeds on every project edit, and the panel
      * persists a settled drag while still emitting live values — so re-grading for it would double the

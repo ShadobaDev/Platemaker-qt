@@ -19,12 +19,12 @@ const auto k_presetsKey = QStringLiteral("bubblePresets");
 const auto k_packMarker = QStringLiteral("platemakerBubblePresets");
 
 /**
- * @brief A preset is a record with its content removed.
+ * \brief A preset is a record with its content removed.
  *
  * Dropping the keys rather than listing the ones to keep is what makes this stay correct: a styling
  * field added to ObjectRecord is carried by ().toJson() and lands in presets for free, while a new
  * *content* field is the only thing that needs a line here.
- * @param name  The name the artist gave this preset, which is what they pick it by.
+ * \param name  The name the artist gave this preset, which is what they pick it by.
  */
 QJsonObject presetToJson(const BubblePreset& p)
 {
@@ -37,9 +37,9 @@ QJsonObject presetToJson(const BubblePreset& p)
 }
 
 /**
- * @brief The absent content keys fall back to ObjectRecord's own defaults, which is exactly what is wanted.
- * @param j  The JSON object representing the preset.
- * @return The BubblePreset constructed from the JSON object.
+ * \brief The absent content keys fall back to ObjectRecord's own defaults, which is exactly what is wanted.
+ * \param j  The JSON object representing the preset.
+ * \return The BubblePreset constructed from the JSON object.
  */
 BubblePreset presetFromJson(const QJsonObject& j)
 {
@@ -47,10 +47,10 @@ BubblePreset presetFromJson(const QJsonObject& j)
 }
 
 /**
- * @brief Converts a list of presets to a JSON array, starting at \p from.
- * @param presets  The list of presets to convert.
- * @param from     The index to start from in the list.
- * @return A JSON array representing the presets.
+ * \brief Converts a list of presets to a JSON array, starting at \p from.
+ * \param presets  The list of presets to convert.
+ * \param from     The index to start from in the list.
+ * \return A JSON array representing the presets.
  */
 QJsonArray presetsToArray(const QList<BubblePreset>& presets, int from)
 {
@@ -61,9 +61,9 @@ QJsonArray presetsToArray(const QList<BubblePreset>& presets, int from)
 }
 
 /**
- * @brief Converts a JSON array to a list of presets.
- * @param arr  The JSON array to convert.
- * @return A list of BubblePreset constructed from the JSON array.
+ * \brief Converts a JSON array to a list of presets.
+ * \param arr  The JSON array to convert.
+ * \return A list of BubblePreset constructed from the JSON array.
  */
 QList<BubblePreset> presetsFromArray(const QJsonArray& arr)
 {
@@ -78,7 +78,7 @@ QList<BubblePreset> presetsFromArray(const QJsonArray& arr)
 }
 
 /**
- * @brief The looks a lettering session starts from, as code rather than as a shipped file.
+ * \brief The looks a lettering session starts from, as code rather than as a shipped file.
  *
  * They are parametric — a shape name and a handful of numbers — so there is nothing to install, nothing
  * to find at runtime and nothing to lose. They are also not deletable: "restore defaults" is a feature

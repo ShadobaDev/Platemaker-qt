@@ -16,7 +16,7 @@ class QSvgRenderer;
 namespace StripEdit {
 
 /**
- * @brief The selection's box, its eight grips and its tail handles — one item, above every object.
+ * \brief The selection's box, its eight grips and its tail handles — one item, above every object.
  *
  * They used to be drawn by each object in its own paint(), which put them at that object's place in
  * the stack: a balloon lower in the stack had its grips painted over, and its tail handle taken, by
@@ -51,7 +51,7 @@ public:
     explicit SelectionChrome(const QGraphicsView* view);
 
     /**
-     * @brief Re-reads the selection and where it is. Called whenever an object reports chromeChanged(),
+     * \brief Re-reads the selection and where it is. Called whenever an object reports chromeChanged(),
      *        the selection changes, or the zoom does (the grips are a fixed size on screen).
      */
     void refresh();

@@ -16,7 +16,7 @@
 namespace StripEdit {
 
 /**
- * @brief One drawable page in the strip: where it sits, what it is, and what an overlay anchors to.
+ * \brief One drawable page in the strip: where it sits, what it is, and what an overlay anchors to.
  *
  * "Drawable" excludes the pages a render would skip (missing or unreadable). They are dropped when the
  * layout is built, which is what keeps every page below them at the offset the render will give it.
@@ -31,7 +31,7 @@ struct Page
 };
 
 /**
- * @brief Where every page lands in the strip, and the queries the editor asks of that.
+ * \brief Where every page lands in the strip, and the queries the editor asks of that.
  *
  * Split out of the editor, where it lived as **four parallel QLists** indexed in lockstep — a struct
  * wearing four names, and one `append()` away from silently mismatching. It is also the part of the
@@ -46,10 +46,10 @@ class StripLayout
 {
 public:
     /**
-     * @brief Adopts a fresh layout from the library, dropping pages a render would skip.
+     * \brief Adopts a fresh layout from the library, dropping pages a render would skip.
      *
-     * @param geometry `ProcessingPipeline::layoutPagesFromHeaders()` output — header reads, no pixels.
-     * @param inputs   The feed, in strip order; supplies each page's uid and its index back into itself.
+     * \param geometry `ProcessingPipeline::layoutPagesFromHeaders()` output — header reads, no pixels.
+     * \param inputs   The feed, in strip order; supplies each page's uid and its index back into itself.
      */
     void build(const std::vector<Platemaker::Core::PagePreviewGeometry>& geometry,
                const std::vector<Platemaker::Models::InputFile>&         inputs);
@@ -70,7 +70,7 @@ public:
     [[nodiscard]] QRectF pageRect(int i) const;
 
     /**
-     * @brief Index of the page containing strip-Y \p y.
+     * \brief Index of the page containing strip-Y \p y.
      *
      * Clamps to the first page above the strip rather than returning -1, because the only caller that
      * matters is overlay placement: an anchored overlay is the only kind this editor should create, and
@@ -78,7 +78,7 @@ public:
      * Returns -1 only when there is no layout at all.
      */
     /**
-     * @brief The width every page was scaled to — the unit every overlay fraction is measured in.
+     * \brief The width every page was scaled to — the unit every overlay fraction is measured in.
      *
      * The same number the render passes to \c Models::resolveOverlayAnchors(). It is the strip's width
      * by construction: the page domain scales every page to the output profile's target width, so the
@@ -96,7 +96,7 @@ public:
     [[nodiscard]] int pageForAnchor(const QString& uid) const;
 
     /**
-     * @brief Scene position of \p o, resolving its page anchor against this layout.
+     * \brief Scene position of \p o, resolving its page anchor against this layout.
      *
      * The same arithmetic `Models::resolveOverlayAnchors()` performs at render time, which is why the
      * preview cannot disagree with the render about where a bubble lands. An unanchored overlay — an

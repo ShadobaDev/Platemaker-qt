@@ -109,6 +109,12 @@ Bug fixes, cosmetics and internal cleanups — no new capability, no change to a
 New, backward-compatible features. Several are gated on a lib version, noted in the item body.
 (The `[x]` items below shipped/ready to ship; the open ones re-derive to the next MINOR.)
 
+- [ ] **Show the effect of a canvas profile edit right away.** Adding, editing or duplicating a canvas
+  profile only refreshes the profile combos (`workspaceProfilesChanged`); the pages it now matches turn
+  amber, and the "Canvas profiles changed" dialog appears, only on reopen or render. Re-check every
+  project's pages, repaint the open docks' tiles, and summarise the affected pages per project, right
+  after the edit.
+
 - [ ] **Reopen a workspace the way it was left.** Which project docks and strip editors were open, and
   where (docked, tabbed, floating), is forgotten on close. Only the Action panel's collapse is remembered
   today (QSettings, app-wide). Open docks are per workspace, so this belongs with the workspace, not in

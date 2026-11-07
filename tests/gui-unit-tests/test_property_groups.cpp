@@ -1472,7 +1472,7 @@ TEST(Import, OnlyAFileCarryingTheRecipeIsAdopted)
     renamed.replace("pm:", "x:").replace("xmlns:x=", "xmlns:x=");
     renamed.replace("xmlns:pm=", "xmlns:x=");
     ok = false;
-    Svg::read(renamed, &ok);
+    (void)Svg::read(renamed, &ok);
     EXPECT_TRUE(ok);
 
     // A drawing with no recipe: read, and declined.
@@ -1480,7 +1480,7 @@ TEST(Import, OnlyAFileCarryingTheRecipeIsAdopted)
         "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"10\" height=\"10\">"
         "<rect width=\"10\" height=\"10\"/></svg>";
     ok = true;
-    Svg::read(foreign, &ok);
+    (void)Svg::read(foreign, &ok);
     EXPECT_FALSE(ok);
 
     // The same attributes under somebody else's namespace are somebody else's attributes.
@@ -1488,7 +1488,7 @@ TEST(Import, OnlyAFileCarryingTheRecipeIsAdopted)
         "<svg xmlns=\"http://www.w3.org/2000/svg\" xmlns:pm=\"https://example.invalid/ns/1\""
         " width=\"10\" height=\"10\"><g pm:shape=\"speech\" pm:box=\"10,10\"/></svg>";
     ok = true;
-    Svg::read(impostor, &ok);
+    (void)Svg::read(impostor, &ok);
     EXPECT_FALSE(ok);
 }
 

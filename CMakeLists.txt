@@ -142,6 +142,7 @@ qt_add_executable(Platemaker
     widgets/badge/badge.cpp widgets/badge/badge.hpp
     widgets/badge/badgeitemdelegate.cpp widgets/badge/badgeitemdelegate.hpp
     widgets/profiledistinction/profiledistinction.cpp widgets/profiledistinction/profiledistinction.hpp
+    widgets/profileimpact/profileimpact.cpp widgets/profileimpact/profileimpact.hpp
 
     # Advisories — the application-wide registry of "this will not do what you meant".
     widgets/advisories/advisories.cpp widgets/advisories/advisories.hpp
@@ -182,6 +183,7 @@ target_include_directories(Platemaker PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/widgets/verticallabel
     ${CMAKE_CURRENT_SOURCE_DIR}/widgets/badge
     ${CMAKE_CURRENT_SOURCE_DIR}/widgets/profiledistinction
+    ${CMAKE_CURRENT_SOURCE_DIR}/widgets/profileimpact
     ${CMAKE_CURRENT_SOURCE_DIR}/widgets/advisories
     ${CMAKE_CURRENT_SOURCE_DIR}/widgets/workspacefolder
 )

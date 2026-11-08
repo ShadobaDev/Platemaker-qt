@@ -1,4 +1,5 @@
 #include "mainwindow.hpp"
+#include "profileimpact.hpp"
 #include "ui_mainwindow.h"
 #include "project.hpp"
 #include "canvasprofiledialog.hpp"
@@ -119,6 +120,11 @@ void MainWindow::onManageCanvasProfiles()
                     .arg(QString::fromStdString(selected.name)));
         });
 
+    // Closing with the edits kept is where the workspace changes, so that is where pages it would put
+    // out of sync are listed.
+    dlg.setCommitCheck([this, &dlg](const std::vector<Platemaker::Models::CanvasProfile>& palette) {
+        return confirmCanvasPalette(&dlg, m_workspace, palette);
+    });
     if (dlg.exec() != QDialog::Accepted) return;
 
     // Hand the whole edited palette to the editor: it mints ids for new profiles, deduplicates,
@@ -147,6 +153,10 @@ void MainWindow::onNewCanvasProfile()
     // the dialog warns about an identical one instead of refusing it.
     CanvasProfileDialog dlg(this);
     dlg.setExistingProfiles(m_workspace.canvasProfiles());
+    dlg.setSaveCheck([this, &dlg](const Platemaker::Models::CanvasProfile& cp) {
+        return confirmCanvasPalette(&dlg, m_workspace, withProfile(
+            {m_workspace.canvasProfiles().begin(), m_workspace.canvasProfiles().end()}, cp));
+    });
     if (dlg.exec() != QDialog::Accepted) return;
 
     auto profile = dlg.profile();
@@ -191,6 +201,9 @@ void MainWindow::onEditActiveCanvasProfile()
     CanvasProfileDialog dlg(this);
     dlg.setProfile(*it);
     dlg.setExistingProfiles(m_workspace.canvasProfiles());
+    dlg.setSaveCheck([this, &dlg, &profiles](const Platemaker::Models::CanvasProfile& cp) {
+        return confirmCanvasPalette(&dlg, m_workspace, withProfile(profiles, cp));
+    });
     if (dlg.exec() != QDialog::Accepted) return;
 
     const std::string oldName = it->name;

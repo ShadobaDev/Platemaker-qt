@@ -159,6 +159,11 @@ void CanvasProfileDialog::setExistingProfiles(const std::vector<Platemaker::Mode
     m_existing = profiles;
 }
 
+void CanvasProfileDialog::setSaveCheck(std::function<bool(const Platemaker::Models::CanvasProfile&)> check)
+{
+    m_saveCheck = std::move(check);
+}
+
 void CanvasProfileDialog::onSaveClicked()
 {
     if (ui->lineEditName->text().trimmed().isEmpty()) {
@@ -184,6 +189,8 @@ void CanvasProfileDialog::onSaveClicked()
             return;
         break;
     }
+    if (m_saveCheck && !m_saveCheck(edited))
+        return;
     accept();
 }
 

@@ -1,6 +1,7 @@
 #ifndef MANAGECANVASPROFILESDIALOG_HPP
 #define MANAGECANVASPROFILESDIALOG_HPP
 
+#include <functional>
 #include <vector>
 #include <QDialog>
 #include <QList>
@@ -38,6 +39,17 @@ public:
     QList<Platemaker::Models::CanvasProfile> profiles() const;
     QString activeProfileName() const;                              //!< Retrieves the name of the currently active profile after the dialog is accepted.
 
+    /**
+     * \brief A last word on closing with the edits kept: called with the whole edited palette. Returning
+     *        false keeps the dialog open with the draft as it is.
+     *
+     * Asked here rather than on each profile's Save, because this is where the workspace changes, and
+     * because removing or reordering profiles changes pages too.
+     */
+    void setCommitCheck(std::function<bool(const std::vector<Platemaker::Models::CanvasProfile>&)> check);
+
+    void accept() override;   //!< Runs the commit check, then closes with the edits kept.
+
 signals:
     /**
      * \brief Emitted when the user clicks "Generate templates from active".
@@ -65,6 +77,7 @@ private:
 
     QList<Platemaker::Models::CanvasProfile> m_profiles;    //!< The list of canvas profiles being managed in the dialog.
     QString                  m_activeProfileName;           //!< The name of the currently active profile, used to mark it in the list and for template generation.
+    std::function<bool(const std::vector<Platemaker::Models::CanvasProfile>&)> m_commitCheck; //!< setCommitCheck(); empty = none.
 };
 
 #endif // MANAGECANVASPROFILESDIALOG_HPP

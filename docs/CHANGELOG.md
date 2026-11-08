@@ -4,6 +4,11 @@
 
 ### Added
 
+- **A canvas-profile change asks before it puts pages out of sync.** Saving one lists every project
+  it reaches, including projects with no window open, and what their pages will render with: new
+  margins, another profile, or no profile at all (a safe-area margin edit changes the canvas size, so
+  the profile stops fitting the pages). *Cancel* keeps the dialog open. In *Manage profiles* the
+  question comes when the dialog closes.
 - **Templates open as the canvas itself.** A template is now a layered **PSD** by default: open it in
   Procreate and it is a canvas of exactly the profile's size and resolution, the template on its own
   layer — nothing to import or place, so nothing for the app to resize by a pixel on the way in, which

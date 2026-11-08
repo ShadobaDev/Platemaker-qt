@@ -5,6 +5,7 @@
 #include <QColor>
 #include <platemaker/models/canvas_profile.hpp>
 
+#include <functional>
 #include <vector>
 
 namespace Ui {
@@ -47,6 +48,14 @@ public:
      */
     void setExistingProfiles(const std::vector<Platemaker::Models::CanvasProfile>& profiles);
 
+    /**
+     * \brief A last word on Save, when Save is what changes the workspace: called with the edited
+     *        profile once the dialog's own checks pass. Returning false keeps the dialog open.
+     *
+     * Not set where Save only changes a draft (inside the profile manager), which asks on its own OK.
+     */
+    void setSaveCheck(std::function<bool(const Platemaker::Models::CanvasProfile&)> check);
+
     ~CanvasProfileDialog() override;    //!< Destroys the dialog and cleans up resources.
 
 protected:
@@ -72,6 +81,7 @@ private:
     bool   m_safeAreaMode = false;      //!< Whether the dialog is in safe-area mode (true) or absolute size mode (false).
     Platemaker::Models::CanvasProfile m_profile;   //!< The profile given to setProfile(); profile() returns it with the dialog's fields applied.
     std::vector<Platemaker::Models::CanvasProfile> m_existing; //!< setExistingProfiles(): what Save compares against.
+    std::function<bool(const Platemaker::Models::CanvasProfile&)> m_saveCheck; //!< setSaveCheck(); empty = none.
 };
 
 #endif // CANVASPROFILEDIALOG_HPP

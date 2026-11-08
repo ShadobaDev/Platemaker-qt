@@ -1,4 +1,5 @@
 #include "project.hpp"
+#include "profileimpact.hpp"
 #include "ui_project.h"
 #include "imagetile.hpp"
 #include "canvasprofiledialog.hpp"
@@ -255,6 +256,9 @@ void Project::onCanvasProfileDoubleClicked(QListWidgetItem* item)
     CanvasProfileDialog dlg(this);
     dlg.setProfile(*it);
     dlg.setExistingProfiles(wsProfiles);
+    dlg.setSaveCheck([this, &dlg, &wsProfiles](const CanvasProfile& cp) {
+        return confirmCanvasPalette(&dlg, m_workspace, withProfile(wsProfiles, cp));
+    });
     if (dlg.exec() != QDialog::Accepted) return;
     *it = dlg.profile();
 

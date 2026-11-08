@@ -66,6 +66,19 @@ QString ManageCanvasProfilesDialog::activeProfileName() const
 // Private slots
 // ---------------------------------------------------------------------------
 
+void ManageCanvasProfilesDialog::setCommitCheck(
+    std::function<bool(const std::vector<Platemaker::Models::CanvasProfile>&)> check)
+{
+    m_commitCheck = std::move(check);
+}
+
+void ManageCanvasProfilesDialog::accept()
+{
+    if (m_commitCheck && !m_commitCheck(profilePalette()))
+        return;
+    QDialog::accept();
+}
+
 void ManageCanvasProfilesDialog::onSelectionChanged()
 {
     updateButtonStates();

@@ -36,7 +36,7 @@ QLabel {
     color: #cccccc;
     font-size: 12px;
 }
-QLineEdit, QSpinBox, QComboBox {
+QLineEdit, QComboBox {
     background-color: #2d2d2d;
     color: #e0e0e0;
     border: 1px solid #555555;
@@ -44,7 +44,7 @@ QLineEdit, QSpinBox, QComboBox {
     padding: 3px 6px;
     font-size: 12px;
 }
-QLineEdit:focus, QSpinBox:focus, QComboBox:focus {
+QLineEdit:focus, QComboBox:focus {
     border: 1px solid #0078d7;
 }
 QComboBox::drop-down {

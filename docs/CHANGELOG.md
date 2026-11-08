@@ -478,6 +478,8 @@
   project, F5 could render a different project from the one in front. F5, Ctrl+E, Undo and the status bar
   act only on a chapter with a window open — its panel or its strip editor; with none open, they are
   greyed out or silent.
+- **The up arrows of the number fields in the canvas- and output-profile dialogs work again on
+  Windows 11.** Only the down arrow responded; both do now.
 
 ## [1.4.3] — 23.08.2026
 

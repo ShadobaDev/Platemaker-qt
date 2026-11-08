@@ -13,7 +13,10 @@
 #include <string>
 #include <vector>
 
+#include <platemaker/infrastructure/project_editor/project_editor.hpp>
 #include <platemaker/models/workspace.hpp>
+
+#include <QFutureWatcher>
 
 namespace Ui { class Project; }
 class QListWidgetItem;
@@ -444,11 +447,28 @@ private:
      */
     void commitWorkspaceEdit(const QString& text, const std::function<void()>& mutate);
 
+    /**
+     * \brief Checks this project's files on disk in the background, every file at once on Qt's pool,
+     *        and repaints the tiles in place when the results are in.
+     *
+     * The files are looked at by ProjectEditor::checkOnDisk(), which touches no project, so the threads
+     * share nothing with the model; the results are applied here, on the UI thread, by
+     * ProjectEditor::applyDiskChecks(), which ignores any that the project has moved on from. Until
+     * then each tile shows its last known status. A newer check supersedes one still running.
+     *
+     * \param outputsOnly Check only the slices (Refresh files): an input with no result is left as it
+     *        is, its status being the last render's.
+     */
+    void checkFilesOnDisk(bool outputsOnly = false);
+    void onFilesCheckedOnDisk();   //!< Applies a finished checkFilesOnDisk() and repaints the tiles.
+
     Ui::Project* ui;                                        //!< Qt Designer-generated UI for this widget.
     int m_projectIndex;                                     //!< Index of this project within m_workspace.projectItems (kept in sync via setProjectIndex()).
     Platemaker::Models::Workspace& m_workspace;             //!< Reference to the workspace owning this project's data.
     QString     m_workspacePath;                            //!< Workspace file path — the root of overlays/.
     std::function<bool()> m_writeGuard;                     //!< See setWriteGuard(); unset means always.
+    QFutureWatcher<Platemaker::Infrastructure::DiskCheck> m_diskCheck; //!< The running checkFilesOnDisk(), if any.
+    std::string m_diskCheckProjectUid;                      //!< The project it was started for: the results apply to that one only.
 
     //! Whether a file may be written to the workspace folder now.
     [[nodiscard]] bool mayWrite() const { return !m_writeGuard || m_writeGuard(); }

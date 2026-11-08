@@ -17,6 +17,7 @@
 #include <platemaker/infrastructure/workspace_editor/workspace_editor.hpp>
 
 #include <QApplication>   // for the optional DRAGNDROP_DEBUG_ENABLE logging (qApp filter)
+#include <QtConcurrent/QtConcurrentMap>
 #include <QCheckBox>
 #include <QCollator>
 #include <QComboBox>
@@ -254,15 +255,48 @@ Project::Project(int projectIndex,
         ui->workflowTabLayout->addWidget(scroll, 1); // fills the tab
     }
 
-    // Validate against disk on open so tiles reflect deletions / external edits made
-    // while the app was closed (the "changed externally" case). What a profile edit put out of
-    // sync is not a disk fact; populate() lays it over the tiles (refreshTileStatuses()).
-    Platemaker::Infrastructure::ProjectEditor{m_workspace.projectItems[m_projectIndex]}.sanitize();
+    // Validate against disk on open so tiles reflect deletions / external edits made while the app was
+    // closed (the "changed externally" case), without holding the window: the tiles show what was last
+    // known until the check is in. What a profile edit put out of sync is not a disk fact; populate()
+    // lays it over the tiles (refreshTileStatuses()).
+    connect(&m_diskCheck, &QFutureWatcher<Platemaker::Infrastructure::DiskCheck>::finished,
+            this, &Project::onFilesCheckedOnDisk);
     populate();
+    checkFilesOnDisk();
+}
+
+void Project::checkFilesOnDisk(bool outputsOnly)
+{
+    auto& item = m_workspace.projectItems[m_projectIndex];
+    auto requests = Platemaker::Infrastructure::ProjectEditor{item}.diskCheckRequests();
+    if (outputsOnly)   // the inputs come first
+        requests.erase(requests.begin(),
+                       requests.begin() + static_cast<std::ptrdiff_t>(item.getInputImages().size()));
+
+    m_diskCheck.cancel();   // a newer check supersedes it: the same files, looked at later
+    m_diskCheckProjectUid = item.uid;
+    m_diskCheck.setFuture(QtConcurrent::mapped(std::move(requests),
+                                               &Platemaker::Infrastructure::ProjectEditor::checkOnDisk));
+}
+
+void Project::onFilesCheckedOnDisk()
+{
+    if (m_diskCheck.isCanceled())
+        return;
+    // The workspace may have been closed, or this project removed, while the files were looked at.
+    if (m_projectIndex < 0 || m_projectIndex >= static_cast<int>(m_workspace.projectItems.size())
+        || m_workspace.projectItems[m_projectIndex].uid != m_diskCheckProjectUid)
+        return;
+
+    const QList<Platemaker::Infrastructure::DiskCheck> results = m_diskCheck.future().results();
+    Platemaker::Infrastructure::ProjectEditor{m_workspace.projectItems[m_projectIndex]}.applyDiskChecks(
+        {results.begin(), results.end()});
+    refreshTileStatuses();
 }
 
 Project::~Project()
 {
+    m_diskCheck.cancel();   // files not looked at yet are not looked at for nothing
     delete ui;
 }
 

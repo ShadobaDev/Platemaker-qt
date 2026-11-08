@@ -69,26 +69,34 @@ void MainWindow::advanceBatch()
         const int index = m_batchQueue.front();
         m_batchQueue.erase(m_batchQueue.begin());
 
-        const QString name =
-            (index >= 0 && index < static_cast<int>(m_workspace.projectItems.size()))
-                ? QString::fromStdString(m_workspace.projectItems[
-                      static_cast<std::size_t>(index)].name)
-                : tr("(unknown)");
-
         m_batchSkipReason.clear();
 
-        // Started → hand over; onRenderFinished() resumes the queue when it completes.
+        // In flight → hand over; onRenderFinished() or renderNotStarted() resumes the queue.
         if (startRender(index))
             return;
 
-        // Not started: record why and try the next one.
-        const QString reason = m_batchSkipReason.isEmpty()
-                                   ? tr("skipped")
-                                   : m_batchSkipReason;
-        m_batchSkipped << tr("%1 (%2)").arg(name, reason);
-        logAction(LogLevel::Warning, tr("Skipped %1 — %2").arg(name, reason));
+        // Refused outright: record why and try the next one.
+        recordBatchSkip(index);
     }
 
+    finishBatch();
+}
+
+void MainWindow::recordBatchSkip(int projectIndex)
+{
+    const QString name =
+        (projectIndex >= 0 && projectIndex < static_cast<int>(m_workspace.projectItems.size()))
+            ? QString::fromStdString(m_workspace.projectItems[static_cast<std::size_t>(projectIndex)].name)
+            : tr("(unknown)");
+    const QString reason = m_batchSkipReason.isEmpty() ? tr("skipped") : m_batchSkipReason;
+    m_batchSkipped << tr("%1 (%2)").arg(name, reason);
+    logAction(LogLevel::Warning, tr("Skipped %1 — %2").arg(name, reason));
+}
+
+void MainWindow::cancelBatch()
+{
+    m_batchQueue.clear();
+    logAction(LogLevel::Warning, tr("Batch cancelled."));
     finishBatch();
 }
 

@@ -2,6 +2,7 @@
 #define MAINWINDOW_HPP
 
 #include <QMainWindow>
+#include <QFutureWatcher>
 #include <QElapsedTimer>
 #include <QHash>
 #include <QList>
@@ -15,6 +16,7 @@
 #include "recordstore.hpp"
 
 #include <platemaker/infrastructure/control/cancellation_token.hpp>
+#include <platemaker/infrastructure/project_editor/project_editor.hpp>
 #include <platemaker/infrastructure/workspace_serializer/workspace_serializer.hpp>
 #include <platemaker/models/workspace.hpp>
 
@@ -192,16 +194,34 @@ private:
     // --- render orchestration ---
 
     /**
-     * \brief Starts the rendering process for the specified project index.
+     * \brief Starts rendering the specified project: checks its files on disk, off the UI thread.
+     *
+     * The rest happens when the check is in (continueRender()), which ends either in a worker, whose
+     * finish is onRenderFinished(), or in renderNotStarted(). From here the window counts as rendering:
+     * the guards on m_rendering keep the project and the workspace in place while its files are looked
+     * at, and Stop ends the check as it ends a render.
      *
      * \param projectIndex Index into m_workspace.projectItems.
-     * \return true only when a worker was actually started; false when the project was
-     *         skipped for any reason (no output profile / directory / inputs, already
-     *         up to date, config-change prompt declined, output directory not creatable).
-     *         The batch queue relies on this to tell "skipped" from "started" — without
-     *         it, it would wait forever on a finished() signal that never comes.
+     * \return true when the project is in flight; false when it was refused before its files were
+     *         looked at (no output profile / directory / inputs, a render already running, the
+     *         workspace taken over). The batch queue relies on this to tell "skipped" from "in
+     *         flight": in flight, one of the two ends above resumes the queue.
      */
     bool startRender(int projectIndex);
+
+    void onPreflightChecked();          //!< The files of the project about to render are checked: applies the result and continues.
+
+    /**
+     * \brief Decides from the checked files whether and how the project renders, asking what has to be
+     *        asked, and starts the worker; every way out without one goes through renderNotStarted().
+     */
+    void continueRender(int projectIndex);
+
+    /**
+     * \brief Leaves the rendering state of a project whose files were checked but which did not render,
+     *        and moves a batch on: cancelled ends it, anything else is a skip with m_batchSkipReason.
+     */
+    void renderNotStarted(int projectIndex, bool cancelled = false);
 
     void cancelRender();                //!< Cancels the ongoing rendering process, if any.
 
@@ -212,13 +232,17 @@ private:
      *
      * Loops rather than recurses: whole runs of projects can be skipped (e.g. all up to
      * date), and a loop handles that without deep recursion or re-entering a slot. Returns
-     * as soon as a worker starts — the rest of the queue is driven by onRenderFinished().
+     * as soon as a project is in flight — the rest of the queue is driven by onRenderFinished(),
+     * or by renderNotStarted() for a project its checked files show needs no render.
      * When the queue empties it calls finishBatch().
      */
     void advanceBatch();
 
     /// Reports the batch summary (rendered / skipped / failed) and clears the batch state.
     void finishBatch();
+
+    void cancelBatch();                         //!< Stop cancels the whole batch, not just the current project.
+    void recordBatchSkip(int projectIndex);     //!< Records a project of the batch as skipped, with m_batchSkipReason.
 
     /**
      * \brief Warns once, after opening a workspace, if canvas profiles moved on since the
@@ -780,6 +804,7 @@ private:
     RenderWorker *m_renderWorker        = nullptr;  //!< The current RenderWorker instance (if any).
     bool          m_rendering           = false;    //!< True if a render operation is currently in progress.
     int           m_renderProjectIndex  = -1;       //!< Index of the project currently being rendered (in m_workspace.projectItems), -1 if none.
+    QFutureWatcher<Platemaker::Infrastructure::DiskCheck> m_preflightCheck;  //!< The disk check of the project about to render, run on the thread pool.
     int           m_activeProjectIndex  = -1;       //!< The project whose window was raised last; read through currentProjectIndex(), which checks it is still open.
     QElapsedTimer m_renderTimer;                    //!< Wall-clock timer for the current single render (started in startRender), read for the action-log summary.
     QString       m_lastRenderOutputDir;            //!< Output directory of the most recent render (set in startRender), for the log's "Open output folder" action.
@@ -798,8 +823,8 @@ private:
     QStringList      m_batchFailed;     //!< Projects whose render failed.
 
     /** 
-     * \brief Why the last startRender() bailed out, so the batch can report a useful reason
-     * instead of a bare "skipped". Set by startRender(), consumed by advanceBatch().
+     * \brief Why the last project did not render, so the batch can report a useful reason
+     * instead of a bare "skipped". Set by startRender() and continueRender(), consumed by recordBatchSkip().
      */
     QString          m_batchSkipReason;
 

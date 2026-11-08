@@ -280,6 +280,8 @@ MainWindow::MainWindow(QWidget *parent)
     connect(ui->actionRender_all_projects_F6, &QAction::triggered,
             this, &MainWindow::onRefreshAllProjects);
     connect(ui->actionStop_Esc, &QAction::triggered, this, &MainWindow::cancelRender);
+    connect(&m_preflightCheck, &QFutureWatcher<Platemaker::Infrastructure::DiskCheck>::finished,
+            this, &MainWindow::onPreflightChecked);
     connect(ui->pushButtonStop, &QPushButton::clicked, this, &MainWindow::cancelRender);
     connect(m_compactStop, &QToolButton::clicked, this, &MainWindow::cancelRender);
     setStopEnabled(false);
@@ -326,6 +328,7 @@ void MainWindow::closeEvent(QCloseEvent *event)
     // between slices; wait briefly for it to unwind).
     if (m_rendering) {
         m_cancelToken.cancel();
+        m_preflightCheck.cancel();
         if (m_renderThread)
             m_renderThread->wait(5000);
     }

@@ -41,6 +41,7 @@
 #include <QTreeWidget>
 #include <QScrollBar>
 #include <QThread>
+#include <QtConcurrent/QtConcurrentMap>
 #include <QToolButton>
 #include <QUrl>
 
@@ -218,9 +219,8 @@ MainWindow::RenderGate MainWindow::askRenderGate(int projectIndex)
 
 bool MainWindow::startRender(int projectIndex)
 {
-    // Every early return here means "no worker started" — the batch queue depends on
-    // that distinction to move on to the next project instead of waiting for a
-    // finished() signal that will never arrive.
+    // Every early return here means "not in flight" — the batch queue depends on that distinction
+    // to move on to the next project instead of waiting for an end that will never come.
 
     // A render records hashes and writes outputs and logs; none of it over a folder taken over elsewhere.
     if (!canWriteWorkspace()) {
@@ -264,10 +264,58 @@ bool MainWindow::startRender(int projectIndex)
         return false;
     }
 
-    // Refresh file statuses against disk (hashes inputs — may briefly pause on huge projects).
-    // What the configuration changed comes from detectStaleness() below.
-    Platemaker::Infrastructure::ProjectEditor{project}.sanitize();
+    // Refresh file statuses against disk on the thread pool: hashing a chapter must not hold the window.
+    // The token is reset here, not at the launch, so a Stop pressed while the files are looked at stands.
+    m_cancelToken.reset();
+    m_renderProjectIndex = projectIndex;
+    m_rendering = true;
+    setProjectStatus(tr("Checking files…"));
+    setStopEnabled(true);
+    if (auto *pw = projectWidget(projectIndex)) pw->setRendering(true);
+    m_preflightCheck.setFuture(QtConcurrent::mapped(
+        Platemaker::Infrastructure::ProjectEditor{project}.diskCheckRequests(),
+        &Platemaker::Infrastructure::ProjectEditor::checkOnDisk));
+    return true;
+}
+
+void MainWindow::onPreflightChecked()
+{
+    const int projectIndex = m_renderProjectIndex;
+    if (m_preflightCheck.isCanceled() || m_cancelToken.isCancelled()) {
+        m_batchSkipReason = tr("cancelled");
+        setProjectStatus(tr("Render cancelled."));
+        renderNotStarted(projectIndex, true);
+        return;
+    }
+    // What the configuration changed comes from detectStaleness() in continueRender().
+    const QList<Platemaker::Infrastructure::DiskCheck> results = m_preflightCheck.future().results();
+    Platemaker::Infrastructure::ProjectEditor{m_workspace.projectItems[static_cast<std::size_t>(projectIndex)]}
+        .applyDiskChecks({results.begin(), results.end()});
     if (auto *pw = projectWidget(projectIndex)) pw->populate();
+    continueRender(projectIndex);
+}
+
+void MainWindow::renderNotStarted(int projectIndex, bool cancelled)
+{
+    if (auto *pw = projectWidget(projectIndex)) pw->setRendering(false);
+    setStopEnabled(false);
+    m_rendering          = false;
+    m_renderProjectIndex = -1;
+
+    if (m_batchTotal == 0)
+        return;
+    if (cancelled) {
+        cancelBatch();
+        return;
+    }
+    recordBatchSkip(projectIndex);
+    advanceBatch();
+}
+
+void MainWindow::continueRender(int projectIndex)
+{
+    auto &project = m_workspace.projectItems[static_cast<std::size_t>(projectIndex)];
+    const QString name = QString::fromStdString(project.name);
 
     // Every reason the outputs could be stale, in one answer from the library. This and the CLI each
     // used to assemble the same five terms by hand — one rule kept in two repositories, which is one
@@ -281,7 +329,8 @@ bool MainWindow::startRender(int projectIndex)
         m_batchSkipReason = tr("up to date");
         setActionStatus(name, tr("Require action"));
         setProjectStatus(tr("Project is up to date — nothing to render."));
-        return false;
+        renderNotStarted(projectIndex);
+        return;
     }
 
     // The render gate. Here, after "nothing to render": a chapter that is already up to date loses
@@ -289,11 +338,14 @@ bool MainWindow::startRender(int projectIndex)
     // question, so nobody answers that one only to cancel at this one.
     switch (askRenderGate(projectIndex)) {
     case RenderGate::Stop:
-        return false;
+        renderNotStarted(projectIndex);
+        return;
     case RenderGate::Again:
         // A resolution changed the project under this call — objects deleted — so everything derived
-        // above, the staleness first, describes the chapter as it was. Start again from the top.
-        return startRender(projectIndex);
+        // above, the staleness first, describes the chapter as it was. Decide again; the files on disk
+        // are what was just checked, untouched by the resolution.
+        continueRender(projectIndex);
+        return;
     case RenderGate::Pass:
         break;
     }
@@ -356,7 +408,8 @@ bool MainWindow::startRender(int projectIndex)
         if (!proceed) {
             m_batchSkipReason = tr("configuration changed, re-render declined");
             setProjectStatus(tr("Render cancelled."));
-            return false;
+            renderNotStarted(projectIndex);
+            return;
         }
         // Remember the old output files so we can delete the orphans on success.
         m_renderOrphanDir = QString::fromStdString(project.getOutputDirectory());
@@ -369,7 +422,8 @@ bool MainWindow::startRender(int projectIndex)
         m_batchSkipReason = tr("cannot create output directory");
         setActionStatus(name, tr("Failed"));
         setProjectStatus(tr("Cannot create output directory:\n%1").arg(outDir));
-        return false;
+        renderNotStarted(projectIndex);
+        return;
     }
     m_lastRenderOutputDir = outDir; // for the log's "Open output folder" action (last render wins)
 
@@ -383,10 +437,6 @@ bool MainWindow::startRender(int projectIndex)
     }
 
     // --- launch the worker on its own thread, with snapshot copies ---
-    m_cancelToken.reset();
-    m_renderProjectIndex = projectIndex;
-    m_rendering = true;
-
     auto *worker = new RenderWorker(
         project.inputsInOrder(),           // strip is built in `order` sequence, not vector order
         resolveOutputProfileFor(project),  // copy
@@ -429,12 +479,9 @@ bool MainWindow::startRender(int projectIndex)
     else
         logAction(LogLevel::Section, tr("── %1 ──").arg(name));
     setProgressValue(0, false);
-    setStopEnabled(true);
-    if (auto *pw = projectWidget(projectIndex)) pw->setRendering(true);
 
     m_renderTimer.start(); // wall-clock for this render's action-log summary
     thread->start();
-    return true;
 }
 
 void MainWindow::cancelRender()
@@ -442,6 +489,7 @@ void MainWindow::cancelRender()
     // Skip if no render is in progress. Otherwise, signal the worker to cancel and update the UI.
     if (!m_rendering) return;
     m_cancelToken.cancel();
+    m_preflightCheck.cancel();   // while the files are still being looked at; a no-op once rendering
     setProjectStatus(tr("Cancelling…"));
     setStopEnabled(false);
 }
@@ -917,10 +965,7 @@ void MainWindow::onRenderFinished()
     // m_rendering is still true, so the reset above has to have happened first.
     if (m_batchTotal > 0) {
         if (renderCancelled) {
-            // Stop cancels the whole batch, not just the current project.
-            m_batchQueue.clear();
-            logAction(LogLevel::Warning, tr("Batch cancelled."));
-            finishBatch();
+            cancelBatch();
             return;
         }
 

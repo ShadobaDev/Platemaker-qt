@@ -411,8 +411,9 @@
 
 ### Changed
 
-- **Opening a project no longer holds the window while its files are checked.** The check runs in the
-  background, on every file at once, and the tiles update when it is in; so does **Refresh files**.
+- **Opening a project, or starting a render, no longer holds the window while its files are checked.**
+  The check runs in the background, on every file at once, and the tiles update when it is in; so does
+  **Refresh files**. **Stop** ends a render while its files are still being checked.
 - **"Out of sync" shows as soon as a setting changes.** Editing a canvas or output profile, or
   undoing the edit, updates the tiles of every open project at once, without a reopen or a refresh,
   and a tile's tooltip says what changed since the render.

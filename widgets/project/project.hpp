@@ -239,7 +239,7 @@ public:
      * \brief Rebuilds the palette-derived views (canvas list, output combo, format controls) after a
      * workspace-level profile edit.
      * 
-     * rebuilds the palette-derived views (canvas list, output combo, format controls) after a workspace-level profile edit — see MainWindow::workspaceProfilesChanged
+     * rebuilds the palette-derived views (canvas list, output combo, format controls) after a workspace-level profile edit — see MainWindow::workspaceChanged
      */
     void refreshProfileViews();
 

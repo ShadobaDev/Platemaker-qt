@@ -80,11 +80,14 @@ protected:
     bool eventFilter(QObject *watched, QEvent *event) override;
 
 signals:
-    //! Emitted after a workspace-level profile edit (canvas/output Manage/New/Edit). Every open
-    //! Project dock connects this to Project::refreshProfileViews() so their palette-derived views
-    //! (output combo, assigned-canvas list, format controls) update at once, without a manual
-    //! iteration over the open docks.
-    void workspaceProfilesChanged();
+    /**
+     * \brief Emitted after every workspace-level change has landed: a commit, or an undo or redo of one.
+     *
+     * The one channel for profiles, project names and templates, wherever the edit was made (a menu
+     * dialog or a project dock). Every view derived from them listens here once: each open project
+     * dock (Project::refreshProfileViews()), every strip editor, and the advisories.
+     */
+    void workspaceChanged();
 
 private slots:
     // File menu
@@ -448,6 +451,7 @@ private:
      */
     void refreshAdvisoriesFor(int projectIndex);
     void refreshAllAdvisories();      //!< The same, for every project in the workspace.
+    void onWorkspaceChanged();        //!< Brings the views MainWindow owns up to date after workspaceChanged().
 
     //! This project's lettered objects drawn in a stand-in because their font is missing, in composite
     //! order; \p families (when given) gets those fonts, once each. What the missing-fonts advisory and

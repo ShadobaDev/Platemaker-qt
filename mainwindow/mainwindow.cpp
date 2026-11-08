@@ -697,10 +697,9 @@ void MainWindow::setupUndo()
     // group as their docks open (see openProjectDock).
     m_workspaceUndoStack = new QUndoStack(this);
     m_workspaceUndoStack->setUndoLimit(10);
-    // Every workspace-level change — a profile edited from any dialog or dock, templates generated, and
-    // each undo or redo of those — moves this stack, so this one connection keeps the advisories derived
-    // from profiles and templates (outdated templates, duplicate profiles) in step with all of them.
-    connect(m_workspaceUndoStack, &QUndoStack::indexChanged, this, [this]{ refreshAllAdvisories(); });
+    // Every workspace-level change, from any dialog or dock, and each undo or redo of one, ends in
+    // workspaceChanged(); this is where the views MainWindow owns follow it.
+    connect(this, &MainWindow::workspaceChanged, this, &MainWindow::onWorkspaceChanged);
     m_undoGroup->addStack(m_workspaceUndoStack);
     m_undoGroup->setActiveStack(m_workspaceUndoStack);
 
@@ -758,8 +757,8 @@ void MainWindow::applyWorkspaceSnapshot(const QString& snapshot)
             dock->setWindowTitle(tr("Strip — %1").arg(QString::fromStdString(
                 m_workspace.projectItems[static_cast<std::size_t>(idx)].name)));
     }
-    emit workspaceProfilesChanged();
     setDirty(true);
+    emit workspaceChanged();
 }
 
 void MainWindow::commitWorkspaceEdit(const QString& text, const std::function<void()>& mutate)
@@ -774,6 +773,18 @@ void MainWindow::commitWorkspaceEdit(const QString& text, const std::function<vo
         return;
 
     m_workspaceUndoStack->push(new WorkspaceSnapshotCommand(this, before, std::move(after), text));
+    emit workspaceChanged();
+}
+
+void MainWindow::onWorkspaceChanged()
+{
+    // Advisories derived from profiles and templates (outdated templates, duplicate profiles).
+    refreshAllAdvisories();
+    // A strip editor lays its pages out with the canvas profiles' margins and the output profile's
+    // width and slice height, so it follows any edit of either. setPreviewSource() ignores a feed that
+    // has not actually changed, so an edit that leaves a strip alone costs nothing here.
+    for (QDockWidget *strip : std::as_const(m_openStripDocks))
+        refreshStripEditor(strip);
 }
 
 void MainWindow::updateTitleBar()

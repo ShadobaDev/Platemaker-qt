@@ -364,11 +364,12 @@ void MainWindow::openProjectDock(int projectIndex)
     connect(projectWidget, &Project::workspaceEditCommitted, this,
             [this](const QString& text, const QString& before, const QString& after) {
                 m_workspaceUndoStack->push(new WorkspaceSnapshotCommand(this, before, after, text));
+                emit workspaceChanged();
             });
-    // Keep this dock's palette-derived views (output combo, assigned-canvas list) in sync with
-    // workspace-level profile edits made elsewhere. The connection is auto-removed when the widget
-    // is destroyed (dock closed), so no manual bookkeeping is needed.
-    connect(this, &MainWindow::workspaceProfilesChanged,
+    // Keep this dock's palette-derived views (output combo, assigned-canvas list) in step with every
+    // workspace-level change, this dock's own included. The connection is auto-removed when the widget
+    // is destroyed, so no manual bookkeeping is needed.
+    connect(this, &MainWindow::workspaceChanged,
             projectWidget, &Project::refreshProfileViews);
     newDock->setWidget(projectWidget);
     // Same custom title bar as the workspace/strip/action docks (dock/detach, max, close).

@@ -747,13 +747,13 @@ void MainWindow::applyWorkspaceSnapshot(const QString& snapshot)
     // (they live on each project's own undo stack).
     applyWorkspaceToUi();
     for (QDockWidget* dock : std::as_const(m_openProjectDocks)) {
-        const int idx = dock->property("projectIndex").toInt();
+        const int idx = projectIndexOf(dock);
         if (idx >= 0 && idx < static_cast<int>(m_workspace.projectItems.size()))
             dock->setWindowTitle(QString::fromStdString(
                 m_workspace.projectItems[static_cast<std::size_t>(idx)].name));
     }
     for (QDockWidget* dock : std::as_const(m_openStripDocks)) {
-        const int idx = dock->property("projectIndex").toInt();
+        const int idx = projectIndexOf(dock);
         if (idx >= 0 && idx < static_cast<int>(m_workspace.projectItems.size()))
             dock->setWindowTitle(tr("Strip — %1").arg(QString::fromStdString(
                 m_workspace.projectItems[static_cast<std::size_t>(idx)].name)));

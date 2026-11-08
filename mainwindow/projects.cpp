@@ -210,22 +210,11 @@ void MainWindow::removeProject(int modelIndex)
     if (m_activeProjectIndex > modelIndex)
         --m_activeProjectIndex;
 
-    // Reindex any still-open docks that referenced a higher model index — the
-    // vector shifted down by one.
-    for (QDockWidget *dock : std::as_const(m_openProjectDocks)) {
-        const int idx = dock->property("projectIndex").toInt();
-        if (idx > modelIndex) {
-            dock->setProperty("projectIndex", idx - 1);
-            if (auto *pw = qobject_cast<Project *>(dock->widget()))
-                pw->setProjectIndex(idx - 1);
-        }
-    }
-    // Strip docks only carry the index as a property (their widget reads nothing project-scoped itself).
-    for (QDockWidget *strip : std::as_const(m_openStripDocks)) {
-        const int idx = strip->property("projectIndex").toInt();
-        if (idx > modelIndex)
-            strip->setProperty("projectIndex", idx - 1);
-    }
+    // The docks are keyed by project uid, which the erase leaves alone. Only the Project widgets hold a
+    // model index of their own, and every one above the gap has moved down by one.
+    for (QDockWidget *dock : std::as_const(m_openProjectDocks))
+        if (auto *pw = qobject_cast<Project *>(dock->widget()))
+            pw->setProjectIndex(projectIndexOf(dock));
     if (wasActive)
         retargetActiveProject(-1);
 
@@ -235,11 +224,25 @@ void MainWindow::removeProject(int modelIndex)
 
 QDockWidget *MainWindow::dockForProject(int modelIndex) const
 {
-    // Return the QDockWidget for the project at the given model index, or nullptr if not found.
+    const QString uid = projectUidAt(modelIndex);
+    if (uid.isEmpty())
+        return nullptr;
     for (QDockWidget *dock : m_openProjectDocks)
-        if (dock->property("projectIndex").toInt() == modelIndex)
+        if (dock->property("projectUid").toString() == uid)
             return dock;
     return nullptr;
+}
+
+QString MainWindow::projectUidAt(int modelIndex) const
+{
+    if (modelIndex < 0 || modelIndex >= static_cast<int>(m_workspace.projectItems.size()))
+        return {};
+    return QString::fromStdString(m_workspace.projectItems[static_cast<std::size_t>(modelIndex)].uid);
+}
+
+int MainWindow::projectIndexOf(const QDockWidget *dock) const
+{
+    return projectIndexForUid(dock->property("projectUid").toString());
 }
 
 // ---------------------------------------------------------------------------
@@ -278,12 +281,10 @@ void MainWindow::dropHistoryFor(const QString& projectUid)
 void MainWindow::openProjectDock(int projectIndex)
 {
     // Bring existing dock to front if already open
-    for (QDockWidget *dock : std::as_const(m_openProjectDocks)) {
-        if (dock->property("projectIndex").toInt() == projectIndex) {
-            dock->show();
-            dock->raise();
-            return;
-        }
+    if (QDockWidget *dock = dockForProject(projectIndex)) {
+        dock->show();
+        dock->raise();
+        return;
     }
 
     // Get the project name for the dock title.
@@ -291,8 +292,12 @@ void MainWindow::openProjectDock(int projectIndex)
         m_workspace.projectItems[projectIndex].name);
 
     // Create a new dock for the project, with a Project widget inside.
+    // Keyed by the project's uid, which survives every reorder and removal of the others; the object
+    // name gives the dock the same stable identity in Qt's own bookkeeping.
+    const QString projectUid = projectUidAt(projectIndex);
     QDockWidget *newDock = new QDockWidget(name, this);
-    newDock->setProperty("projectIndex", projectIndex);
+    newDock->setProperty("projectUid", projectUid);
+    newDock->setObjectName(QStringLiteral("project:") + projectUid);
     newDock->setFeatures(QDockWidget::DockWidgetMovable  |
                          QDockWidget::DockWidgetClosable |
                          QDockWidget::DockWidgetFloatable);
@@ -307,8 +312,6 @@ void MainWindow::openProjectDock(int projectIndex)
     // is written beside it) and which authoring records are its own. The records travel back here on
     // every edit — including an undo, which restores them alongside the library's project state — so the
     // per-project cache stays in step with what the editor has committed.
-    const QString projectUid =
-        QString::fromStdString(m_workspace.projectItems[projectIndex].uid);
     projectWidget->setWorkspacePath(m_workspacePath);
     projectWidget->setWriteGuard([this] { return canWriteWorkspace(); });
     projectWidget->setRecords(m_overlayRecords.records(projectUid));
@@ -317,7 +320,7 @@ void MainWindow::openProjectDock(int projectIndex)
         m_overlayRecords.setRecords(projectUid, records);
         // A record edit changes what a bubble says without moving a page, so the strip has to be told
         // explicitly — the feed signature it guards itself with would not see it.
-        if (QDockWidget* strip = dockForStripEditor(newDock->property("projectIndex").toInt()))
+        if (QDockWidget* strip = dockForStripEditor(projectIndexOf(newDock)))
             refreshStripEditor(strip);
     });
     connect(projectWidget, &Project::projectModified, this, [this, newDock]{
@@ -325,12 +328,12 @@ void MainWindow::openProjectDock(int projectIndex)
         // Conditions are derived, so they are re-derived here rather than at each of the places that
         // could make one true. An edit that changes neither says nothing: raise() is silent when the
         // advisory it is handed is the one already standing.
-        refreshAdvisoriesFor(newDock->property("projectIndex").toInt());
+        refreshAdvisoriesFor(projectIndexOf(newDock));
         // The strip is built from the inputs, so it follows an input / profile edit immediately — no
         // render needed. setPreviewSource() ignores a feed that has not actually changed, so the edits
         // that leave the strip alone (a grade tweak, render bookkeeping) cost nothing here.
-        // The index comes from the dock property, which removeProject() re-stamps when the model shifts.
-        if (QDockWidget *strip = dockForStripEditor(newDock->property("projectIndex").toInt()))
+        // The index is looked up by the dock's project uid, so it follows the model when it shifts.
+        if (QDockWidget *strip = dockForStripEditor(projectIndexOf(newDock)))
             refreshStripEditor(strip);
     });
     // An undone or redone step can land in the window the artist is not looking at — one history
@@ -338,7 +341,7 @@ void MainWindow::openProjectDock(int projectIndex)
     // for having done nothing. The strip editor may simply not be open, and then there is nowhere to go.
     connect(projectWidget, &Project::historyStepApplied, this,
             [this, newDock](EditScope scope, const QStringList& uids) {
-        const int idx = newDock->property("projectIndex").toInt();
+        const int idx = projectIndexOf(newDock);
         if (scope != EditScope::StripEditor) {
             showDockAttention(newDock);
             return;
@@ -382,7 +385,7 @@ void MainWindow::openProjectDock(int projectIndex)
     refreshProjectActions();
     connect(newDock, &QDockWidget::visibilityChanged, this,
             [this, newDock, projectWidget](bool visible) {
-        const int idx = newDock->property("projectIndex").toInt();
+        const int idx = projectIndexOf(newDock);
         if (visible) {
             m_activeProjectIndex = idx;
             refreshProjectActions();
@@ -499,8 +502,11 @@ void MainWindow::closeDock(QDockWidget *dock)
 
 QDockWidget *MainWindow::dockForStripEditor(int modelIndex) const
 {
+    const QString uid = projectUidAt(modelIndex);
+    if (uid.isEmpty())
+        return nullptr;
     for (QDockWidget *dock : m_openStripDocks)
-        if (dock->property("projectIndex").toInt() == modelIndex)
+        if (dock->property("projectUid").toString() == uid)
             return dock;
     return nullptr;
 }
@@ -511,8 +517,8 @@ void MainWindow::refreshStripEditor(QDockWidget *dock)
     auto *editor = qobject_cast<StripEdit::Editor *>(dock->widget());
     if (!editor) return;
 
-    const int idx = dock->property("projectIndex").toInt();
-    if (idx < 0 || idx >= static_cast<int>(m_workspace.projectItems.size())) {
+    const int idx = projectIndexOf(dock);
+    if (idx < 0) {
         editor->setPreviewSource({}, {}, {}, {}, workspaceCacheDir());   // project gone → empty state
         return;
     }
@@ -558,9 +564,11 @@ void MainWindow::openStripEditorDock(int projectIndex)
     const QString name = QString::fromStdString(
         m_workspace.projectItems[static_cast<std::size_t>(projectIndex)].name);
 
+    const QString projectUid = projectUidAt(projectIndex);
     QDockWidget *dock = new QDockWidget(this);
     dock->setWindowTitle(tr("Strip — %1").arg(name));
-    dock->setProperty("projectIndex", projectIndex);
+    dock->setProperty("projectUid", projectUid);
+    dock->setObjectName(QStringLiteral("strip:") + projectUid);
     dock->setFeatures(QDockWidget::DockWidgetMovable  |
                       QDockWidget::DockWidgetClosable |
                       QDockWidget::DockWidgetFloatable);
@@ -572,14 +580,15 @@ void MainWindow::openStripEditorDock(int projectIndex)
     // "Render & view": outputs are cheap/regenerable, so this just runs the normal render for the
     // project; onRenderFinished refreshes this editor when it completes. If the project is already up to
     // date, startRender is a no-op and the already-loaded committed slices stay shown.
-    connect(editor, &StripEdit::Editor::renderAndViewRequested, this, [this, projectIndex] {
-        (void)startRender(projectIndex);
+    connect(editor, &StripEdit::Editor::renderAndViewRequested, this, [this, projectUid] {
+        if (const int idx = projectIndexForUid(projectUid); idx >= 0)
+            (void)startRender(idx);
     });
     // A settled grade edit → persist it onto the project as one undo step, named by the editor, which
     // knows what was done (undoable, via the Project dock).
     connect(editor, &StripEdit::Editor::colourCorrectionCommitted, this,
-            [this, projectIndex](const Platemaker::Models::ColourCorrection &cc, const QString &undoText) {
-        if (auto *pw = projectWidget(projectIndex))
+            [this, projectUid](const Platemaker::Models::ColourCorrection &cc, const QString &undoText) {
+        if (auto *pw = projectWidget(projectIndexForUid(projectUid)))
             pw->applyColourCorrection(cc, undoText);
     });
 
@@ -589,29 +598,28 @@ void MainWindow::openStripEditorDock(int projectIndex)
     // widget and no history, and the edit is dropped rather than applied untracked. Merely *closing*
     // the dock does not reach here — it hides, and the widget goes on recording.
     connect(editor, &StripEdit::Editor::recordCreated, this,
-            [this, projectIndex](const ObjectRecord &record, double xFrac, double yFrac,
+            [this, projectUid](const ObjectRecord &record, double xFrac, double yFrac,
                                  double wFrac, const QString &anchorUid) {
-        if (auto *pw = projectWidget(projectIndex))
+        if (auto *pw = projectWidget(projectIndexForUid(projectUid)))
             pw->createOverlay(record, xFrac, yFrac, wFrac, anchorUid);
     });
     connect(editor, &StripEdit::Editor::artworkImportRequested, this,
-            [this, projectIndex](const QString &file, double xFrac, double yFrac, double wFrac,
+            [this, projectUid](const QString &file, double xFrac, double yFrac, double wFrac,
                                  QSize naturalSize, const QString &anchorUid) {
-        if (auto *pw = projectWidget(projectIndex))
+        if (auto *pw = projectWidget(projectIndexForUid(projectUid)))
             pw->importOverlayArtwork(file, xFrac, yFrac, wFrac, naturalSize, anchorUid);
     });
     connect(editor, &StripEdit::Editor::overlaysCommitted, this,
-            [this, projectIndex](const std::vector<Platemaker::Models::StripOverlay> &overlays,
+            [this, projectUid](const std::vector<Platemaker::Models::StripOverlay> &overlays,
                                  const ObjectRecord::Map &records, const QString &undoText) {
-        if (auto *pw = projectWidget(projectIndex))
+        if (auto *pw = projectWidget(projectIndexForUid(projectUid)))
             pw->applyOverlays(overlays, records, undoText);
     });
     // Its own advisory strip, along the bottom. Dragged out, this dock is a top-level window with no
     // status bar; maximised, it covers the one behind it. Either way the chapter's problems would be
     // invisible in the very window they are worked on. Docked, the strip stands down — the main
     // window's status bar is already saying it, and saying it twice teaches nothing.
-    editor->setAdvisories(m_advisories,
-                          QString::fromStdString(m_workspace.projectItems[projectIndex].uid));
+    editor->setAdvisories(m_advisories, projectUid);
     editor->setAdvisoriesActive(dock->isFloating());
     connect(dock, &QDockWidget::topLevelChanged, editor, &StripEdit::Editor::setAdvisoriesActive);
     // What has happened, as opposed to what is wrong: the bar's left side, which expires on its own.
@@ -628,7 +636,7 @@ void MainWindow::openStripEditorDock(int projectIndex)
     // its project dock uses, since it is the same document and the same train of thought. What the
     // window decides is the *project*, not which half of the work is undoable.
     connect(dock, &QDockWidget::visibilityChanged, this, [this, dock](bool visible) {
-        const int idx = dock->property("projectIndex").toInt();
+        const int idx = projectIndexOf(dock);
         if (!visible) {
             if (idx == m_activeProjectIndex)
                 retargetActiveProject(idx);   // its project dock may still be in sight

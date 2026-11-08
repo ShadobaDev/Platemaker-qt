@@ -264,9 +264,9 @@ bool MainWindow::startRender(int projectIndex)
         return false;
     }
 
-    // Refresh file statuses against disk and against the canvas profiles in effect
-    // (hashes inputs — may briefly pause on huge projects).
-    Platemaker::Infrastructure::ProjectEditor{project}.sanitize(m_workspace.canvasProfiles());
+    // Refresh file statuses against disk (hashes inputs — may briefly pause on huge projects).
+    // What the configuration changed comes from detectStaleness() below.
+    Platemaker::Infrastructure::ProjectEditor{project}.sanitize();
     if (auto *pw = projectWidget(projectIndex)) pw->populate();
 
     // Every reason the outputs could be stale, in one answer from the library. This and the CLI each

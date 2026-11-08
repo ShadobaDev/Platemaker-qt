@@ -255,9 +255,9 @@ Project::Project(int projectIndex,
     }
 
     // Validate against disk on open so tiles reflect deletions / external edits made
-    // while the app was closed (the "changed externally" case), and against the canvas
-    // profiles so pages whose profile was edited show as out of sync rather than done.
-    Platemaker::Infrastructure::ProjectEditor{m_workspace.projectItems[m_projectIndex]}.sanitize(m_workspace.canvasProfiles());
+    // while the app was closed (the "changed externally" case). What a profile edit put out of
+    // sync is not a disk fact; populate() lays it over the tiles (refreshTileStatuses()).
+    Platemaker::Infrastructure::ProjectEditor{m_workspace.projectItems[m_projectIndex]}.sanitize();
     populate();
 }
 

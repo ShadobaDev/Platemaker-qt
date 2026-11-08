@@ -305,12 +305,12 @@ void Project::refreshTileStatuses()
 
 void Project::onRefreshFiles()
 {
-    // "Refresh files" re-checks the OUTPUT files against disk (and re-applies the output-profile
-    // staleness overlay via populate()). It must NOT re-derive input statuses: those are owned by
+    // "Refresh files" re-checks the OUTPUT files against disk (populate() then lays the configuration's
+    // verdict over the tiles). It must NOT re-derive input statuses: those are owned by
     // the last render (Processed / Skipped), and sanitize() recomputes inputs from disk — which has
     // no notion of "skipped", so it would silently revert a skipped page to Processed/Pending.
-    // sanitize() is the shared routine that also refreshes outputs + config staleness, so we run it
-    // but preserve and restore the input statuses around it, leaving inputs untouched by a refresh.
+    // sanitize() is the shared routine that also refreshes the outputs, so we run it but preserve and
+    // restore the input statuses around it, leaving inputs untouched by a refresh.
     auto& project = m_workspace.projectItems[m_projectIndex];
 
     auto& inputs = project.getInputImages();
@@ -319,8 +319,7 @@ void Project::onRefreshFiles()
     for (const auto& inf : inputs)
         savedInputStatus.push_back(inf.status);
 
-    // Also flags outputs whose canvas profile changed since their render.
-    Platemaker::Infrastructure::ProjectEditor{project}.sanitize(m_workspace.canvasProfiles());
+    Platemaker::Infrastructure::ProjectEditor{project}.sanitize();
 
     for (std::size_t i = 0; i < inputs.size(); ++i)
         inputs[i].status = savedInputStatus[i];

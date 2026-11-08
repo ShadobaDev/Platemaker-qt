@@ -4,6 +4,9 @@
 
 ### Added
 
+- **A workspace reopens the way you left it.** The project panels and strip editors that were open
+  come back, docked, tabbed or floating where they were. It is remembered on this computer, for each
+  recent workspace.
 - **A canvas-profile change asks before it puts pages out of sync.** Saving one lists every project
   it reaches, including projects with no window open, and what their pages will render with: new
   margins, another profile, or no profile at all (a safe-area margin edit changes the canvas size, so

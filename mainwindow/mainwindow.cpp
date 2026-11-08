@@ -329,7 +329,13 @@ void MainWindow::closeEvent(QCloseEvent *event)
         if (m_renderThread)
             m_renderThread->wait(5000);
     }
-    maybeSave() ? event->accept() : event->ignore();
+    if (!maybeSave()) {
+        event->ignore();
+        return;
+    }
+    // Quitting does not go through closeWorkspace(), so the layout is remembered here.
+    rememberWorkspaceLayout();
+    event->accept();
 }
 
 void MainWindow::resizeEvent(QResizeEvent *event)
@@ -509,6 +515,7 @@ void MainWindow::loadWorkspace(const QString &requested)
     captureSnapshot();
     addToRecentWorkspaces(path);
     applyWorkspaceToUi();
+    restoreWorkspaceLayout();   // the docks it was left with, where they were
 
     // Deferred to the next event-loop pass: applyWorkspaceToUi() only *queues* the
     // repaint, so showing a modal here would block it and leave the *previous*
@@ -608,6 +615,9 @@ void MainWindow::applyWorkspaceToUi()
 
 void MainWindow::closeWorkspace()
 {
+    // Before anything is torn down: the docks below are what is remembered.
+    rememberWorkspaceLayout();
+
     // Every project is going, so every project history has nothing left to restore — and the widgets
     // its commands point at are destroyed just below. Dropped explicitly, because these stacks are
     // owned here and outlive the docks by design: left behind, they would keep Undo enabled for a

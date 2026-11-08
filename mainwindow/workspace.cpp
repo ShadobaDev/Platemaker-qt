@@ -15,6 +15,7 @@
 #include <platemaker/infrastructure/file/file_meta_data.hpp>
 #include <platemaker/models/output_profile.hpp>
 
+#include <QCryptographicHash>
 #include <QCloseEvent>
 #include <QCollator>
 #include <QDateTime>
@@ -164,6 +165,7 @@ void MainWindow::onSaveAs()
     // Save the current workspace to the selected path.
     // If the save operation fails, show an error message to the user.
     m_workspacePath = path;
+    rememberWorkspaceLayout();   // the copy opens as it is laid out now
     // New bubbles are written next to the workspace file, so every open project has to learn where that
     // is now. (Input pages keep the absolute paths they were added with — they are the user's files.)
     for (QDockWidget* dock : std::as_const(m_openProjectDocks))
@@ -668,6 +670,76 @@ void MainWindow::addToRecentWorkspaces(const QString &path)
 
     QSettings().setValue(QStringLiteral("recentWorkspaces"), list);
     rebuildRecentMenu();
+}
+
+// ---------------------------------------------------------------------------
+// Workspace layout (per machine, per workspace file)
+// ---------------------------------------------------------------------------
+
+namespace {
+
+const QString k_layoutGroup = QStringLiteral("workspaceLayouts");
+
+//! The settings key of a workspace's layout. A path has slashes, which QSettings reads as groups, so the
+//! key is a digest of it; case-folded, as Windows paths are.
+QString layoutKey(const QString &workspacePath)
+{
+    const QByteArray path = QFileInfo(workspacePath).absoluteFilePath().toCaseFolded().toUtf8();
+    return QString::fromLatin1(QCryptographicHash::hash(path, QCryptographicHash::Sha1).toHex());
+}
+
+} // namespace
+
+void MainWindow::rememberWorkspaceLayout()
+{
+    if (m_workspacePath.isEmpty())
+        return;
+
+    // Open means what isProjectOpen() means: not hidden, a tab behind another included.
+    QStringList projects, strips;
+    for (const QDockWidget *dock : std::as_const(m_openProjectDocks))
+        if (!dock->isHidden())
+            projects << dock->property("projectUid").toString();
+    for (const QDockWidget *dock : std::as_const(m_openStripDocks))
+        if (!dock->isHidden())
+            strips << dock->property("projectUid").toString();
+
+    QSettings settings;
+    settings.beginGroup(k_layoutGroup);
+    settings.beginGroup(layoutKey(m_workspacePath));
+    settings.setValue(QStringLiteral("projects"), projects);
+    settings.setValue(QStringLiteral("strips"), strips);
+    settings.setValue(QStringLiteral("state"), saveState());
+    settings.endGroup();
+
+    // Only recent workspaces keep a layout, so the entries cannot pile up.
+    QStringList keep{layoutKey(m_workspacePath)};
+    for (const QString &recent : recentWorkspaces())
+        keep << layoutKey(recent);
+    for (const QString &key : settings.childGroups())
+        if (!keep.contains(key))
+            settings.remove(key);
+    settings.endGroup();
+}
+
+void MainWindow::restoreWorkspaceLayout()
+{
+    QSettings settings;
+    settings.beginGroup(k_layoutGroup);
+    settings.beginGroup(layoutKey(m_workspacePath));
+
+    // The docks first, by project uid: restoreState() places only docks that exist, by object name. A
+    // project removed since is simply not there.
+    for (const QString &uid : settings.value(QStringLiteral("projects")).toStringList())
+        if (const int idx = projectIndexForUid(uid); idx >= 0)
+            openProjectDock(idx);
+    for (const QString &uid : settings.value(QStringLiteral("strips")).toStringList())
+        if (const int idx = projectIndexForUid(uid); idx >= 0)
+            openStripEditorDock(idx);
+
+    const QByteArray state = settings.value(QStringLiteral("state")).toByteArray();
+    if (!state.isEmpty())
+        restoreState(state);
 }
 
 void MainWindow::rebuildRecentMenu()

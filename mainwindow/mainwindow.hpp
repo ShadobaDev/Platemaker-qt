@@ -568,6 +568,16 @@ private:
     // --- recent workspaces (advisory list in QSettings; never required) ---
     [[nodiscard]] QStringList recentWorkspaces() const;     //!< Returns a list of recently opened workspaces.
     void addToRecentWorkspaces(const QString &path);        //!< Adds a workspace path to the list of recent workspaces.
+
+    /**
+     * \brief Remembers, for the open workspace, which project and strip-editor docks are open and where
+     *        (docked, tabbed, floating, their sizes), so reopening it brings them back.
+     *
+     * Kept in QSettings per workspace file, not in the workspace: it is this machine's screen layout, and
+     * moving a dock is not an edit of the comic. Only recent workspaces keep an entry.
+     */
+    void rememberWorkspaceLayout();
+    void restoreWorkspaceLayout();   //!< Reopens the docks rememberWorkspaceLayout() recorded for this workspace, and puts them back.
     void rebuildRecentMenu();                               //!< Rebuilds the "Open Recent Workspace" menu based on the current list of recent workspaces.
     void openRecentWorkspace(const QString &path);          //!< Opens a workspace from the recent workspaces list.
     [[nodiscard]] QString defaultDialogDir() const;         //!< Returns the default directory for file dialogs (last workspace's dir or home dir).

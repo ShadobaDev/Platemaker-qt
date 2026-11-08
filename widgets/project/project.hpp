@@ -109,11 +109,10 @@ public:
                             Platemaker::Models::FileStatus status,
                             bool renderedWithoutProfile = false);
     /**
-     * \brief Rebuilds the output tiles from getOutputImages().
+     * \brief Rebuilds the output tiles from getOutputImages(), each showing its recorded status.
      *
-     * Also marks outputs still reported as done as out of sync when the output profile has changed
-     * since they were rendered — a change there leaves the old files on disk and hash-matching, so it
-     * is caught here, on every repaint.
+     * Whether a slice is out of sync with the configuration is not recorded; refreshTileStatuses()
+     * lays it over the tiles.
      */
     void refreshOutputTiles();
 
@@ -400,12 +399,14 @@ private:
     void refreshFormatControls();          //!< Reflects the selected output profile in m_formatOptions (or disables it if none selected).
 
     /**
-     * \brief Checks whether the project's existing outputs are stale relative to
-     * the current output configuration (format/size/quality changed since they
-     * were rendered). Drives the "Out of sync" badge shown after Refresh.
-     * \return true if the outputs no longer match the current configuration.
+     * \brief Repaints every input and output tile in place: its recorded status, or "Out of sync" where
+     * the configuration has moved on since the render, with the reason in its tooltip.
+     *
+     * The verdict comes from the library (ProjectItem::detectFileStaleness()) on every call, never from
+     * a stored status, so an edit and its undo are both shown without anything to reset. Only the status
+     * line and border change; thumbnails are not reloaded.
      */
-    [[nodiscard]] bool outputsConfigStale() const;
+    void refreshTileStatuses();
 
     void setupUndo();   //!< Creates this project's undo stack (depth 10). MainWindow adds it to the group.
 

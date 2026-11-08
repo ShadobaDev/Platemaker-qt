@@ -403,6 +403,9 @@
 
 ### Changed
 
+- **"Out of sync" shows as soon as a setting changes.** Editing a canvas or output profile, or
+  undoing the edit, updates the tiles of every open project at once, without a reopen or a refresh,
+  and a tile's tooltip says what changed since the render.
 - **Profiles have a resolution.** The canvas profile editor gains *Resolution (dpi)* — the resolution you
   draw at, 300 by default — and the template now records it, where it used to say 25.4 DPI, a value
   nobody chose, which a drawing app could resample by on import. Changing it marks the template
@@ -478,6 +481,8 @@
   project, F5 could render a different project from the one in front. F5, Ctrl+E, Undo and the status bar
   act only on a chapter with a window open — its panel or its strip editor; with none open, they are
   greyed out or silent.
+- **A profile edited in one project's panel shows in every open project.** The other panels kept
+  the old profile list until they were reopened.
 - **The up arrows of the number fields in the canvas- and output-profile dialogs work again on
   Windows 11.** Only the down arrow responded; both do now.
 

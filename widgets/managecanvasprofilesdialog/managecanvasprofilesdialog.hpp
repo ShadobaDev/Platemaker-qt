@@ -1,6 +1,8 @@
 #ifndef MANAGECANVASPROFILESDIALOG_HPP
 #define MANAGECANVASPROFILESDIALOG_HPP
 
+#include "profileimpact.hpp"
+
 #include <functional>
 #include <vector>
 #include <QDialog>
@@ -13,71 +15,72 @@ class ManageCanvasProfilesDialog;
 
 /**
  * \brief The ManageCanvasProfilesDialog class provides a dialog for managing canvas profiles.
- * It allows users to view, create, edit, duplicate, delete, and set the active canvas profile. 
- * The dialog displays a list of profiles and provides buttons for various actions.
+ * It allows users to view, create, edit, duplicate, delete, and set the active canvas profile.
+ *
+ * It keeps no draft: every action that changes the palette hands the new palette to setCommit()'s
+ * callback at once, as its own undo step, and the list shows the workspace again through setProfiles().
+ * Close only closes.
  */
 class ManageCanvasProfilesDialog : public QDialog
 {
     Q_OBJECT
 
 public:
+    //! Asks whether a change that would leave the palette as given may go ahead (the impact question).
+    //! The first argument is the window to ask over.
+    using ChangeCheck = std::function<bool(QWidget*, const std::vector<Platemaker::Models::CanvasProfile>&,
+                                           PaletteChange)>;
+    //! Writes a palette to the workspace as one undo step named by the text.
+    using Commit = std::function<void(std::vector<Platemaker::Models::CanvasProfile>, const QString&)>;
+
     explicit ManageCanvasProfilesDialog(QWidget *parent = nullptr); //< Constructs the dialog and initializes the UI.
     ~ManageCanvasProfilesDialog() override;                         //< Destroys the dialog and cleans up resources.
 
     /**
-     * \brief Populates the list of canvas profiles before calling exec().
-     * \param profiles The list of canvas profiles to display.
+     * \brief Shows the workspace's canvas profiles: before exec(), and again whenever the workspace changes.
+     * \param profiles The workspace's canvas profiles.
      * \param activeProfileName The name of the currently active profile.
      */
     void setProfiles(const QList<Platemaker::Models::CanvasProfile> &profiles,
                      const QString &activeProfileName);
 
-    /**
-     * \brief Retrieves the updated list of canvas profiles after the dialog is accepted.
-     * \return The list of canvas profiles.
-     */
-    QList<Platemaker::Models::CanvasProfile> profiles() const;
-    QString activeProfileName() const;                              //!< Retrieves the name of the currently active profile after the dialog is accepted.
-
-    /**
-     * \brief A last word on closing with the edits kept: called with the whole edited palette. Returning
-     *        false keeps the dialog open with the draft as it is.
-     *
-     * Asked here rather than on each profile's Save, because this is where the workspace changes, and
-     * because removing or reordering profiles changes pages too.
-     */
-    void setCommitCheck(std::function<bool(const std::vector<Platemaker::Models::CanvasProfile>&)> check);
-
-    void accept() override;   //!< Runs the commit check, then closes with the edits kept.
+    void setChangeCheck(ChangeCheck check);   //!< Asked before a Save or a Delete; empty = none.
+    void setCommit(Commit commit);            //!< Required: where each change goes.
 
 signals:
     /**
-     * \brief Emitted when the user clicks "Generate templates from active".
+     * \brief Emitted when the user clicks "Generate template from selected…".
      * Connect in MainWindow to trigger the actual generation.
-     * \param activeProfile The active canvas profile.
+     * \param profile The selected canvas profile.
      */
-    void generateTemplatesRequested(const Platemaker::Models::CanvasProfile &activeProfile);
+    void generateTemplatesRequested(const Platemaker::Models::CanvasProfile &profile);
+
+    //! The active profile changed (Set active, a rename of it, or the first profile added): an
+    //! application choice, not workspace data, so it is not an undo step.
+    void activeProfileChanged(const QString &name);
 
 private slots:
     void onSelectionChanged();          //!< Slot for when the selection in the profile list changes. Updates button states accordingly.
-    void onNewClicked();                //!< Slot for when the "New" button is clicked. Opens the CanvasProfileDialog to create a new profile.
-    void onEditClicked();               //!< Slot for when the "Edit" button is clicked. Opens the CanvasProfileDialog to edit the selected profile.
-    void onDuplicateClicked();          //!< Slot for the "Duplicate" button: seeds a copy of the selected profile and opens the editor on it; the copy is added only if the edit is accepted (cancel abandons it).
-    void onDeleteClicked();             //!< Slot for when the "Delete" button is clicked. Deletes the selected profile after confirmation.
-    void onSetActiveClicked();          //!< Slot for when the "Set Active" button is clicked. Sets the selected profile as the active one.
-    void onGenerateTemplatesClicked();  //!< Slot for when the "Generate Templates" button is clicked. Emits a signal to request template generation for the selected profile.
+    void onNewClicked();                //!< Opens the CanvasProfileDialog; its Save adds the profile to the workspace.
+    void onEditClicked();               //!< Opens the CanvasProfileDialog on the selected profile; its Save writes the edit.
+    void onDuplicateClicked();          //!< Opens the editor on a copy of the selected profile; the copy is added only when it is saved.
+    void onDeleteClicked();             //!< Deletes the selected profile after confirmation.
+    void onSetActiveClicked();          //!< Sets the selected profile as the active one.
+    void onGenerateTemplatesClicked();  //!< Emits generateTemplatesRequested() for the selected profile.
 
 private:
-    void rebuildList();             //!< Rebuilds the list widget to reflect the current profiles and active profile. Called after any changes to the profiles.
+    void rebuildList();             //!< Rebuilds the list widget to reflect the current profiles and active profile.
     [[nodiscard]] std::vector<Platemaker::Models::CanvasProfile> profilePalette() const; //!< m_profiles as the library takes a palette.
+    void setActive(const QString &name); //!< Records the active profile and announces it.
     void updateButtonStates();      //!< Updates the enabled/disabled state of the buttons based on the current selection and profile list.
     int  selectedRow() const;       //!< Returns the index of the currently selected row in the profile list, or -1 if no selection.
 
     Ui::ManageCanvasProfilesDialog *ui;     //!< Pointer to the UI form generated by Qt Designer (ui_managecanvasprofilesdialog.h).
 
-    QList<Platemaker::Models::CanvasProfile> m_profiles;    //!< The list of canvas profiles being managed in the dialog.
-    QString                  m_activeProfileName;           //!< The name of the currently active profile, used to mark it in the list and for template generation.
-    std::function<bool(const std::vector<Platemaker::Models::CanvasProfile>&)> m_commitCheck; //!< setCommitCheck(); empty = none.
+    QList<Platemaker::Models::CanvasProfile> m_profiles;    //!< The workspace's canvas profiles, as last shown.
+    QString                  m_activeProfileName;           //!< The name of the currently active profile, marked in the list.
+    ChangeCheck              m_changeCheck;                 //!< setChangeCheck().
+    Commit                   m_commit;                      //!< setCommit().
 };
 
 #endif // MANAGECANVASPROFILESDIALOG_HPP

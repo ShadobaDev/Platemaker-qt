@@ -5,6 +5,7 @@
 
 #include <QCoreApplication>
 #include <QMessageBox>
+#include <QPushButton>
 #include <QStringList>
 
 #include <algorithm>
@@ -78,7 +79,8 @@ std::vector<CanvasProfile> withProfile(std::vector<CanvasProfile> palette, const
     return palette;
 }
 
-bool confirmCanvasPalette(QWidget* parent, const Workspace& ws, const std::vector<CanvasProfile>& palette)
+bool confirmCanvasPalette(QWidget* parent, const Workspace& ws, const std::vector<CanvasProfile>& palette,
+                          PaletteChange change)
 {
     const QList<ProfileImpact> impact = canvasPaletteImpact(ws, palette);
     if (impact.isEmpty())
@@ -98,10 +100,19 @@ bool confirmCanvasPalette(QWidget* parent, const Workspace& ws, const std::vecto
                         "", p.unknownSize);
     }
 
-    const auto answer = QMessageBox::question(parent, tr("Pages go out of sync"),
-        tr("Saving changes how already rendered pages come out:")
+    const bool deleting = change == PaletteChange::Delete;
+    QMessageBox box(QMessageBox::Question, tr("Pages go out of sync"),
+        (deleting ? tr("Deleting the profile changes how already rendered pages come out:")
+                  : tr("Saving changes how already rendered pages come out:"))
             + QStringLiteral("\n\n") + lines.join(QLatin1Char('\n')) + QStringLiteral("\n\n")
-            + tr("A profile fits a page only when its canvas size is exactly the page's size. Save anyway?"),
-        QMessageBox::Save | QMessageBox::Cancel, QMessageBox::Cancel);
-    return answer == QMessageBox::Save;
+            + (deleting ? tr("A profile fits a page only when its canvas size is exactly the page's size. "
+                             "Delete anyway?")
+                        : tr("A profile fits a page only when its canvas size is exactly the page's size. "
+                             "Save anyway?")),
+        QMessageBox::Cancel, parent);
+    const QAbstractButton* goAhead = deleting ? box.addButton(tr("Delete"), QMessageBox::AcceptRole)
+                                              : box.addButton(QMessageBox::Save);
+    box.setDefaultButton(QMessageBox::Cancel);
+    box.exec();
+    return box.clickedButton() == goAhead;
 }

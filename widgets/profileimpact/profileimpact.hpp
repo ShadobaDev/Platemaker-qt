@@ -57,15 +57,23 @@ struct ProfileImpact {
 [[nodiscard]] std::vector<Platemaker::Models::CanvasProfile> withProfile(
     std::vector<Platemaker::Models::CanvasProfile> palette, const Platemaker::Models::CanvasProfile& profile);
 
+//! What the artist is doing to the palette, so the question names it.
+enum class PaletteChange {
+    Save,     //!< saving a new or edited profile
+    Delete,   //!< deleting a profile
+};
+
 /**
- * \brief Asks, when @p palette reaches any page, whether to save it anyway.
+ * \brief Asks, when @p palette reaches any page, whether to make the change anyway.
  *
  * \param parent  The dialog the change is being made in.
  * \param ws      The workspace as it is.
  * \param palette The canvas palette as it would be.
- * \return \c true to go ahead: nothing is reached, or the artist chose to save.
+ * \param change  What makes it so: the question and its button say *Save* or *Delete*.
+ * \return \c true to go ahead: nothing is reached, or the artist chose to go ahead.
  */
 [[nodiscard]] bool confirmCanvasPalette(QWidget* parent, const Platemaker::Models::Workspace& ws,
-                                        const std::vector<Platemaker::Models::CanvasProfile>& palette);
+                                        const std::vector<Platemaker::Models::CanvasProfile>& palette,
+                                        PaletteChange change = PaletteChange::Save);
 
 #endif // PROFILEIMPACT_HPP

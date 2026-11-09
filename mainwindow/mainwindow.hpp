@@ -683,6 +683,10 @@ private:
      */
     void openStripEditorDock(int projectIndex);
 
+    //! Gives a modal window that edits workspace data (the profile managers) Ctrl+Z / Ctrl+Y on the
+    //! workspace history: the main window's shortcuts do not reach past a modal window.
+    void bindWorkspaceHistory(QWidget& window);
+
     /**
      * \brief Reserves in the window's minimum the room a project and its strip editor take, tabbed as
      *        they open (m_dockRoom).

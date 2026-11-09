@@ -59,14 +59,9 @@ void ManageOutputProfilesDialog::setProfiles(const QList<Platemaker::Models::Out
     rebuildList();
 }
 
-QList<Platemaker::Models::OutputProfile> ManageOutputProfilesDialog::profiles() const
+void ManageOutputProfilesDialog::setCommit(Commit commit)
 {
-    return m_profiles;
-}
-
-QString ManageOutputProfilesDialog::activeProfileId() const
-{
-    return m_activeProfileId;
+    m_commit = std::move(commit);
 }
 
 // ---------------------------------------------------------------------------
@@ -80,7 +75,7 @@ void ManageOutputProfilesDialog::onSelectionChanged()
 
 void ManageOutputProfilesDialog::onNewClicked()
 {
-    // Create a new profile via OutputProfileDialog. If the user accepts, add it to the list.
+    // Create a new profile via OutputProfileDialog; its Save adds it to the workspace.
     OutputProfileDialog dlg(this);
     if (dlg.exec() != QDialog::Accepted) return;
 
@@ -96,17 +91,17 @@ void ManageOutputProfilesDialog::onNewClicked()
 
     // Give it a stable id now, so it is trackable by id (as the active profile, and on write-back).
     newProfile.id = mintOutputProfileId(m_profiles).toStdString();
-    m_profiles.append(newProfile);
+    auto list = profileList();
+    list.push_back(newProfile);
 
-    if (m_profiles.size() == 1)
-        m_activeProfileId = QString::fromStdString(newProfile.id);
-
-    rebuildList();
+    if (m_profiles.isEmpty())   // the first profile is the active one
+        setActive(QString::fromStdString(newProfile.id));
+    m_commit(std::move(list), tr("New output profile"));
 }
 
 void ManageOutputProfilesDialog::onEditClicked()
 {
-    // Edit the selected profile via OutputProfileDialog. If the user accepts, update the profile in the list.
+    // Edit the selected profile via OutputProfileDialog; its Save writes the edit.
     const int row = selectedRow();
     if (row < 0) return;
 
@@ -117,9 +112,10 @@ void ManageOutputProfilesDialog::onEditClicked()
 
     // OutputProfileDialog hands back the profile it was given with its fields applied, so the id —
     // which projects reference, and which tracks the active profile — survives the edit.
-    m_profiles[row] = dlg.profile();
-
-    rebuildList();
+    auto list = profileList();
+    list[static_cast<std::size_t>(row)] = dlg.profile();
+    m_commit(std::move(list), tr("Edit output profile"));
+    ui->listWidgetProfiles->setCurrentRow(row);
 }
 
 void ManageOutputProfilesDialog::onDuplicateClicked()
@@ -144,10 +140,9 @@ void ManageOutputProfilesDialog::onDuplicateClicked()
 
     // The copy keeps its freshly-minted id through the dialog, so it is trackable (as the active
     // profile, and on write-back).
-    copy = dlg.profile();
-
-    m_profiles.insert(row + 1, copy);
-    rebuildList();
+    auto list = profileList();
+    list.insert(list.begin() + row + 1, dlg.profile());
+    m_commit(std::move(list), tr("Duplicate output profile"));
     ui->listWidgetProfiles->setCurrentRow(row + 1);
 }
 
@@ -172,13 +167,12 @@ void ManageOutputProfilesDialog::onDeleteClicked()
         QString("Delete \"%1\"?").arg(name));
     if (answer != QMessageBox::Yes) return;
 
-    m_profiles.removeAt(row);
+    auto list = profileList();
+    list.erase(list.begin() + row);
 
     if (m_activeProfileId == id)
-        m_activeProfileId = m_profiles.isEmpty()
-            ? QString{} : QString::fromStdString(m_profiles.first().id);
-
-    rebuildList();
+        setActive(QString::fromStdString(list.front().id));
+    m_commit(std::move(list), tr("Delete output profile"));
 }
 
 void ManageOutputProfilesDialog::onSetActiveClicked()
@@ -187,13 +181,24 @@ void ManageOutputProfilesDialog::onSetActiveClicked()
     const int row = selectedRow();
     if (row < 0) return;
 
-    m_activeProfileId = QString::fromStdString(m_profiles[row].id);
+    setActive(QString::fromStdString(m_profiles[row].id));
     rebuildList();
 }
 
 // ---------------------------------------------------------------------------
 // Private helpers
 // ---------------------------------------------------------------------------
+
+std::vector<Platemaker::Models::OutputProfile> ManageOutputProfilesDialog::profileList() const
+{
+    return {m_profiles.begin(), m_profiles.end()};
+}
+
+void ManageOutputProfilesDialog::setActive(const QString &id)
+{
+    m_activeProfileId = id;
+    emit activeProfileChanged(id);
+}
 
 void ManageOutputProfilesDialog::rebuildList()
 {

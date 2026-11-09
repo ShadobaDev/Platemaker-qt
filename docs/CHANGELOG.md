@@ -10,8 +10,8 @@
 - **A canvas-profile change asks before it puts pages out of sync.** Saving one lists every project
   it reaches, including projects with no window open, and what their pages will render with: new
   margins, another profile, or no profile at all (a safe-area margin edit changes the canvas size, so
-  the profile stops fitting the pages). *Cancel* keeps the dialog open. In *Manage profiles* the
-  question comes when the dialog closes.
+  the profile stops fitting the pages). *Cancel* keeps the dialog open. Deleting a canvas profile asks
+  the same.
 - **Templates open as the canvas itself.** A template is now a layered **PSD** by default: open it in
   Procreate and it is a canvas of exactly the profile's size and resolution, the template on its own
   layer — nothing to import or place, so nothing for the app to resize by a pixel on the way in, which
@@ -491,6 +491,10 @@
 
 ### Fixed
 
+- **Profile changes in *Manage profiles* are kept, and can be undone there.** The canvas and output
+  profile managers saved nothing until **Close**, and closing them with the window's X or Esc dropped
+  every change without asking. Each New, Save, Duplicate and Delete is now saved at once, as its own
+  step, and **Ctrl+Z** / **Ctrl+Y** undo and redo them while the manager is open.
 - **F5 renders the project you are looking at.** After opening another workspace, or removing a
   project, F5 could render a different project from the one in front. F5, Ctrl+E, Undo and the status bar
   act only on a chapter with a window open — its panel or its strip editor; with none open, they are

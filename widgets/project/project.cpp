@@ -429,6 +429,9 @@ void Project::commitEdit(const QString& text, const std::function<void()>& mutat
         return;                                 // — don't pollute the undo history
 
     m_undoStack->push(new ProjectSnapshotCommand(this, before, std::move(after), text, scope));
+    // Any edit may put pages out of sync (a profile unlinked, a page moved) or back in, and the tiles show
+    // it at once, as an undo of it does through populate(). In memory: no file is read.
+    refreshTileStatuses();
 }
 
 void Project::commitWorkspaceEdit(const QString& text, const std::function<void()>& mutate)

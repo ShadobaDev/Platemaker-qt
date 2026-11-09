@@ -157,7 +157,7 @@ void Project::refreshCanvasProfilesList()
                         .removeCanvasProfileFromProject(proj, profileId);
                     refreshCanvasProfilesList();
                     emit projectModified();
-                });
+                }, EditScope::CanvasProfiles);
             });
             break;
         }
@@ -227,7 +227,7 @@ void Project::onAssignCanvasProfiles()
             refreshCanvasProfilesList();
             emit projectModified();
         }
-    });
+    }, EditScope::CanvasProfiles);
     if (!linked) {
         QMessageBox::warning(this, tr("Conflict"),
             tr("Cannot assign \"%1\": a linked profile already has the same canvas dimensions.")
@@ -344,7 +344,7 @@ void Project::onAddFromDirectory()
         paths << e.absoluteFilePath();
 
     // If no image files were found, addInputPaths() no-ops (and commitEdit records nothing).
-    commitEdit(tr("Add from directory"), [&]{ addInputPaths(paths); });
+    commitEdit(tr("Add from directory"), [&]{ addInputPaths(paths); }, EditScope::InputFiles);
 }
 
 namespace {
@@ -364,7 +364,7 @@ void Project::onAddFiles()
     const QStringList files = QFileDialog::getOpenFileNames(
         this, tr("Add Input Files"), {}, imageFileFilter());
     if (files.isEmpty()) return;
-    commitEdit(tr("Add files"), [&]{ addInputPaths(files); });
+    commitEdit(tr("Add files"), [&]{ addInputPaths(files); }, EditScope::InputFiles);
 }
 
 void Project::onClearInputs()
@@ -430,7 +430,7 @@ void Project::onApplySort()
 
         populate();
         emit projectModified();
-    });
+    }, EditScope::InputFiles);
 }
 
 void Project::onGoToOutput()
@@ -454,7 +454,7 @@ void Project::onRowsMoved()
     commitEdit(tr("Reorder inputs"), [&]{
         Platemaker::Infrastructure::ProjectEditor(pi).setInputOrder(orderedUids);
         emit projectModified();
-    });
+    }, EditScope::InputFiles);
 }
 
 void Project::onTileMoveUp(const QString& filePath)
@@ -467,7 +467,7 @@ void Project::onTileMoveUp(const QString& filePath)
             populate();
             emit projectModified();
         }
-    });
+    }, EditScope::InputFiles);
 }
 
 void Project::onTileMoveDown(const QString& filePath)
@@ -478,7 +478,7 @@ void Project::onTileMoveDown(const QString& filePath)
             populate();
             emit projectModified();
         }
-    });
+    }, EditScope::InputFiles);
 }
 
 void Project::onInputContextMenu(const QPoint& pos)
@@ -599,7 +599,7 @@ void Project::removeInputs(const std::vector<std::string>& remainingPaths, const
         Platemaker::Infrastructure::ProjectEditor{item}.mergeFileScan(remainingPaths);
         populate();
         emit projectModified();
-    });
+    }, EditScope::InputFiles);
 
     if (deleteThem) {
         deleteOverlays(stranded, tr("Delete %n object(s)", "", stranded.size()));
@@ -641,5 +641,5 @@ void Project::replaceInput(const QString& currentPath)
         Platemaker::Infrastructure::ProjectEditor{item}.replaceInputFile(uid, file.toStdString());
         populate();
         emit projectModified();
-    });
+    }, EditScope::InputFiles);
 }

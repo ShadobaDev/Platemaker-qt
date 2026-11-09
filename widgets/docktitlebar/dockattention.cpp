@@ -133,3 +133,9 @@ void showRowAttention(QAbstractItemView* view, int row)
         return at.isValid() ? view->visualRect(at).united(view->visualRect(last)) : QRect();
     });
 }
+
+void showPartAttention(QWidget* part)
+{
+    if (part)
+        replaceAttention(part, k_rowBorderPx);
+}

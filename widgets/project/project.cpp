@@ -7,6 +7,7 @@
 #include "projectsnapshotcommand.hpp"
 #include "overlaysnapshotcommand.hpp"
 #include "canvasprofiledialog.hpp"
+#include "dockattention.hpp"
 #include "outputformatoptionswidget.hpp"
 #include "stagecard.hpp"
 #include "workspacefolder.hpp"
@@ -346,6 +347,23 @@ void Project::applyProjectSnapshot(const QString& snapshot, EditScope scope)
     populate();
     emit projectModified();
     emit historyStepApplied(scope, {});
+}
+
+void Project::showStep(EditScope scope)
+{
+    QWidget* part = nullptr;
+    switch (scope) {
+    case EditScope::InputFiles:      part = ui->groupBoxInputFiles;      break;
+    case EditScope::CanvasProfiles:  part = ui->groupBoxCanvasProfiles;  break;
+    case EditScope::OutputProfile:   part = ui->groupBoxOutputProfile;   break;
+    case EditScope::OutputDirectory: part = ui->groupBoxOutputDirectory; break;
+    case EditScope::StripEditor:     return;
+    }
+    // The tab first: the part is laid out, and outlined, only once its tab is in front.
+    for (QWidget* tab : {ui->tabInput, ui->tabOutput})
+        if (tab->isAncestorOf(part))
+            ui->tabWidget->setCurrentWidget(tab);
+    showPartAttention(part);
 }
 
 namespace {
@@ -780,7 +798,7 @@ void Project::addDroppedUrls(const QList<QUrl>& urls)
         if (!lastDir.isEmpty())
             item.inputDirectory = lastDir.toStdString();
         addInputPaths(paths);
-    });
+    }, EditScope::InputFiles);
 #if DRAGNDROP_DEBUG_ENABLE
     qDebug() << "[DND] addDroppedUrls: input count" << beforeCount << "->"
              << m_workspace.projectItems[m_projectIndex].getInputImages().size()

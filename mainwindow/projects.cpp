@@ -340,10 +340,11 @@ void MainWindow::openProjectDock(int projectIndex)
     // covers both docks. Take them to it, and to the objects it touched, so Ctrl+Z is never mistaken
     // for having done nothing. The strip editor may simply not be open, and then there is nowhere to go.
     connect(projectWidget, &Project::historyStepApplied, this,
-            [this, newDock](EditScope scope, const QStringList& uids) {
+            [this, newDock, projectWidget](EditScope scope, const QStringList& uids) {
         const int idx = projectIndexOf(newDock);
         if (scope != EditScope::StripEditor) {
             showDockAttention(newDock);
+            projectWidget->showStep(scope);
             return;
         }
         QDockWidget* strip = dockForStripEditor(idx);

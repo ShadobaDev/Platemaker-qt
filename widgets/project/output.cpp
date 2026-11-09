@@ -87,7 +87,7 @@ void Project::onOutputProfileChanged(int index)
             .setProjectOutputProfile(proj, id.toStdString());
         refreshFormatControls();   // reflect the newly-selected profile's format/options
         emit projectModified();
-    });
+    }, EditScope::OutputProfile);
 }
 
 void Project::refreshFormatControls()
@@ -132,7 +132,7 @@ void Project::onSelectOutputDir()
         QSettings().setValue(QStringLiteral("lastOutputDir"), dir);
         refreshOutputDirectoryDisplay();
         emit projectModified();
-    });
+    }, EditScope::OutputDirectory);
 }
 
 void Project::onClearOutputDir()
@@ -141,7 +141,7 @@ void Project::onClearOutputDir()
         m_workspace.projectItems[m_projectIndex].getOutputDirectory().clear();
         refreshOutputDirectoryDisplay();
         emit projectModified();
-    });
+    }, EditScope::OutputDirectory);
 }
 
 void Project::onFormatOptionsEdited()

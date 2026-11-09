@@ -3,6 +3,7 @@
 
 class QAbstractItemView;
 class QDockWidget;
+class QWidget;
 
 /**
  * \brief Takes the user to @p dock: shows it, raises it, gives it focus — and, **only if it was not
@@ -29,5 +30,12 @@ void showDockAttention(QDockWidget* dock);
  * the view scrolls. Safe with nullptr or a row out of range (nothing to show).
  */
 void showRowAttention(QAbstractItemView* view, int row);
+
+/**
+ * \brief Outlines @p part (a box of a dock) briefly — **always**, with a row's border: like a row, it is
+ *        the precise thing an undo or redo changed. Bringing it into view is the caller's. Safe with
+ *        nullptr.
+ */
+void showPartAttention(QWidget* part);
 
 #endif // DOCKATTENTION_HPP

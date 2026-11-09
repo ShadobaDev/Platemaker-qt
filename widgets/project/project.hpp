@@ -31,15 +31,19 @@ class QMimeData;
 class QUrl;
 
 /**
- * \brief Where an undone or redone step is visible — the two windows one project is edited from.
+ * \brief Where an undone or redone step is visible: the part of the project dock it changed, or the strip
+ *        editor — the two windows one project is edited from.
  *
- * A project has **one** history covering both, so a step can land in a window the user is not looking
- * at. This is what lets undo take them there. It is not a second history and it is not a filter: every
- * step goes on the one stack in the order it was made, and this only answers "where do I look".
+ * A project has **one** history covering both, so a step can land in a window, or a tab, the user is not
+ * looking at. This is what lets undo take them there. It is not a second history and it is not a filter:
+ * every step goes on the one stack in the order it was made, and this only answers "where do I look".
  */
 enum class EditScope {
-    ProjectDock,   //!< Inputs, links, profiles, the output directory.
-    StripEditor,   //!< Text & bubbles, and the colour grade, which only the strip editor edits.
+    InputFiles,        //!< The Input tab's file list: pages added, removed, replaced, reordered.
+    CanvasProfiles,    //!< The Input tab's Canvas Profiles box: profiles linked or unlinked.
+    OutputProfile,     //!< The Output tab's output profile.
+    OutputDirectory,   //!< The Output tab's output directory.
+    StripEditor,       //!< Text & bubbles, and the colour grade, which only the strip editor edits.
 };
 
 /**
@@ -266,6 +270,13 @@ public:
     void applyProjectSnapshot(const QString& snapshot, EditScope scope);
 
     /**
+     * \brief Brings the tab holding the part of this dock @p scope names to the front and outlines that
+     *        part — **always**, as a row is: the dock may be in front, the tab or the box not.
+     *        Nothing for StripEditor, which is not this dock.
+     */
+    void showStep(EditScope scope);
+
+    /**
      * \brief Returns the state of the strip overlays and their authoring records.
      * \return The overlay state.
      */
@@ -331,7 +342,7 @@ signals:
      * **Emitted before the state goes out to the views**, because the selection is armed on the editor
      * and consumed by the feed that follows.
      * 
-     * \param scope The scope of the edit that was undone or redone (ProjectDock or StripEditor).
+     * \param scope The scope of the edit that was undone or redone (the part of the project dock, or StripEditor).
      * \param uids The UIDs of the objects touched by the edit (empty for a project-scope edit).
      */
     void historyStepApplied(EditScope scope, const QStringList& uids);
@@ -421,11 +432,10 @@ private:
      * \param text   Short label for the operation (shown in the undo action's text).
      * \param mutate The operation to perform (add / clear / reorder / sort / link / output selection /
      *               output dir). It still does its own populate()/projectModified().
-     * \param scope  Where undoing it takes the artist. The project dock, except for an edit that is
-     *               seen and made somewhere else — the colour grade, which lives on the strip.
+     * \param scope  Where undoing it takes the artist: the part of the project dock it changed, or the
+     *               strip for the colour grade, which lives there.
      */
-    void commitEdit(const QString& text, const std::function<void()>& mutate,
-                    EditScope scope = EditScope::ProjectDock);
+    void commitEdit(const QString& text, const std::function<void()>& mutate, EditScope scope);
 
     /**
      * \brief Records one undoable **text & bubbles** edit — same history, other half of the document.

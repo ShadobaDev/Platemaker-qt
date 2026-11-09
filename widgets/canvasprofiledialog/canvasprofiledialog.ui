@@ -36,6 +36,10 @@ QLabel {
     color: #cccccc;
     font-size: 12px;
 }
+QLabel[savedNote="true"] {
+    color: #808080;
+    font-size: 9px;
+}
 QLineEdit {
     background-color: #2d2d2d;
     color: #e0e0e0;
@@ -80,18 +84,28 @@ QFrame#previewFrame {
     <number>12</number>
    </property>
    <item>
-    <layout class="QHBoxLayout">
-     <item>
+    <layout class="QFormLayout" name="formLayoutName">
+     <property name="verticalSpacing">
+      <number>0</number>
+     </property>
+     <item row="0" column="0">
       <widget class="QLabel" name="labelName">
        <property name="text">
         <string>Profile name:</string>
        </property>
       </widget>
      </item>
-     <item>
+     <item row="0" column="1">
       <widget class="QLineEdit" name="lineEditName">
        <property name="placeholderText">
         <string>e.g. Webtoon-4p</string>
+       </property>
+      </widget>
+     </item>
+     <item row="1" column="1">
+      <widget class="QLabel" name="labelSavedName">
+       <property name="savedNote" stdset="0">
+        <bool>true</bool>
        </property>
       </widget>
      </item>
@@ -117,7 +131,7 @@ QFrame#previewFrame {
            <number>10</number>
           </property>
           <property name="verticalSpacing">
-           <number>6</number>
+           <number>0</number>
           </property>
           <item row="0" column="0">
            <widget class="QLabel" name="labelWidth">
@@ -139,14 +153,21 @@ QFrame#previewFrame {
             </property>
            </widget>
           </item>
-          <item row="1" column="0">
+          <item row="1" column="1">
+           <widget class="QLabel" name="labelSavedWidth">
+            <property name="savedNote" stdset="0">
+             <bool>true</bool>
+            </property>
+           </widget>
+          </item>
+          <item row="2" column="0">
            <widget class="QLabel" name="labelHeight">
             <property name="text">
              <string>Height (px):</string>
             </property>
            </widget>
           </item>
-          <item row="1" column="1">
+          <item row="2" column="1">
            <widget class="QSpinBox" name="spinBoxHeight">
             <property name="minimum">
              <number>1</number>
@@ -159,7 +180,14 @@ QFrame#previewFrame {
             </property>
            </widget>
           </item>
-          <item row="2" column="0" colspan="2">
+          <item row="3" column="1">
+           <widget class="QLabel" name="labelSavedHeight">
+            <property name="savedNote" stdset="0">
+             <bool>true</bool>
+            </property>
+           </widget>
+          </item>
+          <item row="4" column="0" colspan="2">
            <layout class="QHBoxLayout" name="horizontalLayoutSafeAreaModifier">
             <item>
              <spacer name="horizontalSpacer">
@@ -186,14 +214,21 @@ QFrame#previewFrame {
             </item>
            </layout>
           </item>
-          <item row="3" column="0">
+          <item row="5" column="1">
+           <widget class="QLabel" name="labelSavedSafeArea">
+            <property name="savedNote" stdset="0">
+             <bool>true</bool>
+            </property>
+           </widget>
+          </item>
+          <item row="6" column="0">
            <widget class="QLabel" name="labelDpi">
             <property name="text">
              <string>Resolution (dpi):</string>
             </property>
            </widget>
           </item>
-          <item row="3" column="1">
+          <item row="6" column="1">
            <widget class="QDoubleSpinBox" name="spinBoxDpi">
             <property name="toolTip">
              <string>The resolution you draw at. The template records it, so a drawing app sizes the canvas as intended. Rendering works in pixels and ignores it.</string>
@@ -212,6 +247,13 @@ QFrame#previewFrame {
             </property>
            </widget>
           </item>
+          <item row="7" column="1">
+           <widget class="QLabel" name="labelSavedDpi">
+            <property name="savedNote" stdset="0">
+             <bool>true</bool>
+            </property>
+           </widget>
+          </item>
          </layout>
         </widget>
        </item>
@@ -225,7 +267,7 @@ QFrame#previewFrame {
            <number>10</number>
           </property>
           <property name="verticalSpacing">
-           <number>6</number>
+           <number>0</number>
           </property>
           <item row="0" column="0">
            <widget class="QLabel" name="labelTop">
@@ -247,14 +289,21 @@ QFrame#previewFrame {
             </property>
            </widget>
           </item>
-          <item row="1" column="0">
+          <item row="1" column="1">
+           <widget class="QLabel" name="labelSavedMarginTop">
+            <property name="savedNote" stdset="0">
+             <bool>true</bool>
+            </property>
+           </widget>
+          </item>
+          <item row="2" column="0">
            <widget class="QLabel" name="labelBottom">
             <property name="text">
              <string>Bottom:</string>
             </property>
            </widget>
           </item>
-          <item row="1" column="1">
+          <item row="2" column="1">
            <widget class="QSpinBox" name="spinBoxMarginBottom">
             <property name="minimum">
              <number>0</number>
@@ -267,14 +316,21 @@ QFrame#previewFrame {
             </property>
            </widget>
           </item>
-          <item row="2" column="0">
+          <item row="3" column="1">
+           <widget class="QLabel" name="labelSavedMarginBottom">
+            <property name="savedNote" stdset="0">
+             <bool>true</bool>
+            </property>
+           </widget>
+          </item>
+          <item row="4" column="0">
            <widget class="QLabel" name="labelLeft">
             <property name="text">
              <string>Left:</string>
             </property>
            </widget>
           </item>
-          <item row="2" column="1">
+          <item row="4" column="1">
            <widget class="QSpinBox" name="spinBoxMarginLeft">
             <property name="minimum">
              <number>0</number>
@@ -287,14 +343,21 @@ QFrame#previewFrame {
             </property>
            </widget>
           </item>
-          <item row="3" column="0">
+          <item row="5" column="1">
+           <widget class="QLabel" name="labelSavedMarginLeft">
+            <property name="savedNote" stdset="0">
+             <bool>true</bool>
+            </property>
+           </widget>
+          </item>
+          <item row="6" column="0">
            <widget class="QLabel" name="labelRight">
             <property name="text">
              <string>Right:</string>
             </property>
            </widget>
           </item>
-          <item row="3" column="1">
+          <item row="6" column="1">
            <widget class="QSpinBox" name="spinBoxMarginRight">
             <property name="minimum">
              <number>0</number>
@@ -304,6 +367,13 @@ QFrame#previewFrame {
             </property>
             <property name="value">
              <number>0</number>
+            </property>
+           </widget>
+          </item>
+          <item row="7" column="1">
+           <widget class="QLabel" name="labelSavedMarginRight">
+            <property name="savedNote" stdset="0">
+             <bool>true</bool>
             </property>
            </widget>
           </item>
@@ -320,7 +390,7 @@ QFrame#previewFrame {
            <number>10</number>
           </property>
           <property name="verticalSpacing">
-           <number>6</number>
+           <number>0</number>
           </property>
           <item row="0" column="0">
            <widget class="QLabel" name="labelVisualColour">
@@ -339,20 +409,34 @@ QFrame#previewFrame {
             </property>
            </widget>
           </item>
-          <item row="1" column="0">
+          <item row="1" column="1">
+           <widget class="QLabel" name="labelSavedVisualColour">
+            <property name="savedNote" stdset="0">
+             <bool>true</bool>
+            </property>
+           </widget>
+          </item>
+          <item row="2" column="0">
            <widget class="QLabel" name="labelBackgroundColour">
             <property name="text">
              <string>Background colour:</string>
             </property>
            </widget>
           </item>
-          <item row="1" column="1">
+          <item row="2" column="1">
            <widget class="QPushButton" name="buttonBgColour">
             <property name="toolTip">
              <string>Click to pick colour (RGBA)</string>
             </property>
             <property name="text">
              <string/>
+            </property>
+           </widget>
+          </item>
+          <item row="3" column="1">
+           <widget class="QLabel" name="labelSavedBgColour">
+            <property name="savedNote" stdset="0">
+             <bool>true</bool>
             </property>
            </widget>
           </item>
@@ -432,6 +516,16 @@ QFrame#previewFrame {
    </item>
    <item>
     <layout class="QHBoxLayout" name="_2">
+     <item>
+      <widget class="QPushButton" name="buttonRevert">
+       <property name="toolTip">
+        <string>Put every field back to the saved profile</string>
+       </property>
+       <property name="text">
+        <string>Revert</string>
+       </property>
+      </widget>
+     </item>
      <item>
       <spacer>
        <property name="orientation">

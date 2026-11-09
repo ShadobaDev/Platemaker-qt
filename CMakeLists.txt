@@ -54,6 +54,7 @@ qt_add_executable(Platemaker
     widgets/profilepickerdialog/profilepickerdialog.cpp widgets/profilepickerdialog/profilepickerdialog.hpp widgets/profilepickerdialog/profilepickerdialog.ui
     widgets/templatesdialog/templatesdialog.cpp widgets/templatesdialog/templatesdialog.hpp widgets/templatesdialog/templatesdialog.ui
     widgets/outputformatoptionswidget/outputformatoptionswidget.cpp widgets/outputformatoptionswidget/outputformatoptionswidget.hpp widgets/outputformatoptionswidget/outputformatoptionswidget.ui
+    widgets/savednotes/savednotes.hpp
     widgets/aboutdialog/aboutdialog.cpp widgets/aboutdialog/aboutdialog.hpp widgets/aboutdialog/aboutdialog.ui
     widgets/licencedialog/licencedialog.cpp widgets/licencedialog/licencedialog.hpp widgets/licencedialog/licencedialog.ui
     widgets/renderworker/renderworker.cpp widgets/renderworker/renderworker.hpp
@@ -169,6 +170,7 @@ target_include_directories(Platemaker PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/widgets/profilepickerdialog
     ${CMAKE_CURRENT_SOURCE_DIR}/widgets/templatesdialog
     ${CMAKE_CURRENT_SOURCE_DIR}/widgets/outputformatoptionswidget
+    ${CMAKE_CURRENT_SOURCE_DIR}/widgets/savednotes
     ${CMAKE_CURRENT_SOURCE_DIR}/widgets/aboutdialog
     ${CMAKE_CURRENT_SOURCE_DIR}/widgets/licencedialog
     ${CMAKE_CURRENT_SOURCE_DIR}/widgets/renderworker

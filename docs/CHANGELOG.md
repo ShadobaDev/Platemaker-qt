@@ -409,6 +409,9 @@
   `-DPLATEMAKER_GUI_BUILD_TESTS=ON`) covers the bubble model: each property group is applied to a fully
   populated bubble and every property outside that group is checked to be untouched. It needs no window,
   so it builds and runs like the library's suite.
+- **The profile editors show what you changed.** Editing a canvas or output profile, a small note under
+  each field you changed gives the saved value (*saved: 300*), and **Revert** puts every field back,
+  after asking.
 
 ### Changed
 

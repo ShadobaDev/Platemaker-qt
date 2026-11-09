@@ -138,7 +138,7 @@ void ManageCanvasProfilesDialog::onDuplicateClicked()
 
     auto palette = profilePalette();
     CanvasProfileDialog dlg(this);
-    dlg.setProfile(copy);
+    dlg.setProfile(copy, ProfileSource::Unsaved);   // not saved yet: nothing to go back to
     dlg.setExistingProfiles(palette);
     dlg.setSaveCheck([this, &dlg, &palette](const Platemaker::Models::CanvasProfile& cp) {
         return !m_changeCheck || m_changeCheck(&dlg, withProfile(palette, cp), PaletteChange::Save);

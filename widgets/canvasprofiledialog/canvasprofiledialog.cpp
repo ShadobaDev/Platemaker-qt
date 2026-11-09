@@ -4,6 +4,7 @@
 #include <platemaker/models/canvas_profile.hpp>
 
 #include <QColorDialog>
+#include <QLocale>
 #include <QMessageBox>
 #include <QEvent>
 #include <QFrame>
@@ -55,8 +56,14 @@ CanvasProfileDialog::CanvasProfileDialog(QWidget *parent)
     connect(ui->spinBoxMarginLeft,   &QSpinBox::valueChanged, this, &CanvasProfileDialog::onDimensionsChanged);
     connect(ui->spinBoxMarginRight,  &QSpinBox::valueChanged, this, &CanvasProfileDialog::onDimensionsChanged);
 
+    addSavedNotes();
+    connect(ui->buttonRevert, &QPushButton::clicked, this, &CanvasProfileDialog::onRevertClicked);
+    connect(ui->lineEditName, &QLineEdit::textChanged, this, &CanvasProfileDialog::refreshSaved);
+    connect(ui->spinBoxDpi, &QDoubleSpinBox::valueChanged, this, &CanvasProfileDialog::refreshSaved);
+
     updatePreview();
     updateSizeInfoLabel();
+    refreshSaved();
 }
 
 CanvasProfileDialog::~CanvasProfileDialog()
@@ -68,10 +75,11 @@ CanvasProfileDialog::~CanvasProfileDialog()
 // Public API
 // ---------------------------------------------------------------------------
 
-void CanvasProfileDialog::setProfile(const Platemaker::Models::CanvasProfile &profile)
+void CanvasProfileDialog::setProfile(const Platemaker::Models::CanvasProfile &profile, ProfileSource source)
 {
     // Kept whole, so profile() hands back what this dialog does not edit (id, template settings…).
     m_profile = profile;
+    m_saved   = source == ProfileSource::Saved;
 
     // Restore the safe-area-mode radio state from the hint stored in the profile.
     m_safeAreaMode = profile.hintUserSafeAreaSelect;
@@ -115,6 +123,7 @@ void CanvasProfileDialog::setProfile(const Platemaker::Models::CanvasProfile &pr
 
     updatePreview();
     updateSizeInfoLabel();
+    refreshSaved();
 }
 
 Platemaker::Models::CanvasProfile CanvasProfileDialog::profile() const
@@ -203,6 +212,7 @@ void CanvasProfileDialog::onPickVisualColour()
     m_visualColour = picked;
     applyColourToButton(ui->buttonVisualColour, m_visualColour);
     updatePreview();
+    refreshSaved();
 }
 
 void CanvasProfileDialog::onPickBgColour()
@@ -214,12 +224,14 @@ void CanvasProfileDialog::onPickBgColour()
     m_bgColour = picked;
     applyColourToButton(ui->buttonBgColour, m_bgColour);
     updatePreview();
+    refreshSaved();
 }
 
 void CanvasProfileDialog::onDimensionsChanged()
 {
     updateSizeInfoLabel();
     updatePreview();
+    refreshSaved();
 }
 
 void CanvasProfileDialog::onSafeAreaModeToggled(bool checked)
@@ -227,6 +239,60 @@ void CanvasProfileDialog::onSafeAreaModeToggled(bool checked)
     m_safeAreaMode = checked;
     updateSizeInfoLabel();
     updatePreview();
+    refreshSaved();
+}
+
+void CanvasProfileDialog::onRevertClicked()
+{
+    const auto answer = QMessageBox::question(this, tr("Revert"),
+        tr("Put every field back to the saved profile? Your changes here are lost."),
+        QMessageBox::Yes | QMessageBox::Cancel, QMessageBox::Cancel);
+    if (answer == QMessageBox::Yes)
+        setProfile(m_profile, ProfileSource::Saved);
+}
+
+void CanvasProfileDialog::refreshSaved()
+{
+    const bool differs = m_saved ? m_savedNotes.refresh(m_profile, profile()) : false;
+    if (!m_saved)
+        m_savedNotes.clearAll();
+    ui->buttonRevert->setVisible(m_saved);
+    ui->buttonRevert->setEnabled(differs);
+}
+
+void CanvasProfileDialog::addSavedNotes()
+{
+    using Platemaker::Models::CanvasProfile;
+    const auto number  = [](int v) { return QString::number(v); };   // as a QSpinBox shows it
+    const auto colour  = [](const Platemaker::Models::RGBA& c) {
+        return QColor(c.r, c.g, c.b, c.a).name(QColor::HexArgb);
+    };
+    // Width and height as the spin boxes show them now: the safe area in safe-area mode, the canvas
+    // otherwise — the saved profile read the same way, so a note says what this field would hold.
+    const auto shownWidth = [this](const CanvasProfile& p) {
+        return m_safeAreaMode ? p.canvasSize.width - p.margins.left - p.margins.right : p.canvasSize.width;
+    };
+    const auto shownHeight = [this](const CanvasProfile& p) {
+        return m_safeAreaMode ? p.canvasSize.height - p.margins.top - p.margins.bottom : p.canvasSize.height;
+    };
+
+    m_savedNotes.add(ui->labelSavedName, [](const CanvasProfile& p) { return QString::fromStdString(p.name); });
+    m_savedNotes.add(ui->labelSavedWidth, [=](const CanvasProfile& p) { return number(shownWidth(p)); });
+    m_savedNotes.add(ui->labelSavedHeight, [=](const CanvasProfile& p) { return number(shownHeight(p)); });
+    m_savedNotes.add(ui->labelSavedSafeArea, [this](const CanvasProfile& p) {
+        return p.hintUserSafeAreaSelect ? tr("safe area") : tr("absolute size");
+    });
+    m_savedNotes.add(ui->labelSavedDpi, [this](const CanvasProfile& p) {
+        QLocale shown = ui->spinBoxDpi->locale();   // as the spin box shows it
+        shown.setNumberOptions(QLocale::OmitGroupSeparator);
+        return shown.toString(p.dpi, 'f', ui->spinBoxDpi->decimals());
+    });
+    m_savedNotes.add(ui->labelSavedMarginTop, [=](const CanvasProfile& p) { return number(p.margins.top); });
+    m_savedNotes.add(ui->labelSavedMarginBottom, [=](const CanvasProfile& p) { return number(p.margins.bottom); });
+    m_savedNotes.add(ui->labelSavedMarginLeft, [=](const CanvasProfile& p) { return number(p.margins.left); });
+    m_savedNotes.add(ui->labelSavedMarginRight, [=](const CanvasProfile& p) { return number(p.margins.right); });
+    m_savedNotes.add(ui->labelSavedVisualColour, [=](const CanvasProfile& p) { return colour(p.visualColour); });
+    m_savedNotes.add(ui->labelSavedBgColour, [=](const CanvasProfile& p) { return colour(p.backgroundColour); });
 }
 
 // ---------------------------------------------------------------------------

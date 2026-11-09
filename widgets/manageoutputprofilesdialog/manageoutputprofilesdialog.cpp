@@ -143,7 +143,7 @@ void ManageOutputProfilesDialog::onDuplicateClicked()
     copy.id = mintOutputProfileId(m_profiles).toStdString();
 
     OutputProfileDialog dlg(this);
-    dlg.setProfile(copy);
+    dlg.setProfile(copy, ProfileSource::Unsaved);   // not saved yet: nothing to go back to
     // Atomic: cancelling the editor abandons the whole action — nothing is inserted, so a stray
     // Duplicate never leaves an unwanted "… (copy)" behind. Only an accepted edit adds the profile.
     if (dlg.exec() != QDialog::Accepted) return;

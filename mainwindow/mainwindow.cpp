@@ -60,6 +60,12 @@
 #include <utility>
 #include <vector>
 
+namespace {
+//! The settings key of the window's size and place: one for the application, not per workspace — it is
+//! the window on this screen, which a workspace's dock layout is then restored into.
+const QString k_windowGeometryKey = QStringLiteral("windowGeometry");
+} // namespace
+
 // ---------------------------------------------------------------------------
 // Construction / destruction
 // ---------------------------------------------------------------------------
@@ -309,6 +315,9 @@ MainWindow::MainWindow(QWidget *parent)
 
     refreshProjectActions();
     updateTitleBar();
+
+    reserveRoomForDocks();
+    restoreGeometry(QSettings().value(k_windowGeometryKey).toByteArray());
 }
 
 MainWindow::~MainWindow()
@@ -338,6 +347,7 @@ void MainWindow::closeEvent(QCloseEvent *event)
     }
     // Quitting does not go through closeWorkspace(), so the layout is remembered here.
     rememberWorkspaceLayout();
+    QSettings().setValue(k_windowGeometryKey, saveGeometry());
     event->accept();
 }
 
@@ -424,6 +434,14 @@ bool MainWindow::eventFilter(QObject *watched, QEvent *event)
         }
     }
     return QMainWindow::eventFilter(watched, event);
+}
+
+bool MainWindow::event(QEvent *event)
+{
+    const bool handled = QMainWindow::event(event);
+    if (event->type() == QEvent::LayoutRequest && m_dockRoom.isValid())
+        setMinimumSize(m_dockRoom.expandedTo(layout()->totalMinimumSize()));
+    return handled;
 }
 
 // ---------------------------------------------------------------------------

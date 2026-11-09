@@ -549,6 +549,30 @@ void MainWindow::refreshStripEditor(QDockWidget *dock)
                              m_overlayRecords.records(QString::fromStdString(project.uid)));
 }
 
+void MainWindow::reserveRoomForDocks()
+{
+    // A project with nothing in it lays out the same panels as any other: the Input and Output toolboxes
+    // are what need the height, and they do not depend on the files.
+    Platemaker::Models::Workspace scratch;
+    scratch.projectItems.emplace_back();
+    QUndoStack history;
+
+    QDockWidget project(this);
+    project.setWidget(new Project(0, scratch, QString(), &history, &project));
+    installDockTitleBar(&project);
+    QDockWidget strip(this);
+    strip.setWidget(new StripEdit::Editor(*m_presets, &strip));
+    installDockTitleBar(&strip);
+    tabifyDockWidget(ui->dockWidgetWorkspace, &project);   // where openProjectDock() puts one
+    tabifyDockWidget(ui->dockWidgetWorkspace, &strip);     // and openStripEditorDock()
+
+    // The layout's minimum, tab bar included. Measured before the scratch docks leave it.
+    m_dockRoom = layout()->totalMinimumSize();
+    removeDockWidget(&strip);
+    removeDockWidget(&project);
+    setMinimumSize(m_dockRoom);
+}
+
 void MainWindow::openStripEditorDock(int projectIndex)
 {
     if (projectIndex < 0 || projectIndex >= static_cast<int>(m_workspace.projectItems.size()))

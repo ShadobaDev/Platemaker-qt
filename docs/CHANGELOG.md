@@ -6,7 +6,7 @@
 
 - **A workspace reopens the way you left it.** The project panels and strip editors that were open
   come back, docked, tabbed or floating where they were. It is remembered on this computer, for each
-  recent workspace.
+  recent workspace. The main window opens at the size and place it was left at.
 - **A canvas-profile change asks before it puts pages out of sync.** Saving one lists every project
   it reaches, including projects with no window open, and what their pages will render with: new
   margins, another profile, or no profile at all (a safe-area margin edit changes the canvas size, so
@@ -411,6 +411,9 @@
 
 ### Changed
 
+- **Opening a project no longer resizes the window.** The window keeps room for a project and its strip
+  editor from the start, so it cannot be made smaller than they need; panels set side by side may
+  still widen it.
 - **Opening a project, or starting a render, no longer holds the window while its files are checked.**
   The check runs in the background, on every file at once, and the tiles update when it is in; so does
   **Refresh files**. **Stop** ends a render while its files are still being checked.

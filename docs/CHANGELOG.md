@@ -2,513 +2,132 @@
 
 ## [Unreleased]
 
+Requires libplatemaker **0.7.0**.
+
 ### Added
 
-- **A workspace reopens the way you left it.** The project panels and strip editors that were open
-  come back, docked, tabbed or floating where they were. It is remembered on this computer, for each
-  recent workspace. The main window opens at the size and place it was left at.
-- **A canvas-profile change asks before it puts pages out of sync.** Saving one lists every project
-  it reaches, including projects with no window open, and what their pages will render with: new
-  margins, another profile, or no profile at all (a safe-area margin edit changes the canvas size, so
-  the profile stops fitting the pages). *Cancel* keeps the dialog open. Deleting a canvas profile asks
-  the same.
-- **Templates open as the canvas itself.** A template is now a layered **PSD** by default: open it in
-  Procreate and it is a canvas of exactly the profile's size and resolution, the template on its own
-  layer — nothing to import or place, so nothing for the app to resize by a pixel on the way in, which
-  is how the stray template-coloured edge on the left and bottom of a page got there. *Canvas →
-  Templates…* gains **Template settings** for the selected profile: the format (PSD, or PNG as before),
-  an optional empty layer above the template, and the profile's resolution. A PSD over 16384 px a side
-  is still written but warns that Procreate will not open it. *Generate template from selected…* in
-  the profile manager writes the same file. Each row's name carries a **PSD** or **PNG** chip for the
-  file on disk, and a template whose profile now asks for the other format, or a different empty
-  layer, reads **Outdated** — so do the PNG templates made before this, once. Regenerating in the
-  other format writes a new file beside the old one, so it no longer asks to overwrite anything.
-  **Regenerate all** applies the settings shown to every canvas profile and regenerates every
-  template — say, an empty layer in all of them at once.
-- **A template says why it is out of date, and a PNG and a PSD are both kept.** *Outdated* comes with
-  its reason — *Resolution 25.4 → 300 dpi*, *Changed outside Platemaker*, *File missing* — the first in
-  the Status column, all of them in its tooltip. Each profile keeps one template per format, with a chip
-  for each file and its own state; switching formats no longer orphans the other file. The status bar
-  reports the outdated templates of the open chapter's profiles, with a way to the Templates dialog.
-- **Canvas profiles may share a name, and are told apart.** Where profiles are listed — the profile
-  manager, the Templates dialog, a chapter's profile list and the list a profile is linked from — one
-  that shares its name with a different profile shows what sets it apart (*2000×8080*), and an identical
-  one is marked *Duplicate*, with a remark in the status bar. Their templates no longer overwrite each
-  other: the file name carries the same difference (`3p-m_2000x8080.psd`). Saving a profile identical
-  to another warns, but no longer refuses a repeated name. Linking a profile to a chapter picked the
-  first profile of the chosen name; it now links the one chosen.
-
-- **Strip editor — the chapter as one continuous strip, and the lettering authored on it.** *View strip*
-  on a project's Output tab, a card on the Workflow map, or **View → Strip editor** (**Ctrl+E**, for the
-  project in front; *View → Strip editors* lists every project) opens the whole chapter in a tab beside the
-  Workspace — float it or split it out from there:
-  scroll it, zoom it (fit-width / 100% / Ctrl+wheel), and toggle guides marking where the output will be
-  **cut**. It shows the project's **input pages** rather than rendered slices, so it works before the
-  first render, follows input and profile edits live, and previews the grade against the input — which is
-  what lets *Render & view* bake exactly what is on screen. Pages are built lazily for the viewport plus
-  one either side and evicted behind it, so memory tracks the viewport rather than the chapter and a long
-  chapter opens instantly.
-  A chapter drawn as **one long strip** is a page like any other: one taller than the usual memory budget
-  (up to the 65,500 px a JPEG allows) still stays resident while it is in view, and it is prepared for
-  display off the UI thread, so it sharpens without freezing the editor.
-  A closed strip editor gives its pages back and does no work in the background; reopened, it shows
-  the proxies at once and sharpens what is on screen.
-
-  **Text & bubbles.** The Bubble, Text and Caption box tools draw a balloon where you **drag** one out; a click just
-  deselects, so clicking away cannot leave a stray behind, and a new bubble arrives selected with the
-  caret already in the text box. Objects are selectable, movable and resizable under every tool — a tool
-  decides what a *new* object will be, never whether the existing ones can be touched — and a bubble is
-  hit where it is drawn: its box and its tail tips.
-
-  The tool's own options sit **bottom-left**, under the tool rail, and say what the next object will be.
-  The **right-hand panel describes whatever is selected** and nothing else: a collapsible section per
-  thing a bubble has — shape, fill, line, texture, effects, text, tails — showing only the sections that
-  apply, so a caption with no balloon is not offered a fill it has nowhere to put. Which sections you
-  leave open is remembered. The object list beneath shows the strip's contents as a stack — row 0 is
-  front-most, drag to reorder, tick to mute, **Duplicate (Ctrl+D) / Delete** from the context menu.
-  Splitter positions are remembered between sessions.
-  Everything previews live, and the preview *is* the render: the same drawing code over the same numbers
-  at the same scale.
-  - **Ten shapes**, each bringing the rectangle its text may occupy — speech, round, thought, shout,
-    caption, caption plate, diamond, banner, scroll, and text-only.
-  - **Resize from eight grips, as in GIMP.** A selected object has a grip on each corner and each edge;
-    the opposite corner or edge stays put. **Shift** keeps the proportions, **Ctrl** resizes from the
-    centre. The grips and tail handles of what is selected are drawn above every other object, at the
-    same size on screen whatever the zoom, so a balloon under another one stays resizable and a tail tip
-    hidden under a balloon can still be aimed. Artwork scales as one, so it has corner grips only.
-  - **The lettering is broken where you break it.** Lines are never wrapped for you; a long word is
-    left whole. **Line spacing** (TEXT) tightens or loosens the lines, as a percentage of the font's
-    own. **Padding sides** and **Padding top** (TEXT, on a balloon) set how far the lettering keeps from
-    the outline — negative lets it burst out of the balloon. The lettering starts in the middle of the
-    balloon and each new line grows it up and down alike; once it reaches the top padding, further lines
-    go on downwards, out of the balloon, and are never cut off there. **Outline** (TEXT) draws a band
-    round each letter, outside it, so the letters keep their weight: a width (0 is none), a colour, or a
-    halftone of dots, lines or a grid. It is what lettering on a picture or a dark balloon needs.
-    The letters' **Colour** (TEXT) can be a halftone too, dots, lines or a grid of a second colour over
-    it, as the balloon's fill can. **Shadow** (TEXT) is the balloon's shadow for the letters with their outline: grown, moved,
-    blurred, or a halftone. Solid with no offset it reads as a second outline; soft with no offset, as
-    a glow. *Show whitespace* under the text box marks spaces, tabs and line ends in the box
-    itself; the balloon is always drawn as it will render.
-  - **Tails point anywhere, curve, and come in numbers** — a tail is a tip, a width and a bend, and one
-    sound may have several speakers. The base is found where a ray from the balloon's centre crosses its
-    outline, so it works for every shape and can leave any edge. **Each tail is its own object**: select
-    it under its bubble in the object list, or press its handle on the strip, to give it its own width and
-    bend or to delete it — the other tails keep theirs. *Add tail* on the bubble adds one shaped like the
-    last.
-  - **Thought tails.** A tail's *Style* is *Plain* or *Circles*: a chain of ellipses getting smaller
-    towards the tip, a thought's, with its *Number*, the *Pitch* between them and a *Starting offset* that
-    sinks the first one into the balloon or leaves a gap. The chain follows the tail's bend and always
-    ends at the tip. A tail added to a bubble takes the style picked last on it.
-  - **Textures are drawn by the library.** A texture is an SVG filter (`feTurbulence` /
-    `feDisplacementMap`), which librsvg applies and Qt cannot, so a textured bubble is previewed by
-    asking the **library** for the same pixels the render will produce. The noise is seeded per bubble
-    and measured in the drawing's own units, so the texture scales with the balloon rather than with the
-    output resolution. A balloon with no texture emits no filter at all.
-  - **Line style Flash.** The balloon is ringed by narrow, randomly varied triangles, like brush
-    strokes, pointing out of the edge and into it, in the outline colour; they replace the solid
-    outline. Any shape wears it, tails included, and it is drawn on the strip directly, as fast as a
-    clean balloon. The *Line* section sets the strokes' spacing, length and width inside and outside, how
-    much their place and length vary, and their **direction**: from the centre, or from a line along a
-    long box, so they stand square to its straight sides. *Auto* takes each shape's own direction and
-    follows the shape; a direction set by hand stays when the shape changes. New built-in preset
-    **Flash**.
-  - **Speech balloon and caption box are one shape, the Box, with a corner radius.** Their tiles stay
-    as two ready-made starts (45 px and 4 px). The Shape panel shows a **Corner radius** row under the
-    tiles for a Box: from square corners to fully round ends. A balloon whose radius matches neither
-    tile is still a Box, and no tile is shown as current. A tile gives its whole shape, radius
-    included, and only picking a speaking tile adds a tail (to a balloon with none), so turning a
-    caption's corners does not give it one. No tile takes a balloon's tails away. The lettering's room now stays inside the rounded corners.
-  - **Shout, diamond, caption plate and banner are one shape, the Polygon**, its corners rounded by the
-    same **Corner radius** row. Their tiles stay as four ready-made starts. The lettering's room in a
-    polygon is worked out from the outline itself, as the largest rectangle inside it, so in a shout
-    it no longer reaches between the spikes. A tail leaves a balloon from the edge nearest its tip, on a
-    shape with a notch too. *Convert to ▸ Balloon*, and a preset applied while the Text tool is armed,
-    carry the whole shape (its corners and its points), not only which kind it is.
-  - **The scroll is a Curve**, a shape drawn with Bézier curves, and its tile a ready-made start. It
-    looks as before; the lettering's room is worked out from the outline, as a polygon's is, so it now
-    reaches into the rolled ends.
-  - **Edit a curve's shape on the strip.** In shape editing, a click on a curve's point shows its two
-    handles, which bend the curve on each side of it; a **+** halfway along each piece adds a point
-    there without changing the outline. Right-click a point for **Point type**: *Corner* (its handles
-    move apart), *Smooth* (on one line) or *Symmetric* (on one line and as long as each other).
-    **Convert to curve** on a balloon's context menu makes it a curve of the same outline, ready to
-    edit.
-  - **Line and texture are two choices.** *Line* is how the edge is drawn (a solid line, a flash or a
-    brush) and *Texture* what is done to the whole balloon as it is rendered, line and all, never the
-    words. The first texture is **Rough**, with four rows: grain, detail, displacement and blur; the
-    **Marker** and **Ink** looks are two built-in presets of it. A flash can be rough.
-  - **Brush**, a new line: a few brush strokes laid along the outline, overlapping where they meet,
-    each narrowing to a point at both ends and swelling and wandering along the way. Its width is the
-    outline's stroke width; its rows set how many strokes, how far they overlap, how long the points
-    are, how much they swell and how far they wander. A brush can be rough.
-  - **Drybrush**, a new line: a thin unbroken line with dry brush hairs either side of it, thinning out
-    away from it. At a corner the hairs cross into a hatch, and at a tail's root the balloon's and the
-    tail's run on into each other; a tail's tip stays a sharp point. Its width
-    is the outline's; its rows set how wide the unbroken line is, how many hairs and how dry the brush
-    is.
-  - **Edges.** Any balloon's outline can take a **zigzag** edge: teeth pushed in along it, with rows
-    for their spacing, depth and irregularity under the Shape panel's **Edge**. The tails stay smooth,
-    the balloon keeps its size and the lettering's room gives up the depth; a star's points stay
-    sharp. In shape editing an arrow sets the depth, on a round balloon too. Picking another shape keeps
-    the edge.
-  - **The panel follows how a balloon is drawn**: *Shape*, *Fill*, *Line*, *Texture*, *Effects*,
-    *Text*. The outline's colour and width are in *Line* now, beside the line's kind, so a brush's width
-    sits with the brush; *Apply from tool options ▸* offers the same sections.
-  - **Halftone patterns.** The fill, the line and the shadow each take a **Pattern**: the colour alone,
-    or **dots**, **lines** or a **grid** in a second colour (**Pattern colour**) over it, with rows for
-    their spacing, size and angle. A pattern is drawn on the strip as it is in the output, its grid laid
-    from the balloon's corner, and colours may be transparent. A fill's pattern can **fade out**: in shape
-    editing a cross sits in the middle of the balloon, and pulling the dots on its arms in from the sides
-    sets where the pattern starts to thin out and where it is gone — towards one side, two, or all four for
-    a round fade. The cross's centre can be dragged anywhere in the balloon; *Fade* makes it a
-    rectangle or an ellipse, and *From the centre* turns it over, so the pattern is gone in the middle and
-    whole at the edges.
-  - **Shadows.** Under *Effects*, a balloon can **drop a shadow**: its whole shape, tails and all, grown
-    by a **spread** and moved by an **offset**, filled with a colour (with transparency) under it. By
-    default it is centred, a rim all round; give it an offset and it falls to a side. Hard by default,
-    drawn as you edit; give it **softness** and it is blurred, shown exactly as it will be baked. A
-    halftone shadow is dots, lines or a grid in the shadow's colour instead of it, and a soft one fades
-    as a blur would, its marks thinning out towards the edge, drawn live as you edit. A texture roughens
-    the shadow too. Presets carry it.
-  - **Re-roll**, on a balloon's context menu, deals a flash's or a brush's strokes, or a texture's
-    wobble, or an irregular edge's teeth, again. One undo step.
-  - **The thought balloon is a Cloud** with two rows of its own in the Shape panel: **Lobes**, how many
-    circles make its edge, and **Lobe size**. In shape editing, an arrow at the right-hand lobe sizes
-    them all. Its tile is a ready-made start, and it looks as before.
-  - **Edit a balloon's shape on the strip.** Double-click a box or polygon balloon, or pick **Edit
-    shape** on its context menu: the outline is traced instead of the dashed box, and its own handles
-    replace the grips. Drag the two-headed arrow in the corner to round the corners; on a polygon, drag a square to move a
-    point (the balloon grows to follow a point pulled past it), press a **+** in the middle of an edge to
-    add one there, and **Delete** removes the picked point, down to three. The **text area** shows too,
-    with an arrow on its left, right and top edges: drag a side one to set *Padding sides*, the top one
-    to set *Padding top*. Any balloon with words can be edited this way, an ellipse too. A click on the
-    words puts the caret in OBJECT STATE's text. Another double-click, **Esc**, a click outside the balloon or the
-    menu entry ends it. Each
-    drag is one undo step.
-  - **Fit to text** gives the smallest balloon that holds the lettering, on **both** axes, floored so a
-    short line cannot collapse the shape. When the lettering does not fit — the box dragged too small, or
-    a line typed too long — the selected object's text area is **outlined in red**; a line too wide is
-    clipped at the sides, lines too many run on below. **Fix padding** keeps the balloon's size and
-    lowers its paddings instead, each in its own direction (the top one for too many lines, the side one
-    for a line too wide), below zero if the lettering has to reach past the outline. Both are in
-    OBJECT STATE and on the right-click menu.
-  - **The lettering stays where you put it.** *Fit to text* and *Convert to ▸* resize the box around
-    the words, from the side they are aligned to, so converting text to a balloon draws the balloon
-    under the words instead of clipping them. **A tail tip stays on its speaker** through all of it,
-    and through dragging a grip too; only moving the balloon carries its tails along.
-  - **Presets** — a named look: colours, stroke, line style, font, alignment and shape, but never the
-    text, the balloon's size, its tails or where it sits. The picker in the tool's options sets what the
-    **next** bubble starts from; **right-click an existing bubble → *Apply preset ▸*** restyles that one
-    without touching its lettering. Five built-ins ship as code — Dialogue, Whisper, Thought, Shout,
-    Caption — and **Tools → Import / Export bubble presets…** carry your own between machines and people
-    as one JSON file. They live in the application config rather than the workspace: restyling is a habit
-    of the artist, not a property of one comic, and a preset saved in one strip editor is offered in every
-    other at once.
-  - **Select several objects at once** — Ctrl+click on the strip, Ctrl or Shift in the object list —
-    and **recolour or delete them together**. The panel on the right names the selection (*3 objects*)
-    and offers what they have in common: fill and outline for whatever has a balloon, and the lettering's
-    colour for everything, plus outline width, line style, font, size, bold and alignment. Anything they
-    do not share reads **Mixed** — a chequered swatch, an empty drop-down, a half-ticked box — until you
-    set it, and what you set reaches every object that has it, leaving the rest of each object alone.
-    *Mixed* is not a value you can pick back: undo brings the differing values back. A
-    caption without a balloon takes the lettering colour and no fill. The colour tool does the same when you pour it onto something that is selected. Deleting is one
-    undoable step, and the actions that only make sense for a single object are greyed until you pick
-    one.
-  - **The object list starts at a third of the right-hand column** instead of a couple of rows, and the
-    splitter still remembers wherever you put it.
-  - **The object list shows what each row is** — a drawing of that very balloon, with its own shape, its
-    tails and its fill colour, beside the first 32 characters of what it says. Artwork shows itself, a
-    caption with no balloon shows *Aa*, a tail shows a tail, and the strip shows its pages. The rows are
-    tall enough to read the drawing, and it stays crisp on a scaled display. A picture is named by its
-    lettering, or by its file when it has none — every one of them used to read *(imported artwork)*,
-    which told you nothing about which was which.
-  - **A picture's properties are where every other object's are.** It used to get a panel of its
-    own that said it had nothing to re-type, which stopped being true once pictures could be lettered.
-    Selecting one now shows the same panel as a balloon — named by its file, with its words, its blend
-    and its size in one place.
-  - **A balloon and a picture can be edited together.** Select both and the properties panel shows
-    what they have in common — the lettering, and the blend mode — while fill and line style stay with
-    the balloons that have a silhouette to put them on. Selecting the two used to say they had "only
-    their position in common", which stopped being true when pictures gained lettering of their own.
-    The bucket had the same gap the other way round: poured over a mixed selection it coloured the
-    balloons, told the panel it had coloured everything, and left the picture untouched.
-  - **Blend modes are reachable** — right-click an object → **Blend ▸** for Normal, Multiply, Screen,
-    Overlay, Darken or Lighten, applied to everything selected in one undoable step. The render has
-    understood them all along; nothing in the editor could set them.
-  - **Bring forward / Send back** on the context menu move an object through the stack without dragging
-    its row.
-  - **More on the object's menu**: *Fill with primary colour* and *Outline with secondary colour* spend the
-    colour pair without reaching for the bucket; *Apply from tool options ▸* gives the selection the fill,
-    the line style or the typography you have set up for the next object; *Save as preset…* keeps a
-    balloon's look under a name.
-  - **Drag the strip itself to select everything the box covers.** The old *Pan / select* tool is now
-    two: **Select** (the default) rubber-bands, and **Pan** scrolls — and the **middle mouse button
-    scrolls under every tool**, so you never have to switch tools to look somewhere else.
-  - **Drag one of several selected objects and they all move**, keeping their formation, re-anchoring to
-    whatever page each lands on, and undoing in one step. **Tails count as objects here**: Ctrl-click a
-    tail — its row in the list, or its handle on the strip — together with a balloon, and one drag moves
-    the balloon and re-aims the tail at once. Delete takes both.
-  - **Muting an object from the list now takes one click.** Selecting it used to widen the right
-    column, which slid the row sideways before the click landed, so the checkbox had to be hit twice.
-    The panels there scroll instead of pushing the column about, which also means a long set of
-    properties no longer squeezes the object list.
-  - **The panel dividers are visible and easier to grab** — they were a one-pixel invisible target —
-    and neither side column can be dragged shut or squeezed narrower than the controls in it.
-  - **The side columns start wide enough for their controls**, so selecting an object no longer leaves
-    its properties cut off at the edge.
-  - **A row of tools can no longer be hidden** by dragging the tool column shorter, and the primary /
-    secondary colour pair has moved to its own row under the tiles instead of queueing among them.
-  - **Each row in the object list now reports its object's state** — *unanchored* when the page it was
-    placed on is not in the strip, and the blend mode by name when it is not the normal one. Hovering a
-    chip says what it means and what to do about it.
-  - **Convert to ▸ Text / Balloon** turns the selected objects into the other kind in one undoable
-    step. Objects already of that kind are left exactly as they are, stacking order included, so a
-    mixed selection takes one action. Nothing is thrown away: a balloon converted to text keeps its
-    tails and gets them back on the way back, and the status bar says what stopped being drawn.
-    *Which* balloon stays a property — pick it in the shape tiles, or give it to a whole selection
-    with *Apply from tool options ▸ Shape*.
-  - **An Artwork tool.** Pick a picture once in the tool's options, then **drag it from the preview
-    onto the strip**: it lands at its own size, wherever you drop it, and may reach past the strip's
-    edge — which is what a sound effect usually wants. Dragging a box on the strip instead fits it to
-    that box, and a picture dragged in from a file manager lands like the preview's. Adding artwork
-    used to be possible only from the object list's right-click menu.
-  - **An imported SVG stays sharp at any zoom.** It used to be rasterised once at import and then
-    scaled like a photograph, so zooming in blurred it; it is now drawn as vector at whatever size the
-    canvas is showing.
-  - **Imported artwork can be lettered.** Select a picture and type into its Text section: the words
-    are laid out over it, shown on the strip exactly as they will render, and they scale with the
-    picture when you resize it. Hand-drawn balloons and sound effects can now be typeset without
-    redrawing them. The picture file itself is never modified.
-  - **Imported artwork can be resized by the numbers.** Selecting it shows its size as a percentage of
-    its own pixels, and its menu offers *Original size* and *Fit to strip width*.
-  - **A picture's menu no longer offers a balloon's entries** — presets, fill and outline colours and
-    *Apply from tool options* are simply not there for imported artwork, nor for a selection that
-    mixes a picture with a balloon: an entry that would act on only half of what is selected is not
-    offered at all.
-  - **Blend is now in the properties panel**, not only on the object's menu — for balloons, lettering
-    and imported artwork alike, since every object has one. A selection that disagrees says *Mixed*.
-  - **Importing an SVG that Platemaker wrote gives you a balloon again**, not a flat picture of one:
-    shape, tails, colours and lettering all come back editable. Bubbles can be shared between chapters
-    and between people this way. A drawing from anywhere else is still placed as artwork.
-  - **Selecting imported artwork no longer shows a balloon's controls.** The properties panel used to
-    offer a shape, a fill, a line style and a text box for a picture — none of which did anything. It
-    now names the artwork and says what can still be done with it, and *Delete* works as before.
-  - **The Caption box tool is gone from the tool rail.** A caption is one of the shapes, not a third
-    kind of object beside Bubble and Text: pick it in the shape tiles, or save a preset for it. The
-    shape tiles no longer offer *Text only — no balloon* either, because that is a conversion rather
-    than a shape, and it now lives where the other conversions are.
-  - **Presets now report instead of claiming.** The selected object's properties carry a chip naming
-    the preset it still looks like — or *Custom* once you change anything the preset covers, and
-    *Mixed* when several selected objects disagree; an object's row in the list names the preset the
-    same way. The picker in the tool options no longer shows one preset as though it were selected, and
-    *Save…* and *Delete* act on the look the controls currently are.
-  - **Every tool now says what it does.** Picking one that has no settings — Select, Pan, the bucket,
-    the colour picker — used to leave the options panel empty, which looks the same as no tool being
-    armed. It now names the tool and says in a line what a click or a drag with it does; the same
-    sentence is in the button's tooltip. The bucket's tooltip was also missing half its text.
-  - **The pointer now says what the tool will do** and stays saying it: a hand over the strip under
-    Pan, a move cross over an object, resize arrows on a grip, a crosshair under the drawing tools.
-    It used to flip between an arrow and a hand depending on whether you had panned yet.
-  - **The eyedropper and the colour pair.** The tool column carries a primary and a secondary colour
-    under the tool tiles — overlapping swatches with **swap** and **reset to black and white**,
-    remembered between sessions. The eyedropper takes a colour off the strip exactly as it appears —
-    through the grade, and from the balloons and artwork on it as readily as from the page — with the
-    **right button** (or Ctrl) for the secondary half. The pair belongs to the tools, not to any object: filling it changes nothing on the page.
-  - **The colour tool** paints **what you point at**: click the lettering and the lettering changes
-    colour, click the outline and the outline does, click anywhere inside the balloon and it is the
-    fill — no setting to get wrong first. The left button uses the primary colour and **Shift** the
-    secondary; **X** swaps the pair and **D** puts back black and white. Thin letters and hairline
-    outlines have a few pixels of slack, so they can be hit without zooming in. Each press is one
-    undoable step and selects what it painted.
-  - **Import artwork…** places a balloon inked on a tablet, a logo, or a hand-drawn effect. The file is
-    copied into `overlays/` under its content hash, never referenced where it was found, so the workspace
-    stays self-contained. It has no text to re-type, but it is placed, moved, re-anchored, muted, resized
-    and rendered like anything else; a corner drag scales it uniformly, which is what dragging the corner
-    of a logo means. An SVG is probed through the renderer first, so one that cannot be drawn is refused
-    rather than placed invisibly.
-  - **A bubble is anchored to the page it was drawn on**, not to a position in the strip, so inserting a
-    page at the front of a chapter carries every bubble down with its own artwork. Dragging one across a
-    page boundary re-anchors it. If its page leaves the project the bubble is not deleted — it is listed
-    as unanchored and comes back when the page does.
-  - **Placement and size are stored as fractions of the output width**, so re-profiling a chapter from
-    800 px to 1600 px moves and re-renders every bubble proportionally, with the editor and the render
-    agreeing without either being told what the other assumed.
-  - **A bubble is an SVG in `overlays/`** — resolved artwork every renderer can draw, plus the editor's
-    parameters in a private `pm:` namespace that renderers ignore, the pattern Inkscape has used for
-    twenty years. Text is written as **glyph outlines**, so a chapter renders correctly on a machine that
-    does not have the font: the font is needed to *change* text, never to draw it. One file per bubble,
-    overwritten in place.
-  - **Every edit is one undo step, on the project's own history** — the same one the project panel
-    uses, so Ctrl+Z always undoes the last thing you did, whichever of the two windows you did it in.
-    Undo restores what a bubble said and not only where it sat.
-  - **Undo takes you to what it changed.** The window showing the step comes to the front, and is
-    outlined for a moment when it is not the one you were already looking at. In the strip editor the
-    object the step touched is **selected and scrolled into view**, in the canvas and in the object
-    list; in the project panel its tab comes to the front and the box the step changed (the file list,
-    *Canvas Profiles*, the output profile or directory) is outlined — so an undo whose effect is in the
-    other window, on another tab, or three screens down a long chapter, can no longer pass for an undo
-    that did nothing.
-  - **Closing a window no longer throws away what you did in it.** A project's history lives as long as
-    the application does, so closing a project or its strip editor and opening it again finds the
-    history where you left it. Editing bubbles with the project panel closed used to be accepted on
-    screen and silently dropped; it is recorded now.
-- **The status bar now tells you what will not do what you meant.** Today that is **objects with no
-  page under them**: lettering whose page was removed is kept rather than deleted, but a render leaves
-  it out. The chip says how many, and clicking it takes you to them in the strip editor. A chip stands
-  while its cause does and goes when you fix it, so it cannot be left behind as a warning nobody can
-  clear. Chapters are reported one at a time: the one you are looking at.
-
-  **Pull the strip editor out into its own window and the chips come with it**, along its bottom edge —
-  a detached or full-screen editor has no status bar of its own, and that is exactly the window where
-  the lettering it is talking about gets done. Dock it back and they go, because the status bar is
-  saying it already.
-- **A render stops and asks before it leaves lettering out.** With objects that have no page under them,
-  Render says so and offers to **show them**, **delete them**, or **render anyway** — the render never
-  quietly drops them any more, and *Cancel* is the default. Refreshing every project (F6) does not stop
-  to ask; a chapter in that state is skipped, and the summary says why.
-- **Replace file…** on an input tile swaps in a newer scan of a page **without unanchoring anything** on
-  it. Removing the page and adding the new file would have left every bubble on it with no page.
-- **Removing a page tells you what it would strand.** If text or bubbles are anchored to a page you are
-  removing, the confirmation says how many and lets you keep them (they wait, unanchored) or remove them
-  too — in one step that one Ctrl+Z puts back.
-- **Re-anchor to ▸** in an object's right-click menu moves it onto any page, by name — the way back for
-  lettering whose page was removed, which cannot be dragged because it is not on the strip.
-- **The object list shows the strip and its pages.** The strip sits at the bottom, under every bubble;
-  open it to see the chapter's pages. Selecting the strip shows what colour correction it carries, and
-  selecting a page lets you **exclude it from colour correction** — a title or credits page that should
-  keep its own colours. Excluding or including a page is one undoable step.
-- **Colour correction works the way an image editor's colour menu does.** The Grade tool lists its adjustments —
-  *Brightness & contrast*, *Saturation* — and shows the controls of the one you pick, applied live to the
-  strip; the adjustments in use are in bold, and *Reset* takes one off without touching the others. Picking
-  the Grade tool selects the strip for you. The strip, selected, lists what is applied to it, each with
-  **Edit** to open it again and **Remove** to take it off. Removing the whole grade keeps the pages you
-  excluded, so they stay excluded when you grade again.
-- **A colour grade is on because it is set, not because a switch says so.** Moving any of the grade's
-  controls away from neutral makes the chapter graded — in the strip editor's preview and in the
-  render, which cannot disagree. The workflow card's **−** takes the whole grade off in one undoable step;
-  a grade cannot be left configured but parked where a render would ignore it.
-- **The coloured chips explain themselves.** Hovering a chip in the profile import/export dialog —
-  *margins*, *already in library* — now says what it means and what it implies, instead of leaving a
-  two-word label to be guessed at.
-- **Import / export input and output profiles.** Canvas and output profiles can now be carried between
-  workspaces. Under *Canvas Profiles* and *Output*, new **Import** and **Export** submenus pull profiles
-  from another `.platemaker.json` workspace, a `.platemaker.profiles.json` bundle, your personal **profile
-  library**, or a **recent workspace / recent bundle**, and write selected profiles out to a bundle file
-  or that library. A cherry-pick dialog shows each profile with a grouped read-only field panel (canvas
-  size, margins, colour swatches / format options) for inspection, plus coloured badges (*margins*,
-  *already in library*). Exporting to the library upserts by name — no duplicates — and asks before
-  overwriting. Imports are additive copies with fresh ids (via libplatemaker 0.5.2's
-  `WorkspaceEditor::importProfiles`) and are undoable, so the workspace stays self-contained. The profile
-  library is a bundle the app keeps in your app-data folder — an import source / export target only; it
-  never changes a workspace on its own. Requires **libplatemaker 0.5.2**.
-- **Portable ZIP distribution.** Alongside the installer, the release now ships
-  `Platemaker-<ver>-portable.zip` — unzip and run, no installation. The exe sits at the root of the single
-  `Platemaker-<ver>/` folder (with its DLLs; `plugins/` and `translations/` alongside), so there's nothing
-  to dig into. Build it with `cmake --build <dir> --target portable` (or `scripts/make_portable.ps1`).
-- **Unit tests for the GUI.** A small GoogleTest target (`tests/gui-unit-tests/`, off by default —
-  `-DPLATEMAKER_GUI_BUILD_TESTS=ON`) covers the bubble model: each property group is applied to a fully
-  populated bubble and every property outside that group is checked to be untouched. It needs no window,
-  so it builds and runs like the library's suite.
-- **The profile editors show what you changed.** Editing a canvas or output profile, a small note under
-  each field you changed gives the saved value (*saved: 300*), and **Revert** puts every field back,
-  after asking.
+- **Strip editor: the chapter as one continuous strip, lettered in place.** *View strip* on a project's
+  Output tab, its card on the Workflow map, or **View → Strip editor** (**Ctrl+E**; *View → Strip
+  editors* lists every project) opens the chapter's input pages in a tab beside the Workspace, which can
+  float or be split out. Scroll, zoom (fit width, 100%, Ctrl+wheel) and toggle guides where the output
+  will be cut. It works before the first render and follows input and profile edits live. A long
+  chapter, or one drawn as a single strip up to 65,500 px, opens at once. What it shows is what the
+  render produces.
+- **Balloons, captions and text.** The Bubble and Text tools draw an object where you drag one out.
+  Any object can be selected, moved and resized under any tool, from eight grips: **Shift** keeps the
+  proportions, **Ctrl** resizes from the centre. The tool's options sit under the tool rail. The
+  right-hand panel shows the selected object's *Shape*, *Fill*, *Line*, *Texture*, *Effects*, *Text*
+  and tails, only the sections that apply.
+- **Shapes:** a box with a corner radius (speech, caption), an ellipse, a polygon (shout, diamond,
+  caption plate, banner), a cloud with lobes (thought) and a curve (scroll), any of them with a zigzag
+  **edge**. Double-click a balloon, or pick *Edit shape*, to edit it on the strip: round its corners,
+  move, add and delete points, bend a curve's handles and set their point type, drag the text area's
+  paddings. *Convert to curve* makes any balloon an editable curve.
+- **Lines and textures:** solid, **Flash**, **Brush** and **Drybrush** lines, and a **Rough** texture
+  over the whole balloon. *Re-roll* deals a line's strokes, a texture's wobble or an edge's teeth again.
+- **Lettering:** lines break only where you break them. Line spacing; side and top padding, negative
+  to let the words out of the balloon; an outline round the letters; a halftone colour; a shadow or a
+  glow. *Fit to text* sizes the balloon to the lettering, *Fix padding* keeps the size and lowers the
+  paddings, and lettering that does not fit is outlined in red.
+- **Tails:** any number per balloon, each with its own tip, width and bend, leaving from any edge; a
+  thought tail is a chain of circles. A tail tip stays on its speaker when the balloon is resized.
+- **Patterns and shadows:** fill, line and shadow can be halftone dots, lines or a grid in a second
+  colour, and a fill's pattern can fade out, set by dragging on the strip. A drop shadow under the whole
+  balloon has a spread, an offset and a softness. Colours may be transparent.
+- **Presets:** a named look for the next balloon or for existing ones (*Apply preset ▸*), shared by
+  every strip editor, with built-in ones, and carried between machines as a JSON file (*Tools → Import /
+  Export bubble presets…*). The selected object shows the preset it still matches, or *Custom*.
+- **Several objects at once:** select them with Ctrl or Shift, or drag a box round them with the Select
+  tool; then recolour, restyle, move or delete them together. Values they do not share read *Mixed*.
+  Tails can be selected and moved with their balloon.
+- **Object list:** the strip's objects front to back, each with a drawing of itself and chips for an
+  unanchored object or a blend mode. Drag to reorder, tick to mute, *Duplicate* (Ctrl+D) and *Delete*
+  from the context menu. The strip and its pages sit at the bottom.
+- **More on an object's context menu:** *Blend ▸* (Normal, Multiply, Screen, Overlay, Darken, Lighten;
+  also in the properties panel), *Bring forward / Send back*, *Fill with primary colour*, *Outline with
+  secondary colour*, *Apply from tool options ▸*, *Save as preset…* and *Convert to ▸ Text / Balloon*.
+- **Colour pair, eyedropper and colour tool.** A primary and a secondary colour under the tools (**X**
+  swaps them, **D** resets to black and white). The eyedropper takes a colour as it appears on the
+  strip. The colour tool paints the lettering, the outline or the fill, whichever you click.
+- **Artwork:** import a picture, place it with the Artwork tool or drop it from a file manager, resize
+  it by percentage, to its original size or to the strip's width, and letter it. An SVG stays sharp at
+  any zoom. An SVG that Platemaker wrote comes back as an editable balloon.
+- **Objects belong to their page.** An object is anchored to the page it is drawn on and scales with
+  the output width. One whose page leaves the project is kept, unanchored, and *Re-anchor to ▸* puts
+  it on a page again. Removing a page that has objects asks whether to keep them. **Replace file…** on
+  an input tile swaps in a newer scan of a page and keeps its objects.
+- **Bubbles render without their font.** A bubble is an SVG in the workspace's `overlays` folder with
+  its text as outlines; the font is needed only to change the text. A font that is missing is reported
+  (*Show them* selects the bubbles) and never silently replaced.
+- **Every edit can be undone,** on the project's own history, which the project panel and the strip
+  editor share and which outlives their windows. **Undo takes you to what it changed:** the window comes
+  to the front and the object is selected and scrolled into view; in the project panel, the tab and the
+  box that changed are outlined. Undoing a profile, template or project-name change opens its list
+  on that row.
+- **Colour correction:** the Grade tool's *Brightness & contrast* and *Saturation*, applied live and in
+  the render. A page can be excluded from it. The workflow card's **−** removes the grade.
+- **The status bar says what will not render as meant:** objects with no page under them, and
+  outdated templates. Click to go to them. A detached strip editor shows the same chips along its bottom
+  edge. Render asks before it leaves such objects out (*Show them*, *Delete them*, *Render anyway*);
+  refreshing every project (F6) skips that chapter and says why.
+- **A workspace reopens the way you left it:** the open project panels and strip editors, docked,
+  tabbed or floating, and the main window's size and place.
+- **A canvas-profile change asks before it puts pages out of sync.** Saving or deleting a profile lists
+  every project it reaches, including projects with no window open, and what their pages will render
+  with.
+- **Templates are layered PSDs by default:** a canvas of the profile's size and resolution with the
+  template on its own layer, which a drawing app opens without resizing — so no more stray
+  template-coloured edge on the left and bottom of a page. *Canvas → Templates…* gains **Template
+  settings** (PSD or PNG, an optional empty layer) and **Regenerate all**. A profile keeps one template
+  per format, each with its own chip and status, and *Outdated* says why.
+- **Canvas profiles may share a name.** Lists show what sets such profiles apart (*2000×8080*) and mark
+  an identical one *Duplicate*; their templates no longer overwrite each other.
+- **Import and export canvas and output profiles** between workspaces, bundle files and a personal
+  profile library (*Canvas Profiles* / *Output* → *Import*, *Export*). An import adds copies and can be
+  undone.
+- **The profile editors show what you changed.** A small note under each field you changed gives the
+  saved value (*saved: 300*), and **Revert** puts every field back, after asking.
+- **Fonts can travel with a workspace:** font files in a `fonts` folder beside the workspace file are
+  used while it is open, without installing them. *Tools → Fonts…* lists them and the fonts your
+  bubbles miss, adds a font to the workspace, and installs one for your user account.
+- **Export package… / Open package…** (*File*) carry a whole workspace, with its pages, bubbles,
+  artwork, templates and fonts, in one `.platemaker.zip`.
+- **Portable ZIP:** the release also ships `Platemaker-<ver>-portable.zip`, to unzip and run.
 
 ### Changed
 
-- **Opening a project no longer resizes the window.** The window keeps room for a project and its strip
-  editor from the start, so it cannot be made smaller than they need; panels set side by side may
-  still widen it.
-- **Opening a project, or starting a render, no longer holds the window while its files are checked.**
-  The check runs in the background, on every file at once, and the tiles update when it is in; so does
-  **Refresh files**. **Stop** ends a render while its files are still being checked.
-- **"Out of sync" shows as soon as a setting changes.** Editing a canvas or output profile, or
-  undoing the edit, updates the tiles of every open project at once, without a reopen or a refresh,
-  and a tile's tooltip says what changed since the render.
-- **Profiles have a resolution.** The canvas profile editor gains *Resolution (dpi)* — the resolution you
-  draw at, 300 by default — and the template now records it, where it used to say 25.4 DPI, a value
-  nobody chose, which a drawing app could resample by on import. Changing it marks the template
-  outdated. The output profile editor gains one too, 72 by default: every slice now records it, in
-  every format, instead of whatever its page said. Screens ignore it; nothing about the pixels changes,
-  but every project rendered before reads as outdated once and renders again.
-
-- **The menu bar is in the usual order.** *File, Edit, View, Canvas, Output, Tools, Render, Help* — Undo
-  and Redo moved to *Edit*, the panel toggles to *View*, *Templates* into *Canvas* (a template is a canvas
-  profile's file), *Process* is now *Render* and *About* is *Help*. *File* gained *Exit*. Every entry and
-  shortcut is still there; only where it sits changed. *Render* names the project F5 will render, and is
-  greyed out when no project is open.
-- **Freer docking layout.** Workspace and project docks can now be arranged freely — docked side by side
-  horizontally *and* vertically, split, or tabbed together. The **Action** panel is pinned to its own
-  right column: it can no longer be tab-combined with other docks and keeps a static default width that
-  only a splitter drag changes. The first button on its title bar, **`>|`**, folds it into a narrow column
-  that still shows the job, its progress, the project status and **Stop**; **`<|`** unfolds it. It opens
-  the way you left it. Its log is a list with an icon per line — **error**, **warning** or **info** — so a
-  failure stands out from a long render; *Copy* takes the selected lines, and a saved log reads as before.
-- **One workspace per folder.** A workspace keeps its bubbles, artwork and templates in the folder it is
-  saved in, so two workspace files in one folder would share them — and cleaning up after one would
-  delete the other's. *New* and *Save As* now refuse a folder that already holds a workspace and offer
-  to create a subfolder for it instead. Opening a folder that already holds several asks which one to
-  keep and moves the others to the Recycle Bin, from which they can be restored into a folder of their
-  own.
-- **A workspace is open in one place at a time.** Opening a workspace that is already open in another
-  Platemaker window says so instead of opening it twice. One left open on another computer — on a
-  synced drive — can be **taken over**, for when that computer is off or Platemaker there crashed; if it
-  was in fact still open, that window stops saving to the folder, says so, and offers to save its
-  changes somewhere else. A workspace left locked by a crash or a reset on this computer opens without
-  asking. A small `.platemaker.lock` file marks the folder while it is open.
-- **A missing font no longer changes your lettering behind your back.** Opening a workspace whose
-  bubbles use a font that is not installed now warns about it (and *Show them* selects those bubbles)
-  instead of silently re-setting their words in another font — which every undo used to do to every
-  bubble. A bubble edited meanwhile keeps the name of the font it was meant to have, and is set back in
-  that font the next time the workspace is opened with the font installed. A bubble in the default font
-  now records that font's name too, so moving to a computer with a different default is noticed the same
-  way; and a missing font is shown in the default font rather than in Tahoma.
-- **Unused files are tidied away.** Bubbles and artwork that were deleted or replaced used to stay in the
-  workspace's `overlays` folder forever. When a workspace is opened, the files it no longer uses —
-  overlays and templates it created — now go to the Recycle Bin, from where they can be restored; the
-  Action log lists them and its menu can show the Recycle Bin. Files you put in the folder yourself are
-  never touched, and nothing is removed while a workspace is open, so undo keeps working.
-- **Fonts can travel with a workspace.** Font files placed in a `fonts` folder beside the workspace file
-  are available while that workspace is open — no installing, no administrator rights — and are used even
-  when a different version of the same font is installed. *Tools → Fonts…* shows them, lists the fonts
-  your bubbles use that are missing on this computer, and *Add font…* copies a font into the workspace
-  and makes it available at once. *Install* puts a workspace's font on your user account, for other
-  programs to use, without administrator rights. Fonts copied into the folder by hand are picked up the
-  next time the workspace is opened.
-- **Save As takes the workspace with it.** Saving a workspace into another folder now copies its bubbles,
-  imported artwork, templates and fonts there too, so the copy no longer depends on the original's folder, and
-  undo in the copy never reaches back into it. If a file cannot be copied, Save As says which and leaves
-  the workspace where it was. Templates in particular used to go missing after a Save As.
-- **A workspace folder can be moved or zipped.** Bubbles and imported artwork are now found through their
-  place in the workspace folder, so a folder that is moved, renamed, or zipped and unpacked on another
-  computer opens with every overlay in place. (Input pages keep the location you picked them from.)
-- **Export package…** (*File*) puts a whole workspace in one `.platemaker.zip` for another computer or
-  another person: the pages, bubbles, artwork, templates and the fonts the lettering uses, with nothing
-  to fix after unpacking. Renders are not included — rendering the package reproduces them exactly. Files
-  that are missing are listed before exporting and stay listed in the package. **Open package…** unpacks
-  one into a new folder of its own and opens it; if the package brought fonts you do not have, it offers
-  to install them.
-- **Custom dock title bar.** The Workspace, project and strip docks share a title bar with real
-  **minimise** (dock ⇄ detach — docking tabs it beside the Workspace, floating pops it out), **maximise**
-  (fill the screen ⇄ restore) and **close** buttons — a floating dock previously showed only a close
-  button, and the OS min/max misbehaved on a dock. (A tabified dock is still detached by double-clicking
-  its tab.)
+- **Profiles have a resolution.** A canvas profile's *Resolution (dpi)*, 300 by default, is recorded
+  in its template, which said 25.4 DPI. An output profile's, 72 by default, is recorded in every slice.
+  The pixels do not change, but every project rendered before reads as outdated once.
+- **"Out of sync" shows as soon as a setting changes,** in every open project, and a tile's tooltip
+  says what changed since the render.
+- **Files are checked in the background,** all at once, when a project opens, before a render and on
+  **Refresh files**; the window stays responsive. **Stop** also ends a render during the check.
+- **Opening a project no longer resizes the window.**
+- **The menu bar is in the usual order:** *File, Edit, View, Canvas, Output, Tools, Render, Help*.
+  Every entry and shortcut is still there. *File* gains *Exit*.
+- **Freer docking.** Panels dock side by side, split or tabbed. The **Action** panel keeps its own
+  column, folds into a narrow one (**`>|`**), and its log marks each line as an error, a warning or
+  information.
+- **Panel title bars** have working minimise (dock or detach), maximise and close buttons.
+- **One workspace per folder.** *New* and *Save As* refuse a folder that already holds a workspace and
+  offer a subfolder. Opening a folder that holds several asks which one to keep.
+- **A workspace is open in one place at a time.** One left open on another computer can be taken over.
+- **Unused files are tidied away:** bubbles, artwork and templates the workspace no longer uses go to
+  the Recycle Bin when it is opened. Files you put there yourself are never touched.
+- **Save As takes the workspace with it:** its bubbles, artwork, templates and fonts are copied to the
+  new folder. Templates used to go missing. A workspace folder can also be moved or zipped.
 
 ### Fixed
 
-- **Profile changes in *Manage profiles* are kept, and can be undone there.** The canvas and output
-  profile managers saved nothing until **Close**, and closing them with the window's X or Esc dropped
-  every change without asking. Each New, Save, Duplicate and Delete is now saved at once, as its own
-  step, and **Ctrl+Z** / **Ctrl+Y** undo and redo them while the manager is open. Undoing or redoing a
-  profile change, a template change or a project rename takes you to it: the profile's manager, the
-  *Templates* list or the Workspace panel opens on its row and outlines it.
-- **F5 renders the project you are looking at.** After opening another workspace, or removing a
-  project, F5 could render a different project from the one in front. F5, Ctrl+E, Undo and the status bar
-  act only on a chapter with a window open — its panel or its strip editor; with none open, they are
-  greyed out or silent.
-- **A profile edited in one project's panel shows in every open project.** The other panels kept
-  the old profile list until they were reopened.
-- **The up arrows of the number fields in the canvas- and output-profile dialogs work again on
-  Windows 11.** Only the down arrow responded; both do now.
+- **Changes in *Manage profiles* are kept.** Closing a profile manager with X or Esc dropped every
+  change. Each New, Save, Duplicate and Delete is now saved at once, and Ctrl+Z / Ctrl+Y undo and redo
+  it there.
+- **F5 renders the project in front.** After opening another workspace or removing a project, it could
+  render another one.
+- **A profile edited in one project's panel shows in every open project.**
+- **Both arrows of the number fields in the profile dialogs work on Windows 11.** Only the down arrow
+  did.
 
 ## [1.4.3] — 23.08.2026
 

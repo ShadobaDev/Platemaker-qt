@@ -16,6 +16,7 @@
 #include "presetstore.hpp"
 #include "geometry.hpp"
 #include "docktitlebar.hpp"
+#include "dockattention.hpp"
 #include "verticallabel.hpp"
 
 #include <platemaker/infrastructure/workspace_editor/workspace_editor.hpp>
@@ -790,6 +791,77 @@ void MainWindow::applyWorkspaceSnapshot(const QString& snapshot)
     }
     setDirty(true);
     emit workspaceChanged();
+}
+
+void MainWindow::showWorkspaceStep(const QString& from, const QString& to)
+{
+    const auto changes = Platemaker::Infrastructure::WorkspaceEditor::metaChanges(from.toStdString(),
+                                                                                  to.toStdString());
+    // The first of a step's profiles the workspace still holds — a step that removed every one it
+    // touched (a delete, redone) has no row left to show.
+    const auto shown = [](const std::vector<std::string>& ids, const auto& palette) {
+        for (const auto& id : ids)
+            for (const auto& p : palette)
+                if (p.id == id)
+                    return QString::fromStdString(id);
+        return QString();
+    };
+
+    // Where it is seen, the first that applies: a profile in its manager — wherever the edit was made,
+    // as that is the one place showing every profile — template work in Templates, a rename in the
+    // Workspace panel.
+    enum class View { None, CanvasManager, OutputManager, Templates, ProjectRow };
+    View    view = View::None;
+    QString id;
+    if (!changes.canvasProfiles.empty()) {
+        view = View::CanvasManager;
+        id   = shown(changes.canvasProfiles, m_workspace.canvasProfiles());
+    } else if (!changes.outputProfiles.empty()) {
+        view = View::OutputManager;
+        id   = shown(changes.outputProfiles, m_workspace.outputProfiles());
+    } else if (!changes.canvasTemplates.empty()) {
+        view = View::Templates;
+        id   = shown(changes.canvasTemplates, m_workspace.canvasProfiles());
+    } else if (!changes.renamedProjects.empty()) {
+        view = View::ProjectRow;
+        id   = QString::fromStdString(changes.renamedProjects.front());
+    }
+    if (view == View::None)
+        return;
+
+    // The open manager the step belongs to shows it where it is.
+    if (view == View::CanvasManager && m_canvasManager) {
+        m_canvasManager->showProfile(id);
+        return;
+    }
+    if (view == View::OutputManager && m_outputManager) {
+        m_outputManager->showProfile(id);
+        return;
+    }
+    // Any other closes, and the step's view opens once it has: a modal window opens only after the one
+    // it replaces has left its event loop.
+    if (m_canvasManager)
+        m_canvasManager->close();
+    if (m_outputManager)
+        m_outputManager->close();
+    QTimer::singleShot(0, this, [this, view, id] {
+        switch (view) {
+        case View::CanvasManager: manageCanvasProfiles(id); break;
+        case View::OutputManager: manageOutputProfiles(id); break;
+        case View::Templates:     manageTemplates(id);      break;
+        case View::ProjectRow:
+            showDockAttention(ui->dockWidgetWorkspace);
+            for (int row = 0; row < ui->listWidgetProjects->count(); ++row) {
+                const int idx = ui->listWidgetProjects->item(row)->data(Qt::UserRole).toInt();
+                if (projectUidAt(idx) == id) {
+                    showRowAttention(ui->listWidgetProjects, row);
+                    break;
+                }
+            }
+            break;
+        case View::None: break;
+        }
+    });
 }
 
 void MainWindow::commitWorkspaceEdit(const QString& text, const std::function<void()>& mutate)

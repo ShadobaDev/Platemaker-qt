@@ -1,6 +1,7 @@
 #include "manageoutputprofilesdialog.hpp"
 #include "ui_manageoutputprofilesdialog.h"
 #include "outputprofiledialog.hpp"
+#include "dockattention.hpp"
 
 #include <platemaker/models/output_profile.hpp>
 #include <platemaker/infrastructure/id_generator/id_generator.hpp>
@@ -62,6 +63,15 @@ void ManageOutputProfilesDialog::setProfiles(const QList<Platemaker::Models::Out
 void ManageOutputProfilesDialog::setCommit(Commit commit)
 {
     m_commit = std::move(commit);
+}
+
+void ManageOutputProfilesDialog::showProfile(const QString &id)
+{
+    for (int row = 0; row < m_profiles.size(); ++row)
+        if (QString::fromStdString(m_profiles[row].id) == id) {
+            showRowAttention(ui->listWidgetProfiles, row);
+            return;
+        }
 }
 
 // ---------------------------------------------------------------------------

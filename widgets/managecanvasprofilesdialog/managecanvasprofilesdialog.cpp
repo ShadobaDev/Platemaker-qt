@@ -3,6 +3,7 @@
 #include "canvasprofiledialog.hpp"
 #include "badgeitemdelegate.hpp"
 #include "profiledistinction.hpp"
+#include "dockattention.hpp"
 
 #include <QListWidgetItem>
 #include <QMessageBox>
@@ -60,6 +61,15 @@ void ManageCanvasProfilesDialog::setChangeCheck(ChangeCheck check)
 void ManageCanvasProfilesDialog::setCommit(Commit commit)
 {
     m_commit = std::move(commit);
+}
+
+void ManageCanvasProfilesDialog::showProfile(const QString &id)
+{
+    for (int row = 0; row < m_profiles.size(); ++row)
+        if (QString::fromStdString(m_profiles[row].id) == id) {
+            showRowAttention(ui->listWidgetProfiles, row);
+            return;
+        }
 }
 
 // ---------------------------------------------------------------------------

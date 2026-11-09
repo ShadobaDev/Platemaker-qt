@@ -47,6 +47,10 @@ public:
     void setChangeCheck(ChangeCheck check);   //!< Asked before a Save or a Delete; empty = none.
     void setCommit(Commit commit);            //!< Required: where each change goes.
 
+    //! Selects the profile of id @p id and outlines its row (an undo or redo of a step on it); nothing
+    //! when no row has that id (the step removed it).
+    void showProfile(const QString &id);
+
 signals:
     /**
      * \brief Emitted when the user clicks "Generate template from selected…".

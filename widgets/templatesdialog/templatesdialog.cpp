@@ -2,6 +2,7 @@
 #include "ui_templatesdialog.h"
 #include "badgeitemdelegate.hpp"
 #include "profiledistinction.hpp"
+#include "dockattention.hpp"
 
 #include <platemaker/core/template_generator/template_generator.hpp>
 #include <platemaker/infrastructure/workspace_editor/workspace_editor.hpp>
@@ -457,6 +458,16 @@ void TemplatesDialog::onDeleteTemplate()
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
+
+void TemplatesDialog::showProfile(const QString& id)
+{
+    const auto& palette = m_workspace.canvasProfiles();
+    for (int row = 0; row < static_cast<int>(palette.size()); ++row)
+        if (QString::fromStdString(palette[static_cast<std::size_t>(row)].id) == id) {
+            showRowAttention(ui->tableTemplates, row);   // a row per canvas profile, in palette order
+            return;
+        }
+}
 
 void TemplatesDialog::rebuildTable()
 {

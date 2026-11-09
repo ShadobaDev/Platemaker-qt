@@ -25,6 +25,7 @@
 #include <QSettings>
 #include <QTabBar>
 #include <QThread>
+#include <QTimer>
 #include <QUrl>
 
 #include <algorithm>
@@ -32,6 +33,11 @@
 #include <vector>
 
 void MainWindow::onManageTemplates()
+{
+    manageTemplates({});
+}
+
+void MainWindow::manageTemplates(const QString& showId)
 {
     // Skip if no workspace is loaded.
     if (m_workspacePath.isEmpty()) {
@@ -58,6 +64,8 @@ void MainWindow::onManageTemplates()
     // Generating/deleting templates edits canvas-profile templates (workspace-scope). Treat the
     // whole modal session as one undo step: bracket exec() with the metadata snapshot. (Undo reverts
     // the recorded templates; the generated image files on disk are left in place, like renders.)
+    if (!showId.isEmpty())   // once it shows: a row is outlined where it is drawn
+        QTimer::singleShot(0, &dlg, [&dlg, showId] { dlg.showProfile(showId); });
     commitWorkspaceEdit(tr("Edit templates"), [&]{ dlg.exec(); });
 }
 

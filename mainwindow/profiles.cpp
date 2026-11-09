@@ -42,6 +42,7 @@
 #include <QStandardPaths>
 #include <QTabBar>
 #include <QThread>
+#include <QTimer>
 #include <QUndoStack>
 #include <QUrl>
 
@@ -74,6 +75,11 @@ void MainWindow::bindWorkspaceHistory(QWidget& window)
 // ---------------------------------------------------------------------------
 
 void MainWindow::onManageCanvasProfiles()
+{
+    manageCanvasProfiles({});
+}
+
+void MainWindow::manageCanvasProfiles(const QString& showId)
 {
     // Skip if no workspace is loaded
     if (m_workspacePath.isEmpty()) {
@@ -131,6 +137,9 @@ void MainWindow::onManageCanvasProfiles()
                     .arg(QString::fromStdString(selected.name)));
         });
 
+    m_canvasManager = &dlg;
+    if (!showId.isEmpty())   // once it shows: a row is outlined where it is drawn
+        QTimer::singleShot(0, &dlg, [&dlg, showId] { dlg.showProfile(showId); });
     dlg.exec();
 }
 
@@ -221,6 +230,11 @@ void MainWindow::onEditActiveCanvasProfile()
 
 void MainWindow::onManageOutputProfiles()
 {
+    manageOutputProfiles({});
+}
+
+void MainWindow::manageOutputProfiles(const QString& showId)
+{
     // Skip if no workspace is loaded
     if (m_workspacePath.isEmpty()) {
         QMessageBox::information(this, tr("No Workspace"), tr("Open a workspace first."));
@@ -253,6 +267,9 @@ void MainWindow::onManageOutputProfiles()
     });
     bindWorkspaceHistory(dlg);
 
+    m_outputManager = &dlg;
+    if (!showId.isEmpty())
+        QTimer::singleShot(0, &dlg, [&dlg, showId] { dlg.showProfile(showId); });
     dlg.exec();
 }
 

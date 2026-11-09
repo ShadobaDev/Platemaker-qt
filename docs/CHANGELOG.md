@@ -494,7 +494,9 @@
 - **Profile changes in *Manage profiles* are kept, and can be undone there.** The canvas and output
   profile managers saved nothing until **Close**, and closing them with the window's X or Esc dropped
   every change without asking. Each New, Save, Duplicate and Delete is now saved at once, as its own
-  step, and **Ctrl+Z** / **Ctrl+Y** undo and redo them while the manager is open.
+  step, and **Ctrl+Z** / **Ctrl+Y** undo and redo them while the manager is open. Undoing or redoing a
+  profile change, a template change or a project rename takes you to it: the profile's manager, the
+  *Templates* list or the Workspace panel opens on its row and outlines it.
 - **F5 renders the project you are looking at.** After opening another workspace, or removing a
   project, F5 could render a different project from the one in front. F5, Ctrl+E, Undo and the status bar
   act only on a chapter with a window open — its panel or its strip editor; with none open, they are

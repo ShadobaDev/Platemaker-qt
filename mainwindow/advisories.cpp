@@ -285,8 +285,13 @@ void MainWindow::retargetActiveProject(int preferred)
             if (isProjectOpen(i)) { m_activeProjectIndex = i; break; }
     }
     // Ctrl+Z follows: the project in front, or with none the workspace — never a project out of sight.
-    m_undoGroup->setActiveStack(m_activeProjectIndex >= 0 ? historyFor(m_activeProjectIndex)
-                                                          : m_workspaceUndoStack);
+    // A tab brought to the front has claimed it already (Qt shows the new tab before it hides the old
+    // one, and a project behind a tab still counts as open), so only the history of the window going
+    // away is handed on.
+    QUndoStack* leaving = preferred >= 0 ? historyFor(preferred) : nullptr;
+    if (!leaving || m_undoGroup->activeStack() == leaving)
+        m_undoGroup->setActiveStack(m_activeProjectIndex >= 0 ? historyFor(m_activeProjectIndex)
+                                                              : m_workspaceUndoStack);
     refreshProjectActions();
     retargetStatusAdvisories();
 }

@@ -1,6 +1,7 @@
 #ifndef DOCKATTENTION_HPP
 #define DOCKATTENTION_HPP
 
+class QAbstractItemView;
 class QDockWidget;
 
 /**
@@ -19,5 +20,14 @@ class QDockWidget;
  * Safe with nullptr (an unopened dock is simply nowhere to go).
  */
 void showDockAttention(QDockWidget* dock);
+
+/**
+ * \brief Selects row @p row of @p view, scrolls to it and outlines it briefly — **always**: a row is
+ *        the precise thing an undo or redo changed, and its window is usually the one in front.
+ *
+ * The same outline as a dock's, thinner, drawn over the row across all its columns and following it if
+ * the view scrolls. Safe with nullptr or a row out of range (nothing to show).
+ */
+void showRowAttention(QAbstractItemView* view, int row);
 
 #endif // DOCKATTENTION_HPP

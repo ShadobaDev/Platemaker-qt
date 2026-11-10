@@ -188,6 +188,8 @@ void ObjectController::onObjectPressed(const QString& uid, int handle)
                 tails.append(t);
             QStringList objects = m_selectedOverlays;
             objects.removeAll(uid);   // the balloon comes back as the tail's carrier, not as a subject
+            for (const QString& carrier : std::as_const(m_carriers))
+                objects.removeAll(carrier);   // and so do the other selected tails' balloons
             selectSubjects(objects, tails);
         } else {
             selectTail(uid, handle);
@@ -790,13 +792,11 @@ void ObjectController::selectSubjects(const QStringList& uids, const QList<TailR
     m_syncingList = true;
     for (auto it = m_overlayItems.begin(); it != m_overlayItems.end(); ++it) {
         it.value()->setSelected(picked.contains(it.key()));
-        it.value()->setFocusedHandle(-1);
-    }
-    // ponytail: one focused handle per balloon. Select two tails of the same balloon and only the last
-    // is drawn hollow; both still move. Per-handle marking would need the chrome to carry a set.
-    for (const TailRef& t : pickedTails) {
-        if (Object* item = m_overlayItems.value(t.uid))
-            item->setFocusedHandle(t.index);
+        QList<int> focused;   // every selected tail of this balloon, each drawn hollow
+        for (const TailRef& t : std::as_const(pickedTails))
+            if (t.uid == it.key())
+                focused << t.index;
+        it.value()->setFocusedHandles(focused);
     }
 
     emit selectionChanged();   // the stack's rows and the menu's entries follow it

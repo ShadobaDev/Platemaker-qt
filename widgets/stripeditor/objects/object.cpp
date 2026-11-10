@@ -171,11 +171,11 @@ qreal Object::gripSpanHere() const
     return gripSpan(this);
 }
 
-void Object::setFocusedHandle(int index)
+void Object::setFocusedHandles(const QList<int>& indices)
 {
-    if (m_focusedHandle == index)
+    if (m_focusedHandles == indices)
         return;
-    m_focusedHandle = index;
+    m_focusedHandles = indices;
     emit chromeChanged();
 }
 

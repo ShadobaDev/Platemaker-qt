@@ -81,17 +81,33 @@ Bug fixes, cosmetics and internal cleanups — no new capability, no change to a
   own scale no longer reaches them. The same move keeps a selected object's grips and tail handles
   visible and grabbable under objects stacked above it.
 
-- [ ] **Strip editor: a single selected tail offers the whole balloon's menu entries.** `selectTail()`
+- [x] **Strip editor: a single selected tail offers the whole balloon's menu entries.** `selectTail()`
   stores the balloon's uid itself as selected, so `anyObject` is true and *Fill*, *Outline*, *Blend* and
   *Apply from tool options ▸* act on the whole balloon. The comment in `ObjectMenu::updateEntries()` says
   "a tail can only be deleted". Decide which is meant; if the comment, `anyObject` must not count a
   single tail's balloon.
 
-- [ ] **Each workflow card's *Edit* arms its tool.** The Colour correction and Text & bubbles cards share
+- [x] **Each workflow card's *Edit* arms its tool.** The Colour correction and Text & bubbles cards share
   one `openEditor` (`widgets/project/project.cpp`) and `viewStripRequested` carries only the project
   index, so *Edit* on the CC card opens the strip editor on whatever tool was armed last. Fix:
   `viewStripRequested(projectIndex, toolId)`; MainWindow calls `editor->setTool(toolId)` after opening
   the dock. The CC card passes `"grade"` and selects the strip; the bubbles card passes `"bubble"`.
+
+- [ ] **Strip editor: after *Convert to curve*, some nodes have no Bézier handles.** Seen on a speech
+  balloon (a box with a corner radius): in *Edit shape* some nodes of the converted curve show handles
+  to bend it, others show none and cannot be bent. Which nodes, and whether they are corners from the
+  box's straight sides converted without handles, is not investigated yet.
+
+- [ ] **Strip editor: TOOL OPTIONS draws *Corner radius* and *Edge* over the first shape tile.**
+  `ShapeEditor` puts its parameter rows on a widget of their own, `parameters()`, for the panel to lay
+  out. OBJECT STATE does (`objectstate.cpp`); `BubbleToolOptions` does not, so the widget sits unlaid
+  at the editor's top-left corner, on the tiles. Either lay it out there, or leave the parameters out
+  of TOOL OPTIONS (see the next entry).
+
+- [ ] **Strip editor: TOOL OPTIONS shows too much.** The Bubble tool's options repeat nearly the whole
+  OBJECT STATE panel (shape, tail, fill, pattern, line, texture, shadow), a long column for choosing what
+  the next balloon looks like. Rethink what a tool's options need before the next balloon is drawn, and
+  what belongs only to the selected object.
 
 - [ ] **ImageTile** rework to be more eye-appealing
 

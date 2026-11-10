@@ -312,7 +312,8 @@ protected:
 signals:
     void projectModified();                         //!< emitted when the project is modified (inputs, outputs, profiles, etc.)
     void renderToggleRequested(int projectIndex);   //!< Render/Stop button clicked
-    void viewStripRequested(int projectIndex);      //!< "View strip" button clicked — open the strip editor for this project
+    //! Open the strip editor for this project, arming @p toolId there; an empty id keeps the armed tool.
+    void viewStripRequested(int projectIndex, const QString& toolId);
 
     /**
      * \brief A workspace-level edit was made from this project dock (canvas-profile content edit,

@@ -356,8 +356,12 @@ void ObjectStack::showSelectedRows()
         const QString uid = row->data(0, Qt::UserRole).toString();
         // A tail's row stands for the tail; its balloon's row is only selected when the balloon itself is.
         row->setSelected(m_objects.selectedOverlays().contains(uid) && !m_objects.carriers().contains(uid));
-        for (int c = 0; c < row->childCount(); ++c)
-            row->child(c)->setSelected(m_objects.selectedTails().contains(ObjectController::TailRef{uid, c}));
+        for (int c = 0; c < row->childCount(); ++c) {
+            const bool tail = m_objects.selectedTails().contains(ObjectController::TailRef{uid, c});
+            row->child(c)->setSelected(tail);
+            if (tail)
+                row->setExpanded(true);   // a folded row would hide the only highlight a tail has
+        }
     }
     m_syncing = false;
 }

@@ -217,10 +217,7 @@ Editor::Editor(PresetStore& presets, QWidget *parent)
             emit colourCorrectionCommitted(cc, undoText);   // settled: the owner persists it, one undo step
         });
         // The panel can only act on the strip; asked for it, it gets it.
-        connect(m_gradeOptions, &GradeToolOptions::selectStripRequested, this, [this] {
-            if (m_objects)
-                m_objects->selectStrip();
-        });
+        connect(m_gradeOptions, &GradeToolOptions::selectStripRequested, this, &Editor::selectStrip);
         // One panel for every tool that authors an `ObjectRecord` — Bubble, Text, Caption — because they
         // author the same object and differ only in the shape they place, which each tool's row says.
         m_bubbleOptions = new BubbleToolOptions(*m_presets, ui->toolOptionsStack);
@@ -465,6 +462,12 @@ void Editor::setTool(const QString& id)
         m_objects->selectStrip();
 }
 
+
+void Editor::selectStrip()
+{
+    if (m_objects)
+        m_objects->selectStrip();
+}
 
 void Editor::applyGrade(const Platemaker::Models::ColourCorrection& cc)
 {

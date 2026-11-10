@@ -40,6 +40,30 @@ ObjectRecord placed()
 
 } // namespace
 
+/**
+ * \brief A preset is renamed in place, keeping its look; a built-in, an empty name and a name another of
+ *        the artist's own has are refused.
+ */
+TEST_F(Presets, ARenameKeepsTheLookAndRefusesATakenName)
+{
+    PresetStore store;
+    const int a = store.save(QStringLiteral("Rename test A"), placed(), /*replaceExisting=*/true);
+    const int b = store.save(QStringLiteral("Rename test B"), placed(), /*replaceExisting=*/true);
+    ASSERT_GE(a, store.builtinCount());
+    ASSERT_GE(b, store.builtinCount());
+    const ObjectRecord look = store.presets().at(a).record;
+
+    EXPECT_FALSE(store.rename(a, QStringLiteral("rename test b")));   // taken, whatever the case
+    EXPECT_FALSE(store.rename(a, QStringLiteral("   ")));
+    EXPECT_FALSE(store.rename(0, QStringLiteral("Rename test C")));   // a built-in
+    EXPECT_TRUE(store.rename(a, QStringLiteral("  Rename test C ")));
+    EXPECT_EQ(store.presets().at(a).name, QStringLiteral("Rename test C"));
+    EXPECT_EQ(store.presets().at(a).record, look);
+
+    store.remove(qMax(a, b));   // the application's settings, shared with the next run
+    store.remove(qMin(a, b));
+}
+
 TEST_F(Presets, AnAppliedPresetIsRecognisedAsItself)
 {
     const PresetStore store;

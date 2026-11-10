@@ -200,6 +200,19 @@ int PresetStore::save(const QString& name, const ObjectRecord& look, bool replac
     return int(m_presets.size()) - 1;
 }
 
+bool PresetStore::rename(int index, const QString& name)
+{
+    const QString n = name.trimmed();
+    if (!isCustom(index) || n.isEmpty())
+        return false;
+    for (int i = m_builtinCount; i < m_presets.size(); ++i)
+        if (i != index && m_presets.at(i).name.compare(n, Qt::CaseInsensitive) == 0)
+            return false;
+    m_presets[index].name = n;
+    persist();
+    return true;
+}
+
 void PresetStore::remove(int index)
 {
     if (!isCustom(index))

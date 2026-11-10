@@ -14,6 +14,7 @@
 #include <QFrame>
 #include <QVBoxLayout>
 
+#include "presets/presetsdialog.hpp"
 #include "presetstore.hpp"
 #include "properties/shapeeditor.hpp"
 #include "properties/skineditor.hpp"
@@ -50,6 +51,8 @@ BubbleToolOptions::BubbleToolOptions(PresetStore& presets, QWidget* parent)
     presetMore->setPopupMode(QToolButton::InstantPopup);
     auto* presetMenu = new QMenu(presetMore);
     m_presetDelete     = presetMenu->addAction(tr("Delete preset"));
+    QAction* manage    = presetMenu->addAction(tr("Manage presets…"));
+    connect(manage, &QAction::triggered, this, [this] { PresetsDialog(m_presets, m_pickedName, this).exec(); });
     // Importing and exporting a pack move a file between machines and people — the menu bar's business
     // (Tools), where every other import and export is, rather than a panel's.
     presetMore->setMenu(presetMenu);

@@ -81,6 +81,10 @@ public:
 
     void remove(int index); //!< Removes one of the artist's own. Built-ins are ignored.
 
+    //! Renames one of the artist's own to @p name (trimmed). False for a built-in, an empty name, or a
+    //! name another of the artist's own already has.
+    bool rename(int index, const QString& name);
+
     /**
      * \brief Reads a pack, replacing same-named entries rather than accumulating duplicates.
      * \param path  The path to the pack file.

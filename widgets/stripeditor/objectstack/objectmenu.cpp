@@ -79,21 +79,6 @@ ObjectMenu::ObjectMenu(ObjectController& objects, const StripLayout& layout, Pre
             m_objects.applyColourToSelection(m_colours->secondary(), Geometry::Part::Outline);
     });
 
-    // One property group at a time, taken from what the tool's options are set to.
-    m_groupMenu = new QMenu(tr("Apply from tool options"), dialogParent);
-    const QList<QPair<PropertyGroup, QString>> groups{
-        {PropertyGroup::Shape, tr("Shape")},
-        {PropertyGroup::Skin,    tr("Fill")},
-        {PropertyGroup::Style,   tr("Line")},
-        {PropertyGroup::Texture, tr("Texture")},
-        {PropertyGroup::Effects, tr("Effects")},
-        {PropertyGroup::Text,  tr("Text style")},
-    };
-    for (const auto& [group, name] : groups) {
-        QAction* a = m_groupMenu->addAction(name);
-        connect(a, &QAction::triggered, this, [this, group] { m_objects.applyGroupToSelection(group); });
-    }
-
     m_actSavePreset = new QAction(tr("Save as preset…"), this);
     connect(m_actSavePreset, &QAction::triggered, this, &ObjectMenu::saveSelectionAsPreset);
 
@@ -221,7 +206,6 @@ ObjectMenu::ObjectMenu(ObjectController& objects, const StripLayout& layout, Pre
     for (QWidget* w : {static_cast<QWidget*>(m_tree), static_cast<QWidget*>(m_view)}) {
         w->addAction(m_presetMenu->menuAction());
         w->addAction(m_actSavePreset);
-        w->addAction(m_groupMenu->menuAction());
         w->addAction(m_actFill);
         w->addAction(m_actOutline);
         w->addAction(m_blendMenu->menuAction());
@@ -274,7 +258,6 @@ void ObjectMenu::updateEntries()
     if (m_blendMenu)   m_blendMenu->menuAction()->setEnabled(anyObject);
     if (m_actForward)  m_actForward->setEnabled(oneObject);
     if (m_actBackward) m_actBackward->setEnabled(oneObject);
-    if (m_groupMenu)   m_groupMenu->menuAction()->setEnabled(anyObject);
     if (m_actFill)     m_actFill->setEnabled(anyObject && m_colours);
     if (m_actOutline)  m_actOutline->setEnabled(anyObject && m_colours);
     if (m_actSavePreset) m_actSavePreset->setEnabled(oneObject);
@@ -296,7 +279,6 @@ void ObjectMenu::updateEntries()
         if (a)
             a->setVisible(allParametric);
     if (m_presetMenu) m_presetMenu->menuAction()->setVisible(allParametric);
-    if (m_groupMenu)  m_groupMenu->menuAction()->setVisible(allParametric);
     // ...and the two that only artwork has.
     const bool artwork = m_objects.selectionIsArtwork();
     if (m_actNaturalSize) m_actNaturalSize->setVisible(artwork);

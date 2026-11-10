@@ -88,10 +88,11 @@ QList<BubblePreset> builtinPresets()
 {
     QList<BubblePreset> out;
 
-    ObjectRecord dialogue;                       // the struct's own defaults are already a speech balloon
-    out.append({PresetStore::tr("Dialogue"), dialogue});
+    // The default is not a preset: it is what an object is with none picked, `ObjectRecord`'s own values,
+    // and it is not listed. The built-ins are made from it.
+    const ObjectRecord base;
 
-    ObjectRecord whisper = dialogue;
+    ObjectRecord whisper = base;
     whisper.shape.kind       = ObjectRecord::Shape::Ellipse;
     whisper.style.strokeWidth = 3;
     whisper.style.stroke.colour      = QColor(90, 90, 90);
@@ -99,12 +100,12 @@ QList<BubblePreset> builtinPresets()
     whisper.text.pixelSize   = 26;
     out.append({PresetStore::tr("Whisper"), whisper});
 
-    ObjectRecord thought = dialogue;
+    ObjectRecord thought = base;
     thought.shape            = Geometry::shapeTemplate("thought").shape;
     thought.style.strokeWidth = 4;
     out.append({PresetStore::tr("Thought"), thought});
 
-    ObjectRecord shout = dialogue;
+    ObjectRecord shout = base;
     shout.shape              = Geometry::shapeTemplate("shout").shape;
     shout.text.bold          = true;
     shout.text.pixelSize     = 38;
@@ -112,7 +113,7 @@ QList<BubblePreset> builtinPresets()
     shout.texture.kind      = ObjectRecord::Texture::Rough;   // the Marker look: Rough's own defaults
     out.append({PresetStore::tr("Shout"), shout});
 
-    ObjectRecord flash = dialogue;
+    ObjectRecord flash = base;
     flash.shape.kind         = ObjectRecord::Shape::Ellipse;
     flash.text.bold          = true;
     flash.style.line         = ObjectRecord::Line::Flash;   // its strokes, on Auto, from the struct
@@ -120,15 +121,15 @@ QList<BubblePreset> builtinPresets()
 
     // The two looks Rough replaced: a felt-tip's long slow wobble, and ink's finer one that
     // bleeds.
-    ObjectRecord marker = dialogue;
+    ObjectRecord marker = base;
     marker.texture.kind     = ObjectRecord::Texture::Rough;
     out.append({PresetStore::tr("Marker"), marker});
 
-    ObjectRecord ink = dialogue;
+    ObjectRecord ink = base;
     ink.texture              = Geometry::inkRough(ink.texture);
     out.append({PresetStore::tr("Ink"), ink});
 
-    ObjectRecord caption = dialogue;
+    ObjectRecord caption = base;
     caption.shape            = Geometry::shapeTemplate("caption").shape;
     caption.skin.fill.colour        = QColor(16, 16, 16);
     caption.text.fill.colour = QColor(245, 245, 245);

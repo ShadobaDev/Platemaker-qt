@@ -1312,70 +1312,6 @@ void ObjectController::applyColourToSelection(const QColor& colour, Geometry::Pa
         emit boundToRecord(next.first());
 }
 
-void ObjectController::applyGroupToSelection(PropertyGroup group)
-{
-    if (!m_toolDefaults.prototype || m_selectedOverlays.isEmpty())
-        return;
-    const ObjectRecord source = m_toolDefaults.prototype();
-
-    QList<ObjectRecord> next;
-    int                 changed = 0;
-    for (const QString& uid : std::as_const(m_selectedOverlays)) {
-        ObjectRecord each   = recordFor(uid);
-        const bool   shaped = each.hasSilhouette();
-        switch (group) {
-        case PropertyGroup::Shape:
-            // The silhouette, to everything that has one. A shapeless object is **left alone**: giving
-            // it a balloon would be a conversion, and a conversion is somewhere else on this menu.
-            if (shaped) { each.shape = source.shape; ++changed; }   // the group, not just its kind
-            break;
-        case PropertyGroup::Skin:
-            if (shaped) { each.skin = source.skin; ++changed; }   // nothing to fill without a silhouette
-            break;
-        case PropertyGroup::Style:
-            if (shaped) {
-                each.style = source.style;
-                // The seed belongs to no group precisely so that nothing can copy it — but an object
-                // that has just become styled needs one of its own.
-                topUpStyleSeed(each);
-                ++changed;
-            }
-            break;
-        case PropertyGroup::Texture:
-            if (shaped) { each.texture = source.texture; topUpStyleSeed(each); ++changed; }   // its wobble's seed
-            break;
-        case PropertyGroup::Effects:
-            if (shaped) { each.effects = source.effects; ++changed; }
-            break;
-        case PropertyGroup::Text: {
-            // Everything about the lettering except the lettering: five balloons do not share one line.
-            const QString said = each.text.body;
-            each.text          = source.text;
-            each.text.body     = said;
-            ++changed;
-            break;
-        }
-        default:
-            break;
-        }
-        next.append(each);
-    }
-    if (changed == 0)
-        return;
-
-    const QString step = group == PropertyGroup::Shape ? tr("Apply shape")
-                       : group == PropertyGroup::Skin    ? tr("Apply fill")
-                       : group == PropertyGroup::Style   ? tr("Apply line")
-                       : group == PropertyGroup::Texture ? tr("Apply texture")
-                       : group == PropertyGroup::Effects ? tr("Apply effects")
-                                                         : tr("Apply text style");
-    applyRecords(m_selectedOverlays, next, /*commit=*/true, step);
-    if (m_selectedOverlays.size() > 1)
-        emit boundToRecords(next);
-    else
-        emit boundToRecord(next.first());
-}
-
 ShapeProperties ObjectController::toolBalloonShape() const
 {
     return m_toolDefaults.balloonShape ? m_toolDefaults.balloonShape() : ShapeProperties();
@@ -1391,7 +1327,7 @@ void ObjectController::convertSelectionTo(const ShapeProperties& shape)
     // silhouette to arrive at, but a Thought balloon asked to become a Balloon is already one — and
     // re-shaping it to whatever TOOL OPTIONS happens to show would be this menu quietly doing the shape
     // picker's job on an object the artist only had along for the ride. Changing *which* balloon several
-    // objects are is *Apply from tool options ▸ Shape*, and it says so.
+    // objects are is the Shape section's, or *Apply preset ▸*.
     const bool toSilhouette = kind != ObjectRecord::Shape::None;
 
     QList<ObjectRecord> next;

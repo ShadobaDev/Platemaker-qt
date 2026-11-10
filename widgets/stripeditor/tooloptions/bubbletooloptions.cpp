@@ -7,8 +7,6 @@
 #include <QGroupBox>
 #include <QHBoxLayout>
 #include <QIcon>
-#include <QInputDialog>
-#include <QLineEdit>
 #include <QMenu>
 #include <QMessageBox>
 #include <QSignalBlocker>
@@ -38,19 +36,14 @@ BubbleToolOptions::BubbleToolOptions(PresetStore& presets, QWidget* parent)
     // Above the controls it fills, and outside the Shape group, because a preset also carries the font
     // and the colours the Text tool uses.
     m_presetCombo = new QComboBox(this);
-    // **The picker offers; it never claims.** A drop-down showing an entry says *this is what is
-    // selected*, and a preset is not a selection — it is a one-shot fill that stops describing anything
-    // the moment any control moves. So it shows a prompt, and the chip beside it reports what the next
-    // object's values actually are.
-    m_presetCombo->setPlaceholderText(tr("Apply a preset…"));
-    m_presetCombo->setToolTip(tr("Fills the controls below with a saved look. What the next object "
-                                 "will be is what the controls say, and the chip reports it."));
+    // **The picker shows what the next object is made from:** a preset, or *No preset* — the default. A
+    // row changed below is laid over it and the picker keeps its name; picking again starts over from
+    // it. A preset is a quick way to set many fields at once, not a promise.
+    m_presetCombo->setPlaceholderText(tr("Pick a preset…"));   // only after the picked one was deleted
+    m_presetCombo->setToolTip(tr("What the next object is made from. A preset is saved from an object, "
+                                 "with Save as preset… on its menu."));
     m_presetCombo->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
     m_presetCombo->setIconSize(QSize(k_bubbleThumbW, k_bubbleThumbH));
-
-    auto* presetSave = new QToolButton(this);
-    presetSave->setText(tr("Save…"));
-    presetSave->setToolTip(tr("Saves the current look — shape, colours, line style, font — under a name."));
 
     auto* presetMore = new QToolButton(this);
     presetMore->setText(QStringLiteral("⋯"));
@@ -64,7 +57,6 @@ BubbleToolOptions::BubbleToolOptions(PresetStore& presets, QWidget* parent)
     auto* presetRow = new QHBoxLayout;
 
     presetRow->addWidget(m_presetCombo, 1);
-    presetRow->addWidget(presetSave);
     presetRow->addWidget(presetMore);
     lay->addLayout(presetRow);
 
@@ -113,7 +105,6 @@ BubbleToolOptions::BubbleToolOptions(PresetStore& presets, QWidget* parent)
     // activated(), not currentIndexChanged(): only a human picking an entry applies a preset, so
     // rebuilding the list never restyles anything, and re-picking the current entry re-applies it.
     connect(m_presetCombo, &QComboBox::activated, this, [this](int i) { applyPreset(i); });
-    connect(presetSave,     &QToolButton::clicked, this, [this] { onSavePreset(); });
     connect(m_presetDelete, &QAction::triggered,   this, [this] { onDeletePreset(); });
     connect(&m_presets, &PresetStore::changed, this, [this] { refreshPresetCombo(); });
 
@@ -195,8 +186,7 @@ void BubbleToolOptions::onControlChanged()
 {
     if (m_populating)
         return;
-    m_groups.collect(m_record, m_tails);
-    refreshLook();   // one changed property and it is no longer that preset
+    m_groups.collect(m_record, m_tails);   // laid over the picked preset, which the picker still names
     // Nothing is emitted: these values describe an object that does not exist yet, so there is nothing
     // to preview and nothing to persist until one is placed.
 }
@@ -217,70 +207,40 @@ void BubbleToolOptions::refreshPresetCombo()
 {
     const QSignalBlocker block(m_presetCombo);
     m_presetCombo->clear();
+    // Entry 0 is the absence of a preset; entry i + 1 is the store's preset i. No separator: it would be
+    // an entry too, and shift every index after it.
+    m_presetCombo->addItem(tr("No preset"));
     const QList<BubblePreset>& presets = m_presets.presets();
-    for (const BubblePreset& p : presets) {
-        // No separator row between built-ins and the artist's own: a separator is an entry, and every
-        // index here doubles as an index into the store.
+    int picked = m_pickedName.isEmpty() ? 0 : -1;
+    for (int i = 0; i < presets.size(); ++i) {
+        const BubblePreset& p = presets.at(i);
         m_presetCombo->addItem(QIcon(bubbleThumbnail(p.record.shape, p.record.skin.fill.colour,
                                                      p.record.style.stroke.colour, p.record.text.fill.colour)),
                                p.name);
+        if (p.name == m_pickedName)
+            picked = i + 1;
     }
-    // No current entry, ever: see the placeholder above. Which preset the other two act on is the one
-    // the controls currently *are*, which is what the chip reports — see refreshLook().
-    m_presetCombo->setCurrentIndex(-1);
-    refreshLook();
+    m_presetCombo->setCurrentIndex(picked);   // -1, and the placeholder, when the picked one is gone
+    m_presetDelete->setEnabled(picked > 0 && m_presets.isCustom(picked - 1));
 }
 
-void BubbleToolOptions::refreshLook()
+void BubbleToolOptions::applyPreset(int entry)
 {
-    // **Delete acts on the look, not on a picker's selection.** With nothing claimed above, the honest
-    // subject is the preset these values *are*, and only if it is the artist's own: a built-in cannot be
-    // removed, and a look that is nobody's preset is not a preset to remove.
-    m_presetDelete->setEnabled(m_presets.isCustom(m_presets.matching(m_record)));
-}
-
-void BubbleToolOptions::applyPreset(int index)
-{
-    m_presetDelete->setEnabled(m_presets.isCustom(index));
-    m_presetCombo->setCurrentIndex(-1);   // it applied a look; it is not now *showing* one
-    if (index < 0 || index >= m_presets.presets().size())
+    // *No preset* is the default, applied the way a preset is: the same function, with nothing in it but
+    // `ObjectRecord`'s own values.
+    const int index = entry - 1;
+    if (index >= m_presets.presets().size())
         return;
-    m_record = PresetStore::applied(m_presets.presets().at(index), m_record,
-                                      /*keepShape=*/m_toolShape.has_value());
+    const BubblePreset base = index >= 0 ? m_presets.presets().at(index) : BubblePreset{QString(), ObjectRecord()};
+    m_pickedName = base.name;
+    m_record     = PresetStore::applied(base, m_record, /*keepShape=*/m_toolShape.has_value());
     syncFromModel();
-}
-
-void BubbleToolOptions::onSavePreset()
-{
-    bool ok = false;
-    // Offered back: the name these values already carry, so saving over a preset needs no retyping,
-    // and *Custom* offers nothing rather than a word nobody meant as a name.
-    const int     match   = m_presets.matching(m_record);
-    const QString suggest = match >= 0 ? m_presets.presets().at(match).name : QString();
-    const QString name = QInputDialog::getText(this, tr("Save preset"), tr("Preset name:"),
-                                               QLineEdit::Normal, suggest, &ok)
-                             .trimmed();
-    if (!ok || name.isEmpty())
-        return;
-
-    // What is saved is what the *controls* say: prototype() is already exactly "the panel as an
-    // record", minus the content a preset never carries.
-    int existing = -1;
-    int at = m_presets.save(name, prototype(), /*replaceExisting=*/false, &existing);
-    if (at < 0) {
-        if (QMessageBox::question(this, tr("Save preset"),
-                                  tr("A preset named “%1” already exists. Replace it?").arg(name))
-            != QMessageBox::Yes)
-            return;
-        at = m_presets.save(name, prototype(), /*replaceExisting=*/true);
-    }
-    (void)at;
     refreshPresetCombo();
 }
 
 void BubbleToolOptions::onDeletePreset()
 {
-    const int i = m_presets.matching(m_record);   // the one the chip names, and it is the artist's own
+    const int i = m_presetCombo->currentIndex() - 1;   // the picked one, and only the artist's own
     if (!m_presets.isCustom(i))
         return;
     if (QMessageBox::question(this, tr("Delete preset"),
@@ -288,7 +248,8 @@ void BubbleToolOptions::onDeletePreset()
         != QMessageBox::Yes)
         return;
     m_presets.remove(i);
-    refreshPresetCombo();   // the values stay as they are; they are simply nobody's preset now
+    // The values stay as they are; they are simply nobody's preset now, and the picker says so.
+    refreshPresetCombo();
 }
 
 }  // namespace StripEdit

@@ -320,8 +320,8 @@ Editor::Editor(PresetStore& presets, QWidget *parent)
         connect(m_objects, &OC::blendBound,         m_objectState, &OS::setSelectionBlend);
         connect(m_objects, &OC::artworkScaleBound,  m_objectState, &OS::setArtworkScale);
         connect(m_objects, &OC::textFocusRequested, m_objectState, &OS::focusText);
-        // What TOOL OPTIONS says the next object is, for *Apply from tool options ▸* and *Convert to ▸
-        // Balloon*. Told as functions, so the objects need no tool-options panel.
+        // What TOOL OPTIONS says the next object is, for a placement and *Convert to ▸ Balloon*. Told as
+        // functions, so the objects need no tool-options panel.
         m_objects->setToolDefaults({[this] { return m_bubbleOptions->prototype(); },
                                     [this] { return m_bubbleOptions->balloonShape(); }});
         // A Create tool's drag on empty strip, and the object it places: the balloon TOOL OPTIONS

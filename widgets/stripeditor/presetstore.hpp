@@ -126,7 +126,8 @@ public:
      * \brief The name an empty font family stands for on this machine (Geometry::defaultFamily()).
      *
      * A preset that chooses no font means "the default", and a bubble reloaded from its file carries the
-     * default's name — so without this, every balloon made from Dialogue would read *Custom* after a reopen.
+     * default's name — so without this, every balloon made from such a preset would read *Custom* after a
+     * reopen.
      * Handed in rather than looked up, so the store stays free of the font database (and of a GUI
      * application) for its own tests. Unset, only an empty family matches an empty one.
      */

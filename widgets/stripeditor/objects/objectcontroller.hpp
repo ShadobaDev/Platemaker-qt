@@ -64,8 +64,8 @@ class SelectionChrome;
  * - The rows of the OBJECT STACK are not here: ObjectStack (objectstack/) draws them from what this
  *   holds and reports back a selection, a mute or a new order (setStackOrder()).
  * - *Selection, and the properties panel it binds* — selectSubjects() decides what OBJECT STATE shows.
- * - *Operations on the selection* — colour, presets, artwork, re-anchor, delete, *Apply from tool
- *   options ▸*, *Convert to ▸*, blend, stacking, duplicate; each ends in applyRecords() or a signal.
+ * - *Operations on the selection* — colour, presets, artwork, re-anchor, delete, *Convert to ▸*, blend,
+ *   stacking, duplicate; each ends in applyRecords() or a signal.
  *   The object menu (ObjectMenu, objectstack/) names them; OBJECT STATE and the canvas call some too.
  * - *A new object* — requestRecord() / requestArtwork(): asked for here, created by the owner,
  *   selected when the feed brings it back. The drag that describes one is Placement's.
@@ -200,7 +200,7 @@ public:
      * **What passes through is decided by the kind, not by the silhouette.** An object that already has
      * a balloon is untouched by *Convert to ▸ Balloon* even if it wears a different one — re-shaping it
      * would be this menu doing the shape picker's job on an object the artist only had along for the
-     * ride. Changing *which* balloon a selection wears is `applyGroupToSelection(PropertyGroup::Shape)`.
+     * ride. Changing *which* balloon a selection wears is the Shape section's, or *Apply preset ▸*.
      *
      * Passing through includes keeping its place in the stack, which nothing here reorders, so
      * converting a mixed set is not two acts: select two texts and a balloon, convert to Balloon, and
@@ -321,15 +321,6 @@ public:
      * \param role    The part of the object to apply the colour to.
      */
     void applyColourToSelection(const QColor& colour, Geometry::Part role);
-
-    /**
-     * \brief Copies one property group from the tool's options onto every selected object.
-     *
-     * This is where the *style applicator* went. As a rail tool it would have to carry a current
-     * style, which a stateless tool may not; as a menu entry it carries nothing — the value is whatever
-     * TOOL OPTIONS is set to, which is the panel that already holds "what the next object will be".
-     */
-    void applyGroupToSelection(PropertyGroup group);
 
     /**
      * \brief Restyles the selected bubble with preset \p index, keeping what it says and where it points.
@@ -524,8 +515,7 @@ public:
      * \brief What TOOL OPTIONS says the next object is — read, never written.
      *
      * Two questions, given as functions so that this class needs no tool-options panel: the prototype a
-     * balloon would be placed as, which *Apply from tool options ▸* copies a group from, and the
-     * silhouette a balloon would wear, which *Convert to ▸ Balloon* arrives at (never `None`, even while
+     * balloon would be placed as, and the silhouette a balloon would wear, which *Convert to ▸ Balloon* arrives at (never `None`, even while
      * the Text tool is armed). The Editor, which owns both regions, wires them.
      */
     struct ToolDefaults

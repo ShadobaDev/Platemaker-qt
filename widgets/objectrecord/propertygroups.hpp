@@ -504,6 +504,9 @@ struct TextureProperties
     int   roughOctaves      = 3;      //!< How many finer wobbles ride on the first.
     qreal roughDisplacement = 6.0;    //!< How far the outline wanders (feDisplacementMap's scale).
     qreal roughBlur         = 0.0;    //!< The bleed after it (feGaussianBlur's deviation); 0 for none.
+    //! Whether the fill's paint wobbles too. Off, only the outline and the fill's edge do: a pattern stays
+    //! on its grid, laid from the box's corner as everywhere else.
+    bool  roughFill         = false;
     /** @} */
 
     //! The fields, with the keys they are saved under (fields.hpp).
@@ -515,6 +518,7 @@ struct TextureProperties
         v("roughOctaves",      &TextureProperties::roughOctaves);
         v("roughDisplacement", &TextureProperties::roughDisplacement);
         v("roughBlur",         &TextureProperties::roughBlur);
+        v("roughFill",         &TextureProperties::roughFill);
     }
 
     [[nodiscard]] static TextureProperties from(const ObjectRecord& a);

@@ -63,6 +63,7 @@ ObjectRecord loadedRecord()
     a.texture.roughOctaves      = 4;
     a.texture.roughDisplacement = 7.5;
     a.texture.roughBlur         = 1.25;
+    a.texture.roughFill         = true;   // not the default; the parts are a golden case of their own
     a.style.flashOuterPitch        = 3.5;
     a.style.flashInnerPitch        = 4.5;
     a.style.flashOuterLength       = 21.0;
@@ -174,6 +175,7 @@ static_assert(sizeof(SkinProperties) == sizeof(SkinMirror),
 
 struct TextureMirror {
     TextureProperties::Kind kind; qreal roughFrequency; int roughOctaves; qreal roughDisplacement, roughBlur;
+    bool roughFill;
 };
 static_assert(sizeof(TextureProperties) == sizeof(TextureMirror),
               "TextureProperties grew a field: place it (see above), then mirror it");
@@ -305,6 +307,7 @@ void expectUntouched(Group applied, const ObjectRecord& before, const ObjectReco
         EXPECT_EQ(after.texture.roughOctaves,             before.texture.roughOctaves);
         EXPECT_DOUBLE_EQ(after.texture.roughDisplacement, before.texture.roughDisplacement);
         EXPECT_DOUBLE_EQ(after.texture.roughBlur,         before.texture.roughBlur);
+        EXPECT_EQ(after.texture.roughFill,                before.texture.roughFill);
     }
     if (applied != Group::Effects) {
         EXPECT_EQ(after.effects.shadow.on, before.effects.shadow.on);
@@ -2066,6 +2069,16 @@ QString goldenRecords()
             p.fadeRound = true;
             write(QStringLiteral("speech"), QStringLiteral("fading grid, reversed, round"), true, a);
         }
+    }
+    // Rough in parts: the fill not displaced, masked by the displaced silhouette; a pattern and a fade.
+    for (const bool fading : {false, true}) {
+        ObjectRecord a       = loadedRecord();
+        a.shape              = Geometry::shapeTemplate("speech").shape;
+        a.texture.roughFill  = false;
+        a.skin.fill.kind     = ObjectRecord::Pattern::Dots;
+        a.skin.fill.fadeLeftFrom = fading ? 40.0 : a.skin.fill.fadeLeftFrom;
+        write(QStringLiteral("speech"), fading ? QStringLiteral("rough in parts, fading dots")
+                                               : QStringLiteral("rough in parts, dots"), true, a);
     }
     // A halftone shadow, hard: the pattern's marks on nothing (the cases above fade, soft).
     {

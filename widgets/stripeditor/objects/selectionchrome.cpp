@@ -84,8 +84,9 @@ SelectionChrome::SelectionChrome(const QGraphicsView* view)
     : m_view(view)
 {
     setZValue(k_chromeZ);
-    // The left button only: a right press is the context menu's, and has to reach the object below.
-    setAcceptedMouseButtons(Qt::LeftButton);
+    // A right press is the context menu's, and is let through to the object below; this item only picks
+    // the node under it first, so the menu is that node's.
+    setAcceptedMouseButtons(Qt::LeftButton | Qt::RightButton);
 }
 
 qreal SelectionChrome::span() const
@@ -456,6 +457,12 @@ QSvgRenderer& SelectionChrome::radiusArrow(const QColor& fill, const QColor& edg
 void SelectionChrome::mousePressEvent(QGraphicsSceneMouseEvent* e)
 {
     const Hit hit = hitAt(e->scenePos());
+    if (e->button() == Qt::RightButton) {
+        if (hit.object && hit.grip == Grip::Shape)
+            hit.object->pickNodeOf(hit.handle);
+        e->ignore();
+        return;
+    }
     if (!hit.object) {
         e->ignore();   // not on a grip after all: let the press reach whatever is below
         return;

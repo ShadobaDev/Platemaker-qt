@@ -189,6 +189,8 @@ ObjectMenu::ObjectMenu(ObjectController& objects, const StripLayout& layout, Pre
         a->setData(static_cast<int>(type));
         connect(a, &QAction::triggered, this, [this, type] { m_objects.setPickedNodeType(type); });
     }
+    m_actAddHandles = new QAction(tr("Add handles"), this);
+    connect(m_actAddHandles, &QAction::triggered, &m_objects, &ObjectController::growPickedHandles);
     m_actToCurve = new QAction(tr("Convert to curve"), this);
     connect(m_actToCurve, &QAction::triggered, &m_objects, &ObjectController::convertSelectionToCurve);
 
@@ -232,6 +234,7 @@ ObjectMenu::ObjectMenu(ObjectController& objects, const StripLayout& layout, Pre
         w->addAction(m_actFixPadding);
         w->addAction(m_actEditShape);
         w->addAction(m_nodeTypeMenu->menuAction());
+        w->addAction(m_actAddHandles);
         w->addAction(m_actToCurve);
         w->addAction(m_actReroll);
         w->addAction(separator());
@@ -331,6 +334,9 @@ void ObjectMenu::updateEntries()
         for (QAction* a : m_nodeTypeMenu->actions())
             a->setChecked(type && a->data().toInt() == static_cast<int>(*type));
     }
+    // ...and its missing handles: absent on a node that lacks none on a straight side.
+    if (m_actAddHandles)
+        m_actAddHandles->setVisible(m_objects.canGrowPickedHandles());
     if (m_actToCurve) {
         m_actToCurve->setVisible(allParametric);
         m_actToCurve->setEnabled(m_objects.canConvertToCurve());

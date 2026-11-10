@@ -217,9 +217,7 @@ bool BubbleObject::beginShapeDrag(int index)
         changed = true;
     }
     // A node, or one of its handles, picks that node: its handles show, and Delete or its type act on it.
-    const bool ofNode = m_shapeHandle.role == Role::Vertex || m_shapeHandle.role == Role::InHandle
-                     || m_shapeHandle.role == Role::OutHandle;
-    setPickedVertex(ofNode ? m_shapeHandle.index : -1);
+    setPickedVertex(Geometry::picksNode(m_shapeHandle.role) ? m_shapeHandle.index : -1);
     return changed;
 }
 

@@ -464,6 +464,10 @@ public:
     [[nodiscard]] std::optional<ShapeNode::Type> pickedNodeType() const;
     //! Makes the picked Curve node a @p type node (Geometry::withNodeType()), as one history step.
     void setPickedNodeType(ShapeNode::Type type);
+    //! Whether the picked Curve node lacks a handle on a straight side, so *Add handles* has work.
+    [[nodiscard]] bool canGrowPickedHandles() const;
+    //! Gives the picked Curve node its missing handles (Geometry::withHandlesGrown()), as one history step.
+    void growPickedHandles();
 
     /**
      * \brief *Convert to Curve*: the one selected balloon's outline, of any other kind, as the Curve that

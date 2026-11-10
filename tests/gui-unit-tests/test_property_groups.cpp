@@ -14,6 +14,7 @@
 #include <gtest/gtest.h>
 
 #include <algorithm>
+#include <optional>
 
 #include <QFile>
 #include <QJsonDocument>
@@ -1428,6 +1429,55 @@ TEST(Shapes, ACurveKeepsItsOutlineThroughItsEdits)
     EXPECT_NEAR(in.x() + out.x(), 0.0, 1e-9);
     EXPECT_NEAR(in.y() + out.y(), 0.0, 1e-9);
     EXPECT_EQ(node.type, ShapeNode::Type::Symmetric);
+}
+
+/**
+ * \brief A picked Curve node offers both its handles, the ones it lacks where they would grow from, and
+ *        *Add handles* makes those real without changing the outline. *Convert to Curve* of a speech
+ *        balloon gives each arc end one handle, on the arc's side; a node added on a straight side has none.
+ */
+TEST(Shapes, APickedCurveNodeOffersBothHandlesAndGrowsTheMissingOnes)
+{
+    const QRectF          body(5, 5, 270, 150);
+    const ShapeProperties speech  = Geometry::shapeTemplate("speech").shape;
+    const ShapeProperties curve   = Geometry::curveOf(Geometry::shapeInfo(speech.kind).outline(speech, body), body);
+    const auto            outline = Geometry::shapeInfo(ObjectRecord::Shape::Curve).outline;
+    constexpr qreal       k_samePlace = 1e-9;   //!< Two handles at one point, in balloon pixels
+
+    const auto handleAt = [&](const ShapeProperties& s, int picked, Geometry::ShapeHandle::Role role) {
+        for (const Geometry::ShapeHandle& h : Geometry::shapeHandles(s, body, 0.0, picked))
+            if (h.role == role && h.index == picked)
+                return std::optional<QPointF>(h.at);
+        return std::optional<QPointF>();
+    };
+
+    int straight = -1;   // a segment with no handle at either end: one of the box's sides
+    for (int i = 0; i < curve.nodes.size(); ++i) {
+        EXPECT_TRUE(handleAt(curve, i, Geometry::ShapeHandle::Role::InHandle)) << "node " << i;
+        EXPECT_TRUE(handleAt(curve, i, Geometry::ShapeHandle::Role::OutHandle)) << "node " << i;
+        if (curve.nodes.at(i).out.isNull() && curve.nodes.at((i + 1) % curve.nodes.size()).in.isNull())
+            straight = i;
+    }
+    ASSERT_GE(straight, 0);
+
+    // A node added on that side has neither handle; both are offered, and grown, a third of the way along
+    // the side, so the outline is the same and the offered handles are where the grown ones are.
+    const ShapeProperties split = Geometry::withVertexAdded(curve, straight);
+    const int             added = straight + 1;
+    ASSERT_TRUE(split.nodes.at(added).in.isNull() && split.nodes.at(added).out.isNull());
+    const ShapeProperties grown = Geometry::withHandlesGrown(split, added);
+    EXPECT_FALSE(grown.nodes.at(added).in.isNull());
+    EXPECT_FALSE(grown.nodes.at(added).out.isNull());
+    EXPECT_EQ(pointsInOnlyOne(outline(split, body), outline(grown, body), body), 0);
+    for (const auto role : {Geometry::ShapeHandle::Role::InHandle, Geometry::ShapeHandle::Role::OutHandle}) {
+        const QPointF offered = *handleAt(split, added, role);
+        const QPointF real    = *handleAt(grown, added, role);
+        EXPECT_NEAR(offered.x(), real.x(), k_samePlace);
+        EXPECT_NEAR(offered.y(), real.y(), k_samePlace);
+    }
+    // Nothing to grow once it has both, and nothing on the arc's side of an arc end.
+    EXPECT_EQ(Geometry::withHandlesGrown(grown, added), grown);
+    EXPECT_EQ(Geometry::withHandlesGrown(curve, straight).nodes.at(straight).in, curve.nodes.at(straight).in);
 }
 
 // ---------------------------------------------------------------------------

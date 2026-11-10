@@ -163,6 +163,8 @@ public:
     [[nodiscard]] int pickedVertex() const { return m_pickedVertex; }
     //! Marks node @p index as the picked one, or none with -1.
     void setPickedVertex(int index);
+    //! Picks the node shape handle @p index of shapeHandles() belongs to; a handle of no node changes nothing.
+    void pickNodeOf(int index);
 
     //! The grip of the drag under way, or of the last one: what a settled drag was.
     [[nodiscard]] Grip dragGrip() const { return m_dragGrip; }
@@ -288,6 +290,9 @@ signals:
      * \param uid The unique identifier of the object.
      */
     void geometryCommitted(const QString& uid);
+
+    //! The picked node changed (pickedVertex()): what Delete and *Point type* act on.
+    void pickedVertexChanged();
 
     /**
      * \brief The object was pressed — on handle @p handle, or on anything else when it is -1.

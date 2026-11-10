@@ -93,10 +93,11 @@ Bug fixes, cosmetics and internal cleanups — no new capability, no change to a
   `viewStripRequested(projectIndex, toolId)`; MainWindow calls `editor->setTool(toolId)` after opening
   the dock. The CC card passes `"grade"` and selects the strip; the bubbles card passes `"bubble"`.
 
-- [ ] **Strip editor: after *Convert to curve*, some nodes have no Bézier handles.** Seen on a speech
-  balloon (a box with a corner radius): in *Edit shape* some nodes of the converted curve show handles
-  to bend it, others show none and cannot be bent. Which nodes, and whether they are corners from the
-  box's straight sides converted without handles, is not investigated yet.
+- [x] **Strip editor: after *Convert to curve*, some nodes have no Bézier handles.** A straight side
+  converts to nodes with no handle on that side, and a picked node offered only the handles it had.
+  Fixed: a picked node offers the ones it lacks, a third of the way to its neighbour, and *Add handles*
+  in its menu grows them on a straight side. A right-click on a node now picks it, so that menu (and
+  *Delete point*) is the node's, not the balloon's.
 
 - [ ] **Strip editor: TOOL OPTIONS draws *Corner radius* and *Edge* over the first shape tile.**
   `ShapeEditor` puts its parameter rows on a widget of their own, `parameters()`, for the panel to lay

@@ -201,14 +201,13 @@ void ObjectController::onObjectPressed(const QString& uid, int handle)
         selectOverlay(uid);
     beginDrag(uid, handle);
 
-    // In shape editing, a press on a node picks it (what Delete takes), and a press on the words is a
-    // press on the text: OBJECT STATE takes the caret.
+    // In shape editing, a press on the words is a press on the text: OBJECT STATE takes the caret. (A press
+    // on a node picks it in the object, which says so through pickedVertexChanged.)
     const Object* item = uid == m_shapeEditing ? m_overlayItems.value(uid) : nullptr;
     if (!item)
         return;
-    if (item->dragGrip() == Grip::Shape)
-        emit shapeEditingChanged();
-    else if (Geometry::partAt(item->record(), item->mapFromScene(item->pressScenePos()), 0.0) == Geometry::Part::Text)
+    if (item->dragGrip() != Grip::Shape
+        && Geometry::partAt(item->record(), item->mapFromScene(item->pressScenePos()), 0.0) == Geometry::Part::Text)
         emit textFocusRequested();
 }
 
@@ -248,6 +247,26 @@ void ObjectController::setPickedNodeType(ShapeNode::Type type)
     applyRecord(m_shapeEditing, a, /*commit=*/true, tr("Point type"));
     emit boundToRecord(a);
     emit shapeEditingChanged();   // the menu's tick, and the handles drawn
+}
+
+bool ObjectController::canGrowPickedHandles() const
+{
+    const Object* item = m_overlayItems.value(m_shapeEditing);
+    if (!pickedNodeType() || !item)
+        return false;
+    return !(Geometry::withHandlesGrown(item->record().shape, item->pickedVertex()) == item->record().shape);
+}
+
+void ObjectController::growPickedHandles()
+{
+    Object* item = m_overlayItems.value(m_shapeEditing);
+    if (!canGrowPickedHandles() || !item)
+        return;
+    ObjectRecord a = item->record();
+    a.shape        = Geometry::withHandlesGrown(a.shape, item->pickedVertex());
+    applyRecord(m_shapeEditing, a, /*commit=*/true, tr("Add handles"));
+    emit boundToRecord(a);
+    emit shapeEditingChanged();   // the menu's entry, and the handles drawn
 }
 
 bool ObjectController::canConvertToCurve() const
@@ -553,6 +572,8 @@ void ObjectController::syncItems()
             connect(item, &Object::pressed,        this, &ObjectController::onObjectPressed);
             connect(item, &Object::dragging,       this, &ObjectController::onObjectDragged);
             connect(item, &Object::chromeChanged,  this, &ObjectController::refreshChrome);
+            // The picked node is what the menu's Delete and Point type act on, however it was picked.
+            connect(item, &Object::pickedVertexChanged, this, &ObjectController::shapeEditingChanged);
             // A double-click on the one selected balloon enters shape editing, and another leaves it.
             connect(item, &Object::doubleClicked,  this, [this](const QString& uid) {
                 if (m_selectedOverlays == QStringList{uid})

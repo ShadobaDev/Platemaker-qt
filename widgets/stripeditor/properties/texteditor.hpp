@@ -36,6 +36,11 @@ public:
     explicit TextEditor(QWidget* parent = nullptr);
 
     [[nodiscard]] PropertyGroup group() const override { return PropertyGroup::Text; }
+    [[nodiscard]] QList<Row> rows() const override
+    {
+        return {Row::TextFont,    Row::TextColour,  Row::TextPattern, Row::TextAlign,
+                Row::TextSpacing, Row::TextOutline, Row::TextShadow};
+    }
 
     void bind(const Subjects& subjects) override;
     void applyTo(ObjectRecord& target) const override;
@@ -52,6 +57,9 @@ public:
     //! Greys the text box alone: with nothing selected there is nothing to type into, while the
     //! typography still describes what the next object will be.
     void setContentEnabled(bool on);
+
+protected:
+    void updateRows() override;
 
 private:
     void syncFromValues();

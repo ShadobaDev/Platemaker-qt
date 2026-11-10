@@ -20,6 +20,35 @@ namespace StripEdit {
 enum class PropertyGroup { Placement, Size, Compositing, Shape, Skin, Style, Text, Tail, TailItem, Effects, Texture };
 
 /**
+ * \brief A row, or a few rows that go together, of a group's editor: what a tool's options can show or
+ *        leave out (Tool::optionRows). OBJECT STATE shows every row; TOOL OPTIONS only the tool's.
+ *
+ * An enum rather than names, so the tool registry cannot name a row no editor has. Not persisted.
+ */
+enum class Row {
+    ShapeTiles,        //!< The shape's tiles.
+    ShapeParameters,   //!< Its corner radius or lobes, its edge and the edge's rows.
+    TailOn,            //!< Whether the next balloon has a tail.
+    TailShape,         //!< Its width and bend.
+    FillColour,        //!< The fill's colour.
+    FillPattern,       //!< The fill's pattern and its rows.
+    LineKind,          //!< The line's kind.
+    LineWidth,         //!< Its width.
+    LineColour,        //!< Its colour.
+    LinePattern,       //!< Its pattern and the pattern's rows.
+    LineKindRows,      //!< The kind's own rows (a flash's strokes, a brush's bristles...).
+    Texture,           //!< The texture and its rows.
+    Effects,           //!< The drop shadow and its rows.
+    TextFont,          //!< Font, size, bold.
+    TextColour,        //!< The letters' colour.
+    TextPattern,       //!< The halftone over the letters and over their outline.
+    TextAlign,         //!< Alignment.
+    TextSpacing,       //!< Line spacing and the paddings.
+    TextOutline,       //!< The letters' outline: its width and its colour.
+    TextShadow,        //!< The letters' shadow or glow.
+};
+
+/**
  * \brief Whether @p a carries @p g at all — **the one answer to "which sections apply"**.
  *
  * A pure function of a record, which is what lets the rule be tested rather than only looked at. It was

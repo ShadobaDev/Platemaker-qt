@@ -137,7 +137,7 @@ StyleEditor::StyleEditor(QWidget* parent)
     m_strokeWidth->setToolTip(tr("How wide the outline is, and a brush's strokes. 0 draws no line."));
     m_form->addRow(tr("Width:"), m_strokeWidth);
     // The line's paint: the outline's, or a flash's or a brush's strokes'.
-    m_stroke.build(this, m_form, &StyleProperties::stroke, tr("Colour:"), m_values, m_populating,
+    m_stroke.build(this, m_form, &StyleProperties::stroke, tr("Line colour:"), m_values, m_populating,
                    [this] { emit changed(); }, [this] { emit committed(); });
     m_flash.build(this, m_form, "flash", k_flashRows, k_trContext, m_values, m_populating,
                   [this] { emit changed(); }, [this](const char* key) -> QSpinBox* {
@@ -232,12 +232,21 @@ void StyleEditor::syncFromValues()
     m_populating = false;
 }
 
+void StyleEditor::updateRows()
+{
+    m_form->setRowVisible(m_line, shows(Row::LineKind));
+    m_form->setRowVisible(m_strokeWidth, shows(Row::LineWidth));
+    m_stroke.setParts(shows(Row::LineColour), shows(Row::LinePattern));
+    showRows();
+}
+
 void StyleEditor::showRows()
 {
     // A selection that disagrees shows the rows at least one of them has.
-    m_flash.setVisible(m_form, m_mixedLine || m_values.line == ObjectRecord::Line::Flash);
-    m_brush.setVisible(m_form, m_mixedLine || m_values.line == ObjectRecord::Line::Brush);
-    m_drybrush.setVisible(m_form, m_mixedLine || m_values.line == ObjectRecord::Line::Drybrush);
+    const bool kindRows = shows(Row::LineKindRows);
+    m_flash.setVisible(m_form, kindRows && (m_mixedLine || m_values.line == ObjectRecord::Line::Flash));
+    m_brush.setVisible(m_form, kindRows && (m_mixedLine || m_values.line == ObjectRecord::Line::Brush));
+    m_drybrush.setVisible(m_form, kindRows && (m_mixedLine || m_values.line == ObjectRecord::Line::Drybrush));
 }
 
 }  // namespace StripEdit

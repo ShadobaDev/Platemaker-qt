@@ -431,8 +431,11 @@ void Editor::setTool(const QString& id)
     // a tool chosen minutes ago must not decide what a bubble's properties look like — selecting a
     // balloon under the Text tool used to show nothing but its lettering, an effect with no visible
     // cause. Which groups that panel shows comes from the selected object's own kind instead.
-    if (m_bubbleOptions)
+    if (m_bubbleOptions) {
         m_bubbleOptions->setToolShape(tool->kind == ToolKind::Create ? tool->shape : std::nullopt);
+        if (tool->optionsPage == QLatin1String("bubble"))
+            m_bubbleOptions->showRows(tool->optionRows);
+    }
 
     // What a placement puts down: a picture, or — when this is empty — a balloon. Told to the placement at
     // the moment the tool is armed.

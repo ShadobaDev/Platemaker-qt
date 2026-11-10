@@ -1,5 +1,7 @@
 #include "tooloptions/bubbletooloptions.hpp"
 
+#include <algorithm>
+
 #include <QAction>
 #include <QComboBox>
 #include <QGroupBox>
@@ -70,6 +72,8 @@ BubbleToolOptions::BubbleToolOptions(PresetStore& presets, QWidget* parent)
     m_shapeGroup = new QGroupBox(tr("Shape"), this);
     auto* shapeLay = new QVBoxLayout(m_shapeGroup);
     shapeLay->addWidget(m_groups.shape());
+    // The shape's parameters are on a widget of their own, for the panel to lay out: under the tiles.
+    shapeLay->addWidget(m_groups.shape()->parameters());
     m_tails = new NextTailEditor(this);
     shapeLay->addWidget(m_tails);
     // Fill, line, texture, effects: OBJECT STATE's sections, in its order, ruled apart here
@@ -81,6 +85,7 @@ BubbleToolOptions::BubbleToolOptions(PresetStore& presets, QWidget* parent)
         rule->setFrameShadow(QFrame::Sunken);
         shapeLay->addWidget(rule);
         shapeLay->addWidget(part);
+        m_ruleAbove.insert(part, rule);
     }
     lay->addWidget(m_shapeGroup);
 
@@ -126,7 +131,33 @@ ShapeProperties BubbleToolOptions::balloonShape() const
 void BubbleToolOptions::setToolShape(std::optional<ObjectRecord::Shape> shape)
 {
     m_toolShape = shape;
-    m_shapeGroup->setVisible(!shape.has_value());
+}
+
+void BubbleToolOptions::showRows(const QList<Row>& rows)
+{
+    // An editor shows when any of its rows is on the map, and then only those rows.
+    const auto show = [&rows](PropertyGroupEditor* e) {
+        e->showOnly(rows);
+        const QList<Row> own = e->rows();
+        const bool any = std::any_of(own.cbegin(), own.cend(), [&rows](Row r) { return rows.contains(r); });
+        e->setVisible(any);
+        return any;
+    };
+    bool shapeBox = false;
+    for (PropertyGroupEditor* e : {static_cast<PropertyGroupEditor*>(m_groups.shape()),
+                                   static_cast<PropertyGroupEditor*>(m_tails)})
+        shapeBox = show(e) || shapeBox;
+    for (PropertyGroupEditor* e : {static_cast<PropertyGroupEditor*>(m_groups.skin()),
+                                   static_cast<PropertyGroupEditor*>(m_groups.style()),
+                                   static_cast<PropertyGroupEditor*>(m_groups.texture()),
+                                   static_cast<PropertyGroupEditor*>(m_groups.effects())}) {
+        const bool shown = show(e);
+        // A rule parts two shown things; the first shown part in the box needs none above it.
+        m_ruleAbove.value(e)->setVisible(shown && shapeBox);
+        shapeBox = shown || shapeBox;
+    }
+    m_shapeGroup->setVisible(shapeBox);
+    m_textGroup->setVisible(show(m_groups.text()));
 }
 
 ObjectRecord BubbleToolOptions::prototype() const

@@ -24,6 +24,7 @@ public:
     explicit TextureEditor(QWidget* parent = nullptr);
 
     [[nodiscard]] PropertyGroup group() const override { return PropertyGroup::Texture; }
+    [[nodiscard]] QList<Row> rows() const override { return {Row::Texture}; }
 
     void bind(const Subjects& subjects) override;
     void applyTo(ObjectRecord& target) const override;

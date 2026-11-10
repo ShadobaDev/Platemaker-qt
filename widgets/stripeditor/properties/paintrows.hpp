@@ -195,6 +195,14 @@ public:
         refresh();
     }
 
+    //! Which parts may show at all: the colour row, and the pattern's rows (its kind and the rest).
+    void setParts(bool colour, bool pattern)
+    {
+        m_colourPart  = colour;
+        m_patternPart = pattern;
+        refresh();
+    }
+
     //! Copies into @p target the controls the artist has touched, from @p values.
     void applyEdited(const Group& values, Group& target) const
     {
@@ -228,14 +236,15 @@ private:
     {
         // A selection that disagrees shows the rows at least one of them has.
         const bool patterned = m_mixedKind || m_shown->kind != Paint::Kind::Solid;
-        m_form->setRowVisible(m_colour, m_visible);
-        m_form->setRowVisible(m_kind, m_visible);
-        m_form->setRowVisible(m_second, m_visible && patterned && m_grounded);
-        m_rows.setVisible(m_form, m_visible && patterned);
+        const bool pattern = m_visible && m_patternPart;
+        m_form->setRowVisible(m_colour, m_visible && m_colourPart);
+        m_form->setRowVisible(m_kind, pattern);
+        m_form->setRowVisible(m_second, pattern && patterned && m_grounded);
+        m_rows.setVisible(m_form, pattern && patterned);
         if (m_round)
-            m_form->setRowVisible(m_round, m_visible && patterned);
+            m_form->setRowVisible(m_round, pattern && patterned);
         if (m_reversed)
-            m_form->setRowVisible(m_reversed, m_visible && patterned);
+            m_form->setRowVisible(m_reversed, pattern && patterned);
     }
 
     QFormLayout*     m_form   = nullptr;
@@ -248,6 +257,8 @@ private:
     QCheckBox*       m_reversed = nullptr;   //!< ...likewise.
     FieldRows<Paint> m_rows;               //!< Spacing, size and angle.
     bool m_visible       = true;
+    bool m_colourPart    = true;   //!< setParts(): the colour row may show.
+    bool m_patternPart   = true;   //!< setParts(): the pattern's rows may show.
     bool m_grounded      = true;   //!< A pattern lies over the colour, in the pattern colour (not a shadow's).
     bool m_mixedColour   = false;
     bool m_mixedKind     = false;

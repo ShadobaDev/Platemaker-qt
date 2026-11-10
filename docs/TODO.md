@@ -99,11 +99,11 @@ Bug fixes, cosmetics and internal cleanups — no new capability, no change to a
   in its menu grows them on a straight side. A right-click on a node now picks it, so that menu (and
   *Delete point*) is the node's, not the balloon's.
 
-- [ ] **Strip editor: TOOL OPTIONS draws *Corner radius* and *Edge* over the first shape tile.**
+- [x] **Strip editor: TOOL OPTIONS draws *Corner radius* and *Edge* over the first shape tile.**
   `ShapeEditor` puts its parameter rows on a widget of their own, `parameters()`, for the panel to lay
   out. OBJECT STATE does (`objectstate.cpp`); `BubbleToolOptions` does not, so the widget sits unlaid
-  at the editor's top-left corner, on the tiles. Either lay it out there, or leave the parameters out
-  of TOOL OPTIONS (see the next entry).
+  at the editor's top-left corner, on the tiles. Fixed: TOOL OPTIONS lays it out under the tiles, and
+  the Speech bubble's row map leaves it out.
 
 - [ ] **Strip editor: TOOL OPTIONS shows too much.** The Bubble tool's options repeat nearly the whole
   OBJECT STATE panel (shape, tail, fill, pattern, line, texture, shadow), a long column for choosing what

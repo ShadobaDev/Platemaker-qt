@@ -3,6 +3,7 @@
 
 #include <optional>
 
+#include <QHash>
 #include <QWidget>
 
 #include "properties/propertygroupset.hpp"
@@ -50,6 +51,9 @@ public:
      */
     void setToolShape(std::optional<ObjectRecord::Shape> shape);
 
+    //! Shows the rows of @p rows only (the tool's map, Tool::optionRows), and the boxes that hold any of them.
+    void showRows(const QList<Row>& rows);
+
     //! A fresh record carrying the panel's current styling — what a new placement starts from.
     [[nodiscard]] ObjectRecord prototype() const;
 
@@ -91,6 +95,8 @@ private:
     PropertyGroupSet m_groups;
     //! The next balloon's tail. Not in the set: an existing balloon's tails are edited as objects instead.
     NextTailEditor*     m_tails = nullptr;
+    //! The rule above each of Fill, Line, Texture and Effects, shown with it.
+    QHash<QWidget*, QWidget*> m_ruleAbove;
 
     ObjectRecord m_record;       //!< The next placement's working values.
     bool m_populating   = false;   //!< Suppresses change signals while binding.

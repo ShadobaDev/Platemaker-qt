@@ -49,6 +49,7 @@ public:
     explicit ShapeEditor(QWidget* parent = nullptr);
 
     [[nodiscard]] PropertyGroup group() const override { return PropertyGroup::Shape; }
+    [[nodiscard]] QList<Row> rows() const override { return {Row::ShapeTiles, Row::ShapeParameters}; }
 
     void bind(const Subjects& subjects) override;
     void applyTo(ObjectRecord& target) const override;
@@ -73,6 +74,7 @@ signals:
 protected:
     //! Re-renders the tiles when the theme flips — they are drawn in the palette's colours.
     void changeEvent(QEvent* e) override;
+    void updateRows() override;
 
 private:
     void refreshTiles();
@@ -80,6 +82,7 @@ private:
     void syncFromValues();
 
     QButtonGroup*               m_tiles = nullptr;
+    QWidget*                    m_tileHost = nullptr;
     QWidget*                    m_parameters = nullptr;
     QFormLayout*                m_form  = nullptr;
     FieldRows<ShapeProperties>  m_corner;   //!< The corner radius, for a kind that is rounded.

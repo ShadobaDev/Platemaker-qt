@@ -99,6 +99,28 @@ public:
      */
     virtual void applyEditedTo(ObjectRecord& target) const { applyTo(target); }
 
+    //! The rows of this group a tool's options can show or leave out; none for a group they never show.
+    [[nodiscard]] virtual QList<Row> rows() const { return {}; }
+    //! Shows only @p shown of rows(), for TOOL OPTIONS (Tool::optionRows). Until it is called, every row shows.
+    void showOnly(const QList<Row>& shown)
+    {
+        m_only     = shown;
+        m_filtered = true;
+        updateRows();
+    }
+
+protected:
+    //! Whether @p row is shown: always, unless showOnly() left it out.
+    [[nodiscard]] bool shows(Row row) const { return !m_filtered || m_only.contains(row); }
+    //! Re-applies shows() to the rows; showOnly() calls it.
+    virtual void updateRows() {}
+
+private:
+    QList<Row> m_only;
+    bool       m_filtered = false;
+
+public:
+
 signals:
     void changed();     //!< A control moved — live preview, no history step.
     void committed();  //!< The edit settled, or a dialog returned — one history step.

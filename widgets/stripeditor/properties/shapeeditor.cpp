@@ -90,6 +90,7 @@ ShapeEditor::ShapeEditor(QWidget* parent)
     // A reflowing grid of preview tiles, built the same way the editor's tool rail is (a flow layout
     // cannot be expressed in a .ui).
     auto* tileHost = new QWidget(this);
+    m_tileHost     = tileHost;
     auto* tileLay  = new FlowLayout(tileHost, 0, 4, 4);
     lay->addWidget(tileHost);
 
@@ -195,6 +196,12 @@ void ShapeEditor::changeEvent(QEvent* e)
     PropertyGroupEditor::changeEvent(e);
     if (e->type() == QEvent::PaletteChange)
         refreshTiles();
+}
+
+void ShapeEditor::updateRows()
+{
+    m_tileHost->setVisible(shows(Row::ShapeTiles));
+    m_parameters->setVisible(shows(Row::ShapeParameters));
 }
 
 void ShapeEditor::refreshTiles()

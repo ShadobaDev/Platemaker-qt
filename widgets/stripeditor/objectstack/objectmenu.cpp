@@ -250,7 +250,7 @@ void ObjectMenu::updateEntries()
     const bool oneObject = picked.size() == 1 && pickedTails.isEmpty();
     if (m_actDuplicate) m_actDuplicate->setEnabled(oneObject);
     if (m_actDelete)    m_actDelete->setEnabled(!picked.isEmpty());
-    if (m_presetMenu)   m_presetMenu->menuAction()->setEnabled(oneObject);
+    if (m_presetMenu)   m_presetMenu->menuAction()->setEnabled(m_objects.presetTargetCount() > 0);
     if (m_reanchorMenu) m_reanchorMenu->menuAction()->setEnabled(oneObject);
     // Blend is a property every object has, so a set can take it; the stack order is one object's place
     // among the others, so it is not a thing several can be told at once.
@@ -347,7 +347,7 @@ void ObjectMenu::rebuildPresetMenu()
     const QList<BubblePreset>& presets = m_presets.presets();
     for (int i = 0; i < presets.size(); ++i) {
         QAction* a = m_presetMenu->addAction(presets.at(i).name);
-        connect(a, &QAction::triggered, this, [this, i] { m_objects.applyPresetToSelection(i); });
+        connect(a, &QAction::triggered, this, [this, i] { emit presetApplyRequested(i); });
     }
 }
 

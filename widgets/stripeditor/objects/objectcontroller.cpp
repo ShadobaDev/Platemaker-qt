@@ -940,17 +940,37 @@ void ObjectController::fixSelectionPadding()
     emit boundToRecord(a);
 }
 
+int ObjectController::presetTargetCount() const
+{
+    return int(std::count_if(m_selectedOverlays.cbegin(), m_selectedOverlays.cend(), [this](const QString& uid) {
+        return isParametric(uid) && !m_carriers.contains(uid);
+    }));
+}
+
 void ObjectController::applyPresetToSelection(int index)
 {
-    const Object* bubble = m_overlayItems.value(m_selectedOverlay);
-    if (!bubble || bubble->record().isArtwork() || index < 0 || index >= m_presets.presets().size())
+    if (index < 0 || index >= m_presets.presets().size())
         return;
-    // keepShape is false: the shape section is on screen beside this menu, so a preset changing the
-    // shape is visible and reversible — unlike the tool options under the Text tool, where it is not.
-    const ObjectRecord a =
-        PresetStore::applied(m_presets.presets().at(index), bubble->record(), /*keepShape=*/false);
-    emit boundToRecord(a);
-    applyRecord(m_selectedOverlay, a, /*commit=*/true);
+    const BubblePreset& preset = m_presets.presets().at(index);
+    QStringList         uids;
+    QList<ObjectRecord> next;
+    for (const QString& uid : std::as_const(m_selectedOverlays)) {
+        if (!isParametric(uid) || m_carriers.contains(uid))
+            continue;   // a picture, or a balloon only carrying a selected tail
+        const ObjectRecord& was = recordFor(uid);
+        // A balloon takes the preset's shape: the shape section is on screen, so the change is visible and
+        // reversible. A text object keeps having none — giving it one would be a conversion.
+        uids << uid;
+        next << PresetStore::applied(preset, was, /*keepShape=*/!was.hasSilhouette());
+    }
+    if (uids.isEmpty())
+        return;
+    applyRecords(uids, next, /*commit=*/true,
+                 uids.size() == 1 ? tr("Apply preset") : tr("Apply preset to %n objects", "", int(uids.size())));
+    if (uids.size() > 1)
+        emit boundToRecords(next);
+    else
+        emit boundToRecord(next.first());
 }
 
 void ObjectController::setSelectionOrigin(const PresetOrigin& origin)

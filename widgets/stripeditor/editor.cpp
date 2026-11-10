@@ -350,6 +350,26 @@ Editor::Editor(PresetStore& presets, QWidget *parent)
         // The object menu, on the stack and the canvas alike. It spends the same pair the bucket does —
         // it reads it, never writes it.
         m_objectMenu = new ObjectMenu(*m_objects, m_layout, *m_presets, ui->objectStack, m_view, this, this);
+        // A preset onto existing objects replaces their look, so it is asked once, here, whichever of the
+        // two places — OBJECT STATE's picker or the menu — it came from.
+        const auto applyPreset = [this](int index) {
+            const int n = m_objects->presetTargetCount();
+            if (n == 0 || index < 0 || index >= m_presets->presets().size())
+                return;
+            QMessageBox ask(QMessageBox::Question, tr("Apply preset"),
+                            tr("Apply “%1” to %n selected object(s)?", "", n).arg(m_presets->presets().at(index).name),
+                            QMessageBox::NoButton, this);
+            ask.setInformativeText(tr("Their shape, fill, line, texture, effects and lettering style are replaced "
+                                      "by the preset's. Their words, size and tails stay. Ctrl+Z undoes it."));
+            QPushButton* accept = ask.addButton(tr("Accept"), QMessageBox::AcceptRole);
+            ask.addButton(QMessageBox::Cancel);
+            ask.setDefaultButton(accept);
+            ask.exec();
+            if (ask.clickedButton() == accept)
+                m_objects->applyPresetToSelection(index);
+        };
+        connect(m_objectMenu, &ObjectMenu::presetApplyRequested, this, applyPreset);
+        connect(m_objectState, &ObjectState::presetApplyRequested, this, applyPreset);
         m_objectMenu->setColourSource(m_colours);
         connect(m_objects, &ObjectController::recordCreated,        this, &Editor::recordCreated);
         connect(m_objects, &ObjectController::overlaysCommitted,         this, &Editor::overlaysCommitted);

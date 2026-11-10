@@ -323,10 +323,14 @@ public:
     void applyColourToSelection(const QColor& colour, Geometry::Part role);
 
     /**
-     * \brief Restyles the selected bubble with preset \p index, keeping what it says and where it points.
-     * \param index  The index of the preset to apply, as it appears in the *Apply preset ▸* menu.
+     * \brief Restyles every selected object we draw with preset \p index, as one history step, keeping
+     *        what each says, its size and where its tails point. A text object stays text: the preset's
+     *        shape is not given to an object that has none. A picture is left alone.
+     * \param index  The store's index of the preset.
      */
     void applyPresetToSelection(int index);
+    //! How many selected objects applyPresetToSelection() would restyle.
+    [[nodiscard]] int presetTargetCount() const;
 
     /**
      * \brief Moves the selected object onto page @p pageUid, at the same offset from that page's top.

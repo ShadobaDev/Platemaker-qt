@@ -34,6 +34,10 @@ class ObjectMenu : public QObject
 {
     Q_OBJECT
 
+signals:
+    //! *Apply preset ▸* picked preset @p index; the editor confirms and applies it.
+    void presetApplyRequested(int index);
+
 public:
     /**
      * \param objects       What the entries act on, and whose selection decides which apply.

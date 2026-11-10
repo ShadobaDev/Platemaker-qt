@@ -1,6 +1,8 @@
 #include "objectstate/objectstate.hpp"
 
+#include <QComboBox>
 #include <QDoubleSpinBox>
+#include <QIcon>
 #include <QEvent>
 #include <QFormLayout>
 #include <QFrame>
@@ -8,6 +10,7 @@
 #include <QLabel>
 #include <QPushButton>
 #include <QSettings>
+#include <QSignalBlocker>
 #include <QTimer>
 #include <QVBoxLayout>
 
@@ -138,6 +141,33 @@ ObjectState::ObjectState(PresetStore& presets, QWidget* parent)
     m_header->addWidget(m_subject);
     m_header->addStretch(1);
     lay->addLayout(m_header);
+
+    // A preset onto what is selected — one or many. It replaces their look, so the editor asks first; the
+    // picker shows a prompt and never a pick, since applying is an act and not a state.
+    m_presetPicker = new QComboBox(this);
+    m_presetPicker->setPlaceholderText(tr("Apply a preset…"));
+    m_presetPicker->setToolTip(tr("Replaces the look of the selected objects with a preset's. Their words, "
+                                  "size and tails stay."));
+    m_presetPicker->setIconSize(QSize(k_bubbleThumbW, k_bubbleThumbH));
+    lay->addWidget(m_presetPicker);
+    const auto fillPicker = [this] {
+        const QSignalBlocker block(m_presetPicker);
+        m_presetPicker->clear();
+        for (const BubblePreset& p : m_presets.presets())
+            m_presetPicker->addItem(QIcon(bubbleThumbnail(p.record.shape, p.record.skin.fill.colour,
+                                                          p.record.style.stroke.colour, p.record.text.fill.colour)),
+                                    p.name);
+        m_presetPicker->setCurrentIndex(-1);
+    };
+    fillPicker();
+    connect(&m_presets, &PresetStore::changed, this, fillPicker);
+    connect(m_presetPicker, &QComboBox::activated, this, [this](int index) {
+        {
+            const QSignalBlocker block(m_presetPicker);
+            m_presetPicker->setCurrentIndex(-1);
+        }
+        emit presetApplyRequested(index);
+    });
 
     m_emptyText = tr("Select an object on the strip to edit it.");
     m_emptyHint = new QLabel(m_emptyText, this);
@@ -487,6 +517,12 @@ void ObjectState::refreshLook()
             return a.presetOrigin.uid != origin.uid;
         });
     }
+    // The picker goes with the chip: shown wherever there is a look a preset could replace.
+    const bool hasLook = !(m_tailIndex >= 0 || m_selectionCount == 0 || (m_hasRecord && m_record.isArtwork()))
+                      && (m_hasRecord || std::any_of(m_subjects.cbegin(), m_subjects.cend(),
+                                                     [](const ObjectRecord& a) { return !a.isArtwork(); }));
+    m_presetPicker->setVisible(hasLook);
+
     if (mixed) {
         m_lookChip = makeBadge(toneBadge(BadgeTone::Neutral, tr("Mixed"),
                                          tr("The selected objects were made from different presets, or some from none."),

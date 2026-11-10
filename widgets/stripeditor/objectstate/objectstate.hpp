@@ -140,6 +140,8 @@ signals:
     void deleteRequested();                 //!< Removes the selected object.
     //! The chip naming the preset the selection was made from was clicked.
     void presetOriginClicked(const PresetOrigin& origin);
+    //! A preset was picked to restyle the selection with: the store's @p index. The editor confirms first.
+    void presetApplyRequested(int index);
 
 private:
     void onControlChanged();   //!< A group reported an edit → collect, preview, arm the commit timer.
@@ -160,6 +162,7 @@ private:
     QLabel*             m_subject   = nullptr;  //!< Names what is being edited.
     QHBoxLayout*        m_header    = nullptr;  //!< The subject and, after it, the look chip.
     QWidget*            m_lookChip  = nullptr;  //!< *Shout-based* / *Mixed*. Rebuilt, never relabelled.
+    QComboBox*          m_presetPicker = nullptr;   //!< *Apply a preset…* to the selection; never shows a pick.
     QLabel*             m_emptyHint = nullptr;  //!< Stands in for the sections when nothing is selected.
     BlendEditor*        m_blend     = nullptr;  //!< The one property every kind of object carries.
     QWidget*            m_scaleRow  = nullptr;  //!< A picture's size; hidden for every other kind.

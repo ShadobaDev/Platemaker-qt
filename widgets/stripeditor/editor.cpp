@@ -333,6 +333,7 @@ Editor::Editor(PresetStore& presets, QWidget *parent)
         connect(m_objects, &OC::boundToTail,        m_objectState, &OS::setTail);
         connect(m_objects, &OC::boundToRecords,     m_objectState, &OS::setRecords);
         connect(m_objects, &OC::boundToMixed,       m_objectState, &OS::setMixedSubjects);
+        connect(m_objects, &OC::boundToTails,       m_objectState, &OS::setTails);
         connect(m_objects, &OC::boundToNothing,     m_objectState, &OS::clearSelection);
         connect(m_objects, &OC::blendBound,         m_objectState, &OS::setSelectionBlend);
         connect(m_objects, &OC::artworkScaleBound,  m_objectState, &OS::setArtworkScale);

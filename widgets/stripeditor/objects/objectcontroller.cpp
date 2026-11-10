@@ -815,6 +815,17 @@ void ObjectController::selectSubjects(const QStringList& uids, const QList<TailR
     } else if (singleTail) {
         m_panelSubjects = QStringList{m_selectedOverlay};   // the tail's balloon owns the record
         emit boundToTail(primary->record(), m_selectedTail);
+    } else if (!pickedTails.isEmpty() && carriers.size() == picked.size()) {
+        // Tails and nothing else: what they share is a tail's own section. Their balloons are the panel's
+        // subjects, in this order, so an edit writes each tail into its balloon (applyPanelRecords()).
+        m_panelSubjects = carriers;
+        QList<ObjectRecord>    balloons;
+        QList<QPair<int, int>> tails;
+        for (const QString& uid : std::as_const(carriers))
+            balloons << recordFor(uid);
+        for (const TailRef& t : std::as_const(pickedTails))
+            tails << qMakePair(int(carriers.indexOf(t.uid)), t.index);
+        emit boundToTails(balloons, tails);
     } else if (!pickedTails.isEmpty()) {
         emit boundToMixed(selectedSubjectCount());
     } else if (oneObject) {

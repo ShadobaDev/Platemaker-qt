@@ -582,6 +582,8 @@ signals:
     void boundToTail(const ObjectRecord& record, int index);   //!< One tail, of the balloon @p record.
     void boundToRecords(const QList<ObjectRecord>& records);   //!< Several objects, of any kinds.
     void boundToMixed(int count);   //!< Objects and tails together: nothing editable in common.
+    //! Several tails and no whole object: their @p balloons, and each tail as (balloon index, tail index).
+    void boundToTails(const QList<ObjectRecord>& balloons, const QList<QPair<int, int>>& tails);
     void boundToNothing();          //!< Nothing is selected.
     //! The selection's blend mode, none when they disagree; @p applies is false for a tail or nothing.
     void blendBound(std::optional<Platemaker::Models::BlendMode> blend, bool applies);

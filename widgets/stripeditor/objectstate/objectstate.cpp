@@ -305,6 +305,7 @@ ObjectState::ObjectState(PresetStore& presets, QWidget* parent)
 
 void ObjectState::setRecord(const ObjectRecord& a)
 {
+    m_tailSet.clear();
     m_record      = a;
     m_tailIndex     = -1;
     m_hasRecord   = true;
@@ -335,6 +336,7 @@ void ObjectState::setRecord(const ObjectRecord& a)
 void ObjectState::setMixedSubjects(int count)
 {
     m_subjects.clear();
+    m_tailSet.clear();
     m_hasRecord    = false;
     m_selectionCount = count;
     m_tailIndex      = -1;
@@ -358,6 +360,7 @@ void ObjectState::setMixedSubjects(int count)
 void ObjectState::setRecords(const QList<ObjectRecord>& objects)
 {
     m_subjects       = objects;
+    m_tailSet.clear();
     m_hasRecord    = false;   // no single record, so the single-subject signals stay quiet
     m_selectionCount = static_cast<int>(objects.size());
     m_tailIndex      = -1;
@@ -409,8 +412,36 @@ void ObjectState::setRecords(const QList<ObjectRecord>& objects)
     }
 }
 
+void ObjectState::setTails(const QList<ObjectRecord>& balloons, const QList<QPair<int, int>>& tails)
+{
+    m_subjects       = balloons;
+    m_tailSet        = tails;
+    m_tailIndex      = -1;
+    m_hasRecord      = false;
+    m_selectionCount = int(tails.size());
+
+    QList<TailProperties> bound;
+    for (const auto& [balloon, tail] : tails)
+        bound << TailProperties::from(balloons.at(balloon), tail);
+    m_populating = true;
+    m_tail->bindTails(bound);
+    m_populating = false;
+
+    m_subject->setText(tr("%n tails", "", int(tails.size())));
+    m_subject->setVisible(true);
+    refreshLook();
+    m_emptyHint->setVisible(false);
+    m_actions->setVisible(true);
+    m_padButton->setVisible(false);
+    m_fitButton->setVisible(false);
+    m_scaleRow->setVisible(false);
+    m_deleteButton->setText(tr("Delete tails"));
+    applyKindVisibility();
+}
+
 void ObjectState::setTail(const ObjectRecord& a, int index)
 {
+    m_tailSet.clear();
     m_record      = a;
     m_tailIndex     = index;
     m_hasRecord   = true;
@@ -436,6 +467,7 @@ void ObjectState::setTail(const ObjectRecord& a, int index)
 
 void ObjectState::clearSelection()
 {
+    m_tailSet.clear();
     m_hasRecord    = false;
     m_selectionCount = 0;
     m_tailIndex      = -1;
@@ -472,12 +504,11 @@ void ObjectState::applyKindVisibility()
     // The editors are still bound and still written back (`PropertyGroupSet::collect()` writes every
     // group), so a hidden Shape editor holds the object's own `None` and hands it straight back — which
     // is exactly what must happen: a panel may not convert an object by being edited.
-    const bool tailSubject = m_tailIndex >= 0;
     for (auto it = m_sections.cbegin(); it != m_sections.cend(); ++it) {
         const auto g = static_cast<PropertyGroup>(it.key());
         // A selected tail is a subject of its own with exactly one section; otherwise the record
         // answers, through the same rule a set is measured by.
-        it.value()->setVisible(tailSubject ? g == PropertyGroup::TailItem
+        it.value()->setVisible(tailSubject() ? g == PropertyGroup::TailItem
                                            : carriesGroup(m_record, g));
     }
 }
@@ -512,7 +543,7 @@ void ObjectState::refreshLook()
     // own, nothing selected has nothing to report, and a picture's look is whoever drew it.
     PresetOrigin origin;
     bool         mixed = false;
-    if (m_tailIndex >= 0 || m_selectionCount == 0 || (m_hasRecord && m_record.isArtwork())) {
+    if (tailSubject() || m_selectionCount == 0 || (m_hasRecord && m_record.isArtwork())) {
     } else if (m_hasRecord) {
         origin = m_record.presetOrigin;
     } else if (!m_subjects.isEmpty()) {
@@ -522,7 +553,7 @@ void ObjectState::refreshLook()
         });
     }
     // The picker goes with the chip: shown wherever there is a look a preset could replace.
-    const bool hasLook = !(m_tailIndex >= 0 || m_selectionCount == 0 || (m_hasRecord && m_record.isArtwork()))
+    const bool hasLook = !(tailSubject() || m_selectionCount == 0 || (m_hasRecord && m_record.isArtwork()))
                       && (m_hasRecord || std::any_of(m_subjects.cbegin(), m_subjects.cend(),
                                                      [](const ObjectRecord& a) { return !a.isArtwork(); }));
     m_presetRow->setVisible(hasLook);
@@ -599,6 +630,15 @@ void ObjectState::onControlChanged()
 {
     if (m_populating)
         return;
+
+    if (!m_tailSet.isEmpty()) {
+        // Several tails: each takes what the artist touched, and keeps the rest — its tip included.
+        for (const auto& [balloon, tail] : std::as_const(m_tailSet))
+            m_tail->applyEditedToTail(m_subjects[balloon], tail);
+        emit changedMany(m_subjects);
+        m_commitTimer->start();
+        return;
+    }
 
     if (!m_subjects.isEmpty()) {
         // A set: every object takes what the artist touched and keeps everything else of its own.

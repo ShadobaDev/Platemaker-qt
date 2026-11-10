@@ -62,19 +62,33 @@ TailEditor::TailEditor(QWidget* parent)
                             "it, below 0 it leaves a gap."));
     form->addRow(tr("Starting offset:"), m_offset);
 
-    const auto controlMoved = [this] {
-        if (!m_populating)
+    // Each control records that *it* was moved, and a *Mixed* one gives up its sentinel when it is: a set
+    // of tails takes only what the artist touched (applyEditedToTail()).
+    const auto moved = [this](bool Fields::* field, auto restore) {
+        return [this, field, restore] {
+            if (m_populating)
+                return;
+            restore();
+            m_touched.*field = true;
             emit changed();
+        };
     };
-    connect(m_width,   &QSpinBox::valueChanged, this, controlMoved);
-    connect(m_bend,    &QSpinBox::valueChanged, this, controlMoved);
-    connect(m_circles, &QSpinBox::valueChanged, this, controlMoved);
-    connect(m_pitch,   &QDoubleSpinBox::valueChanged, this, controlMoved);
-    connect(m_offset,  &QDoubleSpinBox::valueChanged, this, controlMoved);
+    connect(m_width, &QSpinBox::valueChanged, this,
+            moved(&Fields::width, [this] { restoreSpin(m_width, k_tailWidthMinPx); }));
+    connect(m_bend, &QSpinBox::valueChanged, this,
+            moved(&Fields::bend, [this] { restoreSpin(m_bend, -k_tailBendPercent); }));
+    connect(m_circles, &QSpinBox::valueChanged, this,
+            moved(&Fields::circles, [this] { restoreSpin(m_circles, 1); }));
+    connect(m_pitch, &QDoubleSpinBox::valueChanged, this,
+            moved(&Fields::pitch, [this] { restoreSpin(m_pitch, -k_pitchMax); }));
+    connect(m_offset, &QDoubleSpinBox::valueChanged, this,
+            moved(&Fields::offset, [this] { restoreSpin(m_offset, -k_offsetMax); }));
     connect(m_style, &QComboBox::currentIndexChanged, this, [this] {
         showRows();
-        if (!m_populating)
-            emit changed();
+        if (m_populating)
+            return;
+        m_touched.style = true;
+        emit changed();
     });
     showRows();
 }
@@ -91,20 +105,50 @@ void TailEditor::bind(const Subjects& subjects)
 {
     if (subjects.isEmpty())
         return;
-    const TailProperties values = TailProperties::from(*subjects.first(), m_index);
+    show(TailProperties::from(*subjects.first(), m_index), Fields{});
+}
 
-    m_populating = true;
-    {
-        const QSignalBlocker b1(m_width), b2(m_bend), b3(m_style), b4(m_circles), b5(m_pitch), b6(m_offset);
-        m_width->setValue(qRound(values.tail.baseWidth));
-        m_bend->setValue(qRound(values.tail.bend * k_tailBendPercent));
-        m_style->setCurrentIndex(m_style->findData(int(values.tail.look.style)));
-        m_circles->setValue(values.tail.look.circles);
-        m_pitch->setValue(values.tail.look.pitch);
-        m_offset->setValue(values.tail.look.offset);
+void TailEditor::bindTails(const QList<TailProperties>& tails)
+{
+    if (tails.isEmpty())
+        return;
+    const Tail& first = tails.first().tail;
+    Fields      mixed;
+    for (const TailProperties& p : tails) {
+        mixed.width   = mixed.width || p.tail.baseWidth != first.baseWidth;
+        mixed.bend    = mixed.bend || p.tail.bend != first.bend;
+        mixed.style   = mixed.style || p.tail.look.style != first.look.style;
+        mixed.circles = mixed.circles || p.tail.look.circles != first.look.circles;
+        mixed.pitch   = mixed.pitch || p.tail.look.pitch != first.look.pitch;
+        mixed.offset  = mixed.offset || p.tail.look.offset != first.look.offset;
     }
+    show(tails.first(), mixed);
+}
+
+void TailEditor::show(const TailProperties& values, const Fields& mixed)
+{
+    m_populating = true;
+    showSpin(m_width, mixed.width, qRound(values.tail.baseWidth), k_tailWidthMinPx, k_tailWidthMaxPx);
+    showSpin(m_bend, mixed.bend, qRound(values.tail.bend * k_tailBendPercent), -k_tailBendPercent, k_tailBendPercent);
+    showCombo(m_style, mixed.style, m_style->findData(int(values.tail.look.style)));
+    showSpin(m_circles, mixed.circles, values.tail.look.circles, 1, k_circlesMax);
+    showSpin(m_pitch, mixed.pitch, values.tail.look.pitch, -k_pitchMax, k_pitchMax);
+    showSpin(m_offset, mixed.offset, values.tail.look.offset, -k_offsetMax, k_offsetMax);
     showRows();
+    m_touched    = Fields{};
     m_populating = false;
+}
+
+void TailEditor::applyEditedToTail(ObjectRecord& target, int index) const
+{
+    TailProperties next = TailProperties::from(target, index);   // the tip, and what was not touched
+    if (m_touched.width)   next.tail.baseWidth    = m_width->value();
+    if (m_touched.bend)    next.tail.bend         = m_bend->value() / static_cast<double>(k_tailBendPercent);
+    if (m_touched.style)   next.tail.look.style   = static_cast<TailLook::Style>(m_style->currentData().toInt());
+    if (m_touched.circles) next.tail.look.circles = m_circles->value();
+    if (m_touched.pitch)   next.tail.look.pitch   = m_pitch->value();
+    if (m_touched.offset)  next.tail.look.offset  = m_offset->value();
+    next.applyTo(target);
 }
 
 void TailEditor::applyTo(ObjectRecord& target) const

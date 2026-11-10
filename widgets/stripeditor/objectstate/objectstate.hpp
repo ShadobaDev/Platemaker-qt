@@ -89,6 +89,8 @@ public:
      *
      */
     void setMixedSubjects(int count);
+    //! Several tails, no whole object: @p balloons are their balloons, @p tails each (balloon, tail index).
+    void setTails(const QList<ObjectRecord>& balloons, const QList<QPair<int, int>>& tails);
 
 
     /**
@@ -160,6 +162,9 @@ private:
     TailListEditor*  m_tailList = nullptr;   //!< A balloon's tails, as a collection.
     TailEditor*      m_tail     = nullptr;   //!< One selected tail.
     int              m_tailIndex = -1;       //!< The tail on show, or -1 when the subject is the balloon.
+    QList<QPair<int, int>> m_tailSet;        //!< Several tails: each (index into m_subjects, tail index).
+    //! Whether the subject is a tail, or several: the tail's section alone, and no look of its own.
+    [[nodiscard]] bool tailSubject() const { return m_tailIndex >= 0 || !m_tailSet.isEmpty(); }
 
     QLabel*             m_subject   = nullptr;  //!< Names what is being edited.
     QHBoxLayout*        m_header    = nullptr;  //!< The subject and, after it, the look chip.

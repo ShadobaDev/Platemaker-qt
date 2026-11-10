@@ -83,8 +83,13 @@ void MainWindow::onProjectDoubleClicked(QListWidgetItem *item)
 
 void MainWindow::onProjectsContextMenu(const QPoint &pos)
 {
-    // Skip if no workspace is loaded
-    if (m_workspacePath.isEmpty()) return;
+    // With no workspace open there are no projects to act on, and a project needs a workspace first.
+    if (m_workspacePath.isEmpty()) {
+        QMenu menu(this);
+        menu.addAction(ui->actionNew_workspace);
+        menu.exec(ui->listWidgetProjects->viewport()->mapToGlobal(pos));
+        return;
+    }
 
     QListWidgetItem *item = ui->listWidgetProjects->itemAt(pos);
 

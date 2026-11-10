@@ -204,6 +204,15 @@ struct ShapeTemplate
  */
 [[nodiscard]] ShapeProperties withHandlesGrown(const ShapeProperties& shape, int index);
 
+/**
+ * \brief How far a Polygon's or a Curve's outline reaches, as fractions of @p body: (0, 0, 1, 1) when it
+ *        fills it edge to edge. What the box is fitted to when a node is dragged.
+ *
+ * A Polygon by its nodes, since its rounded corners stay inside them; a Curve by the outline drawn, since a
+ * curve may bulge past its nodes. Empty for any other kind, and for a body with no area.
+ */
+[[nodiscard]] QRectF outlineExtent(const ShapeProperties& shape, const QRectF& body);
+
 //! @p shape without node @p index; unchanged when that would leave fewer than three.
 [[nodiscard]] ShapeProperties withVertexRemoved(const ShapeProperties& shape, int index);
 

@@ -1432,6 +1432,37 @@ TEST(Shapes, ACurveKeepsItsOutlineThroughItsEdits)
 }
 
 /**
+ * \brief Every Polygon and Curve template fills its box edge to edge, and so does every template made a
+ *        Curve but a cloud. Dragging a node fits the box to the outline (Geometry::outlineExtent()), so one
+ *        that stopped short of an edge would jump at the first drag. A cloud's lobes stop short of its box
+ *        (by about 1.6 % of the width at the left), so a cloud made a Curve has its box tightened to them
+ *        at the first drag of a node: inside the box, never past it.
+ */
+TEST(Shapes, EveryNodedOutlineFillsItsBox)
+{
+    constexpr qreal k_onEdge = 1e-3;   //!< On the box's edge, as a fraction of it: a curve's extreme is found numerically
+    const QRectF    body(5, 5, 270, 150);
+    const auto      fills = [&](const ShapeProperties& s, const char* what) {
+        const QRectF e = Geometry::outlineExtent(s, body);
+        EXPECT_NEAR(e.left(), 0.0, k_onEdge) << what;
+        EXPECT_NEAR(e.top(), 0.0, k_onEdge) << what;
+        EXPECT_NEAR(e.right(), 1.0, k_onEdge) << what;
+        EXPECT_NEAR(e.bottom(), 1.0, k_onEdge) << what;
+    };
+    for (const Geometry::ShapeTemplate& t : Geometry::shapeTemplates()) {
+        const auto outline = Geometry::shapeInfo(t.shape.kind).outline;
+        if (t.shape.kind == ObjectRecord::Shape::Polygon || t.shape.kind == ObjectRecord::Shape::Curve) {
+            fills(t.shape, t.id);
+        } else if (t.shape.kind == ObjectRecord::Shape::Cloud) {
+            const QRectF e = Geometry::outlineExtent(Geometry::curveOf(outline(t.shape, body), body), body);
+            EXPECT_TRUE(QRectF(0, 0, 1, 1).adjusted(-k_onEdge, -k_onEdge, k_onEdge, k_onEdge).contains(e)) << t.id;
+        } else if (outline && t.shape.kind != ObjectRecord::Shape::None) {
+            fills(Geometry::curveOf(outline(t.shape, body), body), t.id);
+        }
+    }
+}
+
+/**
  * \brief A picked Curve node offers both its handles, the ones it lacks where they would grow from, and
  *        *Add handles* makes those real without changing the outline. *Convert to Curve* of a speech
  *        balloon gives each arc end one handle, on the arc's side; a node added on a straight side has none.

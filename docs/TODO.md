@@ -424,6 +424,8 @@ New, backward-compatible features. Several are gated on a lib version, noted in 
     outwards and are all alike. Candidates: a bow for a Polygon's edges (inwards below 0), or an inward
     scallop edge with irregularity, plus irregular point lengths from the regular polygon / star action.
 
+- [ ] **Double click on object in OBJECT STACK** shall scroll strip to the position that will make the object vivble on the screen.
+
 - [x] **Text area and lettering effects** — *Done 2026-11-03.* Built:
   - **Two paddings**, sides and top. The words start centred and grow both ways with each line; once
     they reach the top padding they grow downwards, out of the balloon, never cut at the bottom (the

@@ -1270,6 +1270,25 @@ ShapeProperties withVertexRemoved(const ShapeProperties& shape, int index)
     return s;
 }
 
+QRectF outlineExtent(const ShapeProperties& shape, const QRectF& body)
+{
+    if (body.isEmpty())
+        return {};
+    if (shape.kind == ShapeProperties::Kind::Curve) {
+        const QRectF drawn = curvePath(shape, body).boundingRect();
+        return {relativeTo(drawn.topLeft(), body), relativeTo(drawn.bottomRight(), body)};
+    }
+    if (shape.kind != ShapeProperties::Kind::Polygon)
+        return {};
+    const QList<ShapeNode>& nodes = freeNodes(shape);
+    QPointF low = nodes.first().at, high = low;
+    for (const ShapeNode& n : nodes) {
+        low  = {qMin(low.x(), n.at.x()), qMin(low.y(), n.at.y())};
+        high = {qMax(high.x(), n.at.x()), qMax(high.y(), n.at.y())};
+    }
+    return {low, high};
+}
+
 ShapeProperties withHandlesGrown(const ShapeProperties& shape, int index)
 {
     ShapeProperties s = shape;

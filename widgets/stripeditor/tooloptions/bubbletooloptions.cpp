@@ -51,7 +51,7 @@ BubbleToolOptions::BubbleToolOptions(PresetStore& presets, QWidget* parent)
     auto* presetMenu = new QMenu(presetMore);
     m_presetDelete     = presetMenu->addAction(tr("Delete preset"));
     QAction* manage    = presetMenu->addAction(tr("Manage presets…"));
-    connect(manage, &QAction::triggered, this, [this] { emit manageRequested(m_pickedUid); });
+    connect(manage, &QAction::triggered, this, [this] { emit manageRequested(pickedUid()); });
     // Importing and exporting a pack move a file between machines and people — the menu bar's business
     // (Tools), where every other import and export is, rather than a panel's.
     presetMore->setMenu(presetMenu);
@@ -124,6 +124,7 @@ ShapeProperties BubbleToolOptions::balloonShape() const
 void BubbleToolOptions::setToolShape(std::optional<ObjectRecord::Shape> shape)
 {
     m_toolShape = shape;
+    refreshPresetCombo();   // the presets of the tool's kind
 }
 
 void BubbleToolOptions::showRows(const QList<Row>& rows)
@@ -209,32 +210,35 @@ void BubbleToolOptions::refreshPresetCombo()
 {
     const QSignalBlocker block(m_presetCombo);
     m_presetCombo->clear();
-    // Entry 0 is the absence of a preset; entry i + 1 is the store's preset i. No separator: it would be
-    // an entry too, and shift every index after it.
-    m_presetCombo->addItem(tr("No preset"));
+    // Entry 0 is the absence of a preset; the others are the tool's kind, each carrying its store index.
+    const bool textTool = m_toolShape == ObjectRecord::Shape::None;
+    m_presetCombo->addItem(tr("No preset"), -1);
     const QList<BubblePreset>& presets = m_presets.presets();
-    int picked = m_pickedUid.isEmpty() ? 0 : -1;
+    const QString&             uid     = pickedUid();
+    int picked = uid.isEmpty() ? 0 : -1;
     for (int i = 0; i < presets.size(); ++i) {
         const BubblePreset& p = presets.at(i);
+        if (isTextPreset(p) != textTool)
+            continue;
         m_presetCombo->addItem(QIcon(bubbleThumbnail(p.record.shape, p.record.skin.fill.colour,
                                                      p.record.style.stroke.colour, p.record.text.fill.colour)),
-                               p.name);
-        if (p.uid == m_pickedUid)
-            picked = i + 1;
+                               p.name, i);
+        if (p.uid == uid)
+            picked = m_presetCombo->count() - 1;
     }
     m_presetCombo->setCurrentIndex(picked);   // -1, and the placeholder, when the picked one is gone
-    m_presetDelete->setEnabled(picked > 0 && m_presets.isCustom(picked - 1));
+    m_presetDelete->setEnabled(picked > 0 && m_presets.isCustom(m_presetCombo->itemData(picked).toInt()));
 }
 
 void BubbleToolOptions::applyPreset(int entry)
 {
     // *No preset* is the default, applied the way a preset is: the same function, with nothing in it but
     // `ObjectRecord`'s own values.
-    const int index = entry - 1;
+    const int index = m_presetCombo->itemData(entry).toInt();
     if (index >= m_presets.presets().size())
         return;
-    const BubblePreset base = index >= 0 ? m_presets.presets().at(index) : BubblePreset{QString(), ObjectRecord()};
-    m_pickedUid = base.uid;
+    const BubblePreset base = index >= 0 ? m_presets.presets().at(index) : BubblePreset{};
+    pickedUid() = base.uid;
     m_record     = PresetStore::applied(base, m_record, /*keepShape=*/m_toolShape.has_value());
     syncFromModel();
     refreshPresetCombo();
@@ -242,7 +246,7 @@ void BubbleToolOptions::applyPreset(int entry)
 
 void BubbleToolOptions::onDeletePreset()
 {
-    const int i = m_presetCombo->currentIndex() - 1;   // the picked one, and only the artist's own
+    const int i = m_presetCombo->currentData().toInt();   // the picked one, and only the artist's own
     if (!m_presets.isCustom(i))
         return;
     if (QMessageBox::question(this, tr("Delete preset"),

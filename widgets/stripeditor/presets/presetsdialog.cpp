@@ -14,6 +14,7 @@
 #include <QPushButton>
 #include <QSignalBlocker>
 #include <QStandardPaths>
+#include <QTabBar>
 #include <QTreeWidget>
 
 #include "presetstore.hpp"
@@ -78,6 +79,12 @@ PresetsDialog::PresetsDialog(PresetStore& store, const QString& select, PresetUs
     , m_uses(std::move(uses))
 {
     ui->listPresets->setIconSize(QSize(k_bubbleThumbW, k_bubbleThumbH));
+    // One kind of preset at a time. A tab bar, not a tab widget: the list under it is the same list.
+    // Built here because Designer offers no bare tab bar; it sits at the top of the form's list column.
+    m_kindTabs = new QTabBar(this);
+    m_kindTabs->addTab(tr("Bubbles"));
+    m_kindTabs->addTab(tr("Text"));
+    ui->verticalLayoutList->insertWidget(0, m_kindTabs);
 
     // OBJECT STATE's editors, every row, in the order the balloon is drawn, ruled apart as TOOL OPTIONS
     // has them; the shape's parameters belong to its tiles.
@@ -91,8 +98,11 @@ PresetsDialog::PresetsDialog(PresetStore& store, const QString& select, PresetUs
             rule->setFrameShape(QFrame::HLine);
             rule->setFrameShadow(QFrame::Sunken);
             ui->verticalLayoutEditors->addWidget(rule);
+            m_balloonParts << rule;   // the one above the lettering too: with nothing above it, it parts nothing
         }
         ui->verticalLayoutEditors->addWidget(part);
+        if (part != m_groups.text())
+            m_balloonParts << part;
         first = false;
     }
     ui->verticalLayoutEditors->addStretch(1);
@@ -102,14 +112,24 @@ PresetsDialog::PresetsDialog(PresetStore& store, const QString& select, PresetUs
     for (PropertyGroupEditor* e : m_groups.all())
         connect(e, &PropertyGroupEditor::changed, this, &PresetsDialog::onEdited);
     connect(ui->listPresets, &QListWidget::currentRowChanged, this, [this](int row) {
-        if (row == m_shown)
+        const QListWidgetItem* item  = ui->listPresets->item(row);
+        const int              index = item ? item->data(Qt::UserRole).toInt() : -1;
+        if (index == m_shown)
             return;
         if (!settleEdits()) {
             const QSignalBlocker block(ui->listPresets);
-            ui->listPresets->setCurrentRow(m_shown);   // cancelled: stay where the edits are
+            ui->listPresets->setCurrentRow(rowOf(m_shown));   // cancelled: stay where the edits are
             return;
         }
-        showPreset(row);
+        showPreset(index);
+    });
+    connect(m_kindTabs, &QTabBar::currentChanged, this, [this](int tab) {
+        if (!settleEdits()) {
+            const QSignalBlocker block(m_kindTabs);
+            m_kindTabs->setCurrentIndex(1 - tab);   // cancelled: stay on the kind being edited
+            return;
+        }
+        rebuildList(QString());
     });
     connect(ui->pushButtonSave, &QPushButton::clicked, this, &PresetsDialog::save);
     connect(ui->pushButtonRevert, &QPushButton::clicked, this, &PresetsDialog::revert);
@@ -161,10 +181,22 @@ void PresetsDialog::rebuildList(const QString& select)
     const QSignalBlocker block(ui->listPresets);
     ui->listPresets->clear();
     const QList<BubblePreset>& presets = m_store.presets();
-    int row = presets.isEmpty() ? -1 : 0;
+    // The tab of the preset to open on; the tab already shown when there is none.
+    if (const int wanted = m_store.indexOf(select); wanted >= 0) {
+        const QSignalBlocker blockTabs(m_kindTabs);
+        m_kindTabs->setCurrentIndex(isTextPreset(presets.at(wanted)) ? 1 : 0);
+    }
+    const bool textKind = m_kindTabs->currentIndex() == 1;
+    for (QWidget* w : std::as_const(m_balloonParts))
+        w->setVisible(!textKind);   // a text preset has no shape, fill or line to edit
+    int        index    = -1;
     for (int i = 0; i < presets.size(); ++i) {
-        const BubblePreset& p    = presets.at(i);
-        auto*               item = new QListWidgetItem(
+        const BubblePreset& p = presets.at(i);
+        if (isTextPreset(p) != textKind)
+            continue;
+        if (index < 0 || p.uid == select)
+            index = i;
+        auto* item = new QListWidgetItem(
             QIcon(bubbleThumbnail(p.record.shape, p.record.skin.fill.colour, p.record.style.stroke.colour,
                                   p.record.text.fill.colour)),
             p.name, ui->listPresets);
@@ -174,11 +206,18 @@ void PresetsDialog::rebuildList(const QString& select)
             item->setFont(f);
             item->setToolTip(tr("Built-in: duplicate it to make a copy you can edit."));
         }
-        if (p.uid == select)
-            row = i;
+        item->setData(Qt::UserRole, i);   // the store's index
     }
-    ui->listPresets->setCurrentRow(row);
-    showPreset(row);
+    ui->listPresets->setCurrentRow(rowOf(index));
+    showPreset(index);
+}
+
+int PresetsDialog::rowOf(int index) const
+{
+    for (int row = 0; row < ui->listPresets->count(); ++row)
+        if (ui->listPresets->item(row)->data(Qt::UserRole).toInt() == index)
+            return row;
+    return -1;
 }
 
 void PresetsDialog::showPreset(int index)

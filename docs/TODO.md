@@ -105,10 +105,10 @@ Bug fixes, cosmetics and internal cleanups — no new capability, no change to a
   at the editor's top-left corner, on the tiles. Fixed: TOOL OPTIONS lays it out under the tiles, and
   the Speech bubble's row map leaves it out.
 
-- [ ] **Strip editor: TOOL OPTIONS shows too much.** The Bubble tool's options repeat nearly the whole
-  OBJECT STATE panel (shape, tail, fill, pattern, line, texture, shadow), a long column for choosing what
-  the next balloon looks like. Rethink what a tool's options need before the next balloon is drawn, and
-  what belongs only to the selected object.
+- [x] **Strip editor: TOOL OPTIONS shows too much.** The Bubble tool's options repeated nearly the whole
+  OBJECT STATE panel. Done: each tool names the rows its options show (`Tool::optionRows`), the preset
+  picked is what the next object is made from, and presets are saved from objects and managed in their
+  own dialog.
 
 - [ ] **ImageTile** rework to be more eye-appealing
 

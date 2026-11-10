@@ -79,6 +79,9 @@ ObjectMenu::ObjectMenu(ObjectController& objects, const StripLayout& layout, Pre
             m_objects.applyColourToSelection(m_colours->secondary(), Geometry::Part::Outline);
     });
 
+    m_actResetLook = new QAction(tr("Reset to default"), this);
+    connect(m_actResetLook, &QAction::triggered, this, &ObjectMenu::resetLookRequested);
+
     m_actSavePreset = new QAction(tr("Save as preset…"), this);
     connect(m_actSavePreset, &QAction::triggered, this, &ObjectMenu::saveSelectionAsPreset);
 
@@ -205,6 +208,7 @@ ObjectMenu::ObjectMenu(ObjectController& objects, const StripLayout& layout, Pre
     };
     for (QWidget* w : {static_cast<QWidget*>(m_tree), static_cast<QWidget*>(m_view)}) {
         w->addAction(m_presetMenu->menuAction());
+        w->addAction(m_actResetLook);
         w->addAction(m_actSavePreset);
         w->addAction(m_actFill);
         w->addAction(m_actOutline);
@@ -251,6 +255,7 @@ void ObjectMenu::updateEntries()
     if (m_actDuplicate) m_actDuplicate->setEnabled(oneObject);
     if (m_actDelete)    m_actDelete->setEnabled(!picked.isEmpty());
     if (m_presetMenu)   m_presetMenu->menuAction()->setEnabled(m_objects.presetTargetCount() > 0);
+    if (m_actResetLook) m_actResetLook->setEnabled(m_objects.presetTargetCount() > 0);
     if (m_reanchorMenu) m_reanchorMenu->menuAction()->setEnabled(oneObject);
     // Blend is a property every object has, so a set can take it; the stack order is one object's place
     // among the others, so it is not a thing several can be told at once.
@@ -279,6 +284,7 @@ void ObjectMenu::updateEntries()
         if (a)
             a->setVisible(allParametric);
     if (m_presetMenu) m_presetMenu->menuAction()->setVisible(allParametric);
+    if (m_actResetLook) m_actResetLook->setVisible(allParametric);
     // ...and the two that only artwork has.
     const bool artwork = m_objects.selectionIsArtwork();
     if (m_actNaturalSize) m_actNaturalSize->setVisible(artwork);
@@ -344,11 +350,24 @@ void ObjectMenu::setColourSource(const ColourPair* pair)
 void ObjectMenu::rebuildPresetMenu()
 {
     m_presetMenu->clear();
+    // The presets of the selection's kind; both, in two sections, for balloons and text together.
+    bool bubble = false, text = false;
+    m_objects.presetTargetKinds(bubble, text);
     const QList<BubblePreset>& presets = m_presets.presets();
-    for (int i = 0; i < presets.size(); ++i) {
-        QAction* a = m_presetMenu->addAction(presets.at(i).name);
-        connect(a, &QAction::triggered, this, [this, i] { emit presetApplyRequested(i); });
+    for (const bool textKind : {false, true}) {
+        if (textKind ? !text : !bubble)
+            continue;
+        if (bubble && text)
+            m_presetMenu->addSection(textKind ? tr("Text") : tr("Bubbles"));
+        for (int i = 0; i < presets.size(); ++i) {
+            if (isTextPreset(presets.at(i)) != textKind)
+                continue;
+            QAction* a = m_presetMenu->addAction(presets.at(i).name);
+            connect(a, &QAction::triggered, this, [this, i] { emit presetApplyRequested(i); });
+        }
     }
+    if (m_presetMenu->isEmpty())
+        m_presetMenu->addAction(tr("No preset of this kind yet"))->setEnabled(false);
 }
 
 void ObjectMenu::rebuildReanchorMenu()

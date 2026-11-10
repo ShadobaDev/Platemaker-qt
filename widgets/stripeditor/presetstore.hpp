@@ -26,6 +26,15 @@ struct BubblePreset
 };
 
 /**
+ * \brief Whether @p p is a text preset: a look with no shape, saved from a text object. Every other preset is
+ *        a bubble preset. Read from the look, so there is no kind to store or to keep in step with it.
+ */
+[[nodiscard]] inline bool isTextPreset(const BubblePreset& p)
+{
+    return p.record.shape.kind == ObjectRecord::Shape::None;
+}
+
+/**
  * \brief The preset library: the built-ins, the artist's own, and the file a pack travels in.
  *
  * A store rather than a field on a panel, because presets are wanted in more than one place — the tool's

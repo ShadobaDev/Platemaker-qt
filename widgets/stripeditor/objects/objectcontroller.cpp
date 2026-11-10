@@ -947,11 +947,30 @@ int ObjectController::presetTargetCount() const
     }));
 }
 
+void ObjectController::presetTargetKinds(bool& bubble, bool& text) const
+{
+    bubble = text = false;
+    for (const QString& uid : std::as_const(m_selectedOverlays)) {
+        if (!isParametric(uid) || m_carriers.contains(uid))
+            continue;
+        (recordFor(uid).hasSilhouette() ? bubble : text) = true;
+    }
+}
+
 void ObjectController::applyPresetToSelection(int index)
 {
-    if (index < 0 || index >= m_presets.presets().size())
-        return;
-    const BubblePreset& preset = m_presets.presets().at(index);
+    if (index >= 0 && index < m_presets.presets().size())
+        applyLookToSelection(m_presets.presets().at(index), tr("Apply preset"));
+}
+
+void ObjectController::resetSelectionLook()
+{
+    // The default is no preset: `ObjectRecord`'s own values, with no uid, so the origin goes too.
+    applyLookToSelection(BubblePreset{}, tr("Reset to default"));
+}
+
+void ObjectController::applyLookToSelection(const BubblePreset& preset, const QString& step)
+{
     QStringList         uids;
     QList<ObjectRecord> next;
     for (const QString& uid : std::as_const(m_selectedOverlays)) {
@@ -966,7 +985,7 @@ void ObjectController::applyPresetToSelection(int index)
     if (uids.isEmpty())
         return;
     applyRecords(uids, next, /*commit=*/true,
-                 uids.size() == 1 ? tr("Apply preset") : tr("Apply preset to %n objects", "", int(uids.size())));
+                 uids.size() == 1 ? step : tr("%1 (%n objects)", "", int(uids.size())).arg(step));
     if (uids.size() > 1)
         emit boundToRecords(next);
     else

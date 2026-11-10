@@ -153,3 +153,22 @@ TEST_F(Presets, TheOriginTravelsWithTheObject)
     ASSERT_TRUE(ok);
     EXPECT_EQ(back.presetOrigin, a.presetOrigin);
 }
+
+/**
+ * \brief A preset's kind is read from its look: the built-ins are bubble presets, and one saved from a text
+ *        object — no shape — is a text preset, which the default reset leaves a text object.
+ */
+TEST_F(Presets, APresetSavedFromTextIsATextPreset)
+{
+    PresetStore store;
+    for (int i = 0; i < store.builtinCount(); ++i)
+        EXPECT_FALSE(isTextPreset(store.presets().at(i))) << store.presets().at(i).name.toStdString();
+
+    ObjectRecord text = placed();
+    text.shape.kind   = ObjectRecord::Shape::None;
+    const int at      = store.save(QStringLiteral("Kind test"), text, /*replaceExisting=*/true);
+    EXPECT_TRUE(isTextPreset(store.presets().at(at)));
+    // *Reset to default* on a text object: the default look, with its own no-shape kept.
+    EXPECT_FALSE(PresetStore::applied(BubblePreset{}, text, /*keepShape=*/true).hasSilhouette());
+    store.remove(at);   // the application's settings, shared with the next run
+}

@@ -9,6 +9,8 @@
 #include "objectrecord.hpp"
 #include "properties/propertygroupset.hpp"
 
+class QTabBar;
+
 namespace Ui {
 class PresetsDialog;
 }
@@ -75,6 +77,10 @@ private:
     Ui::PresetsDialog* ui;         //!< The form (presetsdialog.ui). Declared before m_groups, built on its editorsHost.
     PropertyGroupSet   m_groups;   //!< OBJECT STATE's editors, every row, in the form's editorsHost.
 
+    [[nodiscard]] int rowOf(int index) const;   //!< The list's row showing the store's preset @p index, or -1.
+
+    QTabBar*     m_kindTabs = nullptr;  //!< *Bubbles*, *Text*: one kind of preset listed at a time.
+    QList<QWidget*> m_balloonParts;     //!< Every editor and rule but the lettering's: hidden for a text preset.
     int          m_shown = -1;          //!< The store's index of the preset the editors show.
     ObjectRecord m_edited;              //!< Its look as the editors have it.
     bool         m_populating = false;  //!< Binding, not editing.

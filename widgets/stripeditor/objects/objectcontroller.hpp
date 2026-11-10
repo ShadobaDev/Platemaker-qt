@@ -33,6 +33,7 @@ class QWidget;
 namespace StripEdit {
 
 class PresetStore;
+struct BubblePreset;
 class StripLayout;
 class Object;
 class SelectionChrome;
@@ -331,6 +332,11 @@ public:
     void applyPresetToSelection(int index);
     //! How many selected objects applyPresetToSelection() would restyle.
     [[nodiscard]] int presetTargetCount() const;
+    //! Whether those objects include a balloon (@p bubble) and a text object (@p text): which presets apply.
+    void presetTargetKinds(bool& bubble, bool& text) const;
+    //! *Reset to default*: the selected objects' look set to the default of their kind, their origin cleared,
+    //! as one history step — applyPresetToSelection() with the default, which is no preset.
+    void resetSelectionLook();
 
     /**
      * \brief Moves the selected object onto page @p pageUid, at the same offset from that page's top.
@@ -677,6 +683,9 @@ private:
      */
     void applyRecord(const QString& uid, const ObjectRecord& record, bool commit,
                      const QString& undoText = QString());
+
+    //! @p preset's look onto every selected object we draw, as one history step named @p step.
+    void applyLookToSelection(const BubblePreset& preset, const QString& step);
 
 public:
     //! Makes @p origin the one selected object's origin, as one history step: what *Save as preset…* does to

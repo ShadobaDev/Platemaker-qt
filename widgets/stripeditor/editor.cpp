@@ -370,6 +370,24 @@ Editor::Editor(PresetStore& presets, QWidget *parent)
         };
         connect(m_objectMenu, &ObjectMenu::presetApplyRequested, this, applyPreset);
         connect(m_objectState, &ObjectState::presetApplyRequested, this, applyPreset);
+        const auto resetLook = [this] {
+            const int n = m_objects->presetTargetCount();
+            if (n == 0)
+                return;
+            QMessageBox ask(QMessageBox::Question, tr("Reset to default"),
+                            tr("Reset %n selected object(s) to the default look?", "", n), QMessageBox::NoButton, this);
+            ask.setInformativeText(tr("Their shape, fill, line, texture, effects and lettering style become the "
+                                      "default's, and they are no longer based on a preset. Their words, size and "
+                                      "tails stay. Ctrl+Z undoes it."));
+            QPushButton* accept = ask.addButton(tr("Accept"), QMessageBox::AcceptRole);
+            ask.addButton(QMessageBox::Cancel);
+            ask.setDefaultButton(accept);
+            ask.exec();
+            if (ask.clickedButton() == accept)
+                m_objects->resetSelectionLook();
+        };
+        connect(m_objectMenu, &ObjectMenu::resetLookRequested, this, resetLook);
+        connect(m_objectState, &ObjectState::resetLookRequested, this, resetLook);
         m_objectMenu->setColourSource(m_colours);
         connect(m_objects, &ObjectController::recordCreated,        this, &Editor::recordCreated);
         connect(m_objects, &ObjectController::overlaysCommitted,         this, &Editor::overlaysCommitted);

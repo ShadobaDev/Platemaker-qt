@@ -37,6 +37,8 @@ class ObjectMenu : public QObject
 signals:
     //! *Apply preset ▸* picked preset @p index; the editor confirms and applies it.
     void presetApplyRequested(int index);
+    //! *Reset to default* picked; the editor confirms and resets.
+    void resetLookRequested();
 
 public:
     /**
@@ -117,6 +119,7 @@ private:
     QAction*           m_actFitToText    = nullptr;   //!< The box sized to the lettering — OBJECT STATE's *Fit*.
     QAction*           m_actFixPadding   = nullptr;   //!< A balloon's padding lowered until the lettering fits.
     QAction*           m_actEditShape    = nullptr;   //!< Shape editing of one balloon, on and off.
+    QAction*           m_actResetLook    = nullptr;   //!< *Reset to default*: the default look, no origin.
     QMenu*             m_nodeTypeMenu    = nullptr;   //!< *Point type ▸*: the picked Curve node's type.
     QAction*           m_actAddHandles   = nullptr;   //!< The picked Curve node's missing handles, made real.
     QAction*           m_actToCurve      = nullptr;   //!< One balloon's outline made a Curve.

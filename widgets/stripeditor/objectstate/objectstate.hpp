@@ -142,6 +142,8 @@ signals:
     void presetOriginClicked(const PresetOrigin& origin);
     //! A preset was picked to restyle the selection with: the store's @p index. The editor confirms first.
     void presetApplyRequested(int index);
+    //! *Reset to default* was clicked. The editor confirms first.
+    void resetLookRequested();
 
 private:
     void onControlChanged();   //!< A group reported an edit → collect, preview, arm the commit timer.
@@ -163,6 +165,10 @@ private:
     QHBoxLayout*        m_header    = nullptr;  //!< The subject and, after it, the look chip.
     QWidget*            m_lookChip  = nullptr;  //!< *Shout-based* / *Mixed*. Rebuilt, never relabelled.
     QComboBox*          m_presetPicker = nullptr;   //!< *Apply a preset…* to the selection; never shows a pick.
+    QWidget*            m_presetRow    = nullptr;   //!< The picker and *Reset to default*.
+    bool                m_pickerBubble = false;     //!< The kinds the picker lists now: balloons' presets…
+    bool                m_pickerText   = false;     //!< …and text presets.
+    void refreshPresetPicker(bool bubble, bool text);
     QLabel*             m_emptyHint = nullptr;  //!< Stands in for the sections when nothing is selected.
     BlendEditor*        m_blend     = nullptr;  //!< The one property every kind of object carries.
     QWidget*            m_scaleRow  = nullptr;  //!< A picture's size; hidden for every other kind.

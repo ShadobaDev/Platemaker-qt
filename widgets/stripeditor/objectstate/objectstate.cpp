@@ -149,25 +149,29 @@ ObjectState::ObjectState(PresetStore& presets, QWidget* parent)
     m_presetPicker->setToolTip(tr("Replaces the look of the selected objects with a preset's. Their words, "
                                   "size and tails stay."));
     m_presetPicker->setIconSize(QSize(k_bubbleThumbW, k_bubbleThumbH));
-    lay->addWidget(m_presetPicker);
-    const auto fillPicker = [this] {
-        const QSignalBlocker block(m_presetPicker);
-        m_presetPicker->clear();
-        for (const BubblePreset& p : m_presets.presets())
-            m_presetPicker->addItem(QIcon(bubbleThumbnail(p.record.shape, p.record.skin.fill.colour,
-                                                          p.record.style.stroke.colour, p.record.text.fill.colour)),
-                                    p.name);
-        m_presetPicker->setCurrentIndex(-1);
-    };
-    fillPicker();
-    connect(&m_presets, &PresetStore::changed, this, fillPicker);
-    connect(m_presetPicker, &QComboBox::activated, this, [this](int index) {
+    m_presetPicker->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
+    auto* reset = new QPushButton(tr("Reset"), this);
+    reset->setToolTip(tr("Sets the selected objects' look to the default, as if no preset had been used."));
+    m_presetRow = new QWidget(this);
+    auto* presetRow = new QHBoxLayout(m_presetRow);
+    presetRow->setContentsMargins(0, 0, 0, 0);
+    presetRow->addWidget(m_presetPicker, 1);
+    presetRow->addWidget(reset);
+    reset->setParent(m_presetRow);
+    m_presetPicker->setParent(m_presetRow);
+    lay->addWidget(m_presetRow);
+    connect(&m_presets, &PresetStore::changed, this,
+            [this] { refreshPresetPicker(m_pickerBubble, m_pickerText); });
+    connect(m_presetPicker, &QComboBox::activated, this, [this](int entry) {
+        const QVariant index = m_presetPicker->itemData(entry);
         {
             const QSignalBlocker block(m_presetPicker);
             m_presetPicker->setCurrentIndex(-1);
         }
-        emit presetApplyRequested(index);
+        if (index.isValid())
+            emit presetApplyRequested(index.toInt());
     });
+    connect(reset, &QPushButton::clicked, this, &ObjectState::resetLookRequested);
 
     m_emptyText = tr("Select an object on the strip to edit it.");
     m_emptyHint = new QLabel(m_emptyText, this);
@@ -521,7 +525,18 @@ void ObjectState::refreshLook()
     const bool hasLook = !(m_tailIndex >= 0 || m_selectionCount == 0 || (m_hasRecord && m_record.isArtwork()))
                       && (m_hasRecord || std::any_of(m_subjects.cbegin(), m_subjects.cend(),
                                                      [](const ObjectRecord& a) { return !a.isArtwork(); }));
-    m_presetPicker->setVisible(hasLook);
+    m_presetRow->setVisible(hasLook);
+    if (hasLook) {
+        // The presets of the selection's kind: a balloon's, a text object's, both for a set of the two.
+        const auto bubbleish = [](const ObjectRecord& a) { return a.hasSilhouette(); };
+        const auto textish   = [](const ObjectRecord& a) { return !a.isArtwork() && !a.hasSilhouette(); };
+        const bool bubble = m_hasRecord ? bubbleish(m_record)
+                                        : std::any_of(m_subjects.cbegin(), m_subjects.cend(), bubbleish);
+        const bool text   = m_hasRecord ? textish(m_record)
+                                        : std::any_of(m_subjects.cbegin(), m_subjects.cend(), textish);
+        if (bubble != m_pickerBubble || text != m_pickerText)
+            refreshPresetPicker(bubble, text);
+    }
 
     if (mixed) {
         m_lookChip = makeBadge(toneBadge(BadgeTone::Neutral, tr("Mixed"),
@@ -543,6 +558,32 @@ void ObjectState::refreshLook()
         return;
     }
     m_header->insertWidget(1, m_lookChip);   // after the subject, before the stretch
+}
+
+void ObjectState::refreshPresetPicker(bool bubble, bool text)
+{
+    m_pickerBubble = bubble;
+    m_pickerText   = text;
+    const QSignalBlocker block(m_presetPicker);
+    m_presetPicker->clear();
+    const QList<BubblePreset>& presets = m_presets.presets();
+    for (const bool textKind : {false, true}) {
+        if (textKind ? !text : !bubble)
+            continue;
+        if (bubble && text && m_presetPicker->count() > 0)
+            m_presetPicker->insertSeparator(m_presetPicker->count());
+        for (int i = 0; i < presets.size(); ++i) {
+            const BubblePreset& p = presets.at(i);
+            if (isTextPreset(p) != textKind)
+                continue;
+            m_presetPicker->addItem(QIcon(bubbleThumbnail(p.record.shape, p.record.skin.fill.colour,
+                                                          p.record.style.stroke.colour, p.record.text.fill.colour)),
+                                    p.name, i);   // the store's index rides with the entry
+        }
+    }
+    m_presetPicker->setPlaceholderText(m_presetPicker->count() > 0 ? tr("Apply a preset…")
+                                                                    : tr("No preset of this kind yet"));
+    m_presetPicker->setCurrentIndex(-1);
 }
 
 void ObjectState::restoreExpansion()

@@ -24,6 +24,7 @@ public:
     explicit TextureEditor(QWidget* parent = nullptr);
 
     [[nodiscard]] PropertyGroup group() const override { return PropertyGroup::Texture; }
+    [[nodiscard]] QList<Row> rows() const override { return {Row::Texture}; }
 
     void bind(const Subjects& subjects) override;
     void applyTo(ObjectRecord& target) const override;
@@ -36,6 +37,7 @@ private:
     QFormLayout* m_form = nullptr;
     QComboBox*   m_kind = nullptr;
     FieldRows<TextureProperties> m_rough;   //!< One spin per `rough…` field.
+    QCheckBox*   m_roughFill = nullptr;    //!< *Roughen the fill too*.
 
     TextureProperties m_values;
     bool m_populating = false;
@@ -43,6 +45,8 @@ private:
     // --- bound to a set ---
     bool m_mixedKind   = false;
     bool m_kindTouched = false;
+    bool m_mixedFill   = false;
+    bool m_fillTouched = false;
 };
 
 }  // namespace StripEdit

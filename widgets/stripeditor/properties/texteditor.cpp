@@ -318,7 +318,7 @@ void TextEditor::syncFromValues()
     m_paddings.show(m_values);
     // A text object has no outline to keep from. Shown when anything bound has one: a value typed for
     // a set lands on the text objects in it too, where it is carried and ignored.
-    m_paddings.setVisible(m_form, m_anyBalloon);
+    m_paddings.setVisible(m_form, m_anyBalloon && shows(Row::TextSpacing));
     showCheck(m_bold, m_mixedBold, m_values.bold);
     showCombo(m_align, m_mixedAlign, m_align->findData(m_values.align));
     m_fill.show(m_values);
@@ -336,7 +336,21 @@ void TextEditor::syncFromValues()
 void TextEditor::showOutline()
 {
     // A selection where any has an outline shows its paint, as one where all agree on one does.
-    m_outline.setVisible(m_anyOutline || m_values.outlineWidth > 0.0);
+    m_outline.setVisible(shows(Row::TextOutline) && (m_anyOutline || m_values.outlineWidth > 0.0));
+}
+
+void TextEditor::updateRows()
+{
+    for (QWidget* w : {static_cast<QWidget*>(m_family), static_cast<QWidget*>(m_size), static_cast<QWidget*>(m_bold)})
+        m_form->setRowVisible(w, shows(Row::TextFont));
+    m_form->setRowVisible(m_lineSpacing, shows(Row::TextSpacing));
+    m_paddings.setVisible(m_form, m_anyBalloon && shows(Row::TextSpacing));
+    m_form->setRowVisible(m_align, shows(Row::TextAlign));
+    m_fill.setParts(shows(Row::TextColour), shows(Row::TextPattern));
+    m_outlineWidth.setVisible(m_form, shows(Row::TextOutline));
+    m_outline.setParts(true, shows(Row::TextPattern));
+    showOutline();
+    m_shadow.setShown(shows(Row::TextShadow));
 }
 
 }  // namespace StripEdit

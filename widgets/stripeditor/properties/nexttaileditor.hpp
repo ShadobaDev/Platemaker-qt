@@ -29,6 +29,7 @@ public:
     explicit NextTailEditor(QWidget* parent = nullptr);
 
     [[nodiscard]] PropertyGroup group() const override { return PropertyGroup::Tail; }
+    [[nodiscard]] QList<Row> rows() const override { return {Row::TailOn, Row::TailShape}; }
 
     void bind(const Subjects& subjects) override;
     void applyTo(ObjectRecord& target) const override;
@@ -49,6 +50,9 @@ public:
      * tail. The checkbox stays available for the cases that want one anyway.
      */
     void shapeChanged(const ShapeProperties& shape);
+
+protected:
+    void updateRows() override;
 
 private:
     void syncEnabled();

@@ -104,6 +104,14 @@ void NextTailEditor::applyToNew(ObjectRecord& target) const
     next.applyTo(target);
 }
 
+void NextTailEditor::updateRows()
+{
+    auto* form = static_cast<QFormLayout*>(layout());
+    form->setRowVisible(m_enabled, shows(Row::TailOn));
+    form->setRowVisible(m_width, shows(Row::TailShape));
+    form->setRowVisible(m_bend, shows(Row::TailShape));
+}
+
 void NextTailEditor::shapeChanged(const ShapeProperties& shape)
 {
     m_shapeCanSpeak = shape.kind != ObjectRecord::Shape::None;

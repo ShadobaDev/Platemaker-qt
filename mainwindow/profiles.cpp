@@ -9,6 +9,8 @@
 #include "profilepickerdialog.hpp"
 #include "templatesdialog.hpp"
 #include "renderworker.hpp"
+#include "editor.hpp"
+#include "presets/presetsdialog.hpp"
 #include "presetstore.hpp"
 
 #include <platemaker/infrastructure/profile_bundle_serializer/profile_bundle_serializer.hpp>
@@ -908,43 +910,54 @@ void MainWindow::exportProfilesFlow(bool canvasKind, bool toFile)
 // Bubble-preset packs (Tools) — the application's presets, not the workspace's
 // ---------------------------------------------------------------------------
 
+void MainWindow::openPresetsDialog(const QString& presetUid)
+{
+    // Every project's objects, open or not: "where else did I use this look" is a workspace question.
+    const auto uses = [this](const QString& uid) {
+        QList<StripEdit::PresetUse> out;
+        for (const auto& project : m_workspace.projectItems) {
+            const QString             projectUid = QString::fromStdString(project.uid);
+            const ObjectRecord::Map   records    = m_overlayRecords.records(projectUid);
+            const auto                inputs     = project.inputsInOrder();
+            for (const auto& overlay : project.getStripOverlays()) {
+                const QString      objectUid = QString::fromStdString(overlay.uid);
+                const ObjectRecord record    = records.value(objectUid);
+                if (record.presetOrigin.uid != uid)
+                    continue;
+                const auto page = std::find_if(inputs.cbegin(), inputs.cend(), [&overlay](const auto& in) {
+                    return in.uid == overlay.anchorInputUid;
+                });
+                const QString words = record.text.body.section(QLatin1Char('\n'), 0, 0).left(40);
+                const QString where = page == inputs.cend() ? tr("unanchored")
+                                                            : tr("p.%1").arg(page - inputs.cbegin() + 1, 2, 10, QLatin1Char('0'));
+                out.append({projectUid, QString::fromStdString(project.name), objectUid,
+                            QStringLiteral("%1 · %2").arg(where, words.isEmpty() ? tr("(no text)") : words)});
+            }
+        }
+        return out;
+    };
+    StripEdit::PresetsDialog dialog(*m_presets, presetUid, uses, this);
+    dialog.exec();
+    const auto& use = dialog.shown();
+    if (!use)
+        return;
+    const int idx = projectIndexForUid(use->projectUid);
+    if (idx < 0)
+        return;
+    openStripEditorDock(idx);
+    if (QDockWidget* dock = dockForStripEditor(idx)) {
+        if (auto* editor = qobject_cast<StripEdit::Editor*>(dock->widget()))
+            editor->selectAfterFeed({use->objectUid});
+        refreshStripEditor(dock);   // the feed that selects it
+    }
+}
+
 void MainWindow::onImportBubblePresets()
 {
-    const QString path = QFileDialog::getOpenFileName(
-        this, tr("Import bubble presets"),
-        QStandardPaths::writableLocation(QStandardPaths::DocumentsLocation),
-        tr("Bubble preset packs (*.json);;All files (*)"));
-    if (path.isEmpty())
-        return;
-
-    QString error;
-    const int n = m_presets->importPack(path, &error);
-    if (n < 0) {
-        QMessageBox::warning(this, tr("Import bubble presets"), error);
-        return;
-    }
-    // Every open editor's picker follows the store's changed() by itself.
-    QMessageBox::information(this, tr("Import bubble presets"), tr("Imported %n preset(s).", nullptr, n));
+    StripEdit::importPresetPack(this, *m_presets);
 }
 
 void MainWindow::onExportBubblePresets()
 {
-    if (m_presets->presets().size() <= m_presets->builtinCount()) {
-        QMessageBox::information(this, tr("Export bubble presets"),
-                                 tr("There are no saved presets to export yet."));
-        return;
-    }
-    QString path = QFileDialog::getSaveFileName(
-        this, tr("Export bubble presets"),
-        QStandardPaths::writableLocation(QStandardPaths::DocumentsLocation)
-            + QStringLiteral("/bubble-presets.json"),
-        tr("Bubble preset packs (*.json)"));
-    if (path.isEmpty())
-        return;
-    if (QFileInfo(path).suffix().isEmpty())
-        path += QStringLiteral(".json");
-
-    QString error;
-    if (!m_presets->exportPack(path, &error))
-        QMessageBox::warning(this, tr("Export bubble presets"), error);
+    StripEdit::exportPresetPack(this, *m_presets);
 }

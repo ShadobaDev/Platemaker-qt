@@ -1,6 +1,8 @@
 #include "objectstate/objectstate.hpp"
 
+#include <QComboBox>
 #include <QDoubleSpinBox>
+#include <QIcon>
 #include <QEvent>
 #include <QFormLayout>
 #include <QFrame>
@@ -8,6 +10,7 @@
 #include <QLabel>
 #include <QPushButton>
 #include <QSettings>
+#include <QSignalBlocker>
 #include <QTimer>
 #include <QVBoxLayout>
 
@@ -138,6 +141,37 @@ ObjectState::ObjectState(PresetStore& presets, QWidget* parent)
     m_header->addWidget(m_subject);
     m_header->addStretch(1);
     lay->addLayout(m_header);
+
+    // A preset onto what is selected — one or many. It replaces their look, so the editor asks first; the
+    // picker shows a prompt and never a pick, since applying is an act and not a state.
+    m_presetPicker = new QComboBox(this);
+    m_presetPicker->setPlaceholderText(tr("Apply a preset…"));
+    m_presetPicker->setToolTip(tr("Replaces the look of the selected objects with a preset's. Their words, "
+                                  "size and tails stay."));
+    m_presetPicker->setIconSize(QSize(k_bubbleThumbW, k_bubbleThumbH));
+    m_presetPicker->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
+    auto* reset = new QPushButton(tr("Reset"), this);
+    reset->setToolTip(tr("Sets the selected objects' look to the default, as if no preset had been used."));
+    m_presetRow = new QWidget(this);
+    auto* presetRow = new QHBoxLayout(m_presetRow);
+    presetRow->setContentsMargins(0, 0, 0, 0);
+    presetRow->addWidget(m_presetPicker, 1);
+    presetRow->addWidget(reset);
+    reset->setParent(m_presetRow);
+    m_presetPicker->setParent(m_presetRow);
+    lay->addWidget(m_presetRow);
+    connect(&m_presets, &PresetStore::changed, this,
+            [this] { refreshPresetPicker(m_pickerBubble, m_pickerText); });
+    connect(m_presetPicker, &QComboBox::activated, this, [this](int entry) {
+        const QVariant index = m_presetPicker->itemData(entry);
+        {
+            const QSignalBlocker block(m_presetPicker);
+            m_presetPicker->setCurrentIndex(-1);
+        }
+        if (index.isValid())
+            emit presetApplyRequested(index.toInt());
+    });
+    connect(reset, &QPushButton::clicked, this, &ObjectState::resetLookRequested);
 
     m_emptyText = tr("Select an object on the strip to edit it.");
     m_emptyHint = new QLabel(m_emptyText, this);
@@ -271,6 +305,7 @@ ObjectState::ObjectState(PresetStore& presets, QWidget* parent)
 
 void ObjectState::setRecord(const ObjectRecord& a)
 {
+    m_tailSet.clear();
     m_record      = a;
     m_tailIndex     = -1;
     m_hasRecord   = true;
@@ -301,6 +336,7 @@ void ObjectState::setRecord(const ObjectRecord& a)
 void ObjectState::setMixedSubjects(int count)
 {
     m_subjects.clear();
+    m_tailSet.clear();
     m_hasRecord    = false;
     m_selectionCount = count;
     m_tailIndex      = -1;
@@ -324,6 +360,7 @@ void ObjectState::setMixedSubjects(int count)
 void ObjectState::setRecords(const QList<ObjectRecord>& objects)
 {
     m_subjects       = objects;
+    m_tailSet.clear();
     m_hasRecord    = false;   // no single record, so the single-subject signals stay quiet
     m_selectionCount = static_cast<int>(objects.size());
     m_tailIndex      = -1;
@@ -375,8 +412,36 @@ void ObjectState::setRecords(const QList<ObjectRecord>& objects)
     }
 }
 
+void ObjectState::setTails(const QList<ObjectRecord>& balloons, const QList<QPair<int, int>>& tails)
+{
+    m_subjects       = balloons;
+    m_tailSet        = tails;
+    m_tailIndex      = -1;
+    m_hasRecord      = false;
+    m_selectionCount = int(tails.size());
+
+    QList<TailProperties> bound;
+    for (const auto& [balloon, tail] : tails)
+        bound << TailProperties::from(balloons.at(balloon), tail);
+    m_populating = true;
+    m_tail->bindTails(bound);
+    m_populating = false;
+
+    m_subject->setText(tr("%n tails", "", int(tails.size())));
+    m_subject->setVisible(true);
+    refreshLook();
+    m_emptyHint->setVisible(false);
+    m_actions->setVisible(true);
+    m_padButton->setVisible(false);
+    m_fitButton->setVisible(false);
+    m_scaleRow->setVisible(false);
+    m_deleteButton->setText(tr("Delete tails"));
+    applyKindVisibility();
+}
+
 void ObjectState::setTail(const ObjectRecord& a, int index)
 {
+    m_tailSet.clear();
     m_record      = a;
     m_tailIndex     = index;
     m_hasRecord   = true;
@@ -402,6 +467,7 @@ void ObjectState::setTail(const ObjectRecord& a, int index)
 
 void ObjectState::clearSelection()
 {
+    m_tailSet.clear();
     m_hasRecord    = false;
     m_selectionCount = 0;
     m_tailIndex      = -1;
@@ -438,12 +504,11 @@ void ObjectState::applyKindVisibility()
     // The editors are still bound and still written back (`PropertyGroupSet::collect()` writes every
     // group), so a hidden Shape editor holds the object's own `None` and hands it straight back — which
     // is exactly what must happen: a panel may not convert an object by being edited.
-    const bool tailSubject = m_tailIndex >= 0;
     for (auto it = m_sections.cbegin(); it != m_sections.cend(); ++it) {
         const auto g = static_cast<PropertyGroup>(it.key());
         // A selected tail is a subject of its own with exactly one section; otherwise the record
         // answers, through the same rule a set is measured by.
-        it.value()->setVisible(tailSubject ? g == PropertyGroup::TailItem
+        it.value()->setVisible(tailSubject() ? g == PropertyGroup::TailItem
                                            : carriesGroup(m_record, g));
     }
 }
@@ -474,31 +539,82 @@ void ObjectState::refreshLook()
     delete m_lookChip;
     m_lookChip = nullptr;
 
-    QString text;
-    QString detail;
-    if (m_tailIndex >= 0 || m_selectionCount == 0 || (m_hasRecord && m_record.isArtwork())) {
-        // A tail has no look of its own, nothing selected has nothing to report, and a picture's look
-        // is whoever drew it — a preset covers a shape, a fill and a line style it does not have.
+    // Where the look came from: the preset last applied, a hint and not a link. A tail has no look of its
+    // own, nothing selected has nothing to report, and a picture's look is whoever drew it.
+    PresetOrigin origin;
+    bool         mixed = false;
+    if (tailSubject() || m_selectionCount == 0 || (m_hasRecord && m_record.isArtwork())) {
     } else if (m_hasRecord) {
-        text   = m_presets.lookLabel(m_record);
-        detail = m_presets.matching(m_record) >= 0
-                     ? tr("Every property a preset covers still matches “%1”.").arg(text)
-                     : tr("The look of no preset: something a preset covers has been changed since.");
+        origin = m_record.presetOrigin;
     } else if (!m_subjects.isEmpty()) {
-        const QString first = m_presets.lookLabel(m_subjects.first());
-        const bool    agree = std::all_of(m_subjects.cbegin(), m_subjects.cend(),
-                                          [this, &first](const ObjectRecord& a) {
-                                              return m_presets.lookLabel(a) == first;
-                                          });
-        text   = agree ? first : tr("Mixed");
-        detail = agree ? tr("Every object in the selection has this look.")
-                       : tr("The selected objects do not share one look.");
+        origin = m_subjects.first().presetOrigin;
+        mixed  = std::any_of(m_subjects.cbegin(), m_subjects.cend(), [&origin](const ObjectRecord& a) {
+            return a.presetOrigin.uid != origin.uid;
+        });
+    }
+    // The picker goes with the chip: shown wherever there is a look a preset could replace.
+    const bool hasLook = !(tailSubject() || m_selectionCount == 0 || (m_hasRecord && m_record.isArtwork()))
+                      && (m_hasRecord || std::any_of(m_subjects.cbegin(), m_subjects.cend(),
+                                                     [](const ObjectRecord& a) { return !a.isArtwork(); }));
+    m_presetRow->setVisible(hasLook);
+    if (hasLook) {
+        // The presets of the selection's kind: a balloon's, a text object's, both for a set of the two.
+        const auto bubbleish = [](const ObjectRecord& a) { return a.hasSilhouette(); };
+        const auto textish   = [](const ObjectRecord& a) { return !a.isArtwork() && !a.hasSilhouette(); };
+        const bool bubble = m_hasRecord ? bubbleish(m_record)
+                                        : std::any_of(m_subjects.cbegin(), m_subjects.cend(), bubbleish);
+        const bool text   = m_hasRecord ? textish(m_record)
+                                        : std::any_of(m_subjects.cbegin(), m_subjects.cend(), textish);
+        if (bubble != m_pickerBubble || text != m_pickerText)
+            refreshPresetPicker(bubble, text);
     }
 
-    if (text.isEmpty())
+    if (mixed) {
+        m_lookChip = makeBadge(toneBadge(BadgeTone::Neutral, tr("Mixed"),
+                                         tr("The selected objects were made from different presets, or some from none."),
+                                         palette()),
+                               this);
+    } else if (!origin.isEmpty()) {
+        const QString name  = m_presets.originName(origin);
+        const bool    known = m_presets.indexOf(origin.uid) >= 0;
+        Badge chip = toneBadge(BadgeTone::Neutral, tr("%1-based").arg(name),
+                               known ? tr("Made from the preset “%1”. Click to open it in Manage presets.").arg(name)
+                                     : tr("Made from the preset “%1”, which is not among your presets. Click to "
+                                          "make it one again, from this object.").arg(name),
+                               palette());
+        if (!known)
+            chip.withTextColour(palette().color(QPalette::Disabled, QPalette::WindowText));
+        m_lookChip = makeBadge(chip, this, [this, origin] { emit presetOriginClicked(origin); });
+    } else {
         return;
-    m_lookChip = makeBadge(toneBadge(BadgeTone::Neutral, text, detail, palette()), this);
+    }
     m_header->insertWidget(1, m_lookChip);   // after the subject, before the stretch
+}
+
+void ObjectState::refreshPresetPicker(bool bubble, bool text)
+{
+    m_pickerBubble = bubble;
+    m_pickerText   = text;
+    const QSignalBlocker block(m_presetPicker);
+    m_presetPicker->clear();
+    const QList<BubblePreset>& presets = m_presets.presets();
+    for (const bool textKind : {false, true}) {
+        if (textKind ? !text : !bubble)
+            continue;
+        if (bubble && text && m_presetPicker->count() > 0)
+            m_presetPicker->insertSeparator(m_presetPicker->count());
+        for (int i = 0; i < presets.size(); ++i) {
+            const BubblePreset& p = presets.at(i);
+            if (isTextPreset(p) != textKind)
+                continue;
+            m_presetPicker->addItem(QIcon(bubbleThumbnail(p.record.shape, p.record.skin.fill.colour,
+                                                          p.record.style.stroke.colour, p.record.text.fill.colour)),
+                                    p.name, i);   // the store's index rides with the entry
+        }
+    }
+    m_presetPicker->setPlaceholderText(m_presetPicker->count() > 0 ? tr("Apply a preset…")
+                                                                    : tr("No preset of this kind yet"));
+    m_presetPicker->setCurrentIndex(-1);
 }
 
 void ObjectState::restoreExpansion()
@@ -514,6 +630,15 @@ void ObjectState::onControlChanged()
 {
     if (m_populating)
         return;
+
+    if (!m_tailSet.isEmpty()) {
+        // Several tails: each takes what the artist touched, and keeps the rest — its tip included.
+        for (const auto& [balloon, tail] : std::as_const(m_tailSet))
+            m_tail->applyEditedToTail(m_subjects[balloon], tail);
+        emit changedMany(m_subjects);
+        m_commitTimer->start();
+        return;
+    }
 
     if (!m_subjects.isEmpty()) {
         // A set: every object takes what the artist touched and keeps everything else of its own.

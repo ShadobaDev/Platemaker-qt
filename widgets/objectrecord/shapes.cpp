@@ -556,8 +556,19 @@ Split splitSegment(const ShapeNode& a, const ShapeNode& b)
 }
 
 /**
- * The picked node's two handles (the ones it has), then every node, then a "+" halfway along each
- * segment: the order a press is answered in, so a handle wins over the node it leaves.
+ * Where node @p i's missing handle on one side grows from: a third of the way to the neighbour on that
+ * side (@p out: the next one), on the line to it, so on a straight segment it bends nothing.
+ */
+QPointF grownHandle(const QList<ShapeNode>& nodes, int i, bool out)
+{
+    const int n = int(nodes.size());
+    return (nodes[(i + (out ? 1 : n - 1)) % n].at - nodes[i].at) * k_newHandle;
+}
+
+/**
+ * The picked node's two handles, then every node, then a "+" halfway along each segment: the order a
+ * press is answered in, so a handle wins over the node it leaves. A handle the node lacks is offered
+ * where it would grow from (grownHandle()), and becomes the node's own when it is dragged.
  */
 QList<ShapeHandle> curveHandles(const ShapeProperties& shape, const QRectF& body, qreal, int picked)
 {
@@ -565,12 +576,12 @@ QList<ShapeHandle> curveHandles(const ShapeProperties& shape, const QRectF& body
     const int               n     = int(nodes.size());
     QList<ShapeHandle>      out;
     if (picked >= 0 && picked < n) {
-        const ShapeNode& p  = nodes[picked];
-        const QPointF    at = inBody(p.at, body);
-        if (!p.in.isNull())
-            out.append({ShapeHandle::Role::InHandle, picked, inBody(p.at + p.in, body), {}, at});
-        if (!p.out.isNull())
-            out.append({ShapeHandle::Role::OutHandle, picked, inBody(p.at + p.out, body), {}, at});
+        const ShapeNode& p    = nodes[picked];
+        const QPointF    at   = inBody(p.at, body);
+        const QPointF    in   = p.in.isNull() ? grownHandle(nodes, picked, false) : p.in;
+        const QPointF    outH = p.out.isNull() ? grownHandle(nodes, picked, true) : p.out;
+        out.append({ShapeHandle::Role::InHandle, picked, inBody(p.at + in, body), {}, at});
+        out.append({ShapeHandle::Role::OutHandle, picked, inBody(p.at + outH, body), {}, at});
     }
     for (int i = 0; i < n; ++i)
         out.append({ShapeHandle::Role::Vertex, i, inBody(nodes[i].at, body)});
@@ -1257,6 +1268,43 @@ ShapeProperties withVertexRemoved(const ShapeProperties& shape, int index)
         return shape;
     s.nodes.removeAt(index);
     return s;
+}
+
+QRectF outlineExtent(const ShapeProperties& shape, const QRectF& body)
+{
+    if (body.isEmpty())
+        return {};
+    if (shape.kind == ShapeProperties::Kind::Curve) {
+        const QRectF drawn = curvePath(shape, body).boundingRect();
+        return {relativeTo(drawn.topLeft(), body), relativeTo(drawn.bottomRight(), body)};
+    }
+    if (shape.kind != ShapeProperties::Kind::Polygon)
+        return {};
+    const QList<ShapeNode>& nodes = freeNodes(shape);
+    QPointF low = nodes.first().at, high = low;
+    for (const ShapeNode& n : nodes) {
+        low  = {qMin(low.x(), n.at.x()), qMin(low.y(), n.at.y())};
+        high = {qMax(high.x(), n.at.x()), qMax(high.y(), n.at.y())};
+    }
+    return {low, high};
+}
+
+ShapeProperties withHandlesGrown(const ShapeProperties& shape, int index)
+{
+    ShapeProperties s = shape;
+    s.nodes           = freeNodes(shape);
+    const int n       = int(s.nodes.size());
+    if (index < 0 || index >= n)
+        return shape;
+    ShapeNode&       node = s.nodes[index];
+    const ShapeNode& prev = s.nodes[(index + n - 1) % n];
+    const ShapeNode& next = s.nodes[(index + 1) % n];
+    // Only a straight side: a handle grown on a segment its other end already bends would bend it more.
+    if (node.in.isNull() && prev.out.isNull())
+        node.in = grownHandle(s.nodes, index, false);
+    if (node.out.isNull() && next.in.isNull())
+        node.out = grownHandle(s.nodes, index, true);
+    return s.nodes == freeNodes(shape) ? shape : s;
 }
 
 ShapeProperties withNodeType(const ShapeProperties& shape, const QRectF& body, int index, ShapeNode::Type type)

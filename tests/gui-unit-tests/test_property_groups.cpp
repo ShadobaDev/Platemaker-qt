@@ -14,6 +14,7 @@
 #include <gtest/gtest.h>
 
 #include <algorithm>
+#include <optional>
 
 #include <QFile>
 #include <QJsonDocument>
@@ -62,6 +63,7 @@ ObjectRecord loadedRecord()
     a.texture.roughOctaves      = 4;
     a.texture.roughDisplacement = 7.5;
     a.texture.roughBlur         = 1.25;
+    a.texture.roughFill         = true;   // not the default; the parts are a golden case of their own
     a.style.flashOuterPitch        = 3.5;
     a.style.flashInnerPitch        = 4.5;
     a.style.flashOuterLength       = 21.0;
@@ -82,6 +84,7 @@ ObjectRecord loadedRecord()
     a.style.drybrushBristles       = 9;
     a.style.drybrushDryness        = 42;
     a.styleSeed        = 0xC0FFEEu;
+    a.presetOrigin     = {QStringLiteral("uid-loaded"), QStringLiteral("Loaded")};
 
     a.text.body        = QStringLiteral("Nie wiem, co sie dzieje");
     a.text.family      = QStringLiteral("Comic Neue");
@@ -172,6 +175,7 @@ static_assert(sizeof(SkinProperties) == sizeof(SkinMirror),
 
 struct TextureMirror {
     TextureProperties::Kind kind; qreal roughFrequency; int roughOctaves; qreal roughDisplacement, roughBlur;
+    bool roughFill;
 };
 static_assert(sizeof(TextureProperties) == sizeof(TextureMirror),
               "TextureProperties grew a field: place it (see above), then mirror it");
@@ -215,7 +219,7 @@ static_assert(sizeof(EffectProperties) == sizeof(EffectMirror),
 struct RecordMirror {
     ShapeProperties shape; QString artwork; QSize box; TailsProperties tails; StyleProperties style;
     TextureProperties texture; EffectProperties effects; quint32 styleSeed; TextProperties text;
-    SkinProperties skin;
+    SkinProperties skin; PresetOrigin presetOrigin;
 };
 static_assert(sizeof(ObjectRecord) == sizeof(RecordMirror),
               "ObjectRecord grew a field: place it (see above), then mirror it");
@@ -303,6 +307,7 @@ void expectUntouched(Group applied, const ObjectRecord& before, const ObjectReco
         EXPECT_EQ(after.texture.roughOctaves,             before.texture.roughOctaves);
         EXPECT_DOUBLE_EQ(after.texture.roughDisplacement, before.texture.roughDisplacement);
         EXPECT_DOUBLE_EQ(after.texture.roughBlur,         before.texture.roughBlur);
+        EXPECT_EQ(after.texture.roughFill,                before.texture.roughFill);
     }
     if (applied != Group::Effects) {
         EXPECT_EQ(after.effects.shadow.on, before.effects.shadow.on);
@@ -335,9 +340,10 @@ void expectUntouched(Group applied, const ObjectRecord& before, const ObjectReco
 
     // Owned by no group, so never written by an editor and never skipped here. The box belongs to the
     // object rather than to the record's look; the style seed is per balloon and set once at
-    // placement, which is why a preset must not carry it.
-    EXPECT_EQ(after.box,       before.box);
-    EXPECT_EQ(after.styleSeed, before.styleSeed);
+    // placement, which is why a preset must not carry it; the preset origin is set only by applying one.
+    EXPECT_EQ(after.box,          before.box);
+    EXPECT_EQ(after.styleSeed,    before.styleSeed);
+    EXPECT_EQ(after.presetOrigin, before.presetOrigin);
 }
 
 } // namespace
@@ -1430,6 +1436,86 @@ TEST(Shapes, ACurveKeepsItsOutlineThroughItsEdits)
     EXPECT_EQ(node.type, ShapeNode::Type::Symmetric);
 }
 
+/**
+ * \brief Every Polygon and Curve template fills its box edge to edge, and so does every template made a
+ *        Curve but a cloud. Dragging a node fits the box to the outline (Geometry::outlineExtent()), so one
+ *        that stopped short of an edge would jump at the first drag. A cloud's lobes stop short of its box
+ *        (by about 1.6 % of the width at the left), so a cloud made a Curve has its box tightened to them
+ *        at the first drag of a node: inside the box, never past it.
+ */
+TEST(Shapes, EveryNodedOutlineFillsItsBox)
+{
+    constexpr qreal k_onEdge = 1e-3;   //!< On the box's edge, as a fraction of it: a curve's extreme is found numerically
+    const QRectF    body(5, 5, 270, 150);
+    const auto      fills = [&](const ShapeProperties& s, const char* what) {
+        const QRectF e = Geometry::outlineExtent(s, body);
+        EXPECT_NEAR(e.left(), 0.0, k_onEdge) << what;
+        EXPECT_NEAR(e.top(), 0.0, k_onEdge) << what;
+        EXPECT_NEAR(e.right(), 1.0, k_onEdge) << what;
+        EXPECT_NEAR(e.bottom(), 1.0, k_onEdge) << what;
+    };
+    for (const Geometry::ShapeTemplate& t : Geometry::shapeTemplates()) {
+        const auto outline = Geometry::shapeInfo(t.shape.kind).outline;
+        if (t.shape.kind == ObjectRecord::Shape::Polygon || t.shape.kind == ObjectRecord::Shape::Curve) {
+            fills(t.shape, t.id);
+        } else if (t.shape.kind == ObjectRecord::Shape::Cloud) {
+            const QRectF e = Geometry::outlineExtent(Geometry::curveOf(outline(t.shape, body), body), body);
+            EXPECT_TRUE(QRectF(0, 0, 1, 1).adjusted(-k_onEdge, -k_onEdge, k_onEdge, k_onEdge).contains(e)) << t.id;
+        } else if (outline && t.shape.kind != ObjectRecord::Shape::None) {
+            fills(Geometry::curveOf(outline(t.shape, body), body), t.id);
+        }
+    }
+}
+
+/**
+ * \brief A picked Curve node offers both its handles, the ones it lacks where they would grow from, and
+ *        *Add handles* makes those real without changing the outline. *Convert to Curve* of a speech
+ *        balloon gives each arc end one handle, on the arc's side; a node added on a straight side has none.
+ */
+TEST(Shapes, APickedCurveNodeOffersBothHandlesAndGrowsTheMissingOnes)
+{
+    const QRectF          body(5, 5, 270, 150);
+    const ShapeProperties speech  = Geometry::shapeTemplate("speech").shape;
+    const ShapeProperties curve   = Geometry::curveOf(Geometry::shapeInfo(speech.kind).outline(speech, body), body);
+    const auto            outline = Geometry::shapeInfo(ObjectRecord::Shape::Curve).outline;
+    constexpr qreal       k_samePlace = 1e-9;   //!< Two handles at one point, in balloon pixels
+
+    const auto handleAt = [&](const ShapeProperties& s, int picked, Geometry::ShapeHandle::Role role) {
+        for (const Geometry::ShapeHandle& h : Geometry::shapeHandles(s, body, 0.0, picked))
+            if (h.role == role && h.index == picked)
+                return std::optional<QPointF>(h.at);
+        return std::optional<QPointF>();
+    };
+
+    int straight = -1;   // a segment with no handle at either end: one of the box's sides
+    for (int i = 0; i < curve.nodes.size(); ++i) {
+        EXPECT_TRUE(handleAt(curve, i, Geometry::ShapeHandle::Role::InHandle)) << "node " << i;
+        EXPECT_TRUE(handleAt(curve, i, Geometry::ShapeHandle::Role::OutHandle)) << "node " << i;
+        if (curve.nodes.at(i).out.isNull() && curve.nodes.at((i + 1) % curve.nodes.size()).in.isNull())
+            straight = i;
+    }
+    ASSERT_GE(straight, 0);
+
+    // A node added on that side has neither handle; both are offered, and grown, a third of the way along
+    // the side, so the outline is the same and the offered handles are where the grown ones are.
+    const ShapeProperties split = Geometry::withVertexAdded(curve, straight);
+    const int             added = straight + 1;
+    ASSERT_TRUE(split.nodes.at(added).in.isNull() && split.nodes.at(added).out.isNull());
+    const ShapeProperties grown = Geometry::withHandlesGrown(split, added);
+    EXPECT_FALSE(grown.nodes.at(added).in.isNull());
+    EXPECT_FALSE(grown.nodes.at(added).out.isNull());
+    EXPECT_EQ(pointsInOnlyOne(outline(split, body), outline(grown, body), body), 0);
+    for (const auto role : {Geometry::ShapeHandle::Role::InHandle, Geometry::ShapeHandle::Role::OutHandle}) {
+        const QPointF offered = *handleAt(split, added, role);
+        const QPointF real    = *handleAt(grown, added, role);
+        EXPECT_NEAR(offered.x(), real.x(), k_samePlace);
+        EXPECT_NEAR(offered.y(), real.y(), k_samePlace);
+    }
+    // Nothing to grow once it has both, and nothing on the arc's side of an arc end.
+    EXPECT_EQ(Geometry::withHandlesGrown(grown, added), grown);
+    EXPECT_EQ(Geometry::withHandlesGrown(curve, straight).nodes.at(straight).in, curve.nodes.at(straight).in);
+}
+
 // ---------------------------------------------------------------------------
 // Import
 // ---------------------------------------------------------------------------
@@ -1816,6 +1902,7 @@ QString goldenRecords()
     QString    out;
     const auto write = [&out](const QString& name, const QString& look, bool tail, ObjectRecord a) {
         a.text.body.clear();
+        a.presetOrigin = {};   // written only when there is one; Presets.TheOriginTravelsWithTheObject has it
         if (!tail)
             a.tails.items.clear();
         const QRectF area = Geometry::textArea(a);
@@ -1982,6 +2069,16 @@ QString goldenRecords()
             p.fadeRound = true;
             write(QStringLiteral("speech"), QStringLiteral("fading grid, reversed, round"), true, a);
         }
+    }
+    // Rough in parts: the fill not displaced, masked by the displaced silhouette; a pattern and a fade.
+    for (const bool fading : {false, true}) {
+        ObjectRecord a       = loadedRecord();
+        a.shape              = Geometry::shapeTemplate("speech").shape;
+        a.texture.roughFill  = false;
+        a.skin.fill.kind     = ObjectRecord::Pattern::Dots;
+        a.skin.fill.fadeLeftFrom = fading ? 40.0 : a.skin.fill.fadeLeftFrom;
+        write(QStringLiteral("speech"), fading ? QStringLiteral("rough in parts, fading dots")
+                                               : QStringLiteral("rough in parts, dots"), true, a);
     }
     // A halftone shadow, hard: the pattern's marks on nothing (the cases above fade, soft).
     {

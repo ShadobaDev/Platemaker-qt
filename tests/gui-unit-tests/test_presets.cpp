@@ -1,13 +1,13 @@
-// The preset badge is computed rather than stored, which is only honest if the comparison behind it is.
-// These are the cases that decide what the artist sees: a look that still matches, a look that no longer
-// does, and the three things a preset never carried in the first place.
+// A preset is a look copied into an object, which remembers where it came from (PresetOrigin) as a hint:
+// what applying one carries and leaves, and how a preset keeps the uid that hint names it by.
 #include <gtest/gtest.h>
 
 #include <QCoreApplication>
-
-#include <functional>
+#include <QDir>
+#include <QTemporaryDir>
 
 #include "presetstore.hpp"
+#include "recordsvg.hpp"
 
 using namespace StripEdit;
 
@@ -40,39 +40,28 @@ ObjectRecord placed()
 
 } // namespace
 
-TEST_F(Presets, AnAppliedPresetIsRecognisedAsItself)
+/**
+ * \brief A preset is renamed in place, keeping its look; a built-in, an empty name and a name another of
+ *        the artist's own has are refused.
+ */
+TEST_F(Presets, ARenameKeepsTheLookAndRefusesATakenName)
 {
-    const PresetStore store;
-    ASSERT_FALSE(store.presets().isEmpty());
+    PresetStore store;
+    const int a = store.save(QStringLiteral("Rename test A"), placed(), /*replaceExisting=*/true);
+    const int b = store.save(QStringLiteral("Rename test B"), placed(), /*replaceExisting=*/true);
+    ASSERT_GE(a, store.builtinCount());
+    ASSERT_GE(b, store.builtinCount());
+    const ObjectRecord look = store.presets().at(a).record;
 
-    for (int i = 0; i < store.presets().size(); ++i) {
-        const ObjectRecord look = PresetStore::applied(store.presets().at(i), placed(), false);
-        // The first match wins, and two presets may legitimately describe the same look, so the test is
-        // that the *look* is recognised — not that this exact index comes back.
-        const int found = store.matching(look);
-        ASSERT_GE(found, 0) << "preset " << i << " is not recognised after being applied";
-        EXPECT_EQ(store.lookLabel(look), store.presets().at(found).name);
-    }
-}
+    EXPECT_FALSE(store.rename(a, QStringLiteral("rename test b")));   // taken, whatever the case
+    EXPECT_FALSE(store.rename(a, QStringLiteral("   ")));
+    EXPECT_FALSE(store.rename(0, QStringLiteral("Rename test C")));   // a built-in
+    EXPECT_TRUE(store.rename(a, QStringLiteral("  Rename test C ")));
+    EXPECT_EQ(store.presets().at(a).name, QStringLiteral("Rename test C"));
+    EXPECT_EQ(store.presets().at(a).record, look);
 
-TEST_F(Presets, OneChangedPropertyIsCustom)
-{
-    const PresetStore  store;
-    const ObjectRecord applied = PresetStore::applied(store.presets().first(), placed(), false);
-
-    // A preset carries the paddings and the line spacing too, so moving either is leaving the look.
-    const QList<std::function<void(ObjectRecord&)>> edits{
-        [](ObjectRecord& a) { a.skin.fill.colour = a.skin.fill.colour == QColor(Qt::red) ? QColor(Qt::blue) : QColor(Qt::red); },
-        [](ObjectRecord& a) { a.text.paddingSide += 5; },
-        [](ObjectRecord& a) { a.text.paddingTop += 5; },
-        [](ObjectRecord& a) { a.text.lineSpacing += 10; },
-    };
-    for (int i = 0; i < edits.size(); ++i) {
-        ObjectRecord look = applied;
-        edits.at(i)(look);
-        EXPECT_EQ(store.matching(look), -1) << "edit " << i;
-        EXPECT_EQ(store.lookLabel(look), QStringLiteral("Custom")) << "edit " << i;
-    }
+    store.remove(qMax(a, b));   // the application's settings, shared with the next run
+    store.remove(qMin(a, b));
 }
 
 TEST_F(Presets, APresetBringsItsPaddingAndLineSpacing)
@@ -89,55 +78,97 @@ TEST_F(Presets, APresetBringsItsPaddingAndLineSpacing)
     EXPECT_EQ(look.text.lineSpacing, 90);
 }
 
-TEST_F(Presets, WhatAPresetNeverCarriedCannotBreakTheMatch)
+/**
+ * \brief Applying a preset makes it the object's origin, by its uid and name; *No preset* (a preset with no
+ *        uid) leaves none. Every built-in has a uid of its own.
+ */
+TEST_F(Presets, AnAppliedPresetBecomesTheObjectsOrigin)
 {
     const PresetStore store;
-    ObjectRecord      look = PresetStore::applied(store.presets().first(), placed(), false);
-    const int         was  = store.matching(look);
-    ASSERT_GE(was, 0);
-
-    // The lettering, the box and the tails are the object's own — a preset copies them across rather
-    // than carrying them, so editing any of them leaves the look alone.
-    look.text.body = QStringLiteral("something else entirely");
-    look.box       = QSize(900, 40);
-    look.tails.items.clear();
-    EXPECT_EQ(store.matching(look), was);
-
-    // And the style seed belongs to no group at all. Comparing whole records would have made a
-    // re-rolled outline report as a different look, which is the trap this comparison exists to avoid.
-    look.styleSeed = 987654321;
-    EXPECT_EQ(store.matching(look), was);
-}
-
-TEST_F(Presets, APresetWithNoFontMatchesTheDefaultByName)
-{
-    // A bubble made from a built-in carries an empty family in memory, and the default's name once it has
-    // been written and read back. Both are the same font, so both are the same preset.
-    PresetStore store;
-    store.setDefaultFamily(QStringLiteral("Test Sans"));
-    const ObjectRecord fresh = PresetStore::applied(store.presets().at(0), placed(), /*keepShape=*/false);
-    ASSERT_TRUE(fresh.text.family.isEmpty());
-    ASSERT_EQ(store.matching(fresh), 0);
-
-    ObjectRecord reloaded   = fresh;
-    reloaded.text.family = QStringLiteral("Test Sans");
-    EXPECT_EQ(store.matching(reloaded), 0);
-
-    ObjectRecord another   = fresh;
-    another.text.family = QStringLiteral("Comic Neue");   // a font the preset does not have is a change
-    EXPECT_EQ(store.matching(another), -1);
-}
-
-TEST_F(Presets, AnObjectWithNoShapeMatchesNoBalloonPreset)
-{
-    const PresetStore store;
-    ObjectRecord      a = placed();
-    a.shape.kind        = ObjectRecord::Shape::None;
-    a.tails.items.clear();
-
-    // Lettering with no balloon cannot be wearing a speech balloon's look, whatever its colours say.
-    const int found = store.matching(a);
-    if (found >= 0) {
-        EXPECT_EQ(store.presets().at(found).record.shape.kind, ObjectRecord::Shape::None);
+    QStringList       uids;
+    for (int i = 0; i < store.presets().size(); ++i) {
+        const BubblePreset& p = store.presets().at(i);
+        const ObjectRecord  a = PresetStore::applied(p, placed(), /*keepShape=*/false);
+        EXPECT_EQ(a.presetOrigin.uid, p.uid) << p.name.toStdString();
+        EXPECT_EQ(a.presetOrigin.name, p.name);
+        EXPECT_FALSE(p.uid.isEmpty()) << p.name.toStdString();
+        EXPECT_FALSE(uids.contains(p.uid)) << p.name.toStdString();
+        uids << p.uid;
+        EXPECT_EQ(store.indexOf(p.uid), i);
     }
+    const ObjectRecord based = PresetStore::applied(store.presets().first(), placed(), false);
+    EXPECT_TRUE(PresetStore::applied(BubblePreset{}, based, false).presetOrigin.isEmpty());
+}
+
+/**
+ * \brief A preset keeps its uid through an edit saved over it, a rename, an export and an import, and
+ *        stores no origin of its own.
+ */
+TEST_F(Presets, APresetKeepsItsUidAndStoresNoOrigin)
+{
+    PresetStore  store;
+    ObjectRecord look = PresetStore::applied(store.presets().first(), placed(), false);
+    ASSERT_FALSE(look.presetOrigin.isEmpty());
+
+    const int     at  = store.save(QStringLiteral("Uid test"), look, /*replaceExisting=*/true);
+    const QString uid = store.presets().at(at).uid;
+    EXPECT_FALSE(uid.isEmpty());
+    EXPECT_TRUE(store.presets().at(at).record.presetOrigin.isEmpty());
+
+    look.skin.fill.colour = QColor(Qt::red);
+    EXPECT_EQ(store.save(QStringLiteral("Uid test"), look, /*replaceExisting=*/true), at);
+    EXPECT_EQ(store.presets().at(at).uid, uid);
+    ASSERT_TRUE(store.rename(at, QStringLiteral("Uid test renamed")));
+    EXPECT_EQ(store.presets().at(at).uid, uid);
+
+    const QTemporaryDir dir;
+    const QString       pack = QDir(dir.path()).filePath(QStringLiteral("pack.json"));
+    QString             error;
+    ASSERT_TRUE(store.exportPack(pack, &error)) << error.toStdString();
+    store.remove(at);
+    ASSERT_EQ(store.indexOf(uid), -1);
+    ASSERT_GE(store.importPack(pack, &error), 1) << error.toStdString();
+    EXPECT_GE(store.indexOf(uid), store.builtinCount());
+
+    store.remove(store.indexOf(uid));   // the application's settings, shared with the next run
+}
+
+/**
+ * \brief An object's origin is kept where the object is: in its undo snapshot (JSON) and in its SVG.
+ */
+TEST_F(Presets, TheOriginTravelsWithTheObject)
+{
+    ObjectRecord a = placed();
+    a.presetOrigin = {QStringLiteral("uid-1"), QStringLiteral("Shout")};
+    EXPECT_EQ(ObjectRecord::fromJson(a.toJson()).presetOrigin, a.presetOrigin);
+    EXPECT_TRUE(ObjectRecord::fromJson(placed().toJson()).presetOrigin.isEmpty());
+
+    // Built by hand rather than through Svg::write(), which measures lettering and needs a
+    // QGuiApplication this target does not have: what is under test is that the reader takes the origin.
+    const QByteArray svg = QByteArray("<svg xmlns=\"http://www.w3.org/2000/svg\" xmlns:pm=\"") + Svg::k_pmNamespace
+                         + "\" width=\"10\" height=\"10\"><g pm:shape=\"box\" pm:box=\"300,160\""
+                           " pm:presetUid=\"uid-1\" pm:presetName=\"Shout\"/></svg>";
+    bool               ok   = false;
+    const ObjectRecord back = Svg::read(svg, &ok);
+    ASSERT_TRUE(ok);
+    EXPECT_EQ(back.presetOrigin, a.presetOrigin);
+}
+
+/**
+ * \brief A preset's kind is read from its look: the built-ins are bubble presets, and one saved from a text
+ *        object — no shape — is a text preset, which the default reset leaves a text object.
+ */
+TEST_F(Presets, APresetSavedFromTextIsATextPreset)
+{
+    PresetStore store;
+    for (int i = 0; i < store.builtinCount(); ++i)
+        EXPECT_FALSE(isTextPreset(store.presets().at(i))) << store.presets().at(i).name.toStdString();
+
+    ObjectRecord text = placed();
+    text.shape.kind   = ObjectRecord::Shape::None;
+    const int at      = store.save(QStringLiteral("Kind test"), text, /*replaceExisting=*/true);
+    EXPECT_TRUE(isTextPreset(store.presets().at(at)));
+    // *Reset to default* on a text object: the default look, with its own no-shape kept.
+    EXPECT_FALSE(PresetStore::applied(BubblePreset{}, text, /*keepShape=*/true).hasSilhouette());
+    store.remove(at);   // the application's settings, shared with the next run
 }

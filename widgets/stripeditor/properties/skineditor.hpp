@@ -20,6 +20,7 @@ public:
     explicit SkinEditor(QWidget* parent = nullptr);
 
     [[nodiscard]] PropertyGroup group() const override { return PropertyGroup::Skin; }
+    [[nodiscard]] QList<Row> rows() const override { return {Row::FillColour, Row::FillPattern}; }
 
     void bind(const Subjects& subjects) override;
     void applyTo(ObjectRecord& target) const override;
@@ -27,6 +28,9 @@ public:
 
     //! The values the controls currently show — what applyTo() writes.
     [[nodiscard]] const SkinProperties& values() const { return m_values; }
+
+protected:
+    void updateRows() override;
 
 private:
     //! Pushes m_values into the controls with their signals blocked.

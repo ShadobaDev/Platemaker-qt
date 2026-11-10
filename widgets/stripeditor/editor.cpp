@@ -30,6 +30,7 @@
 
 #include <QDebug>
 #include <QEvent>
+#include <QMessageBox>
 #include <QGraphicsItem>
 #include <QGraphicsLineItem>
 #include <QGraphicsScene>
@@ -221,6 +222,7 @@ Editor::Editor(PresetStore& presets, QWidget *parent)
         // One panel for every tool that authors an `ObjectRecord` — Bubble, Text, Caption — because they
         // author the same object and differ only in the shape they place, which each tool's row says.
         m_bubbleOptions = new BubbleToolOptions(*m_presets, ui->toolOptionsStack);
+        connect(m_bubbleOptions, &BubbleToolOptions::manageRequested, this, &Editor::presetsDialogRequested);
         m_toolOptions->addPage(QStringLiteral("bubble"), m_bubbleOptions);
 
         // The other create tool's options: which picture the next placement puts down. A separate panel
@@ -250,6 +252,21 @@ Editor::Editor(PresetStore& presets, QWidget *parent)
         // to be one class sitting in two places, which is how they came to look like the same panel
         // twice. They now differ in what they contain, not only in what they mean.
         m_objectState = new ObjectState(*m_presets, ui->objectStateStack);
+        // The chip naming the selection's preset opens it; one that is not among the artist's presets is
+        // brought back from the object, under its uid, so every object made from it is based on it again.
+        connect(m_objectState, &ObjectState::presetOriginClicked, this, [this](const PresetOrigin& origin) {
+            if (m_presets->indexOf(origin.uid) < 0) {
+                const Object* item = m_objects ? m_objects->object(m_objects->selectedOverlay()) : nullptr;
+                if (!item
+                    || QMessageBox::question(this, tr("Preset not found"),
+                                             tr("“%1” is not among your presets. Make it one again, from this "
+                                                "object?").arg(origin.name))
+                           != QMessageBox::Yes)
+                    return;
+                (void)m_presets->restore(origin, item->record());
+            }
+            emit presetsDialogRequested(origin.uid);
+        });
         // The strip and its pages are selected too, and they are not overlays — so they get the same
         // surface with different contents rather than an object panel full of sections that never apply.
         m_stripState  = new StripState(ui->objectStateStack);
@@ -316,12 +333,13 @@ Editor::Editor(PresetStore& presets, QWidget *parent)
         connect(m_objects, &OC::boundToTail,        m_objectState, &OS::setTail);
         connect(m_objects, &OC::boundToRecords,     m_objectState, &OS::setRecords);
         connect(m_objects, &OC::boundToMixed,       m_objectState, &OS::setMixedSubjects);
+        connect(m_objects, &OC::boundToTails,       m_objectState, &OS::setTails);
         connect(m_objects, &OC::boundToNothing,     m_objectState, &OS::clearSelection);
         connect(m_objects, &OC::blendBound,         m_objectState, &OS::setSelectionBlend);
         connect(m_objects, &OC::artworkScaleBound,  m_objectState, &OS::setArtworkScale);
         connect(m_objects, &OC::textFocusRequested, m_objectState, &OS::focusText);
-        // What TOOL OPTIONS says the next object is, for *Apply from tool options ▸* and *Convert to ▸
-        // Balloon*. Told as functions, so the objects need no tool-options panel.
+        // What TOOL OPTIONS says the next object is, for a placement and *Convert to ▸ Balloon*. Told as
+        // functions, so the objects need no tool-options panel.
         m_objects->setToolDefaults({[this] { return m_bubbleOptions->prototype(); },
                                     [this] { return m_bubbleOptions->balloonShape(); }});
         // A Create tool's drag on empty strip, and the object it places: the balloon TOOL OPTIONS
@@ -333,6 +351,44 @@ Editor::Editor(PresetStore& presets, QWidget *parent)
         // The object menu, on the stack and the canvas alike. It spends the same pair the bucket does —
         // it reads it, never writes it.
         m_objectMenu = new ObjectMenu(*m_objects, m_layout, *m_presets, ui->objectStack, m_view, this, this);
+        // A preset onto existing objects replaces their look, so it is asked once, here, whichever of the
+        // two places — OBJECT STATE's picker or the menu — it came from.
+        const auto applyPreset = [this](int index) {
+            const int n = m_objects->presetTargetCount();
+            if (n == 0 || index < 0 || index >= m_presets->presets().size())
+                return;
+            QMessageBox ask(QMessageBox::Question, tr("Apply preset"),
+                            tr("Apply “%1” to %n selected object(s)?", "", n).arg(m_presets->presets().at(index).name),
+                            QMessageBox::NoButton, this);
+            ask.setInformativeText(tr("Their shape, fill, line, texture, effects and lettering style are replaced "
+                                      "by the preset's. Their words, size and tails stay. Ctrl+Z undoes it."));
+            QPushButton* accept = ask.addButton(tr("Accept"), QMessageBox::AcceptRole);
+            ask.addButton(QMessageBox::Cancel);
+            ask.setDefaultButton(accept);
+            ask.exec();
+            if (ask.clickedButton() == accept)
+                m_objects->applyPresetToSelection(index);
+        };
+        connect(m_objectMenu, &ObjectMenu::presetApplyRequested, this, applyPreset);
+        connect(m_objectState, &ObjectState::presetApplyRequested, this, applyPreset);
+        const auto resetLook = [this] {
+            const int n = m_objects->presetTargetCount();
+            if (n == 0)
+                return;
+            QMessageBox ask(QMessageBox::Question, tr("Reset to default"),
+                            tr("Reset %n selected object(s) to the default look?", "", n), QMessageBox::NoButton, this);
+            ask.setInformativeText(tr("Their shape, fill, line, texture, effects and lettering style become the "
+                                      "default's, and they are no longer based on a preset. Their words, size and "
+                                      "tails stay. Ctrl+Z undoes it."));
+            QPushButton* accept = ask.addButton(tr("Accept"), QMessageBox::AcceptRole);
+            ask.addButton(QMessageBox::Cancel);
+            ask.setDefaultButton(accept);
+            ask.exec();
+            if (ask.clickedButton() == accept)
+                m_objects->resetSelectionLook();
+        };
+        connect(m_objectMenu, &ObjectMenu::resetLookRequested, this, resetLook);
+        connect(m_objectState, &ObjectState::resetLookRequested, this, resetLook);
         m_objectMenu->setColourSource(m_colours);
         connect(m_objects, &ObjectController::recordCreated,        this, &Editor::recordCreated);
         connect(m_objects, &ObjectController::overlaysCommitted,         this, &Editor::overlaysCommitted);
@@ -431,8 +487,11 @@ void Editor::setTool(const QString& id)
     // a tool chosen minutes ago must not decide what a bubble's properties look like — selecting a
     // balloon under the Text tool used to show nothing but its lettering, an effect with no visible
     // cause. Which groups that panel shows comes from the selected object's own kind instead.
-    if (m_bubbleOptions)
+    if (m_bubbleOptions) {
         m_bubbleOptions->setToolShape(tool->kind == ToolKind::Create ? tool->shape : std::nullopt);
+        if (tool->optionsPage == QLatin1String("bubble"))
+            m_bubbleOptions->showRows(tool->optionRows);
+    }
 
     // What a placement puts down: a picture, or — when this is empty — a balloon. Told to the placement at
     // the moment the tool is armed.

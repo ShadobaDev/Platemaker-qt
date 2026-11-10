@@ -33,6 +33,7 @@ class QWidget;
 namespace StripEdit {
 
 class PresetStore;
+struct BubblePreset;
 class StripLayout;
 class Object;
 class SelectionChrome;
@@ -64,8 +65,8 @@ class SelectionChrome;
  * - The rows of the OBJECT STACK are not here: ObjectStack (objectstack/) draws them from what this
  *   holds and reports back a selection, a mute or a new order (setStackOrder()).
  * - *Selection, and the properties panel it binds* — selectSubjects() decides what OBJECT STATE shows.
- * - *Operations on the selection* — colour, presets, artwork, re-anchor, delete, *Apply from tool
- *   options ▸*, *Convert to ▸*, blend, stacking, duplicate; each ends in applyRecords() or a signal.
+ * - *Operations on the selection* — colour, presets, artwork, re-anchor, delete, *Convert to ▸*, blend,
+ *   stacking, duplicate; each ends in applyRecords() or a signal.
  *   The object menu (ObjectMenu, objectstack/) names them; OBJECT STATE and the canvas call some too.
  * - *A new object* — requestRecord() / requestArtwork(): asked for here, created by the owner,
  *   selected when the feed brings it back. The drag that describes one is Placement's.
@@ -200,7 +201,7 @@ public:
      * **What passes through is decided by the kind, not by the silhouette.** An object that already has
      * a balloon is untouched by *Convert to ▸ Balloon* even if it wears a different one — re-shaping it
      * would be this menu doing the shape picker's job on an object the artist only had along for the
-     * ride. Changing *which* balloon a selection wears is `applyGroupToSelection(PropertyGroup::Shape)`.
+     * ride. Changing *which* balloon a selection wears is the Shape section's, or *Apply preset ▸*.
      *
      * Passing through includes keeping its place in the stack, which nothing here reorders, so
      * converting a mixed set is not two acts: select two texts and a balloon, convert to Balloon, and
@@ -323,19 +324,19 @@ public:
     void applyColourToSelection(const QColor& colour, Geometry::Part role);
 
     /**
-     * \brief Copies one property group from the tool's options onto every selected object.
-     *
-     * This is where the *style applicator* went. As a rail tool it would have to carry a current
-     * style, which a stateless tool may not; as a menu entry it carries nothing — the value is whatever
-     * TOOL OPTIONS is set to, which is the panel that already holds "what the next object will be".
-     */
-    void applyGroupToSelection(PropertyGroup group);
-
-    /**
-     * \brief Restyles the selected bubble with preset \p index, keeping what it says and where it points.
-     * \param index  The index of the preset to apply, as it appears in the *Apply preset ▸* menu.
+     * \brief Restyles every selected object we draw with preset \p index, as one history step, keeping
+     *        what each says, its size and where its tails point. A text object stays text: the preset's
+     *        shape is not given to an object that has none. A picture is left alone.
+     * \param index  The store's index of the preset.
      */
     void applyPresetToSelection(int index);
+    //! How many selected objects applyPresetToSelection() would restyle.
+    [[nodiscard]] int presetTargetCount() const;
+    //! Whether those objects include a balloon (@p bubble) and a text object (@p text): which presets apply.
+    void presetTargetKinds(bool& bubble, bool& text) const;
+    //! *Reset to default*: the selected objects' look set to the default of their kind, their origin cleared,
+    //! as one history step — applyPresetToSelection() with the default, which is no preset.
+    void resetSelectionLook();
 
     /**
      * \brief Moves the selected object onto page @p pageUid, at the same offset from that page's top.
@@ -464,6 +465,10 @@ public:
     [[nodiscard]] std::optional<ShapeNode::Type> pickedNodeType() const;
     //! Makes the picked Curve node a @p type node (Geometry::withNodeType()), as one history step.
     void setPickedNodeType(ShapeNode::Type type);
+    //! Whether the picked Curve node lacks a handle on a straight side, so *Add handles* has work.
+    [[nodiscard]] bool canGrowPickedHandles() const;
+    //! Gives the picked Curve node its missing handles (Geometry::withHandlesGrown()), as one history step.
+    void growPickedHandles();
 
     /**
      * \brief *Convert to Curve*: the one selected balloon's outline, of any other kind, as the Curve that
@@ -520,8 +525,7 @@ public:
      * \brief What TOOL OPTIONS says the next object is — read, never written.
      *
      * Two questions, given as functions so that this class needs no tool-options panel: the prototype a
-     * balloon would be placed as, which *Apply from tool options ▸* copies a group from, and the
-     * silhouette a balloon would wear, which *Convert to ▸ Balloon* arrives at (never `None`, even while
+     * balloon would be placed as, and the silhouette a balloon would wear, which *Convert to ▸ Balloon* arrives at (never `None`, even while
      * the Text tool is armed). The Editor, which owns both regions, wires them.
      */
     struct ToolDefaults
@@ -578,6 +582,8 @@ signals:
     void boundToTail(const ObjectRecord& record, int index);   //!< One tail, of the balloon @p record.
     void boundToRecords(const QList<ObjectRecord>& records);   //!< Several objects, of any kinds.
     void boundToMixed(int count);   //!< Objects and tails together: nothing editable in common.
+    //! Several tails and no whole object: their @p balloons, and each tail as (balloon index, tail index).
+    void boundToTails(const QList<ObjectRecord>& balloons, const QList<QPair<int, int>>& tails);
     void boundToNothing();          //!< Nothing is selected.
     //! The selection's blend mode, none when they disagree; @p applies is false for a tail or nothing.
     void blendBound(std::optional<Platemaker::Models::BlendMode> blend, bool applies);
@@ -679,6 +685,16 @@ private:
      */
     void applyRecord(const QString& uid, const ObjectRecord& record, bool commit,
                      const QString& undoText = QString());
+
+    //! @p preset's look onto every selected object we draw, as one history step named @p step.
+    void applyLookToSelection(const BubblePreset& preset, const QString& step);
+
+public:
+    //! Makes @p origin the one selected object's origin, as one history step: what *Save as preset…* does to
+    //! the object it saved from.
+    void setSelectionOrigin(const PresetOrigin& origin);
+
+private:
 
     /**
      * \brief When @p next's box differs from what @p item holds — *Fit*, *Convert* — moves the tail tips

@@ -236,15 +236,22 @@ void ObjectStack::refresh()
             badges << toneBadge(BadgeTone::Warning, tr("unanchored"),
                                 tr("The page this object was anchored to is not in the strip, so the "
                                    "render skips it. Re-anchor it from the object's menu."), pal);
-        // The preset this object still looks like, when it looks like one. **Named or nothing**: a row
-        // is scanned, and *Custom* on every hand-made balloon would be a column of chips reporting that
-        // there is nothing to report. OBJECT STATE says *Custom* because there the question was asked.
+        // The preset this object was made from, as a hint of where its look came from — **named or
+        // nothing**: an object made from no preset has no chip. Muted when the preset is not among the
+        // artist's (deleted, or another machine's).
         if (m_objects.isParametric(uid)) {
-            const int preset = m_presets.matching(m_objects.recordFor(uid));
-            if (preset >= 0)
-                badges << toneBadge(BadgeTone::Neutral, m_presets.presets().at(preset).name,
-                                    tr("Every property a preset covers still matches this preset."),
-                                    pal);
+            const PresetOrigin origin = m_objects.recordFor(uid).presetOrigin;
+            if (!origin.isEmpty()) {
+                const QString name  = m_presets.originName(origin);
+                const bool    known = m_presets.indexOf(origin.uid) >= 0;
+                Badge chip = toneBadge(BadgeTone::Neutral, tr("%1-based").arg(name),
+                                       known ? tr("Made from the preset “%1”.").arg(name)
+                                             : tr("Made from the preset “%1”, which is not among your presets.").arg(name),
+                                       pal);
+                if (!known)
+                    chip.withTextColour(pal.color(QPalette::Disabled, QPalette::WindowText));
+                badges << chip;
+            }
         }
         // Lower-cased here and Title Case on the menu, deliberately: a menu entry is a command and a
         // chip is a remark, and a column of chips that disagreed about their capitals would read as

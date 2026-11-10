@@ -84,8 +84,9 @@ SelectionChrome::SelectionChrome(const QGraphicsView* view)
     : m_view(view)
 {
     setZValue(k_chromeZ);
-    // The left button only: a right press is the context menu's, and has to reach the object below.
-    setAcceptedMouseButtons(Qt::LeftButton);
+    // A right press is the context menu's, and is let through to the object below; this item only picks
+    // the node under it first, so the menu is that node's.
+    setAcceptedMouseButtons(Qt::LeftButton | Qt::RightButton);
 }
 
 qreal SelectionChrome::span() const
@@ -115,7 +116,7 @@ QRectF SelectionChrome::gripRect(const Object* o, Grip grip, qreal s) const
     // While one of its tails is the subject, the box is not: its grips are not shown, so they do not
     // resize either — what looks selected is what an edit will change. Nor while its shape is edited,
     // when the outline's own handles take their place.
-    if (o->focusedHandle() >= 0 || o->shapeEditing())
+    if (o->hasFocusedHandles() || o->shapeEditing())
         return {};
 
     const QRectF box = o->sceneBox();
@@ -278,7 +279,7 @@ void SelectionChrome::paint(QPainter* painter, const QStyleOptionGraphicsItem* o
             painter->setPen(pen);
             painter->setBrush(Qt::NoBrush);
             painter->drawPath(o->mapToScene(o->editOutline()));
-        } else if (o->focusedHandle() < 0) {
+        } else if (!o->hasFocusedHandles()) {
             pen.setStyle(Qt::DashLine);
             painter->setPen(pen);
             painter->setBrush(Qt::NoBrush);
@@ -296,10 +297,10 @@ void SelectionChrome::paint(QPainter* painter, const QStyleOptionGraphicsItem* o
             if (const QRectF r = gripRect(o, g, s); !r.isEmpty())
                 painter->drawRect(square(r.center(), s));
 
-        // The selected tail's handle is drawn hollow, so among several tails the one being edited is
+        // The selected tails' handles are drawn hollow, so among several tails the ones being edited are
         // visible on the strip as well as in the list.
         for (int i = 0; i < o->tipCount(); ++i) {
-            painter->setBrush(i == o->focusedHandle() ? base : highlight);
+            painter->setBrush(o->isFocusedHandle(i) ? base : highlight);
             painter->drawEllipse(handleRect(o, i, s));
         }
 
@@ -456,6 +457,12 @@ QSvgRenderer& SelectionChrome::radiusArrow(const QColor& fill, const QColor& edg
 void SelectionChrome::mousePressEvent(QGraphicsSceneMouseEvent* e)
 {
     const Hit hit = hitAt(e->scenePos());
+    if (e->button() == Qt::RightButton) {
+        if (hit.object && hit.grip == Grip::Shape)
+            hit.object->pickNodeOf(hit.handle);
+        e->ignore();
+        return;
+    }
     if (!hit.object) {
         e->ignore();   // not on a grip after all: let the press reach whatever is below
         return;

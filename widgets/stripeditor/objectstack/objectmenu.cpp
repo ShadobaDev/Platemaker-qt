@@ -79,28 +79,16 @@ ObjectMenu::ObjectMenu(ObjectController& objects, const StripLayout& layout, Pre
             m_objects.applyColourToSelection(m_colours->secondary(), Geometry::Part::Outline);
     });
 
-    // One property group at a time, taken from what the tool's options are set to.
-    m_groupMenu = new QMenu(tr("Apply from tool options"), dialogParent);
-    const QList<QPair<PropertyGroup, QString>> groups{
-        {PropertyGroup::Shape, tr("Shape")},
-        {PropertyGroup::Skin,    tr("Fill")},
-        {PropertyGroup::Style,   tr("Line")},
-        {PropertyGroup::Texture, tr("Texture")},
-        {PropertyGroup::Effects, tr("Effects")},
-        {PropertyGroup::Text,  tr("Text style")},
-    };
-    for (const auto& [group, name] : groups) {
-        QAction* a = m_groupMenu->addAction(name);
-        connect(a, &QAction::triggered, this, [this, group] { m_objects.applyGroupToSelection(group); });
-    }
+    m_actResetLook = new QAction(tr("Reset to default"), this);
+    connect(m_actResetLook, &QAction::triggered, this, &ObjectMenu::resetLookRequested);
 
     m_actSavePreset = new QAction(tr("Save as preset…"), this);
     connect(m_actSavePreset, &QAction::triggered, this, &ObjectMenu::saveSelectionAsPreset);
 
     // **Convert crosses the one boundary there is.** An object either has a silhouette — to fill, to
     // roughen, to grow tails from — or it has not, and that decides which property groups it carries at
-    // all. *Which* silhouette is a property, edited in OBJECT STATE and applied to a set from *Apply from
-    // tool options ▸*; it has no business in a menu about kinds. Two entries, therefore, not ten.
+    // all. *Which* silhouette is a property, edited in OBJECT STATE or brought by *Apply preset ▸*; it has no
+    // business in a menu about kinds. Two entries, therefore, not ten.
     //
     // A menu offers only what applies to every selected object, and here that intersection is either
     // both or neither: every authored object can become either
@@ -117,8 +105,8 @@ ObjectMenu::ObjectMenu(ObjectController& objects, const StripLayout& layout, Pre
             });
     m_actToBalloon = m_convertMenu->addAction(tr("Balloon"));
     m_actToBalloon->setCheckable(true);
-    // The silhouette it arrives at is the one the tool's options are set to — the same source *Apply
-    // from tool options ▸* spends, so there is one answer to "which balloon" and not two.
+    // The silhouette it arrives at is the one the tool's options are set to, so there is one answer to
+    // "which balloon" and not two.
     connect(m_actToBalloon, &QAction::triggered, this, [this] {
         m_objects.convertSelectionTo(m_objects.toolBalloonShape());
     });
@@ -189,6 +177,8 @@ ObjectMenu::ObjectMenu(ObjectController& objects, const StripLayout& layout, Pre
         a->setData(static_cast<int>(type));
         connect(a, &QAction::triggered, this, [this, type] { m_objects.setPickedNodeType(type); });
     }
+    m_actAddHandles = new QAction(tr("Add handles"), this);
+    connect(m_actAddHandles, &QAction::triggered, &m_objects, &ObjectController::growPickedHandles);
     m_actToCurve = new QAction(tr("Convert to curve"), this);
     connect(m_actToCurve, &QAction::triggered, &m_objects, &ObjectController::convertSelectionToCurve);
 
@@ -218,8 +208,8 @@ ObjectMenu::ObjectMenu(ObjectController& objects, const StripLayout& layout, Pre
     };
     for (QWidget* w : {static_cast<QWidget*>(m_tree), static_cast<QWidget*>(m_view)}) {
         w->addAction(m_presetMenu->menuAction());
+        w->addAction(m_actResetLook);
         w->addAction(m_actSavePreset);
-        w->addAction(m_groupMenu->menuAction());
         w->addAction(m_actFill);
         w->addAction(m_actOutline);
         w->addAction(m_blendMenu->menuAction());
@@ -232,6 +222,7 @@ ObjectMenu::ObjectMenu(ObjectController& objects, const StripLayout& layout, Pre
         w->addAction(m_actFixPadding);
         w->addAction(m_actEditShape);
         w->addAction(m_nodeTypeMenu->menuAction());
+        w->addAction(m_actAddHandles);
         w->addAction(m_actToCurve);
         w->addAction(m_actReroll);
         w->addAction(separator());
@@ -263,7 +254,8 @@ void ObjectMenu::updateEntries()
     const bool oneObject = picked.size() == 1 && pickedTails.isEmpty();
     if (m_actDuplicate) m_actDuplicate->setEnabled(oneObject);
     if (m_actDelete)    m_actDelete->setEnabled(!picked.isEmpty());
-    if (m_presetMenu)   m_presetMenu->menuAction()->setEnabled(oneObject);
+    if (m_presetMenu)   m_presetMenu->menuAction()->setEnabled(m_objects.presetTargetCount() > 0);
+    if (m_actResetLook) m_actResetLook->setEnabled(m_objects.presetTargetCount() > 0);
     if (m_reanchorMenu) m_reanchorMenu->menuAction()->setEnabled(oneObject);
     // Blend is a property every object has, so a set can take it; the stack order is one object's place
     // among the others, so it is not a thing several can be told at once.
@@ -271,7 +263,6 @@ void ObjectMenu::updateEntries()
     if (m_blendMenu)   m_blendMenu->menuAction()->setEnabled(anyObject);
     if (m_actForward)  m_actForward->setEnabled(oneObject);
     if (m_actBackward) m_actBackward->setEnabled(oneObject);
-    if (m_groupMenu)   m_groupMenu->menuAction()->setEnabled(anyObject);
     if (m_actFill)     m_actFill->setEnabled(anyObject && m_colours);
     if (m_actOutline)  m_actOutline->setEnabled(anyObject && m_colours);
     if (m_actSavePreset) m_actSavePreset->setEnabled(oneObject);
@@ -293,7 +284,7 @@ void ObjectMenu::updateEntries()
         if (a)
             a->setVisible(allParametric);
     if (m_presetMenu) m_presetMenu->menuAction()->setVisible(allParametric);
-    if (m_groupMenu)  m_groupMenu->menuAction()->setVisible(allParametric);
+    if (m_actResetLook) m_actResetLook->setVisible(allParametric);
     // ...and the two that only artwork has.
     const bool artwork = m_objects.selectionIsArtwork();
     if (m_actNaturalSize) m_actNaturalSize->setVisible(artwork);
@@ -331,6 +322,9 @@ void ObjectMenu::updateEntries()
         for (QAction* a : m_nodeTypeMenu->actions())
             a->setChecked(type && a->data().toInt() == static_cast<int>(*type));
     }
+    // ...and its missing handles: absent on a node that lacks none on a straight side.
+    if (m_actAddHandles)
+        m_actAddHandles->setVisible(m_objects.canGrowPickedHandles());
     if (m_actToCurve) {
         m_actToCurve->setVisible(allParametric);
         m_actToCurve->setEnabled(m_objects.canConvertToCurve());
@@ -356,11 +350,24 @@ void ObjectMenu::setColourSource(const ColourPair* pair)
 void ObjectMenu::rebuildPresetMenu()
 {
     m_presetMenu->clear();
+    // The presets of the selection's kind; both, in two sections, for balloons and text together.
+    bool bubble = false, text = false;
+    m_objects.presetTargetKinds(bubble, text);
     const QList<BubblePreset>& presets = m_presets.presets();
-    for (int i = 0; i < presets.size(); ++i) {
-        QAction* a = m_presetMenu->addAction(presets.at(i).name);
-        connect(a, &QAction::triggered, this, [this, i] { m_objects.applyPresetToSelection(i); });
+    for (const bool textKind : {false, true}) {
+        if (textKind ? !text : !bubble)
+            continue;
+        if (bubble && text)
+            m_presetMenu->addSection(textKind ? tr("Text") : tr("Bubbles"));
+        for (int i = 0; i < presets.size(); ++i) {
+            if (isTextPreset(presets.at(i)) != textKind)
+                continue;
+            QAction* a = m_presetMenu->addAction(presets.at(i).name);
+            connect(a, &QAction::triggered, this, [this, i] { emit presetApplyRequested(i); });
+        }
     }
+    if (m_presetMenu->isEmpty())
+        m_presetMenu->addAction(tr("No preset of this kind yet"))->setEnabled(false);
 }
 
 void ObjectMenu::rebuildReanchorMenu()
@@ -407,13 +414,17 @@ void ObjectMenu::saveSelectionAsPreset()
     // The store decides what a preset carries — the look, never the lettering — so this hands over the
     // whole record and lets the one function that knows the answer do the cutting.
     int existing = -1;
-    if (m_presets.save(name, bubble->record(), /*replaceExisting=*/false, &existing) < 0) {
+    int at       = m_presets.save(name, bubble->record(), /*replaceExisting=*/false, &existing);
+    if (at < 0) {
         if (QMessageBox::question(m_dialogParent, tr("Save preset"),
                                   tr("A preset named “%1” already exists. Replace it?").arg(name))
             != QMessageBox::Yes)
             return;
-        m_presets.save(name, bubble->record(), /*replaceExisting=*/true);
+        at = m_presets.save(name, bubble->record(), /*replaceExisting=*/true);
     }
+    // The object a preset is saved from is made from it, from now on.
+    const BubblePreset& saved = m_presets.presets().at(at);
+    m_objects.setSelectionOrigin({saved.uid, saved.name});
 }
 
 void ObjectMenu::importArtwork()

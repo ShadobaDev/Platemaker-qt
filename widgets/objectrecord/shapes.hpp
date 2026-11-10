@@ -55,6 +55,13 @@ struct ShapeHandle
                       //!< dot, the cross's centre.
 };
 
+//! Whether a press on a handle of @p role picks a Curve's node: the node itself, or one of its handles.
+[[nodiscard]] inline bool picksNode(ShapeHandle::Role role)
+{
+    return role == ShapeHandle::Role::Vertex || role == ShapeHandle::Role::InHandle
+        || role == ShapeHandle::Role::OutHandle;
+}
+
 /**
  * \brief One kind: everything about it that is not the record's own state.
  *
@@ -189,6 +196,22 @@ struct ShapeTemplate
  * split there (de Casteljau), so the outline keeps its shape.
  */
 [[nodiscard]] ShapeProperties withVertexAdded(const ShapeProperties& shape, int edge);
+
+/**
+ * rief @p shape with node @p index given the handles it lacks on a straight side, a third of the way to
+ *        the neighbour on that side and on the line to it, so the outline stays as it was: *Add handles*.
+ *        Unchanged when it lacks none there.
+ */
+[[nodiscard]] ShapeProperties withHandlesGrown(const ShapeProperties& shape, int index);
+
+/**
+ * \brief How far a Polygon's or a Curve's outline reaches, as fractions of @p body: (0, 0, 1, 1) when it
+ *        fills it edge to edge. What the box is fitted to when a node is dragged.
+ *
+ * A Polygon by its nodes, since its rounded corners stay inside them; a Curve by the outline drawn, since a
+ * curve may bulge past its nodes. Empty for any other kind, and for a body with no area.
+ */
+[[nodiscard]] QRectF outlineExtent(const ShapeProperties& shape, const QRectF& body);
 
 //! @p shape without node @p index; unchanged when that would leave fewer than three.
 [[nodiscard]] ShapeProperties withVertexRemoved(const ShapeProperties& shape, int index);

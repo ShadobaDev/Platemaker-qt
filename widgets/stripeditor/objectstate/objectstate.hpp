@@ -89,6 +89,8 @@ public:
      *
      */
     void setMixedSubjects(int count);
+    //! Several tails, no whole object: @p balloons are their balloons, @p tails each (balloon, tail index).
+    void setTails(const QList<ObjectRecord>& balloons, const QList<QPair<int, int>>& tails);
 
 
     /**
@@ -138,6 +140,12 @@ signals:
     void fitRequested();                    //!< "Fit to text" — the editor resizes the selected bubble.
     void fixPaddingRequested();             //!< "Fix padding" — the editor lowers the bubble's padding.
     void deleteRequested();                 //!< Removes the selected object.
+    //! The chip naming the preset the selection was made from was clicked.
+    void presetOriginClicked(const PresetOrigin& origin);
+    //! A preset was picked to restyle the selection with: the store's @p index. The editor confirms first.
+    void presetApplyRequested(int index);
+    //! *Reset to default* was clicked. The editor confirms first.
+    void resetLookRequested();
 
 private:
     void onControlChanged();   //!< A group reported an edit → collect, preview, arm the commit timer.
@@ -154,10 +162,18 @@ private:
     TailListEditor*  m_tailList = nullptr;   //!< A balloon's tails, as a collection.
     TailEditor*      m_tail     = nullptr;   //!< One selected tail.
     int              m_tailIndex = -1;       //!< The tail on show, or -1 when the subject is the balloon.
+    QList<QPair<int, int>> m_tailSet;        //!< Several tails: each (index into m_subjects, tail index).
+    //! Whether the subject is a tail, or several: the tail's section alone, and no look of its own.
+    [[nodiscard]] bool tailSubject() const { return m_tailIndex >= 0 || !m_tailSet.isEmpty(); }
 
     QLabel*             m_subject   = nullptr;  //!< Names what is being edited.
     QHBoxLayout*        m_header    = nullptr;  //!< The subject and, after it, the look chip.
-    QWidget*            m_lookChip  = nullptr;  //!< Shout / Custom / Mixed. Rebuilt, never relabelled.
+    QWidget*            m_lookChip  = nullptr;  //!< *Shout-based* / *Mixed*. Rebuilt, never relabelled.
+    QComboBox*          m_presetPicker = nullptr;   //!< *Apply a preset…* to the selection; never shows a pick.
+    QWidget*            m_presetRow    = nullptr;   //!< The picker and *Reset to default*.
+    bool                m_pickerBubble = false;     //!< The kinds the picker lists now: balloons' presets…
+    bool                m_pickerText   = false;     //!< …and text presets.
+    void refreshPresetPicker(bool bubble, bool text);
     QLabel*             m_emptyHint = nullptr;  //!< Stands in for the sections when nothing is selected.
     BlendEditor*        m_blend     = nullptr;  //!< The one property every kind of object carries.
     QWidget*            m_scaleRow  = nullptr;  //!< A picture's size; hidden for every other kind.

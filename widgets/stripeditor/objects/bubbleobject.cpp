@@ -16,34 +16,37 @@ namespace {
 //! then stays clear of the corner's own node.
 constexpr qreal k_radiusDotClearance = 2.2;
 
+//! How far a node may sit from the box's edge, as a fraction of it, and the box still count as fitted.
+constexpr qreal k_fitsBox = 1e-9;
+
 /**
- * \brief Grows @p a's box to take in every node, in the units of @p body's box.
+ * \brief Fits @p a's box to its outline (Geometry::outlineExtent()), in the units of @p body's box: it
+ *        grows to a node pulled past it, and shrinks back when the outline comes in again.
  *
- * The nodes are re-measured against the grown body, and the tail tips move back by as much as the box's
- * corner moved, so nothing moves on the strip but the node being dragged. A box that holds every node
- * already is left as it is.
+ * The nodes are re-measured against the fitted body, and the tail tips move back by as much as the box's
+ * corner moved, so nothing moves on the strip but the node being dragged. A box that fits its outline
+ * already, or an outline with no width or height, leave it as it is.
  *
  * \return How far the box's top-left moved, in the units it was in.
  */
-QPointF growToNodes(ObjectRecord& a, const QRectF& body)
+QPointF fitToOutline(ObjectRecord& a, const QRectF& body)
 {
-    qreal left = 0.0, top = 0.0, right = 1.0, bottom = 1.0;
-    for (const ShapeNode& n : std::as_const(a.shape.nodes)) {
-        left   = qMin(left, n.at.x());
-        top    = qMin(top, n.at.y());
-        right  = qMax(right, n.at.x());
-        bottom = qMax(bottom, n.at.y());
-    }
-    if (left >= 0.0 && top >= 0.0 && right <= 1.0 && bottom <= 1.0)
+    const QRectF extent = Geometry::outlineExtent(a.shape, body);
+    if (extent.isNull())
+        return {};
+    const qreal left = extent.left(), top = extent.top(), right = extent.right(), bottom = extent.bottom();
+    const bool fits = qAbs(left) <= k_fitsBox && qAbs(top) <= k_fitsBox && qAbs(right - 1.0) <= k_fitsBox
+                     && qAbs(bottom - 1.0) <= k_fitsBox;
+    if (fits || (right - left) * body.width() < 1.0 || (bottom - top) * body.height() < 1.0)
         return {};
 
-    // The grown body, and the box around it in whole pixels, the stroke's half outside it as
+    // The fitted body, and the box around it in whole pixels, the stroke's half outside it as
     // balloonRect() takes it off.
     const qreal  inset = a.style.strokeWidth / 2.0;
-    const QRectF grown(body.left() + left * body.width(), body.top() + top * body.height(),
+    const QRectF fitted(body.left() + left * body.width(), body.top() + top * body.height(),
                        (right - left) * body.width(), (bottom - top) * body.height());
-    const QPointF corner(grown.left() - inset, grown.top() - inset);
-    a.box = QSize(qCeil(grown.width() + 2 * inset), qCeil(grown.height() + 2 * inset));
+    const QPointF corner(fitted.left() - inset, fitted.top() - inset);
+    a.box = QSize(qCeil(fitted.width() + 2 * inset), qCeil(fitted.height() + 2 * inset));
 
     // A handle is an offset from its node, so it only rescales.
     const QRectF  next = Geometry::balloonRect(a);
@@ -217,9 +220,7 @@ bool BubbleObject::beginShapeDrag(int index)
         changed = true;
     }
     // A node, or one of its handles, picks that node: its handles show, and Delete or its type act on it.
-    const bool ofNode = m_shapeHandle.role == Role::Vertex || m_shapeHandle.role == Role::InHandle
-                     || m_shapeHandle.role == Role::OutHandle;
-    setPickedVertex(ofNode ? m_shapeHandle.index : -1);
+    setPickedVertex(Geometry::picksNode(m_shapeHandle.role) ? m_shapeHandle.index : -1);
     return changed;
 }
 
@@ -240,7 +241,7 @@ void BubbleObject::dragShapeTo(const QPointF& scenePos)
         next.text = Geometry::dragTextAreaHandle(m_shapeStart, m_shapeHandle, to);
     else
         next.shape = Geometry::dragShapeHandle(next.shape, body, m_shapeHandle, to, radiusClearance());
-    const QPointF moved = m_shapeHandle.role == Role::Vertex ? growToNodes(next, body) : QPointF();
+    const QPointF moved = m_shapeHandle.role == Role::Vertex ? fitToOutline(next, body) : QPointF();
     m_record = next;
     setPos(m_shapeStartPos + moved * k);
     rebuild();

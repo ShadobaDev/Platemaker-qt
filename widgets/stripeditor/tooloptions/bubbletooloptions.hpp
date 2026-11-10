@@ -3,6 +3,7 @@
 
 #include <optional>
 
+#include <QHash>
 #include <QWidget>
 
 #include "properties/propertygroupset.hpp"
@@ -50,6 +51,9 @@ public:
      */
     void setToolShape(std::optional<ObjectRecord::Shape> shape);
 
+    //! Shows the rows of @p rows only (the tool's map, Tool::optionRows), and the boxes that hold any of them.
+    void showRows(const QList<Row>& rows);
+
     //! A fresh record carrying the panel's current styling — what a new placement starts from.
     [[nodiscard]] ObjectRecord prototype() const;
 
@@ -63,25 +67,18 @@ public:
      */
     [[nodiscard]] ShapeProperties balloonShape() const;
 
+signals:
+    //! *Manage presets…*, on the picked preset (its uid; empty for none).
+    void manageRequested(const QString& presetUid);
+
 private:
     void onControlChanged();      //!< A group reported an edit → read it into the prototype's values.
     void syncFromModel();         //!< Push the prototype's values into the controls.
     void refreshPresetCombo();
-    void applyPreset(int index);
-    void onSavePreset();
+    void applyPreset(int entry);   //!< The picker's entry: 0 is *No preset*; each other carries its store index.
     void onDeletePreset();
 
     PresetStore& m_presets;
-
-    /**
-     * \brief Re-decides what *Delete* acts on: the preset these values **are**, if they are one.
-     *
-     * There is no chip here. OBJECT STATE wears one because a selected object's look is a question the panel
-     * cannot otherwise answer; here every property a preset covers is on screen a few points below, so
-     * a chip would report what the controls already say — and sitting beside the picker it read as a
-     * second control answering the same question, which is the fault this panel was rearranged to fix.
-     */
-    void refreshLook();
 
     QComboBox* m_presetCombo  = nullptr;
     QAction*   m_presetDelete = nullptr;
@@ -91,8 +88,15 @@ private:
     PropertyGroupSet m_groups;
     //! The next balloon's tail. Not in the set: an existing balloon's tails are edited as objects instead.
     NextTailEditor*     m_tails = nullptr;
+    //! The rule above each of Fill, Line, Texture and Effects, shown with it.
+    QHash<QWidget*, QWidget*> m_ruleAbove;
 
     ObjectRecord m_record;       //!< The next placement's working values.
+    //! The uid of the preset the picker names, per kind (bubble, text); empty for *No preset*.
+    QString m_pickedBubble;
+    QString m_pickedText;
+    //! The picked uid of the active tool's kind: the Text tool's is a text preset.
+    [[nodiscard]] QString& pickedUid() { return m_toolShape == ObjectRecord::Shape::None ? m_pickedText : m_pickedBubble; }
     bool m_populating   = false;   //!< Suppresses change signals while binding.
     //! The active tool's fixed shape, if it has one → the tiles are hidden and a preset restyles
     //! without changing shape, because the shape is the tool's to say.

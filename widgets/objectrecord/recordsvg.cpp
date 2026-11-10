@@ -551,13 +551,67 @@ QByteArray write(const ObjectRecord& a, const QByteArray& picture, const QString
     svg += groupAttrs(a.texture);
     svg += groupAttrs(a.effects);
     svg += attr(QStringLiteral("styleSeed"), QString::number(a.styleSeed));
+    if (!a.presetOrigin.isEmpty()) {
+        svg += attr(QStringLiteral("presetUid"), a.presetOrigin.uid);
+        svg += attr(QStringLiteral("presetName"), a.presetOrigin.name);
+    }
     svg += QLatin1String(">\n");
 
     // Two groups: the balloon — its silhouette and its line's strokes — and the lettering.
     // The texture's filter hangs on the balloon's: a displacement on the lettering would drag the words
     // about with the outline, and the balloon is what should look hand-drawn, not the words in it. The
     // lettering's own group is where a text style will hang.
-    if (!silhouette.isEmpty()) {
+    // **Rough, in parts.** The filter moves every pixel it is given, so over the whole balloon a fill's
+    // pattern wobbles with the outline. Unless the artist asks for that (`roughFill`), the balloon is drawn
+    // in three layers sharing one filter, which stay in register because the noise is a function of where a
+    // pixel is, not of which element it belongs to: the shadow, displaced; the fill, not displaced but
+    // masked by the displaced silhouette, and drawn past it by the texture's reach so it meets the moved
+    // edge; then the line and its strokes, displaced. Each displaced layer is one more turbulence pass.
+    const bool inParts = !silhouette.isEmpty() && a.texture.kind == ObjectRecord::Texture::Rough
+                      && !a.texture.roughFill;
+    if (inParts) {
+        const QString shadowLayer = shadowElements(a.effects.shadow, a.effects.shadowFill, shadow, shadowFillId,
+                                                   shadowId, QLatin1String("      "));
+        if (!shadowLayer.isEmpty())
+            svg += QStringLiteral("    <g filter=\"url(#%1)\">\n").arg(filterId) + shadowLayer
+                 + QLatin1String("    </g>\n");
+
+        const QString maskId = QStringLiteral("pm-rough-fill");
+        const qreal   reach  = Geometry::textureInfo(a.texture.kind).reach(a.texture);
+        svg += QStringLiteral("    <mask id=\"%1\" x=\"-25%\" y=\"-25%\" width=\"150%\" height=\"150%\">"
+                              "<path d=\"%2\" fill-rule=\"%3\" fill=\"white\" filter=\"url(#%4)\"/></mask>\n")
+                   .arg(maskId, pathData(silhouette), fillRule(silhouette), filterId);
+        svg += QStringLiteral("    <g mask=\"url(#%1)\">\n").arg(maskId);
+        const QString grown = QStringLiteral(" stroke-width=\"%1\" stroke-linejoin=\"round\"").arg(num(2.0 * reach));
+        const QPainterPath tone = Geometry::fillTone(a, silhouette);
+        if (tone.isEmpty()) {
+            svg += QStringLiteral("      <path d=\"%1\" fill-rule=\"%2\" %3 %4%5/>\n")
+                       .arg(pathData(silhouette), fillRule(silhouette), paintAttr("fill", a.skin.fill, fillId),
+                            paintAttr("stroke", a.skin.fill, fillId), grown);
+        } else {
+            // A fading fill: the ground, then its marks; the mask is their edge.
+            svg += QStringLiteral("      <path d=\"%1\" fill-rule=\"%2\" %3 %4%5/>\n")
+                       .arg(pathData(silhouette), fillRule(silhouette), paint("fill", a.skin.fill.colour),
+                            paint("stroke", a.skin.fill.colour), grown);
+            svg += QStringLiteral("      <path d=\"%1\" fill-rule=\"nonzero\" %2/>\n")
+                       .arg(pathData(tone), paint("fill", a.skin.fill.second));
+        }
+        svg += QLatin1String("    </g>\n");
+
+        const QPainterPath ink     = Geometry::ink(a, silhouette);
+        const bool         outline = a.style.strokeWidth > 0 && Geometry::hasOutline(a);
+        if (outline || !ink.isEmpty()) {
+            svg += QStringLiteral("    <g filter=\"url(#%1)\">\n").arg(filterId);
+            if (outline)
+                svg += QStringLiteral("      <path d=\"%1\" fill=\"none\" %2 stroke-width=\"%3\" stroke-linejoin=\"round\"/>\n")
+                           .arg(pathData(silhouette), paintAttr("stroke", a.style.stroke, strokeId))
+                           .arg(a.style.strokeWidth);
+            if (!ink.isEmpty())
+                svg += QStringLiteral("      <path d=\"%1\" fill-rule=\"%2\" %3/>\n")
+                           .arg(pathData(ink), fillRule(ink), paintAttr("fill", a.style.stroke, strokeId));
+            svg += QLatin1String("    </g>\n");
+        }
+    } else if (!silhouette.isEmpty()) {
         svg += QLatin1String("    <g");
         if (!styleDefs(a, filterId).isEmpty())
             svg += QStringLiteral(" filter=\"url(#%1)\"").arg(filterId);
@@ -649,6 +703,8 @@ ObjectRecord read(const QByteArray& svg, bool* ok)
         const auto seed   = at.value(ns, QStringLiteral("styleSeed")).toULongLong(&seedOk);
         if (seedOk)
             a.styleSeed = quint32(seed);
+        a.presetOrigin = {at.value(ns, QStringLiteral("presetUid")).toString(),
+                          at.value(ns, QStringLiteral("presetName")).toString()};
 
         if (ok)
             *ok = true;

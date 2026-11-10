@@ -37,7 +37,19 @@ public:
     void bind(const Subjects& subjects) override;
     void applyTo(ObjectRecord& target) const override;
 
+    //! Several tails at once: each control shows their common value, or *Mixed* where they disagree.
+    void bindTails(const QList<TailProperties>& tails);
+    //! Writes to tail @p index of @p target only what was moved since bindTails(); the rest stays its own.
+    void applyEditedToTail(ObjectRecord& target, int index) const;
+
 private:
+    //! Per control: whether a set disagrees on it, or, after binding, whether it was moved.
+    struct Fields
+    {
+        bool width = false, bend = false, style = false, circles = false, pitch = false, offset = false;
+    };
+    void show(const TailProperties& values, const Fields& mixed);
+
     //! The chain's rows, shown while the style is Circles.
     void showRows();
 
@@ -50,6 +62,7 @@ private:
     QDoubleSpinBox* m_offset  = nullptr;
     int             m_index   = -1;
     bool            m_populating = false;
+    Fields          m_touched;   //!< What was moved since the last binding: what a set takes.
 };
 
 }  // namespace StripEdit

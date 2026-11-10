@@ -188,6 +188,8 @@ void ObjectController::onObjectPressed(const QString& uid, int handle)
                 tails.append(t);
             QStringList objects = m_selectedOverlays;
             objects.removeAll(uid);   // the balloon comes back as the tail's carrier, not as a subject
+            for (const QString& carrier : std::as_const(m_carriers))
+                objects.removeAll(carrier);   // and so do the other selected tails' balloons
             selectSubjects(objects, tails);
         } else {
             selectTail(uid, handle);
@@ -201,14 +203,13 @@ void ObjectController::onObjectPressed(const QString& uid, int handle)
         selectOverlay(uid);
     beginDrag(uid, handle);
 
-    // In shape editing, a press on a node picks it (what Delete takes), and a press on the words is a
-    // press on the text: OBJECT STATE takes the caret.
+    // In shape editing, a press on the words is a press on the text: OBJECT STATE takes the caret. (A press
+    // on a node picks it in the object, which says so through pickedVertexChanged.)
     const Object* item = uid == m_shapeEditing ? m_overlayItems.value(uid) : nullptr;
     if (!item)
         return;
-    if (item->dragGrip() == Grip::Shape)
-        emit shapeEditingChanged();
-    else if (Geometry::partAt(item->record(), item->mapFromScene(item->pressScenePos()), 0.0) == Geometry::Part::Text)
+    if (item->dragGrip() != Grip::Shape
+        && Geometry::partAt(item->record(), item->mapFromScene(item->pressScenePos()), 0.0) == Geometry::Part::Text)
         emit textFocusRequested();
 }
 
@@ -248,6 +249,26 @@ void ObjectController::setPickedNodeType(ShapeNode::Type type)
     applyRecord(m_shapeEditing, a, /*commit=*/true, tr("Point type"));
     emit boundToRecord(a);
     emit shapeEditingChanged();   // the menu's tick, and the handles drawn
+}
+
+bool ObjectController::canGrowPickedHandles() const
+{
+    const Object* item = m_overlayItems.value(m_shapeEditing);
+    if (!pickedNodeType() || !item)
+        return false;
+    return !(Geometry::withHandlesGrown(item->record().shape, item->pickedVertex()) == item->record().shape);
+}
+
+void ObjectController::growPickedHandles()
+{
+    Object* item = m_overlayItems.value(m_shapeEditing);
+    if (!canGrowPickedHandles() || !item)
+        return;
+    ObjectRecord a = item->record();
+    a.shape        = Geometry::withHandlesGrown(a.shape, item->pickedVertex());
+    applyRecord(m_shapeEditing, a, /*commit=*/true, tr("Add handles"));
+    emit boundToRecord(a);
+    emit shapeEditingChanged();   // the menu's entry, and the handles drawn
 }
 
 bool ObjectController::canConvertToCurve() const
@@ -553,6 +574,8 @@ void ObjectController::syncItems()
             connect(item, &Object::pressed,        this, &ObjectController::onObjectPressed);
             connect(item, &Object::dragging,       this, &ObjectController::onObjectDragged);
             connect(item, &Object::chromeChanged,  this, &ObjectController::refreshChrome);
+            // The picked node is what the menu's Delete and Point type act on, however it was picked.
+            connect(item, &Object::pickedVertexChanged, this, &ObjectController::shapeEditingChanged);
             // A double-click on the one selected balloon enters shape editing, and another leaves it.
             connect(item, &Object::doubleClicked,  this, [this](const QString& uid) {
                 if (m_selectedOverlays == QStringList{uid})
@@ -769,13 +792,11 @@ void ObjectController::selectSubjects(const QStringList& uids, const QList<TailR
     m_syncingList = true;
     for (auto it = m_overlayItems.begin(); it != m_overlayItems.end(); ++it) {
         it.value()->setSelected(picked.contains(it.key()));
-        it.value()->setFocusedHandle(-1);
-    }
-    // ponytail: one focused handle per balloon. Select two tails of the same balloon and only the last
-    // is drawn hollow; both still move. Per-handle marking would need the chrome to carry a set.
-    for (const TailRef& t : pickedTails) {
-        if (Object* item = m_overlayItems.value(t.uid))
-            item->setFocusedHandle(t.index);
+        QList<int> focused;   // every selected tail of this balloon, each drawn hollow
+        for (const TailRef& t : std::as_const(pickedTails))
+            if (t.uid == it.key())
+                focused << t.index;
+        it.value()->setFocusedHandles(focused);
     }
 
     emit selectionChanged();   // the stack's rows and the menu's entries follow it
@@ -794,6 +815,17 @@ void ObjectController::selectSubjects(const QStringList& uids, const QList<TailR
     } else if (singleTail) {
         m_panelSubjects = QStringList{m_selectedOverlay};   // the tail's balloon owns the record
         emit boundToTail(primary->record(), m_selectedTail);
+    } else if (!pickedTails.isEmpty() && carriers.size() == picked.size()) {
+        // Tails and nothing else: what they share is a tail's own section. Their balloons are the panel's
+        // subjects, in this order, so an edit writes each tail into its balloon (applyPanelRecords()).
+        m_panelSubjects = carriers;
+        QList<ObjectRecord>    balloons;
+        QList<QPair<int, int>> tails;
+        for (const QString& uid : std::as_const(carriers))
+            balloons << recordFor(uid);
+        for (const TailRef& t : std::as_const(pickedTails))
+            tails << qMakePair(int(carriers.indexOf(t.uid)), t.index);
+        emit boundToTails(balloons, tails);
     } else if (!pickedTails.isEmpty()) {
         emit boundToMixed(selectedSubjectCount());
     } else if (oneObject) {
@@ -919,17 +951,67 @@ void ObjectController::fixSelectionPadding()
     emit boundToRecord(a);
 }
 
+int ObjectController::presetTargetCount() const
+{
+    return int(std::count_if(m_selectedOverlays.cbegin(), m_selectedOverlays.cend(), [this](const QString& uid) {
+        return isParametric(uid) && !m_carriers.contains(uid);
+    }));
+}
+
+void ObjectController::presetTargetKinds(bool& bubble, bool& text) const
+{
+    bubble = text = false;
+    for (const QString& uid : std::as_const(m_selectedOverlays)) {
+        if (!isParametric(uid) || m_carriers.contains(uid))
+            continue;
+        (recordFor(uid).hasSilhouette() ? bubble : text) = true;
+    }
+}
+
 void ObjectController::applyPresetToSelection(int index)
 {
-    const Object* bubble = m_overlayItems.value(m_selectedOverlay);
-    if (!bubble || bubble->record().isArtwork() || index < 0 || index >= m_presets.presets().size())
+    if (index >= 0 && index < m_presets.presets().size())
+        applyLookToSelection(m_presets.presets().at(index), tr("Apply preset"));
+}
+
+void ObjectController::resetSelectionLook()
+{
+    // The default is no preset: `ObjectRecord`'s own values, with no uid, so the origin goes too.
+    applyLookToSelection(BubblePreset{}, tr("Reset to default"));
+}
+
+void ObjectController::applyLookToSelection(const BubblePreset& preset, const QString& step)
+{
+    QStringList         uids;
+    QList<ObjectRecord> next;
+    for (const QString& uid : std::as_const(m_selectedOverlays)) {
+        if (!isParametric(uid) || m_carriers.contains(uid))
+            continue;   // a picture, or a balloon only carrying a selected tail
+        const ObjectRecord& was = recordFor(uid);
+        // A balloon takes the preset's shape: the shape section is on screen, so the change is visible and
+        // reversible. A text object keeps having none — giving it one would be a conversion.
+        uids << uid;
+        next << PresetStore::applied(preset, was, /*keepShape=*/!was.hasSilhouette());
+    }
+    if (uids.isEmpty())
         return;
-    // keepShape is false: the shape section is on screen beside this menu, so a preset changing the
-    // shape is visible and reversible — unlike the tool options under the Text tool, where it is not.
-    const ObjectRecord a =
-        PresetStore::applied(m_presets.presets().at(index), bubble->record(), /*keepShape=*/false);
+    applyRecords(uids, next, /*commit=*/true,
+                 uids.size() == 1 ? step : tr("%1 (%n objects)", "", int(uids.size())).arg(step));
+    if (uids.size() > 1)
+        emit boundToRecords(next);
+    else
+        emit boundToRecord(next.first());
+}
+
+void ObjectController::setSelectionOrigin(const PresetOrigin& origin)
+{
+    const Object* item = m_overlayItems.value(m_selectedOverlay);
+    if (!item || m_selectedOverlays.size() != 1 || item->record().presetOrigin == origin)
+        return;
+    ObjectRecord a = item->record();
+    a.presetOrigin = origin;
+    applyRecord(m_selectedOverlay, a, /*commit=*/true, tr("Save as preset"));
     emit boundToRecord(a);
-    applyRecord(m_selectedOverlay, a, /*commit=*/true);
 }
 
 QPointF ObjectController::settleBox(const Object* item, ObjectRecord& next) const
@@ -1291,70 +1373,6 @@ void ObjectController::applyColourToSelection(const QColor& colour, Geometry::Pa
         emit boundToRecord(next.first());
 }
 
-void ObjectController::applyGroupToSelection(PropertyGroup group)
-{
-    if (!m_toolDefaults.prototype || m_selectedOverlays.isEmpty())
-        return;
-    const ObjectRecord source = m_toolDefaults.prototype();
-
-    QList<ObjectRecord> next;
-    int                 changed = 0;
-    for (const QString& uid : std::as_const(m_selectedOverlays)) {
-        ObjectRecord each   = recordFor(uid);
-        const bool   shaped = each.hasSilhouette();
-        switch (group) {
-        case PropertyGroup::Shape:
-            // The silhouette, to everything that has one. A shapeless object is **left alone**: giving
-            // it a balloon would be a conversion, and a conversion is somewhere else on this menu.
-            if (shaped) { each.shape = source.shape; ++changed; }   // the group, not just its kind
-            break;
-        case PropertyGroup::Skin:
-            if (shaped) { each.skin = source.skin; ++changed; }   // nothing to fill without a silhouette
-            break;
-        case PropertyGroup::Style:
-            if (shaped) {
-                each.style = source.style;
-                // The seed belongs to no group precisely so that nothing can copy it — but an object
-                // that has just become styled needs one of its own.
-                topUpStyleSeed(each);
-                ++changed;
-            }
-            break;
-        case PropertyGroup::Texture:
-            if (shaped) { each.texture = source.texture; topUpStyleSeed(each); ++changed; }   // its wobble's seed
-            break;
-        case PropertyGroup::Effects:
-            if (shaped) { each.effects = source.effects; ++changed; }
-            break;
-        case PropertyGroup::Text: {
-            // Everything about the lettering except the lettering: five balloons do not share one line.
-            const QString said = each.text.body;
-            each.text          = source.text;
-            each.text.body     = said;
-            ++changed;
-            break;
-        }
-        default:
-            break;
-        }
-        next.append(each);
-    }
-    if (changed == 0)
-        return;
-
-    const QString step = group == PropertyGroup::Shape ? tr("Apply shape")
-                       : group == PropertyGroup::Skin    ? tr("Apply fill")
-                       : group == PropertyGroup::Style   ? tr("Apply line")
-                       : group == PropertyGroup::Texture ? tr("Apply texture")
-                       : group == PropertyGroup::Effects ? tr("Apply effects")
-                                                         : tr("Apply text style");
-    applyRecords(m_selectedOverlays, next, /*commit=*/true, step);
-    if (m_selectedOverlays.size() > 1)
-        emit boundToRecords(next);
-    else
-        emit boundToRecord(next.first());
-}
-
 ShapeProperties ObjectController::toolBalloonShape() const
 {
     return m_toolDefaults.balloonShape ? m_toolDefaults.balloonShape() : ShapeProperties();
@@ -1370,7 +1388,7 @@ void ObjectController::convertSelectionTo(const ShapeProperties& shape)
     // silhouette to arrive at, but a Thought balloon asked to become a Balloon is already one — and
     // re-shaping it to whatever TOOL OPTIONS happens to show would be this menu quietly doing the shape
     // picker's job on an object the artist only had along for the ride. Changing *which* balloon several
-    // objects are is *Apply from tool options ▸ Shape*, and it says so.
+    // objects are is the Shape section's, or *Apply preset ▸*.
     const bool toSilhouette = kind != ObjectRecord::Shape::None;
 
     QList<ObjectRecord> next;

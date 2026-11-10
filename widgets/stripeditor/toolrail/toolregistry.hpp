@@ -7,6 +7,7 @@
 #include <QString>
 
 #include "objectrecord.hpp"
+#include "properties/propertygroup.hpp"
 
 namespace StripEdit {
 
@@ -72,6 +73,12 @@ struct Tool
     CursorStyle cursor = CursorStyle::Arrow;
     //! Over an object's body. `Inherit` keeps the one above — a tool that acts on objects usually should.
     CursorStyle cursorOnObject = CursorStyle::Inherit;
+    /**
+     * `bubble` page only: **the map** — which of OBJECT STATE's rows this tool's options show. The rest of
+     * the next object comes from the preset picked, or the default, untouched. The preset picker is on the
+     * page for every tool that has it, so it is not a row.
+     */
+    QList<Row> optionRows;
 };
 
 //! Every tool the rail offers, in rail order. **A tool that reuses an existing ToolKind and options page

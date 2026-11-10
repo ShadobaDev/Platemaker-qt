@@ -144,6 +144,8 @@ private slots:
 
     // Tools
     void onImportBubblePresets();   //!< Imports a bubble-preset pack into the application's presets.
+    //! *Manage presets*, on the preset whose uid is @p presetUid, listing the workspace's objects made from it.
+    void openPresetsDialog(const QString& presetUid);
     void onExportBubblePresets();   //!< Exports the artist's own bubble presets as a pack.
     void onExportPackage();         //!< *File → Export package…*: the workspace and every file it uses, one zip.
     void onOpenPackage();           //!< *File → Open package…*: unpacked into a new folder, then opened.

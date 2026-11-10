@@ -156,6 +156,14 @@ void Object::setPickedVertex(int index)
         return;
     m_pickedVertex = index;
     emit chromeChanged();
+    emit pickedVertexChanged();
+}
+
+void Object::pickNodeOf(int index)
+{
+    const QList<Geometry::ShapeHandle> handles = shapeHandles();
+    if (index >= 0 && index < handles.size() && Geometry::picksNode(handles.at(index).role))
+        setPickedVertex(handles.at(index).index);
 }
 
 qreal Object::gripSpanHere() const
@@ -163,11 +171,11 @@ qreal Object::gripSpanHere() const
     return gripSpan(this);
 }
 
-void Object::setFocusedHandle(int index)
+void Object::setFocusedHandles(const QList<int>& indices)
 {
-    if (m_focusedHandle == index)
+    if (m_focusedHandles == indices)
         return;
-    m_focusedHandle = index;
+    m_focusedHandles = indices;
     emit chromeChanged();
 }
 

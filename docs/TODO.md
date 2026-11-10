@@ -93,21 +93,22 @@ Bug fixes, cosmetics and internal cleanups — no new capability, no change to a
   `viewStripRequested(projectIndex, toolId)`; MainWindow calls `editor->setTool(toolId)` after opening
   the dock. The CC card passes `"grade"` and selects the strip; the bubbles card passes `"bubble"`.
 
-- [ ] **Strip editor: after *Convert to curve*, some nodes have no Bézier handles.** Seen on a speech
-  balloon (a box with a corner radius): in *Edit shape* some nodes of the converted curve show handles
-  to bend it, others show none and cannot be bent. Which nodes, and whether they are corners from the
-  box's straight sides converted without handles, is not investigated yet.
+- [x] **Strip editor: after *Convert to curve*, some nodes have no Bézier handles.** A straight side
+  converts to nodes with no handle on that side, and a picked node offered only the handles it had.
+  Fixed: a picked node offers the ones it lacks, a third of the way to its neighbour, and *Add handles*
+  in its menu grows them on a straight side. A right-click on a node now picks it, so that menu (and
+  *Delete point*) is the node's, not the balloon's.
 
-- [ ] **Strip editor: TOOL OPTIONS draws *Corner radius* and *Edge* over the first shape tile.**
+- [x] **Strip editor: TOOL OPTIONS draws *Corner radius* and *Edge* over the first shape tile.**
   `ShapeEditor` puts its parameter rows on a widget of their own, `parameters()`, for the panel to lay
   out. OBJECT STATE does (`objectstate.cpp`); `BubbleToolOptions` does not, so the widget sits unlaid
-  at the editor's top-left corner, on the tiles. Either lay it out there, or leave the parameters out
-  of TOOL OPTIONS (see the next entry).
+  at the editor's top-left corner, on the tiles. Fixed: TOOL OPTIONS lays it out under the tiles, and
+  the Speech bubble's row map leaves it out.
 
-- [ ] **Strip editor: TOOL OPTIONS shows too much.** The Bubble tool's options repeat nearly the whole
-  OBJECT STATE panel (shape, tail, fill, pattern, line, texture, shadow), a long column for choosing what
-  the next balloon looks like. Rethink what a tool's options need before the next balloon is drawn, and
-  what belongs only to the selected object.
+- [x] **Strip editor: TOOL OPTIONS shows too much.** The Bubble tool's options repeated nearly the whole
+  OBJECT STATE panel. Done: each tool names the rows its options show (`Tool::optionRows`), the preset
+  picked is what the next object is made from, and presets are saved from objects and managed in their
+  own dialog.
 
 - [ ] **ImageTile** rework to be more eye-appealing
 
@@ -422,6 +423,8 @@ New, backward-compatible features. Several are gated on a lib version, noted in 
     even. The Polygon (Shout) has the points but straight edges. The Cloud has arcs, but they bow
     outwards and are all alike. Candidates: a bow for a Polygon's edges (inwards below 0), or an inward
     scallop edge with irregularity, plus irregular point lengths from the regular polygon / star action.
+
+- [ ] **Double click on object in OBJECT STACK** shall scroll strip to the position that will make the object vivble on the screen.
 
 - [x] **Text area and lettering effects** — *Done 2026-11-03.* Built:
   - **Two paddings**, sides and top. The words start centred and grow both ways with each line; once

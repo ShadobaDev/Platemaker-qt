@@ -235,6 +235,9 @@ signals:
      *        shows the same pixels before and after, so this is about producing the output files, not the view.
      */
     void renderAndViewRequested();
+    //! *Manage presets* asked for, on the preset whose uid is @p presetUid (empty: the first). The window
+    //! opens it, because it alone sees every project's objects the dialog lists.
+    void presetsDialogRequested(const QString& presetUid);
 
     /**
      * \brief A settled grade edit — the owner (MainWindow) persists it onto the project as one undo step named

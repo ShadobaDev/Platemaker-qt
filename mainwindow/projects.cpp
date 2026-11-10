@@ -83,8 +83,13 @@ void MainWindow::onProjectDoubleClicked(QListWidgetItem *item)
 
 void MainWindow::onProjectsContextMenu(const QPoint &pos)
 {
-    // Skip if no workspace is loaded
-    if (m_workspacePath.isEmpty()) return;
+    // With no workspace open there are no projects to act on, and a project needs a workspace first.
+    if (m_workspacePath.isEmpty()) {
+        QMenu menu(this);
+        menu.addAction(ui->actionNew_workspace);
+        menu.exec(ui->listWidgetProjects->viewport()->mapToGlobal(pos));
+        return;
+    }
 
     QListWidgetItem *item = ui->listWidgetProjects->itemAt(pos);
 
@@ -617,6 +622,7 @@ void MainWindow::openStripEditorDock(int projectIndex)
     // "Render & view": outputs are cheap/regenerable, so this just runs the normal render for the
     // project; onRenderFinished refreshes this editor when it completes. If the project is already up to
     // date, startRender is a no-op and the already-loaded committed slices stay shown.
+    connect(editor, &StripEdit::Editor::presetsDialogRequested, this, &MainWindow::openPresetsDialog);
     connect(editor, &StripEdit::Editor::renderAndViewRequested, this, [this, projectUid] {
         if (const int idx = projectIndexForUid(projectUid); idx >= 0)
             (void)startRender(idx);

@@ -34,12 +34,19 @@ public:
     explicit StyleEditor(QWidget* parent = nullptr);
 
     [[nodiscard]] PropertyGroup group() const override { return PropertyGroup::Style; }
+    [[nodiscard]] QList<Row> rows() const override
+    {
+        return {Row::LineKind, Row::LineWidth, Row::LineColour, Row::LinePattern, Row::LineKindRows};
+    }
 
     void bind(const Subjects& subjects) override;
     void applyTo(ObjectRecord& target) const override;
     void applyEditedTo(ObjectRecord& target) const override;
 
     [[nodiscard]] const StyleProperties& values() const { return m_values; }
+
+protected:
+    void updateRows() override;
 
 private:
     void syncFromValues();

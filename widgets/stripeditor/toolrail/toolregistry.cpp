@@ -81,7 +81,8 @@ const QList<Tool>& tools()
                            "Drag on the strip to place\n"
                            "a balloon in the shape below."),
          ToolKind::Create, std::nullopt, QStringLiteral("bubble"),
-         CursorStyle::Cross, CursorStyle::Inherit},
+         CursorStyle::Cross, CursorStyle::Inherit,
+         {Row::ShapeTiles, Row::TailOn, Row::FillColour, Row::LineColour}},
 
         // The third kind of object, and the reason this tool exists: artwork could only be added from
         // the object list's context menu, which is not where anyone looks to *add* something.
@@ -104,7 +105,8 @@ const QList<Tool>& tools()
                            "Drag on the strip to place lettering\n"
                            "with no balloon around it."),
          ToolKind::Create, ObjectRecord::Shape::None, QStringLiteral("bubble"),
-         CursorStyle::Cross, CursorStyle::Inherit},
+         CursorStyle::Cross, CursorStyle::Inherit,
+         {Row::TextFont, Row::TextColour, Row::TextOutline}},
 
     };
     return table;

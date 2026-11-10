@@ -15,16 +15,18 @@ if(NOT DEFINED ROOT)
     message(FATAL_ERROR "check_layers.cmake requires -D ROOT=<widgets/stripeditor>")
 endif()
 
-set(_regions canvas objects objectstack objectstate properties tooloptions toolrail)
+set(_regions canvas objects objectstack objectstate presets properties tooloptions toolrail)
 
 # What each region may include besides itself. The root (editor.*) is where the regions meet, so it may
 # include everything and nothing may include it; the root's other files (presetstore, scrolledpage) are
 # shared by all. The table is the diagram in the strip-editor plan, read as layers:
-#   toolrail, tooloptions, objectstate -> properties;   objectstack, canvas -> objects -> properties.
+#   toolrail, tooloptions, objectstate -> properties;   objectstack, canvas -> objects -> properties;
+#   presets (the Manage presets dialog, opened by the main window) -> properties.
 set(_may_canvas      objects properties)
 set(_may_objects     properties)
 set(_may_objectstack objects properties)
 set(_may_objectstate properties)
+set(_may_presets     properties)
 set(_may_properties  "")
 set(_may_tooloptions properties)
 set(_may_toolrail    properties)

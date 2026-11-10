@@ -23,6 +23,7 @@ public:
     explicit EffectsEditor(QWidget* parent = nullptr);
 
     [[nodiscard]] PropertyGroup group() const override { return PropertyGroup::Effects; }
+    [[nodiscard]] QList<Row> rows() const override { return {Row::Effects}; }
 
     void bind(const Subjects& subjects) override;
     void applyTo(ObjectRecord& target) const override;

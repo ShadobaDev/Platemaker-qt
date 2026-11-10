@@ -11,7 +11,7 @@ SkinEditor::SkinEditor(QWidget* parent)
     // No margins: this sits inside the host panel's own group box, so its rows should line up with
     // the rows around them rather than being visibly boxed off.
     m_form->setContentsMargins(0, 0, 0, 0);
-    m_fill.build(this, m_form, &SkinProperties::fill, tr("Colour"), m_values, m_populating,
+    m_fill.build(this, m_form, &SkinProperties::fill, tr("Fill colour"), m_values, m_populating,
                  [this] { emit changed(); }, [this] { emit committed(); });
     syncFromValues();
 }
@@ -42,6 +42,11 @@ void SkinEditor::applyEditedTo(ObjectRecord& target) const
     SkinProperties t = SkinProperties::from(target);
     m_fill.applyEdited(m_values, t);
     t.applyTo(target);
+}
+
+void SkinEditor::updateRows()
+{
+    m_fill.setParts(shows(Row::FillColour), shows(Row::FillPattern));
 }
 
 void SkinEditor::syncFromValues()

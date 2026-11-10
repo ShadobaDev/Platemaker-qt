@@ -121,11 +121,19 @@ public:
         m_paint.applyEdited(values, target);
     }
 
+    //! Shows or hides the shadow's every row, the tick included.
+    void setShown(bool shown)
+    {
+        m_allowed = shown;
+        refresh();
+    }
+
 private:
     void refresh()
     {
         // A selection that disagrees shows the rows at least one of them has.
-        const bool on = m_mixed || m_shown->on;
+        const bool on = m_allowed && (m_mixed || m_shown->on);
+        m_form->setRowVisible(m_on, m_allowed);
         m_rows.setVisible(m_form, on);
         m_paint.setVisible(on);
     }
@@ -138,6 +146,7 @@ private:
     PaintRows<Group>  m_paint;              //!< Its paint.
     bool m_mixed   = false;
     bool m_touched = false;
+    bool m_allowed = true;   //!< setShown().
 };
 
 }  // namespace StripEdit

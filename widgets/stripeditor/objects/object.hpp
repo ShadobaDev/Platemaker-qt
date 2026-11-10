@@ -128,14 +128,13 @@ public:
      */
     [[nodiscard]] QPointF handleAt(int index) const { return handlePos(index); }
 
-    /**
-     * \brief Marks handle @p index as its tail's — the one selected — or none with -1. Drawn hollow.
-     * \param index The handle index.
-     */
-    void setFocusedHandle(int index);
+    //! Marks @p indices as the handles of its selected tails, drawn hollow; none with an empty list.
+    void setFocusedHandles(const QList<int>& indices);
 
-    //! The selected tail's handle, drawn hollow; -1 for none. While one is set, the box does not resize.
-    [[nodiscard]] int focusedHandle() const { return m_focusedHandle; }
+    //! Whether any of its tails is selected. While one is, the box does not resize.
+    [[nodiscard]] bool hasFocusedHandles() const { return !m_focusedHandles.isEmpty(); }
+    //! Whether handle @p index is a selected tail's, drawn hollow.
+    [[nodiscard]] bool isFocusedHandle(int index) const { return m_focusedHandles.contains(index); }
 
     //! How many extra draggable points this object has — a bubble's tail tips.
     [[nodiscard]] int tipCount() const { return handleCount(); }
@@ -163,6 +162,8 @@ public:
     [[nodiscard]] int pickedVertex() const { return m_pickedVertex; }
     //! Marks node @p index as the picked one, or none with -1.
     void setPickedVertex(int index);
+    //! Picks the node shape handle @p index of shapeHandles() belongs to; a handle of no node changes nothing.
+    void pickNodeOf(int index);
 
     //! The grip of the drag under way, or of the last one: what a settled drag was.
     [[nodiscard]] Grip dragGrip() const { return m_dragGrip; }
@@ -289,6 +290,9 @@ signals:
      */
     void geometryCommitted(const QString& uid);
 
+    //! The picked node changed (pickedVertex()): what Delete and *Point type* act on.
+    void pickedVertexChanged();
+
     /**
      * \brief The object was pressed — on handle @p handle, or on anything else when it is -1.
      *
@@ -399,7 +403,7 @@ private:
     QPointF m_startScenePos;        //!< Cursor at press, in scene coordinates.
     bool    m_moved    = false;     //!< Whether this press actually changed anything worth reporting.
     bool    m_orphaned = false;     //!< True when the anchor page is not in the strip, so the object is greyed out and cannot be moved.
-    int     m_focusedHandle = -1;   //!< The selected tail's handle, drawn hollow; -1 for none.
+    QList<int> m_focusedHandles;   //!< The selected tails' handles, drawn hollow.
     Grip    m_dragGrip = Grip::None;   //!< The grip of the drag under way or the last one (dragGrip()).
     bool    m_shapeEditing = false;    //!< See setShapeEditing().
     int     m_pickedVertex = -1;       //!< See pickedVertex().

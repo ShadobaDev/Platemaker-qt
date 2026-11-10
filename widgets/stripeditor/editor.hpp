@@ -164,6 +164,9 @@ public:
      */
     void setTool(const QString& id);
 
+    //! Selects the strip itself, the subject of a grade.
+    void selectStrip();
+
     /**
      * \brief Feeds the project's text/bubble overlays and their authoring records.
      *

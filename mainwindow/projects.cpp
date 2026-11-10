@@ -358,8 +358,19 @@ void MainWindow::openProjectDock(int projectIndex)
     });
     connect(projectWidget, &Project::renderToggleRequested,
             this, &MainWindow::onRenderToggle);
-    connect(projectWidget, &Project::viewStripRequested,
-            this, &MainWindow::openStripEditorDock);
+    connect(projectWidget, &Project::viewStripRequested, this, [this](int idx, const QString& toolId) {
+        openStripEditorDock(idx);   // lays the strip out before it returns, so there is a strip to select
+        if (toolId.isEmpty())
+            return;
+        QDockWidget* strip  = dockForStripEditor(idx);
+        auto*        editor = strip ? qobject_cast<StripEdit::Editor*>(strip->widget()) : nullptr;
+        if (!editor)
+            return;
+        // A grade is the strip's: the card lands on it, whatever was selected before.
+        if (toolId == QLatin1String("grade"))
+            editor->selectStrip();
+        editor->setTool(toolId);
+    });
     // A workspace-level edit made from this dock (canvas-profile content, output format) belongs on
     // the workspace undo timeline — push it there from the before/after snapshots the project sends.
     connect(projectWidget, &Project::workspaceEditCommitted, this,

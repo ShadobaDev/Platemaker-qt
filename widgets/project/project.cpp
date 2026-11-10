@@ -224,7 +224,7 @@ Project::Project(int projectIndex,
         emit renderToggleRequested(m_projectIndex);
     });
     connect(ui->pushButtonViewStrip, &QPushButton::clicked, this, [this]{
-        emit viewStripRequested(m_projectIndex);
+        emit viewStripRequested(m_projectIndex, QString());
     });
 
     // --- Workflow tab: a read-only pipeline map that doubles as a launchpad. It reads top-to-bottom like
@@ -538,7 +538,10 @@ void Project::refreshWorkflowMap()
     // "−" deactivates.
     const auto goInput    = [this]{ ui->tabWidget->setCurrentWidget(ui->tabInput); };
     const auto goOutput   = [this]{ ui->tabWidget->setCurrentWidget(ui->tabOutput); };
-    const auto openEditor = [this]{ emit viewStripRequested(m_projectIndex); };
+    // Each optional card opens the editor on the tool that makes what the card is about.
+    const auto openEditor = [this](const QString& toolId) {
+        return [this, toolId] { emit viewStripRequested(m_projectIndex, toolId); };
+    };
     // Every adjustment off, the page exclusions kept: those are each page's own decision, and they apply
     // again the moment the strip is graded again.
     const auto resetCC = [this] {
@@ -593,8 +596,8 @@ void Project::refreshWorkflowMap()
         c->setSubtitle(ccOn ? (nExcluded > 0 ? tr("on, %1 excluded").arg(nExcluded) : tr("on"))
                             : tr("optional"));
         c->setActions(/*add*/false, /*edit*/true, /*remove*/ccOn);
-        connect(c, &StageCard::editRequested,   this, openEditor);
-        connect(c, &StageCard::clicked,         this, openEditor);
+        connect(c, &StageCard::editRequested,   this, openEditor(QStringLiteral("grade")));
+        connect(c, &StageCard::clicked,         this, openEditor(QStringLiteral("grade")));
         connect(c, &StageCard::removeRequested, this, resetCC);
         m_workflowStack->addWidget(c, 0, Qt::AlignHCenter);
     }
@@ -615,8 +618,8 @@ void Project::refreshWorkflowMap()
         c->setActive(tbOn);
         c->setSubtitle(tbOn ? tr("%1 objects").arg(nOverlays) : tr("optional"));
         c->setActions(/*add*/false, /*edit*/true, /*remove*/tbOn);
-        connect(c, &StageCard::editRequested,   this, openEditor);
-        connect(c, &StageCard::clicked,         this, openEditor);
+        connect(c, &StageCard::editRequested,   this, openEditor(QStringLiteral("bubble")));
+        connect(c, &StageCard::clicked,         this, openEditor(QStringLiteral("bubble")));
         connect(c, &StageCard::removeRequested, this, clearOverlays);
         m_workflowStack->addWidget(c, 0, Qt::AlignHCenter);
     }

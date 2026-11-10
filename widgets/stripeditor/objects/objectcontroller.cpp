@@ -168,7 +168,7 @@ void ObjectController::selectTail(const QString& uid, int index)
         selectOverlay(uid);   // nothing at that position: the bubble is what is left to hold
         return;
     }
-    selectSubjects({uid}, {TailRef{uid, index}});
+    selectSubjects({}, {TailRef{uid, index}});   // the balloon comes in as the tail's carrier, not a subject
 }
 
 

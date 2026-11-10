@@ -640,6 +640,16 @@ void MainWindow::closeWorkspace()
     // Before anything is torn down: the docks below are what is remembered.
     rememberWorkspaceLayout();
 
+    // The docks below go only at the next turn of the event loop, and until then a tab that goes raises the
+    // one behind it, whose visibility handler would hand the undo group that project's history — deleted
+    // just below. So they are cut off from the window first: nothing a closing workspace's dock says is
+    // news to it any more.
+    for (QDockWidget *dock : m_openProjectDocks + m_openStripDocks) {
+        disconnect(dock, nullptr, this, nullptr);
+        if (dock->widget())
+            disconnect(dock->widget(), nullptr, this, nullptr);
+    }
+
     // Every project is going, so every project history has nothing left to restore — and the widgets
     // its commands point at are destroyed just below. Dropped explicitly, because these stacks are
     // owned here and outlive the docks by design: left behind, they would keep Undo enabled for a

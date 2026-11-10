@@ -7,6 +7,7 @@
 #include "projectsnapshotcommand.hpp"
 #include "overlaysnapshotcommand.hpp"
 #include "canvasprofiledialog.hpp"
+#include "dockattention.hpp"
 #include "outputformatoptionswidget.hpp"
 #include "stagecard.hpp"
 #include "workspacefolder.hpp"
@@ -17,6 +18,7 @@
 #include <platemaker/infrastructure/workspace_editor/workspace_editor.hpp>
 
 #include <QApplication>   // for the optional DRAGNDROP_DEBUG_ENABLE logging (qApp filter)
+#include <QtConcurrent/QtConcurrentMap>
 #include <QCheckBox>
 #include <QCollator>
 #include <QComboBox>
@@ -254,15 +256,48 @@ Project::Project(int projectIndex,
         ui->workflowTabLayout->addWidget(scroll, 1); // fills the tab
     }
 
-    // Validate against disk on open so tiles reflect deletions / external edits made
-    // while the app was closed (the "changed externally" case), and against the canvas
-    // profiles so pages whose profile was edited show as out of sync rather than done.
-    Platemaker::Infrastructure::ProjectEditor{m_workspace.projectItems[m_projectIndex]}.sanitize(m_workspace.canvasProfiles());
+    // Validate against disk on open so tiles reflect deletions / external edits made while the app was
+    // closed (the "changed externally" case), without holding the window: the tiles show what was last
+    // known until the check is in. What a profile edit put out of sync is not a disk fact; populate()
+    // lays it over the tiles (refreshTileStatuses()).
+    connect(&m_diskCheck, &QFutureWatcher<Platemaker::Infrastructure::DiskCheck>::finished,
+            this, &Project::onFilesCheckedOnDisk);
     populate();
+    checkFilesOnDisk();
+}
+
+void Project::checkFilesOnDisk(bool outputsOnly)
+{
+    auto& item = m_workspace.projectItems[m_projectIndex];
+    auto requests = Platemaker::Infrastructure::ProjectEditor{item}.diskCheckRequests();
+    if (outputsOnly)   // the inputs come first
+        requests.erase(requests.begin(),
+                       requests.begin() + static_cast<std::ptrdiff_t>(item.getInputImages().size()));
+
+    m_diskCheck.cancel();   // a newer check supersedes it: the same files, looked at later
+    m_diskCheckProjectUid = item.uid;
+    m_diskCheck.setFuture(QtConcurrent::mapped(std::move(requests),
+                                               &Platemaker::Infrastructure::ProjectEditor::checkOnDisk));
+}
+
+void Project::onFilesCheckedOnDisk()
+{
+    if (m_diskCheck.isCanceled())
+        return;
+    // The workspace may have been closed, or this project removed, while the files were looked at.
+    if (m_projectIndex < 0 || m_projectIndex >= static_cast<int>(m_workspace.projectItems.size())
+        || m_workspace.projectItems[m_projectIndex].uid != m_diskCheckProjectUid)
+        return;
+
+    const QList<Platemaker::Infrastructure::DiskCheck> results = m_diskCheck.future().results();
+    Platemaker::Infrastructure::ProjectEditor{m_workspace.projectItems[m_projectIndex]}.applyDiskChecks(
+        {results.begin(), results.end()});
+    refreshTileStatuses();
 }
 
 Project::~Project()
 {
+    m_diskCheck.cancel();   // files not looked at yet are not looked at for nothing
     delete ui;
 }
 
@@ -312,6 +347,23 @@ void Project::applyProjectSnapshot(const QString& snapshot, EditScope scope)
     populate();
     emit projectModified();
     emit historyStepApplied(scope, {});
+}
+
+void Project::showStep(EditScope scope)
+{
+    QWidget* part = nullptr;
+    switch (scope) {
+    case EditScope::InputFiles:      part = ui->groupBoxInputFiles;      break;
+    case EditScope::CanvasProfiles:  part = ui->groupBoxCanvasProfiles;  break;
+    case EditScope::OutputProfile:   part = ui->groupBoxOutputProfile;   break;
+    case EditScope::OutputDirectory: part = ui->groupBoxOutputDirectory; break;
+    case EditScope::StripEditor:     return;
+    }
+    // The tab first: the part is laid out, and outlined, only once its tab is in front.
+    for (QWidget* tab : {ui->tabInput, ui->tabOutput})
+        if (tab->isAncestorOf(part))
+            ui->tabWidget->setCurrentWidget(tab);
+    showPartAttention(part);
 }
 
 namespace {
@@ -395,6 +447,9 @@ void Project::commitEdit(const QString& text, const std::function<void()>& mutat
         return;                                 // — don't pollute the undo history
 
     m_undoStack->push(new ProjectSnapshotCommand(this, before, std::move(after), text, scope));
+    // Any edit may put pages out of sync (a profile unlinked, a page moved) or back in, and the tiles show
+    // it at once, as an undo of it does through populate(). In memory: no file is read.
+    refreshTileStatuses();
 }
 
 void Project::commitWorkspaceEdit(const QString& text, const std::function<void()>& mutate)
@@ -439,6 +494,7 @@ void Project::populate()
     refreshFormatControls();
     refreshOutputDirectoryDisplay();
     refreshOutputTiles();
+    refreshTileStatuses();
     refreshWorkflowMap();
 }
 
@@ -575,11 +631,14 @@ void Project::refreshProfileViews()
 {
     // Rebuild only the views derived from the workspace's profile palettes, after a workspace-level
     // profile edit (Manage/New/Edit, done in MainWindow). Deliberately a subset of populate(): it
-    // touches neither the input/output tiles (no thumbnail churn) nor sanitize() (so it can't disturb
-    // the live render statuses or re-scan inputs), which is exactly what a palette change needs.
+    // rebuilds no tile (no thumbnail churn) and never runs sanitize() (so it can't disturb the live
+    // render statuses or re-scan inputs), which is exactly what a palette change needs.
     refreshCanvasProfilesList();
     refreshOutputProfileCombo();
     refreshFormatControls();
+    // A profile edit is exactly what puts files out of sync without touching them, so the tiles follow
+    // it here, in place.
+    refreshTileStatuses();
 }
 
 // ---------------------------------------------------------------------------
@@ -739,7 +798,7 @@ void Project::addDroppedUrls(const QList<QUrl>& urls)
         if (!lastDir.isEmpty())
             item.inputDirectory = lastDir.toStdString();
         addInputPaths(paths);
-    });
+    }, EditScope::InputFiles);
 #if DRAGNDROP_DEBUG_ENABLE
     qDebug() << "[DND] addDroppedUrls: input count" << beforeCount << "->"
              << m_workspace.projectItems[m_projectIndex].getInputImages().size()

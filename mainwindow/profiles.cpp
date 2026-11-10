@@ -1,4 +1,5 @@
 #include "mainwindow.hpp"
+#include "profileimpact.hpp"
 #include "ui_mainwindow.h"
 #include "project.hpp"
 #include "canvasprofiledialog.hpp"
@@ -13,6 +14,7 @@
 #include <platemaker/infrastructure/profile_bundle_serializer/profile_bundle_serializer.hpp>
 #include <platemaker/infrastructure/workspace_editor/workspace_editor.hpp>
 
+#include <QAction>
 #include <QCloseEvent>
 #include <QCollator>
 #include <QColor>
@@ -40,12 +42,27 @@
 #include <QStandardPaths>
 #include <QTabBar>
 #include <QThread>
+#include <QTimer>
+#include <QUndoStack>
 #include <QUrl>
 
 #include <algorithm>
 #include <exception>
 #include <utility>
 #include <vector>
+
+void MainWindow::bindWorkspaceHistory(QWidget& window)
+{
+    // A modal window keeps the main window's Undo / Redo shortcuts from firing, so it carries its own.
+    auto* undo = new QAction(&window);
+    undo->setShortcut(QKeySequence::Undo);
+    connect(undo, &QAction::triggered, m_workspaceUndoStack, &QUndoStack::undo);
+    window.addAction(undo);
+    auto* redo = new QAction(&window);
+    redo->setShortcut(QKeySequence::Redo);
+    connect(redo, &QAction::triggered, m_workspaceUndoStack, &QUndoStack::redo);
+    window.addAction(redo);
+}
 
 // ---------------------------------------------------------------------------
 // Canvas profile slots
@@ -59,52 +76,53 @@
 
 void MainWindow::onManageCanvasProfiles()
 {
+    manageCanvasProfiles({});
+}
+
+void MainWindow::manageCanvasProfiles(const QString& showId)
+{
     // Skip if no workspace is loaded
     if (m_workspacePath.isEmpty()) {
         QMessageBox::information(this, tr("No Workspace"), tr("Open a workspace first."));
         return;
     }
 
-    // Open the dialog with a copy of the workspace's profiles. The dialog edits
-    // copies, and we only write the results back to the workspace if the user
-    // clicks Accept. The dialog preserves templates by id, so we can snapshot
-    // them before the dialog and re-attach them afterward (the dialog never edits them).
+    // The dialog keeps no draft: each action is written here at once, as its own undo step, and the
+    // list follows the workspace — after an action, and after an undo or redo made in the dialog.
     ManageCanvasProfilesDialog dlg(this);
+    const auto show = [this, &dlg] {
+        dlg.setProfiles({m_workspace.canvasProfiles().begin(), m_workspace.canvasProfiles().end()},
+                        m_activeCanvasProfileName);
+    };
+    show();
+    connect(this, &MainWindow::workspaceChanged, &dlg, show);
+    connect(&dlg, &ManageCanvasProfilesDialog::activeProfileChanged, this,
+            [this](const QString& name) { m_activeCanvasProfileName = name; });
+    // Asked where the change is made: in the profile editor on Save, in the manager on Delete.
+    dlg.setChangeCheck([this](QWidget* parent, const std::vector<Platemaker::Models::CanvasProfile>& palette,
+                              PaletteChange change) {
+        return confirmCanvasPalette(parent, m_workspace, palette, change);
+    });
+    // The editor mints ids for new profiles, deduplicates, and carries each profile's templates.
+    dlg.setCommit([this](std::vector<Platemaker::Models::CanvasProfile> palette, const QString& text) {
+        commitWorkspaceEdit(text, [&]{
+            Platemaker::Infrastructure::WorkspaceEditor(m_workspace).replaceCanvasProfiles(std::move(palette));
+            setDirty(true);
+        });
+    });
+    bindWorkspaceHistory(dlg);
 
-    QList<Platemaker::Models::CanvasProfile> profiles(
-        m_workspace.canvasProfiles().begin(), m_workspace.canvasProfiles().end());
-    dlg.setProfiles(profiles, m_activeCanvasProfileName);
-
-    // Quick-generate from the selected profile. The dialog edits copies, so we
-    // write the resulting templates into the LIVE profile (matched by id);
-    // it is preserved across the dialog's Accept below (preserve-by-id).
+    // Quick-generate from the selected profile, which is the workspace's own: the template is written
+    // onto it at once. A file is made, so this is not an undo step.
     const QString workspaceDir = QFileInfo(m_workspacePath).absolutePath();
     connect(&dlg, &ManageCanvasProfilesDialog::generateTemplatesRequested,
         this, [this, workspaceDir](const Platemaker::Models::CanvasProfile& selected) {
-            // A brand-new profile created in this dialog has no id yet — it isn't
-            // in the workspace, so there is nothing stable to attach the template to.
-            bool exists = false;
-            if (!selected.id.empty())
-                for (const auto& p : m_workspace.canvasProfiles())
-                    if (p.id == selected.id) { exists = true; break; }
-
-            if (!exists) {
-                QMessageBox::information(this, tr("Template"),
-                    tr("Save the new profile first (close this dialog), then "
-                       "generate its template from the Templates menu."));
-                return;
-            }
-
-            // Ask before overwriting an existing template. Check the dialog's
-            // current (possibly edited) values — `selected` — not the live profile,
-            // whose canvas fields are only updated when the dialog is accepted.
-            // `selected` carries the preserved templates, so the status reflects
-            // any just-made edit (→ Outdated) rather than the stale live state.
+            // Ask before overwriting an existing template.
             if (!TemplatesDialog::confirmOverwrite(this, m_workspace.canvasProfiles(), selected, workspaceDir))
                 return;
 
-            // Render from the dialog's current field values (a copy), then write the
-            // resulting template metadata onto the workspace profile through the editor.
+            // Render from a copy, then write the resulting template metadata onto the workspace profile
+            // through the editor.
             Platemaker::Models::CanvasProfile render = selected;
             QString err;
             if (!TemplatesDialog::generateTemplate(m_workspace, workspaceDir, render, err)) {
@@ -119,22 +137,12 @@ void MainWindow::onManageCanvasProfiles()
                     .arg(QString::fromStdString(selected.name)));
         });
 
-    if (dlg.exec() != QDialog::Accepted) return;
-
-    // Hand the whole edited palette to the editor: it mints ids for new profiles, deduplicates,
-    // and carries templates from the current profile of the same id (the manage dialog drops
-    // that field on its round trip). This replaces the former snapshot / assign / mint / re-attach
-    // done by hand here.
-    const auto result = dlg.profiles();
-    commitWorkspaceEdit(tr("Manage canvas profiles"), [&]{
-        Platemaker::Infrastructure::WorkspaceEditor(m_workspace).replaceCanvasProfiles(
-            std::vector<Platemaker::Models::CanvasProfile>(result.begin(), result.end()));
-        m_activeCanvasProfileName = dlg.activeProfileName();
-
-        setDirty(true);
-        emit workspaceProfilesChanged();
-    });
+    m_canvasManager = &dlg;
+    if (!showId.isEmpty())   // once it shows: a row is outlined where it is drawn
+        QTimer::singleShot(0, &dlg, [&dlg, showId] { dlg.showProfile(showId); });
+    dlg.exec();
 }
+
 void MainWindow::onNewCanvasProfile()
 {
     // Skip if no workspace is loaded
@@ -148,6 +156,10 @@ void MainWindow::onNewCanvasProfile()
     // the dialog warns about an identical one instead of refusing it.
     CanvasProfileDialog dlg(this);
     dlg.setExistingProfiles(m_workspace.canvasProfiles());
+    dlg.setSaveCheck([this, &dlg](const Platemaker::Models::CanvasProfile& cp) {
+        return confirmCanvasPalette(&dlg, m_workspace, withProfile(
+            {m_workspace.canvasProfiles().begin(), m_workspace.canvasProfiles().end()}, cp));
+    });
     if (dlg.exec() != QDialog::Accepted) return;
 
     auto profile = dlg.profile();
@@ -161,7 +173,6 @@ void MainWindow::onNewCanvasProfile()
             m_activeCanvasProfileName = QString::fromStdString(profile.name);
 
         setDirty(true);
-        emit workspaceProfilesChanged();
     });
 }
 
@@ -193,6 +204,9 @@ void MainWindow::onEditActiveCanvasProfile()
     CanvasProfileDialog dlg(this);
     dlg.setProfile(*it);
     dlg.setExistingProfiles(m_workspace.canvasProfiles());
+    dlg.setSaveCheck([this, &dlg, &profiles](const Platemaker::Models::CanvasProfile& cp) {
+        return confirmCanvasPalette(&dlg, m_workspace, withProfile(profiles, cp));
+    });
     if (dlg.exec() != QDialog::Accepted) return;
 
     const std::string oldName = it->name;
@@ -208,7 +222,6 @@ void MainWindow::onEditActiveCanvasProfile()
         Platemaker::Infrastructure::WorkspaceEditor(m_workspace).replaceCanvasProfiles(std::move(profiles));
 
         setDirty(true);
-        emit workspaceProfilesChanged();
     });
 }
 // ---------------------------------------------------------------------------
@@ -217,38 +230,47 @@ void MainWindow::onEditActiveCanvasProfile()
 
 void MainWindow::onManageOutputProfiles()
 {
+    manageOutputProfiles({});
+}
+
+void MainWindow::manageOutputProfiles(const QString& showId)
+{
     // Skip if no workspace is loaded
     if (m_workspacePath.isEmpty()) {
         QMessageBox::information(this, tr("No Workspace"), tr("Open a workspace first."));
         return;
     }
 
+    // The dialog keeps no draft: each action is written here at once, as its own undo step, and the
+    // list follows the workspace — after an action, and after an undo or redo made in the dialog.
+    // It shows the user's own profiles and the code-defined presets in one list. Presets are read-only
+    // in the dialog (Edit/Delete disabled) and never persisted; customising one is a Duplicate, which
+    // gives it an id of its own and so an ordinary user profile.
     ManageOutputProfilesDialog dlg(this);
-
-    // Show the user's own profiles plus the code-defined presets in one list. Presets are
-    // read-only in the dialog (Edit/Delete disabled) and never persisted; customising one is a
-    // Duplicate, which clears its id and yields an ordinary user profile.
-    QList<Platemaker::Models::OutputProfile> profiles(
-        m_workspace.outputProfiles().begin(), m_workspace.outputProfiles().end());
-    for (const auto& preset : Platemaker::Models::outputProfilePresets())
-        profiles.append(preset);
-    dlg.setProfiles(profiles, m_activeOutputProfileId);
-
-    // The dialog edits copies, and we only write the results back to the workspace if the user clicks Accept.
-    if (dlg.exec() != QDialog::Accepted) return;
-
-    // Hand the edited list to the editor: it drops any preset (presets live in code and are never
-    // persisted), mints ids for new profiles, and deduplicates. Replaces the former clear / filter /
-    // mint done by hand here.
-    const auto dlgProfiles = dlg.profiles();
-    commitWorkspaceEdit(tr("Manage output profiles"), [&]{
-        Platemaker::Infrastructure::WorkspaceEditor(m_workspace).replaceOutputProfiles(
-            std::vector<Platemaker::Models::OutputProfile>(dlgProfiles.begin(), dlgProfiles.end()));
-        m_activeOutputProfileId = dlg.activeProfileId();
-
-        setDirty(true);
-        emit workspaceProfilesChanged();
+    const auto show = [this, &dlg] {
+        QList<Platemaker::Models::OutputProfile> profiles(
+            m_workspace.outputProfiles().begin(), m_workspace.outputProfiles().end());
+        for (const auto& preset : Platemaker::Models::outputProfilePresets())
+            profiles.append(preset);
+        dlg.setProfiles(profiles, m_activeOutputProfileId);
+    };
+    show();
+    connect(this, &MainWindow::workspaceChanged, &dlg, show);
+    connect(&dlg, &ManageOutputProfilesDialog::activeProfileChanged, this,
+            [this](const QString& id) { m_activeOutputProfileId = id; });
+    // The editor drops any preset (presets live in code), mints ids for new profiles, and deduplicates.
+    dlg.setCommit([this](std::vector<Platemaker::Models::OutputProfile> profiles, const QString& text) {
+        commitWorkspaceEdit(text, [&]{
+            Platemaker::Infrastructure::WorkspaceEditor(m_workspace).replaceOutputProfiles(std::move(profiles));
+            setDirty(true);
+        });
     });
+    bindWorkspaceHistory(dlg);
+
+    m_outputManager = &dlg;
+    if (!showId.isEmpty())
+        QTimer::singleShot(0, &dlg, [&dlg, showId] { dlg.showProfile(showId); });
+    dlg.exec();
 }
 
 void MainWindow::onNewOutputProfile()
@@ -283,7 +305,6 @@ void MainWindow::onNewOutputProfile()
             m_activeOutputProfileId = QString::fromStdString(newId);
 
         setDirty(true);
-        emit workspaceProfilesChanged();
     });
 }
 
@@ -338,7 +359,6 @@ void MainWindow::onEditActiveOutputProfile()
         Platemaker::Infrastructure::WorkspaceEditor(m_workspace).replaceOutputProfiles(std::move(profiles));
 
         setDirty(true);
-        emit workspaceProfilesChanged();
     });
 }
 
@@ -753,7 +773,6 @@ void MainWindow::importProfilesFlow(bool canvasKind, const QString& src)
         report = Platemaker::Infrastructure::WorkspaceEditor(m_workspace)
                      .importProfiles(std::move(chosenCanvas), std::move(chosenOutput));
         setDirty(true);
-        emit workspaceProfilesChanged();
     });
 
     const int n = canvasKind ? static_cast<int>(report.canvasIds.size())

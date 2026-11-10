@@ -36,6 +36,14 @@ public:
      */
     void applyToProfile(Platemaker::Models::OutputProfile& profile) const;
 
+    /**
+     * \brief As large as the widget is with its largest options group, whichever group shows.
+     *
+     * Switching formats then never changes what the column around it needs, so the main window's
+     * minimum, measured once, holds for every project (MainWindow::reserveRoomForDocks()).
+     */
+    [[nodiscard]] QSize minimumSizeHint() const override;
+
 signals:
     void edited();                  //!< any control changed by the user
 

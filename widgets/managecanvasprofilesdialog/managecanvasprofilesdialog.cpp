@@ -3,6 +3,7 @@
 #include "canvasprofiledialog.hpp"
 #include "badgeitemdelegate.hpp"
 #include "profiledistinction.hpp"
+#include "dockattention.hpp"
 
 #include <QListWidgetItem>
 #include <QMessageBox>
@@ -52,14 +53,23 @@ void ManageCanvasProfilesDialog::setProfiles(const QList<Platemaker::Models::Can
     rebuildList();
 }
 
-QList<Platemaker::Models::CanvasProfile> ManageCanvasProfilesDialog::profiles() const
+void ManageCanvasProfilesDialog::setChangeCheck(ChangeCheck check)
 {
-    return m_profiles;
+    m_changeCheck = std::move(check);
 }
 
-QString ManageCanvasProfilesDialog::activeProfileName() const
+void ManageCanvasProfilesDialog::setCommit(Commit commit)
 {
-    return m_activeProfileName;
+    m_commit = std::move(commit);
+}
+
+void ManageCanvasProfilesDialog::showProfile(const QString &id)
+{
+    for (int row = 0; row < m_profiles.size(); ++row)
+        if (QString::fromStdString(m_profiles[row].id) == id) {
+            showRowAttention(ui->listWidgetProfiles, row);
+            return;
+        }
 }
 
 // ---------------------------------------------------------------------------
@@ -73,21 +83,21 @@ void ManageCanvasProfilesDialog::onSelectionChanged()
 
 void ManageCanvasProfilesDialog::onNewClicked()
 {
-    // Open the CanvasProfileDialog for creating a new profile. If the user accepts, add the new profile to the list.
     // A name may repeat — the list tells such profiles apart — and an identical one is warned about.
+    // Its Save asks what the new profile puts out of sync, in the editor, so Cancel goes back to it.
+    const auto palette = profilePalette();
     CanvasProfileDialog dlg(this);
-    dlg.setExistingProfiles(profilePalette());
+    dlg.setExistingProfiles(palette);
+    dlg.setSaveCheck([this, &dlg, &palette](const Platemaker::Models::CanvasProfile& cp) {
+        return !m_changeCheck || m_changeCheck(&dlg, withProfile(palette, cp), PaletteChange::Save);
+    });
     if (dlg.exec() != QDialog::Accepted) return;
 
-    Platemaker::Models::CanvasProfile newProfile = dlg.profile();
-
-    m_profiles.append(newProfile);
-
-    // Auto-activate if it's the first profile
-    if (m_profiles.size() == 1)
-        m_activeProfileName = QString::fromStdString(newProfile.name);
-
-    rebuildList();
+    const Platemaker::Models::CanvasProfile newProfile = dlg.profile();
+    if (m_profiles.isEmpty())   // the first profile is the active one
+        setActive(QString::fromStdString(newProfile.name));
+    m_commit(withProfile(palette, newProfile), tr("New canvas profile"));
+    ui->listWidgetProfiles->setCurrentRow(ui->listWidgetProfiles->count() - 1);   // appended
 }
 
 void ManageCanvasProfilesDialog::onEditClicked()
@@ -95,50 +105,49 @@ void ManageCanvasProfilesDialog::onEditClicked()
     const int row = selectedRow();
     if (row < 0) return;
 
+    const auto palette = profilePalette();
     CanvasProfileDialog dlg(this);
     dlg.setProfile(m_profiles[row]);
-    dlg.setExistingProfiles(profilePalette());
-
+    dlg.setExistingProfiles(palette);
+    dlg.setSaveCheck([this, &dlg, &palette](const Platemaker::Models::CanvasProfile& cp) {
+        return !m_changeCheck || m_changeCheck(&dlg, withProfile(palette, cp), PaletteChange::Save);
+    });
     if (dlg.exec() != QDialog::Accepted) return;
 
     // CanvasProfileDialog hands back the profile it was given with its fields applied, so the id
     // (project links) and templates survive the edit. If template-affecting fields changed, the
     // fingerprint check flags the template Outdated.
-    const QString oldName = QString::fromStdString(m_profiles[row].name);
-    m_profiles[row]       = dlg.profile();
-    const QString newName = QString::fromStdString(m_profiles[row].name);
-
-    // Keep activeProfileName in sync if this was the active one
-    if (m_activeProfileName == oldName)
-        m_activeProfileName = newName;
-
-    rebuildList();
+    const Platemaker::Models::CanvasProfile edited = dlg.profile();
+    if (m_activeProfileName == QString::fromStdString(m_profiles[row].name))   // a rename of the active one
+        setActive(QString::fromStdString(edited.name));
+    m_commit(withProfile(palette, edited), tr("Edit canvas profile"));
+    ui->listWidgetProfiles->setCurrentRow(row);
 }
 
 void ManageCanvasProfilesDialog::onDuplicateClicked()
 {
     // Duplicate & Edit: seed a copy of the selected profile (name + " (copy)") and open the editor on
-    // it straight away, mirroring the output-profile dialog so both behave the same. The user lands in
-    // the editor instead of having to find and Edit the copy afterwards.
+    // it straight away, mirroring the output-profile dialog so both behave the same.
     const int row = selectedRow();
     if (row < 0) return;
 
     Platemaker::Models::CanvasProfile copy = m_profiles[row];
     copy.name += " (copy)";
-    copy.id.clear();             // MainWindow assigns a fresh id on write-back (avoid collision)
+    copy.id.clear();             // the library mints its id when it is written
     copy.templates.clear();      // a duplicate has no template of its own yet
 
+    auto palette = profilePalette();
     CanvasProfileDialog dlg(this);
-    dlg.setProfile(copy);
-    dlg.setExistingProfiles(profilePalette());
-    // Atomic: cancelling the editor abandons the whole action — nothing is inserted, so a stray
-    // Duplicate never leaves an unwanted "… (copy)" behind. Only an accepted edit adds the profile.
+    dlg.setProfile(copy, ProfileSource::Unsaved);   // not saved yet: nothing to go back to
+    dlg.setExistingProfiles(palette);
+    dlg.setSaveCheck([this, &dlg, &palette](const Platemaker::Models::CanvasProfile& cp) {
+        return !m_changeCheck || m_changeCheck(&dlg, withProfile(palette, cp), PaletteChange::Save);
+    });
+    // Cancelling the editor abandons the whole action: only a saved copy is added.
     if (dlg.exec() != QDialog::Accepted) return;
 
-    // The copy went in without id or templates and comes back so — exactly what a duplicate should
-    // carry (id minted by MainWindow, no template of its own yet) — so it is inserted as-is.
-    m_profiles.insert(row + 1, dlg.profile());
-    rebuildList();
+    palette.insert(palette.begin() + row + 1, dlg.profile());
+    m_commit(std::move(palette), tr("Duplicate canvas profile"));
     ui->listWidgetProfiles->setCurrentRow(row + 1);
 }
 
@@ -151,31 +160,31 @@ void ManageCanvasProfilesDialog::onDeleteClicked()
     const QString name = QString::fromStdString(m_profiles[row].name);
 
     if (m_profiles.size() == 1) {
-        QMessageBox::information(this, "Cannot delete",
-            "At least one canvas profile must exist.");
+        QMessageBox::information(this, tr("Cannot delete"),
+            tr("At least one canvas profile must exist."));
         return;
     }
 
-    // Confirm deletion
-    const auto answer = QMessageBox::question(this, "Delete profile",
-        QString("Delete \"%1\"?").arg(name));
+    const auto answer = QMessageBox::question(this, tr("Delete profile"),
+        tr("Delete \"%1\"?").arg(name));
     if (answer != QMessageBox::Yes) return;
 
-    m_profiles.removeAt(row);
+    auto palette = profilePalette();
+    palette.erase(palette.begin() + row);
+    if (m_changeCheck && !m_changeCheck(this, palette, PaletteChange::Delete))
+        return;
 
     if (m_activeProfileName == name)
-        m_activeProfileName = QString::fromStdString(m_profiles.first().name);
-
-    rebuildList();
+        setActive(QString::fromStdString(palette.front().name));
+    m_commit(std::move(palette), tr("Delete canvas profile"));
 }
 
 void ManageCanvasProfilesDialog::onSetActiveClicked()
 {
-    // Set the selected profile as the active one. The active profile is marked with a star in the list.
     const int row = selectedRow();
     if (row < 0) return;
 
-    m_activeProfileName = QString::fromStdString(m_profiles[row].name);
+    setActive(QString::fromStdString(m_profiles[row].name));
     rebuildList();
 }
 
@@ -194,6 +203,12 @@ void ManageCanvasProfilesDialog::onGenerateTemplatesClicked()
 std::vector<Platemaker::Models::CanvasProfile> ManageCanvasProfilesDialog::profilePalette() const
 {
     return {m_profiles.begin(), m_profiles.end()};
+}
+
+void ManageCanvasProfilesDialog::setActive(const QString &name)
+{
+    m_activeProfileName = name;
+    emit activeProfileChanged(name);
 }
 
 void ManageCanvasProfilesDialog::rebuildList()

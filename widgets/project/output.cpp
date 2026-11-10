@@ -87,7 +87,7 @@ void Project::onOutputProfileChanged(int index)
             .setProjectOutputProfile(proj, id.toStdString());
         refreshFormatControls();   // reflect the newly-selected profile's format/options
         emit projectModified();
-    });
+    }, EditScope::OutputProfile);
 }
 
 void Project::refreshFormatControls()
@@ -132,7 +132,7 @@ void Project::onSelectOutputDir()
         QSettings().setValue(QStringLiteral("lastOutputDir"), dir);
         refreshOutputDirectoryDisplay();
         emit projectModified();
-    });
+    }, EditScope::OutputDirectory);
 }
 
 void Project::onClearOutputDir()
@@ -141,7 +141,7 @@ void Project::onClearOutputDir()
         m_workspace.projectItems[m_projectIndex].getOutputDirectory().clear();
         refreshOutputDirectoryDisplay();
         emit projectModified();
-    });
+    }, EditScope::OutputDirectory);
 }
 
 void Project::onFormatOptionsEdited()
@@ -238,19 +238,7 @@ void Project::refreshOutputTiles()
 {
     // Rebuild the output image tiles in the UI based on the current output images in the project.
     // This is used to refresh the output list after changes to the project's output images.
-    auto& project = m_workspace.projectItems[m_projectIndex];
-
-    // The output profile is the config axis sanitize() does not cover: a change there (e.g.
-    // PNG→JPEG, slice height, quality) is invisible on disk — the old files still exist and
-    // hash-match — so flag still-"Done" outputs as out-of-sync here, on *every* repaint, not only
-    // after an explicit Refresh. This is what keeps render-start (startRender → populate) from
-    // flashing the stale outputs green before the confirm dialog. Safe because a successful render
-    // updates project.outputSignature *before* it repopulates (see MainWindow::onRenderFinished),
-    // so freshly-rendered outputs are no longer stale and stay Done.
-    if (outputsConfigStale())
-        for (auto& of : project.getOutputImages())
-            if (of.status == FileStatus::Done)
-                of.status = FileStatus::Desynchronized;
+    const auto& project = m_workspace.projectItems[m_projectIndex];
 
     ui->listOutputImageTile->clear();
     const auto& outputs = project.getOutputImages();
@@ -258,59 +246,68 @@ void Project::refreshOutputTiles()
         addOutputImageTile(f);
 }
 
-bool Project::outputsConfigStale() const
+void Project::refreshTileStatuses()
 {
-    // Determine if the existing outputs are stale compared to the current output configuration (format/size/quality).
-    // This is used to indicate whether a re-render is required due to changes in the output configuration. Returns true if the outputs are stale, false otherwise.
     const auto& project = m_workspace.projectItems[m_projectIndex];
-    if (project.getOutputImages().empty()) return false;
 
-    // Resolve the project's profile (user or preset); if it resolves to nothing, nothing to compare.
+    // The output profile as the render would resolve it. One that resolves to nothing has nothing to
+    // be compared with, so that axis is left out rather than judged against a default.
     const auto resolved = resolveOutputProfile(m_workspace, project.outputProfileId());
-    if (!resolved) return false;
+    auto report = project.detectFileStaleness(m_workspace.canvasProfiles(),
+                                              resolved ? *resolved : OutputProfile{});
+    if (!resolved)
+        for (auto& out : report.outputs)
+            out.outputProfile = false;
 
-    // Signature mismatch covers format / target width / slice height / quality once
-    // a signature has been stored by a render.
-    const std::string curSig = outputProfileSignature(*resolved);
-    if (!project.outputSignature.empty() && project.outputSignature != curSig)
-        return true;
+    // A disk fact (Missing, Modified, Pending…) is more specific than "the settings moved on", so only
+    // a file the disk calls clean is shown out of sync.
+    const auto shown = [](FileStatus status, FileStatus clean, const FileStaleness& why) {
+        return (status == clean && why.any()) ? FileStatus::Desynchronized : status;
+    };
+    const auto reason = [](const FileStaleness& why) {
+        QStringList lines;
+        if (why.canvasProfile)   lines << tr("The canvas profile this page uses changed since the render.");
+        if (why.composition)     lines << tr("Pages were added, removed or reordered since the render.");
+        if (why.unrenderedPage)  lines << tr("A page in the strip has not been rendered yet.");
+        if (why.outputProfile)   lines << tr("The output profile changed since the render.");
+        if (why.processingSteps) lines << tr("The colour correction or the overlays changed since the render.");
+        return lines.join(QLatin1Char('\n'));
+    };
 
-    // Format change is detectable even without a stored signature (outputs rendered
-    // before signatures existed): the recorded slice extension won't match.
-    const std::string wantExt = outputFormatExtension(resolved->outputFormat);
-    const std::string& firstName = project.getOutputImages().front().fileName;
-    const auto dot = firstName.find_last_of('.');
-    const std::string haveExt =
-        (dot == std::string::npos) ? std::string{} : firstName.substr(dot);
-    return !haveExt.empty() && haveExt != wantExt;
+    // Input tiles are keyed by path (list order is the strip order, not the model's).
+    const auto& inputs = project.getInputImages();
+    QListWidget* inList = ui->listInputImageTile;
+    for (int row = 0; row < inList->count(); ++row) {
+        QListWidgetItem* item = inList->item(row);
+        auto* tile = qobject_cast<ImageTile*>(inList->itemWidget(item));
+        const std::string path = item->data(Qt::UserRole).toString().toStdString();
+        for (std::size_t i = 0; tile && i < inputs.size(); ++i) {
+            if (inputs[i].filePath != path)
+                continue;
+            const bool noProfile = inputs[i].status == FileStatus::Processed && inputs[i].canvasProfileId.empty();
+            tile->setStatus(shown(inputs[i].status, FileStatus::Processed, report.inputs[i]), noProfile);
+            tile->setToolTip(reason(report.inputs[i]));
+            break;
+        }
+    }
+
+    // Output tiles are built in getOutputImages() order, one row each (refreshOutputTiles()).
+    const auto& outputs = project.getOutputImages();
+    QListWidget* outList = ui->listOutputImageTile;
+    for (int row = 0; row < outList->count() && row < static_cast<int>(outputs.size()); ++row) {
+        if (auto* tile = qobject_cast<ImageTile*>(outList->itemWidget(outList->item(row)))) {
+            const auto o = static_cast<std::size_t>(row);
+            tile->setStatus(shown(outputs[o].status, FileStatus::Done, report.outputs[o]));
+            tile->setToolTip(reason(report.outputs[o]));
+        }
+    }
 }
 
 void Project::onRefreshFiles()
 {
-    // "Refresh files" re-checks the OUTPUT files against disk (and re-applies the output-profile
-    // staleness overlay via populate()). It must NOT re-derive input statuses: those are owned by
-    // the last render (Processed / Skipped), and sanitize() recomputes inputs from disk — which has
-    // no notion of "skipped", so it would silently revert a skipped page to Processed/Pending.
-    // sanitize() is the shared routine that also refreshes outputs + config staleness, so we run it
-    // but preserve and restore the input statuses around it, leaving inputs untouched by a refresh.
-    auto& project = m_workspace.projectItems[m_projectIndex];
-
-    auto& inputs = project.getInputImages();
-    std::vector<FileStatus> savedInputStatus;
-    savedInputStatus.reserve(inputs.size());
-    for (const auto& inf : inputs)
-        savedInputStatus.push_back(inf.status);
-
-    // Also flags outputs whose canvas profile changed since their render.
-    Platemaker::Infrastructure::ProjectEditor{project}.sanitize(m_workspace.canvasProfiles());
-
-    for (std::size_t i = 0; i < inputs.size(); ++i)
-        inputs[i].status = savedInputStatus[i];
-
-    // The output-profile staleness overlay (Done → Desynchronized) is applied by
-    // refreshOutputTiles(), reached via populate(), so it no longer needs repeating here — and
-    // that shared path is what makes render-start reflect it too.
-    populate();
+    // "Refresh files" re-checks the OUTPUT files against disk. Input statuses are the last render's
+    // (Processed / Skipped), so the inputs are not looked at; their tiles keep what they show.
+    checkFilesOnDisk(/*outputsOnly*/ true);
 }
 
 void Project::onOpenOutputDir()

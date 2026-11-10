@@ -118,3 +118,19 @@ void OutputFormatOptionsWidget::updateVisibility()
     ui->groupBoxJPG->setVisible(fmt == static_cast<int>(OutputFormat::JPEG));
     ui->groupBoxWebP->setVisible(fmt == static_cast<int>(OutputFormat::WebP));
 }
+
+QSize OutputFormatOptionsWidget::minimumSizeHint() const
+{
+    // The layout counts only the group that shows; swap it for the largest of the three.
+    QSize hint = QWidget::minimumSizeHint();
+    QSize shown(0, 0), largest(0, 0);
+    for (const QWidget *group : {static_cast<QWidget *>(ui->groupBoxPNG), static_cast<QWidget *>(ui->groupBoxJPG),
+                                 static_cast<QWidget *>(ui->groupBoxWebP)}) {
+        largest = largest.expandedTo(group->minimumSizeHint());
+        if (!group->isHidden())
+            shown = group->minimumSizeHint();
+    }
+    hint.rheight() += largest.height() - shown.height();
+    hint.setWidth(qMax(hint.width(), largest.width()));
+    return hint;
+}

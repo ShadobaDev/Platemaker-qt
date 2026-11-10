@@ -54,6 +54,7 @@ qt_add_executable(Platemaker
     widgets/profilepickerdialog/profilepickerdialog.cpp widgets/profilepickerdialog/profilepickerdialog.hpp widgets/profilepickerdialog/profilepickerdialog.ui
     widgets/templatesdialog/templatesdialog.cpp widgets/templatesdialog/templatesdialog.hpp widgets/templatesdialog/templatesdialog.ui
     widgets/outputformatoptionswidget/outputformatoptionswidget.cpp widgets/outputformatoptionswidget/outputformatoptionswidget.hpp widgets/outputformatoptionswidget/outputformatoptionswidget.ui
+    widgets/savednotes/savednotes.hpp
     widgets/aboutdialog/aboutdialog.cpp widgets/aboutdialog/aboutdialog.hpp widgets/aboutdialog/aboutdialog.ui
     widgets/licencedialog/licencedialog.cpp widgets/licencedialog/licencedialog.hpp widgets/licencedialog/licencedialog.ui
     widgets/renderworker/renderworker.cpp widgets/renderworker/renderworker.hpp
@@ -142,6 +143,7 @@ qt_add_executable(Platemaker
     widgets/badge/badge.cpp widgets/badge/badge.hpp
     widgets/badge/badgeitemdelegate.cpp widgets/badge/badgeitemdelegate.hpp
     widgets/profiledistinction/profiledistinction.cpp widgets/profiledistinction/profiledistinction.hpp
+    widgets/profileimpact/profileimpact.cpp widgets/profileimpact/profileimpact.hpp
 
     # Advisories — the application-wide registry of "this will not do what you meant".
     widgets/advisories/advisories.cpp widgets/advisories/advisories.hpp
@@ -168,6 +170,7 @@ target_include_directories(Platemaker PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/widgets/profilepickerdialog
     ${CMAKE_CURRENT_SOURCE_DIR}/widgets/templatesdialog
     ${CMAKE_CURRENT_SOURCE_DIR}/widgets/outputformatoptionswidget
+    ${CMAKE_CURRENT_SOURCE_DIR}/widgets/savednotes
     ${CMAKE_CURRENT_SOURCE_DIR}/widgets/aboutdialog
     ${CMAKE_CURRENT_SOURCE_DIR}/widgets/licencedialog
     ${CMAKE_CURRENT_SOURCE_DIR}/widgets/renderworker
@@ -182,6 +185,7 @@ target_include_directories(Platemaker PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/widgets/verticallabel
     ${CMAKE_CURRENT_SOURCE_DIR}/widgets/badge
     ${CMAKE_CURRENT_SOURCE_DIR}/widgets/profiledistinction
+    ${CMAKE_CURRENT_SOURCE_DIR}/widgets/profileimpact
     ${CMAKE_CURRENT_SOURCE_DIR}/widgets/advisories
     ${CMAKE_CURRENT_SOURCE_DIR}/widgets/workspacefolder
 )
@@ -215,7 +219,9 @@ include(FetchContent)
 #   2. find_package                     — system install or CMAKE_PREFIX_PATH
 #   3. FetchContent                     — downloads pre-built package from GitHub Releases
 # ───────────────────────────────────────────────────────────────────────────────
-set(LIBPLATEMAKER_VERSION "0.6.0" CACHE STRING "Minimum libplatemaker version required by the GUI")
+# Minimum libplatemaker version required by the GUI. A plain variable, not a cache entry: it is a
+# requirement of these sources, so raising it here must reach every existing build directory.
+set(LIBPLATEMAKER_VERSION "0.7.0")
 set(LIBPLATEMAKER_DIR "" CACHE PATH "Path to a local platemaker dev package")
 message("Local libplatemaker path: ${LIBPLATEMAKER_DIR}")
 
@@ -224,20 +230,12 @@ if(LIBPLATEMAKER_DIR)
     message("Set libplatemaker path: ${LIBPLATEMAKER_DIR}")
 endif()
 
-# Pinned: the profile-editing widgets now go through Infrastructure::WorkspaceEditor and the
-# read-only Workspace::canvasProfiles()/outputProfiles() accessors, both added in libplatemaker
-# 0.3.0 (which made the profile vectors private). Without a minimum, an older install would
-# configure cleanly and only fail later as confusing compile errors. Same variable drives the
-# download URL below, so the required and fetched versions cannot drift apart.
-#
-# Bumped to 0.5.0 for the 1.4.2 release — a hard floor, not just a preference: the GUI now calls
-# ProcessingPipeline::run() with the trailing thumbnailCacheDir argument (the render output contract,
-# lib SPECIFICATION §7.0), which does not exist before 0.5.0, so an older lib fails to compile. 0.5.0
-# also carries the atomic output publish + OutputLocked that fix the re-render write failures.
-#
-# Bumped to 0.5.2 for the profile-import/export feature: the GUI uses Infrastructure::ProfileBundleSerializer
-# and WorkspaceEditor::importProfiles (both new in 0.5.2), so an older lib fails to compile. 0.5.2 is not yet
-# on GitHub Releases — build the GUI against a locally-installed 0.5.2 dev package via LIBPLATEMAKER_DIR.
+# Pinned: without a minimum, an older install would configure cleanly and only fail later as confusing
+# compile errors. The same variable drives the download URL below, so the required and fetched versions
+# cannot drift apart. The floor is 0.7.0: the GUI calls ProjectEditor::sanitize() without arguments and
+# draws out-of-sync tiles from ProjectItem::detectFileStaleness(), both new in 0.7.0. The package's
+# config-version file is SameMinorVersion, so a later 0.MINOR is rejected as well. Until 0.7.0 is on
+# GitHub Releases, build against a locally installed dev package via LIBPLATEMAKER_DIR.
 find_package(platemaker ${LIBPLATEMAKER_VERSION} CONFIG QUIET)
 
 if(NOT platemaker_FOUND)

@@ -16,6 +16,7 @@
 #include "presetstore.hpp"
 #include "geometry.hpp"
 #include "docktitlebar.hpp"
+#include "dockattention.hpp"
 #include "verticallabel.hpp"
 
 #include <platemaker/infrastructure/workspace_editor/workspace_editor.hpp>
@@ -59,6 +60,12 @@
 #include <algorithm>
 #include <utility>
 #include <vector>
+
+namespace {
+//! The settings key of the window's size and place: one for the application, not per workspace — it is
+//! the window on this screen, which a workspace's dock layout is then restored into.
+const QString k_windowGeometryKey = QStringLiteral("windowGeometry");
+} // namespace
 
 // ---------------------------------------------------------------------------
 // Construction / destruction
@@ -280,6 +287,8 @@ MainWindow::MainWindow(QWidget *parent)
     connect(ui->actionRender_all_projects_F6, &QAction::triggered,
             this, &MainWindow::onRefreshAllProjects);
     connect(ui->actionStop_Esc, &QAction::triggered, this, &MainWindow::cancelRender);
+    connect(&m_preflightCheck, &QFutureWatcher<Platemaker::Infrastructure::DiskCheck>::finished,
+            this, &MainWindow::onPreflightChecked);
     connect(ui->pushButtonStop, &QPushButton::clicked, this, &MainWindow::cancelRender);
     connect(m_compactStop, &QToolButton::clicked, this, &MainWindow::cancelRender);
     setStopEnabled(false);
@@ -307,6 +316,9 @@ MainWindow::MainWindow(QWidget *parent)
 
     refreshProjectActions();
     updateTitleBar();
+
+    reserveRoomForDocks();
+    restoreGeometry(QSettings().value(k_windowGeometryKey).toByteArray());
 }
 
 MainWindow::~MainWindow()
@@ -326,10 +338,18 @@ void MainWindow::closeEvent(QCloseEvent *event)
     // between slices; wait briefly for it to unwind).
     if (m_rendering) {
         m_cancelToken.cancel();
+        m_preflightCheck.cancel();
         if (m_renderThread)
             m_renderThread->wait(5000);
     }
-    maybeSave() ? event->accept() : event->ignore();
+    if (!maybeSave()) {
+        event->ignore();
+        return;
+    }
+    // Quitting does not go through closeWorkspace(), so the layout is remembered here.
+    rememberWorkspaceLayout();
+    QSettings().setValue(k_windowGeometryKey, saveGeometry());
+    event->accept();
 }
 
 void MainWindow::resizeEvent(QResizeEvent *event)
@@ -415,6 +435,14 @@ bool MainWindow::eventFilter(QObject *watched, QEvent *event)
         }
     }
     return QMainWindow::eventFilter(watched, event);
+}
+
+bool MainWindow::event(QEvent *event)
+{
+    const bool handled = QMainWindow::event(event);
+    if (event->type() == QEvent::LayoutRequest && m_dockRoom.isValid())
+        setMinimumSize(m_dockRoom.expandedTo(layout()->totalMinimumSize()));
+    return handled;
 }
 
 // ---------------------------------------------------------------------------
@@ -509,6 +537,7 @@ void MainWindow::loadWorkspace(const QString &requested)
     captureSnapshot();
     addToRecentWorkspaces(path);
     applyWorkspaceToUi();
+    restoreWorkspaceLayout();   // the docks it was left with, where they were
 
     // Deferred to the next event-loop pass: applyWorkspaceToUi() only *queues* the
     // repaint, so showing a modal here would block it and leave the *previous*
@@ -608,6 +637,9 @@ void MainWindow::applyWorkspaceToUi()
 
 void MainWindow::closeWorkspace()
 {
+    // Before anything is torn down: the docks below are what is remembered.
+    rememberWorkspaceLayout();
+
     // Every project is going, so every project history has nothing left to restore — and the widgets
     // its commands point at are destroyed just below. Dropped explicitly, because these stacks are
     // owned here and outlive the docks by design: left behind, they would keep Undo enabled for a
@@ -697,10 +729,9 @@ void MainWindow::setupUndo()
     // group as their docks open (see openProjectDock).
     m_workspaceUndoStack = new QUndoStack(this);
     m_workspaceUndoStack->setUndoLimit(10);
-    // Every workspace-level change — a profile edited from any dialog or dock, templates generated, and
-    // each undo or redo of those — moves this stack, so this one connection keeps the advisories derived
-    // from profiles and templates (outdated templates, duplicate profiles) in step with all of them.
-    connect(m_workspaceUndoStack, &QUndoStack::indexChanged, this, [this]{ refreshAllAdvisories(); });
+    // Every workspace-level change, from any dialog or dock, and each undo or redo of one, ends in
+    // workspaceChanged(); this is where the views MainWindow owns follow it.
+    connect(this, &MainWindow::workspaceChanged, this, &MainWindow::onWorkspaceChanged);
     m_undoGroup->addStack(m_workspaceUndoStack);
     m_undoGroup->setActiveStack(m_workspaceUndoStack);
 
@@ -747,19 +778,90 @@ void MainWindow::applyWorkspaceSnapshot(const QString& snapshot)
     // (they live on each project's own undo stack).
     applyWorkspaceToUi();
     for (QDockWidget* dock : std::as_const(m_openProjectDocks)) {
-        const int idx = dock->property("projectIndex").toInt();
+        const int idx = projectIndexOf(dock);
         if (idx >= 0 && idx < static_cast<int>(m_workspace.projectItems.size()))
             dock->setWindowTitle(QString::fromStdString(
                 m_workspace.projectItems[static_cast<std::size_t>(idx)].name));
     }
     for (QDockWidget* dock : std::as_const(m_openStripDocks)) {
-        const int idx = dock->property("projectIndex").toInt();
+        const int idx = projectIndexOf(dock);
         if (idx >= 0 && idx < static_cast<int>(m_workspace.projectItems.size()))
             dock->setWindowTitle(tr("Strip — %1").arg(QString::fromStdString(
                 m_workspace.projectItems[static_cast<std::size_t>(idx)].name)));
     }
-    emit workspaceProfilesChanged();
     setDirty(true);
+    emit workspaceChanged();
+}
+
+void MainWindow::showWorkspaceStep(const QString& from, const QString& to)
+{
+    const auto changes = Platemaker::Infrastructure::WorkspaceEditor::metaChanges(from.toStdString(),
+                                                                                  to.toStdString());
+    // The first of a step's profiles the workspace still holds — a step that removed every one it
+    // touched (a delete, redone) has no row left to show.
+    const auto shown = [](const std::vector<std::string>& ids, const auto& palette) {
+        for (const auto& id : ids)
+            for (const auto& p : palette)
+                if (p.id == id)
+                    return QString::fromStdString(id);
+        return QString();
+    };
+
+    // Where it is seen, the first that applies: a profile in its manager — wherever the edit was made,
+    // as that is the one place showing every profile — template work in Templates, a rename in the
+    // Workspace panel.
+    enum class View { None, CanvasManager, OutputManager, Templates, ProjectRow };
+    View    view = View::None;
+    QString id;
+    if (!changes.canvasProfiles.empty()) {
+        view = View::CanvasManager;
+        id   = shown(changes.canvasProfiles, m_workspace.canvasProfiles());
+    } else if (!changes.outputProfiles.empty()) {
+        view = View::OutputManager;
+        id   = shown(changes.outputProfiles, m_workspace.outputProfiles());
+    } else if (!changes.canvasTemplates.empty()) {
+        view = View::Templates;
+        id   = shown(changes.canvasTemplates, m_workspace.canvasProfiles());
+    } else if (!changes.renamedProjects.empty()) {
+        view = View::ProjectRow;
+        id   = QString::fromStdString(changes.renamedProjects.front());
+    }
+    if (view == View::None)
+        return;
+
+    // The open manager the step belongs to shows it where it is.
+    if (view == View::CanvasManager && m_canvasManager) {
+        m_canvasManager->showProfile(id);
+        return;
+    }
+    if (view == View::OutputManager && m_outputManager) {
+        m_outputManager->showProfile(id);
+        return;
+    }
+    // Any other closes, and the step's view opens once it has: a modal window opens only after the one
+    // it replaces has left its event loop.
+    if (m_canvasManager)
+        m_canvasManager->close();
+    if (m_outputManager)
+        m_outputManager->close();
+    QTimer::singleShot(0, this, [this, view, id] {
+        switch (view) {
+        case View::CanvasManager: manageCanvasProfiles(id); break;
+        case View::OutputManager: manageOutputProfiles(id); break;
+        case View::Templates:     manageTemplates(id);      break;
+        case View::ProjectRow:
+            showDockAttention(ui->dockWidgetWorkspace);
+            for (int row = 0; row < ui->listWidgetProjects->count(); ++row) {
+                const int idx = ui->listWidgetProjects->item(row)->data(Qt::UserRole).toInt();
+                if (projectUidAt(idx) == id) {
+                    showRowAttention(ui->listWidgetProjects, row);
+                    break;
+                }
+            }
+            break;
+        case View::None: break;
+        }
+    });
 }
 
 void MainWindow::commitWorkspaceEdit(const QString& text, const std::function<void()>& mutate)
@@ -774,6 +876,18 @@ void MainWindow::commitWorkspaceEdit(const QString& text, const std::function<vo
         return;
 
     m_workspaceUndoStack->push(new WorkspaceSnapshotCommand(this, before, std::move(after), text));
+    emit workspaceChanged();
+}
+
+void MainWindow::onWorkspaceChanged()
+{
+    // Advisories derived from profiles and templates (outdated templates, duplicate profiles).
+    refreshAllAdvisories();
+    // A strip editor lays its pages out with the canvas profiles' margins and the output profile's
+    // width and slice height, so it follows any edit of either. setPreviewSource() ignores a feed that
+    // has not actually changed, so an edit that leaves a strip alone costs nothing here.
+    for (QDockWidget *strip : std::as_const(m_openStripDocks))
+        refreshStripEditor(strip);
 }
 
 void MainWindow::updateTitleBar()

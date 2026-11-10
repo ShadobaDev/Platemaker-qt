@@ -109,16 +109,14 @@ Bug fixes, cosmetics and internal cleanups — no new capability, no change to a
 New, backward-compatible features. Several are gated on a lib version, noted in the item body.
 (The `[x]` items below shipped/ready to ship; the open ones re-derive to the next MINOR.)
 
-- [ ] **Show the effect of a canvas profile edit right away.** Adding, editing or duplicating a canvas
-  profile only refreshes the profile combos (`workspaceProfilesChanged`); the pages it now matches turn
-  amber, and the "Canvas profiles changed" dialog appears, only on reopen or render. Re-check every
-  project's pages, repaint the open docks' tiles, and summarise the affected pages per project, right
-  after the edit.
+- [x] **Show the effect of a canvas profile edit right away.** *Done 2026-11-09 (requires
+  libplatemaker 0.7.0).* "Out of sync" is a query (`detectFileStaleness()`), not a stored status, so
+  every open project's tiles repaint on `workspaceChanged`. Saving or deleting a canvas profile asks
+  first, listing every project it reaches. The profile managers commit each action as its own undo step.
 
-- [ ] **Reopen a workspace the way it was left.** Which project docks and strip editors were open, and
-  where (docked, tabbed, floating), is forgotten on close. Only the Action panel's collapse is remembered
-  today (QSettings, app-wide). Open docks are per workspace, so this belongs with the workspace, not in
-  QSettings; `QMainWindow::saveState()` needs stable `objectName`s on the per-project docks first.
+- [x] **Reopen a workspace the way it was left.** *Done 2026-11-09.* The open project docks and strip
+  editors and `saveState()` are kept per workspace file in QSettings (a per-workspace key, so the
+  app-wide objection no longer holds), for the recent workspaces only; the main window's geometry too.
 
 - [~] **Infinite strip and lookup system** — *viewer DONE (GUI); lookup + preview-render deferred.*
   See the full strip as one continuous image during work, instead of per-slice tiles. Shipped: a

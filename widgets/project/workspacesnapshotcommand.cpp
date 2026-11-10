@@ -17,6 +17,7 @@ WorkspaceSnapshotCommand::WorkspaceSnapshotCommand(MainWindow* window,
 void WorkspaceSnapshotCommand::undo()
 {
     m_window->applyWorkspaceSnapshot(m_before);
+    m_window->showWorkspaceStep(m_after, m_before);
 }
 
 void WorkspaceSnapshotCommand::redo()
@@ -28,4 +29,5 @@ void WorkspaceSnapshotCommand::redo()
         return;
     }
     m_window->applyWorkspaceSnapshot(m_after);
+    m_window->showWorkspaceStep(m_before, m_after);
 }

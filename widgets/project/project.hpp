@@ -13,7 +13,10 @@
 #include <string>
 #include <vector>
 
+#include <platemaker/infrastructure/project_editor/project_editor.hpp>
 #include <platemaker/models/workspace.hpp>
+
+#include <QFutureWatcher>
 
 namespace Ui { class Project; }
 class QListWidgetItem;
@@ -28,15 +31,19 @@ class QMimeData;
 class QUrl;
 
 /**
- * \brief Where an undone or redone step is visible — the two windows one project is edited from.
+ * \brief Where an undone or redone step is visible: the part of the project dock it changed, or the strip
+ *        editor — the two windows one project is edited from.
  *
- * A project has **one** history covering both, so a step can land in a window the user is not looking
- * at. This is what lets undo take them there. It is not a second history and it is not a filter: every
- * step goes on the one stack in the order it was made, and this only answers "where do I look".
+ * A project has **one** history covering both, so a step can land in a window, or a tab, the user is not
+ * looking at. This is what lets undo take them there. It is not a second history and it is not a filter:
+ * every step goes on the one stack in the order it was made, and this only answers "where do I look".
  */
 enum class EditScope {
-    ProjectDock,   //!< Inputs, links, profiles, the output directory.
-    StripEditor,   //!< Text & bubbles, and the colour grade, which only the strip editor edits.
+    InputFiles,        //!< The Input tab's file list: pages added, removed, replaced, reordered.
+    CanvasProfiles,    //!< The Input tab's Canvas Profiles box: profiles linked or unlinked.
+    OutputProfile,     //!< The Output tab's output profile.
+    OutputDirectory,   //!< The Output tab's output directory.
+    StripEditor,       //!< Text & bubbles, and the colour grade, which only the strip editor edits.
 };
 
 /**
@@ -109,11 +116,10 @@ public:
                             Platemaker::Models::FileStatus status,
                             bool renderedWithoutProfile = false);
     /**
-     * \brief Rebuilds the output tiles from getOutputImages().
+     * \brief Rebuilds the output tiles from getOutputImages(), each showing its recorded status.
      *
-     * Also marks outputs still reported as done as out of sync when the output profile has changed
-     * since they were rendered — a change there leaves the old files on disk and hash-matching, so it
-     * is caught here, on every repaint.
+     * Whether a slice is out of sync with the configuration is not recorded; refreshTileStatuses()
+     * lays it over the tiles.
      */
     void refreshOutputTiles();
 
@@ -239,7 +245,7 @@ public:
      * \brief Rebuilds the palette-derived views (canvas list, output combo, format controls) after a
      * workspace-level profile edit.
      * 
-     * rebuilds the palette-derived views (canvas list, output combo, format controls) after a workspace-level profile edit — see MainWindow::workspaceProfilesChanged
+     * rebuilds the palette-derived views (canvas list, output combo, format controls) after a workspace-level profile edit — see MainWindow::workspaceChanged
      */
     void refreshProfileViews();
 
@@ -262,6 +268,13 @@ public:
      * \param scope    Where the step is seen; announced through historyStepApplied().
      */
     void applyProjectSnapshot(const QString& snapshot, EditScope scope);
+
+    /**
+     * \brief Brings the tab holding the part of this dock @p scope names to the front and outlines that
+     *        part — **always**, as a row is: the dock may be in front, the tab or the box not.
+     *        Nothing for StripEditor, which is not this dock.
+     */
+    void showStep(EditScope scope);
 
     /**
      * \brief Returns the state of the strip overlays and their authoring records.
@@ -329,7 +342,7 @@ signals:
      * **Emitted before the state goes out to the views**, because the selection is armed on the editor
      * and consumed by the feed that follows.
      * 
-     * \param scope The scope of the edit that was undone or redone (ProjectDock or StripEditor).
+     * \param scope The scope of the edit that was undone or redone (the part of the project dock, or StripEditor).
      * \param uids The UIDs of the objects touched by the edit (empty for a project-scope edit).
      */
     void historyStepApplied(EditScope scope, const QStringList& uids);
@@ -400,12 +413,14 @@ private:
     void refreshFormatControls();          //!< Reflects the selected output profile in m_formatOptions (or disables it if none selected).
 
     /**
-     * \brief Checks whether the project's existing outputs are stale relative to
-     * the current output configuration (format/size/quality changed since they
-     * were rendered). Drives the "Out of sync" badge shown after Refresh.
-     * \return true if the outputs no longer match the current configuration.
+     * \brief Repaints every input and output tile in place: its recorded status, or "Out of sync" where
+     * the configuration has moved on since the render, with the reason in its tooltip.
+     *
+     * The verdict comes from the library (ProjectItem::detectFileStaleness()) on every call, never from
+     * a stored status, so an edit and its undo are both shown without anything to reset. Only the status
+     * line and border change; thumbnails are not reloaded.
      */
-    [[nodiscard]] bool outputsConfigStale() const;
+    void refreshTileStatuses();
 
     void setupUndo();   //!< Creates this project's undo stack (depth 10). MainWindow adds it to the group.
 
@@ -417,11 +432,10 @@ private:
      * \param text   Short label for the operation (shown in the undo action's text).
      * \param mutate The operation to perform (add / clear / reorder / sort / link / output selection /
      *               output dir). It still does its own populate()/projectModified().
-     * \param scope  Where undoing it takes the artist. The project dock, except for an edit that is
-     *               seen and made somewhere else — the colour grade, which lives on the strip.
+     * \param scope  Where undoing it takes the artist: the part of the project dock it changed, or the
+     *               strip for the colour grade, which lives there.
      */
-    void commitEdit(const QString& text, const std::function<void()>& mutate,
-                    EditScope scope = EditScope::ProjectDock);
+    void commitEdit(const QString& text, const std::function<void()>& mutate, EditScope scope);
 
     /**
      * \brief Records one undoable **text & bubbles** edit — same history, other half of the document.
@@ -443,11 +457,28 @@ private:
      */
     void commitWorkspaceEdit(const QString& text, const std::function<void()>& mutate);
 
+    /**
+     * \brief Checks this project's files on disk in the background, every file at once on Qt's pool,
+     *        and repaints the tiles in place when the results are in.
+     *
+     * The files are looked at by ProjectEditor::checkOnDisk(), which touches no project, so the threads
+     * share nothing with the model; the results are applied here, on the UI thread, by
+     * ProjectEditor::applyDiskChecks(), which ignores any that the project has moved on from. Until
+     * then each tile shows its last known status. A newer check supersedes one still running.
+     *
+     * \param outputsOnly Check only the slices (Refresh files): an input with no result is left as it
+     *        is, its status being the last render's.
+     */
+    void checkFilesOnDisk(bool outputsOnly = false);
+    void onFilesCheckedOnDisk();   //!< Applies a finished checkFilesOnDisk() and repaints the tiles.
+
     Ui::Project* ui;                                        //!< Qt Designer-generated UI for this widget.
     int m_projectIndex;                                     //!< Index of this project within m_workspace.projectItems (kept in sync via setProjectIndex()).
     Platemaker::Models::Workspace& m_workspace;             //!< Reference to the workspace owning this project's data.
     QString     m_workspacePath;                            //!< Workspace file path — the root of overlays/.
     std::function<bool()> m_writeGuard;                     //!< See setWriteGuard(); unset means always.
+    QFutureWatcher<Platemaker::Infrastructure::DiskCheck> m_diskCheck; //!< The running checkFilesOnDisk(), if any.
+    std::string m_diskCheckProjectUid;                      //!< The project it was started for: the results apply to that one only.
 
     //! Whether a file may be written to the workspace folder now.
     [[nodiscard]] bool mayWrite() const { return !m_writeGuard || m_writeGuard(); }

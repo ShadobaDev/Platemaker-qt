@@ -2,9 +2,11 @@
 #define MAINWINDOW_HPP
 
 #include <QMainWindow>
+#include <QFutureWatcher>
 #include <QElapsedTimer>
 #include <QHash>
 #include <QList>
+#include <QPointer>
 #include <QStringList>
 
 #include <functional>
@@ -15,6 +17,7 @@
 #include "recordstore.hpp"
 
 #include <platemaker/infrastructure/control/cancellation_token.hpp>
+#include <platemaker/infrastructure/project_editor/project_editor.hpp>
 #include <platemaker/infrastructure/workspace_serializer/workspace_serializer.hpp>
 #include <platemaker/models/workspace.hpp>
 
@@ -33,6 +36,8 @@ class QToolButton;
 class QUndoGroup;
 class QUndoStack;
 class Advisories;
+class ManageCanvasProfilesDialog;
+class ManageOutputProfilesDialog;
 class AdvisoryBar;
 class Project;
 class RenderWorker;
@@ -62,6 +67,17 @@ public:
      */
     void applyWorkspaceSnapshot(const QString& snapshot);
 
+    /**
+     * \brief Takes the artist to where a workspace step from @p from to @p to is seen, after an undo or
+     *        redo of it: the canvas or output profile manager on the profile's row, *Templates* on the
+     *        profile's row, or the project's row in the Workspace panel.
+     *
+     * An open manager the step belongs to stays, and shows the row; one it does not belong to closes, and
+     * the step's view opens once it has. What the step changed is the library's answer
+     * (WorkspaceEditor::metaChanges); the views are this window's. Called by WorkspaceSnapshotCommand.
+     */
+    void showWorkspaceStep(const QString& from, const QString& to);
+
 protected:
     /**
      * Handles the window close event.
@@ -79,12 +95,20 @@ protected:
     //! or shrink the fixed-width panel, updating the chosen width m_actionDockWidth.
     bool eventFilter(QObject *watched, QEvent *event) override;
 
+    //! Keeps the window's minimum at the room reserved for docks (reserveRoomForDocks()), or more when the
+    //! docks as laid out need more. A minimum set by hand stops Qt from raising it with the layout, so
+    //! each layout request raises it here instead.
+    bool event(QEvent *event) override;
+
 signals:
-    //! Emitted after a workspace-level profile edit (canvas/output Manage/New/Edit). Every open
-    //! Project dock connects this to Project::refreshProfileViews() so their palette-derived views
-    //! (output combo, assigned-canvas list, format controls) update at once, without a manual
-    //! iteration over the open docks.
-    void workspaceProfilesChanged();
+    /**
+     * \brief Emitted after every workspace-level change has landed: a commit, or an undo or redo of one.
+     *
+     * The one channel for profiles, project names and templates, wherever the edit was made (a menu
+     * dialog or a project dock). Every view derived from them listens here once: each open project
+     * dock (Project::refreshProfileViews()), every strip editor, and the advisories.
+     */
+    void workspaceChanged();
 
 private slots:
     // File menu
@@ -189,16 +213,34 @@ private:
     // --- render orchestration ---
 
     /**
-     * \brief Starts the rendering process for the specified project index.
+     * \brief Starts rendering the specified project: checks its files on disk, off the UI thread.
+     *
+     * The rest happens when the check is in (continueRender()), which ends either in a worker, whose
+     * finish is onRenderFinished(), or in renderNotStarted(). From here the window counts as rendering:
+     * the guards on m_rendering keep the project and the workspace in place while its files are looked
+     * at, and Stop ends the check as it ends a render.
      *
      * \param projectIndex Index into m_workspace.projectItems.
-     * \return true only when a worker was actually started; false when the project was
-     *         skipped for any reason (no output profile / directory / inputs, already
-     *         up to date, config-change prompt declined, output directory not creatable).
-     *         The batch queue relies on this to tell "skipped" from "started" — without
-     *         it, it would wait forever on a finished() signal that never comes.
+     * \return true when the project is in flight; false when it was refused before its files were
+     *         looked at (no output profile / directory / inputs, a render already running, the
+     *         workspace taken over). The batch queue relies on this to tell "skipped" from "in
+     *         flight": in flight, one of the two ends above resumes the queue.
      */
     bool startRender(int projectIndex);
+
+    void onPreflightChecked();          //!< The files of the project about to render are checked: applies the result and continues.
+
+    /**
+     * \brief Decides from the checked files whether and how the project renders, asking what has to be
+     *        asked, and starts the worker; every way out without one goes through renderNotStarted().
+     */
+    void continueRender(int projectIndex);
+
+    /**
+     * \brief Leaves the rendering state of a project whose files were checked but which did not render,
+     *        and moves a batch on: cancelled ends it, anything else is a skip with m_batchSkipReason.
+     */
+    void renderNotStarted(int projectIndex, bool cancelled = false);
 
     void cancelRender();                //!< Cancels the ongoing rendering process, if any.
 
@@ -209,13 +251,17 @@ private:
      *
      * Loops rather than recurses: whole runs of projects can be skipped (e.g. all up to
      * date), and a loop handles that without deep recursion or re-entering a slot. Returns
-     * as soon as a worker starts — the rest of the queue is driven by onRenderFinished().
+     * as soon as a project is in flight — the rest of the queue is driven by onRenderFinished(),
+     * or by renderNotStarted() for a project its checked files show needs no render.
      * When the queue empties it calls finishBatch().
      */
     void advanceBatch();
 
     /// Reports the batch summary (rendered / skipped / failed) and clears the batch state.
     void finishBatch();
+
+    void cancelBatch();                         //!< Stop cancels the whole batch, not just the current project.
+    void recordBatchSkip(int projectIndex);     //!< Records a project of the batch as skipped, with m_batchSkipReason.
 
     /**
      * \brief Warns once, after opening a workspace, if canvas profiles moved on since the
@@ -448,6 +494,7 @@ private:
      */
     void refreshAdvisoriesFor(int projectIndex);
     void refreshAllAdvisories();      //!< The same, for every project in the workspace.
+    void onWorkspaceChanged();        //!< Brings the views MainWindow owns up to date after workspaceChanged().
 
     //! This project's lettered objects drawn in a stand-in because their font is missing, in composite
     //! order; \p families (when given) gets those fonts, once each. What the missing-fonts advisory and
@@ -564,6 +611,16 @@ private:
     // --- recent workspaces (advisory list in QSettings; never required) ---
     [[nodiscard]] QStringList recentWorkspaces() const;     //!< Returns a list of recently opened workspaces.
     void addToRecentWorkspaces(const QString &path);        //!< Adds a workspace path to the list of recent workspaces.
+
+    /**
+     * \brief Remembers, for the open workspace, which project and strip-editor docks are open and where
+     *        (docked, tabbed, floating, their sizes), so reopening it brings them back.
+     *
+     * Kept in QSettings per workspace file, not in the workspace: it is this machine's screen layout, and
+     * moving a dock is not an edit of the comic. Only recent workspaces keep an entry.
+     */
+    void rememberWorkspaceLayout();
+    void restoreWorkspaceLayout();   //!< Reopens the docks rememberWorkspaceLayout() recorded for this workspace, and puts them back.
     void rebuildRecentMenu();                               //!< Rebuilds the "Open Recent Workspace" menu based on the current list of recent workspaces.
     void openRecentWorkspace(const QString &path);          //!< Opens a workspace from the recent workspaces list.
     [[nodiscard]] QString defaultDialogDir() const;         //!< Returns the default directory for file dialogs (last workspace's dir or home dir).
@@ -574,6 +631,8 @@ private:
     void duplicateProject(int modelIndex);  //!< Creates a new project seeded from the one at the given model index (its inputs + profile links only — no outputs / output dir).
     void removeProject(int modelIndex);     //!< Removes the project at the given model index from the workspace.
     [[nodiscard]] class QDockWidget *dockForProject(int modelIndex) const;  //!< Returns the QDockWidget for the project at the given model index, or nullptr if not found.
+    [[nodiscard]] QString projectUidAt(int modelIndex) const;              //!< The uid of the project at @p modelIndex; empty when there is none.
+    [[nodiscard]] int projectIndexOf(const QDockWidget *dock) const;       //!< The model index of the project @p dock shows (by its "projectUid" property); -1 when it is gone.
 
     // --- project dock management ---
     /**
@@ -634,11 +693,32 @@ private:
      * fill the screen (maximise ⇄ restore) or close it — a floating QDockWidget otherwise shows only a
      * close button, and native min/max on a dock misbehave. Fed the project's committed output slices; a
      * render's finish hook refreshes an open one. Raise-if-open, tracked in m_openStripDocks,
-     * reindexed/closed with the project.
+     * closed with the project.
      */
     void openStripEditorDock(int projectIndex);
 
-    //! The open strip dock for the project at @p modelIndex, or nullptr. Keyed by the "projectIndex" property.
+    //! Gives a modal window that edits workspace data (the profile managers) Ctrl+Z / Ctrl+Y on the
+    //! workspace history: the main window's shortcuts do not reach past a modal window.
+    void bindWorkspaceHistory(QWidget& window);
+
+    //! The managers and *Templates*, opened on the profile of id @p showId (its row selected and
+    //! outlined) when given: the slots open them on nothing, showWorkspaceStep() on a step's profile.
+    void manageCanvasProfiles(const QString& showId);
+    void manageOutputProfiles(const QString& showId);
+    void manageTemplates(const QString& showId);
+
+    /**
+     * \brief Reserves in the window's minimum the room a project and its strip editor take, tabbed as
+     *        they open (m_dockRoom).
+     *
+     * Measured, not configured: a scratch project dock and strip dock are tabbed beside the Workspace, the
+     * window's minimum is read off the layout, and both are removed. Called once, before the window shows,
+     * so opening a project never has to grow the window (which showed the new part unpainted while the
+     * docks were built). Docks set side by side may need more, and still grow it (event()).
+     */
+    void reserveRoomForDocks();
+
+    //! The open strip dock for the project at @p modelIndex, or nullptr. Keyed by the "projectUid" property.
     [[nodiscard]] QDockWidget *dockForStripEditor(int modelIndex) const;
 
     //! Reloads @p dock's StripEdit::Editor from its project's current committed output slices (in strip order).
@@ -658,7 +738,10 @@ private:
 
     Ui::MainWindow *ui;                         //!< The UI form generated by Qt Designer (ui_mainwindow.h).
     QList<QDockWidget *> m_openProjectDocks;    //!< Every project dock created this session, open or closed (hidden) — see isProjectOpen().
-    QList<QDockWidget *> m_openStripDocks;      //!< Every strip-editor dock created (one per project), open or closed, keyed by the "projectIndex" property.
+    QPointer<ManageCanvasProfilesDialog> m_canvasManager;   //!< The canvas profile manager while it is open.
+    QPointer<ManageOutputProfilesDialog> m_outputManager;   //!< The output profile manager while it is open.
+    QSize m_dockRoom;                           //!< The window's least minimum: a project and a strip editor, tabbed (reserveRoomForDocks()).
+    QList<QDockWidget *> m_openStripDocks;      //!< Every strip-editor dock created (one per project), open or closed, keyed by the "projectUid" property.
     QWidget *m_actionGrip         = nullptr;    //!< Left-edge drag handle of the fixed-width Action column.
     bool     m_actionGripDragging = false;      //!< True while the Action grip is being dragged.
     int      m_actionGripStartX   = 0;          //!< Global mouse X at grip-drag start.
@@ -764,6 +847,7 @@ private:
     RenderWorker *m_renderWorker        = nullptr;  //!< The current RenderWorker instance (if any).
     bool          m_rendering           = false;    //!< True if a render operation is currently in progress.
     int           m_renderProjectIndex  = -1;       //!< Index of the project currently being rendered (in m_workspace.projectItems), -1 if none.
+    QFutureWatcher<Platemaker::Infrastructure::DiskCheck> m_preflightCheck;  //!< The disk check of the project about to render, run on the thread pool.
     int           m_activeProjectIndex  = -1;       //!< The project whose window was raised last; read through currentProjectIndex(), which checks it is still open.
     QElapsedTimer m_renderTimer;                    //!< Wall-clock timer for the current single render (started in startRender), read for the action-log summary.
     QString       m_lastRenderOutputDir;            //!< Output directory of the most recent render (set in startRender), for the log's "Open output folder" action.
@@ -782,8 +866,8 @@ private:
     QStringList      m_batchFailed;     //!< Projects whose render failed.
 
     /** 
-     * \brief Why the last startRender() bailed out, so the batch can report a useful reason
-     * instead of a bare "skipped". Set by startRender(), consumed by advanceBatch().
+     * \brief Why the last project did not render, so the batch can report a useful reason
+     * instead of a bare "skipped". Set by startRender() and continueRender(), consumed by recordBatchSkip().
      */
     QString          m_batchSkipReason;
 

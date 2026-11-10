@@ -5,6 +5,9 @@
 #include <QColor>
 #include <platemaker/models/canvas_profile.hpp>
 
+#include "savednotes.hpp"
+
+#include <functional>
 #include <vector>
 
 namespace Ui {
@@ -28,8 +31,11 @@ public:
      * Call before exec() to populate fields when editing an existing profile.
      * Leave uncalled (or call with default-constructed profile) for a new profile.
      * \param profile The profile to be edited.
+     * \param source  Saved: the workspace's profile, which the "saved: …" notes and **Revert** go
+     *                back to. Unsaved (a duplicate): neither is shown.
      */
-    void setProfile(const Platemaker::Models::CanvasProfile &profile);
+    void setProfile(const Platemaker::Models::CanvasProfile &profile,
+                    ProfileSource source = ProfileSource::Saved);
 
     /**
      * \brief Retrieves the profile filled in the dialog.
@@ -47,6 +53,14 @@ public:
      */
     void setExistingProfiles(const std::vector<Platemaker::Models::CanvasProfile>& profiles);
 
+    /**
+     * \brief A last word on Save, when Save is what changes the workspace: called with the edited
+     *        profile once the dialog's own checks pass. Returning false keeps the dialog open.
+     *
+     * Not set where Save only changes a draft (inside the profile manager), which asks on its own OK.
+     */
+    void setSaveCheck(std::function<bool(const Platemaker::Models::CanvasProfile&)> check);
+
     ~CanvasProfileDialog() override;    //!< Destroys the dialog and cleans up resources.
 
 protected:
@@ -58,8 +72,11 @@ private slots:
     void onPickBgColour();                      //!< Slot for when the Background Colour button is clicked. Opens a QColorDialog to pick a colour.
     void onDimensionsChanged();                 //!< Slot for when any of the dimension spin boxes change. Updates the preview and size info label.
     void onSafeAreaModeToggled(bool checked);   //!< Slot for when the Safe Area Mode radio button is toggled. Updates the preview and size info label.
+    void onRevertClicked();                     //!< Asks, then puts every field back to the saved profile.
+    void refreshSaved();                        //!< Shows the "saved: …" notes of the fields that differ; Revert only when one does.
 
 private:
+    void addSavedNotes();               //!< Ties each "saved: …" note of the .ui to the field it is under.
     void applyColourToButton(QPushButton *button, const QColor &colour);    //!< Applies the given colour to the specified button's background.
     void updatePreview();               //!< Updates the canvas preview widget to reflect the current settings.
     void updateSizeInfoLabel();         //!< Updates the text label showing the absolute size or work area size based on current settings.
@@ -72,6 +89,9 @@ private:
     bool   m_safeAreaMode = false;      //!< Whether the dialog is in safe-area mode (true) or absolute size mode (false).
     Platemaker::Models::CanvasProfile m_profile;   //!< The profile given to setProfile(); profile() returns it with the dialog's fields applied.
     std::vector<Platemaker::Models::CanvasProfile> m_existing; //!< setExistingProfiles(): what Save compares against.
+    std::function<bool(const Platemaker::Models::CanvasProfile&)> m_saveCheck; //!< setSaveCheck(); empty = none.
+    bool m_saved = false;               //!< m_profile is the workspace's saved profile (setProfile() with ProfileSource::Saved).
+    SavedNotes<Platemaker::Models::CanvasProfile> m_savedNotes;   //!< The "saved: …" notes under the fields.
 };
 
 #endif // CANVASPROFILEDIALOG_HPP

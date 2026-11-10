@@ -57,6 +57,10 @@ public:
                              QWidget* parent = nullptr);
     ~TemplatesDialog() override;   //!< Destroys the dialog and cleans up resources.
 
+    //! Selects the canvas profile of id @p id and outlines its row (an undo or redo of template work on
+    //! it); nothing when no profile has that id.
+    void showProfile(const QString& id);
+
     /**
      * \brief Generates the template for \p cp into <workspaceDir>/templates/ as the profile asks
      * (TemplateGenerator::optionsFor: its dpi, format and empty layer), replacing that format's entry in

@@ -84,8 +84,8 @@ ObjectMenu::ObjectMenu(ObjectController& objects, const StripLayout& layout, Pre
 
     // **Convert crosses the one boundary there is.** An object either has a silhouette — to fill, to
     // roughen, to grow tails from — or it has not, and that decides which property groups it carries at
-    // all. *Which* silhouette is a property, edited in OBJECT STATE and applied to a set from *Apply from
-    // tool options ▸*; it has no business in a menu about kinds. Two entries, therefore, not ten.
+    // all. *Which* silhouette is a property, edited in OBJECT STATE or brought by *Apply preset ▸*; it has no
+    // business in a menu about kinds. Two entries, therefore, not ten.
     //
     // A menu offers only what applies to every selected object, and here that intersection is either
     // both or neither: every authored object can become either
@@ -102,8 +102,8 @@ ObjectMenu::ObjectMenu(ObjectController& objects, const StripLayout& layout, Pre
             });
     m_actToBalloon = m_convertMenu->addAction(tr("Balloon"));
     m_actToBalloon->setCheckable(true);
-    // The silhouette it arrives at is the one the tool's options are set to — the same source *Apply
-    // from tool options ▸* spends, so there is one answer to "which balloon" and not two.
+    // The silhouette it arrives at is the one the tool's options are set to, so there is one answer to
+    // "which balloon" and not two.
     connect(m_actToBalloon, &QAction::triggered, this, [this] {
         m_objects.convertSelectionTo(m_objects.toolBalloonShape());
     });
@@ -395,13 +395,17 @@ void ObjectMenu::saveSelectionAsPreset()
     // The store decides what a preset carries — the look, never the lettering — so this hands over the
     // whole record and lets the one function that knows the answer do the cutting.
     int existing = -1;
-    if (m_presets.save(name, bubble->record(), /*replaceExisting=*/false, &existing) < 0) {
+    int at       = m_presets.save(name, bubble->record(), /*replaceExisting=*/false, &existing);
+    if (at < 0) {
         if (QMessageBox::question(m_dialogParent, tr("Save preset"),
                                   tr("A preset named “%1” already exists. Replace it?").arg(name))
             != QMessageBox::Yes)
             return;
-        m_presets.save(name, bubble->record(), /*replaceExisting=*/true);
+        at = m_presets.save(name, bubble->record(), /*replaceExisting=*/true);
     }
+    // The object a preset is saved from is made from it, from now on.
+    const BubblePreset& saved = m_presets.presets().at(at);
+    m_objects.setSelectionOrigin({saved.uid, saved.name});
 }
 
 void ObjectMenu::importArtwork()

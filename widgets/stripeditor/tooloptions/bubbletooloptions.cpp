@@ -14,7 +14,6 @@
 #include <QFrame>
 #include <QVBoxLayout>
 
-#include "presets/presetsdialog.hpp"
 #include "presetstore.hpp"
 #include "properties/shapeeditor.hpp"
 #include "properties/skineditor.hpp"
@@ -52,7 +51,7 @@ BubbleToolOptions::BubbleToolOptions(PresetStore& presets, QWidget* parent)
     auto* presetMenu = new QMenu(presetMore);
     m_presetDelete     = presetMenu->addAction(tr("Delete preset"));
     QAction* manage    = presetMenu->addAction(tr("Manage presets…"));
-    connect(manage, &QAction::triggered, this, [this] { PresetsDialog(m_presets, m_pickedName, this).exec(); });
+    connect(manage, &QAction::triggered, this, [this] { emit manageRequested(m_pickedUid); });
     // Importing and exporting a pack move a file between machines and people — the menu bar's business
     // (Tools), where every other import and export is, rather than a panel's.
     presetMore->setMenu(presetMenu);
@@ -214,13 +213,13 @@ void BubbleToolOptions::refreshPresetCombo()
     // an entry too, and shift every index after it.
     m_presetCombo->addItem(tr("No preset"));
     const QList<BubblePreset>& presets = m_presets.presets();
-    int picked = m_pickedName.isEmpty() ? 0 : -1;
+    int picked = m_pickedUid.isEmpty() ? 0 : -1;
     for (int i = 0; i < presets.size(); ++i) {
         const BubblePreset& p = presets.at(i);
         m_presetCombo->addItem(QIcon(bubbleThumbnail(p.record.shape, p.record.skin.fill.colour,
                                                      p.record.style.stroke.colour, p.record.text.fill.colour)),
                                p.name);
-        if (p.name == m_pickedName)
+        if (p.uid == m_pickedUid)
             picked = i + 1;
     }
     m_presetCombo->setCurrentIndex(picked);   // -1, and the placeholder, when the picked one is gone
@@ -235,7 +234,7 @@ void BubbleToolOptions::applyPreset(int entry)
     if (index >= m_presets.presets().size())
         return;
     const BubblePreset base = index >= 0 ? m_presets.presets().at(index) : BubblePreset{QString(), ObjectRecord()};
-    m_pickedName = base.name;
+    m_pickedUid = base.uid;
     m_record     = PresetStore::applied(base, m_record, /*keepShape=*/m_toolShape.has_value());
     syncFromModel();
     refreshPresetCombo();

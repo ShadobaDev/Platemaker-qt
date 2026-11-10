@@ -138,6 +138,8 @@ signals:
     void fitRequested();                    //!< "Fit to text" — the editor resizes the selected bubble.
     void fixPaddingRequested();             //!< "Fix padding" — the editor lowers the bubble's padding.
     void deleteRequested();                 //!< Removes the selected object.
+    //! The chip naming the preset the selection was made from was clicked.
+    void presetOriginClicked(const PresetOrigin& origin);
 
 private:
     void onControlChanged();   //!< A group reported an edit → collect, preview, arm the commit timer.
@@ -157,7 +159,7 @@ private:
 
     QLabel*             m_subject   = nullptr;  //!< Names what is being edited.
     QHBoxLayout*        m_header    = nullptr;  //!< The subject and, after it, the look chip.
-    QWidget*            m_lookChip  = nullptr;  //!< Shout / Custom / Mixed. Rebuilt, never relabelled.
+    QWidget*            m_lookChip  = nullptr;  //!< *Shout-based* / *Mixed*. Rebuilt, never relabelled.
     QLabel*             m_emptyHint = nullptr;  //!< Stands in for the sections when nothing is selected.
     BlendEditor*        m_blend     = nullptr;  //!< The one property every kind of object carries.
     QWidget*            m_scaleRow  = nullptr;  //!< A picture's size; hidden for every other kind.

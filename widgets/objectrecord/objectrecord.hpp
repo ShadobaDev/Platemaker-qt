@@ -29,6 +29,19 @@
  * points, one object — so a caption can grow a balloon later without changing type, and there is one
  * rasteriser, one schema and one list.
  */
+/**
+ * \brief The preset last applied to an object: where its look came from, as a hint. Nothing follows the
+ *        preset once it is copied in — an edit to the object, or to the preset, leaves this as it was.
+ */
+struct PresetOrigin
+{
+    QString uid;    //!< The preset's (BubblePreset::uid); empty for none.
+    QString name;   //!< Its name when applied: what is shown when the preset is not among the artist's.
+
+    [[nodiscard]] bool isEmpty() const { return uid.isEmpty(); }
+    [[nodiscard]] bool operator==(const PresetOrigin& o) const { return uid == o.uid && name == o.name; }
+};
+
 struct ObjectRecord
 {
     //! The enums live with the groups that own them; these keep every existing spelling working.
@@ -82,6 +95,8 @@ struct ObjectRecord
 
     TextProperties text;
     SkinProperties skin;   //!< Fill, stroke and stroke width — see SkinProperties.
+
+    PresetOrigin presetOrigin;   //!< The preset last applied (PresetStore::applied()); a hint, not a link.
 
     //! Somebody else drew this one: the drawing is `artwork`, and none of our geometry applies to it.
     [[nodiscard]] bool isArtwork() const { return !artwork.isEmpty(); }

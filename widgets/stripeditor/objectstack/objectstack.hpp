@@ -25,7 +25,7 @@ class StripLayout;
  * A **stack**: row 0 is the front-most object, and a row covers every row below it wherever they
  * overlap. A bubble's tails are rows of their own, nested under it; the strip's pages nest under the
  * strip. Each row wears its object drawn small, names it, and carries chips for what is true of it and
- * written nowhere else on the row (unanchored, the preset it still matches, a blend mode).
+ * written nowhere else on the row (unanchored, the preset it was made from, a blend mode).
  *
  * The tree is a view of the ObjectController and nothing more. It reads what the controller holds, and
  * hands back what the artist did to it: a selection, a mute, a new order. The controller knows nothing
@@ -42,7 +42,7 @@ public:
      * \param tree     The form's object stack.
      * \param objects  What the rows show, and what they report to.
      * \param layout   The strip's pages, for the strip's own rows.
-     * \param presets  For the chip naming the preset an object still matches.
+     * \param presets  For the chip naming the preset an object was made from.
      * \param palette  Whose palette greys an unanchored row — the editor's.
      */
     ObjectStack(QTreeWidget* tree, ObjectController& objects, const StripLayout& layout,

@@ -67,6 +67,10 @@ public:
      */
     [[nodiscard]] ShapeProperties balloonShape() const;
 
+signals:
+    //! *Manage presets…*, on the picked preset (its uid; empty for none).
+    void manageRequested(const QString& presetUid);
+
 private:
     void onControlChanged();      //!< A group reported an edit → read it into the prototype's values.
     void syncFromModel();         //!< Push the prototype's values into the controls.
@@ -88,8 +92,8 @@ private:
     QHash<QWidget*, QWidget*> m_ruleAbove;
 
     ObjectRecord m_record;       //!< The next placement's working values.
-    //! The preset the picker names, by name (a preset has no other identity yet); empty for *No preset*.
-    QString m_pickedName;
+    //! The uid of the preset the picker names; empty for *No preset*.
+    QString m_pickedUid;
     bool m_populating   = false;   //!< Suppresses change signals while binding.
     //! The active tool's fixed shape, if it has one → the tiles are hidden and a preset restyles
     //! without changing shape, because the shape is the tool's to say.

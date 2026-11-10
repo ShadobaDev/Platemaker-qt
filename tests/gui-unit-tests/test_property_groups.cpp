@@ -83,6 +83,7 @@ ObjectRecord loadedRecord()
     a.style.drybrushBristles       = 9;
     a.style.drybrushDryness        = 42;
     a.styleSeed        = 0xC0FFEEu;
+    a.presetOrigin     = {QStringLiteral("uid-loaded"), QStringLiteral("Loaded")};
 
     a.text.body        = QStringLiteral("Nie wiem, co sie dzieje");
     a.text.family      = QStringLiteral("Comic Neue");
@@ -216,7 +217,7 @@ static_assert(sizeof(EffectProperties) == sizeof(EffectMirror),
 struct RecordMirror {
     ShapeProperties shape; QString artwork; QSize box; TailsProperties tails; StyleProperties style;
     TextureProperties texture; EffectProperties effects; quint32 styleSeed; TextProperties text;
-    SkinProperties skin;
+    SkinProperties skin; PresetOrigin presetOrigin;
 };
 static_assert(sizeof(ObjectRecord) == sizeof(RecordMirror),
               "ObjectRecord grew a field: place it (see above), then mirror it");
@@ -336,9 +337,10 @@ void expectUntouched(Group applied, const ObjectRecord& before, const ObjectReco
 
     // Owned by no group, so never written by an editor and never skipped here. The box belongs to the
     // object rather than to the record's look; the style seed is per balloon and set once at
-    // placement, which is why a preset must not carry it.
-    EXPECT_EQ(after.box,       before.box);
-    EXPECT_EQ(after.styleSeed, before.styleSeed);
+    // placement, which is why a preset must not carry it; the preset origin is set only by applying one.
+    EXPECT_EQ(after.box,          before.box);
+    EXPECT_EQ(after.styleSeed,    before.styleSeed);
+    EXPECT_EQ(after.presetOrigin, before.presetOrigin);
 }
 
 } // namespace
@@ -1897,6 +1899,7 @@ QString goldenRecords()
     QString    out;
     const auto write = [&out](const QString& name, const QString& look, bool tail, ObjectRecord a) {
         a.text.body.clear();
+        a.presetOrigin = {};   // written only when there is one; Presets.TheOriginTravelsWithTheObject has it
         if (!tail)
             a.tails.items.clear();
         const QRectF area = Geometry::textArea(a);

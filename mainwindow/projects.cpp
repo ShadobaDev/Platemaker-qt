@@ -617,6 +617,7 @@ void MainWindow::openStripEditorDock(int projectIndex)
     // "Render & view": outputs are cheap/regenerable, so this just runs the normal render for the
     // project; onRenderFinished refreshes this editor when it completes. If the project is already up to
     // date, startRender is a no-op and the already-loaded committed slices stay shown.
+    connect(editor, &StripEdit::Editor::presetsDialogRequested, this, &MainWindow::openPresetsDialog);
     connect(editor, &StripEdit::Editor::renderAndViewRequested, this, [this, projectUid] {
         if (const int idx = projectIndexForUid(projectUid); idx >= 0)
             (void)startRender(idx);

@@ -19,7 +19,10 @@ namespace StripEdit {
 struct BubblePreset
 {
     QString      name;      //!< What the artist calls this look, which is what they pick it by.
-    ObjectRecord record;      //!< The look itself, with lettering, box and tails cleared out.
+    ObjectRecord record;    //!< The look itself, with lettering, box, tails and origin cleared out.
+    //! Made when it is first saved and kept through a rename, an edit, an export and an import: what an
+    //! object's PresetOrigin names it by. A built-in's is fixed in code.
+    QString      uid;
 };
 
 /**
@@ -101,41 +104,20 @@ public:
      */
     bool exportPack(const QString& path, QString* error) const;
 
-    /**
-     * \brief Which preset @p a currently looks like, or -1 for none of them.
-     *
-     * **Computed, never stored.** A remembered "this came from Shout" is a field that goes stale the
-     * moment a property is edited, and it cannot answer for a selection of several; comparing the
-     * values each time costs nothing, self-heals when the artist edits back to an exact match, and has
-     * an honest answer either way.
-     *
-     * Only the groups a preset *fills* are compared — shape, fill & outline, line style, text style.
-     * The box, the tails and the lettering are the object's own and `applied()` copies them across, and
-     * the style seed belongs to no group at all: it would make an object that matches in every visible
-     * way report as something else.
-     * 
-     * \param a  The record to check against the presets.
-     * \return The index of the matching preset, or -1 if none match.
-     */
-    [[nodiscard]] int matching(const ObjectRecord& a) const;
+    //! The index of the preset whose uid is @p uid, or -1 when there is none.
+    [[nodiscard]] int indexOf(const QString& uid) const;
+
+    //! What to call @p origin: its preset's name now (renamed since, it is still that preset), or the name
+    //! it was applied under when the preset is not among the artist's.
+    [[nodiscard]] QString originName(const PresetOrigin& origin) const;
 
     /**
-     * \brief What to call that look: the preset's name, or *Custom* when it is nobody's.
-     * \param a  The record to label.
-     * \return The label for the record.
+     * \brief Brings back the preset @p origin names, from @p look, under its uid — so every object made from
+     *        it is based on a preset of the artist's again. The name is the origin's, or the first free
+     *        one after it. A preset already there is left as it is.
+     * \return Its index.
      */
-    [[nodiscard]] QString lookLabel(const ObjectRecord& a) const;
-
-    /**
-     * \brief The name an empty font family stands for on this machine (Geometry::defaultFamily()).
-     *
-     * A preset that chooses no font means "the default", and a bubble reloaded from its file carries the
-     * default's name — so without this, every balloon made from such a preset would read *Custom* after a
-     * reopen.
-     * Handed in rather than looked up, so the store stays free of the font database (and of a GUI
-     * application) for its own tests. Unset, only an empty family matches an empty one.
-     */
-    void setDefaultFamily(const QString& family) { m_defaultFamily = family; }
+    int restore(const PresetOrigin& origin, const ObjectRecord& look);
 
     /**
      * \brief \p target restyled by \p p — the one place that knows what a preset does *not* carry.
@@ -161,7 +143,6 @@ private:
 
     QList<BubblePreset> m_presets;          //!< Built-ins first, then the artist's own.
     int                 m_builtinCount = 0; //!< How many of the first entries are built-in, so the rest are the artist's own.
-    QString             m_defaultFamily;    //!< What an empty font family means here; see setDefaultFamily().
 };
 
 }  // namespace StripEdit

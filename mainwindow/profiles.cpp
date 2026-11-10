@@ -9,6 +9,7 @@
 #include "profilepickerdialog.hpp"
 #include "templatesdialog.hpp"
 #include "renderworker.hpp"
+#include "editor.hpp"
 #include "presets/presetsdialog.hpp"
 #include "presetstore.hpp"
 
@@ -908,6 +909,48 @@ void MainWindow::exportProfilesFlow(bool canvasKind, bool toFile)
 // ---------------------------------------------------------------------------
 // Bubble-preset packs (Tools) — the application's presets, not the workspace's
 // ---------------------------------------------------------------------------
+
+void MainWindow::openPresetsDialog(const QString& presetUid)
+{
+    // Every project's objects, open or not: "where else did I use this look" is a workspace question.
+    const auto uses = [this](const QString& uid) {
+        QList<StripEdit::PresetUse> out;
+        for (const auto& project : m_workspace.projectItems) {
+            const QString             projectUid = QString::fromStdString(project.uid);
+            const ObjectRecord::Map   records    = m_overlayRecords.records(projectUid);
+            const auto                inputs     = project.inputsInOrder();
+            for (const auto& overlay : project.getStripOverlays()) {
+                const QString      objectUid = QString::fromStdString(overlay.uid);
+                const ObjectRecord record    = records.value(objectUid);
+                if (record.presetOrigin.uid != uid)
+                    continue;
+                const auto page = std::find_if(inputs.cbegin(), inputs.cend(), [&overlay](const auto& in) {
+                    return in.uid == overlay.anchorInputUid;
+                });
+                const QString words = record.text.body.section(QLatin1Char('\n'), 0, 0).left(40);
+                const QString where = page == inputs.cend() ? tr("unanchored")
+                                                            : tr("p.%1").arg(page - inputs.cbegin() + 1, 2, 10, QLatin1Char('0'));
+                out.append({projectUid, QString::fromStdString(project.name), objectUid,
+                            QStringLiteral("%1 · %2").arg(where, words.isEmpty() ? tr("(no text)") : words)});
+            }
+        }
+        return out;
+    };
+    StripEdit::PresetsDialog dialog(*m_presets, presetUid, uses, this);
+    dialog.exec();
+    const auto& use = dialog.shown();
+    if (!use)
+        return;
+    const int idx = projectIndexForUid(use->projectUid);
+    if (idx < 0)
+        return;
+    openStripEditorDock(idx);
+    if (QDockWidget* dock = dockForStripEditor(idx)) {
+        if (auto* editor = qobject_cast<StripEdit::Editor*>(dock->widget()))
+            editor->selectAfterFeed({use->objectUid});
+        refreshStripEditor(dock);   // the feed that selects it
+    }
+}
 
 void MainWindow::onImportBubblePresets()
 {

@@ -30,6 +30,7 @@
 
 #include <QDebug>
 #include <QEvent>
+#include <QMessageBox>
 #include <QGraphicsItem>
 #include <QGraphicsLineItem>
 #include <QGraphicsScene>
@@ -221,6 +222,7 @@ Editor::Editor(PresetStore& presets, QWidget *parent)
         // One panel for every tool that authors an `ObjectRecord` — Bubble, Text, Caption — because they
         // author the same object and differ only in the shape they place, which each tool's row says.
         m_bubbleOptions = new BubbleToolOptions(*m_presets, ui->toolOptionsStack);
+        connect(m_bubbleOptions, &BubbleToolOptions::manageRequested, this, &Editor::presetsDialogRequested);
         m_toolOptions->addPage(QStringLiteral("bubble"), m_bubbleOptions);
 
         // The other create tool's options: which picture the next placement puts down. A separate panel
@@ -250,6 +252,21 @@ Editor::Editor(PresetStore& presets, QWidget *parent)
         // to be one class sitting in two places, which is how they came to look like the same panel
         // twice. They now differ in what they contain, not only in what they mean.
         m_objectState = new ObjectState(*m_presets, ui->objectStateStack);
+        // The chip naming the selection's preset opens it; one that is not among the artist's presets is
+        // brought back from the object, under its uid, so every object made from it is based on it again.
+        connect(m_objectState, &ObjectState::presetOriginClicked, this, [this](const PresetOrigin& origin) {
+            if (m_presets->indexOf(origin.uid) < 0) {
+                const Object* item = m_objects ? m_objects->object(m_objects->selectedOverlay()) : nullptr;
+                if (!item
+                    || QMessageBox::question(this, tr("Preset not found"),
+                                             tr("“%1” is not among your presets. Make it one again, from this "
+                                                "object?").arg(origin.name))
+                           != QMessageBox::Yes)
+                    return;
+                (void)m_presets->restore(origin, item->record());
+            }
+            emit presetsDialogRequested(origin.uid);
+        });
         // The strip and its pages are selected too, and they are not overlays — so they get the same
         // surface with different contents rather than an object panel full of sections that never apply.
         m_stripState  = new StripState(ui->objectStateStack);

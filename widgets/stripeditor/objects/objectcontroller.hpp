@@ -674,6 +674,13 @@ private:
     void applyRecord(const QString& uid, const ObjectRecord& record, bool commit,
                      const QString& undoText = QString());
 
+public:
+    //! Makes @p origin the one selected object's origin, as one history step: what *Save as preset…* does to
+    //! the object it saved from.
+    void setSelectionOrigin(const PresetOrigin& origin);
+
+private:
+
     /**
      * \brief When @p next's box differs from what @p item holds — *Fit*, *Convert* — moves the tail tips
      *        back so they keep pointing where they did.

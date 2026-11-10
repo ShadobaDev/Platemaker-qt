@@ -8,6 +8,7 @@
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QSettings>
+#include <QUuid>
 
 namespace StripEdit {
 
@@ -32,7 +33,10 @@ QJsonObject presetToJson(const BubblePreset& p)
     for (const QString& key : {QStringLiteral("text"), QStringLiteral("w"), QStringLiteral("h"),
                                QStringLiteral("tails"), QStringLiteral("styleSeed")})
         j.remove(key);
+    for (const QString& key : {QStringLiteral("presetUid"), QStringLiteral("presetName")})
+        j.remove(key);   // a preset is nobody's copy
     j.insert(QStringLiteral("name"), p.name);
+    j.insert(QStringLiteral("uid"), p.uid);
     return j;
 }
 
@@ -43,7 +47,10 @@ QJsonObject presetToJson(const BubblePreset& p)
  */
 BubblePreset presetFromJson(const QJsonObject& j)
 {
-    return {j.value(QStringLiteral("name")).toString(), ObjectRecord::fromJson(j)};
+    // One with no uid (written before presets had one) gets one now, kept from then on.
+    const QString uid = j.value(QStringLiteral("uid")).toString();
+    return {j.value(QStringLiteral("name")).toString(), ObjectRecord::fromJson(j),
+            uid.isEmpty() ? QUuid::createUuid().toString(QUuid::WithoutBraces) : uid};
 }
 
 /**
@@ -98,12 +105,12 @@ QList<BubblePreset> builtinPresets()
     whisper.style.stroke.colour      = QColor(90, 90, 90);
     whisper.text.fill.colour = QColor(70, 70, 70);
     whisper.text.pixelSize   = 26;
-    out.append({PresetStore::tr("Whisper"), whisper});
+    out.append({PresetStore::tr("Whisper"), whisper, QStringLiteral("builtin-whisper")});
 
     ObjectRecord thought = base;
     thought.shape            = Geometry::shapeTemplate("thought").shape;
     thought.style.strokeWidth = 4;
-    out.append({PresetStore::tr("Thought"), thought});
+    out.append({PresetStore::tr("Thought"), thought, QStringLiteral("builtin-thought")});
 
     ObjectRecord shout = base;
     shout.shape              = Geometry::shapeTemplate("shout").shape;
@@ -111,23 +118,23 @@ QList<BubblePreset> builtinPresets()
     shout.text.pixelSize     = 38;
     shout.style.strokeWidth   = 7;
     shout.texture.kind      = ObjectRecord::Texture::Rough;   // the Marker look: Rough's own defaults
-    out.append({PresetStore::tr("Shout"), shout});
+    out.append({PresetStore::tr("Shout"), shout, QStringLiteral("builtin-shout")});
 
     ObjectRecord flash = base;
     flash.shape.kind         = ObjectRecord::Shape::Ellipse;
     flash.text.bold          = true;
     flash.style.line         = ObjectRecord::Line::Flash;   // its strokes, on Auto, from the struct
-    out.append({PresetStore::tr("Flash"), flash});
+    out.append({PresetStore::tr("Flash"), flash, QStringLiteral("builtin-flash")});
 
     // The two looks Rough replaced: a felt-tip's long slow wobble, and ink's finer one that
     // bleeds.
     ObjectRecord marker = base;
     marker.texture.kind     = ObjectRecord::Texture::Rough;
-    out.append({PresetStore::tr("Marker"), marker});
+    out.append({PresetStore::tr("Marker"), marker, QStringLiteral("builtin-marker")});
 
     ObjectRecord ink = base;
     ink.texture              = Geometry::inkRough(ink.texture);
-    out.append({PresetStore::tr("Ink"), ink});
+    out.append({PresetStore::tr("Ink"), ink, QStringLiteral("builtin-ink")});
 
     ObjectRecord caption = base;
     caption.shape            = Geometry::shapeTemplate("caption").shape;
@@ -136,7 +143,7 @@ QList<BubblePreset> builtinPresets()
     caption.style.stroke.colour      = QColor(245, 245, 245);
     caption.style.strokeWidth = 2;
     caption.text.align       = Qt::AlignLeft;
-    out.append({PresetStore::tr("Caption"), caption});
+    out.append({PresetStore::tr("Caption"), caption, QStringLiteral("builtin-caption")});
 
     return out;
 }
@@ -179,9 +186,10 @@ void PresetStore::persist()
 int PresetStore::save(const QString& name, const ObjectRecord& look, bool replaceExisting,
                       int* existingIndex)
 {
-    BubblePreset p{name, look};
+    BubblePreset p{name, look, QUuid::createUuid().toString(QUuid::WithoutBraces)};
     p.record.tails.items.clear();
-    p.record.styleSeed = 0;   // content, not style: a stored seed would clone one bubble's wobble
+    p.record.styleSeed    = 0;    // content, not style: a stored seed would clone one bubble's wobble
+    p.record.presetOrigin = {};   // a preset is nobody's copy
 
     for (int i = m_builtinCount; i < m_presets.size(); ++i) {
         if (m_presets.at(i).name.compare(name, Qt::CaseInsensitive) != 0)
@@ -190,6 +198,7 @@ int PresetStore::save(const QString& name, const ObjectRecord& look, bool replac
             *existingIndex = i;
         if (!replaceExisting)
             return -1;
+        p.uid        = m_presets.at(i).uid;   // the same preset, edited: the objects made from it still name it
         m_presets[i] = p;
         persist();
         return i;
@@ -245,10 +254,13 @@ int PresetStore::importPack(const QString& path, QString* error)
         for (int i = m_builtinCount; i < m_presets.size(); ++i)
             if (m_presets.at(i).name.compare(p.name, Qt::CaseInsensitive) == 0)
                 at = i;
-        if (at >= 0)
-            m_presets[at] = p;
-        else
+        if (at >= 0) {
+            BubblePreset same = p;
+            same.uid          = m_presets.at(at).uid;   // replaced in place: the objects made from it still name it
+            m_presets[at]     = same;
+        } else {
             m_presets.append(p);
+        }
     }
     persist();
     return int(incoming.size());
@@ -270,28 +282,43 @@ bool PresetStore::exportPack(const QString& path, QString* error) const
     return true;
 }
 
-int PresetStore::matching(const ObjectRecord& a) const
+int PresetStore::indexOf(const QString& uid) const
 {
-    // An empty family and the default's name are the same font.
-    const auto named = [this](TextProperties t) {
-        if (t.family.isEmpty())
-            t.family = m_defaultFamily;
-        return t;
-    };
-    for (int i = 0; i < m_presets.size(); ++i) {
-        const ObjectRecord look = applied(m_presets.at(i), a, /*keepShape=*/false);
-        if (look.shape == a.shape && look.skin == a.skin && look.style == a.style && look.texture == a.texture
-            && look.effects == a.effects
-            && named(look.text) == named(a.text))
+    if (uid.isEmpty())
+        return -1;
+    for (int i = 0; i < m_presets.size(); ++i)
+        if (m_presets.at(i).uid == uid)
             return i;
-    }
     return -1;
 }
 
-QString PresetStore::lookLabel(const ObjectRecord& a) const
+QString PresetStore::originName(const PresetOrigin& origin) const
 {
-    const int i = matching(a);
-    return i < 0 ? tr("Custom") : m_presets.at(i).name;
+    const int i = indexOf(origin.uid);
+    return i >= 0 ? m_presets.at(i).name : origin.name;
+}
+
+int PresetStore::restore(const PresetOrigin& origin, const ObjectRecord& look)
+{
+    if (const int i = indexOf(origin.uid); i >= 0)
+        return i;
+    const auto taken = [this](const QString& name) {
+        for (int i = m_builtinCount; i < m_presets.size(); ++i)
+            if (m_presets.at(i).name.compare(name, Qt::CaseInsensitive) == 0)
+                return true;
+        return false;
+    };
+    QString name = origin.name.isEmpty() ? tr("Preset") : origin.name;
+    for (int n = 2; taken(name); ++n)
+        name = tr("%1 (%2)").arg(origin.name).arg(n);
+    BubblePreset p{name, look, origin.uid};
+    p.record.tails.items.clear();
+    p.record.styleSeed    = 0;
+    p.record.text.body.clear();
+    p.record.presetOrigin = {};
+    m_presets.append(p);
+    persist();
+    return int(m_presets.size()) - 1;
 }
 
 ObjectRecord PresetStore::applied(const BubblePreset& p, const ObjectRecord& target, bool keepShape)
@@ -313,6 +340,9 @@ ObjectRecord PresetStore::applied(const BubblePreset& p, const ObjectRecord& tar
     // reason the author did not ask for.
     a.styleSeed = target.styleSeed;
     topUpStyleSeed(a);
+
+    // Where the look came from, as a hint; *No preset* (no uid) leaves none.
+    a.presetOrigin = p.uid.isEmpty() ? PresetOrigin{} : PresetOrigin{p.uid, p.name};
 
     return a;
 }

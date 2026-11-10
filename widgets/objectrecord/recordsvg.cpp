@@ -551,6 +551,10 @@ QByteArray write(const ObjectRecord& a, const QByteArray& picture, const QString
     svg += groupAttrs(a.texture);
     svg += groupAttrs(a.effects);
     svg += attr(QStringLiteral("styleSeed"), QString::number(a.styleSeed));
+    if (!a.presetOrigin.isEmpty()) {
+        svg += attr(QStringLiteral("presetUid"), a.presetOrigin.uid);
+        svg += attr(QStringLiteral("presetName"), a.presetOrigin.name);
+    }
     svg += QLatin1String(">\n");
 
     // Two groups: the balloon — its silhouette and its line's strokes — and the lettering.
@@ -649,6 +653,8 @@ ObjectRecord read(const QByteArray& svg, bool* ok)
         const auto seed   = at.value(ns, QStringLiteral("styleSeed")).toULongLong(&seedOk);
         if (seedOk)
             a.styleSeed = quint32(seed);
+        a.presetOrigin = {at.value(ns, QStringLiteral("presetUid")).toString(),
+                          at.value(ns, QStringLiteral("presetName")).toString()};
 
         if (ok)
             *ok = true;

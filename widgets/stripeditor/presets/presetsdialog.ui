@@ -6,8 +6,8 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>760</width>
-    <height>620</height>
+    <width>1100</width>
+    <height>660</height>
    </rect>
   </property>
   <property name="windowTitle">
@@ -15,7 +15,7 @@
   </property>
   <layout class="QVBoxLayout" name="verticalLayoutDialog">
    <item>
-    <layout class="QHBoxLayout" name="horizontalLayoutColumns" stretch="1,2">
+    <layout class="QHBoxLayout" name="horizontalLayoutColumns" stretch="1,2,1">
      <item>
       <layout class="QVBoxLayout" name="verticalLayoutList">
        <item>
@@ -129,6 +129,39 @@
           </widget>
          </item>
         </layout>
+       </item>
+      </layout>
+     </item>
+     <item>
+      <layout class="QVBoxLayout" name="verticalLayoutUses">
+       <item>
+        <widget class="QLabel" name="labelUses">
+         <property name="text">
+          <string>Objects made from it</string>
+         </property>
+         <property name="wordWrap">
+          <bool>true</bool>
+         </property>
+        </widget>
+       </item>
+       <item>
+        <widget class="QTreeWidget" name="treeUses">
+         <property name="headerHidden">
+          <bool>true</bool>
+         </property>
+         <column>
+          <property name="text">
+           <string notr="true">1</string>
+          </property>
+         </column>
+        </widget>
+       </item>
+       <item>
+        <widget class="QPushButton" name="pushButtonShow">
+         <property name="text">
+          <string>Show</string>
+         </property>
+        </widget>
        </item>
       </layout>
      </item>

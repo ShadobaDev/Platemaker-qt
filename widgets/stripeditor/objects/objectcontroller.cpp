@@ -953,6 +953,17 @@ void ObjectController::applyPresetToSelection(int index)
     applyRecord(m_selectedOverlay, a, /*commit=*/true);
 }
 
+void ObjectController::setSelectionOrigin(const PresetOrigin& origin)
+{
+    const Object* item = m_overlayItems.value(m_selectedOverlay);
+    if (!item || m_selectedOverlays.size() != 1 || item->record().presetOrigin == origin)
+        return;
+    ObjectRecord a = item->record();
+    a.presetOrigin = origin;
+    applyRecord(m_selectedOverlay, a, /*commit=*/true, tr("Save as preset"));
+    emit boundToRecord(a);
+}
+
 QPointF ObjectController::settleBox(const Object* item, ObjectRecord& next) const
 {
     const ObjectRecord& prev = item->record();

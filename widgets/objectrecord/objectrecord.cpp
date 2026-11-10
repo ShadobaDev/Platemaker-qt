@@ -150,7 +150,7 @@ bool ObjectRecord::operator==(const ObjectRecord& o) const
     // group's own operator== is the one place that has to know about it.
     return shape == o.shape && artwork == o.artwork && box == o.box && tails == o.tails
         && text == o.text && style == o.style && texture == o.texture && effects == o.effects && styleSeed == o.styleSeed
-        && skin == o.skin;
+        && skin == o.skin && presetOrigin == o.presetOrigin;
 }
 
 ShapeProperties ShapeProperties::from(const ObjectRecord& a) { return a.shape; }
@@ -343,6 +343,10 @@ QJsonObject ObjectRecord::toJson() const
         {QStringLiteral("nextTail"),  a.tails.nextLook.toText()},
         {QStringLiteral("styleSeed"), double(a.styleSeed)},
     };
+    if (!a.presetOrigin.isEmpty()) {
+        j.insert(QStringLiteral("presetUid"), a.presetOrigin.uid);
+        j.insert(QStringLiteral("presetName"), a.presetOrigin.name);
+    }
     writeJson(a.shape, j);
     writeJson(a.text, j);
     writeJson(a.skin, j);
@@ -363,6 +367,7 @@ ObjectRecord ObjectRecord::fromJson(const QJsonObject& j)
     a.tails.items = tailsFromJson(j.value(QStringLiteral("tails")).toArray());
     a.tails.nextLook = TailLook::fromFields(j.value(QStringLiteral("nextTail")).toString().split(QLatin1Char(',')));
     a.styleSeed   = quint32(j.value(QStringLiteral("styleSeed")).toDouble(0));
+    a.presetOrigin = {j.value(QStringLiteral("presetUid")).toString(), j.value(QStringLiteral("presetName")).toString()};
     readJson(a.shape, j);
     readJson(a.text, j);
     readJson(a.skin, j);

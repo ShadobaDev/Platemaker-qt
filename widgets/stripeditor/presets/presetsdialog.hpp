@@ -3,6 +3,9 @@
 
 #include <QDialog>
 
+#include <functional>
+#include <optional>
+
 #include "objectrecord.hpp"
 #include "properties/propertygroupset.hpp"
 
@@ -13,6 +16,18 @@ class PresetsDialog;
 namespace StripEdit {
 
 class PresetStore;
+
+//! One object made from a preset, as the dialog lists it: grouped by project, shown on request.
+struct PresetUse
+{
+    QString projectUid;
+    QString projectName;
+    QString objectUid;
+    QString label;   //!< Its page and its words, as the object list names it.
+};
+
+//! The objects of the open workspace made from the preset whose uid is given.
+using PresetUses = std::function<QList<PresetUse>(const QString& presetUid)>;
 
 /**
  * \brief *Manage presets*: the presets listed, the selected one drawn and edited with OBJECT STATE's
@@ -31,17 +46,21 @@ class PresetsDialog : public QDialog
 public:
     /**
      * \param store  The presets.
-     * \param select The name of the preset to open on; the first one when none has it.
+     * \param select The uid of the preset to open on; the first one when none has it.
      */
-    PresetsDialog(PresetStore& store, const QString& select, QWidget* parent = nullptr);
+    PresetsDialog(PresetStore& store, const QString& select, PresetUses uses, QWidget* parent = nullptr);
     ~PresetsDialog() override;
 
     //! Closing asks about unsaved edits first, like picking another preset does.
     void done(int result) override;
 
+    //! The object *Show* closed the dialog for, if it did: the caller shows it.
+    [[nodiscard]] const std::optional<PresetUse>& shown() const { return m_shownUse; }
+
 private:
     void rebuildList(const QString& select);
     void showPreset(int index);   //!< Binds the editors to the store's preset @p index.
+    void listUses();              //!< The objects made from the shown preset, grouped by project.
     void onEdited();
     void refreshButtons();
     [[nodiscard]] bool dirty() const;
@@ -59,6 +78,9 @@ private:
     int          m_shown = -1;          //!< The store's index of the preset the editors show.
     ObjectRecord m_edited;              //!< Its look as the editors have it.
     bool         m_populating = false;  //!< Binding, not editing.
+    PresetUses                m_uses;      //!< Where the objects come from: the window, which sees every project.
+    QList<PresetUse>          m_listed;    //!< What treeUses shows, by the index in its rows' data.
+    std::optional<PresetUse>  m_shownUse;  //!< What *Show* picked.
 };
 
 //! Asks for a pack file and reads it into @p store, saying what happened. *Tools* and the dialog both use it.

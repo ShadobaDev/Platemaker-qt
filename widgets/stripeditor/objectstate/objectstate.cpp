@@ -474,30 +474,38 @@ void ObjectState::refreshLook()
     delete m_lookChip;
     m_lookChip = nullptr;
 
-    QString text;
-    QString detail;
+    // Where the look came from: the preset last applied, a hint and not a link. A tail has no look of its
+    // own, nothing selected has nothing to report, and a picture's look is whoever drew it.
+    PresetOrigin origin;
+    bool         mixed = false;
     if (m_tailIndex >= 0 || m_selectionCount == 0 || (m_hasRecord && m_record.isArtwork())) {
-        // A tail has no look of its own, nothing selected has nothing to report, and a picture's look
-        // is whoever drew it — a preset covers a shape, a fill and a line style it does not have.
     } else if (m_hasRecord) {
-        text   = m_presets.lookLabel(m_record);
-        detail = m_presets.matching(m_record) >= 0
-                     ? tr("Every property a preset covers still matches “%1”.").arg(text)
-                     : tr("The look of no preset: something a preset covers has been changed since.");
+        origin = m_record.presetOrigin;
     } else if (!m_subjects.isEmpty()) {
-        const QString first = m_presets.lookLabel(m_subjects.first());
-        const bool    agree = std::all_of(m_subjects.cbegin(), m_subjects.cend(),
-                                          [this, &first](const ObjectRecord& a) {
-                                              return m_presets.lookLabel(a) == first;
-                                          });
-        text   = agree ? first : tr("Mixed");
-        detail = agree ? tr("Every object in the selection has this look.")
-                       : tr("The selected objects do not share one look.");
+        origin = m_subjects.first().presetOrigin;
+        mixed  = std::any_of(m_subjects.cbegin(), m_subjects.cend(), [&origin](const ObjectRecord& a) {
+            return a.presetOrigin.uid != origin.uid;
+        });
     }
-
-    if (text.isEmpty())
+    if (mixed) {
+        m_lookChip = makeBadge(toneBadge(BadgeTone::Neutral, tr("Mixed"),
+                                         tr("The selected objects were made from different presets, or some from none."),
+                                         palette()),
+                               this);
+    } else if (!origin.isEmpty()) {
+        const QString name  = m_presets.originName(origin);
+        const bool    known = m_presets.indexOf(origin.uid) >= 0;
+        Badge chip = toneBadge(BadgeTone::Neutral, tr("%1-based").arg(name),
+                               known ? tr("Made from the preset “%1”. Click to open it in Manage presets.").arg(name)
+                                     : tr("Made from the preset “%1”, which is not among your presets. Click to "
+                                          "make it one again, from this object.").arg(name),
+                               palette());
+        if (!known)
+            chip.withTextColour(palette().color(QPalette::Disabled, QPalette::WindowText));
+        m_lookChip = makeBadge(chip, this, [this, origin] { emit presetOriginClicked(origin); });
+    } else {
         return;
-    m_lookChip = makeBadge(toneBadge(BadgeTone::Neutral, text, detail, palette()), this);
+    }
     m_header->insertWidget(1, m_lookChip);   // after the subject, before the stretch
 }
 

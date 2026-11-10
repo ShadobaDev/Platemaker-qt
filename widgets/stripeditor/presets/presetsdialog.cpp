@@ -14,6 +14,7 @@
 #include <QPushButton>
 #include <QSignalBlocker>
 #include <QStandardPaths>
+#include <QTreeWidget>
 
 #include "presetstore.hpp"
 #include "properties/effectseditor.hpp"
@@ -38,6 +39,7 @@ ObjectRecord stored(ObjectRecord a)
     a.tails.items.clear();
     a.styleSeed = 0;
     a.text.body.clear();
+    a.presetOrigin = {};
     return a;
 }
 
@@ -68,11 +70,12 @@ Ui::PresetsDialog* formOn(QDialog* dialog)
 
 }  // namespace
 
-PresetsDialog::PresetsDialog(PresetStore& store, const QString& select, QWidget* parent)
+PresetsDialog::PresetsDialog(PresetStore& store, const QString& select, PresetUses uses, QWidget* parent)
     : QDialog(parent)
     , m_store(store)
     , ui(formOn(this))
     , m_groups(ui->editorsHost)
+    , m_uses(std::move(uses))
 {
     ui->listPresets->setIconSize(QSize(k_bubbleThumbW, k_bubbleThumbH));
 
@@ -119,9 +122,23 @@ PresetsDialog::PresetsDialog(PresetStore& store, const QString& select, QWidget*
     });
     connect(ui->pushButtonExport, &QPushButton::clicked, this, [this] { exportPresetPack(this, m_store); });
     connect(ui->buttonBox, &QDialogButtonBox::rejected, this, &QDialog::reject);
+    // *Show* closes the dialog for the object: it opens behind a modal dialog otherwise.
+    const auto show = [this] {
+        const QTreeWidgetItem* item = ui->treeUses->currentItem();
+        const QVariant         at   = item ? item->data(0, Qt::UserRole) : QVariant();
+        if (!at.isValid())
+            return;   // a project's row, or nothing
+        m_shownUse = m_listed.at(at.toInt());
+        accept();
+    };
+    connect(ui->pushButtonShow, &QPushButton::clicked, this, show);
+    connect(ui->treeUses, &QTreeWidget::itemDoubleClicked, this, show);
+    connect(ui->treeUses, &QTreeWidget::currentItemChanged, this, [this](QTreeWidgetItem* item) {
+        ui->pushButtonShow->setEnabled(item && item->data(0, Qt::UserRole).isValid());
+    });
     // The store changes from here and from elsewhere (an import under Tools): the list follows it.
     connect(&m_store, &PresetStore::changed, this, [this] {
-        rebuildList(m_shown >= 0 && m_shown < m_store.presets().size() ? m_store.presets().at(m_shown).name
+        rebuildList(m_shown >= 0 && m_shown < m_store.presets().size() ? m_store.presets().at(m_shown).uid
                                                                         : QString());
     });
 
@@ -157,7 +174,7 @@ void PresetsDialog::rebuildList(const QString& select)
             item->setFont(f);
             item->setToolTip(tr("Built-in: duplicate it to make a copy you can edit."));
         }
-        if (p.name == select)
+        if (p.uid == select)
             row = i;
     }
     ui->listPresets->setCurrentRow(row);
@@ -175,6 +192,30 @@ void PresetsDialog::showPreset(int index)
     ui->editorsHost->setEnabled(any && m_store.isCustom(index));
     ui->labelSample->setPixmap(any ? sampleOf(m_edited) : QPixmap());
     refreshButtons();
+    listUses();
+}
+
+void PresetsDialog::listUses()
+{
+    ui->treeUses->clear();
+    m_listed.clear();
+    const bool any = m_shown >= 0 && m_shown < m_store.presets().size();
+    if (any && m_uses)
+        m_listed = m_uses(m_store.presets().at(m_shown).uid);
+    QHash<QString, QTreeWidgetItem*> projects;
+    for (int i = 0; i < m_listed.size(); ++i) {
+        const PresetUse& use     = m_listed.at(i);
+        QTreeWidgetItem*&project = projects[use.projectUid];
+        if (!project) {
+            project = new QTreeWidgetItem(ui->treeUses, {use.projectName});
+            project->setExpanded(true);
+        }
+        auto* row = new QTreeWidgetItem(project, {use.label});
+        row->setData(0, Qt::UserRole, i);
+    }
+    ui->labelUses->setText(m_listed.isEmpty() ? tr("No object in this workspace is made from it.")
+                                              : tr("Objects made from it"));
+    ui->pushButtonShow->setEnabled(false);
 }
 
 void PresetsDialog::onEdited()
@@ -236,9 +277,12 @@ void PresetsDialog::duplicate()
         return;
     const BubblePreset source = m_store.presets().at(m_shown);
     QString name = tr("%1 copy").arg(source.name);
-    for (int n = 2; m_store.save(name, source.record, /*replaceExisting=*/false) < 0; ++n)
+    int     at   = m_store.save(name, source.record, /*replaceExisting=*/false);
+    for (int n = 2; at < 0; ++n) {
         name = tr("%1 copy %2").arg(source.name).arg(n);
-    rebuildList(name);
+        at   = m_store.save(name, source.record, /*replaceExisting=*/false);
+    }
+    rebuildList(m_store.presets().at(at).uid);
 }
 
 void PresetsDialog::rename()

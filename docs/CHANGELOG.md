@@ -15,16 +15,20 @@ Requires libplatemaker **0.7.0**.
   render produces.
 - **Balloons, captions and text.** The Bubble and Text tools draw an object where you drag one out.
   Any object can be selected, moved and resized under any tool, from eight grips: **Shift** keeps the
-  proportions, **Ctrl** resizes from the centre. The tool's options sit under the tool rail. The
-  right-hand panel shows the selected object's *Shape*, *Fill*, *Line*, *Texture*, *Effects*, *Text*
-  and tails, only the sections that apply.
+  proportions, **Ctrl** resizes from the centre. The tool's options, under the tool rail, hold only
+  what to draw: a preset, the shape, a tail and the colours (for the Text tool, the font, its colour and
+  its outline). The right-hand panel shows the selected object's *Shape*, *Fill*, *Line*, *Texture*,
+  *Effects*, *Text* and tails, only the sections that apply.
 - **Shapes:** a box with a corner radius (speech, caption), an ellipse, a polygon (shout, diamond,
   caption plate, banner), a cloud with lobes (thought) and a curve (scroll), any of them with a zigzag
   **edge**. Double-click a balloon, or pick *Edit shape*, to edit it on the strip: round its corners,
   move, add and delete points, bend a curve's handles and set their point type, drag the text area's
-  paddings. *Convert to curve* makes any balloon an editable curve.
+  paddings. A picked point shows the handles it lacks, and *Add handles* gives them to it. A right-click
+  on a point opens that point's menu. The balloon's frame follows its points both ways. *Convert to
+  curve* makes any balloon an editable curve.
 - **Lines and textures:** solid, **Flash**, **Brush** and **Drybrush** lines, and a **Rough** texture
-  over the whole balloon. *Re-roll* deals a line's strokes, a texture's wobble or an edge's teeth again.
+  that makes the outline wander while a fill's pattern stays put (*Roughen the fill too* wobbles it as
+  well). *Re-roll* deals a line's strokes, a texture's wobble or an edge's teeth again.
 - **Lettering:** lines break only where you break them. Line spacing; side and top padding, negative
   to let the words out of the balloon; an outline round the letters; a halftone colour; a shadow or a
   glow. *Fit to text* sizes the balloon to the lettering, *Fix padding* keeps the size and lowers the
@@ -34,18 +38,22 @@ Requires libplatemaker **0.7.0**.
 - **Patterns and shadows:** fill, line and shadow can be halftone dots, lines or a grid in a second
   colour, and a fill's pattern can fade out, set by dragging on the strip. A drop shadow under the whole
   balloon has a spread, an offset and a softness. Colours may be transparent.
-- **Presets:** a named look for the next balloon or for existing ones (*Apply preset ▸*), shared by
-  every strip editor, with built-in ones, and carried between machines as a JSON file (*Tools → Import /
-  Export bubble presets…*). The selected object shows the preset it still matches, or *Custom*.
+- **Presets:** a named look, for balloons or for text, shared by every strip editor. Pick one in the
+  tool's options for the next object, or apply one to existing objects, one or many, from the panel or
+  *Apply preset ▸*, after a question; *Reset to default* takes it back. Save one from an object (*Save as
+  preset…*). **Manage presets** lists them, draws and edits them, and lists the objects made from each;
+  every object shows the preset it was made from (*Shout-based*). Built-in ones, and a JSON file carries
+  them between machines (*Tools → Import / Export bubble presets…*).
 - **Several objects at once:** select them with Ctrl or Shift, or drag a box round them with the Select
   tool; then recolour, restyle, move or delete them together. Values they do not share read *Mixed*.
-  Tails can be selected and moved with their balloon.
+  Tails can be selected and moved with their balloon, and several tails share their width, bend and
+  style.
 - **Object list:** the strip's objects front to back, each with a drawing of itself and chips for an
   unanchored object or a blend mode. Drag to reorder, tick to mute, *Duplicate* (Ctrl+D) and *Delete*
   from the context menu. The strip and its pages sit at the bottom.
 - **More on an object's context menu:** *Blend ▸* (Normal, Multiply, Screen, Overlay, Darken, Lighten;
   also in the properties panel), *Bring forward / Send back*, *Fill with primary colour*, *Outline with
-  secondary colour*, *Apply from tool options ▸*, *Save as preset…* and *Convert to ▸ Text / Balloon*.
+  secondary colour*, *Reset to default*, *Save as preset…* and *Convert to ▸ Text / Balloon*.
 - **Colour pair, eyedropper and colour tool.** A primary and a secondary colour under the tools (**X**
   swaps them, **D** resets to black and white). The eyedropper takes a colour as it appears on the
   strip. The colour tool paints the lettering, the outline or the fill, whichever you click.
@@ -104,6 +112,7 @@ Requires libplatemaker **0.7.0**.
 - **Files are checked in the background,** all at once, when a project opens, before a render and on
   **Refresh files**; the window stays responsive. **Stop** also ends a render during the check.
 - **Opening a project no longer resizes the window.**
+- **Right-clicking the project list with no workspace open offers *New workspace*.** It did nothing.
 - **The menu bar is in the usual order:** *File, Edit, View, Canvas, Output, Tools, Render, Help*.
   Every entry and shortcut is still there. *File* gains *Exit*.
 - **Freer docking.** Panels dock side by side, split or tabbed. The **Action** panel keeps its own

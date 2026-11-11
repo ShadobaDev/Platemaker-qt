@@ -990,15 +990,28 @@ QPolygonF pushedIn(const EdgeWalk& walk, bool clockwise, const std::vector<qreal
     return poly;
 }
 
+//! How far apart a curved edge's points are sampled along the outline, in balloon pixels.
+constexpr qreal k_edgeSample = 2.0;
+//! How much of a tooth, either side of its valley, a spike's notch takes: the rest of the edge stays flat.
+constexpr qreal k_spikeShare = 0.25;
+
 /**
- * \brief A zigzag: straight teeth from the outline in to a valley `edgeDepth` deep, halfway between.
+ * \brief Teeth along every ring of @p outline: from each point on the outline in to a valley `edgeDepth`
+ *        deep between it and the next, the way down shaped by @p profile.
+ *
+ * @p profile takes how far from a point towards its valley (0 at the point, 1 at the valley) and answers how
+ * deep, as a share of the valley's depth: the same rise both ways, so a tooth is symmetric about its valley.
+ * A straight profile needs only its points and valleys; a curved one (@p curved) is sampled every
+ * k_edgeSample as well.
  *
  * The points stay on the outline and the valleys go in, so the balloon keeps its bounds. Irregularity
  * makes each valley shallower by up to its share and moves it along by up to a quarter of a tooth,
  * seeded, so it stays put while the balloon is edited. The outline's own corners ride on the teeth
  * (pushedIn()), so a polygon keeps its points.
  */
-QPainterPath zigzagEdge(const QPainterPath& outline, const ShapeProperties& shape, quint32 seed)
+template <class Profile>
+QPainterPath teethEdge(const QPainterPath& outline, const ShapeProperties& shape, quint32 seed, Profile profile,
+                       bool curved)
 {
     const qreal depth = qMax(shape.edgeDepth, 0.0);
     const qreal irr   = qBound(0, shape.edgeIrregularity, 100) / 100.0;
@@ -1024,6 +1037,9 @@ QPainterPath zigzagEdge(const QPainterPath& outline, const ShapeProperties& shap
             stations.push_back(k * step);
             stations.push_back(valley[size_t(k)]);
         }
+        if (curved)
+            for (qreal s = k_edgeSample; s < walk.length(); s += k_edgeSample)
+                stations.push_back(s);
         // Straight from a point (0 deep) down to its tooth's valley and up to the next point.
         const auto depthAt = [&](qreal s) {
             const int   k    = qBound(0, int(s / step), teeth - 1);
@@ -1031,7 +1047,7 @@ QPainterPath zigzagEdge(const QPainterPath& outline, const ShapeProperties& shap
             const qreal v    = valley[size_t(k)];
             const qreal to   = from + step;
             const qreal f    = s <= v ? (s - from) / (v - from) : (to - s) / (to - v);
-            return deep[size_t(k)] * qBound(0.0, f, 1.0);
+            return deep[size_t(k)] * profile(qBound(0.0, f, 1.0));
         };
         out.addPolygon(pushedIn(walk, signedArea2(ring) > 0.0, stations, depth, depthAt));
         out.closeSubpath();
@@ -1039,10 +1055,41 @@ QPainterPath zigzagEdge(const QPainterPath& outline, const ShapeProperties& shap
     return out;
 }
 
+//! A zigzag: straight teeth, a valley halfway between two points.
+QPainterPath zigzagEdge(const QPainterPath& outline, const ShapeProperties& shape, quint32 seed)
+{
+    return teethEdge(outline, shape, seed, [](qreal f) { return f; }, false);
+}
+
+//! A wave: smooth valleys, eased in and out of each point and valley, the zigzag's soft cousin.
+QPainterPath waveEdge(const QPainterPath& outline, const ShapeProperties& shape, quint32 seed)
+{
+    return teethEdge(outline, shape, seed, [](qreal f) { return (1.0 - std::cos(M_PI * f)) / 2.0; }, true);
+}
+
+/**
+ * \brief A scallop: a row of arcs bowing in, sharp where two meet: a cloud turned inside out. Each arc a
+ *        parabola, steepest at its points and flat at its valley.
+ */
+QPainterPath scallopEdge(const QPainterPath& outline, const ShapeProperties& shape, quint32 seed)
+{
+    return teethEdge(outline, shape, seed, [](qreal f) { return f * (2.0 - f); }, true);
+}
+
+//! A spike: short narrow notches in, flat between them, as a torn or nicked edge.
+QPainterPath spikeEdge(const QPainterPath& outline, const ShapeProperties& shape, quint32 seed)
+{
+    return teethEdge(outline, shape, seed,
+                     [](qreal f) { return qMax(0.0, (f - (1.0 - k_spikeShare)) / k_spikeShare); }, true);
+}
+
 //! In the enum's order; edgeInfo() checks every entry names its kind.
 const std::array<EdgeInfo, int(ShapeProperties::k_lastEdge) + 1> k_edges{{
     {ShapeProperties::Edge::None,   "none",   QT_TRANSLATE_NOOP("QObject", "None"),   nullptr},
     {ShapeProperties::Edge::Zigzag, "zigzag", QT_TRANSLATE_NOOP("QObject", "Zigzag"), zigzagEdge},
+    {ShapeProperties::Edge::Wave,    "wave",    QT_TRANSLATE_NOOP("QObject", "Wave"),    waveEdge},
+    {ShapeProperties::Edge::Scallop, "scallop", QT_TRANSLATE_NOOP("QObject", "Scallop"), scallopEdge},
+    {ShapeProperties::Edge::Spike,   "spike",   QT_TRANSLATE_NOOP("QObject", "Spike"),   spikeEdge},
 }};
 
 /**

@@ -879,6 +879,24 @@ TEST(Shape, PickedNodesMoveTogether)
 }
 
 /**
+ * \brief A grain with a third decimal reaches the filter as it is, and comes back from the file as it was.
+ */
+TEST(Texture, AFineGrainIsWrittenAsItIs)
+{
+    constexpr qreal k_tolerance = 1e-9;
+    ObjectRecord a = loadedRecord();
+    a.shape        = Geometry::shapeTemplate("speech").shape;
+    a.text.body.clear();   // no lettering, which would need a font
+    a.texture.kind           = ObjectRecord::Texture::Rough;
+    a.texture.roughFrequency = 0.035;
+    const QByteArray svg = Svg::write(a);
+    EXPECT_TRUE(QString::fromUtf8(svg).contains(QStringLiteral("baseFrequency=\"0.035\"")));
+    bool ok = false;
+    EXPECT_NEAR(Svg::read(svg, &ok).texture.roughFrequency, 0.035, k_tolerance);
+    EXPECT_TRUE(ok);
+}
+
+/**
  * \brief Dry ink hangs its filter on the outline alone: the fill before it, plain; after it, the outline's
  *        middle, unworn. Under Rough in parts, its group lies inside the line's roughened one.
  */
@@ -1389,12 +1407,14 @@ TEST(Shapes, AHandleDraggedOntoItselfChangesNothing)
  */
 TEST(Shapes, AnEdgeGoesInAndTheLetteringGivesUpItsDepth)
 {
+    for (int e = int(ObjectRecord::Edge::Zigzag); e <= int(ShapeProperties::k_lastEdge); ++e)
     for (const char* id : {"speech", "ellipse", "shout", "scroll", "thought"}) {
+        const auto edge = static_cast<ObjectRecord::Edge>(e);
         ObjectRecord plain;
         plain.shape = Geometry::shapeTemplate(id).shape;
         plain.box   = QSize(300, 160);
         ObjectRecord edged           = plain;
-        edged.shape.edge             = ObjectRecord::Edge::Zigzag;
+        edged.shape.edge             = edge;
         edged.shape.edgeDepth        = 9.0;
         edged.shape.edgeIrregularity = 50;
         edged.styleSeed              = 7;
@@ -1402,17 +1422,17 @@ TEST(Shapes, AnEdgeGoesInAndTheLetteringGivesUpItsDepth)
         const QRectF body = Geometry::balloonRect(plain);
         const QRectF bare = Geometry::outlineOf(plain, body).boundingRect();
         EXPECT_TRUE(bare.adjusted(-0.01, -0.01, 0.01, 0.01).contains(Geometry::outlineOf(edged, body).boundingRect()))
-            << id;
+            << id << " " << edgeName(edge);
         const QRectF a = Geometry::textArea(plain);
         const QRectF b = Geometry::textArea(edged);
-        EXPECT_NEAR(b.width(), a.width() - 2 * 9.0, 1e-6) << id;
-        EXPECT_NEAR(b.height(), a.height() - 2 * 9.0, 1e-6) << id;
-        EXPECT_EQ(Geometry::templateOf(edged.shape), &Geometry::shapeTemplate(id)) << id;
+        EXPECT_NEAR(b.width(), a.width() - 2 * 9.0, 1e-6) << id << " " << edgeName(edge);
+        EXPECT_NEAR(b.height(), a.height() - 2 * 9.0, 1e-6) << id << " " << edgeName(edge);
+        EXPECT_EQ(Geometry::templateOf(edged.shape), &Geometry::shapeTemplate(id)) << id << " " << edgeName(edge);
 
         const QPainterPath once = Geometry::outlineOf(edged, body);
-        EXPECT_TRUE(once == Geometry::outlineOf(edged, body)) << id;
+        EXPECT_TRUE(once == Geometry::outlineOf(edged, body)) << id << " " << edgeName(edge);
         edged.styleSeed = 8;
-        EXPECT_FALSE(once == Geometry::outlineOf(edged, body)) << id;
+        EXPECT_FALSE(once == Geometry::outlineOf(edged, body)) << id << " " << edgeName(edge);
     }
 }
 
@@ -2133,6 +2153,15 @@ QString goldenRecords()
     QList<QPair<QString, ShapeProperties>> shapes{{QStringLiteral("none"), none}};
     for (const Geometry::ShapeTemplate& t : Geometry::shapeTemplates())
         shapes.append({QString::fromLatin1(t.id), t.shape});
+    // The other edges on the speech balloon, each with some irregularity.
+    for (int e = int(ObjectRecord::Edge::Wave); e <= int(ShapeProperties::k_lastEdge); ++e) {
+        ShapeProperties edged  = Geometry::shapeTemplate("speech").shape;
+        edged.edge             = static_cast<ObjectRecord::Edge>(e);
+        edged.edgePitch        = 24.0;
+        edged.edgeDepth        = 8.0;
+        edged.edgeIrregularity = 30;
+        shapes.append({QStringLiteral("speech ") + QLatin1String(edgeName(edged.edge)), edged});
+    }
     // A zigzag edge on one template of each kind that draws a line or a curve.
     for (const char* id : {"speech", "ellipse", "shout", "scroll"}) {
         ShapeProperties zigzag = Geometry::shapeTemplate(id).shape;

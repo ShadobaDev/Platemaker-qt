@@ -138,8 +138,9 @@ ShapeEditor::ShapeEditor(QWidget* parent)
     m_edge = new QComboBox(this);
     for (int i = 0; i <= int(ShapeProperties::k_lastEdge); ++i)
         m_edge->addItem(edgeTitle(static_cast<ObjectRecord::Edge>(i)), i);
-    m_edge->setToolTip(tr("What is done to the outline's edge: teeth pushed in along it. The tails stay "
-                          "smooth, and the edge stays when another shape is picked."));
+    m_edge->setToolTip(tr("What is done to the outline's edge, pushed in along it: straight teeth, soft "
+                          "waves, arcs bowing in, or narrow notches. The tails stay smooth, and the edge stays "
+                          "when another shape is picked."));
     m_form->addRow(tr("Edge:"), m_edge);
     m_edgeRows.build(this, m_form, "edge", k_edgeRows, k_trContext, m_values, m_populating, edited);
     connect(m_edge, &QComboBox::currentIndexChanged, this, [this](int i) {

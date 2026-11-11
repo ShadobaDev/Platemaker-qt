@@ -20,6 +20,12 @@ namespace {
 
 //! Decimal places for path coordinates. Two is well under a rendered pixel and keeps files small.
 constexpr int k_precision = 2;
+/**
+ * Decimal places for a number the record is read back from (its pm: attributes) or a filter is tuned by: a
+ * grain's spin steps by a thousandth, and two places would round 0.035 to another texture, in the render and
+ * in the file reopened. Trailing zeros are trimmed, so a number with two places or fewer is written as before.
+ */
+constexpr int k_valuePrecision = 4;
 
 QString num(qreal v, int precision = k_precision)
 {
@@ -181,7 +187,7 @@ QString styleDefs(const ObjectRecord& a, const QString& id)
              .arg(id);
     d += QStringLiteral("      <feTurbulence type=\"fractalNoise\" baseFrequency=\"%1\" numOctaves=\"%2\" "
                         "seed=\"%3\" result=\"pmNoise\"/>\n")
-             .arg(num(qMax(s.roughFrequency, 0.0))).arg(qMax(s.roughOctaves, 1)).arg(a.styleSeed % 65536u);
+             .arg(num(qMax(s.roughFrequency, 0.0), k_valuePrecision)).arg(qMax(s.roughOctaves, 1)).arg(a.styleSeed % 65536u);
     d += QStringLiteral("      <feDisplacementMap in=\"SourceGraphic\" in2=\"pmNoise\" scale=\"%1\" "
                         "xChannelSelector=\"R\" yChannelSelector=\"G\"%2/>\n")
              .arg(num(qMax(s.roughDisplacement, 0.0)),
@@ -218,7 +224,7 @@ QString dryInkDefs(const ObjectRecord& a, const QString& id)
     d += QStringLiteral("    <filter id=\"%1\" x=\"-25%\" y=\"-25%\" width=\"150%\" height=\"150%\">\n").arg(id);
     d += QStringLiteral("      <feTurbulence type=\"fractalNoise\" baseFrequency=\"%1\" numOctaves=\"%2\" "
                         "seed=\"%3\" result=\"pmNoise\"/>\n")
-             .arg(num(qMax(s.dryInkGrain, 0.0))).arg(k_dryInkOctaves).arg(a.styleSeed % 65536u);
+             .arg(num(qMax(s.dryInkGrain, 0.0), k_valuePrecision)).arg(k_dryInkOctaves).arg(a.styleSeed % 65536u);
     d += QStringLiteral("      <feColorMatrix in=\"pmNoise\" type=\"matrix\" "
                         "values=\"0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  1 0 0 0 0\" result=\"pmGrain\"/>\n");
     d += QStringLiteral("      <feComponentTransfer in=\"pmGrain\" result=\"pmWorn\">"
@@ -331,7 +337,7 @@ int intOf(const QStringView& v, int fallback)
 
 QString attrValue(int v) { return QString::number(v); }
 QString attrValue(bool v) { return v ? QStringLiteral("1") : QStringLiteral("0"); }
-QString attrValue(qreal v) { return num(v); }
+QString attrValue(qreal v) { return num(v, k_valuePrecision); }
 QString attrValue(const QString& v) { return v; }
 QString attrValue(const QColor& v) { return v.name(QColor::HexArgb); }
 QString attrValue(ObjectRecord::Shape v) { return QString::fromLatin1(shapeName(v)); }

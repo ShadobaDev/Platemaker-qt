@@ -410,9 +410,9 @@ struct ShapeProperties
      * family alike, before the tails are united into it so a tail stays smooth. The table is in
      * shapes.cpp; persisted by name (edgeName()).
      */
-    enum class Edge { None, Zigzag };
+    enum class Edge { None, Zigzag, Wave, Scallop, Spike };
     //! The enum's last value. **Adding an edge moves this**: edgeFromName() reads up to it.
-    static constexpr Edge k_lastEdge = Edge::Zigzag;
+    static constexpr Edge k_lastEdge = Edge::Spike;
 
     //! Decimal places a node is saved with in the SVG; a template's nodes are rounded to them, so a
     //! placed template reads back as itself. 4 is a fifth of a pixel on a 2000 px balloon.

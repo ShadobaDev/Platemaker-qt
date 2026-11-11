@@ -203,6 +203,38 @@ qreal taperAt(qreal u, qreal taper)
     return std::sin(f * M_PI / 2.0);   // eased into the full width, not a straight wedge
 }
 
+//! How a ribbon about the edge is drawn: its width, and how its ends narrow, its width swells and it wanders.
+struct RibbonLook
+{
+    qreal half;    //!< Half its width, in balloon pixels.
+    qreal taper;   //!< How much of it, at each end, narrows to its point, as a share of its length (taperAt()).
+    qreal swell;   //!< How much its width varies along it, as a share of the width.
+    qreal drift;   //!< How far it wanders off the edge, in balloon pixels.
+};
+
+/**
+ * \brief A ribbon about @p edge from @p from to @p to, distances along it that may run past either end
+ *        of the lap: as wide as @p look says, narrowing at its ends, its width and its line moved by
+ *        smooth noise from @p seed. One closed polygon, its left side out and its right side back.
+ */
+QPolygonF ribbon(const EdgeWalk& edge, qreal from, qreal to, quint32 seed, const RibbonLook& look)
+{
+    const qreal length  = edge.length();
+    const int   samples = qMax(2, qCeil((to - from) / k_brushStep));
+    QPolygonF   left, right;
+    for (int k = 0; k <= samples; ++k) {
+        const qreal  u  = qreal(k) / samples;
+        const qreal  at = from + (to - from) * u;
+        const auto   p  = edge.at(at - std::floor(at / length) * length);
+        const QPointF n(-p.tangent.y(), p.tangent.x());
+        const qreal  w  = look.half * taperAt(u, look.taper) * (1.0 + look.swell * smoothNoise(seed, at / k_brushWave));
+        const qreal  c  = look.drift * smoothNoise(seed ^ k_brushStream, at / k_brushWave);
+        left << p.at + n * (c + w);
+        right.prepend(p.at + n * (c - w));
+    }
+    return left + right;
+}
+
 /**
  * \brief The brush's strokes along every closed edge of @p silhouette.
  *
@@ -225,6 +257,7 @@ QPainterPath brushInk(const ObjectRecord& a, const QPainterPath& silhouette)
     out.setFillRule(Qt::WindingFill);
     if (half <= 0.0)
         return out;   // no outline, no brush: its width is the outline's
+    const RibbonLook look{half, taper, swell, s.brushDrift};
     QRandomGenerator rng(a.styleSeed ^ k_brushStream);
     quint32          stroke = 0;   // a number per stroke, for its own noise
     for (const EdgeWalk& edge : edgeWalks(silhouette)) {
@@ -236,26 +269,58 @@ QPainterPath brushInk(const ObjectRecord& a, const QPainterPath& silhouette)
         join[size_t(count)] = join[0] + length;   // the last stroke ends where the first begins, round
 
         for (int j = 0; j < count; ++j, ++stroke) {
-            const qreal   from    = join[size_t(j)] - over * share / 2.0;
-            const qreal   to      = join[size_t(j) + 1] + over * share / 2.0;
-            const int     samples = qMax(2, qCeil((to - from) / k_brushStep));
-            const quint32 seed    = a.styleSeed ^ ((stroke + 1) * k_strokeStream);
-            QPolygonF     left, right;
-            for (int k = 0; k <= samples; ++k) {
-                const qreal  u  = qreal(k) / samples;
-                const qreal  at = from + (to - from) * u;
-                const auto   p  = edge.at(at - std::floor(at / length) * length);
-                const QPointF n(-p.tangent.y(), p.tangent.x());
-                const qreal  w  = half * taperAt(u, taper) * (1.0 + swell * smoothNoise(seed, at / k_brushWave));
-                const qreal  c  = s.brushDrift * smoothNoise(seed ^ k_brushStream, at / k_brushWave);
-                left << p.at + n * (c + w);
-                right.prepend(p.at + n * (c - w));
-            }
-            out.addPolygon(left + right);
+            const qreal from = join[size_t(j)] - over * share / 2.0;
+            const qreal to   = join[size_t(j) + 1] + over * share / 2.0;
+            out.addPolygon(ribbon(edge, from, to, a.styleSeed ^ ((stroke + 1) * k_strokeStream), look));
             out.closeSubpath();
         }
     }
     return out;
+}
+
+// ---------------------------------------------------------------------------
+// Dashed: the edge cut into dashes, a whole number to each lap
+// ---------------------------------------------------------------------------
+
+/**
+ * \brief The dashes along every closed edge of @p silhouette: straight-ended ribbons as wide as the
+ *        outline, starting where the edge does.
+ *
+ * The lap takes the whole number of dash-and-gap periods nearest its length, and the gap gives or takes
+ * the rest, so no short dash or doubled gap marks where the lap closes. A gap of 0 is one whole line.
+ */
+QPainterPath dashedInk(const ObjectRecord& a, const QPainterPath& silhouette)
+{
+    const StyleProperties& s = a.style;
+    const RibbonLook       look{qMax(s.strokeWidth, 0) / 2.0, 0.0, 0.0, 0.0};   // straight: no taper, swell or drift
+    const qreal            dash = qMax(s.dashLength, 0.0);
+    const qreal            gap  = qMax(s.dashGap, 0.0);
+
+    QPainterPath out;
+    out.setFillRule(Qt::WindingFill);
+    if (look.half <= 0.0 || dash <= 0.0)
+        return out;
+    for (const EdgeWalk& edge : edgeWalks(silhouette)) {
+        const qreal length = edge.length();
+        if (gap <= 0.0) {
+            out.addPolygon(ribbon(edge, 0.0, length, 0, look));
+            out.closeSubpath();
+            continue;
+        }
+        const int   count  = qMax(1, qRound(length / (dash + gap)));
+        const qreal period = length / count;
+        for (int k = 0; k < count; ++k) {
+            out.addPolygon(ribbon(edge, k * period, k * period + qMin(dash, period), 0, look));
+            out.closeSubpath();
+        }
+    }
+    return out;
+}
+
+//! Half the outline: a dash is as wide as it.
+qreal dashedReach(const ObjectRecord& a)
+{
+    return qMax(a.style.strokeWidth, 0) / 2.0;
 }
 
 //! Half the outline at its widest swell, and as far as a stroke wanders.
@@ -694,6 +759,7 @@ const std::array<LineInfo, int(StyleProperties::k_lastLine) + 1> k_lines{{
     {Line::Flash, "flash", QT_TRANSLATE_NOOP("QObject", "Flash"), flashInk, flashReach},
     {Line::Brush, "brush", QT_TRANSLATE_NOOP("QObject", "Brush"), brushInk, brushReach},
     {Line::Drybrush, "drybrush", QT_TRANSLATE_NOOP("QObject", "Drybrush"), drybrushInk, drybrushReach},
+    {Line::Dashed, "dashed", QT_TRANSLATE_NOOP("QObject", "Dashed"), dashedInk, dashedReach},
 }};
 
 //! Likewise, for patternInfo().

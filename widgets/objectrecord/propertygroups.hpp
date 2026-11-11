@@ -541,15 +541,15 @@ struct TextureProperties
 struct StyleProperties
 {
     /**
-     * \brief How the edge is drawn. Clean is the solid outline; Flash, Brush and Drybrush are strokes
+     * \brief How the edge is drawn. Clean is the solid outline; Flash, Brush, Drybrush and Dashed are strokes
      * of their own, plain geometry, so Qt draws them as it draws a clean balloon. The table is in styles.cpp.
      *
      * Persisted by name — see lineName(). The strip editor is unreleased, so the order is
      * free.
      */
-    enum class Line { Clean, Flash, Brush, Drybrush };
+    enum class Line { Clean, Flash, Brush, Drybrush, Dashed };
     //! The enum's last value. **Adding a line moves this**: lineFromName() reads up to it.
-    static constexpr Line k_lastLine = Line::Drybrush;
+    static constexpr Line k_lastLine = Line::Dashed;
 
     //! `flashCoreStretch`'s "follow the shape" value.
     static constexpr int k_autoStretch = -1;
@@ -609,6 +609,16 @@ struct StyleProperties
     int   drybrushDryness  = 20;   //!< How much of the hairs by the core are gaps, in %: 100 leaves the core alone.
     /** @} */
 
+    /**
+     * @name The dashed line, a whisper: the edge cut into dashes as wide as the outline, a whole number of
+     * them to each lap, so the gap is stretched or squeezed a little to close it (styles.cpp). Read only
+     * while `line` is Dashed. In balloon pixels.
+     * @{
+     */
+    qreal dashLength = 12.0;   //!< How long a dash is along the edge.
+    qreal dashGap    = 8.0;    //!< The gap after it, before the lap is fitted; 0 draws a whole line.
+    /** @} */
+
     //! The fields, with the keys they are saved under (fields.hpp).
     template <class V>
     static void fields(V&& v)
@@ -639,6 +649,8 @@ struct StyleProperties
         v("drybrushCore",           &StyleProperties::drybrushCore);
         v("drybrushBristles",       &StyleProperties::drybrushBristles);
         v("drybrushDryness",        &StyleProperties::drybrushDryness);
+        v("dashLength",             &StyleProperties::dashLength);
+        v("dashGap",                &StyleProperties::dashGap);
     }
 
     [[nodiscard]] static StyleProperties from(const ObjectRecord& a);

@@ -60,6 +60,7 @@ private:
     FieldRows<StyleProperties> m_flash;   //!< One spin per `flash…` field. Lengths are whole pixels.
     FieldRows<StyleProperties> m_brush;   //!< One spin per `brush…` field.
     FieldRows<StyleProperties> m_drybrush;   //!< One spin per `drybrush…` field.
+    FieldRows<StyleProperties> m_dash;       //!< One spin per `dash…` field.
 
     StyleProperties m_values;
     bool m_populating = false;

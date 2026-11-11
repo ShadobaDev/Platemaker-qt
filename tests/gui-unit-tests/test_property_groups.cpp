@@ -20,6 +20,7 @@
 #include <QJsonDocument>
 #include <QJsonObject>
 
+#include "edgewalk.hpp"
 #include "geometry.hpp"
 #include "recordsvg.hpp"
 #include "shapes.hpp"
@@ -83,6 +84,8 @@ ObjectRecord loadedRecord()
     a.style.drybrushCore           = 31;
     a.style.drybrushBristles       = 9;
     a.style.drybrushDryness        = 42;
+    a.style.dashLength             = 9.5;
+    a.style.dashGap                = 4.25;
     a.styleSeed        = 0xC0FFEEu;
     a.presetOrigin     = {QStringLiteral("uid-loaded"), QStringLiteral("Loaded")};
 
@@ -187,6 +190,7 @@ struct StyleMirror {
     int flashCoreStretch;
     int brushStrokes, brushOverlap, brushTaper, brushSwell; qreal brushDrift;
     int drybrushCore, drybrushBristles, drybrushDryness;
+    qreal dashLength, dashGap;
 };
 static_assert(sizeof(StyleProperties) == sizeof(StyleMirror),
               "StyleProperties grew a field: place it (see above), then mirror it");
@@ -300,6 +304,8 @@ void expectUntouched(Group applied, const ObjectRecord& before, const ObjectReco
         EXPECT_EQ(after.style.drybrushCore,           before.style.drybrushCore);
         EXPECT_EQ(after.style.drybrushBristles,       before.style.drybrushBristles);
         EXPECT_EQ(after.style.drybrushDryness,        before.style.drybrushDryness);
+        EXPECT_DOUBLE_EQ(after.style.dashLength,      before.style.dashLength);
+        EXPECT_DOUBLE_EQ(after.style.dashGap,         before.style.dashGap);
     }
     if (applied != Group::Texture) {
         EXPECT_EQ(after.texture.kind, before.texture.kind);
@@ -809,7 +815,7 @@ TEST(Style, ALinesStrokesStayInsideTheirBounds)
         a.style.brushDrift             = 6.0;
         a.style.strokeWidth             = 9;
         for (ObjectRecord::Line line : {ObjectRecord::Line::Flash, ObjectRecord::Line::Brush,
-                                        ObjectRecord::Line::Drybrush}) {
+                                        ObjectRecord::Line::Drybrush, ObjectRecord::Line::Dashed}) {
             a.style.line = line;
             EXPECT_FALSE(Geometry::hasOutline(a));
             EXPECT_FALSE(Geometry::hasFilter(a));
@@ -830,8 +836,34 @@ TEST(Style, ALinesStrokesStayInsideTheirBounds)
             const QPainterPath once = Geometry::ink(a, Geometry::silhouette(a));
             EXPECT_TRUE(once == Geometry::ink(a, Geometry::silhouette(a))) << id << " " << lineName(line);
             a.styleSeed = 8;
-            EXPECT_FALSE(once == Geometry::ink(a, Geometry::silhouette(a))) << id << " " << lineName(line);
+            if (line != ObjectRecord::Line::Dashed)   // the only line with nothing random in it
+                EXPECT_FALSE(once == Geometry::ink(a, Geometry::silhouette(a))) << id << " " << lineName(line);
         }
+    }
+}
+
+/**
+ * \brief A dashed line puts a whole number of dashes round each lap, the nearest to its length over a
+ *        dash and a gap, and a gap of 0 is one whole line.
+ */
+TEST(Style, ADashedLineFitsWholeDashesRoundEachLap)
+{
+    for (const char* id : {"ellipse", "caption", "shout"}) {
+        ObjectRecord a;
+        a.shape           = Geometry::shapeTemplate(id).shape;
+        a.box             = QSize(280, 160);
+        a.tails.items.clear();
+        a.style.line      = ObjectRecord::Line::Dashed;
+        a.style.dashLength = 12.0;
+        a.style.dashGap    = 8.0;
+        const QPainterPath             silhouette = Geometry::silhouette(a);
+        const QList<Geometry::EdgeWalk> edges      = Geometry::edgeWalks(silhouette);
+        ASSERT_EQ(edges.size(), 1) << id;
+        const int dashes = qRound(edges.first().length() / (a.style.dashLength + a.style.dashGap));
+        EXPECT_EQ(Geometry::ink(a, silhouette).toSubpathPolygons().size(), dashes) << id;
+
+        a.style.dashGap = 0.0;
+        EXPECT_EQ(Geometry::ink(a, silhouette).toSubpathPolygons().size(), 1) << id;
     }
 }
 
@@ -1946,6 +1978,19 @@ QString goldenRecords()
         a.effects.shadow.on      = false;
         a.tails.items.first().tip = QPointF(90, 230);
         write(QString::fromLatin1(id), QStringLiteral("drybrush"), true, a);
+    }
+    // A dashed line, a whisper, on two templates with a tail, at its own numbers.
+    for (const char* id : {"ellipse", "caption"}) {
+        ObjectRecord a      = loadedRecord();
+        a.shape             = Geometry::shapeTemplate(id).shape;
+        a.style             = looks.first().style;
+        a.style.line        = ObjectRecord::Line::Dashed;
+        a.style.dashLength  = StyleProperties().dashLength;
+        a.style.dashGap     = StyleProperties().dashGap;
+        a.texture           = looks.first().texture;
+        a.skin.fill.kind    = ObjectRecord::Pattern::Solid;
+        a.effects.shadow.on = false;
+        write(QString::fromLatin1(id), QStringLiteral("dashed"), true, a);
     }
     // A Circles tail: on a clean speech balloon, apart from it; and the author's reference, a
     // white dry brush on a black ellipse, the chain sunk into it.

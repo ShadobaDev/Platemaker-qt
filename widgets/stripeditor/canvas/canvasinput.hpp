@@ -8,6 +8,7 @@
 
 class QGraphicsView;
 class QMimeData;
+class QRubberBand;
 
 namespace StripEdit {
 
@@ -69,6 +70,8 @@ private:
     Placement*        m_placement = nullptr;
     const Tool*       m_tool    = nullptr;
     QPoint            m_panFrom {-1, -1};      //!< Last middle-button point, viewport coordinates; -1 when none.
+    QPoint            m_bandFrom {-1, -1};     //!< Where shape editing's band was pressed; -1 when none.
+    QRubberBand*      m_band = nullptr;        //!< Shape editing's band, made at its first drag.
     QPoint            m_pointerPos {-1, -1};   //!< Last hovered viewport point, so the cursor can be
                                                //!< re-decided when the pointer has not moved but the
                                                //!< scene under it has.

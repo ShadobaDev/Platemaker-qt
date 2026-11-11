@@ -20,6 +20,7 @@
 #include <QJsonDocument>
 #include <QJsonObject>
 
+#include "edgewalk.hpp"
 #include "geometry.hpp"
 #include "recordsvg.hpp"
 #include "shapes.hpp"
@@ -38,6 +39,8 @@ ObjectRecord loadedRecord()
     a.shape.nodes      = {{0.1, 0.2}, {0.9, 0.15}, {0.55, 0.95}};
     a.shape.lobes      = 9;
     a.shape.lobeSize   = 33;
+    a.shape.bow             = 12;
+    a.shape.bowIrregularity = 37;
     a.shape.edge             = ObjectRecord::Edge::Zigzag;
     a.shape.edgePitch        = 12.5;
     a.shape.edgeDepth        = 4.5;
@@ -83,6 +86,24 @@ ObjectRecord loadedRecord()
     a.style.drybrushCore           = 31;
     a.style.drybrushBristles       = 9;
     a.style.drybrushDryness        = 42;
+    a.style.dashLength             = 9.5;
+    a.style.dashGap                = 4.25;
+    a.style.multiLines             = 3;
+    a.style.sketchLength           = 33.5;
+    a.style.sketchLayers           = 3;
+    a.style.sketchStiffness        = 47;
+    a.style.sketchSpread           = 1.25;
+    a.style.sketchEntry            = 7;
+    a.style.sketchExit             = 52;
+    a.style.sketchCore             = 31;
+    a.style.sketchStrokeWidth      = 44;
+    a.style.sketchClockwise        = false;
+    a.style.sketchBlots            = 23;
+    a.style.dryInkGrain            = 0.25;
+    a.style.dryInkWear             = 55;
+    a.style.dryInkCore             = 15;
+    a.style.multiGap              = 6.5;
+    a.style.multiWidth            = 1.75;
     a.styleSeed        = 0xC0FFEEu;
     a.presetOrigin     = {QStringLiteral("uid-loaded"), QStringLiteral("Loaded")};
 
@@ -156,7 +177,7 @@ ObjectRecord loadedRecord()
 // ---------------------------------------------------------------------------
 
 struct ShapeMirror {
-    ShapeProperties::Kind kind; qreal cornerRadius; QList<ShapeNode> nodes; int lobes, lobeSize;
+    ShapeProperties::Kind kind; qreal cornerRadius; QList<ShapeNode> nodes; int lobes, lobeSize, bow, bowIrregularity;
     ShapeProperties::Edge edge; qreal edgePitch, edgeDepth; int edgeIrregularity;
 };
 static_assert(sizeof(ShapeProperties) == sizeof(ShapeMirror),
@@ -187,6 +208,11 @@ struct StyleMirror {
     int flashCoreStretch;
     int brushStrokes, brushOverlap, brushTaper, brushSwell; qreal brushDrift;
     int drybrushCore, drybrushBristles, drybrushDryness;
+    qreal dashLength, dashGap;
+    int multiLines; qreal multiGap, multiWidth;
+    qreal sketchLength; int sketchLayers, sketchStiffness; qreal sketchSpread; int sketchEntry, sketchExit;
+    int sketchCore, sketchStrokeWidth; bool sketchClockwise; int sketchBlots;
+    qreal dryInkGrain; int dryInkWear, dryInkCore;
 };
 static_assert(sizeof(StyleProperties) == sizeof(StyleMirror),
               "StyleProperties grew a field: place it (see above), then mirror it");
@@ -268,6 +294,8 @@ void expectUntouched(Group applied, const ObjectRecord& before, const ObjectReco
         EXPECT_TRUE(Fields::same(after.shape.nodes, before.shape.nodes));
         EXPECT_EQ(after.shape.lobes,    before.shape.lobes);
         EXPECT_EQ(after.shape.lobeSize, before.shape.lobeSize);
+        EXPECT_EQ(after.shape.bow,             before.shape.bow);
+        EXPECT_EQ(after.shape.bowIrregularity, before.shape.bowIrregularity);
         EXPECT_EQ(after.shape.edge, before.shape.edge);
         EXPECT_DOUBLE_EQ(after.shape.edgePitch, before.shape.edgePitch);
         EXPECT_DOUBLE_EQ(after.shape.edgeDepth, before.shape.edgeDepth);
@@ -300,6 +328,24 @@ void expectUntouched(Group applied, const ObjectRecord& before, const ObjectReco
         EXPECT_EQ(after.style.drybrushCore,           before.style.drybrushCore);
         EXPECT_EQ(after.style.drybrushBristles,       before.style.drybrushBristles);
         EXPECT_EQ(after.style.drybrushDryness,        before.style.drybrushDryness);
+        EXPECT_DOUBLE_EQ(after.style.dashLength,      before.style.dashLength);
+        EXPECT_DOUBLE_EQ(after.style.dashGap,         before.style.dashGap);
+        EXPECT_EQ(after.style.multiLines,             before.style.multiLines);
+        EXPECT_DOUBLE_EQ(after.style.sketchLength,    before.style.sketchLength);
+        EXPECT_EQ(after.style.sketchLayers,           before.style.sketchLayers);
+        EXPECT_EQ(after.style.sketchStiffness,        before.style.sketchStiffness);
+        EXPECT_DOUBLE_EQ(after.style.sketchSpread,    before.style.sketchSpread);
+        EXPECT_EQ(after.style.sketchEntry,            before.style.sketchEntry);
+        EXPECT_EQ(after.style.sketchExit,             before.style.sketchExit);
+        EXPECT_EQ(after.style.sketchCore,             before.style.sketchCore);
+        EXPECT_EQ(after.style.sketchStrokeWidth,      before.style.sketchStrokeWidth);
+        EXPECT_EQ(after.style.sketchClockwise,        before.style.sketchClockwise);
+        EXPECT_EQ(after.style.sketchBlots,            before.style.sketchBlots);
+        EXPECT_DOUBLE_EQ(after.style.dryInkGrain,     before.style.dryInkGrain);
+        EXPECT_EQ(after.style.dryInkWear,             before.style.dryInkWear);
+        EXPECT_EQ(after.style.dryInkCore,             before.style.dryInkCore);
+        EXPECT_DOUBLE_EQ(after.style.multiGap,       before.style.multiGap);
+        EXPECT_DOUBLE_EQ(after.style.multiWidth,     before.style.multiWidth);
     }
     if (applied != Group::Texture) {
         EXPECT_EQ(after.texture.kind, before.texture.kind);
@@ -747,8 +793,10 @@ TEST(Conversion, EveryShapeAndStyleHasATableEntry)
         EXPECT_EQ(info.kind, kind) << "line entry " << i << " is out of the enum's order";
         EXPECT_NE(info.name, nullptr) << i;
         EXPECT_NE(info.title, nullptr) << i;
-        // Every line but Clean has strokes of its own, and strokes reserve room.
-        EXPECT_EQ(info.ink == nullptr, kind == ObjectRecord::Line::Clean) << lineName(kind);
+        // Every line but the solid outline (Clean, and Dry ink: that outline under a filter) has strokes of
+        // its own, and strokes reserve room.
+        EXPECT_EQ(info.ink == nullptr, kind == ObjectRecord::Line::Clean || kind == ObjectRecord::Line::DryInk)
+            << lineName(kind);
         EXPECT_EQ(info.ink == nullptr, info.inkReach == nullptr) << lineName(kind);
     }
     for (int i = 0; i <= int(TextureProperties::k_lastKind); ++i) {
@@ -784,6 +832,139 @@ TEST(Conversion, EveryShapeAndStyleHasATableEntry)
 }
 
 /**
+ * \brief A Polygon's bowed edges lie their bow in from their chords, its points stay in the box, and an
+ *        irregular bow is dealt from the nodes: the same every time, and not the even one.
+ */
+TEST(Shape, APolygonsEdgesBowIn)
+{
+    constexpr qreal k_margin = 2.0;   // either side of where the bowed edge's middle lies, in pixels
+    ShapeProperties s;
+    s.kind         = ObjectRecord::Shape::Polygon;
+    s.cornerRadius = 0.0;
+    s.nodes        = {ShapeNode(0, 0), ShapeNode(1, 0), ShapeNode(1, 1), ShapeNode(0, 1)};
+    s.bow          = 20;
+    const QRectF body(0, 0, 200, 100);
+    const auto   outline = Geometry::shapeInfo(s.kind).outline;
+    const QPainterPath bowed = outline(s, body);
+    // The top edge, 200 px, bows 40 in at its middle; the left one, 100 px, 20.
+    EXPECT_FALSE(bowed.contains(QPointF(100, 40 - k_margin)));
+    EXPECT_TRUE(bowed.contains(QPointF(100, 40 + k_margin)));
+    EXPECT_FALSE(bowed.contains(QPointF(20 - k_margin, 50)));
+    EXPECT_TRUE(bowed.contains(QPointF(20 + k_margin, 50)));
+    EXPECT_TRUE(body.contains(bowed.boundingRect()));
+
+    s.bowIrregularity = 80;
+    const QPainterPath uneven = outline(s, body);
+    EXPECT_TRUE(uneven == outline(s, body));
+    EXPECT_FALSE(uneven == bowed);
+}
+
+/**
+ * \brief Picked nodes move together, by pixels of the body, with their handles; the others stay.
+ */
+TEST(Shape, PickedNodesMoveTogether)
+{
+    constexpr qreal k_tolerance = 1e-9;
+    ShapeProperties s;
+    s.kind  = ObjectRecord::Shape::Curve;
+    s.nodes = {ShapeNode(0, 0), ShapeNode(1, 0), ShapeNode(1, 1), ShapeNode(0, 1)};
+    s.nodes[1].in = QPointF(-0.1, 0.0);
+    const QRectF          body(0, 0, 200, 100);
+    const ShapeProperties moved = Geometry::withNodesMoved(s, body, {1, 2}, QPointF(40, 0));
+    EXPECT_NEAR(moved.nodes[1].at.x(), 1.2, k_tolerance);   // 40 px of 200
+    EXPECT_NEAR(moved.nodes[2].at.x(), 1.2, k_tolerance);
+    EXPECT_NEAR(moved.nodes[1].in.x(), -0.1, k_tolerance);  // the handle is an offset: it comes along
+    EXPECT_NEAR(moved.nodes[0].at.x(), 0.0, k_tolerance);
+    EXPECT_NEAR(moved.nodes[3].at.x(), 0.0, k_tolerance);
+}
+
+/**
+ * \brief A grain with a third decimal reaches the filter as it is, and comes back from the file as it was.
+ */
+TEST(Texture, AFineGrainIsWrittenAsItIs)
+{
+    constexpr qreal k_tolerance = 1e-9;
+    ObjectRecord a = loadedRecord();
+    a.shape        = Geometry::shapeTemplate("speech").shape;
+    a.text.body.clear();   // no lettering, which would need a font
+    a.texture.kind           = ObjectRecord::Texture::Rough;
+    a.texture.roughFrequency = 0.035;
+    const QByteArray svg = Svg::write(a);
+    EXPECT_TRUE(QString::fromUtf8(svg).contains(QStringLiteral("baseFrequency=\"0.035\"")));
+    bool ok = false;
+    EXPECT_NEAR(Svg::read(svg, &ok).texture.roughFrequency, 0.035, k_tolerance);
+    EXPECT_TRUE(ok);
+}
+
+/**
+ * \brief Dry ink hangs its filter on the outline alone: the fill before it, plain; after it, the outline's
+ *        middle, unworn. Under Rough in parts, its group lies inside the line's roughened one.
+ */
+TEST(Style, DryInkEatsTheOutlineAlone)
+{
+    ObjectRecord a = loadedRecord();
+    a.shape        = Geometry::shapeTemplate("speech").shape;
+    a.text.body.clear();   // no lettering, which would need a font
+    a.effects.shadow.on = false;
+    a.texture.kind      = ObjectRecord::Texture::None;
+    a.style.line        = ObjectRecord::Line::DryInk;
+    const QString svg      = QString::fromUtf8(Svg::write(a));
+    const QString use      = QStringLiteral("filter=\"url(#pm-dryink)\"");
+    const auto    filtered = svg.indexOf(use);
+    ASSERT_GE(filtered, 0);
+    EXPECT_EQ(svg.count(use), 1);
+    EXPECT_TRUE(svg.contains(QStringLiteral("<feFuncA type=\"linear\"")));
+    EXPECT_LT(svg.indexOf(QStringLiteral("fill-rule=")), filtered);                   // the fill, plain
+    EXPECT_GT(svg.indexOf(QStringLiteral("stroke-width=")), filtered);                // the outline, worn
+    EXPECT_GT(svg.lastIndexOf(QStringLiteral("stroke-width=")), svg.indexOf(QStringLiteral("</g>"), filtered));
+    EXPECT_TRUE(Geometry::hasFilter(a));
+
+    a.style.dryInkCore = 0;   // no middle kept: the one stroke, worn
+    EXPECT_EQ(QString::fromUtf8(Svg::write(a)).count(QStringLiteral("stroke-width=")),
+              svg.count(QStringLiteral("stroke-width=")) - 1);
+
+    a.texture.kind      = ObjectRecord::Texture::Rough;
+    a.texture.roughFill = false;
+    const QString rough = QString::fromUtf8(Svg::write(a));
+    EXPECT_GT(rough.indexOf(use), rough.lastIndexOf(QStringLiteral("filter=\"url(#pm-style)\"")));
+}
+
+/**
+ * \brief A regular polygon has its points, a star twice as many, both fill the unit box; irregularity is
+ *        dealt from its seed: the same for the same seed, another for another, and not the regular one.
+ */
+TEST(Shape, RegularNodesMakeAPolygonOrAStar)
+{
+    constexpr qreal k_tolerance = 1e-4;   // a node is saved to four decimals
+    const auto fillsTheBox = [&](const QList<ShapeNode>& nodes) {
+        qreal left = 1.0, top = 1.0, right = 0.0, bottom = 0.0;
+        for (const ShapeNode& n : nodes) {
+            left   = qMin(left, n.at.x());
+            top    = qMin(top, n.at.y());
+            right  = qMax(right, n.at.x());
+            bottom = qMax(bottom, n.at.y());
+        }
+        return std::abs(left) < k_tolerance && std::abs(top) < k_tolerance && std::abs(right - 1.0) < k_tolerance
+            && std::abs(bottom - 1.0) < k_tolerance;
+    };
+    const QList<ShapeNode> pentagon = Geometry::regularNodes(5, 1.0, 0, 0.0, 1);
+    EXPECT_EQ(pentagon.size(), 5);
+    EXPECT_TRUE(fillsTheBox(pentagon));
+    EXPECT_NEAR(pentagon.first().at.x(), 0.5, k_tolerance);   // the first point on top, in the middle
+    EXPECT_NEAR(pentagon.first().at.y(), 0.0, k_tolerance);
+
+    const QList<ShapeNode> star = Geometry::regularNodes(12, 0.6, 0, 0.0, 1);
+    EXPECT_EQ(star.size(), 24);
+    EXPECT_TRUE(fillsTheBox(star));
+
+    const QList<ShapeNode> rough = Geometry::regularNodes(12, 0.6, 0, 0.7, 7);
+    EXPECT_TRUE(fillsTheBox(rough));
+    EXPECT_TRUE(Fields::same(rough, Geometry::regularNodes(12, 0.6, 0, 0.7, 7)));
+    EXPECT_FALSE(Fields::same(rough, Geometry::regularNodes(12, 0.6, 0, 0.7, 8)));
+    EXPECT_FALSE(Fields::same(rough, star));
+}
+
+/**
  * \brief A flash and a brush draw no solid outline, stay inside the room reserved for them, and are the
  *        same strokes for the same seed and others for another.
  *
@@ -809,7 +990,9 @@ TEST(Style, ALinesStrokesStayInsideTheirBounds)
         a.style.brushDrift             = 6.0;
         a.style.strokeWidth             = 9;
         for (ObjectRecord::Line line : {ObjectRecord::Line::Flash, ObjectRecord::Line::Brush,
-                                        ObjectRecord::Line::Drybrush}) {
+                                        ObjectRecord::Line::Drybrush, ObjectRecord::Line::Dashed,
+                                        ObjectRecord::Line::Multi, ObjectRecord::Line::Sketch,
+                                        ObjectRecord::Line::Explosion}) {
             a.style.line = line;
             EXPECT_FALSE(Geometry::hasOutline(a));
             EXPECT_FALSE(Geometry::hasFilter(a));
@@ -830,9 +1013,114 @@ TEST(Style, ALinesStrokesStayInsideTheirBounds)
             const QPainterPath once = Geometry::ink(a, Geometry::silhouette(a));
             EXPECT_TRUE(once == Geometry::ink(a, Geometry::silhouette(a))) << id << " " << lineName(line);
             a.styleSeed = 8;
-            EXPECT_FALSE(once == Geometry::ink(a, Geometry::silhouette(a))) << id << " " << lineName(line);
+            if (line != ObjectRecord::Line::Dashed && line != ObjectRecord::Line::Multi)   // nothing random in them
+                EXPECT_FALSE(once == Geometry::ink(a, Geometry::silhouette(a))) << id << " " << lineName(line);
         }
     }
+}
+
+/**
+ * \brief A dashed line puts a whole number of dashes round each lap, the nearest to its length over a
+ *        dash and a gap, and a gap of 0 is one whole line.
+ */
+TEST(Style, ADashedLineFitsWholeDashesRoundEachLap)
+{
+    for (const char* id : {"ellipse", "caption", "shout"}) {
+        ObjectRecord a;
+        a.shape           = Geometry::shapeTemplate(id).shape;
+        a.box             = QSize(280, 160);
+        a.tails.items.clear();
+        a.style.line      = ObjectRecord::Line::Dashed;
+        a.style.dashLength = 12.0;
+        a.style.dashGap    = 8.0;
+        const QPainterPath             silhouette = Geometry::silhouette(a);
+        const QList<Geometry::EdgeWalk> edges      = Geometry::edgeWalks(silhouette);
+        ASSERT_EQ(edges.size(), 1) << id;
+        const int dashes = qRound(edges.first().length() / (a.style.dashLength + a.style.dashGap));
+        EXPECT_EQ(Geometry::ink(a, silhouette).toSubpathPolygons().size(), dashes) << id;
+
+        a.style.dashGap = 0.0;
+        EXPECT_EQ(Geometry::ink(a, silhouette).toSubpathPolygons().size(), 1) << id;
+    }
+}
+
+/**
+ * \brief A multi-line is the outline and lines inside it: measured across a caption's straight left side,
+ *        ink on the outline, none in a gap, ink in each inner line, none past the last.
+ */
+TEST(Style, AMultiLineDrawsItsLinesInside)
+{
+    ObjectRecord a;
+    a.shape = Geometry::shapeTemplate("caption").shape;
+    a.box   = QSize(280, 160);
+    a.tails.items.clear();
+    a.style.line        = ObjectRecord::Line::Multi;
+    a.style.strokeWidth = 4;
+    a.style.multiGap   = 6.0;
+    a.style.multiWidth = 3.0;
+    const QPainterPath silhouette = Geometry::silhouette(a);
+    const QPainterPath ink        = Geometry::ink(a, silhouette);
+    const QRectF       r          = silhouette.boundingRect();
+    // x in from the silhouette's left edge, at its middle height, where a caption's side is straight
+    const auto in = [&](qreal x) { return ink.contains(QPointF(r.left() + x, r.center().y())); };
+    EXPECT_TRUE(in(0.5));                      // on the outline
+    EXPECT_FALSE(in(2.0 + 3.0));               // in the gap
+    EXPECT_TRUE(in(2.0 + 6.0 + 1.5));          // the inner line's middle
+    EXPECT_FALSE(in(2.0 + 6.0 + 3.0 + 2.0));   // inside, past it
+
+    a.style.multiLines = 3;
+    const QPainterPath three = Geometry::ink(a, silhouette);
+    const auto in3 = [&](qreal x) { return three.contains(QPointF(r.left() + x, r.center().y())); };
+    EXPECT_TRUE(in3(2.0 + 6.0 + 1.5));                 // the second line, as before
+    EXPECT_FALSE(in3(2.0 + 6.0 + 3.0 + 3.0));          // the second gap
+    EXPECT_TRUE(in3(2.0 + 6.0 + 3.0 + 6.0 + 1.5));     // the third line's middle
+    EXPECT_FALSE(in3(2.0 + 2 * (6.0 + 3.0) + 2.0));    // inside, past it
+}
+
+/**
+ * \brief A sketch lays as many strokes round the lap as put its layers over any place, one piece each; its
+ *        outline adds the stroked outline's two rings, and closes the fill off whatever the strokes do.
+ */
+TEST(Style, ASketchLaysItsLayersOfStrokes)
+{
+    ObjectRecord a;
+    a.shape = Geometry::shapeTemplate("ellipse").shape;
+    a.box   = QSize(280, 160);
+    a.tails.items.clear();
+    a.style.line         = ObjectRecord::Line::Sketch;
+    a.style.sketchLength = 40.0;
+    a.style.sketchCore   = 0;
+    const QPainterPath              silhouette = Geometry::silhouette(a);
+    const QList<Geometry::EdgeWalk> edges      = Geometry::edgeWalks(silhouette);
+    ASSERT_EQ(edges.size(), 1);
+    for (int layers : {1, 3}) {
+        a.style.sketchLayers = layers;
+        EXPECT_EQ(Geometry::ink(a, silhouette).toSubpathPolygons().size(),
+                  qRound(layers * edges.first().length() / a.style.sketchLength)) << layers;
+    }
+
+    // Blots add their spots and short strokes, a stream of their own: the strokes stay as they were.
+    a.style.sketchLayers = 1;
+    const QList<QPolygonF> strokes = Geometry::ink(a, silhouette).toSubpathPolygons();
+    a.style.sketchBlots = 100;
+    const QList<QPolygonF> blotted = Geometry::ink(a, silhouette).toSubpathPolygons();
+    ASSERT_GT(blotted.size(), strokes.size());
+    EXPECT_TRUE(blotted.mid(0, strokes.size()) == strokes);
+    a.style.sketchBlots = 0;
+
+    // A stroke a lap long at most: longer, it is as many as one a lap long.
+    a.style.sketchLength = 100000.0;
+    EXPECT_EQ(Geometry::ink(a, silhouette).toSubpathPolygons().size(), 1);
+
+    // With no strokes to speak of, the outline alone still rings the whole silhouette.
+    a.style.sketchCore        = 25;
+    a.style.sketchStrokeWidth = 0;
+    a.style.strokeWidth       = 8;
+    const QPainterPath ink = Geometry::ink(a, silhouette);
+    const QRectF       r   = silhouette.boundingRect();
+    for (const QPointF& p : {QPointF(r.left(), r.center().y()), QPointF(r.right(), r.center().y()),
+                             QPointF(r.center().x(), r.top()), QPointF(r.center().x(), r.bottom())})
+        EXPECT_TRUE(ink.contains(p)) << p.x() << "," << p.y();
 }
 
 /**
@@ -1120,12 +1408,14 @@ TEST(Shapes, AHandleDraggedOntoItselfChangesNothing)
  */
 TEST(Shapes, AnEdgeGoesInAndTheLetteringGivesUpItsDepth)
 {
+    for (int e = int(ObjectRecord::Edge::Zigzag); e <= int(ShapeProperties::k_lastEdge); ++e)
     for (const char* id : {"speech", "ellipse", "shout", "scroll", "thought"}) {
+        const auto edge = static_cast<ObjectRecord::Edge>(e);
         ObjectRecord plain;
         plain.shape = Geometry::shapeTemplate(id).shape;
         plain.box   = QSize(300, 160);
         ObjectRecord edged           = plain;
-        edged.shape.edge             = ObjectRecord::Edge::Zigzag;
+        edged.shape.edge             = edge;
         edged.shape.edgeDepth        = 9.0;
         edged.shape.edgeIrregularity = 50;
         edged.styleSeed              = 7;
@@ -1133,17 +1423,17 @@ TEST(Shapes, AnEdgeGoesInAndTheLetteringGivesUpItsDepth)
         const QRectF body = Geometry::balloonRect(plain);
         const QRectF bare = Geometry::outlineOf(plain, body).boundingRect();
         EXPECT_TRUE(bare.adjusted(-0.01, -0.01, 0.01, 0.01).contains(Geometry::outlineOf(edged, body).boundingRect()))
-            << id;
+            << id << " " << edgeName(edge);
         const QRectF a = Geometry::textArea(plain);
         const QRectF b = Geometry::textArea(edged);
-        EXPECT_NEAR(b.width(), a.width() - 2 * 9.0, 1e-6) << id;
-        EXPECT_NEAR(b.height(), a.height() - 2 * 9.0, 1e-6) << id;
-        EXPECT_EQ(Geometry::templateOf(edged.shape), &Geometry::shapeTemplate(id)) << id;
+        EXPECT_NEAR(b.width(), a.width() - 2 * 9.0, 1e-6) << id << " " << edgeName(edge);
+        EXPECT_NEAR(b.height(), a.height() - 2 * 9.0, 1e-6) << id << " " << edgeName(edge);
+        EXPECT_EQ(Geometry::templateOf(edged.shape), &Geometry::shapeTemplate(id)) << id << " " << edgeName(edge);
 
         const QPainterPath once = Geometry::outlineOf(edged, body);
-        EXPECT_TRUE(once == Geometry::outlineOf(edged, body)) << id;
+        EXPECT_TRUE(once == Geometry::outlineOf(edged, body)) << id << " " << edgeName(edge);
         edged.styleSeed = 8;
-        EXPECT_FALSE(once == Geometry::outlineOf(edged, body)) << id;
+        EXPECT_FALSE(once == Geometry::outlineOf(edged, body)) << id << " " << edgeName(edge);
     }
 }
 
@@ -1864,6 +2154,15 @@ QString goldenRecords()
     QList<QPair<QString, ShapeProperties>> shapes{{QStringLiteral("none"), none}};
     for (const Geometry::ShapeTemplate& t : Geometry::shapeTemplates())
         shapes.append({QString::fromLatin1(t.id), t.shape});
+    // The other edges on the speech balloon, each with some irregularity.
+    for (int e = int(ObjectRecord::Edge::Wave); e <= int(ShapeProperties::k_lastEdge); ++e) {
+        ShapeProperties edged  = Geometry::shapeTemplate("speech").shape;
+        edged.edge             = static_cast<ObjectRecord::Edge>(e);
+        edged.edgePitch        = 24.0;
+        edged.edgeDepth        = 8.0;
+        edged.edgeIrregularity = 30;
+        shapes.append({QStringLiteral("speech ") + QLatin1String(edgeName(edged.edge)), edged});
+    }
     // A zigzag edge on one template of each kind that draws a line or a curve.
     for (const char* id : {"speech", "ellipse", "shout", "scroll"}) {
         ShapeProperties zigzag = Geometry::shapeTemplate(id).shape;
@@ -1946,6 +2245,119 @@ QString goldenRecords()
         a.effects.shadow.on      = false;
         a.tails.items.first().tip = QPointF(90, 230);
         write(QString::fromLatin1(id), QStringLiteral("drybrush"), true, a);
+    }
+    // A dashed line, a whisper, on two templates with a tail, at its own numbers.
+    for (const char* id : {"ellipse", "caption"}) {
+        ObjectRecord a      = loadedRecord();
+        a.shape             = Geometry::shapeTemplate(id).shape;
+        a.style             = looks.first().style;
+        a.style.line        = ObjectRecord::Line::Dashed;
+        a.style.dashLength  = StyleProperties().dashLength;
+        a.style.dashGap     = StyleProperties().dashGap;
+        a.texture           = looks.first().texture;
+        a.skin.fill.kind    = ObjectRecord::Pattern::Solid;
+        a.effects.shadow.on = false;
+        write(QString::fromLatin1(id), QStringLiteral("dashed"), true, a);
+    }
+    // A multi-line, three lines, on the speech balloon with its tail, at its other numbers' defaults.
+    {
+        ObjectRecord a      = loadedRecord();
+        a.shape             = Geometry::shapeTemplate("speech").shape;
+        a.style             = looks.first().style;
+        a.style.line        = ObjectRecord::Line::Multi;
+        a.style.multiLines  = 3;
+        a.style.multiGap   = StyleProperties().multiGap;
+        a.style.multiWidth = StyleProperties().multiWidth;
+        a.texture           = looks.first().texture;
+        a.skin.fill.kind    = ObjectRecord::Pattern::Solid;
+        a.effects.shadow.on = false;
+        write(QStringLiteral("speech"), QStringLiteral("multi"), true, a);
+    }
+    // A sketch, on two templates with a tail, at its own numbers and a pen's width.
+    for (const char* id : {"ellipse", "shout"}) {
+        ObjectRecord a          = loadedRecord();
+        a.shape                 = Geometry::shapeTemplate(id).shape;
+        a.style                 = looks.first().style;
+        a.style.line            = ObjectRecord::Line::Sketch;
+        a.style.strokeWidth     = 3;
+        a.style.sketchLength    = StyleProperties().sketchLength;
+        a.style.sketchLayers    = StyleProperties().sketchLayers;
+        a.style.sketchStiffness = StyleProperties().sketchStiffness;
+        a.style.sketchSpread    = StyleProperties().sketchSpread;
+        a.style.sketchEntry     = StyleProperties().sketchEntry;
+        a.style.sketchExit      = StyleProperties().sketchExit;
+        a.style.sketchCore        = StyleProperties().sketchCore;
+        a.style.sketchStrokeWidth = StyleProperties().sketchStrokeWidth;
+        a.style.sketchClockwise   = StyleProperties().sketchClockwise;
+        a.style.sketchBlots       = StyleProperties().sketchBlots;
+        a.texture               = looks.first().texture;
+        a.skin.fill.kind        = ObjectRecord::Pattern::Solid;
+        a.effects.shadow.on     = false;
+        write(QString::fromLatin1(id), QStringLiteral("sketch"), true, a);
+    }
+    // The burst with concave edges, as the author's reference: a rough rectangle of points, long and short,
+    // joined by arcs bowing in, of uneven depth, in a clean even line.
+    {
+        ObjectRecord a          = loadedRecord();
+        a.shape                 = Geometry::shapeTemplate("shout").shape;
+        a.shape.nodes           = {ShapeNode(0, 0.1),  ShapeNode(0.3, 0),    ShapeNode(0.55, 0.08), ShapeNode(1, 0),
+                                   ShapeNode(0.95, 0.5), ShapeNode(1, 1),   ShapeNode(0.6, 0.92), ShapeNode(0.25, 1),
+                                   ShapeNode(0, 0.85), ShapeNode(0.07, 0.45)};
+        a.shape.cornerRadius    = 0.0;
+        a.shape.bow             = 15;
+        a.shape.bowIrregularity = 60;
+        a.style                 = looks.first().style;
+        a.style.strokeWidth     = 4;
+        a.texture               = looks.first().texture;
+        a.skin.fill.kind        = ObjectRecord::Pattern::Solid;
+        a.effects.shadow.on     = false;
+        write(QStringLiteral("shout"), QStringLiteral("bowed"), true, a);
+    }
+    // The spilling ink, as the author's reference: long loose strokes side by side, and blots.
+    {
+        ObjectRecord a            = loadedRecord();
+        a.shape                   = Geometry::shapeTemplate("ellipse").shape;
+        a.style                   = looks.first().style;
+        a.style.line              = ObjectRecord::Line::Sketch;
+        a.style.strokeWidth       = 3;
+        a.style.sketchLength      = 300.0;
+        a.style.sketchLayers      = 3;
+        a.style.sketchStiffness   = 0;
+        a.style.sketchSpread      = 7.0;
+        a.style.sketchEntry       = 20;
+        a.style.sketchExit        = 60;
+        a.style.sketchCore        = 0;
+        a.style.sketchStrokeWidth = 100;
+        a.style.sketchClockwise   = true;
+        a.style.sketchBlots       = 60;
+        a.texture                 = looks.first().texture;
+        a.skin.fill.kind          = ObjectRecord::Pattern::Solid;
+        a.effects.shadow.on       = false;
+        write(QStringLiteral("ellipse"), QStringLiteral("spilling ink"), true, a);
+    }
+    // An explosion, as the author's reference: a white dry-brush ring on a black ellipse, in a dense halo of
+    // fine spikes, outward only, at the lines' own numbers.
+    {
+        ObjectRecord a                 = loadedRecord();
+        a.shape                        = Geometry::shapeTemplate("ellipse").shape;
+        a.style                        = looks.first().style;
+        a.style.line                   = ObjectRecord::Line::Explosion;
+        a.style.stroke.colour          = Qt::white;
+        a.style.strokeWidth            = 10;
+        a.style.drybrushCore           = StyleProperties().drybrushCore;
+        a.style.drybrushBristles       = StyleProperties().drybrushBristles;
+        a.style.drybrushDryness        = StyleProperties().drybrushDryness;
+        a.style.flashOuterPitch        = StyleProperties().flashOuterPitch;
+        a.style.flashOuterLength       = StyleProperties().flashOuterLength;
+        a.style.flashOuterBase         = StyleProperties().flashOuterBase;
+        a.style.flashOuterPitchJitter  = StyleProperties().flashOuterPitchJitter;
+        a.style.flashOuterLengthJitter = StyleProperties().flashOuterLengthJitter;
+        a.style.flashCoreStretch       = StyleProperties().flashCoreStretch;
+        a.texture                      = looks.first().texture;
+        a.skin.fill.kind               = ObjectRecord::Pattern::Solid;
+        a.skin.fill.colour             = Qt::black;
+        a.effects.shadow.on            = false;
+        write(QStringLiteral("ellipse"), QStringLiteral("explosion"), false, a);
     }
     // A Circles tail: on a clean speech balloon, apart from it; and the author's reference, a
     // white dry brush on a black ellipse, the chain sunk into it.
@@ -2079,6 +2491,23 @@ QString goldenRecords()
         a.skin.fill.fadeLeftFrom = fading ? 40.0 : a.skin.fill.fadeLeftFrom;
         write(QStringLiteral("speech"), fading ? QStringLiteral("rough in parts, fading dots")
                                                : QStringLiteral("rough in parts, dots"), true, a);
+    }
+    // Dry ink: the outline eaten into but for its middle, the fill and the shadow whole; and under Rough, in
+    // parts, which roughens it as a whole.
+    for (const bool rough : {false, true}) {
+        ObjectRecord a        = loadedRecord();
+        a.shape               = Geometry::shapeTemplate("speech").shape;
+        a.style.line          = ObjectRecord::Line::DryInk;
+        a.style.stroke.kind   = ObjectRecord::Pattern::Solid;
+        a.style.strokeWidth   = 9;
+        a.style.dryInkGrain   = StyleProperties().dryInkGrain;
+        a.style.dryInkWear    = StyleProperties().dryInkWear;
+        a.style.dryInkCore    = StyleProperties().dryInkCore;
+        a.texture.kind        = rough ? ObjectRecord::Texture::Rough : ObjectRecord::Texture::None;
+        a.texture.roughFill   = false;
+        a.effects.shadow.on   = !rough;   // a dark shadow would show through the holes and hide them
+        a.skin.fill.kind      = ObjectRecord::Pattern::Solid;
+        write(QStringLiteral("speech"), rough ? QStringLiteral("dry ink, rough") : QStringLiteral("dry ink"), true, a);
     }
     // A halftone shadow, hard: the pattern's marks on nothing (the cases above fade, soft).
     {

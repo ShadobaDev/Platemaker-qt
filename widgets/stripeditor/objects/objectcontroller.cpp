@@ -30,6 +30,7 @@
 #include <QWidget>
 
 #include <algorithm>
+#include <functional>
 #include <string>
 #include <unordered_map>
 #include <utility>
@@ -171,6 +172,26 @@ void ObjectController::selectTail(const QString& uid, int index)
     selectSubjects({}, {TailRef{uid, index}});   // the balloon comes in as the tail's carrier, not a subject
 }
 
+void ObjectController::reveal(Subject subject, const QString& id, int tail)
+{
+    if (subject == Subject::Page) {
+        const int page = m_layout.pageForAnchor(id);
+        if (page < 0)
+            return;
+        // The page's top at the view's top: its centre would put a long page's middle on screen.
+        const QRectF seen = m_view->mapToScene(m_view->viewport()->rect()).boundingRect();
+        m_view->centerOn(seen.center().x(), m_layout.page(page).top + seen.height() / 2.0);
+        return;
+    }
+    const Object* item = m_overlayItems.value(id);
+    if (!item)
+        return;
+    if (subject == Subject::Tail && tail >= 0 && tail < item->tipCount())
+        m_view->centerOn(item->mapToScene(item->handleAt(tail)));
+    else if (subject == Subject::Overlay)
+        m_view->centerOn(item->sceneBoundingRect().center());
+}
+
 
 void ObjectController::onObjectPressed(const QString& uid, int handle)
 {
@@ -225,6 +246,86 @@ bool ObjectController::hasPickedVertex() const
     return item && item->pickedVertex() >= 0;
 }
 
+bool ObjectController::onEditedObject(const QPointF& scenePos, const QTransform& deviceTransform) const
+{
+    const Object* edited = m_overlayItems.value(m_shapeEditing);
+    if (!edited)
+        return false;
+    if (m_chrome && m_chrome->hitAt(scenePos).object)
+        return true;   // the grips and handles drawn are the edited object's own
+    return dynamic_cast<Object*>(m_scene->itemAt(scenePos, deviceTransform)) == edited;
+}
+
+void ObjectController::leaveShapeEditingAt(const QPointF& scenePos, const QTransform& deviceTransform)
+{
+    auto* other = dynamic_cast<Object*>(m_scene->itemAt(scenePos, deviceTransform));
+    if (other && other->uid() != m_shapeEditing)
+        selectOverlay(other->uid());   // a selection of something else ends the editing
+    else
+        setShapeEditing(false);
+}
+
+void ObjectController::pickNodesIn(const QRectF& sceneRect, bool add)
+{
+    Object* edited = m_overlayItems.value(m_shapeEditing);
+    if (!edited)
+        return;
+    QList<int> inside;
+    for (const Geometry::ShapeHandle& h : edited->shapeHandles())
+        if (h.role == Geometry::ShapeHandle::Role::Vertex && sceneRect.contains(edited->mapToScene(h.at))
+            && !inside.contains(h.index))
+            inside.append(h.index);
+    if (inside.isEmpty())
+        return;   // a band round no node never happened
+    QList<int> picked = add ? edited->pickedVertices() : QList<int>{};
+    for (int i : std::as_const(inside))
+        if (!picked.contains(i))
+            picked.append(i);
+    edited->setPickedVertices(picked);
+}
+
+void ObjectController::stepPickedNode(bool clockwise, PickStep how)
+{
+    Object* edited = m_overlayItems.value(m_shapeEditing);
+    if (!edited || edited->pickedVertices().isEmpty())
+        return;
+    QPolygonF nodes;   // in index order, as drawn
+    for (const Geometry::ShapeHandle& h : edited->shapeHandles())
+        if (h.role == Geometry::ShapeHandle::Role::Vertex && h.index == nodes.size())
+            nodes << edited->mapToScene(h.at);
+    const int n = int(nodes.size());
+    if (n == 0)
+        return;
+    // Clockwise on screen (y down) is a positive shoelace: then the next index is the clockwise one.
+    qreal area = 0.0;
+    for (int i = 0; i < n; ++i)
+        area += nodes[i].x() * nodes[(i + 1) % n].y() - nodes[(i + 1) % n].x() * nodes[i].y();
+    const int  step   = (area > 0.0) == clockwise ? 1 : n - 1;
+    QList<int> picked = edited->pickedVertices();
+    int        end    = picked.last();
+    for (int i = 0; i < n && picked.contains((end + step) % n); ++i)
+        end = (end + step) % n;
+    if (how == PickStep::Shrink) {
+        if (picked.size() < 2)
+            return;   // the last one stays, or the arrows would have nowhere to start from
+        picked.removeAll(end);
+        // The run's new end is the one picked last, so the next Shrink that way takes it in turn.
+        const int before = (end + n - step) % n;
+        if (picked.removeAll(before) > 0)
+            picked.append(before);
+        edited->setPickedVertices(picked);
+        return;
+    }
+    const int next = (end + step) % n;
+    if (picked.contains(next))
+        return;   // every node is picked
+    if (how == PickStep::Extend)
+        picked.append(next);
+    else
+        picked = {next};
+    edited->setPickedVertices(picked);
+}
+
 std::optional<ShapeNode::Type> ObjectController::pickedNodeType() const
 {
     const Object* item = m_overlayItems.value(m_shapeEditing);
@@ -243,7 +344,8 @@ void ObjectController::setPickedNodeType(ShapeNode::Type type)
     if (!pickedNodeType() || !item)
         return;
     ObjectRecord a = item->record();
-    a.shape        = Geometry::withNodeType(a.shape, Geometry::balloonRect(a), item->pickedVertex(), type);
+    for (int i : item->pickedVertices())
+        a.shape = Geometry::withNodeType(a.shape, Geometry::balloonRect(a), i, type);
     if (a.shape == item->record().shape)
         return;
     applyRecord(m_shapeEditing, a, /*commit=*/true, tr("Point type"));
@@ -256,7 +358,10 @@ bool ObjectController::canGrowPickedHandles() const
     const Object* item = m_overlayItems.value(m_shapeEditing);
     if (!pickedNodeType() || !item)
         return false;
-    return !(Geometry::withHandlesGrown(item->record().shape, item->pickedVertex()) == item->record().shape);
+    for (int i : item->pickedVertices())
+        if (!(Geometry::withHandlesGrown(item->record().shape, i) == item->record().shape))
+            return true;
+    return false;
 }
 
 void ObjectController::growPickedHandles()
@@ -265,7 +370,8 @@ void ObjectController::growPickedHandles()
     if (!canGrowPickedHandles() || !item)
         return;
     ObjectRecord a = item->record();
-    a.shape        = Geometry::withHandlesGrown(a.shape, item->pickedVertex());
+    for (int i : item->pickedVertices())
+        a.shape = Geometry::withHandlesGrown(a.shape, i);
     applyRecord(m_shapeEditing, a, /*commit=*/true, tr("Add handles"));
     emit boundToRecord(a);
     emit shapeEditingChanged();   // the menu's entry, and the handles drawn
@@ -767,8 +873,9 @@ void ObjectController::selectSubjects(const QStringList& uids, const QList<TailR
         }
     }
 
-    // Shape editing is of one object, and ends when the selection becomes anything else: a click
-    // outside the balloon, on another object, or on the empty strip.
+    // Shape editing is of one object, and ends when the selection becomes anything else: a row picked in
+    // OBJECT STACK, or a double click on another object (a click on the strip does not reach here while
+    // editing: CanvasInput keeps it).
     if (!m_shapeEditing.isEmpty() && picked != QStringList{m_shapeEditing})
         setShapeEditing(false);
 
@@ -1261,11 +1368,14 @@ void ObjectController::deleteSelectedTail()
 
 void ObjectController::deleteSelectedOverlay()
 {
-    // In shape editing with a node picked, Delete takes that node and never the balloon; a polygon
-    // keeps three, and Delete on the third does nothing.
+    // In shape editing with nodes picked, Delete takes them and never the balloon, the highest first so the
+    // others keep their numbers; a polygon keeps three, and the rest stay.
     if (Object* edited = m_overlayItems.value(m_shapeEditing); edited && edited->pickedVertex() >= 0) {
-        ObjectRecord a = edited->record();
-        a.shape        = Geometry::withVertexRemoved(a.shape, edited->pickedVertex());
+        ObjectRecord a       = edited->record();
+        QList<int>   doomed  = edited->pickedVertices();
+        std::sort(doomed.begin(), doomed.end(), std::greater<int>());
+        for (int i : std::as_const(doomed))
+            a.shape = Geometry::withVertexRemoved(a.shape, i);
         if (a.shape == edited->record().shape)
             return;
         edited->setPickedVertex(-1);

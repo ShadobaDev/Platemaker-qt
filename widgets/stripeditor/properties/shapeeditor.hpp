@@ -2,6 +2,7 @@
 #define STRIPEDIT_SHAPEEDITOR_HPP
 
 #include <QPalette>
+#include <QPushButton>
 #include <QPixmap>
 
 #include "properties/fieldrows.hpp"
@@ -78,6 +79,8 @@ protected:
 
 private:
     void refreshTiles();
+    //! Opens *Regular polygon / star…* and gives the Polygon the nodes it makes, shown as they change.
+    void makeRegular();
     //! Checks the tile whose template the shape is, or none, and shows the kind's rows.
     void syncFromValues();
 
@@ -87,6 +90,8 @@ private:
     QFormLayout*                m_form  = nullptr;
     FieldRows<ShapeProperties>  m_corner;   //!< The corner radius, for a kind that is rounded.
     FieldRows<ShapeProperties>  m_lobes;    //!< A Cloud's lobes and their size.
+    FieldRows<ShapeProperties>  m_bow;      //!< A Polygon's bow and its irregularity.
+    QPushButton*                m_regular = nullptr;   //!< Opens *Regular polygon / star…*, on a Polygon.
     QComboBox*                  m_edge = nullptr;   //!< The edge's modulation, any family.
     FieldRows<ShapeProperties>  m_edgeRows;         //!< Its spacing, depth and irregularity.
     ShapeProperties             m_values;

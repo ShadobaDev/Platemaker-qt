@@ -410,9 +410,9 @@ struct ShapeProperties
      * family alike, before the tails are united into it so a tail stays smooth. The table is in
      * shapes.cpp; persisted by name (edgeName()).
      */
-    enum class Edge { None, Zigzag };
+    enum class Edge { None, Zigzag, Wave, Scallop, Spike };
     //! The enum's last value. **Adding an edge moves this**: edgeFromName() reads up to it.
-    static constexpr Edge k_lastEdge = Edge::Zigzag;
+    static constexpr Edge k_lastEdge = Edge::Spike;
 
     //! Decimal places a node is saved with in the SVG; a template's nodes are rounded to them, so a
     //! placed template reads back as itself. 4 is a fifth of a pixel on a 2000 px balloon.
@@ -434,6 +434,16 @@ struct ShapeProperties
     int lobes    = 11;
     //! A lobe's radius, in % of the balloon's shorter half-axis.
     int lobeSize = 40;
+    /**
+     * How far a Polygon's edges bow in, in % of each edge's length: an arc between two points, which stay
+     * sharp. 0 is straight. In, never out, so the balloon keeps to its nodes' bounds.
+     */
+    int bow             = 0;
+    /**
+     * How much each edge's bow varies, deeper or flatter, in %. Dealt from the edge's two nodes, so moving a
+     * node deals its two edges again and nothing else; no seed, so a preset carries the same arcs.
+     */
+    int bowIrregularity = 0;
 
     /**
      * @name The edge's modulation: its kind, and how it is laid along the outline. Every family takes
@@ -457,6 +467,8 @@ struct ShapeProperties
         v("nodes",        &ShapeProperties::nodes);
         v("lobes",        &ShapeProperties::lobes);
         v("lobeSize",     &ShapeProperties::lobeSize);
+        v("bow",             &ShapeProperties::bow);
+        v("bowIrregularity", &ShapeProperties::bowIrregularity);
         v("edge",             &ShapeProperties::edge);
         v("edgePitch",        &ShapeProperties::edgePitch);
         v("edgeDepth",        &ShapeProperties::edgeDepth);
@@ -541,15 +553,15 @@ struct TextureProperties
 struct StyleProperties
 {
     /**
-     * \brief How the edge is drawn. Clean is the solid outline; Flash, Brush and Drybrush are strokes
+     * \brief How the edge is drawn. Clean is the solid outline; Flash, Brush, Drybrush, Dashed, Multi and Sketch are strokes
      * of their own, plain geometry, so Qt draws them as it draws a clean balloon. The table is in styles.cpp.
      *
      * Persisted by name — see lineName(). The strip editor is unreleased, so the order is
      * free.
      */
-    enum class Line { Clean, Flash, Brush, Drybrush };
+    enum class Line { Clean, Flash, Brush, Drybrush, Dashed, Multi, Sketch, DryInk, Explosion };
     //! The enum's last value. **Adding a line moves this**: lineFromName() reads up to it.
-    static constexpr Line k_lastLine = Line::Drybrush;
+    static constexpr Line k_lastLine = Line::Explosion;
 
     //! `flashCoreStretch`'s "follow the shape" value.
     static constexpr int k_autoStretch = -1;
@@ -561,7 +573,7 @@ struct StyleProperties
 
     /**
      * @name The flash: narrow triangles ringing the silhouette, outwards and inwards (styles.cpp).
-     * Read only while `line` is Flash, and carried unchanged by every other line, so switching back
+     * Read only while `line` is Flash or Explosion, and carried unchanged by every other line, so switching back
      * finds them as they were. Lengths in balloon pixels; jitter in % of the pitch or the length.
      * @{
      */
@@ -600,13 +612,64 @@ struct StyleProperties
 
     /**
      * @name The dry brush: a thin whole core along the edge, and hairs either side of it that thin out
-     * away from it (styles.cpp). Read only while `line` is Drybrush. Its width is the outline's
+     * away from it (styles.cpp). Read only while `line` is Drybrush or Explosion. Its width is the outline's
      * (`strokeWidth`): `drybrushCore` of it the core, the rest shared among the hairs' lanes.
      * @{
      */
     int   drybrushCore     = 20;   //!< The whole thin line in the middle, in % of the width.
     int   drybrushBristles = 12;   //!< How many hairs lie across the line, half each side of the core.
     int   drybrushDryness  = 20;   //!< How much of the hairs by the core are gaps, in %: 100 leaves the core alone.
+    /** @} */
+
+    /**
+     * @name The dashed line, a whisper: the edge cut into dashes as wide as the outline, a whole number of
+     * them to each lap, so the gap is stretched or squeezed a little to close it (styles.cpp). Read only
+     * while `line` is Dashed. In balloon pixels.
+     * @{
+     */
+    qreal dashLength = 12.0;   //!< How long a dash is along the edge.
+    qreal dashGap    = 8.0;    //!< The gap after it, before the lap is fitted; 0 draws a whole line.
+    /** @} */
+
+    /**
+     * @name The multi-line: the outline, and lines inside it following the silhouette, tails included
+     * (styles.cpp). Read only while `line` is Multi. In balloon pixels.
+     * @{
+     */
+    int   multiLines = 2;     //!< How many lines, the outline among them.
+    qreal multiGap   = 4.0;   //!< The space between one line and the next.
+    qreal multiWidth = 3.0;   //!< Each inner line's width; the outline's is its own.
+    /** @} */
+
+    /**
+     * @name The sketch: a thin whole outline, and many short pen strokes over it, all drawn the same way
+     * round, each straighter than the curve it lies on, landing with a short taper and lifting off with a
+     * long one, as a g-pen's pressure does (styles.cpp). Read only while `line` is Sketch. The defaults are
+     * the author's, tuned by eye on a speech balloon at a 5 px line.
+     * @{
+     */
+    qreal sketchLength      = 72.0;   //!< How long a stroke is, in balloon pixels, a lap at most; each varies about it.
+    int   sketchLayers      = 6;      //!< How many strokes lie over any place of the outline.
+    int   sketchStiffness   = 30;     //!< How straight a stroke stays, in %: 0 follows the outline, 100 a straight line.
+    qreal sketchSpread      = 4.5;    //!< How far in or out a stroke lies from the outline, in balloon pixels.
+    int   sketchEntry       = 20;     //!< How much of a stroke, at its start, the pen lands over, in %.
+    int   sketchExit        = 100;    //!< How much of a stroke, at its end, the pen lifts off over, in %.
+    int   sketchCore        = 25;     //!< The whole outline under the strokes, in % of the line's width.
+    int   sketchStrokeWidth = 50;     //!< A stroke's width, in % of the line's.
+    bool  sketchClockwise   = true;   //!< Which way round, on screen, the pen goes: where it lands and lifts.
+    int   sketchBlots       = 0;      //!< How many ink blots, spots and short strokes, lie along the line, in %.
+    /** @} */
+
+    /**
+     * @name Dry ink: the outline eaten by the paper, a broken print — noise thresholded into holes in it, but
+     * for its middle, kept whole so the fill stays closed off. The one line that is a filter, not geometry
+     * (recordsvg.cpp), so the library previews it; a texture still goes over it. Read only while `line` is
+     * DryInk.
+     * @{
+     */
+    qreal dryInkGrain = 0.15;   //!< The noise's baseFrequency: higher is finer specks.
+    int   dryInkWear  = 35;     //!< How much of the outline is eaten, in %.
+    int   dryInkCore  = 25;     //!< Its middle kept whole, in % of the line's width.
     /** @} */
 
     //! The fields, with the keys they are saved under (fields.hpp).
@@ -639,6 +702,24 @@ struct StyleProperties
         v("drybrushCore",           &StyleProperties::drybrushCore);
         v("drybrushBristles",       &StyleProperties::drybrushBristles);
         v("drybrushDryness",        &StyleProperties::drybrushDryness);
+        v("dashLength",             &StyleProperties::dashLength);
+        v("dashGap",                &StyleProperties::dashGap);
+        v("multiLines",             &StyleProperties::multiLines);
+        v("multiGap",               &StyleProperties::multiGap);
+        v("multiWidth",             &StyleProperties::multiWidth);
+        v("sketchLength",           &StyleProperties::sketchLength);
+        v("sketchLayers",           &StyleProperties::sketchLayers);
+        v("sketchStiffness",        &StyleProperties::sketchStiffness);
+        v("sketchSpread",           &StyleProperties::sketchSpread);
+        v("sketchEntry",            &StyleProperties::sketchEntry);
+        v("sketchExit",             &StyleProperties::sketchExit);
+        v("sketchCore",             &StyleProperties::sketchCore);
+        v("sketchStrokeWidth",      &StyleProperties::sketchStrokeWidth);
+        v("sketchClockwise",        &StyleProperties::sketchClockwise);
+        v("sketchBlots",            &StyleProperties::sketchBlots);
+        v("dryInkGrain",            &StyleProperties::dryInkGrain);
+        v("dryInkWear",             &StyleProperties::dryInkWear);
+        v("dryInkCore",             &StyleProperties::dryInkCore);
     }
 
     [[nodiscard]] static StyleProperties from(const ObjectRecord& a);

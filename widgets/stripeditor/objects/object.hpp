@@ -158,10 +158,15 @@ public:
     //! The bare outline shape editing traces, in item coordinates. None by default.
     [[nodiscard]] virtual QPainterPath editOutline() const { return {}; }
 
-    //! The node last pressed or added in shape editing, which Delete removes; -1 for none.
-    [[nodiscard]] int pickedVertex() const { return m_pickedVertex; }
-    //! Marks node @p index as the picked one, or none with -1.
+    //! The node picked last in shape editing (the last of pickedVertices()); -1 for none.
+    [[nodiscard]] int pickedVertex() const { return m_pickedVertices.isEmpty() ? -1 : m_pickedVertices.last(); }
+    //! The nodes picked in shape editing, in the order they were picked: what Delete, *Point type* and a
+    //! drag of any of them act on.
+    [[nodiscard]] const QList<int>& pickedVertices() const { return m_pickedVertices; }
+    //! Picks node @p index alone, or none with -1.
     void setPickedVertex(int index);
+    //! Picks @p indices, the last of them the one picked last.
+    void setPickedVertices(const QList<int>& indices);
     //! Picks the node shape handle @p index of shapeHandles() belongs to; a handle of no node changes nothing.
     void pickNodeOf(int index);
 
@@ -290,7 +295,7 @@ signals:
      */
     void geometryCommitted(const QString& uid);
 
-    //! The picked node changed (pickedVertex()): what Delete and *Point type* act on.
+    //! The picked nodes changed (pickedVertices()): what Delete and *Point type* act on.
     void pickedVertexChanged();
 
     /**
@@ -406,7 +411,7 @@ private:
     QList<int> m_focusedHandles;   //!< The selected tails' handles, drawn hollow.
     Grip    m_dragGrip = Grip::None;   //!< The grip of the drag under way or the last one (dragGrip()).
     bool    m_shapeEditing = false;    //!< See setShapeEditing().
-    int     m_pickedVertex = -1;       //!< See pickedVertex().
+    QList<int> m_pickedVertices;       //!< See pickedVertices().
 
     bool m_dragReported = false;    //!< A drag was live, so the owner may have moved others along.
 

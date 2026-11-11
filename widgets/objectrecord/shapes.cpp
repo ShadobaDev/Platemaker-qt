@@ -62,6 +62,16 @@ constexpr int   k_crossingSteps  = 40;
  *  Depth of a banner's end notch, as a fraction of its width.
  */
 constexpr qreal k_bannerNotch    = 0.12;
+//! A Hexagon's turn, in degrees: half a side's share of the round, so a side lies flat on top.
+constexpr qreal k_hexagonTurn    = 30.0;
+//! How far in an Octagon's corners are cut, along each side, as a share of it: a box with its corners cut.
+constexpr qreal k_octagonCut     = 0.25;
+//! How much irregularity shortens a regular node, at most, as a share of its radius.
+constexpr qreal k_regularShorten = 0.5;
+//! How far irregularity moves a regular node along the round, at most, as a share of its share of it.
+constexpr qreal k_regularShift   = 0.25;
+//! An inner radius this close under the whole one is a regular polygon, not a star.
+constexpr qreal k_regularEpsilon = 1e-9;
 /**
  *  Width of a scroll's rolled end, as a fraction of the balloon's width.
  */
@@ -198,21 +208,62 @@ QList<QPointF> polygonPoints(const ShapeProperties& shape, const QRectF& r)
     return out;
 }
 
+qreal signedArea2(const QPolygonF& ring);
+
+//! The deepest a bowed edge goes, as a share of its length, whatever its irregularity: half, a semicircle's.
+constexpr qreal k_maxBowDepth = 0.5;
+
 /**
- * \brief The nodes joined by straight edges, each corner rounded by an arc of `cornerRadius`.
+ * \brief A number in [0, 1) dealt from an edge's two nodes, as they are saved: the same for the same
+ *        edge, another when either node moves.
+ */
+qreal bowDeal(const ShapeNode& from, const ShapeNode& to)
+{
+    QByteArray key;
+    for (const QPointF& p : {from.at, to.at})
+        key += QByteArray::number(p.x(), 'f', ShapeProperties::k_nodeDecimals) + ','
+             + QByteArray::number(p.y(), 'f', ShapeProperties::k_nodeDecimals) + ';';
+    return QRandomGenerator(quint32(qHash(key, 0))).generateDouble();
+}
+
+/**
+ * \brief The nodes joined by edges, straight or bowed in (`bow`), each corner rounded by an arc of
+ *        `cornerRadius`.
  *
  * A corner's arc is tangent to both its edges, and never reaches past the middle of either, so two
  * neighbouring corners cannot overlap; a sharp corner therefore rounds less than a wide one. The arc is
- * one cubic. Self-intersecting nodes are allowed, and filled by the non-zero rule.
+ * one cubic. A bowed edge is one quadratic whose middle lies `bow` of its length in from its chord, varied
+ * per edge by `bowIrregularity` (bowDeal()), never deeper than k_maxBowDepth. Self-intersecting nodes are
+ * allowed, and filled by the non-zero rule.
  */
 QPainterPath polygonPath(const ShapeProperties& shape, const QRectF& r)
 {
     const QList<QPointF> pts    = polygonPoints(shape, r);
     const qreal          radius = qMax(0.0, shape.cornerRadius);
     const int            n      = int(pts.size());
+    const qreal          bow    = qBound(0, shape.bow, 100) / 100.0;
+    const qreal          irr    = qBound(0, shape.bowIrregularity, 100) / 100.0;
 
     QPainterPath p;
     p.setFillRule(Qt::WindingFill);
+    // Clockwise on screen (y down), the inside is on an edge's right; the other way, on its left.
+    const qreal inward = signedArea2(QPolygonF(pts)) > 0.0 ? 1.0 : -1.0;
+    // Edge @p edge, from node @p edge to the next, from where the path is to @p to.
+    const auto edgeTo = [&](int edge, const QPointF& to) {
+        const QPointF from = p.currentPosition();
+        const QPointF d    = to - from;
+        const qreal   l    = std::hypot(d.x(), d.y());
+        if (bow <= 0.0 || l <= 0.0) {
+            p.lineTo(to);
+            return;
+        }
+        const QList<ShapeNode>& nodes = freeNodes(shape);
+        const qreal deal  = bowDeal(nodes[edge], nodes[(edge + 1) % n]);
+        const qreal depth = qMin(bow * (1.0 + irr * (2.0 * deal - 1.0)), k_maxBowDepth) * l;
+        const QPointF in  = QPointF(-d.y(), d.x()) / l * inward;
+        p.quadTo((from + to) / 2.0 + in * 2.0 * depth, to);   // a quadratic's middle is half way to its control
+    };
+    QPointF start;
     for (int i = 0; i < n; ++i) {
         const QPointF v  = pts[i];
         const QPointF a  = pts[(i + n - 1) % n] - v;   // towards the previous vertex
@@ -231,7 +282,7 @@ QPainterPath polygonPath(const ShapeProperties& shape, const QRectF& r)
                 reach = qMin(radius / tanHalf, qMin(la, lb) / 2.0);
         }
         if (reach <= 0.0) {
-            if (i == 0) p.moveTo(v); else p.lineTo(v);
+            if (i == 0) { p.moveTo(v); start = v; } else edgeTo(i - 1, v);
             continue;
         }
 
@@ -243,9 +294,11 @@ QPainterPath polygonPath(const ShapeProperties& shape, const QRectF& r)
         const qreal arcRadius = reach * tanHalf;
         const qreal sweep     = M_PI - 2.0 * std::atan(tanHalf);
         const qreal handle    = 4.0 / 3.0 * std::tan(sweep / 4.0) * arcRadius;
-        if (i == 0) p.moveTo(from); else p.lineTo(from);
+        if (i == 0) { p.moveTo(from); start = from; } else edgeTo(i - 1, from);
         p.cubicTo(from - ua * handle, to - ub * handle, to);
     }
+    if (bow > 0.0)
+        edgeTo(n - 1, start);   // the last edge, back to the first node: closing would draw it straight
     p.closeSubpath();
     return p;
 }
@@ -937,15 +990,28 @@ QPolygonF pushedIn(const EdgeWalk& walk, bool clockwise, const std::vector<qreal
     return poly;
 }
 
+//! How far apart a curved edge's points are sampled along the outline, in balloon pixels.
+constexpr qreal k_edgeSample = 2.0;
+//! How much of a tooth, either side of its valley, a spike's notch takes: the rest of the edge stays flat.
+constexpr qreal k_spikeShare = 0.25;
+
 /**
- * \brief A zigzag: straight teeth from the outline in to a valley `edgeDepth` deep, halfway between.
+ * \brief Teeth along every ring of @p outline: from each point on the outline in to a valley `edgeDepth`
+ *        deep between it and the next, the way down shaped by @p profile.
+ *
+ * @p profile takes how far from a point towards its valley (0 at the point, 1 at the valley) and answers how
+ * deep, as a share of the valley's depth: the same rise both ways, so a tooth is symmetric about its valley.
+ * A straight profile needs only its points and valleys; a curved one (@p curved) is sampled every
+ * k_edgeSample as well.
  *
  * The points stay on the outline and the valleys go in, so the balloon keeps its bounds. Irregularity
  * makes each valley shallower by up to its share and moves it along by up to a quarter of a tooth,
  * seeded, so it stays put while the balloon is edited. The outline's own corners ride on the teeth
  * (pushedIn()), so a polygon keeps its points.
  */
-QPainterPath zigzagEdge(const QPainterPath& outline, const ShapeProperties& shape, quint32 seed)
+template <class Profile>
+QPainterPath teethEdge(const QPainterPath& outline, const ShapeProperties& shape, quint32 seed, Profile profile,
+                       bool curved)
 {
     const qreal depth = qMax(shape.edgeDepth, 0.0);
     const qreal irr   = qBound(0, shape.edgeIrregularity, 100) / 100.0;
@@ -971,6 +1037,9 @@ QPainterPath zigzagEdge(const QPainterPath& outline, const ShapeProperties& shap
             stations.push_back(k * step);
             stations.push_back(valley[size_t(k)]);
         }
+        if (curved)
+            for (qreal s = k_edgeSample; s < walk.length(); s += k_edgeSample)
+                stations.push_back(s);
         // Straight from a point (0 deep) down to its tooth's valley and up to the next point.
         const auto depthAt = [&](qreal s) {
             const int   k    = qBound(0, int(s / step), teeth - 1);
@@ -978,7 +1047,7 @@ QPainterPath zigzagEdge(const QPainterPath& outline, const ShapeProperties& shap
             const qreal v    = valley[size_t(k)];
             const qreal to   = from + step;
             const qreal f    = s <= v ? (s - from) / (v - from) : (to - s) / (to - v);
-            return deep[size_t(k)] * qBound(0.0, f, 1.0);
+            return deep[size_t(k)] * profile(qBound(0.0, f, 1.0));
         };
         out.addPolygon(pushedIn(walk, signedArea2(ring) > 0.0, stations, depth, depthAt));
         out.closeSubpath();
@@ -986,10 +1055,41 @@ QPainterPath zigzagEdge(const QPainterPath& outline, const ShapeProperties& shap
     return out;
 }
 
+//! A zigzag: straight teeth, a valley halfway between two points.
+QPainterPath zigzagEdge(const QPainterPath& outline, const ShapeProperties& shape, quint32 seed)
+{
+    return teethEdge(outline, shape, seed, [](qreal f) { return f; }, false);
+}
+
+//! A wave: smooth valleys, eased in and out of each point and valley, the zigzag's soft cousin.
+QPainterPath waveEdge(const QPainterPath& outline, const ShapeProperties& shape, quint32 seed)
+{
+    return teethEdge(outline, shape, seed, [](qreal f) { return (1.0 - std::cos(M_PI * f)) / 2.0; }, true);
+}
+
+/**
+ * \brief A scallop: a row of arcs bowing in, sharp where two meet: a cloud turned inside out. Each arc a
+ *        parabola, steepest at its points and flat at its valley.
+ */
+QPainterPath scallopEdge(const QPainterPath& outline, const ShapeProperties& shape, quint32 seed)
+{
+    return teethEdge(outline, shape, seed, [](qreal f) { return f * (2.0 - f); }, true);
+}
+
+//! A spike: short narrow notches in, flat between them, as a torn or nicked edge.
+QPainterPath spikeEdge(const QPainterPath& outline, const ShapeProperties& shape, quint32 seed)
+{
+    return teethEdge(outline, shape, seed,
+                     [](qreal f) { return qMax(0.0, (f - (1.0 - k_spikeShare)) / k_spikeShare); }, true);
+}
+
 //! In the enum's order; edgeInfo() checks every entry names its kind.
 const std::array<EdgeInfo, int(ShapeProperties::k_lastEdge) + 1> k_edges{{
     {ShapeProperties::Edge::None,   "none",   QT_TRANSLATE_NOOP("QObject", "None"),   nullptr},
     {ShapeProperties::Edge::Zigzag, "zigzag", QT_TRANSLATE_NOOP("QObject", "Zigzag"), zigzagEdge},
+    {ShapeProperties::Edge::Wave,    "wave",    QT_TRANSLATE_NOOP("QObject", "Wave"),    waveEdge},
+    {ShapeProperties::Edge::Scallop, "scallop", QT_TRANSLATE_NOOP("QObject", "Scallop"), scallopEdge},
+    {ShapeProperties::Edge::Spike,   "spike",   QT_TRANSLATE_NOOP("QObject", "Spike"),   spikeEdge},
 }};
 
 /**
@@ -1062,6 +1162,15 @@ QPointF saved(const QPointF& p)
     return {qRound(p.x() * scale) / scale, qRound(p.y() * scale) / scale};
 }
 
+//! A sharp-cornered Polygon through @p nodes, already rounded as they are saved (regularNodes()).
+ShapeProperties polygonOf(const QList<ShapeNode>& nodes)
+{
+    ShapeProperties s = plain(Kind::Polygon);
+    s.cornerRadius    = 0.0;
+    s.nodes           = nodes;
+    return s;
+}
+
 /**
  * \brief A sharp-cornered Polygon through @p nodes, rounded to the decimals a node is saved with, so a
  *        placed template reads back from its file as itself.
@@ -1121,6 +1230,32 @@ QList<QPointF> starNodes(int spikes, qreal inner)
 
 } // namespace
 
+QList<ShapeNode> regularNodes(int points, qreal inner, qreal turn, qreal irregularity, quint32 seed)
+{
+    points               = qBound(k_minRegularPoints, points, k_maxRegularPoints);
+    inner                = qBound(0.0, inner, 1.0);
+    const qreal irr      = qBound(0.0, irregularity, 1.0);
+    const bool  star     = inner < 1.0 - k_regularEpsilon;
+    const int   count    = star ? 2 * points : points;
+    const qreal share    = 2.0 * M_PI / count;
+    QRandomGenerator rng(seed);
+    QPolygonF pts;
+    for (int i = 0; i < count; ++i) {
+        // Both drawn before either is used, so a change to one number does not re-deal the other.
+        const qreal shorten = rng.generateDouble();
+        const qreal shift   = rng.generateDouble() - 0.5;
+        const qreal angle   = qDegreesToRadians(qreal(turn)) - M_PI / 2.0 + share * (i + 2.0 * k_regularShift * irr * shift);
+        const qreal radius  = (star && i % 2 == 1 ? inner : 1.0) * (1.0 - k_regularShorten * irr * shorten);
+        pts << QPointF(std::cos(angle), std::sin(angle)) * radius;
+    }
+    const QRectF bounds = pts.boundingRect();
+    QList<ShapeNode> out;
+    for (const QPointF& p : std::as_const(pts))
+        out.append(ShapeNode(saved({(p.x() - bounds.left()) / bounds.width(), (p.y() - bounds.top()) / bounds.height()}),
+                             {}, {}));
+    return out;
+}
+
 const ShapeInfo& shapeInfo(ShapeProperties::Kind kind)
 {
     const int i = int(kind);
@@ -1147,6 +1282,13 @@ const QList<ShapeTemplate>& shapeTemplates()
          polygon({{k_trapezoidSlant, 0}, {1 - k_trapezoidSlant, 0}, {1, 1}, {0, 1}}), false},
         {"diamond",   QT_TRANSLATE_NOOP("QObject", "Diamond"),
          polygon({{0.5, 0}, {1, 0.5}, {0.5, 1}, {0, 0.5}}), false},
+        // Regular, flat on top and at the bottom, stretched to the balloon's box.
+        {"hexagon",   QT_TRANSLATE_NOOP("QObject", "Hexagon"),
+         polygonOf(regularNodes(6, 1.0, k_hexagonTurn, 0.0, 0)),  true},
+        // A box with its corners cut off at an angle.
+        {"octagon",   QT_TRANSLATE_NOOP("QObject", "Octagon"),
+         polygon({{k_octagonCut, 0}, {1 - k_octagonCut, 0}, {1, k_octagonCut}, {1, 1 - k_octagonCut},
+                  {1 - k_octagonCut, 1}, {k_octagonCut, 1}, {0, 1 - k_octagonCut}, {0, k_octagonCut}}), true},
         // A ribbon with a V notched into each end.
         {"banner",    QT_TRANSLATE_NOOP("QObject", "Banner"),
          polygon({{0, 0}, {1, 0}, {1 - k_bannerNotch, 0.5}, {1, 1}, {0, 1}, {k_bannerNotch, 0.5}}), false},
@@ -1257,6 +1399,20 @@ ShapeProperties withVertexAdded(const ShapeProperties& shape, int edge)
     // A cut curve leaves its new node with its handles on one line; a straight one with none.
     const ShapeNode::Type type = half.midIn.isNull() ? ShapeNode::Type::Corner : ShapeNode::Type::Smooth;
     s.nodes.insert(edge + 1, ShapeNode(half.mid, half.midIn, half.midOut, type));
+    return s;
+}
+
+ShapeProperties withNodesMoved(const ShapeProperties& shape, const QRectF& body, const QList<int>& indices,
+                               const QPointF& by)
+{
+    if (body.isEmpty())
+        return shape;
+    ShapeProperties s    = shape;
+    s.nodes              = freeNodes(shape);   // a Polygon drawing the box's rectangle gets nodes of its own
+    const QPointF   step = fromPixels(by, body);
+    for (int i : indices)
+        if (i >= 0 && i < s.nodes.size())
+            s.nodes[i].at += step;   // a handle is an offset from its node, so it comes along
     return s;
 }
 

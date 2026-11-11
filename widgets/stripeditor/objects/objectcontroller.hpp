@@ -152,6 +152,14 @@ public:
      * \param index  The index of the tail to select. If the bubble has no tail at that index, the bubble itself is selected instead.
      */
     void selectTail(const QString& uid, int index);
+    /**
+     * \brief Scrolls the strip to a subject: an object or a tail centred in the view, a page with its top
+     *        at the view's top. The strip, or a subject that is gone, moves nothing.
+     * \param subject  What @p id names.
+     * \param id       The object's uid (for a tail, its balloon's), or the page's input uid.
+     * \param tail     The tail's index, for Subject::Tail.
+     */
+    void reveal(Subject subject, const QString& id, int tail = -1);
 
     // --- read and driven by the OBJECT STACK (objectstack/objectstack.hpp), which this class does not know ---
     [[nodiscard]] const std::vector<Platemaker::Models::StripOverlay>& overlays() const { return m_overlays; }   //!< Composite order.
@@ -451,9 +459,9 @@ public:
      * \brief Shape editing of the one selected object: on or off.
      *
      * On only for one selected object whose shape has handles (Object::canEditShape()); asking for it
-     * otherwise does nothing. It ends by itself when the selection becomes anything else — a click
-     * outside the balloon — or the object stops having handles. While it is on, Delete removes the
-     * picked node instead of the object.
+     * otherwise does nothing. A double click on the strip leaves it (leaveShapeEditingAt()), and so does
+     * the selection becoming anything else (in OBJECT STACK), Esc, or the object losing its handles. While
+     * it is on, Delete removes the picked nodes instead of the object.
      */
     void setShapeEditing(bool on);
     [[nodiscard]] bool shapeEditing() const { return !m_shapeEditing.isEmpty(); }
@@ -461,14 +469,33 @@ public:
     [[nodiscard]] bool canEditShape() const;
     //! Whether a node is picked in shape editing, so Delete would remove it.
     [[nodiscard]] bool hasPickedVertex() const;
-    //! The type of the Curve's node picked in shape editing; none when no Curve's node is picked.
+    //! The type of the Curve's node picked last in shape editing; none when no Curve's node is picked.
     [[nodiscard]] std::optional<ShapeNode::Type> pickedNodeType() const;
-    //! Makes the picked Curve node a @p type node (Geometry::withNodeType()), as one history step.
+    //! Makes every picked Curve node a @p type node (Geometry::withNodeType()), as one history step.
     void setPickedNodeType(ShapeNode::Type type);
-    //! Whether the picked Curve node lacks a handle on a straight side, so *Add handles* has work.
+    //! Whether a picked Curve node lacks a handle on a straight side, so *Add handles* has work.
     [[nodiscard]] bool canGrowPickedHandles() const;
-    //! Gives the picked Curve node its missing handles (Geometry::withHandlesGrown()), as one history step.
+    //! Gives every picked Curve node its missing handles (Geometry::withHandlesGrown()), as one history step.
     void growPickedHandles();
+
+    // --- shape editing on the strip, driven by CanvasInput --------------------------------------------
+    //! Whether a press at @p scenePos is on the edited object: one of its handles or grips, or its body.
+    [[nodiscard]] bool onEditedObject(const QPointF& scenePos, const QTransform& deviceTransform) const;
+    //! Leaves shape editing for a double click at @p scenePos; on another object, that object is selected.
+    void leaveShapeEditingAt(const QPointF& scenePos, const QTransform& deviceTransform);
+    //! Picks the edited object's nodes inside @p sceneRect, instead of the pick or, with @p add, added to it.
+    //! With none inside, nothing changes.
+    void pickNodesIn(const QRectF& sceneRect, bool add);
+    //! What an arrow does to the pick (stepPickedNode()).
+    enum class PickStep { Move, Extend, Shrink };
+    /**
+     * \brief Walks the pick one node round the outline, clockwise as seen on screen or not. The furthest
+     *        picked node that way is the end of the run of picked nodes that holds the one picked last.
+     *
+     * Move picks the node past it alone, Extend adds that node, Shrink takes the furthest one away (undoing
+     * an Extend the same way) but never the last one left. Nothing picked, nothing moves.
+     */
+    void stepPickedNode(bool clockwise, PickStep how);
 
     /**
      * \brief *Convert to Curve*: the one selected balloon's outline, of any other kind, as the Curve that

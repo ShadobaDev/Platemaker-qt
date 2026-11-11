@@ -394,11 +394,24 @@ New, backward-compatible features. Several are gated on a lib version, noted in 
   shadow that fades, and a fill whose halftone fades by a cross that moves, either way; a thought tail
   (Circles). What is left is the next item.
 
+- [x] **Line styles, balloon shapes and bubble outlines** — *Done 2026-11-11.* Built: the Dashed,
+  Multi-line, Sketch (short pen strokes, or long loose ones with ink blots), Dry ink and Explosion lines;
+  the wave, scallop and spike edges; a Polygon's bow, even or not; *Regular polygon / star…*; the Hexagon
+  and Octagon tiles; several nodes picked and moved together in edit mode, left by a double click; a
+  filter's and a balloon's saved numbers kept to four places; a double click in OBJECT STACK bringing the
+  object into view. Hatching and glow were there already: the Lines and Grid patterns, and a centred soft
+  shadow. What is left is the next item.
+
 - [ ] **Line styles and balloon shapes.**
-  - Later lines and shapes: Dashed, Double, regular polygon and star, Dry ink, the other edges (wave,
-    scallop, spike, drip), hatching, glow, fine-tuning. The sketched line is under *Bubble outline*.
-  - Whether the 0.01 that `num()` keeps is the frequency spin's step, or the filter gets its own
-    formatter.
+  - **Drip:** ink running down from the bottom edge. Every edge goes in from the outline, which keeps the
+    balloon in its box; a drip goes out, so it is a look of its own (gravity, uneven lengths, round ends)
+    rather than another edge.
+  - **Fine-tuning:** the tile set and its order, defaults by eye, the UX of edit mode.
+  - **The dry brush of the references** differs from ours by a rough applied to some strokes at random,
+    not to the whole outline.
+  - **Bow on a Box:** a speech balloon with concave sides, the Box drawn as a Polygon only while it bows,
+    so its exact text area stays for every other one.
+  - *Regular polygon / star…* is in the Shape section only; the object's menu could offer it too.
   - The flash's direction could be chosen from a shape's convex and concave vertices instead of a
     per-family value — an idea, not planned.
   - The dry brush: a tail's root that turns less than a corner (`k_cornerTurn`, 35°) is followed
@@ -408,23 +421,12 @@ New, backward-compatible features. Several are gated on a lib version, noted in 
     ellipses take their length along the tail from its length, so a fixed aspect would need a row of its
     own and would loosen the tip from the last one.
 
-- [ ] **Bubble outline.** Two balloon looks from manga references, neither buildable today.
-  - **A sketched line.** The outline is not one line but several loose pen strokes going round it. Each
-    is an open arc covering a part of the lap, from a quarter to more than half, tapering at both ends.
-    Each lies a little in or out from the true outline, so in places two or three run side by side and
-    cross at a narrow angle. Their ends overshoot one another. Here and there a stroke is broken into
-    short dashes with small gaps. The width varies along each stroke. The fill stays the plain
-    silhouette. It is a line kind, over the same edge walk and noise as Brush and Drybrush: the
-    number of strokes, their spread in and out, the overshoot, the breaks and the taper as rows, the
-    wobble from `styleSeed` with Re-roll.
-  - **A burst with concave edges.** A rough rectangle whose points are joined by arcs bowing inwards
-    instead of straight edges. The points are irregular: long sharp spikes at the corners, short stubs
-    between them, at uneven spacing, and the arcs between them of uneven depth. The line is clean and
-    even. The Polygon (Shout) has the points but straight edges. The Cloud has arcs, but they bow
-    outwards and are all alike. Candidates: a bow for a Polygon's edges (inwards below 0), or an inward
-    scallop edge with irregularity, plus irregular point lengths from the regular polygon / star action.
+- [ ] **Joined balloons — a plan of its own.** Two balloons of one speaker, read in turn, joined into one
+  outline by a neck between them, as a manga reference does: a new kind of tail that goes from one
+  balloon to another instead of to a point. With it, a **broken tail**: a tail bent into a sharp zigzag on
+  its way, as in the same reference.
 
-- [ ] **Double click on object in OBJECT STACK** shall scroll strip to the position that will make the object vivble on the screen.
+- [ ] **Tail options** Tail with property Plain, shall have option to select tails tip - round, cut, sharp. Shall be tested with different outline styles to make sure the are no conflicts. 
 
 - [x] **Text area and lettering effects** — *Done 2026-11-03.* Built:
   - **Two paddings**, sides and top. The words start centred and grow both ways with each line; once

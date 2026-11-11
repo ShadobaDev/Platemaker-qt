@@ -185,6 +185,21 @@ struct ShapeTemplate
 //! The template @p shape is, its edge aside, or nullptr when it matches none.
 [[nodiscard]] const ShapeTemplate* templateOf(const ShapeProperties& shape);
 
+//! The fewest and the most points regularNodes() makes a shape of.
+constexpr int k_minRegularPoints = 3;
+constexpr int k_maxRegularPoints = 64;
+
+/**
+ * \brief A Polygon's nodes for a regular polygon or a star, stretched to fill the unit box, so the balloon's
+ *        box frames it.
+ *
+ * @p points corners round the centre, the first on top, turned @p turn degrees clockwise. With @p inner
+ * under 1, a node between each two at @p inner of their radius: a star. @p irregularity (0..1) shortens each
+ * node by up to half of it and moves it along by up to a quarter of its share of the round, dealt from
+ * @p seed: long spikes and short stubs, unevenly spaced. Rounded to the decimals a node is saved with.
+ */
+[[nodiscard]] QList<ShapeNode> regularNodes(int points, qreal inner, qreal turn, qreal irregularity, quint32 seed);
+
 //! Whether @p shape speaks: its template's answer, or its kind's when it matches none.
 [[nodiscard]] bool shapeSpeaks(const ShapeProperties& shape);
 
@@ -212,6 +227,10 @@ struct ShapeTemplate
  * curve may bulge past its nodes. Empty for any other kind, and for a body with no area.
  */
 [[nodiscard]] QRectF outlineExtent(const ShapeProperties& shape, const QRectF& body);
+
+//! @p shape with nodes @p indices moved @p by, in @p body's pixels, with their handles; the others stay.
+[[nodiscard]] ShapeProperties withNodesMoved(const ShapeProperties& shape, const QRectF& body,
+                                             const QList<int>& indices, const QPointF& by);
 
 //! @p shape without node @p index; unchanged when that would leave fewer than three.
 [[nodiscard]] ShapeProperties withVertexRemoved(const ShapeProperties& shape, int index);

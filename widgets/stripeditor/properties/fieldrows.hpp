@@ -113,6 +113,8 @@ public:
                     row.decimal->setSuffix(suffix);
                 row.box->setToolTip(QCoreApplication::translate(context, spec->tip));
                 form->addRow(QCoreApplication::translate(context, spec->title), row.box);
+                if (QWidget* label = form->labelForField(row.box))   // the name says what the tip explains
+                    label->setToolTip(row.box->toolTip());
                 m_rows.push_back(row);
 
                 const size_t index  = m_rows.size() - 1;
@@ -171,6 +173,14 @@ public:
     {
         for (const Row& r : m_rows)
             form->setRowVisible(r.box, visible);
+    }
+
+    //! Shows or hides the rows whose key holds @p part, leaving the others as they are.
+    void setRowsVisible(QFormLayout* form, const char* part, bool visible) const
+    {
+        for (const Row& r : m_rows)
+            if (std::strstr(r.key, part))
+                form->setRowVisible(r.box, visible);
     }
 
     //! Copies into @p target the rows the artist has touched, from @p values.

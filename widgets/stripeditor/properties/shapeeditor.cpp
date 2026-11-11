@@ -6,6 +6,7 @@
 #include <QEvent>
 #include <QFormLayout>
 #include <QIcon>
+#include <QPushButton>
 #include <QToolButton>
 #include <QVBoxLayout>
 #include <QtMath>
@@ -13,6 +14,7 @@
 #include "recordpainter.hpp"
 #include "shapes.hpp"
 #include "flowlayout.hpp"
+#include "properties/regularpolygondialog.hpp"
 
 namespace StripEdit {
 
@@ -30,6 +32,12 @@ constexpr char k_trContext[] = "StripEdit::ShapeEditor";
 const FieldRowSpec k_cornerRows[] = {
     {"cornerRadius", PM_TR("Corner radius:"), 0, 500, " px",
      PM_TR("How round the corners are. Never more than half the shorter side, which makes the ends round.")},
+};
+const FieldRowSpec k_bowRows[] = {
+    {"bow",             PM_TR("Bow:"),              0, 50,  " %",
+     PM_TR("How far each edge bows in between two points, as a share of its length. The points stay sharp; 0 is straight.")},
+    {"bowIrregularity", PM_TR("Bow irregularity:"), 0, 100, " %",
+     PM_TR("How much each edge's bow varies, deeper or flatter. Moving a point deals its two edges again.")},
 };
 // The bounds are the ones the outline keeps to.
 const FieldRowSpec k_lobeRows[] = {
@@ -119,13 +127,20 @@ ShapeEditor::ShapeEditor(QWidget* parent)
     };
     m_corner.build(this, m_form, "corner", k_cornerRows, k_trContext, m_values, m_populating, edited);
     m_lobes.build(this, m_form, "lobe", k_lobeRows, k_trContext, m_values, m_populating, edited);
+    m_bow.build(this, m_form, "bow", k_bowRows, k_trContext, m_values, m_populating, edited);
+    m_regular = new QPushButton(tr("Regular polygon / star…"), this);
+    m_regular->setToolTip(tr("Replaces the points with a regular polygon or a star, irregular if you like. "
+                             "They stay free to move afterwards."));
+    m_form->addRow(QString(), m_regular);
+    connect(m_regular, &QPushButton::clicked, this, &ShapeEditor::makeRegular);
 
     // The edge: laid over whichever outline.
     m_edge = new QComboBox(this);
     for (int i = 0; i <= int(ShapeProperties::k_lastEdge); ++i)
         m_edge->addItem(edgeTitle(static_cast<ObjectRecord::Edge>(i)), i);
-    m_edge->setToolTip(tr("What is done to the outline's edge: teeth pushed in along it. The tails stay "
-                          "smooth, and the edge stays when another shape is picked."));
+    m_edge->setToolTip(tr("What is done to the outline's edge, pushed in along it: straight teeth, soft "
+                          "waves, arcs bowing in, or narrow notches. The tails stay smooth, and the edge stays "
+                          "when another shape is picked."));
     m_form->addRow(tr("Edge:"), m_edge);
     m_edgeRows.build(this, m_form, "edge", k_edgeRows, k_trContext, m_values, m_populating, edited);
     connect(m_edge, &QComboBox::currentIndexChanged, this, [this](int i) {
@@ -155,6 +170,7 @@ void ShapeEditor::bind(const Subjects& subjects)
     m_values = ShapeProperties::from(*subjects.first());
     m_corner.reset();
     m_lobes.reset();
+    m_bow.reset();
     m_edgeRows.reset();
     // No higher than the balloon can show: past it the outline stops changing (Shape is one subject only).
     m_corner.setMaximum("cornerRadius", qFloor(Geometry::cornerRadiusLimit(subjects.first()->box)));
@@ -177,6 +193,9 @@ void ShapeEditor::syncFromValues()
     m_corner.setVisible(m_form, Geometry::shapeInfo(m_values.kind).rounded);
     m_lobes.show(m_values);
     m_lobes.setVisible(m_form, m_values.kind == ShapeProperties::Kind::Cloud);
+    m_bow.show(m_values);
+    m_bow.setVisible(m_form, m_values.kind == ShapeProperties::Kind::Polygon);
+    m_form->setRowVisible(m_regular, m_values.kind == ShapeProperties::Kind::Polygon);
     {
         const QSignalBlocker block(m_edge);
         m_edge->setCurrentIndex(m_edge->findData(int(m_values.edge)));
@@ -184,6 +203,28 @@ void ShapeEditor::syncFromValues()
     m_edgeRows.show(m_values);
     m_edgeRows.setVisible(m_form, m_values.edge != ShapeProperties::Edge::None);
     m_populating = false;
+}
+
+void ShapeEditor::makeRegular()
+{
+    // The balloon shows each set of nodes as it is made; OK keeps the last as one history step, Cancel puts
+    // back what was there.
+    const ShapeProperties before = m_values;
+    RegularPolygonDialog  dialog(this);
+    const auto show = [this](const QList<ShapeNode>& nodes) {
+        m_values.nodes = nodes;
+        syncFromValues();
+        emit changed();
+    };
+    connect(&dialog, &RegularPolygonDialog::nodesChanged, this, show);
+    show(dialog.nodes());
+    if (dialog.exec() == QDialog::Accepted) {
+        emit committed();
+        return;
+    }
+    m_values = before;
+    syncFromValues();
+    emit changed();
 }
 
 void ShapeEditor::applyTo(ObjectRecord& target) const

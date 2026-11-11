@@ -20,6 +20,12 @@ namespace {
 
 //! Decimal places for path coordinates. Two is well under a rendered pixel and keeps files small.
 constexpr int k_precision = 2;
+/**
+ * Decimal places for a number the record is read back from (its pm: attributes) or a filter is tuned by: a
+ * grain's spin steps by a thousandth, and two places would round 0.035 to another texture, in the render and
+ * in the file reopened. Trailing zeros are trimmed, so a number with two places or fewer is written as before.
+ */
+constexpr int k_valuePrecision = 4;
 
 QString num(qreal v, int precision = k_precision)
 {
@@ -181,13 +187,50 @@ QString styleDefs(const ObjectRecord& a, const QString& id)
              .arg(id);
     d += QStringLiteral("      <feTurbulence type=\"fractalNoise\" baseFrequency=\"%1\" numOctaves=\"%2\" "
                         "seed=\"%3\" result=\"pmNoise\"/>\n")
-             .arg(num(qMax(s.roughFrequency, 0.0))).arg(qMax(s.roughOctaves, 1)).arg(a.styleSeed % 65536u);
+             .arg(num(qMax(s.roughFrequency, 0.0), k_valuePrecision)).arg(qMax(s.roughOctaves, 1)).arg(a.styleSeed % 65536u);
     d += QStringLiteral("      <feDisplacementMap in=\"SourceGraphic\" in2=\"pmNoise\" scale=\"%1\" "
                         "xChannelSelector=\"R\" yChannelSelector=\"G\"%2/>\n")
              .arg(num(qMax(s.roughDisplacement, 0.0)),
                   blurred ? QStringLiteral(" result=\"pmBled\"") : QString());
     if (blurred)
         d += QStringLiteral("      <feGaussianBlur in=\"pmBled\" stdDeviation=\"%1\"/>\n").arg(num(s.roughBlur));
+    d += QStringLiteral("    </filter>\n  </defs>\n");
+    return d;
+}
+
+//! How detailed dry ink's noise is: specks, not the Rough's long waves.
+constexpr int   k_dryInkOctaves   = 3;
+//! The noise level that wears the outline at no wear and at full wear: fractal noise sits about its middle.
+constexpr qreal k_dryInkWornAt0   = 0.3;
+constexpr qreal k_dryInkWornAt100 = 0.7;
+//! How hard the edge of a hole is: the threshold's slope, so a speck is crisp and not a smear.
+constexpr qreal k_dryInkEdge      = 25.0;
+
+/**
+ * \brief The `<defs>` block for @p a's Dry ink line, or nothing for another line.
+ *
+ * The noise's red as an alpha, cut at the wear by a steep slope: below it a hole, above it ink. Composited
+ * *in* the outline, so the holes are the paper showing through.
+ */
+QString dryInkDefs(const ObjectRecord& a, const QString& id)
+{
+    if (a.style.line != ObjectRecord::Line::DryInk)
+        return {};
+    const StyleProperties& s = a.style;
+    const qreal wear = qBound(0, s.dryInkWear, 100) / 100.0;
+    const qreal at   = k_dryInkWornAt0 + (k_dryInkWornAt100 - k_dryInkWornAt0) * wear;
+    QString d;
+    d += QStringLiteral("  <defs>\n");
+    d += QStringLiteral("    <filter id=\"%1\" x=\"-25%\" y=\"-25%\" width=\"150%\" height=\"150%\">\n").arg(id);
+    d += QStringLiteral("      <feTurbulence type=\"fractalNoise\" baseFrequency=\"%1\" numOctaves=\"%2\" "
+                        "seed=\"%3\" result=\"pmNoise\"/>\n")
+             .arg(num(qMax(s.dryInkGrain, 0.0), k_valuePrecision)).arg(k_dryInkOctaves).arg(a.styleSeed % 65536u);
+    d += QStringLiteral("      <feColorMatrix in=\"pmNoise\" type=\"matrix\" "
+                        "values=\"0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  1 0 0 0 0\" result=\"pmGrain\"/>\n");
+    d += QStringLiteral("      <feComponentTransfer in=\"pmGrain\" result=\"pmWorn\">"
+                        "<feFuncA type=\"linear\" slope=\"%1\" intercept=\"%2\"/></feComponentTransfer>\n")
+             .arg(num(k_dryInkEdge), num(-k_dryInkEdge * at));
+    d += QStringLiteral("      <feComposite in=\"SourceGraphic\" in2=\"pmWorn\" operator=\"in\"/>\n");
     d += QStringLiteral("    </filter>\n  </defs>\n");
     return d;
 }
@@ -294,7 +337,7 @@ int intOf(const QStringView& v, int fallback)
 
 QString attrValue(int v) { return QString::number(v); }
 QString attrValue(bool v) { return v ? QStringLiteral("1") : QStringLiteral("0"); }
-QString attrValue(qreal v) { return num(v); }
+QString attrValue(qreal v) { return num(v, k_valuePrecision); }
 QString attrValue(const QString& v) { return v; }
 QString attrValue(const QColor& v) { return v.name(QColor::HexArgb); }
 QString attrValue(ObjectRecord::Shape v) { return QString::fromLatin1(shapeName(v)); }
@@ -529,6 +572,8 @@ QByteArray write(const ObjectRecord& a, const QByteArray& picture, const QString
     const QString shadowId     = QStringLiteral("pm-shadow");
     const QString shadowFillId = QStringLiteral("pm-shadow-fill");
     svg += styleDefs(a, filterId);
+    const QString dryInkId = QStringLiteral("pm-dryink");
+    svg += dryInkDefs(a, dryInkId);
     if (!Geometry::fades(a.skin.fill))
         svg += patternDefs(a.skin.fill, fillId);
     svg += patternDefs(a.style.stroke, strokeId);
@@ -569,6 +614,21 @@ QByteArray write(const ObjectRecord& a, const QByteArray& picture, const QString
     // edge; then the line and its strokes, displaced. Each displaced layer is one more turbulence pass.
     const bool inParts = !silhouette.isEmpty() && a.texture.kind == ObjectRecord::Texture::Rough
                       && !a.texture.roughFill;
+    // **Dry ink:** the outline under its own filter, then its middle unworn over it, so a hole never opens the
+    // fill. A texture's filter, on a group round it, goes over both.
+    const bool worn        = a.style.line == ObjectRecord::Line::DryInk;
+    const auto wornOutline = [&](const QString& indent) {
+        const QString stroke = paintAttr("stroke", a.style.stroke, strokeId);
+        QString       out    = indent + QStringLiteral("<g filter=\"url(#%1)\">\n").arg(dryInkId);
+        out += indent + QStringLiteral("  <path d=\"%1\" fill=\"none\" %2 stroke-width=\"%3\" stroke-linejoin=\"round\"/>\n")
+                            .arg(pathData(silhouette), stroke).arg(a.style.strokeWidth);
+        out += indent + QLatin1String("</g>\n");
+        const qreal core = a.style.strokeWidth * qBound(0, a.style.dryInkCore, 100) / 100.0;
+        if (core > 0.0)
+            out += indent + QStringLiteral("<path d=\"%1\" fill=\"none\" %2 stroke-width=\"%3\" stroke-linejoin=\"round\"/>\n")
+                                .arg(pathData(silhouette), stroke, num(core));
+        return out;
+    };
     if (inParts) {
         const QString shadowLayer = shadowElements(a.effects.shadow, a.effects.shadowFill, shadow, shadowFillId,
                                                    shadowId, QLatin1String("      "));
@@ -602,7 +662,9 @@ QByteArray write(const ObjectRecord& a, const QByteArray& picture, const QString
         const bool         outline = a.style.strokeWidth > 0 && Geometry::hasOutline(a);
         if (outline || !ink.isEmpty()) {
             svg += QStringLiteral("    <g filter=\"url(#%1)\">\n").arg(filterId);
-            if (outline)
+            if (outline && worn)
+                svg += wornOutline(QStringLiteral("      "));
+            else if (outline)
                 svg += QStringLiteral("      <path d=\"%1\" fill=\"none\" %2 stroke-width=\"%3\" stroke-linejoin=\"round\"/>\n")
                            .arg(pathData(silhouette), paintAttr("stroke", a.style.stroke, strokeId))
                            .arg(a.style.strokeWidth);
@@ -636,10 +698,13 @@ QByteArray write(const ObjectRecord& a, const QByteArray& picture, const QString
                        .arg(pathData(tone), paint("fill", a.skin.fill.second), area);
             svg += QStringLiteral("      <path d=\"%1\" fill=\"none\"").arg(pathData(silhouette));
         }
-        if (a.style.strokeWidth > 0 && Geometry::hasOutline(a))
+        const bool outline = a.style.strokeWidth > 0 && Geometry::hasOutline(a);
+        if (outline && !worn)
             svg += QStringLiteral(" %1 stroke-width=\"%2\" stroke-linejoin=\"round\"")
                        .arg(paintAttr("stroke", a.style.stroke, strokeId)).arg(a.style.strokeWidth);
         svg += QLatin1String("/>\n");
+        if (outline && worn)
+            svg += wornOutline(QStringLiteral("      "));
 
         // A line's own strokes, in the line's paint, over the fill and under the words.
         const QPainterPath ink = Geometry::ink(a, silhouette);

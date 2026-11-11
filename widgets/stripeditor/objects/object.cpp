@@ -146,15 +146,20 @@ void Object::setShapeEditing(bool on)
     if (m_shapeEditing == on)
         return;
     m_shapeEditing = on;
-    m_pickedVertex = -1;
+    m_pickedVertices.clear();
     emit chromeChanged();
 }
 
 void Object::setPickedVertex(int index)
 {
-    if (m_pickedVertex == index)
+    setPickedVertices(index < 0 ? QList<int>{} : QList<int>{index});
+}
+
+void Object::setPickedVertices(const QList<int>& indices)
+{
+    if (m_pickedVertices == indices)
         return;
-    m_pickedVertex = index;
+    m_pickedVertices = indices;
     emit chromeChanged();
     emit pickedVertexChanged();
 }

@@ -121,6 +121,8 @@ protected:
     void                  setHandlePos(int index, const QPointF& local) override;
 
     bool beginShapeDrag(int index) override;
+    //! A Ctrl+press took its node out of the pick: the drag that follows moves nothing.
+    bool m_shapeDragOff = false;
     void dragShapeTo(const QPointF& scenePos) override;
 
 private:

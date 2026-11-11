@@ -851,6 +851,25 @@ TEST(Shape, APolygonsEdgesBowIn)
 }
 
 /**
+ * \brief Picked nodes move together, by pixels of the body, with their handles; the others stay.
+ */
+TEST(Shape, PickedNodesMoveTogether)
+{
+    constexpr qreal k_tolerance = 1e-9;
+    ShapeProperties s;
+    s.kind  = ObjectRecord::Shape::Curve;
+    s.nodes = {ShapeNode(0, 0), ShapeNode(1, 0), ShapeNode(1, 1), ShapeNode(0, 1)};
+    s.nodes[1].in = QPointF(-0.1, 0.0);
+    const QRectF          body(0, 0, 200, 100);
+    const ShapeProperties moved = Geometry::withNodesMoved(s, body, {1, 2}, QPointF(40, 0));
+    EXPECT_NEAR(moved.nodes[1].at.x(), 1.2, k_tolerance);   // 40 px of 200
+    EXPECT_NEAR(moved.nodes[2].at.x(), 1.2, k_tolerance);
+    EXPECT_NEAR(moved.nodes[1].in.x(), -0.1, k_tolerance);  // the handle is an offset: it comes along
+    EXPECT_NEAR(moved.nodes[0].at.x(), 0.0, k_tolerance);
+    EXPECT_NEAR(moved.nodes[3].at.x(), 0.0, k_tolerance);
+}
+
+/**
  * \brief A regular polygon has its points, a star twice as many, both fill the unit box; irregularity is
  *        dealt from its seed: the same for the same seed, another for another, and not the regular one.
  */

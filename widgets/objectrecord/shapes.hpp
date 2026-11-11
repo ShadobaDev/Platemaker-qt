@@ -228,6 +228,10 @@ constexpr int k_maxRegularPoints = 64;
  */
 [[nodiscard]] QRectF outlineExtent(const ShapeProperties& shape, const QRectF& body);
 
+//! @p shape with nodes @p indices moved @p by, in @p body's pixels, with their handles; the others stay.
+[[nodiscard]] ShapeProperties withNodesMoved(const ShapeProperties& shape, const QRectF& body,
+                                             const QList<int>& indices, const QPointF& by);
+
 //! @p shape without node @p index; unchanged when that would leave fewer than three.
 [[nodiscard]] ShapeProperties withVertexRemoved(const ShapeProperties& shape, int index);
 

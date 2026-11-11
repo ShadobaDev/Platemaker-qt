@@ -304,8 +304,8 @@ void SelectionChrome::paint(QPainter* painter, const QStyleOptionGraphicsItem* o
             painter->drawEllipse(handleRect(o, i, s));
         }
 
-        // The outline's handles: a node is a square, unlike a tail's dot, filled when it is the picked
-        // one; the radius is an arrow into its corner; a "+" adds a node where it sits. All but the arrow
+        // The outline's handles: a node is a square, unlike a tail's dot, filled when it is among the
+        // picked; the radius is an arrow into its corner; a "+" adds a node where it sits. All but the arrow
         // are the negative of what lies under them (white in Difference), so they read on a black flash,
         // on white paper and on screentone alike. Each is one stroke or one fill: a pixel painted twice
         // in Difference turns back.
@@ -328,7 +328,7 @@ void SelectionChrome::paint(QPainter* painter, const QStyleOptionGraphicsItem* o
             switch (h.role) {
             case Role::Vertex:
                 inNegative([&] {
-                    if (h.index == o->pickedVertex()) {
+                    if (o->pickedVertices().contains(h.index)) {
                         painter->setPen(Qt::NoPen);
                         painter->setBrush(Qt::white);
                     }

@@ -431,6 +431,8 @@ New, backward-compatible features. Several are gated on a lib version, noted in 
   balloon to another instead of to a point. With it, a **broken tail**: a tail bent into a sharp zigzag on
   its way, as in the same reference.
 
+- [ ] **Tail options** Tail with property Plain, shall have option to select tails tip - round, cut, sharp. Shall be tested with different outline styles to make sure the are no conflicts. 
+
 - [x] **Text area and lettering effects** — *Done 2026-11-03.* Built:
   - **Two paddings**, sides and top. The words start centred and grow both ways with each line; once
     they reach the top padding they grow downwards, out of the balloon, never cut at the bottom (the

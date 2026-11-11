@@ -2,6 +2,7 @@
 #include "recordpainter.hpp"
 #include "styles.hpp"
 
+#include <QGuiApplication>
 #include <QPainter>
 #include <QtMath>
 
@@ -220,7 +221,27 @@ bool BubbleObject::beginShapeDrag(int index)
         changed = true;
     }
     // A node, or one of its handles, picks that node: its handles show, and Delete or its type act on it.
-    setPickedVertex(Geometry::picksNode(m_shapeHandle.role) ? m_shapeHandle.index : -1);
+    // Ctrl+press on a node adds it to the pick, or takes it away (and then drags nothing). A plain press on a
+    // node already among several keeps them, so the drag moves them all.
+    m_shapeDragOff = false;
+    if (!Geometry::picksNode(m_shapeHandle.role)) {
+        setPickedVertex(-1);
+        return changed;
+    }
+    const int  node   = m_shapeHandle.index;
+    QList<int> picked = pickedVertices();
+    if (m_shapeHandle.role == Role::Vertex && !changed
+        && QGuiApplication::keyboardModifiers().testFlag(Qt::ControlModifier)) {
+        m_shapeDragOff = picked.removeAll(node) > 0;
+        if (!m_shapeDragOff)
+            picked.append(node);
+        setPickedVertices(picked);
+    } else if (m_shapeHandle.role == Role::Vertex && picked.contains(node)) {
+        picked.removeAll(node);
+        setPickedVertices(picked << node);   // the one pressed is the one picked last
+    } else {
+        setPickedVertex(node);
+    }
     return changed;
 }
 
@@ -231,6 +252,8 @@ void BubbleObject::dragShapeTo(const QPointF& scenePos)
     const qreal   k    = scale() > 0.0 ? scale() : 1.0;
     const QPointF to   = (scenePos - m_shapeStartPos) / k;
     const QRectF  body = Geometry::balloonRect(m_shapeStart);
+    if (m_shapeDragOff)
+        return;   // a Ctrl+press that took its node out of the pick
 
     using Role        = Geometry::ShapeHandle::Role;
     ObjectRecord next = m_shapeStart;
@@ -239,6 +262,8 @@ void BubbleObject::dragShapeTo(const QPointF& scenePos)
         next.skin.fill = Geometry::dragFadeHandle(next.skin.fill, body, m_shapeHandle, to);
     else if (m_shapeHandle.role == Role::TextSide || m_shapeHandle.role == Role::TextTop)
         next.text = Geometry::dragTextAreaHandle(m_shapeStart, m_shapeHandle, to);
+    else if (m_shapeHandle.role == Role::Vertex && pickedVertices().size() > 1)
+        next.shape = Geometry::withNodesMoved(next.shape, body, pickedVertices(), to - m_shapeHandle.at);
     else
         next.shape = Geometry::dragShapeHandle(next.shape, body, m_shapeHandle, to, radiusClearance());
     const QPointF moved = m_shapeHandle.role == Role::Vertex ? fitToOutline(next, body) : QPointF();

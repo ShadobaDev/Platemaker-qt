@@ -10,9 +10,11 @@
 #include <QEnterEvent>
 #include <QEvent>
 #include <QGraphicsView>
+#include <QKeyEvent>
 #include <QMetaObject>
 #include <QMimeData>
 #include <QMouseEvent>
+#include <QRubberBand>
 #include <QScrollBar>
 #include <QUrl>
 #include <QWheelEvent>
@@ -27,6 +29,7 @@ CanvasInput::CanvasInput(QGraphicsView* view, ObjectController* objects, Placeme
     , m_placement(placement)
 {
     m_view->viewport()->installEventFilter(this);   // Ctrl+wheel zoom, and the pointer's own answer
+    m_view->installEventFilter(this);               // the arrows, in shape editing
 }
 
 void CanvasInput::setTool(const Tool& tool)
@@ -98,6 +101,56 @@ bool CanvasInput::eventFilter(QObject *watched, QEvent *event)
             m_panFrom = {-1, -1};
             updateCursor();
             return true;
+        }
+    }
+
+    // **Shape editing** has the strip's left button and the arrows to itself, under every tool: a press off
+    // the edited balloon draws a band that picks its nodes (a click that picks none does nothing, so a stray
+    // one costs nothing), a double click anywhere leaves it, and the arrows walk the pick round the outline:
+    // Shift adds the next node, Alt+Shift takes the furthest away.
+    // A press on the balloon, or on its handles, is the balloon's as ever.
+    if (m_objects && m_objects->shapeEditing()) {
+        if (watched == m_view && event->type() == QEvent::KeyPress) {
+            auto*     ke  = static_cast<QKeyEvent*>(event);
+            const int key = ke->key();
+            if (key == Qt::Key_Up || key == Qt::Key_Left || key == Qt::Key_Down || key == Qt::Key_Right) {
+                using Step               = ObjectController::PickStep;
+                const Qt::KeyboardModifiers mods = ke->modifiers();
+                const Step how = !mods.testFlag(Qt::ShiftModifier) ? Step::Move
+                               : mods.testFlag(Qt::AltModifier)    ? Step::Shrink
+                                                                    : Step::Extend;
+                m_objects->stepPickedNode(key == Qt::Key_Down || key == Qt::Key_Right, how);
+                return true;
+            }
+        }
+        if (watched == m_view->viewport()) {
+            const auto* me  = dynamic_cast<QMouseEvent*>(event);
+            const QPoint at = me ? me->position().toPoint() : QPoint();
+            if (me && event->type() == QEvent::MouseButtonDblClick && me->button() == Qt::LeftButton) {
+                m_objects->leaveShapeEditingAt(m_view->mapToScene(at), m_view->transform());
+                return true;
+            }
+            if (me && event->type() == QEvent::MouseButtonPress && me->button() == Qt::LeftButton
+                && !m_objects->onEditedObject(m_view->mapToScene(at), m_view->transform())) {
+                m_bandFrom = at;
+                return true;
+            }
+            if (me && event->type() == QEvent::MouseMove && m_bandFrom.x() >= 0) {
+                if (!m_band)
+                    m_band = new QRubberBand(QRubberBand::Rectangle, m_view->viewport());
+                m_band->setGeometry(QRect(m_bandFrom, at).normalized());
+                m_band->show();
+                return true;
+            }
+            if (me && event->type() == QEvent::MouseButtonRelease && m_bandFrom.x() >= 0) {
+                if (m_band && m_band->isVisible()) {
+                    m_objects->pickNodesIn(m_view->mapToScene(m_band->geometry()).boundingRect(),
+                                           me->modifiers().testFlag(Qt::ControlModifier));
+                    m_band->hide();
+                }
+                m_bandFrom = {-1, -1};
+                return true;
+            }
         }
     }
 

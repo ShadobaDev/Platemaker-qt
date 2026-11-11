@@ -62,8 +62,10 @@ constexpr int   k_crossingSteps  = 40;
  *  Depth of a banner's end notch, as a fraction of its width.
  */
 constexpr qreal k_bannerNotch    = 0.12;
-//! How far in a Chamfered box's corners are cut, along each side, as a share of it.
-constexpr qreal k_chamfer        = 0.12;
+//! A Hexagon's turn, in degrees: half a side's share of the round, so a side lies flat on top.
+constexpr qreal k_hexagonTurn    = 30.0;
+//! How far in an Octagon's corners are cut, along each side, as a share of it: a box with its corners cut.
+constexpr qreal k_octagonCut     = 0.25;
 //! How much irregularity shortens a regular node, at most, as a share of its radius.
 constexpr qreal k_regularShorten = 0.5;
 //! How far irregularity moves a regular node along the round, at most, as a share of its share of it.
@@ -1113,6 +1115,15 @@ QPointF saved(const QPointF& p)
     return {qRound(p.x() * scale) / scale, qRound(p.y() * scale) / scale};
 }
 
+//! A sharp-cornered Polygon through @p nodes, already rounded as they are saved (regularNodes()).
+ShapeProperties polygonOf(const QList<ShapeNode>& nodes)
+{
+    ShapeProperties s = plain(Kind::Polygon);
+    s.cornerRadius    = 0.0;
+    s.nodes           = nodes;
+    return s;
+}
+
 /**
  * \brief A sharp-cornered Polygon through @p nodes, rounded to the decimals a node is saved with, so a
  *        placed template reads back from its file as itself.
@@ -1224,10 +1235,13 @@ const QList<ShapeTemplate>& shapeTemplates()
          polygon({{k_trapezoidSlant, 0}, {1 - k_trapezoidSlant, 0}, {1, 1}, {0, 1}}), false},
         {"diamond",   QT_TRANSLATE_NOOP("QObject", "Diamond"),
          polygon({{0.5, 0}, {1, 0.5}, {0.5, 1}, {0, 0.5}}), false},
+        // Regular, flat on top and at the bottom, stretched to the balloon's box.
+        {"hexagon",   QT_TRANSLATE_NOOP("QObject", "Hexagon"),
+         polygonOf(regularNodes(6, 1.0, k_hexagonTurn, 0.0, 0)),  true},
         // A box with its corners cut off at an angle.
-        {"chamfered", QT_TRANSLATE_NOOP("QObject", "Chamfered box"),
-         polygon({{k_chamfer, 0}, {1 - k_chamfer, 0}, {1, k_chamfer}, {1, 1 - k_chamfer},
-                  {1 - k_chamfer, 1}, {k_chamfer, 1}, {0, 1 - k_chamfer}, {0, k_chamfer}}), true},
+        {"octagon",   QT_TRANSLATE_NOOP("QObject", "Octagon"),
+         polygon({{k_octagonCut, 0}, {1 - k_octagonCut, 0}, {1, k_octagonCut}, {1, 1 - k_octagonCut},
+                  {1 - k_octagonCut, 1}, {k_octagonCut, 1}, {0, 1 - k_octagonCut}, {0, k_octagonCut}}), true},
         // A ribbon with a V notched into each end.
         {"banner",    QT_TRANSLATE_NOOP("QObject", "Banner"),
          polygon({{0, 0}, {1, 0}, {1 - k_bannerNotch, 0.5}, {1, 1}, {0, 1}, {k_bannerNotch, 0.5}}), false},
@@ -1338,6 +1352,20 @@ ShapeProperties withVertexAdded(const ShapeProperties& shape, int edge)
     // A cut curve leaves its new node with its handles on one line; a straight one with none.
     const ShapeNode::Type type = half.midIn.isNull() ? ShapeNode::Type::Corner : ShapeNode::Type::Smooth;
     s.nodes.insert(edge + 1, ShapeNode(half.mid, half.midIn, half.midOut, type));
+    return s;
+}
+
+ShapeProperties withNodesMoved(const ShapeProperties& shape, const QRectF& body, const QList<int>& indices,
+                               const QPointF& by)
+{
+    if (body.isEmpty())
+        return shape;
+    ShapeProperties s    = shape;
+    s.nodes              = freeNodes(shape);   // a Polygon drawing the box's rectangle gets nodes of its own
+    const QPointF   step = fromPixels(by, body);
+    for (int i : indices)
+        if (i >= 0 && i < s.nodes.size())
+            s.nodes[i].at += step;   // a handle is an offset from its node, so it comes along
     return s;
 }
 

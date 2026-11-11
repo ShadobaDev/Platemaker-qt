@@ -62,6 +62,14 @@ constexpr int   k_crossingSteps  = 40;
  *  Depth of a banner's end notch, as a fraction of its width.
  */
 constexpr qreal k_bannerNotch    = 0.12;
+//! How far in a Chamfered box's corners are cut, along each side, as a share of it.
+constexpr qreal k_chamfer        = 0.12;
+//! How much irregularity shortens a regular node, at most, as a share of its radius.
+constexpr qreal k_regularShorten = 0.5;
+//! How far irregularity moves a regular node along the round, at most, as a share of its share of it.
+constexpr qreal k_regularShift   = 0.25;
+//! An inner radius this close under the whole one is a regular polygon, not a star.
+constexpr qreal k_regularEpsilon = 1e-9;
 /**
  *  Width of a scroll's rolled end, as a fraction of the balloon's width.
  */
@@ -1164,6 +1172,32 @@ QList<QPointF> starNodes(int spikes, qreal inner)
 
 } // namespace
 
+QList<ShapeNode> regularNodes(int points, qreal inner, qreal turn, qreal irregularity, quint32 seed)
+{
+    points               = qBound(k_minRegularPoints, points, k_maxRegularPoints);
+    inner                = qBound(0.0, inner, 1.0);
+    const qreal irr      = qBound(0.0, irregularity, 1.0);
+    const bool  star     = inner < 1.0 - k_regularEpsilon;
+    const int   count    = star ? 2 * points : points;
+    const qreal share    = 2.0 * M_PI / count;
+    QRandomGenerator rng(seed);
+    QPolygonF pts;
+    for (int i = 0; i < count; ++i) {
+        // Both drawn before either is used, so a change to one number does not re-deal the other.
+        const qreal shorten = rng.generateDouble();
+        const qreal shift   = rng.generateDouble() - 0.5;
+        const qreal angle   = qDegreesToRadians(qreal(turn)) - M_PI / 2.0 + share * (i + 2.0 * k_regularShift * irr * shift);
+        const qreal radius  = (star && i % 2 == 1 ? inner : 1.0) * (1.0 - k_regularShorten * irr * shorten);
+        pts << QPointF(std::cos(angle), std::sin(angle)) * radius;
+    }
+    const QRectF bounds = pts.boundingRect();
+    QList<ShapeNode> out;
+    for (const QPointF& p : std::as_const(pts))
+        out.append(ShapeNode(saved({(p.x() - bounds.left()) / bounds.width(), (p.y() - bounds.top()) / bounds.height()}),
+                             {}, {}));
+    return out;
+}
+
 const ShapeInfo& shapeInfo(ShapeProperties::Kind kind)
 {
     const int i = int(kind);
@@ -1190,6 +1224,10 @@ const QList<ShapeTemplate>& shapeTemplates()
          polygon({{k_trapezoidSlant, 0}, {1 - k_trapezoidSlant, 0}, {1, 1}, {0, 1}}), false},
         {"diamond",   QT_TRANSLATE_NOOP("QObject", "Diamond"),
          polygon({{0.5, 0}, {1, 0.5}, {0.5, 1}, {0, 0.5}}), false},
+        // A box with its corners cut off at an angle.
+        {"chamfered", QT_TRANSLATE_NOOP("QObject", "Chamfered box"),
+         polygon({{k_chamfer, 0}, {1 - k_chamfer, 0}, {1, k_chamfer}, {1, 1 - k_chamfer},
+                  {1 - k_chamfer, 1}, {k_chamfer, 1}, {0, 1 - k_chamfer}, {0, k_chamfer}}), true},
         // A ribbon with a V notched into each end.
         {"banner",    QT_TRANSLATE_NOOP("QObject", "Banner"),
          polygon({{0, 0}, {1, 0}, {1 - k_bannerNotch, 0.5}, {1, 1}, {0, 1}, {k_bannerNotch, 0.5}}), false},

@@ -1,0 +1,180 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ui version="4.0">
+ <class>RegularPolygonDialog</class>
+ <widget class="QDialog" name="RegularPolygonDialog">
+  <property name="geometry">
+   <rect>
+    <x>0</x>
+    <y>0</y>
+    <width>320</width>
+    <height>220</height>
+   </rect>
+  </property>
+  <property name="windowTitle">
+   <string>Regular polygon / star</string>
+  </property>
+  <layout class="QVBoxLayout" name="verticalLayoutDialog">
+   <item>
+    <layout class="QFormLayout" name="formLayout">
+     <item row="0" column="0">
+      <widget class="QLabel" name="labelPoints">
+       <property name="text">
+        <string>Points:</string>
+       </property>
+       <property name="buddy">
+        <cstring>spinPoints</cstring>
+       </property>
+      </widget>
+     </item>
+     <item row="0" column="1">
+      <widget class="QSpinBox" name="spinPoints">
+       <property name="toolTip">
+        <string>How many points round the shape: a polygon's corners, a star's spikes.</string>
+       </property>
+       <property name="minimum">
+        <number>3</number>
+       </property>
+       <property name="maximum">
+        <number>64</number>
+       </property>
+       <property name="value">
+        <number>5</number>
+       </property>
+      </widget>
+     </item>
+     <item row="1" column="0">
+      <widget class="QLabel" name="labelInner">
+       <property name="text">
+        <string>Inner:</string>
+       </property>
+       <property name="buddy">
+        <cstring>spinInner</cstring>
+       </property>
+      </widget>
+     </item>
+     <item row="1" column="1">
+      <widget class="QSpinBox" name="spinInner">
+       <property name="toolTip">
+        <string>How far out the points between the spikes lie, as a share of the spikes'. 100 % is a regular polygon; less, a star.</string>
+       </property>
+       <property name="suffix">
+        <string> %</string>
+       </property>
+       <property name="minimum">
+        <number>5</number>
+       </property>
+       <property name="maximum">
+        <number>100</number>
+       </property>
+       <property name="value">
+        <number>100</number>
+       </property>
+      </widget>
+     </item>
+     <item row="2" column="0">
+      <widget class="QLabel" name="labelTurn">
+       <property name="text">
+        <string>Turn:</string>
+       </property>
+       <property name="buddy">
+        <cstring>spinTurn</cstring>
+       </property>
+      </widget>
+     </item>
+     <item row="2" column="1">
+      <widget class="QSpinBox" name="spinTurn">
+       <property name="toolTip">
+        <string>How far the shape is turned, clockwise. At 0° the first point is on top.</string>
+       </property>
+       <property name="suffix">
+        <string>°</string>
+       </property>
+       <property name="minimum">
+        <number>-180</number>
+       </property>
+       <property name="maximum">
+        <number>180</number>
+       </property>
+      </widget>
+     </item>
+     <item row="3" column="0">
+      <widget class="QLabel" name="labelIrregularity">
+       <property name="text">
+        <string>Irregularity:</string>
+       </property>
+       <property name="buddy">
+        <cstring>spinIrregularity</cstring>
+       </property>
+      </widget>
+     </item>
+     <item row="3" column="1">
+      <layout class="QHBoxLayout" name="horizontalLayoutIrregularity">
+       <item>
+        <widget class="QSpinBox" name="spinIrregularity">
+         <property name="toolTip">
+          <string>How much each point's length and place vary: long spikes and short stubs, unevenly spaced.</string>
+         </property>
+         <property name="suffix">
+          <string> %</string>
+         </property>
+         <property name="maximum">
+          <number>100</number>
+         </property>
+        </widget>
+       </item>
+       <item>
+        <widget class="QPushButton" name="pushButtonReroll">
+         <property name="toolTip">
+          <string>Deal the points' lengths and places again.</string>
+         </property>
+         <property name="text">
+          <string>Re-roll</string>
+         </property>
+        </widget>
+       </item>
+      </layout>
+     </item>
+    </layout>
+   </item>
+   <item>
+    <widget class="QLabel" name="labelNote">
+     <property name="text">
+      <string>The balloon shows it as you go. OK replaces its points; they stay free to move.</string>
+     </property>
+     <property name="wordWrap">
+      <bool>true</bool>
+     </property>
+    </widget>
+   </item>
+   <item>
+    <spacer name="verticalSpacer">
+     <property name="orientation">
+      <enum>Qt::Vertical</enum>
+     </property>
+    </spacer>
+   </item>
+   <item>
+    <widget class="QDialogButtonBox" name="buttonBox">
+     <property name="standardButtons">
+      <set>QDialogButtonBox::Cancel|QDialogButtonBox::Ok</set>
+     </property>
+    </widget>
+   </item>
+  </layout>
+ </widget>
+ <resources/>
+ <connections>
+  <connection>
+   <sender>buttonBox</sender>
+   <signal>accepted()</signal>
+   <receiver>RegularPolygonDialog</receiver>
+   <slot>accept()</slot>
+  </connection>
+  <connection>
+   <sender>buttonBox</sender>
+   <signal>rejected()</signal>
+   <receiver>RegularPolygonDialog</receiver>
+   <slot>reject()</slot>
+  </connection>
+ </connections>
+</ui>

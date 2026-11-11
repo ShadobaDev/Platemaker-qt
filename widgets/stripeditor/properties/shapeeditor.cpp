@@ -6,6 +6,7 @@
 #include <QEvent>
 #include <QFormLayout>
 #include <QIcon>
+#include <QPushButton>
 #include <QToolButton>
 #include <QVBoxLayout>
 #include <QtMath>
@@ -13,6 +14,7 @@
 #include "recordpainter.hpp"
 #include "shapes.hpp"
 #include "flowlayout.hpp"
+#include "properties/regularpolygondialog.hpp"
 
 namespace StripEdit {
 
@@ -126,6 +128,11 @@ ShapeEditor::ShapeEditor(QWidget* parent)
     m_corner.build(this, m_form, "corner", k_cornerRows, k_trContext, m_values, m_populating, edited);
     m_lobes.build(this, m_form, "lobe", k_lobeRows, k_trContext, m_values, m_populating, edited);
     m_bow.build(this, m_form, "bow", k_bowRows, k_trContext, m_values, m_populating, edited);
+    m_regular = new QPushButton(tr("Regular polygon / star…"), this);
+    m_regular->setToolTip(tr("Replaces the points with a regular polygon or a star, irregular if you like. "
+                             "They stay free to move afterwards."));
+    m_form->addRow(QString(), m_regular);
+    connect(m_regular, &QPushButton::clicked, this, &ShapeEditor::makeRegular);
 
     // The edge: laid over whichever outline.
     m_edge = new QComboBox(this);
@@ -187,6 +194,7 @@ void ShapeEditor::syncFromValues()
     m_lobes.setVisible(m_form, m_values.kind == ShapeProperties::Kind::Cloud);
     m_bow.show(m_values);
     m_bow.setVisible(m_form, m_values.kind == ShapeProperties::Kind::Polygon);
+    m_form->setRowVisible(m_regular, m_values.kind == ShapeProperties::Kind::Polygon);
     {
         const QSignalBlocker block(m_edge);
         m_edge->setCurrentIndex(m_edge->findData(int(m_values.edge)));
@@ -194,6 +202,28 @@ void ShapeEditor::syncFromValues()
     m_edgeRows.show(m_values);
     m_edgeRows.setVisible(m_form, m_values.edge != ShapeProperties::Edge::None);
     m_populating = false;
+}
+
+void ShapeEditor::makeRegular()
+{
+    // The balloon shows each set of nodes as it is made; OK keeps the last as one history step, Cancel puts
+    // back what was there.
+    const ShapeProperties before = m_values;
+    RegularPolygonDialog  dialog(this);
+    const auto show = [this](const QList<ShapeNode>& nodes) {
+        m_values.nodes = nodes;
+        syncFromValues();
+        emit changed();
+    };
+    connect(&dialog, &RegularPolygonDialog::nodesChanged, this, show);
+    show(dialog.nodes());
+    if (dialog.exec() == QDialog::Accepted) {
+        emit committed();
+        return;
+    }
+    m_values = before;
+    syncFromValues();
+    emit changed();
 }
 
 void ShapeEditor::applyTo(ObjectRecord& target) const

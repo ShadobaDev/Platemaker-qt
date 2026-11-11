@@ -851,6 +851,41 @@ TEST(Shape, APolygonsEdgesBowIn)
 }
 
 /**
+ * \brief A regular polygon has its points, a star twice as many, both fill the unit box; irregularity is
+ *        dealt from its seed: the same for the same seed, another for another, and not the regular one.
+ */
+TEST(Shape, RegularNodesMakeAPolygonOrAStar)
+{
+    constexpr qreal k_tolerance = 1e-4;   // a node is saved to four decimals
+    const auto fillsTheBox = [&](const QList<ShapeNode>& nodes) {
+        qreal left = 1.0, top = 1.0, right = 0.0, bottom = 0.0;
+        for (const ShapeNode& n : nodes) {
+            left   = qMin(left, n.at.x());
+            top    = qMin(top, n.at.y());
+            right  = qMax(right, n.at.x());
+            bottom = qMax(bottom, n.at.y());
+        }
+        return std::abs(left) < k_tolerance && std::abs(top) < k_tolerance && std::abs(right - 1.0) < k_tolerance
+            && std::abs(bottom - 1.0) < k_tolerance;
+    };
+    const QList<ShapeNode> pentagon = Geometry::regularNodes(5, 1.0, 0, 0.0, 1);
+    EXPECT_EQ(pentagon.size(), 5);
+    EXPECT_TRUE(fillsTheBox(pentagon));
+    EXPECT_NEAR(pentagon.first().at.x(), 0.5, k_tolerance);   // the first point on top, in the middle
+    EXPECT_NEAR(pentagon.first().at.y(), 0.0, k_tolerance);
+
+    const QList<ShapeNode> star = Geometry::regularNodes(12, 0.6, 0, 0.0, 1);
+    EXPECT_EQ(star.size(), 24);
+    EXPECT_TRUE(fillsTheBox(star));
+
+    const QList<ShapeNode> rough = Geometry::regularNodes(12, 0.6, 0, 0.7, 7);
+    EXPECT_TRUE(fillsTheBox(rough));
+    EXPECT_TRUE(Fields::same(rough, Geometry::regularNodes(12, 0.6, 0, 0.7, 7)));
+    EXPECT_FALSE(Fields::same(rough, Geometry::regularNodes(12, 0.6, 0, 0.7, 8)));
+    EXPECT_FALSE(Fields::same(rough, star));
+}
+
+/**
  * \brief A flash and a brush draw no solid outline, stay inside the room reserved for them, and are the
  *        same strokes for the same seed and others for another.
  *

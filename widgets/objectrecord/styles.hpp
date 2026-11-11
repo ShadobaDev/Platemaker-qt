@@ -32,8 +32,9 @@ struct LineInfo
     const char*           name;   //!< Persisted, in the JSON and the SVG. **Never changes** once saved.
     const char*           title;  //!< Shown on screen, translated through QObject::tr().
     /**
-     * Strokes of its own, drawn in the stroke colour over the fill, or nullptr for none. A line with
-     * ink **replaces the solid outline**: its strokes are the edge. Plain paths, so Qt draws them.
+     * Strokes of its own, drawn in the stroke colour over the fill, or nullptr for none: the solid outline
+     * (Clean, and Dry ink, which is that outline under a filter). A line with ink **replaces the solid
+     * outline**: its strokes are the edge. Plain paths, so Qt draws them.
      */
     QPainterPath (*ink)(const ObjectRecord& a, const QPainterPath& silhouette);
     //! How far the ink reaches past the silhouette, in balloon pixels. Set whenever `ink` is.

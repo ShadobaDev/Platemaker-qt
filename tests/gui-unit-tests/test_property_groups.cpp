@@ -99,6 +99,9 @@ ObjectRecord loadedRecord()
     a.style.sketchStrokeWidth      = 44;
     a.style.sketchClockwise        = false;
     a.style.sketchBlots            = 23;
+    a.style.dryInkGrain            = 0.25;
+    a.style.dryInkWear             = 55;
+    a.style.dryInkCore             = 15;
     a.style.multiGap              = 6.5;
     a.style.multiWidth            = 1.75;
     a.styleSeed        = 0xC0FFEEu;
@@ -209,6 +212,7 @@ struct StyleMirror {
     int multiLines; qreal multiGap, multiWidth;
     qreal sketchLength; int sketchLayers, sketchStiffness; qreal sketchSpread; int sketchEntry, sketchExit;
     int sketchCore, sketchStrokeWidth; bool sketchClockwise; int sketchBlots;
+    qreal dryInkGrain; int dryInkWear, dryInkCore;
 };
 static_assert(sizeof(StyleProperties) == sizeof(StyleMirror),
               "StyleProperties grew a field: place it (see above), then mirror it");
@@ -337,6 +341,9 @@ void expectUntouched(Group applied, const ObjectRecord& before, const ObjectReco
         EXPECT_EQ(after.style.sketchStrokeWidth,      before.style.sketchStrokeWidth);
         EXPECT_EQ(after.style.sketchClockwise,        before.style.sketchClockwise);
         EXPECT_EQ(after.style.sketchBlots,            before.style.sketchBlots);
+        EXPECT_DOUBLE_EQ(after.style.dryInkGrain,     before.style.dryInkGrain);
+        EXPECT_EQ(after.style.dryInkWear,             before.style.dryInkWear);
+        EXPECT_EQ(after.style.dryInkCore,             before.style.dryInkCore);
         EXPECT_DOUBLE_EQ(after.style.multiGap,       before.style.multiGap);
         EXPECT_DOUBLE_EQ(after.style.multiWidth,     before.style.multiWidth);
     }
@@ -786,8 +793,10 @@ TEST(Conversion, EveryShapeAndStyleHasATableEntry)
         EXPECT_EQ(info.kind, kind) << "line entry " << i << " is out of the enum's order";
         EXPECT_NE(info.name, nullptr) << i;
         EXPECT_NE(info.title, nullptr) << i;
-        // Every line but Clean has strokes of its own, and strokes reserve room.
-        EXPECT_EQ(info.ink == nullptr, kind == ObjectRecord::Line::Clean) << lineName(kind);
+        // Every line but the solid outline (Clean, and Dry ink: that outline under a filter) has strokes of
+        // its own, and strokes reserve room.
+        EXPECT_EQ(info.ink == nullptr, kind == ObjectRecord::Line::Clean || kind == ObjectRecord::Line::DryInk)
+            << lineName(kind);
         EXPECT_EQ(info.ink == nullptr, info.inkReach == nullptr) << lineName(kind);
     }
     for (int i = 0; i <= int(TextureProperties::k_lastKind); ++i) {
@@ -867,6 +876,39 @@ TEST(Shape, PickedNodesMoveTogether)
     EXPECT_NEAR(moved.nodes[1].in.x(), -0.1, k_tolerance);  // the handle is an offset: it comes along
     EXPECT_NEAR(moved.nodes[0].at.x(), 0.0, k_tolerance);
     EXPECT_NEAR(moved.nodes[3].at.x(), 0.0, k_tolerance);
+}
+
+/**
+ * \brief Dry ink hangs its filter on the outline alone: the fill before it, plain; after it, the outline's
+ *        middle, unworn. Under Rough in parts, its group lies inside the line's roughened one.
+ */
+TEST(Style, DryInkEatsTheOutlineAlone)
+{
+    ObjectRecord a = loadedRecord();
+    a.shape        = Geometry::shapeTemplate("speech").shape;
+    a.text.body.clear();   // no lettering, which would need a font
+    a.effects.shadow.on = false;
+    a.texture.kind      = ObjectRecord::Texture::None;
+    a.style.line        = ObjectRecord::Line::DryInk;
+    const QString svg      = QString::fromUtf8(Svg::write(a));
+    const QString use      = QStringLiteral("filter=\"url(#pm-dryink)\"");
+    const auto    filtered = svg.indexOf(use);
+    ASSERT_GE(filtered, 0);
+    EXPECT_EQ(svg.count(use), 1);
+    EXPECT_TRUE(svg.contains(QStringLiteral("<feFuncA type=\"linear\"")));
+    EXPECT_LT(svg.indexOf(QStringLiteral("fill-rule=")), filtered);                   // the fill, plain
+    EXPECT_GT(svg.indexOf(QStringLiteral("stroke-width=")), filtered);                // the outline, worn
+    EXPECT_GT(svg.lastIndexOf(QStringLiteral("stroke-width=")), svg.indexOf(QStringLiteral("</g>"), filtered));
+    EXPECT_TRUE(Geometry::hasFilter(a));
+
+    a.style.dryInkCore = 0;   // no middle kept: the one stroke, worn
+    EXPECT_EQ(QString::fromUtf8(Svg::write(a)).count(QStringLiteral("stroke-width=")),
+              svg.count(QStringLiteral("stroke-width=")) - 1);
+
+    a.texture.kind      = ObjectRecord::Texture::Rough;
+    a.texture.roughFill = false;
+    const QString rough = QString::fromUtf8(Svg::write(a));
+    EXPECT_GT(rough.indexOf(use), rough.lastIndexOf(QStringLiteral("filter=\"url(#pm-style)\"")));
 }
 
 /**
@@ -2395,6 +2437,23 @@ QString goldenRecords()
         a.skin.fill.fadeLeftFrom = fading ? 40.0 : a.skin.fill.fadeLeftFrom;
         write(QStringLiteral("speech"), fading ? QStringLiteral("rough in parts, fading dots")
                                                : QStringLiteral("rough in parts, dots"), true, a);
+    }
+    // Dry ink: the outline eaten into but for its middle, the fill and the shadow whole; and under Rough, in
+    // parts, which roughens it as a whole.
+    for (const bool rough : {false, true}) {
+        ObjectRecord a        = loadedRecord();
+        a.shape               = Geometry::shapeTemplate("speech").shape;
+        a.style.line          = ObjectRecord::Line::DryInk;
+        a.style.stroke.kind   = ObjectRecord::Pattern::Solid;
+        a.style.strokeWidth   = 9;
+        a.style.dryInkGrain   = StyleProperties().dryInkGrain;
+        a.style.dryInkWear    = StyleProperties().dryInkWear;
+        a.style.dryInkCore    = StyleProperties().dryInkCore;
+        a.texture.kind        = rough ? ObjectRecord::Texture::Rough : ObjectRecord::Texture::None;
+        a.texture.roughFill   = false;
+        a.effects.shadow.on   = !rough;   // a dark shadow would show through the holes and hide them
+        a.skin.fill.kind      = ObjectRecord::Pattern::Solid;
+        write(QStringLiteral("speech"), rough ? QStringLiteral("dry ink, rough") : QStringLiteral("dry ink"), true, a);
     }
     // A halftone shadow, hard: the pattern's marks on nothing (the cases above fade, soft).
     {

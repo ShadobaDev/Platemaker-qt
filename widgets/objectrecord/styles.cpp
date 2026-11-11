@@ -1028,6 +1028,8 @@ const std::array<LineInfo, int(StyleProperties::k_lastLine) + 1> k_lines{{
     {Line::Dashed, "dashed", QT_TRANSLATE_NOOP("QObject", "Dashed"), dashedInk, dashedReach},
     {Line::Multi, "multi", QT_TRANSLATE_NOOP("QObject", "Multi-line"), multiInk, multiReach},
     {Line::Sketch, "sketch", QT_TRANSLATE_NOOP("QObject", "Sketch"), sketchInk, sketchReach},
+    // The solid outline under a filter of its own (recordsvg.cpp): no strokes of its own to draw.
+    {Line::DryInk, "dryink", QT_TRANSLATE_NOOP("QObject", "Dry ink"), nullptr, nullptr},
 }};
 
 //! Likewise, for patternInfo().
@@ -1492,7 +1494,7 @@ bool fadesShadow(const Shadow& s, const Paint& fill)
 
 bool hasFilter(const ObjectRecord& a)
 {
-    return textureInfo(a.texture.kind).reach != nullptr || blursShadow(a)
+    return textureInfo(a.texture.kind).reach != nullptr || a.style.line == StyleProperties::Line::DryInk || blursShadow(a)
         || (!a.text.body.isEmpty() && blursShadow(a.text.shadow, a.text.shadowFill));
 }
 

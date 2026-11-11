@@ -559,9 +559,9 @@ struct StyleProperties
      * Persisted by name — see lineName(). The strip editor is unreleased, so the order is
      * free.
      */
-    enum class Line { Clean, Flash, Brush, Drybrush, Dashed, Multi, Sketch };
+    enum class Line { Clean, Flash, Brush, Drybrush, Dashed, Multi, Sketch, DryInk };
     //! The enum's last value. **Adding a line moves this**: lineFromName() reads up to it.
-    static constexpr Line k_lastLine = Line::Sketch;
+    static constexpr Line k_lastLine = Line::DryInk;
 
     //! `flashCoreStretch`'s "follow the shape" value.
     static constexpr int k_autoStretch = -1;
@@ -660,6 +660,18 @@ struct StyleProperties
     int   sketchBlots       = 0;      //!< How many ink blots, spots and short strokes, lie along the line, in %.
     /** @} */
 
+    /**
+     * @name Dry ink: the outline eaten by the paper, a broken print — noise thresholded into holes in it, but
+     * for its middle, kept whole so the fill stays closed off. The one line that is a filter, not geometry
+     * (recordsvg.cpp), so the library previews it; a texture still goes over it. Read only while `line` is
+     * DryInk.
+     * @{
+     */
+    qreal dryInkGrain = 0.15;   //!< The noise's baseFrequency: higher is finer specks.
+    int   dryInkWear  = 35;     //!< How much of the outline is eaten, in %.
+    int   dryInkCore  = 25;     //!< Its middle kept whole, in % of the line's width.
+    /** @} */
+
     //! The fields, with the keys they are saved under (fields.hpp).
     template <class V>
     static void fields(V&& v)
@@ -705,6 +717,9 @@ struct StyleProperties
         v("sketchStrokeWidth",      &StyleProperties::sketchStrokeWidth);
         v("sketchClockwise",        &StyleProperties::sketchClockwise);
         v("sketchBlots",            &StyleProperties::sketchBlots);
+        v("dryInkGrain",            &StyleProperties::dryInkGrain);
+        v("dryInkWear",             &StyleProperties::dryInkWear);
+        v("dryInkCore",             &StyleProperties::dryInkCore);
     }
 
     [[nodiscard]] static StyleProperties from(const ObjectRecord& a);

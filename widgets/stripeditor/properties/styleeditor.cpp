@@ -139,6 +139,17 @@ const FieldRowSpec k_sketchRows[] = {
     {"sketchBlots",       PM_TR("Blots:"),         0, 100, " %",  PM_TR("Ink spilt along the line: round spots and short strokes with round ends, here and there. Re-roll deals them again.")},
 };
 
+//! Dry ink's numbers. Its width is the line's own.
+const FieldRowSpec k_dryInkRows[] = {
+    {"dryInkGrain", PM_TR("Grain:"),   0.01, 1.0, "",
+     PM_TR("How fine the specks are: higher gives smaller, closer holes in the line."), 2, 0.01},
+    {"dryInkWear",  PM_TR("Wear:"),    0,    100, " %",
+     PM_TR("How much of the line the paper eats.")},
+    {"dryInkCore",  PM_TR("Outline:"), 0,    100, " %",
+     PM_TR("How wide the middle of the line that stays whole is, as a share of the width. It keeps the fill "
+           "closed off; the wear eats the line either side of it. 0 lets it eat right through.")},
+};
+
 #undef PM_TR
 
 } // namespace
@@ -156,7 +167,8 @@ StyleEditor::StyleEditor(QWidget* parent)
         m_line->addItem(lineTitle(static_cast<ObjectRecord::Line>(i)), i);
     m_line->setToolTip(tr("How the edge is drawn: a solid line, a flash's strokes ringing it, a few "
                           "brush strokes laid along it, a dry brush: a thin line with hairs thinning out either side, "
-                          "dashes, a whisper, several lines, one inside the other, or a sketch: short pen strokes."));
+                          "dashes, a whisper, several lines, one inside the other, a sketch: short pen strokes, "
+                          "or dry ink: the line eaten by the paper."));
     m_form->addRow(tr("Line:"), m_line);
     m_strokeWidth = new QSpinBox(this);
     m_strokeWidth->setRange(k_strokeWidthMin, k_strokeWidthMax);
@@ -177,6 +189,7 @@ StyleEditor::StyleEditor(QWidget* parent)
     m_drybrush.build(this, m_form, "drybrush", k_drybrushRows, k_trContext, m_values, m_populating,
                      [this] { emit changed(); });
     m_dash.build(this, m_form, "dash", k_dashRows, k_trContext, m_values, m_populating, [this] { emit changed(); });
+    m_dryInk.build(this, m_form, "dryInk", k_dryInkRows, k_trContext, m_values, m_populating, [this] { emit changed(); });
     m_sketch.build(this, m_form, "sketch", k_sketchRows, k_trContext, m_values, m_populating, [this] { emit changed(); });
     // The pen's way round: a choice, so a combo rather than one of the spins above.
     m_sketchWay = new QComboBox(this);
@@ -233,6 +246,7 @@ void StyleEditor::bind(const Subjects& subjects)
     m_dash.reset();
     m_multi.reset();
     m_sketch.reset();
+    m_dryInk.reset();
     bool sameShape = true;
     for (const ObjectRecord* a : subjects) {
         const StyleProperties v = StyleProperties::from(*a);
@@ -245,6 +259,7 @@ void StyleEditor::bind(const Subjects& subjects)
         m_dash.compare(v, m_values);
         m_multi.compare(v, m_values);
         m_sketch.compare(v, m_values);
+        m_dryInk.compare(v, m_values);
         m_mixedWay = m_mixedWay || v.sketchClockwise != m_values.sketchClockwise;
         sameShape = sameShape && a->shape.kind == subjects.first()->shape.kind;
     }
@@ -272,6 +287,7 @@ void StyleEditor::applyEditedTo(ObjectRecord& target) const
     m_dash.applyEdited(m_values, t);
     m_multi.applyEdited(m_values, t);
     m_sketch.applyEdited(m_values, t);
+    m_dryInk.applyEdited(m_values, t);
     if (m_wayTouched)    t.sketchClockwise = m_values.sketchClockwise;
     t.applyTo(target);
 }
@@ -288,6 +304,7 @@ void StyleEditor::syncFromValues()
     m_dash.show(m_values);
     m_multi.show(m_values);
     m_sketch.show(m_values);
+    m_dryInk.show(m_values);
     showCombo(m_sketchWay, m_mixedWay, m_sketchWay->findData(m_values.sketchClockwise));
     showRows();
     m_populating = false;
@@ -313,6 +330,7 @@ void StyleEditor::showRows()
     const bool sketch = kindRows && (m_mixedLine || m_values.line == ObjectRecord::Line::Sketch);
     m_sketch.setVisible(m_form, sketch);
     m_form->setRowVisible(m_sketchWay, sketch);
+    m_dryInk.setVisible(m_form, kindRows && (m_mixedLine || m_values.line == ObjectRecord::Line::DryInk));
 }
 
 }  // namespace StripEdit

@@ -1013,6 +1013,53 @@ qreal sketchReach(const ObjectRecord& a)
 }
 
 // ---------------------------------------------------------------------------
+// Explosion: a dry-brush ring with a flash's halo round it
+// ---------------------------------------------------------------------------
+
+//! How many times denser than the flash's outer spacing an explosion's spikes stand.
+constexpr qreal k_haloDensity = 2.5;
+//! How much thinner than the flash's outer width an explosion's spike is where it leaves the ring: a hair.
+constexpr qreal k_haloThinning = 0.3;
+
+/**
+ * \brief @p a with the flash's numbers made into an explosion's halo: the outer strokes only, k_haloDensity
+ *        times as dense and k_haloThinning as wide at their base. Their length, every scatter and the
+ *        direction stay the flash's own.
+ */
+ObjectRecord haloOf(const ObjectRecord& a)
+{
+    ObjectRecord     halo = a;
+    StyleProperties& s    = halo.style;
+    s.flashInnerLength = 0.0;
+    s.flashOuterPitch  = qMax(s.flashOuterPitch, 0.0) / k_haloDensity;
+    s.flashOuterBase   = qMax(s.flashOuterBase, 0.0) * k_haloThinning;
+    return halo;
+}
+
+/**
+ * \brief The dry brush's ring (drybrushInk()) in a halo of hairs flying out of it (haloOf(), drawn as
+ *        flashInk()). The halo's strokes are wound as the ring's are, so where they overlap they add and
+ *        never cut each other out.
+ */
+QPainterPath explosionInk(const ObjectRecord& a, const QPainterPath& silhouette)
+{
+    QPainterPath out = drybrushInk(a, silhouette);
+    for (QPolygonF stroke : flashInk(haloOf(a), silhouette).toSubpathPolygons()) {
+        if (shoelace(stroke) > 0.0)
+            std::reverse(stroke.begin(), stroke.end());
+        out.addPolygon(stroke);
+        out.closeSubpath();
+    }
+    return out;
+}
+
+//! As far as either half reaches.
+qreal explosionReach(const ObjectRecord& a)
+{
+    return qMax(drybrushReach(a), flashReach(haloOf(a)));
+}
+
+// ---------------------------------------------------------------------------
 // The tables
 // ---------------------------------------------------------------------------
 
@@ -1030,6 +1077,7 @@ const std::array<LineInfo, int(StyleProperties::k_lastLine) + 1> k_lines{{
     {Line::Sketch, "sketch", QT_TRANSLATE_NOOP("QObject", "Sketch"), sketchInk, sketchReach},
     // The solid outline under a filter of its own (recordsvg.cpp): no strokes of its own to draw.
     {Line::DryInk, "dryink", QT_TRANSLATE_NOOP("QObject", "Dry ink"), nullptr, nullptr},
+    {Line::Explosion, "explosion", QT_TRANSLATE_NOOP("QObject", "Explosion"), explosionInk, explosionReach},
 }};
 
 //! Likewise, for patternInfo().

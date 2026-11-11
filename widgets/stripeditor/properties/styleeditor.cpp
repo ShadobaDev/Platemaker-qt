@@ -2,6 +2,8 @@
 #include "shapes.hpp"
 #include "styles.hpp"
 
+#include <QLabel>
+
 #include <QColorDialog>
 #include <QComboBox>
 #include <QFormLayout>
@@ -168,7 +170,8 @@ StyleEditor::StyleEditor(QWidget* parent)
     m_line->setToolTip(tr("How the edge is drawn: a solid line, a flash's strokes ringing it, a few "
                           "brush strokes laid along it, a dry brush: a thin line with hairs thinning out either side, "
                           "dashes, a whisper, several lines, one inside the other, a sketch: short pen strokes, "
-                          "or dry ink: the line eaten by the paper."));
+                          "dry ink: the line eaten by the paper, or an explosion: a dry brush's ring in a halo "
+                          "of hairs, the flash's outer strokes made thin and dense."));
     m_form->addRow(tr("Line:"), m_line);
     m_strokeWidth = new QSpinBox(this);
     m_strokeWidth->setRange(k_strokeWidthMin, k_strokeWidthMax);
@@ -178,6 +181,16 @@ StyleEditor::StyleEditor(QWidget* parent)
     // The line's paint: the outline's, or a flash's or a brush's strokes'.
     m_stroke.build(this, m_form, &StyleProperties::stroke, tr("Line colour:"), m_values, m_populating,
                    [this] { emit changed(); }, [this] { emit committed(); });
+    // An explosion shows two lines' rows at once, so each set goes under its own heading there.
+    const auto heading = [this](const QString& text) {
+        auto* label = new QLabel(text, this);
+        QFont font  = label->font();
+        font.setBold(true);
+        label->setFont(font);
+        m_form->addRow(label);
+        return label;
+    };
+    m_flashHeading = heading(tr("Flash"));
     m_flash.build(this, m_form, "flash", k_flashRows, k_trContext, m_values, m_populating,
                   [this] { emit changed(); }, [this](const char* key) -> QSpinBox* {
                       if (std::strcmp(key, "flashCoreStretch") != 0)
@@ -186,6 +199,7 @@ StyleEditor::StyleEditor(QWidget* parent)
                   });
     m_brush.build(this, m_form, "brush", k_brushRows, k_trContext, m_values, m_populating,
                   [this] { emit changed(); });
+    m_brushHeading = heading(tr("Brush"));
     m_drybrush.build(this, m_form, "drybrush", k_drybrushRows, k_trContext, m_values, m_populating,
                      [this] { emit changed(); });
     m_dash.build(this, m_form, "dash", k_dashRows, k_trContext, m_values, m_populating, [this] { emit changed(); });
@@ -322,9 +336,16 @@ void StyleEditor::showRows()
 {
     // A selection that disagrees shows the rows at least one of them has.
     const bool kindRows = shows(Row::LineKindRows);
-    m_flash.setVisible(m_form, kindRows && (m_mixedLine || m_values.line == ObjectRecord::Line::Flash));
+    // An explosion is a dry brush in a flash's halo, so it shows the rows of both, each under a heading; of
+    // the flash's, the inner ones draw nothing there (the halo is the outer strokes, made denser and thinner).
+    const bool explosion = m_values.line == ObjectRecord::Line::Explosion;
+    m_flash.setVisible(m_form, kindRows && (m_mixedLine || explosion || m_values.line == ObjectRecord::Line::Flash));
+    if (explosion && !m_mixedLine)
+        m_flash.setRowsVisible(m_form, "Inner", false);
+    m_form->setRowVisible(m_flashHeading, kindRows && explosion);
+    m_form->setRowVisible(m_brushHeading, kindRows && explosion);
     m_brush.setVisible(m_form, kindRows && (m_mixedLine || m_values.line == ObjectRecord::Line::Brush));
-    m_drybrush.setVisible(m_form, kindRows && (m_mixedLine || m_values.line == ObjectRecord::Line::Drybrush));
+    m_drybrush.setVisible(m_form, kindRows && (m_mixedLine || explosion || m_values.line == ObjectRecord::Line::Drybrush));
     m_dash.setVisible(m_form, kindRows && (m_mixedLine || m_values.line == ObjectRecord::Line::Dashed));
     m_multi.setVisible(m_form, kindRows && (m_mixedLine || m_values.line == ObjectRecord::Line::Multi));
     const bool sketch = kindRows && (m_mixedLine || m_values.line == ObjectRecord::Line::Sketch);

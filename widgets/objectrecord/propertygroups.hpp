@@ -559,9 +559,9 @@ struct StyleProperties
      * Persisted by name — see lineName(). The strip editor is unreleased, so the order is
      * free.
      */
-    enum class Line { Clean, Flash, Brush, Drybrush, Dashed, Multi, Sketch, DryInk };
+    enum class Line { Clean, Flash, Brush, Drybrush, Dashed, Multi, Sketch, DryInk, Explosion };
     //! The enum's last value. **Adding a line moves this**: lineFromName() reads up to it.
-    static constexpr Line k_lastLine = Line::DryInk;
+    static constexpr Line k_lastLine = Line::Explosion;
 
     //! `flashCoreStretch`'s "follow the shape" value.
     static constexpr int k_autoStretch = -1;
@@ -573,7 +573,7 @@ struct StyleProperties
 
     /**
      * @name The flash: narrow triangles ringing the silhouette, outwards and inwards (styles.cpp).
-     * Read only while `line` is Flash, and carried unchanged by every other line, so switching back
+     * Read only while `line` is Flash or Explosion, and carried unchanged by every other line, so switching back
      * finds them as they were. Lengths in balloon pixels; jitter in % of the pitch or the length.
      * @{
      */
@@ -612,7 +612,7 @@ struct StyleProperties
 
     /**
      * @name The dry brush: a thin whole core along the edge, and hairs either side of it that thin out
-     * away from it (styles.cpp). Read only while `line` is Drybrush. Its width is the outline's
+     * away from it (styles.cpp). Read only while `line` is Drybrush or Explosion. Its width is the outline's
      * (`strokeWidth`): `drybrushCore` of it the core, the rest shared among the hairs' lanes.
      * @{
      */

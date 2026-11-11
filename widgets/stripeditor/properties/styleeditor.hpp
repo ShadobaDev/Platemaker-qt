@@ -7,6 +7,7 @@
 
 class QComboBox;
 class QFormLayout;
+class QLabel;
 class QPushButton;
 class QSpinBox;
 
@@ -65,6 +66,8 @@ private:
     FieldRows<StyleProperties> m_sketch;     //!< One spin per `sketch…` field.
     QComboBox* m_sketchWay = nullptr;        //!< The sketch's way round, a choice and not a spin.
     FieldRows<StyleProperties> m_dryInk;     //!< One spin per `dryInk…` field.
+    QLabel* m_flashHeading = nullptr;        //!< Over the flash's rows, for an explosion.
+    QLabel* m_brushHeading = nullptr;        //!< Over the dry brush's rows, for an explosion.
 
     StyleProperties m_values;
     bool m_populating = false;

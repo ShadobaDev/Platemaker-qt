@@ -175,6 +175,14 @@ public:
             form->setRowVisible(r.box, visible);
     }
 
+    //! Shows or hides the rows whose key holds @p part, leaving the others as they are.
+    void setRowsVisible(QFormLayout* form, const char* part, bool visible) const
+    {
+        for (const Row& r : m_rows)
+            if (std::strstr(r.key, part))
+                form->setRowVisible(r.box, visible);
+    }
+
     //! Copies into @p target the rows the artist has touched, from @p values.
     void applyEdited(const Group& values, Group& target) const
     {

@@ -991,7 +991,8 @@ TEST(Style, ALinesStrokesStayInsideTheirBounds)
         a.style.strokeWidth             = 9;
         for (ObjectRecord::Line line : {ObjectRecord::Line::Flash, ObjectRecord::Line::Brush,
                                         ObjectRecord::Line::Drybrush, ObjectRecord::Line::Dashed,
-                                        ObjectRecord::Line::Multi, ObjectRecord::Line::Sketch}) {
+                                        ObjectRecord::Line::Multi, ObjectRecord::Line::Sketch,
+                                        ObjectRecord::Line::Explosion}) {
             a.style.line = line;
             EXPECT_FALSE(Geometry::hasOutline(a));
             EXPECT_FALSE(Geometry::hasFilter(a));
@@ -2333,6 +2334,30 @@ QString goldenRecords()
         a.skin.fill.kind          = ObjectRecord::Pattern::Solid;
         a.effects.shadow.on       = false;
         write(QStringLiteral("ellipse"), QStringLiteral("spilling ink"), true, a);
+    }
+    // An explosion, as the author's reference: a white dry-brush ring on a black ellipse, in a dense halo of
+    // fine spikes, outward only, at the lines' own numbers.
+    {
+        ObjectRecord a                 = loadedRecord();
+        a.shape                        = Geometry::shapeTemplate("ellipse").shape;
+        a.style                        = looks.first().style;
+        a.style.line                   = ObjectRecord::Line::Explosion;
+        a.style.stroke.colour          = Qt::white;
+        a.style.strokeWidth            = 10;
+        a.style.drybrushCore           = StyleProperties().drybrushCore;
+        a.style.drybrushBristles       = StyleProperties().drybrushBristles;
+        a.style.drybrushDryness        = StyleProperties().drybrushDryness;
+        a.style.flashOuterPitch        = StyleProperties().flashOuterPitch;
+        a.style.flashOuterLength       = StyleProperties().flashOuterLength;
+        a.style.flashOuterBase         = StyleProperties().flashOuterBase;
+        a.style.flashOuterPitchJitter  = StyleProperties().flashOuterPitchJitter;
+        a.style.flashOuterLengthJitter = StyleProperties().flashOuterLengthJitter;
+        a.style.flashCoreStretch       = StyleProperties().flashCoreStretch;
+        a.texture                      = looks.first().texture;
+        a.skin.fill.kind               = ObjectRecord::Pattern::Solid;
+        a.skin.fill.colour             = Qt::black;
+        a.effects.shadow.on            = false;
+        write(QStringLiteral("ellipse"), QStringLiteral("explosion"), false, a);
     }
     // A Circles tail: on a clean speech balloon, apart from it; and the author's reference, a
     // white dry brush on a black ellipse, the chain sunk into it.

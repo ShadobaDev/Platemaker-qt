@@ -71,6 +71,14 @@ ObjectStack::ObjectStack(QTreeWidget* tree, ObjectController& objects, const Str
         }
         m_objects.selectSubjects(overlays, tails);
     });
+    // A double click brings the row's subject to the middle of the strip's view; its first click has
+    // already selected it. It does not open or close the row as well: folding away what was just asked
+    // for would hide it, and the arrow still does that.
+    m_tree->setExpandsOnDoubleClick(false);
+    connect(m_tree, &QTreeWidget::itemDoubleClicked, this, [this](QTreeWidgetItem* row, int) {
+        m_objects.reveal(static_cast<ObjectController::Subject>(row->data(0, k_kindRole).toInt()),
+                         row->data(0, Qt::UserRole).toString(), row->data(0, k_tailRole).toInt());
+    });
     // Both list handlers are deferred to the next event-loop turn on purpose. Persisting an edit
     // round-trips through the owner and comes back as a re-feed that clears and refills this list —
     // which cannot safely happen inside the list's own itemChanged / rowsMoved emission.

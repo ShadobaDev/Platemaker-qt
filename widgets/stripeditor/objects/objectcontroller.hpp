@@ -152,6 +152,14 @@ public:
      * \param index  The index of the tail to select. If the bubble has no tail at that index, the bubble itself is selected instead.
      */
     void selectTail(const QString& uid, int index);
+    /**
+     * \brief Scrolls the strip to a subject: an object or a tail centred in the view, a page with its top
+     *        at the view's top. The strip, or a subject that is gone, moves nothing.
+     * \param subject  What @p id names.
+     * \param id       The object's uid (for a tail, its balloon's), or the page's input uid.
+     * \param tail     The tail's index, for Subject::Tail.
+     */
+    void reveal(Subject subject, const QString& id, int tail = -1);
 
     // --- read and driven by the OBJECT STACK (objectstack/objectstack.hpp), which this class does not know ---
     [[nodiscard]] const std::vector<Platemaker::Models::StripOverlay>& overlays() const { return m_overlays; }   //!< Composite order.

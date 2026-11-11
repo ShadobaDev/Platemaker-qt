@@ -171,6 +171,26 @@ void ObjectController::selectTail(const QString& uid, int index)
     selectSubjects({}, {TailRef{uid, index}});   // the balloon comes in as the tail's carrier, not a subject
 }
 
+void ObjectController::reveal(Subject subject, const QString& id, int tail)
+{
+    if (subject == Subject::Page) {
+        const int page = m_layout.pageForAnchor(id);
+        if (page < 0)
+            return;
+        // The page's top at the view's top: its centre would put a long page's middle on screen.
+        const QRectF seen = m_view->mapToScene(m_view->viewport()->rect()).boundingRect();
+        m_view->centerOn(seen.center().x(), m_layout.page(page).top + seen.height() / 2.0);
+        return;
+    }
+    const Object* item = m_overlayItems.value(id);
+    if (!item)
+        return;
+    if (subject == Subject::Tail && tail >= 0 && tail < item->tipCount())
+        m_view->centerOn(item->mapToScene(item->handleAt(tail)));
+    else if (subject == Subject::Overlay)
+        m_view->centerOn(item->sceneBoundingRect().center());
+}
+
 
 void ObjectController::onObjectPressed(const QString& uid, int handle)
 {

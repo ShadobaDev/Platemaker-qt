@@ -126,6 +126,18 @@ const FieldRowSpec k_multiRows[] = {
     {"multiWidth", PM_TR("Inner width:"), 0, 50,  " px", PM_TR("How wide each line inside the outline is. The outline's width is the Width above.")},
 };
 
+//! The sketch's numbers. Its width is the line's own.
+const FieldRowSpec k_sketchRows[] = {
+    {"sketchCore",        PM_TR("Outline:"),       0, 100, " %",  PM_TR("How wide the whole thin line under the strokes is, as a share of the width. It keeps the fill closed off whatever the strokes do; 0 leaves only the strokes.")},
+    {"sketchStrokeWidth", PM_TR("Stroke width:"),  1, 100, " %",  PM_TR("How wide a pen stroke is at its widest, as a share of the width.")},
+    {"sketchLength",      PM_TR("Stroke length:"), 5, 200, " px", PM_TR("How long a pen stroke is. Each varies a little about it.")},
+    {"sketchLayers",      PM_TR("Layers:"),        1, 12,  "",    PM_TR("How many strokes lie over any place of the outline: more makes the line denser.")},
+    {"sketchStiffness",   PM_TR("Stiffness:"),     0, 100, " %",  PM_TR("How straight a stroke stays where the outline curves. 0 % follows the outline; more draws it straighter, so both its ends leave a curve. Each stroke varies a little about it.")},
+    {"sketchSpread",      PM_TR("Spread:"),        0, 20,  " px", PM_TR("How far in or out a stroke lies from the outline. Each goes from one place to another within it, so neighbours cross."), 1},
+    {"sketchEntry",       PM_TR("Taper in:"),      0, 100, " %",  PM_TR("How much of a stroke, at its start, narrows as the pen lands.")},
+    {"sketchExit",        PM_TR("Taper out:"),     0, 100, " %",  PM_TR("How much of a stroke, at its end, narrows as the pen lifts off.")},
+};
+
 #undef PM_TR
 
 } // namespace
@@ -143,7 +155,7 @@ StyleEditor::StyleEditor(QWidget* parent)
         m_line->addItem(lineTitle(static_cast<ObjectRecord::Line>(i)), i);
     m_line->setToolTip(tr("How the edge is drawn: a solid line, a flash's strokes ringing it, a few "
                           "brush strokes laid along it, a dry brush: a thin line with hairs thinning out either side, "
-                          "dashes, a whisper, or several lines, one inside the other."));
+                          "dashes, a whisper, several lines, one inside the other, or a sketch: short pen strokes."));
     m_form->addRow(tr("Line:"), m_line);
     m_strokeWidth = new QSpinBox(this);
     m_strokeWidth->setRange(k_strokeWidthMin, k_strokeWidthMax);
@@ -164,6 +176,23 @@ StyleEditor::StyleEditor(QWidget* parent)
     m_drybrush.build(this, m_form, "drybrush", k_drybrushRows, k_trContext, m_values, m_populating,
                      [this] { emit changed(); });
     m_dash.build(this, m_form, "dash", k_dashRows, k_trContext, m_values, m_populating, [this] { emit changed(); });
+    m_sketch.build(this, m_form, "sketch", k_sketchRows, k_trContext, m_values, m_populating, [this] { emit changed(); });
+    // The pen's way round: a choice, so a combo rather than one of the spins above.
+    m_sketchWay = new QComboBox(this);
+    m_sketchWay->addItem(tr("Clockwise"), true);
+    m_sketchWay->addItem(tr("Counter-clockwise"), false);
+    m_sketchWay->setToolTip(tr("Which way round the pen goes: each stroke lands at its start and lifts off at its end."));
+    m_form->addRow(tr("Direction:"), m_sketchWay);
+    if (QWidget* label = m_form->labelForField(m_sketchWay))
+        label->setToolTip(m_sketchWay->toolTip());
+    connect(m_sketchWay, &QComboBox::currentIndexChanged, this, [this](int i) {
+        if (m_populating || i < 0)
+            return;
+        m_values.sketchClockwise = m_sketchWay->currentData().toBool();
+        m_wayTouched = true;
+        m_mixedWay   = false;
+        emit changed();
+    });
     m_multi.build(this, m_form, "multi", k_multiRows, k_trContext, m_values, m_populating, [this] { emit changed(); });
 
     connect(m_line, &QComboBox::currentIndexChanged, this, [this](int i) {
@@ -195,13 +224,14 @@ void StyleEditor::bind(const Subjects& subjects)
         return;
     m_values = StyleProperties::from(*subjects.first());
 
-    m_mixedLine = m_mixedWidth = false;
+    m_mixedLine = m_mixedWidth = m_mixedWay = false;
     m_stroke.reset();
     m_flash.reset();
     m_brush.reset();
     m_drybrush.reset();
     m_dash.reset();
     m_multi.reset();
+    m_sketch.reset();
     bool sameShape = true;
     for (const ObjectRecord* a : subjects) {
         const StyleProperties v = StyleProperties::from(*a);
@@ -213,9 +243,11 @@ void StyleEditor::bind(const Subjects& subjects)
         m_drybrush.compare(v, m_values);
         m_dash.compare(v, m_values);
         m_multi.compare(v, m_values);
+        m_sketch.compare(v, m_values);
+        m_mixedWay = m_mixedWay || v.sketchClockwise != m_values.sketchClockwise;
         sameShape = sameShape && a->shape.kind == subjects.first()->shape.kind;
     }
-    m_lineTouched = m_widthTouched = false;
+    m_lineTouched = m_widthTouched = m_wayTouched = false;
     if (m_stretch)
         m_stretch->shapeStretch = sameShape ? Geometry::shapeInfo(subjects.first()->shape.kind).flashStretch : -1;
 
@@ -238,6 +270,8 @@ void StyleEditor::applyEditedTo(ObjectRecord& target) const
     m_drybrush.applyEdited(m_values, t);
     m_dash.applyEdited(m_values, t);
     m_multi.applyEdited(m_values, t);
+    m_sketch.applyEdited(m_values, t);
+    if (m_wayTouched)    t.sketchClockwise = m_values.sketchClockwise;
     t.applyTo(target);
 }
 
@@ -252,6 +286,8 @@ void StyleEditor::syncFromValues()
     m_drybrush.show(m_values);
     m_dash.show(m_values);
     m_multi.show(m_values);
+    m_sketch.show(m_values);
+    showCombo(m_sketchWay, m_mixedWay, m_sketchWay->findData(m_values.sketchClockwise));
     showRows();
     m_populating = false;
 }
@@ -273,6 +309,9 @@ void StyleEditor::showRows()
     m_drybrush.setVisible(m_form, kindRows && (m_mixedLine || m_values.line == ObjectRecord::Line::Drybrush));
     m_dash.setVisible(m_form, kindRows && (m_mixedLine || m_values.line == ObjectRecord::Line::Dashed));
     m_multi.setVisible(m_form, kindRows && (m_mixedLine || m_values.line == ObjectRecord::Line::Multi));
+    const bool sketch = kindRows && (m_mixedLine || m_values.line == ObjectRecord::Line::Sketch);
+    m_sketch.setVisible(m_form, sketch);
+    m_form->setRowVisible(m_sketchWay, sketch);
 }
 
 }  // namespace StripEdit

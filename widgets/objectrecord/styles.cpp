@@ -503,6 +503,34 @@ std::vector<EdgeCorner> cornersOf(const EdgeWalk& edge)
 }
 
 /**
+ * \brief Adds to @p out the whole outline along every closed edge of @p silhouette, @p core either side
+ *        of it, mitred so a point stays a point: wound as a ribbon left side forward is (shoelace()), so
+ *        the strokes laid over it add to it and do not cancel it.
+ */
+void addCore(QPainterPath& out, const QPainterPath& silhouette, qreal core)
+{
+    QPainterPathStroker pen;
+    pen.setWidth(2.0 * core);
+    pen.setJoinStyle(Qt::MiterJoin);
+    pen.setMiterLimit(k_coreMiter);
+    for (const QPolygonF& ring : silhouette.toSubpathPolygons()) {
+        if (ring.size() < 3)
+            continue;
+        QPainterPath outline;
+        outline.addPolygon(ring);
+        outline.closeSubpath();
+        QList<QPolygonF> rings = pen.createStroke(outline).toSubpathPolygons();
+        if (windingAt(rings, ring.first()) > 0)
+            for (QPolygonF& r : rings)
+                std::reverse(r.begin(), r.end());
+        for (const QPolygonF& r : std::as_const(rings)) {
+            out.addPolygon(r);
+            out.closeSubpath();
+        }
+    }
+}
+
+/**
  * \brief The dry brush round every closed edge of @p silhouette.
  *
  * A **core**, `drybrushCore` of the line's width, is the plain outline, mitred so a point stays a
@@ -542,27 +570,8 @@ QPainterPath drybrushInk(const ObjectRecord& a, const QPainterPath& silhouette)
     out.setFillRule(Qt::WindingFill);
     if (half <= 0.0)
         return out;   // no outline, no brush: its width is the outline's
-    QPainterPathStroker pen;
-    pen.setWidth(2.0 * core);
-    pen.setJoinStyle(Qt::MiterJoin);
-    pen.setMiterLimit(k_coreMiter);
-
     // The core, along the joined silhouette, wound as the hairs are.
-    for (const QPolygonF& ring : silhouette.toSubpathPolygons()) {
-        if (ring.size() < 3)
-            continue;
-        QPainterPath outline;
-        outline.addPolygon(ring);
-        outline.closeSubpath();
-        QList<QPolygonF> rings = pen.createStroke(outline).toSubpathPolygons();
-        if (windingAt(rings, ring.first()) > 0)
-            for (QPolygonF& r : rings)
-                std::reverse(r.begin(), r.end());
-        for (const QPolygonF& r : std::as_const(rings)) {
-            out.addPolygon(r);
-            out.closeSubpath();
-        }
-    }
+    addCore(out, silhouette, core);
 
     // The hairs, along each part's own edge.
     const QList<QPainterPath> parts      = silhouetteParts(a);
@@ -791,6 +800,157 @@ qreal roughReach(const TextureProperties& t)
 }
 
 // ---------------------------------------------------------------------------
+// Sketch: a thin whole outline, and many short pen strokes over it
+// ---------------------------------------------------------------------------
+
+//! How much a stroke's length varies about `sketchLength`, as a share of it.
+constexpr qreal   k_sketchVary    = 0.3;
+//! How much a stroke's stiffness varies about `sketchStiffness`, as a share of it: hand-drawn, not stamped.
+constexpr qreal   k_sketchStiffVary = 0.4;
+//! How far a stroke's start is moved off an even share of the lap, in shares, so the starts do not line up.
+constexpr qreal   k_sketchScatter = 0.5;
+//! How much a stroke's width varies along it, as a share of the width: a pen's, less than a brush's.
+constexpr qreal   k_sketchSwell   = 0.2;
+//! How long one swell is along a stroke, in balloon pixels.
+constexpr qreal   k_sketchWave    = 24.0;
+//! Mixed into the seed for the strokes' places, and per stroke for its noise: a stream of its own.
+constexpr quint32 k_sketchStream  = 0x27D4EB2Fu;
+
+//! A pen's pressure at @p u (0..1 along a stroke): landing over @p entry, lifting off over @p exit, eased.
+qreal penPressure(qreal u, qreal entry, qreal exit)
+{
+    const qreal in  = entry > 0.0 ? qBound(0.0, u / entry, 1.0) : 1.0;
+    const qreal out = exit > 0.0 ? qBound(0.0, (1.0 - u) / exit, 1.0) : 1.0;
+    return std::sin(qMin(in, out) * M_PI / 2.0);
+}
+
+/**
+ * @BS@brief The sketch round every closed edge of @p silhouette: a thin whole outline, and short strokes over it.
+ *
+ * The **outline**, `sketchCore` of the line's width, is the drybrush's core (addCore()): the fill is always
+ * closed off, whatever the strokes do. The **strokes**, `sketchStrokeWidth` of the line's width, are
+ * `sketchLength` long give or take k_sketchVary, as many as put `sketchLayers` of them over any place, their
+ * starts spread round the lap. A short stroke does not bend with the curve as a long one would: each point
+ * is the outline's, pulled by its stiffness (`sketchStiffness`, varied per stroke) towards the straight line
+ * along the outline at the stroke's middle, so both its ends leave a curve alike and a run of them does not
+ * saw. Its offset off the outline goes from one value within `sketchSpread` to another, so neighbours cross.
+ * At a corner (cornersOf()) the pen lifts: the stroke ends there and goes on from it as one of its own.
+ *
+ * Its width is the pen's pressure (penPressure()), the way it goes on screen (`sketchClockwise`): a short
+ * landing, a long lift-off.
+ */
+QPainterPath sketchInk(const ObjectRecord& a, const QPainterPath& silhouette)
+{
+    const StyleProperties& s      = a.style;
+    const qreal            width  = qMax(s.strokeWidth, 0);
+    const qreal            half   = width / 2.0 * qBound(0, s.sketchStrokeWidth, 100) / 100.0;
+    const qreal            length = qMax(s.sketchLength, 1.0);
+    const qreal            stiff  = qBound(0, s.sketchStiffness, 100) / 100.0;
+    const qreal            spread = qMax(s.sketchSpread, 0.0);
+    const qreal            entry  = qBound(0, s.sketchEntry, 100) / 100.0;
+    const qreal            exit   = qBound(0, s.sketchExit, 100) / 100.0;
+
+    QPainterPath out;
+    out.setFillRule(Qt::WindingFill);
+    if (width <= 0.0)
+        return out;
+    if (const qreal core = width / 2.0 * qBound(0, s.sketchCore, 100) / 100.0; core > 0.0)
+        addCore(out, silhouette, core);
+    if (half <= 0.0)
+        return out;
+
+    QRandomGenerator rng(a.styleSeed ^ k_sketchStream);
+    quint32          stroke = 0;   // a number per stroke, for its own noise
+    for (const QPolygonF& ring : silhouette.toSubpathPolygons()) {
+        const EdgeWalk edge(ring);
+        const qreal    lap = edge.length();
+        if (lap <= 0.0)
+            continue;
+        // The walk's way round on screen (y down: a positive shoelace is clockwise); against the pen's,
+        // the pressure is read from the other end.
+        const bool reversed = (shoelace(ring) > 0.0) != s.sketchClockwise;
+        const int  count    = qMax(1, qRound(qMax(s.sketchLayers, 1) * lap / length));
+        const auto wrap     = [lap](qreal at) { return at - std::floor(at / lap) * lap; };
+        std::vector<qreal> corners;
+        for (const EdgeCorner& c : cornersOf(edge))
+            corners.push_back(c.at);
+
+        // One pen stroke from @p from to @p to along the edge.
+        const auto draw = [&](qreal from, qreal to, qreal offFrom, qreal offTo, qreal k, quint32 seed) {
+            const qreal len = to - from;
+            if (len < 2.0 * k_brushStep)
+                return;   // a sliver between a corner and the stroke's end: the pen does not land for it
+            const auto    mid     = edge.at(wrap(from + len / 2.0));
+            const int     samples = qMax(2, qCeil(len / k_brushStep));
+            QPolygonF     centre;
+            std::vector<qreal> widths;
+            centre.reserve(samples + 1);
+            widths.reserve(size_t(samples) + 1);
+            for (int i = 0; i <= samples; ++i) {
+                const qreal   u        = qreal(i) / samples;
+                const qreal   at       = from + len * u;
+                const auto    p        = edge.at(wrap(at));
+                const QPointF n(-p.tangent.y(), p.tangent.x());
+                const qreal   off      = offFrom + (offTo - offFrom) * u;
+                const QPointF bent     = p.at + n * off;
+                const QPointF straight = mid.at + n * off + mid.tangent * (len * (u - 0.5));
+                centre << bent + (straight - bent) * k;
+                widths.push_back(half * penPressure(reversed ? 1.0 - u : u, entry, exit)
+                                 * (1.0 + k_sketchSwell * smoothNoise(seed, at / k_sketchWave)));
+            }
+            // The ribbon about the stroke's own line, its sides square to the line where it goes.
+            QPolygonF left, right;
+            for (int i = 0; i <= samples; ++i) {
+                const QPointF d = centre.at(qMin(i + 1, samples)) - centre.at(qMax(i - 1, 0));
+                const qreal   l = std::hypot(d.x(), d.y());
+                const QPointF n = l > 0.0 ? QPointF(-d.y(), d.x()) / l : QPointF();
+                left << centre.at(i) + n * widths[size_t(i)];
+                right.prepend(centre.at(i) - n * widths[size_t(i)]);
+            }
+            out.addPolygon(left + right);
+            out.closeSubpath();
+        };
+
+        for (int j = 0; j < count; ++j, ++stroke) {
+            // All drawn before any is used, so a change to one row does not re-deal the others.
+            const qreal   start   = (j + k_sketchScatter * rng.generateDouble()) * lap / count;
+            const qreal   len     = length * (1.0 + k_sketchVary * (2.0 * rng.generateDouble() - 1.0));
+            const qreal   offFrom = spread * (2.0 * rng.generateDouble() - 1.0);
+            const qreal   offTo   = spread * (2.0 * rng.generateDouble() - 1.0);
+            const qreal   k       = qBound(0.0, stiff * (1.0 + k_sketchStiffVary * (2.0 * rng.generateDouble() - 1.0)), 1.0);
+            const quint32 seed    = a.styleSeed ^ ((stroke + 1) * k_sketchStream);
+            // Cut at every corner it crosses, a lap later too, since a stroke may run past the lap's end. The
+            // offset goes on across the cut, so the pieces still lie as one stroke would.
+            qreal from = start;
+            for (int round = 0; round < 2; ++round) {
+                for (qreal c : corners) {
+                    const qreal at = c + round * lap;
+                    if (at > from && at < start + len) {
+                        const auto offAt = [&](qreal x) { return offFrom + (offTo - offFrom) * (x - start) / len; };
+                        draw(from, at, offAt(from), offAt(at), k, seed);
+                        from = at;
+                    }
+                }
+            }
+            draw(from, start + len, offFrom + (offTo - offFrom) * (from - start) / len, offTo, k, seed);
+        }
+    }
+    return out;
+}
+
+//! Half a stroke at its widest swell, as far as it lies off the outline, and as far as its stiffness takes
+//! it: a point of the straight line is no further from the outline's than the way from the stroke's middle.
+qreal sketchReach(const ObjectRecord& a)
+{
+    const StyleProperties& s     = a.style;
+    const qreal            width = qMax(s.strokeWidth, 0);
+    const qreal            half  = width / 2.0 * qMax(qBound(0, s.sketchStrokeWidth, 100) / 100.0 * (1.0 + k_sketchSwell),
+                                                      qBound(0, s.sketchCore, 100) / 100.0 * k_coreMiter);
+    const qreal            stiff = qMin(1.0, qBound(0, s.sketchStiffness, 100) / 100.0 * (1.0 + k_sketchStiffVary));
+    return half + qMax(s.sketchSpread, 0.0) + stiff * qMax(s.sketchLength, 1.0) * (1.0 + k_sketchVary);
+}
+
+// ---------------------------------------------------------------------------
 // The tables
 // ---------------------------------------------------------------------------
 
@@ -805,6 +965,7 @@ const std::array<LineInfo, int(StyleProperties::k_lastLine) + 1> k_lines{{
     {Line::Drybrush, "drybrush", QT_TRANSLATE_NOOP("QObject", "Drybrush"), drybrushInk, drybrushReach},
     {Line::Dashed, "dashed", QT_TRANSLATE_NOOP("QObject", "Dashed"), dashedInk, dashedReach},
     {Line::Multi, "multi", QT_TRANSLATE_NOOP("QObject", "Multi-line"), multiInk, multiReach},
+    {Line::Sketch, "sketch", QT_TRANSLATE_NOOP("QObject", "Sketch"), sketchInk, sketchReach},
 }};
 
 //! Likewise, for patternInfo().

@@ -62,6 +62,8 @@ private:
     FieldRows<StyleProperties> m_drybrush;   //!< One spin per `drybrush…` field.
     FieldRows<StyleProperties> m_dash;       //!< One spin per `dash…` field.
     FieldRows<StyleProperties> m_multi;      //!< One spin per `multi…` field.
+    FieldRows<StyleProperties> m_sketch;     //!< One spin per `sketch…` field.
+    QComboBox* m_sketchWay = nullptr;        //!< The sketch's way round, a choice and not a spin.
 
     StyleProperties m_values;
     bool m_populating = false;
@@ -71,6 +73,8 @@ private:
     bool m_mixedWidth    = false;
     bool m_lineTouched   = false;
     bool m_widthTouched  = false;
+    bool m_mixedWay      = false;
+    bool m_wayTouched    = false;
 };
 
 }  // namespace StripEdit

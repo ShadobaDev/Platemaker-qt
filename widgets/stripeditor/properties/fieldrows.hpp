@@ -113,6 +113,8 @@ public:
                     row.decimal->setSuffix(suffix);
                 row.box->setToolTip(QCoreApplication::translate(context, spec->tip));
                 form->addRow(QCoreApplication::translate(context, spec->title), row.box);
+                if (QWidget* label = form->labelForField(row.box))   // the name says what the tip explains
+                    label->setToolTip(row.box->toolTip());
                 m_rows.push_back(row);
 
                 const size_t index  = m_rows.size() - 1;

@@ -541,15 +541,15 @@ struct TextureProperties
 struct StyleProperties
 {
     /**
-     * \brief How the edge is drawn. Clean is the solid outline; Flash, Brush, Drybrush, Dashed and Multi are strokes
+     * \brief How the edge is drawn. Clean is the solid outline; Flash, Brush, Drybrush, Dashed, Multi and Sketch are strokes
      * of their own, plain geometry, so Qt draws them as it draws a clean balloon. The table is in styles.cpp.
      *
      * Persisted by name — see lineName(). The strip editor is unreleased, so the order is
      * free.
      */
-    enum class Line { Clean, Flash, Brush, Drybrush, Dashed, Multi };
+    enum class Line { Clean, Flash, Brush, Drybrush, Dashed, Multi, Sketch };
     //! The enum's last value. **Adding a line moves this**: lineFromName() reads up to it.
-    static constexpr Line k_lastLine = Line::Multi;
+    static constexpr Line k_lastLine = Line::Sketch;
 
     //! `flashCoreStretch`'s "follow the shape" value.
     static constexpr int k_autoStretch = -1;
@@ -629,6 +629,24 @@ struct StyleProperties
     qreal multiWidth = 3.0;   //!< Each inner line's width; the outline's is its own.
     /** @} */
 
+    /**
+     * @name The sketch: a thin whole outline, and many short pen strokes over it, all drawn the same way
+     * round, each straighter than the curve it lies on, landing with a short taper and lifting off with a
+     * long one, as a g-pen's pressure does (styles.cpp). Read only while `line` is Sketch. The defaults are
+     * the author's, tuned by eye on a speech balloon at a 5 px line.
+     * @{
+     */
+    qreal sketchLength      = 72.0;   //!< How long a stroke is, in balloon pixels; each varies about it.
+    int   sketchLayers      = 6;      //!< How many strokes lie over any place of the outline.
+    int   sketchStiffness   = 30;     //!< How straight a stroke stays, in %: 0 follows the outline, 100 a straight line.
+    qreal sketchSpread      = 4.5;    //!< How far in or out a stroke lies from the outline, in balloon pixels.
+    int   sketchEntry       = 20;     //!< How much of a stroke, at its start, the pen lands over, in %.
+    int   sketchExit        = 100;    //!< How much of a stroke, at its end, the pen lifts off over, in %.
+    int   sketchCore        = 25;     //!< The whole outline under the strokes, in % of the line's width.
+    int   sketchStrokeWidth = 50;     //!< A stroke's width, in % of the line's.
+    bool  sketchClockwise   = true;   //!< Which way round, on screen, the pen goes: where it lands and lifts.
+    /** @} */
+
     //! The fields, with the keys they are saved under (fields.hpp).
     template <class V>
     static void fields(V&& v)
@@ -662,8 +680,17 @@ struct StyleProperties
         v("dashLength",             &StyleProperties::dashLength);
         v("dashGap",                &StyleProperties::dashGap);
         v("multiLines",             &StyleProperties::multiLines);
-        v("multiGap",              &StyleProperties::multiGap);
-        v("multiWidth",            &StyleProperties::multiWidth);
+        v("multiGap",               &StyleProperties::multiGap);
+        v("multiWidth",             &StyleProperties::multiWidth);
+        v("sketchLength",           &StyleProperties::sketchLength);
+        v("sketchLayers",           &StyleProperties::sketchLayers);
+        v("sketchStiffness",        &StyleProperties::sketchStiffness);
+        v("sketchSpread",           &StyleProperties::sketchSpread);
+        v("sketchEntry",            &StyleProperties::sketchEntry);
+        v("sketchExit",             &StyleProperties::sketchExit);
+        v("sketchCore",             &StyleProperties::sketchCore);
+        v("sketchStrokeWidth",      &StyleProperties::sketchStrokeWidth);
+        v("sketchClockwise",        &StyleProperties::sketchClockwise);
     }
 
     [[nodiscard]] static StyleProperties from(const ObjectRecord& a);

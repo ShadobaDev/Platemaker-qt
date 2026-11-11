@@ -87,6 +87,15 @@ ObjectRecord loadedRecord()
     a.style.dashLength             = 9.5;
     a.style.dashGap                = 4.25;
     a.style.multiLines             = 3;
+    a.style.sketchLength           = 33.5;
+    a.style.sketchLayers           = 3;
+    a.style.sketchStiffness        = 47;
+    a.style.sketchSpread           = 1.25;
+    a.style.sketchEntry            = 7;
+    a.style.sketchExit             = 52;
+    a.style.sketchCore             = 31;
+    a.style.sketchStrokeWidth      = 44;
+    a.style.sketchClockwise        = false;
     a.style.multiGap              = 6.5;
     a.style.multiWidth            = 1.75;
     a.styleSeed        = 0xC0FFEEu;
@@ -195,6 +204,8 @@ struct StyleMirror {
     int drybrushCore, drybrushBristles, drybrushDryness;
     qreal dashLength, dashGap;
     int multiLines; qreal multiGap, multiWidth;
+    qreal sketchLength; int sketchLayers, sketchStiffness; qreal sketchSpread; int sketchEntry, sketchExit;
+    int sketchCore, sketchStrokeWidth; bool sketchClockwise;
 };
 static_assert(sizeof(StyleProperties) == sizeof(StyleMirror),
               "StyleProperties grew a field: place it (see above), then mirror it");
@@ -311,6 +322,15 @@ void expectUntouched(Group applied, const ObjectRecord& before, const ObjectReco
         EXPECT_DOUBLE_EQ(after.style.dashLength,      before.style.dashLength);
         EXPECT_DOUBLE_EQ(after.style.dashGap,         before.style.dashGap);
         EXPECT_EQ(after.style.multiLines,             before.style.multiLines);
+        EXPECT_DOUBLE_EQ(after.style.sketchLength,    before.style.sketchLength);
+        EXPECT_EQ(after.style.sketchLayers,           before.style.sketchLayers);
+        EXPECT_EQ(after.style.sketchStiffness,        before.style.sketchStiffness);
+        EXPECT_DOUBLE_EQ(after.style.sketchSpread,    before.style.sketchSpread);
+        EXPECT_EQ(after.style.sketchEntry,            before.style.sketchEntry);
+        EXPECT_EQ(after.style.sketchExit,             before.style.sketchExit);
+        EXPECT_EQ(after.style.sketchCore,             before.style.sketchCore);
+        EXPECT_EQ(after.style.sketchStrokeWidth,      before.style.sketchStrokeWidth);
+        EXPECT_EQ(after.style.sketchClockwise,        before.style.sketchClockwise);
         EXPECT_DOUBLE_EQ(after.style.multiGap,       before.style.multiGap);
         EXPECT_DOUBLE_EQ(after.style.multiWidth,     before.style.multiWidth);
     }
@@ -823,7 +843,7 @@ TEST(Style, ALinesStrokesStayInsideTheirBounds)
         a.style.strokeWidth             = 9;
         for (ObjectRecord::Line line : {ObjectRecord::Line::Flash, ObjectRecord::Line::Brush,
                                         ObjectRecord::Line::Drybrush, ObjectRecord::Line::Dashed,
-                                        ObjectRecord::Line::Multi}) {
+                                        ObjectRecord::Line::Multi, ObjectRecord::Line::Sketch}) {
             a.style.line = line;
             EXPECT_FALSE(Geometry::hasOutline(a));
             EXPECT_FALSE(Geometry::hasFilter(a));
@@ -906,6 +926,39 @@ TEST(Style, AMultiLineDrawsItsLinesInside)
     EXPECT_FALSE(in3(2.0 + 6.0 + 3.0 + 3.0));          // the second gap
     EXPECT_TRUE(in3(2.0 + 6.0 + 3.0 + 6.0 + 1.5));     // the third line's middle
     EXPECT_FALSE(in3(2.0 + 2 * (6.0 + 3.0) + 2.0));    // inside, past it
+}
+
+/**
+ * \brief A sketch lays as many strokes round the lap as put its layers over any place, one piece each; its
+ *        outline adds the stroked outline's two rings, and closes the fill off whatever the strokes do.
+ */
+TEST(Style, ASketchLaysItsLayersOfStrokes)
+{
+    ObjectRecord a;
+    a.shape = Geometry::shapeTemplate("ellipse").shape;
+    a.box   = QSize(280, 160);
+    a.tails.items.clear();
+    a.style.line         = ObjectRecord::Line::Sketch;
+    a.style.sketchLength = 40.0;
+    a.style.sketchCore   = 0;
+    const QPainterPath              silhouette = Geometry::silhouette(a);
+    const QList<Geometry::EdgeWalk> edges      = Geometry::edgeWalks(silhouette);
+    ASSERT_EQ(edges.size(), 1);
+    for (int layers : {1, 3}) {
+        a.style.sketchLayers = layers;
+        EXPECT_EQ(Geometry::ink(a, silhouette).toSubpathPolygons().size(),
+                  qRound(layers * edges.first().length() / a.style.sketchLength)) << layers;
+    }
+
+    // With no strokes to speak of, the outline alone still rings the whole silhouette.
+    a.style.sketchCore        = 25;
+    a.style.sketchStrokeWidth = 0;
+    a.style.strokeWidth       = 8;
+    const QPainterPath ink = Geometry::ink(a, silhouette);
+    const QRectF       r   = silhouette.boundingRect();
+    for (const QPointF& p : {QPointF(r.left(), r.center().y()), QPointF(r.right(), r.center().y()),
+                             QPointF(r.center().x(), r.top()), QPointF(r.center().x(), r.bottom())})
+        EXPECT_TRUE(ink.contains(p)) << p.x() << "," << p.y();
 }
 
 /**
@@ -2046,6 +2099,27 @@ QString goldenRecords()
         a.skin.fill.kind    = ObjectRecord::Pattern::Solid;
         a.effects.shadow.on = false;
         write(QStringLiteral("speech"), QStringLiteral("multi"), true, a);
+    }
+    // A sketch, on two templates with a tail, at its own numbers and a pen's width.
+    for (const char* id : {"ellipse", "shout"}) {
+        ObjectRecord a          = loadedRecord();
+        a.shape                 = Geometry::shapeTemplate(id).shape;
+        a.style                 = looks.first().style;
+        a.style.line            = ObjectRecord::Line::Sketch;
+        a.style.strokeWidth     = 3;
+        a.style.sketchLength    = StyleProperties().sketchLength;
+        a.style.sketchLayers    = StyleProperties().sketchLayers;
+        a.style.sketchStiffness = StyleProperties().sketchStiffness;
+        a.style.sketchSpread    = StyleProperties().sketchSpread;
+        a.style.sketchEntry     = StyleProperties().sketchEntry;
+        a.style.sketchExit      = StyleProperties().sketchExit;
+        a.style.sketchCore        = StyleProperties().sketchCore;
+        a.style.sketchStrokeWidth = StyleProperties().sketchStrokeWidth;
+        a.style.sketchClockwise   = StyleProperties().sketchClockwise;
+        a.texture               = looks.first().texture;
+        a.skin.fill.kind        = ObjectRecord::Pattern::Solid;
+        a.effects.shadow.on     = false;
+        write(QString::fromLatin1(id), QStringLiteral("sketch"), true, a);
     }
     // A Circles tail: on a clean speech balloon, apart from it; and the author's reference, a
     // white dry brush on a black ellipse, the chain sunk into it.

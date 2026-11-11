@@ -86,6 +86,9 @@ ObjectRecord loadedRecord()
     a.style.drybrushDryness        = 42;
     a.style.dashLength             = 9.5;
     a.style.dashGap                = 4.25;
+    a.style.multiLines             = 3;
+    a.style.multiGap              = 6.5;
+    a.style.multiWidth            = 1.75;
     a.styleSeed        = 0xC0FFEEu;
     a.presetOrigin     = {QStringLiteral("uid-loaded"), QStringLiteral("Loaded")};
 
@@ -191,6 +194,7 @@ struct StyleMirror {
     int brushStrokes, brushOverlap, brushTaper, brushSwell; qreal brushDrift;
     int drybrushCore, drybrushBristles, drybrushDryness;
     qreal dashLength, dashGap;
+    int multiLines; qreal multiGap, multiWidth;
 };
 static_assert(sizeof(StyleProperties) == sizeof(StyleMirror),
               "StyleProperties grew a field: place it (see above), then mirror it");
@@ -306,6 +310,9 @@ void expectUntouched(Group applied, const ObjectRecord& before, const ObjectReco
         EXPECT_EQ(after.style.drybrushDryness,        before.style.drybrushDryness);
         EXPECT_DOUBLE_EQ(after.style.dashLength,      before.style.dashLength);
         EXPECT_DOUBLE_EQ(after.style.dashGap,         before.style.dashGap);
+        EXPECT_EQ(after.style.multiLines,             before.style.multiLines);
+        EXPECT_DOUBLE_EQ(after.style.multiGap,       before.style.multiGap);
+        EXPECT_DOUBLE_EQ(after.style.multiWidth,     before.style.multiWidth);
     }
     if (applied != Group::Texture) {
         EXPECT_EQ(after.texture.kind, before.texture.kind);
@@ -815,7 +822,8 @@ TEST(Style, ALinesStrokesStayInsideTheirBounds)
         a.style.brushDrift             = 6.0;
         a.style.strokeWidth             = 9;
         for (ObjectRecord::Line line : {ObjectRecord::Line::Flash, ObjectRecord::Line::Brush,
-                                        ObjectRecord::Line::Drybrush, ObjectRecord::Line::Dashed}) {
+                                        ObjectRecord::Line::Drybrush, ObjectRecord::Line::Dashed,
+                                        ObjectRecord::Line::Multi}) {
             a.style.line = line;
             EXPECT_FALSE(Geometry::hasOutline(a));
             EXPECT_FALSE(Geometry::hasFilter(a));
@@ -836,7 +844,7 @@ TEST(Style, ALinesStrokesStayInsideTheirBounds)
             const QPainterPath once = Geometry::ink(a, Geometry::silhouette(a));
             EXPECT_TRUE(once == Geometry::ink(a, Geometry::silhouette(a))) << id << " " << lineName(line);
             a.styleSeed = 8;
-            if (line != ObjectRecord::Line::Dashed)   // the only line with nothing random in it
+            if (line != ObjectRecord::Line::Dashed && line != ObjectRecord::Line::Multi)   // nothing random in them
                 EXPECT_FALSE(once == Geometry::ink(a, Geometry::silhouette(a))) << id << " " << lineName(line);
         }
     }
@@ -865,6 +873,39 @@ TEST(Style, ADashedLineFitsWholeDashesRoundEachLap)
         a.style.dashGap = 0.0;
         EXPECT_EQ(Geometry::ink(a, silhouette).toSubpathPolygons().size(), 1) << id;
     }
+}
+
+/**
+ * \brief A multi-line is the outline and lines inside it: measured across a caption's straight left side,
+ *        ink on the outline, none in a gap, ink in each inner line, none past the last.
+ */
+TEST(Style, AMultiLineDrawsItsLinesInside)
+{
+    ObjectRecord a;
+    a.shape = Geometry::shapeTemplate("caption").shape;
+    a.box   = QSize(280, 160);
+    a.tails.items.clear();
+    a.style.line        = ObjectRecord::Line::Multi;
+    a.style.strokeWidth = 4;
+    a.style.multiGap   = 6.0;
+    a.style.multiWidth = 3.0;
+    const QPainterPath silhouette = Geometry::silhouette(a);
+    const QPainterPath ink        = Geometry::ink(a, silhouette);
+    const QRectF       r          = silhouette.boundingRect();
+    // x in from the silhouette's left edge, at its middle height, where a caption's side is straight
+    const auto in = [&](qreal x) { return ink.contains(QPointF(r.left() + x, r.center().y())); };
+    EXPECT_TRUE(in(0.5));                      // on the outline
+    EXPECT_FALSE(in(2.0 + 3.0));               // in the gap
+    EXPECT_TRUE(in(2.0 + 6.0 + 1.5));          // the inner line's middle
+    EXPECT_FALSE(in(2.0 + 6.0 + 3.0 + 2.0));   // inside, past it
+
+    a.style.multiLines = 3;
+    const QPainterPath three = Geometry::ink(a, silhouette);
+    const auto in3 = [&](qreal x) { return three.contains(QPointF(r.left() + x, r.center().y())); };
+    EXPECT_TRUE(in3(2.0 + 6.0 + 1.5));                 // the second line, as before
+    EXPECT_FALSE(in3(2.0 + 6.0 + 3.0 + 3.0));          // the second gap
+    EXPECT_TRUE(in3(2.0 + 6.0 + 3.0 + 6.0 + 1.5));     // the third line's middle
+    EXPECT_FALSE(in3(2.0 + 2 * (6.0 + 3.0) + 2.0));    // inside, past it
 }
 
 /**
@@ -1991,6 +2032,20 @@ QString goldenRecords()
         a.skin.fill.kind    = ObjectRecord::Pattern::Solid;
         a.effects.shadow.on = false;
         write(QString::fromLatin1(id), QStringLiteral("dashed"), true, a);
+    }
+    // A multi-line, three lines, on the speech balloon with its tail, at its other numbers' defaults.
+    {
+        ObjectRecord a      = loadedRecord();
+        a.shape             = Geometry::shapeTemplate("speech").shape;
+        a.style             = looks.first().style;
+        a.style.line        = ObjectRecord::Line::Multi;
+        a.style.multiLines  = 3;
+        a.style.multiGap   = StyleProperties().multiGap;
+        a.style.multiWidth = StyleProperties().multiWidth;
+        a.texture           = looks.first().texture;
+        a.skin.fill.kind    = ObjectRecord::Pattern::Solid;
+        a.effects.shadow.on = false;
+        write(QStringLiteral("speech"), QStringLiteral("multi"), true, a);
     }
     // A Circles tail: on a clean speech balloon, apart from it; and the author's reference, a
     // white dry brush on a black ellipse, the chain sunk into it.

@@ -119,6 +119,13 @@ const FieldRowSpec k_dashRows[] = {
     {"dashGap",    PM_TR("Gap:"),  0, 200, " px", PM_TR("The gap between two dashes. It is stretched or squeezed a little so whole dashes go round; 0 draws a whole line.")},
 };
 
+//! The multi-line's numbers. The outline's width is the line's own.
+const FieldRowSpec k_multiRows[] = {
+    {"multiLines", PM_TR("Lines:"),       2, 10,  "",    PM_TR("How many lines, the outline among them.")},
+    {"multiGap",   PM_TR("Gap:"),         0, 100, " px", PM_TR("The space between one line and the next.")},
+    {"multiWidth", PM_TR("Inner width:"), 0, 50,  " px", PM_TR("How wide each line inside the outline is. The outline's width is the Width above.")},
+};
+
 #undef PM_TR
 
 } // namespace
@@ -136,7 +143,7 @@ StyleEditor::StyleEditor(QWidget* parent)
         m_line->addItem(lineTitle(static_cast<ObjectRecord::Line>(i)), i);
     m_line->setToolTip(tr("How the edge is drawn: a solid line, a flash's strokes ringing it, a few "
                           "brush strokes laid along it, a dry brush: a thin line with hairs thinning out either side, "
-                          "or dashes, a whisper."));
+                          "dashes, a whisper, or several lines, one inside the other."));
     m_form->addRow(tr("Line:"), m_line);
     m_strokeWidth = new QSpinBox(this);
     m_strokeWidth->setRange(k_strokeWidthMin, k_strokeWidthMax);
@@ -157,6 +164,7 @@ StyleEditor::StyleEditor(QWidget* parent)
     m_drybrush.build(this, m_form, "drybrush", k_drybrushRows, k_trContext, m_values, m_populating,
                      [this] { emit changed(); });
     m_dash.build(this, m_form, "dash", k_dashRows, k_trContext, m_values, m_populating, [this] { emit changed(); });
+    m_multi.build(this, m_form, "multi", k_multiRows, k_trContext, m_values, m_populating, [this] { emit changed(); });
 
     connect(m_line, &QComboBox::currentIndexChanged, this, [this](int i) {
         if (m_populating || i < 0)
@@ -193,6 +201,7 @@ void StyleEditor::bind(const Subjects& subjects)
     m_brush.reset();
     m_drybrush.reset();
     m_dash.reset();
+    m_multi.reset();
     bool sameShape = true;
     for (const ObjectRecord* a : subjects) {
         const StyleProperties v = StyleProperties::from(*a);
@@ -203,6 +212,7 @@ void StyleEditor::bind(const Subjects& subjects)
         m_brush.compare(v, m_values);
         m_drybrush.compare(v, m_values);
         m_dash.compare(v, m_values);
+        m_multi.compare(v, m_values);
         sameShape = sameShape && a->shape.kind == subjects.first()->shape.kind;
     }
     m_lineTouched = m_widthTouched = false;
@@ -227,6 +237,7 @@ void StyleEditor::applyEditedTo(ObjectRecord& target) const
     m_brush.applyEdited(m_values, t);
     m_drybrush.applyEdited(m_values, t);
     m_dash.applyEdited(m_values, t);
+    m_multi.applyEdited(m_values, t);
     t.applyTo(target);
 }
 
@@ -240,6 +251,7 @@ void StyleEditor::syncFromValues()
     m_brush.show(m_values);
     m_drybrush.show(m_values);
     m_dash.show(m_values);
+    m_multi.show(m_values);
     showRows();
     m_populating = false;
 }
@@ -260,6 +272,7 @@ void StyleEditor::showRows()
     m_brush.setVisible(m_form, kindRows && (m_mixedLine || m_values.line == ObjectRecord::Line::Brush));
     m_drybrush.setVisible(m_form, kindRows && (m_mixedLine || m_values.line == ObjectRecord::Line::Drybrush));
     m_dash.setVisible(m_form, kindRows && (m_mixedLine || m_values.line == ObjectRecord::Line::Dashed));
+    m_multi.setVisible(m_form, kindRows && (m_mixedLine || m_values.line == ObjectRecord::Line::Multi));
 }
 
 }  // namespace StripEdit

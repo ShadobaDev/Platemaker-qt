@@ -541,15 +541,15 @@ struct TextureProperties
 struct StyleProperties
 {
     /**
-     * \brief How the edge is drawn. Clean is the solid outline; Flash, Brush, Drybrush and Dashed are strokes
+     * \brief How the edge is drawn. Clean is the solid outline; Flash, Brush, Drybrush, Dashed and Multi are strokes
      * of their own, plain geometry, so Qt draws them as it draws a clean balloon. The table is in styles.cpp.
      *
      * Persisted by name — see lineName(). The strip editor is unreleased, so the order is
      * free.
      */
-    enum class Line { Clean, Flash, Brush, Drybrush, Dashed };
+    enum class Line { Clean, Flash, Brush, Drybrush, Dashed, Multi };
     //! The enum's last value. **Adding a line moves this**: lineFromName() reads up to it.
-    static constexpr Line k_lastLine = Line::Dashed;
+    static constexpr Line k_lastLine = Line::Multi;
 
     //! `flashCoreStretch`'s "follow the shape" value.
     static constexpr int k_autoStretch = -1;
@@ -619,6 +619,16 @@ struct StyleProperties
     qreal dashGap    = 8.0;    //!< The gap after it, before the lap is fitted; 0 draws a whole line.
     /** @} */
 
+    /**
+     * @name The multi-line: the outline, and lines inside it following the silhouette, tails included
+     * (styles.cpp). Read only while `line` is Multi. In balloon pixels.
+     * @{
+     */
+    int   multiLines = 2;     //!< How many lines, the outline among them.
+    qreal multiGap   = 4.0;   //!< The space between one line and the next.
+    qreal multiWidth = 3.0;   //!< Each inner line's width; the outline's is its own.
+    /** @} */
+
     //! The fields, with the keys they are saved under (fields.hpp).
     template <class V>
     static void fields(V&& v)
@@ -651,6 +661,9 @@ struct StyleProperties
         v("drybrushDryness",        &StyleProperties::drybrushDryness);
         v("dashLength",             &StyleProperties::dashLength);
         v("dashGap",                &StyleProperties::dashGap);
+        v("multiLines",             &StyleProperties::multiLines);
+        v("multiGap",              &StyleProperties::multiGap);
+        v("multiWidth",            &StyleProperties::multiWidth);
     }
 
     [[nodiscard]] static StyleProperties from(const ObjectRecord& a);

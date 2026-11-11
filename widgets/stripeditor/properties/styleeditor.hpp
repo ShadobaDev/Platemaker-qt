@@ -61,6 +61,7 @@ private:
     FieldRows<StyleProperties> m_brush;   //!< One spin per `brush…` field.
     FieldRows<StyleProperties> m_drybrush;   //!< One spin per `drybrush…` field.
     FieldRows<StyleProperties> m_dash;       //!< One spin per `dash…` field.
+    FieldRows<StyleProperties> m_multi;      //!< One spin per `multi…` field.
 
     StyleProperties m_values;
     bool m_populating = false;

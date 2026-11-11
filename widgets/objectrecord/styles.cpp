@@ -323,6 +323,50 @@ qreal dashedReach(const ObjectRecord& a)
     return qMax(a.style.strokeWidth, 0) / 2.0;
 }
 
+// ---------------------------------------------------------------------------
+// Multi-line: the outline, and lines inside it
+// ---------------------------------------------------------------------------
+
+//! Everything within @p width / 2 of @p silhouette's edge, either side, its corners round as the outline's are.
+QPainterPath edgeBand(const QPainterPath& silhouette, qreal width)
+{
+    QPainterPathStroker stroker;
+    stroker.setWidth(width);
+    stroker.setJoinStyle(Qt::RoundJoin);
+    stroker.setCapStyle(Qt::RoundCap);
+    return stroker.createStroke(silhouette);
+}
+
+/**
+ * \brief The outline as Clean draws it, and `multiLines` - 1 lines inside it, each `multiGap` in from the
+ *        one before and `multiWidth` wide: the part of the silhouette that far from its edge. Where a tail
+ *        is too narrow to hold one, it stops. No outline width, no line, as for the brush.
+ */
+QPainterPath multiInk(const ObjectRecord& a, const QPainterPath& silhouette)
+{
+    const StyleProperties& s     = a.style;
+    const qreal            width = qMax(s.strokeWidth, 0);
+    const qreal            inner = qMax(s.multiWidth, 0.0);
+    const qreal            gap   = qMax(s.multiGap, 0.0);
+    if (width <= 0.0)
+        return {};
+    QPainterPath out  = edgeBand(silhouette, width);
+    qreal        from = width / 2.0;   // how far in from the edge the last line drawn ends
+    for (int k = 1; inner > 0.0 && k < s.multiLines; ++k) {
+        from += gap;
+        out   = out.united(silhouette.intersected(edgeBand(silhouette, 2.0 * (from + inner)))
+                             .subtracted(edgeBand(silhouette, 2.0 * from)));
+        from += inner;
+    }
+    return out;
+}
+
+//! Half the outline: the other lines are inside it.
+qreal multiReach(const ObjectRecord& a)
+{
+    return qMax(a.style.strokeWidth, 0) / 2.0;
+}
+
 //! Half the outline at its widest swell, and as far as a stroke wanders.
 qreal brushReach(const ObjectRecord& a)
 {
@@ -760,6 +804,7 @@ const std::array<LineInfo, int(StyleProperties::k_lastLine) + 1> k_lines{{
     {Line::Brush, "brush", QT_TRANSLATE_NOOP("QObject", "Brush"), brushInk, brushReach},
     {Line::Drybrush, "drybrush", QT_TRANSLATE_NOOP("QObject", "Drybrush"), drybrushInk, drybrushReach},
     {Line::Dashed, "dashed", QT_TRANSLATE_NOOP("QObject", "Dashed"), dashedInk, dashedReach},
+    {Line::Multi, "multi", QT_TRANSLATE_NOOP("QObject", "Multi-line"), multiInk, multiReach},
 }};
 
 //! Likewise, for patternInfo().

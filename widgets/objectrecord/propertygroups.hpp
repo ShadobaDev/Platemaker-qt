@@ -38,6 +38,10 @@
  * \brief How a tail is drawn: one taper (**Plain**), or a chain of ellipses shrinking towards its tip
  *        (**Circles**), a thought's.
  *
+ * A Plain tail ends as its `tip` says: in a point (**Sharp**), a half circle (**Round**) whose far point is
+ * the tail's tip, or a straight end (**Cut**) through the tip, square to the tail there. A round or cut end
+ * is `tipWidth` per cent of the tail's base width, so it follows a resize as the base does.
+ *
  * The ellipses lie on the plain tail's own curve, bend and all, from where it leaves the balloon (moved by
  * `offset`) to the tip, the last one ending there. Across, the first is the tail's width and the last
  * `k_lastCircle` of it; along, they share what the gaps leave of the way in the same proportion. So the
@@ -47,6 +51,7 @@
 struct TailLook
 {
     enum class Style { Plain, Circles };
+    enum class Tip { Sharp, Round, Cut };
     //! The last ellipse's width, against the first's.
     static constexpr qreal k_lastCircle = 0.4;
 
@@ -54,8 +59,11 @@ struct TailLook
     int   circles = 3;     //!< How many ellipses make a Circles tail.
     qreal pitch   = 6.0;   //!< The gap between two of them along the tail, in balloon pixels; less than 0 overlaps.
     qreal offset  = 0.0;   //!< How far into the balloon the first starts, in balloon pixels: less than 0 leaves a gap.
+    Tip   tip      = Tip::Sharp;   //!< How a Plain tail ends.
+    int   tipWidth = 30;           //!< A Round or Cut end's width, in per cent of the base width, 0..100.
 
-    //! As text, "plain,3,6,0": the style's name, then the numbers. How a file carries it.
+    //! As text, "plain,3,6,0,sharp,30": the style's name, the numbers, the tip's name and its width. How a
+    //! file carries it.
     [[nodiscard]] QString toText() const;
     //! Out of the fields toText() writes, from @p first on; what is missing or unknown keeps its default.
     [[nodiscard]] static TailLook fromFields(const QStringList& fields, qsizetype first = 0);
@@ -64,7 +72,8 @@ struct TailLook
     {
         return style == o.style && circles == o.circles
             && qFuzzyCompare(1.0 + pitch, 1.0 + o.pitch)   // +1 so an exact 0.0 compares equal
-            && qFuzzyCompare(1.0 + offset, 1.0 + o.offset);
+            && qFuzzyCompare(1.0 + offset, 1.0 + o.offset)
+            && tip == o.tip && tipWidth == o.tipWidth;
     }
     [[nodiscard]] bool operator!=(const TailLook& o) const { return !(*this == o); }
 };

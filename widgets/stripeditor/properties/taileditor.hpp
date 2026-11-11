@@ -46,7 +46,8 @@ private:
     //! Per control: whether a set disagrees on it, or, after binding, whether it was moved.
     struct Fields
     {
-        bool width = false, bend = false, style = false, circles = false, pitch = false, offset = false;
+        bool width = false, bend = false, style = false, circles = false, pitch = false, offset = false,
+             tip = false, tipWidth = false;
     };
     void show(const TailProperties& values, const Fields& mixed);
 
@@ -60,6 +61,8 @@ private:
     QSpinBox*       m_circles = nullptr;
     QDoubleSpinBox* m_pitch   = nullptr;
     QDoubleSpinBox* m_offset  = nullptr;
+    QComboBox*      m_tip      = nullptr;   //!< How a Plain tail ends.
+    QSpinBox*       m_tipWidth = nullptr;   //!< A Round or Cut end's width, in per cent of the base.
     int             m_index   = -1;
     bool            m_populating = false;
     Fields          m_touched;   //!< What was moved since the last binding: what a set takes.

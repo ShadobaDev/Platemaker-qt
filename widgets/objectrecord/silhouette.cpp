@@ -36,6 +36,10 @@ constexpr int   k_edgeSteps     = 24;
 constexpr qreal k_minCircle     = 1.0;
 //! Either side of a point on a tail's middle, as a share of it, for the way it runs there.
 constexpr qreal k_spineProbe    = 0.001;
+//! The narrowest a tail's Round or Cut end is drawn, in balloon pixels, either side; narrower, it is a point.
+constexpr qreal k_minTipEnd     = 0.25;
+//! A half turn, in degrees, as QPainterPath::arcTo() takes it.
+constexpr qreal k_halfTurn      = 180.0;
 
 /**
  * \brief A Circles tail's ellipses along @p spine, the tail's middle from where the chain starts to the tip
@@ -77,7 +81,7 @@ QPainterPath circlesAlong(const QPainterPath& spine, const Tail& t)
 }
 
 /**
- * @BS@brief Where a tail leaves its bubble: the line from the bubble's centre to the tip, and how far along it
+ * \brief Where a tail leaves its bubble: the line from the bubble's centre to the tip, and how far along it
  *        the outline is crossed.
  */
 struct TailRay
@@ -90,7 +94,7 @@ struct TailRay
 };
 
 /**
- * @BS@brief Where the line from @p body's centre to @p t's tip leaves @p outline, or nothing when no tail can
+ * \brief Where the line from @p body's centre to @p t's tip leaves @p outline, or nothing when no tail can
  *        be drawn: a tip on the centre, a tail too thin to see, a tip inside the outline, or a line that
  *        never enters it.
  *
@@ -139,7 +143,7 @@ std::optional<TailRay> tailRay(const QPainterPath& outline, const QRectF& body, 
 }
 
 /**
- * @BS@brief A tail's middle: one quad from `base` to `tip`, its control halfway between them moved sideways by
+ * \brief A tail's middle: one quad from `base` to `tip`, its control halfway between them moved sideways by
  *        `sway`, the bend. What every look of a tail is drawn along.
  */
 struct TailSpine
@@ -159,34 +163,69 @@ QPainterPath spinePath(const TailSpine& s)
 }
 
 /**
- * @BS@brief A Plain tail: a ribbon about @p s, @p half either side at the base and narrowing to a point at the
- *        tip. Its two sides are quads swayed as the spine is, so the tail curves as one ribbon rather than
- *        pinching.
+ * \brief A Plain tail: a ribbon about @p s, @p half either side at the base, narrowing to its end as
+ *        @p look's tip says. Its two sides are quads swayed as the spine is, so the tail curves as one
+ *        ribbon rather than pinching.
+ *
+ * A Sharp tail's sides meet at the tip. A Round or Cut one's stop `tipWidth` per cent of the base apart,
+ * square to the way the spine runs where it ends: a cut end is the straight line between them, through
+ * the tip; a round end is a half circle between them whose far point is the tip.
  */
-QPainterPath ribbonAbout(const TailSpine& s, qreal half)
+QPainterPath ribbonAbout(const TailSpine& s, qreal half, const TailLook& look)
 {
-    const QPointF b1 = s.base + s.perp * half;
-    const QPointF b2 = s.base - s.perp * half;
+    const QPointF b1  = s.base + s.perp * half;
+    const QPointF b2  = s.base - s.perp * half;
+    const qreal   end = half * qBound(0, look.tipWidth, 100) / 100.0;
 
     QPainterPath p;
     p.moveTo(b1);
-    p.quadTo((b1 + s.tip) / 2.0 + s.sway, s.tip);
-    p.quadTo((b2 + s.tip) / 2.0 + s.sway, b2);
+    if (look.tip == TailLook::Tip::Sharp || end < k_minTipEnd) {
+        p.quadTo((b1 + s.tip) / 2.0 + s.sway, s.tip);
+        p.quadTo((b2 + s.tip) / 2.0 + s.sway, b2);
+        p.closeSubpath();
+        return p;
+    }
+
+    // The way the spine runs where it ends: from its control to its tip, the quad's last tangent.
+    QPointF     way = s.tip - ((s.base + s.tip) / 2.0 + s.sway);
+    const qreal run = std::hypot(way.x(), way.y());
+    if (run <= 0.0)
+        return {};   // a spine folded back onto its tip has no way to end square to
+    way /= run;
+    const QPointF across(-way.y(), way.x());   // on the side of s.perp, as the spine is not turned past it
+    const bool    round  = look.tip == TailLook::Tip::Round;
+    const QPointF centre = round ? s.tip - way * end : s.tip;
+    const QPointF e1     = centre + across * end;
+    const QPointF e2     = centre - across * end;
+
+    p.quadTo((b1 + e1) / 2.0 + s.sway, e1);
+    if (round) {
+        // arcTo()'s angles run anticlockwise on screen, from e1 round through the tip to e2.
+        const qreal from   = qRadiansToDegrees(std::atan2(-across.y(), across.x()));
+        const qreal toward = qRadiansToDegrees(std::atan2(-way.y(), way.x()));
+        const qreal turn   = std::remainder(toward - from, 2.0 * k_halfTurn);
+        p.arcTo(QRectF(centre - QPointF(end, end), QSizeF(2.0 * end, 2.0 * end)), from,
+                turn > 0.0 ? k_halfTurn : -k_halfTurn);
+    } else {
+        p.lineTo(e2);
+    }
+    p.quadTo((b2 + e2) / 2.0 + s.sway, b2);
     p.closeSubpath();
     return p;
 }
 
 /**
- * @BS@brief One tail, from where the line to its tip leaves the silhouette (tailRay()) out to that tip.
+ * \brief One tail, from where the line to its tip leaves the silhouette (tailRay()) out to that tip.
  *
  * A Plain tail's base is pulled back *inside* the silhouette so the union is watertight — everything
  * inside disappears into it anyway, and what shows is the taper from the point it emerges. Its bend is a
- * sideways sway expressed as a fraction of the tail's own length, so it looks the same at any size.
+ * sideways sway expressed as a fraction of the tail's own length, so it looks the same at any size. It
+ * ends as its tip says (ribbonAbout()).
  *
  * A Circles tail is a chain of ellipses on that same spine instead (circlesAlong()), from the crossing
  * moved by its offset to the tip.
  *
- * @BS@param outline The bare silhouette, without any tail already merged into it: each tail must be aimed
+ * \param outline The bare silhouette, without any tail already merged into it: each tail must be aimed
  *                at the balloon, not at a neighbour's outline.
  */
 QPainterPath tailPath(const QPainterPath& outline, const QRectF& body, const Tail& t)
@@ -207,7 +246,7 @@ QPainterPath tailPath(const QPainterPath& outline, const QRectF& body, const Tai
 
     const TailSpine s{r->centre + r->ray * qMax(0.0, r->edge - t.baseWidth * k_tailBaseInset), t.tip,
                       r->perp * (t.bend * (r->len - r->edge)), r->perp};
-    return ribbonAbout(s, t.baseWidth / 2.0);
+    return ribbonAbout(s, t.baseWidth / 2.0, t.look);
 }
 
 } // namespace

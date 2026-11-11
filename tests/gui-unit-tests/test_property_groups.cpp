@@ -54,11 +54,14 @@ ObjectRecord loadedRecord()
     t.look.circles     = 4;      // Plain still: the numbers are carried, the render is the plain tail's
     t.look.pitch       = 7.5;
     t.look.offset      = -3.25;
+    t.look.tipWidth    = 45;     // Sharp still: carried, unused
     a.tails.items      = {t};
     a.tails.nextLook.style   = TailLook::Style::Circles;
     a.tails.nextLook.circles = 5;
     a.tails.nextLook.pitch   = 2.5;
     a.tails.nextLook.offset  = 4.0;
+    a.tails.nextLook.tip      = TailLook::Tip::Round;
+    a.tails.nextLook.tipWidth = 60;
 
     a.style.line              = ObjectRecord::Line::Flash;
     a.texture.kind              = ObjectRecord::Texture::Rough;
@@ -222,7 +225,7 @@ struct TextMirror { QString body, family; int pixelSize; bool bold; int align; P
 static_assert(sizeof(TextProperties) == sizeof(TextMirror),
               "TextProperties grew a field: place it (see above), then mirror it");
 
-struct TailLookMirror { TailLook::Style style; int circles; qreal pitch, offset; };
+struct TailLookMirror { TailLook::Style style; int circles; qreal pitch, offset; TailLook::Tip tip; int tipWidth; };
 static_assert(sizeof(TailLook) == sizeof(TailLookMirror),
               "TailLook grew a field: place it (see above), then mirror it");
 
@@ -1275,6 +1278,53 @@ TEST(Tails, ACirclesTailIsAChainShrinkingToItsTip)
     // Sunk into the balloon, the first one melts into it.
     a.tails.items.first().look.offset = 8.0;
     EXPECT_EQ(Geometry::silhouette(a).toSubpathPolygons().size(), 3);
+}
+
+/**
+ * \brief A Plain tail ends as its tip says: in a point, cut straight across through the tip, or in a half
+ *        circle whose far point is the tip, the end `tipWidth` per cent of the base wide.
+ *
+ * A straight tail down from an ellipse's bottom, so the end runs across the page at the tip's height.
+ */
+TEST(Tails, ATipEndsAsItSays)
+{
+    constexpr qreal k_inside = 0.5;   // how far inside an edge a probe stands, in balloon pixels
+    ObjectRecord a;
+    a.shape             = Geometry::shapeTemplate("ellipse").shape;
+    a.box               = QSize(280, 160);
+    a.style.strokeWidth = 0;
+    Tail t;
+    t.tip            = QPointF(140, 400);
+    t.baseWidth      = 40.0;
+    t.look.tipWidth  = 50;
+    const qreal end  = t.baseWidth / 2.0 * t.look.tipWidth / 100.0;   // either side of the middle
+    a.tails.items    = {t};
+    const auto at    = [&](TailLook::Tip tip, QPointF p) {
+        a.tails.items.first().look.tip = tip;
+        return Geometry::silhouette(a).contains(p);
+    };
+
+    // Sharp: the sides meet at the tip, so just above it the tail is far narrower than the end would be.
+    EXPECT_FALSE(at(TailLook::Tip::Sharp, t.tip + QPointF(end - k_inside, -k_inside)));
+
+    // Cut: as wide as the end right at the tip, and nothing past it.
+    EXPECT_TRUE(at(TailLook::Tip::Cut, t.tip + QPointF(end - k_inside, -k_inside)));
+    EXPECT_TRUE(at(TailLook::Tip::Cut, t.tip + QPointF(-(end - k_inside), -k_inside)));
+    EXPECT_FALSE(at(TailLook::Tip::Cut, t.tip + QPointF(end + k_inside, -k_inside)));
+    EXPECT_FALSE(at(TailLook::Tip::Cut, t.tip + QPointF(0, k_inside)));
+
+    // Round: the tip is the far point of the half circle, its corners rounded off, its centre `end` above.
+    EXPECT_TRUE(at(TailLook::Tip::Round, t.tip + QPointF(0, -k_inside)));
+    EXPECT_FALSE(at(TailLook::Tip::Round, t.tip + QPointF(0, k_inside)));
+    EXPECT_FALSE(at(TailLook::Tip::Round, t.tip + QPointF(end - k_inside, -k_inside)));
+    EXPECT_TRUE(at(TailLook::Tip::Round, t.tip + QPointF(end - k_inside, -end)));
+
+    // A Circles tail has no tip: the same chain whatever it says.
+    a.tails.items.first().look.style = TailLook::Style::Circles;
+    a.tails.items.first().look.tip   = TailLook::Tip::Sharp;
+    const QPainterPath chain         = Geometry::silhouette(a);
+    a.tails.items.first().look.tip   = TailLook::Tip::Cut;
+    EXPECT_TRUE(chain == Geometry::silhouette(a));
 }
 
 //! A flash left on Auto points its strokes exactly as the shape's own stretch would.
@@ -2387,6 +2437,32 @@ QString goldenRecords()
         write(QString::fromLatin1(reference ? "ellipse" : "speech"),
               reference ? QStringLiteral("circles, drybrush") : QStringLiteral("circles"), true, a);
     }
+    // A round and a cut tip, bent a little, under every line and under the Rough texture, each line at its
+    // own numbers but a thick one: the end's radius under the line's half-width, as the author's case.
+    for (TailLook::Tip tip : {TailLook::Tip::Round, TailLook::Tip::Cut}) {
+        for (int l = 0; l <= int(StyleProperties::k_lastLine) + 1; ++l) {
+            const bool   rough  = l > int(StyleProperties::k_lastLine);
+            ObjectRecord a      = loadedRecord();
+            a.shape             = Geometry::shapeTemplate("speech").shape;
+            a.style             = StyleProperties();
+            a.style.line        = rough ? ObjectRecord::Line::Clean : static_cast<ObjectRecord::Line>(l);
+            a.style.strokeWidth = 14;
+            a.texture           = rough ? marker : looks.first().texture;
+            a.skin.fill.kind    = ObjectRecord::Pattern::Solid;
+            a.effects.shadow.on = false;
+            Tail& tail          = a.tails.items.first();
+            tail.tip            = QPointF(220, 260);
+            tail.baseWidth      = 60.0;
+            tail.bend           = 0.15;
+            tail.look.tip       = tip;
+            tail.look.tipWidth  = 15;
+            write(QStringLiteral("speech"),
+                  QStringLiteral("tip %1, %2")
+                      .arg(tip == TailLook::Tip::Round ? QStringLiteral("round") : QStringLiteral("cut"),
+                           rough ? QStringLiteral("rough") : QString::fromLatin1(lineName(a.style.line))),
+                  true, a);
+        }
+    }
     // A screentone fill on two templates, clean.
     for (const char* id : {"speech", "shout"}) {
         for (bool tail : {false, true}) {
@@ -2560,3 +2636,4 @@ TEST(Golden, EveryShapeAndStyleIsWrittenAsBefore)
             << "first difference at line " << i + 1 << ", in " << section.toStdString();
     }
 }
+

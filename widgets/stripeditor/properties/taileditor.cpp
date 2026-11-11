@@ -14,6 +14,8 @@ namespace {
 constexpr int    k_circlesMax = 12;
 constexpr double k_pitchMax   = 200.0;
 constexpr double k_offsetMax  = 200.0;
+//! A tip's width, in per cent of the base width.
+constexpr int    k_tipWidthMax = 100;
 
 } // namespace
 
@@ -41,6 +43,20 @@ TailEditor::TailEditor(QWidget* parent)
     m_style->setToolTip(tr("One taper, or a chain of ellipses getting smaller towards the tip, a thought's. "
                            "A tail added to this balloon later takes the style picked last."));
     form->addRow(tr("Style:"), m_style);
+
+    m_tip = new QComboBox(this);
+    m_tip->addItem(tr("Sharp"), int(TailLook::Tip::Sharp));
+    m_tip->addItem(tr("Round"), int(TailLook::Tip::Round));
+    m_tip->addItem(tr("Cut"), int(TailLook::Tip::Cut));
+    m_tip->setToolTip(tr("How the tail ends: in a point, rounded, or cut straight across."));
+    form->addRow(tr("Tip:"), m_tip);
+
+    m_tipWidth = new QSpinBox(this);
+    m_tipWidth->setRange(0, k_tipWidthMax);
+    m_tipWidth->setSuffix(tr(" %"));
+    m_tipWidth->setToolTip(tr("How wide a round or cut end is, against the tail's width where it leaves the "
+                              "balloon."));
+    form->addRow(tr("Tip width:"), m_tipWidth);
 
     m_circles = new QSpinBox(this);
     m_circles->setRange(1, k_circlesMax);
@@ -83,13 +99,17 @@ TailEditor::TailEditor(QWidget* parent)
             moved(&Fields::pitch, [this] { restoreSpin(m_pitch, -k_pitchMax); }));
     connect(m_offset, &QDoubleSpinBox::valueChanged, this,
             moved(&Fields::offset, [this] { restoreSpin(m_offset, -k_offsetMax); }));
-    connect(m_style, &QComboBox::currentIndexChanged, this, [this] {
-        showRows();
-        if (m_populating)
-            return;
-        m_touched.style = true;
-        emit changed();
-    });
+    connect(m_tipWidth, &QSpinBox::valueChanged, this,
+            moved(&Fields::tipWidth, [this] { restoreSpin(m_tipWidth, 0); }));
+    for (auto [combo, field] : {std::pair{m_style, &Fields::style}, std::pair{m_tip, &Fields::tip}}) {
+        connect(combo, &QComboBox::currentIndexChanged, this, [this, field] {
+            showRows();
+            if (m_populating)
+                return;
+            m_touched.*field = true;
+            emit changed();
+        });
+    }
     showRows();
 }
 
@@ -99,6 +119,8 @@ void TailEditor::showRows()
     m_form->setRowVisible(m_circles, circles);
     m_form->setRowVisible(m_pitch, circles);
     m_form->setRowVisible(m_offset, circles);
+    m_form->setRowVisible(m_tip, !circles);
+    m_form->setRowVisible(m_tipWidth, !circles && m_tip->currentData().toInt() != int(TailLook::Tip::Sharp));
 }
 
 void TailEditor::bind(const Subjects& subjects)
@@ -121,6 +143,8 @@ void TailEditor::bindTails(const QList<TailProperties>& tails)
         mixed.circles = mixed.circles || p.tail.look.circles != first.look.circles;
         mixed.pitch   = mixed.pitch || p.tail.look.pitch != first.look.pitch;
         mixed.offset  = mixed.offset || p.tail.look.offset != first.look.offset;
+        mixed.tip      = mixed.tip || p.tail.look.tip != first.look.tip;
+        mixed.tipWidth = mixed.tipWidth || p.tail.look.tipWidth != first.look.tipWidth;
     }
     show(tails.first(), mixed);
 }
@@ -134,6 +158,8 @@ void TailEditor::show(const TailProperties& values, const Fields& mixed)
     showSpin(m_circles, mixed.circles, values.tail.look.circles, 1, k_circlesMax);
     showSpin(m_pitch, mixed.pitch, values.tail.look.pitch, -k_pitchMax, k_pitchMax);
     showSpin(m_offset, mixed.offset, values.tail.look.offset, -k_offsetMax, k_offsetMax);
+    showCombo(m_tip, mixed.tip, m_tip->findData(int(values.tail.look.tip)));
+    showSpin(m_tipWidth, mixed.tipWidth, values.tail.look.tipWidth, 0, k_tipWidthMax);
     showRows();
     m_touched    = Fields{};
     m_populating = false;
@@ -148,6 +174,8 @@ void TailEditor::applyEditedToTail(ObjectRecord& target, int index) const
     if (m_touched.circles) next.tail.look.circles = m_circles->value();
     if (m_touched.pitch)   next.tail.look.pitch   = m_pitch->value();
     if (m_touched.offset)  next.tail.look.offset  = m_offset->value();
+    if (m_touched.tip)      next.tail.look.tip      = static_cast<TailLook::Tip>(m_tip->currentData().toInt());
+    if (m_touched.tipWidth) next.tail.look.tipWidth = m_tipWidth->value();
     next.applyTo(target);
 }
 
@@ -160,6 +188,8 @@ void TailEditor::applyTo(ObjectRecord& target) const
     next.tail.look.circles = m_circles->value();
     next.tail.look.pitch   = m_pitch->value();
     next.tail.look.offset  = m_offset->value();
+    next.tail.look.tip      = static_cast<TailLook::Tip>(m_tip->currentData().toInt());
+    next.tail.look.tipWidth = m_tipWidth->value();
     next.applyTo(target);   // a look changed here becomes the balloon's next one
 }
 

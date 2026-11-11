@@ -19,14 +19,20 @@ Requires libplatemaker **0.7.0**.
   what to draw: a preset, the shape, a tail and the colours (for the Text tool, the font, its colour and
   its outline). The right-hand panel shows the selected object's *Shape*, *Fill*, *Line*, *Texture*,
   *Effects*, *Text* and tails, only the sections that apply.
-- **Shapes:** a box with a corner radius (speech, caption), an ellipse, a polygon (shout, diamond,
-  caption plate, banner), a cloud with lobes (thought) and a curve (scroll), any of them with a zigzag
-  **edge**. Double-click a balloon, or pick *Edit shape*, to edit it on the strip: round its corners,
-  move, add and delete points, bend a curve's handles and set their point type, drag the text area's
-  paddings. A picked point shows the handles it lacks, and *Add handles* gives them to it. A right-click
-  on a point opens that point's menu. The balloon's frame follows its points both ways. *Convert to
-  curve* makes any balloon an editable curve.
-- **Lines and textures:** solid, **Flash**, **Brush** and **Drybrush** lines, and a **Rough** texture
+- **Shapes:** a box with a corner radius (speech, caption), an ellipse, a polygon (shout, hexagon,
+  octagon, diamond, caption plate, banner), a cloud with lobes (thought) and a curve (scroll), any of them
+  with a zigzag, wave, scallop or spike **edge**. A polygon's sides can **bow** in, unevenly if you like,
+  and *Regular polygon / star…* gives it the points of a regular polygon or a star, irregular if you like.
+  Double-click a balloon, or pick *Edit shape*, to edit it on the strip: round its corners, move, add and
+  delete points, bend a curve's handles and set their point type, drag the text area's paddings. Pick
+  several points with a box or Ctrl+click and drag them together; the arrows walk the pick round the
+  outline (Shift adds, Alt+Shift takes away). A picked point shows the handles it lacks, and *Add
+  handles* gives them to it. A right-click on a point opens that point's menu. The balloon's frame
+  follows its points both ways. A double-click anywhere ends the editing. *Convert to curve* makes any
+  balloon an editable curve.
+- **Lines and textures:** solid, **Flash**, **Brush**, **Drybrush**, **Dashed**, **Multi-line**,
+  **Sketch** (short pen strokes or long loose ones, with ink blots), **Dry ink** (the line eaten by the
+  paper) and **Explosion** (a dry-brush ring in a halo of hairs) lines, and a **Rough** texture
   that makes the outline wander while a fill's pattern stays put (*Roughen the fill too* wobbles it as
   well). *Re-roll* deals a line's strokes, a texture's wobble or an edge's teeth again.
 - **Lettering:** lines break only where you break them. Line spacing; side and top padding, negative
@@ -49,8 +55,8 @@ Requires libplatemaker **0.7.0**.
   Tails can be selected and moved with their balloon, and several tails share their width, bend and
   style.
 - **Object list:** the strip's objects front to back, each with a drawing of itself and chips for an
-  unanchored object or a blend mode. Drag to reorder, tick to mute, *Duplicate* (Ctrl+D) and *Delete*
-  from the context menu. The strip and its pages sit at the bottom.
+  unanchored object or a blend mode. Drag to reorder, tick to mute, double-click to bring the object
+  into view, *Duplicate* (Ctrl+D) and *Delete* from the context menu. The strip and its pages sit at the bottom.
 - **More on an object's context menu:** *Blend ▸* (Normal, Multiply, Screen, Overlay, Darken, Lighten;
   also in the properties panel), *Bring forward / Send back*, *Fill with primary colour*, *Outline with
   secondary colour*, *Reset to default*, *Save as preset…* and *Convert to ▸ Text / Balloon*.

@@ -426,6 +426,11 @@ New, backward-compatible features. Several are gated on a lib version, noted in 
 
 - [ ] **Double click on object in OBJECT STACK** shall scroll strip to the position that will make the object vivble on the screen.
 
+- [ ] **Joined balloons — a plan of its own.** Two balloons of one speaker, read in turn, joined into one
+  outline by a neck between them, as a manga reference does: a new kind of tail that goes from one
+  balloon to another instead of to a point. With it, a **broken tail**: a tail bent into a sharp zigzag on
+  its way, as in the same reference.
+
 - [x] **Text area and lettering effects** — *Done 2026-11-03.* Built:
   - **Two paddings**, sides and top. The words start centred and grow both ways with each line; once
     they reach the top padding they grow downwards, out of the balloon, never cut at the bottom (the

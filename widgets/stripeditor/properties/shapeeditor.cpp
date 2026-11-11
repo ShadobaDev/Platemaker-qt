@@ -31,6 +31,12 @@ const FieldRowSpec k_cornerRows[] = {
     {"cornerRadius", PM_TR("Corner radius:"), 0, 500, " px",
      PM_TR("How round the corners are. Never more than half the shorter side, which makes the ends round.")},
 };
+const FieldRowSpec k_bowRows[] = {
+    {"bow",             PM_TR("Bow:"),              0, 50,  " %",
+     PM_TR("How far each edge bows in between two points, as a share of its length. The points stay sharp; 0 is straight.")},
+    {"bowIrregularity", PM_TR("Bow irregularity:"), 0, 100, " %",
+     PM_TR("How much each edge's bow varies, deeper or flatter. Moving a point deals its two edges again.")},
+};
 // The bounds are the ones the outline keeps to.
 const FieldRowSpec k_lobeRows[] = {
     {"lobes",    PM_TR("Lobes:"),     Geometry::k_minLobes,    Geometry::k_maxLobes,    "",
@@ -119,6 +125,7 @@ ShapeEditor::ShapeEditor(QWidget* parent)
     };
     m_corner.build(this, m_form, "corner", k_cornerRows, k_trContext, m_values, m_populating, edited);
     m_lobes.build(this, m_form, "lobe", k_lobeRows, k_trContext, m_values, m_populating, edited);
+    m_bow.build(this, m_form, "bow", k_bowRows, k_trContext, m_values, m_populating, edited);
 
     // The edge: laid over whichever outline.
     m_edge = new QComboBox(this);
@@ -155,6 +162,7 @@ void ShapeEditor::bind(const Subjects& subjects)
     m_values = ShapeProperties::from(*subjects.first());
     m_corner.reset();
     m_lobes.reset();
+    m_bow.reset();
     m_edgeRows.reset();
     // No higher than the balloon can show: past it the outline stops changing (Shape is one subject only).
     m_corner.setMaximum("cornerRadius", qFloor(Geometry::cornerRadiusLimit(subjects.first()->box)));
@@ -177,6 +185,8 @@ void ShapeEditor::syncFromValues()
     m_corner.setVisible(m_form, Geometry::shapeInfo(m_values.kind).rounded);
     m_lobes.show(m_values);
     m_lobes.setVisible(m_form, m_values.kind == ShapeProperties::Kind::Cloud);
+    m_bow.show(m_values);
+    m_bow.setVisible(m_form, m_values.kind == ShapeProperties::Kind::Polygon);
     {
         const QSignalBlocker block(m_edge);
         m_edge->setCurrentIndex(m_edge->findData(int(m_values.edge)));

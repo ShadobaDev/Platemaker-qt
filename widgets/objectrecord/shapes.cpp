@@ -198,21 +198,62 @@ QList<QPointF> polygonPoints(const ShapeProperties& shape, const QRectF& r)
     return out;
 }
 
+qreal signedArea2(const QPolygonF& ring);
+
+//! The deepest a bowed edge goes, as a share of its length, whatever its irregularity: half, a semicircle's.
+constexpr qreal k_maxBowDepth = 0.5;
+
 /**
- * \brief The nodes joined by straight edges, each corner rounded by an arc of `cornerRadius`.
+ * \brief A number in [0, 1) dealt from an edge's two nodes, as they are saved: the same for the same
+ *        edge, another when either node moves.
+ */
+qreal bowDeal(const ShapeNode& from, const ShapeNode& to)
+{
+    QByteArray key;
+    for (const QPointF& p : {from.at, to.at})
+        key += QByteArray::number(p.x(), 'f', ShapeProperties::k_nodeDecimals) + ','
+             + QByteArray::number(p.y(), 'f', ShapeProperties::k_nodeDecimals) + ';';
+    return QRandomGenerator(quint32(qHash(key, 0))).generateDouble();
+}
+
+/**
+ * \brief The nodes joined by edges, straight or bowed in (`bow`), each corner rounded by an arc of
+ *        `cornerRadius`.
  *
  * A corner's arc is tangent to both its edges, and never reaches past the middle of either, so two
  * neighbouring corners cannot overlap; a sharp corner therefore rounds less than a wide one. The arc is
- * one cubic. Self-intersecting nodes are allowed, and filled by the non-zero rule.
+ * one cubic. A bowed edge is one quadratic whose middle lies `bow` of its length in from its chord, varied
+ * per edge by `bowIrregularity` (bowDeal()), never deeper than k_maxBowDepth. Self-intersecting nodes are
+ * allowed, and filled by the non-zero rule.
  */
 QPainterPath polygonPath(const ShapeProperties& shape, const QRectF& r)
 {
     const QList<QPointF> pts    = polygonPoints(shape, r);
     const qreal          radius = qMax(0.0, shape.cornerRadius);
     const int            n      = int(pts.size());
+    const qreal          bow    = qBound(0, shape.bow, 100) / 100.0;
+    const qreal          irr    = qBound(0, shape.bowIrregularity, 100) / 100.0;
 
     QPainterPath p;
     p.setFillRule(Qt::WindingFill);
+    // Clockwise on screen (y down), the inside is on an edge's right; the other way, on its left.
+    const qreal inward = signedArea2(QPolygonF(pts)) > 0.0 ? 1.0 : -1.0;
+    // Edge @p edge, from node @p edge to the next, from where the path is to @p to.
+    const auto edgeTo = [&](int edge, const QPointF& to) {
+        const QPointF from = p.currentPosition();
+        const QPointF d    = to - from;
+        const qreal   l    = std::hypot(d.x(), d.y());
+        if (bow <= 0.0 || l <= 0.0) {
+            p.lineTo(to);
+            return;
+        }
+        const QList<ShapeNode>& nodes = freeNodes(shape);
+        const qreal deal  = bowDeal(nodes[edge], nodes[(edge + 1) % n]);
+        const qreal depth = qMin(bow * (1.0 + irr * (2.0 * deal - 1.0)), k_maxBowDepth) * l;
+        const QPointF in  = QPointF(-d.y(), d.x()) / l * inward;
+        p.quadTo((from + to) / 2.0 + in * 2.0 * depth, to);   // a quadratic's middle is half way to its control
+    };
+    QPointF start;
     for (int i = 0; i < n; ++i) {
         const QPointF v  = pts[i];
         const QPointF a  = pts[(i + n - 1) % n] - v;   // towards the previous vertex
@@ -231,7 +272,7 @@ QPainterPath polygonPath(const ShapeProperties& shape, const QRectF& r)
                 reach = qMin(radius / tanHalf, qMin(la, lb) / 2.0);
         }
         if (reach <= 0.0) {
-            if (i == 0) p.moveTo(v); else p.lineTo(v);
+            if (i == 0) { p.moveTo(v); start = v; } else edgeTo(i - 1, v);
             continue;
         }
 
@@ -243,9 +284,11 @@ QPainterPath polygonPath(const ShapeProperties& shape, const QRectF& r)
         const qreal arcRadius = reach * tanHalf;
         const qreal sweep     = M_PI - 2.0 * std::atan(tanHalf);
         const qreal handle    = 4.0 / 3.0 * std::tan(sweep / 4.0) * arcRadius;
-        if (i == 0) p.moveTo(from); else p.lineTo(from);
+        if (i == 0) { p.moveTo(from); start = from; } else edgeTo(i - 1, from);
         p.cubicTo(from - ua * handle, to - ub * handle, to);
     }
+    if (bow > 0.0)
+        edgeTo(n - 1, start);   // the last edge, back to the first node: closing would draw it straight
     p.closeSubpath();
     return p;
 }

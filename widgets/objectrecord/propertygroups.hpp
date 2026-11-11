@@ -434,6 +434,16 @@ struct ShapeProperties
     int lobes    = 11;
     //! A lobe's radius, in % of the balloon's shorter half-axis.
     int lobeSize = 40;
+    /**
+     * How far a Polygon's edges bow in, in % of each edge's length: an arc between two points, which stay
+     * sharp. 0 is straight. In, never out, so the balloon keeps to its nodes' bounds.
+     */
+    int bow             = 0;
+    /**
+     * How much each edge's bow varies, deeper or flatter, in %. Dealt from the edge's two nodes, so moving a
+     * node deals its two edges again and nothing else; no seed, so a preset carries the same arcs.
+     */
+    int bowIrregularity = 0;
 
     /**
      * @name The edge's modulation: its kind, and how it is laid along the outline. Every family takes
@@ -457,6 +467,8 @@ struct ShapeProperties
         v("nodes",        &ShapeProperties::nodes);
         v("lobes",        &ShapeProperties::lobes);
         v("lobeSize",     &ShapeProperties::lobeSize);
+        v("bow",             &ShapeProperties::bow);
+        v("bowIrregularity", &ShapeProperties::bowIrregularity);
         v("edge",             &ShapeProperties::edge);
         v("edgePitch",        &ShapeProperties::edgePitch);
         v("edgeDepth",        &ShapeProperties::edgeDepth);

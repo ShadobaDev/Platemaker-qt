@@ -39,6 +39,8 @@ ObjectRecord loadedRecord()
     a.shape.nodes      = {{0.1, 0.2}, {0.9, 0.15}, {0.55, 0.95}};
     a.shape.lobes      = 9;
     a.shape.lobeSize   = 33;
+    a.shape.bow             = 12;
+    a.shape.bowIrregularity = 37;
     a.shape.edge             = ObjectRecord::Edge::Zigzag;
     a.shape.edgePitch        = 12.5;
     a.shape.edgeDepth        = 4.5;
@@ -171,7 +173,7 @@ ObjectRecord loadedRecord()
 // ---------------------------------------------------------------------------
 
 struct ShapeMirror {
-    ShapeProperties::Kind kind; qreal cornerRadius; QList<ShapeNode> nodes; int lobes, lobeSize;
+    ShapeProperties::Kind kind; qreal cornerRadius; QList<ShapeNode> nodes; int lobes, lobeSize, bow, bowIrregularity;
     ShapeProperties::Edge edge; qreal edgePitch, edgeDepth; int edgeIrregularity;
 };
 static_assert(sizeof(ShapeProperties) == sizeof(ShapeMirror),
@@ -287,6 +289,8 @@ void expectUntouched(Group applied, const ObjectRecord& before, const ObjectReco
         EXPECT_TRUE(Fields::same(after.shape.nodes, before.shape.nodes));
         EXPECT_EQ(after.shape.lobes,    before.shape.lobes);
         EXPECT_EQ(after.shape.lobeSize, before.shape.lobeSize);
+        EXPECT_EQ(after.shape.bow,             before.shape.bow);
+        EXPECT_EQ(after.shape.bowIrregularity, before.shape.bowIrregularity);
         EXPECT_EQ(after.shape.edge, before.shape.edge);
         EXPECT_DOUBLE_EQ(after.shape.edgePitch, before.shape.edgePitch);
         EXPECT_DOUBLE_EQ(after.shape.edgeDepth, before.shape.edgeDepth);
@@ -814,6 +818,34 @@ TEST(Conversion, EveryShapeAndStyleHasATableEntry)
     }
     for (ObjectRecord::Shape s : shapeOrder())
         EXPECT_TRUE(templated.contains(s)) << shapeName(s) << " has no template, so no tile";
+}
+
+/**
+ * \brief A Polygon's bowed edges lie their bow in from their chords, its points stay in the box, and an
+ *        irregular bow is dealt from the nodes: the same every time, and not the even one.
+ */
+TEST(Shape, APolygonsEdgesBowIn)
+{
+    constexpr qreal k_margin = 2.0;   // either side of where the bowed edge's middle lies, in pixels
+    ShapeProperties s;
+    s.kind         = ObjectRecord::Shape::Polygon;
+    s.cornerRadius = 0.0;
+    s.nodes        = {ShapeNode(0, 0), ShapeNode(1, 0), ShapeNode(1, 1), ShapeNode(0, 1)};
+    s.bow          = 20;
+    const QRectF body(0, 0, 200, 100);
+    const auto   outline = Geometry::shapeInfo(s.kind).outline;
+    const QPainterPath bowed = outline(s, body);
+    // The top edge, 200 px, bows 40 in at its middle; the left one, 100 px, 20.
+    EXPECT_FALSE(bowed.contains(QPointF(100, 40 - k_margin)));
+    EXPECT_TRUE(bowed.contains(QPointF(100, 40 + k_margin)));
+    EXPECT_FALSE(bowed.contains(QPointF(20 - k_margin, 50)));
+    EXPECT_TRUE(bowed.contains(QPointF(20 + k_margin, 50)));
+    EXPECT_TRUE(body.contains(bowed.boundingRect()));
+
+    s.bowIrregularity = 80;
+    const QPainterPath uneven = outline(s, body);
+    EXPECT_TRUE(uneven == outline(s, body));
+    EXPECT_FALSE(uneven == bowed);
 }
 
 /**
@@ -2120,6 +2152,24 @@ QString goldenRecords()
         a.skin.fill.kind        = ObjectRecord::Pattern::Solid;
         a.effects.shadow.on     = false;
         write(QString::fromLatin1(id), QStringLiteral("sketch"), true, a);
+    }
+    // The burst with concave edges, as the author's reference: a rough rectangle of points, long and short,
+    // joined by arcs bowing in, of uneven depth, in a clean even line.
+    {
+        ObjectRecord a          = loadedRecord();
+        a.shape                 = Geometry::shapeTemplate("shout").shape;
+        a.shape.nodes           = {ShapeNode(0, 0.1),  ShapeNode(0.3, 0),    ShapeNode(0.55, 0.08), ShapeNode(1, 0),
+                                   ShapeNode(0.95, 0.5), ShapeNode(1, 1),   ShapeNode(0.6, 0.92), ShapeNode(0.25, 1),
+                                   ShapeNode(0, 0.85), ShapeNode(0.07, 0.45)};
+        a.shape.cornerRadius    = 0.0;
+        a.shape.bow             = 15;
+        a.shape.bowIrregularity = 60;
+        a.style                 = looks.first().style;
+        a.style.strokeWidth     = 4;
+        a.texture               = looks.first().texture;
+        a.skin.fill.kind        = ObjectRecord::Pattern::Solid;
+        a.effects.shadow.on     = false;
+        write(QStringLiteral("shout"), QStringLiteral("bowed"), true, a);
     }
     // A Circles tail: on a clean speech balloon, apart from it; and the author's reference, a
     // white dry brush on a black ellipse, the chain sunk into it.

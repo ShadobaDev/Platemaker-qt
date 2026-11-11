@@ -648,7 +648,7 @@ struct StyleProperties
      * the author's, tuned by eye on a speech balloon at a 5 px line.
      * @{
      */
-    qreal sketchLength      = 72.0;   //!< How long a stroke is, in balloon pixels; each varies about it.
+    qreal sketchLength      = 72.0;   //!< How long a stroke is, in balloon pixels, a lap at most; each varies about it.
     int   sketchLayers      = 6;      //!< How many strokes lie over any place of the outline.
     int   sketchStiffness   = 30;     //!< How straight a stroke stays, in %: 0 follows the outline, 100 a straight line.
     qreal sketchSpread      = 4.5;    //!< How far in or out a stroke lies from the outline, in balloon pixels.
@@ -657,6 +657,7 @@ struct StyleProperties
     int   sketchCore        = 25;     //!< The whole outline under the strokes, in % of the line's width.
     int   sketchStrokeWidth = 50;     //!< A stroke's width, in % of the line's.
     bool  sketchClockwise   = true;   //!< Which way round, on screen, the pen goes: where it lands and lifts.
+    int   sketchBlots       = 0;      //!< How many ink blots, spots and short strokes, lie along the line, in %.
     /** @} */
 
     //! The fields, with the keys they are saved under (fields.hpp).
@@ -703,6 +704,7 @@ struct StyleProperties
         v("sketchCore",             &StyleProperties::sketchCore);
         v("sketchStrokeWidth",      &StyleProperties::sketchStrokeWidth);
         v("sketchClockwise",        &StyleProperties::sketchClockwise);
+        v("sketchBlots",            &StyleProperties::sketchBlots);
     }
 
     [[nodiscard]] static StyleProperties from(const ObjectRecord& a);

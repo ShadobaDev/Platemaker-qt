@@ -98,6 +98,7 @@ ObjectRecord loadedRecord()
     a.style.sketchCore             = 31;
     a.style.sketchStrokeWidth      = 44;
     a.style.sketchClockwise        = false;
+    a.style.sketchBlots            = 23;
     a.style.multiGap              = 6.5;
     a.style.multiWidth            = 1.75;
     a.styleSeed        = 0xC0FFEEu;
@@ -207,7 +208,7 @@ struct StyleMirror {
     qreal dashLength, dashGap;
     int multiLines; qreal multiGap, multiWidth;
     qreal sketchLength; int sketchLayers, sketchStiffness; qreal sketchSpread; int sketchEntry, sketchExit;
-    int sketchCore, sketchStrokeWidth; bool sketchClockwise;
+    int sketchCore, sketchStrokeWidth; bool sketchClockwise; int sketchBlots;
 };
 static_assert(sizeof(StyleProperties) == sizeof(StyleMirror),
               "StyleProperties grew a field: place it (see above), then mirror it");
@@ -335,6 +336,7 @@ void expectUntouched(Group applied, const ObjectRecord& before, const ObjectReco
         EXPECT_EQ(after.style.sketchCore,             before.style.sketchCore);
         EXPECT_EQ(after.style.sketchStrokeWidth,      before.style.sketchStrokeWidth);
         EXPECT_EQ(after.style.sketchClockwise,        before.style.sketchClockwise);
+        EXPECT_EQ(after.style.sketchBlots,            before.style.sketchBlots);
         EXPECT_DOUBLE_EQ(after.style.multiGap,       before.style.multiGap);
         EXPECT_DOUBLE_EQ(after.style.multiWidth,     before.style.multiWidth);
     }
@@ -981,6 +983,19 @@ TEST(Style, ASketchLaysItsLayersOfStrokes)
         EXPECT_EQ(Geometry::ink(a, silhouette).toSubpathPolygons().size(),
                   qRound(layers * edges.first().length() / a.style.sketchLength)) << layers;
     }
+
+    // Blots add their spots and short strokes, a stream of their own: the strokes stay as they were.
+    a.style.sketchLayers = 1;
+    const QList<QPolygonF> strokes = Geometry::ink(a, silhouette).toSubpathPolygons();
+    a.style.sketchBlots = 100;
+    const QList<QPolygonF> blotted = Geometry::ink(a, silhouette).toSubpathPolygons();
+    ASSERT_GT(blotted.size(), strokes.size());
+    EXPECT_TRUE(blotted.mid(0, strokes.size()) == strokes);
+    a.style.sketchBlots = 0;
+
+    // A stroke a lap long at most: longer, it is as many as one a lap long.
+    a.style.sketchLength = 100000.0;
+    EXPECT_EQ(Geometry::ink(a, silhouette).toSubpathPolygons().size(), 1);
 
     // With no strokes to speak of, the outline alone still rings the whole silhouette.
     a.style.sketchCore        = 25;
@@ -2148,6 +2163,7 @@ QString goldenRecords()
         a.style.sketchCore        = StyleProperties().sketchCore;
         a.style.sketchStrokeWidth = StyleProperties().sketchStrokeWidth;
         a.style.sketchClockwise   = StyleProperties().sketchClockwise;
+        a.style.sketchBlots       = StyleProperties().sketchBlots;
         a.texture               = looks.first().texture;
         a.skin.fill.kind        = ObjectRecord::Pattern::Solid;
         a.effects.shadow.on     = false;
@@ -2170,6 +2186,28 @@ QString goldenRecords()
         a.skin.fill.kind        = ObjectRecord::Pattern::Solid;
         a.effects.shadow.on     = false;
         write(QStringLiteral("shout"), QStringLiteral("bowed"), true, a);
+    }
+    // The spilling ink, as the author's reference: long loose strokes side by side, and blots.
+    {
+        ObjectRecord a            = loadedRecord();
+        a.shape                   = Geometry::shapeTemplate("ellipse").shape;
+        a.style                   = looks.first().style;
+        a.style.line              = ObjectRecord::Line::Sketch;
+        a.style.strokeWidth       = 3;
+        a.style.sketchLength      = 300.0;
+        a.style.sketchLayers      = 3;
+        a.style.sketchStiffness   = 0;
+        a.style.sketchSpread      = 7.0;
+        a.style.sketchEntry       = 20;
+        a.style.sketchExit        = 60;
+        a.style.sketchCore        = 0;
+        a.style.sketchStrokeWidth = 100;
+        a.style.sketchClockwise   = true;
+        a.style.sketchBlots       = 60;
+        a.texture                 = looks.first().texture;
+        a.skin.fill.kind          = ObjectRecord::Pattern::Solid;
+        a.effects.shadow.on       = false;
+        write(QStringLiteral("ellipse"), QStringLiteral("spilling ink"), true, a);
     }
     // A Circles tail: on a clean speech balloon, apart from it; and the author's reference, a
     // white dry brush on a black ellipse, the chain sunk into it.

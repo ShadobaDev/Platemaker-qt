@@ -130,12 +130,13 @@ const FieldRowSpec k_multiRows[] = {
 const FieldRowSpec k_sketchRows[] = {
     {"sketchCore",        PM_TR("Outline:"),       0, 100, " %",  PM_TR("How wide the whole thin line under the strokes is, as a share of the width. It keeps the fill closed off whatever the strokes do; 0 leaves only the strokes.")},
     {"sketchStrokeWidth", PM_TR("Stroke width:"),  1, 100, " %",  PM_TR("How wide a pen stroke is at its widest, as a share of the width.")},
-    {"sketchLength",      PM_TR("Stroke length:"), 5, 200, " px", PM_TR("How long a pen stroke is. Each varies a little about it.")},
+    {"sketchLength",      PM_TR("Stroke length:"), 5, 1000, " px", PM_TR("How long a pen stroke is, a lap at most. Each varies a little about it. Short is a pen's hatching; long, loose strokes going round.")},
     {"sketchLayers",      PM_TR("Layers:"),        1, 12,  "",    PM_TR("How many strokes lie over any place of the outline: more makes the line denser.")},
     {"sketchStiffness",   PM_TR("Stiffness:"),     0, 100, " %",  PM_TR("How straight a stroke stays where the outline curves. 0 % follows the outline; more draws it straighter, so both its ends leave a curve. Each stroke varies a little about it.")},
     {"sketchSpread",      PM_TR("Spread:"),        0, 20,  " px", PM_TR("How far in or out a stroke lies from the outline. Each goes from one place to another within it, so neighbours cross."), 1},
     {"sketchEntry",       PM_TR("Taper in:"),      0, 100, " %",  PM_TR("How much of a stroke, at its start, narrows as the pen lands.")},
     {"sketchExit",        PM_TR("Taper out:"),     0, 100, " %",  PM_TR("How much of a stroke, at its end, narrows as the pen lifts off.")},
+    {"sketchBlots",       PM_TR("Blots:"),         0, 100, " %",  PM_TR("Ink spilt along the line: round spots and short strokes with round ends, here and there. Re-roll deals them again.")},
 };
 
 #undef PM_TR

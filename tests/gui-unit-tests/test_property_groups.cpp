@@ -1042,9 +1042,9 @@ TEST(Style, ADashedLineFitsWholeDashesRoundEachLap)
         styleOf(a).dashLength = 12.0;
         styleOf(a).dashGap    = 8.0;
         const QPainterPath             silhouette = Geometry::silhouette(a);
-        const QList<Geometry::EdgeWalk> edges      = Geometry::edgeWalks(silhouette);
+        const QList<Geometry::OutlineRing> edges   = Geometry::outlineModel(a, silhouette).rings;
         ASSERT_EQ(edges.size(), 1) << id;
-        const int dashes = qRound(edges.first().length() / (styleOf(a).dashLength + styleOf(a).dashGap));
+        const int dashes = qRound(edges.first().walk.length() / (styleOf(a).dashLength + styleOf(a).dashGap));
         EXPECT_EQ(Geometry::ink(a, silhouette).toSubpathPolygons().size(), dashes) << id;
 
         styleOf(a).dashGap = 0.0;
@@ -1099,12 +1099,12 @@ TEST(Style, ASketchLaysItsLayersOfStrokes)
     styleOf(a).sketchLength = 40.0;
     styleOf(a).sketchCore   = 0;
     const QPainterPath              silhouette = Geometry::silhouette(a);
-    const QList<Geometry::EdgeWalk> edges      = Geometry::edgeWalks(silhouette);
+    const QList<Geometry::OutlineRing> edges   = Geometry::outlineModel(a, silhouette).rings;
     ASSERT_EQ(edges.size(), 1);
     for (int layers : {1, 3}) {
         styleOf(a).sketchLayers = layers;
         EXPECT_EQ(Geometry::ink(a, silhouette).toSubpathPolygons().size(),
-                  qRound(layers * edges.first().length() / styleOf(a).sketchLength)) << layers;
+                  qRound(layers * edges.first().walk.length() / styleOf(a).sketchLength)) << layers;
     }
 
     // Blots add their spots and short strokes, a stream of their own: the strokes stay as they were.
@@ -1323,6 +1323,32 @@ TEST(Tails, ATipEndsAsItSays)
     EXPECT_FALSE(at(TailLook::Tip::Round, t.tip + QPointF(0, k_inside)));
     EXPECT_FALSE(at(TailLook::Tip::Round, t.tip + QPointF(end - k_inside, -k_inside)));
     EXPECT_TRUE(at(TailLook::Tip::Round, t.tip + QPointF(end - k_inside, -end)));
+
+    // The outline the lines take hears of the end from the tail, on the tail's own edge and on the joined one:
+    // a Round end half a circle long with no corner on it, a Cut one straight across, a Sharp one none.
+    constexpr qreal k_flattening = 1.0;   // how far a flattened end's length may be from a true one's
+    constexpr qreal k_same       = 1e-9;
+    for (TailLook::Tip tip : {TailLook::Tip::Sharp, TailLook::Tip::Round, TailLook::Tip::Cut}) {
+        tailsOf(a).items.first().look.tip = tip;
+        const Geometry::OutlineModel m = Geometry::outlineModel(a, Geometry::silhouette(a));
+        ASSERT_EQ(m.parts.size(), 2);
+        ASSERT_EQ(m.rings.size(), 1);
+        for (const Geometry::OutlineRing& ring : {m.parts[1].rings.first(), m.rings.first()}) {
+            if (tip == TailLook::Tip::Sharp) {
+                EXPECT_TRUE(ring.ends.empty());
+                continue;
+            }
+            ASSERT_EQ(ring.ends.size(), 1u);
+            const Geometry::OutlineEnd& e     = ring.ends.front();
+            const bool                  round = tip == TailLook::Tip::Round;
+            EXPECT_EQ(e.round, round);
+            EXPECT_NEAR(e.radius, end, k_same);
+            EXPECT_NEAR(e.span, round ? M_PI * end : 2.0 * end, k_flattening);
+            for (const Geometry::OutlineCorner& c : ring.corners)
+                EXPECT_FALSE(round && ring.within(e, c.at)) << c.at;
+        }
+    }
+    tailsOf(a).items.first().look.tip = TailLook::Tip::Sharp;
 
     // A Circles tail has no tip: the same chain whatever it says.
     tailsOf(a).items.first().look.style = TailLook::Style::Circles;

@@ -213,7 +213,7 @@ constexpr int k_maxRegularPoints = 64;
 [[nodiscard]] ShapeProperties withVertexAdded(const ShapeProperties& shape, int edge);
 
 /**
- * rief @p shape with node @p index given the handles it lacks on a straight side, a third of the way to
+ * \brief @p shape with node @p index given the handles it lacks on a straight side, a third of the way to
  *        the neighbour on that side and on the line to it, so the outline stays as it was: *Add handles*.
  *        Unchanged when it lacks none there.
  */

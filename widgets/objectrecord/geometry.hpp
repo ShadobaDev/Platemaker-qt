@@ -26,6 +26,7 @@
 #include <QString>
 
 #include "objectrecord.hpp"
+#include "outline.hpp"
 #include "shapes.hpp"   // ShapeHandle: the text area's arrows
 #include "styles.hpp"   // ShadowPaths: the lettering's shadow
 
@@ -46,6 +47,12 @@ namespace Geometry {
  * past a tail's root along the balloon, and start inside it along the tail).
  */
 [[nodiscard]] QList<QPainterPath> silhouetteParts(const ObjectRecord& a);
+
+/**
+ * \brief The outline a line is drawn round (outline.hpp): @p silhouette's rings with their corners, and
+ *        silhouetteParts() each with its own, what covers it marked; the ends the tails report placed on both.
+ */
+[[nodiscard]] OutlineModel outlineModel(const ObjectRecord& a, const QPainterPath& silhouette);
 
 /**
  * \brief Which of \p a's tails are actually drawn, one entry per tail.

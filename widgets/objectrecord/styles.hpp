@@ -4,7 +4,9 @@
  *        (ink), and the room a style needs past the geometry.
  *
  * **Adding a line is a value in `StyleProperties::Line` and an entry here** (styles.cpp); a texture
- * likewise, its SVG filter with it. Everything else asks the tables: the file
+ * likewise, its SVG filter with it. A line reads its numbers, the outline model (outline.hpp) and a seed,
+ * never the record: its corners, the tails' ends and what covers a part are the model's. Everything else
+ * asks the tables: the file
  * names (lineName, textureName), the Style panel's lists (lineTitle, textureTitle), the ink and whether
  * the solid outline is drawn (the painter, the SVG, the hit test), the room it needs past the geometry
  * (styleMargin) and whether the library has to draw its preview (hasFilter).
@@ -21,6 +23,7 @@
 #include <functional>
 
 #include "objectrecord.hpp"
+#include "outline.hpp"      // OutlineModel: what a line is drawn round
 #include "renderlist.hpp"   // Render::Filter: a kind's SVG filter
 #include "shapes.hpp"   // ShapeHandle: the fade's cross
 
@@ -35,23 +38,24 @@ struct LineInfo
     const char*           name;   //!< Persisted, in the JSON and the SVG. **Never changes** once saved.
     const char*           title;  //!< Shown on screen, translated through QObject::tr().
     /**
-     * Strokes of its own, drawn in the stroke colour over the fill, or nullptr for none: the solid outline
-     * (Clean, and Dry ink, which is that outline under a filter). A line with ink **replaces the solid
-     * outline**: its strokes are the edge. Plain paths, so Qt draws them.
+     * Strokes of its own round @p outline, drawn in the stroke colour over the fill, or nullptr for none:
+     * the solid outline (Clean, and Dry ink, which is that outline under a filter). A line with ink
+     * **replaces the solid outline**: its strokes are the edge. Plain paths, so Qt draws them. @p seed is
+     * the balloon's, so its strokes stay put while it is edited.
      */
-    QPainterPath (*ink)(const ObjectRecord& a, const QPainterPath& silhouette);
+    QPainterPath (*ink)(const StyleProperties& s, const OutlineModel& outline, quint32 seed);
     //! How far the ink reaches past the silhouette, in balloon pixels. Set whenever `ink` is.
-    qreal (*inkReach)(const ObjectRecord& a);
+    qreal (*inkReach)(const StyleProperties& s);
     /**
-     * A filter the solid outline is drawn under, or nullptr for none: an SVG renderer's alone, so the
-     * painter draws the outline plain (Dry ink: the outline eaten by the paper).
+     * A filter the solid outline is drawn under, its noise seeded by @p seed, or nullptr for none: an SVG
+     * renderer's alone, so the painter draws the outline plain (Dry ink: the outline eaten by the paper).
      */
-    Render::Filter (*outlineFilter)(const ObjectRecord& a) = nullptr;
+    Render::Filter (*outlineFilter)(const StyleProperties& s, quint32 seed) = nullptr;
     /**
      * The share of the outline's width drawn again, unfiltered, over the filtered one (0..1), so the filter
      * never opens the middle of the line; nullptr for none. Read only with `outlineFilter`.
      */
-    qreal (*unworn)(const ObjectRecord& a) = nullptr;
+    qreal (*unworn)(const StyleProperties& s) = nullptr;
 };
 
 //! One texture: an SVG filter (`filter`), which only the library draws.

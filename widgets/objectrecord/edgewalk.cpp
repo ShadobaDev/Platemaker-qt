@@ -4,6 +4,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <limits>
 #include <utility>
 
 namespace Geometry {
@@ -35,6 +36,21 @@ EdgeWalk::Point EdgeWalk::at(qreal s) const
     return {a + d * t, seg > 0.0 ? d / seg : QPointF()};
 }
 
+EdgeWalk::Place EdgeWalk::locate(const QPointF& p) const
+{
+    Place best{0.0, std::numeric_limits<qreal>::max()};
+    for (size_t k = 0; k + 1 < m_at.size(); ++k) {
+        const QPointF a   = m_edge[int(k)];
+        const QPointF d   = m_edge[int(k) + 1] - a;
+        const qreal   len = QPointF::dotProduct(d, d);
+        const qreal   t   = len > 0.0 ? qBound(0.0, QPointF::dotProduct(p - a, d) / len, 1.0) : 0.0;
+        const qreal   off = QLineF(p, a + d * t).length();
+        if (off < best.off)
+            best = {m_at[k] + (m_at[k + 1] - m_at[k]) * t, off};
+    }
+    return best;
+}
+
 qreal smoothNoise(quint32 seed, qreal x, qint64 period)
 {
     // The value at a whole number: the seed and the number hashed together (a 32-bit mixer), as a
@@ -57,15 +73,15 @@ qreal smoothNoise(quint32 seed, qreal x, qint64 period)
     return lattice(k) + (lattice(k + 1) - lattice(k)) * ease;
 }
 
-QList<EdgeWalk> edgeWalks(const QPainterPath& path)
+qreal shoelace(const QPolygonF& ring)
 {
-    QList<EdgeWalk> out;
-    for (const QPolygonF& edge : path.toSubpathPolygons()) {
-        EdgeWalk walk(edge);
-        if (walk.length() > 0.0)
-            out.append(std::move(walk));
+    qreal area = 0.0;
+    for (int i = 0; i < ring.size(); ++i) {
+        const QPointF& p = ring[i];
+        const QPointF& q = ring[(i + 1) % ring.size()];
+        area += p.x() * q.y() - q.x() * p.y();
     }
-    return out;
+    return area;
 }
 
 }  // namespace Geometry

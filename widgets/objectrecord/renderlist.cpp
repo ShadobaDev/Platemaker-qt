@@ -137,7 +137,7 @@ List balloon(const ObjectRecord& a, const QPainterPath& silhouette)
     if (texture.filter)
         out.defs.append({k_textureId, std::nullopt, texture.filter(a.texture, a.styleSeed)});
     if (line.outlineFilter)
-        out.defs.append({k_outlineId, std::nullopt, line.outlineFilter(a)});
+        out.defs.append({k_outlineId, std::nullopt, line.outlineFilter(a.style, a.styleSeed)});
     if (!Geometry::fades(a.skin.fill))
         addPattern(out, a.skin.fill, k_fillId);
     addPattern(out, a.style.stroke, k_strokeId);
@@ -165,7 +165,7 @@ List balloon(const ObjectRecord& a, const QPainterPath& silhouette)
         filtered.filter   = k_outlineId;
         filtered.children = {outline(silhouette, strokeInk, a.style.strokeWidth)};
         QList<Item> items{filtered};
-        const qreal core = a.style.strokeWidth * (line.unworn ? line.unworn(a) : 0.0);
+        const qreal core = a.style.strokeWidth * (line.unworn ? line.unworn(a.style) : 0.0);
         if (core > 0.0) {
             Item middle         = outline(silhouette, strokeInk, core);
             middle.filteredOnly = true;

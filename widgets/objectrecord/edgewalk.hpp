@@ -43,13 +43,21 @@ public:
     //! How far along the edge each of its points is, from 0 to length() (the closing point, the first again).
     [[nodiscard]] const std::vector<qreal>& corners() const { return m_at; }
 
+    //! The point of the edge nearest @p p: how far along it, and how far @p p is from it.
+    struct Place
+    {
+        qreal at  = 0.0;
+        qreal off = 0.0;
+    };
+    [[nodiscard]] Place locate(const QPointF& p) const;
+
 private:
     QPolygonF          m_edge;
     std::vector<qreal> m_at;   //!< How far along the edge each of its points is.
 };
 
-//! One walk for every closed edge of @p path (QPainterPath::toSubpathPolygons()), the empty ones left out.
-[[nodiscard]] QList<EdgeWalk> edgeWalks(const QPainterPath& path);
+//! Twice @p ring's signed area (the shoelace): positive when it runs clockwise on screen (y down).
+[[nodiscard]] qreal shoelace(const QPolygonF& ring);
 
 /**
  * \brief Smooth seeded noise along a line, in [-1, 1]: a random value at every whole @p x, eased from one

@@ -2,6 +2,7 @@
 // which part of it a point lands on. The shapes themselves are in shapes.cpp.
 
 #include "geometry.hpp"
+#include "outline.hpp"
 #include "shapes.hpp"
 #include "styles.hpp"
 
@@ -159,6 +160,22 @@ struct TailSpine
     QPointF perp;   //!< The unit direction across the tail.
 };
 
+//! A tail's outline, and its end where that is not a point (a Round or Cut tip), as the tail reports it.
+struct TailShape
+{
+    QPainterPath             path;
+    std::optional<EndPoints> end;
+};
+
+//! The end of a ribbon @p half wide either side about @p centre, square to @p across, reaching to @p tip.
+EndPoints endAt(const QPointF& centre, const QPointF& across, const QPointF& tip, qreal half, bool round)
+{
+    OutlineEnd end;
+    end.radius = half;
+    end.round  = round;
+    return {centre + across * half, tip, centre - across * half, end};
+}
+
 //! The spine as a path, from its base to its tip.
 QPainterPath spinePath(const TailSpine& s)
 {
@@ -176,7 +193,7 @@ QPainterPath spinePath(const TailSpine& s)
  * a mitre (bevelled past `k_breakMiter`); a round end is a circle on the last run. They are united into
  * one outline, so a line drawn round it meets no edge inside.
  */
-QPainterPath brokenRibbon(const TailSpine& s, qreal half, qreal end, bool round, const TailLook& look)
+TailShape brokenRibbon(const TailSpine& s, qreal half, qreal end, bool round, const TailLook& look)
 {
     const int     breaks  = qBound(0, look.breaks, TailLook::k_maxBreaks);
     const QPointF control = (s.base + s.tip) / 2.0 + s.sway;
@@ -252,7 +269,10 @@ QPainterPath brokenRibbon(const TailSpine& s, qreal half, qreal end, bool round,
         cap.addEllipse(line.last(), end, end);
         add(cap.toFillPolygon());
     }
-    return parts.simplified();
+    TailShape out{parts.simplified(), std::nullopt};
+    if (end > 0.0)
+        out.end = endAt(line.last(), across(int(line.size()) - 2), s.tip, end, round);
+    return out;
 }
 
 /**
@@ -264,7 +284,7 @@ QPainterPath brokenRibbon(const TailSpine& s, qreal half, qreal end, bool round,
  * square to the way the spine runs where it ends: a cut end is the straight line between them, through
  * the tip; a round end is a half circle between them whose far point is the tip.
  */
-QPainterPath ribbonAbout(const TailSpine& s, qreal half, const TailLook& look)
+TailShape ribbonAbout(const TailSpine& s, qreal half, const TailLook& look)
 {
     const QPointF b1  = s.base + s.perp * half;
     const QPointF b2  = s.base - s.perp * half;
@@ -279,7 +299,7 @@ QPainterPath ribbonAbout(const TailSpine& s, qreal half, const TailLook& look)
         p.quadTo((b1 + s.tip) / 2.0 + s.sway, s.tip);
         p.quadTo((b2 + s.tip) / 2.0 + s.sway, b2);
         p.closeSubpath();
-        return p;
+        return {p, std::nullopt};
     }
 
     // The way the spine runs where it ends: from its control to its tip, the quad's last tangent.
@@ -307,7 +327,7 @@ QPainterPath ribbonAbout(const TailSpine& s, qreal half, const TailLook& look)
     }
     p.quadTo((b2 + e2) / 2.0 + s.sway, b2);
     p.closeSubpath();
-    return p;
+    return {p, endAt(centre, across, s.tip, end, round)};
 }
 
 /**
@@ -324,7 +344,7 @@ QPainterPath ribbonAbout(const TailSpine& s, qreal half, const TailLook& look)
  * \param outline The bare silhouette, without any tail already merged into it: each tail must be aimed
  *                at the balloon, not at a neighbour's outline.
  */
-QPainterPath tailPath(const QPainterPath& outline, const QRectF& body, const Tail& t)
+TailShape tailPath(const QPainterPath& outline, const QRectF& body, const Tail& t)
 {
     const std::optional<TailRay> r = tailRay(outline, body, t);
     if (!r)
@@ -337,7 +357,7 @@ QPainterPath tailPath(const QPainterPath& outline, const QRectF& body, const Tai
         if (r->len - from < 1.0)
             return {};   // a gap past the tip: nothing left to draw
         const TailSpine s{r->centre + r->ray * from, t.tip, r->perp * (t.bend * (r->len - from)), r->perp};
-        return circlesAlong(spinePath(s), t);
+        return {circlesAlong(spinePath(s), t), std::nullopt};
     }
 
     const TailSpine s{r->centre + r->ray * qMax(0.0, r->edge - t.baseWidth * k_tailBaseInset), t.tip,
@@ -357,11 +377,44 @@ QList<QPainterPath> silhouetteParts(const ObjectRecord& a)
     // tail would ray-cast against the first one and emerge from its flank.
     QList<QPainterPath> parts{outline};
     for (const Tail& t : a.tails.items) {
-        const QPainterPath tp = tailPath(outline, body, t);
+        const QPainterPath tp = tailPath(outline, body, t).path;
         if (!tp.isEmpty())
             parts.append(tp);
     }
     return parts;
+}
+
+OutlineModel outlineModel(const ObjectRecord& a, const QPainterPath& silhouette)
+{
+    OutlineModel m;
+    m.joined      = silhouette;
+    m.frame       = QRectF(0, 0, a.box.width(), a.box.height());
+    m.coreStretch = shapeInfo(a.shape.kind).flashStretch;
+
+    const QRectF       body    = balloonRect(a);
+    const QPainterPath outline = outlineOf(a, body);
+    if (outline.isEmpty())
+        return m;
+    QList<QPainterPath>                   parts{outline};
+    QList<std::optional<EndPoints>>       partEnds{std::nullopt};
+    QList<EndPoints>                      ends;
+    for (const Tail& t : a.tails.items) {
+        TailShape tail = tailPath(outline, body, t);
+        if (tail.path.isEmpty())
+            continue;
+        parts.append(tail.path);
+        partEnds.append(tail.end);
+        if (tail.end)
+            ends.append(*tail.end);
+    }
+    m.rings = ringsOf(silhouette, {}, -1, ends);
+    for (qsizetype i = 0; i < parts.size(); ++i) {
+        QList<EndPoints> own;
+        if (partEnds[i])
+            own.append(*partEnds[i]);
+        m.parts.append({parts[i], ringsOf(parts[i], parts, i, own)});
+    }
+    return m;
 }
 
 QPainterPath silhouette(const ObjectRecord& a)
@@ -382,7 +435,7 @@ QList<bool> tailsDrawn(const ObjectRecord& a)
     QList<bool>        drawn;
     drawn.reserve(a.tails.items.size());
     for (const Tail& t : a.tails.items)
-        drawn.append(!outline.isEmpty() && !tailPath(outline, body, t).isEmpty());
+        drawn.append(!outline.isEmpty() && !tailPath(outline, body, t).path.isEmpty());
     return drawn;
 }
 

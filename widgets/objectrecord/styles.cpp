@@ -78,13 +78,14 @@ qreal spread(QRandomGenerator& rng, int percent)
  * walk meets its start. Each stroke points along the ray from the nearest point of @p core through its
  * place on the edge: away from it outside, towards it inside, where it is cut short at the core.
  */
-void addRing(QPainterPath& out, const QList<EdgeWalk>& edges, const QRectF& core, const Ring& r,
+void addRing(QPainterPath& out, const QList<OutlineRing>& edges, const QRectF& core, const Ring& r,
              QRandomGenerator& rng)
 {
     const qreal pitch = qMax(r.pitch, k_minPitch);
     const qreal half  = qMax(r.base, 0.0) / 2.0;
 
-    for (const EdgeWalk& edge : edges) {
+    for (const OutlineRing& ring : edges) {
+        const EdgeWalk& edge = ring.walk;
         const qreal perimeter = edge.length();
         const int   count = qMax(1, qRound(perimeter / pitch));
         const qreal step  = perimeter / count;
@@ -127,35 +128,32 @@ void addRing(QPainterPath& out, const QList<EdgeWalk>& edges, const QRectF& core
     }
 }
 
-QPainterPath flashInk(const ObjectRecord& a, const QPainterPath& silhouette)
+QPainterPath flashInk(const StyleProperties& s, const OutlineModel& outline, quint32 seed)
 {
-    const StyleProperties& s      = a.style;
-    const QList<EdgeWalk>  edges  = edgeWalks(silhouette);
-    const QPointF          centre = QRectF(0, 0, a.box.width(), a.box.height()).center();
+    const QSizeF  box    = outline.frame.size();
+    const QPointF centre = outline.frame.center();
 
     // What the strokes point away from: the centre, stretched into a line along the box's longer axis.
     // At 100 % the line runs between the centres of the two circles that fit the box's ends, so every
     // stroke on a long straight side is square to it and only the ends fan out; a square box keeps a
     // point whatever the stretch. On Auto the shape says how far.
-    const int    percent = s.flashCoreStretch == StyleProperties::k_autoStretch
-                               ? shapeInfo(a.shape.kind).flashStretch
-                               : s.flashCoreStretch;
+    const int    percent = s.flashCoreStretch == StyleProperties::k_autoStretch ? outline.coreStretch
+                                                                                 : s.flashCoreStretch;
     const qreal  stretch = qBound(0, percent, 100) / 100.0;
-    const QSizeF half(stretch * qMax(0, a.box.width() - a.box.height()) / 2.0,
-                      stretch * qMax(0, a.box.height() - a.box.width()) / 2.0);
+    const QSizeF half(stretch * qMax(0.0, box.width() - box.height()) / 2.0,
+                      stretch * qMax(0.0, box.height() - box.width()) / 2.0);
     const QRectF core(centre.x() - half.width(), centre.y() - half.height(), 2 * half.width(),
                       2 * half.height());
 
     QPainterPath out;
     out.setFillRule(Qt::WindingFill);
-    // The seed is the balloon's own, so its strokes stay put while it is edited.
-    QRandomGenerator outer(a.styleSeed);
-    QRandomGenerator inner(a.styleSeed ^ k_innerStream);
-    addRing(out, edges, core,
+    QRandomGenerator outer(seed);
+    QRandomGenerator inner(seed ^ k_innerStream);
+    addRing(out, outline.rings, core,
             {s.flashOuterPitch, s.flashOuterLength, s.flashOuterBase,
              s.flashOuterPitchJitter, s.flashOuterLengthJitter, false},
             outer);
-    addRing(out, edges, core,
+    addRing(out, outline.rings, core,
             {s.flashInnerPitch, s.flashInnerLength, s.flashInnerBase,
              s.flashInnerPitchJitter, s.flashInnerLengthJitter, true},
             inner);
@@ -163,9 +161,8 @@ QPainterPath flashInk(const ObjectRecord& a, const QPainterPath& silhouette)
 }
 
 //! The longest outer stroke, plus half the widest base: a base turned across a corner reaches out too.
-qreal flashReach(const ObjectRecord& a)
+qreal flashReach(const StyleProperties& s)
 {
-    const StyleProperties& s     = a.style;
     const qreal            jit   = qBound(0, s.flashOuterLengthJitter, 100) / 100.0;
     const qreal            reach = qMax(s.flashOuterLength, 0.0) * (1.0 + jit);
     return reach + qMax(qMax(s.flashOuterBase, s.flashInnerBase), 0.0) / 2.0;
@@ -236,7 +233,7 @@ QPolygonF ribbon(const EdgeWalk& edge, qreal from, qreal to, quint32 seed, const
 }
 
 /**
- * \brief The brush's strokes along every closed edge of @p silhouette.
+ * \brief The brush's strokes along every closed edge of @p outline.
  *
  * Each edge is shared out among `brushStrokes` strokes, their joins scattered off the even share and
  * each running `brushOverlap` past the next one's start, so they overlap and do not quite close. A stroke
@@ -244,10 +241,9 @@ QPolygonF ribbon(const EdgeWalk& edge, qreal from, qreal to, quint32 seed, const
  * length at each end, its width varied by `brushSwell` and its middle moved off the edge by
  * `brushDrift`, both along smooth noise. Every ribbon winds the same way, so overlaps paint as one.
  */
-QPainterPath brushInk(const ObjectRecord& a, const QPainterPath& silhouette)
+QPainterPath brushInk(const StyleProperties& s, const OutlineModel& outline, quint32 seed)
 {
-    const StyleProperties& s     = a.style;
-    const qreal            half  = qMax(a.style.strokeWidth, 0) / 2.0;
+    const qreal            half  = qMax(s.strokeWidth, 0) / 2.0;
     const int              count = qMax(1, s.brushStrokes);
     const qreal            over  = qBound(0, s.brushOverlap, 100) / 100.0;
     const qreal            taper = qBound(0, s.brushTaper, 50) / 100.0;
@@ -258,11 +254,12 @@ QPainterPath brushInk(const ObjectRecord& a, const QPainterPath& silhouette)
     if (half <= 0.0)
         return out;   // no outline, no brush: its width is the outline's
     const RibbonLook look{half, taper, swell, s.brushDrift};
-    QRandomGenerator rng(a.styleSeed ^ k_brushStream);
+    QRandomGenerator rng(seed ^ k_brushStream);
     quint32          stroke = 0;   // a number per stroke, for its own noise
-    for (const EdgeWalk& edge : edgeWalks(silhouette)) {
-        const qreal length = edge.length();
-        const qreal share  = length / count;
+    for (const OutlineRing& ring : outline.rings) {
+        const EdgeWalk& edge   = ring.walk;
+        const qreal     length = edge.length();
+        const qreal     share  = length / count;
         std::vector<qreal> join(size_t(count) + 1);
         for (int j = 0; j < count; ++j)
             join[size_t(j)] = (j + k_brushScatter * (2.0 * rng.generateDouble() - 1.0)) * share;
@@ -271,7 +268,7 @@ QPainterPath brushInk(const ObjectRecord& a, const QPainterPath& silhouette)
         for (int j = 0; j < count; ++j, ++stroke) {
             const qreal from = join[size_t(j)] - over * share / 2.0;
             const qreal to   = join[size_t(j) + 1] + over * share / 2.0;
-            out.addPolygon(ribbon(edge, from, to, a.styleSeed ^ ((stroke + 1) * k_strokeStream), look));
+            out.addPolygon(ribbon(edge, from, to, seed ^ ((stroke + 1) * k_strokeStream), look));
             out.closeSubpath();
         }
     }
@@ -283,15 +280,14 @@ QPainterPath brushInk(const ObjectRecord& a, const QPainterPath& silhouette)
 // ---------------------------------------------------------------------------
 
 /**
- * \brief The dashes along every closed edge of @p silhouette: straight-ended ribbons as wide as the
+ * \brief The dashes along every closed edge of @p outline: straight-ended ribbons as wide as the
  *        outline, starting where the edge does.
  *
  * The lap takes the whole number of dash-and-gap periods nearest its length, and the gap gives or takes
  * the rest, so no short dash or doubled gap marks where the lap closes. A gap of 0 is one whole line.
  */
-QPainterPath dashedInk(const ObjectRecord& a, const QPainterPath& silhouette)
+QPainterPath dashedInk(const StyleProperties& s, const OutlineModel& outline, quint32)
 {
-    const StyleProperties& s = a.style;
     const RibbonLook       look{qMax(s.strokeWidth, 0) / 2.0, 0.0, 0.0, 0.0};   // straight: no taper, swell or drift
     const qreal            dash = qMax(s.dashLength, 0.0);
     const qreal            gap  = qMax(s.dashGap, 0.0);
@@ -300,8 +296,9 @@ QPainterPath dashedInk(const ObjectRecord& a, const QPainterPath& silhouette)
     out.setFillRule(Qt::WindingFill);
     if (look.half <= 0.0 || dash <= 0.0)
         return out;
-    for (const EdgeWalk& edge : edgeWalks(silhouette)) {
-        const qreal length = edge.length();
+    for (const OutlineRing& ring : outline.rings) {
+        const EdgeWalk& edge   = ring.walk;
+        const qreal     length = edge.length();
         if (gap <= 0.0) {
             out.addPolygon(ribbon(edge, 0.0, length, 0, look));
             out.closeSubpath();
@@ -318,9 +315,9 @@ QPainterPath dashedInk(const ObjectRecord& a, const QPainterPath& silhouette)
 }
 
 //! Half the outline: a dash is as wide as it.
-qreal dashedReach(const ObjectRecord& a)
+qreal dashedReach(const StyleProperties& s)
 {
-    return qMax(a.style.strokeWidth, 0) / 2.0;
+    return qMax(s.strokeWidth, 0) / 2.0;
 }
 
 // ---------------------------------------------------------------------------
@@ -342,9 +339,9 @@ QPainterPath edgeBand(const QPainterPath& silhouette, qreal width)
  *        one before and `multiWidth` wide: the part of the silhouette that far from its edge. Where a tail
  *        is too narrow to hold one, it stops. No outline width, no line, as for the brush.
  */
-QPainterPath multiInk(const ObjectRecord& a, const QPainterPath& silhouette)
+QPainterPath multiInk(const StyleProperties& s, const OutlineModel& outline, quint32)
 {
-    const StyleProperties& s     = a.style;
+    const QPainterPath&    silhouette = outline.joined;
     const qreal            width = qMax(s.strokeWidth, 0);
     const qreal            inner = qMax(s.multiWidth, 0.0);
     const qreal            gap   = qMax(s.multiGap, 0.0);
@@ -362,16 +359,15 @@ QPainterPath multiInk(const ObjectRecord& a, const QPainterPath& silhouette)
 }
 
 //! Half the outline: the other lines are inside it.
-qreal multiReach(const ObjectRecord& a)
+qreal multiReach(const StyleProperties& s)
 {
-    return qMax(a.style.strokeWidth, 0) / 2.0;
+    return qMax(s.strokeWidth, 0) / 2.0;
 }
 
 //! Half the outline at its widest swell, and as far as a stroke wanders.
-qreal brushReach(const ObjectRecord& a)
+qreal brushReach(const StyleProperties& s)
 {
-    const StyleProperties& s = a.style;
-    return qMax(a.style.strokeWidth, 0) / 2.0 * (1.0 + qBound(0, s.brushSwell, 100) / 100.0)
+    return qMax(s.strokeWidth, 0) / 2.0 * (1.0 + qBound(0, s.brushSwell, 100) / 100.0)
          + std::abs(s.brushDrift);
 }
 
@@ -395,8 +391,6 @@ constexpr qreal   k_bristleWander = 0.2;
  *  hair narrows to its ends rather than stopping square.
  */
 constexpr qreal   k_bristleSwell  = 0.35;
-//! The turn at a vertex, in degrees, from which it is a corner the hairs do not follow round.
-constexpr qreal   k_cornerTurn    = 35.0;
 //! How long a hair narrows away over before the other side's core at a concave corner, in lanes.
 constexpr qreal   k_rootTaper     = 2.0;
 /**
@@ -412,9 +406,6 @@ constexpr qreal   k_partRunOn     = 3.0;
 constexpr qreal   k_rootReach     = 4.0;
 //! A convex corner narrower than this, in degrees, is a point: the hairs run into it.
 constexpr qreal   k_pointAngle    = 45.0;
-//! How far either side of a vertex its turn is measured, in balloon pixels: a flattened curve's own
-//! small steps are not corners, one corner split by a sliver of an edge still is.
-constexpr qreal   k_cornerProbe   = 1.5;
 /**
  *  How far past the other side's hairs a hair runs on across a corner, in half line widths, so that they
  *  cross into a hatch; each hair's own run varies up to half as much again.
@@ -438,18 +429,6 @@ qreal loopedNoise(quint32 seed, qreal at, qreal length, qreal wave)
     return smoothNoise(seed, at / length * spans, spans);
 }
 
-//! Twice @p ring's signed area (the shoelace): a ribbon, left side forward and right side back, is negative.
-qreal shoelace(const QPolygonF& ring)
-{
-    qreal area = 0.0;
-    for (int i = 0; i < ring.size(); ++i) {
-        const QPointF& p = ring[i];
-        const QPointF& q = ring[(i + 1) % ring.size()];
-        area += p.x() * q.y() - q.x() * p.y();
-    }
-    return area;
-}
-
 //! How many times @p rings wind round @p p, counted the shoelace's way.
 int windingAt(const QList<QPolygonF>& rings, const QPointF& p)
 {
@@ -465,41 +444,6 @@ int windingAt(const QList<QPolygonF>& rings, const QPointF& p)
                 --w;
         }
     return w;
-}
-
-//! A vertex the hairs do not follow round: where along the edge, and how far it turns (radians, signed).
-struct EdgeCorner
-{
-    qreal at;
-    qreal turn;
-};
-
-//! The corners of @p edge, one per turn: of vertices closer than the probe, the sharpest.
-std::vector<EdgeCorner> cornersOf(const EdgeWalk& edge)
-{
-    const qreal length = edge.length();
-    const auto  wrap   = [length](qreal at) { return at - std::floor(at / length) * length; };
-    std::vector<EdgeCorner> out;
-    const std::vector<qreal>& at = edge.corners();
-    for (size_t i = 0; i + 1 < at.size(); ++i) {   // the last is the first again
-        const QPointF t1   = edge.at(wrap(at[i] - k_cornerProbe)).tangent;
-        const QPointF t2   = edge.at(wrap(at[i] + k_cornerProbe)).tangent;
-        const qreal   turn = std::atan2(t1.x() * t2.y() - t1.y() * t2.x(), QPointF::dotProduct(t1, t2));
-        if (std::abs(turn) < qDegreesToRadians(k_cornerTurn))
-            continue;
-        if (!out.empty() && at[i] - out.back().at < 2.0 * k_cornerProbe) {
-            if (std::abs(turn) > std::abs(out.back().turn))
-                out.back() = {at[i], turn};
-            continue;
-        }
-        out.push_back({at[i], turn});
-    }
-    if (out.size() > 1 && out.front().at + length - out.back().at < 2.0 * k_cornerProbe) {
-        if (std::abs(out.back().turn) > std::abs(out.front().turn))
-            out.front() = out.back();
-        out.pop_back();
-    }
-    return out;
 }
 
 /**
@@ -556,7 +500,7 @@ qreal bendFade(const EdgeWalk& edge, qreal at, qreal offset, qreal lane, qreal f
 }
 
 /**
- * \brief The dry brush round every closed edge of @p silhouette.
+ * \brief The dry brush round @p outline.
  *
  * A **core**, `drybrushCore` of the line's width, is the plain outline, mitred so a point stays a
  * point: always whole, so the fill is never open to what is round it. Either side of it the rest of the
@@ -566,12 +510,13 @@ qreal bendFade(const EdgeWalk& edge, qreal at, qreal offset, qreal lane, qreal f
  * edge (`k_bristleThinning`), so the hairs thin out away from it.
  *
  * The core follows the joined silhouette; the hairs follow each **part** of it on its own edge
- * (silhouetteParts(): the balloon, each tail). Where a part's edge goes under another part, its hairs run
+ * (OutlineModel::parts: the balloon, each tail). Where a part's edge goes under another part, its hairs run
  * on along it from where it was in sight, until their noise ends them, `k_partRunOn` half-widths at most:
  * the balloon's on into a tail's root, the tail's back into the balloon, crossing into a natural hatch.
  * So a tail's root is no corner at all.
  *
- * The hairs do not follow a **corner** of a part round (an offset turned round one folds over itself).
+ * The hairs do not follow a **corner** of a part round (the model's: an offset turned round one folds over
+ * itself); a tail's round end has none.
  * Between corners they run edge to edge; at a convex corner each runs on straight past where the other
  * side's hairs lie, so the two sides cross in a hatch, narrowing away over that run. At a **concave** one
  * (between a shout's spikes) each runs on straight until it meets the other side's core (its line carried
@@ -584,9 +529,8 @@ qreal bendFade(const EdgeWalk& edge, qreal at, qreal offset, qreal lane, qreal f
  * Built only of rings wound one way (the core's turned to match), so the winding rule paints their
  * overlaps as one and nothing is subtracted: a boolean on paths this dense costs a frame.
  */
-QPainterPath drybrushInk(const ObjectRecord& a, const QPainterPath& silhouette)
+QPainterPath drybrushInk(const StyleProperties& s, const OutlineModel& outline, quint32 baseSeed)
 {
-    const StyleProperties& s       = a.style;
     const qreal            half    = qMax(s.strokeWidth, 0) / 2.0;
     const qreal            core    = half * qBound(0, s.drybrushCore, 100) / 100.0;
     const int              perSide = qMax(1, s.drybrushBristles / 2);
@@ -599,50 +543,37 @@ QPainterPath drybrushInk(const ObjectRecord& a, const QPainterPath& silhouette)
     if (half <= 0.0)
         return out;   // no outline, no brush: its width is the outline's
     // The core, along the joined silhouette, wound as the hairs are.
-    addCore(out, silhouette, core);
+    addCore(out, outline.joined, core);
 
     // The hairs, along each part's own edge.
-    const QList<QPainterPath> parts      = silhouetteParts(a);
-    const qreal               underReach = k_partRunOn * half;
-    quint32                   stream     = 0;   // a number per lane, for its own noise
-    for (qsizetype part = 0; part < parts.size(); ++part)
-    for (const QPolygonF& ring : parts[part].toSubpathPolygons()) {
-        const EdgeWalk edge(ring);
-        const qreal    length = edge.length();
-        if (length <= 0.0)
-            continue;
-        const auto wrap = [length](qreal at) { return at - std::floor(at / length) * length; };
-
-        // Where the edge is under another part, every step along it.
-        const int         marks = qMax(1, qCeil(length / k_brushStep));
-        std::vector<char> under(size_t(marks), 0);
-        for (int k = 0; k < marks; ++k) {
-            const QPointF p = edge.at(length * k / marks).at;
-            for (qsizetype other = 0; other < parts.size() && !under[size_t(k)]; ++other)
-                under[size_t(k)] = other != part && parts[other].contains(p);
-        }
-        const auto hidden = [&](qreal at) { return under[size_t(qRound(wrap(at) / length * marks) % marks)] != 0; };
+    const qreal underReach = k_partRunOn * half;
+    quint32     stream     = 0;   // a number per lane, for its own noise
+    for (const OutlinePart& part : outline.parts)
+    for (const OutlineRing& ring : part.rings) {
+        const EdgeWalk& edge   = ring.walk;
+        const qreal     length = edge.length();
+        const auto wrap = [&ring](qreal at) { return ring.wrap(at); };
 
         // The stretches between corners; with none, one round the whole loop.
-        const std::vector<EdgeCorner> corners   = cornersOf(edge);
-        const bool                    convexWay = shoelace(ring) > 0.0;   // a turn this way is convex
+        const std::vector<OutlineCorner>& corners   = ring.corners;
+        const bool                        convexWay = ring.clockwise;   // a turn this way is convex
         struct Stretch
         {
             qreal             from, to;
-            const EdgeCorner* start;
-            const EdgeCorner* end;
+            const OutlineCorner* start;
+            const OutlineCorner* end;
         };
         std::vector<Stretch> stretches;
         if (corners.empty())
             stretches.push_back({0.0, length, nullptr, nullptr});
         for (size_t i = 0; i < corners.size(); ++i) {
-            const EdgeCorner& c    = corners[i];
-            const EdgeCorner& next = corners[(i + 1) % corners.size()];
+            const OutlineCorner& c    = corners[i];
+            const OutlineCorner& next = corners[(i + 1) % corners.size()];
             stretches.push_back({c.at, next.at + (next.at > c.at ? 0.0 : length), &c, &next});
         }
-        const auto concave = [&](const EdgeCorner* c) { return c && (c->turn > 0.0) != convexWay; };
+        const auto concave = [&](const OutlineCorner* c) { return c && (c->turn > 0.0) != convexWay; };
         // How far from a point its hairs start closing on it: where the line's two edges meet.
-        const auto closing = [&](const EdgeCorner* c) {
+        const auto closing = [&](const OutlineCorner* c) {
             if (!c || concave(c))
                 return 0.0;
             const qreal inner = M_PI - std::abs(c->turn);
@@ -655,7 +586,7 @@ QPainterPath drybrushInk(const ObjectRecord& a, const QPainterPath& silhouette)
             const qreal   offset = side * (core + lane * (away + 0.5));
             const qreal   dry    = dryness + (1.0 - dryness) * k_bristleThinning * (away + 0.5) / perSide;
             const qreal   level  = 1.0 + k_bristleSwell - (2.0 + k_bristleSwell) * dry;
-            const quint32 seed   = a.styleSeed ^ ((stream + 1) * k_bristleStream);
+            const quint32 seed   = baseSeed ^ ((stream + 1) * k_bristleStream);
             // The hair's half-width @p at along the edge: where its noise is under the dry level.
             const auto width = [&](qreal at) {
                 return lane * k_bristleHair
@@ -682,13 +613,13 @@ QPainterPath drybrushInk(const ObjectRecord& a, const QPainterPath& silhouette)
                     QPointF at, n;
                     qreal   along = -1.0;   //!< Where along the edge the corner is; none if not concave.
                 };
-                const auto rootOf = [&](const EdgeCorner* c, qreal mine) {   // mine: -1 this side before it
+                const auto rootOf = [&](const OutlineCorner* c, qreal mine) {   // mine: -1 this side before it
                     Root r;
                     if (!concave(c))
                         return r;
                     r.at                = edge.at(wrap(c->at)).at;
-                    const QPointF other = edge.at(wrap(c->at - mine * k_cornerProbe)).tangent;
-                    const QPointF own   = edge.at(wrap(c->at + mine * k_cornerProbe)).tangent;
+                    const QPointF other = mine > 0.0 ? c->in : c->out;
+                    const QPointF own   = mine > 0.0 ? c->out : c->in;
                     r.n                 = QPointF(-other.y(), other.x());
                     if (QPointF::dotProduct(own * mine, r.n) < 0.0)
                         r.n = -r.n;
@@ -722,7 +653,7 @@ QPainterPath drybrushInk(const ObjectRecord& a, const QPainterPath& silhouette)
                     const QPointF mid = p.at + n * c;
                     const qreal   bent = bendFade(edge, at, offset, lane, st.from + 0.01, st.to - 0.01);
                     steps.push_back({mid, n, width(at) * into * bent * stop(rootStart, mid) * stop(rootEnd, mid),
-                                     at, hidden(at)});
+                                     at, ring.coveredAt(at)});
                 }
                 // Under another part, a hair runs on from where it was in sight, either way, as long as its
                 // noise lets it and no further than the reach, narrowing over its last third; then it is gone
@@ -754,7 +685,7 @@ QPainterPath drybrushInk(const ObjectRecord& a, const QPainterPath& silhouette)
                 // Across a corner that is not a point, the hair runs on straight. Past a convex one it narrows
                 // away over a fixed run; past a concave one it keeps its own width (its noise read on along the
                 // edge) until the other side's core stops it, or the noise does.
-                const auto runOn = [&](const Step& from, qreal dir, const EdgeCorner* c, qreal close,
+                const auto runOn = [&](const Step& from, qreal dir, const OutlineCorner* c, qreal close,
                                        const Root& root) {
                     std::vector<Step> more;
                     if (!c || close > 0.0 || from.w <= 0.0)
@@ -812,10 +743,10 @@ QPainterPath drybrushInk(const ObjectRecord& a, const QPainterPath& silhouette)
  * \brief The line's half-width three times over, a hair run on across a corner reaching past it by its
  *        lane and as far again; or the core's miter at a point, if a thick core reaches further.
  */
-qreal drybrushReach(const ObjectRecord& a)
+qreal drybrushReach(const StyleProperties& s)
 {
-    const qreal core = qBound(0, a.style.drybrushCore, 100) / 100.0;
-    return qMax(3.0, 2.0 * k_coreMiter * core) * qMax(a.style.strokeWidth, 0) / 2.0;
+    const qreal core = qBound(0, s.drybrushCore, 100) / 100.0;
+    return qMax(3.0, 2.0 * k_coreMiter * core) * qMax(s.strokeWidth, 0) / 2.0;
 }
 
 // ---------------------------------------------------------------------------
@@ -857,6 +788,8 @@ constexpr qreal   k_blotLongest   = 8.0;
 constexpr qreal   k_blotWobble    = 0.25;
 //! The points round a blot's outline.
 constexpr int     k_blotPoints    = 20;
+//! How far from a round end a stroke starts to lose its stiffness and its offset, in the end's radii.
+constexpr qreal   k_roundEase     = 2.0;
 //! Mixed into the seed for the blots: a stream of their own, so they leave the strokes as they were.
 constexpr quint32 k_blotStream    = 0x165667B1u;
 
@@ -890,7 +823,7 @@ QPolygonF blot(const QPointF& at, const QPointF& along, qreal r, qreal length, q
 }
 
 /**
- * \brief The sketch round every closed edge of @p silhouette: a thin whole outline, and short strokes over it.
+ * \brief The sketch round every closed edge of @p outline: a thin whole outline, and short strokes over it.
  *
  * The **outline**, `sketchCore` of the line's width, is the drybrush's core (addCore()): the fill is always
  * closed off, whatever the strokes do. The **strokes**, `sketchStrokeWidth` of the line's width, are
@@ -899,7 +832,10 @@ QPolygonF blot(const QPointF& at, const QPointF& along, qreal r, qreal length, q
  * is the outline's, pulled by its stiffness (`sketchStiffness`, varied per stroke) towards the straight line
  * along the outline at the stroke's middle, so both its ends leave a curve alike and a run of them does not
  * saw. Its offset off the outline goes from one value within `sketchSpread` to another, so neighbours cross.
- * At a corner (cornersOf()) the pen lifts: the stroke ends there and goes on from it as one of its own.
+ * At a corner of the outline the pen lifts: the stroke ends there and goes on from it as one of its own. It
+ * lifts too where a tail's round end begins and ends, and goes round the end on the outline itself, having
+ * lost its stiffness and its offset over k_roundEase of the end's radius before it: straightened, a stroke
+ * would leave the half circle; offset inwards past its radius, it would fold over itself.
  *
  * Its width is the pen's pressure (penPressure()), the way it goes on screen (`sketchClockwise`): a short
  * landing, a long lift-off. A stroke is a lap long at most.
@@ -907,9 +843,8 @@ QPolygonF blot(const QPointF& at, const QPointF& along, qreal r, qreal length, q
  * **Blots**, `sketchBlots` of one every k_blotSpacing, lie along the line within `sketchSpread`, of a stream
  * of their own: spots whose edge wanders, and short strokes with round ends along the line (blot()).
  */
-QPainterPath sketchInk(const ObjectRecord& a, const QPainterPath& silhouette)
+QPainterPath sketchInk(const StyleProperties& s, const OutlineModel& outline, quint32 baseSeed)
 {
-    const StyleProperties& s      = a.style;
     const qreal            width  = qMax(s.strokeWidth, 0);
     const qreal            half   = width / 2.0 * qBound(0, s.sketchStrokeWidth, 100) / 100.0;
     const qreal            length = qMax(s.sketchLength, 1.0);
@@ -923,27 +858,44 @@ QPainterPath sketchInk(const ObjectRecord& a, const QPainterPath& silhouette)
     if (width <= 0.0)
         return out;
     if (const qreal core = width / 2.0 * qBound(0, s.sketchCore, 100) / 100.0; core > 0.0)
-        addCore(out, silhouette, core);
+        addCore(out, outline.joined, core);
     if (half <= 0.0)
         return out;
 
-    QRandomGenerator rng(a.styleSeed ^ k_sketchStream);
-    QRandomGenerator spots(a.styleSeed ^ k_blotStream);
+    QRandomGenerator rng(baseSeed ^ k_sketchStream);
+    QRandomGenerator spots(baseSeed ^ k_blotStream);
     quint32          stroke = 0;   // a number per stroke, for its own noise
-    for (const QPolygonF& ring : silhouette.toSubpathPolygons()) {
-        const EdgeWalk edge(ring);
-        const qreal    lap = edge.length();
-        if (lap <= 0.0)
-            continue;
-        // The walk's way round on screen (y down: a positive shoelace is clockwise); against the pen's,
-        // the pressure is read from the other end.
-        const bool reversed = (shoelace(ring) > 0.0) != s.sketchClockwise;
+    for (const OutlineRing& ring : outline.rings) {
+        const EdgeWalk& edge = ring.walk;
+        const qreal     lap  = edge.length();
+        // The walk's way round on screen; against the pen's, the pressure is read from the other end.
+        const bool reversed = ring.clockwise != s.sketchClockwise;
         const qreal stroked = qMin(length, lap);   // a stroke is a lap long at most
         const int  count    = qMax(1, qRound(qMax(s.sketchLayers, 1) * lap / stroked));
-        const auto wrap     = [lap](qreal at) { return at - std::floor(at / lap) * lap; };
+        const auto wrap     = [&ring](qreal at) { return ring.wrap(at); };
+        // Where the pen lifts, in order round the lap: the corners, and either side of a round end.
         std::vector<qreal> corners;
-        for (const EdgeCorner& c : cornersOf(edge))
+        for (const OutlineCorner& c : ring.corners)
             corners.push_back(c.at);
+        for (const OutlineEnd& e : ring.ends)
+            if (e.round) {
+                corners.push_back(wrap(e.from));
+                corners.push_back(wrap(e.from + e.span));
+            }
+        std::sort(corners.begin(), corners.end());
+        // How much of a stroke's stiffness and offset is left at @p at: none on a round end, all clear of it.
+        const auto ease = [&](qreal at) {
+            qreal w = 1.0;
+            for (const OutlineEnd& e : ring.ends) {
+                if (!e.round || e.radius <= 0.0)
+                    continue;
+                if (ring.within(e, at))
+                    return 0.0;
+                const qreal off = qMin(wrap(e.from - at), wrap(at - e.from - e.span));
+                w = qMin(w, off / (k_roundEase * e.radius));
+            }
+            return w;
+        };
 
         // One pen stroke from @p from to @p to along the edge.
         const auto draw = [&](qreal from, qreal to, qreal offFrom, qreal offTo, qreal k, quint32 seed) {
@@ -961,10 +913,11 @@ QPainterPath sketchInk(const ObjectRecord& a, const QPainterPath& silhouette)
                 const qreal   at       = from + len * u;
                 const auto    p        = edge.at(wrap(at));
                 const QPointF n(-p.tangent.y(), p.tangent.x());
-                const qreal   off      = offFrom + (offTo - offFrom) * u;
+                const qreal   w        = ease(at);
+                const qreal   off      = (offFrom + (offTo - offFrom) * u) * w;
                 const QPointF bent     = p.at + n * off;
                 const QPointF straight = mid.at + n * off + mid.tangent * (len * (u - 0.5));
-                centre << bent + (straight - bent) * k;
+                centre << bent + (straight - bent) * (k * w);
                 widths.push_back(half * penPressure(reversed ? 1.0 - u : u, entry, exit)
                                  * (1.0 + k_sketchSwell * smoothNoise(seed, at / k_sketchWave)));
             }
@@ -988,7 +941,7 @@ QPainterPath sketchInk(const ObjectRecord& a, const QPainterPath& silhouette)
             const qreal   offFrom = spread * (2.0 * rng.generateDouble() - 1.0);
             const qreal   offTo   = spread * (2.0 * rng.generateDouble() - 1.0);
             const qreal   k       = qBound(0.0, stiff * (1.0 + k_sketchStiffVary * (2.0 * rng.generateDouble() - 1.0)), 1.0);
-            const quint32 seed    = a.styleSeed ^ ((stroke + 1) * k_sketchStream);
+            const quint32 seed    = baseSeed ^ ((stroke + 1) * k_sketchStream);
             // Cut at every corner it crosses, a lap later too, since a stroke may run past the lap's end. The
             // offset goes on across the cut, so the pieces still lie as one stroke would.
             qreal from = start;
@@ -1027,9 +980,8 @@ QPainterPath sketchInk(const ObjectRecord& a, const QPainterPath& silhouette)
 //! it: a point of the straight line is no further from the outline's than the way from the stroke's middle.
 //! A blot reaches as far as its largest radius, wobbled, and half its length where a straight blot leaves
 //! a curve.
-qreal sketchReach(const ObjectRecord& a)
+qreal sketchReach(const StyleProperties& s)
 {
-    const StyleProperties& s     = a.style;
     const qreal            width = qMax(s.strokeWidth, 0);
     const qreal            stroke = width / 2.0 * qBound(0, s.sketchStrokeWidth, 100) / 100.0;
     const qreal            blots = s.sketchBlots > 0
@@ -1051,18 +1003,16 @@ constexpr qreal k_haloDensity = 2.5;
 constexpr qreal k_haloThinning = 0.3;
 
 /**
- * \brief @p a with the flash's numbers made into an explosion's halo: the outer strokes only, k_haloDensity
+ * \brief @p style with the flash's numbers made into an explosion's halo: the outer strokes only, k_haloDensity
  *        times as dense and k_haloThinning as wide at their base. Their length, every scatter and the
  *        direction stay the flash's own.
  */
-ObjectRecord haloOf(const ObjectRecord& a)
+StyleProperties haloOf(StyleProperties style)
 {
-    ObjectRecord     halo = a;
-    StyleProperties& s    = halo.style;
-    s.flashInnerLength = 0.0;
-    s.flashOuterPitch  = qMax(s.flashOuterPitch, 0.0) / k_haloDensity;
-    s.flashOuterBase   = qMax(s.flashOuterBase, 0.0) * k_haloThinning;
-    return halo;
+    style.flashInnerLength = 0.0;
+    style.flashOuterPitch  = qMax(style.flashOuterPitch, 0.0) / k_haloDensity;
+    style.flashOuterBase   = qMax(style.flashOuterBase, 0.0) * k_haloThinning;
+    return style;
 }
 
 /**
@@ -1070,10 +1020,10 @@ ObjectRecord haloOf(const ObjectRecord& a)
  *        flashInk()). The halo's strokes are wound as the ring's are, so where they overlap they add and
  *        never cut each other out.
  */
-QPainterPath explosionInk(const ObjectRecord& a, const QPainterPath& silhouette)
+QPainterPath explosionInk(const StyleProperties& s, const OutlineModel& outline, quint32 seed)
 {
-    QPainterPath out = drybrushInk(a, silhouette);
-    for (QPolygonF stroke : flashInk(haloOf(a), silhouette).toSubpathPolygons()) {
+    QPainterPath out = drybrushInk(s, outline, seed);
+    for (QPolygonF stroke : flashInk(haloOf(s), outline, seed).toSubpathPolygons()) {
         if (shoelace(stroke) > 0.0)
             std::reverse(stroke.begin(), stroke.end());
         out.addPolygon(stroke);
@@ -1083,9 +1033,9 @@ QPainterPath explosionInk(const ObjectRecord& a, const QPainterPath& silhouette)
 }
 
 //! As far as either half reaches.
-qreal explosionReach(const ObjectRecord& a)
+qreal explosionReach(const StyleProperties& s)
 {
-    return qMax(drybrushReach(a), flashReach(haloOf(a)));
+    return qMax(drybrushReach(s), flashReach(haloOf(s)));
 }
 
 // ---------------------------------------------------------------------------
@@ -1111,10 +1061,9 @@ constexpr qreal k_dryInkEdge      = 25.0;
  * \brief Dry ink's filter: the noise's red as an alpha, cut at the wear by a steep slope, below it a hole,
  *        above it ink; composited *in* the outline, so the holes are the paper showing through.
  */
-Render::Filter dryInkFilter(const ObjectRecord& a)
+Render::Filter dryInkFilter(const StyleProperties& s, quint32 seed)
 {
     using Render::number;
-    const StyleProperties& s    = a.style;
     const qreal            wear = qBound(0, s.dryInkWear, 100) / 100.0;
     const qreal            at   = k_dryInkWornAt0 + (k_dryInkWornAt100 - k_dryInkWornAt0) * wear;
     Render::Filter         f;
@@ -1122,7 +1071,7 @@ Render::Filter dryInkFilter(const ObjectRecord& a)
                          {{QStringLiteral("type"), QStringLiteral("fractalNoise")},
                           {QStringLiteral("baseFrequency"), number(qMax(s.dryInkGrain, 0.0), Render::k_valueDecimals)},
                           {QStringLiteral("numOctaves"), QString::number(k_dryInkOctaves)},
-                          {QStringLiteral("seed"), QString::number(a.styleSeed % k_noiseSeeds)},
+                          {QStringLiteral("seed"), QString::number(seed % k_noiseSeeds)},
                           {QStringLiteral("result"), QStringLiteral("pmNoise")}},
                          {}});
     f.primitives.append({QStringLiteral("feColorMatrix"),
@@ -1147,9 +1096,9 @@ Render::Filter dryInkFilter(const ObjectRecord& a)
 }
 
 //! Dry ink's unworn middle, as a share of the outline's width.
-qreal dryInkUnworn(const ObjectRecord& a)
+qreal dryInkUnworn(const StyleProperties& s)
 {
-    return qBound(0, a.style.dryInkCore, 100) / 100.0;
+    return qBound(0, s.dryInkCore, 100) / 100.0;
 }
 
 const std::array<LineInfo, int(StyleProperties::k_lastLine) + 1> k_lines{{
@@ -1748,7 +1697,7 @@ bool hasOutline(const ObjectRecord& a)
 QPainterPath ink(const ObjectRecord& a, const QPainterPath& silhouette)
 {
     const auto fn = lineInfo(a.style.line).ink;
-    return fn && !silhouette.isEmpty() ? fn(a, silhouette) : QPainterPath();
+    return fn && !silhouette.isEmpty() ? fn(a.style, outlineModel(a, silhouette), a.styleSeed) : QPainterPath();
 }
 
 qreal styleMargin(const ObjectRecord& a)
@@ -1759,7 +1708,7 @@ qreal styleMargin(const ObjectRecord& a)
     const TextureInfo& texture = textureInfo(a.texture.kind);
     const qreal        shadow  = shadowReach(a.effects.shadow);
     const qreal        rough   = texture.reach ? texture.reach(a.texture) : 0.0;
-    return qMax((line.inkReach ? line.inkReach(a) : 0.0) + rough, shadow + rough);
+    return qMax((line.inkReach ? line.inkReach(a.style) : 0.0) + rough, shadow + rough);
 }
 
 }  // namespace Geometry

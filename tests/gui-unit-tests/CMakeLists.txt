@@ -45,6 +45,7 @@ add_executable(platemaker-gui-tests
     ${CMAKE_SOURCE_DIR}/widgets/objectrecord/shapes.cpp
     ${CMAKE_SOURCE_DIR}/widgets/objectrecord/styles.cpp
     ${CMAKE_SOURCE_DIR}/widgets/objectrecord/edgewalk.cpp
+    ${CMAKE_SOURCE_DIR}/widgets/objectrecord/outline.cpp
     ${CMAKE_SOURCE_DIR}/widgets/objectrecord/silhouette.cpp
     ${CMAKE_SOURCE_DIR}/widgets/objectrecord/lettering.cpp
     ${CMAKE_SOURCE_DIR}/widgets/objectrecord/recordpainter.cpp

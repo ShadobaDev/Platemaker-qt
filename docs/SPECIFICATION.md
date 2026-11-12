@@ -134,7 +134,8 @@ end's far point the tip (`Tails.ATipEndsAsItSays`). With `breaks` the spine runs
 that many points, evenly spaced on its course and moved across it by `jog` per cent of its length, to
 either side in turn, the first clockwise unless `clockwise` is off; the ribbon has sharp turns there
 (`brokenRibbon()`, `Tails.ABrokenTailZigzagsThroughItsBreaks`). `silhouetteParts()` gives the
-balloon and each drawn tail apart; `silhouette()` is their union. A tail whose look is edited makes it the
+balloon and each drawn tail apart; `silhouette()` is their union. A Round or Cut end is reported by the tail
+to the outline the lines take (below). A tail whose look is edited makes it the
 balloon's `TailsProperties::nextLook`, which *Add tail* gives the new one.
 
 **With parameters of its own** (the Box's `cornerRadius` is the worked example): each parameter is a
@@ -275,20 +276,27 @@ one previews through the library (`hasFilter()`), and `styleMargin()` adds its r
 Rough is the worked example: four `rough…` fields, the defaults the Marker look's, and the Ink look a
 built-in preset (`inkRough()`).
 
-A line that follows the outline walks it by arc length (`EdgeWalk`, `edgeWalks()` in `edgewalk.*`) and
-varies what it lays there with `smoothNoise()`, seeded from `styleSeed`, so it stays put while the
-balloon is edited and *Re-roll* deals it again. The brush (`brushInk()`) is the example: ribbons about
+A line takes its numbers (`StyleProperties`), the **outline model** and the balloon's seed, never the record
+(`LineInfo::ink`). The model (`outline.hpp`, built by `outlineModel()` in `silhouette.cpp`) is the silhouette
+and its parts, each closed edge walked by arc length (`EdgeWalk`, `edgewalk.*`), with what a line would
+otherwise guess: the corners, measured once (`outline.cpp`: a turn of 35° or more, `k_cornerTurn`, with the
+edge's way either side), what covers each part's edge, and the ends the tails report (a Round or Cut end
+where it lies, a round one with no corner on it). A line varies what it lays along the edge with
+`smoothNoise()`, seeded from `styleSeed`, so it stays put while the balloon is edited and *Re-roll* deals it
+again. The brush (`brushInk()`) is the example: ribbons about
 the edge, as wide as the outline (the line's own `strokeWidth`, not a number of its own). The dry brush
 (`drybrushInk()`) is a thin core (`drybrushCore` of the width), the outline mitred so a point stays one,
 always whole so the fill is never open; and hairs either side, thin ribbons in lanes, gone where the
 lane's noise is over a level that rises from `drybrushDryness` by the core towards bone dry at the line's
-edge. The core follows the joined silhouette, the hairs each part of it (`silhouetteParts()`: the
+edge. The core follows the joined silhouette, the hairs each part of it (the model's parts: the
 balloon, each tail) on its own edge: where that edge goes under another part they run on, a few
 half-widths at most, so a tail's root is a natural hatch and no corner. They run between a part's
 corners, never round one: at a convex corner they run on straight and cross into a hatch, at a point (a
 tail's tip) they close on the core, and at a concave one they run on straight until the other side's core
 stops them. Round a bend tighter than a hair is far from the edge (a round tail end) the hair would cross
-the bend's centre and fold, so it fades away there (`bendFade()`). Nothing is subtracted: every ring winds one way and the winding rule unites them;
+the bend's centre and fold, so it fades away there (`bendFade()`). The sketch (`sketchInk()`) lifts its pen
+at a corner and either side of a round end, which it goes round on the outline itself, its strokes losing
+their stiffness and their offset before it (`k_roundEase`). Nothing is subtracted: every ring winds one way and the winding rule unites them;
 `loopedNoise()` lays a whole number of the noise's spans round the loop (`smoothNoise()`'s period), so it
 has no seam.
 

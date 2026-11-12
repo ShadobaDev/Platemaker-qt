@@ -1,4 +1,5 @@
 #include "mainwindow.hpp"
+#include "history.hpp"
 #include "profileimpact.hpp"
 #include "ui_mainwindow.h"
 #include "project.hpp"
@@ -58,11 +59,11 @@ void MainWindow::bindWorkspaceHistory(QWidget& window)
     // A modal window keeps the main window's Undo / Redo shortcuts from firing, so it carries its own.
     auto* undo = new QAction(&window);
     undo->setShortcut(QKeySequence::Undo);
-    connect(undo, &QAction::triggered, m_workspaceUndoStack, &QUndoStack::undo);
+    connect(undo, &QAction::triggered, m_workspaceHistory->stack(), &QUndoStack::undo);
     window.addAction(undo);
     auto* redo = new QAction(&window);
     redo->setShortcut(QKeySequence::Redo);
-    connect(redo, &QAction::triggered, m_workspaceUndoStack, &QUndoStack::redo);
+    connect(redo, &QAction::triggered, m_workspaceHistory->stack(), &QUndoStack::redo);
     window.addAction(redo);
 }
 

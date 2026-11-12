@@ -78,7 +78,7 @@ Requires libplatemaker **0.7.0**.
   editor share and which outlives their windows. **Undo takes you to what it changed:** the window comes
   to the front and the object is selected and scrolled into view; in the project panel, the tab and the
   box that changed are outlined. Undoing a profile, template or project-name change opens its list
-  on that row.
+  on that row. Each history keeps 20 steps (was 10).
 - **Colour correction:** the Grade tool's *Brightness & contrast* and *Saturation*, applied live and in
   the render. A page can be excluded from it. The workflow card's **−** removes the grade.
 - **The status bar says what will not render as meant:** objects with no page under them, and

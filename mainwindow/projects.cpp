@@ -1,7 +1,6 @@
 #include "mainwindow.hpp"
 #include "ui_mainwindow.h"
 #include "project.hpp"
-#include "workspacesnapshotcommand.hpp"
 #include "canvasprofiledialog.hpp"
 #include "managecanvasprofilesdialog.hpp"
 #include "manageoutputprofilesdialog.hpp"
@@ -36,6 +35,8 @@
 #include <QThread>
 #include <QUndoGroup>
 #include <QUndoStack>
+
+#include "history.hpp"
 #include <QUrl>
 
 #include <algorithm>
@@ -254,7 +255,7 @@ int MainWindow::projectIndexOf(const QDockWidget *dock) const
 // Project dock management
 // ---------------------------------------------------------------------------
 
-QUndoStack* MainWindow::historyFor(int projectIndex)
+History* MainWindow::historyFor(int projectIndex)
 {
     const QString uid = QString::fromStdString(
         m_workspace.projectItems[static_cast<std::size_t>(projectIndex)].uid);
@@ -263,13 +264,12 @@ QUndoStack* MainWindow::historyFor(int projectIndex)
     if (it != m_projectHistories.constEnd())
         return it.value();
 
-    // Depth 10, as the project history has always had: deep enough to undo a train of thought, shallow
-    // enough that a chapter's worth of snapshots never accumulates.
-    auto* stack = new QUndoStack(this);
-    stack->setUndoLimit(10);
-    m_undoGroup->addStack(stack);
-    m_projectHistories.insert(uid, stack);
-    return stack;
+    // History::k_depth deep: enough to undo a train of thought, and a step holds one project's state at
+    // most, so a chapter's worth of them does not weigh.
+    auto* history = new History(this);
+    m_undoGroup->addStack(history->stack());
+    m_projectHistories.insert(uid, history);
+    return history;
 }
 
 void MainWindow::dropHistoryFor(const QString& projectUid)
@@ -277,8 +277,7 @@ void MainWindow::dropHistoryFor(const QString& projectUid)
     const auto it = m_projectHistories.constFind(projectUid);
     if (it == m_projectHistories.constEnd())
         return;
-    // removeStack() reparents to the stack itself, so it has to be deleted deliberately.
-    m_undoGroup->removeStack(it.value());
+    m_undoGroup->removeStack(it.value()->stack());
     delete it.value();
     m_projectHistories.erase(it);
 }
@@ -311,7 +310,7 @@ void MainWindow::openProjectDock(int projectIndex)
     newDock->setAllowedAreas(Qt::LeftDockWidgetArea | Qt::TopDockWidgetArea | Qt::BottomDockWidgetArea);
     const QString cacheDir = workspaceCacheDir();
     auto* projectWidget = new Project(projectIndex, m_workspace, cacheDir,
-                                      historyFor(projectIndex), newDock);
+                                      historyFor(projectIndex), m_workspaceHistory, newDock);
 
     // Text & bubbles: the project needs to know where the workspace file lives (its `overlays/` folder
     // is written beside it) and which authoring records are its own. The records travel back here on
@@ -376,13 +375,9 @@ void MainWindow::openProjectDock(int projectIndex)
             editor->selectStrip();
         editor->setTool(toolId);
     });
-    // A workspace-level edit made from this dock (canvas-profile content, output format) belongs on
-    // the workspace undo timeline — push it there from the before/after snapshots the project sends.
-    connect(projectWidget, &Project::workspaceEditCommitted, this,
-            [this](const QString& text, const QString& before, const QString& after) {
-                m_workspaceUndoStack->push(new WorkspaceSnapshotCommand(this, before, after, text));
-                emit workspaceChanged();
-            });
+    // A workspace-level edit made from this dock (canvas-profile content, output format) is on the
+    // workspace's timeline (the project records it there); every view of the workspace follows it.
+    connect(projectWidget, &Project::workspaceEdited, this, &MainWindow::workspaceChanged);
     // Keep this dock's palette-derived views (output combo, assigned-canvas list) in step with every
     // workspace-level change, this dock's own included. The connection is auto-removed when the widget
     // is destroyed, so no manual bookkeeping is needed.
@@ -572,10 +567,11 @@ void MainWindow::reserveRoomForDocks()
     // are what need the height, and they do not depend on the files.
     Platemaker::Models::Workspace scratch;
     scratch.projectItems.emplace_back();
-    QUndoStack history;
+    History history;
+    History workspaceHistory;
 
     QDockWidget project(this);
-    project.setWidget(new Project(0, scratch, QString(), &history, &project));
+    project.setWidget(new Project(0, scratch, QString(), &history, &workspaceHistory, &project));
     installDockTitleBar(&project);
     QDockWidget strip(this);
     strip.setWidget(new StripEdit::Editor(*m_presets, &strip));
@@ -687,7 +683,7 @@ void MainWindow::openStripEditorDock(int projectIndex)
         }
         if (idx < 0 || idx >= int(m_workspace.projectItems.size()))
             return;
-        m_undoGroup->setActiveStack(historyFor(idx));
+        m_undoGroup->setActiveStack(historyFor(idx)->stack());
         // Looking at a chapter's strip is looking at that chapter, for the status bar as much as for
         // Ctrl+Z — otherwise the bar would go on describing whichever project dock was raised last.
         m_activeProjectIndex = idx;

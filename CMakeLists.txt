@@ -39,11 +39,11 @@ qt_add_executable(Platemaker
     # Project — class split across per-concern .cpp (same Project class).
     widgets/project/project.cpp widgets/project/project.hpp
     widgets/project/input.cpp widgets/project/output.cpp
-    widgets/project/projectsnapshotcommand.cpp widgets/project/projectsnapshotcommand.hpp
-    widgets/project/overlaysnapshotcommand.cpp widgets/project/overlaysnapshotcommand.hpp
     widgets/project/overlaystate.hpp
-    widgets/project/workspacesnapshotcommand.cpp widgets/project/workspacesnapshotcommand.hpp
     widgets/project/project.ui
+
+    # The undo history: one timeline, its scopes, one kind of step (QtGui only, so the unit tests build it).
+    widgets/history/history.cpp widgets/history/history.hpp
 
     # Widgets / dialogs — each in its own folder under widgets/ (.cpp/.hpp/.ui together).
     widgets/imagetile/imagetile.cpp widgets/imagetile/imagetile.hpp widgets/imagetile/imagetile.ui
@@ -166,6 +166,7 @@ target_include_directories(Platemaker PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/app/menubaricontextstyle
     ${CMAKE_CURRENT_SOURCE_DIR}/mainwindow
     ${CMAKE_CURRENT_SOURCE_DIR}/widgets/project
+    ${CMAKE_CURRENT_SOURCE_DIR}/widgets/history
     ${CMAKE_CURRENT_SOURCE_DIR}/widgets/imagetile
     ${CMAKE_CURRENT_SOURCE_DIR}/widgets/canvasprofiledialog
     ${CMAKE_CURRENT_SOURCE_DIR}/widgets/managecanvasprofilesdialog

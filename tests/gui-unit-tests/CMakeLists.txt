@@ -38,6 +38,7 @@ add_executable(platemaker-gui-tests
     test_workspace_lock.cpp
     test_resize.cpp
     test_text_fit.cpp
+    test_history.cpp
     ${CMAKE_SOURCE_DIR}/widgets/objectrecord/objectrecord.cpp
     # The SVG a bubble is written to, and the geometry it is written from: both Qt6::Gui only, so the
     # rule above still holds — and the import's premise is worth a test of its own.
@@ -59,6 +60,8 @@ add_executable(platemaker-gui-tests
     ${CMAKE_SOURCE_DIR}/widgets/workspacefolder/workspacefolder.cpp
     ${CMAKE_SOURCE_DIR}/widgets/workspacefolder/workspacelock.cpp
     ${CMAKE_SOURCE_DIR}/widgets/workspacefolder/fontfiles.cpp
+    # The undo history: QUndoStack is QtGui's, nothing else.
+    ${CMAKE_SOURCE_DIR}/widgets/history/history.cpp
 )
 
 target_include_directories(platemaker-gui-tests PRIVATE
@@ -67,6 +70,7 @@ target_include_directories(platemaker-gui-tests PRIVATE
     # carriesGroup(), which is header-only and QWidget-free so the rule can be tested.
     ${CMAKE_SOURCE_DIR}/widgets/stripeditor
     ${CMAKE_SOURCE_DIR}/widgets/workspacefolder
+    ${CMAKE_SOURCE_DIR}/widgets/history
     # The colour adjustments read libplatemaker's ColourCorrection, which is header-only. Its include path
     # and not its target: linking the target would make every test run need the library's DLL on PATH,
     # including the one gtest_discover_tests starts at build time.

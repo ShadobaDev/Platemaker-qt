@@ -4,8 +4,7 @@
 #include "recordsvg.hpp"
 #include "ui_project.h"
 #include "imagetile.hpp"
-#include "projectsnapshotcommand.hpp"
-#include "overlaysnapshotcommand.hpp"
+#include "history.hpp"
 #include "canvasprofiledialog.hpp"
 #include "dockattention.hpp"
 #include "outputformatoptionswidget.hpp"
@@ -52,7 +51,6 @@
 #include <QSettings>
 #include <QToolButton>
 #include <QKeySequence>
-#include <QUndoStack>
 #include <QUrl>
 
 #include <algorithm>
@@ -116,19 +114,86 @@ bool isInternalReorder(const QMimeData* mime)
 
 } // namespace
 
+// ---------------------------------------------------------------------------
+// The project's two scopes on its history
+// ---------------------------------------------------------------------------
+
+/**
+ * \brief The project's own state: pages, profile links, outputs, the output directory, the grade — every
+ *        part of ProjectEditor::snapshot() **but the overlays**, which are the Lettering scope's.
+ *
+ * The library's snapshot carries the overlays, so they are set aside while it is taken (a ProjectItem cannot
+ * be copied) and put straight back: the two scopes stay disjoint, and an edit to a bubble does not read as a
+ * change of the project.
+ */
+class Project::ProjectScope : public ScopeOf<QString>
+{
+public:
+    explicit ProjectScope(Project& project) : m_project(project) {}
+    [[nodiscard]] QString id() const override { return QLatin1String(History::k_project); }
+
+protected:
+    [[nodiscard]] QString state() const override
+    {
+        ProjectItem& item = m_project.m_workspace.projectItems[m_project.m_projectIndex];
+        struct Aside   // back in place however the snapshot ends
+        {
+            std::vector<StripOverlay>& slot;
+            std::vector<StripOverlay>  kept;
+            ~Aside() { slot.swap(kept); }
+        } aside{item.getStripOverlays(), {}};
+        aside.slot.swap(aside.kept);
+        return QString::fromStdString(Platemaker::Infrastructure::ProjectEditor(item).snapshot());
+    }
+    void install(const QString&, const QString& to, const QVariant& note) override
+    {
+        m_project.applyProjectSnapshot(to, static_cast<EditScope>(note.toInt()));
+    }
+
+private:
+    Project& m_project;
+};
+
+/**
+ * \brief The project's text & bubbles: the overlays and their authoring records, which move together —
+ *        the overlay says which file renders, its record what the file contains.
+ */
+class Project::LetteringScope : public ScopeOf<OverlayState>
+{
+public:
+    explicit LetteringScope(Project& project) : m_project(project) {}
+    [[nodiscard]] QString id() const override { return QLatin1String(History::k_lettering); }
+
+protected:
+    [[nodiscard]] OverlayState state() const override { return m_project.overlayState(); }
+    void install(const OverlayState&, const OverlayState& to, const QVariant&) override
+    {
+        m_project.restoreOverlayState(to);
+    }
+
+private:
+    Project& m_project;
+};
+
 Project::Project(int projectIndex,
                  Workspace& workspace,
                  const QString& cacheDir,
-                 QUndoStack* history,
+                 History* history,
+                 History* workspaceHistory,
                  QWidget* parent)
     : QWidget(parent)
     , ui(new Ui::Project)
     , m_projectIndex(projectIndex)
     , m_workspace(workspace)
     , m_cacheDir(cacheDir)
-    , m_undoStack(history)
+    , m_history(history)
+    , m_workspaceHistory(workspaceHistory)
+    , m_projectScope(std::make_unique<ProjectScope>(*this))
+    , m_letteringScope(std::make_unique<LetteringScope>(*this))
 {
     ui->setupUi(this);
+    m_history->add(m_projectScope.get());
+    m_history->add(m_letteringScope.get());
 
     //--- Input tab ---
     // Input files selection
@@ -182,9 +247,6 @@ Project::Project(int projectIndex,
     ui->lineEditInputNameRegex->setPlaceholderText(comingSoon);
     ui->lineEditPrependedRegex->setPlaceholderText(comingSoon);
     ui->lineEditAppendedRegex->setPlaceholderText(comingSoon);
-
-    // Undo / redo for the input-list edits wired above (add / remove / clear / reorder / sort).
-    setupUndo();
 
     // Go to output tab
     connect(ui->pushButtonGoToOutput, &QPushButton::clicked,
@@ -298,31 +360,23 @@ void Project::onFilesCheckedOnDisk()
 Project::~Project()
 {
     m_diskCheck.cancel();   // files not looked at yet are not looked at for nothing
+    // The history outlives this widget (it is the project's, for the session): its steps skip these scopes
+    // until the dock is opened again and a new widget puts its own back.
+    if (m_history) {
+        m_history->remove(m_projectScope.get());
+        m_history->remove(m_letteringScope.get());
+    }
     delete ui;
+}
+
+QUndoStack* Project::undoStack() const
+{
+    return m_history ? m_history->stack() : nullptr;
 }
 
 // ---------------------------------------------------------------------------
 // Undo / redo
 // ---------------------------------------------------------------------------
-
-void Project::setupUndo()
-{
-}
-
-QString Project::fullSnapshot()
-{
-    // The library's project snapshot plus this GUI's authoring records for the same project. Undo has to
-    // move both together: the overlay says *which* bitmap renders, its ObjectRecord says what that
-    // bitmap contains, and restoring one without the other would leave the strip showing text the render
-    // does not bake. The lib snapshot is itself JSON, carried here as a string — the library owns its
-    // format and this wrapper has no business parsing it.
-    auto& item = m_workspace.projectItems[m_projectIndex];
-    const QJsonObject j{
-        {QStringLiteral("project"),
-         QString::fromStdString(Platemaker::Infrastructure::ProjectEditor(item).snapshot())},
-    };
-    return QString::fromUtf8(QJsonDocument(j).toJson(QJsonDocument::Compact));
-}
 
 void Project::applyProjectSnapshot(const QString& snapshot, EditScope scope)
 {
@@ -332,16 +386,10 @@ void Project::applyProjectSnapshot(const QString& snapshot, EditScope scope)
     // sanitize() at the next Refresh/render, exactly as for a live reorder.
     auto& item = m_workspace.projectItems[m_projectIndex];
 
-    // **The overlays are not this step's to move.** The library's snapshot carries them because they are
-    // part of the project, so they are lifted out and put back around the restore — otherwise undoing a
-    // page reorder would silently rewind every bubble to where it stood at the time of the reorder,
-    // throwing away the lettering done since.
+    // **The overlays are not this scope's.** The snapshot was taken without them (ProjectScope), and the
+    // library's restore would install that empty list: they are kept round it, as the Lettering scope has them.
     auto overlays = item.getStripOverlays();
-
-    const QJsonObject j = QJsonDocument::fromJson(snapshot.toUtf8()).object();
-    Platemaker::Infrastructure::ProjectEditor(item).restore(
-        j.value(QStringLiteral("project")).toString().toStdString());
-
+    Platemaker::Infrastructure::ProjectEditor(item).restore(snapshot.toStdString());
     item.getStripOverlays() = std::move(overlays);
 
     populate();
@@ -417,7 +465,8 @@ void Project::restoreOverlayState(const OverlayState& recorded)
     // feed two lines down is what consumes the arming.
     emit historyStepApplied(EditScope::StripEditor, touched);
 
-    // The records are back; the files on disk still hold what the step being undone wrote.
+    // The records are back; the files on disk still hold what the step being undone wrote. They are made
+    // from the state, which is already right whatever the disk says.
     rewriteOverlayAssets(touched);
     emit recordsChanged(m_records);
 
@@ -427,26 +476,14 @@ void Project::restoreOverlayState(const OverlayState& recorded)
 
 void Project::commitOverlayEdit(const QString& text, const std::function<void()>& mutate)
 {
-    const OverlayState before = overlayState();
-    mutate();
-    OverlayState after = overlayState();
-
-    if (after == before)
-        return;   // no effective change — don't pollute the history
-
-    m_undoStack->push(new OverlaySnapshotCommand(this, before, std::move(after), text));
+    m_history->edit(text, {{History::k_lettering}}, mutate);
 }
 
 void Project::commitEdit(const QString& text, const std::function<void()>& mutate, EditScope scope)
 {
-    const QString before = fullSnapshot();
-    mutate();                                   // the existing operation (does its own populate/emit)
-    QString after = fullSnapshot();
-
-    if (after == before)                        // no effective change (e.g. re-sorting sorted inputs)
-        return;                                 // — don't pollute the undo history
-
-    m_undoStack->push(new ProjectSnapshotCommand(this, before, std::move(after), text, scope));
+    // The operation does its own populate()/projectModified(); a no-op one (re-sorting sorted inputs)
+    // records nothing.
+    m_history->edit(text, {{History::k_project, int(scope)}}, mutate);
     // Any edit may put pages out of sync (a profile unlinked, a page moved) or back in, and the tiles show
     // it at once, as an undo of it does through populate(). In memory: no file is read.
     refreshTileStatuses();
@@ -455,18 +492,9 @@ void Project::commitEdit(const QString& text, const std::function<void()>& mutat
 void Project::commitWorkspaceEdit(const QString& text, const std::function<void()>& mutate)
 {
     // A workspace-level edit triggered from this dock (canvas-profile content edit, output-format
-    // edit). Bracket it with the workspace-metadata snapshot and hand both ends to MainWindow, which
-    // owns the workspace undo stack and refreshes every open dock on restore.
-    const QString before = QString::fromStdString(
-        Platemaker::Infrastructure::WorkspaceEditor(m_workspace).snapshotMeta());
-    mutate();
-    const QString after = QString::fromStdString(
-        Platemaker::Infrastructure::WorkspaceEditor(m_workspace).snapshotMeta());
-
-    if (after == before)
-        return;
-
-    emit workspaceEditCommitted(text, before, after);
+    // edit): on the workspace's timeline, as profiles are shared; MainWindow refreshes every open dock.
+    if (m_workspaceHistory && m_workspaceHistory->edit(text, {{History::k_workspace}}, mutate))
+        emit workspaceEdited();
 }
 
 void Project::populate()
@@ -864,6 +892,7 @@ void Project::rewriteOverlayAssets(const QStringList& uids)
     if (dir.isEmpty())
         return;
 
+    QStringList failed;
     for (const auto& o : m_workspace.projectItems[m_projectIndex].getStripOverlays()) {
         const QString uid = QString::fromStdString(o.uid);
         const auto    it  = m_records.constFind(uid);
@@ -874,8 +903,22 @@ void Project::rewriteOverlayAssets(const QStringList& uids)
             continue;   // untouched by the step, and its file is there: leave it exactly as it is
         // The path cannot move: a balloon keeps its own file, and a lettered picture's wrapper is named by
         // its content, which the restored record reproduces.
-        (void)Svg::writeFile(dir, it.value(), asset);
+        if (Svg::writeFile(dir, it.value(), asset).isEmpty())
+            failed << QDir::toNativeSeparators(asset);
     }
+    warnUnwritten(failed);
+}
+
+void Project::warnUnwritten(const QStringList& files)
+{
+    // The edit stands: the record is right, and the file is made from it again by the next edit or undo
+    // that touches it. Until then the render reads what the file still holds, which the artist must know.
+    if (files.isEmpty())
+        return;
+    QMessageBox::warning(this, tr("Text & bubbles"),
+                         tr("Could not write %n bubble file(s); the strip may render them as they were:\n%1",
+                            "", int(files.size()))
+                             .arg(files.join(QLatin1Char('\n'))));
 }
 
 void Project::importOverlayArtwork(const QString& sourceFile, double xFrac, double yFrac,
@@ -999,6 +1042,7 @@ void Project::applyOverlays(std::vector<Platemaker::Models::StripOverlay> overla
         return;
 
     const QString dir = RecordStore::ensureOverlaysDir(m_workspacePath);
+    QStringList   failed;
 
     // Re-write only what actually changed. A move or a reorder touches no artwork, so the common
     // gesture writes no files at all; a text or styling edit rewrites exactly one bubble.
@@ -1021,8 +1065,10 @@ void Project::applyOverlays(std::vector<Platemaker::Models::StripOverlay> overla
         const QString asset = dir.isEmpty()
             ? QString{}
             : Svg::writeFile(dir, it.value(), shared ? QString{} : owned);
-        if (asset.isEmpty())
+        if (asset.isEmpty()) {
+            failed << QDir::toNativeSeparators(owned);
             continue;                                   // keep the previous asset rather than lose it
+        }
 
         o.assetPath = asset.toStdString();
         try {
@@ -1033,6 +1079,7 @@ void Project::applyOverlays(std::vector<Platemaker::Models::StripOverlay> overla
             o.sha256.clear();
         }
     }
+    warnUnwritten(failed);
 
     commitOverlayEdit(undoText, [&] {
         auto& item = m_workspace.projectItems[m_projectIndex];

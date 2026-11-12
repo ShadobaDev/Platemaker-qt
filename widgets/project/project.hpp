@@ -10,6 +10,7 @@
 #include <QStringList>
 
 #include <functional>
+#include <memory>
 #include <string>
 #include <vector>
 
@@ -17,11 +18,13 @@
 #include <platemaker/models/workspace.hpp>
 
 #include <QFutureWatcher>
+#include <QPointer>
 
 namespace Ui { class Project; }
 class QListWidgetItem;
 class OutputFormatOptionsWidget;
 class QVBoxLayout;
+class History;
 class QUndoStack;
 class QEvent;
 class QDragEnterEvent;
@@ -70,13 +73,17 @@ public:
      *                 and text & bubbles. One history, because one document is being edited — an edit
      *                 made in the strip editor and an edit made here are steps in the same session of
      *                 work, and a Ctrl+Z that skips over the last one to undo the one before it is a
-     *                 worse surprise than a Ctrl+Z whose effect is in the other window.
+     *                 worse surprise than a Ctrl+Z whose effect is in the other window. This project's two
+     *                 scopes (History::k_project, History::k_lettering) are on it while the widget lives.
+     * \param workspaceHistory Where a workspace-level edit made from this dock is recorded (a canvas
+     *                 profile's content, the output format): the workspace's timeline, as profiles are shared.
      * \param parent The parent widget, if any.
      */
     explicit Project(int projectIndex,
                      Platemaker::Models::Workspace& workspace,
                      const QString& cacheDir,
-                     QUndoStack* history,
+                     History* history,
+                     History* workspaceHistory,
                      QWidget *parent = nullptr);
     ~Project();         //!< Destroys the Project widget and cleans up resources.
 
@@ -181,6 +188,8 @@ public:
      * \param uids The overlays the step changed (movedUids()).
      */
     void rewriteOverlayAssets(const QStringList& uids);
+    //! Tells the artist which bubble files could not be written, if any: the render reads them as they were.
+    void warnUnwritten(const QStringList& files);
 
     /**
      * \brief Returns the map of records associated with this project.
@@ -252,19 +261,17 @@ public:
 
 
     // --- Undo / redo ---
-    // Everything this project records goes on one QUndoStack; MainWindow owns it, adds it to a
-    // QUndoGroup and makes it active while either of this project's docks is in front. Workspace-scope
-    // edits triggered from here (canvas-profile *content* edit, output-format edit) are bracketed with
-    // WorkspaceEditor::snapshotMeta and forwarded to MainWindow via workspaceEditCommitted so they land
-    // on the workspace timeline instead.
+    // Everything this project records goes on one History (history.hpp); MainWindow owns it, adds its stack
+    // to a QUndoGroup and makes it active while either of this project's docks is in front. Workspace-scope
+    // edits triggered from here (canvas-profile *content* edit, output-format edit) go on the workspace's.
     /**
      * \brief Returns the undo stack associated with this project.
      * \return A pointer to the QUndoStack used for undo/redo operations in this project.
      */
-    [[nodiscard]] QUndoStack* undoStack() const { return m_undoStack; }
+    [[nodiscard]] QUndoStack* undoStack() const;
     /**
      * \brief Applies a snapshot of the project state, restoring everything **except** the overlays.
-     * \param snapshot The snapshot to apply.
+     * \param snapshot ProjectEditor::snapshot() of the project, its overlays left out (the Project scope's).
      * \param scope    Where the step is seen; announced through historyStepApplied().
      */
     void applyProjectSnapshot(const QString& snapshot, EditScope scope);
@@ -323,7 +330,7 @@ signals:
      * \param before The workspace metadata snapshot before the edit.
      * \param after The workspace metadata snapshot after the edit.
      */
-    void workspaceEditCommitted(const QString& text, const QString& before, const QString& after);
+    void workspaceEdited();
 
     /**
      * \brief This project's authoring records changed — MainWindow folds them back into its per-project cache.
@@ -369,8 +376,8 @@ private slots:
     void onRefreshFiles();                          //!< Re-scan inputs+outputs on disk, refresh statuses/tiles
 
 private:
-    //! Project state as this GUI defines it: the library's snapshot plus the authoring records.
-    [[nodiscard]] QString fullSnapshot();
+    class ProjectScope;
+    class LetteringScope;
 
     void addImageTile(const Platemaker::Models::InputFile& file);           //!< Creates an ImageTile widget for an input file and inserts it into the input list.
     void addOutputImageTile(const Platemaker::Models::OutputFile& file);    //!< Creates an ImageTile widget for an existing output file and inserts it into the output list.
@@ -423,13 +430,10 @@ private:
      */
     void refreshTileStatuses();
 
-    void setupUndo();   //!< Creates this project's undo stack (depth 10). MainWindow adds it to the group.
 
     /**
-     * \brief Records one undoable **project-scope** edit onto this project's stack.
-     *
-     * Brackets \p mutate with ProjectEditor::snapshot() before/after and pushes a
-     * ProjectSnapshotCommand if the project actually changed (a no-op edit records nothing).
+     * \brief Records one undoable **project-scope** edit onto this project's history: the
+     *        History::k_project scope, through History::edit() (a no-op edit records nothing).
      * \param text   Short label for the operation (shown in the undo action's text).
      * \param mutate The operation to perform (add / clear / reorder / sort / link / output selection /
      *               output dir). It still does its own populate()/projectModified().
@@ -439,10 +443,11 @@ private:
     void commitEdit(const QString& text, const std::function<void()>& mutate, EditScope scope);
 
     /**
-     * \brief Records one undoable **text & bubbles** edit — same history, other half of the document.
+     * \brief Records one undoable **text & bubbles** edit — same history, other scope
+     *        (History::k_lettering).
      *
-     * The same bracket as commitEdit() over a much smaller snapshot, which is the reason the two are
-     * separate methods: restoring the lettering does not have to reload the project, and neither can
+     * The same bracket as commitEdit() over a much smaller state, which is the reason the two are
+     * separate scopes: restoring the lettering does not have to reload the project, and neither can
      * tread on the other's half. Which half an operation belongs to is decided by what it changes, not
      * by which window it was triggered from: clearing every bubble is a project-dock button and still
      * belongs here.
@@ -453,8 +458,8 @@ private:
      * \brief Records one undoable **workspace-scope** edit triggered from this dock onto the workspace
      *        timeline (canvas-profile content edit, output-format edit).
      *
-     * Brackets \p mutate with WorkspaceEditor::snapshotMeta before/after and, if anything changed,
-     * emits workspaceEditCommitted so MainWindow pushes it onto the workspace undo stack.
+     * Records \p mutate on the workspace's History (History::k_workspace) and, if anything changed,
+     * emits workspaceEdited so MainWindow refreshes what shows the workspace.
      */
     void commitWorkspaceEdit(const QString& text, const std::function<void()>& mutate);
 
@@ -488,7 +493,10 @@ private:
     OutputFormatOptionsWidget* m_formatOptions = nullptr;   //!< Shared widget for editing the selected output profile's format/options.
     QVBoxLayout* m_workflowStack = nullptr;                  //!< Vertical stack of the Workflow tab's StageCards (built in the ctor, rebuilt by refreshWorkflowMap()).
     // Owned by MainWindow and alive for the session — see the constructor.
-    QUndoStack* m_undoStack = nullptr;      //!< This project's whole history.
+    QPointer<History> m_history;            //!< This project's whole history.
+    QPointer<History> m_workspaceHistory;   //!< The workspace's, for the workspace-level edits made here.
+    std::unique_ptr<ProjectScope>   m_projectScope;     //!< On m_history while this widget lives.
+    std::unique_ptr<LetteringScope> m_letteringScope;   //!< Likewise.
 };
 
 #endif // PROJECT_HPP

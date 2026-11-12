@@ -34,6 +34,7 @@ class QTreeWidgetItem;
 class QThread;
 class QToolButton;
 class QUndoGroup;
+class History;
 class QUndoStack;
 class Advisories;
 class ManageCanvasProfilesDialog;
@@ -61,9 +62,9 @@ public:
 
     /**
      * \brief Restores workspace-level metadata (profiles + project names) from a
-     *        WorkspaceEditor::snapshotMeta string and refreshes every view. Called by
-     *        WorkspaceSnapshotCommand on undo/redo. Project *contents* are untouched (they live on
-     *        each project's own undo stack).
+     *        WorkspaceEditor::snapshotMeta string and refreshes every view. Called by the Workspace scope
+     *        (WorkspaceScope) on undo/redo. Project *contents* are untouched (they live on each project's
+     *        own history).
      */
     void applyWorkspaceSnapshot(const QString& snapshot);
 
@@ -74,7 +75,7 @@ public:
      *
      * An open manager the step belongs to stays, and shows the row; one it does not belong to closes, and
      * the step's view opens once it has. What the step changed is the library's answer
-     * (WorkspaceEditor::metaChanges); the views are this window's. Called by WorkspaceSnapshotCommand.
+     * (WorkspaceEditor::metaChanges); the views are this window's. Called by the Workspace scope.
      */
     void showWorkspaceStep(const QString& from, const QString& to);
 
@@ -553,14 +554,12 @@ private:
     void retargetActiveProject(int preferred);
 
     // --- undo / redo ---
-    void setupUndo();   //!< Creates the QUndoGroup + workspace stack and wires the Edit-menu actionUndo/actionRedo to it.
+    void setupUndo();   //!< Creates the QUndoGroup + workspace history and wires the Edit-menu actionUndo/actionRedo to it.
 
     /**
      * \brief Records one undoable **workspace-scope** edit (profile CRUD, project rename, templates)
-     *        onto the workspace undo stack.
-     *
-     * Brackets \p mutate with WorkspaceEditor::snapshotMeta before/after and pushes a
-     * WorkspaceSnapshotCommand if anything changed. \p mutate does its own UI refresh / setDirty.
+     *        on the workspace's history (History::k_workspace); nothing if nothing changed. \p mutate does
+     *        its own UI refresh / setDirty.
      */
     void commitWorkspaceEdit(const QString& text, const std::function<void()>& mutate);
 
@@ -788,8 +787,9 @@ private:
     StripEdit::PresetStore *m_presets = nullptr;
     bool m_takeoverPromptOpen = false;          //!< Keeps the takeover prompt from stacking on itself.
 
-    // Undo/redo: a QUndoGroup holds one stack per open project plus the workspace stack; the active
-    // stack follows the visible tab in the workspace dock area (Ctrl+Z/Ctrl+Y route to it). Depth 10.
+    // Undo/redo: a QUndoGroup holds one history's stack per open project plus the workspace's; the active
+    // stack follows the visible tab in the workspace dock area (Ctrl+Z/Ctrl+Y route to it). Depth
+    // History::k_depth.
     QUndoGroup* m_undoGroup         = nullptr;  //!< Owns the per-context stacks; provides the Undo/Redo actions.
 
     /**
@@ -800,21 +800,22 @@ private:
      * Ctrl+Z reach past the last thing done to undo the one before it, which is a stranger thing to
      * explain than a Ctrl+Z whose effect is in the other window — and that one is answered instead by
      * taking the artist there (see `showDockAttention`). What a step covers is still decided per step:
-     * `ProjectSnapshotCommand` and `OverlaySnapshotCommand` each restore one half of the document and
-     * leave the other alone.
+     * the Project and Lettering scopes each restore one half of the document and leave the other alone.
      *
      * Owned here and never by a dock. Closing a project or its strip editor and opening it again finds
      * the history where it was left: a history that dies with a window is a history the artist loses by
      * tidying up. Keyed by uid rather than by index because removing a project shifts every index after
      * it, and a key that moves is not a key.
      */
-    QHash<QString, QUndoStack*> m_projectHistories;
+    QHash<QString, History*> m_projectHistories;
 
     //! This project's history, created on first use.
-    [[nodiscard]] QUndoStack* historyFor(int projectIndex);
+    [[nodiscard]] History* historyFor(int projectIndex);
     //! Forgets a removed project's history — there is nothing left for it to restore.
     void dropHistoryFor(const QString& projectUid);
-    QUndoStack* m_workspaceUndoStack = nullptr; //!< Workspace-scope history (profiles, project rename, templates).
+    History* m_workspaceHistory = nullptr;   //!< Workspace-scope history (profiles, project rename, templates).
+    class WorkspaceScope;
+    std::unique_ptr<WorkspaceScope> m_workspaceScope;   //!< The workspace's metadata, on m_workspaceHistory.
 
     /**
      * \brief Every standing advisory in the application — conditions, not events.

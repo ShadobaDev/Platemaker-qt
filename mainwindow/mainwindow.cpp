@@ -4,7 +4,6 @@
 #include "recordsvg.hpp"
 #include "ui_mainwindow.h"
 #include "project.hpp"
-#include "workspacesnapshotcommand.hpp"
 #include "canvasprofiledialog.hpp"
 #include "managecanvasprofilesdialog.hpp"
 #include "manageoutputprofilesdialog.hpp"
@@ -54,6 +53,8 @@
 #include <QToolButton>
 #include <QUndoGroup>
 #include <QUndoStack>
+
+#include "history.hpp"
 #include <QUrl>
 #include <QVBoxLayout>
 
@@ -653,9 +654,9 @@ void MainWindow::closeWorkspace()
     // its commands point at are destroyed just below. Dropped explicitly, because these stacks are
     // owned here and outlive the docks by design: left behind, they would keep Undo enabled for a
     // document that is no longer open.
-    for (QUndoStack *stack : std::as_const(m_projectHistories)) {
-        m_undoGroup->removeStack(stack);   // reparents to the stack itself
-        delete stack;
+    for (History *history : std::as_const(m_projectHistories)) {
+        m_undoGroup->removeStack(history->stack());
+        delete history;
     }
     m_projectHistories.clear();
 
@@ -674,8 +675,8 @@ void MainWindow::closeWorkspace()
     refreshProjectActions();
 
     // Drop the workspace-scope undo history (a new/closed workspace starts fresh).
-    if (m_workspaceUndoStack)
-        m_workspaceUndoStack->clear();
+    if (m_workspaceHistory)
+        m_workspaceHistory->stack()->clear();
 
     // Every advisory was about a project in the workspace being closed, so there is no condition left
     // for any of them to describe.
@@ -730,19 +731,45 @@ bool MainWindow::isWorkspaceModified() const
 // Undo / redo
 // ---------------------------------------------------------------------------
 
+/**
+ * \brief The workspace's own state: the profile palettes, their templates and the projects' names
+ *        (WorkspaceEditor::snapshotMeta), not the projects' contents, which are each project's.
+ */
+class MainWindow::WorkspaceScope : public ScopeOf<QString>
+{
+public:
+    explicit WorkspaceScope(MainWindow& window) : m_window(window) {}
+    [[nodiscard]] QString id() const override { return QLatin1String(History::k_workspace); }
+
+protected:
+    [[nodiscard]] QString state() const override
+    {
+        return QString::fromStdString(Platemaker::Infrastructure::WorkspaceEditor(m_window.m_workspace).snapshotMeta());
+    }
+    void install(const QString& from, const QString& to, const QVariant&) override
+    {
+        m_window.applyWorkspaceSnapshot(to);
+        m_window.showWorkspaceStep(from, to);
+    }
+
+private:
+    MainWindow& m_window;
+};
+
 void MainWindow::setupUndo()
 {
     m_undoGroup = new QUndoGroup(this);
 
-    // The workspace stack (profiles, project rename, templates). Per-project stacks are added to the
+    // The workspace history (profiles, project rename, templates). Per-project ones are added to the
     // group as their docks open (see openProjectDock).
-    m_workspaceUndoStack = new QUndoStack(this);
-    m_workspaceUndoStack->setUndoLimit(10);
+    m_workspaceHistory = new History(this);
+    m_workspaceScope   = std::make_unique<WorkspaceScope>(*this);
+    m_workspaceHistory->add(m_workspaceScope.get());
     // Every workspace-level change, from any dialog or dock, and each undo or redo of one, ends in
     // workspaceChanged(); this is where the views MainWindow owns follow it.
     connect(this, &MainWindow::workspaceChanged, this, &MainWindow::onWorkspaceChanged);
-    m_undoGroup->addStack(m_workspaceUndoStack);
-    m_undoGroup->setActiveStack(m_workspaceUndoStack);
+    m_undoGroup->addStack(m_workspaceHistory->stack());
+    m_undoGroup->setActiveStack(m_workspaceHistory->stack());
 
     // Wire the existing Undo/Redo actions (defined in the .ui, in the Edit menu) to the group.
     // The group always targets the *active* stack — whichever tab (a project dock, or the workspace
@@ -773,8 +800,8 @@ void MainWindow::setupUndo()
     // The workspace panel coming to the front makes the workspace stack active. Each project dock does
     // the symmetric thing for its own stack (openProjectDock).
     connect(ui->dockWidgetWorkspace, &QDockWidget::visibilityChanged, this, [this](bool visible) {
-        if (visible && m_undoGroup && m_workspaceUndoStack)
-            m_undoGroup->setActiveStack(m_workspaceUndoStack);
+        if (visible && m_undoGroup && m_workspaceHistory)
+            m_undoGroup->setActiveStack(m_workspaceHistory->stack());
     });
 }
 
@@ -875,17 +902,8 @@ void MainWindow::showWorkspaceStep(const QString& from, const QString& to)
 
 void MainWindow::commitWorkspaceEdit(const QString& text, const std::function<void()>& mutate)
 {
-    const QString before = QString::fromStdString(
-        Platemaker::Infrastructure::WorkspaceEditor(m_workspace).snapshotMeta());
-    mutate();
-    QString after = QString::fromStdString(
-        Platemaker::Infrastructure::WorkspaceEditor(m_workspace).snapshotMeta());
-
-    if (after == before)   // nothing workspace-level actually changed → no undo step
-        return;
-
-    m_workspaceUndoStack->push(new WorkspaceSnapshotCommand(this, before, std::move(after), text));
-    emit workspaceChanged();
+    if (m_workspaceHistory->edit(text, {{History::k_workspace}}, mutate))   // nothing changed → no step
+        emit workspaceChanged();
 }
 
 void MainWindow::onWorkspaceChanged()

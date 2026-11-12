@@ -7,7 +7,6 @@
 
 class QComboBox;
 class QFormLayout;
-class QLabel;
 class QPushButton;
 class QSpinBox;
 
@@ -23,9 +22,9 @@ class StretchSpin;
  * along by every preset and a page of marker balloons would wear one repeated wobble. It stays a bare
  * field on the record, written by whoever places a bubble and by nobody else.
  *
- * The flash's and the brush's rows are built from StyleProperties' field list, one spin per `flash…` or
- * `brush…` field, and shown only while that line is chosen. The texture is a group and a section of its
- * own (TextureEditor).
+ * Each kind's numbers are a section of StyleProperties (FlashParams…), whose rows are built from its
+ * section() and shown while a line that reads it is chosen (LineInfo::sections). The texture is a group and
+ * a section of its own (TextureEditor).
  */
 class StyleEditor : public PropertyGroupEditor
 {
@@ -58,16 +57,7 @@ private:
     QSpinBox*    m_strokeWidth  = nullptr;   //!< The line's width.
     PaintRows<StyleProperties> m_stroke;     //!< The line's paint.
     StretchSpin* m_stretch      = nullptr;   //!< The flash's core stretch, which reads "Auto (n %)".
-    FieldRows<StyleProperties> m_flash;   //!< One spin per `flash…` field. Lengths are whole pixels.
-    FieldRows<StyleProperties> m_brush;   //!< One spin per `brush…` field.
-    FieldRows<StyleProperties> m_drybrush;   //!< One spin per `drybrush…` field.
-    FieldRows<StyleProperties> m_dash;       //!< One spin per `dash…` field.
-    FieldRows<StyleProperties> m_multi;      //!< One spin per `multi…` field.
-    FieldRows<StyleProperties> m_sketch;     //!< One spin per `sketch…` field.
-    QComboBox* m_sketchWay = nullptr;        //!< The sketch's way round, a choice and not a spin.
-    FieldRows<StyleProperties> m_dryInk;     //!< One spin per `dryInk…` field.
-    QLabel* m_flashHeading = nullptr;        //!< Over the flash's rows, for an explosion.
-    QLabel* m_brushHeading = nullptr;        //!< Over the dry brush's rows, for an explosion.
+    SectionRows<StyleProperties> m_sections;   //!< Every kind's numbers; those of the line chosen shown.
 
     StyleProperties m_values;
     bool m_populating = false;
@@ -77,8 +67,6 @@ private:
     bool m_mixedWidth    = false;
     bool m_lineTouched   = false;
     bool m_widthTouched  = false;
-    bool m_mixedWay      = false;
-    bool m_wayTouched    = false;
 };
 
 }  // namespace StripEdit

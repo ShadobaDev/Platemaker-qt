@@ -29,24 +29,24 @@ constexpr int k_shapeIconScale = 4;
 constexpr char k_trContext[] = "StripEdit::ShapeEditor";
 
 #define PM_TR(s) QT_TRANSLATE_NOOP("StripEdit::ShapeEditor", s)
-const FieldRowSpec k_cornerRows[] = {
+const Fields::RowSpec k_cornerRows[] = {
     {"cornerRadius", PM_TR("Corner radius:"), 0, 500, " px",
      PM_TR("How round the corners are. Never more than half the shorter side, which makes the ends round.")},
 };
-const FieldRowSpec k_bowRows[] = {
+const Fields::RowSpec k_bowRows[] = {
     {"bow",             PM_TR("Bow:"),              0, 50,  " %",
      PM_TR("How far each edge bows in between two points, as a share of its length. The points stay sharp; 0 is straight.")},
     {"bowIrregularity", PM_TR("Bow irregularity:"), 0, 100, " %",
      PM_TR("How much each edge's bow varies, deeper or flatter. Moving a point deals its two edges again.")},
 };
 // The bounds are the ones the outline keeps to.
-const FieldRowSpec k_lobeRows[] = {
+const Fields::RowSpec k_lobeRows[] = {
     {"lobes",    PM_TR("Lobes:"),     Geometry::k_minLobes,    Geometry::k_maxLobes,    "",
      PM_TR("How many circles make the cloud's edge.")},
     {"lobeSize", PM_TR("Lobe size:"), Geometry::k_minLobeSize, Geometry::k_maxLobeSize, " %",
      PM_TR("How big each circle is, against half the balloon's shorter side. At 100 % they meet in the middle.")},
 };
-const FieldRowSpec k_edgeRows[] = {
+const Fields::RowSpec k_edgeRows[] = {
     {"edgePitch",        PM_TR("Spacing:"),      2, 200, " px", PM_TR("One tooth every this many pixels along the edge."), 1},
     {"edgeDepth",        PM_TR("Depth:"),        0, 200, " px", PM_TR("How far in from the outline a tooth reaches. The lettering's room gives it up."), 1},
     {"edgeIrregularity", PM_TR("Irregularity:"), 0, 100, " %",  PM_TR("How much each tooth's depth and place vary. Re-roll deals them again.")},

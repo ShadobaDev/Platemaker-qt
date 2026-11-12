@@ -24,7 +24,7 @@ constexpr char k_trContext[] = "StripEdit::PaintRows";
 
 #define PM_TR(s) QT_TRANSLATE_NOOP("StripEdit::PaintRows", s)
 //! A pattern's numbers, in strip pixels and degrees.
-inline const FieldRowSpec k_patternRows[] = {
+inline const Fields::RowSpec k_patternRows[] = {
     {"cellSpacing", PM_TR("Spacing:"), 1,   100, " px", PM_TR("From one dot, or line, to the next."), 1},
     {"cellSize",    PM_TR("Size:"),    0,   100, " px", PM_TR("A dot's width, or a line's. Past the spacing they merge into a solid tone."), 1},
     {"cellAngle",   PM_TR("Angle:"),   -90, 90,  "°",   PM_TR("How far the grid is turned, clockwise.")},

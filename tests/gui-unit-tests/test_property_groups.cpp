@@ -14,7 +14,9 @@
 #include <gtest/gtest.h>
 
 #include <algorithm>
+#include <cstring>
 #include <optional>
+#include <type_traits>
 
 #include <QFile>
 #include <QJsonDocument>
@@ -75,43 +77,43 @@ ObjectRecord loadedRecord()
     textureOf(a).roughDisplacement = 7.5;
     textureOf(a).roughBlur         = 1.25;
     textureOf(a).roughFill         = true;   // not the default; the parts are a golden case of their own
-    styleOf(a).flashOuterPitch        = 3.5;
-    styleOf(a).flashInnerPitch        = 4.5;
-    styleOf(a).flashOuterLength       = 21.0;
-    styleOf(a).flashInnerLength       = 12.5;
-    styleOf(a).flashOuterBase         = 2.5;
-    styleOf(a).flashInnerBase         = 1.5;
-    styleOf(a).flashOuterPitchJitter  = 11;
-    styleOf(a).flashInnerPitchJitter  = 12;
-    styleOf(a).flashOuterLengthJitter = 13;
-    styleOf(a).flashInnerLengthJitter = 14;
-    styleOf(a).flashCoreStretch       = 15;
-    styleOf(a).brushStrokes           = 5;
-    styleOf(a).brushOverlap           = 33;
-    styleOf(a).brushTaper             = 17;
-    styleOf(a).brushSwell             = 61;
-    styleOf(a).brushDrift             = 2.75;
-    styleOf(a).drybrushCore           = 31;
-    styleOf(a).drybrushBristles       = 9;
-    styleOf(a).drybrushDryness        = 42;
-    styleOf(a).dashLength             = 9.5;
-    styleOf(a).dashGap                = 4.25;
-    styleOf(a).multiLines             = 3;
-    styleOf(a).sketchLength           = 33.5;
-    styleOf(a).sketchLayers           = 3;
-    styleOf(a).sketchStiffness        = 47;
-    styleOf(a).sketchSpread           = 1.25;
-    styleOf(a).sketchEntry            = 7;
-    styleOf(a).sketchExit             = 52;
-    styleOf(a).sketchCore             = 31;
-    styleOf(a).sketchStrokeWidth      = 44;
-    styleOf(a).sketchClockwise        = false;
-    styleOf(a).sketchBlots            = 23;
-    styleOf(a).dryInkGrain            = 0.25;
-    styleOf(a).dryInkWear             = 55;
-    styleOf(a).dryInkCore             = 15;
-    styleOf(a).multiGap              = 6.5;
-    styleOf(a).multiWidth            = 1.75;
+    styleOf(a).flash.outerPitch        = 3.5;
+    styleOf(a).flash.innerPitch        = 4.5;
+    styleOf(a).flash.outerLength       = 21.0;
+    styleOf(a).flash.innerLength       = 12.5;
+    styleOf(a).flash.outerBase         = 2.5;
+    styleOf(a).flash.innerBase         = 1.5;
+    styleOf(a).flash.outerPitchJitter  = 11;
+    styleOf(a).flash.innerPitchJitter  = 12;
+    styleOf(a).flash.outerLengthJitter = 13;
+    styleOf(a).flash.innerLengthJitter = 14;
+    styleOf(a).flash.coreStretch       = 15;
+    styleOf(a).brush.strokes           = 5;
+    styleOf(a).brush.overlap           = 33;
+    styleOf(a).brush.taper             = 17;
+    styleOf(a).brush.swell             = 61;
+    styleOf(a).brush.drift             = 2.75;
+    styleOf(a).drybrush.core           = 31;
+    styleOf(a).drybrush.bristles       = 9;
+    styleOf(a).drybrush.dryness        = 42;
+    styleOf(a).dash.length             = 9.5;
+    styleOf(a).dash.gap                = 4.25;
+    styleOf(a).multi.lines             = 3;
+    styleOf(a).sketch.length           = 33.5;
+    styleOf(a).sketch.layers           = 3;
+    styleOf(a).sketch.stiffness        = 47;
+    styleOf(a).sketch.spread           = 1.25;
+    styleOf(a).sketch.entry            = 7;
+    styleOf(a).sketch.exit             = 52;
+    styleOf(a).sketch.core             = 31;
+    styleOf(a).sketch.strokeWidth      = 44;
+    styleOf(a).sketch.clockwise        = false;
+    styleOf(a).sketch.blots            = 23;
+    styleOf(a).dryInk.grain            = 0.25;
+    styleOf(a).dryInk.wear             = 55;
+    styleOf(a).dryInk.core             = 15;
+    styleOf(a).multi.gap              = 6.5;
+    styleOf(a).multi.width            = 1.75;
     seedOf(a)        = 0xC0FFEEu;
     originOf(a)     = {QStringLiteral("uid-loaded"), QStringLiteral("Loaded")};
 
@@ -317,43 +319,43 @@ void expectUntouched(Group applied, const ObjectRecord& before, const ObjectReco
         EXPECT_EQ(styleOf(after).line,        styleOf(before).line);
         expectSamePaint(styleOf(after).stroke, styleOf(before).stroke, "stroke");
         EXPECT_EQ(styleOf(after).strokeWidth, styleOf(before).strokeWidth);
-        EXPECT_DOUBLE_EQ(styleOf(after).flashOuterPitch,  styleOf(before).flashOuterPitch);
-        EXPECT_DOUBLE_EQ(styleOf(after).flashInnerPitch,  styleOf(before).flashInnerPitch);
-        EXPECT_DOUBLE_EQ(styleOf(after).flashOuterLength, styleOf(before).flashOuterLength);
-        EXPECT_DOUBLE_EQ(styleOf(after).flashInnerLength, styleOf(before).flashInnerLength);
-        EXPECT_DOUBLE_EQ(styleOf(after).flashOuterBase,   styleOf(before).flashOuterBase);
-        EXPECT_DOUBLE_EQ(styleOf(after).flashInnerBase,   styleOf(before).flashInnerBase);
-        EXPECT_EQ(styleOf(after).flashOuterPitchJitter,  styleOf(before).flashOuterPitchJitter);
-        EXPECT_EQ(styleOf(after).flashInnerPitchJitter,  styleOf(before).flashInnerPitchJitter);
-        EXPECT_EQ(styleOf(after).flashOuterLengthJitter, styleOf(before).flashOuterLengthJitter);
-        EXPECT_EQ(styleOf(after).flashInnerLengthJitter, styleOf(before).flashInnerLengthJitter);
-        EXPECT_EQ(styleOf(after).flashCoreStretch,       styleOf(before).flashCoreStretch);
-        EXPECT_EQ(styleOf(after).brushStrokes,           styleOf(before).brushStrokes);
-        EXPECT_EQ(styleOf(after).brushOverlap,           styleOf(before).brushOverlap);
-        EXPECT_EQ(styleOf(after).brushTaper,             styleOf(before).brushTaper);
-        EXPECT_EQ(styleOf(after).brushSwell,             styleOf(before).brushSwell);
-        EXPECT_DOUBLE_EQ(styleOf(after).brushDrift,      styleOf(before).brushDrift);
-        EXPECT_EQ(styleOf(after).drybrushCore,           styleOf(before).drybrushCore);
-        EXPECT_EQ(styleOf(after).drybrushBristles,       styleOf(before).drybrushBristles);
-        EXPECT_EQ(styleOf(after).drybrushDryness,        styleOf(before).drybrushDryness);
-        EXPECT_DOUBLE_EQ(styleOf(after).dashLength,      styleOf(before).dashLength);
-        EXPECT_DOUBLE_EQ(styleOf(after).dashGap,         styleOf(before).dashGap);
-        EXPECT_EQ(styleOf(after).multiLines,             styleOf(before).multiLines);
-        EXPECT_DOUBLE_EQ(styleOf(after).sketchLength,    styleOf(before).sketchLength);
-        EXPECT_EQ(styleOf(after).sketchLayers,           styleOf(before).sketchLayers);
-        EXPECT_EQ(styleOf(after).sketchStiffness,        styleOf(before).sketchStiffness);
-        EXPECT_DOUBLE_EQ(styleOf(after).sketchSpread,    styleOf(before).sketchSpread);
-        EXPECT_EQ(styleOf(after).sketchEntry,            styleOf(before).sketchEntry);
-        EXPECT_EQ(styleOf(after).sketchExit,             styleOf(before).sketchExit);
-        EXPECT_EQ(styleOf(after).sketchCore,             styleOf(before).sketchCore);
-        EXPECT_EQ(styleOf(after).sketchStrokeWidth,      styleOf(before).sketchStrokeWidth);
-        EXPECT_EQ(styleOf(after).sketchClockwise,        styleOf(before).sketchClockwise);
-        EXPECT_EQ(styleOf(after).sketchBlots,            styleOf(before).sketchBlots);
-        EXPECT_DOUBLE_EQ(styleOf(after).dryInkGrain,     styleOf(before).dryInkGrain);
-        EXPECT_EQ(styleOf(after).dryInkWear,             styleOf(before).dryInkWear);
-        EXPECT_EQ(styleOf(after).dryInkCore,             styleOf(before).dryInkCore);
-        EXPECT_DOUBLE_EQ(styleOf(after).multiGap,       styleOf(before).multiGap);
-        EXPECT_DOUBLE_EQ(styleOf(after).multiWidth,     styleOf(before).multiWidth);
+        EXPECT_DOUBLE_EQ(styleOf(after).flash.outerPitch,  styleOf(before).flash.outerPitch);
+        EXPECT_DOUBLE_EQ(styleOf(after).flash.innerPitch,  styleOf(before).flash.innerPitch);
+        EXPECT_DOUBLE_EQ(styleOf(after).flash.outerLength, styleOf(before).flash.outerLength);
+        EXPECT_DOUBLE_EQ(styleOf(after).flash.innerLength, styleOf(before).flash.innerLength);
+        EXPECT_DOUBLE_EQ(styleOf(after).flash.outerBase,   styleOf(before).flash.outerBase);
+        EXPECT_DOUBLE_EQ(styleOf(after).flash.innerBase,   styleOf(before).flash.innerBase);
+        EXPECT_EQ(styleOf(after).flash.outerPitchJitter,  styleOf(before).flash.outerPitchJitter);
+        EXPECT_EQ(styleOf(after).flash.innerPitchJitter,  styleOf(before).flash.innerPitchJitter);
+        EXPECT_EQ(styleOf(after).flash.outerLengthJitter, styleOf(before).flash.outerLengthJitter);
+        EXPECT_EQ(styleOf(after).flash.innerLengthJitter, styleOf(before).flash.innerLengthJitter);
+        EXPECT_EQ(styleOf(after).flash.coreStretch,       styleOf(before).flash.coreStretch);
+        EXPECT_EQ(styleOf(after).brush.strokes,           styleOf(before).brush.strokes);
+        EXPECT_EQ(styleOf(after).brush.overlap,           styleOf(before).brush.overlap);
+        EXPECT_EQ(styleOf(after).brush.taper,             styleOf(before).brush.taper);
+        EXPECT_EQ(styleOf(after).brush.swell,             styleOf(before).brush.swell);
+        EXPECT_DOUBLE_EQ(styleOf(after).brush.drift,      styleOf(before).brush.drift);
+        EXPECT_EQ(styleOf(after).drybrush.core,           styleOf(before).drybrush.core);
+        EXPECT_EQ(styleOf(after).drybrush.bristles,       styleOf(before).drybrush.bristles);
+        EXPECT_EQ(styleOf(after).drybrush.dryness,        styleOf(before).drybrush.dryness);
+        EXPECT_DOUBLE_EQ(styleOf(after).dash.length,      styleOf(before).dash.length);
+        EXPECT_DOUBLE_EQ(styleOf(after).dash.gap,         styleOf(before).dash.gap);
+        EXPECT_EQ(styleOf(after).multi.lines,             styleOf(before).multi.lines);
+        EXPECT_DOUBLE_EQ(styleOf(after).sketch.length,    styleOf(before).sketch.length);
+        EXPECT_EQ(styleOf(after).sketch.layers,           styleOf(before).sketch.layers);
+        EXPECT_EQ(styleOf(after).sketch.stiffness,        styleOf(before).sketch.stiffness);
+        EXPECT_DOUBLE_EQ(styleOf(after).sketch.spread,    styleOf(before).sketch.spread);
+        EXPECT_EQ(styleOf(after).sketch.entry,            styleOf(before).sketch.entry);
+        EXPECT_EQ(styleOf(after).sketch.exit,             styleOf(before).sketch.exit);
+        EXPECT_EQ(styleOf(after).sketch.core,             styleOf(before).sketch.core);
+        EXPECT_EQ(styleOf(after).sketch.strokeWidth,      styleOf(before).sketch.strokeWidth);
+        EXPECT_EQ(styleOf(after).sketch.clockwise,        styleOf(before).sketch.clockwise);
+        EXPECT_EQ(styleOf(after).sketch.blots,            styleOf(before).sketch.blots);
+        EXPECT_DOUBLE_EQ(styleOf(after).dryInk.grain,     styleOf(before).dryInk.grain);
+        EXPECT_EQ(styleOf(after).dryInk.wear,             styleOf(before).dryInk.wear);
+        EXPECT_EQ(styleOf(after).dryInk.core,             styleOf(before).dryInk.core);
+        EXPECT_DOUBLE_EQ(styleOf(after).multi.gap,       styleOf(before).multi.gap);
+        EXPECT_DOUBLE_EQ(styleOf(after).multi.width,     styleOf(before).multi.width);
     }
     if (applied != Group::Texture) {
         EXPECT_EQ(textureOf(after).kind, textureOf(before).kind);
@@ -806,7 +808,32 @@ TEST(Conversion, EveryShapeAndStyleHasATableEntry)
         EXPECT_EQ(info.ink == nullptr, kind == ObjectRecord::Line::Clean || kind == ObjectRecord::Line::DryInk)
             << lineName(kind);
         EXPECT_EQ(info.ink == nullptr, info.inkReach == nullptr) << lineName(kind);
+        // The sections it reads are StyleProperties' own: the Line panel finds their rows by name.
+        for (const char* name : info.sections) {
+            bool found = name == nullptr;
+            StyleProperties::sections([&](auto member) {
+                using Sub = std::remove_reference_t<decltype(StyleProperties().*member)>;
+                found = found || std::strcmp(Sub::section().name, name) == 0;
+            });
+            EXPECT_TRUE(found) << lineName(kind) << " reads " << name;
+        }
     }
+    // Every number of a section has a row, and every bool that has one names its two entries.
+    StyleProperties::sections([&](auto member) {
+        using Sub = std::remove_reference_t<decltype(StyleProperties().*member)>;
+        const Fields::Section& s = Sub::section();
+        Sub::fields([&](const char* key, auto field) {
+            using T = std::remove_reference_t<decltype(Sub().*field)>;
+            const Fields::RowSpec* row = nullptr;
+            for (int r = 0; r < s.rowCount; ++r)
+                if (std::strcmp(s.rows[r].key, key) == 0)
+                    row = &s.rows[r];
+            if constexpr (std::is_same_v<T, bool>)
+                EXPECT_TRUE(!row || (row->on && row->off)) << key;
+            else
+                EXPECT_NE(row, nullptr) << s.name << " has no row for " << key;
+        });
+    });
     for (int i = 0; i <= int(TextureProperties::k_lastKind); ++i) {
         const auto                   kind = static_cast<ObjectRecord::Texture>(i);
         const Geometry::TextureInfo& info = Geometry::textureInfo(kind);
@@ -927,7 +954,7 @@ TEST(Style, DryInkEatsTheOutlineAlone)
     EXPECT_GT(svg.lastIndexOf(QStringLiteral("stroke-width=")), svg.indexOf(QStringLiteral("</g>"), filtered));
     EXPECT_TRUE(Geometry::hasFilter(a));
 
-    styleOf(a).dryInkCore = 0;   // no middle kept: the one stroke, worn
+    styleOf(a).dryInk.core = 0;   // no middle kept: the one stroke, worn
     EXPECT_EQ(QString::fromUtf8(Svg::write(a)).count(QStringLiteral("stroke-width=")),
               svg.count(QStringLiteral("stroke-width=")) - 1);
 
@@ -992,10 +1019,10 @@ TEST(Style, ALinesStrokesStayInsideTheirBounds)
             t.tip = QPointF(60, 230);
             tailsOf(a).items = {t};
         }
-        styleOf(a).flashOuterPitchJitter  = 100;
-        styleOf(a).flashOuterLengthJitter = 100;
-        styleOf(a).brushSwell             = 100;
-        styleOf(a).brushDrift             = 6.0;
+        styleOf(a).flash.outerPitchJitter  = 100;
+        styleOf(a).flash.outerLengthJitter = 100;
+        styleOf(a).brush.swell             = 100;
+        styleOf(a).brush.drift             = 6.0;
         styleOf(a).strokeWidth             = 9;
         for (ObjectRecord::Line line : {ObjectRecord::Line::Flash, ObjectRecord::Line::Brush,
                                         ObjectRecord::Line::Drybrush, ObjectRecord::Line::Dashed,
@@ -1005,9 +1032,9 @@ TEST(Style, ALinesStrokesStayInsideTheirBounds)
             EXPECT_FALSE(Geometry::hasOutline(a));
             EXPECT_FALSE(Geometry::hasFilter(a));
 
-            for (int stretch : {StyleProperties::k_autoStretch, 0, 100}) {
+            for (int stretch : {FlashParams::k_autoStretch, 0, 100}) {
                 for (quint32 seed : {1u, 2u, 0xC0FFEEu, 0xFFFFFFFFu}) {
-                    styleOf(a).flashCoreStretch = stretch;
+                    styleOf(a).flash.coreStretch = stretch;
                     seedOf(a)              = seed;
                     const QPainterPath ink = Geometry::ink(a, Geometry::silhouette(a));
                     ASSERT_FALSE(ink.isEmpty()) << id << " " << lineName(line);
@@ -1039,15 +1066,15 @@ TEST(Style, ADashedLineFitsWholeDashesRoundEachLap)
         boxOf(a)             = QSize(280, 160);
         tailsOf(a).items.clear();
         styleOf(a).line      = ObjectRecord::Line::Dashed;
-        styleOf(a).dashLength = 12.0;
-        styleOf(a).dashGap    = 8.0;
+        styleOf(a).dash.length = 12.0;
+        styleOf(a).dash.gap    = 8.0;
         const QPainterPath             silhouette = Geometry::silhouette(a);
         const QList<Geometry::OutlineRing> edges   = Geometry::outlineModel(a, silhouette).rings;
         ASSERT_EQ(edges.size(), 1) << id;
-        const int dashes = qRound(edges.first().walk.length() / (styleOf(a).dashLength + styleOf(a).dashGap));
+        const int dashes = qRound(edges.first().walk.length() / (styleOf(a).dash.length + styleOf(a).dash.gap));
         EXPECT_EQ(Geometry::ink(a, silhouette).toSubpathPolygons().size(), dashes) << id;
 
-        styleOf(a).dashGap = 0.0;
+        styleOf(a).dash.gap = 0.0;
         EXPECT_EQ(Geometry::ink(a, silhouette).toSubpathPolygons().size(), 1) << id;
     }
 }
@@ -1064,8 +1091,8 @@ TEST(Style, AMultiLineDrawsItsLinesInside)
     tailsOf(a).items.clear();
     styleOf(a).line        = ObjectRecord::Line::Multi;
     styleOf(a).strokeWidth = 4;
-    styleOf(a).multiGap   = 6.0;
-    styleOf(a).multiWidth = 3.0;
+    styleOf(a).multi.gap   = 6.0;
+    styleOf(a).multi.width = 3.0;
     const QPainterPath silhouette = Geometry::silhouette(a);
     const QPainterPath ink        = Geometry::ink(a, silhouette);
     const QRectF       r          = silhouette.boundingRect();
@@ -1076,7 +1103,7 @@ TEST(Style, AMultiLineDrawsItsLinesInside)
     EXPECT_TRUE(in(2.0 + 6.0 + 1.5));          // the inner line's middle
     EXPECT_FALSE(in(2.0 + 6.0 + 3.0 + 2.0));   // inside, past it
 
-    styleOf(a).multiLines = 3;
+    styleOf(a).multi.lines = 3;
     const QPainterPath three = Geometry::ink(a, silhouette);
     const auto in3 = [&](qreal x) { return three.contains(QPointF(r.left() + x, r.center().y())); };
     EXPECT_TRUE(in3(2.0 + 6.0 + 1.5));                 // the second line, as before
@@ -1096,33 +1123,33 @@ TEST(Style, ASketchLaysItsLayersOfStrokes)
     boxOf(a)   = QSize(280, 160);
     tailsOf(a).items.clear();
     styleOf(a).line         = ObjectRecord::Line::Sketch;
-    styleOf(a).sketchLength = 40.0;
-    styleOf(a).sketchCore   = 0;
+    styleOf(a).sketch.length = 40.0;
+    styleOf(a).sketch.core   = 0;
     const QPainterPath              silhouette = Geometry::silhouette(a);
     const QList<Geometry::OutlineRing> edges   = Geometry::outlineModel(a, silhouette).rings;
     ASSERT_EQ(edges.size(), 1);
     for (int layers : {1, 3}) {
-        styleOf(a).sketchLayers = layers;
+        styleOf(a).sketch.layers = layers;
         EXPECT_EQ(Geometry::ink(a, silhouette).toSubpathPolygons().size(),
-                  qRound(layers * edges.first().walk.length() / styleOf(a).sketchLength)) << layers;
+                  qRound(layers * edges.first().walk.length() / styleOf(a).sketch.length)) << layers;
     }
 
     // Blots add their spots and short strokes, a stream of their own: the strokes stay as they were.
-    styleOf(a).sketchLayers = 1;
+    styleOf(a).sketch.layers = 1;
     const QList<QPolygonF> strokes = Geometry::ink(a, silhouette).toSubpathPolygons();
-    styleOf(a).sketchBlots = 100;
+    styleOf(a).sketch.blots = 100;
     const QList<QPolygonF> blotted = Geometry::ink(a, silhouette).toSubpathPolygons();
     ASSERT_GT(blotted.size(), strokes.size());
     EXPECT_TRUE(blotted.mid(0, strokes.size()) == strokes);
-    styleOf(a).sketchBlots = 0;
+    styleOf(a).sketch.blots = 0;
 
     // A stroke a lap long at most: longer, it is as many as one a lap long.
-    styleOf(a).sketchLength = 100000.0;
+    styleOf(a).sketch.length = 100000.0;
     EXPECT_EQ(Geometry::ink(a, silhouette).toSubpathPolygons().size(), 1);
 
     // With no strokes to speak of, the outline alone still rings the whole silhouette.
-    styleOf(a).sketchCore        = 25;
-    styleOf(a).sketchStrokeWidth = 0;
+    styleOf(a).sketch.core        = 25;
+    styleOf(a).sketch.strokeWidth = 0;
     styleOf(a).strokeWidth       = 8;
     const QPainterPath ink = Geometry::ink(a, silhouette);
     const QRectF       r   = silhouette.boundingRect();
@@ -1145,13 +1172,13 @@ TEST(Style, ADrybrushKeepsItsCoreAndThinsOutwards)
     boxOf(a)                    = QSize(280, 160);
     styleOf(a).line             = ObjectRecord::Line::Drybrush;
     styleOf(a).strokeWidth      = 16;   // half 8: a core of 2, four lanes of 1.5 a side
-    styleOf(a).drybrushCore     = 25;
-    styleOf(a).drybrushBristles = 8;
+    styleOf(a).drybrush.core     = 25;
+    styleOf(a).drybrush.bristles = 8;
     seedOf(a)              = 0xC0FFEEu;
     const QPainterPath silhouette = Geometry::silhouette(a);
     const QPolygonF    edge       = silhouette.toFillPolygon();
     const auto inked = [&](int dryness, std::initializer_list<qreal> offsets) {
-        styleOf(a).drybrushDryness = dryness;
+        styleOf(a).drybrush.dryness = dryness;
         const QPainterPath ink  = Geometry::ink(a, silhouette);
         int                hits = 0;
         int                all  = 0;
@@ -1183,7 +1210,7 @@ TEST(Style, ADrybrushKeepsItsCoreAndThinsOutwards)
     Tail t;
     t.tip         = QPointF(60, 260);
     tailsOf(a).items = {t};
-    styleOf(a).drybrushDryness = 0;
+    styleOf(a).drybrush.dryness = 0;
     const QLineF  axis(Geometry::balloonRect(a).center(), t.tip);
     const QPointF beside = QPointF(-axis.dy(), axis.dx()) / axis.length() * 4.8;
     for (quint32 seed : {1u, 2u, 0xC0FFEEu}) {
@@ -1224,7 +1251,7 @@ TEST(Style, ADrybrushKeepsItsCoreAndThinsOutwards)
     boxOf(a)                = QSize(200, 200);
     const QRectF  body   = Geometry::balloonRect(a);
     const QPointF inside = body.topLeft() + QPointF(body.width() / 2, body.height() / 2);
-    styleOf(a).drybrushDryness = 0;
+    styleOf(a).drybrush.dryness = 0;
     int rootHits = 0;
     for (quint32 seed = 1; seed <= 8; ++seed) {
         seedOf(a)            = seed;
@@ -1430,9 +1457,9 @@ TEST(Style, AutoStretchIsTheShapes)
         EXPECT_GE(own, 0) << shapeName(shapeOf(a).kind);
         EXPECT_LE(own, 100) << shapeName(shapeOf(a).kind);
 
-        ASSERT_EQ(styleOf(a).flashCoreStretch, StyleProperties::k_autoStretch);   // the default is Auto
+        ASSERT_EQ(styleOf(a).flash.coreStretch, FlashParams::k_autoStretch);   // the default is Auto
         const QPainterPath autoInk = Geometry::ink(a, Geometry::silhouette(a));
-        styleOf(a).flashCoreStretch   = own;
+        styleOf(a).flash.coreStretch   = own;
         EXPECT_TRUE(autoInk == Geometry::ink(a, Geometry::silhouette(a))) << shapeName(shapeOf(a).kind);
     }
 }
@@ -2376,9 +2403,9 @@ QString goldenRecords()
         styleOf(a).line          = ObjectRecord::Line::Drybrush;
         styleOf(a).stroke.colour = Qt::white;
         styleOf(a).strokeWidth   = 14;
-        styleOf(a).drybrushCore     = StyleProperties().drybrushCore;
-        styleOf(a).drybrushBristles = StyleProperties().drybrushBristles;
-        styleOf(a).drybrushDryness  = StyleProperties().drybrushDryness;
+        styleOf(a).drybrush.core     = StyleProperties().drybrush.core;
+        styleOf(a).drybrush.bristles = StyleProperties().drybrush.bristles;
+        styleOf(a).drybrush.dryness  = StyleProperties().drybrush.dryness;
         textureOf(a)             = looks.first().texture;
         skinOf(a).fill.kind      = ObjectRecord::Pattern::Solid;
         skinOf(a).fill.colour    = Qt::black;
@@ -2392,8 +2419,8 @@ QString goldenRecords()
         shapeOf(a)             = Geometry::shapeTemplate(id).shape;
         styleOf(a)             = looks.first().style;
         styleOf(a).line        = ObjectRecord::Line::Dashed;
-        styleOf(a).dashLength  = StyleProperties().dashLength;
-        styleOf(a).dashGap     = StyleProperties().dashGap;
+        styleOf(a).dash.length  = StyleProperties().dash.length;
+        styleOf(a).dash.gap     = StyleProperties().dash.gap;
         textureOf(a)           = looks.first().texture;
         skinOf(a).fill.kind    = ObjectRecord::Pattern::Solid;
         effectsOf(a).shadow.on = false;
@@ -2405,9 +2432,9 @@ QString goldenRecords()
         shapeOf(a)             = Geometry::shapeTemplate("speech").shape;
         styleOf(a)             = looks.first().style;
         styleOf(a).line        = ObjectRecord::Line::Multi;
-        styleOf(a).multiLines  = 3;
-        styleOf(a).multiGap   = StyleProperties().multiGap;
-        styleOf(a).multiWidth = StyleProperties().multiWidth;
+        styleOf(a).multi.lines  = 3;
+        styleOf(a).multi.gap   = StyleProperties().multi.gap;
+        styleOf(a).multi.width = StyleProperties().multi.width;
         textureOf(a)           = looks.first().texture;
         skinOf(a).fill.kind    = ObjectRecord::Pattern::Solid;
         effectsOf(a).shadow.on = false;
@@ -2420,16 +2447,16 @@ QString goldenRecords()
         styleOf(a)                 = looks.first().style;
         styleOf(a).line            = ObjectRecord::Line::Sketch;
         styleOf(a).strokeWidth     = 3;
-        styleOf(a).sketchLength    = StyleProperties().sketchLength;
-        styleOf(a).sketchLayers    = StyleProperties().sketchLayers;
-        styleOf(a).sketchStiffness = StyleProperties().sketchStiffness;
-        styleOf(a).sketchSpread    = StyleProperties().sketchSpread;
-        styleOf(a).sketchEntry     = StyleProperties().sketchEntry;
-        styleOf(a).sketchExit      = StyleProperties().sketchExit;
-        styleOf(a).sketchCore        = StyleProperties().sketchCore;
-        styleOf(a).sketchStrokeWidth = StyleProperties().sketchStrokeWidth;
-        styleOf(a).sketchClockwise   = StyleProperties().sketchClockwise;
-        styleOf(a).sketchBlots       = StyleProperties().sketchBlots;
+        styleOf(a).sketch.length    = StyleProperties().sketch.length;
+        styleOf(a).sketch.layers    = StyleProperties().sketch.layers;
+        styleOf(a).sketch.stiffness = StyleProperties().sketch.stiffness;
+        styleOf(a).sketch.spread    = StyleProperties().sketch.spread;
+        styleOf(a).sketch.entry     = StyleProperties().sketch.entry;
+        styleOf(a).sketch.exit      = StyleProperties().sketch.exit;
+        styleOf(a).sketch.core        = StyleProperties().sketch.core;
+        styleOf(a).sketch.strokeWidth = StyleProperties().sketch.strokeWidth;
+        styleOf(a).sketch.clockwise   = StyleProperties().sketch.clockwise;
+        styleOf(a).sketch.blots       = StyleProperties().sketch.blots;
         textureOf(a)               = looks.first().texture;
         skinOf(a).fill.kind        = ObjectRecord::Pattern::Solid;
         effectsOf(a).shadow.on     = false;
@@ -2460,16 +2487,16 @@ QString goldenRecords()
         styleOf(a)                   = looks.first().style;
         styleOf(a).line              = ObjectRecord::Line::Sketch;
         styleOf(a).strokeWidth       = 3;
-        styleOf(a).sketchLength      = 300.0;
-        styleOf(a).sketchLayers      = 3;
-        styleOf(a).sketchStiffness   = 0;
-        styleOf(a).sketchSpread      = 7.0;
-        styleOf(a).sketchEntry       = 20;
-        styleOf(a).sketchExit        = 60;
-        styleOf(a).sketchCore        = 0;
-        styleOf(a).sketchStrokeWidth = 100;
-        styleOf(a).sketchClockwise   = true;
-        styleOf(a).sketchBlots       = 60;
+        styleOf(a).sketch.length      = 300.0;
+        styleOf(a).sketch.layers      = 3;
+        styleOf(a).sketch.stiffness   = 0;
+        styleOf(a).sketch.spread      = 7.0;
+        styleOf(a).sketch.entry       = 20;
+        styleOf(a).sketch.exit        = 60;
+        styleOf(a).sketch.core        = 0;
+        styleOf(a).sketch.strokeWidth = 100;
+        styleOf(a).sketch.clockwise   = true;
+        styleOf(a).sketch.blots       = 60;
         textureOf(a)                 = looks.first().texture;
         skinOf(a).fill.kind          = ObjectRecord::Pattern::Solid;
         effectsOf(a).shadow.on       = false;
@@ -2484,15 +2511,15 @@ QString goldenRecords()
         styleOf(a).line                   = ObjectRecord::Line::Explosion;
         styleOf(a).stroke.colour          = Qt::white;
         styleOf(a).strokeWidth            = 10;
-        styleOf(a).drybrushCore           = StyleProperties().drybrushCore;
-        styleOf(a).drybrushBristles       = StyleProperties().drybrushBristles;
-        styleOf(a).drybrushDryness        = StyleProperties().drybrushDryness;
-        styleOf(a).flashOuterPitch        = StyleProperties().flashOuterPitch;
-        styleOf(a).flashOuterLength       = StyleProperties().flashOuterLength;
-        styleOf(a).flashOuterBase         = StyleProperties().flashOuterBase;
-        styleOf(a).flashOuterPitchJitter  = StyleProperties().flashOuterPitchJitter;
-        styleOf(a).flashOuterLengthJitter = StyleProperties().flashOuterLengthJitter;
-        styleOf(a).flashCoreStretch       = StyleProperties().flashCoreStretch;
+        styleOf(a).drybrush.core           = StyleProperties().drybrush.core;
+        styleOf(a).drybrush.bristles       = StyleProperties().drybrush.bristles;
+        styleOf(a).drybrush.dryness        = StyleProperties().drybrush.dryness;
+        styleOf(a).flash.outerPitch        = StyleProperties().flash.outerPitch;
+        styleOf(a).flash.outerLength       = StyleProperties().flash.outerLength;
+        styleOf(a).flash.outerBase         = StyleProperties().flash.outerBase;
+        styleOf(a).flash.outerPitchJitter  = StyleProperties().flash.outerPitchJitter;
+        styleOf(a).flash.outerLengthJitter = StyleProperties().flash.outerLengthJitter;
+        styleOf(a).flash.coreStretch       = StyleProperties().flash.coreStretch;
         textureOf(a)                      = looks.first().texture;
         skinOf(a).fill.kind               = ObjectRecord::Pattern::Solid;
         skinOf(a).fill.colour             = Qt::black;
@@ -2519,9 +2546,9 @@ QString goldenRecords()
             styleOf(a).line             = ObjectRecord::Line::Drybrush;
             styleOf(a).stroke.colour    = Qt::white;
             styleOf(a).strokeWidth      = 10;
-            styleOf(a).drybrushCore     = StyleProperties().drybrushCore;
-            styleOf(a).drybrushBristles = StyleProperties().drybrushBristles;
-            styleOf(a).drybrushDryness  = StyleProperties().drybrushDryness;
+            styleOf(a).drybrush.core     = StyleProperties().drybrush.core;
+            styleOf(a).drybrush.bristles = StyleProperties().drybrush.bristles;
+            styleOf(a).drybrush.dryness  = StyleProperties().drybrush.dryness;
             skinOf(a).fill.colour       = Qt::black;
         }
         write(QString::fromLatin1(reference ? "ellipse" : "speech"),
@@ -2715,9 +2742,9 @@ QString goldenRecords()
         styleOf(a).line          = ObjectRecord::Line::DryInk;
         styleOf(a).stroke.kind   = ObjectRecord::Pattern::Solid;
         styleOf(a).strokeWidth   = 9;
-        styleOf(a).dryInkGrain   = StyleProperties().dryInkGrain;
-        styleOf(a).dryInkWear    = StyleProperties().dryInkWear;
-        styleOf(a).dryInkCore    = StyleProperties().dryInkCore;
+        styleOf(a).dryInk.grain   = StyleProperties().dryInk.grain;
+        styleOf(a).dryInk.wear    = StyleProperties().dryInk.wear;
+        styleOf(a).dryInk.core    = StyleProperties().dryInk.core;
         textureOf(a).kind        = rough ? ObjectRecord::Texture::Rough : ObjectRecord::Texture::None;
         textureOf(a).roughFill   = false;
         effectsOf(a).shadow.on   = !rough;   // a dark shadow would show through the holes and hide them

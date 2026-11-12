@@ -3,8 +3,10 @@
  * \brief Every line and every texture, one table entry each: their names, a line's strokes of its own
  *        (ink), and the room a style needs past the geometry.
  *
- * **Adding a line is a value in `StyleProperties::Line` and an entry here** (styles.cpp); a texture
- * likewise, its SVG filter with it. A line reads its numbers, the outline model (outline.hpp) and a seed,
+ * **Adding a line is a value in `StyleProperties::Line` and an entry here** (styles.cpp), with a section
+ * for its numbers if it has any (a struct with fields() and section(), a member of StyleProperties and a
+ * line in its sections()); the Line panel builds its rows from the section. A texture likewise, its SVG
+ * filter with it. A line reads its numbers, the outline model (outline.hpp) and a seed,
  * never the record: its corners, the tails' ends and what covers a part are the model's. Everything else
  * asks the tables: the file
  * names (lineName, textureName), the Style panel's lists (lineTitle, textureTitle), the ink and whether
@@ -20,6 +22,7 @@
 #include <QPointF>
 #include <QtGlobal>
 
+#include <array>
 #include <functional>
 
 #include "objectrecord.hpp"
@@ -56,6 +59,13 @@ struct LineInfo
      * never opens the middle of the line; nullptr for none. Read only with `outlineFilter`.
      */
     qreal (*unworn)(const StyleProperties& s) = nullptr;
+    /**
+     * The sections of StyleProperties it reads, by Fields::Section::name, whose rows the Line panel shows
+     * while it is chosen; a kind that borrows another's (Explosion) lists both.
+     */
+    std::array<const char*, 2> sections{};
+    //! Of those rows, the ones whose key holds this are not shown: what the kind reads none of; or nullptr.
+    const char* hides = nullptr;
 };
 
 //! One texture: an SVG filter (`filter`), which only the library draws.

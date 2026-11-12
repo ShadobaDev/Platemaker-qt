@@ -300,13 +300,16 @@ their stiffness and their offset before it (`k_roundEase`). Nothing is subtracte
 `loopedNoise()` lays a whole number of the noise's spans round the loop (`smoothNoise()`'s period), so it
 has no seam.
 
-The flash is the worked example of a line. Its parameters are members of
-`StyleProperties` with a `flash` prefix, one line each in its `fields()` list; the *Line* section
-(`StyleEditor`) builds a
-spin for every `flash…` field from that list (`FieldRows`, `properties/fieldrows.hpp`, which any panel
-can use for a prefix of its group's fields), and takes its label, range and tooltip from `k_flashRows`
-in `styleeditor.cpp` (a field with no row there stops a debug build; a row with `decimals` is a
-decimal spin, as Rough's are in `k_roughRows`, `textureeditor.cpp`). The core stretch's *Auto* comes
+The flash is the worked example of a line. Its parameters are a **section**, `FlashParams`
+(`propertygroups.hpp`): a struct with its own `fields()` list, under keys that keep the `flash` prefix, held
+by `StyleProperties` as `flash` and listed in its `sections()`, so every line's numbers are kept whatever the
+line. The section's `section()` (`styles.cpp`) names it and gives each field's label, range and tooltip
+(`k_flashRows`, `Fields::RowSpec`); a line's table entry lists the sections it reads (`LineInfo::sections`;
+Explosion borrows the dry brush's and the flash's, hiding the flash's inner rows). The *Line* section
+(`StyleEditor`) builds the rows of every section (`SectionRows`, `properties/fieldrows.hpp`) and shows those
+the line reads: a spin per number, a combo per bool whose row names its two entries (the sketch's
+direction); a number with no row stops a debug build, a row with `decimals` is a decimal spin, as Rough's
+are in `k_roughRows`, `textureeditor.cpp`. The core stretch's *Auto* comes
 from `ShapeInfo::flashStretch`, one value per shape in `shapes.cpp`. Caught by the same table,
 round-trip and golden tests as a shape; strokes are also checked against the room reserved for them
 (`Style.AFlashStaysInsideItsBounds`) and Auto against the shape's value (`Style.AutoStretchIsTheShapes`).

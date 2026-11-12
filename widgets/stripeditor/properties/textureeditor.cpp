@@ -13,7 +13,7 @@ constexpr char k_trContext[] = "StripEdit::TextureEditor";
 
 #define PM_TR(s) QT_TRANSLATE_NOOP("StripEdit::TextureEditor", s)
 //! Rough's numbers. Lengths in strip pixels, with a decimal: a blur's useful range is around a pixel.
-const FieldRowSpec k_roughRows[] = {
+const Fields::RowSpec k_roughRows[] = {
     // A step of 0.005: a wave's length is 1 / grain, so a change shows in proportion, and a thousandth
     // at the Marker's 0.03 is a wave 3 % shorter, nothing the eye sees.
     {"roughFrequency",    PM_TR("Grain:"),        0.001, 0.5, "",

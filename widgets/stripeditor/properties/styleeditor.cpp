@@ -2,8 +2,6 @@
 #include "shapes.hpp"
 #include "styles.hpp"
 
-#include <QLabel>
-
 #include <QColorDialog>
 #include <QComboBox>
 #include <QFormLayout>
@@ -31,7 +29,7 @@ public:
     //! From Auto, a step goes on from the value Auto shows, not from the -1 that stands for it.
     void stepBy(int steps) override
     {
-        if (value() == StyleProperties::k_autoStretch && shapeStretch >= 0) {
+        if (value() == FlashParams::k_autoStretch && shapeStretch >= 0) {
             setValue(qBound(0, shapeStretch + steps, maximum()));
             return;
         }
@@ -43,14 +41,14 @@ protected:
     StepEnabled stepEnabled() const override
     {
         StepEnabled e = QSpinBox::stepEnabled();
-        if (value() == StyleProperties::k_autoStretch && shapeStretch > 0)
+        if (value() == FlashParams::k_autoStretch && shapeStretch > 0)
             e |= StepDownEnabled;
         return e;
     }
 
     QString textFromValue(int v) const override
     {
-        if (v != StyleProperties::k_autoStretch)
+        if (v != FlashParams::k_autoStretch)
             return QSpinBox::textFromValue(v) + QStringLiteral(" %");
         return shapeStretch < 0 ? StyleEditor::tr("Auto")
                                 : StyleEditor::tr("Auto (%1 %)").arg(shapeStretch);
@@ -60,7 +58,7 @@ protected:
     {
         bool      ok = false;
         const int v  = QString(text).remove(QLatin1Char('%')).trimmed().toInt(&ok);
-        return ok ? v : StyleProperties::k_autoStretch;
+        return ok ? v : FlashParams::k_autoStretch;
     }
 
     QValidator::State validate(QString& text, int&) const override
@@ -75,95 +73,14 @@ protected:
     }
 };
 
-namespace {
-
-//! The context the rows' strings are translated in: this panel's own.
-constexpr char k_trContext[] = "StripEdit::StyleEditor";
-
-//! What the panel calls a flash field, and what its spin offers. Lengths in strip pixels.
-#define PM_TR(s) QT_TRANSLATE_NOOP("StripEdit::StyleEditor", s)
-const FieldRowSpec k_flashRows[] = {
-    {"flashOuterPitch",        PM_TR("Outer spacing:"),  1, 100, " px", PM_TR("One stroke every this many pixels along the outside of the edge.")},
-    {"flashInnerPitch",        PM_TR("Inner spacing:"),  1, 100, " px", PM_TR("One stroke every this many pixels along the inside of the edge.")},
-    {"flashOuterLength",       PM_TR("Outer length:"),   0, 200, " px", PM_TR("How far an outer stroke reaches out from the edge.")},
-    {"flashInnerLength",       PM_TR("Inner length:"),   0, 200, " px", PM_TR("How far an inner stroke reaches in from the edge.")},
-    {"flashOuterBase",         PM_TR("Outer width:"),    0, 50,  " px", PM_TR("An outer stroke's width where it leaves the edge.")},
-    {"flashInnerBase",         PM_TR("Inner width:"),    0, 50,  " px", PM_TR("An inner stroke's width where it leaves the edge.")},
-    {"flashOuterPitchJitter",  PM_TR("Outer scatter:"),  0, 100, " %",  PM_TR("How much each outer stroke's place varies, as a share of the spacing.")},
-    {"flashInnerPitchJitter",  PM_TR("Inner scatter:"),  0, 100, " %",  PM_TR("How much each inner stroke's place varies, as a share of the spacing.")},
-    {"flashOuterLengthJitter", PM_TR("Outer variance:"), 0, 100, " %",  PM_TR("How much each outer stroke's length varies.")},
-    {"flashInnerLengthJitter", PM_TR("Inner variance:"), 0, 100, " %",  PM_TR("How much each inner stroke's length varies.")},
-    {"flashCoreStretch",       PM_TR("Direction:"),      StyleProperties::k_autoStretch, 100, "",
-     PM_TR("What the strokes point away from: at 0 % the centre; more stretches it into a line along the "
-           "longer side, which stands the strokes square to a long straight edge. Auto takes the shape's "
-           "own, and follows it when the shape changes; a value set here stays.")},
-};
-
-//! The brush's numbers. Its width is the line's own, the *Width* row above them.
-const FieldRowSpec k_brushRows[] = {
-    {"brushStrokes", PM_TR("Strokes:"), 1, 12,  "",    PM_TR("How many strokes go round the edge.")},
-    {"brushOverlap", PM_TR("Overlap:"), 0, 100, " %",  PM_TR("How far each stroke runs past where the next begins, as a share of its length.")},
-    {"brushTaper",   PM_TR("Taper:"),   0, 50,  " %",  PM_TR("How much of a stroke, at each end, narrows to its point.")},
-    {"brushSwell",   PM_TR("Swell:"),   0, 100, " %",  PM_TR("How much a stroke's width varies along it. Its width is the outline's stroke width.")},
-    {"brushDrift",   PM_TR("Drift:"),   0, 20,  " px", PM_TR("How far a stroke wanders off the edge."), 1},
-};
-
-//! The dry brush's numbers. Its width is the line's own too, shared among the bristles.
-const FieldRowSpec k_drybrushRows[] = {
-    {"drybrushCore",     PM_TR("Outline:"),  0, 100, " %", PM_TR("How wide the unbroken line in the middle is, as a share of the width. It keeps the fill apart from what is round it; the hairs share the rest.")},
-    {"drybrushBristles", PM_TR("Bristles:"), 1, 40,  "",   PM_TR("How many hairs across the line, half each side of its thin core: more makes them finer.")},
-    {"drybrushDryness",  PM_TR("Dryness:"),  0, 100, " %", PM_TR("How dry the brush is: the share of gaps in the hairs by the core. They thin out away from it; the core always stays.")},
-};
-
-//! The dashed line's numbers. Its width is the line's own.
-const FieldRowSpec k_dashRows[] = {
-    {"dashLength", PM_TR("Dash:"), 1, 200, " px", PM_TR("How long a dash is along the edge.")},
-    {"dashGap",    PM_TR("Gap:"),  0, 200, " px", PM_TR("The gap between two dashes. It is stretched or squeezed a little so whole dashes go round; 0 draws a whole line.")},
-};
-
-//! The multi-line's numbers. The outline's width is the line's own.
-const FieldRowSpec k_multiRows[] = {
-    {"multiLines", PM_TR("Lines:"),       2, 10,  "",    PM_TR("How many lines, the outline among them.")},
-    {"multiGap",   PM_TR("Gap:"),         0, 100, " px", PM_TR("The space between one line and the next.")},
-    {"multiWidth", PM_TR("Inner width:"), 0, 50,  " px", PM_TR("How wide each line inside the outline is. The outline's width is the Width above.")},
-};
-
-//! The sketch's numbers. Its width is the line's own.
-const FieldRowSpec k_sketchRows[] = {
-    {"sketchCore",        PM_TR("Outline:"),       0, 100, " %",  PM_TR("How wide the whole thin line under the strokes is, as a share of the width. It keeps the fill closed off whatever the strokes do; 0 leaves only the strokes.")},
-    {"sketchStrokeWidth", PM_TR("Stroke width:"),  1, 100, " %",  PM_TR("How wide a pen stroke is at its widest, as a share of the width.")},
-    {"sketchLength",      PM_TR("Stroke length:"), 5, 1000, " px", PM_TR("How long a pen stroke is, a lap at most. Each varies a little about it. Short is a pen's hatching; long, loose strokes going round.")},
-    {"sketchLayers",      PM_TR("Layers:"),        1, 12,  "",    PM_TR("How many strokes lie over any place of the outline: more makes the line denser.")},
-    {"sketchStiffness",   PM_TR("Stiffness:"),     0, 100, " %",  PM_TR("How straight a stroke stays where the outline curves. 0 % follows the outline; more draws it straighter, so both its ends leave a curve. Each stroke varies a little about it.")},
-    {"sketchSpread",      PM_TR("Spread:"),        0, 20,  " px", PM_TR("How far in or out a stroke lies from the outline. Each goes from one place to another within it, so neighbours cross."), 1},
-    {"sketchEntry",       PM_TR("Taper in:"),      0, 100, " %",  PM_TR("How much of a stroke, at its start, narrows as the pen lands.")},
-    {"sketchExit",        PM_TR("Taper out:"),     0, 100, " %",  PM_TR("How much of a stroke, at its end, narrows as the pen lifts off.")},
-    {"sketchBlots",       PM_TR("Blots:"),         0, 100, " %",  PM_TR("Ink spilt along the line: round spots and short strokes with round ends, here and there. Re-roll deals them again.")},
-};
-
-//! Dry ink's numbers. Its width is the line's own.
-const FieldRowSpec k_dryInkRows[] = {
-    {"dryInkGrain", PM_TR("Grain:"),   0.01, 1.0, "",
-     PM_TR("How fine the specks are: higher gives smaller, closer holes in the line."), 2, 0.01},
-    {"dryInkWear",  PM_TR("Wear:"),    0,    100, " %",
-     PM_TR("How much of the line the paper eats.")},
-    {"dryInkCore",  PM_TR("Outline:"), 0,    100, " %",
-     PM_TR("How wide the middle of the line that stays whole is, as a share of the width. It keeps the fill "
-           "closed off; the wear eats the line either side of it. 0 lets it eat right through.")},
-};
-
-#undef PM_TR
-
-} // namespace
-
 StyleEditor::StyleEditor(QWidget* parent)
     : PropertyGroupEditor(parent)
 {
     m_form = new QFormLayout(this);
     m_form->setContentsMargins(0, 0, 0, 0);
 
-    // The line's kind, its colour and width, then the kind's own rows. A field added to the list and not
-    // given a row above stops a debug build here.
+    // The line's kind, its colour and width, then the kinds' own rows. A section's number with no row in its
+    // section() (styles.cpp) stops a debug build here.
     m_line = new QComboBox(this);
     for (int i = 0; i <= int(StyleProperties::k_lastLine); ++i)
         m_line->addItem(lineTitle(static_cast<ObjectRecord::Line>(i)), i);
@@ -181,47 +98,13 @@ StyleEditor::StyleEditor(QWidget* parent)
     // The line's paint: the outline's, or a flash's or a brush's strokes'.
     m_stroke.build(this, m_form, &StyleProperties::stroke, tr("Line colour:"), m_values, m_populating,
                    [this] { emit changed(); }, [this] { emit committed(); });
-    // An explosion shows two lines' rows at once, so each set goes under its own heading there.
-    const auto heading = [this](const QString& text) {
-        auto* label = new QLabel(text, this);
-        QFont font  = label->font();
-        font.setBold(true);
-        label->setFont(font);
-        m_form->addRow(label);
-        return label;
-    };
-    m_flashHeading = heading(tr("Flash"));
-    m_flash.build(this, m_form, "flash", k_flashRows, k_trContext, m_values, m_populating,
-                  [this] { emit changed(); }, [this](const char* key) -> QSpinBox* {
-                      if (std::strcmp(key, "flashCoreStretch") != 0)
-                          return nullptr;
-                      return m_stretch = new StretchSpin(this);
-                  });
-    m_brush.build(this, m_form, "brush", k_brushRows, k_trContext, m_values, m_populating,
-                  [this] { emit changed(); });
-    m_brushHeading = heading(tr("Brush"));
-    m_drybrush.build(this, m_form, "drybrush", k_drybrushRows, k_trContext, m_values, m_populating,
-                     [this] { emit changed(); });
-    m_dash.build(this, m_form, "dash", k_dashRows, k_trContext, m_values, m_populating, [this] { emit changed(); });
-    m_dryInk.build(this, m_form, "dryInk", k_dryInkRows, k_trContext, m_values, m_populating, [this] { emit changed(); });
-    m_sketch.build(this, m_form, "sketch", k_sketchRows, k_trContext, m_values, m_populating, [this] { emit changed(); });
-    // The pen's way round: a choice, so a combo rather than one of the spins above.
-    m_sketchWay = new QComboBox(this);
-    m_sketchWay->addItem(tr("Clockwise"), true);
-    m_sketchWay->addItem(tr("Counter-clockwise"), false);
-    m_sketchWay->setToolTip(tr("Which way round the pen goes: each stroke lands at its start and lifts off at its end."));
-    m_form->addRow(tr("Direction:"), m_sketchWay);
-    if (QWidget* label = m_form->labelForField(m_sketchWay))
-        label->setToolTip(m_sketchWay->toolTip());
-    connect(m_sketchWay, &QComboBox::currentIndexChanged, this, [this](int i) {
-        if (m_populating || i < 0)
-            return;
-        m_values.sketchClockwise = m_sketchWay->currentData().toBool();
-        m_wayTouched = true;
-        m_mixedWay   = false;
-        emit changed();
-    });
-    m_multi.build(this, m_form, "multi", k_multiRows, k_trContext, m_values, m_populating, [this] { emit changed(); });
+    // Every kind's numbers, a section each; the flash's direction reads "Auto (n %)".
+    m_sections.build(this, m_form, m_values, m_populating, [this] { emit changed(); },
+                     [this](const char* key) -> QSpinBox* {
+                         if (std::strcmp(key, "flashCoreStretch") != 0)
+                             return nullptr;
+                         return m_stretch = new StretchSpin(this);
+                     });
 
     connect(m_line, &QComboBox::currentIndexChanged, this, [this](int i) {
         if (m_populating || i < 0)
@@ -242,7 +125,6 @@ StyleEditor::StyleEditor(QWidget* parent)
         emit changed();
     });
 
-
     syncFromValues();
 }
 
@@ -252,32 +134,19 @@ void StyleEditor::bind(const Subjects& subjects)
         return;
     m_values = StyleProperties::from(*subjects.first());
 
-    m_mixedLine = m_mixedWidth = m_mixedWay = false;
+    m_mixedLine = m_mixedWidth = false;
     m_stroke.reset();
-    m_flash.reset();
-    m_brush.reset();
-    m_drybrush.reset();
-    m_dash.reset();
-    m_multi.reset();
-    m_sketch.reset();
-    m_dryInk.reset();
+    m_sections.reset();
     bool sameShape = true;
     for (const ObjectRecord* a : subjects) {
         const StyleProperties v = StyleProperties::from(*a);
         m_mixedLine   = m_mixedLine   || v.line        != m_values.line;
         m_stroke.compare(v, m_values);
         m_mixedWidth  = m_mixedWidth  || v.strokeWidth != m_values.strokeWidth;
-        m_flash.compare(v, m_values);
-        m_brush.compare(v, m_values);
-        m_drybrush.compare(v, m_values);
-        m_dash.compare(v, m_values);
-        m_multi.compare(v, m_values);
-        m_sketch.compare(v, m_values);
-        m_dryInk.compare(v, m_values);
-        m_mixedWay = m_mixedWay || v.sketchClockwise != m_values.sketchClockwise;
+        m_sections.compare(v, m_values);
         sameShape = sameShape && a->shape.kind == subjects.first()->shape.kind;
     }
-    m_lineTouched = m_widthTouched = m_wayTouched = false;
+    m_lineTouched = m_widthTouched = false;
     if (m_stretch)
         m_stretch->shapeStretch = sameShape ? Geometry::shapeInfo(subjects.first()->shape.kind).flashStretch : -1;
 
@@ -295,14 +164,7 @@ void StyleEditor::applyEditedTo(ObjectRecord& target) const
     if (m_lineTouched)   t.line        = m_values.line;
     m_stroke.applyEdited(m_values, t);
     if (m_widthTouched)  t.strokeWidth = m_values.strokeWidth;
-    m_flash.applyEdited(m_values, t);
-    m_brush.applyEdited(m_values, t);
-    m_drybrush.applyEdited(m_values, t);
-    m_dash.applyEdited(m_values, t);
-    m_multi.applyEdited(m_values, t);
-    m_sketch.applyEdited(m_values, t);
-    m_dryInk.applyEdited(m_values, t);
-    if (m_wayTouched)    t.sketchClockwise = m_values.sketchClockwise;
+    m_sections.applyEdited(m_values, t);
     t.applyTo(target);
 }
 
@@ -312,14 +174,7 @@ void StyleEditor::syncFromValues()
     showCombo(m_line, m_mixedLine, m_line->findData(int(m_values.line)));
     showSpin(m_strokeWidth, m_mixedWidth, m_values.strokeWidth, k_strokeWidthMin, k_strokeWidthMax);
     m_stroke.show(m_values);
-    m_flash.show(m_values);
-    m_brush.show(m_values);
-    m_drybrush.show(m_values);
-    m_dash.show(m_values);
-    m_multi.show(m_values);
-    m_sketch.show(m_values);
-    m_dryInk.show(m_values);
-    showCombo(m_sketchWay, m_mixedWay, m_sketchWay->findData(m_values.sketchClockwise));
+    m_sections.show(m_values);
     showRows();
     m_populating = false;
 }
@@ -334,24 +189,9 @@ void StyleEditor::updateRows()
 
 void StyleEditor::showRows()
 {
-    // A selection that disagrees shows the rows at least one of them has.
-    const bool kindRows = shows(Row::LineKindRows);
-    // An explosion is a dry brush in a flash's halo, so it shows the rows of both, each under a heading; of
-    // the flash's, the inner ones draw nothing there (the halo is the outer strokes, made denser and thinner).
-    const bool explosion = m_values.line == ObjectRecord::Line::Explosion;
-    m_flash.setVisible(m_form, kindRows && (m_mixedLine || explosion || m_values.line == ObjectRecord::Line::Flash));
-    if (explosion && !m_mixedLine)
-        m_flash.setRowsVisible(m_form, "Inner", false);
-    m_form->setRowVisible(m_flashHeading, kindRows && explosion);
-    m_form->setRowVisible(m_brushHeading, kindRows && explosion);
-    m_brush.setVisible(m_form, kindRows && (m_mixedLine || m_values.line == ObjectRecord::Line::Brush));
-    m_drybrush.setVisible(m_form, kindRows && (m_mixedLine || explosion || m_values.line == ObjectRecord::Line::Drybrush));
-    m_dash.setVisible(m_form, kindRows && (m_mixedLine || m_values.line == ObjectRecord::Line::Dashed));
-    m_multi.setVisible(m_form, kindRows && (m_mixedLine || m_values.line == ObjectRecord::Line::Multi));
-    const bool sketch = kindRows && (m_mixedLine || m_values.line == ObjectRecord::Line::Sketch);
-    m_sketch.setVisible(m_form, sketch);
-    m_form->setRowVisible(m_sketchWay, sketch);
-    m_dryInk.setVisible(m_form, kindRows && (m_mixedLine || m_values.line == ObjectRecord::Line::DryInk));
+    // A selection that disagrees shows every kind's rows; else the sections the line reads.
+    const Geometry::LineInfo& line = Geometry::lineInfo(m_values.line);
+    m_sections.showSections(m_form, shows(Row::LineKindRows), m_mixedLine, line.sections, line.hides);
 }
 
 }  // namespace StripEdit

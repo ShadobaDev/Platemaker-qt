@@ -27,6 +27,7 @@
 #include <QtGlobal>
 
 #include <type_traits>
+#include <utility>
 
 namespace Fields {
 
@@ -79,6 +80,52 @@ template <class M>
 inline constexpr bool isNested = false;
 template <class Group, class Sub, class T>
 inline constexpr bool isNested<Nested<Group, Sub, T>> = true;
+
+/**
+ * \brief The fields of the section @p outer of a group, each under the section's own key: what the group's
+ *        fields() lists for it, so its files keep their flat keys.
+ *
+ * A **section** is the numbers one kind reads, or several kinds share (a line's, an edge's): a struct with a
+ * fields() list of its own, held by its group as a member, and described for a panel by its section().
+ */
+template <class V, class Group, class Sub>
+void nest(V&& v, Sub Group::* outer)
+{
+    Sub::fields([&](const char* key, auto inner) {
+        using T = std::remove_reference_t<decltype(std::declval<Sub&>().*inner)>;
+        v(key, Nested<Group, Sub, T>{outer, inner});
+    });
+}
+
+/**
+ * \brief What a panel calls a field, and what it offers: a spin's range, or for a choice (a bool) its two
+ *        entries. Title, tip and entries are QT_TRANSLATE_NOOP strings in the "QObject" context.
+ */
+struct RowSpec
+{
+    const char* key;
+    const char* title;
+    double      min, max;
+    const char* suffix;
+    const char* tip;
+    //! Places after the point; 0 shows whole numbers (a length in whole pixels), more a decimal spin.
+    int         decimals = 0;
+    //! What an arrow adds, for a decimal spin; 0 is one unit of the last place. A number whose effect is
+    //! in proportion to it wants steps that show at its usual size, and typing keeps every place.
+    double      step = 0.0;
+    //! A bool's two entries, true first: it is a combo. A bool without them gets no row from FieldRows.
+    const char* on  = nullptr;
+    const char* off = nullptr;
+};
+
+//! A section as a panel shows it: its name (what a kind's table entry lists), a heading, and its rows.
+struct Section
+{
+    const char*    name;
+    const char*    title;   //!< A heading, shown where a kind shows more than one section.
+    const RowSpec* rows;
+    int            rowCount;
+};
 
 //! Every field of \p a equal to the same field of \p b — a group's operator==.
 template <class Group>

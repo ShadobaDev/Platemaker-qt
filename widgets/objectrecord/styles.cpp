@@ -137,8 +137,8 @@ QPainterPath flashInk(const StyleProperties& s, const OutlineModel& outline, qui
     // At 100 % the line runs between the centres of the two circles that fit the box's ends, so every
     // stroke on a long straight side is square to it and only the ends fan out; a square box keeps a
     // point whatever the stretch. On Auto the shape says how far.
-    const int    percent = s.flashCoreStretch == StyleProperties::k_autoStretch ? outline.coreStretch
-                                                                                 : s.flashCoreStretch;
+    const int    percent = s.flash.coreStretch == FlashParams::k_autoStretch ? outline.coreStretch
+                                                                                 : s.flash.coreStretch;
     const qreal  stretch = qBound(0, percent, 100) / 100.0;
     const QSizeF half(stretch * qMax(0.0, box.width() - box.height()) / 2.0,
                       stretch * qMax(0.0, box.height() - box.width()) / 2.0);
@@ -150,12 +150,12 @@ QPainterPath flashInk(const StyleProperties& s, const OutlineModel& outline, qui
     QRandomGenerator outer(seed);
     QRandomGenerator inner(seed ^ k_innerStream);
     addRing(out, outline.rings, core,
-            {s.flashOuterPitch, s.flashOuterLength, s.flashOuterBase,
-             s.flashOuterPitchJitter, s.flashOuterLengthJitter, false},
+            {s.flash.outerPitch, s.flash.outerLength, s.flash.outerBase,
+             s.flash.outerPitchJitter, s.flash.outerLengthJitter, false},
             outer);
     addRing(out, outline.rings, core,
-            {s.flashInnerPitch, s.flashInnerLength, s.flashInnerBase,
-             s.flashInnerPitchJitter, s.flashInnerLengthJitter, true},
+            {s.flash.innerPitch, s.flash.innerLength, s.flash.innerBase,
+             s.flash.innerPitchJitter, s.flash.innerLengthJitter, true},
             inner);
     return out;
 }
@@ -163,9 +163,9 @@ QPainterPath flashInk(const StyleProperties& s, const OutlineModel& outline, qui
 //! The longest outer stroke, plus half the widest base: a base turned across a corner reaches out too.
 qreal flashReach(const StyleProperties& s)
 {
-    const qreal            jit   = qBound(0, s.flashOuterLengthJitter, 100) / 100.0;
-    const qreal            reach = qMax(s.flashOuterLength, 0.0) * (1.0 + jit);
-    return reach + qMax(qMax(s.flashOuterBase, s.flashInnerBase), 0.0) / 2.0;
+    const qreal            jit   = qBound(0, s.flash.outerLengthJitter, 100) / 100.0;
+    const qreal            reach = qMax(s.flash.outerLength, 0.0) * (1.0 + jit);
+    return reach + qMax(qMax(s.flash.outerBase, s.flash.innerBase), 0.0) / 2.0;
 }
 
 // ---------------------------------------------------------------------------
@@ -244,16 +244,16 @@ QPolygonF ribbon(const EdgeWalk& edge, qreal from, qreal to, quint32 seed, const
 QPainterPath brushInk(const StyleProperties& s, const OutlineModel& outline, quint32 seed)
 {
     const qreal            half  = qMax(s.strokeWidth, 0) / 2.0;
-    const int              count = qMax(1, s.brushStrokes);
-    const qreal            over  = qBound(0, s.brushOverlap, 100) / 100.0;
-    const qreal            taper = qBound(0, s.brushTaper, 50) / 100.0;
-    const qreal            swell = qBound(0, s.brushSwell, 100) / 100.0;
+    const int              count = qMax(1, s.brush.strokes);
+    const qreal            over  = qBound(0, s.brush.overlap, 100) / 100.0;
+    const qreal            taper = qBound(0, s.brush.taper, 50) / 100.0;
+    const qreal            swell = qBound(0, s.brush.swell, 100) / 100.0;
 
     QPainterPath out;
     out.setFillRule(Qt::WindingFill);
     if (half <= 0.0)
         return out;   // no outline, no brush: its width is the outline's
-    const RibbonLook look{half, taper, swell, s.brushDrift};
+    const RibbonLook look{half, taper, swell, s.brush.drift};
     QRandomGenerator rng(seed ^ k_brushStream);
     quint32          stroke = 0;   // a number per stroke, for its own noise
     for (const OutlineRing& ring : outline.rings) {
@@ -289,8 +289,8 @@ QPainterPath brushInk(const StyleProperties& s, const OutlineModel& outline, qui
 QPainterPath dashedInk(const StyleProperties& s, const OutlineModel& outline, quint32)
 {
     const RibbonLook       look{qMax(s.strokeWidth, 0) / 2.0, 0.0, 0.0, 0.0};   // straight: no taper, swell or drift
-    const qreal            dash = qMax(s.dashLength, 0.0);
-    const qreal            gap  = qMax(s.dashGap, 0.0);
+    const qreal            dash = qMax(s.dash.length, 0.0);
+    const qreal            gap  = qMax(s.dash.gap, 0.0);
 
     QPainterPath out;
     out.setFillRule(Qt::WindingFill);
@@ -343,13 +343,13 @@ QPainterPath multiInk(const StyleProperties& s, const OutlineModel& outline, qui
 {
     const QPainterPath&    silhouette = outline.joined;
     const qreal            width = qMax(s.strokeWidth, 0);
-    const qreal            inner = qMax(s.multiWidth, 0.0);
-    const qreal            gap   = qMax(s.multiGap, 0.0);
+    const qreal            inner = qMax(s.multi.width, 0.0);
+    const qreal            gap   = qMax(s.multi.gap, 0.0);
     if (width <= 0.0)
         return {};
     QPainterPath out  = edgeBand(silhouette, width);
     qreal        from = width / 2.0;   // how far in from the edge the last line drawn ends
-    for (int k = 1; inner > 0.0 && k < s.multiLines; ++k) {
+    for (int k = 1; inner > 0.0 && k < s.multi.lines; ++k) {
         from += gap;
         out   = out.united(silhouette.intersected(edgeBand(silhouette, 2.0 * (from + inner)))
                              .subtracted(edgeBand(silhouette, 2.0 * from)));
@@ -367,8 +367,8 @@ qreal multiReach(const StyleProperties& s)
 //! Half the outline at its widest swell, and as far as a stroke wanders.
 qreal brushReach(const StyleProperties& s)
 {
-    return qMax(s.strokeWidth, 0) / 2.0 * (1.0 + qBound(0, s.brushSwell, 100) / 100.0)
-         + std::abs(s.brushDrift);
+    return qMax(s.strokeWidth, 0) / 2.0 * (1.0 + qBound(0, s.brush.swell, 100) / 100.0)
+         + std::abs(s.brush.drift);
 }
 
 // ---------------------------------------------------------------------------
@@ -532,10 +532,10 @@ qreal bendFade(const EdgeWalk& edge, qreal at, qreal offset, qreal lane, qreal f
 QPainterPath drybrushInk(const StyleProperties& s, const OutlineModel& outline, quint32 baseSeed)
 {
     const qreal            half    = qMax(s.strokeWidth, 0) / 2.0;
-    const qreal            core    = half * qBound(0, s.drybrushCore, 100) / 100.0;
-    const int              perSide = qMax(1, s.drybrushBristles / 2);
+    const qreal            core    = half * qBound(0, s.drybrush.core, 100) / 100.0;
+    const int              perSide = qMax(1, s.drybrush.bristles / 2);
     const qreal            lane    = (half - core) / perSide;
-    const qreal            dryness = qBound(0, s.drybrushDryness, 100) / 100.0;
+    const qreal            dryness = qBound(0, s.drybrush.dryness, 100) / 100.0;
     const qreal            rootTaper = k_rootTaper * qMax(lane, k_brushStep / 2.0);   // a lane may be none
 
     QPainterPath out;
@@ -745,7 +745,7 @@ QPainterPath drybrushInk(const StyleProperties& s, const OutlineModel& outline, 
  */
 qreal drybrushReach(const StyleProperties& s)
 {
-    const qreal core = qBound(0, s.drybrushCore, 100) / 100.0;
+    const qreal core = qBound(0, s.drybrush.core, 100) / 100.0;
     return qMax(3.0, 2.0 * k_coreMiter * core) * qMax(s.strokeWidth, 0) / 2.0;
 }
 
@@ -846,18 +846,18 @@ QPolygonF blot(const QPointF& at, const QPointF& along, qreal r, qreal length, q
 QPainterPath sketchInk(const StyleProperties& s, const OutlineModel& outline, quint32 baseSeed)
 {
     const qreal            width  = qMax(s.strokeWidth, 0);
-    const qreal            half   = width / 2.0 * qBound(0, s.sketchStrokeWidth, 100) / 100.0;
-    const qreal            length = qMax(s.sketchLength, 1.0);
-    const qreal            stiff  = qBound(0, s.sketchStiffness, 100) / 100.0;
-    const qreal            spread = qMax(s.sketchSpread, 0.0);
-    const qreal            entry  = qBound(0, s.sketchEntry, 100) / 100.0;
-    const qreal            exit   = qBound(0, s.sketchExit, 100) / 100.0;
+    const qreal            half   = width / 2.0 * qBound(0, s.sketch.strokeWidth, 100) / 100.0;
+    const qreal            length = qMax(s.sketch.length, 1.0);
+    const qreal            stiff  = qBound(0, s.sketch.stiffness, 100) / 100.0;
+    const qreal            spread = qMax(s.sketch.spread, 0.0);
+    const qreal            entry  = qBound(0, s.sketch.entry, 100) / 100.0;
+    const qreal            exit   = qBound(0, s.sketch.exit, 100) / 100.0;
 
     QPainterPath out;
     out.setFillRule(Qt::WindingFill);
     if (width <= 0.0)
         return out;
-    if (const qreal core = width / 2.0 * qBound(0, s.sketchCore, 100) / 100.0; core > 0.0)
+    if (const qreal core = width / 2.0 * qBound(0, s.sketch.core, 100) / 100.0; core > 0.0)
         addCore(out, outline.joined, core);
     if (half <= 0.0)
         return out;
@@ -869,9 +869,9 @@ QPainterPath sketchInk(const StyleProperties& s, const OutlineModel& outline, qu
         const EdgeWalk& edge = ring.walk;
         const qreal     lap  = edge.length();
         // The walk's way round on screen; against the pen's, the pressure is read from the other end.
-        const bool reversed = ring.clockwise != s.sketchClockwise;
+        const bool reversed = ring.clockwise != s.sketch.clockwise;
         const qreal stroked = qMin(length, lap);   // a stroke is a lap long at most
-        const int  count    = qMax(1, qRound(qMax(s.sketchLayers, 1) * lap / stroked));
+        const int  count    = qMax(1, qRound(qMax(s.sketch.layers, 1) * lap / stroked));
         const auto wrap     = [&ring](qreal at) { return ring.wrap(at); };
         // Where the pen lifts, in order round the lap: the corners, and either side of a round end.
         std::vector<qreal> corners;
@@ -958,7 +958,7 @@ QPainterPath sketchInk(const StyleProperties& s, const OutlineModel& outline, qu
             draw(from, start + len, offFrom + (offTo - offFrom) * (from - start) / len, offTo, k, seed);
         }
 
-        const int blots = qRound(qBound(0, s.sketchBlots, 100) / 100.0 * lap / k_blotSpacing);
+        const int blots = qRound(qBound(0, s.sketch.blots, 100) / 100.0 * lap / k_blotSpacing);
         for (int j = 0; j < blots; ++j) {
             // All drawn before any is used, so a change to one row does not re-deal the others.
             const qreal   at     = lap * spots.generateDouble();
@@ -983,14 +983,14 @@ QPainterPath sketchInk(const StyleProperties& s, const OutlineModel& outline, qu
 qreal sketchReach(const StyleProperties& s)
 {
     const qreal            width = qMax(s.strokeWidth, 0);
-    const qreal            stroke = width / 2.0 * qBound(0, s.sketchStrokeWidth, 100) / 100.0;
-    const qreal            blots = s.sketchBlots > 0
+    const qreal            stroke = width / 2.0 * qBound(0, s.sketch.strokeWidth, 100) / 100.0;
+    const qreal            blots = s.sketch.blots > 0
                                      ? stroke * k_blotLargest * (1.0 + k_blotWobble + k_blotLongest / 2.0) : 0.0;
-    const qreal            half  = qMax(width / 2.0 * qMax(qBound(0, s.sketchStrokeWidth, 100) / 100.0 * (1.0 + k_sketchSwell),
-                                                           qBound(0, s.sketchCore, 100) / 100.0 * k_coreMiter),
+    const qreal            half  = qMax(width / 2.0 * qMax(qBound(0, s.sketch.strokeWidth, 100) / 100.0 * (1.0 + k_sketchSwell),
+                                                           qBound(0, s.sketch.core, 100) / 100.0 * k_coreMiter),
                                         blots);
-    const qreal            stiff = qMin(1.0, qBound(0, s.sketchStiffness, 100) / 100.0 * (1.0 + k_sketchStiffVary));
-    return half + qMax(s.sketchSpread, 0.0) + stiff * qMax(s.sketchLength, 1.0) * (1.0 + k_sketchVary);
+    const qreal            stiff = qMin(1.0, qBound(0, s.sketch.stiffness, 100) / 100.0 * (1.0 + k_sketchStiffVary));
+    return half + qMax(s.sketch.spread, 0.0) + stiff * qMax(s.sketch.length, 1.0) * (1.0 + k_sketchVary);
 }
 
 // ---------------------------------------------------------------------------
@@ -1009,9 +1009,9 @@ constexpr qreal k_haloThinning = 0.3;
  */
 StyleProperties haloOf(StyleProperties style)
 {
-    style.flashInnerLength = 0.0;
-    style.flashOuterPitch  = qMax(style.flashOuterPitch, 0.0) / k_haloDensity;
-    style.flashOuterBase   = qMax(style.flashOuterBase, 0.0) * k_haloThinning;
+    style.flash.innerLength = 0.0;
+    style.flash.outerPitch  = qMax(style.flash.outerPitch, 0.0) / k_haloDensity;
+    style.flash.outerBase   = qMax(style.flash.outerBase, 0.0) * k_haloThinning;
     return style;
 }
 
@@ -1064,12 +1064,12 @@ constexpr qreal k_dryInkEdge      = 25.0;
 Render::Filter dryInkFilter(const StyleProperties& s, quint32 seed)
 {
     using Render::number;
-    const qreal            wear = qBound(0, s.dryInkWear, 100) / 100.0;
+    const qreal            wear = qBound(0, s.dryInk.wear, 100) / 100.0;
     const qreal            at   = k_dryInkWornAt0 + (k_dryInkWornAt100 - k_dryInkWornAt0) * wear;
     Render::Filter         f;
     f.primitives.append({QStringLiteral("feTurbulence"),
                          {{QStringLiteral("type"), QStringLiteral("fractalNoise")},
-                          {QStringLiteral("baseFrequency"), number(qMax(s.dryInkGrain, 0.0), Render::k_valueDecimals)},
+                          {QStringLiteral("baseFrequency"), number(qMax(s.dryInk.grain, 0.0), Render::k_valueDecimals)},
                           {QStringLiteral("numOctaves"), QString::number(k_dryInkOctaves)},
                           {QStringLiteral("seed"), QString::number(seed % k_noiseSeeds)},
                           {QStringLiteral("result"), QStringLiteral("pmNoise")}},
@@ -1098,20 +1098,106 @@ Render::Filter dryInkFilter(const StyleProperties& s, quint32 seed)
 //! Dry ink's unworn middle, as a share of the outline's width.
 qreal dryInkUnworn(const StyleProperties& s)
 {
-    return qBound(0, s.dryInkCore, 100) / 100.0;
+    return qBound(0, s.dryInk.core, 100) / 100.0;
+}
+
+// The sections' rows: what the Line panel calls each number, and what its spin offers. Lengths in strip pixels.
+#define PM_TR(s) QT_TRANSLATE_NOOP("QObject", s)
+const Fields::RowSpec k_flashRows[] = {
+    {"flashOuterPitch",        PM_TR("Outer spacing:"),  1, 100, " px", PM_TR("One stroke every this many pixels along the outside of the edge.")},
+    {"flashInnerPitch",        PM_TR("Inner spacing:"),  1, 100, " px", PM_TR("One stroke every this many pixels along the inside of the edge.")},
+    {"flashOuterLength",       PM_TR("Outer length:"),   0, 200, " px", PM_TR("How far an outer stroke reaches out from the edge.")},
+    {"flashInnerLength",       PM_TR("Inner length:"),   0, 200, " px", PM_TR("How far an inner stroke reaches in from the edge.")},
+    {"flashOuterBase",         PM_TR("Outer width:"),    0, 50,  " px", PM_TR("An outer stroke's width where it leaves the edge.")},
+    {"flashInnerBase",         PM_TR("Inner width:"),    0, 50,  " px", PM_TR("An inner stroke's width where it leaves the edge.")},
+    {"flashOuterPitchJitter",  PM_TR("Outer scatter:"),  0, 100, " %",  PM_TR("How much each outer stroke's place varies, as a share of the spacing.")},
+    {"flashInnerPitchJitter",  PM_TR("Inner scatter:"),  0, 100, " %",  PM_TR("How much each inner stroke's place varies, as a share of the spacing.")},
+    {"flashOuterLengthJitter", PM_TR("Outer variance:"), 0, 100, " %",  PM_TR("How much each outer stroke's length varies.")},
+    {"flashInnerLengthJitter", PM_TR("Inner variance:"), 0, 100, " %",  PM_TR("How much each inner stroke's length varies.")},
+    {"flashCoreStretch",       PM_TR("Direction:"),      FlashParams::k_autoStretch, 100, "",
+     PM_TR("What the strokes point away from: at 0 % the centre; more stretches it into a line along the "
+           "longer side, which stands the strokes square to a long straight edge. Auto takes the shape's "
+           "own, and follows it when the shape changes; a value set here stays.")},
+};
+
+//! The brush's numbers. Its width is the line's own, the *Width* row above them.
+const Fields::RowSpec k_brushRows[] = {
+    {"brushStrokes", PM_TR("Strokes:"), 1, 12,  "",    PM_TR("How many strokes go round the edge.")},
+    {"brushOverlap", PM_TR("Overlap:"), 0, 100, " %",  PM_TR("How far each stroke runs past where the next begins, as a share of its length.")},
+    {"brushTaper",   PM_TR("Taper:"),   0, 50,  " %",  PM_TR("How much of a stroke, at each end, narrows to its point.")},
+    {"brushSwell",   PM_TR("Swell:"),   0, 100, " %",  PM_TR("How much a stroke's width varies along it. Its width is the outline's stroke width.")},
+    {"brushDrift",   PM_TR("Drift:"),   0, 20,  " px", PM_TR("How far a stroke wanders off the edge."), 1},
+};
+
+//! The dry brush's numbers. Its width is the line's own too, shared among the bristles.
+const Fields::RowSpec k_drybrushRows[] = {
+    {"drybrushCore",     PM_TR("Outline:"),  0, 100, " %", PM_TR("How wide the unbroken line in the middle is, as a share of the width. It keeps the fill apart from what is round it; the hairs share the rest.")},
+    {"drybrushBristles", PM_TR("Bristles:"), 1, 40,  "",   PM_TR("How many hairs across the line, half each side of its thin core: more makes them finer.")},
+    {"drybrushDryness",  PM_TR("Dryness:"),  0, 100, " %", PM_TR("How dry the brush is: the share of gaps in the hairs by the core. They thin out away from it; the core always stays.")},
+};
+
+//! The dashed line's numbers. Its width is the line's own.
+const Fields::RowSpec k_dashRows[] = {
+    {"dashLength", PM_TR("Dash:"), 1, 200, " px", PM_TR("How long a dash is along the edge.")},
+    {"dashGap",    PM_TR("Gap:"),  0, 200, " px", PM_TR("The gap between two dashes. It is stretched or squeezed a little so whole dashes go round; 0 draws a whole line.")},
+};
+
+//! The multi-line's numbers. The outline's width is the line's own.
+const Fields::RowSpec k_multiRows[] = {
+    {"multiLines", PM_TR("Lines:"),       2, 10,  "",    PM_TR("How many lines, the outline among them.")},
+    {"multiGap",   PM_TR("Gap:"),         0, 100, " px", PM_TR("The space between one line and the next.")},
+    {"multiWidth", PM_TR("Inner width:"), 0, 50,  " px", PM_TR("How wide each line inside the outline is. The outline's width is the Width above.")},
+};
+
+//! The sketch's numbers. Its width is the line's own.
+const Fields::RowSpec k_sketchRows[] = {
+    {"sketchCore",        PM_TR("Outline:"),       0, 100, " %",  PM_TR("How wide the whole thin line under the strokes is, as a share of the width. It keeps the fill closed off whatever the strokes do; 0 leaves only the strokes.")},
+    {"sketchStrokeWidth", PM_TR("Stroke width:"),  1, 100, " %",  PM_TR("How wide a pen stroke is at its widest, as a share of the width.")},
+    {"sketchLength",      PM_TR("Stroke length:"), 5, 1000, " px", PM_TR("How long a pen stroke is, a lap at most. Each varies a little about it. Short is a pen's hatching; long, loose strokes going round.")},
+    {"sketchLayers",      PM_TR("Layers:"),        1, 12,  "",    PM_TR("How many strokes lie over any place of the outline: more makes the line denser.")},
+    {"sketchStiffness",   PM_TR("Stiffness:"),     0, 100, " %",  PM_TR("How straight a stroke stays where the outline curves. 0 % follows the outline; more draws it straighter, so both its ends leave a curve. Each stroke varies a little about it.")},
+    {"sketchSpread",      PM_TR("Spread:"),        0, 20,  " px", PM_TR("How far in or out a stroke lies from the outline. Each goes from one place to another within it, so neighbours cross."), 1},
+    {"sketchEntry",       PM_TR("Taper in:"),      0, 100, " %",  PM_TR("How much of a stroke, at its start, narrows as the pen lands.")},
+    {"sketchExit",        PM_TR("Taper out:"),     0, 100, " %",  PM_TR("How much of a stroke, at its end, narrows as the pen lifts off.")},
+    {"sketchClockwise",   PM_TR("Direction:"),     0, 1,   "",    PM_TR("Which way round the pen goes: each stroke lands at its start and lifts off at its end."),
+     0, 0.0, PM_TR("Clockwise"), PM_TR("Counter-clockwise")},
+    {"sketchBlots",       PM_TR("Blots:"),         0, 100, " %",  PM_TR("Ink spilt along the line: round spots and short strokes with round ends, here and there. Re-roll deals them again.")},
+};
+
+//! Dry ink's numbers. Its width is the line's own.
+const Fields::RowSpec k_dryInkRows[] = {
+    {"dryInkGrain", PM_TR("Grain:"),   0.01, 1.0, "",
+     PM_TR("How fine the specks are: higher gives smaller, closer holes in the line."), 2, 0.01},
+    {"dryInkWear",  PM_TR("Wear:"),    0,    100, " %",
+     PM_TR("How much of the line the paper eats.")},
+    {"dryInkCore",  PM_TR("Outline:"), 0,    100, " %",
+     PM_TR("How wide the middle of the line that stays whole is, as a share of the width. It keeps the fill "
+           "closed off; the wear eats the line either side of it. 0 lets it eat right through.")},
+};
+#undef PM_TR
+
+//! @p rows as a section named @p name, under @p title.
+template <size_t N>
+constexpr Fields::Section sectionOf(const char* name, const char* title, const Fields::RowSpec (&rows)[N])
+{
+    return {name, title, rows, int(N)};
 }
 
 const std::array<LineInfo, int(StyleProperties::k_lastLine) + 1> k_lines{{
     {Line::Clean, "clean", QT_TRANSLATE_NOOP("QObject", "Clean"), nullptr,  nullptr},
-    {Line::Flash, "flash", QT_TRANSLATE_NOOP("QObject", "Flash"), flashInk, flashReach},
-    {Line::Brush, "brush", QT_TRANSLATE_NOOP("QObject", "Brush"), brushInk, brushReach},
-    {Line::Drybrush, "drybrush", QT_TRANSLATE_NOOP("QObject", "Drybrush"), drybrushInk, drybrushReach},
-    {Line::Dashed, "dashed", QT_TRANSLATE_NOOP("QObject", "Dashed"), dashedInk, dashedReach},
-    {Line::Multi, "multi", QT_TRANSLATE_NOOP("QObject", "Multi-line"), multiInk, multiReach},
-    {Line::Sketch, "sketch", QT_TRANSLATE_NOOP("QObject", "Sketch"), sketchInk, sketchReach},
+    {Line::Flash, "flash", QT_TRANSLATE_NOOP("QObject", "Flash"), flashInk, flashReach, nullptr, nullptr, {"flash"}},
+    {Line::Brush, "brush", QT_TRANSLATE_NOOP("QObject", "Brush"), brushInk, brushReach, nullptr, nullptr, {"brush"}},
+    {Line::Drybrush, "drybrush", QT_TRANSLATE_NOOP("QObject", "Drybrush"), drybrushInk, drybrushReach, nullptr, nullptr,
+     {"drybrush"}},
+    {Line::Dashed, "dashed", QT_TRANSLATE_NOOP("QObject", "Dashed"), dashedInk, dashedReach, nullptr, nullptr, {"dash"}},
+    {Line::Multi, "multi", QT_TRANSLATE_NOOP("QObject", "Multi-line"), multiInk, multiReach, nullptr, nullptr, {"multi"}},
+    {Line::Sketch, "sketch", QT_TRANSLATE_NOOP("QObject", "Sketch"), sketchInk, sketchReach, nullptr, nullptr, {"sketch"}},
     // The solid outline under a filter of its own: no strokes of its own to draw.
-    {Line::DryInk, "dryink", QT_TRANSLATE_NOOP("QObject", "Dry ink"), nullptr, nullptr, dryInkFilter, dryInkUnworn},
-    {Line::Explosion, "explosion", QT_TRANSLATE_NOOP("QObject", "Explosion"), explosionInk, explosionReach},
+    {Line::DryInk, "dryink", QT_TRANSLATE_NOOP("QObject", "Dry ink"), nullptr, nullptr, dryInkFilter, dryInkUnworn,
+     {"dryInk"}},
+    // A dry brush in a flash's halo: the halo is the flash's outer strokes, so of its rows the inner ones go.
+    {Line::Explosion, "explosion", QT_TRANSLATE_NOOP("QObject", "Explosion"), explosionInk, explosionReach, nullptr,
+     nullptr, {"flash", "drybrush"}, "Inner"},
 }};
 
 //! Likewise, for patternInfo().
@@ -1712,3 +1798,47 @@ qreal styleMargin(const ObjectRecord& a)
 }
 
 }  // namespace Geometry
+
+// The line's sections, as the Line panel shows them (propertygroups.hpp).
+
+const Fields::Section& FlashParams::section()
+{
+    static const Fields::Section s = Geometry::sectionOf("flash", QT_TRANSLATE_NOOP("QObject", "Flash"), Geometry::k_flashRows);
+    return s;
+}
+
+const Fields::Section& BrushParams::section()
+{
+    static const Fields::Section s = Geometry::sectionOf("brush", QT_TRANSLATE_NOOP("QObject", "Brush"), Geometry::k_brushRows);
+    return s;
+}
+
+const Fields::Section& DrybrushParams::section()
+{
+    static const Fields::Section s = Geometry::sectionOf("drybrush", QT_TRANSLATE_NOOP("QObject", "Drybrush"), Geometry::k_drybrushRows);
+    return s;
+}
+
+const Fields::Section& DashParams::section()
+{
+    static const Fields::Section s = Geometry::sectionOf("dash", QT_TRANSLATE_NOOP("QObject", "Dashed"), Geometry::k_dashRows);
+    return s;
+}
+
+const Fields::Section& MultiParams::section()
+{
+    static const Fields::Section s = Geometry::sectionOf("multi", QT_TRANSLATE_NOOP("QObject", "Multi-line"), Geometry::k_multiRows);
+    return s;
+}
+
+const Fields::Section& SketchParams::section()
+{
+    static const Fields::Section s = Geometry::sectionOf("sketch", QT_TRANSLATE_NOOP("QObject", "Sketch"), Geometry::k_sketchRows);
+    return s;
+}
+
+const Fields::Section& DryInkParams::section()
+{
+    static const Fields::Section s = Geometry::sectionOf("dryInk", QT_TRANSLATE_NOOP("QObject", "Dry ink"), Geometry::k_dryInkRows);
+    return s;
+}

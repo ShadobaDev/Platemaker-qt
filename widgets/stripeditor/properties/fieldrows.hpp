@@ -1,45 +1,36 @@
 #ifndef STRIPEDIT_FIELDROWS_HPP
 #define STRIPEDIT_FIELDROWS_HPP
 
-#include "properties/propertygroupeditor.hpp"   // showSpin(), restoreSpin()
-#include "fields.hpp"                           // Fields::same(): a number with decimals is compared fuzzily
+#include "properties/propertygroupeditor.hpp"   // showSpin(), restoreSpin(), showCombo()
+#include "fields.hpp"                           // Fields::RowSpec, Fields::Section; Fields::same()
 
+#include <QComboBox>
 #include <QCoreApplication>
 #include <QFormLayout>
+#include <QLabel>
 
+#include <array>
 #include <cmath>
 #include <cstring>
 #include <functional>
+#include <memory>
 #include <type_traits>
 #include <vector>
 
 namespace StripEdit {
 
-//! What a panel calls a field, and what its spin offers. Title and tip are QT_TRANSLATE_NOOP strings.
-struct FieldRowSpec
-{
-    const char* key;
-    const char* title;
-    double      min, max;
-    const char* suffix;
-    const char* tip;
-    //! Places after the point; 0 shows whole numbers (a length in whole pixels), more a decimal spin.
-    int         decimals = 0;
-    //! What an arrow adds, for a decimal spin; 0 is one unit of the last place. A number whose effect is
-    //! in proportion to it wants steps that show at its usual size, and typing keeps every place.
-    double      step = 0.0;
-};
-
 /**
- * \brief One spin per field of a group's field list, for the fields whose key starts with a prefix.
+ * \brief One row per field of a group's field list, for the fields whose key starts with a prefix: a spin
+ *        for a number, a combo for a bool whose spec names its two entries.
  *
  * The rows a parameterised style or shape shows: built by walking `Group::fields()`, so a field added to
- * the list gets its row with no hand-written widget, and labelled from a spec table the panel owns. A
- * field with the prefix and no spec stops a debug build.
+ * the list gets its row with no hand-written widget, and labelled from a spec table (Fields::RowSpec). A
+ * number with the prefix and no spec stops a debug build; a bool without one gets no row (its panel shows
+ * it otherwise, a check box).
  *
  * Each row keeps the panel contract on its own: *Mixed* while a bound selection disagrees about it
- * (showSpin()), and *touched* once the artist moves it, so applyEdited() writes only what was edited.
- * Header-only, as a template over the group; it holds no QObject of its own and connects through the
+ * (showSpin(), showCombo()), and *touched* once the artist moves it, so applyEdited() writes only what was
+ * edited. Header-only, as a template over the group; it holds no QObject of its own and connects through the
  * owning panel. It must not move once built: the connections hold a pointer to it.
  */
 template <class Group>
@@ -53,64 +44,73 @@ public:
      * \brief Adds the rows to @p form, in the field list's order.
      * \param owner      Parents the spins, and is the context of their connections.
      * \param prefix     Which fields get a row.
-     * \param specs      Labels, ranges and tooltips, translated in @p context.
+     * \param specs      Labels, ranges and tooltips (@p count of them), translated in @p context.
      * \param values     The panel's own copy of the group, written on every edit.
      * \param populating The panel's guard: while true, a spin's change is the panel showing a value.
      * \param edited     Called after a row's edit is in @p values: the panel emits changed() there.
      */
-    template <size_t N>
-    void build(QWidget* owner, QFormLayout* form, const char* prefix, const FieldRowSpec (&specs)[N],
+    void build(QWidget* owner, QFormLayout* form, const char* prefix, const Fields::RowSpec* specs, int count,
                const char* context, Group& values, const bool& populating, std::function<void()> edited,
                const SpinFactory& makeSpin = {})
     {
         const size_t prefixLength = std::strlen(prefix);
         Group::fields([&](const char* key, auto member) {
             using T = std::remove_cv_t<std::remove_reference_t<decltype(Fields::at(values, member))>>;
-            // A spin holds a number: a list (a Polygon's nodes) is never a row, and is not compiled as one;
-            // nor is a choice (an enum, e.g. the edge's kind; a bool, e.g. whether there is a shadow), which
-            // its panel shows as a combo or a check box.
+            // A row holds a number or a bool: a list (a Polygon's nodes) is never a row, and is not compiled as
+            // one; nor is an enum (e.g. the edge's kind), which its panel shows as a combo of its own.
             // A sub-group's field (a Paint's) is its own editor's (PaintRows), whatever its key.
-            if constexpr (!Fields::isNested<decltype(member)> && std::is_arithmetic_v<T> && !std::is_same_v<T, bool>) {
+            if constexpr (!Fields::isNested<decltype(member)> && std::is_arithmetic_v<T>) {
                 if (std::strncmp(key, prefix, prefixLength) != 0)
                     return;
-                const FieldRowSpec* spec = nullptr;
-                for (const FieldRowSpec& s : specs)
-                    if (std::strcmp(s.key, key) == 0)
-                        spec = &s;
-                Q_ASSERT_X(spec, "FieldRows", "a field with the prefix and no row in the spec table");
-                if (!spec)
-                    return;
+                const Fields::RowSpec* spec = nullptr;
+                for (int i = 0; i < count; ++i)
+                    if (std::strcmp(specs[i].key, key) == 0)
+                        spec = &specs[i];
+                if constexpr (std::is_same_v<T, bool>) {
+                    if (!spec || !spec->on)
+                        return;   // a check box of its panel's own
+                } else {
+                    Q_ASSERT_X(spec, "FieldRows", "a field with the prefix and no row in the spec table");
+                    if (!spec)
+                        return;
+                }
 
                 Row row;
                 row.key = key;
                 row.min = spec->min;
-                if (spec->decimals > 0) {
-                    row.decimal = new QDoubleSpinBox(owner);
-                    row.decimal->setDecimals(spec->decimals);
-                    row.decimal->setSingleStep(spec->step > 0.0 ? spec->step : std::pow(10.0, -spec->decimals));
-                    row.decimal->setRange(spec->min, spec->max);
-                    row.box = row.decimal;
-                    row.get = [member](const Group& v) { return double(Fields::at(v, member)); };
+                if constexpr (std::is_same_v<T, bool>) {
+                    row.choice = new QComboBox(owner);
+                    row.choice->addItem(QCoreApplication::translate(context, spec->on), true);
+                    row.choice->addItem(QCoreApplication::translate(context, spec->off), false);
+                    row.box = row.choice;
+                    row.get = [member](const Group& v) { return Fields::at(v, member) ? 1.0 : 0.0; };
+                    row.set = [member](Group& v, double x) { Fields::at(v, member) = x != 0.0; };
                 } else {
-                    row.whole = makeSpin ? makeSpin(key) : nullptr;
-                    if (!row.whole)
-                        row.whole = new QSpinBox(owner);
-                    row.whole->setRange(int(spec->min), int(spec->max));
-                    row.box = row.whole;
-                    row.get = [member](const Group& v) { return double(qRound(double(Fields::at(v, member)))); };
+                    if (spec->decimals > 0) {
+                        row.decimal = new QDoubleSpinBox(owner);
+                        row.decimal->setDecimals(spec->decimals);
+                        row.decimal->setSingleStep(spec->step > 0.0 ? spec->step : std::pow(10.0, -spec->decimals));
+                        row.decimal->setRange(spec->min, spec->max);
+                        row.decimal->setSuffix(QString::fromUtf8(spec->suffix));   // a suffix may be "°"
+                        row.box = row.decimal;
+                        row.get = [member](const Group& v) { return double(Fields::at(v, member)); };
+                    } else {
+                        row.whole = makeSpin ? makeSpin(key) : nullptr;
+                        if (!row.whole)
+                            row.whole = new QSpinBox(owner);
+                        row.whole->setRange(int(spec->min), int(spec->max));
+                        row.whole->setSuffix(QString::fromUtf8(spec->suffix));
+                        row.box = row.whole;
+                        row.get = [member](const Group& v) { return double(qRound(double(Fields::at(v, member)))); };
+                    }
+                    // Into the member's own type: an integer field rounds what it is given.
+                    row.set = [member](Group& v, double x) {
+                        if constexpr (std::is_floating_point_v<T>)
+                            Fields::at(v, member) = T(x);
+                        else
+                            Fields::at(v, member) = T(qRound(x));
+                    };
                 }
-                // Into the member's own type: an integer field rounds what it is given.
-                row.set = [member](Group& v, double x) {
-                    if constexpr (std::is_floating_point_v<T>)
-                        Fields::at(v, member) = T(x);
-                    else
-                        Fields::at(v, member) = T(qRound(x));
-                };
-                const QString suffix = QString::fromUtf8(spec->suffix);   // a suffix may be "°"
-                if (row.whole)
-                    row.whole->setSuffix(suffix);
-                else
-                    row.decimal->setSuffix(suffix);
                 row.box->setToolTip(QCoreApplication::translate(context, spec->tip));
                 form->addRow(QCoreApplication::translate(context, spec->title), row.box);
                 if (QWidget* label = form->labelForField(row.box))   // the name says what the tip explains
@@ -122,18 +122,33 @@ public:
                     if (populating)
                         return;
                     Row& r = m_rows[index];
-                    if (r.whole ? restoreSpin(r.whole, int(r.min)) : restoreSpin(r.decimal, r.min))
+                    if (r.whole ? restoreSpin(r.whole, int(r.min)) : r.decimal ? restoreSpin(r.decimal, r.min) : true)
                         r.mixed = false;
                     r.set(values, v);
                     r.touched = true;
                     edited();
                 };
-                if (row.whole)
+                if (row.choice)
+                    QObject::connect(row.choice, &QComboBox::currentIndexChanged, owner,
+                                     [onEdit, choice = row.choice](int i) {
+                                         if (i >= 0)
+                                             onEdit(choice->itemData(i).toBool() ? 1.0 : 0.0);
+                                     });
+                else if (row.whole)
                     QObject::connect(row.whole, &QSpinBox::valueChanged, owner, [onEdit](int v) { onEdit(v); });
                 else
                     QObject::connect(row.decimal, &QDoubleSpinBox::valueChanged, owner, onEdit);
             }
         });
+    }
+
+    //! build() over a spec table.
+    template <size_t N>
+    void build(QWidget* owner, QFormLayout* form, const char* prefix, const Fields::RowSpec (&specs)[N],
+               const char* context, Group& values, const bool& populating, std::function<void()> edited,
+               const SpinFactory& makeSpin = {})
+    {
+        build(owner, form, prefix, specs, int(N), context, values, populating, std::move(edited), makeSpin);
     }
 
     //! Starts a bind: nothing mixed, nothing touched.
@@ -154,7 +169,9 @@ public:
     void show(const Group& values) const
     {
         for (const Row& r : m_rows) {
-            if (r.whole)
+            if (r.choice)
+                showCombo(r.choice, r.mixed, r.choice->findData(r.get(values) != 0.0));
+            else if (r.whole)
                 showSpin(r.whole, r.mixed, qRound(r.get(values)), int(r.min), r.whole->maximum());
             else
                 showSpin(r.decimal, r.mixed, r.get(values), r.min, r.decimal->maximum());
@@ -192,21 +209,143 @@ public:
     }
 
 private:
-    //! One field's spin, and how to reach the field: whole numbers on screen, or with decimals.
+    //! One field's row, and how to reach the field: whole numbers on screen, with decimals, or a choice.
     struct Row
     {
         const char*                         key     = nullptr;
-        QAbstractSpinBox*                   box     = nullptr;   //!< whichever of the two it is
+        QWidget*                            box     = nullptr;   //!< whichever of the three it is
         QSpinBox*                           whole   = nullptr;
         QDoubleSpinBox*                     decimal = nullptr;
+        QComboBox*                          choice  = nullptr;
         double                              min     = 0.0;
-        std::function<double(const Group&)> get;     //!< As the spin shows it (rounded for a whole one).
+        std::function<double(const Group&)> get;     //!< As the row shows it (rounded for a whole one; 1 or 0).
         std::function<void(Group&, double)> set;
         bool                                mixed   = false;
         bool                                touched = false;
     };
 
     std::vector<Row> m_rows;
+};
+
+/**
+ * \brief The rows of every section of a group (`Group::sections()`, fields.hpp), each under a heading: what
+ *        a panel shows for the kinds of a thing whose numbers are sections (a line's).
+ *
+ * Built once, in the order the group lists its sections; showSections() then shows those a kind's table
+ * entry names. The panel contract is FieldRows', section by section.
+ */
+template <class Group>
+class SectionRows
+{
+public:
+    using SpinFactory = typename FieldRows<Group>::SpinFactory;
+
+    //! Adds a heading and the rows for each section, in the group's order. As FieldRows::build().
+    void build(QWidget* owner, QFormLayout* form, Group& values, const bool& populating,
+               const std::function<void()>& edited, const SpinFactory& makeSpin = {})
+    {
+        Group::sections([&](auto member) {
+            using Sub = std::remove_reference_t<decltype(values.*member)>;
+            auto part = std::make_unique<Part<Sub>>();
+            part->member  = member;
+            part->section = &Sub::section();
+            part->heading = new QLabel(QCoreApplication::translate(k_context, part->section->title), owner);
+            QFont font = part->heading->font();
+            font.setBold(true);
+            part->heading->setFont(font);
+            form->addRow(part->heading);
+            part->rows.build(owner, form, "", part->section->rows, part->section->rowCount, k_context,
+                             values.*member, populating, edited, makeSpin);
+            m_parts.push_back(std::move(part));
+        });
+    }
+
+    void reset()
+    {
+        for (auto& p : m_parts)
+            p->reset();
+    }
+
+    void compare(const Group& subject, const Group& shown)
+    {
+        for (auto& p : m_parts)
+            p->compare(subject, shown);
+    }
+
+    void show(const Group& values) const
+    {
+        for (const auto& p : m_parts)
+            p->show(values);
+    }
+
+    void applyEdited(const Group& values, Group& target) const
+    {
+        for (const auto& p : m_parts)
+            p->applyEdited(values, target);
+    }
+
+    /**
+     * \brief Shows the sections named in @p names, every section when @p all (a selection that disagrees
+     *        about the kind), and none when not @p visible. Of the named ones, the rows whose key holds
+     *        @p hides are not shown. A heading shows over each only where more than one is shown.
+     */
+    void showSections(QFormLayout* form, bool visible, bool all, const std::array<const char*, 2>& names,
+                      const char* hides) const
+    {
+        const auto named = [&](const Fields::Section& s) {
+            for (const char* n : names)
+                if (n && std::strcmp(n, s.name) == 0)
+                    return true;
+            return false;
+        };
+        int shown = 0;
+        for (const auto& p : m_parts)
+            shown += visible && (all || named(*p->section));
+        for (const auto& p : m_parts) {
+            const bool on = visible && (all || named(*p->section));
+            p->setVisible(form, on);
+            if (on && !all && hides)
+                p->hideRows(form, hides);
+            form->setRowVisible(p->heading, on && shown > 1 && !all);
+        }
+    }
+
+private:
+    //! The context a section's strings are translated in (Fields::RowSpec).
+    static constexpr char k_context[] = "QObject";
+
+    struct Base
+    {
+        virtual ~Base() = default;
+        virtual void reset()                                                 = 0;
+        virtual void compare(const Group& subject, const Group& shown)      = 0;
+        virtual void show(const Group& values) const                        = 0;
+        virtual void applyEdited(const Group& values, Group& target) const  = 0;
+        virtual void setVisible(QFormLayout* form, bool visible) const      = 0;
+        virtual void hideRows(QFormLayout* form, const char* part) const    = 0;
+
+        const Fields::Section* section = nullptr;
+        QLabel*                heading = nullptr;
+    };
+
+    template <class Sub>
+    struct Part : Base
+    {
+        Sub Group::*   member = nullptr;
+        FieldRows<Sub> rows;
+
+        void reset() override { rows.reset(); }
+        void compare(const Group& subject, const Group& shown) override { rows.compare(subject.*member, shown.*member); }
+        void show(const Group& values) const override { rows.show(values.*member); }
+        void applyEdited(const Group& values, Group& target) const override
+        {
+            rows.applyEdited(values.*member, target.*member);
+        }
+        void setVisible(QFormLayout* form, bool visible) const override { rows.setVisible(form, visible); }
+        void hideRows(QFormLayout* form, const char* part) const override { rows.setRowsVisible(form, part, false); }
+    };
+
+    std::vector<std::unique_ptr<Base>> m_parts;
 };
 
 }  // namespace StripEdit

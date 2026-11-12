@@ -48,7 +48,7 @@ constexpr char k_trContext[] = "StripEdit::TextEditor";
 
 #define PM_TR(s) QT_TRANSLATE_NOOP("StripEdit::TextEditor", s)
 //! The two paddings, in strip pixels. Negative lets the lettering reach past the outline.
-const FieldRowSpec k_paddingRows[] = {
+const Fields::RowSpec k_paddingRows[] = {
     {"paddingSide", PM_TR("Padding sides"), k_paddingMin, k_paddingMax, " px",
      PM_TR("Room between the balloon's outline and the lettering, left and right.\n"
            "Negative lets the lettering reach past the outline.")},
@@ -58,7 +58,7 @@ const FieldRowSpec k_paddingRows[] = {
            "the balloon. Negative lets the lettering reach past the outline.")},
 };
 //! The letters' outline, in strip pixels; 0 is none.
-const FieldRowSpec k_outlineRows[] = {
+const Fields::RowSpec k_outlineRows[] = {
     {"textOutlineWidth", PM_TR("Outline"), 0, 50, " px",
      PM_TR("A band round each letter, outside it, so the letters keep their weight. 0 is none."), 1},
 };

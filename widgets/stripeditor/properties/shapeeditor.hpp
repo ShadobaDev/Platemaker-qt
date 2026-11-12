@@ -88,12 +88,10 @@ private:
     QWidget*                    m_tileHost = nullptr;
     QWidget*                    m_parameters = nullptr;
     QFormLayout*                m_form  = nullptr;
-    FieldRows<ShapeProperties>  m_corner;   //!< The corner radius, for a kind that is rounded.
-    FieldRows<ShapeProperties>  m_lobes;    //!< A Cloud's lobes and their size.
-    FieldRows<ShapeProperties>  m_bow;      //!< A Polygon's bow and its irregularity.
+    SectionRows<ShapeProperties> m_sections;   //!< Every family's numbers; those of the kind shown.
     QPushButton*                m_regular = nullptr;   //!< Opens *Regular polygon / star…*, on a Polygon.
     QComboBox*                  m_edge = nullptr;   //!< The edge's modulation, any family.
-    FieldRows<ShapeProperties>  m_edgeRows;         //!< Its spacing, depth and irregularity.
+    FieldRows<EdgeParams>       m_edgeRows;         //!< Its teeth: spacing, depth and irregularity.
     ShapeProperties             m_values;
     bool                        m_populating = false;
 };

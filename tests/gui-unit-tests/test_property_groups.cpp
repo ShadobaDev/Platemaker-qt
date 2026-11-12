@@ -38,16 +38,16 @@ ObjectRecord loadedRecord()
 {
     ObjectRecord a;
     shapeOf(a).kind       = ObjectRecord::Shape::Cloud;
-    shapeOf(a).cornerRadius = 33.0;
+    shapeOf(a).corner.radius = 33.0;
     shapeOf(a).nodes      = {{0.1, 0.2}, {0.9, 0.15}, {0.55, 0.95}};
-    shapeOf(a).lobes      = 9;
-    shapeOf(a).lobeSize   = 33;
-    shapeOf(a).bow             = 12;
-    shapeOf(a).bowIrregularity = 37;
+    shapeOf(a).cloud.lobes      = 9;
+    shapeOf(a).cloud.lobeSize   = 33;
+    shapeOf(a).bow.depth             = 12;
+    shapeOf(a).bow.irregularity = 37;
     shapeOf(a).edge             = ObjectRecord::Edge::Zigzag;
-    shapeOf(a).edgePitch        = 12.5;
-    shapeOf(a).edgeDepth        = 4.5;
-    shapeOf(a).edgeIrregularity = 25;
+    shapeOf(a).teeth.pitch        = 12.5;
+    shapeOf(a).teeth.depth        = 4.5;
+    shapeOf(a).teeth.irregularity = 25;
     boxOf(a)              = QSize(321, 123);
 
     Tail t;
@@ -72,11 +72,11 @@ ObjectRecord loadedRecord()
 
     styleOf(a).line              = ObjectRecord::Line::Flash;
     textureOf(a).kind              = ObjectRecord::Texture::Rough;
-    textureOf(a).roughFrequency    = 0.05;
-    textureOf(a).roughOctaves      = 4;
-    textureOf(a).roughDisplacement = 7.5;
-    textureOf(a).roughBlur         = 1.25;
-    textureOf(a).roughFill         = true;   // not the default; the parts are a golden case of their own
+    textureOf(a).rough.frequency    = 0.05;
+    textureOf(a).rough.octaves      = 4;
+    textureOf(a).rough.displacement = 7.5;
+    textureOf(a).rough.blur         = 1.25;
+    textureOf(a).rough.fill         = true;   // not the default; the parts are a golden case of their own
     styleOf(a).flash.outerPitch        = 3.5;
     styleOf(a).flash.innerPitch        = 4.5;
     styleOf(a).flash.outerLength       = 21.0;
@@ -300,16 +300,16 @@ void expectUntouched(Group applied, const ObjectRecord& before, const ObjectReco
 {
     if (applied != Group::Shape) {
         EXPECT_EQ(shapeOf(after).kind, shapeOf(before).kind);
-        EXPECT_DOUBLE_EQ(shapeOf(after).cornerRadius, shapeOf(before).cornerRadius);
+        EXPECT_DOUBLE_EQ(shapeOf(after).corner.radius, shapeOf(before).corner.radius);
         EXPECT_TRUE(Fields::same(shapeOf(after).nodes, shapeOf(before).nodes));
-        EXPECT_EQ(shapeOf(after).lobes,    shapeOf(before).lobes);
-        EXPECT_EQ(shapeOf(after).lobeSize, shapeOf(before).lobeSize);
-        EXPECT_EQ(shapeOf(after).bow,             shapeOf(before).bow);
-        EXPECT_EQ(shapeOf(after).bowIrregularity, shapeOf(before).bowIrregularity);
+        EXPECT_EQ(shapeOf(after).cloud.lobes,    shapeOf(before).cloud.lobes);
+        EXPECT_EQ(shapeOf(after).cloud.lobeSize, shapeOf(before).cloud.lobeSize);
+        EXPECT_EQ(shapeOf(after).bow.depth,             shapeOf(before).bow.depth);
+        EXPECT_EQ(shapeOf(after).bow.irregularity, shapeOf(before).bow.irregularity);
         EXPECT_EQ(shapeOf(after).edge, shapeOf(before).edge);
-        EXPECT_DOUBLE_EQ(shapeOf(after).edgePitch, shapeOf(before).edgePitch);
-        EXPECT_DOUBLE_EQ(shapeOf(after).edgeDepth, shapeOf(before).edgeDepth);
-        EXPECT_EQ(shapeOf(after).edgeIrregularity, shapeOf(before).edgeIrregularity);
+        EXPECT_DOUBLE_EQ(shapeOf(after).teeth.pitch, shapeOf(before).teeth.pitch);
+        EXPECT_DOUBLE_EQ(shapeOf(after).teeth.depth, shapeOf(before).teeth.depth);
+        EXPECT_EQ(shapeOf(after).teeth.irregularity, shapeOf(before).teeth.irregularity);
     }
 
     if (applied != Group::Skin) {
@@ -359,11 +359,11 @@ void expectUntouched(Group applied, const ObjectRecord& before, const ObjectReco
     }
     if (applied != Group::Texture) {
         EXPECT_EQ(textureOf(after).kind, textureOf(before).kind);
-        EXPECT_DOUBLE_EQ(textureOf(after).roughFrequency,    textureOf(before).roughFrequency);
-        EXPECT_EQ(textureOf(after).roughOctaves,             textureOf(before).roughOctaves);
-        EXPECT_DOUBLE_EQ(textureOf(after).roughDisplacement, textureOf(before).roughDisplacement);
-        EXPECT_DOUBLE_EQ(textureOf(after).roughBlur,         textureOf(before).roughBlur);
-        EXPECT_EQ(textureOf(after).roughFill,                textureOf(before).roughFill);
+        EXPECT_DOUBLE_EQ(textureOf(after).rough.frequency,    textureOf(before).rough.frequency);
+        EXPECT_EQ(textureOf(after).rough.octaves,             textureOf(before).rough.octaves);
+        EXPECT_DOUBLE_EQ(textureOf(after).rough.displacement, textureOf(before).rough.displacement);
+        EXPECT_DOUBLE_EQ(textureOf(after).rough.blur,         textureOf(before).rough.blur);
+        EXPECT_EQ(textureOf(after).rough.fill,                textureOf(before).rough.fill);
     }
     if (applied != Group::Effects) {
         EXPECT_EQ(effectsOf(after).shadow.on, effectsOf(before).shadow.on);
@@ -430,7 +430,7 @@ TEST(PropertyGroupOwnership, Shape)
 
     ShapeProperties s;
     s.kind         = ObjectRecord::Shape::Polygon;
-    s.cornerRadius = 12.0;
+    s.corner.radius = 12.0;
     s.nodes        = {{0, 0}, {1, 0.5}, {0, 1}};
     s.applyTo(after);
 
@@ -463,7 +463,7 @@ TEST(PropertyGroupOwnership, Texture)
 
     TextureProperties t;
     t.kind      = ObjectRecord::Texture::Rough;
-    t.roughBlur = 0.25;
+    t.rough.blur = 0.25;
     t.applyTo(after);
 
     EXPECT_EQ(textureOf(after), t);
@@ -785,11 +785,53 @@ TEST(Conversion, ThePickerOffersEverySilhouetteAndNoKind)
     EXPECT_FALSE(shapeTitle(ObjectRecord::Shape::None).isEmpty());
 }
 
+//! Whether @p Group lists a section named @p name (a kind's table entry names it so).
+template <class Group>
+bool hasSection(const char* name)
+{
+    bool found = false;
+    Group::sections([&](auto member) {
+        using Sub = std::remove_reference_t<decltype(Group().*member)>;
+        found     = found || std::strcmp(Sub::section().name, name) == 0;
+    });
+    return found;
+}
+
+//! Every field of the section @p Sub has a row, and a bool's names both its entries (a combo) or neither (a check box).
+template <class Sub>
+void expectEveryFieldHasARow()
+{
+    const Fields::Section& s = Sub::section();
+    Sub::fields([&](const char* key, auto field) {
+        using T = std::remove_reference_t<decltype(Sub().*field)>;
+        const Fields::RowSpec* row = nullptr;
+        for (int r = 0; r < s.rowCount; ++r)
+            if (std::strcmp(s.rows[r].key, key) == 0)
+                row = &s.rows[r];
+        if (!row) {
+            ADD_FAILURE() << s.name << " has no row for " << key;
+            return;
+        }
+        if constexpr (std::is_same_v<T, bool>)
+            EXPECT_EQ(row->on == nullptr, row->off == nullptr) << key;
+    });
+}
+
+//! expectEveryFieldHasARow() for every section of @p Group.
+template <class Group>
+void expectEverySectionHasRows()
+{
+    Group::sections([](auto member) {
+        expectEveryFieldHasARow<std::remove_reference_t<decltype(Group().*member)>>();
+    });
+}
+
 /**
  * \brief Every shape has its own entry in the shape table (shapes.cpp), in the enum's order, with a
  *        name, a title, an outline and a text area — except `None`, which has no outline to draw. So
  *        has every line (strokes for each but Clean) and every texture (a filter's reach for each but
- *        None), in styles.cpp.
+ *        None), in styles.cpp. The sections each entry names are its group's, and every number in them
+ *        has a panel row.
  *
  * The tables are indexed by the enum, so an entry out of order would give a shape another's geometry;
  * and an appended shape with no entry would be drawn as the Box shapeInfo() falls back to. Every
@@ -809,31 +851,10 @@ TEST(Conversion, EveryShapeAndStyleHasATableEntry)
             << lineName(kind);
         EXPECT_EQ(info.ink == nullptr, info.inkReach == nullptr) << lineName(kind);
         // The sections it reads are StyleProperties' own: the Line panel finds their rows by name.
-        for (const char* name : info.sections) {
-            bool found = name == nullptr;
-            StyleProperties::sections([&](auto member) {
-                using Sub = std::remove_reference_t<decltype(StyleProperties().*member)>;
-                found = found || std::strcmp(Sub::section().name, name) == 0;
-            });
-            EXPECT_TRUE(found) << lineName(kind) << " reads " << name;
-        }
+        for (const char* name : info.sections)
+            EXPECT_TRUE(!name || hasSection<StyleProperties>(name)) << lineName(kind) << " reads " << name;
     }
-    // Every number of a section has a row, and every bool that has one names its two entries.
-    StyleProperties::sections([&](auto member) {
-        using Sub = std::remove_reference_t<decltype(StyleProperties().*member)>;
-        const Fields::Section& s = Sub::section();
-        Sub::fields([&](const char* key, auto field) {
-            using T = std::remove_reference_t<decltype(Sub().*field)>;
-            const Fields::RowSpec* row = nullptr;
-            for (int r = 0; r < s.rowCount; ++r)
-                if (std::strcmp(s.rows[r].key, key) == 0)
-                    row = &s.rows[r];
-            if constexpr (std::is_same_v<T, bool>)
-                EXPECT_TRUE(!row || (row->on && row->off)) << key;
-            else
-                EXPECT_NE(row, nullptr) << s.name << " has no row for " << key;
-        });
-    });
+    expectEverySectionHasRows<StyleProperties>();
     for (int i = 0; i <= int(TextureProperties::k_lastKind); ++i) {
         const auto                   kind = static_cast<ObjectRecord::Texture>(i);
         const Geometry::TextureInfo& info = Geometry::textureInfo(kind);
@@ -842,7 +863,10 @@ TEST(Conversion, EveryShapeAndStyleHasATableEntry)
         EXPECT_NE(info.title, nullptr) << i;
         // Every texture but None is a filter, and a filter reserves room.
         EXPECT_EQ(info.reach == nullptr, kind == ObjectRecord::Texture::None) << textureName(kind);
+        for (const char* name : info.sections)
+            EXPECT_TRUE(!name || hasSection<TextureProperties>(name)) << textureName(kind) << " reads " << name;
     }
+    expectEverySectionHasRows<TextureProperties>();
 
     for (int i = 0; i <= int(ShapeProperties::k_lastKind); ++i) {
         const auto                 kind = static_cast<ObjectRecord::Shape>(i);
@@ -852,7 +876,11 @@ TEST(Conversion, EveryShapeAndStyleHasATableEntry)
         EXPECT_NE(info.title, nullptr) << i;
         EXPECT_NE(info.safeArea, nullptr) << i;
         EXPECT_EQ(info.outline == nullptr, kind == ObjectRecord::Shape::None) << shapeName(kind);
+        for (const char* name : info.sections)
+            EXPECT_TRUE(!name || hasSection<ShapeProperties>(name)) << shapeName(kind) << " reads " << name;
     }
+    expectEverySectionHasRows<ShapeProperties>();
+    expectEveryFieldHasARow<EdgeParams>();   // the edge's, under its own combo
 
     QList<ObjectRecord::Shape> templated;
     for (const Geometry::ShapeTemplate& t : Geometry::shapeTemplates()) {
@@ -875,9 +903,9 @@ TEST(Shape, APolygonsEdgesBowIn)
     constexpr qreal k_margin = 2.0;   // either side of where the bowed edge's middle lies, in pixels
     ShapeProperties s;
     s.kind         = ObjectRecord::Shape::Polygon;
-    s.cornerRadius = 0.0;
+    s.corner.radius = 0.0;
     s.nodes        = {ShapeNode(0, 0), ShapeNode(1, 0), ShapeNode(1, 1), ShapeNode(0, 1)};
-    s.bow          = 20;
+    s.bow.depth          = 20;
     const QRectF body(0, 0, 200, 100);
     const auto   outline = Geometry::shapeInfo(s.kind).outline;
     const QPainterPath bowed = outline(s, body);
@@ -888,7 +916,7 @@ TEST(Shape, APolygonsEdgesBowIn)
     EXPECT_TRUE(bowed.contains(QPointF(20 + k_margin, 50)));
     EXPECT_TRUE(body.contains(bowed.boundingRect()));
 
-    s.bowIrregularity = 80;
+    s.bow.irregularity = 80;
     const QPainterPath uneven = outline(s, body);
     EXPECT_TRUE(uneven == outline(s, body));
     EXPECT_FALSE(uneven == bowed);
@@ -923,11 +951,11 @@ TEST(Texture, AFineGrainIsWrittenAsItIs)
     shapeOf(a)        = Geometry::shapeTemplate("speech").shape;
     textOf(a).body.clear();   // no lettering, which would need a font
     textureOf(a).kind           = ObjectRecord::Texture::Rough;
-    textureOf(a).roughFrequency = 0.035;
+    textureOf(a).rough.frequency = 0.035;
     const QByteArray svg = Svg::write(a);
     EXPECT_TRUE(QString::fromUtf8(svg).contains(QStringLiteral("baseFrequency=\"0.035\"")));
     bool ok = false;
-    EXPECT_NEAR(textureOf(Svg::read(svg, &ok)).roughFrequency, 0.035, k_tolerance);
+    EXPECT_NEAR(textureOf(Svg::read(svg, &ok)).rough.frequency, 0.035, k_tolerance);
     EXPECT_TRUE(ok);
 }
 
@@ -959,7 +987,7 @@ TEST(Style, DryInkEatsTheOutlineAlone)
               svg.count(QStringLiteral("stroke-width=")) - 1);
 
     textureOf(a).kind      = ObjectRecord::Texture::Rough;
-    textureOf(a).roughFill = false;
+    textureOf(a).rough.fill = false;
     const QString rough = QString::fromUtf8(Svg::write(a));
     EXPECT_GT(rough.indexOf(use), rough.lastIndexOf(QStringLiteral("filter=\"url(#pm-style)\"")));
 }
@@ -1246,7 +1274,7 @@ TEST(Style, ADrybrushKeepsItsCoreAndThinsOutwards)
     // and there; inside, nothing runs on into the fill, past where either side's band is.
     tailsOf(a).items.clear();
     shapeOf(a).kind         = ObjectRecord::Shape::Polygon;
-    shapeOf(a).cornerRadius = 0.0;
+    shapeOf(a).corner.radius = 0.0;
     shapeOf(a).nodes        = {{0, 0}, {1, 0}, {1, 0.5}, {0.5, 0.5}, {0.5, 1}, {0, 1}};
     boxOf(a)                = QSize(200, 200);
     const QRectF  body   = Geometry::balloonRect(a);
@@ -1476,7 +1504,7 @@ TEST(Tails, AConcaveOutlineIsLeftNearestTheTip)
 {
     ObjectRecord a;
     shapeOf(a).kind         = ObjectRecord::Shape::Polygon;
-    shapeOf(a).cornerRadius = 0.0;
+    shapeOf(a).corner.radius = 0.0;
     shapeOf(a).nodes = {{0, 0}, {0.3, 0}, {0.3, 0.4}, {0.7, 0.4}, {0.7, 0}, {1, 0}, {1, 1}, {0, 1}};
     boxOf(a)              = QSize(200, 200);
     styleOf(a).strokeWidth = 0;   // the balloon is then the box, and the nodes are these pixels
@@ -1502,7 +1530,7 @@ TEST(Shapes, APolygonsCornersRoundAsABoxsDo)
 {
     ObjectRecord box;
     shapeOf(box).kind         = ObjectRecord::Shape::Box;
-    shapeOf(box).cornerRadius = 30.0;
+    shapeOf(box).corner.radius = 30.0;
     boxOf(box)                = QSize(200, 100);
     styleOf(box).strokeWidth   = 0;
     ObjectRecord square = box;
@@ -1516,7 +1544,7 @@ TEST(Shapes, APolygonsCornersRoundAsABoxsDo)
         EXPECT_EQ(a.contains(p), b.contains(p)) << p.x() << "," << p.y();
     EXPECT_FALSE(b.contains(QPointF(3, 3)));   // the corner is cut, not bulged
 
-    shapeOf(square).cornerRadius = 1000.0;
+    shapeOf(square).corner.radius = 1000.0;
     const QRectF drawn = Geometry::outlineOf(square, body).boundingRect();
     EXPECT_TRUE(body.adjusted(-0.01, -0.01, 0.01, 0.01).contains(drawn));
 }
@@ -1543,7 +1571,7 @@ TEST(Shapes, AHandleDraggedOntoItselfChangesNothing)
             if (!Geometry::hasShapeHandles(shape))
                 continue;
             for (qreal radius : {0.0, 20.0}) {
-                shape.cornerRadius = radius;
+                shape.corner.radius = radius;
                 for (int picked = -1; picked < int(shape.nodes.size()); ++picked) {
                     for (const Geometry::ShapeHandle& h : Geometry::shapeHandles(shape, body, clearance, picked)) {
                         if (h.role == Geometry::ShapeHandle::Role::AddVertex)
@@ -1583,8 +1611,8 @@ TEST(Shapes, AnEdgeGoesInAndTheLetteringGivesUpItsDepth)
         boxOf(plain)   = QSize(300, 160);
         ObjectRecord edged           = plain;
         shapeOf(edged).edge             = edge;
-        shapeOf(edged).edgeDepth        = 9.0;
-        shapeOf(edged).edgeIrregularity = 50;
+        shapeOf(edged).teeth.depth        = 9.0;
+        shapeOf(edged).teeth.irregularity = 50;
         seedOf(edged)              = 7;
 
         const QRectF body = Geometry::balloonRect(plain);
@@ -1855,7 +1883,7 @@ TEST(Shapes, ACurveKeepsItsOutlineThroughItsEdits)
 {
     const QRectF body(5, 5, 270, 150);
     ShapeProperties rounded = Geometry::shapeTemplate("shout").shape;
-    rounded.cornerRadius    = 6.0;
+    rounded.corner.radius    = 6.0;
     for (const ShapeProperties& from : {Geometry::shapeTemplate("speech").shape, Geometry::shapeTemplate("ellipse").shape,
                                         rounded, Geometry::shapeTemplate("thought").shape}) {
         const QPainterPath    before = Geometry::shapeInfo(from.kind).outline(from, body);
@@ -1865,7 +1893,7 @@ TEST(Shapes, ACurveKeepsItsOutlineThroughItsEdits)
             << shapeName(from.kind);
         // A node per cubic the path has, not a polygon: a cloud's lobe is a few arc pieces.
         if (from.kind == ObjectRecord::Shape::Cloud)
-            EXPECT_LE(curve.nodes.size(), 4 * from.lobes);
+            EXPECT_LE(curve.nodes.size(), 4 * from.cloud.lobes);
     }
     // An ellipse's four quarters meet smoothly, each node's handles as long as each other.
     const ShapeProperties round = Geometry::curveOf(
@@ -2325,9 +2353,9 @@ QString goldenRecords()
     for (int e = int(ObjectRecord::Edge::Wave); e <= int(ShapeProperties::k_lastEdge); ++e) {
         ShapeProperties edged  = Geometry::shapeTemplate("speech").shape;
         edged.edge             = static_cast<ObjectRecord::Edge>(e);
-        edged.edgePitch        = 24.0;
-        edged.edgeDepth        = 8.0;
-        edged.edgeIrregularity = 30;
+        edged.teeth.pitch        = 24.0;
+        edged.teeth.depth        = 8.0;
+        edged.teeth.irregularity = 30;
         shapes.append({QStringLiteral("speech ") + QLatin1String(edgeName(edged.edge)), edged});
     }
     // A zigzag edge on one template of each kind that draws a line or a curve.
@@ -2470,9 +2498,9 @@ QString goldenRecords()
         shapeOf(a).nodes           = {ShapeNode(0, 0.1),  ShapeNode(0.3, 0),    ShapeNode(0.55, 0.08), ShapeNode(1, 0),
                                    ShapeNode(0.95, 0.5), ShapeNode(1, 1),   ShapeNode(0.6, 0.92), ShapeNode(0.25, 1),
                                    ShapeNode(0, 0.85), ShapeNode(0.07, 0.45)};
-        shapeOf(a).cornerRadius    = 0.0;
-        shapeOf(a).bow             = 15;
-        shapeOf(a).bowIrregularity = 60;
+        shapeOf(a).corner.radius    = 0.0;
+        shapeOf(a).bow.depth             = 15;
+        shapeOf(a).bow.irregularity = 60;
         styleOf(a)                 = looks.first().style;
         styleOf(a).strokeWidth     = 4;
         textureOf(a)               = looks.first().texture;
@@ -2728,7 +2756,7 @@ QString goldenRecords()
     for (const bool fading : {false, true}) {
         ObjectRecord a       = loadedRecord();
         shapeOf(a)              = Geometry::shapeTemplate("speech").shape;
-        textureOf(a).roughFill  = false;
+        textureOf(a).rough.fill  = false;
         skinOf(a).fill.kind     = ObjectRecord::Pattern::Dots;
         skinOf(a).fill.fadeLeftFrom = fading ? 40.0 : skinOf(a).fill.fadeLeftFrom;
         write(QStringLiteral("speech"), fading ? QStringLiteral("rough in parts, fading dots")
@@ -2746,7 +2774,7 @@ QString goldenRecords()
         styleOf(a).dryInk.wear    = StyleProperties().dryInk.wear;
         styleOf(a).dryInk.core    = StyleProperties().dryInk.core;
         textureOf(a).kind        = rough ? ObjectRecord::Texture::Rough : ObjectRecord::Texture::None;
-        textureOf(a).roughFill   = false;
+        textureOf(a).rough.fill   = false;
         effectsOf(a).shadow.on   = !rough;   // a dark shadow would show through the holes and hide them
         skinOf(a).fill.kind      = ObjectRecord::Pattern::Solid;
         write(QStringLiteral("speech"), rough ? QStringLiteral("dry ink, rough") : QStringLiteral("dry ink"), true, a);

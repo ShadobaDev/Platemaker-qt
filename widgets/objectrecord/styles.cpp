@@ -756,7 +756,7 @@ qreal drybrushReach(const StyleProperties& s)
 //! The displacement, and the blur's spread past it.
 qreal roughReach(const TextureProperties& t)
 {
-    return qMax(t.roughDisplacement, 0.0) + k_blurReach * qMax(t.roughBlur, 0.0);
+    return qMax(t.rough.displacement, 0.0) + k_blurReach * qMax(t.rough.blur, 0.0);
 }
 
 // ---------------------------------------------------------------------------
@@ -1174,14 +1174,22 @@ const Fields::RowSpec k_dryInkRows[] = {
      PM_TR("How wide the middle of the line that stays whole is, as a share of the width. It keeps the fill "
            "closed off; the wear eats the line either side of it. 0 lets it eat right through.")},
 };
-#undef PM_TR
 
-//! @p rows as a section named @p name, under @p title.
-template <size_t N>
-constexpr Fields::Section sectionOf(const char* name, const char* title, const Fields::RowSpec (&rows)[N])
-{
-    return {name, title, rows, int(N)};
-}
+//! Rough's numbers, the Texture panel's. Lengths in strip pixels, with a decimal: a blur's useful range is around a pixel.
+const Fields::RowSpec k_roughRows[] = {
+    // A step of 0.005: a wave's length is 1 / grain, so a change shows in proportion, and a thousandth
+    // at the Marker's 0.03 is a wave 3 % shorter, nothing the eye sees.
+    {"roughFrequency",    PM_TR("Grain:"),        0.001, 0.5, "",
+     PM_TR("How fine the wobble is: about one wave every 1 / grain pixels, so 0.03 is a wave every 33 px "
+           "and 0.07 one every 14 px. Higher gives smaller, closer waves."), 3, 0.005},
+    {"roughOctaves",      PM_TR("Detail:"),       1,     8,   "",    PM_TR("How many finer wobbles ride on the first.")},
+    {"roughDisplacement", PM_TR("Displacement:"), 0,     50,  " px", PM_TR("How far the outline wanders off its line."), 1},
+    {"roughBlur",         PM_TR("Blur:"),         0,     10,  " px", PM_TR("How much the balloon softens after the wobble, as ink bleeding into paper. 0 keeps it sharp."), 1},
+    {"roughFill",         PM_TR("Roughen the fill too"), 0, 1, "",
+     PM_TR("Off, only the outline and the fill's edge wobble, and a pattern in the fill stays on its grid. On, "
+           "the fill wobbles with them, pattern and all.")},
+};
+#undef PM_TR
 
 const std::array<LineInfo, int(StyleProperties::k_lastLine) + 1> k_lines{{
     {Line::Clean, "clean", QT_TRANSLATE_NOOP("QObject", "Clean"), nullptr,  nullptr},
@@ -1316,19 +1324,19 @@ private:
 Render::Filter roughFilter(const TextureProperties& s, quint32 seed)
 {
     using Render::number;
-    const bool     blurred = s.roughBlur > 0.0;
+    const bool     blurred = s.rough.blur > 0.0;
     Render::Filter f;
     f.primitives.append({QStringLiteral("feTurbulence"),
                          {{QStringLiteral("type"), QStringLiteral("fractalNoise")},
-                          {QStringLiteral("baseFrequency"), number(qMax(s.roughFrequency, 0.0), Render::k_valueDecimals)},
-                          {QStringLiteral("numOctaves"), QString::number(qMax(s.roughOctaves, 1))},
+                          {QStringLiteral("baseFrequency"), number(qMax(s.rough.frequency, 0.0), Render::k_valueDecimals)},
+                          {QStringLiteral("numOctaves"), QString::number(qMax(s.rough.octaves, 1))},
                           {QStringLiteral("seed"), QString::number(seed % k_noiseSeeds)},
                           {QStringLiteral("result"), QStringLiteral("pmNoise")}},
                          {}});
     Render::Primitive displace{QStringLiteral("feDisplacementMap"),
                                {{QStringLiteral("in"), QStringLiteral("SourceGraphic")},
                                 {QStringLiteral("in2"), QStringLiteral("pmNoise")},
-                                {QStringLiteral("scale"), number(qMax(s.roughDisplacement, 0.0))},
+                                {QStringLiteral("scale"), number(qMax(s.rough.displacement, 0.0))},
                                 {QStringLiteral("xChannelSelector"), QStringLiteral("R")},
                                 {QStringLiteral("yChannelSelector"), QStringLiteral("G")}},
                                {}};
@@ -1338,7 +1346,7 @@ Render::Filter roughFilter(const TextureProperties& s, quint32 seed)
     if (blurred)
         f.primitives.append({QStringLiteral("feGaussianBlur"),
                              {{QStringLiteral("in"), QStringLiteral("pmBled")},
-                              {QStringLiteral("stdDeviation"), number(s.roughBlur)}},
+                              {QStringLiteral("stdDeviation"), number(s.rough.blur)}},
                              {}});
     return f;
 }
@@ -1346,7 +1354,7 @@ Render::Filter roughFilter(const TextureProperties& s, quint32 seed)
 //! Likewise, for textureInfo().
 const std::array<TextureInfo, int(TextureProperties::k_lastKind) + 1> k_textures{{
     {Texture::None,  "none",  QT_TRANSLATE_NOOP("QObject", "None"),  nullptr, nullptr},
-    {Texture::Rough, "rough", QT_TRANSLATE_NOOP("QObject", "Rough"), roughReach, roughFilter},
+    {Texture::Rough, "rough", QT_TRANSLATE_NOOP("QObject", "Rough"), roughReach, roughFilter, {"rough"}},
 }};
 
 } // namespace
@@ -1680,10 +1688,10 @@ Paint dragFadeHandle(const Paint& p, const QRectF& body, const ShapeHandle& hand
 TextureProperties inkRough(TextureProperties t)
 {
     t.kind              = Texture::Rough;
-    t.roughFrequency    = k_inkFrequency;
-    t.roughOctaves      = k_inkOctaves;
-    t.roughDisplacement = k_inkDisplacement;
-    t.roughBlur         = k_inkBlur;
+    t.rough.frequency    = k_inkFrequency;
+    t.rough.octaves      = k_inkOctaves;
+    t.rough.displacement = k_inkDisplacement;
+    t.rough.blur         = k_inkBlur;
     return t;
 }
 
@@ -1803,42 +1811,48 @@ qreal styleMargin(const ObjectRecord& a)
 
 const Fields::Section& FlashParams::section()
 {
-    static const Fields::Section s = Geometry::sectionOf("flash", QT_TRANSLATE_NOOP("QObject", "Flash"), Geometry::k_flashRows);
+    static const Fields::Section s = Fields::sectionOf("flash", QT_TRANSLATE_NOOP("QObject", "Flash"), Geometry::k_flashRows);
     return s;
 }
 
 const Fields::Section& BrushParams::section()
 {
-    static const Fields::Section s = Geometry::sectionOf("brush", QT_TRANSLATE_NOOP("QObject", "Brush"), Geometry::k_brushRows);
+    static const Fields::Section s = Fields::sectionOf("brush", QT_TRANSLATE_NOOP("QObject", "Brush"), Geometry::k_brushRows);
     return s;
 }
 
 const Fields::Section& DrybrushParams::section()
 {
-    static const Fields::Section s = Geometry::sectionOf("drybrush", QT_TRANSLATE_NOOP("QObject", "Drybrush"), Geometry::k_drybrushRows);
+    static const Fields::Section s = Fields::sectionOf("drybrush", QT_TRANSLATE_NOOP("QObject", "Drybrush"), Geometry::k_drybrushRows);
     return s;
 }
 
 const Fields::Section& DashParams::section()
 {
-    static const Fields::Section s = Geometry::sectionOf("dash", QT_TRANSLATE_NOOP("QObject", "Dashed"), Geometry::k_dashRows);
+    static const Fields::Section s = Fields::sectionOf("dash", QT_TRANSLATE_NOOP("QObject", "Dashed"), Geometry::k_dashRows);
     return s;
 }
 
 const Fields::Section& MultiParams::section()
 {
-    static const Fields::Section s = Geometry::sectionOf("multi", QT_TRANSLATE_NOOP("QObject", "Multi-line"), Geometry::k_multiRows);
+    static const Fields::Section s = Fields::sectionOf("multi", QT_TRANSLATE_NOOP("QObject", "Multi-line"), Geometry::k_multiRows);
     return s;
 }
 
 const Fields::Section& SketchParams::section()
 {
-    static const Fields::Section s = Geometry::sectionOf("sketch", QT_TRANSLATE_NOOP("QObject", "Sketch"), Geometry::k_sketchRows);
+    static const Fields::Section s = Fields::sectionOf("sketch", QT_TRANSLATE_NOOP("QObject", "Sketch"), Geometry::k_sketchRows);
     return s;
 }
 
 const Fields::Section& DryInkParams::section()
 {
-    static const Fields::Section s = Geometry::sectionOf("dryInk", QT_TRANSLATE_NOOP("QObject", "Dry ink"), Geometry::k_dryInkRows);
+    static const Fields::Section s = Fields::sectionOf("dryInk", QT_TRANSLATE_NOOP("QObject", "Dry ink"), Geometry::k_dryInkRows);
+    return s;
+}
+
+const Fields::Section& RoughParams::section()
+{
+    static const Fields::Section s = Fields::sectionOf("rough", QT_TRANSLATE_NOOP("QObject", "Rough"), Geometry::k_roughRows);
     return s;
 }

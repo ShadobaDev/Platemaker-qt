@@ -13,8 +13,9 @@ namespace StripEdit {
  * \brief What is done to the balloon as it is rendered: its texture, and the texture's numbers.
  *
  * Its own section of the panel, after the line: a texture acts on the whole balloon, line
- * and shadow, never on the words. Rough's rows are built from TextureProperties' field list, one spin per
- * `rough…` field, and shown only while Rough is chosen.
+ * and shadow, never on the words. Each texture's numbers are a section of TextureProperties (RoughParams),
+ * whose rows are built from its section() and shown while a texture that reads it is chosen
+ * (TextureInfo::sections).
  */
 class TextureEditor : public PropertyGroupEditor
 {
@@ -36,8 +37,7 @@ private:
 
     QFormLayout* m_form = nullptr;
     QComboBox*   m_kind = nullptr;
-    FieldRows<TextureProperties> m_rough;   //!< One spin per `rough…` field.
-    QCheckBox*   m_roughFill = nullptr;    //!< *Roughen the fill too*.
+    SectionRows<TextureProperties> m_sections;   //!< Every texture's numbers; those of the one chosen shown.
 
     TextureProperties m_values;
     bool m_populating = false;
@@ -45,8 +45,6 @@ private:
     // --- bound to a set ---
     bool m_mixedKind   = false;
     bool m_kindTouched = false;
-    bool m_mixedFill   = false;
-    bool m_fillTouched = false;
 };
 
 }  // namespace StripEdit

@@ -178,12 +178,12 @@ List balloon(const ObjectRecord& a, const QPainterPath& silhouette)
     inkItem.fill = strokeInk;
 
     // **Rough, in parts.** The filter moves every pixel it is given, so over the whole balloon a fill's
-    // pattern wobbles with the outline. Unless the artist asks for that (`roughFill`), the balloon is drawn in
+    // pattern wobbles with the outline. Unless the artist asks for that (`rough.fill`), the balloon is drawn in
     // three layers sharing one filter, which stay in register because the noise is a function of where a pixel
     // is, not of which element it belongs to: the shadow, displaced; the fill, not displaced but masked by the
     // displaced silhouette, and drawn past it by the texture's reach so it meets the moved edge; then the
     // line and its strokes, displaced. Each displaced layer is one more turbulence pass.
-    if (texture.filter && !a.texture.roughFill) {
+    if (texture.filter && !a.texture.rough.fill) {
         if (!shade.isEmpty()) {
             Item layer;
             layer.kind     = Item::Kind::Group;

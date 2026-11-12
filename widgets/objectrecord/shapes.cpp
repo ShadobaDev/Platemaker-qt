@@ -106,7 +106,7 @@ constexpr int   k_areaSamples    = 64;
 constexpr int   k_growSteps      = 10;
 /**
  *  A caption box's corner radius, in balloon pixels. The speech balloon's is the struct's default
- *  (ShapeProperties::cornerRadius): 0.28 of the default 160 px height, as it was before it was a number.
+ *  (CornerParams::radius): 0.28 of the default 160 px height, as it was before it was a number.
  */
 constexpr qreal k_captionCorner  = 4.0;
 
@@ -131,7 +131,7 @@ QRectF wholeArea(const ShapeProperties&, const QRectF& body)
 //! The corner radius a Box in @p r actually gets: never negative, never past half the shorter side.
 qreal boxRadius(const ShapeProperties& shape, const QRectF& r)
 {
-    return qBound(0.0, shape.cornerRadius, cornerRadiusLimit(r.size()));
+    return qBound(0.0, shape.corner.radius, cornerRadiusLimit(r.size()));
 }
 
 QPainterPath boxPath(const ShapeProperties& shape, const QRectF& r)
@@ -228,21 +228,21 @@ qreal bowDeal(const ShapeNode& from, const ShapeNode& to)
 
 /**
  * \brief The nodes joined by edges, straight or bowed in (`bow`), each corner rounded by an arc of
- *        `cornerRadius`.
+ *        `corner.radius`.
  *
  * A corner's arc is tangent to both its edges, and never reaches past the middle of either, so two
  * neighbouring corners cannot overlap; a sharp corner therefore rounds less than a wide one. The arc is
  * one cubic. A bowed edge is one quadratic whose middle lies `bow` of its length in from its chord, varied
- * per edge by `bowIrregularity` (bowDeal()), never deeper than k_maxBowDepth. Self-intersecting nodes are
+ * per edge by `bow.irregularity` (bowDeal()), never deeper than k_maxBowDepth. Self-intersecting nodes are
  * allowed, and filled by the non-zero rule.
  */
 QPainterPath polygonPath(const ShapeProperties& shape, const QRectF& r)
 {
     const QList<QPointF> pts    = polygonPoints(shape, r);
-    const qreal          radius = qMax(0.0, shape.cornerRadius);
+    const qreal          radius = qMax(0.0, shape.corner.radius);
     const int            n      = int(pts.size());
-    const qreal          bow    = qBound(0, shape.bow, 100) / 100.0;
-    const qreal          irr    = qBound(0, shape.bowIrregularity, 100) / 100.0;
+    const qreal          bow    = qBound(0, shape.bow.depth, 100) / 100.0;
+    const qreal          irr    = qBound(0, shape.bow.irregularity, 100) / 100.0;
 
     QPainterPath p;
     p.setFillRule(Qt::WindingFill);
@@ -515,7 +515,7 @@ Corner boxCorner(const QRectF& body)
 QList<ShapeHandle> boxHandles(const ShapeProperties& shape, const QRectF& body, qreal clearance, int)
 {
     const Corner c = boxCorner(body);
-    return {{ShapeHandle::Role::Radius, 0, radiusDot(c, shape.cornerRadius, clearance), -c.bisector}};
+    return {{ShapeHandle::Role::Radius, 0, radiusDot(c, shape.corner.radius, clearance), -c.bisector}};
 }
 
 ShapeProperties dragBoxHandle(const ShapeProperties& shape, const QRectF& body, const ShapeHandle& handle,
@@ -523,7 +523,7 @@ ShapeProperties dragBoxHandle(const ShapeProperties& shape, const QRectF& body, 
 {
     ShapeProperties s = shape;
     if (handle.role == ShapeHandle::Role::Radius)
-        s.cornerRadius = radiusAt(boxCorner(body), to, clearance, cornerRadiusLimit(body.size()));
+        s.corner.radius = radiusAt(boxCorner(body), to, clearance, cornerRadiusLimit(body.size()));
     return s;
 }
 
@@ -545,7 +545,7 @@ QList<ShapeHandle> polygonHandles(const ShapeProperties& shape, const QRectF& bo
     for (int i = 0; i < n; ++i)
         out.append({ShapeHandle::Role::Vertex, i, pts[i]});
     if (const Corner c = polygonCorner(pts); c.valid())
-        out.append({ShapeHandle::Role::Radius, 0, radiusDot(c, shape.cornerRadius, clearance), -c.bisector});
+        out.append({ShapeHandle::Role::Radius, 0, radiusDot(c, shape.corner.radius, clearance), -c.bisector});
     for (int i = 0; i < n; ++i)
         out.append({ShapeHandle::Role::AddVertex, i, (pts[i] + pts[(i + 1) % n]) / 2.0});
     return out;
@@ -564,7 +564,7 @@ ShapeProperties dragPolygonHandle(const ShapeProperties& shape, const QRectF& bo
         break;
     case ShapeHandle::Role::Radius:
         if (const Corner c = polygonCorner(polygonPoints(shape, body)); c.valid())
-            s.cornerRadius = radiusAt(c, to, clearance, cornerRadiusLimit(body.size()));
+            s.corner.radius = radiusAt(c, to, clearance, cornerRadiusLimit(body.size()));
         break;
     case ShapeHandle::Role::AddVertex:
         break;   // a press adds the node (withVertexAdded()); the drag is that node's
@@ -744,7 +744,7 @@ void addArc(QPainterPath& p, const QPointF& c, qreal rx, qreal ry, qreal start, 
 //! A Cloud's lobe radius in @p r.
 qreal lobeRadius(const ShapeProperties& shape, const QRectF& r)
 {
-    const int size = qBound(k_minLobeSize, shape.lobeSize, k_maxLobeSize);
+    const int size = qBound(k_minLobeSize, shape.cloud.lobeSize, k_maxLobeSize);
     return qMax(k_minLobePx, qMin(r.width(), r.height()) / 2.0 * size / 100.0);
 }
 
@@ -783,7 +783,7 @@ qreal crossing(const std::function<QPointF(qreal)>& at, const QPointF& c, qreal 
  */
 QPainterPath cloudPath(const ShapeProperties& shape, const QRectF& r)
 {
-    const int     n    = qBound(k_minLobes, shape.lobes, k_maxLobes);
+    const int     n    = qBound(k_minLobes, shape.cloud.lobes, k_maxLobes);
     const qreal   lobe = lobeRadius(shape, r);
     const QPointF c    = r.center();
     const qreal   ex   = qMax(k_minInnerPx, r.width() / 2.0 - lobe * k_innerReach);
@@ -860,7 +860,7 @@ QRectF cloudArea(const ShapeProperties& shape, const QRectF& body)
 QList<ShapeHandle> cloudHandles(const ShapeProperties& shape, const QRectF& body, qreal, int)
 {
     const qreal lobe = lobeRadius(shape, body);
-    return {{ShapeHandle::Role::Radius, 0, lobeCentre(0, qBound(k_minLobes, shape.lobes, k_maxLobes), lobe, body),
+    return {{ShapeHandle::Role::Radius, 0, lobeCentre(0, qBound(k_minLobes, shape.cloud.lobes, k_maxLobes), lobe, body),
              QPointF(1, 0)}};
 }
 
@@ -872,7 +872,7 @@ ShapeProperties dragCloudHandle(const ShapeProperties& shape, const QRectF& body
     if (handle.role != ShapeHandle::Role::Radius || shortHalf <= 0.0)
         return s;
     const qreal lobe = body.right() - to.x();   // the first lobe's centre is a radius in from the right
-    s.lobeSize       = qBound(k_minLobeSize, qRound(lobe / shortHalf * 100.0), k_maxLobeSize);
+    s.cloud.lobeSize = qBound(k_minLobeSize, qRound(lobe / shortHalf * 100.0), k_maxLobeSize);
     return s;
 }
 
@@ -915,7 +915,7 @@ QPointF inwards(const EdgeWalk::Point& p, bool clockwise)
 //! How many teeth go round an edge of @p length, and how far apart: whole, so there is no seam.
 std::pair<int, qreal> teethOf(qreal length, const ShapeProperties& shape)
 {
-    const int teeth = qMax(k_minTeeth, qRound(length / qMax(shape.edgePitch, k_minEdgePitch)));
+    const int teeth = qMax(k_minTeeth, qRound(length / qMax(shape.teeth.pitch, k_minEdgePitch)));
     return {teeth, length / teeth};
 }
 
@@ -996,7 +996,7 @@ constexpr qreal k_edgeSample = 2.0;
 constexpr qreal k_spikeShare = 0.25;
 
 /**
- * \brief Teeth along every ring of @p outline: from each point on the outline in to a valley `edgeDepth`
+ * \brief Teeth along every ring of @p outline: from each point on the outline in to a valley `teeth.depth`
  *        deep between it and the next, the way down shaped by @p profile.
  *
  * @p profile takes how far from a point towards its valley (0 at the point, 1 at the valley) and answers how
@@ -1013,8 +1013,8 @@ template <class Profile>
 QPainterPath teethEdge(const QPainterPath& outline, const ShapeProperties& shape, quint32 seed, Profile profile,
                        bool curved)
 {
-    const qreal depth = qMax(shape.edgeDepth, 0.0);
-    const qreal irr   = qBound(0, shape.edgeIrregularity, 100) / 100.0;
+    const qreal depth = qMax(shape.teeth.depth, 0.0);
+    const qreal irr   = qBound(0, shape.teeth.irregularity, 100) / 100.0;
     if (depth <= 0.0)
         return outline;
     QRandomGenerator rng(seed ^ k_edgeStream);
@@ -1119,6 +1119,36 @@ DepthAnchor depthAnchor(const ShapeProperties& shape, const QRectF& body)
     return {v.at, inwards(v, signedArea2(rings.first()) > 0.0), true};
 }
 
+// The sections' rows: what the Shape panel calls each number, and what its spin offers. No headings: the
+// tiles and the Edge combo say whose they are.
+#define PM_TR(s) QT_TRANSLATE_NOOP("QObject", s)
+const Fields::RowSpec k_cornerRows[] = {
+    {"cornerRadius", PM_TR("Corner radius:"), 0, 500, " px",
+     PM_TR("How round the corners are. Never more than half the shorter side, which makes the ends round.")},
+};
+// The bounds are the ones the outline keeps to.
+const Fields::RowSpec k_cloudRows[] = {
+    {"lobes",    PM_TR("Lobes:"),     k_minLobes,    k_maxLobes,    "",
+     PM_TR("How many circles make the cloud's edge.")},
+    {"lobeSize", PM_TR("Lobe size:"), k_minLobeSize, k_maxLobeSize, " %",
+     PM_TR("How big each circle is, against half the balloon's shorter side. At 100 % they meet in the middle.")},
+};
+const Fields::RowSpec k_bowRows[] = {
+    {"bow",             PM_TR("Bow:"),              0, 50,  " %",
+     PM_TR("How far each edge bows in between two points, as a share of its length. The points stay sharp; 0 is straight.")},
+    {"bowIrregularity", PM_TR("Bow irregularity:"), 0, 100, " %",
+     PM_TR("How much each edge's bow varies, deeper or flatter. Moving a point deals its two edges again.")},
+};
+const Fields::RowSpec k_edgeRows[] = {
+    // Whole pixels: the spacing is fitted to a whole number of teeth round the edge (teethOf()), so a tenth
+    // of a pixel seldom changes the count, and nothing shows.
+    {"edgePitch",        PM_TR("Spacing:"),      2, 200, " px",
+     PM_TR("One tooth about every this many pixels along the edge, fitted so a whole number of them goes round.")},
+    {"edgeDepth",        PM_TR("Depth:"),        0, 200, " px", PM_TR("How far in from the outline a tooth reaches. The lettering's room gives it up."), 1},
+    {"edgeIrregularity", PM_TR("Irregularity:"), 0, 100, " %",  PM_TR("How much each tooth's depth and place vary. Re-roll deals them again.")},
+};
+#undef PM_TR
+
 // ---------------------------------------------------------------------------
 
 using Kind = ShapeProperties::Kind;
@@ -1127,15 +1157,15 @@ using Kind = ShapeProperties::Kind;
 // The flash stretches were chosen by eye, shape by shape, on rendered sheets; the Box's is
 // a round number between its two templates' old values, to be checked by eye.
 const std::array<ShapeInfo, int(ShapeProperties::k_lastKind) + 1> k_shapes{{
-    {Kind::None,      "none",      QT_TRANSLATE_NOOP("QObject", "Text only — no balloon"), false, false, nullptr,       wholeArea,          0},
-    {Kind::Box,       "box",       QT_TRANSLATE_NOOP("QObject", "Box"),                    true,  true,  boxPath,       boxArea,            50,
+    {Kind::None,      "none",      QT_TRANSLATE_NOOP("QObject", "Text only — no balloon"), false, {},         nullptr,       wholeArea,          0},
+    {Kind::Box,       "box",       QT_TRANSLATE_NOOP("QObject", "Box"),                    true,  {"corner"}, boxPath,       boxArea,            50,
      boxHandles, dragBoxHandle},
-    {Kind::Ellipse,   "ellipse",   QT_TRANSLATE_NOOP("QObject", "Round balloon"),          true,  false, ellipsePath,   inscribedInEllipse, 0},
-    {Kind::Polygon,   "polygon",   QT_TRANSLATE_NOOP("QObject", "Polygon"),                false, true,  polygonPath,   polygonArea,        0,
+    {Kind::Ellipse,   "ellipse",   QT_TRANSLATE_NOOP("QObject", "Round balloon"),          true,  {},         ellipsePath,   inscribedInEllipse, 0},
+    {Kind::Polygon,   "polygon",   QT_TRANSLATE_NOOP("QObject", "Polygon"),                false, {"corner", "bow"}, polygonPath,   polygonArea,        0,
      polygonHandles, dragPolygonHandle},
-    {Kind::Cloud,     "cloud",     QT_TRANSLATE_NOOP("QObject", "Cloud"),                  true,  false, cloudPath,     cloudArea,          0,
+    {Kind::Cloud,     "cloud",     QT_TRANSLATE_NOOP("QObject", "Cloud"),                  true,  {"cloud"},  cloudPath,     cloudArea,          0,
      cloudHandles, dragCloudHandle},
-    {Kind::Curve,     "curve",     QT_TRANSLATE_NOOP("QObject", "Curve"),                  false, false, curvePath,     curveArea,          0,
+    {Kind::Curve,     "curve",     QT_TRANSLATE_NOOP("QObject", "Curve"),                  false, {},         curvePath,     curveArea,          0,
      curveHandles, dragCurveHandle},
 }};
 
@@ -1151,7 +1181,7 @@ ShapeProperties plain(Kind kind)
 ShapeProperties box(qreal radius)
 {
     ShapeProperties s = plain(Kind::Box);
-    s.cornerRadius    = radius;
+    s.corner.radius   = radius;
     return s;
 }
 
@@ -1166,7 +1196,7 @@ QPointF saved(const QPointF& p)
 ShapeProperties polygonOf(const QList<ShapeNode>& nodes)
 {
     ShapeProperties s = plain(Kind::Polygon);
-    s.cornerRadius    = 0.0;
+    s.corner.radius   = 0.0;
     s.nodes           = nodes;
     return s;
 }
@@ -1178,7 +1208,7 @@ ShapeProperties polygonOf(const QList<ShapeNode>& nodes)
 ShapeProperties polygon(const QList<QPointF>& nodes)
 {
     ShapeProperties s = plain(Kind::Polygon);
-    s.cornerRadius    = 0.0;
+    s.corner.radius   = 0.0;
     for (const QPointF& n : nodes)
         s.nodes.append(ShapeNode(saved(n), {}, {}));
     return s;
@@ -1326,15 +1356,13 @@ const EdgeInfo& edgeInfo(ShapeProperties::Edge kind)
 
 qreal edgeInset(const ShapeProperties& shape)
 {
-    return edgeInfo(shape.edge).modulate ? qMax(shape.edgeDepth, 0.0) : 0.0;
+    return edgeInfo(shape.edge).modulate ? qMax(shape.teeth.depth, 0.0) : 0.0;
 }
 
 ShapeProperties withEdgeOf(ShapeProperties shape, const ShapeProperties& from)
 {
-    shape.edge             = from.edge;
-    shape.edgePitch        = from.edgePitch;
-    shape.edgeDepth        = from.edgeDepth;
-    shape.edgeIrregularity = from.edgeIrregularity;
+    shape.edge  = from.edge;
+    shape.teeth = from.teeth;
     return shape;
 }
 
@@ -1348,7 +1376,7 @@ QList<ShapeHandle> shapeHandles(const ShapeProperties& shape, const QRectF& body
     const ShapeInfo&   info = shapeInfo(shape.kind);
     QList<ShapeHandle> out  = info.handles ? info.handles(shape, body, clearance, picked) : QList<ShapeHandle>();
     if (const DepthAnchor d = depthAnchor(shape, body); d.valid)
-        out.append({ShapeHandle::Role::Depth, 0, d.base + d.inward * qMax(shape.edgeDepth, 0.0), d.inward});
+        out.append({ShapeHandle::Role::Depth, 0, d.base + d.inward * qMax(shape.teeth.depth, 0.0), d.inward});
     return out;
 }
 
@@ -1364,7 +1392,7 @@ ShapeProperties dragShapeHandle(const ShapeProperties& shape, const QRectF& body
     if (d.valid) {
         const QPointF along = to - d.base;
         const qreal   depth = along.x() * d.inward.x() + along.y() * d.inward.y();
-        s.edgeDepth         = qBound(0.0, qreal(qRound(depth)), cornerRadiusLimit(body.size()));
+        s.teeth.depth       = qBound(0.0, qreal(qRound(depth)), cornerRadiusLimit(body.size()));
     }
     return s;
 }
@@ -1552,3 +1580,27 @@ QPainterPath outlineOf(const ObjectRecord& a, const QRectF& body)
 }
 
 }  // namespace Geometry
+
+const Fields::Section& CornerParams::section()
+{
+    static const Fields::Section s = Fields::sectionOf("corner", nullptr, Geometry::k_cornerRows);
+    return s;
+}
+
+const Fields::Section& CloudParams::section()
+{
+    static const Fields::Section s = Fields::sectionOf("cloud", nullptr, Geometry::k_cloudRows);
+    return s;
+}
+
+const Fields::Section& BowParams::section()
+{
+    static const Fields::Section s = Fields::sectionOf("bow", nullptr, Geometry::k_bowRows);
+    return s;
+}
+
+const Fields::Section& EdgeParams::section()
+{
+    static const Fields::Section s = Fields::sectionOf("edge", nullptr, Geometry::k_edgeRows);
+    return s;
+}

@@ -415,7 +415,7 @@ ObjectRecord::Map ObjectRecord::mapFromJson(const QJsonObject& j)
 
 bool usesSeed(const ObjectRecord& a)
 {
-    const bool irregularEdge = a.shape.edge != ObjectRecord::Edge::None && a.shape.edgeIrregularity > 0;
+    const bool irregularEdge = a.shape.edge != ObjectRecord::Edge::None && a.shape.teeth.irregularity > 0;
     return a.hasSilhouette()
         && (a.style.line != ObjectRecord::Line::Clean || a.texture.kind != ObjectRecord::Texture::None
             || irregularEdge);

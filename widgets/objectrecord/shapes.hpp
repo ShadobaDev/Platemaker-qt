@@ -79,8 +79,8 @@ struct ShapeInfo
      * it for itself: a speech balloon and a caption box are both Boxes.
      */
     bool speaks;
-    //! Whether the kind reads `cornerRadius`. The Shape panel shows the row only then.
-    bool rounded;
+    //! The sections of ShapeProperties it reads (ShapeProperties::sections()), whose rows the Shape panel shows.
+    Fields::SectionNames sections;
     /**
      * The outline in @p body, any shape, concave included: a tail finds where it leaves the balloon by
      * walking from its tip towards the centre (silhouette.cpp). nullptr for `None`, which has none.
@@ -124,7 +124,7 @@ struct ShapeInfo
  * \brief One edge modulation: its names, and the outline with its teeth pushed in.
  *
  * Adding one is a value in `ShapeProperties::Edge` and an entry here (shapes.cpp): its function walks the
- * bare outline (EdgeWalk) and moves it in by at most `edgeDepth`, so the text area's inset (edgeInset())
+ * bare outline (EdgeWalk) and moves it in by at most `teeth.depth`, so the text area's inset (edgeInset())
  * holds for every one.
  */
 struct EdgeInfo

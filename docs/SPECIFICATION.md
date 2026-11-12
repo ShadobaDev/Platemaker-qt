@@ -96,7 +96,8 @@ outline.
 2. `widgets/objectrecord/shapes.cpp`: its named constants, `<name>Path()` and `<name>Area()` (the largest
    rectangle the outline contains), both taking the shape group and the body, and **one entry in
    `k_shapes`**, in the enum's order: the persisted name, the title, whether an outline matching no
-   template speaks, whether it reads `cornerRadius`, the two functions, and the flash's Auto stretch.
+   template speaks, the sections of numbers it reads (`sections`), the two functions, and the flash's Auto
+   stretch.
    Then **at least one template** in `shapeTemplates()`, in the picker's order.
 3. `widgets/objectrecord/objectrecord.cpp`: its place in `shapeOrder()`, which is what names are read
    back from.
@@ -107,7 +108,8 @@ outline.
 bare outline to the modulated one. `outlineOf()` applies it before any tail is united in, so tails stay
 smooth. Build it on `pushedIn()`, which takes a depth profile along the edge (`EdgeWalk`) and keeps the
 outline's corners, fading the push near a sharp one so a spike does not fold into a loop; the teeth
-go **in** by at most `edgeDepth`, which is what `edgeInset()` takes off the text area. Zigzag is the
+go **in** by at most the teeth's depth (`EdgeParams`, every edge's numbers), which is what `edgeInset()`
+takes off the text area. Zigzag is the
 worked example. A template does not set the edge: `templateOf()` ignores it and a picked tile keeps it
 (`withEdgeOf()`).
 
@@ -138,12 +140,17 @@ balloon and each drawn tail apart; `silhouette()` is their union. A Round or Cut
 to the outline the lines take (below). A tail whose look is edited makes it the
 balloon's `TailsProperties::nextLook`, which *Add tail* gives the new one.
 
-**With parameters of its own** (the Box's `cornerRadius` is the worked example): each parameter is a
-member of `ShapeProperties` and **one line in its `fields()` list** — the key it is saved under and the
-member (`widgets/objectrecord/fields.hpp`). That one line gives it equality (which gates the file
-rewrite, and decides which template a shape is), a JSON key and a `pm:` attribute, with the struct's
-default as the fallback when a file lacks it. Then a row in `shapeeditor.cpp`, through `FieldRows` and a
-spec table, shown only for the kinds that read it; `loadedRecord()` and `expectUntouched()` in the test,
+**With parameters of its own** (the corner radius of a Box and a Polygon is the worked example): a
+family's numbers are a **section**, `CornerParams` (`propertygroups.hpp`), held by `ShapeProperties` as
+`corner` and listed in its `sections()`, so every family's numbers are kept whatever the kind. Each number
+is **one line in the section's `fields()` list** — the key it is saved under and the member
+(`widgets/objectrecord/fields.hpp`) — and the section is nested in `ShapeProperties::fields()`, whose order
+is the file's. That one line gives it equality (which gates the file rewrite, and decides which template a
+shape is), a JSON key and a `pm:` attribute, with the struct's default as the fallback when a file lacks it.
+Then a row in the section's `section()` (`k_cornerRows`, `shapes.cpp`), and the section's name in the
+kinds' `ShapeInfo::sections`: the Shape panel builds every section's rows (`SectionRows`) and shows the
+kind's. The edge's numbers are one section, `EdgeParams` (`teeth`), under the Edge combo, shown for every
+edge but None. Then `loadedRecord()` and `expectUntouched()` in the test,
 and the test's mirror struct, whose `static_assert` stops the build until the member is placed. `Fields.EveryFieldIsComparedAndSaved` then checks the new field on its own.
 A value of a type no group holds yet needs an overload in each of the three walks (`Fields::same()`,
 `toJsonValue()`/`fromJsonValue()`, `attrValue()`/`fromAttr()`) and a `bump()` in the test. The
@@ -308,8 +315,10 @@ line. The section's `section()` (`styles.cpp`) names it and gives each field's l
 Explosion borrows the dry brush's and the flash's, hiding the flash's inner rows). The *Line* section
 (`StyleEditor`) builds the rows of every section (`SectionRows`, `properties/fieldrows.hpp`) and shows those
 the line reads: a spin per number, a combo per bool whose row names its two entries (the sketch's
-direction); a number with no row stops a debug build, a row with `decimals` is a decimal spin, as Rough's
-are in `k_roughRows`, `textureeditor.cpp`. The core stretch's *Auto* comes
+direction), a check box per bool whose row does not (Rough's *Roughen the fill too*); a number with no row
+stops a debug build, a row with `decimals` is a decimal spin, as Rough's are. A texture's numbers are
+sections the same way (`RoughParams`, its rows `k_roughRows` in `styles.cpp`, `TextureInfo::sections`, the
+Texture panel). The core stretch's *Auto* comes
 from `ShapeInfo::flashStretch`, one value per shape in `shapes.cpp`. Caught by the same table,
 round-trip and golden tests as a shape; strokes are also checked against the room reserved for them
 (`Style.AFlashStaysInsideItsBounds`) and Auto against the shape's value (`Style.AutoStretchIsTheShapes`).

@@ -25,34 +25,6 @@ constexpr int k_shapeTilePx    = 44;
 //! Supersampling factor for a tile's preview — rendered big, scaled down, so the stroke stays smooth.
 constexpr int k_shapeIconScale = 4;
 
-//! The context the rows' strings are translated in: this panel's own.
-constexpr char k_trContext[] = "StripEdit::ShapeEditor";
-
-#define PM_TR(s) QT_TRANSLATE_NOOP("StripEdit::ShapeEditor", s)
-const Fields::RowSpec k_cornerRows[] = {
-    {"cornerRadius", PM_TR("Corner radius:"), 0, 500, " px",
-     PM_TR("How round the corners are. Never more than half the shorter side, which makes the ends round.")},
-};
-const Fields::RowSpec k_bowRows[] = {
-    {"bow",             PM_TR("Bow:"),              0, 50,  " %",
-     PM_TR("How far each edge bows in between two points, as a share of its length. The points stay sharp; 0 is straight.")},
-    {"bowIrregularity", PM_TR("Bow irregularity:"), 0, 100, " %",
-     PM_TR("How much each edge's bow varies, deeper or flatter. Moving a point deals its two edges again.")},
-};
-// The bounds are the ones the outline keeps to.
-const Fields::RowSpec k_lobeRows[] = {
-    {"lobes",    PM_TR("Lobes:"),     Geometry::k_minLobes,    Geometry::k_maxLobes,    "",
-     PM_TR("How many circles make the cloud's edge.")},
-    {"lobeSize", PM_TR("Lobe size:"), Geometry::k_minLobeSize, Geometry::k_maxLobeSize, " %",
-     PM_TR("How big each circle is, against half the balloon's shorter side. At 100 % they meet in the middle.")},
-};
-const Fields::RowSpec k_edgeRows[] = {
-    {"edgePitch",        PM_TR("Spacing:"),      2, 200, " px", PM_TR("One tooth every this many pixels along the edge."), 1},
-    {"edgeDepth",        PM_TR("Depth:"),        0, 200, " px", PM_TR("How far in from the outline a tooth reaches. The lettering's room gives it up."), 1},
-    {"edgeIrregularity", PM_TR("Irregularity:"), 0, 100, " %",  PM_TR("How much each tooth's depth and place vary. Re-roll deals them again.")},
-};
-#undef PM_TR
-
 } // namespace
 
 QPixmap bubbleThumbnail(const ShapeProperties& shape, const QColor& fill, const QColor& stroke,
@@ -125,9 +97,7 @@ ShapeEditor::ShapeEditor(QWidget* parent)
         syncFromValues();   // off its template, the tile is no longer current
         emit changed();
     };
-    m_corner.build(this, m_form, "corner", k_cornerRows, k_trContext, m_values, m_populating, edited);
-    m_lobes.build(this, m_form, "lobe", k_lobeRows, k_trContext, m_values, m_populating, edited);
-    m_bow.build(this, m_form, "bow", k_bowRows, k_trContext, m_values, m_populating, edited);
+    m_sections.build(this, m_form, m_values, m_populating, edited);
     m_regular = new QPushButton(tr("Regular polygon / star…"), this);
     m_regular->setToolTip(tr("Replaces the points with a regular polygon or a star, irregular if you like. "
                              "They stay free to move afterwards."));
@@ -142,7 +112,9 @@ ShapeEditor::ShapeEditor(QWidget* parent)
                           "waves, arcs bowing in, or narrow notches. The tails stay smooth, and the edge stays "
                           "when another shape is picked."));
     m_form->addRow(tr("Edge:"), m_edge);
-    m_edgeRows.build(this, m_form, "edge", k_edgeRows, k_trContext, m_values, m_populating, edited);
+    const Fields::Section& teeth = EdgeParams::section();
+    m_edgeRows.build(this, m_form, "", teeth.rows, teeth.rowCount, Fields::k_trContext, m_values.teeth, m_populating,
+                     edited);
     connect(m_edge, &QComboBox::currentIndexChanged, this, [this](int i) {
         if (m_populating || i < 0)
             return;
@@ -168,12 +140,10 @@ void ShapeEditor::bind(const Subjects& subjects)
     if (subjects.isEmpty())
         return;
     m_values = ShapeProperties::from(*subjects.first());
-    m_corner.reset();
-    m_lobes.reset();
-    m_bow.reset();
+    m_sections.reset();
     m_edgeRows.reset();
     // No higher than the balloon can show: past it the outline stops changing (Shape is one subject only).
-    m_corner.setMaximum("cornerRadius", qFloor(Geometry::cornerRadiusLimit(subjects.first()->box)));
+    m_sections.setMaximum("cornerRadius", qFloor(Geometry::cornerRadiusLimit(subjects.first()->box)));
     syncFromValues();
 }
 
@@ -189,19 +159,15 @@ void ShapeEditor::syncFromValues()
         b->setChecked(m_tiles->id(b) == id);
     m_tiles->setExclusive(true);
 
-    m_corner.show(m_values);
-    m_corner.setVisible(m_form, Geometry::shapeInfo(m_values.kind).rounded);
-    m_lobes.show(m_values);
-    m_lobes.setVisible(m_form, m_values.kind == ShapeProperties::Kind::Cloud);
-    m_bow.show(m_values);
-    m_bow.setVisible(m_form, m_values.kind == ShapeProperties::Kind::Polygon);
+    m_sections.show(m_values);
+    m_sections.showSections(m_form, true, false, Geometry::shapeInfo(m_values.kind).sections);
     m_form->setRowVisible(m_regular, m_values.kind == ShapeProperties::Kind::Polygon);
     {
         const QSignalBlocker block(m_edge);
         m_edge->setCurrentIndex(m_edge->findData(int(m_values.edge)));
     }
-    m_edgeRows.show(m_values);
-    m_edgeRows.setVisible(m_form, m_values.edge != ShapeProperties::Edge::None);
+    m_edgeRows.show(m_values.teeth);
+    m_edgeRows.setVisible(m_form, Geometry::edgeInfo(m_values.edge).modulate != nullptr);
     m_populating = false;
 }
 

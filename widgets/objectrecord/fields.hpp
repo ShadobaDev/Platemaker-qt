@@ -26,6 +26,7 @@
 #include <QString>
 #include <QtGlobal>
 
+#include <array>
 #include <type_traits>
 #include <utility>
 
@@ -97,9 +98,12 @@ void nest(V&& v, Sub Group::* outer)
     });
 }
 
+//! The context a RowSpec's and a Section's strings are translated in.
+constexpr char k_trContext[] = "QObject";
+
 /**
  * \brief What a panel calls a field, and what it offers: a spin's range, or for a choice (a bool) its two
- *        entries. Title, tip and entries are QT_TRANSLATE_NOOP strings in the "QObject" context.
+ *        entries. Title, tip and entries are QT_TRANSLATE_NOOP strings in the k_trContext context.
  */
 struct RowSpec
 {
@@ -113,7 +117,7 @@ struct RowSpec
     //! What an arrow adds, for a decimal spin; 0 is one unit of the last place. A number whose effect is
     //! in proportion to it wants steps that show at its usual size, and typing keeps every place.
     double      step = 0.0;
-    //! A bool's two entries, true first: it is a combo. A bool without them gets no row from FieldRows.
+    //! A bool's two entries, true first: it is a combo. A bool without them is a check box, `title` its text.
     const char* on  = nullptr;
     const char* off = nullptr;
 };
@@ -122,10 +126,21 @@ struct RowSpec
 struct Section
 {
     const char*    name;
-    const char*    title;   //!< A heading, shown where a kind shows more than one section.
+    //! A heading, shown where a kind shows more than one section; nullptr for none (a family's own numbers).
+    const char*    title;
     const RowSpec* rows;
     int            rowCount;
 };
+
+//! @p rows as a section named @p name, under @p title.
+template <size_t N>
+constexpr Section sectionOf(const char* name, const char* title, const RowSpec (&rows)[N])
+{
+    return {name, title, rows, int(N)};
+}
+
+//! The sections a kind reads, by Section::name, as its table entry lists them; unused places nullptr.
+using SectionNames = std::array<const char*, 2>;
 
 //! Every field of \p a equal to the same field of \p b — a group's operator==.
 template <class Group>

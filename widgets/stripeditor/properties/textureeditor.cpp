@@ -1,31 +1,10 @@
 #include "properties/textureeditor.hpp"
+#include "styles.hpp"
 
-#include <QCheckBox>
 #include <QComboBox>
 #include <QFormLayout>
 
 namespace StripEdit {
-
-namespace {
-
-//! The context the rows' strings are translated in: this panel's own.
-constexpr char k_trContext[] = "StripEdit::TextureEditor";
-
-#define PM_TR(s) QT_TRANSLATE_NOOP("StripEdit::TextureEditor", s)
-//! Rough's numbers. Lengths in strip pixels, with a decimal: a blur's useful range is around a pixel.
-const Fields::RowSpec k_roughRows[] = {
-    // A step of 0.005: a wave's length is 1 / grain, so a change shows in proportion, and a thousandth
-    // at the Marker's 0.03 is a wave 3 % shorter, nothing the eye sees.
-    {"roughFrequency",    PM_TR("Grain:"),        0.001, 0.5, "",
-     PM_TR("How fine the wobble is: about one wave every 1 / grain pixels, so 0.03 is a wave every 33 px "
-           "and 0.07 one every 14 px. Higher gives smaller, closer waves."), 3, 0.005},
-    {"roughOctaves",      PM_TR("Detail:"),       1,     8,   "",    PM_TR("How many finer wobbles ride on the first.")},
-    {"roughDisplacement", PM_TR("Displacement:"), 0,     50,  " px", PM_TR("How far the outline wanders off its line."), 1},
-    {"roughBlur",         PM_TR("Blur:"),         0,     10,  " px", PM_TR("How much the balloon softens after the wobble, as ink bleeding into paper. 0 keeps it sharp."), 1},
-};
-#undef PM_TR
-
-} // namespace
 
 TextureEditor::TextureEditor(QWidget* parent)
     : PropertyGroupEditor(parent)
@@ -40,21 +19,7 @@ TextureEditor::TextureEditor(QWidget* parent)
                           "the words. Rough makes the edge wander, as a felt-tip or ink does; it is shown "
                           "here exactly as it will be baked, because the library draws it."));
     m_form->addRow(tr("Texture:"), m_kind);
-    m_rough.build(this, m_form, "rough", k_roughRows, k_trContext, m_values, m_populating,
-                  [this] { emit changed(); });
-    m_roughFill = new QCheckBox(tr("Roughen the fill too"), this);
-    m_roughFill->setToolTip(tr("Off, only the outline and the fill's edge wobble, and a pattern in the fill stays "
-                               "on its grid. On, the fill wobbles with them, pattern and all."));
-    m_form->addRow(QString(), m_roughFill);
-    connect(m_roughFill, &QCheckBox::toggled, this, [this](bool on) {
-        if (m_populating)
-            return;
-        m_roughFill->setTristate(false);   // they have taken a position
-        m_values.roughFill = on;
-        m_fillTouched      = true;
-        m_mixedFill        = false;
-        emit changed();
-    });
+    m_sections.build(this, m_form, m_values, m_populating, [this] { emit changed(); });
 
     connect(m_kind, &QComboBox::currentIndexChanged, this, [this](int i) {
         if (m_populating || i < 0)
@@ -75,16 +40,13 @@ void TextureEditor::bind(const Subjects& subjects)
         return;
     m_values    = TextureProperties::from(*subjects.first());
     m_mixedKind = false;
-    m_mixedFill = false;
-    m_rough.reset();
+    m_sections.reset();
     for (const ObjectRecord* a : subjects) {
         const TextureProperties t = TextureProperties::from(*a);
         m_mixedKind = m_mixedKind || t.kind != m_values.kind;
-        m_mixedFill = m_mixedFill || t.roughFill != m_values.roughFill;
-        m_rough.compare(t, m_values);
+        m_sections.compare(t, m_values);
     }
     m_kindTouched = false;
-    m_fillTouched = false;
     syncFromValues();
 }
 
@@ -98,9 +60,7 @@ void TextureEditor::applyEditedTo(ObjectRecord& target) const
     TextureProperties t = TextureProperties::from(target);
     if (m_kindTouched)
         t.kind = m_values.kind;
-    m_rough.applyEdited(m_values, t);
-    if (m_fillTouched)
-        t.roughFill = m_values.roughFill;
+    m_sections.applyEdited(m_values, t);
     t.applyTo(target);
 }
 
@@ -108,8 +68,7 @@ void TextureEditor::syncFromValues()
 {
     m_populating = true;
     showCombo(m_kind, m_mixedKind, m_kind->findData(int(m_values.kind)));
-    m_rough.show(m_values);
-    showCheck(m_roughFill, m_mixedFill, m_values.roughFill);
+    m_sections.show(m_values);
     showRows();
     m_populating = false;
 }
@@ -117,9 +76,7 @@ void TextureEditor::syncFromValues()
 void TextureEditor::showRows()
 {
     // A selection that disagrees shows the rows at least one of them has.
-    const bool rough = m_mixedKind || m_values.kind == ObjectRecord::Texture::Rough;
-    m_rough.setVisible(m_form, rough);
-    m_form->setRowVisible(m_roughFill, rough);
+    m_sections.showSections(m_form, true, m_mixedKind, Geometry::textureInfo(m_values.kind).sections);
 }
 
 }  // namespace StripEdit

@@ -406,11 +406,98 @@ struct SkinProperties
 };
 
 /**
+ * @name A shape's sections: the numbers each family and the edge read (shapes.cpp), one struct each, held
+ * by ShapeProperties whatever its kind. Their rows are their section() (shapes.cpp); a family's table entry
+ * lists the sections it reads.
+ * @{
+ */
+
+/**
+ * \brief A corner's radius, in balloon pixels: read by Box and Polygon. A Box caps it at half its shorter
+ *        side, a Polygon each corner at half its shorter edge. The default is the speech balloon's
+ *        (shapes.cpp), so a default record is the speech balloon it always was.
+ */
+struct CornerParams
+{
+    qreal radius = 45.0;
+
+    template <class V>
+    static void fields(V&& v)
+    {
+        v("cornerRadius", &CornerParams::radius);
+    }
+    [[nodiscard]] static const Fields::Section& section();
+    [[nodiscard]] bool operator==(const CornerParams& o) const { return Fields::equal(*this, o); }
+};
+
+//! A Cloud's lobes, the circles around its edge. The defaults are the thought balloon's.
+struct CloudParams
+{
+    int lobes    = 11;
+    int lobeSize = 40;   //!< A lobe's radius, in % of the balloon's shorter half-axis.
+
+    template <class V>
+    static void fields(V&& v)
+    {
+        v("lobes",    &CloudParams::lobes);
+        v("lobeSize", &CloudParams::lobeSize);
+    }
+    [[nodiscard]] static const Fields::Section& section();
+    [[nodiscard]] bool operator==(const CloudParams& o) const { return Fields::equal(*this, o); }
+};
+
+/**
+ * \brief How far a Polygon's edges bow in: an arc between two points, which stay sharp. In, never out, so
+ *        the balloon keeps to its nodes' bounds.
+ */
+struct BowParams
+{
+    int depth        = 0;   //!< In % of each edge's length; 0 is straight.
+    /**
+     * How much each edge's bow varies, deeper or flatter, in %. Dealt from the edge's two nodes, so moving a
+     * node deals its two edges again and nothing else; no seed, so a preset carries the same arcs.
+     */
+    int irregularity = 0;
+
+    template <class V>
+    static void fields(V&& v)
+    {
+        v("bow",             &BowParams::depth);
+        v("bowIrregularity", &BowParams::irregularity);
+    }
+    [[nodiscard]] static const Fields::Section& section();
+    [[nodiscard]] bool operator==(const BowParams& o) const { return Fields::equal(*this, o); }
+};
+
+/**
+ * \brief How an edge's teeth are laid along the outline, whichever edge: every family takes them, and a
+ *        template does not set them, so picking a tile keeps them. The teeth go **in** from the outline, so the
+ *        balloon keeps its bounds and its text area gives up the depth. In balloon pixels.
+ */
+struct EdgeParams
+{
+    qreal pitch        = 16.0;   //!< One tooth every this many pixels along the edge.
+    qreal depth        = 6.0;    //!< How far in a tooth's valley reaches.
+    int   irregularity = 0;      //!< How much each tooth's depth and place vary, in %.
+
+    template <class V>
+    static void fields(V&& v)
+    {
+        v("edgePitch",        &EdgeParams::pitch);
+        v("edgeDepth",        &EdgeParams::depth);
+        v("edgeIrregularity", &EdgeParams::irregularity);
+    }
+    [[nodiscard]] static const Fields::Section& section();
+    [[nodiscard]] bool operator==(const EdgeParams& o) const { return Fields::equal(*this, o); }
+};
+/** @} */
+
+/**
  * \brief Which silhouette is drawn behind the text, and its parameters.
  *
  * A kind is a **family** — a way of describing an outline — and its parameters say which one. The
  * ready-made outlines the picker offers (a speech balloon, a caption box) are **templates**: values of
- * this group (shapes.hpp). A parameter the current kind does not read is carried unchanged.
+ * this group (shapes.hpp). A family's numbers are sections (CornerParams…), kept whatever the kind.
  */
 struct ShapeProperties
 {
@@ -440,61 +527,39 @@ struct ShapeProperties
     //! placed template reads back as itself. 4 is a fifth of a pixel on a 2000 px balloon.
     static constexpr int k_nodeDecimals = 4;
 
-    Kind  kind         = Kind::Box;
-    /**
-     * A Box's or a Polygon's corner radius, in balloon pixels. A Box caps it at half its shorter side, a
-     * Polygon each corner at half its shorter edge. The default is the speech balloon's (shapes.cpp), so
-     * a default record is the speech balloon it always was.
-     */
-    qreal cornerRadius = 45.0;
+    Kind         kind = Kind::Box;
+    CornerParams corner;
     /**
      * A Polygon's or a Curve's nodes, in order (ShapeNode), relative to the balloon so a template fits
      * any size. Fewer than three draw the box's own rectangle.
      */
     QList<ShapeNode> nodes;
-    //! A Cloud's lobes, the circles around its edge. The defaults are the thought balloon's.
-    int lobes    = 11;
-    //! A lobe's radius, in % of the balloon's shorter half-axis.
-    int lobeSize = 40;
-    /**
-     * How far a Polygon's edges bow in, in % of each edge's length: an arc between two points, which stay
-     * sharp. 0 is straight. In, never out, so the balloon keeps to its nodes' bounds.
-     */
-    int bow             = 0;
-    /**
-     * How much each edge's bow varies, deeper or flatter, in %. Dealt from the edge's two nodes, so moving a
-     * node deals its two edges again and nothing else; no seed, so a preset carries the same arcs.
-     */
-    int bowIrregularity = 0;
+    CloudParams  cloud;
+    BowParams    bow;
+    //! The edge laid over whichever outline, and its teeth; read only while `edge` is not None.
+    Edge         edge = Edge::None;
+    EdgeParams   teeth;
 
-    /**
-     * @name The edge's modulation: its kind, and how it is laid along the outline. Every family takes
-     * them, and a template does not set them: picking a tile keeps the edge. Read only while `edge` is
-     * not None. The teeth go **in** from the outline, so the balloon keeps its bounds and its text area
-     * gives up the depth.
-     * @{
-     */
-    Edge  edge             = Edge::None;
-    qreal edgePitch        = 16.0;   //!< One tooth every this many balloon pixels along the edge.
-    qreal edgeDepth        = 6.0;    //!< How far in a tooth's valley reaches, in balloon pixels.
-    int   edgeIrregularity = 0;      //!< How much each tooth's depth and place vary, in %.
-    /** @} */
+    //! The families' sections, in the order the Shape panel shows them; the edge's is apart, under its own combo.
+    template <class V>
+    static void sections(V&& v)
+    {
+        v(&ShapeProperties::corner);
+        v(&ShapeProperties::cloud);
+        v(&ShapeProperties::bow);
+    }
 
     //! The fields, with the keys they are saved under (fields.hpp).
     template <class V>
     static void fields(V&& v)
     {
-        v("shape",        &ShapeProperties::kind);
-        v("cornerRadius", &ShapeProperties::cornerRadius);
-        v("nodes",        &ShapeProperties::nodes);
-        v("lobes",        &ShapeProperties::lobes);
-        v("lobeSize",     &ShapeProperties::lobeSize);
-        v("bow",             &ShapeProperties::bow);
-        v("bowIrregularity", &ShapeProperties::bowIrregularity);
-        v("edge",             &ShapeProperties::edge);
-        v("edgePitch",        &ShapeProperties::edgePitch);
-        v("edgeDepth",        &ShapeProperties::edgeDepth);
-        v("edgeIrregularity", &ShapeProperties::edgeIrregularity);
+        v("shape", &ShapeProperties::kind);
+        Fields::nest(v, &ShapeProperties::corner);
+        v("nodes", &ShapeProperties::nodes);
+        Fields::nest(v, &ShapeProperties::cloud);
+        Fields::nest(v, &ShapeProperties::bow);
+        v("edge",  &ShapeProperties::edge);
+        Fields::nest(v, &ShapeProperties::teeth);
     }
 
     [[nodiscard]] static ShapeProperties from(const ObjectRecord& a);
@@ -502,6 +567,34 @@ struct ShapeProperties
 
     [[nodiscard]] bool operator==(const ShapeProperties& o) const { return Fields::equal(*this, o); }
     [[nodiscard]] bool operator!=(const ShapeProperties& o) const { return !(*this == o); }
+};
+
+/**
+ * \brief Rough, a texture: turbulence displacing the outline, then a blur. The defaults are the old Marker's
+ *        numbers; the Ink look is a built-in preset (Geometry::inkRough()). Lengths in balloon pixels, so the
+ *        wobble scales with the balloon, not with the output's resolution.
+ */
+struct RoughParams
+{
+    qreal frequency    = 0.03;   //!< feTurbulence's baseFrequency: higher is a finer grain.
+    int   octaves      = 3;      //!< How many finer wobbles ride on the first.
+    qreal displacement = 6.0;    //!< How far the outline wanders (feDisplacementMap's scale).
+    qreal blur         = 0.0;    //!< The bleed after it (feGaussianBlur's deviation); 0 for none.
+    //! Whether the fill's paint wobbles too. Off, only the outline and the fill's edge do: a pattern stays
+    //! on its grid, laid from the box's corner as everywhere else.
+    bool  fill         = false;
+
+    template <class V>
+    static void fields(V&& v)
+    {
+        v("roughFrequency",    &RoughParams::frequency);
+        v("roughOctaves",      &RoughParams::octaves);
+        v("roughDisplacement", &RoughParams::displacement);
+        v("roughBlur",         &RoughParams::blur);
+        v("roughFill",         &RoughParams::fill);
+    }
+    [[nodiscard]] static const Fields::Section& section();
+    [[nodiscard]] bool operator==(const RoughParams& o) const { return Fields::equal(*this, o); }
 };
 
 /**
@@ -525,34 +618,22 @@ struct TextureProperties
     //! The enum's last value. **Adding a texture moves this**: textureFromName() reads up to it.
     static constexpr Kind k_lastKind = Kind::Rough;
 
-    Kind kind = Kind::None;
+    Kind        kind = Kind::None;
+    RoughParams rough;
 
-    /**
-     * @name Rough: turbulence displacing the outline, then a blur. Read only while `kind` is
-     * Rough, and carried unchanged otherwise. The defaults are the old Marker's numbers; the Ink look is
-     * a built-in preset (Geometry::inkRough()). Lengths in balloon pixels, so the wobble scales with the
-     * balloon, not with the output's resolution.
-     * @{
-     */
-    qreal roughFrequency    = 0.03;   //!< feTurbulence's baseFrequency: higher is a finer grain.
-    int   roughOctaves      = 3;      //!< How many finer wobbles ride on the first.
-    qreal roughDisplacement = 6.0;    //!< How far the outline wanders (feDisplacementMap's scale).
-    qreal roughBlur         = 0.0;    //!< The bleed after it (feGaussianBlur's deviation); 0 for none.
-    //! Whether the fill's paint wobbles too. Off, only the outline and the fill's edge do: a pattern stays
-    //! on its grid, laid from the box's corner as everywhere else.
-    bool  roughFill         = false;
-    /** @} */
+    //! The sections, in the order the Texture panel shows them.
+    template <class V>
+    static void sections(V&& v)
+    {
+        v(&TextureProperties::rough);
+    }
 
     //! The fields, with the keys they are saved under (fields.hpp).
     template <class V>
     static void fields(V&& v)
     {
-        v("texture",           &TextureProperties::kind);
-        v("roughFrequency",    &TextureProperties::roughFrequency);
-        v("roughOctaves",      &TextureProperties::roughOctaves);
-        v("roughDisplacement", &TextureProperties::roughDisplacement);
-        v("roughBlur",         &TextureProperties::roughBlur);
-        v("roughFill",         &TextureProperties::roughFill);
+        v("texture", &TextureProperties::kind);
+        sections([&](auto section) { Fields::nest(v, section); });
     }
 
     [[nodiscard]] static TextureProperties from(const ObjectRecord& a);

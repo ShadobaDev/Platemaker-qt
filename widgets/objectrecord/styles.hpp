@@ -63,7 +63,7 @@ struct LineInfo
      * The sections of StyleProperties it reads, by Fields::Section::name, whose rows the Line panel shows
      * while it is chosen; a kind that borrows another's (Explosion) lists both.
      */
-    std::array<const char*, 2> sections{};
+    Fields::SectionNames sections{};
     //! Of those rows, the ones whose key holds this are not shown: what the kind reads none of; or nullptr.
     const char* hides = nullptr;
 };
@@ -79,6 +79,8 @@ struct TextureInfo
     qreal (*reach)(const TextureProperties& t);
     //! The filter itself, noise seeded by @p seed; nullptr for None. Set whenever `reach` is.
     Render::Filter (*filter)(const TextureProperties& t, quint32 seed) = nullptr;
+    //! The sections of TextureProperties it reads, whose rows the Texture panel shows while it is chosen.
+    Fields::SectionNames sections{};
 };
 
 //! One pattern of a Paint: its names. How it is drawn is the painter's (a brush) and the SVG's (a

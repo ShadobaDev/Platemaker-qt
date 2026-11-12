@@ -58,6 +58,24 @@ TailEditor::TailEditor(QWidget* parent)
                               "balloon."));
     form->addRow(tr("Tip width:"), m_tipWidth);
 
+    m_breaks = new QSpinBox(this);
+    m_breaks->setRange(0, TailLook::k_maxBreaks);
+    m_breaks->setToolTip(tr("How many sharp turns the tail takes on its way, a zigzag. 0 is a plain tail."));
+    form->addRow(tr("Breaks:"), m_breaks);
+
+    m_jog = new QSpinBox(this);
+    m_jog->setRange(0, TailLook::k_maxJog);
+    m_jog->setSuffix(tr(" %"));
+    m_jog->setToolTip(tr("How far each turn steps aside, against the tail's length."));
+    form->addRow(tr("Jog:"), m_jog);
+
+    m_turn = new QComboBox(this);
+    m_turn->addItem(tr("Clockwise"), true);
+    m_turn->addItem(tr("Counter-clockwise"), false);
+    m_turn->setToolTip(tr("Which way the first turn goes, as the tail runs from the balloon; the next goes the "
+                          "other way. Mirrors the zigzag."));
+    form->addRow(tr("First turn:"), m_turn);
+
     m_circles = new QSpinBox(this);
     m_circles->setRange(1, k_circlesMax);
     m_circles->setToolTip(tr("How many ellipses make the tail. The last one ends at the tip."));
@@ -101,6 +119,20 @@ TailEditor::TailEditor(QWidget* parent)
             moved(&Fields::offset, [this] { restoreSpin(m_offset, -k_offsetMax); }));
     connect(m_tipWidth, &QSpinBox::valueChanged, this,
             moved(&Fields::tipWidth, [this] { restoreSpin(m_tipWidth, 0); }));
+    connect(m_breaks, &QSpinBox::valueChanged, this, [this, restore = moved(&Fields::breaks, [this] {
+                restoreSpin(m_breaks, 0);
+            })] {
+        showRows();
+        restore();
+    });
+    connect(m_jog, &QSpinBox::valueChanged, this,
+            moved(&Fields::jog, [this] { restoreSpin(m_jog, 0); }));
+    connect(m_turn, &QComboBox::currentIndexChanged, this, [this] {
+        if (m_populating)
+            return;
+        m_touched.turn = true;
+        emit changed();
+    });
     for (auto [combo, field] : {std::pair{m_style, &Fields::style}, std::pair{m_tip, &Fields::tip}}) {
         connect(combo, &QComboBox::currentIndexChanged, this, [this, field] {
             showRows();
@@ -121,6 +153,9 @@ void TailEditor::showRows()
     m_form->setRowVisible(m_offset, circles);
     m_form->setRowVisible(m_tip, !circles);
     m_form->setRowVisible(m_tipWidth, !circles && m_tip->currentData().toInt() != int(TailLook::Tip::Sharp));
+    m_form->setRowVisible(m_breaks, !circles);
+    m_form->setRowVisible(m_jog, !circles && m_breaks->value() != 0);
+    m_form->setRowVisible(m_turn, !circles && m_breaks->value() != 0);
 }
 
 void TailEditor::bind(const Subjects& subjects)
@@ -145,6 +180,9 @@ void TailEditor::bindTails(const QList<TailProperties>& tails)
         mixed.offset  = mixed.offset || p.tail.look.offset != first.look.offset;
         mixed.tip      = mixed.tip || p.tail.look.tip != first.look.tip;
         mixed.tipWidth = mixed.tipWidth || p.tail.look.tipWidth != first.look.tipWidth;
+        mixed.breaks   = mixed.breaks || p.tail.look.breaks != first.look.breaks;
+        mixed.jog      = mixed.jog || p.tail.look.jog != first.look.jog;
+        mixed.turn     = mixed.turn || p.tail.look.clockwise != first.look.clockwise;
     }
     show(tails.first(), mixed);
 }
@@ -160,6 +198,9 @@ void TailEditor::show(const TailProperties& values, const Fields& mixed)
     showSpin(m_offset, mixed.offset, values.tail.look.offset, -k_offsetMax, k_offsetMax);
     showCombo(m_tip, mixed.tip, m_tip->findData(int(values.tail.look.tip)));
     showSpin(m_tipWidth, mixed.tipWidth, values.tail.look.tipWidth, 0, k_tipWidthMax);
+    showSpin(m_breaks, mixed.breaks, values.tail.look.breaks, 0, TailLook::k_maxBreaks);
+    showSpin(m_jog, mixed.jog, values.tail.look.jog, 0, TailLook::k_maxJog);
+    showCombo(m_turn, mixed.turn, m_turn->findData(values.tail.look.clockwise));
     showRows();
     m_touched    = Fields{};
     m_populating = false;
@@ -176,6 +217,9 @@ void TailEditor::applyEditedToTail(ObjectRecord& target, int index) const
     if (m_touched.offset)  next.tail.look.offset  = m_offset->value();
     if (m_touched.tip)      next.tail.look.tip      = static_cast<TailLook::Tip>(m_tip->currentData().toInt());
     if (m_touched.tipWidth) next.tail.look.tipWidth = m_tipWidth->value();
+    if (m_touched.breaks)   next.tail.look.breaks   = m_breaks->value();
+    if (m_touched.jog)      next.tail.look.jog      = m_jog->value();
+    if (m_touched.turn)     next.tail.look.clockwise = m_turn->currentData().toBool();
     next.applyTo(target);
 }
 
@@ -190,6 +234,9 @@ void TailEditor::applyTo(ObjectRecord& target) const
     next.tail.look.offset  = m_offset->value();
     next.tail.look.tip      = static_cast<TailLook::Tip>(m_tip->currentData().toInt());
     next.tail.look.tipWidth = m_tipWidth->value();
+    next.tail.look.breaks   = m_breaks->value();
+    next.tail.look.jog      = m_jog->value();
+    next.tail.look.clockwise = m_turn->currentData().toBool();
     next.applyTo(target);   // a look changed here becomes the balloon's next one
 }
 

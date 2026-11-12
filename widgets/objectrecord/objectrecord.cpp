@@ -128,7 +128,8 @@ QString TailLook::toText() const
 {
     return QStringList{style == Style::Circles ? QStringLiteral("circles") : QStringLiteral("plain"),
                        QString::number(circles), QString::number(pitch), QString::number(offset),
-                       QLatin1String(k_tipNames[int(tip)]), QString::number(tipWidth)}
+                       QLatin1String(k_tipNames[int(tip)]), QString::number(tipWidth), QString::number(breaks),
+                       QString::number(jog), QString::number(clockwise ? 1 : 0)}
         .join(QLatin1Char(','));
 }
 
@@ -150,6 +151,12 @@ TailLook TailLook::fromFields(const QStringList& fields, qsizetype first)
             look.tip = static_cast<Tip>(i);
     if (const int n = field(5).toInt(&ok); ok)
         look.tipWidth = n;
+    if (const int n = field(6).toInt(&ok); ok)
+        look.breaks = n;
+    if (const int n = field(7).toInt(&ok); ok)
+        look.jog = n;
+    if (const int n = field(8).toInt(&ok); ok)
+        look.clockwise = n != 0;
     return look;
 }
 

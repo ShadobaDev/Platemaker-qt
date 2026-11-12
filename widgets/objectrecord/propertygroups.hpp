@@ -42,6 +42,11 @@
  * the tail's tip, or a straight end (**Cut**) through the tip, square to the tail there. A round or cut end
  * is `tipWidth` per cent of the tail's base width, so it follows a resize as the base does.
  *
+ * A Plain tail may be **broken**: its middle runs in straight lines through `breaks` points, evenly spaced
+ * along its bent course and moved across it by `jog` per cent of its length, to either side in turn, the
+ * first a clockwise turn (to its right as it runs from the balloon) unless `clockwise` says otherwise, so
+ * it zigzags in sharp turns on its way while its base and its tip stay where they are.
+ *
  * The ellipses lie on the plain tail's own curve, bend and all, from where it leaves the balloon (moved by
  * `offset`) to the tip, the last one ending there. Across, the first is the tail's width and the last
  * `k_lastCircle` of it; along, they share what the gaps leave of the way in the same proportion. So the
@@ -54,6 +59,10 @@ struct TailLook
     enum class Tip { Sharp, Round, Cut };
     //! The last ellipse's width, against the first's.
     static constexpr qreal k_lastCircle = 0.4;
+    //! The most breaks a tail takes.
+    static constexpr int k_maxBreaks = 3;
+    //! The furthest a break is moved across the tail, in per cent of its length.
+    static constexpr int k_maxJog = 50;
 
     Style style   = Style::Plain;
     int   circles = 3;     //!< How many ellipses make a Circles tail.
@@ -61,9 +70,12 @@ struct TailLook
     qreal offset  = 0.0;   //!< How far into the balloon the first starts, in balloon pixels: less than 0 leaves a gap.
     Tip   tip      = Tip::Sharp;   //!< How a Plain tail ends.
     int   tipWidth = 30;           //!< A Round or Cut end's width, in per cent of the base width, 0..100.
+    int   breaks   = 0;            //!< How many sharp turns a Plain tail's middle takes, 0..k_maxBreaks.
+    int   jog      = 10;           //!< How far across each break is moved, in per cent of the length, 0..k_maxJog.
+    bool  clockwise = true;        //!< Whether a broken tail's first turn is clockwise, to its right.
 
-    //! As text, "plain,3,6,0,sharp,30": the style's name, the numbers, the tip's name and its width. How a
-    //! file carries it.
+    //! As text, "plain,3,6,0,sharp,30,0,10,1": the style's name, the numbers, the tip's name and its width,
+    //! the breaks, the jog and whether the first turn is clockwise. How a file carries it.
     [[nodiscard]] QString toText() const;
     //! Out of the fields toText() writes, from @p first on; what is missing or unknown keeps its default.
     [[nodiscard]] static TailLook fromFields(const QStringList& fields, qsizetype first = 0);
@@ -73,7 +85,8 @@ struct TailLook
         return style == o.style && circles == o.circles
             && qFuzzyCompare(1.0 + pitch, 1.0 + o.pitch)   // +1 so an exact 0.0 compares equal
             && qFuzzyCompare(1.0 + offset, 1.0 + o.offset)
-            && tip == o.tip && tipWidth == o.tipWidth;
+            && tip == o.tip && tipWidth == o.tipWidth && breaks == o.breaks && jog == o.jog
+            && clockwise == o.clockwise;
     }
     [[nodiscard]] bool operator!=(const TailLook& o) const { return !(*this == o); }
 };

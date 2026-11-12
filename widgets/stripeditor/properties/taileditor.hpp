@@ -47,7 +47,7 @@ private:
     struct Fields
     {
         bool width = false, bend = false, style = false, circles = false, pitch = false, offset = false,
-             tip = false, tipWidth = false;
+             tip = false, tipWidth = false, breaks = false, jog = false, turn = false;
     };
     void show(const TailProperties& values, const Fields& mixed);
 
@@ -63,6 +63,9 @@ private:
     QDoubleSpinBox* m_offset  = nullptr;
     QComboBox*      m_tip      = nullptr;   //!< How a Plain tail ends.
     QSpinBox*       m_tipWidth = nullptr;   //!< A Round or Cut end's width, in per cent of the base.
+    QSpinBox*       m_breaks   = nullptr;   //!< How many sharp turns a Plain tail takes.
+    QSpinBox*       m_jog      = nullptr;   //!< How far across each turn is moved, in per cent of the length.
+    QComboBox*      m_turn     = nullptr;   //!< Which way a broken tail's first turn goes.
     int             m_index   = -1;
     bool            m_populating = false;
     Fields          m_touched;   //!< What was moved since the last binding: what a set takes.

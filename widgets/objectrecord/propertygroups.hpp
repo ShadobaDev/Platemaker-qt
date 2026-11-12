@@ -51,28 +51,99 @@
  * `offset`) to the tip, the last one ending there. Across, the first is the tail's width and the last
  * `k_lastCircle` of it; along, they share what the gaps leave of the way in the same proportion. So the
  * tip stays on the chain however it is dragged, and a short tail's ellipses come out flat, a long one's
- * tall. The numbers are kept while the style is Plain, so switching back finds them as they were.
+ * tall. Each style's and tip's numbers are a section (CirclesParams…), kept whatever the style, so switching
+ * back finds them as they were; the tables in styles.cpp list which a style and a tip read.
  */
-struct TailLook
+//! A Circles tail's chain (TailLook). In balloon pixels.
+struct CirclesParams
 {
-    enum class Style { Plain, Circles };
-    enum class Tip { Sharp, Round, Cut };
-    //! The last ellipse's width, against the first's.
-    static constexpr qreal k_lastCircle = 0.4;
+    int   count  = 3;     //!< How many ellipses make the tail.
+    qreal pitch  = 6.0;   //!< The gap between two of them along the tail; less than 0 overlaps.
+    qreal offset = 0.0;   //!< How far into the balloon the first starts: less than 0 leaves a gap.
+
+    template <class V>
+    static void fields(V&& v)
+    {
+        v("circles", &CirclesParams::count);
+        v("pitch",   &CirclesParams::pitch);
+        v("offset",  &CirclesParams::offset);
+    }
+    [[nodiscard]] static const Fields::Section& section();
+    [[nodiscard]] bool operator==(const CirclesParams& o) const { return Fields::equal(*this, o); }
+};
+
+//! A Round or Cut tip's end (TailLook).
+struct EndParams
+{
+    int width = 30;   //!< In per cent of the tail's base width, 0..100.
+
+    template <class V>
+    static void fields(V&& v)
+    {
+        v("tipWidth", &EndParams::width);
+    }
+    [[nodiscard]] static const Fields::Section& section();
+    [[nodiscard]] bool operator==(const EndParams& o) const { return Fields::equal(*this, o); }
+};
+
+//! A Plain tail's breaks, its sharp turns (TailLook).
+struct BreakParams
+{
     //! The most breaks a tail takes.
     static constexpr int k_maxBreaks = 3;
     //! The furthest a break is moved across the tail, in per cent of its length.
     static constexpr int k_maxJog = 50;
 
-    Style style   = Style::Plain;
-    int   circles = 3;     //!< How many ellipses make a Circles tail.
-    qreal pitch   = 6.0;   //!< The gap between two of them along the tail, in balloon pixels; less than 0 overlaps.
-    qreal offset  = 0.0;   //!< How far into the balloon the first starts, in balloon pixels: less than 0 leaves a gap.
-    Tip   tip      = Tip::Sharp;   //!< How a Plain tail ends.
-    int   tipWidth = 30;           //!< A Round or Cut end's width, in per cent of the base width, 0..100.
-    int   breaks   = 0;            //!< How many sharp turns a Plain tail's middle takes, 0..k_maxBreaks.
-    int   jog      = 10;           //!< How far across each break is moved, in per cent of the length, 0..k_maxJog.
-    bool  clockwise = true;        //!< Whether a broken tail's first turn is clockwise, to its right.
+    int  count     = 0;      //!< How many sharp turns the tail's middle takes, 0..k_maxBreaks.
+    int  jog       = 10;     //!< How far across each is moved, in per cent of the length, 0..k_maxJog.
+    bool clockwise = true;   //!< Whether the first turn is clockwise, to the tail's right.
+
+    template <class V>
+    static void fields(V&& v)
+    {
+        v("breaks",    &BreakParams::count);
+        v("jog",       &BreakParams::jog);
+        v("clockwise", &BreakParams::clockwise);
+    }
+    [[nodiscard]] static const Fields::Section& section();
+    [[nodiscard]] bool operator==(const BreakParams& o) const { return Fields::equal(*this, o); }
+};
+
+struct TailLook
+{
+    //! Persisted by name (TailStyleInfo, TailTipInfo in styles.hpp); adding one moves its `k_last…`.
+    enum class Style { Plain, Circles };
+    static constexpr Style k_lastStyle = Style::Circles;
+    enum class Tip { Sharp, Round, Cut };
+    static constexpr Tip k_lastTip = Tip::Cut;
+    //! The last ellipse's width, against the first's.
+    static constexpr qreal k_lastCircle = 0.4;
+
+    Style         style = Style::Plain;
+    CirclesParams circles;
+    Tip           tip   = Tip::Sharp;   //!< How a Plain tail ends.
+    EndParams     end;
+    BreakParams   breaks;
+
+    //! The sections, in the order the Tail panel shows them.
+    template <class V>
+    static void sections(V&& v)
+    {
+        v(&TailLook::end);
+        v(&TailLook::breaks);
+        v(&TailLook::circles);
+    }
+
+    //! The fields, with the keys they are known by (fields.hpp). A file carries them as toText() writes them.
+    template <class V>
+    static void fields(V&& v)
+    {
+        v("style", &TailLook::style);
+        Fields::nest(v, &TailLook::circles);
+        v("tip",   &TailLook::tip);
+        Fields::nest(v, &TailLook::end);
+        Fields::nest(v, &TailLook::breaks);
+    }
 
     //! As text, "plain,3,6,0,sharp,30,0,10,1": the style's name, the numbers, the tip's name and its width,
     //! the breaks, the jog and whether the first turn is clockwise. How a file carries it.
@@ -80,14 +151,7 @@ struct TailLook
     //! Out of the fields toText() writes, from @p first on; what is missing or unknown keeps its default.
     [[nodiscard]] static TailLook fromFields(const QStringList& fields, qsizetype first = 0);
 
-    [[nodiscard]] bool operator==(const TailLook& o) const
-    {
-        return style == o.style && circles == o.circles
-            && qFuzzyCompare(1.0 + pitch, 1.0 + o.pitch)   // +1 so an exact 0.0 compares equal
-            && qFuzzyCompare(1.0 + offset, 1.0 + o.offset)
-            && tip == o.tip && tipWidth == o.tipWidth && breaks == o.breaks && jog == o.jog
-            && clockwise == o.clockwise;
-    }
+    [[nodiscard]] bool operator==(const TailLook& o) const { return Fields::equal(*this, o); }
     [[nodiscard]] bool operator!=(const TailLook& o) const { return !(*this == o); }
 };
 

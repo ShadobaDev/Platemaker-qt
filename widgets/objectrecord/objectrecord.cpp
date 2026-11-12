@@ -117,19 +117,13 @@ QList<Tail> tailsFromJson(const QJsonArray& arr)
 
 } // namespace
 
-namespace {
-
-//! A tail's tip by name, as a file carries it; in the enum's order.
-constexpr const char* k_tipNames[] = {"sharp", "round", "cut"};
-
-} // namespace
-
 QString TailLook::toText() const
 {
-    return QStringList{style == Style::Circles ? QStringLiteral("circles") : QStringLiteral("plain"),
-                       QString::number(circles), QString::number(pitch), QString::number(offset),
-                       QLatin1String(k_tipNames[int(tip)]), QString::number(tipWidth), QString::number(breaks),
-                       QString::number(jog), QString::number(clockwise ? 1 : 0)}
+    return QStringList{QLatin1String(Geometry::tailStyleInfo(style).name), QString::number(circles.count),
+                       QString::number(circles.pitch), QString::number(circles.offset),
+                       QLatin1String(Geometry::tailTipInfo(tip).name), QString::number(end.width),
+                       QString::number(breaks.count), QString::number(breaks.jog),
+                       QString::number(breaks.clockwise ? 1 : 0)}
         .join(QLatin1Char(','));
 }
 
@@ -137,26 +131,27 @@ TailLook TailLook::fromFields(const QStringList& fields, qsizetype first)
 {
     TailLook   look;
     const auto field = [&](qsizetype i) { return first + i < fields.size() ? fields[first + i] : QString(); };
-    if (field(0) == QLatin1String("circles"))
-        look.style = Style::Circles;
+    for (int i = 0; i <= int(k_lastStyle); ++i)
+        if (field(0) == QLatin1String(Geometry::tailStyleInfo(Style(i)).name))
+            look.style = Style(i);
     bool ok = false;
     if (const int n = field(1).toInt(&ok); ok)
-        look.circles = n;
+        look.circles.count = n;
     if (const qreal v = field(2).toDouble(&ok); ok)
-        look.pitch = v;
+        look.circles.pitch = v;
     if (const qreal v = field(3).toDouble(&ok); ok)
-        look.offset = v;
-    for (int i = 0; i < int(std::size(k_tipNames)); ++i)
-        if (field(4) == QLatin1String(k_tipNames[i]))
-            look.tip = static_cast<Tip>(i);
+        look.circles.offset = v;
+    for (int i = 0; i <= int(k_lastTip); ++i)
+        if (field(4) == QLatin1String(Geometry::tailTipInfo(Tip(i)).name))
+            look.tip = Tip(i);
     if (const int n = field(5).toInt(&ok); ok)
-        look.tipWidth = n;
+        look.end.width = n;
     if (const int n = field(6).toInt(&ok); ok)
-        look.breaks = n;
+        look.breaks.count = n;
     if (const int n = field(7).toInt(&ok); ok)
-        look.jog = n;
+        look.breaks.jog = n;
     if (const int n = field(8).toInt(&ok); ok)
-        look.clockwise = n != 0;
+        look.breaks.clockwise = n != 0;
     return look;
 }
 

@@ -191,7 +191,7 @@ void StyleEditor::showRows()
 {
     // A selection that disagrees shows every kind's rows; else the sections the line reads.
     const Geometry::LineInfo& line = Geometry::lineInfo(m_values.line);
-    m_sections.showSections(m_form, shows(Row::LineKindRows), m_mixedLine, line.sections, line.hides);
+    m_sections.showSections(m_form, m_values, shows(Row::LineKindRows), m_mixedLine, line.sections, line.hides);
 }
 
 }  // namespace StripEdit

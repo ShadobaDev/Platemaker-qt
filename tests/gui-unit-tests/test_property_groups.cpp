@@ -51,24 +51,24 @@ ObjectRecord loadedRecord()
     boxOf(a)              = QSize(321, 123);
 
     Tail t;
-    t.tip              = QPointF(17, 42);
-    t.baseWidth        = 29.0;
-    t.bend             = 0.4;
-    t.look.circles     = 4;      // Plain still: the numbers are carried, the render is the plain tail's
-    t.look.pitch       = 7.5;
-    t.look.offset      = -3.25;
-    t.look.tipWidth    = 45;     // Sharp still: carried, unused
-    t.look.jog         = 35;     // no breaks: carried, unused
-    t.look.clockwise   = false;
-    tailsOf(a).items      = {t};
-    tailsOf(a).nextLook.style   = TailLook::Style::Circles;
-    tailsOf(a).nextLook.circles = 5;
-    tailsOf(a).nextLook.pitch   = 2.5;
-    tailsOf(a).nextLook.offset  = 4.0;
-    tailsOf(a).nextLook.tip      = TailLook::Tip::Round;
-    tailsOf(a).nextLook.tipWidth = 60;
-    tailsOf(a).nextLook.breaks   = 2;
-    tailsOf(a).nextLook.jog      = 15;
+    t.tip                              = QPointF(17, 42);
+    t.baseWidth                        = 29.0;
+    t.bend                             = 0.4;
+    t.look.circles.count               = 4;      // Plain still: the numbers are carried, the render is the plain tail's
+    t.look.circles.pitch               = 7.5;
+    t.look.circles.offset              = -3.25;
+    t.look.end.width                   = 45;     // Sharp still: carried, unused
+    t.look.breaks.jog                  = 35;     // no breaks: carried, unused
+    t.look.breaks.clockwise            = false;
+    tailsOf(a).items                   = {t};
+    tailsOf(a).nextLook.style          = TailLook::Style::Circles;
+    tailsOf(a).nextLook.circles.count  = 5;
+    tailsOf(a).nextLook.circles.pitch  = 2.5;
+    tailsOf(a).nextLook.circles.offset = 4.0;
+    tailsOf(a).nextLook.tip            = TailLook::Tip::Round;
+    tailsOf(a).nextLook.end.width      = 60;
+    tailsOf(a).nextLook.breaks.count   = 2;
+    tailsOf(a).nextLook.breaks.jog     = 15;
 
     styleOf(a).line              = ObjectRecord::Line::Flash;
     textureOf(a).kind              = ObjectRecord::Texture::Rough;
@@ -232,7 +232,10 @@ struct TextMirror { QString body, family; int pixelSize; bool bold; int align; P
 static_assert(sizeof(TextProperties) == sizeof(TextMirror),
               "TextProperties grew a field: place it (see above), then mirror it");
 
-struct TailLookMirror { TailLook::Style style; int circles; qreal pitch, offset; TailLook::Tip tip; int tipWidth, breaks, jog; bool clockwise; };
+struct TailLookMirror {   // its sections as they are laid out: a field added to one changes their size too
+    TailLook::Style style; struct { int count; qreal pitch, offset; } circles;
+    TailLook::Tip tip; struct { int width; } end; struct { int count, jog; bool clockwise; } breaks;
+};
 static_assert(sizeof(TailLook) == sizeof(TailLookMirror),
               "TailLook grew a field: place it (see above), then mirror it");
 
@@ -583,13 +586,13 @@ TEST(PropertyGroupOwnership, OneTail)
 
     // Its look picked: the balloon's next tail takes it, whichever was picked last.
     TailProperties looked = TailProperties::from(after, 2);
-    looked.tail.look.style   = TailLook::Style::Circles;
-    looked.tail.look.circles = 6;
+    looked.tail.look.style         = TailLook::Style::Circles;
+    looked.tail.look.circles.count = 6;
     looked.applyTo(after);
     EXPECT_EQ(tailsOf(after).nextLook, looked.tail.look);
     TailProperties plain = TailProperties::from(after, 0);
-    plain.tail.look.style = TailLook::Style::Plain;
-    plain.tail.look.pitch = 1.5;
+    plain.tail.look.style         = TailLook::Style::Plain;
+    plain.tail.look.circles.pitch = 1.5;
     plain.applyTo(after);
     EXPECT_EQ(tailsOf(after).nextLook, plain.tail.look);
 }
@@ -814,6 +817,12 @@ void expectEveryFieldHasARow()
         }
         if constexpr (std::is_same_v<T, bool>)
             EXPECT_EQ(row->on == nullptr, row->off == nullptr) << key;
+        if (row->needs) {   // the number it follows is a row of the same section
+            bool found = false;
+            for (int r = 0; r < s.rowCount; ++r)
+                found = found || std::strcmp(s.rows[r].key, row->needs) == 0;
+            EXPECT_TRUE(found) << key << " needs " << row->needs;
+        }
     });
 }
 
@@ -881,6 +890,27 @@ TEST(Conversion, EveryShapeAndStyleHasATableEntry)
     }
     expectEverySectionHasRows<ShapeProperties>();
     expectEveryFieldHasARow<EdgeParams>();   // the edge's, under its own combo
+
+    // A tail's styles and tips, likewise (styles.cpp); only a tipped style offers a tip.
+    for (int i = 0; i <= int(TailLook::k_lastStyle); ++i) {
+        const auto                     kind = static_cast<TailLook::Style>(i);
+        const Geometry::TailStyleInfo& info = Geometry::tailStyleInfo(kind);
+        EXPECT_EQ(info.kind, kind) << "tail style entry " << i << " is out of the enum's order";
+        EXPECT_NE(info.name, nullptr) << i;
+        EXPECT_NE(info.title, nullptr) << i;
+        for (const char* name : info.sections)
+            EXPECT_TRUE(!name || hasSection<TailLook>(name)) << info.name << " reads " << name;
+    }
+    for (int i = 0; i <= int(TailLook::k_lastTip); ++i) {
+        const auto                   kind = static_cast<TailLook::Tip>(i);
+        const Geometry::TailTipInfo& info = Geometry::tailTipInfo(kind);
+        EXPECT_EQ(info.kind, kind) << "tail tip entry " << i << " is out of the enum's order";
+        EXPECT_NE(info.name, nullptr) << i;
+        EXPECT_NE(info.title, nullptr) << i;
+        for (const char* name : info.sections)
+            EXPECT_TRUE(!name || hasSection<TailLook>(name)) << info.name << " reads " << name;
+    }
+    expectEverySectionHasRows<TailLook>();
 
     QList<ObjectRecord::Shape> templated;
     for (const Geometry::ShapeTemplate& t : Geometry::shapeTemplates()) {
@@ -1311,13 +1341,13 @@ TEST(Tails, ACirclesTailIsAChainShrinkingToItsTip)
     boxOf(a)               = QSize(280, 160);
     styleOf(a).strokeWidth = 0;
     Tail t;
-    t.tip               = QPointF(140, 400);
-    t.baseWidth         = 40.0;
-    t.look.style        = TailLook::Style::Circles;
-    t.look.circles      = 3;
-    t.look.pitch        = 10.0;
-    t.look.offset       = -8.0;   // a gap below the balloon
-    tailsOf(a).items       = {t};
+    t.tip                 = QPointF(140, 400);
+    t.baseWidth           = 40.0;
+    t.look.style          = TailLook::Style::Circles;
+    t.look.circles.count  = 3;
+    t.look.circles.pitch  = 10.0;
+    t.look.circles.offset = -8.0;   // a gap below the balloon
+    tailsOf(a).items      = {t};
     const QRectF body   = Geometry::balloonRect(a);
 
     QList<QPolygonF> rings = Geometry::silhouette(a).toSubpathPolygons();
@@ -1332,11 +1362,11 @@ TEST(Tails, ACirclesTailIsAChainShrinkingToItsTip)
     EXPECT_GT(rings[2].boundingRect().width(), last.width());
     EXPECT_NEAR(first.top(), body.bottom() + 8.0, 0.5);
     EXPECT_NEAR(last.bottom(), t.tip.y(), 0.5);
-    EXPECT_NEAR(rings[2].boundingRect().top() - first.bottom(), t.look.pitch, 0.5);
-    EXPECT_NEAR(last.top() - rings[2].boundingRect().bottom(), t.look.pitch, 0.5);
+    EXPECT_NEAR(rings[2].boundingRect().top() - first.bottom(), t.look.circles.pitch, 0.5);
+    EXPECT_NEAR(last.top() - rings[2].boundingRect().bottom(), t.look.circles.pitch, 0.5);
 
     // Sunk into the balloon, the first one melts into it.
-    tailsOf(a).items.first().look.offset = 8.0;
+    tailsOf(a).items.first().look.circles.offset = 8.0;
     EXPECT_EQ(Geometry::silhouette(a).toSubpathPolygons().size(), 3);
 }
 
@@ -1356,8 +1386,8 @@ TEST(Tails, ATipEndsAsItSays)
     Tail t;
     t.tip            = QPointF(140, 400);
     t.baseWidth      = 40.0;
-    t.look.tipWidth  = 50;
-    const qreal end  = t.baseWidth / 2.0 * t.look.tipWidth / 100.0;   // either side of the middle
+    t.look.end.width = 50;
+    const qreal end  = t.baseWidth / 2.0 * t.look.end.width / 100.0;   // either side of the middle
     tailsOf(a).items    = {t};
     const auto at    = [&](TailLook::Tip tip, QPointF p) {
         tailsOf(a).items.first().look.tip = tip;
@@ -1409,7 +1439,7 @@ TEST(Tails, ATipEndsAsItSays)
     tailsOf(a).items.first().look.style = TailLook::Style::Circles;
     tailsOf(a).items.first().look.tip   = TailLook::Tip::Sharp;
     const QPainterPath chain         = Geometry::silhouette(a);
-    tailsOf(a).items.first().look.tip   = TailLook::Tip::Cut;
+    tailsOf(a).items.first().look.tip = TailLook::Tip::Cut;
     EXPECT_TRUE(chain == Geometry::silhouette(a));
 }
 
@@ -1429,14 +1459,14 @@ TEST(Tails, ABrokenTailZigzagsThroughItsBreaks)
     boxOf(a)               = QSize(280, 160);
     styleOf(a).strokeWidth = 0;
     Tail t;
-    t.tip            = QPointF(140, 460);
-    t.baseWidth      = 30.0;
-    t.look.breaks    = 2;
-    t.look.jog       = 20;
+    t.tip               = QPointF(140, 460);
+    t.baseWidth         = 30.0;
+    t.look.breaks.count = 2;
+    t.look.breaks.jog   = 20;
     tailsOf(a).items    = {t};
     const QPainterPath straight = [&] {
         ObjectRecord plain             = a;
-        tailsOf(plain).items.first().look.breaks = 0;
+        tailsOf(plain).items.first().look.breaks.count = 0;
         return Geometry::silhouette(plain);
     }();
     const QPainterPath broken = Geometry::silhouette(a);
@@ -1463,12 +1493,12 @@ TEST(Tails, ABrokenTailZigzagsThroughItsBreaks)
     EXPECT_FALSE(zigzags(broken, 1.0));
 
     // A counter-clockwise first turn mirrors it: right becomes left.
-    tailsOf(a).items.first().look.clockwise = false;
+    tailsOf(a).items.first().look.breaks.clockwise = false;
     EXPECT_TRUE(zigzags(Geometry::silhouette(a), 1.0));
     // A Circles tail takes no breaks.
     tailsOf(a).items.first().look.style = TailLook::Style::Circles;
     const QPainterPath chain         = Geometry::silhouette(a);
-    tailsOf(a).items.first().look.breaks = 0;
+    tailsOf(a).items.first().look.breaks.count = 0;
     EXPECT_TRUE(chain == Geometry::silhouette(a));
 }
 
@@ -2564,12 +2594,12 @@ QString goldenRecords()
         skinOf(a).fill.kind = ObjectRecord::Pattern::Solid;
         effectsOf(a).shadow.on = false;
         Tail& t          = tailsOf(a).items.first();
-        t.tip            = QPointF(250, 230);
-        t.bend           = 0.2;
-        t.look.style     = TailLook::Style::Circles;
-        t.look.circles   = 3;
-        t.look.pitch     = 5.0;
-        t.look.offset    = reference ? 6.0 : -6.0;
+        t.tip                 = QPointF(250, 230);
+        t.bend                = 0.2;
+        t.look.style          = TailLook::Style::Circles;
+        t.look.circles.count  = 3;
+        t.look.circles.pitch  = 5.0;
+        t.look.circles.offset = reference ? 6.0 : -6.0;
         if (reference) {
             styleOf(a).line             = ObjectRecord::Line::Drybrush;
             styleOf(a).stroke.colour    = Qt::white;
@@ -2600,7 +2630,7 @@ QString goldenRecords()
             tail.baseWidth      = 60.0;
             tail.bend           = 0.15;
             tail.look.tip       = tip;
-            tail.look.tipWidth  = 15;
+            tail.look.end.width = 15;
             write(QStringLiteral("speech"),
                   QStringLiteral("tip %1, %2")
                       .arg(tip == TailLook::Tip::Round ? QStringLiteral("round") : QStringLiteral("cut"),
@@ -2622,14 +2652,14 @@ QString goldenRecords()
             skinOf(a).fill.kind    = ObjectRecord::Pattern::Solid;
             effectsOf(a).shadow.on = false;
             Tail& tail          = tailsOf(a).items.first();
-            tail.tip            = QPointF(240, 300);
-            tail.baseWidth      = 50.0;
-            tail.bend           = 0.1;
-            tail.look.tip       = tip;
-            tail.look.tipWidth  = 30;
-            tail.look.breaks    = 2;
-            tail.look.jog       = 15;
-            tail.look.clockwise = true;
+            tail.tip                   = QPointF(240, 300);
+            tail.baseWidth             = 50.0;
+            tail.bend                  = 0.1;
+            tail.look.tip              = tip;
+            tail.look.end.width        = 30;
+            tail.look.breaks.count     = 2;
+            tail.look.breaks.jog       = 15;
+            tail.look.breaks.clockwise = true;
             write(QStringLiteral("speech"),
                   QStringLiteral("broken %1, %2")
                       .arg(QString::fromLatin1(tip == TailLook::Tip::Sharp   ? "sharp"
@@ -2649,12 +2679,12 @@ QString goldenRecords()
         skinOf(a).fill.kind    = ObjectRecord::Pattern::Solid;
         effectsOf(a).shadow.on = false;
         Tail& tail          = tailsOf(a).items.first();
-        tail.tip            = QPointF(240, 300);
-        tail.baseWidth      = 50.0;
-        tail.bend           = 0.1;
-        tail.look.breaks    = 2;
-        tail.look.jog       = 15;
-        tail.look.clockwise = false;
+        tail.tip                   = QPointF(240, 300);
+        tail.baseWidth             = 50.0;
+        tail.bend                  = 0.1;
+        tail.look.breaks.count     = 2;
+        tail.look.breaks.jog       = 15;
+        tail.look.breaks.clockwise = false;
         write(QStringLiteral("speech"), QStringLiteral("broken counter-clockwise, clean"), true, a);
     }
     // A screentone fill on two templates, clean.

@@ -95,6 +95,32 @@ struct PatternInfo
 //! The entry for @p kind. Every kind up to `Paint::k_lastKind` has one.
 [[nodiscard]] const PatternInfo& patternInfo(Paint::Kind kind);
 
+//! One style of tail (TailLook): its names, and what it reads. How it is drawn is silhouette.cpp's.
+struct TailStyleInfo
+{
+    TailLook::Style      kind;
+    const char*          name;     //!< Persisted, in a tail's text (TailLook::toText()). **Never changes** once saved.
+    const char*          title;    //!< Shown on screen, translated through QObject::tr().
+    bool                 tipped;   //!< Whether it ends as its tip says: the Tail panel offers the tip only then.
+    //! The sections of TailLook it reads, whose rows the Tail panel shows while it is chosen.
+    Fields::SectionNames sections;
+};
+
+//! One tip a tail may end in (TailLook::Tip): its names, and the sections it reads.
+struct TailTipInfo
+{
+    TailLook::Tip        kind;
+    const char*          name;    //!< Persisted, in a tail's text. **Never changes** once saved.
+    const char*          title;   //!< Shown on screen, translated through QObject::tr().
+    Fields::SectionNames sections;
+};
+
+//! The entry for @p kind. Every kind up to `TailLook::k_lastStyle` has one.
+[[nodiscard]] const TailStyleInfo& tailStyleInfo(TailLook::Style kind);
+
+//! The entry for @p kind. Every kind up to `TailLook::k_lastTip` has one.
+[[nodiscard]] const TailTipInfo& tailTipInfo(TailLook::Tip kind);
+
 /**
  * \brief A pattern's repeating cell: a square of the Paint's colour with its marks in the second colour —
  *        a dot, a line across, or a line each way — the grid turned by `angle`. One description that both

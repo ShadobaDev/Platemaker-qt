@@ -76,8 +76,9 @@ public:
                 }
 
                 Row row;
-                row.key = key;
-                row.min = spec->min;
+                row.key   = key;
+                row.needs = spec->needs;
+                row.min   = spec->min;
                 if constexpr (std::is_same_v<T, bool>) {
                     if (spec->on) {
                         row.choice = new QComboBox(owner);
@@ -207,6 +208,16 @@ public:
             form->setRowVisible(r.box, visible);
     }
 
+    //! Hides the rows whose spec `needs` a number that is 0 in @p values, and not *Mixed*. After setVisible().
+    void hideUnneeded(QFormLayout* form, const Group& values) const
+    {
+        for (const Row& r : m_rows)
+            if (r.needs)
+                for (const Row& n : m_rows)
+                    if (std::strcmp(n.key, r.needs) == 0 && !n.mixed && Fields::same(n.get(values), 0.0))
+                        form->setRowVisible(r.box, false);
+    }
+
     //! Shows or hides the rows whose key holds @p part, leaving the others as they are.
     void setRowsVisible(QFormLayout* form, const char* part, bool visible) const
     {
@@ -228,6 +239,7 @@ private:
     struct Row
     {
         const char*                         key     = nullptr;
+        const char*                         needs   = nullptr;   //!< Fields::RowSpec::needs
         QWidget*                            box     = nullptr;   //!< whichever of the four it is
         QSpinBox*                           whole   = nullptr;
         QDoubleSpinBox*                     decimal = nullptr;
@@ -249,7 +261,8 @@ private:
  *        a texture's).
  *
  * Built once, in the order the group lists its sections; showSections() then shows those a kind's table
- * entry names. The panel contract is FieldRows', section by section.
+ * entry names. The panel contract is FieldRows', section by section. A row that `needs` another
+ * (Fields::RowSpec) follows it: the panel calls showSections() again after an edit.
  */
 template <class Group>
 class SectionRows
@@ -313,10 +326,11 @@ public:
     /**
      * \brief Shows the sections named in @p names, every section when @p all (a selection that disagrees
      *        about the kind), and none when not @p visible. Of the named ones, the rows whose key holds
-     *        @p hides are not shown. A heading shows over each only where more than one is shown.
+     *        @p hides are not shown, nor those that need a number that is 0 in @p values. A heading shows over
+     *        each only where more than one is shown.
      */
-    void showSections(QFormLayout* form, bool visible, bool all, const Fields::SectionNames& names,
-                      const char* hides = nullptr) const
+    void showSections(QFormLayout* form, const Group& values, bool visible, bool all,
+                      const Fields::SectionNames& names, const char* hides = nullptr) const
     {
         const auto named = [&](const Fields::Section& s) {
             for (const char* n : names)
@@ -329,7 +343,7 @@ public:
             shown += visible && (all || named(*p->section));
         for (const auto& p : m_parts) {
             const bool on = visible && (all || named(*p->section));
-            p->setVisible(form, on);
+            p->setVisible(form, on, values);
             if (on && !all && hides)
                 p->hideRows(form, hides);
             if (p->heading)
@@ -345,7 +359,7 @@ private:
         virtual void compare(const Group& subject, const Group& shown)      = 0;
         virtual void show(const Group& values) const                        = 0;
         virtual void applyEdited(const Group& values, Group& target) const  = 0;
-        virtual void setVisible(QFormLayout* form, bool visible) const      = 0;
+        virtual void setVisible(QFormLayout* form, bool visible, const Group& values) const = 0;
         virtual void hideRows(QFormLayout* form, const char* part) const    = 0;
         virtual void setMaximum(const char* key, int max) const             = 0;
 
@@ -366,7 +380,12 @@ private:
         {
             rows.applyEdited(values.*member, target.*member);
         }
-        void setVisible(QFormLayout* form, bool visible) const override { rows.setVisible(form, visible); }
+        void setVisible(QFormLayout* form, bool visible, const Group& values) const override
+        {
+            rows.setVisible(form, visible);
+            if (visible)
+                rows.hideUnneeded(form, values.*member);
+        }
         void hideRows(QFormLayout* form, const char* part) const override { rows.setRowsVisible(form, part, false); }
         void setMaximum(const char* key, int max) const override { rows.setMaximum(key, max); }
     };

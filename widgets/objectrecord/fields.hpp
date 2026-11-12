@@ -120,6 +120,9 @@ struct RowSpec
     //! A bool's two entries, true first: it is a combo. A bool without them is a check box, `title` its text.
     const char* on  = nullptr;
     const char* off = nullptr;
+    //! The key of a number in the same section the row is shown only while it is not 0 (a broken tail's
+    //! jog, while it has breaks); nullptr shows it always.
+    const char* needs = nullptr;
 };
 
 //! A section as a panel shows it: its name (what a kind's table entry lists), a heading, and its rows.

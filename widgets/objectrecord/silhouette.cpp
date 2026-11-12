@@ -57,14 +57,14 @@ constexpr qreal k_breakMiter    = 4.0;
 QPainterPath circlesAlong(const QPainterPath& spine, const Tail& t)
 {
     const qreal length = spine.length();
-    const int   count  = qMax(1, t.look.circles);
+    const int   count  = qMax(1, t.look.circles.count);
     std::vector<qreal> share(static_cast<size_t>(count));
     qreal              total = 0.0;
     for (int i = 0; i < count; ++i) {
         share[size_t(i)] = count > 1 ? 1.0 - (1.0 - TailLook::k_lastCircle) * i / (count - 1) : 1.0;
         total += share[size_t(i)];
     }
-    const qreal scale = qMax(length - (count - 1) * t.look.pitch, count * k_minCircle) / total;
+    const qreal scale = qMax(length - (count - 1) * t.look.circles.pitch, count * k_minCircle) / total;
 
     QPainterPath out;
     out.setFillRule(Qt::WindingFill);
@@ -81,7 +81,7 @@ QPainterPath circlesAlong(const QPainterPath& spine, const Tail& t)
         QPainterPath ellipse;
         ellipse.addEllipse(QPointF(), along / 2.0, across / 2.0);
         out.addPath(place.map(ellipse));
-        at += along + t.look.pitch;
+        at += along + t.look.circles.pitch;
     }
     return out;
 }
@@ -195,10 +195,10 @@ QPainterPath spinePath(const TailSpine& s)
  */
 TailShape brokenRibbon(const TailSpine& s, qreal half, qreal end, bool round, const TailLook& look)
 {
-    const int     breaks  = qBound(0, look.breaks, TailLook::k_maxBreaks);
+    const int     breaks  = qBound(0, look.breaks.count, BreakParams::k_maxBreaks);
     const QPointF control = (s.base + s.tip) / 2.0 + s.sway;
-    const qreal   jog     = QLineF(s.base, s.tip).length() * qBound(0, look.jog, TailLook::k_maxJog) / 100.0
-                          * (look.clockwise ? 1.0 : -1.0);
+    const qreal   jog     = QLineF(s.base, s.tip).length() * qBound(0, look.breaks.jog, BreakParams::k_maxJog) / 100.0
+                          * (look.breaks.clockwise ? 1.0 : -1.0);
 
     // The runs' corners: on the bent course, each break moved across it, to the right first (s.perp) when
     // the first turn is clockwise.
@@ -288,9 +288,9 @@ TailShape ribbonAbout(const TailSpine& s, qreal half, const TailLook& look)
 {
     const QPointF b1  = s.base + s.perp * half;
     const QPointF b2  = s.base - s.perp * half;
-    const qreal   end = half * qBound(0, look.tipWidth, 100) / 100.0;
+    const qreal   end = half * qBound(0, look.end.width, 100) / 100.0;
     const bool    sharp = look.tip == TailLook::Tip::Sharp || end < k_minTipEnd;
-    if (look.breaks > 0)
+    if (look.breaks.count > 0)
         return brokenRibbon(s, half, sharp ? 0.0 : end, !sharp && look.tip == TailLook::Tip::Round, look);
 
     QPainterPath p;
@@ -353,7 +353,7 @@ TailShape tailPath(const QPainterPath& outline, const QRectF& body, const Tail& 
     if (t.look.style == TailLook::Style::Circles) {
         // The chain lies on the plain tail's middle, bend and all, from the crossing (moved in by the
         // offset, or out by a negative one) to the tip.
-        const qreal from = r->edge - t.look.offset;
+        const qreal from = r->edge - t.look.circles.offset;
         if (r->len - from < 1.0)
             return {};   // a gap past the tip: nothing left to draw
         const TailSpine s{r->centre + r->ray * from, t.tip, r->perp * (t.bend * (r->len - from)), r->perp};

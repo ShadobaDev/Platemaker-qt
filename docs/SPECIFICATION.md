@@ -126,19 +126,24 @@ every template is a balloon, is found by `templateOf()` as itself, and that ever
 takes a tail, concave included: the tail walks from its tip towards the centre and leaves from the first
 edge it meets (`Tails.AConcaveOutlineIsLeftNearestTheTip`); only a balloon whose centre lies outside it
 gets none. A tail's look (`TailLook`) is Plain, the taper, or Circles: ellipses on the same curve
-(`circlesAlong()` in `silhouette.cpp`), from the crossing moved by `offset` to the tip, the first the
-tail's width across and the last `k_lastCircle` of it, sharing along what the `pitch` gaps leave, so the
+(`circlesAlong()` in `silhouette.cpp`), from the crossing moved by `circles.offset` to the tip, the first the
+tail's width across and the last `k_lastCircle` of it, sharing along what the `circles.pitch` gaps leave, so the
 last ends at the tip (`Tails.ACirclesTailIsAChainShrinkingToItsTip`). Every look is drawn along one
 spine (`TailSpine`: a quad from the base to the tip, swayed by the bend; `tailRay()` finds where it leaves
 the outline). A Plain tail is a ribbon about it (`ribbonAbout()`) and ends as its `tip` says: Sharp, or
-Round or Cut `tipWidth` per cent of the base wide, a cut end square to the tail where it ends and a round
-end's far point the tip (`Tails.ATipEndsAsItSays`). With `breaks` the spine runs in straight lines through
-that many points, evenly spaced on its course and moved across it by `jog` per cent of its length, to
-either side in turn, the first clockwise unless `clockwise` is off; the ribbon has sharp turns there
+Round or Cut `end.width` per cent of the base wide, a cut end square to the tail where it ends and a round
+end's far point the tip (`Tails.ATipEndsAsItSays`). With `breaks.count` the spine runs in straight lines through
+that many points, evenly spaced on its course and moved across it by `breaks.jog` per cent of its length, to
+either side in turn, the first clockwise unless `breaks.clockwise` is off; the ribbon has sharp turns there
 (`brokenRibbon()`, `Tails.ABrokenTailZigzagsThroughItsBreaks`). `silhouetteParts()` gives the
 balloon and each drawn tail apart; `silhouette()` is their union. A Round or Cut end is reported by the tail
 to the outline the lines take (below). A tail whose look is edited makes it the
-balloon's `TailsProperties::nextLook`, which *Add tail* gives the new one.
+balloon's `TailsProperties::nextLook`, which *Add tail* gives the new one. The styles and the tips are
+tables in `styles.cpp` (`TailStyleInfo`, `TailTipInfo`: the persisted name, the title, the sections each
+reads, and whether a style takes a tip); the numbers are sections of `TailLook` (`CirclesParams`,
+`EndParams`, `BreakParams`), their rows beside the tables, and the Tail panel shows those the style and its
+tip read. A row may follow another number of its section (`Fields::RowSpec::needs`: the jog and the first
+turn only while there are breaks).
 
 **With parameters of its own** (the corner radius of a Box and a Polygon is the worked example): a
 family's numbers are a **section**, `CornerParams` (`propertygroups.hpp`), held by `ShapeProperties` as

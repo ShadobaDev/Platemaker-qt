@@ -160,7 +160,7 @@ void ShapeEditor::syncFromValues()
     m_tiles->setExclusive(true);
 
     m_sections.show(m_values);
-    m_sections.showSections(m_form, true, false, Geometry::shapeInfo(m_values.kind).sections);
+    m_sections.showSections(m_form, m_values, true, false, Geometry::shapeInfo(m_values.kind).sections);
     m_form->setRowVisible(m_regular, m_values.kind == ShapeProperties::Kind::Polygon);
     {
         const QSignalBlocker block(m_edge);

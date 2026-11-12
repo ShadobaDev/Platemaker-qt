@@ -1351,6 +1351,48 @@ Render::Filter roughFilter(const TextureProperties& s, quint32 seed)
     return f;
 }
 
+// A tail's sections' rows: what the Tail panel calls each number, and what its spin offers. Lengths in
+// strip pixels. No headings: the Style and Tip combos above say whose they are.
+#define PM_TR(s) QT_TRANSLATE_NOOP("QObject", s)
+const Fields::RowSpec k_endRows[] = {
+    {"tipWidth", PM_TR("Tip width:"), 0, 100, " %",
+     PM_TR("How wide a round or cut end is, against the tail's width where it leaves the balloon.")},
+};
+const Fields::RowSpec k_breakRows[] = {
+    {"breaks",    PM_TR("Breaks:"),     0, BreakParams::k_maxBreaks, "",
+     PM_TR("How many sharp turns the tail takes on its way, a zigzag. 0 is a plain tail.")},
+    {"jog",       PM_TR("Jog:"),        0, BreakParams::k_maxJog,    " %",
+     PM_TR("How far each turn steps aside, against the tail's length."), 0, 0.0, nullptr, nullptr, "breaks"},
+    {"clockwise", PM_TR("First turn:"), 0, 1,                        "",
+     PM_TR("Which way the first turn goes, as the tail runs from the balloon; the next goes the other way. "
+           "Mirrors the zigzag."), 0, 0.0, PM_TR("Clockwise"), PM_TR("Counter-clockwise"), "breaks"},
+};
+const Fields::RowSpec k_circlesRows[] = {
+    {"circles", PM_TR("Number:"),          1,    12,  "",
+     PM_TR("How many ellipses make the tail. The last one ends at the tip.")},
+    {"pitch",   PM_TR("Pitch:"),           -200, 200, " px", PM_TR("The gap between two ellipses. Below 0 they overlap."), 1},
+    {"offset",  PM_TR("Starting offset:"), -200, 200, " px",
+     PM_TR("Where the first ellipse starts: above 0 it sinks into the balloon and melts into it, below 0 it "
+           "leaves a gap."), 1},
+};
+#undef PM_TR
+
+using TailStyle = TailLook::Style;
+using TailTip   = TailLook::Tip;
+
+//! Likewise, for tailStyleInfo().
+const std::array<TailStyleInfo, int(TailLook::k_lastStyle) + 1> k_tailStyles{{
+    {TailStyle::Plain,   "plain",   QT_TRANSLATE_NOOP("QObject", "Plain"),   true,  {"breaks"}},
+    {TailStyle::Circles, "circles", QT_TRANSLATE_NOOP("QObject", "Circles"), false, {"circles"}},
+}};
+
+//! Likewise, for tailTipInfo().
+const std::array<TailTipInfo, int(TailLook::k_lastTip) + 1> k_tailTips{{
+    {TailTip::Sharp, "sharp", QT_TRANSLATE_NOOP("QObject", "Sharp"), {}},
+    {TailTip::Round, "round", QT_TRANSLATE_NOOP("QObject", "Round"), {"end"}},
+    {TailTip::Cut,   "cut",   QT_TRANSLATE_NOOP("QObject", "Cut"),   {"end"}},
+}};
+
 //! Likewise, for textureInfo().
 const std::array<TextureInfo, int(TextureProperties::k_lastKind) + 1> k_textures{{
     {Texture::None,  "none",  QT_TRANSLATE_NOOP("QObject", "None"),  nullptr, nullptr},
@@ -1377,6 +1419,24 @@ const TextureInfo& textureInfo(TextureProperties::Kind kind)
         return k_textures[int(Texture::None)];
     Q_ASSERT(k_textures[i].kind == kind);
     return k_textures[i];
+}
+
+const TailStyleInfo& tailStyleInfo(TailLook::Style kind)
+{
+    const int i = int(kind);
+    if (i < 0 || i >= int(k_tailStyles.size()))
+        return k_tailStyles[int(TailStyle::Plain)];
+    Q_ASSERT(k_tailStyles[i].kind == kind);
+    return k_tailStyles[i];
+}
+
+const TailTipInfo& tailTipInfo(TailLook::Tip kind)
+{
+    const int i = int(kind);
+    if (i < 0 || i >= int(k_tailTips.size()))
+        return k_tailTips[int(TailTip::Sharp)];
+    Q_ASSERT(k_tailTips[i].kind == kind);
+    return k_tailTips[i];
 }
 
 const PatternInfo& patternInfo(Paint::Kind kind)
@@ -1854,5 +1914,23 @@ const Fields::Section& DryInkParams::section()
 const Fields::Section& RoughParams::section()
 {
     static const Fields::Section s = Fields::sectionOf("rough", QT_TRANSLATE_NOOP("QObject", "Rough"), Geometry::k_roughRows);
+    return s;
+}
+
+const Fields::Section& CirclesParams::section()
+{
+    static const Fields::Section s = Fields::sectionOf("circles", nullptr, Geometry::k_circlesRows);
+    return s;
+}
+
+const Fields::Section& EndParams::section()
+{
+    static const Fields::Section s = Fields::sectionOf("end", nullptr, Geometry::k_endRows);
+    return s;
+}
+
+const Fields::Section& BreakParams::section()
+{
+    static const Fields::Section s = Fields::sectionOf("breaks", nullptr, Geometry::k_breakRows);
     return s;
 }

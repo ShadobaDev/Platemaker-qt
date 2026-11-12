@@ -76,7 +76,7 @@ void TextureEditor::syncFromValues()
 void TextureEditor::showRows()
 {
     // A selection that disagrees shows the rows at least one of them has.
-    m_sections.showSections(m_form, true, m_mixedKind, Geometry::textureInfo(m_values.kind).sections);
+    m_sections.showSections(m_form, m_values, true, m_mixedKind, Geometry::textureInfo(m_values.kind).sections);
 }
 
 }  // namespace StripEdit

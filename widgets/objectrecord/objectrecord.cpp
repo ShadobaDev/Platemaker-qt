@@ -117,10 +117,19 @@ QList<Tail> tailsFromJson(const QJsonArray& arr)
 
 } // namespace
 
+namespace {
+
+//! A tail's tip by name, as a file carries it; in the enum's order.
+constexpr const char* k_tipNames[] = {"sharp", "round", "cut"};
+
+} // namespace
+
 QString TailLook::toText() const
 {
     return QStringList{style == Style::Circles ? QStringLiteral("circles") : QStringLiteral("plain"),
-                       QString::number(circles), QString::number(pitch), QString::number(offset)}
+                       QString::number(circles), QString::number(pitch), QString::number(offset),
+                       QLatin1String(k_tipNames[int(tip)]), QString::number(tipWidth), QString::number(breaks),
+                       QString::number(jog), QString::number(clockwise ? 1 : 0)}
         .join(QLatin1Char(','));
 }
 
@@ -137,6 +146,17 @@ TailLook TailLook::fromFields(const QStringList& fields, qsizetype first)
         look.pitch = v;
     if (const qreal v = field(3).toDouble(&ok); ok)
         look.offset = v;
+    for (int i = 0; i < int(std::size(k_tipNames)); ++i)
+        if (field(4) == QLatin1String(k_tipNames[i]))
+            look.tip = static_cast<Tip>(i);
+    if (const int n = field(5).toInt(&ok); ok)
+        look.tipWidth = n;
+    if (const int n = field(6).toInt(&ok); ok)
+        look.breaks = n;
+    if (const int n = field(7).toInt(&ok); ok)
+        look.jog = n;
+    if (const int n = field(8).toInt(&ok); ok)
+        look.clockwise = n != 0;
     return look;
 }
 

@@ -531,6 +531,31 @@ void addCore(QPainterPath& out, const QPainterPath& silhouette, qreal core)
 }
 
 /**
+ * \brief How much of a hair @p offset off @p edge is left at @p at, where the edge bends: none where the bend's
+ *        centre is nearer than the hair on its side, whole a @p lane before it. 1 on a straight or gentle
+ *        stretch, and on a hair outside the bend.
+ *
+ * The bend is read over the hair's own distance either way, inside [@p from, @p to] (a stretch between
+ * corners, so a corner is never read as a bend): its radius is that arc's length over its turn.
+ */
+qreal bendFade(const EdgeWalk& edge, qreal at, qreal offset, qreal lane, qreal from, qreal to)
+{
+    const qreal length = edge.length();
+    const auto  wrap   = [length](qreal s) { return s - std::floor(s / length) * length; };
+    const qreal reach  = std::abs(offset);
+    const qreal a0     = qMax(from, at - reach);
+    const qreal a1     = qMin(to, at + reach);
+    const QPointF t1   = edge.at(wrap(a0)).tangent;
+    const QPointF t2   = edge.at(wrap(a1)).tangent;
+    const qreal turn   = std::atan2(t1.x() * t2.y() - t1.y() * t2.x(), QPointF::dotProduct(t1, t2));
+    // A turn towards the normal (-t.y, t.x) bends round a centre on the side of a positive offset.
+    if (turn * offset <= 0.0 || lane <= 0.0)
+        return 1.0;
+    const qreal radius = (a1 - a0) / std::abs(turn);
+    return qBound(0.0, (radius - reach) / lane, 1.0);
+}
+
+/**
  * \brief The dry brush round every closed edge of @p silhouette.
  *
  * A **core**, `drybrushCore` of the line's width, is the plain outline, mitred so a point stays a
@@ -552,6 +577,9 @@ void addCore(QPainterPath& out, const QPainterPath& silhouette, qreal core)
  * (between a shout's spikes) each runs on straight until it meets the other side's core (its line carried
  * on past the corner), narrowing away just before it (`k_rootTaper`). At a **point** (a convex corner
  * under `k_pointAngle`, a tail's tip) they run into it instead, closing on the core so it ends sharp.
+ * Round a **bend** tighter than a hair is far inside the edge (a round tail end), the hair would cross
+ * the bend's centre and fold over itself: it fades away there instead, over its last lane before that
+ * centre (bendFade()).
  *
  * Built only of rings wound one way (the core's turned to match), so the winding rule paints their
  * overlaps as one and nothing is subtracted: a boolean on paths this dense costs a frame.
@@ -692,8 +720,9 @@ QPainterPath drybrushInk(const ObjectRecord& a, const QPainterPath& silhouette)
                     const qreal   c   = (offset + lane * k_bristleWander
                                                 * loopedNoise(seed ^ k_brushStream, wrap(at), length, k_bristleWave)) * into;
                     const QPointF mid = p.at + n * c;
-                    steps.push_back({mid, n, width(at) * into * stop(rootStart, mid) * stop(rootEnd, mid), at,
-                                     hidden(at)});
+                    const qreal   bent = bendFade(edge, at, offset, lane, st.from + 0.01, st.to - 0.01);
+                    steps.push_back({mid, n, width(at) * into * bent * stop(rootStart, mid) * stop(rootEnd, mid),
+                                     at, hidden(at)});
                 }
                 // Under another part, a hair runs on from where it was in sight, either way, as long as its
                 // noise lets it and no further than the reach, narrowing over its last third; then it is gone

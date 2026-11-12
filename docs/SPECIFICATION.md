@@ -126,7 +126,14 @@ edge it meets (`Tails.AConcaveOutlineIsLeftNearestTheTip`); only a balloon whose
 gets none. A tail's look (`TailLook`) is Plain, the taper, or Circles: ellipses on the same curve
 (`circlesAlong()` in `silhouette.cpp`), from the crossing moved by `offset` to the tip, the first the
 tail's width across and the last `k_lastCircle` of it, sharing along what the `pitch` gaps leave, so the
-last ends at the tip (`Tails.ACirclesTailIsAChainShrinkingToItsTip`). `silhouetteParts()` gives the
+last ends at the tip (`Tails.ACirclesTailIsAChainShrinkingToItsTip`). Every look is drawn along one
+spine (`TailSpine`: a quad from the base to the tip, swayed by the bend; `tailRay()` finds where it leaves
+the outline). A Plain tail is a ribbon about it (`ribbonAbout()`) and ends as its `tip` says: Sharp, or
+Round or Cut `tipWidth` per cent of the base wide, a cut end square to the tail where it ends and a round
+end's far point the tip (`Tails.ATipEndsAsItSays`). With `breaks` the spine runs in straight lines through
+that many points, evenly spaced on its course and moved across it by `jog` per cent of its length, to
+either side in turn, the first clockwise unless `clockwise` is off; the ribbon has sharp turns there
+(`brokenRibbon()`, `Tails.ABrokenTailZigzagsThroughItsBreaks`). `silhouetteParts()` gives the
 balloon and each drawn tail apart; `silhouette()` is their union. A tail whose look is edited makes it the
 balloon's `TailsProperties::nextLook`, which *Add tail* gives the new one.
 
@@ -268,7 +275,8 @@ balloon, each tail) on its own edge: where that edge goes under another part the
 half-widths at most, so a tail's root is a natural hatch and no corner. They run between a part's
 corners, never round one: at a convex corner they run on straight and cross into a hatch, at a point (a
 tail's tip) they close on the core, and at a concave one they run on straight until the other side's core
-stops them. Nothing is subtracted: every ring winds one way and the winding rule unites them;
+stops them. Round a bend tighter than a hair is far from the edge (a round tail end) the hair would cross
+the bend's centre and fold, so it fades away there (`bendFade()`). Nothing is subtracted: every ring winds one way and the winding rule unites them;
 `loopedNoise()` lays a whole number of the noise's spans round the loop (`smoothNoise()`'s period), so it
 has no seam.
 

@@ -40,7 +40,8 @@ Requires libplatemaker **0.7.0**.
   glow. *Fit to text* sizes the balloon to the lettering, *Fix padding* keeps the size and lowers the
   paddings, and lettering that does not fit is outlined in red.
 - **Tails:** any number per balloon, each with its own tip, width and bend, leaving from any edge; a
-  thought tail is a chain of circles. A tail tip stays on its speaker when the balloon is resized.
+  thought tail is a chain of circles. A plain tail ends sharp, round or cut, and can **break** into a
+  sharp zigzag, mirrored if you like. A tail tip stays on its speaker when the balloon is resized.
 - **Patterns and shadows:** fill, line and shadow can be halftone dots, lines or a grid in a second
   colour, and a fill's pattern can fade out, set by dragging on the strip. A drop shadow under the whole
   balloon has a spread, an offset and a softness. Colours may be transparent.

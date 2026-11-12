@@ -421,12 +421,17 @@ New, backward-compatible features. Several are gated on a lib version, noted in 
     ellipses take their length along the tail from its length, so a fixed aspect would need a row of its
     own and would loosen the tip from the last one.
 
-- [ ] **Joined balloons — a plan of its own.** Two balloons of one speaker, read in turn, joined into one
-  outline by a neck between them, as a manga reference does: a new kind of tail that goes from one
-  balloon to another instead of to a point. With it, a **broken tail**: a tail bent into a sharp zigzag on
-  its way, as in the same reference.
+- [ ] **Joined balloons.** Two balloons of one speaker, read in turn, joined into one outline by a neck
+  between them, as a manga reference does. A balloon is a graph: bubbles and the terminals of their
+  tails are nodes, tails and necks its edges; the bubbles form a chain, every bubble and tail of it wears
+  one style, each bubble keeps its own place, shape and words, and the whole graph is one SVG. Joining two
+  existing balloons, and splitting one by removing a neck or a middle bubble, are part of it. Waits for the
+  strip editor's object model to hold more than one balloon in an object: today an object is one balloon's
+  fields, read directly in about 740 places.
 
-- [ ] **Tail options** Tail with property Plain, shall have option to select tails tip - round, cut, sharp. Shall be tested with different outline styles to make sure the are no conflicts. 
+- [x] **Tail options** — *Done 2026-11-13.* A Plain tail ends Sharp, Round or Cut (*Tip*, *Tip width*), and
+  can break into a sharp zigzag (*Breaks*, *Jog*, *First turn*), checked under every line and the Rough
+  texture. Left: a Sketch stroke can shoot off a tight round end.
 
 - [x] **Text area and lettering effects** — *Done 2026-11-03.* Built:
   - **Two paddings**, sides and top. The words start centred and grow both ways with each line; once

@@ -8,6 +8,7 @@
 #include <QFileInfo>
 #include <QTemporaryDir>
 
+#include "objectparts.hpp"
 #include "fontfiles.hpp"
 #include "workspacefolder.hpp"
 
@@ -148,7 +149,7 @@ TEST(CollectOverlayFiles, ALetteredPictureBringsThePictureItsRecordNames)
     write(f.from("art-picture.png"), "picture");
 
     ObjectRecord record;
-    record.artwork = QStringLiteral("art-picture.png");
+    artworkOf(record) = QStringLiteral("art-picture.png");
     const ObjectRecord::Map records{{QStringLiteral("1"), record}};
 
     std::vector overlays{overlayAt("1", f.from("ovl-wrapper.svg"))};
@@ -183,7 +184,7 @@ TEST(CollectOverlayFiles, APictureThatCannotKeepItsNameFailsAndChangesNothing)
     write(f.to("art-p.png"), "someone else's");
 
     ObjectRecord picture;
-    picture.artwork = QStringLiteral("art-p.png");
+    artworkOf(picture) = QStringLiteral("art-p.png");
     const ObjectRecord::Map records{{QStringLiteral("2"), picture}};
 
     std::vector overlays{overlayAt("1", f.from("ovl-a.svg")), overlayAt("2", f.from("art-p.png"))};
@@ -201,7 +202,7 @@ TEST(CollectOverlayFiles, AMissingBalloonIsPointedHomeToBeRebuiltThere)
     // A missing picture has nothing to be rebuilt from, and stays where it was.
     TwoFolders f;
     ObjectRecord picture;
-    picture.artwork = QStringLiteral("art-gone.png");
+    artworkOf(picture) = QStringLiteral("art-gone.png");
     const ObjectRecord::Map records{{QStringLiteral("1"), ObjectRecord{}}, {QStringLiteral("2"), picture}};
 
     std::vector overlays{overlayAt("1", f.from("ovl-gone.svg")), overlayAt("2", f.from("art-gone.png"))};

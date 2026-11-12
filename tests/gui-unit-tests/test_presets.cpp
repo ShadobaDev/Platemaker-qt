@@ -6,6 +6,7 @@
 #include <QDir>
 #include <QTemporaryDir>
 
+#include "objectparts.hpp"
 #include "presetstore.hpp"
 #include "recordsvg.hpp"
 
@@ -28,13 +29,13 @@ protected:
 ObjectRecord placed()
 {
     ObjectRecord a;
-    a.shape.kind = ObjectRecord::Shape::Box;
-    a.box        = QSize(300, 160);
-    a.text.body  = QStringLiteral("Hello");
-    a.styleSeed  = 123456;
+    shapeOf(a).kind = ObjectRecord::Shape::Box;
+    boxOf(a)        = QSize(300, 160);
+    textOf(a).body  = QStringLiteral("Hello");
+    seedOf(a)  = 123456;
     Tail t;
     t.tip = QPointF(40, 220);
-    a.tails.items.append(t);
+    tailsOf(a).items.append(t);
     return a;
 }
 
@@ -68,14 +69,14 @@ TEST_F(Presets, APresetBringsItsPaddingAndLineSpacing)
 {
     const PresetStore store;
     BubblePreset      p = store.presets().first();
-    p.record.text.paddingSide = -4;
-    p.record.text.paddingTop  = 12;
-    p.record.text.lineSpacing = 90;
+    textOf(p.record).paddingSide = -4;
+    textOf(p.record).paddingTop  = 12;
+    textOf(p.record).lineSpacing = 90;
 
     const ObjectRecord look = PresetStore::applied(p, placed(), /*keepShape=*/true);
-    EXPECT_EQ(look.text.paddingSide, -4);
-    EXPECT_EQ(look.text.paddingTop, 12);
-    EXPECT_EQ(look.text.lineSpacing, 90);
+    EXPECT_EQ(textOf(look).paddingSide, -4);
+    EXPECT_EQ(textOf(look).paddingTop, 12);
+    EXPECT_EQ(textOf(look).lineSpacing, 90);
 }
 
 /**
@@ -89,15 +90,15 @@ TEST_F(Presets, AnAppliedPresetBecomesTheObjectsOrigin)
     for (int i = 0; i < store.presets().size(); ++i) {
         const BubblePreset& p = store.presets().at(i);
         const ObjectRecord  a = PresetStore::applied(p, placed(), /*keepShape=*/false);
-        EXPECT_EQ(a.presetOrigin.uid, p.uid) << p.name.toStdString();
-        EXPECT_EQ(a.presetOrigin.name, p.name);
+        EXPECT_EQ(originOf(a).uid, p.uid) << p.name.toStdString();
+        EXPECT_EQ(originOf(a).name, p.name);
         EXPECT_FALSE(p.uid.isEmpty()) << p.name.toStdString();
         EXPECT_FALSE(uids.contains(p.uid)) << p.name.toStdString();
         uids << p.uid;
         EXPECT_EQ(store.indexOf(p.uid), i);
     }
     const ObjectRecord based = PresetStore::applied(store.presets().first(), placed(), false);
-    EXPECT_TRUE(PresetStore::applied(BubblePreset{}, based, false).presetOrigin.isEmpty());
+    EXPECT_TRUE(originOf(PresetStore::applied(BubblePreset{}, based, false)).isEmpty());
 }
 
 /**
@@ -108,14 +109,14 @@ TEST_F(Presets, APresetKeepsItsUidAndStoresNoOrigin)
 {
     PresetStore  store;
     ObjectRecord look = PresetStore::applied(store.presets().first(), placed(), false);
-    ASSERT_FALSE(look.presetOrigin.isEmpty());
+    ASSERT_FALSE(originOf(look).isEmpty());
 
     const int     at  = store.save(QStringLiteral("Uid test"), look, /*replaceExisting=*/true);
     const QString uid = store.presets().at(at).uid;
     EXPECT_FALSE(uid.isEmpty());
-    EXPECT_TRUE(store.presets().at(at).record.presetOrigin.isEmpty());
+    EXPECT_TRUE(originOf(store.presets().at(at).record).isEmpty());
 
-    look.skin.fill.colour = QColor(Qt::red);
+    skinOf(look).fill.colour = QColor(Qt::red);
     EXPECT_EQ(store.save(QStringLiteral("Uid test"), look, /*replaceExisting=*/true), at);
     EXPECT_EQ(store.presets().at(at).uid, uid);
     ASSERT_TRUE(store.rename(at, QStringLiteral("Uid test renamed")));
@@ -139,9 +140,9 @@ TEST_F(Presets, APresetKeepsItsUidAndStoresNoOrigin)
 TEST_F(Presets, TheOriginTravelsWithTheObject)
 {
     ObjectRecord a = placed();
-    a.presetOrigin = {QStringLiteral("uid-1"), QStringLiteral("Shout")};
-    EXPECT_EQ(ObjectRecord::fromJson(a.toJson()).presetOrigin, a.presetOrigin);
-    EXPECT_TRUE(ObjectRecord::fromJson(placed().toJson()).presetOrigin.isEmpty());
+    originOf(a) = {QStringLiteral("uid-1"), QStringLiteral("Shout")};
+    EXPECT_EQ(originOf(ObjectRecord::fromJson(a.toJson())), originOf(a));
+    EXPECT_TRUE(originOf(ObjectRecord::fromJson(placed().toJson())).isEmpty());
 
     // Built by hand rather than through Svg::write(), which measures lettering and needs a
     // QGuiApplication this target does not have: what is under test is that the reader takes the origin.
@@ -151,7 +152,7 @@ TEST_F(Presets, TheOriginTravelsWithTheObject)
     bool               ok   = false;
     const ObjectRecord back = Svg::read(svg, &ok);
     ASSERT_TRUE(ok);
-    EXPECT_EQ(back.presetOrigin, a.presetOrigin);
+    EXPECT_EQ(originOf(back), originOf(a));
 }
 
 /**
@@ -165,7 +166,7 @@ TEST_F(Presets, APresetSavedFromTextIsATextPreset)
         EXPECT_FALSE(isTextPreset(store.presets().at(i))) << store.presets().at(i).name.toStdString();
 
     ObjectRecord text = placed();
-    text.shape.kind   = ObjectRecord::Shape::None;
+    shapeOf(text).kind   = ObjectRecord::Shape::None;
     const int at      = store.save(QStringLiteral("Kind test"), text, /*replaceExisting=*/true);
     EXPECT_TRUE(isTextPreset(store.presets().at(at)));
     // *Reset to default* on a text object: the default look, with its own no-shape kept.

@@ -48,6 +48,7 @@ add_executable(platemaker-gui-tests
     ${CMAKE_SOURCE_DIR}/widgets/objectrecord/silhouette.cpp
     ${CMAKE_SOURCE_DIR}/widgets/objectrecord/lettering.cpp
     ${CMAKE_SOURCE_DIR}/widgets/objectrecord/recordpainter.cpp
+    ${CMAKE_SOURCE_DIR}/widgets/objectrecord/renderlist.cpp
     ${CMAKE_SOURCE_DIR}/widgets/stripeditor/properties/colouradjustment.cpp
     # The preset store is QtCore and a QObject — no widget in it — so the rule above still holds.
     ${CMAKE_SOURCE_DIR}/widgets/stripeditor/presetstore.cpp

@@ -685,7 +685,7 @@ struct StyleProperties
     /**
      * @name Dry ink: the outline eaten by the paper, a broken print — noise thresholded into holes in it, but
      * for its middle, kept whole so the fill stays closed off. The one line that is a filter, not geometry
-     * (recordsvg.cpp), so the library previews it; a texture still goes over it. Read only while `line` is
+     * (dryInkFilter() in styles.cpp), so the library previews it; a texture still goes over it. Read only while `line` is
      * DryInk.
      * @{
      */

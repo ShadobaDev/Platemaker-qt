@@ -200,9 +200,9 @@ only its shape (*Rectangle* or *Ellipse*) and its reversal, which `PaintRows` of
 
 ### An effect
 
-An effect is a field of `EffectProperties` (a group of its own), drawn in three places that must agree:
-the geometry (`styles.cpp`), the painter (`recordpainter.cpp`) and the SVG (`recordsvg.cpp`, inside the
-balloon's group so a texture acts on it too). Its reach goes into `styleMargin()`; one that needs an SVG
+An effect is a field of `EffectProperties` (a group of its own): its geometry in `styles.cpp`, and its
+items in the render list (`renderlist.cpp`, inside the balloon's group so a texture acts on it too), which
+the painter plays and the SVG writer serialises (below). Its reach goes into `styleMargin()`; one that needs an SVG
 filter (a soft shadow of one colour, `blursShadow()`) makes `hasFilter()` true, so the balloon is
 previewed through the library, at strip scale, as the output will carry it. Its editor, `EffectsEditor`,
 is a section of its own, and *Apply from tool options ▸ Effects* applies it.
@@ -214,17 +214,29 @@ list nests one level only) and keys of its own (`Shadow::fieldsAs()`), and edite
 it. `shadowOf()` returns `ShadowPaths`: the caster moved, and how far it grows. **It never unites the
 caster with its growth**: a union costs as the square of the outline, and a line of lettering took a
 second and a half. The body and a round stroke `2 × grow` wide are drawn together, opaque, in one layer
-(the painter's `drawInLayer()`) or one SVG group (`shadowElements()`), given the shadow's alpha once
+(a layer item of the render list: the painter's `drawInLayer()`, one SVG group), given the shadow's alpha once
 (`shadowLayerPaint()`), so where they overlap they do not darken twice; a shadow that does not grow is
 one path. Its reach is `shadowReach()`.
 
 ### The lettering
 
-The words are laid out in `lettering.cpp`, which alone places them, and drawn in one place per output:
-`Painter::paintLettering()` (a balloon and a lettered picture alike) and `letteringElements()` with
-`letteringDefs()` in `recordsvg.cpp`, in a `<g>` of its own after the balloon's, so a texture never moves
-them. Whatever the lettering wears goes into those two functions, in drawing order: the shadow, the
-outline, the letters.
+The words are laid out in `lettering.cpp`, which alone places them, and drawn from one place,
+`Render::lettering()` (`renderlist.cpp`), a balloon's and a lettered picture's alike; the SVG writes them in
+a `<g>` of their own after the balloon's, so a texture never moves them. Whatever the lettering wears goes
+into that function, in drawing order: the shadow, the outline, the letters.
+
+### The render list
+
+What a record draws, in what order, is decided once: `Render::balloon()` and `Render::lettering()`
+(`renderlist.hpp`) turn it into **items** (a path filled and stroked, a group, a picture) and the
+**definitions** they refer to (a pattern, a filter). The painter plays the items (`Painter::play()`), the
+SVG writer serialises the same items (`Svg::write()`); neither lays out a layer of its own. What only an SVG
+renderer can draw is marked on the item, and the painter leaves it as the field says: a filter, a bleed past
+an edge a filter moves, an item only a filter needs (Dry ink's unworn middle), a mask (it clips the marks
+alone). A kind that needs a filter brings it from its table entry, `TextureInfo::filter` and
+`LineInfo::outlineFilter` (`styles.cpp`), so neither the list nor the writer names a kind. The golden checks
+the SVG byte for byte; the painter was checked pixel for pixel against the code it replaced on every golden
+case.
 
 - **Placement.** The text area is the shape's (`textSafeArea()`), inset by the stroke, the edge's depth
   and the two paddings, `paddingSide` left and right and `paddingTop` at the top and, mirrored, at the
@@ -256,8 +268,8 @@ to closed paths filled in the stroke colour, with an `inkReach` that says how fa
 silhouette; a line with ink leaves the solid outline off (`hasOutline()`) and is drawn locally.
 
 A texture is a value of `TextureProperties::Kind` (move `k_lastKind`; a group of its own, the *Texture*
-section, `TextureEditor`), **one entry in `k_textures`** (its name, title and `reach`, how far it moves the balloon past its geometry) and its SVG
-filter in `styleDefs()` (`recordsvg.cpp`), written from the texture's own fields. The filter hangs on the
+section, `TextureEditor`), **one entry in `k_textures`**: its name, title, `reach` (how far it moves the
+balloon past its geometry) and SVG `filter` (`roughFilter()`), written from the texture's own fields. The filter hangs on the
 balloon's group, its silhouette and its line's strokes, never on the lettering's group; a balloon with
 one previews through the library (`hasFilter()`), and `styleMargin()` adds its reach to the line's.
 Rough is the worked example: four `rough…` fields, the defaults the Marker look's, and the Ink look a

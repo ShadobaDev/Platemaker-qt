@@ -112,35 +112,84 @@ void fillMarks(QPainter& painter, const QPainterPath& marks, const QColor& colou
     });
 }
 
-/**
- * \brief Shadow @p s, @p paths (Geometry::shadowOf()), painted with @p fill: hard here when it is blurred,
- *        which is the library's to draw (a record with one is previewed from there at rest,
- *        Geometry::hasFilter()). A halftone's fade is geometry. A growing one is its body and a round band
- *        over it, opaque in a layer given the shadow's alpha once. The balloon's and the letters' alike.
- */
-void paintShadow(QPainter& painter, const Shadow& s, const Paint& fill, const Geometry::ShadowPaths& paths)
+//! What @p ink paints with: its Paint's pattern, or its colour when it names no pattern (a fading fill's ground).
+QBrush brushOf(const Render::Ink& ink)
 {
-    if (Geometry::fadesShadow(s, fill)) {
-        fillMarks(painter, paths.body, fill.colour);
-    } else if (paths.isEmpty()) {
-        return;
-    } else if (paths.grow <= 0.0) {
-        painter.fillPath(paths.body, paintBrush(Geometry::shadowPaint(s, fill)));
-    } else {
-        qreal        opacity = 1.0;
-        const QBrush brush   = paintBrush(Geometry::shadowLayerPaint(s, fill, &opacity));
-        const qreal  g       = paths.grow;
-        drawInLayer(painter, paths.body.boundingRect().adjusted(-g, -g, g, g), opacity, [&](QPainter& p, const QTransform&) {
-            p.fillPath(paths.body, brush);
-            QPen band(brush, 2.0 * g);
-            band.setJoinStyle(Qt::RoundJoin);
-            band.setCapStyle(Qt::RoundCap);
-            p.strokePath(paths.body, band);
-        });
+    return ink.patternId.isEmpty() ? QBrush(ink.paint.colour) : paintBrush(ink.paint);
+}
+
+//! What @p items cover, strokes included: a layer's extent.
+QRectF extentOf(const QList<Render::Item>& items)
+{
+    QRectF r;
+    for (const Render::Item& i : items) {
+        if (i.kind == Render::Item::Kind::Group) {
+            r = r.united(extentOf(i.children));
+        } else if (i.kind == Render::Item::Kind::Path) {
+            const qreal half = i.stroke ? i.strokeWidth / 2.0 : 0.0;
+            r = r.united(i.path.boundingRect().adjusted(-half, -half, half, half));
+        }
     }
+    return r;
+}
+
+void playItem(QPainter& painter, const Render::Item& i)
+{
+    switch (i.kind) {
+    case Render::Item::Kind::Image:
+        return;   // the object that shows a picture draws it itself
+    case Render::Item::Kind::Group:
+        if (i.layer) {
+            drawInLayer(painter, extentOf(i.children), i.opacity,
+                        [&](QPainter& p, const QTransform&) { play(p, i.children); });
+        } else if (!i.mask.isEmpty()) {
+            for (const Render::Item& child : i.children) {
+                if (!child.marks) {
+                    playItem(painter, child);
+                    continue;
+                }
+                painter.save();
+                painter.setClipPath(i.mask, Qt::IntersectClip);
+                playItem(painter, child);
+                painter.restore();
+            }
+        } else {
+            play(painter, i.children);
+        }
+        return;
+    case Render::Item::Kind::Path:
+        break;
+    }
+    if (i.filteredOnly)
+        return;
+    if (!i.clip.isEmpty()) {
+        painter.save();
+        painter.setClipPath(i.clip, Qt::IntersectClip);
+    }
+    if (i.fill) {
+        if (i.marks)
+            fillMarks(painter, i.path, i.fill->paint.colour);
+        else
+            painter.fillPath(i.path, brushOf(*i.fill));
+    }
+    if (i.stroke && i.strokeWidth > 0.0) {
+        QPen pen(brushOf(*i.stroke), i.strokeWidth);
+        pen.setJoinStyle(Qt::RoundJoin);
+        if (i.roundCap)
+            pen.setCapStyle(Qt::RoundCap);
+        painter.strokePath(i.path, pen);
+    }
+    if (!i.clip.isEmpty())
+        painter.restore();
 }
 
 } // namespace
+
+void play(QPainter& painter, const QList<Render::Item>& items)
+{
+    for (const Render::Item& i : items)
+        playItem(painter, i);
+}
 
 QBrush paintBrush(const Paint& paint)
 {
@@ -170,11 +219,9 @@ Paths resolve(const ObjectRecord& a)
 {
     Paths p;
     p.silhouette = Geometry::silhouette(a);
-    p.shadow     = Geometry::shadowOf(a, p.silhouette);
-    p.fillTone   = Geometry::fillTone(a, p.silhouette);
-    p.ink        = Geometry::ink(a, p.silhouette);
     p.text       = Geometry::textOutline(a);
-    p.textShadow = Geometry::textShadowOf(a, p.text);
+    p.balloon    = Render::balloon(a, p.silhouette);
+    p.words      = Render::lettering(a, p.text, Geometry::textShadowOf(a, p.text));
     return p;
 }
 
@@ -185,10 +232,6 @@ void paint(QPainter& painter, const ObjectRecord& a)
 
 void paintPaths(QPainter& painter, const ObjectRecord& a, const Paths& paths)
 {
-    const QPainterPath& silhouette = paths.silhouette;
-    const Geometry::ShadowPaths& shadow = paths.shadow;
-    const QPainterPath& ink        = paths.ink;
-    const QPainterPath& text       = paths.text;
     if (a.box.isEmpty())
         return;
 
@@ -196,31 +239,8 @@ void paintPaths(QPainter& painter, const ObjectRecord& a, const Paths& paths)
     painter.setRenderHint(QPainter::Antialiasing, true);
     // A pattern's tile is scaled and turned: sampled smoothly, its dots keep the edges librsvg gives them.
     painter.setRenderHint(QPainter::SmoothPixmapTransform, true);
-
-    if (!silhouette.isEmpty()) {
-        paintShadow(painter, a.effects.shadow, a.effects.shadowFill, shadow);   // under it
-        if (paths.fillTone.isEmpty()) {
-            painter.fillPath(silhouette, paintBrush(a.skin.fill));
-        } else {
-            // A fading fill: the ground, then its marks inside the balloon, under the line.
-            painter.fillPath(silhouette, a.skin.fill.colour);
-            painter.save();
-            painter.setClipPath(silhouette, Qt::IntersectClip);
-            fillMarks(painter, paths.fillTone, a.skin.fill.second);
-            painter.restore();
-        }
-        // A style with strokes of its own draws them instead of the outline: they are the edge.
-        if (a.style.strokeWidth > 0 && Geometry::hasOutline(a)) {
-            QPen pen(paintBrush(a.style.stroke), a.style.strokeWidth);
-            pen.setJoinStyle(Qt::RoundJoin);
-            painter.strokePath(silhouette, pen);
-        }
-    }
-    if (!ink.isEmpty())
-        painter.fillPath(ink, paintBrush(a.style.stroke));
-
-    paintLettering(painter, a, text, paths.textShadow);
-
+    play(painter, paths.balloon.items);
+    play(painter, paths.words.items);
     painter.restore();
 }
 
@@ -229,17 +249,7 @@ void paintLettering(QPainter& painter, const ObjectRecord& a, const QPainterPath
 {
     // Filled outlines rather than drawn text, so that what is on screen is what Svg::write() writes
     // and what the library rasterises — one geometry, three consumers.
-    if (text.isEmpty())
-        return;
-    paintShadow(painter, a.text.shadow, a.text.shadowFill, shadow);   // under the outline and the letters
-    // The outline under the letters, stroked at twice its width, so only its outer half shows.
-    if (a.text.outlineWidth > 0.0) {
-        QPen pen(paintBrush(a.text.outline), 2.0 * a.text.outlineWidth);
-        pen.setJoinStyle(Qt::RoundJoin);
-        pen.setCapStyle(Qt::RoundCap);
-        painter.strokePath(text, pen);
-    }
-    painter.fillPath(text, paintBrush(a.text.fill));
+    play(painter, Render::lettering(a, text, shadow).items);
 }
 
 QImage render(const ObjectRecord& a)

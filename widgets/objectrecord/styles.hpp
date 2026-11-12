@@ -4,7 +4,7 @@
  *        (ink), and the room a style needs past the geometry.
  *
  * **Adding a line is a value in `StyleProperties::Line` and an entry here** (styles.cpp); a texture
- * likewise, and its filter in recordsvg.cpp (styleDefs()). Everything else asks the tables: the file
+ * likewise, its SVG filter with it. Everything else asks the tables: the file
  * names (lineName, textureName), the Style panel's lists (lineTitle, textureTitle), the ink and whether
  * the solid outline is drawn (the painter, the SVG, the hit test), the room it needs past the geometry
  * (styleMargin) and whether the library has to draw its preview (hasFilter).
@@ -21,7 +21,10 @@
 #include <functional>
 
 #include "objectrecord.hpp"
+#include "renderlist.hpp"   // Render::Filter: a kind's SVG filter
 #include "shapes.hpp"   // ShapeHandle: the fade's cross
+
+#include <optional>
 
 namespace Geometry {
 
@@ -39,9 +42,19 @@ struct LineInfo
     QPainterPath (*ink)(const ObjectRecord& a, const QPainterPath& silhouette);
     //! How far the ink reaches past the silhouette, in balloon pixels. Set whenever `ink` is.
     qreal (*inkReach)(const ObjectRecord& a);
+    /**
+     * A filter the solid outline is drawn under, or nullptr for none: an SVG renderer's alone, so the
+     * painter draws the outline plain (Dry ink: the outline eaten by the paper).
+     */
+    Render::Filter (*outlineFilter)(const ObjectRecord& a) = nullptr;
+    /**
+     * The share of the outline's width drawn again, unfiltered, over the filtered one (0..1), so the filter
+     * never opens the middle of the line; nullptr for none. Read only with `outlineFilter`.
+     */
+    qreal (*unworn)(const ObjectRecord& a) = nullptr;
 };
 
-//! One texture: an SVG filter (recordsvg.cpp), which only the library draws.
+//! One texture: an SVG filter (`filter`), which only the library draws.
 struct TextureInfo
 {
     TextureProperties::Kind  kind;   //!< Which texture this entry is; the table is checked against it.
@@ -50,6 +63,8 @@ struct TextureInfo
     //! How far the filter moves or spreads the balloon past its geometry, in balloon pixels; nullptr
     //! for None, which is no filter.
     qreal (*reach)(const TextureProperties& t);
+    //! The filter itself, noise seeded by @p seed; nullptr for None. Set whenever `reach` is.
+    Render::Filter (*filter)(const TextureProperties& t, quint32 seed) = nullptr;
 };
 
 //! One pattern of a Paint: its names. How it is drawn is the painter's (a brush) and the SVG's (a

@@ -819,7 +819,7 @@ qreal drybrushReach(const ObjectRecord& a)
 }
 
 // ---------------------------------------------------------------------------
-// Rough: turbulence displacing the outline, then a blur (the filter is in recordsvg.cpp)
+// Rough: turbulence displacing the outline, then a blur (its filter is roughFilter(), below)
 // ---------------------------------------------------------------------------
 
 //! The displacement, and the blur's spread past it.
@@ -1096,6 +1096,62 @@ using Line    = StyleProperties::Line;
 using Texture = TextureProperties::Kind;
 
 //! In the enum's order, so a kind is its own index; lineInfo() checks every entry names its kind.
+//! A noise's seed as feTurbulence takes it.
+constexpr quint32 k_noiseSeeds = 65536u;
+
+//! How detailed dry ink's noise is: specks, not the Rough's long waves.
+constexpr int   k_dryInkOctaves   = 3;
+//! The noise level that wears the outline at no wear and at full wear: fractal noise sits about its middle.
+constexpr qreal k_dryInkWornAt0   = 0.3;
+constexpr qreal k_dryInkWornAt100 = 0.7;
+//! How hard the edge of a hole is: the threshold's slope, so a speck is crisp and not a smear.
+constexpr qreal k_dryInkEdge      = 25.0;
+
+/**
+ * \brief Dry ink's filter: the noise's red as an alpha, cut at the wear by a steep slope, below it a hole,
+ *        above it ink; composited *in* the outline, so the holes are the paper showing through.
+ */
+Render::Filter dryInkFilter(const ObjectRecord& a)
+{
+    using Render::number;
+    const StyleProperties& s    = a.style;
+    const qreal            wear = qBound(0, s.dryInkWear, 100) / 100.0;
+    const qreal            at   = k_dryInkWornAt0 + (k_dryInkWornAt100 - k_dryInkWornAt0) * wear;
+    Render::Filter         f;
+    f.primitives.append({QStringLiteral("feTurbulence"),
+                         {{QStringLiteral("type"), QStringLiteral("fractalNoise")},
+                          {QStringLiteral("baseFrequency"), number(qMax(s.dryInkGrain, 0.0), Render::k_valueDecimals)},
+                          {QStringLiteral("numOctaves"), QString::number(k_dryInkOctaves)},
+                          {QStringLiteral("seed"), QString::number(a.styleSeed % k_noiseSeeds)},
+                          {QStringLiteral("result"), QStringLiteral("pmNoise")}},
+                         {}});
+    f.primitives.append({QStringLiteral("feColorMatrix"),
+                         {{QStringLiteral("in"), QStringLiteral("pmNoise")},
+                          {QStringLiteral("type"), QStringLiteral("matrix")},
+                          {QStringLiteral("values"), QStringLiteral("0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  1 0 0 0 0")},
+                          {QStringLiteral("result"), QStringLiteral("pmGrain")}},
+                         {}});
+    f.primitives.append({QStringLiteral("feComponentTransfer"),
+                         {{QStringLiteral("in"), QStringLiteral("pmGrain")}, {QStringLiteral("result"), QStringLiteral("pmWorn")}},
+                         {{QStringLiteral("feFuncA"),
+                           {{QStringLiteral("type"), QStringLiteral("linear")},
+                            {QStringLiteral("slope"), number(k_dryInkEdge)},
+                            {QStringLiteral("intercept"), number(-k_dryInkEdge * at)}},
+                           {}}}});
+    f.primitives.append({QStringLiteral("feComposite"),
+                         {{QStringLiteral("in"), QStringLiteral("SourceGraphic")},
+                          {QStringLiteral("in2"), QStringLiteral("pmWorn")},
+                          {QStringLiteral("operator"), QStringLiteral("in")}},
+                         {}});
+    return f;
+}
+
+//! Dry ink's unworn middle, as a share of the outline's width.
+qreal dryInkUnworn(const ObjectRecord& a)
+{
+    return qBound(0, a.style.dryInkCore, 100) / 100.0;
+}
+
 const std::array<LineInfo, int(StyleProperties::k_lastLine) + 1> k_lines{{
     {Line::Clean, "clean", QT_TRANSLATE_NOOP("QObject", "Clean"), nullptr,  nullptr},
     {Line::Flash, "flash", QT_TRANSLATE_NOOP("QObject", "Flash"), flashInk, flashReach},
@@ -1104,8 +1160,8 @@ const std::array<LineInfo, int(StyleProperties::k_lastLine) + 1> k_lines{{
     {Line::Dashed, "dashed", QT_TRANSLATE_NOOP("QObject", "Dashed"), dashedInk, dashedReach},
     {Line::Multi, "multi", QT_TRANSLATE_NOOP("QObject", "Multi-line"), multiInk, multiReach},
     {Line::Sketch, "sketch", QT_TRANSLATE_NOOP("QObject", "Sketch"), sketchInk, sketchReach},
-    // The solid outline under a filter of its own (recordsvg.cpp): no strokes of its own to draw.
-    {Line::DryInk, "dryink", QT_TRANSLATE_NOOP("QObject", "Dry ink"), nullptr, nullptr},
+    // The solid outline under a filter of its own: no strokes of its own to draw.
+    {Line::DryInk, "dryink", QT_TRANSLATE_NOOP("QObject", "Dry ink"), nullptr, nullptr, dryInkFilter, dryInkUnworn},
     {Line::Explosion, "explosion", QT_TRANSLATE_NOOP("QObject", "Explosion"), explosionInk, explosionReach},
 }};
 
@@ -1215,10 +1271,47 @@ private:
     std::vector<std::vector<int>> m_bands;     //!< The edges crossing each row.
 };
 
+/**
+ * \brief Rough's filter: turbulence displacing the balloon, then a blur.
+ *
+ * baseFrequency is in the filter region's *user space*, and the viewBox is in balloon pixels, so the
+ * texture scales with the bubble rather than with the output resolution. A chapter re-profiled to twice the
+ * width re-renders the same wobble, larger, not twice as much of it.
+ */
+Render::Filter roughFilter(const TextureProperties& s, quint32 seed)
+{
+    using Render::number;
+    const bool     blurred = s.roughBlur > 0.0;
+    Render::Filter f;
+    f.primitives.append({QStringLiteral("feTurbulence"),
+                         {{QStringLiteral("type"), QStringLiteral("fractalNoise")},
+                          {QStringLiteral("baseFrequency"), number(qMax(s.roughFrequency, 0.0), Render::k_valueDecimals)},
+                          {QStringLiteral("numOctaves"), QString::number(qMax(s.roughOctaves, 1))},
+                          {QStringLiteral("seed"), QString::number(seed % k_noiseSeeds)},
+                          {QStringLiteral("result"), QStringLiteral("pmNoise")}},
+                         {}});
+    Render::Primitive displace{QStringLiteral("feDisplacementMap"),
+                               {{QStringLiteral("in"), QStringLiteral("SourceGraphic")},
+                                {QStringLiteral("in2"), QStringLiteral("pmNoise")},
+                                {QStringLiteral("scale"), number(qMax(s.roughDisplacement, 0.0))},
+                                {QStringLiteral("xChannelSelector"), QStringLiteral("R")},
+                                {QStringLiteral("yChannelSelector"), QStringLiteral("G")}},
+                               {}};
+    if (blurred)
+        displace.attrs.append({QStringLiteral("result"), QStringLiteral("pmBled")});
+    f.primitives.append(displace);
+    if (blurred)
+        f.primitives.append({QStringLiteral("feGaussianBlur"),
+                             {{QStringLiteral("in"), QStringLiteral("pmBled")},
+                              {QStringLiteral("stdDeviation"), number(s.roughBlur)}},
+                             {}});
+    return f;
+}
+
 //! Likewise, for textureInfo().
 const std::array<TextureInfo, int(TextureProperties::k_lastKind) + 1> k_textures{{
-    {Texture::None,  "none",  QT_TRANSLATE_NOOP("QObject", "None"),  nullptr},
-    {Texture::Rough, "rough", QT_TRANSLATE_NOOP("QObject", "Rough"), roughReach},
+    {Texture::None,  "none",  QT_TRANSLATE_NOOP("QObject", "None"),  nullptr, nullptr},
+    {Texture::Rough, "rough", QT_TRANSLATE_NOOP("QObject", "Rough"), roughReach, roughFilter},
 }};
 
 } // namespace
@@ -1571,7 +1664,7 @@ bool fadesShadow(const Shadow& s, const Paint& fill)
 
 bool hasFilter(const ObjectRecord& a)
 {
-    return textureInfo(a.texture.kind).reach != nullptr || a.style.line == StyleProperties::Line::DryInk || blursShadow(a)
+    return textureInfo(a.texture.kind).filter != nullptr || lineInfo(a.style.line).outlineFilter != nullptr || blursShadow(a)
         || (!a.text.body.isEmpty() && blursShadow(a.text.shadow, a.text.shadowFill));
 }
 

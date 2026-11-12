@@ -2,9 +2,9 @@
  * \file recordpainter.hpp
  * \brief Drawing a bubble on a QPainter — the canvas preview, the row glyphs and the rasterised image.
  *
- * Only the drawing: what is drawn — the silhouette, the lettering and the room they take — is the
- * record's geometry (geometry.hpp), which the SVG writer uses too. This header includes it, so a caller
- * that draws has both.
+ * Only the drawing: what is drawn, and in what order, is the record's render list (renderlist.hpp), which
+ * the SVG writer serialises from the same items. This header includes the geometry, so a caller that draws
+ * has both.
  *
  * Nothing here knows about overlays, projects or the strip. It takes an ObjectRecord and draws it at the
  * origin; where that lands is the caller's business.
@@ -19,6 +19,7 @@
 
 #include "geometry.hpp"
 #include "objectrecord.hpp"
+#include "renderlist.hpp"
 
 class QPainter;
 
@@ -39,11 +40,9 @@ void paint(QPainter& painter, const ObjectRecord& a);
 struct Paths
 {
     QPainterPath silhouette;   //!< The balloon and its tails (Geometry::silhouette()).
-    Geometry::ShadowPaths shadow;       //!< Geometry::shadowOf(); empty with none.
-    QPainterPath fillTone;     //!< A fading fill's marks (Geometry::fillTone()); empty for most.
-    QPainterPath ink;          //!< The line's own strokes (Geometry::ink()); empty for most.
     QPainterPath text;         //!< The lettering as glyph outlines (Geometry::textOutline()).
-    Geometry::ShadowPaths textShadow;   //!< Its shadow (Geometry::textShadowOf()); empty with none.
+    Render::List balloon;      //!< Render::balloon() of the silhouette.
+    Render::List words;        //!< Render::lettering() of the text.
 };
 
 //! \p a's paths, resolved.
@@ -61,8 +60,8 @@ void paintPaths(QPainter& painter, const ObjectRecord& a, const Paths& paths);
 
 /**
  * \brief Draws @p a's lettering, @p text (Geometry::textOutline()), with its @p shadow
- *        (Geometry::textShadowOf()) and its outline, in the box's coordinates: the one place words are
- *        drawn on a painter, over a balloon (paintPaths()) and over a picture alike.
+ *        (Geometry::textShadowOf()) and its outline, in the box's coordinates: Render::lettering() played,
+ *        over a balloon (paintPaths()) and over a picture alike.
  */
 void paintLettering(QPainter& painter, const ObjectRecord& a, const QPainterPath& text,
                     const Geometry::ShadowPaths& shadow);
@@ -79,6 +78,12 @@ void paintLettering(QPainter& painter, const ObjectRecord& a, const QPainterPath
  *        painter's origin, the box's corner, as the SVG's `<pattern>` is.
  */
 [[nodiscard]] QBrush paintBrush(const Paint& p);
+
+/**
+ * \brief Draws @p items in order. What only an SVG renderer can draw is left out, as each field of
+ *        Render::Item says: a filter, a bleed, an item that only a filter needs; a mask clips instead.
+ */
+void play(QPainter& painter, const QList<Render::Item>& items);
 
 } // namespace Painter
 

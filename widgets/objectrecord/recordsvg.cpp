@@ -1,6 +1,7 @@
 #include "recordsvg.hpp"
 
 #include "geometry.hpp"
+#include "renderlist.hpp"
 #include "styles.hpp"
 
 #include <QCryptographicHash>
@@ -18,27 +19,12 @@ namespace Svg {
 
 namespace {
 
-//! Decimal places for path coordinates. Two is well under a rendered pixel and keeps files small.
-constexpr int k_precision = 2;
-/**
- * Decimal places for a number the record is read back from (its pm: attributes) or a filter is tuned by: a
- * grain's spin steps by a thousandth, and two places would round 0.035 to another texture, in the render and
- * in the file reopened. Trailing zeros are trimmed, so a number with two places or fewer is written as before.
- */
-constexpr int k_valuePrecision = 4;
+//! Decimal places for a value the record is read back from: Render::k_valueDecimals.
+constexpr int k_valuePrecision = Render::k_valueDecimals;
 
-QString num(qreal v, int precision = k_precision)
+QString num(qreal v, int precision = Render::k_coordinateDecimals)
 {
-    // 'f' then trim, rather than 'g': 'g' switches to scientific notation for small values and SVG has
-    // no such syntax, so a coordinate like 1e-05 would silently become an invalid path.
-    QString s = QString::number(v, 'f', precision);
-    if (s.contains(QLatin1Char('.'))) {
-        while (s.endsWith(QLatin1Char('0')))
-            s.chop(1);
-        if (s.endsWith(QLatin1Char('.')))
-            s.chop(1);
-    }
-    return s == QLatin1String("-0") ? QStringLiteral("0") : s;
+    return Render::number(v, precision);
 }
 
 QString pt(const QPointF& p)
@@ -162,80 +148,6 @@ QList<Tail> tailsFromText(const QString& s)
 }
 
 /**
- * \brief The `<defs>` block for \p a's style, and the `filter="..."` to hang on the group.
- *
- * Only primitives librsvg implements. Qt SVG implements neither feTurbulence nor feDisplacementMap, so
- * anything written here is invisible to Qt — which is precisely why a styled bubble is previewed by
- * asking the library to rasterise it (see the strip editor's sharp tier) rather than drawing it locally.
- *
- * baseFrequency is in the filter region's *user space*, and the viewBox is in balloon pixels, so the
- * texture scales with the bubble rather than with the output resolution. A chapter re-profiled to twice
- * the width re-renders the same wobble, larger — not twice as much of it.
- */
-QString styleDefs(const ObjectRecord& a, const QString& id)
-{
-    if (a.texture.kind != ObjectRecord::Texture::Rough)
-        return {};
-
-    const TextureProperties& s       = a.texture;
-    const bool               blurred = s.roughBlur > 0.0;
-
-    QString d;
-    d += QStringLiteral("  <defs>\n");
-    // A generous region: the displacement moves ink outward, and a filter region is a hard clip.
-    d += QStringLiteral("    <filter id=\"%1\" x=\"-25%\" y=\"-25%\" width=\"150%\" height=\"150%\">\n")
-             .arg(id);
-    d += QStringLiteral("      <feTurbulence type=\"fractalNoise\" baseFrequency=\"%1\" numOctaves=\"%2\" "
-                        "seed=\"%3\" result=\"pmNoise\"/>\n")
-             .arg(num(qMax(s.roughFrequency, 0.0), k_valuePrecision)).arg(qMax(s.roughOctaves, 1)).arg(a.styleSeed % 65536u);
-    d += QStringLiteral("      <feDisplacementMap in=\"SourceGraphic\" in2=\"pmNoise\" scale=\"%1\" "
-                        "xChannelSelector=\"R\" yChannelSelector=\"G\"%2/>\n")
-             .arg(num(qMax(s.roughDisplacement, 0.0)),
-                  blurred ? QStringLiteral(" result=\"pmBled\"") : QString());
-    if (blurred)
-        d += QStringLiteral("      <feGaussianBlur in=\"pmBled\" stdDeviation=\"%1\"/>\n").arg(num(s.roughBlur));
-    d += QStringLiteral("    </filter>\n  </defs>\n");
-    return d;
-}
-
-//! How detailed dry ink's noise is: specks, not the Rough's long waves.
-constexpr int   k_dryInkOctaves   = 3;
-//! The noise level that wears the outline at no wear and at full wear: fractal noise sits about its middle.
-constexpr qreal k_dryInkWornAt0   = 0.3;
-constexpr qreal k_dryInkWornAt100 = 0.7;
-//! How hard the edge of a hole is: the threshold's slope, so a speck is crisp and not a smear.
-constexpr qreal k_dryInkEdge      = 25.0;
-
-/**
- * \brief The `<defs>` block for @p a's Dry ink line, or nothing for another line.
- *
- * The noise's red as an alpha, cut at the wear by a steep slope: below it a hole, above it ink. Composited
- * *in* the outline, so the holes are the paper showing through.
- */
-QString dryInkDefs(const ObjectRecord& a, const QString& id)
-{
-    if (a.style.line != ObjectRecord::Line::DryInk)
-        return {};
-    const StyleProperties& s = a.style;
-    const qreal wear = qBound(0, s.dryInkWear, 100) / 100.0;
-    const qreal at   = k_dryInkWornAt0 + (k_dryInkWornAt100 - k_dryInkWornAt0) * wear;
-    QString d;
-    d += QStringLiteral("  <defs>\n");
-    d += QStringLiteral("    <filter id=\"%1\" x=\"-25%\" y=\"-25%\" width=\"150%\" height=\"150%\">\n").arg(id);
-    d += QStringLiteral("      <feTurbulence type=\"fractalNoise\" baseFrequency=\"%1\" numOctaves=\"%2\" "
-                        "seed=\"%3\" result=\"pmNoise\"/>\n")
-             .arg(num(qMax(s.dryInkGrain, 0.0), k_valuePrecision)).arg(k_dryInkOctaves).arg(a.styleSeed % 65536u);
-    d += QStringLiteral("      <feColorMatrix in=\"pmNoise\" type=\"matrix\" "
-                        "values=\"0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  1 0 0 0 0\" result=\"pmGrain\"/>\n");
-    d += QStringLiteral("      <feComponentTransfer in=\"pmGrain\" result=\"pmWorn\">"
-                        "<feFuncA type=\"linear\" slope=\"%1\" intercept=\"%2\"/></feComponentTransfer>\n")
-             .arg(num(k_dryInkEdge), num(-k_dryInkEdge * at));
-    d += QStringLiteral("      <feComposite in=\"SourceGraphic\" in2=\"pmWorn\" operator=\"in\"/>\n");
-    d += QStringLiteral("    </filter>\n  </defs>\n");
-    return d;
-}
-
-/**
  * \brief The `<defs>` block for @p p's pattern, or nothing for a solid Paint.
  *
  * In the user space of the whole drawing (`userSpaceOnUse`), which is the box's, so the grid is laid from
@@ -258,69 +170,12 @@ QString patternDefs(const Paint& p, const QString& id)
     return d;
 }
 
-//! The `<defs>` block for a soft shadow's blur, or nothing for none, a hard one or a fading halftone.
-QString shadowDefs(const Shadow& s, const Paint& fill, const QString& id)
-{
-    if (!Geometry::blursShadow(s, fill))
-        return {};
-    // A generous region: the blur spreads past the shape, and a filter region is a hard clip.
-    return QStringLiteral("  <defs>\n"
-                          "    <filter id=\"%1\" x=\"-50%\" y=\"-50%\" width=\"200%\" height=\"200%\">\n"
-                          "      <feGaussianBlur stdDeviation=\"%2\"/>\n"
-                          "    </filter>\n"
-                          "  </defs>\n")
-        .arg(id, num(s.softness));
-}
-
 //! @p attr (`fill` or `stroke`) painted with @p p: its colour, or the pattern defined as @p id.
 QString paintAttr(const char* attr, const Paint& p, const QString& id)
 {
     if (p.kind == Paint::Kind::Solid)
         return paint(attr, p.colour);
     return QStringLiteral("%1=\"url(#%2)\"").arg(QLatin1String(attr), id);
-}
-
-/**
- * \brief The Paint shadow @p s, drawn as @p paths, is written with, and the opacity of the group it is in:
- *        shadowPaint() for one that does not grow, shadowLayerPaint() for one that does.
- */
-Paint shadowPaintFor(const Shadow& s, const Paint& fill, const Geometry::ShadowPaths& paths, qreal* opacity)
-{
-    if (paths.grow > 0.0)
-        return Geometry::shadowLayerPaint(s, fill, opacity);
-    if (opacity)
-        *opacity = 1.0;
-    return Geometry::shadowPaint(s, fill);
-}
-
-/**
- * \brief Shadow @p s, drawn as @p paths (Geometry::shadowOf()), at @p indent: the balloon's and the
- *        letters' alike. One that does not grow is its path; one that does is a group, given the shadow's
- *        alpha once, of its body and a round stroke `2 × grow` wide over it, both opaque, so they do not
- *        darken where they overlap. Blurred by @p blurId, patterned by @p fillId (their `<defs>`).
- */
-QString shadowElements(const Shadow& s, const Paint& fill, const Geometry::ShadowPaths& paths, const QString& fillId,
-                       const QString& blurId, QLatin1String indent)
-{
-    if (paths.isEmpty())
-        return {};
-    qreal         opacity = 1.0;
-    const Paint   p       = shadowPaintFor(s, fill, paths, &opacity);
-    const QString blur    = Geometry::blursShadow(s, fill) ? QStringLiteral(" filter=\"url(#%1)\"").arg(blurId) : QString();
-    if (paths.grow <= 0.0)
-        return indent + QStringLiteral("<path d=\"%1\" fill-rule=\"%2\" %3%4/>\n")
-                            .arg(pathData(paths.body), fillRule(paths.body), paintAttr("fill", p, fillId), blur);
-    QString out = indent + QLatin1String("<g");
-    if (opacity < 1.0)
-        out += QStringLiteral(" opacity=\"%1\"").arg(num(opacity));
-    out += blur + QLatin1String(">\n");
-    out += indent + QStringLiteral("  <path d=\"%1\" fill-rule=\"%2\" %3/>\n")
-                        .arg(pathData(paths.body), fillRule(paths.body), paintAttr("fill", p, fillId));
-    out += indent + QStringLiteral("  <path d=\"%1\" fill=\"none\" %2 stroke-width=\"%3\" "
-                                   "stroke-linejoin=\"round\" stroke-linecap=\"round\"/>\n")
-                        .arg(pathData(paths.body), paintAttr("stroke", p, fillId), num(2.0 * paths.grow));
-    out += indent + QLatin1String("</g>\n");
-    return out;
 }
 
 int intOf(const QStringView& v, int fallback)
@@ -449,53 +304,104 @@ QString letteringAttrs(const ObjectRecord& a)
     return out;
 }
 
-//! The ids of the lettering's own pattern, its outline's, its shadow's blur and its shadow's pattern, beside the
-//! balloon's own (`pm-fill`, `pm-stroke`, `pm-shadow`…).
-const QString k_textFillId       = QStringLiteral("pm-text-fill");
-const QString k_textOutlineId    = QStringLiteral("pm-text-outline");
-const QString k_textShadowId     = QStringLiteral("pm-text-shadow");
-const QString k_textShadowFillId = QStringLiteral("pm-text-shadow-fill");
-
 /**
- * \brief The lettering's elements, @p text (Geometry::textOutline()) and its @p shadow
- *        (Geometry::textShadowOf()), each on a line of its own at
- *        @p indent: the one place words are written, over a balloon (in its own group) and over a picture
- *        alike. Nothing for no words.
+ * \brief @p ink as the value of @p attr (`fill` or `stroke`): its pattern, or a colour.
  */
-QString letteringElements(const ObjectRecord& a, const QPainterPath& text, const Geometry::ShadowPaths& shadow,
-                          QLatin1String indent)
+QString inkAttr(const char* attr, const Render::Ink& ink)
 {
-    if (text.isEmpty())
-        return {};
-    QString out;
-    // The shadow first, under the outline and the letters, as the balloon's is written.
-    out += shadowElements(a.text.shadow, a.text.shadowFill, shadow, k_textShadowFillId, k_textShadowId, indent);
-    // The outline, under the letters, stroked at twice its width: two draws, not `paint-order`, which is
-    // what librsvg is sure to render alike.
-    if (a.text.outlineWidth > 0.0)
-        out += indent + QStringLiteral("<path d=\"%1\" fill=\"none\" %2 stroke-width=\"%3\" "
-                                       "stroke-linejoin=\"round\" stroke-linecap=\"round\"/>\n")
-                            .arg(pathData(text), paintAttr("stroke", a.text.outline, k_textOutlineId),
-                                 num(2.0 * a.text.outlineWidth));
-    out += indent + QStringLiteral("<path d=\"%1\" fill-rule=\"%2\" %3/>\n")
-                        .arg(pathData(text), fillRule(text), paintAttr("fill", a.text.fill, k_textFillId));
-    return out;
+    return ink.patternId.isEmpty() ? paint(attr, ink.paint.colour) : paintAttr(attr, ink.paint, ink.patternId);
 }
 
-//! The `<defs>` the lettering's elements reference: its own pattern, its outline's, its shadow's blur and pattern.
-QString letteringDefs(const ObjectRecord& a, const QPainterPath& text, const Geometry::ShadowPaths& shadow)
+//! One filter primitive on its line, its children (a transfer function) inside it.
+QString primitive(const Render::Primitive& p)
 {
-    const TextProperties& t = a.text;
-    if (text.isEmpty())
-        return {};
-    QString d = patternDefs(t.fill, k_textFillId);
-    if (t.outlineWidth > 0.0)
-        d += patternDefs(t.outline, k_textOutlineId);
-    if (t.shadow.on) {
-        d += shadowDefs(t.shadow, t.shadowFill, k_textShadowId);
-        d += patternDefs(shadowPaintFor(t.shadow, t.shadowFill, shadow, nullptr), k_textShadowFillId);
+    QString s = QLatin1Char('<') + p.tag;
+    for (const auto& [name, value] : p.attrs)
+        s += QLatin1Char(' ') + name + QLatin1String("=\"") + value + QLatin1Char('"');
+    if (p.children.isEmpty())
+        return s + QLatin1String("/>");
+    s += QLatin1Char('>');
+    for (const Render::Primitive& c : p.children)
+        s += primitive(c);
+    return s + QLatin1String("</") + p.tag + QLatin1Char('>');
+}
+
+//! @p list's definitions, each a `<defs>` block of its own, in order.
+QString defsOf(const Render::List& list)
+{
+    QString d;
+    for (const Render::Def& def : list.defs) {
+        if (def.pattern) {
+            d += patternDefs(*def.pattern, def.id);
+        } else if (def.filter) {
+            d += QStringLiteral("  <defs>\n    <filter id=\"%1\" %2>\n").arg(def.id, def.filter->region);
+            for (const Render::Primitive& p : def.filter->primitives)
+                d += QLatin1String("      ") + primitive(p) + QLatin1Char('\n');
+            d += QStringLiteral("    </filter>\n  </defs>\n");
+        }
     }
     return d;
+}
+
+QString itemsOf(const QList<Render::Item>& items, const QString& indent);
+
+//! One item at @p indent: a path (a clip it needs first), a group (a mask it needs first) or a picture.
+QString itemOf(const Render::Item& i, const QString& indent)
+{
+    QString out;
+    switch (i.kind) {
+    case Render::Item::Kind::Image:
+        return indent + QStringLiteral("<image x=\"0\" y=\"0\" width=\"%1\" height=\"%2\" "
+                                       "xlink:href=\"data:%3;base64,%4\"/>\n")
+                            .arg(num(i.size.width()), num(i.size.height()), i.mime,
+                                 QString::fromLatin1(i.picture.toBase64()));
+    case Render::Item::Kind::Group:
+        if (!i.mask.isEmpty())
+            out += indent + QStringLiteral("<mask id=\"%1\" x=\"-25%\" y=\"-25%\" width=\"150%\" height=\"150%\">"
+                                           "<path d=\"%2\" fill-rule=\"%3\" fill=\"white\" filter=\"url(#%4)\"/></mask>\n")
+                                .arg(i.maskId, pathData(i.mask), fillRule(i.mask), i.maskFilter);
+        out += indent + QLatin1String("<g");
+        if (i.opacity < 1.0)
+            out += QStringLiteral(" opacity=\"%1\"").arg(num(i.opacity));
+        if (!i.filter.isEmpty())
+            out += QStringLiteral(" filter=\"url(#%1)\"").arg(i.filter);
+        if (!i.mask.isEmpty())
+            out += QStringLiteral(" mask=\"url(#%1)\"").arg(i.maskId);
+        out += QLatin1String(">\n") + itemsOf(i.children, indent + QLatin1String("  ")) + indent
+             + QLatin1String("</g>\n");
+        return out;
+    case Render::Item::Kind::Path:
+        break;
+    }
+    if (!i.clip.isEmpty())
+        out += indent + QStringLiteral("<clipPath id=\"%1\"><path d=\"%2\" clip-rule=\"%3\"/></clipPath>\n")
+                            .arg(i.clipId, pathData(i.clip), fillRule(i.clip));
+    out += indent + QStringLiteral("<path d=\"%1\"").arg(pathData(i.path));
+    if (i.fill)
+        out += QStringLiteral(" fill-rule=\"%1\" %2")
+                   .arg(i.nonzero ? QStringLiteral("nonzero") : fillRule(i.path), inkAttr("fill", *i.fill));
+    else
+        out += QLatin1String(" fill=\"none\"");
+    if (i.stroke)
+        out += QStringLiteral(" %1 stroke-width=\"%2\" stroke-linejoin=\"round\"%3")
+                   .arg(inkAttr("stroke", *i.stroke), num(i.strokeWidth),
+                        i.roundCap ? QStringLiteral(" stroke-linecap=\"round\"") : QString());
+    else if (i.bleed > 0.0 && i.fill)
+        out += QStringLiteral(" %1 stroke-width=\"%2\" stroke-linejoin=\"round\"")
+                   .arg(inkAttr("stroke", *i.fill), num(2.0 * i.bleed));
+    if (!i.filter.isEmpty())
+        out += QStringLiteral(" filter=\"url(#%1)\"").arg(i.filter);
+    if (!i.clipId.isEmpty())
+        out += QStringLiteral(" clip-path=\"url(#%1)\"").arg(i.clipId);
+    return out + QLatin1String("/>\n");
+}
+
+QString itemsOf(const QList<Render::Item>& items, const QString& indent)
+{
+    QString out;
+    for (const Render::Item& i : items)
+        out += itemOf(i, indent);
+    return out;
 }
 
 } // namespace
@@ -511,8 +417,8 @@ QByteArray write(const ObjectRecord& a, const QByteArray& picture, const QString
     if (a.isArtwork()) {
         if (picture.isEmpty() || mime.isEmpty())
             return {};
-        const QPainterPath          text       = Geometry::textOutline(a);
-        const Geometry::ShadowPaths textShadow = Geometry::textShadowOf(a, text);
+        const QPainterPath text  = Geometry::textOutline(a);
+        const Render::List words = Render::lettering(a, text, Geometry::textShadowOf(a, text));
 
         QString svg;
         svg += QStringLiteral("<svg xmlns=\"http://www.w3.org/2000/svg\" "
@@ -520,7 +426,7 @@ QByteArray write(const ObjectRecord& a, const QByteArray& picture, const QString
                               "     width=\"%2\" height=\"%3\" viewBox=\"0 0 %2 %3\">\n")
                    .arg(QLatin1String(k_pmNamespace))
                    .arg(num(a.box.width()), num(a.box.height()));
-        svg += letteringDefs(a, text, textShadow);
+        svg += defsOf(words);
 
         // The same parameter group every file of ours carries, so this one is re-typable in the same
         // way — and so an import can tell it is ours (see read).
@@ -532,12 +438,13 @@ QByteArray write(const ObjectRecord& a, const QByteArray& picture, const QString
         svg += letteringAttrs(a);
         svg += QLatin1String(">\n");
 
-        svg += QStringLiteral("    <image x=\"0\" y=\"0\" width=\"%1\" height=\"%2\" "
-                              "xlink:href=\"data:%3;base64,%4\"/>\n")
-                   .arg(num(a.box.width()), num(a.box.height()), mime,
-                        QString::fromLatin1(picture.toBase64()));
-
-        svg += letteringElements(a, text, textShadow, QLatin1String("    "));
+        Render::Item image;
+        image.kind    = Render::Item::Kind::Image;
+        image.picture = picture;
+        image.mime    = mime;
+        image.size    = QSizeF(a.box);
+        svg += itemOf(image, QStringLiteral("    "));
+        svg += itemsOf(words.items, QStringLiteral("    "));
 
         svg += QLatin1String("  </g>\n</svg>\n");
         return svg.toUtf8();
@@ -558,29 +465,12 @@ QByteArray write(const ObjectRecord& a, const QByteArray& picture, const QString
                .arg(num(bounds.width()), num(bounds.height()),
                     num(bounds.left()),  num(bounds.top()));
 
-    // The balloon, the letters and their shadows, resolved before the defs, which a shadow's paint
-    // depends on.
-    const QPainterPath          silhouette = Geometry::silhouette(a);
-    const Geometry::ShadowPaths shadow     = Geometry::shadowOf(a, silhouette);
-    const QPainterPath          text       = Geometry::textOutline(a);
-    const Geometry::ShadowPaths textShadow = Geometry::textShadowOf(a, text);
-
-    // The filters and the Paints' patterns are defined before what references them, as SVG requires.
-    const QString filterId     = QStringLiteral("pm-style");
-    const QString fillId       = QStringLiteral("pm-fill");
-    const QString strokeId     = QStringLiteral("pm-stroke");
-    const QString shadowId     = QStringLiteral("pm-shadow");
-    const QString shadowFillId = QStringLiteral("pm-shadow-fill");
-    svg += styleDefs(a, filterId);
-    const QString dryInkId = QStringLiteral("pm-dryink");
-    svg += dryInkDefs(a, dryInkId);
-    if (!Geometry::fades(a.skin.fill))
-        svg += patternDefs(a.skin.fill, fillId);
-    svg += patternDefs(a.style.stroke, strokeId);
-    svg += shadowDefs(a.effects.shadow, a.effects.shadowFill, shadowId);
-    if (a.effects.shadow.on)
-        svg += patternDefs(shadowPaintFor(a.effects.shadow, a.effects.shadowFill, shadow, nullptr), shadowFillId);
-    svg += letteringDefs(a, text, textShadow);
+    // The balloon and the words, as the painter draws them (renderlist.hpp); their definitions first.
+    const QPainterPath silhouette = Geometry::silhouette(a);
+    const QPainterPath text       = Geometry::textOutline(a);
+    const Render::List balloon    = Render::balloon(a, silhouette);
+    const Render::List words      = Render::lettering(a, text, Geometry::textShadowOf(a, text));
+    svg += defsOf(balloon) + defsOf(words);
 
     // Everything the editor needs to re-solve this bubble, in a namespace no renderer looks at. Losing
     // these leaves a perfectly good drawing that simply cannot be re-typed — the intended degradation.
@@ -602,121 +492,11 @@ QByteArray write(const ObjectRecord& a, const QByteArray& picture, const QString
     }
     svg += QLatin1String(">\n");
 
-    // Two groups: the balloon — its silhouette and its line's strokes — and the lettering.
-    // The texture's filter hangs on the balloon's: a displacement on the lettering would drag the words
-    // about with the outline, and the balloon is what should look hand-drawn, not the words in it. The
-    // lettering's own group is where a text style will hang.
-    // **Rough, in parts.** The filter moves every pixel it is given, so over the whole balloon a fill's
-    // pattern wobbles with the outline. Unless the artist asks for that (`roughFill`), the balloon is drawn
-    // in three layers sharing one filter, which stay in register because the noise is a function of where a
-    // pixel is, not of which element it belongs to: the shadow, displaced; the fill, not displaced but
-    // masked by the displaced silhouette, and drawn past it by the texture's reach so it meets the moved
-    // edge; then the line and its strokes, displaced. Each displaced layer is one more turbulence pass.
-    const bool inParts = !silhouette.isEmpty() && a.texture.kind == ObjectRecord::Texture::Rough
-                      && !a.texture.roughFill;
-    // **Dry ink:** the outline under its own filter, then its middle unworn over it, so a hole never opens the
-    // fill. A texture's filter, on a group round it, goes over both.
-    const bool worn        = a.style.line == ObjectRecord::Line::DryInk;
-    const auto wornOutline = [&](const QString& indent) {
-        const QString stroke = paintAttr("stroke", a.style.stroke, strokeId);
-        QString       out    = indent + QStringLiteral("<g filter=\"url(#%1)\">\n").arg(dryInkId);
-        out += indent + QStringLiteral("  <path d=\"%1\" fill=\"none\" %2 stroke-width=\"%3\" stroke-linejoin=\"round\"/>\n")
-                            .arg(pathData(silhouette), stroke).arg(a.style.strokeWidth);
-        out += indent + QLatin1String("</g>\n");
-        const qreal core = a.style.strokeWidth * qBound(0, a.style.dryInkCore, 100) / 100.0;
-        if (core > 0.0)
-            out += indent + QStringLiteral("<path d=\"%1\" fill=\"none\" %2 stroke-width=\"%3\" stroke-linejoin=\"round\"/>\n")
-                                .arg(pathData(silhouette), stroke, num(core));
-        return out;
-    };
-    if (inParts) {
-        const QString shadowLayer = shadowElements(a.effects.shadow, a.effects.shadowFill, shadow, shadowFillId,
-                                                   shadowId, QLatin1String("      "));
-        if (!shadowLayer.isEmpty())
-            svg += QStringLiteral("    <g filter=\"url(#%1)\">\n").arg(filterId) + shadowLayer
-                 + QLatin1String("    </g>\n");
-
-        const QString maskId = QStringLiteral("pm-rough-fill");
-        const qreal   reach  = Geometry::textureInfo(a.texture.kind).reach(a.texture);
-        svg += QStringLiteral("    <mask id=\"%1\" x=\"-25%\" y=\"-25%\" width=\"150%\" height=\"150%\">"
-                              "<path d=\"%2\" fill-rule=\"%3\" fill=\"white\" filter=\"url(#%4)\"/></mask>\n")
-                   .arg(maskId, pathData(silhouette), fillRule(silhouette), filterId);
-        svg += QStringLiteral("    <g mask=\"url(#%1)\">\n").arg(maskId);
-        const QString grown = QStringLiteral(" stroke-width=\"%1\" stroke-linejoin=\"round\"").arg(num(2.0 * reach));
-        const QPainterPath tone = Geometry::fillTone(a, silhouette);
-        if (tone.isEmpty()) {
-            svg += QStringLiteral("      <path d=\"%1\" fill-rule=\"%2\" %3 %4%5/>\n")
-                       .arg(pathData(silhouette), fillRule(silhouette), paintAttr("fill", a.skin.fill, fillId),
-                            paintAttr("stroke", a.skin.fill, fillId), grown);
-        } else {
-            // A fading fill: the ground, then its marks; the mask is their edge.
-            svg += QStringLiteral("      <path d=\"%1\" fill-rule=\"%2\" %3 %4%5/>\n")
-                       .arg(pathData(silhouette), fillRule(silhouette), paint("fill", a.skin.fill.colour),
-                            paint("stroke", a.skin.fill.colour), grown);
-            svg += QStringLiteral("      <path d=\"%1\" fill-rule=\"nonzero\" %2/>\n")
-                       .arg(pathData(tone), paint("fill", a.skin.fill.second));
-        }
-        svg += QLatin1String("    </g>\n");
-
-        const QPainterPath ink     = Geometry::ink(a, silhouette);
-        const bool         outline = a.style.strokeWidth > 0 && Geometry::hasOutline(a);
-        if (outline || !ink.isEmpty()) {
-            svg += QStringLiteral("    <g filter=\"url(#%1)\">\n").arg(filterId);
-            if (outline && worn)
-                svg += wornOutline(QStringLiteral("      "));
-            else if (outline)
-                svg += QStringLiteral("      <path d=\"%1\" fill=\"none\" %2 stroke-width=\"%3\" stroke-linejoin=\"round\"/>\n")
-                           .arg(pathData(silhouette), paintAttr("stroke", a.style.stroke, strokeId))
-                           .arg(a.style.strokeWidth);
-            if (!ink.isEmpty())
-                svg += QStringLiteral("      <path d=\"%1\" fill-rule=\"%2\" %3/>\n")
-                           .arg(pathData(ink), fillRule(ink), paintAttr("fill", a.style.stroke, strokeId));
-            svg += QLatin1String("    </g>\n");
-        }
-    } else if (!silhouette.isEmpty()) {
-        svg += QLatin1String("    <g");
-        if (!styleDefs(a, filterId).isEmpty())
-            svg += QStringLiteral(" filter=\"url(#%1)\"").arg(filterId);
-        svg += QLatin1String(">\n");
-        // The shadow first, under the balloon and inside its group, so a texture roughens it alike. The
-        // moved outline itself, not a transform: a transform would carry its pattern along with it, where
-        // the painter lays every pattern from the box's corner.
-        svg += shadowElements(a.effects.shadow, a.effects.shadowFill, shadow, shadowFillId, shadowId,
-                              QLatin1String("      "));
-        const QPainterPath tone = Geometry::fillTone(a, silhouette);
-        if (tone.isEmpty()) {
-            svg += QStringLiteral("      <path d=\"%1\" fill-rule=\"%2\" %3")
-                       .arg(pathData(silhouette), fillRule(silhouette), paintAttr("fill", a.skin.fill, fillId));
-        } else {
-            // A fading fill: the ground, then its marks clipped to the balloon, then the line over both.
-            const QString area = QStringLiteral("pm-fill-area");
-            svg += QStringLiteral("      <path d=\"%1\" fill-rule=\"%2\" %3/>\n")
-                       .arg(pathData(silhouette), fillRule(silhouette), paint("fill", a.skin.fill.colour));
-            svg += QStringLiteral("      <clipPath id=\"%1\"><path d=\"%2\" clip-rule=\"%3\"/></clipPath>\n")
-                       .arg(area, pathData(silhouette), fillRule(silhouette));
-            svg += QStringLiteral("      <path d=\"%1\" fill-rule=\"nonzero\" %2 clip-path=\"url(#%3)\"/>\n")
-                       .arg(pathData(tone), paint("fill", a.skin.fill.second), area);
-            svg += QStringLiteral("      <path d=\"%1\" fill=\"none\"").arg(pathData(silhouette));
-        }
-        const bool outline = a.style.strokeWidth > 0 && Geometry::hasOutline(a);
-        if (outline && !worn)
-            svg += QStringLiteral(" %1 stroke-width=\"%2\" stroke-linejoin=\"round\"")
-                       .arg(paintAttr("stroke", a.style.stroke, strokeId)).arg(a.style.strokeWidth);
-        svg += QLatin1String("/>\n");
-        if (outline && worn)
-            svg += wornOutline(QStringLiteral("      "));
-
-        // A line's own strokes, in the line's paint, over the fill and under the words.
-        const QPainterPath ink = Geometry::ink(a, silhouette);
-        if (!ink.isEmpty())
-            svg += QStringLiteral("      <path d=\"%1\" fill-rule=\"%2\" %3/>\n")
-                       .arg(pathData(ink), fillRule(ink), paintAttr("fill", a.style.stroke, strokeId));
-        svg += QLatin1String("    </g>\n");
-    }
-
-    if (const QString lettering = letteringElements(a, text, textShadow, QLatin1String("      "));
-        !lettering.isEmpty())
-        svg += QLatin1String("    <g>\n") + lettering + QLatin1String("    </g>\n");
+    // Two groups: the balloon, and the lettering. The texture's filter hangs on the balloon's: a displacement
+    // on the lettering would drag the words about with the outline.
+    svg += itemsOf(balloon.items, QStringLiteral("    "));
+    if (!words.items.isEmpty())
+        svg += QLatin1String("    <g>\n") + itemsOf(words.items, QStringLiteral("      ")) + QLatin1String("    </g>\n");
 
     svg += QLatin1String("  </g>\n</svg>\n");
     return svg.toUtf8();

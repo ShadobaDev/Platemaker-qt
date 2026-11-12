@@ -123,6 +123,7 @@ qt_add_executable(Platemaker
     widgets/objectrecord/edgewalk.cpp widgets/objectrecord/edgewalk.hpp
     widgets/objectrecord/silhouette.cpp widgets/objectrecord/lettering.cpp
     widgets/objectrecord/recordpainter.cpp widgets/objectrecord/recordpainter.hpp
+    widgets/objectrecord/renderlist.cpp widgets/objectrecord/renderlist.hpp
     widgets/objectrecord/recordsvg.cpp widgets/objectrecord/recordsvg.hpp
 
     # Stage card — one step in the Project "Workflow" pipeline map (custom-painted, no .ui).

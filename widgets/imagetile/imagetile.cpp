@@ -64,6 +64,7 @@ void ImageTile::setFileInfo(const QString& filePath,
 
     ui->imageLabel->setText(QFileInfo(filePath).fileName());
 
+    m_shown.reset();   // the status line names the file: a new one is stated again whatever its status
     setStatus(status, renderedWithoutProfile);
 
     if (!cacheDir.isEmpty())
@@ -72,6 +73,12 @@ void ImageTile::setFileInfo(const QString& filePath,
 
 void ImageTile::setStatus(FileStatus status, bool renderedWithoutProfile)
 {
+    // The project dock re-states every tile after each edit; a style sheet set again re-polishes the tile,
+    // which is what such a refresh costs, so a status already shown is left as it is.
+    if (m_shown && m_shown->first == status && m_shown->second == renderedWithoutProfile)
+        return;
+    m_shown = {status, renderedWithoutProfile};
+
     const QString filename = QFileInfo(m_filePath).fileName();
 
     // A page rendered without a canvas profile is still Processed, but flagged so the "no margins"

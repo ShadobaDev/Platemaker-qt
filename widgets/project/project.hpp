@@ -185,9 +185,11 @@ public:
      * the lettering is outlined through `QFont`, so a bubble whose font is not installed would be re-set
      * in a stand-in — and rewriting every bubble on every undo re-set bubbles the step never touched.
      *
-     * \param uids The overlays the step changed (movedUids()).
+     * \param uids The overlays whose record the step changed: one it only moved keeps its file.
      */
     void rewriteOverlayAssets(const QStringList& uids);
+    //! What in this dock shows the lettering, after a lettering edit or undo: the workflow map, the outputs' staleness.
+    void refreshLetteringViews();
     //! Tells the artist which bubble files could not be written, if any: the render reads them as they were.
     void warnUnwritten(const QStringList& files);
 
@@ -334,6 +336,7 @@ signals:
 
     /**
      * \brief This project's authoring records changed — MainWindow folds them back into its per-project cache.
+     * Always followed by projectModified(), which is what refreshes the views (the strip editor among them).
      * \param records The new record map for this project.
      */
     void recordsChanged(const ObjectRecord::Map& records);

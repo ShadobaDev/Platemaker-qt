@@ -457,6 +457,11 @@ void Project::restoreOverlayState(const OverlayState& recorded)
     // Asked while the old state is still here, because it is the difference between the two that says
     // what the artist just watched change.
     const QStringList touched = movedUids(overlayState(), state);
+    // A bubble's file is made from its record: one the step only moved keeps the file it has.
+    QStringList rewritten;
+    for (const QString& uid : std::as_const(touched))
+        if (m_records.value(uid) != state.records.value(uid))
+            rewritten << uid;
 
     m_workspace.projectItems[m_projectIndex].getStripOverlays() = state.overlays;
     m_records = state.records;
@@ -467,10 +472,10 @@ void Project::restoreOverlayState(const OverlayState& recorded)
 
     // The records are back; the files on disk still hold what the step being undone wrote. They are made
     // from the state, which is already right whatever the disk says.
-    rewriteOverlayAssets(touched);
+    rewriteOverlayAssets(rewritten);
     emit recordsChanged(m_records);
 
-    populate();
+    refreshLetteringViews();
     emit projectModified();
 }
 
@@ -538,6 +543,15 @@ void Project::applyColourCorrection(const ColourCorrection& cc, const QString& u
 }
 
 
+void Project::refreshLetteringViews()
+{
+    // The lettering shows in this dock in two places only: the workflow map's Text & bubbles card, and the
+    // outputs' staleness (the overlays are a processing step). populate() would rebuild every page's tile
+    // as well, which no lettering edit changes, at a cost an edit is felt by.
+    refreshWorkflowMap();
+    refreshTileStatuses();
+}
+
 void Project::refreshWorkflowMap()
 {
     if (!m_workflowStack) // built in the ctor; guard in case populate() runs earlier
@@ -587,7 +601,7 @@ void Project::refreshWorkflowMap()
                 item.removeOverlay(uid);
             }
             emit projectModified();
-            populate();
+            refreshLetteringViews();
         });
     };
 
@@ -880,7 +894,7 @@ void Project::createOverlay(const ObjectRecord& record, double xFrac, double yFr
         m_records.insert(QString::fromStdString(uid), record);
         emit recordsChanged(m_records);
         emit projectModified();
-        populate();   // the workflow map counts overlays
+        refreshLetteringViews();
     });
 }
 
@@ -1007,7 +1021,7 @@ void Project::importOverlayArtwork(const QString& sourceFile, double xFrac, doub
         }
         emit recordsChanged(m_records);
         emit projectModified();
-        populate();
+        refreshLetteringViews();
     });
 }
 
@@ -1087,6 +1101,6 @@ void Project::applyOverlays(std::vector<Platemaker::Models::StripOverlay> overla
         m_records             = std::move(records);
         emit recordsChanged(m_records);
         emit projectModified();
-        populate();
+        refreshLetteringViews();
     });
 }

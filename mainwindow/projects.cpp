@@ -320,12 +320,10 @@ void MainWindow::openProjectDock(int projectIndex)
     projectWidget->setWriteGuard([this] { return canWriteWorkspace(); });
     projectWidget->setRecords(m_overlayRecords.records(projectUid));
     connect(projectWidget, &Project::recordsChanged, this,
-            [this, projectUid, newDock](const ObjectRecord::Map& records) {
+            [this, projectUid](const ObjectRecord::Map& records) {
+        // Only the cache: the strip is told by projectModified(), which follows every record change and
+        // refreshes it from this cache. Refreshing it here too fed it the same records twice per edit.
         m_overlayRecords.setRecords(projectUid, records);
-        // A record edit changes what a bubble says without moving a page, so the strip has to be told
-        // explicitly — the feed signature it guards itself with would not see it.
-        if (QDockWidget* strip = dockForStripEditor(projectIndexOf(newDock)))
-            refreshStripEditor(strip);
     });
     connect(projectWidget, &Project::projectModified, this, [this, newDock]{
         setDirty(true);

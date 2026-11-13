@@ -126,7 +126,7 @@ Ink colourInk(const QColor& colour)
 List balloon(const ObjectRecord& a, const QPainterPath& silhouette)
 {
     List out;
-    if (a.isArtwork())
+    if (!a.hasSilhouette())   // a text object, or an artwork: what it carries of a balloon is not drawn
         return out;
 
     const Geometry::TextureInfo& texture = Geometry::textureInfo(a.texture.kind);

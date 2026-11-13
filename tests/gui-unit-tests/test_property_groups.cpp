@@ -23,6 +23,7 @@
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
+#include <QRegularExpression>
 
 #include "edgewalk.hpp"
 #include "geometry.hpp"
@@ -32,6 +33,7 @@
 #include "properties/propertygroup.hpp"
 #include "objectparts.hpp"
 #include "objectrecord.hpp"
+#include "composition.hpp"
 
 namespace {
 
@@ -2427,6 +2429,13 @@ QString goldenPath()
     return QStringLiteral(PLATEMAKER_GOLDEN_DIR "/records.txt");
 }
 
+//! One golden case: what it is called in the file, and the record.
+struct GoldenCase
+{
+    QString      title;
+    ObjectRecord record;
+};
+
 /**
  * \brief Everything a record is written as, for every template (and no shape) × look × with and without
  *        a tail. A case is named by its template's id and its look: clean, marker and ink (Rough at the
@@ -2436,7 +2445,7 @@ QString goldenPath()
  * left empty and its family named, so nothing here measures a font: writing lettering needs the
  * QGuiApplication this target does not have, and the text area covers what the lettering is fitted to.
  */
-QString goldenRecords()
+QList<GoldenCase> goldenCases()
 {
     ShapeProperties none = shapeOf(loadedRecord());
     none.kind            = ObjectRecord::Shape::None;
@@ -2487,21 +2496,15 @@ QString goldenRecords()
         {QStringLiteral("brush"), brush, untextured},
     };
 
-    QString    out;
-    const auto write = [&out](const QString& name, const QString& look, bool tail, ObjectRecord a) {
+    QList<GoldenCase> cases;
+    const auto write = [&cases](const QString& name, const QString& look, bool tail, ObjectRecord a) {
         textOf(a).body.clear();
         originOf(a) = {};   // written only when there is one; Presets.TheOriginTravelsWithTheObject has it
         if (!tail)
             tailsOf(a).items.clear();
-        const QRectF area = Geometry::textArea(a);
-        out += QStringLiteral("=== %1 / %2 / %3 ===\n")
-                   .arg(name, look, tail ? QStringLiteral("tail") : QStringLiteral("no tail"));
-        out += QString::fromUtf8(Svg::write(a));
-        out += QStringLiteral("\ntextArea: %1 %2 %3 %4\n")
-                   .arg(area.x(), 0, 'f', 3).arg(area.y(), 0, 'f', 3)
-                   .arg(area.width(), 0, 'f', 3).arg(area.height(), 0, 'f', 3);
-        out += QStringLiteral("json: ")
-             + QString::fromUtf8(QJsonDocument(a.toJson()).toJson(QJsonDocument::Compact)) + u'\n';
+        cases.append({QStringLiteral("%1 / %2 / %3")
+                           .arg(name, look, tail ? QStringLiteral("tail") : QStringLiteral("no tail")),
+                       a});
     };
     for (const auto& [name, shape] : std::as_const(shapes)) {
         for (const Look& look : looks) {
@@ -2884,6 +2887,22 @@ QString goldenRecords()
         effectsOf(a).shadowFill.kind = ObjectRecord::Pattern::Dots;
         write(QStringLiteral("speech"), QStringLiteral("hard halftone shadow"), true, a);
     }
+    return cases;
+}
+
+QString goldenRecords()
+{
+    QString out;
+    for (const GoldenCase& c : goldenCases()) {
+        const QRectF area = Geometry::textArea(c.record);
+        out += QStringLiteral("=== %1 ===\n").arg(c.title);
+        out += QString::fromUtf8(Svg::write(c.record));
+        out += QStringLiteral("\ntextArea: %1 %2 %3 %4\n")
+                   .arg(area.x(), 0, 'f', 3).arg(area.y(), 0, 'f', 3)
+                   .arg(area.width(), 0, 'f', 3).arg(area.height(), 0, 'f', 3);
+        out += QStringLiteral("json: ")
+             + QString::fromUtf8(QJsonDocument(c.record.toJson()).toJson(QJsonDocument::Compact)) + u'\n';
+    }
     return out;
 }
 
@@ -2922,6 +2941,53 @@ TEST(Golden, EveryShapeAndStyleIsWrittenAsBefore)
             section = w;
         ASSERT_EQ(g.toStdString(), w.toStdString())
             << "first difference at line " << i + 1 << ", in " << section.toStdString();
+    }
+}
+
+namespace {
+
+//! What a record's SVG draws: the file without the copy of the content it carries.
+QString drawnOf(const ObjectRecord& a, const QByteArray& picture = {}, const QString& mime = {})
+{
+    static const QRegularExpression content(QStringLiteral("\\s*<pm:content[^>]*>.*</pm:content>"),
+                                            QRegularExpression::DotMatchesEverythingOption
+                                                | QRegularExpression::InvertedGreedinessOption);
+    return QString::fromUtf8(Svg::write(a, picture, mime)).remove(content);
+}
+
+} // namespace
+
+/**
+ * \brief A composition made from a record comes back as itself through a record, and the record it gives
+ *        draws what the first did, on every golden case and on an artwork: the way between the two loses
+ *        nothing that is drawn. A balloon comes back whole; a text object loses the balloon it carried unread.
+ */
+TEST(Composition, ARecordAndItsCompositionAreOneObject)
+{
+    QList<GoldenCase> cases = goldenCases();
+    // A golden case's record, so it carries a balloon to drop and names its family (no font is measured).
+    ObjectRecord artwork = cases.first().record;
+    artwork.artwork      = QStringLiteral("ovl-0123456789abcdef.png");
+    artwork.shape.kind   = ObjectRecord::Shape::None;
+    cases.append({QStringLiteral("artwork"), artwork});
+    const QByteArray picture("not decoded: the SVG embeds it as it is");
+    const QString    mime = QStringLiteral("image/png");
+
+    for (const GoldenCase& g : std::as_const(cases)) {
+        SCOPED_TRACE(g.title.toStdString());
+        const Composition  c    = compositionOf(g.record);
+        const ObjectRecord back = recordOf(c);
+        EXPECT_TRUE(compositionOf(back) == c);
+        EXPECT_EQ(drawnOf(back, picture, mime).toStdString(), drawnOf(g.record, picture, mime).toStdString());
+        EXPECT_EQ(Geometry::textArea(back), Geometry::textArea(g.record));
+        if (g.record.hasSilhouette()) {
+            EXPECT_TRUE(back == g.record);
+            ASSERT_TRUE(c.balloon);
+            EXPECT_EQ(c.words.first().seat, c.balloon->bodies.first().id);
+        } else {
+            EXPECT_FALSE(c.balloon);
+            EXPECT_EQ(c.picture.has_value(), g.record.isArtwork());
+        }
     }
 }
 

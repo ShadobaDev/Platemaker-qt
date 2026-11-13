@@ -500,9 +500,11 @@ QRectF boundsOf(const ObjectRecord& a, const QPainterPath& silhouette, const QPa
         r = r.united(text.boundingRect().adjusted(-around, -around, around, around));
     }
 
-    // The stroke straddles the path, so half of it lies outside; one more pixel keeps antialiasing off
-    // the edge of the buffer.
-    const qreal pad = a.style.strokeWidth / 2.0 + 1.0 + styleMargin(a);
+    // The stroke straddles the path, so half of it lies outside, and the line's ink, the texture and the
+    // shadow reach further; one more pixel keeps antialiasing off the edge of the buffer. A balloon's only:
+    // what an object without one carries of them is not drawn.
+    const qreal balloon = a.hasSilhouette() ? a.style.strokeWidth / 2.0 + styleMargin(a) : 0.0;
+    const qreal pad     = balloon + 1.0;
     r = r.adjusted(-pad, -pad, pad, pad);
 
     // Whole pixels, so the rasterised buffer and the SVG viewBox describe the same rectangle rather

@@ -1,20 +1,18 @@
 /**
  * \file recordsvg.hpp
- * \brief A bubble as an SVG document — the on-disk format, and the way back from it.
+ * \brief A bubble as an SVG document — the asset the library renders — and its content, the record as the
+ *        workspace keeps it.
  *
- * The overlay handed to the library **is** this file. There is no separate authoring sidecar and no
- * rasterised PNG: the SVG carries both the resolved artwork every renderer can draw and, in a private
- * namespace every renderer ignores, the parameters the editor needs to re-solve it.
- *
- * That is the Inkscape pattern (`sodipodi:type="star"` beside a real `<path>`), and it buys three
- * things:
+ * The bubble **is** its content (contentOf()): the workspace stores it with the overlay
+ * (`StripOverlay::content`), and the SVG is derived from it, written again whenever the content changes. The
+ * file carries the resolved artwork every renderer can draw and, in a private namespace every renderer
+ * ignores, a copy of the content (`<pm:content>`), which only *Import* reads: an SVG of ours brought into
+ * another workspace becomes a bubble again.
  *  - **Any renderer draws it** — librsvg at render time, a browser, Inkscape.
- *  - **The editor re-solves it** from `pm:*` when the box is dragged or the text retyped.
- *  - **A hand-drawn shape is the same file with no `pm:*`** — flat, still rendering, just not
- *    re-typable. One format, no second import path.
+ *  - **A hand-drawn shape is the same file with no `pm:`** — flat, still rendering, just not re-typable.
  *
- * Text is written as outlines (see Geometry::textOutline()), so a rendered bubble needs no font
- * installed; `pm:text` and `pm:font` are what make it editable again on a machine that has one.
+ * Text is written as outlines (see Geometry::textOutline()), so a rendered bubble needs no font installed;
+ * the content's words and font are what make it editable again on a machine that has one.
  */
 
 #ifndef RECORDSVG_HPP
@@ -25,6 +23,7 @@
 
 #include <platemaker/models/processing_steps.hpp>
 
+#include <string>
 #include <vector>
 
 #include "objectrecord.hpp"
@@ -69,28 +68,39 @@ inline constexpr char k_pmNamespace[] = "https://github.com/ShadobaDev/Platemake
                                        const QString& mime = {});
 
 /**
- * \brief Reads the `pm:*` parameters back out of \p svg.
+ * \brief The record's content, as the workspace stores it and the SVG copies it: one JSON object, compact, a
+ *        group an object and a section an object in it (ObjectRecord::toJson()), the lettering's family the
+ *        one the outlines were set for (the default's own name for an empty one).
+ */
+[[nodiscard]] QString contentOf(const ObjectRecord& a);
+
+/**
+ * \brief The record @p content describes (contentOf()).
+ * \param ok Set to whether @p content is a JSON object; a default record comes back when it is not.
+ */
+[[nodiscard]] ObjectRecord fromContent(const std::string& content, bool* ok = nullptr);
+
+/**
+ * \brief Reads the record back out of \p svg: its `<pm:content>`, or, from a file written before that, its old
+ *        `pm:` attributes (read until the first release, which no such file can reach).
  *
  * \param svg The document's bytes.
- * \param ok  Set to false when the file carries no `pm:*` parameters — a hand-drawn or externally
- *            edited asset. That is not an error: the caller keeps it as a flat, still-rendering
- *            overlay rather than replacing it with a default bubble.
+ * \param ok  Set to false when the file carries neither — a hand-drawn or externally edited asset. That is
+ *            not an error: the caller keeps it as a flat, still-rendering overlay rather than replacing it
+ *            with a default bubble.
  * \return The reconstructed record, or a default one when \p ok comes back false.
  */
 [[nodiscard]] ObjectRecord read(const QByteArray& svg, bool* ok = nullptr);
 
 /**
- * \brief Reads one project's authoring records back out of its overlays' SVG assets.
+ * \brief One project's authoring records, from its overlays' content (`StripOverlay::content`).
  *
- * This is what replaced the authoring sidecar: the records are not stored a second time, they are read
- * from the files the library already references. Nothing to keep in sync, and nothing to lose
- * separately from the artwork.
+ * An overlay saved before the content was kept with it is read from its own file (read()), and carries its
+ * content from its next edit. One with neither is simply absent from the result — the caller shows it as a
+ * flat, still-rendering overlay.
  *
- * An overlay whose asset is missing, unreadable, or carries no `pm:*` parameters is simply absent from
- * the result — the caller shows it as a flat, still-rendering overlay.
- * 
  * \param overlays The overlays to read from.
- * \return A map of overlay uid → record, for every overlay that carries a readable asset with a `pm:*` group.
+ * \return A map of overlay uid → record, for every overlay with a content or a file of ours.
  */
 [[nodiscard]] ObjectRecord::Map readOverlays(
     const std::vector<Platemaker::Models::StripOverlay>& overlays);
@@ -115,7 +125,7 @@ inline constexpr char k_pmNamespace[] = "https://github.com/ShadobaDev/Platemake
  * \brief The family a file's lettering was outlined in instead of its own — `pm:fontFallback` — or empty.
  *
  * Written when the record's family was not installed at the time (Geometry::fontFallback()), so a file
- * baked in a stand-in can be told from one baked in its own font — both carry the same `pm:fontFamily` —
+ * baked in a stand-in can be told from one baked in its own font — both carry the same family in their content —
  * and re-set once the font is back. Read the way the recipe is: by namespace, never by prefix.
  */
 [[nodiscard]] QString bakedFontFallback(const QByteArray& svg);

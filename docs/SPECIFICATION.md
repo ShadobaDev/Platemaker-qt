@@ -151,7 +151,8 @@ family's numbers are a **section**, `CornerParams` (`propertygroups.hpp`), held 
 is **one line in the section's `fields()` list** — the key it is saved under and the member
 (`widgets/objectrecord/fields.hpp`) — and the section is nested in `ShapeProperties::fields()`, whose order
 is the file's. That one line gives it equality (which gates the file rewrite, and decides which template a
-shape is), a JSON key and a `pm:` attribute, with the struct's default as the fallback when a file lacks it.
+shape is) and a key in the content (the JSON the workspace keeps with the overlay), with the struct's default
+as the fallback when the content lacks it.
 Then a row in the section's `section()` (`k_cornerRows`, `shapes.cpp`), and the section's name in the
 kinds' `ShapeInfo::sections`: the Shape panel builds every section's rows (`SectionRows`) and shows the
 kind's. The edge's numbers are one section, `EdgeParams` (`teeth`), under the Edge combo, shown for every

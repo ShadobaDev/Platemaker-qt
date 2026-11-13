@@ -99,7 +99,7 @@ struct PatternInfo
 struct TailStyleInfo
 {
     TailLook::Style      kind;
-    const char*          name;     //!< Persisted, in a tail's text (TailLook::toText()). **Never changes** once saved.
+    const char*          name;     //!< Persisted, in a tail's look (ObjectRecord::toJson()). **Never changes** once saved.
     const char*          title;    //!< Shown on screen, translated through QObject::tr().
     bool                 tipped;   //!< Whether it ends as its tip says: the Tail panel offers the tip only then.
     //! The sections of TailLook it reads, whose rows the Tail panel shows while it is chosen.

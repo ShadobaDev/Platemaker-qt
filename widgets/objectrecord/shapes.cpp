@@ -1601,6 +1601,6 @@ const Fields::Section& BowParams::section()
 
 const Fields::Section& EdgeParams::section()
 {
-    static const Fields::Section s = Fields::sectionOf("edge", nullptr, Geometry::k_edgeRows);
+    static const Fields::Section s = Fields::sectionOf("teeth", nullptr, Geometry::k_edgeRows);
     return s;
 }

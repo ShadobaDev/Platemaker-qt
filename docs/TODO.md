@@ -126,6 +126,12 @@ Bug fixes, cosmetics and internal cleanups — no new capability, no change to a
 New, backward-compatible features. Several are gated on a lib version, noted in the item body.
 (The `[x]` items below shipped/ready to ship; the open ones re-derive to the next MINOR.)
 
+- [ ] **Before this release: delete the old `pm:` attribute reader.** A bubble's content is kept in the
+  workspace with its overlay (requires libplatemaker with `StripOverlay::content`); an overlay saved before
+  that is read once from its SVG's flat `pm:` attributes (`Svg::read()`'s second branch, `readGroup()`,
+  `tailsFromText()`, `TailLook::fromFields()`) and carries its content from its next edit. No released file
+  has those attributes, so the reader goes before release, with the tests that build such files by hand.
+
 - [x] **Show the effect of a canvas profile edit right away.** *Done 2026-11-09 (requires
   libplatemaker 0.7.0).* "Out of sync" is a query (`detectFileStaleness()`), not a stored status, so
   every open project's tiles repaint on `workspaceChanged`. Saving or deleting a canvas profile asks
@@ -212,9 +218,9 @@ New, backward-compatible features. Several are gated on a lib version, noted in 
     case — and drifts silently. Pinned by `test_overlay_anchoring.cpp` and `test_overlays.py`, each with a
     deliberate absolute-placement control.
   - **A bubble is a GUI object, a bitmap is what the lib sees.** `Artifact` (shape / box / tail /
-    text / font / colours) lives inside the overlay's own SVG in `overlays/`, in a `pm:` namespace every
-    renderer ignores; the same file is what gets composited. That is what keeps a bubble re-editable
-    instead of flattened.
+    text / font / colours) is the overlay's content, saved in the workspace with it; the SVG in `overlays/`
+    is derived from it, and is what gets composited. That is what keeps a bubble re-editable instead of
+    flattened.
   - *Still open:* hand-drawn custom shapes, rich text, per-artifact blend modes in the UI (the model and
     render already carry them), re-rasterising every bubble when the output target width changes, and
     **SVG as the stored form** — see the note under "To establish / test".
@@ -283,7 +289,7 @@ New, backward-compatible features. Several are gated on a lib version, noted in 
 
 - [ ] **Adopt an imported drawing as a balloon** — a hand-drawn silhouette (someone's own SVG) becomes a
   real parametric object: recolourable, styleable, and able to grow tails. Today an import is artwork
-  because it carries no *recipe* — the `pm:` attributes a Platemaker-written SVG has — and a foreign
+  because it carries no *recipe* — the `<pm:content>` a Platemaker-written SVG has — and a foreign
   file's paths cannot be guessed into `shape.kind`. What is already in place is most of it: tails aim at
   an arbitrary outline (`tailPath()` takes a `QPainterPath` and ray-casts, so it does not care where the
   outline came from), the style filter and fill/stroke work on any path, and the lettering is drawn over

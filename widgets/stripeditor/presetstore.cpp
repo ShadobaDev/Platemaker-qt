@@ -30,11 +30,13 @@ const auto k_packMarker = QStringLiteral("platemakerBubblePresets");
 QJsonObject presetToJson(const BubblePreset& p)
 {
     QJsonObject j = p.record.toJson();
-    for (const QString& key : {QStringLiteral("text"), QStringLiteral("w"), QStringLiteral("h"),
-                               QStringLiteral("tails"), QStringLiteral("styleSeed")})
+    for (const QString& key : {QStringLiteral("box"), QStringLiteral("tails"), QStringLiteral("seed")})
         j.remove(key);
-    for (const QString& key : {QStringLiteral("presetUid"), QStringLiteral("presetName")})
-        j.remove(key);   // a preset is nobody's copy
+    j.remove(QStringLiteral("preset"));   // a preset is nobody's copy
+    // The words, but not how they are lettered: the text group keeps its font, size and colours.
+    QJsonObject text = j.value(QStringLiteral("text")).toObject();
+    text.remove(QStringLiteral("text"));
+    j.insert(QStringLiteral("text"), text);
     j.insert(QStringLiteral("name"), p.name);
     j.insert(QStringLiteral("uid"), p.uid);
     return j;

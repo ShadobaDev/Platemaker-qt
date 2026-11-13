@@ -188,6 +188,8 @@ public:
      * \param uids The overlays whose record the step changed: one it only moved keeps its file.
      */
     void rewriteOverlayAssets(const QStringList& uids);
+    //! Each overlay's content (StripOverlay::content) from its record: what the workspace saves.
+    void storeContents();
     //! What in this dock shows the lettering, after a lettering edit or undo: the workflow map, the outputs' staleness.
     void refreshLetteringViews();
     //! Tells the artist which bubble files could not be written, if any: the render reads them as they were.

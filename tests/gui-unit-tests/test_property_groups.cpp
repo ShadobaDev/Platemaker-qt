@@ -19,6 +19,8 @@
 #include <type_traits>
 
 #include <QFile>
+#include <QTemporaryDir>
+#include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
 
@@ -638,35 +640,49 @@ TEST(PropertyGroupOwnership, SkinAndTextColoursAreSeparate)
 }
 
 // ---------------------------------------------------------------------------
-// Persistence — the structs changed, the file format did not
+// Persistence — the content: a group an object, a section an object in it
 // ---------------------------------------------------------------------------
 
-TEST(PropertyGroupPersistence, KeepsTheFlatKeys)
+/**
+ * \brief The content (ObjectRecord::toJson()) is a group an object and a section an object inside it, under the
+ *        fields' keys; a section's number is left out while it is its default, and every other field is
+ *        written whatever its value.
+ */
+TEST(PropertyGroupPersistence, TheContentIsAGroupAnObject)
 {
     const ObjectRecord a = loadedRecord();
     const QJsonObject  j = a.toJson();
+    const auto group = [&](const char* name) { return j.value(QLatin1String(name)).toObject(); };
 
-    EXPECT_EQ(j.value(QStringLiteral("strokeWidth")).toInt(),  styleOf(a).strokeWidth);
-    EXPECT_EQ(j.value(QStringLiteral("fill")).toString(),      skinOf(a).fill.colour.name(QColor::HexArgb));
-    EXPECT_EQ(j.value(QStringLiteral("stroke")).toString(),    styleOf(a).stroke.colour.name(QColor::HexArgb));
-    EXPECT_EQ(j.value(QStringLiteral("fillKind")).toString(),  QStringLiteral("dots"));
-    EXPECT_EQ(j.value(QStringLiteral("text")).toString(),      textOf(a).body);
-    EXPECT_EQ(j.value(QStringLiteral("fontFamily")).toString(),textOf(a).family);
-    EXPECT_EQ(j.value(QStringLiteral("fontSize")).toInt(),     textOf(a).pixelSize);
-    EXPECT_EQ(j.value(QStringLiteral("align")).toInt(),        textOf(a).align);
-    EXPECT_EQ(j.value(QStringLiteral("lineSpacing")).toInt(),  textOf(a).lineSpacing);
-    EXPECT_EQ(j.value(QStringLiteral("paddingSide")).toInt(),  textOf(a).paddingSide);
-    EXPECT_EQ(j.value(QStringLiteral("paddingTop")).toInt(),   textOf(a).paddingTop);
-    EXPECT_DOUBLE_EQ(j.value(QStringLiteral("textOutlineWidth")).toDouble(), textOf(a).outlineWidth);
-    EXPECT_EQ(j.value(QStringLiteral("textOutlineKind")).toString(), QStringLiteral("dots"));
-    EXPECT_DOUBLE_EQ(j.value(QStringLiteral("textShadowY")).toDouble(), textOf(a).shadow.y);
-    EXPECT_EQ(j.value(QStringLiteral("textShadowKind")).toString(), QStringLiteral("grid"));
-    EXPECT_FALSE(j.contains(QStringLiteral("textShadowSecond")));   // a shadow's pattern has no colour of its own
-    EXPECT_EQ(j.value(QStringLiteral("texture")).toString(),   QStringLiteral("rough"));
+    EXPECT_EQ(j.value(QStringLiteral("box")).toArray(), (QJsonArray{boxOf(a).width(), boxOf(a).height()}));
+    EXPECT_EQ(group("style").value(QStringLiteral("strokeWidth")).toInt(), styleOf(a).strokeWidth);
+    EXPECT_EQ(group("style").value(QStringLiteral("stroke")).toString(), styleOf(a).stroke.colour.name(QColor::HexArgb));
+    EXPECT_EQ(group("skin").value(QStringLiteral("fill")).toString(), skinOf(a).fill.colour.name(QColor::HexArgb));
+    EXPECT_EQ(group("skin").value(QStringLiteral("fillKind")).toString(), QStringLiteral("dots"));
+    EXPECT_EQ(group("text").value(QStringLiteral("text")).toString(), textOf(a).body);
+    EXPECT_EQ(group("text").value(QStringLiteral("fontSize")).toInt(), textOf(a).pixelSize);
+    EXPECT_EQ(group("texture").value(QStringLiteral("texture")).toString(), QStringLiteral("rough"));
 
-    // No grouping crept into the file: a record saved before the groups existed still loads.
-    for (const char* nested : {"skin", "shape", "style", "tails"})
-        EXPECT_FALSE(j.value(QLatin1String(nested)).isObject()) << nested;
+    // A section is an object in its group; a number of it set off its default is there, under its key.
+    EXPECT_DOUBLE_EQ(group("style").value(QStringLiteral("flash")).toObject()
+                         .value(QStringLiteral("flashOuterPitch")).toDouble(), styleOf(a).flash.outerPitch);
+    EXPECT_DOUBLE_EQ(group("texture").value(QStringLiteral("rough")).toObject()
+                         .value(QStringLiteral("roughFrequency")).toDouble(), textureOf(a).rough.frequency);
+    const QJsonObject tail = j.value(QStringLiteral("tails")).toArray().first().toObject();
+    EXPECT_EQ(tail.value(QStringLiteral("tip")).toArray(),
+              (QJsonArray{tailsOf(a).items.first().tip.x(), tailsOf(a).items.first().tip.y()}));
+    EXPECT_EQ(j.value(QStringLiteral("nextTail")).toObject().value(QStringLiteral("circles")).toObject()
+                  .value(QStringLiteral("circles")).toInt(), tailsOf(a).nextLook.circles.count);
+
+    // At its defaults, a section is left out whole; a kind, a colour, a width are written all the same.
+    const QJsonObject plain = ObjectRecord().toJson();
+    for (const char* section : {"flash", "brush", "drybrush", "dash", "multi", "sketch", "dryInk"})
+        EXPECT_FALSE(plain.value(QStringLiteral("style")).toObject().contains(QLatin1String(section))) << section;
+    EXPECT_FALSE(plain.value(QStringLiteral("shape")).toObject().contains(QStringLiteral("corner")));
+    EXPECT_EQ(plain.value(QStringLiteral("style")).toObject().value(QStringLiteral("line")).toString(), QStringLiteral("clean"));
+    EXPECT_EQ(plain.value(QStringLiteral("style")).toObject().value(QStringLiteral("strokeWidth")).toInt(),
+              StyleProperties().strokeWidth);
+    EXPECT_EQ(ObjectRecord::fromJson(plain), ObjectRecord()) << "a number left out reads as its default";
 }
 
 TEST(PropertyGroupPersistence, RoundTrips)
@@ -2091,6 +2107,54 @@ TEST(Import, OnlyAFileCarryingTheRecipeIsAdopted)
     ok = true;
     (void)Svg::read(impostor, &ok);
     EXPECT_FALSE(ok);
+}
+
+/**
+ * \brief A file of ours carries its content as the text of `<pm:content>` (the attributes above are the old
+ *        form, still read); a project's records come from its overlays' content, and from the file only for an
+ *        overlay that has none.
+ */
+TEST(Import, TheContentIsReadFromTheOverlayThenFromItsFile)
+{
+    const QByteArray header =
+        QByteArray("<svg xmlns=\"http://www.w3.org/2000/svg\" xmlns:pm=\"") + Svg::k_pmNamespace + "\" width=\"10\" height=\"10\">";
+    const QByteArray ours = header + "<pm:content>{\"box\":[300,200],\"shape\":{\"shape\":\"cloud\"},"
+                                     "\"text\":{\"text\":\"a &lt; b\"}}</pm:content><g/></svg>";
+    bool               ok   = false;
+    const ObjectRecord back = Svg::read(ours, &ok);
+    EXPECT_TRUE(ok);
+    EXPECT_EQ(shapeOf(back).kind, ObjectRecord::Shape::Cloud);
+    EXPECT_EQ(boxOf(back), QSize(300, 200));
+    EXPECT_EQ(textOf(back).body, QStringLiteral("a < b"));
+
+    // An element of that name that is not JSON says nothing.
+    ok = true;
+    (void)Svg::read(header + "<pm:content>not json</pm:content></svg>", &ok);
+    EXPECT_FALSE(ok);
+
+    // The overlay's own content first; a file only for an overlay without one; neither, no record.
+    QTemporaryDir dir;
+    ASSERT_TRUE(dir.isValid());
+    const QString legacy = dir.filePath(QStringLiteral("old.svg"));
+    {
+        QFile f(legacy);
+        ASSERT_TRUE(f.open(QIODevice::WriteOnly));
+        f.write(header + "<g pm:shape=\"ellipse\" pm:box=\"80,60\"/></svg>");
+    }
+    std::vector<Platemaker::Models::StripOverlay> overlays(3);
+    overlays[0].uid       = "ovl-content";
+    ObjectRecord named = back;
+    textOf(named).family = QStringLiteral("Comic Neue");   // a family of its own: an empty one asks the system
+    overlays[0].content   = Svg::contentOf(named).toStdString();
+    overlays[0].assetPath = legacy.toStdString();   // a file that says otherwise is not read
+    overlays[1].uid       = "ovl-file";
+    overlays[1].assetPath = legacy.toStdString();
+    overlays[2].uid       = "ovl-neither";
+    const ObjectRecord::Map records = Svg::readOverlays(overlays);
+    ASSERT_EQ(records.size(), 2);
+    EXPECT_EQ(shapeOf(records.value(QStringLiteral("ovl-content"))).kind, ObjectRecord::Shape::Cloud);
+    EXPECT_EQ(shapeOf(records.value(QStringLiteral("ovl-file"))).kind, ObjectRecord::Shape::Ellipse);
+    EXPECT_FALSE(records.contains(QStringLiteral("ovl-neither")));
 }
 
 // ---------------------------------------------------------------------------

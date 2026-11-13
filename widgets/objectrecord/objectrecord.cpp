@@ -6,6 +6,8 @@
 #include <QObject>
 #include <QRandomGenerator>
 
+#include <type_traits>
+
 namespace {
 
 // ---------------------------------------------------------------------------
@@ -23,6 +25,8 @@ QJsonValue toJsonValue(ObjectRecord::Edge v) { return QLatin1String(edgeName(v))
 QJsonValue toJsonValue(ObjectRecord::Pattern v) { return QLatin1String(patternName(v)); }
 QJsonValue toJsonValue(ObjectRecord::Line v) { return QLatin1String(lineName(v)); }
 QJsonValue toJsonValue(ObjectRecord::Texture v) { return QLatin1String(textureName(v)); }
+QJsonValue toJsonValue(TailLook::Style v) { return QLatin1String(Geometry::tailStyleInfo(v).name); }
+QJsonValue toJsonValue(TailLook::Tip v) { return QLatin1String(Geometry::tailTipInfo(v).name); }
 //! Nodes as [x, y], or [x, y, type, inX, inY, outX, outY] for a Curve's node with handles, at full
 //! precision: an undo step restores exactly what was there.
 QJsonValue toJsonValue(const QList<ShapeNode>& v)
@@ -55,6 +59,19 @@ void fromJsonValue(const QJsonValue& j, ObjectRecord::Edge& v) { v = edgeFromNam
 void fromJsonValue(const QJsonValue& j, ObjectRecord::Pattern& v) { v = patternFromName(j.toString()); }
 void fromJsonValue(const QJsonValue& j, ObjectRecord::Line& v) { v = lineFromName(j.toString()); }
 void fromJsonValue(const QJsonValue& j, ObjectRecord::Texture& v) { v = textureFromName(j.toString()); }
+// A tail's style and tip: an unknown or missing name leaves the value as it is.
+void fromJsonValue(const QJsonValue& j, TailLook::Style& v)
+{
+    for (int i = 0; i <= int(TailLook::k_lastStyle); ++i)
+        if (j.toString() == QLatin1String(Geometry::tailStyleInfo(TailLook::Style(i)).name))
+            v = TailLook::Style(i);
+}
+void fromJsonValue(const QJsonValue& j, TailLook::Tip& v)
+{
+    for (int i = 0; i <= int(TailLook::k_lastTip); ++i)
+        if (j.toString() == QLatin1String(Geometry::tailTipInfo(TailLook::Tip(i)).name))
+            v = TailLook::Tip(i);
+}
 void fromJsonValue(const QJsonValue& j, QList<ShapeNode>& v)
 {
     if (!j.isArray())
@@ -70,18 +87,71 @@ void fromJsonValue(const QJsonValue& j, QList<ShapeNode>& v)
     }
 }
 
-//! Every field of \p g into \p j, under its key.
-template <class Group>
-void writeJson(const Group& g, QJsonObject& j)
+//! The sub-group a Nested field is in, for a field of a section (fields.hpp); void for any other field.
+template <class M>
+struct SectionOf
 {
-    Group::fields([&](const char* key, auto member) { j.insert(QLatin1String(key), toJsonValue(Fields::at(g, member))); });
+    using type = void;
+};
+template <class Group, class Sub, class T>
+struct SectionOf<Fields::Nested<Group, Sub, T>>
+{
+    template <class S, class = void>
+    struct Described : std::false_type {};
+    template <class S>
+    struct Described<S, std::void_t<decltype(S::section())>> : std::true_type {};
+    //! A sub-group described by a section() (FlashParams…), not a Paint, whose fields stay the group's own.
+    using type = std::conditional_t<Described<Sub>::value, Sub, void>;
+};
+
+/**
+ * \brief Every field of \p g into \p j: a section's under the section's name, as an object of its own, leaving out
+ *        those equal to the section's defaults (a reader takes the default for a key it does not find); every
+ *        other field under its key, whatever its value.
+ */
+template <class Group>
+QJsonObject groupToJson(const Group& g)
+{
+    QJsonObject j;
+    Group::fields([&](const char* key, auto member) {
+        using Sub = typename SectionOf<decltype(member)>::type;
+        if constexpr (std::is_void_v<Sub>) {
+            j.insert(QLatin1String(key), toJsonValue(Fields::at(g, member)));
+        } else {
+            static const Sub defaults{};
+            const auto&      value = Fields::at(g, member);
+            if (Fields::same(value, defaults.*member.inner))
+                return;
+            const QString name    = QLatin1String(Sub::section().name);
+            QJsonObject   section = j.value(name).toObject();
+            section.insert(QLatin1String(key), toJsonValue(value));
+            j.insert(name, section);
+        }
+    });
+    return j;
 }
 
-//! Every field of \p g out of \p j; a key \p j does not have leaves its field as it is.
+//! Every field of \p g out of \p j, groupToJson()'s way; a key \p j does not have leaves its field as it is.
 template <class Group>
-void readJson(Group& g, const QJsonObject& j)
+void groupFromJson(Group& g, const QJsonObject& j)
 {
-    Group::fields([&](const char* key, auto member) { fromJsonValue(j.value(QLatin1String(key)), Fields::at(g, member)); });
+    Group::fields([&](const char* key, auto member) {
+        using Sub = typename SectionOf<decltype(member)>::type;
+        if constexpr (std::is_void_v<Sub>)
+            fromJsonValue(j.value(QLatin1String(key)), Fields::at(g, member));
+        else
+            fromJsonValue(j.value(QLatin1String(Sub::section().name)).toObject().value(QLatin1String(key)),
+                          Fields::at(g, member));
+    });
+}
+
+//! A point as [x, y], and back; a value that is not one leaves @p v as it is.
+QJsonArray pointToJson(const QPointF& p) { return {p.x(), p.y()}; }
+void       pointFromJson(const QJsonValue& j, QPointF& v)
+{
+    const QJsonArray a = j.toArray();
+    if (a.size() == 2)
+        v = QPointF(a[0].toDouble(v.x()), a[1].toDouble(v.y()));
 }
 
 QJsonArray tailsToJson(const QList<Tail>& tails)
@@ -89,11 +159,10 @@ QJsonArray tailsToJson(const QList<Tail>& tails)
     QJsonArray arr;
     for (const Tail& t : tails)
         arr.append(QJsonObject{
-            {QStringLiteral("x"),     t.tip.x()},
-            {QStringLiteral("y"),     t.tip.y()},
+            {QStringLiteral("tip"),   pointToJson(t.tip)},
             {QStringLiteral("width"), t.baseWidth},
             {QStringLiteral("bend"),  t.bend},
-            {QStringLiteral("look"),  t.look.toText()},
+            {QStringLiteral("look"),  groupToJson(t.look)},
         });
     return arr;
 }
@@ -105,27 +174,16 @@ QList<Tail> tailsFromJson(const QJsonArray& arr)
     for (const QJsonValue& v : arr) {
         const QJsonObject o = v.toObject();
         Tail t;
-        t.tip       = QPointF(o.value(QStringLiteral("x")).toDouble(),
-                              o.value(QStringLiteral("y")).toDouble());
+        pointFromJson(o.value(QStringLiteral("tip")), t.tip);
         t.baseWidth = o.value(QStringLiteral("width")).toDouble(t.baseWidth);
         t.bend      = o.value(QStringLiteral("bend")).toDouble(t.bend);
-        t.look      = TailLook::fromFields(o.value(QStringLiteral("look")).toString().split(QLatin1Char(',')));
+        groupFromJson(t.look, o.value(QStringLiteral("look")).toObject());
         tails.append(t);
     }
     return tails;
 }
 
 } // namespace
-
-QString TailLook::toText() const
-{
-    return QStringList{QLatin1String(Geometry::tailStyleInfo(style).name), QString::number(circles.count),
-                       QString::number(circles.pitch), QString::number(circles.offset),
-                       QLatin1String(Geometry::tailTipInfo(tip).name), QString::number(end.width),
-                       QString::number(breaks.count), QString::number(breaks.jog),
-                       QString::number(breaks.clockwise ? 1 : 0)}
-        .join(QLatin1Char(','));
-}
 
 TailLook TailLook::fromFields(const QStringList& fields, qsizetype first)
 {
@@ -349,63 +407,46 @@ ObjectRecord::Texture textureFromName(QStringView name)
 QJsonObject ObjectRecord::toJson() const
 {
     const ObjectRecord& a = *this;
-    // The record's own fields, which are not groups of scalars, by hand; then every group's list.
+    // The record's own fields, which are not groups of scalars, by hand; then a group an object.
     QJsonObject j{
-        {QStringLiteral("artwork"),   a.artwork},
-        {QStringLiteral("w"),         a.box.width()},
-        {QStringLiteral("h"),         a.box.height()},
-        {QStringLiteral("tails"),     tailsToJson(a.tails.items)},
-        {QStringLiteral("nextTail"),  a.tails.nextLook.toText()},
-        {QStringLiteral("styleSeed"), double(a.styleSeed)},
+        {QStringLiteral("box"),      QJsonArray{a.box.width(), a.box.height()}},
+        {QStringLiteral("seed"),     double(a.styleSeed)},
+        {QStringLiteral("shape"),    groupToJson(a.shape)},
+        {QStringLiteral("text"),     groupToJson(a.text)},
+        {QStringLiteral("skin"),     groupToJson(a.skin)},
+        {QStringLiteral("style"),    groupToJson(a.style)},
+        {QStringLiteral("texture"),  groupToJson(a.texture)},
+        {QStringLiteral("effects"),  groupToJson(a.effects)},
+        {QStringLiteral("tails"),    tailsToJson(a.tails.items)},
+        {QStringLiteral("nextTail"), groupToJson(a.tails.nextLook)},
     };
-    if (!a.presetOrigin.isEmpty()) {
-        j.insert(QStringLiteral("presetUid"), a.presetOrigin.uid);
-        j.insert(QStringLiteral("presetName"), a.presetOrigin.name);
-    }
-    writeJson(a.shape, j);
-    writeJson(a.text, j);
-    writeJson(a.skin, j);
-    writeJson(a.style, j);
-    writeJson(a.texture, j);
-    writeJson(a.effects, j);
+    if (!a.artwork.isEmpty())
+        j.insert(QStringLiteral("artwork"), a.artwork);
+    if (!a.presetOrigin.isEmpty())
+        j.insert(QStringLiteral("preset"), QJsonObject{{QStringLiteral("uid"), a.presetOrigin.uid},
+                                                       {QStringLiteral("name"), a.presetOrigin.name}});
     return j;
 }
 
 ObjectRecord ObjectRecord::fromJson(const QJsonObject& j)
 {
-    // Every field is read defensively with the struct's own default as the fallback, so a snapshot
-    // written by an older build loads as a usable bubble rather than a blank.
+    // Every field is read with the struct's own default as the fallback: a key left out is its default.
     ObjectRecord a;
-    a.artwork     = j.value(QStringLiteral("artwork")).toString();   // absent → an object we draw
-    a.box         = QSize(j.value(QStringLiteral("w")).toInt(a.box.width()),
-                          j.value(QStringLiteral("h")).toInt(a.box.height()));
+    a.artwork = j.value(QStringLiteral("artwork")).toString();   // absent → an object we draw
+    if (const QJsonArray box = j.value(QStringLiteral("box")).toArray(); box.size() == 2)
+        a.box = QSize(box[0].toInt(a.box.width()), box[1].toInt(a.box.height()));
+    a.styleSeed = quint32(j.value(QStringLiteral("seed")).toDouble(0));
+    groupFromJson(a.shape, j.value(QStringLiteral("shape")).toObject());
+    groupFromJson(a.text, j.value(QStringLiteral("text")).toObject());
+    groupFromJson(a.skin, j.value(QStringLiteral("skin")).toObject());
+    groupFromJson(a.style, j.value(QStringLiteral("style")).toObject());
+    groupFromJson(a.texture, j.value(QStringLiteral("texture")).toObject());
+    groupFromJson(a.effects, j.value(QStringLiteral("effects")).toObject());
     a.tails.items = tailsFromJson(j.value(QStringLiteral("tails")).toArray());
-    a.tails.nextLook = TailLook::fromFields(j.value(QStringLiteral("nextTail")).toString().split(QLatin1Char(',')));
-    a.styleSeed   = quint32(j.value(QStringLiteral("styleSeed")).toDouble(0));
-    a.presetOrigin = {j.value(QStringLiteral("presetUid")).toString(), j.value(QStringLiteral("presetName")).toString()};
-    readJson(a.shape, j);
-    readJson(a.text, j);
-    readJson(a.skin, j);
-    readJson(a.style, j);
-    readJson(a.texture, j);
-    readJson(a.effects, j);
+    groupFromJson(a.tails.nextLook, j.value(QStringLiteral("nextTail")).toObject());
+    const QJsonObject preset = j.value(QStringLiteral("preset")).toObject();
+    a.presetOrigin = {preset.value(QStringLiteral("uid")).toString(), preset.value(QStringLiteral("name")).toString()};
     return a;
-}
-
-QJsonObject ObjectRecord::mapToJson(const Map& m)
-{
-    QJsonObject j;
-    for (auto it = m.begin(); it != m.end(); ++it)
-        j.insert(it.key(), it.value().toJson());
-    return j;
-}
-
-ObjectRecord::Map ObjectRecord::mapFromJson(const QJsonObject& j)
-{
-    Map m;
-    for (auto it = j.begin(); it != j.end(); ++it)
-        m.insert(it.key(), fromJson(it.value().toObject()));
-    return m;
 }
 
 bool usesSeed(const ObjectRecord& a)

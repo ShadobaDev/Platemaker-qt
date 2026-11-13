@@ -543,6 +543,15 @@ void Project::applyColourCorrection(const ColourCorrection& cc, const QString& u
 }
 
 
+void Project::storeContents()
+{
+    // The workspace keeps what the editor shows: each overlay's content is its record's, written whenever the
+    // records are (an overlay without a record, a flat asset, keeps what it has, which is none).
+    for (auto& o : m_workspace.projectItems[m_projectIndex].getStripOverlays())
+        if (const auto it = m_records.constFind(QString::fromStdString(o.uid)); it != m_records.constEnd())
+            o.content = Svg::contentOf(it.value()).toStdString();
+}
+
 void Project::refreshLetteringViews()
 {
     // The lettering shows in this dock in two places only: the workflow map's Text & bubbles card, and the
@@ -892,6 +901,7 @@ void Project::createOverlay(const ObjectRecord& record, double xFrac, double yFr
             item.addOverlay(asset.toStdString(), xFrac, yFrac, wFrac,
                             Platemaker::Models::BlendMode::Over, anchorInputUid.toStdString());
         m_records.insert(QString::fromStdString(uid), record);
+        storeContents();
         emit recordsChanged(m_records);
         emit projectModified();
         refreshLetteringViews();
@@ -1019,6 +1029,7 @@ void Project::importOverlayArtwork(const QString& sourceFile, double xFrac, doub
             record.box = naturalSize;
             m_records.insert(QString::fromStdString(uid), record);
         }
+        storeContents();
         emit recordsChanged(m_records);
         emit projectModified();
         refreshLetteringViews();
@@ -1099,6 +1110,7 @@ void Project::applyOverlays(std::vector<Platemaker::Models::StripOverlay> overla
         auto& item = m_workspace.projectItems[m_projectIndex];
         item.getStripOverlays() = std::move(overlays);
         m_records             = std::move(records);
+        storeContents();
         emit recordsChanged(m_records);
         emit projectModified();
         refreshLetteringViews();

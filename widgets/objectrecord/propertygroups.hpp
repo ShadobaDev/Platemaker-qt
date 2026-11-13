@@ -134,7 +134,7 @@ struct TailLook
         v(&TailLook::circles);
     }
 
-    //! The fields, with the keys they are known by (fields.hpp). A file carries them as toText() writes them.
+    //! The fields, with the keys they are saved under (fields.hpp).
     template <class V>
     static void fields(V&& v)
     {
@@ -145,10 +145,11 @@ struct TailLook
         Fields::nest(v, &TailLook::breaks);
     }
 
-    //! As text, "plain,3,6,0,sharp,30,0,10,1": the style's name, the numbers, the tip's name and its width,
-    //! the breaks, the jog and whether the first turn is clockwise. How a file carries it.
-    [[nodiscard]] QString toText() const;
-    //! Out of the fields toText() writes, from @p first on; what is missing or unknown keeps its default.
+    /**
+     * Out of "plain,3,6,0,sharp,30,0,10,1", from @p first on: the style's name, the chain's numbers, the tip's name
+     * and its width, the breaks, the jog and whether the first turn is clockwise. What is missing or unknown keeps
+     * its default. How a bubble's SVG carried a tail before its content did: read only by the old `pm:` reader.
+     */
     [[nodiscard]] static TailLook fromFields(const QStringList& fields, qsizetype first = 0);
 
     [[nodiscard]] bool operator==(const TailLook& o) const { return Fields::equal(*this, o); }

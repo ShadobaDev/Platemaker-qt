@@ -7,6 +7,8 @@
 #include <QCryptographicHash>
 #include <QFile>
 #include <QFileInfo>
+#include <QJsonDocument>
+#include <QJsonObject>
 #include <QPainterPath>
 #include <QRectF>
 #include <QStringList>
@@ -109,27 +111,12 @@ QString paint(const char* attr, const QColor& c)
     return s;
 }
 
-QString attr(const QString& name, const QString& value)
-{
-    return QLatin1String(" pm:") + name + QLatin1String("=\"") + esc(value) + QLatin1Char('"');
-}
+// ---------------------------------------------------------------------------
+// The old `pm:` attributes, as files written before the content carried them: read only, by read(), until
+// the first release, which no such file can reach.
+// ---------------------------------------------------------------------------
 
-QString attr(const QString& name, int value)
-{
-    return attr(name, QString::number(value));
-}
-
-//! Tails as "x,y,width,bend,look…" groups joined by ";" — one attribute however many there are.
-QString tailsToText(const QList<Tail>& tails)
-{
-    QStringList parts;
-    parts.reserve(tails.size());
-    for (const Tail& t : tails)
-        parts << (num(t.tip.x()) + QLatin1Char(',') + num(t.tip.y()) + QLatin1Char(',')
-                  + num(t.baseWidth) + QLatin1Char(',') + num(t.bend) + QLatin1Char(',') + t.look.toText());
-    return parts.join(QLatin1Char(';'));
-}
-
+//! Tails as "x,y,width,bend,look…" groups joined by ";", as the old `pm:tails` carried them.
 QList<Tail> tailsFromText(const QString& s)
 {
     QList<Tail> tails;
@@ -185,36 +172,8 @@ int intOf(const QStringView& v, int fallback)
     return ok ? n : fallback;
 }
 
-// ---------------------------------------------------------------------------
-// A field's value as a `pm:` attribute, and back — one overload per type a group holds (fields.hpp).
-// Reading falls back to the value already there, which for a fresh record is the struct's own default.
-// ---------------------------------------------------------------------------
-
-QString attrValue(int v) { return QString::number(v); }
-QString attrValue(bool v) { return v ? QStringLiteral("1") : QStringLiteral("0"); }
-QString attrValue(qreal v) { return num(v, k_valuePrecision); }
-QString attrValue(const QString& v) { return v; }
-QString attrValue(const QColor& v) { return v.name(QColor::HexArgb); }
-QString attrValue(ObjectRecord::Shape v) { return QString::fromLatin1(shapeName(v)); }
-QString attrValue(ObjectRecord::Edge v) { return QString::fromLatin1(edgeName(v)); }
-QString attrValue(ObjectRecord::Pattern v) { return QString::fromLatin1(patternName(v)); }
-QString attrValue(ObjectRecord::Line v) { return QString::fromLatin1(lineName(v)); }
-QString attrValue(ObjectRecord::Texture v) { return QString::fromLatin1(textureName(v)); }
-//! Nodes joined by ";", as the tails are: "x,y", or "x,y,type,inX,inY,outX,outY" for a Curve's node with
-//! handles.
-QString attrValue(const QList<ShapeNode>& v)
-{
-    const auto  pair = [](const QPointF& p) {
-        return num(p.x(), ShapeProperties::k_nodeDecimals) + QLatin1Char(',') + num(p.y(), ShapeProperties::k_nodeDecimals);
-    };
-    QStringList parts;
-    parts.reserve(v.size());
-    for (const ShapeNode& n : v)
-        parts << (n.plain() ? pair(n.at)
-                            : QStringList{pair(n.at), QLatin1String(ShapeNode::typeName(n.type)), pair(n.in), pair(n.out)}
-                                  .join(QLatin1Char(',')));
-    return parts.join(QLatin1Char(';'));
-}
+// A field's old `pm:` attribute, read back: one overload per type a group holds (fields.hpp), falling back to
+// the value already there, which for a fresh record is the struct's own default.
 
 void fromAttr(QStringView s, int& v) { v = intOf(s, v); }
 void fromAttr(QStringView s, bool& v) { v = intOf(s, v ? 1 : 0) != 0; }
@@ -251,15 +210,6 @@ void fromAttr(QStringView s, QList<ShapeNode>& v)
     }
 }
 
-//! Every field of \p g as a `pm:` attribute, under its key.
-template <class Group>
-QString groupAttrs(const Group& g)
-{
-    QString out;
-    Group::fields([&](const char* key, auto member) { out += attr(QLatin1String(key), attrValue(Fields::at(g, member))); });
-    return out;
-}
-
 //! Every field of \p g out of the `pm:` attributes in \p at; a missing one leaves its field as it is.
 template <class Group>
 void readGroup(Group& g, const QXmlStreamAttributes& at, const QString& ns)
@@ -288,20 +238,24 @@ QString fileFontFamily(const ObjectRecord& a)
 }
 
 /**
- * \brief The lettering's `pm:` attributes, with the family a file records (fileFontFamily()), and then
+ * \brief The content's copy in the file, `<pm:content>` (its text the record's content, contentOf()), with
  *        `pm:fontFallback` when the words were set in a stand-in.
  *
  * The family asked for is kept whatever happened; the fallback says what the outlines were actually set
- * in when that family was not installed, so the file can be re-set once it is (MainWindow's heal).
+ * in when that family was not installed, so the file can be re-set once it is (MainWindow's heal). It says
+ * what this file's drawing is, not what the bubble is, so it is the file's, not the content's.
  */
-QString letteringAttrs(const ObjectRecord& a)
+QString contentElement(const ObjectRecord& a)
 {
-    TextProperties text = a.text;
-    text.family         = fileFontFamily(a);
-    QString out         = groupAttrs(text);
+    QString out = QStringLiteral("  <pm:content");
     if (const QString fallback = Geometry::fontFallback(a); !fallback.isEmpty())
-        out += attr(QStringLiteral("fontFallback"), fallback);
-    return out;
+        out += QStringLiteral(" pm:fontFallback=\"") + esc(fallback) + QLatin1Char('"');
+    // Element text, not an attribute: only what would end it or start markup is escaped, so the JSON reads.
+    QString text = contentOf(a);
+    text.replace(QLatin1Char('&'), QLatin1String("&amp;"));   // first, or it double-escapes the rest
+    text.replace(QLatin1Char('<'), QLatin1String("&lt;"));
+    text.replace(QLatin1Char('>'), QLatin1String("&gt;"));
+    return out + QLatin1Char('>') + text + QStringLiteral("</pm:content>\n");
 }
 
 /**
@@ -428,15 +382,9 @@ QByteArray write(const ObjectRecord& a, const QByteArray& picture, const QString
                    .arg(num(a.box.width()), num(a.box.height()));
         svg += defsOf(words);
 
-        // The same parameter group every file of ours carries, so this one is re-typable in the same
-        // way — and so an import can tell it is ours (see read).
-        svg += QStringLiteral("  <g");
-        svg += groupAttrs(a.shape);
-        svg += attr(QStringLiteral("artwork"), a.artwork);
-        svg += attr(QStringLiteral("box"),
-                    QStringLiteral("%1,%2").arg(a.box.width()).arg(a.box.height()));
-        svg += letteringAttrs(a);
-        svg += QLatin1String(">\n");
+        // The same content every file of ours carries, so an import can tell it is ours (see read).
+        svg += contentElement(a);
+        svg += QStringLiteral("  <g>\n");
 
         Render::Item image;
         image.kind    = Render::Item::Kind::Image;
@@ -472,25 +420,11 @@ QByteArray write(const ObjectRecord& a, const QByteArray& picture, const QString
     const Render::List words      = Render::lettering(a, text, Geometry::textShadowOf(a, text));
     svg += defsOf(balloon) + defsOf(words);
 
-    // Everything the editor needs to re-solve this bubble, in a namespace no renderer looks at. Losing
-    // these leaves a perfectly good drawing that simply cannot be re-typed — the intended degradation.
-    svg += QStringLiteral("  <g");
-    svg += groupAttrs(a.shape);
-    svg += attr(QStringLiteral("box"),
-                QStringLiteral("%1,%2").arg(a.box.width()).arg(a.box.height()));
-    svg += attr(QStringLiteral("tails"), tailsToText(a.tails.items));
-    svg += attr(QStringLiteral("nextTail"), a.tails.nextLook.toText());
-    svg += letteringAttrs(a);
-    svg += groupAttrs(a.skin);
-    svg += groupAttrs(a.style);
-    svg += groupAttrs(a.texture);
-    svg += groupAttrs(a.effects);
-    svg += attr(QStringLiteral("styleSeed"), QString::number(a.styleSeed));
-    if (!a.presetOrigin.isEmpty()) {
-        svg += attr(QStringLiteral("presetUid"), a.presetOrigin.uid);
-        svg += attr(QStringLiteral("presetName"), a.presetOrigin.name);
-    }
-    svg += QLatin1String(">\n");
+    // A copy of the bubble's content, in a namespace no renderer looks at: what *Import* reads to make this
+    // file a bubble again in another workspace. Losing it leaves a perfectly good drawing that simply cannot be
+    // re-typed — the intended degradation.
+    svg += contentElement(a);
+    svg += QStringLiteral("  <g>\n");
 
     // Two groups: the balloon, and the lettering. The texture's filter hangs on the balloon's: a displacement
     // on the lettering would drag the words about with the outline.
@@ -519,6 +453,11 @@ ObjectRecord read(const QByteArray& svg, bool* ok)
         if (xml.readNext() != QXmlStreamReader::StartElement)
             continue;
 
+        // The content's copy (contentElement()).
+        if (xml.namespaceUri() == ns && xml.name() == QLatin1String("content"))
+            return fromContent(xml.readElementText().toStdString(), ok);
+
+        // A file written before the content: its old attributes (until the first release; see above).
         const QXmlStreamAttributes at = xml.attributes();
         if (!at.hasAttribute(ns, QStringLiteral("shape")))
             continue;   // not the parameter-carrying group — keep looking
@@ -563,6 +502,14 @@ ObjectRecord::Map readOverlays(const std::vector<Platemaker::Models::StripOverla
 {
     ObjectRecord::Map map;
     for (const auto& o : overlays) {
+        if (bool ok = false; !o.content.empty()) {
+            const ObjectRecord a = fromContent(o.content, &ok);
+            if (ok) {
+                map.insert(QString::fromStdString(o.uid), a);
+                continue;
+            }
+        }
+        // No content: an overlay saved before it was kept with the overlay, read from its own file once.
         if (o.assetPath.empty())
             continue;
         QFile f(QString::fromStdString(o.assetPath));
@@ -682,10 +629,26 @@ QString bakedFontFallback(const QByteArray& svg)
         if (xml.readNext() != QXmlStreamReader::StartElement)
             continue;
         const QXmlStreamAttributes at = xml.attributes();
-        if (at.hasAttribute(ns, QStringLiteral("shape")))   // the parameter group — the only place it goes
+        // The content's element, or an old file's parameter group: the only places it goes.
+        if ((xml.namespaceUri() == ns && xml.name() == QLatin1String("content")) || at.hasAttribute(ns, QStringLiteral("shape")))
             return at.value(ns, QStringLiteral("fontFallback")).toString();
     }
     return {};
+}
+
+QString contentOf(const ObjectRecord& a)
+{
+    ObjectRecord stored = a;
+    stored.text.family  = fileFontFamily(a);
+    return QString::fromUtf8(QJsonDocument(stored.toJson()).toJson(QJsonDocument::Compact));
+}
+
+ObjectRecord fromContent(const std::string& content, bool* ok)
+{
+    const QJsonDocument doc = QJsonDocument::fromJson(QByteArray::fromStdString(content));
+    if (ok)
+        *ok = doc.isObject();
+    return doc.isObject() ? ObjectRecord::fromJson(doc.object()) : ObjectRecord{};
 }
 
 } // namespace Svg

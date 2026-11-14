@@ -1561,7 +1561,7 @@ ShapeProperties curveOf(const QPainterPath& outline, const QRectF& body)
 
 QRectF balloonRect(const Balloon& b, const Body& body)
 {
-    const qreal sw = b.line.strokeWidth / 2.0;
+    const qreal sw = b.style.line.strokeWidth / 2.0;
     QRectF      r(body.place.pos, QSizeF(body.size));
     r.adjust(sw, sw, -sw, -sw);
     return r.normalized();

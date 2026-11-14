@@ -521,7 +521,7 @@ Part partAt(const Composition& c, const QPointF& local, qreal slack)
     // The stroke is painted centred on the silhouette, so the band a click can land on is the path
     // stroked to the pen's width — plus the slack, because a hairline outline is unhittable without it.
     QPainterPathStroker band;
-    band.setWidth(qMax(1.0, static_cast<qreal>(b.line.strokeWidth)) + slack * 2);
+    band.setWidth(qMax(1.0, static_cast<qreal>(b.style.line.strokeWidth)) + slack * 2);
     if (band.createStroke(shape).contains(local))
         return Part::Outline;
 
@@ -552,7 +552,7 @@ QRectF boundsOf(const Composition& c, const QPainterPath& silhouette, const QPai
     // The stroke straddles the path, so half of it lies outside, and the line's ink, the texture and the
     // shadow reach further; one more pixel keeps antialiasing off the edge of the buffer. A balloon's only:
     // what an object without one carries of them is not drawn.
-    const qreal balloon = c.balloon ? c.balloon->line.strokeWidth / 2.0 + styleMargin(*c.balloon) : 0.0;
+    const qreal balloon = c.balloon ? c.balloon->style.line.strokeWidth / 2.0 + styleMargin(*c.balloon) : 0.0;
     const qreal pad     = balloon + 1.0;
     r = r.adjusted(-pad, -pad, pad, pad);
 

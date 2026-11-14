@@ -310,11 +310,7 @@ Composition compositionOf(const ObjectRecord& a)
     if (a.hasSilhouette()) {
         Balloon b;
         b.id       = c.nextId++;
-        b.line     = a.style;
-        b.fill     = a.skin;
-        b.texture  = a.texture;
-        b.effects  = a.effects;
-        b.nextLook = a.tails.nextLook;
+        b.style    = {a.style, a.skin, a.texture, a.effects, a.tails.nextLook};
         Body body;
         body.id    = c.nextId++;
         body.size  = a.box;
@@ -356,11 +352,11 @@ ObjectRecord recordOf(const Composition& c)
     if (c.balloon) {
         // A record is one body, the first: none has more before the chain.
         const Balloon& b = *c.balloon;
-        a.style          = b.line;
-        a.skin           = b.fill;
-        a.texture        = b.texture;
-        a.effects        = b.effects;
-        a.tails.nextLook = b.nextLook;
+        a.style          = b.style.line;
+        a.skin           = b.style.fill;
+        a.texture        = b.style.texture;
+        a.effects        = b.style.effects;
+        a.tails.nextLook = b.style.nextLook;
         a.shape          = b.bodies.first().shape;
         a.box            = b.bodies.first().size;
         for (const BalloonTail& t : b.tails)
@@ -370,6 +366,52 @@ ObjectRecord recordOf(const Composition& c)
         a.box     = c.picture->size;
     }
     return a;
+}
+
+QJsonObject toJson(const BalloonStyle& s)
+{
+    return {
+        {QStringLiteral("line"),     groupToJson(s.line)},
+        {QStringLiteral("fill"),     groupToJson(s.fill)},
+        {QStringLiteral("texture"),  groupToJson(s.texture)},
+        {QStringLiteral("effects"),  groupToJson(s.effects)},
+        {QStringLiteral("nextTail"), groupToJson(s.nextLook)},
+    };
+}
+
+BalloonStyle balloonStyleFromJson(const QJsonObject& j)
+{
+    BalloonStyle s;
+    groupFromJson(s.line, j.value(QStringLiteral("line")).toObject());
+    groupFromJson(s.fill, j.value(QStringLiteral("fill")).toObject());
+    groupFromJson(s.texture, j.value(QStringLiteral("texture")).toObject());
+    groupFromJson(s.effects, j.value(QStringLiteral("effects")).toObject());
+    groupFromJson(s.nextLook, j.value(QStringLiteral("nextTail")).toObject());
+    return s;
+}
+
+QJsonObject toJson(const ShapeProperties& s)
+{
+    return groupToJson(s);
+}
+
+ShapeProperties shapeFromJson(const QJsonObject& j)
+{
+    ShapeProperties s;
+    groupFromJson(s, j);
+    return s;
+}
+
+QJsonObject toJson(const TextProperties& t)
+{
+    return groupToJson(t);
+}
+
+TextProperties textFromJson(const QJsonObject& j)
+{
+    TextProperties t;
+    groupFromJson(t, j);
+    return t;
 }
 
 QJsonObject toJson(const Composition& c)
@@ -383,7 +425,7 @@ QJsonObject toJson(const Composition& c)
                 {QStringLiteral("id"),    body.id},
                 {QStringLiteral("place"), placeToJson(body.place)},
                 {QStringLiteral("size"),  sizeToJson(body.size)},
-                {QStringLiteral("shape"), groupToJson(body.shape)},
+                {QStringLiteral("shape"), toJson(body.shape)},
             });
         QJsonArray tails;
         for (const BalloonTail& t : b.tails) {
@@ -393,14 +435,10 @@ QJsonObject toJson(const Composition& c)
             tails.append(o);
         }
         j.insert(QStringLiteral("balloon"), QJsonObject{
-            {QStringLiteral("id"),       b.id},
-            {QStringLiteral("line"),     groupToJson(b.line)},
-            {QStringLiteral("fill"),     groupToJson(b.fill)},
-            {QStringLiteral("texture"),  groupToJson(b.texture)},
-            {QStringLiteral("effects"),  groupToJson(b.effects)},
-            {QStringLiteral("nextTail"), groupToJson(b.nextLook)},
-            {QStringLiteral("bodies"),   bodies},
-            {QStringLiteral("tails"),    tails},
+            {QStringLiteral("id"),     b.id},
+            {QStringLiteral("style"),  toJson(b.style)},
+            {QStringLiteral("bodies"), bodies},
+            {QStringLiteral("tails"),  tails},
         });
     }
     if (c.picture)
@@ -412,7 +450,7 @@ QJsonObject toJson(const Composition& c)
         });
     QJsonArray words;
     for (const Words& w : c.words) {
-        QJsonObject o{{QStringLiteral("id"), w.id}, {QStringLiteral("text"), groupToJson(w.text)}};
+        QJsonObject o{{QStringLiteral("id"), w.id}, {QStringLiteral("text"), toJson(w.text)}};
         if (w.seat != 0) {
             o.insert(QStringLiteral("seat"), w.seat);
         } else {   // their own box, read only then
@@ -443,18 +481,14 @@ Composition compositionFromJson(const QJsonObject& j)
     if (const QJsonObject o = j.value(QStringLiteral("balloon")).toObject(); !o.isEmpty()) {
         Balloon b;
         b.id = id(o);
-        groupFromJson(b.line, o.value(QStringLiteral("line")).toObject());
-        groupFromJson(b.fill, o.value(QStringLiteral("fill")).toObject());
-        groupFromJson(b.texture, o.value(QStringLiteral("texture")).toObject());
-        groupFromJson(b.effects, o.value(QStringLiteral("effects")).toObject());
-        groupFromJson(b.nextLook, o.value(QStringLiteral("nextTail")).toObject());
+        b.style = balloonStyleFromJson(o.value(QStringLiteral("style")).toObject());
         for (const QJsonValue& v : o.value(QStringLiteral("bodies")).toArray()) {
             const QJsonObject bo = v.toObject();
             Body body;
             body.id    = id(bo);
             body.place = placeFromJson(bo.value(QStringLiteral("place")).toObject());
             sizeFromJson(bo.value(QStringLiteral("size")), body.size);
-            groupFromJson(body.shape, bo.value(QStringLiteral("shape")).toObject());
+            body.shape = shapeFromJson(bo.value(QStringLiteral("shape")).toObject());
             b.bodies.append(body);
         }
         for (const QJsonValue& v : o.value(QStringLiteral("tails")).toArray()) {
@@ -480,7 +514,7 @@ Composition compositionFromJson(const QJsonObject& j)
         w.seat  = o.value(QStringLiteral("seat")).toInt();
         w.place = placeFromJson(o.value(QStringLiteral("place")).toObject());
         sizeFromJson(o.value(QStringLiteral("box")), w.box);
-        groupFromJson(w.text, o.value(QStringLiteral("text")).toObject());
+        w.text  = textFromJson(o.value(QStringLiteral("text")).toObject());
         c.words.append(w);
     }
     const QJsonObject preset = j.value(QStringLiteral("preset")).toObject();
@@ -488,4 +522,109 @@ Composition compositionFromJson(const QJsonObject& j)
     // Never below an id in use, so an id is never given twice whatever the file says.
     c.nextId = qMax(j.value(QStringLiteral("nextId")).toInt(), lastId + 1);
     return c;
+}
+
+// ---------------------------------------------------------------------------
+// The property groups on a composition: the balloon's style, the first body, the first words
+// ---------------------------------------------------------------------------
+
+namespace {
+
+//! What @p c's balloon has of a style group, or the group's default with none.
+template <class Group>
+Group styleGroup(const Composition& c, Group BalloonStyle::* member)
+{
+    return c.balloon ? c.balloon->style.*member : Group{};
+}
+
+template <class Group>
+void setStyleGroup(Composition& c, Group BalloonStyle::* member, const Group& value)
+{
+    if (c.balloon)
+        c.balloon->style.*member = value;
+}
+
+} // namespace
+
+ShapeProperties ShapeProperties::from(const Composition& c)
+{
+    if (c.balloon && !c.balloon->bodies.isEmpty())
+        return c.balloon->bodies.first().shape;
+    ShapeProperties none;
+    none.kind = Kind::None;
+    return none;
+}
+
+void ShapeProperties::applyTo(Composition& c) const
+{
+    if (c.balloon && !c.balloon->bodies.isEmpty())
+        c.balloon->bodies.first().shape = *this;
+}
+
+SkinProperties SkinProperties::from(const Composition& c) { return styleGroup(c, &BalloonStyle::fill); }
+void           SkinProperties::applyTo(Composition& c) const { setStyleGroup(c, &BalloonStyle::fill, *this); }
+
+StyleProperties StyleProperties::from(const Composition& c) { return styleGroup(c, &BalloonStyle::line); }
+void            StyleProperties::applyTo(Composition& c) const { setStyleGroup(c, &BalloonStyle::line, *this); }
+
+TextureProperties TextureProperties::from(const Composition& c) { return styleGroup(c, &BalloonStyle::texture); }
+void              TextureProperties::applyTo(Composition& c) const { setStyleGroup(c, &BalloonStyle::texture, *this); }
+
+EffectProperties EffectProperties::from(const Composition& c) { return styleGroup(c, &BalloonStyle::effects); }
+void             EffectProperties::applyTo(Composition& c) const { setStyleGroup(c, &BalloonStyle::effects, *this); }
+
+TextProperties TextProperties::from(const Composition& c)
+{
+    return c.words.isEmpty() ? TextProperties{} : c.words.first().text;
+}
+
+void TextProperties::applyTo(Composition& c) const
+{
+    if (!c.words.isEmpty())
+        c.words.first().text = *this;
+}
+
+TailsProperties TailsProperties::from(const Composition& c)
+{
+    TailsProperties p;
+    if (!c.balloon)
+        return p;
+    p.nextLook = c.balloon->style.nextLook;
+    for (const BalloonTail& t : c.balloon->tails)
+        p.items.append(t.tail);
+    return p;
+}
+
+void TailsProperties::applyTo(Composition& c) const
+{
+    if (!c.balloon || c.balloon->bodies.isEmpty())
+        return;
+    Balloon& b      = *c.balloon;
+    b.style.nextLook = nextLook;
+    // A tail is kept by its place in the list, its id and its root with it; one past the end is new, from the
+    // first body; the ones the list no longer has go.
+    QList<BalloonTail> tails;
+    for (qsizetype i = 0; i < items.size(); ++i)
+        tails.append(i < b.tails.size() ? BalloonTail{b.tails.at(i).id, b.tails.at(i).root, items.at(i)}
+                                        : BalloonTail{c.nextId++, b.bodies.first().id, items.at(i)});
+    b.tails = tails;
+}
+
+TailProperties TailProperties::from(const Composition& c, int index)
+{
+    TailProperties p;
+    p.index = index;
+    if (c.balloon && index >= 0 && index < c.balloon->tails.size())
+        p.tail = c.balloon->tails.at(index).tail;
+    return p;
+}
+
+void TailProperties::applyTo(Composition& c) const
+{
+    if (!c.balloon || index < 0 || index >= c.balloon->tails.size())
+        return;
+    Tail& t = c.balloon->tails[index].tail;
+    if (t.look != tail.look)
+        c.balloon->style.nextLook = tail.look;   // a look picked: the next tail takes it
+    t = tail;
 }

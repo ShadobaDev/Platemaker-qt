@@ -20,39 +20,36 @@ const auto k_presetsKey = QStringLiteral("bubblePresets");
 const auto k_packMarker = QStringLiteral("platemakerBubblePresets");
 
 /**
- * \brief A preset is a record with its content removed.
- *
- * Dropping the keys rather than listing the ones to keep is what makes this stay correct: a styling
- * field added to ObjectRecord is carried by ().toJson() and lands in presets for free, while a new
- * *content* field is the only thing that needs a line here.
- * \param name  The name the artist gave this preset, which is what they pick it by.
+ * \brief A preset as JSON: `{name, uid, balloon: {shape, style}, lettering}`, the parts in the content's own form
+ *        (composition.hpp), the balloon left out for a text preset and the lettering's words always empty.
  */
 QJsonObject presetToJson(const BubblePreset& p)
 {
-    QJsonObject j = p.record.toJson();
-    for (const QString& key : {QStringLiteral("box"), QStringLiteral("tails"), QStringLiteral("seed")})
-        j.remove(key);
-    j.remove(QStringLiteral("preset"));   // a preset is nobody's copy
-    // The words, but not how they are lettered: the text group keeps its font, size and colours.
-    QJsonObject text = j.value(QStringLiteral("text")).toObject();
-    text.remove(QStringLiteral("text"));
-    j.insert(QStringLiteral("text"), text);
-    j.insert(QStringLiteral("name"), p.name);
-    j.insert(QStringLiteral("uid"), p.uid);
+    TextProperties lettering = p.lettering;
+    lettering.body.clear();
+    QJsonObject j{{QStringLiteral("name"), p.name}, {QStringLiteral("uid"), p.uid},
+                  {QStringLiteral("lettering"), toJson(lettering)}};
+    if (p.balloon)
+        j.insert(QStringLiteral("balloon"), QJsonObject{{QStringLiteral("shape"), toJson(p.balloon->shape)},
+                                                        {QStringLiteral("style"), toJson(p.balloon->style)}});
     return j;
 }
 
-/**
- * \brief The absent content keys fall back to ObjectRecord's own defaults, which is exactly what is wanted.
- * \param j  The JSON object representing the preset.
- * \return The BubblePreset constructed from the JSON object.
- */
+//! presetToJson()'s way back; what it leaves out is its default.
 BubblePreset presetFromJson(const QJsonObject& j)
 {
-    // One with no uid (written before presets had one) gets one now, kept from then on.
+    BubblePreset p;
+    p.name = j.value(QStringLiteral("name")).toString();
+    // One with no uid gets one now, kept from then on.
     const QString uid = j.value(QStringLiteral("uid")).toString();
-    return {j.value(QStringLiteral("name")).toString(), ObjectRecord::fromJson(j),
-            uid.isEmpty() ? QUuid::createUuid().toString(QUuid::WithoutBraces) : uid};
+    p.uid             = uid.isEmpty() ? QUuid::createUuid().toString(QUuid::WithoutBraces) : uid;
+    p.lettering       = textFromJson(j.value(QStringLiteral("lettering")).toObject());
+    if (const QJsonObject b = j.value(QStringLiteral("balloon")).toObject(); !b.isEmpty())
+        p.balloon = BalloonLook{shapeFromJson(b.value(QStringLiteral("shape")).toObject()),
+                                balloonStyleFromJson(b.value(QStringLiteral("style")).toObject())};
+    else
+        p.balloon.reset();
+    return p;
 }
 
 /**
@@ -79,6 +76,9 @@ QList<BubblePreset> presetsFromArray(const QJsonArray& arr)
     QList<BubblePreset> out;
     out.reserve(arr.size());
     for (const QJsonValue& v : arr) {
+        // A preset is its lettering at least: an entry without one is not a preset.
+        if (!v.toObject().contains(QStringLiteral("lettering")))
+            continue;
         BubblePreset p = presetFromJson(v.toObject());
         if (!p.name.isEmpty())
             out.append(std::move(p));   // an unnamed preset has nothing to pick it by
@@ -96,6 +96,9 @@ QList<BubblePreset> presetsFromArray(const QJsonArray& arr)
 QList<BubblePreset> builtinPresets()
 {
     QList<BubblePreset> out;
+    const auto add = [&out](const QString& name, const ObjectRecord& a, const char* uid) {
+        out.append(BubblePreset::of(name, a, QLatin1String(uid)));
+    };
 
     // The default is not a preset: it is what an object is with none picked, `ObjectRecord`'s own values,
     // and it is not listed. The built-ins are made from it.
@@ -107,12 +110,12 @@ QList<BubblePreset> builtinPresets()
     whisper.style.stroke.colour      = QColor(90, 90, 90);
     whisper.text.fill.colour = QColor(70, 70, 70);
     whisper.text.pixelSize   = 26;
-    out.append({PresetStore::tr("Whisper"), whisper, QStringLiteral("builtin-whisper")});
+    add(PresetStore::tr("Whisper"), whisper, "builtin-whisper");
 
     ObjectRecord thought = base;
     thought.shape            = Geometry::shapeTemplate("thought").shape;
     thought.style.strokeWidth = 4;
-    out.append({PresetStore::tr("Thought"), thought, QStringLiteral("builtin-thought")});
+    add(PresetStore::tr("Thought"), thought, "builtin-thought");
 
     ObjectRecord shout = base;
     shout.shape              = Geometry::shapeTemplate("shout").shape;
@@ -120,23 +123,23 @@ QList<BubblePreset> builtinPresets()
     shout.text.pixelSize     = 38;
     shout.style.strokeWidth   = 7;
     shout.texture.kind      = ObjectRecord::Texture::Rough;   // the Marker look: Rough's own defaults
-    out.append({PresetStore::tr("Shout"), shout, QStringLiteral("builtin-shout")});
+    add(PresetStore::tr("Shout"), shout, "builtin-shout");
 
     ObjectRecord flash = base;
     flash.shape.kind         = ObjectRecord::Shape::Ellipse;
     flash.text.bold          = true;
     flash.style.line         = ObjectRecord::Line::Flash;   // its strokes, on Auto, from the struct
-    out.append({PresetStore::tr("Flash"), flash, QStringLiteral("builtin-flash")});
+    add(PresetStore::tr("Flash"), flash, "builtin-flash");
 
     // The two looks Rough replaced: a felt-tip's long slow wobble, and ink's finer one that
     // bleeds.
     ObjectRecord marker = base;
     marker.texture.kind     = ObjectRecord::Texture::Rough;
-    out.append({PresetStore::tr("Marker"), marker, QStringLiteral("builtin-marker")});
+    add(PresetStore::tr("Marker"), marker, "builtin-marker");
 
     ObjectRecord ink = base;
     ink.texture              = Geometry::inkRough(ink.texture);
-    out.append({PresetStore::tr("Ink"), ink, QStringLiteral("builtin-ink")});
+    add(PresetStore::tr("Ink"), ink, "builtin-ink");
 
     ObjectRecord caption = base;
     caption.shape            = Geometry::shapeTemplate("caption").shape;
@@ -145,12 +148,43 @@ QList<BubblePreset> builtinPresets()
     caption.style.stroke.colour      = QColor(245, 245, 245);
     caption.style.strokeWidth = 2;
     caption.text.align       = Qt::AlignLeft;
-    out.append({PresetStore::tr("Caption"), caption, QStringLiteral("builtin-caption")});
+    add(PresetStore::tr("Caption"), caption, "builtin-caption");
 
     return out;
 }
 
 } // namespace
+
+BubblePreset BubblePreset::of(const QString& name, const ObjectRecord& a, const QString& uid)
+{
+    BubblePreset p;
+    p.name           = name;
+    p.uid            = uid;
+    p.lettering      = a.text;
+    p.lettering.body.clear();
+    if (a.hasSilhouette())
+        p.balloon = BalloonLook{a.shape, {a.style, a.skin, a.texture, a.effects, a.tails.nextLook}};
+    else
+        p.balloon.reset();
+    return p;
+}
+
+ObjectRecord BubblePreset::look() const
+{
+    ObjectRecord a;
+    a.text = lettering;
+    if (balloon) {
+        a.shape          = balloon->shape;
+        a.style          = balloon->style.line;
+        a.skin           = balloon->style.fill;
+        a.texture        = balloon->style.texture;
+        a.effects        = balloon->style.effects;
+        a.tails.nextLook = balloon->style.nextLook;
+    } else {
+        a.shape.kind = ObjectRecord::Shape::None;
+    }
+    return a;
+}
 
 PresetStore::PresetStore(QObject* parent)
     : QObject(parent)
@@ -188,10 +222,8 @@ void PresetStore::persist()
 int PresetStore::save(const QString& name, const ObjectRecord& look, bool replaceExisting,
                       int* existingIndex)
 {
-    BubblePreset p{name, look, QUuid::createUuid().toString(QUuid::WithoutBraces)};
-    p.record.tails.items.clear();
-    p.record.styleSeed    = 0;    // content, not style: a stored seed would clone one bubble's wobble
-    p.record.presetOrigin = {};   // a preset is nobody's copy
+    // A look only: no words, tails, seed (a stored one would clone one bubble's wobble) or origin.
+    BubblePreset p = BubblePreset::of(name, look, QUuid::createUuid().toString(QUuid::WithoutBraces));
 
     for (int i = m_builtinCount; i < m_presets.size(); ++i) {
         if (m_presets.at(i).name.compare(name, Qt::CaseInsensitive) != 0)
@@ -313,34 +345,32 @@ int PresetStore::restore(const PresetOrigin& origin, const ObjectRecord& look)
     QString name = origin.name.isEmpty() ? tr("Preset") : origin.name;
     for (int n = 2; taken(name); ++n)
         name = tr("%1 (%2)").arg(origin.name).arg(n);
-    BubblePreset p{name, look, origin.uid};
-    p.record.tails.items.clear();
-    p.record.styleSeed    = 0;
-    p.record.text.body.clear();
-    p.record.presetOrigin = {};
-    m_presets.append(p);
+    m_presets.append(BubblePreset::of(name, look, origin.uid));
     persist();
     return int(m_presets.size()) - 1;
 }
 
 ObjectRecord PresetStore::applied(const BubblePreset& p, const ObjectRecord& target, bool keepShape)
 {
-    ObjectRecord a = p.record;
-
     // A preset is a look, not a line: whatever the bubble says, how big it is and where its tails point
-    // survive being restyled. Without this, picking a preset would erase the lettering.
-    a.text.body   = target.text.body;
-    a.box         = target.box;
-    a.tails.items = target.tails.items;
-
-    if (keepShape)
-        a.shape = target.shape;
+    // survive being restyled, and so does its own seed (re-rolling it would make a placed marker outline
+    // jump for a reason the author did not ask for).
+    ObjectRecord a = target;
+    a.text         = p.lettering;
+    a.text.body    = target.text.body;
+    if (p.balloon) {
+        if (!keepShape)
+            a.shape = p.balloon->shape;
+        a.style          = p.balloon->style.line;
+        a.skin           = p.balloon->style.fill;
+        a.texture        = p.balloon->style.texture;
+        a.effects        = p.balloon->style.effects;
+        a.tails.nextLook = p.balloon->style.nextLook;
+    } else if (!keepShape) {
+        a.shape.kind = ObjectRecord::Shape::None;   // a text preset makes a text object; its balloon is left unread
+    }
     if (!a.hasSilhouette())
         a.tails.items.clear();
-
-    // Keep the object's own seed. Re-rolling it would make an already-placed marker outline jump for a
-    // reason the author did not ask for.
-    a.styleSeed = target.styleSeed;
     topUpStyleSeed(a);
 
     // Where the look came from, as a hint; *No preset* (no uid) leaves none.

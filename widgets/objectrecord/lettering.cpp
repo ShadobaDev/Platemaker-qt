@@ -59,7 +59,7 @@ QRectF textSafeArea(const Composition& c, const Words& w)
     // outline — an impact balloon's lettering bursting out of it.
     // An edge's teeth go in from the outline, so the area gives up their depth as well.
     const Balloon& b      = *c.balloon;
-    const qreal    inset  = b.line.strokeWidth + edgeInset(seat->shape);
+    const qreal    inset  = b.style.line.strokeWidth + edgeInset(seat->shape);
     const qreal    side   = inset + w.text.paddingSide;
     const qreal    top    = inset + w.text.paddingTop;
     const QRectF   usable = shapeInfo(seat->shape.kind).safeArea(seat->shape, balloonRect(b, *seat));

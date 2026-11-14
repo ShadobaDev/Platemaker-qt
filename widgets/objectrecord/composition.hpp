@@ -72,22 +72,34 @@ struct BalloonTail
     [[nodiscard]] bool operator!=(const BalloonTail& o) const { return !(*this == o); }
 };
 
-//! The background the words sit on: one style for all its parts, and the parts.
-struct Balloon
+//! How a balloon is drawn, whatever its shape: one value, so a preset carries it whole.
+struct BalloonStyle
 {
-    int               id = 0;
     StyleProperties   line;
     SkinProperties    fill;
     TextureProperties texture;
     EffectProperties  effects;
     TailLook          nextLook;   //!< The look a tail added to it takes (TailsProperties::nextLook).
+
+    [[nodiscard]] bool operator==(const BalloonStyle& o) const
+    {
+        return line == o.line && fill == o.fill && texture == o.texture && effects == o.effects
+            && nextLook == o.nextLook;
+    }
+    [[nodiscard]] bool operator!=(const BalloonStyle& o) const { return !(*this == o); }
+};
+
+//! The background the words sit on: one style for all its parts, and the parts.
+struct Balloon
+{
+    int                id = 0;
+    BalloonStyle       style;
     QList<Body>        bodies;
     QList<BalloonTail> tails;
 
     [[nodiscard]] bool operator==(const Balloon& o) const
     {
-        return id == o.id && line == o.line && fill == o.fill && texture == o.texture && effects == o.effects
-            && nextLook == o.nextLook && bodies == o.bodies && tails == o.tails;
+        return id == o.id && style == o.style && bodies == o.bodies && tails == o.tails;
     }
     [[nodiscard]] bool operator!=(const Balloon& o) const { return !(*this == o); }
 };
@@ -179,7 +191,7 @@ struct Composition
 /**
  * \brief The composition as its content: the JSON the workspace keeps with the overlay and the SVG copies.
  *
- * `{balloon: {line, fill, texture, effects, nextTail, bodies, tails}, picture, words, seed, preset, nextId}`, each
+ * `{balloon: {id, style, bodies, tails}, picture, words, seed, preset, nextId}`, each
  * group an object and each section an object inside its group (a section's numbers left out while they are their
  * defaults). A body is `{id, place, size, shape}`, a tail `{id, root, tip, width, bend, look}`, words
  * `{id, text, seat}` or, with no seat, `{id, text, place, box}`; a place is `{pos}`, with `rotation` and `scale`
@@ -191,5 +203,18 @@ struct Composition
  *        not read, nor a picture beside a balloon; `nextId` is never below an id in use.
  */
 [[nodiscard]] Composition compositionFromJson(const QJsonObject& j);
+
+/**
+ * @name The parts a preset is made of, in the content's form (toJson()): a balloon's style `{line, fill, texture,
+ *       effects, nextTail}`, a shape, a lettering. What a reader does not find is its default.
+ * @{
+ */
+[[nodiscard]] QJsonObject     toJson(const BalloonStyle& s);
+[[nodiscard]] BalloonStyle    balloonStyleFromJson(const QJsonObject& j);
+[[nodiscard]] QJsonObject     toJson(const ShapeProperties& s);
+[[nodiscard]] ShapeProperties shapeFromJson(const QJsonObject& j);
+[[nodiscard]] QJsonObject     toJson(const TextProperties& t);
+[[nodiscard]] TextProperties  textFromJson(const QJsonObject& j);
+/** @} */
 
 #endif // COMPOSITION_HPP

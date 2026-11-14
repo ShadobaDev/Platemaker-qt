@@ -191,6 +191,7 @@ struct Tail
 }
 
 struct ObjectRecord;
+struct Composition;
 
 /**
  * \brief What a part of the balloon is painted with: a colour, or a pattern of a second colour
@@ -465,6 +466,9 @@ struct SkinProperties
      * asserts that every property outside it is unchanged.
      */
     void applyTo(ObjectRecord& a) const;
+    //! The same on a composition (composition.cpp): the balloon's fill; nothing written where there is none.
+    [[nodiscard]] static SkinProperties from(const Composition& c);
+    void applyTo(Composition& c) const;
 
     [[nodiscard]] bool operator==(const SkinProperties& o) const { return Fields::equal(*this, o); }
     [[nodiscard]] bool operator!=(const SkinProperties& o) const { return !(*this == o); }
@@ -629,6 +633,9 @@ struct ShapeProperties
 
     [[nodiscard]] static ShapeProperties from(const ObjectRecord& a);
     void applyTo(ObjectRecord& a) const;
+    //! The same on a composition (composition.cpp): the first body's shape (kind None with no balloon); nothing written where there is none.
+    [[nodiscard]] static ShapeProperties from(const Composition& c);
+    void applyTo(Composition& c) const;
 
     [[nodiscard]] bool operator==(const ShapeProperties& o) const { return Fields::equal(*this, o); }
     [[nodiscard]] bool operator!=(const ShapeProperties& o) const { return !(*this == o); }
@@ -703,6 +710,9 @@ struct TextureProperties
 
     [[nodiscard]] static TextureProperties from(const ObjectRecord& a);
     void applyTo(ObjectRecord& a) const;
+    //! The same on a composition (composition.cpp): the balloon's texture; nothing written where there is none.
+    [[nodiscard]] static TextureProperties from(const Composition& c);
+    void applyTo(Composition& c) const;
 
     [[nodiscard]] bool operator==(const TextureProperties& o) const { return Fields::equal(*this, o); }
     [[nodiscard]] bool operator!=(const TextureProperties& o) const { return !(*this == o); }
@@ -972,6 +982,9 @@ struct StyleProperties
 
     [[nodiscard]] static StyleProperties from(const ObjectRecord& a);
     void applyTo(ObjectRecord& a) const;
+    //! The same on a composition (composition.cpp): the balloon's line; nothing written where there is none.
+    [[nodiscard]] static StyleProperties from(const Composition& c);
+    void applyTo(Composition& c) const;
 
     [[nodiscard]] bool operator==(const StyleProperties& o) const { return Fields::equal(*this, o); }
     [[nodiscard]] bool operator!=(const StyleProperties& o) const { return !(*this == o); }
@@ -1013,6 +1026,9 @@ struct EffectProperties
 
     [[nodiscard]] static EffectProperties from(const ObjectRecord& a);
     void applyTo(ObjectRecord& a) const;
+    //! The same on a composition (composition.cpp): the balloon's effects; nothing written where there is none.
+    [[nodiscard]] static EffectProperties from(const Composition& c);
+    void applyTo(Composition& c) const;
 
     [[nodiscard]] bool operator==(const EffectProperties& o) const { return Fields::equal(*this, o); }
     [[nodiscard]] bool operator!=(const EffectProperties& o) const { return !(*this == o); }
@@ -1119,6 +1135,9 @@ struct TextProperties
 
     [[nodiscard]] static TextProperties from(const ObjectRecord& a);
     void applyTo(ObjectRecord& a) const;
+    //! The same on a composition (composition.cpp): the first words'; nothing written where there is none.
+    [[nodiscard]] static TextProperties from(const Composition& c);
+    void applyTo(Composition& c) const;
 
     [[nodiscard]] bool operator==(const TextProperties& o) const { return Fields::equal(*this, o); }
     [[nodiscard]] bool operator!=(const TextProperties& o) const { return !(*this == o); }
@@ -1142,6 +1161,9 @@ struct TailsProperties
 
     [[nodiscard]] static TailsProperties from(const ObjectRecord& a);
     void applyTo(ObjectRecord& a) const;
+    //! The same on a composition (composition.cpp): the balloon's tails, each kept by its place in the list, a new one leaving the first body; nothing written where there is none.
+    [[nodiscard]] static TailsProperties from(const Composition& c);
+    void applyTo(Composition& c) const;
 
     [[nodiscard]] bool operator==(const TailsProperties& o) const
     {
@@ -1184,6 +1206,12 @@ struct TailProperties
      * @see from()
      */
     void applyTo(ObjectRecord& a) const;
+
+    /**
+     * \brief The same on a composition (composition.cpp): the balloon's tail at \p index; none without a balloon.
+     */
+    [[nodiscard]] static TailProperties from(const Composition& c, int index);
+    void applyTo(Composition& c) const;
 
     /**
      * \brief Compares two tail properties for equality.

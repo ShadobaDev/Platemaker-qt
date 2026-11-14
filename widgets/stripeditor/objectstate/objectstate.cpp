@@ -607,8 +607,8 @@ void ObjectState::refreshPresetPicker(bool bubble, bool text)
             const BubblePreset& p = presets.at(i);
             if (isTextPreset(p) != textKind)
                 continue;
-            m_presetPicker->addItem(QIcon(bubbleThumbnail(p.record.shape, p.record.skin.fill.colour,
-                                                          p.record.style.stroke.colour, p.record.text.fill.colour)),
+            m_presetPicker->addItem(QIcon(bubbleThumbnail(p.look().shape, p.look().skin.fill.colour,
+                                                          p.look().style.stroke.colour, p.look().text.fill.colour)),
                                     p.name, i);   // the store's index rides with the entry
         }
     }

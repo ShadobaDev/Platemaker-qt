@@ -52,14 +52,14 @@ TEST_F(Presets, ARenameKeepsTheLookAndRefusesATakenName)
     const int b = store.save(QStringLiteral("Rename test B"), placed(), /*replaceExisting=*/true);
     ASSERT_GE(a, store.builtinCount());
     ASSERT_GE(b, store.builtinCount());
-    const ObjectRecord look = store.presets().at(a).record;
+    const ObjectRecord look = store.presets().at(a).look();
 
     EXPECT_FALSE(store.rename(a, QStringLiteral("rename test b")));   // taken, whatever the case
     EXPECT_FALSE(store.rename(a, QStringLiteral("   ")));
     EXPECT_FALSE(store.rename(0, QStringLiteral("Rename test C")));   // a built-in
     EXPECT_TRUE(store.rename(a, QStringLiteral("  Rename test C ")));
     EXPECT_EQ(store.presets().at(a).name, QStringLiteral("Rename test C"));
-    EXPECT_EQ(store.presets().at(a).record, look);
+    EXPECT_EQ(store.presets().at(a).look(), look);
 
     store.remove(qMax(a, b));   // the application's settings, shared with the next run
     store.remove(qMin(a, b));
@@ -69,9 +69,9 @@ TEST_F(Presets, APresetBringsItsPaddingAndLineSpacing)
 {
     const PresetStore store;
     BubblePreset      p = store.presets().first();
-    textOf(p.record).paddingSide = -4;
-    textOf(p.record).paddingTop  = 12;
-    textOf(p.record).lineSpacing = 90;
+    p.lettering.paddingSide = -4;
+    p.lettering.paddingTop  = 12;
+    p.lettering.lineSpacing = 90;
 
     const ObjectRecord look = PresetStore::applied(p, placed(), /*keepShape=*/true);
     EXPECT_EQ(textOf(look).paddingSide, -4);
@@ -114,7 +114,7 @@ TEST_F(Presets, APresetKeepsItsUidAndStoresNoOrigin)
     const int     at  = store.save(QStringLiteral("Uid test"), look, /*replaceExisting=*/true);
     const QString uid = store.presets().at(at).uid;
     EXPECT_FALSE(uid.isEmpty());
-    EXPECT_TRUE(originOf(store.presets().at(at).record).isEmpty());
+    EXPECT_TRUE(originOf(store.presets().at(at).look()).isEmpty());
 
     skinOf(look).fill.colour = QColor(Qt::red);
     EXPECT_EQ(store.save(QStringLiteral("Uid test"), look, /*replaceExisting=*/true), at);
@@ -130,6 +130,10 @@ TEST_F(Presets, APresetKeepsItsUidAndStoresNoOrigin)
     ASSERT_EQ(store.indexOf(uid), -1);
     ASSERT_GE(store.importPack(pack, &error), 1) << error.toStdString();
     EXPECT_GE(store.indexOf(uid), store.builtinCount());
+    // The look comes back as it was saved: a balloon's shape and style, and the lettering without its words.
+    BubblePreset saved = BubblePreset::of(QStringLiteral("Uid test renamed"), look, uid);
+    EXPECT_TRUE(store.presets().at(store.indexOf(uid)).look() == saved.look());
+    EXPECT_TRUE(store.presets().at(store.indexOf(uid)).lettering.body.isEmpty());
 
     store.remove(store.indexOf(uid));   // the application's settings, shared with the next run
 }

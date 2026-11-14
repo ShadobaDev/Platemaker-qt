@@ -117,8 +117,8 @@ struct ObjectRecord
     [[nodiscard]] bool hasTail() const { return hasSilhouette() && !tails.items.isEmpty(); }
 
     // --- Persistence: the record as one JSON object, a group an object and a section an object in it: what a
-    // preset is, and what a content saved before the composition's was (recordsvg.hpp). The content itself is the
-    // composition's (composition.hpp). --------------------------------------------------------------------
+    // content saved before the composition's was (recordsvg.hpp). The content itself is the composition's
+    // (composition.hpp). --------------------------------------------------------------------
     [[nodiscard]] QJsonObject     toJson() const;
     [[nodiscard]] static ObjectRecord fromJson(const QJsonObject& j);
     //! A whole map, keyed by overlay uid — the shape the undo snapshot stores.

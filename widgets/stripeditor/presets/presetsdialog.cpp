@@ -197,8 +197,8 @@ void PresetsDialog::rebuildList(const QString& select)
         if (index < 0 || p.uid == select)
             index = i;
         auto* item = new QListWidgetItem(
-            QIcon(bubbleThumbnail(p.record.shape, p.record.skin.fill.colour, p.record.style.stroke.colour,
-                                  p.record.text.fill.colour)),
+            QIcon(bubbleThumbnail(p.look().shape, p.look().skin.fill.colour, p.look().style.stroke.colour,
+                                  p.look().text.fill.colour)),
             p.name, ui->listPresets);
         if (!m_store.isCustom(i)) {
             QFont f = item->font();
@@ -224,7 +224,7 @@ void PresetsDialog::showPreset(int index)
 {
     m_shown = index;
     const bool any = index >= 0 && index < m_store.presets().size();
-    m_edited = any ? m_store.presets().at(index).record : ObjectRecord();
+    m_edited = any ? m_store.presets().at(index).look() : ObjectRecord();
     m_populating = true;
     m_groups.bind(m_edited);
     m_populating = false;
@@ -278,7 +278,7 @@ void PresetsDialog::refreshButtons()
 
 bool PresetsDialog::dirty() const
 {
-    return m_store.isCustom(m_shown) && !(stored(m_edited) == stored(m_store.presets().at(m_shown).record));
+    return m_store.isCustom(m_shown) && !(stored(m_edited) == stored(m_store.presets().at(m_shown).look()));
 }
 
 bool PresetsDialog::settleEdits()
@@ -316,10 +316,10 @@ void PresetsDialog::duplicate()
         return;
     const BubblePreset source = m_store.presets().at(m_shown);
     QString name = tr("%1 copy").arg(source.name);
-    int     at   = m_store.save(name, source.record, /*replaceExisting=*/false);
+    int     at   = m_store.save(name, source.look(), /*replaceExisting=*/false);
     for (int n = 2; at < 0; ++n) {
         name = tr("%1 copy %2").arg(source.name).arg(n);
-        at   = m_store.save(name, source.record, /*replaceExisting=*/false);
+        at   = m_store.save(name, source.look(), /*replaceExisting=*/false);
     }
     rebuildList(m_store.presets().at(at).uid);
 }
@@ -348,7 +348,7 @@ void PresetsDialog::remove()
                                   .arg(m_store.presets().at(m_shown).name))
         != QMessageBox::Yes)
         return;
-    m_edited = m_store.presets().at(m_shown).record;   // nothing left unsaved to ask about
+    m_edited = m_store.presets().at(m_shown).look();   // nothing left unsaved to ask about
     m_store.remove(m_shown);
 }
 

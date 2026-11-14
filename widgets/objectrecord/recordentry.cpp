@@ -90,8 +90,8 @@ QRectF textArea(const ObjectRecord& a)
 QPainterPath fillTone(const ObjectRecord& a, const QPainterPath& silhouette)
 {
     Balloon b;
-    b.fill = a.skin;
-    b.line = a.style;
+    b.style.fill = a.skin;
+    b.style.line = a.style;
     b.bodies.append({0, {}, a.box, a.shape});
     return fillTone(b, silhouette);
 }

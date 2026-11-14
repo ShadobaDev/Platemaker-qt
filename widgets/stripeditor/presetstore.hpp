@@ -5,33 +5,54 @@
 #include <QObject>
 #include <QString>
 
+#include "composition.hpp"
 #include "objectrecord.hpp"
+
+#include <optional>
 
 namespace StripEdit {
 
-/**
- * \brief A named look, with nothing said in it: shape, colours, stroke, line style, font.
- *
- * Everything a bubble *is*, minus everything it *says* — no text, no box size, no tails, no placement,
- * no style seed. That split is the whole idea: applying one restyles an object without touching the
- * lettering, and picking one sets what the next placement starts from.
- */
-struct BubblePreset
+//! A preset's balloon: the shape its bodies take and the style it is drawn in.
+struct BalloonLook
 {
-    QString      name;      //!< What the artist calls this look, which is what they pick it by.
-    ObjectRecord record;    //!< The look itself, with lettering, box, tails and origin cleared out.
-    //! Made when it is first saved and kept through a rename, an edit, an export and an import: what an
-    //! object's PresetOrigin names it by. A built-in's is fixed in code.
-    QString      uid;
+    ShapeProperties shape;
+    BalloonStyle    style;
+
+    [[nodiscard]] bool operator==(const BalloonLook& o) const { return shape == o.shape && style == o.style; }
 };
 
 /**
- * \brief Whether @p p is a text preset: a look with no shape, saved from a text object. Every other preset is
- *        a bubble preset. Read from the look, so there is no kind to store or to keep in step with it.
+ * \brief A named look, with nothing said in it: a balloon's shape and style, and how words are lettered.
+ *
+ * Everything a bubble *is*, minus everything it *says* — no words, no size, no tails, no placement, no style
+ * seed. That split is the whole idea: applying one restyles an object without touching the lettering, and
+ * picking one sets what the next placement starts from. A text preset has no balloon.
+ */
+struct BubblePreset
+{
+    QString                    name;   //!< What the artist calls this look, which is what they pick it by.
+    std::optional<BalloonLook> balloon = BalloonLook{};   //!< None for a text preset; the default balloon by default.
+    TextProperties             lettering;   //!< How the words are set; its words themselves are empty.
+    //! Made when it is first saved and kept through a rename, an edit, an export and an import: what an
+    //! object's PresetOrigin names it by. A built-in's is fixed in code.
+    QString                    uid;
+
+    /**
+     * \brief @p a's look: its shape and style if it has a balloon, its lettering without the words.
+     */
+    [[nodiscard]] static BubblePreset of(const QString& name, const ObjectRecord& a, const QString& uid = {});
+
+    //! The preset as a record with nothing said in it, the default's box: what the presets dialog edits.
+    [[nodiscard]] ObjectRecord look() const;
+};
+
+/**
+ * \brief Whether @p p is a text preset: a look with no balloon, saved from a text object. Every other preset is
+ *        a bubble preset.
  */
 [[nodiscard]] inline bool isTextPreset(const BubblePreset& p)
 {
-    return p.record.shape.kind == ObjectRecord::Shape::None;
+    return !p.balloon;
 }
 
 /**

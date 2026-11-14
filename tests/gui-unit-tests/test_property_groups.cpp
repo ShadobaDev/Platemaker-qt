@@ -415,6 +415,22 @@ void expectUntouched(Group applied, const ObjectRecord& before, const ObjectReco
 // One test per group: it writes what it owns, and nothing else.
 // ---------------------------------------------------------------------------
 
+namespace {
+
+/**
+ * \brief @p g applied to @p before's composition is @p g applied to the record (@p after), and reads back the same:
+ *        a group's two forms are one, so the editor can move from the one to the other.
+ */
+template <class G>
+void expectTheSameOnAComposition(const G& g, const ObjectRecord& before, const ObjectRecord& after)
+{
+    Composition c = compositionOf(before);
+    g.applyTo(c);
+    EXPECT_TRUE(recordOf(c) == after);
+}
+
+} // namespace
+
 TEST(PropertyGroupOwnership, Skin)
 {
     const ObjectRecord before = loadedRecord();
@@ -428,6 +444,7 @@ TEST(PropertyGroupOwnership, Skin)
     EXPECT_EQ(skinOf(after), s);
     EXPECT_EQ(SkinProperties::from(after), s);
     expectUntouched(Group::Skin, before, after);
+    expectTheSameOnAComposition(s, before, after);
 }
 
 TEST(PropertyGroupOwnership, Shape)
@@ -444,6 +461,7 @@ TEST(PropertyGroupOwnership, Shape)
     EXPECT_EQ(shapeOf(after), s);
     EXPECT_EQ(ShapeProperties::from(after), s);
     expectUntouched(Group::Shape, before, after);
+    expectTheSameOnAComposition(s, before, after);
 }
 
 TEST(PropertyGroupOwnership, Style)
@@ -461,6 +479,7 @@ TEST(PropertyGroupOwnership, Style)
     EXPECT_EQ(styleOf(after), s);
     EXPECT_EQ(StyleProperties::from(after), s);
     expectUntouched(Group::Style, before, after);
+    expectTheSameOnAComposition(s, before, after);
 }
 
 TEST(PropertyGroupOwnership, Texture)
@@ -476,6 +495,7 @@ TEST(PropertyGroupOwnership, Texture)
     EXPECT_EQ(textureOf(after), t);
     EXPECT_EQ(TextureProperties::from(after), t);
     expectUntouched(Group::Texture, before, after);
+    expectTheSameOnAComposition(t, before, after);
 }
 
 //! The seed is part of the style and deliberately not part of its group — see StyleProperties.
@@ -507,6 +527,7 @@ TEST(PropertyGroupOwnership, Effects)
     EXPECT_EQ(effectsOf(after), e);
     EXPECT_EQ(EffectProperties::from(after), e);
     expectUntouched(Group::Effects, before, after);
+    expectTheSameOnAComposition(e, before, after);
 }
 
 TEST(PropertyGroupOwnership, Text)
@@ -536,6 +557,7 @@ TEST(PropertyGroupOwnership, Text)
     EXPECT_EQ(textOf(after), s);
     EXPECT_EQ(TextProperties::from(after), s);
     expectUntouched(Group::Text, before, after);
+    expectTheSameOnAComposition(s, before, after);
 }
 
 TEST(PropertyGroupOwnership, Tails)
@@ -554,6 +576,7 @@ TEST(PropertyGroupOwnership, Tails)
     EXPECT_EQ(tailsOf(after), s);
     EXPECT_EQ(TailsProperties::from(after), s);
     expectUntouched(Group::Tails, before, after);
+    expectTheSameOnAComposition(s, before, after);
 }
 
 /**
@@ -587,6 +610,7 @@ TEST(PropertyGroupOwnership, OneTail)
     EXPECT_EQ(TailProperties::from(after, 1), edited);
     EXPECT_EQ(tailsOf(after).nextLook, tailsOf(before).nextLook);   // a width and a bend are not a look picked
     expectUntouched(Group::Tails, before, after);   // and nothing outside the tails
+    expectTheSameOnAComposition(edited, before, after);
 
     // Its look picked: the balloon's next tail takes it, whichever was picked last.
     TailProperties looked = TailProperties::from(after, 2);
@@ -613,6 +637,7 @@ TEST(PropertyGroupOwnership, OneTailOutOfRangeWritesNothing)
     gone.applyTo(after);
 
     expectUntouched(Group::Nothing, before, after);   // not even the tails
+    expectTheSameOnAComposition(gone, before, after);
 }
 
 /**
@@ -667,7 +692,8 @@ TEST(PropertyGroupPersistence, TheContentIsAGroupAnObject)
     const QJsonObject  balloon = j.value(QStringLiteral("balloon")).toObject();
     const QJsonObject  body    = balloon.value(QStringLiteral("bodies")).toArray().first().toObject();
     const QJsonObject  words   = j.value(QStringLiteral("words")).toArray().first().toObject();
-    const auto group = [&](const char* name) { return balloon.value(QLatin1String(name)).toObject(); };
+    const QJsonObject  style   = balloon.value(QStringLiteral("style")).toObject();
+    const auto group = [&](const char* name) { return style.value(QLatin1String(name)).toObject(); };
     const QJsonObject text = words.value(QStringLiteral("text")).toObject();
 
     EXPECT_EQ(body.value(QStringLiteral("size")).toArray(), (QJsonArray{boxOf(a).width(), boxOf(a).height()}));
@@ -697,7 +723,8 @@ TEST(PropertyGroupPersistence, TheContentIsAGroupAnObject)
 
     // At its defaults, a section is left out whole; a kind, a colour, a width are written all the same.
     const QJsonObject plain = toJson(compositionOf(ObjectRecord()));
-    const QJsonObject line  = plain.value(QStringLiteral("balloon")).toObject().value(QStringLiteral("line")).toObject();
+    const QJsonObject line  = plain.value(QStringLiteral("balloon")).toObject().value(QStringLiteral("style")).toObject()
+                                  .value(QStringLiteral("line")).toObject();
     for (const char* section : {"flash", "brush", "drybrush", "dash", "multi", "sketch", "dryInk"})
         EXPECT_FALSE(line.contains(QLatin1String(section))) << section;
     EXPECT_FALSE(plain.value(QStringLiteral("balloon")).toObject().value(QStringLiteral("bodies")).toArray().first()

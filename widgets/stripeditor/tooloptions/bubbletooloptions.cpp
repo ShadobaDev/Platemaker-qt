@@ -220,8 +220,8 @@ void BubbleToolOptions::refreshPresetCombo()
         const BubblePreset& p = presets.at(i);
         if (isTextPreset(p) != textTool)
             continue;
-        m_presetCombo->addItem(QIcon(bubbleThumbnail(p.record.shape, p.record.skin.fill.colour,
-                                                     p.record.style.stroke.colour, p.record.text.fill.colour)),
+        m_presetCombo->addItem(QIcon(bubbleThumbnail(p.look().shape, p.look().skin.fill.colour,
+                                                     p.look().style.stroke.colour, p.look().text.fill.colour)),
                                p.name, i);
         if (p.uid == uid)
             picked = m_presetCombo->count() - 1;

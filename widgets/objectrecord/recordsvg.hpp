@@ -26,6 +26,7 @@
 #include <string>
 #include <vector>
 
+#include "composition.hpp"
 #include "objectrecord.hpp"
 
 namespace Svg {
@@ -49,21 +50,24 @@ namespace Svg {
 inline constexpr char k_pmNamespace[] = "https://github.com/ShadobaDev/Platemaker-qt/ns/artifact/1";
 
 /**
- * \brief Serialises \p a to a standalone SVG document.
+ * \brief Serialises \p c to a standalone SVG document.
  *
- * The viewBox is the record's box, in strip-scale pixels, so the library rasterises it 1:1 at scale
+ * The viewBox is what \p c draws (Geometry::bounds()), or a picture's own size, in strip-scale pixels, so the library rasterises it 1:1 at scale
  * 1.0 and re-renders it sharp at any other scale.
  *
- * \param picture For an **artwork** record only: the bytes of the picture it names. They are embedded
+ * \param picture For a composition with a **picture** only: the bytes of the file it names. They are embedded
  *                as a data URI rather than referenced, because the library hands the renderer a buffer
  *                with no base path (`vips_svgload_buffer` → librsvg), so a relative href has nothing to
  *                resolve against and would render as nothing. Embedding also keeps the workspace
  *                self-contained, which is the same reason the import copies the file in the first place.
  * \param mime    The picture's media type, e.g. `image/png`.
  *
- * An artwork record with no bytes returns empty: a wrapper that cannot draw its picture is worse than
+ * A picture with no bytes returns empty: a wrapper that cannot draw its picture is worse than
  * no file at all, since the object would silently render as its lettering alone.
  */
+[[nodiscard]] QByteArray write(const Composition& c, const QByteArray& picture = {},
+                                       const QString& mime = {});
+//! write() of compositionOf(@p a): the record's way in, until it goes (recordentry.cpp).
 [[nodiscard]] QByteArray write(const ObjectRecord& a, const QByteArray& picture = {},
                                        const QString& mime = {});
 
@@ -72,6 +76,8 @@ inline constexpr char k_pmNamespace[] = "https://github.com/ShadobaDev/Platemake
  *        (toJson(const Composition&)), the lettering's family the one the outlines were set for (the default's own
  *        name for an empty one).
  */
+[[nodiscard]] QString contentOf(const Composition& c);
+//! contentOf() of compositionOf(@p a): the record's way in, until it goes (recordentry.cpp).
 [[nodiscard]] QString contentOf(const ObjectRecord& a);
 
 /**

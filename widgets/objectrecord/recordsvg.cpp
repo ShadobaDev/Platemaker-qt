@@ -233,9 +233,9 @@ namespace {
 //! The family a file records: the record's own, or — for an empty one, "the default" — the default's name
 //! on the machine that drew it. The outlines were set in that font, and a file that says so is one another
 //! machine can recognise as missing it, rather than silently re-set in its own default.
-QString fileFontFamily(const ObjectRecord& a)
+QString fileFontFamily(const TextProperties& t)
 {
-    return a.text.family.isEmpty() ? Geometry::defaultFamily() : a.text.family;
+    return t.family.isEmpty() ? Geometry::defaultFamily() : t.family;
 }
 
 /**
@@ -246,13 +246,14 @@ QString fileFontFamily(const ObjectRecord& a)
  * in when that family was not installed, so the file can be re-set once it is (MainWindow's heal). It says
  * what this file's drawing is, not what the bubble is, so it is the file's, not the content's.
  */
-QString contentElement(const ObjectRecord& a)
+QString contentElement(const Composition& c)
 {
     QString out = QStringLiteral("  <pm:content");
-    if (const QString fallback = Geometry::fontFallback(a); !fallback.isEmpty())
-        out += QStringLiteral(" pm:fontFallback=\"") + esc(fallback) + QLatin1Char('"');
+    if (const Words* w = wordsOf(c))
+        if (const QString fallback = Geometry::fontFallback(*w); !fallback.isEmpty())
+            out += QStringLiteral(" pm:fontFallback=\"") + esc(fallback) + QLatin1Char('"');
     // Element text, not an attribute: only what would end it or start markup is escaped, so the JSON reads.
-    QString text = contentOf(a);
+    QString text = contentOf(c);
     text.replace(QLatin1Char('&'), QLatin1String("&amp;"));   // first, or it double-escapes the rest
     text.replace(QLatin1Char('<'), QLatin1String("&lt;"));
     text.replace(QLatin1Char('>'), QLatin1String("&gt;"));
@@ -361,37 +362,39 @@ QString itemsOf(const QList<Render::Item>& items, const QString& indent)
 
 } // namespace
 
-QByteArray write(const ObjectRecord& a, const QByteArray& picture, const QString& mime)
+QByteArray write(const Composition& c, const QByteArray& picture, const QString& mime)
 {
-    if (a.box.isEmpty())
+    if (frameOf(c).isEmpty())
         return {};
+    const Words* w = wordsOf(c);
 
     // **A picture with words over it.** The geometry is the picture's own box — no tails to reach past
     // it — so the viewBox is the box, and the lettering is laid out in it exactly as a shapeless
     // object's is (textSafeArea() gives the whole box when there is no silhouette of ours).
-    if (a.isArtwork()) {
+    if (c.picture) {
         if (picture.isEmpty() || mime.isEmpty())
             return {};
-        const QPainterPath text  = Geometry::textOutline(a);
-        const Render::List words = Render::lettering(a, text, Geometry::textShadowOf(a, text));
+        const QSize        size  = c.picture->size;
+        const QPainterPath text  = w ? Geometry::textOutline(c, *w) : QPainterPath();
+        const Render::List words = w ? Render::lettering(*w, text, Geometry::textShadowOf(*w, text)) : Render::List();
 
         QString svg;
         svg += QStringLiteral("<svg xmlns=\"http://www.w3.org/2000/svg\" "
                               "xmlns:xlink=\"http://www.w3.org/1999/xlink\" xmlns:pm=\"%1\"\n"
                               "     width=\"%2\" height=\"%3\" viewBox=\"0 0 %2 %3\">\n")
                    .arg(QLatin1String(k_pmNamespace))
-                   .arg(num(a.box.width()), num(a.box.height()));
+                   .arg(num(size.width()), num(size.height()));
         svg += defsOf(words);
 
         // The same content every file of ours carries, so an import can tell it is ours (see read).
-        svg += contentElement(a);
+        svg += contentElement(c);
         svg += QStringLiteral("  <g>\n");
 
         Render::Item image;
         image.kind    = Render::Item::Kind::Image;
         image.picture = picture;
         image.mime    = mime;
-        image.size    = QSizeF(a.box);
+        image.size    = QSizeF(size);
         svg += itemOf(image, QStringLiteral("    "));
         svg += itemsOf(words.items, QStringLiteral("    "));
 
@@ -403,7 +406,7 @@ QByteArray write(const ObjectRecord& a, const QByteArray& picture, const QString
     // the balloon, and SVG takes a negative viewBox origin natively — so the file itself carries the
     // offset and the placement stays a plain top-left. width/height are that extent, so the library
     // rasterises it 1:1 at scale 1.0.
-    const QRectF bounds = Geometry::bounds(a);
+    const QRectF bounds = Geometry::bounds(c);
     if (bounds.isEmpty())
         return {};
 
@@ -415,16 +418,16 @@ QByteArray write(const ObjectRecord& a, const QByteArray& picture, const QString
                     num(bounds.left()),  num(bounds.top()));
 
     // The balloon and the words, as the painter draws them (renderlist.hpp); their definitions first.
-    const QPainterPath silhouette = Geometry::silhouette(a);
-    const QPainterPath text       = Geometry::textOutline(a);
-    const Render::List balloon    = Render::balloon(a, silhouette);
-    const Render::List words      = Render::lettering(a, text, Geometry::textShadowOf(a, text));
+    const QPainterPath silhouette = c.balloon ? Geometry::silhouette(*c.balloon, c.seed) : QPainterPath();
+    const QPainterPath text       = w ? Geometry::textOutline(c, *w) : QPainterPath();
+    const Render::List balloon    = c.balloon ? Render::balloon(*c.balloon, c.seed, silhouette) : Render::List();
+    const Render::List words      = w ? Render::lettering(*w, text, Geometry::textShadowOf(*w, text)) : Render::List();
     svg += defsOf(balloon) + defsOf(words);
 
     // A copy of the bubble's content, in a namespace no renderer looks at: what *Import* reads to make this
     // file a bubble again in another workspace. Losing it leaves a perfectly good drawing that simply cannot be
     // re-typed — the intended degradation.
-    svg += contentElement(a);
+    svg += contentElement(c);
     svg += QStringLiteral("  <g>\n");
 
     // Two groups: the balloon, and the lettering. The texture's filter hangs on the balloon's: a displacement
@@ -637,11 +640,12 @@ QString bakedFontFallback(const QByteArray& svg)
     return {};
 }
 
-QString contentOf(const ObjectRecord& a)
+QString contentOf(const Composition& c)
 {
-    ObjectRecord stored = a;
-    stored.text.family  = fileFontFamily(a);
-    return QString::fromUtf8(QJsonDocument(toJson(compositionOf(stored))).toJson(QJsonDocument::Compact));
+    Composition stored = c;
+    for (Words& w : stored.words)
+        w.text.family = fileFontFamily(w.text);
+    return QString::fromUtf8(QJsonDocument(toJson(stored)).toJson(QJsonDocument::Compact));
 }
 
 ObjectRecord fromContent(const std::string& content, bool* ok)

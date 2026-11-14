@@ -49,18 +49,20 @@ constexpr qreal k_minTextHalf   = 1.0;
  *        letters do not touch the stroke, and by the author's paddings: the side one left and right, the
  *        top one at the top and, mirrored, at the bottom, which the block is centred between.
  */
-QRectF textSafeArea(const ObjectRecord& a, const QRectF& body)
+QRectF textSafeArea(const Composition& c, const Words& w)
 {
-    if (!a.hasSilhouette())
-        return QRectF(0, 0, a.box.width(), a.box.height());
+    const Body* seat = seatOf(c, w);
+    if (!seat)
+        return QRectF(w.place.pos, QSizeF(w.box));
 
     // The author's paddings (TextProperties), on top of the stroke. Negative widens the area past the
     // outline — an impact balloon's lettering bursting out of it.
     // An edge's teeth go in from the outline, so the area gives up their depth as well.
-    const qreal  inset  = a.style.strokeWidth + edgeInset(a.shape);
-    const qreal  side   = inset + a.text.paddingSide;
-    const qreal  top    = inset + a.text.paddingTop;
-    const QRectF usable = shapeInfo(a.shape.kind).safeArea(a.shape, body);
+    const Balloon& b      = *c.balloon;
+    const qreal    inset  = b.line.strokeWidth + edgeInset(seat->shape);
+    const qreal    side   = inset + w.text.paddingSide;
+    const qreal    top    = inset + w.text.paddingTop;
+    const QRectF   usable = shapeInfo(seat->shape.kind).safeArea(seat->shape, balloonRect(b, *seat));
     return usable.adjusted(side, top, -side, -top);
 }
 
@@ -71,32 +73,32 @@ QRectF textSafeArea(const ObjectRecord& a, const QRectF& body)
  * a long word grows its box rather than being split. @p width only places each line according to the
  * alignment; a line wider than it overflows, it is not re-broken.
  */
-void layOutText(QTextDocument& doc, const ObjectRecord& a, qreal width)
+void layOutText(QTextDocument& doc, const TextProperties& t, qreal width)
 {
     // A family that is not installed is not handed to QFont: QFont would substitute through the platform's
     // own table (on Windows, "MS Shell Dlg 2" → Tahoma), which is a different stand-in from the one an
     // empty family gets. Leaving it unset gives both the application's default font, so "no font chosen"
     // and "the chosen font is missing" look the same, and Geometry::fontFallback() can name it.
     QFont f;
-    if (!a.text.family.isEmpty() && QFontDatabase::hasFamily(a.text.family))
-        f.setFamily(a.text.family);
-    f.setPixelSize(qMax(1, a.text.pixelSize));
-    f.setBold(a.text.bold);
+    if (!t.family.isEmpty() && QFontDatabase::hasFamily(t.family))
+        f.setFamily(t.family);
+    f.setPixelSize(qMax(1, t.pixelSize));
+    f.setBold(t.bold);
 
     QTextOption opt;
-    opt.setAlignment(static_cast<Qt::Alignment>(a.text.align));
+    opt.setAlignment(static_cast<Qt::Alignment>(t.align));
     opt.setWrapMode(QTextOption::NoWrap);
 
     doc.setDefaultFont(f);
     doc.setDefaultTextOption(opt);
     doc.setDocumentMargin(0);
-    doc.setPlainText(a.text.body);
+    doc.setPlainText(t.body);
 
     // The font's own pitch is left exactly as it is at 100 %: a proportional height of 100 is not the
     // same arithmetic as the default single height, and the default is what every bubble so far used.
-    if (a.text.lineSpacing != 100) {
+    if (t.lineSpacing != 100) {
         QTextBlockFormat pitch;
-        pitch.setLineHeight(qMax(1, a.text.lineSpacing), QTextBlockFormat::ProportionalHeight);
+        pitch.setLineHeight(qMax(1, t.lineSpacing), QTextBlockFormat::ProportionalHeight);
         QTextCursor all(&doc);
         all.select(QTextCursor::Document);
         all.mergeBlockFormat(pitch);
@@ -106,9 +108,10 @@ void layOutText(QTextDocument& doc, const ObjectRecord& a, qreal width)
 
 } // namespace
 
-QString fontFallback(const ObjectRecord& a)
+QString fontFallback(const Words& w)
 {
-    if (a.text.body.isEmpty() || a.text.family.isEmpty() || QFontDatabase::hasFamily(a.text.family))
+    const TextProperties& t = w.text;
+    if (t.body.isEmpty() || t.family.isEmpty() || QFontDatabase::hasFamily(t.family))
         return {};
     // The stand-in layOutText() uses: the application's default font, never the platform's substitution.
     return defaultFamily();
@@ -119,18 +122,17 @@ QString defaultFamily()
     return QFontInfo(QFont()).family();
 }
 
-QPainterPath textOutline(const ObjectRecord& a)
+QPainterPath textOutline(const Composition& c, const Words& w)
 {
-    if (a.text.body.isEmpty())
+    if (w.text.body.isEmpty())
         return {};
 
-    const QRectF body = balloonRect(a);
-    const QRectF safe = textSafeArea(a, body);
+    const QRectF safe = textSafeArea(c, w);
     if (safe.width() <= 1 || safe.height() <= 1)
         return {};
 
     QTextDocument doc;
-    layOutText(doc, a, safe.width());
+    layOutText(doc, w.text, safe.width());
 
     // Vertically centred in the safe area — a bubble's text sits in the middle of the balloon. A block
     // taller than the area stops at its top, the top padding, and goes on downwards.
@@ -170,26 +172,26 @@ QPainterPath textOutline(const ObjectRecord& a)
     // and the red text area says so. A text object and a picture's words keep their box as it was.
     // Intersecting keeps that in vector form, so it survives into the SVG.
     QRectF open = safe;
-    if (a.hasSilhouette())
+    if (seatOf(c, w))
         open.setBottom(qMax(safe.bottom(), out.boundingRect().bottom()));
     QPainterPath clip;
     clip.addRect(open);
     return out.intersected(clip);
 }
 
-ShadowPaths textShadowOf(const ObjectRecord& a, const QPainterPath& text)
+ShadowPaths textShadowOf(const Words& w, const QPainterPath& text)
 {
     if (text.isEmpty())
         return {};
     // A round band as wide as the outline, then one as wide as the spread, is one as wide as the two.
-    Shadow s = a.text.shadow;
-    s.spread = qMax(s.spread, 0.0) + qMax(a.text.outlineWidth, 0.0);
-    return shadowOf(s, a.text.shadowFill, text);
+    Shadow s = w.text.shadow;
+    s.spread = qMax(s.spread, 0.0) + qMax(w.text.outlineWidth, 0.0);
+    return shadowOf(s, w.text.shadowFill, text);
 }
 
-QRectF textArea(const ObjectRecord& a)
+QRectF textArea(const Composition& c, const Words& w)
 {
-    return textSafeArea(a, balloonRect(a));
+    return textSafeArea(c, w);
 }
 
 QSizeF textBlockSize(const ObjectRecord& a)
@@ -198,7 +200,7 @@ QSizeF textBlockSize(const ObjectRecord& a)
         return {};
     // Never wrapped, so the block is the same whatever box it sits in: the widest line by the lines.
     QTextDocument doc;
-    layOutText(doc, a, 1);
+    layOutText(doc, a.text, 1);
     return QSizeF(doc.idealWidth(), doc.size().height());
 }
 

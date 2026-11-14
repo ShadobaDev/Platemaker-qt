@@ -25,6 +25,7 @@
 #include <array>
 #include <functional>
 
+#include "composition.hpp"
 #include "objectrecord.hpp"
 #include "outline.hpp"      // OutlineModel: what a line is drawn round
 #include "renderlist.hpp"   // Render::Filter: a kind's SVG filter
@@ -164,10 +165,10 @@ struct PatternCell
 [[nodiscard]] qreal fadeTone(const Paint& p, const QRectF& body, const QPointF& at);
 
 /**
- * \brief The marks of \p a's fill where it fades, over \p silhouette's extent; empty for a
+ * \brief The marks of \p b's fill where it fades, over \p silhouette's extent; empty for a
  *        fill that does not. Drawn in the pattern's colour over the ground, clipped to the silhouette.
  */
-[[nodiscard]] QPainterPath fillTone(const ObjectRecord& a, const QPainterPath& silhouette);
+[[nodiscard]] QPainterPath fillTone(const Balloon& b, const QPainterPath& silhouette);
 
 /**
  * \brief The fade's cross for @p p on @p body, as shape-editing handles: on each arm a dot where the fade
@@ -192,11 +193,11 @@ struct PatternCell
 [[nodiscard]] TextureProperties inkRough(TextureProperties t);
 
 /**
- * \brief \p a has an SVG filter anywhere, which only the library draws: a texture, or a
+ * \brief \p c has an SVG filter anywhere, which only the library draws: a texture, or a
  *        soft shadow, the balloon's or its letters'. The one question the controller asks to decide how a
  *        balloon is previewed.
  */
-[[nodiscard]] bool hasFilter(const ObjectRecord& a);
+[[nodiscard]] bool hasFilter(const Composition& c);
 
 /**
  * @name A shadow (Shadow) and the Paint it is filled with, whoever casts it: the balloon (its effects) or
@@ -248,21 +249,35 @@ struct ShadowPaths
 //! How far past its caster \p s reaches on any side: its spread, its offset and its blur. 0 with none.
 [[nodiscard]] qreal shadowReach(const Shadow& s);
 
-[[nodiscard]] bool         blursShadow(const ObjectRecord& a);   //!< The balloon's.
-[[nodiscard]] bool         fadesShadow(const ObjectRecord& a);   //!< The balloon's.
-[[nodiscard]] ShadowPaths  shadowOf(const ObjectRecord& a, const QPainterPath& silhouette);   //!< The balloon's.
-[[nodiscard]] Paint        shadowPaint(const ObjectRecord& a);   //!< The balloon's.
+[[nodiscard]] bool         blursShadow(const Balloon& b);   //!< The balloon's.
+[[nodiscard]] bool         fadesShadow(const Balloon& b);   //!< The balloon's.
+[[nodiscard]] ShadowPaths  shadowOf(const Balloon& b, const QPainterPath& silhouette);   //!< The balloon's.
+[[nodiscard]] Paint        shadowPaint(const Balloon& b);   //!< The balloon's.
 /** @} */
 
 /**
- * \brief \p a's line's own strokes around \p silhouette, in box coordinates; empty for a line without.
+ * \brief \p b's line's own strokes around \p silhouette, in box coordinates; empty for a line without.
  *
  * Filled with the non-zero rule, every stroke wound the same way, so overlapping strokes paint as one.
  */
-[[nodiscard]] QPainterPath ink(const ObjectRecord& a, const QPainterPath& silhouette);
+[[nodiscard]] QPainterPath ink(const Balloon& b, quint32 seed, const QPainterPath& silhouette);
 
-//! \p a's line draws the solid outline: every line but one with ink of its own.
-[[nodiscard]] bool hasOutline(const ObjectRecord& a);
+//! \p b's line draws the solid outline: every line but one with ink of its own.
+[[nodiscard]] bool hasOutline(const Balloon& b);
+
+/**
+ * @name The record's way in, until it goes (recordentry.cpp): a style's question is its groups', whatever the
+ *       record is; hasFilter() and ink() the forms above of its composition.
+ * @{
+ */
+[[nodiscard]] QPainterPath fillTone(const ObjectRecord& a, const QPainterPath& silhouette);
+[[nodiscard]] bool         hasFilter(const ObjectRecord& a);
+[[nodiscard]] bool         fadesShadow(const ObjectRecord& a);
+[[nodiscard]] ShadowPaths  shadowOf(const ObjectRecord& a, const QPainterPath& silhouette);
+[[nodiscard]] Paint        shadowPaint(const ObjectRecord& a);
+[[nodiscard]] QPainterPath ink(const ObjectRecord& a, const QPainterPath& silhouette);
+[[nodiscard]] bool         hasOutline(const ObjectRecord& a);
+/** @} */
 
 }  // namespace Geometry
 

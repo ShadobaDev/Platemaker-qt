@@ -16,6 +16,7 @@
 #include <QPainterPath>
 #include <QRectF>
 
+#include "composition.hpp"
 #include "objectrecord.hpp"
 
 namespace Geometry {
@@ -258,10 +259,19 @@ constexpr int k_maxRegularPoints = 64;
  * height reserved at the bottom for the tail to live in — which is what limited a tail to the bottom
  * edge and to inside the box. The drawn extent is computed instead (Geometry::bounds()).
  */
-[[nodiscard]] QRectF balloonRect(const ObjectRecord& a);
+[[nodiscard]] QRectF balloonRect(const Balloon& b, const Body& body);
 
-//! The balloon's own outline — the shape alone, no tails. Empty for a shapeless record.
+//! @p body's own outline in @p rect (balloonRect()) — the shape alone, no tails, its edge dealt by @p seed.
+[[nodiscard]] QPainterPath outlineOf(const Body& body, const QRectF& rect, quint32 seed);
+
+/**
+ * @name The record's way in, until it goes (recordentry.cpp): the forms above of its composition; balloonRect()
+ *       is the record's box less half its line, whatever it is.
+ * @{
+ */
+[[nodiscard]] QRectF       balloonRect(const ObjectRecord& a);
 [[nodiscard]] QPainterPath outlineOf(const ObjectRecord& a, const QRectF& body);
+/** @} */
 
 }  // namespace Geometry
 

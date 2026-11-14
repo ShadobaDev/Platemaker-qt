@@ -6,7 +6,9 @@
  * Three consumers start from these paths: the canvas draws them (recordpainter.hpp), the SVG writer
  * serialises them (recordsvg.hpp), and the library rasterises that SVG. Because all three start here,
  * "what you see" and "what is baked" cannot drift apart. Nothing here draws or knows about overlays,
- * projects or the strip: it takes an ObjectRecord and answers in box coordinates.
+ * projects or the strip: it takes a composition (composition.hpp), or an element of one, and answers in the
+ * composition's frame. The lettering's fitting and its handles still take a record, until the editor holds
+ * compositions.
  *
  * Where each part is:
  *  - shapes.cpp: every shape's outline and text area, one table entry each (shapes.hpp);
@@ -25,6 +27,7 @@
 #include <QSizeF>
 #include <QString>
 
+#include "composition.hpp"
 #include "objectrecord.hpp"
 #include "outline.hpp"
 #include "shapes.hpp"   // ShapeHandle: the text area's arrows
@@ -36,34 +39,34 @@ namespace Geometry {
 // The silhouette — silhouette.cpp
 // ---------------------------------------------------------------------------
 
-//! The balloon (and its tail) as one path, in box coordinates. Empty for a shapeless record.
-[[nodiscard]] QPainterPath silhouette(const ObjectRecord& a);
+//! The balloon (its bodies and tails) as one path, in the composition's frame; @p seed deals its edges.
+[[nodiscard]] QPainterPath silhouette(const Balloon& b, quint32 seed);
 
 /**
  * \brief What the silhouette is the union of: the balloon's outline first, then each tail that is drawn,
- *        each whole, overlapping where they join. Empty for a shapeless record.
+ *        each whole, overlapping where they join.
  *
  * For a line that follows each part's own edge rather than the joined one (the dry brush's hairs run on
  * past a tail's root along the balloon, and start inside it along the tail).
  */
-[[nodiscard]] QList<QPainterPath> silhouetteParts(const ObjectRecord& a);
+[[nodiscard]] QList<QPainterPath> silhouetteParts(const Balloon& b, quint32 seed);
 
 /**
  * \brief The outline a line is drawn round (outline.hpp): @p silhouette's rings with their corners, and
  *        silhouetteParts() each with its own, what covers it marked; the ends the tails report placed on both.
  */
-[[nodiscard]] OutlineModel outlineModel(const ObjectRecord& a, const QPainterPath& silhouette);
+[[nodiscard]] OutlineModel outlineModel(const Balloon& b, quint32 seed, const QPainterPath& silhouette);
 
 /**
- * \brief Which of \p a's tails are actually drawn, one entry per tail.
+ * \brief Which of \p b's tails are actually drawn, one entry per tail.
  *
  * A tail whose tip lies inside the balloon draws nothing — there is no room for it to emerge — but it
  * still exists, and its handle still has to be reachable. The editor asks this to know which tips are
  * visible to the eye and which only to the selection chrome.
  */
-[[nodiscard]] QList<bool> tailsDrawn(const ObjectRecord& a);
+[[nodiscard]] QList<bool> tailsDrawn(const Balloon& b, quint32 seed);
 
-//! What a record is made of where a point lands — the three things that carry a colour, and a miss.
+//! What an object is made of where a point lands — the three things that carry a colour, and a miss.
 enum class Part { None, Fill, Outline, Text };
 
 /**
@@ -74,52 +77,52 @@ enum class Part { None, Fill, Outline, Text };
  * lettering, then the stroke band around the silhouette, then the silhouette's inside. A point outside
  * all three is \c None: the transparent corner of a balloon's box is not the balloon.
  *
- * \param a The record to check.
+ * \param c The composition to check.
  * \param local The point to check, in box coordinates.
  * \param slack Widens the lettering and the stroke band by this much on each side. A 1px outline and a
  *              thin letter are as hard to hit as each other, and the caller knows what a few *screen*
  *              pixels are worth in box units at the current zoom.
- * \return The part of the record that is drawn at \p local, or \c None if nothing is.
+ * \return The part of \p c that is drawn at \p local, or \c None if nothing is.
  */
-[[nodiscard]] Part partAt(const ObjectRecord& a, const QPointF& local, qreal slack);
+[[nodiscard]] Part partAt(const Composition& c, const QPointF& local, qreal slack);
 
 /**
- * \brief Everything the record actually covers, in balloon coordinates — origin may be negative.
+ * \brief Everything \p c actually covers, in its frame — origin may be negative.
  *
- * The balloon, its tails and its text, plus room for the stroke. A tail can point anywhere, so this is
+ * Its frame (frameOf()), the balloon, its tails and its text, plus room for the stroke. A tail can point anywhere, so this is
  * computed rather than assumed: it is the size of the rasterised buffer, the SVG's viewBox, and the
  * item's bounding rect, and those three agreeing is what keeps the preview and the render aligned.
  *
  * Snapped to whole pixels, so the buffer and the viewBox describe one rectangle rather than two
  * roundings of it.
  *
- * \param a The record to check.
- * \return The rectangle that contains everything the record draws, in box coordinates.
+ * \param c The composition to check.
+ * \return The rectangle that contains everything \p c draws, in its frame.
  */
-[[nodiscard]] QRectF bounds(const ObjectRecord& a);
+[[nodiscard]] QRectF bounds(const Composition& c);
 
 /**
- * \brief How far \p a's style pushes ink beyond the geometry, in balloon pixels.
+ * \brief How far \p b's style pushes ink beyond the geometry, in balloon pixels.
  *
  * A displacement filter moves pixels *outward* as well as in, so the artwork covers more than its paths
  * do. The bounds — and therefore the buffer and the SVG's filter region — have to allow for it, or the
  * effect is neatly clipped off at the edge it was meant to roughen. Read from the style's recipe
  * (styles.cpp), the same numbers its filter is written from.
  *
- * \param a The record to check.
+ * \param b The balloon to check.
  * \return The extra margin the style adds, in balloon coordinates.
  */
-[[nodiscard]] qreal styleMargin(const ObjectRecord& a);
+[[nodiscard]] qreal styleMargin(const Balloon& b);
 
 /**
- * \brief The bounds of the record, given its silhouette and text paths.
+ * \brief The bounds of \p c, given its silhouette and text paths.
  *
- * \param a The record to check.
+ * \param c The composition to check.
  * \param silhouette The silhouette path.
  * \param text The text path.
- * \return The rectangle that contains everything the record draws, in box coordinates.
+ * \return The rectangle that contains everything \p c draws, in its frame.
  */
-[[nodiscard]] QRectF boundsOf(const ObjectRecord& a, const QPainterPath& silhouette, const QPainterPath& text);
+[[nodiscard]] QRectF boundsOf(const Composition& c, const QPainterPath& silhouette, const QPainterPath& text);
 
 // ---------------------------------------------------------------------------
 // The lettering — lettering.cpp
@@ -134,20 +137,21 @@ enum class Part { None, Fill, Outline, Text };
  * or from its top when taller. Clipped to it on the sides and the top, so an overlong line cannot bleed
  * past the stroke; a balloon's lines are not cut at the bottom, where they go on out of it.
  *
- * \param a The record to check.
+ * \param c The composition @p w is in.
+ * \param w The words to set.
  * \return The text outlines, or an empty path if there is no lettering.
  */
-[[nodiscard]] QPainterPath textOutline(const ObjectRecord& a);
+[[nodiscard]] QPainterPath textOutline(const Composition& c, const Words& w);
 
 /**
- * \brief \p a's lettering's shadow, cast by \p text (textOutline()) with its outline: grown by the outline's
+ * \brief \p w's shadow, cast by \p text (textOutline()) with its outline: grown by the outline's
  *        width and the shadow's spread together, which is the same as the outlined letters grown by the
  *        spread. Empty with no shadow or no words. Filled under them with shadowPaint() of the lettering's.
  */
-[[nodiscard]] ShadowPaths textShadowOf(const ObjectRecord& a, const QPainterPath& text);
+[[nodiscard]] ShadowPaths textShadowOf(const Words& w, const QPainterPath& text);
 
 /**
- * \brief The family \p a's lettering is actually outlined in when its own is not installed, or empty.
+ * \brief The family \p w is actually outlined in when its own is not installed, or empty.
  *
  * `QFont` never fails on a missing family — it substitutes, silently — so an outline built while the font
  * is absent is the same words in another face, and nothing in the record says so. This names the stand-in
@@ -155,7 +159,7 @@ enum class Part { None, Fill, Outline, Text };
  * when there are no words, no family is asked for, or the family is available — including one a workspace
  * registered for itself.
  */
-[[nodiscard]] QString fontFallback(const ObjectRecord& a);
+[[nodiscard]] QString fontFallback(const Words& w);
 
 /**
  * \brief The family an empty `TextProperties::family` is drawn in on this machine — the application's
@@ -169,10 +173,10 @@ enum class Part { None, Fill, Outline, Text };
 [[nodiscard]] QString defaultFamily();
 
 /**
- * \brief The rectangle \p a's lettering may occupy, in box coordinates — inside the outline, less the
- *        stroke and the paddings (the top one mirrored at the bottom). A text object's whole box.
+ * \brief The rectangle \p w may occupy, in the composition's frame — inside its seat's outline, less the
+ *        stroke and the paddings (the top one mirrored at the bottom). Words with no seat, their whole box.
  */
-[[nodiscard]] QRectF textArea(const ObjectRecord& a);
+[[nodiscard]] QRectF textArea(const Composition& c, const Words& w);
 
 /**
  * \brief The size of \p a's laid-out lettering — the widest line by the height of all of them.
@@ -250,6 +254,23 @@ enum class Part { None, Fill, Outline, Text };
 
 //! textAnchorFor() with \p a's lettering measured.
 [[nodiscard]] QPointF textAnchor(const ObjectRecord& a);
+
+/**
+ * @name The record's way in, until it goes (recordentry.cpp): each the form above of compositionOf(a), its
+ *       balloon's and its words'; nothing where it has neither.
+ * @{
+ */
+[[nodiscard]] QPainterPath silhouette(const ObjectRecord& a);
+[[nodiscard]] OutlineModel outlineModel(const ObjectRecord& a, const QPainterPath& silhouette);
+[[nodiscard]] QList<bool>  tailsDrawn(const ObjectRecord& a);
+[[nodiscard]] Part         partAt(const ObjectRecord& a, const QPointF& local, qreal slack);
+[[nodiscard]] QRectF       bounds(const ObjectRecord& a);
+[[nodiscard]] QRectF       boundsOf(const ObjectRecord& a, const QPainterPath& silhouette, const QPainterPath& text);
+[[nodiscard]] QPainterPath textOutline(const ObjectRecord& a);
+[[nodiscard]] ShadowPaths  textShadowOf(const ObjectRecord& a, const QPainterPath& text);
+[[nodiscard]] QString      fontFallback(const ObjectRecord& a);
+[[nodiscard]] QRectF       textArea(const ObjectRecord& a);
+/** @} */
 
 }  // namespace Geometry
 

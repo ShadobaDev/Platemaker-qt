@@ -365,41 +365,83 @@ TailShape tailPath(const QPainterPath& outline, const QRectF& body, const Tail& 
     return ribbonAbout(s, t.baseWidth / 2.0, t.look);
 }
 
+//! A body's rectangle and bare outline, which its tails are aimed at.
+struct BodyOutline
+{
+    int          id = 0;
+    QRectF       rect;
+    QPainterPath outline;
+};
+
+//! Every body of @p b that draws an outline, in order.
+QList<BodyOutline> bodyOutlines(const Balloon& b, quint32 seed)
+{
+    QList<BodyOutline> out;
+    for (const Body& body : b.bodies) {
+        const QRectF       rect    = balloonRect(b, body);
+        const QPainterPath outline = outlineOf(body, rect, seed);
+        if (!outline.isEmpty())
+            out.append({body.id, rect, outline});
+    }
+    return out;
+}
+
+//! The body @p id among @p bodies, or none: a tail whose root draws no outline draws nothing.
+const BodyOutline* rootOf(const QList<BodyOutline>& bodies, int id)
+{
+    for (const BodyOutline& b : bodies)
+        if (b.id == id)
+            return &b;
+    return nullptr;
+}
+
 } // namespace
 
-QList<QPainterPath> silhouetteParts(const ObjectRecord& a)
+QList<QPainterPath> silhouetteParts(const Balloon& b, quint32 seed)
 {
-    const QRectF       body    = balloonRect(a);
-    const QPainterPath outline = outlineOf(a, body);
-    if (outline.isEmpty())
-        return {};
-    // Each tail is aimed at the *bare* outline, not at the accumulating union: otherwise the second
+    const QList<BodyOutline> bodies = bodyOutlines(b, seed);
+    // Each tail is aimed at its body's *bare* outline, not at the accumulating union: otherwise the second
     // tail would ray-cast against the first one and emerge from its flank.
-    QList<QPainterPath> parts{outline};
-    for (const Tail& t : a.tails.items) {
-        const QPainterPath tp = tailPath(outline, body, t).path;
+    QList<QPainterPath> parts;
+    for (const BodyOutline& body : bodies)
+        parts.append(body.outline);
+    for (const BalloonTail& t : b.tails) {
+        const BodyOutline* root = rootOf(bodies, t.root);
+        if (!root)
+            continue;
+        const QPainterPath tp = tailPath(root->outline, root->rect, t.tail).path;
         if (!tp.isEmpty())
             parts.append(tp);
     }
     return parts;
 }
 
-OutlineModel outlineModel(const ObjectRecord& a, const QPainterPath& silhouette)
+OutlineModel outlineModel(const Balloon& b, quint32 seed, const QPainterPath& silhouette)
 {
     OutlineModel m;
-    m.joined      = silhouette;
-    m.frame       = QRectF(0, 0, a.box.width(), a.box.height());
-    m.coreStretch = shapeInfo(a.shape.kind).flashStretch;
-
-    const QRectF       body    = balloonRect(a);
-    const QPainterPath outline = outlineOf(a, body);
-    if (outline.isEmpty())
+    m.joined = silhouette;
+    if (b.bodies.isEmpty())
         return m;
-    QList<QPainterPath>                   parts{outline};
-    QList<std::optional<EndPoints>>       partEnds{std::nullopt};
+    // ponytail: the first body's frame and stretch; a chain's lines read one per body when it comes.
+    const Body& first = b.bodies.first();
+    m.frame           = QRectF(first.place.pos, QSizeF(first.size));
+    m.coreStretch     = shapeInfo(first.shape.kind).flashStretch;
+
+    const QList<BodyOutline> bodies = bodyOutlines(b, seed);
+    if (bodies.isEmpty())
+        return m;
+    QList<QPainterPath>                   parts;
+    QList<std::optional<EndPoints>>       partEnds;
     QList<EndPoints>                      ends;
-    for (const Tail& t : a.tails.items) {
-        TailShape tail = tailPath(outline, body, t);
+    for (const BodyOutline& body : bodies) {
+        parts.append(body.outline);
+        partEnds.append(std::nullopt);
+    }
+    for (const BalloonTail& t : b.tails) {
+        const BodyOutline* root = rootOf(bodies, t.root);
+        if (!root)
+            continue;
+        TailShape tail = tailPath(root->outline, root->rect, t.tail);
         if (tail.path.isEmpty())
             continue;
         parts.append(tail.path);
@@ -417,9 +459,9 @@ OutlineModel outlineModel(const ObjectRecord& a, const QPainterPath& silhouette)
     return m;
 }
 
-QPainterPath silhouette(const ObjectRecord& a)
+QPainterPath silhouette(const Balloon& b, quint32 seed)
 {
-    const QList<QPainterPath> parts = silhouetteParts(a);
+    const QList<QPainterPath> parts = silhouetteParts(b, seed);
     if (parts.isEmpty())
         return {};
     QPainterPath path = parts.first();
@@ -428,18 +470,19 @@ QPainterPath silhouette(const ObjectRecord& a)
     return path;
 }
 
-QList<bool> tailsDrawn(const ObjectRecord& a)
+QList<bool> tailsDrawn(const Balloon& b, quint32 seed)
 {
-    const QRectF       body    = balloonRect(a);
-    const QPainterPath outline = outlineOf(a, body);
-    QList<bool>        drawn;
-    drawn.reserve(a.tails.items.size());
-    for (const Tail& t : a.tails.items)
-        drawn.append(!outline.isEmpty() && !tailPath(outline, body, t).path.isEmpty());
+    const QList<BodyOutline> bodies = bodyOutlines(b, seed);
+    QList<bool>              drawn;
+    drawn.reserve(b.tails.size());
+    for (const BalloonTail& t : b.tails) {
+        const BodyOutline* root = rootOf(bodies, t.root);
+        drawn.append(root && !tailPath(root->outline, root->rect, t.tail).path.isEmpty());
+    }
     return drawn;
 }
 
-Part partAt(const ObjectRecord& a, const QPointF& local, qreal slack)
+Part partAt(const Composition& c, const QPointF& local, qreal slack)
 {
     // ponytail: geometry, not pixels. A Marker or Ink balloon is drawn through an SVG filter that
     // displaces its edges by a pixel or two, so at a high style amount a press right on the visible
@@ -449,12 +492,13 @@ Part partAt(const ObjectRecord& a, const QPointF& local, qreal slack)
 
     // Topmost first. The lettering is drawn over the balloon, so a letter standing on the fill answers
     // "text" — which is what the eye says too.
-    const QPainterPath text = textOutline(a);
+    const Words*       words = wordsOf(c);
+    const QPainterPath text  = words ? textOutline(c, *words) : QPainterPath();
     if (!text.isEmpty()) {
         if (text.contains(local))
             return Part::Text;
         // The letters' outline is theirs too.
-        if (const qreal reach = slack + qMax(a.text.outlineWidth, 0.0); reach > 0.0) {
+        if (const qreal reach = slack + qMax(words->text.outlineWidth, 0.0); reach > 0.0) {
             QPainterPathStroker widen;
             widen.setWidth(reach * 2);
             if (widen.createStroke(text).contains(local))
@@ -462,48 +506,53 @@ Part partAt(const ObjectRecord& a, const QPointF& local, qreal slack)
         }
     }
 
-    const QPainterPath shape = silhouette(a);
+    if (!c.balloon)
+        return Part::None;   // no balloon: the words and nothing else
+    const Balloon&     b     = *c.balloon;
+    const QPainterPath shape = silhouette(b, c.seed);
     if (shape.isEmpty())
-        return Part::None;   // a shapeless record is its lettering and nothing else
+        return Part::None;
 
     // A style's own strokes are the edge where it has them, so a press on one is a press on the outline.
-    const QPainterPath strokes = ink(a, shape);
+    const QPainterPath strokes = ink(b, c.seed, shape);
     if (!strokes.isEmpty() && strokes.contains(local))
         return Part::Outline;
 
     // The stroke is painted centred on the silhouette, so the band a click can land on is the path
     // stroked to the pen's width — plus the slack, because a hairline outline is unhittable without it.
     QPainterPathStroker band;
-    band.setWidth(qMax(1.0, static_cast<qreal>(a.style.strokeWidth)) + slack * 2);
+    band.setWidth(qMax(1.0, static_cast<qreal>(b.line.strokeWidth)) + slack * 2);
     if (band.createStroke(shape).contains(local))
         return Part::Outline;
 
     return shape.contains(local) ? Part::Fill : Part::None;
 }
 
-QRectF bounds(const ObjectRecord& a)
+QRectF bounds(const Composition& c)
 {
-    return boundsOf(a, silhouette(a), textOutline(a));
+    const Words* words = wordsOf(c);
+    return boundsOf(c, c.balloon ? silhouette(*c.balloon, c.seed) : QPainterPath(),
+                    words ? textOutline(c, *words) : QPainterPath());
 }
 
-QRectF boundsOf(const ObjectRecord& a, const QPainterPath& silhouette, const QPainterPath& text)
+QRectF boundsOf(const Composition& c, const QPainterPath& silhouette, const QPainterPath& text)
 {
-    // The balloon always counts, even when nothing is drawn in it — an empty shapeless record still
-    // occupies the box the author dragged.
-    QRectF r(0, 0, a.box.width(), a.box.height());
+    // The frame always counts, even when nothing is drawn in it — empty words still occupy the box the author
+    // dragged.
+    QRectF r = frameOf(c);
 
     if (!silhouette.isEmpty())
         r = r.united(silhouette.boundingRect());
-    if (!text.isEmpty()) {
+    if (const Words* words = wordsOf(c); words && !text.isEmpty()) {
         // The outline is drawn outside the letters, and their shadow reaches past it.
-        const qreal around = qMax(a.text.outlineWidth, 0.0) + shadowReach(a.text.shadow);
+        const qreal around = qMax(words->text.outlineWidth, 0.0) + shadowReach(words->text.shadow);
         r = r.united(text.boundingRect().adjusted(-around, -around, around, around));
     }
 
     // The stroke straddles the path, so half of it lies outside, and the line's ink, the texture and the
     // shadow reach further; one more pixel keeps antialiasing off the edge of the buffer. A balloon's only:
     // what an object without one carries of them is not drawn.
-    const qreal balloon = a.hasSilhouette() ? a.style.strokeWidth / 2.0 + styleMargin(a) : 0.0;
+    const qreal balloon = c.balloon ? c.balloon->line.strokeWidth / 2.0 + styleMargin(*c.balloon) : 0.0;
     const qreal pad     = balloon + 1.0;
     r = r.adjusted(-pad, -pad, pad, pad);
 

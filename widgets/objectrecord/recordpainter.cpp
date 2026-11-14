@@ -215,24 +215,28 @@ QBrush paintBrush(const Paint& paint)
     return brush;
 }
 
-Paths resolve(const ObjectRecord& a)
+Paths resolve(const Composition& c)
 {
     Paths p;
-    p.silhouette = Geometry::silhouette(a);
-    p.text       = Geometry::textOutline(a);
-    p.balloon    = Render::balloon(a, p.silhouette);
-    p.words      = Render::lettering(a, p.text, Geometry::textShadowOf(a, p.text));
+    if (c.balloon) {
+        p.silhouette = Geometry::silhouette(*c.balloon, c.seed);
+        p.balloon    = Render::balloon(*c.balloon, c.seed, p.silhouette);
+    }
+    if (const Words* w = wordsOf(c)) {
+        p.text  = Geometry::textOutline(c, *w);
+        p.words = Render::lettering(*w, p.text, Geometry::textShadowOf(*w, p.text));
+    }
     return p;
 }
 
-void paint(QPainter& painter, const ObjectRecord& a)
+void paint(QPainter& painter, const Composition& c)
 {
-    paintPaths(painter, a, resolve(a));
+    paintPaths(painter, c, resolve(c));
 }
 
-void paintPaths(QPainter& painter, const ObjectRecord& a, const Paths& paths)
+void paintPaths(QPainter& painter, const Composition& c, const Paths& paths)
 {
-    if (a.box.isEmpty())
+    if (frameOf(c).isEmpty())
         return;
 
     painter.save();
@@ -244,20 +248,20 @@ void paintPaths(QPainter& painter, const ObjectRecord& a, const Paths& paths)
     painter.restore();
 }
 
-void paintLettering(QPainter& painter, const ObjectRecord& a, const QPainterPath& text,
+void paintLettering(QPainter& painter, const Words& w, const QPainterPath& text,
                     const Geometry::ShadowPaths& shadow)
 {
     // Filled outlines rather than drawn text, so that what is on screen is what Svg::write() writes
     // and what the library rasterises — one geometry, three consumers.
-    play(painter, Render::lettering(a, text, shadow).items);
+    play(painter, Render::lettering(w, text, shadow).items);
 }
 
-QImage render(const ObjectRecord& a)
+QImage render(const Composition& c)
 {
-    if (a.box.isEmpty())
+    if (frameOf(c).isEmpty())
         return {};
 
-    const QRectF bounds = Geometry::bounds(a);
+    const QRectF bounds = Geometry::bounds(c);
     if (bounds.isEmpty())
         return {};
 
@@ -270,7 +274,7 @@ QImage render(const ObjectRecord& a)
     // The record is drawn in balloon coordinates, and a tail can reach above or left of the balloon,
     // so the buffer's origin is the bounds' origin rather than the balloon's.
     p.translate(-bounds.topLeft());
-    paint(p, a);
+    paint(p, c);
     p.end();
     return img;
 }

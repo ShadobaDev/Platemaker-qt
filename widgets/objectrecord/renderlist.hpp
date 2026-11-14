@@ -1,8 +1,8 @@
 /**
  * \file renderlist.hpp
- * \brief What a record draws, in order, once: the list both the painter and the SVG writer play.
+ * \brief What a composition draws, in order, once: the list both the painter and the SVG writer play.
  *
- * A record is resolved into **items** (paths filled and stroked, groups, a picture) and the **definitions**
+ * A balloon and its words are resolved into **items** (paths filled and stroked, groups, a picture) and the **definitions**
  * they refer to (a pattern, a filter). The painter draws the items (recordpainter.hpp); the SVG writer
  * serialises them (recordsvg.hpp). So which layer is drawn over which, what a line with strokes of its own
  * replaces, how the fill and its texture are split, is decided here and nowhere else.
@@ -26,6 +26,7 @@
 #include <optional>
 #include <utility>
 
+#include "composition.hpp"
 #include "propertygroups.hpp"
 
 struct ObjectRecord;
@@ -151,19 +152,17 @@ struct List
 };
 
 /**
- * \brief Everything @p a draws but its lettering, in painting order, and the definitions it needs:
- *        the balloon's shadow, fill, outline and the line's strokes, under the texture's filter.
- *
- * Empty for a shapeless record and a picture.
+ * \brief What @p b draws, in painting order, and the definitions it needs: its shadow, fill, outline and the
+ *        line's strokes, under the texture's filter; @p seed deals the line's and the texture's chance.
  */
-[[nodiscard]] List balloon(const ObjectRecord& a, const QPainterPath& silhouette);
+[[nodiscard]] List balloon(const Balloon& b, quint32 seed, const QPainterPath& silhouette);
 
 /**
- * \brief @p a's lettering, @p text (Geometry::textOutline()) with its @p shadow (Geometry::textShadowOf()):
+ * \brief @p w's lettering, @p text (Geometry::textOutline()) with its @p shadow (Geometry::textShadowOf()):
  *        the shadow, the outline under the letters stroked at twice its width (two draws, not
  *        `paint-order`, which librsvg is sure to render alike), the letters. Empty with no words.
  */
-[[nodiscard]] List lettering(const ObjectRecord& a, const QPainterPath& text, const Geometry::ShadowPaths& shadow);
+[[nodiscard]] List lettering(const Words& w, const QPainterPath& text, const Geometry::ShadowPaths& shadow);
 
 }  // namespace Render
 

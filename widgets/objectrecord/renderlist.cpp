@@ -123,39 +123,37 @@ Ink colourInk(const QColor& colour)
     return Ink{p, QString()};
 }
 
-List balloon(const ObjectRecord& a, const QPainterPath& silhouette)
+List balloon(const Balloon& b, quint32 seed, const QPainterPath& silhouette)
 {
     List out;
-    if (!a.hasSilhouette())   // a text object, or an artwork: what it carries of a balloon is not drawn
-        return out;
 
-    const Geometry::TextureInfo& texture = Geometry::textureInfo(a.texture.kind);
-    const Geometry::LineInfo&    line    = Geometry::lineInfo(a.style.line);
-    const Geometry::ShadowPaths  shadow  = Geometry::shadowOf(a, silhouette);
+    const Geometry::TextureInfo& texture = Geometry::textureInfo(b.texture.kind);
+    const Geometry::LineInfo&    line    = Geometry::lineInfo(b.line.line);
+    const Geometry::ShadowPaths  shadow  = Geometry::shadowOf(b, silhouette);
 
     // The definitions, before what refers to them, as SVG requires.
     if (texture.filter)
-        out.defs.append({k_textureId, std::nullopt, texture.filter(a.texture, a.styleSeed)});
+        out.defs.append({k_textureId, std::nullopt, texture.filter(b.texture, seed)});
     if (line.outlineFilter)
-        out.defs.append({k_outlineId, std::nullopt, line.outlineFilter(a.style, a.styleSeed)});
-    if (!Geometry::fades(a.skin.fill))
-        addPattern(out, a.skin.fill, k_fillId);
-    addPattern(out, a.style.stroke, k_strokeId);
-    addBlur(out, a.effects.shadow, a.effects.shadowFill, k_shadowId);
-    if (a.effects.shadow.on)
-        addPattern(out, shadowPaintFor(a.effects.shadow, a.effects.shadowFill, shadow, nullptr), k_shadowFillId);
+        out.defs.append({k_outlineId, std::nullopt, line.outlineFilter(b.line, seed)});
+    if (!Geometry::fades(b.fill.fill))
+        addPattern(out, b.fill.fill, k_fillId);
+    addPattern(out, b.line.stroke, k_strokeId);
+    addBlur(out, b.effects.shadow, b.effects.shadowFill, k_shadowId);
+    if (b.effects.shadow.on)
+        addPattern(out, shadowPaintFor(b.effects.shadow, b.effects.shadowFill, shadow, nullptr), k_shadowFillId);
 
     if (silhouette.isEmpty())
         return out;
 
     const QString textureId  = texture.filter ? k_textureId : QString();
-    const Ink     fillInk{a.skin.fill, k_fillId};
-    const Ink     strokeInk{a.style.stroke, k_strokeId};
-    const bool    outlined   = a.style.strokeWidth > 0 && Geometry::hasOutline(a);
+    const Ink     fillInk{b.fill.fill, k_fillId};
+    const Ink     strokeInk{b.line.stroke, k_strokeId};
+    const bool    outlined   = b.line.strokeWidth > 0 && Geometry::hasOutline(b);
     const bool    worn       = line.outlineFilter != nullptr;
-    const QPainterPath ink   = Geometry::ink(a, silhouette);
-    const QPainterPath tone  = Geometry::fillTone(a, silhouette);
-    const QList<Item>  shade = shadowItems(a.effects.shadow, a.effects.shadowFill, shadow, k_shadowFillId, k_shadowId);
+    const QPainterPath ink   = Geometry::ink(b, seed, silhouette);
+    const QPainterPath tone  = Geometry::fillTone(b, silhouette);
+    const QList<Item>  shade = shadowItems(b.effects.shadow, b.effects.shadowFill, shadow, k_shadowFillId, k_shadowId);
 
     // A worn outline: the outline under its line's filter, then its middle unworn over it, so a hole never
     // opens the fill. A texture's filter, on a group round it, goes over both.
@@ -163,9 +161,9 @@ List balloon(const ObjectRecord& a, const QPainterPath& silhouette)
         Item filtered;
         filtered.kind     = Item::Kind::Group;
         filtered.filter   = k_outlineId;
-        filtered.children = {outline(silhouette, strokeInk, a.style.strokeWidth)};
+        filtered.children = {outline(silhouette, strokeInk, b.line.strokeWidth)};
         QList<Item> items{filtered};
-        const qreal core = a.style.strokeWidth * (line.unworn ? line.unworn(a.style) : 0.0);
+        const qreal core = b.line.strokeWidth * (line.unworn ? line.unworn(b.line) : 0.0);
         if (core > 0.0) {
             Item middle         = outline(silhouette, strokeInk, core);
             middle.filteredOnly = true;
@@ -183,7 +181,7 @@ List balloon(const ObjectRecord& a, const QPainterPath& silhouette)
     // is, not of which element it belongs to: the shadow, displaced; the fill, not displaced but masked by the
     // displaced silhouette, and drawn past it by the texture's reach so it meets the moved edge; then the
     // line and its strokes, displaced. Each displaced layer is one more turbulence pass.
-    if (texture.filter && !a.texture.rough.fill) {
+    if (texture.filter && !b.texture.rough.fill) {
         if (!shade.isEmpty()) {
             Item layer;
             layer.kind     = Item::Kind::Group;
@@ -196,7 +194,7 @@ List balloon(const ObjectRecord& a, const QPainterPath& silhouette)
         masked.mask       = silhouette;
         masked.maskId     = k_roughFillId;
         masked.maskFilter = k_textureId;
-        const qreal reach = texture.reach(a.texture);
+        const qreal reach = texture.reach(b.texture);
         if (tone.isEmpty()) {
             Item fill;
             fill.path  = silhouette;
@@ -207,11 +205,11 @@ List balloon(const ObjectRecord& a, const QPainterPath& silhouette)
             // A fading fill: the ground, then its marks; the mask is their edge.
             Item ground;
             ground.path  = silhouette;
-            ground.fill  = colourInk(a.skin.fill.colour);
+            ground.fill  = colourInk(b.fill.fill.colour);
             ground.bleed = reach;
             Item marks;
             marks.path    = tone;
-            marks.fill    = colourInk(a.skin.fill.second);
+            marks.fill    = colourInk(b.fill.fill.second);
             marks.nonzero = true;
             marks.marks   = true;
             masked.children = {ground, marks};
@@ -225,7 +223,7 @@ List balloon(const ObjectRecord& a, const QPainterPath& silhouette)
             if (outlined && worn)
                 lines.children += wornOutline();
             else if (outlined)
-                lines.children.append(outline(silhouette, strokeInk, a.style.strokeWidth));
+                lines.children.append(outline(silhouette, strokeInk, b.line.strokeWidth));
             if (!ink.isEmpty())
                 lines.children.append(inkItem);
             out.items.append(lines);
@@ -244,7 +242,7 @@ List balloon(const ObjectRecord& a, const QPainterPath& silhouette)
     edge.path = silhouette;
     if (outlined && !worn) {
         edge.stroke      = strokeInk;
-        edge.strokeWidth = a.style.strokeWidth;
+        edge.strokeWidth = b.line.strokeWidth;
     }
     if (tone.isEmpty()) {
         edge.fill = fillInk;
@@ -253,10 +251,10 @@ List balloon(const ObjectRecord& a, const QPainterPath& silhouette)
         // A fading fill: the ground, then its marks clipped to the balloon, then the line over both.
         Item ground;
         ground.path = silhouette;
-        ground.fill = colourInk(a.skin.fill.colour);
+        ground.fill = colourInk(b.fill.fill.colour);
         Item marks;
         marks.path    = tone;
-        marks.fill    = colourInk(a.skin.fill.second);
+        marks.fill    = colourInk(b.fill.fill.second);
         marks.nonzero = true;
         marks.marks   = true;
         marks.clip    = silhouette;
@@ -272,12 +270,12 @@ List balloon(const ObjectRecord& a, const QPainterPath& silhouette)
     return out;
 }
 
-List lettering(const ObjectRecord& a, const QPainterPath& text, const Geometry::ShadowPaths& shadow)
+List lettering(const Words& w, const QPainterPath& text, const Geometry::ShadowPaths& shadow)
 {
     List out;
     if (text.isEmpty())
         return out;
-    const TextProperties& t = a.text;
+    const TextProperties& t = w.text;
     addPattern(out, t.fill, k_textFillId);
     if (t.outlineWidth > 0.0)
         addPattern(out, t.outline, k_textOutlineId);

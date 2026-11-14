@@ -4,6 +4,7 @@
 #include <QJsonObject>
 #include <QList>
 #include <QPointF>
+#include <QRectF>
 #include <QSize>
 #include <QString>
 #include <QtGlobal>
@@ -149,6 +150,21 @@ struct Composition
     }
     [[nodiscard]] bool operator!=(const Composition& o) const { return !(*this == o); }
 };
+
+//! The body @p w sits in, or none: words with no seat, or a seat the balloon does not have.
+[[nodiscard]] const Body* seatOf(const Composition& c, const Words& w);
+
+/**
+ * \brief The words @p c draws: its first. ponytail: one until the chain, whose second words need render ids of
+ *        their own (renderlist.cpp's are one set per file).
+ */
+[[nodiscard]] const Words* wordsOf(const Composition& c);
+
+/**
+ * \brief The rectangle the author dragged: the bodies', the picture's, and the box of words with no seat, as
+ *        one. Not what is drawn, which a tail may take past it (Geometry::bounds()).
+ */
+[[nodiscard]] QRectF frameOf(const Composition& c);
 
 /**
  * @name The way between a record and a composition, while both exist. A record that is a balloon is one body;

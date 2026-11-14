@@ -267,6 +267,39 @@ ObjectRecord ObjectRecord::fromJson(const QJsonObject& j)
 }
 
 
+const Body* seatOf(const Composition& c, const Words& w)
+{
+    if (!c.balloon || w.seat == 0)
+        return nullptr;
+    for (const Body& b : c.balloon->bodies)
+        if (b.id == w.seat)
+            return &b;
+    return nullptr;
+}
+
+const Words* wordsOf(const Composition& c)
+{
+    return c.words.isEmpty() ? nullptr : &c.words.first();
+}
+
+QRectF frameOf(const Composition& c)
+{
+    QRectF r;
+    const auto add = [&r](const Place& p, const QSize& s) {
+        const QRectF one(p.pos, QSizeF(s));
+        r = r.isNull() ? one : r.united(one);
+    };
+    if (c.balloon)
+        for (const Body& b : c.balloon->bodies)
+            add(b.place, b.size);
+    if (c.picture)
+        add(c.picture->place, c.picture->size);
+    for (const Words& w : c.words)
+        if (!seatOf(c, w))
+            add(w.place, w.box);
+    return r;
+}
+
 Composition compositionOf(const ObjectRecord& a)
 {
     Composition c;

@@ -1559,24 +1559,24 @@ ShapeProperties curveOf(const QPainterPath& outline, const QRectF& body)
     return s;
 }
 
-QRectF balloonRect(const ObjectRecord& a)
+QRectF balloonRect(const Balloon& b, const Body& body)
 {
-    const qreal  sw = a.style.strokeWidth / 2.0;
-    QRectF body(0, 0, a.box.width(), a.box.height());
-    body.adjust(sw, sw, -sw, -sw);
-    return body.normalized();
+    const qreal sw = b.line.strokeWidth / 2.0;
+    QRectF      r(body.place.pos, QSizeF(body.size));
+    r.adjust(sw, sw, -sw, -sw);
+    return r.normalized();
 }
 
-QPainterPath outlineOf(const ObjectRecord& a, const QRectF& body)
+QPainterPath outlineOf(const Body& body, const QRectF& rect, quint32 seed)
 {
-    if (!a.hasSilhouette() || body.isEmpty())
+    if (body.shape.kind == ShapeProperties::Kind::None || rect.isEmpty())
         return {};
-    const auto outline = shapeInfo(a.shape.kind).outline;
+    const auto outline = shapeInfo(body.shape.kind).outline;
     if (!outline)
         return {};
     // The edge on the bare outline, before any tail is united into it.
-    const auto modulate = edgeInfo(a.shape.edge).modulate;
-    return modulate ? modulate(outline(a.shape, body), a.shape, a.styleSeed) : outline(a.shape, body);
+    const auto modulate = edgeInfo(body.shape.edge).modulate;
+    return modulate ? modulate(outline(body.shape, rect), body.shape, seed) : outline(body.shape, rect);
 }
 
 }  // namespace Geometry

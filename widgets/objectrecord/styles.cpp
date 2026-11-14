@@ -1685,12 +1685,13 @@ qreal fadeTone(const Paint& p, const QRectF& body, const QPointF& at)
     return p.fadeReversed ? faded : 1.0 - faded;
 }
 
-QPainterPath fillTone(const ObjectRecord& a, const QPainterPath& silhouette)
+QPainterPath fillTone(const Balloon& b, const QPainterPath& silhouette)
 {
-    const Paint& p = a.skin.fill;
-    if (!fades(p) || silhouette.isEmpty())
+    const Paint& p = b.fill.fill;
+    if (!fades(p) || silhouette.isEmpty() || b.bodies.isEmpty())
         return {};
-    const QRectF body = balloonRect(a);
+    // ponytail: the fade is laid on the first body; a chain's lays one across all when it comes.
+    const QRectF body = balloonRect(b, b.bodies.first());
     // A bar's width is sampled about every half cell: a fade spans a good part of the balloon.
     return halftoneMarks(p, silhouette.boundingRect(), [&](const QPointF& at) { return fadeTone(p, body, at); },
                          qMax(p.spacing, k_minPatternSpacing) / 2.0);
@@ -1765,10 +1766,14 @@ bool fadesShadow(const Shadow& s, const Paint& fill)
     return s.on && s.softness > 0.0 && fill.kind != Paint::Kind::Solid;
 }
 
-bool hasFilter(const ObjectRecord& a)
+bool hasFilter(const Composition& c)
 {
-    return textureInfo(a.texture.kind).filter != nullptr || lineInfo(a.style.line).outlineFilter != nullptr || blursShadow(a)
-        || (!a.text.body.isEmpty() && blursShadow(a.text.shadow, a.text.shadowFill));
+    if (const Balloon* b = c.balloon ? &*c.balloon : nullptr;
+        b && (textureInfo(b->texture.kind).filter != nullptr || lineInfo(b->line.line).outlineFilter != nullptr
+              || blursShadow(*b)))
+        return true;
+    const Words* w = wordsOf(c);
+    return w && !w->text.body.isEmpty() && blursShadow(w->text.shadow, w->text.shadowFill);
 }
 
 Paint shadowPaint(const Shadow& s, const Paint& fill)
@@ -1823,46 +1828,46 @@ qreal shadowReach(const Shadow& s)
                 : 0.0;
 }
 
-bool blursShadow(const ObjectRecord& a)
+bool blursShadow(const Balloon& b)
 {
-    return blursShadow(a.effects.shadow, a.effects.shadowFill);
+    return blursShadow(b.effects.shadow, b.effects.shadowFill);
 }
 
-bool fadesShadow(const ObjectRecord& a)
+bool fadesShadow(const Balloon& b)
 {
-    return fadesShadow(a.effects.shadow, a.effects.shadowFill);
+    return fadesShadow(b.effects.shadow, b.effects.shadowFill);
 }
 
-ShadowPaths shadowOf(const ObjectRecord& a, const QPainterPath& silhouette)
+ShadowPaths shadowOf(const Balloon& b, const QPainterPath& silhouette)
 {
-    return shadowOf(a.effects.shadow, a.effects.shadowFill, silhouette);
+    return shadowOf(b.effects.shadow, b.effects.shadowFill, silhouette);
 }
 
-Paint shadowPaint(const ObjectRecord& a)
+Paint shadowPaint(const Balloon& b)
 {
-    return shadowPaint(a.effects.shadow, a.effects.shadowFill);
+    return shadowPaint(b.effects.shadow, b.effects.shadowFill);
 }
 
-bool hasOutline(const ObjectRecord& a)
+bool hasOutline(const Balloon& b)
 {
-    return lineInfo(a.style.line).ink == nullptr;
+    return lineInfo(b.line.line).ink == nullptr;
 }
 
-QPainterPath ink(const ObjectRecord& a, const QPainterPath& silhouette)
+QPainterPath ink(const Balloon& b, quint32 seed, const QPainterPath& silhouette)
 {
-    const auto fn = lineInfo(a.style.line).ink;
-    return fn && !silhouette.isEmpty() ? fn(a.style, outlineModel(a, silhouette), a.styleSeed) : QPainterPath();
+    const auto fn = lineInfo(b.line.line).ink;
+    return fn && !silhouette.isEmpty() ? fn(b.line, outlineModel(b, seed, silhouette), seed) : QPainterPath();
 }
 
-qreal styleMargin(const ObjectRecord& a)
+qreal styleMargin(const Balloon& b)
 {
     // The texture's filter moves the line's strokes too (it hangs on both), so the two add; the shadow's
     // too, which reaches as shadowReach() says.
-    const LineInfo&    line    = lineInfo(a.style.line);
-    const TextureInfo& texture = textureInfo(a.texture.kind);
-    const qreal        shadow  = shadowReach(a.effects.shadow);
-    const qreal        rough   = texture.reach ? texture.reach(a.texture) : 0.0;
-    return qMax((line.inkReach ? line.inkReach(a.style) : 0.0) + rough, shadow + rough);
+    const LineInfo&    line    = lineInfo(b.line.line);
+    const TextureInfo& texture = textureInfo(b.texture.kind);
+    const qreal        shadow  = shadowReach(b.effects.shadow);
+    const qreal        rough   = texture.reach ? texture.reach(b.texture) : 0.0;
+    return qMax((line.inkReach ? line.inkReach(b.line) : 0.0) + rough, shadow + rough);
 }
 
 }  // namespace Geometry

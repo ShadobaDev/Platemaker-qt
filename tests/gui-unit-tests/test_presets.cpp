@@ -154,7 +154,7 @@ TEST_F(Presets, TheOriginTravelsWithTheObject)
                          + "\" width=\"10\" height=\"10\"><g pm:shape=\"box\" pm:box=\"300,160\""
                            " pm:presetUid=\"uid-1\" pm:presetName=\"Shout\"/></svg>";
     bool               ok   = false;
-    const ObjectRecord back = Svg::read(svg, &ok);
+    const ObjectRecord back = recordOf(Svg::read(svg, &ok));
     ASSERT_TRUE(ok);
     EXPECT_EQ(originOf(back), originOf(a));
 }

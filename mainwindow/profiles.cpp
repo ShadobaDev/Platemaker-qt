@@ -918,17 +918,17 @@ void MainWindow::openPresetsDialog(const QString& presetUid)
         QList<StripEdit::PresetUse> out;
         for (const auto& project : m_workspace.projectItems) {
             const QString             projectUid = QString::fromStdString(project.uid);
-            const ObjectRecord::Map   records    = m_overlayRecords.records(projectUid);
+            const Composition::Map    records    = m_overlayRecords.records(projectUid);
             const auto                inputs     = project.inputsInOrder();
             for (const auto& overlay : project.getStripOverlays()) {
                 const QString      objectUid = QString::fromStdString(overlay.uid);
-                const ObjectRecord record    = records.value(objectUid);
-                if (record.presetOrigin.uid != uid)
+                const Composition  record    = records.value(objectUid);
+                if (record.preset.uid != uid)
                     continue;
                 const auto page = std::find_if(inputs.cbegin(), inputs.cend(), [&overlay](const auto& in) {
                     return in.uid == overlay.anchorInputUid;
                 });
-                const QString words = record.text.body.section(QLatin1Char('\n'), 0, 0).left(40);
+                const QString words = TextProperties::from(record).body.section(QLatin1Char('\n'), 0, 0).left(40);
                 const QString where = page == inputs.cend() ? tr("unanchored")
                                                             : tr("p.%1").arg(page - inputs.cbegin() + 1, 2, 10, QLatin1Char('0'));
                 out.append({projectUid, QString::fromStdString(project.name), objectUid,

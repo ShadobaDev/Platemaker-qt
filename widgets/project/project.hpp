@@ -172,7 +172,7 @@ public:
      * \brief Adopts this project's authoring records (read back from its assets).
      * \param records The map of records to adopt.
      */
-    void setRecords(ObjectRecord::Map records);
+    void setRecords(Composition::Map records);
 
     /**
      * \brief Re-writes the SVGs of the overlays a restored step changed, from their authoring records.
@@ -199,7 +199,7 @@ public:
      * \brief Returns the map of records associated with this project.
      * \return The record map.
      */
-    [[nodiscard]] const ObjectRecord::Map& records() const { return m_records; }
+    [[nodiscard]] const Composition::Map& records() const { return m_records; }
 
     /**
      * \brief Registers a newly drawn bubble: writes its SVG, then lets the library inventory the file.
@@ -212,7 +212,7 @@ public:
      * \param wFrac          The artwork's rendered width in that same unit.
      * \param anchorInputUid The input page the bubble rides on.
      */
-    void createOverlay(const ObjectRecord& record, double xFrac, double yFrac, double wFrac,
+    void createOverlay(const Composition& record, double xFrac, double yFrac, double wFrac,
                        const QString& anchorInputUid);
 
     /**
@@ -244,7 +244,7 @@ public:
      * \param undoText The text to display for the undo action.
      */
     void applyOverlays(std::vector<Platemaker::Models::StripOverlay> overlays,
-                       ObjectRecord::Map                                  records,
+                       Composition::Map                                  records,
                        const QString&                               undoText);
 
     /**
@@ -341,7 +341,7 @@ signals:
      * Always followed by projectModified(), which is what refreshes the views (the strip editor among them).
      * \param records The new record map for this project.
      */
-    void recordsChanged(const ObjectRecord::Map& records);
+    void recordsChanged(const Composition::Map& records);
 
     /**
      * \brief A step was undone or redone: @p scope says which dock shows the difference, and @p uids
@@ -493,7 +493,7 @@ private:
 
     //! Whether a file may be written to the workspace folder now.
     [[nodiscard]] bool mayWrite() const { return !m_writeGuard || m_writeGuard(); }
-    ObjectRecord::Map m_records;                                //!< Authoring records for this project's overlays, by uid.
+    Composition::Map m_records;                                //!< Authoring records for this project's overlays, by uid.
     QString m_cacheDir;                                     //!< Directory where cached thumbnails and other temporary files are stored.
     OutputFormatOptionsWidget* m_formatOptions = nullptr;   //!< Shared widget for editing the selected output profile's format/options.
     QVBoxLayout* m_workflowStack = nullptr;                  //!< Vertical stack of the Workflow tab's StageCards (built in the ctor, rebuilt by refreshWorkflowMap()).

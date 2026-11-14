@@ -444,7 +444,7 @@ QByteArray write(const Composition& c, const QByteArray& picture, const QString&
 // Reading
 // ---------------------------------------------------------------------------
 
-ObjectRecord read(const QByteArray& svg, bool* ok)
+Composition read(const QByteArray& svg, bool* ok)
 {
     if (ok)
         *ok = false;
@@ -496,18 +496,18 @@ ObjectRecord read(const QByteArray& svg, bool* ok)
 
         if (ok)
             *ok = true;
-        return a;
+        return compositionOf(a);
     }
 
-    return a;   // no pm:* group — a hand-drawn or externally edited asset (ok stays false)
+    return {};   // no pm:* group — a hand-drawn or externally edited asset (ok stays false)
 }
 
-ObjectRecord::Map readOverlays(const std::vector<Platemaker::Models::StripOverlay>& overlays)
+Composition::Map readOverlays(const std::vector<Platemaker::Models::StripOverlay>& overlays)
 {
-    ObjectRecord::Map map;
+    Composition::Map map;
     for (const auto& o : overlays) {
         if (bool ok = false; !o.content.empty()) {
-            const ObjectRecord a = fromContent(o.content, &ok);
+            const Composition a = fromContent(o.content, &ok);
             if (ok) {
                 map.insert(QString::fromStdString(o.uid), a);
                 continue;
@@ -520,8 +520,8 @@ ObjectRecord::Map readOverlays(const std::vector<Platemaker::Models::StripOverla
         if (!f.open(QIODevice::ReadOnly))
             continue;   // missing asset: the overlay stays in the project and shows as unavailable
 
-        bool               ok = false;
-        const ObjectRecord a  = read(f.readAll(), &ok);
+        bool              ok = false;
+        const Composition a  = read(f.readAll(), &ok);
         if (ok)
             map.insert(QString::fromStdString(o.uid), a);
         // else: a flat asset (hand-drawn, or edited outside Platemaker). Deliberately left out of the
@@ -568,15 +568,15 @@ QString pictureMime(const QString& file)
  *
  * \return The asset's absolute path, or empty when it could not be written.
  */
-QString writeFile(const QString& overlaysDir, const ObjectRecord& a, const QString& reusePath)
+QString writeFile(const QString& overlaysDir, const Composition& c, const QString& reusePath)
 {
     // **A picture with nothing written on it is its own file.** There is nothing of ours to draw, so
     // generating one would be drawing our geometry over somebody's artwork — the mistake that once
     // stored a default balloon over an imported picture, in the one place that could still make it.
     // Its overlay points straight at the imported picture.
-    if (a.isArtwork()) {
-        const QString picture = overlaysDir + QLatin1Char('/') + a.artwork;
-        if (a.text.body.isEmpty())
+    if (c.picture) {
+        const QString picture = overlaysDir + QLatin1Char('/') + c.picture->file;
+        if (const Words* w = wordsOf(c); !w || w->text.body.isEmpty())
             return picture;
 
         // Lettered, so there *is* something of ours: a wrapper that embeds the picture and draws the
@@ -587,7 +587,7 @@ QString writeFile(const QString& overlaysDir, const ObjectRecord& a, const QStri
         if (!in.open(QIODevice::ReadOnly))
             return {};
         const QByteArray bytes = in.readAll();
-        const QByteArray svg   = write(a, bytes, pictureMime(a.artwork));
+        const QByteArray svg   = write(c, bytes, pictureMime(c.picture->file));
         if (svg.isEmpty())
             return {};
 
@@ -603,7 +603,7 @@ QString writeFile(const QString& overlaysDir, const ObjectRecord& a, const QStri
         return out.error() == QFile::NoError ? path : QString{};
     }
 
-    const QByteArray svg = write(a);
+    const QByteArray svg = write(c);
     if (svg.isEmpty() || overlaysDir.isEmpty())
         return {};
 
@@ -648,7 +648,7 @@ QString contentOf(const Composition& c)
     return QString::fromUtf8(QJsonDocument(toJson(stored)).toJson(QJsonDocument::Compact));
 }
 
-ObjectRecord fromContent(const std::string& content, bool* ok)
+Composition fromContent(const std::string& content, bool* ok)
 {
     const QJsonDocument doc = QJsonDocument::fromJson(QByteArray::fromStdString(content));
     if (ok)
@@ -658,7 +658,7 @@ ObjectRecord fromContent(const std::string& content, bool* ok)
     // A content saved before it was a composition's has no words: the record's own form, read until the first
     // release, as the old attributes are.
     const QJsonObject j = doc.object();
-    return j.contains(QStringLiteral("words")) ? recordOf(compositionFromJson(j)) : ObjectRecord::fromJson(j);
+    return j.contains(QStringLiteral("words")) ? compositionFromJson(j) : compositionOf(ObjectRecord::fromJson(j));
 }
 
 } // namespace Svg

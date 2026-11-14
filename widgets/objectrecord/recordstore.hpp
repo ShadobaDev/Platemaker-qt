@@ -4,18 +4,15 @@
 #include <QHash>
 #include <QString>
 
-#include "objectrecord.hpp"
+#include "composition.hpp"
 
 /**
- * \brief Every open project's authoring records, keyed by project uid.
+ * \brief Every open project's compositions, keyed by project uid.
  *
- * A **cache**, not a store: the records live in the overlays' own SVG files (see recordsvg.hpp), and
- * this holds the parsed form so a populate() does not re-read and re-parse the whole chapter. It is
- * repopulated from disk when a workspace is opened and written through whenever the editor commits.
- *
- * There is deliberately nothing to save here. An authoring sidecar would be a second copy of what the
- * asset already carries — one more file to keep in step, and one more thing to lose separately from the
- * artwork it describes.
+ * A **cache**, not a store: a composition is its overlay's content, which the workspace keeps with the overlay
+ * (`StripOverlay::content`), and this holds the parsed form so a populate() does not re-parse the whole
+ * chapter. It is filled when a workspace is opened (Svg::readOverlays()) and written through whenever the
+ * editor commits. There is nothing to save here.
  */
 class RecordStore
 {
@@ -27,11 +24,11 @@ public:
 
     void clear() { m_byProject.clear(); }
 
-    [[nodiscard]] ObjectRecord::Map        records(const QString& projectUid) const;
-    void                             setRecords(const QString& projectUid, ObjectRecord::Map map);
+    [[nodiscard]] Composition::Map records(const QString& projectUid) const;
+    void                           setRecords(const QString& projectUid, Composition::Map map);
 
 private:
-    QHash<QString, ObjectRecord::Map> m_byProject;   //!< project uid → (overlay uid → record)
+    QHash<QString, Composition::Map> m_byProject;   //!< project uid → (overlay uid → composition)
 };
 
 #endif // RECORDSTORE_HPP

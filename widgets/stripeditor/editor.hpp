@@ -11,6 +11,7 @@
 
 #include "objects/striplayout.hpp"
 #include "canvas/pagesource.hpp"
+#include "composition.hpp"
 #include "objectrecord.hpp"
 #include "toolrail/toolregistry.hpp"
 
@@ -184,7 +185,7 @@ public:
      * \param records The authoring records for those overlays, keyed by uid.
      */
     void setOverlaySource(const std::vector<Platemaker::Models::StripOverlay>& overlays,
-                          const ObjectRecord::Map&                                  records);
+                          const Composition::Map&                                  records);
 
     /**
      * \brief Select what an undone or redone step touched, when the feed carrying it arrives.
@@ -257,7 +258,7 @@ signals:
      * \param x,y            Top-left, relative to the anchor page's top edge.
      * \param anchorInputUid The page it was drawn on.
      */
-    void recordCreated(const ObjectRecord& record, double xFrac, double yFrac, double wFrac,
+    void recordCreated(const Composition& record, double xFrac, double yFrac, double wFrac,
                          const QString& anchorInputUid);
 
     /**
@@ -272,7 +273,7 @@ signals:
      * \param undoText The text to label the undo step with.
      */
     void overlaysCommitted(const std::vector<Platemaker::Models::StripOverlay>& overlays,
-                        const ObjectRecord::Map&                                  records,
+                        const Composition::Map&                                  records,
                         const QString&                                      undoText);
 
     /**

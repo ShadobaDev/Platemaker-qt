@@ -1,6 +1,7 @@
 #ifndef COMPOSITION_HPP
 #define COMPOSITION_HPP
 
+#include <QHash>
 #include <QJsonObject>
 #include <QList>
 #include <QPointF>
@@ -155,6 +156,9 @@ struct Composition
     PresetOrigin           preset;
     int                    nextId = 1;
 
+    //! One project's compositions, keyed by `StripOverlay::uid`.
+    using Map = QHash<QString, Composition>;
+
     [[nodiscard]] bool operator==(const Composition& o) const
     {
         return balloon == o.balloon && picture == o.picture && words == o.words && seed == o.seed
@@ -186,6 +190,9 @@ struct Composition
  */
 [[nodiscard]] Composition compositionOf(const ObjectRecord& a);
 [[nodiscard]] ObjectRecord recordOf(const Composition& c);
+//! The same, a project's whole map: the editor's edge, while it holds records.
+[[nodiscard]] ObjectRecord::Map recordsOf(const Composition::Map& m);
+[[nodiscard]] Composition::Map  compositionsOf(const ObjectRecord::Map& m);
 /** @} */
 
 /**

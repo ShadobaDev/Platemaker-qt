@@ -811,7 +811,7 @@ TEST(PropertyGroupPersistence, EveryShapeAndStyleRoundTrips)
         shapeOf(a)        = t.shape;
         textOf(a).body.clear();
         bool ok = false;
-        EXPECT_EQ(shapeOf(Svg::read(Svg::write(a), &ok)), t.shape) << t.id;
+        EXPECT_EQ(shapeOf(recordOf(Svg::read(Svg::write(a), &ok))), t.shape) << t.id;
         EXPECT_EQ(throughContent(a), a) << t.id;
     }
 
@@ -1081,7 +1081,7 @@ TEST(Texture, AFineGrainIsWrittenAsItIs)
     const QByteArray svg = Svg::write(a);
     EXPECT_TRUE(QString::fromUtf8(svg).contains(QStringLiteral("baseFrequency=\"0.035\"")));
     bool ok = false;
-    EXPECT_NEAR(textureOf(Svg::read(svg, &ok)).rough.frequency, 0.035, k_tolerance);
+    EXPECT_NEAR(textureOf(recordOf(Svg::read(svg, &ok))).rough.frequency, 0.035, k_tolerance);
     EXPECT_TRUE(ok);
 }
 
@@ -2153,7 +2153,7 @@ TEST(Import, OnlyAFileCarryingTheRecipeIsAdopted)
           " pm:tails=\"40,260,30,0.2\" pm:text=\"Hello\" pm:paddingSide=\"-6\" pm:paddingTop=\"3\" pm:lineSpacing=\"80\"/></svg>";
 
     bool               ok   = false;
-    const ObjectRecord back = Svg::read(ours, &ok);
+    const ObjectRecord back = recordOf(Svg::read(ours, &ok));
     EXPECT_TRUE(ok);
     EXPECT_EQ(shapeOf(back).kind, ObjectRecord::Shape::Cloud);
     EXPECT_EQ(boxOf(back), QSize(300, 200));
@@ -2203,7 +2203,7 @@ TEST(Import, TheContentIsReadFromTheOverlayThenFromItsFile)
     const QByteArray ours = header + "<pm:content>{\"box\":[300,200],\"shape\":{\"shape\":\"cloud\"},"
                                      "\"text\":{\"text\":\"a &lt; b\"}}</pm:content><g/></svg>";
     bool               ok   = false;
-    const ObjectRecord back = Svg::read(ours, &ok);
+    const ObjectRecord back = recordOf(Svg::read(ours, &ok));
     EXPECT_TRUE(ok);
     EXPECT_EQ(shapeOf(back).kind, ObjectRecord::Shape::Cloud);
     EXPECT_EQ(boxOf(back), QSize(300, 200));
@@ -2232,7 +2232,7 @@ TEST(Import, TheContentIsReadFromTheOverlayThenFromItsFile)
     overlays[1].uid       = "ovl-file";
     overlays[1].assetPath = legacy.toStdString();
     overlays[2].uid       = "ovl-neither";
-    const ObjectRecord::Map records = Svg::readOverlays(overlays);
+    const ObjectRecord::Map records = recordsOf(Svg::readOverlays(overlays));
     ASSERT_EQ(records.size(), 2);
     EXPECT_EQ(shapeOf(records.value(QStringLiteral("ovl-content"))).kind, ObjectRecord::Shape::Cloud);
     EXPECT_EQ(shapeOf(records.value(QStringLiteral("ovl-file"))).kind, ObjectRecord::Shape::Ellipse);
@@ -2303,7 +2303,7 @@ TEST(Import, AFileBakedInAStandInSaysWhich)
         + "\" width=\"10\" height=\"10\"><g pm:shape=\"speech\" pm:box=\"10,10\" pm:text=\"Hi\""
           " pm:fontFamily=\"Segoe Print\" pm:fontFallback=\"Segoe UI\"/></svg>";
     EXPECT_EQ(Svg::bakedFontFallback(standIn), QStringLiteral("Segoe UI"));
-    EXPECT_EQ(textOf(Svg::read(standIn)).family, QStringLiteral("Segoe Print"));
+    EXPECT_EQ(textOf(recordOf(Svg::read(standIn))).family, QStringLiteral("Segoe Print"));
 
     QByteArray ownFont = standIn;
     ownFont.replace(" pm:fontFallback=\"Segoe UI\"", "");
@@ -2335,7 +2335,7 @@ TEST(Import, AWrapperNamesItsPicture)
           " pm:artwork=\"art-0123456789abcdef.png\" pm:box=\"200,200\" pm:text=\"KRAK!\"/></svg>";
 
     bool               ok = false;
-    const ObjectRecord a  = Svg::read(wrapper, &ok);
+    const ObjectRecord a  = recordOf(Svg::read(wrapper, &ok));
     EXPECT_TRUE(ok);
     EXPECT_TRUE(a.isArtwork());
     EXPECT_FALSE(a.hasSilhouette());
@@ -2463,7 +2463,7 @@ void expectEveryFieldCounts(Group ObjectRecord::*group)
         EXPECT_EQ(ObjectRecord::fromJson(b.toJson()), b) << key << ": not in the JSON";
         if (textOf(b).body.isEmpty()) {
             bool ok = false;
-            EXPECT_EQ(Svg::read(Svg::write(b), &ok), b) << key << ": not in the SVG";
+            EXPECT_EQ(recordOf(Svg::read(Svg::write(b), &ok)), b) << key << ": not in the SVG";
             EXPECT_TRUE(ok) << key;
         }
     });

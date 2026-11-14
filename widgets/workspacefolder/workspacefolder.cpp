@@ -72,7 +72,7 @@ bool copyUnlessIdentical(const QString& source, const QString& dest)
 }
 
 bool collectOverlayFiles(std::vector<Platemaker::Models::StripOverlay>& overlays,
-                         const ObjectRecord::Map&                              records,
+                         const Composition::Map&                               records,
                          const QString&                                  overlaysDir,
                          QString*                                        failed)
 {
@@ -94,25 +94,25 @@ bool collectOverlayFiles(std::vector<Platemaker::Models::StripOverlay>& overlays
         if (QFileInfo(sourceInfo.absolutePath()) == homeInfo)
             continue;   // already in this folder
 
-        const auto     rec     = records.constFind(QString::fromStdString(overlays[i].uid));
-        const bool     hasRec  = rec != records.constEnd();
-        const ObjectRecord record  = hasRec ? *rec : ObjectRecord{};
+        const auto        rec    = records.constFind(QString::fromStdString(overlays[i].uid));
+        const bool        hasRec = rec != records.constEnd();
+        const Composition record = hasRec ? *rec : Composition{};
 
         if (!sourceInfo.exists()) {
             // Nothing to copy. A balloon is drawn from its record, so its file belongs here and is written
             // here the next time it is; a picture has nothing to be rebuilt from and stays where it was.
-            if (hasRec && !record.isArtwork())
+            if (hasRec && !record.picture)
                 repointed.emplace_back(i, home.filePath(sourceInfo.fileName()));
             continue;
         }
 
         // A lettered picture: the overlay is the wrapper, and the picture sits beside it under the name its
         // record gives. That name is load-bearing, so the picture is never renamed.
-        const QString picture = record.isArtwork()
-                                    ? QDir(sourceInfo.absolutePath()).filePath(record.artwork)
+        const QString picture = record.picture
+                                    ? QDir(sourceInfo.absolutePath()).filePath(record.picture->file)
                                     : QString{};
         if (!picture.isEmpty() && QFileInfo::exists(picture)
-            && !copyUnlessIdentical(picture, home.filePath(record.artwork)))
+            && !copyUnlessIdentical(picture, home.filePath(record.picture->file)))
             return fail(picture);
 
         QString dest = home.filePath(sourceInfo.fileName());

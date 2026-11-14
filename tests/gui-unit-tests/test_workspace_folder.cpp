@@ -153,7 +153,7 @@ TEST(CollectOverlayFiles, ALetteredPictureBringsThePictureItsRecordNames)
     const ObjectRecord::Map records{{QStringLiteral("1"), record}};
 
     std::vector overlays{overlayAt("1", f.from("ovl-wrapper.svg"))};
-    ASSERT_TRUE(collectOverlayFiles(overlays, records, f.toDir()));
+    ASSERT_TRUE(collectOverlayFiles(overlays, compositionsOf(records), f.toDir()));
     EXPECT_EQ(read(f.to("ovl-wrapper.svg")), QByteArray("wrapper"));
     EXPECT_EQ(read(f.to("art-picture.png")), QByteArray("picture"));
 }
@@ -190,7 +190,7 @@ TEST(CollectOverlayFiles, APictureThatCannotKeepItsNameFailsAndChangesNothing)
     std::vector overlays{overlayAt("1", f.from("ovl-a.svg")), overlayAt("2", f.from("art-p.png"))};
     const auto before = overlays;
     QString failed;
-    EXPECT_FALSE(collectOverlayFiles(overlays, records, f.toDir(), &failed));
+    EXPECT_FALSE(collectOverlayFiles(overlays, compositionsOf(records), f.toDir(), &failed));
     EXPECT_TRUE(QFileInfo(failed) == QFileInfo(f.from("art-p.png")));
     EXPECT_EQ(overlays[0].assetPath, before[0].assetPath);
     EXPECT_EQ(overlays[1].assetPath, before[1].assetPath);
@@ -206,7 +206,7 @@ TEST(CollectOverlayFiles, AMissingBalloonIsPointedHomeToBeRebuiltThere)
     const ObjectRecord::Map records{{QStringLiteral("1"), ObjectRecord{}}, {QStringLiteral("2"), picture}};
 
     std::vector overlays{overlayAt("1", f.from("ovl-gone.svg")), overlayAt("2", f.from("art-gone.png"))};
-    ASSERT_TRUE(collectOverlayFiles(overlays, records, f.toDir()));
+    ASSERT_TRUE(collectOverlayFiles(overlays, compositionsOf(records), f.toDir()));
     EXPECT_TRUE(QFileInfo(QString::fromStdString(overlays[0].assetPath)).absolutePath()
                 == QFileInfo(f.toDir()).absoluteFilePath());
     EXPECT_TRUE(QFileInfo(QString::fromStdString(overlays[1].assetPath)) == QFileInfo(f.from("art-gone.png")));

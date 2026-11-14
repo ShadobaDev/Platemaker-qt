@@ -429,14 +429,14 @@ QStringList MainWindow::referencedWorkspaceFiles() const
     QStringList used;
     const QString folder = QFileInfo(m_workspacePath).absolutePath();
     for (const auto &project : m_workspace.projectItems) {
-        const ObjectRecord::Map records = m_overlayRecords.records(QString::fromStdString(project.uid));
+        const Composition::Map records = m_overlayRecords.records(QString::fromStdString(project.uid));
         for (const auto &overlay : project.getStripOverlays()) {
             const QString asset = QString::fromStdString(overlay.assetPath);
             used << asset;
-            // A lettered picture's overlay is its wrapper; the picture sits beside it, named by the record.
+            // A lettered picture's overlay is its wrapper; the picture sits beside it, named by its composition.
             const auto rec = records.constFind(QString::fromStdString(overlay.uid));
-            if (rec != records.constEnd() && rec->isArtwork())
-                used << QDir(QFileInfo(asset).absolutePath()).filePath(rec->artwork);
+            if (rec != records.constEnd() && rec->picture)
+                used << QDir(QFileInfo(asset).absolutePath()).filePath(rec->picture->file);
         }
     }
     for (const auto &profile : m_workspace.canvasProfiles())
@@ -498,11 +498,12 @@ void MainWindow::healFontFallbacks()
     int         healed = 0;
     QStringList families;
     for (auto &project : m_workspace.projectItems) {
-        const ObjectRecord::Map records = m_overlayRecords.records(QString::fromStdString(project.uid));
+        const Composition::Map records = m_overlayRecords.records(QString::fromStdString(project.uid));
         for (auto &overlay : project.getStripOverlays()) {
-            const auto rec = records.constFind(QString::fromStdString(overlay.uid));
-            if (rec == records.constEnd() || rec->text.body.isEmpty() || rec->text.family.isEmpty()
-                || !QFontDatabase::hasFamily(rec->text.family))
+            const auto   rec   = records.constFind(QString::fromStdString(overlay.uid));
+            const Words *words = rec == records.constEnd() ? nullptr : wordsOf(*rec);
+            if (!words || words->text.body.isEmpty() || words->text.family.isEmpty()
+                || !QFontDatabase::hasFamily(words->text.family))
                 continue;   // nothing lettered, or its font is still missing — nothing to re-set it in
             const QString asset = QString::fromStdString(overlay.assetPath);
             if (QFileInfo(QFileInfo(asset).absolutePath()) != home)
@@ -522,10 +523,10 @@ void MainWindow::healFontFallbacks()
                 overlay.sha256.clear();
             }
             ++healed;
-            if (!families.contains(rec->text.family))
-                families << rec->text.family;
+            if (!families.contains(words->text.family))
+                families << words->text.family;
             logAction(LogLevel::Info, tr("Re-set in %1, now installed: %2")
-                                                  .arg(rec->text.family, root.relativeFilePath(written)));
+                                                  .arg(words->text.family, root.relativeFilePath(written)));
         }
     }
     if (healed == 0)

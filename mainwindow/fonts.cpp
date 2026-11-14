@@ -194,9 +194,9 @@ void MainWindow::onFonts()
         QHash<QString, int> objects;
         QStringList         order;
         for (const auto &project : m_workspace.projectItems) {
-            const ObjectRecord::Map records = m_overlayRecords.records(QString::fromStdString(project.uid));
+            const Composition::Map records = m_overlayRecords.records(QString::fromStdString(project.uid));
             for (const QString &uid : objectsInStandIns(project)) {
-                const QString family = records.value(uid).text.family;
+                const QString family = TextProperties::from(records.value(uid)).family;
                 if (!objects.contains(family))
                     order << family;
                 ++objects[family];

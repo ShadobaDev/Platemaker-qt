@@ -81,35 +81,35 @@ inline constexpr char k_pmNamespace[] = "https://github.com/ShadobaDev/Platemake
 [[nodiscard]] QString contentOf(const ObjectRecord& a);
 
 /**
- * \brief The record @p content describes (contentOf()); a content in the record's own form, saved before it was a
- *        composition's, is read too, until the first release.
- * \param ok Set to whether @p content is a JSON object; a default record comes back when it is not.
+ * \brief The composition @p content describes (contentOf()); a content in the record's own form, saved before it
+ *        was a composition's, is read too, until the first release.
+ * \param ok Set to whether @p content is a JSON object; an empty composition comes back when it is not.
  */
-[[nodiscard]] ObjectRecord fromContent(const std::string& content, bool* ok = nullptr);
+[[nodiscard]] Composition fromContent(const std::string& content, bool* ok = nullptr);
 
 /**
- * \brief Reads the record back out of \p svg: its `<pm:content>`, or, from a file written before that, its old
+ * \brief Reads the composition back out of \p svg: its `<pm:content>`, or, from a file written before that, its old
  *        `pm:` attributes (read until the first release, which no such file can reach).
  *
  * \param svg The document's bytes.
  * \param ok  Set to false when the file carries neither — a hand-drawn or externally edited asset. That is
  *            not an error: the caller keeps it as a flat, still-rendering overlay rather than replacing it
  *            with a default bubble.
- * \return The reconstructed record, or a default one when \p ok comes back false.
+ * \return The composition, or an empty one when \p ok comes back false.
  */
-[[nodiscard]] ObjectRecord read(const QByteArray& svg, bool* ok = nullptr);
+[[nodiscard]] Composition read(const QByteArray& svg, bool* ok = nullptr);
 
 /**
- * \brief One project's authoring records, from its overlays' content (`StripOverlay::content`).
+ * \brief One project's compositions, from its overlays' content (`StripOverlay::content`).
  *
  * An overlay saved before the content was kept with it is read from its own file (read()), and carries its
  * content from its next edit. One with neither is simply absent from the result — the caller shows it as a
  * flat, still-rendering overlay.
  *
  * \param overlays The overlays to read from.
- * \return A map of overlay uid → record, for every overlay with a content or a file of ours.
+ * \return A map of overlay uid → composition, for every overlay with a content or a file of ours.
  */
-[[nodiscard]] ObjectRecord::Map readOverlays(
+[[nodiscard]] Composition::Map readOverlays(
     const std::vector<Platemaker::Models::StripOverlay>& overlays);
 
 /**
@@ -118,14 +118,14 @@ inline constexpr char k_pmNamespace[] = "https://github.com/ShadobaDev/Platemake
 [[nodiscard]] QString pictureMime(const QString& file);
 
 /**
- * \brief Writes \p a into a workspace's `overlays/` directory as an SVG — the file the render composites.
+ * \brief Writes \p c into a workspace's `overlays/` directory as an SVG — the file the render composites.
  *
  * \param reusePath The file this overlay already owns, overwritten in place; empty for a new overlay,
  *                  which is then named by content hash. Ignored for a lettered picture, whose wrapper is
  *                  always named by its content (the path may be the picture itself).
  * \return The asset's absolute path, or empty when it could not be written.
  */
-[[nodiscard]] QString writeFile(const QString& overlaysDir, const ObjectRecord& a,
+[[nodiscard]] QString writeFile(const QString& overlaysDir, const Composition& c,
                                        const QString& reusePath = {});
 
 /**

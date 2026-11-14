@@ -869,12 +869,12 @@ void Project::addDroppedUrls(const QList<QUrl>& urls)
 // sends.
 // ---------------------------------------------------------------------------
 
-void Project::setRecords(ObjectRecord::Map records)
+void Project::setRecords(Composition::Map records)
 {
     m_records = std::move(records);
 }
 
-void Project::createOverlay(const ObjectRecord& record, double xFrac, double yFrac, double wFrac,
+void Project::createOverlay(const Composition& record, double xFrac, double yFrac, double wFrac,
                             const QString& anchorInputUid)
 {
     if (!mayWrite())
@@ -1000,8 +1000,8 @@ void Project::importOverlayArtwork(const QString& sourceFile, double xFrac, doub
     // shared with a collaborator, or copied out of another chapter, arrives re-typable instead of being
     // filed as a picture of itself. A foreign SVG has no such recipe and stays artwork, which is the
     // honest answer: its paths are not something our ten silhouettes can express.
-    bool               ours = false;
-    const ObjectRecord adopted = Svg::read(bytes, &ours);
+    bool              ours    = false;
+    const Composition adopted = Svg::read(bytes, &ours);
 
     commitOverlayEdit(ours ? tr("Import bubble") : tr("Import artwork"), [&] {
         auto& item = m_workspace.projectItems[m_projectIndex];
@@ -1013,21 +1013,23 @@ void Project::importOverlayArtwork(const QString& sourceFile, double xFrac, doub
             // beside it already matches, so nothing is rewritten until the first edit.
             m_records.insert(QString::fromStdString(uid), adopted);
         } else {
-            // **A picture gets a record too** — one that says it is a picture. It carries no geometry
-            // of ours; what it is for is the lettering that can go over it, and knowing which file the
-            // object is without asking the overlay.
-            ObjectRecord record;
-            record.artwork = QFileInfo(dest).fileName();
-            // No silhouette of ours, and the record says so in both ways it can. It matters for the
-            // one reader that might not know about `artwork` — an older build, or a hand-edited file:
-            // it degrades to lettering with no balloon rather than to a speech balloon nobody drew.
-            record.shape.kind = ObjectRecord::Shape::None;
-            // The picture's own pixels, as the side that could still see the original read them —
-            // through the one loader that knows to ask an SVG rather than the image plugin. This is
-            // what `Svg::write()` writes as the wrapper's width, height and viewBox once the
-            // picture is lettered, so a guess here is a wrong aspect ratio in the render.
-            record.box = naturalSize;
-            m_records.insert(QString::fromStdString(uid), record);
+            // **A picture gets a composition too**: a picture, and words that can go over it in its box. It
+            // carries no geometry of ours, and knows which file the object is without asking the overlay.
+            // Its size is the picture's own pixels, as the side that could still see the original read them —
+            // through the one loader that knows to ask an SVG rather than the image plugin. It is what
+            // `Svg::write()` writes as the wrapper's width, height and viewBox once the picture is lettered,
+            // so a guess here is a wrong aspect ratio in the render.
+            Composition picture;
+            Picture     p;
+            p.id   = picture.nextId++;
+            p.file = QFileInfo(dest).fileName();
+            p.size = naturalSize;
+            picture.picture = p;
+            Words w;
+            w.id  = picture.nextId++;
+            w.box = naturalSize;
+            picture.words.append(w);
+            m_records.insert(QString::fromStdString(uid), picture);
         }
         storeContents();
         emit recordsChanged(m_records);
@@ -1050,7 +1052,7 @@ void Project::deleteOverlays(const QStringList& uids, const QString& undoText)
 
     // The records go with their overlays. A record left behind would describe a bubble that no longer
     // exists, and would come back to life if an overlay ever reused its uid.
-    ObjectRecord::Map records = m_records;
+    Composition::Map records = m_records;
     for (const QString& uid : uids)
         records.remove(uid);
 
@@ -1058,7 +1060,7 @@ void Project::deleteOverlays(const QStringList& uids, const QString& undoText)
 }
 
 void Project::applyOverlays(std::vector<Platemaker::Models::StripOverlay> overlays,
-                            ObjectRecord::Map                                  records,
+                            Composition::Map                                  records,
                             const QString&                               undoText)
 {
     // Refused whole rather than applied without its files: a record saying one thing while the file the

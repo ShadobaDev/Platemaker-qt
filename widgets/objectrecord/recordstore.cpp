@@ -22,12 +22,12 @@ QString RecordStore::ensureOverlaysDir(const QString& workspacePath)
     return QDir().mkpath(dir) ? dir : QString{};
 }
 
-ObjectRecord::Map RecordStore::records(const QString& projectUid) const
+Composition::Map RecordStore::records(const QString& projectUid) const
 {
     return m_byProject.value(projectUid);
 }
 
-void RecordStore::setRecords(const QString& projectUid, ObjectRecord::Map map)
+void RecordStore::setRecords(const QString& projectUid, Composition::Map map)
 {
     if (map.isEmpty())
         m_byProject.remove(projectUid);

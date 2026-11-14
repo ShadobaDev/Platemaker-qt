@@ -180,15 +180,16 @@ void MainWindow::refreshAdvisoriesFor(int projectIndex)
 QStringList MainWindow::objectsInStandIns(const Platemaker::Models::ProjectItem& project,
                                           QStringList*                         families) const
 {
-    const ObjectRecord::Map records = m_overlayRecords.records(QString::fromStdString(project.uid));
-    QStringList       out;
+    const Composition::Map records = m_overlayRecords.records(QString::fromStdString(project.uid));
+    QStringList            out;
     for (const auto& overlay : project.getStripOverlays()) {
-        const auto rec = records.constFind(QString::fromStdString(overlay.uid));
-        if (rec == records.constEnd() || Geometry::fontFallback(*rec).isEmpty())
+        const auto   rec   = records.constFind(QString::fromStdString(overlay.uid));
+        const Words* words = rec == records.constEnd() ? nullptr : wordsOf(*rec);
+        if (!words || Geometry::fontFallback(*words).isEmpty())
             continue;
         out << QString::fromStdString(overlay.uid);
-        if (families && !families->contains(rec->text.family))
-            *families << rec->text.family;
+        if (families && !families->contains(words->text.family))
+            *families << words->text.family;
     }
     return out;
 }

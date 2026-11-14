@@ -338,6 +338,22 @@ Composition compositionOf(const ObjectRecord& a)
     return c;
 }
 
+ObjectRecord::Map recordsOf(const Composition::Map& m)
+{
+    ObjectRecord::Map out;
+    for (auto it = m.cbegin(); it != m.cend(); ++it)
+        out.insert(it.key(), recordOf(it.value()));
+    return out;
+}
+
+Composition::Map compositionsOf(const ObjectRecord::Map& m)
+{
+    Composition::Map out;
+    for (auto it = m.cbegin(); it != m.cend(); ++it)
+        out.insert(it.key(), compositionOf(it.value()));
+    return out;
+}
+
 ObjectRecord recordOf(const Composition& c)
 {
     ObjectRecord a;

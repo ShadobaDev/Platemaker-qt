@@ -320,7 +320,7 @@ void MainWindow::openProjectDock(int projectIndex)
     projectWidget->setWriteGuard([this] { return canWriteWorkspace(); });
     projectWidget->setRecords(m_overlayRecords.records(projectUid));
     connect(projectWidget, &Project::recordsChanged, this,
-            [this, projectUid](const ObjectRecord::Map& records) {
+            [this, projectUid](const Composition::Map& records) {
         // Only the cache: the strip is told by projectModified(), which follows every record change and
         // refreshes it from this cache. Refreshing it here too fed it the same records twice per edit.
         m_overlayRecords.setRecords(projectUid, records);
@@ -635,7 +635,7 @@ void MainWindow::openStripEditorDock(int projectIndex)
     // widget and no history, and the edit is dropped rather than applied untracked. Merely *closing*
     // the dock does not reach here — it hides, and the widget goes on recording.
     connect(editor, &StripEdit::Editor::recordCreated, this,
-            [this, projectUid](const ObjectRecord &record, double xFrac, double yFrac,
+            [this, projectUid](const Composition &record, double xFrac, double yFrac,
                                  double wFrac, const QString &anchorUid) {
         if (auto *pw = projectWidget(projectIndexForUid(projectUid)))
             pw->createOverlay(record, xFrac, yFrac, wFrac, anchorUid);
@@ -648,7 +648,7 @@ void MainWindow::openStripEditorDock(int projectIndex)
     });
     connect(editor, &StripEdit::Editor::overlaysCommitted, this,
             [this, projectUid](const std::vector<Platemaker::Models::StripOverlay> &overlays,
-                                 const ObjectRecord::Map &records, const QString &undoText) {
+                                 const Composition::Map &records, const QString &undoText) {
         if (auto *pw = projectWidget(projectIndexForUid(projectUid)))
             pw->applyOverlays(overlays, records, undoText);
     });

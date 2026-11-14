@@ -390,8 +390,14 @@ Editor::Editor(PresetStore& presets, QWidget *parent)
         connect(m_objectMenu, &ObjectMenu::resetLookRequested, this, resetLook);
         connect(m_objectState, &ObjectState::resetLookRequested, this, resetLook);
         m_objectMenu->setColourSource(m_colours);
-        connect(m_objects, &ObjectController::recordCreated,        this, &Editor::recordCreated);
-        connect(m_objects, &ObjectController::overlaysCommitted,         this, &Editor::overlaysCommitted);
+        // The controller holds records, for now; what leaves the editor is compositions.
+        connect(m_objects, &ObjectController::recordCreated, this,
+                [this](const ObjectRecord& record, double xFrac, double yFrac, double wFrac, const QString& anchor) {
+                    emit recordCreated(compositionOf(record), xFrac, yFrac, wFrac, anchor);
+                });
+        connect(m_objects, &ObjectController::overlaysCommitted, this,
+                [this](const std::vector<Platemaker::Models::StripOverlay>& overlays, const ObjectRecord::Map& records,
+                       const QString& undoText) { emit overlaysCommitted(overlays, compositionsOf(records), undoText); });
         connect(m_objects, &ObjectController::artworkImportRequested, this, &Editor::artworkImportRequested);
         connect(m_objects, &ObjectController::subjectChanged,         this, [this] { showSubject(); });
         connect(m_objects, &ObjectController::noted,                  this, &Editor::noted);
@@ -846,9 +852,9 @@ void Editor::resizeEvent(QResizeEvent *event)
 // ---------------------------------------------------------------------------
 
 void Editor::setOverlaySource(const std::vector<Platemaker::Models::StripOverlay>& overlays,
-                              const ObjectRecord::Map&                                  records)
+                              const Composition::Map&                                  records)
 {
-    m_objects->setSource(overlays, records);
+    m_objects->setSource(overlays, recordsOf(records));   // the controller holds records, for now
     if (m_input)
         m_input->updateCursor();   // an object may have arrived under, or vanished from beneath, a still pointer
 }

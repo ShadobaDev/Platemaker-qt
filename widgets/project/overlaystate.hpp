@@ -5,7 +5,7 @@
 
 #include <platemaker/models/strip_overlay.hpp>
 
-#include "objectrecord.hpp"
+#include "composition.hpp"
 
 /**
  * \brief A project's text & bubbles, whole — the strip editor's half of the document.
@@ -21,7 +21,7 @@
 struct OverlayState
 {
     std::vector<Platemaker::Models::StripOverlay> overlays;     //!< The strip's overlays, in the order they are drawn.
-    ObjectRecord::Map                                   records;    //!< The authoring records for those overlays, keyed by `StripOverlay::uid`.
+    Composition::Map                              records;    //!< The compositions of those overlays, keyed by `StripOverlay::uid`.
 
     /**
      * \brief Compares two overlay states for equality.

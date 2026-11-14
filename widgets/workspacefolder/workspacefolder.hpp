@@ -21,7 +21,7 @@
 
 #include <vector>
 
-#include "objectrecord.hpp"
+#include "composition.hpp"
 
 //! What names a workspace file. A profile bundle (`*.platemaker.profiles.json`) and the retired authoring
 //! sidecar (`*.platemaker.overlays.json`) end differently, so the pattern tells them apart by itself.
@@ -83,7 +83,7 @@ inline constexpr char k_workspaceFontsFolder[] = "fonts";
  * \return True when every file is in place (or there was nothing to do).
  */
 [[nodiscard]] bool collectOverlayFiles(std::vector<Platemaker::Models::StripOverlay>& overlays,
-                                       const ObjectRecord::Map&                              records,
+                                       const Composition::Map&                               records,
                                        const QString&                                  overlaysDir,
                                        QString*                                        failed = nullptr);
 

@@ -193,24 +193,25 @@ void MainWindow::onExportPackage()
 
     QSet<QString> named;   // families a bubble asks for by name
     for (const auto &project : m_workspace.projectItems) {
-        const ObjectRecord::Map records = m_overlayRecords.records(QString::fromStdString(project.uid));
+        const Composition::Map records = m_overlayRecords.records(QString::fromStdString(project.uid));
         for (const auto &overlay : project.getStripOverlays()) {
             const auto rec = records.constFind(QString::fromStdString(overlay.uid));
             if (rec == records.constEnd())
                 continue;
-            if (!rec->text.family.isEmpty())
-                named.insert(rec->text.family);
-            if (!rec->isArtwork())
+            for (const Words &w : rec->words)
+                if (!w.text.family.isEmpty())
+                    named.insert(w.text.family);
+            if (!rec->picture)
                 continue;
             // The picture goes beside its wrapper, under the name its record gives — never renamed.
             const QString asset   = QString::fromStdString(overlay.assetPath);
             const QString wrapper = files.targetOf(asset);
-            const QString picture = QDir(QFileInfo(asset).absolutePath()).filePath(rec->artwork);
+            const QString picture = QDir(QFileInfo(asset).absolutePath()).filePath(rec->picture->file);
             if (wrapper.isEmpty() || !QFileInfo::exists(picture)) {
                 gui.picturesMissing << QDir::toNativeSeparators(picture);
                 continue;
             }
-            const QString target = QFileInfo(wrapper).path() + QLatin1Char('/') + rec->artwork;
+            const QString target = QFileInfo(wrapper).path() + QLatin1Char('/') + rec->picture->file;
             if (!files.add(picture, target))
                 gui.picturesMissing << QDir::toNativeSeparators(picture);   // content-named: cannot happen
         }

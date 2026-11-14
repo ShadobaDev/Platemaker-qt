@@ -68,14 +68,15 @@ inline constexpr char k_pmNamespace[] = "https://github.com/ShadobaDev/Platemake
                                        const QString& mime = {});
 
 /**
- * \brief The record's content, as the workspace stores it and the SVG copies it: one JSON object, compact, a
- *        group an object and a section an object in it (ObjectRecord::toJson()), the lettering's family the
- *        one the outlines were set for (the default's own name for an empty one).
+ * \brief The record's content, as the workspace stores it and the SVG copies it: its composition's JSON, compact
+ *        (toJson(const Composition&)), the lettering's family the one the outlines were set for (the default's own
+ *        name for an empty one).
  */
 [[nodiscard]] QString contentOf(const ObjectRecord& a);
 
 /**
- * \brief The record @p content describes (contentOf()).
+ * \brief The record @p content describes (contentOf()); a content in the record's own form, saved before it was a
+ *        composition's, is read too, until the first release.
  * \param ok Set to whether @p content is a JSON object; a default record comes back when it is not.
  */
 [[nodiscard]] ObjectRecord fromContent(const std::string& content, bool* ok = nullptr);

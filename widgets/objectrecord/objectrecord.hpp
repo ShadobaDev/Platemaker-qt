@@ -116,9 +116,9 @@ struct ObjectRecord
     //! True when a tail should be drawn. A shapeless record has nothing to grow a tail from.
     [[nodiscard]] bool hasTail() const { return hasSilhouette() && !tails.items.isEmpty(); }
 
-    // --- Persistence: the record's content, one JSON object, a group an object and a section an object in it.
-    // The workspace keeps it with the overlay (StripOverlay::content), a preset is one, and the overlay's SVG
-    // carries a copy (recordsvg.hpp). ---------------------------------------------------------------------
+    // --- Persistence: the record as one JSON object, a group an object and a section an object in it: what a
+    // preset is, and what a content saved before the composition's was (recordsvg.hpp). The content itself is the
+    // composition's (composition.hpp). --------------------------------------------------------------------
     [[nodiscard]] QJsonObject     toJson() const;
     [[nodiscard]] static ObjectRecord fromJson(const QJsonObject& j);
     //! A whole map, keyed by overlay uid — the shape the undo snapshot stores.

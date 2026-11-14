@@ -126,11 +126,12 @@ Bug fixes, cosmetics and internal cleanups — no new capability, no change to a
 New, backward-compatible features. Several are gated on a lib version, noted in the item body.
 (The `[x]` items below shipped/ready to ship; the open ones re-derive to the next MINOR.)
 
-- [ ] **Before this release: delete the old `pm:` attribute reader.** A bubble's content is kept in the
-  workspace with its overlay (requires libplatemaker with `StripOverlay::content`); an overlay saved before
-  that is read once from its SVG's flat `pm:` attributes (`Svg::read()`'s second branch, `readGroup()`,
-  `tailsFromText()`, `TailLook::fromFields()`) and carries its content from its next edit. No released file
-  has those attributes, so the reader goes before release, with the tests that build such files by hand.
+- [ ] **Before this release: delete the old content readers.** A bubble's content is its composition's JSON,
+  kept in the workspace with its overlay (requires libplatemaker with `StripOverlay::content`). Two older forms
+  are still read, and a bubble carries the current one from its next edit: a content in the record's own form
+  (`Svg::fromContent()`'s second branch), and, for an overlay saved before the content, its SVG's flat `pm:`
+  attributes (`Svg::read()`'s second branch, `readGroup()`, `tailsFromText()`, `TailLook::fromFields()`). No
+  released file has either, so the readers go before release, with the tests that build such files by hand.
 
 - [x] **Show the effect of a canvas profile edit right away.** *Done 2026-11-09 (requires
   libplatemaker 0.7.0).* "Out of sync" is a query (`detectFileStaleness()`), not a stored status, so

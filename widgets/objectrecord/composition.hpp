@@ -1,6 +1,7 @@
 #ifndef COMPOSITION_HPP
 #define COMPOSITION_HPP
 
+#include <QJsonObject>
 #include <QList>
 #include <QPointF>
 #include <QSize>
@@ -158,5 +159,21 @@ struct Composition
 [[nodiscard]] Composition compositionOf(const ObjectRecord& a);
 [[nodiscard]] ObjectRecord recordOf(const Composition& c);
 /** @} */
+
+/**
+ * \brief The composition as its content: the JSON the workspace keeps with the overlay and the SVG copies.
+ *
+ * `{balloon: {line, fill, texture, effects, nextTail, bodies, tails}, picture, words, seed, preset, nextId}`, each
+ * group an object and each section an object inside its group (a section's numbers left out while they are their
+ * defaults). A body is `{id, place, size, shape}`, a tail `{id, root, tip, width, bend, look}`, words
+ * `{id, text, seat}` or, with no seat, `{id, text, place, box}`; a place is `{pos}`, with `rotation` and `scale`
+ * only when they are not their defaults.
+ */
+[[nodiscard]] QJsonObject toJson(const Composition& c);
+/**
+ * \brief The composition @p j describes (toJson()); what it leaves out is its default. A balloon with no body is
+ *        not read, nor a picture beside a balloon; `nextId` is never below an id in use.
+ */
+[[nodiscard]] Composition compositionFromJson(const QJsonObject& j);
 
 #endif // COMPOSITION_HPP

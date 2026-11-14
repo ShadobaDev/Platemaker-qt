@@ -1,5 +1,6 @@
 #include "recordsvg.hpp"
 
+#include "composition.hpp"
 #include "geometry.hpp"
 #include "renderlist.hpp"
 #include "styles.hpp"
@@ -640,7 +641,7 @@ QString contentOf(const ObjectRecord& a)
 {
     ObjectRecord stored = a;
     stored.text.family  = fileFontFamily(a);
-    return QString::fromUtf8(QJsonDocument(stored.toJson()).toJson(QJsonDocument::Compact));
+    return QString::fromUtf8(QJsonDocument(toJson(compositionOf(stored))).toJson(QJsonDocument::Compact));
 }
 
 ObjectRecord fromContent(const std::string& content, bool* ok)
@@ -648,7 +649,12 @@ ObjectRecord fromContent(const std::string& content, bool* ok)
     const QJsonDocument doc = QJsonDocument::fromJson(QByteArray::fromStdString(content));
     if (ok)
         *ok = doc.isObject();
-    return doc.isObject() ? ObjectRecord::fromJson(doc.object()) : ObjectRecord{};
+    if (!doc.isObject())
+        return {};
+    // A content saved before it was a composition's has no words: the record's own form, read until the first
+    // release, as the old attributes are.
+    const QJsonObject j = doc.object();
+    return j.contains(QStringLiteral("words")) ? recordOf(compositionFromJson(j)) : ObjectRecord::fromJson(j);
 }
 
 } // namespace Svg

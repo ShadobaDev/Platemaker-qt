@@ -645,46 +645,96 @@ TEST(PropertyGroupOwnership, SkinAndTextColoursAreSeparate)
 // Persistence — the content: a group an object, a section an object in it
 // ---------------------------------------------------------------------------
 
+namespace {
+
+//! What @p a comes back as from its content: its composition's JSON, read.
+ObjectRecord throughContent(const ObjectRecord& a)
+{
+    return recordOf(compositionFromJson(toJson(compositionOf(a))));
+}
+
+} // namespace
+
 /**
- * \brief The content (ObjectRecord::toJson()) is a group an object and a section an object inside it, under the
- *        fields' keys; a section's number is left out while it is its default, and every other field is
- *        written whatever its value.
+ * \brief The content (toJson() of the composition) is an element an object, a group an object in it and a section
+ *        an object inside its group, under the fields' keys; a section's number is left out while it is its
+ *        default, and every other field is written whatever its value.
  */
 TEST(PropertyGroupPersistence, TheContentIsAGroupAnObject)
 {
-    const ObjectRecord a = loadedRecord();
-    const QJsonObject  j = a.toJson();
-    const auto group = [&](const char* name) { return j.value(QLatin1String(name)).toObject(); };
+    const ObjectRecord a       = loadedRecord();
+    const QJsonObject  j       = toJson(compositionOf(a));
+    const QJsonObject  balloon = j.value(QStringLiteral("balloon")).toObject();
+    const QJsonObject  body    = balloon.value(QStringLiteral("bodies")).toArray().first().toObject();
+    const QJsonObject  words   = j.value(QStringLiteral("words")).toArray().first().toObject();
+    const auto group = [&](const char* name) { return balloon.value(QLatin1String(name)).toObject(); };
+    const QJsonObject text = words.value(QStringLiteral("text")).toObject();
 
-    EXPECT_EQ(j.value(QStringLiteral("box")).toArray(), (QJsonArray{boxOf(a).width(), boxOf(a).height()}));
-    EXPECT_EQ(group("style").value(QStringLiteral("strokeWidth")).toInt(), styleOf(a).strokeWidth);
-    EXPECT_EQ(group("style").value(QStringLiteral("stroke")).toString(), styleOf(a).stroke.colour.name(QColor::HexArgb));
-    EXPECT_EQ(group("skin").value(QStringLiteral("fill")).toString(), skinOf(a).fill.colour.name(QColor::HexArgb));
-    EXPECT_EQ(group("skin").value(QStringLiteral("fillKind")).toString(), QStringLiteral("dots"));
-    EXPECT_EQ(group("text").value(QStringLiteral("text")).toString(), textOf(a).body);
-    EXPECT_EQ(group("text").value(QStringLiteral("fontSize")).toInt(), textOf(a).pixelSize);
+    EXPECT_EQ(body.value(QStringLiteral("size")).toArray(), (QJsonArray{boxOf(a).width(), boxOf(a).height()}));
+    EXPECT_EQ(body.value(QStringLiteral("shape")).toObject().value(QStringLiteral("shape")).toString(),
+              QStringLiteral("cloud"));
+    EXPECT_EQ(words.value(QStringLiteral("seat")).toInt(), body.value(QStringLiteral("id")).toInt());
+    EXPECT_FALSE(words.contains(QStringLiteral("box"))) << "words in a body wrap in its size";
+    EXPECT_EQ(group("line").value(QStringLiteral("strokeWidth")).toInt(), styleOf(a).strokeWidth);
+    EXPECT_EQ(group("line").value(QStringLiteral("stroke")).toString(), styleOf(a).stroke.colour.name(QColor::HexArgb));
+    EXPECT_EQ(group("fill").value(QStringLiteral("fill")).toString(), skinOf(a).fill.colour.name(QColor::HexArgb));
+    EXPECT_EQ(group("fill").value(QStringLiteral("fillKind")).toString(), QStringLiteral("dots"));
+    EXPECT_EQ(text.value(QStringLiteral("text")).toString(), textOf(a).body);
+    EXPECT_EQ(text.value(QStringLiteral("fontSize")).toInt(), textOf(a).pixelSize);
     EXPECT_EQ(group("texture").value(QStringLiteral("texture")).toString(), QStringLiteral("rough"));
 
     // A section is an object in its group; a number of it set off its default is there, under its key.
-    EXPECT_DOUBLE_EQ(group("style").value(QStringLiteral("flash")).toObject()
+    EXPECT_DOUBLE_EQ(group("line").value(QStringLiteral("flash")).toObject()
                          .value(QStringLiteral("flashOuterPitch")).toDouble(), styleOf(a).flash.outerPitch);
     EXPECT_DOUBLE_EQ(group("texture").value(QStringLiteral("rough")).toObject()
                          .value(QStringLiteral("roughFrequency")).toDouble(), textureOf(a).rough.frequency);
-    const QJsonObject tail = j.value(QStringLiteral("tails")).toArray().first().toObject();
+    const QJsonObject tail = balloon.value(QStringLiteral("tails")).toArray().first().toObject();
     EXPECT_EQ(tail.value(QStringLiteral("tip")).toArray(),
               (QJsonArray{tailsOf(a).items.first().tip.x(), tailsOf(a).items.first().tip.y()}));
-    EXPECT_EQ(j.value(QStringLiteral("nextTail")).toObject().value(QStringLiteral("circles")).toObject()
+    EXPECT_EQ(tail.value(QStringLiteral("root")).toInt(), body.value(QStringLiteral("id")).toInt());
+    EXPECT_EQ(group("nextTail").value(QStringLiteral("circles")).toObject()
                   .value(QStringLiteral("circles")).toInt(), tailsOf(a).nextLook.circles.count);
 
     // At its defaults, a section is left out whole; a kind, a colour, a width are written all the same.
-    const QJsonObject plain = ObjectRecord().toJson();
+    const QJsonObject plain = toJson(compositionOf(ObjectRecord()));
+    const QJsonObject line  = plain.value(QStringLiteral("balloon")).toObject().value(QStringLiteral("line")).toObject();
     for (const char* section : {"flash", "brush", "drybrush", "dash", "multi", "sketch", "dryInk"})
-        EXPECT_FALSE(plain.value(QStringLiteral("style")).toObject().contains(QLatin1String(section))) << section;
-    EXPECT_FALSE(plain.value(QStringLiteral("shape")).toObject().contains(QStringLiteral("corner")));
-    EXPECT_EQ(plain.value(QStringLiteral("style")).toObject().value(QStringLiteral("line")).toString(), QStringLiteral("clean"));
-    EXPECT_EQ(plain.value(QStringLiteral("style")).toObject().value(QStringLiteral("strokeWidth")).toInt(),
-              StyleProperties().strokeWidth);
-    EXPECT_EQ(ObjectRecord::fromJson(plain), ObjectRecord()) << "a number left out reads as its default";
+        EXPECT_FALSE(line.contains(QLatin1String(section))) << section;
+    EXPECT_FALSE(plain.value(QStringLiteral("balloon")).toObject().value(QStringLiteral("bodies")).toArray().first()
+                     .toObject().value(QStringLiteral("shape")).toObject().contains(QStringLiteral("corner")));
+    EXPECT_EQ(line.value(QStringLiteral("line")).toString(), QStringLiteral("clean"));
+    EXPECT_EQ(line.value(QStringLiteral("strokeWidth")).toInt(), StyleProperties().strokeWidth);
+    EXPECT_EQ(recordOf(compositionFromJson(plain)), ObjectRecord()) << "a number left out reads as its default";
+
+    // A text object's words have their own box and place; it has no balloon.
+    ObjectRecord caption    = a;
+    shapeOf(caption).kind   = ObjectRecord::Shape::None;
+    const QJsonObject t     = toJson(compositionOf(caption));
+    const QJsonObject tw    = t.value(QStringLiteral("words")).toArray().first().toObject();
+    EXPECT_FALSE(t.contains(QStringLiteral("balloon")));
+    EXPECT_FALSE(tw.contains(QStringLiteral("seat")));
+    EXPECT_EQ(tw.value(QStringLiteral("box")).toArray(), (QJsonArray{boxOf(a).width(), boxOf(a).height()}));
+}
+
+/**
+ * \brief A file's content is read with care: a balloon with no body is no balloon, a picture beside a balloon is
+ *        not read, and the next id is never one in use.
+ */
+TEST(PropertyGroupPersistence, AContentThatBreaksTheRulesIsReadWithin)
+{
+    QJsonObject j = toJson(compositionOf(loadedRecord()));
+    j.insert(QStringLiteral("picture"), QJsonObject{{QStringLiteral("id"), 9}, {QStringLiteral("file"), QStringLiteral("x.png")}});
+    j.insert(QStringLiteral("nextId"), 1);
+    const Composition c = compositionFromJson(j);
+    EXPECT_TRUE(c.balloon);
+    EXPECT_FALSE(c.picture);
+    EXPECT_GT(c.nextId, c.words.first().id);
+    EXPECT_GT(c.nextId, c.balloon->tails.first().id);
+
+    QJsonObject balloon = j.value(QStringLiteral("balloon")).toObject();
+    balloon.insert(QStringLiteral("bodies"), QJsonArray{});
+    j.insert(QStringLiteral("balloon"), balloon);
+    EXPECT_FALSE(compositionFromJson(j).balloon);
 }
 
 TEST(PropertyGroupPersistence, RoundTrips)
@@ -692,7 +742,7 @@ TEST(PropertyGroupPersistence, RoundTrips)
     ObjectRecord a = loadedRecord();
     // A Curve's node with handles among a Polygon's plain ones, so both forms are saved and read.
     shapeOf(a).nodes.insert(1, ShapeNode({0.5, 0.1}, {0.05, -0.1}, {-0.02, 0.2}, ShapeNode::Type::Smooth));
-    const ObjectRecord b = ObjectRecord::fromJson(a.toJson());
+    const ObjectRecord b = throughContent(a);
 
     EXPECT_EQ(shapeOf(b), shapeOf(a));
     EXPECT_EQ(skinOf(b),  skinOf(a));
@@ -703,8 +753,8 @@ TEST(PropertyGroupPersistence, RoundTrips)
 }
 
 /**
- * \brief **Every** shape and every line style comes back from both files it is saved to — the undo
- *        snapshot's JSON and the overlay's SVG.
+ * \brief **Every** shape and every line style comes back from what it is saved as — the content and the
+ *        overlay's SVG.
  *
  * Both read a kind back by its name — the JSON's `shape` and the SVG's `pm:shape` go through the same
  * shapeFromName() — and a reader that stops short of the last kind loads whatever lies past it as the
@@ -723,7 +773,8 @@ TEST(PropertyGroupPersistence, EveryShapeAndStyleRoundTrips)
         EXPECT_EQ(shapeFromName(QString::fromLatin1(shapeName(s))), s) << shapeName(s);
         ObjectRecord a   = loadedRecord();
         shapeOf(a).kind = s;
-        EXPECT_EQ(ObjectRecord::fromJson(a.toJson()), a) << shapeName(s);
+        // A text object has no balloon: what it carries of one is not its content.
+        EXPECT_TRUE(compositionOf(throughContent(a)) == compositionOf(a)) << shapeName(s);
     }
 
     // Every template, from the SVG too (with no lettering, which would need a font): a placed one must
@@ -734,7 +785,7 @@ TEST(PropertyGroupPersistence, EveryShapeAndStyleRoundTrips)
         textOf(a).body.clear();
         bool ok = false;
         EXPECT_EQ(shapeOf(Svg::read(Svg::write(a), &ok)), t.shape) << t.id;
-        EXPECT_EQ(ObjectRecord::fromJson(a.toJson()), a) << t.id;
+        EXPECT_EQ(throughContent(a), a) << t.id;
     }
 
     for (int i = 0; i <= int(StyleProperties::k_lastLine); ++i) {
@@ -742,14 +793,14 @@ TEST(PropertyGroupPersistence, EveryShapeAndStyleRoundTrips)
         EXPECT_EQ(lineFromName(QString::fromLatin1(lineName(l))), l) << lineName(l);
         ObjectRecord a = loadedRecord();
         styleOf(a).line   = l;
-        EXPECT_EQ(ObjectRecord::fromJson(a.toJson()), a) << lineName(l);
+        EXPECT_EQ(throughContent(a), a) << lineName(l);
     }
     for (int i = 0; i <= int(TextureProperties::k_lastKind); ++i) {
         const auto t = static_cast<ObjectRecord::Texture>(i);
         EXPECT_EQ(textureFromName(QString::fromLatin1(textureName(t))), t) << textureName(t);
         ObjectRecord a = loadedRecord();
         textureOf(a).kind = t;
-        EXPECT_EQ(ObjectRecord::fromJson(a.toJson()), a) << textureName(t);
+        EXPECT_EQ(throughContent(a), a) << textureName(t);
     }
 }
 
@@ -2120,6 +2171,8 @@ TEST(Import, TheContentIsReadFromTheOverlayThenFromItsFile)
 {
     const QByteArray header =
         QByteArray("<svg xmlns=\"http://www.w3.org/2000/svg\" xmlns:pm=\"") + Svg::k_pmNamespace + "\" width=\"10\" height=\"10\">";
+    // A content in the record's own form, saved before it was a composition's, is still read (ovl-content below
+    // is the composition's).
     const QByteArray ours = header + "<pm:content>{\"box\":[300,200],\"shape\":{\"shape\":\"cloud\"},"
                                      "\"text\":{\"text\":\"a &lt; b\"}}</pm:content><g/></svg>";
     bool               ok   = false;
@@ -2901,7 +2954,8 @@ QString goldenRecords()
                    .arg(area.x(), 0, 'f', 3).arg(area.y(), 0, 'f', 3)
                    .arg(area.width(), 0, 'f', 3).arg(area.height(), 0, 'f', 3);
         out += QStringLiteral("json: ")
-             + QString::fromUtf8(QJsonDocument(c.record.toJson()).toJson(QJsonDocument::Compact)) + u'\n';
+             + QString::fromUtf8(QJsonDocument(toJson(compositionOf(c.record))).toJson(QJsonDocument::Compact))
+             + u'\n';
     }
     return out;
 }
@@ -2978,6 +3032,7 @@ TEST(Composition, ARecordAndItsCompositionAreOneObject)
         const Composition  c    = compositionOf(g.record);
         const ObjectRecord back = recordOf(c);
         EXPECT_TRUE(compositionOf(back) == c);
+        EXPECT_TRUE(compositionFromJson(toJson(c)) == c);
         EXPECT_EQ(drawnOf(back, picture, mime).toStdString(), drawnOf(g.record, picture, mime).toStdString());
         EXPECT_EQ(Geometry::textArea(back), Geometry::textArea(g.record));
         if (g.record.hasSilhouette()) {

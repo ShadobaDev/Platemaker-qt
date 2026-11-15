@@ -86,6 +86,16 @@ ObjectController::ObjectController(QGraphicsScene* scene, QGraphicsView* view,
     , m_presets(presets)
     , m_layout(layout)
 {
+    m_shapeEdit = new ShapeEditMode(m_selection, m_scene,
+                                    {[this](const QString& uid) { return m_overlayItems.value(uid); },
+                                     [this] { return static_cast<const SelectionChrome*>(m_chrome); },
+                                     [this](const QString& uid) { selectOverlay(uid); },
+                                     [this](const QString& uid, const Composition& c, const QString& step) {
+                                         applyRecord(uid, c, /*commit=*/true, step);
+                                         emit boundToRecord(c);
+                                     }},
+                                    this);
+
     // A font added or removed (a workspace's fonts/, Add font…) changes what a bubble's words are set in
     // without changing its composition — so nothing else here would notice: setComposition() ignores the
     // same one, and the cached outline is the stand-in's until the object is rebuilt.
@@ -253,180 +263,12 @@ void ObjectController::onObjectPressed(const QString& uid, int handle)
 
     // In shape editing, a press on the words is a press on the text: OBJECT STATE takes the caret. (A press
     // on a node picks it in the object, which says so through pickedVertexChanged.)
-    const Object* item = uid == m_shapeEditing ? m_overlayItems.value(uid) : nullptr;
+    const Object* item = uid == m_shapeEdit->edited() ? m_overlayItems.value(uid) : nullptr;
     if (!item)
         return;
     if (item->dragGrip() != Grip::Shape
         && Geometry::partAt(item->composition(), item->mapFromScene(item->pressScenePos()), 0.0) == Geometry::Part::Text)
         emit textFocusRequested();
-}
-
-bool ObjectController::canEditShape() const
-{
-    const Object* item = m_overlayItems.value(m_selection.primary());
-    return item && m_selection.objects().size() == 1 && item->canEditShape();
-}
-
-bool ObjectController::hasPickedVertex() const
-{
-    const Object* item = m_overlayItems.value(m_shapeEditing);
-    return item && item->pickedVertex() >= 0;
-}
-
-bool ObjectController::onEditedObject(const QPointF& scenePos, const QTransform& deviceTransform) const
-{
-    const Object* edited = m_overlayItems.value(m_shapeEditing);
-    if (!edited)
-        return false;
-    if (m_chrome && m_chrome->hitAt(scenePos).object)
-        return true;   // the grips and handles drawn are the edited object's own
-    return dynamic_cast<Object*>(m_scene->itemAt(scenePos, deviceTransform)) == edited;
-}
-
-void ObjectController::leaveShapeEditingAt(const QPointF& scenePos, const QTransform& deviceTransform)
-{
-    auto* other = dynamic_cast<Object*>(m_scene->itemAt(scenePos, deviceTransform));
-    if (other && other->uid() != m_shapeEditing)
-        selectOverlay(other->uid());   // a selection of something else ends the editing
-    else
-        setShapeEditing(false);
-}
-
-void ObjectController::pickNodesIn(const QRectF& sceneRect, bool add)
-{
-    Object* edited = m_overlayItems.value(m_shapeEditing);
-    if (!edited)
-        return;
-    QList<int> inside;
-    for (const Geometry::Handle& h : edited->shapeHandles())
-        if (h.glyph == Geometry::Handle::Glyph::Node && h.node >= 0 && sceneRect.contains(edited->mapToScene(h.at))
-            && !inside.contains(h.node))
-            inside.append(h.node);
-    if (inside.isEmpty())
-        return;   // a band round no node never happened
-    QList<int> picked = add ? edited->pickedVertices() : QList<int>{};
-    for (int i : std::as_const(inside))
-        if (!picked.contains(i))
-            picked.append(i);
-    edited->setPickedVertices(picked);
-}
-
-void ObjectController::stepPickedNode(bool clockwise, PickStep how)
-{
-    Object* edited = m_overlayItems.value(m_shapeEditing);
-    if (!edited || edited->pickedVertices().isEmpty())
-        return;
-    QPolygonF nodes;   // in index order, as drawn
-    for (const Geometry::Handle& h : edited->shapeHandles())
-        if (h.glyph == Geometry::Handle::Glyph::Node && h.node == nodes.size())
-            nodes << edited->mapToScene(h.at);
-    const int n = int(nodes.size());
-    if (n == 0)
-        return;
-    // Clockwise on screen (y down) is a positive shoelace: then the next index is the clockwise one.
-    qreal area = 0.0;
-    for (int i = 0; i < n; ++i)
-        area += nodes[i].x() * nodes[(i + 1) % n].y() - nodes[(i + 1) % n].x() * nodes[i].y();
-    const int  step   = (area > 0.0) == clockwise ? 1 : n - 1;
-    QList<int> picked = edited->pickedVertices();
-    int        end    = picked.last();
-    for (int i = 0; i < n && picked.contains((end + step) % n); ++i)
-        end = (end + step) % n;
-    if (how == PickStep::Shrink) {
-        if (picked.size() < 2)
-            return;   // the last one stays, or the arrows would have nowhere to start from
-        picked.removeAll(end);
-        // The run's new end is the one picked last, so the next Shrink that way takes it in turn.
-        const int before = (end + n - step) % n;
-        if (picked.removeAll(before) > 0)
-            picked.append(before);
-        edited->setPickedVertices(picked);
-        return;
-    }
-    const int next = (end + step) % n;
-    if (picked.contains(next))
-        return;   // every node is picked
-    if (how == PickStep::Extend)
-        picked.append(next);
-    else
-        picked = {next};
-    edited->setPickedVertices(picked);
-}
-
-std::optional<ShapeNode::Type> ObjectController::pickedNodeType() const
-{
-    const Object* item = m_overlayItems.value(m_shapeEditing);
-    const Body*   body = item ? bodyOf(item->composition()) : nullptr;
-    if (!body || body->shape.kind != ShapeProperties::Kind::Curve)
-        return std::nullopt;
-    const QList<ShapeNode>& nodes = body->shape.nodes;
-    const int               i     = item->pickedVertex();
-    if (i < 0 || i >= nodes.size())
-        return std::nullopt;
-    return nodes.at(i).type;
-}
-
-void ObjectController::setPickedNodeType(ShapeNode::Type type)
-{
-    Object* item = m_overlayItems.value(m_shapeEditing);
-    if (!pickedNodeType() || !item)
-        return;
-    Composition  a    = item->composition();
-    Body&        body = *bodyOf(a);   // pickedNodeType() found a Curve's node
-    const QRectF rect = Geometry::balloonRect(*a.balloon, body);
-    for (int i : item->pickedVertices())
-        body.shape = Geometry::withNodeType(body.shape, rect, i, type);
-    if (body.shape == bodyOf(item->composition())->shape)
-        return;
-    applyRecord(m_shapeEditing, a, /*commit=*/true, tr("Point type"));
-    emit boundToRecord(a);
-    emit shapeEditingChanged();   // the menu's tick, and the handles drawn
-}
-
-bool ObjectController::canGrowPickedHandles() const
-{
-    const Object* item = m_overlayItems.value(m_shapeEditing);
-    if (!pickedNodeType() || !item)
-        return false;
-    const ShapeProperties& shape = bodyOf(item->composition())->shape;   // pickedNodeType() found a Curve's node
-    for (int i : item->pickedVertices())
-        if (!(Geometry::withHandlesGrown(shape, i) == shape))
-            return true;
-    return false;
-}
-
-void ObjectController::growPickedHandles()
-{
-    Object* item = m_overlayItems.value(m_shapeEditing);
-    if (!canGrowPickedHandles() || !item)
-        return;
-    Composition a    = item->composition();
-    Body&       body = *bodyOf(a);
-    for (int i : item->pickedVertices())
-        body.shape = Geometry::withHandlesGrown(body.shape, i);
-    applyRecord(m_shapeEditing, a, /*commit=*/true, tr("Add handles"));
-    emit boundToRecord(a);
-    emit shapeEditingChanged();   // the menu's entry, and the handles drawn
-}
-
-bool ObjectController::canConvertToCurve() const
-{
-    const Object* item = m_overlayItems.value(m_selection.primary());
-    const Body*   body = item ? bodyOf(item->composition()) : nullptr;
-    return body && m_selection.objects().size() == 1 && body->shape.kind != ShapeProperties::Kind::Curve;
-}
-
-void ObjectController::convertSelectionToCurve()
-{
-    if (!canConvertToCurve())
-        return;
-    Composition  a    = m_overlayItems.value(m_selection.primary())->composition();
-    Body&        body = *bodyOf(a);
-    const QRectF rect = Geometry::balloonRect(*a.balloon, body);
-    body.shape        = Geometry::curveOf(Geometry::outlineOf(body, rect, a.seed), rect);
-    applyRecord(m_selection.primary(), a, /*commit=*/true, tr("Convert to curve"));
-    emit boundToRecord(a);
-    setShapeEditing(true);
 }
 
 bool ObjectController::canReroll() const
@@ -455,19 +297,6 @@ void ObjectController::rerollSelection()
     }
     if (!uids.isEmpty())
         applyRecords(uids, records, /*commit=*/true, tr("Re-roll"));
-}
-
-void ObjectController::setShapeEditing(bool on)
-{
-    const QString uid = on && canEditShape() ? m_selection.primary() : QString();
-    if (uid == m_shapeEditing)
-        return;
-    if (Object* was = m_overlayItems.value(m_shapeEditing))
-        was->setShapeEditing(false);
-    m_shapeEditing = uid;
-    if (Object* item = m_overlayItems.value(uid))
-        item->setShapeEditing(true);
-    emit shapeEditingChanged();
 }
 
 void ObjectController::beginDrag(const QString& uid, int handle)
@@ -567,8 +396,8 @@ void ObjectController::setSource(const std::vector<Platemaker::Models::StripOver
             it.value()->setComposition(*rec);
     }
     // An undo can take the edited shape's handles away (back to an ellipse), or the object itself.
-    if (const Object* edited = m_overlayItems.value(m_shapeEditing); !edited || !edited->canEditShape())
-        setShapeEditing(false);
+    if (const Object* edited = m_overlayItems.value(m_shapeEdit->edited()); !edited || !edited->canEditShape())
+        m_shapeEdit->setOn(false);
 
     syncItems();
     emit stackChanged();
@@ -711,11 +540,11 @@ void ObjectController::syncItems()
             connect(item, &Object::dragging,       this, &ObjectController::onObjectDragged);
             connect(item, &Object::chromeChanged,  this, &ObjectController::refreshChrome);
             // The picked node is what the menu's Delete and Point type act on, however it was picked.
-            connect(item, &Object::pickedVertexChanged, this, &ObjectController::shapeEditingChanged);
+            connect(item, &Object::pickedVertexChanged, m_shapeEdit, &ShapeEditMode::changed);
             // A double-click on the one selected balloon enters shape editing, and another leaves it.
             connect(item, &Object::doubleClicked,  this, [this](const QString& uid) {
                 if (m_selection.objects() == QStringList{uid})
-                    setShapeEditing(m_shapeEditing != uid);
+                    m_shapeEdit->setOn(m_shapeEdit->edited() != uid);
             });
             m_scene->addItem(item);
             m_overlayItems.insert(uid, item);
@@ -915,8 +744,8 @@ void ObjectController::selectSubjects(const QStringList& uids, const QList<Eleme
     // Shape editing is of one object, and ends when the selection becomes anything else: a row picked in
     // OBJECT STACK, or a double click on another object (a click on the strip does not reach here while
     // editing: CanvasInput keeps it).
-    if (!m_shapeEditing.isEmpty() && picked != QStringList{m_shapeEditing})
-        setShapeEditing(false);
+    if (m_shapeEdit->isOn() && picked != QStringList{m_shapeEdit->edited()})
+        m_shapeEdit->setOn(false);
 
     // One tail, on its own balloon, is a selected tail: the handle drawn hollow and OBJECT STATE showing that
     // tail. Anything else with a tail in it is a set whose only common property is where it sits.
@@ -1174,8 +1003,8 @@ void ObjectController::applyRecords(const QStringList& uids, const QList<Composi
             item->setPos(item->pos() + shift * (item->scale() > 0.0 ? item->scale() : 1.0));
     }
     // A shape tile can take the edited shape's handles away (an ellipse has none yet).
-    if (const Object* edited = m_overlayItems.value(m_shapeEditing); edited && !edited->canEditShape())
-        setShapeEditing(false);
+    if (const Object* edited = m_overlayItems.value(m_shapeEdit->edited()); edited && !edited->canEditShape())
+        m_shapeEdit->setOn(false);
 
     // Live edits repaint only. Persisting every keystroke would write a file and push a history step
     // per character; the panel debounces and says when it has settled.
@@ -1381,25 +1210,9 @@ void ObjectController::deleteSelectedTail()
 
 void ObjectController::deleteSelectedOverlay()
 {
-    // In shape editing with nodes picked, Delete takes them and never the balloon, the highest first so the
-    // others keep their numbers; a polygon keeps three, and the rest stay.
-    if (Object* edited = m_overlayItems.value(m_shapeEditing); edited && edited->pickedVertex() >= 0) {
-        Composition a      = edited->composition();
-        Body*       body   = bodyOf(a);
-        QList<int>  doomed = edited->pickedVertices();
-        if (!body)
-            return;
-        std::sort(doomed.begin(), doomed.end(), std::greater<int>());
-        for (int i : std::as_const(doomed))
-            body->shape = Geometry::withVertexRemoved(body->shape, i);
-        if (body->shape == bodyOf(edited->composition())->shape)
-            return;
-        edited->setPickedVertex(-1);
-        applyRecord(m_shapeEditing, a, /*commit=*/true, tr("Delete point"));
-        emit boundToRecord(a);
-        emit shapeEditingChanged();
+    // In shape editing with nodes picked, Delete takes them and never the balloon.
+    if (m_shapeEdit->deletePickedNodes())
         return;
-    }
     if (m_selection.subject() == Subject::Tail) {
         deleteSelectedTail();
         return;

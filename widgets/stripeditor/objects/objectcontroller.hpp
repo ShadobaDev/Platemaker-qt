@@ -20,6 +20,7 @@
 #include "properties/propertygroup.hpp"   // PropertyGroup: which group the menu hands over
 #include "composition.hpp"
 #include "objects/selection.hpp"
+#include "objects/shapeeditmode.hpp"
 
 #include <platemaker/models/project_item.hpp>
 
@@ -430,56 +431,9 @@ public:
      */
     void deleteSelectedOverlay();
 
-    /**
-     * \brief Shape editing of the one selected object: on or off.
-     *
-     * On only for one selected object whose shape has handles (Object::canEditShape()); asking for it
-     * otherwise does nothing. A double click on the strip leaves it (leaveShapeEditingAt()), and so does
-     * the selection becoming anything else (in OBJECT STACK), Esc, or the object losing its handles. While
-     * it is on, Delete removes the picked nodes instead of the object.
-     */
-    void setShapeEditing(bool on);
-    [[nodiscard]] bool shapeEditing() const { return !m_shapeEditing.isEmpty(); }
-    //! Whether shape editing can be switched on for the selection as it is.
-    [[nodiscard]] bool canEditShape() const;
-    //! Whether a node is picked in shape editing, so Delete would remove it.
-    [[nodiscard]] bool hasPickedVertex() const;
-    //! The type of the Curve's node picked last in shape editing; none when no Curve's node is picked.
-    [[nodiscard]] std::optional<ShapeNode::Type> pickedNodeType() const;
-    //! Makes every picked Curve node a @p type node (Geometry::withNodeType()), as one history step.
-    void setPickedNodeType(ShapeNode::Type type);
-    //! Whether a picked Curve node lacks a handle on a straight side, so *Add handles* has work.
-    [[nodiscard]] bool canGrowPickedHandles() const;
-    //! Gives every picked Curve node its missing handles (Geometry::withHandlesGrown()), as one history step.
-    void growPickedHandles();
-
-    // --- shape editing on the strip, driven by CanvasInput --------------------------------------------
-    //! Whether a press at @p scenePos is on the edited object: one of its handles or grips, or its body.
-    [[nodiscard]] bool onEditedObject(const QPointF& scenePos, const QTransform& deviceTransform) const;
-    //! Leaves shape editing for a double click at @p scenePos; on another object, that object is selected.
-    void leaveShapeEditingAt(const QPointF& scenePos, const QTransform& deviceTransform);
-    //! Picks the edited object's nodes inside @p sceneRect, instead of the pick or, with @p add, added to it.
-    //! With none inside, nothing changes.
-    void pickNodesIn(const QRectF& sceneRect, bool add);
-    //! What an arrow does to the pick (stepPickedNode()).
-    enum class PickStep { Move, Extend, Shrink };
-    /**
-     * \brief Walks the pick one node round the outline, clockwise as seen on screen or not. The furthest
-     *        picked node that way is the end of the run of picked nodes that holds the one picked last.
-     *
-     * Move picks the node past it alone, Extend adds that node, Shrink takes the furthest one away (undoing
-     * an Extend the same way) but never the last one left. Nothing picked, nothing moves.
-     */
-    void stepPickedNode(bool clockwise, PickStep how);
-
-    /**
-     * \brief *Convert to Curve*: the one selected balloon's outline, of any other kind, as the Curve that
-     *        draws it (Geometry::curveOf()), one history step; then edits its shape, which is
-     *        what the conversion is for.
-     */
-    void convertSelectionToCurve();
-    //! Whether convertSelectionToCurve() has something to do.
-    [[nodiscard]] bool canConvertToCurve() const;
+    //! Shape editing: its state, its input on the strip and its operations (the menu and CanvasInput drive it).
+    [[nodiscard]] ShapeEditMode&       shapeEdit() { return *m_shapeEdit; }
+    [[nodiscard]] const ShapeEditMode& shapeEdit() const { return *m_shapeEdit; }
 
     /**
      * \brief *Re-roll*: a new style seed for every selected balloon whose style draws on one
@@ -593,7 +547,6 @@ signals:
     void artworkScaleBound(std::optional<double> percent);
     void textFocusRequested();      //!< A bubble just placed, or its words pressed in shape editing: the caret to its text.
     //! Shape editing started or ended, or its picked node changed: the menu's entries follow.
-    void shapeEditingChanged();
 
 private:
     void onOverlayGeometryCommitted(const QString& uid); //!< An item settled a move/resize/tail drag.
@@ -746,7 +699,7 @@ private:
      * that cannot be edited — nothing, a mixed set, a tail's balloon — so a stray signal writes nothing.
      */
     QStringList        m_panelSubjects;
-    QString            m_shapeEditing;   //!< The object whose shape is being edited; empty for none.
+    ShapeEditMode*     m_shapeEdit = nullptr;   //!< Shape editing; a child of this object.
 
     // --- a drag in flight: where everything stood when it started ---
     QHash<QString, QPointF>         m_dragStartPos;   //!< Object uid → its position at the press.

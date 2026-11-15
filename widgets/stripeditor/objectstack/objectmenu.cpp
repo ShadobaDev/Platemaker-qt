@@ -158,10 +158,10 @@ ObjectMenu::ObjectMenu(ObjectController& objects, const StripLayout& layout, Pre
     // for it.
     m_actEditShape = new QAction(tr("Edit shape"), this);
     m_actEditShape->setCheckable(true);
-    connect(m_actEditShape, &QAction::triggered, &m_objects, &ObjectController::setShapeEditing);
-    new QShortcut(QKeySequence(Qt::Key_Escape), m_view, [this] { m_objects.setShapeEditing(false); },
+    connect(m_actEditShape, &QAction::triggered, &m_objects.shapeEdit(), &ShapeEditMode::setOn);
+    new QShortcut(QKeySequence(Qt::Key_Escape), m_view, [this] { m_objects.shapeEdit().setOn(false); },
                   Qt::WidgetShortcut);
-    connect(&m_objects, &ObjectController::shapeEditingChanged, this, &ObjectMenu::updateEntries);
+    connect(&m_objects.shapeEdit(), &ShapeEditMode::changed, this, &ObjectMenu::updateEntries);
 
     // A Curve's own: the type of the node picked in shape editing — a right-click on a node
     // picks it, so the menu it opens is that node's — and the conversion that makes a Curve of a balloon.
@@ -175,12 +175,12 @@ ObjectMenu::ObjectMenu(ObjectController& objects, const StripLayout& layout, Pre
         QAction* a = m_nodeTypeMenu->addAction(name);
         a->setCheckable(true);
         a->setData(static_cast<int>(type));
-        connect(a, &QAction::triggered, this, [this, type] { m_objects.setPickedNodeType(type); });
+        connect(a, &QAction::triggered, this, [this, type] { m_objects.shapeEdit().setPickedNodeType(type); });
     }
     m_actAddHandles = new QAction(tr("Add handles"), this);
-    connect(m_actAddHandles, &QAction::triggered, &m_objects, &ObjectController::growPickedHandles);
+    connect(m_actAddHandles, &QAction::triggered, &m_objects.shapeEdit(), &ShapeEditMode::growPickedHandles);
     m_actToCurve = new QAction(tr("Convert to curve"), this);
-    connect(m_actToCurve, &QAction::triggered, &m_objects, &ObjectController::convertSelectionToCurve);
+    connect(m_actToCurve, &QAction::triggered, &m_objects.shapeEdit(), &ShapeEditMode::convertToCurve);
 
     // A new deal of whatever the style draws at random: a flash's strokes, a brush's, a texture's wobble.
     m_actReroll = new QAction(tr("Re-roll"), this);
@@ -312,22 +312,22 @@ void ObjectMenu::updateEntries()
     // A balloon's, like Fit to text: absent for a picture, greyed for a shape with no handles yet.
     if (m_actEditShape) {
         m_actEditShape->setVisible(allParametric);
-        m_actEditShape->setEnabled(m_objects.canEditShape());
-        m_actEditShape->setChecked(m_objects.shapeEditing());
+        m_actEditShape->setEnabled(m_objects.shapeEdit().canEdit());
+        m_actEditShape->setChecked(m_objects.shapeEdit().isOn());
     }
     // A Curve's node, picked: absent with none, since there is nothing it would be about.
     if (m_nodeTypeMenu) {
-        const std::optional<ShapeNode::Type> type = m_objects.pickedNodeType();
+        const std::optional<ShapeNode::Type> type = m_objects.shapeEdit().pickedNodeType();
         m_nodeTypeMenu->menuAction()->setVisible(type.has_value());
         for (QAction* a : m_nodeTypeMenu->actions())
             a->setChecked(type && a->data().toInt() == static_cast<int>(*type));
     }
     // ...and its missing handles: absent on a node that lacks none on a straight side.
     if (m_actAddHandles)
-        m_actAddHandles->setVisible(m_objects.canGrowPickedHandles());
+        m_actAddHandles->setVisible(m_objects.shapeEdit().canGrowPickedHandles());
     if (m_actToCurve) {
         m_actToCurve->setVisible(allParametric);
-        m_actToCurve->setEnabled(m_objects.canConvertToCurve());
+        m_actToCurve->setEnabled(m_objects.shapeEdit().canConvertToCurve());
     }
     // A balloon's, greyed for one whose style deals nothing at random (a clean line, no texture).
     if (m_actReroll) {
@@ -336,7 +336,7 @@ void ObjectMenu::updateEntries()
     }
     // Delete says what it will take: the picked node, in shape editing.
     if (m_actDelete)
-        m_actDelete->setText(m_objects.hasPickedVertex() ? tr("Delete point") : tr("Delete"));
+        m_actDelete->setText(m_objects.shapeEdit().hasPickedNode() ? tr("Delete point") : tr("Delete"));
 }
 
 void ObjectMenu::setColourSource(const ColourPair* pair)

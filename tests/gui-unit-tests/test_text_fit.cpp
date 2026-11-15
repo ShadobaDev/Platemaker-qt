@@ -30,6 +30,8 @@ Composition withShape(ShapeProperties::Kind kind)
 
 //! Distances and positions in balloon pixels: exact but for rounding.
 constexpr qreal k_px = 1e-9;
+//! A frame dragged by its middle moves by whole pixels, so it lands within half of one of the pointer.
+constexpr qreal k_wholePx = 0.5;
 
 //! Every outline the picker offers, by its template's id, and no balloon at all.
 QList<QPair<const char*, ShapeProperties>> everyShape(bool withNone = true)
@@ -112,36 +114,40 @@ TEST(TextFit, AnAutomaticEdgeReachesTheBoxLessTheStroke)
     EXPECT_NEAR(area.right(), box.right(), k_px);
     EXPECT_NEAR(area.bottom(), box.bottom(), k_px);
 
-    // The block is centred on the anchor, the middle of that box by default.
+    // The block is centred in its frame by default.
     const QRectF block = Geometry::blockRect(a, *wordsOf(a), QSizeF(100, 40));
     EXPECT_NEAR(block.center().x(), box.center().x(), k_px);
     EXPECT_NEAR(block.center().y(), box.center().y(), k_px);
 }
 
-TEST(TextFit, ASetEdgeIsItsDistanceFromTheAnchorAndTheAnchorKeepsItsPlace)
+TEST(TextFit, ASetEdgeIsItsInsetFromTheBodyAndKeepsItWhenTheBodyGrows)
 {
     Composition a = withShape(ShapeProperties::Kind::Box);
     boxOf(a)      = QSize(300, 200);
     Words& w      = *wordsOf(a);
-    w.anchor      = QPointF(0.25, 0.5);
     w.frame.left  = 30;
     w.frame.top   = 10;
-    const qreal   in    = styleOf(a).strokeWidth / 2.0;
-    const QRectF  box   = Geometry::balloonRect(*a.balloon, *bodyOf(a)).adjusted(in, in, -in, -in);
-    const QPointF at    = box.topLeft() + QPointF(0.25 * box.width(), 0.5 * box.height());
-    const QRectF  area  = Geometry::textArea(a, w);
-    EXPECT_NEAR(area.left(), at.x() - 30, k_px);
-    EXPECT_NEAR(area.top(), at.y() - 10, k_px);
-    EXPECT_NEAR(area.right(), box.right(), k_px) << "the right edge is automatic";
+    w.frame.right = -15;   // past the outline
+    const qreal  in   = styleOf(a).strokeWidth / 2.0;
+    const QRectF box  = Geometry::balloonRect(*a.balloon, *bodyOf(a)).adjusted(in, in, -in, -in);
+    const QRectF area = Geometry::textArea(a, w);
+    EXPECT_NEAR(area.left(), box.left() + 30, k_px);
+    EXPECT_NEAR(area.top(), box.top() + 10, k_px);
+    EXPECT_NEAR(area.right(), box.right() + 15, k_px);
+    EXPECT_NEAR(area.bottom(), box.bottom(), k_px) << "the bottom edge is automatic";
 
-    // A block wider than the set left edge allows does not fit, whatever size the box is: the fit keeps its width.
-    EXPECT_FALSE(Geometry::fits(a, QSizeF(80, 10)));
-    EXPECT_EQ(Geometry::fitBoxFor(a, QSizeF(80, 10)).width(), boxOf(a).width());
+    // A block wider than the frame does not fit; the fit grows the body until the frame, its insets kept, holds it.
+    const QSizeF wide(400, 10);
+    EXPECT_FALSE(Geometry::fits(a, wide));
+    Composition fitted = a;
+    boxOf(fitted)      = Geometry::fitBoxFor(a, wide);
+    EXPECT_TRUE(Geometry::fits(fitted, wide));
 
-    // The anchor is a fraction of the body: a wider body moves it with it.
-    boxOf(a) = QSize(600, 200);
+    // A wider body keeps the frame's distances from its edges.
+    boxOf(a)           = QSize(600, 200);
     const QRectF wider = Geometry::balloonRect(*a.balloon, *bodyOf(a)).adjusted(in, in, -in, -in);
-    EXPECT_NEAR(Geometry::textArea(a, *wordsOf(a)).left(), wider.left() + 0.25 * wider.width() - 30, k_px);
+    EXPECT_NEAR(Geometry::textArea(a, *wordsOf(a)).left(), wider.left() + 30, k_px);
+    EXPECT_NEAR(Geometry::textArea(a, *wordsOf(a)).right(), wider.right() + 15, k_px);
 }
 
 TEST(TextFit, AWordsBoxIsItsFrameWithoutABalloon)
@@ -158,39 +164,67 @@ TEST(TextFit, NoTextKeepsTheBox)
 }
 
 /**
- * \brief The text area's arrows sit on its left and right edges, level with the anchor, and on its top, above it;
- *        dragging one sets that edge where the pointer is, as its distance from the anchor.
+ * \brief The frame's middle comes first, so a press where an arrow lies over it takes the middle. The arrows sit on
+ *        the frame's left and right edges, level with it, and on its top and bottom, above and below it; dragging
+ *        one sets that edge where the pointer is, and the middle follows. Dragging the middle moves the frame.
  */
 TEST(TextFit, TheTextAreaArrowsSetTheirEdges)
 {
     using Geometry::TextAreaPart;
     Composition a = withShape(ShapeProperties::Kind::Box);
     boxOf(a)      = QSize(300, 200);
-    const QRectF  area = Geometry::textArea(a, *wordsOf(a));
-    const QPointF at   = Geometry::blockRect(a, *wordsOf(a), QSizeF()).center();   // the anchor
+    const QRectF area = Geometry::textArea(a, *wordsOf(a));
     const QList<Geometry::Handle> arrows = Geometry::textAreaHandles(a);
-    ASSERT_EQ(arrows.size(), 3);
-    EXPECT_EQ(Geometry::partOf<TextAreaPart>(arrows[0]), TextAreaPart::Side);
-    EXPECT_EQ(arrows[0].at, QPointF(area.left(), at.y()));
+    ASSERT_EQ(arrows.size(), 5);
+    EXPECT_EQ(Geometry::partOf<TextAreaPart>(arrows[0]), TextAreaPart::Anchor);
+    const QPointF at = arrows[0].at;
+    EXPECT_NEAR(at.x(), area.center().x(), k_px) << "the middle of the body by default";
+    EXPECT_NEAR(at.y(), area.center().y(), k_px);
     EXPECT_EQ(Geometry::partOf<TextAreaPart>(arrows[1]), TextAreaPart::Side);
-    EXPECT_EQ(arrows[1].at, QPointF(area.right(), at.y()));
-    EXPECT_EQ(Geometry::partOf<TextAreaPart>(arrows[2]), TextAreaPart::Top);
-    EXPECT_EQ(arrows[2].at, QPointF(at.x(), area.top()));
+    EXPECT_EQ(arrows[1].at, QPointF(area.left(), at.y()));
+    EXPECT_EQ(Geometry::partOf<TextAreaPart>(arrows[2]), TextAreaPart::Side);
+    EXPECT_EQ(arrows[2].at, QPointF(area.right(), at.y()));
+    EXPECT_EQ(Geometry::partOf<TextAreaPart>(arrows[3]), TextAreaPart::Top);
+    EXPECT_EQ(arrows[3].at, QPointF(at.x(), area.top()));
+    EXPECT_EQ(Geometry::partOf<TextAreaPart>(arrows[4]), TextAreaPart::Bottom);
+    EXPECT_EQ(arrows[4].at, QPointF(at.x(), area.bottom()));
 
-    // Each sets its own edge, in whole pixels from the anchor, inside the balloon or past it; the others stay
-    // automatic.
-    Words w = Geometry::dragTextAreaHandle(a, arrows[0], QPointF(at.x() - 40, 0));
+    // Each sets its own edge where the pointer is, in whole pixels in from the body's box (every edge is automatic
+    // here, so that box is the frame), inside the balloon or past it; the others stay automatic.
+    const QRectF box = area;
+    Words w = Geometry::dragTextAreaHandle(a, arrows[1], QPointF(box.left() + 40.3, 0));
     ASSERT_TRUE(w.frame.left.has_value());
     EXPECT_NEAR(*w.frame.left, 40.0, k_px);
     EXPECT_FALSE(w.frame.right.has_value());
-    w = Geometry::dragTextAreaHandle(a, arrows[1], QPointF(at.x() + 400, 0));   // out past the outline
-    EXPECT_NEAR(*w.frame.right, 400.0, k_px);
-    w = Geometry::dragTextAreaHandle(a, arrows[2], QPointF(0, at.y() - 25.4));
+    w = Geometry::dragTextAreaHandle(a, arrows[2], QPointF(box.right() + 30, 0));   // out past the outline
+    EXPECT_NEAR(*w.frame.right, -30.0, k_px);
+    w = Geometry::dragTextAreaHandle(a, arrows[3], QPointF(0, box.top() + 25.4));
     EXPECT_NEAR(*w.frame.top, 25.0, k_px);
+    w = Geometry::dragTextAreaHandle(a, arrows[4], QPointF(0, box.bottom() - 12));
+    EXPECT_NEAR(*w.frame.bottom, 12.0, k_px);
 
-    // Dragged past the anchor, an edge stops a pixel short of it: the area never turns inside out.
-    w = Geometry::dragTextAreaHandle(a, arrows[0], QPointF(at.x() + 50, 0));
-    EXPECT_NEAR(*w.frame.left, 1.0, k_px);
+    // The middle follows the edges: it is the frame's middle whatever was dragged.
+    Composition moved = a;
+    *wordsOf(moved)   = w;
+    EXPECT_EQ(Geometry::textAreaHandles(moved)[0].at, Geometry::textArea(moved, w).center());
+
+    // The middle moves the whole frame, by whole pixels, its size kept; never past the body.
+    w = Geometry::dragTextAreaHandle(a, arrows[0], at + QPointF(-50, 30));
+    EXPECT_NEAR(*w.frame.left, -50.0, k_px);
+    EXPECT_NEAR(*w.frame.right, 50.0, k_px);
+    EXPECT_NEAR(*w.frame.top, 30.0, k_px);
+    EXPECT_NEAR(*w.frame.bottom, -30.0, k_px);
+    w = Geometry::dragTextAreaHandle(a, arrows[0], box.bottomRight() + QPointF(500, 500));
+    *wordsOf(moved) = w;
+    EXPECT_NEAR(Geometry::textArea(moved, w).center().x(), box.right(), k_wholePx);
+    EXPECT_NEAR(Geometry::textArea(moved, w).center().y(), box.bottom(), k_wholePx);
+    w = Geometry::dragTextAreaHandle(a, arrows[0], at + QPointF(0, 30));
+    EXPECT_FALSE(w.frame.left.has_value()) << "an axis it did not move along keeps its edges";
+
+    // Dragged past the opposite edge, an edge stops two pixels short of it: the area never turns inside out.
+    w = Geometry::dragTextAreaHandle(a, arrows[1], QPointF(box.right() + 50, 0));
+    *wordsOf(moved) = w;
+    EXPECT_NEAR(Geometry::textArea(moved, w).width(), 2.0, k_wholePx);
 
     // No balloon: the words keep their own box, and offer no arrows.
     EXPECT_TRUE(Geometry::textAreaHandles(withShape(ShapeProperties::Kind::None)).isEmpty());
@@ -244,21 +278,33 @@ TEST(TextFit, TheLettersShadowIsCastWithTheirOutline)
     EXPECT_TRUE(Geometry::textShadowOf(*wordsOf(a), QPainterPath()).isEmpty());
 }
 
-TEST(TextFit, TheAnchorIsTheAlignedSideAndTheMiddleOfTheBlock)
+/**
+ * \brief The block is aligned in its frame on both axes, and one larger than the frame goes past it away from
+ *        the side it is aligned to; the point that stays put when the box changes is the aligned one.
+ */
+TEST(TextFit, TheBlockIsAlignedInItsFrameOnBothAxes)
 {
-    Composition a   = withShape(ShapeProperties::Kind::None);
-    boxOf(a)            = QSize(300, 100);
+    Composition a = withShape(ShapeProperties::Kind::None);
+    boxOf(a)      = QSize(300, 100);
     const QSizeF blk(120, 40);
+    const auto   placed = [&](int h, int v, const QSizeF& size) {
+        textOf(a).align  = h;
+        textOf(a).valign = v;
+        return Geometry::blockRect(a, *wordsOf(a), size);
+    };
 
-    textOf(a).align = Qt::AlignHCenter;
-    EXPECT_EQ(Geometry::textAnchorFor(a, blk), QPointF(150, 50));
-    textOf(a).align = Qt::AlignLeft;
-    EXPECT_EQ(Geometry::textAnchorFor(a, blk), QPointF(0, 50));
-    textOf(a).align = Qt::AlignRight;
-    EXPECT_EQ(Geometry::textAnchorFor(a, blk), QPointF(300, 50));
+    EXPECT_EQ(placed(Qt::AlignHCenter, Qt::AlignVCenter, blk), QRectF(90, 30, 120, 40));
+    EXPECT_EQ(Geometry::textAnchor(a), QPointF(150, 50));
+    EXPECT_EQ(placed(Qt::AlignLeft, Qt::AlignTop, blk), QRectF(0, 0, 120, 40));
+    EXPECT_EQ(Geometry::textAnchor(a), QPointF(0, 0));
+    EXPECT_EQ(placed(Qt::AlignRight, Qt::AlignBottom, blk), QRectF(180, 60, 120, 40));
+    EXPECT_EQ(Geometry::textAnchor(a), QPointF(300, 100));
 
-    // Taller than its area, the block is pinned to the top, as textOutline() draws it.
-    EXPECT_EQ(Geometry::textAnchorFor(a, QSizeF(120, 160)).y(), 80);
+    // Taller than the frame: down from a top, up from a bottom, both ways from the middle.
+    const QSizeF tall(120, 160);
+    EXPECT_NEAR(placed(Qt::AlignLeft, Qt::AlignTop, tall).top(), 0.0, k_px);
+    EXPECT_NEAR(placed(Qt::AlignLeft, Qt::AlignBottom, tall).bottom(), 100.0, k_px);
+    EXPECT_NEAR(placed(Qt::AlignLeft, Qt::AlignVCenter, tall).center().y(), 50.0, k_px);
 }
 
 TEST(TextFit, ConvertingFitsTheLetteringInEveryShape)

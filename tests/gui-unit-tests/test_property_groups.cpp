@@ -125,6 +125,7 @@ Composition loadedBalloon()
     textOf(a).pixelSize   = 44;
     textOf(a).bold        = true;
     textOf(a).align       = Qt::AlignRight;
+    textOf(a).valign      = Qt::AlignBottom;
     textOf(a).fill.colour = QColor(1, 2, 3);
     textOf(a).fill.kind   = Paint::Kind::Lines;
     textOf(a).fill.second = QColor(30, 31, 32);
@@ -228,7 +229,7 @@ struct StyleMirror {
 static_assert(sizeof(StyleProperties) == sizeof(StyleMirror),
               "StyleProperties grew a field: place it (see above), then mirror it");
 
-struct TextMirror { QString body, family; int pixelSize; bool bold; int align; Paint fill; int lineSpacing;
+struct TextMirror { QString body, family; int pixelSize; bool bold; int align, valign; Paint fill; int lineSpacing;
                     Paint outline; qreal outlineWidth; Shadow shadow; Paint shadowFill; };
 static_assert(sizeof(TextProperties) == sizeof(TextMirror),
               "TextProperties grew a field: place it (see above), then mirror it");
@@ -265,7 +266,7 @@ struct BodyMirror { int id; Place place; QSize size; ShapeProperties shape; };
 static_assert(sizeof(Body) == sizeof(BodyMirror), "Body grew a field: place it (see above), then mirror it");
 struct BalloonMirror { int id; BalloonStyle style; QList<Body> bodies; QList<BalloonTail> tails; };
 static_assert(sizeof(Balloon) == sizeof(BalloonMirror), "Balloon grew a field: place it (see above), then mirror it");
-struct WordsMirror { int id; int seat; Place place; QSize box; TextProperties text; QPointF anchor; Frame frame; };
+struct WordsMirror { int id; int seat; Place place; QSize box; TextProperties text; Frame frame; };
 static_assert(sizeof(Words) == sizeof(WordsMirror), "Words grew a field: place it (see above), then mirror it");
 struct CompositionMirror { std::optional<Balloon> balloon; std::optional<Picture> picture; QList<Words> words;
                            quint32 seed; PresetOrigin preset; int nextId; };
@@ -391,6 +392,7 @@ void expectUntouched(Group applied, const Composition& before, const Composition
         EXPECT_EQ(textOf(after).pixelSize, textOf(before).pixelSize);
         EXPECT_EQ(textOf(after).bold,      textOf(before).bold);
         EXPECT_EQ(textOf(after).align,     textOf(before).align);
+        EXPECT_EQ(textOf(after).valign,    textOf(before).valign);
         expectSamePaint(textOf(after).fill, textOf(before).fill, "text");
         EXPECT_EQ(textOf(after).lineSpacing, textOf(before).lineSpacing);
         expectSamePaint(textOf(after).outline, textOf(before).outline, "text outline");
@@ -533,6 +535,7 @@ TEST(PropertyGroupOwnership, Text)
     s.pixelSize = 19;
     s.bold      = false;
     s.align     = Qt::AlignLeft;
+    s.valign    = Qt::AlignTop;
     s.fill.colour = QColor(90, 80, 70);
     s.fill.kind   = Paint::Kind::Dots;
     s.lineSpacing = 140;
@@ -2099,9 +2102,9 @@ TEST(Handles, EachBelongsToItsElementAndItsOwnerTakesTheDrag)
     const Geometry::HandleContext none;
     const QList<Geometry::Handle> all = Geometry::handlesOf(c, none);
 
-    // The outline's first, then the fade's cross (nine), then the text area's three arrows.
+    // The outline's first, then the fade's cross (nine), then the text area's anchor and four arrows.
     constexpr qsizetype k_cross  = 9;
-    constexpr qsizetype k_arrows = 3;
+    constexpr qsizetype k_arrows = 5;   // the anchor and four edges
     ASSERT_GT(all.size(), k_cross + k_arrows);
     for (qsizetype i = 0; i < all.size(); ++i) {
         const int owner = i >= all.size() - k_arrows           ? wordsOf(c)->id
@@ -2129,8 +2132,26 @@ TEST(Handles, EachBelongsToItsElementAndItsOwnerTakesTheDrag)
     EXPECT_FALSE(skinOf(fade) == skinOf(c));
     EXPECT_TRUE(shapeOf(fade) == shapeOf(c));
 
-    const Composition words = dragged(all.at(all.size() - k_arrows), QPointF(10, 0));
+    const Geometry::Handle left  = all.at(all.size() - k_arrows + 1);
+    const Composition      words = dragged(left, QPointF(10, 0));
     EXPECT_FALSE(*wordsOf(words) == *wordsOf(c));   // its frame
+
+    // A double-click puts an edge back to automatic, and on the middle centres the frame in the body.
+    ASSERT_TRUE(left.reset);
+    Composition edited = words;
+    EXPECT_TRUE(left.reset(edited, left));
+    EXPECT_FALSE(wordsOf(edited)->frame.left.has_value());
+    EXPECT_FALSE(left.reset(edited, left)) << "automatic already: nothing to put back";
+    const Geometry::Handle anchor = all.at(all.size() - k_arrows);
+    ASSERT_EQ(anchor.glyph, Geometry::Handle::Glyph::Anchor);
+    wordsOf(edited)->frame.left  = 10;
+    wordsOf(edited)->frame.right = 40;
+    EXPECT_TRUE(anchor.reset(edited, anchor)) << "centred, its size kept";
+    constexpr qreal k_tolerance = 1e-9;   // whole pixels, shared out
+    EXPECT_NEAR(wordsOf(edited)->frame.left.value_or(0.0), 25.0, k_tolerance);
+    EXPECT_NEAR(wordsOf(edited)->frame.right.value_or(0.0), 25.0, k_tolerance);
+    EXPECT_FALSE(wordsOf(edited)->frame.top.has_value()) << "an axis with both edges automatic is centred already";
+    EXPECT_FALSE(anchor.reset(edited, anchor));
     EXPECT_TRUE(shapeOf(words) == shapeOf(c));
     EXPECT_TRUE(skinOf(words) == skinOf(c));
 
@@ -2202,8 +2223,7 @@ TEST(Import, OnlyAFileCarryingTheRecipeIsAdopted)
     t.tip = QPointF(40, 260);
     setTails(c, {t});
     textOf(c).body        = QStringLiteral("Hello");
-    wordsOf(c)->anchor      = QPointF(0.3, 0.6);   // where the words sit, and a set edge: saved and read back
-    wordsOf(c)->frame.left  = 25;
+    wordsOf(c)->frame.left  = 25;   // where the words sit: a set edge, saved and read back
     textOf(c).lineSpacing = 80;
     const QByteArray ours = svgWith(c);
 

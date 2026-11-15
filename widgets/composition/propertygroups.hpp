@@ -1034,7 +1034,8 @@ struct TextProperties
     QString family;                   //!< Empty = the application's default family.
     int     pixelSize = 30;           //!< Strip-scale pixels, so it means the same thing in the output.
     bool    bold      = false;
-    int     align     = Qt::AlignHCenter;   //!< Horizontal alignment of each line.
+    int     align     = Qt::AlignHCenter;   //!< Horizontal alignment of each line, and of the block in its frame.
+    int     valign    = Qt::AlignVCenter;   //!< Vertical alignment of the block in its frame.
     //! The letters' paint: a colour, or a halftone of a second colour over it (dots, lines, a grid).
     Paint   fill{QColor(20, 20, 20), QColor(255, 255, 255)};
     //! Line pitch as a percentage of the font's own — for faces that set their lines too far apart.
@@ -1067,6 +1068,7 @@ struct TextProperties
         v("fontSize",    &TextProperties::pixelSize);
         v("bold",        &TextProperties::bold);
         v("align",       &TextProperties::align);
+        v("valign",      &TextProperties::valign);
         v("lineSpacing", &TextProperties::lineSpacing);
         // The colour keeps the key it had as a plain colour; a pattern does not fade here.
         static constexpr const char* k_fill[] = {

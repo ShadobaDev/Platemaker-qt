@@ -118,6 +118,50 @@ QPointF dragWords(Composition& next, const Handle& h, const QPointF& to, const H
     return {};
 }
 
+//! The words @p h belongs to.
+Words* wordsFor(Composition& c, const Handle& h)
+{
+    for (Words& w : c.words)
+        if (w.id == h.element)
+            return &w;
+    return nullptr;
+}
+
+//! The words' frame put back: an edge made automatic again, or by its middle, the frame centred in the body.
+bool resetWords(Composition& c, const Handle& h)
+{
+    Words* w = wordsFor(c, h);
+    if (!w)
+        return false;
+    const Words was = *w;
+    switch (partOf<TextAreaPart>(h)) {
+    case TextAreaPart::Side:
+        (h.index == 0 ? w->frame.left : w->frame.right).reset();
+        break;
+    case TextAreaPart::Top:
+        w->frame.top.reset();
+        break;
+    case TextAreaPart::Bottom:
+        w->frame.bottom.reset();
+        break;
+    case TextAreaPart::Anchor: {
+        // The frame back in the middle of the body, its size kept: each axis's two insets shared out evenly, in
+        // whole pixels. An axis with both edges automatic is in the middle already.
+        const auto centre = [](std::optional<qreal>& a, std::optional<qreal>& b) {
+            if (!a && !b)
+                return;
+            const qreal both = a.value_or(0.0) + b.value_or(0.0);
+            a = qreal(qFloor(both / 2.0));
+            b = both - *a;
+        };
+        centre(w->frame.left, w->frame.right);
+        centre(w->frame.top, w->frame.bottom);
+        break;
+    }
+    }
+    return *w != was;
+}
+
 //! @p list with each handle's element and drag.
 QList<Handle> owned(QList<Handle> list, int element, Handle::Drag drag)
 {
@@ -142,8 +186,12 @@ QList<Handle> handlesOf(const Composition& c, const HandleContext& context)
         if (partOf<ShapePart>(h) == ShapePart::AddVertex)
             h.press = &addNode;
     out.append(owned(fadeHandles(c.balloon->style.fill.fill, rect), c.balloon->id, &dragFill));
-    if (const Words* words = wordsOf(c); words && !words->text.body.isEmpty())
-        out.append(owned(textAreaHandles(c), words->id, &dragWords));
+    if (const Words* words = wordsOf(c); words && !words->text.body.isEmpty()) {
+        QList<Handle> frame = owned(textAreaHandles(c), words->id, &dragWords);
+        for (Handle& h : frame)
+            h.reset = &resetWords;
+        out.append(frame);
+    }
     return out;
 }
 

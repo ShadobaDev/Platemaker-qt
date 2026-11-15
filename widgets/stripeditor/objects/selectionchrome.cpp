@@ -58,6 +58,9 @@ constexpr qreal k_fadeDotSpan   = 0.5;
 //! The cross's centre, a dot across in grip spans, larger than an end's; its arms keep further than its
 //! edge from it, so no pixel is crossed twice.
 constexpr qreal k_fadeCentreSpan = 0.8;
+//! The words' anchor: a ring this many grip spans across, its cross reaching this far past it (in its radius).
+constexpr qreal k_anchorSpan  = 1.2;
+constexpr qreal k_anchorCross = 1.5;
 constexpr qreal k_fadeCentreGap  = 0.7;
 
 //! The square a shape handle answers a press in.
@@ -399,6 +402,18 @@ void SelectionChrome::paint(QPainter* painter, const QStyleOptionGraphicsItem* o
                     painter->drawEllipse(at, s * k_fadeCentreSpan / 2, s * k_fadeCentreSpan / 2);
                 });
                 break;
+            case Glyph::Anchor: {
+                // A ring with a cross through it, one path, so where they meet is stroked once.
+                const qreal  r = s * k_anchorSpan / 2;
+                QPainterPath mark;
+                mark.addEllipse(at, r, r);
+                mark.moveTo(at - QPointF(r * k_anchorCross, 0));
+                mark.lineTo(at + QPointF(r * k_anchorCross, 0));
+                mark.moveTo(at - QPointF(0, r * k_anchorCross));
+                mark.lineTo(at + QPointF(0, r * k_anchorCross));
+                inNegative([&] { painter->drawPath(mark); });
+                break;
+            }
             case Glyph::Tangent: {
                 // A line from its node, and a diamond: unlike a node's square and a tail's dot. The line
                 // stops short of both, so no pixel is crossed twice.

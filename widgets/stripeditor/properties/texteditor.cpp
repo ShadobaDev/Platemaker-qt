@@ -126,6 +126,13 @@ TextEditor::TextEditor(QWidget* parent)
     m_align->addItem(tr("Right"),  int(Qt::AlignRight));
     form->addRow(tr("Align"), m_align);
 
+    m_valign = new QComboBox(this);
+    m_valign->addItem(tr("Middle"), int(Qt::AlignVCenter));
+    m_valign->addItem(tr("Top"),    int(Qt::AlignTop));
+    m_valign->addItem(tr("Bottom"), int(Qt::AlignBottom));
+    m_valign->setToolTip(tr("Where the lines sit in their frame, up and down."));
+    form->addRow(tr("Vertical"), m_valign);
+
     // The letters' paint: a colour, or a halftone over it.
     m_fill.build(this, form, &TextProperties::fill, tr("Colour"), m_values, m_populating,
                  [this] { emit changed(); }, [this] { emit committed(); });
@@ -197,6 +204,14 @@ TextEditor::TextEditor(QWidget* parent)
         m_mixedAlign   = false;
         emit changed();
     });
+    connect(m_valign, &QComboBox::currentIndexChanged, this, [this](int i) {
+        if (m_populating || i < 0)
+            return;
+        m_values.valign = m_valign->currentData().toInt();
+        m_valignTouched = true;
+        m_mixedValign   = false;
+        emit changed();
+    });
 
     syncFromValues();
 }
@@ -209,7 +224,7 @@ void TextEditor::bind(const Subjects& subjects)
     m_values   = TextProperties::from(*subjects.first());
     m_subjects = static_cast<int>(subjects.size());
 
-    m_mixedFamily = m_mixedSize = m_mixedBold = m_mixedAlign = m_mixedLineSpacing = false;
+    m_mixedFamily = m_mixedSize = m_mixedBold = m_mixedAlign = m_mixedValign = m_mixedLineSpacing = false;
     m_fill.reset();
     m_outlineWidth.reset();
     m_outline.reset();
@@ -222,13 +237,14 @@ void TextEditor::bind(const Subjects& subjects)
         m_mixedSize   = m_mixedSize   || t.pixelSize != m_values.pixelSize;
         m_mixedBold   = m_mixedBold   || t.bold      != m_values.bold;
         m_mixedAlign  = m_mixedAlign  || t.align     != m_values.align;
+        m_mixedValign = m_mixedValign || t.valign    != m_values.valign;
         m_mixedLineSpacing = m_mixedLineSpacing || t.lineSpacing != m_values.lineSpacing;
         m_outlineWidth.compare(t, m_values);
         m_outline.compare(t, m_values);
         m_shadow.compare(t, m_values);
         m_anyOutline       = m_anyOutline       || t.outlineWidth > 0.0;
     }
-    m_familyTouched = m_sizeTouched = m_boldTouched = m_alignTouched = false;
+    m_familyTouched = m_sizeTouched = m_boldTouched = m_alignTouched = m_valignTouched = false;
     m_lineSpacingTouched = false;
 
     syncFromValues();
@@ -248,6 +264,7 @@ void TextEditor::applyEditedTo(Composition& target) const
     if (m_sizeTouched)   t.pixelSize = m_values.pixelSize;
     if (m_boldTouched)   t.bold      = m_values.bold;
     if (m_alignTouched)  t.align     = m_values.align;
+    if (m_valignTouched) t.valign    = m_values.valign;
     if (m_lineSpacingTouched) t.lineSpacing = m_values.lineSpacing;
     m_outlineWidth.applyEdited(m_values, t);
     m_outline.applyEdited(m_values, t);
@@ -301,6 +318,7 @@ void TextEditor::syncFromValues()
     // a set lands on the text objects in it too, where it is carried and ignored.
     showCheck(m_bold, m_mixedBold, m_values.bold);
     showCombo(m_align, m_mixedAlign, m_align->findData(m_values.align));
+    showCombo(m_valign, m_mixedValign, m_valign->findData(m_values.valign));
     m_fill.show(m_values);
     m_outlineWidth.show(m_values);
     m_outline.show(m_values);
@@ -325,6 +343,7 @@ void TextEditor::updateRows()
         m_form->setRowVisible(w, shows(Row::TextFont));
     m_form->setRowVisible(m_lineSpacing, shows(Row::TextSpacing));
     m_form->setRowVisible(m_align, shows(Row::TextAlign));
+    m_form->setRowVisible(m_valign, shows(Row::TextAlign));
     m_fill.setParts(shows(Row::TextColour), shows(Row::TextPattern));
     m_outlineWidth.setVisible(m_form, shows(Row::TextOutline));
     m_outline.setParts(true, shows(Row::TextPattern));

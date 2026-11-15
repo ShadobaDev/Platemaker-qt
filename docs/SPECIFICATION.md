@@ -250,16 +250,18 @@ alone). A kind that needs a filter brings it from its table entry, `TextureInfo:
 the SVG byte for byte; the painter was checked pixel for pixel against the code it replaced on every golden
 case.
 
-- **Placement.** Words sit in a frame of their own: an anchor in their body (a fraction of it, the middle by
-  default) and four edges, each set (its distance from the anchor) or automatic (the body's box less the stroke
-  and the edge's teeth). The block is centred on the anchor up and down — pinned to the frame's top when taller
-  than the frame, growing downwards from there — and placed across by the alignment (`blockRect()`). A balloon's
-  words are clipped to the frame at the sides and the top only, never at the bottom; a text object's and a
-  picture's keep their own box, anchored at its middle. The red text area shows when the placed block leaves
-  the frame (`fits()`); the content saves the anchor (when not the middle) and the set edges.
-- **The text area on the strip.** In shape editing a balloon with words shows its frame and three arrows
-  (`textAreaHandles()`, `TextAreaPart::Side` and `Top`, dragged by `dragTextAreaHandle()`), each of which sets
-  its edge; so shape editing is offered to any balloon with words.
+- **Placement.** Words sit in a frame of their own: four edges, each automatic (the body's box less the stroke
+  and the edge's teeth) or set (that far in from it, negative past it), so the frame keeps its distances from the
+  body's edges when the body changes size. The block is aligned in the frame, across
+  by `align` (left, middle, right) and up and down by `valign` (top, middle, bottom); one larger than the frame
+  goes past it away from the side it is aligned to (`blockRect()`). A balloon's words are clipped to the frame at
+  the sides only; a text object's and a picture's keep their own box. The red text area shows when the placed
+  block leaves the frame (`fits()`); the content saves the set edges.
+- **The text area on the strip.** In shape editing a balloon with words shows its frame, four arrows and a
+  handle at its middle (`textAreaHandles()`, `TextAreaPart`, dragged by `dragTextAreaHandle()`), never saved: an
+  arrow sets its edge and the middle follows; the middle moves the whole frame within the body. A double-click
+  puts one back: an arrow's edge automatic, the frame centred in the body by its middle. So shape editing is
+  offered to any balloon with words.
 - **What the letters wear**, fields of `TextProperties`, off by default: their **fill** (a Paint, its
   colour still saved as `textColour`), an **outline** (a Paint and a width, drawn outside the glyphs:
   stroked at twice the width under them, two draws in the SVG, not `paint-order`), and a **shadow** (the

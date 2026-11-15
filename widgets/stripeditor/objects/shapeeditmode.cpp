@@ -56,6 +56,19 @@ bool ShapeEditMode::onEditedObject(const QPointF& scenePos, const QTransform& de
 
 void ShapeEditMode::leaveAt(const QPointF& scenePos, const QTransform& deviceTransform)
 {
+    // A double-click on a handle its owner can put back (a frame's edge, the words' anchor) does that instead.
+    if (const SelectionChrome* chrome = m_host.chrome()) {
+        const SelectionChrome::Hit hit = chrome->hitAt(scenePos);
+        if (hit.object && hit.object->uid() == m_edited && hit.grip == Grip::Shape) {
+            const QList<Geometry::Handle> handles = hit.object->shapeHandles();
+            if (hit.handle >= 0 && hit.handle < handles.size() && handles.at(hit.handle).reset) {
+                Composition next = hit.object->composition();
+                if (handles.at(hit.handle).reset(next, handles.at(hit.handle)))
+                    m_host.commit(m_edited, next, tr("Reset the words' frame"));
+                return;
+            }
+        }
+    }
     auto* other = dynamic_cast<Object*>(m_scene->itemAt(scenePos, deviceTransform));
     if (other && other->uid() != m_edited)
         m_host.select(other->uid());   // a selection of something else ends the editing

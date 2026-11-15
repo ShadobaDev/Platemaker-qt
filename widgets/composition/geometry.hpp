@@ -172,16 +172,16 @@ enum class Part { None, Fill, Outline, Text };
 [[nodiscard]] QString defaultFamily();
 
 /**
- * \brief The frame \p w are laid in, in the composition's frame (Words::frame): each set edge at its distance
- *        from the anchor, each automatic one at its seat's box less the stroke and the edge's teeth. Words with
- *        no seat, their whole box.
+ * \brief The frame \p w are laid in, in the composition's frame (Words::frame): its seat's box less the stroke
+ *        and the edge's teeth, each set edge that far in from it. Words with no seat, their whole box.
  */
 [[nodiscard]] QRectF textArea(const Composition& c, const Words& w);
 
 /**
- * \brief Where a block of lettering of size \p block sits for \p w: centred on the anchor up and down (pinned to
- *        the frame's top when it is taller than the frame), and across by the alignment — from the frame's left,
- *        to its right, or centred on the anchor. What the drawing, the fit and the red overflow all read.
+ * \brief Where a block of lettering of size \p block sits for \p w: aligned in the frame by the words' alignment,
+ *        across (left, middle, right) and up and down (top, middle, bottom). A block larger than the frame goes
+ *        past it away from the side it is aligned to, both ways from the middle. What the drawing, the fit and the
+ *        red overflow all read.
  */
 [[nodiscard]] QRectF blockRect(const Composition& c, const Words& w, const QSizeF& block);
 
@@ -222,35 +222,36 @@ enum class Part { None, Fill, Outline, Text };
 
 //! The text area's handles (textAreaHandles()), told apart by Handle::part.
 enum class TextAreaPart {
-    Side,   //!< Side `index` (0 left, 1 right): that edge of the frame.
-    Top,    //!< The frame's top.
+    Side,     //!< Side `index` (0 left, 1 right): that edge of the frame.
+    Top,      //!< The frame's top.
+    Bottom,   //!< The frame's bottom.
+    Anchor,   //!< The frame's middle, a handle only: dragged, it moves the whole frame.
 };
 
 /**
- * \brief The text area's arrows, in balloon coordinates: one on its left edge and one on its right (`Side`, index
- *        0 and 1), level with the anchor, and one on its top (`Top`), above it. Each points across its edge. None
- *        without a balloon, whose words have their own box.
+ * \brief The text area's handles, in balloon coordinates: an arrow on its left edge and one on its right (`Side`,
+ *        index 0 and 1), level with its middle, one on its top and one on its bottom (`Top`, `Bottom`), in line with
+ *        it, each pointing across its edge. First the middle itself (`Anchor`), so a press where an arrow lies over
+ *        it takes the middle. None without a balloon, whose words
+ *        have their own box.
  */
 [[nodiscard]] QList<Handle> textAreaHandles(const Composition& c);
 
 /**
  * \brief \p c's first words with text-area \p handle dragged to \p to (balloon coordinates): textAreaHandles()'
- *        inverse. The edge is set where the pointer is, at its distance from the anchor — inside the balloon or
- *        past it — never closer to the anchor than a pixel. Measured against \p c as it was at the press.
+ *        inverse. An edge is set where the pointer is, inside the balloon or past it, never closer to the opposite
+ *        edge than two pixels; the middle moves the whole frame by as much as the pointer, every edge set, its
+ *        middle kept within the body. Measured against \p c as it was at the press.
  */
 [[nodiscard]] Words dragTextAreaHandle(const Composition& c, const Handle& handle, const QPointF& to);
 
 /**
- * \brief The point of \p c's lettering that stays put when its box changes, in box coordinates.
+ * \brief The point of \p c's lettering that stays put when its box changes, in box coordinates: the point of the
+ *        frame its block is aligned to (blockRect()).
  *
- * Horizontally the side the lines are aligned to — the frame's left edge, its right edge, or the anchor — and
- * vertically the middle of the placed block. A box that changes for the lettering's sake (*Fit*, *Convert*) is
- * moved so that this point keeps its place on the strip, which is what keeps the words where the author
- * put them. Pure geometry given the block's size, like fits().
+ * A box that changes for the lettering's sake (*Fit*, *Convert*) is moved so that this point keeps its place on
+ * the strip, which is what keeps the words where the author put them.
  */
-[[nodiscard]] QPointF textAnchorFor(const Composition& c, const QSizeF& block);
-
-//! textAnchorFor() with \p c's lettering measured.
 [[nodiscard]] QPointF textAnchor(const Composition& c);
 
 }  // namespace Geometry

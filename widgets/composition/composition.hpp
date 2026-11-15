@@ -127,9 +127,9 @@ struct Balloon
 };
 
 /**
- * \brief Where words sit in their body: four edges, each **set** — its distance from the words' anchor, in balloon
- *        pixels, inside the balloon or past it — or **automatic** (none): as far as the body's box, less the
- *        stroke and the edge's teeth.
+ * \brief Where words sit in their body: four edges, each **set** — its distance in from the body's box less the
+ *        stroke and the edge's teeth, in balloon pixels, negative past it — or **automatic** (none): that box's
+ *        own edge. The frame keeps its distances from the body's edges when the body changes size.
  */
 struct Frame
 {
@@ -158,15 +158,12 @@ struct Words
     Place          place;   //!< Read only with no seat.
     QSize          box;     //!< Read only with no seat.
     TextProperties text;
-    //! The point in its body the block is placed by (centred on it, or aligned from it), as a fraction of the
-    //! body: it keeps its place when the body changes size. Read only with a seat.
-    QPointF        anchor{0.5, 0.5};
     Frame          frame;   //!< Read only with a seat.
 
     [[nodiscard]] bool operator==(const Words& o) const
     {
         return id == o.id && seat == o.seat && place == o.place && box == o.box && text == o.text
-            && anchor == o.anchor && frame == o.frame;
+            && frame == o.frame;
     }
     [[nodiscard]] bool operator!=(const Words& o) const { return !(*this == o); }
 };

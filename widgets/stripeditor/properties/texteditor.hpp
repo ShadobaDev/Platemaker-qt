@@ -71,6 +71,7 @@ private:
     QSpinBox*       m_size   = nullptr;
     QCheckBox*      m_bold   = nullptr;
     QComboBox*      m_align  = nullptr;
+    QComboBox*      m_valign = nullptr;
     QSpinBox*       m_lineSpacing = nullptr;
     PaintRows<TextProperties> m_fill;           //!< The letters' paint.
     FieldRows<TextProperties> m_outlineWidth;   //!< The letters' outline; 0 is none.
@@ -88,10 +89,12 @@ private:
     bool m_mixedSize     = false;
     bool m_mixedBold     = false;
     bool m_mixedAlign    = false;
+    bool m_mixedValign   = false;
     bool m_familyTouched = false;
     bool m_sizeTouched   = false;
     bool m_boldTouched   = false;
     bool m_alignTouched  = false;
+    bool m_valignTouched = false;
     bool m_bodyVisible   = true;   //!< What setContentVisible() was last told; a set hides the box too.
     bool m_mixedLineSpacing   = false;
     bool m_lineSpacingTouched = false;

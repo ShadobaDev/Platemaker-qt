@@ -17,6 +17,8 @@
 #include <QTextOption>
 #include <QtMath>
 
+#include <algorithm>
+
 namespace Geometry {
 
 namespace {
@@ -39,14 +41,14 @@ constexpr int   k_maxFitSize    = 1 << 16;
  */
 constexpr int   k_minFitSize    = 40;
 /**
- *  Half the narrowest text area an arrow can drag it to, in balloon pixels: its edges stop this short of
- *  the middle, so the area never turns inside out (dragTextAreaHandle()).
+ *  The narrowest text area an arrow can drag it to, in balloon pixels: an edge stops this short of the
+ *  opposite one, so the area never turns inside out (dragTextAreaHandle()).
  */
-constexpr qreal k_minTextHalf   = 1.0;
+constexpr qreal k_minTextSpan   = 2.0;
 
 /**
- * \brief Where an automatic edge of words seated in @p seat stops: the body's box less the stroke and the edge's
- *        teeth (which go in from the outline). The anchor is measured on it too.
+ * \brief Where an automatic edge of words seated in @p seat stops, and what a set one is measured in from: the
+ *        body's box less the stroke and the edge's teeth (which go in from the outline).
  */
 QRectF innerBox(const Balloon& b, const Body& seat)
 {
@@ -54,40 +56,38 @@ QRectF innerBox(const Balloon& b, const Body& seat)
     return balloonRect(b, seat).adjusted(inset, inset, -inset, -inset);
 }
 
-//! The point @p w are placed by: their anchor in their seat, or the middle of their own box.
-QPointF anchorOf(const Composition& c, const Words& w)
-{
-    const Body* seat = seatOf(c, w);
-    if (!seat)
-        return QRectF(w.place.pos, QSizeF(w.box)).center();
-    const QRectF inner = innerBox(*c.balloon, *seat);
-    return inner.topLeft() + QPointF(w.anchor.x() * inner.width(), w.anchor.y() * inner.height());
-}
-
 QRectF textSafeArea(const Composition& c, const Words& w)
 {
     const Body* seat = seatOf(c, w);
     if (!seat)
         return QRectF(w.place.pos, QSizeF(w.box));
-    const QRectF  inner = innerBox(*c.balloon, *seat);
-    const QPointF a     = anchorOf(c, w);
-    const Frame&  f     = w.frame;
-    return QRectF(QPointF(f.left ? a.x() - *f.left : inner.left(), f.top ? a.y() - *f.top : inner.top()),
-                  QPointF(f.right ? a.x() + *f.right : inner.right(), f.bottom ? a.y() + *f.bottom : inner.bottom()));
+    const Frame& f = w.frame;
+    return innerBox(*c.balloon, *seat)
+        .adjusted(f.left.value_or(0.0), f.top.value_or(0.0), -f.right.value_or(0.0), -f.bottom.value_or(0.0));
 }
 
-//! The block laid in @p w's frame, as blockRect() says, from the anchor and the alignment.
+//! The point of @p w's frame the block is aligned to: a side or the middle across, the top, middle or bottom
+//! up and down.
+QPointF alignedPoint(const Composition& c, const Words& w)
+{
+    const QRectF frame = textSafeArea(c, w);
+    const int    h     = w.text.align & Qt::AlignHorizontal_Mask;
+    const int    v     = w.text.valign & Qt::AlignVertical_Mask;
+    return {(h & Qt::AlignLeft) ? frame.left() : (h & Qt::AlignRight) ? frame.right() : frame.center().x(),
+            (v & Qt::AlignTop) ? frame.top() : (v & Qt::AlignBottom) ? frame.bottom() : frame.center().y()};
+}
+
+//! The block laid in @p w's frame, as blockRect() says: aligned to it on both axes.
 QRectF placedBlock(const Composition& c, const Words& w, const QSizeF& block)
 {
-    const QRectF  frame = textSafeArea(c, w);
-    const QPointF a     = anchorOf(c, w);
-    const int     align = w.text.align & Qt::AlignHorizontal_Mask;
-    const qreal   x     = (align & Qt::AlignLeft)  ? frame.left()
-                        : (align & Qt::AlignRight) ? frame.right() - block.width()
-                                                   : a.x() - block.width() / 2.0;
-    // A block taller than its frame stops at the frame's top and goes on downwards.
-    const qreal y = block.height() > frame.height() ? frame.top() : a.y() - block.height() / 2.0;
-    return QRectF(QPointF(x, y), block);
+    const QPointF p = alignedPoint(c, w);
+    const int     h = w.text.align & Qt::AlignHorizontal_Mask;
+    const int     v = w.text.valign & Qt::AlignVertical_Mask;
+    // The share of the block before the aligned point: none from a left or top, all of it to a right or bottom.
+    const auto before = [](bool start, bool end) { return start ? 0.0 : end ? 1.0 : 0.5; };
+    return QRectF(QPointF(p.x() - before(h & Qt::AlignLeft, h & Qt::AlignRight) * block.width(),
+                          p.y() - before(v & Qt::AlignTop, v & Qt::AlignBottom) * block.height()),
+                  block);
 }
 
 /**
@@ -156,7 +156,7 @@ QPainterPath textOutline(const Composition& c, const Words& w)
         return {};
 
     // Laid out as wide as its widest line, so each line is aligned within the block, and the block placed by the
-    // anchor and the alignment (placedBlock()).
+    // alignment in its frame (placedBlock()).
     QTextDocument doc;
     layOutText(doc, w.text, 1);
     layOutText(doc, w.text, doc.idealWidth());
@@ -190,13 +190,16 @@ QPainterPath textOutline(const Composition& c, const Words& w)
     if (out.isEmpty())
         return out;
 
-    // The frame is the clip, so an overlong line cannot bleed past it: on the sides and at the top. Not at the
-    // bottom: lines the balloon has no room for go on out of it, never cut,
-    // and the red text area says so. A text object and a picture's words keep their box as it was.
+    // The frame is the clip, so an overlong line cannot bleed past its sides. Not up and down: lines the frame
+    // has no room for go on past it, away from the side they are aligned to, never cut, and the red text area
+    // says so. A text object and a picture's words keep their box as it was.
     // Intersecting keeps that in vector form, so it survives into the SVG.
     QRectF open = safe;
-    if (seatOf(c, w))
-        open.setBottom(qMax(safe.bottom(), out.boundingRect().bottom()));
+    if (seatOf(c, w)) {
+        const QRectF drawn = out.boundingRect();
+        open.setTop(qMin(safe.top(), drawn.top()));
+        open.setBottom(qMax(safe.bottom(), drawn.bottom()));
+    }
     QPainterPath clip;
     clip.addRect(open);
     return out.intersected(clip);
@@ -281,7 +284,7 @@ QSize fitBoxFor(const Composition& c, const QSizeF& block)
         return sizeOf(c);
 
     // The smallest box side, on one axis, whose frame holds the placed block on that axis — the other side
-    // held where it is. An automatic edge and the anchor move with the side, so a binary search is exact; an
+    // held where it is. Every edge keeps its distance from the side, so a binary search is exact; an
     // axis whose set edges are too close for any side keeps the side it has.
     const auto smallest = [&block](Composition probe, bool horizontal) {
         const int  was  = horizontal ? sizeOf(probe).width() : sizeOf(probe).height();
@@ -335,7 +338,7 @@ QList<Handle> textAreaHandles(const Composition& c)
     if (!c.balloon || !w || !seatOf(c, *w))
         return {};
     const QRectF  area = textSafeArea(c, *w);
-    const QPointF a    = anchorOf(c, *w);
+    const QPointF a    = area.center();
     const auto arrow = [](TextAreaPart part, int index, const QPointF& at, const QPointF& axis) {
         Handle h;
         h.part  = int(part);
@@ -345,9 +348,16 @@ QList<Handle> textAreaHandles(const Composition& c)
         h.glyph = Handle::Glyph::Arrow;
         return h;
     };
-    return {arrow(TextAreaPart::Side, 0, QPointF(area.left(), a.y()), QPointF(1, 0)),
+    Handle anchor;
+    anchor.part  = int(TextAreaPart::Anchor);
+    anchor.at    = a;
+    anchor.glyph = Handle::Glyph::Anchor;
+    // The middle first: where a narrow frame puts an arrow over it, a press there takes the middle.
+    return {anchor,
+            arrow(TextAreaPart::Side, 0, QPointF(area.left(), a.y()), QPointF(1, 0)),
             arrow(TextAreaPart::Side, 1, QPointF(area.right(), a.y()), QPointF(-1, 0)),
-            arrow(TextAreaPart::Top, 0, QPointF(a.x(), area.top()), QPointF(0, 1))};
+            arrow(TextAreaPart::Top, 0, QPointF(a.x(), area.top()), QPointF(0, 1)),
+            arrow(TextAreaPart::Bottom, 0, QPointF(a.x(), area.bottom()), QPointF(0, -1))};
 }
 
 Words dragTextAreaHandle(const Composition& c, const Handle& handle, const QPointF& to)
@@ -355,37 +365,52 @@ Words dragTextAreaHandle(const Composition& c, const Handle& handle, const QPoin
     const Words* w = wordsOf(c);
     if (!w)
         return {};
-    Words         out = *w;
-    const QPointF a   = anchorOf(c, *w);
+    const Body* seat = seatOf(c, *w);
+    if (!c.balloon || !seat)
+        return *w;
+    Words        out   = *w;
+    Frame&       f     = out.frame;
+    const QRectF inner = innerBox(*c.balloon, *seat);
+    const QRectF area  = textSafeArea(c, *w);
     // Whole pixels: what the file says is what the author placed, not the pointer's last fraction.
-    const auto from = [](qreal distance) { return qreal(qMax(qRound(distance), qCeil(k_minTextHalf))); };
-    if (partOf<TextAreaPart>(handle) == TextAreaPart::Side) {
+    const auto whole = [](qreal inset) { return qreal(qRound(inset)); };
+    switch (partOf<TextAreaPart>(handle)) {
+    case TextAreaPart::Side:
         if (handle.index == 0)
-            out.frame.left = from(a.x() - to.x());
+            f.left = whole(qMin(to.x(), area.right() - k_minTextSpan) - inner.left());
         else
-            out.frame.right = from(to.x() - a.x());
-    } else if (partOf<TextAreaPart>(handle) == TextAreaPart::Top) {
-        out.frame.top = from(a.y() - to.y());
+            f.right = whole(inner.right() - qMax(to.x(), area.left() + k_minTextSpan));
+        break;
+    case TextAreaPart::Top:
+        f.top = whole(qMin(to.y(), area.bottom() - k_minTextSpan) - inner.top());
+        break;
+    case TextAreaPart::Bottom:
+        f.bottom = whole(inner.bottom() - qMax(to.y(), area.top() + k_minTextSpan));
+        break;
+    case TextAreaPart::Anchor: {
+        // The whole frame, by whole pixels, its middle kept within the body; the edges of an axis it moves along
+        // are set by it.
+        const QPointF mid(std::clamp(to.x(), inner.left(), inner.right()), std::clamp(to.y(), inner.top(), inner.bottom()));
+        const int     dx = qRound(mid.x() - area.center().x());
+        const int     dy = qRound(mid.y() - area.center().y());
+        if (dx != 0) {
+            f.left  = f.left.value_or(0.0) + dx;
+            f.right = f.right.value_or(0.0) - dx;
+        }
+        if (dy != 0) {
+            f.top    = f.top.value_or(0.0) + dy;
+            f.bottom = f.bottom.value_or(0.0) - dy;
+        }
+        break;
+    }
     }
     return out;
 }
 
-QPointF textAnchorFor(const Composition& c, const QSizeF& block)
-{
-    const Words* w = wordsOf(c);
-    if (!w)
-        return {};
-    const QRectF area  = textSafeArea(c, *w);
-    const int    align = w->text.align & Qt::AlignHorizontal_Mask;
-    const qreal  x     = (align & Qt::AlignLeft)  ? area.left()
-                       : (align & Qt::AlignRight) ? area.right()
-                                                  : anchorOf(c, *w).x();
-    return {x, placedBlock(c, *w, block).center().y()};
-}
-
 QPointF textAnchor(const Composition& c)
 {
-    return textAnchorFor(c, textBlockSize(c));
+    const Words* w = wordsOf(c);
+    return w ? alignedPoint(c, *w) : QPointF();
 }
 
 }  // namespace Geometry

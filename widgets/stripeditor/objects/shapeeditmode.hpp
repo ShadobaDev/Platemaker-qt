@@ -87,7 +87,8 @@ public:
     // --- on the strip, driven by CanvasInput --------------------------------------------------------------
     //! Whether a press at @p scenePos is on the edited object: one of its handles or grips, or its body.
     [[nodiscard]] bool onEditedObject(const QPointF& scenePos, const QTransform& deviceTransform) const;
-    //! Leaves shape editing for a double click at @p scenePos; on another object, that object is selected.
+    //! Leaves shape editing for a double click at @p scenePos; on another object, that object is selected. On a
+    //! handle its owner can put back (Handle::reset), puts it back instead, one history step.
     void leaveAt(const QPointF& scenePos, const QTransform& deviceTransform);
     //! Picks the edited object's nodes inside @p sceneRect, instead of the pick or, with @p add, added to it.
     //! With none inside, nothing changes.

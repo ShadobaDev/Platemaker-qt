@@ -40,6 +40,7 @@ struct Handle
         FadeStart,    //!< A ring.
         FadeEnd,      //!< A dot, with its arm from `origin` broken round its start's ring at `start`.
         FadeCentre,   //!< A larger dot.
+        Anchor,       //!< A ring with a cross: the point something is placed by.
     };
 
     /**
@@ -53,6 +54,12 @@ struct Handle
      * \return Whether @p c changed.
      */
     using Press = bool (*)(Composition& c, Handle& handle);
+    /**
+     * \brief What a double-click on it does: @p c with what @p handle sets put back to its default (an edge made
+     *        automatic again, an anchor back in the middle).
+     * \return Whether @p c changed.
+     */
+    using Reset = bool (*)(Composition& c, const Handle& handle);
 
     int     part  = 0;   //!< Which of its owner's handles: the owner's own enum.
     int     index = 0;   //!< Which one of that part: a node, a side, an arm.
@@ -65,6 +72,7 @@ struct Handle
     int     element = 0;         //!< The id of the element it belongs to (handlesOf()).
     Drag    drag    = nullptr;   //!< Its owner's (handlesOf()).
     Press   press   = nullptr;   //!< Its owner's, for a handle a press acts on (handlesOf()).
+    Reset   reset   = nullptr;   //!< Its owner's, for a handle a double-click puts back (handlesOf()).
 };
 
 //! @p h's part, as its owner's enum.

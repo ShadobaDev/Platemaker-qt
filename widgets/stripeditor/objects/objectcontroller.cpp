@@ -530,6 +530,12 @@ void ObjectController::syncItems()
             connect(item, &Object::pressed,        this, &ObjectController::onObjectPressed);
             connect(item, &Object::dragging,       this, &ObjectController::onObjectDragged);
             connect(item, &Object::chromeChanged,  this, &ObjectController::refreshChrome);
+            // A picture resized by its grips: OBJECT STATE's size follows it while it moves.
+            if (qobject_cast<ArtworkObject*>(item))
+                connect(item, &Object::chromeChanged, this, [this, uid] {
+                    if (uid == m_selection.primary() && selectionIsArtwork())
+                        emit artworkScaleBound(selectedArtworkPercent());
+                });
             // The picked node is what the menu's Delete and Point type act on, however it was picked.
             connect(item, &Object::pickedVertexChanged, m_shapeEdit, &ShapeEditMode::changed);
             // A double-click on the one selected balloon enters shape editing, and another leaves it.
@@ -1105,16 +1111,9 @@ double ObjectController::selectedArtworkPercent() const
     const auto*  art = qobject_cast<const ArtworkObject*>(m_overlayItems.value(m_selection.primary()));
     if (!art || art->artwork().width() <= 0)
         return 0.0;
-
-    const auto it = std::find_if(m_overlays.cbegin(), m_overlays.cend(),
-                                 [this](const Platemaker::Models::StripOverlay& o) {
-                                     return QString::fromStdString(o.uid) == m_selection.primary();
-                                 });
-    if (it == m_overlays.cend())
-        return 0.0;
-    // The record holds a fraction of the page; the artwork holds its own pixels. The percentage is the
-    // ratio between what it is drawn at and what it was drawn as.
-    return m_layout.percentOf(it->wFrac, art->artwork().width());
+    // What it is drawn at over what it was drawn as — read off the object, so a grip being dragged shows
+    // its size as it goes; at rest the object is drawn at the record's width fraction (syncItems()).
+    return art->contentBounds().width() * art->scale() * 100.0 / art->artwork().width();
 }
 
 void ObjectController::scaleSelectedArtwork(double percent, bool commit)

@@ -264,15 +264,17 @@ void ObjectController::onObjectPressed(const QString& uid, int handle)
             for (const QString& carrier : std::as_const(m_selection.carriers()))
                 objects.removeAll(carrier);   // and so do the other selected tails' balloons
             selectSubjects(objects, tails);
-        } else {
+        } else if (!m_selection.elements().contains(tailRef(uid, handle))) {
             selectTail(uid, handle);
-        }
+        }   // a plain press on a tail already selected keeps the selection, so the drag moves all of it
         beginDrag(uid, handle);
         return;
     }
-    // A press on the balloon itself while one of its tails is selected is a press on the balloon: the
-    // scene reports no change, because the balloon was selected all along.
-    if (m_selection.subject() == Subject::Tail && uid == m_selection.primary() && !add)
+    // A press on the balloon itself while tails of it are selected — one or several — is a press on the
+    // balloon: the scene reports no change, because the balloon was selected all along, carrying them.
+    const bool carrier = m_selection.carriers().contains(uid)
+                      || (m_selection.subject() == Subject::Tail && uid == m_selection.primary());
+    if (carrier && !add)
         selectOverlay(uid);
     beginDrag(uid, handle);
 

@@ -164,9 +164,9 @@ void Object::setPickedVertices(const QList<int>& indices)
 
 void Object::pickNodeOf(int index)
 {
-    const QList<Geometry::ShapeHandle> handles = shapeHandles();
-    if (index >= 0 && index < handles.size() && Geometry::picksNode(handles.at(index).role))
-        setPickedVertex(handles.at(index).index);
+    const QList<Geometry::Handle> handles = shapeHandles();
+    if (index >= 0 && index < handles.size() && handles.at(index).node >= 0)
+        setPickedVertex(handles.at(index).node);
 }
 
 qreal Object::gripSpanHere() const

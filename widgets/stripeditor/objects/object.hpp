@@ -148,7 +148,7 @@ public:
     [[nodiscard]] virtual bool canEditShape() const { return false; }
 
     //! The handles shape editing offers, in item coordinates. None by default.
-    [[nodiscard]] virtual QList<Geometry::ShapeHandle> shapeHandles() const { return {}; }
+    [[nodiscard]] virtual QList<Geometry::Handle> shapeHandles() const { return {}; }
 
     //! The bare outline shape editing traces, in item coordinates. None by default.
     [[nodiscard]] virtual QPainterPath editOutline() const { return {}; }

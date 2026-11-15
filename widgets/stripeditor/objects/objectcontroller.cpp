@@ -298,10 +298,10 @@ void ObjectController::pickNodesIn(const QRectF& sceneRect, bool add)
     if (!edited)
         return;
     QList<int> inside;
-    for (const Geometry::ShapeHandle& h : edited->shapeHandles())
-        if (h.role == Geometry::ShapeHandle::Role::Vertex && sceneRect.contains(edited->mapToScene(h.at))
-            && !inside.contains(h.index))
-            inside.append(h.index);
+    for (const Geometry::Handle& h : edited->shapeHandles())
+        if (h.glyph == Geometry::Handle::Glyph::Node && h.node >= 0 && sceneRect.contains(edited->mapToScene(h.at))
+            && !inside.contains(h.node))
+            inside.append(h.node);
     if (inside.isEmpty())
         return;   // a band round no node never happened
     QList<int> picked = add ? edited->pickedVertices() : QList<int>{};
@@ -317,8 +317,8 @@ void ObjectController::stepPickedNode(bool clockwise, PickStep how)
     if (!edited || edited->pickedVertices().isEmpty())
         return;
     QPolygonF nodes;   // in index order, as drawn
-    for (const Geometry::ShapeHandle& h : edited->shapeHandles())
-        if (h.role == Geometry::ShapeHandle::Role::Vertex && h.index == nodes.size())
+    for (const Geometry::Handle& h : edited->shapeHandles())
+        if (h.glyph == Geometry::Handle::Glyph::Node && h.node == nodes.size())
             nodes << edited->mapToScene(h.at);
     const int n = int(nodes.size());
     if (n == 0)

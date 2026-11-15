@@ -78,7 +78,7 @@ private:
     //! The square a tail handle occupies, in scene units.
     [[nodiscard]] QRectF handleRect(const Object* o, int index, qreal s) const;
     //! @p o's outline handles while its shape is edited, in its item coordinates; none otherwise.
-    [[nodiscard]] static QList<Geometry::ShapeHandle> shapeHandles(const Object* o);
+    [[nodiscard]] static QList<Geometry::Handle> shapeHandles(const Object* o);
     //! @p o's text area in scene units; empty with no lettering.
     [[nodiscard]] static QRectF textAreaRect(const Object* o);
     //! @p o's text area in scene units when its lettering does not fit it; empty when it does.

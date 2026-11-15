@@ -17,6 +17,7 @@
 #include <QRectF>
 
 #include "composition.hpp"
+#include "handles.hpp"
 #include "names.hpp"
 
 namespace Geometry {
@@ -28,40 +29,15 @@ constexpr int k_maxLobes    = 40;
 constexpr int k_minLobeSize = 5;
 constexpr int k_maxLobeSize = 100;
 
-/**
- * \brief A point a shape offers to be dragged in edit mode, in the balloon's own coordinates.
- */
-struct ShapeHandle
-{
-    enum class Role {
-        Radius,      //!< The corner radius: a dot inside the first corner's arc.
-        Vertex,      //!< A Polygon's or a Curve's node `index`.
-        AddVertex,   //!< The middle of the edge after node `index`: a press there adds a node.
-        InHandle,    //!< A Curve's node `index`: the handle its segment from the previous node arrives along.
-        OutHandle,   //!< ...and the one its segment to the next node leaves along.
-        Depth,       //!< The edge's depth: an arrow at its first valley, any kind with an edge.
-        FadeFrom,    //!< The fill's fade, side `index` (left, right, top, bottom): where it starts.
-        FadeTo,      //!< ...and where it ends (fadeHandles(), styles.hpp).
-        FadeCentre,  //!< ...and the cross's centre.
-        TextSide,    //!< The text area's side `index` (0 left, 1 right): the side padding (textAreaHandles(),
-                     //!< geometry.hpp).
-        TextTop,     //!< ...and its top: the top padding.
-    };
-    Role    role  = Role::Vertex;
-    int     index = 0;
-    QPointF at;
-    QPointF axis;     //!< For the radius, the unit direction into its corner; for the depth, inwards; for a
-                      //!< fade's dot, outwards along its arm.
-    QPointF origin;   //!< For a Curve's handle: its node, which the line to it is drawn from; for a fade's
-                      //!< dot, the cross's centre.
+//! A shape's handles (shapeHandles()), told apart by Handle::part.
+enum class ShapePart {
+    Radius,      //!< The corner radius: a dot inside the first corner's arc.
+    Vertex,      //!< A Polygon's or a Curve's node `index`.
+    AddVertex,   //!< The middle of the edge after node `index`: a press there adds a node.
+    InHandle,    //!< A Curve's node `index`: the handle its segment from the previous node arrives along.
+    OutHandle,   //!< ...and the one its segment to the next node leaves along.
+    Depth,       //!< The edge's depth: an arrow at its first valley, any kind with an edge.
 };
-
-//! Whether a press on a handle of @p role picks a Curve's node: the node itself, or one of its handles.
-[[nodiscard]] inline bool picksNode(ShapeHandle::Role role)
-{
-    return role == ShapeHandle::Role::Vertex || role == ShapeHandle::Role::InHandle
-        || role == ShapeHandle::Role::OutHandle;
-}
 
 /**
  * \brief One kind: everything about it that is not the record's own state.
@@ -108,13 +84,13 @@ struct ShapeInfo
      * sits on the corner's own handle. @p picked is the node picked in edit mode, -1 for none: a Curve
      * shows that one's two handles.
      */
-    QList<ShapeHandle> (*handles)(const ShapeProperties& shape, const QRectF& body, qreal clearance,
+    QList<Handle> (*handles)(const ShapeProperties& shape, const QRectF& body, qreal clearance,
                                   int picked) = nullptr;
     /**
      * @p shape with @p handle dragged to @p to, both in the balloon's coordinates. A node may land past
      * the body (outside 0..1); growing the box to it is the caller's.
      */
-    ShapeProperties (*dragHandle)(const ShapeProperties& shape, const QRectF& body, const ShapeHandle& handle,
+    ShapeProperties (*dragHandle)(const ShapeProperties& shape, const QRectF& body, const Handle& handle,
                                   const QPointF& to, qreal clearance) = nullptr;
 };
 
@@ -147,12 +123,12 @@ struct EdgeInfo
  * \brief Every handle edit mode offers on @p shape in @p body: its kind's own (ShapeInfo::handles), then
  *        its edge's depth. What the controls ask, so an Ellipse with an edge is edited too.
  */
-[[nodiscard]] QList<ShapeHandle> shapeHandles(const ShapeProperties& shape, const QRectF& body,
+[[nodiscard]] QList<Handle> shapeHandles(const ShapeProperties& shape, const QRectF& body,
                                               qreal clearance, int picked);
 
 //! @p shape with @p handle dragged to @p to: shapeHandles()' inverse, the kind's or the edge's.
 [[nodiscard]] ShapeProperties dragShapeHandle(const ShapeProperties& shape, const QRectF& body,
-                                              const ShapeHandle& handle, const QPointF& to, qreal clearance);
+                                              const Handle& handle, const QPointF& to, qreal clearance);
 
 //! Whether @p shape offers edit mode at all: a kind with handles, or an edge.
 [[nodiscard]] bool hasShapeHandles(const ShapeProperties& shape);

@@ -50,6 +50,7 @@ add_executable(platemaker-gui-tests
     ${CMAKE_SOURCE_DIR}/widgets/objectrecord/outline.cpp
     ${CMAKE_SOURCE_DIR}/widgets/objectrecord/silhouette.cpp
     ${CMAKE_SOURCE_DIR}/widgets/objectrecord/lettering.cpp
+    ${CMAKE_SOURCE_DIR}/widgets/objectrecord/handles.cpp
     ${CMAKE_SOURCE_DIR}/widgets/objectrecord/recordpainter.cpp
     ${CMAKE_SOURCE_DIR}/widgets/objectrecord/renderlist.cpp
     ${CMAKE_SOURCE_DIR}/widgets/stripeditor/properties/colouradjustment.cpp

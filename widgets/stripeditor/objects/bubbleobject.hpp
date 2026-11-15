@@ -79,7 +79,7 @@ public:
     [[nodiscard]] QSizeF boxSize() const override { return QSizeF(sizeOf(m_composition)); }
 
     [[nodiscard]] bool                         canEditShape() const override;
-    [[nodiscard]] QList<Geometry::ShapeHandle> shapeHandles() const override;
+    [[nodiscard]] QList<Geometry::Handle> shapeHandles() const override;
     [[nodiscard]] QPainterPath                 editOutline() const override;
 
 protected:
@@ -135,7 +135,10 @@ private:
 
     Composition           m_shapeStart;      //!< The composition at a shape handle's press; the drag works against it.
     QPointF               m_shapeStartPos;   //!< pos() at that press: a node dragged past the box moves the item.
-    Geometry::ShapeHandle m_shapeHandle;     //!< The handle being dragged; a "+" pressed has become its node.
+    Geometry::Handle m_shapeHandle;     //!< The handle being dragged; a "+" pressed has become its node.
+
+    //! What a handle's owner needs from this object at a drag: the radius dot's clearance and the picked nodes.
+    [[nodiscard]] Geometry::HandleContext handleContext() const;
 };
 
 }  // namespace StripEdit

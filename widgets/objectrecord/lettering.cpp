@@ -328,18 +328,27 @@ TextProperties fittingPaddings(const Composition& c)
     return paddingsToFit(c, textBlockSize(c));
 }
 
-QList<ShapeHandle> textAreaHandles(const Composition& c)
+QList<Handle> textAreaHandles(const Composition& c)
 {
     if (!c.balloon || !wordsOf(c))
         return {};
     const QRectF  area = areaOf(c);
     const QPointF mid  = area.center();
-    return {{ShapeHandle::Role::TextSide, 0, QPointF(area.left(), mid.y()), QPointF(1, 0)},
-            {ShapeHandle::Role::TextSide, 1, QPointF(area.right(), mid.y()), QPointF(-1, 0)},
-            {ShapeHandle::Role::TextTop, 0, QPointF(mid.x(), area.top()), QPointF(0, 1)}};
+    const auto arrow = [](TextAreaPart part, int index, const QPointF& at, const QPointF& axis) {
+        Handle h;
+        h.part  = int(part);
+        h.index = index;
+        h.at    = at;
+        h.axis  = axis;
+        h.glyph = Handle::Glyph::Arrow;
+        return h;
+    };
+    return {arrow(TextAreaPart::Side, 0, QPointF(area.left(), mid.y()), QPointF(1, 0)),
+            arrow(TextAreaPart::Side, 1, QPointF(area.right(), mid.y()), QPointF(-1, 0)),
+            arrow(TextAreaPart::Top, 0, QPointF(mid.x(), area.top()), QPointF(0, 1))};
 }
 
-TextProperties dragTextAreaHandle(const Composition& c, const ShapeHandle& handle, const QPointF& to)
+TextProperties dragTextAreaHandle(const Composition& c, const Handle& handle, const QPointF& to)
 {
     // How far the edge moves inwards, up to its share of the area less its own minimum: the side padding
     // is one value and the top one mirrored, so either edge meets its partner at the middle.
@@ -349,10 +358,10 @@ TextProperties dragTextAreaHandle(const Composition& c, const ShapeHandle& handl
     const auto           inBy = [](qreal moved, qreal extent) {
         return qRound(qMin(moved, qMax(qreal(0), extent / 2.0 - k_minTextHalf)));
     };
-    if (handle.role == ShapeHandle::Role::TextSide) {
+    if (partOf<TextAreaPart>(handle) == TextAreaPart::Side) {
         const qreal moved = handle.index == 0 ? to.x() - area.left() : area.right() - to.x();
         out.paddingSide   = text.paddingSide + inBy(moved, area.width());
-    } else if (handle.role == ShapeHandle::Role::TextTop) {
+    } else if (partOf<TextAreaPart>(handle) == TextAreaPart::Top) {
         out.paddingTop = text.paddingTop + inBy(to.y() - area.top(), area.height());
     }
     return out;

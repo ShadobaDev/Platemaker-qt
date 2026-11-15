@@ -202,17 +202,17 @@ TEST(TextFit, FixPaddingLeavesWhatAlreadyFitsAlone)
  */
 TEST(TextFit, TheTextAreaArrowsDragThePaddings)
 {
-    using Role         = Geometry::ShapeHandle::Role;
+    using Geometry::TextAreaPart;
     Composition a     = withShape(ShapeProperties::Kind::Box);
     boxOf(a)              = QSize(300, 200);
     const QRectF area  = Geometry::textArea(a, *wordsOf(a));
-    const QList<Geometry::ShapeHandle> arrows = Geometry::textAreaHandles(a);
+    const QList<Geometry::Handle> arrows = Geometry::textAreaHandles(a);
     ASSERT_EQ(arrows.size(), 3);
-    EXPECT_EQ(arrows[0].role, Role::TextSide);
+    EXPECT_EQ(Geometry::partOf<TextAreaPart>(arrows[0]), TextAreaPart::Side);
     EXPECT_EQ(arrows[0].at, QPointF(area.left(), area.center().y()));
-    EXPECT_EQ(arrows[1].role, Role::TextSide);
+    EXPECT_EQ(Geometry::partOf<TextAreaPart>(arrows[1]), TextAreaPart::Side);
     EXPECT_EQ(arrows[1].at, QPointF(area.right(), area.center().y()));
-    EXPECT_EQ(arrows[2].role, Role::TextTop);
+    EXPECT_EQ(Geometry::partOf<TextAreaPart>(arrows[2]), TextAreaPart::Top);
     EXPECT_EQ(arrows[2].at, QPointF(area.center().x(), area.top()));
 
     // Each edge follows the pointer; the other padding stays.

@@ -61,11 +61,9 @@ constexpr qreal k_fadeCentreSpan = 0.8;
 constexpr qreal k_fadeCentreGap  = 0.7;
 
 //! The square a shape handle answers a press in.
-QRectF shapeHandleRect(const QPointF& at, Geometry::ShapeHandle::Role role, qreal s)
+QRectF shapeHandleRect(const QPointF& at, Geometry::Handle::Glyph glyph, qreal s)
 {
-    using Role = Geometry::ShapeHandle::Role;
-    const bool arrow = role == Role::Radius || role == Role::Depth || role == Role::TextSide || role == Role::TextTop;
-    return square(at, arrow ? s * k_arrowHitSpan : s);
+    return square(at, glyph == Geometry::Handle::Glyph::Arrow ? s * k_arrowHitSpan : s);
 }
 
 //! The radius handle's drawing, pointing along x, with its FILL and OUTLINE still to be coloured.
@@ -150,9 +148,9 @@ QRectF SelectionChrome::handleRect(const Object* o, int index, qreal s) const
     return square(o->mapToScene(o->handleAt(index)), s);
 }
 
-QList<Geometry::ShapeHandle> SelectionChrome::shapeHandles(const Object* o)
+QList<Geometry::Handle> SelectionChrome::shapeHandles(const Object* o)
 {
-    return o->shapeEditing() ? o->shapeHandles() : QList<Geometry::ShapeHandle>();
+    return o->shapeEditing() ? o->shapeHandles() : QList<Geometry::Handle>();
 }
 
 QRectF SelectionChrome::overflowRect(const Object* o)
@@ -187,8 +185,8 @@ void SelectionChrome::refresh()
             next = next.united(handleRect(o, i, s).adjusted(-1, -1, 1, 1));
         if (o->shapeEditing())
             next = next.united(o->mapToScene(o->editOutline()).boundingRect().adjusted(-1, -1, 1, 1));
-        for (const Geometry::ShapeHandle& h : shapeHandles(o))
-            next = next.united(shapeHandleRect(o->mapToScene(h.at), h.role, s).adjusted(-2, -2, 2, 2));
+        for (const Geometry::Handle& h : shapeHandles(o))
+            next = next.united(shapeHandleRect(o->mapToScene(h.at), h.glyph, s).adjusted(-2, -2, 2, 2));
         // Measured here, not in paint(): laying out the lettering on every repaint would be paid on
         // every scroll. This runs when the object reports a change, which is when the answer can move.
         if (const QRectF r = overflowRect(o); !r.isEmpty()) {
@@ -221,9 +219,9 @@ SelectionChrome::Hit SelectionChrome::hitAt(const QPointF& scenePos) const
             if (handleRect(o, i, s).contains(scenePos))
                 return {o, Grip::Handle, i};
         // Then the outline's own, in the order the shape lists them (a node before a "+").
-        const QList<Geometry::ShapeHandle> handles = shapeHandles(o);
+        const QList<Geometry::Handle> handles = shapeHandles(o);
         for (int i = 0; i < handles.size(); ++i)
-            if (shapeHandleRect(o->mapToScene(handles.at(i).at), handles.at(i).role, s).contains(scenePos))
+            if (shapeHandleRect(o->mapToScene(handles.at(i).at), handles.at(i).glyph, s).contains(scenePos))
                 return {o, Grip::Shape, i};
         for (const Grip g : k_corners)
             if (gripRect(o, g, s).contains(scenePos))
@@ -245,8 +243,8 @@ QPainterPath SelectionChrome::shape() const
     for (const Object* o : subjects()) {
         for (int i = 0; i < o->tipCount(); ++i)
             p.addRect(handleRect(o, i, s));
-        for (const Geometry::ShapeHandle& h : shapeHandles(o))
-            p.addRect(shapeHandleRect(o->mapToScene(h.at), h.role, s));
+        for (const Geometry::Handle& h : shapeHandles(o))
+            p.addRect(shapeHandleRect(o->mapToScene(h.at), h.glyph, s));
         for (const Grip g : k_corners)
             if (const QRectF r = gripRect(o, g, s); !r.isEmpty())
                 p.addRect(r);
@@ -311,7 +309,7 @@ void SelectionChrome::paint(QPainter* painter, const QStyleOptionGraphicsItem* o
         // are the negative of what lies under them (white in Difference), so they read on a black flash,
         // on white paper and on screentone alike. Each is one stroke or one fill: a pixel painted twice
         // in Difference turns back.
-        using Role = Geometry::ShapeHandle::Role;
+        using Glyph = Geometry::Handle::Glyph;
         QPen negative(Qt::white, k_negativePx);
         negative.setCosmetic(true);
         negative.setJoinStyle(Qt::MiterJoin);
@@ -323,24 +321,21 @@ void SelectionChrome::paint(QPainter* painter, const QStyleOptionGraphicsItem* o
             draw();
             painter->restore();
         };
-        const QList<Geometry::ShapeHandle> handles = shapeHandles(o);
+        const QList<Geometry::Handle> handles = shapeHandles(o);
         for (int i = 0; i < handles.size(); ++i) {
-            const Geometry::ShapeHandle& h  = handles.at(i);
+            const Geometry::Handle& h  = handles.at(i);
             const QPointF                at = o->mapToScene(h.at);
-            switch (h.role) {
-            case Role::Vertex:
+            switch (h.glyph) {
+            case Glyph::Node:
                 inNegative([&] {
-                    if (o->pickedVertices().contains(h.index)) {
+                    if (o->pickedVertices().contains(h.node)) {
                         painter->setPen(Qt::NoPen);
                         painter->setBrush(Qt::white);
                     }
                     painter->drawRect(square(at, s));
                 });
                 break;
-            case Role::Radius:
-            case Role::Depth:
-            case Role::TextSide:
-            case Role::TextTop: {
+            case Glyph::Arrow: {
                 // The arrow (icons/handles/radius.svg) in the highlight, edged in the colour that reads
                 // on it so it shows on any fill, turned along its axis (a corner's diagonal, or into the
                 // balloon for the edge's depth); pressed, the two colours swap.
@@ -357,7 +352,7 @@ void SelectionChrome::paint(QPainter* painter, const QStyleOptionGraphicsItem* o
                 painter->restore();
                 break;
             }
-            case Role::AddVertex: {
+            case Glyph::Plus: {
                 // One path, so the middle where the arms cross is stroked once.
                 const qreal  half = s * k_plusSpan / 2;
                 QPainterPath plus;
@@ -368,15 +363,15 @@ void SelectionChrome::paint(QPainter* painter, const QStyleOptionGraphicsItem* o
                 inNegative([&] { painter->drawPath(plus); });
                 break;
             }
-            case Role::FadeFrom:
+            case Glyph::FadeStart:
                 // The fade's cross: a ring where it starts; the arm is drawn with its end, below.
                 inNegative([&] { painter->drawEllipse(at, s * k_fadeRingSpan / 2, s * k_fadeRingSpan / 2); });
                 break;
-            case Role::FadeTo: {
+            case Glyph::FadeEnd: {
                 // The arm from the centre to its end, broken round the start's ring and short of the centre
                 // and of the end's dot, so no pixel is crossed twice; the end a dot inside the ring's room.
                 const QPointF from  = o->mapToScene(h.origin);
-                const QPointF start = o->mapToScene(handles.at(i - 4).at);   // the same arm's start
+                const QPointF start = o->mapToScene(h.start);   // the same arm's start
                 const QPointF d     = at - from;
                 const qreal   len   = std::hypot(d.x(), d.y());
                 const qreal   ring  = s * k_fadeRingSpan / 2;
@@ -397,15 +392,14 @@ void SelectionChrome::paint(QPainter* painter, const QStyleOptionGraphicsItem* o
                 });
                 break;
             }
-            case Role::FadeCentre:
+            case Glyph::FadeCentre:
                 inNegative([&] {
                     painter->setPen(Qt::NoPen);
                     painter->setBrush(Qt::white);
                     painter->drawEllipse(at, s * k_fadeCentreSpan / 2, s * k_fadeCentreSpan / 2);
                 });
                 break;
-            case Role::InHandle:
-            case Role::OutHandle: {
+            case Glyph::Tangent: {
                 // A line from its node, and a diamond: unlike a node's square and a tail's dot. The line
                 // stops short of both, so no pixel is crossed twice.
                 const qreal   half = s * k_tangentSpan / 2;

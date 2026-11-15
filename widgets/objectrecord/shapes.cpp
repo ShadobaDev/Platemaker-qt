@@ -507,22 +507,55 @@ qreal radiusAt(const Corner& corner, const QPointF& to, qreal clearance, qreal l
 }
 
 //! The Box's first corner, the top-left one.
+/**
+ * \brief A shape's handle: its part, and the glyph and the node that part has (a node and its tangents pick
+ *        their node; the radius and the depth are arrows along @p axis).
+ */
+Handle shapeHandle(ShapePart part, int index, const QPointF& at, const QPointF& axis = {}, const QPointF& origin = {})
+{
+    Handle h;
+    h.part   = int(part);
+    h.index  = index;
+    h.at     = at;
+    h.axis   = axis;
+    h.origin = origin;
+    switch (part) {
+    case ShapePart::Vertex:
+        h.glyph = Handle::Glyph::Node;
+        h.node  = index;
+        break;
+    case ShapePart::InHandle:
+    case ShapePart::OutHandle:
+        h.glyph = Handle::Glyph::Tangent;
+        h.node  = index;
+        break;
+    case ShapePart::AddVertex:
+        h.glyph = Handle::Glyph::Plus;
+        break;
+    case ShapePart::Radius:
+    case ShapePart::Depth:
+        h.glyph = Handle::Glyph::Arrow;
+        break;
+    }
+    return h;
+}
+
 Corner boxCorner(const QRectF& body)
 {
     return cornerAt(body.bottomLeft(), body.topLeft(), body.topRight());
 }
 
-QList<ShapeHandle> boxHandles(const ShapeProperties& shape, const QRectF& body, qreal clearance, int)
+QList<Handle> boxHandles(const ShapeProperties& shape, const QRectF& body, qreal clearance, int)
 {
     const Corner c = boxCorner(body);
-    return {{ShapeHandle::Role::Radius, 0, radiusDot(c, shape.corner.radius, clearance), -c.bisector}};
+    return {shapeHandle(ShapePart::Radius, 0, radiusDot(c, shape.corner.radius, clearance), -c.bisector)};
 }
 
-ShapeProperties dragBoxHandle(const ShapeProperties& shape, const QRectF& body, const ShapeHandle& handle,
+ShapeProperties dragBoxHandle(const ShapeProperties& shape, const QRectF& body, const Handle& handle,
                               const QPointF& to, qreal clearance)
 {
     ShapeProperties s = shape;
-    if (handle.role == ShapeHandle::Role::Radius)
+    if (partOf<ShapePart>(handle) == ShapePart::Radius)
         s.corner.radius = radiusAt(boxCorner(body), to, clearance, cornerRadiusLimit(body.size()));
     return s;
 }
@@ -537,49 +570,42 @@ Corner polygonCorner(const QList<QPointF>& pts)
  * Every node, then the radius dot, then a "+" in the middle of each edge: the order a press is answered
  * in, so a node wins over a "+" on a short edge.
  */
-QList<ShapeHandle> polygonHandles(const ShapeProperties& shape, const QRectF& body, qreal clearance, int)
+QList<Handle> polygonHandles(const ShapeProperties& shape, const QRectF& body, qreal clearance, int)
 {
     const QList<QPointF> pts = polygonPoints(shape, body);
     const int            n   = int(pts.size());
-    QList<ShapeHandle>   out;
+    QList<Handle>   out;
     for (int i = 0; i < n; ++i)
-        out.append({ShapeHandle::Role::Vertex, i, pts[i]});
+        out.append(shapeHandle(ShapePart::Vertex, i, pts[i]));
     if (const Corner c = polygonCorner(pts); c.valid())
-        out.append({ShapeHandle::Role::Radius, 0, radiusDot(c, shape.corner.radius, clearance), -c.bisector});
+        out.append(shapeHandle(ShapePart::Radius, 0, radiusDot(c, shape.corner.radius, clearance), -c.bisector));
     for (int i = 0; i < n; ++i)
-        out.append({ShapeHandle::Role::AddVertex, i, (pts[i] + pts[(i + 1) % n]) / 2.0});
+        out.append(shapeHandle(ShapePart::AddVertex, i, (pts[i] + pts[(i + 1) % n]) / 2.0));
     return out;
 }
 
-ShapeProperties dragPolygonHandle(const ShapeProperties& shape, const QRectF& body, const ShapeHandle& handle,
+ShapeProperties dragPolygonHandle(const ShapeProperties& shape, const QRectF& body, const Handle& handle,
                                   const QPointF& to, qreal clearance)
 {
     ShapeProperties s = shape;
-    switch (handle.role) {
-    case ShapeHandle::Role::Vertex:
+    switch (partOf<ShapePart>(handle)) {
+    case ShapePart::Vertex:
         s.nodes = freeNodes(shape);   // a Polygon drawing the box's rectangle gets nodes of its own
         if (handle.index >= 0 && handle.index < s.nodes.size() && !body.isEmpty())
             s.nodes[handle.index].at = QPointF((to.x() - body.left()) / body.width(),
                                                (to.y() - body.top()) / body.height());
         break;
-    case ShapeHandle::Role::Radius:
+    case ShapePart::Radius:
         if (const Corner c = polygonCorner(polygonPoints(shape, body)); c.valid())
             s.corner.radius = radiusAt(c, to, clearance, cornerRadiusLimit(body.size()));
         break;
-    case ShapeHandle::Role::AddVertex:
+    case ShapePart::AddVertex:
         break;   // a press adds the node (withVertexAdded()); the drag is that node's
-    case ShapeHandle::Role::InHandle:
-    case ShapeHandle::Role::OutHandle:
+    case ShapePart::InHandle:
+    case ShapePart::OutHandle:
         break;   // a Curve's
-    case ShapeHandle::Role::Depth:
+    case ShapePart::Depth:
         break;   // the edge's (dragShapeHandle())
-    case ShapeHandle::Role::FadeFrom:
-    case ShapeHandle::Role::FadeTo:
-    case ShapeHandle::Role::FadeCentre:
-        break;   // the fill's (dragFadeHandle())
-    case ShapeHandle::Role::TextSide:
-    case ShapeHandle::Role::TextTop:
-        break;   // the lettering's (dragTextAreaHandle())
     }
     return s;
 }
@@ -623,23 +649,23 @@ QPointF grownHandle(const QList<ShapeNode>& nodes, int i, bool out)
  * press is answered in, so a handle wins over the node it leaves. A handle the node lacks is offered
  * where it would grow from (grownHandle()), and becomes the node's own when it is dragged.
  */
-QList<ShapeHandle> curveHandles(const ShapeProperties& shape, const QRectF& body, qreal, int picked)
+QList<Handle> curveHandles(const ShapeProperties& shape, const QRectF& body, qreal, int picked)
 {
     const QList<ShapeNode>& nodes = freeNodes(shape);
     const int               n     = int(nodes.size());
-    QList<ShapeHandle>      out;
+    QList<Handle>      out;
     if (picked >= 0 && picked < n) {
         const ShapeNode& p    = nodes[picked];
         const QPointF    at   = inBody(p.at, body);
         const QPointF    in   = p.in.isNull() ? grownHandle(nodes, picked, false) : p.in;
         const QPointF    outH = p.out.isNull() ? grownHandle(nodes, picked, true) : p.out;
-        out.append({ShapeHandle::Role::InHandle, picked, inBody(p.at + in, body), {}, at});
-        out.append({ShapeHandle::Role::OutHandle, picked, inBody(p.at + outH, body), {}, at});
+        out.append(shapeHandle(ShapePart::InHandle, picked, inBody(p.at + in, body), {}, at));
+        out.append(shapeHandle(ShapePart::OutHandle, picked, inBody(p.at + outH, body), {}, at));
     }
     for (int i = 0; i < n; ++i)
-        out.append({ShapeHandle::Role::Vertex, i, inBody(nodes[i].at, body)});
+        out.append(shapeHandle(ShapePart::Vertex, i, inBody(nodes[i].at, body)));
     for (int i = 0; i < n; ++i)
-        out.append({ShapeHandle::Role::AddVertex, i, inBody(splitSegment(nodes[i], nodes[(i + 1) % n]).mid, body)});
+        out.append(shapeHandle(ShapePart::AddVertex, i, inBody(splitSegment(nodes[i], nodes[(i + 1) % n]).mid, body)));
     return out;
 }
 
@@ -661,7 +687,7 @@ void keepType(ShapeNode& node, bool movedOut, const QRectF& body)
     other          = fromPixels(-moved / lm * lo, body);
 }
 
-ShapeProperties dragCurveHandle(const ShapeProperties& shape, const QRectF& body, const ShapeHandle& handle,
+ShapeProperties dragCurveHandle(const ShapeProperties& shape, const QRectF& body, const Handle& handle,
                                 const QPointF& to, qreal)
 {
     ShapeProperties s = shape;
@@ -670,27 +696,22 @@ ShapeProperties dragCurveHandle(const ShapeProperties& shape, const QRectF& body
         return shape;
     ShapeNode&    node = s.nodes[handle.index];
     const QPointF rel  = relativeTo(to, body);
-    switch (handle.role) {
-    case ShapeHandle::Role::Vertex:
+    switch (partOf<ShapePart>(handle)) {
+    case ShapePart::Vertex:
         node.at = rel;   // its handles are offsets, so they come along
         break;
-    case ShapeHandle::Role::InHandle:
+    case ShapePart::InHandle:
         node.in = rel - node.at;
         keepType(node, false, body);
         break;
-    case ShapeHandle::Role::OutHandle:
+    case ShapePart::OutHandle:
         node.out = rel - node.at;
         keepType(node, true, body);
         break;
-    case ShapeHandle::Role::Radius:
-    case ShapeHandle::Role::AddVertex:
-    case ShapeHandle::Role::Depth:
-    case ShapeHandle::Role::FadeFrom:
-    case ShapeHandle::Role::FadeTo:
-    case ShapeHandle::Role::FadeCentre:
-    case ShapeHandle::Role::TextSide:
-    case ShapeHandle::Role::TextTop:
-        break;   // no radius; a press on a "+" adds the node (withVertexAdded()); the edge's, the fill's and the lettering's are not here
+    case ShapePart::Radius:
+    case ShapePart::AddVertex:
+    case ShapePart::Depth:
+        break;   // no radius; a press on a "+" adds the node (withVertexAdded()); the edge's is not here
     }
     return s;
 }
@@ -857,19 +878,19 @@ QRectF cloudArea(const ShapeProperties& shape, const QRectF& body)
  * The lobe size: an arrow at the first lobe's centre, along the way the lobe grows (outwards). The
  * centre is a lobe's radius in from the edge, so dragging it in grows the lobes.
  */
-QList<ShapeHandle> cloudHandles(const ShapeProperties& shape, const QRectF& body, qreal, int)
+QList<Handle> cloudHandles(const ShapeProperties& shape, const QRectF& body, qreal, int)
 {
     const qreal lobe = lobeRadius(shape, body);
-    return {{ShapeHandle::Role::Radius, 0, lobeCentre(0, qBound(k_minLobes, shape.cloud.lobes, k_maxLobes), lobe, body),
-             QPointF(1, 0)}};
+    return {shapeHandle(ShapePart::Radius, 0, lobeCentre(0, qBound(k_minLobes, shape.cloud.lobes, k_maxLobes), lobe, body),
+             QPointF(1, 0))};
 }
 
-ShapeProperties dragCloudHandle(const ShapeProperties& shape, const QRectF& body, const ShapeHandle& handle,
+ShapeProperties dragCloudHandle(const ShapeProperties& shape, const QRectF& body, const Handle& handle,
                                 const QPointF& to, qreal)
 {
     ShapeProperties s     = shape;
     const qreal     shortHalf = qMin(body.width(), body.height()) / 2.0;
-    if (handle.role != ShapeHandle::Role::Radius || shortHalf <= 0.0)
+    if (partOf<ShapePart>(handle) != ShapePart::Radius || shortHalf <= 0.0)
         return s;
     const qreal lobe = body.right() - to.x();   // the first lobe's centre is a radius in from the right
     s.cloud.lobeSize = qBound(k_minLobeSize, qRound(lobe / shortHalf * 100.0), k_maxLobeSize);
@@ -1371,19 +1392,19 @@ bool hasShapeHandles(const ShapeProperties& shape)
     return shapeInfo(shape.kind).handles != nullptr || edgeInfo(shape.edge).modulate != nullptr;
 }
 
-QList<ShapeHandle> shapeHandles(const ShapeProperties& shape, const QRectF& body, qreal clearance, int picked)
+QList<Handle> shapeHandles(const ShapeProperties& shape, const QRectF& body, qreal clearance, int picked)
 {
     const ShapeInfo&   info = shapeInfo(shape.kind);
-    QList<ShapeHandle> out  = info.handles ? info.handles(shape, body, clearance, picked) : QList<ShapeHandle>();
+    QList<Handle> out  = info.handles ? info.handles(shape, body, clearance, picked) : QList<Handle>();
     if (const DepthAnchor d = depthAnchor(shape, body); d.valid)
-        out.append({ShapeHandle::Role::Depth, 0, d.base + d.inward * qMax(shape.teeth.depth, 0.0), d.inward});
+        out.append(shapeHandle(ShapePart::Depth, 0, d.base + d.inward * qMax(shape.teeth.depth, 0.0), d.inward));
     return out;
 }
 
-ShapeProperties dragShapeHandle(const ShapeProperties& shape, const QRectF& body, const ShapeHandle& handle,
+ShapeProperties dragShapeHandle(const ShapeProperties& shape, const QRectF& body, const Handle& handle,
                                 const QPointF& to, qreal clearance)
 {
-    if (handle.role != ShapeHandle::Role::Depth) {
+    if (partOf<ShapePart>(handle) != ShapePart::Depth) {
         const ShapeInfo& info = shapeInfo(shape.kind);
         return info.dragHandle ? info.dragHandle(shape, body, handle, to, clearance) : shape;
     }

@@ -29,7 +29,7 @@
 
 #include "composition.hpp"
 #include "outline.hpp"
-#include "shapes.hpp"   // ShapeHandle: the text area's arrows
+#include "shapes.hpp"   // Handle: the text area's arrows
 #include "styles.hpp"   // ShadowPaths: the lettering's shadow
 
 namespace Geometry {
@@ -232,14 +232,20 @@ enum class Part { None, Fill, Outline, Text };
  *        of its top (`TextTop`), which drags the top padding. Each points across its edge. None without a
  *        balloon, which has no paddings.
  */
-[[nodiscard]] QList<ShapeHandle> textAreaHandles(const Composition& c);
+//! The text area's handles (textAreaHandles()), told apart by Handle::part.
+enum class TextAreaPart {
+    Side,   //!< Side `index` (0 left, 1 right): the side padding.
+    Top,    //!< The top: the top padding.
+};
+
+[[nodiscard]] QList<Handle> textAreaHandles(const Composition& c);
 
 /**
  * \brief \p c's lettering with text-area \p handle dragged to \p to (balloon coordinates): textAreaHandles()'
  *        inverse. The edge follows the pointer, and its padding is what that leaves; it stops short of the
  *        area's middle, so the area never turns inside out. Measured against \p c as it was at the press.
  */
-[[nodiscard]] TextProperties dragTextAreaHandle(const Composition& c, const ShapeHandle& handle, const QPointF& to);
+[[nodiscard]] TextProperties dragTextAreaHandle(const Composition& c, const Handle& handle, const QPointF& to);
 
 /**
  * \brief The point of \p c's lettering that stays put when its box changes, in box coordinates.

@@ -29,7 +29,7 @@
 #include "names.hpp"
 #include "outline.hpp"      // OutlineModel: what a line is drawn round
 #include "renderlist.hpp"   // Render::Filter: a kind's SVG filter
-#include "shapes.hpp"   // ShapeHandle: the fade's cross
+#include "shapes.hpp"   // Handle: the fade's cross
 
 #include <optional>
 
@@ -175,10 +175,17 @@ struct PatternCell
  *        starts and one where it ends, then the centre; none for a solid Paint. At rest every dot is on
  *        its side, which is no fade, wherever the centre is.
  */
-[[nodiscard]] QList<ShapeHandle> fadeHandles(const Paint& p, const QRectF& body);
+//! The fade's handles (fadeHandles()), told apart by Handle::part.
+enum class FadePart {
+    From,     //!< Side `index` (left, right, top, bottom): where it starts.
+    To,       //!< ...and where it ends.
+    Centre,   //!< The cross's centre.
+};
+
+[[nodiscard]] QList<Handle> fadeHandles(const Paint& p, const QRectF& body);
 
 //! @p p with fade @p handle dragged to @p to (balloon coordinates): fadeHandles()' inverse.
-[[nodiscard]] Paint dragFadeHandle(const Paint& p, const QRectF& body, const ShapeHandle& handle, const QPointF& to);
+[[nodiscard]] Paint dragFadeHandle(const Paint& p, const QRectF& body, const Handle& handle, const QPointF& to);
 
 //! The entry for @p kind. Every kind up to `StyleProperties::k_lastLine` has one.
 [[nodiscard]] const LineInfo& lineInfo(StyleProperties::Line kind);

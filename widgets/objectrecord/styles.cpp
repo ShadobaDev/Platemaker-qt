@@ -1697,31 +1697,46 @@ QPainterPath fillTone(const Balloon& b, const QPainterPath& silhouette)
                          qMax(p.spacing, k_minPatternSpacing) / 2.0);
 }
 
-QList<ShapeHandle> fadeHandles(const Paint& p, const QRectF& body)
+QList<Handle> fadeHandles(const Paint& p, const QRectF& body)
 {
-    QList<ShapeHandle> out;
+    QList<Handle> out;
     if (p.kind == Paint::Kind::Solid || body.isEmpty())
         return out;
     const QPointF centre = fadeCentre(p, body);
     // Every start before every end: where the two sit together (a side that does not fade), a press takes
     // the start, and pulling it in is what begins a fade.
-    for (const auto role : {ShapeHandle::Role::FadeFrom, ShapeHandle::Role::FadeTo})
+    const auto point = [&](const FadeArm& arm, qreal pct) {
+        return centre + arm.axis * armReach(arm, body, centre) * pct / 100.0;
+    };
+    for (const FadePart part : {FadePart::From, FadePart::To})
         for (int i = 0; i < int(k_fadeArms.size()); ++i) {
             const FadeArm& arm = k_fadeArms[size_t(i)];
-            const qreal    pct = p.*(role == ShapeHandle::Role::FadeFrom ? arm.from : arm.to);
-            out.append({role, i, centre + arm.axis * armReach(arm, body, centre) * pct / 100.0, arm.axis, centre});
+            Handle         h;
+            h.part   = int(part);
+            h.index  = i;
+            h.at     = point(arm, p.*(part == FadePart::From ? arm.from : arm.to));
+            h.axis   = arm.axis;
+            h.origin = centre;
+            h.glyph  = part == FadePart::From ? Handle::Glyph::FadeStart : Handle::Glyph::FadeEnd;
+            h.start  = point(arm, p.*arm.from);
+            out.append(h);
         }
     // The centre last: a start pulled all the way in sits on it, and must still come out again.
-    out.append({ShapeHandle::Role::FadeCentre, 0, centre, QPointF(), centre});
+    Handle middle;
+    middle.part   = int(FadePart::Centre);
+    middle.at     = centre;
+    middle.origin = centre;
+    middle.glyph  = Handle::Glyph::FadeCentre;
+    out.append(middle);
     return out;
 }
 
-Paint dragFadeHandle(const Paint& p, const QRectF& body, const ShapeHandle& handle, const QPointF& to)
+Paint dragFadeHandle(const Paint& p, const QRectF& body, const Handle& handle, const QPointF& to)
 {
     if (body.isEmpty())
         return p;
     Paint next = p;
-    if (handle.role == ShapeHandle::Role::FadeCentre) {
+    if (partOf<FadePart>(handle) == FadePart::Centre) {
         // Anywhere in the rectangle; the arms keep their per cents, so they still reach their sides.
         next.fadeCentreX = tenth(std::clamp((to.x() - body.left()) / body.width() * 100.0, 0.0, 100.0));
         next.fadeCentreY = tenth(std::clamp((to.y() - body.top()) / body.height() * 100.0, 0.0, 100.0));
@@ -1736,10 +1751,10 @@ Paint dragFadeHandle(const Paint& p, const QRectF& body, const ShapeHandle& hand
         return p;   // the centre on this side: the arm has no length to drag along
     const qreal at = tenth(std::clamp(QPointF::dotProduct(to - centre, arm.axis) / reach * 100.0, 0.0, 100.0));
     // The start never passes the end: whichever is dragged takes the other along.
-    if (handle.role == ShapeHandle::Role::FadeFrom) {
+    if (partOf<FadePart>(handle) == FadePart::From) {
         next.*arm.from = at;
         next.*arm.to   = qMax(next.*arm.to, at);
-    } else if (handle.role == ShapeHandle::Role::FadeTo) {
+    } else if (partOf<FadePart>(handle) == FadePart::To) {
         next.*arm.to   = at;
         next.*arm.from = qMin(next.*arm.from, at);
     }

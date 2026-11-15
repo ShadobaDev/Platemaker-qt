@@ -1709,12 +1709,12 @@ TEST(Shapes, AHandleDraggedOntoItselfChangesNothing)
             for (qreal radius : {0.0, 20.0}) {
                 shape.corner.radius = radius;
                 for (int picked = -1; picked < int(shape.nodes.size()); ++picked) {
-                    for (const Geometry::ShapeHandle& h : Geometry::shapeHandles(shape, body, clearance, picked)) {
-                        if (h.role == Geometry::ShapeHandle::Role::AddVertex)
+                    for (const Geometry::Handle& h : Geometry::shapeHandles(shape, body, clearance, picked)) {
+                        if (Geometry::partOf<Geometry::ShapePart>(h) == Geometry::ShapePart::AddVertex)
                             continue;   // a press adds a node; it has nothing to drag
                         const ShapeProperties dragged = Geometry::dragShapeHandle(shape, body, h, h.at, clearance);
                         EXPECT_TRUE(dragged == shape) << t.id << " edge " << edgeName(edge) << " radius " << radius
-                                                      << " picked " << picked << " handle " << int(h.role) << ":"
+                                                      << " picked " << picked << " handle " << h.part << ":"
                                                       << h.index;
                     }
                 }
@@ -1949,11 +1949,11 @@ TEST(Paint, AFadingFillThinsOutAlongItsCross)
     // the centre.
     Paint still;
     still.kind = Paint::Kind::Lines;
-    const QList<Geometry::ShapeHandle> cross = Geometry::fadeHandles(still, body);
+    const QList<Geometry::Handle> cross = Geometry::fadeHandles(still, body);
     ASSERT_EQ(cross.size(), 9);
-    EXPECT_EQ(cross.at(0).role, Geometry::ShapeHandle::Role::FadeFrom);
-    EXPECT_EQ(cross.at(4).role, Geometry::ShapeHandle::Role::FadeTo);
-    EXPECT_EQ(cross.at(8).role, Geometry::ShapeHandle::Role::FadeCentre);
+    EXPECT_EQ(Geometry::partOf<Geometry::FadePart>(cross.at(0)), Geometry::FadePart::From);
+    EXPECT_EQ(Geometry::partOf<Geometry::FadePart>(cross.at(4)), Geometry::FadePart::To);
+    EXPECT_EQ(Geometry::partOf<Geometry::FadePart>(cross.at(8)), Geometry::FadePart::Centre);
     EXPECT_EQ(cross.at(8).at, QPointF(200, 100));
     EXPECT_EQ(cross.at(3).at, QPointF(200, 200));   // the bottom arm's start, on its side
     EXPECT_TRUE(Geometry::fadeHandles(Paint(), body).isEmpty()) << "a solid fill has no cross";
@@ -1975,7 +1975,7 @@ TEST(Paint, AFadingFillThinsOutAlongItsCross)
     EXPECT_DOUBLE_EQ(dragged.fadeCentreX, 25.0);
     EXPECT_DOUBLE_EQ(dragged.fadeCentreY, 100.0);
     EXPECT_DOUBLE_EQ(dragged.fadeBottomFrom, 50.0);
-    const QList<Geometry::ShapeHandle> moved = Geometry::fadeHandles(dragged, body);
+    const QList<Geometry::Handle> moved = Geometry::fadeHandles(dragged, body);
     EXPECT_EQ(moved.at(0).at, QPointF(0, 200));     // the left start, on its side
     EXPECT_EQ(moved.at(2).at, QPointF(100, 0));     // the top start
     EXPECT_EQ(moved.at(3).at, QPointF(100, 200));   // the bottom arm has no length left
@@ -2093,6 +2093,65 @@ TEST(Shapes, EveryNodedOutlineFillsItsBox)
  *        *Add handles* makes those real without changing the outline. *Convert to Curve* of a speech
  *        balloon gives each arc end one handle, on the arc's side; a node added on a straight side has none.
  */
+/**
+ * \brief A composition's handles each name their element and carry their owner's drag: the outline's change the
+ *        body, the fade's the fill, the arrows the words, and nothing else; a "+" adds its node on the press.
+ */
+TEST(Handles, EachBelongsToItsElementAndItsOwnerTakesTheDrag)
+{
+    Composition c       = balloonObject();
+    shapeOf(c)          = Geometry::shapeTemplate("diamond").shape;
+    skinOf(c).fill.kind = Paint::Kind::Lines;
+    textOf(c).body      = QStringLiteral("Hi");
+    const Geometry::HandleContext none;
+    const QList<Geometry::Handle> all = Geometry::handlesOf(c, none);
+
+    // The outline's first, then the fade's cross (nine), then the text area's three arrows.
+    constexpr qsizetype k_cross  = 9;
+    constexpr qsizetype k_arrows = 3;
+    ASSERT_GT(all.size(), k_cross + k_arrows);
+    for (qsizetype i = 0; i < all.size(); ++i) {
+        const int owner = i >= all.size() - k_arrows           ? wordsOf(c)->id
+                        : i >= all.size() - k_arrows - k_cross ? c.balloon->id
+                                                               : bodyOf(c)->id;
+        EXPECT_EQ(all.at(i).element, owner) << "handle " << i;
+        EXPECT_TRUE(all.at(i).drag) << "handle " << i;
+    }
+
+    const auto dragged = [&](const Geometry::Handle& h, const QPointF& by) {
+        Composition next = c;
+        h.drag(next, h, h.at + by, none);
+        return next;
+    };
+    const auto first = [&](Geometry::Handle::Glyph glyph) {
+        return *std::find_if(all.cbegin(), all.cend(), [&](const Geometry::Handle& h) { return h.glyph == glyph; });
+    };
+
+    const Composition node = dragged(first(Geometry::Handle::Glyph::Node), QPointF(-30, 0));
+    EXPECT_FALSE(shapeOf(node) == shapeOf(c));
+    EXPECT_TRUE(skinOf(node) == skinOf(c));
+    EXPECT_TRUE(textOf(node) == textOf(c));
+
+    const Composition fade = dragged(first(Geometry::Handle::Glyph::FadeCentre), QPointF(20, 10));
+    EXPECT_FALSE(skinOf(fade) == skinOf(c));
+    EXPECT_TRUE(shapeOf(fade) == shapeOf(c));
+
+    const Composition words = dragged(all.at(all.size() - k_arrows), QPointF(10, 0));
+    EXPECT_FALSE(textOf(words) == textOf(c));
+    EXPECT_TRUE(shapeOf(words) == shapeOf(c));
+    EXPECT_TRUE(skinOf(words) == skinOf(c));
+
+    // A "+" adds its node when pressed, and becomes that node's handle for the drag that follows.
+    Geometry::Handle plus    = first(Geometry::Handle::Glyph::Plus);
+    Composition      pressed = c;
+    ASSERT_TRUE(plus.press);
+    EXPECT_TRUE(plus.press(pressed, plus));
+    EXPECT_GT(shapeOf(pressed).nodes.size(), shapeOf(c).nodes.size());
+    EXPECT_EQ(plus.glyph, Geometry::Handle::Glyph::Node);
+    EXPECT_EQ(plus.node, plus.index);
+    EXPECT_FALSE(plus.press);
+}
+
 TEST(Shapes, APickedCurveNodeOffersBothHandlesAndGrowsTheMissingOnes)
 {
     const QRectF          body(5, 5, 270, 150);
@@ -2101,17 +2160,17 @@ TEST(Shapes, APickedCurveNodeOffersBothHandlesAndGrowsTheMissingOnes)
     const auto            outline = Geometry::shapeInfo(ShapeProperties::Kind::Curve).outline;
     constexpr qreal       k_samePlace = 1e-9;   //!< Two handles at one point, in balloon pixels
 
-    const auto handleAt = [&](const ShapeProperties& s, int picked, Geometry::ShapeHandle::Role role) {
-        for (const Geometry::ShapeHandle& h : Geometry::shapeHandles(s, body, 0.0, picked))
-            if (h.role == role && h.index == picked)
+    const auto handleAt = [&](const ShapeProperties& s, int picked, Geometry::ShapePart part) {
+        for (const Geometry::Handle& h : Geometry::shapeHandles(s, body, 0.0, picked))
+            if (Geometry::partOf<Geometry::ShapePart>(h) == part && h.index == picked)
                 return std::optional<QPointF>(h.at);
         return std::optional<QPointF>();
     };
 
     int straight = -1;   // a segment with no handle at either end: one of the box's sides
     for (int i = 0; i < curve.nodes.size(); ++i) {
-        EXPECT_TRUE(handleAt(curve, i, Geometry::ShapeHandle::Role::InHandle)) << "node " << i;
-        EXPECT_TRUE(handleAt(curve, i, Geometry::ShapeHandle::Role::OutHandle)) << "node " << i;
+        EXPECT_TRUE(handleAt(curve, i, Geometry::ShapePart::InHandle)) << "node " << i;
+        EXPECT_TRUE(handleAt(curve, i, Geometry::ShapePart::OutHandle)) << "node " << i;
         if (curve.nodes.at(i).out.isNull() && curve.nodes.at((i + 1) % curve.nodes.size()).in.isNull())
             straight = i;
     }
@@ -2126,7 +2185,7 @@ TEST(Shapes, APickedCurveNodeOffersBothHandlesAndGrowsTheMissingOnes)
     EXPECT_FALSE(grown.nodes.at(added).in.isNull());
     EXPECT_FALSE(grown.nodes.at(added).out.isNull());
     EXPECT_EQ(pointsInOnlyOne(outline(split, body), outline(grown, body), body), 0);
-    for (const auto role : {Geometry::ShapeHandle::Role::InHandle, Geometry::ShapeHandle::Role::OutHandle}) {
+    for (const auto role : {Geometry::ShapePart::InHandle, Geometry::ShapePart::OutHandle}) {
         const QPointF offered = *handleAt(split, added, role);
         const QPointF real    = *handleAt(grown, added, role);
         EXPECT_NEAR(offered.x(), real.x(), k_samePlace);

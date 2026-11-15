@@ -89,7 +89,7 @@ public:
     void setComposition(const Composition& c) override;
 
     //! A picture scales as one number, so it keeps its aspect and is offered no edge grips.
-    [[nodiscard]] bool keepsAspect() const override { return true; }
+    [[nodiscard]] bool resizesByScale() const override { return true; }
 
 protected:
     /**

@@ -131,7 +131,7 @@ QRectF SelectionChrome::gripRect(const Object* o, Grip grip, qreal s) const
     // An edge: the whole edge between the two corner squares answers a press, as in GIMP — a far
     // easier target than the square drawn at its middle. Not offered on a picture, whose size is one
     // number, nor on an edge too short on screen to keep its square clear of the corners.
-    if (o->keepsAspect())
+    if (o->resizesByScale())
         return {};
     const bool horizontal = grip == Grip::Top || grip == Grip::Bottom;
     if ((horizontal ? box.width() : box.height()) < k_edgeMinSpans * s)

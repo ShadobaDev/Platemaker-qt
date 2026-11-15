@@ -42,6 +42,16 @@ struct ResizeRule
     qreal snap       = 0.0;     //!< Sizes are whole multiples of this (one item unit); 0 = no snapping.
 };
 
+/**
+ * \brief The rule a grip drag on an object follows.
+ *
+ * A box resized in its own units (a balloon, a text) may not go below 40 of them, snapped to one, which
+ * at the item's scale @p itemScale is that many scene pixels. A picture is resized by its scale
+ * (@p byScale): its box stays its own pixels, so its floor is 40 scene pixels whatever the scale, its
+ * aspect is kept, and nothing is snapped.
+ */
+[[nodiscard]] ResizeRule resizeRule(qreal itemScale, bool byScale, bool shift, bool ctrl);
+
 //! Grip size in *screen* pixels — the selection chrome's, and a tail tip's hit area.
 inline constexpr qreal k_gripScreenPx = 9.0;
 

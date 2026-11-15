@@ -184,13 +184,13 @@ public:
     [[nodiscard]] virtual bool handleDrawn(int index) const { Q_UNUSED(index) return true; }
 
     /**
-     * \brief True when a resize must scale uniformly rather than distort.
+     * \brief True when a resize changes the object's scale rather than its box.
      *
-     * Imported artwork says yes: its size travels as a single width fraction and its height follows
-     * the artwork's own aspect, so a distorted one is not expressible — which is also what anyone
-     * dragging the corner of a logo meant. Such an object is offered no edge grips.
+     * Imported artwork says yes: its box is its own pixels, its size travels as a single width fraction
+     * and its height follows the artwork's own aspect, so a distorted one is not expressible — which is
+     * also what anyone dragging the corner of a logo meant. Such an object is offered no edge grips.
      */
-    [[nodiscard]] virtual bool keepsAspect() const { return false; }
+    [[nodiscard]] virtual bool resizesByScale() const { return false; }
 
     //! The box — what the grips move — in scene coordinates.
     [[nodiscard]] QRectF sceneBox() const { return mapRectToScene(QRectF(QPointF(0, 0), boxSize())); }

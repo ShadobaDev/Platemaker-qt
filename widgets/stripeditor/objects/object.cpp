@@ -12,8 +12,6 @@ namespace StripEdit {
 
 namespace {
 
-//! Smallest box the author can resize to — below this the grips overlap and it stops being draggable.
-constexpr int k_minBox = 40;
 //! Bounds on a tail tip's hit square in item units, so boundingRect() can reserve a fixed margin and
 //! stay valid at any zoom. The chrome draws the handles at a true screen size; this is only the area
 //! that answers a press on a tip of an object that is *not* selected.
@@ -299,17 +297,24 @@ void Object::dragTo(const QPointF& scenePos, Qt::KeyboardModifiers modifiers)
     }
 
     // A corner or an edge. The maths is in scene units — that is where the pointer is — and the box is
-    // in the item's own, which differ by the item's scale (artwork drawn at another size). Snapping to
-    // one item unit keeps the box whole and the anchored side exactly where it was.
+    // in the item's own, which differ by the item's scale (a chapter re-profiled). Snapping to one item
+    // unit keeps the box whole and the anchored side exactly where it was.
     const qreal k = scale() > 0.0 ? scale() : 1.0;
-    ResizeRule rule;
-    rule.keepAspect = keepsAspect() || modifiers.testFlag(Qt::ShiftModifier);
-    rule.fromCentre = modifiers.testFlag(Qt::ControlModifier);
-    rule.minSize    = k_minBox * k;
-    rule.snap       = k;
+    const ResizeRule rule = resizeRule(k, resizesByScale(), modifiers.testFlag(Qt::ShiftModifier),
+                                       modifiers.testFlag(Qt::ControlModifier));
     const std::optional<QRectF> r = resizedRect(m_startRect, m_active, delta, rule);
     if (!r)
         return;   // refused, not clamped: the box keeps its last good size
+
+    if (resizesByScale()) {
+        // **A picture's size is one number, its scale.** Its box stays its own pixels — what the library
+        // draws and what the placement's width fraction is measured against — so a drag and the size field
+        // in OBJECT STATE change the same thing.
+        setScale(r->width() / boxSize().width());
+        setPos(r->topLeft());
+        update();
+        return;
+    }
 
     const QSizeF box(qRound(r->width() / k), qRound(r->height() / k));
     // How far the top-left moves, in item units — what a tail tip has to move back by to keep pointing

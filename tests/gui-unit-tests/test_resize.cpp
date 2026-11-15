@@ -8,6 +8,7 @@
 using StripEdit::Grip;
 using StripEdit::ResizeRule;
 using StripEdit::resizedRect;
+using StripEdit::resizeRule;
 
 namespace {
 
@@ -50,16 +51,36 @@ TEST(Resize, FromTheCentreKeepsTheCentre)
     EXPECT_EQ(edge, QRectF(90, 200, 100, 40));
 }
 
-TEST(Resize, KeepAspectFollowsTheAxisPulledFurther)
+TEST(Resize, KeepAspectTakesTheDiagonalPointNearestThePointer)
 {
     ResizeRule rule;
     rule.keepAspect = true;
-    // Width pulled +50 % against height +12.5 %: width decides, height follows.
-    EXPECT_EQ(resize(Grip::BottomRight, {40, 5}, rule), QRectF(100, 200, 120, 60));
-    // Height pulled +100 % against width +12.5 %: height decides.
-    EXPECT_EQ(resize(Grip::BottomRight, {10, 40}, rule), QRectF(100, 200, 160, 80));
+    // On the diagonal: exactly where the pointer is.
+    EXPECT_EQ(resize(Grip::BottomRight, {40, 20}, rule), QRectF(100, 200, 120, 60));
+    // Off it, by (40 − 20 · 2) / 5: the projection of (120, 40) on (80, 40) is 1.4 of the box.
+    EXPECT_EQ(resize(Grip::BottomRight, {40, 0}, rule), QRectF(100, 200, 112, 56));
     // The top-left corner still anchors the bottom-right one.
-    EXPECT_EQ(resize(Grip::TopLeft, {-40, 0}, rule), QRectF(60, 180, 120, 60));
+    EXPECT_EQ(resize(Grip::TopLeft, {-40, -20}, rule), QRectF(60, 180, 120, 60));
+}
+
+TEST(Resize, KeepAspectFollowsThePointerWithoutJumps)
+{
+    // A tall picture (the reported one, at 533 %): a pixel sideways against several down used to flip the
+    // box from growing by 0.8 % to shrinking by 1.4 %. Now each pixel of travel moves it by a fraction of one.
+    constexpr qreal k_onePixel = 1.0;
+    const QRectF    tall(371.453, 10238, 282.583, 1066.35);
+    ResizeRule      rule;
+    rule.keepAspect = true;
+    QRectF last     = tall;
+    for (int x = 0; x >= -4; --x) {
+        for (int y = 0; y <= 9; ++y) {
+            const auto r = resizedRect(tall, Grip::BottomRight, QPointF(x, y), rule);
+            ASSERT_TRUE(r.has_value());
+            if (y > 0)
+                EXPECT_LE(qAbs(r->height() - last.height()), k_onePixel) << x << "," << y;
+            last = *r;
+        }
+    }
 }
 
 TEST(Resize, KeepAspectOnAnEdgeCentresTheOtherAxis)
@@ -75,7 +96,7 @@ TEST(Resize, BothModifiersTogether)
     ResizeRule rule;
     rule.keepAspect = true;
     rule.fromCentre = true;
-    const QRectF r = resize(Grip::BottomRight, {20, 0}, rule);
+    const QRectF r = resize(Grip::BottomRight, {20, 10}, rule);
     EXPECT_EQ(r, QRectF(80, 190, 120, 60));
     EXPECT_EQ(r.center(), k_start.center());
 }
@@ -87,6 +108,26 @@ TEST(Resize, RefusesBelowTheMinimumRatherThanTurningInsideOut)
     EXPECT_TRUE(resizedRect(k_start, Grip::Bottom, {0, 0}, rule).has_value());   // exactly the minimum
     EXPECT_FALSE(resizedRect(k_start, Grip::Bottom, {0, -1}, rule).has_value());
     EXPECT_FALSE(resizedRect(k_start, Grip::Right, {-200, 0}, rule).has_value());   // past the anchor
+}
+
+TEST(Resize, APictureShrinksToTheFloorOnScreenWhateverItsScale)
+{
+    // A 53 × 200 picture drawn at 445 %: its floor is 40 scene pixels, not 40 of its own pixels times its scale
+    // (which stopped it at 336 %).
+    constexpr qreal k_scale     = 4.45;
+    constexpr qreal k_tolerance = 1e-9;
+    const QRectF    drawn(0, 0, 53 * k_scale, 200 * k_scale);
+    const auto      shrunk = resizedRect(drawn, Grip::BottomRight, {-190, -720}, resizeRule(k_scale, true, false, false));
+    ASSERT_TRUE(shrunk.has_value());
+    EXPECT_LT(shrunk->width(), 40 * k_scale);
+    EXPECT_NEAR(shrunk->height() / shrunk->width(), drawn.height() / drawn.width(), k_tolerance);
+    EXPECT_FALSE(resizedRect(drawn, Grip::BottomRight, {-200, -760}, resizeRule(k_scale, true, false, false)));
+
+    // A box in its own units keeps a floor of 40 of them, snapped to one.
+    const ResizeRule box = resizeRule(2.0, false, false, false);
+    EXPECT_NEAR(box.minSize, 80.0, k_tolerance);
+    EXPECT_NEAR(box.snap, 2.0, k_tolerance);
+    EXPECT_FALSE(box.keepAspect);
 }
 
 TEST(Resize, SnappingKeepsTheAnchoredSideExactlyInPlace)

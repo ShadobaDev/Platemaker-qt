@@ -4,6 +4,24 @@
 
 namespace StripEdit {
 
+namespace {
+
+//! Smallest box the author can resize to — below this the grips overlap and it stops being draggable.
+constexpr int k_minBox = 40;
+
+} // namespace
+
+ResizeRule resizeRule(qreal itemScale, bool byScale, bool shift, bool ctrl)
+{
+    const qreal k = itemScale > 0.0 ? itemScale : 1.0;
+    ResizeRule  rule;
+    rule.keepAspect = byScale || shift;
+    rule.fromCentre = ctrl;
+    rule.minSize    = byScale ? k_minBox : k_minBox * k;
+    rule.snap       = byScale ? 0.0 : k;
+    return rule;
+}
+
 std::optional<QRectF> resizedRect(const QRectF& start, Grip grip, const QPointF& delta,
                                   const ResizeRule& rule)
 {
@@ -24,11 +42,12 @@ std::optional<QRectF> resizedRect(const QRectF& start, Grip grip, const QPointF&
     if (rule.keepAspect && start.width() > 0.0 && start.height() > 0.0) {
         const qreal aspect = start.height() / start.width();
         if (isCorner(grip)) {
-            // Whichever axis the pointer has pulled further decides — so the box follows the hand
-            // whichever way the drag leans, rather than ignoring one direction outright.
-            const qreal sx = w / start.width();
-            const qreal sy = h / start.height();
-            const qreal s  = qAbs(sx - 1.0) >= qAbs(sy - 1.0) ? sx : sy;
+            // The corner goes to the point of the box's diagonal nearest the pointer: both axes count,
+            // each by the box's extent along it, so the size follows the hand continuously. Picking the
+            // axis pulled further instead jumped whenever the pick changed — on a tall picture, a pixel
+            // sideways outweighed several down, and the box flipped from growing to shrinking.
+            const qreal s = (w * start.width() + h * start.height())
+                          / (start.width() * start.width() + start.height() * start.height());
             w = start.width() * s;
             h = start.height() * s;
         } else if (left || right) {

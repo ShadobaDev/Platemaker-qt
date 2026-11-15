@@ -59,13 +59,13 @@ ObjectStack::ObjectStack(QTreeWidget* tree, ObjectController& objects, const Str
         // The strip and a page are one of a kind: picking one collapses whatever set was there. Objects
         // and tails gather together — they share a position, which is what a drag acts on.
         QStringList    overlays;
-        QList<ObjectController::TailRef> tails;
+        QList<ElementRef> tails;
         for (const QTreeWidgetItem* row : sel) {
             const QString id = row->data(0, Qt::UserRole).toString();
-            switch (static_cast<ObjectController::Subject>(row->data(0, k_kindRole).toInt())) {
-            case ObjectController::Subject::Strip: m_objects.selectStrip();  return;
-            case ObjectController::Subject::Page:  m_objects.selectPage(id); return;
-            case ObjectController::Subject::Tail:  tails.append(ObjectController::TailRef{id, row->data(0, k_tailRole).toInt()}); break;
+            switch (static_cast<Subject>(row->data(0, k_kindRole).toInt())) {
+            case Subject::Strip: m_objects.selectStrip();  return;
+            case Subject::Page:  m_objects.selectPage(id); return;
+            case Subject::Tail:  tails.append(ElementRef{id, row->data(0, k_tailRole).toInt()}); break;
             default:             overlays.append(id); break;
             }
         }
@@ -76,7 +76,7 @@ ObjectStack::ObjectStack(QTreeWidget* tree, ObjectController& objects, const Str
     // for would hide it, and the arrow still does that.
     m_tree->setExpandsOnDoubleClick(false);
     connect(m_tree, &QTreeWidget::itemDoubleClicked, this, [this](QTreeWidgetItem* row, int) {
-        m_objects.reveal(static_cast<ObjectController::Subject>(row->data(0, k_kindRole).toInt()),
+        m_objects.reveal(static_cast<Subject>(row->data(0, k_kindRole).toInt()),
                          row->data(0, Qt::UserRole).toString(), row->data(0, k_tailRole).toInt());
     });
     // Both list handlers are deferred to the next event-loop turn on purpose. Persisting an edit
@@ -217,7 +217,7 @@ void ObjectStack::refresh()
         if (!row) {
             row = new QTreeWidgetItem;
             row->setData(0, Qt::UserRole, uid);
-            row->setData(0, k_kindRole, static_cast<int>(ObjectController::Subject::Overlay));
+            row->setData(0, k_kindRole, static_cast<int>(Subject::Overlay));
             // Drops land between rows and never onto one. Nesting is structural — a tail belongs to its
             // balloon — and is not something a drag may create.
             row->setFlags((row->flags() | Qt::ItemIsUserCheckable) & ~Qt::ItemIsDropEnabled);
@@ -274,7 +274,7 @@ void ObjectStack::refresh()
         // must stop saying so.
         row->setData(0, BadgeItemDelegate::k_badgesRole, QVariant::fromValue(badges));
 
-        row->setSelected(m_objects.subject() == ObjectController::Subject::Overlay && m_objects.selectedOverlays().contains(uid));
+        row->setSelected(m_objects.subject() == Subject::Overlay && m_objects.selectedOverlays().contains(uid));
 
         // A bubble's tails, one row each, by position: a row stands for whichever tail is at its index now.
         // Only a bubble has tails, so artwork gets none.
@@ -286,16 +286,16 @@ void ObjectStack::refresh()
             QTreeWidgetItem* tailItem = t < row->childCount() ? row->child(t) : nullptr;
             if (!tailItem) {
                 tailItem = new QTreeWidgetItem(row);
-                tailItem->setData(0, k_kindRole, static_cast<int>(ObjectController::Subject::Tail));
+                tailItem->setData(0, k_kindRole, static_cast<int>(Subject::Tail));
                 tailItem->setFlags(Qt::ItemIsSelectable | Qt::ItemIsEnabled);   // not draggable, not a drop target
             }
             tailItem->setData(0, Qt::UserRole, uid);
-            tailItem->setData(0, k_tailRole, t);
+            tailItem->setData(0, k_tailRole, rec.balloon->tails.at(t).id);   // its element id
             tailItem->setText(0, tr("Tail %1").arg(t + 1));
             if (m_tailGlyph.isNull())
                 m_tailGlyph = tailGlyph(m_tree->palette(), k_rowGlyphPx, m_tree->devicePixelRatioF());
             tailItem->setIcon(0, m_tailGlyph);
-            tailItem->setSelected(m_objects.selectedTails().contains(ObjectController::TailRef{uid, t}));
+            tailItem->setSelected(m_objects.selectedTails().contains(ElementRef{uid, rec.balloon->tails.at(t).id}));
         }
     }
 
@@ -317,7 +317,7 @@ void ObjectStack::refresh()
         if (!strip) {
             strip = new QTreeWidgetItem;
             strip->setData(0, Qt::UserRole, k_stripId);
-            strip->setData(0, k_kindRole, static_cast<int>(ObjectController::Subject::Strip));
+            strip->setData(0, k_kindRole, static_cast<int>(Subject::Strip));
             strip->setFlags(Qt::ItemIsSelectable | Qt::ItemIsEnabled);
         }
         placeTopLevel(strip, index);
@@ -338,7 +338,7 @@ void ObjectStack::refresh()
             if (!row) {
                 row = new QTreeWidgetItem;
                 row->setData(0, Qt::UserRole, page.inputUid);
-                row->setData(0, k_kindRole, static_cast<int>(ObjectController::Subject::Page));
+                row->setData(0, k_kindRole, static_cast<int>(Subject::Page));
                 row->setFlags(Qt::ItemIsSelectable | Qt::ItemIsEnabled);   // not draggable, not a drop target
             }
             const int at = strip->indexOfChild(row);
@@ -353,10 +353,10 @@ void ObjectStack::refresh()
             if (m_pageGlyph.isNull())
                 m_pageGlyph = pageGlyph(m_tree->palette(), k_rowGlyphPx, m_tree->devicePixelRatioF());
             row->setIcon(0, m_pageGlyph);
-            row->setSelected(m_objects.subject() == ObjectController::Subject::Page && page.inputUid == m_objects.selectedPage());
+            row->setSelected(m_objects.subject() == Subject::Page && page.inputUid == m_objects.selectedPage());
         }
         qDeleteAll(oldPages);   // pages no longer in the strip
-        strip->setSelected(m_objects.subject() == ObjectController::Subject::Strip);
+        strip->setSelected(m_objects.subject() == Subject::Strip);
     }
 
     m_syncing = false;
@@ -368,13 +368,13 @@ void ObjectStack::showSelectedRows()
     m_tree->clearSelection();
     for (int r = 0; r < m_tree->topLevelItemCount(); ++r) {
         QTreeWidgetItem* row = m_tree->topLevelItem(r);
-        if (row->data(0, k_kindRole).toInt() != static_cast<int>(ObjectController::Subject::Overlay))
+        if (row->data(0, k_kindRole).toInt() != static_cast<int>(Subject::Overlay))
             continue;
         const QString uid = row->data(0, Qt::UserRole).toString();
         // A tail's row stands for the tail; its balloon's row is only selected when the balloon itself is.
         row->setSelected(m_objects.selectedOverlays().contains(uid) && !m_objects.carriers().contains(uid));
         for (int c = 0; c < row->childCount(); ++c) {
-            const bool tail = m_objects.selectedTails().contains(ObjectController::TailRef{uid, c});
+            const bool tail = m_objects.selectedTails().contains(ElementRef{uid, row->child(c)->data(0, k_tailRole).toInt()});
             row->child(c)->setSelected(tail);
             if (tail)
                 row->setExpanded(true);   // a folded row would hide the only highlight a tail has
@@ -402,9 +402,9 @@ QTreeWidgetItem* ObjectStack::subjectRow() const
 {
     for (int r = 0; r < m_tree->topLevelItemCount(); ++r) {
         QTreeWidgetItem* top = m_tree->topLevelItem(r);
-        if (top->data(0, k_kindRole).toInt() != static_cast<int>(ObjectController::Subject::Strip))
+        if (top->data(0, k_kindRole).toInt() != static_cast<int>(Subject::Strip))
             continue;
-        if (m_objects.subject() == ObjectController::Subject::Strip)
+        if (m_objects.subject() == Subject::Strip)
             return top;
         for (int c = 0; c < top->childCount(); ++c)
             if (top->child(c)->data(0, Qt::UserRole).toString() == m_objects.selectedPage())

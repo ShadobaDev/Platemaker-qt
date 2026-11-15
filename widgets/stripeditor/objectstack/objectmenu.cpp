@@ -250,7 +250,7 @@ void ObjectMenu::updateEntries()
     // quietly acting on the primary: a control that does something other than what the panel names is a
     // lie. A tail can only be deleted.
     const QStringList&                      picked      = m_objects.selectedOverlays();
-    const QList<ObjectController::TailRef>& pickedTails = m_objects.selectedTails();
+    const QList<ElementRef>& pickedTails = m_objects.selectedTails();
     const bool oneObject = picked.size() == 1 && pickedTails.isEmpty();
     if (m_actDuplicate) m_actDuplicate->setEnabled(oneObject);
     if (m_actDelete)    m_actDelete->setEnabled(!picked.isEmpty());

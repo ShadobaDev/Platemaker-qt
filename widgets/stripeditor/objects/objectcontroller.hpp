@@ -19,6 +19,7 @@
 #include "objects/object.hpp"   // recordFor()/isParametric() ask the object itself
 #include "properties/propertygroup.hpp"   // PropertyGroup: which group the menu hands over
 #include "composition.hpp"
+#include "objects/selection.hpp"
 
 #include <platemaker/models/project_item.hpp>
 
@@ -80,31 +81,6 @@ class ObjectController : public QObject
 
 public:
     /**
-     * \brief What kind of thing is selected.
-     *
-     * An overlay keeps its uid in the selection as it always has. The strip and its pages are not
-     * overlays — nothing about them is placed, styled or composited — so they are told apart here rather
-     * than squeezed into an overlay's uid.
-     */
-    enum class Subject { None, Overlay, Strip, Page, Tail };
-
-    /**
-     * \brief One tail, as a selection holds it: which balloon, and which of its tails.
-     */
-    struct TailRef
-    {
-        QString uid;        //!< The balloon's uid.
-        int     index = 0;  //!< Which of its tails is selected.
-        /** 
-         * \brief Compares two tail references for equality. 
-         * Two tail references are equal if they refer to the same balloon and the same tail index.
-         * \param o The other tail reference to compare against.
-         * \return True if both tail references are equal, false otherwise. 
-         */
-        [[nodiscard]] bool operator==(const TailRef& o) const { return uid == o.uid && index == o.index; }
-    };
-
-    /**
      * \brief Wires itself to the collaborators it drives; it owns none of them.
      *
      * \param scene        Where the objects are drawn (the editor's canvas scene).
@@ -157,7 +133,7 @@ public:
      *        at the view's top. The strip, or a subject that is gone, moves nothing.
      * \param subject  What @p id names.
      * \param id       The object's uid (for a tail, its balloon's), or the page's input uid.
-     * \param tail     The tail's index, for Subject::Tail.
+     * \param tail     The tail's element id, for Subject::Tail.
      */
     void reveal(Subject subject, const QString& id, int tail = -1);
 
@@ -166,11 +142,11 @@ public:
     //! The scene object for overlay @p uid, or nullptr before the strip has a layout to place it on.
     [[nodiscard]] const Object* object(const QString& uid) const { return m_overlayItems.value(uid); }
     //! Balloons selected only because one of their tails is: not subjects, and their own row stays plain.
-    [[nodiscard]] const QStringList& carriers() const { return m_carriers; }
+    [[nodiscard]] const QStringList& carriers() const { return m_selection.carriers(); }
     /**
      * \brief The tails in the selection, in the order they were picked.
      */
-    [[nodiscard]] const QList<TailRef>& selectedTails() const { return m_selectedTails; }
+    [[nodiscard]] const QList<ElementRef>& selectedTails() const { return m_selection.elements(); }
     void selectOverlay(const QString& uid);   //!< Selects one in the scene and the stack, and loads the panel.
     /**
      * \brief Selects @p uids and @p tails together — the general form, of which everything else is a case.
@@ -182,7 +158,7 @@ public:
      * One tail on its own stays a selected tail: its balloon selected on the canvas so the
      * handles exist, the handle drawn hollow, and OBJECT STATE showing that tail.
      */
-    void selectSubjects(const QStringList& uids, const QList<TailRef>& tails);
+    void selectSubjects(const QStringList& uids, const QList<ElementRef>& tails);
     void setOverlayEnabled(const QString& uid, bool on);  //!< A row's mute checkbox.
     /**
      * \brief Adopts @p bottomUp — overlay uids read from the back to the front — as the composite order.
@@ -194,7 +170,7 @@ public:
     void setStackOrder(const QStringList& bottomUp);
 
     // --- driven by the OBJECT MENU (objectstack/objectmenu.hpp), which this class does not know either ---
-    [[nodiscard]] const QString& selectedOverlay() const { return m_selectedOverlay; }   //!< The primary.
+    [[nodiscard]] const QString& selectedOverlay() const { return m_selection.primary(); }   //!< The primary.
     //! The balloon TOOL OPTIONS would give an object now, its shape whole — what *Convert to ▸ Balloon* arrives at.
     [[nodiscard]] BalloonLook toolBalloon() const;
     //! Its shape: what the menu asks convertSelectionTo() for.
@@ -237,7 +213,7 @@ public:
      * \brief Selects the overlay with @p uid, or clears the selection if it does not exist.
      * \param uid  The uid of the overlay to select. If the overlay does not exist, the selection is cleared.
      */
-    [[nodiscard]] Subject        subject() const { return m_subject; }
+    [[nodiscard]] Subject        subject() const { return m_selection.subject(); }
     /**
      * \brief Whether @p uid is an object **we** author — one whose drawing we generate from its composition.
      *
@@ -294,9 +270,10 @@ public:
     /**
      * \brief Everything selected, in the order it was picked. The last is the primary — see selectOverlays().
      */
-    [[nodiscard]] const QStringList& selectedOverlays() const { return m_selectedOverlays; }
-    [[nodiscard]] const QString& selectedPage() const { return m_selectedPage; }   //!< When subject() is Page.
-    [[nodiscard]] int            selectedTail() const { return m_selectedTail; }   //!< When subject() is Tail.
+    [[nodiscard]] const QStringList& selectedOverlays() const { return m_selection.objects(); }
+    [[nodiscard]] const QString& selectedPage() const { return m_selection.page(); }   //!< When subject() is Page.
+    //! When subject() is Tail: the tail's index among its balloon's tails; -1 otherwise.
+    [[nodiscard]] int            selectedTail() const;
 
     /**
      * \brief Paints @p colour onto whatever is drawn at @p scenePos.
@@ -595,7 +572,7 @@ signals:
      * \param subject  The new selected subject.
      * \param uid      The UID of the selected object, or an empty string if none.
      */
-    void subjectChanged(StripEdit::ObjectController::Subject subject, const QString& uid);
+    void subjectChanged(StripEdit::Subject subject, const QString& uid);
     // --- for the OBJECT STACK: what changed, so the rows can follow ---
     void stackChanged();               //!< The objects, their order, labels, looks or pages changed.
     void selectionChanged();           //!< The selected objects and tails changed (rows, menu entries).
@@ -677,7 +654,7 @@ private:
      * together, coloured one of them and told the panel it had coloured both.
      *
      * **Pairing is stated, not inferred.** The old multi-object path matched its list to
-     * `m_selectedOverlays` by position and refused when the two lengths disagreed, which is what made a
+     * `m_selection.objects()` by position and refused when the two lengths disagreed, which is what made a
      * mixed selection uneditable. Here the caller says which object each composition is for.
      *
      * \param uids     The uids of the objects to apply the records to.
@@ -716,7 +693,12 @@ private:
      */
     [[nodiscard]] QPointF settleBox(const Object* item, Composition& next) const;
 
-    void deleteSelectedTail();   //!< Takes the selected tail off its balloon, and selects the balloon.
+    void deleteSelectedTail();
+
+    //! Tail @p index of @p uid's balloon, as a selection holds it: by its element id (0 when there is none there).
+    [[nodiscard]] ElementRef tailRef(const QString& uid, int index) const;
+    //! Where tail @p ref is among its balloon's tails; -1 when it is gone.
+    [[nodiscard]] int tailIndex(const ElementRef& ref) const;   //!< Takes the selected tail off its balloon, and selects the balloon.
 
 
 
@@ -755,8 +737,7 @@ private:
      * opening a chapter with dozens of filtered bubbles is the case that would want QtConcurrent.
      */
     QHash<QString, QImage>  m_sharpCache;
-    QString            m_selectedOverlay;                   //!< The primary: last of m_selectedOverlays.
-    QStringList        m_selectedOverlays;                  //!< Everything selected, in pick order.
+    SelectionModel     m_selection;   //!< What is selected; this class draws and binds what it says.
     /**
      * \brief The objects OBJECT STATE is currently bound to, in the order its compositions are in.
      *
@@ -765,21 +746,12 @@ private:
      * that cannot be edited — nothing, a mixed set, a tail's balloon — so a stray signal writes nothing.
      */
     QStringList        m_panelSubjects;
-    QList<TailRef>     m_selectedTails;                     //!< Tails in the selection, in pick order.
-    //! Uids in m_selectedOverlays that are there only to **carry** a selected tail — its handles exist
-    //! only while its balloon is selected. They are not subjects: they are not counted, not deleted, and
-    //! their row in the tree is not highlighted.
-    QStringList        m_carriers;
     QString            m_shapeEditing;   //!< The object whose shape is being edited; empty for none.
 
     // --- a drag in flight: where everything stood when it started ---
     QHash<QString, QPointF>         m_dragStartPos;   //!< Object uid → its position at the press.
-    QList<QPair<TailRef, QPointF>>  m_dragStartTips;  //!< Tail → its tip, in its balloon's own units.
+    QList<QPair<ElementRef, QPointF>> m_dragStartTips;  //!< Tail → its tip, in its balloon's own units.
     bool                            m_dragIsGroup = false;
-    Subject            m_subject = Subject::None;           //!< What the selection is.
-    QString            m_selectedPage;                      //!< Input uid of the selected page, when a page is.
-    int                m_selectedTail      = -1;            //!< Index of the selected tail, when a tail is.
-    int                m_selectedTailCount = 0;             //!< How many tails its bubble had when it was selected.
     //! How far off a hairline outline or a thin letter a press may land and still count, in screen px.
     static constexpr qreal k_pickSlackPx = 3.0;
 

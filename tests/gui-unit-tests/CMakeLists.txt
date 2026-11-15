@@ -37,6 +37,7 @@ add_executable(platemaker-gui-tests
     test_workspace_folder.cpp
     test_workspace_lock.cpp
     test_resize.cpp
+    test_selection.cpp
     test_text_fit.cpp
     test_history.cpp
     ${CMAKE_SOURCE_DIR}/widgets/objectrecord/names.cpp
@@ -58,6 +59,8 @@ add_executable(platemaker-gui-tests
     ${CMAKE_SOURCE_DIR}/widgets/stripeditor/presetstore.cpp
     # The eight grips' resize maths: a pure function over rectangles.
     ${CMAKE_SOURCE_DIR}/widgets/stripeditor/objects/resize.cpp
+    # What is selected: QtCore only.
+    ${CMAKE_SOURCE_DIR}/widgets/stripeditor/objects/selection.cpp
     # The one-workspace-per-folder rule: QtCore and the file system, nothing else.
     ${CMAKE_SOURCE_DIR}/widgets/workspacefolder/workspacefolder.cpp
     ${CMAKE_SOURCE_DIR}/widgets/workspacefolder/workspacelock.cpp

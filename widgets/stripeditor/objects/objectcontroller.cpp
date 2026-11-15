@@ -160,23 +160,23 @@ void ObjectController::refreshChrome()
 
 void ObjectController::reselect()
 {
-    if (m_subject == Subject::Tail) {
-        selectTail(m_selectedOverlay, m_selectedTail);   // falls back to the bubble if the tail is gone
+    if (m_selection.subject() == Subject::Tail) {
+        selectTail(m_selection.primary(), selectedTail());   // falls back to the bubble if the tail is gone
         return;
     }
-    if (m_subject == Subject::Strip || m_subject == Subject::Page) {
+    if (m_selection.subject() == Subject::Strip || m_selection.subject() == Subject::Page) {
         // A page can go between feeds — an input removed — and a selection must not outlive its row.
         // The question is the layout's, not the tree's: the tree is a view of it, and is refreshed from it.
-        const bool stillThere = m_subject == Subject::Strip ? !m_layout.isEmpty()
-                                                             : m_layout.pageForAnchor(m_selectedPage) >= 0;
+        const bool stillThere = m_selection.subject() == Subject::Strip ? !m_layout.isEmpty()
+                                                             : m_layout.pageForAnchor(m_selection.page()) >= 0;
         if (stillThere)
-            selectSubject(m_subject, m_selectedPage);
+            selectSubject(m_selection.subject(), m_selection.page());
         else
             selectOverlay(QString());
         return;
     }
-    if (!m_selectedOverlays.isEmpty())
-        selectSubjects(m_selectedOverlays, m_selectedTails);   // both kinds; whatever is gone drops out
+    if (!m_selection.objects().isEmpty())
+        selectSubjects(m_selection.picked(), m_selection.elements());   // both kinds; whatever is gone drops out
 }
 
 void ObjectController::selectStrip()
@@ -196,7 +196,7 @@ void ObjectController::selectTail(const QString& uid, int index)
         selectOverlay(uid);   // nothing at that position: the bubble is what is left to hold
         return;
     }
-    selectSubjects({}, {TailRef{uid, index}});   // the balloon comes in as the tail's carrier, not a subject
+    selectSubjects({}, {tailRef(uid, index)});   // the balloon comes in as the tail's carrier, not a subject
 }
 
 void ObjectController::reveal(Subject subject, const QString& id, int tail)
@@ -213,8 +213,8 @@ void ObjectController::reveal(Subject subject, const QString& id, int tail)
     const Object* item = m_overlayItems.value(id);
     if (!item)
         return;
-    if (subject == Subject::Tail && tail >= 0 && tail < item->tipCount())
-        m_view->centerOn(item->mapToScene(item->handleAt(tail)));
+    if (const int at = tailIndex({id, tail}); subject == Subject::Tail && at >= 0 && at < item->tipCount())
+        m_view->centerOn(item->mapToScene(item->handleAt(at)));
     else if (subject == Subject::Overlay)
         m_view->centerOn(item->sceneBoundingRect().center());
 }
@@ -228,15 +228,15 @@ void ObjectController::onObjectPressed(const QString& uid, int handle)
         if (add) {
             // Ctrl gathers, here as everywhere else. The scene has already toggled the balloon's own
             // selection by the time this arrives; re-stating the whole selection puts that right.
-            QList<TailRef> tails = m_selectedTails;
-            const TailRef  t{uid, handle};
+            QList<ElementRef> tails = m_selection.elements();
+            const ElementRef  t     = tailRef(uid, handle);
             if (tails.contains(t))
                 tails.removeAll(t);
             else
                 tails.append(t);
-            QStringList objects = m_selectedOverlays;
+            QStringList objects = m_selection.objects();
             objects.removeAll(uid);   // the balloon comes back as the tail's carrier, not as a subject
-            for (const QString& carrier : std::as_const(m_carriers))
+            for (const QString& carrier : std::as_const(m_selection.carriers()))
                 objects.removeAll(carrier);   // and so do the other selected tails' balloons
             selectSubjects(objects, tails);
         } else {
@@ -247,7 +247,7 @@ void ObjectController::onObjectPressed(const QString& uid, int handle)
     }
     // A press on the balloon itself while one of its tails is selected is a press on the balloon: the
     // scene reports no change, because the balloon was selected all along.
-    if (m_subject == Subject::Tail && uid == m_selectedOverlay && !add)
+    if (m_selection.subject() == Subject::Tail && uid == m_selection.primary() && !add)
         selectOverlay(uid);
     beginDrag(uid, handle);
 
@@ -263,8 +263,8 @@ void ObjectController::onObjectPressed(const QString& uid, int handle)
 
 bool ObjectController::canEditShape() const
 {
-    const Object* item = m_overlayItems.value(m_selectedOverlay);
-    return item && m_selectedOverlays.size() == 1 && item->canEditShape();
+    const Object* item = m_overlayItems.value(m_selection.primary());
+    return item && m_selection.objects().size() == 1 && item->canEditShape();
 }
 
 bool ObjectController::hasPickedVertex() const
@@ -411,29 +411,29 @@ void ObjectController::growPickedHandles()
 
 bool ObjectController::canConvertToCurve() const
 {
-    const Object* item = m_overlayItems.value(m_selectedOverlay);
+    const Object* item = m_overlayItems.value(m_selection.primary());
     const Body*   body = item ? bodyOf(item->composition()) : nullptr;
-    return body && m_selectedOverlays.size() == 1 && body->shape.kind != ShapeProperties::Kind::Curve;
+    return body && m_selection.objects().size() == 1 && body->shape.kind != ShapeProperties::Kind::Curve;
 }
 
 void ObjectController::convertSelectionToCurve()
 {
     if (!canConvertToCurve())
         return;
-    Composition  a    = m_overlayItems.value(m_selectedOverlay)->composition();
+    Composition  a    = m_overlayItems.value(m_selection.primary())->composition();
     Body&        body = *bodyOf(a);
     const QRectF rect = Geometry::balloonRect(*a.balloon, body);
     body.shape        = Geometry::curveOf(Geometry::outlineOf(body, rect, a.seed), rect);
-    applyRecord(m_selectedOverlay, a, /*commit=*/true, tr("Convert to curve"));
+    applyRecord(m_selection.primary(), a, /*commit=*/true, tr("Convert to curve"));
     emit boundToRecord(a);
     setShapeEditing(true);
 }
 
 bool ObjectController::canReroll() const
 {
-    return std::any_of(m_selectedOverlays.cbegin(), m_selectedOverlays.cend(), [this](const QString& uid) {
+    return std::any_of(m_selection.objects().cbegin(), m_selection.objects().cend(), [this](const QString& uid) {
         const Object* item = m_overlayItems.value(uid);
-        return item && !m_carriers.contains(uid) && usesSeed(item->composition());
+        return item && !m_selection.carriers().contains(uid) && usesSeed(item->composition());
     });
 }
 
@@ -441,9 +441,9 @@ void ObjectController::rerollSelection()
 {
     QStringList        uids;
     QList<Composition> records;
-    for (const QString& uid : std::as_const(m_selectedOverlays)) {
+    for (const QString& uid : std::as_const(m_selection.objects())) {
         const Object* item = m_overlayItems.value(uid);
-        if (!item || m_carriers.contains(uid) || !usesSeed(item->composition()))
+        if (!item || m_selection.carriers().contains(uid) || !usesSeed(item->composition()))
             continue;
         Composition a = item->composition();
         // Never the seed it had: a re-roll that changed nothing would look like a broken button.
@@ -459,7 +459,7 @@ void ObjectController::rerollSelection()
 
 void ObjectController::setShapeEditing(bool on)
 {
-    const QString uid = on && canEditShape() ? m_selectedOverlay : QString();
+    const QString uid = on && canEditShape() ? m_selection.primary() : QString();
     if (uid == m_shapeEditing)
         return;
     if (Object* was = m_overlayItems.value(m_shapeEditing))
@@ -475,10 +475,10 @@ void ObjectController::beginDrag(const QString& uid, int handle)
     // Is this drag the selection's, or this object's alone? Grabbing a body carries the selection when
     // that body is in it; grabbing a tail carries it when *that tail* is — a balloon being selected does
     // not make aiming one of its tails a group gesture.
-    const int subjects = static_cast<int>(m_selectedOverlays.size() + m_selectedTails.size());
+    const int subjects = static_cast<int>(m_selection.objects().size() + m_selection.elements().size());
     m_dragIsGroup = subjects > 1
-                 && (handle >= 0 ? m_selectedTails.contains(TailRef{uid, handle})
-                                 : m_selectedOverlays.contains(uid));
+                 && (handle >= 0 ? m_selection.elements().contains(tailRef(uid, handle))
+                                 : m_selection.objects().contains(uid));
 
     m_dragStartPos.clear();
     m_dragStartTips.clear();
@@ -487,13 +487,13 @@ void ObjectController::beginDrag(const QString& uid, int handle)
 
     // Everything is placed from *its own* start plus the drag's delta, never nudged per mouse-move, so a
     // fast drag cannot make the formation drift apart.
-    for (const QString& u : std::as_const(m_selectedOverlays)) {
+    for (const QString& u : std::as_const(m_selection.objects())) {
         if (Object* item = m_overlayItems.value(u))
             m_dragStartPos.insert(u, item->pos());
     }
-    for (const TailRef& t : std::as_const(m_selectedTails)) {
-        if (Object* item = m_overlayItems.value(t.uid))
-            m_dragStartTips.append({t, item->handleAt(t.index)});
+    for (const ElementRef& t : std::as_const(m_selection.elements())) {
+        if (Object* item = m_overlayItems.value(t.object))
+            m_dragStartTips.append({t, item->handleAt(tailIndex(t))});
     }
 }
 
@@ -510,15 +510,15 @@ void ObjectController::onObjectDragged(const QString& uid, const QPointF& delta,
     }
 
     for (const auto& [tail, start] : std::as_const(m_dragStartTips)) {
-        if (tail.uid == uid && tail.index == handle)
+        if (tail.object == uid && tailIndex(tail) == handle)
             continue;   // likewise the tail being aimed
-        Object* item = m_overlayItems.value(tail.uid);
+        Object* item = m_overlayItems.value(tail.object);
         if (!item)
             continue;
         // A tip lives in the balloon's own units, and the item may be drawn at a scale, so the scene
         // delta has to be divided back out before it means anything to a tail.
         const qreal k = item->scale() > 0.0 ? item->scale() : 1.0;
-        item->moveHandle(tail.index, start + delta / k);
+        item->moveHandle(tailIndex(tail), start + delta / k);
     }
 }
 
@@ -528,13 +528,15 @@ void ObjectController::selectSubject(Subject subject, const QString& pageUid)
     // scene, the tree, the actions that need an object, and the object panel.
     selectOverlay(QString());
 
-    m_subject       = subject;
-    m_selectedPage  = subject == Subject::Page ? pageUid : QString();
+    if (subject == Subject::Page)
+        m_selection.selectPage(pageUid);
+    else
+        m_selection.selectStrip();
     m_panelSubjects.clear();   // OBJECT STATE is showing the strip or a page; no object panel is answering
 
     emit subjectRowChanged();   // the strip's or the page's row, in the object stack
 
-    emit subjectChanged(m_subject, m_selectedPage);
+    emit subjectChanged(m_selection.subject(), m_selection.page());
 }
 
 // --- the feed: records in, scene items out ----------------------------------
@@ -606,22 +608,18 @@ void ObjectController::setSource(const std::vector<Platemaker::Models::StripOver
     // The selection may not have survived the edit (a delete, or an undo that removed it). Re-applying
     // the set drops whatever is gone and keeps the rest, because selectOverlays() filters by what exists.
     bool gone = false;
-    for (const QString& uid : std::as_const(m_selectedOverlays))
+    for (const QString& uid : std::as_const(m_selection.objects()))
         gone = gone || !m_overlayItems.contains(uid);
     if (gone) {
-        selectSubjects(m_selectedOverlays, m_selectedTails);
-        if (m_selectedOverlays.isEmpty())
+        selectSubjects(m_selection.picked(), m_selection.elements());
+        if (m_selection.objects().isEmpty())
             return;
     }
 
-    // ponytail: tails are addressed by position, not by id. A feed that changes how many tails a balloon
-    // has — an undo, a preset — cannot say which one went, so a tail selection survives it only by moving
-    // up to its balloon. A per-tail id would let the selection follow its tail; nothing needs that yet.
-    if (m_subject == Subject::Tail) {
-        const Object* item = m_overlayItems.value(m_selectedOverlay);
-        if (!item || item->tipCount() != m_selectedTailCount)
-            selectOverlay(m_selectedOverlay);
-    }
+    // A tail is held by its id, so a feed that changed its balloon's other tails (an undo, a preset) leaves it
+    // selected; one that took it away leaves its balloon.
+    if (m_selection.subject() == Subject::Tail && selectedTail() < 0)
+        selectOverlay(m_selection.primary());
 }
 
 QImage ObjectController::sharpRasterFor(const Composition& a)
@@ -716,7 +714,7 @@ void ObjectController::syncItems()
             connect(item, &Object::pickedVertexChanged, this, &ObjectController::shapeEditingChanged);
             // A double-click on the one selected balloon enters shape editing, and another leaves it.
             connect(item, &Object::doubleClicked,  this, [this](const QString& uid) {
-                if (m_selectedOverlays == QStringList{uid})
+                if (m_selection.objects() == QStringList{uid})
                     setShapeEditing(m_shapeEditing != uid);
             });
             m_scene->addItem(item);
@@ -828,7 +826,7 @@ void ObjectController::onOverlayGeometryCommitted(const QString& uid)
     // balloon's placement is rewritten too. The *records* need no rewriting at all: a tail moved on the
     // object that owns it, and that object is where its record lives.
     const bool        group = m_dragIsGroup && item->reportedDrag();
-    const QStringList moved = group ? m_selectedOverlays : QStringList{uid};
+    const QStringList moved = group ? m_selection.objects() : QStringList{uid};
     for (const QString& u : moved)
         writePlacement(u);
     const int travelled = group ? selectedSubjectCount() : 1;
@@ -837,11 +835,11 @@ void ObjectController::onOverlayGeometryCommitted(const QString& uid)
     // Only when the panel is about this one object. A set of several — or one of two kinds — is already
     // showing what it should, and rebinding it to the thing that happened to move would be the panel
     // changing subject on its own.
-    if (uid == m_selectedOverlay && m_selectedOverlays.size() == 1) {
+    if (uid == m_selection.primary() && m_selection.objects().size() == 1) {
         // A tail's drag leaves that tail selected, so the panel shows the tail again, not the balloon.
-        if (m_subject == Subject::Tail)
-            emit boundToTail(item->composition(), m_selectedTail);
-        else if (m_selectedTails.isEmpty())
+        if (m_selection.subject() == Subject::Tail)
+            emit boundToTail(item->composition(), selectedTail());
+        else if (m_selection.elements().isEmpty())
             emit boundToRecord(item->composition());
     }
     emit stackChanged();
@@ -877,34 +875,42 @@ void ObjectController::selectOverlays(const QStringList& uids)
 
 int ObjectController::selectedSubjectCount() const
 {
-    return static_cast<int>(m_selectedOverlays.size() - m_carriers.size() + m_selectedTails.size());
+    return m_selection.subjectCount();
 }
 
-void ObjectController::selectSubjects(const QStringList& uids, const QList<TailRef>& tails)
+int ObjectController::selectedTail() const
 {
-    QStringList picked;
-    for (const QString& uid : uids) {
-        if (m_overlayItems.contains(uid) && !picked.contains(uid))
-            picked.append(uid);
-    }
+    return tailIndex(m_selection.single());
+}
 
-    // A tail outlives neither its balloon nor a change in how many tails that balloon has.
-    QList<TailRef> pickedTails;
-    QStringList    carriers;
-    for (const TailRef& t : tails) {
-        const Object* carrier = m_overlayItems.value(t.uid);
-        if (carrier && t.index >= 0 && t.index < carrier->tipCount()
-            && !pickedTails.contains(t)) {
-            pickedTails.append(t);
-            if (!picked.contains(t.uid)) {
-                // Its balloon carries the handles a tail is aimed by, so it has to be selected on the
-                // canvas — but it is not a subject. Nobody picked it, so it is not counted, not deleted,
-                // and its own row stays unhighlighted.
-                picked.append(t.uid);
-                carriers.append(t.uid);
-            }
-        }
-    }
+ElementRef ObjectController::tailRef(const QString& uid, int index) const
+{
+    const Object* item = m_overlayItems.value(uid);
+    const auto&   b    = item ? item->composition().balloon : std::nullopt;
+    return {uid, b && index >= 0 && index < b->tails.size() ? b->tails.at(index).id : 0};
+}
+
+int ObjectController::tailIndex(const ElementRef& ref) const
+{
+    const Object* item = m_overlayItems.value(ref.object);
+    if (!item || ref.element == 0 || !item->composition().balloon)
+        return -1;
+    const QList<BalloonTail>& tails = item->composition().balloon->tails;
+    for (int i = 0; i < tails.size(); ++i)
+        if (tails.at(i).id == ref.element)
+            return i;
+    return -1;
+}
+
+void ObjectController::selectSubjects(const QStringList& uids, const QList<ElementRef>& tails)
+{
+    // What is gone drops out: an object no longer on the strip, a tail its balloon no longer has.
+    m_selection.select(uids, tails, [this](const QString& uid, int element) {
+        return m_overlayItems.contains(uid) && (element == 0 || tailIndex({uid, element}) >= 0);
+    });
+    const QStringList&       picked      = m_selection.objects();
+    const QList<ElementRef>& pickedTails = m_selection.elements();
+    const QStringList&       carriers    = m_selection.carriers();
 
     // Shape editing is of one object, and ends when the selection becomes anything else: a row picked in
     // OBJECT STACK, or a double click on another object (a click on the strip does not reach here while
@@ -912,30 +918,18 @@ void ObjectController::selectSubjects(const QStringList& uids, const QList<TailR
     if (!m_shapeEditing.isEmpty() && picked != QStringList{m_shapeEditing})
         setShapeEditing(false);
 
-    m_selectedOverlays = picked;
-    m_selectedTails    = pickedTails;
-    m_carriers         = carriers;
-    m_selectedOverlay  = picked.isEmpty() ? QString() : picked.last();
-    m_selectedPage.clear();
-
     // One tail, on its own balloon, is a selected tail: the handle drawn hollow and OBJECT STATE showing that
     // tail. Anything else with a tail in it is a set whose only common property is where it sits.
-    const bool singleTail = pickedTails.size() == 1 && picked.size() == 1
-                         && picked.first() == pickedTails.first().uid;
-    const Object* primary = m_overlayItems.value(m_selectedOverlay);
-    m_selectedTail      = singleTail ? pickedTails.first().index : -1;
-    m_selectedTailCount = primary ? primary->tipCount() : 0;
-    m_subject           = picked.isEmpty() ? Subject::None
-                        : singleTail       ? Subject::Tail
-                                           : Subject::Overlay;
+    const bool    singleTail = m_selection.subject() == Subject::Tail;
+    const Object* primary    = m_overlayItems.value(m_selection.primary());
 
     m_syncingList = true;
     for (auto it = m_overlayItems.begin(); it != m_overlayItems.end(); ++it) {
         it.value()->setSelected(picked.contains(it.key()));
         QList<int> focused;   // every selected tail of this balloon, each drawn hollow
-        for (const TailRef& t : std::as_const(pickedTails))
-            if (t.uid == it.key())
-                focused << t.index;
+        for (const ElementRef& t : pickedTails)
+            if (t.object == it.key())
+                focused << tailIndex(t);
         it.value()->setFocusedHandles(focused);
     }
 
@@ -953,8 +947,8 @@ void ObjectController::selectSubjects(const QStringList& uids, const QList<TailR
     if (picked.isEmpty()) {
         emit boundToNothing();
     } else if (singleTail) {
-        m_panelSubjects = QStringList{m_selectedOverlay};   // the tail's balloon owns the record
-        emit boundToTail(primary->composition(), m_selectedTail);
+        m_panelSubjects = QStringList{m_selection.primary()};   // the tail's balloon owns the record
+        emit boundToTail(primary->composition(), selectedTail());
     } else if (!pickedTails.isEmpty() && carriers.size() == picked.size()) {
         // Tails and nothing else: what they share is a tail's own section. Their balloons are the panel's
         // subjects, in this order, so an edit writes each tail into its balloon (applyPanelRecords()).
@@ -963,14 +957,14 @@ void ObjectController::selectSubjects(const QStringList& uids, const QList<TailR
         QList<QPair<int, int>> tails;
         for (const QString& uid : std::as_const(carriers))
             balloons << recordFor(uid);
-        for (const TailRef& t : std::as_const(pickedTails))
-            tails << qMakePair(int(carriers.indexOf(t.uid)), t.index);
+        for (const ElementRef& t : pickedTails)
+            tails << qMakePair(int(carriers.indexOf(t.object)), tailIndex(t));
         emit boundToTails(balloons, tails);
     } else if (!pickedTails.isEmpty()) {
         emit boundToMixed(selectedSubjectCount());
     } else if (oneObject) {
-        m_panelSubjects = QStringList{m_selectedOverlay};
-        emit boundToRecord(recordFor(m_selectedOverlay));
+        m_panelSubjects = QStringList{m_selection.primary()};
+        emit boundToRecord(recordFor(m_selection.primary()));
     } else {
         // **Whatever kinds are in it.** This used to refuse any set containing a picture, on the
         // grounds that a picture and a balloon had nothing in common — true until a picture could be
@@ -995,7 +989,7 @@ void ObjectController::selectSubjects(const QStringList& uids, const QList<TailR
     // has a size to set; anything else has no single answer, so the row is not there to mislead.
     emit artworkScaleBound(selectionIsArtwork() ? std::optional<double>(selectedArtworkPercent())
                                                 : std::nullopt);
-    emit subjectChanged(m_subject, m_selectedOverlay);
+    emit subjectChanged(m_selection.subject(), m_selection.primary());
 }
 
 
@@ -1029,15 +1023,15 @@ bool ObjectController::applyColourAt(const QPointF& scenePos, const QTransform& 
     // Pouring onto something that is part of a selection paints the **whole** selection, each object in
     // the role it has: a fill lands on everything with a silhouette, the lettering's colour on everything.
     // An object outside the selection is a fresh subject, and painting it selects it as any click does.
-    if (m_selectedOverlays.size() > 1 && m_selectedOverlays.contains(bubble->uid())) {
+    if (m_selection.objects().size() > 1 && m_selection.objects().contains(bubble->uid())) {
         QList<Composition> next;
-        next.reserve(m_selectedOverlays.size());
-        for (const QString& uid : std::as_const(m_selectedOverlays)) {
+        next.reserve(m_selection.objects().size());
+        for (const QString& uid : std::as_const(m_selection.objects())) {
             Composition each = recordFor(uid);
             paintPart(each, part, colour);
             next.append(each);
         }
-        applyRecords(m_selectedOverlays, next, /*commit=*/true, step);
+        applyRecords(m_selection.objects(), next, /*commit=*/true, step);
         emit boundToRecords(next);
         return true;
     }
@@ -1050,18 +1044,18 @@ bool ObjectController::applyColourAt(const QPointF& scenePos, const QTransform& 
 
 void ObjectController::fitSelectionToText()
 {
-    Object* item = m_overlayItems.value(m_selectedOverlay);
+    Object* item = m_overlayItems.value(m_selection.primary());
     if (!item || item->composition().picture)
         return;   // a picture's box is the picture's own pixels, not its words'
     Composition a = item->composition();
     resize(a, Geometry::fittedBox(a));
-    applyRecord(m_selectedOverlay, a, /*commit=*/true);
+    applyRecord(m_selection.primary(), a, /*commit=*/true);
     emit boundToRecord(a);
 }
 
 void ObjectController::fixSelectionPadding()
 {
-    Object* item = m_overlayItems.value(m_selectedOverlay);
+    Object* item = m_overlayItems.value(m_selection.primary());
     if (!item || !item->composition().balloon)
         return;   // only a balloon has an outline to keep the lettering from
     Composition          a      = item->composition();
@@ -1069,22 +1063,22 @@ void ObjectController::fixSelectionPadding()
     if (fitted == TextProperties::from(a))
         return;   // it fits already — not an edit, and not a history step
     fitted.applyTo(a);
-    applyRecord(m_selectedOverlay, a, /*commit=*/true, tr("Fix padding"));
+    applyRecord(m_selection.primary(), a, /*commit=*/true, tr("Fix padding"));
     emit boundToRecord(a);
 }
 
 int ObjectController::presetTargetCount() const
 {
-    return int(std::count_if(m_selectedOverlays.cbegin(), m_selectedOverlays.cend(), [this](const QString& uid) {
-        return isParametric(uid) && !m_carriers.contains(uid);
+    return int(std::count_if(m_selection.objects().cbegin(), m_selection.objects().cend(), [this](const QString& uid) {
+        return isParametric(uid) && !m_selection.carriers().contains(uid);
     }));
 }
 
 void ObjectController::presetTargetKinds(bool& bubble, bool& text) const
 {
     bubble = text = false;
-    for (const QString& uid : std::as_const(m_selectedOverlays)) {
-        if (!isParametric(uid) || m_carriers.contains(uid))
+    for (const QString& uid : std::as_const(m_selection.objects())) {
+        if (!isParametric(uid) || m_selection.carriers().contains(uid))
             continue;
         (recordFor(uid).balloon ? bubble : text) = true;
     }
@@ -1106,8 +1100,8 @@ void ObjectController::applyLookToSelection(const BubblePreset& preset, const QS
 {
     QStringList        uids;
     QList<Composition> next;
-    for (const QString& uid : std::as_const(m_selectedOverlays)) {
-        if (!isParametric(uid) || m_carriers.contains(uid))
+    for (const QString& uid : std::as_const(m_selection.objects())) {
+        if (!isParametric(uid) || m_selection.carriers().contains(uid))
             continue;   // a picture, or a balloon only carrying a selected tail
         const Composition was = recordFor(uid);
         // A balloon takes the preset's shape: the shape section is on screen, so the change is visible and
@@ -1127,12 +1121,12 @@ void ObjectController::applyLookToSelection(const BubblePreset& preset, const QS
 
 void ObjectController::setSelectionOrigin(const PresetOrigin& origin)
 {
-    const Object* item = m_overlayItems.value(m_selectedOverlay);
-    if (!item || m_selectedOverlays.size() != 1 || item->composition().preset == origin)
+    const Object* item = m_overlayItems.value(m_selection.primary());
+    if (!item || m_selection.objects().size() != 1 || item->composition().preset == origin)
         return;
     Composition a = item->composition();
     a.preset      = origin;
-    applyRecord(m_selectedOverlay, a, /*commit=*/true, tr("Save as preset"));
+    applyRecord(m_selection.primary(), a, /*commit=*/true, tr("Save as preset"));
     emit boundToRecord(a);
 }
 
@@ -1205,7 +1199,7 @@ void ObjectController::applyRecords(const QStringList& uids, const QList<Composi
     emit stackChanged();   // a row wears its object, and its label is what the object says
     pushOverlays(!undoText.isEmpty()            ? undoText
                  : uids.size() > 1              ? tr("Edit %n objects", "", uids.size())
-                 : m_subject == Subject::Tail   ? tr("Edit tail")
+                 : m_selection.subject() == Subject::Tail   ? tr("Edit tail")
                  : recordFor(uids.first()).picture ? tr("Edit artwork")
                                                        : tr("Edit bubble"));
 }
@@ -1297,20 +1291,20 @@ void ObjectController::placeArtworkAt(const QString& file, const QPointF& sceneP
 
 bool ObjectController::selectionIsArtwork() const
 {
-    return m_selectedOverlays.size() == 1 && m_selectedTails.isEmpty()
-        && !isParametric(m_selectedOverlays.first());
+    return m_selection.objects().size() == 1 && m_selection.elements().isEmpty()
+        && !isParametric(m_selection.objects().first());
 }
 
 double ObjectController::selectedArtworkPercent() const
 {
-    const auto*  art = qobject_cast<const ArtworkObject*>(m_overlayItems.value(m_selectedOverlay));
+    const auto*  art = qobject_cast<const ArtworkObject*>(m_overlayItems.value(m_selection.primary()));
     const double tw  = m_layout.targetWidth();
     if (!art || tw <= 0 || art->artwork().width() <= 0)
         return 0.0;
 
     const auto it = std::find_if(m_overlays.cbegin(), m_overlays.cend(),
                                  [this](const Platemaker::Models::StripOverlay& o) {
-                                     return QString::fromStdString(o.uid) == m_selectedOverlay;
+                                     return QString::fromStdString(o.uid) == m_selection.primary();
                                  });
     if (it == m_overlays.cend())
         return 0.0;
@@ -1321,7 +1315,7 @@ double ObjectController::selectedArtworkPercent() const
 
 void ObjectController::scaleSelectedArtwork(double percent, bool commit)
 {
-    const auto*  art = qobject_cast<const ArtworkObject*>(m_overlayItems.value(m_selectedOverlay));
+    const auto*  art = qobject_cast<const ArtworkObject*>(m_overlayItems.value(m_selection.primary()));
     const double tw  = m_layout.targetWidth();
     if (!art || tw <= 0 || percent <= 0 || art->artwork().width() <= 0)
         return;
@@ -1331,7 +1325,7 @@ void ObjectController::scaleSelectedArtwork(double percent, bool commit)
     const double wFrac = art->artwork().width() * percent / 100.0 / tw;
     bool         moved = false;
     for (auto& o : m_overlays) {
-        if (QString::fromStdString(o.uid) != m_selectedOverlay)
+        if (QString::fromStdString(o.uid) != m_selection.primary())
             continue;
         moved   = !qFuzzyCompare(o.wFrac, wFrac);
         o.wFrac = wFrac;
@@ -1351,7 +1345,7 @@ void ObjectController::scaleSelectedArtwork(double percent, bool commit)
 void ObjectController::reanchorSelection(const QString& pageUid)
 {
     for (auto& o : m_overlays) {
-        if (QString::fromStdString(o.uid) != m_selectedOverlay)
+        if (QString::fromStdString(o.uid) != m_selection.primary())
             continue;
         if (QString::fromStdString(o.anchorInputUid) == pageUid)
             return;
@@ -1369,19 +1363,19 @@ void ObjectController::reanchorSelection(const QString& pageUid)
 
 void ObjectController::deleteSelectedTail()
 {
-    const Object* bubble = m_overlayItems.value(m_selectedOverlay);
+    const Object* bubble = m_overlayItems.value(m_selection.primary());
     if (!bubble)
         return;
     Composition a = bubble->composition();
-    if (!a.balloon || m_selectedTail < 0 || m_selectedTail >= a.balloon->tails.size())
+    if (!a.balloon || selectedTail() < 0 || selectedTail() >= a.balloon->tails.size())
         return;
-    a.balloon->tails.removeAt(m_selectedTail);
+    a.balloon->tails.removeAt(selectedTail());
 
     // The balloon is what is left to hold once its tail is gone. Selected before the edit goes out, so the
     // feed that comes back finds a balloon selected, not a tail that no longer exists.
-    const QString uid = m_selectedOverlay;
+    const QString uid = m_selection.primary();
     selectOverlay(uid);
-    applyRecord(m_selectedOverlay, a, /*commit=*/true, tr("Delete tail"));
+    applyRecord(m_selection.primary(), a, /*commit=*/true, tr("Delete tail"));
     emit boundToRecord(a);
 }
 
@@ -1406,25 +1400,25 @@ void ObjectController::deleteSelectedOverlay()
         emit shapeEditingChanged();
         return;
     }
-    if (m_subject == Subject::Tail) {
+    if (m_selection.subject() == Subject::Tail) {
         deleteSelectedTail();
         return;
     }
-    if (m_selectedOverlays.isEmpty())
+    if (m_selection.objects().isEmpty())
         return;
 
     // A selection of two kinds is deleted as one: the objects go, and the tails of the balloons that
     // stay go with them. Highest index first, or removing tail 1 would renumber tail 2 under our feet.
-    if (!m_selectedTails.isEmpty()) {
-        QStringList doomedObjects = m_selectedOverlays;
-        for (const QString& carrier : std::as_const(m_carriers))
+    if (!m_selection.elements().isEmpty()) {
+        QStringList doomedObjects = m_selection.objects();
+        for (const QString& carrier : std::as_const(m_selection.carriers()))
             doomedObjects.removeAll(carrier);   // it only lent a tail; nobody asked for the balloon
 
         // A balloon the artist *did* pick goes whole, so its own selected tails need no separate removal.
         QHash<QString, QList<int>> byBubble;
-        for (const TailRef& t : std::as_const(m_selectedTails)) {
-            if (!doomedObjects.contains(t.uid))
-                byBubble[t.uid].append(t.index);
+        for (const ElementRef& t : std::as_const(m_selection.elements())) {
+            if (!doomedObjects.contains(t.object))
+                byBubble[t.object].append(tailIndex(t));
         }
         const int subjects = selectedSubjectCount();
 
@@ -1459,7 +1453,7 @@ void ObjectController::deleteSelectedOverlay()
 
     // One history step for the gesture, not one per object: the artist deleted a selection, and that is
     // what they will expect one Ctrl+Z to bring back.
-    const QStringList doomed = m_selectedOverlays;
+    const QStringList doomed = m_selection.objects();
     m_overlays.erase(std::remove_if(m_overlays.begin(), m_overlays.end(),
                                     [&](const Platemaker::Models::StripOverlay& o) {
                                         return doomed.contains(QString::fromStdString(o.uid));
@@ -1476,12 +1470,12 @@ void ObjectController::deleteSelectedOverlay()
 
 void ObjectController::applyColourToSelection(const QColor& colour, Geometry::Part role)
 {
-    if (!colour.isValid() || m_selectedOverlays.isEmpty())
+    if (!colour.isValid() || m_selection.objects().isEmpty())
         return;
 
     QList<Composition> next;
     int                changed = 0;
-    for (const QString& uid : std::as_const(m_selectedOverlays)) {
+    for (const QString& uid : std::as_const(m_selection.objects())) {
         Composition each = recordFor(uid);
         if (paintPart(each, role, colour))
             ++changed;
@@ -1493,8 +1487,8 @@ void ObjectController::applyColourToSelection(const QColor& colour, Geometry::Pa
     const QString step = role == Geometry::Part::Text      ? tr("Apply text colour")
                        : role == Geometry::Part::Outline   ? tr("Apply outline colour")
                                                          : tr("Apply fill colour");
-    applyRecords(m_selectedOverlays, next, /*commit=*/true, step);
-    if (m_selectedOverlays.size() > 1)
+    applyRecords(m_selection.objects(), next, /*commit=*/true, step);
+    if (m_selection.objects().size() > 1)
         emit boundToRecords(next);
     else
         emit boundToRecord(next.first());
@@ -1512,7 +1506,7 @@ ShapeProperties ObjectController::toolBalloonShape() const
 
 void ObjectController::convertSelectionTo(const ShapeProperties& shape)
 {
-    if (m_selectedOverlays.isEmpty())
+    if (m_selection.objects().isEmpty())
         return;
 
     // **What passes through is decided by the kind, not by the silhouette.** @p shape carries which
@@ -1528,11 +1522,11 @@ void ObjectController::convertSelectionTo(const ShapeProperties& shape)
 
     QList<Composition> next;
     int                converted = 0;
-    for (const QString& uid : std::as_const(m_selectedOverlays)) {
+    for (const QString& uid : std::as_const(m_selection.objects())) {
         Composition each = recordFor(uid);
         // Not an authored object, or already of this kind: it passes through, and since nothing here
         // touches the order, it keeps its place in the stack for free.
-        const bool authored = isParametric(uid) && !m_carriers.contains(uid);
+        const bool authored = isParametric(uid) && !m_selection.carriers().contains(uid);
         if (authored && each.balloon.has_value() != toBalloon) {
             each = toBalloon ? withBalloon(each, look) : withoutBalloon(each);
             // ...and a size that fits the lettering in its new kind. A text object's box is its words' own
@@ -1550,11 +1544,11 @@ void ObjectController::convertSelectionTo(const ShapeProperties& shape)
     // Named after the kind it arrived at — *Balloon*, not *Speech balloon*: the silhouette it happens
     // to wear is a property, and a history entry should say what the step decided.
     const QString what = toBalloon ? tr("a balloon") : tr("text");
-    applyRecords(m_selectedOverlays, next, /*commit=*/true,
+    applyRecords(m_selection.objects(), next, /*commit=*/true,
                  converted == 1 ? tr("Convert to %1").arg(what)
                                 : tr("Convert %n objects to %1", "", converted).arg(what));
 
-    if (m_selectedOverlays.size() > 1)
+    if (m_selection.objects().size() > 1)
         emit boundToRecords(next);
     else
         emit boundToRecord(next.first());
@@ -1565,7 +1559,7 @@ std::optional<Platemaker::Models::BlendMode> ObjectController::selectionBlend() 
     std::optional<Platemaker::Models::BlendMode> shared;
     for (const auto& o : m_overlays) {
         const QString uid = QString::fromStdString(o.uid);
-        if (!m_selectedOverlays.contains(uid) || m_carriers.contains(uid))
+        if (!m_selection.objects().contains(uid) || m_selection.carriers().contains(uid))
             continue;
         if (!shared)
             shared = o.blend;
@@ -1580,7 +1574,7 @@ void ObjectController::setSelectionBlend(Platemaker::Models::BlendMode blend)
     int changed = 0;
     for (auto& o : m_overlays) {
         const QString uid = QString::fromStdString(o.uid);
-        if (!m_selectedOverlays.contains(uid) || m_carriers.contains(uid) || o.blend == blend)
+        if (!m_selection.objects().contains(uid) || m_selection.carriers().contains(uid) || o.blend == blend)
             continue;
         o.blend = blend;
         ++changed;
@@ -1596,9 +1590,9 @@ void ObjectController::setSelectionBlend(Platemaker::Models::BlendMode blend)
 
 void ObjectController::moveSelectedInStack(bool forward)
 {
-    if (m_selectedOverlays.size() != 1 || !m_carriers.isEmpty())
+    if (m_selection.objects().size() != 1 || !m_selection.carriers().isEmpty())
         return;
-    const QString uid = m_selectedOverlays.first();
+    const QString uid = m_selection.objects().first();
 
     const auto at = std::find_if(m_overlays.begin(), m_overlays.end(),
                                  [&](const Platemaker::Models::StripOverlay& o) {
@@ -1673,12 +1667,12 @@ void ObjectController::setStackOrder(const QStringList& bottomUp)
 
 void ObjectController::duplicateSelectedOverlay()
 {
-    Object* item = m_overlayItems.value(m_selectedOverlay);
+    Object* item = m_overlayItems.value(m_selection.primary());
     if (!item)
         return;
 
     for (const auto& o : m_overlays) {
-        if (QString::fromStdString(o.uid) != m_selectedOverlay)
+        if (QString::fromStdString(o.uid) != m_selection.primary())
             continue;
         // Routed through the creation channel, not copied into the list here: the library mints the new
         // uid and, because the artwork is byte-identical, its inventory dedups it onto the same file.

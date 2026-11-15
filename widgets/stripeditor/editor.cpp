@@ -516,7 +516,7 @@ void Editor::setTool(const QString& id)
     // layer. Picking the Grade tool with nothing selected selects it, rather than opening on a panel
     // that can only say "select something first". A selection the artist made is left alone — the panel
     // explains instead.
-    if (tool->kind == ToolKind::Grade && m_objects->subject() == ObjectController::Subject::None)
+    if (tool->kind == ToolKind::Grade && m_objects->subject() == Subject::None)
         m_objects->selectStrip();
 }
 
@@ -549,26 +549,26 @@ void Editor::showSubject()
     // The Grade tool acts on the selection, so it is told what that is whether or not it is showing.
     if (m_gradeOptions) {
         const auto s = m_objects->subject();
-        m_gradeOptions->setTarget(s == ObjectController::Subject::Strip ? GradeToolOptions::Target::Strip
-                                : s == ObjectController::Subject::Page ? GradeToolOptions::Target::Page
+        m_gradeOptions->setTarget(s == Subject::Strip ? GradeToolOptions::Target::Strip
+                                : s == Subject::Page ? GradeToolOptions::Target::Page
                                                                          : GradeToolOptions::Target::Other);
     }
 
     // Which panel answers is the selection's to decide; what it says is the stack's.
     switch (m_objects->subject()) {
-    case ObjectController::Subject::Strip:
+    case Subject::Strip:
         m_stateStack->showStrip(m_layout, m_cc);
         return;
-    case ObjectController::Subject::Page: {
+    case Subject::Page: {
         const int i = m_layout.pageForAnchor(m_objects->selectedPage());
         if (i < 0)
             break;
         m_stateStack->showPage(m_layout, i, m_cc);
         return;
     }
-    case ObjectController::Subject::None:
-    case ObjectController::Subject::Overlay:
-    case ObjectController::Subject::Tail:
+    case Subject::None:
+    case Subject::Overlay:
+    case Subject::Tail:
         break;
     }
     m_stateStack->showObject();

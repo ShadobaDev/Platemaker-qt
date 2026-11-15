@@ -20,6 +20,7 @@
 #include "properties/propertygroup.hpp"   // PropertyGroup: which group the menu hands over
 #include "composition.hpp"
 #include "objects/selection.hpp"
+#include "objects/document.hpp"
 #include "objects/panelbinder.hpp"
 #include "objects/shapeeditmode.hpp"
 
@@ -140,7 +141,7 @@ public:
     void reveal(Subject subject, const QString& id, int tail = -1);
 
     // --- read and driven by the OBJECT STACK (objectstack/objectstack.hpp), which this class does not know ---
-    [[nodiscard]] const std::vector<Platemaker::Models::StripOverlay>& overlays() const { return m_overlays; }   //!< Composite order.
+    [[nodiscard]] const std::vector<Platemaker::Models::StripOverlay>& overlays() const { return m_document.overlays(); }   //!< Composite order.
     //! The scene object for overlay @p uid, or nullptr before the strip has a layout to place it on.
     [[nodiscard]] const Object* object(const QString& uid) const { return m_overlayItems.value(uid); }
     //! Balloons selected only because one of their tails is: not subjects, and their own row stays plain.
@@ -629,7 +630,7 @@ private:
     PresetStore&      m_presets;                //!< The store of named presets, which the menu reads from and the save action writes to.
     const StripLayout&   m_layout;                   //!< The layout that owns the strip, for page names and sizes.
 
-    std::vector<Platemaker::Models::StripOverlay> m_overlays;   //!< The project's overlays, in composite order.
+    Document                                      m_document;   //!< The project's overlays, in composite order.
     /**
      * \brief The compositions the last feed brought — **a seed, not the state**.
      *

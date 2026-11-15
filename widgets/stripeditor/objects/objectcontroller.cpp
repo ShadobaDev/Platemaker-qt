@@ -388,7 +388,7 @@ void ObjectController::selectSubject(Subject subject, const QString& pageUid)
 void ObjectController::setSource(const std::vector<Platemaker::Models::StripOverlay>& overlays,
                                  const Composition::Map&                                   records)
 {
-    m_overlays     = overlays;
+    m_document.reset(overlays);
     m_feedRecords  = records;
 
     // **The feed's records reach the objects that already exist, here and nowhere else.** This is the
@@ -411,9 +411,9 @@ void ObjectController::setSource(const std::vector<Platemaker::Models::StripOver
     // A bubble we just asked for has arrived with its minted uid. addOverlay() appends, so it is the
     // last one — select it and put the caret in the text box, because the next thing anyone wants to do
     // with a bubble they just drew is type in it.
-    if (m_selectNewOverlay && !m_overlays.empty()) {
+    if (m_selectNewOverlay && !m_document.overlays().empty()) {
         m_selectNewOverlay = false;
-        selectOverlay(QString::fromStdString(m_overlays.back().uid));
+        selectOverlay(QString::fromStdString(m_document.overlays().back().uid));
         emit textFocusRequested();
         return;
     }
@@ -500,7 +500,7 @@ void ObjectController::syncItems()
 
     // Drop items whose overlay is gone.
     QSet<QString> live;
-    for (const auto& o : m_overlays)
+    for (const auto& o : m_document.overlays())
         live.insert(QString::fromStdString(o.uid));
     for (auto it = m_overlayItems.begin(); it != m_overlayItems.end(); ) {
         if (live.contains(it.key())) { ++it; continue; }
@@ -513,7 +513,7 @@ void ObjectController::syncItems()
         return;   // no strip laid out yet — there is nothing to place an overlay against
 
     int z = k_overlayZBase;
-    for (const auto& o : m_overlays) {
+    for (const auto& o : m_document.overlays()) {
         const QString uid  = QString::fromStdString(o.uid);
         const int     page = m_layout.pageForAnchor(QString::fromStdString(o.anchorInputUid));
         const bool    orphaned = page < 0 && !o.anchorInputUid.empty();
@@ -603,7 +603,7 @@ Composition::Map ObjectController::currentRecords() const
     // object has not been built — no layout yet — keeps what the last feed said about it, and one that
     // has been deleted is simply not walked.
     Composition::Map out;
-    for (const auto& o : m_overlays) {
+    for (const auto& o : m_document.overlays()) {
         const QString     uid   = QString::fromStdString(o.uid);
         const Composition rec   = recordFor(uid);
         const Words*      words = wordsOf(rec);
@@ -634,20 +634,16 @@ void ObjectController::writePlacement(const QString& uid, bool rehome)
     const qreal   k     = item->scale();
     const QPointF p     = item->pos() + item->contentBounds().topLeft() * k;
     const qreal   width = item->contentBounds().width() * k;
-    for (auto& o : m_overlays) {
-        if (QString::fromStdString(o.uid) != uid)
-            continue;
-        // Back into the durable unit, which is what keeps the stored form independent of the profile in use.
-        const QString                             own  = QString::fromStdString(o.anchorInputUid);
-        const std::optional<StripLayout::Anchored> home = rehome ? m_layout.anchoredAt(p, width, item->pos().y())
-                                                                 : std::nullopt;
-        const StripLayout::Anchored at = home ? *home : m_layout.anchoredOn(rehome ? QString() : own, p, width);
-        o.xFrac          = at.xFrac;
-        o.yFrac          = at.yFrac;
-        o.wFrac          = at.wFrac;
-        o.anchorInputUid = (home ? home->anchor : own).toStdString();
-        break;
-    }
+    const Document::Overlay* o = m_document.overlay(uid);
+    if (!o)
+        return;
+    // Back into the durable unit, which is what keeps the stored form independent of the profile in use.
+    const QString                              own  = QString::fromStdString(o->anchorInputUid);
+    const std::optional<StripLayout::Anchored> home = rehome ? m_layout.anchoredAt(p, width, item->pos().y())
+                                                             : std::nullopt;
+    StripLayout::Anchored at = home ? *home : m_layout.anchoredOn(rehome ? QString() : own, p, width);
+    at.anchor                = home ? home->anchor : own;   // with no page under it, it keeps its own
+    m_document.setPlace(uid, at);
 }
 
 void ObjectController::onOverlayGeometryCommitted(const QString& uid)
@@ -1060,15 +1056,7 @@ void ObjectController::scaleSelectedArtwork(double percent, bool commit)
     // Written to the **record**, not to the item: the item's scale is derived from the record on every
     // feed (see syncItems), so setting it here would be a display that the next feed argues with.
     const double wFrac = m_layout.fraction(art->artwork().width() * percent / 100.0);
-    bool         moved = false;
-    for (auto& o : m_overlays) {
-        if (QString::fromStdString(o.uid) != m_selection.primary())
-            continue;
-        moved   = !qFuzzyCompare(o.wFrac, wFrac);
-        o.wFrac = wFrac;
-        break;
-    }
-    if (moved)
+    if (m_document.setWidth(m_selection.primary(), wFrac))
         syncItems();   // only a value that actually moved is worth re-placing every item for
 
     // ...but the step is pushed whichever, for the reason applyRecords() gives: the spin box previews
@@ -1081,21 +1069,12 @@ void ObjectController::scaleSelectedArtwork(double percent, bool commit)
 
 void ObjectController::reanchorSelection(const QString& pageUid)
 {
-    for (auto& o : m_overlays) {
-        if (QString::fromStdString(o.uid) != m_selection.primary())
-            continue;
-        if (QString::fromStdString(o.anchorInputUid) == pageUid)
-            return;
-        // Only the anchor changes. Placement is measured from the anchor page's top, so the object lands
-        // at the offset it had on its old page — for an unanchored one, where it sat on the page it lost,
-        // which is the best starting point there is and one drag from wherever it should be.
-        o.anchorInputUid = pageUid.toStdString();
-        syncItems();
-        emit stackChanged();
-        reselect();
-        pushOverlays(tr("Re-anchor"));
+    if (!m_document.setAnchor(m_selection.primary(), pageUid))
         return;
-    }
+    syncItems();
+    emit stackChanged();
+    reselect();
+    pushOverlays(tr("Re-anchor"));
 }
 
 void ObjectController::deleteSelectedTail()
@@ -1158,11 +1137,7 @@ void ObjectController::deleteSelectedOverlay()
             writePlacement(it.key());
         }
 
-        m_overlays.erase(std::remove_if(m_overlays.begin(), m_overlays.end(),
-                                        [&](const Platemaker::Models::StripOverlay& o) {
-                                            return doomedObjects.contains(QString::fromStdString(o.uid));
-                                        }),
-                         m_overlays.end());
+        m_document.remove(doomedObjects);
         // Their compositions go when their objects do — syncItems() drops an item whose overlay has gone,
         // and currentRecords() walks the overlays that are left.
         selectOverlay(QString());
@@ -1175,11 +1150,7 @@ void ObjectController::deleteSelectedOverlay()
     // One history step for the gesture, not one per object: the artist deleted a selection, and that is
     // what they will expect one Ctrl+Z to bring back.
     const QStringList doomed = m_selection.objects();
-    m_overlays.erase(std::remove_if(m_overlays.begin(), m_overlays.end(),
-                                    [&](const Platemaker::Models::StripOverlay& o) {
-                                        return doomed.contains(QString::fromStdString(o.uid));
-                                    }),
-                     m_overlays.end());
+    m_document.remove(doomed);
     selectOverlay(QString());
     syncItems();
     emit stackChanged();
@@ -1271,36 +1242,20 @@ void ObjectController::convertSelectionTo(const ShapeProperties& shape)
 
 std::optional<Platemaker::Models::BlendMode> ObjectController::selectionBlend() const
 {
-    std::optional<Platemaker::Models::BlendMode> shared;
-    for (const auto& o : m_overlays) {
-        const QString uid = QString::fromStdString(o.uid);
-        if (!m_selection.objects().contains(uid) || m_selection.carriers().contains(uid))
-            continue;
-        if (!shared)
-            shared = o.blend;
-        else if (*shared != o.blend)
-            return std::nullopt;   // no one answer — which is an answer, and it is *Mixed*
-    }
-    return shared;
+    return m_document.blendOf(m_selection.picked());
 }
 
 void ObjectController::setSelectionBlend(Platemaker::Models::BlendMode blend)
 {
-    int changed = 0;
-    for (auto& o : m_overlays) {
-        const QString uid = QString::fromStdString(o.uid);
-        if (!m_selection.objects().contains(uid) || m_selection.carriers().contains(uid) || o.blend == blend)
-            continue;
-        o.blend = blend;
-        ++changed;
+    const QStringList changed = m_document.setBlend(m_selection.picked(), blend);
+    for (const QString& uid : changed)
         if (Object* item = m_overlayItems.value(uid))
             item->setBlend(blend);
-    }
-    if (changed == 0)
+    if (changed.isEmpty())
         return;   // picking the mode it already has is not an edit, and not a history step
 
     emit stackChanged();
-    pushOverlays(changed == 1 ? tr("Set blend") : tr("Set blend on %n objects", "", changed));
+    pushOverlays(changed.size() == 1 ? tr("Set blend") : tr("Set blend on %n objects", "", int(changed.size())));
 }
 
 void ObjectController::moveSelectedInStack(bool forward)
@@ -1309,21 +1264,8 @@ void ObjectController::moveSelectedInStack(bool forward)
         return;
     const QString uid = m_selection.objects().first();
 
-    const auto at = std::find_if(m_overlays.begin(), m_overlays.end(),
-                                 [&](const Platemaker::Models::StripOverlay& o) {
-                                     return QString::fromStdString(o.uid) == uid;
-                                 });
-    if (at == m_overlays.end())
-        return;
-
-    // The library draws the vector in order, so the **last** element is the front-most — which is why the
-    // list shows this reversed (see refreshList). Forward therefore means later in the vector.
-    const auto index  = static_cast<qsizetype>(std::distance(m_overlays.begin(), at));
-    const auto target = index + (forward ? 1 : -1);
-    if (target < 0 || target >= static_cast<qsizetype>(m_overlays.size()))
+    if (!m_document.move(uid, forward))
         return;   // already at the end of the stack; nothing to report and nothing to undo
-
-    std::swap(m_overlays[static_cast<size_t>(index)], m_overlays[static_cast<size_t>(target)]);
     syncItems();    // z-values come from the vector's order
     emit stackChanged();
     pushOverlays(forward ? tr("Bring forward") : tr("Send back"));
@@ -1331,50 +1273,29 @@ void ObjectController::moveSelectedInStack(bool forward)
 
 void ObjectController::setOverlayEnabled(const QString& uid, bool on)
 {
-    for (auto& o : m_overlays) {
-        if (QString::fromStdString(o.uid) != uid || o.enabled == on)
-            continue;
-        o.enabled = on;
-        syncItems();
-        pushOverlays(on ? tr("Show overlay") : tr("Hide overlay"));
+    if (!m_document.setEnabled(uid, on))
         return;
-    }
+    syncItems();
+    pushOverlays(on ? tr("Show overlay") : tr("Hide overlay"));
 }
 
 void ObjectController::setStackOrder(const QStringList& bottomUp)
 {
     // The rows read bottom-up are the composite order: the render draws last-on-top.
-    std::unordered_map<std::string, Platemaker::Models::StripOverlay> byUid;
-    for (const auto& o : m_overlays)
-        byUid.emplace(o.uid, o);
-
-    std::vector<Platemaker::Models::StripOverlay> reordered;
-    reordered.reserve(m_overlays.size());
-    for (const QString& uid : bottomUp) {
-        const auto it = byUid.find(uid.toStdString());
-        if (it != byUid.end())
-            reordered.push_back(it->second);
-    }
-    if (reordered.size() != m_overlays.size()) {
+    switch (m_document.setOrder(bottomUp)) {
+    case Document::Reorder::Refused:
         // A row landed where no overlay row belongs — among the strip's pages, say. Put the rows back as
         // the model has them rather than commit an order that has lost someone's bubble.
         emit stackChanged();
         return;
-    }
-
-    // Nothing moved — a signal that looked like a drag was not one. Committing anyway would cost a round
-    // trip through the owner for a history step that records nothing.
-    const bool sameOrder = std::equal(reordered.begin(), reordered.end(), m_overlays.begin(),
-                                      [](const Platemaker::Models::StripOverlay& a,
-                                         const Platemaker::Models::StripOverlay& b) {
-                                          return a.uid == b.uid;
-                                      });
-    if (sameOrder) {
+    case Document::Reorder::Unchanged:
+        // Nothing moved — a signal that looked like a drag was not one. Committing anyway would cost a
+        // round trip through the owner for a history step that records nothing.
         reselect();   // put back what the drag's take-and-insert unselected
         return;
+    case Document::Reorder::Done:
+        break;
     }
-
-    m_overlays = std::move(reordered);
     syncItems();
     pushOverlays(tr("Reorder overlays"));
     reselect();
@@ -1386,37 +1307,34 @@ void ObjectController::duplicateSelectedOverlay()
     if (!item)
         return;
 
-    for (const auto& o : m_overlays) {
-        if (QString::fromStdString(o.uid) != m_selection.primary())
-            continue;
-        // Routed through the creation channel, not copied into the list here: the library mints the new
-        // uid and, because the artwork is byte-identical, its inventory dedups it onto the same file.
-        // Offset within the same page, so a duplicate stays on the artwork its original was talking to.
-        // The offset is a pixel nudge, so it becomes a fraction like everything else — a duplicate has
-        // to land the same distance away whatever width the chapter is being laid out at.
-        const double off = m_layout.fraction(k_duplicateOffset);
-        m_selectNewOverlay = true;
-        if (!item->composition().picture) {
-            emit recordCreated(item->composition(), o.xFrac + off, o.yFrac + off, o.wFrac,
-                                 QString::fromStdString(o.anchorInputUid));
-        } else {
-            // Imported artwork has no drawing of ours to re-emit, so the copy goes through the import
-            // channel instead: the library hashes the same bytes and dedups the new placement onto the
-            // file that is already there. Routing it through creation would have written an SVG of a
-            // *default* bubble — which is what it did before this was two types.
-            const auto* art = qobject_cast<ArtworkObject*>(item);
-            emit artworkImportRequested(QString::fromStdString(o.assetPath),
-                                        o.xFrac + off, o.yFrac + off, o.wFrac,
-                                        art ? art->artwork().size() : QSize(),
-                                        QString::fromStdString(o.anchorInputUid));
-        }
+    const Document::Overlay* overlay = m_document.overlay(m_selection.primary());
+    if (!overlay)
         return;
+    const Document::Overlay& o = *overlay;
+    // Routed through the creation channel, not copied into the list here: the library mints the new
+    // uid and, because the artwork is byte-identical, its inventory dedups it onto the same file.
+    // Offset within the same page, so a duplicate stays on the artwork its original was talking to.
+    // The offset is a pixel nudge, so it becomes a fraction like everything else — a duplicate has
+    // to land the same distance away whatever width the chapter is being laid out at.
+    const double off = m_layout.fraction(k_duplicateOffset);
+    m_selectNewOverlay = true;
+    if (!item->composition().picture) {
+        emit recordCreated(item->composition(), o.xFrac + off, o.yFrac + off, o.wFrac,
+                           QString::fromStdString(o.anchorInputUid));
+    } else {
+        // Imported artwork has no drawing of ours to re-emit, so the copy goes through the import
+        // channel instead: the library hashes the same bytes and dedups the new placement onto the
+        // file that is already there. Routing it through creation would have written an SVG of a
+        // *default* bubble — which is what it did before this was two types.
+        const auto* art = qobject_cast<ArtworkObject*>(item);
+        emit artworkImportRequested(QString::fromStdString(o.assetPath), o.xFrac + off, o.yFrac + off, o.wFrac,
+                                    art ? art->artwork().size() : QSize(), QString::fromStdString(o.anchorInputUid));
     }
 }
 
 void ObjectController::pushOverlays(const QString& undoText)
 {
-    emit overlaysCommitted(m_overlays, currentRecords(), undoText);
+    emit overlaysCommitted(m_document.overlays(), currentRecords(), undoText);
 }
 
 // --- a new object -----------------------------------------------------------

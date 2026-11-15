@@ -40,6 +40,7 @@ add_executable(platemaker-gui-tests
     test_selection.cpp
     test_striplayout.cpp
     test_panelbinder.cpp
+    test_document.cpp
     test_text_fit.cpp
     test_history.cpp
     ${CMAKE_SOURCE_DIR}/widgets/objectrecord/names.cpp
@@ -65,6 +66,8 @@ add_executable(platemaker-gui-tests
     ${CMAKE_SOURCE_DIR}/widgets/stripeditor/objects/selection.cpp
     # What OBJECT STATE is bound to: QtCore, and compositions.
     ${CMAKE_SOURCE_DIR}/widgets/stripeditor/objects/panelbinder.cpp
+    # The objects as the project holds them: the library's types, none of its code.
+    ${CMAKE_SOURCE_DIR}/widgets/stripeditor/objects/document.cpp
     # Where an overlay sits on the strip: the library's types, none of its code.
     ${CMAKE_SOURCE_DIR}/widgets/stripeditor/objects/striplayout.cpp
     # The one-workspace-per-folder rule: QtCore and the file system, nothing else.

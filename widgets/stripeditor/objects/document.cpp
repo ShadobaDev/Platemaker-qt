@@ -1,0 +1,140 @@
+#include "objects/document.hpp"
+
+#include <QtGlobal>
+
+#include <algorithm>
+#include <unordered_map>
+#include <utility>
+
+namespace StripEdit {
+
+const Document::Overlay* Document::overlay(const QString& uid) const
+{
+    const std::string id = uid.toStdString();
+    const auto        it = std::find_if(m_overlays.cbegin(), m_overlays.cend(), [&](const Overlay& o) { return o.uid == id; });
+    return it == m_overlays.cend() ? nullptr : &*it;
+}
+
+Document::Overlay* Document::find(const QString& uid)
+{
+    return const_cast<Overlay*>(std::as_const(*this).overlay(uid));
+}
+
+bool Document::setPlace(const QString& uid, const StripLayout::Anchored& at)
+{
+    Overlay* o = find(uid);
+    if (!o)
+        return false;
+    o->xFrac          = at.xFrac;
+    o->yFrac          = at.yFrac;
+    o->wFrac          = at.wFrac;
+    o->anchorInputUid = at.anchor.toStdString();
+    return true;
+}
+
+bool Document::setWidth(const QString& uid, double wFrac)
+{
+    Overlay* o = find(uid);
+    if (!o)
+        return false;
+    const bool moved = !qFuzzyCompare(o->wFrac, wFrac);
+    o->wFrac         = wFrac;
+    return moved;
+}
+
+bool Document::setAnchor(const QString& uid, const QString& page)
+{
+    Overlay* o = find(uid);
+    if (!o || QString::fromStdString(o->anchorInputUid) == page)
+        return false;
+    // Only the anchor changes. Placement is measured from the anchor page's top, so the object lands at the
+    // offset it had on its old page — for an unanchored one, where it sat on the page it lost, which is the best
+    // starting point there is and one drag from wherever it should be.
+    o->anchorInputUid = page.toStdString();
+    return true;
+}
+
+std::optional<Platemaker::Models::BlendMode> Document::blendOf(const QStringList& uids) const
+{
+    std::optional<Platemaker::Models::BlendMode> shared;
+    for (const Overlay& o : m_overlays) {
+        if (!uids.contains(QString::fromStdString(o.uid)))
+            continue;
+        if (!shared)
+            shared = o.blend;
+        else if (*shared != o.blend)
+            return std::nullopt;   // no one answer — which is an answer, and it is *Mixed*
+    }
+    return shared;
+}
+
+QStringList Document::setBlend(const QStringList& uids, Platemaker::Models::BlendMode blend)
+{
+    QStringList changed;
+    for (Overlay& o : m_overlays) {
+        const QString uid = QString::fromStdString(o.uid);
+        if (!uids.contains(uid) || o.blend == blend)
+            continue;
+        o.blend = blend;
+        changed << uid;
+    }
+    return changed;
+}
+
+bool Document::setEnabled(const QString& uid, bool on)
+{
+    Overlay* o = find(uid);
+    if (!o || o->enabled == on)
+        return false;
+    o->enabled = on;
+    return true;
+}
+
+bool Document::move(const QString& uid, bool forward)
+{
+    const Overlay* o = overlay(uid);
+    if (!o)
+        return false;
+    // The library draws the vector in order, so the **last** element is the front-most. Forward therefore means
+    // later in the vector.
+    const auto index  = o - m_overlays.data();
+    const auto target = index + (forward ? 1 : -1);
+    if (target < 0 || target >= static_cast<std::ptrdiff_t>(m_overlays.size()))
+        return false;   // already at the end of the stack
+    std::swap(m_overlays[size_t(index)], m_overlays[size_t(target)]);
+    return true;
+}
+
+Document::Reorder Document::setOrder(const QStringList& bottomUp)
+{
+    std::unordered_map<std::string, Overlay> byUid;
+    for (const Overlay& o : m_overlays)
+        byUid.emplace(o.uid, o);
+
+    std::vector<Overlay> reordered;
+    reordered.reserve(m_overlays.size());
+    for (const QString& uid : bottomUp) {
+        const auto it = byUid.find(uid.toStdString());
+        if (it != byUid.end())
+            reordered.push_back(it->second);
+    }
+    // A row landed where no overlay row belongs — among the strip's pages, say: an order that has lost
+    // someone's bubble is not taken.
+    if (reordered.size() != m_overlays.size())
+        return Reorder::Refused;
+    const bool same = std::equal(reordered.cbegin(), reordered.cend(), m_overlays.cbegin(),
+                                 [](const Overlay& a, const Overlay& b) { return a.uid == b.uid; });
+    if (same)
+        return Reorder::Unchanged;
+    m_overlays = std::move(reordered);
+    return Reorder::Done;
+}
+
+void Document::remove(const QStringList& uids)
+{
+    m_overlays.erase(std::remove_if(m_overlays.begin(), m_overlays.end(),
+                                    [&](const Overlay& o) { return uids.contains(QString::fromStdString(o.uid)); }),
+                     m_overlays.end());
+}
+
+}  // namespace StripEdit

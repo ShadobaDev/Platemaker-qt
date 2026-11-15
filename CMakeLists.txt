@@ -67,6 +67,7 @@ qt_add_executable(Platemaker
     widgets/stripeditor/objects/selection.cpp widgets/stripeditor/objects/selection.hpp
     widgets/stripeditor/objects/shapeeditmode.cpp widgets/stripeditor/objects/shapeeditmode.hpp
     widgets/stripeditor/objects/panelbinder.cpp widgets/stripeditor/objects/panelbinder.hpp
+    widgets/stripeditor/objects/document.cpp widgets/stripeditor/objects/document.hpp
     widgets/stripeditor/objects/resize.cpp widgets/stripeditor/objects/resize.hpp
     widgets/stripeditor/objects/selectionchrome.cpp widgets/stripeditor/objects/selectionchrome.hpp
     widgets/stripeditor/objects/bubbleobject.cpp widgets/stripeditor/objects/bubbleobject.hpp

@@ -1,13 +1,16 @@
 #ifndef STRIPEDIT_DOCUMENT_HPP
 #define STRIPEDIT_DOCUMENT_HPP
 
+#include <QColor>
 #include <QString>
 #include <QStringList>
 
+#include <functional>
 #include <optional>
 #include <vector>
 
 #include "composition.hpp"
+#include "geometry.hpp"   // Geometry::Part
 #include "objects/striplayout.hpp"   // StripLayout::Anchored
 
 #include <platemaker/models/project_item.hpp>
@@ -77,6 +80,30 @@ private:
     std::vector<Overlay> m_overlays;
     Composition::Map     m_compositions;   //!< Only of overlays it holds.
 };
+
+/**
+ * \brief The operations on one object's composition: a value in, the value changed. Each returns whether it changed
+ *        anything — one that did not is not an edit — and the controller makes a selection's one history step.
+ */
+namespace Edits {
+
+//! A new style seed, never the one it had nor 0, drawn from @p random. False when @p c draws nothing from a seed.
+bool reroll(Composition& c, const std::function<quint32()>& random);
+//! Gives @p part of @p c @p colour: the words' fill, the balloon's line, or its fill. False when @p c has no such part.
+bool paint(Composition& c, Geometry::Part part, const QColor& colour);
+/**
+ * \brief @p c made a balloon of @p look (@p toBalloon) or text — the balloon goes with its tails — and sized to its
+ *        lettering in its new kind, both ways. False when it is that kind already.
+ */
+bool convert(Composition& c, bool toBalloon, const BalloonLook& look);
+//! The box sized to the lettering (Geometry::fittedBox()). False for a picture, whose box is its own pixels.
+bool fitToText(Composition& c);
+//! The paddings lowered until the lettering fits (Geometry::fittingPaddings()). False with no balloon, or when it fits.
+bool fixPadding(Composition& c);
+//! Removes tails @p indexes of @p c's balloon, whichever order they come in. False when none of them is there.
+bool removeTails(Composition& c, QList<int> indexes);
+
+}  // namespace Edits
 
 }  // namespace StripEdit
 

@@ -89,6 +89,53 @@ TEST(Document, AnOverlaysPlaceAndPropertiesChangeOnlyWhenTheyDiffer)
     EXPECT_EQ(d.overlay("a"), nullptr);
 }
 
+TEST(Edits, EachSaysWhetherItChangedTheObject)
+{
+    namespace E = StripEdit::Edits;
+
+    // A re-roll deals a new seed, never the old one nor 0, to what draws from one; plain ink has nothing to deal.
+    Composition rough     = balloonObject();
+    styleOf(rough).line   = StyleProperties::Line::Brush;
+    rough.seed            = 7;
+    const quint32 dealt[] = {7, 0, 9};
+    int           next    = 0;
+    EXPECT_TRUE(E::reroll(rough, [&] { return dealt[next++]; }));
+    EXPECT_EQ(rough.seed, 9u);
+    Composition plain = balloonObject();
+    EXPECT_FALSE(E::reroll(plain, [] { return 1u; }));
+
+    // Paint lands on a part the object has; a text object has no line.
+    Composition text = textObject();
+    EXPECT_TRUE(E::paint(text, Geometry::Part::Text, Qt::red));
+    EXPECT_EQ(textOf(text).fill.colour, QColor(Qt::red));
+    EXPECT_FALSE(E::paint(text, Geometry::Part::Outline, Qt::red));
+
+    // Converting is to the other kind only; the tails go with the balloon.
+    Composition balloon = balloonObject();
+    setTails(balloon, {Tail{}});
+    EXPECT_FALSE(E::convert(balloon, true, {}));
+    EXPECT_TRUE(E::convert(balloon, false, {}));
+    EXPECT_FALSE(balloon.balloon.has_value());
+    EXPECT_TRUE(E::convert(balloon, true, {}));
+    EXPECT_TRUE(tailsOf(balloon).isEmpty());
+    Composition picture = pictureObject("p.png");
+    EXPECT_FALSE(E::convert(picture, true, {})) << "a picture is no balloon";
+    EXPECT_FALSE(E::fitToText(picture)) << "a picture's box is its own pixels";
+
+    // Tails go highest first, whatever order they are named in; none there, nothing done.
+    Composition three = balloonObject();
+    Tail        a, b, c;
+    a.baseWidth = 1;
+    b.baseWidth = 2;
+    c.baseWidth = 3;
+    setTails(three, {a, b, c});
+    EXPECT_TRUE(E::removeTails(three, {0, 2}));
+    ASSERT_EQ(tailsOf(three).size(), 1);
+    EXPECT_NEAR(tailsOf(three).first().tail.baseWidth, 2.0, k_tolerance);
+    EXPECT_FALSE(E::removeTails(three, {5}));
+    EXPECT_FALSE(E::fixPadding(text)) << "no balloon, no outline to keep the words from";
+}
+
 TEST(Document, ItHoldsTheCompositionsOfTheOverlaysItHoldsAndNothingElse)
 {
     Document          d = three();

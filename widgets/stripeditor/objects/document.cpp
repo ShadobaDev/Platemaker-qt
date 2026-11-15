@@ -3,6 +3,7 @@
 #include <QtGlobal>
 
 #include <algorithm>
+#include <functional>
 #include <unordered_map>
 #include <utility>
 
@@ -164,5 +165,90 @@ void Document::remove(const QStringList& uids)
     for (const QString& uid : uids)
         m_compositions.remove(uid);
 }
+
+namespace Edits {
+
+bool reroll(Composition& c, const std::function<quint32()>& random)
+{
+    if (!usesSeed(c))
+        return false;
+    // Never the seed it had: a re-roll that changed nothing would look like a broken button.
+    const quint32 was = c.seed;
+    while (c.seed == was || c.seed == 0)
+        c.seed = random();
+    return true;
+}
+
+bool paint(Composition& c, Geometry::Part part, const QColor& colour)
+{
+    switch (part) {
+    case Geometry::Part::Text:
+        if (Words* w = wordsOf(c)) {
+            w->text.fill.colour = colour;
+            return true;
+        }
+        return false;
+    case Geometry::Part::Outline:
+        if (c.balloon)
+            c.balloon->style.line.stroke.colour = colour;
+        return c.balloon.has_value();
+    case Geometry::Part::Fill:
+        if (c.balloon)
+            c.balloon->style.fill.fill.colour = colour;
+        return c.balloon.has_value();
+    case Geometry::Part::None:
+        break;
+    }
+    return false;
+}
+
+bool convert(Composition& c, bool toBalloon, const BalloonLook& look)
+{
+    if (c.picture || c.balloon.has_value() == toBalloon)
+        return false;
+    c = toBalloon ? withBalloon(c, look) : withoutBalloon(c);
+    // ...and a size that fits the lettering in its new kind. A text object's box is its words' own size,
+    // which a balloon's smaller text area could not hold. Fitted rather than only grown, both ways:
+    // converting back gives the words' own box again.
+    resize(c, Geometry::fitBoxFor(c, Geometry::textBlockSize(c)));
+    return true;
+}
+
+bool fitToText(Composition& c)
+{
+    if (c.picture)
+        return false;
+    const QSize was = sizeOf(c);
+    resize(c, Geometry::fittedBox(c));
+    return sizeOf(c) != was;
+}
+
+bool fixPadding(Composition& c)
+{
+    if (!c.balloon)
+        return false;   // only a balloon has an outline to keep the lettering from
+    const TextProperties fitted = Geometry::fittingPaddings(c);
+    if (fitted == TextProperties::from(c))
+        return false;
+    fitted.applyTo(c);
+    return true;
+}
+
+bool removeTails(Composition& c, QList<int> indexes)
+{
+    if (!c.balloon)
+        return false;
+    // Highest first, or removing tail 1 would renumber tail 2 under our feet.
+    std::sort(indexes.begin(), indexes.end(), std::greater<int>());
+    bool removed = false;
+    for (int i : std::as_const(indexes))
+        if (i >= 0 && i < c.balloon->tails.size()) {
+            c.balloon->tails.removeAt(i);
+            removed = true;
+        }
+    return removed;
+}
+
+}  // namespace Edits
 
 }  // namespace StripEdit

@@ -47,33 +47,6 @@ constexpr int k_duplicateOffset = 28;
 //! nothing next to the page caches above.
 constexpr int k_sharpCacheEntries = 64;
 
-/**
- * \brief Gives @p part of @p c @p colour: the words' fill, the balloon's line, or its fill. False when @p c has no
- *        such part (a text object has no line), which leaves it as it was.
- */
-bool paintPart(Composition& c, Geometry::Part part, const QColor& colour)
-{
-    switch (part) {
-    case Geometry::Part::Text:
-        if (Words* w = wordsOf(c)) {
-            w->text.fill.colour = colour;
-            return true;
-        }
-        return false;
-    case Geometry::Part::Outline:
-        if (c.balloon)
-            c.balloon->style.line.stroke.colour = colour;
-        return c.balloon.has_value();
-    case Geometry::Part::Fill:
-        if (c.balloon)
-            c.balloon->style.fill.fill.colour = colour;
-        return c.balloon.has_value();
-    case Geometry::Part::None:
-        break;
-    }
-    return false;
-}
-
 
 } // namespace
 
@@ -305,10 +278,7 @@ void ObjectController::rerollSelection()
         if (!item || m_selection.carriers().contains(uid) || !usesSeed(item->composition()))
             continue;
         Composition a = item->composition();
-        // Never the seed it had: a re-roll that changed nothing would look like a broken button.
-        const quint32 was = a.seed;
-        while (a.seed == was || a.seed == 0)
-            a.seed = QRandomGenerator::global()->generate();
+        Edits::reroll(a, [] { return QRandomGenerator::global()->generate(); });
         uids << uid;
         records << a;
     }
@@ -783,7 +753,7 @@ bool ObjectController::applyColourAt(const QPointF& scenePos, const QTransform& 
 
     Composition          a    = bubble->composition();
     const Geometry::Part part = Geometry::partAt(a, bubble->mapFromScene(scenePos), slack);
-    if (!paintPart(a, part, colour))
+    if (!Edits::paint(a, part, colour))
         return false;   // the transparent corner of the box is not the balloon
     const QString step = part == Geometry::Part::Text      ? tr("Apply text colour")
                        : part == Geometry::Part::Outline   ? tr("Apply outline colour")
@@ -797,7 +767,7 @@ bool ObjectController::applyColourAt(const QPointF& scenePos, const QTransform& 
         next.reserve(m_selection.objects().size());
         for (const QString& uid : std::as_const(m_selection.objects())) {
             Composition each = recordFor(uid);
-            paintPart(each, part, colour);
+            Edits::paint(each, part, colour);
             next.append(each);
         }
         applyRecords(m_selection.objects(), next, /*commit=*/true, step);
@@ -817,7 +787,7 @@ void ObjectController::fitSelectionToText()
     if (!item || item->composition().picture)
         return;   // a picture's box is the picture's own pixels, not its words'
     Composition a = item->composition();
-    resize(a, Geometry::fittedBox(a));
+    Edits::fitToText(a);   // committed even when it fits already, as before: the button was pressed
     applyRecord(m_selection.primary(), a, /*commit=*/true);
     m_panel->show(a);
 }
@@ -825,13 +795,11 @@ void ObjectController::fitSelectionToText()
 void ObjectController::fixSelectionPadding()
 {
     Object* item = m_overlayItems.value(m_selection.primary());
-    if (!item || !item->composition().balloon)
-        return;   // only a balloon has an outline to keep the lettering from
-    Composition          a      = item->composition();
-    const TextProperties fitted = Geometry::fittingPaddings(a);
-    if (fitted == TextProperties::from(a))
-        return;   // it fits already — not an edit, and not a history step
-    fitted.applyTo(a);
+    if (!item)
+        return;
+    Composition a = item->composition();
+    if (!Edits::fixPadding(a))
+        return;   // no balloon, or it fits already — not an edit, and not a history step
     applyRecord(m_selection.primary(), a, /*commit=*/true, tr("Fix padding"));
     m_panel->show(a);
 }
@@ -1076,9 +1044,8 @@ void ObjectController::deleteSelectedTail()
     if (!bubble)
         return;
     Composition a = bubble->composition();
-    if (!a.balloon || selectedTail() < 0 || selectedTail() >= a.balloon->tails.size())
+    if (!Edits::removeTails(a, {selectedTail()}))
         return;
-    a.balloon->tails.removeAt(selectedTail());
 
     // The balloon is what is left to hold once its tail is gone. Selected before the edit goes out, so the
     // feed that comes back finds a balloon selected, not a tail that no longer exists.
@@ -1119,13 +1086,8 @@ void ObjectController::deleteSelectedOverlay()
             Object* bubble = m_overlayItems.value(it.key());
             if (!bubble)
                 continue;
-            Composition a       = bubble->composition();
-            QList<int>  indexes = it.value();
-            std::sort(indexes.begin(), indexes.end(), std::greater<int>());
-            for (int i : std::as_const(indexes)) {
-                if (a.balloon && i >= 0 && i < a.balloon->tails.size())
-                    a.balloon->tails.removeAt(i);
-            }
+            Composition a = bubble->composition();
+            Edits::removeTails(a, it.value());
             m_document.setComposition(it.key(), a);
             bubble->setComposition(a);
             writePlacement(it.key());
@@ -1162,7 +1124,7 @@ void ObjectController::applyColourToSelection(const QColor& colour, Geometry::Pa
     int                changed = 0;
     for (const QString& uid : std::as_const(m_selection.objects())) {
         Composition each = recordFor(uid);
-        if (paintPart(each, role, colour))
+        if (Edits::paint(each, role, colour))
             ++changed;
         next.append(each);
     }
@@ -1208,16 +1170,10 @@ void ObjectController::convertSelectionTo(const ShapeProperties& shape)
         Composition each = recordFor(uid);
         // Not an authored object, or already of this kind: it passes through, and since nothing here
         // touches the order, it keeps its place in the stack for free.
+        // Where it lands is applyRecords()' business — the words stay put and the balloon appears under them.
         const bool authored = isParametric(uid) && !m_selection.carriers().contains(uid);
-        if (authored && each.balloon.has_value() != toBalloon) {
-            each = toBalloon ? withBalloon(each, look) : withoutBalloon(each);
-            // ...and a size that fits the lettering in its new kind. A text object's box is its words' own
-            // size, which a balloon's smaller text area could not hold — the words were clipped. Fitted
-            // rather than only grown, both ways: converting back gives the words' own box again. Where
-            // it lands is applyRecords()' business — the words stay put and the balloon appears under them.
-            resize(each, Geometry::fitBoxFor(each, Geometry::textBlockSize(each)));
+        if (authored && Edits::convert(each, toBalloon, look))
             ++converted;
-        }
         next.append(each);
     }
     if (converted == 0)

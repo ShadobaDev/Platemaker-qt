@@ -29,7 +29,6 @@
 #include "composition.hpp"
 #include "propertygroups.hpp"
 
-struct ObjectRecord;
 namespace Geometry {
 struct ShadowPaths;
 }

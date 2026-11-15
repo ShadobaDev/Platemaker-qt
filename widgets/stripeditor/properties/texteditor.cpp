@@ -230,7 +230,7 @@ void TextEditor::bind(const Subjects& subjects)
     m_shadow.reset();
     m_anyBalloon   = false;
     m_anyOutline   = false;
-    for (const ObjectRecord* a : subjects) {
+    for (const Composition* a : subjects) {
         const TextProperties t = TextProperties::from(*a);
         m_fill.compare(t, m_values);
         m_mixedFamily = m_mixedFamily || t.family    != m_values.family;
@@ -242,7 +242,7 @@ void TextEditor::bind(const Subjects& subjects)
         m_outlineWidth.compare(t, m_values);
         m_outline.compare(t, m_values);
         m_shadow.compare(t, m_values);
-        m_anyBalloon       = m_anyBalloon       || a->hasSilhouette();
+        m_anyBalloon       = m_anyBalloon       || a->balloon.has_value();
         m_anyOutline       = m_anyOutline       || t.outlineWidth > 0.0;
     }
     m_familyTouched = m_sizeTouched = m_boldTouched = m_alignTouched = false;
@@ -251,12 +251,12 @@ void TextEditor::bind(const Subjects& subjects)
     syncFromValues();
 }
 
-void TextEditor::applyTo(ObjectRecord& target) const
+void TextEditor::applyTo(Composition& target) const
 {
     m_values.applyTo(target);
 }
 
-void TextEditor::applyEditedTo(ObjectRecord& target) const
+void TextEditor::applyEditedTo(Composition& target) const
 {
     // The lettering itself is never written to a set: five balloons do not share one line of dialogue.
     TextProperties t = TextProperties::from(target);

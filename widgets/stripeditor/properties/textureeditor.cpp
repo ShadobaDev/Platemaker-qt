@@ -1,4 +1,5 @@
 #include "properties/textureeditor.hpp"
+#include "names.hpp"
 #include "styles.hpp"
 
 #include <QComboBox>
@@ -14,7 +15,7 @@ TextureEditor::TextureEditor(QWidget* parent)
 
     m_kind = new QComboBox(this);
     for (int i = 0; i <= int(TextureProperties::k_lastKind); ++i)
-        m_kind->addItem(textureTitle(static_cast<ObjectRecord::Texture>(i)), i);
+        m_kind->addItem(textureTitle(static_cast<TextureProperties::Kind>(i)), i);
     m_kind->setToolTip(tr("What is done to the balloon as it is rendered, line and shadow and all, never to "
                           "the words. Rough makes the edge wander, as a felt-tip or ink does; it is shown "
                           "here exactly as it will be baked, because the library draws it."));
@@ -24,7 +25,7 @@ TextureEditor::TextureEditor(QWidget* parent)
     connect(m_kind, &QComboBox::currentIndexChanged, this, [this](int i) {
         if (m_populating || i < 0)
             return;
-        m_values.kind = static_cast<ObjectRecord::Texture>(m_kind->currentData().toInt());
+        m_values.kind = static_cast<TextureProperties::Kind>(m_kind->currentData().toInt());
         m_kindTouched = true;
         m_mixedKind   = false;
         showRows();
@@ -41,7 +42,7 @@ void TextureEditor::bind(const Subjects& subjects)
     m_values    = TextureProperties::from(*subjects.first());
     m_mixedKind = false;
     m_sections.reset();
-    for (const ObjectRecord* a : subjects) {
+    for (const Composition* a : subjects) {
         const TextureProperties t = TextureProperties::from(*a);
         m_mixedKind = m_mixedKind || t.kind != m_values.kind;
         m_sections.compare(t, m_values);
@@ -50,12 +51,12 @@ void TextureEditor::bind(const Subjects& subjects)
     syncFromValues();
 }
 
-void TextureEditor::applyTo(ObjectRecord& target) const
+void TextureEditor::applyTo(Composition& target) const
 {
     m_values.applyTo(target);
 }
 
-void TextureEditor::applyEditedTo(ObjectRecord& target) const
+void TextureEditor::applyEditedTo(Composition& target) const
 {
     TextureProperties t = TextureProperties::from(target);
     if (m_kindTouched)

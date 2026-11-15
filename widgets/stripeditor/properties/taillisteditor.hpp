@@ -34,7 +34,7 @@ public:
     [[nodiscard]] PropertyGroup group() const override { return PropertyGroup::Tail; }
 
     void bind(const Subjects& subjects) override;
-    void applyTo(ObjectRecord& target) const override;
+    void applyTo(Composition& target) const override;
 
     /**
      * \brief The shape changed, so the default answer to "does this speak?" changed with it.

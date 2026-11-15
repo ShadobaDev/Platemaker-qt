@@ -1,8 +1,11 @@
 #include "composition.hpp"
+#include "names.hpp"
 #include "shapes.hpp"
 #include "styles.hpp"
 
 #include <QJsonArray>
+#include <QObject>
+#include <QRandomGenerator>
 
 #include <type_traits>
 
@@ -10,7 +13,7 @@ namespace {
 
 // ---------------------------------------------------------------------------
 // A field's value in the JSON, and back — one overload per type a group holds (fields.hpp). Reading
-// falls back to the value already there, which for a fresh record is the struct's own default.
+// falls back to the value already there, which for a fresh element is the struct's own default.
 // ---------------------------------------------------------------------------
 
 QJsonValue toJsonValue(int v) { return v; }
@@ -18,11 +21,11 @@ QJsonValue toJsonValue(bool v) { return v; }
 QJsonValue toJsonValue(qreal v) { return v; }
 QJsonValue toJsonValue(const QString& v) { return v; }
 QJsonValue toJsonValue(const QColor& v) { return v.name(QColor::HexArgb); }
-QJsonValue toJsonValue(ObjectRecord::Shape v) { return QLatin1String(shapeName(v)); }
-QJsonValue toJsonValue(ObjectRecord::Edge v) { return QLatin1String(edgeName(v)); }
-QJsonValue toJsonValue(ObjectRecord::Pattern v) { return QLatin1String(patternName(v)); }
-QJsonValue toJsonValue(ObjectRecord::Line v) { return QLatin1String(lineName(v)); }
-QJsonValue toJsonValue(ObjectRecord::Texture v) { return QLatin1String(textureName(v)); }
+QJsonValue toJsonValue(ShapeProperties::Kind v) { return QLatin1String(shapeName(v)); }
+QJsonValue toJsonValue(ShapeProperties::Edge v) { return QLatin1String(edgeName(v)); }
+QJsonValue toJsonValue(Paint::Kind v) { return QLatin1String(patternName(v)); }
+QJsonValue toJsonValue(StyleProperties::Line v) { return QLatin1String(lineName(v)); }
+QJsonValue toJsonValue(TextureProperties::Kind v) { return QLatin1String(textureName(v)); }
 QJsonValue toJsonValue(TailLook::Style v) { return QLatin1String(Geometry::tailStyleInfo(v).name); }
 QJsonValue toJsonValue(TailLook::Tip v) { return QLatin1String(Geometry::tailTipInfo(v).name); }
 //! Nodes as [x, y], or [x, y, type, inX, inY, outX, outY] for a Curve's node with handles, at full
@@ -52,11 +55,11 @@ void fromJsonValue(const QJsonValue& j, QColor& v)
         v = c;
 }
 // An unknown or missing name reads as the reader's own fallback (Box, Clean, None).
-void fromJsonValue(const QJsonValue& j, ObjectRecord::Shape& v) { v = shapeFromName(j.toString()); }
-void fromJsonValue(const QJsonValue& j, ObjectRecord::Edge& v) { v = edgeFromName(j.toString()); }
-void fromJsonValue(const QJsonValue& j, ObjectRecord::Pattern& v) { v = patternFromName(j.toString()); }
-void fromJsonValue(const QJsonValue& j, ObjectRecord::Line& v) { v = lineFromName(j.toString()); }
-void fromJsonValue(const QJsonValue& j, ObjectRecord::Texture& v) { v = textureFromName(j.toString()); }
+void fromJsonValue(const QJsonValue& j, ShapeProperties::Kind& v) { v = shapeFromName(j.toString()); }
+void fromJsonValue(const QJsonValue& j, ShapeProperties::Edge& v) { v = edgeFromName(j.toString()); }
+void fromJsonValue(const QJsonValue& j, Paint::Kind& v) { v = patternFromName(j.toString()); }
+void fromJsonValue(const QJsonValue& j, StyleProperties::Line& v) { v = lineFromName(j.toString()); }
+void fromJsonValue(const QJsonValue& j, TextureProperties::Kind& v) { v = textureFromName(j.toString()); }
 // A tail's style and tip: an unknown or missing name leaves the value as it is.
 void fromJsonValue(const QJsonValue& j, TailLook::Style& v)
 {
@@ -172,23 +175,6 @@ Tail tailFromJson(const QJsonObject& o)
     return t;
 }
 
-QJsonArray tailsToJson(const QList<Tail>& tails)
-{
-    QJsonArray arr;
-    for (const Tail& t : tails)
-        arr.append(tailToJson(t));
-    return arr;
-}
-
-QList<Tail> tailsFromJson(const QJsonArray& arr)
-{
-    QList<Tail> tails;
-    tails.reserve(arr.size());
-    for (const QJsonValue& v : arr)
-        tails.append(tailFromJson(v.toObject()));
-    return tails;
-}
-
 //! A size as [width, height], and back; a value that is not one leaves @p v as it is.
 QJsonArray sizeToJson(const QSize& s) { return {s.width(), s.height()}; }
 void       sizeFromJson(const QJsonValue& j, QSize& v)
@@ -221,52 +207,6 @@ Place placeFromJson(const QJsonObject& j)
 
 } // namespace
 
-QJsonObject ObjectRecord::toJson() const
-{
-    const ObjectRecord& a = *this;
-    // The record's own fields, which are not groups of scalars, by hand; then a group an object.
-    QJsonObject j{
-        {QStringLiteral("box"),      QJsonArray{a.box.width(), a.box.height()}},
-        {QStringLiteral("seed"),     double(a.styleSeed)},
-        {QStringLiteral("shape"),    groupToJson(a.shape)},
-        {QStringLiteral("text"),     groupToJson(a.text)},
-        {QStringLiteral("skin"),     groupToJson(a.skin)},
-        {QStringLiteral("style"),    groupToJson(a.style)},
-        {QStringLiteral("texture"),  groupToJson(a.texture)},
-        {QStringLiteral("effects"),  groupToJson(a.effects)},
-        {QStringLiteral("tails"),    tailsToJson(a.tails.items)},
-        {QStringLiteral("nextTail"), groupToJson(a.tails.nextLook)},
-    };
-    if (!a.artwork.isEmpty())
-        j.insert(QStringLiteral("artwork"), a.artwork);
-    if (!a.presetOrigin.isEmpty())
-        j.insert(QStringLiteral("preset"), QJsonObject{{QStringLiteral("uid"), a.presetOrigin.uid},
-                                                       {QStringLiteral("name"), a.presetOrigin.name}});
-    return j;
-}
-
-ObjectRecord ObjectRecord::fromJson(const QJsonObject& j)
-{
-    // Every field is read with the struct's own default as the fallback: a key left out is its default.
-    ObjectRecord a;
-    a.artwork = j.value(QStringLiteral("artwork")).toString();   // absent → an object we draw
-    if (const QJsonArray box = j.value(QStringLiteral("box")).toArray(); box.size() == 2)
-        a.box = QSize(box[0].toInt(a.box.width()), box[1].toInt(a.box.height()));
-    a.styleSeed = quint32(j.value(QStringLiteral("seed")).toDouble(0));
-    groupFromJson(a.shape, j.value(QStringLiteral("shape")).toObject());
-    groupFromJson(a.text, j.value(QStringLiteral("text")).toObject());
-    groupFromJson(a.skin, j.value(QStringLiteral("skin")).toObject());
-    groupFromJson(a.style, j.value(QStringLiteral("style")).toObject());
-    groupFromJson(a.texture, j.value(QStringLiteral("texture")).toObject());
-    groupFromJson(a.effects, j.value(QStringLiteral("effects")).toObject());
-    a.tails.items = tailsFromJson(j.value(QStringLiteral("tails")).toArray());
-    groupFromJson(a.tails.nextLook, j.value(QStringLiteral("nextTail")).toObject());
-    const QJsonObject preset = j.value(QStringLiteral("preset")).toObject();
-    a.presetOrigin = {preset.value(QStringLiteral("uid")).toString(), preset.value(QStringLiteral("name")).toString()};
-    return a;
-}
-
-
 const Body* seatOf(const Composition& c, const Words& w)
 {
     if (!c.balloon || w.seat == 0)
@@ -280,6 +220,127 @@ const Body* seatOf(const Composition& c, const Words& w)
 const Words* wordsOf(const Composition& c)
 {
     return c.words.isEmpty() ? nullptr : &c.words.first();
+}
+
+Words* wordsOf(Composition& c)
+{
+    return c.words.isEmpty() ? nullptr : &c.words.first();
+}
+
+const Body* bodyOf(const Composition& c)
+{
+    return c.balloon && !c.balloon->bodies.isEmpty() ? &c.balloon->bodies.first() : nullptr;
+}
+
+Body* bodyOf(Composition& c)
+{
+    return c.balloon && !c.balloon->bodies.isEmpty() ? &c.balloon->bodies.first() : nullptr;
+}
+
+QSize sizeOf(const Composition& c)
+{
+    if (const Body* b = bodyOf(c))
+        return b->size;
+    if (c.picture)
+        return c.picture->size;
+    const Words* w = wordsOf(c);
+    return w ? w->box : QSize();
+}
+
+void resize(Composition& c, const QSize& size)
+{
+    if (Body* b = bodyOf(c)) {
+        b->size = size;
+        return;
+    }
+    if (c.picture)
+        c.picture->size = size;
+    for (Words& w : c.words)
+        if (!seatOf(c, w))
+            w.box = size;   // a picture's words are over the whole of it
+}
+
+Composition textObject(const QSize& size)
+{
+    Composition c;
+    Words       w;
+    w.id  = c.nextId++;
+    w.box = size;
+    c.words.append(w);
+    return c;
+}
+
+Composition withBalloon(Composition c, const BalloonLook& look)
+{
+    if (c.balloon || c.picture)
+        return c;
+    Balloon b;
+    b.id    = c.nextId++;
+    b.style = look.style;
+    Body body;
+    body.id    = c.nextId++;
+    body.shape = look.shape;
+    if (Words* w = wordsOf(c)) {
+        body.place = w->place;
+        body.size  = w->box;
+        w->seat    = body.id;
+        w->place   = {};   // read only with no seat
+        w->box     = {};
+    } else {
+        body.size = k_defaultObjectSize;
+    }
+    b.bodies.append(body);
+    c.balloon = b;
+    return c;
+}
+
+Composition withoutBalloon(Composition c)
+{
+    if (!c.balloon)
+        return c;
+    for (Words& w : c.words)
+        if (const Body* seat = seatOf(c, w)) {
+            w.place = seat->place;
+            w.box   = seat->size;
+            w.seat  = 0;
+        }
+    c.balloon.reset();
+    return c;
+}
+
+bool usesSeed(const Composition& c)
+{
+    const Body* body = bodyOf(c);
+    if (!body)
+        return false;
+    const BalloonStyle& s = c.balloon->style;
+    const bool irregularEdge = body->shape.edge != ShapeProperties::Edge::None && body->shape.teeth.irregularity > 0;
+    return s.line.line != StyleProperties::Line::Clean || s.texture.kind != TextureProperties::Kind::None
+        || irregularEdge;
+}
+
+void topUpStyleSeed(Composition& c)
+{
+    // An object authored before styles existed carries seed 0, and so would every other one — style a page of
+    // them and they would all wear the same wobble. Give it one the first time it is styled.
+    if (usesSeed(c) && c.seed == 0)
+        c.seed = QRandomGenerator::global()->generate();
+}
+
+QString objectLabel(const Composition& c)
+{
+    const Words*  w     = wordsOf(c);
+    const QString first = w ? w->text.body.section(QLatin1Char('\n'), 0, 0).trimmed() : QString();
+    if (!first.isEmpty())
+        return first.length() > k_labelChars ? first.left(k_labelChars - 1) + QStringLiteral("…") : first;
+    // No words: what it is instead — its template's title, or its kind's when it matches none, so none is
+    // listed as "(overlay)".
+    const Body* body = bodyOf(c);
+    if (!body)
+        return QObject::tr("(text)");
+    const Geometry::ShapeTemplate* t     = Geometry::templateOf(body->shape);
+    const QString                  title = t ? QObject::tr(t->title) : shapeTitle(body->shape.kind);
+    return QStringLiteral("(%1)").arg(title.toLower());
 }
 
 QRectF frameOf(const Composition& c)
@@ -298,90 +359,6 @@ QRectF frameOf(const Composition& c)
         if (!seatOf(c, w))
             add(w.place, w.box);
     return r;
-}
-
-Composition compositionOf(const ObjectRecord& a)
-{
-    Composition c;
-    c.seed   = a.styleSeed;
-    c.preset = a.presetOrigin;
-
-    int seat = 0;
-    if (a.hasSilhouette()) {
-        Balloon b;
-        b.id       = c.nextId++;
-        b.style    = {a.style, a.skin, a.texture, a.effects, a.tails.nextLook};
-        Body body;
-        body.id    = c.nextId++;
-        body.size  = a.box;
-        body.shape = a.shape;
-        b.bodies.append(body);
-        for (const Tail& t : a.tails.items)
-            b.tails.append({c.nextId++, body.id, t});
-        seat      = body.id;
-        c.balloon = b;
-    } else if (a.isArtwork()) {
-        Picture p;
-        p.id      = c.nextId++;
-        p.file    = a.artwork;
-        p.size    = a.box;
-        c.picture = p;
-    }
-
-    Words w;
-    w.id   = c.nextId++;
-    w.seat = seat;
-    if (seat == 0)
-        w.box = a.box;
-    w.text = a.text;
-    c.words.append(w);
-    return c;
-}
-
-ObjectRecord::Map recordsOf(const Composition::Map& m)
-{
-    ObjectRecord::Map out;
-    for (auto it = m.cbegin(); it != m.cend(); ++it)
-        out.insert(it.key(), recordOf(it.value()));
-    return out;
-}
-
-Composition::Map compositionsOf(const ObjectRecord::Map& m)
-{
-    Composition::Map out;
-    for (auto it = m.cbegin(); it != m.cend(); ++it)
-        out.insert(it.key(), compositionOf(it.value()));
-    return out;
-}
-
-ObjectRecord recordOf(const Composition& c)
-{
-    ObjectRecord a;
-    a.styleSeed    = c.seed;
-    a.presetOrigin = c.preset;
-    a.shape.kind   = ObjectRecord::Shape::None;
-    if (!c.words.isEmpty()) {
-        a.text = c.words.first().text;
-        a.box  = c.words.first().box;
-    }
-
-    if (c.balloon) {
-        // A record is one body, the first: none has more before the chain.
-        const Balloon& b = *c.balloon;
-        a.style          = b.style.line;
-        a.skin           = b.style.fill;
-        a.texture        = b.style.texture;
-        a.effects        = b.style.effects;
-        a.tails.nextLook = b.style.nextLook;
-        a.shape          = b.bodies.first().shape;
-        a.box            = b.bodies.first().size;
-        for (const BalloonTail& t : b.tails)
-            a.tails.items.append(t.tail);
-    } else if (c.picture) {
-        a.artwork = c.picture->file;
-        a.box     = c.picture->size;
-    }
-    return a;
 }
 
 QJsonObject toJson(const BalloonStyle& s)

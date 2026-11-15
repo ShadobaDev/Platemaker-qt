@@ -43,8 +43,8 @@ public:
     }
 
     void bind(const Subjects& subjects) override;
-    void applyTo(ObjectRecord& target) const override;
-    void applyEditedTo(ObjectRecord& target) const override;
+    void applyTo(Composition& target) const override;
+    void applyEditedTo(Composition& target) const override;
 
     [[nodiscard]] const TextProperties& values() const { return m_values; }
 

@@ -16,10 +16,10 @@
 
 /**
  * \file
- * \brief The property groups an ObjectRecord is made of — Shape, Skin, Style, Text, the tails and one tail.
+ * \brief The property groups an object's elements are made of — Shape, Skin, Style, Text, the tails and one tail.
  *
- * Each group is a plain struct with from() / applyTo() / operator==, and the record (objectrecord.hpp) holds
- * one of each. The editor that edits a group lives in `widgets/stripeditor/properties/`, one per group.
+ * Each group is a plain struct with from() / applyTo() / operator== on a composition (composition.hpp), whose
+ * elements hold them. The editor that edits a group lives in `widgets/stripeditor/properties/`, one per group.
  *
  * A group of scalars lists its fields once, in `fields()`: the key each is saved under and the member it
  * is (fields.hpp). Its operator==, its JSON and its `pm:` attributes are all walks over that list, so a
@@ -145,13 +145,6 @@ struct TailLook
         Fields::nest(v, &TailLook::breaks);
     }
 
-    /**
-     * Out of "plain,3,6,0,sharp,30,0,10,1", from @p first on: the style's name, the chain's numbers, the tip's name
-     * and its width, the breaks, the jog and whether the first turn is clockwise. What is missing or unknown keeps
-     * its default. How a bubble's SVG carried a tail before its content did: read only by the old `pm:` reader.
-     */
-    [[nodiscard]] static TailLook fromFields(const QStringList& fields, qsizetype first = 0);
-
     [[nodiscard]] bool operator==(const TailLook& o) const { return Fields::equal(*this, o); }
     [[nodiscard]] bool operator!=(const TailLook& o) const { return !(*this == o); }
 };
@@ -190,7 +183,6 @@ struct Tail
     return {box.width() * 0.28, box.height() * 1.25};
 }
 
-struct ObjectRecord;
 struct Composition;
 
 /**
@@ -456,7 +448,6 @@ struct SkinProperties
     }
 
     //! Reads this group out of \p a.
-    [[nodiscard]] static SkinProperties from(const ObjectRecord& a);
 
     /**
      * \brief Writes this group into \p a — **and nothing else**.
@@ -465,7 +456,6 @@ struct SkinProperties
      * `SkinPropertiesOwnership` in the unit tests, which applies a group to a randomised record and
      * asserts that every property outside it is unchanged.
      */
-    void applyTo(ObjectRecord& a) const;
     //! The same on a composition (composition.cpp): the balloon's fill; nothing written where there is none.
     [[nodiscard]] static SkinProperties from(const Composition& c);
     void applyTo(Composition& c) const;
@@ -631,8 +621,6 @@ struct ShapeProperties
         Fields::nest(v, &ShapeProperties::teeth);
     }
 
-    [[nodiscard]] static ShapeProperties from(const ObjectRecord& a);
-    void applyTo(ObjectRecord& a) const;
     //! The same on a composition (composition.cpp): the first body's shape (kind None with no balloon); nothing written where there is none.
     [[nodiscard]] static ShapeProperties from(const Composition& c);
     void applyTo(Composition& c) const;
@@ -708,8 +696,6 @@ struct TextureProperties
         sections([&](auto section) { Fields::nest(v, section); });
     }
 
-    [[nodiscard]] static TextureProperties from(const ObjectRecord& a);
-    void applyTo(ObjectRecord& a) const;
     //! The same on a composition (composition.cpp): the balloon's texture; nothing written where there is none.
     [[nodiscard]] static TextureProperties from(const Composition& c);
     void applyTo(Composition& c) const;
@@ -980,8 +966,6 @@ struct StyleProperties
         sections([&](auto section) { Fields::nest(v, section); });
     }
 
-    [[nodiscard]] static StyleProperties from(const ObjectRecord& a);
-    void applyTo(ObjectRecord& a) const;
     //! The same on a composition (composition.cpp): the balloon's line; nothing written where there is none.
     [[nodiscard]] static StyleProperties from(const Composition& c);
     void applyTo(Composition& c) const;
@@ -1024,8 +1008,6 @@ struct EffectProperties
         Paint::fieldsAs(v, &EffectProperties::shadowFill, k_shadowFill);
     }
 
-    [[nodiscard]] static EffectProperties from(const ObjectRecord& a);
-    void applyTo(ObjectRecord& a) const;
     //! The same on a composition (composition.cpp): the balloon's effects; nothing written where there is none.
     [[nodiscard]] static EffectProperties from(const Composition& c);
     void applyTo(Composition& c) const;
@@ -1133,8 +1115,6 @@ struct TextProperties
         Paint::fieldsAs(v, &TextProperties::shadowFill, k_shadowFill);
     }
 
-    [[nodiscard]] static TextProperties from(const ObjectRecord& a);
-    void applyTo(ObjectRecord& a) const;
     //! The same on a composition (composition.cpp): the first words'; nothing written where there is none.
     [[nodiscard]] static TextProperties from(const Composition& c);
     void applyTo(Composition& c) const;
@@ -1159,8 +1139,6 @@ struct TailsProperties
      */
     TailLook    nextLook;
 
-    [[nodiscard]] static TailsProperties from(const ObjectRecord& a);
-    void applyTo(ObjectRecord& a) const;
     //! The same on a composition (composition.cpp): the balloon's tails, each kept by its place in the list, a new one leaving the first body; nothing written where there is none.
     [[nodiscard]] static TailsProperties from(const Composition& c);
     void applyTo(Composition& c) const;
@@ -1194,7 +1172,6 @@ struct TailProperties
      * \return The tail at \p index, or an empty tail if the index is out of range.
      * @see applyTo()
      */
-    [[nodiscard]] static TailProperties from(const ObjectRecord& a, int index);
     
     /**
      * \brief Writes the tail at \p index into \p a, or does nothing if the index is out of range.
@@ -1205,7 +1182,6 @@ struct TailProperties
      * \param a The balloon to write to.
      * @see from()
      */
-    void applyTo(ObjectRecord& a) const;
 
     /**
      * \brief The same on a composition (composition.cpp): the balloon's tail at \p index; none without a balloon.

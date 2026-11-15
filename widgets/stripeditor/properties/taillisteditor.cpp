@@ -48,24 +48,24 @@ void TailListEditor::bind(const Subjects& subjects)
 {
     if (subjects.isEmpty())
         return;
-    const ObjectRecord& a = *subjects.first();
+    const Composition& a = *subjects.first();
     m_values        = TailsProperties::from(a);
-    m_box           = a.box;
-    m_shapeCanSpeak = a.hasSilhouette();
+    m_box           = sizeOf(a);
+    m_shapeCanSpeak = a.balloon.has_value();
     refresh();
 }
 
-void TailListEditor::applyTo(ObjectRecord& target) const
+void TailListEditor::applyTo(Composition& target) const
 {
     TailsProperties next = m_values;
-    if (!target.hasSilhouette())
+    if (!target.balloon.has_value())
         next.items.clear();   // nothing for a tail to grow from
     next.applyTo(target);
 }
 
 void TailListEditor::shapeChanged(const ShapeProperties& shape)
 {
-    m_shapeCanSpeak = shape.kind != ObjectRecord::Shape::None;
+    m_shapeCanSpeak = shape.kind != ShapeProperties::Kind::None;
     // Never dropped: a tail is aimed at a speaker, and a new outline does not move the speaker. A tile
     // that speaks gives one to a balloon with none, as its tile shows.
     if (Geometry::shapeSpeaks(shape) && m_values.items.isEmpty()) {

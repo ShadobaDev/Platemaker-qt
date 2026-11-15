@@ -8,7 +8,7 @@
 class QSvgRenderer;
 
 #include "objects/object.hpp"
-#include "objectrecord.hpp"
+#include "composition.hpp"
 
 namespace StripEdit {
 
@@ -33,8 +33,8 @@ namespace StripEdit {
  *
  * It carries no authoring parameters, so there is nothing to re-type — and, being its own type, nothing
  * can hand it a default bubble by mistake. That used to be possible: the old single item class returned
- * a default \c ObjectRecord for imported artwork, and two call sites persisted it, replacing the artwork
- * with a blank balloon.
+ * a default bubble for imported artwork, and two call sites persisted it, replacing the artwork with a
+ * blank balloon.
  *
  * Its size is a width and the artwork's own aspect, which is why a corner drag scales it uniformly:
  * the library record stores one width fraction, so a distorted one is not expressible.
@@ -76,17 +76,17 @@ public:
     [[nodiscard]] const QPixmap& artwork() const { return m_artwork; }
 
     /**
-     * \brief The record this picture carries: which file it is, and the lettering put over it.
+     * \brief The composition this picture is: which file it is, and the lettering put over it.
      *
      * Artwork has no geometry of ours, but it may have **words** — a hand-drawn balloon typeset, a
      * sound effect captioned — and the preview has to show them, or the strip stops being what the
-     * render will produce. The words are laid out in the record's box, which is the picture's own
+     * render will produce. The words are laid out in the picture's size, which is its own
      * pixels, and then drawn through the same transform the picture is: they scale with it rather than
      * sliding about on it.
      * 
-     * \param a The record this picture carries, which is always safe to ask for.
+     * \param c The composition this picture is, which is always safe to ask for.
      */
-    void setRecord(const ObjectRecord& a) override;
+    void setComposition(const Composition& c) override;
 
     //! A picture scales as one number, so it keeps its aspect and is offered no edge grips.
     [[nodiscard]] bool keepsAspect() const override { return true; }
@@ -117,7 +117,7 @@ private:
     void loadPicture(const QString& picture);
 
     /**
-     * \brief Makes the record say what this object is: this picture, at its own pixels.
+     * \brief Makes the composition say what this object is: this picture, at its own pixels, with words over it.
      *
      * The invariant behind `Object::record()`. A picture placed before pictures had a record, and one
      * whose size was guessed at import, would otherwise hand back a record that reads as a default
@@ -127,9 +127,9 @@ private:
      * record that has to be repaired every time is otherwise a record that never compares equal, and
      * a repaint on every feed.
      * 
-     * \param a The record to describe as this picture, at its own pixels.
+     * \param c The composition to describe as this picture, at its own pixels.
      */
-    void describePicture(ObjectRecord& a) const;
+    void describePicture(Composition& c) const;
 
     QString      m_picture;     //!< The file, so a feed can tell whether it changed.
     QPixmap      m_artwork;     //!< The picture at its own pixels, for the row's icon and for the size the picture says it is.

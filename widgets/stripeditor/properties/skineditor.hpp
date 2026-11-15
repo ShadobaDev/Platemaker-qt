@@ -23,8 +23,8 @@ public:
     [[nodiscard]] QList<Row> rows() const override { return {Row::FillColour, Row::FillPattern}; }
 
     void bind(const Subjects& subjects) override;
-    void applyTo(ObjectRecord& target) const override;
-    void applyEditedTo(ObjectRecord& target) const override;
+    void applyTo(Composition& target) const override;
+    void applyEditedTo(Composition& target) const override;
 
     //! The values the controls currently show — what applyTo() writes.
     [[nodiscard]] const SkinProperties& values() const { return m_values; }

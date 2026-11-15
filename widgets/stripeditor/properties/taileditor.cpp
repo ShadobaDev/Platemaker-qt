@@ -151,7 +151,7 @@ void TailEditor::show(const Tail& values, const Own& mixed)
     m_populating = false;
 }
 
-void TailEditor::applyEditedToTail(ObjectRecord& target, int index) const
+void TailEditor::applyEditedToTail(Composition& target, int index) const
 {
     TailProperties next = TailProperties::from(target, index);   // the tip, and what was not touched
     if (m_touched.width) next.tail.baseWidth  = m_width->value();
@@ -162,7 +162,7 @@ void TailEditor::applyEditedToTail(ObjectRecord& target, int index) const
     next.applyTo(target);
 }
 
-void TailEditor::applyTo(ObjectRecord& target) const
+void TailEditor::applyTo(Composition& target) const
 {
     TailProperties next = TailProperties::from(target, m_index);   // the tip as it is now
     next.tail.baseWidth = m_width->value();

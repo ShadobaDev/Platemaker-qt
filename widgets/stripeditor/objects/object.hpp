@@ -10,7 +10,7 @@
 
 #include <platemaker/models/processing_steps.hpp>
 
-#include "objectrecord.hpp"
+#include "composition.hpp"
 #include "objects/resize.hpp"
 #include "shapes.hpp"
 
@@ -57,7 +57,7 @@ public:
 
     /**
      * \brief Creates an object with @p uid, parented to @p parent. The uid is the one the owner will use to
-     *        feed it back to the library, and the one that will be stored in its record. The parent is the scene item that owns it, and the one that will be moved when the object is dragged.
+     *        feed it back to the library, and the one its composition is kept under. The parent is the scene item that owns it, and the one that will be moved when the object is dragged.
      * \param uid The unique identifier for this object, used to track it in the library and persist its state.
      * \param parent The QGraphicsItem that will be the parent of this object in the scene graph. This is typically the scene or a container item that manages multiple objects.
      */
@@ -68,27 +68,22 @@ public:
     [[nodiscard]] virtual QString label() const = 0;    //!< One line naming this object for the object list.
 
     /**
-     * \brief The authoring record this object carries — **every kind has one**.
+     * \brief The composition this object is — **every kind has one**.
      *
-     * A balloon's record is everything about it; a picture's says which file it is and what words are
-     * over it. Both were the same accessor declared twice, once per subclass, so every caller that
-     * wanted a record had to prove which subclass it was holding first — and the write paths that only
-     * proved one of them silently dropped the other.
+     * A balloon's is everything about it; a picture's says which file it is and what words are over it. Both
+     * were the same accessor declared twice, once per subclass, so every caller that wanted one had to prove
+     * which subclass it was holding first — and the write paths that only proved one of them silently dropped
+     * the other.
      *
-     * A record here is **never** a stand-in for "this object has none". The map this used to be read
-     * from returns a default *speech balloon* for a uid it does not hold, and that one value standing
-     * for two different things is the mechanism behind four shipped defects. Each kind keeps its record
-     * describing what it actually is, so asking any object is always safe.
-     *
-     * \return The authoring record for this object, containing all relevant properties and settings.
+     * It is **never** a stand-in for "this object has none". Each kind keeps its composition describing what
+     * it actually is, so asking any object is always safe.
      */
-    [[nodiscard]] const ObjectRecord& record() const { return m_record; }
+    [[nodiscard]] const Composition& composition() const { return m_composition; }
 
     /**
-     * \brief Adopts \p a and repaints. What that costs — re-resolving paths, a resize — is the kind's own.
-     * \param a The record to adopt.
+     * \brief Adopts \p c and repaints. What that costs — re-resolving paths, a resize — is the kind's own.
      */
-    virtual void setRecord(const ObjectRecord& a) = 0;
+    virtual void setComposition(const Composition& c) = 0;
 
     /**
      * \brief How this object blends onto the strip — mapped to the matching QPainter composition mode.
@@ -362,7 +357,7 @@ protected:
 
     /**
      * \brief A press on shape handle @p index of shapeHandles(). True when the press alone changed the
-     *        record (a "+" adding a node), so the drag is reported even if the pointer never moves.
+     *        composition (a "+" adding a node), so the drag is reported even if the pointer never moves.
      */
     virtual bool beginShapeDrag(int index) { Q_UNUSED(index) return false; }
     //! Continues the drag of the shape handle pressed in beginShapeDrag() to @p scenePos.
@@ -390,8 +385,8 @@ protected:
     void mouseDoubleClickEvent(QGraphicsSceneMouseEvent* e) override;   //!< Asks for shape editing.
     QVariant itemChange(GraphicsItemChange change, const QVariant& value) override;   //!< Tells the chrome.
 
-    /** \brief Written by each kind's setRecord(), read by everyone through record(). See above. */
-    ObjectRecord m_record;
+    /** \brief Written by each kind's setComposition(), read by everyone through composition(). See above. */
+    Composition m_composition;
 
 private:
     /** \brief Which grip is under \p local. For Grip::Handle, \p handleIndex receives which one. */

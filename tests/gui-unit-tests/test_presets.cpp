@@ -4,6 +4,7 @@
 
 #include <QCoreApplication>
 #include <QDir>
+#include <QJsonDocument>
 #include <QTemporaryDir>
 
 #include "objectparts.hpp"
@@ -26,16 +27,16 @@ protected:
 };
 
 //! A plain balloon with something in it, standing in for one the artist has placed.
-ObjectRecord placed()
+Composition placed()
 {
-    ObjectRecord a;
-    shapeOf(a).kind = ObjectRecord::Shape::Box;
+    Composition a = balloonObject();
+    shapeOf(a).kind = ShapeProperties::Kind::Box;
     boxOf(a)        = QSize(300, 160);
     textOf(a).body  = QStringLiteral("Hello");
     seedOf(a)  = 123456;
     Tail t;
     t.tip = QPointF(40, 220);
-    tailsOf(a).items.append(t);
+    setTails(a, {t});
     return a;
 }
 
@@ -52,7 +53,7 @@ TEST_F(Presets, ARenameKeepsTheLookAndRefusesATakenName)
     const int b = store.save(QStringLiteral("Rename test B"), placed(), /*replaceExisting=*/true);
     ASSERT_GE(a, store.builtinCount());
     ASSERT_GE(b, store.builtinCount());
-    const ObjectRecord look = store.presets().at(a).look();
+    const Composition look = store.presets().at(a).look();
 
     EXPECT_FALSE(store.rename(a, QStringLiteral("rename test b")));   // taken, whatever the case
     EXPECT_FALSE(store.rename(a, QStringLiteral("   ")));
@@ -73,7 +74,7 @@ TEST_F(Presets, APresetBringsItsPaddingAndLineSpacing)
     p.lettering.paddingTop  = 12;
     p.lettering.lineSpacing = 90;
 
-    const ObjectRecord look = PresetStore::applied(p, placed(), /*keepShape=*/true);
+    const Composition look = PresetStore::applied(p, placed(), /*keepShape=*/true);
     EXPECT_EQ(textOf(look).paddingSide, -4);
     EXPECT_EQ(textOf(look).paddingTop, 12);
     EXPECT_EQ(textOf(look).lineSpacing, 90);
@@ -89,7 +90,7 @@ TEST_F(Presets, AnAppliedPresetBecomesTheObjectsOrigin)
     QStringList       uids;
     for (int i = 0; i < store.presets().size(); ++i) {
         const BubblePreset& p = store.presets().at(i);
-        const ObjectRecord  a = PresetStore::applied(p, placed(), /*keepShape=*/false);
+        const Composition  a = PresetStore::applied(p, placed(), /*keepShape=*/false);
         EXPECT_EQ(originOf(a).uid, p.uid) << p.name.toStdString();
         EXPECT_EQ(originOf(a).name, p.name);
         EXPECT_FALSE(p.uid.isEmpty()) << p.name.toStdString();
@@ -97,7 +98,7 @@ TEST_F(Presets, AnAppliedPresetBecomesTheObjectsOrigin)
         uids << p.uid;
         EXPECT_EQ(store.indexOf(p.uid), i);
     }
-    const ObjectRecord based = PresetStore::applied(store.presets().first(), placed(), false);
+    const Composition based = PresetStore::applied(store.presets().first(), placed(), false);
     EXPECT_TRUE(originOf(PresetStore::applied(BubblePreset{}, based, false)).isEmpty());
 }
 
@@ -108,7 +109,7 @@ TEST_F(Presets, AnAppliedPresetBecomesTheObjectsOrigin)
 TEST_F(Presets, APresetKeepsItsUidAndStoresNoOrigin)
 {
     PresetStore  store;
-    ObjectRecord look = PresetStore::applied(store.presets().first(), placed(), false);
+    Composition look = PresetStore::applied(store.presets().first(), placed(), false);
     ASSERT_FALSE(originOf(look).isEmpty());
 
     const int     at  = store.save(QStringLiteral("Uid test"), look, /*replaceExisting=*/true);
@@ -139,22 +140,23 @@ TEST_F(Presets, APresetKeepsItsUidAndStoresNoOrigin)
 }
 
 /**
- * \brief An object's origin is kept where the object is: in its undo snapshot (JSON) and in its SVG.
+ * \brief An object's origin is kept where the object is: in its content (JSON) and in its SVG's copy of it.
  */
 TEST_F(Presets, TheOriginTravelsWithTheObject)
 {
-    ObjectRecord a = placed();
+    Composition a = placed();
     originOf(a) = {QStringLiteral("uid-1"), QStringLiteral("Shout")};
-    EXPECT_EQ(originOf(ObjectRecord::fromJson(a.toJson())), originOf(a));
-    EXPECT_TRUE(originOf(ObjectRecord::fromJson(placed().toJson())).isEmpty());
+    EXPECT_EQ(originOf(compositionFromJson(toJson(a))), originOf(a));
+    EXPECT_TRUE(originOf(compositionFromJson(toJson(placed()))).isEmpty());
 
     // Built by hand rather than through Svg::write(), which measures lettering and needs a
     // QGuiApplication this target does not have: what is under test is that the reader takes the origin.
+    const QString    content = QString::fromUtf8(QJsonDocument(toJson(a)).toJson(QJsonDocument::Compact));
     const QByteArray svg = QByteArray("<svg xmlns=\"http://www.w3.org/2000/svg\" xmlns:pm=\"") + Svg::k_pmNamespace
-                         + "\" width=\"10\" height=\"10\"><g pm:shape=\"box\" pm:box=\"300,160\""
-                           " pm:presetUid=\"uid-1\" pm:presetName=\"Shout\"/></svg>";
+                         + "\" width=\"10\" height=\"10\"><pm:content>" + content.toHtmlEscaped().toUtf8()
+                         + "</pm:content></svg>";
     bool               ok   = false;
-    const ObjectRecord back = recordOf(Svg::read(svg, &ok));
+    const Composition back = Svg::read(svg, &ok);
     ASSERT_TRUE(ok);
     EXPECT_EQ(originOf(back), originOf(a));
 }
@@ -169,11 +171,10 @@ TEST_F(Presets, APresetSavedFromTextIsATextPreset)
     for (int i = 0; i < store.builtinCount(); ++i)
         EXPECT_FALSE(isTextPreset(store.presets().at(i))) << store.presets().at(i).name.toStdString();
 
-    ObjectRecord text = placed();
-    shapeOf(text).kind   = ObjectRecord::Shape::None;
+    const Composition text = withoutBalloon(placed());
     const int at      = store.save(QStringLiteral("Kind test"), text, /*replaceExisting=*/true);
     EXPECT_TRUE(isTextPreset(store.presets().at(at)));
     // *Reset to default* on a text object: the default look, with its own no-shape kept.
-    EXPECT_FALSE(PresetStore::applied(BubblePreset{}, text, /*keepShape=*/true).hasSilhouette());
+    EXPECT_FALSE(PresetStore::applied(BubblePreset{}, text, /*keepShape=*/true).balloon.has_value());
     store.remove(at);   // the application's settings, shared with the next run
 }

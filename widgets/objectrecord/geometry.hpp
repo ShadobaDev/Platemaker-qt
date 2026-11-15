@@ -7,8 +7,8 @@
  * serialises them (recordsvg.hpp), and the library rasterises that SVG. Because all three start here,
  * "what you see" and "what is baked" cannot drift apart. Nothing here draws or knows about overlays,
  * projects or the strip: it takes a composition (composition.hpp), or an element of one, and answers in the
- * composition's frame. The lettering's fitting and its handles still take a record, until the editor holds
- * compositions.
+ * composition's frame. What fits the lettering, and its handles, act on the first words (wordsOf()), the ones
+ * the editor edits.
  *
  * Where each part is:
  *  - shapes.cpp: every shape's outline and text area, one table entry each (shapes.hpp);
@@ -28,7 +28,6 @@
 #include <QString>
 
 #include "composition.hpp"
-#include "objectrecord.hpp"
 #include "outline.hpp"
 #include "shapes.hpp"   // ShapeHandle: the text area's arrows
 #include "styles.hpp"   // ShadowPaths: the lettering's shadow
@@ -179,42 +178,42 @@ enum class Part { None, Fill, Outline, Text };
 [[nodiscard]] QRectF textArea(const Composition& c, const Words& w);
 
 /**
- * \brief The size of \p a's laid-out lettering — the widest line by the height of all of them.
+ * \brief The size of \p c's laid-out lettering — the widest line by the height of all of them.
  *
  * Independent of the box: the lettering is never wrapped, so where the box is and how big does not
  * change it. Empty when there is no text.
  */
-[[nodiscard]] QSizeF textBlockSize(const ObjectRecord& a);
+[[nodiscard]] QSizeF textBlockSize(const Composition& c);
 
 /**
- * \brief Whether a block of lettering of size \p block fits \p a's text area.
+ * \brief Whether a block of lettering of size \p block fits \p c's text area.
  *
  * Pure geometry — no font is touched — so it is the half of fitting that can be tested anywhere.
  * Half a pixel of slack, so a box rounded to whole pixels does not overflow by its own rounding.
  */
-[[nodiscard]] bool fits(const ObjectRecord& a, const QSizeF& block);
+[[nodiscard]] bool fits(const Composition& c, const QSizeF& block);
 
-//! True when \p a's lettering does not fit its text area — what the selection shows in red.
-[[nodiscard]] bool textOverflows(const ObjectRecord& a);
+//! True when \p c's lettering does not fit its text area — what the selection shows in red.
+[[nodiscard]] bool textOverflows(const Composition& c);
 
 /**
- * \brief The smallest box, **on both axes**, whose text area holds a block of size \p block.
+ * \brief The smallest size (sizeOf()), **on both axes**, whose text area holds a block of size \p block.
  *
  * Neither side goes below the grips' own minimum (40 px), so a short word cannot collapse the shape.
  * With a negative padding the text area is larger than the box, and the floor is often where it stops.
  * Pure geometry, like fits(): fittedBox() is this with the lettering measured.
  */
-[[nodiscard]] QSize fitBoxFor(const ObjectRecord& a, const QSizeF& block);
+[[nodiscard]] QSize fitBoxFor(const Composition& c, const QSizeF& block);
 
 /**
- * \brief The smallest box that holds \p a's lettering, on both axes — *Fit to text*.
- * \param a The record to fit. Its box is the starting point only.
- * \return The fitted box size; the current box when there is no text.
+ * \brief The smallest size that holds \p c's lettering, on both axes — *Fit to text*.
+ * \param c The composition to fit. Its size is the starting point only.
+ * \return The fitted size; the current one when there is no text.
  */
-[[nodiscard]] QSize fittedBox(const ObjectRecord& a);
+[[nodiscard]] QSize fittedBox(const Composition& c);
 
 /**
- * \brief \p a's lettering with each padding lowered, in its own direction only, to the largest value at
+ * \brief \p c's lettering with each padding lowered, in its own direction only, to the largest value at
  *        which a block of size \p block fits — below zero if it has to reach past the outline.
  *
  * Too wide lowers the side padding, too tall the top one; the other is left alone. The box stays as it
@@ -222,10 +221,10 @@ enum class Part { None, Fill, Outline, Text };
  * author gave it. A text object has no padding to give, so its own values come back. Pure geometry, like
  * fitBoxFor().
  */
-[[nodiscard]] TextProperties paddingsToFit(const ObjectRecord& a, const QSizeF& block);
+[[nodiscard]] TextProperties paddingsToFit(const Composition& c, const QSizeF& block);
 
-//! paddingsToFit() with \p a's lettering measured — *Fix padding*.
-[[nodiscard]] TextProperties fittingPaddings(const ObjectRecord& a);
+//! paddingsToFit() with \p c's lettering measured — *Fix padding*.
+[[nodiscard]] TextProperties fittingPaddings(const Composition& c);
 
 /**
  * \brief The text area's arrows, in balloon coordinates: one at the middle of its left edge
@@ -233,44 +232,27 @@ enum class Part { None, Fill, Outline, Text };
  *        of its top (`TextTop`), which drags the top padding. Each points across its edge. None without a
  *        balloon, which has no paddings.
  */
-[[nodiscard]] QList<ShapeHandle> textAreaHandles(const ObjectRecord& a);
+[[nodiscard]] QList<ShapeHandle> textAreaHandles(const Composition& c);
 
 /**
- * \brief \p a's lettering with text-area \p handle dragged to \p to (balloon coordinates): textAreaHandles()'
+ * \brief \p c's lettering with text-area \p handle dragged to \p to (balloon coordinates): textAreaHandles()'
  *        inverse. The edge follows the pointer, and its padding is what that leaves; it stops short of the
- *        area's middle, so the area never turns inside out. Measured against \p a as it was at the press.
+ *        area's middle, so the area never turns inside out. Measured against \p c as it was at the press.
  */
-[[nodiscard]] TextProperties dragTextAreaHandle(const ObjectRecord& a, const ShapeHandle& handle, const QPointF& to);
+[[nodiscard]] TextProperties dragTextAreaHandle(const Composition& c, const ShapeHandle& handle, const QPointF& to);
 
 /**
- * \brief The point of \p a's lettering that stays put when its box changes, in box coordinates.
+ * \brief The point of \p c's lettering that stays put when its box changes, in box coordinates.
  *
  * Horizontally the side the lines are aligned to — the left edge, the right edge, or the middle — and
  * vertically the middle of the block. A box that changes for the lettering's sake (*Fit*, *Convert*) is
  * moved so that this point keeps its place on the strip, which is what keeps the words where the author
  * put them. Pure geometry given the block's size, like fits().
  */
-[[nodiscard]] QPointF textAnchorFor(const ObjectRecord& a, const QSizeF& block);
+[[nodiscard]] QPointF textAnchorFor(const Composition& c, const QSizeF& block);
 
-//! textAnchorFor() with \p a's lettering measured.
-[[nodiscard]] QPointF textAnchor(const ObjectRecord& a);
-
-/**
- * @name The record's way in, until it goes (recordentry.cpp): each the form above of compositionOf(a), its
- *       balloon's and its words'; nothing where it has neither.
- * @{
- */
-[[nodiscard]] QPainterPath silhouette(const ObjectRecord& a);
-[[nodiscard]] OutlineModel outlineModel(const ObjectRecord& a, const QPainterPath& silhouette);
-[[nodiscard]] QList<bool>  tailsDrawn(const ObjectRecord& a);
-[[nodiscard]] Part         partAt(const ObjectRecord& a, const QPointF& local, qreal slack);
-[[nodiscard]] QRectF       bounds(const ObjectRecord& a);
-[[nodiscard]] QRectF       boundsOf(const ObjectRecord& a, const QPainterPath& silhouette, const QPainterPath& text);
-[[nodiscard]] QPainterPath textOutline(const ObjectRecord& a);
-[[nodiscard]] ShadowPaths  textShadowOf(const ObjectRecord& a, const QPainterPath& text);
-[[nodiscard]] QString      fontFallback(const ObjectRecord& a);
-[[nodiscard]] QRectF       textArea(const ObjectRecord& a);
-/** @} */
+//! textAnchorFor() with \p c's lettering measured.
+[[nodiscard]] QPointF textAnchor(const Composition& c);
 
 }  // namespace Geometry
 

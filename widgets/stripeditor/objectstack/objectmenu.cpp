@@ -100,7 +100,7 @@ ObjectMenu::ObjectMenu(ObjectController& objects, const StripLayout& layout, Pre
     connect(m_actToText, &QAction::triggered, this,
             [this] {
                 ShapeProperties text;
-                text.kind = ObjectRecord::Shape::None;
+                text.kind = ShapeProperties::Kind::None;
                 m_objects.convertSelectionTo(text);
             });
     m_actToBalloon = m_convertMenu->addAction(tr("Balloon"));
@@ -119,7 +119,7 @@ ObjectMenu::ObjectMenu(ObjectController& objects, const StripLayout& layout, Pre
         for (const QString& uid : std::as_const(m_objects.selectedOverlays())) {
             if (m_objects.carriers().contains(uid) || !m_objects.isParametric(uid))
                 continue;
-            const bool hasShape = m_objects.recordFor(uid).hasSilhouette();
+            const bool hasShape = m_objects.recordFor(uid).balloon.has_value();
             if (!shaped)
                 shaped = hasShape;
             else if (*shaped != hasShape)
@@ -291,14 +291,14 @@ void ObjectMenu::updateEntries()
     if (m_actFitToStrip)  m_actFitToStrip->setVisible(artwork);
     // One object's box or one balloon's padding, as in OBJECT STATE: absent for a picture (its box is
     // its pixels) and for lettering with no balloon (no outline to keep from); greyed for a set.
-    const ObjectRecord one = oneObject ? m_objects.recordFor(picked.first()) : ObjectRecord();
+    const Composition one = oneObject ? m_objects.recordFor(picked.first()) : Composition();
     if (m_actFitToText) {
         m_actFitToText->setVisible(allParametric);
         m_actFitToText->setEnabled(oneObject);
     }
     if (m_actFixPadding) {
-        m_actFixPadding->setVisible(allParametric && (!oneObject || one.hasSilhouette()));
-        m_actFixPadding->setEnabled(oneObject && one.hasSilhouette());
+        m_actFixPadding->setVisible(allParametric && (!oneObject || one.balloon.has_value()));
+        m_actFixPadding->setEnabled(oneObject && one.balloon.has_value());
     }
     // A kind is something only an authored object has. One that is not — imported artwork, or a tail —
     // can reach nothing, and the intersection of "everything" with "nothing" is what greys this out.
@@ -400,12 +400,12 @@ void ObjectMenu::rebuildReanchorMenu()
 void ObjectMenu::saveSelectionAsPreset()
 {
     const Object* bubble = m_objects.object(m_objects.selectedOverlay());
-    if (!bubble || bubble->record().isArtwork())
+    if (!bubble || bubble->composition().picture.has_value())
         return;   // imported artwork has no look to save
 
     bool          ok   = false;
     const QString name = QInputDialog::getText(m_dialogParent, tr("Save preset"), tr("Preset name:"),
-                                               QLineEdit::Normal, bubble->record().text.body.left(24),
+                                               QLineEdit::Normal, TextProperties::from(bubble->composition()).body.left(24),
                                                &ok)
                              .trimmed();
     if (!ok || name.isEmpty())
@@ -414,13 +414,13 @@ void ObjectMenu::saveSelectionAsPreset()
     // The store decides what a preset carries — the look, never the lettering — so this hands over the
     // whole record and lets the one function that knows the answer do the cutting.
     int existing = -1;
-    int at       = m_presets.save(name, bubble->record(), /*replaceExisting=*/false, &existing);
+    int at       = m_presets.save(name, bubble->composition(), /*replaceExisting=*/false, &existing);
     if (at < 0) {
         if (QMessageBox::question(m_dialogParent, tr("Save preset"),
                                   tr("A preset named “%1” already exists. Replace it?").arg(name))
             != QMessageBox::Yes)
             return;
-        at = m_presets.save(name, bubble->record(), /*replaceExisting=*/true);
+        at = m_presets.save(name, bubble->composition(), /*replaceExisting=*/true);
     }
     // The object a preset is saved from is made from it, from now on.
     const BubblePreset& saved = m_presets.presets().at(at);

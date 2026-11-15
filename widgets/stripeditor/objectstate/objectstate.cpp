@@ -303,7 +303,7 @@ ObjectState::ObjectState(PresetStore& presets, QWidget* parent)
     clearSelection();
 }
 
-void ObjectState::setRecord(const ObjectRecord& a)
+void ObjectState::setRecord(const Composition& a)
 {
     m_tailSet.clear();
     m_record      = a;
@@ -319,16 +319,16 @@ void ObjectState::setRecord(const ObjectRecord& a)
 
     // A picture names itself by its file: one balloon is much like another, but which picture this is
     // is the only thing that tells it from the next one.
-    m_subject->setText(m_record.isArtwork()      ? m_record.artwork
-                       : m_record.hasSilhouette() ? tr("Bubble")
+    m_subject->setText(m_record.picture.has_value()      ? m_record.picture->file
+                       : m_record.balloon.has_value() ? tr("Bubble")
                                                     : tr("Text"));
     m_subject->setVisible(true);
     refreshLook();
     m_emptyHint->setText(m_emptyText);
     m_emptyHint->setVisible(false);
     m_actions->setVisible(true);
-    m_fitButton->setVisible(!m_record.isArtwork());   // a picture's box is the picture's, not its words'
-    m_padButton->setVisible(m_record.hasSilhouette());   // only a balloon has an outline to keep from
+    m_fitButton->setVisible(!m_record.picture.has_value());   // a picture's box is the picture's, not its words'
+    m_padButton->setVisible(m_record.balloon.has_value());   // only a balloon has an outline to keep from
     m_deleteButton->setText(tr("Delete"));
     applyKindVisibility();
 }
@@ -357,7 +357,7 @@ void ObjectState::setMixedSubjects(int count)
     refreshLook();
 }
 
-void ObjectState::setRecords(const QList<ObjectRecord>& objects)
+void ObjectState::setRecords(const QList<Composition>& objects)
 {
     m_subjects       = objects;
     m_tailSet.clear();
@@ -372,9 +372,9 @@ void ObjectState::setRecords(const QList<ObjectRecord>& objects)
     PropertyGroupEditor::Subjects all;
     PropertyGroupEditor::Subjects shaped;
     all.reserve(objects.size());
-    for (const ObjectRecord& a : objects) {
+    for (const Composition& a : objects) {
         all.append(&a);
-        if (a.hasSilhouette())
+        if (a.balloon.has_value())
             shaped.append(&a);
     }
 
@@ -408,11 +408,11 @@ void ObjectState::setRecords(const QList<ObjectRecord>& objects)
         const bool forASet = g != PropertyGroup::Shape && g != PropertyGroup::Tail;
         it.value()->setVisible(forASet
                                && std::any_of(objects.cbegin(), objects.cend(),
-                                              [g](const ObjectRecord& a) { return carriesGroup(a, g); }));
+                                              [g](const Composition& a) { return carriesGroup(a, g); }));
     }
 }
 
-void ObjectState::setTails(const QList<ObjectRecord>& balloons, const QList<QPair<int, int>>& tails)
+void ObjectState::setTails(const QList<Composition>& balloons, const QList<QPair<int, int>>& tails)
 {
     m_subjects       = balloons;
     m_tailSet        = tails;
@@ -439,7 +439,7 @@ void ObjectState::setTails(const QList<ObjectRecord>& balloons, const QList<QPai
     applyKindVisibility();
 }
 
-void ObjectState::setTail(const ObjectRecord& a, int index)
+void ObjectState::setTail(const Composition& a, int index)
 {
     m_tailSet.clear();
     m_record      = a;
@@ -502,8 +502,8 @@ void ObjectState::applyKindVisibility()
     // kind, and kinds are changed by *Convert to ▸*. The text is the only group every kind carries.
     //
     // The editors are still bound and still written back (`PropertyGroupSet::collect()` writes every
-    // group), so a hidden Shape editor holds the object's own `None` and hands it straight back — which
-    // is exactly what must happen: a panel may not convert an object by being edited.
+    // group), and a balloon's group writes nothing to an object with no balloon — which is exactly what
+    // must happen: a panel may not convert an object by being edited.
     for (auto it = m_sections.cbegin(); it != m_sections.cend(); ++it) {
         const auto g = static_cast<PropertyGroup>(it.key());
         // A selected tail is a subject of its own with exactly one section; otherwise the record
@@ -543,24 +543,24 @@ void ObjectState::refreshLook()
     // own, nothing selected has nothing to report, and a picture's look is whoever drew it.
     PresetOrigin origin;
     bool         mixed = false;
-    if (tailSubject() || m_selectionCount == 0 || (m_hasRecord && m_record.isArtwork())) {
+    if (tailSubject() || m_selectionCount == 0 || (m_hasRecord && m_record.picture.has_value())) {
     } else if (m_hasRecord) {
-        origin = m_record.presetOrigin;
+        origin = m_record.preset;
     } else if (!m_subjects.isEmpty()) {
-        origin = m_subjects.first().presetOrigin;
-        mixed  = std::any_of(m_subjects.cbegin(), m_subjects.cend(), [&origin](const ObjectRecord& a) {
-            return a.presetOrigin.uid != origin.uid;
+        origin = m_subjects.first().preset;
+        mixed  = std::any_of(m_subjects.cbegin(), m_subjects.cend(), [&origin](const Composition& a) {
+            return a.preset.uid != origin.uid;
         });
     }
     // The picker goes with the chip: shown wherever there is a look a preset could replace.
-    const bool hasLook = !(tailSubject() || m_selectionCount == 0 || (m_hasRecord && m_record.isArtwork()))
+    const bool hasLook = !(tailSubject() || m_selectionCount == 0 || (m_hasRecord && m_record.picture.has_value()))
                       && (m_hasRecord || std::any_of(m_subjects.cbegin(), m_subjects.cend(),
-                                                     [](const ObjectRecord& a) { return !a.isArtwork(); }));
+                                                     [](const Composition& a) { return !a.picture.has_value(); }));
     m_presetRow->setVisible(hasLook);
     if (hasLook) {
         // The presets of the selection's kind: a balloon's, a text object's, both for a set of the two.
-        const auto bubbleish = [](const ObjectRecord& a) { return a.hasSilhouette(); };
-        const auto textish   = [](const ObjectRecord& a) { return !a.isArtwork() && !a.hasSilhouette(); };
+        const auto bubbleish = [](const Composition& a) { return a.balloon.has_value(); };
+        const auto textish   = [](const Composition& a) { return !a.picture.has_value() && !a.balloon.has_value(); };
         const bool bubble = m_hasRecord ? bubbleish(m_record)
                                         : std::any_of(m_subjects.cbegin(), m_subjects.cend(), bubbleish);
         const bool text   = m_hasRecord ? textish(m_record)
@@ -607,8 +607,7 @@ void ObjectState::refreshPresetPicker(bool bubble, bool text)
             const BubblePreset& p = presets.at(i);
             if (isTextPreset(p) != textKind)
                 continue;
-            m_presetPicker->addItem(QIcon(bubbleThumbnail(p.look().shape, p.look().skin.fill.colour,
-                                                          p.look().style.stroke.colour, p.look().text.fill.colour)),
+            m_presetPicker->addItem(QIcon(bubbleThumbnail(p.look())),
                                     p.name, i);   // the store's index rides with the entry
         }
     }
@@ -642,8 +641,8 @@ void ObjectState::onControlChanged()
 
     if (!m_subjects.isEmpty()) {
         // A set: every object takes what the artist touched and keeps everything else of its own.
-        for (ObjectRecord& a : m_subjects) {
-            if (a.hasSilhouette()) {
+        for (Composition& a : m_subjects) {
+            if (a.balloon.has_value()) {
                 m_groups.skin()->applyEditedTo(a);   // a caption with no balloon has no fill to take
                 m_groups.style()->applyEditedTo(a);
                 m_groups.texture()->applyEditedTo(a);
@@ -664,7 +663,7 @@ void ObjectState::onControlChanged()
         // A shape change can add or remove whole sections — the object is still the same object, so this
         // is the one moment the panel is allowed to re-lay itself out.
         applyKindVisibility();
-        m_subject->setText(m_record.hasSilhouette() ? tr("Bubble") : tr("Text"));
+        m_subject->setText(m_record.balloon.has_value() ? tr("Bubble") : tr("Text"));
     }
 
     // One changed property and it is no longer that preset. Computed, so it flips back by itself

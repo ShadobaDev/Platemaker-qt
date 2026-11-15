@@ -1,4 +1,5 @@
 #include "properties/styleeditor.hpp"
+#include "names.hpp"
 #include "shapes.hpp"
 #include "styles.hpp"
 
@@ -83,7 +84,7 @@ StyleEditor::StyleEditor(QWidget* parent)
     // section() (styles.cpp) stops a debug build here.
     m_line = new QComboBox(this);
     for (int i = 0; i <= int(StyleProperties::k_lastLine); ++i)
-        m_line->addItem(lineTitle(static_cast<ObjectRecord::Line>(i)), i);
+        m_line->addItem(lineTitle(static_cast<StyleProperties::Line>(i)), i);
     m_line->setToolTip(tr("How the edge is drawn: a solid line, a flash's strokes ringing it, a few "
                           "brush strokes laid along it, a dry brush: a thin line with hairs thinning out either side, "
                           "dashes, a whisper, several lines, one inside the other, a sketch: short pen strokes, "
@@ -109,7 +110,7 @@ StyleEditor::StyleEditor(QWidget* parent)
     connect(m_line, &QComboBox::currentIndexChanged, this, [this](int i) {
         if (m_populating || i < 0)
             return;
-        m_values.line = static_cast<ObjectRecord::Line>(m_line->currentData().toInt());
+        m_values.line = static_cast<StyleProperties::Line>(m_line->currentData().toInt());
         m_lineTouched = true;
         m_mixedLine   = false;
         showRows();
@@ -138,27 +139,27 @@ void StyleEditor::bind(const Subjects& subjects)
     m_stroke.reset();
     m_sections.reset();
     bool sameShape = true;
-    for (const ObjectRecord* a : subjects) {
+    for (const Composition* a : subjects) {
         const StyleProperties v = StyleProperties::from(*a);
         m_mixedLine   = m_mixedLine   || v.line        != m_values.line;
         m_stroke.compare(v, m_values);
         m_mixedWidth  = m_mixedWidth  || v.strokeWidth != m_values.strokeWidth;
         m_sections.compare(v, m_values);
-        sameShape = sameShape && a->shape.kind == subjects.first()->shape.kind;
+        sameShape = sameShape && ShapeProperties::from(*a).kind == ShapeProperties::from(*subjects.first()).kind;
     }
     m_lineTouched = m_widthTouched = false;
     if (m_stretch)
-        m_stretch->shapeStretch = sameShape ? Geometry::shapeInfo(subjects.first()->shape.kind).flashStretch : -1;
+        m_stretch->shapeStretch = sameShape ? Geometry::shapeInfo(ShapeProperties::from(*subjects.first()).kind).flashStretch : -1;
 
     syncFromValues();
 }
 
-void StyleEditor::applyTo(ObjectRecord& target) const
+void StyleEditor::applyTo(Composition& target) const
 {
     m_values.applyTo(target);
 }
 
-void StyleEditor::applyEditedTo(ObjectRecord& target) const
+void StyleEditor::applyEditedTo(Composition& target) const
 {
     StyleProperties t = StyleProperties::from(target);
     if (m_lineTouched)   t.line        = m_values.line;

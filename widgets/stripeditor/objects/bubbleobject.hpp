@@ -6,13 +6,13 @@
 #include <QPainterPath>
 
 #include "objects/object.hpp"
-#include "objectrecord.hpp"
+#include "composition.hpp"
 #include "recordpainter.hpp"
 
 namespace StripEdit {
 
 /**
- * \brief A bubble Platemaker authored: a \c ObjectRecord drawn from its parameters.
+ * \brief An object Platemaker authored, a balloon or a text: a \c Composition drawn from its parameters.
  *
  * Drawn from the **authoring model**, not from the file it will be written to — so typing updates the
  * strip with no round-trip, and the preview is the render because both go through Painter::paint().
@@ -28,10 +28,10 @@ public:
     /**
      * \brief Constructs a new bubble object.
      * \param uid The unique identifier for the object.
-     * \param record The record representing the bubble's properties.
+     * \param composition What the bubble is.
      * \param parent The parent graphics item.
      */
-    BubbleObject(QString uid, ObjectRecord record, QGraphicsItem* parent = nullptr);
+    BubbleObject(QString uid, Composition composition, QGraphicsItem* parent = nullptr);
 
     /**
      * \brief Returns the kind of the object.
@@ -48,10 +48,9 @@ public:
     [[nodiscard]] QString label() const override;
 
     /**
-     * \brief Adopts new authoring values and repaints (handles a box change, so it may resize the object).
-     * \param a The new record to set.
+     * \brief Adopts new authoring values and repaints (handles a size change, so it may resize the object).
      */
-    void setRecord(const ObjectRecord& a) override;
+    void setComposition(const Composition& c) override;
 
     /**
      * \brief Shows \p img — the library's own rasterisation of this bubble — instead of the local paths.
@@ -61,7 +60,7 @@ public:
      * quietly draw the unfiltered outline. Rather than approximate it, the editor asks the library for
      * the same pixels the render will bake.
      *
-     * Dropped whenever the record changes, so a stale rendering is never shown as current; the owner
+     * Dropped whenever the composition changes, so a stale rendering is never shown as current; the owner
      * supplies a fresh one after the edit has settled and been written. A null image means "draw the
      * paths", which is what a bubble without a filter (Clean, Flash) always does.
      * 
@@ -69,7 +68,7 @@ public:
      */
     void setSharpRaster(const QImage& img);
 
-    //! The fonts changed under the same record — one added or removed. The words are re-set in whatever is
+    //! The fonts changed under the same composition — one added or removed. The words are re-set in whatever is
     //! available now; the owner hands over a fresh rasterisation, since the old one used the old fonts.
     void refreshFonts();
 
@@ -77,7 +76,7 @@ public:
      * \brief Returns the size of the bubble's box.
      * \return The size of the bubble's box.
      */
-    [[nodiscard]] QSizeF boxSize() const override { return QSizeF(m_record.box); }
+    [[nodiscard]] QSizeF boxSize() const override { return QSizeF(sizeOf(m_composition)); }
 
     [[nodiscard]] bool                         canEditShape() const override;
     [[nodiscard]] QList<Geometry::ShapeHandle> shapeHandles() const override;
@@ -106,7 +105,7 @@ protected:
      * \brief Returns the number of handles for the bubble object.
      * \return The number of handles for the bubble object.
      */
-    [[nodiscard]] int     handleCount() const override { return int(m_record.tails.items.size()); }
+    [[nodiscard]] int     handleCount() const override;
     /**
      * \brief Returns the position of a handle for the bubble object.
      * \param index The index of the handle.
@@ -126,7 +125,7 @@ protected:
     void dragShapeTo(const QPointF& scenePos) override;
 
 private:
-    void rebuild();             //!< Re-resolves the cached paths after the record changed, then re-measures the extent.
+    void rebuild();             //!< Re-resolves the cached paths after the composition changed, then re-measures the extent.
     //! How far the radius dot keeps in from its arc, in balloon units: clear of a corner's handle at any zoom.
     [[nodiscard]] qreal radiusClearance() const;
 
@@ -134,7 +133,7 @@ private:
     Painter::Paths m_paths;     //!< The paths it is drawn from, cached so a repaint resolves no geometry.
     QList<bool>  m_tailDrawn;   //!< Per tail: whether it is drawn (its tip is outside the balloon).
 
-    ObjectRecord          m_shapeStart;      //!< The record at a shape handle's press; the drag works against it.
+    Composition           m_shapeStart;      //!< The composition at a shape handle's press; the drag works against it.
     QPointF               m_shapeStartPos;   //!< pos() at that press: a node dragged past the box moves the item.
     Geometry::ShapeHandle m_shapeHandle;     //!< The handle being dragged; a "+" pressed has become its node.
 };

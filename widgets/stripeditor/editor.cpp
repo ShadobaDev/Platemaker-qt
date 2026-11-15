@@ -219,7 +219,7 @@ Editor::Editor(PresetStore& presets, QWidget *parent)
         });
         // The panel can only act on the strip; asked for it, it gets it.
         connect(m_gradeOptions, &GradeToolOptions::selectStripRequested, this, &Editor::selectStrip);
-        // One panel for every tool that authors an `ObjectRecord` — Bubble, Text, Caption — because they
+        // One panel for every tool that authors an object we draw — Bubble, Text, Caption — because they
         // author the same object and differ only in the shape they place, which each tool's row says.
         m_bubbleOptions = new BubbleToolOptions(*m_presets, ui->toolOptionsStack);
         connect(m_bubbleOptions, &BubbleToolOptions::manageRequested, this, &Editor::presetsDialogRequested);
@@ -263,7 +263,7 @@ Editor::Editor(PresetStore& presets, QWidget *parent)
                                                 "object?").arg(origin.name))
                            != QMessageBox::Yes)
                     return;
-                (void)m_presets->restore(origin, item->record());
+                (void)m_presets->restore(origin, item->composition());
             }
             emit presetsDialogRequested(origin.uid);
         });
@@ -305,18 +305,18 @@ Editor::Editor(PresetStore& presets, QWidget *parent)
         // OBJECT STATE and the objects, both ways. The panel's edits go to the objects it was bound to;
         // the controller says what it is bound to now. Neither includes the other — they meet here.
         connect(m_objectState, &ObjectState::changed, m_objects,
-                [this](const ObjectRecord& a) { m_objects->applyPanelRecords({a}, /*commit=*/false); });
+                [this](const Composition& a) { m_objects->applyPanelRecords({a}, /*commit=*/false); });
         connect(m_objectState, &ObjectState::committed, m_objects,
-                [this](const ObjectRecord& a) { m_objects->applyPanelRecords({a}, /*commit=*/true); });
+                [this](const Composition& a) { m_objects->applyPanelRecords({a}, /*commit=*/true); });
         connect(m_objectState, &ObjectState::blendPicked, m_objects, &ObjectController::setSelectionBlend);
         connect(m_objectState, &ObjectState::deleteRequested, m_objects,
                 &ObjectController::deleteSelectedOverlay);
         connect(m_objectState, &ObjectState::changedMany, m_objects,
-                [this](const QList<ObjectRecord>& objects) {
+                [this](const QList<Composition>& objects) {
             m_objects->applyPanelRecords(objects, /*commit=*/false);
         });
         connect(m_objectState, &ObjectState::committedMany, m_objects,
-                [this](const QList<ObjectRecord>& objects) {
+                [this](const QList<Composition>& objects) {
             m_objects->applyPanelRecords(objects, /*commit=*/true);
         });
         connect(m_objectState, &ObjectState::scaleChanged, m_objects,
@@ -341,7 +341,7 @@ Editor::Editor(PresetStore& presets, QWidget *parent)
         // What TOOL OPTIONS says the next object is, for a placement and *Convert to ▸ Balloon*. Told as
         // functions, so the objects need no tool-options panel.
         m_objects->setToolDefaults({[this] { return m_bubbleOptions->prototype(); },
-                                    [this] { return m_bubbleOptions->balloonShape(); }});
+                                    [this] { return m_bubbleOptions->balloon(); }});
         // A Create tool's drag on empty strip, and the object it places: the balloon TOOL OPTIONS
         // describes, or the picture the Artwork tool is armed with.
         m_placement = new Placement(m_scene, *m_objects, m_layout, this, this);
@@ -390,17 +390,10 @@ Editor::Editor(PresetStore& presets, QWidget *parent)
         connect(m_objectMenu, &ObjectMenu::resetLookRequested, this, resetLook);
         connect(m_objectState, &ObjectState::resetLookRequested, this, resetLook);
         m_objectMenu->setColourSource(m_colours);
-        // The controller holds records, for now; what leaves the editor is compositions.
-        connect(m_objects, &ObjectController::recordCreated, this,
-                [this](const ObjectRecord& record, double xFrac, double yFrac, double wFrac, const QString& anchor) {
-                    emit recordCreated(compositionOf(record), xFrac, yFrac, wFrac, anchor);
-                });
-        connect(m_objects, &ObjectController::overlaysCommitted, this,
-                [this](const std::vector<Platemaker::Models::StripOverlay>& overlays, const ObjectRecord::Map& records,
-                       const QString& undoText) { emit overlaysCommitted(overlays, compositionsOf(records), undoText); });
+        connect(m_objects, &ObjectController::recordCreated,          this, &Editor::recordCreated);
+        connect(m_objects, &ObjectController::overlaysCommitted,      this, &Editor::overlaysCommitted);
         connect(m_objects, &ObjectController::artworkImportRequested, this, &Editor::artworkImportRequested);
         connect(m_objects, &ObjectController::subjectChanged,         this, [this] { showSubject(); });
-        connect(m_objects, &ObjectController::noted,                  this, &Editor::noted);
 
         // CANVAS: what a press, a drag, a drop or a wheel on the strip does under the armed tool. It does
         // the canvas's own part and reports the rest, which is wired here because it belongs elsewhere:
@@ -854,7 +847,7 @@ void Editor::resizeEvent(QResizeEvent *event)
 void Editor::setOverlaySource(const std::vector<Platemaker::Models::StripOverlay>& overlays,
                               const Composition::Map&                                  records)
 {
-    m_objects->setSource(overlays, recordsOf(records));   // the controller holds records, for now
+    m_objects->setSource(overlays, records);
     if (m_input)
         m_input->updateCursor();   // an object may have arrived under, or vanished from beneath, a still pointer
 }

@@ -12,7 +12,7 @@
 #include "objects/striplayout.hpp"
 #include "canvas/pagesource.hpp"
 #include "composition.hpp"
-#include "objectrecord.hpp"
+#include "names.hpp"
 #include "toolrail/toolregistry.hpp"
 
 #include <platemaker/core/processing_pipeline/processing_pipeline.hpp>
@@ -291,17 +291,6 @@ signals:
     void artworkImportRequested(const QString& sourceFile, double xFrac, double yFrac, double wFrac,
                                 QSize naturalSize, const QString& anchorInputUid);
 
-    /**
-     * \brief Something happened that the artist should be told once — not a state they can fix.
-     *
-     * **An event, deliberately not a badge.** A badge is derived from state, so whoever raised it
-     * re-evaluates and clears it; *"converting hid 2 tails"* has already happened and nothing can make
-     * it stop being true. Events belong in the status bar's temporary message area, which is what its
-     * left side is for, while the advisories keep the right.
-     * 
-     * \param text The message to show.
-     */
-    void noted(const QString& text);
 
 protected:
     /**

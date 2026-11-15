@@ -18,7 +18,7 @@
 #include <QPainterPath>
 
 #include "geometry.hpp"
-#include "objectrecord.hpp"
+#include "names.hpp"
 #include "renderlist.hpp"
 
 class QPainter;
@@ -84,17 +84,6 @@ void paintLettering(QPainter& painter, const Words& w, const QPainterPath& text,
  *        Render::Item says: a filter, a bleed, an item that only a filter needs; a mask clips instead.
  */
 void play(QPainter& painter, const QList<Render::Item>& items);
-
-/**
- * @name The record's way in, until it goes (recordentry.cpp): each the form above of compositionOf(a).
- * @{
- */
-[[nodiscard]] Paths  resolve(const ObjectRecord& a);
-void                 paintPaths(QPainter& painter, const ObjectRecord& a, const Paths& paths);
-void                 paintLettering(QPainter& painter, const ObjectRecord& a, const QPainterPath& text,
-                                    const Geometry::ShadowPaths& shadow);
-[[nodiscard]] QImage render(const ObjectRecord& a);
-/** @} */
 
 } // namespace Painter
 

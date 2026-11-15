@@ -23,7 +23,6 @@
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
-#include <QRegularExpression>
 
 #include "edgewalk.hpp"
 #include "geometry.hpp"
@@ -32,23 +31,23 @@
 #include "styles.hpp"
 #include "properties/propertygroup.hpp"
 #include "objectparts.hpp"
-#include "objectrecord.hpp"
+#include "names.hpp"
 #include "composition.hpp"
 
 namespace {
 
-//! A record with **every** property moved off its default, so an accidental write is visible.
-ObjectRecord loadedRecord()
+//! A balloon with **every** property moved off its default, so an accidental write is visible.
+Composition loadedBalloon()
 {
-    ObjectRecord a;
-    shapeOf(a).kind       = ObjectRecord::Shape::Cloud;
+    Composition a = balloonObject();
+    shapeOf(a).kind       = ShapeProperties::Kind::Cloud;
     shapeOf(a).corner.radius = 33.0;
     shapeOf(a).nodes      = {{0.1, 0.2}, {0.9, 0.15}, {0.55, 0.95}};
     shapeOf(a).cloud.lobes      = 9;
     shapeOf(a).cloud.lobeSize   = 33;
     shapeOf(a).bow.depth             = 12;
     shapeOf(a).bow.irregularity = 37;
-    shapeOf(a).edge             = ObjectRecord::Edge::Zigzag;
+    shapeOf(a).edge             = ShapeProperties::Edge::Zigzag;
     shapeOf(a).teeth.pitch        = 12.5;
     shapeOf(a).teeth.depth        = 4.5;
     shapeOf(a).teeth.irregularity = 25;
@@ -64,18 +63,18 @@ ObjectRecord loadedRecord()
     t.look.end.width                   = 45;     // Sharp still: carried, unused
     t.look.breaks.jog                  = 35;     // no breaks: carried, unused
     t.look.breaks.clockwise            = false;
-    tailsOf(a).items                   = {t};
-    tailsOf(a).nextLook.style          = TailLook::Style::Circles;
-    tailsOf(a).nextLook.circles.count  = 5;
-    tailsOf(a).nextLook.circles.pitch  = 2.5;
-    tailsOf(a).nextLook.circles.offset = 4.0;
-    tailsOf(a).nextLook.tip            = TailLook::Tip::Round;
-    tailsOf(a).nextLook.end.width      = 60;
-    tailsOf(a).nextLook.breaks.count   = 2;
-    tailsOf(a).nextLook.breaks.jog     = 15;
+    setTails(a, {t});
+    nextTailOf(a).style          = TailLook::Style::Circles;
+    nextTailOf(a).circles.count  = 5;
+    nextTailOf(a).circles.pitch  = 2.5;
+    nextTailOf(a).circles.offset = 4.0;
+    nextTailOf(a).tip            = TailLook::Tip::Round;
+    nextTailOf(a).end.width      = 60;
+    nextTailOf(a).breaks.count   = 2;
+    nextTailOf(a).breaks.jog     = 15;
 
-    styleOf(a).line              = ObjectRecord::Line::Flash;
-    textureOf(a).kind              = ObjectRecord::Texture::Rough;
+    styleOf(a).line              = StyleProperties::Line::Flash;
+    textureOf(a).kind              = TextureProperties::Kind::Rough;
     textureOf(a).rough.frequency    = 0.05;
     textureOf(a).rough.octaves      = 4;
     textureOf(a).rough.displacement = 7.5;
@@ -127,7 +126,7 @@ ObjectRecord loadedRecord()
     textOf(a).bold        = true;
     textOf(a).align       = Qt::AlignRight;
     textOf(a).fill.colour = QColor(1, 2, 3);
-    textOf(a).fill.kind   = ObjectRecord::Pattern::Lines;
+    textOf(a).fill.kind   = Paint::Kind::Lines;
     textOf(a).fill.second = QColor(30, 31, 32);
     textOf(a).fill.spacing = 3.5;
     textOf(a).fill.size   = 1.75;
@@ -136,7 +135,7 @@ ObjectRecord loadedRecord()
     textOf(a).paddingSide = -13;   // negative on purpose: an impact balloon's lettering may leave it
     textOf(a).paddingTop  = 17;    // and not the side's, so the two are told apart
     textOf(a).outline.colour  = QColor(21, 22, 23);
-    textOf(a).outline.kind    = ObjectRecord::Pattern::Dots;
+    textOf(a).outline.kind    = Paint::Kind::Dots;
     textOf(a).outline.second  = QColor(24, 25, 26);
     textOf(a).outline.spacing = 4.5;
     textOf(a).outline.size    = 1.25;
@@ -148,18 +147,18 @@ ObjectRecord loadedRecord()
     textOf(a).shadow.y          = -2.25;
     textOf(a).shadow.softness   = 4.0;
     textOf(a).shadowFill.colour = QColor(27, 28, 29, 150);
-    textOf(a).shadowFill.kind   = ObjectRecord::Pattern::Grid;
+    textOf(a).shadowFill.kind   = Paint::Kind::Grid;
     textOf(a).shadowFill.spacing = 6.5;
 
     skinOf(a).fill.colour        = QColor(4, 5, 6);
     styleOf(a).stroke.colour     = QColor(7, 8, 9);
-    styleOf(a).stroke.kind       = ObjectRecord::Pattern::Lines;
+    styleOf(a).stroke.kind       = Paint::Kind::Lines;
     styleOf(a).stroke.second     = QColor(16, 17, 18);
     styleOf(a).stroke.spacing    = 5.5;
     styleOf(a).stroke.size       = 1.5;
     styleOf(a).stroke.angle      = -20;
     styleOf(a).strokeWidth = 11;
-    skinOf(a).fill.kind    = ObjectRecord::Pattern::Dots;
+    skinOf(a).fill.kind    = Paint::Kind::Dots;
     skinOf(a).fill.second  = QColor(10, 11, 12);
     skinOf(a).fill.spacing = 7.5;
     skinOf(a).fill.size     = 2.5;
@@ -171,7 +170,7 @@ ObjectRecord loadedRecord()
     effectsOf(a).shadow.y        = 7.5;
     effectsOf(a).shadow.softness = 2.5;
     effectsOf(a).shadowFill.colour   = QColor(13, 14, 15, 99);
-    effectsOf(a).shadowFill.kind     = ObjectRecord::Pattern::Grid;
+    effectsOf(a).shadowFill.kind     = Paint::Kind::Grid;
     effectsOf(a).shadowFill.spacing  = 8.5;
     effectsOf(a).shadowFill.size     = 2.0;
     effectsOf(a).shadowFill.angle    = 15;
@@ -184,7 +183,7 @@ ObjectRecord loadedRecord()
 // Each mirror lists the fields expectUntouched() checks, in the group's own order, so the two structs
 // are laid out by the same rules on every compiler and differ in size only when the group has grown.
 // A new field has to go into: its group's fields() list (which gives it equality, the JSON and the
-// `pm:*` attributes), loadedRecord(), expectUntouched() — and the mirror.
+// `pm:*` attributes), loadedBalloon(), expectUntouched() — and the mirror.
 //
 // ponytail: a size check. A field small enough to fit into existing padding (a bool after
 // StyleProperties::kind) passes unnoticed; counting members needs C++20, or reflection.
@@ -259,13 +258,21 @@ struct EffectMirror { Shadow shadow; Paint shadowFill; };
 static_assert(sizeof(EffectProperties) == sizeof(EffectMirror),
               "EffectProperties grew a field: place it (see above), then mirror it");
 
-struct RecordMirror {
-    ShapeProperties shape; QString artwork; QSize box; TailsProperties tails; StyleProperties style;
-    TextureProperties texture; EffectProperties effects; quint32 styleSeed; TextProperties text;
-    SkinProperties skin; PresetOrigin presetOrigin;
-};
-static_assert(sizeof(ObjectRecord) == sizeof(RecordMirror),
-              "ObjectRecord grew a field: place it (see above), then mirror it");
+// The composition's elements, which hold the groups: a field of their own is checked by expectUntouched() too.
+struct BalloonStyleMirror { StyleProperties line; SkinProperties fill; TextureProperties texture; EffectProperties effects;
+                            TailLook nextLook; };
+static_assert(sizeof(BalloonStyle) == sizeof(BalloonStyleMirror),
+              "BalloonStyle grew a field: place it (see above), then mirror it");
+struct BodyMirror { int id; Place place; QSize size; ShapeProperties shape; };
+static_assert(sizeof(Body) == sizeof(BodyMirror), "Body grew a field: place it (see above), then mirror it");
+struct BalloonMirror { int id; BalloonStyle style; QList<Body> bodies; QList<BalloonTail> tails; };
+static_assert(sizeof(Balloon) == sizeof(BalloonMirror), "Balloon grew a field: place it (see above), then mirror it");
+struct WordsMirror { int id; int seat; Place place; QSize box; TextProperties text; };
+static_assert(sizeof(Words) == sizeof(WordsMirror), "Words grew a field: place it (see above), then mirror it");
+struct CompositionMirror { std::optional<Balloon> balloon; std::optional<Picture> picture; QList<Words> words;
+                           quint32 seed; PresetOrigin preset; int nextId; };
+static_assert(sizeof(Composition) == sizeof(CompositionMirror),
+              "Composition grew a field: place it (see above), then mirror it");
 
 
 //! Every field of a Paint the same, listed one by one for the reason expectUntouched() gives.
@@ -299,11 +306,11 @@ enum class Group { Shape, Skin, Style, Texture, Effects, Text, Tails, Nothing };
  *
  * Listed property by property rather than through the groups' own operator==, on purpose: equality is
  * itself something that can be forgotten when a property is added, and a test leaning on it would
- * weaken silently at exactly the moment it is most needed. **Adding a property to ObjectRecord breaks the
+ * weaken silently at exactly the moment it is most needed. **Adding a property to Composition breaks the
  * build above until someone has decided which group owns it**, and then this function is the next
  * place it goes.
  */
-void expectUntouched(Group applied, const ObjectRecord& before, const ObjectRecord& after)
+void expectUntouched(Group applied, const Composition& before, const Composition& after)
 {
     if (applied != Group::Shape) {
         EXPECT_EQ(shapeOf(after).kind, shapeOf(before).kind);
@@ -396,17 +403,27 @@ void expectUntouched(Group applied, const ObjectRecord& before, const ObjectReco
         expectSamePaint(textOf(after).shadowFill, textOf(before).shadowFill, "text shadow");
     }
     if (applied != Group::Tails) {
-        ASSERT_EQ(tailsOf(after).items.size(), tailsOf(before).items.size());
-        for (int i = 0; i < tailsOf(after).items.size(); ++i)
-            EXPECT_EQ(tailsOf(after).items.at(i), tailsOf(before).items.at(i));
+        ASSERT_EQ(tailsOf(after).size(), tailsOf(before).size());
+        for (int i = 0; i < tailsOf(after).size(); ++i)
+            EXPECT_EQ(tailsOf(after).at(i), tailsOf(before).at(i));   // its id and its root too
+        EXPECT_EQ(after.nextId, before.nextId);   // only a tail added takes one
     }
 
-    // Owned by no group, so never written by an editor and never skipped here. The box belongs to the
-    // object rather than to the record's look; the style seed is per balloon and set once at
-    // placement, which is why a preset must not carry it; the preset origin is set only by applying one.
-    EXPECT_EQ(boxOf(after),          boxOf(before));
-    EXPECT_EQ(seedOf(after),    seedOf(before));
-    EXPECT_EQ(originOf(after), originOf(before));
+    // Owned by no group, so never written by an editor and never skipped here. The size belongs to the
+    // object rather than to its look; the seed is per balloon and set once at placement, which is why a
+    // preset must not carry it; the preset origin is set only by applying one; the elements' ids, places
+    // and seats are the composition's own.
+    EXPECT_EQ(boxOf(after),             boxOf(before));
+    EXPECT_EQ(seedOf(after),            seedOf(before));
+    EXPECT_EQ(originOf(after),          originOf(before));
+    EXPECT_EQ(after.balloon->id,        before.balloon->id);
+    EXPECT_EQ(bodyOf(after)->id,        bodyOf(before)->id);
+    EXPECT_EQ(bodyOf(after)->place,     bodyOf(before)->place);
+    EXPECT_EQ(wordsOf(after)->id,       wordsOf(before)->id);
+    EXPECT_EQ(wordsOf(after)->seat,     wordsOf(before)->seat);
+    EXPECT_EQ(wordsOf(after)->place,    wordsOf(before)->place);
+    EXPECT_EQ(wordsOf(after)->box,      wordsOf(before)->box);
+    EXPECT_EQ(after.picture.has_value(), before.picture.has_value());
 }
 
 } // namespace
@@ -415,26 +432,10 @@ void expectUntouched(Group applied, const ObjectRecord& before, const ObjectReco
 // One test per group: it writes what it owns, and nothing else.
 // ---------------------------------------------------------------------------
 
-namespace {
-
-/**
- * \brief @p g applied to @p before's composition is @p g applied to the record (@p after), and reads back the same:
- *        a group's two forms are one, so the editor can move from the one to the other.
- */
-template <class G>
-void expectTheSameOnAComposition(const G& g, const ObjectRecord& before, const ObjectRecord& after)
-{
-    Composition c = compositionOf(before);
-    g.applyTo(c);
-    EXPECT_TRUE(recordOf(c) == after);
-}
-
-} // namespace
-
 TEST(PropertyGroupOwnership, Skin)
 {
-    const ObjectRecord before = loadedRecord();
-    ObjectRecord       after  = before;
+    const Composition before = loadedBalloon();
+    Composition       after  = before;
 
     SkinProperties s;
     s.fill.colour = QColor(200, 100, 50);
@@ -444,16 +445,15 @@ TEST(PropertyGroupOwnership, Skin)
     EXPECT_EQ(skinOf(after), s);
     EXPECT_EQ(SkinProperties::from(after), s);
     expectUntouched(Group::Skin, before, after);
-    expectTheSameOnAComposition(s, before, after);
 }
 
 TEST(PropertyGroupOwnership, Shape)
 {
-    const ObjectRecord before = loadedRecord();
-    ObjectRecord       after  = before;
+    const Composition before = loadedBalloon();
+    Composition       after  = before;
 
     ShapeProperties s;
-    s.kind         = ObjectRecord::Shape::Polygon;
+    s.kind         = ShapeProperties::Kind::Polygon;
     s.corner.radius = 12.0;
     s.nodes        = {{0, 0}, {1, 0.5}, {0, 1}};
     s.applyTo(after);
@@ -461,54 +461,51 @@ TEST(PropertyGroupOwnership, Shape)
     EXPECT_EQ(shapeOf(after), s);
     EXPECT_EQ(ShapeProperties::from(after), s);
     expectUntouched(Group::Shape, before, after);
-    expectTheSameOnAComposition(s, before, after);
 }
 
 TEST(PropertyGroupOwnership, Style)
 {
-    const ObjectRecord before = loadedRecord();
-    ObjectRecord       after  = before;
+    const Composition before = loadedBalloon();
+    Composition       after  = before;
 
     StyleProperties s;
-    s.line          = ObjectRecord::Line::Brush;
+    s.line          = StyleProperties::Line::Brush;
     s.stroke.colour = QColor(10, 220, 30);
-    s.stroke.kind   = ObjectRecord::Pattern::Lines;
+    s.stroke.kind   = Paint::Kind::Lines;
     s.strokeWidth   = 37;
     s.applyTo(after);
 
     EXPECT_EQ(styleOf(after), s);
     EXPECT_EQ(StyleProperties::from(after), s);
     expectUntouched(Group::Style, before, after);
-    expectTheSameOnAComposition(s, before, after);
 }
 
 TEST(PropertyGroupOwnership, Texture)
 {
-    const ObjectRecord before = loadedRecord();
-    ObjectRecord       after  = before;
+    const Composition before = loadedBalloon();
+    Composition       after  = before;
 
     TextureProperties t;
-    t.kind      = ObjectRecord::Texture::Rough;
+    t.kind      = TextureProperties::Kind::Rough;
     t.rough.blur = 0.25;
     t.applyTo(after);
 
     EXPECT_EQ(textureOf(after), t);
     EXPECT_EQ(TextureProperties::from(after), t);
     expectUntouched(Group::Texture, before, after);
-    expectTheSameOnAComposition(t, before, after);
 }
 
 //! The seed is part of the style and deliberately not part of its group — see StyleProperties.
 TEST(PropertyGroupOwnership, StyleLeavesTheSeedAlone)
 {
-    ObjectRecord a = loadedRecord();
+    Composition a = loadedBalloon();
     const quint32 seed = seedOf(a);
 
     StyleProperties s;
-    s.line = ObjectRecord::Line::Flash;
+    s.line = StyleProperties::Line::Flash;
     s.applyTo(a);
     TextureProperties t;
-    t.kind = ObjectRecord::Texture::Rough;
+    t.kind = TextureProperties::Kind::Rough;
     t.applyTo(a);
 
     EXPECT_EQ(seedOf(a), seed);
@@ -516,8 +513,8 @@ TEST(PropertyGroupOwnership, StyleLeavesTheSeedAlone)
 
 TEST(PropertyGroupOwnership, Effects)
 {
-    const ObjectRecord before = loadedRecord();
-    ObjectRecord       after  = before;
+    const Composition before = loadedBalloon();
+    Composition       after  = before;
 
     EffectProperties e;
     e.shadow.x           = 3.0;
@@ -527,13 +524,12 @@ TEST(PropertyGroupOwnership, Effects)
     EXPECT_EQ(effectsOf(after), e);
     EXPECT_EQ(EffectProperties::from(after), e);
     expectUntouched(Group::Effects, before, after);
-    expectTheSameOnAComposition(e, before, after);
 }
 
 TEST(PropertyGroupOwnership, Text)
 {
-    const ObjectRecord before = loadedRecord();
-    ObjectRecord       after  = before;
+    const Composition before = loadedBalloon();
+    Composition       after  = before;
 
     TextProperties s;
     s.body      = QStringLiteral("Co tu sie odprawia");
@@ -542,12 +538,12 @@ TEST(PropertyGroupOwnership, Text)
     s.bold      = false;
     s.align     = Qt::AlignLeft;
     s.fill.colour = QColor(90, 80, 70);
-    s.fill.kind   = ObjectRecord::Pattern::Dots;
+    s.fill.kind   = Paint::Kind::Dots;
     s.lineSpacing = 140;
     s.paddingSide = 21;
     s.paddingTop  = -4;
     s.outline.colour = QColor(60, 50, 40);
-    s.outline.kind   = ObjectRecord::Pattern::Lines;
+    s.outline.kind   = Paint::Kind::Lines;
     s.outlineWidth   = 3.5;
     s.shadow.on      = true;
     s.shadow.x       = -6.0;
@@ -557,13 +553,12 @@ TEST(PropertyGroupOwnership, Text)
     EXPECT_EQ(textOf(after), s);
     EXPECT_EQ(TextProperties::from(after), s);
     expectUntouched(Group::Text, before, after);
-    expectTheSameOnAComposition(s, before, after);
 }
 
 TEST(PropertyGroupOwnership, Tails)
 {
-    const ObjectRecord before = loadedRecord();
-    ObjectRecord       after  = before;
+    const Composition before = loadedBalloon();
+    Composition       after  = before;
 
     Tail one;
     one.tip       = QPointF(-5, 300);
@@ -573,10 +568,11 @@ TEST(PropertyGroupOwnership, Tails)
     s.items = {one, one};
     s.applyTo(after);
 
-    EXPECT_EQ(tailsOf(after), s);
     EXPECT_EQ(TailsProperties::from(after), s);
+    EXPECT_EQ(tailsOf(after).first().id, tailsOf(before).first().id) << "a tail kept by its place keeps its id";
+    EXPECT_EQ(tailsOf(after).last().root, bodyOf(after)->id) << "a new one leaves the body";
+    EXPECT_GT(after.nextId, tailsOf(after).last().id);
     expectUntouched(Group::Tails, before, after);
-    expectTheSameOnAComposition(s, before, after);
 }
 
 /**
@@ -587,49 +583,48 @@ TEST(PropertyGroupOwnership, Tails)
  */
 TEST(PropertyGroupOwnership, OneTail)
 {
-    ObjectRecord before = loadedRecord();
-    Tail first = tailsOf(before).items.first();
+    Composition before = loadedBalloon();
+    Tail first = tailsOf(before).first().tail;
     Tail last  = first;
     last.tip       = QPointF(250, -40);
     last.baseWidth = 8.0;
     last.bend      = 0.9;
     Tail middle = first;
     middle.tip  = QPointF(90, 200);
-    tailsOf(before).items = {first, middle, last};
-    ObjectRecord after = before;
+    setTails(before, {first, middle, last});
+    Composition after = before;
 
     TailProperties edited = TailProperties::from(before, 1);
     edited.tail.baseWidth = 77.0;
     edited.tail.bend      = -0.6;
     edited.applyTo(after);
 
-    ASSERT_EQ(tailsOf(after).items.size(), 3);
-    EXPECT_EQ(tailsOf(after).items.at(0), tailsOf(before).items.at(0));
-    EXPECT_EQ(tailsOf(after).items.at(1), edited.tail);
-    EXPECT_EQ(tailsOf(after).items.at(2), tailsOf(before).items.at(2));
+    ASSERT_EQ(tailsOf(after).size(), 3);
+    EXPECT_EQ(tailsOf(after).at(0).tail, tailsOf(before).at(0).tail);
+    EXPECT_EQ(tailsOf(after).at(1).tail, edited.tail);
+    EXPECT_EQ(tailsOf(after).at(2).tail, tailsOf(before).at(2).tail);
     EXPECT_EQ(TailProperties::from(after, 1), edited);
-    EXPECT_EQ(tailsOf(after).nextLook, tailsOf(before).nextLook);   // a width and a bend are not a look picked
+    EXPECT_EQ(nextTailOf(after), nextTailOf(before));   // a width and a bend are not a look picked
     expectUntouched(Group::Tails, before, after);   // and nothing outside the tails
-    expectTheSameOnAComposition(edited, before, after);
 
     // Its look picked: the balloon's next tail takes it, whichever was picked last.
     TailProperties looked = TailProperties::from(after, 2);
     looked.tail.look.style         = TailLook::Style::Circles;
     looked.tail.look.circles.count = 6;
     looked.applyTo(after);
-    EXPECT_EQ(tailsOf(after).nextLook, looked.tail.look);
+    EXPECT_EQ(nextTailOf(after), looked.tail.look);
     TailProperties plain = TailProperties::from(after, 0);
     plain.tail.look.style         = TailLook::Style::Plain;
     plain.tail.look.circles.pitch = 1.5;
     plain.applyTo(after);
-    EXPECT_EQ(tailsOf(after).nextLook, plain.tail.look);
+    EXPECT_EQ(nextTailOf(after), plain.tail.look);
 }
 
 //! A tail selected before an undo removed it has nowhere to go. Writing it must not bring it back.
 TEST(PropertyGroupOwnership, OneTailOutOfRangeWritesNothing)
 {
-    const ObjectRecord before = loadedRecord();   // one tail
-    ObjectRecord       after  = before;
+    const Composition before = loadedBalloon();   // one tail
+    Composition       after  = before;
 
     TailProperties gone;
     gone.index      = 3;
@@ -637,7 +632,6 @@ TEST(PropertyGroupOwnership, OneTailOutOfRangeWritesNothing)
     gone.applyTo(after);
 
     expectUntouched(Group::Nothing, before, after);   // not even the tails
-    expectTheSameOnAComposition(gone, before, after);
 }
 
 /**
@@ -648,7 +642,7 @@ TEST(PropertyGroupOwnership, OneTailOutOfRangeWritesNothing)
  */
 TEST(PropertyGroupOwnership, SkinAndTextColoursAreSeparate)
 {
-    ObjectRecord a = loadedRecord();
+    Composition a = loadedBalloon();
     textOf(a).fill.colour = QColor(123, 45, 67);
 
     SkinProperties s = SkinProperties::from(a);
@@ -672,10 +666,21 @@ TEST(PropertyGroupOwnership, SkinAndTextColoursAreSeparate)
 
 namespace {
 
-//! What @p a comes back as from its content: its composition's JSON, read.
-ObjectRecord throughContent(const ObjectRecord& a)
+//! What @p a comes back as from its content: its JSON, read.
+
+//! An SVG of ours carrying @p c, its content element with @p attributes, under the namespace @p ns. Built by hand
+//! rather than through Svg::write(), which measures the lettering, needing the QGuiApplication this target does
+//! not have: what is under test is the reader.
+QByteArray svgWith(const Composition& c, const QByteArray& ns = Svg::k_pmNamespace, const QByteArray& attributes = {})
 {
-    return recordOf(compositionFromJson(toJson(compositionOf(a))));
+    const QString json = QString::fromUtf8(QJsonDocument(toJson(c)).toJson(QJsonDocument::Compact));
+    return QByteArray("<svg xmlns=\"http://www.w3.org/2000/svg\" xmlns:pm=\"") + ns
+         + "\" width=\"10\" height=\"10\"><pm:content" + attributes + ">" + json.toHtmlEscaped().toUtf8()
+         + "</pm:content><g/></svg>";
+}
+Composition throughContent(const Composition& a)
+{
+    return compositionFromJson(toJson(a));
 }
 
 } // namespace
@@ -687,8 +692,8 @@ ObjectRecord throughContent(const ObjectRecord& a)
  */
 TEST(PropertyGroupPersistence, TheContentIsAGroupAnObject)
 {
-    const ObjectRecord a       = loadedRecord();
-    const QJsonObject  j       = toJson(compositionOf(a));
+    const Composition a       = loadedBalloon();
+    const QJsonObject  j       = toJson(a);
     const QJsonObject  balloon = j.value(QStringLiteral("balloon")).toObject();
     const QJsonObject  body    = balloon.value(QStringLiteral("bodies")).toArray().first().toObject();
     const QJsonObject  words   = j.value(QStringLiteral("words")).toArray().first().toObject();
@@ -716,13 +721,13 @@ TEST(PropertyGroupPersistence, TheContentIsAGroupAnObject)
                          .value(QStringLiteral("roughFrequency")).toDouble(), textureOf(a).rough.frequency);
     const QJsonObject tail = balloon.value(QStringLiteral("tails")).toArray().first().toObject();
     EXPECT_EQ(tail.value(QStringLiteral("tip")).toArray(),
-              (QJsonArray{tailsOf(a).items.first().tip.x(), tailsOf(a).items.first().tip.y()}));
+              (QJsonArray{tailsOf(a).first().tail.tip.x(), tailsOf(a).first().tail.tip.y()}));
     EXPECT_EQ(tail.value(QStringLiteral("root")).toInt(), body.value(QStringLiteral("id")).toInt());
     EXPECT_EQ(group("nextTail").value(QStringLiteral("circles")).toObject()
-                  .value(QStringLiteral("circles")).toInt(), tailsOf(a).nextLook.circles.count);
+                  .value(QStringLiteral("circles")).toInt(), nextTailOf(a).circles.count);
 
     // At its defaults, a section is left out whole; a kind, a colour, a width are written all the same.
-    const QJsonObject plain = toJson(compositionOf(ObjectRecord()));
+    const QJsonObject plain = toJson(balloonObject());
     const QJsonObject line  = plain.value(QStringLiteral("balloon")).toObject().value(QStringLiteral("style")).toObject()
                                   .value(QStringLiteral("line")).toObject();
     for (const char* section : {"flash", "brush", "drybrush", "dash", "multi", "sketch", "dryInk"})
@@ -731,12 +736,11 @@ TEST(PropertyGroupPersistence, TheContentIsAGroupAnObject)
                      .toObject().value(QStringLiteral("shape")).toObject().contains(QStringLiteral("corner")));
     EXPECT_EQ(line.value(QStringLiteral("line")).toString(), QStringLiteral("clean"));
     EXPECT_EQ(line.value(QStringLiteral("strokeWidth")).toInt(), StyleProperties().strokeWidth);
-    EXPECT_EQ(recordOf(compositionFromJson(plain)), ObjectRecord()) << "a number left out reads as its default";
+    EXPECT_TRUE(compositionFromJson(plain) == balloonObject()) << "a number left out reads as its default";
 
     // A text object's words have their own box and place; it has no balloon.
-    ObjectRecord caption    = a;
-    shapeOf(caption).kind   = ObjectRecord::Shape::None;
-    const QJsonObject t     = toJson(compositionOf(caption));
+    const Composition caption = withoutBalloon(a);
+    const QJsonObject t       = toJson(caption);
     const QJsonObject tw    = t.value(QStringLiteral("words")).toArray().first().toObject();
     EXPECT_FALSE(t.contains(QStringLiteral("balloon")));
     EXPECT_FALSE(tw.contains(QStringLiteral("seat")));
@@ -749,7 +753,7 @@ TEST(PropertyGroupPersistence, TheContentIsAGroupAnObject)
  */
 TEST(PropertyGroupPersistence, AContentThatBreaksTheRulesIsReadWithin)
 {
-    QJsonObject j = toJson(compositionOf(loadedRecord()));
+    QJsonObject j = toJson(loadedBalloon());
     j.insert(QStringLiteral("picture"), QJsonObject{{QStringLiteral("id"), 9}, {QStringLiteral("file"), QStringLiteral("x.png")}});
     j.insert(QStringLiteral("nextId"), 1);
     const Composition c = compositionFromJson(j);
@@ -766,17 +770,17 @@ TEST(PropertyGroupPersistence, AContentThatBreaksTheRulesIsReadWithin)
 
 TEST(PropertyGroupPersistence, RoundTrips)
 {
-    ObjectRecord a = loadedRecord();
+    Composition a = loadedBalloon();
     // A Curve's node with handles among a Polygon's plain ones, so both forms are saved and read.
     shapeOf(a).nodes.insert(1, ShapeNode({0.5, 0.1}, {0.05, -0.1}, {-0.02, 0.2}, ShapeNode::Type::Smooth));
-    const ObjectRecord b = throughContent(a);
+    const Composition b = throughContent(a);
 
     EXPECT_EQ(shapeOf(b), shapeOf(a));
     EXPECT_EQ(skinOf(b),  skinOf(a));
     EXPECT_EQ(styleOf(b), styleOf(a));
     EXPECT_EQ(textOf(b),  textOf(a));
     EXPECT_EQ(tailsOf(b), tailsOf(a));
-    EXPECT_EQ(b, a);
+    EXPECT_TRUE(b == a);
 }
 
 /**
@@ -794,40 +798,41 @@ TEST(PropertyGroupPersistence, RoundTrips)
  */
 TEST(PropertyGroupPersistence, EveryShapeAndStyleRoundTrips)
 {
-    QList<ObjectRecord::Shape> shapes{ObjectRecord::Shape::None};
+    QList<ShapeProperties::Kind> shapes{ShapeProperties::Kind::None};
     shapes += shapeOrder();
-    for (ObjectRecord::Shape s : shapes) {
+    for (ShapeProperties::Kind s : shapes) {
         EXPECT_EQ(shapeFromName(QString::fromLatin1(shapeName(s))), s) << shapeName(s);
-        ObjectRecord a   = loadedRecord();
-        shapeOf(a).kind = s;
-        // A text object has no balloon: what it carries of one is not its content.
-        EXPECT_TRUE(compositionOf(throughContent(a)) == compositionOf(a)) << shapeName(s);
+        // None is a text object, which has no balloon to give a shape.
+        Composition a = s == ShapeProperties::Kind::None ? withoutBalloon(loadedBalloon()) : loadedBalloon();
+        if (a.balloon)
+            shapeOf(a).kind = s;
+        EXPECT_TRUE(throughContent(a) == a) << shapeName(s);
     }
 
     // Every template, from the SVG too (with no lettering, which would need a font): a placed one must
     // read back as itself, or its tile stops being current once the file is reopened.
     for (const Geometry::ShapeTemplate& t : Geometry::shapeTemplates()) {
-        ObjectRecord a = loadedRecord();
+        Composition a = loadedBalloon();
         shapeOf(a)        = t.shape;
         textOf(a).body.clear();
         bool ok = false;
-        EXPECT_EQ(shapeOf(recordOf(Svg::read(Svg::write(a), &ok))), t.shape) << t.id;
-        EXPECT_EQ(throughContent(a), a) << t.id;
+        EXPECT_EQ(shapeOf(Svg::read(Svg::write(a), &ok)), t.shape) << t.id;
+        EXPECT_TRUE(throughContent(a) == a) << t.id;
     }
 
     for (int i = 0; i <= int(StyleProperties::k_lastLine); ++i) {
-        const auto l = static_cast<ObjectRecord::Line>(i);
+        const auto l = static_cast<StyleProperties::Line>(i);
         EXPECT_EQ(lineFromName(QString::fromLatin1(lineName(l))), l) << lineName(l);
-        ObjectRecord a = loadedRecord();
+        Composition a = loadedBalloon();
         styleOf(a).line   = l;
-        EXPECT_EQ(throughContent(a), a) << lineName(l);
+        EXPECT_TRUE(throughContent(a) == a) << lineName(l);
     }
     for (int i = 0; i <= int(TextureProperties::k_lastKind); ++i) {
-        const auto t = static_cast<ObjectRecord::Texture>(i);
+        const auto t = static_cast<TextureProperties::Kind>(i);
         EXPECT_EQ(textureFromName(QString::fromLatin1(textureName(t))), t) << textureName(t);
-        ObjectRecord a = loadedRecord();
+        Composition a = loadedBalloon();
         textureOf(a).kind = t;
-        EXPECT_EQ(throughContent(a), a) << textureName(t);
+        EXPECT_TRUE(throughContent(a) == a) << textureName(t);
     }
 }
 
@@ -836,32 +841,37 @@ TEST(PropertyGroupPersistence, EveryShapeAndStyleRoundTrips)
 // ---------------------------------------------------------------------------
 
 /**
- * \brief What *Convert to ▸* promises: a kind the record cannot draw hides properties, never destroys
- *        them, so converting back brings them with it.
- *
- * The promise is made in the menu's own message ("converting back brings them back"), and everything
- * behind it is this one rule — the tails stay in the record and the *kind* decides whether they count.
- * A painter taught to draw tails without a balloon, or a conversion taught to clear them, would break
- * the promise silently; this is what would fail first.
+ * \brief What *Convert to ▸* does: to text, the balloon goes with its style and its tails, and the words keep the
+ *        size and the place its body had; back to a balloon, one body of the words' size in the look asked for,
+ *        the words seated in it, and no tail.
  */
-TEST(Conversion, AKindHidesTailsRatherThanDestroyingThem)
+TEST(Conversion, ToTextTheBalloonGoesAndBackItIsANewOne)
 {
-    ObjectRecord a = loadedRecord();
-    shapeOf(a).kind   = ObjectRecord::Shape::Box;
-    ASSERT_FALSE(tailsOf(a).items.isEmpty());
-    ASSERT_TRUE(a.hasTail());
+    const Composition a = loadedBalloon();
+    ASSERT_FALSE(tailsOf(a).isEmpty());
 
-    const TailsProperties kept = tailsOf(a);
+    const Composition text = withoutBalloon(a);
+    EXPECT_FALSE(text.balloon);
+    ASSERT_EQ(text.words.size(), 1);
+    EXPECT_EQ(text.words.first().seat, 0);
+    EXPECT_EQ(text.words.first().box, boxOf(a));
+    EXPECT_EQ(text.words.first().place, bodyOf(a)->place);
+    EXPECT_EQ(textOf(text), textOf(a));
+    EXPECT_TRUE(withoutBalloon(text) == text);   // text already: nothing to do
 
-    shapeOf(a).kind = ObjectRecord::Shape::None;   // what the conversion does, and all it does
-    EXPECT_FALSE(a.hasSilhouette());            // the one structural question, and its whole answer
-    EXPECT_FALSE(a.hasTail());                  // no balloon, so nothing for a tail to leave
-    EXPECT_EQ(tailsOf(a), kept);                   // ...but the record still has them
-
-    shapeOf(a).kind = ObjectRecord::Shape::Ellipse;
-    EXPECT_TRUE(a.hasSilhouette());
-    EXPECT_TRUE(a.hasTail());
-    EXPECT_EQ(tailsOf(a), kept);
+    BalloonLook look;
+    look.shape.kind             = ShapeProperties::Kind::Ellipse;
+    look.style.line.strokeWidth = 9;
+    const Composition back = withBalloon(text, look);
+    ASSERT_TRUE(back.balloon);
+    EXPECT_TRUE(tailsOf(back).isEmpty());
+    EXPECT_EQ(shapeOf(back), look.shape);
+    EXPECT_TRUE(back.balloon->style == look.style);
+    EXPECT_EQ(boxOf(back), boxOf(a));
+    EXPECT_EQ(wordsOf(back)->seat, bodyOf(back)->id);
+    EXPECT_EQ(textOf(back), textOf(a));
+    EXPECT_GT(back.nextId, bodyOf(back)->id);
+    EXPECT_TRUE(withBalloon(back, {}) == back);   // a background already: nothing to do
 }
 
 /**
@@ -873,15 +883,15 @@ TEST(Conversion, AKindHidesTailsRatherThanDestroyingThem)
  */
 TEST(Conversion, ThePickerOffersEverySilhouetteAndNoKind)
 {
-    EXPECT_FALSE(shapeOrder().contains(ObjectRecord::Shape::None));
+    EXPECT_FALSE(shapeOrder().contains(ShapeProperties::Kind::None));
     // Every enumerated shape except None, and each of them once.
     EXPECT_EQ(shapeOrder().size(), int(ShapeProperties::k_lastKind));
-    for (ObjectRecord::Shape s : shapeOrder()) {
+    for (ShapeProperties::Kind s : shapeOrder()) {
         EXPECT_FALSE(shapeTitle(s).isEmpty()) << shapeName(s);
         EXPECT_EQ(shapeOrder().count(s), 1) << shapeName(s);
     }
     // Named all the same, because a kind still has to be spelled somewhere.
-    EXPECT_FALSE(shapeTitle(ObjectRecord::Shape::None).isEmpty());
+    EXPECT_FALSE(shapeTitle(ShapeProperties::Kind::None).isEmpty());
 }
 
 //! Whether @p Group lists a section named @p name (a kind's table entry names it so).
@@ -945,14 +955,14 @@ void expectEverySectionHasRows()
 TEST(Conversion, EveryShapeAndStyleHasATableEntry)
 {
     for (int i = 0; i <= int(StyleProperties::k_lastLine); ++i) {
-        const auto                kind = static_cast<ObjectRecord::Line>(i);
+        const auto                kind = static_cast<StyleProperties::Line>(i);
         const Geometry::LineInfo& info = Geometry::lineInfo(kind);
         EXPECT_EQ(info.kind, kind) << "line entry " << i << " is out of the enum's order";
         EXPECT_NE(info.name, nullptr) << i;
         EXPECT_NE(info.title, nullptr) << i;
         // Every line but the solid outline (Clean, and Dry ink: that outline under a filter) has strokes of
         // its own, and strokes reserve room.
-        EXPECT_EQ(info.ink == nullptr, kind == ObjectRecord::Line::Clean || kind == ObjectRecord::Line::DryInk)
+        EXPECT_EQ(info.ink == nullptr, kind == StyleProperties::Line::Clean || kind == StyleProperties::Line::DryInk)
             << lineName(kind);
         EXPECT_EQ(info.ink == nullptr, info.inkReach == nullptr) << lineName(kind);
         // The sections it reads are StyleProperties' own: the Line panel finds their rows by name.
@@ -961,26 +971,26 @@ TEST(Conversion, EveryShapeAndStyleHasATableEntry)
     }
     expectEverySectionHasRows<StyleProperties>();
     for (int i = 0; i <= int(TextureProperties::k_lastKind); ++i) {
-        const auto                   kind = static_cast<ObjectRecord::Texture>(i);
+        const auto                   kind = static_cast<TextureProperties::Kind>(i);
         const Geometry::TextureInfo& info = Geometry::textureInfo(kind);
         EXPECT_EQ(info.kind, kind) << "texture entry " << i << " is out of the enum's order";
         EXPECT_NE(info.name, nullptr) << i;
         EXPECT_NE(info.title, nullptr) << i;
         // Every texture but None is a filter, and a filter reserves room.
-        EXPECT_EQ(info.reach == nullptr, kind == ObjectRecord::Texture::None) << textureName(kind);
+        EXPECT_EQ(info.reach == nullptr, kind == TextureProperties::Kind::None) << textureName(kind);
         for (const char* name : info.sections)
             EXPECT_TRUE(!name || hasSection<TextureProperties>(name)) << textureName(kind) << " reads " << name;
     }
     expectEverySectionHasRows<TextureProperties>();
 
     for (int i = 0; i <= int(ShapeProperties::k_lastKind); ++i) {
-        const auto                 kind = static_cast<ObjectRecord::Shape>(i);
+        const auto                 kind = static_cast<ShapeProperties::Kind>(i);
         const Geometry::ShapeInfo& info = Geometry::shapeInfo(kind);
         EXPECT_EQ(info.kind, kind) << "entry " << i << " is out of the enum's order";
         EXPECT_NE(info.name, nullptr) << i;
         EXPECT_NE(info.title, nullptr) << i;
         EXPECT_NE(info.safeArea, nullptr) << i;
-        EXPECT_EQ(info.outline == nullptr, kind == ObjectRecord::Shape::None) << shapeName(kind);
+        EXPECT_EQ(info.outline == nullptr, kind == ShapeProperties::Kind::None) << shapeName(kind);
         for (const char* name : info.sections)
             EXPECT_TRUE(!name || hasSection<ShapeProperties>(name)) << shapeName(kind) << " reads " << name;
     }
@@ -1008,15 +1018,15 @@ TEST(Conversion, EveryShapeAndStyleHasATableEntry)
     }
     expectEverySectionHasRows<TailLook>();
 
-    QList<ObjectRecord::Shape> templated;
+    QList<ShapeProperties::Kind> templated;
     for (const Geometry::ShapeTemplate& t : Geometry::shapeTemplates()) {
-        EXPECT_NE(t.shape.kind, ObjectRecord::Shape::None) << t.id;
+        EXPECT_NE(t.shape.kind, ShapeProperties::Kind::None) << t.id;
         EXPECT_NE(t.title, nullptr) << t.id;
         EXPECT_EQ(Geometry::templateOf(t.shape), &t) << t.id << " equals an earlier template";
         EXPECT_EQ(&Geometry::shapeTemplate(t.id), &t) << t.id << " is not the only one of its id";
         templated << t.shape.kind;
     }
-    for (ObjectRecord::Shape s : shapeOrder())
+    for (ShapeProperties::Kind s : shapeOrder())
         EXPECT_TRUE(templated.contains(s)) << shapeName(s) << " has no template, so no tile";
 }
 
@@ -1028,7 +1038,7 @@ TEST(Shape, APolygonsEdgesBowIn)
 {
     constexpr qreal k_margin = 2.0;   // either side of where the bowed edge's middle lies, in pixels
     ShapeProperties s;
-    s.kind         = ObjectRecord::Shape::Polygon;
+    s.kind         = ShapeProperties::Kind::Polygon;
     s.corner.radius = 0.0;
     s.nodes        = {ShapeNode(0, 0), ShapeNode(1, 0), ShapeNode(1, 1), ShapeNode(0, 1)};
     s.bow.depth          = 20;
@@ -1055,7 +1065,7 @@ TEST(Shape, PickedNodesMoveTogether)
 {
     constexpr qreal k_tolerance = 1e-9;
     ShapeProperties s;
-    s.kind  = ObjectRecord::Shape::Curve;
+    s.kind  = ShapeProperties::Kind::Curve;
     s.nodes = {ShapeNode(0, 0), ShapeNode(1, 0), ShapeNode(1, 1), ShapeNode(0, 1)};
     s.nodes[1].in = QPointF(-0.1, 0.0);
     const QRectF          body(0, 0, 200, 100);
@@ -1073,15 +1083,15 @@ TEST(Shape, PickedNodesMoveTogether)
 TEST(Texture, AFineGrainIsWrittenAsItIs)
 {
     constexpr qreal k_tolerance = 1e-9;
-    ObjectRecord a = loadedRecord();
+    Composition a = loadedBalloon();
     shapeOf(a)        = Geometry::shapeTemplate("speech").shape;
     textOf(a).body.clear();   // no lettering, which would need a font
-    textureOf(a).kind           = ObjectRecord::Texture::Rough;
+    textureOf(a).kind           = TextureProperties::Kind::Rough;
     textureOf(a).rough.frequency = 0.035;
     const QByteArray svg = Svg::write(a);
     EXPECT_TRUE(QString::fromUtf8(svg).contains(QStringLiteral("baseFrequency=\"0.035\"")));
     bool ok = false;
-    EXPECT_NEAR(textureOf(recordOf(Svg::read(svg, &ok))).rough.frequency, 0.035, k_tolerance);
+    EXPECT_NEAR(textureOf(Svg::read(svg, &ok)).rough.frequency, 0.035, k_tolerance);
     EXPECT_TRUE(ok);
 }
 
@@ -1091,12 +1101,12 @@ TEST(Texture, AFineGrainIsWrittenAsItIs)
  */
 TEST(Style, DryInkEatsTheOutlineAlone)
 {
-    ObjectRecord a = loadedRecord();
+    Composition a = loadedBalloon();
     shapeOf(a)        = Geometry::shapeTemplate("speech").shape;
     textOf(a).body.clear();   // no lettering, which would need a font
     effectsOf(a).shadow.on = false;
-    textureOf(a).kind      = ObjectRecord::Texture::None;
-    styleOf(a).line        = ObjectRecord::Line::DryInk;
+    textureOf(a).kind      = TextureProperties::Kind::None;
+    styleOf(a).line        = StyleProperties::Line::DryInk;
     const QString svg      = QString::fromUtf8(Svg::write(a));
     const QString use      = QStringLiteral("filter=\"url(#pm-dryink)\"");
     const auto    filtered = svg.indexOf(use);
@@ -1112,7 +1122,7 @@ TEST(Style, DryInkEatsTheOutlineAlone)
     EXPECT_EQ(QString::fromUtf8(Svg::write(a)).count(QStringLiteral("stroke-width=")),
               svg.count(QStringLiteral("stroke-width=")) - 1);
 
-    textureOf(a).kind      = ObjectRecord::Texture::Rough;
+    textureOf(a).kind      = TextureProperties::Kind::Rough;
     textureOf(a).rough.fill = false;
     const QString rough = QString::fromUtf8(Svg::write(a));
     EXPECT_GT(rough.indexOf(use), rough.lastIndexOf(QStringLiteral("filter=\"url(#pm-style)\"")));
@@ -1164,33 +1174,33 @@ TEST(Shape, RegularNodesMakeAPolygonOrAStar)
 TEST(Style, ALinesStrokesStayInsideTheirBounds)
 {
     for (const char* id : {"ellipse", "caption", "speech"}) {
-        ObjectRecord a;
+        Composition a = balloonObject();
         shapeOf(a) = Geometry::shapeTemplate(id).shape;
         boxOf(a)   = QSize(280, 160);
-        const ObjectRecord::Shape shape = shapeOf(a).kind;
+        const ShapeProperties::Kind shape = shapeOf(a).kind;
         if (qstrcmp(id, "speech") == 0) {
             Tail t;
             t.tip = QPointF(60, 230);
-            tailsOf(a).items = {t};
+            setTails(a, {t});
         }
         styleOf(a).flash.outerPitchJitter  = 100;
         styleOf(a).flash.outerLengthJitter = 100;
         styleOf(a).brush.swell             = 100;
         styleOf(a).brush.drift             = 6.0;
         styleOf(a).strokeWidth             = 9;
-        for (ObjectRecord::Line line : {ObjectRecord::Line::Flash, ObjectRecord::Line::Brush,
-                                        ObjectRecord::Line::Drybrush, ObjectRecord::Line::Dashed,
-                                        ObjectRecord::Line::Multi, ObjectRecord::Line::Sketch,
-                                        ObjectRecord::Line::Explosion}) {
+        for (StyleProperties::Line line : {StyleProperties::Line::Flash, StyleProperties::Line::Brush,
+                                        StyleProperties::Line::Drybrush, StyleProperties::Line::Dashed,
+                                        StyleProperties::Line::Multi, StyleProperties::Line::Sketch,
+                                        StyleProperties::Line::Explosion}) {
             styleOf(a).line = line;
-            EXPECT_FALSE(Geometry::hasOutline(a));
+            EXPECT_FALSE(Geometry::hasOutline(*a.balloon));
             EXPECT_FALSE(Geometry::hasFilter(a));
 
             for (int stretch : {FlashParams::k_autoStretch, 0, 100}) {
                 for (quint32 seed : {1u, 2u, 0xC0FFEEu, 0xFFFFFFFFu}) {
                     styleOf(a).flash.coreStretch = stretch;
                     seedOf(a)              = seed;
-                    const QPainterPath ink = Geometry::ink(a, Geometry::silhouette(a));
+                    const QPainterPath ink = Geometry::ink(*a.balloon, a.seed, Geometry::silhouette(*a.balloon, a.seed));
                     ASSERT_FALSE(ink.isEmpty()) << id << " " << lineName(line);
                     EXPECT_TRUE(Geometry::bounds(a).contains(ink.boundingRect()))
                         << id << " (" << shapeName(shape) << ") " << lineName(line) << " stretch " << stretch
@@ -1199,11 +1209,11 @@ TEST(Style, ALinesStrokesStayInsideTheirBounds)
             }
 
             seedOf(a)             = 7;
-            const QPainterPath once = Geometry::ink(a, Geometry::silhouette(a));
-            EXPECT_TRUE(once == Geometry::ink(a, Geometry::silhouette(a))) << id << " " << lineName(line);
+            const QPainterPath once = Geometry::ink(*a.balloon, a.seed, Geometry::silhouette(*a.balloon, a.seed));
+            EXPECT_TRUE(once == Geometry::ink(*a.balloon, a.seed, Geometry::silhouette(*a.balloon, a.seed))) << id << " " << lineName(line);
             seedOf(a) = 8;
-            if (line != ObjectRecord::Line::Dashed && line != ObjectRecord::Line::Multi)   // nothing random in them
-                EXPECT_FALSE(once == Geometry::ink(a, Geometry::silhouette(a))) << id << " " << lineName(line);
+            if (line != StyleProperties::Line::Dashed && line != StyleProperties::Line::Multi)   // nothing random in them
+                EXPECT_FALSE(once == Geometry::ink(*a.balloon, a.seed, Geometry::silhouette(*a.balloon, a.seed))) << id << " " << lineName(line);
         }
     }
 }
@@ -1215,21 +1225,21 @@ TEST(Style, ALinesStrokesStayInsideTheirBounds)
 TEST(Style, ADashedLineFitsWholeDashesRoundEachLap)
 {
     for (const char* id : {"ellipse", "caption", "shout"}) {
-        ObjectRecord a;
+        Composition a = balloonObject();
         shapeOf(a)           = Geometry::shapeTemplate(id).shape;
         boxOf(a)             = QSize(280, 160);
-        tailsOf(a).items.clear();
-        styleOf(a).line      = ObjectRecord::Line::Dashed;
+        tailsOf(a).clear();
+        styleOf(a).line      = StyleProperties::Line::Dashed;
         styleOf(a).dash.length = 12.0;
         styleOf(a).dash.gap    = 8.0;
-        const QPainterPath             silhouette = Geometry::silhouette(a);
-        const QList<Geometry::OutlineRing> edges   = Geometry::outlineModel(a, silhouette).rings;
+        const QPainterPath             silhouette = Geometry::silhouette(*a.balloon, a.seed);
+        const QList<Geometry::OutlineRing> edges   = Geometry::outlineModel(*a.balloon, a.seed, silhouette).rings;
         ASSERT_EQ(edges.size(), 1) << id;
         const int dashes = qRound(edges.first().walk.length() / (styleOf(a).dash.length + styleOf(a).dash.gap));
-        EXPECT_EQ(Geometry::ink(a, silhouette).toSubpathPolygons().size(), dashes) << id;
+        EXPECT_EQ(Geometry::ink(*a.balloon, a.seed, silhouette).toSubpathPolygons().size(), dashes) << id;
 
         styleOf(a).dash.gap = 0.0;
-        EXPECT_EQ(Geometry::ink(a, silhouette).toSubpathPolygons().size(), 1) << id;
+        EXPECT_EQ(Geometry::ink(*a.balloon, a.seed, silhouette).toSubpathPolygons().size(), 1) << id;
     }
 }
 
@@ -1239,16 +1249,16 @@ TEST(Style, ADashedLineFitsWholeDashesRoundEachLap)
  */
 TEST(Style, AMultiLineDrawsItsLinesInside)
 {
-    ObjectRecord a;
+    Composition a = balloonObject();
     shapeOf(a) = Geometry::shapeTemplate("caption").shape;
     boxOf(a)   = QSize(280, 160);
-    tailsOf(a).items.clear();
-    styleOf(a).line        = ObjectRecord::Line::Multi;
+    tailsOf(a).clear();
+    styleOf(a).line        = StyleProperties::Line::Multi;
     styleOf(a).strokeWidth = 4;
     styleOf(a).multi.gap   = 6.0;
     styleOf(a).multi.width = 3.0;
-    const QPainterPath silhouette = Geometry::silhouette(a);
-    const QPainterPath ink        = Geometry::ink(a, silhouette);
+    const QPainterPath silhouette = Geometry::silhouette(*a.balloon, a.seed);
+    const QPainterPath ink        = Geometry::ink(*a.balloon, a.seed, silhouette);
     const QRectF       r          = silhouette.boundingRect();
     // x in from the silhouette's left edge, at its middle height, where a caption's side is straight
     const auto in = [&](qreal x) { return ink.contains(QPointF(r.left() + x, r.center().y())); };
@@ -1258,7 +1268,7 @@ TEST(Style, AMultiLineDrawsItsLinesInside)
     EXPECT_FALSE(in(2.0 + 6.0 + 3.0 + 2.0));   // inside, past it
 
     styleOf(a).multi.lines = 3;
-    const QPainterPath three = Geometry::ink(a, silhouette);
+    const QPainterPath three = Geometry::ink(*a.balloon, a.seed, silhouette);
     const auto in3 = [&](qreal x) { return three.contains(QPointF(r.left() + x, r.center().y())); };
     EXPECT_TRUE(in3(2.0 + 6.0 + 1.5));                 // the second line, as before
     EXPECT_FALSE(in3(2.0 + 6.0 + 3.0 + 3.0));          // the second gap
@@ -1272,40 +1282,40 @@ TEST(Style, AMultiLineDrawsItsLinesInside)
  */
 TEST(Style, ASketchLaysItsLayersOfStrokes)
 {
-    ObjectRecord a;
+    Composition a = balloonObject();
     shapeOf(a) = Geometry::shapeTemplate("ellipse").shape;
     boxOf(a)   = QSize(280, 160);
-    tailsOf(a).items.clear();
-    styleOf(a).line         = ObjectRecord::Line::Sketch;
+    tailsOf(a).clear();
+    styleOf(a).line         = StyleProperties::Line::Sketch;
     styleOf(a).sketch.length = 40.0;
     styleOf(a).sketch.core   = 0;
-    const QPainterPath              silhouette = Geometry::silhouette(a);
-    const QList<Geometry::OutlineRing> edges   = Geometry::outlineModel(a, silhouette).rings;
+    const QPainterPath              silhouette = Geometry::silhouette(*a.balloon, a.seed);
+    const QList<Geometry::OutlineRing> edges   = Geometry::outlineModel(*a.balloon, a.seed, silhouette).rings;
     ASSERT_EQ(edges.size(), 1);
     for (int layers : {1, 3}) {
         styleOf(a).sketch.layers = layers;
-        EXPECT_EQ(Geometry::ink(a, silhouette).toSubpathPolygons().size(),
+        EXPECT_EQ(Geometry::ink(*a.balloon, a.seed, silhouette).toSubpathPolygons().size(),
                   qRound(layers * edges.first().walk.length() / styleOf(a).sketch.length)) << layers;
     }
 
     // Blots add their spots and short strokes, a stream of their own: the strokes stay as they were.
     styleOf(a).sketch.layers = 1;
-    const QList<QPolygonF> strokes = Geometry::ink(a, silhouette).toSubpathPolygons();
+    const QList<QPolygonF> strokes = Geometry::ink(*a.balloon, a.seed, silhouette).toSubpathPolygons();
     styleOf(a).sketch.blots = 100;
-    const QList<QPolygonF> blotted = Geometry::ink(a, silhouette).toSubpathPolygons();
+    const QList<QPolygonF> blotted = Geometry::ink(*a.balloon, a.seed, silhouette).toSubpathPolygons();
     ASSERT_GT(blotted.size(), strokes.size());
     EXPECT_TRUE(blotted.mid(0, strokes.size()) == strokes);
     styleOf(a).sketch.blots = 0;
 
     // A stroke a lap long at most: longer, it is as many as one a lap long.
     styleOf(a).sketch.length = 100000.0;
-    EXPECT_EQ(Geometry::ink(a, silhouette).toSubpathPolygons().size(), 1);
+    EXPECT_EQ(Geometry::ink(*a.balloon, a.seed, silhouette).toSubpathPolygons().size(), 1);
 
     // With no strokes to speak of, the outline alone still rings the whole silhouette.
     styleOf(a).sketch.core        = 25;
     styleOf(a).sketch.strokeWidth = 0;
     styleOf(a).strokeWidth       = 8;
-    const QPainterPath ink = Geometry::ink(a, silhouette);
+    const QPainterPath ink = Geometry::ink(*a.balloon, a.seed, silhouette);
     const QRectF       r   = silhouette.boundingRect();
     for (const QPointF& p : {QPointF(r.left(), r.center().y()), QPointF(r.right(), r.center().y()),
                              QPointF(r.center().x(), r.top()), QPointF(r.center().x(), r.bottom())})
@@ -1321,19 +1331,19 @@ TEST(Style, ASketchLaysItsLayersOfStrokes)
  */
 TEST(Style, ADrybrushKeepsItsCoreAndThinsOutwards)
 {
-    ObjectRecord a;
+    Composition a = balloonObject();
     shapeOf(a)                  = Geometry::shapeTemplate("ellipse").shape;
     boxOf(a)                    = QSize(280, 160);
-    styleOf(a).line             = ObjectRecord::Line::Drybrush;
+    styleOf(a).line             = StyleProperties::Line::Drybrush;
     styleOf(a).strokeWidth      = 16;   // half 8: a core of 2, four lanes of 1.5 a side
     styleOf(a).drybrush.core     = 25;
     styleOf(a).drybrush.bristles = 8;
     seedOf(a)              = 0xC0FFEEu;
-    const QPainterPath silhouette = Geometry::silhouette(a);
+    const QPainterPath silhouette = Geometry::silhouette(*a.balloon, a.seed);
     const QPolygonF    edge       = silhouette.toFillPolygon();
     const auto inked = [&](int dryness, std::initializer_list<qreal> offsets) {
         styleOf(a).drybrush.dryness = dryness;
-        const QPainterPath ink  = Geometry::ink(a, silhouette);
+        const QPainterPath ink  = Geometry::ink(*a.balloon, a.seed, silhouette);
         int                hits = 0;
         int                all  = 0;
         for (int i = 0; i + 1 < edge.size(); ++i) {
@@ -1363,13 +1373,13 @@ TEST(Style, ADrybrushKeepsItsCoreAndThinsOutwards)
     // close on it and the core is mitred, where a round join or folded hairs would spread it.
     Tail t;
     t.tip         = QPointF(60, 260);
-    tailsOf(a).items = {t};
+    setTails(a, {t});
     styleOf(a).drybrush.dryness = 0;
-    const QLineF  axis(Geometry::balloonRect(a).center(), t.tip);
+    const QLineF  axis(Geometry::balloonRect(*a.balloon, *bodyOf(a)).center(), t.tip);
     const QPointF beside = QPointF(-axis.dy(), axis.dx()) / axis.length() * 4.8;
     for (quint32 seed : {1u, 2u, 0xC0FFEEu}) {
         seedOf(a)            = seed;
-        const QPainterPath ink = Geometry::ink(a, Geometry::silhouette(a));
+        const QPainterPath ink = Geometry::ink(*a.balloon, a.seed, Geometry::silhouette(*a.balloon, a.seed));
         EXPECT_TRUE(ink.contains(t.tip)) << seed;
         EXPECT_FALSE(ink.contains(t.tip + beside)) << seed;
         EXPECT_FALSE(ink.contains(t.tip - beside)) << seed;
@@ -1378,18 +1388,18 @@ TEST(Style, ADrybrushKeepsItsCoreAndThinsOutwards)
     // The hairs follow each part on its own edge and run on under another only a little: the balloon's
     // outline deep under a wide tail, far from both roots and from the tail's sides, has none.
     {
-        ObjectRecord e = a;
+        Composition e = a;
         shapeOf(e)        = Geometry::shapeTemplate("ellipse").shape;
         boxOf(e)          = QSize(280, 160);
         Tail wide;
         wide.tip       = QPointF(140, 420);
         wide.baseWidth = 160;
-        tailsOf(e).items  = {wide};
-        const QRectF  body   = Geometry::balloonRect(e);
+        setTails(e, {wide});
+        const QRectF  body   = Geometry::balloonRect(*e.balloon, *bodyOf(e));
         const QPointF bottom(body.center().x(), body.bottom());
         for (quint32 seed = 1; seed <= 8; ++seed) {
             seedOf(e)            = seed;
-            const QPainterPath ink = Geometry::ink(e, Geometry::silhouette(e));
+            const QPainterPath ink = Geometry::ink(*e.balloon, e.seed, Geometry::silhouette(*e.balloon, e.seed));
             for (qreal off : {-6.0, -3.0, 0.0, 3.0, 6.0})
                 EXPECT_FALSE(ink.contains(bottom + QPointF(0, off))) << seed << " at " << off;
         }
@@ -1398,25 +1408,25 @@ TEST(Style, ADrybrushKeepsItsCoreAndThinsOutwards)
     // A concave corner (an L's inside, as a tail's root): each hair runs on to the other side's core and
     // stops there. Outside, the two sides' hairs cross in the angle, so the line halving it is inked here
     // and there; inside, nothing runs on into the fill, past where either side's band is.
-    tailsOf(a).items.clear();
-    shapeOf(a).kind         = ObjectRecord::Shape::Polygon;
+    tailsOf(a).clear();
+    shapeOf(a).kind         = ShapeProperties::Kind::Polygon;
     shapeOf(a).corner.radius = 0.0;
     shapeOf(a).nodes        = {{0, 0}, {1, 0}, {1, 0.5}, {0.5, 0.5}, {0.5, 1}, {0, 1}};
     boxOf(a)                = QSize(200, 200);
-    const QRectF  body   = Geometry::balloonRect(a);
+    const QRectF  body   = Geometry::balloonRect(*a.balloon, *bodyOf(a));
     const QPointF inside = body.topLeft() + QPointF(body.width() / 2, body.height() / 2);
     styleOf(a).drybrush.dryness = 0;
     int rootHits = 0;
     for (quint32 seed = 1; seed <= 8; ++seed) {
         seedOf(a)            = seed;
-        const QPainterPath ink = Geometry::ink(a, Geometry::silhouette(a));
+        const QPainterPath ink = Geometry::ink(*a.balloon, a.seed, Geometry::silhouette(*a.balloon, a.seed));
         for (qreal d : {4.5, 6.0, 7.5, 9.0})
             rootHits += ink.contains(inside + QPointF(d, d) / std::sqrt(2.0)) ? 1 : 0;
     }
     EXPECT_GT(rootHits, 0);
     for (quint32 seed = 1; seed <= 8; ++seed) {
         seedOf(a)            = seed;
-        const QPainterPath ink = Geometry::ink(a, Geometry::silhouette(a));
+        const QPainterPath ink = Geometry::ink(*a.balloon, a.seed, Geometry::silhouette(*a.balloon, a.seed));
         for (qreal lane : {2.75, 4.25, 5.75, 7.25})   // a hair run on past the corner, either side
             for (const QPointF& off : {QPointF(-4, -lane), QPointF(-lane, -4)})
                 EXPECT_FALSE(ink.contains(inside + off)) << seed << " at " << off.x() << "," << off.y();
@@ -1432,7 +1442,7 @@ TEST(Style, ADrybrushKeepsItsCoreAndThinsOutwards)
  */
 TEST(Tails, ACirclesTailIsAChainShrinkingToItsTip)
 {
-    ObjectRecord a;
+    Composition a = balloonObject();
     shapeOf(a)             = Geometry::shapeTemplate("ellipse").shape;
     boxOf(a)               = QSize(280, 160);
     styleOf(a).strokeWidth = 0;
@@ -1443,10 +1453,10 @@ TEST(Tails, ACirclesTailIsAChainShrinkingToItsTip)
     t.look.circles.count  = 3;
     t.look.circles.pitch  = 10.0;
     t.look.circles.offset = -8.0;   // a gap below the balloon
-    tailsOf(a).items      = {t};
-    const QRectF body   = Geometry::balloonRect(a);
+    setTails(a, {t});
+    const QRectF body   = Geometry::balloonRect(*a.balloon, *bodyOf(a));
 
-    QList<QPolygonF> rings = Geometry::silhouette(a).toSubpathPolygons();
+    QList<QPolygonF> rings = Geometry::silhouette(*a.balloon, a.seed).toSubpathPolygons();
     ASSERT_EQ(rings.size(), 4);   // the balloon, and three ellipses apart from it and from each other
     std::sort(rings.begin(), rings.end(),
               [](const QPolygonF& l, const QPolygonF& r) { return l.boundingRect().top() < r.boundingRect().top(); });
@@ -1462,8 +1472,8 @@ TEST(Tails, ACirclesTailIsAChainShrinkingToItsTip)
     EXPECT_NEAR(last.top() - rings[2].boundingRect().bottom(), t.look.circles.pitch, 0.5);
 
     // Sunk into the balloon, the first one melts into it.
-    tailsOf(a).items.first().look.circles.offset = 8.0;
-    EXPECT_EQ(Geometry::silhouette(a).toSubpathPolygons().size(), 3);
+    tailsOf(a).first().tail.look.circles.offset = 8.0;
+    EXPECT_EQ(Geometry::silhouette(*a.balloon, a.seed).toSubpathPolygons().size(), 3);
 }
 
 /**
@@ -1475,7 +1485,7 @@ TEST(Tails, ACirclesTailIsAChainShrinkingToItsTip)
 TEST(Tails, ATipEndsAsItSays)
 {
     constexpr qreal k_inside = 0.5;   // how far inside an edge a probe stands, in balloon pixels
-    ObjectRecord a;
+    Composition a = balloonObject();
     shapeOf(a)             = Geometry::shapeTemplate("ellipse").shape;
     boxOf(a)               = QSize(280, 160);
     styleOf(a).strokeWidth = 0;
@@ -1484,10 +1494,10 @@ TEST(Tails, ATipEndsAsItSays)
     t.baseWidth      = 40.0;
     t.look.end.width = 50;
     const qreal end  = t.baseWidth / 2.0 * t.look.end.width / 100.0;   // either side of the middle
-    tailsOf(a).items    = {t};
+    setTails(a, {t});
     const auto at    = [&](TailLook::Tip tip, QPointF p) {
-        tailsOf(a).items.first().look.tip = tip;
-        return Geometry::silhouette(a).contains(p);
+        tailsOf(a).first().tail.look.tip = tip;
+        return Geometry::silhouette(*a.balloon, a.seed).contains(p);
     };
 
     // Sharp: the sides meet at the tip, so just above it the tail is far narrower than the end would be.
@@ -1510,8 +1520,8 @@ TEST(Tails, ATipEndsAsItSays)
     constexpr qreal k_flattening = 1.0;   // how far a flattened end's length may be from a true one's
     constexpr qreal k_same       = 1e-9;
     for (TailLook::Tip tip : {TailLook::Tip::Sharp, TailLook::Tip::Round, TailLook::Tip::Cut}) {
-        tailsOf(a).items.first().look.tip = tip;
-        const Geometry::OutlineModel m = Geometry::outlineModel(a, Geometry::silhouette(a));
+        tailsOf(a).first().tail.look.tip = tip;
+        const Geometry::OutlineModel m = Geometry::outlineModel(*a.balloon, a.seed, Geometry::silhouette(*a.balloon, a.seed));
         ASSERT_EQ(m.parts.size(), 2);
         ASSERT_EQ(m.rings.size(), 1);
         for (const Geometry::OutlineRing& ring : {m.parts[1].rings.first(), m.rings.first()}) {
@@ -1529,14 +1539,14 @@ TEST(Tails, ATipEndsAsItSays)
                 EXPECT_FALSE(round && ring.within(e, c.at)) << c.at;
         }
     }
-    tailsOf(a).items.first().look.tip = TailLook::Tip::Sharp;
+    tailsOf(a).first().tail.look.tip = TailLook::Tip::Sharp;
 
     // A Circles tail has no tip: the same chain whatever it says.
-    tailsOf(a).items.first().look.style = TailLook::Style::Circles;
-    tailsOf(a).items.first().look.tip   = TailLook::Tip::Sharp;
-    const QPainterPath chain         = Geometry::silhouette(a);
-    tailsOf(a).items.first().look.tip = TailLook::Tip::Cut;
-    EXPECT_TRUE(chain == Geometry::silhouette(a));
+    tailsOf(a).first().tail.look.style = TailLook::Style::Circles;
+    tailsOf(a).first().tail.look.tip   = TailLook::Tip::Sharp;
+    const QPainterPath chain         = Geometry::silhouette(*a.balloon, a.seed);
+    tailsOf(a).first().tail.look.tip = TailLook::Tip::Cut;
+    EXPECT_TRUE(chain == Geometry::silhouette(*a.balloon, a.seed));
 }
 
 /**
@@ -1550,7 +1560,7 @@ TEST(Tails, ATipEndsAsItSays)
 TEST(Tails, ABrokenTailZigzagsThroughItsBreaks)
 {
     constexpr qreal k_tipTolerance = 0.5;   // balloon pixels
-    ObjectRecord a;
+    Composition a = balloonObject();
     shapeOf(a)             = Geometry::shapeTemplate("ellipse").shape;
     boxOf(a)               = QSize(280, 160);
     styleOf(a).strokeWidth = 0;
@@ -1559,18 +1569,18 @@ TEST(Tails, ABrokenTailZigzagsThroughItsBreaks)
     t.baseWidth         = 30.0;
     t.look.breaks.count = 2;
     t.look.breaks.jog   = 20;
-    tailsOf(a).items    = {t};
+    setTails(a, {t});
     const QPainterPath straight = [&] {
-        ObjectRecord plain             = a;
-        tailsOf(plain).items.first().look.breaks.count = 0;
-        return Geometry::silhouette(plain);
+        Composition plain             = a;
+        tailsOf(plain).first().tail.look.breaks.count = 0;
+        return Geometry::silhouette(*plain.balloon, plain.seed);
     }();
-    const QPainterPath broken = Geometry::silhouette(a);
+    const QPainterPath broken = Geometry::silhouette(*a.balloon, a.seed);
     EXPECT_FALSE(broken == straight);
 
     // The tail's straight line runs from inside the balloon to the tip; a third and two thirds of the way
     // its breaks stand a fifth of its length to either side, where the straight tail is not.
-    const QRectF  body  = Geometry::balloonRect(a);
+    const QRectF  body  = Geometry::balloonRect(*a.balloon, *bodyOf(a));
     const QPointF from  = body.center();
     EXPECT_NEAR(broken.boundingRect().bottom(), t.tip.y(), k_tipTolerance);   // the tip stays the lowest point
     // Whether @p path's breaks stand where a first turn to @p side (-1 the tail's right, -x) puts them.
@@ -1589,32 +1599,32 @@ TEST(Tails, ABrokenTailZigzagsThroughItsBreaks)
     EXPECT_FALSE(zigzags(broken, 1.0));
 
     // A counter-clockwise first turn mirrors it: right becomes left.
-    tailsOf(a).items.first().look.breaks.clockwise = false;
-    EXPECT_TRUE(zigzags(Geometry::silhouette(a), 1.0));
+    tailsOf(a).first().tail.look.breaks.clockwise = false;
+    EXPECT_TRUE(zigzags(Geometry::silhouette(*a.balloon, a.seed), 1.0));
     // A Circles tail takes no breaks.
-    tailsOf(a).items.first().look.style = TailLook::Style::Circles;
-    const QPainterPath chain         = Geometry::silhouette(a);
-    tailsOf(a).items.first().look.breaks.count = 0;
-    EXPECT_TRUE(chain == Geometry::silhouette(a));
+    tailsOf(a).first().tail.look.style = TailLook::Style::Circles;
+    const QPainterPath chain         = Geometry::silhouette(*a.balloon, a.seed);
+    tailsOf(a).first().tail.look.breaks.count = 0;
+    EXPECT_TRUE(chain == Geometry::silhouette(*a.balloon, a.seed));
 }
 
 //! A flash left on Auto points its strokes exactly as the shape's own stretch would.
 TEST(Style, AutoStretchIsTheShapes)
 {
     for (int i = 0; i <= int(ShapeProperties::k_lastKind); ++i) {
-        ObjectRecord a;
-        shapeOf(a).kind = static_cast<ObjectRecord::Shape>(i);
+        Composition a = balloonObject();
+        shapeOf(a).kind = static_cast<ShapeProperties::Kind>(i);
         boxOf(a)        = QSize(300, 140);
-        styleOf(a).line = ObjectRecord::Line::Flash;
+        styleOf(a).line = StyleProperties::Line::Flash;
         seedOf(a)  = 7;
         const int own = Geometry::shapeInfo(shapeOf(a).kind).flashStretch;
         EXPECT_GE(own, 0) << shapeName(shapeOf(a).kind);
         EXPECT_LE(own, 100) << shapeName(shapeOf(a).kind);
 
         ASSERT_EQ(styleOf(a).flash.coreStretch, FlashParams::k_autoStretch);   // the default is Auto
-        const QPainterPath autoInk = Geometry::ink(a, Geometry::silhouette(a));
+        const QPainterPath autoInk = Geometry::ink(*a.balloon, a.seed, Geometry::silhouette(*a.balloon, a.seed));
         styleOf(a).flash.coreStretch   = own;
-        EXPECT_TRUE(autoInk == Geometry::ink(a, Geometry::silhouette(a))) << shapeName(shapeOf(a).kind);
+        EXPECT_TRUE(autoInk == Geometry::ink(*a.balloon, a.seed, Geometry::silhouette(*a.balloon, a.seed))) << shapeName(shapeOf(a).kind);
     }
 }
 
@@ -1628,21 +1638,21 @@ TEST(Style, AutoStretchIsTheShapes)
  */
 TEST(Tails, AConcaveOutlineIsLeftNearestTheTip)
 {
-    ObjectRecord a;
-    shapeOf(a).kind         = ObjectRecord::Shape::Polygon;
+    Composition a = balloonObject();
+    shapeOf(a).kind         = ShapeProperties::Kind::Polygon;
     shapeOf(a).corner.radius = 0.0;
     shapeOf(a).nodes = {{0, 0}, {0.3, 0}, {0.3, 0.4}, {0.7, 0.4}, {0.7, 0}, {1, 0}, {1, 1}, {0, 1}};
     boxOf(a)              = QSize(200, 200);
     styleOf(a).strokeWidth = 0;   // the balloon is then the box, and the nodes are these pixels
     Tail t;
     t.tip         = QPointF(-40, -200);
-    tailsOf(a).items = {t};
+    setTails(a, {t});
 
-    ASSERT_TRUE(Geometry::tailsDrawn(a).value(0));
+    ASSERT_TRUE(Geometry::tailsDrawn(*a.balloon, a.seed).value(0));
     const QPointF inTheNotch(72, 40);   // on the line, between the notch's floor and the prong
-    ASSERT_FALSE(Geometry::outlineOf(a, Geometry::balloonRect(a)).contains(inTheNotch));
-    EXPECT_FALSE(Geometry::silhouette(a).contains(inTheNotch));
-    EXPECT_TRUE(Geometry::silhouette(a).contains(QPointF(16, -80)));   // ...and the tail is there, on its line
+    ASSERT_FALSE(Geometry::outlineOf(*bodyOf(a), Geometry::balloonRect(*a.balloon, *bodyOf(a)), a.seed).contains(inTheNotch));
+    EXPECT_FALSE(Geometry::silhouette(*a.balloon, a.seed).contains(inTheNotch));
+    EXPECT_TRUE(Geometry::silhouette(*a.balloon, a.seed).contains(QPointF(16, -80)));   // ...and the tail is there, on its line
 }
 
 /**
@@ -1654,24 +1664,24 @@ TEST(Tails, AConcaveOutlineIsLeftNearestTheTip)
  */
 TEST(Shapes, APolygonsCornersRoundAsABoxsDo)
 {
-    ObjectRecord box;
-    shapeOf(box).kind         = ObjectRecord::Shape::Box;
+    Composition box = balloonObject();
+    shapeOf(box).kind         = ShapeProperties::Kind::Box;
     shapeOf(box).corner.radius = 30.0;
     boxOf(box)                = QSize(200, 100);
     styleOf(box).strokeWidth   = 0;
-    ObjectRecord square = box;
-    shapeOf(square).kind   = ObjectRecord::Shape::Polygon;
+    Composition square = box;
+    shapeOf(square).kind   = ShapeProperties::Kind::Polygon;
     shapeOf(square).nodes  = {{0, 0}, {1, 0}, {1, 1}, {0, 1}};
 
-    const QRectF       body = Geometry::balloonRect(box);
-    const QPainterPath a    = Geometry::outlineOf(box, body);
-    const QPainterPath b    = Geometry::outlineOf(square, body);
+    const QRectF       body = Geometry::balloonRect(*box.balloon, *bodyOf(box));
+    const QPainterPath a    = Geometry::outlineOf(*bodyOf(box), body, box.seed);
+    const QPainterPath b    = Geometry::outlineOf(*bodyOf(square), body, square.seed);
     for (const QPointF& p : {QPointF(3, 3), QPointF(12, 12), QPointF(197, 97), QPointF(100, 1), QPointF(1, 50)})
         EXPECT_EQ(a.contains(p), b.contains(p)) << p.x() << "," << p.y();
     EXPECT_FALSE(b.contains(QPointF(3, 3)));   // the corner is cut, not bulged
 
     shapeOf(square).corner.radius = 1000.0;
-    const QRectF drawn = Geometry::outlineOf(square, body).boundingRect();
+    const QRectF drawn = Geometry::outlineOf(*bodyOf(square), body, square.seed).boundingRect();
     EXPECT_TRUE(body.adjusted(-0.01, -0.01, 0.01, 0.01).contains(drawn));
 }
 
@@ -1691,7 +1701,7 @@ TEST(Shapes, AHandleDraggedOntoItselfChangesNothing)
     const QRectF body(5, 5, 270, 150);
     const qreal  clearance = 12.0;
     for (const Geometry::ShapeTemplate& t : Geometry::shapeTemplates()) {
-        for (ObjectRecord::Edge edge : {ObjectRecord::Edge::None, ObjectRecord::Edge::Zigzag}) {
+        for (ShapeProperties::Edge edge : {ShapeProperties::Edge::None, ShapeProperties::Edge::Zigzag}) {
             ShapeProperties shape = t.shape;
             shape.edge            = edge;
             if (!Geometry::hasShapeHandles(shape))
@@ -1729,32 +1739,32 @@ TEST(Shapes, AHandleDraggedOntoItselfChangesNothing)
  */
 TEST(Shapes, AnEdgeGoesInAndTheLetteringGivesUpItsDepth)
 {
-    for (int e = int(ObjectRecord::Edge::Zigzag); e <= int(ShapeProperties::k_lastEdge); ++e)
+    for (int e = int(ShapeProperties::Edge::Zigzag); e <= int(ShapeProperties::k_lastEdge); ++e)
     for (const char* id : {"speech", "ellipse", "shout", "scroll", "thought"}) {
-        const auto edge = static_cast<ObjectRecord::Edge>(e);
-        ObjectRecord plain;
+        const auto edge = static_cast<ShapeProperties::Edge>(e);
+        Composition plain = balloonObject();
         shapeOf(plain) = Geometry::shapeTemplate(id).shape;
         boxOf(plain)   = QSize(300, 160);
-        ObjectRecord edged           = plain;
+        Composition edged           = plain;
         shapeOf(edged).edge             = edge;
         shapeOf(edged).teeth.depth        = 9.0;
         shapeOf(edged).teeth.irregularity = 50;
         seedOf(edged)              = 7;
 
-        const QRectF body = Geometry::balloonRect(plain);
-        const QRectF bare = Geometry::outlineOf(plain, body).boundingRect();
-        EXPECT_TRUE(bare.adjusted(-0.01, -0.01, 0.01, 0.01).contains(Geometry::outlineOf(edged, body).boundingRect()))
+        const QRectF body = Geometry::balloonRect(*plain.balloon, *bodyOf(plain));
+        const QRectF bare = Geometry::outlineOf(*bodyOf(plain), body, plain.seed).boundingRect();
+        EXPECT_TRUE(bare.adjusted(-0.01, -0.01, 0.01, 0.01).contains(Geometry::outlineOf(*bodyOf(edged), body, edged.seed).boundingRect()))
             << id << " " << edgeName(edge);
-        const QRectF a = Geometry::textArea(plain);
-        const QRectF b = Geometry::textArea(edged);
+        const QRectF a = Geometry::textArea(plain, *wordsOf(plain));
+        const QRectF b = Geometry::textArea(edged, *wordsOf(edged));
         EXPECT_NEAR(b.width(), a.width() - 2 * 9.0, 1e-6) << id << " " << edgeName(edge);
         EXPECT_NEAR(b.height(), a.height() - 2 * 9.0, 1e-6) << id << " " << edgeName(edge);
         EXPECT_EQ(Geometry::templateOf(shapeOf(edged)), &Geometry::shapeTemplate(id)) << id << " " << edgeName(edge);
 
-        const QPainterPath once = Geometry::outlineOf(edged, body);
-        EXPECT_TRUE(once == Geometry::outlineOf(edged, body)) << id << " " << edgeName(edge);
+        const QPainterPath once = Geometry::outlineOf(*bodyOf(edged), body, edged.seed);
+        EXPECT_TRUE(once == Geometry::outlineOf(*bodyOf(edged), body, edged.seed)) << id << " " << edgeName(edge);
         seedOf(edged) = 8;
-        EXPECT_FALSE(once == Geometry::outlineOf(edged, body)) << id << " " << edgeName(edge);
+        EXPECT_FALSE(once == Geometry::outlineOf(*bodyOf(edged), body, edged.seed)) << id << " " << edgeName(edge);
     }
 }
 
@@ -1765,12 +1775,12 @@ TEST(Shapes, AnEdgeGoesInAndTheLetteringGivesUpItsDepth)
  */
 TEST(Effects, AShadowStaysInItsBoundsAndOnlyASoftOneIsAFilter)
 {
-    ObjectRecord a;
+    Composition a = balloonObject();
     shapeOf(a) = Geometry::shapeTemplate("speech").shape;
     Tail t;
     t.tip         = QPointF(60, 230);
-    tailsOf(a).items = {t};
-    EXPECT_TRUE(Geometry::shadowOf(a, Geometry::silhouette(a)).isEmpty());
+    setTails(a, {t});
+    EXPECT_TRUE(Geometry::shadowOf(effectsOf(a).shadow, effectsOf(a).shadowFill, Geometry::silhouette(*a.balloon, a.seed)).isEmpty());
 
     effectsOf(a).shadow.on = true;
     for (const QPointF offset : {QPointF(12, 9), QPointF(-20, -3), QPointF(0, 30), QPointF(0, 0)}) {
@@ -1780,8 +1790,8 @@ TEST(Effects, AShadowStaysInItsBoundsAndOnlyASoftOneIsAFilter)
                 effectsOf(a).shadow.x        = offset.x();
                 effectsOf(a).shadow.y        = offset.y();
                 effectsOf(a).shadow.softness = softness;
-                const QPainterPath          silhouette = Geometry::silhouette(a);
-                const Geometry::ShadowPaths shadow     = Geometry::shadowOf(a, silhouette);
+                const QPainterPath          silhouette = Geometry::silhouette(*a.balloon, a.seed);
+                const Geometry::ShadowPaths shadow     = Geometry::shadowOf(effectsOf(a).shadow, effectsOf(a).shadowFill, silhouette);
                 // The moved balloon, grown on every side by a band as wide as the spread.
                 EXPECT_TRUE(shadow.body == silhouette.translated(offset));
                 EXPECT_DOUBLE_EQ(shadow.grow, grow);
@@ -1802,7 +1812,7 @@ TEST(Effects, AShadowStaysInItsBoundsAndOnlyASoftOneIsAFilter)
  */
 TEST(Effects, AHalftoneShadowReplacesTheShadowAndFadesOverItsSoftness)
 {
-    ObjectRecord a;
+    Composition a = balloonObject();
     shapeOf(a)                      = Geometry::shapeTemplate("speech").shape;
     effectsOf(a).shadow.on             = true;
     effectsOf(a).shadow.spread       = 0.0;
@@ -1812,28 +1822,28 @@ TEST(Effects, AHalftoneShadowReplacesTheShadowAndFadesOverItsSoftness)
     effectsOf(a).shadowFill.spacing = 8.0;
     effectsOf(a).shadowFill.size    = 4.0;
     effectsOf(a).shadowFill.angle   = 0;
-    const QPainterPath silhouette = Geometry::silhouette(a);
+    const QPainterPath silhouette = Geometry::silhouette(*a.balloon, a.seed);
 
     for (int k = 1; k <= int(Paint::k_lastKind); ++k) {
         effectsOf(a).shadowFill.kind = static_cast<Paint::Kind>(k);
         // Hard: the moved shape, filled with the pattern's marks in the shadow's colour, and no ground.
         effectsOf(a).shadow.softness = 0.0;
-        EXPECT_FALSE(Geometry::fadesShadow(a));
-        EXPECT_TRUE(Geometry::shadowOf(a, silhouette).body == silhouette);
-        const Paint hard = Geometry::shadowPaint(a);
+        EXPECT_FALSE(Geometry::fadesShadow(effectsOf(a).shadow, effectsOf(a).shadowFill));
+        EXPECT_TRUE(Geometry::shadowOf(effectsOf(a).shadow, effectsOf(a).shadowFill, silhouette).body == silhouette);
+        const Paint hard = Geometry::shadowPaint(effectsOf(a).shadow, effectsOf(a).shadowFill);
         EXPECT_EQ(hard.kind, effectsOf(a).shadowFill.kind);
         EXPECT_EQ(hard.colour.alpha(), 0) << "a halftone shadow has no ground";
         EXPECT_EQ(hard.second, effectsOf(a).shadowFill.colour);
 
         // Soft: its marks, filled in the colour; no filter, and within the blur's reach.
         effectsOf(a).shadow.softness = 4.0;
-        EXPECT_TRUE(Geometry::fadesShadow(a));
+        EXPECT_TRUE(Geometry::fadesShadow(effectsOf(a).shadow, effectsOf(a).shadowFill));
         EXPECT_FALSE(Geometry::hasFilter(a));
-        EXPECT_EQ(Geometry::shadowPaint(a).kind, Paint::Kind::Solid);
-        EXPECT_EQ(Geometry::shadowPaint(a).colour, effectsOf(a).shadowFill.colour);
-        const QPainterPath marks = Geometry::shadowOf(a, silhouette).body;
+        EXPECT_EQ(Geometry::shadowPaint(effectsOf(a).shadow, effectsOf(a).shadowFill).kind, Paint::Kind::Solid);
+        EXPECT_EQ(Geometry::shadowPaint(effectsOf(a).shadow, effectsOf(a).shadowFill).colour, effectsOf(a).shadowFill.colour);
+        const QPainterPath marks = Geometry::shadowOf(effectsOf(a).shadow, effectsOf(a).shadowFill, silhouette).body;
         ASSERT_FALSE(marks.isEmpty()) << k;
-        EXPECT_DOUBLE_EQ(Geometry::shadowOf(a, silhouette).grow, 0.0);   // marks are grown already
+        EXPECT_DOUBLE_EQ(Geometry::shadowOf(effectsOf(a).shadow, effectsOf(a).shadowFill, silhouette).grow, 0.0);   // marks are grown already
         const qreal  reach = 3.0 * effectsOf(a).shadow.softness;
         const QRectF outer = silhouette.boundingRect().adjusted(-reach, -reach, reach, reach);
         EXPECT_TRUE(outer.contains(marks.boundingRect())) << k;
@@ -1842,7 +1852,7 @@ TEST(Effects, AHalftoneShadowReplacesTheShadowAndFadesOverItsSoftness)
 
     // Deep inside, a dot is the pattern's own; well outside, there is none.
     effectsOf(a).shadowFill.kind = Paint::Kind::Dots;
-    const QPainterPath marks  = Geometry::shadowOf(a, silhouette).body;
+    const QPainterPath marks  = Geometry::shadowOf(effectsOf(a).shadow, effectsOf(a).shadowFill, silhouette).body;
     const qreal        side   = effectsOf(a).shadowFill.spacing;
     const QPointF      middle = silhouette.boundingRect().center();
     const QPointF      dot((std::floor(middle.x() / side) + 0.5) * side, (std::floor(middle.y() / side) + 0.5) * side);
@@ -1854,7 +1864,7 @@ TEST(Effects, AHalftoneShadowReplacesTheShadowAndFadesOverItsSoftness)
     // Spread, it fades about the grown edge, measured from the balloon's with no union: marks reach out
     // past the balloon by about the spread, and there, 20 px out, are some.
     effectsOf(a).shadow.spread    = 20.0;
-    const QPainterPath spread  = Geometry::shadowOf(a, silhouette).body;
+    const QPainterPath spread  = Geometry::shadowOf(effectsOf(a).shadow, effectsOf(a).shadowFill, silhouette).body;
     EXPECT_LT(spread.boundingRect().left(), body.left() - 15.0);
     EXPECT_TRUE(spread.intersects(QRectF(body.left() - 20, body.top(), 8, body.height())));
 }
@@ -1866,7 +1876,7 @@ TEST(Effects, AHalftoneShadowReplacesTheShadowAndFadesOverItsSoftness)
  */
 TEST(Paint, AFadingFillThinsOutAlongItsCross)
 {
-    ObjectRecord a;
+    Composition a = balloonObject();
     shapeOf(a)           = Geometry::shapeTemplate("caption").shape;
     boxOf(a)             = QSize(400, 200);
     styleOf(a).strokeWidth = 0;   // the balloon's rectangle is the box
@@ -1875,11 +1885,11 @@ TEST(Paint, AFadingFillThinsOutAlongItsCross)
     p.spacing         = 8.0;
     p.size            = 6.0;
     p.angle           = 0;
-    const QRectF       body       = Geometry::balloonRect(a);
-    const QPainterPath silhouette = Geometry::silhouette(a);
+    const QRectF       body       = Geometry::balloonRect(*a.balloon, *bodyOf(a));
+    const QPainterPath silhouette = Geometry::silhouette(*a.balloon, a.seed);
     ASSERT_EQ(body, QRectF(0, 0, 400, 200));
     EXPECT_FALSE(Geometry::fades(p)) << "every arm on its side: no fade";
-    EXPECT_TRUE(Geometry::fillTone(a, silhouette).isEmpty());
+    EXPECT_TRUE(Geometry::fillTone(*a.balloon, silhouette).isEmpty());
 
     // Down only, from half way to the side.
     p.fadeBottomFrom = 50.0;
@@ -1890,7 +1900,7 @@ TEST(Paint, AFadingFillThinsOutAlongItsCross)
     EXPECT_DOUBLE_EQ(Geometry::fadeTone(p, body, QPointF(390, 175)), 0.5);   // the same across
     EXPECT_DOUBLE_EQ(Geometry::fadeTone(p, body, QPointF(200, 200)), 0.0);   // at the side
 
-    const QPainterPath marks = Geometry::fillTone(a, silhouette);
+    const QPainterPath marks = Geometry::fillTone(*a.balloon, silhouette);
     ASSERT_FALSE(marks.isEmpty());
     const auto dotAt = [&](int i, int j) { return QPointF((i + 0.5) * p.spacing, (j + 0.5) * p.spacing); };
     EXPECT_TRUE(marks.contains(dotAt(25, 2) + QPointF(0.9 * p.size / 2.0, 0)));   // whole, up top
@@ -1973,7 +1983,7 @@ TEST(Paint, AFadingFillThinsOutAlongItsCross)
         << "an arm with no length does not drag";
 
     // Only the fill lists the fade, and the shadow's pattern no colour of its own: neither is saved there.
-    ObjectRecord b = a;
+    Composition b = a;
     styleOf(b).stroke.fadeBottomFrom = 10.0;
     effectsOf(b).shadowFill.second   = QColor(1, 2, 3);
     EXPECT_TRUE(styleOf(b) == styleOf(a));
@@ -2014,21 +2024,21 @@ TEST(Shapes, ACurveKeepsItsOutlineThroughItsEdits)
                                         rounded, Geometry::shapeTemplate("thought").shape}) {
         const QPainterPath    before = Geometry::shapeInfo(from.kind).outline(from, body);
         const ShapeProperties curve  = Geometry::curveOf(before, body);
-        EXPECT_EQ(curve.kind, ObjectRecord::Shape::Curve);
+        EXPECT_EQ(curve.kind, ShapeProperties::Kind::Curve);
         EXPECT_EQ(pointsInOnlyOne(before, Geometry::shapeInfo(curve.kind).outline(curve, body), body), 0)
             << shapeName(from.kind);
         // A node per cubic the path has, not a polygon: a cloud's lobe is a few arc pieces.
-        if (from.kind == ObjectRecord::Shape::Cloud)
+        if (from.kind == ShapeProperties::Kind::Cloud)
             EXPECT_LE(curve.nodes.size(), 4 * from.cloud.lobes);
     }
     // An ellipse's four quarters meet smoothly, each node's handles as long as each other.
     const ShapeProperties round = Geometry::curveOf(
-        Geometry::shapeInfo(ObjectRecord::Shape::Ellipse).outline(Geometry::shapeTemplate("ellipse").shape, body), body);
+        Geometry::shapeInfo(ShapeProperties::Kind::Ellipse).outline(Geometry::shapeTemplate("ellipse").shape, body), body);
     ASSERT_EQ(round.nodes.size(), 4);
     for (const ShapeNode& node : round.nodes)
         EXPECT_EQ(node.type, ShapeNode::Type::Symmetric);
 
-    const auto            outline = Geometry::shapeInfo(ObjectRecord::Shape::Curve).outline;
+    const auto            outline = Geometry::shapeInfo(ShapeProperties::Kind::Curve).outline;
     const ShapeProperties scroll  = Geometry::shapeTemplate("scroll").shape;
     for (int edge = 0; edge < scroll.nodes.size(); ++edge) {
         const ShapeProperties split = Geometry::withVertexAdded(scroll, edge);
@@ -2067,12 +2077,12 @@ TEST(Shapes, EveryNodedOutlineFillsItsBox)
     };
     for (const Geometry::ShapeTemplate& t : Geometry::shapeTemplates()) {
         const auto outline = Geometry::shapeInfo(t.shape.kind).outline;
-        if (t.shape.kind == ObjectRecord::Shape::Polygon || t.shape.kind == ObjectRecord::Shape::Curve) {
+        if (t.shape.kind == ShapeProperties::Kind::Polygon || t.shape.kind == ShapeProperties::Kind::Curve) {
             fills(t.shape, t.id);
-        } else if (t.shape.kind == ObjectRecord::Shape::Cloud) {
+        } else if (t.shape.kind == ShapeProperties::Kind::Cloud) {
             const QRectF e = Geometry::outlineExtent(Geometry::curveOf(outline(t.shape, body), body), body);
             EXPECT_TRUE(QRectF(0, 0, 1, 1).adjusted(-k_onEdge, -k_onEdge, k_onEdge, k_onEdge).contains(e)) << t.id;
-        } else if (outline && t.shape.kind != ObjectRecord::Shape::None) {
+        } else if (outline && t.shape.kind != ShapeProperties::Kind::None) {
             fills(Geometry::curveOf(outline(t.shape, body), body), t.id);
         }
     }
@@ -2088,7 +2098,7 @@ TEST(Shapes, APickedCurveNodeOffersBothHandlesAndGrowsTheMissingOnes)
     const QRectF          body(5, 5, 270, 150);
     const ShapeProperties speech  = Geometry::shapeTemplate("speech").shape;
     const ShapeProperties curve   = Geometry::curveOf(Geometry::shapeInfo(speech.kind).outline(speech, body), body);
-    const auto            outline = Geometry::shapeInfo(ObjectRecord::Shape::Curve).outline;
+    const auto            outline = Geometry::shapeInfo(ShapeProperties::Kind::Curve).outline;
     constexpr qreal       k_samePlace = 1e-9;   //!< Two handles at one point, in balloon pixels
 
     const auto handleAt = [&](const ShapeProperties& s, int picked, Geometry::ShapeHandle::Role role) {
@@ -2131,42 +2141,31 @@ TEST(Shapes, APickedCurveNodeOffersBothHandlesAndGrowsTheMissingOnes)
 // Import
 // ---------------------------------------------------------------------------
 
-/**
- * \brief What an import decides by: **our own file carries a recipe, and nobody else's does**.
- *
- * A bubble's SVG is an ordinary drawing plus the parameters it was drawn from, in a namespace no
- * renderer looks at. That is what lets one come home as a re-typable balloon instead of being filed as
- * a picture of itself — and what stops a foreign drawing being mistaken for one, since our ten
- * silhouettes cannot express somebody else's paths.
- *
- * The match is on the **namespace URI**, not on the `pm:` prefix, which in XML is only a local
- * shorthand: an SVG binding that prefix to any other namespace is not ours, whatever it looks like.
- */
 TEST(Import, OnlyAFileCarryingTheRecipeIsAdopted)
 {
-    // Built by hand rather than through Svg::write(): writing one measures its lettering, and
-    // measuring text needs a QGuiApplication this target deliberately does not have. What is under test
-    // is the reader's rule, and the rule is which namespace an attribute is in.
-    const QByteArray ours =
-        QByteArray("<svg xmlns=\"http://www.w3.org/2000/svg\" xmlns:pm=\"") + Svg::k_pmNamespace
-        + "\" width=\"10\" height=\"10\"><g pm:shape=\"cloud\" pm:box=\"300,200\""
-          " pm:tails=\"40,260,30,0.2\" pm:text=\"Hello\" pm:paddingSide=\"-6\" pm:paddingTop=\"3\" pm:lineSpacing=\"80\"/></svg>";
+    Composition c   = balloonObject();
+    shapeOf(c).kind = ShapeProperties::Kind::Cloud;
+    boxOf(c)        = QSize(300, 200);
+    Tail t;
+    t.tip = QPointF(40, 260);
+    setTails(c, {t});
+    textOf(c).body        = QStringLiteral("Hello");
+    textOf(c).paddingSide = -6;
+    textOf(c).paddingTop  = 3;
+    textOf(c).lineSpacing = 80;
+    const QByteArray ours = svgWith(c);
 
-    bool               ok   = false;
-    const ObjectRecord back = recordOf(Svg::read(ours, &ok));
+    bool              ok   = false;
+    const Composition back = Svg::read(ours, &ok);
     EXPECT_TRUE(ok);
-    EXPECT_EQ(shapeOf(back).kind, ObjectRecord::Shape::Cloud);
-    EXPECT_EQ(boxOf(back), QSize(300, 200));
-    EXPECT_EQ(tailsOf(back).items.size(), 1);
-    EXPECT_EQ(textOf(back).body, QStringLiteral("Hello"));
+    EXPECT_TRUE(back == c);
+    EXPECT_EQ(tailsOf(back).size(), 1);
     EXPECT_EQ(textOf(back).paddingSide, -6);
-    EXPECT_EQ(textOf(back).paddingTop, 3);
-    EXPECT_EQ(textOf(back).lineSpacing, 80);
 
     // The prefix is a local shorthand and carries no meaning: the same file with a different prefix,
     // bound to the same namespace, is still ours.
     QByteArray renamed = ours;
-    renamed.replace("pm:", "x:").replace("xmlns:x=", "xmlns:x=");
+    renamed.replace("pm:", "x:");
     renamed.replace("xmlns:pm=", "xmlns:x=");
     ok = false;
     (void)Svg::read(renamed, &ok);
@@ -2180,62 +2179,62 @@ TEST(Import, OnlyAFileCarryingTheRecipeIsAdopted)
     (void)Svg::read(foreign, &ok);
     EXPECT_FALSE(ok);
 
-    // The same attributes under somebody else's namespace are somebody else's attributes.
-    const QByteArray impostor =
-        "<svg xmlns=\"http://www.w3.org/2000/svg\" xmlns:pm=\"https://example.invalid/ns/1\""
-        " width=\"10\" height=\"10\"><g pm:shape=\"speech\" pm:box=\"10,10\"/></svg>";
+    // The same content under somebody else's namespace is somebody else's.
     ok = true;
-    (void)Svg::read(impostor, &ok);
+    (void)Svg::read(svgWith(c, "https://example.invalid/ns/1"), &ok);
     EXPECT_FALSE(ok);
 }
 
 /**
- * \brief A file of ours carries its content as the text of `<pm:content>` (the attributes above are the old
- *        form, still read); a project's records come from its overlays' content, and from the file only for an
- *        overlay that has none.
+ * \brief A file of ours carries its content as the text of `<pm:content>`; a project's compositions come from its
+ *        overlays' content, and from the file only for an overlay that has none. What is not a composition's
+ *        content — not JSON, or an object with no words — is not ours.
  */
 TEST(Import, TheContentIsReadFromTheOverlayThenFromItsFile)
 {
-    const QByteArray header =
-        QByteArray("<svg xmlns=\"http://www.w3.org/2000/svg\" xmlns:pm=\"") + Svg::k_pmNamespace + "\" width=\"10\" height=\"10\">";
-    // A content in the record's own form, saved before it was a composition's, is still read (ovl-content below
-    // is the composition's).
-    const QByteArray ours = header + "<pm:content>{\"box\":[300,200],\"shape\":{\"shape\":\"cloud\"},"
-                                     "\"text\":{\"text\":\"a &lt; b\"}}</pm:content><g/></svg>";
-    bool               ok   = false;
-    const ObjectRecord back = recordOf(Svg::read(ours, &ok));
+    Composition cloud = balloonObject();
+    shapeOf(cloud).kind = ShapeProperties::Kind::Cloud;
+    boxOf(cloud)        = QSize(300, 200);
+    textOf(cloud).body  = QStringLiteral("a < b");
+    bool              ok   = false;
+    const Composition back = Svg::read(svgWith(cloud), &ok);
     EXPECT_TRUE(ok);
-    EXPECT_EQ(shapeOf(back).kind, ObjectRecord::Shape::Cloud);
-    EXPECT_EQ(boxOf(back), QSize(300, 200));
+    EXPECT_TRUE(back == cloud);
     EXPECT_EQ(textOf(back).body, QStringLiteral("a < b"));
 
-    // An element of that name that is not JSON says nothing.
+    const QByteArray header =
+        QByteArray("<svg xmlns=\"http://www.w3.org/2000/svg\" xmlns:pm=\"") + Svg::k_pmNamespace + "\" width=\"10\" height=\"10\">";
     ok = true;
     (void)Svg::read(header + "<pm:content>not json</pm:content></svg>", &ok);
     EXPECT_FALSE(ok);
+    ok = true;
+    (void)Svg::read(header + "<pm:content>{\"box\":[300,200],\"shape\":{\"shape\":\"cloud\"}}</pm:content></svg>", &ok);
+    EXPECT_FALSE(ok) << "an object with no words is no composition's";
 
-    // The overlay's own content first; a file only for an overlay without one; neither, no record.
+    // The overlay's own content first; a file only for an overlay without one; neither, no composition.
     QTemporaryDir dir;
     ASSERT_TRUE(dir.isValid());
-    const QString legacy = dir.filePath(QStringLiteral("old.svg"));
+    const QString file = dir.filePath(QStringLiteral("old.svg"));
     {
-        QFile f(legacy);
+        Composition ellipse   = balloonObject();
+        shapeOf(ellipse).kind = ShapeProperties::Kind::Ellipse;
+        QFile f(file);
         ASSERT_TRUE(f.open(QIODevice::WriteOnly));
-        f.write(header + "<g pm:shape=\"ellipse\" pm:box=\"80,60\"/></svg>");
+        f.write(svgWith(ellipse));
     }
     std::vector<Platemaker::Models::StripOverlay> overlays(3);
     overlays[0].uid       = "ovl-content";
-    ObjectRecord named = back;
-    textOf(named).family = QStringLiteral("Comic Neue");   // a family of its own: an empty one asks the system
+    Composition named     = back;
+    textOf(named).family  = QStringLiteral("Comic Neue");   // a family of its own: an empty one asks the system
     overlays[0].content   = Svg::contentOf(named).toStdString();
-    overlays[0].assetPath = legacy.toStdString();   // a file that says otherwise is not read
+    overlays[0].assetPath = file.toStdString();   // a file that says otherwise is not read
     overlays[1].uid       = "ovl-file";
-    overlays[1].assetPath = legacy.toStdString();
+    overlays[1].assetPath = file.toStdString();
     overlays[2].uid       = "ovl-neither";
-    const ObjectRecord::Map records = recordsOf(Svg::readOverlays(overlays));
+    const Composition::Map records = Svg::readOverlays(overlays);
     ASSERT_EQ(records.size(), 2);
-    EXPECT_EQ(shapeOf(records.value(QStringLiteral("ovl-content"))).kind, ObjectRecord::Shape::Cloud);
-    EXPECT_EQ(shapeOf(records.value(QStringLiteral("ovl-file"))).kind, ObjectRecord::Shape::Ellipse);
+    EXPECT_EQ(shapeOf(records.value(QStringLiteral("ovl-content"))).kind, ShapeProperties::Kind::Cloud);
+    EXPECT_EQ(shapeOf(records.value(QStringLiteral("ovl-file"))).kind, ShapeProperties::Kind::Ellipse);
     EXPECT_FALSE(records.contains(QStringLiteral("ovl-neither")));
 }
 
@@ -2243,71 +2242,34 @@ TEST(Import, TheContentIsReadFromTheOverlayThenFromItsFile)
 // The third kind
 // ---------------------------------------------------------------------------
 
-/**
- * \brief A record that names a picture **is** that picture, and none of our geometry applies to it.
- *
- * One record type carries all three kinds — lettering, a balloon, and somebody else's drawing — because
- * a second map keyed by the same uid would be a second channel carrying the same object, and the two
- * would drift. What keeps that honest is this: the moment `artwork` is set, the questions about our own
- * geometry answer *no*, whatever the other fields happen to hold.
- */
-TEST(Kinds, ArtworkHasNoGeometryOfOurs)
+
+//! A picture survives being saved, like every other element — a picture that loaded as a balloon would be a
+//! default balloon written over imported artwork. One beside a balloon is not read
+//! (AContentThatBreaksTheRulesIsReadWithin).
+TEST(Kinds, APictureSurvivesItsContent)
 {
-    ObjectRecord a = loadedRecord();
-    shapeOf(a).kind   = ObjectRecord::Shape::Box;
-    ASSERT_TRUE(a.hasSilhouette());
-    ASSERT_TRUE(a.hasTail());
+    Composition a  = pictureObject(QStringLiteral("art-0123456789abcdef.png"), QSize(200, 100));
+    textOf(a).body = QStringLiteral("KRAK!");
 
-    artworkOf(a) = QStringLiteral("art-0123456789abcdef.png");
-    EXPECT_TRUE(a.isArtwork());
-    EXPECT_FALSE(a.hasSilhouette());   // the drawing is the picture, not a shape of ours
-    EXPECT_FALSE(a.hasTail());         // and nothing for a tail to leave from
-
-    artworkOf(a).clear();
-    EXPECT_FALSE(a.isArtwork());
-    EXPECT_TRUE(a.hasSilhouette());    // ...and nothing was destroyed to say so
-}
-
-//! The kind survives being saved, like every other property — a picture that loaded as a balloon would
-//! be a default balloon written over imported artwork, arriving by a different road.
-TEST(Kinds, ArtworkSurvivesTheSnapshot)
-{
-    ObjectRecord a = loadedRecord();
-    artworkOf(a)      = QStringLiteral("art-0123456789abcdef.png");
-
-    const ObjectRecord back = ObjectRecord::fromJson(a.toJson());
+    const Composition back = throughContent(a);
+    EXPECT_TRUE(back == a);
+    ASSERT_TRUE(back.picture);
+    EXPECT_FALSE(back.balloon);
     EXPECT_EQ(artworkOf(back), artworkOf(a));
-    EXPECT_TRUE(back.isArtwork());
-    EXPECT_EQ(back, a);
-
-    // A snapshot written before the field existed loads as what it was: something we draw.
-    QJsonObject older = a.toJson();
-    older.remove(QStringLiteral("artwork"));
-    EXPECT_FALSE(ObjectRecord::fromJson(older).isArtwork());
 }
 
-/**
- * \brief A wrapper is written only when it can draw its picture, and reads back as one.
- *
- * The library hands the renderer a buffer with no base path (`vips_svgload_buffer` → librsvg), so a
- * relative `href` has nothing to resolve against: the picture is embedded or the file is useless. A
- * wrapper without it would render as the lettering alone, floating over nothing — worse than no file,
- * because it would look deliberate.
- */
 TEST(Import, AFileBakedInAStandInSaysWhich)
 {
-    // pm:fontFamily is the font asked for and stays so; pm:fontFallback is what the outlines were set in
-    // while it was missing. The heal at open reads only the second — by namespace, like the recipe.
-    const QByteArray standIn =
-        QByteArray("<svg xmlns=\"http://www.w3.org/2000/svg\" xmlns:pm=\"") + Svg::k_pmNamespace
-        + "\" width=\"10\" height=\"10\"><g pm:shape=\"speech\" pm:box=\"10,10\" pm:text=\"Hi\""
-          " pm:fontFamily=\"Segoe Print\" pm:fontFallback=\"Segoe UI\"/></svg>";
+    // The content's family is the font asked for and stays so; pm:fontFallback is what the outlines were set in
+    // while it was missing. The heal at open reads only the second — by namespace, like the content.
+    Composition c    = balloonObject();
+    textOf(c).body   = QStringLiteral("Hi");
+    textOf(c).family = QStringLiteral("Segoe Print");
+    const QByteArray standIn = svgWith(c, Svg::k_pmNamespace, " pm:fontFallback=\"Segoe UI\"");
     EXPECT_EQ(Svg::bakedFontFallback(standIn), QStringLiteral("Segoe UI"));
-    EXPECT_EQ(textOf(recordOf(Svg::read(standIn))).family, QStringLiteral("Segoe Print"));
+    EXPECT_EQ(textOf(Svg::read(standIn)).family, QStringLiteral("Segoe Print"));
 
-    QByteArray ownFont = standIn;
-    ownFont.replace(" pm:fontFallback=\"Segoe UI\"", "");
-    EXPECT_TRUE(Svg::bakedFontFallback(ownFont).isEmpty());
+    EXPECT_TRUE(Svg::bakedFontFallback(svgWith(c)).isEmpty());
 
     // Somebody else's namespace says nothing about our files.
     QByteArray impostor = standIn;
@@ -2317,9 +2279,7 @@ TEST(Import, AFileBakedInAStandInSaysWhich)
 
 TEST(Import, AWrapperWithoutItsPictureIsNotWritten)
 {
-    ObjectRecord a;
-    artworkOf(a)   = QStringLiteral("art-0123456789abcdef.png");
-    boxOf(a)       = QSize(200, 200);
+    Composition a  = pictureObject(QStringLiteral("art-0123456789abcdef.png"), QSize(200, 200));
     textOf(a).body = QStringLiteral("KRAK!");
 
     EXPECT_TRUE(Svg::write(a).isEmpty());                                   // no bytes at all
@@ -2329,22 +2289,20 @@ TEST(Import, AWrapperWithoutItsPictureIsNotWritten)
 //! A wrapper says which picture it wraps, so re-importing one brings the object back whole.
 TEST(Import, AWrapperNamesItsPicture)
 {
-    const QByteArray wrapper =
-        QByteArray("<svg xmlns=\"http://www.w3.org/2000/svg\" xmlns:pm=\"") + Svg::k_pmNamespace
-        + "\" width=\"10\" height=\"10\"><g pm:shape=\"none\""
-          " pm:artwork=\"art-0123456789abcdef.png\" pm:box=\"200,200\" pm:text=\"KRAK!\"/></svg>";
+    Composition picture  = pictureObject(QStringLiteral("art-0123456789abcdef.png"), QSize(200, 200));
+    textOf(picture).body = QStringLiteral("KRAK!");
 
-    bool               ok = false;
-    const ObjectRecord a  = recordOf(Svg::read(wrapper, &ok));
+    bool              ok = false;
+    const Composition a  = Svg::read(svgWith(picture), &ok);
     EXPECT_TRUE(ok);
-    EXPECT_TRUE(a.isArtwork());
-    EXPECT_FALSE(a.hasSilhouette());
+    EXPECT_TRUE(a.picture);
+    EXPECT_FALSE(a.balloon);
     EXPECT_EQ(artworkOf(a), QStringLiteral("art-0123456789abcdef.png"));
     EXPECT_EQ(textOf(a).body, QStringLiteral("KRAK!"));
 }
 
 // ---------------------------------------------------------------------------------------------------
-// Which groups a record carries. The rule OBJECT STATE shows a subject by, and the rule its object menu
+// Which groups an object carries. The rule OBJECT STATE shows a subject by, and the rule its object menu
 // offers a selection by — written out twice in the panel before it had a name, and the two copies had
 // drifted.
 // ---------------------------------------------------------------------------------------------------
@@ -2355,53 +2313,36 @@ using StripEdit::PropertyGroup;
 //! Every kind is lettered — the one group a picture and a balloon genuinely share.
 TEST(Groups, TextIsCarriedByEveryKind)
 {
-    ObjectRecord balloon;
-    shapeOf(balloon).kind = ObjectRecord::Shape::Box;
-
-    ObjectRecord text;
-    shapeOf(text).kind = ObjectRecord::Shape::None;
-
-    ObjectRecord picture;
-    artworkOf(picture) = QStringLiteral("art-0123456789abcdef.png");
-
-    for (const ObjectRecord& a : {balloon, text, picture})
+    for (const Composition& a : {balloonObject(), textObject(), pictureObject(QStringLiteral("art-0123456789abcdef.png"))})
         EXPECT_TRUE(carriesGroup(a, PropertyGroup::Text));
 }
 
-//! Fill, line style, shape and tails all need a silhouette to sit on.
+//! Fill, line style, shape and tails all need a balloon to sit on.
 TEST(Groups, TheRestNeedASilhouette)
 {
-    ObjectRecord balloon;
-    shapeOf(balloon).kind = ObjectRecord::Shape::Box;
-    ASSERT_TRUE(balloon.hasSilhouette());
-
+    const Composition balloon = balloonObject();
     for (auto g : {PropertyGroup::Shape, PropertyGroup::Skin, PropertyGroup::Style, PropertyGroup::Tail})
         EXPECT_TRUE(carriesGroup(balloon, g)) << "balloon, group " << int(g);
 
-    ObjectRecord text;
-    shapeOf(text).kind = ObjectRecord::Shape::None;
+    const Composition text = textObject();
     for (auto g : {PropertyGroup::Shape, PropertyGroup::Skin, PropertyGroup::Style, PropertyGroup::Tail})
-        EXPECT_FALSE(carriesGroup(text, g)) << "shapeless, group " << int(g);
+        EXPECT_FALSE(carriesGroup(text, g)) << "text, group " << int(g);
 }
 
-//! A picture carries nothing of ours to shape, fill or roughen — **whatever its shape field says**.
+//! A picture carries nothing of ours to shape, fill or roughen.
 TEST(Groups, APictureCarriesOnlyItsLettering)
 {
-    ObjectRecord picture;
-    artworkOf(picture)    = QStringLiteral("art-0123456789abcdef.png");
-    shapeOf(picture).kind = ObjectRecord::Shape::Box;   // a stale value; isArtwork() outranks it
-
+    const Composition picture = pictureObject(QStringLiteral("art-0123456789abcdef.png"));
     EXPECT_TRUE(carriesGroup(picture, PropertyGroup::Text));
     for (auto g : {PropertyGroup::Shape, PropertyGroup::Skin, PropertyGroup::Style, PropertyGroup::Tail})
         EXPECT_FALSE(carriesGroup(picture, g)) << "picture, group " << int(g);
 }
 
-//! A tail is not a record, so no record carries its group — nor the three that never grew an editor.
-TEST(Groups, NoRecordCarriesATailsOwnGroup)
+//! A tail is not an object, so no object carries its group — nor the three that never grew an editor.
+TEST(Groups, NoObjectCarriesATailsOwnGroup)
 {
-    const ObjectRecord a = loadedRecord();
-    ASSERT_TRUE(a.hasSilhouette());
-    ASSERT_FALSE(tailsOf(a).items.isEmpty());
+    const Composition a = loadedBalloon();
+    ASSERT_FALSE(tailsOf(a).isEmpty());
 
     EXPECT_FALSE(carriesGroup(a, PropertyGroup::TailItem));
     EXPECT_FALSE(carriesGroup(a, PropertyGroup::Placement));
@@ -2422,48 +2363,49 @@ void bump(qreal& v) { v += 0.25; }
 void bump(QString& v) { v += QStringLiteral("x"); }
 void bump(QColor& v) { v = QColor(v.red() ^ 0x55, v.green() ^ 0x55, v.blue() ^ 0x55, v.alpha()); }
 void bump(QList<ShapeNode>& v) { v.append(ShapeNode(0.25, 0.75)); }
-void bump(ObjectRecord::Pattern& v)
+void bump(Paint::Kind& v)
 {
-    v = static_cast<ObjectRecord::Pattern>((int(v) + 1) % (int(Paint::k_lastKind) + 1));
+    v = static_cast<Paint::Kind>((int(v) + 1) % (int(Paint::k_lastKind) + 1));
 }
-void bump(ObjectRecord::Edge& v)
+void bump(ShapeProperties::Edge& v)
 {
-    v = static_cast<ObjectRecord::Edge>((int(v) + 1) % (int(ShapeProperties::k_lastEdge) + 1));
+    v = static_cast<ShapeProperties::Edge>((int(v) + 1) % (int(ShapeProperties::k_lastEdge) + 1));
 }
-void bump(ObjectRecord::Shape& v)
+void bump(ShapeProperties::Kind& v)
 {
-    v = static_cast<ObjectRecord::Shape>((int(v) + 1) % (int(ShapeProperties::k_lastKind) + 1));
+    v = static_cast<ShapeProperties::Kind>((int(v) + 1) % (int(ShapeProperties::k_lastKind) + 1));
 }
-void bump(ObjectRecord::Line& v)
+void bump(StyleProperties::Line& v)
 {
-    v = static_cast<ObjectRecord::Line>((int(v) + 1) % (int(StyleProperties::k_lastLine) + 1));
+    v = static_cast<StyleProperties::Line>((int(v) + 1) % (int(StyleProperties::k_lastLine) + 1));
 }
-void bump(ObjectRecord::Texture& v)
+void bump(TextureProperties::Kind& v)
 {
-    v = static_cast<ObjectRecord::Texture>((int(v) + 1) % (int(TextureProperties::k_lastKind) + 1));
+    v = static_cast<TextureProperties::Kind>((int(v) + 1) % (int(TextureProperties::k_lastKind) + 1));
 }
 
 /**
- * \brief For every field of the group at \p group: changing it alone makes the group unequal, and the
- *        changed record comes back the same from the JSON and from the SVG.
+ * \brief For every field of the group @p part gives: changing it alone makes the group unequal, and the
+ *        changed object comes back the same from the JSON and from the SVG.
  *
  * The SVG is written with no lettering, because writing lettering measures a font, which needs the
  * QGuiApplication this target does not have; the body's own `pm:text` is read by the import test.
  */
-template <class Group>
-void expectEveryFieldCounts(Group ObjectRecord::*group)
+template <class Part>
+void expectEveryFieldCounts(Part part)
 {
+    using Group = std::remove_reference_t<decltype(part(std::declval<Composition&>()))>;
     Group::fields([&](const char* key, auto member) {
-        ObjectRecord a = loadedRecord();
+        Composition a = loadedBalloon();
         textOf(a).body.clear();
-        ObjectRecord b = a;
-        bump(Fields::at(b.*group, member));
+        Composition b = a;
+        bump(Fields::at(part(b), member));
 
-        EXPECT_FALSE(a.*group == b.*group) << key << ": not compared";
-        EXPECT_EQ(ObjectRecord::fromJson(b.toJson()), b) << key << ": not in the JSON";
-        if (textOf(b).body.isEmpty()) {
+        EXPECT_FALSE(part(a) == part(b)) << key << ": not compared";
+        EXPECT_TRUE(compositionFromJson(toJson(b)) == b) << key << ": not in the JSON";
+        if (textOf(b).body.isEmpty()) {   // writing words measures them, which needs a font
             bool ok = false;
-            EXPECT_EQ(recordOf(Svg::read(Svg::write(b), &ok)), b) << key << ": not in the SVG";
+            EXPECT_TRUE(Svg::read(Svg::write(b), &ok) == b) << key << ": not in the SVG";
             EXPECT_TRUE(ok) << key;
         }
     });
@@ -2473,22 +2415,19 @@ void expectEveryFieldCounts(Group ObjectRecord::*group)
 
 TEST(Fields, EveryFieldIsComparedAndSaved)
 {
-    expectEveryFieldCounts(&ObjectRecord::shape);
-    expectEveryFieldCounts(&ObjectRecord::text);
-    expectEveryFieldCounts(&ObjectRecord::skin);
-    expectEveryFieldCounts(&ObjectRecord::style);
-    expectEveryFieldCounts(&ObjectRecord::texture);
-    expectEveryFieldCounts(&ObjectRecord::effects);
+    expectEveryFieldCounts([](Composition& c) -> ShapeProperties& { return shapeOf(c); });
+    expectEveryFieldCounts([](Composition& c) -> TextProperties& { return textOf(c); });
+    expectEveryFieldCounts([](Composition& c) -> SkinProperties& { return skinOf(c); });
+    expectEveryFieldCounts([](Composition& c) -> StyleProperties& { return styleOf(c); });
+    expectEveryFieldCounts([](Composition& c) -> TextureProperties& { return textureOf(c); });
+    expectEveryFieldCounts([](Composition& c) -> EffectProperties& { return effectsOf(c); });
 }
 
-//! Every key a record is saved under is its own: two fields sharing one would overwrite each other.
+//! Every key a group is saved under is its own: two fields sharing one would overwrite each other.
 TEST(Fields, EveryKeyIsUnique)
 {
-    // The record's own, written by hand, and then every group's list.
-    QStringList keys{QStringLiteral("artwork"), QStringLiteral("w"), QStringLiteral("h"),
-                     QStringLiteral("box"), QStringLiteral("tails"), QStringLiteral("styleSeed"),
-                     QStringLiteral("fontFallback")};
-    const auto collect = [&](const char* key, auto) { keys << QString::fromLatin1(key); };
+    QStringList keys;
+    const auto  collect = [&](const char* key, auto) { keys << QString::fromLatin1(key); };
     ShapeProperties::fields(collect);
     TextProperties::fields(collect);
     SkinProperties::fields(collect);
@@ -2509,11 +2448,11 @@ QString goldenPath()
     return QStringLiteral(PLATEMAKER_GOLDEN_DIR "/records.txt");
 }
 
-//! One golden case: what it is called in the file, and the record.
+//! One golden case: what it is called in the file, and the object.
 struct GoldenCase
 {
-    QString      title;
-    ObjectRecord record;
+    QString     title;
+    Composition object;
 };
 
 /**
@@ -2527,15 +2466,15 @@ struct GoldenCase
  */
 QList<GoldenCase> goldenCases()
 {
-    ShapeProperties none = shapeOf(loadedRecord());
-    none.kind            = ObjectRecord::Shape::None;
+    ShapeProperties none = shapeOf(loadedBalloon());
+    none.kind            = ShapeProperties::Kind::None;
     QList<QPair<QString, ShapeProperties>> shapes{{QStringLiteral("none"), none}};
     for (const Geometry::ShapeTemplate& t : Geometry::shapeTemplates())
         shapes.append({QString::fromLatin1(t.id), t.shape});
     // The other edges on the speech balloon, each with some irregularity.
-    for (int e = int(ObjectRecord::Edge::Wave); e <= int(ShapeProperties::k_lastEdge); ++e) {
+    for (int e = int(ShapeProperties::Edge::Wave); e <= int(ShapeProperties::k_lastEdge); ++e) {
         ShapeProperties edged  = Geometry::shapeTemplate("speech").shape;
-        edged.edge             = static_cast<ObjectRecord::Edge>(e);
+        edged.edge             = static_cast<ShapeProperties::Edge>(e);
         edged.teeth.pitch        = 24.0;
         edged.teeth.depth        = 8.0;
         edged.teeth.irregularity = 30;
@@ -2544,7 +2483,7 @@ QList<GoldenCase> goldenCases()
     // A zigzag edge on one template of each kind that draws a line or a curve.
     for (const char* id : {"speech", "ellipse", "shout", "scroll"}) {
         ShapeProperties zigzag = Geometry::shapeTemplate(id).shape;
-        zigzag.edge            = ObjectRecord::Edge::Zigzag;
+        zigzag.edge            = ShapeProperties::Edge::Zigzag;
         shapes.append({QString::fromLatin1(id) + QStringLiteral(" zigzag"), zigzag});
     }
 
@@ -2556,17 +2495,17 @@ QList<GoldenCase> goldenCases()
         StyleProperties   style;
         TextureProperties texture;
     };
-    StyleProperties clean = styleOf(loadedRecord());
-    clean.line            = ObjectRecord::Line::Clean;
-    clean.stroke.kind     = ObjectRecord::Pattern::Solid;   // the patterns have cases of their own, below
+    StyleProperties clean = styleOf(loadedBalloon());
+    clean.line            = StyleProperties::Line::Clean;
+    clean.stroke.kind     = Paint::Kind::Solid;   // the patterns have cases of their own, below
     StyleProperties flash = clean;
-    flash.line            = ObjectRecord::Line::Flash;
+    flash.line            = StyleProperties::Line::Flash;
     StyleProperties brush = clean;
-    brush.line            = ObjectRecord::Line::Brush;
-    TextureProperties untextured = textureOf(loadedRecord());   // its Rough numbers carried, unused
-    untextured.kind              = ObjectRecord::Texture::None;
+    brush.line            = StyleProperties::Line::Brush;
+    TextureProperties untextured = textureOf(loadedBalloon());   // its Rough numbers carried, unused
+    untextured.kind              = TextureProperties::Kind::None;
     TextureProperties marker;
-    marker.kind = ObjectRecord::Texture::Rough;
+    marker.kind = TextureProperties::Kind::Rough;
     const QList<Look> looks{
         {QStringLiteral("clean"), clean, untextured},
         {QStringLiteral("marker"), clean, marker},
@@ -2577,11 +2516,11 @@ QList<GoldenCase> goldenCases()
     };
 
     QList<GoldenCase> cases;
-    const auto write = [&cases](const QString& name, const QString& look, bool tail, ObjectRecord a) {
+    const auto write = [&cases](const QString& name, const QString& look, bool tail, Composition a) {
         textOf(a).body.clear();
         originOf(a) = {};   // written only when there is one; Presets.TheOriginTravelsWithTheObject has it
-        if (!tail)
-            tailsOf(a).items.clear();
+        if (!tail && a.balloon)
+            tailsOf(a).clear();
         cases.append({QStringLiteral("%1 / %2 / %3")
                            .arg(name, look, tail ? QStringLiteral("tail") : QStringLiteral("no tail")),
                        a});
@@ -2589,12 +2528,15 @@ QList<GoldenCase> goldenCases()
     for (const auto& [name, shape] : std::as_const(shapes)) {
         for (const Look& look : looks) {
             for (bool tail : {false, true}) {
-                ObjectRecord a  = loadedRecord();
-                shapeOf(a)         = shape;
+                Composition a  = loadedBalloon();
                 styleOf(a)         = look.style;
                 textureOf(a)       = look.texture;
-                skinOf(a).fill.kind = ObjectRecord::Pattern::Solid;   // the fills and the shadow have cases of
+                skinOf(a).fill.kind = Paint::Kind::Solid;   // the fills and the shadow have cases of
                 effectsOf(a).shadow.on = false;                       // their own, below
+                if (shape.kind == ShapeProperties::Kind::None)
+                    a = withoutBalloon(a);   // the text object: its words, and nothing of a balloon
+                else
+                    shapeOf(a) = shape;
                 write(name, look.name, tail, a);
             }
         }
@@ -2602,55 +2544,55 @@ QList<GoldenCase> goldenCases()
     // A dry brush on two templates, a white line on a black balloon with a pointed tail, at the dry
     // brush's own numbers.
     for (const char* id : {"speech", "shout"}) {
-        ObjectRecord a        = loadedRecord();
+        Composition a        = loadedBalloon();
         shapeOf(a)               = Geometry::shapeTemplate(id).shape;
         styleOf(a)               = looks.first().style;
-        styleOf(a).line          = ObjectRecord::Line::Drybrush;
+        styleOf(a).line          = StyleProperties::Line::Drybrush;
         styleOf(a).stroke.colour = Qt::white;
         styleOf(a).strokeWidth   = 14;
         styleOf(a).drybrush.core     = StyleProperties().drybrush.core;
         styleOf(a).drybrush.bristles = StyleProperties().drybrush.bristles;
         styleOf(a).drybrush.dryness  = StyleProperties().drybrush.dryness;
         textureOf(a)             = looks.first().texture;
-        skinOf(a).fill.kind      = ObjectRecord::Pattern::Solid;
+        skinOf(a).fill.kind      = Paint::Kind::Solid;
         skinOf(a).fill.colour    = Qt::black;
         effectsOf(a).shadow.on      = false;
-        tailsOf(a).items.first().tip = QPointF(90, 230);
+        tailsOf(a).first().tail.tip = QPointF(90, 230);
         write(QString::fromLatin1(id), QStringLiteral("drybrush"), true, a);
     }
     // A dashed line, a whisper, on two templates with a tail, at its own numbers.
     for (const char* id : {"ellipse", "caption"}) {
-        ObjectRecord a      = loadedRecord();
+        Composition a      = loadedBalloon();
         shapeOf(a)             = Geometry::shapeTemplate(id).shape;
         styleOf(a)             = looks.first().style;
-        styleOf(a).line        = ObjectRecord::Line::Dashed;
+        styleOf(a).line        = StyleProperties::Line::Dashed;
         styleOf(a).dash.length  = StyleProperties().dash.length;
         styleOf(a).dash.gap     = StyleProperties().dash.gap;
         textureOf(a)           = looks.first().texture;
-        skinOf(a).fill.kind    = ObjectRecord::Pattern::Solid;
+        skinOf(a).fill.kind    = Paint::Kind::Solid;
         effectsOf(a).shadow.on = false;
         write(QString::fromLatin1(id), QStringLiteral("dashed"), true, a);
     }
     // A multi-line, three lines, on the speech balloon with its tail, at its other numbers' defaults.
     {
-        ObjectRecord a      = loadedRecord();
+        Composition a      = loadedBalloon();
         shapeOf(a)             = Geometry::shapeTemplate("speech").shape;
         styleOf(a)             = looks.first().style;
-        styleOf(a).line        = ObjectRecord::Line::Multi;
+        styleOf(a).line        = StyleProperties::Line::Multi;
         styleOf(a).multi.lines  = 3;
         styleOf(a).multi.gap   = StyleProperties().multi.gap;
         styleOf(a).multi.width = StyleProperties().multi.width;
         textureOf(a)           = looks.first().texture;
-        skinOf(a).fill.kind    = ObjectRecord::Pattern::Solid;
+        skinOf(a).fill.kind    = Paint::Kind::Solid;
         effectsOf(a).shadow.on = false;
         write(QStringLiteral("speech"), QStringLiteral("multi"), true, a);
     }
     // A sketch, on two templates with a tail, at its own numbers and a pen's width.
     for (const char* id : {"ellipse", "shout"}) {
-        ObjectRecord a          = loadedRecord();
+        Composition a          = loadedBalloon();
         shapeOf(a)                 = Geometry::shapeTemplate(id).shape;
         styleOf(a)                 = looks.first().style;
-        styleOf(a).line            = ObjectRecord::Line::Sketch;
+        styleOf(a).line            = StyleProperties::Line::Sketch;
         styleOf(a).strokeWidth     = 3;
         styleOf(a).sketch.length    = StyleProperties().sketch.length;
         styleOf(a).sketch.layers    = StyleProperties().sketch.layers;
@@ -2663,14 +2605,14 @@ QList<GoldenCase> goldenCases()
         styleOf(a).sketch.clockwise   = StyleProperties().sketch.clockwise;
         styleOf(a).sketch.blots       = StyleProperties().sketch.blots;
         textureOf(a)               = looks.first().texture;
-        skinOf(a).fill.kind        = ObjectRecord::Pattern::Solid;
+        skinOf(a).fill.kind        = Paint::Kind::Solid;
         effectsOf(a).shadow.on     = false;
         write(QString::fromLatin1(id), QStringLiteral("sketch"), true, a);
     }
     // The burst with concave edges, as the author's reference: a rough rectangle of points, long and short,
     // joined by arcs bowing in, of uneven depth, in a clean even line.
     {
-        ObjectRecord a          = loadedRecord();
+        Composition a          = loadedBalloon();
         shapeOf(a)                 = Geometry::shapeTemplate("shout").shape;
         shapeOf(a).nodes           = {ShapeNode(0, 0.1),  ShapeNode(0.3, 0),    ShapeNode(0.55, 0.08), ShapeNode(1, 0),
                                    ShapeNode(0.95, 0.5), ShapeNode(1, 1),   ShapeNode(0.6, 0.92), ShapeNode(0.25, 1),
@@ -2681,16 +2623,16 @@ QList<GoldenCase> goldenCases()
         styleOf(a)                 = looks.first().style;
         styleOf(a).strokeWidth     = 4;
         textureOf(a)               = looks.first().texture;
-        skinOf(a).fill.kind        = ObjectRecord::Pattern::Solid;
+        skinOf(a).fill.kind        = Paint::Kind::Solid;
         effectsOf(a).shadow.on     = false;
         write(QStringLiteral("shout"), QStringLiteral("bowed"), true, a);
     }
     // The spilling ink, as the author's reference: long loose strokes side by side, and blots.
     {
-        ObjectRecord a            = loadedRecord();
+        Composition a            = loadedBalloon();
         shapeOf(a)                   = Geometry::shapeTemplate("ellipse").shape;
         styleOf(a)                   = looks.first().style;
-        styleOf(a).line              = ObjectRecord::Line::Sketch;
+        styleOf(a).line              = StyleProperties::Line::Sketch;
         styleOf(a).strokeWidth       = 3;
         styleOf(a).sketch.length      = 300.0;
         styleOf(a).sketch.layers      = 3;
@@ -2703,17 +2645,17 @@ QList<GoldenCase> goldenCases()
         styleOf(a).sketch.clockwise   = true;
         styleOf(a).sketch.blots       = 60;
         textureOf(a)                 = looks.first().texture;
-        skinOf(a).fill.kind          = ObjectRecord::Pattern::Solid;
+        skinOf(a).fill.kind          = Paint::Kind::Solid;
         effectsOf(a).shadow.on       = false;
         write(QStringLiteral("ellipse"), QStringLiteral("spilling ink"), true, a);
     }
     // An explosion, as the author's reference: a white dry-brush ring on a black ellipse, in a dense halo of
     // fine spikes, outward only, at the lines' own numbers.
     {
-        ObjectRecord a                 = loadedRecord();
+        Composition a                 = loadedBalloon();
         shapeOf(a)                        = Geometry::shapeTemplate("ellipse").shape;
         styleOf(a)                        = looks.first().style;
-        styleOf(a).line                   = ObjectRecord::Line::Explosion;
+        styleOf(a).line                   = StyleProperties::Line::Explosion;
         styleOf(a).stroke.colour          = Qt::white;
         styleOf(a).strokeWidth            = 10;
         styleOf(a).drybrush.core           = StyleProperties().drybrush.core;
@@ -2726,7 +2668,7 @@ QList<GoldenCase> goldenCases()
         styleOf(a).flash.outerLengthJitter = StyleProperties().flash.outerLengthJitter;
         styleOf(a).flash.coreStretch       = StyleProperties().flash.coreStretch;
         textureOf(a)                      = looks.first().texture;
-        skinOf(a).fill.kind               = ObjectRecord::Pattern::Solid;
+        skinOf(a).fill.kind               = Paint::Kind::Solid;
         skinOf(a).fill.colour             = Qt::black;
         effectsOf(a).shadow.on            = false;
         write(QStringLiteral("ellipse"), QStringLiteral("explosion"), false, a);
@@ -2734,13 +2676,13 @@ QList<GoldenCase> goldenCases()
     // A Circles tail: on a clean speech balloon, apart from it; and the author's reference, a
     // white dry brush on a black ellipse, the chain sunk into it.
     for (bool reference : {false, true}) {
-        ObjectRecord a   = loadedRecord();
+        Composition a   = loadedBalloon();
         shapeOf(a)          = Geometry::shapeTemplate(reference ? "ellipse" : "speech").shape;
         styleOf(a)          = looks.first().style;
         textureOf(a)        = looks.first().texture;
-        skinOf(a).fill.kind = ObjectRecord::Pattern::Solid;
+        skinOf(a).fill.kind = Paint::Kind::Solid;
         effectsOf(a).shadow.on = false;
-        Tail& t          = tailsOf(a).items.first();
+        Tail& t          = tailsOf(a).first().tail;
         t.tip                 = QPointF(250, 230);
         t.bend                = 0.2;
         t.look.style          = TailLook::Style::Circles;
@@ -2748,7 +2690,7 @@ QList<GoldenCase> goldenCases()
         t.look.circles.pitch  = 5.0;
         t.look.circles.offset = reference ? 6.0 : -6.0;
         if (reference) {
-            styleOf(a).line             = ObjectRecord::Line::Drybrush;
+            styleOf(a).line             = StyleProperties::Line::Drybrush;
             styleOf(a).stroke.colour    = Qt::white;
             styleOf(a).strokeWidth      = 10;
             styleOf(a).drybrush.core     = StyleProperties().drybrush.core;
@@ -2764,15 +2706,15 @@ QList<GoldenCase> goldenCases()
     for (TailLook::Tip tip : {TailLook::Tip::Round, TailLook::Tip::Cut}) {
         for (int l = 0; l <= int(StyleProperties::k_lastLine) + 1; ++l) {
             const bool   rough  = l > int(StyleProperties::k_lastLine);
-            ObjectRecord a      = loadedRecord();
+            Composition a      = loadedBalloon();
             shapeOf(a)             = Geometry::shapeTemplate("speech").shape;
             styleOf(a)             = StyleProperties();
-            styleOf(a).line        = rough ? ObjectRecord::Line::Clean : static_cast<ObjectRecord::Line>(l);
+            styleOf(a).line        = rough ? StyleProperties::Line::Clean : static_cast<StyleProperties::Line>(l);
             styleOf(a).strokeWidth = 14;
             textureOf(a)           = rough ? marker : looks.first().texture;
-            skinOf(a).fill.kind    = ObjectRecord::Pattern::Solid;
+            skinOf(a).fill.kind    = Paint::Kind::Solid;
             effectsOf(a).shadow.on = false;
-            Tail& tail          = tailsOf(a).items.first();
+            Tail& tail          = tailsOf(a).first().tail;
             tail.tip            = QPointF(220, 260);
             tail.baseWidth      = 60.0;
             tail.bend           = 0.15;
@@ -2787,18 +2729,18 @@ QList<GoldenCase> goldenCases()
     }
     // A broken tail, two breaks, with each tip, under the lines that treat a turn their own way.
     for (TailLook::Tip tip : {TailLook::Tip::Sharp, TailLook::Tip::Round, TailLook::Tip::Cut}) {
-        for (ObjectRecord::Line line : {ObjectRecord::Line::Clean, ObjectRecord::Line::Drybrush,
-                                        ObjectRecord::Line::Sketch, ObjectRecord::Line::Multi,
-                                        ObjectRecord::Line::Flash}) {
-            ObjectRecord a      = loadedRecord();
+        for (StyleProperties::Line line : {StyleProperties::Line::Clean, StyleProperties::Line::Drybrush,
+                                        StyleProperties::Line::Sketch, StyleProperties::Line::Multi,
+                                        StyleProperties::Line::Flash}) {
+            Composition a      = loadedBalloon();
             shapeOf(a)             = Geometry::shapeTemplate("speech").shape;
             styleOf(a)             = StyleProperties();
             styleOf(a).line        = line;
             styleOf(a).strokeWidth = 8;
             textureOf(a)           = looks.first().texture;
-            skinOf(a).fill.kind    = ObjectRecord::Pattern::Solid;
+            skinOf(a).fill.kind    = Paint::Kind::Solid;
             effectsOf(a).shadow.on = false;
-            Tail& tail          = tailsOf(a).items.first();
+            Tail& tail          = tailsOf(a).first().tail;
             tail.tip                   = QPointF(240, 300);
             tail.baseWidth             = 50.0;
             tail.bend                  = 0.1;
@@ -2818,14 +2760,14 @@ QList<GoldenCase> goldenCases()
     }
     // The same broken tail mirrored: its first turn counter-clockwise.
     {
-        ObjectRecord a      = loadedRecord();
+        Composition a      = loadedBalloon();
         shapeOf(a)             = Geometry::shapeTemplate("speech").shape;
         styleOf(a)             = StyleProperties();
         styleOf(a).strokeWidth = 8;
         textureOf(a)           = looks.first().texture;
-        skinOf(a).fill.kind    = ObjectRecord::Pattern::Solid;
+        skinOf(a).fill.kind    = Paint::Kind::Solid;
         effectsOf(a).shadow.on = false;
-        Tail& tail          = tailsOf(a).items.first();
+        Tail& tail          = tailsOf(a).first().tail;
         tail.tip                   = QPointF(240, 300);
         tail.baseWidth             = 50.0;
         tail.bend                  = 0.1;
@@ -2837,7 +2779,7 @@ QList<GoldenCase> goldenCases()
     // A screentone fill on two templates, clean.
     for (const char* id : {"speech", "shout"}) {
         for (bool tail : {false, true}) {
-            ObjectRecord a = loadedRecord();
+            Composition a = loadedBalloon();
             shapeOf(a)        = Geometry::shapeTemplate(id).shape;
             styleOf(a)        = looks.first().style;
             textureOf(a)      = looks.first().texture;
@@ -2848,38 +2790,38 @@ QList<GoldenCase> goldenCases()
     // A shadow, hard and soft, on two templates.
     for (const char* id : {"speech", "shout"}) {
         for (qreal softness : {0.0, 2.5}) {
-            ObjectRecord a           = loadedRecord();
+            Composition a           = loadedBalloon();
             shapeOf(a)                  = Geometry::shapeTemplate(id).shape;
             styleOf(a)                  = looks.first().style;
             textureOf(a)                = looks.first().texture;
-            skinOf(a).fill.kind          = ObjectRecord::Pattern::Solid;
+            skinOf(a).fill.kind          = Paint::Kind::Solid;
             effectsOf(a).shadow.softness  = softness;
-            effectsOf(a).shadowFill.kind = ObjectRecord::Pattern::Solid;
+            effectsOf(a).shadowFill.kind = Paint::Kind::Solid;
             write(QString::fromLatin1(id), softness > 0.0 ? QStringLiteral("soft shadow") : QStringLiteral("shadow"),
                   true, a);
         }
     }
     // A centred shadow, hard and soft: the default spread and no offset.
     for (qreal softness : {0.0, 2.5}) {
-        ObjectRecord a            = loadedRecord();
+        Composition a            = loadedBalloon();
         shapeOf(a)                   = Geometry::shapeTemplate("speech").shape;
         styleOf(a)                   = looks.first().style;
         textureOf(a)                 = looks.first().texture;
-        skinOf(a).fill.kind          = ObjectRecord::Pattern::Solid;
+        skinOf(a).fill.kind          = Paint::Kind::Solid;
         skinOf(a).fill.colour        = Qt::white;
         styleOf(a).strokeWidth       = StyleProperties().strokeWidth;   // a thick line would hide the rim
         effectsOf(a).shadow.spread    = EffectProperties().shadow.spread;
         effectsOf(a).shadow.x         = 0.0;
         effectsOf(a).shadow.y         = 0.0;
         effectsOf(a).shadow.softness  = softness;
-        effectsOf(a).shadowFill.kind = ObjectRecord::Pattern::Solid;
+        effectsOf(a).shadowFill.kind = Paint::Kind::Solid;
         write(QStringLiteral("speech"), softness > 0.0 ? QStringLiteral("soft centred shadow")
                                                        : QStringLiteral("centred shadow"), true, a);
     }
     // Every pattern in every place it paints: the fill, a thick line, and a shadow.
     for (int k = 1; k <= int(Paint::k_lastKind); ++k) {
-        const auto pattern = static_cast<ObjectRecord::Pattern>(k);
-        ObjectRecord a     = loadedRecord();
+        const auto pattern = static_cast<Paint::Kind>(k);
+        Composition a     = loadedBalloon();
         shapeOf(a)            = Geometry::shapeTemplate("speech").shape;
         styleOf(a)            = looks.first().style;
         textureOf(a)          = looks.first().texture;
@@ -2894,8 +2836,8 @@ QList<GoldenCase> goldenCases()
     // A fill that fades by its cross, one way per pattern: dots down, lines up and down,
     // a grid round from the middle.
     for (int k = 1; k <= int(Paint::k_lastKind); ++k) {
-        const auto   pattern = static_cast<ObjectRecord::Pattern>(k);
-        ObjectRecord a       = loadedRecord();
+        const auto   pattern = static_cast<Paint::Kind>(k);
+        Composition a       = loadedBalloon();
         shapeOf(a)              = Geometry::shapeTemplate("speech").shape;
         styleOf(a)              = looks.first().style;
         textureOf(a)            = looks.first().texture;
@@ -2906,11 +2848,11 @@ QList<GoldenCase> goldenCases()
         p.second             = QColor(30, 30, 200, 200);
         p.fadeBottomFrom     = 30.0;
         p.fadeBottomTo       = 90.0;
-        if (pattern != ObjectRecord::Pattern::Dots) {
+        if (pattern != Paint::Kind::Dots) {
             p.fadeTopFrom = 30.0;
             p.fadeTopTo   = 90.0;
         }
-        if (pattern == ObjectRecord::Pattern::Grid) {
+        if (pattern == Paint::Kind::Grid) {
             p.fadeLeftFrom = p.fadeRightFrom = 20.0;
             p.fadeLeftTo = p.fadeRightTo = 100.0;
         }
@@ -2924,17 +2866,17 @@ QList<GoldenCase> goldenCases()
         write(QStringLiteral("speech"), QStringLiteral("fading ") + QLatin1String(patternName(pattern)) + QStringLiteral(", reversed"),
               true, a);
         // ...and on ellipses, where all four arms fade: the grid.
-        if (pattern == ObjectRecord::Pattern::Grid) {
+        if (pattern == Paint::Kind::Grid) {
             p.fadeRound = true;
             write(QStringLiteral("speech"), QStringLiteral("fading grid, reversed, round"), true, a);
         }
     }
     // Rough in parts: the fill not displaced, masked by the displaced silhouette; a pattern and a fade.
     for (const bool fading : {false, true}) {
-        ObjectRecord a       = loadedRecord();
+        Composition a       = loadedBalloon();
         shapeOf(a)              = Geometry::shapeTemplate("speech").shape;
         textureOf(a).rough.fill  = false;
-        skinOf(a).fill.kind     = ObjectRecord::Pattern::Dots;
+        skinOf(a).fill.kind     = Paint::Kind::Dots;
         skinOf(a).fill.fadeLeftFrom = fading ? 40.0 : skinOf(a).fill.fadeLeftFrom;
         write(QStringLiteral("speech"), fading ? QStringLiteral("rough in parts, fading dots")
                                                : QStringLiteral("rough in parts, dots"), true, a);
@@ -2942,29 +2884,29 @@ QList<GoldenCase> goldenCases()
     // Dry ink: the outline eaten into but for its middle, the fill and the shadow whole; and under Rough, in
     // parts, which roughens it as a whole.
     for (const bool rough : {false, true}) {
-        ObjectRecord a        = loadedRecord();
+        Composition a        = loadedBalloon();
         shapeOf(a)               = Geometry::shapeTemplate("speech").shape;
-        styleOf(a).line          = ObjectRecord::Line::DryInk;
-        styleOf(a).stroke.kind   = ObjectRecord::Pattern::Solid;
+        styleOf(a).line          = StyleProperties::Line::DryInk;
+        styleOf(a).stroke.kind   = Paint::Kind::Solid;
         styleOf(a).strokeWidth   = 9;
         styleOf(a).dryInk.grain   = StyleProperties().dryInk.grain;
         styleOf(a).dryInk.wear    = StyleProperties().dryInk.wear;
         styleOf(a).dryInk.core    = StyleProperties().dryInk.core;
-        textureOf(a).kind        = rough ? ObjectRecord::Texture::Rough : ObjectRecord::Texture::None;
+        textureOf(a).kind        = rough ? TextureProperties::Kind::Rough : TextureProperties::Kind::None;
         textureOf(a).rough.fill   = false;
         effectsOf(a).shadow.on   = !rough;   // a dark shadow would show through the holes and hide them
-        skinOf(a).fill.kind      = ObjectRecord::Pattern::Solid;
+        skinOf(a).fill.kind      = Paint::Kind::Solid;
         write(QStringLiteral("speech"), rough ? QStringLiteral("dry ink, rough") : QStringLiteral("dry ink"), true, a);
     }
     // A halftone shadow, hard: the pattern's marks on nothing (the cases above fade, soft).
     {
-        ObjectRecord a            = loadedRecord();
+        Composition a            = loadedBalloon();
         shapeOf(a)                   = Geometry::shapeTemplate("speech").shape;
         styleOf(a)                   = looks.first().style;
         textureOf(a)                 = looks.first().texture;
-        skinOf(a).fill.kind          = ObjectRecord::Pattern::Solid;
+        skinOf(a).fill.kind          = Paint::Kind::Solid;
         effectsOf(a).shadow.softness  = 0.0;
-        effectsOf(a).shadowFill.kind = ObjectRecord::Pattern::Dots;
+        effectsOf(a).shadowFill.kind = Paint::Kind::Dots;
         write(QStringLiteral("speech"), QStringLiteral("hard halftone shadow"), true, a);
     }
     return cases;
@@ -2974,14 +2916,14 @@ QString goldenRecords()
 {
     QString out;
     for (const GoldenCase& c : goldenCases()) {
-        const QRectF area = Geometry::textArea(c.record);
+        const QRectF area = Geometry::textArea(c.object, *wordsOf(c.object));
         out += QStringLiteral("=== %1 ===\n").arg(c.title);
-        out += QString::fromUtf8(Svg::write(c.record));
+        out += QString::fromUtf8(Svg::write(c.object));
         out += QStringLiteral("\ntextArea: %1 %2 %3 %4\n")
                    .arg(area.x(), 0, 'f', 3).arg(area.y(), 0, 'f', 3)
                    .arg(area.width(), 0, 'f', 3).arg(area.height(), 0, 'f', 3);
         out += QStringLiteral("json: ")
-             + QString::fromUtf8(QJsonDocument(toJson(compositionOf(c.record))).toJson(QJsonDocument::Compact))
+             + QString::fromUtf8(QJsonDocument(toJson(c.object)).toJson(QJsonDocument::Compact))
              + u'\n';
     }
     return out;
@@ -3025,51 +2967,15 @@ TEST(Golden, EveryShapeAndStyleIsWrittenAsBefore)
     }
 }
 
-namespace {
-
-//! What a record's SVG draws: the file without the copy of the content it carries.
-QString drawnOf(const ObjectRecord& a, const QByteArray& picture = {}, const QString& mime = {})
+//! Every golden case comes back as itself from its content and from its SVG: what is saved is all there is.
+TEST(Composition, EveryGoldenCaseComesBackFromWhatIsSaved)
 {
-    static const QRegularExpression content(QStringLiteral("\\s*<pm:content[^>]*>.*</pm:content>"),
-                                            QRegularExpression::DotMatchesEverythingOption
-                                                | QRegularExpression::InvertedGreedinessOption);
-    return QString::fromUtf8(Svg::write(a, picture, mime)).remove(content);
-}
-
-} // namespace
-
-/**
- * \brief A composition made from a record comes back as itself through a record, and the record it gives
- *        draws what the first did, on every golden case and on an artwork: the way between the two loses
- *        nothing that is drawn. A balloon comes back whole; a text object loses the balloon it carried unread.
- */
-TEST(Composition, ARecordAndItsCompositionAreOneObject)
-{
-    QList<GoldenCase> cases = goldenCases();
-    // A golden case's record, so it carries a balloon to drop and names its family (no font is measured).
-    ObjectRecord artwork = cases.first().record;
-    artwork.artwork      = QStringLiteral("ovl-0123456789abcdef.png");
-    artwork.shape.kind   = ObjectRecord::Shape::None;
-    cases.append({QStringLiteral("artwork"), artwork});
-    const QByteArray picture("not decoded: the SVG embeds it as it is");
-    const QString    mime = QStringLiteral("image/png");
-
-    for (const GoldenCase& g : std::as_const(cases)) {
+    for (const GoldenCase& g : goldenCases()) {
         SCOPED_TRACE(g.title.toStdString());
-        const Composition  c    = compositionOf(g.record);
-        const ObjectRecord back = recordOf(c);
-        EXPECT_TRUE(compositionOf(back) == c);
-        EXPECT_TRUE(compositionFromJson(toJson(c)) == c);
-        EXPECT_EQ(drawnOf(back, picture, mime).toStdString(), drawnOf(g.record, picture, mime).toStdString());
-        EXPECT_EQ(Geometry::textArea(back), Geometry::textArea(g.record));
-        if (g.record.hasSilhouette()) {
-            EXPECT_TRUE(back == g.record);
-            ASSERT_TRUE(c.balloon);
-            EXPECT_EQ(c.words.first().seat, c.balloon->bodies.first().id);
-        } else {
-            EXPECT_FALSE(c.balloon);
-            EXPECT_EQ(c.picture.has_value(), g.record.isArtwork());
-        }
+        EXPECT_TRUE(compositionFromJson(toJson(g.object)) == g.object);
+        bool ok = false;
+        EXPECT_TRUE(Svg::read(Svg::write(g.object), &ok) == g.object);
+        EXPECT_TRUE(ok);
     }
 }
 

@@ -1,4 +1,5 @@
 #include "properties/shapeeditor.hpp"
+#include "names.hpp"
 
 #include <QAbstractButton>
 #include <QButtonGroup>
@@ -30,27 +31,37 @@ constexpr int k_shapeIconScale = 4;
 QPixmap bubbleThumbnail(const ShapeProperties& shape, const QColor& fill, const QColor& stroke,
                         const QColor& ink)
 {
-    ObjectRecord a;
-    a.shape            = shape;
-    a.box              = QSize(k_bubbleThumbW * k_shapeIconScale, k_bubbleThumbH * k_shapeIconScale);
-    // The tile's own stroke, not the record's: a preset authored at 5 px on a 280 px balloon would be
-    // a hairline here, and the icon is meant to say *which shape and what colours*, not how heavy.
-    a.style.strokeWidth = 2 * k_shapeIconScale;
-    a.text.body        = QStringLiteral("Aa");
-    a.text.pixelSize   = a.box.height() / 3;
-    a.skin.fill.colour        = fill;
-    a.style.stroke.colour      = stroke;
-    a.text.fill.colour = ink;
-    if (Geometry::shapeSpeaks(shape)) {
+    const QSize     size(k_bubbleThumbW * k_shapeIconScale, k_bubbleThumbH * k_shapeIconScale);
+    Composition     a    = textObject(size);
+    TextProperties& text = wordsOf(a)->text;
+    text.body            = QStringLiteral("Aa");
+    text.pixelSize       = size.height() / 3;
+    text.fill.colour     = ink;
+    if (shape.kind != ShapeProperties::Kind::None) {
+        BalloonLook look{shape, {}};
+        // The tile's own stroke, not the preset's: a preset authored at 5 px on a 280 px balloon would be
+        // a hairline here, and the icon is meant to say *which shape and what colours*, not how heavy.
+        look.style.line.strokeWidth   = 2 * k_shapeIconScale;
+        look.style.line.stroke.colour = stroke;
+        look.style.fill.fill.colour   = fill;
+        a                             = withBalloon(a, look);
+    }
+    if (a.balloon && Geometry::shapeSpeaks(shape)) {
         Tail t;
         // A short tail: the tile is scaled to fit, so a long one would shrink the balloon itself and
         // leave the speaking shapes visibly smaller than the rest of the grid.
-        t.tip         = QPointF(a.box.width() * 0.28, a.box.height() * 1.10);
-        t.baseWidth   = a.box.width() * 0.18;
-        a.tails.items = {t};
+        t.tip       = QPointF(size.width() * 0.28, size.height() * 1.10);
+        t.baseWidth = size.width() * 0.18;
+        a.balloon->tails.append({a.nextId++, bodyOf(a)->id, t});
     }
     return QPixmap::fromImage(Painter::render(a).scaled(QSize(k_bubbleThumbW, k_bubbleThumbH),
                                                        Qt::KeepAspectRatio, Qt::SmoothTransformation));
+}
+
+QPixmap bubbleThumbnail(const Composition& look)
+{
+    return bubbleThumbnail(ShapeProperties::from(look), SkinProperties::from(look).fill.colour,
+                           StyleProperties::from(look).stroke.colour, TextProperties::from(look).fill.colour);
 }
 
 QPixmap shapeThumbnail(const ShapeProperties& shape, const QPalette& pal)
@@ -107,7 +118,7 @@ ShapeEditor::ShapeEditor(QWidget* parent)
     // The edge: laid over whichever outline.
     m_edge = new QComboBox(this);
     for (int i = 0; i <= int(ShapeProperties::k_lastEdge); ++i)
-        m_edge->addItem(edgeTitle(static_cast<ObjectRecord::Edge>(i)), i);
+        m_edge->addItem(edgeTitle(static_cast<ShapeProperties::Edge>(i)), i);
     m_edge->setToolTip(tr("What is done to the outline's edge, pushed in along it: straight teeth, soft "
                           "waves, arcs bowing in, or narrow notches. The tails stay smooth, and the edge stays "
                           "when another shape is picked."));
@@ -118,7 +129,7 @@ ShapeEditor::ShapeEditor(QWidget* parent)
     connect(m_edge, &QComboBox::currentIndexChanged, this, [this](int i) {
         if (m_populating || i < 0)
             return;
-        m_values.edge = static_cast<ObjectRecord::Edge>(m_edge->currentData().toInt());
+        m_values.edge = static_cast<ShapeProperties::Edge>(m_edge->currentData().toInt());
         syncFromValues();
         emit changed();
     });
@@ -143,7 +154,7 @@ void ShapeEditor::bind(const Subjects& subjects)
     m_sections.reset();
     m_edgeRows.reset();
     // No higher than the balloon can show: past it the outline stops changing (Shape is one subject only).
-    m_sections.setMaximum("cornerRadius", qFloor(Geometry::cornerRadiusLimit(subjects.first()->box)));
+    m_sections.setMaximum("cornerRadius", qFloor(Geometry::cornerRadiusLimit(sizeOf(*subjects.first()))));
     syncFromValues();
 }
 
@@ -193,7 +204,7 @@ void ShapeEditor::makeRegular()
     emit changed();
 }
 
-void ShapeEditor::applyTo(ObjectRecord& target) const
+void ShapeEditor::applyTo(Composition& target) const
 {
     m_values.applyTo(target);
 }

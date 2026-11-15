@@ -18,7 +18,7 @@
 #include "toolrail/cursors.hpp"
 #include "objects/object.hpp"   // recordFor()/isParametric() ask the object itself
 #include "properties/propertygroup.hpp"   // PropertyGroup: which group the menu hands over
-#include "objectrecord.hpp"
+#include "composition.hpp"
 
 #include <platemaker/models/project_item.hpp>
 
@@ -59,7 +59,7 @@ class SelectionChrome;
  * - *The constructor* wires OBJECT STATE's panel and the scene's selection.
  * - *Pointer and selection* — what a press lands on (pointerTargetAt(), objectAt()), selecting the
  *   strip, a page or a tail, and an object's own press and drag.
- * - *The feed* — setSource() takes the owner's overlays and records; syncItems() turns them into scene
+ * - *The feed* — setSource() takes the owner's overlays and compositions; syncItems() turns them into scene
  *   items, and is **the one place an Object subclass is chosen**.
  * - *Geometry back out* — a settled move or resize, written as a placement and announced.
  * - The rows of the OBJECT STACK are not here: ObjectStack (objectstack/) draws them from what this
@@ -71,7 +71,7 @@ class SelectionChrome;
  * - *A new object* — requestRecord() / requestArtwork(): asked for here, created by the owner,
  *   selected when the feed brings it back. The drag that describes one is Placement's.
  *
- * Adding a kind of object reaches syncItems() and every isParametric() / `isArtwork()` decision in
+ * Adding a kind of object reaches syncItems() and every isParametric() / `picture` decision in
  * here; adding a shape reaches none of it. See docs/SPECIFICATION.md, "Extending the strip editor".
  */
 class ObjectController : public QObject
@@ -118,10 +118,10 @@ public:
     /** 
      * \brief Adopts the owner's complete state after an edit round-trips back. 
      * \param overlays  The new overlay set, in composite order.
-     * \param records The new records for the overlays, keyed by uid.
+     * \param records The new compositions of the overlays, keyed by uid.
      */
     void setSource(const std::vector<Platemaker::Models::StripOverlay>& overlays,
-                   const ObjectRecord::Map& records);
+                   const Composition::Map& records);
 
     /**
      * \brief Select one of @p uids — the first that still exists — when the next feed arrives.
@@ -195,7 +195,9 @@ public:
 
     // --- driven by the OBJECT MENU (objectstack/objectmenu.hpp), which this class does not know either ---
     [[nodiscard]] const QString& selectedOverlay() const { return m_selectedOverlay; }   //!< The primary.
-    //! The silhouette TOOL OPTIONS would give a balloon now, whole — what *Convert to ▸ Balloon* arrives at.
+    //! The balloon TOOL OPTIONS would give an object now, its shape whole — what *Convert to ▸ Balloon* arrives at.
+    [[nodiscard]] BalloonLook toolBalloon() const;
+    //! Its shape: what the menu asks convertSelectionTo() for.
     [[nodiscard]] ShapeProperties toolBalloonShape() const;
     //! Places @p file on the page in the middle of the view, at a width that grows with the chapter.
     void importArtworkFile(const QString& file);
@@ -204,7 +206,8 @@ public:
      * \brief Makes every selected object the **kind** @p shape stands for, as one history step.
      *
      * \param shape Of kind `None` for lettering with no balloon; any silhouette for a balloon, and that
-     *              whole shape, parameters and nodes included, is what a converted object arrives at.
+     *              whole shape, parameters and nodes included, is what a converted object arrives at, in the
+     *              style TOOL OPTIONS shows (toolBalloon()).
      *
      * **What passes through is decided by the kind, not by the silhouette.** An object that already has
      * a balloon is untouched by *Convert to ▸ Balloon* even if it wears a different one — re-shaping it
@@ -215,10 +218,8 @@ public:
      * converting a mixed set is not two acts: select two texts and a balloon, convert to Balloon, and
      * the balloon is simply not in the diff.
      *
-     * The carry-over needs no per-pair code. Every kind is the same record, so a conversion writes the
-     * shape and what the new kind cannot draw is **not drawn rather than destroyed**: a converted
-     * balloon's tails are still in its record and come back if it is converted back. What stopped being
-     * drawn is said once, in the status bar, because it is an event and not a condition.
+     * What an object is, is what it has: to text, the balloon goes, with its style and its tails; converted
+     * back, it is the balloon TOOL OPTIONS shows, with no tail. Undo brings the old one back.
      */
     void convertSelectionTo(const ShapeProperties& shape);
     /**
@@ -238,7 +239,7 @@ public:
      */
     [[nodiscard]] Subject        subject() const { return m_subject; }
     /**
-     * \brief Whether @p uid is an object **we** author — one whose drawing we generate from a record.
+     * \brief Whether @p uid is an object **we** author — one whose drawing we generate from its composition.
      *
      * **The one place this is decided.** It was `m_records.contains(uid)` written out at eight call
      * sites, and that was the missing abstraction behind two shipped bugs: a default balloon loaded into
@@ -248,9 +249,9 @@ public:
      * False therefore means *imported artwork*: a picture somebody else drew, which we place, move,
      * mute, re-anchor and render, but cannot re-type.
      *
-     * **The object answers when there is one**, because it is the one that knows: its record is kept
-     * describing what it actually is. The feed's records are consulted only for a uid whose object has
-     * not been built yet, and a uid neither of them holds is not ours to author.
+     * **The object answers when there is one**, because it is the one that knows: its composition is kept
+     * describing what it actually is. The feed's are consulted only for a uid whose object has not been
+     * built yet, and a uid neither of them holds is not ours to author.
      * 
      * \param uid  The uid of the overlay to check.
      * \return True if the overlay is an object we author, false if it is imported artwork or does not exist.
@@ -258,40 +259,37 @@ public:
     [[nodiscard]] bool isParametric(const QString& uid) const
     {
         if (const Object* item = m_overlayItems.value(uid))
-            return !item->record().isArtwork();
+            return !item->composition().picture;
         const auto it = m_feedRecords.constFind(uid);
-        return it != m_feedRecords.constEnd() && !it->isArtwork();
+        return it != m_feedRecords.constEnd() && !it->picture;
     }
 
     /**
-     * \brief The record for @p uid — **from the object, which is where one lives**.
+     * \brief The composition of @p uid — **from the object, which is where one lives**.
      *
-     * Every read of an authoring record goes through here. It used to be `m_records.value(uid)`, and
-     * that returns a **default speech balloon** for a uid the map does not hold: one value standing for
-     * both "a plain speech balloon" and "no record at all", which is the mechanism behind four shipped
-     * defects. An object always has a record describing what it is, so asking one cannot go wrong; the
-     * feed's map is consulted only before the object exists.
-     * 
-     * \param uid  The uid of the overlay whose record is requested.
-     * \return The record for the overlay, or a default speech balloon if it does not exist.
+     * Every read of one goes through here. An object always has a composition describing what it is, so
+     * asking one cannot go wrong; the feed's map is consulted only before the object exists.
+     *
+     * \param uid  The uid of the overlay whose composition is requested.
+     * \return Its composition, or an empty one if it does not exist.
      */
-    [[nodiscard]] ObjectRecord recordFor(const QString& uid) const
+    [[nodiscard]] Composition recordFor(const QString& uid) const
     {
         if (const Object* item = m_overlayItems.value(uid))
-            return item->record();
+            return item->composition();
         return m_feedRecords.value(uid);
     }
 
     /**
-     * \brief Every object's record, as the owner should store it — **built from the objects**.
+     * \brief Every object's composition, as the owner should store it — **built from the objects**.
      *
      * What goes out on overlaysCommitted(). Derived rather than maintained: the map used to be written by
      * hand at ten sites beside the object that had just been given the same record, and a write path
      * that updated one of the two left the other describing something that is not on screen.
      * 
-     * \return A map of every overlay's uid to its record, built from the objects.
+     * \return A map of every overlay's uid to its composition, built from the objects.
      */
-    [[nodiscard]] ObjectRecord::Map currentRecords() const;
+    [[nodiscard]] Composition::Map currentRecords() const;
 
     /**
      * \brief Everything selected, in the order it was picked. The last is the primary — see selectOverlays().
@@ -362,10 +360,10 @@ public:
     void setSyncing(bool on) { m_syncingList = on; }
 
     /**
-     * \brief The scene is about to delete every item; harvest their records and drop the pointers.
+     * \brief The scene is about to delete every item; harvest their compositions and drop the pointers.
      *
-     * Call it **before** `QGraphicsScene::clear()`: it reads every object. Their records are harvested
-     * into the feed's first, because the objects are where a record lives between feeds — an edit
+     * Call it **before** `QGraphicsScene::clear()`: it reads every object. Their compositions are harvested
+     * into the feed's first, because the objects are where one lives between feeds — an edit
      * previewed but not yet settled exists only on the object, and rebuilding the scene from a feed that
      * never heard about it would quietly undo it.
      */
@@ -525,14 +523,14 @@ public:
     /**
      * \brief What OBJECT STATE just said, written to the objects OBJECT STATE was bound to.
      *
-     * The panel answers with records and no uids, because it was handed records and no uids. Which
-     * objects those were is remembered in \c m_panelSubjects at the moment it was bound, so a selection
-     * that has changed since cannot make this write the right records onto the wrong objects.
-     * 
-     * \param records  The records to apply to the objects.
+     * The panel answers with compositions and no uids, because it was handed compositions and no uids.
+     * Which objects those were is remembered in \c m_panelSubjects at the moment it was bound, so a
+     * selection that has changed since cannot make this write the right values onto the wrong objects.
+     *
+     * \param records  The compositions to apply to the objects.
      * \param commit  False while a control is being dragged or typed in: the objects
      */
-    void applyPanelRecords(const QList<ObjectRecord>& records, bool commit);
+    void applyPanelRecords(const QList<Composition>& records, bool commit);
     //! OBJECT STATE's *Fit*: grows or shrinks the selected object's box to its words. Not a picture.
     void fitSelectionToText();
     //! *Fix padding*: lowers the selected balloon's paddings, each in its own direction, until its words
@@ -542,7 +540,7 @@ public:
 
     // --- a new object: asked for here, created by the owner, selected when it comes back in the feed ---
     //! Asks the owner for a new authored object; it is selected when the feed brings it back.
-    void requestRecord(const ObjectRecord& record, double xFrac, double yFrac, double wFrac,
+    void requestRecord(const Composition& record, double xFrac, double yFrac, double wFrac,
                        const QString& anchorInputUid);
     //! Asks the owner to import @p file as a new picture; it is selected when the feed brings it back.
     void requestArtwork(const QString& file, double xFrac, double yFrac, double wFrac, QSize naturalSize,
@@ -551,40 +549,40 @@ public:
     /**
      * \brief What TOOL OPTIONS says the next object is — read, never written.
      *
-     * Two questions, given as functions so that this class needs no tool-options panel: the prototype a
-     * balloon would be placed as, and the silhouette a balloon would wear, which *Convert to ▸ Balloon* arrives at (never `None`, even while
-     * the Text tool is armed). The Editor, which owns both regions, wires them.
+     * Two questions, given as functions so that this class needs no tool-options panel: the prototype an
+     * object would be placed as, and the balloon one would wear, which *Convert to ▸ Balloon* arrives at
+     * (a balloon even while the Text tool is armed). The Editor, which owns both regions, wires them.
      */
     struct ToolDefaults
     {
-        std::function<ObjectRecord()>        prototype;
-        std::function<ShapeProperties()>     balloonShape;
+        std::function<Composition()> prototype;
+        std::function<BalloonLook()> balloon;
     };
     void setToolDefaults(ToolDefaults defaults) { m_toolDefaults = std::move(defaults); }
 
 signals:
     /**
      * \brief A bubble was drawn. Creation is the library's — it mints the uid and dedups identical artwork.
-     * \param record  The record for the new object.
+     * \param record  What the new object is.
      * \param xFrac, yFrac, wFrac  The new object's position and size as fractions of the page dimensions.
      * \param anchorInputUid  The UID of the anchor input.
      */
-    void recordCreated(const ObjectRecord& record, double xFrac, double yFrac, double wFrac,
+    void recordCreated(const Composition& record, double xFrac, double yFrac, double wFrac,
                          const QString& anchorInputUid);
     /**
      * \brief Any other edit, as the complete new state: one channel rather than one signal per gesture.
      * \param overlays  The new overlay set, in composite order.
-     * \param records  The new records for the overlays, keyed by uid.
+     * \param records  The new compositions of the overlays, keyed by uid.
      * \param undoText  The text to use for the undo step that will be created
      */
     void overlaysCommitted(const std::vector<Platemaker::Models::StripOverlay>& overlays,
-                        const ObjectRecord::Map& records, const QString& undoText);
+                        const Composition::Map& records, const QString& undoText);
     /**
      * \brief Artwork drawn elsewhere should be copied into the workspace and registered here.
      *
      * @p naturalSize is the picture's own pixels, read through the one loader that knows how to ask an
      * SVG its size. It travels because the far end cannot work it out: it sees only the copy it has
-     * just written, and guessing there once produced a record whose box was a fraction times 1000.
+     * just written, and guessing there once produced a picture whose size was a fraction times 1000.
      * \param sourceFile  The file to copy into the workspace.
      * \param xFrac, yFrac, wFrac  The new object's position and size as fractions of the page dimensions.
      * \param naturalSize  The picture's own pixel dimensions.
@@ -605,12 +603,12 @@ signals:
     void revealSelectionRequested();   //!< An undo selected something: bring its row into view.
 
     // --- for OBJECT STATE: what it is bound to now. The Editor wires these; this class has no panel. ---
-    void boundToRecord(const ObjectRecord& record);            //!< One object.
-    void boundToTail(const ObjectRecord& record, int index);   //!< One tail, of the balloon @p record.
-    void boundToRecords(const QList<ObjectRecord>& records);   //!< Several objects, of any kinds.
+    void boundToRecord(const Composition& record);            //!< One object.
+    void boundToTail(const Composition& record, int index);   //!< One tail, of the balloon @p record.
+    void boundToRecords(const QList<Composition>& records);   //!< Several objects, of any kinds.
     void boundToMixed(int count);   //!< Objects and tails together: nothing editable in common.
     //! Several tails and no whole object: their @p balloons, and each tail as (balloon index, tail index).
-    void boundToTails(const QList<ObjectRecord>& balloons, const QList<QPair<int, int>>& tails);
+    void boundToTails(const QList<Composition>& balloons, const QList<QPair<int, int>>& tails);
     void boundToNothing();          //!< Nothing is selected.
     //! The selection's blend mode, none when they disagree; @p applies is false for a tail or nothing.
     void blendBound(std::optional<Platemaker::Models::BlendMode> blend, bool applies);
@@ -620,17 +618,6 @@ signals:
     //! Shape editing started or ended, or its picked node changed: the menu's entries follow.
     void shapeEditingChanged();
 
-    /**
-     * \brief Something happened that the artist should be told once — not a state they can fix.
-     *
-     * **An event, deliberately not a badge.** A badge is derived from state, so whoever raised it
-     * re-evaluates and clears it; *"converting hid 2 tails"* has already happened and nothing can make
-     * it stop being true. Events belong in the status bar's temporary message area, which is what its
-     * left side is for, while the advisories keep the right.
-     * 
-     * \param text  The message to show the artist.
-     */
-    void noted(const QString& text);
 private:
     void onOverlayGeometryCommitted(const QString& uid); //!< An item settled a move/resize/tail drag.
     void writePlacement(const QString& uid, bool rehome = true); //<! Writes where object @p uid now stands back into its record — placement, width and, if @p rehome, anchor page.
@@ -651,10 +638,8 @@ private:
     [[nodiscard]] qreal itemScaleFor(const Platemaker::Models::StripOverlay& o, qreal naturalWidth) const;
     /**
      * \brief The library's rasterisation of \p a, cached by the SVG it emits. Empty if it cannot be produced.
-     * \param a  The record to rasterise.
-     * \return The rasterised image of the record, or an empty QImage if it cannot be produced.
      */
-    [[nodiscard]] QImage sharpRasterFor(const ObjectRecord& a);
+    [[nodiscard]] QImage sharpRasterFor(const Composition& a);
 
     /**
      * \brief Selects exactly @p uids, in the order given. The **last** is the primary.
@@ -684,7 +669,7 @@ private:
      */
     void pushOverlays(const QString& undoText); //!< Emits overlaysCommitted() with the current state.
     /**
-     * \brief Writes @p records onto the objects @p uids names — **the one write path**.
+     * \brief Writes @p records (compositions) onto the objects @p uids names — **the one write path**.
      *
      * There were three: one for a single balloon, one for several, and one for a picture. They differed
      * in a `qobject_cast` and in what the history step was called, and the two that only accepted a
@@ -693,7 +678,7 @@ private:
      *
      * **Pairing is stated, not inferred.** The old multi-object path matched its list to
      * `m_selectedOverlays` by position and refused when the two lengths disagreed, which is what made a
-     * mixed selection uneditable. Here the caller says which object each record is for.
+     * mixed selection uneditable. Here the caller says which object each composition is for.
      *
      * \param uids     The uids of the objects to apply the records to.
      * \param records  The records to apply to the objects.
@@ -701,7 +686,7 @@ private:
      *               reaches the history. The panel's own debounce decides when an edit has settled.
      * \param undoText  The text to use for the undo step that will be created. If empty, a default text will be used.
      */
-    void applyRecords(const QStringList& uids, const QList<ObjectRecord>& records, bool commit,
+    void applyRecords(const QStringList& uids, const QList<Composition>& records, bool commit,
                       const QString& undoText = QString());
 
     /**
@@ -710,7 +695,7 @@ private:
      * \param record  The record to apply to the object.
      * \param commit  False while a control is being dragged or typed in: the object
      */
-    void applyRecord(const QString& uid, const ObjectRecord& record, bool commit,
+    void applyRecord(const QString& uid, const Composition& record, bool commit,
                      const QString& undoText = QString());
 
     //! @p preset's look onto every selected object we draw, as one history step named @p step.
@@ -729,7 +714,7 @@ private:
      * \return How far the item has to move, in its own units, for the lettering to stay where it is on
      *         the strip; null when the box did not change.
      */
-    [[nodiscard]] QPointF settleBox(const Object* item, ObjectRecord& next) const;
+    [[nodiscard]] QPointF settleBox(const Object* item, Composition& next) const;
 
     void deleteSelectedTail();   //!< Takes the selected tail off its balloon, and selects the balloon.
 
@@ -745,14 +730,14 @@ private:
 
     std::vector<Platemaker::Models::StripOverlay> m_overlays;   //!< The project's overlays, in composite order.
     /**
-     * \brief The records the last feed brought — **a seed, not the state**.
+     * \brief The compositions the last feed brought — **a seed, not the state**.
      *
      * Read in two places only: to build an object that does not exist yet, and to answer for a uid that
      * has no object. Everything else asks the object, through recordFor(). It is deliberately not kept
      * in step with edits, because the objects already are; keeping a second copy in step by hand is
      * what this member used to be for, and what it stopped being.
      */
-    ObjectRecord::Map                                   m_feedRecords;
+    Composition::Map                              m_feedRecords;
     QHash<QString, Object*>                       m_overlayItems; //!< Live scene objects, keyed by overlay uid.
     SelectionChrome*                              m_chrome = nullptr; //!< The selection's grips, above every object; owned by the scene.
     /**
@@ -773,7 +758,7 @@ private:
     QString            m_selectedOverlay;                   //!< The primary: last of m_selectedOverlays.
     QStringList        m_selectedOverlays;                  //!< Everything selected, in pick order.
     /**
-     * \brief The objects OBJECT STATE is currently bound to, in the order its records are in.
+     * \brief The objects OBJECT STATE is currently bound to, in the order its compositions are in.
      *
      * Not the same thing as the selection, and that is the point: the panel answers about what it was
      * shown, which may no longer be what is selected. Empty whenever the panel is showing something

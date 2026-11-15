@@ -6,7 +6,7 @@
 #include <functional>
 #include <optional>
 
-#include "objectrecord.hpp"
+#include "composition.hpp"
 #include "properties/propertygroupset.hpp"
 
 class QTabBar;
@@ -82,7 +82,7 @@ private:
     QTabBar*     m_kindTabs = nullptr;  //!< *Bubbles*, *Text*: one kind of preset listed at a time.
     QList<QWidget*> m_balloonParts;     //!< Every editor and rule but the lettering's: hidden for a text preset.
     int          m_shown = -1;          //!< The store's index of the preset the editors show.
-    ObjectRecord m_edited;              //!< Its look as the editors have it.
+    Composition m_edited;              //!< Its look as the editors have it.
     bool         m_populating = false;  //!< Binding, not editing.
     PresetUses                m_uses;      //!< Where the objects come from: the window, which sees every project.
     QList<PresetUse>          m_listed;    //!< What treeUses shows, by the index in its rows' data.

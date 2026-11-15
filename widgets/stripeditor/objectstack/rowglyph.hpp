@@ -5,7 +5,7 @@
 #include <QPalette>
 #include <QPixmap>
 
-#include "objectrecord.hpp"
+#include "composition.hpp"
 
 namespace StripEdit {
 
@@ -30,7 +30,7 @@ inline constexpr int k_rowGlyphPx = 24;
  * \param dpr The screen's device pixel ratio. Drawing at one and letting the view scale up is what makes
  *            an icon look soft on a 150% display — so every glyph is drawn at the screen's own density.
  */
-[[nodiscard]] QIcon objectGlyph(const ObjectRecord& a, const QPalette& pal, int px = k_rowGlyphPx,
+[[nodiscard]] QIcon objectGlyph(const Composition& a, const QPalette& pal, int px = k_rowGlyphPx,
                                 qreal dpr = 1.0);
 
 //! Imported artwork is its own glyph: the art itself, scaled down. It has no silhouette to borrow.

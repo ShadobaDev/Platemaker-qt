@@ -9,7 +9,7 @@
 #include <QDialog>
 #include <QList>
 
-#include "objectrecord.hpp"   // ShapeNode
+#include "composition.hpp"   // ShapeNode
 
 namespace Ui {
 class RegularPolygonDialog;

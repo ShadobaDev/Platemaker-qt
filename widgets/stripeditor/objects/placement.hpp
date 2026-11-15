@@ -7,7 +7,7 @@
 
 #include <functional>
 
-#include "objectrecord.hpp"
+#include "composition.hpp"
 
 class QGraphicsRectItem;
 class QGraphicsScene;
@@ -40,7 +40,7 @@ public:
               const QWidget* palette, QObject* parent);
 
     //! What a balloon placement is built from: TOOL OPTIONS' prototype. Without one, nothing is placed.
-    void setPrototype(std::function<ObjectRecord()> prototype) { m_prototype = std::move(prototype); }
+    void setPrototype(std::function<Composition()> prototype) { m_prototype = std::move(prototype); }
 
     //! The picture the next placement puts down; empty, and a placement makes a balloon.
     void setArtwork(const QString& file) { m_placementArtwork = file; }
@@ -62,7 +62,7 @@ private:
     ObjectController&    m_objects;
     const StripLayout&   m_layout;
     const QWidget*       m_palette = nullptr;
-    std::function<ObjectRecord()> m_prototype;
+    std::function<Composition()> m_prototype;
 
     QGraphicsRectItem* m_placementRubber = nullptr;   //!< Rubber band while a new bubble is drawn.
     QPointF            m_placementOrigin;             //!< Where that drag started, in scene coordinates.

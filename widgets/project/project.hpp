@@ -3,7 +3,7 @@
 
 #include <QWidget>
 
-#include "objectrecord.hpp"
+#include "names.hpp"
 #include "overlaystate.hpp"
 #include <QList>
 #include <QSize>

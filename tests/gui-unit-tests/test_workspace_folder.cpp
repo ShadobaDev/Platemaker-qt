@@ -142,18 +142,17 @@ TEST(CollectOverlayFiles, CopiesWhatIsOutsideAndLeavesWhatIsHome)
 
 TEST(CollectOverlayFiles, ALetteredPictureBringsThePictureItsRecordNames)
 {
-    // The overlay points at the wrapper; the picture is named only by the record. Following assetPath
+    // The overlay points at the wrapper; the picture is named only by its composition. Following assetPath
     // alone would leave the picture behind and the object with nothing to re-letter.
     TwoFolders f;
     write(f.from("ovl-wrapper.svg"), "wrapper");
     write(f.from("art-picture.png"), "picture");
 
-    ObjectRecord record;
-    artworkOf(record) = QStringLiteral("art-picture.png");
-    const ObjectRecord::Map records{{QStringLiteral("1"), record}};
+    Composition record = pictureObject(QStringLiteral("art-picture.png"));
+    const Composition::Map records{{QStringLiteral("1"), record}};
 
     std::vector overlays{overlayAt("1", f.from("ovl-wrapper.svg"))};
-    ASSERT_TRUE(collectOverlayFiles(overlays, compositionsOf(records), f.toDir()));
+    ASSERT_TRUE(collectOverlayFiles(overlays, records, f.toDir()));
     EXPECT_EQ(read(f.to("ovl-wrapper.svg")), QByteArray("wrapper"));
     EXPECT_EQ(read(f.to("art-picture.png")), QByteArray("picture"));
 }
@@ -183,14 +182,13 @@ TEST(CollectOverlayFiles, APictureThatCannotKeepItsNameFailsAndChangesNothing)
     write(f.from("art-p.png"), "ours");
     write(f.to("art-p.png"), "someone else's");
 
-    ObjectRecord picture;
-    artworkOf(picture) = QStringLiteral("art-p.png");
-    const ObjectRecord::Map records{{QStringLiteral("2"), picture}};
+    Composition picture = pictureObject(QStringLiteral("art-p.png"));
+    const Composition::Map records{{QStringLiteral("2"), picture}};
 
     std::vector overlays{overlayAt("1", f.from("ovl-a.svg")), overlayAt("2", f.from("art-p.png"))};
     const auto before = overlays;
     QString failed;
-    EXPECT_FALSE(collectOverlayFiles(overlays, compositionsOf(records), f.toDir(), &failed));
+    EXPECT_FALSE(collectOverlayFiles(overlays, records, f.toDir(), &failed));
     EXPECT_TRUE(QFileInfo(failed) == QFileInfo(f.from("art-p.png")));
     EXPECT_EQ(overlays[0].assetPath, before[0].assetPath);
     EXPECT_EQ(overlays[1].assetPath, before[1].assetPath);
@@ -198,15 +196,14 @@ TEST(CollectOverlayFiles, APictureThatCannotKeepItsNameFailsAndChangesNothing)
 
 TEST(CollectOverlayFiles, AMissingBalloonIsPointedHomeToBeRebuiltThere)
 {
-    // A balloon is drawn from its record, so a missing file is rewritten — here, never in the old folder.
+    // A balloon is drawn from its composition, so a missing file is rewritten — here, never in the old folder.
     // A missing picture has nothing to be rebuilt from, and stays where it was.
     TwoFolders f;
-    ObjectRecord picture;
-    artworkOf(picture) = QStringLiteral("art-gone.png");
-    const ObjectRecord::Map records{{QStringLiteral("1"), ObjectRecord{}}, {QStringLiteral("2"), picture}};
+    Composition picture = pictureObject(QStringLiteral("art-gone.png"));
+    const Composition::Map records{{QStringLiteral("1"), balloonObject()}, {QStringLiteral("2"), picture}};
 
     std::vector overlays{overlayAt("1", f.from("ovl-gone.svg")), overlayAt("2", f.from("art-gone.png"))};
-    ASSERT_TRUE(collectOverlayFiles(overlays, compositionsOf(records), f.toDir()));
+    ASSERT_TRUE(collectOverlayFiles(overlays, records, f.toDir()));
     EXPECT_TRUE(QFileInfo(QString::fromStdString(overlays[0].assetPath)).absolutePath()
                 == QFileInfo(f.toDir()).absoluteFilePath());
     EXPECT_TRUE(QFileInfo(QString::fromStdString(overlays[1].assetPath)) == QFileInfo(f.from("art-gone.png")));

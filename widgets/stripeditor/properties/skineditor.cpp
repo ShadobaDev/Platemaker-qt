@@ -23,19 +23,19 @@ void SkinEditor::bind(const Subjects& subjects)
     m_values = SkinProperties::from(*subjects.first());
     // What the selection disagrees about is not a value this panel may show; binding is not editing.
     m_fill.reset();
-    for (const ObjectRecord* a : subjects)
+    for (const Composition* a : subjects)
         m_fill.compare(SkinProperties::from(*a), m_values);
     syncFromValues();
 }
 
-void SkinEditor::applyTo(ObjectRecord& target) const
+void SkinEditor::applyTo(Composition& target) const
 {
     // One line, and that is the point: the group's own applyTo() is the only write path, so this
     // editor cannot reach a property it does not own even by accident.
     m_values.applyTo(target);
 }
 
-void SkinEditor::applyEditedTo(ObjectRecord& target) const
+void SkinEditor::applyEditedTo(Composition& target) const
 {
     // Still one write path — the group's — but only what was actually picked: what the artist did not
     // touch stays each object's own, which is the whole point of editing a set.

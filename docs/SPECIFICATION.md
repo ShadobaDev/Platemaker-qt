@@ -99,7 +99,7 @@ outline.
    template speaks, the sections of numbers it reads (`sections`), the two functions, and the flash's Auto
    stretch.
    Then **at least one template** in `shapeTemplates()`, in the picker's order.
-3. `widgets/objectrecord/objectrecord.cpp`: its place in `shapeOrder()`, which is what names are read
+3. `widgets/objectrecord/names.cpp`: its place in `shapeOrder()`, which is what names are read
    back from.
 4. *Optional:* a built-in preset in `presetstore.cpp`.
 
@@ -120,7 +120,7 @@ worked example. A template does not set the edge: `templateOf()` ignores it and 
 SVG is accepted with `PLATEMAKER_UPDATE_GOLDEN=1` and its diff reviewed. The table test also checks that
 every template is a balloon, is found by `templateOf()` as itself, and that every kind has one.
 
-**Not caught by any test:** every constant is named; noise uses `styleSeed` and nothing else
+**Not caught by any test:** every constant is named; noise uses the composition's `seed` and nothing else
 (`topUpStyleSeed()` mints it; *Re-roll* on the object menu deals it again, for a record that
 `usesSeed()`). Any outline
 takes a tail, concave included: the tail walks from its tip towards the centre and leaves from the first
@@ -295,7 +295,7 @@ and its parts, each closed edge walked by arc length (`EdgeWalk`, `edgewalk.*`),
 otherwise guess: the corners, measured once (`outline.cpp`: a turn of 35° or more, `k_cornerTurn`, with the
 edge's way either side), what covers each part's edge, and the ends the tails report (a Round or Cut end
 where it lies, a round one with no corner on it). A line varies what it lays along the edge with
-`smoothNoise()`, seeded from `styleSeed`, so it stays put while the balloon is edited and *Re-roll* deals it
+`smoothNoise()`, seeded from the composition's `seed`, so it stays put while the balloon is edited and *Re-roll* deals it
 again. The brush (`brushInk()`) is the example: ribbons about
 the edge, as wide as the outline (the line's own `strokeWidth`, not a number of its own). The dry brush
 (`drybrushInk()`) is a thin core (`drybrushCore` of the width), the outline mitred so a point stays one,
@@ -331,22 +331,22 @@ round-trip and golden tests as a shape; strokes are also checked against the roo
 
 ### A kind of object
 
-One record, `ObjectRecord`, serves every kind on purpose (`artwork` is a field, not a type). A kind is a
-new `Object` subclass plus what in the record tells it apart. The worked example is commit `268a562`
-(the Artwork tool).
+One composition, `Composition` (`widgets/objectrecord/composition.hpp`), serves every kind on purpose: what
+an object is, is which elements it has (a balloon, a picture, words), not a type. A kind is a new `Object`
+subclass plus the element that tells it apart. The worked example is commit `268a562` (the Artwork tool).
 
 | Where | What |
 |---|---|
 | `objects/<kind>object.*` | the subclass: what it draws and how big; selection, move, resize, mute, delete, stacking are `Object`'s |
 | `objects/object.hpp` | a `Kind` value, for the few places that must ask |
-| `ObjectController::syncItems()` | **the one place a subclass is chosen** for a record |
-| `objects/objectcontroller.cpp`, `objectstack/objectmenu.cpp`, `objectstate/objectstate.cpp` | every `isParametric()` / `isArtwork()` / `hasSilhouette()` decision; `carriesGroup()` (`properties/propertygroup.hpp`) says which groups a record carries |
+| `ObjectController::syncItems()` | **the one place a subclass is chosen** for a composition |
+| `objects/objectcontroller.cpp`, `objectstack/objectmenu.cpp`, `objectstate/objectstate.cpp` | every `isParametric()` / `picture` / `balloon` decision; `carriesGroup()` (`properties/propertygroup.hpp`) says which groups an object carries |
 | `tooloptions/` + `editor.cpp` | its options page, and a tool row (above) |
 | `widgets/objectrecord/recordsvg.cpp` | how it is written to the file the library composites |
 | `widgets/project/project.cpp` | where the project creates and stores it |
 
 **A quality bar:** could the change be compiled on its own? A shape nearly can; a kind of object cannot,
-because it answers in the controller, the panels and the project. That is the cost of one shared record.
+because it answers in the controller, the panels and the project. That is the cost of one shared composition.
 
 **Tests:** configure with `PLATEMAKER_GUI_BUILD_TESTS=ON` and run `platemaker-gui-tests`; anything with
 a window is checked by hand. The layer rules are checked on every build (`cmake/check_layers.cmake`).

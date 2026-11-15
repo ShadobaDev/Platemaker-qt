@@ -67,7 +67,7 @@ inline constexpr char k_workspaceFontsFolder[] = "fonts";
  * What *Save As* runs so a workspace references only its own folder, and what restoring an undo step runs,
  * since a history taken before a Save As still names the old folder. Carried along:
  *  - each overlay's own file, when it lies outside \p overlaysDir;
- *  - **the picture behind a lettered picture** — named by its record (`ObjectRecord::artwork`), beside the
+ *  - **the picture behind a lettered picture** — named by its composition (`Picture::file`), beside the
  *    wrapper, and by no overlay path at all, so following `assetPath` alone would leave it behind and the
  *    object with nothing to re-letter.
  *

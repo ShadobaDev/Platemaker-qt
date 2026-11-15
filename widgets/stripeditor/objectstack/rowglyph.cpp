@@ -44,7 +44,7 @@ namespace {
 
 }  // namespace
 
-QIcon objectGlyph(const ObjectRecord& a, const QPalette& pal, int px, qreal dpr)
+QIcon objectGlyph(const Composition& a, const QPalette& pal, int px, qreal dpr)
 {
     QPixmap  pm = blank(px, dpr);
     QPainter p(&pm);
@@ -53,7 +53,7 @@ QIcon objectGlyph(const ObjectRecord& a, const QPalette& pal, int px, qreal dpr)
     // No silhouette to borrow: lettering with no balloon around it says so with letters. Drawn as
     // **outlines** rather than as text — type at this size is at the mercy of hinting and of what the
     // font calls an advance, and a path is measured and scaled like any other shape.
-    if (!a.hasSilhouette() || a.box.isEmpty()) {
+    if (!a.balloon.has_value() || sizeOf(a).isEmpty()) {
         QFont f;
         f.setBold(true);
         f.setPixelSize(64);
@@ -73,7 +73,7 @@ QIcon objectGlyph(const ObjectRecord& a, const QPalette& pal, int px, qreal dpr)
         return QIcon(pm);
     }
 
-    const QPainterPath silhouette = Geometry::silhouette(a);
+    const QPainterPath silhouette = Geometry::silhouette(*a.balloon, a.seed);
     const QRectF       extent     = silhouette.boundingRect();
     if (silhouette.isEmpty() || extent.isEmpty())
         return {};
@@ -88,7 +88,7 @@ QIcon objectGlyph(const ObjectRecord& a, const QPalette& pal, int px, qreal dpr)
 
     // The object's own fill, the palette's outline. A black balloon on a dark panel would otherwise be a
     // hole, and a white one on a light panel nothing at all.
-    p.setBrush(a.skin.fill.colour);
+    p.setBrush(a.balloon->style.fill.fill.colour);
     QPen pen = outlinePen(pal, 1.0);
     pen.setWidthF(qMax(0.5, 1.0 / k));   // one point on screen, whatever the balloon's own size
     p.setPen(pen);

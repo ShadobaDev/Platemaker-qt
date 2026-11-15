@@ -12,7 +12,6 @@
 
 #include <optional>
 
-#include "objectrecord.hpp"     // PresetOrigin, and the record the conversion reads and writes
 #include "propertygroups.hpp"   // the groups the elements are made of
 
 /**
@@ -26,9 +25,22 @@
  * shared look. The balloon owns its line, fill, texture and shadow, so every body and tail of it, unioned
  * and stroked once, wears one style by structure.
  *
- * Coordinates are strip-scale pixels in the composition's frame, the frame the record's box and tail tips
- * already use (the first body at the origin).
+ * Coordinates are strip-scale pixels in the composition's frame; what is placed by hand today starts at its
+ * origin.
  */
+
+/**
+ * \brief The preset last applied to an object: where its look came from, as a hint. Nothing follows the
+ *        preset once it is copied in — an edit to the object, or to the preset, leaves this as it was.
+ */
+struct PresetOrigin
+{
+    QString uid;    //!< The preset's (BubblePreset::uid); empty for none.
+    QString name;   //!< Its name when applied: what is shown when the preset is not among the artist's.
+
+    [[nodiscard]] bool isEmpty() const { return uid.isEmpty(); }
+    [[nodiscard]] bool operator==(const PresetOrigin& o) const { return uid == o.uid && name == o.name; }
+};
 
 //! Where an element sits in its composition's frame. Only the position is edited; rotation and scale are kept.
 struct Place
@@ -88,6 +100,15 @@ struct BalloonStyle
             && nextLook == o.nextLook;
     }
     [[nodiscard]] bool operator!=(const BalloonStyle& o) const { return !(*this == o); }
+};
+
+//! A balloon as a preset or the tool options carry it: the shape its bodies take and the style it is drawn in.
+struct BalloonLook
+{
+    ShapeProperties shape;
+    BalloonStyle    style;
+
+    [[nodiscard]] bool operator==(const BalloonLook& o) const { return shape == o.shape && style == o.style; }
 };
 
 //! The background the words sit on: one style for all its parts, and the parts.
@@ -171,10 +192,15 @@ struct Composition
 [[nodiscard]] const Body* seatOf(const Composition& c, const Words& w);
 
 /**
- * \brief The words @p c draws: its first. ponytail: one until the chain, whose second words need render ids of
- *        their own (renderlist.cpp's are one set per file).
+ * \brief The words @p c draws and the editor edits: its first. ponytail: one until the chain, whose second words
+ *        need render ids of their own (renderlist.cpp's are one set per file), and an editor that picks them.
  */
 [[nodiscard]] const Words* wordsOf(const Composition& c);
+[[nodiscard]] Words*       wordsOf(Composition& c);
+
+//! The body the editor edits: the first of @p c's balloon; none without a balloon. ponytail: as wordsOf().
+[[nodiscard]] const Body* bodyOf(const Composition& c);
+[[nodiscard]] Body*       bodyOf(Composition& c);
 
 /**
  * \brief The rectangle the author dragged: the bodies', the picture's, and the box of words with no seat, as
@@ -183,17 +209,57 @@ struct Composition
 [[nodiscard]] QRectF frameOf(const Composition& c);
 
 /**
- * @name The way between a record and a composition, while both exist. A record that is a balloon is one body;
- *       a text object or an artwork keeps no balloon, so the groups such a record carries unread are not
- *       carried over (they come back as their defaults).
- * @{
+ * \brief The size the grips drag: the first body's, or the picture's, or the first words' own box.
  */
-[[nodiscard]] Composition compositionOf(const ObjectRecord& a);
-[[nodiscard]] ObjectRecord recordOf(const Composition& c);
-//! The same, a project's whole map: the editor's edge, while it holds records.
-[[nodiscard]] ObjectRecord::Map recordsOf(const Composition::Map& m);
-[[nodiscard]] Composition::Map  compositionsOf(const ObjectRecord::Map& m);
-/** @} */
+[[nodiscard]] QSize sizeOf(const Composition& c);
+//! Sets sizeOf(): the first body's size; or the picture's and its words' box; or the words' box.
+void resize(Composition& c, const QSize& size);
+
+//! The size an object has before it is drawn on the strip: what a preset and the tool options show.
+inline constexpr QSize k_defaultObjectSize{280, 160};
+
+//! Words and nothing else: a text object, its words empty, in a box of @p size at the origin.
+[[nodiscard]] Composition textObject(const QSize& size = k_defaultObjectSize);
+
+/**
+ * \brief @p c given a balloon of @p look: one body of its shape where its first words' own box was, of its size,
+ *        the words seated in it, and no tail. A composition with a background already comes back as it is.
+ */
+[[nodiscard]] Composition withBalloon(Composition c, const BalloonLook& look);
+
+/**
+ * \brief @p c with no balloon: the words that sat in a body in their own box, where that body was and of its
+ *        size. The balloon's style and tails go with it (*Convert to text*).
+ */
+[[nodiscard]] Composition withoutBalloon(Composition c);
+
+/**
+ * \brief Whether @p c draws anything at random from its seed: a balloon whose line is not the solid one, with a
+ *        texture, or with an irregular edge on its first body — so it needs a seed, and *Re-roll* has something to
+ *        deal again.
+ */
+[[nodiscard]] bool usesSeed(const Composition& c);
+
+/**
+ * \brief Gives @p c a seed if it uses one (usesSeed()) and has none — **the one place that mints one**.
+ *
+ * The seed belongs to no property group, precisely so that no editor and no preset can copy it: a page of
+ * marker balloons all wearing the same wobble is the failure it exists to prevent. Idempotent: a composition
+ * that already has a seed keeps it, so re-styling never re-rolls the wobble.
+ */
+void topUpStyleSeed(Composition& c);
+
+/**
+ *  How much of the lettering names an object in a list. Long enough to tell two lines apart, short
+ *  enough to leave room for what else a row carries.
+ */
+inline constexpr int k_labelChars = 32;
+
+/**
+ * \brief What to call @p c in the object stack: the first line of its words, or, with none, what it is in
+ *        parentheses (its balloon's shape, or text).
+ */
+[[nodiscard]] QString objectLabel(const Composition& c);
 
 /**
  * \brief The composition as its content: the JSON the workspace keeps with the overlay and the SVG copies.

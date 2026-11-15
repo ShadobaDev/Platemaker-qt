@@ -26,7 +26,7 @@
 #include <functional>
 
 #include "composition.hpp"
-#include "objectrecord.hpp"
+#include "names.hpp"
 #include "outline.hpp"      // OutlineModel: what a line is drawn round
 #include "renderlist.hpp"   // Render::Filter: a kind's SVG filter
 #include "shapes.hpp"   // ShapeHandle: the fade's cross
@@ -100,7 +100,7 @@ struct PatternInfo
 struct TailStyleInfo
 {
     TailLook::Style      kind;
-    const char*          name;     //!< Persisted, in a tail's look (ObjectRecord::toJson()). **Never changes** once saved.
+    const char*          name;     //!< Persisted, in a tail's look (toJson(Composition)). **Never changes** once saved.
     const char*          title;    //!< Shown on screen, translated through QObject::tr().
     bool                 tipped;   //!< Whether it ends as its tip says: the Tail panel offers the tip only then.
     //! The sections of TailLook it reads, whose rows the Tail panel shows while it is chosen.
@@ -264,20 +264,6 @@ struct ShadowPaths
 
 //! \p b's line draws the solid outline: every line but one with ink of its own.
 [[nodiscard]] bool hasOutline(const Balloon& b);
-
-/**
- * @name The record's way in, until it goes (recordentry.cpp): a style's question is its groups', whatever the
- *       record is; hasFilter() and ink() the forms above of its composition.
- * @{
- */
-[[nodiscard]] QPainterPath fillTone(const ObjectRecord& a, const QPainterPath& silhouette);
-[[nodiscard]] bool         hasFilter(const ObjectRecord& a);
-[[nodiscard]] bool         fadesShadow(const ObjectRecord& a);
-[[nodiscard]] ShadowPaths  shadowOf(const ObjectRecord& a, const QPainterPath& silhouette);
-[[nodiscard]] Paint        shadowPaint(const ObjectRecord& a);
-[[nodiscard]] QPainterPath ink(const ObjectRecord& a, const QPainterPath& silhouette);
-[[nodiscard]] bool         hasOutline(const ObjectRecord& a);
-/** @} */
 
 }  // namespace Geometry
 

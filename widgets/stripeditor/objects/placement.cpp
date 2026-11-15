@@ -93,12 +93,13 @@ void Placement::finish()
 
     // Whatever the active tool places — shape included: the panel is the tool's side of the question,
     // and this controller knows nothing about which tool is armed.
-    ObjectRecord a = m_prototype();
-    a.box = r.size().toSize();
+    Composition a = m_prototype();
+    resize(a, r.size().toSize());
     // The prototype's tail was placed against the panel's nominal box; re-aim it at the one just drawn,
     // just below the balloon, which is where a reader expects a new bubble to be speaking from.
-    for (Tail& t : a.tails.items)
-        t.tip = firstTailTip(a.box);
+    if (a.balloon)
+        for (BalloonTail& t : a.balloon->tails)
+            t.tail.tip = firstTailTip(sizeOf(a));
 
     // Creation is the library's: it mints the uid, hashes the asset and dedups identical content, so
     // the owner finishes this and feeds the result back — where it gets selected (see setOverlaySource).

@@ -38,12 +38,12 @@ public:
     void setIndex(int index) { m_index = index; }
 
     void bind(const Subjects& subjects) override;
-    void applyTo(ObjectRecord& target) const override;
+    void applyTo(Composition& target) const override;
 
     //! Several tails at once: each control shows their common value, or *Mixed* where they disagree.
     void bindTails(const QList<TailProperties>& tails);
     //! Writes to tail @p index of @p target only what was moved since bindTails(); the rest stays its own.
-    void applyEditedToTail(ObjectRecord& target, int index) const;
+    void applyEditedToTail(Composition& target, int index) const;
 
 private:
     //! Per control outside the sections: whether a set disagrees on it, or, after binding, whether it was moved.

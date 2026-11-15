@@ -138,13 +138,15 @@ QIcon ObjectStack::rowGlyph(const QString& uid)
         const auto* art = qobject_cast<const ArtworkObject*>(m_objects.object(uid));
         return art ? assetGlyph(art->artwork(), k_rowGlyphPx, m_tree->devicePixelRatioF()) : QIcon();
     }
-    const ObjectRecord a = m_objects.recordFor(uid);
+    const Composition a = m_objects.recordFor(uid);
 
-    ObjectRecord drawn  = a;
-    drawn.text      = {};   // a glyph is the silhouette; lettering is drawn as a fixed "Aa"
-    drawn.style     = {};   // line styles are SVG filters, applied by the render and never here
-    drawn.styleSeed = 0;
-    QString key = QString::fromUtf8(QJsonDocument(drawn.toJson()).toJson(QJsonDocument::Compact));
+    Composition drawn = a;
+    for (Words& w : drawn.words)
+        w.text = {};   // a glyph is the silhouette; lettering is drawn as a fixed "Aa"
+    if (drawn.balloon)
+        drawn.balloon->style.line = {};   // line styles are SVG filters, applied by the render and never here
+    drawn.seed  = 0;
+    QString key = QString::fromUtf8(QJsonDocument(toJson(drawn)).toJson(QJsonDocument::Compact));
     key += QStringLiteral("|@%1").arg(m_tree->devicePixelRatioF());   // a window can move to another screen
 
     auto it = m_glyphs.constFind(uid);
@@ -202,7 +204,7 @@ void ObjectStack::refresh()
         // refreshed before the strip has a layout, where syncItems() has nothing to place anything against.
         const Object* item  = m_objects.object(uid);
         const QString label = item ? item->label()
-                                   : (m_objects.isParametric(uid) ? recordLabel(m_objects.recordFor(uid))
+                                   : (m_objects.isParametric(uid) ? objectLabel(m_objects.recordFor(uid))
                                                         : tr("(imported artwork)"));
         // The page it sits on, when it sits on one. An unanchored object used to carry the word *orphan*
         // where the page number goes; that is what the chip says now, and saying it twice cost the row
@@ -248,7 +250,7 @@ void ObjectStack::refresh()
         // nothing**: an object made from no preset has no chip. Muted when the preset is not among the
         // artist's (deleted, or another machine's).
         if (m_objects.isParametric(uid)) {
-            const PresetOrigin origin = m_objects.recordFor(uid).presetOrigin;
+            const PresetOrigin origin = m_objects.recordFor(uid).preset;
             if (!origin.isEmpty()) {
                 const QString name  = m_presets.originName(origin);
                 const bool    known = m_presets.indexOf(origin.uid) >= 0;
@@ -276,8 +278,8 @@ void ObjectStack::refresh()
 
         // A bubble's tails, one row each, by position: a row stands for whichever tail is at its index now.
         // Only a bubble has tails, so artwork gets none.
-        const int tailCount = m_objects.isParametric(uid)
-                                  ? static_cast<int>(m_objects.recordFor(uid).tails.items.size()) : 0;
+        const Composition rec       = m_objects.isParametric(uid) ? m_objects.recordFor(uid) : Composition();
+        const int         tailCount = rec.balloon ? static_cast<int>(rec.balloon->tails.size()) : 0;
         while (row->childCount() > tailCount)
             delete row->takeChild(row->childCount() - 1);
         for (int t = 0; t < tailCount; ++t) {

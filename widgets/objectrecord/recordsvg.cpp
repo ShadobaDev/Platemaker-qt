@@ -112,29 +112,6 @@ QString paint(const char* attr, const QColor& c)
     return s;
 }
 
-// ---------------------------------------------------------------------------
-// The old `pm:` attributes, as files written before the content carried them: read only, by read(), until
-// the first release, which no such file can reach.
-// ---------------------------------------------------------------------------
-
-//! Tails as "x,y,width,bend,look…" groups joined by ";", as the old `pm:tails` carried them.
-QList<Tail> tailsFromText(const QString& s)
-{
-    QList<Tail> tails;
-    for (const QString& g : s.split(QLatin1Char(';'), Qt::SkipEmptyParts)) {
-        const auto f = g.split(QLatin1Char(','));
-        if (f.size() < 2)
-            continue;   // a group without at least a tip says nothing
-        Tail t;
-        t.tip = QPointF(f[0].toDouble(), f[1].toDouble());
-        if (f.size() > 2) t.baseWidth = f[2].toDouble();
-        if (f.size() > 3) t.bend      = f[3].toDouble();
-        t.look = TailLook::fromFields(f, 4);
-        tails.append(t);
-    }
-    return tails;
-}
-
 /**
  * \brief The `<defs>` block for @p p's pattern, or nothing for a solid Paint.
  *
@@ -164,62 +141,6 @@ QString paintAttr(const char* attr, const Paint& p, const QString& id)
     if (p.kind == Paint::Kind::Solid)
         return paint(attr, p.colour);
     return QStringLiteral("%1=\"url(#%2)\"").arg(QLatin1String(attr), id);
-}
-
-int intOf(const QStringView& v, int fallback)
-{
-    bool      ok = false;
-    const int n  = v.toInt(&ok);
-    return ok ? n : fallback;
-}
-
-// A field's old `pm:` attribute, read back: one overload per type a group holds (fields.hpp), falling back to
-// the value already there, which for a fresh record is the struct's own default.
-
-void fromAttr(QStringView s, int& v) { v = intOf(s, v); }
-void fromAttr(QStringView s, bool& v) { v = intOf(s, v ? 1 : 0) != 0; }
-void fromAttr(QStringView s, qreal& v)
-{
-    bool        ok = false;
-    const qreal d  = s.toDouble(&ok);
-    if (ok)
-        v = d;
-}
-void fromAttr(QStringView s, QString& v) { v = s.toString(); }
-void fromAttr(QStringView s, QColor& v)
-{
-    const QColor c(s.toString());
-    if (c.isValid())
-        v = c;
-}
-// An unknown or missing name reads as the reader's own fallback (Box, Clean, None).
-void fromAttr(QStringView s, ObjectRecord::Shape& v) { v = shapeFromName(s); }
-void fromAttr(QStringView s, ObjectRecord::Edge& v) { v = edgeFromName(s); }
-void fromAttr(QStringView s, ObjectRecord::Pattern& v) { v = patternFromName(s); }
-void fromAttr(QStringView s, ObjectRecord::Line& v) { v = lineFromName(s); }
-void fromAttr(QStringView s, ObjectRecord::Texture& v) { v = textureFromName(s); }
-void fromAttr(QStringView s, QList<ShapeNode>& v)
-{
-    v.clear();
-    for (QStringView g : s.split(QLatin1Char(';'), Qt::SkipEmptyParts)) {
-        const auto f = g.split(QLatin1Char(','));
-        if (f.size() == 2)
-            v.append(ShapeNode(f[0].toDouble(), f[1].toDouble()));
-        else if (f.size() == 7)
-            v.append(ShapeNode({f[0].toDouble(), f[1].toDouble()}, {f[3].toDouble(), f[4].toDouble()},
-                               {f[5].toDouble(), f[6].toDouble()}, ShapeNode::typeFromName(f[2])));
-    }
-}
-
-//! Every field of \p g out of the `pm:` attributes in \p at; a missing one leaves its field as it is.
-template <class Group>
-void readGroup(Group& g, const QXmlStreamAttributes& at, const QString& ns)
-{
-    Group::fields([&](const char* key, auto member) {
-        const QString name = QLatin1String(key);
-        if (at.hasAttribute(ns, name))
-            fromAttr(at.value(ns, name), Fields::at(g, member));
-    });
 }
 
 } // namespace
@@ -449,57 +370,16 @@ Composition read(const QByteArray& svg, bool* ok)
     if (ok)
         *ok = false;
 
-    ObjectRecord a;
     QXmlStreamReader xml(svg);
-    const QString ns = QLatin1String(k_pmNamespace);
+    const QString    ns = QLatin1String(k_pmNamespace);
 
     while (!xml.atEnd()) {
-        if (xml.readNext() != QXmlStreamReader::StartElement)
-            continue;
-
         // The content's copy (contentElement()).
-        if (xml.namespaceUri() == ns && xml.name() == QLatin1String("content"))
+        if (xml.readNext() == QXmlStreamReader::StartElement && xml.namespaceUri() == ns
+            && xml.name() == QLatin1String("content"))
             return fromContent(xml.readElementText().toStdString(), ok);
-
-        // A file written before the content: its old attributes (until the first release; see above).
-        const QXmlStreamAttributes at = xml.attributes();
-        if (!at.hasAttribute(ns, QStringLiteral("shape")))
-            continue;   // not the parameter-carrying group — keep looking
-
-        // Every field falls back to the struct's own default, so a file written by an older build, or
-        // hand-edited, loads as a usable bubble rather than a blank one.
-        readGroup(a.shape, at, ns);
-        readGroup(a.text, at, ns);
-        readGroup(a.skin, at, ns);
-        readGroup(a.style, at, ns);
-        readGroup(a.texture, at, ns);
-        readGroup(a.effects, at, ns);
-
-        // A wrapper says which picture it is wrapping; a balloon carries no such attribute and stays
-        // an object we draw.
-        a.artwork = at.value(ns, QStringLiteral("artwork")).toString();
-
-        const auto box = at.value(ns, QStringLiteral("box")).toString().split(QLatin1Char(','));
-        if (box.size() == 2)
-            a.box = QSize(intOf(QStringView(box[0]), a.box.width()),
-                          intOf(QStringView(box[1]), a.box.height()));
-
-        a.tails.items    = tailsFromText(at.value(ns, QStringLiteral("tails")).toString());
-        a.tails.nextLook = TailLook::fromFields(at.value(ns, QStringLiteral("nextTail")).toString().split(QLatin1Char(',')));
-
-        bool       seedOk = false;
-        const auto seed   = at.value(ns, QStringLiteral("styleSeed")).toULongLong(&seedOk);
-        if (seedOk)
-            a.styleSeed = quint32(seed);
-        a.presetOrigin = {at.value(ns, QStringLiteral("presetUid")).toString(),
-                          at.value(ns, QStringLiteral("presetName")).toString()};
-
-        if (ok)
-            *ok = true;
-        return compositionOf(a);
     }
-
-    return {};   // no pm:* group — a hand-drawn or externally edited asset (ok stays false)
+    return {};   // no content of ours — a hand-drawn or externally edited asset (ok stays false)
 }
 
 Composition::Map readOverlays(const std::vector<Platemaker::Models::StripOverlay>& overlays)
@@ -630,12 +510,10 @@ QString bakedFontFallback(const QByteArray& svg)
     QXmlStreamReader xml(svg);
     const QString    ns = QLatin1String(k_pmNamespace);
     while (!xml.atEnd()) {
-        if (xml.readNext() != QXmlStreamReader::StartElement)
-            continue;
-        const QXmlStreamAttributes at = xml.attributes();
-        // The content's element, or an old file's parameter group: the only places it goes.
-        if ((xml.namespaceUri() == ns && xml.name() == QLatin1String("content")) || at.hasAttribute(ns, QStringLiteral("shape")))
-            return at.value(ns, QStringLiteral("fontFallback")).toString();
+        // The content's element: the only place it goes.
+        if (xml.readNext() == QXmlStreamReader::StartElement && xml.namespaceUri() == ns
+            && xml.name() == QLatin1String("content"))
+            return xml.attributes().value(ns, QStringLiteral("fontFallback")).toString();
     }
     return {};
 }
@@ -651,14 +529,11 @@ QString contentOf(const Composition& c)
 Composition fromContent(const std::string& content, bool* ok)
 {
     const QJsonDocument doc = QJsonDocument::fromJson(QByteArray::fromStdString(content));
+    // A composition always says what words it has (toJson()); an object that does not is no content of ours.
+    const bool ours = doc.isObject() && doc.object().contains(QStringLiteral("words"));
     if (ok)
-        *ok = doc.isObject();
-    if (!doc.isObject())
-        return {};
-    // A content saved before it was a composition's has no words: the record's own form, read until the first
-    // release, as the old attributes are.
-    const QJsonObject j = doc.object();
-    return j.contains(QStringLiteral("words")) ? compositionFromJson(j) : compositionOf(ObjectRecord::fromJson(j));
+        *ok = ours;
+    return ours ? compositionFromJson(doc.object()) : Composition();
 }
 
 } // namespace Svg

@@ -659,10 +659,6 @@ void MainWindow::openStripEditorDock(int projectIndex)
     editor->setAdvisories(m_advisories, projectUid);
     editor->setAdvisoriesActive(dock->isFloating());
     connect(dock, &QDockWidget::topLevelChanged, editor, &StripEdit::Editor::setAdvisoriesActive);
-    // What has happened, as opposed to what is wrong: the bar's left side, which expires on its own.
-    // The advisories keep the right side, where a badge lives as long as its condition does.
-    connect(editor, &StripEdit::Editor::noted, this,
-            [this](const QString& text) { statusBar()->showMessage(text, k_noticeMs); });
 
     dock->setWidget(editor);
 

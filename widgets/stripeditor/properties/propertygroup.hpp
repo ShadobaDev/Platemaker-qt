@@ -1,7 +1,7 @@
 #ifndef STRIPEDIT_PROPERTYGROUP_HPP
 #define STRIPEDIT_PROPERTYGROUP_HPP
 
-#include "objectrecord.hpp"
+#include "composition.hpp"
 
 namespace StripEdit {
 
@@ -56,7 +56,7 @@ enum class Row {
  * drifted: the set's copy enumerated the groups it wanted by name, so a group added to one copy was
  * simply missing from the other.
  *
- * The rule itself is the one structural question — ObjectRecord::hasSilhouette() — and nothing more.
+ * The rule itself is the one structural question — whether the composition has a balloon — and nothing more.
  * **The lettering is the one group every kind carries** — a balloon, a piece of standalone text and an
  * imported picture are all lettered. The rest need a silhouette: something to fill, something to
  * roughen, somewhere for a tail to leave from, and a choice of which silhouette it is. `TailItem`
@@ -66,7 +66,7 @@ enum class Row {
  * objects carry, while the object menu offers only the **intersection**, because an entry that acts on part
  * of a selection is an entry that lied about its subject.
  */
-[[nodiscard]] inline bool carriesGroup(const ObjectRecord& a, PropertyGroup g)
+[[nodiscard]] inline bool carriesGroup(const Composition& a, PropertyGroup g)
 {
     switch (g) {
     case PropertyGroup::Text:
@@ -77,7 +77,7 @@ enum class Row {
     case PropertyGroup::Effects:
     case PropertyGroup::Texture:
     case PropertyGroup::Tail:
-        return a.hasSilhouette();
+        return a.balloon.has_value();
     case PropertyGroup::TailItem:      // a tail's own group; a record never carries it
     case PropertyGroup::Placement:     // …and these three have no editor at all — see above
     case PropertyGroup::Size:

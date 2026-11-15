@@ -114,14 +114,20 @@ BubbleToolOptions::BubbleToolOptions(PresetStore& presets, QWidget* parent)
     syncFromModel();
 }
 
-ShapeProperties BubbleToolOptions::balloonShape() const
+BalloonLook BubbleToolOptions::balloon() const
 {
-    ObjectRecord picked;
+    // Read off a balloon the groups are written onto: the tiles' shape, which is never None, and the style.
+    Composition picked = withBalloon(textObject(), {});
     m_groups.shape()->applyTo(picked);
-    return picked.hasSilhouette() ? picked.shape : ShapeProperties();
+    m_groups.skin()->applyTo(picked);
+    m_groups.style()->applyTo(picked);
+    m_groups.texture()->applyTo(picked);
+    m_groups.effects()->applyTo(picked);
+    m_tails->applyTo(picked);   // the look its tails take
+    return {bodyOf(picked)->shape, picked.balloon->style};
 }
 
-void BubbleToolOptions::setToolShape(std::optional<ObjectRecord::Shape> shape)
+void BubbleToolOptions::setToolShape(std::optional<ShapeProperties::Kind> shape)
 {
     m_toolShape = shape;
     refreshPresetCombo();   // the presets of the tool's kind
@@ -154,27 +160,23 @@ void BubbleToolOptions::showRows(const QList<Row>& rows)
     m_textGroup->setVisible(show(m_groups.text()));
 }
 
-ObjectRecord BubbleToolOptions::prototype() const
+Composition BubbleToolOptions::prototype() const
 {
-    ObjectRecord a;
-    // Shape first: the tails editor reads it, because a shapeless record has nothing to grow a tail
-    // from. Everything else is order-independent by construction — no two groups touch a property.
-    // The whole group, so whatever a shape grows beyond its kind (a radius, a polygon's nodes) arrives
-    // with it: the tiles' balloon, which is never None. Then the tool's own kind over it, if it has one.
-    a.shape = balloonShape();
-    if (m_toolShape)
-        a.shape.kind = *m_toolShape;
-    m_groups.skin()->applyTo(a);
-    m_groups.style()->applyTo(a);
-    m_groups.texture()->applyTo(a);
-    m_groups.effects()->applyTo(a);
+    // The balloon first, whole, so whatever a shape grows beyond its kind (a radius, a polygon's nodes)
+    // arrives with it; then the tool's own kind over it, if it has one. The Text tool's is no balloon at all.
+    Composition a = withBalloon(textObject(), balloon());
     m_groups.text()->applyTo(a);
-
     // A placement takes the look and not the line. The same distinction a preset makes — everything a
     // balloon is, minus everything it says — and the same reason: the words belong to one balloon.
-    a.text.body.clear();
-    // …and to one balloon's aim: applyToNew() makes a first tail rather than copying anyone else's.
-    m_tails->applyToNew(a);
+    wordsOf(a)->text.body.clear();
+    if (m_toolShape == ShapeProperties::Kind::None) {
+        a = withoutBalloon(a);
+    } else {
+        if (m_toolShape)
+            bodyOf(a)->shape.kind = *m_toolShape;
+        // …and to one balloon's aim: applyToNew() makes a first tail rather than copying anyone else's.
+        m_tails->applyToNew(a);
+    }
 
     // A fresh seed per bubble, so a page of marker balloons does not wear one repeated wobble —
     // by the same rule every other writer follows, rather than a second one that also seeded balloons
@@ -211,7 +213,7 @@ void BubbleToolOptions::refreshPresetCombo()
     const QSignalBlocker block(m_presetCombo);
     m_presetCombo->clear();
     // Entry 0 is the absence of a preset; the others are the tool's kind, each carrying its store index.
-    const bool textTool = m_toolShape == ObjectRecord::Shape::None;
+    const bool textTool = m_toolShape == ShapeProperties::Kind::None;
     m_presetCombo->addItem(tr("No preset"), -1);
     const QList<BubblePreset>& presets = m_presets.presets();
     const QString&             uid     = pickedUid();
@@ -220,8 +222,7 @@ void BubbleToolOptions::refreshPresetCombo()
         const BubblePreset& p = presets.at(i);
         if (isTextPreset(p) != textTool)
             continue;
-        m_presetCombo->addItem(QIcon(bubbleThumbnail(p.look().shape, p.look().skin.fill.colour,
-                                                     p.look().style.stroke.colour, p.look().text.fill.colour)),
+        m_presetCombo->addItem(QIcon(bubbleThumbnail(p.look())),
                                p.name, i);
         if (p.uid == uid)
             picked = m_presetCombo->count() - 1;
@@ -232,8 +233,8 @@ void BubbleToolOptions::refreshPresetCombo()
 
 void BubbleToolOptions::applyPreset(int entry)
 {
-    // *No preset* is the default, applied the way a preset is: the same function, with nothing in it but
-    // `ObjectRecord`'s own values.
+    // *No preset* is the default, applied the way a preset is: the same function, with a default
+    // BubblePreset's values.
     const int index = m_presetCombo->itemData(entry).toInt();
     if (index >= m_presets.presets().size())
         return;

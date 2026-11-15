@@ -34,27 +34,25 @@ namespace {
 constexpr int k_sampleW = 260;   //!< The drawn sample's width in the dialog, in pixels.
 constexpr int k_sampleH = 170;   //!< ...and its height.
 
-//! A preset's look as it is stored: what save() keeps of a record, so two can be compared.
-ObjectRecord stored(ObjectRecord a)
+//! A preset's look as it is stored: what save() keeps of an object, so two can be compared.
+Composition stored(const Composition& a)
 {
-    a.tails.items.clear();
-    a.styleSeed = 0;
-    a.text.body.clear();
-    a.presetOrigin = {};
-    return a;
+    return BubblePreset::of(QString(), a).look();
 }
 
 //! @p look drawn as a balloon saying something, with a tail when its shape speaks.
-QPixmap sampleOf(const ObjectRecord& look)
+QPixmap sampleOf(const Composition& look)
 {
-    ObjectRecord a = look;
-    a.box          = QSize(k_sampleW, k_sampleH * 3 / 4);
-    a.text.body    = PresetsDialog::tr("Sample");
-    if (Geometry::shapeSpeaks(a.shape)) {
+    const QSize size(k_sampleW, k_sampleH * 3 / 4);
+    Composition a = look;
+    resize(a, size);
+    if (Words* w = wordsOf(a))
+        w->text.body = PresetsDialog::tr("Sample");
+    if (const Body* body = bodyOf(a); body && Geometry::shapeSpeaks(body->shape)) {
         Tail t;
-        t.tip         = QPointF(a.box.width() * 0.3, a.box.height() * 1.25);
-        t.baseWidth   = a.box.width() * 0.12;
-        a.tails.items = {t};
+        t.tip       = QPointF(size.width() * 0.3, size.height() * 1.25);
+        t.baseWidth = size.width() * 0.12;
+        a.balloon->tails.append({a.nextId++, body->id, t});
     }
     topUpStyleSeed(a);
     return QPixmap::fromImage(Painter::render(a).scaled(QSize(k_sampleW, k_sampleH), Qt::KeepAspectRatio,
@@ -197,8 +195,7 @@ void PresetsDialog::rebuildList(const QString& select)
         if (index < 0 || p.uid == select)
             index = i;
         auto* item = new QListWidgetItem(
-            QIcon(bubbleThumbnail(p.look().shape, p.look().skin.fill.colour, p.look().style.stroke.colour,
-                                  p.look().text.fill.colour)),
+            QIcon(bubbleThumbnail(p.look())),
             p.name, ui->listPresets);
         if (!m_store.isCustom(i)) {
             QFont f = item->font();
@@ -224,7 +221,7 @@ void PresetsDialog::showPreset(int index)
 {
     m_shown = index;
     const bool any = index >= 0 && index < m_store.presets().size();
-    m_edited = any ? m_store.presets().at(index).look() : ObjectRecord();
+    m_edited = any ? m_store.presets().at(index).look() : Composition();
     m_populating = true;
     m_groups.bind(m_edited);
     m_populating = false;

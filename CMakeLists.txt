@@ -114,9 +114,8 @@ qt_add_executable(Platemaker
 
     # The object record — what a bubble IS (shape, text, styling), its SVG codec and its rasteriser.
     # The library composites a flat RGBA bitmap and has no text engine, so the editable source lives here.
-    widgets/objectrecord/objectrecord.cpp widgets/objectrecord/objectrecord.hpp widgets/objectrecord/propertygroups.hpp
+    widgets/objectrecord/names.cpp widgets/objectrecord/names.hpp widgets/objectrecord/propertygroups.hpp
     widgets/objectrecord/composition.cpp widgets/objectrecord/composition.hpp
-    widgets/objectrecord/recordentry.cpp
     widgets/objectrecord/fields.hpp
     widgets/objectrecord/recordstore.cpp widgets/objectrecord/recordstore.hpp
     widgets/objectrecord/geometry.hpp

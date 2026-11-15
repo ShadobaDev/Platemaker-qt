@@ -55,7 +55,7 @@ public:
     ObjectState(PresetStore& presets, QWidget* parent = nullptr);
 
     //! Shows \p a and names it in the header. Emits nothing.
-    void setRecord(const ObjectRecord& a);
+    void setRecord(const Composition& a);
 
     /**
      * \brief Shows tail @p index of \p a — a tail selected on its own. Emits nothing.
@@ -64,7 +64,7 @@ public:
      * them here would make an edit look as if it belonged to the tail. Edits still arrive as the whole
      * record through changed() and committed(), with only that tail written.
      */
-    void setTail(const ObjectRecord& a, int index);
+    void setTail(const Composition& a, int index);
 
     /**
      * \brief Shows @p objects as one subject — the **union** of what they have in common. Emits nothing.
@@ -77,7 +77,7 @@ public:
      * Today that is the two colour groups: a swatch is the one control that can say *Mixed*. The rest of
      * the typography is hidden while a set is bound rather than showing one object's numbers.
      */
-    void setRecords(const QList<ObjectRecord>& objects);
+    void setRecords(const QList<Composition>& objects);
 
     /**
      * \brief Names a selection of @p count things of **different kinds** — objects and tails together.
@@ -90,7 +90,7 @@ public:
      */
     void setMixedSubjects(int count);
     //! Several tails, no whole object: @p balloons are their balloons, @p tails each (balloon, tail index).
-    void setTails(const QList<ObjectRecord>& balloons, const QList<QPair<int, int>>& tails);
+    void setTails(const QList<Composition>& balloons, const QList<QPair<int, int>>& tails);
 
 
     /**
@@ -124,12 +124,12 @@ public:
     void focusText();
 
 signals:
-    void changed(const ObjectRecord& a);    //!< Continuous — for the live preview.
-    void committed(const ObjectRecord& a);  //!< Debounced / discrete — persist + undo.
+    void changed(const Composition& a);    //!< Continuous — for the live preview.
+    void committed(const Composition& a);  //!< Debounced / discrete — persist + undo.
 
     //! The same two, for a set: the objects in the order they were given to setRecords().
-    void changedMany(const QList<ObjectRecord>& objects);
-    void committedMany(const QList<ObjectRecord>& objects);
+    void changedMany(const QList<Composition>& objects);
+    void committedMany(const QList<Composition>& objects);
     //! Live — while the spin box moves. The owner resizes the picture without a history step.
     void scaleChanged(double percent);
     //! Settled — one history step.
@@ -186,8 +186,8 @@ private:
     QTimer*             m_commitTimer = nullptr;
     QHash<int, CollapsibleSection*> m_sections; //!< Keyed by PropertyGroup.
 
-    ObjectRecord m_record;
-    QList<ObjectRecord> m_subjects;   //!< The whole selection, when there is more than one of it.        //!< Working copy of the selected object.
+    Composition m_record;
+    QList<Composition> m_subjects;   //!< The whole selection, when there is more than one of it.        //!< Working copy of the selected object.
     bool m_populating   = false;    //!< Suppresses change signals while binding.
     //! One record is bound, so an edit may be emitted about it. False for a set — there is no single
     //! object those controls would be describing.

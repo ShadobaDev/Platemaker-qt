@@ -32,7 +32,7 @@ public:
     [[nodiscard]] QList<Row> rows() const override { return {Row::TailOn, Row::TailShape}; }
 
     void bind(const Subjects& subjects) override;
-    void applyTo(ObjectRecord& target) const override;
+    void applyTo(Composition& target) const override;
 
     /**
      * \brief Writes a fresh set onto an object that does not exist yet.
@@ -41,7 +41,7 @@ public:
      * currently selected, and copying it onto a new one would give every placement the last balloon's
      * aim — which is the sort of thing that looks like a rendering bug for a week.
      */
-    void applyToNew(ObjectRecord& target) const;
+    void applyToNew(Composition& target) const;
 
     /**
      * \brief The shape changed, so the default answer to "does this speak?" changed with it.

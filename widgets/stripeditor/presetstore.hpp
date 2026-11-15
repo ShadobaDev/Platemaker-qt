@@ -6,20 +6,10 @@
 #include <QString>
 
 #include "composition.hpp"
-#include "objectrecord.hpp"
 
 #include <optional>
 
 namespace StripEdit {
-
-//! A preset's balloon: the shape its bodies take and the style it is drawn in.
-struct BalloonLook
-{
-    ShapeProperties shape;
-    BalloonStyle    style;
-
-    [[nodiscard]] bool operator==(const BalloonLook& o) const { return shape == o.shape && style == o.style; }
-};
 
 /**
  * \brief A named look, with nothing said in it: a balloon's shape and style, and how words are lettered.
@@ -38,12 +28,13 @@ struct BubblePreset
     QString                    uid;
 
     /**
-     * \brief @p a's look: its shape and style if it has a balloon, its lettering without the words.
+     * \brief @p c's look: its first body's shape and its balloon's style if it has one, its first words'
+     *        lettering without the words.
      */
-    [[nodiscard]] static BubblePreset of(const QString& name, const ObjectRecord& a, const QString& uid = {});
+    [[nodiscard]] static BubblePreset of(const QString& name, const Composition& c, const QString& uid = {});
 
-    //! The preset as a record with nothing said in it, the default's box: what the presets dialog edits.
-    [[nodiscard]] ObjectRecord look() const;
+    //! The preset as an object with nothing said in it, of the default size: what the presets dialog edits.
+    [[nodiscard]] Composition look() const;
 };
 
 /**
@@ -110,7 +101,7 @@ public:
      * \param existingIndex  If not null, receives the index of an existing entry with the same name.
      * \return The entry's index, or -1 when it stopped.
      */
-    int save(const QString& name, const ObjectRecord& look, bool replaceExisting, int* existingIndex = nullptr);
+    int save(const QString& name, const Composition& look, bool replaceExisting, int* existingIndex = nullptr);
 
     void remove(int index); //!< Removes one of the artist's own. Built-ins are ignored.
 
@@ -147,22 +138,22 @@ public:
      *        one after it. A preset already there is left as it is.
      * \return Its index.
      */
-    int restore(const PresetOrigin& origin, const ObjectRecord& look);
+    int restore(const PresetOrigin& origin, const Composition& look);
 
     /**
      * \brief \p target restyled by \p p — the one place that knows what a preset does *not* carry.
      *
-     * The lettering, the balloon's size, where its tails point and its own style seed all survive:
-     * a preset is a look, not a line, and re-rolling a placed bubble's seed would make its outline
-     * jump for a reason nobody asked for.
+     * The words, the balloon's size, where its tails point and its own seed all survive: a preset is a
+     * look, not a line, and re-rolling a placed bubble's seed would make its outline jump for a reason
+     * nobody asked for. Its shape goes on every body.
      *
      * \param p  The preset to apply.
-     * \param target  The record to restyle.
+     * \param target  The object to restyle.
      * \param keepShape  True where the shape picker is not on screen, so a preset cannot change a
-     *                   shape the artist can neither see nor put back.
+     *                   shape the artist can neither see nor put back — nor give a balloon to a text
+     *                   object, or take one from a balloon.
      */
-    [[nodiscard]] static ObjectRecord applied(const BubblePreset& p, const ObjectRecord& target,
-                                              bool keepShape);
+    [[nodiscard]] static Composition applied(const BubblePreset& p, const Composition& target, bool keepShape);
 
 signals:
     void changed();     //!< The list changed — a picker showing it should rebuild.

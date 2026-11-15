@@ -104,7 +104,7 @@ const QList<Tool>& tools()
          QT_TRANSLATE_NOOP("StripEdit::Tool", 
                            "Drag on the strip to place lettering\n"
                            "with no balloon around it."),
-         ToolKind::Create, ObjectRecord::Shape::None, QStringLiteral("bubble"),
+         ToolKind::Create, ShapeProperties::Kind::None, QStringLiteral("bubble"),
          CursorStyle::Cross, CursorStyle::Inherit,
          {Row::TextFont, Row::TextColour, Row::TextOutline}},
 

@@ -29,6 +29,8 @@ inline constexpr int k_bubbleThumbH = 26;
  */
 [[nodiscard]] QPixmap bubbleThumbnail(const ShapeProperties& shape, const QColor& fill,
                                       const QColor& stroke, const QColor& ink);
+//! The same, of @p look's shape and colours: a preset's tile (BubblePreset::look()). No balloon, no shape.
+[[nodiscard]] QPixmap bubbleThumbnail(const Composition& look);
 
 //! The shape picker's tiles: UI chrome, so they wear the palette rather than three white blobs.
 [[nodiscard]] QPixmap shapeThumbnail(const ShapeProperties& shape, const QPalette& pal);
@@ -53,7 +55,7 @@ public:
     [[nodiscard]] QList<Row> rows() const override { return {Row::ShapeTiles, Row::ShapeParameters}; }
 
     void bind(const Subjects& subjects) override;
-    void applyTo(ObjectRecord& target) const override;
+    void applyTo(Composition& target) const override;
 
     [[nodiscard]] const ShapeProperties& values() const { return m_values; }
 

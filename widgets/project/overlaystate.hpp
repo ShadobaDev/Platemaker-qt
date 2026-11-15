@@ -11,7 +11,7 @@
  * \brief A project's text & bubbles, whole — the strip editor's half of the document.
  *
  * The two halves travel together and are never split from each other: the overlay says *which*
- * file renders, its ObjectRecord says what that file contains, and restoring one without the other would
+ * file renders, its composition says what that file contains, and restoring one without the other would
  * leave the strip showing text the render does not bake.
  *
  * Typed rather than serialised, unlike the project-scope snapshot next door. That one is JSON because

@@ -194,44 +194,65 @@ QRectF textArea(const Composition& c, const Words& w)
     return textSafeArea(c, w);
 }
 
-QSizeF textBlockSize(const ObjectRecord& a)
+namespace {
+
+//! The text area of @p c's first words, the ones the editor fits; none without words.
+QRectF areaOf(const Composition& c)
 {
-    if (a.text.body.isEmpty())
+    const Words* w = wordsOf(c);
+    return w ? textSafeArea(c, *w) : QRectF();
+}
+
+//! The lettering of @p c's first words; the default with none.
+TextProperties letteringOf(const Composition& c)
+{
+    const Words* w = wordsOf(c);
+    return w ? w->text : TextProperties();
+}
+
+} // namespace
+
+QSizeF textBlockSize(const Composition& c)
+{
+    const TextProperties t = letteringOf(c);
+    if (t.body.isEmpty())
         return {};
     // Never wrapped, so the block is the same whatever box it sits in: the widest line by the lines.
     QTextDocument doc;
-    layOutText(doc, a.text, 1);
+    layOutText(doc, t, 1);
     return QSizeF(doc.idealWidth(), doc.size().height());
 }
 
-bool fits(const ObjectRecord& a, const QSizeF& block)
+bool fits(const Composition& c, const QSizeF& block)
 {
     if (block.isEmpty())
         return true;
-    const QRectF area = textArea(a);
+    const QRectF area = areaOf(c);
     return block.width() <= area.width() + k_fitSlack && block.height() <= area.height() + k_fitSlack;
 }
 
-bool textOverflows(const ObjectRecord& a)
+bool textOverflows(const Composition& c)
 {
-    return !fits(a, textBlockSize(a));
+    return !fits(c, textBlockSize(c));
 }
 
-QSize fitBoxFor(const ObjectRecord& a, const QSizeF& block)
+QSize fitBoxFor(const Composition& c, const QSizeF& block)
 {
     if (block.isEmpty())
-        return a.box;
+        return sizeOf(c);
 
     // The smallest box side, on one axis, whose text area holds @p need on that axis — the other side
     // held where it is. A text area grows with its own side for every shape (a thought balloon's lobes
     // and a scroll's rolls eat into it, but by less than the side grows), so a binary search is exact.
-    const auto smallest = [](ObjectRecord probe, bool horizontal, qreal need) {
+    const auto smallest = [](Composition probe, bool horizontal, qreal need) {
         const auto room = [&](int side) {
+            QSize s = sizeOf(probe);
             if (horizontal)
-                probe.box.setWidth(side);
+                s.setWidth(side);
             else
-                probe.box.setHeight(side);
-            const QRectF area = textArea(probe);
+                s.setHeight(side);
+            resize(probe, s);
+            const QRectF area = areaOf(probe);
             return (horizontal ? area.width() : area.height()) + k_fitSlack >= need;
         };
         int hi = qMax(k_minFitSize, qCeil(need) * 2);
@@ -250,26 +271,27 @@ QSize fitBoxFor(const ObjectRecord& a, const QSizeF& block)
     // Each axis on its own, then again: in a thought balloon the lobes are sized by the *shorter* side,
     // so settling the height can take a little width back. Two or three rounds settle it; this is
     // headroom.
-    ObjectRecord probe = a;
+    Composition probe = c;
     for (int pass = 0; pass < k_fitPasses; ++pass) {
-        const QSize before = probe.box;
-        probe.box.setWidth(smallest(probe, true, block.width()));
-        probe.box.setHeight(smallest(probe, false, block.height()));
-        if (probe.box == before)
+        const QSize before = sizeOf(probe);
+        resize(probe, QSize(smallest(probe, true, block.width()), before.height()));
+        resize(probe, QSize(sizeOf(probe).width(), smallest(probe, false, block.height())));
+        if (sizeOf(probe) == before)
             break;
     }
-    return probe.box;
+    return sizeOf(probe);
 }
 
-QSize fittedBox(const ObjectRecord& a)
+QSize fittedBox(const Composition& c)
 {
-    return fitBoxFor(a, textBlockSize(a));
+    return fitBoxFor(c, textBlockSize(c));
 }
 
-TextProperties paddingsToFit(const ObjectRecord& a, const QSizeF& block)
+TextProperties paddingsToFit(const Composition& c, const QSizeF& block)
 {
-    TextProperties out = a.text;
-    if (!a.hasSilhouette() || block.isEmpty())
+    const TextProperties text = letteringOf(c);
+    TextProperties       out  = text;
+    if (!c.balloon || !wordsOf(c) || block.isEmpty())
         return out;   // no outline, no padding to give
 
     // Each padding gives way in its own direction only: the side one is all that narrows the
@@ -277,14 +299,14 @@ TextProperties paddingsToFit(const ObjectRecord& a, const QSizeF& block)
     // shrinks as the padding grows, on every shape, so the largest padding that still holds the block is
     // a binary search below the current one. A fix only ever lowers a padding.
     const auto lowered = [&](int TextProperties::* padding, bool across) {
-        ObjectRecord probe = a;
-        const qreal  need  = across ? block.width() : block.height();
-        const auto   holds = [&](int value) {
-            probe.text.*padding = value;
-            const QRectF area   = textArea(probe);
+        Composition probe = c;
+        const qreal need  = across ? block.width() : block.height();
+        const auto  holds = [&](int value) {
+            wordsOf(probe)->text.*padding = value;
+            const QRectF area             = areaOf(probe);
             return (across ? area.width() : area.height()) + k_fitSlack >= need;
         };
-        int hi = a.text.*padding;
+        int hi = text.*padding;
         if (holds(hi))
             return hi;                    // nothing to fix in this direction
         int lo = hi - k_maxFitSize;       // far below anything; the area outgrows any block there
@@ -301,46 +323,47 @@ TextProperties paddingsToFit(const ObjectRecord& a, const QSizeF& block)
     return out;
 }
 
-TextProperties fittingPaddings(const ObjectRecord& a)
+TextProperties fittingPaddings(const Composition& c)
 {
-    return paddingsToFit(a, textBlockSize(a));
+    return paddingsToFit(c, textBlockSize(c));
 }
 
-QList<ShapeHandle> textAreaHandles(const ObjectRecord& a)
+QList<ShapeHandle> textAreaHandles(const Composition& c)
 {
-    if (!a.hasSilhouette())
+    if (!c.balloon || !wordsOf(c))
         return {};
-    const QRectF  area = textArea(a);
+    const QRectF  area = areaOf(c);
     const QPointF mid  = area.center();
     return {{ShapeHandle::Role::TextSide, 0, QPointF(area.left(), mid.y()), QPointF(1, 0)},
             {ShapeHandle::Role::TextSide, 1, QPointF(area.right(), mid.y()), QPointF(-1, 0)},
             {ShapeHandle::Role::TextTop, 0, QPointF(mid.x(), area.top()), QPointF(0, 1)}};
 }
 
-TextProperties dragTextAreaHandle(const ObjectRecord& a, const ShapeHandle& handle, const QPointF& to)
+TextProperties dragTextAreaHandle(const Composition& c, const ShapeHandle& handle, const QPointF& to)
 {
     // How far the edge moves inwards, up to its share of the area less its own minimum: the side padding
     // is one value and the top one mirrored, so either edge meets its partner at the middle.
-    TextProperties out   = a.text;
-    const QRectF   area  = textArea(a);
-    const auto     inBy  = [](qreal moved, qreal extent) {
+    const TextProperties text = letteringOf(c);
+    TextProperties       out  = text;
+    const QRectF         area = areaOf(c);
+    const auto           inBy = [](qreal moved, qreal extent) {
         return qRound(qMin(moved, qMax(qreal(0), extent / 2.0 - k_minTextHalf)));
     };
     if (handle.role == ShapeHandle::Role::TextSide) {
         const qreal moved = handle.index == 0 ? to.x() - area.left() : area.right() - to.x();
-        out.paddingSide   = a.text.paddingSide + inBy(moved, area.width());
+        out.paddingSide   = text.paddingSide + inBy(moved, area.width());
     } else if (handle.role == ShapeHandle::Role::TextTop) {
-        out.paddingTop = a.text.paddingTop + inBy(to.y() - area.top(), area.height());
+        out.paddingTop = text.paddingTop + inBy(to.y() - area.top(), area.height());
     }
     return out;
 }
 
-QPointF textAnchorFor(const ObjectRecord& a, const QSizeF& block)
+QPointF textAnchorFor(const Composition& c, const QSizeF& block)
 {
     // The same placement textOutline() gives the block: each line aligned within the text area, the
     // block centred in it — or pinned to its top when it is taller than the area.
-    const QRectF area  = textArea(a);
-    const int    align = a.text.align & Qt::AlignHorizontal_Mask;
+    const QRectF area  = areaOf(c);
+    const int    align = letteringOf(c).align & Qt::AlignHorizontal_Mask;
     const qreal  x     = (align & Qt::AlignLeft)  ? area.left()
                        : (align & Qt::AlignRight) ? area.right()
                                                   : area.center().x();
@@ -349,9 +372,9 @@ QPointF textAnchorFor(const ObjectRecord& a, const QSizeF& block)
     return {x, y};
 }
 
-QPointF textAnchor(const ObjectRecord& a)
+QPointF textAnchor(const Composition& c)
 {
-    return textAnchorFor(a, textBlockSize(a));
+    return textAnchorFor(c, textBlockSize(c));
 }
 
 }  // namespace Geometry

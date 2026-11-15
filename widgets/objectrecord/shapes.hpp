@@ -17,7 +17,7 @@
 #include <QRectF>
 
 #include "composition.hpp"
-#include "objectrecord.hpp"
+#include "names.hpp"
 
 namespace Geometry {
 
@@ -263,15 +263,6 @@ constexpr int k_maxRegularPoints = 64;
 
 //! @p body's own outline in @p rect (balloonRect()) — the shape alone, no tails, its edge dealt by @p seed.
 [[nodiscard]] QPainterPath outlineOf(const Body& body, const QRectF& rect, quint32 seed);
-
-/**
- * @name The record's way in, until it goes (recordentry.cpp): the forms above of its composition; balloonRect()
- *       is the record's box less half its line, whatever it is.
- * @{
- */
-[[nodiscard]] QRectF       balloonRect(const ObjectRecord& a);
-[[nodiscard]] QPainterPath outlineOf(const ObjectRecord& a, const QRectF& body);
-/** @} */
 
 }  // namespace Geometry
 

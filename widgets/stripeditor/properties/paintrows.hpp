@@ -3,7 +3,7 @@
 
 #include "properties/fieldrows.hpp"
 #include "properties/propertygroupeditor.hpp"   // showCombo(), paintColourSwatch(), paintMixedSwatch()
-#include "objectrecord.hpp"                      // patternTitle()
+#include "names.hpp"                            // patternTitle()
 
 #include <QCheckBox>
 #include <QColorDialog>
@@ -74,7 +74,7 @@ public:
         form->addRow(colourTitle, m_colour);
         m_kind = new QComboBox(owner);
         for (int i = 0; i <= int(Paint::k_lastKind); ++i)
-            m_kind->addItem(patternTitle(static_cast<ObjectRecord::Pattern>(i)), i);
+            m_kind->addItem(patternTitle(static_cast<Paint::Kind>(i)), i);
         m_kind->setToolTip(grounded ? QCoreApplication::translate(k_trContext,
                                           "The colour alone, or a halftone of a second colour over it: dots, lines or a grid.")
                                     : QCoreApplication::translate(k_trContext,

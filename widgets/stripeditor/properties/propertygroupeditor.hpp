@@ -75,7 +75,7 @@ public:
      * one, an editor binding several may show the first; rendering a disagreement as *Mixed* arrives
      * with multi-selection, which is the increment that can also produce it.
      */
-    using Subjects = QList<const ObjectRecord*>;
+    using Subjects = QList<const Composition*>;
 
     explicit PropertyGroupEditor(QWidget* parent = nullptr) : QWidget(parent) {}
 
@@ -85,10 +85,10 @@ public:
     virtual void bind(const Subjects& subjects) = 0;
 
     //! Writes this group's properties into \p target, and nothing else.
-    virtual void applyTo(ObjectRecord& target) const = 0;
+    virtual void applyTo(Composition& target) const = 0;
 
     //! The single-subject case: one selected object, a tail, or the tool options' prototype.
-    void bindOne(const ObjectRecord& subject) { bind(Subjects{&subject}); }
+    void bindOne(const Composition& subject) { bind(Subjects{&subject}); }
 
     /**
      * \brief Writes into @p target only the properties the artist has **touched** since bind().
@@ -97,7 +97,7 @@ public:
      * object's other values onto everything else in the selection. Editors that can be bound to a set
      * override this; the default is the group, which is what a single subject wants.
      */
-    virtual void applyEditedTo(ObjectRecord& target) const { applyTo(target); }
+    virtual void applyEditedTo(Composition& target) const { applyTo(target); }
 
     //! The rows of this group a tool's options can show or leave out; none for a group they never show.
     [[nodiscard]] virtual QList<Row> rows() const { return {}; }

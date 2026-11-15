@@ -27,7 +27,7 @@
 #include <vector>
 
 #include "composition.hpp"
-#include "objectrecord.hpp"
+#include "names.hpp"
 
 namespace Svg {
 
@@ -67,9 +67,6 @@ inline constexpr char k_pmNamespace[] = "https://github.com/ShadobaDev/Platemake
  */
 [[nodiscard]] QByteArray write(const Composition& c, const QByteArray& picture = {},
                                        const QString& mime = {});
-//! write() of compositionOf(@p a): the record's way in, until it goes (recordentry.cpp).
-[[nodiscard]] QByteArray write(const ObjectRecord& a, const QByteArray& picture = {},
-                                       const QString& mime = {});
 
 /**
  * \brief The record's content, as the workspace stores it and the SVG copies it: its composition's JSON, compact
@@ -77,22 +74,19 @@ inline constexpr char k_pmNamespace[] = "https://github.com/ShadobaDev/Platemake
  *        name for an empty one).
  */
 [[nodiscard]] QString contentOf(const Composition& c);
-//! contentOf() of compositionOf(@p a): the record's way in, until it goes (recordentry.cpp).
-[[nodiscard]] QString contentOf(const ObjectRecord& a);
 
 /**
- * \brief The composition @p content describes (contentOf()); a content in the record's own form, saved before it
- *        was a composition's, is read too, until the first release.
- * \param ok Set to whether @p content is a JSON object; an empty composition comes back when it is not.
+ * \brief The composition @p content describes (contentOf()).
+ * \param ok Set to whether @p content is a composition's (a JSON object with its words); an empty composition
+ *           comes back when it is not.
  */
 [[nodiscard]] Composition fromContent(const std::string& content, bool* ok = nullptr);
 
 /**
- * \brief Reads the composition back out of \p svg: its `<pm:content>`, or, from a file written before that, its old
- *        `pm:` attributes (read until the first release, which no such file can reach).
+ * \brief Reads the composition back out of \p svg: its `<pm:content>`.
  *
  * \param svg The document's bytes.
- * \param ok  Set to false when the file carries neither — a hand-drawn or externally edited asset. That is
+ * \param ok  Set to false when the file carries none — a hand-drawn or externally edited asset. That is
  *            not an error: the caller keeps it as a flat, still-rendering overlay rather than replacing it
  *            with a default bubble.
  * \return The composition, or an empty one when \p ok comes back false.

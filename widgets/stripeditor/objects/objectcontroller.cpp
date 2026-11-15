@@ -47,6 +47,33 @@ constexpr int k_duplicateOffset = 28;
 //! nothing next to the page caches above.
 constexpr int k_sharpCacheEntries = 64;
 
+/**
+ * \brief Gives @p part of @p c @p colour: the words' fill, the balloon's line, or its fill. False when @p c has no
+ *        such part (a text object has no line), which leaves it as it was.
+ */
+bool paintPart(Composition& c, Geometry::Part part, const QColor& colour)
+{
+    switch (part) {
+    case Geometry::Part::Text:
+        if (Words* w = wordsOf(c)) {
+            w->text.fill.colour = colour;
+            return true;
+        }
+        return false;
+    case Geometry::Part::Outline:
+        if (c.balloon)
+            c.balloon->style.line.stroke.colour = colour;
+        return c.balloon.has_value();
+    case Geometry::Part::Fill:
+        if (c.balloon)
+            c.balloon->style.fill.fill.colour = colour;
+        return c.balloon.has_value();
+    case Geometry::Part::None:
+        break;
+    }
+    return false;
+}
+
 
 } // namespace
 
@@ -60,8 +87,8 @@ ObjectController::ObjectController(QGraphicsScene* scene, QGraphicsView* view,
     , m_layout(layout)
 {
     // A font added or removed (a workspace's fonts/, Add font…) changes what a bubble's words are set in
-    // without changing its record — so nothing else here would notice: setRecord() ignores the same
-    // record, and the cached outline is the stand-in's until the object is rebuilt.
+    // without changing its composition — so nothing else here would notice: setComposition() ignores the
+    // same one, and the cached outline is the stand-in's until the object is rebuilt.
     connect(qGuiApp, &QGuiApplication::fontDatabaseChanged, this, [this] {
         for (Object* item : std::as_const(m_overlayItems))
             if (auto* bubble = qobject_cast<BubbleObject*>(item))
@@ -165,7 +192,7 @@ void ObjectController::selectPage(const QString& inputUid)
 void ObjectController::selectTail(const QString& uid, int index)
 {
     const Object* item = m_overlayItems.value(uid);
-    if (!item || index < 0 || index >= item->record().tails.items.size()) {
+    if (!item || index < 0 || index >= item->tipCount()) {
         selectOverlay(uid);   // nothing at that position: the bubble is what is left to hold
         return;
     }
@@ -230,7 +257,7 @@ void ObjectController::onObjectPressed(const QString& uid, int handle)
     if (!item)
         return;
     if (item->dragGrip() != Grip::Shape
-        && Geometry::partAt(item->record(), item->mapFromScene(item->pressScenePos()), 0.0) == Geometry::Part::Text)
+        && Geometry::partAt(item->composition(), item->mapFromScene(item->pressScenePos()), 0.0) == Geometry::Part::Text)
         emit textFocusRequested();
 }
 
@@ -329,9 +356,10 @@ void ObjectController::stepPickedNode(bool clockwise, PickStep how)
 std::optional<ShapeNode::Type> ObjectController::pickedNodeType() const
 {
     const Object* item = m_overlayItems.value(m_shapeEditing);
-    if (!item || item->record().shape.kind != ShapeProperties::Kind::Curve)
+    const Body*   body = item ? bodyOf(item->composition()) : nullptr;
+    if (!body || body->shape.kind != ShapeProperties::Kind::Curve)
         return std::nullopt;
-    const QList<ShapeNode>& nodes = item->record().shape.nodes;
+    const QList<ShapeNode>& nodes = body->shape.nodes;
     const int               i     = item->pickedVertex();
     if (i < 0 || i >= nodes.size())
         return std::nullopt;
@@ -343,10 +371,12 @@ void ObjectController::setPickedNodeType(ShapeNode::Type type)
     Object* item = m_overlayItems.value(m_shapeEditing);
     if (!pickedNodeType() || !item)
         return;
-    ObjectRecord a = item->record();
+    Composition  a    = item->composition();
+    Body&        body = *bodyOf(a);   // pickedNodeType() found a Curve's node
+    const QRectF rect = Geometry::balloonRect(*a.balloon, body);
     for (int i : item->pickedVertices())
-        a.shape = Geometry::withNodeType(a.shape, Geometry::balloonRect(a), i, type);
-    if (a.shape == item->record().shape)
+        body.shape = Geometry::withNodeType(body.shape, rect, i, type);
+    if (body.shape == bodyOf(item->composition())->shape)
         return;
     applyRecord(m_shapeEditing, a, /*commit=*/true, tr("Point type"));
     emit boundToRecord(a);
@@ -358,8 +388,9 @@ bool ObjectController::canGrowPickedHandles() const
     const Object* item = m_overlayItems.value(m_shapeEditing);
     if (!pickedNodeType() || !item)
         return false;
+    const ShapeProperties& shape = bodyOf(item->composition())->shape;   // pickedNodeType() found a Curve's node
     for (int i : item->pickedVertices())
-        if (!(Geometry::withHandlesGrown(item->record().shape, i) == item->record().shape))
+        if (!(Geometry::withHandlesGrown(shape, i) == shape))
             return true;
     return false;
 }
@@ -369,9 +400,10 @@ void ObjectController::growPickedHandles()
     Object* item = m_overlayItems.value(m_shapeEditing);
     if (!canGrowPickedHandles() || !item)
         return;
-    ObjectRecord a = item->record();
+    Composition a    = item->composition();
+    Body&       body = *bodyOf(a);
     for (int i : item->pickedVertices())
-        a.shape = Geometry::withHandlesGrown(a.shape, i);
+        body.shape = Geometry::withHandlesGrown(body.shape, i);
     applyRecord(m_shapeEditing, a, /*commit=*/true, tr("Add handles"));
     emit boundToRecord(a);
     emit shapeEditingChanged();   // the menu's entry, and the handles drawn
@@ -380,18 +412,18 @@ void ObjectController::growPickedHandles()
 bool ObjectController::canConvertToCurve() const
 {
     const Object* item = m_overlayItems.value(m_selectedOverlay);
-    if (!item || m_selectedOverlays.size() != 1 || !item->record().hasSilhouette() || item->record().isArtwork())
-        return false;
-    return item->record().shape.kind != ShapeProperties::Kind::Curve;
+    const Body*   body = item ? bodyOf(item->composition()) : nullptr;
+    return body && m_selectedOverlays.size() == 1 && body->shape.kind != ShapeProperties::Kind::Curve;
 }
 
 void ObjectController::convertSelectionToCurve()
 {
     if (!canConvertToCurve())
         return;
-    ObjectRecord a    = m_overlayItems.value(m_selectedOverlay)->record();
-    const QRectF body = Geometry::balloonRect(a);
-    a.shape           = Geometry::curveOf(Geometry::outlineOf(a, body), body);
+    Composition  a    = m_overlayItems.value(m_selectedOverlay)->composition();
+    Body&        body = *bodyOf(a);
+    const QRectF rect = Geometry::balloonRect(*a.balloon, body);
+    body.shape        = Geometry::curveOf(Geometry::outlineOf(body, rect, a.seed), rect);
     applyRecord(m_selectedOverlay, a, /*commit=*/true, tr("Convert to curve"));
     emit boundToRecord(a);
     setShapeEditing(true);
@@ -401,23 +433,23 @@ bool ObjectController::canReroll() const
 {
     return std::any_of(m_selectedOverlays.cbegin(), m_selectedOverlays.cend(), [this](const QString& uid) {
         const Object* item = m_overlayItems.value(uid);
-        return item && !m_carriers.contains(uid) && usesSeed(item->record());
+        return item && !m_carriers.contains(uid) && usesSeed(item->composition());
     });
 }
 
 void ObjectController::rerollSelection()
 {
-    QStringList         uids;
-    QList<ObjectRecord> records;
+    QStringList        uids;
+    QList<Composition> records;
     for (const QString& uid : std::as_const(m_selectedOverlays)) {
         const Object* item = m_overlayItems.value(uid);
-        if (!item || m_carriers.contains(uid) || !usesSeed(item->record()))
+        if (!item || m_carriers.contains(uid) || !usesSeed(item->composition()))
             continue;
-        ObjectRecord a = item->record();
+        Composition a = item->composition();
         // Never the seed it had: a re-roll that changed nothing would look like a broken button.
-        const quint32 was = a.styleSeed;
-        while (a.styleSeed == was || a.styleSeed == 0)
-            a.styleSeed = QRandomGenerator::global()->generate();
+        const quint32 was = a.seed;
+        while (a.seed == was || a.seed == 0)
+            a.seed = QRandomGenerator::global()->generate();
         uids << uid;
         records << a;
     }
@@ -517,7 +549,7 @@ qreal ObjectController::itemScaleFor(const Platemaker::Models::StripOverlay& o, 
 }
 
 void ObjectController::setSource(const std::vector<Platemaker::Models::StripOverlay>& overlays,
-                                 const ObjectRecord::Map&                                  records)
+                                 const Composition::Map&                                   records)
 {
     m_overlays     = overlays;
     m_feedRecords  = records;
@@ -529,8 +561,8 @@ void ObjectController::setSource(const std::vector<Platemaker::Models::StripOver
     // take theirs from the seed at construction.
     for (auto it = m_overlayItems.cbegin(), end = m_overlayItems.cend(); it != end; ++it) {
         const auto rec = m_feedRecords.constFind(it.key());
-        if (rec != m_feedRecords.constEnd() && it.value()->record() != *rec)
-            it.value()->setRecord(*rec);
+        if (rec != m_feedRecords.constEnd() && it.value()->composition() != *rec)
+            it.value()->setComposition(*rec);
     }
     // An undo can take the edited shape's handles away (back to an ellipse), or the object itself.
     if (const Object* edited = m_overlayItems.value(m_shapeEditing); !edited || !edited->canEditShape())
@@ -587,12 +619,12 @@ void ObjectController::setSource(const std::vector<Platemaker::Models::StripOver
     // up to its balloon. A per-tail id would let the selection follow its tail; nothing needs that yet.
     if (m_subject == Subject::Tail) {
         const Object* item = m_overlayItems.value(m_selectedOverlay);
-        if (!item || item->record().tails.items.size() != m_selectedTailCount)
+        if (!item || item->tipCount() != m_selectedTailCount)
             selectOverlay(m_selectedOverlay);
     }
 }
 
-QImage ObjectController::sharpRasterFor(const ObjectRecord& a)
+QImage ObjectController::sharpRasterFor(const Composition& a)
 {
     const QByteArray svg = Svg::write(a);
     if (svg.isEmpty())
@@ -662,7 +694,7 @@ void ObjectController::syncItems()
         // everywhere else and useless here: the question is whether the object that exists is still the
         // right kind for the record that arrived, and asking the object would always say yes.
         const auto seed       = m_feedRecords.constFind(uid);
-        const bool parametric = seed != m_feedRecords.constEnd() && !seed->isArtwork();
+        const bool parametric = seed != m_feedRecords.constEnd() && !seed->picture;
         Object*    item       = m_overlayItems.value(uid);
 
         // An overlay cannot change kind in place; if it somehow has, rebuild rather than mis-draw it.
@@ -695,7 +727,7 @@ void ObjectController::syncItems()
         // places — its constructor, above, and the adoption loop in setSource() — so by the time this
         // runs the object is holding the one that is current, including an edit previewed but not yet
         // settled. Reading the feed here would undo it.
-        const ObjectRecord& a = item->record();
+        const Composition& a = item->composition();
         if (auto* bubble = qobject_cast<BubbleObject*>(item)) {
             // A bubble whose style is an SVG filter is drawn by the library, because Qt cannot render
             // the filter. The rest keep drawing locally: same geometry, no round-trip.
@@ -725,21 +757,22 @@ void ObjectController::syncItems()
     }
 }
 
-ObjectRecord::Map ObjectController::currentRecords() const
+Composition::Map ObjectController::currentRecords() const
 {
     // The objects are the state; this is a snapshot of it in the shape the owner stores. Driven by the
     // overlay list rather than by the objects, so it carries exactly what exists: an overlay whose
     // object has not been built — no layout yet — keeps what the last feed said about it, and one that
     // has been deleted is simply not walked.
-    ObjectRecord::Map out;
+    Composition::Map out;
     for (const auto& o : m_overlays) {
-        const QString      uid = QString::fromStdString(o.uid);
-        const ObjectRecord rec = recordFor(uid);
-        // **A picture with nothing written on it stays record-less if that is how it arrived.** Its
+        const QString     uid   = QString::fromStdString(o.uid);
+        const Composition rec   = recordFor(uid);
+        const Words*      words = wordsOf(rec);
+        // **A picture with nothing written on it stays without a composition if that is how it arrived.** Its
         // object describes itself so that every reader here is safe (ArtworkObject::describePicture), but
-        // that description says nothing the file does not, and the owner reads an absent record as
-        // exactly that. Inventing one would make every legacy import look edited on the next save.
-        if (rec.isArtwork() && rec.text.body.isEmpty() && !m_feedRecords.contains(uid))
+        // that description says nothing the file does not, and the owner reads an absent one as exactly
+        // that. Inventing one would make every legacy import look edited on the next save.
+        if (rec.picture && (!words || words->text.body.isEmpty()) && !m_feedRecords.contains(uid))
             continue;
         out.insert(uid, rec);
     }
@@ -807,9 +840,9 @@ void ObjectController::onOverlayGeometryCommitted(const QString& uid)
     if (uid == m_selectedOverlay && m_selectedOverlays.size() == 1) {
         // A tail's drag leaves that tail selected, so the panel shows the tail again, not the balloon.
         if (m_subject == Subject::Tail)
-            emit boundToTail(item->record(), m_selectedTail);
+            emit boundToTail(item->composition(), m_selectedTail);
         else if (m_selectedTails.isEmpty())
-            emit boundToRecord(item->record());
+            emit boundToRecord(item->composition());
     }
     emit stackChanged();
     pushOverlays(item->dragGrip() == Grip::Shape ? tr("Edit shape")
@@ -820,14 +853,14 @@ void ObjectController::onOverlayGeometryCommitted(const QString& uid)
 QString ObjectController::pictureFor(const Platemaker::Models::StripOverlay& o) const
 {
     const QString asset  = QString::fromStdString(o.assetPath);
-    const ObjectRecord r = recordFor(QString::fromStdString(o.uid));
-    if (!r.isArtwork())
-        return asset;   // a picture placed before pictures had records: the overlay's file is it
+    const Composition r = recordFor(QString::fromStdString(o.uid));
+    if (!r.picture)
+        return asset;   // a picture placed before pictures had a composition: the overlay's file is it
 
     // **The picture, not the file the library renders.** Once it is lettered they differ: the overlay
     // points at a wrapper that embeds the picture and bakes the words in, and drawing that *and* the
-    // words would show them twice. The record names the picture; it sits beside the wrapper.
-    return QFileInfo(asset).absolutePath() + QLatin1Char('/') + r.artwork;
+    // words would show them twice. The composition names the picture; it sits beside the wrapper.
+    return QFileInfo(asset).absolutePath() + QLatin1Char('/') + r.picture->file;
 }
 
 // --- selection, and the properties panel it binds ---------------------------
@@ -860,7 +893,7 @@ void ObjectController::selectSubjects(const QStringList& uids, const QList<TailR
     QStringList    carriers;
     for (const TailRef& t : tails) {
         const Object* carrier = m_overlayItems.value(t.uid);
-        if (carrier && t.index >= 0 && t.index < carrier->record().tails.items.size()
+        if (carrier && t.index >= 0 && t.index < carrier->tipCount()
             && !pickedTails.contains(t)) {
             pickedTails.append(t);
             if (!picked.contains(t.uid)) {
@@ -891,7 +924,7 @@ void ObjectController::selectSubjects(const QStringList& uids, const QList<TailR
                          && picked.first() == pickedTails.first().uid;
     const Object* primary = m_overlayItems.value(m_selectedOverlay);
     m_selectedTail      = singleTail ? pickedTails.first().index : -1;
-    m_selectedTailCount = primary ? static_cast<int>(primary->record().tails.items.size()) : 0;
+    m_selectedTailCount = primary ? primary->tipCount() : 0;
     m_subject           = picked.isEmpty() ? Subject::None
                         : singleTail       ? Subject::Tail
                                            : Subject::Overlay;
@@ -921,12 +954,12 @@ void ObjectController::selectSubjects(const QStringList& uids, const QList<TailR
         emit boundToNothing();
     } else if (singleTail) {
         m_panelSubjects = QStringList{m_selectedOverlay};   // the tail's balloon owns the record
-        emit boundToTail(primary->record(), m_selectedTail);
+        emit boundToTail(primary->composition(), m_selectedTail);
     } else if (!pickedTails.isEmpty() && carriers.size() == picked.size()) {
         // Tails and nothing else: what they share is a tail's own section. Their balloons are the panel's
         // subjects, in this order, so an edit writes each tail into its balloon (applyPanelRecords()).
         m_panelSubjects = carriers;
-        QList<ObjectRecord>    balloons;
+        QList<Composition>     balloons;
         QList<QPair<int, int>> tails;
         for (const QString& uid : std::as_const(carriers))
             balloons << recordFor(uid);
@@ -946,7 +979,7 @@ void ObjectController::selectSubjects(const QStringList& uids, const QList<TailR
         // (see onControlChanged), and the lettering to all of them. So the union is what shows, and
         // the write path takes whichever kind each object is.
         m_panelSubjects = picked;
-        QList<ObjectRecord> subjects;
+        QList<Composition> subjects;
         subjects.reserve(picked.size());
         for (const QString& uid : picked)
             subjects.append(recordFor(uid));
@@ -974,7 +1007,7 @@ bool ObjectController::applyColourAt(const QPointF& scenePos, const QTransform& 
                                      const QColor& colour)
 {
     auto* bubble = dynamic_cast<Object*>(m_scene->itemAt(scenePos, deviceTransform));
-    if (!bubble || bubble->record().isArtwork() || bubble->isOrphaned() || !colour.isValid())
+    if (!bubble || bubble->composition().picture || bubble->isOrphaned() || !colour.isValid())
         return false;   // imported artwork has no colour of its own, and an orphan is not on the strip
 
     // A few screen pixels of forgiveness, in the object's own units: a thin letter and a hairline
@@ -985,41 +1018,23 @@ bool ObjectController::applyColourAt(const QPointF& scenePos, const QTransform& 
         onScreen = 1.0;
     const qreal slack = k_pickSlackPx / onScreen;
 
-    ObjectRecord       a    = bubble->record();
-    QString            step;
+    Composition          a    = bubble->composition();
     const Geometry::Part part = Geometry::partAt(a, bubble->mapFromScene(scenePos), slack);
-    switch (part) {
-    case Geometry::Part::Text:
-        a.text.fill.colour = colour;
-        step          = tr("Apply text colour");
-        break;
-    case Geometry::Part::Outline:
-        a.style.stroke.colour = colour;
-        step           = tr("Apply outline colour");
-        break;
-    case Geometry::Part::Fill:
-        a.skin.fill.colour = colour;
-        step        = tr("Apply fill colour");
-        break;
-    case Geometry::Part::None:
+    if (!paintPart(a, part, colour))
         return false;   // the transparent corner of the box is not the balloon
-    }
+    const QString step = part == Geometry::Part::Text      ? tr("Apply text colour")
+                       : part == Geometry::Part::Outline   ? tr("Apply outline colour")
+                                                           : tr("Apply fill colour");
 
     // Pouring onto something that is part of a selection paints the **whole** selection, each object in
     // the role it has: a fill lands on everything with a silhouette, the lettering's colour on everything.
     // An object outside the selection is a fresh subject, and painting it selects it as any click does.
     if (m_selectedOverlays.size() > 1 && m_selectedOverlays.contains(bubble->uid())) {
-        QList<ObjectRecord> next;
+        QList<Composition> next;
         next.reserve(m_selectedOverlays.size());
         for (const QString& uid : std::as_const(m_selectedOverlays)) {
-            ObjectRecord each   = recordFor(uid);
-            const bool   shaped = each.hasSilhouette();
-            switch (part) {
-            case Geometry::Part::Text:    each.text.fill.colour = colour; break;
-            case Geometry::Part::Outline: if (shaped) each.style.stroke.colour = colour; break;
-            case Geometry::Part::Fill:    if (shaped) each.skin.fill.colour   = colour; break;
-            case Geometry::Part::None:    break;
-            }
+            Composition each = recordFor(uid);
+            paintPart(each, part, colour);
             next.append(each);
         }
         applyRecords(m_selectedOverlays, next, /*commit=*/true, step);
@@ -1036,10 +1051,10 @@ bool ObjectController::applyColourAt(const QPointF& scenePos, const QTransform& 
 void ObjectController::fitSelectionToText()
 {
     Object* item = m_overlayItems.value(m_selectedOverlay);
-    if (!item || item->record().isArtwork())
+    if (!item || item->composition().picture)
         return;   // a picture's box is the picture's own pixels, not its words'
-    ObjectRecord a = item->record();
-    a.box = Geometry::fittedBox(a);
+    Composition a = item->composition();
+    resize(a, Geometry::fittedBox(a));
     applyRecord(m_selectedOverlay, a, /*commit=*/true);
     emit boundToRecord(a);
 }
@@ -1047,13 +1062,13 @@ void ObjectController::fitSelectionToText()
 void ObjectController::fixSelectionPadding()
 {
     Object* item = m_overlayItems.value(m_selectedOverlay);
-    if (!item || !item->record().hasSilhouette())
+    if (!item || !item->composition().balloon)
         return;   // only a balloon has an outline to keep the lettering from
-    ObjectRecord         a      = item->record();
+    Composition          a      = item->composition();
     const TextProperties fitted = Geometry::fittingPaddings(a);
-    if (fitted == a.text)
+    if (fitted == TextProperties::from(a))
         return;   // it fits already — not an edit, and not a history step
-    a.text = fitted;
+    fitted.applyTo(a);
     applyRecord(m_selectedOverlay, a, /*commit=*/true, tr("Fix padding"));
     emit boundToRecord(a);
 }
@@ -1071,7 +1086,7 @@ void ObjectController::presetTargetKinds(bool& bubble, bool& text) const
     for (const QString& uid : std::as_const(m_selectedOverlays)) {
         if (!isParametric(uid) || m_carriers.contains(uid))
             continue;
-        (recordFor(uid).hasSilhouette() ? bubble : text) = true;
+        (recordFor(uid).balloon ? bubble : text) = true;
     }
 }
 
@@ -1083,22 +1098,22 @@ void ObjectController::applyPresetToSelection(int index)
 
 void ObjectController::resetSelectionLook()
 {
-    // The default is no preset: `ObjectRecord`'s own values, with no uid, so the origin goes too.
+    // The default is no preset: a default BubblePreset, with no uid, so the origin goes too.
     applyLookToSelection(BubblePreset{}, tr("Reset to default"));
 }
 
 void ObjectController::applyLookToSelection(const BubblePreset& preset, const QString& step)
 {
-    QStringList         uids;
-    QList<ObjectRecord> next;
+    QStringList        uids;
+    QList<Composition> next;
     for (const QString& uid : std::as_const(m_selectedOverlays)) {
         if (!isParametric(uid) || m_carriers.contains(uid))
             continue;   // a picture, or a balloon only carrying a selected tail
-        const ObjectRecord& was = recordFor(uid);
+        const Composition was = recordFor(uid);
         // A balloon takes the preset's shape: the shape section is on screen, so the change is visible and
         // reversible. A text object keeps having none — giving it one would be a conversion.
         uids << uid;
-        next << PresetStore::applied(preset, was, /*keepShape=*/!was.hasSilhouette());
+        next << PresetStore::applied(preset, was, /*keepShape=*/!was.balloon);
     }
     if (uids.isEmpty())
         return;
@@ -1113,18 +1128,18 @@ void ObjectController::applyLookToSelection(const BubblePreset& preset, const QS
 void ObjectController::setSelectionOrigin(const PresetOrigin& origin)
 {
     const Object* item = m_overlayItems.value(m_selectedOverlay);
-    if (!item || m_selectedOverlays.size() != 1 || item->record().presetOrigin == origin)
+    if (!item || m_selectedOverlays.size() != 1 || item->composition().preset == origin)
         return;
-    ObjectRecord a = item->record();
-    a.presetOrigin = origin;
+    Composition a = item->composition();
+    a.preset      = origin;
     applyRecord(m_selectedOverlay, a, /*commit=*/true, tr("Save as preset"));
     emit boundToRecord(a);
 }
 
-QPointF ObjectController::settleBox(const Object* item, ObjectRecord& next) const
+QPointF ObjectController::settleBox(const Object* item, Composition& next) const
 {
-    const ObjectRecord& prev = item->record();
-    if (next.isArtwork() || next.box == prev.box)
+    const Composition& prev = item->composition();
+    if (next.picture || sizeOf(next) == sizeOf(prev))
         return {};   // a picture's box is its pixels, not its words'; an unchanged box moves nothing
 
     // **No growing on edit.** It was tried (an edit grew the box where the words overflowed, never
@@ -1136,12 +1151,13 @@ QPointF ObjectController::settleBox(const Object* item, ObjectRecord& next) cons
     // is moved so that the lettering's anchor keeps its place on the strip, and every tail tip moves
     // back by the same amount, so it keeps pointing at its speaker.
     const QPointF shift = Geometry::textAnchor(prev) - Geometry::textAnchor(next);
-    for (Tail& t : next.tails.items)
-        t.tip -= shift;
+    if (next.balloon)
+        for (BalloonTail& t : next.balloon->tails)
+            t.tail.tip -= shift;
     return shift;
 }
 
-void ObjectController::applyRecords(const QStringList& uids, const QList<ObjectRecord>& records,
+void ObjectController::applyRecords(const QStringList& uids, const QList<Composition>& records,
                                     bool commit, const QString& undoText)
 {
     if (uids.size() != records.size())
@@ -1153,9 +1169,9 @@ void ObjectController::applyRecords(const QStringList& uids, const QList<ObjectR
         Object* item = m_overlayItems.value(uids.at(i));
         if (!item)
             continue;
-        ObjectRecord  next  = records.at(i);
+        Composition   next  = records.at(i);
         const QPointF shift = settleBox(item, next);
-        item->setRecord(next);   // itself a no-op when the record has not moved
+        item->setComposition(next);   // itself a no-op when it has not changed
         // A textured balloon's picture is the library's: a preview rasterises the edit at once rather
         // than leaving the untextured paths up until the commit that follows (the sync's refresh).
         if (auto* bubble = qobject_cast<BubbleObject*>(item); bubble && Geometry::hasFilter(next))
@@ -1190,34 +1206,37 @@ void ObjectController::applyRecords(const QStringList& uids, const QList<ObjectR
     pushOverlays(!undoText.isEmpty()            ? undoText
                  : uids.size() > 1              ? tr("Edit %n objects", "", uids.size())
                  : m_subject == Subject::Tail   ? tr("Edit tail")
-                 : recordFor(uids.first()).isArtwork() ? tr("Edit artwork")
+                 : recordFor(uids.first()).picture ? tr("Edit artwork")
                                                        : tr("Edit bubble"));
 }
 
-void ObjectController::applyRecord(const QString& uid, const ObjectRecord& record, bool commit,
+void ObjectController::applyRecord(const QString& uid, const Composition& record, bool commit,
                                    const QString& undoText)
 {
-    applyRecords(QStringList{uid}, QList<ObjectRecord>{record}, commit, undoText);
+    applyRecords(QStringList{uid}, QList<Composition>{record}, commit, undoText);
 }
 
-void ObjectController::applyPanelRecords(const QList<ObjectRecord>& records, bool commit)
+void ObjectController::applyPanelRecords(const QList<Composition>& records, bool commit)
 {
-    // **The panel edits properties, not geometry.** Its record was copied when it was bound, and the
-    // box and the tail tips belong to no property group — they move on the canvas, and since the
-    // lettering learnt to grow its box, under the panel's feet while it types. Taken from the panel they
-    // would put back a box the last keystroke outgrew and tips from before it moved. So they are taken
-    // from the object, which is where they live.
-    QList<ObjectRecord> merged = records;
+    // **The panel edits properties, not geometry.** Its copy was made when it was bound, and the size and
+    // the tail tips belong to no property group — they move on the canvas, and since the lettering learnt
+    // to grow its box, under the panel's feet while it types. Taken from the panel they would put back a
+    // size the last keystroke outgrew and tips from before it moved. So they are taken from the object,
+    // which is where they live.
+    QList<Composition> merged = records;
     for (int i = 0; i < merged.size() && i < m_panelSubjects.size(); ++i) {
         const Object* item = m_overlayItems.value(m_panelSubjects.at(i));
         if (!item)
             continue;
-        const ObjectRecord& held = item->record();
-        merged[i].box = held.box;
+        const Composition& held = item->composition();
+        resize(merged[i], sizeOf(held));
+        if (!merged[i].balloon || !held.balloon)
+            continue;
         // By position: a panel adds a tail at the end and removes none (Delete tail is the controller's).
-        const auto shared = qMin(held.tails.items.size(), merged[i].tails.items.size());
+        QList<BalloonTail>& tails  = merged[i].balloon->tails;
+        const auto          shared = qMin(held.balloon->tails.size(), tails.size());
         for (qsizetype t = 0; t < shared; ++t)
-            merged[i].tails.items[t].tip = held.tails.items.at(t).tip;
+            tails[t].tail.tip = held.balloon->tails.at(t).tail.tip;
     }
     applyRecords(m_panelSubjects, merged, commit);
 }
@@ -1353,10 +1372,10 @@ void ObjectController::deleteSelectedTail()
     const Object* bubble = m_overlayItems.value(m_selectedOverlay);
     if (!bubble)
         return;
-    ObjectRecord a = bubble->record();
-    if (m_selectedTail < 0 || m_selectedTail >= a.tails.items.size())
+    Composition a = bubble->composition();
+    if (!a.balloon || m_selectedTail < 0 || m_selectedTail >= a.balloon->tails.size())
         return;
-    a.tails.items.removeAt(m_selectedTail);
+    a.balloon->tails.removeAt(m_selectedTail);
 
     // The balloon is what is left to hold once its tail is gone. Selected before the edit goes out, so the
     // feed that comes back finds a balloon selected, not a tail that no longer exists.
@@ -1371,12 +1390,15 @@ void ObjectController::deleteSelectedOverlay()
     // In shape editing with nodes picked, Delete takes them and never the balloon, the highest first so the
     // others keep their numbers; a polygon keeps three, and the rest stay.
     if (Object* edited = m_overlayItems.value(m_shapeEditing); edited && edited->pickedVertex() >= 0) {
-        ObjectRecord a       = edited->record();
-        QList<int>   doomed  = edited->pickedVertices();
+        Composition a      = edited->composition();
+        Body*       body   = bodyOf(a);
+        QList<int>  doomed = edited->pickedVertices();
+        if (!body)
+            return;
         std::sort(doomed.begin(), doomed.end(), std::greater<int>());
         for (int i : std::as_const(doomed))
-            a.shape = Geometry::withVertexRemoved(a.shape, i);
-        if (a.shape == edited->record().shape)
+            body->shape = Geometry::withVertexRemoved(body->shape, i);
+        if (body->shape == bodyOf(edited->composition())->shape)
             return;
         edited->setPickedVertex(-1);
         applyRecord(m_shapeEditing, a, /*commit=*/true, tr("Delete point"));
@@ -1410,14 +1432,14 @@ void ObjectController::deleteSelectedOverlay()
             Object* bubble = m_overlayItems.value(it.key());
             if (!bubble)
                 continue;
-            ObjectRecord a = bubble->record();
-            QList<int>   indexes = it.value();
+            Composition a       = bubble->composition();
+            QList<int>  indexes = it.value();
             std::sort(indexes.begin(), indexes.end(), std::greater<int>());
             for (int i : std::as_const(indexes)) {
-                if (i >= 0 && i < a.tails.items.size())
-                    a.tails.items.removeAt(i);
+                if (a.balloon && i >= 0 && i < a.balloon->tails.size())
+                    a.balloon->tails.removeAt(i);
             }
-            bubble->setRecord(a);
+            bubble->setComposition(a);
             writePlacement(it.key());
         }
 
@@ -1426,7 +1448,7 @@ void ObjectController::deleteSelectedOverlay()
                                             return doomedObjects.contains(QString::fromStdString(o.uid));
                                         }),
                          m_overlays.end());
-        // Their records go when their objects do — syncItems() drops an item whose overlay has gone,
+        // Their compositions go when their objects do — syncItems() drops an item whose overlay has gone,
         // and currentRecords() walks the overlays that are left.
         selectOverlay(QString());
         syncItems();
@@ -1457,17 +1479,12 @@ void ObjectController::applyColourToSelection(const QColor& colour, Geometry::Pa
     if (!colour.isValid() || m_selectedOverlays.isEmpty())
         return;
 
-    QList<ObjectRecord> next;
-    int                 changed = 0;
+    QList<Composition> next;
+    int                changed = 0;
     for (const QString& uid : std::as_const(m_selectedOverlays)) {
-        ObjectRecord each   = recordFor(uid);
-        const bool   shaped = each.hasSilhouette();
-        switch (role) {
-        case Geometry::Part::Text:    each.text.fill.colour = colour; ++changed; break;
-        case Geometry::Part::Outline: if (shaped) { each.style.stroke.colour = colour; ++changed; } break;
-        case Geometry::Part::Fill:    if (shaped) { each.skin.fill.colour   = colour; ++changed; } break;
-        case Geometry::Part::None:    break;
-        }
+        Composition each = recordFor(uid);
+        if (paintPart(each, role, colour))
+            ++changed;
         next.append(each);
     }
     if (changed == 0)
@@ -1483,49 +1500,46 @@ void ObjectController::applyColourToSelection(const QColor& colour, Geometry::Pa
         emit boundToRecord(next.first());
 }
 
+BalloonLook ObjectController::toolBalloon() const
+{
+    return m_toolDefaults.balloon ? m_toolDefaults.balloon() : BalloonLook();
+}
+
 ShapeProperties ObjectController::toolBalloonShape() const
 {
-    return m_toolDefaults.balloonShape ? m_toolDefaults.balloonShape() : ShapeProperties();
+    return toolBalloon().shape;
 }
 
 void ObjectController::convertSelectionTo(const ShapeProperties& shape)
 {
-    const ObjectRecord::Shape kind = shape.kind;
     if (m_selectedOverlays.isEmpty())
         return;
 
-    // **What passes through is decided by the kind, not by the silhouette.** @p kind carries which
+    // **What passes through is decided by the kind, not by the silhouette.** @p shape carries which
     // silhouette to arrive at, but a Thought balloon asked to become a Balloon is already one — and
     // re-shaping it to whatever TOOL OPTIONS happens to show would be this menu quietly doing the shape
     // picker's job on an object the artist only had along for the ride. Changing *which* balloon several
     // objects are is the Shape section's, or *Apply preset ▸*.
-    const bool toSilhouette = kind != ObjectRecord::Shape::None;
+    const bool toBalloon = shape.kind != ShapeProperties::Kind::None;
+    // To a balloon, the whole shape asked for (a kind alone would arrive without the nodes and the radius
+    // that make it the shape the tiles say), in the style TOOL OPTIONS shows; to text, the balloon goes, its
+    // tails with it (undo brings them back).
+    const BalloonLook look{shape, toolBalloon().style};
 
-    QList<ObjectRecord> next;
-    int                 converted = 0;
-    int                 hidden    = 0;   //!< Tails that the new kind does not draw.
+    QList<Composition> next;
+    int                converted = 0;
     for (const QString& uid : std::as_const(m_selectedOverlays)) {
-        ObjectRecord each = recordFor(uid);
+        Composition each = recordFor(uid);
         // Not an authored object, or already of this kind: it passes through, and since nothing here
         // touches the order, it keeps its place in the stack for free.
-        const bool authored    = isParametric(uid) && !m_carriers.contains(uid);
-        const bool hasSilhouette = each.hasSilhouette();
-        if (authored && hasSilhouette != toSilhouette) {
-            if (!toSilhouette)
-                hidden += static_cast<int>(each.tails.items.size());
-            // To a balloon, the whole shape TOOL OPTIONS shows: a kind alone would arrive without the
-            // nodes and the radius that make it the shape the tiles say. To text, the kind alone: the
-            // rest of the group stays in the record unread, as the tails do.
-            if (toSilhouette)
-                each.shape = shape;
-            else
-                each.shape.kind = kind;
-            // ...and a box that fits the lettering in its new kind. A text object's box is its words' own
+        const bool authored = isParametric(uid) && !m_carriers.contains(uid);
+        if (authored && each.balloon.has_value() != toBalloon) {
+            each = toBalloon ? withBalloon(each, look) : withoutBalloon(each);
+            // ...and a size that fits the lettering in its new kind. A text object's box is its words' own
             // size, which a balloon's smaller text area could not hold — the words were clipped. Fitted
             // rather than only grown, both ways: converting back gives the words' own box again. Where
-            // the box lands is applyRecords()' business — the words stay put and the balloon appears
-            // under them.
-            each.box = Geometry::fitBoxFor(each, Geometry::textBlockSize(each));
+            // it lands is applyRecords()' business — the words stay put and the balloon appears under them.
+            resize(each, Geometry::fitBoxFor(each, Geometry::textBlockSize(each)));
             ++converted;
         }
         next.append(each);
@@ -1535,16 +1549,10 @@ void ObjectController::convertSelectionTo(const ShapeProperties& shape)
 
     // Named after the kind it arrived at — *Balloon*, not *Speech balloon*: the silhouette it happens
     // to wear is a property, and a history entry should say what the step decided.
-    const QString what = kind == ObjectRecord::Shape::None ? tr("text") : tr("a balloon");
+    const QString what = toBalloon ? tr("a balloon") : tr("text");
     applyRecords(m_selectedOverlays, next, /*commit=*/true,
                  converted == 1 ? tr("Convert to %1").arg(what)
                                 : tr("Convert %n objects to %1", "", converted).arg(what));
-
-    // Said once, and then gone. An event has no condition to re-evaluate, so it is a message and not a
-    // badge — and it says *not drawn* rather than *removed*, because that is what happened: the tails
-    // are still in the record and a conversion back brings them with it.
-    if (hidden > 0)
-        emit noted(tr("%n tail(s) are no longer drawn — converting back brings them back.", "", hidden));
 
     if (m_selectedOverlays.size() > 1)
         emit boundToRecords(next);
@@ -1680,11 +1688,11 @@ void ObjectController::duplicateSelectedOverlay()
         const double tw  = m_layout.targetWidth();
         const double off = tw > 0 ? k_duplicateOffset / tw : 0.0;
         m_selectNewOverlay = true;
-        if (!item->record().isArtwork()) {
-            emit recordCreated(item->record(), o.xFrac + off, o.yFrac + off, o.wFrac,
+        if (!item->composition().picture) {
+            emit recordCreated(item->composition(), o.xFrac + off, o.yFrac + off, o.wFrac,
                                  QString::fromStdString(o.anchorInputUid));
         } else {
-            // Imported artwork has no authoring record to re-emit, so the copy goes through the import
+            // Imported artwork has no drawing of ours to re-emit, so the copy goes through the import
             // channel instead: the library hashes the same bytes and dedups the new placement onto the
             // file that is already there. Routing it through creation would have written an SVG of a
             // *default* bubble — which is what it did before this was two types.
@@ -1705,7 +1713,7 @@ void ObjectController::pushOverlays(const QString& undoText)
 
 // --- a new object -----------------------------------------------------------
 
-void ObjectController::requestRecord(const ObjectRecord& record, double xFrac, double yFrac, double wFrac,
+void ObjectController::requestRecord(const Composition& record, double xFrac, double yFrac, double wFrac,
                                      const QString& anchorInputUid)
 {
     m_selectNewOverlay = true;

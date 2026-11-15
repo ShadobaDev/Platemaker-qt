@@ -58,7 +58,7 @@ void ArtworkObject::loadPicture(const QString& picture)
 {
     m_picture = picture;
     m_artwork = loadArtwork(picture);
-    describePicture(m_record);
+    describePicture(m_composition);
 
     delete m_svg;
     m_svg = nullptr;
@@ -75,33 +75,44 @@ QString ArtworkObject::label() const
 {
     // What a row should say about a picture: its words if it has been lettered, otherwise the file —
     // which is the only thing that distinguishes one picture from another in a list of them.
-    const QString said = m_record.text.body.section(QLatin1Char('\n'), 0, 0).trimmed();
+    const Words*  words = wordsOf(m_composition);
+    const QString said  = words ? words->text.body.section(QLatin1Char('\n'), 0, 0).trimmed() : QString();
     if (!said.isEmpty())
         return said;
     const QString file = QFileInfo(m_picture).fileName();
     return file.isEmpty() ? tr("(imported artwork)") : file;
 }
 
-void ArtworkObject::setRecord(const ObjectRecord& a)
+void ArtworkObject::setComposition(const Composition& c)
 {
-    ObjectRecord next = a;
+    Composition next = c;
     describePicture(next);   // whatever arrived, this object is still this picture at its own pixels
-    if (m_record == next)
+    if (m_composition == next)
         return;
-    m_record = next;
+    m_composition = next;
     update();
     emit chromeChanged();   // its lettering may now fit, or not
 }
 
-void ArtworkObject::describePicture(ObjectRecord& a) const
+void ArtworkObject::describePicture(Composition& c) const
 {
-    a.artwork    = QFileInfo(m_picture).fileName();
-    a.shape.kind = ObjectRecord::Shape::None;   // no silhouette of ours, said both ways
-    // **This object is the authority on how big the picture is**, not the record it was handed: the
-    // record may predate pictures having one, or carry a size guessed from a copy the importer could
-    // not read. An empty pixmap leaves the box alone — there is nothing better to say.
+    c.balloon.reset();   // the picture is the background: one at most
+    if (!c.picture) {
+        Picture p;
+        p.id      = c.nextId++;
+        c.picture = p;
+    }
+    c.picture->file = QFileInfo(m_picture).fileName();
+    if (c.words.isEmpty()) {   // the words that can go over it, so the lettering has somewhere to be written
+        Words w;
+        w.id = c.nextId++;
+        c.words.append(w);
+    }
+    // **This object is the authority on how big the picture is**, not the composition it was handed: that
+    // may carry a size guessed from a copy the importer could not read. An empty pixmap leaves the size
+    // alone — there is nothing better to say.
     if (!m_artwork.isNull())
-        a.box = m_artwork.size();
+        resize(c, m_artwork.size());
 }
 
 void ArtworkObject::setBoxSize(QSizeF size, const QPointF&)
@@ -128,16 +139,20 @@ void ArtworkObject::paintContent(QPainter& painter)
         return;
     }
 
-    // The words over it, if there are any. Laid out in the record's box — the picture's own pixels —
-    // and drawn through the same scale the picture is, so they sit on it rather than beside it however
-    // the object is resized. This is the preview of what the wrapper SVG will render.
-    const QPainterPath text = Geometry::textOutline(m_record);
-    if (text.isEmpty() || m_record.box.isEmpty())
+    // The words over it, if there are any. Laid out in the picture's own pixels and drawn through the same
+    // scale the picture is, so they sit on it rather than beside it however the object is resized. This is
+    // the preview of what the wrapper SVG will render.
+    const Words* words = wordsOf(m_composition);
+    const QSize  size  = sizeOf(m_composition);
+    if (!words || size.isEmpty())
+        return;
+    const QPainterPath text = Geometry::textOutline(m_composition, *words);
+    if (text.isEmpty())
         return;
     painter.save();
     painter.setRenderHint(QPainter::Antialiasing, true);
-    painter.scale(m_box.width() / m_record.box.width(), m_box.height() / m_record.box.height());
-    Painter::paintLettering(painter, m_record, text, Geometry::textShadowOf(m_record, text));
+    painter.scale(m_box.width() / size.width(), m_box.height() / size.height());
+    Painter::paintLettering(painter, *words, text, Geometry::textShadowOf(*words, text));
     painter.restore();
 }
 

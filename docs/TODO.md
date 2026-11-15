@@ -126,13 +126,6 @@ Bug fixes, cosmetics and internal cleanups — no new capability, no change to a
 New, backward-compatible features. Several are gated on a lib version, noted in the item body.
 (The `[x]` items below shipped/ready to ship; the open ones re-derive to the next MINOR.)
 
-- [ ] **Before this release: delete the old content readers.** A bubble's content is its composition's JSON,
-  kept in the workspace with its overlay (requires libplatemaker with `StripOverlay::content`). Two older forms
-  are still read, and a bubble carries the current one from its next edit: a content in the record's own form
-  (`Svg::fromContent()`'s second branch), and, for an overlay saved before the content, its SVG's flat `pm:`
-  attributes (`Svg::read()`'s second branch, `readGroup()`, `tailsFromText()`, `TailLook::fromFields()`). No
-  released file has either, so the readers go before release, with the tests that build such files by hand.
-
 - [x] **Show the effect of a canvas profile edit right away.** *Done 2026-11-09 (requires
   libplatemaker 0.7.0).* "Out of sync" is a query (`detectFileStaleness()`), not a stored status, so
   every open project's tiles repaint on `workspaceChanged`. Saving or deleting a canvas profile asks
@@ -461,7 +454,7 @@ New, backward-compatible features. Several are gated on a lib version, noted in 
   area), in one file rather than one file per shape. The parameters came after it, as field lists.
   What it replaced: an enum value plus a case in seven places (`shapeName`, `shapeTitle`, `shapeOrder`,
   `shapeFromName`, `Painter::silhouette`, `Painter::textSafeArea`, `Painter::label`). Moved byte for byte, checked by `Golden.EveryShapeAndStyleIsWrittenAsBefore`.
-  - **Seeds:** a noisy outline reads `styleSeed` (an `outline` that needs it then takes the `ObjectRecord`), never a seed of its
+  - **Seeds:** a noisy outline reads the composition's `seed` (an `outline` that needs it then takes it), never a seed of its
     own, so a preset cannot copy a wobble. The shape that needs it brings a **Re-roll** action (one undo
     step) on the object menu.
   - Optionally in the same step: a tool row names its options page through a factory, so `Editor`'s
@@ -473,7 +466,7 @@ New, backward-compatible features. Several are gated on a lib version, noted in 
   - **Not planned: a folder per object kind.** `stripeditor/kinds/<kind>/` behind an `ObjectKind` interface
     (item, prototype, options page, label, glyph, conversion rules) would turn the controller's kind checks
     into virtual calls. With two kinds that is one interface for two implementations; revisit when a third
-    kind arrives (a masked picture, a panel frame). It must keep one `ObjectRecord` for every kind.
+    kind arrives (a masked picture, a panel frame). It must keep one `Composition` for every kind.
 
 - [x] **Export / open a workspace package.** One zip with the workspace, `overlays/`, `templates/`,
   `inputs/` and `fonts/` (everything in `fonts/` plus the installed fonts the bubbles name; the

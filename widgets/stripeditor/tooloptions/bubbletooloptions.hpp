@@ -20,8 +20,8 @@ class PresetStore;
 /**
  * \brief Options for the Bubble and Text tools: **what the next object will be**.
  *
- * One panel for both, because they author the same object — the Text tool is an `ObjectRecord` with no
- * shape. Switching between them hides the shape group rather than swapping in a second panel, so there
+ * One panel for both, because they author the same object — the Text tool's is a `Composition` with no
+ * balloon. Switching between them hides the shape group rather than swapping in a second panel, so there
  * is one set of controls and no chance of two drifting apart.
  *
  * It describes an object that **does not exist yet**, so it edits nothing and emits nothing. There is no
@@ -42,30 +42,29 @@ public:
     /**
      * \brief The shape the active tool places — or no value, when the artist picks it here.
      *
-     * The Bubble tool passes no value and the shape tiles are shown; the Text tool passes `Shape::None`
+     * The Bubble tool passes no value and the shape tiles are shown; the Text tool passes `Kind::None`
      * and the tiles go away, because a tool that places one shape has already answered that question. prototype() then applies it **over** the artist's pick without
      * disturbing it, so switching back to the Bubble tool brings back the shape that was chosen before.
      *
      * A tool's options follow the tool, which is exactly what a panel describing a *selected object*
      * must never do.
      */
-    void setToolShape(std::optional<ObjectRecord::Shape> shape);
+    void setToolShape(std::optional<ShapeProperties::Kind> shape);
 
     //! Shows the rows of @p rows only (the tool's map, Tool::optionRows), and the boxes that hold any of them.
     void showRows(const QList<Row>& rows);
 
-    //! A fresh record carrying the panel's current styling — what a new placement starts from.
-    [[nodiscard]] ObjectRecord prototype() const;
+    //! A fresh object carrying the panel's current styling — what a new placement starts from.
+    [[nodiscard]] Composition prototype() const;
 
     /**
-     * \brief The silhouette the tiles are set to — **the artist's own pick, never the active tool's**.
+     * \brief The balloon the panel is set to — **the artist's own pick, never the active tool's**.
      *
-     * The whole shape group, parameters and nodes included: what *Convert to ▸ Balloon* arrives at, and
-     * what the Bubble tool places. Never `None`: the tiles do not offer "no balloon", because that is a
-     * kind rather than a silhouette, so a `None` here could only come from an old settings file, and
-     * reads as the default Box.
+     * The whole shape group, parameters and nodes included, and the style: what *Convert to ▸ Balloon*
+     * arrives at, and what the Bubble tool places. Never of kind `None`: the tiles do not offer "no
+     * balloon", because that is a kind of object rather than a silhouette.
      */
-    [[nodiscard]] ShapeProperties balloonShape() const;
+    [[nodiscard]] BalloonLook balloon() const;
 
 signals:
     //! *Manage presets…*, on the picked preset (its uid; empty for none).
@@ -91,16 +90,17 @@ private:
     //! The rule above each of Fill, Line, Texture and Effects, shown with it.
     QHash<QWidget*, QWidget*> m_ruleAbove;
 
-    ObjectRecord m_record;       //!< The next placement's working values.
+    //! The next placement's working values: a balloon whatever the tool, so the Text tool keeps the look.
+    Composition m_record = withBalloon(textObject(), {});
     //! The uid of the preset the picker names, per kind (bubble, text); empty for *No preset*.
     QString m_pickedBubble;
     QString m_pickedText;
     //! The picked uid of the active tool's kind: the Text tool's is a text preset.
-    [[nodiscard]] QString& pickedUid() { return m_toolShape == ObjectRecord::Shape::None ? m_pickedText : m_pickedBubble; }
+    [[nodiscard]] QString& pickedUid() { return m_toolShape == ShapeProperties::Kind::None ? m_pickedText : m_pickedBubble; }
     bool m_populating   = false;   //!< Suppresses change signals while binding.
     //! The active tool's fixed shape, if it has one → the tiles are hidden and a preset restyles
     //! without changing shape, because the shape is the tool's to say.
-    std::optional<ObjectRecord::Shape> m_toolShape;
+    std::optional<ShapeProperties::Kind> m_toolShape;
 };
 
 }  // namespace StripEdit

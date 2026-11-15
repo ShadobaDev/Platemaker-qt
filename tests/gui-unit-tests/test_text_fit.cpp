@@ -237,7 +237,7 @@ TEST(TextFit, TheTextAreaArrowsDragThePaddings)
 }
 
 /**
- * \brief The letters' outline is drawn outside them, so the record's bounds grow by its width
+ * \brief The letters' outline is drawn outside them, so the composition's bounds grow by its width
  *        round the lettering, and not at all without one.
  */
 TEST(TextFit, TheLettersOutlineGrowsTheBounds)

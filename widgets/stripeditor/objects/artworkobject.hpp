@@ -53,7 +53,7 @@ public:
      * that would draw the lettering twice — once from the wrapper and once itself. So it is given the
      * picture, and the words stay this class's to draw.
      * 
-     * \param uid The unique identifier for this object, which is the same as the record it carries.
+     * \param uid The unique identifier for this object, which is the same as the composition it carries.
      * \param picture The file the artist imported, which is what this object draws.
      */
     ArtworkObject(QString uid, const QString& picture, QGraphicsItem* parent = nullptr);
@@ -126,12 +126,12 @@ private:
     /**
      * \brief Makes the composition say what this object is: this picture, at its own pixels, with words over it.
      *
-     * The invariant behind `Object::record()`. A picture placed before pictures had a record, and one
-     * whose size was guessed at import, would otherwise hand back a record that reads as a default
+     * The invariant behind `Object::composition()`. A picture placed before pictures had a composition, and one
+     * whose size was guessed at import, would otherwise hand back a composition that reads as a default
      * *speech balloon* — the value that has caused four shipped defects. Called wherever either half
-     * can change: a new file, or a record arriving from the panel. Takes the record rather than
+     * can change: a new file, or a composition arriving from the panel. Takes the composition rather than
      * working on this object's own, so an arriving one is described **before** it is compared — a
-     * record that has to be repaired every time is otherwise a record that never compares equal, and
+     * composition that has to be repaired every time is otherwise a composition that never compares equal, and
      * a repaint on every feed.
      * 
      * \param c The composition to describe as this picture, at its own pixels.

@@ -1,7 +1,7 @@
 #include "mainwindow.hpp"
 #include "advisories.hpp"
 #include "advisorybar.hpp"
-#include "recordsvg.hpp"
+#include "svg.hpp"
 #include "ui_mainwindow.h"
 #include "project.hpp"
 #include "canvasprofiledialog.hpp"
@@ -516,12 +516,12 @@ void MainWindow::loadWorkspace(const QString &requested)
             m_workspaceFonts.insert(QFileInfo(font).fileName(), id);
     }
     // Bubbles carry their own authoring parameters inside the SVG the library composites, so the
-    // records are read back from the assets themselves — there is no sidecar to fall out of step with
-    // them. An asset that is missing, or was drawn elsewhere, simply yields no record: the overlay
+    // compositions are read back from the assets themselves — there is no sidecar to fall out of step with
+    // them. An asset that is missing, or was drawn elsewhere, simply yields no composition: the overlay
     // still renders, it just cannot be re-typed.
-    m_overlayRecords.clear();
+    m_overlayCompositions.clear();
     for (const auto& project : m_workspace.projectItems)
-        m_overlayRecords.setRecords(QString::fromStdString(project.uid),
+        m_overlayCompositions.setCompositions(QString::fromStdString(project.uid),
                                         Svg::readOverlays(project.getStripOverlays()));
     m_activeCanvasProfileName = m_workspace.canvasProfiles().empty()
         ? QString{}
@@ -685,7 +685,7 @@ void MainWindow::closeWorkspace()
 
     // Clear the workspace model and reset state.
     m_workspace     = Platemaker::Models::Workspace{};
-    m_overlayRecords.clear();
+    m_overlayCompositions.clear();
     m_workspacePath.clear();
     m_savedSnapshot.clear();
     m_activeCanvasProfileName.clear();

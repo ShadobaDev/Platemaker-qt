@@ -72,9 +72,9 @@ inline constexpr char k_workspaceFontsFolder[] = "fonts";
  *    object with nothing to re-letter.
  *
  * A name already taken by a different file: an overlay's own file is copied under its content hash instead,
- * as a new one would be named; a picture is not renamed (its record names it) and fails the collect.
+ * as a new one would be named; a picture is not renamed (its composition names it) and fails the collect.
  * A balloon whose file is missing is pointed into \p overlaysDir anyway — it is regenerated from its
- * record there, never in the old folder. `sha256` is untouched: the bytes are the same.
+ * composition there, never in the old folder. `sha256` is untouched: the bytes are the same.
  *
  * **All or nothing:** every copy is made before any path changes, so on failure \p overlays is exactly as
  * it was. Copies already made are harmless — nothing references them, and the sweep at open collects them.
@@ -83,7 +83,7 @@ inline constexpr char k_workspaceFontsFolder[] = "fonts";
  * \return True when every file is in place (or there was nothing to do).
  */
 [[nodiscard]] bool collectOverlayFiles(std::vector<Platemaker::Models::StripOverlay>& overlays,
-                                       const Composition::Map&                               records,
+                                       const Composition::Map&                               compositions,
                                        const QString&                                  overlaysDir,
                                        QString*                                        failed = nullptr);
 

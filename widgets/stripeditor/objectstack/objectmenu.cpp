@@ -119,7 +119,7 @@ ObjectMenu::ObjectMenu(ObjectController& objects, const StripLayout& layout, Pre
         for (const QString& uid : std::as_const(m_objects.selectedOverlays())) {
             if (m_objects.carriers().contains(uid) || !m_objects.isParametric(uid))
                 continue;
-            const bool hasShape = m_objects.recordFor(uid).balloon.has_value();
+            const bool hasShape = m_objects.compositionOf(uid).balloon.has_value();
             if (!shaped)
                 shaped = hasShape;
             else if (*shaped != hasShape)
@@ -290,7 +290,7 @@ void ObjectMenu::updateEntries()
     if (m_actFitToStrip)  m_actFitToStrip->setVisible(artwork);
     // One object's box or one balloon's padding, as in OBJECT STATE: absent for a picture (its box is
     // its pixels) and for lettering with no balloon (no outline to keep from); greyed for a set.
-    const Composition one = oneObject ? m_objects.recordFor(picked.first()) : Composition();
+    const Composition one = oneObject ? m_objects.compositionOf(picked.first()) : Composition();
     if (m_actFitToText) {
         m_actFitToText->setVisible(allParametric);
         m_actFitToText->setEnabled(oneObject);
@@ -411,7 +411,7 @@ void ObjectMenu::saveSelectionAsPreset()
         return;
 
     // The store decides what a preset carries — the look, never the lettering — so this hands over the
-    // whole record and lets the one function that knows the answer do the cutting.
+    // whole composition and lets the one function that knows the answer do the cutting.
     int existing = -1;
     int at       = m_presets.save(name, bubble->composition(), /*replaceExisting=*/false, &existing);
     if (at < 0) {

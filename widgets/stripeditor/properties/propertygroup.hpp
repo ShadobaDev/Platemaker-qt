@@ -51,7 +51,7 @@ enum class Row {
 /**
  * \brief Whether @p a carries @p g at all — **the one answer to "which sections apply"**.
  *
- * A pure function of a record, which is what lets the rule be tested rather than only looked at. It was
+ * A pure function of a composition, which is what lets the rule be tested rather than only looked at. It was
  * written out twice in the panel, once for a single subject and once for a set, and the two had already
  * drifted: the set's copy enumerated the groups it wanted by name, so a group added to one copy was
  * simply missing from the other.
@@ -60,7 +60,7 @@ enum class Row {
  * **The lettering is the one group every kind carries** — a balloon, a piece of standalone text and an
  * imported picture are all lettered. The rest need a silhouette: something to fill, something to
  * roughen, somewhere for a tail to leave from, and a choice of which silhouette it is. `TailItem`
- * belongs to a *tail*, which is not a record, so no record ever carries it.
+ * belongs to a *tail*, which is not a composition, so no composition ever carries it.
  *
  * What a surface does with the answer is the surface's: OBJECT STATE shows a set the **union** of what its
  * objects carry, while the object menu offers only the **intersection**, because an entry that acts on part
@@ -78,7 +78,7 @@ enum class Row {
     case PropertyGroup::Texture:
     case PropertyGroup::Tail:
         return a.balloon.has_value();
-    case PropertyGroup::TailItem:      // a tail's own group; a record never carries it
+    case PropertyGroup::TailItem:      // a tail's own group; a composition never carries it
     case PropertyGroup::Placement:     // …and these three have no editor at all — see above
     case PropertyGroup::Size:
     case PropertyGroup::Compositing:

@@ -24,7 +24,7 @@ namespace StripEdit {
 /**
  * \brief How an object is composited onto what is under it — **the one property every kind carries**.
  *
- * Not a `PropertyGroupEditor`: blend lives on `StripOverlay`, not on the authoring record, so it is not
+ * Not a `PropertyGroupEditor`: blend lives on `StripOverlay`, not on the composition, so it is not
  * one of a balloon's property groups and has no place in `PropertyGroupSet`. It belongs to the object
  * rather than to its drawing — which is exactly why it is here, in a control that a balloon, a piece of
  * lettering and imported artwork can all show. It is the only section a picture and a balloon share.

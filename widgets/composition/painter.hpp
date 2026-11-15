@@ -1,5 +1,5 @@
 /**
- * \file recordpainter.hpp
+ * \file painter.hpp
  * \brief Drawing a bubble on a QPainter — the canvas preview, the row glyphs and the rasterised image.
  *
  * Only the drawing: what is drawn, and in what order, is the composition's render list (renderlist.hpp), which

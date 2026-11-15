@@ -24,7 +24,7 @@
 #include "properties/styleeditor.hpp"
 #include "properties/texteditor.hpp"
 #include "properties/textureeditor.hpp"
-#include "recordpainter.hpp"
+#include "painter.hpp"
 #include "shapes.hpp"
 
 namespace StripEdit {

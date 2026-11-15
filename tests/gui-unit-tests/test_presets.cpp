@@ -9,7 +9,7 @@
 
 #include "objectparts.hpp"
 #include "presetstore.hpp"
-#include "recordsvg.hpp"
+#include "svg.hpp"
 
 using namespace StripEdit;
 

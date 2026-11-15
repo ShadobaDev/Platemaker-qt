@@ -3,8 +3,8 @@
  * \brief What a bubble **is**, as shapes on the page: its silhouette, its lettering and the room each
  *        takes — the single definition, shared by the canvas, the SVG and the render.
  *
- * Three consumers start from these paths: the canvas draws them (recordpainter.hpp), the SVG writer
- * serialises them (recordsvg.hpp), and the library rasterises that SVG. Because all three start here,
+ * Three consumers start from these paths: the canvas draws them (painter.hpp), the SVG writer
+ * serialises them (svg.hpp), and the library rasterises that SVG. Because all three start here,
  * "what you see" and "what is baked" cannot drift apart. Nothing here draws or knows about overlays,
  * projects or the strip: it takes a composition (composition.hpp), or an element of one, and answers in the
  * composition's frame. What fits the lettering, and its handles, act on the first words (wordsOf()), the ones
@@ -153,7 +153,7 @@ enum class Part { None, Fill, Outline, Text };
  * \brief The family \p w is actually outlined in when its own is not installed, or empty.
  *
  * `QFont` never fails on a missing family — it substitutes, silently — so an outline built while the font
- * is absent is the same words in another face, and nothing in the record says so. This names the stand-in
+ * is absent is the same words in another face, and nothing in the composition says so. This names the stand-in
  * (Qt's own choice, as `QFontInfo` reports it), which is what the SVG records as `pm:fontFallback`. Empty
  * when there are no words, no family is asked for, or the family is available — including one a workspace
  * registered for itself.

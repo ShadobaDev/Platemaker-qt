@@ -1,20 +1,20 @@
-#include "recordstore.hpp"
+#include "compositionstore.hpp"
 
 #include <QDir>
 #include <QFileInfo>
 
 // ---------------------------------------------------------------------------
-// RecordStore
+// CompositionStore
 // ---------------------------------------------------------------------------
 
-QString RecordStore::overlaysDir(const QString& workspacePath)
+QString CompositionStore::overlaysDir(const QString& workspacePath)
 {
     if (workspacePath.isEmpty())
         return {};
     return QFileInfo(workspacePath).absolutePath() + QStringLiteral("/overlays");
 }
 
-QString RecordStore::ensureOverlaysDir(const QString& workspacePath)
+QString CompositionStore::ensureOverlaysDir(const QString& workspacePath)
 {
     const QString dir = overlaysDir(workspacePath);
     if (dir.isEmpty())
@@ -22,12 +22,12 @@ QString RecordStore::ensureOverlaysDir(const QString& workspacePath)
     return QDir().mkpath(dir) ? dir : QString{};
 }
 
-Composition::Map RecordStore::records(const QString& projectUid) const
+Composition::Map CompositionStore::compositions(const QString& projectUid) const
 {
     return m_byProject.value(projectUid);
 }
 
-void RecordStore::setRecords(const QString& projectUid, Composition::Map map)
+void CompositionStore::setCompositions(const QString& projectUid, Composition::Map map)
 {
     if (map.isEmpty())
         m_byProject.remove(projectUid);

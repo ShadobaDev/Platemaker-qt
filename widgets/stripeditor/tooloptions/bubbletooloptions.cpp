@@ -191,7 +191,7 @@ void BubbleToolOptions::onControlChanged()
 {
     if (m_populating)
         return;
-    m_groups.collect(m_record, m_tails);   // laid over the picked preset, which the picker still names
+    m_groups.collect(m_composition, m_tails);   // laid over the picked preset, which the picker still names
     // Nothing is emitted: these values describe an object that does not exist yet, so there is nothing
     // to preview and nothing to persist until one is placed.
 }
@@ -199,8 +199,8 @@ void BubbleToolOptions::onControlChanged()
 void BubbleToolOptions::syncFromModel()
 {
     m_populating = true;
-    m_groups.bind(m_record);
-    m_tails->bindOne(m_record);
+    m_groups.bind(m_composition);
+    m_tails->bindOne(m_composition);
     m_populating = false;
 }
 
@@ -240,7 +240,7 @@ void BubbleToolOptions::applyPreset(int entry)
         return;
     const BubblePreset base = index >= 0 ? m_presets.presets().at(index) : BubblePreset{};
     pickedUid() = base.uid;
-    m_record     = PresetStore::applied(base, m_record, /*keepShape=*/m_toolShape.has_value());
+    m_composition     = PresetStore::applied(base, m_composition, /*keepShape=*/m_toolShape.has_value());
     syncFromModel();
     refreshPresetCombo();
 }

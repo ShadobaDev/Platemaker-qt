@@ -26,7 +26,7 @@ namespace StripEdit {
  *
  * This exists because the alternative was tested and failed. There used to be one item class that drew
  * either a bubble or an imported asset depending on whether a pixmap had been handed to it, and the
- * rest of the editor re-derived the same distinction from "is there an authoring record for this uid" —
+ * rest of the editor re-derived the same distinction from "is there an composition for this uid" —
  * eight separate places. Two of them were written wrong and shipped: one loaded a *default* bubble into
  * the panel for imported artwork, the other stored that default back over the artwork. Both are the
  * same mistake, and neither is expressible once the two kinds are two types.
@@ -254,7 +254,7 @@ public:
     /**
      * \brief The rectangle the grips move — the object's own size, before any tail.
      *
-     * Not stored here: a bubble's box *is* its record's, and holding a second copy is how the two
+     * Not stored here: a bubble's box *is* its composition's, and holding a second copy is how the two
      * drift apart. Each kind answers from wherever its size actually lives.
      */
     [[nodiscard]] virtual QSizeF boxSize() const = 0;

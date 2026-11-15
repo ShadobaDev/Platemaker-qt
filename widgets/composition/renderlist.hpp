@@ -3,8 +3,8 @@
  * \brief What a composition draws, in order, once: the list both the painter and the SVG writer play.
  *
  * A balloon and its words are resolved into **items** (paths filled and stroked, groups, a picture) and the **definitions**
- * they refer to (a pattern, a filter). The painter draws the items (recordpainter.hpp); the SVG writer
- * serialises them (recordsvg.hpp). So which layer is drawn over which, what a line with strokes of its own
+ * they refer to (a pattern, a filter). The painter draws the items (painter.hpp); the SVG writer
+ * serialises them (svg.hpp). So which layer is drawn over which, what a line with strokes of its own
  * replaces, how the fill and its texture are split, is decided here and nowhere else.
  *
  * Some of it only an SVG renderer can do: a filter, a mask, a bleed past an edge a filter moves. The items
@@ -38,7 +38,7 @@ namespace Render {
 //! Decimal places for a path's coordinates and a drawing's lengths: well under a rendered pixel.
 inline constexpr int k_coordinateDecimals = 2;
 /**
- * Decimal places for a number a filter is tuned by or the record is read back from: a grain's spin steps by
+ * Decimal places for a number a filter is tuned by or the composition is read back from: a grain's spin steps by
  * a thousandth, and two places would round 0.035 to another texture. Trailing zeros are trimmed, so a
  * number with two places or fewer is written as with two.
  */
@@ -143,7 +143,7 @@ struct Item
     /** @} */
 };
 
-//! A record's drawing: what its items refer to, then the items in painting order.
+//! A composition's drawing: what its items refer to, then the items in painting order.
 struct List
 {
     QList<Def>  defs;

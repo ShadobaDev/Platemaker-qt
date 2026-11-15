@@ -3,7 +3,7 @@
  * \brief The outline a line is drawn round, described once: its rings walked by arc length, their corners,
  *        the ends the tails report, the parts it is the union of and what covers each.
  *
- * A line takes this model, not the record (styles.hpp): what is a corner, where a tail ends and how, what lies
+ * A line takes this model, not the composition (styles.hpp): what is a corner, where a tail ends and how, what lies
  * under another part, is decided here and read by every line alike. What an element knows about itself it
  * reports (a tail: its Round or Cut end); what is a fact of the path alone (a corner) is measured here, once.
  * Built by Geometry::outlineModel() (geometry.hpp).
@@ -89,7 +89,7 @@ struct OutlineModel
     QList<OutlineRing> rings;    //!< Its closed edges, the empty ones left out.
     /** The balloon first, then each tail drawn, each walked round its own edge; for a line that follows them. */
     QList<OutlinePart> parts;
-    QRectF             frame;    //!< The record's box at the origin: what radiating strokes are laid from.
+    QRectF             frame;    //!< The composition's box at the origin: what radiating strokes are laid from.
     /** How far the shape stretches a radiating line's core along its long axis on Auto, in per cent. */
     int                coreStretch = 0;
 };

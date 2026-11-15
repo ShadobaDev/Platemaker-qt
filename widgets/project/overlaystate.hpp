@@ -21,7 +21,7 @@
 struct OverlayState
 {
     std::vector<Platemaker::Models::StripOverlay> overlays;     //!< The strip's overlays, in the order they are drawn.
-    Composition::Map                              records;    //!< The compositions of those overlays, keyed by `StripOverlay::uid`.
+    Composition::Map                              compositions;    //!< The compositions of those overlays, keyed by `StripOverlay::uid`.
 
     /**
      * \brief Compares two overlay states for equality.
@@ -30,7 +30,7 @@ struct OverlayState
      */
     [[nodiscard]] bool operator==(const OverlayState& o) const
     {
-        return overlays == o.overlays && records == o.records;
+        return overlays == o.overlays && compositions == o.compositions;
     }
     /**
      * \brief Compares two overlay states for inequality.

@@ -7,7 +7,7 @@
 
 #include "objects/object.hpp"
 #include "composition.hpp"
-#include "recordpainter.hpp"
+#include "painter.hpp"
 
 namespace StripEdit {
 

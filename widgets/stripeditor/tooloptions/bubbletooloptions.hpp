@@ -91,7 +91,7 @@ private:
     QHash<QWidget*, QWidget*> m_ruleAbove;
 
     //! The next placement's working values: a balloon whatever the tool, so the Text tool keeps the look.
-    Composition m_record = withBalloon(textObject(), {});
+    Composition m_composition = withBalloon(textObject(), {});
     //! The uid of the preset the picker names, per kind (bubble, text); empty for *No preset*.
     QString m_pickedBubble;
     QString m_pickedText;

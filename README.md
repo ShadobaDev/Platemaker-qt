@@ -158,7 +158,7 @@ Platemaker/
 │   ├── project/                   — a chapter: inputs, outputs and its undo history
 │   ├── stripeditor/               — the strip editor, one folder per screen region
 │   │                                (the wiki's Code map page says which)
-│   ├── objectrecord/              — what a balloon is, how it is drawn, how it is saved
+│   ├── composition/               — what a balloon is, how it is drawn, how it is saved
 │   ├── workspacefolder/           — the workspace folder: lock, fonts, layout
 │   ├── renderworker/              — the background render
 │   ├── advisories/, badge/, …     — shared widgets

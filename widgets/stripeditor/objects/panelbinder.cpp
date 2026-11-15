@@ -16,7 +16,7 @@ void PanelBinder::bind()
     const QStringList&       carriers    = m_selection.carriers();
     const bool               oneObject   = picked.size() == 1 && pickedTails.isEmpty();
 
-    // **Which objects OBJECT STATE is about to be bound to, in the order its records go in.** Set here and
+    // **Which objects OBJECT STATE is about to be bound to, in the order its compositions go in.** Set here and
     // only here, because this is the one place that decides what the panel is showing. A branch that binds
     // something uneditable leaves it empty, so a signal arriving from a panel that cannot be edited writes
     // nothing rather than writing to whatever happens to be selected now.
@@ -25,7 +25,7 @@ void PanelBinder::bind()
     if (picked.isEmpty()) {
         emit boundToNothing();
     } else if (m_selection.subject() == Subject::Tail) {
-        m_subjects = QStringList{m_selection.primary()};   // the tail's balloon owns the record
+        m_subjects = QStringList{m_selection.primary()};   // the tail's balloon owns the composition
         emit boundToTail(m_host.composition(m_selection.primary()).value_or(Composition()), m_host.tailIndex(m_selection.single()));
     } else if (!pickedTails.isEmpty() && carriers.size() == picked.size()) {
         // Tails and nothing else: what they share is a tail's own section. Their balloons are the panel's
@@ -42,7 +42,7 @@ void PanelBinder::bind()
         emit boundToMixed(m_selection.subjectCount());
     } else if (oneObject) {
         m_subjects = QStringList{m_selection.primary()};
-        emit boundToRecord(m_host.composition(m_selection.primary()).value_or(Composition()));
+        emit boundToComposition(m_host.composition(m_selection.primary()).value_or(Composition()));
     } else {
         // **Whatever kinds are in it.** The panel sorts the compositions into roles: skin and line style are
         // bound to the objects with a silhouette and written back only to those, and the lettering to all of
@@ -52,7 +52,7 @@ void PanelBinder::bind()
         subjects.reserve(picked.size());
         for (const QString& uid : picked)
             subjects.append(m_host.composition(uid).value_or(Composition()));
-        emit boundToRecords(subjects);
+        emit boundToCompositions(subjects);
     }
 
     // Whatever the panel is showing, it is showing it for objects that all have a blend mode —
@@ -68,9 +68,9 @@ void PanelBinder::bind()
 void PanelBinder::show(const QList<Composition>& all)
 {
     if (all.size() == 1)
-        emit boundToRecord(all.first());
+        emit boundToComposition(all.first());
     else
-        emit boundToRecords(all);
+        emit boundToCompositions(all);
 }
 
 void PanelBinder::applyEdits(const QList<Composition>& compositions, bool commit)

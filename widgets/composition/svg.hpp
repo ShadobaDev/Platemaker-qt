@@ -1,6 +1,6 @@
 /**
- * \file recordsvg.hpp
- * \brief A bubble as an SVG document — the asset the library renders — and its content, the record as the
+ * \file svg.hpp
+ * \brief A bubble as an SVG document — the asset the library renders — and its content, the composition as the
  *        workspace keeps it.
  *
  * The bubble **is** its content (contentOf()): the workspace stores it with the overlay
@@ -69,7 +69,7 @@ inline constexpr char k_pmNamespace[] = "https://github.com/ShadobaDev/Platemake
                                        const QString& mime = {});
 
 /**
- * \brief The record's content, as the workspace stores it and the SVG copies it: its composition's JSON, compact
+ * \brief The composition's content, as the workspace stores it and the SVG copies it: its composition's JSON, compact
  *        (toJson(const Composition&)), the lettering's family the one the outlines were set for (the default's own
  *        name for an empty one).
  */
@@ -125,7 +125,7 @@ inline constexpr char k_pmNamespace[] = "https://github.com/ShadobaDev/Platemake
 /**
  * \brief The family a file's lettering was outlined in instead of its own — `pm:fontFallback` — or empty.
  *
- * Written when the record's family was not installed at the time (Geometry::fontFallback()), so a file
+ * Written when the composition's family was not installed at the time (Geometry::fontFallback()), so a file
  * baked in a stand-in can be told from one baked in its own font — both carry the same family in their content —
  * and re-set once the font is back. Read the way the recipe is: by namespace, never by prefix.
  */

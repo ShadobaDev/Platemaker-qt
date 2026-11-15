@@ -48,7 +48,7 @@ public:
     //! The strip or a page is the selection: no object answers the panel.
     void unbind() { m_subjects.clear(); }
     //! An edit made @p c of the one object shown: shown again.
-    void show(const Composition& c) { emit boundToRecord(c); }
+    void show(const Composition& c) { emit boundToComposition(c); }
     //! An edit made @p all of the objects shown, in their order: shown again (one as one).
     void show(const QList<Composition>& all);
     //! A drag moved tail @p index of balloon @p c: its tail shown again.
@@ -73,9 +73,9 @@ public:
 
 signals:
     // --- for OBJECT STATE: what it is bound to now ---
-    void boundToRecord(const Composition& record);            //!< One object.
-    void boundToTail(const Composition& record, int index);   //!< One tail, of the balloon @p record.
-    void boundToRecords(const QList<Composition>& records);   //!< Several objects, of any kinds.
+    void boundToComposition(const Composition& composition);            //!< One object.
+    void boundToTail(const Composition& composition, int index);   //!< One tail, of the balloon @p composition.
+    void boundToCompositions(const QList<Composition>& compositions);   //!< Several objects, of any kinds.
     void boundToMixed(int count);   //!< Objects and tails together: nothing editable in common.
     //! Several tails and no whole object: their @p balloons, and each tail as (balloon index, tail index).
     void boundToTails(const QList<Composition>& balloons, const QList<QPair<int, int>>& tails);

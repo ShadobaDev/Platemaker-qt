@@ -101,7 +101,7 @@ void Placement::finish()
     const QRectF bounds = Geometry::bounds(a);
     if (const std::optional<StripLayout::Anchored> at = m_layout.anchoredAt(r.topLeft() + bounds.topLeft(),
                                                                             bounds.width(), r.top()))
-        m_objects.requestRecord(a, at->xFrac, at->yFrac, at->wFrac, at->anchor);
+        m_objects.requestComposition(a, at->xFrac, at->yFrac, at->wFrac, at->anchor);
 }
 
 }  // namespace StripEdit

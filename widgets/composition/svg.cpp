@@ -1,4 +1,4 @@
-#include "recordsvg.hpp"
+#include "svg.hpp"
 
 #include "composition.hpp"
 #include "geometry.hpp"
@@ -22,7 +22,7 @@ namespace Svg {
 
 namespace {
 
-//! Decimal places for a value the record is read back from: Render::k_valueDecimals.
+//! Decimal places for a value the composition is read back from: Render::k_valueDecimals.
 constexpr int k_valuePrecision = Render::k_valueDecimals;
 
 QString num(qreal v, int precision = Render::k_coordinateDecimals)
@@ -151,7 +151,7 @@ QString paintAttr(const char* attr, const Paint& p, const QString& id)
 
 namespace {
 
-//! The family a file records: the record's own, or — for an empty one, "the default" — the default's name
+//! The family a file records: the composition's own, or — for an empty one, "the default" — the default's name
 //! on the machine that drew it. The outlines were set in that font, and a file that says so is one another
 //! machine can recognise as missing it, rather than silently re-set in its own default.
 QString fileFontFamily(const TextProperties& t)
@@ -160,7 +160,7 @@ QString fileFontFamily(const TextProperties& t)
 }
 
 /**
- * \brief The content's copy in the file, `<pm:content>` (its text the record's content, contentOf()), with
+ * \brief The content's copy in the file, `<pm:content>` (its text the composition's content, contentOf()), with
  *        `pm:fontFallback` when the words were set in a stand-in.
  *
  * The family asked for is kept whatever happened; the fallback says what the outlines were actually set
@@ -323,7 +323,7 @@ QByteArray write(const Composition& c, const QByteArray& picture, const QString&
         return svg.toUtf8();
     }
 
-    // The viewBox is the record's *drawn* extent, not its balloon: a tail may reach above or left of
+    // The viewBox is the composition's *drawn* extent, not its balloon: a tail may reach above or left of
     // the balloon, and SVG takes a negative viewBox origin natively — so the file itself carries the
     // offset and the placement stays a plain top-left. width/height are that extent, so the library
     // rasterises it 1:1 at scale 1.0.
@@ -433,7 +433,7 @@ QString pictureMime(const QString& file)
 /**
  * \brief Writes \p a into the workspace's overlays/ directory as an SVG.
  *
- * The file the library composites **is** the authoring record: the artwork every renderer can draw,
+ * The file the library composites **is** the composition: the artwork every renderer can draw,
  * plus the editor's parameters in a namespace renderers ignore. There is no separate sidecar and no
  * intermediate raster.
  *
@@ -443,7 +443,7 @@ QString pictureMime(const QString& file)
  *
  * A bubble keeps **one** file for its lifetime. Naming every revision by its content instead would
  * leave one file per settled edit — a dozen in a single lettering session — and the reason to do that
- * has gone: the undo snapshot carries the full authoring record, so a previous rendering is regenerated
+ * has gone: the undo snapshot carries the full composition, so a previous rendering is regenerated
  * from it (see Project::rewriteOverlayAssets()) rather than recovered from a file kept alive for it.
  *
  * \return The asset's absolute path, or empty when it could not be written.

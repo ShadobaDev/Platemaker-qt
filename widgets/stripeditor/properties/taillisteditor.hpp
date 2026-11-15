@@ -22,7 +22,7 @@ namespace StripEdit {
  * not land on top — and takes the look picked last on the balloon (`TailsProperties::nextLook`). A
  * starting value, not a link: from the moment it exists it is edited on its own.
  *
- * applyTo() **reads** the target's shape: a shapeless record has nothing for a tail to grow from.
+ * applyTo() **reads** the target's shape: a shapeless composition has nothing for a tail to grow from.
  */
 class TailListEditor : public PropertyGroupEditor
 {

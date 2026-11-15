@@ -7,7 +7,7 @@
  * for its numbers if it has any (a struct with fields() and section(), a member of StyleProperties and a
  * line in its sections()); the Line panel builds its rows from the section. A texture likewise, its SVG
  * filter with it. A line reads its numbers, the outline model (outline.hpp) and a seed,
- * never the record: its corners, the tails' ends and what covers a part are the model's. Everything else
+ * never the composition: its corners, the tails' ends and what covers a part are the model's. Everything else
  * asks the tables: the file
  * names (lineName, textureName), the Style panel's lists (lineTitle, textureTitle), the ink and whether
  * the solid outline is drawn (the painter, the SVG, the hit test), the room it needs past the geometry
@@ -35,7 +35,7 @@
 
 namespace Geometry {
 
-//! One line: everything about it that is not the record's own state.
+//! One line: everything about it that is not the composition's own state.
 struct LineInfo
 {
     StyleProperties::Line kind;   //!< Which line this entry is; the table is checked against it.
@@ -208,7 +208,7 @@ enum class FadePart {
 
 /**
  * @name A shadow (Shadow) and the Paint it is filled with, whoever casts it: the balloon (its effects) or
- * the lettering. Each also has a form taking the record, for the balloon's.
+ * the lettering. Each also has a form taking the composition, for the balloon's.
  * @{
  */
 //! \p s is soft and of one colour: blurred, by an SVG filter.

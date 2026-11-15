@@ -51,7 +51,7 @@ time runs off the UI thread.
 ## Extending the strip editor
 
 Which files to touch, and which test tells you what you missed. Paths are under
-`widgets/stripeditor/` unless they start with `widgets/objectrecord/` (the record a balloon is, how it
+`widgets/stripeditor/` unless they start with `widgets/composition/` (the composition a balloon is, how it
 is drawn and saved). **The library needs no change for any of the three**: it composites the SVG or
 picture the GUI writes.
 
@@ -91,15 +91,15 @@ A new kind gets move, resize, tails, lettering, undo, presets, the tiles and the
 `curveArea()`) for one with no formula for its text area: `largestInscribedRect()` finds it from the
 outline.
 
-1. `widgets/objectrecord/propertygroups.hpp`: add to `Kind` (persisted by name; the strip editor is
+1. `widgets/composition/propertygroups.hpp`: add to `Kind` (persisted by name; the strip editor is
    unreleased, so a kind may still be renamed or merged) and move `k_lastKind`.
-2. `widgets/objectrecord/shapes.cpp`: its named constants, `<name>Path()` and `<name>Area()` (the largest
+2. `widgets/composition/shapes.cpp`: its named constants, `<name>Path()` and `<name>Area()` (the largest
    rectangle the outline contains), both taking the shape group and the body, and **one entry in
    `k_shapes`**, in the enum's order: the persisted name, the title, whether an outline matching no
    template speaks, the sections of numbers it reads (`sections`), the two functions, and the flash's Auto
    stretch.
    Then **at least one template** in `shapeTemplates()`, in the picker's order.
-3. `widgets/objectrecord/names.cpp`: its place in `shapeOrder()`, which is what names are read
+3. `widgets/composition/names.cpp`: its place in `shapeOrder()`, which is what names are read
    back from.
 4. *Optional:* a built-in preset in `presetstore.cpp`.
 
@@ -121,7 +121,7 @@ SVG is accepted with `PLATEMAKER_UPDATE_GOLDEN=1` and its diff reviewed. The tab
 every template is a balloon, is found by `templateOf()` as itself, and that every kind has one.
 
 **Not caught by any test:** every constant is named; noise uses the composition's `seed` and nothing else
-(`topUpStyleSeed()` mints it; *Re-roll* on the object menu deals it again, for a record that
+(`topUpStyleSeed()` mints it; *Re-roll* on the object menu deals it again, for a composition that
 `usesSeed()`). Any outline
 takes a tail, concave included: the tail walks from its tip towards the centre and leaves from the first
 edge it meets (`Tails.AConcaveOutlineIsLeftNearestTheTip`); only a balloon whose centre lies outside it
@@ -149,7 +149,7 @@ turn only while there are breaks).
 family's numbers are a **section**, `CornerParams` (`propertygroups.hpp`), held by `ShapeProperties` as
 `corner` and listed in its `sections()`, so every family's numbers are kept whatever the kind. Each number
 is **one line in the section's `fields()` list** — the key it is saved under and the member
-(`widgets/objectrecord/fields.hpp`) — and the section is nested in `ShapeProperties::fields()`, whose order
+(`widgets/composition/fields.hpp`) — and the section is nested in `ShapeProperties::fields()`, whose order
 is the file's. That one line gives it equality (which gates the file rewrite, and decides which template a
 shape is) and a key in the content (the JSON the workspace keeps with the overlay), with the struct's default
 as the fallback when the content lacks it.
@@ -184,7 +184,7 @@ uncompared (the shadow has no `second`, only the fill fades). One editor, `Paint
 A pattern is a value of `Paint::Kind` (move `k_lastKind`), one entry in `k_patterns` (`styles.cpp`, its
 names) and its marks in `patternCell()`: the cell's square, its angle, and the marks as one non-zero
 path. Both the painter's brush (`Painter::paintBrush()`) and the SVG's `<pattern>` (`patternDefs()` in
-`recordsvg.cpp`) are drawn from that cell and laid from the box's corner (the brush from the painter's
+`svg.cpp`) are drawn from that cell and laid from the box's corner (the brush from the painter's
 origin, the pattern in `userSpaceOnUse`), so the preview and the output match. Anything that a pattern
 paints is written in the box's coordinates, never under a `transform` (a shadow is its caster's path
 moved), or its pattern would move with it.
@@ -241,7 +241,7 @@ into that function, in drawing order: the shadow, the outline, the letters.
 
 ### The render list
 
-What a record draws, in what order, is decided once: `Render::balloon()` and `Render::lettering()`
+What a composition draws, in what order, is decided once: `Render::balloon()` and `Render::lettering()`
 (`renderlist.hpp`) turn it into **items** (a path filled and stroked, a group, a picture) and the
 **definitions** they refer to (a pattern, a filter). The painter plays the items (`Painter::play()`), the
 SVG writer serialises the same items (`Svg::write()`); neither lays out a layer of its own. What only an SVG
@@ -276,8 +276,8 @@ A style is two independent choices: a **line** (how the edge is drawn) and a **t
 to the balloon as it is rasterised).
 
 A line is a value of `StyleProperties::Line` (move `k_lastLine`) and **one entry in `k_lines`**
-(`widgets/objectrecord/styles.cpp`), in the enum's order: the persisted name, the title the *Line*
-section lists, and strokes of its own or none. Strokes are an `ink` function, from the record and its silhouette
+(`widgets/composition/styles.cpp`), in the enum's order: the persisted name, the title the *Line*
+section lists, and strokes of its own or none. Strokes are an `ink` function, from the composition and its silhouette
 to closed paths filled in the stroke colour, with an `inkReach` that says how far they reach past the
 silhouette; a line with ink leaves the solid outline off (`hasOutline()`) and is drawn locally.
 
@@ -289,7 +289,7 @@ one previews through the library (`hasFilter()`), and `styleMargin()` adds its r
 Rough is the worked example: four `rough…` fields, the defaults the Marker look's, and the Ink look a
 built-in preset (`inkRough()`).
 
-A line takes its numbers (`StyleProperties`), the **outline model** and the balloon's seed, never the record
+A line takes its numbers (`StyleProperties`), the **outline model** and the balloon's seed, never the composition
 (`LineInfo::ink`). The model (`outline.hpp`, built by `outlineModel()` in `silhouette.cpp`) is the silhouette
 and its parts, each closed edge walked by arc length (`EdgeWalk`, `edgewalk.*`), with what a line would
 otherwise guess: the corners, measured once (`outline.cpp`: a turn of 35° or more, `k_cornerTurn`, with the
@@ -331,7 +331,7 @@ round-trip and golden tests as a shape; strokes are also checked against the roo
 
 ### A kind of object
 
-One composition, `Composition` (`widgets/objectrecord/composition.hpp`), serves every kind on purpose: what
+One composition, `Composition` (`widgets/composition/composition.hpp`), serves every kind on purpose: what
 an object is, is which elements it has (a balloon, a picture, words), not a type. A kind is a new `Object`
 subclass plus the element that tells it apart. The worked example is commit `268a562` (the Artwork tool).
 
@@ -342,7 +342,7 @@ subclass plus the element that tells it apart. The worked example is commit `268
 | `ObjectController::syncItems()` | **the one place a subclass is chosen** for a composition |
 | `objects/objectcontroller.cpp`, `objectstack/objectmenu.cpp`, `objectstate/objectstate.cpp` | every `isParametric()` / `picture` / `balloon` decision; `carriesGroup()` (`properties/propertygroup.hpp`) says which groups an object carries |
 | `tooloptions/` + `editor.cpp` | its options page, and a tool row (above) |
-| `widgets/objectrecord/recordsvg.cpp` | how it is written to the file the library composites |
+| `widgets/composition/svg.cpp` | how it is written to the file the library composites |
 | `widgets/project/project.cpp` | where the project creates and stores it |
 
 **A quality bar:** could the change be compiled on its own? A shape nearly can; a kind of object cannot,

@@ -72,7 +72,7 @@ bool copyUnlessIdentical(const QString& source, const QString& dest)
 }
 
 bool collectOverlayFiles(std::vector<Platemaker::Models::StripOverlay>& overlays,
-                         const Composition::Map&                               records,
+                         const Composition::Map&                               compositions,
                          const QString&                                  overlaysDir,
                          QString*                                        failed)
 {
@@ -94,30 +94,30 @@ bool collectOverlayFiles(std::vector<Platemaker::Models::StripOverlay>& overlays
         if (QFileInfo(sourceInfo.absolutePath()) == homeInfo)
             continue;   // already in this folder
 
-        const auto        rec    = records.constFind(QString::fromStdString(overlays[i].uid));
-        const bool        hasRec = rec != records.constEnd();
-        const Composition record = hasRec ? *rec : Composition{};
+        const auto        rec    = compositions.constFind(QString::fromStdString(overlays[i].uid));
+        const bool        hasRec = rec != compositions.constEnd();
+        const Composition composition = hasRec ? *rec : Composition{};
 
         if (!sourceInfo.exists()) {
-            // Nothing to copy. A balloon is drawn from its record, so its file belongs here and is written
+            // Nothing to copy. A balloon is drawn from its composition, so its file belongs here and is written
             // here the next time it is; a picture has nothing to be rebuilt from and stays where it was.
-            if (hasRec && !record.picture)
+            if (hasRec && !composition.picture)
                 repointed.emplace_back(i, home.filePath(sourceInfo.fileName()));
             continue;
         }
 
         // A lettered picture: the overlay is the wrapper, and the picture sits beside it under the name its
-        // record gives. That name is load-bearing, so the picture is never renamed.
-        const QString picture = record.picture
-                                    ? QDir(sourceInfo.absolutePath()).filePath(record.picture->file)
+        // composition gives. That name is load-bearing, so the picture is never renamed.
+        const QString picture = composition.picture
+                                    ? QDir(sourceInfo.absolutePath()).filePath(composition.picture->file)
                                     : QString{};
         if (!picture.isEmpty() && QFileInfo::exists(picture)
-            && !copyUnlessIdentical(picture, home.filePath(record.picture->file)))
+            && !copyUnlessIdentical(picture, home.filePath(composition.picture->file)))
             return fail(picture);
 
         QString dest = home.filePath(sourceInfo.fileName());
         if (!copyUnlessIdentical(source, dest)) {
-            // Only a name clash is worth a second try, and only for a file no record names.
+            // Only a name clash is worth a second try, and only for a file no composition names.
             if (!QFileInfo::exists(dest) || (!picture.isEmpty() && QFileInfo(source) == QFileInfo(picture)))
                 return fail(source);
             const QString renamed = contentName(source);

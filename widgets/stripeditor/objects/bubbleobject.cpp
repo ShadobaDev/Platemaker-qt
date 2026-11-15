@@ -1,5 +1,5 @@
 #include "objects/bubbleobject.hpp"
-#include "recordpainter.hpp"
+#include "painter.hpp"
 #include "styles.hpp"
 #include "handles.hpp"
 

@@ -287,7 +287,7 @@ New, backward-compatible features. Several are gated on a lib version, noted in 
   file's paths cannot be guessed into `shape.kind`. What is already in place is most of it: tails aim at
   an arbitrary outline (`tailPath()` takes a `QPainterPath` and ray-casts, so it does not care where the
   outline came from), the style filter and fill/stroke work on any path, and the lettering is drawn over
-  whatever is underneath. What is missing is **a place in the record for a custom silhouette**
+  whatever is underneath. What is missing is **a place in the composition for a custom silhouette**
   (`ShapeProperties` holds an enum; it would need an "imported path" variant) and **a dialog where the
   artist marks which path is the silhouette and where the tails attach** — i.e. writes the recipe for
   somebody else's drawing. The honest limit: one closed silhouette, not a drawing of two hundred paths,
@@ -296,7 +296,7 @@ New, backward-compatible features. Several are gated on a lib version, noted in 
 - [ ] **Names that describe what things were, not what they are** — a sweep, deliberately deferred so it
   lands as one mechanical diff rather than as noise inside feature work. Nothing here changes behaviour.
   - ~~**`TextArtifact` → `Artifact`.**~~ **Done (2026-09-23).** It was never the text: it is the whole
-    authoring record of an overlay — shape, skin, style, tails, the imported picture, *and* a
+    composition of an overlay — shape, skin, style, tails, the imported picture, *and* a
     `TextProperties text` field, which is the only part the old name described. Twenty sibling symbols
     already said *artifact*; only the struct still said *Text*, and a reader's first question was *why
     does a "text artifact" have tails and a picture?* 396 occurrences in 49 files, crossing into
@@ -346,7 +346,7 @@ New, backward-compatible features. Several are gated on a lib version, noted in 
   outlines through `QFont`. When the family is not installed, every re-emit bakes it in a fallback,
   including **every overlay undo**, because `rewriteOverlayAssets()` rewrites *every* bubble, not
   just the ones the step touched. Fix: rewrite only what a step changed; keep the intended family in
-  the record (already true); mark a fallback bake with `pm:fontFallback`; **heal at open** when the
+  the composition (already true); mark a fallback bake with `pm:fontFallback`; **heal at open** when the
   font is back (re-bake, and mark the workspace modified); and warn at open and on entering the strip
   editor instead of on every edit.
 
@@ -450,7 +450,7 @@ New, backward-compatible features. Several are gated on a lib version, noted in 
     and blurred in the output.
 
 - [x] **Shape registry** — built 2026-10-29, ahead of the first parameter: one table,
-  `k_shapes` in `widgets/objectrecord/shapes.cpp`, one entry per shape (name, title, tail, outline, text
+  `k_shapes` in `widgets/composition/shapes.cpp`, one entry per shape (name, title, tail, outline, text
   area), in one file rather than one file per shape. The parameters came after it, as field lists.
   What it replaced: an enum value plus a case in seven places (`shapeName`, `shapeTitle`, `shapeOrder`,
   `shapeFromName`, `Painter::silhouette`, `Painter::textSafeArea`, `Painter::label`). Moved byte for byte, checked by `Golden.EveryShapeAndStyleIsWrittenAsBefore`.
@@ -488,7 +488,7 @@ New, backward-compatible features. Several are gated on a lib version, noted in 
   start travelling between people (which the import work makes routine):
   - ~~**`platemaker.dev` is not registered.**~~ **Done (2026-09-23).** The URI is now
     `https://github.com/ShadobaDev/Platemaker-qt/ns/artifact/1` — a name the project controls, and one
-    that no longer claims the record is about bubbles. No back-compatibility: the feature is unreleased,
+    that no longer claims the composition is about bubbles. No back-compatibility: the feature is unreleased,
     so the only overlay files carrying the old namespace were the author's own and were re-made by hand.
     A file written before the change imports as ordinary artwork, which is what it now is to us.
   - ~~**We write `pm:v="2"` and never read it.**~~ **Removed (2026-09-24).** A version marker nobody

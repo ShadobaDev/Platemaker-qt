@@ -1,7 +1,7 @@
 #include "project.hpp"
-#include "recordpainter.hpp"
-#include "recordstore.hpp"
-#include "recordsvg.hpp"
+#include "painter.hpp"
+#include "compositionstore.hpp"
+#include "svg.hpp"
 #include "ui_project.h"
 #include "imagetile.hpp"
 #include "history.hpp"
@@ -155,8 +155,8 @@ private:
 };
 
 /**
- * \brief The project's text & bubbles: the overlays and their authoring records, which move together —
- *        the overlay says which file renders, its record what the file contains.
+ * \brief The project's text & bubbles: the overlays and their compositions, which move together —
+ *        the overlay says which file renders, its composition what the file contains.
  */
 class Project::LetteringScope : public ScopeOf<OverlayState>
 {
@@ -418,7 +418,7 @@ namespace {
 
 //! The uids an overlay-scope step moves between @p from and @p to — added, or changed in placement or in
 //! what they say. Only uids that exist in @p to, because a uid the step removes is nothing to point at.
-//! The records are compared as well as the overlays: an edit to a bubble's text rewrites its asset,
+//! The compositions are compared as well as the overlays: an edit to a bubble's text rewrites its asset,
 //! and reading that as "changed" through the placement alone would depend on the hash having settled.
 [[nodiscard]] QStringList movedUids(const OverlayState& from, const OverlayState& to)
 {
@@ -428,7 +428,7 @@ namespace {
         const auto it = std::find_if(from.overlays.begin(), from.overlays.end(),
                                      [&](const auto& b) { return b.uid == after.uid; });
         if (it == from.overlays.end() || *it != after
-            || from.records.value(uid) != to.records.value(uid))
+            || from.compositions.value(uid) != to.compositions.value(uid))
             uids << uid;
     }
     return uids;
@@ -438,7 +438,7 @@ namespace {
 
 OverlayState Project::overlayState() const
 {
-    return {m_workspace.projectItems[m_projectIndex].getStripOverlays(), m_records};
+    return {m_workspace.projectItems[m_projectIndex].getStripOverlays(), m_compositions};
 }
 
 void Project::restoreOverlayState(const OverlayState& recorded)
@@ -449,31 +449,31 @@ void Project::restoreOverlayState(const OverlayState& recorded)
     // recorded here.
     OverlayState state = recorded;
     if (mayWrite()) {
-        const QString dir = RecordStore::ensureOverlaysDir(m_workspacePath);
+        const QString dir = CompositionStore::ensureOverlaysDir(m_workspacePath);
         if (!dir.isEmpty())
-            (void)collectOverlayFiles(state.overlays, state.records, dir);
+            (void)collectOverlayFiles(state.overlays, state.compositions, dir);
     }
 
     // Asked while the old state is still here, because it is the difference between the two that says
     // what the artist just watched change.
     const QStringList touched = movedUids(overlayState(), state);
-    // A bubble's file is made from its record: one the step only moved keeps the file it has.
+    // A bubble's file is made from its composition: one the step only moved keeps the file it has.
     QStringList rewritten;
     for (const QString& uid : std::as_const(touched))
-        if (m_records.value(uid) != state.records.value(uid))
+        if (m_compositions.value(uid) != state.compositions.value(uid))
             rewritten << uid;
 
     m_workspace.projectItems[m_projectIndex].getStripOverlays() = state.overlays;
-    m_records = state.records;
+    m_compositions = state.compositions;
 
     // Ahead of the views, not after them: this arms the editor to select what the step touched, and the
     // feed two lines down is what consumes the arming.
     emit historyStepApplied(EditScope::StripEditor, touched);
 
-    // The records are back; the files on disk still hold what the step being undone wrote. They are made
+    // The compositions are back; the files on disk still hold what the step being undone wrote. They are made
     // from the state, which is already right whatever the disk says.
     rewriteOverlayAssets(rewritten);
-    emit recordsChanged(m_records);
+    emit compositionsChanged(m_compositions);
 
     refreshLetteringViews();
     emit projectModified();
@@ -545,10 +545,10 @@ void Project::applyColourCorrection(const ColourCorrection& cc, const QString& u
 
 void Project::storeContents()
 {
-    // The workspace keeps what the editor shows: each overlay's content is its record's, written whenever the
-    // records are (an overlay without a record, a flat asset, keeps what it has, which is none).
+    // The workspace keeps what the editor shows: each overlay's content is its composition's, written whenever the
+    // compositions are (an overlay without a composition, a flat asset, keeps what it has, which is none).
     for (auto& o : m_workspace.projectItems[m_projectIndex].getStripOverlays())
-        if (const auto it = m_records.constFind(QString::fromStdString(o.uid)); it != m_records.constEnd())
+        if (const auto it = m_compositions.constFind(QString::fromStdString(o.uid)); it != m_compositions.constEnd())
             o.content = Svg::contentOf(it.value()).toStdString();
 }
 
@@ -863,23 +863,23 @@ void Project::addDroppedUrls(const QList<QUrl>& urls)
 // ---------------------------------------------------------------------------
 // Text & bubble overlays
 //
-// Two layers meet here: the SVG asset on disk — which is both the artwork and the authoring record —
+// Two layers meet here: the SVG asset on disk — which is both the artwork and the composition —
 // and the library's inventory entry. The library owns uid minting, hashing and content dedup, so
 // creation always goes through addOverlay(); everything else is a straight write of what the editor
 // sends.
 // ---------------------------------------------------------------------------
 
-void Project::setRecords(Composition::Map records)
+void Project::setCompositions(Composition::Map compositions)
 {
-    m_records = std::move(records);
+    m_compositions = std::move(compositions);
 }
 
-void Project::createOverlay(const Composition& record, double xFrac, double yFrac, double wFrac,
+void Project::createOverlay(const Composition& composition, double xFrac, double yFrac, double wFrac,
                             const QString& anchorInputUid)
 {
     if (!mayWrite())
         return;
-    const QString dir = RecordStore::ensureOverlaysDir(m_workspacePath);
+    const QString dir = CompositionStore::ensureOverlaysDir(m_workspacePath);
     if (dir.isEmpty()) {
         QMessageBox::warning(this, tr("Text & bubbles"),
                              tr("Save the workspace first — bubbles are stored next to the workspace "
@@ -887,7 +887,7 @@ void Project::createOverlay(const Composition& record, double xFrac, double yFra
         return;
     }
 
-    const QString asset = Svg::writeFile(dir, record);
+    const QString asset = Svg::writeFile(dir, composition);
     if (asset.isEmpty()) {
         QMessageBox::warning(this, tr("Text & bubbles"),
                              tr("Could not write the bubble to:\n%1").arg(dir));
@@ -900,9 +900,9 @@ void Project::createOverlay(const Composition& record, double xFrac, double yFra
         const std::string uid =
             item.addOverlay(asset.toStdString(), xFrac, yFrac, wFrac,
                             Platemaker::Models::BlendMode::Over, anchorInputUid.toStdString());
-        m_records.insert(QString::fromStdString(uid), record);
+        m_compositions.insert(QString::fromStdString(uid), composition);
         storeContents();
-        emit recordsChanged(m_records);
+        emit compositionsChanged(m_compositions);
         emit projectModified();
         refreshLetteringViews();
     });
@@ -912,21 +912,21 @@ void Project::rewriteOverlayAssets(const QStringList& uids)
 {
     if (!mayWrite())
         return;
-    const QString dir = RecordStore::overlaysDir(m_workspacePath);
+    const QString dir = CompositionStore::overlaysDir(m_workspacePath);
     if (dir.isEmpty())
         return;
 
     QStringList failed;
     for (const auto& o : m_workspace.projectItems[m_projectIndex].getStripOverlays()) {
         const QString uid = QString::fromStdString(o.uid);
-        const auto    it  = m_records.constFind(uid);
-        if (it == m_records.constEnd() || o.assetPath.empty())
-            continue;   // a flat asset has no record to re-emit from, and must be left exactly as it is
+        const auto    it  = m_compositions.constFind(uid);
+        if (it == m_compositions.constEnd() || o.assetPath.empty())
+            continue;   // a flat asset has no composition to re-emit from, and must be left exactly as it is
         const QString asset = QString::fromStdString(o.assetPath);
         if (!uids.contains(uid) && QFileInfo::exists(asset))
             continue;   // untouched by the step, and its file is there: leave it exactly as it is
         // The path cannot move: a balloon keeps its own file, and a lettered picture's wrapper is named by
-        // its content, which the restored record reproduces.
+        // its content, which the restored composition reproduces.
         if (Svg::writeFile(dir, it.value(), asset).isEmpty())
             failed << QDir::toNativeSeparators(asset);
     }
@@ -935,7 +935,7 @@ void Project::rewriteOverlayAssets(const QStringList& uids)
 
 void Project::warnUnwritten(const QStringList& files)
 {
-    // The edit stands: the record is right, and the file is made from it again by the next edit or undo
+    // The edit stands: the composition is right, and the file is made from it again by the next edit or undo
     // that touches it. Until then the render reads what the file still holds, which the artist must know.
     if (files.isEmpty())
         return;
@@ -950,7 +950,7 @@ void Project::importOverlayArtwork(const QString& sourceFile, double xFrac, doub
 {
     if (!mayWrite())
         return;
-    const QString dir = RecordStore::ensureOverlaysDir(m_workspacePath);
+    const QString dir = CompositionStore::ensureOverlaysDir(m_workspacePath);
     if (dir.isEmpty()) {
         QMessageBox::warning(this, tr("Import artwork"),
                              tr("Save the workspace first — artwork is stored next to the workspace "
@@ -1009,9 +1009,9 @@ void Project::importOverlayArtwork(const QString& sourceFile, double xFrac, doub
             item.addOverlay(dest.toStdString(), xFrac, yFrac, wFrac,
                             Platemaker::Models::BlendMode::Over, anchorInputUid.toStdString());
         if (ours) {
-            // The record is what makes it an object we author rather than one we merely place. The file
+            // The composition is what makes it an object we author rather than one we merely place. The file
             // beside it already matches, so nothing is rewritten until the first edit.
-            m_records.insert(QString::fromStdString(uid), adopted);
+            m_compositions.insert(QString::fromStdString(uid), adopted);
         } else {
             // **A picture gets a composition too**: a picture, and words that can go over it in its box. It
             // carries no geometry of ours, and knows which file the object is without asking the overlay.
@@ -1029,10 +1029,10 @@ void Project::importOverlayArtwork(const QString& sourceFile, double xFrac, doub
             w.id  = picture.nextId++;
             w.box = naturalSize;
             picture.words.append(w);
-            m_records.insert(QString::fromStdString(uid), picture);
+            m_compositions.insert(QString::fromStdString(uid), picture);
         }
         storeContents();
-        emit recordsChanged(m_records);
+        emit compositionsChanged(m_compositions);
         emit projectModified();
         refreshLetteringViews();
     });
@@ -1050,35 +1050,35 @@ void Project::deleteOverlays(const QStringList& uids, const QString& undoText)
                               }),
                kept.end());
 
-    // The records go with their overlays. A record left behind would describe a bubble that no longer
+    // The compositions go with their overlays. A composition left behind would describe a bubble that no longer
     // exists, and would come back to life if an overlay ever reused its uid.
-    Composition::Map records = m_records;
+    Composition::Map compositions = m_compositions;
     for (const QString& uid : uids)
-        records.remove(uid);
+        compositions.remove(uid);
 
-    applyOverlays(std::move(kept), std::move(records), undoText);
+    applyOverlays(std::move(kept), std::move(compositions), undoText);
 }
 
 void Project::applyOverlays(std::vector<Platemaker::Models::StripOverlay> overlays,
-                            Composition::Map                                  records,
+                            Composition::Map                                  compositions,
                             const QString&                               undoText)
 {
-    // Refused whole rather than applied without its files: a record saying one thing while the file the
+    // Refused whole rather than applied without its files: a composition saying one thing while the file the
     // render reads says another is worse than an edit that did not happen.
     if (!mayWrite())
         return;
 
-    const QString dir = RecordStore::ensureOverlaysDir(m_workspacePath);
+    const QString dir = CompositionStore::ensureOverlaysDir(m_workspacePath);
     QStringList   failed;
 
     // Re-write only what actually changed. A move or a reorder touches no artwork, so the common
     // gesture writes no files at all; a text or styling edit rewrites exactly one bubble.
     for (auto& o : overlays) {
         const QString uid = QString::fromStdString(o.uid);
-        const auto    it  = records.constFind(uid);
-        if (it == records.constEnd())
+        const auto    it  = compositions.constFind(uid);
+        if (it == compositions.constEnd())
             continue;                                   // flat asset: no parameters, nothing to re-emit
-        if (m_records.contains(uid) && m_records.value(uid) == it.value())
+        if (m_compositions.contains(uid) && m_compositions.value(uid) == it.value())
             continue;                                   // unchanged content
 
         // Overwrite the file this overlay owns — unless another overlay shares it, which happens when
@@ -1111,9 +1111,9 @@ void Project::applyOverlays(std::vector<Platemaker::Models::StripOverlay> overla
     commitOverlayEdit(undoText, [&] {
         auto& item = m_workspace.projectItems[m_projectIndex];
         item.getStripOverlays() = std::move(overlays);
-        m_records             = std::move(records);
+        m_compositions             = std::move(compositions);
         storeContents();
-        emit recordsChanged(m_records);
+        emit compositionsChanged(m_compositions);
         emit projectModified();
         refreshLetteringViews();
     });

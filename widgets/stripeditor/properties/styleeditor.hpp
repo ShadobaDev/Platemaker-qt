@@ -20,7 +20,7 @@ class StretchSpin;
  * The **seed is not here**, and that is the group model earning its keep. A seed is per balloon and set
  * once at placement; a group's applyTo() writes the whole group, so a seed inside it would be copied
  * along by every preset and a page of marker balloons would wear one repeated wobble. It stays a bare
- * field on the record, written by whoever places a bubble and by nobody else.
+ * field on the composition, written by whoever places a bubble and by nobody else.
  *
  * Each kind's numbers are a section of StyleProperties (FlashParams…), whose rows are built from its
  * section() and shown while a line that reads it is chosen (LineInfo::sections). The texture is a group and

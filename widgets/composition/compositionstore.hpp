@@ -14,7 +14,7 @@
  * chapter. It is filled when a workspace is opened (Svg::readOverlays()) and written through whenever the
  * editor commits. There is nothing to save here.
  */
-class RecordStore
+class CompositionStore
 {
 public:
     //! `<workspace dir>/overlays` — where the SVG assets live; created on demand by ensureDir().
@@ -24,8 +24,8 @@ public:
 
     void clear() { m_byProject.clear(); }
 
-    [[nodiscard]] Composition::Map records(const QString& projectUid) const;
-    void                           setRecords(const QString& projectUid, Composition::Map map);
+    [[nodiscard]] Composition::Map compositions(const QString& projectUid) const;
+    void                           setCompositions(const QString& projectUid, Composition::Map map);
 
 private:
     QHash<QString, Composition::Map> m_byProject;   //!< project uid → (overlay uid → composition)

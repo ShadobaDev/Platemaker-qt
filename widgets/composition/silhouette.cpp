@@ -1,4 +1,4 @@
-// The silhouette: a shape's outline with its tails united into it, what the whole record covers, and
+// The silhouette: a shape's outline with its tails united into it, what the whole composition covers, and
 // which part of it a point lands on. The shapes themselves are in shapes.cpp.
 
 #include "geometry.hpp"

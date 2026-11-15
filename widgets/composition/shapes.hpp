@@ -40,10 +40,10 @@ enum class ShapePart {
 };
 
 /**
- * \brief One kind: everything about it that is not the record's own state.
+ * \brief One kind: everything about it that is not the composition's own state.
  *
  * Both functions take the shape group and the balloon's rectangle (balloonRect()), and nothing else of
- * the record: the stroke and the author's padding are applied by the caller, the same way for every
+ * the composition: the stroke and the author's padding are applied by the caller, the same way for every
  * shape.
  */
 struct ShapeInfo
@@ -139,8 +139,8 @@ struct EdgeInfo
 /**
  * \brief A ready-made outline: a value of the shape group, as the picker offers it.
  *
- * A record never stores which template it came from, only the shape it has. A tile is current when the
- * record's shape equals its template (templateOf()). An outline edited off every template is still its
+ * A composition never stores which template it came from, only the shape it has. A tile is current when the
+ * composition's shape equals its template (templateOf()). An outline edited off every template is still its
  * kind, and matches none.
  */
 struct ShapeTemplate
@@ -231,7 +231,7 @@ constexpr int k_maxRegularPoints = 64;
 /**
  * \brief The balloon's own rectangle inside the box — the box, less room for the stroke.
  *
- * The box *is* the balloon. It used to double as the record's whole extent, with a fixed 18 % of its
+ * The box *is* the balloon. It used to double as the composition's whole extent, with a fixed 18 % of its
  * height reserved at the bottom for the tail to live in — which is what limited a tail to the bottom
  * edge and to inside the box. The drawn extent is computed instead (Geometry::bounds()).
  */

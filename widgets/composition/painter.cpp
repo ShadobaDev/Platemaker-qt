@@ -1,4 +1,4 @@
-#include "recordpainter.hpp"
+#include "painter.hpp"
 #include "styles.hpp"
 
 #include <QPainter>
@@ -271,7 +271,7 @@ QImage render(const Composition& c)
     img.fill(Qt::transparent);
 
     QPainter p(&img);
-    // The record is drawn in balloon coordinates, and a tail can reach above or left of the balloon,
+    // The composition is drawn in balloon coordinates, and a tail can reach above or left of the balloon,
     // so the buffer's origin is the bounds' origin rather than the balloon's.
     p.translate(-bounds.topLeft());
     paint(p, c);

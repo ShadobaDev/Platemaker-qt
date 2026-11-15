@@ -13,7 +13,7 @@
 #include <QPushButton>
 #include <QWidget>
 
-#include "properties/propertygroup.hpp"   // PropertyGroup, and which groups a record carries
+#include "properties/propertygroup.hpp"   // PropertyGroup, and which groups a composition carries
 
 namespace StripEdit {
 
@@ -50,7 +50,7 @@ inline constexpr int k_tailBendPercent = 100;   //!< A tail bends ±this, as a p
  * The contract that stops two editors overwriting each other. An editor **reads** its subject through
  * bind() and **writes** through applyTo(), which touches only the properties its group owns — so
  * "an editor wrote a field that was not its own" becomes unstateable rather than something to
- * remember. The panel that used to do this kept a whole copy of the selected record and wrote the
+ * remember. The panel that used to do this kept a whole copy of the selected composition and wrote the
  * whole copy back on every control change, which is why a canvas resize had to be pushed into it by
  * hand to stop the stale copy writing the old box back.
  *
@@ -68,7 +68,7 @@ class PropertyGroupEditor : public QWidget
 
 public:
     /**
-     * \brief What is being edited — one record today, several once multi-selection lands.
+     * \brief What is being edited — one composition today, several once multi-selection lands.
      *
      * Plural from the first line of code on purpose: retrofitting many subjects into every editor
      * later is the expensive version of this change. Until a selection model can produce more than

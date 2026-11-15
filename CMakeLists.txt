@@ -118,20 +118,20 @@ qt_add_executable(Platemaker
 
     # The object record — what a bubble IS (shape, text, styling), its SVG codec and its rasteriser.
     # The library composites a flat RGBA bitmap and has no text engine, so the editable source lives here.
-    widgets/objectrecord/names.cpp widgets/objectrecord/names.hpp widgets/objectrecord/propertygroups.hpp
-    widgets/objectrecord/composition.cpp widgets/objectrecord/composition.hpp
-    widgets/objectrecord/fields.hpp
-    widgets/objectrecord/recordstore.cpp widgets/objectrecord/recordstore.hpp
-    widgets/objectrecord/geometry.hpp
-    widgets/objectrecord/handles.cpp widgets/objectrecord/handles.hpp
-    widgets/objectrecord/shapes.cpp widgets/objectrecord/shapes.hpp
-    widgets/objectrecord/styles.cpp widgets/objectrecord/styles.hpp
-    widgets/objectrecord/edgewalk.cpp widgets/objectrecord/edgewalk.hpp
-    widgets/objectrecord/outline.cpp widgets/objectrecord/outline.hpp
-    widgets/objectrecord/silhouette.cpp widgets/objectrecord/lettering.cpp
-    widgets/objectrecord/recordpainter.cpp widgets/objectrecord/recordpainter.hpp
-    widgets/objectrecord/renderlist.cpp widgets/objectrecord/renderlist.hpp
-    widgets/objectrecord/recordsvg.cpp widgets/objectrecord/recordsvg.hpp
+    widgets/composition/names.cpp widgets/composition/names.hpp widgets/composition/propertygroups.hpp
+    widgets/composition/composition.cpp widgets/composition/composition.hpp
+    widgets/composition/fields.hpp
+    widgets/composition/compositionstore.cpp widgets/composition/compositionstore.hpp
+    widgets/composition/geometry.hpp
+    widgets/composition/handles.cpp widgets/composition/handles.hpp
+    widgets/composition/shapes.cpp widgets/composition/shapes.hpp
+    widgets/composition/styles.cpp widgets/composition/styles.hpp
+    widgets/composition/edgewalk.cpp widgets/composition/edgewalk.hpp
+    widgets/composition/outline.cpp widgets/composition/outline.hpp
+    widgets/composition/silhouette.cpp widgets/composition/lettering.cpp
+    widgets/composition/painter.cpp widgets/composition/painter.hpp
+    widgets/composition/renderlist.cpp widgets/composition/renderlist.hpp
+    widgets/composition/svg.cpp widgets/composition/svg.hpp
 
     # Stage card — one step in the Project "Workflow" pipeline map (custom-painted, no .ui).
     widgets/stagecard/stagecard.cpp widgets/stagecard/stagecard.hpp
@@ -191,7 +191,7 @@ target_include_directories(Platemaker PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/widgets/stagecard
     ${CMAKE_CURRENT_SOURCE_DIR}/widgets/flowlayout
     ${CMAKE_CURRENT_SOURCE_DIR}/widgets/collapsiblesection
-    ${CMAKE_CURRENT_SOURCE_DIR}/widgets/objectrecord
+    ${CMAKE_CURRENT_SOURCE_DIR}/widgets/composition
     ${CMAKE_CURRENT_SOURCE_DIR}/widgets/docktitlebar
     ${CMAKE_CURRENT_SOURCE_DIR}/widgets/verticallabel
     ${CMAKE_CURRENT_SOURCE_DIR}/widgets/badge

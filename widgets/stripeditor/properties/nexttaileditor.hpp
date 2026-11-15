@@ -19,7 +19,7 @@ namespace StripEdit {
  * A tail's **aim** is not here either: pointing at a speaker is a drag on the strip.
  *
  * applyTo() **reads** the target's shape and box before deciding what to write. Reading is not writing:
- * a shapeless record has nothing for a tail to grow from, and a first tail needs somewhere to point.
+ * a shapeless composition has nothing for a tail to grow from, and a first tail needs somewhere to point.
  */
 class NextTailEditor : public PropertyGroupEditor
 {

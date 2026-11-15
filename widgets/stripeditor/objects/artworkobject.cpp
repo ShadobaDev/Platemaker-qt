@@ -6,7 +6,7 @@
 #include <QPainterPath>
 #include <QSvgRenderer>
 
-#include "recordpainter.hpp"
+#include "painter.hpp"
 #include <QSvgRenderer>
 
 #include <utility>

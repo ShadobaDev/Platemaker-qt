@@ -16,7 +16,7 @@
 
 #include "geometry.hpp"   // Geometry::Part: which part of an object a colour lands on
 #include "toolrail/cursors.hpp"
-#include "objects/object.hpp"   // recordFor()/isParametric() ask the object itself
+#include "objects/object.hpp"   // compositionOf()/isParametric() ask the object itself
 #include "properties/propertygroup.hpp"   // PropertyGroup: which group the menu hands over
 #include "composition.hpp"
 #include "objects/selection.hpp"
@@ -70,9 +70,9 @@ class SelectionChrome;
  *   holds and reports back a selection, a mute or a new order (setStackOrder()).
  * - *Selection, and the properties panel it binds* — selectSubjects() decides what OBJECT STATE shows.
  * - *Operations on the selection* — colour, presets, artwork, re-anchor, delete, *Convert to ▸*, blend,
- *   stacking, duplicate; each ends in applyRecords() or a signal.
+ *   stacking, duplicate; each ends in applyCompositions() or a signal.
  *   The object menu (ObjectMenu, objectstack/) names them; OBJECT STATE and the canvas call some too.
- * - *A new object* — requestRecord() / requestArtwork(): asked for here, created by the owner,
+ * - *A new object* — requestComposition() / requestArtwork(): asked for here, created by the owner,
  *   selected when the feed brings it back. The drag that describes one is Placement's.
  *
  * Adding a kind of object reaches syncItems() and every isParametric() / `picture` decision in
@@ -97,10 +97,10 @@ public:
     /** 
      * \brief Adopts the owner's complete state after an edit round-trips back. 
      * \param overlays  The new overlay set, in composite order.
-     * \param records The new compositions of the overlays, keyed by uid.
+     * \param compositions The new compositions of the overlays, keyed by uid.
      */
     void setSource(const std::vector<Platemaker::Models::StripOverlay>& overlays,
-                   const Composition::Map& records);
+                   const Composition::Map& compositions);
 
     /**
      * \brief Select one of @p uids — the first that still exists — when the next feed arrives.
@@ -220,7 +220,7 @@ public:
     /**
      * \brief Whether @p uid is an object **we** author — one whose drawing we generate from its composition.
      *
-     * **The one place this is decided.** It was `m_records.contains(uid)` written out at eight call
+     * **The one place this is decided.** It was `m_compositions.contains(uid)` written out at eight call
      * sites, and that was the missing abstraction behind two shipped bugs: a default balloon loaded into
      * the panel for a piece of imported artwork, and that default then stored back over the artwork. A
      * third had survived until this refactor — see the panel binding in updateActionStates().
@@ -249,7 +249,7 @@ public:
      * \param uid  The uid of the overlay whose composition is requested.
      * \return Its composition, or an empty one if it does not exist.
      */
-    [[nodiscard]] Composition recordFor(const QString& uid) const
+    [[nodiscard]] Composition compositionOf(const QString& uid) const
     {
         if (std::optional<Composition> c = m_document.composition(uid))
             return *c;
@@ -446,7 +446,7 @@ public:
 
     // --- a new object: asked for here, created by the owner, selected when it comes back in the feed ---
     //! Asks the owner for a new authored object; it is selected when the feed brings it back.
-    void requestRecord(const Composition& record, double xFrac, double yFrac, double wFrac,
+    void requestComposition(const Composition& composition, double xFrac, double yFrac, double wFrac,
                        const QString& anchorInputUid);
     //! Asks the owner to import @p file as a new picture; it is selected when the feed brings it back.
     void requestArtwork(const QString& file, double xFrac, double yFrac, double wFrac, QSize naturalSize,
@@ -469,20 +469,20 @@ public:
 signals:
     /**
      * \brief A bubble was drawn. Creation is the library's — it mints the uid and dedups identical artwork.
-     * \param record  What the new object is.
+     * \param composition  What the new object is.
      * \param xFrac, yFrac, wFrac  The new object's position and size as fractions of the page dimensions.
      * \param anchorInputUid  The UID of the anchor input.
      */
-    void recordCreated(const Composition& record, double xFrac, double yFrac, double wFrac,
+    void compositionCreated(const Composition& composition, double xFrac, double yFrac, double wFrac,
                          const QString& anchorInputUid);
     /**
      * \brief Any other edit, as the complete new state: one channel rather than one signal per gesture.
      * \param overlays  The new overlay set, in composite order.
-     * \param records  The new compositions of the overlays, keyed by uid.
+     * \param compositions  The new compositions of the overlays, keyed by uid.
      * \param undoText  The text to use for the undo step that will be created
      */
     void overlaysCommitted(const std::vector<Platemaker::Models::StripOverlay>& overlays,
-                        const Composition::Map& records, const QString& undoText);
+                        const Composition::Map& compositions, const QString& undoText);
     /**
      * \brief Artwork drawn elsewhere should be copied into the workspace and registered here.
      *
@@ -512,7 +512,7 @@ signals:
 
 private:
     void onOverlayGeometryCommitted(const QString& uid); //!< An item settled a move/resize/tail drag.
-    void writePlacement(const QString& uid, bool rehome = true); //<! Writes where object @p uid now stands back into its record — placement, width and, if @p rehome, anchor page.
+    void writePlacement(const QString& uid, bool rehome = true); //<! Writes where object @p uid now stands back into its composition — placement, width and, if @p rehome, anchor page.
     void onObjectPressed(const QString& uid, int handle); //!< A press on a tail's handle selects that tail.
     void onCompositionEdited(const QString& uid, const Composition& next); //!< A canvas drag's edit: the document first, then the object.
     void onObjectDragged(const QString& uid, const QPointF& delta, int handle); //<! An object reports a live drag; the selection decides what else travels with it.
@@ -550,7 +550,7 @@ private:
      */
     void pushOverlays(const QString& undoText); //!< Emits overlaysCommitted() with the current state.
     /**
-     * \brief Writes @p records (compositions) onto the objects @p uids names — **the one write path**.
+     * \brief Writes @p compositions (compositions) onto the objects @p uids names — **the one write path**.
      *
      * There were three: one for a single balloon, one for several, and one for a picture. They differed
      * in a `qobject_cast` and in what the history step was called, and the two that only accepted a
@@ -561,22 +561,22 @@ private:
      * `m_selection.objects()` by position and refused when the two lengths disagreed, which is what made a
      * mixed selection uneditable. Here the caller says which object each composition is for.
      *
-     * \param uids     The uids of the objects to apply the records to.
-     * \param records  The records to apply to the objects.
+     * \param uids     The uids of the objects to apply the compositions to.
+     * \param compositions  The compositions to apply to the objects.
      * \param commit False while a control is being dragged or typed in: the objects repaint and nothing
      *               reaches the history. The panel's own debounce decides when an edit has settled.
      * \param undoText  The text to use for the undo step that will be created. If empty, a default text will be used.
      */
-    void applyRecords(const QStringList& uids, const QList<Composition>& records, bool commit,
+    void applyCompositions(const QStringList& uids, const QList<Composition>& compositions, bool commit,
                       const QString& undoText = QString());
 
     /**
      * \brief One object, by uid — the same path, for the callers that act on the primary selection.
-     * \param uid  The uid of the object to apply the record to.
-     * \param record  The record to apply to the object.
+     * \param uid  The uid of the object to apply the composition to.
+     * \param composition  The composition to apply to the object.
      * \param commit  False while a control is being dragged or typed in: the object
      */
-    void applyRecord(const QString& uid, const Composition& record, bool commit,
+    void applyComposition(const QString& uid, const Composition& composition, bool commit,
                      const QString& undoText = QString());
 
     //! @p preset's look onto every selected object we draw, as one history step named @p step.

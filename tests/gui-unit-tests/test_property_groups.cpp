@@ -26,7 +26,7 @@
 
 #include "edgewalk.hpp"
 #include "geometry.hpp"
-#include "recordsvg.hpp"
+#include "svg.hpp"
 #include "shapes.hpp"
 #include "styles.hpp"
 #include "properties/propertygroup.hpp"
@@ -2290,11 +2290,11 @@ TEST(Import, TheContentIsReadFromTheOverlayThenFromItsFile)
     overlays[1].uid       = "ovl-file";
     overlays[1].assetPath = file.toStdString();
     overlays[2].uid       = "ovl-neither";
-    const Composition::Map records = Svg::readOverlays(overlays);
-    ASSERT_EQ(records.size(), 2);
-    EXPECT_EQ(shapeOf(records.value(QStringLiteral("ovl-content"))).kind, ShapeProperties::Kind::Cloud);
-    EXPECT_EQ(shapeOf(records.value(QStringLiteral("ovl-file"))).kind, ShapeProperties::Kind::Ellipse);
-    EXPECT_FALSE(records.contains(QStringLiteral("ovl-neither")));
+    const Composition::Map compositions = Svg::readOverlays(overlays);
+    ASSERT_EQ(compositions.size(), 2);
+    EXPECT_EQ(shapeOf(compositions.value(QStringLiteral("ovl-content"))).kind, ShapeProperties::Kind::Cloud);
+    EXPECT_EQ(shapeOf(compositions.value(QStringLiteral("ovl-file"))).kind, ShapeProperties::Kind::Ellipse);
+    EXPECT_FALSE(compositions.contains(QStringLiteral("ovl-neither")));
 }
 
 // ---------------------------------------------------------------------------
@@ -2504,7 +2504,7 @@ namespace {
 //! Where the golden file lives, in the source tree, so a regenerated one shows up in `git diff`.
 QString goldenPath()
 {
-    return QStringLiteral(PLATEMAKER_GOLDEN_DIR "/records.txt");
+    return QStringLiteral(PLATEMAKER_GOLDEN_DIR "/compositions.txt");
 }
 
 //! One golden case: what it is called in the file, and the object.
@@ -2515,7 +2515,7 @@ struct GoldenCase
 };
 
 /**
- * \brief Everything a record is written as, for every template (and no shape) × look × with and without
+ * \brief Everything a composition is written as, for every template (and no shape) × look × with and without
  *        a tail. A case is named by its template's id and its look: clean, marker and ink (Rough at the
  *        Marker's and the Ink's numbers), flash, a rough flash, and brush.
  *
@@ -2546,7 +2546,7 @@ QList<GoldenCase> goldenCases()
         shapes.append({QString::fromLatin1(id) + QStringLiteral(" zigzag"), zigzag});
     }
 
-    // The looks: a line over the loaded record's flash and brush numbers, and a texture, Rough at a
+    // The looks: a line over the loaded composition's flash and brush numbers, and a texture, Rough at a
     // look's own numbers (the Marker's are the struct's defaults).
     struct Look
     {
@@ -2971,7 +2971,7 @@ QList<GoldenCase> goldenCases()
     return cases;
 }
 
-QString goldenRecords()
+QString goldenCompositions()
 {
     QString out;
     for (const GoldenCase& c : goldenCases()) {
@@ -2991,7 +2991,7 @@ QString goldenRecords()
 } // namespace
 
 /**
- * \brief What a record is written as does not change unless it is meant to — **byte for byte**.
+ * \brief What a composition is written as does not change unless it is meant to — **byte for byte**.
  *
  * The guard for refactoring the geometry and the persistence: moving a shape's path, a style's
  * filter or a property's key to another file must leave every file written exactly as it was. A change
@@ -3000,7 +3000,7 @@ QString goldenRecords()
  */
 TEST(Golden, EveryShapeAndStyleIsWrittenAsBefore)
 {
-    const QString actual = goldenRecords();
+    const QString actual = goldenCompositions();
     QFile         file(goldenPath());
 
     if (qEnvironmentVariableIsSet("PLATEMAKER_UPDATE_GOLDEN")) {

@@ -130,15 +130,15 @@ QIcon ObjectStack::rowGlyph(const QString& uid)
 {
     // Drawn once per look, not once per feed. The silhouette is cheap but not free — a tail's base is
     // found by casting a ray at the outline — and a feed arrives after every edit, so the key is what the
-    // glyph is made of: the record, less the groups a glyph does not draw. Taken from the persisted form
+    // glyph is made of: the composition, less the groups a glyph does not draw. Taken from the persisted form
     // rather than listed field by field, because a field that changes the drawing is persisted anyway —
     // a hand-written list missed the stroke width and a tail's width and bend.
     if (!m_objects.isParametric(uid)) {
-        // Imported artwork: no authoring record, so no silhouette. The art is its own glyph.
+        // Imported artwork: no composition, so no silhouette. The art is its own glyph.
         const auto* art = qobject_cast<const ArtworkObject*>(m_objects.object(uid));
         return art ? assetGlyph(art->artwork(), k_rowGlyphPx, m_tree->devicePixelRatioF()) : QIcon();
     }
-    const Composition a = m_objects.recordFor(uid);
+    const Composition a = m_objects.compositionOf(uid);
 
     Composition drawn = a;
     for (Words& w : drawn.words)
@@ -204,7 +204,7 @@ void ObjectStack::refresh()
         // refreshed before the strip has a layout, where syncItems() has nothing to place anything against.
         const Object* item  = m_objects.object(uid);
         const QString label = item ? item->label()
-                                   : (m_objects.isParametric(uid) ? objectLabel(m_objects.recordFor(uid))
+                                   : (m_objects.isParametric(uid) ? objectLabel(m_objects.compositionOf(uid))
                                                         : tr("(imported artwork)"));
         // The page it sits on, when it sits on one. An unanchored object used to carry the word *orphan*
         // where the page number goes; that is what the chip says now, and saying it twice cost the row
@@ -250,7 +250,7 @@ void ObjectStack::refresh()
         // nothing**: an object made from no preset has no chip. Muted when the preset is not among the
         // artist's (deleted, or another machine's).
         if (m_objects.isParametric(uid)) {
-            const PresetOrigin origin = m_objects.recordFor(uid).preset;
+            const PresetOrigin origin = m_objects.compositionOf(uid).preset;
             if (!origin.isEmpty()) {
                 const QString name  = m_presets.originName(origin);
                 const bool    known = m_presets.indexOf(origin.uid) >= 0;
@@ -278,7 +278,7 @@ void ObjectStack::refresh()
 
         // A bubble's tails, one row each, by position: a row stands for whichever tail is at its index now.
         // Only a bubble has tails, so artwork gets none.
-        const Composition rec       = m_objects.isParametric(uid) ? m_objects.recordFor(uid) : Composition();
+        const Composition rec       = m_objects.isParametric(uid) ? m_objects.compositionOf(uid) : Composition();
         const int         tailCount = rec.balloon ? static_cast<int>(rec.balloon->tails.size()) : 0;
         while (row->childCount() > tailCount)
             delete row->takeChild(row->childCount() - 1);

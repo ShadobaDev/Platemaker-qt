@@ -14,7 +14,7 @@
 #include <vector>
 
 #include "names.hpp"
-#include "recordstore.hpp"
+#include "compositionstore.hpp"
 
 #include <platemaker/infrastructure/control/cancellation_token.hpp>
 #include <platemaker/infrastructure/project_editor/project_editor.hpp>
@@ -467,10 +467,10 @@ private:
      *        when *Add font…* brings the font. Open strip editors are re-fed when anything was re-set.
      *
      * A bubble edited while its font was missing is outlined in whatever Qt substituted, and the file says
-     * so (`pm:fontFallback`); its record still names the font it was meant to have. Once that font is
-     * installed (or brought by the workspace) this rewrites the file from the record, updates its hash and
+     * so (`pm:fontFallback`); its composition still names the font it was meant to have. Once that font is
+     * installed (or brought by the workspace) this rewrites the file from the composition, updates its hash and
      * marks the workspace modified — the save is the artist's. Not an undo step: it repairs files to match
-     * their records. Runs before the sweep, since a lettered picture's wrapper is renamed by its content and
+     * their compositions. Runs before the sweep, since a lettered picture's wrapper is renamed by its content and
      * the old one is then unused; and only with the folder held (the caller checks), since it writes there.
      */
     void healFontFallbacks();
@@ -767,16 +767,16 @@ private:
     Platemaker::Models::Workspace m_workspace;  //!< The authoritative workspace model (projects, profiles, templates).
 
     /**
-     * \brief Parsed authoring records for every project's text/bubble overlays.
+     * \brief Parsed authoring compositions for every project's text/bubble overlays.
      *
-     * A cache, not a store: the records live inside the overlays' own SVG assets, and are read back
+     * A cache, not a store: the compositions live inside the overlays' own SVG assets, and are read back
      * from them when a workspace opens. Nothing here is written to disk — an authoring sidecar would be
      * a second copy of what the asset already carries.
      *
-     * Kept here rather than on the Project widget because a project has records whether or not its dock
+     * Kept here rather than on the Project widget because a project has compositions whether or not its dock
      * happens to be open.
      */
-    RecordStore m_overlayRecords;
+    CompositionStore m_overlayCompositions;
     Platemaker::Infrastructure::WorkspaceSerializer m_serializer;   //!< Serializes the workspace model to/from disk.
     std::unique_ptr<WorkspaceLock> m_lock;      //!< The open workspace's folder, held; null when none is open.
     QHash<QString, int> m_workspaceFonts;       //!< The open workspace's `fonts/`, as registered: file name → QFontDatabase id. By name, so it survives a Save As.

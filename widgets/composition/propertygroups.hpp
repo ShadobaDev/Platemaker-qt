@@ -30,7 +30,7 @@
  * \brief One tail: where it points, how wide it leaves the balloon, and how much it curves.
  *
  * The tip is in balloon coordinates and **may fall outside the balloon** — that is the whole point of a
- * tail, and it is why the record's drawn extent is computed rather than assumed (Geometry::bounds()).
+ * tail, and it is why the composition's drawn extent is computed rather than assumed (Geometry::bounds()).
  * Length is not stored: it is the distance from the balloon to the tip, so aiming and lengthening are
  * one gesture.
  */
@@ -453,7 +453,7 @@ struct SkinProperties
      * \brief Writes this group into \p a — **and nothing else**.
      *
      * The single write path for everything that edits a balloon's surface. Guarded by
-     * `SkinPropertiesOwnership` in the unit tests, which applies a group to a randomised record and
+     * `SkinPropertiesOwnership` in the unit tests, which applies a group to a randomised composition and
      * asserts that every property outside it is unchanged.
      */
     //! The same on a composition (composition.cpp): the balloon's fill; nothing written where there is none.
@@ -474,7 +474,7 @@ struct SkinProperties
 /**
  * \brief A corner's radius, in balloon pixels: read by Box and Polygon. A Box caps it at half its shorter
  *        side, a Polygon each corner at half its shorter edge. The default is the speech balloon's
- *        (shapes.cpp), so a default record is the speech balloon it always was.
+ *        (shapes.cpp), so a default composition is the speech balloon it always was.
  */
 struct CornerParams
 {

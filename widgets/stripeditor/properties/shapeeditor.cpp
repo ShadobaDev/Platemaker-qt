@@ -12,7 +12,7 @@
 #include <QVBoxLayout>
 #include <QtMath>
 
-#include "recordpainter.hpp"
+#include "painter.hpp"
 #include "shapes.hpp"
 #include "flowlayout.hpp"
 #include "properties/regularpolygondialog.hpp"

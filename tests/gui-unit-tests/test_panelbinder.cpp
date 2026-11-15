@@ -75,7 +75,7 @@ TEST(PanelBinder, OneObjectIsBoundAsItIsNow)
 {
     Strip       s;
     Composition shown;
-    QObject::connect(&s.binder, &PanelBinder::boundToRecord, [&](const Composition& c) { shown = c; });
+    QObject::connect(&s.binder, &PanelBinder::boundToComposition, [&](const Composition& c) { shown = c; });
     s.select({"a"});
     EXPECT_TRUE(shown == s.objects.value("a"));
     EXPECT_EQ(s.binder.subjects(), QStringList{"a"});
@@ -106,7 +106,7 @@ TEST(PanelBinder, EachKindOfSelectionIsBoundAsItsOwn)
     QObject::connect(&s.binder, &PanelBinder::boundToTails,
                      [&](const QList<Composition>&, const QList<QPair<int, int>>& t) { tails = t; });
     QObject::connect(&s.binder, &PanelBinder::boundToMixed, [&](int n) { mixed = n; });
-    QObject::connect(&s.binder, &PanelBinder::boundToRecords, [&](const QList<Composition>& all) { several = int(all.size()); });
+    QObject::connect(&s.binder, &PanelBinder::boundToCompositions, [&](const QList<Composition>& all) { several = int(all.size()); });
     QObject::connect(&s.binder, &PanelBinder::boundToNothing, [&] { ++nothing; });
 
     s.select({}, {s.tail("a", 1)});

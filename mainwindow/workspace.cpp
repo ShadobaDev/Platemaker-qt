@@ -7,8 +7,8 @@
 #include "outputprofiledialog.hpp"
 #include "templatesdialog.hpp"
 #include "renderworker.hpp"
-#include "recordstore.hpp"
-#include "recordsvg.hpp"
+#include "compositionstore.hpp"
+#include "svg.hpp"
 #include "workspacefolder.hpp"
 #include "workspacelock.hpp"
 
@@ -376,7 +376,7 @@ bool MainWindow::collectWorkspaceFiles(const QString &newWorkspacePath)
     };
 
     // Overlays, per project — computed on copies, committed only once everything has made it.
-    const QString overlaysDir = RecordStore::ensureOverlaysDir(newWorkspacePath);
+    const QString overlaysDir = CompositionStore::ensureOverlaysDir(newWorkspacePath);
     std::vector<std::vector<Platemaker::Models::StripOverlay>> collected;
     collected.reserve(m_workspace.projectItems.size());
     for (const auto &project : m_workspace.projectItems) {
@@ -384,9 +384,9 @@ bool MainWindow::collectWorkspaceFiles(const QString &newWorkspacePath)
         QString failed;
         if (!overlays.empty()) {
             if (overlaysDir.isEmpty())
-                return refuse(RecordStore::overlaysDir(newWorkspacePath));
+                return refuse(CompositionStore::overlaysDir(newWorkspacePath));
             if (!collectOverlayFiles(overlays,
-                                     m_overlayRecords.records(QString::fromStdString(project.uid)),
+                                     m_overlayCompositions.compositions(QString::fromStdString(project.uid)),
                                      overlaysDir, &failed))
                 return refuse(failed);
         }
@@ -429,13 +429,13 @@ QStringList MainWindow::referencedWorkspaceFiles() const
     QStringList used;
     const QString folder = QFileInfo(m_workspacePath).absolutePath();
     for (const auto &project : m_workspace.projectItems) {
-        const Composition::Map records = m_overlayRecords.records(QString::fromStdString(project.uid));
+        const Composition::Map compositions = m_overlayCompositions.compositions(QString::fromStdString(project.uid));
         for (const auto &overlay : project.getStripOverlays()) {
             const QString asset = QString::fromStdString(overlay.assetPath);
             used << asset;
             // A lettered picture's overlay is its wrapper; the picture sits beside it, named by its composition.
-            const auto rec = records.constFind(QString::fromStdString(overlay.uid));
-            if (rec != records.constEnd() && rec->picture)
+            const auto rec = compositions.constFind(QString::fromStdString(overlay.uid));
+            if (rec != compositions.constEnd() && rec->picture)
                 used << QDir(QFileInfo(asset).absolutePath()).filePath(rec->picture->file);
         }
     }
@@ -491,17 +491,17 @@ void MainWindow::sweepWorkspaceFolder()
 
 void MainWindow::healFontFallbacks()
 {
-    const QString   dir = RecordStore::overlaysDir(m_workspacePath);
+    const QString   dir = CompositionStore::overlaysDir(m_workspacePath);
     const QFileInfo home(dir);
     const QDir      root(QFileInfo(m_workspacePath).absolutePath());
 
     int         healed = 0;
     QStringList families;
     for (auto &project : m_workspace.projectItems) {
-        const Composition::Map records = m_overlayRecords.records(QString::fromStdString(project.uid));
+        const Composition::Map compositions = m_overlayCompositions.compositions(QString::fromStdString(project.uid));
         for (auto &overlay : project.getStripOverlays()) {
-            const auto   rec   = records.constFind(QString::fromStdString(overlay.uid));
-            const Words *words = rec == records.constEnd() ? nullptr : wordsOf(*rec);
+            const auto   rec   = compositions.constFind(QString::fromStdString(overlay.uid));
+            const Words *words = rec == compositions.constEnd() ? nullptr : wordsOf(*rec);
             if (!words || words->text.body.isEmpty() || words->text.family.isEmpty()
                 || !QFontDatabase::hasFamily(words->text.family))
                 continue;   // nothing lettered, or its font is still missing — nothing to re-set it in

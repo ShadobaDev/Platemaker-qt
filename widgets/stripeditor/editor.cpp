@@ -329,9 +329,9 @@ Editor::Editor(PresetStore& presets, QWidget *parent)
                 &ObjectController::fixSelectionPadding);
         using OC = ObjectController;
         using OS = ObjectState;
-        connect(&m_objects->panel(), &PanelBinder::boundToRecord,      m_objectState, &OS::setRecord);
+        connect(&m_objects->panel(), &PanelBinder::boundToComposition,      m_objectState, &OS::setComposition);
         connect(&m_objects->panel(), &PanelBinder::boundToTail,        m_objectState, &OS::setTail);
-        connect(&m_objects->panel(), &PanelBinder::boundToRecords,     m_objectState, &OS::setRecords);
+        connect(&m_objects->panel(), &PanelBinder::boundToCompositions,     m_objectState, &OS::setCompositions);
         connect(&m_objects->panel(), &PanelBinder::boundToMixed,       m_objectState, &OS::setMixedSubjects);
         connect(&m_objects->panel(), &PanelBinder::boundToTails,       m_objectState, &OS::setTails);
         connect(&m_objects->panel(), &PanelBinder::boundToNothing,     m_objectState, &OS::clearSelection);
@@ -390,7 +390,7 @@ Editor::Editor(PresetStore& presets, QWidget *parent)
         connect(m_objectMenu, &ObjectMenu::resetLookRequested, this, resetLook);
         connect(m_objectState, &ObjectState::resetLookRequested, this, resetLook);
         m_objectMenu->setColourSource(m_colours);
-        connect(m_objects, &ObjectController::recordCreated,          this, &Editor::recordCreated);
+        connect(m_objects, &ObjectController::compositionCreated,          this, &Editor::compositionCreated);
         connect(m_objects, &ObjectController::overlaysCommitted,      this, &Editor::overlaysCommitted);
         connect(m_objects, &ObjectController::artworkImportRequested, this, &Editor::artworkImportRequested);
         connect(m_objects, &ObjectController::subjectChanged,         this, [this] { showSubject(); });
@@ -644,8 +644,8 @@ void Editor::setPreviewSource(const std::vector<Platemaker::Models::InputFile>& 
 
 void Editor::rebuildScene()
 {
-    // The objects' records are read *before* the scene deletes them: forgetItems() harvests them, and
-    // after clear() every tracked pointer is dangling.
+    // The objects only show the document, so nothing is lost; but after clear() every tracked pointer is
+    // dangling, so they are dropped first.
     m_objects->forgetItems();
     m_objects->setSyncing(true);  // scene->clear() drops the selection; that is not a user action
     m_scene->clear();           // deletes every item (incl. the StripItem)
@@ -845,9 +845,9 @@ void Editor::resizeEvent(QResizeEvent *event)
 // ---------------------------------------------------------------------------
 
 void Editor::setOverlaySource(const std::vector<Platemaker::Models::StripOverlay>& overlays,
-                              const Composition::Map&                                  records)
+                              const Composition::Map&                                  compositions)
 {
-    m_objects->setSource(overlays, records);
+    m_objects->setSource(overlays, compositions);
     if (m_input)
         m_input->updateCursor();   // an object may have arrived under, or vanished from beneath, a still pointer
 }

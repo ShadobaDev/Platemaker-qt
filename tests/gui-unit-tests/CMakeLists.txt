@@ -43,20 +43,20 @@ add_executable(platemaker-gui-tests
     test_document.cpp
     test_text_fit.cpp
     test_history.cpp
-    ${CMAKE_SOURCE_DIR}/widgets/objectrecord/names.cpp
-    ${CMAKE_SOURCE_DIR}/widgets/objectrecord/composition.cpp
+    ${CMAKE_SOURCE_DIR}/widgets/composition/names.cpp
+    ${CMAKE_SOURCE_DIR}/widgets/composition/composition.cpp
     # The SVG a bubble is written to, and the geometry it is written from: both Qt6::Gui only, so the
     # rule above still holds — and the import's premise is worth a test of its own.
-    ${CMAKE_SOURCE_DIR}/widgets/objectrecord/recordsvg.cpp
-    ${CMAKE_SOURCE_DIR}/widgets/objectrecord/shapes.cpp
-    ${CMAKE_SOURCE_DIR}/widgets/objectrecord/styles.cpp
-    ${CMAKE_SOURCE_DIR}/widgets/objectrecord/edgewalk.cpp
-    ${CMAKE_SOURCE_DIR}/widgets/objectrecord/outline.cpp
-    ${CMAKE_SOURCE_DIR}/widgets/objectrecord/silhouette.cpp
-    ${CMAKE_SOURCE_DIR}/widgets/objectrecord/lettering.cpp
-    ${CMAKE_SOURCE_DIR}/widgets/objectrecord/handles.cpp
-    ${CMAKE_SOURCE_DIR}/widgets/objectrecord/recordpainter.cpp
-    ${CMAKE_SOURCE_DIR}/widgets/objectrecord/renderlist.cpp
+    ${CMAKE_SOURCE_DIR}/widgets/composition/svg.cpp
+    ${CMAKE_SOURCE_DIR}/widgets/composition/shapes.cpp
+    ${CMAKE_SOURCE_DIR}/widgets/composition/styles.cpp
+    ${CMAKE_SOURCE_DIR}/widgets/composition/edgewalk.cpp
+    ${CMAKE_SOURCE_DIR}/widgets/composition/outline.cpp
+    ${CMAKE_SOURCE_DIR}/widgets/composition/silhouette.cpp
+    ${CMAKE_SOURCE_DIR}/widgets/composition/lettering.cpp
+    ${CMAKE_SOURCE_DIR}/widgets/composition/handles.cpp
+    ${CMAKE_SOURCE_DIR}/widgets/composition/painter.cpp
+    ${CMAKE_SOURCE_DIR}/widgets/composition/renderlist.cpp
     ${CMAKE_SOURCE_DIR}/widgets/stripeditor/properties/colouradjustment.cpp
     # The preset store is QtCore and a QObject — no widget in it — so the rule above still holds.
     ${CMAKE_SOURCE_DIR}/widgets/stripeditor/presetstore.cpp
@@ -79,7 +79,7 @@ add_executable(platemaker-gui-tests
 )
 
 target_include_directories(platemaker-gui-tests PRIVATE
-    ${CMAKE_SOURCE_DIR}/widgets/objectrecord
+    ${CMAKE_SOURCE_DIR}/widgets/composition
     # One root, as in the app: includes name their folder, e.g. "properties/propertygroup.hpp" for
     # carriesGroup(), which is header-only and QWidget-free so the rule can be tested.
     ${CMAKE_SOURCE_DIR}/widgets/stripeditor

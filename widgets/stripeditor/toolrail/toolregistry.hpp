@@ -35,11 +35,11 @@ enum class ToolKind {
 enum class CursorStyle { Arrow, Hand, Cross, Move, Inherit };
 
 /**
- * \brief One entry on the tool rail — a record, because a tool is stateless.
+ * \brief One entry on the tool rail — a composition, because a tool is stateless.
  *
  * What the editor asks of a tool is a name, an icon, a tooltip, what it does to the canvas and which
  * tool-options page it shows. That is data, so the framework is a table rather than a class hierarchy:
- * a record cannot grow a per-tool copy of the document by accident, and adding a tool cannot mean
+ * a composition cannot grow a per-tool copy of the document by accident, and adding a tool cannot mean
  * editing the rail, the options stack, the drag mode and two panels one at a time.
  *
  * The day a tool needs behaviour of its own — the eyedropper's press on the canvas is the first — this

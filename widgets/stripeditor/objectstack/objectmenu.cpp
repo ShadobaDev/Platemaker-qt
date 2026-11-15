@@ -1,6 +1,6 @@
 #include "objectstack/objectmenu.hpp"
 
-#include "objects/artworkobject.hpp"
+#include "objects/pictureobject.hpp"
 #include "objects/object.hpp"
 #include "objects/objectcontroller.hpp"
 #include "objects/striplayout.hpp"
@@ -137,12 +137,12 @@ ObjectMenu::ObjectMenu(ObjectController& objects, const StripLayout& layout, Pre
     // Artwork's own two. They are not on a balloon's menu, because a balloon has no "own size": its
     // drawing is generated at whatever size it is given.
     m_actNaturalSize = new QAction(tr("Original size"), this);
-    connect(m_actNaturalSize, &QAction::triggered, this, [this] { m_objects.scaleSelectedArtwork(100.0); });
+    connect(m_actNaturalSize, &QAction::triggered, this, [this] { m_objects.scaleSelectedPicture(100.0); });
     m_actFitToStrip = new QAction(tr("Fit to strip width"), this);
     connect(m_actFitToStrip, &QAction::triggered, this, [this] {
-        const auto* art = qobject_cast<const ArtworkObject*>(m_objects.object(m_objects.selectedOverlay()));
-        if (art && m_layout.targetWidth() > 0 && art->artwork().width() > 0)
-            m_objects.scaleSelectedArtwork(m_layout.percentOf(1.0, art->artwork().width()));   // the strip's width
+        const auto* art = qobject_cast<const PictureObject*>(m_objects.object(m_objects.selectedOverlay()));
+        if (art && m_layout.targetWidth() > 0 && art->pixmap().width() > 0)
+            m_objects.scaleSelectedPicture(m_layout.percentOf(1.0, art->pixmap().width()));   // the strip's width
     });
 
     // The same two OBJECT STATE offers under the panel — a right-click is where sizing an object is
@@ -195,7 +195,7 @@ ObjectMenu::ObjectMenu(ObjectController& objects, const StripLayout& layout, Pre
     // Artwork drawn elsewhere — a balloon inked on a tablet, a logo — placed as an overlay like any
     // other. Always available, unlike Duplicate/Delete, because it needs no selection.
     m_actImport = new QAction(tr("Import artwork…"), this);
-    connect(m_actImport, &QAction::triggered, this, &ObjectMenu::importArtwork);
+    connect(m_actImport, &QAction::triggered, this, &ObjectMenu::importPicture);
 
     // The menu is the widgets' own action list (Qt::ActionsContextMenu), so the canvas and the tree
     // cannot drift apart and every entry keeps its shortcut. Sections are separators in that same list:
@@ -285,9 +285,9 @@ void ObjectMenu::updateEntries()
     if (m_presetMenu) m_presetMenu->menuAction()->setVisible(allParametric);
     if (m_actResetLook) m_actResetLook->setVisible(allParametric);
     // ...and the two that only artwork has.
-    const bool artwork = m_objects.selectionIsArtwork();
-    if (m_actNaturalSize) m_actNaturalSize->setVisible(artwork);
-    if (m_actFitToStrip)  m_actFitToStrip->setVisible(artwork);
+    const bool picture = m_objects.selectionIsPicture();
+    if (m_actNaturalSize) m_actNaturalSize->setVisible(picture);
+    if (m_actFitToStrip)  m_actFitToStrip->setVisible(picture);
     // One object's box or one balloon's padding, as in OBJECT STATE: absent for a picture (its box is
     // its pixels) and for lettering with no balloon (no outline to keep from); greyed for a set.
     const Composition one = oneObject ? m_objects.compositionOf(picked.first()) : Composition();
@@ -426,7 +426,7 @@ void ObjectMenu::saveSelectionAsPreset()
     m_objects.setSelectionOrigin({saved.uid, saved.name});
 }
 
-void ObjectMenu::importArtwork()
+void ObjectMenu::importPicture()
 {
     if (m_layout.isEmpty()) {
         QMessageBox::information(m_dialogParent, tr("Import artwork"),
@@ -441,7 +441,7 @@ void ObjectMenu::importArtwork()
     if (file.isEmpty())
         return;
 
-    m_objects.importArtworkFile(file);
+    m_objects.importPictureFile(file);
 }
 
 }  // namespace StripEdit

@@ -36,7 +36,7 @@ public:
         std::function<std::optional<Composition>(const QString& uid)>            composition;
         std::function<int(const ElementRef& tail)>                               tailIndex;        //!< Its position among its balloon's tails.
         std::function<std::optional<Platemaker::Models::BlendMode>()>            blend;            //!< The selection's, none when they disagree.
-        std::function<std::optional<double>()>                                   artworkPercent;   //!< One picture's size; none otherwise.
+        std::function<std::optional<double>()>                                   picturePercent;   //!< One picture's size; none otherwise.
         //! Writes @p compositions to the objects @p uids, previewed or (@p commit) as one history step.
         std::function<void(const QStringList& uids, const QList<Composition>& compositions, bool commit)> apply;
     };
@@ -54,7 +54,7 @@ public:
     //! A drag moved tail @p index of balloon @p c: its tail shown again.
     void showTail(const Composition& c, int index) { emit boundToTail(c, index); }
     //! One picture's size moved: OBJECT STATE's size row follows it.
-    void showArtworkScale() { emit artworkScaleBound(m_host.artworkPercent()); }
+    void showPictureScale() { emit pictureScaleBound(m_host.picturePercent()); }
 
     /**
      * \brief What OBJECT STATE just said, written to the objects it was bound to.
@@ -83,7 +83,7 @@ signals:
     //! The selection's blend mode, none when they disagree; @p applies is false for a tail or nothing.
     void blendBound(std::optional<Platemaker::Models::BlendMode> blend, bool applies);
     //! One picture's scale in percent; no value for anything else.
-    void artworkScaleBound(std::optional<double> percent);
+    void pictureScaleBound(std::optional<double> percent);
 
 private:
     const SelectionModel& m_selection;

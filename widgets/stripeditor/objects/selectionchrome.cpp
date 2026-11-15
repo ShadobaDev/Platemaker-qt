@@ -166,7 +166,7 @@ QRectF SelectionChrome::textAreaRect(const Object* o)
     if (!words || words->text.body.isEmpty() || size.isEmpty())
         return {};
     // The text area is in the composition's units. A balloon is drawn at exactly those; a picture's
-    // lettering is laid out in the picture's own size and drawn stretched to its box (ArtworkObject).
+    // lettering is laid out in the picture's own size and drawn stretched to its box (PictureObject).
     const QRectF area = Geometry::textArea(r, *words);
     const qreal  sx   = o->boxSize().width()  / size.width();
     const qreal  sy   = o->boxSize().height() / size.height();

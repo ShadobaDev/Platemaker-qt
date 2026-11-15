@@ -2,7 +2,7 @@
 
 #include "badge.hpp"
 #include "badgeitemdelegate.hpp"
-#include "objects/artworkobject.hpp"
+#include "objects/pictureobject.hpp"
 #include "objects/object.hpp"
 #include "objects/objectcontroller.hpp"
 #include "objects/striplayout.hpp"
@@ -135,8 +135,8 @@ QIcon ObjectStack::rowGlyph(const QString& uid)
     // a hand-written list missed the stroke width and a tail's width and bend.
     if (!m_objects.isParametric(uid)) {
         // Imported artwork: no composition, so no silhouette. The art is its own glyph.
-        const auto* art = qobject_cast<const ArtworkObject*>(m_objects.object(uid));
-        return art ? assetGlyph(art->artwork(), k_rowGlyphPx, m_tree->devicePixelRatioF()) : QIcon();
+        const auto* art = qobject_cast<const PictureObject*>(m_objects.object(uid));
+        return art ? assetGlyph(art->pixmap(), k_rowGlyphPx, m_tree->devicePixelRatioF()) : QIcon();
     }
     const Composition a = m_objects.compositionOf(uid);
 

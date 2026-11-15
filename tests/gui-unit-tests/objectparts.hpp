@@ -54,8 +54,8 @@ inline EffectProperties&        effectsOf(Composition& c) { return c.balloon->st
 inline const EffectProperties&  effectsOf(const Composition& c) { return c.balloon->style.effects; }
 inline quint32&                 seedOf(Composition& c) { return c.seed; }
 inline const quint32&           seedOf(const Composition& c) { return c.seed; }
-inline QString&                 artworkOf(Composition& c) { return c.picture->file; }
-inline const QString&           artworkOf(const Composition& c) { return c.picture->file; }
+inline QString&                 pictureFileOf(Composition& c) { return c.picture->file; }
+inline const QString&           pictureFileOf(const Composition& c) { return c.picture->file; }
 inline PresetOrigin&            originOf(Composition& c) { return c.preset; }
 inline const PresetOrigin&      originOf(const Composition& c) { return c.preset; }
 

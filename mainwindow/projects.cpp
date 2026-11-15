@@ -640,11 +640,11 @@ void MainWindow::openStripEditorDock(int projectIndex)
         if (auto *pw = projectWidget(projectIndexForUid(projectUid)))
             pw->createOverlay(composition, xFrac, yFrac, wFrac, anchorUid);
     });
-    connect(editor, &StripEdit::Editor::artworkImportRequested, this,
+    connect(editor, &StripEdit::Editor::pictureImportRequested, this,
             [this, projectUid](const QString &file, double xFrac, double yFrac, double wFrac,
                                  QSize naturalSize, const QString &anchorUid) {
         if (auto *pw = projectWidget(projectIndexForUid(projectUid)))
-            pw->importOverlayArtwork(file, xFrac, yFrac, wFrac, naturalSize, anchorUid);
+            pw->importOverlayPicture(file, xFrac, yFrac, wFrac, naturalSize, anchorUid);
     });
     connect(editor, &StripEdit::Editor::overlaysCommitted, this,
             [this, projectUid](const std::vector<Platemaker::Models::StripOverlay> &overlays,

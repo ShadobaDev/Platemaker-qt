@@ -114,7 +114,7 @@ public:
      * drawn*, and because the stored form is a fraction of the page, so the same percentage survives a
      * re-profile. 100% is one image pixel per strip pixel.
      */
-    void setArtworkScale(std::optional<double> percent);
+    void setPictureScale(std::optional<double> percent);
 
 
     //! Nothing is selected: the sections go away and the panel says why.

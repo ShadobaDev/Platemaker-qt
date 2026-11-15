@@ -1,7 +1,7 @@
 #include "objects/objectcontroller.hpp"
 #include "presetstore.hpp"
 #include "objects/striplayout.hpp"
-#include "objects/artworkobject.hpp"
+#include "objects/pictureobject.hpp"
 #include "objects/bubbleobject.hpp"
 #include "objects/object.hpp"
 #include "objects/selectionchrome.hpp"
@@ -67,7 +67,7 @@ ObjectController::ObjectController(QGraphicsScene* scene, QGraphicsView* view,
                                [this](const ElementRef& tail) { return tailIndex(tail); },
                                [this] { return selectionBlend(); },
                                [this] {
-                                   return selectionIsArtwork() ? std::optional<double>(selectedArtworkPercent())
+                                   return selectionIsPicture() ? std::optional<double>(selectedPicturePercent())
                                                                : std::nullopt;
                                },
                                [this](const QStringList& uids, const QList<Composition>& all, bool commit) {
@@ -499,7 +499,7 @@ void ObjectController::syncItems()
 
         // **The one place the two kinds are told apart**, and it is a choice of constructor rather than
         // a test repeated downstream. An overlay whose asset carries no authoring parameters — art drawn
-        // elsewhere, or a file edited outside Platemaker — becomes an ArtworkObject: it still shows, still
+        // elsewhere, or a file edited outside Platemaker — becomes an PictureObject: it still shows, still
         // moves and still renders, it just cannot be re-typed. That is the intended degradation, and it
         // is what makes imported artwork a first-class object rather than an error.
         // **The document's answer, not the object's**: whether the object that exists is still the right
@@ -517,17 +517,17 @@ void ObjectController::syncItems()
         if (!item) {
             item = parametric
                 ? static_cast<Object*>(new BubbleObject(uid, *m_document.composition(uid)))
-                : static_cast<Object*>(new ArtworkObject(uid, pictureFor(o)));
+                : static_cast<Object*>(new PictureObject(uid, pictureFor(o)));
             connect(item, &Object::geometryCommitted, this, &ObjectController::onOverlayGeometryCommitted);
             connect(item, &Object::pressed,        this, &ObjectController::onObjectPressed);
             connect(item, &Object::compositionEdited, this, &ObjectController::onCompositionEdited);
             connect(item, &Object::dragging,       this, &ObjectController::onObjectDragged);
             connect(item, &Object::chromeChanged,  this, &ObjectController::refreshChrome);
             // A picture resized by its grips: OBJECT STATE's size follows it while it moves.
-            if (qobject_cast<ArtworkObject*>(item))
+            if (qobject_cast<PictureObject*>(item))
                 connect(item, &Object::chromeChanged, this, [this, uid] {
-                    if (uid == m_selection.primary() && selectionIsArtwork())
-                        m_panel->showArtworkScale();
+                    if (uid == m_selection.primary() && selectionIsPicture())
+                        m_panel->showPictureScale();
                 });
             // The picked node is what the menu's Delete and Point type act on, however it was picked.
             connect(item, &Object::pickedVertexChanged, m_shapeEdit, &ShapeEditMode::changed);
@@ -546,7 +546,7 @@ void ObjectController::syncItems()
             // A bubble whose style is an SVG filter is drawn by the library, because Qt cannot render
             // the filter. The rest keep drawing locally: same geometry, no round-trip.
             bubble->setSharpRaster(Geometry::hasFilter(a) ? sharpRasterFor(a) : QImage());
-        } else if (auto* art = qobject_cast<ArtworkObject*>(item)) {
+        } else if (auto* art = qobject_cast<PictureObject*>(item)) {
             art->setPicture(pictureFor(o));   // the file may have changed under it
             // A lettered picture: its words over it, as the picture describes itself (at its own pixels, which
             // a size guessed at import may not be) — and that description is the document's from here on.
@@ -898,7 +898,7 @@ void ObjectController::applyCompositions(const QStringList& uids, const QList<Co
         if (!item)
             continue;
         Composition next = compositions.at(i);
-        if (const auto* art = qobject_cast<const ArtworkObject*>(item))
+        if (const auto* art = qobject_cast<const PictureObject*>(item))
             next = art->described(next);   // still this picture, at its own pixels
         const QPointF shift = settleBox(item, next);
         // The document first, then the object shows it (itself a no-op when it has not changed).
@@ -948,7 +948,7 @@ void ObjectController::applyComposition(const QString& uid, const Composition& c
     applyCompositions(QStringList{uid}, QList<Composition>{composition}, commit, undoText);
 }
 
-void ObjectController::importArtworkFile(const QString& file)
+void ObjectController::importPictureFile(const QString& file)
 {
     if (file.isEmpty() || m_layout.isEmpty())
         return;
@@ -962,21 +962,21 @@ void ObjectController::importArtworkFile(const QString& file)
     // size"). Both draw identically today; the difference shows on the next re-profile, where a logo
     // that knows its width relative to the page grows with the chapter and a "natural size" one does
     // not. Growing with the chapter is what anyone placing artwork on a page meant.
-    const QPixmap                              art = loadArtwork(file);
+    const QPixmap                              art = loadPixmap(file);
     const std::optional<StripLayout::Anchored> at  = m_layout.anchoredAt(centre, art.width());
     if (!at)
         return;
 
     m_selectNewOverlay = true;
-    emit artworkImportRequested(file, at->xFrac, at->yFrac, at->wFrac, art.size(), at->anchor);
+    emit pictureImportRequested(file, at->xFrac, at->yFrac, at->wFrac, art.size(), at->anchor);
 }
 
-void ObjectController::placeArtworkAt(const QString& file, const QPointF& scenePos)
+void ObjectController::placePictureAt(const QString& file, const QPointF& scenePos)
 {
     if (file.isEmpty() || m_layout.isEmpty())
         return;
 
-    const QPixmap art = loadArtwork(file);
+    const QPixmap art = loadPixmap(file);
     if (art.isNull())
         return;
 
@@ -989,34 +989,34 @@ void ObjectController::placeArtworkAt(const QString& file, const QPointF& sceneP
         return;
 
     m_selectNewOverlay = true;
-    emit artworkImportRequested(file, at->xFrac, at->yFrac, at->wFrac, art.size(), at->anchor);
+    emit pictureImportRequested(file, at->xFrac, at->yFrac, at->wFrac, art.size(), at->anchor);
 }
 
-bool ObjectController::selectionIsArtwork() const
+bool ObjectController::selectionIsPicture() const
 {
     return m_selection.objects().size() == 1 && m_selection.elements().isEmpty()
         && !isParametric(m_selection.objects().first());
 }
 
-double ObjectController::selectedArtworkPercent() const
+double ObjectController::selectedPicturePercent() const
 {
-    const auto*  art = qobject_cast<const ArtworkObject*>(m_overlayItems.value(m_selection.primary()));
-    if (!art || art->artwork().width() <= 0)
+    const auto*  art = qobject_cast<const PictureObject*>(m_overlayItems.value(m_selection.primary()));
+    if (!art || art->pixmap().width() <= 0)
         return 0.0;
     // What it is drawn at over what it was drawn as — read off the object, so a grip being dragged shows
     // its size as it goes; at rest the object is drawn at the composition's width fraction (syncItems()).
-    return art->contentBounds().width() * art->scale() * 100.0 / art->artwork().width();
+    return art->contentBounds().width() * art->scale() * 100.0 / art->pixmap().width();
 }
 
-void ObjectController::scaleSelectedArtwork(double percent, bool commit)
+void ObjectController::scaleSelectedPicture(double percent, bool commit)
 {
-    const auto*  art = qobject_cast<const ArtworkObject*>(m_overlayItems.value(m_selection.primary()));
-    if (!art || m_layout.targetWidth() <= 0 || percent <= 0 || art->artwork().width() <= 0)
+    const auto*  art = qobject_cast<const PictureObject*>(m_overlayItems.value(m_selection.primary()));
+    if (!art || m_layout.targetWidth() <= 0 || percent <= 0 || art->pixmap().width() <= 0)
         return;
 
     // Written to the **overlay**, not to the item: the item's scale is derived from the composition on every
     // feed (see syncItems), so setting it here would be a display that the next feed argues with.
-    const double wFrac = m_layout.fraction(art->artwork().width() * percent / 100.0);
+    const double wFrac = m_layout.fraction(art->pixmap().width() * percent / 100.0);
     if (m_document.setWidth(m_selection.primary(), wFrac))
         syncItems();   // only a value that actually moved is worth re-placing every item for
 
@@ -1275,9 +1275,9 @@ void ObjectController::duplicateSelectedOverlay()
         // channel instead: the library hashes the same bytes and dedups the new placement onto the
         // file that is already there. Routing it through creation would have written an SVG of a
         // *default* bubble — which is what it did before this was two types.
-        const auto* art = qobject_cast<ArtworkObject*>(item);
-        emit artworkImportRequested(QString::fromStdString(o.assetPath), o.xFrac + off, o.yFrac + off, o.wFrac,
-                                    art ? art->artwork().size() : QSize(), QString::fromStdString(o.anchorInputUid));
+        const auto* art = qobject_cast<PictureObject*>(item);
+        emit pictureImportRequested(QString::fromStdString(o.assetPath), o.xFrac + off, o.yFrac + off, o.wFrac,
+                                    art ? art->pixmap().size() : QSize(), QString::fromStdString(o.anchorInputUid));
     }
 }
 
@@ -1295,11 +1295,11 @@ void ObjectController::requestComposition(const Composition& composition, double
     emit compositionCreated(composition, xFrac, yFrac, wFrac, anchorInputUid);
 }
 
-void ObjectController::requestArtwork(const QString& file, double xFrac, double yFrac, double wFrac,
+void ObjectController::requestPicture(const QString& file, double xFrac, double yFrac, double wFrac,
                                       QSize naturalSize, const QString& anchorInputUid)
 {
     m_selectNewOverlay = true;
-    emit artworkImportRequested(file, xFrac, yFrac, wFrac, naturalSize, anchorInputUid);
+    emit pictureImportRequested(file, xFrac, yFrac, wFrac, naturalSize, anchorInputUid);
 }
 
 }  // namespace StripEdit

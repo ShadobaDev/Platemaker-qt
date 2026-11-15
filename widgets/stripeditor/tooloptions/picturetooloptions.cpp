@@ -1,4 +1,4 @@
-#include "tooloptions/artworktooloptions.hpp"
+#include "tooloptions/picturetooloptions.hpp"
 
 #include <QApplication>
 #include <QDrag>
@@ -12,26 +12,26 @@
 #include <QUrl>
 #include <QVBoxLayout>
 
-#include "objects/artworkobject.hpp"
+#include "objects/pictureobject.hpp"
 
 namespace StripEdit {
 
 namespace {
 
 //! Where the tool's picture is remembered. A working preference, so it follows the artist.
-const auto k_artworkKey = QStringLiteral("stripEditor/artworkTool/file");
+const auto k_pictureKey = QStringLiteral("stripEditor/artworkTool/file");
 
 constexpr int k_previewPx = 96;   //!< Enough to recognise a sound effect; not enough to be a viewer.
 
 //! What the file dialog offers. The same three the import has always taken.
-[[nodiscard]] QString artworkFilter()
+[[nodiscard]] QString pictureFilter()
 {
-    return ArtworkToolOptions::tr("Artwork (*.svg *.png *.webp);;All files (*)");
+    return PictureToolOptions::tr("Artwork (*.svg *.png *.webp);;All files (*)");
 }
 
 }  // namespace
 
-ArtworkToolOptions::ArtworkToolOptions(QWidget* parent)
+PictureToolOptions::PictureToolOptions(QWidget* parent)
     : QWidget(parent)
 {
     auto* lay = new QVBoxLayout(this);
@@ -52,40 +52,40 @@ ArtworkToolOptions::ArtworkToolOptions(QWidget* parent)
 
     auto* choose = new QPushButton(tr("Choose picture…"), this);
     choose->setToolTip(tr("The picture every placement puts down until you choose another."));
-    connect(choose, &QPushButton::clicked, this, [this] { chooseArtwork(); });
+    connect(choose, &QPushButton::clicked, this, [this] { choosePicture(); });
     lay->addWidget(choose);
     lay->addStretch(1);
 
     // The last picture, if it is still there. A file that has since moved is not an error to report at
     // start-up — it is simply no longer the tool's picture, and the next placement will ask.
-    const QString last = QSettings().value(k_artworkKey).toString();
+    const QString last = QSettings().value(k_pictureKey).toString();
     if (!last.isEmpty() && QFileInfo::exists(last))
         m_file = last;
     refresh();
 }
 
-void ArtworkToolOptions::setArtwork(const QString& file)
+void PictureToolOptions::setPicture(const QString& file)
 {
     if (file == m_file)
         return;
     m_file = file;
-    QSettings().setValue(k_artworkKey, m_file);
+    QSettings().setValue(k_pictureKey, m_file);
     refresh();
-    emit artworkChanged(m_file);
+    emit pictureChanged(m_file);
 }
 
-bool ArtworkToolOptions::chooseArtwork()
+bool PictureToolOptions::choosePicture()
 {
     const QString start = m_file.isEmpty() ? QString() : QFileInfo(m_file).absolutePath();
     const QString file  = QFileDialog::getOpenFileName(this, tr("Choose picture"), start,
-                                                       artworkFilter());
+                                                       pictureFilter());
     if (file.isEmpty())
         return false;
-    setArtwork(file);
+    setPicture(file);
     return true;
 }
 
-bool ArtworkToolOptions::eventFilter(QObject* watched, QEvent* event)
+bool PictureToolOptions::eventFilter(QObject* watched, QEvent* event)
 {
     if (watched != m_preview || m_file.isEmpty())
         return QWidget::eventFilter(watched, event);
@@ -106,7 +106,7 @@ bool ArtworkToolOptions::eventFilter(QObject* watched, QEvent* event)
         auto* drag = new QDrag(this);
         drag->setMimeData(mime);
         // The preview itself goes under the cursor, centred — so the drop lands where the picture was
-        // seen to be, which is what placeArtworkAt() then does with the point.
+        // seen to be, which is what placePictureAt() then does with the point.
         if (const QPixmap shown = m_preview->pixmap(); !shown.isNull()) {
             drag->setPixmap(shown);
             drag->setHotSpot(shown.rect().center());
@@ -117,7 +117,7 @@ bool ArtworkToolOptions::eventFilter(QObject* watched, QEvent* event)
     return QWidget::eventFilter(watched, event);
 }
 
-void ArtworkToolOptions::refresh()
+void PictureToolOptions::refresh()
 {
     if (m_file.isEmpty()) {
         m_preview->setPixmap({});
@@ -128,7 +128,7 @@ void ArtworkToolOptions::refresh()
 
     // Loaded by the same function the placed object is drawn from, so what the panel shows and what
     // lands on the strip cannot be two different readings of the file.
-    const QPixmap art = loadArtwork(m_file);
+    const QPixmap art = loadPixmap(m_file);
     if (art.isNull()) {
         m_preview->setPixmap({});
         m_preview->setText(tr("This file could not be read as a picture."));

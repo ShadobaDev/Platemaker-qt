@@ -43,8 +43,8 @@ set(_exceptions
     "objects>toolrail/cursors.hpp"
     # Every tool in the table must have a TOOL OPTIONS page; the stack asserts it.
     "tooloptions>toolrail/toolregistry.hpp"
-    # loadArtwork(): the Artwork tool's preview must read a file exactly as the placed object does.
-    "tooloptions>objects/artworkobject.hpp"
+    # loadPixmap(): the Artwork tool's preview must read a file exactly as the placed object does.
+    "tooloptions>objects/pictureobject.hpp"
     # The object menu's Fill and Outline spend the rail's colour pair (read, never written).
     "objectstack>toolrail/colourpair.hpp"
 )

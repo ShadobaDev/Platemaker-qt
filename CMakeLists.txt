@@ -71,7 +71,7 @@ qt_add_executable(Platemaker
     widgets/stripeditor/objects/resize.cpp widgets/stripeditor/objects/resize.hpp
     widgets/stripeditor/objects/selectionchrome.cpp widgets/stripeditor/objects/selectionchrome.hpp
     widgets/stripeditor/objects/bubbleobject.cpp widgets/stripeditor/objects/bubbleobject.hpp
-    widgets/stripeditor/objects/artworkobject.cpp widgets/stripeditor/objects/artworkobject.hpp
+    widgets/stripeditor/objects/pictureobject.cpp widgets/stripeditor/objects/pictureobject.hpp
     widgets/stripeditor/objects/striplayout.cpp widgets/stripeditor/objects/striplayout.hpp
     widgets/stripeditor/canvas/pagesource.cpp widgets/stripeditor/canvas/pagesource.hpp
     widgets/stripeditor/canvas/stripitem.cpp widgets/stripeditor/canvas/stripitem.hpp
@@ -110,7 +110,7 @@ qt_add_executable(Platemaker
     widgets/stripeditor/tooloptions/gradetooloptions.cpp widgets/stripeditor/tooloptions/gradetooloptions.hpp widgets/stripeditor/tooloptions/gradetooloptions.ui
     widgets/stripeditor/tooloptions/bubbletooloptions.cpp widgets/stripeditor/tooloptions/bubbletooloptions.hpp
     widgets/stripeditor/tooloptions/tooloptionsstack.cpp widgets/stripeditor/tooloptions/tooloptionsstack.hpp
-    widgets/stripeditor/tooloptions/artworktooloptions.cpp widgets/stripeditor/tooloptions/artworktooloptions.hpp
+    widgets/stripeditor/tooloptions/picturetooloptions.cpp widgets/stripeditor/tooloptions/picturetooloptions.hpp
     widgets/stripeditor/objectstate/objectstate.cpp widgets/stripeditor/objectstate/objectstate.hpp
     widgets/stripeditor/objectstate/stripstate.cpp widgets/stripeditor/objectstate/stripstate.hpp
     widgets/stripeditor/objectstate/objectstatestack.cpp widgets/stripeditor/objectstate/objectstatestack.hpp

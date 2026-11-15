@@ -85,7 +85,7 @@ private:
      */
     void saveSelectionAsPreset();
     //! Asks for a picture and hands it to the objects to place; says why not when there is no page yet.
-    void importArtwork();
+    void importPicture();
 
     ObjectController&  m_objects;
     const StripLayout& m_layout;

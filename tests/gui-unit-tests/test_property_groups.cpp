@@ -2314,7 +2314,7 @@ TEST(Kinds, APictureSurvivesItsContent)
     EXPECT_TRUE(back == a);
     ASSERT_TRUE(back.picture);
     EXPECT_FALSE(back.balloon);
-    EXPECT_EQ(artworkOf(back), artworkOf(a));
+    EXPECT_EQ(pictureFileOf(back), pictureFileOf(a));
 }
 
 TEST(Import, AFileBakedInAStandInSaysWhich)
@@ -2356,7 +2356,7 @@ TEST(Import, AWrapperNamesItsPicture)
     EXPECT_TRUE(ok);
     EXPECT_TRUE(a.picture);
     EXPECT_FALSE(a.balloon);
-    EXPECT_EQ(artworkOf(a), QStringLiteral("art-0123456789abcdef.png"));
+    EXPECT_EQ(pictureFileOf(a), QStringLiteral("art-0123456789abcdef.png"));
     EXPECT_EQ(textOf(a).body, QStringLiteral("KRAK!"));
 }
 

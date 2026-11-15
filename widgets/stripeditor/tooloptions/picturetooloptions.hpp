@@ -22,15 +22,15 @@ namespace StripEdit {
  * The chosen file is remembered in `QSettings` — a working preference that follows the artist rather
  * than the comic, exactly as the tool's other options are.
  */
-class ArtworkToolOptions : public QWidget
+class PictureToolOptions : public QWidget
 {
     Q_OBJECT
 
 public:
-    explicit ArtworkToolOptions(QWidget* parent = nullptr);
+    explicit PictureToolOptions(QWidget* parent = nullptr);
 
     //! The file the next placement uses, or empty — in which case the placement asks for one.
-    [[nodiscard]] QString artwork() const { return m_file; }
+    [[nodiscard]] QString file() const { return m_file; }
 
     /**
      * \brief Chooses @p file without a dialog — what a placement calls after asking for one itself.
@@ -38,14 +38,14 @@ public:
      * So the file a placement had to ask for becomes the tool's file, and the second placement does not
      * ask again.
      */
-    void setArtwork(const QString& file);
+    void setPicture(const QString& file);
 
     //! Opens the file dialog. \return whether a file was chosen.
-    bool chooseArtwork();
+    bool choosePicture();
 
 signals:
     //! The picture changed. The editor passes it to the controller, which is what places it.
-    void artworkChanged(const QString& file);
+    void pictureChanged(const QString& file);
 
 private:
     void refresh();   //!< Preview and name follow m_file; an unreadable file says so rather than lying.

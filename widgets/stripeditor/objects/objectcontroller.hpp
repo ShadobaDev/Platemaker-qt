@@ -72,7 +72,7 @@ class SelectionChrome;
  * - *Operations on the selection* — colour, presets, artwork, re-anchor, delete, *Convert to ▸*, blend,
  *   stacking, duplicate; each ends in applyCompositions() or a signal.
  *   The object menu (ObjectMenu, objectstack/) names them; OBJECT STATE and the canvas call some too.
- * - *A new object* — requestComposition() / requestArtwork(): asked for here, created by the owner,
+ * - *A new object* — requestComposition() / requestPicture(): asked for here, created by the owner,
  *   selected when the feed brings it back. The drag that describes one is Placement's.
  *
  * Adding a kind of object reaches syncItems() and every isParametric() / `picture` decision in
@@ -179,7 +179,7 @@ public:
     //! Its shape: what the menu asks convertSelectionTo() for.
     [[nodiscard]] ShapeProperties toolBalloonShape() const;
     //! Places @p file on the page in the middle of the view, at a width that grows with the chapter.
-    void importArtworkFile(const QString& file);
+    void importPictureFile(const QString& file);
     void duplicateSelectedOverlay();   //!< Copies the selected bubble a little down and right.
     /**
      * \brief Makes every selected object the **kind** @p shape stands for, as one history step.
@@ -371,7 +371,7 @@ public:
      * \param file  The file to place.
      * \param scenePos  The position to place the file at, in scene coordinates.
      */
-    void placeArtworkAt(const QString& file, const QPointF& scenePos);
+    void placePictureAt(const QString& file, const QPointF& scenePos);
 
     /**
      * \brief Draws the selected artwork at @p percent of its own pixels — 100 is one for one.
@@ -383,9 +383,9 @@ public:
      * \param percent  The percentage to scale the artwork by.
      * \param commit   False while the spin box is moving — the object resizes, the history does not.
      */
-    void scaleSelectedArtwork(double percent, bool commit = true);
+    void scaleSelectedPicture(double percent, bool commit = true);
 
-    [[nodiscard]] double selectedArtworkPercent() const; //! What that percentage currently is, or 0 when the selection is not one piece of artwork.
+    [[nodiscard]] double selectedPicturePercent() const; //! What that percentage currently is, or 0 when the selection is not one piece of artwork.
 
     /**
      * \brief Gives every selected object the blend mode @p blend, as one history step.
@@ -433,7 +433,7 @@ public:
      * both ask.
      * \return True if exactly one piece of imported artwork is selected, false otherwise.
      */
-    [[nodiscard]] bool selectionIsArtwork() const;
+    [[nodiscard]] bool selectionIsPicture() const;
 
     // --- what OBJECT STATE shows, and where what it says goes: wired by the Editor ---
     [[nodiscard]] PanelBinder& panel() { return *m_panel; }
@@ -449,7 +449,7 @@ public:
     void requestComposition(const Composition& composition, double xFrac, double yFrac, double wFrac,
                        const QString& anchorInputUid);
     //! Asks the owner to import @p file as a new picture; it is selected when the feed brings it back.
-    void requestArtwork(const QString& file, double xFrac, double yFrac, double wFrac, QSize naturalSize,
+    void requestPicture(const QString& file, double xFrac, double yFrac, double wFrac, QSize naturalSize,
                         const QString& anchorInputUid);
 
     /**
@@ -494,7 +494,7 @@ signals:
      * \param naturalSize  The picture's own pixel dimensions.
      * \param anchorInputUid  The UID of the anchor input.
      */
-    void artworkImportRequested(const QString& sourceFile, double xFrac, double yFrac, double wFrac,
+    void pictureImportRequested(const QString& sourceFile, double xFrac, double yFrac, double wFrac,
                                 QSize naturalSize, const QString& anchorInputUid);
     /**
      * \brief The selection moved to @p subject. @p uid is the overlay's uid or the page's input uid, and empty

@@ -1,6 +1,6 @@
 #include "objects/placement.hpp"
 
-#include "objects/artworkobject.hpp"   // loadArtwork(): a picture's own size
+#include "objects/pictureobject.hpp"   // loadPixmap(): a picture's own size
 #include "objects/objectcontroller.hpp"
 #include "objects/striplayout.hpp"
 #include "geometry.hpp"
@@ -75,10 +75,10 @@ void Placement::finish()
     // **A picture, if that is what the tool places.** The drag says where and how wide; the file says
     // what — and which file is the tool's business, not this class's: it is armed with one or it places
     // balloons. Arming the Artwork tool with nothing chosen is what raises the file dialog (Editor).
-    if (!m_placementArtwork.isEmpty()) {
+    if (!m_placementPicture.isEmpty()) {
         if (const std::optional<StripLayout::Anchored> at = m_layout.anchoredAt(r.topLeft(), r.width()))
-            m_objects.requestArtwork(m_placementArtwork, at->xFrac, at->yFrac, at->wFrac,
-                                     loadArtwork(m_placementArtwork).size(), at->anchor);
+            m_objects.requestPicture(m_placementPicture, at->xFrac, at->yFrac, at->wFrac,
+                                     loadPixmap(m_placementPicture).size(), at->anchor);
         return;
     }
 

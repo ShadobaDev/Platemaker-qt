@@ -43,7 +43,7 @@ public:
     void setPrototype(std::function<Composition()> prototype) { m_prototype = std::move(prototype); }
 
     //! The picture the next placement puts down; empty, and a placement makes a balloon.
-    void setArtwork(const QString& file) { m_placementArtwork = file; }
+    void setPicture(const QString& file) { m_placementPicture = file; }
 
     [[nodiscard]] bool isPlacing() const { return m_placing; }   //!< A drag is in flight.
 
@@ -66,7 +66,7 @@ private:
 
     QGraphicsRectItem* m_placementRubber = nullptr;   //!< Rubber band while a new bubble is drawn.
     QPointF            m_placementOrigin;             //!< Where that drag started, in scene coordinates.
-    QString            m_placementArtwork;            //!< Empty: a placement makes a balloon.
+    QString            m_placementPicture;            //!< Empty: a placement makes a balloon.
     bool               m_placing = false;
 };
 

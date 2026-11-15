@@ -232,7 +232,7 @@ public:
      * \param naturalSize The artwork's natural size, so the library can scale it to the target width and preserve its aspect ratio.
      * \param anchorInputUid The input page the bubble rides on.
      */
-    void importOverlayArtwork(const QString& sourceFile, double xFrac, double yFrac, double wFrac,
+    void importOverlayPicture(const QString& sourceFile, double xFrac, double yFrac, double wFrac,
                               QSize naturalSize, const QString& anchorInputUid);
 
     /**

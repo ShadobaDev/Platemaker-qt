@@ -26,7 +26,7 @@ namespace StripEdit {
  * \param path The file to read, which may be a raster or vector image.
  * \return A pixmap of the artwork at its own pixels, or null if the file
  */
-[[nodiscard]] QPixmap loadArtwork(const QString& path);
+[[nodiscard]] QPixmap loadPixmap(const QString& path);
 
 /**
  * \brief Artwork the author made elsewhere, placed as it is: a balloon inked on a tablet, a logo.
@@ -39,7 +39,7 @@ namespace StripEdit {
  * Its size is a width and the artwork's own aspect, which is why a corner drag scales it uniformly:
  * the library record stores one width fraction, so a distorted one is not expressible.
  */
-class ArtworkObject : public Object
+class PictureObject : public Object
 {
     Q_OBJECT
 
@@ -56,7 +56,7 @@ public:
      * \param uid The unique identifier for this object, which is the same as the composition it carries.
      * \param picture The file the artist imported, which is what this object draws.
      */
-    ArtworkObject(QString uid, const QString& picture, QGraphicsItem* parent = nullptr);
+    PictureObject(QString uid, const QString& picture, QGraphicsItem* parent = nullptr);
 
     /**
      * \brief Points it at a different file. The drawn size is kept: it is the artist's, not the file's.
@@ -64,7 +64,7 @@ public:
      */
     void setPicture(const QString& picture);
 
-    [[nodiscard]] Kind    kind() const override { return Kind::Artwork; } //!< The only kind of object that carries artwork.
+    [[nodiscard]] Kind    kind() const override { return Kind::Picture; } //!< The only kind of object that carries artwork.
     [[nodiscard]] QString label() const override; //!< The file name, for the object list.
 
     [[nodiscard]] QSizeF boxSize() const override { return m_box; } //!< The artwork's own pixels, which is what the library draws.
@@ -73,7 +73,7 @@ public:
      * \brief The art itself — what a list row wears, since imported artwork has no silhouette to borrow.
      * \return A reference to the rasterised picture, for icons and for the size the picture says it is.
      */
-    [[nodiscard]] const QPixmap& artwork() const { return m_artwork; }
+    [[nodiscard]] const QPixmap& pixmap() const { return m_pixmap; }
 
     /**
      * \brief The composition this picture is: which file it is, and the lettering put over it.
@@ -139,7 +139,7 @@ private:
     void describePicture(Composition& c) const;
 
     QString      m_picture;     //!< The file, so a feed can tell whether it changed.
-    QPixmap      m_artwork;     //!< The picture at its own pixels, for the row's icon and for the size the picture says it is.
+    QPixmap      m_pixmap;     //!< The picture at its own pixels, for the row's icon and for the size the picture says it is.
     /**
      * \brief Set when the picture is vector — and then it, not the pixmap, is what the canvas draws.
      *

@@ -945,7 +945,7 @@ void Project::warnUnwritten(const QStringList& files)
                              .arg(files.join(QLatin1Char('\n'))));
 }
 
-void Project::importOverlayArtwork(const QString& sourceFile, double xFrac, double yFrac,
+void Project::importOverlayPicture(const QString& sourceFile, double xFrac, double yFrac,
                                    double wFrac, QSize naturalSize, const QString& anchorInputUid)
 {
     if (!mayWrite())

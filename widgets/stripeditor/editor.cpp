@@ -21,7 +21,7 @@
 #include "presetstore.hpp"
 #include "properties/shapeeditor.hpp"
 #include "objectstate/stripstate.hpp"
-#include "tooloptions/artworktooloptions.hpp"
+#include "tooloptions/picturetooloptions.hpp"
 #include "tooloptions/bubbletooloptions.hpp"
 
 #include <platemaker/models/colour_correction.hpp>
@@ -75,7 +75,7 @@ namespace {
  * to know. Which options page a tool shows is a property of its row, and it is the question actually
  * being asked.
  */
-constexpr QLatin1String k_artworkPage{"artwork"};
+constexpr QLatin1String k_picturePage{"artwork"};
 /**
  * \brief How wide a splitter's grab area is. Wider than the default 1 point, which was as hard to hit as it sounds.
  */
@@ -228,12 +228,12 @@ Editor::Editor(PresetStore& presets, QWidget *parent)
         // The other create tool's options: which picture the next placement puts down. A separate panel
         // rather than a section of the one above, because they describe different kinds of object, and an
         // options page describes one kind at a time.
-        m_artworkOptions = new ArtworkToolOptions(ui->toolOptionsStack);
-        m_toolOptions->addPage(k_artworkPage, m_artworkOptions);
-        connect(m_artworkOptions, &ArtworkToolOptions::artworkChanged, this, [this](const QString& f) {
+        m_pictureOptions = new PictureToolOptions(ui->toolOptionsStack);
+        m_toolOptions->addPage(k_picturePage, m_pictureOptions);
+        connect(m_pictureOptions, &PictureToolOptions::pictureChanged, this, [this](const QString& f) {
             const Tool* armed = toolById(m_tool);
-            if (m_placement && armed && armed->optionsPage == k_artworkPage)
-                m_placement->setArtwork(f);
+            if (m_placement && armed && armed->optionsPage == k_picturePage)
+                m_placement->setPicture(f);
         });
 
         m_toolOptions->assertEveryToolHasAPage();
@@ -320,9 +320,9 @@ Editor::Editor(PresetStore& presets, QWidget *parent)
             m_objects->panel().applyEdits(objects, /*commit=*/true);
         });
         connect(m_objectState, &ObjectState::scaleChanged, m_objects,
-                [this](double percent) { m_objects->scaleSelectedArtwork(percent, /*commit=*/false); });
+                [this](double percent) { m_objects->scaleSelectedPicture(percent, /*commit=*/false); });
         connect(m_objectState, &ObjectState::scaleCommitted, m_objects,
-                [this](double percent) { m_objects->scaleSelectedArtwork(percent, /*commit=*/true); });
+                [this](double percent) { m_objects->scaleSelectedPicture(percent, /*commit=*/true); });
         connect(m_objectState, &ObjectState::fitRequested, m_objects,
                 &ObjectController::fitSelectionToText);
         connect(m_objectState, &ObjectState::fixPaddingRequested, m_objects,
@@ -336,7 +336,7 @@ Editor::Editor(PresetStore& presets, QWidget *parent)
         connect(&m_objects->panel(), &PanelBinder::boundToTails,       m_objectState, &OS::setTails);
         connect(&m_objects->panel(), &PanelBinder::boundToNothing,     m_objectState, &OS::clearSelection);
         connect(&m_objects->panel(), &PanelBinder::blendBound,         m_objectState, &OS::setSelectionBlend);
-        connect(&m_objects->panel(), &PanelBinder::artworkScaleBound,  m_objectState, &OS::setArtworkScale);
+        connect(&m_objects->panel(), &PanelBinder::pictureScaleBound,  m_objectState, &OS::setPictureScale);
         connect(m_objects, &OC::textFocusRequested, m_objectState, &OS::focusText);
         // What TOOL OPTIONS says the next object is, for a placement and *Convert to ▸ Balloon*. Told as
         // functions, so the objects need no tool-options panel.
@@ -392,15 +392,15 @@ Editor::Editor(PresetStore& presets, QWidget *parent)
         m_objectMenu->setColourSource(m_colours);
         connect(m_objects, &ObjectController::compositionCreated,          this, &Editor::compositionCreated);
         connect(m_objects, &ObjectController::overlaysCommitted,      this, &Editor::overlaysCommitted);
-        connect(m_objects, &ObjectController::artworkImportRequested, this, &Editor::artworkImportRequested);
+        connect(m_objects, &ObjectController::pictureImportRequested, this, &Editor::pictureImportRequested);
         connect(m_objects, &ObjectController::subjectChanged,         this, [this] { showSubject(); });
 
         // CANVAS: what a press, a drag, a drop or a wheel on the strip does under the armed tool. It does
         // the canvas's own part and reports the rest, which is wired here because it belongs elsewhere:
         // the colour pair to the rail, zoom to this shell, a dropped picture to the objects' import.
         m_input = new CanvasInput(m_view, m_objects, m_placement, this);
-        connect(m_input, &CanvasInput::artworkDropped, this, [this](const QString& file, QPointF at) {
-            m_objects->placeArtworkAt(file, at);
+        connect(m_input, &CanvasInput::pictureDropped, this, [this](const QString& file, QPointF at) {
+            m_objects->placePictureAt(file, at);
         });
         connect(m_input, &CanvasInput::sampleRequested, this, [this](QPointF at, bool secondary) {
             if (!m_colours || !m_pages)
@@ -495,15 +495,15 @@ void Editor::setTool(const QString& id)
     // What a placement puts down: a picture, or — when this is empty — a balloon. Told to the placement at
     // the moment the tool is armed.
     if (m_placement) {
-        QString artwork;
-        if (tool->optionsPage == k_artworkPage && m_artworkOptions) {
+        QString picture;
+        if (tool->optionsPage == k_picturePage && m_pictureOptions) {
             // Arming with nothing chosen asks once, here: before any drag, so a file dialog never lands
             // in the middle of one. A cancelled dialog arms nothing, and TOOL OPTIONS says as much.
-            if (m_artworkOptions->artwork().isEmpty())
-                m_artworkOptions->chooseArtwork();
-            artwork = m_artworkOptions->artwork();
+            if (m_pictureOptions->file().isEmpty())
+                m_pictureOptions->choosePicture();
+            picture = m_pictureOptions->file();
         }
-        m_placement->setArtwork(artwork);
+        m_placement->setPicture(picture);
     }
 
     // The right column stays put under every tool, and **live** under every tool. It was briefly

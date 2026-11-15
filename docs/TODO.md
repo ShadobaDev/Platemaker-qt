@@ -71,9 +71,9 @@ Bug fixes, cosmetics and internal cleanups — no new capability, no change to a
   balloon appears under them (`ObjectController::settleBox()`).
 
 - [ ] **Strip editor: *Fit to strip width* leaves the picture hanging off the strip.** It calls
-  `scaleSelectedArtwork()`, which writes only `wFrac`, so the top-left corner stays where it was. Fix:
+  `scaleSelectedPicture()`, which writes only `wFrac`, so the top-left corner stays where it was. Fix:
   the action also sets `xFrac = 0` in the same history step — a small controller method of its own,
-  because `scaleSelectedArtwork()` is also the scale spin box's live path and must keep the position.
+  because `scaleSelectedPicture()` is also the scale spin box's live path and must keep the position.
 
 - [x] **Strip editor: artwork's corner grips are not the same size on screen.** Fixed by moving the
   selection chrome out of the objects: the box, the grips and the tail handles are now one item above
@@ -293,25 +293,10 @@ New, backward-compatible features. Several are gated on a lib version, noted in 
   somebody else's drawing. The honest limit: one closed silhouette, not a drawing of two hundred paths,
   or "fill" and "outline" stop meaning anything.
 
-- [ ] **Names that describe what things were, not what they are** — a sweep, deliberately deferred so it
-  lands as one mechanical diff rather than as noise inside feature work. Nothing here changes behaviour.
-  - ~~**`TextArtifact` → `Artifact`.**~~ **Done (2026-09-23).** It was never the text: it is the whole
-    composition of an overlay — shape, skin, style, tails, the imported picture, *and* a
-    `TextProperties text` field, which is the only part the old name described. Twenty sibling symbols
-    already said *artifact*; only the struct still said *Text*, and a reader's first question was *why
-    does a "text artifact" have tails and a picture?* 396 occurrences in 49 files, crossing into
-    `widgets/project/project.hpp` but not into the library. `widgets/textartifact/textartifact.{h,cpp}`
-    became `widgets/artifact/artifact.{hpp,cpp}`, which also makes the directory one thing: `artifact`,
-    `artifactsvg`, `artifactpainter`. No `using` alias — the feature is unreleased, so nothing had to
-    keep the old spelling alive, and an alias would have kept two names for ever.
-  - **`Artifact::artwork` is not necessarily art.** It holds whatever picture the artist placed — a
-    sprite, a sound effect, a logo, a screen grab. *Artwork* reads as "someone's drawing", which is
-    only sometimes true. Something like `picture`, `image` or `source` says what the field is without
-    claiming what it is *for*. (The same word is worth auditing in `AssetObject`, `loadArtwork()`,
-    `ArtworkOptionsPanel` and the **Artwork** tool — the rail's label is a separate question from the
-    code's, since the artist's word for it may legitimately differ.)
-  - Expect more of these once the two above are pulled: the sweep is the point, not the individual
-    rename.
+- [ ] **The Artwork tool's label.** The code calls an imported picture a *picture* (`PictureObject`,
+  `PictureToolOptions`); the rail, its menu entries (*Import artwork…*) and its undo steps still say *Artwork*.
+  Whether the artist's word should be *Picture* too is a question for the interface, not the code: a picture
+  may be a sprite, a sound effect, a logo or a screen grab, which *artwork* only sometimes describes.
 
 - [x] **A workspace owns its folder — and cleans up the files nobody uses.** *Done 2026-09-26.* Nothing ever deletes from
   `overlays/` (measured 2026-09-24: **46 files, 2 referenced**), and nothing guarantees that the

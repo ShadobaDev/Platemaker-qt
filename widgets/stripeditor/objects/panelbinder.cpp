@@ -62,7 +62,7 @@ void PanelBinder::bind()
     emit blendBound(blends ? m_host.blend() : std::nullopt, blends);
     // The other thing that belongs to the overlay and not to the drawing. One picture on its own
     // has a size to set; anything else has no single answer, so the row is not there to mislead.
-    showArtworkScale();
+    showPictureScale();
 }
 
 void PanelBinder::show(const QList<Composition>& all)

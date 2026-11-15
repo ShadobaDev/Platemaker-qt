@@ -44,7 +44,7 @@ class QMimeData;
 
 namespace StripEdit {
 
-class ArtworkToolOptions;
+class PictureToolOptions;
 
 class CanvasInput;
 class ColourPair;
@@ -288,7 +288,7 @@ signals:
      * \param naturalSize The natural size of the imported artwork.
      * \param anchorInputUid The page it was drawn on.
      */
-    void artworkImportRequested(const QString& sourceFile, double xFrac, double yFrac, double wFrac,
+    void pictureImportRequested(const QString& sourceFile, double xFrac, double yFrac, double wFrac,
                                 QSize naturalSize, const QString& anchorInputUid);
 
 
@@ -383,7 +383,7 @@ private:
     /**
      * \brief The Artwork tool's options: which picture a placement puts down. See `setTool()`.
      */
-    ArtworkToolOptions *m_artworkOptions = nullptr;
+    PictureToolOptions *m_pictureOptions = nullptr;
     AdvisoryBar       *m_advisoryBar  = nullptr;   //!< Bottom edge of this editor; absent until setAdvisories().
     QString            m_tool;                     //!< The active tool's registry id.
 

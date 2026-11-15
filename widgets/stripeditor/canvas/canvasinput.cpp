@@ -58,7 +58,7 @@ bool CanvasInput::eventFilter(QObject *watched, QEvent *event)
     if (watched == m_view->viewport()
         && (event->type() == QEvent::DragEnter || event->type() == QEvent::DragMove)) {
         auto* de = static_cast<QDragMoveEvent*>(event);
-        if (!droppedArtwork(de->mimeData()).isEmpty()) {
+        if (!droppedPicture(de->mimeData()).isEmpty()) {
             de->setDropAction(Qt::CopyAction);
             de->accept();
             return true;
@@ -66,9 +66,9 @@ bool CanvasInput::eventFilter(QObject *watched, QEvent *event)
     }
     if (watched == m_view->viewport() && event->type() == QEvent::Drop) {
         auto*         drop = static_cast<QDropEvent*>(event);
-        const QString file = droppedArtwork(drop->mimeData());
+        const QString file = droppedPicture(drop->mimeData());
         if (!file.isEmpty()) {
-            emit artworkDropped(file, m_view->mapToScene(drop->position().toPoint()));
+            emit pictureDropped(file, m_view->mapToScene(drop->position().toPoint()));
             drop->acceptProposedAction();
             return true;
         }
@@ -253,7 +253,7 @@ bool CanvasInput::eventFilter(QObject *watched, QEvent *event)
     return QObject::eventFilter(watched, event);
 }
 
-QString CanvasInput::droppedArtwork(const QMimeData* mime)
+QString CanvasInput::droppedPicture(const QMimeData* mime)
 {
     // A picture, by what it *is* rather than by where it came from: the same three suffixes the import
     // has always taken. Anything else — a page, a workspace, a folder — is not for this canvas.

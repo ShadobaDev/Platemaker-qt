@@ -50,7 +50,7 @@ public:
     /**
      * \brief What an object is. Kept minimal on purpose — it exists for the few places that must ask.
      */
-    enum class Kind { Bubble, Artwork };
+    enum class Kind { Bubble, Picture };
 
     //! What a press or a hover landed on — declared beside the resize maths (resize.hpp).
     using Grip = StripEdit::Grip;

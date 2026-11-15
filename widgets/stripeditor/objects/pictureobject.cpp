@@ -1,4 +1,4 @@
-#include "objects/artworkobject.hpp"
+#include "objects/pictureobject.hpp"
 
 #include <QFileInfo>
 #include <QImage>
@@ -13,7 +13,7 @@
 
 namespace StripEdit {
 
-QPixmap loadArtwork(const QString& path)
+QPixmap loadPixmap(const QString& path)
 {
     if (path.isEmpty())
         return {};
@@ -36,17 +36,17 @@ QPixmap loadArtwork(const QString& path)
     return QPixmap::fromImage(img);
 }
 
-ArtworkObject::ArtworkObject(QString uid, const QString& picture, QGraphicsItem* parent)
+PictureObject::PictureObject(QString uid, const QString& picture, QGraphicsItem* parent)
     : Object(std::move(uid), parent)
 {
     loadPicture(picture);
     // A picture that cannot be read still gets a box: an object with no size cannot be selected, moved
     // or deleted — which would strand it on the strip with no way to remove it.
-    m_box = m_artwork.isNull() ? QSizeF(80, 80) : QSizeF(m_artwork.size());
+    m_box = m_pixmap.isNull() ? QSizeF(80, 80) : QSizeF(m_pixmap.size());
     refreshBounds();
 }
 
-void ArtworkObject::setPicture(const QString& picture)
+void PictureObject::setPicture(const QString& picture)
 {
     if (picture == m_picture)
         return;
@@ -54,10 +54,10 @@ void ArtworkObject::setPicture(const QString& picture)
     update();   // the drawn size is the artist's and is deliberately left alone
 }
 
-void ArtworkObject::loadPicture(const QString& picture)
+void PictureObject::loadPicture(const QString& picture)
 {
     m_picture = picture;
-    m_artwork = loadArtwork(picture);
+    m_pixmap = loadPixmap(picture);
     describePicture(m_composition);
 
     delete m_svg;
@@ -71,7 +71,7 @@ void ArtworkObject::loadPicture(const QString& picture)
     }
 }
 
-QString ArtworkObject::label() const
+QString PictureObject::label() const
 {
     // What a row should say about a picture: its words if it has been lettered, otherwise the file —
     // which is the only thing that distinguishes one picture from another in a list of them.
@@ -83,7 +83,7 @@ QString ArtworkObject::label() const
     return file.isEmpty() ? tr("(imported artwork)") : file;
 }
 
-void ArtworkObject::setComposition(const Composition& c)
+void PictureObject::setComposition(const Composition& c)
 {
     Composition next = c;
     describePicture(next);   // whatever arrived, this object is still this picture at its own pixels
@@ -94,7 +94,7 @@ void ArtworkObject::setComposition(const Composition& c)
     emit chromeChanged();   // its lettering may now fit, or not
 }
 
-void ArtworkObject::describePicture(Composition& c) const
+void PictureObject::describePicture(Composition& c) const
 {
     c.balloon.reset();   // the picture is the background: one at most
     if (!c.picture) {
@@ -111,11 +111,11 @@ void ArtworkObject::describePicture(Composition& c) const
     // **This object is the authority on how big the picture is**, not the composition it was handed: that
     // may carry a size guessed from a copy the importer could not read. An empty pixmap leaves the size
     // alone — there is nothing better to say.
-    if (!m_artwork.isNull())
-        resize(c, m_artwork.size());
+    if (!m_pixmap.isNull())
+        resize(c, m_pixmap.size());
 }
 
-void ArtworkObject::setBoxSize(QSizeF size, const QPointF&)
+void PictureObject::setBoxSize(QSizeF size, const QPointF&)
 {
     // A picture has no handles to keep in place.
     if (size == m_box)
@@ -124,7 +124,7 @@ void ArtworkObject::setBoxSize(QSizeF size, const QPointF&)
     refreshBounds();
 }
 
-void ArtworkObject::paintContent(QPainter& painter)
+void PictureObject::paintContent(QPainter& painter)
 {
     const QRectF box(QPointF(0, 0), m_box);
     if (m_svg) {
@@ -132,9 +132,9 @@ void ArtworkObject::paintContent(QPainter& painter)
         // in sharpens it instead of magnifying pixels somebody chose at import time.
         painter.setRenderHint(QPainter::Antialiasing, true);
         m_svg->render(&painter, box);
-    } else if (!m_artwork.isNull()) {
+    } else if (!m_pixmap.isNull()) {
         painter.setRenderHint(QPainter::SmoothPixmapTransform, true);
-        painter.drawPixmap(box, m_artwork, QRectF(m_artwork.rect()));
+        painter.drawPixmap(box, m_pixmap, QRectF(m_pixmap.rect()));
     } else {
         return;
     }

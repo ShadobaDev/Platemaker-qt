@@ -514,7 +514,7 @@ void ObjectState::applyKindVisibility()
 }
 
 
-void ObjectState::setArtworkScale(std::optional<double> percent)
+void ObjectState::setPictureScale(std::optional<double> percent)
 {
     m_scaleRow->setVisible(percent.has_value());
     if (!percent)

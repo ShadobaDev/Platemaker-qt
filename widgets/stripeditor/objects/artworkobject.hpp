@@ -88,6 +88,13 @@ public:
      */
     void setComposition(const Composition& c) override;
 
+    //! @p c made to say what this object is: this picture, at its own pixels, with words over it (describePicture()).
+    [[nodiscard]] Composition described(Composition c) const
+    {
+        describePicture(c);
+        return c;
+    }
+
     //! A picture scales as one number, so it keeps its aspect and is offered no edge grips.
     [[nodiscard]] bool resizesByScale() const override { return true; }
 

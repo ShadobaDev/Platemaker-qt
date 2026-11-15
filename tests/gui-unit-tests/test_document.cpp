@@ -4,6 +4,7 @@
 #include <gtest/gtest.h>
 
 #include "objects/document.hpp"
+#include "objectparts.hpp"
 
 using StripEdit::Document;
 using Platemaker::Models::BlendMode;
@@ -22,7 +23,7 @@ Document three()
         list[size_t(i)].anchorInputUid = "p1";
     }
     Document d;
-    d.reset(list);
+    d.reset(list, {});
     return d;
 }
 
@@ -86,4 +87,29 @@ TEST(Document, AnOverlaysPlaceAndPropertiesChangeOnlyWhenTheyDiffer)
     d.remove({"a", "c"});
     EXPECT_EQ(order(d), QStringList{"b"});
     EXPECT_EQ(d.overlay("a"), nullptr);
+}
+
+TEST(Document, ItHoldsTheCompositionsOfTheOverlaysItHoldsAndNothingElse)
+{
+    Document          d = three();
+    Composition::Map  fed;
+    fed.insert("a", balloonObject());
+    fed.insert("orphan", balloonObject());   // no overlay: no object
+    std::vector<Document::Overlay> list = d.overlays();
+    d.reset(list, fed);
+    EXPECT_TRUE(d.composition("a").has_value());
+    EXPECT_FALSE(d.composition("b").has_value()) << "a picture never lettered has none";
+    EXPECT_FALSE(d.composition("orphan").has_value());
+    EXPECT_EQ(d.compositions().size(), 1);
+
+    Composition said    = *d.composition("a");
+    textOf(said).body   = QStringLiteral("said");
+    EXPECT_TRUE(d.setComposition("a", said));
+    EXPECT_FALSE(d.setComposition("a", said)) << "the same again is no change";
+    EXPECT_EQ(textOf(*d.composition("a")).body, QStringLiteral("said"));
+    EXPECT_FALSE(d.setComposition("gone", said)) << "no overlay, no composition";
+
+    d.remove({"a"});
+    EXPECT_FALSE(d.composition("a").has_value());
+    EXPECT_TRUE(d.compositions().isEmpty());
 }

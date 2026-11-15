@@ -97,13 +97,14 @@ void BubbleObject::setBoxSize(QSizeF size, const QPointF& handleShift)
     const qreal widthScale = oldBox.isEmpty()
         ? 1.0
         : (double(newBox.width()) / oldBox.width() + double(newBox.height()) / oldBox.height()) / 2.0;
-    if (m_composition.balloon)
-        for (BalloonTail& t : m_composition.balloon->tails) {
+    Composition next = m_composition;
+    if (next.balloon)
+        for (BalloonTail& t : next.balloon->tails) {
             t.tail.tip       += handleShift;
             t.tail.baseWidth *= widthScale;
         }
-    resize(m_composition, newBox);
-    rebuild();
+    resize(next, newBox);
+    emit compositionEdited(uid(), next);
 }
 
 bool BubbleObject::handleDrawn(int index) const
@@ -127,8 +128,9 @@ void BubbleObject::setHandlePos(int index, const QPointF& local)
 {
     if (index < 0 || index >= handleCount())
         return;
-    m_composition.balloon->tails[index].tail.tip = local;
-    rebuild();
+    Composition next                    = m_composition;
+    next.balloon->tails[index].tail.tip = local;
+    emit compositionEdited(uid(), next);
 }
 
 bool BubbleObject::canEditShape() const
@@ -176,11 +178,8 @@ bool BubbleObject::beginShapeDrag(int index)
 
     // What a press does is the handle's owner's (a "+" adds its node, and the drag that follows is that node's).
     const bool changed = m_shapeHandle.press && m_shapeHandle.press(m_shapeStart, m_shapeHandle);
-    if (changed) {
-        m_composition = m_shapeStart;
-        rebuild();
-        update();
-    }
+    if (changed)
+        emit compositionEdited(uid(), m_shapeStart);
     // A node, or one of its handles, picks that node: its handles show, and Delete or its type act on it.
     // Ctrl+press on a node adds it to the pick, or takes it away (and then drags nothing). A plain press on a
     // node already among several keeps them, so the drag moves them all.
@@ -219,10 +218,8 @@ void BubbleObject::dragShapeTo(const QPointF& scenePos)
     // The handle's owner changes its element, and says how far that moved the composition's frame.
     Composition   next  = m_shapeStart;
     const QPointF moved = m_shapeHandle.drag(next, m_shapeHandle, to, handleContext());
-    m_composition = next;
+    emit compositionEdited(uid(), next);
     setPos(m_shapeStartPos + moved * k);
-    rebuild();
-    update();
 }
 
 void BubbleObject::paintContent(QPainter& painter)

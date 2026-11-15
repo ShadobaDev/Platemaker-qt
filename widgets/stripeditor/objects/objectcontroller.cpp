@@ -88,8 +88,8 @@ ObjectController::ObjectController(QGraphicsScene* scene, QGraphicsView* view,
 {
     m_panel = new PanelBinder(m_selection,
                               {[this](const QString& uid) -> std::optional<Composition> {
-                                   const Object* item = m_overlayItems.value(uid);
-                                   return item ? std::optional<Composition>(item->composition()) : std::nullopt;
+                                   return m_overlayItems.contains(uid) ? std::optional<Composition>(recordFor(uid))
+                                                                       : std::nullopt;
                                },
                                [this](const ElementRef& tail) { return tailIndex(tail); },
                                [this] { return selectionBlend(); },
@@ -341,6 +341,14 @@ void ObjectController::beginDrag(const QString& uid, int handle)
     }
 }
 
+void ObjectController::onCompositionEdited(const QString& uid, const Composition& next)
+{
+    // A drag on the canvas: the document takes it first, and the object shows what the document has.
+    m_document.setComposition(uid, next);
+    if (Object* item = m_overlayItems.value(uid))
+        item->setComposition(next);
+}
+
 void ObjectController::onObjectDragged(const QString& uid, const QPointF& delta, int handle)
 {
     if (!m_dragIsGroup)
@@ -388,8 +396,7 @@ void ObjectController::selectSubject(Subject subject, const QString& pageUid)
 void ObjectController::setSource(const std::vector<Platemaker::Models::StripOverlay>& overlays,
                                  const Composition::Map&                                   records)
 {
-    m_document.reset(overlays);
-    m_feedRecords  = records;
+    m_document.reset(overlays, records);
 
     // **The feed's records reach the objects that already exist, here and nowhere else.** This is the
     // one direction a record travels from outside — an undo, a reopened project, an edit made through
@@ -397,9 +404,9 @@ void ObjectController::setSource(const std::vector<Platemaker::Models::StripOver
     // object's settled record rather than one it is about to be given. Objects built by syncItems()
     // take theirs from the seed at construction.
     for (auto it = m_overlayItems.cbegin(), end = m_overlayItems.cend(); it != end; ++it) {
-        const auto rec = m_feedRecords.constFind(it.key());
-        if (rec != m_feedRecords.constEnd() && it.value()->composition() != *rec)
-            it.value()->setComposition(*rec);
+        const std::optional<Composition> c = m_document.composition(it.key());
+        if (c && it.value()->composition() != *c)
+            it.value()->setComposition(*c);
     }
     // An undo can take the edited shape's handles away (back to an ellipse), or the object itself.
     if (const Object* edited = m_overlayItems.value(m_shapeEdit->edited()); !edited || !edited->canEditShape())
@@ -523,11 +530,9 @@ void ObjectController::syncItems()
         // elsewhere, or a file edited outside Platemaker — becomes an ArtworkObject: it still shows, still
         // moves and still renders, it just cannot be re-typed. That is the intended degradation, and it
         // is what makes imported artwork a first-class object rather than an error.
-        // **The feed's answer, not the object's.** isParametric() prefers the object, which is right
-        // everywhere else and useless here: the question is whether the object that exists is still the
-        // right kind for the record that arrived, and asking the object would always say yes.
-        const auto seed       = m_feedRecords.constFind(uid);
-        const bool parametric = seed != m_feedRecords.constEnd() && !seed->picture;
+        // **The document's answer, not the object's**: whether the object that exists is still the right
+        // kind for what the document holds.
+        const bool parametric = isParametric(uid);
         Object*    item       = m_overlayItems.value(uid);
 
         // An overlay cannot change kind in place; if it somehow has, rebuild rather than mis-draw it.
@@ -539,10 +544,11 @@ void ObjectController::syncItems()
         }
         if (!item) {
             item = parametric
-                ? static_cast<Object*>(new BubbleObject(uid, m_feedRecords.value(uid)))
+                ? static_cast<Object*>(new BubbleObject(uid, *m_document.composition(uid)))
                 : static_cast<Object*>(new ArtworkObject(uid, pictureFor(o)));
             connect(item, &Object::geometryCommitted, this, &ObjectController::onOverlayGeometryCommitted);
             connect(item, &Object::pressed,        this, &ObjectController::onObjectPressed);
+            connect(item, &Object::compositionEdited, this, &ObjectController::onCompositionEdited);
             connect(item, &Object::dragging,       this, &ObjectController::onObjectDragged);
             connect(item, &Object::chromeChanged,  this, &ObjectController::refreshChrome);
             // A picture resized by its grips: OBJECT STATE's size follows it while it moves.
@@ -562,10 +568,7 @@ void ObjectController::syncItems()
             m_overlayItems.insert(uid, item);
         }
 
-        // **The object's own record, not the feed's.** A record reaches an object in exactly two
-        // places — its constructor, above, and the adoption loop in setSource() — so by the time this
-        // runs the object is holding the one that is current, including an edit previewed but not yet
-        // settled. Reading the feed here would undo it.
+        // What it shows is the document's: given at its construction, in setSource() and by every edit.
         const Composition& a = item->composition();
         if (auto* bubble = qobject_cast<BubbleObject*>(item)) {
             // A bubble whose style is an SVG filter is drawn by the library, because Qt cannot render
@@ -573,6 +576,12 @@ void ObjectController::syncItems()
             bubble->setSharpRaster(Geometry::hasFilter(a) ? sharpRasterFor(a) : QImage());
         } else if (auto* art = qobject_cast<ArtworkObject*>(item)) {
             art->setPicture(pictureFor(o));   // the file may have changed under it
+            // A lettered picture: its words over it, as the picture describes itself (at its own pixels, which
+            // a size guessed at import may not be) — and that description is the document's from here on.
+            if (const std::optional<Composition> c = m_document.composition(uid)) {
+                art->setComposition(*c);
+                m_document.setComposition(uid, art->composition());
+            }
         }
 
         item->setBlend(o.blend);
@@ -594,28 +603,6 @@ void ObjectController::syncItems()
         // not on the strip, so there is nothing to select it *on*.
         item->setFlag(QGraphicsItem::ItemIsSelectable, !orphaned);
     }
-}
-
-Composition::Map ObjectController::currentRecords() const
-{
-    // The objects are the state; this is a snapshot of it in the shape the owner stores. Driven by the
-    // overlay list rather than by the objects, so it carries exactly what exists: an overlay whose
-    // object has not been built — no layout yet — keeps what the last feed said about it, and one that
-    // has been deleted is simply not walked.
-    Composition::Map out;
-    for (const auto& o : m_document.overlays()) {
-        const QString     uid   = QString::fromStdString(o.uid);
-        const Composition rec   = recordFor(uid);
-        const Words*      words = wordsOf(rec);
-        // **A picture with nothing written on it stays without a composition if that is how it arrived.** Its
-        // object describes itself so that every reader here is safe (ArtworkObject::describePicture), but
-        // that description says nothing the file does not, and the owner reads an absent one as exactly
-        // that. Inventing one would make every legacy import look edited on the next save.
-        if (rec.picture && (!words || words->text.body.isEmpty()) && !m_feedRecords.contains(uid))
-            continue;
-        out.insert(uid, rec);
-    }
-    return out;
 }
 
 // --- geometry back out ------------------------------------------------------
@@ -940,9 +927,13 @@ void ObjectController::applyRecords(const QStringList& uids, const QList<Composi
         Object* item = m_overlayItems.value(uids.at(i));
         if (!item)
             continue;
-        Composition   next  = records.at(i);
+        Composition next = records.at(i);
+        if (const auto* art = qobject_cast<const ArtworkObject*>(item))
+            next = art->described(next);   // still this picture, at its own pixels
         const QPointF shift = settleBox(item, next);
-        item->setComposition(next);   // itself a no-op when it has not changed
+        // The document first, then the object shows it (itself a no-op when it has not changed).
+        m_document.setComposition(uids.at(i), next);
+        item->setComposition(next);
         // A textured balloon's picture is the library's: a preview rasterises the edit at once rather
         // than leaving the untextured paths up until the commit that follows (the sync's refresh).
         if (auto* bubble = qobject_cast<BubbleObject*>(item); bubble && Geometry::hasFilter(next))
@@ -1133,13 +1124,13 @@ void ObjectController::deleteSelectedOverlay()
                 if (a.balloon && i >= 0 && i < a.balloon->tails.size())
                     a.balloon->tails.removeAt(i);
             }
+            m_document.setComposition(it.key(), a);
             bubble->setComposition(a);
             writePlacement(it.key());
         }
 
         m_document.remove(doomedObjects);
-        // Their compositions go when their objects do — syncItems() drops an item whose overlay has gone,
-        // and currentRecords() walks the overlays that are left.
+        // Their compositions go with their overlays (Document::remove()), and syncItems() drops their items.
         selectOverlay(QString());
         syncItems();
         emit stackChanged();
@@ -1334,7 +1325,7 @@ void ObjectController::duplicateSelectedOverlay()
 
 void ObjectController::pushOverlays(const QString& undoText)
 {
-    emit overlaysCommitted(m_document.overlays(), currentRecords(), undoText);
+    emit overlaysCommitted(m_document.overlays(), m_document.compositions(), undoText);
 }
 
 // --- a new object -----------------------------------------------------------

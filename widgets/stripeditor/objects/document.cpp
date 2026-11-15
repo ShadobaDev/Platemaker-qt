@@ -8,6 +8,32 @@
 
 namespace StripEdit {
 
+void Document::reset(std::vector<Overlay> overlays, Composition::Map compositions)
+{
+    m_overlays     = std::move(overlays);
+    m_compositions = std::move(compositions);
+    // A composition with no overlay is no object.
+    for (auto it = m_compositions.begin(); it != m_compositions.end();)
+        it = overlay(it.key()) ? std::next(it) : m_compositions.erase(it);
+}
+
+std::optional<Composition> Document::composition(const QString& uid) const
+{
+    const auto it = m_compositions.constFind(uid);
+    return it == m_compositions.constEnd() ? std::nullopt : std::optional<Composition>(*it);
+}
+
+bool Document::setComposition(const QString& uid, const Composition& c)
+{
+    if (!overlay(uid))
+        return false;
+    const auto it = m_compositions.find(uid);
+    if (it != m_compositions.end() && *it == c)
+        return false;
+    m_compositions.insert(uid, c);
+    return true;
+}
+
 const Document::Overlay* Document::overlay(const QString& uid) const
 {
     const std::string id = uid.toStdString();
@@ -135,6 +161,8 @@ void Document::remove(const QStringList& uids)
     m_overlays.erase(std::remove_if(m_overlays.begin(), m_overlays.end(),
                                     [&](const Overlay& o) { return uids.contains(QString::fromStdString(o.uid)); }),
                      m_overlays.end());
+    for (const QString& uid : uids)
+        m_compositions.remove(uid);
 }
 
 }  // namespace StripEdit

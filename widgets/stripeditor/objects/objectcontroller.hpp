@@ -228,47 +228,35 @@ public:
      * False therefore means *imported artwork*: a picture somebody else drew, which we place, move,
      * mute, re-anchor and render, but cannot re-type.
      *
-     * **The object answers when there is one**, because it is the one that knows: its composition is kept
-     * describing what it actually is. The feed's are consulted only for a uid whose object has not been
-     * built yet, and a uid neither of them holds is not ours to author.
+     * **The document answers**: an object we draw has a composition there, and a picture has one only once
+     * it was lettered, with its picture in it.
      * 
      * \param uid  The uid of the overlay to check.
      * \return True if the overlay is an object we author, false if it is imported artwork or does not exist.
      */
     [[nodiscard]] bool isParametric(const QString& uid) const
     {
-        if (const Object* item = m_overlayItems.value(uid))
-            return !item->composition().picture;
-        const auto it = m_feedRecords.constFind(uid);
-        return it != m_feedRecords.constEnd() && !it->picture;
+        const std::optional<Composition> c = m_document.composition(uid);
+        return c && !c->picture;
     }
 
     /**
-     * \brief The composition of @p uid — **from the object, which is where one lives**.
+     * \brief The composition of @p uid — **the document's, which is where one lives**.
      *
-     * Every read of one goes through here. An object always has a composition describing what it is, so
-     * asking one cannot go wrong; the feed's map is consulted only before the object exists.
+     * A picture never lettered has none there: its object's description of itself answers (this picture, at
+     * its own pixels, with empty words over it), which is what the file says too.
      *
      * \param uid  The uid of the overlay whose composition is requested.
      * \return Its composition, or an empty one if it does not exist.
      */
     [[nodiscard]] Composition recordFor(const QString& uid) const
     {
+        if (std::optional<Composition> c = m_document.composition(uid))
+            return *c;
         if (const Object* item = m_overlayItems.value(uid))
             return item->composition();
-        return m_feedRecords.value(uid);
+        return {};
     }
-
-    /**
-     * \brief Every object's composition, as the owner should store it — **built from the objects**.
-     *
-     * What goes out on overlaysCommitted(). Derived rather than maintained: the map used to be written by
-     * hand at ten sites beside the object that had just been given the same record, and a write path
-     * that updated one of the two left the other describing something that is not on screen.
-     * 
-     * \return A map of every overlay's uid to its composition, built from the objects.
-     */
-    [[nodiscard]] Composition::Map currentRecords() const;
 
     /**
      * \brief Everything selected, in the order it was picked. The last is the primary — see selectOverlays().
@@ -340,16 +328,11 @@ public:
     void setSyncing(bool on) { m_syncingList = on; }
 
     /**
-     * \brief The scene is about to delete every item; harvest their compositions and drop the pointers.
-     *
-     * Call it **before** `QGraphicsScene::clear()`: it reads every object. Their compositions are harvested
-     * into the feed's first, because the objects are where one lives between feeds — an edit
-     * previewed but not yet settled exists only on the object, and rebuilding the scene from a feed that
-     * never heard about it would quietly undo it.
+     * \brief The scene is about to delete every item: drop the pointers. Nothing is lost — the objects only
+     *        show the document, which keeps an edit previewed but not yet settled too.
      */
     void forgetItems()
     {
-        m_feedRecords = currentRecords();
         m_overlayItems.clear();
         m_chrome = nullptr;   // the scene's too; syncItems() makes a new one
     }
@@ -531,6 +514,7 @@ private:
     void onOverlayGeometryCommitted(const QString& uid); //!< An item settled a move/resize/tail drag.
     void writePlacement(const QString& uid, bool rehome = true); //<! Writes where object @p uid now stands back into its record — placement, width and, if @p rehome, anchor page.
     void onObjectPressed(const QString& uid, int handle); //!< A press on a tail's handle selects that tail.
+    void onCompositionEdited(const QString& uid, const Composition& next); //!< A canvas drag's edit: the document first, then the object.
     void onObjectDragged(const QString& uid, const QPointF& delta, int handle); //<! An object reports a live drag; the selection decides what else travels with it.
     void beginDrag(const QString& uid, int handle); //<! Records where everything selected stands, so a group drag can place each from its own start.
     /**
@@ -630,16 +614,7 @@ private:
     PresetStore&      m_presets;                //!< The store of named presets, which the menu reads from and the save action writes to.
     const StripLayout&   m_layout;                   //!< The layout that owns the strip, for page names and sizes.
 
-    Document                                      m_document;   //!< The project's overlays, in composite order.
-    /**
-     * \brief The compositions the last feed brought — **a seed, not the state**.
-     *
-     * Read in two places only: to build an object that does not exist yet, and to answer for a uid that
-     * has no object. Everything else asks the object, through recordFor(). It is deliberately not kept
-     * in step with edits, because the objects already are; keeping a second copy in step by hand is
-     * what this member used to be for, and what it stopped being.
-     */
-    Composition::Map                              m_feedRecords;
+    Document                                      m_document;   //!< The objects: their overlays and compositions.
     QHash<QString, Object*>                       m_overlayItems; //!< Live scene objects, keyed by overlay uid.
     SelectionChrome*                              m_chrome = nullptr; //!< The selection's grips, above every object; owned by the scene.
     /**

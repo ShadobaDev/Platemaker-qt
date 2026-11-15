@@ -7,6 +7,7 @@
 #include <optional>
 #include <vector>
 
+#include "composition.hpp"
 #include "objects/striplayout.hpp"   // StripLayout::Anchored
 
 #include <platemaker/models/project_item.hpp>
@@ -14,23 +15,35 @@
 namespace StripEdit {
 
 /**
- * \brief The strip editor's objects as the project holds them: each overlay's place, width, order, blend,
- *        whether it is shown and the page it is anchored to — and the operations that change them.
+ * \brief The strip editor's objects as the project holds them, **the one place each lives**: every overlay's
+ *        place, width, order, blend, whether it is shown and the page it is anchored to, and the composition
+ *        of each object we draw — and the operations that change them.
  *
  * QtCore and the library's types only, so every operation is tested without a scene. An operation says
  * whether it changed anything: one that did not is not an edit, and not a history step. The scene shows what
- * this holds; the controller makes each change one step.
+ * this holds and changes nothing itself; the controller writes here first, shows the result, and makes each
+ * change one step.
  */
 class Document
 {
 public:
     using Overlay = Platemaker::Models::StripOverlay;
 
-    //! Adopts @p overlays, in composite order (the last drawn on top): what the project fed.
-    void reset(std::vector<Overlay> overlays) { m_overlays = std::move(overlays); }
+    /**
+     * \brief Adopts what the project fed: @p overlays in composite order (the last drawn on top), and the
+     *        compositions of those it has one for — every object we draw; a picture only once it was lettered.
+     */
+    void reset(std::vector<Overlay> overlays, Composition::Map compositions);
 
     [[nodiscard]] const std::vector<Overlay>& overlays() const { return m_overlays; }   //!< In composite order.
     [[nodiscard]] const Overlay*              overlay(const QString& uid) const;          //!< None for a uid it does not hold.
+
+    //! The composition of object @p uid; none for a picture never lettered, or a uid it does not hold.
+    [[nodiscard]] std::optional<Composition> composition(const QString& uid) const;
+    //! Object @p uid is @p c now. True when that changed it; false too for a uid it does not hold.
+    bool setComposition(const QString& uid, const Composition& c);
+    //! Every composition it holds, keyed by uid: what the project stores beside the overlays.
+    [[nodiscard]] const Composition::Map& compositions() const { return m_compositions; }
 
     //! Overlay @p uid placed at @p at: its fractions and its page.
     bool setPlace(const QString& uid, const StripLayout::Anchored& at);
@@ -55,13 +68,14 @@ public:
     };
     //! Adopts @p bottomUp — uids from the back to the front — as the composite order; ids that are not overlays drop out.
     Reorder setOrder(const QStringList& bottomUp);
-    //! Removes the overlays @p uids.
+    //! Removes the overlays @p uids, and their compositions.
     void remove(const QStringList& uids);
 
 private:
     Overlay* find(const QString& uid);
 
     std::vector<Overlay> m_overlays;
+    Composition::Map     m_compositions;   //!< Only of overlays it holds.
 };
 
 }  // namespace StripEdit

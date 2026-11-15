@@ -77,11 +77,16 @@ public:
      *
      * It is **never** a stand-in for "this object has none". Each kind keeps its composition describing what
      * it actually is, so asking any object is always safe.
+     *
+     * **What it shows, not what it is.** An object is a view of the document's composition (Document): it
+     * changes nothing of it itself. An edit made on the canvas — a tail aimed, a grip, a node — is offered with
+     * compositionEdited(), and comes back through setComposition() once the document has it.
      */
     [[nodiscard]] const Composition& composition() const { return m_composition; }
 
     /**
-     * \brief Adopts \p c and repaints. What that costs — re-resolving paths, a resize — is the kind's own.
+     * \brief Shows \p c, the document's, and repaints. What that costs — re-resolving paths, a resize — is the
+     *        kind's own. Called only by whoever holds the document.
      */
     virtual void setComposition(const Composition& c) = 0;
 
@@ -289,6 +294,11 @@ signals:
      * \param uid The unique identifier of the object.
      */
     void geometryCommitted(const QString& uid);
+    /**
+     * \brief A drag on the canvas made object @p uid's composition @p next — live, at every move. The document
+     *        takes it and shows it back (setComposition()); the release reports geometryCommitted().
+     */
+    void compositionEdited(const QString& uid, const Composition& next);
 
     //! The picked nodes changed (pickedVertices()): what Delete and *Point type* act on.
     void pickedVertexChanged();

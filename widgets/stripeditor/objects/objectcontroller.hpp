@@ -546,7 +546,6 @@ signals:
     //! One picture's scale in percent; no value for anything else.
     void artworkScaleBound(std::optional<double> percent);
     void textFocusRequested();      //!< A bubble just placed, or its words pressed in shape editing: the caret to its text.
-    //! Shape editing started or ended, or its picked node changed: the menu's entries follow.
 
 private:
     void onOverlayGeometryCommitted(const QString& uid); //!< An item settled a move/resize/tail drag.
@@ -554,18 +553,6 @@ private:
     void onObjectPressed(const QString& uid, int handle); //!< A press on a tail's handle selects that tail.
     void onObjectDragged(const QString& uid, const QPointF& delta, int handle); //<! An object reports a live drag; the selection decides what else travels with it.
     void beginDrag(const QString& uid, int handle); //<! Records where everything selected stands, so a group drag can place each from its own start.
-    /**
-     * \brief How much bigger than its own artwork an overlay is drawn.
-     *
-     * \c 1.0 whenever the asset was authored at the width the strip is laid out at now, which is every
-     * overlay until a chapter is re-profiled. After one, the record's \c wFrac still says how wide the
-     * object is *relative to the page*, and this is what turns that back into a scale for the item.
-     * 
-     * \param o  The overlay to compute the scale for.
-     * \param naturalWidth  The overlay's own width in pixels, as read from the SVG or the imported picture.
-     * \return The scale factor to apply to the overlay's item
-     */
-    [[nodiscard]] qreal itemScaleFor(const Platemaker::Models::StripOverlay& o, qreal naturalWidth) const;
     /**
      * \brief The library's rasterisation of \p a, cached by the SVG it emits. Empty if it cannot be produced.
      */

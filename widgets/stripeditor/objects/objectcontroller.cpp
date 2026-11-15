@@ -370,15 +370,6 @@ void ObjectController::selectSubject(Subject subject, const QString& pageUid)
 
 // --- the feed: records in, scene items out ----------------------------------
 
-qreal ObjectController::itemScaleFor(const Platemaker::Models::StripOverlay& o, qreal naturalWidth) const
-{
-    // wFrac 0 means "the asset's own size", which is exactly a scale of 1 — and it is what an overlay
-    // placed before sizes were recorded, or imported and never resized, carries.
-    if (o.wFrac <= 0.0 || naturalWidth <= 0.0)
-        return 1.0;
-    return m_layout.pixels(o.wFrac) / naturalWidth;
-}
-
 void ObjectController::setSource(const std::vector<Platemaker::Models::StripOverlay>& overlays,
                                  const Composition::Map&                                   records)
 {
@@ -568,7 +559,7 @@ void ObjectController::syncItems()
         // The record says how wide the object is relative to the page; the item draws its own artwork at
         // that artwork's own size. The ratio is the item's scale — 1.0 for everything authored at the
         // width the strip is laid out at now, which is every overlay until a chapter is re-profiled.
-        const qreal k = itemScaleFor(o, item->contentBounds().width());
+        const qreal k = m_layout.scaleOf(o, item->contentBounds().width());
         item->setScale(k);
         // The record stores the artwork's top-left; the item is positioned by its balloon's. They differ
         // by the bounds offset whenever a tail reaches above or left of the balloon — and that offset is
@@ -611,34 +602,29 @@ Composition::Map ObjectController::currentRecords() const
 void ObjectController::writePlacement(const QString& uid, bool rehome)
 {
     Object* item = m_overlayItems.value(uid);
-    const double tw = m_layout.targetWidth();
-    if (!item || tw <= 0)
+    if (!item || m_layout.targetWidth() <= 0)
         return;   // no strip laid out; there is nothing to measure a fraction against
 
     // Re-anchor to whichever page the bubble now sits on. Crossing a page boundary is a normal drag,
     // and silently re-homing it is the whole point: the offset stays relative to the artwork under it.
     // Back to the artwork's own top-left, which is what the library composites at — in scene pixels,
     // so the item's own scale applies to the offset as well as to the artwork.
-    const qreal   k    = item->scale();
-    const QPointF p    = item->pos() + item->contentBounds().topLeft() * k;
-    const int     page = m_layout.pageAtSceneY(item->pos().y());
+    // The page is the one under the box's top, the offset the drawing's top-left's.
+    const qreal   k     = item->scale();
+    const QPointF p     = item->pos() + item->contentBounds().topLeft() * k;
+    const qreal   width = item->contentBounds().width() * k;
     for (auto& o : m_overlays) {
         if (QString::fromStdString(o.uid) != uid)
             continue;
-        // Back into the durable unit. Dividing by the target width here is the *only* place a placement
-        // leaves the editor, which is what keeps the stored form independent of the profile in use.
-        o.xFrac = p.x() / tw;
-        o.wFrac = item->contentBounds().width() * k / tw;
-        if (!rehome) {
-            // The same page as before, measured the way StripLayout::scenePosOf() reads it back.
-            const int own = m_layout.pageForAnchor(QString::fromStdString(o.anchorInputUid));
-            o.yFrac = (p.y() - (own >= 0 ? m_layout.page(own).top : 0)) / tw;
-        } else if (page >= 0) {
-            o.anchorInputUid = m_layout.anchorUidForPage(page).toStdString();
-            o.yFrac          = (p.y() - m_layout.page(page).top) / tw;
-        } else {
-            o.yFrac = p.y() / tw;
-        }
+        // Back into the durable unit, which is what keeps the stored form independent of the profile in use.
+        const QString                             own  = QString::fromStdString(o.anchorInputUid);
+        const std::optional<StripLayout::Anchored> home = rehome ? m_layout.anchoredAt(p, width, item->pos().y())
+                                                                 : std::nullopt;
+        const StripLayout::Anchored at = home ? *home : m_layout.anchoredOn(rehome ? QString() : own, p, width);
+        o.xFrac          = at.xFrac;
+        o.yFrac          = at.yFrac;
+        o.wFrac          = at.wFrac;
+        o.anchorInputUid = (home ? home->anchor : own).toStdString();
         break;
     }
 }
@@ -1073,31 +1059,23 @@ void ObjectController::importArtworkFile(const QString& file)
     // it. Dropping it at the top of the chapter would mean scrolling back to find what you just added.
     const QRectF  view   = m_view->mapToScene(m_view->viewport()->rect()).boundingRect();
     const QPointF centre = view.center();
-    const int     page   = m_layout.pageAtSceneY(centre.y());
-    if (page < 0)
-        return;
-
-    const double tw = m_layout.targetWidth();
-    if (tw <= 0)
-        return;
 
     // Record the artwork's own width as a fraction straight away rather than leaving it at 0 ("natural
     // size"). Both draw identically today; the difference shows on the next re-profile, where a logo
     // that knows its width relative to the page grows with the chapter and a "natural size" one does
     // not. Growing with the chapter is what anyone placing artwork on a page meant.
-    const QPixmap art = loadArtwork(file);
+    const QPixmap                              art = loadArtwork(file);
+    const std::optional<StripLayout::Anchored> at  = m_layout.anchoredAt(centre, art.width());
+    if (!at)
+        return;
 
     m_selectNewOverlay = true;
-    emit artworkImportRequested(file, centre.x() / tw,
-                                (centre.y() - m_layout.page(page).top) / tw,
-                                art.width() > 0 ? art.width() / tw : 0.0, art.size(),
-                                m_layout.anchorUidForPage(page));
+    emit artworkImportRequested(file, at->xFrac, at->yFrac, at->wFrac, art.size(), at->anchor);
 }
 
 void ObjectController::placeArtworkAt(const QString& file, const QPointF& scenePos)
 {
-    const double tw = m_layout.targetWidth();
-    if (file.isEmpty() || m_layout.isEmpty() || tw <= 0)
+    if (file.isEmpty() || m_layout.isEmpty())
         return;
 
     const QPixmap art = loadArtwork(file);
@@ -1106,16 +1084,14 @@ void ObjectController::placeArtworkAt(const QString& file, const QPointF& sceneP
 
     // Centred on the cursor, because the drag carried the picture under it: dropping is the moment the
     // artist chose *there*, and the thing they were aiming was the middle of what they could see.
-    const QPointF topLeft = scenePos - QPointF(art.width(), art.height()) / 2.0;
-    const int     page    = m_layout.pageAtSceneY(topLeft.y());
-    if (page < 0)
+    // Its own pixels, one for one with the strip's.
+    const QPointF                              topLeft = scenePos - QPointF(art.width(), art.height()) / 2.0;
+    const std::optional<StripLayout::Anchored> at      = m_layout.anchoredAt(topLeft, art.width());
+    if (!at)
         return;
 
     m_selectNewOverlay = true;
-    emit artworkImportRequested(file, topLeft.x() / tw,
-                                (topLeft.y() - m_layout.page(page).top) / tw,
-                                art.width() / tw,   // its own pixels, one for one with the strip's
-                                art.size(), m_layout.anchorUidForPage(page));
+    emit artworkImportRequested(file, at->xFrac, at->yFrac, at->wFrac, art.size(), at->anchor);
 }
 
 bool ObjectController::selectionIsArtwork() const
@@ -1127,8 +1103,7 @@ bool ObjectController::selectionIsArtwork() const
 double ObjectController::selectedArtworkPercent() const
 {
     const auto*  art = qobject_cast<const ArtworkObject*>(m_overlayItems.value(m_selection.primary()));
-    const double tw  = m_layout.targetWidth();
-    if (!art || tw <= 0 || art->artwork().width() <= 0)
+    if (!art || art->artwork().width() <= 0)
         return 0.0;
 
     const auto it = std::find_if(m_overlays.cbegin(), m_overlays.cend(),
@@ -1139,19 +1114,18 @@ double ObjectController::selectedArtworkPercent() const
         return 0.0;
     // The record holds a fraction of the page; the artwork holds its own pixels. The percentage is the
     // ratio between what it is drawn at and what it was drawn as.
-    return it->wFrac * tw * 100.0 / art->artwork().width();
+    return m_layout.percentOf(it->wFrac, art->artwork().width());
 }
 
 void ObjectController::scaleSelectedArtwork(double percent, bool commit)
 {
     const auto*  art = qobject_cast<const ArtworkObject*>(m_overlayItems.value(m_selection.primary()));
-    const double tw  = m_layout.targetWidth();
-    if (!art || tw <= 0 || percent <= 0 || art->artwork().width() <= 0)
+    if (!art || m_layout.targetWidth() <= 0 || percent <= 0 || art->artwork().width() <= 0)
         return;
 
     // Written to the **record**, not to the item: the item's scale is derived from the record on every
     // feed (see syncItems), so setting it here would be a display that the next feed argues with.
-    const double wFrac = art->artwork().width() * percent / 100.0 / tw;
+    const double wFrac = m_layout.fraction(art->artwork().width() * percent / 100.0);
     bool         moved = false;
     for (auto& o : m_overlays) {
         if (QString::fromStdString(o.uid) != m_selection.primary())
@@ -1492,8 +1466,7 @@ void ObjectController::duplicateSelectedOverlay()
         // Offset within the same page, so a duplicate stays on the artwork its original was talking to.
         // The offset is a pixel nudge, so it becomes a fraction like everything else — a duplicate has
         // to land the same distance away whatever width the chapter is being laid out at.
-        const double tw  = m_layout.targetWidth();
-        const double off = tw > 0 ? k_duplicateOffset / tw : 0.0;
+        const double off = m_layout.fraction(k_duplicateOffset);
         m_selectNewOverlay = true;
         if (!item->composition().picture) {
             emit recordCreated(item->composition(), o.xFrac + off, o.yFrac + off, o.wFrac,

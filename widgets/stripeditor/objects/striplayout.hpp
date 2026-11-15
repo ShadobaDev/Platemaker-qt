@@ -11,6 +11,7 @@
 #include <platemaker/models/processing_steps.hpp>
 #include <platemaker/models/project_item.hpp>
 
+#include <optional>
 #include <vector>
 
 namespace StripEdit {
@@ -77,6 +78,8 @@ public:
      * an absolute one silently drifts onto different artwork as soon as a page above it changes height.
      * Returns -1 only when there is no layout at all.
      */
+    [[nodiscard]] int pageAtSceneY(qreal y) const;
+
     /**
      * \brief The width every page was scaled to — the unit every overlay fraction is measured in.
      *
@@ -87,7 +90,8 @@ public:
     [[nodiscard]] int   targetWidth() const { return m_width; }
     //! One fraction of the target width, in strip pixels.
     [[nodiscard]] qreal pixels(double frac) const { return frac * m_width; }
-    [[nodiscard]] int pageAtSceneY(qreal y) const;
+    //! A length in strip pixels, as a fraction of the target width; 0 with no layout. pixels()' inverse.
+    [[nodiscard]] double fraction(qreal pixels) const { return m_width > 0 ? pixels / m_width : 0.0; }
 
     //! Input uid of page \p page, empty when out of range.
     [[nodiscard]] QString anchorUidForPage(int page) const;
@@ -103,6 +107,34 @@ public:
      * older workspace, or one whose page is gone — is already in strip coordinates and passes through.
      */
     [[nodiscard]] QPointF scenePosOf(const Platemaker::Models::StripOverlay& o) const;
+
+    //! Where an overlay sits: the input uid of the page it is anchored to, and its top-left and width in
+    //! fractions of the target width — what a workspace stores.
+    struct Anchored
+    {
+        QString anchor;
+        double  xFrac = 0.0;
+        double  yFrac = 0.0;
+        double  wFrac = 0.0;
+    };
+    /**
+     * \brief An overlay drawn from scene point @p topLeft, @p width strip pixels wide, anchored to the page under
+     *        @p pageY (its top-left's when none is given): scenePosOf()'s inverse, and what placing, importing
+     *        and moving one write. None without a layout.
+     */
+    [[nodiscard]] std::optional<Anchored> anchoredAt(const QPointF& topLeft, qreal width,
+                                                     std::optional<qreal> pageY = std::nullopt) const;
+    //! The same, kept on the page of input uid @p anchor; measured from the strip's top when no page has it.
+    [[nodiscard]] Anchored anchoredOn(const QString& anchor, const QPointF& topLeft, qreal width) const;
+    /**
+     * \brief The scale an overlay @p naturalWidth pixels wide on its own is drawn at: its width fraction over that.
+     *
+     * wFrac 0 means "its own size", which is exactly a scale of 1 — and it is what an overlay placed before
+     * sizes were recorded, or imported and never resized, carries.
+     */
+    [[nodiscard]] qreal scaleOf(const Platemaker::Models::StripOverlay& o, qreal naturalWidth) const;
+    //! A picture @p naturalWidth pixels wide, drawn @p wFrac of the target width: in per cent of its own size.
+    [[nodiscard]] double percentOf(double wFrac, qreal naturalWidth) const;
 
 private:
     QList<Page> m_pages;

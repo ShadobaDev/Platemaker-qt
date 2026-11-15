@@ -141,9 +141,8 @@ ObjectMenu::ObjectMenu(ObjectController& objects, const StripLayout& layout, Pre
     m_actFitToStrip = new QAction(tr("Fit to strip width"), this);
     connect(m_actFitToStrip, &QAction::triggered, this, [this] {
         const auto* art = qobject_cast<const ArtworkObject*>(m_objects.object(m_objects.selectedOverlay()));
-        const double tw = m_layout.targetWidth();
-        if (art && tw > 0 && art->artwork().width() > 0)
-            m_objects.scaleSelectedArtwork(tw * 100.0 / art->artwork().width());
+        if (art && m_layout.targetWidth() > 0 && art->artwork().width() > 0)
+            m_objects.scaleSelectedArtwork(m_layout.percentOf(1.0, art->artwork().width()));   // the strip's width
     });
 
     // The same two OBJECT STATE offers under the panel — a right-click is where sizing an object is

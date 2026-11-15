@@ -305,19 +305,19 @@ Editor::Editor(PresetStore& presets, QWidget *parent)
         // OBJECT STATE and the objects, both ways. The panel's edits go to the objects it was bound to;
         // the controller says what it is bound to now. Neither includes the other — they meet here.
         connect(m_objectState, &ObjectState::changed, m_objects,
-                [this](const Composition& a) { m_objects->applyPanelRecords({a}, /*commit=*/false); });
+                [this](const Composition& a) { m_objects->panel().applyEdits({a}, /*commit=*/false); });
         connect(m_objectState, &ObjectState::committed, m_objects,
-                [this](const Composition& a) { m_objects->applyPanelRecords({a}, /*commit=*/true); });
+                [this](const Composition& a) { m_objects->panel().applyEdits({a}, /*commit=*/true); });
         connect(m_objectState, &ObjectState::blendPicked, m_objects, &ObjectController::setSelectionBlend);
         connect(m_objectState, &ObjectState::deleteRequested, m_objects,
                 &ObjectController::deleteSelectedOverlay);
         connect(m_objectState, &ObjectState::changedMany, m_objects,
                 [this](const QList<Composition>& objects) {
-            m_objects->applyPanelRecords(objects, /*commit=*/false);
+            m_objects->panel().applyEdits(objects, /*commit=*/false);
         });
         connect(m_objectState, &ObjectState::committedMany, m_objects,
                 [this](const QList<Composition>& objects) {
-            m_objects->applyPanelRecords(objects, /*commit=*/true);
+            m_objects->panel().applyEdits(objects, /*commit=*/true);
         });
         connect(m_objectState, &ObjectState::scaleChanged, m_objects,
                 [this](double percent) { m_objects->scaleSelectedArtwork(percent, /*commit=*/false); });
@@ -329,14 +329,14 @@ Editor::Editor(PresetStore& presets, QWidget *parent)
                 &ObjectController::fixSelectionPadding);
         using OC = ObjectController;
         using OS = ObjectState;
-        connect(m_objects, &OC::boundToRecord,      m_objectState, &OS::setRecord);
-        connect(m_objects, &OC::boundToTail,        m_objectState, &OS::setTail);
-        connect(m_objects, &OC::boundToRecords,     m_objectState, &OS::setRecords);
-        connect(m_objects, &OC::boundToMixed,       m_objectState, &OS::setMixedSubjects);
-        connect(m_objects, &OC::boundToTails,       m_objectState, &OS::setTails);
-        connect(m_objects, &OC::boundToNothing,     m_objectState, &OS::clearSelection);
-        connect(m_objects, &OC::blendBound,         m_objectState, &OS::setSelectionBlend);
-        connect(m_objects, &OC::artworkScaleBound,  m_objectState, &OS::setArtworkScale);
+        connect(&m_objects->panel(), &PanelBinder::boundToRecord,      m_objectState, &OS::setRecord);
+        connect(&m_objects->panel(), &PanelBinder::boundToTail,        m_objectState, &OS::setTail);
+        connect(&m_objects->panel(), &PanelBinder::boundToRecords,     m_objectState, &OS::setRecords);
+        connect(&m_objects->panel(), &PanelBinder::boundToMixed,       m_objectState, &OS::setMixedSubjects);
+        connect(&m_objects->panel(), &PanelBinder::boundToTails,       m_objectState, &OS::setTails);
+        connect(&m_objects->panel(), &PanelBinder::boundToNothing,     m_objectState, &OS::clearSelection);
+        connect(&m_objects->panel(), &PanelBinder::blendBound,         m_objectState, &OS::setSelectionBlend);
+        connect(&m_objects->panel(), &PanelBinder::artworkScaleBound,  m_objectState, &OS::setArtworkScale);
         connect(m_objects, &OC::textFocusRequested, m_objectState, &OS::focusText);
         // What TOOL OPTIONS says the next object is, for a placement and *Convert to ▸ Balloon*. Told as
         // functions, so the objects need no tool-options panel.

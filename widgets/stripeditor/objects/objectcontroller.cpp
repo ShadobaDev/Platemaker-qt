@@ -86,13 +86,28 @@ ObjectController::ObjectController(QGraphicsScene* scene, QGraphicsView* view,
     , m_presets(presets)
     , m_layout(layout)
 {
+    m_panel = new PanelBinder(m_selection,
+                              {[this](const QString& uid) -> std::optional<Composition> {
+                                   const Object* item = m_overlayItems.value(uid);
+                                   return item ? std::optional<Composition>(item->composition()) : std::nullopt;
+                               },
+                               [this](const ElementRef& tail) { return tailIndex(tail); },
+                               [this] { return selectionBlend(); },
+                               [this] {
+                                   return selectionIsArtwork() ? std::optional<double>(selectedArtworkPercent())
+                                                               : std::nullopt;
+                               },
+                               [this](const QStringList& uids, const QList<Composition>& all, bool commit) {
+                                   applyRecords(uids, all, commit);
+                               }},
+                              this);
     m_shapeEdit = new ShapeEditMode(m_selection, m_scene,
                                     {[this](const QString& uid) { return m_overlayItems.value(uid); },
                                      [this] { return static_cast<const SelectionChrome*>(m_chrome); },
                                      [this](const QString& uid) { selectOverlay(uid); },
                                      [this](const QString& uid, const Composition& c, const QString& step) {
                                          applyRecord(uid, c, /*commit=*/true, step);
-                                         emit boundToRecord(c);
+                                         m_panel->show(c);
                                      }},
                                     this);
 
@@ -361,7 +376,7 @@ void ObjectController::selectSubject(Subject subject, const QString& pageUid)
         m_selection.selectPage(pageUid);
     else
         m_selection.selectStrip();
-    m_panelSubjects.clear();   // OBJECT STATE is showing the strip or a page; no object panel is answering
+    m_panel->unbind();   // OBJECT STATE is showing the strip or a page; no object panel is answering
 
     emit subjectRowChanged();   // the strip's or the page's row, in the object stack
 
@@ -534,7 +549,7 @@ void ObjectController::syncItems()
             if (qobject_cast<ArtworkObject*>(item))
                 connect(item, &Object::chromeChanged, this, [this, uid] {
                     if (uid == m_selection.primary() && selectionIsArtwork())
-                        emit artworkScaleBound(selectedArtworkPercent());
+                        m_panel->showArtworkScale();
                 });
             // The picked node is what the menu's Delete and Point type act on, however it was picked.
             connect(item, &Object::pickedVertexChanged, m_shapeEdit, &ShapeEditMode::changed);
@@ -659,9 +674,9 @@ void ObjectController::onOverlayGeometryCommitted(const QString& uid)
     if (uid == m_selection.primary() && m_selection.objects().size() == 1) {
         // A tail's drag leaves that tail selected, so the panel shows the tail again, not the balloon.
         if (m_selection.subject() == Subject::Tail)
-            emit boundToTail(item->composition(), selectedTail());
+            m_panel->showTail(item->composition(), selectedTail());
         else if (m_selection.elements().isEmpty())
-            emit boundToRecord(item->composition());
+            m_panel->show(item->composition());
     }
     emit stackChanged();
     pushOverlays(item->dragGrip() == Grip::Shape ? tr("Edit shape")
@@ -757,59 +772,7 @@ void ObjectController::selectSubjects(const QStringList& uids, const QList<Eleme
     emit selectionChanged();   // the stack's rows and the menu's entries follow it
     m_syncingList = false;
 
-    const bool oneObject = picked.size() == 1 && pickedTails.isEmpty();
-
-    // **Which objects OBJECT STATE is about to be bound to, in the order its records go in.** Set here and
-    // only here, because this is the one place that decides what the panel is showing. A branch that binds
-    // something uneditable leaves it empty, so a signal arriving from a panel that cannot be edited writes
-    // nothing rather than writing to whatever happens to be selected now.
-    m_panelSubjects.clear();
-
-    if (picked.isEmpty()) {
-        emit boundToNothing();
-    } else if (singleTail) {
-        m_panelSubjects = QStringList{m_selection.primary()};   // the tail's balloon owns the record
-        emit boundToTail(primary->composition(), selectedTail());
-    } else if (!pickedTails.isEmpty() && carriers.size() == picked.size()) {
-        // Tails and nothing else: what they share is a tail's own section. Their balloons are the panel's
-        // subjects, in this order, so an edit writes each tail into its balloon (applyPanelRecords()).
-        m_panelSubjects = carriers;
-        QList<Composition>     balloons;
-        QList<QPair<int, int>> tails;
-        for (const QString& uid : std::as_const(carriers))
-            balloons << recordFor(uid);
-        for (const ElementRef& t : pickedTails)
-            tails << qMakePair(int(carriers.indexOf(t.object)), tailIndex(t));
-        emit boundToTails(balloons, tails);
-    } else if (!pickedTails.isEmpty()) {
-        emit boundToMixed(selectedSubjectCount());
-    } else if (oneObject) {
-        m_panelSubjects = QStringList{m_selection.primary()};
-        emit boundToRecord(recordFor(m_selection.primary()));
-    } else {
-        // **Whatever kinds are in it.** This used to refuse any set containing a picture, on the
-        // grounds that a picture and a balloon had nothing in common — true until a picture could be
-        // lettered too, and false since. The panel already sorts records into roles: skin
-        // and line style are bound to the objects with a silhouette and written back only to those
-        // (see onControlChanged), and the lettering to all of them. So the union is what shows, and
-        // the write path takes whichever kind each object is.
-        m_panelSubjects = picked;
-        QList<Composition> subjects;
-        subjects.reserve(picked.size());
-        for (const QString& uid : picked)
-            subjects.append(recordFor(uid));
-        emit boundToRecords(subjects);
-    }
-
-    // Whatever the panel is showing, it is showing it for objects that all have a blend mode —
-    // the one property every kind carries. A tail is the exception: it is part of a balloon, and
-    // the balloon's composite is the balloon's.
-    emit blendBound(pickedTails.isEmpty() && !picked.isEmpty() ? selectionBlend() : std::nullopt,
-                    pickedTails.isEmpty() && !picked.isEmpty());
-    // The other thing that belongs to the overlay and not to the drawing. One picture on its own
-    // has a size to set; anything else has no single answer, so the row is not there to mislead.
-    emit artworkScaleBound(selectionIsArtwork() ? std::optional<double>(selectedArtworkPercent())
-                                                : std::nullopt);
+    m_panel->bind();
     emit subjectChanged(m_selection.subject(), m_selection.primary());
 }
 
@@ -853,12 +816,12 @@ bool ObjectController::applyColourAt(const QPointF& scenePos, const QTransform& 
             next.append(each);
         }
         applyRecords(m_selection.objects(), next, /*commit=*/true, step);
-        emit boundToRecords(next);
+        m_panel->show(next);
         return true;
     }
 
     selectOverlay(bubble->uid());
-    emit boundToRecord(a);
+    m_panel->show(a);
     applyRecord(bubble->uid(), a, /*commit=*/true, step);
     return true;
 }
@@ -871,7 +834,7 @@ void ObjectController::fitSelectionToText()
     Composition a = item->composition();
     resize(a, Geometry::fittedBox(a));
     applyRecord(m_selection.primary(), a, /*commit=*/true);
-    emit boundToRecord(a);
+    m_panel->show(a);
 }
 
 void ObjectController::fixSelectionPadding()
@@ -885,7 +848,7 @@ void ObjectController::fixSelectionPadding()
         return;   // it fits already — not an edit, and not a history step
     fitted.applyTo(a);
     applyRecord(m_selection.primary(), a, /*commit=*/true, tr("Fix padding"));
-    emit boundToRecord(a);
+    m_panel->show(a);
 }
 
 int ObjectController::presetTargetCount() const
@@ -934,10 +897,7 @@ void ObjectController::applyLookToSelection(const BubblePreset& preset, const QS
         return;
     applyRecords(uids, next, /*commit=*/true,
                  uids.size() == 1 ? step : tr("%1 (%n objects)", "", int(uids.size())).arg(step));
-    if (uids.size() > 1)
-        emit boundToRecords(next);
-    else
-        emit boundToRecord(next.first());
+    m_panel->show(next);   // one as one, several as several
 }
 
 void ObjectController::setSelectionOrigin(const PresetOrigin& origin)
@@ -948,7 +908,7 @@ void ObjectController::setSelectionOrigin(const PresetOrigin& origin)
     Composition a = item->composition();
     a.preset      = origin;
     applyRecord(m_selection.primary(), a, /*commit=*/true, tr("Save as preset"));
-    emit boundToRecord(a);
+    m_panel->show(a);
 }
 
 QPointF ObjectController::settleBox(const Object* item, Composition& next) const
@@ -1029,31 +989,6 @@ void ObjectController::applyRecord(const QString& uid, const Composition& record
                                    const QString& undoText)
 {
     applyRecords(QStringList{uid}, QList<Composition>{record}, commit, undoText);
-}
-
-void ObjectController::applyPanelRecords(const QList<Composition>& records, bool commit)
-{
-    // **The panel edits properties, not geometry.** Its copy was made when it was bound, and the size and
-    // the tail tips belong to no property group — they move on the canvas, and since the lettering learnt
-    // to grow its box, under the panel's feet while it types. Taken from the panel they would put back a
-    // size the last keystroke outgrew and tips from before it moved. So they are taken from the object,
-    // which is where they live.
-    QList<Composition> merged = records;
-    for (int i = 0; i < merged.size() && i < m_panelSubjects.size(); ++i) {
-        const Object* item = m_overlayItems.value(m_panelSubjects.at(i));
-        if (!item)
-            continue;
-        const Composition& held = item->composition();
-        resize(merged[i], sizeOf(held));
-        if (!merged[i].balloon || !held.balloon)
-            continue;
-        // By position: a panel adds a tail at the end and removes none (Delete tail is the controller's).
-        QList<BalloonTail>& tails  = merged[i].balloon->tails;
-        const auto          shared = qMin(held.balloon->tails.size(), tails.size());
-        for (qsizetype t = 0; t < shared; ++t)
-            tails[t].tail.tip = held.balloon->tails.at(t).tail.tip;
-    }
-    applyRecords(m_panelSubjects, merged, commit);
 }
 
 void ObjectController::importArtworkFile(const QString& file)
@@ -1178,7 +1113,7 @@ void ObjectController::deleteSelectedTail()
     const QString uid = m_selection.primary();
     selectOverlay(uid);
     applyRecord(m_selection.primary(), a, /*commit=*/true, tr("Delete tail"));
-    emit boundToRecord(a);
+    m_panel->show(a);
 }
 
 void ObjectController::deleteSelectedOverlay()
@@ -1274,10 +1209,7 @@ void ObjectController::applyColourToSelection(const QColor& colour, Geometry::Pa
                        : role == Geometry::Part::Outline   ? tr("Apply outline colour")
                                                          : tr("Apply fill colour");
     applyRecords(m_selection.objects(), next, /*commit=*/true, step);
-    if (m_selection.objects().size() > 1)
-        emit boundToRecords(next);
-    else
-        emit boundToRecord(next.first());
+    m_panel->show(next);   // one as one, several as several
 }
 
 BalloonLook ObjectController::toolBalloon() const
@@ -1334,10 +1266,7 @@ void ObjectController::convertSelectionTo(const ShapeProperties& shape)
                  converted == 1 ? tr("Convert to %1").arg(what)
                                 : tr("Convert %n objects to %1", "", converted).arg(what));
 
-    if (m_selection.objects().size() > 1)
-        emit boundToRecords(next);
-    else
-        emit boundToRecord(next.first());
+    m_panel->show(next);   // one as one, several as several
 }
 
 std::optional<Platemaker::Models::BlendMode> ObjectController::selectionBlend() const

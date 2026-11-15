@@ -20,6 +20,7 @@
 #include "properties/propertygroup.hpp"   // PropertyGroup: which group the menu hands over
 #include "composition.hpp"
 #include "objects/selection.hpp"
+#include "objects/panelbinder.hpp"
 #include "objects/shapeeditmode.hpp"
 
 #include <platemaker/models/project_item.hpp>
@@ -450,18 +451,8 @@ public:
      */
     [[nodiscard]] bool selectionIsArtwork() const;
 
-    // --- what OBJECT STATE says: its edits come in here, wired by the Editor ---
-    /**
-     * \brief What OBJECT STATE just said, written to the objects OBJECT STATE was bound to.
-     *
-     * The panel answers with compositions and no uids, because it was handed compositions and no uids.
-     * Which objects those were is remembered in \c m_panelSubjects at the moment it was bound, so a
-     * selection that has changed since cannot make this write the right values onto the wrong objects.
-     *
-     * \param records  The compositions to apply to the objects.
-     * \param commit  False while a control is being dragged or typed in: the objects
-     */
-    void applyPanelRecords(const QList<Composition>& records, bool commit);
+    // --- what OBJECT STATE shows, and where what it says goes: wired by the Editor ---
+    [[nodiscard]] PanelBinder& panel() { return *m_panel; }
     //! OBJECT STATE's *Fit*: grows or shrinks the selected object's box to its words. Not a picture.
     void fitSelectionToText();
     //! *Fix padding*: lowers the selected balloon's paddings, each in its own direction, until its words
@@ -533,18 +524,6 @@ signals:
     void subjectRowChanged();          //!< The strip or a page became the selection.
     void revealSelectionRequested();   //!< An undo selected something: bring its row into view.
 
-    // --- for OBJECT STATE: what it is bound to now. The Editor wires these; this class has no panel. ---
-    void boundToRecord(const Composition& record);            //!< One object.
-    void boundToTail(const Composition& record, int index);   //!< One tail, of the balloon @p record.
-    void boundToRecords(const QList<Composition>& records);   //!< Several objects, of any kinds.
-    void boundToMixed(int count);   //!< Objects and tails together: nothing editable in common.
-    //! Several tails and no whole object: their @p balloons, and each tail as (balloon index, tail index).
-    void boundToTails(const QList<Composition>& balloons, const QList<QPair<int, int>>& tails);
-    void boundToNothing();          //!< Nothing is selected.
-    //! The selection's blend mode, none when they disagree; @p applies is false for a tail or nothing.
-    void blendBound(std::optional<Platemaker::Models::BlendMode> blend, bool applies);
-    //! One picture's scale in percent; no value for anything else.
-    void artworkScaleBound(std::optional<double> percent);
     void textFocusRequested();      //!< A bubble just placed, or its words pressed in shape editing: the caret to its text.
 
 private:
@@ -678,14 +657,7 @@ private:
      */
     QHash<QString, QImage>  m_sharpCache;
     SelectionModel     m_selection;   //!< What is selected; this class draws and binds what it says.
-    /**
-     * \brief The objects OBJECT STATE is currently bound to, in the order its compositions are in.
-     *
-     * Not the same thing as the selection, and that is the point: the panel answers about what it was
-     * shown, which may no longer be what is selected. Empty whenever the panel is showing something
-     * that cannot be edited — nothing, a mixed set, a tail's balloon — so a stray signal writes nothing.
-     */
-    QStringList        m_panelSubjects;
+    PanelBinder*       m_panel = nullptr;   //!< What OBJECT STATE shows; a child of this object.
     ShapeEditMode*     m_shapeEdit = nullptr;   //!< Shape editing; a child of this object.
 
     // --- a drag in flight: where everything stood when it started ---

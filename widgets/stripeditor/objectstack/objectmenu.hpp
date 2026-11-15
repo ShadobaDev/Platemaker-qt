@@ -117,7 +117,6 @@ private:
     QAction*           m_actNaturalSize  = nullptr;   //!< Artwork at 100% — the size it was drawn at.
     QAction*           m_actFitToStrip   = nullptr;   //!< Artwork as wide as the strip, and no wider.
     QAction*           m_actFitToText    = nullptr;   //!< The box sized to the lettering — OBJECT STATE's *Fit*.
-    QAction*           m_actFixPadding   = nullptr;   //!< A balloon's padding lowered until the lettering fits.
     QAction*           m_actEditShape    = nullptr;   //!< Shape editing of one balloon, on and off.
     QAction*           m_actResetLook    = nullptr;   //!< *Reset to default*: the default look, no origin.
     QMenu*             m_nodeTypeMenu    = nullptr;   //!< *Point type ▸*: the picked Curve node's type.

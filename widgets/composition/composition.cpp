@@ -446,6 +446,15 @@ QJsonObject toJson(const Composition& c)
         QJsonObject o{{QStringLiteral("id"), w.id}, {QStringLiteral("text"), toJson(w.text)}};
         if (w.seat != 0) {
             o.insert(QStringLiteral("seat"), w.seat);
+            if (w.anchor != Words().anchor)
+                o.insert(QStringLiteral("anchor"), pointToJson(w.anchor));
+            QJsonObject frame;
+            for (const auto& [name, edge] : {std::pair{"left", w.frame.left}, std::pair{"top", w.frame.top},
+                                             std::pair{"right", w.frame.right}, std::pair{"bottom", w.frame.bottom}})
+                if (edge)
+                    frame.insert(QLatin1String(name), *edge);
+            if (!frame.isEmpty())
+                o.insert(QStringLiteral("frame"), frame);
         } else {   // their own box, read only then
             o.insert(QStringLiteral("place"), placeToJson(w.place));
             o.insert(QStringLiteral("box"), sizeToJson(w.box));
@@ -508,6 +517,12 @@ Composition compositionFromJson(const QJsonObject& j)
         w.place = placeFromJson(o.value(QStringLiteral("place")).toObject());
         sizeFromJson(o.value(QStringLiteral("box")), w.box);
         w.text  = textFromJson(o.value(QStringLiteral("text")).toObject());
+        pointFromJson(o.value(QStringLiteral("anchor")), w.anchor);
+        const QJsonObject frame = o.value(QStringLiteral("frame")).toObject();
+        for (const auto& [name, edge] : {std::pair{"left", &w.frame.left}, std::pair{"top", &w.frame.top},
+                                         std::pair{"right", &w.frame.right}, std::pair{"bottom", &w.frame.bottom}})
+            if (const QJsonValue v = frame.value(QLatin1String(name)); v.isDouble())
+                *edge = v.toDouble();
         c.words.append(w);
     }
     const QJsonObject preset = j.value(QStringLiteral("preset")).toObject();

@@ -127,7 +127,26 @@ struct Balloon
 };
 
 /**
- * \brief Words and how they are set: the text, its lettering and its paddings.
+ * \brief Where words sit in their body: four edges, each **set** — its distance from the words' anchor, in balloon
+ *        pixels, inside the balloon or past it — or **automatic** (none): as far as the body's box, less the
+ *        stroke and the edge's teeth.
+ */
+struct Frame
+{
+    std::optional<qreal> left, top, right, bottom;
+
+    [[nodiscard]] bool operator==(const Frame& o) const
+    {
+        const auto same = [](const std::optional<qreal>& a, const std::optional<qreal>& b) {
+            return a.has_value() == b.has_value() && (!a || qFuzzyCompare(1.0 + *a, 1.0 + *b));
+        };
+        return same(left, o.left) && same(top, o.top) && same(right, o.right) && same(bottom, o.bottom);
+    }
+    [[nodiscard]] bool operator!=(const Frame& o) const { return !(*this == o); }
+};
+
+/**
+ * \brief Words and how they are set: the text, its lettering, and where they sit.
  *
  * They sit in a body (\c seat, its id), whose size they wrap in, or, with no body (\c seat 0), in their own
  * \c box at \c place: a caption, or the words over a picture.
@@ -139,10 +158,15 @@ struct Words
     Place          place;   //!< Read only with no seat.
     QSize          box;     //!< Read only with no seat.
     TextProperties text;
+    //! The point in its body the block is placed by (centred on it, or aligned from it), as a fraction of the
+    //! body: it keeps its place when the body changes size. Read only with a seat.
+    QPointF        anchor{0.5, 0.5};
+    Frame          frame;   //!< Read only with a seat.
 
     [[nodiscard]] bool operator==(const Words& o) const
     {
-        return id == o.id && seat == o.seat && place == o.place && box == o.box && text == o.text;
+        return id == o.id && seat == o.seat && place == o.place && box == o.box && text == o.text
+            && anchor == o.anchor && frame == o.frame;
     }
     [[nodiscard]] bool operator!=(const Words& o) const { return !(*this == o); }
 };

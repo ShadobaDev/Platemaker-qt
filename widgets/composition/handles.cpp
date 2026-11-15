@@ -113,7 +113,8 @@ QPointF dragFill(Composition& next, const Handle& h, const QPointF& to, const Ha
 //! The words' text area.
 QPointF dragWords(Composition& next, const Handle& h, const QPointF& to, const HandleContext&)
 {
-    dragTextAreaHandle(next, h, to).applyTo(next);
+    if (Words* w = wordsOf(next))
+        *w = dragTextAreaHandle(next, h, to);
     return {};
 }
 

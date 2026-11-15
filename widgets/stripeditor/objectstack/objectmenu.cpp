@@ -149,8 +149,6 @@ ObjectMenu::ObjectMenu(ObjectController& objects, const StripLayout& layout, Pre
     // looked for, beside the artwork's own two.
     m_actFitToText = new QAction(tr("Fit to text"), this);
     connect(m_actFitToText, &QAction::triggered, &m_objects, &ObjectController::fitSelectionToText);
-    m_actFixPadding = new QAction(tr("Fix padding"), this);
-    connect(m_actFixPadding, &QAction::triggered, &m_objects, &ObjectController::fixSelectionPadding);
 
     // Shape editing: entered here or by a double-click on the balloon, left here, by Esc, or
     // by a click outside it. Esc is a shortcut of its own, not an entry: the menu has nothing to show
@@ -218,7 +216,6 @@ ObjectMenu::ObjectMenu(ObjectController& objects, const StripLayout& layout, Pre
         w->addAction(m_actNaturalSize);
         w->addAction(m_actFitToStrip);
         w->addAction(m_actFitToText);
-        w->addAction(m_actFixPadding);
         w->addAction(m_actEditShape);
         w->addAction(m_nodeTypeMenu->menuAction());
         w->addAction(m_actAddHandles);
@@ -294,10 +291,6 @@ void ObjectMenu::updateEntries()
     if (m_actFitToText) {
         m_actFitToText->setVisible(allParametric);
         m_actFitToText->setEnabled(oneObject);
-    }
-    if (m_actFixPadding) {
-        m_actFixPadding->setVisible(allParametric && (!oneObject || one.balloon.has_value()));
-        m_actFixPadding->setEnabled(oneObject && one.balloon.has_value());
     }
     // A kind is something only an authored object has. One that is not — imported artwork, or a tail —
     // can reach nothing, and the intersection of "everything" with "nothing" is what greys this out.

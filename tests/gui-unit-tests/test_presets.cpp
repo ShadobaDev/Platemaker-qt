@@ -66,17 +66,13 @@ TEST_F(Presets, ARenameKeepsTheLookAndRefusesATakenName)
     store.remove(qMin(a, b));
 }
 
-TEST_F(Presets, APresetBringsItsPaddingAndLineSpacing)
+TEST_F(Presets, APresetBringsItsLineSpacing)
 {
     const PresetStore store;
     BubblePreset      p = store.presets().first();
-    p.lettering.paddingSide = -4;
-    p.lettering.paddingTop  = 12;
     p.lettering.lineSpacing = 90;
 
     const Composition look = PresetStore::applied(p, placed(), /*keepShape=*/true);
-    EXPECT_EQ(textOf(look).paddingSide, -4);
-    EXPECT_EQ(textOf(look).paddingTop, 12);
     EXPECT_EQ(textOf(look).lineSpacing, 90);
 }
 

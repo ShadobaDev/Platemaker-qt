@@ -792,18 +792,6 @@ void ObjectController::fitSelectionToText()
     m_panel->show(a);
 }
 
-void ObjectController::fixSelectionPadding()
-{
-    Object* item = m_overlayItems.value(m_selection.primary());
-    if (!item)
-        return;
-    Composition a = item->composition();
-    if (!Edits::fixPadding(a))
-        return;   // no balloon, or it fits already — not an edit, and not a history step
-    applyComposition(m_selection.primary(), a, /*commit=*/true, tr("Fix padding"));
-    m_panel->show(a);
-}
-
 int ObjectController::presetTargetCount() const
 {
     return int(std::count_if(m_selection.objects().cbegin(), m_selection.objects().cend(), [this](const QString& uid) {
@@ -873,7 +861,7 @@ QPointF ObjectController::settleBox(const Object* item, Composition& next) const
     // **No growing on edit.** It was tried (an edit grew the box where the words overflowed, never
     // shrinking it) and taken out: deleting letters left the box grown, and any edit to a box dragged
     // smaller on purpose grew it back. The red outline says when the words do not fit; *Fit to text*
-    // and *Fix padding* are how the author answers it.
+    // and the frame's arrows are how the author answers it.
     //
     // **The lettering does not move.** Whatever changed the box — *Fit*, *Convert* — the object
     // is moved so that the lettering's anchor keeps its place on the strip, and every tail tip moves

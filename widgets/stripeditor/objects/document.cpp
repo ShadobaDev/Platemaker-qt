@@ -223,17 +223,6 @@ bool fitToText(Composition& c)
     return sizeOf(c) != was;
 }
 
-bool fixPadding(Composition& c)
-{
-    if (!c.balloon)
-        return false;   // only a balloon has an outline to keep the lettering from
-    const TextProperties fitted = Geometry::fittingPaddings(c);
-    if (fitted == TextProperties::from(c))
-        return false;
-    fitted.applyTo(c);
-    return true;
-}
-
 bool removeTails(Composition& c, QList<int> indexes)
 {
     if (!c.balloon)

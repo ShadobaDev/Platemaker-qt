@@ -72,7 +72,6 @@ private:
     QCheckBox*      m_bold   = nullptr;
     QComboBox*      m_align  = nullptr;
     QSpinBox*       m_lineSpacing = nullptr;
-    FieldRows<TextProperties> m_paddings;   //!< Side and top; only while something bound has a balloon to keep from.
     PaintRows<TextProperties> m_fill;           //!< The letters' paint.
     FieldRows<TextProperties> m_outlineWidth;   //!< The letters' outline; 0 is none.
     PaintRows<TextProperties> m_outline;        //!< ...and its paint.
@@ -96,7 +95,6 @@ private:
     bool m_bodyVisible   = true;   //!< What setContentVisible() was last told; a set hides the box too.
     bool m_mixedLineSpacing   = false;
     bool m_lineSpacingTouched = false;
-    bool m_anyBalloon         = true;   //!< Whether the padding rows mean anything for what is bound.
     bool m_anyOutline         = false;  //!< Whether anything bound has an outline (showOutline()).
 };
 

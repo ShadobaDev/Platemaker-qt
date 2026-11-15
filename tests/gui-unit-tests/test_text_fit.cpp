@@ -14,21 +14,22 @@ namespace {
 //! The grips' own minimum, which a fit does not go below either.
 constexpr int k_floor = 40;
 
-//! A balloon of @p shape, or a text object for `None`, with both paddings @p padding.
-Composition withShape(const ShapeProperties& shape, int padding = 8)
+//! A balloon of @p shape, or a text object for `None`.
+Composition withShape(const ShapeProperties& shape)
 {
-    Composition a         = textObject(QSize(500, 500));   // a fit's starting point must not matter
-    textOf(a).paddingSide = padding;
-    textOf(a).paddingTop  = padding;
+    const Composition a = textObject(QSize(500, 500));   // a fit's starting point must not matter
     return shape.kind == ShapeProperties::Kind::None ? a : withBalloon(a, {shape, {}});
 }
 
-Composition withShape(ShapeProperties::Kind kind, int padding = 8)
+Composition withShape(ShapeProperties::Kind kind)
 {
     ShapeProperties shape;
     shape.kind = kind;
-    return withShape(shape, padding);
+    return withShape(shape);
 }
+
+//! Distances and positions in balloon pixels: exact but for rounding.
+constexpr qreal k_px = 1e-9;
 
 //! Every outline the picker offers, by its template's id, and no balloon at all.
 QList<QPair<const char*, ShapeProperties>> everyShape(bool withNone = true)
@@ -99,39 +100,54 @@ TEST(TextFit, NeitherSideGoesBelowTheFloor)
     }
 }
 
-TEST(TextFit, PaddingGrowsTheBoxAndANegativeOneShrinksIt)
+TEST(TextFit, AnAutomaticEdgeReachesTheBoxLessTheStroke)
 {
-    const QSizeF block(200, 60);
-    const QSize  tight = Geometry::fitBoxFor(withShape(ShapeProperties::Kind::Box, 0), block);
-    const QSize  roomy = Geometry::fitBoxFor(withShape(ShapeProperties::Kind::Box, 20), block);
-    const QSize  burst = Geometry::fitBoxFor(withShape(ShapeProperties::Kind::Box, -20), block);
-    EXPECT_GT(roomy.width(), tight.width());
-    EXPECT_GT(roomy.height(), tight.height());
-    EXPECT_LT(burst.width(), tight.width());
-    // Negative enough, the lettering is wider than its own balloon — an impact balloon's look.
-    EXPECT_LT(burst.width(), block.width());
+    Composition a = withShape(ShapeProperties::Kind::Box);
+    boxOf(a)      = QSize(300, 200);
+    const qreal  in   = styleOf(a).strokeWidth / 2.0;
+    const QRectF area = Geometry::textArea(a, *wordsOf(a));
+    const QRectF box  = Geometry::balloonRect(*a.balloon, *bodyOf(a)).adjusted(in, in, -in, -in);
+    EXPECT_NEAR(area.left(), box.left(), k_px);
+    EXPECT_NEAR(area.top(), box.top(), k_px);
+    EXPECT_NEAR(area.right(), box.right(), k_px);
+    EXPECT_NEAR(area.bottom(), box.bottom(), k_px);
 
-    // Each in its own direction: the side padding widens the box only, the top one (mirrored
-    // at the bottom) heightens it only.
-    Composition side       = withShape(ShapeProperties::Kind::Box, 0);
-    textOf(side).paddingSide   = 20;
-    Composition top        = withShape(ShapeProperties::Kind::Box, 0);
-    textOf(top).paddingTop     = 20;
-    const QSize  wide       = Geometry::fitBoxFor(side, block);
-    const QSize  tall       = Geometry::fitBoxFor(top, block);
-    EXPECT_EQ(wide.width(), roomy.width());
-    EXPECT_EQ(wide.height(), tight.height());
-    EXPECT_EQ(tall.width(), tight.width());
-    EXPECT_EQ(tall.height(), roomy.height());
+    // The block is centred on the anchor, the middle of that box by default.
+    const QRectF block = Geometry::blockRect(a, *wordsOf(a), QSizeF(100, 40));
+    EXPECT_NEAR(block.center().x(), box.center().x(), k_px);
+    EXPECT_NEAR(block.center().y(), box.center().y(), k_px);
 }
 
-TEST(TextFit, PaddingDoesNothingWithoutABalloon)
+TEST(TextFit, ASetEdgeIsItsDistanceFromTheAnchorAndTheAnchorKeepsItsPlace)
 {
-    const QSizeF block(200, 36);
-    EXPECT_EQ(Geometry::fitBoxFor(withShape(ShapeProperties::Kind::None, 0), block),
-              Geometry::fitBoxFor(withShape(ShapeProperties::Kind::None, 50), block));
+    Composition a = withShape(ShapeProperties::Kind::Box);
+    boxOf(a)      = QSize(300, 200);
+    Words& w      = *wordsOf(a);
+    w.anchor      = QPointF(0.25, 0.5);
+    w.frame.left  = 30;
+    w.frame.top   = 10;
+    const qreal   in    = styleOf(a).strokeWidth / 2.0;
+    const QRectF  box   = Geometry::balloonRect(*a.balloon, *bodyOf(a)).adjusted(in, in, -in, -in);
+    const QPointF at    = box.topLeft() + QPointF(0.25 * box.width(), 0.5 * box.height());
+    const QRectF  area  = Geometry::textArea(a, w);
+    EXPECT_NEAR(area.left(), at.x() - 30, k_px);
+    EXPECT_NEAR(area.top(), at.y() - 10, k_px);
+    EXPECT_NEAR(area.right(), box.right(), k_px) << "the right edge is automatic";
+
+    // A block wider than the set left edge allows does not fit, whatever size the box is: the fit keeps its width.
+    EXPECT_FALSE(Geometry::fits(a, QSizeF(80, 10)));
+    EXPECT_EQ(Geometry::fitBoxFor(a, QSizeF(80, 10)).width(), boxOf(a).width());
+
+    // The anchor is a fraction of the body: a wider body moves it with it.
+    boxOf(a) = QSize(600, 200);
+    const QRectF wider = Geometry::balloonRect(*a.balloon, *bodyOf(a)).adjusted(in, in, -in, -in);
+    EXPECT_NEAR(Geometry::textArea(a, *wordsOf(a)).left(), wider.left() + 0.25 * wider.width() - 30, k_px);
+}
+
+TEST(TextFit, AWordsBoxIsItsFrameWithoutABalloon)
+{
     // A text object's text area is its box: the fit is the block itself, rounded up, above the floor.
-    EXPECT_EQ(Geometry::fitBoxFor(withShape(ShapeProperties::Kind::None), block), QSize(200, k_floor));
+    EXPECT_EQ(Geometry::fitBoxFor(withShape(ShapeProperties::Kind::None), QSizeF(200, 36)), QSize(200, k_floor));
 }
 
 TEST(TextFit, NoTextKeepsTheBox)
@@ -141,98 +157,42 @@ TEST(TextFit, NoTextKeepsTheBox)
     EXPECT_TRUE(Geometry::fits(a, QSizeF()));
 }
 
-TEST(TextFit, FixPaddingLowersEachUntilTheLetteringFits)
-{
-    const QSizeF block(200, 60);
-
-    // The box Fit gives at padding 0: at padding 8 the lettering overflows both ways, and 0 is the most
-    // either can keep.
-    Composition a = withShape(ShapeProperties::Kind::Box, 0);
-    boxOf(a)          = Geometry::fitBoxFor(a, block);
-    textOf(a).paddingSide = textOf(a).paddingTop = 8;
-    ASSERT_FALSE(Geometry::fits(a, block));
-    TextProperties fixed = Geometry::paddingsToFit(a, block);
-    EXPECT_EQ(fixed.paddingSide, 0);
-    EXPECT_EQ(fixed.paddingTop, 0);
-
-    // Each in its own direction only: too wide lowers the side and leaves the top alone...
-    Composition wide = a;
-    boxOf(wide).setHeight(boxOf(a).height() + 100);
-    fixed = Geometry::paddingsToFit(wide, block);
-    EXPECT_EQ(fixed.paddingSide, 0);
-    EXPECT_EQ(fixed.paddingTop, 8);
-    // ...and too tall lowers the top and leaves the side alone.
-    Composition tall = a;
-    boxOf(tall).setWidth(boxOf(a).width() + 100);
-    fixed = Geometry::paddingsToFit(tall, block);
-    EXPECT_EQ(fixed.paddingSide, 8);
-    EXPECT_EQ(fixed.paddingTop, 0);
-
-    // A balloon smaller than its lettering: the paddings go below zero, past the outline, each to the
-    // largest that holds.
-    Composition burst = withShape(ShapeProperties::Kind::Box, -20);
-    boxOf(burst)          = Geometry::fitBoxFor(burst, block);
-    textOf(burst).paddingSide = textOf(burst).paddingTop = 8;
-    fixed = Geometry::paddingsToFit(burst, block);
-    EXPECT_EQ(fixed.paddingSide, -20);
-    textOf(burst) = fixed;
-    EXPECT_TRUE(Geometry::fits(burst, block));
-    Composition over = burst;
-    ++textOf(over).paddingSide;
-    EXPECT_FALSE(Geometry::fits(over, block));   // and it is the largest that does
-    over = burst;
-    ++textOf(over).paddingTop;
-    EXPECT_FALSE(Geometry::fits(over, block));
-}
-
-TEST(TextFit, FixPaddingLeavesWhatAlreadyFitsAlone)
-{
-    Composition roomy = withShape(ShapeProperties::Kind::Ellipse, 8);
-    boxOf(roomy)          = QSize(900, 600);
-    EXPECT_EQ(Geometry::paddingsToFit(roomy, QSizeF(200, 36)), textOf(roomy));   // never raised to take up the room
-
-    Composition text = withShape(ShapeProperties::Kind::None, 8);
-    boxOf(text)          = QSize(50, 40);
-    EXPECT_EQ(Geometry::paddingsToFit(text, QSizeF(200, 36)), textOf(text));     // no outline, no padding to give
-}
-
 /**
- * \brief The text area's arrows sit on its left, right and top edges, and dragging one moves
- *        that edge with the pointer: the side padding for either side, the top padding for the top.
+ * \brief The text area's arrows sit on its left and right edges, level with the anchor, and on its top, above it;
+ *        dragging one sets that edge where the pointer is, as its distance from the anchor.
  */
-TEST(TextFit, TheTextAreaArrowsDragThePaddings)
+TEST(TextFit, TheTextAreaArrowsSetTheirEdges)
 {
     using Geometry::TextAreaPart;
-    Composition a     = withShape(ShapeProperties::Kind::Box);
-    boxOf(a)              = QSize(300, 200);
-    const QRectF area  = Geometry::textArea(a, *wordsOf(a));
+    Composition a = withShape(ShapeProperties::Kind::Box);
+    boxOf(a)      = QSize(300, 200);
+    const QRectF  area = Geometry::textArea(a, *wordsOf(a));
+    const QPointF at   = Geometry::blockRect(a, *wordsOf(a), QSizeF()).center();   // the anchor
     const QList<Geometry::Handle> arrows = Geometry::textAreaHandles(a);
     ASSERT_EQ(arrows.size(), 3);
     EXPECT_EQ(Geometry::partOf<TextAreaPart>(arrows[0]), TextAreaPart::Side);
-    EXPECT_EQ(arrows[0].at, QPointF(area.left(), area.center().y()));
+    EXPECT_EQ(arrows[0].at, QPointF(area.left(), at.y()));
     EXPECT_EQ(Geometry::partOf<TextAreaPart>(arrows[1]), TextAreaPart::Side);
-    EXPECT_EQ(arrows[1].at, QPointF(area.right(), area.center().y()));
+    EXPECT_EQ(arrows[1].at, QPointF(area.right(), at.y()));
     EXPECT_EQ(Geometry::partOf<TextAreaPart>(arrows[2]), TextAreaPart::Top);
-    EXPECT_EQ(arrows[2].at, QPointF(area.center().x(), area.top()));
+    EXPECT_EQ(arrows[2].at, QPointF(at.x(), area.top()));
 
-    // Each edge follows the pointer; the other padding stays.
-    TextProperties t = Geometry::dragTextAreaHandle(a, arrows[0], arrows[0].at + QPointF(10, 40));
-    EXPECT_EQ(t.paddingSide, textOf(a).paddingSide + 10);
-    EXPECT_EQ(t.paddingTop, textOf(a).paddingTop);
-    t = Geometry::dragTextAreaHandle(a, arrows[1], arrows[1].at + QPointF(5, 0));   // out past the outline
-    EXPECT_EQ(t.paddingSide, textOf(a).paddingSide - 5);
-    t = Geometry::dragTextAreaHandle(a, arrows[2], arrows[2].at + QPointF(-30, 7));
-    EXPECT_EQ(t.paddingTop, textOf(a).paddingTop + 7);
-    EXPECT_EQ(t.paddingSide, textOf(a).paddingSide);
+    // Each sets its own edge, in whole pixels from the anchor, inside the balloon or past it; the others stay
+    // automatic.
+    Words w = Geometry::dragTextAreaHandle(a, arrows[0], QPointF(at.x() - 40, 0));
+    ASSERT_TRUE(w.frame.left.has_value());
+    EXPECT_NEAR(*w.frame.left, 40.0, k_px);
+    EXPECT_FALSE(w.frame.right.has_value());
+    w = Geometry::dragTextAreaHandle(a, arrows[1], QPointF(at.x() + 400, 0));   // out past the outline
+    EXPECT_NEAR(*w.frame.right, 400.0, k_px);
+    w = Geometry::dragTextAreaHandle(a, arrows[2], QPointF(0, at.y() - 25.4));
+    EXPECT_NEAR(*w.frame.top, 25.0, k_px);
 
-    // Dragged past the middle, an edge stops short of it: the area never turns inside out.
-    Composition thin = a;
-    textOf(thin)         = Geometry::dragTextAreaHandle(a, arrows[0], QPointF(area.right() + 50, 0));
-    EXPECT_GT(Geometry::textArea(thin, *wordsOf(thin)).width(), 0.0);
-    textOf(thin)         = Geometry::dragTextAreaHandle(a, arrows[2], QPointF(0, area.bottom() + 50));
-    EXPECT_GT(Geometry::textArea(thin, *wordsOf(thin)).height(), 0.0);
+    // Dragged past the anchor, an edge stops a pixel short of it: the area never turns inside out.
+    w = Geometry::dragTextAreaHandle(a, arrows[0], QPointF(at.x() + 50, 0));
+    EXPECT_NEAR(*w.frame.left, 1.0, k_px);
 
-    // No balloon, no paddings, no arrows.
+    // No balloon: the words keep their own box, and offer no arrows.
     EXPECT_TRUE(Geometry::textAreaHandles(withShape(ShapeProperties::Kind::None)).isEmpty());
 }
 

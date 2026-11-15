@@ -85,19 +85,17 @@ title and whether it speaks; the picker's tiles are the templates (`shapeTemplat
 the speech balloon and the caption box are two templates of one kind, the Box. **A new outline that an
 existing kind can describe is one template row**, and nothing else.
 
-A new kind gets move, resize, tails, lettering, undo, presets, the tiles and the row glyphs for free. Copy
-**Ellipse** (`ellipsePath()`, `inscribedInEllipse()`) for one with no parameter, **Box** (`boxPath()`,
-`boxArea()`) or **Cloud** (`cloudPath()`, `cloudArea()`) for one with parameters, or **Polygon** (`polygonPath()`, `polygonArea()`) and **Curve** (`curvePath()`,
-`curveArea()`) for one with no formula for its text area: `largestInscribedRect()` finds it from the
-outline.
+A new kind gets move, resize, tails, lettering, undo, presets, the tiles and the row glyphs for free: its words
+sit in a frame of their own, so a kind says nothing about where they fit. Copy **Ellipse** (`ellipsePath()`) for
+one with no parameter, **Box** (`boxPath()`) or **Cloud** (`cloudPath()`) for one with parameters, or **Polygon**
+(`polygonPath()`) and **Curve** (`curvePath()`) for one drawn from nodes.
 
 1. `widgets/composition/propertygroups.hpp`: add to `Kind` (persisted by name; the strip editor is
    unreleased, so a kind may still be renamed or merged) and move `k_lastKind`.
-2. `widgets/composition/shapes.cpp`: its named constants, `<name>Path()` and `<name>Area()` (the largest
-   rectangle the outline contains), both taking the shape group and the body, and **one entry in
-   `k_shapes`**, in the enum's order: the persisted name, the title, whether an outline matching no
-   template speaks, the sections of numbers it reads (`sections`), the two functions, and the flash's Auto
-   stretch.
+2. `widgets/composition/shapes.cpp`: its named constants, `<name>Path()` taking the shape group and the body,
+   and **one entry in `k_shapes`**, in the enum's order: the persisted name, the title, whether an outline
+   matching no template speaks, the sections of numbers it reads (`sections`), the path function, and the
+   flash's Auto stretch.
    Then **at least one template** in `shapeTemplates()`, in the picker's order.
 3. `widgets/composition/names.cpp`: its place in `shapeOrder()`, which is what names are read
    back from.
@@ -252,16 +250,16 @@ alone). A kind that needs a filter brings it from its table entry, `TextureInfo:
 the SVG byte for byte; the painter was checked pixel for pixel against the code it replaced on every golden
 case.
 
-- **Placement.** The text area is the shape's (`textSafeArea()`), inset by the stroke, the edge's depth
-  and the two paddings, `paddingSide` left and right and `paddingTop` at the top and, mirrored, at the
-  bottom. The block starts centred and grows both ways with each line; once its top meets the top
-  padding it stays there and grows downwards, out of the balloon. A balloon's words are clipped at the
-  sides and the top only, never at the bottom; a text object's and a picture's keep their box, centred.
-  The red text area shows when they do not fit (`fits()`), and *Fix padding* (`paddingsToFit()`) lowers
-  each padding in its own direction.
-- **The text area on the strip.** In shape editing a balloon with words shows its text area and three
-  arrows (`textAreaHandles()`, roles `TextSide` and `TextTop`, dragged by `dragTextAreaHandle()`), which
-  set the paddings; so shape editing is offered to any balloon with words.
+- **Placement.** Words sit in a frame of their own: an anchor in their body (a fraction of it, the middle by
+  default) and four edges, each set (its distance from the anchor) or automatic (the body's box less the stroke
+  and the edge's teeth). The block is centred on the anchor up and down — pinned to the frame's top when taller
+  than the frame, growing downwards from there — and placed across by the alignment (`blockRect()`). A balloon's
+  words are clipped to the frame at the sides and the top only, never at the bottom; a text object's and a
+  picture's keep their own box, anchored at its middle. The red text area shows when the placed block leaves
+  the frame (`fits()`); the content saves the anchor (when not the middle) and the set edges.
+- **The text area on the strip.** In shape editing a balloon with words shows its frame and three arrows
+  (`textAreaHandles()`, `TextAreaPart::Side` and `Top`, dragged by `dragTextAreaHandle()`), each of which sets
+  its edge; so shape editing is offered to any balloon with words.
 - **What the letters wear**, fields of `TextProperties`, off by default: their **fill** (a Paint, its
   colour still saved as `textColour`), an **outline** (a Paint and a width, drawn outside the glyphs:
   stroked at twice the width under them, two draws in the SVG, not `paint-order`), and a **shadow** (the

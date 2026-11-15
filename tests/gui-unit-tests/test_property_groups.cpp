@@ -132,8 +132,6 @@ Composition loadedBalloon()
     textOf(a).fill.size   = 1.75;
     textOf(a).fill.angle  = 15;
     textOf(a).lineSpacing = 85;
-    textOf(a).paddingSide = -13;   // negative on purpose: an impact balloon's lettering may leave it
-    textOf(a).paddingTop  = 17;    // and not the side's, so the two are told apart
     textOf(a).outline.colour  = QColor(21, 22, 23);
     textOf(a).outline.kind    = Paint::Kind::Dots;
     textOf(a).outline.second  = QColor(24, 25, 26);
@@ -230,7 +228,7 @@ struct StyleMirror {
 static_assert(sizeof(StyleProperties) == sizeof(StyleMirror),
               "StyleProperties grew a field: place it (see above), then mirror it");
 
-struct TextMirror { QString body, family; int pixelSize; bool bold; int align; Paint fill; int lineSpacing, paddingSide, paddingTop;
+struct TextMirror { QString body, family; int pixelSize; bool bold; int align; Paint fill; int lineSpacing;
                     Paint outline; qreal outlineWidth; Shadow shadow; Paint shadowFill; };
 static_assert(sizeof(TextProperties) == sizeof(TextMirror),
               "TextProperties grew a field: place it (see above), then mirror it");
@@ -267,7 +265,7 @@ struct BodyMirror { int id; Place place; QSize size; ShapeProperties shape; };
 static_assert(sizeof(Body) == sizeof(BodyMirror), "Body grew a field: place it (see above), then mirror it");
 struct BalloonMirror { int id; BalloonStyle style; QList<Body> bodies; QList<BalloonTail> tails; };
 static_assert(sizeof(Balloon) == sizeof(BalloonMirror), "Balloon grew a field: place it (see above), then mirror it");
-struct WordsMirror { int id; int seat; Place place; QSize box; TextProperties text; };
+struct WordsMirror { int id; int seat; Place place; QSize box; TextProperties text; QPointF anchor; Frame frame; };
 static_assert(sizeof(Words) == sizeof(WordsMirror), "Words grew a field: place it (see above), then mirror it");
 struct CompositionMirror { std::optional<Balloon> balloon; std::optional<Picture> picture; QList<Words> words;
                            quint32 seed; PresetOrigin preset; int nextId; };
@@ -395,8 +393,6 @@ void expectUntouched(Group applied, const Composition& before, const Composition
         EXPECT_EQ(textOf(after).align,     textOf(before).align);
         expectSamePaint(textOf(after).fill, textOf(before).fill, "text");
         EXPECT_EQ(textOf(after).lineSpacing, textOf(before).lineSpacing);
-        EXPECT_EQ(textOf(after).paddingSide, textOf(before).paddingSide);
-        EXPECT_EQ(textOf(after).paddingTop,  textOf(before).paddingTop);
         expectSamePaint(textOf(after).outline, textOf(before).outline, "text outline");
         EXPECT_DOUBLE_EQ(textOf(after).outlineWidth, textOf(before).outlineWidth);
         EXPECT_EQ(textOf(after).shadow, textOf(before).shadow);
@@ -540,8 +536,6 @@ TEST(PropertyGroupOwnership, Text)
     s.fill.colour = QColor(90, 80, 70);
     s.fill.kind   = Paint::Kind::Dots;
     s.lineSpacing = 140;
-    s.paddingSide = 21;
-    s.paddingTop  = -4;
     s.outline.colour = QColor(60, 50, 40);
     s.outline.kind   = Paint::Kind::Lines;
     s.outlineWidth   = 3.5;
@@ -989,7 +983,6 @@ TEST(Conversion, EveryShapeAndStyleHasATableEntry)
         EXPECT_EQ(info.kind, kind) << "entry " << i << " is out of the enum's order";
         EXPECT_NE(info.name, nullptr) << i;
         EXPECT_NE(info.title, nullptr) << i;
-        EXPECT_NE(info.safeArea, nullptr) << i;
         EXPECT_EQ(info.outline == nullptr, kind == ShapeProperties::Kind::None) << shapeName(kind);
         for (const char* name : info.sections)
             EXPECT_TRUE(!name || hasSection<ShapeProperties>(name)) << shapeName(kind) << " reads " << name;
@@ -2137,7 +2130,7 @@ TEST(Handles, EachBelongsToItsElementAndItsOwnerTakesTheDrag)
     EXPECT_TRUE(shapeOf(fade) == shapeOf(c));
 
     const Composition words = dragged(all.at(all.size() - k_arrows), QPointF(10, 0));
-    EXPECT_FALSE(textOf(words) == textOf(c));
+    EXPECT_FALSE(*wordsOf(words) == *wordsOf(c));   // its frame
     EXPECT_TRUE(shapeOf(words) == shapeOf(c));
     EXPECT_TRUE(skinOf(words) == skinOf(c));
 
@@ -2209,8 +2202,8 @@ TEST(Import, OnlyAFileCarryingTheRecipeIsAdopted)
     t.tip = QPointF(40, 260);
     setTails(c, {t});
     textOf(c).body        = QStringLiteral("Hello");
-    textOf(c).paddingSide = -6;
-    textOf(c).paddingTop  = 3;
+    wordsOf(c)->anchor      = QPointF(0.3, 0.6);   // where the words sit, and a set edge: saved and read back
+    wordsOf(c)->frame.left  = 25;
     textOf(c).lineSpacing = 80;
     const QByteArray ours = svgWith(c);
 
@@ -2219,7 +2212,9 @@ TEST(Import, OnlyAFileCarryingTheRecipeIsAdopted)
     EXPECT_TRUE(ok);
     EXPECT_TRUE(back == c);
     EXPECT_EQ(tailsOf(back).size(), 1);
-    EXPECT_EQ(textOf(back).paddingSide, -6);
+    ASSERT_TRUE(wordsOf(back)->frame.left.has_value());
+    EXPECT_NEAR(*wordsOf(back)->frame.left, 25.0, 1e-9);
+    EXPECT_FALSE(wordsOf(back)->frame.right.has_value()) << "an automatic edge stays automatic";
 
     // The prefix is a local shorthand and carries no meaning: the same file with a different prefix,
     // bound to the same namespace, is still ours.

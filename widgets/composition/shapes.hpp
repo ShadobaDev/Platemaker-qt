@@ -64,14 +64,6 @@ struct ShapeInfo
      */
     QPainterPath (*outline)(const ShapeProperties& shape, const QRectF& body);
     /**
-     * The largest axis-aligned rectangle the outline actually contains, before the stroke and the
-     * padding are taken off. This is the half of a shape that takes the thought: it is what stops a
-     * wide balloon spilling its words out between a burst's spikes or past a diamond's slope. A kind
-     * with no formula for it (the Polygon, the Curve) computes it from its outline. An area, never a placement:
-     * where the words sit in it is lettering.cpp's alone.
-     */
-    QRectF (*safeArea)(const ShapeProperties& shape, const QRectF& body);
-    /**
      * How far a flash's core is stretched on this kind while the balloon leaves it on *Auto*, in %
      * (`StyleProperties::flashCoreStretch`). Round shapes and those of five sides or more point from the
      * centre (0); long straight sides want the line (100), so their strokes stand square to them. A Box

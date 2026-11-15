@@ -1040,24 +1040,6 @@ struct TextProperties
     //! Line pitch as a percentage of the font's own — for faces that set their lines too far apart.
     int     lineSpacing = 100;
     /**
-     * @name How far the lettering keeps from the balloon's outline, in strip pixels, on top of the stroke:
-     *       an inset of the shape's own text area.
-     *
-     * The lettering's, not the balloon's: it is how the words sit, and it is set beside the rest of how
-     * they are set. **Only a balloon uses them**: a text object has no outline to keep away from, so the
-     * values are carried and ignored, and the editor does not offer them there. **May be negative**: the
-     * text area then reaches past the outline, which an impact balloon with lettering bursting out of it
-     * needs. 8 is the inset every balloon had before it was a property.
-     *
-     * The words start centred, and each line grows the block up and down alike until its top meets the top
-     * padding; from there it grows only downwards, out of the balloon, and is never cut there
-     * (Geometry::textOutline()). So the top padding is mirrored at the bottom for the centring and the fit.
-     * @{
-     */
-    int     paddingSide = 8;   //!< Left and right, one value.
-    int     paddingTop  = 8;   //!< The top, which the block stops at.
-    /** @} */
-    /**
      * @name The outline: a band round each letter, outside it, so the letterform keeps the
      * weight its typeface gives it — the glyphs stroked at twice the width, then filled over. Painted
      * with a colour, or a halftone of a second over it. In strip pixels; 0 is none, the default.
@@ -1086,8 +1068,6 @@ struct TextProperties
         v("bold",        &TextProperties::bold);
         v("align",       &TextProperties::align);
         v("lineSpacing", &TextProperties::lineSpacing);
-        v("paddingSide", &TextProperties::paddingSide);
-        v("paddingTop",  &TextProperties::paddingTop);
         // The colour keeps the key it had as a plain colour; a pattern does not fade here.
         static constexpr const char* k_fill[] = {
             "textColour", "textKind", "textSecond", "textSpacing", "textSize", "textAngle",

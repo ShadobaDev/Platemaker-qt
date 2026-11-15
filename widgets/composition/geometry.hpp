@@ -172,10 +172,18 @@ enum class Part { None, Fill, Outline, Text };
 [[nodiscard]] QString defaultFamily();
 
 /**
- * \brief The rectangle \p w may occupy, in the composition's frame — inside its seat's outline, less the
- *        stroke and the paddings (the top one mirrored at the bottom). Words with no seat, their whole box.
+ * \brief The frame \p w are laid in, in the composition's frame (Words::frame): each set edge at its distance
+ *        from the anchor, each automatic one at its seat's box less the stroke and the edge's teeth. Words with
+ *        no seat, their whole box.
  */
 [[nodiscard]] QRectF textArea(const Composition& c, const Words& w);
+
+/**
+ * \brief Where a block of lettering of size \p block sits for \p w: centred on the anchor up and down (pinned to
+ *        the frame's top when it is taller than the frame), and across by the alignment — from the frame's left,
+ *        to its right, or centred on the anchor. What the drawing, the fit and the red overflow all read.
+ */
+[[nodiscard]] QRectF blockRect(const Composition& c, const Words& w, const QSizeF& block);
 
 /**
  * \brief The size of \p c's laid-out lettering — the widest line by the height of all of them.
@@ -186,7 +194,7 @@ enum class Part { None, Fill, Outline, Text };
 [[nodiscard]] QSizeF textBlockSize(const Composition& c);
 
 /**
- * \brief Whether a block of lettering of size \p block fits \p c's text area.
+ * \brief Whether a block of lettering of size \p block, placed (blockRect()), lies in \p c's text area.
  *
  * Pure geometry — no font is touched — so it is the half of fitting that can be tested anywhere.
  * Half a pixel of slack, so a box rounded to whole pixels does not overflow by its own rounding.
@@ -199,8 +207,8 @@ enum class Part { None, Fill, Outline, Text };
 /**
  * \brief The smallest size (sizeOf()), **on both axes**, whose text area holds a block of size \p block.
  *
- * Neither side goes below the grips' own minimum (40 px), so a short word cannot collapse the shape.
- * With a negative padding the text area is larger than the box, and the floor is often where it stops.
+ * Neither side goes below the grips' own minimum (40 px), so a short word cannot collapse the shape. An axis no
+ * size can make hold the block (its set edges are too close) keeps the size it has.
  * Pure geometry, like fits(): fittedBox() is this with the lettering measured.
  */
 [[nodiscard]] QSize fitBoxFor(const Composition& c, const QSizeF& block);
@@ -212,46 +220,31 @@ enum class Part { None, Fill, Outline, Text };
  */
 [[nodiscard]] QSize fittedBox(const Composition& c);
 
-/**
- * \brief \p c's lettering with each padding lowered, in its own direction only, to the largest value at
- *        which a block of size \p block fits — below zero if it has to reach past the outline.
- *
- * Too wide lowers the side padding, too tall the top one; the other is left alone. The box stays as it
- * is; the paddings give way. A fix only ever lowers them: lettering that already fits keeps the room the
- * author gave it. A text object has no padding to give, so its own values come back. Pure geometry, like
- * fitBoxFor().
- */
-[[nodiscard]] TextProperties paddingsToFit(const Composition& c, const QSizeF& block);
-
-//! paddingsToFit() with \p c's lettering measured — *Fix padding*.
-[[nodiscard]] TextProperties fittingPaddings(const Composition& c);
-
-/**
- * \brief The text area's arrows, in balloon coordinates: one at the middle of its left edge
- *        and one of its right (`TextSide`, index 0 and 1), which drag the side padding, and one at the middle
- *        of its top (`TextTop`), which drags the top padding. Each points across its edge. None without a
- *        balloon, which has no paddings.
- */
 //! The text area's handles (textAreaHandles()), told apart by Handle::part.
 enum class TextAreaPart {
-    Side,   //!< Side `index` (0 left, 1 right): the side padding.
-    Top,    //!< The top: the top padding.
+    Side,   //!< Side `index` (0 left, 1 right): that edge of the frame.
+    Top,    //!< The frame's top.
 };
 
+/**
+ * \brief The text area's arrows, in balloon coordinates: one on its left edge and one on its right (`Side`, index
+ *        0 and 1), level with the anchor, and one on its top (`Top`), above it. Each points across its edge. None
+ *        without a balloon, whose words have their own box.
+ */
 [[nodiscard]] QList<Handle> textAreaHandles(const Composition& c);
 
 /**
- * \brief \p c's lettering with text-area \p handle dragged to \p to (balloon coordinates): textAreaHandles()'
- *        inverse. The edge follows the pointer, and its padding is what that leaves; it stops short of the
- *        area's middle, so the area never turns inside out. Measured against \p c as it was at the press.
+ * \brief \p c's first words with text-area \p handle dragged to \p to (balloon coordinates): textAreaHandles()'
+ *        inverse. The edge is set where the pointer is, at its distance from the anchor — inside the balloon or
+ *        past it — never closer to the anchor than a pixel. Measured against \p c as it was at the press.
  */
-[[nodiscard]] TextProperties dragTextAreaHandle(const Composition& c, const Handle& handle, const QPointF& to);
+[[nodiscard]] Words dragTextAreaHandle(const Composition& c, const Handle& handle, const QPointF& to);
 
 /**
  * \brief The point of \p c's lettering that stays put when its box changes, in box coordinates.
  *
- * Horizontally the side the lines are aligned to — the left edge, the right edge, or the middle — and
- * vertically the middle of the block. A box that changes for the lettering's sake (*Fit*, *Convert*) is
+ * Horizontally the side the lines are aligned to — the frame's left edge, its right edge, or the anchor — and
+ * vertically the middle of the placed block. A box that changes for the lettering's sake (*Fit*, *Convert*) is
  * moved so that this point keeps its place on the strip, which is what keeps the words where the author
  * put them. Pure geometry given the block's size, like fits().
  */

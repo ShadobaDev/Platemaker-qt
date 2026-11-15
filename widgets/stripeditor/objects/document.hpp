@@ -98,8 +98,6 @@ bool paint(Composition& c, Geometry::Part part, const QColor& colour);
 bool convert(Composition& c, bool toBalloon, const BalloonLook& look);
 //! The box sized to the lettering (Geometry::fittedBox()). False for a picture, whose box is its own pixels.
 bool fitToText(Composition& c);
-//! The paddings lowered until the lettering fits (Geometry::fittingPaddings()). False with no balloon, or when it fits.
-bool fixPadding(Composition& c);
 //! Removes tails @p indexes of @p c's balloon, whichever order they come in. False when none of them is there.
 bool removeTails(Composition& c, QList<int> indexes);
 

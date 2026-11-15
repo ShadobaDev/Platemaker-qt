@@ -138,7 +138,6 @@ signals:
     //! A blend mode was picked for the whole selection. One history step, the owner's to name.
     void blendPicked(Platemaker::Models::BlendMode blend);
     void fitRequested();                    //!< "Fit to text" — the editor resizes the selected bubble.
-    void fixPaddingRequested();             //!< "Fix padding" — the editor lowers the bubble's padding.
     void deleteRequested();                 //!< Removes the selected object.
     //! The chip naming the preset the selection was made from was clicked.
     void presetOriginClicked(const PresetOrigin& origin);
@@ -181,7 +180,6 @@ private:
     QWidget*            m_actions   = nullptr;  //!< Fit / Delete — they act on the selection.
     QString             m_emptyText;            //!< What the hint says with nothing selected.
     QPushButton*        m_fitButton    = nullptr;
-    QPushButton*        m_padButton    = nullptr;
     QPushButton*        m_deleteButton = nullptr;   //!< "Delete", or "Delete tail" when a tail is the subject.
     QTimer*             m_commitTimer = nullptr;
     QHash<int, CollapsibleSection*> m_sections; //!< Keyed by PropertyGroup.

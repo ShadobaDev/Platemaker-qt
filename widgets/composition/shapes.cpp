@@ -29,10 +29,6 @@ constexpr int   k_burstSpikes    = 12;
  */
 constexpr qreal k_burstInner     = 0.74;
 /**
- *  1/sqrt(2) — the half-axis fraction at which a rectangle inscribes an ellipse.
- */
-constexpr qreal k_invSqrt2       = 0.70710678118654752;
-/**
  *  Below this tan(θ/2) a polygon's corner folds back on itself, and no arc fits in it.
  */
 constexpr qreal k_hairpinCorner  = 1e-6;
@@ -96,33 +92,10 @@ constexpr qreal k_smoothTolerance = 1e-3;
  */
 constexpr qreal k_newHandle      = 1.0 / 3.0;
 /**
- *  Samples across each side of the grid a free outline's text area is found on (largestInscribedRect()).
- *  64 puts the rectangle within a sixty-fourth of the side of the true largest, well inside the padding.
- */
-constexpr int   k_areaSamples    = 64;
-/**
- *  Halvings that push each side of that rectangle back out to the outline: a cell to a thousandth.
- */
-constexpr int   k_growSteps      = 10;
-/**
  *  A caption box's corner radius, in balloon pixels. The speech balloon's is the struct's default
  *  (CornerParams::radius): 0.28 of the default 160 px height, as it was before it was a number.
  */
 constexpr qreal k_captionCorner  = 4.0;
-
-//! The largest axis-aligned rectangle inside the ellipse inscribed in \p r.
-QRectF inscribedInEllipse(const ShapeProperties&, const QRectF& r)
-{
-    const qreal kx = r.width()  * (1.0 - k_invSqrt2) / 2.0;
-    const qreal ky = r.height() * (1.0 - k_invSqrt2) / 2.0;
-    return r.adjusted(kx, ky, -kx, -ky);
-}
-
-//! The whole rectangle: the lettering may use all of it.
-QRectF wholeArea(const ShapeProperties&, const QRectF& body)
-{
-    return body;
-}
 
 // ---------------------------------------------------------------------------
 // Box, Ellipse
@@ -140,14 +113,6 @@ QPainterPath boxPath(const ShapeProperties& shape, const QRectF& r)
     QPainterPath p;
     p.addRoundedRect(r, radius, radius);
     return p;
-}
-
-QRectF boxArea(const ShapeProperties& shape, const QRectF& body)
-{
-    // In from every side by where a corner's arc crosses its diagonal: the rectangle's corners then sit
-    // on the arcs, so no letter in a corner pokes past the outline.
-    const qreal in = boxRadius(shape, body) * (1.0 - k_invSqrt2);
-    return body.adjusted(in, in, -in, -in);
 }
 
 QPainterPath ellipsePath(const ShapeProperties&, const QRectF& r)
@@ -303,124 +268,6 @@ QPainterPath polygonPath(const ShapeProperties& shape, const QRectF& r)
     return p;
 }
 
-/**
- * \brief The largest axis-aligned rectangle inside @p outline, found on a grid of samples over @p body.
- *
- * For an outline with no formula of its own: each row of samples is filled between the outline's
- * crossings (by its own fill rule), and the largest rectangle of inside samples wins, the one nearest the
- * middle among equals; then each side is pushed out to the outline. It stays inside but for a notch
- * narrower than a cell. The grid is relative to the body, so an outline that scales with the box gives a
- * rectangle that scales with it too, which is what the box fit's search relies on. It returns an area
- * and places nothing.
- *
- * ponytail: a grid, not the exact polygon answer, so a rectangle of another proportion that is a little
- * larger can be missed by under a cell; the exact one is a polygon algorithm, if that ever shows.
- */
-QRectF largestInscribedRect(const QPainterPath& outline, const QRectF& body)
-{
-    constexpr int n  = k_areaSamples;
-    const qreal   sx = body.width() / n;
-    const qreal   sy = body.height() / n;
-    const auto    at = [&](int col, int row) {
-        return QPointF(body.left() + (col + 0.5) * sx, body.top() + (row + 0.5) * sy);
-    };
-
-    // Which samples are inside: each row against the outline's edges.
-    const QList<QPolygonF> rings   = outline.toSubpathPolygons();
-    const bool             winding = outline.fillRule() == Qt::WindingFill;
-    std::array<std::array<bool, n>, n> inside{};
-    std::vector<std::pair<qreal, int>> crossings;
-    for (int row = 0; row < n; ++row) {
-        const qreal y = at(0, row).y();
-        crossings.clear();
-        for (const QPolygonF& ring : rings) {
-            for (qsizetype k = 0; k < ring.size(); ++k) {
-                const QPointF e0 = ring[k];
-                const QPointF e1 = ring[(k + 1) % ring.size()];
-                if ((e0.y() <= y) == (e1.y() <= y))
-                    continue;
-                const qreal x = e0.x() + (y - e0.y()) * (e1.x() - e0.x()) / (e1.y() - e0.y());
-                crossings.push_back({x, e1.y() > e0.y() ? 1 : -1});
-            }
-        }
-        std::sort(crossings.begin(), crossings.end());
-        size_t next  = 0;
-        int    count = 0;
-        for (int col = 0; col < n; ++col) {
-            const qreal x = at(col, row).x();
-            for (; next < crossings.size() && crossings[next].first < x; ++next)
-                count += winding ? crossings[next].second : 1;
-            inside[row][col] = winding ? count != 0 : (count % 2) != 0;
-        }
-    }
-
-    // The largest rectangle of inside samples: each row is the floor of a histogram of the columns'
-    // runs of inside samples above it, and a histogram's largest rectangle is one pass with a stack.
-    std::array<int, n> run{};
-    int                bestArea = 0;
-    qreal              bestOff  = 0.0;
-    QRect              best;
-    const qreal        middle   = (n - 1) / 2.0;
-    std::vector<int>   stack;
-    for (int row = 0; row < n; ++row) {
-        for (int col = 0; col < n; ++col)
-            run[col] = inside[row][col] ? run[col] + 1 : 0;
-        stack.clear();
-        for (int col = 0; col <= n; ++col) {
-            const int h = col < n ? run[col] : 0;
-            while (!stack.empty() && run[stack.back()] >= h) {
-                const int height = run[stack.back()];
-                stack.pop_back();
-                const int left = stack.empty() ? 0 : stack.back() + 1;
-                const int area = height * (col - left);
-                if (area == 0 || area < bestArea)
-                    continue;
-                // Among equals, the one whose middle is nearest the balloon's.
-                const qreal cx  = (left + col - 1) / 2.0 - middle;
-                const qreal cy  = (2 * row - height + 1) / 2.0 - middle;
-                const qreal off = std::hypot(cx, cy);
-                if (area > bestArea || off < bestOff) {
-                    bestArea = area;
-                    bestOff  = off;
-                    best     = QRect(left, row - height + 1, col - left, height);
-                }
-            }
-            stack.push_back(col);
-        }
-    }
-    if (bestArea == 0)
-        return QRectF(body.center(), QSizeF(0, 0));
-
-    // The grid's rectangle runs between sample centres, so it stops up to a cell short of the outline
-    // on every side. Each side is pushed back out, as far as the outline lets it, within that cell.
-    // Asked of the even-odd copy: for a non-zero path, QPainterPath::contains(QRectF) answers a
-    // rectangle that crosses the outline by sampling a few points, which let a side through a notch.
-    QPainterPath strict = outline;
-    strict.setFillRule(Qt::OddEvenFill);
-    QRectF rect(at(best.left(), best.top()), at(best.right(), best.bottom()));
-    const auto grow = [&](auto moveSide, qreal cell) {
-        qreal fits = 0.0;
-        qreal past = cell;
-        for (int i = 0; i < k_growSteps; ++i) {
-            const qreal mid   = (fits + past) / 2.0;
-            QRectF      trial = rect;
-            moveSide(trial, mid);
-            (strict.contains(trial) ? fits : past) = mid;
-        }
-        moveSide(rect, fits);
-    };
-    grow([](QRectF& r, qreal d) { r.setLeft(r.left() - d); }, sx);
-    grow([](QRectF& r, qreal d) { r.setRight(r.right() + d); }, sx);
-    grow([](QRectF& r, qreal d) { r.setTop(r.top() - d); }, sy);
-    grow([](QRectF& r, qreal d) { r.setBottom(r.bottom() + d); }, sy);
-    return rect;
-}
-
-QRectF polygonArea(const ShapeProperties& shape, const QRectF& body)
-{
-    return largestInscribedRect(polygonPath(shape, body), body);
-}
-
 // ---------------------------------------------------------------------------
 // Curve
 // ---------------------------------------------------------------------------
@@ -447,11 +294,6 @@ QPainterPath curvePath(const ShapeProperties& shape, const QRectF& r)
     }
     p.closeSubpath();
     return p;
-}
-
-QRectF curveArea(const ShapeProperties& shape, const QRectF& body)
-{
-    return largestInscribedRect(curvePath(shape, body), body);
 }
 
 // ---------------------------------------------------------------------------
@@ -867,13 +709,6 @@ QPainterPath cloudPath(const ShapeProperties& shape, const QRectF& r)
     return p;
 }
 
-QRectF cloudArea(const ShapeProperties& shape, const QRectF& body)
-{
-    // The lobes eat into the ring, so the safe area is inside the ellipse through their centres.
-    const qreal lobe = lobeRadius(shape, body);
-    return inscribedInEllipse(shape, body.adjusted(lobe, lobe, -lobe, -lobe));
-}
-
 /**
  * The lobe size: an arrow at the first lobe's centre, along the way the lobe grows (outwards). The
  * centre is a lobe's radius in from the edge, so dragging it in grows the lobes.
@@ -1178,15 +1013,15 @@ using Kind = ShapeProperties::Kind;
 // The flash stretches were chosen by eye, shape by shape, on rendered sheets; the Box's is
 // a round number between its two templates' old values, to be checked by eye.
 const std::array<ShapeInfo, int(ShapeProperties::k_lastKind) + 1> k_shapes{{
-    {Kind::None,      "none",      QT_TRANSLATE_NOOP("QObject", "Text only — no balloon"), false, {},         nullptr,       wholeArea,          0},
-    {Kind::Box,       "box",       QT_TRANSLATE_NOOP("QObject", "Box"),                    true,  {"corner"}, boxPath,       boxArea,            50,
+    {Kind::None,      "none",      QT_TRANSLATE_NOOP("QObject", "Text only — no balloon"), false, {},         nullptr,       0},
+    {Kind::Box,       "box",       QT_TRANSLATE_NOOP("QObject", "Box"),                    true,  {"corner"}, boxPath,       50,
      boxHandles, dragBoxHandle},
-    {Kind::Ellipse,   "ellipse",   QT_TRANSLATE_NOOP("QObject", "Round balloon"),          true,  {},         ellipsePath,   inscribedInEllipse, 0},
-    {Kind::Polygon,   "polygon",   QT_TRANSLATE_NOOP("QObject", "Polygon"),                false, {"corner", "bow"}, polygonPath,   polygonArea,        0,
+    {Kind::Ellipse,   "ellipse",   QT_TRANSLATE_NOOP("QObject", "Round balloon"),          true,  {},         ellipsePath,   0},
+    {Kind::Polygon,   "polygon",   QT_TRANSLATE_NOOP("QObject", "Polygon"),                false, {"corner", "bow"}, polygonPath,   0,
      polygonHandles, dragPolygonHandle},
-    {Kind::Cloud,     "cloud",     QT_TRANSLATE_NOOP("QObject", "Cloud"),                  true,  {"cloud"},  cloudPath,     cloudArea,          0,
+    {Kind::Cloud,     "cloud",     QT_TRANSLATE_NOOP("QObject", "Cloud"),                  true,  {"cloud"},  cloudPath,     0,
      cloudHandles, dragCloudHandle},
-    {Kind::Curve,     "curve",     QT_TRANSLATE_NOOP("QObject", "Curve"),                  false, {},         curvePath,     curveArea,          0,
+    {Kind::Curve,     "curve",     QT_TRANSLATE_NOOP("QObject", "Curve"),                  false, {},         curvePath,     0,
      curveHandles, dragCurveHandle},
 }};
 

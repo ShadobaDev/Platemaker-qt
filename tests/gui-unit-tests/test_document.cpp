@@ -133,7 +133,6 @@ TEST(Edits, EachSaysWhetherItChangedTheObject)
     ASSERT_EQ(tailsOf(three).size(), 1);
     EXPECT_NEAR(tailsOf(three).first().tail.baseWidth, 2.0, k_tolerance);
     EXPECT_FALSE(E::removeTails(three, {5}));
-    EXPECT_FALSE(E::fixPadding(text)) << "no balloon, no outline to keep the words from";
 }
 
 TEST(Document, ItHoldsTheCompositionsOfTheOverlaysItHoldsAndNothingElse)

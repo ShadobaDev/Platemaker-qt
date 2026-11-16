@@ -149,6 +149,8 @@ ObjectMenu::ObjectMenu(ObjectController& objects, const StripLayout& layout, Pre
     // looked for, beside the artwork's own two.
     m_actFitToText = new QAction(tr("Fit to text"), this);
     connect(m_actFitToText, &QAction::triggered, &m_objects, &ObjectController::fitSelectionToText);
+    m_actAddWords = new QAction(tr("Add words"), this);
+    connect(m_actAddWords, &QAction::triggered, &m_objects, &ObjectController::addWords);
 
     // Shape editing: entered here or by a double-click on the balloon, left here, by Esc, or
     // by a click outside it. Esc is a shortcut of its own, not an entry: the menu has nothing to show
@@ -216,6 +218,7 @@ ObjectMenu::ObjectMenu(ObjectController& objects, const StripLayout& layout, Pre
         w->addAction(m_actNaturalSize);
         w->addAction(m_actFitToStrip);
         w->addAction(m_actFitToText);
+        w->addAction(m_actAddWords);
         w->addAction(m_actEditShape);
         w->addAction(m_nodeTypeMenu->menuAction());
         w->addAction(m_actAddHandles);
@@ -292,6 +295,9 @@ void ObjectMenu::updateEntries()
         m_actFitToText->setVisible(allParametric);
         m_actFitToText->setEnabled(oneObject);
     }
+    // A balloon's or a picture's: words with a seat to sit on. A text object is its one words.
+    if (m_actAddWords)
+        m_actAddWords->setVisible(m_objects.canAddWords());
     // A kind is something only an authored object has. One that is not — imported artwork, or a tail —
     // can reach nothing, and the intersection of "everything" with "nothing" is what greys this out.
     const bool authoredOnly =

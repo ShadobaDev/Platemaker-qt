@@ -28,6 +28,9 @@ constexpr qreal k_edgeMinSpans = 3.0;
 //! The overflow outline's colour. The palette has no role that means "something is wrong", and the
 //! highlight it does have is what the rest of the chrome is drawn in — so this one is said outright.
 const QColor k_overflowColour(220, 40, 40);
+//! The picked words' frame: its pen's width in screen pixels, and how much lighter than the others' (QColor::lighter()).
+constexpr int k_markedFrameWidth   = 2;
+constexpr int k_markedFrameLighter = 150;
 
 constexpr Grip k_corners[] = {Grip::TopLeft, Grip::TopRight, Grip::BottomLeft, Grip::BottomRight};
 constexpr Grip k_edges[]   = {Grip::Top, Grip::Bottom, Grip::Left, Grip::Right};
@@ -156,15 +159,16 @@ QList<Geometry::Handle> SelectionChrome::shapeHandles(const Object* o)
     return o->shapeEditing() ? o->shapeHandles() : QList<Geometry::Handle>();
 }
 
-QList<QRectF> SelectionChrome::textAreaRects(const Object* o, bool overflowing)
+QList<QPair<int, QRectF>> SelectionChrome::textAreaRects(const Object* o, bool overflowing)
 {
-    const Composition& r = o->composition();
-    QList<QRectF>      out;
+    const Composition&        r = o->composition();
+    QList<QPair<int, QRectF>> out;
     if (sizeOf(r).isEmpty())
         return out;
+    // Every frame with a seat, its words lettered or not: new words have no text yet and still a place to type.
     for (const Words& w : r.words)
-        if (!w.text.body.isEmpty() && (!overflowing || Geometry::textOverflows(r, w)))
-            out.append(o->mapRectToScene(Geometry::textArea(r, w)));
+        if (overflowing ? !w.text.body.isEmpty() && Geometry::textOverflows(r, w) : seated(r, w))
+            out.append({w.id, o->mapRectToScene(Geometry::textArea(r, w))});
     return out;
 }
 
@@ -174,6 +178,7 @@ void SelectionChrome::refresh()
     QRectF      next;
     m_overflows.clear();
     m_textAreas.clear();
+    m_markedAreas.clear();
     for (const Object* o : subjects()) {
         next = next.united(o->sceneBox().adjusted(-s, -s, s, s));
         for (int i = 0; i < o->tipCount(); ++i)
@@ -184,14 +189,14 @@ void SelectionChrome::refresh()
             next = next.united(shapeHandleRect(o->mapToScene(h.at), h.glyph, s).adjusted(-2, -2, 2, 2));
         // Measured here, not in paint(): laying out the lettering on every repaint would be paid on
         // every scroll. This runs when the object reports a change, which is when the answer can move.
-        for (const QRectF& r : textAreaRects(o, true)) {
+        for (const auto& [id, r] : textAreaRects(o, true)) {
             m_overflows.append(r);
             next = next.united(r.adjusted(-1, -1, 1, 1));
         }
         if (o->shapeEditing()) {
-            for (const QRectF& r : textAreaRects(o, false)) {
-                m_textAreas.append(r);
-                next = next.united(r.adjusted(-1, -1, 1, 1));
+            for (const auto& [id, r] : textAreaRects(o, false)) {
+                (id == o->markedWords() ? m_markedAreas : m_textAreas).append(r);
+                next = next.united(r.adjusted(-2, -2, 2, 2));
             }
         }
     }
@@ -432,6 +437,13 @@ void SelectionChrome::paint(QPainter* painter, const QStyleOptionGraphicsItem* o
     painter->setPen(pen);
     painter->setBrush(Qt::NoBrush);
     for (const QRectF& r : std::as_const(m_textAreas))
+        painter->drawRect(r);
+    // The picked words' frame, the one the Text section edits: thicker and lighter than the others.
+    QPen marked = pen;
+    marked.setWidth(k_markedFrameWidth);
+    marked.setColor(pen.color().lighter(k_markedFrameLighter));
+    painter->setPen(marked);
+    for (const QRectF& r : std::as_const(m_markedAreas))
         painter->drawRect(r);
 
     QPen overflow(k_overflowColour);

@@ -138,6 +138,7 @@ signals:
     //! A blend mode was picked for the whole selection. One history step, the owner's to name.
     void blendPicked(Platemaker::Models::BlendMode blend);
     void fitRequested();                    //!< "Fit to text" — the editor resizes the selected bubble.
+    void addWordsRequested();               //!< "Add words" — more words on the selected balloon or picture.
     void deleteRequested();                 //!< Removes the selected object.
     //! The chip naming the preset the selection was made from was clicked.
     void presetOriginClicked(const PresetOrigin& origin);
@@ -177,9 +178,10 @@ private:
     BlendEditor*        m_blend     = nullptr;  //!< The one property every kind of object carries.
     QWidget*            m_scaleRow  = nullptr;  //!< A picture's size; hidden for every other kind.
     QDoubleSpinBox*     m_scale     = nullptr;
-    QWidget*            m_actions   = nullptr;  //!< Fit / Delete — they act on the selection.
+    QWidget*            m_actions   = nullptr;  //!< Fit / Add words / Delete — they act on the selection.
     QString             m_emptyText;            //!< What the hint says with nothing selected.
     QPushButton*        m_fitButton    = nullptr;
+    QPushButton*        m_addWordsButton = nullptr;   //!< *Add words*: shown for a balloon or a picture.
     QPushButton*        m_deleteButton = nullptr;   //!< "Delete", or "Delete tail" when a tail is the subject.
     QTimer*             m_commitTimer = nullptr;
     QHash<int, CollapsibleSection*> m_sections; //!< Keyed by PropertyGroup.

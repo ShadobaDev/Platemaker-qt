@@ -265,6 +265,12 @@ case.
   arrow sets its edge and the middle follows; the middle moves the whole frame within the seat. A double-click
   puts one back: an arrow's edge automatic, the frame centred on the seat by its middle. So shape editing is
   offered to any balloon or picture with words.
+- **Several words.** A balloon or a picture holds several words, each in its own frame with its own lettering;
+  *Add words* (the context menu, OBJECT STATE) puts new ones in the lower half of the seat, lettered as the words
+  picked, with no text, and picks them with the caret in the text box. A text object is its one words. With
+  several, a press on one's letters in the selected object picks those words (`Subject::Words`): the Text section
+  and Delete are theirs, and the last words of an object are never deleted. In shape editing every frame shows its
+  handles, the picked words' first and drawn thicker and lighter; a press on another frame's handle picks it.
 - **What the letters wear**, fields of `TextProperties`, off by default: their **fill** (a Paint, its
   colour still saved as `textColour`), an **outline** (a Paint and a width, drawn outside the glyphs:
   stroked at twice the width under them, two draws in the SVG, not `paint-order`), and a **shadow** (the

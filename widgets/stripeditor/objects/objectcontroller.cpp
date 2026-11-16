@@ -162,6 +162,10 @@ void ObjectController::reselect()
         selectTail(m_selection.primary(), selectedTail());   // falls back to the bubble if the tail is gone
         return;
     }
+    if (m_selection.subject() == Subject::Words) {
+        selectWords(m_selection.words().object, m_selection.words().element);   // or the object, when they are gone
+        return;
+    }
     if (m_selection.subject() == Subject::Strip || m_selection.subject() == Subject::Page) {
         // A page can go between feeds — an input removed — and a selection must not outlive its row.
         // The question is the layout's, not the tree's: the tree is a view of it, and is refreshed from it.
@@ -195,6 +199,25 @@ void ObjectController::selectTail(const QString& uid, int index)
         return;
     }
     selectSubjects({}, {tailRef(uid, index)});   // the balloon comes in as the tail's carrier, not a subject
+}
+
+void ObjectController::selectWords(const QString& uid, int id)
+{
+    if (!hasWords({uid, id})) {
+        selectOverlay(uid);   // gone: the object is what is left to hold
+        return;
+    }
+    m_selection.selectWords({uid, id}, [this](const QString& u, int words) { return hasWords({u, words}); });
+    showSelection();
+}
+
+bool ObjectController::hasWords(const ElementRef& ref) const
+{
+    const Object* item = m_overlayItems.value(ref.object);
+    if (!item)
+        return false;
+    const QList<Words>& words = item->composition().words;
+    return std::any_of(words.cbegin(), words.cend(), [&ref](const Words& w) { return w.id == ref.element; });
 }
 
 void ObjectController::reveal(Subject subject, const QString& id, int tail)
@@ -242,6 +265,20 @@ void ObjectController::onObjectPressed(const QString& uid, int handle)
         }   // a plain press on a tail already selected keeps the selection, so the drag moves all of it
         beginDrag(uid, handle);
         return;
+    }
+    // A press on the letters of one of several words of the one object selected picks those words: the Text
+    // section and the marked frame become theirs. An object with one words is its words already.
+    if (const Object* item = m_overlayItems.value(uid);
+        item && !add && m_selection.objects() == QStringList{uid} && item->composition().words.size() > 1
+        && item->dragGrip() != Grip::Shape) {
+        if (const int words = Geometry::wordsAt(item->composition(), item->mapFromScene(item->pressScenePos()), 0.0)) {
+            if (m_selection.words() != ElementRef{uid, words})
+                selectWords(uid, words);
+            beginDrag(uid, handle);
+            if (uid == m_shapeEdit->edited())
+                emit textFocusRequested();
+            return;
+        }
     }
     // A press on the balloon itself while tails of it are selected — one or several — is a press on the
     // balloon: the scene reports no change, because the balloon was selected all along, carrying them.
@@ -434,6 +471,9 @@ void ObjectController::setSource(const std::vector<Platemaker::Models::StripOver
     // selected; one that took it away leaves its balloon.
     if (m_selection.subject() == Subject::Tail && selectedTail() < 0)
         selectOverlay(m_selection.primary());
+    // Words, the same.
+    if (m_selection.subject() == Subject::Words && !hasWords(m_selection.words()))
+        selectOverlay(m_selection.primary());
 }
 
 QImage ObjectController::sharpRasterFor(const Composition& a)
@@ -531,6 +571,8 @@ void ObjectController::syncItems()
                 });
             // The picked node is what the menu's Delete and Point type act on, however it was picked.
             connect(item, &Object::pickedVertexChanged, m_shapeEdit, &ShapeEditMode::changed);
+            // A press on a frame's handle picks its words, as a press on their letters does.
+            connect(item, &Object::wordsPressed, this, &ObjectController::selectWords);
             // A double-click on the one selected balloon enters shape editing, and another leaves it.
             connect(item, &Object::doubleClicked,  this, [this](const QString& uid) {
                 if (m_selection.objects() == QStringList{uid})
@@ -699,6 +741,11 @@ void ObjectController::selectSubjects(const QStringList& uids, const QList<Eleme
     m_selection.select(uids, tails, [this](const QString& uid, int element) {
         return m_overlayItems.contains(uid) && (element == 0 || tailIndex({uid, element}) >= 0);
     });
+    showSelection();
+}
+
+void ObjectController::showSelection()
+{
     const QStringList&       picked      = m_selection.objects();
     const QList<ElementRef>& pickedTails = m_selection.elements();
     const QStringList&       carriers    = m_selection.carriers();
@@ -722,6 +769,7 @@ void ObjectController::selectSubjects(const QStringList& uids, const QList<Eleme
             if (t.object == it.key())
                 focused << tailIndex(t);
         it.value()->setFocusedHandles(focused);
+        it.value()->setPickedWords(m_selection.words().object == it.key() ? m_selection.words().element : 0);
     }
 
     emit selectionChanged();   // the stack's rows and the menu's entries follow it
@@ -752,8 +800,9 @@ bool ObjectController::applyColourAt(const QPointF& scenePos, const QTransform& 
     const qreal slack = k_pickSlackPx / onScreen;
 
     Composition          a    = bubble->composition();
-    const Geometry::Part part = Geometry::partAt(a, bubble->mapFromScene(scenePos), slack);
-    if (!Edits::paint(a, part, colour))
+    const QPointF        local = bubble->mapFromScene(scenePos);
+    const Geometry::Part part  = Geometry::partAt(a, local, slack);
+    if (!Edits::paint(a, part, colour, Geometry::wordsAt(a, local, slack)))   // the words poured on
         return false;   // the transparent corner of the box is not the balloon
     const QString step = part == Geometry::Part::Text      ? tr("Apply text colour")
                        : part == Geometry::Part::Outline   ? tr("Apply outline colour")
@@ -790,6 +839,30 @@ void ObjectController::fitSelectionToText()
     Edits::fitToText(a);   // committed even when it fits already, as before: the button was pressed
     applyComposition(m_selection.primary(), a, /*commit=*/true);
     m_panel->show(a);
+}
+
+bool ObjectController::canAddWords() const
+{
+    const Object* item = m_selection.objects().size() == 1 ? m_overlayItems.value(m_selection.primary()) : nullptr;
+    if (!item || (m_selection.subject() != Subject::Overlay && m_selection.subject() != Subject::Words))
+        return false;
+    const Composition& c = item->composition();
+    return std::any_of(c.words.cbegin(), c.words.cend(), [&c](const Words& w) { return seated(c, w); });
+}
+
+void ObjectController::addWords()
+{
+    if (!canAddWords())
+        return;
+    const QString uid  = m_selection.primary();
+    Composition   a    = m_overlayItems.value(uid)->composition();
+    const int     from = m_selection.subject() == Subject::Words ? m_selection.words().element : 0;
+    const int     id   = Edits::addWords(a, from);
+    if (id == 0)
+        return;
+    applyComposition(uid, a, /*commit=*/true, tr("Add words"));
+    selectWords(uid, id);
+    emit textFocusRequested();   // as a new balloon's: the next thing is to type in them
 }
 
 int ObjectController::presetTargetCount() const
@@ -926,6 +999,7 @@ void ObjectController::applyCompositions(const QStringList& uids, const QList<Co
     pushOverlays(!undoText.isEmpty()            ? undoText
                  : uids.size() > 1              ? tr("Edit %n objects", "", uids.size())
                  : m_selection.subject() == Subject::Tail   ? tr("Edit tail")
+                 : m_selection.subject() == Subject::Words  ? tr("Edit words")
                  : compositionOf(uids.first()).picture ? tr("Edit artwork")
                                                        : tr("Edit bubble"));
 }
@@ -1038,6 +1112,21 @@ void ObjectController::deleteSelectedTail()
     m_panel->show(a);
 }
 
+void ObjectController::deleteSelectedWords()
+{
+    const ElementRef words = m_selection.words();
+    Object*          item  = m_overlayItems.value(words.object);
+    if (!item)
+        return;
+    Composition a = item->composition();
+    if (!Edits::removeWords(a, words.element))
+        return;   // the last words: a balloon keeps somewhere to type
+    // The object is what is left to hold, selected before the edit goes out (as a deleted tail's).
+    selectOverlay(words.object);
+    applyComposition(words.object, a, /*commit=*/true, tr("Delete words"));
+    m_panel->show(a);
+}
+
 void ObjectController::deleteSelectedOverlay()
 {
     // In shape editing with nodes picked, Delete takes them and never the balloon.
@@ -1045,6 +1134,10 @@ void ObjectController::deleteSelectedOverlay()
         return;
     if (m_selection.subject() == Subject::Tail) {
         deleteSelectedTail();
+        return;
+    }
+    if (m_selection.subject() == Subject::Words) {
+        deleteSelectedWords();
         return;
     }
     if (m_selection.objects().isEmpty())

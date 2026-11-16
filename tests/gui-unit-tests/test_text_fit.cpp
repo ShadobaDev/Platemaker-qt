@@ -203,7 +203,7 @@ TEST(TextFit, TheTextAreaArrowsSetTheirEdges)
     Composition a = withShape(ShapeProperties::Kind::Box);
     boxOf(a)      = QSize(300, 200);
     const QRectF area = Geometry::textArea(a, *wordsOf(a));
-    const QList<Geometry::Handle> arrows = Geometry::textAreaHandles(a);
+    const QList<Geometry::Handle> arrows = Geometry::textAreaHandles(a, *wordsOf(a));
     ASSERT_EQ(arrows.size(), 5);
     EXPECT_EQ(Geometry::partOf<TextAreaPart>(arrows[0]), TextAreaPart::Anchor);
     const QPointF at = arrows[0].at;
@@ -221,42 +221,43 @@ TEST(TextFit, TheTextAreaArrowsSetTheirEdges)
     // Each sets its own edge where the pointer is, in whole pixels in from the body's box (every edge is automatic
     // here, so that box is the frame), inside the balloon or past it; the others stay automatic.
     const QRectF box = area;
-    Words w = Geometry::dragTextAreaHandle(a, arrows[1], QPointF(box.left() + 40.3, 0));
+    Words w = Geometry::dragTextAreaHandle(a, *wordsOf(a), arrows[1], QPointF(box.left() + 40.3, 0));
     ASSERT_TRUE(w.frame.left.has_value());
     EXPECT_NEAR(*w.frame.left, 40.0, k_px);
     EXPECT_FALSE(w.frame.right.has_value());
-    w = Geometry::dragTextAreaHandle(a, arrows[2], QPointF(box.right() + 30, 0));   // out past the outline
+    w = Geometry::dragTextAreaHandle(a, *wordsOf(a), arrows[2], QPointF(box.right() + 30, 0));   // out past the outline
     EXPECT_NEAR(*w.frame.right, -30.0, k_px);
-    w = Geometry::dragTextAreaHandle(a, arrows[3], QPointF(0, box.top() + 25.4));
+    w = Geometry::dragTextAreaHandle(a, *wordsOf(a), arrows[3], QPointF(0, box.top() + 25.4));
     EXPECT_NEAR(*w.frame.top, 25.0, k_px);
-    w = Geometry::dragTextAreaHandle(a, arrows[4], QPointF(0, box.bottom() - 12));
+    w = Geometry::dragTextAreaHandle(a, *wordsOf(a), arrows[4], QPointF(0, box.bottom() - 12));
     EXPECT_NEAR(*w.frame.bottom, 12.0, k_px);
 
     // The middle follows the edges: it is the frame's middle whatever was dragged.
     Composition moved = a;
     *wordsOf(moved)   = w;
-    EXPECT_EQ(Geometry::textAreaHandles(moved)[0].at, Geometry::textArea(moved, w).center());
+    EXPECT_EQ(Geometry::textAreaHandles(moved, *wordsOf(moved))[0].at, Geometry::textArea(moved, w).center());
 
     // The middle moves the whole frame, by whole pixels, its size kept; never past the body.
-    w = Geometry::dragTextAreaHandle(a, arrows[0], at + QPointF(-50, 30));
+    w = Geometry::dragTextAreaHandle(a, *wordsOf(a), arrows[0], at + QPointF(-50, 30));
     EXPECT_NEAR(*w.frame.left, -50.0, k_px);
     EXPECT_NEAR(*w.frame.right, 50.0, k_px);
     EXPECT_NEAR(*w.frame.top, 30.0, k_px);
     EXPECT_NEAR(*w.frame.bottom, -30.0, k_px);
-    w = Geometry::dragTextAreaHandle(a, arrows[0], box.bottomRight() + QPointF(500, 500));
+    w = Geometry::dragTextAreaHandle(a, *wordsOf(a), arrows[0], box.bottomRight() + QPointF(500, 500));
     *wordsOf(moved) = w;
     EXPECT_NEAR(Geometry::textArea(moved, w).center().x(), box.right(), k_wholePx);
     EXPECT_NEAR(Geometry::textArea(moved, w).center().y(), box.bottom(), k_wholePx);
-    w = Geometry::dragTextAreaHandle(a, arrows[0], at + QPointF(0, 30));
+    w = Geometry::dragTextAreaHandle(a, *wordsOf(a), arrows[0], at + QPointF(0, 30));
     EXPECT_FALSE(w.frame.left.has_value()) << "an axis it did not move along keeps its edges";
 
     // Dragged past the opposite edge, an edge stops two pixels short of it: the area never turns inside out.
-    w = Geometry::dragTextAreaHandle(a, arrows[1], QPointF(box.right() + 50, 0));
+    w = Geometry::dragTextAreaHandle(a, *wordsOf(a), arrows[1], QPointF(box.right() + 50, 0));
     *wordsOf(moved) = w;
     EXPECT_NEAR(Geometry::textArea(moved, w).width(), 2.0, k_wholePx);
 
     // No seat: the words keep their own box, and offer no arrows.
-    EXPECT_TRUE(Geometry::textAreaHandles(withShape(ShapeProperties::Kind::None)).isEmpty());
+    const Composition text = withShape(ShapeProperties::Kind::None);
+    EXPECT_TRUE(Geometry::textAreaHandles(text, *wordsOf(text)).isEmpty());
 }
 
 /**
@@ -328,6 +329,26 @@ TEST(TextFit, EveryWordsIsFittedInItsFrameAndDrawnUnderIdsOfItsOwn)
         if (i.fill && (i.path == one || i.path == two))
             fills << i.fill->patternId;
     EXPECT_EQ(fills, QStringList({QStringLiteral("pm-text-fill"), QStringLiteral("pm-text-fill-2")}));
+
+    // Every frame has its handles, the picked words' first, and a drag moves only its own words' frame.
+    Geometry::HandleContext picked;
+    picked.words = second.id;
+    QList<int> owners;
+    for (const Geometry::Handle& h : Geometry::handlesOf(c, picked))
+        if (h.element == c.words[0].id || h.element == second.id)
+            owners << h.element;
+    const QList<int> fiveEach{second.id, second.id, second.id, second.id, second.id,
+                              c.words[0].id, c.words[0].id, c.words[0].id, c.words[0].id, c.words[0].id};
+    EXPECT_EQ(owners, fiveEach);
+    const QList<Geometry::Handle> all  = Geometry::handlesOf(c, picked);
+    const auto                    left = std::find_if(all.cbegin(), all.cend(), [&](const Geometry::Handle& h) {
+        return h.element == second.id && h.part == int(Geometry::TextAreaPart::Side) && h.index == 0;
+    });
+    ASSERT_NE(left, all.cend());
+    Composition dragged = c;
+    left->drag(dragged, *left, left->at + QPointF(10, 0), picked);
+    EXPECT_TRUE(dragged.words[1].frame.left.has_value());
+    EXPECT_TRUE(dragged.words[0] == c.words[0]) << "the other words' frame stays";
 }
 
 /**

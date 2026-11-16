@@ -7,6 +7,7 @@
 #include <QPainter>
 #include <QStyleOptionGraphicsItem>
 
+#include <algorithm>
 #include <utility>
 
 namespace StripEdit {
@@ -180,7 +181,23 @@ qreal Object::gripSpanHere() const
 
 Geometry::HandleContext Object::handleContext() const
 {
-    return {gripSpanHere() * k_radiusDotClearance, pickedVertices()};
+    return {gripSpanHere() * k_radiusDotClearance, pickedVertices(), markedWords()};
+}
+
+void Object::setPickedWords(int id)
+{
+    if (m_pickedWords == id)
+        return;
+    m_pickedWords = id;
+    emit chromeChanged();
+}
+
+int Object::markedWords() const
+{
+    for (const Words& w : m_composition.words)
+        if (w.id == m_pickedWords)
+            return w.id;
+    return m_composition.words.isEmpty() ? 0 : m_composition.words.first().id;
 }
 
 QList<Geometry::Handle> Object::shapeHandles() const
@@ -196,6 +213,11 @@ bool Object::beginShapeDrag(int index)
     m_shapeStart    = m_composition;
     m_shapeStartPos = pos();
     m_shapeHandle   = handles.at(index);
+    // A frame's handle picks its words, as a press on their letters does.
+    if (m_shapeHandle.element != markedWords()
+        && std::any_of(m_composition.words.cbegin(), m_composition.words.cend(),
+                       [this](const Words& w) { return w.id == m_shapeHandle.element; }))
+        emit wordsPressed(uid(), m_shapeHandle.element);
 
     // What a press does is the handle's owner's (a "+" adds its node, and the drag that follows is that node's).
     const bool changed = m_shapeHandle.press && m_shapeHandle.press(m_shapeStart, m_shapeHandle);

@@ -17,6 +17,7 @@ struct HandleContext
 {
     qreal      clearance = 0.0;   //!< How far in a corner's radius dot keeps from its arc, in balloon pixels.
     QList<int> picked;            //!< The nodes picked in shape editing, in pick order.
+    int        words = 0;         //!< The words picked (their id): their frame's handles come first; 0 for none.
 
     //! The node picked last; -1 for none.
     [[nodiscard]] int lastPicked() const { return picked.isEmpty() ? -1 : picked.last(); }
@@ -84,8 +85,8 @@ template <class Part>
 
 /**
  * \brief Every handle edit mode offers on @p c: with a balloon, its first body's outline and edge, then its fill's
- *        fade; then its first words' text area when they have text and a seat (a body or the picture) — each with
- *        its element and its owner's drag.
+ *        fade; then the text area of every words with a seat (a body or the picture), the picked words'
+ *        (HandleContext::words) first — each with its element and its owner's drag.
  *
  * In that order on purpose: where a fade's dot sits on a node or a "+", the outline's own handle is the one
  * a press takes.

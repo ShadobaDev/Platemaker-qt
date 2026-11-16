@@ -110,14 +110,6 @@ QPointF dragFill(Composition& next, const Handle& h, const QPointF& to, const Ha
     return {};
 }
 
-//! The words' text area.
-QPointF dragWords(Composition& next, const Handle& h, const QPointF& to, const HandleContext&)
-{
-    if (Words* w = wordsOf(next))
-        *w = dragTextAreaHandle(next, h, to);
-    return {};
-}
-
 //! The words @p h belongs to.
 Words* wordsFor(Composition& c, const Handle& h)
 {
@@ -125,6 +117,14 @@ Words* wordsFor(Composition& c, const Handle& h)
         if (w.id == h.element)
             return &w;
     return nullptr;
+}
+
+//! The words' text area.
+QPointF dragWords(Composition& next, const Handle& h, const QPointF& to, const HandleContext&)
+{
+    if (Words* w = wordsFor(next, h))
+        *w = dragTextAreaHandle(next, *w, h, to);
+    return {};
 }
 
 //! The words' frame put back: an edge made automatic again, or by its middle, the frame centred in the body.
@@ -185,8 +185,12 @@ QList<Handle> handlesOf(const Composition& c, const HandleContext& context)
                 h.press = &addNode;
         out.append(owned(fadeHandles(c.balloon->style.fill.fill, rect), c.balloon->id, &dragFill));
     }
-    if (const Words* words = wordsOf(c); words && !words->text.body.isEmpty()) {
-        QList<Handle> frame = owned(textAreaHandles(c), words->id, &dragWords);
+    // Every words' frame; the picked words' first, so where two frames lie over each other a press takes theirs.
+    QList<const Words*> words;
+    for (const Words& w : c.words)
+        (w.id == context.words ? words.prepend(&w) : words.append(&w));
+    for (const Words* w : std::as_const(words)) {
+        QList<Handle> frame = owned(textAreaHandles(c, *w), w->id, &dragWords);
         for (Handle& h : frame)
             h.reset = &resetWords;
         out.append(frame);

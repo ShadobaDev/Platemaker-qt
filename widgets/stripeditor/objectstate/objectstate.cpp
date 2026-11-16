@@ -14,6 +14,8 @@
 #include <QTimer>
 #include <QVBoxLayout>
 
+#include <algorithm>
+
 #include "badge.hpp"
 #include "collapsiblesection.hpp"
 #include "presetstore.hpp"
@@ -251,10 +253,14 @@ ObjectState::ObjectState(PresetStore& presets, QWidget* parent)
     actionRow->setContentsMargins(0, 0, 0, 0);
     auto* fitBtn = new QPushButton(tr("Fit to text"), m_actions);
     fitBtn->setToolTip(tr("Size the bubble to the line it holds."));
+    auto* addBtn = new QPushButton(tr("Add words"), m_actions);
+    addBtn->setToolTip(tr("More words on this balloon or picture, in a frame of their own."));
     auto* delBtn = new QPushButton(tr("Delete"), m_actions);
-    m_fitButton    = fitBtn;
+    m_fitButton      = fitBtn;
+    m_addWordsButton = addBtn;
     m_deleteButton = delBtn;
     actionRow->addWidget(fitBtn);
+    actionRow->addWidget(addBtn);
     actionRow->addWidget(delBtn);
     lay->addWidget(m_actions);
     lay->addStretch(1);
@@ -289,6 +295,7 @@ ObjectState::ObjectState(PresetStore& presets, QWidget* parent)
     });
 
     connect(fitBtn, &QPushButton::clicked, this, [this] { if (m_hasComposition) emit fitRequested(); });
+    connect(addBtn, &QPushButton::clicked, this, [this] { if (m_hasComposition) emit addWordsRequested(); });
     // Delete asks how *many* are selected, not whether one composition is bound: with several selected there
     // is nothing to bind and still everything to remove.
     connect(delBtn, &QPushButton::clicked, this, [this] { if (m_selectionCount > 0) emit deleteRequested(); });
@@ -321,6 +328,9 @@ void ObjectState::setComposition(const Composition& a)
     m_emptyHint->setVisible(false);
     m_actions->setVisible(true);
     m_fitButton->setVisible(!m_composition.picture.has_value());   // a picture's box is the picture's, not its words'
+    // Words need a seat: a balloon's or a picture's. A text object is its one words.
+    m_addWordsButton->setVisible(std::any_of(m_composition.words.cbegin(), m_composition.words.cend(),
+                                             [this](const Words& w) { return seated(m_composition, w); }));
     m_deleteButton->setText(tr("Delete"));
     applyKindVisibility();
 }
@@ -341,6 +351,7 @@ void ObjectState::setMixedSubjects(int count)
     m_emptyHint->setVisible(true);
     m_actions->setVisible(true);
     m_fitButton->setVisible(false);
+    m_addWordsButton->setVisible(false);
     m_scaleRow->setVisible(false);
     m_deleteButton->setText(tr("Delete"));
     for (auto it = m_sections.cbegin(); it != m_sections.cend(); ++it)
@@ -383,6 +394,7 @@ void ObjectState::setCompositions(const QList<Composition>& objects)
     m_emptyHint->setVisible(false);
     m_actions->setVisible(true);
     m_fitButton->setVisible(false);   // one box cannot be fitted to several texts
+    m_addWordsButton->setVisible(false);
     m_scaleRow->setVisible(false);    // one spin box cannot be several pictures' sizes
     m_deleteButton->setText(tr("Delete"));
 
@@ -423,6 +435,7 @@ void ObjectState::setTails(const QList<Composition>& balloons, const QList<QPair
     m_emptyHint->setVisible(false);
     m_actions->setVisible(true);
     m_fitButton->setVisible(false);
+    m_addWordsButton->setVisible(false);
     m_scaleRow->setVisible(false);
     m_deleteButton->setText(tr("Delete tails"));
     applyKindVisibility();
@@ -448,6 +461,7 @@ void ObjectState::setTail(const Composition& a, int index)
     m_emptyHint->setVisible(false);
     m_actions->setVisible(true);
     m_fitButton->setVisible(false);   // a tail holds no text to fit
+    m_addWordsButton->setVisible(false);
     m_scaleRow->setVisible(false);
     m_deleteButton->setText(tr("Delete tail"));
     applyKindVisibility();

@@ -25,6 +25,7 @@ void SelectionModel::select(const QStringList& objects, const QList<ElementRef>&
     m_objects  = picked;
     m_elements = pickedElements;
     m_carriers = carriers;
+    m_words    = {};
     m_primary  = picked.isEmpty() ? QString() : picked.last();
     m_page.clear();
     // One element, on its own object, is a selected tail; anything else with an element in it is a set whose
@@ -32,6 +33,20 @@ void SelectionModel::select(const QStringList& objects, const QList<ElementRef>&
     m_subject = picked.isEmpty()           ? Subject::None
               : single().element != 0      ? Subject::Tail
                                            : Subject::Overlay;
+}
+
+void SelectionModel::selectWords(const ElementRef& words, const Exists& exists)
+{
+    if (!exists(words.object, words.element)) {
+        select({}, {}, exists);
+        return;
+    }
+    select({}, {}, exists);
+    m_objects  = {words.object};
+    m_carriers = {words.object};
+    m_primary  = words.object;
+    m_words    = words;
+    m_subject  = Subject::Words;
 }
 
 void SelectionModel::selectStrip()
@@ -64,7 +79,7 @@ ElementRef SelectionModel::single() const
 
 int SelectionModel::subjectCount() const
 {
-    return int(m_objects.size() - m_carriers.size() + m_elements.size());
+    return int(m_objects.size() - m_carriers.size() + m_elements.size()) + (m_words.element != 0 ? 1 : 0);
 }
 
 }  // namespace StripEdit

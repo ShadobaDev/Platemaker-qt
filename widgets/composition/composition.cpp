@@ -228,6 +228,24 @@ bool lettered(const Composition& c)
     return std::any_of(c.words.cbegin(), c.words.cend(), [](const Words& w) { return !w.text.body.isEmpty(); });
 }
 
+Composition withWordsFirst(const Composition& c, int id)
+{
+    Composition out = c;
+    std::stable_partition(out.words.begin(), out.words.end(), [id](const Words& w) { return w.id == id; });
+    return out;
+}
+
+void orderWordsAs(Composition& c, const Composition& order)
+{
+    const auto at = [&order](const Words& w) {
+        for (qsizetype i = 0; i < order.words.size(); ++i)
+            if (order.words.at(i).id == w.id)
+                return i;
+        return order.words.size();
+    };
+    std::stable_sort(c.words.begin(), c.words.end(), [&at](const Words& a, const Words& b) { return at(a) < at(b); });
+}
+
 const Words* wordsOf(const Composition& c)
 {
     return c.words.isEmpty() ? nullptr : &c.words.first();

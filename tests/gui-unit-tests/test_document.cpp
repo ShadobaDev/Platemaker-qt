@@ -132,6 +132,55 @@ TEST(Edits, EachSaysWhetherItChangedTheObject)
     EXPECT_FALSE(E::removeTails(three, {5}));
 }
 
+/**
+ * \brief Words added to a balloon sit in the lower half of its body, lettered as the words they came from, with no
+ *        text; a picture takes them too, a text object does not; the last words cannot be removed. The panel's
+ *        view with picked words first puts them back in their order.
+ */
+TEST(Edits, WordsAreAddedInTheLowerHalfAndTheLastOneStays)
+{
+    namespace E = StripEdit::Edits;
+    constexpr qreal k_px = 1e-9;
+
+    Composition balloon      = balloonObject();
+    textOf(balloon).body     = QStringLiteral("Hi");
+    textOf(balloon).bold     = true;
+    const int   first        = wordsOf(balloon)->id;
+    const int   added        = E::addWords(balloon, first);
+    ASSERT_NE(added, 0);
+    ASSERT_EQ(balloon.words.size(), 2);
+    const Words& second      = balloon.words.last();
+    EXPECT_EQ(second.id, added);
+    EXPECT_EQ(second.seat, balloon.words.first().seat);
+    EXPECT_TRUE(second.text.body.isEmpty());
+    EXPECT_TRUE(second.text.bold) << "the lettering of the words it came from";
+    const QRectF whole = Geometry::textArea(balloon, balloon.words.first());
+    const QRectF lower = Geometry::textArea(balloon, second);
+    EXPECT_NEAR(lower.bottom(), whole.bottom(), k_px);
+    EXPECT_NEAR(lower.top(), whole.top() + qRound(whole.height() / 2.0), k_px);
+
+    // The panel's view: the picked words first, and back in their order.
+    Composition view = withWordsFirst(balloon, added);
+    EXPECT_EQ(view.words.first().id, added);
+    orderWordsAs(view, balloon);
+    EXPECT_TRUE(view == balloon);
+
+    // A colour poured on words lands on those words.
+    EXPECT_TRUE(E::paint(balloon, Geometry::Part::Text, Qt::red, added));
+    EXPECT_EQ(balloon.words.last().text.fill.colour, QColor(Qt::red));
+    EXPECT_NE(balloon.words.first().text.fill.colour, QColor(Qt::red));
+
+    EXPECT_TRUE(E::removeWords(balloon, added));
+    EXPECT_FALSE(E::removeWords(balloon, first)) << "the last words stay";
+    EXPECT_FALSE(E::removeWords(balloon, added)) << "gone already";
+
+    Composition picture = pictureObject("p.png");
+    EXPECT_NE(E::addWords(picture, 0), 0) << "a picture's words sit on it";
+    Composition text = textObject();
+    EXPECT_EQ(E::addWords(text, 0), 0) << "a text object is its one words";
+    EXPECT_EQ(text.words.size(), 1);
+}
+
 TEST(Document, ItHoldsTheCompositionsOfTheOverlaysItHoldsAndNothingElse)
 {
     Document          d = three();

@@ -325,6 +325,7 @@ Editor::Editor(PresetStore& presets, QWidget *parent)
                 [this](double percent) { m_objects->scaleSelectedPicture(percent, /*commit=*/true); });
         connect(m_objectState, &ObjectState::fitRequested, m_objects,
                 &ObjectController::fitSelectionToText);
+        connect(m_objectState, &ObjectState::addWordsRequested, m_objects, &ObjectController::addWords);
         using OC = ObjectController;
         using OS = ObjectState;
         connect(&m_objects->panel(), &PanelBinder::boundToComposition,      m_objectState, &OS::setComposition);
@@ -567,6 +568,7 @@ void Editor::showSubject()
     case Subject::None:
     case Subject::Overlay:
     case Subject::Tail:
+    case Subject::Words:
         break;
     }
     m_stateStack->showObject();

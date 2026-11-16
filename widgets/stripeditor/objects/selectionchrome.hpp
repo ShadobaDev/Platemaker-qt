@@ -79,8 +79,11 @@ private:
     [[nodiscard]] QRectF handleRect(const Object* o, int index, qreal s) const;
     //! @p o's outline handles while its shape is edited, in its item coordinates; none otherwise.
     [[nodiscard]] static QList<Geometry::Handle> shapeHandles(const Object* o);
-    //! The frames of @p o's lettered words in scene units; with @p overflowing, only those their lettering spills out of.
-    [[nodiscard]] static QList<QRectF> textAreaRects(const Object* o, bool overflowing);
+    /**
+     * \brief The frames of @p o's words with a seat, by their words' id, in scene units; with @p overflowing, only
+     *        those their lettering spills out of.
+     */
+    [[nodiscard]] static QList<QPair<int, QRectF>> textAreaRects(const Object* o, bool overflowing);
     //! The radius handle's arrow in @p fill, edged in @p edge, made once per pair.
     QSvgRenderer& radiusArrow(const QColor& fill, const QColor& edge);
 
@@ -88,6 +91,7 @@ private:
     QRectF               m_bounds;
     QList<QRectF>        m_overflows;   //!< Text areas the lettering spills out of, in scene units.
     QList<QRectF>        m_textAreas;   //!< Text areas in shape editing, in scene units.
+    QList<QRectF>        m_markedAreas;   //!< ...and the picked words' (Object::markedWords()), drawn marked.
     QPointer<Object>     m_target;   //!< The object a press handed its drag to, until the release.
     //! The radius arrows made so far, by colour: two per theme, the plain one and the pressed one.
     std::map<QString, std::unique_ptr<QSvgRenderer>> m_arrows;

@@ -169,15 +169,17 @@ bool reroll(Composition& c, const std::function<quint32()>& random)
     return true;
 }
 
-bool paint(Composition& c, Geometry::Part part, const QColor& colour)
+bool paint(Composition& c, Geometry::Part part, const QColor& colour, int words)
 {
     switch (part) {
-    case Geometry::Part::Text:
-        if (Words* w = wordsOf(c)) {
-            w->text.fill.colour = colour;
-            return true;
-        }
-        return false;
+    case Geometry::Part::Text: {
+        const auto w = std::find_if(c.words.begin(), c.words.end(), [words](const Words& x) { return x.id == words; });
+        Words*     target = w != c.words.end() ? &*w : wordsOf(c);
+        if (!target)
+            return false;
+        target->text.fill.colour = colour;
+        return true;
+    }
     case Geometry::Part::Outline:
         if (c.balloon)
             c.balloon->style.line.stroke.colour = colour;
@@ -226,6 +228,29 @@ bool removeTails(Composition& c, QList<int> indexes)
             removed = true;
         }
     return removed;
+}
+
+int addWords(Composition& c, int from)
+{
+    const auto model = std::find_if(c.words.cbegin(), c.words.cend(), [from](const Words& w) { return w.id == from; });
+    if (c.words.isEmpty())
+        return 0;
+    Words added = model != c.words.cend() ? *model : c.words.first();
+    if (!seated(c, added))
+        return 0;
+    added.id = c.nextId++;
+    added.text.body.clear();
+    added.frame     = {};
+    added.frame.top = qreal(qRound(Geometry::textArea(c, added).height() / 2.0));
+    c.words.append(added);
+    return added.id;
+}
+
+bool removeWords(Composition& c, int id)
+{
+    if (c.words.size() <= 1)
+        return false;
+    return c.words.removeIf([id](const Words& w) { return w.id == id; }) > 0;
 }
 
 }  // namespace Edits

@@ -137,6 +137,11 @@ public:
     //! Whether handle @p index is a selected tail's, drawn hollow.
     [[nodiscard]] bool isFocusedHandle(int index) const { return m_focusedHandles.contains(index); }
 
+    //! Marks the words @p id as picked: their frame drawn marked, its handles first. 0: none, the first words marked.
+    void setPickedWords(int id);
+    //! The words marked: those picked, or the first; 0 with no words.
+    [[nodiscard]] int markedWords() const;
+
     //! How many extra draggable points this object has — a bubble's tail tips.
     [[nodiscard]] int tipCount() const { return handleCount(); }
 
@@ -300,6 +305,9 @@ signals:
     //! The picked nodes changed (pickedVertices()): what Delete and *Point type* act on.
     void pickedVertexChanged();
 
+    //! A press on a handle of the frame of words @p id that are not picked: the controller picks them.
+    void wordsPressed(const QString& uid, int id);
+
     /**
      * \brief The object was pressed — on handle @p handle, or on anything else when it is -1.
      *
@@ -419,6 +427,7 @@ private:
     bool    m_moved    = false;     //!< Whether this press actually changed anything worth reporting.
     bool    m_orphaned = false;     //!< True when the anchor page is not in the strip, so the object is greyed out and cannot be moved.
     QList<int> m_focusedHandles;   //!< The selected tails' handles, drawn hollow.
+    int        m_pickedWords = 0;  //!< See setPickedWords().
     Grip    m_dragGrip = Grip::None;   //!< The grip of the drag under way or the last one (dragGrip()).
     bool    m_shapeEditing = false;    //!< See setShapeEditing().
     QList<int> m_pickedVertices;       //!< See pickedVertices().

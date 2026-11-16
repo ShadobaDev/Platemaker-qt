@@ -11,12 +11,12 @@ using StripEdit::Subject;
 
 namespace {
 
-//! Two balloons, "a" with tails 3 and 4, "b" with tail 7; and a picture "p" with none.
+//! Two balloons, "a" with tails 3 and 4 and words 5, "b" with tail 7; and a picture "p" with none.
 bool exists(const QString& object, int element)
 {
     if (element == 0)
         return object == "a" || object == "b" || object == "p";
-    return (object == "a" && (element == 3 || element == 4)) || (object == "b" && element == 7);
+    return (object == "a" && (element == 3 || element == 4 || element == 5)) || (object == "b" && element == 7);
 }
 
 } // namespace
@@ -90,4 +90,25 @@ TEST(Selection, TheStripOrAPageIsOneOfAKind)
 
     s.select({}, {}, exists);
     EXPECT_EQ(s.subject(), Subject::None);
+}
+
+TEST(Selection, WordsArePickedAloneTheirObjectCarryingThem)
+{
+    SelectionModel s;
+    s.selectWords({"a", 5}, exists);
+    EXPECT_EQ(s.subject(), Subject::Words);
+    EXPECT_EQ(s.words(), (ElementRef{"a", 5}));
+    EXPECT_EQ(s.objects(), QStringList{"a"});   // on the canvas, its grips and its frames
+    EXPECT_EQ(s.carriers(), QStringList{"a"});  // but not a subject: Delete takes the words
+    EXPECT_TRUE(s.elements().isEmpty());
+    EXPECT_EQ(s.primary(), "a");
+    EXPECT_EQ(s.subjectCount(), 1);
+
+    s.select({"a"}, {}, exists);   // anything else picked: no words
+    EXPECT_EQ(s.subject(), Subject::Overlay);
+    EXPECT_EQ(s.words(), ElementRef());
+
+    s.selectWords({"a", 9}, exists);   // gone: nothing
+    EXPECT_EQ(s.subject(), Subject::None);
+    EXPECT_TRUE(s.objects().isEmpty());
 }

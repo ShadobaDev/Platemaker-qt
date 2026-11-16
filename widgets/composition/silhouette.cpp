@@ -492,21 +492,8 @@ Part partAt(const Composition& c, const QPointF& local, qreal slack)
 
     // Topmost first. The lettering is drawn over the balloon, so a letter standing on the fill answers
     // "text" — which is what the eye says too.
-    // The last words are drawn last, so they are tried first.
-    for (auto w = c.words.crbegin(); w != c.words.crend(); ++w) {
-        const QPainterPath text = textOutline(c, *w);
-        if (text.isEmpty())
-            continue;
-        if (text.contains(local))
-            return Part::Text;
-        // The letters' outline is theirs too.
-        if (const qreal reach = slack + qMax(w->text.outlineWidth, 0.0); reach > 0.0) {
-            QPainterPathStroker widen;
-            widen.setWidth(reach * 2);
-            if (widen.createStroke(text).contains(local))
-                return Part::Text;
-        }
-    }
+    if (wordsAt(c, local, slack) != 0)
+        return Part::Text;
 
     if (!c.balloon)
         return Part::None;   // no balloon: the words and nothing else
@@ -528,6 +515,27 @@ Part partAt(const Composition& c, const QPointF& local, qreal slack)
         return Part::Outline;
 
     return shape.contains(local) ? Part::Fill : Part::None;
+}
+
+int wordsAt(const Composition& c, const QPointF& local, qreal slack)
+{
+    slack = qMax(slack, 0.0);
+    // The last words are drawn last, so they are tried first.
+    for (auto w = c.words.crbegin(); w != c.words.crend(); ++w) {
+        const QPainterPath text = textOutline(c, *w);
+        if (text.isEmpty())
+            continue;
+        if (text.contains(local))
+            return w->id;
+        // The letters' outline is theirs too.
+        if (const qreal reach = slack + qMax(w->text.outlineWidth, 0.0); reach > 0.0) {
+            QPainterPathStroker widen;
+            widen.setWidth(reach * 2);
+            if (widen.createStroke(text).contains(local))
+                return w->id;
+        }
+    }
+    return 0;
 }
 
 QRectF bounds(const Composition& c)

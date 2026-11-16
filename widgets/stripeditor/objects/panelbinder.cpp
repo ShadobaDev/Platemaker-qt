@@ -24,6 +24,10 @@ void PanelBinder::bind()
 
     if (picked.isEmpty()) {
         emit boundToNothing();
+    } else if (m_selection.subject() == Subject::Words) {
+        // The object, its picked words first: the Text section edits the first words (applyEdits() puts the order back).
+        m_subjects = QStringList{m_selection.primary()};
+        show({m_host.composition(m_selection.primary()).value_or(Composition())});
     } else if (m_selection.subject() == Subject::Tail) {
         m_subjects = QStringList{m_selection.primary()};   // the tail's balloon owns the composition
         emit boundToTail(m_host.composition(m_selection.primary()).value_or(Composition()), m_host.tailIndex(m_selection.single()));
@@ -67,7 +71,9 @@ void PanelBinder::bind()
 
 void PanelBinder::show(const QList<Composition>& all)
 {
-    if (all.size() == 1)
+    if (all.size() == 1 && m_selection.subject() == Subject::Words)
+        emit boundToComposition(withWordsFirst(all.first(), m_selection.words().element));
+    else if (all.size() == 1)
         emit boundToComposition(all.first());
     else
         emit boundToCompositions(all);
@@ -86,6 +92,7 @@ void PanelBinder::applyEdits(const QList<Composition>& compositions, bool commit
         if (!object)
             continue;
         const Composition& held = *object;
+        orderWordsAs(merged[i], held);   // the panel may hold them picked words first (show())
         resize(merged[i], sizeOf(held));
         if (!merged[i].balloon || !held.balloon)
             continue;

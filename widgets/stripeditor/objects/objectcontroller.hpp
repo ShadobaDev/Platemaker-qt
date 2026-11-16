@@ -131,6 +131,8 @@ public:
      * \param index  The index of the tail to select. If the bubble has no tail at that index, the bubble itself is selected instead.
      */
     void selectTail(const QString& uid, int index);
+    //! Selects words @p id of object @p uid, one of its several, the Text section theirs; the object when they are gone.
+    void selectWords(const QString& uid, int id);
     /**
      * \brief Scrolls the strip to a subject: an object or a tail centred in the view, a page with its top
      *        at the view's top. The strip, or a subject that is gone, moves nothing.
@@ -439,6 +441,10 @@ public:
     [[nodiscard]] PanelBinder& panel() { return *m_panel; }
     //! OBJECT STATE's *Fit*: grows or shrinks the selected object's box to its words. Not a picture.
     void fitSelectionToText();
+    //! Whether *Add words* applies: one balloon or picture selected (or words of it), its words on a seat.
+    [[nodiscard]] bool canAddWords() const;
+    //! *Add words*: new words on the selected object (Edits::addWords()), from the picked words; picked, the caret in them.
+    void addWords();
 
     // --- a new object: asked for here, created by the owner, selected when it comes back in the feed ---
     //! Asks the owner for a new authored object; it is selected when the feed brings it back.
@@ -594,6 +600,12 @@ private:
     [[nodiscard]] QPointF settleBox(const Object* item, Composition& next) const;
 
     void deleteSelectedTail();
+    //! Delete with words picked: those words, never the last (Edits::removeWords()); the object is what is left to hold.
+    void deleteSelectedWords();
+    //! Whether @p ref's object still has those words.
+    [[nodiscard]] bool hasWords(const ElementRef& ref) const;
+    //! The selection just made, shown: the items selected, their tails and words marked, the panel bound.
+    void showSelection();
 
     //! Tail @p index of @p uid's balloon, as a selection holds it: by its element id (0 when there is none there).
     [[nodiscard]] ElementRef tailRef(const QString& uid, int index) const;

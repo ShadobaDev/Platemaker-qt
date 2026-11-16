@@ -421,12 +421,11 @@ QSize fittedBox(const Composition& c)
     return fitBoxFor(c, textBlocks(c));
 }
 
-QList<Handle> textAreaHandles(const Composition& c)
+QList<Handle> textAreaHandles(const Composition& c, const Words& w)
 {
-    const Words* w = wordsOf(c);
-    if (!w || !seated(c, *w))
+    if (!seated(c, w))
         return {};
-    const QRectF  area = textSafeArea(c, *w);
+    const QRectF  area = textSafeArea(c, w);
     const QPointF a    = area.center();
     const auto arrow = [](TextAreaPart part, int index, const QPointF& at, const QPointF& axis) {
         Handle h;
@@ -449,18 +448,15 @@ QList<Handle> textAreaHandles(const Composition& c)
             arrow(TextAreaPart::Bottom, 0, QPointF(a.x(), area.bottom()), QPointF(0, -1))};
 }
 
-Words dragTextAreaHandle(const Composition& c, const Handle& handle, const QPointF& to)
+Words dragTextAreaHandle(const Composition& c, const Words& w, const Handle& handle, const QPointF& to)
 {
-    const Words* w = wordsOf(c);
-    if (!w)
-        return {};
-    const std::optional<QRectF> seat = seatBox(c, *w);
+    const std::optional<QRectF> seat = seatBox(c, w);
     if (!seat)
-        return *w;
-    Words        out   = *w;
+        return w;
+    Words        out   = w;
     Frame&       f     = out.frame;
     const QRectF inner = *seat;
-    const QRectF area  = textSafeArea(c, *w);
+    const QRectF area  = textSafeArea(c, w);
     // Whole pixels: what the file says is what the author placed, not the pointer's last fraction.
     const auto whole = [](qreal inset) { return qreal(qRound(inset)); };
     switch (partOf<TextAreaPart>(handle)) {

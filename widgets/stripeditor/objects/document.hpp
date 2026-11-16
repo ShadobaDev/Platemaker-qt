@@ -87,8 +87,11 @@ namespace Edits {
 
 //! A new style seed, never the one it had nor 0, drawn from @p random. False when @p c draws nothing from a seed.
 bool reroll(Composition& c, const std::function<quint32()>& random);
-//! Gives @p part of @p c @p colour: the words' fill, the balloon's line, or its fill. False when @p c has no such part.
-bool paint(Composition& c, Geometry::Part part, const QColor& colour);
+/**
+ * \brief Gives @p part of @p c @p colour: the fill of its words @p words (their id; 0, or none such: the first), the
+ *        balloon's line, or its fill. False when @p c has no such part.
+ */
+bool paint(Composition& c, Geometry::Part part, const QColor& colour, int words = 0);
 /**
  * \brief @p c made a balloon of @p look (@p toBalloon) or text — the balloon goes with its tails — and sized to its
  *        lettering in its new kind, both ways. False when it is that kind already.
@@ -98,6 +101,14 @@ bool convert(Composition& c, bool toBalloon, const BalloonLook& look);
 bool fitToText(Composition& c);
 //! Removes tails @p indexes of @p c's balloon, whichever order they come in. False when none of them is there.
 bool removeTails(Composition& c, QList<int> indexes);
+/**
+ * \brief Adds words to @p c on the seat of its words @p from (its first when there are none such): their lettering,
+ *        no text, in the seat's lower half (the top edge set at half its height). Returns their id; 0 when those
+ *        words have no seat (a text object is its one words).
+ */
+int addWords(Composition& c, int from);
+//! Removes @p c's words @p id. False when there are no such words, or they are the last: a balloon keeps somewhere to type.
+bool removeWords(Composition& c, int id);
 
 }  // namespace Edits
 

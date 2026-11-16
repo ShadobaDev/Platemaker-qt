@@ -85,6 +85,10 @@ enum class Part { None, Fill, Outline, Text };
  */
 [[nodiscard]] Part partAt(const Composition& c, const QPointF& local, qreal slack);
 
+//! The id of the words whose letters (or their outline) lie at \p local, as partAt() finds them, the last drawn
+//! first; 0 for none.
+[[nodiscard]] int wordsAt(const Composition& c, const QPointF& local, qreal slack);
+
 /**
  * \brief Everything \p c actually covers, in its frame — origin may be negative.
  *
@@ -254,15 +258,15 @@ enum class TextAreaPart {
  *        it, each pointing across its edge. First the middle itself (`Anchor`), so a press where an arrow lies over
  *        it takes the middle. None for words with no seat, which keep their own box.
  */
-[[nodiscard]] QList<Handle> textAreaHandles(const Composition& c);
+[[nodiscard]] QList<Handle> textAreaHandles(const Composition& c, const Words& w);
 
 /**
- * \brief \p c's first words with text-area \p handle dragged to \p to (balloon coordinates): textAreaHandles()'
+ * \brief \p w with text-area \p handle dragged to \p to (balloon coordinates): textAreaHandles()'
  *        inverse. An edge is set where the pointer is, inside the balloon or past it, never closer to the opposite
  *        edge than two pixels; the middle moves the whole frame by as much as the pointer, every edge set, its
  *        middle kept within the seat. Measured against \p c as it was at the press.
  */
-[[nodiscard]] Words dragTextAreaHandle(const Composition& c, const Handle& handle, const QPointF& to);
+[[nodiscard]] Words dragTextAreaHandle(const Composition& c, const Words& w, const Handle& handle, const QPointF& to);
 
 /**
  * \brief The point of \p c's lettering that stays put when its box changes, in box coordinates: the point of the

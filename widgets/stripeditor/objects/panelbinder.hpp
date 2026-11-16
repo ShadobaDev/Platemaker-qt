@@ -47,7 +47,7 @@ public:
     void bind();
     //! The strip or a page is the selection: no object answers the panel.
     void unbind() { m_subjects.clear(); }
-    //! An edit made @p c of the one object shown: shown again, its picked words first when words are the subject.
+    //! An edit made @p c of the one object shown: shown again (its picked words, when they are the subject).
     void show(const Composition& c);
     //! An edit made @p all of the objects shown, in their order: shown again (one as one).
     void show(const QList<Composition>& all);
@@ -75,6 +75,7 @@ signals:
     // --- for OBJECT STATE: what it is bound to now ---
     void boundToComposition(const Composition& composition);            //!< One object.
     void boundToTail(const Composition& composition, int index);   //!< One tail, of the balloon @p composition.
+    void boundToWords(const Composition& composition, int id);     //!< Words @p id picked, of @p composition.
     void boundToCompositions(const QList<Composition>& compositions);   //!< Several objects, of any kinds.
     void boundToMixed(int count);   //!< Objects and tails together: nothing editable in common.
     //! Several tails and no whole object: their @p balloons, and each tail as (balloon index, tail index).

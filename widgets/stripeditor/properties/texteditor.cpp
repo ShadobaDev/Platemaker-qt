@@ -221,8 +221,14 @@ void TextEditor::bind(const Subjects& subjects)
     if (subjects.isEmpty())
         return;
 
-    m_values   = TextProperties::from(*subjects.first());
-    m_subjects = static_cast<int>(subjects.size());
+    QList<TextProperties> texts;
+    for (const Composition* a : subjects)
+        for (const Words* w : spokenFor(*a))
+            texts << w->text;
+    if (texts.isEmpty())
+        texts << TextProperties{};   // nothing lettered yet: the defaults, as for an empty composition
+    m_values   = texts.first();
+    m_subjects = static_cast<int>(texts.size());
 
     m_mixedFamily = m_mixedSize = m_mixedBold = m_mixedAlign = m_mixedValign = m_mixedLineSpacing = false;
     m_fill.reset();
@@ -230,8 +236,7 @@ void TextEditor::bind(const Subjects& subjects)
     m_outline.reset();
     m_shadow.reset();
     m_anyOutline   = false;
-    for (const Composition* a : subjects) {
-        const TextProperties t = TextProperties::from(*a);
+    for (const TextProperties& t : std::as_const(texts)) {
         m_fill.compare(t, m_values);
         m_mixedFamily = m_mixedFamily || t.family    != m_values.family;
         m_mixedSize   = m_mixedSize   || t.pixelSize != m_values.pixelSize;
@@ -250,15 +255,39 @@ void TextEditor::bind(const Subjects& subjects)
     syncFromValues();
 }
 
+QList<const Words*> TextEditor::spokenFor(const Composition& c) const
+{
+    QList<const Words*> out;
+    for (const Words& w : c.words)
+        if (m_words == 0 || w.id == m_words)
+            out << &w;
+    return out;
+}
+
 void TextEditor::applyTo(Composition& target) const
 {
-    m_values.applyTo(target);
+    // Several words are a set: each keeps its own line, and takes what was touched.
+    if (spokenFor(target).size() > 1) {
+        applyEditedTo(target);
+        return;
+    }
+    for (Words& w : target.words)
+        if (m_words == 0 || w.id == m_words) {
+            w.text = m_values;
+            return;
+        }
 }
 
 void TextEditor::applyEditedTo(Composition& target) const
 {
+    for (Words& w : target.words)
+        if (m_words == 0 || w.id == m_words)
+            applyEdited(w.text);
+}
+
+void TextEditor::applyEdited(TextProperties& t) const
+{
     // The lettering itself is never written to a set: five balloons do not share one line of dialogue.
-    TextProperties t = TextProperties::from(target);
     m_fill.applyEdited(m_values, t);
     if (m_familyTouched) t.family    = m_values.family;
     if (m_sizeTouched)   t.pixelSize = m_values.pixelSize;
@@ -269,7 +298,6 @@ void TextEditor::applyEditedTo(Composition& target) const
     m_outlineWidth.applyEdited(m_values, t);
     m_outline.applyEdited(m_values, t);
     m_shadow.applyEdited(m_values, t);
-    t.applyTo(target);
 }
 
 void TextEditor::focusContent()

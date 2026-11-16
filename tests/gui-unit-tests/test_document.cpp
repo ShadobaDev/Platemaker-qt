@@ -134,8 +134,7 @@ TEST(Edits, EachSaysWhetherItChangedTheObject)
 
 /**
  * \brief Words added to a balloon sit in the lower half of its body, lettered as the words they came from, with no
- *        text; a picture takes them too, a text object does not; the last words cannot be removed. The panel's
- *        view with picked words first puts them back in their order.
+ *        text; a picture takes them too, a text object does not; the last words cannot be removed.
  */
 TEST(Edits, WordsAreAddedInTheLowerHalfAndTheLastOneStays)
 {
@@ -158,12 +157,6 @@ TEST(Edits, WordsAreAddedInTheLowerHalfAndTheLastOneStays)
     const QRectF lower = Geometry::textArea(balloon, second);
     EXPECT_NEAR(lower.bottom(), whole.bottom(), k_px);
     EXPECT_NEAR(lower.top(), whole.top() + qRound(whole.height() / 2.0), k_px);
-
-    // The panel's view: the picked words first, and back in their order.
-    Composition view = withWordsFirst(balloon, added);
-    EXPECT_EQ(view.words.first().id, added);
-    orderWordsAs(view, balloon);
-    EXPECT_TRUE(view == balloon);
 
     // A colour poured on words lands on those words.
     EXPECT_TRUE(E::paint(balloon, Geometry::Part::Text, Qt::red, added));

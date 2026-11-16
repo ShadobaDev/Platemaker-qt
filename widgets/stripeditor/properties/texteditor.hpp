@@ -48,6 +48,12 @@ public:
 
     [[nodiscard]] const TextProperties& values() const { return m_values; }
 
+    /**
+     * \brief Which words of each composition it speaks for: those of id @p id (a words picked on its own), or,
+     *        for 0, every words — their lettering as a set's, the text box only where there is one words.
+     */
+    void setWords(int id) { m_words = id; }
+
     //! Puts the caret in the text box — called right after a bubble is placed, so you can just type.
     void focusContent();
 
@@ -63,6 +69,10 @@ protected:
 
 private:
     void syncFromValues();
+    //! The words of @p c this editor speaks for (setWords()).
+    [[nodiscard]] QList<const Words*> spokenFor(const Composition& c) const;
+    //! @p t with what was touched since the binding written over it.
+    void applyEdited(TextProperties& t) const;
     //! The outline's paint rows, shown while anything bound, or the value shown, has an outline.
     void showOutline();
 
@@ -84,7 +94,8 @@ private:
     bool m_populating = false;
 
     // --- bound to a set ---
-    int  m_subjects      = 0;
+    int  m_subjects      = 0;      //!< How many words it is bound to: one shows the text box.
+    int  m_words         = 0;      //!< See setWords().
     bool m_mixedFamily   = false;
     bool m_mixedSize     = false;
     bool m_mixedBold     = false;

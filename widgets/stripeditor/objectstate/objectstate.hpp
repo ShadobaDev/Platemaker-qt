@@ -67,6 +67,14 @@ public:
     void setTail(const Composition& a, int index);
 
     /**
+     * \brief Shows the words of id @p id of @p a, picked on their own. Emits nothing.
+     *
+     * One section, the Text section, for those words alone, and *Delete words*; *Fit to text* and *Add words* stay,
+     * as they are the object's. Edits arrive as the whole composition, with only those words' lettering written.
+     */
+    void setWords(const Composition& a, int id);
+
+    /**
      * \brief Shows @p objects as one subject — the **union** of what they have in common. Emits nothing.
      *
      * The sections that appear are those at least one selected object carries; a control whose value
@@ -165,6 +173,7 @@ private:
     QList<QPair<int, int>> m_tailSet;        //!< Several tails: each (index into m_subjects, tail index).
     //! Whether the subject is a tail, or several: the tail's section alone, and no look of its own.
     [[nodiscard]] bool tailSubject() const { return m_tailIndex >= 0 || !m_tailSet.isEmpty(); }
+    int m_wordsId = 0;   //!< The words on show (their id), or 0 when the subject is not words picked on their own.
 
     QLabel*             m_subject   = nullptr;  //!< Names what is being edited.
     QHBoxLayout*        m_header    = nullptr;  //!< The subject and, after it, the look chip.

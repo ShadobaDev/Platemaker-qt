@@ -220,15 +220,6 @@ struct Composition
 [[nodiscard]] bool lettered(const Composition& c);
 
 /**
- * \brief @p c with its words @p id first, the others after them in their order: what OBJECT STATE shows for picked
- *        words, its Text section reading the first (TextProperties::from()). orderWordsAs() puts them back.
- */
-[[nodiscard]] Composition withWordsFirst(const Composition& c, int id);
-
-//! @p c's words in the order @p order has them (by id); words @p order does not have go last, in their order.
-void orderWordsAs(Composition& c, const Composition& order);
-
-/**
  * \brief The words the editor edits: @p c's first. ponytail: one until the editor picks one of several words.
  */
 [[nodiscard]] const Words* wordsOf(const Composition& c);

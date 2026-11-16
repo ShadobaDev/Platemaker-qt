@@ -205,10 +205,20 @@ enum class Part { None, Fill, Outline, Text };
 [[nodiscard]] bool textOverflows(const Composition& c);
 
 /**
- * \brief The smallest size (sizeOf()), **on both axes**, whose text area holds a block of size \p block.
+ * \brief Whether a block of lettering of size \p block, placed (blockRect()), lies inside \p c's outline itself,
+ *        kept the stroke and the edge's teeth away from it — what *Fit to text* asks beyond fits(). True with no
+ *        outline (a text object, a picture's words).
+ */
+[[nodiscard]] bool liesInOutline(const Composition& c, const QSizeF& block);
+
+/**
+ * \brief The smallest size (sizeOf()) whose text area holds a block of size \p block, and in which the block lies
+ *        inside the outline itself (liesInOutline()).
  *
- * Neither side goes below the grips' own minimum (40 px), so a short word cannot collapse the shape. An axis no
- * size can make hold the block (its set edges are too close) keeps the size it has.
+ * First the smallest **on both axes** whose frame holds the block; where the block still crosses the outline (a
+ * curved one, or set edges reaching past it), that size grown, its proportions kept, until it does not. Neither
+ * side goes below the grips' own minimum (40 px), so a short word cannot collapse the shape. An axis no size can
+ * make hold the block keeps the size it has.
  * Pure geometry, like fits(): fittedBox() is this with the lettering measured.
  */
 [[nodiscard]] QSize fitBoxFor(const Composition& c, const QSizeF& block);

@@ -59,29 +59,53 @@ TEST(TextFit, TheFittedBoxHoldsTheBlockInEveryShape)
             Composition a = withShape(shape);
             boxOf(a)          = Geometry::fitBoxFor(a, block);
             EXPECT_TRUE(Geometry::fits(a, block)) << id << " " << block.width() << "x" << block.height();
+            EXPECT_TRUE(Geometry::liesInOutline(a, block)) << id << " " << block.width() << "x" << block.height();
         }
     }
 }
 
-TEST(TextFit, TheFitIsTightOnBothAxes)
+TEST(TextFit, TheFitIsTight)
 {
-    // One pixel less on either side and the block no longer fits — unless that side is at the floor.
+    // One pixel less on both sides and the block no longer fits its frame or crosses the outline — unless a side
+    // is at the floor.
     for (const auto& [id, shape] : everyShape()) {
         for (const QSizeF& block : k_blocks) {
             Composition a = withShape(shape);
-            const QSize  fit = Geometry::fitBoxFor(a, block);
-
-            Composition narrower = a;
-            boxOf(narrower) = QSize(fit.width() - 1, fit.height());
-            if (fit.width() > k_floor)
-                EXPECT_FALSE(Geometry::fits(narrower, block)) << id << " width";
-
-            Composition shorter = a;
-            boxOf(shorter) = QSize(fit.width(), fit.height() - 1);
-            if (fit.height() > k_floor)
-                EXPECT_FALSE(Geometry::fits(shorter, block)) << id << " height";
+            const QSize fit = Geometry::fitBoxFor(a, block);
+            if (fit.width() <= k_floor || fit.height() <= k_floor)
+                continue;
+            boxOf(a) = QSize(fit.width() - 1, fit.height() - 1);
+            EXPECT_FALSE(Geometry::fits(a, block) && Geometry::liesInOutline(a, block))
+                << id << " " << block.width() << "x" << block.height() << " fit " << fit.width() << "x" << fit.height();
         }
     }
+}
+
+/**
+ * \brief The frame alone is not the fit where the outline is curved, or where set edges reach past it: the box
+ *        grows until the block lies inside the outline itself.
+ */
+TEST(TextFit, TheFitKeepsTheBlockInsideTheOutline)
+{
+    const QSizeF block(200, 36);
+
+    // An ellipse's box holds the block in its frame long before its curve does.
+    Composition ellipse = withShape(ShapeProperties::Kind::Ellipse);
+    boxOf(ellipse)      = Geometry::fitBoxFor(ellipse, block);
+    EXPECT_TRUE(Geometry::liesInOutline(ellipse, block));
+    EXPECT_GT(boxOf(ellipse).width(), block.width() * 1.2) << "the corners of the block reach the curve";
+
+    // Edges set past the outline (the arrows allow it): the frame holds the block at a size the outline does not,
+    // so the fit grows the balloon round the words.
+    Composition past           = withShape(ShapeProperties::Kind::Box);
+    wordsOf(past)->frame.left  = -49;
+    wordsOf(past)->frame.right = -49;
+    boxOf(past)                = Geometry::fitBoxFor(past, block);
+    EXPECT_TRUE(Geometry::fits(past, block));
+    EXPECT_TRUE(Geometry::liesInOutline(past, block));
+
+    // No outline, nothing to lie in: a text object's box is the block's.
+    EXPECT_TRUE(Geometry::liesInOutline(withShape(ShapeProperties::Kind::None), block));
 }
 
 TEST(TextFit, TheStartingBoxDoesNotMatter)

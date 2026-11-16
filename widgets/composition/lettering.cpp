@@ -278,6 +278,23 @@ bool textOverflows(const Composition& c)
     return !fits(c, textBlockSize(c));
 }
 
+bool liesInOutline(const Composition& c, const QSizeF& block)
+{
+    const Words* w    = wordsOf(c);
+    const Body*  seat = w ? seatOf(c, *w) : nullptr;
+    if (block.isEmpty() || !seat)
+        return true;
+    const auto outline = shapeInfo(seat->shape.kind).outline;
+    if (!outline)
+        return true;   // no outline to lie in: a text object's own box
+    // The bare outline, the block kept the stroke and the teeth away from it: grown by them, its corners round.
+    const qreal  inset = c.balloon->style.line.strokeWidth / 2.0 + edgeInset(seat->shape);
+    const QRectF r     = placedBlock(c, *w, block).adjusted(k_fitSlack, k_fitSlack, -k_fitSlack, -k_fitSlack);
+    QPainterPath kept;
+    kept.addRoundedRect(r.adjusted(-inset, -inset, inset, inset), inset, inset);
+    return outline(seat->shape, balloonRect(*c.balloon, *seat)).contains(kept);
+}
+
 QSize fitBoxFor(const Composition& c, const QSizeF& block)
 {
     if (block.isEmpty())
@@ -324,6 +341,48 @@ QSize fitBoxFor(const Composition& c, const QSizeF& block)
         if (sizeOf(probe) == before)
             break;
     }
+
+    // Held by the frame, the block may still cross a curved outline (an ellipse's corners, a box's rounded ones)
+    // or one its set edges reach past: then the box grows, its proportions kept, until the block lies inside it.
+    const QSize framed = sizeOf(probe);
+    if (liesInOutline(probe, block) || framed.isEmpty())
+        return framed;
+    const auto inside = [&](int width) {
+        resize(probe, QSize(width, qCeil(qreal(framed.height()) * width / framed.width())));
+        return liesInOutline(probe, block);
+    };
+    int lo = framed.width();
+    int hi = lo * 2;
+    while (!inside(hi) && hi < k_maxFitSize)
+        hi *= 2;
+    if (!inside(hi))
+        return framed;   // no size will do: the frame's fit is the best there is
+    while (hi - lo > 1) {
+        const int mid = (lo + hi) / 2;
+        (inside(mid) ? hi : lo) = mid;
+    }
+    inside(hi);
+
+    // Grown in proportion, one side may have room to spare: each side on its own, down to the smallest that still
+    // holds the block in the frame and inside the outline, the other held where it is.
+    const auto tighten = [&](bool horizontal) {
+        const QSize at   = sizeOf(probe);
+        const auto  room = [&](int side) {
+            resize(probe, horizontal ? QSize(side, at.height()) : QSize(at.width(), side));
+            return fits(probe, block) && liesInOutline(probe, block);
+        };
+        int low  = k_minFitSize;
+        int high = horizontal ? at.width() : at.height();
+        if (room(low))
+            return;   // the floor holds it, and room() left it there
+        while (high - low > 1) {
+            const int mid = (low + high) / 2;
+            (room(mid) ? high : low) = mid;
+        }
+        room(high);
+    };
+    tighten(true);
+    tighten(false);
     return sizeOf(probe);
 }
 

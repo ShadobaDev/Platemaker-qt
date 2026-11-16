@@ -256,7 +256,8 @@ case.
   by `align` (left, middle, right) and up and down by `valign` (top, middle, bottom); one larger than the frame
   goes past it away from the side it is aligned to (`blockRect()`). A balloon's words are clipped to the frame at
   the sides only; a text object's and a picture's keep their own box. The red text area shows when the placed
-  block leaves the frame (`fits()`); the content saves the set edges.
+  block leaves the frame (`fits()`); *Fit to text* sizes the body so that the block also lies inside the outline
+  itself, less the stroke and the teeth (`liesInOutline()`). The content saves the set edges.
 - **The text area on the strip.** In shape editing a balloon with words shows its frame, four arrows and a
   handle at its middle (`textAreaHandles()`, `TextAreaPart`, dragged by `dragTextAreaHandle()`), never saved: an
   arrow sets its edge and the middle follows; the middle moves the whole frame within the body. A double-click

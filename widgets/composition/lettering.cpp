@@ -1,6 +1,7 @@
 // The lettering: the words set in their font and turned into outlines, the frame they are laid in and where
 // the block sits in it, and fitting a box to them. The frame is the words' own (Words::frame): automatic edges
-// reach the body's box less the stroke and the edge's teeth, the same for every shape.
+// reach their seat's inner box: a body's box less the stroke and the edge's teeth, the same for every shape, or a
+// picture's whole box.
 
 #include "geometry.hpp"
 #include "shapes.hpp"
@@ -18,6 +19,7 @@
 #include <QtMath>
 
 #include <algorithm>
+#include <optional>
 
 namespace Geometry {
 
@@ -47,23 +49,27 @@ constexpr int   k_minFitSize    = 40;
 constexpr qreal k_minTextSpan   = 2.0;
 
 /**
- * \brief Where an automatic edge of words seated in @p seat stops, and what a set one is measured in from: the
- *        body's box less the stroke and the edge's teeth (which go in from the outline).
+ * \brief Where an automatic edge of @p w stops, and what a set one is measured in from: their body's box less the
+ *        stroke and the edge's teeth (which go in from the outline), or the picture's whole box. None with no seat.
  */
-QRectF innerBox(const Balloon& b, const Body& seat)
+std::optional<QRectF> seatBox(const Composition& c, const Words& w)
 {
-    const qreal inset = b.style.line.strokeWidth / 2.0 + edgeInset(seat.shape);
-    return balloonRect(b, seat).adjusted(inset, inset, -inset, -inset);
+    if (const Body* body = seatOf(c, w)) {
+        const qreal inset = c.balloon->style.line.strokeWidth / 2.0 + edgeInset(body->shape);
+        return balloonRect(*c.balloon, *body).adjusted(inset, inset, -inset, -inset);
+    }
+    if (seated(c, w))
+        return QRectF(c.picture->place.pos, QSizeF(c.picture->size));
+    return std::nullopt;
 }
 
 QRectF textSafeArea(const Composition& c, const Words& w)
 {
-    const Body* seat = seatOf(c, w);
+    const std::optional<QRectF> seat = seatBox(c, w);
     if (!seat)
         return QRectF(w.place.pos, QSizeF(w.box));
     const Frame& f = w.frame;
-    return innerBox(*c.balloon, *seat)
-        .adjusted(f.left.value_or(0.0), f.top.value_or(0.0), -f.right.value_or(0.0), -f.bottom.value_or(0.0));
+    return seat->adjusted(f.left.value_or(0.0), f.top.value_or(0.0), -f.right.value_or(0.0), -f.bottom.value_or(0.0));
 }
 
 //! The point of @p w's frame the block is aligned to: a side or the middle across, the top, middle or bottom
@@ -192,10 +198,10 @@ QPainterPath textOutline(const Composition& c, const Words& w)
 
     // The frame is the clip, so an overlong line cannot bleed past its sides. Not up and down: lines the frame
     // has no room for go on past it, away from the side they are aligned to, never cut, and the red text area
-    // says so. A text object and a picture's words keep their box as it was.
+    // says so. A text object keeps its box as it was.
     // Intersecting keeps that in vector form, so it survives into the SVG.
     QRectF open = safe;
-    if (seatOf(c, w)) {
+    if (seated(c, w)) {
         const QRectF drawn = out.boundingRect();
         open.setTop(qMin(safe.top(), drawn.top()));
         open.setBottom(qMax(safe.bottom(), drawn.bottom()));
@@ -394,7 +400,7 @@ QSize fittedBox(const Composition& c)
 QList<Handle> textAreaHandles(const Composition& c)
 {
     const Words* w = wordsOf(c);
-    if (!c.balloon || !w || !seatOf(c, *w))
+    if (!w || !seated(c, *w))
         return {};
     const QRectF  area = textSafeArea(c, *w);
     const QPointF a    = area.center();
@@ -424,12 +430,12 @@ Words dragTextAreaHandle(const Composition& c, const Handle& handle, const QPoin
     const Words* w = wordsOf(c);
     if (!w)
         return {};
-    const Body* seat = seatOf(c, *w);
-    if (!c.balloon || !seat)
+    const std::optional<QRectF> seat = seatBox(c, *w);
+    if (!seat)
         return *w;
     Words        out   = *w;
     Frame&       f     = out.frame;
-    const QRectF inner = innerBox(*c.balloon, *seat);
+    const QRectF inner = *seat;
     const QRectF area  = textSafeArea(c, *w);
     // Whole pixels: what the file says is what the author placed, not the pointer's last fraction.
     const auto whole = [](qreal inset) { return qreal(qRound(inset)); };
@@ -447,7 +453,7 @@ Words dragTextAreaHandle(const Composition& c, const Handle& handle, const QPoin
         f.bottom = whole(inner.bottom() - qMax(to.y(), area.top() + k_minTextSpan));
         break;
     case TextAreaPart::Anchor: {
-        // The whole frame, by whole pixels, its middle kept within the body; the edges of an axis it moves along
+        // The whole frame, by whole pixels, its middle kept within the seat; the edges of an axis it moves along
         // are set by it.
         const QPointF mid(std::clamp(to.x(), inner.left(), inner.right()), std::clamp(to.y(), inner.top(), inner.bottom()));
         const int     dx = qRound(mid.x() - area.center().x());

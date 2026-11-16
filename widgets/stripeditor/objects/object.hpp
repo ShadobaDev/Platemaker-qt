@@ -11,6 +11,7 @@
 #include <platemaker/models/processing_steps.hpp>
 
 #include "composition.hpp"
+#include "handles.hpp"
 #include "objects/resize.hpp"
 #include "shapes.hpp"
 
@@ -149,12 +150,11 @@ public:
     void setShapeEditing(bool on);
     [[nodiscard]] bool shapeEditing() const { return m_shapeEditing; }
 
-    //! Whether this object has an outline with handles to edit: a balloon of a kind that offers them.
+    //! Whether this object has handles to edit: a balloon's outline, a fade's cross, words' frame.
     [[nodiscard]] virtual bool canEditShape() const { return false; }
 
-    //! The handles shape editing offers, in item coordinates. None by default.
-    [[nodiscard]] virtual QList<Geometry::Handle> shapeHandles() const { return {}; }
-
+    //! The handles shape editing offers (Geometry::handlesOf()), in item coordinates; none unless canEditShape().
+    [[nodiscard]] QList<Geometry::Handle> shapeHandles() const;
     //! The bare outline shape editing traces, in item coordinates. None by default.
     [[nodiscard]] virtual QPainterPath editOutline() const { return {}; }
 
@@ -189,13 +189,10 @@ public:
     [[nodiscard]] virtual bool handleDrawn(int index) const { Q_UNUSED(index) return true; }
 
     /**
-     * \brief True when a resize changes the object's scale rather than its box.
-     *
-     * Imported artwork says yes: its box is its own pixels, its size travels as a single width fraction
-     * and its height follows the artwork's own aspect, so a distorted one is not expressible — which is
-     * also what anyone dragging the corner of a logo meant. Such an object is offered no edge grips.
+     * \brief True when a resize keeps the box's aspect: imported artwork, whose height follows its file's, which
+     *        is also what anyone dragging the corner of a logo meant. Such an object is offered no edge grips.
      */
-    [[nodiscard]] virtual bool resizesByScale() const { return false; }
+    [[nodiscard]] virtual bool keepsAspect() const { return false; }
 
     //! The box — what the grips move — in scene coordinates.
     [[nodiscard]] QRectF sceneBox() const { return mapRectToScene(QRectF(QPointF(0, 0), boxSize())); }
@@ -365,14 +362,6 @@ protected:
     /** \brief Places handle @p index at @p local, in item coordinates. None by default. */
     virtual void                  setHandlePos(int index, const QPointF& local) { Q_UNUSED(index) Q_UNUSED(local) }
 
-    /**
-     * \brief A press on shape handle @p index of shapeHandles(). True when the press alone changed the
-     *        composition (a "+" adding a node), so the drag is reported even if the pointer never moves.
-     */
-    virtual bool beginShapeDrag(int index) { Q_UNUSED(index) return false; }
-    //! Continues the drag of the shape handle pressed in beginShapeDrag() to @p scenePos.
-    virtual void dragShapeTo(const QPointF& scenePos) { Q_UNUSED(scenePos) }
-
     //! A grip's size in this object's own units at the current zoom: what a handle needs to stay clear of another.
     [[nodiscard]] qreal gripSpanHere() const;
 
@@ -402,6 +391,22 @@ private:
     /** \brief Which grip is under \p local. For Grip::Handle, \p handleIndex receives which one. */
     [[nodiscard]] Grip   gripAt(const QPointF& local, int* handleIndex = nullptr) const;
     [[nodiscard]] QRectF handleRect(int index) const;   //!< The rectangle a handle occupies, in item coordinates.
+
+    /**
+     * \brief A press on shape handle @p index of shapeHandles(). True when the press alone changed the
+     *        composition (a "+" adding a node), so the drag is reported even if the pointer never moves.
+     */
+    bool beginShapeDrag(int index);
+    //! Continues the drag of the shape handle pressed in beginShapeDrag() to @p scenePos.
+    void dragShapeTo(const QPointF& scenePos);
+    //! What a handle's owner needs from this object at a drag, in the composition's units: the radius dot's
+    //! clearance and the picked nodes.
+    [[nodiscard]] Geometry::HandleContext handleContext() const;
+
+    Composition      m_shapeStart;            //!< The composition at a shape handle's press; the drag works against it.
+    QPointF          m_shapeStartPos;         //!< pos() at that press: a node dragged past the box moves the item.
+    Geometry::Handle m_shapeHandle;           //!< The handle being dragged, in the composition's units.
+    bool             m_shapeDragOff = false;  //!< A Ctrl+press took its node out of the pick: the drag moves nothing.
 
     QString m_uid;                   //!< The unique identifier for this object, used to track it in the library and persist its state.
     QRectF  m_bounds;                //!< Cached content bounds — see refreshBounds().

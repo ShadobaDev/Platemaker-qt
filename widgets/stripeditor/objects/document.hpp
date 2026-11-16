@@ -50,8 +50,6 @@ public:
 
     //! Overlay @p uid placed at @p at: its fractions and its page.
     bool setPlace(const QString& uid, const StripLayout::Anchored& at);
-    //! Overlay @p uid drawn @p wFrac of the target width. True when that moved it.
-    bool setWidth(const QString& uid, double wFrac);
     //! Overlay @p uid anchored to the page of input uid @p page, at the offset it had. True when that changed it.
     bool setAnchor(const QString& uid, const QString& page);
     //! The blend mode the overlays @p uids share; none when they disagree, or there are none.

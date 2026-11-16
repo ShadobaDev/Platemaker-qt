@@ -78,9 +78,8 @@ public:
      */
     [[nodiscard]] QSizeF boxSize() const override { return QSizeF(sizeOf(m_composition)); }
 
-    [[nodiscard]] bool                         canEditShape() const override;
-    [[nodiscard]] QList<Geometry::Handle> shapeHandles() const override;
-    [[nodiscard]] QPainterPath                 editOutline() const override;
+    [[nodiscard]] bool         canEditShape() const override;
+    [[nodiscard]] QPainterPath editOutline() const override;
 
 protected:
     /**
@@ -119,26 +118,11 @@ protected:
      */
     void                  setHandlePos(int index, const QPointF& local) override;
 
-    bool beginShapeDrag(int index) override;
-    //! A Ctrl+press took its node out of the pick: the drag that follows moves nothing.
-    bool m_shapeDragOff = false;
-    void dragShapeTo(const QPointF& scenePos) override;
-
 private:
     void rebuild();             //!< Re-resolves the cached paths after the composition changed, then re-measures the extent.
-    //! How far the radius dot keeps in from its arc, in balloon units: clear of a corner's handle at any zoom.
-    [[nodiscard]] qreal radiusClearance() const;
-
     QImage       m_sharp;       //!< Library rasterisation shown at rest for a filtered bubble (see above).
     Painter::Paths m_paths;     //!< The paths it is drawn from, cached so a repaint resolves no geometry.
     QList<bool>  m_tailDrawn;   //!< Per tail: whether it is drawn (its tip is outside the balloon).
-
-    Composition           m_shapeStart;      //!< The composition at a shape handle's press; the drag works against it.
-    QPointF               m_shapeStartPos;   //!< pos() at that press: a node dragged past the box moves the item.
-    Geometry::Handle m_shapeHandle;     //!< The handle being dragged; a "+" pressed has become its node.
-
-    //! What a handle's owner needs from this object at a drag: the radius dot's clearance and the picked nodes.
-    [[nodiscard]] Geometry::HandleContext handleContext() const;
 };
 
 }  // namespace StripEdit

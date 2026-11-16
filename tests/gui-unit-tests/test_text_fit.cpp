@@ -7,7 +7,11 @@
 #include "objectparts.hpp"
 #include "names.hpp"
 #include "geometry.hpp"
+#include "handles.hpp"
 #include "shapes.hpp"
+
+#include <QJsonArray>
+#include <QJsonObject>
 
 namespace {
 
@@ -250,8 +254,45 @@ TEST(TextFit, TheTextAreaArrowsSetTheirEdges)
     *wordsOf(moved) = w;
     EXPECT_NEAR(Geometry::textArea(moved, w).width(), 2.0, k_wholePx);
 
-    // No balloon: the words keep their own box, and offer no arrows.
+    // No seat: the words keep their own box, and offer no arrows.
     EXPECT_TRUE(Geometry::textAreaHandles(withShape(ShapeProperties::Kind::None)).isEmpty());
+}
+
+/**
+ * \brief A picture's words sit on it as a balloon's sit in a body: their frame is the picture's whole box, its
+ *        handles are theirs alone, a set edge keeps its inset when the picture is resized, and the content saves
+ *        the seat and the frame instead of a box.
+ */
+TEST(TextFit, APicturesWordsSitOnItInAFrame)
+{
+    Composition c  = pictureObject(QStringLiteral("art.png"), QSize(400, 200));
+    textOf(c).body = QStringLiteral("Hi");
+    EXPECT_TRUE(seated(c, *wordsOf(c)));
+    EXPECT_EQ(Geometry::textArea(c, *wordsOf(c)), QRectF(0, 0, 400, 200)) << "no stroke, no teeth: the whole box";
+
+    const Geometry::HandleContext none;
+    const QList<Geometry::Handle> all = Geometry::handlesOf(c, none);
+    ASSERT_EQ(all.size(), 5) << "the frame's middle and four arrows, no outline of ours";
+    for (const Geometry::Handle& h : all) {
+        EXPECT_EQ(h.element, wordsOf(c)->id);
+        EXPECT_TRUE(h.drag);
+        EXPECT_TRUE(h.reset);
+    }
+    const Geometry::Handle left = all.at(1);
+    left.drag(c, left, left.at + QPointF(30, 0), none);
+    ASSERT_TRUE(wordsOf(c)->frame.left.has_value());
+    EXPECT_NEAR(*wordsOf(c)->frame.left, 30.0, k_px);
+
+    resize(c, QSize(800, 400));
+    const QRectF area = Geometry::textArea(c, *wordsOf(c));
+    EXPECT_NEAR(area.left(), 30.0, k_px) << "the inset kept";
+    EXPECT_NEAR(area.right(), 800.0, k_px) << "an automatic edge follows the picture";
+
+    const QJsonObject words = toJson(c).value(QStringLiteral("words")).toArray().first().toObject();
+    EXPECT_EQ(words.value(QStringLiteral("seat")).toInt(), c.picture->id);
+    EXPECT_TRUE(words.contains(QStringLiteral("frame")));
+    EXPECT_FALSE(words.contains(QStringLiteral("box")));
+    EXPECT_TRUE(compositionFromJson(toJson(c)) == c);
 }
 
 /**

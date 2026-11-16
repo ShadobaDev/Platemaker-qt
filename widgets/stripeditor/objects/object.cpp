@@ -1,6 +1,7 @@
 #include "objects/object.hpp"
 
 #include <QGraphicsScene>
+#include <QGuiApplication>
 #include <QGraphicsSceneMouseEvent>
 #include <QGraphicsView>
 #include <QPainter>
@@ -21,6 +22,9 @@ constexpr qreal k_gripMax = 18.0;
 constexpr qreal k_gripMargin = 10.0;
 //! Opacity for unanchored objects — present but not rendering is visually semi-transparent.
 constexpr qreal k_unanchoredOpacity = 0.35;
+//! The radius handle's distance in from its arc, in grip spans: its arrow, a span either side of it,
+//! then stays clear of the corner's own node.
+constexpr qreal k_radiusDotClearance = 2.2;
 
 QPainter::CompositionMode compositionFor(Platemaker::Models::BlendMode b)
 {
@@ -174,6 +178,71 @@ qreal Object::gripSpanHere() const
     return gripSpan(this);
 }
 
+Geometry::HandleContext Object::handleContext() const
+{
+    return {gripSpanHere() * k_radiusDotClearance, pickedVertices()};
+}
+
+QList<Geometry::Handle> Object::shapeHandles() const
+{
+    return canEditShape() ? Geometry::handlesOf(m_composition, handleContext()) : QList<Geometry::Handle>();
+}
+
+bool Object::beginShapeDrag(int index)
+{
+    const QList<Geometry::Handle> handles = shapeHandles();
+    if (index < 0 || index >= handles.size())
+        return false;
+    m_shapeStart    = m_composition;
+    m_shapeStartPos = pos();
+    m_shapeHandle   = handles.at(index);
+
+    // What a press does is the handle's owner's (a "+" adds its node, and the drag that follows is that node's).
+    const bool changed = m_shapeHandle.press && m_shapeHandle.press(m_shapeStart, m_shapeHandle);
+    if (changed)
+        emit compositionEdited(uid(), m_shapeStart);
+    // A node, or one of its handles, picks that node: its handles show, and Delete or its type act on it.
+    // Ctrl+press on a node adds it to the pick, or takes it away (and then drags nothing). A plain press on a
+    // node already among several keeps them, so the drag moves them all.
+    m_shapeDragOff = false;
+    if (m_shapeHandle.node < 0) {
+        setPickedVertex(-1);
+        return changed;
+    }
+    const int  node       = m_shapeHandle.node;
+    const bool nodeItself = m_shapeHandle.glyph == Geometry::Handle::Glyph::Node;
+    QList<int> picked     = pickedVertices();
+    if (nodeItself && !changed
+        && QGuiApplication::keyboardModifiers().testFlag(Qt::ControlModifier)) {
+        m_shapeDragOff = picked.removeAll(node) > 0;
+        if (!m_shapeDragOff)
+            picked.append(node);
+        setPickedVertices(picked);
+    } else if (nodeItself && picked.contains(node)) {
+        picked.removeAll(node);
+        setPickedVertices(picked << node);   // the one pressed is the one picked last
+    } else {
+        setPickedVertex(node);
+    }
+    return changed;
+}
+
+void Object::dragShapeTo(const QPointF& scenePos)
+{
+    if (m_shapeDragOff || !m_shapeHandle.drag)
+        return;   // a Ctrl+press that took its node out of the pick
+    // In the units of the box as it was at the press: a node past the box moves the item, and measuring against
+    // where it has moved to would chase the pointer.
+    const qreal   k  = scale() > 0.0 ? scale() : 1.0;
+    const QPointF to = (scenePos - m_shapeStartPos) / k;
+
+    // The handle's owner changes its element, and says how far that moved the composition's frame.
+    Composition   next  = m_shapeStart;
+    const QPointF moved = m_shapeHandle.drag(next, m_shapeHandle, to, handleContext());
+    emit compositionEdited(uid(), next);
+    setPos(m_shapeStartPos + moved * k);
+}
+
 void Object::setFocusedHandles(const QList<int>& indices)
 {
     if (m_focusedHandles == indices)
@@ -300,21 +369,11 @@ void Object::dragTo(const QPointF& scenePos, Qt::KeyboardModifiers modifiers)
     // in the item's own, which differ by the item's scale (a chapter re-profiled). Snapping to one item
     // unit keeps the box whole and the anchored side exactly where it was.
     const qreal k = scale() > 0.0 ? scale() : 1.0;
-    const ResizeRule rule = resizeRule(k, resizesByScale(), modifiers.testFlag(Qt::ShiftModifier),
+    const ResizeRule rule = resizeRule(k, keepsAspect(), modifiers.testFlag(Qt::ShiftModifier),
                                        modifiers.testFlag(Qt::ControlModifier));
     const std::optional<QRectF> r = resizedRect(m_startRect, m_active, delta, rule);
     if (!r)
         return;   // refused, not clamped: the box keeps its last good size
-
-    if (resizesByScale()) {
-        // **A picture's size is one number, its scale.** Its box stays its own pixels — what the library
-        // draws and what the placement's width fraction is measured against — so a drag and the size field
-        // in OBJECT STATE change the same thing.
-        setScale(r->width() / boxSize().width());
-        setPos(r->topLeft());
-        update();
-        return;
-    }
 
     const QSizeF box(qRound(r->width() / k), qRound(r->height() / k));
     // How far the top-left moves, in item units — what a tail tip has to move back by to keep pointing

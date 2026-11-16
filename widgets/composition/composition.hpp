@@ -127,9 +127,10 @@ struct Balloon
 };
 
 /**
- * \brief Where words sit in their body: four edges, each **set** — its distance in from the body's box less the
- *        stroke and the edge's teeth, in balloon pixels, negative past it — or **automatic** (none): that box's
- *        own edge. The frame keeps its distances from the body's edges when the body changes size.
+ * \brief Where words sit on their seat: four edges, each **set** — its distance in from the seat's inner box (a
+ *        body's box less the stroke and the edge's teeth, a picture's whole box), in its pixels, negative past
+ *        it — or **automatic** (none): that box's own edge. The frame keeps its distances from the seat's edges
+ *        when the seat changes size.
  */
 struct Frame
 {
@@ -148,8 +149,8 @@ struct Frame
 /**
  * \brief Words and how they are set: the text, its lettering, and where they sit.
  *
- * They sit in a body (\c seat, its id), whose size they wrap in, or, with no body (\c seat 0), in their own
- * \c box at \c place: a caption, or the words over a picture.
+ * They sit on a seat (\c seat, its id: a body, or the picture), in their \c frame on it; or, with no seat
+ * (\c seat 0), in their own \c box at \c place: a caption.
  */
 struct Words
 {
@@ -209,8 +210,11 @@ struct Composition
     [[nodiscard]] bool operator!=(const Composition& o) const { return !(*this == o); }
 };
 
-//! The body @p w sits in, or none: words with no seat, or a seat the balloon does not have.
+//! The body @p w sits in, or none: words with no seat, on the picture, or on a seat the balloon does not have.
 [[nodiscard]] const Body* seatOf(const Composition& c, const Words& w);
+
+//! Whether @p w sit on a seat @p c has: a body (seatOf()) or the picture. Otherwise they keep their own box.
+[[nodiscard]] bool seated(const Composition& c, const Words& w);
 
 /**
  * \brief The words @p c draws and the editor edits: its first. ponytail: one until the chain, whose second words
@@ -233,7 +237,7 @@ struct Composition
  * \brief The size the grips drag: the first body's, or the picture's, or the first words' own box.
  */
 [[nodiscard]] QSize sizeOf(const Composition& c);
-//! Sets sizeOf(): the first body's size; or the picture's and its words' box; or the words' box.
+//! Sets sizeOf(): the first body's size; or the picture's; and the box of the words with no seat.
 void resize(Composition& c, const QSize& size);
 
 //! The size an object has before it is drawn on the strip: what a preset and the tool options show.
@@ -241,6 +245,9 @@ inline constexpr QSize k_defaultObjectSize{280, 160};
 
 //! Words and nothing else: a text object, its words empty, in a box of @p size at the origin.
 [[nodiscard]] Composition textObject(const QSize& size = k_defaultObjectSize);
+
+//! A picture of @p file at @p size (its own pixels), with empty words seated on it.
+[[nodiscard]] Composition pictureObject(const QString& file, const QSize& size);
 
 /**
  * \brief @p c given a balloon of @p look: one body of its shape where its first words' own box was, of its size,
@@ -288,7 +295,7 @@ inline constexpr int k_labelChars = 32;
  * `{balloon: {id, style, bodies, tails}, picture, words, seed, preset, nextId}`, each
  * group an object and each section an object inside its group (a section's numbers left out while they are their
  * defaults). A body is `{id, place, size, shape}`, a tail `{id, root, tip, width, bend, look}`, words
- * `{id, text, seat}` or, with no seat, `{id, text, place, box}`; a place is `{pos}`, with `rotation` and `scale`
+ * `{id, text, seat, frame}` or, with no seat, `{id, text, place, box}`; a place is `{pos}`, with `rotation` and `scale`
  * only when they are not their defaults.
  */
 [[nodiscard]] QJsonObject toJson(const Composition& c);

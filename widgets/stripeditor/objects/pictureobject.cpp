@@ -13,6 +13,14 @@
 
 namespace StripEdit {
 
+namespace {
+
+//! The box of a picture whose file cannot be read: an object with no size could not be selected, moved or
+//! deleted, which would strand it on the strip.
+constexpr int k_unreadSide = 80;
+
+} // namespace
+
 QPixmap loadPixmap(const QString& path)
 {
     if (path.isEmpty())
@@ -40,9 +48,6 @@ PictureObject::PictureObject(QString uid, const QString& picture, QGraphicsItem*
     : Object(std::move(uid), parent)
 {
     loadPicture(picture);
-    // A picture that cannot be read still gets a box: an object with no size cannot be selected, moved
-    // or deleted — which would strand it on the strip with no way to remove it.
-    m_box = m_pixmap.isNull() ? QSizeF(80, 80) : QSizeF(m_pixmap.size());
     refreshBounds();
 }
 
@@ -51,7 +56,8 @@ void PictureObject::setPicture(const QString& picture)
     if (picture == m_picture)
         return;
     loadPicture(picture);
-    update();   // the drawn size is the artist's and is deliberately left alone
+    refreshBounds();   // its width is the artist's and is kept; its height follows the new file's aspect
+    update();
 }
 
 void PictureObject::loadPicture(const QString& picture)
@@ -86,12 +92,12 @@ QString PictureObject::label() const
 void PictureObject::setComposition(const Composition& c)
 {
     Composition next = c;
-    describePicture(next);   // whatever arrived, this object is still this picture at its own pixels
+    describePicture(next);   // whatever arrived, this object is still this picture, in its file's aspect
     if (m_composition == next)
         return;
     m_composition = next;
+    refreshBounds();   // a resize, or its lettering, which may now fit or not
     update();
-    emit chromeChanged();   // its lettering may now fit, or not
 }
 
 void PictureObject::describePicture(Composition& c) const
@@ -108,25 +114,49 @@ void PictureObject::describePicture(Composition& c) const
         w.id = c.nextId++;
         c.words.append(w);
     }
-    // **This object is the authority on how big the picture is**, not the composition it was handed: that
-    // may carry a size guessed from a copy the importer could not read. An empty pixmap leaves the size
-    // alone — there is nothing better to say.
-    if (!m_pixmap.isNull())
-        resize(c, m_pixmap.size());
+    for (Words& w : c.words)   // a picture's words sit on it, in a frame its handles move
+        if (!seated(c, w))
+            w.seat = c.picture->id;
+    // **Its size is the artist's, its aspect the file's.** The composition says how big the picture is drawn, as
+    // a body's says how big the body is, so a resize never scales its words; the file says its proportions, which
+    // a size guessed from a copy the importer could not read may not have. With no size, the file's own pixels.
+    QSize size = sizeOf(c);
+    if (!m_pixmap.isNull()) {
+        const QSize own = m_pixmap.size();
+        size            = size.isEmpty() ? own : QSize(size.width(), qMax(1, qRound(qreal(size.width()) * own.height() / own.width())));
+    } else if (size.isEmpty()) {
+        size = QSize(k_unreadSide, k_unreadSide);
+    }
+    resize(c, size);
+}
+
+bool PictureObject::canEditShape() const
+{
+    const Words* words = wordsOf(m_composition);
+    return words && !words->text.body.isEmpty();
+}
+
+QPainterPath PictureObject::editOutline() const
+{
+    QPainterPath box;
+    box.addRect(QRectF(QPointF(0, 0), boxSize()));
+    return box;
 }
 
 void PictureObject::setBoxSize(QSizeF size, const QPointF&)
 {
-    // A picture has no handles to keep in place.
-    if (size == m_box)
-        return;
-    m_box = size;
-    refreshBounds();
+    // As a balloon's: the composition's size, offered to the document. The width leads; the height is the file's
+    // aspect (describePicture()).
+    Composition next = m_composition;
+    resize(next, QSize(qRound(size.width()), qRound(size.height())));
+    describePicture(next);
+    if (next != m_composition)
+        emit compositionEdited(uid(), next);
 }
 
 void PictureObject::paintContent(QPainter& painter)
 {
-    const QRectF box(QPointF(0, 0), m_box);
+    const QRectF box(QPointF(0, 0), boxSize());
     if (m_svg) {
         // Vector in, vector out: the renderer draws at the transform the view is showing, so zooming
         // in sharpens it instead of magnifying pixels somebody chose at import time.
@@ -139,19 +169,16 @@ void PictureObject::paintContent(QPainter& painter)
         return;
     }
 
-    // The words over it, if there are any. Laid out in the picture's own pixels and drawn through the same
-    // scale the picture is, so they sit on it rather than beside it however the object is resized. This is
-    // the preview of what the wrapper SVG will render.
+    // The words over it, if there are any, laid out in its box at their own size: the preview of what the
+    // wrapper SVG will render.
     const Words* words = wordsOf(m_composition);
-    const QSize  size  = sizeOf(m_composition);
-    if (!words || size.isEmpty())
+    if (!words)
         return;
     const QPainterPath text = Geometry::textOutline(m_composition, *words);
     if (text.isEmpty())
         return;
     painter.save();
     painter.setRenderHint(QPainter::Antialiasing, true);
-    painter.scale(m_box.width() / size.width(), m_box.height() / size.height());
     Painter::paintLettering(painter, *words, text, Geometry::textShadowOf(*words, text));
     painter.restore();
 }

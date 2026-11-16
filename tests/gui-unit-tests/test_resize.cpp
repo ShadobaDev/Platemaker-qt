@@ -110,24 +110,19 @@ TEST(Resize, RefusesBelowTheMinimumRatherThanTurningInsideOut)
     EXPECT_FALSE(resizedRect(k_start, Grip::Right, {-200, 0}, rule).has_value());   // past the anchor
 }
 
-TEST(Resize, APictureShrinksToTheFloorOnScreenWhateverItsScale)
+TEST(Resize, ABoxKeepsAFloorOfFortyOfItsUnitsAndAPictureItsAspect)
 {
-    // A 53 × 200 picture drawn at 445 %: its floor is 40 scene pixels, not 40 of its own pixels times its scale
-    // (which stopped it at 336 %).
-    constexpr qreal k_scale     = 4.45;
-    constexpr qreal k_tolerance = 1e-9;
-    const QRectF    drawn(0, 0, 53 * k_scale, 200 * k_scale);
-    const auto      shrunk = resizedRect(drawn, Grip::BottomRight, {-190, -720}, resizeRule(k_scale, true, false, false));
-    ASSERT_TRUE(shrunk.has_value());
-    EXPECT_LT(shrunk->width(), 40 * k_scale);
-    EXPECT_NEAR(shrunk->height() / shrunk->width(), drawn.height() / drawn.width(), k_tolerance);
-    EXPECT_FALSE(resizedRect(drawn, Grip::BottomRight, {-200, -760}, resizeRule(k_scale, true, false, false)));
-
-    // A box in its own units keeps a floor of 40 of them, snapped to one.
-    const ResizeRule box = resizeRule(2.0, false, false, false);
+    // Every box, a picture's too, in its own units: a floor of 40 of them, snapped to one.
+    constexpr qreal  k_tolerance = 1e-9;
+    const ResizeRule box         = resizeRule(2.0, false, false, false);
     EXPECT_NEAR(box.minSize, 80.0, k_tolerance);
     EXPECT_NEAR(box.snap, 2.0, k_tolerance);
     EXPECT_FALSE(box.keepAspect);
+
+    const ResizeRule picture = resizeRule(2.0, true, false, false);
+    EXPECT_NEAR(picture.minSize, box.minSize, k_tolerance);
+    EXPECT_NEAR(picture.snap, box.snap, k_tolerance);
+    EXPECT_TRUE(picture.keepAspect) << "whatever is held";
 }
 
 TEST(Resize, SnappingKeepsTheAnchoredSideExactlyInPlace)

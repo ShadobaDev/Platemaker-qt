@@ -3,7 +3,6 @@
 #include "styles.hpp"
 #include "handles.hpp"
 
-#include <QGuiApplication>
 #include <QPainter>
 #include <QtMath>
 
@@ -11,16 +10,6 @@
 #include <utility>
 
 namespace StripEdit {
-
-namespace {
-
-//! The radius handle's distance in from its arc, in grip spans: its arrow, a span either side of it,
-//! then stays clear of the corner's own node.
-constexpr qreal k_radiusDotClearance = 2.2;
-
-
-
-} // namespace
 
 BubbleObject::BubbleObject(QString uid, Composition composition, QGraphicsItem* parent)
     : Object(std::move(uid), parent)
@@ -144,82 +133,12 @@ bool BubbleObject::canEditShape() const
             || (words && !words->text.body.isEmpty()));
 }
 
-qreal BubbleObject::radiusClearance() const
-{
-    return gripSpanHere() * k_radiusDotClearance;
-}
-
-Geometry::HandleContext BubbleObject::handleContext() const
-{
-    return {radiusClearance(), pickedVertices()};
-}
-
-QList<Geometry::Handle> BubbleObject::shapeHandles() const
-{
-    return canEditShape() ? Geometry::handlesOf(m_composition, handleContext()) : QList<Geometry::Handle>();
-}
-
 QPainterPath BubbleObject::editOutline() const
 {
     const Body* own = bodyOf(m_composition);
     if (!own)
         return {};
     return Geometry::outlineOf(*own, Geometry::balloonRect(*m_composition.balloon, *own), m_composition.seed);
-}
-
-bool BubbleObject::beginShapeDrag(int index)
-{
-    const QList<Geometry::Handle> handles = shapeHandles();
-    if (index < 0 || index >= handles.size())
-        return false;
-    m_shapeStart    = m_composition;
-    m_shapeStartPos = pos();
-    m_shapeHandle   = handles.at(index);
-
-    // What a press does is the handle's owner's (a "+" adds its node, and the drag that follows is that node's).
-    const bool changed = m_shapeHandle.press && m_shapeHandle.press(m_shapeStart, m_shapeHandle);
-    if (changed)
-        emit compositionEdited(uid(), m_shapeStart);
-    // A node, or one of its handles, picks that node: its handles show, and Delete or its type act on it.
-    // Ctrl+press on a node adds it to the pick, or takes it away (and then drags nothing). A plain press on a
-    // node already among several keeps them, so the drag moves them all.
-    m_shapeDragOff = false;
-    if (m_shapeHandle.node < 0) {
-        setPickedVertex(-1);
-        return changed;
-    }
-    const int  node       = m_shapeHandle.node;
-    const bool nodeItself = m_shapeHandle.glyph == Geometry::Handle::Glyph::Node;
-    QList<int> picked     = pickedVertices();
-    if (nodeItself && !changed
-        && QGuiApplication::keyboardModifiers().testFlag(Qt::ControlModifier)) {
-        m_shapeDragOff = picked.removeAll(node) > 0;
-        if (!m_shapeDragOff)
-            picked.append(node);
-        setPickedVertices(picked);
-    } else if (nodeItself && picked.contains(node)) {
-        picked.removeAll(node);
-        setPickedVertices(picked << node);   // the one pressed is the one picked last
-    } else {
-        setPickedVertex(node);
-    }
-    return changed;
-}
-
-void BubbleObject::dragShapeTo(const QPointF& scenePos)
-{
-    // In the units of the box as it was at the press: a node past the box moves the item, and measuring
-    // against where it has moved to would chase the pointer.
-    const qreal   k    = scale() > 0.0 ? scale() : 1.0;
-    const QPointF to   = (scenePos - m_shapeStartPos) / k;
-    if (m_shapeDragOff || !m_shapeHandle.drag)
-        return;   // a Ctrl+press that took its node out of the pick
-
-    // The handle's owner changes its element, and says how far that moved the composition's frame.
-    Composition   next  = m_shapeStart;
-    const QPointF moved = m_shapeHandle.drag(next, m_shapeHandle, to, handleContext());
-    emit compositionEdited(uid(), next);
-    setPos(m_shapeStartPos + moved * k);
 }
 
 void BubbleObject::paintContent(QPainter& painter)

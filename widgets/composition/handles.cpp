@@ -176,16 +176,15 @@ QList<Handle> owned(QList<Handle> list, int element, Handle::Drag drag)
 
 QList<Handle> handlesOf(const Composition& c, const HandleContext& context)
 {
-    const Body* own = bodyOf(c);
-    if (!own)
-        return {};
-    const QRectF  rect = balloonRect(*c.balloon, *own);
-    QList<Handle> out  = owned(shapeHandles(own->shape, rect, context.clearance, context.lastPicked()), own->id,
-                               &dragBody);
-    for (Handle& h : out)
-        if (partOf<ShapePart>(h) == ShapePart::AddVertex)
-            h.press = &addNode;
-    out.append(owned(fadeHandles(c.balloon->style.fill.fill, rect), c.balloon->id, &dragFill));
+    QList<Handle> out;
+    if (const Body* own = bodyOf(c)) {
+        const QRectF rect = balloonRect(*c.balloon, *own);
+        out = owned(shapeHandles(own->shape, rect, context.clearance, context.lastPicked()), own->id, &dragBody);
+        for (Handle& h : out)
+            if (partOf<ShapePart>(h) == ShapePart::AddVertex)
+                h.press = &addNode;
+        out.append(owned(fadeHandles(c.balloon->style.fill.fill, rect), c.balloon->id, &dragFill));
+    }
     if (const Words* words = wordsOf(c); words && !words->text.body.isEmpty()) {
         QList<Handle> frame = owned(textAreaHandles(c), words->id, &dragWords);
         for (Handle& h : frame)

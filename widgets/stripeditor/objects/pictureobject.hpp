@@ -36,8 +36,8 @@ namespace StripEdit {
  * a default bubble for imported artwork, and two call sites persisted it, replacing the artwork with a
  * blank balloon.
  *
- * Its size is a width and the artwork's own aspect, which is why a corner drag scales it uniformly:
- * the library record stores one width fraction, so a distorted one is not expressible.
+ * Its size is its composition's, as a balloon's is, in the artwork's own aspect, which is why a corner drag
+ * keeps its proportions: a distorted logo is not what anyone dragging its corner meant.
  */
 class PictureObject : public Object
 {
@@ -67,7 +67,8 @@ public:
     [[nodiscard]] Kind    kind() const override { return Kind::Picture; } //!< The only kind of object that carries artwork.
     [[nodiscard]] QString label() const override; //!< The file name, for the object list.
 
-    [[nodiscard]] QSizeF boxSize() const override { return m_box; } //!< The artwork's own pixels, which is what the library draws.
+    //! Its composition's size: what it is drawn at, and what the wrapper the library renders is.
+    [[nodiscard]] QSizeF boxSize() const override { return QSizeF(sizeOf(m_composition)); }
 
     /**
      * \brief The art itself — what a list row wears, since imported artwork has no silhouette to borrow.
@@ -80,27 +81,31 @@ public:
      *
      * Artwork has no geometry of ours, but it may have **words** — a hand-drawn balloon typeset, a
      * sound effect captioned — and the preview has to show them, or the strip stops being what the
-     * render will produce. The words are laid out in the picture's size, which is its own
-     * pixels, and then drawn through the same transform the picture is: they scale with it rather than
-     * sliding about on it.
+     * render will produce. The words are laid out in the picture's box at their own size, so
+     * a resize moves their frame with the picture's edges and never scales the letters.
      * 
      * \param c The composition this picture is, which is always safe to ask for.
      */
     void setComposition(const Composition& c) override;
 
-    //! @p c made to say what this object is: this picture, at its own pixels, with words over it (describePicture()).
+    //! @p c made to say what this object is: this picture, in its file's aspect, with words over it (describePicture()).
     [[nodiscard]] Composition described(Composition c) const
     {
         describePicture(c);
         return c;
     }
 
-    //! A picture scales as one number, so it keeps its aspect and is offered no edge grips.
-    [[nodiscard]] bool resizesByScale() const override { return true; }
+    //! A picture keeps its file's aspect, and is offered no edge grips.
+    [[nodiscard]] bool keepsAspect() const override { return true; }
+
+    //! Its words' frame is edited when they have text.
+    [[nodiscard]] bool         canEditShape() const override;
+    //! The box: what shape editing traces, a picture having no outline of ours.
+    [[nodiscard]] QPainterPath editOutline() const override;
 
 protected:
     /**
-     * \brief Draws the picture and any lettering over it, at the artwork's own pixels.
+     * \brief Draws the picture stretched to its box, and any lettering over it.
      * \param painter The painter to use for drawing.
      */
     void                 paintContent(QPainter& painter) override;
@@ -108,9 +113,9 @@ protected:
      * \brief Computes the bounding rectangle for the object.
      * \return The bounding rectangle.
      */
-    [[nodiscard]] QRectF computeBounds() const override { return QRectF(QPointF(0, 0), m_box); }
+    [[nodiscard]] QRectF computeBounds() const override { return QRectF(QPointF(0, 0), boxSize()); }
     /**
-     * \brief Sets the size of the object's bounding box.
+     * \brief Offers its composition at @p size, its height the file's aspect of the width.
      * \param size The new size.
      */
     void                 setBoxSize(QSizeF size, const QPointF& handleShift) override;
@@ -124,7 +129,8 @@ private:
     void loadPicture(const QString& picture);
 
     /**
-     * \brief Makes the composition say what this object is: this picture, at its own pixels, with words over it.
+     * \brief Makes the composition say what this object is: this picture, at the size it has in the file's
+     *        aspect (the file's own pixels when it has none), with words seated on it.
      *
      * The invariant behind `Object::composition()`. A picture placed before pictures had a composition, and one
      * whose size was guessed at import, would otherwise hand back a composition that reads as a default
@@ -134,12 +140,12 @@ private:
      * composition that has to be repaired every time is otherwise a composition that never compares equal, and
      * a repaint on every feed.
      * 
-     * \param c The composition to describe as this picture, at its own pixels.
+     * \param c The composition to describe as this picture.
      */
     void describePicture(Composition& c) const;
 
     QString      m_picture;     //!< The file, so a feed can tell whether it changed.
-    QPixmap      m_pixmap;     //!< The picture at its own pixels, for the row's icon and for the size the picture says it is.
+    QPixmap      m_pixmap;     //!< The picture at its own pixels, for the row's icon and for its aspect.
     /**
      * \brief Set when the picture is vector — and then it, not the pixmap, is what the canvas draws.
      *
@@ -148,10 +154,6 @@ private:
      * view is showing.
      */
     QSvgRenderer* m_svg = nullptr;
-    /**
-     * \brief Drawn size. Seeded from the artwork's own pixels and then owned here, so a re-feed cannot undo a resize — and on a synced drive the file may still report its previous size just after a write.
-     */
-    QSizeF  m_box;
 };
 
 }  // namespace StripEdit

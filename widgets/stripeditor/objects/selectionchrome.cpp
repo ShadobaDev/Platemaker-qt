@@ -132,7 +132,7 @@ QRectF SelectionChrome::gripRect(const Object* o, Grip grip, qreal s) const
     // An edge: the whole edge between the two corner squares answers a press, as in GIMP — a far
     // easier target than the square drawn at its middle. Not offered on a picture, whose size is one
     // number, nor on an edge too short on screen to keep its square clear of the corners.
-    if (o->resizesByScale())
+    if (o->keepsAspect())
         return {};
     const bool horizontal = grip == Grip::Top || grip == Grip::Bottom;
     if ((horizontal ? box.width() : box.height()) < k_edgeMinSpans * s)
@@ -165,15 +165,9 @@ QRectF SelectionChrome::textAreaRect(const Object* o)
 {
     const Composition& r     = o->composition();
     const Words*       words = wordsOf(r);
-    const QSize        size  = sizeOf(r);
-    if (!words || words->text.body.isEmpty() || size.isEmpty())
+    if (!words || words->text.body.isEmpty() || sizeOf(r).isEmpty())
         return {};
-    // The text area is in the composition's units. A balloon is drawn at exactly those; a picture's
-    // lettering is laid out in the picture's own size and drawn stretched to its box (PictureObject).
-    const QRectF area = Geometry::textArea(r, *words);
-    const qreal  sx   = o->boxSize().width()  / size.width();
-    const qreal  sy   = o->boxSize().height() / size.height();
-    return o->mapRectToScene(QRectF(area.x() * sx, area.y() * sy, area.width() * sx, area.height() * sy));
+    return o->mapRectToScene(Geometry::textArea(r, *words));
 }
 
 void SelectionChrome::refresh()

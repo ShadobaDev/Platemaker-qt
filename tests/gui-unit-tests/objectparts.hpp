@@ -17,21 +17,8 @@
 //! A balloon of the default look and size, its words empty: what an object is with no preset picked.
 inline Composition balloonObject() { return withBalloon(textObject(), {}); }
 
-//! A picture of @p file at @p size, with empty words over the whole of it.
-inline Composition pictureObject(const QString& file, const QSize& size = k_defaultObjectSize)
-{
-    Composition c;
-    Picture     p;
-    p.id      = c.nextId++;
-    p.file    = file;
-    p.size    = size;
-    c.picture = p;
-    Words w;
-    w.id  = c.nextId++;
-    w.box = size;
-    c.words.append(w);
-    return c;
-}
+//! A picture of @p file at the default object size, its words empty (pictureObject()).
+inline Composition pictureObject(const QString& file) { return pictureObject(file, k_defaultObjectSize); }
 
 inline ShapeProperties&         shapeOf(Composition& c) { return bodyOf(c)->shape; }
 inline const ShapeProperties&   shapeOf(const Composition& c) { return bodyOf(c)->shape; }

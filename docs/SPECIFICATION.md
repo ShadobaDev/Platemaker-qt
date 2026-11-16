@@ -250,19 +250,20 @@ alone). A kind that needs a filter brings it from its table entry, `TextureInfo:
 the SVG byte for byte; the painter was checked pixel for pixel against the code it replaced on every golden
 case.
 
-- **Placement.** Words sit in a frame of their own: four edges, each automatic (the body's box less the stroke
-  and the edge's teeth) or set (that far in from it, negative past it), so the frame keeps its distances from the
-  body's edges when the body changes size. The block is aligned in the frame, across
+- **Placement.** Words sit on a seat, a body or the picture, in a frame of their own: four edges, each automatic
+  (the seat's inner box: a body's box less the stroke and the edge's teeth, a picture's whole box) or set (that
+  far in from it, negative past it), so the frame keeps its distances from the seat's edges when the seat changes
+  size. The block is aligned in the frame, across
   by `align` (left, middle, right) and up and down by `valign` (top, middle, bottom); one larger than the frame
-  goes past it away from the side it is aligned to (`blockRect()`). A balloon's words are clipped to the frame at
-  the sides only; a text object's and a picture's keep their own box. The red text area shows when the placed
+  goes past it away from the side it is aligned to (`blockRect()`). Seated words are clipped to the frame at
+  the sides only; a text object's keep their own box. The red text area shows when the placed
   block leaves the frame (`fits()`); *Fit to text* sizes the body so that the block also lies inside the outline
   itself, less the stroke and the teeth (`liesInOutline()`). The content saves the set edges.
-- **The text area on the strip.** In shape editing a balloon with words shows its frame, four arrows and a
+- **The text area on the strip.** In shape editing a balloon or a picture with words shows its frame, four arrows and a
   handle at its middle (`textAreaHandles()`, `TextAreaPart`, dragged by `dragTextAreaHandle()`), never saved: an
-  arrow sets its edge and the middle follows; the middle moves the whole frame within the body. A double-click
-  puts one back: an arrow's edge automatic, the frame centred in the body by its middle. So shape editing is
-  offered to any balloon with words.
+  arrow sets its edge and the middle follows; the middle moves the whole frame within the seat. A double-click
+  puts one back: an arrow's edge automatic, the frame centred on the seat by its middle. So shape editing is
+  offered to any balloon or picture with words.
 - **What the letters wear**, fields of `TextProperties`, off by default: their **fill** (a Paint, its
   colour still saved as `textColour`), an **outline** (a Paint and a width, drawn outside the glyphs:
   stroked at twice the width under them, two draws in the SVG, not `paint-order`), and a **shadow** (the

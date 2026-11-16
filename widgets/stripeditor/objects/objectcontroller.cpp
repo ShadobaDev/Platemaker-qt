@@ -548,8 +548,8 @@ void ObjectController::syncItems()
             bubble->setSharpRaster(Geometry::hasFilter(a) ? sharpRasterFor(a) : QImage());
         } else if (auto* art = qobject_cast<PictureObject*>(item)) {
             art->setPicture(pictureFor(o));   // the file may have changed under it
-            // A lettered picture: its words over it, as the picture describes itself (at its own pixels, which
-            // a size guessed at import may not be) — and that description is the document's from here on.
+            // A lettered picture: its words over it, as the picture describes itself (in its file's aspect, which
+            // a size guessed at import may not have) — and that description is the document's from here on.
             if (const std::optional<Composition> c = m_document.composition(uid)) {
                 art->setComposition(*c);
                 m_document.setComposition(uid, art->composition());
@@ -785,7 +785,7 @@ void ObjectController::fitSelectionToText()
 {
     Object* item = m_overlayItems.value(m_selection.primary());
     if (!item || item->composition().picture)
-        return;   // a picture's box is the picture's own pixels, not its words'
+        return;   // a picture's box is the picture's, not its words'
     Composition a = item->composition();
     Edits::fitToText(a);   // committed even when it fits already, as before: the button was pressed
     applyComposition(m_selection.primary(), a, /*commit=*/true);
@@ -856,7 +856,7 @@ QPointF ObjectController::settleBox(const Object* item, Composition& next) const
 {
     const Composition& prev = item->composition();
     if (next.picture || sizeOf(next) == sizeOf(prev))
-        return {};   // a picture's box is its pixels, not its words'; an unchanged box moves nothing
+        return {};   // a picture is resized from its top-left, its words with it; an unchanged box moves nothing
 
     // **No growing on edit.** It was tried (an edit grew the box where the words overflowed, never
     // shrinking it) and taken out: deleting letters left the box grown, and any edit to a box dragged
@@ -887,7 +887,7 @@ void ObjectController::applyCompositions(const QStringList& uids, const QList<Co
             continue;
         Composition next = compositions.at(i);
         if (const auto* art = qobject_cast<const PictureObject*>(item))
-            next = art->described(next);   // still this picture, at its own pixels
+            next = art->described(next);   // still this picture, in its file's aspect
         const QPointF shift = settleBox(item, next);
         // The document first, then the object shows it (itself a no-op when it has not changed).
         m_document.setComposition(uids.at(i), next);
@@ -998,22 +998,17 @@ double ObjectController::selectedPicturePercent() const
 
 void ObjectController::scaleSelectedPicture(double percent, bool commit)
 {
-    const auto*  art = qobject_cast<const PictureObject*>(m_overlayItems.value(m_selection.primary()));
-    if (!art || m_layout.targetWidth() <= 0 || percent <= 0 || art->pixmap().width() <= 0)
+    const auto* art = qobject_cast<const PictureObject*>(m_overlayItems.value(m_selection.primary()));
+    if (!art || percent <= 0 || art->pixmap().width() <= 0)
         return;
 
-    // Written to the **overlay**, not to the item: the item's scale is derived from the composition on every
-    // feed (see syncItems), so setting it here would be a display that the next feed argues with.
-    const double wFrac = m_layout.fraction(art->pixmap().width() * percent / 100.0);
-    if (m_document.setWidth(m_selection.primary(), wFrac))
-        syncItems();   // only a value that actually moved is worth re-placing every item for
-
-    // ...but the step is pushed whichever, for the reason applyCompositions() gives: the spin box previews
-    // through this same function while it is dragged, so on release there is nothing left to differ.
-    if (!commit)
-        return;
-    emit stackChanged();
-    pushOverlays(tr("Resize artwork"));
+    // Its composition's size, as a grip drag sets it: on the strip that many percent of the file's own width,
+    // which is the box at the item's scale. The height follows the file's aspect (PictureObject::described()).
+    const qreal k     = art->scale() > 0.0 ? art->scale() : 1.0;
+    Composition next  = art->composition();
+    const int   width = qMax(1, qRound(art->pixmap().width() * percent / 100.0 / k));
+    resize(next, QSize(width, sizeOf(next).height()));
+    applyComposition(m_selection.primary(), next, commit, tr("Resize artwork"));
 }
 
 void ObjectController::reanchorSelection(const QString& pageUid)

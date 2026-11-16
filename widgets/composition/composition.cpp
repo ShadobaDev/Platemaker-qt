@@ -217,6 +217,11 @@ const Body* seatOf(const Composition& c, const Words& w)
     return nullptr;
 }
 
+bool seated(const Composition& c, const Words& w)
+{
+    return seatOf(c, w) || (c.picture && w.seat != 0 && w.seat == c.picture->id);
+}
+
 const Words* wordsOf(const Composition& c)
 {
     return c.words.isEmpty() ? nullptr : &c.words.first();
@@ -256,8 +261,8 @@ void resize(Composition& c, const QSize& size)
     if (c.picture)
         c.picture->size = size;
     for (Words& w : c.words)
-        if (!seatOf(c, w))
-            w.box = size;   // a picture's words are over the whole of it
+        if (!seated(c, w))
+            w.box = size;
 }
 
 Composition textObject(const QSize& size)
@@ -266,6 +271,21 @@ Composition textObject(const QSize& size)
     Words       w;
     w.id  = c.nextId++;
     w.box = size;
+    c.words.append(w);
+    return c;
+}
+
+Composition pictureObject(const QString& file, const QSize& size)
+{
+    Composition c;
+    Picture     p;
+    p.id      = c.nextId++;
+    p.file    = file;
+    p.size    = size;
+    c.picture = p;
+    Words w;
+    w.id   = c.nextId++;
+    w.seat = p.id;
     c.words.append(w);
     return c;
 }
@@ -356,7 +376,7 @@ QRectF frameOf(const Composition& c)
     if (c.picture)
         add(c.picture->place, c.picture->size);
     for (const Words& w : c.words)
-        if (!seatOf(c, w))
+        if (!seated(c, w))
             add(w.place, w.box);
     return r;
 }

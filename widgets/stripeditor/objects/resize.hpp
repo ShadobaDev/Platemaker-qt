@@ -36,7 +36,7 @@ enum class Grip {
  */
 struct ResizeRule
 {
-    bool  keepAspect = false;   //!< Shift, or an object whose size is one number (artwork).
+    bool  keepAspect = false;   //!< Shift, or an object that keeps its aspect (artwork).
     bool  fromCentre = false;   //!< Ctrl: the opposite side moves the other way, the centre stays.
     qreal minSize    = 0.0;     //!< Neither side may end up shorter than this.
     qreal snap       = 0.0;     //!< Sizes are whole multiples of this (one item unit); 0 = no snapping.
@@ -45,12 +45,11 @@ struct ResizeRule
 /**
  * \brief The rule a grip drag on an object follows.
  *
- * A box resized in its own units (a balloon, a text) may not go below 40 of them, snapped to one, which
- * at the item's scale @p itemScale is that many scene pixels. A picture is resized by its scale
- * (@p byScale): its box stays its own pixels, so its floor is 40 scene pixels whatever the scale, its
- * aspect is kept, and nothing is snapped.
+ * A box is resized in its own units: it may not go below 40 of them, snapped to one, which at the item's
+ * scale @p itemScale is that many scene pixels. An object that keeps its aspect (@p keepAspect, a picture)
+ * keeps it whatever is held.
  */
-[[nodiscard]] ResizeRule resizeRule(qreal itemScale, bool byScale, bool shift, bool ctrl);
+[[nodiscard]] ResizeRule resizeRule(qreal itemScale, bool keepAspect, bool shift, bool ctrl);
 
 //! Grip size in *screen* pixels — the selection chrome's, and a tail tip's hit area.
 inline constexpr qreal k_gripScreenPx = 9.0;

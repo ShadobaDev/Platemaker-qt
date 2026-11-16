@@ -11,14 +11,14 @@ constexpr int k_minBox = 40;
 
 } // namespace
 
-ResizeRule resizeRule(qreal itemScale, bool byScale, bool shift, bool ctrl)
+ResizeRule resizeRule(qreal itemScale, bool keepAspect, bool shift, bool ctrl)
 {
     const qreal k = itemScale > 0.0 ? itemScale : 1.0;
     ResizeRule  rule;
-    rule.keepAspect = byScale || shift;
+    rule.keepAspect = keepAspect || shift;
     rule.fromCentre = ctrl;
-    rule.minSize    = byScale ? k_minBox : k_minBox * k;
-    rule.snap       = byScale ? 0.0 : k;
+    rule.minSize    = k_minBox * k;
+    rule.snap       = k;
     return rule;
 }
 

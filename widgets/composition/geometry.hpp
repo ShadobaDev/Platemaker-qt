@@ -172,8 +172,9 @@ enum class Part { None, Fill, Outline, Text };
 [[nodiscard]] QString defaultFamily();
 
 /**
- * \brief The frame \p w are laid in, in the composition's frame (Words::frame): its seat's box less the stroke
- *        and the edge's teeth, each set edge that far in from it. Words with no seat, their whole box.
+ * \brief The frame \p w are laid in, in the composition's frame (Words::frame): its seat's inner box (a body's
+ *        box less the stroke and the edge's teeth, a picture's whole box), each set edge that far in from it. Words
+ *        with no seat, their own box.
  */
 [[nodiscard]] QRectF textArea(const Composition& c, const Words& w);
 
@@ -242,8 +243,7 @@ enum class TextAreaPart {
  * \brief The text area's handles, in balloon coordinates: an arrow on its left edge and one on its right (`Side`,
  *        index 0 and 1), level with its middle, one on its top and one on its bottom (`Top`, `Bottom`), in line with
  *        it, each pointing across its edge. First the middle itself (`Anchor`), so a press where an arrow lies over
- *        it takes the middle. None without a balloon, whose words
- *        have their own box.
+ *        it takes the middle. None for words with no seat, which keep their own box.
  */
 [[nodiscard]] QList<Handle> textAreaHandles(const Composition& c);
 
@@ -251,7 +251,7 @@ enum class TextAreaPart {
  * \brief \p c's first words with text-area \p handle dragged to \p to (balloon coordinates): textAreaHandles()'
  *        inverse. An edge is set where the pointer is, inside the balloon or past it, never closer to the opposite
  *        edge than two pixels; the middle moves the whole frame by as much as the pointer, every edge set, its
- *        middle kept within the body. Measured against \p c as it was at the press.
+ *        middle kept within the seat. Measured against \p c as it was at the press.
  */
 [[nodiscard]] Words dragTextAreaHandle(const Composition& c, const Handle& handle, const QPointF& to);
 

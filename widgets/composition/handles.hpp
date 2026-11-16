@@ -83,8 +83,9 @@ template <class Part>
 }
 
 /**
- * \brief Every handle edit mode offers on @p c: its first body's outline and edge, then its fill's fade, then
- *        its first words' text area when they have text — each with its element and its owner's drag.
+ * \brief Every handle edit mode offers on @p c: with a balloon, its first body's outline and edge, then its fill's
+ *        fade; then its first words' text area when they have text and a seat (a body or the picture) — each with
+ *        its element and its owner's drag.
  *
  * In that order on purpose: where a fade's dot sits on a node or a "+", the outline's own handle is the one
  * a press takes.

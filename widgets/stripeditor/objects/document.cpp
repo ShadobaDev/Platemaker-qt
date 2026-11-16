@@ -59,16 +59,6 @@ bool Document::setPlace(const QString& uid, const StripLayout::Anchored& at)
     return true;
 }
 
-bool Document::setWidth(const QString& uid, double wFrac)
-{
-    Overlay* o = find(uid);
-    if (!o)
-        return false;
-    const bool moved = !qFuzzyCompare(o->wFrac, wFrac);
-    o->wFrac         = wFrac;
-    return moved;
-}
-
 bool Document::setAnchor(const QString& uid, const QString& page)
 {
     Overlay* o = find(uid);

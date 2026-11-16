@@ -74,9 +74,6 @@ TEST(Document, AnOverlaysPlaceAndPropertiesChangeOnlyWhenTheyDiffer)
     EXPECT_TRUE(d.setAnchor("b", "p2"));
     EXPECT_EQ(d.overlay("b")->anchorInputUid, "p2");
 
-    EXPECT_TRUE(d.setWidth("c", 0.5));
-    EXPECT_FALSE(d.setWidth("c", 0.5));
-
     ASSERT_TRUE(d.setPlace("c", {"p3", 0.1, 0.2, 0.3}));
     EXPECT_EQ(d.overlay("c")->anchorInputUid, "p3");
     EXPECT_NEAR(d.overlay("c")->xFrac, 0.1, k_tolerance);

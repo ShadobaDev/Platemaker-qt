@@ -1013,23 +1013,13 @@ void Project::importOverlayPicture(const QString& sourceFile, double xFrac, doub
             // beside it already matches, so nothing is rewritten until the first edit.
             m_compositions.insert(QString::fromStdString(uid), adopted);
         } else {
-            // **A picture gets a composition too**: a picture, and words that can go over it in its box. It
+            // **A picture gets a composition too**: a picture, and words seated on it. It
             // carries no geometry of ours, and knows which file the object is without asking the overlay.
             // Its size is the picture's own pixels, as the side that could still see the original read them —
             // through the one loader that knows to ask an SVG rather than the image plugin. It is what
             // `Svg::write()` writes as the wrapper's width, height and viewBox once the picture is lettered,
             // so a guess here is a wrong aspect ratio in the render.
-            Composition picture;
-            Picture     p;
-            p.id   = picture.nextId++;
-            p.file = QFileInfo(dest).fileName();
-            p.size = naturalSize;
-            picture.picture = p;
-            Words w;
-            w.id  = picture.nextId++;
-            w.box = naturalSize;
-            picture.words.append(w);
-            m_compositions.insert(QString::fromStdString(uid), picture);
+            m_compositions.insert(QString::fromStdString(uid), pictureObject(QFileInfo(dest).fileName(), naturalSize));
         }
         storeContents();
         emit compositionsChanged(m_compositions);

@@ -317,6 +317,30 @@ TEST(TextFit, EveryWordsIsFittedInItsFrameAndDrawnUnderIdsOfItsOwn)
     EXPECT_GE(Geometry::textArea(c, c.words[1]).width() + k_wholePx, 300.0) << "the wider block is the second's";
     EXPECT_FALSE(Geometry::fits(c, {QSizeF(100, 20), QSizeF(sizeOf(c).width() + 1, 20)}));
 
+    // Fit to text with the first words' bottom edge set high in a tall body: the body becomes the rectangle both
+    // blocks lie in, its empty part gone, and the blocks keep their places against each other.
+    Composition tall = c;
+    resize(tall, QSize(600, 600));
+    tall.words[0].frame.bottom = 400;
+    const QRectF      wasFirst  = Geometry::blockRect(tall, tall.words[0], blocks[0]);
+    const QRectF      wasSecond = Geometry::blockRect(tall, tall.words[1], blocks[1]);
+    const Composition fitted    = Geometry::fitToBlocks(tall, blocks);
+    EXPECT_TRUE(Geometry::fits(fitted, blocks));
+    EXPECT_TRUE(Geometry::liesInOutline(fitted, blocks));
+    const QPointF apart = Geometry::blockRect(fitted, fitted.words[1], blocks[1]).topLeft()
+                        - Geometry::blockRect(fitted, fitted.words[0], blocks[0]).topLeft();
+    EXPECT_NEAR(apart.x(), (wasSecond.topLeft() - wasFirst.topLeft()).x(), k_px);
+    EXPECT_NEAR(apart.y(), (wasSecond.topLeft() - wasFirst.topLeft()).y(), k_px);
+    EXPECT_LT(sizeOf(fitted).height() + 100, Geometry::fitBoxFor(tall, blocks).height())
+        << "the empty part under the text is gone: fitting the frames kept the 400 px under the first";
+    // One words alone, its frame in the top part: the frame's set bottom would end past the new seat, so it is
+    // automatic again.
+    Composition alone = tall;
+    alone.words.removeLast();
+    const Composition hugged = Geometry::fitToBlocks(alone, {blocks[0]});
+    EXPECT_FALSE(hugged.words[0].frame.bottom.has_value());
+    EXPECT_TRUE(Geometry::fits(hugged, {blocks[0]}));
+
     QPainterPath one;
     one.addRect(10, 10, 20, 10);
     QPainterPath two;

@@ -97,7 +97,8 @@ bool paint(Composition& c, Geometry::Part part, const QColor& colour, int words 
  *        lettering in its new kind, both ways. False when it is that kind already.
  */
 bool convert(Composition& c, bool toBalloon, const BalloonLook& look);
-//! The box sized to the lettering (Geometry::fittedBox()). False for a picture, whose box is its own pixels.
+//! The body fitted to every words' text where it lies (Geometry::fitToBlocks()). False for a picture, whose box is its
+//! own pixels.
 bool fitToText(Composition& c);
 //! Removes tails @p indexes of @p c's balloon, whichever order they come in. False when none of them is there.
 bool removeTails(Composition& c, QList<int> indexes);

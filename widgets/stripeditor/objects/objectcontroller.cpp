@@ -47,15 +47,25 @@ constexpr int k_duplicateOffset = 28;
 //! nothing next to the page caches above.
 constexpr int k_sharpCacheEntries = 64;
 
-//! The words a press at @p local picks: those whose letters are there, or empty words whose frame holds it (they
-//! have no letters to press on); 0 for none.
+/**
+ * \brief The words a press at @p local picks: those whose letters are there, else those whose text lies round it
+ *        (the rectangle of their letters: a press between strokes is still on the text), else empty words whose
+ *        frame holds it (they have no letters to press on); 0 for none.
+ *
+ * The frame of lettered words is not taken: an automatic frame fills the whole seat, and a press beside the text
+ * picks the object.
+ */
 int wordsPressedAt(const Composition& c, const QPointF& local)
 {
     if (const int words = Geometry::wordsAt(c, local, 0.0))
         return words;
-    for (const Words& w : c.words)
-        if (w.text.body.isEmpty() && seated(c, w) && Geometry::textArea(c, w).contains(local))
-            return w.id;
+    // The last words are drawn last, so they are tried first (as Geometry::wordsAt() does).
+    for (auto w = c.words.crbegin(); w != c.words.crend(); ++w) {
+        const QPainterPath text = Geometry::textOutline(c, *w);
+        if (text.isEmpty() ? seated(c, *w) && Geometry::textArea(c, *w).contains(local)
+                           : text.boundingRect().contains(local))
+            return w->id;
+    }
     return 0;
 }
 

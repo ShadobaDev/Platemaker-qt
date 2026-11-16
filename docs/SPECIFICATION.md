@@ -258,8 +258,12 @@ case.
   by `align` (left, middle, right) and up and down by `valign` (top, middle, bottom); one larger than the frame
   goes past it away from the side it is aligned to (`blockRect()`). Seated words are clipped to the frame at
   the sides only; a text object's keep their own box. The red text area shows when the placed
-  block leaves the frame (`fits()`); *Fit to text* sizes the body so that the block also lies inside the outline
-  itself, less the stroke and the teeth (`liesInOutline()`). The content saves the set edges.
+  block leaves the frame (`fits()`). *Fit to text* fits a balloon's body to the rectangle every words' block lies
+  in, where it lies now: that rectangle becomes the seat, grown in proportion where a block would cross the outline
+  itself, less the stroke and the teeth (`liesInOutline()`). The blocks keep their places against each other: each
+  frame is measured again from the new seat, an edge past it is automatic again, and the frame is cut down so the
+  block's alignment keeps it where it was (`fitToBlocks()`). A text object's box is fitted to its block
+  (`fitBoxFor()`, as *Convert to ▸* does). The content saves the set edges.
 - **The text area on the strip.** In shape editing a balloon or a picture with words shows its frame, four arrows and a
   handle at its middle (`textAreaHandles()`, `TextAreaPart`, dragged by `dragTextAreaHandle()`), never saved: an
   arrow sets its edge and the middle follows; the middle moves the whole frame within the seat. A double-click
@@ -268,8 +272,9 @@ case.
 - **Several words.** A balloon or a picture holds several words, each in its own frame with its own lettering;
   *Add words* (the context menu, OBJECT STATE) puts new ones in the lower half of the seat, lettered as the words
   picked, with no text, and picks them with the caret in the text box. A text object is its one words. With
-  several, a press on one's letters in the selected object (inside the frame of empty ones) picks those words (`Subject::Words`): the Text section
-  and Delete are theirs, and the last words of an object are never deleted. In shape editing every frame shows its
+  several, a press on one's text in the selected object (between its letters too; inside the frame of empty
+  ones) picks those words (`Subject::Words`): the Text section and Delete are theirs, and the last words of an
+  object are never deleted. In shape editing every frame shows its
   handles, the picked words' first and drawn thicker and lighter; a press on another frame's handle picks it.
 - **What the letters wear**, fields of `TextProperties`, off by default: their **fill** (a Paint, its
   colour still saved as `textColour`), an **outline** (a Paint and a width, drawn outside the glyphs:

@@ -421,6 +421,123 @@ QSize fittedBox(const Composition& c)
     return fitBoxFor(c, textBlocks(c));
 }
 
+namespace {
+
+/**
+ * \brief The frame @p was (in the composition's coordinates) of words whose block lies at @p block (none for
+ *        empty words), measured again from the seat @p seat, in the same coordinates: an edge past the seat stops at it, and the block keeps its place in it.
+ *
+ * Along an axis the frame is first the old one, reaching the block where the block overflows it and stopped by the
+ * seat; then cut down so the block's alignment puts it where it is (its side on the block's, its middle the block's).
+ * An edge on the seat's own is automatic.
+ */
+Frame frameKeeping(const QRectF& was, const std::optional<QRectF>& block, int align, int valign,
+                   const QRectF& seat)
+{
+    const auto axis = [&](qreal lo, qreal hi, std::optional<qreal> blockLo, std::optional<qreal> blockHi, bool start,
+                          bool end, qreal seatLo, qreal seatHi) {
+        if (blockLo) {
+            lo = qMin(lo, *blockLo);
+            hi = qMax(hi, *blockHi);
+        }
+        lo = qMax(lo, seatLo);
+        hi = qMin(hi, seatHi);
+        if (blockLo) {
+            if (start)
+                lo = *blockLo;
+            else if (end)
+                hi = *blockHi;
+            else {
+                const qreal mid  = (*blockLo + *blockHi) / 2.0;
+                const qreal half = qMin(mid - lo, hi - mid);
+                lo               = mid - half;
+                hi               = mid + half;
+            }
+        }
+        const auto inset = [](qreal d) { return d > k_fitSlack ? std::optional<qreal>(d) : std::nullopt; };
+        return std::pair{inset(lo - seatLo), inset(seatHi - hi)};
+    };
+    const int h = align & Qt::AlignHorizontal_Mask;
+    const int v = valign & Qt::AlignVertical_Mask;
+    const auto [left, right] =
+        axis(was.left(), was.right(), block ? std::optional(block->left()) : std::nullopt,
+             block ? std::optional(block->right()) : std::nullopt, h & Qt::AlignLeft, h & Qt::AlignRight, seat.left(),
+             seat.right());
+    const auto [top, bottom] =
+        axis(was.top(), was.bottom(), block ? std::optional(block->top()) : std::nullopt,
+             block ? std::optional(block->bottom()) : std::nullopt, v & Qt::AlignTop, v & Qt::AlignBottom, seat.top(),
+             seat.bottom());
+    return Frame{left, top, right, bottom};
+}
+
+} // namespace
+
+Composition fitToBlocks(const Composition& c, const Blocks& blocks)
+{
+    const Body* body = bodyOf(c);
+    if (!body) {
+        Composition out = c;
+        resize(out, fitBoxFor(c, blocks));
+        return out;
+    }
+
+    // The blocks as they lie now, and the rectangle they lie in together.
+    QList<std::optional<QRectF>> placed;
+    QRectF                       all;
+    for (qsizetype i = 0; i < c.words.size(); ++i) {
+        const Words& w     = c.words[i];
+        const QSizeF block = i < blocks.size() ? blocks[i] : QSizeF();
+        if (seatOf(c, w) != body || block.isEmpty()) {
+            placed.append(std::nullopt);
+            continue;
+        }
+        placed.append(placedBlock(c, w, block));
+        all = all.isNull() ? *placed.last() : all.united(*placed.last());
+    }
+    if (all.isNull())
+        return c;
+
+    // A body of @p size whose seat (inner box) has its middle on the blocks', every frame measured from that seat.
+    const qreal inset = c.balloon->style.line.strokeWidth / 2.0 + edgeInset(body->shape);
+    const auto  sized = [&](const QSize& size) {
+        Composition out = c;
+        resize(out, size);
+        const QSizeF inner(size.width() - 2 * inset, size.height() - 2 * inset);
+        const QRectF seat(all.center() - QPointF(inner.width(), inner.height()) / 2.0, inner);
+        for (qsizetype i = 0; i < c.words.size(); ++i) {
+            const Words& w = c.words[i];
+            if (seatOf(c, w) == body)
+                out.words[i].frame = frameKeeping(textSafeArea(c, w), placed[i], w.text.align,
+                                                  w.text.valign, seat);
+        }
+        return out;
+    };
+    const auto side = [&](qreal span) { return qMax(k_minFitSize, qCeil(span + 2 * inset)); };
+    const QSize framed(side(all.width()), side(all.height()));
+    Composition probe = sized(framed);
+    if (liesInOutline(probe, blocks))
+        return probe;
+
+    // A curved outline (an ellipse's corners, a box's rounded ones) cuts a block: the body grows, its proportions
+    // kept, until none does.
+    const auto inside = [&](int width) {
+        probe = sized(QSize(width, qCeil(qreal(framed.height()) * width / framed.width())));
+        return liesInOutline(probe, blocks);
+    };
+    int lo = framed.width();
+    int hi = lo * 2;
+    while (!inside(hi) && hi < k_maxFitSize)
+        hi *= 2;
+    if (!inside(hi))
+        return sized(framed);   // no size will do: the blocks' own rectangle is the best there is
+    while (hi - lo > 1) {
+        const int mid = (lo + hi) / 2;
+        (inside(mid) ? hi : lo) = mid;
+    }
+    inside(hi);
+    return probe;
+}
+
 QList<Handle> textAreaHandles(const Composition& c, const Words& w)
 {
     if (!seated(c, w))

@@ -210,9 +210,9 @@ bool fitToText(Composition& c)
 {
     if (c.picture)
         return false;
-    const QSize was = sizeOf(c);
-    resize(c, Geometry::fittedBox(c));
-    return sizeOf(c) != was;
+    const Composition was = c;
+    c = Geometry::fitToBlocks(c, Geometry::textBlocks(c));
+    return c != was;
 }
 
 bool removeTails(Composition& c, QList<int> indexes)

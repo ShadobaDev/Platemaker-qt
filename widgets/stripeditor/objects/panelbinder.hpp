@@ -47,8 +47,8 @@ public:
     void bind();
     //! The strip or a page is the selection: no object answers the panel.
     void unbind() { m_subjects.clear(); }
-    //! An edit made @p c of the one object shown: shown again.
-    void show(const Composition& c) { emit boundToComposition(c); }
+    //! An edit made @p c of the one object shown: shown again, its picked words first when words are the subject.
+    void show(const Composition& c);
     //! An edit made @p all of the objects shown, in their order: shown again (one as one).
     void show(const QList<Composition>& all);
     //! A drag moved tail @p index of balloon @p c: its tail shown again.

@@ -47,6 +47,17 @@ constexpr int k_duplicateOffset = 28;
 //! nothing next to the page caches above.
 constexpr int k_sharpCacheEntries = 64;
 
+//! The words a press at @p local picks: those whose letters are there, or empty words whose frame holds it (they
+//! have no letters to press on); 0 for none.
+int wordsPressedAt(const Composition& c, const QPointF& local)
+{
+    if (const int words = Geometry::wordsAt(c, local, 0.0))
+        return words;
+    for (const Words& w : c.words)
+        if (w.text.body.isEmpty() && seated(c, w) && Geometry::textArea(c, w).contains(local))
+            return w.id;
+    return 0;
+}
 
 } // namespace
 
@@ -271,7 +282,7 @@ void ObjectController::onObjectPressed(const QString& uid, int handle)
     if (const Object* item = m_overlayItems.value(uid);
         item && !add && m_selection.objects() == QStringList{uid} && item->composition().words.size() > 1
         && item->dragGrip() != Grip::Shape) {
-        if (const int words = Geometry::wordsAt(item->composition(), item->mapFromScene(item->pressScenePos()), 0.0)) {
+        if (const int words = wordsPressedAt(item->composition(), item->mapFromScene(item->pressScenePos()))) {
             if (m_selection.words() != ElementRef{uid, words})
                 selectWords(uid, words);
             beginDrag(uid, handle);

@@ -208,17 +208,13 @@ QList<Geometry::Handle> Object::shapeHandles() const
 bool Object::beginShapeDrag(int index)
 {
     const QList<Geometry::Handle> handles = shapeHandles();
-    if (index < 0 || index >= handles.size())
+    if (index < 0 || index >= handles.size()) {
+        m_shapeHandle = {};   // no element pressed (beginDrag())
         return false;
+    }
     m_shapeStart    = m_composition;
     m_shapeStartPos = pos();
     m_shapeHandle   = handles.at(index);
-    // A frame's handle picks its words, as a press on their letters does.
-    if (m_shapeHandle.element != markedWords()
-        && std::any_of(m_composition.words.cbegin(), m_composition.words.cend(),
-                       [this](const Words& w) { return w.id == m_shapeHandle.element; }))
-        emit wordsPressed(uid(), m_shapeHandle.element);
-
     // What a press does is the handle's owner's (a "+" adds its node, and the drag that follows is that node's).
     const bool changed = m_shapeHandle.press && m_shapeHandle.press(m_shapeStart, m_shapeHandle);
     if (changed)
@@ -350,6 +346,13 @@ void Object::beginDrag(Grip grip, int handle, const QPointF& scenePos)
     m_dragReported  = false;
     // A shape handle is not a tail: to the owner it is a press on the object, which keeps it selected.
     emit pressed(m_uid, grip == Grip::Handle ? handle : -1);
+    // A frame's handle picks its words, as a press on their letters does, and only after the press: the owner
+    // takes the press as one on the object, and the words picked then are what it is left holding. An object
+    // with one words is its words already.
+    if (grip == Grip::Shape && m_composition.words.size() > 1
+        && std::any_of(m_composition.words.cbegin(), m_composition.words.cend(),
+                       [this](const Words& w) { return w.id == m_shapeHandle.element; }))
+        emit wordsPressed(m_uid, m_shapeHandle.element);
     if (grip == Grip::Shape)
         emit chromeChanged();   // the pressed handle is drawn as pressed
 }

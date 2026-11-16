@@ -25,9 +25,9 @@ void PanelBinder::bind()
     if (picked.isEmpty()) {
         emit boundToNothing();
     } else if (m_selection.subject() == Subject::Words) {
-        // The object, its picked words first: the Text section edits the first words (applyEdits() puts the order back).
+        // The object, its picked words first (show()).
         m_subjects = QStringList{m_selection.primary()};
-        show({m_host.composition(m_selection.primary()).value_or(Composition())});
+        show(m_host.composition(m_selection.primary()).value_or(Composition()));
     } else if (m_selection.subject() == Subject::Tail) {
         m_subjects = QStringList{m_selection.primary()};   // the tail's balloon owns the composition
         emit boundToTail(m_host.composition(m_selection.primary()).value_or(Composition()), m_host.tailIndex(m_selection.single()));
@@ -69,12 +69,16 @@ void PanelBinder::bind()
     showPictureScale();
 }
 
+void PanelBinder::show(const Composition& c)
+{
+    // The Text section edits the first words (applyEdits() puts the order back).
+    emit boundToComposition(m_selection.subject() == Subject::Words ? withWordsFirst(c, m_selection.words().element) : c);
+}
+
 void PanelBinder::show(const QList<Composition>& all)
 {
-    if (all.size() == 1 && m_selection.subject() == Subject::Words)
-        emit boundToComposition(withWordsFirst(all.first(), m_selection.words().element));
-    else if (all.size() == 1)
-        emit boundToComposition(all.first());
+    if (all.size() == 1)
+        show(all.first());
     else
         emit boundToCompositions(all);
 }

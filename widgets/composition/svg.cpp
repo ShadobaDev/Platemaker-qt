@@ -298,7 +298,7 @@ QByteArray write(const Composition& c, const QByteArray& picture, const QString&
         if (picture.isEmpty() || mime.isEmpty())
             return {};
         const QSize        size  = c.picture->size;
-        const Render::List words = Render::lettering(c, Geometry::textOutlines(c));
+        const Render::List words = Render::lettering(c, Geometry::textOutlines(c), Geometry::textFillsOf(c));
 
         QString svg;
         svg += QStringLiteral("<svg xmlns=\"http://www.w3.org/2000/svg\" "
@@ -342,7 +342,7 @@ QByteArray write(const Composition& c, const QByteArray& picture, const QString&
     // The balloon and the words, as the painter draws them (renderlist.hpp); their definitions first.
     const QPainterPath silhouette = c.balloon ? Geometry::silhouette(*c.balloon, c.seed) : QPainterPath();
     const Render::List balloon    = c.balloon ? Render::balloon(*c.balloon, c.seed, silhouette) : Render::List();
-    const Render::List words      = Render::lettering(c, Geometry::textOutlines(c));
+    const Render::List words      = Render::lettering(c, Geometry::textOutlines(c), Geometry::textFillsOf(c));
     svg += defsOf(balloon) + defsOf(words);
 
     // A copy of the bubble's content, in a namespace no renderer looks at: what *Import* reads to make this

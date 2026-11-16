@@ -20,6 +20,7 @@
 #define GEOMETRY_HPP
 
 #include <QList>
+#include <QMap>
 #include <QPainterPath>
 #include <QPointF>
 #include <QRectF>
@@ -148,6 +149,18 @@ enum class Part { None, Fill, Outline, Text };
 
 //! textOutline() of every words of \p c, in their order (Composition::words).
 [[nodiscard]] QList<QPainterPath> textOutlines(const Composition& c);
+
+/**
+ * \brief The letters of a words by the fill they wear: the index of the run (TextRun) that sets it, -1 for the words'
+ *        own. Together they are textOutline().
+ */
+using TextFills = QMap<int, QPainterPath>;
+
+//! textOutline() of \p w by fill (TextFills); empty when no run of \p w sets one, all its letters then the words'.
+[[nodiscard]] TextFills textFills(const Composition& c, const Words& w);
+
+//! textFills() of every words of \p c, in their order.
+[[nodiscard]] QList<TextFills> textFillsOf(const Composition& c);
 
 /**
  * \brief \p w's shadow, cast by \p text (textOutline()) with its outline: grown by the outline's

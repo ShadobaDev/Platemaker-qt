@@ -18,6 +18,7 @@
 
 #include <QByteArray>
 #include <QList>
+#include <QMap>
 #include <QPainterPath>
 #include <QSizeF>
 #include <QString>
@@ -161,8 +162,11 @@ struct List
  *        top. Each words': its shadow (Geometry::textShadowOf()), its outline under the letters stroked at twice
  *        its width (two draws, not `paint-order`, which librsvg is sure to render alike), its letters. Its
  *        definitions' ids are its own: the first words' `pm-text-…`, the n-th's `pm-text-…-n`. Empty with no text.
+ *        With @p fills (Geometry::textFillsOf()), a words whose runs set fills draws its letters by fill, a run's
+ *        under the pattern `pm-text-fill…-rN` (N its place among the runs, from 1).
  */
-[[nodiscard]] List lettering(const Composition& c, const QList<QPainterPath>& texts);
+[[nodiscard]] List lettering(const Composition& c, const QList<QPainterPath>& texts,
+                             const QList<QMap<int, QPainterPath>>& fills = {});   // Geometry::TextFills
 
 }  // namespace Render
 

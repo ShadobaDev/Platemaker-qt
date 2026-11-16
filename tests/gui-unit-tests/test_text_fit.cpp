@@ -354,6 +354,20 @@ TEST(TextFit, EveryWordsIsFittedInItsFrameAndDrawnUnderIdsOfItsOwn)
             fills << i.fill->patternId;
     EXPECT_EQ(fills, QStringList({QStringLiteral("pm-text-fill"), QStringLiteral("pm-text-fill-2")}));
 
+    // A run with a fill of its own: its letters are a path of their own, under a pattern of its own.
+    Composition runs = c;
+    TextRun     red;
+    red.length                = 1;
+    red.fill                  = Paint{QColor(Qt::red), QColor(Qt::white)};
+    runs.words[0].text.body   = QStringLiteral("ab");
+    runs.words[0].text.runs   = {red};
+    const Render::List byFill = Render::lettering(runs, {one}, {Geometry::TextFills{{-1, one}, {0, two}}});
+    QStringList        ids;
+    for (const Render::Item& i : byFill.items)
+        if (i.fill && (i.path == one || i.path == two))
+            ids << i.fill->patternId;
+    EXPECT_EQ(ids, QStringList({QStringLiteral("pm-text-fill"), QStringLiteral("pm-text-fill-r1")}));
+
     // Every frame has its handles, the picked words' first, and a drag moves only its own words' frame.
     Geometry::HandleContext picked;
     picked.words = second.id;

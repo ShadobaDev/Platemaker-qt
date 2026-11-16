@@ -9,6 +9,7 @@
 #include <QStringList>
 #include <QtGlobal>
 
+#include <optional>
 #include <type_traits>
 #include <utility>
 
@@ -1017,6 +1018,36 @@ struct EffectProperties
 };
 
 /**
+ * \brief A stretch of a words' text in other lettering: what it leaves out is the words' own (TextProperties).
+ *
+ * Over the body's characters [from, from + length). The outline, the shadow, the alignment and the line spacing are
+ * the words' alone. Kept tidy by tidyRuns() (composition.hpp).
+ */
+struct TextRun
+{
+    int                    from   = 0;
+    int                    length = 0;
+    std::optional<QString> family;      //!< Empty = the application's default family, as the words'.
+    std::optional<int>     pixelSize;
+    std::optional<bool>    bold;
+    std::optional<bool>    italic;
+    std::optional<Paint>   fill;        //!< Drawn as a path of its own, under a pattern of its own.
+
+    //! Whether it overrides anything at all.
+    [[nodiscard]] bool overrides() const { return family || pixelSize || bold || italic || fill; }
+    //! The same overrides, wherever it lies.
+    [[nodiscard]] bool sameLettering(const TextRun& o) const
+    {
+        return family == o.family && pixelSize == o.pixelSize && bold == o.bold && italic == o.italic && fill == o.fill;
+    }
+    [[nodiscard]] bool operator==(const TextRun& o) const
+    {
+        return from == o.from && length == o.length && sameLettering(o);
+    }
+    [[nodiscard]] bool operator!=(const TextRun& o) const { return !(*this == o); }
+};
+
+/**
  * \brief What the balloon says, and how it is set.
  *
  * Content and typography in one group because one widget edits both, and because the split that
@@ -1034,6 +1065,7 @@ struct TextProperties
     QString family;                   //!< Empty = the application's default family.
     int     pixelSize = 30;           //!< Strip-scale pixels, so it means the same thing in the output.
     bool    bold      = false;
+    bool    italic    = false;
     int     align     = Qt::AlignHCenter;   //!< Horizontal alignment of each line, and of the block in its frame.
     int     valign    = Qt::AlignVCenter;   //!< Vertical alignment of the block in its frame.
     //! The letters' paint: a colour, or a halftone of a second colour over it (dots, lines, a grid).
@@ -1057,6 +1089,11 @@ struct TextProperties
     Shadow  shadow;
     Paint   shadowFill{QColor(0, 0, 0, 110), QColor(0, 0, 0)};
     /** @} */
+    /**
+     * Other lettering over stretches of the body (TextRun), in order and not overlapping. Not a field: like the body
+     * it is the words' own, never a preset's, and the content saves it beside the fields.
+     */
+    QList<TextRun> runs;
 
     //! The fields, with the keys they are saved under (fields.hpp). The keys predate the members'
     //! names, which is why three of them differ.
@@ -1067,6 +1104,7 @@ struct TextProperties
         v("fontFamily",  &TextProperties::family);
         v("fontSize",    &TextProperties::pixelSize);
         v("bold",        &TextProperties::bold);
+        v("italic",      &TextProperties::italic);
         v("align",       &TextProperties::align);
         v("valign",      &TextProperties::valign);
         v("lineSpacing", &TextProperties::lineSpacing);
@@ -1101,7 +1139,7 @@ struct TextProperties
     [[nodiscard]] static TextProperties from(const Composition& c);
     void applyTo(Composition& c) const;
 
-    [[nodiscard]] bool operator==(const TextProperties& o) const { return Fields::equal(*this, o); }
+    [[nodiscard]] bool operator==(const TextProperties& o) const { return Fields::equal(*this, o) && runs == o.runs; }
     [[nodiscard]] bool operator!=(const TextProperties& o) const { return !(*this == o); }
 };
 

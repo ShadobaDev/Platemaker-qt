@@ -234,7 +234,8 @@ one path. Its reach is `shadowReach()`.
 
 The words are laid out in `lettering.cpp`, which alone places them, and drawn from one place,
 `Render::lettering()` (`renderlist.cpp`), a balloon's and a lettered picture's alike, every words of a
-composition in their order, each under definition ids of its own (`pm-text-fill`, then `pm-text-fill-2`…); the
+composition in their order, each under definition ids of its own (`pm-text-fill`, then `pm-text-fill-2`…), a
+run's own fill under `pm-text-fill…-rN` (N its place among the words' runs); the
 SVG writes them in a `<g>` of their own after the balloon's, so a texture never moves them. Whatever the lettering wears goes
 into that function, in drawing order: the shadow, the outline, the letters.
 

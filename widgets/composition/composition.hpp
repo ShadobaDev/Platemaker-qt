@@ -216,6 +216,12 @@ struct Composition
 //! Whether @p w sit on a seat @p c has: a body (seatOf()) or the picture. Otherwise they keep their own box.
 [[nodiscard]] bool seated(const Composition& c, const Words& w);
 
+/**
+ * \brief @p t's runs made tidy: in order, none overlapping (the earlier keeps the letters), each within the body,
+ *        none overriding a field with the words' own value, none overriding nothing, two neighbours alike merged.
+ */
+void tidyRuns(TextProperties& t);
+
 //! Whether any words of @p c has text: what makes a picture a file of ours, and offers the words' handles.
 [[nodiscard]] bool lettered(const Composition& c);
 

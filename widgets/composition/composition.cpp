@@ -421,16 +421,113 @@ ShapeProperties shapeFromJson(const QJsonObject& j)
     return s;
 }
 
+namespace {
+
+// A run's keys are the lettering's own; its fill, a Paint, is an object of the Paint's own keys.
+const QLatin1String k_runs("runs");
+const QLatin1String k_runFrom("from");
+const QLatin1String k_runLength("length");
+const QLatin1String k_runFamily("fontFamily");
+const QLatin1String k_runSize("fontSize");
+const QLatin1String k_runBold("bold");
+const QLatin1String k_runItalic("italic");
+const QLatin1String k_runFill("fill");
+
+QJsonObject runToJson(const TextRun& r)
+{
+    QJsonObject o{{k_runFrom, r.from}, {k_runLength, r.length}};
+    if (r.family)
+        o.insert(k_runFamily, *r.family);
+    if (r.pixelSize)
+        o.insert(k_runSize, *r.pixelSize);
+    if (r.bold)
+        o.insert(k_runBold, *r.bold);
+    if (r.italic)
+        o.insert(k_runItalic, *r.italic);
+    if (r.fill)
+        o.insert(k_runFill, groupToJson(*r.fill));
+    return o;
+}
+
+TextRun runFromJson(const QJsonObject& o)
+{
+    TextRun r;
+    r.from   = o.value(k_runFrom).toInt();
+    r.length = o.value(k_runLength).toInt();
+    if (o.contains(k_runFamily))
+        r.family = o.value(k_runFamily).toString();
+    if (o.contains(k_runSize))
+        r.pixelSize = o.value(k_runSize).toInt();
+    if (o.contains(k_runBold))
+        r.bold = o.value(k_runBold).toBool();
+    if (o.contains(k_runItalic))
+        r.italic = o.value(k_runItalic).toBool();
+    if (o.contains(k_runFill)) {
+        Paint fill;
+        groupFromJson(fill, o.value(k_runFill).toObject());
+        r.fill = fill;
+    }
+    return r;
+}
+
+} // namespace
+
 QJsonObject toJson(const TextProperties& t)
 {
-    return groupToJson(t);
+    QJsonObject j = groupToJson(t);
+    // Written only when set, so a lettering with neither is the file it always was.
+    if (!t.italic)
+        j.remove(k_runItalic);
+    if (!t.runs.isEmpty()) {
+        QJsonArray runs;
+        for (const TextRun& r : t.runs)
+            runs.append(runToJson(r));
+        j.insert(k_runs, runs);
+    }
+    return j;
 }
 
 TextProperties textFromJson(const QJsonObject& j)
 {
     TextProperties t;
     groupFromJson(t, j);
+    for (const QJsonValue& v : j.value(k_runs).toArray())
+        t.runs.append(runFromJson(v.toObject()));
+    tidyRuns(t);
     return t;
+}
+
+void tidyRuns(TextProperties& t)
+{
+    const int      size = int(t.body.size());
+    QList<TextRun> out;
+    for (TextRun r : std::as_const(t.runs)) {
+        // Within the body, after the one before (an overlap goes to the earlier run).
+        const int start = qMax(r.from, out.isEmpty() ? 0 : out.last().from + out.last().length);
+        const int end   = qMin(r.from + r.length, size);
+        if (end <= start)
+            continue;
+        r.from   = start;
+        r.length = end - start;
+        // An override the words have already is none.
+        if (r.family == t.family)
+            r.family.reset();
+        if (r.pixelSize == t.pixelSize)
+            r.pixelSize.reset();
+        if (r.bold == t.bold)
+            r.bold.reset();
+        if (r.italic == t.italic)
+            r.italic.reset();
+        if (r.fill == t.fill)
+            r.fill.reset();
+        if (!r.overrides())
+            continue;
+        if (!out.isEmpty() && out.last().from + out.last().length == r.from && out.last().sameLettering(r))
+            out.last().length += r.length;
+        else
+            out.append(r);
+    }
+    t.runs = out;
 }
 
 QJsonObject toJson(const Composition& c)

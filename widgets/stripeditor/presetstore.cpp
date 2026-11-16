@@ -27,6 +27,7 @@ QJsonObject presetToJson(const BubblePreset& p)
 {
     TextProperties lettering = p.lettering;
     lettering.body.clear();
+    lettering.runs.clear();
     QJsonObject j{{QStringLiteral("name"), p.name}, {QStringLiteral("uid"), p.uid},
                   {QStringLiteral("lettering"), toJson(lettering)}};
     if (p.balloon)
@@ -155,6 +156,7 @@ BubblePreset BubblePreset::of(const QString& name, const Composition& c, const Q
     p.uid       = uid;
     p.lettering = TextProperties::from(c);
     p.lettering.body.clear();
+    p.lettering.runs.clear();   // they go with the body
     if (const Body* body = bodyOf(c))
         p.balloon = BalloonLook{body->shape, c.balloon->style};
     else
@@ -341,6 +343,7 @@ Composition PresetStore::applied(const BubblePreset& p, const Composition& targe
     Composition    a         = target;
     TextProperties lettering = p.lettering;
     lettering.body           = TextProperties::from(target).body;
+    lettering.runs           = TextProperties::from(target).runs;
     lettering.applyTo(a);
     if (p.balloon && a.balloon) {
         a.balloon->style = p.balloon->style;

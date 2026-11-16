@@ -278,8 +278,18 @@ QString wordsId(const QString& base, qsizetype index)
     return index == 0 ? base : base + QLatin1Char('-') + QString::number(index + 1);
 }
 
-//! @p w's lettering (lettering() of a composition), its ids those of the words at @p index.
-List wordsLettering(const Words& w, const QPainterPath& text, const Geometry::ShadowPaths& shadow, qsizetype index)
+//! The id of run @p run's fill in the words whose fill is @p fillId: `-r` and the run's place, from 1.
+QString runFillId(const QString& fillId, int run)
+{
+    return fillId + QStringLiteral("-r") + QString::number(run + 1);
+}
+
+/**
+ * \brief @p w's lettering (lettering() of a composition), its ids those of the words at @p index; @p fills, when not
+ *        empty, the letters by the fill they wear (Geometry::textFills()).
+ */
+List wordsLettering(const Words& w, const QPainterPath& text, const Geometry::TextFills& fills,
+                    const Geometry::ShadowPaths& shadow, qsizetype index)
 {
     List out;
     if (text.isEmpty())
@@ -304,20 +314,38 @@ List wordsLettering(const Words& w, const QPainterPath& text, const Geometry::Sh
         edge.roundCap = true;
         out.items.append(edge);
     }
-    Item letters;
-    letters.path = text;
-    letters.fill = Ink{t.fill, fillId};
-    out.items.append(letters);
+    if (fills.isEmpty()) {
+        Item letters;
+        letters.path = text;
+        letters.fill = Ink{t.fill, fillId};
+        out.items.append(letters);
+        return out;
+    }
+    // Letters of another fill are a path of their own, under a pattern of their own.
+    for (auto it = fills.cbegin(); it != fills.cend(); ++it) {
+        if (it.value().isEmpty())
+            continue;
+        const bool    own   = it.key() < 0 || it.key() >= t.runs.size() || !t.runs.at(it.key()).fill;
+        const Paint&  paint = own ? t.fill : *t.runs.at(it.key()).fill;
+        const QString id    = own ? fillId : runFillId(fillId, it.key());
+        if (!own)
+            addPattern(out, paint, id);
+        Item letters;
+        letters.path = it.value();
+        letters.fill = Ink{paint, id};
+        out.items.append(letters);
+    }
     return out;
 }
 
 } // namespace
 
-List lettering(const Composition& c, const QList<QPainterPath>& texts)
+List lettering(const Composition& c, const QList<QPainterPath>& texts, const QList<QMap<int, QPainterPath>>& fills)
 {
     List out;
     for (qsizetype i = 0; i < c.words.size() && i < texts.size(); ++i) {
-        const List one = wordsLettering(c.words[i], texts[i], Geometry::textShadowOf(c.words[i], texts[i]), i);
+        const List one = wordsLettering(c.words[i], texts[i], i < fills.size() ? fills[i] : Geometry::TextFills(),
+                                        Geometry::textShadowOf(c.words[i], texts[i]), i);
         out.defs += one.defs;
         out.items += one.items;
     }

@@ -223,7 +223,7 @@ Paths resolve(const Composition& c)
         p.balloon    = Render::balloon(*c.balloon, c.seed, p.silhouette);
     }
     p.texts = Geometry::textOutlines(c);
-    p.words = Render::lettering(c, p.texts);
+    p.words = Render::lettering(c, p.texts, Geometry::textFillsOf(c));
     return p;
 }
 

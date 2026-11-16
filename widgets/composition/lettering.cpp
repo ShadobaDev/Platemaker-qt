@@ -14,6 +14,7 @@
 #include <QTextBlockFormat>
 #include <QTextCursor>
 #include <QTextDocument>
+#include <QTextFragment>
 #include <QTextLayout>
 #include <QTextOption>
 #include <QtMath>
@@ -47,6 +48,10 @@ constexpr int   k_minFitSize    = 40;
  *  opposite one, so the area never turns inside out (dragTextAreaHandle()).
  */
 constexpr qreal k_minTextSpan   = 2.0;
+/**
+ *  The character format property a run's letters carry (layOutText()): the run's index in TextProperties::runs.
+ */
+constexpr int   k_runProperty   = QTextFormat::UserProperty;
 
 /**
  * \brief Where an automatic edge of @p w stops, and what a set one is measured in from: their body's box less the
@@ -103,6 +108,13 @@ QRectF placedBlock(const Composition& c, const Words& w, const QSizeF& block)
  * a long word grows its box rather than being split. @p width only places each line according to the
  * alignment; a line wider than it overflows, it is not re-broken.
  */
+//! A family set as a QFont is: only when installed (layOutText()).
+void setFamily(QFont& f, const QString& family)
+{
+    if (!family.isEmpty() && QFontDatabase::hasFamily(family))
+        f.setFamily(family);
+}
+
 void layOutText(QTextDocument& doc, const TextProperties& t, qreal width)
 {
     // A family that is not installed is not handed to QFont: QFont would substitute through the platform's
@@ -110,10 +122,10 @@ void layOutText(QTextDocument& doc, const TextProperties& t, qreal width)
     // empty family gets. Leaving it unset gives both the application's default font, so "no font chosen"
     // and "the chosen font is missing" look the same, and Geometry::fontFallback() can name it.
     QFont f;
-    if (!t.family.isEmpty() && QFontDatabase::hasFamily(t.family))
-        f.setFamily(t.family);
+    setFamily(f, t.family);
     f.setPixelSize(qMax(1, t.pixelSize));
     f.setBold(t.bold);
+    f.setItalic(t.italic);
 
     QTextOption opt;
     opt.setAlignment(static_cast<Qt::Alignment>(t.align));
@@ -133,6 +145,32 @@ void layOutText(QTextDocument& doc, const TextProperties& t, qreal width)
         all.select(QTextCursor::Document);
         all.mergeBlockFormat(pitch);
     }
+
+    // Each run's letters in their own font, whole (what it leaves out the words'), and marked with the run.
+    for (qsizetype i = 0; i < t.runs.size(); ++i) {
+        const TextRun& r    = t.runs[i];
+        QFont          font = f;
+        if (r.family) {
+            font = QFont();   // an empty or missing family is the default, as the words' is
+            setFamily(font, *r.family);
+            font.setPixelSize(f.pixelSize());
+            font.setBold(f.bold());
+            font.setItalic(f.italic());
+        }
+        if (r.pixelSize)
+            font.setPixelSize(qMax(1, *r.pixelSize));
+        if (r.bold)
+            font.setBold(*r.bold);
+        if (r.italic)
+            font.setItalic(*r.italic);
+        QTextCharFormat format;
+        format.setFont(font);
+        format.setProperty(k_runProperty, int(i));
+        QTextCursor run(&doc);
+        run.setPosition(r.from);
+        run.setPosition(r.from + r.length, QTextCursor::KeepAnchor);
+        run.mergeCharFormat(format);
+    }
     doc.setTextWidth(qMax(qreal(1), width));
 }
 
@@ -141,10 +179,14 @@ void layOutText(QTextDocument& doc, const TextProperties& t, qreal width)
 QString fontFallback(const Words& w)
 {
     const TextProperties& t = w.text;
-    if (t.body.isEmpty() || t.family.isEmpty() || QFontDatabase::hasFamily(t.family))
+    if (t.body.isEmpty())
         return {};
+    const auto missing = [](const QString& family) { return !family.isEmpty() && !QFontDatabase::hasFamily(family); };
+    const bool any     = missing(t.family) || std::any_of(t.runs.cbegin(), t.runs.cend(), [&](const TextRun& r) {
+                         return r.family && missing(*r.family);
+                     });
     // The stand-in layOutText() uses: the application's default font, never the platform's substitution.
-    return defaultFamily();
+    return any ? defaultFamily() : QString();
 }
 
 QString defaultFamily()
@@ -152,7 +194,13 @@ QString defaultFamily()
     return QFontInfo(QFont()).family();
 }
 
-QPainterPath textOutline(const Composition& c, const Words& w)
+namespace {
+
+/**
+ * \brief @p w's letters as outlines, clipped as textOutline() says; with @p fills, the same letters also by the fill
+ *        they wear: a run's index for a run that sets one, -1 for the words' own.
+ */
+QPainterPath letters(const Composition& c, const Words& w, TextFills* fills)
 {
     if (w.text.body.isEmpty())
         return {};
@@ -174,7 +222,42 @@ QPainterPath textOutline(const Composition& c, const Words& w)
     // what lets the same geometry be written into an SVG the library can rasterise without a font.
     const QFont  f = doc.defaultFont();
     QPainterPath out;
-    for (QTextBlock b = doc.begin(); b.isValid(); b = b.next()) {
+    // Runs set some letters in other fonts: each fragment of a line in its own, placed where the layout put it.
+    if (!w.text.runs.isEmpty()) {
+        for (QTextBlock b = doc.begin(); b.isValid(); b = b.next()) {
+            const QTextLayout* lay = b.layout();
+            if (!lay)
+                continue;
+            const QString blockText = b.text();
+            for (int i = 0; i < lay->lineCount(); ++i) {
+                const QTextLine line  = lay->lineAt(i);
+                const int       start = line.textStart();
+                const int       end   = start + line.textLength();
+                for (QTextBlock::iterator it = b.begin(); !it.atEnd(); ++it) {
+                    const QTextFragment fragment = it.fragment();
+                    const int           from     = qMax(start, fragment.position() - b.position());
+                    const int           to       = qMin(end, fragment.position() - b.position() + fragment.length());
+                    const QString       s        = blockText.mid(from, to - from);
+                    if (to <= from || s.trimmed().isEmpty())
+                        continue;
+                    const QTextCharFormat format = fragment.charFormat();
+                    const bool            inRun  = format.hasProperty(k_runProperty);
+                    const QFont           font   = inRun ? format.font() : f;
+                    // cursorToX() has the alignment's offset folded in, as naturalTextRect() has.
+                    const QPointF at(origin.x() + lay->position().x() + line.cursorToX(from),
+                                     origin.y() + lay->position().y() + line.y() + line.ascent());
+                    QPainterPath piece;
+                    piece.addText(at, font, s);
+                    out.addPath(piece);
+                    if (fills) {
+                        const int run = inRun ? format.property(k_runProperty).toInt() : -1;
+                        (*fills)[run >= 0 && w.text.runs.at(run).fill ? run : -1].addPath(piece);
+                    }
+                }
+            }
+        }
+    }
+    for (QTextBlock b = doc.begin(); b.isValid() && w.text.runs.isEmpty(); b = b.next()) {
         const QTextLayout* lay = b.layout();
         if (!lay)
             continue;
@@ -208,7 +291,35 @@ QPainterPath textOutline(const Composition& c, const Words& w)
     }
     QPainterPath clip;
     clip.addRect(open);
+    if (fills)
+        for (QPainterPath& piece : *fills)
+            piece = piece.intersected(clip);
     return out.intersected(clip);
+}
+
+} // namespace
+
+QPainterPath textOutline(const Composition& c, const Words& w)
+{
+    return letters(c, w, nullptr);
+}
+
+TextFills textFills(const Composition& c, const Words& w)
+{
+    const bool filled = std::any_of(w.text.runs.cbegin(), w.text.runs.cend(), [](const TextRun& r) { return bool(r.fill); });
+    if (!filled)
+        return {};
+    TextFills out;
+    letters(c, w, &out);
+    return out;
+}
+
+QList<TextFills> textFillsOf(const Composition& c)
+{
+    QList<TextFills> out;
+    for (const Words& w : c.words)
+        out.append(textFills(c, w));
+    return out;
 }
 
 ShadowPaths textShadowOf(const Words& w, const QPainterPath& text)

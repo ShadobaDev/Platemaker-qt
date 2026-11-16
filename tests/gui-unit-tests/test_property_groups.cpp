@@ -229,8 +229,10 @@ struct StyleMirror {
 static_assert(sizeof(StyleProperties) == sizeof(StyleMirror),
               "StyleProperties grew a field: place it (see above), then mirror it");
 
-struct TextMirror { QString body, family; int pixelSize; bool bold; int align, valign; Paint fill; int lineSpacing;
-                    Paint outline; qreal outlineWidth; Shadow shadow; Paint shadowFill; };
+// italic and runs are set in RoundTrips, not in loadedBalloon(): the golden cases are built from it, and a lettering
+// with neither is saved as it always was.
+struct TextMirror { QString body, family; int pixelSize; bool bold, italic; int align, valign; Paint fill; int lineSpacing;
+                    Paint outline; qreal outlineWidth; Shadow shadow; Paint shadowFill; QList<TextRun> runs; };
 static_assert(sizeof(TextProperties) == sizeof(TextMirror),
               "TextProperties grew a field: place it (see above), then mirror it");
 
@@ -709,6 +711,8 @@ TEST(PropertyGroupPersistence, TheContentIsAGroupAnObject)
     EXPECT_EQ(group("fill").value(QStringLiteral("fillKind")).toString(), QStringLiteral("dots"));
     EXPECT_EQ(text.value(QStringLiteral("text")).toString(), textOf(a).body);
     EXPECT_EQ(text.value(QStringLiteral("fontSize")).toInt(), textOf(a).pixelSize);
+    EXPECT_FALSE(text.contains(QStringLiteral("italic"))) << "written only when set";
+    EXPECT_FALSE(text.contains(QStringLiteral("runs"))) << "written only when there are some";
     EXPECT_EQ(group("texture").value(QStringLiteral("texture")).toString(), QStringLiteral("rough"));
 
     // A section is an object in its group; a number of it set off its default is there, under its key.
@@ -770,7 +774,23 @@ TEST(PropertyGroupPersistence, RoundTrips)
     Composition a = loadedBalloon();
     // A Curve's node with handles among a Polygon's plain ones, so both forms are saved and read.
     shapeOf(a).nodes.insert(1, ShapeNode({0.5, 0.1}, {0.05, -0.1}, {-0.02, 0.2}, ShapeNode::Type::Smooth));
+    // Italic, and runs overriding each field a run has, an italic one among them the words' own opposite.
+    textOf(a).italic = true;
+    TextRun other;
+    other.from      = 4;
+    other.length    = 4;
+    other.family    = QStringLiteral("Bangers");
+    other.pixelSize = 60;
+    other.bold      = false;
+    other.fill      = Paint{QColor(200, 10, 10), QColor(255, 255, 255)};
+    other.fill->kind = Paint::Kind::Dots;
+    TextRun upright;
+    upright.from   = 10;
+    upright.length = 3;
+    upright.italic = false;
+    textOf(a).runs = {other, upright};
     const Composition b = throughContent(a);
+    EXPECT_EQ(textOf(b).runs, textOf(a).runs);
 
     EXPECT_EQ(shapeOf(b), shapeOf(a));
     EXPECT_EQ(skinOf(b),  skinOf(a));
@@ -778,6 +798,38 @@ TEST(PropertyGroupPersistence, RoundTrips)
     EXPECT_EQ(textOf(b),  textOf(a));
     EXPECT_EQ(tailsOf(b), tailsOf(a));
     EXPECT_TRUE(b == a);
+}
+
+/**
+ * \brief Runs are kept tidy: an overlap goes to the earlier run, a run past the body is cut there, a value the words
+ *        have already is no override, a run that overrides nothing goes, and two neighbours alike are one.
+ */
+TEST(PropertyGroupPersistence, RunsAreKeptTidy)
+{
+    TextProperties t;
+    t.body = QStringLiteral("abcdefghij");
+    const auto run = [](int from, int length) {
+        TextRun r;
+        r.from   = from;
+        r.length = length;
+        return r;
+    };
+    TextRun bold = run(0, 4);
+    bold.bold    = true;
+    TextRun more = run(2, 4);   // over the first's last two letters, then two of its own
+    more.bold    = true;
+    TextRun same = run(6, 1);
+    same.pixelSize = t.pixelSize;   // the words' own size: no override
+    TextRun past = run(7, 5);
+    past.italic  = true;
+    t.runs       = {bold, more, same, past};
+    tidyRuns(t);
+
+    TextRun boldTidy = run(0, 6);
+    boldTidy.bold    = true;
+    TextRun pastTidy = run(7, 3);
+    pastTidy.italic  = true;
+    EXPECT_EQ(t.runs, (QList<TextRun>{boldTidy, pastTidy}));
 }
 
 /**

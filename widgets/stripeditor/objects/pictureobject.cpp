@@ -132,8 +132,7 @@ void PictureObject::describePicture(Composition& c) const
 
 bool PictureObject::canEditShape() const
 {
-    const Words* words = wordsOf(m_composition);
-    return words && !words->text.body.isEmpty();
+    return lettered(m_composition);
 }
 
 QPainterPath PictureObject::editOutline() const
@@ -169,18 +168,10 @@ void PictureObject::paintContent(QPainter& painter)
         return;
     }
 
-    // The words over it, if there are any, laid out in its box at their own size: the preview of what the
-    // wrapper SVG will render.
-    const Words* words = wordsOf(m_composition);
-    if (!words)
-        return;
-    const QPainterPath text = Geometry::textOutline(m_composition, *words);
-    if (text.isEmpty())
-        return;
-    painter.save();
-    painter.setRenderHint(QPainter::Antialiasing, true);
-    Painter::paintLettering(painter, *words, text, Geometry::textShadowOf(*words, text));
-    painter.restore();
+    // The words over it, laid out in its box at their own size: the preview of what the wrapper SVG will render.
+    // A picture has no balloon, so its paths are its words'.
+    if (lettered(m_composition))
+        Painter::paint(painter, m_composition);
 }
 
 }  // namespace StripEdit

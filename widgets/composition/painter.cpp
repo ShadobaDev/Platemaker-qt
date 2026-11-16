@@ -222,10 +222,8 @@ Paths resolve(const Composition& c)
         p.silhouette = Geometry::silhouette(*c.balloon, c.seed);
         p.balloon    = Render::balloon(*c.balloon, c.seed, p.silhouette);
     }
-    if (const Words* w = wordsOf(c)) {
-        p.text  = Geometry::textOutline(c, *w);
-        p.words = Render::lettering(*w, p.text, Geometry::textShadowOf(*w, p.text));
-    }
+    p.texts = Geometry::textOutlines(c);
+    p.words = Render::lettering(c, p.texts);
     return p;
 }
 
@@ -246,14 +244,6 @@ void paintPaths(QPainter& painter, const Composition& c, const Paths& paths)
     play(painter, paths.balloon.items);
     play(painter, paths.words.items);
     painter.restore();
-}
-
-void paintLettering(QPainter& painter, const Words& w, const QPainterPath& text,
-                    const Geometry::ShadowPaths& shadow)
-{
-    // Filled outlines rather than drawn text, so that what is on screen is what Svg::write() writes
-    // and what the library rasterises — one geometry, three consumers.
-    play(painter, Render::lettering(w, text, shadow).items);
 }
 
 QImage render(const Composition& c)

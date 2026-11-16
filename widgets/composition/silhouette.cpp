@@ -492,13 +492,15 @@ Part partAt(const Composition& c, const QPointF& local, qreal slack)
 
     // Topmost first. The lettering is drawn over the balloon, so a letter standing on the fill answers
     // "text" — which is what the eye says too.
-    const Words*       words = wordsOf(c);
-    const QPainterPath text  = words ? textOutline(c, *words) : QPainterPath();
-    if (!text.isEmpty()) {
+    // The last words are drawn last, so they are tried first.
+    for (auto w = c.words.crbegin(); w != c.words.crend(); ++w) {
+        const QPainterPath text = textOutline(c, *w);
+        if (text.isEmpty())
+            continue;
         if (text.contains(local))
             return Part::Text;
         // The letters' outline is theirs too.
-        if (const qreal reach = slack + qMax(words->text.outlineWidth, 0.0); reach > 0.0) {
+        if (const qreal reach = slack + qMax(w->text.outlineWidth, 0.0); reach > 0.0) {
             QPainterPathStroker widen;
             widen.setWidth(reach * 2);
             if (widen.createStroke(text).contains(local))
@@ -530,12 +532,10 @@ Part partAt(const Composition& c, const QPointF& local, qreal slack)
 
 QRectF bounds(const Composition& c)
 {
-    const Words* words = wordsOf(c);
-    return boundsOf(c, c.balloon ? silhouette(*c.balloon, c.seed) : QPainterPath(),
-                    words ? textOutline(c, *words) : QPainterPath());
+    return boundsOf(c, c.balloon ? silhouette(*c.balloon, c.seed) : QPainterPath(), textOutlines(c));
 }
 
-QRectF boundsOf(const Composition& c, const QPainterPath& silhouette, const QPainterPath& text)
+QRectF boundsOf(const Composition& c, const QPainterPath& silhouette, const QList<QPainterPath>& texts)
 {
     // The frame always counts, even when nothing is drawn in it — empty words still occupy the box the author
     // dragged.
@@ -543,10 +543,13 @@ QRectF boundsOf(const Composition& c, const QPainterPath& silhouette, const QPai
 
     if (!silhouette.isEmpty())
         r = r.united(silhouette.boundingRect());
-    if (const Words* words = wordsOf(c); words && !text.isEmpty()) {
+    for (qsizetype i = 0; i < c.words.size() && i < texts.size(); ++i) {
+        if (texts[i].isEmpty())
+            continue;
         // The outline is drawn outside the letters, and their shadow reaches past it.
-        const qreal around = qMax(words->text.outlineWidth, 0.0) + shadowReach(words->text.shadow);
-        r = r.united(text.boundingRect().adjusted(-around, -around, around, around));
+        const TextProperties& t      = c.words[i].text;
+        const qreal           around = qMax(t.outlineWidth, 0.0) + shadowReach(t.shadow);
+        r = r.united(texts[i].boundingRect().adjusted(-around, -around, around, around));
     }
 
     // The stroke straddles the path, so half of it lies outside, and the line's ink, the texture and the

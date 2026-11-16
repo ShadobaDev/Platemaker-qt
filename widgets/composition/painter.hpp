@@ -39,10 +39,10 @@ void paint(QPainter& painter, const Composition& c);
 //! What a composition is drawn from, resolved once: a caller that repaints keeps it (BubbleObject).
 struct Paths
 {
-    QPainterPath silhouette;   //!< The balloon and its tails (Geometry::silhouette()).
-    QPainterPath text;         //!< The lettering as glyph outlines (Geometry::textOutline()).
-    Render::List balloon;      //!< Render::balloon() of the silhouette.
-    Render::List words;        //!< Render::lettering() of the text.
+    QPainterPath        silhouette;   //!< The balloon and its tails (Geometry::silhouette()).
+    QList<QPainterPath> texts;        //!< Each words' lettering as glyph outlines (Geometry::textOutlines()).
+    Render::List        balloon;      //!< Render::balloon() of the silhouette.
+    Render::List        words;        //!< Render::lettering() of the texts.
 };
 
 //! \p c's paths, resolved.
@@ -57,14 +57,6 @@ struct Paths
  * the one-shot form.
  */
 void paintPaths(QPainter& painter, const Composition& c, const Paths& paths);
-
-/**
- * \brief Draws @p w, @p text (Geometry::textOutline()), with its @p shadow
- *        (Geometry::textShadowOf()) and its outline, in the box's coordinates: Render::lettering() played,
- *        over a balloon (paintPaths()) and over a picture alike.
- */
-void paintLettering(QPainter& painter, const Words& w, const QPainterPath& text,
-                    const Geometry::ShadowPaths& shadow);
 
 /**
  * \brief Rasterises \p c to a transparent ARGB32 image the size of its bounds — what the library composites.

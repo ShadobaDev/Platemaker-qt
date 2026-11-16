@@ -79,10 +79,8 @@ private:
     [[nodiscard]] QRectF handleRect(const Object* o, int index, qreal s) const;
     //! @p o's outline handles while its shape is edited, in its item coordinates; none otherwise.
     [[nodiscard]] static QList<Geometry::Handle> shapeHandles(const Object* o);
-    //! @p o's text area in scene units; empty with no lettering.
-    [[nodiscard]] static QRectF textAreaRect(const Object* o);
-    //! @p o's text area in scene units when its lettering does not fit it; empty when it does.
-    [[nodiscard]] static QRectF overflowRect(const Object* o);
+    //! The frames of @p o's lettered words in scene units; with @p overflowing, only those their lettering spills out of.
+    [[nodiscard]] static QList<QRectF> textAreaRects(const Object* o, bool overflowing);
     //! The radius handle's arrow in @p fill, edged in @p edge, made once per pair.
     QSvgRenderer& radiusArrow(const QColor& fill, const QColor& edge);
 

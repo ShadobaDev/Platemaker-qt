@@ -200,7 +200,7 @@ bool convert(Composition& c, bool toBalloon, const BalloonLook& look)
     // ...and a size that fits the lettering in its new kind. A text object's box is its words' own size,
     // which a balloon's smaller text area could not hold. Fitted rather than only grown, both ways:
     // converting back gives the words' own box again.
-    resize(c, Geometry::fitBoxFor(c, Geometry::textBlockSize(c)));
+    resize(c, Geometry::fittedBox(c));
     return true;
 }
 

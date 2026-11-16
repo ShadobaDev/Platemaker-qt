@@ -183,13 +183,19 @@ QStringList MainWindow::objectsInStandIns(const Platemaker::Models::ProjectItem&
     const Composition::Map compositions = m_overlayCompositions.compositions(QString::fromStdString(project.uid));
     QStringList            out;
     for (const auto& overlay : project.getStripOverlays()) {
-        const auto   rec   = compositions.constFind(QString::fromStdString(overlay.uid));
-        const Words* words = rec == compositions.constEnd() ? nullptr : wordsOf(*rec);
-        if (!words || Geometry::fontFallback(*words).isEmpty())
+        const auto rec = compositions.constFind(QString::fromStdString(overlay.uid));
+        if (rec == compositions.constEnd())
             continue;
-        out << QString::fromStdString(overlay.uid);
-        if (families && !families->contains(words->text.family))
-            *families << words->text.family;
+        bool standsIn = false;
+        for (const Words& w : rec->words) {
+            if (Geometry::fontFallback(w).isEmpty())
+                continue;
+            standsIn = true;
+            if (families && !families->contains(w.text.family))
+                *families << w.text.family;
+        }
+        if (standsIn)
+            out << QString::fromStdString(overlay.uid);
     }
     return out;
 }

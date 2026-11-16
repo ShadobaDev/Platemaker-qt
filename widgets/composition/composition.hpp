@@ -216,9 +216,11 @@ struct Composition
 //! Whether @p w sit on a seat @p c has: a body (seatOf()) or the picture. Otherwise they keep their own box.
 [[nodiscard]] bool seated(const Composition& c, const Words& w);
 
+//! Whether any words of @p c has text: what makes a picture a file of ours, and offers the words' handles.
+[[nodiscard]] bool lettered(const Composition& c);
+
 /**
- * \brief The words @p c draws and the editor edits: its first. ponytail: one until the chain, whose second words
- *        need render ids of their own (renderlist.cpp's are one set per file), and an editor that picks them.
+ * \brief The words the editor edits: @p c's first. ponytail: one until the editor picks one of several words.
  */
 [[nodiscard]] const Words* wordsOf(const Composition& c);
 [[nodiscard]] Words*       wordsOf(Composition& c);

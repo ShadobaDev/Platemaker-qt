@@ -500,11 +500,22 @@ void MainWindow::healFontFallbacks()
     for (auto &project : m_workspace.projectItems) {
         const Composition::Map compositions = m_overlayCompositions.compositions(QString::fromStdString(project.uid));
         for (auto &overlay : project.getStripOverlays()) {
-            const auto   rec   = compositions.constFind(QString::fromStdString(overlay.uid));
-            const Words *words = rec == compositions.constEnd() ? nullptr : wordsOf(*rec);
-            if (!words || words->text.body.isEmpty() || words->text.family.isEmpty()
-                || !QFontDatabase::hasFamily(words->text.family))
-                continue;   // nothing lettered, or its font is still missing — nothing to re-set it in
+            const auto rec = compositions.constFind(QString::fromStdString(overlay.uid));
+            if (rec == compositions.constEnd())
+                continue;
+            // Re-set once every lettered words has its font: one still missing would bake the stand-in again.
+            QStringList installed;
+            bool        missing = false;
+            for (const Words &w : rec->words) {
+                if (w.text.body.isEmpty() || w.text.family.isEmpty())
+                    continue;
+                if (!QFontDatabase::hasFamily(w.text.family))
+                    missing = true;
+                else if (!installed.contains(w.text.family))
+                    installed << w.text.family;
+            }
+            if (missing || installed.isEmpty())
+                continue;   // nothing lettered in a font of its own, or one still missing — nothing to re-set it in
             const QString asset = QString::fromStdString(overlay.assetPath);
             if (QFileInfo(QFileInfo(asset).absolutePath()) != home)
                 continue;   // not this folder's file — never written from here
@@ -523,10 +534,11 @@ void MainWindow::healFontFallbacks()
                 overlay.sha256.clear();
             }
             ++healed;
-            if (!families.contains(words->text.family))
-                families << words->text.family;
+            for (const QString &family : std::as_const(installed))
+                if (!families.contains(family))
+                    families << family;
             logAction(LogLevel::Info, tr("Re-set in %1, now installed: %2")
-                                                  .arg(words->text.family, root.relativeFilePath(written)));
+                                          .arg(installed.join(QStringLiteral(", ")), root.relativeFilePath(written)));
         }
     }
     if (healed == 0)

@@ -7,6 +7,7 @@
 #include <QObject>
 #include <QRandomGenerator>
 
+#include <algorithm>
 #include <type_traits>
 
 namespace {
@@ -220,6 +221,11 @@ const Body* seatOf(const Composition& c, const Words& w)
 bool seated(const Composition& c, const Words& w)
 {
     return seatOf(c, w) || (c.picture && w.seat != 0 && w.seat == c.picture->id);
+}
+
+bool lettered(const Composition& c)
+{
+    return std::any_of(c.words.cbegin(), c.words.cend(), [](const Words& w) { return !w.text.body.isEmpty(); });
 }
 
 const Words* wordsOf(const Composition& c)

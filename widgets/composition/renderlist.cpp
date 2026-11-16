@@ -270,31 +270,57 @@ List balloon(const Balloon& b, quint32 seed, const QPainterPath& silhouette)
     return out;
 }
 
-List lettering(const Words& w, const QPainterPath& text, const Geometry::ShadowPaths& shadow)
+namespace {
+
+//! @p base for the words at @p index: the first words' as it is, the n-th's with `-n`, so the ids of one file differ.
+QString wordsId(const QString& base, qsizetype index)
+{
+    return index == 0 ? base : base + QLatin1Char('-') + QString::number(index + 1);
+}
+
+//! @p w's lettering (lettering() of a composition), its ids those of the words at @p index.
+List wordsLettering(const Words& w, const QPainterPath& text, const Geometry::ShadowPaths& shadow, qsizetype index)
 {
     List out;
     if (text.isEmpty())
         return out;
-    const TextProperties& t = w.text;
-    addPattern(out, t.fill, k_textFillId);
+    const TextProperties& t          = w.text;
+    const QString         fillId     = wordsId(k_textFillId, index);
+    const QString         outlineId  = wordsId(k_textOutlineId, index);
+    const QString         shadowId   = wordsId(k_textShadowId, index);
+    const QString         shadowFill = wordsId(k_textShadowFillId, index);
+    addPattern(out, t.fill, fillId);
     if (t.outlineWidth > 0.0)
-        addPattern(out, t.outline, k_textOutlineId);
+        addPattern(out, t.outline, outlineId);
     if (t.shadow.on) {
-        addBlur(out, t.shadow, t.shadowFill, k_textShadowId);
-        addPattern(out, shadowPaintFor(t.shadow, t.shadowFill, shadow, nullptr), k_textShadowFillId);
+        addBlur(out, t.shadow, t.shadowFill, shadowId);
+        addPattern(out, shadowPaintFor(t.shadow, t.shadowFill, shadow, nullptr), shadowFill);
     }
 
     // The shadow first, under the outline and the letters, as the balloon's is.
-    out.items += shadowItems(t.shadow, t.shadowFill, shadow, k_textShadowFillId, k_textShadowId);
+    out.items += shadowItems(t.shadow, t.shadowFill, shadow, shadowFill, shadowId);
     if (t.outlineWidth > 0.0) {
-        Item edge     = outline(text, Ink{t.outline, k_textOutlineId}, 2.0 * t.outlineWidth);
+        Item edge     = outline(text, Ink{t.outline, outlineId}, 2.0 * t.outlineWidth);
         edge.roundCap = true;
         out.items.append(edge);
     }
     Item letters;
     letters.path = text;
-    letters.fill = Ink{t.fill, k_textFillId};
+    letters.fill = Ink{t.fill, fillId};
     out.items.append(letters);
+    return out;
+}
+
+} // namespace
+
+List lettering(const Composition& c, const QList<QPainterPath>& texts)
+{
+    List out;
+    for (qsizetype i = 0; i < c.words.size() && i < texts.size(); ++i) {
+        const List one = wordsLettering(c.words[i], texts[i], Geometry::textShadowOf(c.words[i], texts[i]), i);
+        out.defs += one.defs;
+        out.items += one.items;
+    }
     return out;
 }
 

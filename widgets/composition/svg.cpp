@@ -170,9 +170,12 @@ QString fileFontFamily(const TextProperties& t)
 QString contentElement(const Composition& c)
 {
     QString out = QStringLiteral("  <pm:content");
-    if (const Words* w = wordsOf(c))
-        if (const QString fallback = Geometry::fontFallback(*w); !fallback.isEmpty())
+    // One stand-in names the file as set in one: the machine's default, the same for every words that needed it.
+    for (const Words& w : c.words)
+        if (const QString fallback = Geometry::fontFallback(w); !fallback.isEmpty()) {
             out += QStringLiteral(" pm:fontFallback=\"") + esc(fallback) + QLatin1Char('"');
+            break;
+        }
     // Element text, not an attribute: only what would end it or start markup is escaped, so the JSON reads.
     QString text = contentOf(c);
     text.replace(QLatin1Char('&'), QLatin1String("&amp;"));   // first, or it double-escapes the rest
@@ -287,7 +290,6 @@ QByteArray write(const Composition& c, const QByteArray& picture, const QString&
 {
     if (frameOf(c).isEmpty())
         return {};
-    const Words* w = wordsOf(c);
 
     // **A picture with words over it.** The geometry is the picture's own box — no tails to reach past
     // it — so the viewBox is the box, and the lettering is laid out in it exactly as a shapeless
@@ -296,8 +298,7 @@ QByteArray write(const Composition& c, const QByteArray& picture, const QString&
         if (picture.isEmpty() || mime.isEmpty())
             return {};
         const QSize        size  = c.picture->size;
-        const QPainterPath text  = w ? Geometry::textOutline(c, *w) : QPainterPath();
-        const Render::List words = w ? Render::lettering(*w, text, Geometry::textShadowOf(*w, text)) : Render::List();
+        const Render::List words = Render::lettering(c, Geometry::textOutlines(c));
 
         QString svg;
         svg += QStringLiteral("<svg xmlns=\"http://www.w3.org/2000/svg\" "
@@ -340,9 +341,8 @@ QByteArray write(const Composition& c, const QByteArray& picture, const QString&
 
     // The balloon and the words, as the painter draws them (renderlist.hpp); their definitions first.
     const QPainterPath silhouette = c.balloon ? Geometry::silhouette(*c.balloon, c.seed) : QPainterPath();
-    const QPainterPath text       = w ? Geometry::textOutline(c, *w) : QPainterPath();
     const Render::List balloon    = c.balloon ? Render::balloon(*c.balloon, c.seed, silhouette) : Render::List();
-    const Render::List words      = w ? Render::lettering(*w, text, Geometry::textShadowOf(*w, text)) : Render::List();
+    const Render::List words      = Render::lettering(c, Geometry::textOutlines(c));
     svg += defsOf(balloon) + defsOf(words);
 
     // A copy of the bubble's content, in a namespace no renderer looks at: what *Import* reads to make this
@@ -456,7 +456,7 @@ QString writeFile(const QString& overlaysDir, const Composition& c, const QStrin
     // Its overlay points straight at the imported picture.
     if (c.picture) {
         const QString picture = overlaysDir + QLatin1Char('/') + c.picture->file;
-        if (const Words* w = wordsOf(c); !w || w->text.body.isEmpty())
+        if (!lettered(c))
             return picture;
 
         // Lettered, so there *is* something of ours: a wrapper that embeds the picture and draws the

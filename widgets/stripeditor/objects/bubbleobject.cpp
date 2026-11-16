@@ -35,7 +35,7 @@ void BubbleObject::rebuild()
 
 QRectF BubbleObject::computeBounds() const
 {
-    return Geometry::boundsOf(m_composition, m_paths.silhouette, m_paths.text);
+    return Geometry::boundsOf(m_composition, m_paths.silhouette, m_paths.texts);
 }
 
 void BubbleObject::setComposition(const Composition& c)
@@ -126,11 +126,10 @@ bool BubbleObject::canEditShape() const
 {
     // A patterned fill has its fade's cross, and words their text area's arrows, so a balloon
     // with no handles of its own is edited for those.
-    const Body*  body  = bodyOf(m_composition);
-    const Words* words = wordsOf(m_composition);
+    const Body* body = bodyOf(m_composition);
     return body
         && (Geometry::hasShapeHandles(body->shape) || m_composition.balloon->style.fill.fill.kind != Paint::Kind::Solid
-            || (words && !words->text.body.isEmpty()));
+            || lettered(m_composition));
 }
 
 QPainterPath BubbleObject::editOutline() const

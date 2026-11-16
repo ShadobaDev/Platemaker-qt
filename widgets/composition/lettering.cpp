@@ -226,26 +226,31 @@ QRectF textArea(const Composition& c, const Words& w)
     return textSafeArea(c, w);
 }
 
-namespace {
-
-//! The lettering of @p c's first words; the default with none.
-TextProperties letteringOf(const Composition& c)
+QList<QPainterPath> textOutlines(const Composition& c)
 {
-    const Words* w = wordsOf(c);
-    return w ? w->text : TextProperties();
+    QList<QPainterPath> out;
+    for (const Words& w : c.words)
+        out.append(textOutline(c, w));
+    return out;
 }
 
-} // namespace
-
-QSizeF textBlockSize(const Composition& c)
+QSizeF textBlockSize(const Words& w)
 {
-    const TextProperties t = letteringOf(c);
+    const TextProperties& t = w.text;
     if (t.body.isEmpty())
         return {};
     // Never wrapped, so the block is the same whatever box it sits in: the widest line by the lines.
     QTextDocument doc;
     layOutText(doc, t, 1);
     return QSizeF(doc.idealWidth(), doc.size().height());
+}
+
+Blocks textBlocks(const Composition& c)
+{
+    Blocks out;
+    for (const Words& w : c.words)
+        out.append(textBlockSize(w));
+    return out;
 }
 
 QRectF blockRect(const Composition& c, const Words& w, const QSizeF& block)
@@ -255,14 +260,13 @@ QRectF blockRect(const Composition& c, const Words& w, const QSizeF& block)
 
 namespace {
 
-//! Whether @p block, placed for @p c's first words, lies in their frame across (@p horizontal) or up and down.
-bool holds(const Composition& c, const QSizeF& block, bool horizontal)
+//! Whether @p block, placed for @p w, lies in their frame across (@p horizontal) or up and down. True when empty.
+bool holdsOne(const Composition& c, const Words& w, const QSizeF& block, bool horizontal)
 {
-    const Words* w = wordsOf(c);
-    if (!w)
+    if (block.isEmpty())
         return true;
-    const QRectF frame = textSafeArea(c, *w);
-    const QRectF r     = placedBlock(c, *w, block);
+    const QRectF frame = textSafeArea(c, w);
+    const QRectF r     = placedBlock(c, w, block);
     // The slack once for the size, and once for each side the block may round past.
     return horizontal ? r.width() <= frame.width() + k_fitSlack && r.left() >= frame.left() - k_fitSlack
                             && r.right() <= frame.right() + k_fitSlack
@@ -270,24 +274,19 @@ bool holds(const Composition& c, const QSizeF& block, bool horizontal)
                             && r.bottom() <= frame.bottom() + k_fitSlack;
 }
 
-} // namespace
-
-bool fits(const Composition& c, const QSizeF& block)
+//! Whether every words of @p c holds its block of @p blocks (by index) across (@p horizontal) or up and down.
+bool holds(const Composition& c, const Blocks& blocks, bool horizontal)
 {
-    if (block.isEmpty())
-        return true;
-    return holds(c, block, true) && holds(c, block, false);
+    for (qsizetype i = 0; i < c.words.size() && i < blocks.size(); ++i)
+        if (!holdsOne(c, c.words[i], blocks[i], horizontal))
+            return false;
+    return true;
 }
 
-bool textOverflows(const Composition& c)
+//! Whether @p block, placed for @p w, lies inside the outline of their body; true with no outline or no block.
+bool liesInOutlineOne(const Composition& c, const Words& w, const QSizeF& block)
 {
-    return !fits(c, textBlockSize(c));
-}
-
-bool liesInOutline(const Composition& c, const QSizeF& block)
-{
-    const Words* w    = wordsOf(c);
-    const Body*  seat = w ? seatOf(c, *w) : nullptr;
+    const Body* seat = seatOf(c, w);
     if (block.isEmpty() || !seat)
         return true;
     const auto outline = shapeInfo(seat->shape.kind).outline;
@@ -295,21 +294,46 @@ bool liesInOutline(const Composition& c, const QSizeF& block)
         return true;   // no outline to lie in: a text object's own box
     // The bare outline, the block kept the stroke and the teeth away from it: grown by them, its corners round.
     const qreal  inset = c.balloon->style.line.strokeWidth / 2.0 + edgeInset(seat->shape);
-    const QRectF r     = placedBlock(c, *w, block).adjusted(k_fitSlack, k_fitSlack, -k_fitSlack, -k_fitSlack);
+    const QRectF r     = placedBlock(c, w, block).adjusted(k_fitSlack, k_fitSlack, -k_fitSlack, -k_fitSlack);
     QPainterPath kept;
     kept.addRoundedRect(r.adjusted(-inset, -inset, inset, inset), inset, inset);
     return outline(seat->shape, balloonRect(*c.balloon, *seat)).contains(kept);
 }
 
-QSize fitBoxFor(const Composition& c, const QSizeF& block)
+} // namespace
+
+bool fits(const Composition& c, const Blocks& blocks)
 {
-    if (block.isEmpty())
+    return holds(c, blocks, true) && holds(c, blocks, false);
+}
+
+bool textOverflows(const Composition& c, const Words& w)
+{
+    const QSizeF block = textBlockSize(w);
+    return !holdsOne(c, w, block, true) || !holdsOne(c, w, block, false);
+}
+
+bool liesInOutline(const Composition& c, const Blocks& blocks)
+{
+    for (qsizetype i = 0; i < c.words.size() && i < blocks.size(); ++i)
+        if (!liesInOutlineOne(c, c.words[i], blocks[i]))
+            return false;
+    return true;
+}
+
+QSize fitBoxFor(const Composition& c, const Blocks& blocks)
+{
+    QSizeF most;   // the largest block on each axis: where the search for a side that holds them starts
+    for (const QSizeF& b : blocks)
+        if (!b.isEmpty())
+            most = most.expandedTo(b);
+    if (most.isEmpty())
         return sizeOf(c);
 
     // The smallest box side, on one axis, whose frame holds the placed block on that axis — the other side
     // held where it is. Every edge keeps its distance from the side, so a binary search is exact; an
     // axis whose set edges are too close for any side keeps the side it has.
-    const auto smallest = [&block](Composition probe, bool horizontal) {
+    const auto smallest = [&blocks, &most](Composition probe, bool horizontal) {
         const int  was  = horizontal ? sizeOf(probe).width() : sizeOf(probe).height();
         const auto room = [&](int side) {
             QSize s = sizeOf(probe);
@@ -318,9 +342,9 @@ QSize fitBoxFor(const Composition& c, const QSizeF& block)
             else
                 s.setHeight(side);
             resize(probe, s);
-            return holds(probe, block, horizontal);
+            return holds(probe, blocks, horizontal);
         };
-        const qreal need = horizontal ? block.width() : block.height();
+        const qreal need = horizontal ? most.width() : most.height();
         int         hi   = qMax(k_minFitSize, qCeil(need) * 2);
         while (!room(hi) && hi < k_maxFitSize)
             hi *= 2;
@@ -351,11 +375,11 @@ QSize fitBoxFor(const Composition& c, const QSizeF& block)
     // Held by the frame, the block may still cross a curved outline (an ellipse's corners, a box's rounded ones)
     // or one its set edges reach past: then the box grows, its proportions kept, until the block lies inside it.
     const QSize framed = sizeOf(probe);
-    if (liesInOutline(probe, block) || framed.isEmpty())
+    if (liesInOutline(probe, blocks) || framed.isEmpty())
         return framed;
     const auto inside = [&](int width) {
         resize(probe, QSize(width, qCeil(qreal(framed.height()) * width / framed.width())));
-        return liesInOutline(probe, block);
+        return liesInOutline(probe, blocks);
     };
     int lo = framed.width();
     int hi = lo * 2;
@@ -375,7 +399,7 @@ QSize fitBoxFor(const Composition& c, const QSizeF& block)
         const QSize at   = sizeOf(probe);
         const auto  room = [&](int side) {
             resize(probe, horizontal ? QSize(side, at.height()) : QSize(at.width(), side));
-            return fits(probe, block) && liesInOutline(probe, block);
+            return fits(probe, blocks) && liesInOutline(probe, blocks);
         };
         int low  = k_minFitSize;
         int high = horizontal ? at.width() : at.height();
@@ -394,7 +418,7 @@ QSize fitBoxFor(const Composition& c, const QSizeF& block)
 
 QSize fittedBox(const Composition& c)
 {
-    return fitBoxFor(c, textBlockSize(c));
+    return fitBoxFor(c, textBlocks(c));
 }
 
 QList<Handle> textAreaHandles(const Composition& c)

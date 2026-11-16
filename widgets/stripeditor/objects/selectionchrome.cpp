@@ -156,18 +156,16 @@ QList<Geometry::Handle> SelectionChrome::shapeHandles(const Object* o)
     return o->shapeEditing() ? o->shapeHandles() : QList<Geometry::Handle>();
 }
 
-QRectF SelectionChrome::overflowRect(const Object* o)
+QList<QRectF> SelectionChrome::textAreaRects(const Object* o, bool overflowing)
 {
-    return Geometry::textOverflows(o->composition()) ? textAreaRect(o) : QRectF();
-}
-
-QRectF SelectionChrome::textAreaRect(const Object* o)
-{
-    const Composition& r     = o->composition();
-    const Words*       words = wordsOf(r);
-    if (!words || words->text.body.isEmpty() || sizeOf(r).isEmpty())
-        return {};
-    return o->mapRectToScene(Geometry::textArea(r, *words));
+    const Composition& r = o->composition();
+    QList<QRectF>      out;
+    if (sizeOf(r).isEmpty())
+        return out;
+    for (const Words& w : r.words)
+        if (!w.text.body.isEmpty() && (!overflowing || Geometry::textOverflows(r, w)))
+            out.append(o->mapRectToScene(Geometry::textArea(r, w)));
+    return out;
 }
 
 void SelectionChrome::refresh()
@@ -186,12 +184,12 @@ void SelectionChrome::refresh()
             next = next.united(shapeHandleRect(o->mapToScene(h.at), h.glyph, s).adjusted(-2, -2, 2, 2));
         // Measured here, not in paint(): laying out the lettering on every repaint would be paid on
         // every scroll. This runs when the object reports a change, which is when the answer can move.
-        if (const QRectF r = overflowRect(o); !r.isEmpty()) {
+        for (const QRectF& r : textAreaRects(o, true)) {
             m_overflows.append(r);
             next = next.united(r.adjusted(-1, -1, 1, 1));
         }
         if (o->shapeEditing()) {
-            if (const QRectF r = textAreaRect(o); !r.isEmpty()) {
+            for (const QRectF& r : textAreaRects(o, false)) {
                 m_textAreas.append(r);
                 next = next.united(r.adjusted(-1, -1, 1, 1));
             }

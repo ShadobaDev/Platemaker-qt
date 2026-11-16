@@ -157,11 +157,12 @@ struct List
 [[nodiscard]] List balloon(const Balloon& b, quint32 seed, const QPainterPath& silhouette);
 
 /**
- * \brief @p w's lettering, @p text (Geometry::textOutline()) with its @p shadow (Geometry::textShadowOf()):
- *        the shadow, the outline under the letters stroked at twice its width (two draws, not
- *        `paint-order`, which librsvg is sure to render alike), the letters. Empty with no words.
+ * \brief The lettering of every words of @p c, @p texts (Geometry::textOutlines()), in their order, the last on
+ *        top. Each words': its shadow (Geometry::textShadowOf()), its outline under the letters stroked at twice
+ *        its width (two draws, not `paint-order`, which librsvg is sure to render alike), its letters. Its
+ *        definitions' ids are its own: the first words' `pm-text-…`, the n-th's `pm-text-…-n`. Empty with no text.
  */
-[[nodiscard]] List lettering(const Words& w, const QPainterPath& text, const Geometry::ShadowPaths& shadow);
+[[nodiscard]] List lettering(const Composition& c, const QList<QPainterPath>& texts);
 
 }  // namespace Render
 

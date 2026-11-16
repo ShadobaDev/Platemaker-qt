@@ -7,8 +7,8 @@
  * serialises them (svg.hpp), and the library rasterises that SVG. Because all three start here,
  * "what you see" and "what is baked" cannot drift apart. Nothing here draws or knows about overlays,
  * projects or the strip: it takes a composition (composition.hpp), or an element of one, and answers in the
- * composition's frame. What fits the lettering, and its handles, act on the first words (wordsOf()), the ones
- * the editor edits.
+ * composition's frame. The drawing and the fit take every words of a composition, each in its own frame; the
+ * handles act on one words.
  *
  * Where each part is:
  *  - shapes.cpp: every shape's outline and text area, one table entry each (shapes.hpp);
@@ -118,10 +118,10 @@ enum class Part { None, Fill, Outline, Text };
  *
  * \param c The composition to check.
  * \param silhouette The silhouette path.
- * \param text The text path.
+ * \param texts The text paths of its words, in their order (textOutlines()).
  * \return The rectangle that contains everything \p c draws, in its frame.
  */
-[[nodiscard]] QRectF boundsOf(const Composition& c, const QPainterPath& silhouette, const QPainterPath& text);
+[[nodiscard]] QRectF boundsOf(const Composition& c, const QPainterPath& silhouette, const QList<QPainterPath>& texts);
 
 // ---------------------------------------------------------------------------
 // The lettering — lettering.cpp
@@ -141,6 +141,9 @@ enum class Part { None, Fill, Outline, Text };
  * \return The text outlines, or an empty path if there is no lettering.
  */
 [[nodiscard]] QPainterPath textOutline(const Composition& c, const Words& w);
+
+//! textOutline() of every words of \p c, in their order (Composition::words).
+[[nodiscard]] QList<QPainterPath> textOutlines(const Composition& c);
 
 /**
  * \brief \p w's shadow, cast by \p text (textOutline()) with its outline: grown by the outline's
@@ -187,42 +190,48 @@ enum class Part { None, Fill, Outline, Text };
 [[nodiscard]] QRectF blockRect(const Composition& c, const Words& w, const QSizeF& block);
 
 /**
- * \brief The size of \p c's laid-out lettering — the widest line by the height of all of them.
+ * \brief The size of \p w's laid-out lettering — the widest line by the height of all of them.
  *
  * Independent of the box: the lettering is never wrapped, so where the box is and how big does not
  * change it. Empty when there is no text.
  */
-[[nodiscard]] QSizeF textBlockSize(const Composition& c);
+[[nodiscard]] QSizeF textBlockSize(const Words& w);
+
+//! A block of lettering per words of a composition, in their order (Composition::words); an empty one holds anywhere.
+using Blocks = QList<QSizeF>;
+
+//! textBlockSize() of every words of \p c.
+[[nodiscard]] Blocks textBlocks(const Composition& c);
 
 /**
- * \brief Whether a block of lettering of size \p block, placed (blockRect()), lies in \p c's text area.
+ * \brief Whether each words of \p c holds its block of \p blocks, placed (blockRect()), in its frame.
  *
  * Pure geometry — no font is touched — so it is the half of fitting that can be tested anywhere.
  * Half a pixel of slack, so a box rounded to whole pixels does not overflow by its own rounding.
  */
-[[nodiscard]] bool fits(const Composition& c, const QSizeF& block);
+[[nodiscard]] bool fits(const Composition& c, const Blocks& blocks);
 
-//! True when \p c's lettering does not fit its text area — what the selection shows in red.
-[[nodiscard]] bool textOverflows(const Composition& c);
+//! True when \p w's lettering does not fit their frame in \p c — what the selection shows in red.
+[[nodiscard]] bool textOverflows(const Composition& c, const Words& w);
 
 /**
- * \brief Whether a block of lettering of size \p block, placed (blockRect()), lies inside \p c's outline itself,
- *        kept the stroke and the edge's teeth away from it — what *Fit to text* asks beyond fits(). True with no
- *        outline (a text object, a picture's words).
+ * \brief Whether each block of \p blocks, placed (blockRect()) for its words, lies inside the outline of the body
+ *        it is seated on, kept the stroke and the edge's teeth away from it — what *Fit to text* asks beyond
+ *        fits(). True with no outline (a text object, a picture's words).
  */
-[[nodiscard]] bool liesInOutline(const Composition& c, const QSizeF& block);
+[[nodiscard]] bool liesInOutline(const Composition& c, const Blocks& blocks);
 
 /**
- * \brief The smallest size (sizeOf()) whose text area holds a block of size \p block, and in which the block lies
- *        inside the outline itself (liesInOutline()).
+ * \brief The smallest size (sizeOf()) in which every words holds its block of \p blocks in its frame, and each
+ *        block lies inside the outline itself (liesInOutline()).
  *
- * First the smallest **on both axes** whose frame holds the block; where the block still crosses the outline (a
- * curved one, or set edges reaching past it), that size grown, its proportions kept, until it does not. Neither
+ * First the smallest **on both axes** whose frames hold the blocks; where a block still crosses the outline (a
+ * curved one, or set edges reaching past it), that size grown, its proportions kept, until none does. Neither
  * side goes below the grips' own minimum (40 px), so a short word cannot collapse the shape. An axis no size can
- * make hold the block keeps the size it has.
+ * make hold the blocks keeps the size it has.
  * Pure geometry, like fits(): fittedBox() is this with the lettering measured.
  */
-[[nodiscard]] QSize fitBoxFor(const Composition& c, const QSizeF& block);
+[[nodiscard]] QSize fitBoxFor(const Composition& c, const Blocks& blocks);
 
 /**
  * \brief The smallest size that holds \p c's lettering, on both axes — *Fit to text*.

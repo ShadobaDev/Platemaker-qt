@@ -152,6 +152,8 @@ public:
      * \brief The tails in the selection, in the order they were picked.
      */
     [[nodiscard]] const QList<ElementRef>& selectedTails() const { return m_selection.elements(); }
+    //! The words picked on their own (Subject::Words); none otherwise.
+    [[nodiscard]] ElementRef selectedWords() const { return m_selection.words(); }
     void selectOverlay(const QString& uid);   //!< Selects one in the scene and the stack, and loads the panel.
     /**
      * \brief Selects @p uids and @p tails together — the general form, of which everything else is a case.

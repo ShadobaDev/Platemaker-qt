@@ -65,7 +65,9 @@ ObjectStack::ObjectStack(QTreeWidget* tree, ObjectController& objects, const Str
             switch (static_cast<Subject>(row->data(0, k_kindRole).toInt())) {
             case Subject::Strip: m_objects.selectStrip();  return;
             case Subject::Page:  m_objects.selectPage(id); return;
-            case Subject::Tail:  tails.append(ElementRef{id, row->data(0, k_tailRole).toInt()}); break;
+            case Subject::Tail:  tails.append(ElementRef{id, row->data(0, k_elementRole).toInt()}); break;
+            // Words are picked alone, as a page is: the Text section is theirs.
+            case Subject::Words: m_objects.selectWords(id, row->data(0, k_elementRole).toInt()); return;
             default:             overlays.append(id); break;
             }
         }
@@ -77,7 +79,7 @@ ObjectStack::ObjectStack(QTreeWidget* tree, ObjectController& objects, const Str
     m_tree->setExpandsOnDoubleClick(false);
     connect(m_tree, &QTreeWidget::itemDoubleClicked, this, [this](QTreeWidgetItem* row, int) {
         m_objects.reveal(static_cast<Subject>(row->data(0, k_kindRole).toInt()),
-                         row->data(0, Qt::UserRole).toString(), row->data(0, k_tailRole).toInt());
+                         row->data(0, Qt::UserRole).toString(), row->data(0, k_elementRole).toInt());
     });
     // Both list handlers are deferred to the next event-loop turn on purpose. Persisting an edit
     // round-trips through the owner and comes back as a re-feed that clears and refills this list —
@@ -276,26 +278,45 @@ void ObjectStack::refresh()
 
         row->setSelected(m_objects.subject() == Subject::Overlay && m_objects.selectedOverlays().contains(uid));
 
-        // A bubble's tails, one row each, by position: a row stands for whichever tail is at its index now.
-        // Only a bubble has tails, so artwork gets none.
-        const Composition rec       = m_objects.isParametric(uid) ? m_objects.compositionOf(uid) : Composition();
-        const int         tailCount = rec.balloon ? static_cast<int>(rec.balloon->tails.size()) : 0;
-        while (row->childCount() > tailCount)
+        // An object's elements, one row each, by position: its words (a bubble's, or a lettered picture's; a
+        // text object is its one words), then a bubble's tails. A row stands for whichever element is at its
+        // place now.
+        const Composition rec = m_objects.compositionOf(uid);
+        struct Element
+        {
+            Subject subject;
+            int     id;
+            QString name;
+        };
+        QList<Element> elements;
+        if (rec.balloon || (rec.picture && lettered(rec)))
+            for (qsizetype w = 0; w < rec.words.size(); ++w)
+                if (seated(rec, rec.words[w]))
+                    elements.append({Subject::Words, rec.words[w].id, tr("Words %1").arg(w + 1)});
+        if (rec.balloon)
+            for (qsizetype t = 0; t < rec.balloon->tails.size(); ++t)
+                elements.append({Subject::Tail, rec.balloon->tails[t].id, tr("Tail %1").arg(t + 1)});
+        if (m_tailGlyph.isNull())
+            m_tailGlyph = tailGlyph(m_tree->palette(), k_rowGlyphPx, m_tree->devicePixelRatioF());
+        if (m_wordsGlyph.isNull())
+            m_wordsGlyph = wordsGlyph(m_tree->palette(), k_rowGlyphPx, m_tree->devicePixelRatioF());
+        while (row->childCount() > elements.size())
             delete row->takeChild(row->childCount() - 1);
-        for (int t = 0; t < tailCount; ++t) {
-            QTreeWidgetItem* tailItem = t < row->childCount() ? row->child(t) : nullptr;
-            if (!tailItem) {
-                tailItem = new QTreeWidgetItem(row);
-                tailItem->setData(0, k_kindRole, static_cast<int>(Subject::Tail));
-                tailItem->setFlags(Qt::ItemIsSelectable | Qt::ItemIsEnabled);   // not draggable, not a drop target
+        for (qsizetype e = 0; e < elements.size(); ++e) {
+            const Element&   el   = elements[e];
+            QTreeWidgetItem* item = e < row->childCount() ? row->child(int(e)) : nullptr;
+            if (!item) {
+                item = new QTreeWidgetItem(row);
+                item->setFlags(Qt::ItemIsSelectable | Qt::ItemIsEnabled);   // not draggable, not a drop target
             }
-            tailItem->setData(0, Qt::UserRole, uid);
-            tailItem->setData(0, k_tailRole, rec.balloon->tails.at(t).id);   // its element id
-            tailItem->setText(0, tr("Tail %1").arg(t + 1));
-            if (m_tailGlyph.isNull())
-                m_tailGlyph = tailGlyph(m_tree->palette(), k_rowGlyphPx, m_tree->devicePixelRatioF());
-            tailItem->setIcon(0, m_tailGlyph);
-            tailItem->setSelected(m_objects.selectedTails().contains(ElementRef{uid, rec.balloon->tails.at(t).id}));
+            item->setData(0, k_kindRole, static_cast<int>(el.subject));
+            item->setData(0, Qt::UserRole, uid);
+            item->setData(0, k_elementRole, el.id);
+            item->setText(0, el.name);
+            item->setIcon(0, el.subject == Subject::Tail ? m_tailGlyph : m_wordsGlyph);
+            item->setSelected(el.subject == Subject::Tail
+                                  ? m_objects.selectedTails().contains(ElementRef{uid, el.id})
+                                  : m_objects.selectedWords() == ElementRef{uid, el.id});
         }
     }
 
@@ -374,10 +395,13 @@ void ObjectStack::showSelectedRows()
         // A tail's row stands for the tail; its balloon's row is only selected when the balloon itself is.
         row->setSelected(m_objects.selectedOverlays().contains(uid) && !m_objects.carriers().contains(uid));
         for (int c = 0; c < row->childCount(); ++c) {
-            const bool tail = m_objects.selectedTails().contains(ElementRef{uid, row->child(c)->data(0, k_tailRole).toInt()});
-            row->child(c)->setSelected(tail);
-            if (tail)
-                row->setExpanded(true);   // a folded row would hide the only highlight a tail has
+            const ElementRef element{uid, row->child(c)->data(0, k_elementRole).toInt()};
+            const bool       picked = static_cast<Subject>(row->child(c)->data(0, k_kindRole).toInt()) == Subject::Tail
+                                        ? m_objects.selectedTails().contains(element)
+                                        : m_objects.selectedWords() == element;
+            row->child(c)->setSelected(picked);
+            if (picked)
+                row->setExpanded(true);   // a folded row would hide the only highlight an element has
         }
     }
     m_syncing = false;

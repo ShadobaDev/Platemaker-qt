@@ -44,16 +44,15 @@ namespace {
 
 }  // namespace
 
-QIcon objectGlyph(const Composition& a, const QPalette& pal, int px, qreal dpr)
+QIcon wordsGlyph(const QPalette& pal, int px, qreal dpr)
 {
     QPixmap  pm = blank(px, dpr);
     QPainter p(&pm);
     p.setRenderHint(QPainter::Antialiasing);
 
-    // No silhouette to borrow: lettering with no balloon around it says so with letters. Drawn as
-    // **outlines** rather than as text — type at this size is at the mercy of hinting and of what the
-    // font calls an advance, and a path is measured and scaled like any other shape.
-    if (!a.balloon.has_value() || sizeOf(a).isEmpty()) {
+    // Drawn as **outlines** rather than as text — type at this size is at the mercy of hinting and of what
+    // the font calls an advance, and a path is measured and scaled like any other shape.
+    {
         QFont f;
         f.setBold(true);
         f.setPixelSize(64);
@@ -72,6 +71,17 @@ QIcon objectGlyph(const Composition& a, const QPalette& pal, int px, qreal dpr)
         p.drawPath(letters);
         return QIcon(pm);
     }
+}
+
+QIcon objectGlyph(const Composition& a, const QPalette& pal, int px, qreal dpr)
+{
+    // No silhouette to borrow: lettering with no balloon around it says so with letters.
+    if (!a.balloon.has_value() || sizeOf(a).isEmpty())
+        return wordsGlyph(pal, px, dpr);
+
+    QPixmap  pm = blank(px, dpr);
+    QPainter p(&pm);
+    p.setRenderHint(QPainter::Antialiasing);
 
     const QPainterPath silhouette = Geometry::silhouette(*a.balloon, a.seed);
     const QRectF       extent     = silhouette.boundingRect();

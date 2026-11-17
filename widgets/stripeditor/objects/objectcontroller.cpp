@@ -257,7 +257,7 @@ void ObjectController::reveal(Subject subject, const QString& id, int tail)
         return;
     if (const int at = tailIndex({id, tail}); subject == Subject::Tail && at >= 0 && at < item->tipCount())
         m_view->centerOn(item->mapToScene(item->handleAt(at)));
-    else if (subject == Subject::Overlay)
+    else if (subject == Subject::Overlay || subject == Subject::Words)
         m_view->centerOn(item->sceneBoundingRect().center());
 }
 

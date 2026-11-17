@@ -36,6 +36,9 @@ inline constexpr int k_rowGlyphPx = 24;
 //! Imported artwork is its own glyph: the art itself, scaled down. It has no silhouette to borrow.
 [[nodiscard]] QIcon assetGlyph(const QPixmap& art, int px = k_rowGlyphPx, qreal dpr = 1.0);
 
+//! Words: **Aa**, drawn as outlines (the glyph of an object with no balloon, too).
+[[nodiscard]] QIcon wordsGlyph(const QPalette& pal, int px = k_rowGlyphPx, qreal dpr = 1.0);
+
 //! A tail: a curved sliver narrowing to the point it speaks from. Deliberately **not** a V — the tree
 //! already draws a chevron next to it, and two arrow-shaped marks in one row read as one control.
 [[nodiscard]] QIcon tailGlyph(const QPalette& pal, int px = k_rowGlyphPx, qreal dpr = 1.0);

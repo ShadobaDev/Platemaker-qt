@@ -334,6 +334,7 @@ void ObjectState::setComposition(const Composition& a)
     m_addWordsButton->setVisible(std::any_of(m_composition.words.cbegin(), m_composition.words.cend(),
                                              [this](const Words& w) { return seated(m_composition, w); }));
     m_deleteButton->setText(tr("Delete"));
+    m_deleteButton->setVisible(true);
     applyKindVisibility();
 }
 
@@ -358,6 +359,7 @@ void ObjectState::setMixedSubjects(int count)
     m_addWordsButton->setVisible(false);
     m_scaleRow->setVisible(false);
     m_deleteButton->setText(tr("Delete"));
+    m_deleteButton->setVisible(true);
     for (auto it = m_sections.cbegin(); it != m_sections.cend(); ++it)
         it.value()->setVisible(false);
     refreshLook();
@@ -403,6 +405,7 @@ void ObjectState::setCompositions(const QList<Composition>& objects)
     m_addWordsButton->setVisible(false);
     m_scaleRow->setVisible(false);    // one spin box cannot be several pictures' sizes
     m_deleteButton->setText(tr("Delete"));
+    m_deleteButton->setVisible(true);
 
     // **The union**: a section is here when at least one of them carries that group — carriesGroup()
     // answers for each, as it does for a single subject.
@@ -474,6 +477,7 @@ void ObjectState::setTail(const Composition& a, int index)
     m_addWordsButton->setVisible(false);
     m_scaleRow->setVisible(false);
     m_deleteButton->setText(tr("Delete tail"));
+    m_deleteButton->setVisible(true);
     applyKindVisibility();
 }
 
@@ -491,6 +495,7 @@ void ObjectState::setWords(const Composition& a, int id)
         ++index;
     m_subject->setText(tr("Words %1").arg(index + 1));
     m_deleteButton->setText(tr("Delete words"));
+    m_deleteButton->setVisible(m_composition.words.size() > 1);   // the last words are never deleted
     refreshLook();
     applyKindVisibility();
 }

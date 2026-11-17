@@ -558,6 +558,8 @@ QJsonObject toJson(const Composition& c)
             QJsonObject o = tailToJson(t.tail);
             o.insert(QStringLiteral("id"), t.id);
             o.insert(QStringLiteral("root"), t.root);
+            if (t.isBridge())
+                o.insert(QStringLiteral("to"), t.to);
             tails.append(o);
         }
         j.insert(QStringLiteral("balloon"), QJsonObject{
@@ -626,7 +628,8 @@ Composition compositionFromJson(const QJsonObject& j)
         }
         for (const QJsonValue& v : o.value(QStringLiteral("tails")).toArray()) {
             const QJsonObject to = v.toObject();
-            b.tails.append({id(to), to.value(QStringLiteral("root")).toInt(), tailFromJson(to)});
+            b.tails.append({id(to), to.value(QStringLiteral("root")).toInt(), tailFromJson(to),
+                            to.value(QStringLiteral("to")).toInt()});
         }
         if (!b.bodies.isEmpty())   // a balloon is its bodies: one without any is not one
             c.balloon = b;
@@ -739,12 +742,18 @@ void TailsProperties::applyTo(Composition& c) const
         return;
     Balloon& b      = *c.balloon;
     b.style.nextLook = nextLook;
-    // A tail is kept by its place in the list, its id and its root with it; one past the end is new, from the
-    // first body; the ones the list no longer has go.
+    // A tail is kept by its place in the list, its id, its root and its far body with it; one past the end is new,
+    // from the first body; the ones the list no longer has go.
     QList<BalloonTail> tails;
-    for (qsizetype i = 0; i < items.size(); ++i)
-        tails.append(i < b.tails.size() ? BalloonTail{b.tails.at(i).id, b.tails.at(i).root, items.at(i)}
-                                        : BalloonTail{c.nextId++, b.bodies.first().id, items.at(i)});
+    for (qsizetype i = 0; i < items.size(); ++i) {
+        if (i < b.tails.size()) {
+            BalloonTail t = b.tails.at(i);
+            t.tail        = items.at(i);
+            tails.append(t);
+        } else {
+            tails.append({c.nextId++, b.bodies.first().id, items.at(i)});
+        }
+    }
     b.tails = tails;
 }
 

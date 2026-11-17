@@ -71,16 +71,24 @@ struct Body
     [[nodiscard]] bool operator!=(const Body& o) const { return !(*this == o); }
 };
 
-//! One tail of a balloon, leaving from the body \c root.
+/**
+ * \brief One tail of a balloon, leaving from the body \c root: to its tip, or, as a **bridge**, to the body \c to.
+ *
+ * A bridge joins two bodies of one balloon into a chain (chain.hpp); it keeps a tail's width, bend and breaks,
+ * and its tip is not read.
+ */
 struct BalloonTail
 {
     int  id   = 0;
     int  root = 0;   //!< The id of the body it leaves from.
     Tail tail;       //!< Its tip (in the composition's frame), width, bend and look.
+    int  to   = 0;   //!< A bridge's far body; 0 for a tail.
+
+    [[nodiscard]] bool isBridge() const { return to != 0; }
 
     [[nodiscard]] bool operator==(const BalloonTail& o) const
     {
-        return id == o.id && root == o.root && tail == o.tail;
+        return id == o.id && root == o.root && tail == o.tail && to == o.to;
     }
     [[nodiscard]] bool operator!=(const BalloonTail& o) const { return !(*this == o); }
 };
@@ -303,7 +311,8 @@ inline constexpr int k_labelChars = 32;
  *
  * `{balloon: {id, style, bodies, tails}, picture, words, seed, preset, nextId}`, each
  * group an object and each section an object inside its group (a section's numbers left out while they are their
- * defaults). A body is `{id, place, size, shape}`, a tail `{id, root, tip, width, bend, look}`, words
+ * defaults). A body is `{id, place, size, shape}`, a tail `{id, root, tip, width, bend, look}` and a bridge `to`
+ * too, words
  * `{id, text, seat, frame}` or, with no seat, `{id, text, place, box}`; a place is `{pos}`, with `rotation` and `scale`
  * only when they are not their defaults.
  */

@@ -527,6 +527,16 @@ void tidyRuns(TextProperties& t)
         else
             out.append(r);
     }
+    // One run over the whole text is the words' own lettering: the same thing said one way.
+    if (out.size() == 1 && out.first().from == 0 && out.first().length == size) {
+        const TextRun& r = out.first();
+        t.family         = r.family.value_or(t.family);
+        t.pixelSize      = r.pixelSize.value_or(t.pixelSize);
+        t.bold           = r.bold.value_or(t.bold);
+        t.italic         = r.italic.value_or(t.italic);
+        t.fill           = r.fill.value_or(t.fill);
+        out.clear();
+    }
     t.runs = out;
 }
 

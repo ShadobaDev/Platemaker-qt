@@ -218,7 +218,8 @@ struct Composition
 
 /**
  * \brief @p t's runs made tidy: in order, none overlapping (the earlier keeps the letters), each within the body,
- *        none overriding a field with the words' own value, none overriding nothing, two neighbours alike merged.
+ *        none overriding a field with the words' own value, none overriding nothing, two neighbours alike merged;
+ *        one left over the whole text folded into the words' own lettering.
  */
 void tidyRuns(TextProperties& t);
 

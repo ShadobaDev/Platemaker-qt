@@ -802,7 +802,8 @@ TEST(PropertyGroupPersistence, RoundTrips)
 
 /**
  * \brief Runs are kept tidy: an overlap goes to the earlier run, a run past the body is cut there, a value the words
- *        have already is no override, a run that overrides nothing goes, and two neighbours alike are one.
+ *        have already is no override, a run that overrides nothing goes, two neighbours alike are one, and one
+ *        over the whole text is the words' own lettering.
  */
 TEST(PropertyGroupPersistence, RunsAreKeptTidy)
 {
@@ -830,6 +831,14 @@ TEST(PropertyGroupPersistence, RunsAreKeptTidy)
     TextRun pastTidy = run(7, 3);
     pastTidy.italic  = true;
     EXPECT_EQ(t.runs, (QList<TextRun>{boldTidy, pastTidy}));
+
+    // One run over the whole text is the words' own lettering.
+    TextRun whole   = run(0, 10);
+    whole.pixelSize = 48;
+    t.runs          = {whole};
+    tidyRuns(t);
+    EXPECT_TRUE(t.runs.isEmpty());
+    EXPECT_EQ(t.pixelSize, 48);
 }
 
 /**

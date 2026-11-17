@@ -11,8 +11,17 @@
 #include <QTextOption>
 #include <QSignalBlocker>
 #include <QSpinBox>
+#include <QSyntaxHighlighter>
+#include <QTextBlock>
+#include <QTextCursor>
+#include <QTextFragment>
 #include <QVBoxLayout>
 #include <QtMath>
+
+#include <algorithm>
+#include <functional>
+#include <tuple>
+#include <utility>
 
 namespace StripEdit {
 
@@ -43,6 +52,74 @@ public:
     }
 };
 
+/**
+ * @name Where a run's overrides ride on the box's letters (TextEditor::putRuns()): character format properties
+ *       that nothing draws (the box's look is LetteringLook's).
+ * @{
+ */
+constexpr int k_runFamily = QTextFormat::UserProperty;
+constexpr int k_runSize   = QTextFormat::UserProperty + 1;
+constexpr int k_runBold   = QTextFormat::UserProperty + 2;
+constexpr int k_runItalic = QTextFormat::UserProperty + 3;
+constexpr int k_runFill   = QTextFormat::UserProperty + 4;
+/** @} */
+
+//! @p base with what @p f, a letter's format in the box, overrides.
+TextProperties withFormat(TextProperties base, const QTextCharFormat& f)
+{
+    if (f.hasProperty(k_runFamily))
+        base.family = f.stringProperty(k_runFamily);
+    if (f.hasProperty(k_runSize))
+        base.pixelSize = f.intProperty(k_runSize);
+    if (f.hasProperty(k_runBold))
+        base.bold = f.boolProperty(k_runBold);
+    if (f.hasProperty(k_runItalic))
+        base.italic = f.boolProperty(k_runItalic);
+    if (f.hasProperty(k_runFill))
+        base.fill = f.property(k_runFill).value<Paint>();
+    return base;
+}
+
+//! Every fragment of @p doc that has letters in [@p from, @p to), with where it starts and ends there.
+template <class F>
+void eachFragment(const QTextDocument& doc, int from, int to, F&& f)
+{
+    for (QTextBlock b = doc.begin(); b.isValid(); b = b.next())
+        for (QTextBlock::iterator it = b.begin(); !it.atEnd(); ++it) {
+            const QTextFragment fragment = it.fragment();
+            const int           start    = qMax(from, fragment.position());
+            const int           end      = qMin(to, fragment.position() + fragment.length());
+            if (start < end)
+                f(fragment.charFormat(), start, end);
+        }
+}
+
+/**
+ * \brief How the box shows its letters (TextEditor::lookOf()): a look over the document, never in it, so it is
+ *        neither text, nor a run, nor a step to undo.
+ */
+class LetteringLook : public QSyntaxHighlighter
+{
+public:
+    LetteringLook(QTextDocument* doc, std::function<QTextCharFormat(const QTextCharFormat&)> look)
+        : QSyntaxHighlighter(doc), m_look(std::move(look))
+    {
+    }
+
+protected:
+    void highlightBlock(const QString&) override
+    {
+        const QTextBlock b = currentBlock();
+        for (QTextBlock::iterator it = b.begin(); !it.atEnd(); ++it) {
+            const QTextFragment fragment = it.fragment();
+            setFormat(fragment.position() - b.position(), fragment.length(), m_look(fragment.charFormat()));
+        }
+    }
+
+private:
+    std::function<QTextCharFormat(const QTextCharFormat&)> m_look;
+};
+
 //! The context the rows' strings are translated in: this panel's own.
 constexpr char k_trContext[] = "StripEdit::TextEditor";
 
@@ -66,6 +143,7 @@ TextEditor::TextEditor(QWidget* parent)
     m_body->setPlaceholderText(tr("Type the line…"));
     m_body->setMinimumHeight(70);
     lay->addWidget(m_body);
+    m_look = new LetteringLook(m_body->document(), [this](const QTextCharFormat& f) { return lookOf(f); });
 
     // Spaces, tabs and line ends made visible — in this box only. The balloon is always drawn as it
     // will render, and whitespace is text there like anything else: a trailing empty line is a line.
@@ -102,7 +180,7 @@ TextEditor::TextEditor(QWidget* parent)
     m_family->setMinimumContentsLength(8);
     form->addRow(tr("Font"), m_family);
 
-    m_size = new QSpinBox(this);
+    m_size = new MixedSpinBox(this);
     m_size->setRange(k_textSizeMin, k_textSizeMax);
     m_size->setSuffix(tr(" px"));
     // Strip-scale pixels: the same number the render uses, so a size chosen here means the same thing
@@ -112,6 +190,9 @@ TextEditor::TextEditor(QWidget* parent)
 
     m_bold = new QCheckBox(tr("Bold"), this);
     form->addRow(QString(), m_bold);
+
+    m_italic = new QCheckBox(tr("Italic"), this);
+    form->addRow(QString(), m_italic);
 
     m_lineSpacing = new QSpinBox(this);
     m_lineSpacing->setRange(k_lineSpacingMin, k_lineSpacingMax);
@@ -135,31 +216,45 @@ TextEditor::TextEditor(QWidget* parent)
 
     // The letters' paint: a colour, or a halftone over it.
     m_fill.build(this, form, &TextProperties::fill, tr("Colour"), m_values, m_populating,
-                 [this] { emit changed(); }, [this] { emit committed(); });
+                 [this] { rowChanged(); }, [this] { emit committed(); });
 
     // The outline: its width, 0 for none, then its paint, shown once there is one.
     m_outlineWidth.build(this, form, "textOutline", k_outlineRows, k_trContext, m_values, m_populating, [this] {
         showOutline();
-        emit changed();
+        rowChanged();
     });
     m_outline.build(this, form, &TextProperties::outline, tr("Outline colour"), m_values, m_populating,
-                    [this] { emit changed(); }, [this] { emit committed(); });
+                    [this] { rowChanged(); }, [this] { emit committed(); });
 
     // The shadow, the balloon's own rows: solid with no offset it is a second outline, soft a glow.
     m_shadow.build(this, form, &TextProperties::shadow, &TextProperties::shadowFill, tr("Shadow"),
                    tr("The letters with their outline, grown, moved and filled under them. Solid with no\n"
                       "offset it reads as a second outline; soft with no offset, as a glow."),
-                   m_values, m_populating, [this] { emit changed(); }, [this] { emit committed(); });
+                   m_values, m_populating, [this] { rowChanged(); }, [this] { emit committed(); });
 
     // Each control records that *it* was the one moved. Bound to a set, only what was moved is written,
     // and everything else stays each object's own — see applyEditedTo().
+    // The runs ride on the letters as formats, so typing carries them along: the body and the runs are read back
+    // together.
     const auto bodyEdited = [this] {
         if (m_populating)
             return;
-        m_values.body = m_body->toPlainText();
+        TextProperties& lettering = m_onLetters ? m_lettering : m_values;
+        lettering                 = fromBox(lettering);
+        if (!m_onLetters)
+            m_shown = m_values;
+        refreshLook();
         emit changed();
     };
     connect(m_body, &QPlainTextEdit::textChanged, this, bodyEdited);
+    connect(m_body, &QPlainTextEdit::selectionChanged, this, [this] { showSelection(); });
+    // Once the author has put the caret in the box, it is the caret's lettering the rows show and set.
+    connect(m_body, &QPlainTextEdit::cursorPositionChanged, this, [this] {
+        if (m_populating)
+            return;
+        m_caretActive = true;
+        showSelection();
+    });
 
     connect(m_family, &QFontComboBox::currentFontChanged, this, [this](const QFont& f) {
         if (m_populating)
@@ -167,7 +262,7 @@ TextEditor::TextEditor(QWidget* parent)
         m_values.family = f.family();
         m_familyTouched = true;
         m_mixedFamily   = false;
-        emit changed();
+        rowChanged();
     });
     connect(m_size, &QSpinBox::valueChanged, this, [this](int v) {
         if (m_populating)
@@ -176,7 +271,7 @@ TextEditor::TextEditor(QWidget* parent)
             m_mixedSize = false;
         m_values.pixelSize = v;
         m_sizeTouched      = true;
-        emit changed();
+        rowChanged();
     });
     connect(m_lineSpacing, &QSpinBox::valueChanged, this, [this](int v) {
         if (m_populating)
@@ -185,7 +280,7 @@ TextEditor::TextEditor(QWidget* parent)
             m_mixedLineSpacing = false;
         m_values.lineSpacing = v;
         m_lineSpacingTouched = true;
-        emit changed();
+        rowChanged();
     });
     connect(m_bold, &QCheckBox::toggled, this, [this](bool on) {
         if (m_populating)
@@ -194,7 +289,16 @@ TextEditor::TextEditor(QWidget* parent)
         m_values.bold = on;
         m_boldTouched = true;
         m_mixedBold   = false;
-        emit changed();
+        rowChanged();
+    });
+    connect(m_italic, &QCheckBox::toggled, this, [this](bool on) {
+        if (m_populating)
+            return;
+        m_italic->setTristate(false);
+        m_values.italic = on;
+        m_italicTouched = true;
+        m_mixedItalic   = false;
+        rowChanged();
     });
     connect(m_align, &QComboBox::currentIndexChanged, this, [this](int i) {
         if (m_populating || i < 0)
@@ -202,7 +306,7 @@ TextEditor::TextEditor(QWidget* parent)
         m_values.align = m_align->currentData().toInt();
         m_alignTouched = true;
         m_mixedAlign   = false;
-        emit changed();
+        rowChanged();
     });
     connect(m_valign, &QComboBox::currentIndexChanged, this, [this](int i) {
         if (m_populating || i < 0)
@@ -210,7 +314,7 @@ TextEditor::TextEditor(QWidget* parent)
         m_values.valign = m_valign->currentData().toInt();
         m_valignTouched = true;
         m_mixedValign   = false;
-        emit changed();
+        rowChanged();
     });
 
     syncFromValues();
@@ -227,11 +331,15 @@ void TextEditor::bind(const Subjects& subjects)
             texts << w->text;
     if (texts.isEmpty())
         texts << TextProperties{};   // nothing lettered yet: the defaults, as for an empty composition
-    m_values   = texts.first();
-    m_subjects = static_cast<int>(texts.size());
+    m_values    = texts.first();
+    m_subjects  = static_cast<int>(texts.size());
+    m_onLetters = false;
+    m_atCaret   = false;
 
-    m_mixedFamily = m_mixedSize = m_mixedBold = m_mixedAlign = m_mixedValign = m_mixedLineSpacing = false;
+    m_mixedFamily = m_mixedSize = m_mixedBold = m_mixedItalic = m_mixedAlign = m_mixedValign = false;
+    m_mixedLineSpacing = false;
     m_fill.reset();
+    m_leastSize = m_greatestSize = m_values.pixelSize;
     m_outlineWidth.reset();
     m_outline.reset();
     m_shadow.reset();
@@ -240,7 +348,10 @@ void TextEditor::bind(const Subjects& subjects)
         m_fill.compare(t, m_values);
         m_mixedFamily = m_mixedFamily || t.family    != m_values.family;
         m_mixedSize   = m_mixedSize   || t.pixelSize != m_values.pixelSize;
+        m_leastSize    = qMin(m_leastSize, t.pixelSize);
+        m_greatestSize = qMax(m_greatestSize, t.pixelSize);
         m_mixedBold   = m_mixedBold   || t.bold      != m_values.bold;
+        m_mixedItalic = m_mixedItalic || t.italic    != m_values.italic;
         m_mixedAlign  = m_mixedAlign  || t.align     != m_values.align;
         m_mixedValign = m_mixedValign || t.valign    != m_values.valign;
         m_mixedLineSpacing = m_mixedLineSpacing || t.lineSpacing != m_values.lineSpacing;
@@ -249,10 +360,11 @@ void TextEditor::bind(const Subjects& subjects)
         m_shadow.compare(t, m_values);
         m_anyOutline       = m_anyOutline       || t.outlineWidth > 0.0;
     }
-    m_familyTouched = m_sizeTouched = m_boldTouched = m_alignTouched = m_valignTouched = false;
+    m_familyTouched = m_sizeTouched = m_boldTouched = m_italicTouched = m_alignTouched = m_valignTouched = false;
     m_lineSpacingTouched = false;
 
     syncFromValues();
+    showSelection();   // letters still selected in the box are the rows' subject again, after a rebinding
 }
 
 QList<const Words*> TextEditor::spokenFor(const Composition& c) const
@@ -273,7 +385,7 @@ void TextEditor::applyTo(Composition& target) const
     }
     for (Words& w : target.words)
         if (m_words == 0 || w.id == m_words) {
-            w.text = m_values;
+            w.text = values();
             return;
         }
 }
@@ -292,12 +404,25 @@ void TextEditor::applyEdited(TextProperties& t) const
     if (m_familyTouched) t.family    = m_values.family;
     if (m_sizeTouched)   t.pixelSize = m_values.pixelSize;
     if (m_boldTouched)   t.bold      = m_values.bold;
+    if (m_italicTouched) t.italic    = m_values.italic;
     if (m_alignTouched)  t.align     = m_values.align;
     if (m_valignTouched) t.valign    = m_values.valign;
     if (m_lineSpacingTouched) t.lineSpacing = m_values.lineSpacing;
     m_outlineWidth.applyEdited(m_values, t);
     m_outline.applyEdited(m_values, t);
     m_shadow.applyEdited(m_values, t);
+    // What was set for them all is each words' own, whole (C40): their runs no longer set it.
+    for (TextRun& r : t.runs) {
+        if (m_familyTouched)
+            r.family.reset();
+        if (m_sizeTouched)
+            r.pixelSize.reset();
+        if (m_boldTouched)
+            r.bold.reset();
+        if (m_italicTouched)
+            r.italic.reset();
+    }   // a run's fill stays: the fill's rows say nothing of having been touched
+    tidyRuns(t);
 }
 
 void TextEditor::focusContent()
@@ -318,14 +443,20 @@ void TextEditor::setContentEnabled(bool on)
     m_body->setEnabled(on);
 }
 
-void TextEditor::syncFromValues()
+void TextEditor::syncFromValues(bool box)
 {
     m_populating = true;
     {
         const QSignalBlocker b1(m_body), b2(m_family);
 
-        if (m_body->toPlainText() != m_values.body)
-            m_body->setPlainText(m_values.body);   // guarded: setPlainText resets the caret
+        // Guarded: setPlainText resets the caret, and the selection the rows may be showing.
+        const TextProperties& lettering = values();
+        if (box && m_body->toPlainText() != lettering.body) {
+            m_body->setPlainText(lettering.body);
+            m_caretActive = false;   // other text: the caret has not been put in it yet
+        }
+        if (box && fromBox(lettering).runs != lettering.runs)
+            putRuns(lettering);
 
         // A font combo is a list of fonts, so "Mixed" cannot be an entry in it: no current entry, and
         // the placeholder says which state that is.
@@ -340,11 +471,13 @@ void TextEditor::syncFromValues()
             m_family->setCurrentFont(QFont(m_values.family.isEmpty() ? Geometry::defaultFamily()
                                                                      : m_values.family));
     }
+    m_size->setSpread(m_leastSize, m_greatestSize);
     showSpin(m_size, m_mixedSize, m_values.pixelSize, k_textSizeMin, k_textSizeMax);
     showSpin(m_lineSpacing, m_mixedLineSpacing, m_values.lineSpacing, k_lineSpacingMin, k_lineSpacingMax);
     // A text object has no outline to keep from. Shown when anything bound has one: a value typed for
     // a set lands on the text objects in it too, where it is carried and ignored.
     showCheck(m_bold, m_mixedBold, m_values.bold);
+    showCheck(m_italic, m_mixedItalic, m_values.italic);
     showCombo(m_align, m_mixedAlign, m_align->findData(m_values.align));
     showCombo(m_valign, m_mixedValign, m_valign->findData(m_values.valign));
     m_fill.show(m_values);
@@ -356,7 +489,231 @@ void TextEditor::syncFromValues()
     // The lettering itself is the one thing a set never shares: five balloons do not share one line.
     m_body->setVisible(m_subjects <= 1 && m_bodyVisible);
     m_showWhitespace->setVisible(m_subjects <= 1 && m_bodyVisible);   // it is the box's, and goes with it
+    m_shown      = m_values;
     m_populating = false;
+    refreshLook();
+}
+
+QTextCharFormat TextEditor::runFormat(int fields, const TextProperties& from)
+{
+    QTextCharFormat f;
+    if (fields & RunFamily)
+        f.setProperty(k_runFamily, from.family);
+    if (fields & RunSize)
+        f.setProperty(k_runSize, from.pixelSize);
+    if (fields & RunBold)
+        f.setProperty(k_runBold, from.bold);
+    if (fields & RunItalic)
+        f.setProperty(k_runItalic, from.italic);
+    if (fields & RunFill)
+        f.setProperty(k_runFill, QVariant::fromValue(from.fill));
+    return f;
+}
+
+void TextEditor::rowChanged()
+{
+    const int runFields = runFieldsApart(m_shown, m_values);
+    if (m_onLetters) {
+        // At the caret, what was set is the lettering of the letters typed next: nothing changes until one is.
+        // On letters selected, it is their run.
+        if (m_atCaret) {
+            if (runFields != 0)
+                m_body->mergeCurrentCharFormat(runFormat(runFields, m_values));
+        } else {
+            setOnSelection(runFields, m_values);
+        }
+        // The rest of the lettering (alignment, spacing, outline, shadow) is the words' own, set from the rows.
+        TextProperties next = m_values;
+        next.body           = m_lettering.body;
+        next.family         = m_lettering.family;
+        next.pixelSize      = m_lettering.pixelSize;
+        next.bold           = m_lettering.bold;
+        next.italic         = m_lettering.italic;
+        next.fill           = m_lettering.fill;
+        next                = fromBox(next);
+        const bool same     = next == m_lettering;
+        m_lettering         = next;
+        m_shown             = m_values;
+        refreshLook();
+        if (!same)
+            emit changed();
+        return;
+    }
+    if (m_subjects <= 1 && runFields != 0) {
+        // The words as the panel bound them, the box not yet used: what was set is theirs, whole.
+        clearFromRuns(runFields);
+        m_values = fromBox(m_values);
+    }
+    m_shown = m_values;
+    refreshLook();
+    emit changed();
+}
+
+void TextEditor::showSelection()
+{
+    if (m_populating)
+        return;
+    const QTextCursor cursor   = m_body->textCursor();
+    const bool        one      = m_subjects <= 1;
+    const bool        selected = one && cursor.hasSelection();
+    const bool        atCaret  = one && !selected && m_caretActive;
+    if (!selected && !atCaret) {
+        if (!m_onLetters)
+            return;
+        m_onLetters = false;
+        m_atCaret   = false;
+        m_values    = m_lettering;
+        m_mixedFamily = m_mixedSize = m_mixedBold = m_mixedItalic = false;
+        m_fill.reset();
+        m_leastSize = m_greatestSize = m_values.pixelSize;
+        syncFromValues(false);
+        return;
+    }
+    if (!m_onLetters) {
+        m_lettering = m_values;
+        m_onLetters = true;
+    }
+    m_atCaret = atCaret;
+    // Each letter as the lettering it is drawn in: the rows show the first, Mixed where they differ. At the caret,
+    // the lettering the next letter typed gets.
+    QList<TextProperties> parts;
+    if (selected)
+        eachFragment(*m_body->document(), cursor.selectionStart(), cursor.selectionEnd(),
+                     [&](const QTextCharFormat& f, int, int) { parts << withFormat(m_lettering, f); });
+    else
+        parts << withFormat(m_lettering, m_body->currentCharFormat());
+    m_values = parts.isEmpty() ? m_lettering : parts.first();
+    m_mixedFamily = m_mixedSize = m_mixedBold = m_mixedItalic = false;
+    m_fill.reset();
+    m_leastSize = m_greatestSize = m_values.pixelSize;
+    for (const TextProperties& p : std::as_const(parts)) {
+        m_leastSize    = qMin(m_leastSize, p.pixelSize);
+        m_greatestSize = qMax(m_greatestSize, p.pixelSize);
+        m_mixedFamily = m_mixedFamily || p.family != m_values.family;
+        m_mixedSize   = m_mixedSize || p.pixelSize != m_values.pixelSize;
+        m_mixedBold   = m_mixedBold || p.bold != m_values.bold;
+        m_mixedItalic = m_mixedItalic || p.italic != m_values.italic;
+        m_fill.compare(p, m_values);
+    }
+    // The rows only: the box is where the text comes from, and a caret moved by a letter typed arrives before the
+    // letter is read back (QPlainTextEdit::cursorPositionChanged comes before textChanged).
+    syncFromValues(false);
+}
+
+int TextEditor::runFieldsApart(const TextProperties& a, const TextProperties& b)
+{
+    return (a.family != b.family ? RunFamily : 0) | (a.pixelSize != b.pixelSize ? RunSize : 0)
+         | (a.bold != b.bold ? RunBold : 0) | (a.italic != b.italic ? RunItalic : 0) | (a.fill != b.fill ? RunFill : 0);
+}
+
+void TextEditor::setOnSelection(int fields, const TextProperties& from)
+{
+    if (fields == 0)
+        return;
+    const QSignalBlocker quiet(m_body);   // the runs are read back by the caller, once
+    QTextCursor          cursor = m_body->textCursor();
+    cursor.mergeCharFormat(runFormat(fields, from));
+}
+
+void TextEditor::clearFromRuns(int fields)
+{
+    QTextDocument* doc = m_body->document();
+    QList<std::tuple<QTextCharFormat, int, int>> fragments;
+    eachFragment(*doc, 0, doc->characterCount(), [&](const QTextCharFormat& f, int from, int to) {
+        fragments.append({f, from, to});
+    });
+    const QSignalBlocker quiet(m_body);
+    for (auto [f, from, to] : fragments) {
+        for (const auto& [field, property] : {std::pair{RunFamily, k_runFamily}, std::pair{RunSize, k_runSize},
+                                              std::pair{RunBold, k_runBold}, std::pair{RunItalic, k_runItalic},
+                                              std::pair{RunFill, k_runFill}})
+            if (fields & field)
+                f.clearProperty(property);
+        QTextCursor c(doc);
+        c.setPosition(from);
+        c.setPosition(to, QTextCursor::KeepAnchor);
+        c.setCharFormat(f);
+    }
+}
+
+TextProperties TextEditor::fromBox(TextProperties base) const
+{
+    base.body = m_body->toPlainText();
+    base.runs.clear();
+    const QTextDocument* doc = m_body->document();
+    eachFragment(*doc, 0, doc->characterCount(), [&](const QTextCharFormat& f, int from, int to) {
+        TextRun r;
+        r.from   = from;
+        r.length = to - from;
+        if (f.hasProperty(k_runFamily))
+            r.family = f.stringProperty(k_runFamily);
+        if (f.hasProperty(k_runSize))
+            r.pixelSize = f.intProperty(k_runSize);
+        if (f.hasProperty(k_runBold))
+            r.bold = f.boolProperty(k_runBold);
+        if (f.hasProperty(k_runItalic))
+            r.italic = f.boolProperty(k_runItalic);
+        if (f.hasProperty(k_runFill))
+            r.fill = f.property(k_runFill).value<Paint>();
+        if (r.overrides())
+            base.runs.append(r);
+    });
+    tidyRuns(base);
+    return base;
+}
+
+void TextEditor::putRuns(const TextProperties& t)
+{
+    const QSignalBlocker quiet(m_body);
+    QTextCursor          all(m_body->document());
+    all.select(QTextCursor::Document);
+    all.setCharFormat(QTextCharFormat());
+    for (const TextRun& r : t.runs) {
+        TextProperties with = t;
+        with.family         = r.family.value_or(t.family);
+        with.pixelSize      = r.pixelSize.value_or(t.pixelSize);
+        with.bold           = r.bold.value_or(t.bold);
+        with.italic         = r.italic.value_or(t.italic);
+        with.fill           = r.fill.value_or(t.fill);
+        const int fields = (r.family ? RunFamily : 0) | (r.pixelSize ? RunSize : 0) | (r.bold ? RunBold : 0)
+                         | (r.italic ? RunItalic : 0) | (r.fill ? RunFill : 0);
+        QTextCursor run(m_body->document());
+        run.setPosition(r.from);
+        run.setPosition(r.from + r.length, QTextCursor::KeepAnchor);
+        run.mergeCharFormat(runFormat(fields, with));
+    }
+}
+
+QTextCharFormat TextEditor::lookOf(const QTextCharFormat& f) const
+{
+    const TextProperties t = withFormat(values(), f);
+    QFont                font = m_body->font();
+    if (!t.family.isEmpty())
+        font.setFamily(t.family);
+    // A rank, not the size: the sizes in use, smallest first, one pixel apart from the box's own.
+    const auto rank = std::lower_bound(m_lookSizes.cbegin(), m_lookSizes.cend(), t.pixelSize) - m_lookSizes.cbegin();
+    font.setPixelSize(QFontInfo(m_body->font()).pixelSize() + int(rank));
+    font.setBold(t.bold);
+    font.setItalic(t.italic);
+    QTextCharFormat look;
+    look.setFont(font);
+    if (f.hasProperty(k_runFill))   // a run's colour only: the words' own may be the box's white
+        look.setForeground(t.fill.colour);
+    return look;
+}
+
+void TextEditor::refreshLook()
+{
+    const TextProperties& t = values();
+    QList<int>            sizes{t.pixelSize};
+    for (const TextRun& r : t.runs)
+        if (r.pixelSize)
+            sizes << *r.pixelSize;
+    std::sort(sizes.begin(), sizes.end());
+    sizes.erase(std::unique(sizes.begin(), sizes.end()), sizes.end());
+    m_lookSizes = sizes;
+    const QSignalBlocker quiet(m_body);
+    m_look->rehighlight();
 }
 
 void TextEditor::showOutline()
@@ -367,7 +724,8 @@ void TextEditor::showOutline()
 
 void TextEditor::updateRows()
 {
-    for (QWidget* w : {static_cast<QWidget*>(m_family), static_cast<QWidget*>(m_size), static_cast<QWidget*>(m_bold)})
+    for (QWidget* w : {static_cast<QWidget*>(m_family), static_cast<QWidget*>(m_size), static_cast<QWidget*>(m_bold),
+                       static_cast<QWidget*>(m_italic)})
         m_form->setRowVisible(w, shows(Row::TextFont));
     m_form->setRowVisible(m_lineSpacing, shows(Row::TextSpacing));
     m_form->setRowVisible(m_align, shows(Row::TextAlign));

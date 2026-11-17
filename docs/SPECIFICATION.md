@@ -278,6 +278,13 @@ case.
   and the last words of an object are never deleted. With the object selected, its Text section sets the lettering
   of every words at once, as a set's, without the text box. In shape editing every frame shows its
   handles, the picked words' first and drawn thicker and lighter; a press on another frame's handle picks it.
+- **Runs.** Stretches of a words' text can be set in another family, size, weight, slant (italic) or fill
+  (`TextProperties::runs`); the outline, the shadow, the alignment and the line spacing stay the words'. The Text
+  section's text box works as a small word processor: letters selected are what its font, size, bold, italic and
+  colour rows show and set; the caret alone shows and sets the lettering of the letters typed next; select all
+  sets the words' own (a run over the whole text is the words' lettering). Before the caret is put in the box,
+  those rows set the whole words. The box shows the letters in their font, bold and italic, and their sizes as
+  ranks one pixel apart.
 - **What the letters wear**, fields of `TextProperties`, off by default: their **fill** (a Paint, its
   colour still saved as `textColour`), an **outline** (a Paint and a width, drawn outside the glyphs:
   stroked at twice the width under them, two draws in the SVG, not `paint-order`), and a **shadow** (the

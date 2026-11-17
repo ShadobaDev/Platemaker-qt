@@ -165,6 +165,42 @@ inline void paintColourSwatch(QPushButton* swatch, const QColor& c)
 }
 
 /**
+ * \brief A spin box that, showing **Mixed** (showSpin()), steps from the values it stands for: up from the least,
+ *        down from the greatest — not from the sentinel below its minimum.
+ */
+class MixedSpinBox : public QSpinBox
+{
+public:
+    using QSpinBox::QSpinBox;
+
+    //! The least and the greatest of the values its Mixed stands for (showSpin() sets it).
+    void setSpread(int least, int greatest)
+    {
+        m_least    = least;
+        m_greatest = greatest;
+    }
+
+protected:
+    void stepBy(int steps) override
+    {
+        if (showsMixed())
+            setValue(steps > 0 ? m_least + steps : m_greatest + steps);
+        else
+            QSpinBox::stepBy(steps);
+    }
+    StepEnabled stepEnabled() const override
+    {
+        return showsMixed() ? (StepUpEnabled | StepDownEnabled) : QSpinBox::stepEnabled();
+    }
+
+private:
+    [[nodiscard]] bool showsMixed() const { return !specialValueText().isEmpty() && value() == minimum(); }
+
+    int m_least    = 0;
+    int m_greatest = 0;
+};
+
+/**
  * \brief Shows @p value in @p spin, or **Mixed** when the selection disagrees.
  *
  * A spin box has no third state, so the value one below its minimum becomes the sentinel and Qt's own

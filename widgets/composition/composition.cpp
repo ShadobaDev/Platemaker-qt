@@ -336,11 +336,12 @@ Composition withoutBalloon(Composition c)
 
 bool usesSeed(const Composition& c)
 {
-    const Body* body = bodyOf(c);
-    if (!body)
+    if (!bodyOf(c))
         return false;
     const BalloonStyle& s = c.balloon->style;
-    const bool irregularEdge = body->shape.edge != ShapeProperties::Edge::None && body->shape.teeth.irregularity > 0;
+    bool irregularEdge = false;
+    for (const Body& body : c.balloon->bodies)
+        irregularEdge |= body.shape.edge != ShapeProperties::Edge::None && body.shape.teeth.irregularity > 0;
     return s.line.line != StyleProperties::Line::Clean || s.texture.kind != TextureProperties::Kind::None
         || irregularEdge;
 }

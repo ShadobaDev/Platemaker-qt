@@ -6,6 +6,7 @@
 #include <QJsonArray>
 
 #include "chain.hpp"
+#include "geometry.hpp"
 
 using namespace Chain;
 
@@ -180,4 +181,23 @@ TEST(Chain, ABridgeIsSavedWithItsFarBodyAndATailWithout)
     const QJsonObject saved = toJson(withTail).value(QStringLiteral("balloon")).toObject()
                                   .value(QStringLiteral("tails")).toArray().first().toObject();
     EXPECT_FALSE(saved.contains(QStringLiteral("to")));
+}
+
+TEST(Chain, ABridgeDrawsTwoBodiesAsOneOutline)
+{
+    // No lettering: measuring it needs the QGuiApplication this target does not have.
+    Composition a = balloon(QString());
+    QList<int>  merged;
+    ASSERT_EQ(merge(a, balloon(QString()), k_apart, &merged), ChainError::None);
+    EXPECT_EQ(Geometry::silhouette(*a.balloon, a.seed).toSubpathPolygons().size(), 2);   // two pieces, apart
+
+    ASSERT_EQ(addBridge(a, bodyId(a, 0), merged.first()), ChainError::None);
+    const QPainterPath joined = Geometry::silhouette(*a.balloon, a.seed);
+    EXPECT_EQ(joined.toSubpathPolygons().size(), 1);   // one ring round both: no edge inside the joint
+    const QRectF second(a.balloon->bodies.at(1).place.pos, QSizeF(a.balloon->bodies.at(1).size));
+    EXPECT_TRUE(Geometry::bounds(a).contains(second));
+    EXPECT_EQ(Geometry::tailsDrawn(*a.balloon, a.seed), QList<bool>{true});
+
+    a.balloon->tails.first().tail.baseWidth = 0.0;   // a bridge of no width draws none
+    EXPECT_EQ(Geometry::silhouette(*a.balloon, a.seed).toSubpathPolygons().size(), 2);
 }

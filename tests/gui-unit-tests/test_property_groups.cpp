@@ -24,6 +24,7 @@
 #include <QJsonDocument>
 #include <QJsonObject>
 
+#include "chain.hpp"
 #include "edgewalk.hpp"
 #include "geometry.hpp"
 #include "svg.hpp"
@@ -3044,6 +3045,43 @@ QList<GoldenCase> goldenCases()
         effectsOf(a).shadowFill.kind = Paint::Kind::Dots;
         write(QStringLiteral("speech"), QStringLiteral("hard halftone shadow"), true, a);
     }
+    // Two speech balloons joined by a bridge, the first's tail made it: apart, and overlapping (the bridge only
+    // crosses the overlap), under the lines that walk the joined outline their own way; and broken.
+    const QPointF apart(380, 60);
+    const QPointF overlapping(240, 70);
+    const auto chained = [&](const QPointF& by, StyleProperties::Line line, int breaks) {
+        Composition a          = loadedBalloon();
+        shapeOf(a)             = Geometry::shapeTemplate("speech").shape;
+        styleOf(a)             = StyleProperties();
+        styleOf(a).line        = line;
+        styleOf(a).strokeWidth = 8;
+        textureOf(a)           = looks.first().texture;
+        skinOf(a).fill.kind    = Paint::Kind::Solid;
+        effectsOf(a).shadow.on = false;
+        Tail& tail             = tailsOf(a).first().tail;
+        tail.baseWidth         = 40.0;
+        tail.bend              = 0.2;
+        tail.look.breaks.count = breaks;
+        tail.look.breaks.jog   = 15;
+        Composition other      = a;
+        other.balloon->tails.clear();
+        QList<int> merged;
+        EXPECT_EQ(Chain::merge(a, other, by, &merged), Chain::ChainError::None);
+        EXPECT_EQ(Chain::makeBridge(a, a.balloon->tails.first().id, merged.first()), Chain::ChainError::None);
+        for (Words& w : a.words)
+            w.text.body.clear();
+        return a;
+    };
+    for (StyleProperties::Line line : {StyleProperties::Line::Clean, StyleProperties::Line::Drybrush,
+                                    StyleProperties::Line::Multi, StyleProperties::Line::Flash}) {
+        write(QStringLiteral("speech chain"), QStringLiteral("apart, %1").arg(QLatin1String(lineName(line))), true,
+              chained(apart, line, 0));
+        write(QStringLiteral("speech chain"), QStringLiteral("overlapping, %1").arg(QLatin1String(lineName(line))),
+              true, chained(overlapping, line, 0));
+    }
+    for (StyleProperties::Line line : {StyleProperties::Line::Clean, StyleProperties::Line::Flash})
+        write(QStringLiteral("speech chain"), QStringLiteral("apart broken, %1").arg(QLatin1String(lineName(line))),
+              true, chained(apart, line, 2));
     return cases;
 }
 

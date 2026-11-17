@@ -373,6 +373,45 @@ struct BodyOutline
     QPainterPath outline;
 };
 
+//! A bridge's end width, in per cent of its base: as wide at both ends.
+constexpr int k_evenWidth = 100;
+
+/**
+ * \brief A bridge from @p from to @p to: a tail's middle between where the line joining their centres leaves
+ *        the one and enters the other, each end pulled inside its body as a tail's base is, so the union is
+ *        watertight. As wide all along (a Cut end at full width, inside @p to), bent and broken as a tail is;
+ *        a Circles look is a chain of ellipses across the gap.
+ *
+ * Nothing when the bodies overlap so much that one's centre lies in the other: they read as one already.
+ */
+TailShape bridgePath(const BodyOutline& from, const BodyOutline& to, const Tail& t)
+{
+    Tail towards = t;
+    towards.tip  = to.rect.center();
+    const std::optional<TailRay> out = tailRay(from.outline, from.rect, towards);
+    towards.tip  = from.rect.center();
+    const std::optional<TailRay> in  = tailRay(to.outline, to.rect, towards);
+    if (!out || !in)
+        return {};
+
+    const QPointF leave = out->centre + out->ray * out->edge;   // on the first body's edge
+    const QPointF enter = in->centre + in->ray * in->edge;      // on the second's
+    const qreal   gap   = QLineF(leave, enter).length();
+    const QPointF sway  = out->perp * (t.bend * gap);
+    if (t.look.style == TailLook::Style::Circles) {
+        Tail chain = t;
+        chain.tip  = enter;
+        return {circlesAlong(spinePath(TailSpine{leave, enter, sway, out->perp}), chain), std::nullopt};
+    }
+
+    const qreal inset = t.baseWidth * k_tailBaseInset;
+    const TailSpine s{leave - out->ray * inset, enter + out->ray * inset, sway, out->perp};
+    TailLook even  = t.look;
+    even.tip       = TailLook::Tip::Cut;
+    even.end.width = k_evenWidth;
+    return {ribbonAbout(s, t.baseWidth / 2.0, even).path, std::nullopt};   // its ends lie inside: no end to report
+}
+
 //! Every body of @p b that draws an outline, in order.
 QList<BodyOutline> bodyOutlines(const Balloon& b, quint32 seed)
 {
@@ -395,6 +434,18 @@ const BodyOutline* rootOf(const QList<BodyOutline>& bodies, int id)
     return nullptr;
 }
 
+//! What @p t draws: a tail aimed at its root's bare outline, or a bridge between its two bodies.
+TailShape tailShapeOf(const QList<BodyOutline>& bodies, const BalloonTail& t)
+{
+    const BodyOutline* root = rootOf(bodies, t.root);
+    if (!root)
+        return {};
+    if (!t.isBridge())
+        return tailPath(root->outline, root->rect, t.tail);
+    const BodyOutline* to = rootOf(bodies, t.to);
+    return to ? bridgePath(*root, *to, t.tail) : TailShape{};
+}
+
 } // namespace
 
 QList<QPainterPath> silhouetteParts(const Balloon& b, quint32 seed)
@@ -406,10 +457,7 @@ QList<QPainterPath> silhouetteParts(const Balloon& b, quint32 seed)
     for (const BodyOutline& body : bodies)
         parts.append(body.outline);
     for (const BalloonTail& t : b.tails) {
-        const BodyOutline* root = rootOf(bodies, t.root);
-        if (!root)
-            continue;
-        const QPainterPath tp = tailPath(root->outline, root->rect, t.tail).path;
+        const QPainterPath tp = tailShapeOf(bodies, t).path;
         if (!tp.isEmpty())
             parts.append(tp);
     }
@@ -422,10 +470,8 @@ OutlineModel outlineModel(const Balloon& b, quint32 seed, const QPainterPath& si
     m.joined = silhouette;
     if (b.bodies.isEmpty())
         return m;
-    // ponytail: the first body's frame and stretch; a chain's lines read one per body when it comes.
-    const Body& first = b.bodies.first();
-    m.frame           = QRectF(first.place.pos, QSizeF(first.size));
-    m.coreStretch     = shapeInfo(first.shape.kind).flashStretch;
+    for (const Body& body : b.bodies)
+        m.bodies.append({QRectF(body.place.pos, QSizeF(body.size)), shapeInfo(body.shape.kind).flashStretch});
 
     const QList<BodyOutline> bodies = bodyOutlines(b, seed);
     if (bodies.isEmpty())
@@ -438,10 +484,7 @@ OutlineModel outlineModel(const Balloon& b, quint32 seed, const QPainterPath& si
         partEnds.append(std::nullopt);
     }
     for (const BalloonTail& t : b.tails) {
-        const BodyOutline* root = rootOf(bodies, t.root);
-        if (!root)
-            continue;
-        TailShape tail = tailPath(root->outline, root->rect, t.tail);
+        TailShape tail = tailShapeOf(bodies, t);
         if (tail.path.isEmpty())
             continue;
         parts.append(tail.path);
@@ -475,10 +518,8 @@ QList<bool> tailsDrawn(const Balloon& b, quint32 seed)
     const QList<BodyOutline> bodies = bodyOutlines(b, seed);
     QList<bool>              drawn;
     drawn.reserve(b.tails.size());
-    for (const BalloonTail& t : b.tails) {
-        const BodyOutline* root = rootOf(bodies, t.root);
-        drawn.append(root && !tailPath(root->outline, root->rect, t.tail).path.isEmpty());
-    }
+    for (const BalloonTail& t : b.tails)
+        drawn.append(!tailShapeOf(bodies, t).path.isEmpty());
     return drawn;
 }
 

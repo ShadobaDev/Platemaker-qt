@@ -280,7 +280,7 @@ inline constexpr QSize k_defaultObjectSize{280, 160};
 
 /**
  * \brief Whether @p c draws anything at random from its seed: a balloon whose line is not the solid one, with a
- *        texture, or with an irregular edge on its first body — so it needs a seed, and *Re-roll* has something to
+ *        texture, or with an irregular edge on any body — so it needs a seed, and *Re-roll* has something to
  *        deal again.
  */
 [[nodiscard]] bool usesSeed(const Composition& c);

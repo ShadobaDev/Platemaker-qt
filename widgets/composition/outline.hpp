@@ -83,15 +83,21 @@ struct OutlinePart
     QList<OutlineRing> rings;
 };
 
+//! One body's box and how its shape stretches a radiating line's core: what radiating strokes are laid from.
+struct OutlineBody
+{
+    QRectF frame;             //!< The body's box, in the composition's frame.
+    int    coreStretch = 0;   //!< How far the shape stretches the core along its long axis on Auto, in per cent.
+};
+
 struct OutlineModel
 {
     QPainterPath       joined;   //!< The silhouette: the parts as one path.
     QList<OutlineRing> rings;    //!< Its closed edges, the empty ones left out.
     /** The balloon first, then each tail drawn, each walked round its own edge; for a line that follows them. */
     QList<OutlinePart> parts;
-    QRectF             frame;    //!< The composition's box at the origin: what radiating strokes are laid from.
-    /** How far the shape stretches a radiating line's core along its long axis on Auto, in per cent. */
-    int                coreStretch = 0;
+    /** Each body's box: a radiating stroke is laid from the core of the body whose box is nearest it. */
+    QList<OutlineBody> bodies;
 };
 
 /**

@@ -414,6 +414,42 @@ New, backward-compatible features. Several are gated on a lib version, noted in 
   model holds it: a balloon is a list of bodies (`Balloon::bodies`), words sit on a body (`Words::seat`) and a
   tail leaves one (its root); everything but the neck and the joining reads the first body today.
 
+- [ ] **Tools and object kinds added from outside the editor (plugins) — idea, to decide after joined
+  balloons.** The editor reads tools (`tools()`), shapes and edges (`ShapeInfo`, `EdgeInfo`) and property
+  fields (`fields()`) from tables, and draws every object as a `Render::Item` list. That is a registry's shape.
+  Every table is still keyed by a closed enum, though (`ToolKind`, `ShapeProperties::Kind`, `PropertyGroup`,
+  `Row`). `Composition` holds exactly a balloon, a picture and words, and the editor is one executable that
+  exports nothing. The library and the CLI need no change: they composite the finished SVG and keep the
+  content JSON unread. So an object a plugin made renders without the plugin; only editing it needs the plugin.
+  What it takes, in the order it would be built (all but the last are needed for any third kind, even a
+  built-in one):
+  - **Keep what is not understood.** A composition gains extension elements, `{id, kind, data}`, saved,
+    compared and undone as they are. An object of an unknown kind is drawn from its saved SVG, as a picture
+    is. Without this, saving a workspace opened without the plugin loses the plugin's objects.
+  - **An element kind interface**, with the balloon, the picture and the words as its first implementations.
+    It covers render items, bounds, handles and their drag, the hit test, the OBJECT STACK label and glyph, and
+    the groups the kind carries. `carriesGroup()`, `Object::Kind` and the one place items are made then ask
+    it. The built-in kinds keep their direct reads of `balloon` and `picture`.
+  - **A tool behaviour hook.** A `Tool` row gets an optional handler for press, move and release, called by
+    `CanvasInput` before its own switch, and its options page comes from a factory.
+  - **A generic property panel** built from a group's `fields()`, with one row per field. A kind that needs
+    more brings its own widget.
+  - **Shapes by id.** `ShapeProperties::Kind` becomes a key, and an added shape keeps its parameters in its
+    own section. `Golden.EveryShapeAndStyleIsWrittenAsBefore` must stay byte-identical.
+  - **Only for DLLs:**
+    - What was done: `widgets/composition/` and the extension API in a shared library, plugins loaded with
+      `QPluginLoader` from the application's own `plugins/` folder, and an interface id with a version.
+    - What it costs, for as long as plugins are supported:
+      - Every plugin must be built with the application's MSVC and Qt, so a Qt bump breaks them all.
+      - A plugin must be GPL-compatible to be distributed (the FSF's reading of the GPL).
+      - Code from others runs in the signed process.
+    - A workspace package never carries a plugin: that would be an executable inside a document.
+
+  The alternative to DLLs is data: shapes read from a file (a parameterised SVG path) or a script run by
+  `QJSEngine`. That needs the first and the shape steps and no binary interface, but it cannot add a tool
+  with its own interaction. Leaning: open the editor inside (all but the DLL step) when a third kind is
+  wanted, and DLLs only for a concrete author outside the project.
+
 - [x] **Tail options** — *Done 2026-11-13.* A Plain tail ends Sharp, Round or Cut (*Tip*, *Tip width*), and
   can break into a sharp zigzag (*Breaks*, *Jog*, *First turn*), checked under every line and the Rough
   texture. Left: a Sketch stroke can shoot off a tight round end.
@@ -458,12 +494,13 @@ New, backward-compatible features. Several are gated on a lib version, noted in 
     constructor stops listing the panels by hand.
   - **Later idea, not planned:** shapes loaded from a file (a parameterised SVG path, or a script) are
     the same table with rows read at run time. The library needs nothing, since it composites the
-    finished SVG. A package would have to carry such a file, as it carries `fonts/`. Plugins as DLLs:
-    no, since a stable binary interface is not worth keeping.
+    finished SVG. A package would have to carry such a file, as it carries `fonts/`. Plugins, DLLs
+    included: *Tools and object kinds added from outside the editor*, above.
   - **Not planned: a folder per object kind.** `stripeditor/kinds/<kind>/` behind an `ObjectKind` interface
     (item, prototype, options page, label, glyph, conversion rules) would turn the controller's kind checks
     into virtual calls. With two kinds that is one interface for two implementations; revisit when a third
-    kind arrives (a masked picture, a panel frame). It must keep one `Composition` for every kind.
+    kind arrives (a masked picture, a panel frame). It must keep one `Composition` for every kind. The
+    element kind interface in the plugins item above is that interface.
 
 - [x] **Export / open a workspace package.** One zip with the workspace, `overlays/`, `templates/`,
   `inputs/` and `fonts/` (everything in `fonts/` plus the installed fonts the bubbles name; the

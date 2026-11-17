@@ -1,19 +1,19 @@
 #include "objects/object.hpp"
 
 #include <QGraphicsScene>
+#include <QGuiApplication>
 #include <QGraphicsSceneMouseEvent>
 #include <QGraphicsView>
 #include <QPainter>
 #include <QStyleOptionGraphicsItem>
 
+#include <algorithm>
 #include <utility>
 
 namespace StripEdit {
 
 namespace {
 
-//! Smallest box the author can resize to — below this the grips overlap and it stops being draggable.
-constexpr int k_minBox = 40;
 //! Bounds on a tail tip's hit square in item units, so boundingRect() can reserve a fixed margin and
 //! stay valid at any zoom. The chrome draws the handles at a true screen size; this is only the area
 //! that answers a press on a tip of an object that is *not* selected.
@@ -23,6 +23,9 @@ constexpr qreal k_gripMax = 18.0;
 constexpr qreal k_gripMargin = 10.0;
 //! Opacity for unanchored objects — present but not rendering is visually semi-transparent.
 constexpr qreal k_unanchoredOpacity = 0.35;
+//! The radius handle's distance in from its arc, in grip spans: its arrow, a span either side of it,
+//! then stays clear of the corner's own node.
+constexpr qreal k_radiusDotClearance = 2.2;
 
 QPainter::CompositionMode compositionFor(Platemaker::Models::BlendMode b)
 {
@@ -166,14 +169,96 @@ void Object::setPickedVertices(const QList<int>& indices)
 
 void Object::pickNodeOf(int index)
 {
-    const QList<Geometry::ShapeHandle> handles = shapeHandles();
-    if (index >= 0 && index < handles.size() && Geometry::picksNode(handles.at(index).role))
-        setPickedVertex(handles.at(index).index);
+    const QList<Geometry::Handle> handles = shapeHandles();
+    if (index >= 0 && index < handles.size() && handles.at(index).node >= 0)
+        setPickedVertex(handles.at(index).node);
 }
 
 qreal Object::gripSpanHere() const
 {
     return gripSpan(this);
+}
+
+Geometry::HandleContext Object::handleContext() const
+{
+    return {gripSpanHere() * k_radiusDotClearance, pickedVertices(), markedWords()};
+}
+
+void Object::setPickedWords(int id)
+{
+    if (m_pickedWords == id)
+        return;
+    m_pickedWords = id;
+    emit chromeChanged();
+}
+
+int Object::markedWords() const
+{
+    for (const Words& w : m_composition.words)
+        if (w.id == m_pickedWords)
+            return w.id;
+    return m_composition.words.isEmpty() ? 0 : m_composition.words.first().id;
+}
+
+QList<Geometry::Handle> Object::shapeHandles() const
+{
+    return canEditShape() ? Geometry::handlesOf(m_composition, handleContext()) : QList<Geometry::Handle>();
+}
+
+bool Object::beginShapeDrag(int index)
+{
+    const QList<Geometry::Handle> handles = shapeHandles();
+    if (index < 0 || index >= handles.size()) {
+        m_shapeHandle = {};   // no element pressed (beginDrag())
+        return false;
+    }
+    m_shapeStart    = m_composition;
+    m_shapeStartPos = pos();
+    m_shapeHandle   = handles.at(index);
+    // What a press does is the handle's owner's (a "+" adds its node, and the drag that follows is that node's).
+    const bool changed = m_shapeHandle.press && m_shapeHandle.press(m_shapeStart, m_shapeHandle);
+    if (changed)
+        emit compositionEdited(uid(), m_shapeStart);
+    // A node, or one of its handles, picks that node: its handles show, and Delete or its type act on it.
+    // Ctrl+press on a node adds it to the pick, or takes it away (and then drags nothing). A plain press on a
+    // node already among several keeps them, so the drag moves them all.
+    m_shapeDragOff = false;
+    if (m_shapeHandle.node < 0) {
+        setPickedVertex(-1);
+        return changed;
+    }
+    const int  node       = m_shapeHandle.node;
+    const bool nodeItself = m_shapeHandle.glyph == Geometry::Handle::Glyph::Node;
+    QList<int> picked     = pickedVertices();
+    if (nodeItself && !changed
+        && QGuiApplication::keyboardModifiers().testFlag(Qt::ControlModifier)) {
+        m_shapeDragOff = picked.removeAll(node) > 0;
+        if (!m_shapeDragOff)
+            picked.append(node);
+        setPickedVertices(picked);
+    } else if (nodeItself && picked.contains(node)) {
+        picked.removeAll(node);
+        setPickedVertices(picked << node);   // the one pressed is the one picked last
+    } else {
+        setPickedVertex(node);
+    }
+    return changed;
+}
+
+void Object::dragShapeTo(const QPointF& scenePos)
+{
+    if (m_shapeDragOff || !m_shapeHandle.drag)
+        return;   // a Ctrl+press that took its node out of the pick
+    // In the units of the box as it was at the press: a node past the box moves the item, and measuring against
+    // where it has moved to would chase the pointer.
+    const qreal   k  = scale() > 0.0 ? scale() : 1.0;
+    const QPointF to = (scenePos - m_shapeStartPos) / k;
+
+    // The handle's owner changes its element, and says how far that moved the composition's frame.
+    Composition   next  = m_shapeStart;
+    const QPointF moved = m_shapeHandle.drag(next, m_shapeHandle, to, handleContext());
+    emit compositionEdited(uid(), next);
+    setPos(m_shapeStartPos + moved * k);
 }
 
 void Object::setFocusedHandles(const QList<int>& indices)
@@ -261,6 +346,13 @@ void Object::beginDrag(Grip grip, int handle, const QPointF& scenePos)
     m_dragReported  = false;
     // A shape handle is not a tail: to the owner it is a press on the object, which keeps it selected.
     emit pressed(m_uid, grip == Grip::Handle ? handle : -1);
+    // A frame's handle picks its words, as a press on their letters does, and only after the press: the owner
+    // takes the press as one on the object, and the words picked then are what it is left holding. An object
+    // with one words is its words already.
+    if (grip == Grip::Shape && m_composition.words.size() > 1
+        && std::any_of(m_composition.words.cbegin(), m_composition.words.cend(),
+                       [this](const Words& w) { return w.id == m_shapeHandle.element; }))
+        emit wordsPressed(m_uid, m_shapeHandle.element);
     if (grip == Grip::Shape)
         emit chromeChanged();   // the pressed handle is drawn as pressed
 }
@@ -299,14 +391,11 @@ void Object::dragTo(const QPointF& scenePos, Qt::KeyboardModifiers modifiers)
     }
 
     // A corner or an edge. The maths is in scene units — that is where the pointer is — and the box is
-    // in the item's own, which differ by the item's scale (artwork drawn at another size). Snapping to
-    // one item unit keeps the box whole and the anchored side exactly where it was.
+    // in the item's own, which differ by the item's scale (a chapter re-profiled). Snapping to one item
+    // unit keeps the box whole and the anchored side exactly where it was.
     const qreal k = scale() > 0.0 ? scale() : 1.0;
-    ResizeRule rule;
-    rule.keepAspect = keepsAspect() || modifiers.testFlag(Qt::ShiftModifier);
-    rule.fromCentre = modifiers.testFlag(Qt::ControlModifier);
-    rule.minSize    = k_minBox * k;
-    rule.snap       = k;
+    const ResizeRule rule = resizeRule(k, keepsAspect(), modifiers.testFlag(Qt::ShiftModifier),
+                                       modifiers.testFlag(Qt::ControlModifier));
     const std::optional<QRectF> r = resizedRect(m_startRect, m_active, delta, rule);
     if (!r)
         return;   // refused, not clamped: the box keeps its last good size

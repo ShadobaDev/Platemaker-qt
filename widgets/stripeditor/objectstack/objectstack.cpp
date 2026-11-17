@@ -2,7 +2,7 @@
 
 #include "badge.hpp"
 #include "badgeitemdelegate.hpp"
-#include "objects/artworkobject.hpp"
+#include "objects/pictureobject.hpp"
 #include "objects/object.hpp"
 #include "objects/objectcontroller.hpp"
 #include "objects/striplayout.hpp"
@@ -59,13 +59,15 @@ ObjectStack::ObjectStack(QTreeWidget* tree, ObjectController& objects, const Str
         // The strip and a page are one of a kind: picking one collapses whatever set was there. Objects
         // and tails gather together — they share a position, which is what a drag acts on.
         QStringList    overlays;
-        QList<ObjectController::TailRef> tails;
+        QList<ElementRef> tails;
         for (const QTreeWidgetItem* row : sel) {
             const QString id = row->data(0, Qt::UserRole).toString();
-            switch (static_cast<ObjectController::Subject>(row->data(0, k_kindRole).toInt())) {
-            case ObjectController::Subject::Strip: m_objects.selectStrip();  return;
-            case ObjectController::Subject::Page:  m_objects.selectPage(id); return;
-            case ObjectController::Subject::Tail:  tails.append(ObjectController::TailRef{id, row->data(0, k_tailRole).toInt()}); break;
+            switch (static_cast<Subject>(row->data(0, k_kindRole).toInt())) {
+            case Subject::Strip: m_objects.selectStrip();  return;
+            case Subject::Page:  m_objects.selectPage(id); return;
+            case Subject::Tail:  tails.append(ElementRef{id, row->data(0, k_elementRole).toInt()}); break;
+            // Words are picked alone, as a page is: the Text section is theirs.
+            case Subject::Words: m_objects.selectWords(id, row->data(0, k_elementRole).toInt()); return;
             default:             overlays.append(id); break;
             }
         }
@@ -76,8 +78,8 @@ ObjectStack::ObjectStack(QTreeWidget* tree, ObjectController& objects, const Str
     // for would hide it, and the arrow still does that.
     m_tree->setExpandsOnDoubleClick(false);
     connect(m_tree, &QTreeWidget::itemDoubleClicked, this, [this](QTreeWidgetItem* row, int) {
-        m_objects.reveal(static_cast<ObjectController::Subject>(row->data(0, k_kindRole).toInt()),
-                         row->data(0, Qt::UserRole).toString(), row->data(0, k_tailRole).toInt());
+        m_objects.reveal(static_cast<Subject>(row->data(0, k_kindRole).toInt()),
+                         row->data(0, Qt::UserRole).toString(), row->data(0, k_elementRole).toInt());
     });
     // Both list handlers are deferred to the next event-loop turn on purpose. Persisting an edit
     // round-trips through the owner and comes back as a re-feed that clears and refills this list —
@@ -130,21 +132,23 @@ QIcon ObjectStack::rowGlyph(const QString& uid)
 {
     // Drawn once per look, not once per feed. The silhouette is cheap but not free — a tail's base is
     // found by casting a ray at the outline — and a feed arrives after every edit, so the key is what the
-    // glyph is made of: the record, less the groups a glyph does not draw. Taken from the persisted form
+    // glyph is made of: the composition, less the groups a glyph does not draw. Taken from the persisted form
     // rather than listed field by field, because a field that changes the drawing is persisted anyway —
     // a hand-written list missed the stroke width and a tail's width and bend.
     if (!m_objects.isParametric(uid)) {
-        // Imported artwork: no authoring record, so no silhouette. The art is its own glyph.
-        const auto* art = qobject_cast<const ArtworkObject*>(m_objects.object(uid));
-        return art ? assetGlyph(art->artwork(), k_rowGlyphPx, m_tree->devicePixelRatioF()) : QIcon();
+        // Imported artwork: no composition, so no silhouette. The art is its own glyph.
+        const auto* art = qobject_cast<const PictureObject*>(m_objects.object(uid));
+        return art ? assetGlyph(art->pixmap(), k_rowGlyphPx, m_tree->devicePixelRatioF()) : QIcon();
     }
-    const ObjectRecord a = m_objects.recordFor(uid);
+    const Composition a = m_objects.compositionOf(uid);
 
-    ObjectRecord drawn  = a;
-    drawn.text      = {};   // a glyph is the silhouette; lettering is drawn as a fixed "Aa"
-    drawn.style     = {};   // line styles are SVG filters, applied by the render and never here
-    drawn.styleSeed = 0;
-    QString key = QString::fromUtf8(QJsonDocument(drawn.toJson()).toJson(QJsonDocument::Compact));
+    Composition drawn = a;
+    for (Words& w : drawn.words)
+        w.text = {};   // a glyph is the silhouette; lettering is drawn as a fixed "Aa"
+    if (drawn.balloon)
+        drawn.balloon->style.line = {};   // line styles are SVG filters, applied by the render and never here
+    drawn.seed  = 0;
+    QString key = QString::fromUtf8(QJsonDocument(toJson(drawn)).toJson(QJsonDocument::Compact));
     key += QStringLiteral("|@%1").arg(m_tree->devicePixelRatioF());   // a window can move to another screen
 
     auto it = m_glyphs.constFind(uid);
@@ -202,7 +206,7 @@ void ObjectStack::refresh()
         // refreshed before the strip has a layout, where syncItems() has nothing to place anything against.
         const Object* item  = m_objects.object(uid);
         const QString label = item ? item->label()
-                                   : (m_objects.isParametric(uid) ? recordLabel(m_objects.recordFor(uid))
+                                   : (m_objects.isParametric(uid) ? objectLabel(m_objects.compositionOf(uid))
                                                         : tr("(imported artwork)"));
         // The page it sits on, when it sits on one. An unanchored object used to carry the word *orphan*
         // where the page number goes; that is what the chip says now, and saying it twice cost the row
@@ -215,7 +219,7 @@ void ObjectStack::refresh()
         if (!row) {
             row = new QTreeWidgetItem;
             row->setData(0, Qt::UserRole, uid);
-            row->setData(0, k_kindRole, static_cast<int>(ObjectController::Subject::Overlay));
+            row->setData(0, k_kindRole, static_cast<int>(Subject::Overlay));
             // Drops land between rows and never onto one. Nesting is structural — a tail belongs to its
             // balloon — and is not something a drag may create.
             row->setFlags((row->flags() | Qt::ItemIsUserCheckable) & ~Qt::ItemIsDropEnabled);
@@ -248,7 +252,7 @@ void ObjectStack::refresh()
         // nothing**: an object made from no preset has no chip. Muted when the preset is not among the
         // artist's (deleted, or another machine's).
         if (m_objects.isParametric(uid)) {
-            const PresetOrigin origin = m_objects.recordFor(uid).presetOrigin;
+            const PresetOrigin origin = m_objects.compositionOf(uid).preset;
             if (!origin.isEmpty()) {
                 const QString name  = m_presets.originName(origin);
                 const bool    known = m_presets.indexOf(origin.uid) >= 0;
@@ -272,28 +276,47 @@ void ObjectStack::refresh()
         // must stop saying so.
         row->setData(0, BadgeItemDelegate::k_badgesRole, QVariant::fromValue(badges));
 
-        row->setSelected(m_objects.subject() == ObjectController::Subject::Overlay && m_objects.selectedOverlays().contains(uid));
+        row->setSelected(m_objects.subject() == Subject::Overlay && m_objects.selectedOverlays().contains(uid));
 
-        // A bubble's tails, one row each, by position: a row stands for whichever tail is at its index now.
-        // Only a bubble has tails, so artwork gets none.
-        const int tailCount = m_objects.isParametric(uid)
-                                  ? static_cast<int>(m_objects.recordFor(uid).tails.items.size()) : 0;
-        while (row->childCount() > tailCount)
+        // An object's elements, one row each, by position: its words (a bubble's, or a lettered picture's; a
+        // text object is its one words), then a bubble's tails. A row stands for whichever element is at its
+        // place now.
+        const Composition rec = m_objects.compositionOf(uid);
+        struct Element
+        {
+            Subject subject;
+            int     id;
+            QString name;
+        };
+        QList<Element> elements;
+        if (rec.balloon || (rec.picture && lettered(rec)))
+            for (qsizetype w = 0; w < rec.words.size(); ++w)
+                if (seated(rec, rec.words[w]))
+                    elements.append({Subject::Words, rec.words[w].id, tr("Words %1").arg(w + 1)});
+        if (rec.balloon)
+            for (qsizetype t = 0; t < rec.balloon->tails.size(); ++t)
+                elements.append({Subject::Tail, rec.balloon->tails[t].id, tr("Tail %1").arg(t + 1)});
+        if (m_tailGlyph.isNull())
+            m_tailGlyph = tailGlyph(m_tree->palette(), k_rowGlyphPx, m_tree->devicePixelRatioF());
+        if (m_wordsGlyph.isNull())
+            m_wordsGlyph = wordsGlyph(m_tree->palette(), k_rowGlyphPx, m_tree->devicePixelRatioF());
+        while (row->childCount() > elements.size())
             delete row->takeChild(row->childCount() - 1);
-        for (int t = 0; t < tailCount; ++t) {
-            QTreeWidgetItem* tailItem = t < row->childCount() ? row->child(t) : nullptr;
-            if (!tailItem) {
-                tailItem = new QTreeWidgetItem(row);
-                tailItem->setData(0, k_kindRole, static_cast<int>(ObjectController::Subject::Tail));
-                tailItem->setFlags(Qt::ItemIsSelectable | Qt::ItemIsEnabled);   // not draggable, not a drop target
+        for (qsizetype e = 0; e < elements.size(); ++e) {
+            const Element&   el   = elements[e];
+            QTreeWidgetItem* item = e < row->childCount() ? row->child(int(e)) : nullptr;
+            if (!item) {
+                item = new QTreeWidgetItem(row);
+                item->setFlags(Qt::ItemIsSelectable | Qt::ItemIsEnabled);   // not draggable, not a drop target
             }
-            tailItem->setData(0, Qt::UserRole, uid);
-            tailItem->setData(0, k_tailRole, t);
-            tailItem->setText(0, tr("Tail %1").arg(t + 1));
-            if (m_tailGlyph.isNull())
-                m_tailGlyph = tailGlyph(m_tree->palette(), k_rowGlyphPx, m_tree->devicePixelRatioF());
-            tailItem->setIcon(0, m_tailGlyph);
-            tailItem->setSelected(m_objects.selectedTails().contains(ObjectController::TailRef{uid, t}));
+            item->setData(0, k_kindRole, static_cast<int>(el.subject));
+            item->setData(0, Qt::UserRole, uid);
+            item->setData(0, k_elementRole, el.id);
+            item->setText(0, el.name);
+            item->setIcon(0, el.subject == Subject::Tail ? m_tailGlyph : m_wordsGlyph);
+            item->setSelected(el.subject == Subject::Tail
+                                  ? m_objects.selectedTails().contains(ElementRef{uid, el.id})
+                                  : m_objects.selectedWords() == ElementRef{uid, el.id});
         }
     }
 
@@ -315,7 +338,7 @@ void ObjectStack::refresh()
         if (!strip) {
             strip = new QTreeWidgetItem;
             strip->setData(0, Qt::UserRole, k_stripId);
-            strip->setData(0, k_kindRole, static_cast<int>(ObjectController::Subject::Strip));
+            strip->setData(0, k_kindRole, static_cast<int>(Subject::Strip));
             strip->setFlags(Qt::ItemIsSelectable | Qt::ItemIsEnabled);
         }
         placeTopLevel(strip, index);
@@ -336,7 +359,7 @@ void ObjectStack::refresh()
             if (!row) {
                 row = new QTreeWidgetItem;
                 row->setData(0, Qt::UserRole, page.inputUid);
-                row->setData(0, k_kindRole, static_cast<int>(ObjectController::Subject::Page));
+                row->setData(0, k_kindRole, static_cast<int>(Subject::Page));
                 row->setFlags(Qt::ItemIsSelectable | Qt::ItemIsEnabled);   // not draggable, not a drop target
             }
             const int at = strip->indexOfChild(row);
@@ -351,10 +374,10 @@ void ObjectStack::refresh()
             if (m_pageGlyph.isNull())
                 m_pageGlyph = pageGlyph(m_tree->palette(), k_rowGlyphPx, m_tree->devicePixelRatioF());
             row->setIcon(0, m_pageGlyph);
-            row->setSelected(m_objects.subject() == ObjectController::Subject::Page && page.inputUid == m_objects.selectedPage());
+            row->setSelected(m_objects.subject() == Subject::Page && page.inputUid == m_objects.selectedPage());
         }
         qDeleteAll(oldPages);   // pages no longer in the strip
-        strip->setSelected(m_objects.subject() == ObjectController::Subject::Strip);
+        strip->setSelected(m_objects.subject() == Subject::Strip);
     }
 
     m_syncing = false;
@@ -366,16 +389,19 @@ void ObjectStack::showSelectedRows()
     m_tree->clearSelection();
     for (int r = 0; r < m_tree->topLevelItemCount(); ++r) {
         QTreeWidgetItem* row = m_tree->topLevelItem(r);
-        if (row->data(0, k_kindRole).toInt() != static_cast<int>(ObjectController::Subject::Overlay))
+        if (row->data(0, k_kindRole).toInt() != static_cast<int>(Subject::Overlay))
             continue;
         const QString uid = row->data(0, Qt::UserRole).toString();
         // A tail's row stands for the tail; its balloon's row is only selected when the balloon itself is.
         row->setSelected(m_objects.selectedOverlays().contains(uid) && !m_objects.carriers().contains(uid));
         for (int c = 0; c < row->childCount(); ++c) {
-            const bool tail = m_objects.selectedTails().contains(ObjectController::TailRef{uid, c});
-            row->child(c)->setSelected(tail);
-            if (tail)
-                row->setExpanded(true);   // a folded row would hide the only highlight a tail has
+            const ElementRef element{uid, row->child(c)->data(0, k_elementRole).toInt()};
+            const bool       picked = static_cast<Subject>(row->child(c)->data(0, k_kindRole).toInt()) == Subject::Tail
+                                        ? m_objects.selectedTails().contains(element)
+                                        : m_objects.selectedWords() == element;
+            row->child(c)->setSelected(picked);
+            if (picked)
+                row->setExpanded(true);   // a folded row would hide the only highlight an element has
         }
     }
     m_syncing = false;
@@ -400,9 +426,9 @@ QTreeWidgetItem* ObjectStack::subjectRow() const
 {
     for (int r = 0; r < m_tree->topLevelItemCount(); ++r) {
         QTreeWidgetItem* top = m_tree->topLevelItem(r);
-        if (top->data(0, k_kindRole).toInt() != static_cast<int>(ObjectController::Subject::Strip))
+        if (top->data(0, k_kindRole).toInt() != static_cast<int>(Subject::Strip))
             continue;
-        if (m_objects.subject() == ObjectController::Subject::Strip)
+        if (m_objects.subject() == Subject::Strip)
             return top;
         for (int c = 0; c < top->childCount(); ++c)
             if (top->child(c)->data(0, Qt::UserRole).toString() == m_objects.selectedPage())

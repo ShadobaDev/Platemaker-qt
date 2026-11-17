@@ -3,13 +3,14 @@
 
 #include <QWidget>
 
-#include "objectrecord.hpp"
+#include "names.hpp"
 #include "overlaystate.hpp"
 #include <QList>
 #include <QSize>
 #include <QStringList>
 
 #include <functional>
+#include <memory>
 #include <string>
 #include <vector>
 
@@ -17,11 +18,13 @@
 #include <platemaker/models/workspace.hpp>
 
 #include <QFutureWatcher>
+#include <QPointer>
 
 namespace Ui { class Project; }
 class QListWidgetItem;
 class OutputFormatOptionsWidget;
 class QVBoxLayout;
+class History;
 class QUndoStack;
 class QEvent;
 class QDragEnterEvent;
@@ -70,13 +73,17 @@ public:
      *                 and text & bubbles. One history, because one document is being edited — an edit
      *                 made in the strip editor and an edit made here are steps in the same session of
      *                 work, and a Ctrl+Z that skips over the last one to undo the one before it is a
-     *                 worse surprise than a Ctrl+Z whose effect is in the other window.
+     *                 worse surprise than a Ctrl+Z whose effect is in the other window. This project's two
+     *                 scopes (History::k_project, History::k_lettering) are on it while the widget lives.
+     * \param workspaceHistory Where a workspace-level edit made from this dock is recorded (a canvas
+     *                 profile's content, the output format): the workspace's timeline, as profiles are shared.
      * \param parent The parent widget, if any.
      */
     explicit Project(int projectIndex,
                      Platemaker::Models::Workspace& workspace,
                      const QString& cacheDir,
-                     QUndoStack* history,
+                     History* history,
+                     History* workspaceHistory,
                      QWidget *parent = nullptr);
     ~Project();         //!< Destroys the Project widget and cleans up resources.
 
@@ -162,31 +169,37 @@ public:
     void setWriteGuard(std::function<bool()> guard) { m_writeGuard = std::move(guard); }
 
     /**
-     * \brief Adopts this project's authoring records (read back from its assets).
-     * \param records The map of records to adopt.
+     * \brief Adopts this project's authoring compositions (read back from its assets).
+     * \param compositions The map of compositions to adopt.
      */
-    void setRecords(ObjectRecord::Map records);
+    void setCompositions(Composition::Map compositions);
 
     /**
-     * \brief Re-writes the SVGs of the overlays a restored step changed, from their authoring records.
+     * \brief Re-writes the SVGs of the overlays a restored step changed, from their compositions.
      *
      * Undo and redo restore what each bubble *says*, but a bubble overwrites its own asset file rather
      * than leaving one behind per edit — so the file on disk still holds whatever the step being undone
-     * wrote. Re-emitting from the restored records puts the two back in agreement.
+     * wrote. Re-emitting from the restored compositions puts the two back in agreement.
      *
      * **Only \p uids, plus any overlay whose file is missing.** Re-emitting is not free of consequence:
      * the lettering is outlined through `QFont`, so a bubble whose font is not installed would be re-set
      * in a stand-in — and rewriting every bubble on every undo re-set bubbles the step never touched.
      *
-     * \param uids The overlays the step changed (movedUids()).
+     * \param uids The overlays whose composition the step changed: one it only moved keeps its file.
      */
     void rewriteOverlayAssets(const QStringList& uids);
+    //! Each overlay's content (StripOverlay::content) from its composition: what the workspace saves.
+    void storeContents();
+    //! What in this dock shows the lettering, after a lettering edit or undo: the workflow map, the outputs' staleness.
+    void refreshLetteringViews();
+    //! Tells the artist which bubble files could not be written, if any: the render reads them as they were.
+    void warnUnwritten(const QStringList& files);
 
     /**
-     * \brief Returns the map of records associated with this project.
-     * \return The record map.
+     * \brief Returns the map of compositions associated with this project.
+     * \return The composition map.
      */
-    [[nodiscard]] const ObjectRecord::Map& records() const { return m_records; }
+    [[nodiscard]] const Composition::Map& compositions() const { return m_compositions; }
 
     /**
      * \brief Registers a newly drawn bubble: writes its SVG, then lets the library inventory the file.
@@ -199,7 +212,7 @@ public:
      * \param wFrac          The artwork's rendered width in that same unit.
      * \param anchorInputUid The input page the bubble rides on.
      */
-    void createOverlay(const ObjectRecord& record, double xFrac, double yFrac, double wFrac,
+    void createOverlay(const Composition& composition, double xFrac, double yFrac, double wFrac,
                        const QString& anchorInputUid);
 
     /**
@@ -208,7 +221,7 @@ public:
      * The file is copied into the workspace's `overlays/` under its content hash — never referenced
      * where it was found, so the workspace stays self-contained and moving it does not break a bubble.
      *
-     * No authoring record is created, and that is the point: with no `pm:*` parameters the overlay is a
+     * No composition is created, and that is the point: with no `pm:*` parameters the overlay is a
      * **flat asset**, drawn from the file and placed, moved and scaled like any other bubble, but not
      * re-typable. That case already exists for a bubble whose parameters were lost, so importing needs
      * no separate kind of overlay — it is the same one, arrived at deliberately.
@@ -219,23 +232,23 @@ public:
      * \param naturalSize The artwork's natural size, so the library can scale it to the target width and preserve its aspect ratio.
      * \param anchorInputUid The input page the bubble rides on.
      */
-    void importOverlayArtwork(const QString& sourceFile, double xFrac, double yFrac, double wFrac,
+    void importOverlayPicture(const QString& sourceFile, double xFrac, double yFrac, double wFrac,
                               QSize naturalSize, const QString& anchorInputUid);
 
     /**
      * \brief Stores a complete new overlay state — move, restyle, delete, reorder or mute — as one
-     *        undo step, re-writing the assets whose authoring record changed.
+     *        undo step, re-writing the assets whose composition changed.
      * 
      * \param overlays The new overlays, in the order they are drawn.
-     * \param records The new authoring records for those overlays, keyed by `StripOverlay::uid`.
+     * \param compositions The new compositions for those overlays, keyed by `StripOverlay::uid`.
      * \param undoText The text to display for the undo action.
      */
     void applyOverlays(std::vector<Platemaker::Models::StripOverlay> overlays,
-                       ObjectRecord::Map                                  records,
+                       Composition::Map                                  compositions,
                        const QString&                               undoText);
 
     /**
-     * \brief Deletes the overlays @p uids, with their authoring records, as one undo step. Through
+     * \brief Deletes the overlays @p uids, with their compositions, as one undo step. Through
      * \brief applyOverlays(), the same door every other overlay edit goes through.
      * \param uids The UIDs of the overlays to delete.
      * \param undoText The text to display for the undo action.
@@ -252,19 +265,17 @@ public:
 
 
     // --- Undo / redo ---
-    // Everything this project records goes on one QUndoStack; MainWindow owns it, adds it to a
-    // QUndoGroup and makes it active while either of this project's docks is in front. Workspace-scope
-    // edits triggered from here (canvas-profile *content* edit, output-format edit) are bracketed with
-    // WorkspaceEditor::snapshotMeta and forwarded to MainWindow via workspaceEditCommitted so they land
-    // on the workspace timeline instead.
+    // Everything this project records goes on one History (history.hpp); MainWindow owns it, adds its stack
+    // to a QUndoGroup and makes it active while either of this project's docks is in front. Workspace-scope
+    // edits triggered from here (canvas-profile *content* edit, output-format edit) go on the workspace's.
     /**
      * \brief Returns the undo stack associated with this project.
      * \return A pointer to the QUndoStack used for undo/redo operations in this project.
      */
-    [[nodiscard]] QUndoStack* undoStack() const { return m_undoStack; }
+    [[nodiscard]] QUndoStack* undoStack() const;
     /**
      * \brief Applies a snapshot of the project state, restoring everything **except** the overlays.
-     * \param snapshot The snapshot to apply.
+     * \param snapshot ProjectEditor::snapshot() of the project, its overlays left out (the Project scope's).
      * \param scope    Where the step is seen; announced through historyStepApplied().
      */
     void applyProjectSnapshot(const QString& snapshot, EditScope scope);
@@ -277,7 +288,7 @@ public:
     void showStep(EditScope scope);
 
     /**
-     * \brief Returns the state of the strip overlays and their authoring records.
+     * \brief Returns the state of the strip overlays and their compositions.
      * \return The overlay state.
      */
     [[nodiscard]] OverlayState overlayState() const;
@@ -323,13 +334,14 @@ signals:
      * \param before The workspace metadata snapshot before the edit.
      * \param after The workspace metadata snapshot after the edit.
      */
-    void workspaceEditCommitted(const QString& text, const QString& before, const QString& after);
+    void workspaceEdited();
 
     /**
-     * \brief This project's authoring records changed — MainWindow folds them back into its per-project cache.
-     * \param records The new record map for this project.
+     * \brief This project's authoring compositions changed — MainWindow folds them back into its per-project cache.
+     * Always followed by projectModified(), which is what refreshes the views (the strip editor among them).
+     * \param compositions The new composition map for this project.
      */
-    void recordsChanged(const ObjectRecord::Map& records);
+    void compositionsChanged(const Composition::Map& compositions);
 
     /**
      * \brief A step was undone or redone: @p scope says which dock shows the difference, and @p uids
@@ -369,8 +381,8 @@ private slots:
     void onRefreshFiles();                          //!< Re-scan inputs+outputs on disk, refresh statuses/tiles
 
 private:
-    //! Project state as this GUI defines it: the library's snapshot plus the authoring records.
-    [[nodiscard]] QString fullSnapshot();
+    class ProjectScope;
+    class LetteringScope;
 
     void addImageTile(const Platemaker::Models::InputFile& file);           //!< Creates an ImageTile widget for an input file and inserts it into the input list.
     void addOutputImageTile(const Platemaker::Models::OutputFile& file);    //!< Creates an ImageTile widget for an existing output file and inserts it into the output list.
@@ -423,13 +435,10 @@ private:
      */
     void refreshTileStatuses();
 
-    void setupUndo();   //!< Creates this project's undo stack (depth 10). MainWindow adds it to the group.
 
     /**
-     * \brief Records one undoable **project-scope** edit onto this project's stack.
-     *
-     * Brackets \p mutate with ProjectEditor::snapshot() before/after and pushes a
-     * ProjectSnapshotCommand if the project actually changed (a no-op edit records nothing).
+     * \brief Records one undoable **project-scope** edit onto this project's history: the
+     *        History::k_project scope, through History::edit() (a no-op edit records nothing).
      * \param text   Short label for the operation (shown in the undo action's text).
      * \param mutate The operation to perform (add / clear / reorder / sort / link / output selection /
      *               output dir). It still does its own populate()/projectModified().
@@ -439,10 +448,11 @@ private:
     void commitEdit(const QString& text, const std::function<void()>& mutate, EditScope scope);
 
     /**
-     * \brief Records one undoable **text & bubbles** edit — same history, other half of the document.
+     * \brief Records one undoable **text & bubbles** edit — same history, other scope
+     *        (History::k_lettering).
      *
-     * The same bracket as commitEdit() over a much smaller snapshot, which is the reason the two are
-     * separate methods: restoring the lettering does not have to reload the project, and neither can
+     * The same bracket as commitEdit() over a much smaller state, which is the reason the two are
+     * separate scopes: restoring the lettering does not have to reload the project, and neither can
      * tread on the other's half. Which half an operation belongs to is decided by what it changes, not
      * by which window it was triggered from: clearing every bubble is a project-dock button and still
      * belongs here.
@@ -453,8 +463,8 @@ private:
      * \brief Records one undoable **workspace-scope** edit triggered from this dock onto the workspace
      *        timeline (canvas-profile content edit, output-format edit).
      *
-     * Brackets \p mutate with WorkspaceEditor::snapshotMeta before/after and, if anything changed,
-     * emits workspaceEditCommitted so MainWindow pushes it onto the workspace undo stack.
+     * Records \p mutate on the workspace's History (History::k_workspace) and, if anything changed,
+     * emits workspaceEdited so MainWindow refreshes what shows the workspace.
      */
     void commitWorkspaceEdit(const QString& text, const std::function<void()>& mutate);
 
@@ -483,12 +493,15 @@ private:
 
     //! Whether a file may be written to the workspace folder now.
     [[nodiscard]] bool mayWrite() const { return !m_writeGuard || m_writeGuard(); }
-    ObjectRecord::Map m_records;                                //!< Authoring records for this project's overlays, by uid.
+    Composition::Map m_compositions;                                //!< The compositions of this project's overlays, by uid.
     QString m_cacheDir;                                     //!< Directory where cached thumbnails and other temporary files are stored.
     OutputFormatOptionsWidget* m_formatOptions = nullptr;   //!< Shared widget for editing the selected output profile's format/options.
     QVBoxLayout* m_workflowStack = nullptr;                  //!< Vertical stack of the Workflow tab's StageCards (built in the ctor, rebuilt by refreshWorkflowMap()).
     // Owned by MainWindow and alive for the session — see the constructor.
-    QUndoStack* m_undoStack = nullptr;      //!< This project's whole history.
+    QPointer<History> m_history;            //!< This project's whole history.
+    QPointer<History> m_workspaceHistory;   //!< The workspace's, for the workspace-level edits made here.
+    std::unique_ptr<ProjectScope>   m_projectScope;     //!< On m_history while this widget lives.
+    std::unique_ptr<LetteringScope> m_letteringScope;   //!< Likewise.
 };
 
 #endif // PROJECT_HPP

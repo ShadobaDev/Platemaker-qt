@@ -5,10 +5,10 @@
  *
  * The library plans every file the model names (WorkspacePackager::plan()). Two kinds of file the model
  * does not name are added here, so the package is editable on the other machine and not only renderable:
- *  - **the picture behind a lettered picture** — named by its record, beside the wrapper, never by a path
+ *  - **the picture behind a lettered picture** — named by its composition, beside the wrapper, never by a path
  *    in the model (the same rule collectOverlayFiles() follows);
  *  - **fonts** — the workspace's own `fonts/`, whole, and the installed files of every family a bubble
- *    names. The platform default (a record with no family) is not packed: it was not chosen, and on a
+ *    names. The platform default (a composition with no family) is not packed: it was not chosen, and on a
  *    machine without it the missing-fonts advisory says so.
  */
 
@@ -193,24 +193,25 @@ void MainWindow::onExportPackage()
 
     QSet<QString> named;   // families a bubble asks for by name
     for (const auto &project : m_workspace.projectItems) {
-        const ObjectRecord::Map records = m_overlayRecords.records(QString::fromStdString(project.uid));
+        const Composition::Map compositions = m_overlayCompositions.compositions(QString::fromStdString(project.uid));
         for (const auto &overlay : project.getStripOverlays()) {
-            const auto rec = records.constFind(QString::fromStdString(overlay.uid));
-            if (rec == records.constEnd())
+            const auto rec = compositions.constFind(QString::fromStdString(overlay.uid));
+            if (rec == compositions.constEnd())
                 continue;
-            if (!rec->text.family.isEmpty())
-                named.insert(rec->text.family);
-            if (!rec->isArtwork())
+            for (const Words &w : rec->words)
+                if (!w.text.family.isEmpty())
+                    named.insert(w.text.family);
+            if (!rec->picture)
                 continue;
-            // The picture goes beside its wrapper, under the name its record gives — never renamed.
+            // The picture goes beside its wrapper, under the name its composition gives — never renamed.
             const QString asset   = QString::fromStdString(overlay.assetPath);
             const QString wrapper = files.targetOf(asset);
-            const QString picture = QDir(QFileInfo(asset).absolutePath()).filePath(rec->artwork);
+            const QString picture = QDir(QFileInfo(asset).absolutePath()).filePath(rec->picture->file);
             if (wrapper.isEmpty() || !QFileInfo::exists(picture)) {
                 gui.picturesMissing << QDir::toNativeSeparators(picture);
                 continue;
             }
-            const QString target = QFileInfo(wrapper).path() + QLatin1Char('/') + rec->artwork;
+            const QString target = QFileInfo(wrapper).path() + QLatin1Char('/') + rec->picture->file;
             if (!files.add(picture, target))
                 gui.picturesMissing << QDir::toNativeSeparators(picture);   // content-named: cannot happen
         }

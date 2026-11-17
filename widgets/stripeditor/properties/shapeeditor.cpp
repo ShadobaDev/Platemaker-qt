@@ -1,4 +1,5 @@
 #include "properties/shapeeditor.hpp"
+#include "names.hpp"
 
 #include <QAbstractButton>
 #include <QButtonGroup>
@@ -11,7 +12,7 @@
 #include <QVBoxLayout>
 #include <QtMath>
 
-#include "recordpainter.hpp"
+#include "painter.hpp"
 #include "shapes.hpp"
 #include "flowlayout.hpp"
 #include "properties/regularpolygondialog.hpp"
@@ -25,60 +26,42 @@ constexpr int k_shapeTilePx    = 44;
 //! Supersampling factor for a tile's preview — rendered big, scaled down, so the stroke stays smooth.
 constexpr int k_shapeIconScale = 4;
 
-//! The context the rows' strings are translated in: this panel's own.
-constexpr char k_trContext[] = "StripEdit::ShapeEditor";
-
-#define PM_TR(s) QT_TRANSLATE_NOOP("StripEdit::ShapeEditor", s)
-const FieldRowSpec k_cornerRows[] = {
-    {"cornerRadius", PM_TR("Corner radius:"), 0, 500, " px",
-     PM_TR("How round the corners are. Never more than half the shorter side, which makes the ends round.")},
-};
-const FieldRowSpec k_bowRows[] = {
-    {"bow",             PM_TR("Bow:"),              0, 50,  " %",
-     PM_TR("How far each edge bows in between two points, as a share of its length. The points stay sharp; 0 is straight.")},
-    {"bowIrregularity", PM_TR("Bow irregularity:"), 0, 100, " %",
-     PM_TR("How much each edge's bow varies, deeper or flatter. Moving a point deals its two edges again.")},
-};
-// The bounds are the ones the outline keeps to.
-const FieldRowSpec k_lobeRows[] = {
-    {"lobes",    PM_TR("Lobes:"),     Geometry::k_minLobes,    Geometry::k_maxLobes,    "",
-     PM_TR("How many circles make the cloud's edge.")},
-    {"lobeSize", PM_TR("Lobe size:"), Geometry::k_minLobeSize, Geometry::k_maxLobeSize, " %",
-     PM_TR("How big each circle is, against half the balloon's shorter side. At 100 % they meet in the middle.")},
-};
-const FieldRowSpec k_edgeRows[] = {
-    {"edgePitch",        PM_TR("Spacing:"),      2, 200, " px", PM_TR("One tooth every this many pixels along the edge."), 1},
-    {"edgeDepth",        PM_TR("Depth:"),        0, 200, " px", PM_TR("How far in from the outline a tooth reaches. The lettering's room gives it up."), 1},
-    {"edgeIrregularity", PM_TR("Irregularity:"), 0, 100, " %",  PM_TR("How much each tooth's depth and place vary. Re-roll deals them again.")},
-};
-#undef PM_TR
-
 } // namespace
 
 QPixmap bubbleThumbnail(const ShapeProperties& shape, const QColor& fill, const QColor& stroke,
                         const QColor& ink)
 {
-    ObjectRecord a;
-    a.shape            = shape;
-    a.box              = QSize(k_bubbleThumbW * k_shapeIconScale, k_bubbleThumbH * k_shapeIconScale);
-    // The tile's own stroke, not the record's: a preset authored at 5 px on a 280 px balloon would be
-    // a hairline here, and the icon is meant to say *which shape and what colours*, not how heavy.
-    a.style.strokeWidth = 2 * k_shapeIconScale;
-    a.text.body        = QStringLiteral("Aa");
-    a.text.pixelSize   = a.box.height() / 3;
-    a.skin.fill.colour        = fill;
-    a.style.stroke.colour      = stroke;
-    a.text.fill.colour = ink;
-    if (Geometry::shapeSpeaks(shape)) {
+    const QSize     size(k_bubbleThumbW * k_shapeIconScale, k_bubbleThumbH * k_shapeIconScale);
+    Composition     a    = textObject(size);
+    TextProperties& text = wordsOf(a)->text;
+    text.body            = QStringLiteral("Aa");
+    text.pixelSize       = size.height() / 3;
+    text.fill.colour     = ink;
+    if (shape.kind != ShapeProperties::Kind::None) {
+        BalloonLook look{shape, {}};
+        // The tile's own stroke, not the preset's: a preset authored at 5 px on a 280 px balloon would be
+        // a hairline here, and the icon is meant to say *which shape and what colours*, not how heavy.
+        look.style.line.strokeWidth   = 2 * k_shapeIconScale;
+        look.style.line.stroke.colour = stroke;
+        look.style.fill.fill.colour   = fill;
+        a                             = withBalloon(a, look);
+    }
+    if (a.balloon && Geometry::shapeSpeaks(shape)) {
         Tail t;
         // A short tail: the tile is scaled to fit, so a long one would shrink the balloon itself and
         // leave the speaking shapes visibly smaller than the rest of the grid.
-        t.tip         = QPointF(a.box.width() * 0.28, a.box.height() * 1.10);
-        t.baseWidth   = a.box.width() * 0.18;
-        a.tails.items = {t};
+        t.tip       = QPointF(size.width() * 0.28, size.height() * 1.10);
+        t.baseWidth = size.width() * 0.18;
+        a.balloon->tails.append({a.nextId++, bodyOf(a)->id, t});
     }
     return QPixmap::fromImage(Painter::render(a).scaled(QSize(k_bubbleThumbW, k_bubbleThumbH),
                                                        Qt::KeepAspectRatio, Qt::SmoothTransformation));
+}
+
+QPixmap bubbleThumbnail(const Composition& look)
+{
+    return bubbleThumbnail(ShapeProperties::from(look), SkinProperties::from(look).fill.colour,
+                           StyleProperties::from(look).stroke.colour, TextProperties::from(look).fill.colour);
 }
 
 QPixmap shapeThumbnail(const ShapeProperties& shape, const QPalette& pal)
@@ -125,9 +108,7 @@ ShapeEditor::ShapeEditor(QWidget* parent)
         syncFromValues();   // off its template, the tile is no longer current
         emit changed();
     };
-    m_corner.build(this, m_form, "corner", k_cornerRows, k_trContext, m_values, m_populating, edited);
-    m_lobes.build(this, m_form, "lobe", k_lobeRows, k_trContext, m_values, m_populating, edited);
-    m_bow.build(this, m_form, "bow", k_bowRows, k_trContext, m_values, m_populating, edited);
+    m_sections.build(this, m_form, m_values, m_populating, edited);
     m_regular = new QPushButton(tr("Regular polygon / star…"), this);
     m_regular->setToolTip(tr("Replaces the points with a regular polygon or a star, irregular if you like. "
                              "They stay free to move afterwards."));
@@ -137,16 +118,18 @@ ShapeEditor::ShapeEditor(QWidget* parent)
     // The edge: laid over whichever outline.
     m_edge = new QComboBox(this);
     for (int i = 0; i <= int(ShapeProperties::k_lastEdge); ++i)
-        m_edge->addItem(edgeTitle(static_cast<ObjectRecord::Edge>(i)), i);
+        m_edge->addItem(edgeTitle(static_cast<ShapeProperties::Edge>(i)), i);
     m_edge->setToolTip(tr("What is done to the outline's edge, pushed in along it: straight teeth, soft "
                           "waves, arcs bowing in, or narrow notches. The tails stay smooth, and the edge stays "
                           "when another shape is picked."));
     m_form->addRow(tr("Edge:"), m_edge);
-    m_edgeRows.build(this, m_form, "edge", k_edgeRows, k_trContext, m_values, m_populating, edited);
+    const Fields::Section& teeth = EdgeParams::section();
+    m_edgeRows.build(this, m_form, "", teeth.rows, teeth.rowCount, Fields::k_trContext, m_values.teeth, m_populating,
+                     edited);
     connect(m_edge, &QComboBox::currentIndexChanged, this, [this](int i) {
         if (m_populating || i < 0)
             return;
-        m_values.edge = static_cast<ObjectRecord::Edge>(m_edge->currentData().toInt());
+        m_values.edge = static_cast<ShapeProperties::Edge>(m_edge->currentData().toInt());
         syncFromValues();
         emit changed();
     });
@@ -168,12 +151,10 @@ void ShapeEditor::bind(const Subjects& subjects)
     if (subjects.isEmpty())
         return;
     m_values = ShapeProperties::from(*subjects.first());
-    m_corner.reset();
-    m_lobes.reset();
-    m_bow.reset();
+    m_sections.reset();
     m_edgeRows.reset();
     // No higher than the balloon can show: past it the outline stops changing (Shape is one subject only).
-    m_corner.setMaximum("cornerRadius", qFloor(Geometry::cornerRadiusLimit(subjects.first()->box)));
+    m_sections.setMaximum("cornerRadius", qFloor(Geometry::cornerRadiusLimit(sizeOf(*subjects.first()))));
     syncFromValues();
 }
 
@@ -189,19 +170,15 @@ void ShapeEditor::syncFromValues()
         b->setChecked(m_tiles->id(b) == id);
     m_tiles->setExclusive(true);
 
-    m_corner.show(m_values);
-    m_corner.setVisible(m_form, Geometry::shapeInfo(m_values.kind).rounded);
-    m_lobes.show(m_values);
-    m_lobes.setVisible(m_form, m_values.kind == ShapeProperties::Kind::Cloud);
-    m_bow.show(m_values);
-    m_bow.setVisible(m_form, m_values.kind == ShapeProperties::Kind::Polygon);
+    m_sections.show(m_values);
+    m_sections.showSections(m_form, m_values, true, false, Geometry::shapeInfo(m_values.kind).sections);
     m_form->setRowVisible(m_regular, m_values.kind == ShapeProperties::Kind::Polygon);
     {
         const QSignalBlocker block(m_edge);
         m_edge->setCurrentIndex(m_edge->findData(int(m_values.edge)));
     }
-    m_edgeRows.show(m_values);
-    m_edgeRows.setVisible(m_form, m_values.edge != ShapeProperties::Edge::None);
+    m_edgeRows.show(m_values.teeth);
+    m_edgeRows.setVisible(m_form, Geometry::edgeInfo(m_values.edge).modulate != nullptr);
     m_populating = false;
 }
 
@@ -227,7 +204,7 @@ void ShapeEditor::makeRegular()
     emit changed();
 }
 
-void ShapeEditor::applyTo(ObjectRecord& target) const
+void ShapeEditor::applyTo(Composition& target) const
 {
     m_values.applyTo(target);
 }

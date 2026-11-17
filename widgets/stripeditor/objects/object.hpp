@@ -10,7 +10,8 @@
 
 #include <platemaker/models/processing_steps.hpp>
 
-#include "objectrecord.hpp"
+#include "composition.hpp"
+#include "handles.hpp"
 #include "objects/resize.hpp"
 #include "shapes.hpp"
 
@@ -26,7 +27,7 @@ namespace StripEdit {
  *
  * This exists because the alternative was tested and failed. There used to be one item class that drew
  * either a bubble or an imported asset depending on whether a pixmap had been handed to it, and the
- * rest of the editor re-derived the same distinction from "is there an authoring record for this uid" —
+ * rest of the editor re-derived the same distinction from "is there an composition for this uid" —
  * eight separate places. Two of them were written wrong and shipped: one loaded a *default* bubble into
  * the panel for imported artwork, the other stored that default back over the artwork. Both are the
  * same mistake, and neither is expressible once the two kinds are two types.
@@ -50,14 +51,14 @@ public:
     /**
      * \brief What an object is. Kept minimal on purpose — it exists for the few places that must ask.
      */
-    enum class Kind { Bubble, Artwork };
+    enum class Kind { Bubble, Picture };
 
     //! What a press or a hover landed on — declared beside the resize maths (resize.hpp).
     using Grip = StripEdit::Grip;
 
     /**
      * \brief Creates an object with @p uid, parented to @p parent. The uid is the one the owner will use to
-     *        feed it back to the library, and the one that will be stored in its record. The parent is the scene item that owns it, and the one that will be moved when the object is dragged.
+     *        feed it back to the library, and the one its composition is kept under. The parent is the scene item that owns it, and the one that will be moved when the object is dragged.
      * \param uid The unique identifier for this object, used to track it in the library and persist its state.
      * \param parent The QGraphicsItem that will be the parent of this object in the scene graph. This is typically the scene or a container item that manages multiple objects.
      */
@@ -68,27 +69,27 @@ public:
     [[nodiscard]] virtual QString label() const = 0;    //!< One line naming this object for the object list.
 
     /**
-     * \brief The authoring record this object carries — **every kind has one**.
+     * \brief The composition this object is — **every kind has one**.
      *
-     * A balloon's record is everything about it; a picture's says which file it is and what words are
-     * over it. Both were the same accessor declared twice, once per subclass, so every caller that
-     * wanted a record had to prove which subclass it was holding first — and the write paths that only
-     * proved one of them silently dropped the other.
+     * A balloon's is everything about it; a picture's says which file it is and what words are over it. Both
+     * were the same accessor declared twice, once per subclass, so every caller that wanted one had to prove
+     * which subclass it was holding first — and the write paths that only proved one of them silently dropped
+     * the other.
      *
-     * A record here is **never** a stand-in for "this object has none". The map this used to be read
-     * from returns a default *speech balloon* for a uid it does not hold, and that one value standing
-     * for two different things is the mechanism behind four shipped defects. Each kind keeps its record
-     * describing what it actually is, so asking any object is always safe.
+     * It is **never** a stand-in for "this object has none". Each kind keeps its composition describing what
+     * it actually is, so asking any object is always safe.
      *
-     * \return The authoring record for this object, containing all relevant properties and settings.
+     * **What it shows, not what it is.** An object is a view of the document's composition (Document): it
+     * changes nothing of it itself. An edit made on the canvas — a tail aimed, a grip, a node — is offered with
+     * compositionEdited(), and comes back through setComposition() once the document has it.
      */
-    [[nodiscard]] const ObjectRecord& record() const { return m_record; }
+    [[nodiscard]] const Composition& composition() const { return m_composition; }
 
     /**
-     * \brief Adopts \p a and repaints. What that costs — re-resolving paths, a resize — is the kind's own.
-     * \param a The record to adopt.
+     * \brief Shows \p c, the document's, and repaints. What that costs — re-resolving paths, a resize — is the
+     *        kind's own. Called only by whoever holds the document.
      */
-    virtual void setRecord(const ObjectRecord& a) = 0;
+    virtual void setComposition(const Composition& c) = 0;
 
     /**
      * \brief How this object blends onto the strip — mapped to the matching QPainter composition mode.
@@ -136,6 +137,11 @@ public:
     //! Whether handle @p index is a selected tail's, drawn hollow.
     [[nodiscard]] bool isFocusedHandle(int index) const { return m_focusedHandles.contains(index); }
 
+    //! Marks the words @p id as picked: their frame drawn marked, its handles first. 0: none, the first words marked.
+    void setPickedWords(int id);
+    //! The words marked: those picked, or the first; 0 with no words.
+    [[nodiscard]] int markedWords() const;
+
     //! How many extra draggable points this object has — a bubble's tail tips.
     [[nodiscard]] int tipCount() const { return handleCount(); }
 
@@ -149,12 +155,11 @@ public:
     void setShapeEditing(bool on);
     [[nodiscard]] bool shapeEditing() const { return m_shapeEditing; }
 
-    //! Whether this object has an outline with handles to edit: a balloon of a kind that offers them.
+    //! Whether this object has handles to edit: a balloon's outline, a fade's cross, words' frame.
     [[nodiscard]] virtual bool canEditShape() const { return false; }
 
-    //! The handles shape editing offers, in item coordinates. None by default.
-    [[nodiscard]] virtual QList<Geometry::ShapeHandle> shapeHandles() const { return {}; }
-
+    //! The handles shape editing offers (Geometry::handlesOf()), in item coordinates; none unless canEditShape().
+    [[nodiscard]] QList<Geometry::Handle> shapeHandles() const;
     //! The bare outline shape editing traces, in item coordinates. None by default.
     [[nodiscard]] virtual QPainterPath editOutline() const { return {}; }
 
@@ -189,11 +194,8 @@ public:
     [[nodiscard]] virtual bool handleDrawn(int index) const { Q_UNUSED(index) return true; }
 
     /**
-     * \brief True when a resize must scale uniformly rather than distort.
-     *
-     * Imported artwork says yes: its size travels as a single width fraction and its height follows
-     * the artwork's own aspect, so a distorted one is not expressible — which is also what anyone
-     * dragging the corner of a logo meant. Such an object is offered no edge grips.
+     * \brief True when a resize keeps the box's aspect: imported artwork, whose height follows its file's, which
+     *        is also what anyone dragging the corner of a logo meant. Such an object is offered no edge grips.
      */
     [[nodiscard]] virtual bool keepsAspect() const { return false; }
 
@@ -254,7 +256,7 @@ public:
     /**
      * \brief The rectangle the grips move — the object's own size, before any tail.
      *
-     * Not stored here: a bubble's box *is* its record's, and holding a second copy is how the two
+     * Not stored here: a bubble's box *is* its composition's, and holding a second copy is how the two
      * drift apart. Each kind answers from wherever its size actually lives.
      */
     [[nodiscard]] virtual QSizeF boxSize() const = 0;
@@ -294,9 +296,17 @@ signals:
      * \param uid The unique identifier of the object.
      */
     void geometryCommitted(const QString& uid);
+    /**
+     * \brief A drag on the canvas made object @p uid's composition @p next — live, at every move. The document
+     *        takes it and shows it back (setComposition()); the release reports geometryCommitted().
+     */
+    void compositionEdited(const QString& uid, const Composition& next);
 
     //! The picked nodes changed (pickedVertices()): what Delete and *Point type* act on.
     void pickedVertexChanged();
+
+    //! A press on a handle of the frame of words @p id that are not picked: the controller picks them.
+    void wordsPressed(const QString& uid, int id);
 
     /**
      * \brief The object was pressed — on handle @p handle, or on anything else when it is -1.
@@ -360,14 +370,6 @@ protected:
     /** \brief Places handle @p index at @p local, in item coordinates. None by default. */
     virtual void                  setHandlePos(int index, const QPointF& local) { Q_UNUSED(index) Q_UNUSED(local) }
 
-    /**
-     * \brief A press on shape handle @p index of shapeHandles(). True when the press alone changed the
-     *        record (a "+" adding a node), so the drag is reported even if the pointer never moves.
-     */
-    virtual bool beginShapeDrag(int index) { Q_UNUSED(index) return false; }
-    //! Continues the drag of the shape handle pressed in beginShapeDrag() to @p scenePos.
-    virtual void dragShapeTo(const QPointF& scenePos) { Q_UNUSED(scenePos) }
-
     //! A grip's size in this object's own units at the current zoom: what a handle needs to stay clear of another.
     [[nodiscard]] qreal gripSpanHere() const;
 
@@ -390,13 +392,29 @@ protected:
     void mouseDoubleClickEvent(QGraphicsSceneMouseEvent* e) override;   //!< Asks for shape editing.
     QVariant itemChange(GraphicsItemChange change, const QVariant& value) override;   //!< Tells the chrome.
 
-    /** \brief Written by each kind's setRecord(), read by everyone through record(). See above. */
-    ObjectRecord m_record;
+    /** \brief Written by each kind's setComposition(), read by everyone through composition(). See above. */
+    Composition m_composition;
 
 private:
     /** \brief Which grip is under \p local. For Grip::Handle, \p handleIndex receives which one. */
     [[nodiscard]] Grip   gripAt(const QPointF& local, int* handleIndex = nullptr) const;
     [[nodiscard]] QRectF handleRect(int index) const;   //!< The rectangle a handle occupies, in item coordinates.
+
+    /**
+     * \brief A press on shape handle @p index of shapeHandles(). True when the press alone changed the
+     *        composition (a "+" adding a node), so the drag is reported even if the pointer never moves.
+     */
+    bool beginShapeDrag(int index);
+    //! Continues the drag of the shape handle pressed in beginShapeDrag() to @p scenePos.
+    void dragShapeTo(const QPointF& scenePos);
+    //! What a handle's owner needs from this object at a drag, in the composition's units: the radius dot's
+    //! clearance and the picked nodes.
+    [[nodiscard]] Geometry::HandleContext handleContext() const;
+
+    Composition      m_shapeStart;            //!< The composition at a shape handle's press; the drag works against it.
+    QPointF          m_shapeStartPos;         //!< pos() at that press: a node dragged past the box moves the item.
+    Geometry::Handle m_shapeHandle;           //!< The handle being dragged, in the composition's units.
+    bool             m_shapeDragOff = false;  //!< A Ctrl+press took its node out of the pick: the drag moves nothing.
 
     QString m_uid;                   //!< The unique identifier for this object, used to track it in the library and persist its state.
     QRectF  m_bounds;                //!< Cached content bounds — see refreshBounds().
@@ -409,6 +427,7 @@ private:
     bool    m_moved    = false;     //!< Whether this press actually changed anything worth reporting.
     bool    m_orphaned = false;     //!< True when the anchor page is not in the strip, so the object is greyed out and cannot be moved.
     QList<int> m_focusedHandles;   //!< The selected tails' handles, drawn hollow.
+    int        m_pickedWords = 0;  //!< See setPickedWords().
     Grip    m_dragGrip = Grip::None;   //!< The grip of the drag under way or the last one (dragGrip()).
     bool    m_shapeEditing = false;    //!< See setShapeEditing().
     QList<int> m_pickedVertices;       //!< See pickedVertices().

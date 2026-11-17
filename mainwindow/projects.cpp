@@ -1,7 +1,6 @@
 #include "mainwindow.hpp"
 #include "ui_mainwindow.h"
 #include "project.hpp"
-#include "workspacesnapshotcommand.hpp"
 #include "canvasprofiledialog.hpp"
 #include "managecanvasprofilesdialog.hpp"
 #include "manageoutputprofilesdialog.hpp"
@@ -36,6 +35,8 @@
 #include <QThread>
 #include <QUndoGroup>
 #include <QUndoStack>
+
+#include "history.hpp"
 #include <QUrl>
 
 #include <algorithm>
@@ -254,7 +255,7 @@ int MainWindow::projectIndexOf(const QDockWidget *dock) const
 // Project dock management
 // ---------------------------------------------------------------------------
 
-QUndoStack* MainWindow::historyFor(int projectIndex)
+History* MainWindow::historyFor(int projectIndex)
 {
     const QString uid = QString::fromStdString(
         m_workspace.projectItems[static_cast<std::size_t>(projectIndex)].uid);
@@ -263,13 +264,12 @@ QUndoStack* MainWindow::historyFor(int projectIndex)
     if (it != m_projectHistories.constEnd())
         return it.value();
 
-    // Depth 10, as the project history has always had: deep enough to undo a train of thought, shallow
-    // enough that a chapter's worth of snapshots never accumulates.
-    auto* stack = new QUndoStack(this);
-    stack->setUndoLimit(10);
-    m_undoGroup->addStack(stack);
-    m_projectHistories.insert(uid, stack);
-    return stack;
+    // History::k_depth deep: enough to undo a train of thought, and a step holds one project's state at
+    // most, so a chapter's worth of them does not weigh.
+    auto* history = new History(this);
+    m_undoGroup->addStack(history->stack());
+    m_projectHistories.insert(uid, history);
+    return history;
 }
 
 void MainWindow::dropHistoryFor(const QString& projectUid)
@@ -277,8 +277,7 @@ void MainWindow::dropHistoryFor(const QString& projectUid)
     const auto it = m_projectHistories.constFind(projectUid);
     if (it == m_projectHistories.constEnd())
         return;
-    // removeStack() reparents to the stack itself, so it has to be deleted deliberately.
-    m_undoGroup->removeStack(it.value());
+    m_undoGroup->removeStack(it.value()->stack());
     delete it.value();
     m_projectHistories.erase(it);
 }
@@ -311,22 +310,20 @@ void MainWindow::openProjectDock(int projectIndex)
     newDock->setAllowedAreas(Qt::LeftDockWidgetArea | Qt::TopDockWidgetArea | Qt::BottomDockWidgetArea);
     const QString cacheDir = workspaceCacheDir();
     auto* projectWidget = new Project(projectIndex, m_workspace, cacheDir,
-                                      historyFor(projectIndex), newDock);
+                                      historyFor(projectIndex), m_workspaceHistory, newDock);
 
     // Text & bubbles: the project needs to know where the workspace file lives (its `overlays/` folder
-    // is written beside it) and which authoring records are its own. The records travel back here on
+    // is written beside it) and which authoring compositions are its own. The compositions travel back here on
     // every edit — including an undo, which restores them alongside the library's project state — so the
     // per-project cache stays in step with what the editor has committed.
     projectWidget->setWorkspacePath(m_workspacePath);
     projectWidget->setWriteGuard([this] { return canWriteWorkspace(); });
-    projectWidget->setRecords(m_overlayRecords.records(projectUid));
-    connect(projectWidget, &Project::recordsChanged, this,
-            [this, projectUid, newDock](const ObjectRecord::Map& records) {
-        m_overlayRecords.setRecords(projectUid, records);
-        // A record edit changes what a bubble says without moving a page, so the strip has to be told
-        // explicitly — the feed signature it guards itself with would not see it.
-        if (QDockWidget* strip = dockForStripEditor(projectIndexOf(newDock)))
-            refreshStripEditor(strip);
+    projectWidget->setCompositions(m_overlayCompositions.compositions(projectUid));
+    connect(projectWidget, &Project::compositionsChanged, this,
+            [this, projectUid](const Composition::Map& compositions) {
+        // Only the cache: the strip is told by projectModified(), which follows every composition change and
+        // refreshes it from this cache. Refreshing it here too fed it the same compositions twice per edit.
+        m_overlayCompositions.setCompositions(projectUid, compositions);
     });
     connect(projectWidget, &Project::projectModified, this, [this, newDock]{
         setDirty(true);
@@ -376,13 +373,9 @@ void MainWindow::openProjectDock(int projectIndex)
             editor->selectStrip();
         editor->setTool(toolId);
     });
-    // A workspace-level edit made from this dock (canvas-profile content, output format) belongs on
-    // the workspace undo timeline — push it there from the before/after snapshots the project sends.
-    connect(projectWidget, &Project::workspaceEditCommitted, this,
-            [this](const QString& text, const QString& before, const QString& after) {
-                m_workspaceUndoStack->push(new WorkspaceSnapshotCommand(this, before, after, text));
-                emit workspaceChanged();
-            });
+    // A workspace-level edit made from this dock (canvas-profile content, output format) is on the
+    // workspace's timeline (the project records it there); every view of the workspace follows it.
+    connect(projectWidget, &Project::workspaceEdited, this, &MainWindow::workspaceChanged);
     // Keep this dock's palette-derived views (output combo, assigned-canvas list) in step with every
     // workspace-level change, this dock's own included. The connection is auto-removed when the widget
     // is destroyed, so no manual bookkeeping is needed.
@@ -508,7 +501,7 @@ void MainWindow::closeDock(QDockWidget *dock)
         return;
     }
     // Hidden, not destroyed. The dock is the way in, not the thing itself: an open strip editor keeps
-    // sending edits to this widget, and those edits need its records, its overlay directory and its
+    // sending edits to this widget, and those edits need its compositions, its overlay directory and its
     // history. Destroying it dropped all three silently — the editor went on showing changes nobody
     // had recorded. Reopening from the project list finds this dock and raises it.
     dock->hide();
@@ -559,11 +552,11 @@ void MainWindow::refreshStripEditor(QDockWidget *dock)
     // previews cleanly whether or not a render has happened, and a render does not change the view.
     editor->setColourCorrection(project.colourCorrection);
 
-    // Text & bubbles: the library's placements plus the GUI's authoring records for them. The editor
+    // Text & bubbles: the library's placements plus the GUI's authoring compositions for them. The editor
     // resolves each overlay's page anchor against the layout it just built — the same arithmetic the
     // render does — so a bubble previews exactly where it will be baked.
     editor->setOverlaySource(project.getStripOverlays(),
-                             m_overlayRecords.records(QString::fromStdString(project.uid)));
+                             m_overlayCompositions.compositions(QString::fromStdString(project.uid)));
 }
 
 void MainWindow::reserveRoomForDocks()
@@ -572,10 +565,11 @@ void MainWindow::reserveRoomForDocks()
     // are what need the height, and they do not depend on the files.
     Platemaker::Models::Workspace scratch;
     scratch.projectItems.emplace_back();
-    QUndoStack history;
+    History history;
+    History workspaceHistory;
 
     QDockWidget project(this);
-    project.setWidget(new Project(0, scratch, QString(), &history, &project));
+    project.setWidget(new Project(0, scratch, QString(), &history, &workspaceHistory, &project));
     installDockTitleBar(&project);
     QDockWidget strip(this);
     strip.setWidget(new StripEdit::Editor(*m_presets, &strip));
@@ -640,23 +634,23 @@ void MainWindow::openStripEditorDock(int projectIndex)
     // undo step. Both are guarded the same way the grade is: a project that has been removed has no
     // widget and no history, and the edit is dropped rather than applied untracked. Merely *closing*
     // the dock does not reach here — it hides, and the widget goes on recording.
-    connect(editor, &StripEdit::Editor::recordCreated, this,
-            [this, projectUid](const ObjectRecord &record, double xFrac, double yFrac,
+    connect(editor, &StripEdit::Editor::compositionCreated, this,
+            [this, projectUid](const Composition &composition, double xFrac, double yFrac,
                                  double wFrac, const QString &anchorUid) {
         if (auto *pw = projectWidget(projectIndexForUid(projectUid)))
-            pw->createOverlay(record, xFrac, yFrac, wFrac, anchorUid);
+            pw->createOverlay(composition, xFrac, yFrac, wFrac, anchorUid);
     });
-    connect(editor, &StripEdit::Editor::artworkImportRequested, this,
+    connect(editor, &StripEdit::Editor::pictureImportRequested, this,
             [this, projectUid](const QString &file, double xFrac, double yFrac, double wFrac,
                                  QSize naturalSize, const QString &anchorUid) {
         if (auto *pw = projectWidget(projectIndexForUid(projectUid)))
-            pw->importOverlayArtwork(file, xFrac, yFrac, wFrac, naturalSize, anchorUid);
+            pw->importOverlayPicture(file, xFrac, yFrac, wFrac, naturalSize, anchorUid);
     });
     connect(editor, &StripEdit::Editor::overlaysCommitted, this,
             [this, projectUid](const std::vector<Platemaker::Models::StripOverlay> &overlays,
-                                 const ObjectRecord::Map &records, const QString &undoText) {
+                                 const Composition::Map &compositions, const QString &undoText) {
         if (auto *pw = projectWidget(projectIndexForUid(projectUid)))
-            pw->applyOverlays(overlays, records, undoText);
+            pw->applyOverlays(overlays, compositions, undoText);
     });
     // Its own advisory strip, along the bottom. Dragged out, this dock is a top-level window with no
     // status bar; maximised, it covers the one behind it. Either way the chapter's problems would be
@@ -665,10 +659,6 @@ void MainWindow::openStripEditorDock(int projectIndex)
     editor->setAdvisories(m_advisories, projectUid);
     editor->setAdvisoriesActive(dock->isFloating());
     connect(dock, &QDockWidget::topLevelChanged, editor, &StripEdit::Editor::setAdvisoriesActive);
-    // What has happened, as opposed to what is wrong: the bar's left side, which expires on its own.
-    // The advisories keep the right side, where a badge lives as long as its condition does.
-    connect(editor, &StripEdit::Editor::noted, this,
-            [this](const QString& text) { statusBar()->showMessage(text, k_noticeMs); });
 
     dock->setWidget(editor);
 
@@ -687,7 +677,7 @@ void MainWindow::openStripEditorDock(int projectIndex)
         }
         if (idx < 0 || idx >= int(m_workspace.projectItems.size()))
             return;
-        m_undoGroup->setActiveStack(historyFor(idx));
+        m_undoGroup->setActiveStack(historyFor(idx)->stack());
         // Looking at a chapter's strip is looking at that chapter, for the status bar as much as for
         // Ctrl+Z — otherwise the bar would go on describing whichever project dock was raised last.
         m_activeProjectIndex = idx;

@@ -89,4 +89,34 @@ QPointF StripLayout::scenePosOf(const Platemaker::Models::StripOverlay& o) const
     return QPointF(pixels(o.xFrac), top + pixels(o.yFrac));
 }
 
+std::optional<StripLayout::Anchored> StripLayout::anchoredAt(const QPointF& topLeft, qreal width,
+                                                             std::optional<qreal> pageY) const
+{
+    const int page = m_width > 0 ? pageAtSceneY(pageY.value_or(topLeft.y())) : -1;
+    if (page < 0)
+        return std::nullopt;
+    return Anchored{anchorUidForPage(page), fraction(topLeft.x()), fraction(topLeft.y() - m_pages.at(page).top),
+                    fraction(width)};
+}
+
+StripLayout::Anchored StripLayout::anchoredOn(const QString& anchor, const QPointF& topLeft, qreal width) const
+{
+    // Measured the way scenePosOf() reads it back.
+    const int page = pageForAnchor(anchor);
+    const int top  = page >= 0 ? m_pages.at(page).top : 0;
+    return {anchor, fraction(topLeft.x()), fraction(topLeft.y() - top), fraction(width)};
+}
+
+qreal StripLayout::scaleOf(const Platemaker::Models::StripOverlay& o, qreal naturalWidth) const
+{
+    if (o.wFrac <= 0.0 || naturalWidth <= 0.0)
+        return 1.0;
+    return pixels(o.wFrac) / naturalWidth;
+}
+
+double StripLayout::percentOf(double wFrac, qreal naturalWidth) const
+{
+    return naturalWidth > 0.0 ? pixels(wFrac) * 100.0 / naturalWidth : 0.0;
+}
+
 }  // namespace StripEdit

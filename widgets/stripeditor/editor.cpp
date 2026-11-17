@@ -21,7 +21,7 @@
 #include "presetstore.hpp"
 #include "properties/shapeeditor.hpp"
 #include "objectstate/stripstate.hpp"
-#include "tooloptions/artworktooloptions.hpp"
+#include "tooloptions/picturetooloptions.hpp"
 #include "tooloptions/bubbletooloptions.hpp"
 
 #include <platemaker/models/colour_correction.hpp>
@@ -75,7 +75,7 @@ namespace {
  * to know. Which options page a tool shows is a property of its row, and it is the question actually
  * being asked.
  */
-constexpr QLatin1String k_artworkPage{"artwork"};
+constexpr QLatin1String k_picturePage{"artwork"};
 /**
  * \brief How wide a splitter's grab area is. Wider than the default 1 point, which was as hard to hit as it sounds.
  */
@@ -219,7 +219,7 @@ Editor::Editor(PresetStore& presets, QWidget *parent)
         });
         // The panel can only act on the strip; asked for it, it gets it.
         connect(m_gradeOptions, &GradeToolOptions::selectStripRequested, this, &Editor::selectStrip);
-        // One panel for every tool that authors an `ObjectRecord` — Bubble, Text, Caption — because they
+        // One panel for every tool that authors an object we draw — Bubble, Text, Caption — because they
         // author the same object and differ only in the shape they place, which each tool's row says.
         m_bubbleOptions = new BubbleToolOptions(*m_presets, ui->toolOptionsStack);
         connect(m_bubbleOptions, &BubbleToolOptions::manageRequested, this, &Editor::presetsDialogRequested);
@@ -228,12 +228,12 @@ Editor::Editor(PresetStore& presets, QWidget *parent)
         // The other create tool's options: which picture the next placement puts down. A separate panel
         // rather than a section of the one above, because they describe different kinds of object, and an
         // options page describes one kind at a time.
-        m_artworkOptions = new ArtworkToolOptions(ui->toolOptionsStack);
-        m_toolOptions->addPage(k_artworkPage, m_artworkOptions);
-        connect(m_artworkOptions, &ArtworkToolOptions::artworkChanged, this, [this](const QString& f) {
+        m_pictureOptions = new PictureToolOptions(ui->toolOptionsStack);
+        m_toolOptions->addPage(k_picturePage, m_pictureOptions);
+        connect(m_pictureOptions, &PictureToolOptions::pictureChanged, this, [this](const QString& f) {
             const Tool* armed = toolById(m_tool);
-            if (m_placement && armed && armed->optionsPage == k_artworkPage)
-                m_placement->setArtwork(f);
+            if (m_placement && armed && armed->optionsPage == k_picturePage)
+                m_placement->setPicture(f);
         });
 
         m_toolOptions->assertEveryToolHasAPage();
@@ -263,7 +263,7 @@ Editor::Editor(PresetStore& presets, QWidget *parent)
                                                 "object?").arg(origin.name))
                            != QMessageBox::Yes)
                     return;
-                (void)m_presets->restore(origin, item->record());
+                (void)m_presets->restore(origin, item->composition());
             }
             emit presetsDialogRequested(origin.uid);
         });
@@ -305,43 +305,43 @@ Editor::Editor(PresetStore& presets, QWidget *parent)
         // OBJECT STATE and the objects, both ways. The panel's edits go to the objects it was bound to;
         // the controller says what it is bound to now. Neither includes the other — they meet here.
         connect(m_objectState, &ObjectState::changed, m_objects,
-                [this](const ObjectRecord& a) { m_objects->applyPanelRecords({a}, /*commit=*/false); });
+                [this](const Composition& a) { m_objects->panel().applyEdits({a}, /*commit=*/false); });
         connect(m_objectState, &ObjectState::committed, m_objects,
-                [this](const ObjectRecord& a) { m_objects->applyPanelRecords({a}, /*commit=*/true); });
+                [this](const Composition& a) { m_objects->panel().applyEdits({a}, /*commit=*/true); });
         connect(m_objectState, &ObjectState::blendPicked, m_objects, &ObjectController::setSelectionBlend);
         connect(m_objectState, &ObjectState::deleteRequested, m_objects,
                 &ObjectController::deleteSelectedOverlay);
         connect(m_objectState, &ObjectState::changedMany, m_objects,
-                [this](const QList<ObjectRecord>& objects) {
-            m_objects->applyPanelRecords(objects, /*commit=*/false);
+                [this](const QList<Composition>& objects) {
+            m_objects->panel().applyEdits(objects, /*commit=*/false);
         });
         connect(m_objectState, &ObjectState::committedMany, m_objects,
-                [this](const QList<ObjectRecord>& objects) {
-            m_objects->applyPanelRecords(objects, /*commit=*/true);
+                [this](const QList<Composition>& objects) {
+            m_objects->panel().applyEdits(objects, /*commit=*/true);
         });
         connect(m_objectState, &ObjectState::scaleChanged, m_objects,
-                [this](double percent) { m_objects->scaleSelectedArtwork(percent, /*commit=*/false); });
+                [this](double percent) { m_objects->scaleSelectedPicture(percent, /*commit=*/false); });
         connect(m_objectState, &ObjectState::scaleCommitted, m_objects,
-                [this](double percent) { m_objects->scaleSelectedArtwork(percent, /*commit=*/true); });
+                [this](double percent) { m_objects->scaleSelectedPicture(percent, /*commit=*/true); });
         connect(m_objectState, &ObjectState::fitRequested, m_objects,
                 &ObjectController::fitSelectionToText);
-        connect(m_objectState, &ObjectState::fixPaddingRequested, m_objects,
-                &ObjectController::fixSelectionPadding);
+        connect(m_objectState, &ObjectState::addWordsRequested, m_objects, &ObjectController::addWords);
         using OC = ObjectController;
         using OS = ObjectState;
-        connect(m_objects, &OC::boundToRecord,      m_objectState, &OS::setRecord);
-        connect(m_objects, &OC::boundToTail,        m_objectState, &OS::setTail);
-        connect(m_objects, &OC::boundToRecords,     m_objectState, &OS::setRecords);
-        connect(m_objects, &OC::boundToMixed,       m_objectState, &OS::setMixedSubjects);
-        connect(m_objects, &OC::boundToTails,       m_objectState, &OS::setTails);
-        connect(m_objects, &OC::boundToNothing,     m_objectState, &OS::clearSelection);
-        connect(m_objects, &OC::blendBound,         m_objectState, &OS::setSelectionBlend);
-        connect(m_objects, &OC::artworkScaleBound,  m_objectState, &OS::setArtworkScale);
+        connect(&m_objects->panel(), &PanelBinder::boundToComposition,      m_objectState, &OS::setComposition);
+        connect(&m_objects->panel(), &PanelBinder::boundToTail,        m_objectState, &OS::setTail);
+        connect(&m_objects->panel(), &PanelBinder::boundToWords,       m_objectState, &OS::setWords);
+        connect(&m_objects->panel(), &PanelBinder::boundToCompositions,     m_objectState, &OS::setCompositions);
+        connect(&m_objects->panel(), &PanelBinder::boundToMixed,       m_objectState, &OS::setMixedSubjects);
+        connect(&m_objects->panel(), &PanelBinder::boundToTails,       m_objectState, &OS::setTails);
+        connect(&m_objects->panel(), &PanelBinder::boundToNothing,     m_objectState, &OS::clearSelection);
+        connect(&m_objects->panel(), &PanelBinder::blendBound,         m_objectState, &OS::setSelectionBlend);
+        connect(&m_objects->panel(), &PanelBinder::pictureScaleBound,  m_objectState, &OS::setPictureScale);
         connect(m_objects, &OC::textFocusRequested, m_objectState, &OS::focusText);
         // What TOOL OPTIONS says the next object is, for a placement and *Convert to ▸ Balloon*. Told as
         // functions, so the objects need no tool-options panel.
         m_objects->setToolDefaults({[this] { return m_bubbleOptions->prototype(); },
-                                    [this] { return m_bubbleOptions->balloonShape(); }});
+                                    [this] { return m_bubbleOptions->balloon(); }});
         // A Create tool's drag on empty strip, and the object it places: the balloon TOOL OPTIONS
         // describes, or the picture the Artwork tool is armed with.
         m_placement = new Placement(m_scene, *m_objects, m_layout, this, this);
@@ -390,18 +390,17 @@ Editor::Editor(PresetStore& presets, QWidget *parent)
         connect(m_objectMenu, &ObjectMenu::resetLookRequested, this, resetLook);
         connect(m_objectState, &ObjectState::resetLookRequested, this, resetLook);
         m_objectMenu->setColourSource(m_colours);
-        connect(m_objects, &ObjectController::recordCreated,        this, &Editor::recordCreated);
-        connect(m_objects, &ObjectController::overlaysCommitted,         this, &Editor::overlaysCommitted);
-        connect(m_objects, &ObjectController::artworkImportRequested, this, &Editor::artworkImportRequested);
+        connect(m_objects, &ObjectController::compositionCreated,          this, &Editor::compositionCreated);
+        connect(m_objects, &ObjectController::overlaysCommitted,      this, &Editor::overlaysCommitted);
+        connect(m_objects, &ObjectController::pictureImportRequested, this, &Editor::pictureImportRequested);
         connect(m_objects, &ObjectController::subjectChanged,         this, [this] { showSubject(); });
-        connect(m_objects, &ObjectController::noted,                  this, &Editor::noted);
 
         // CANVAS: what a press, a drag, a drop or a wheel on the strip does under the armed tool. It does
         // the canvas's own part and reports the rest, which is wired here because it belongs elsewhere:
         // the colour pair to the rail, zoom to this shell, a dropped picture to the objects' import.
         m_input = new CanvasInput(m_view, m_objects, m_placement, this);
-        connect(m_input, &CanvasInput::artworkDropped, this, [this](const QString& file, QPointF at) {
-            m_objects->placeArtworkAt(file, at);
+        connect(m_input, &CanvasInput::pictureDropped, this, [this](const QString& file, QPointF at) {
+            m_objects->placePictureAt(file, at);
         });
         connect(m_input, &CanvasInput::sampleRequested, this, [this](QPointF at, bool secondary) {
             if (!m_colours || !m_pages)
@@ -496,15 +495,15 @@ void Editor::setTool(const QString& id)
     // What a placement puts down: a picture, or — when this is empty — a balloon. Told to the placement at
     // the moment the tool is armed.
     if (m_placement) {
-        QString artwork;
-        if (tool->optionsPage == k_artworkPage && m_artworkOptions) {
+        QString picture;
+        if (tool->optionsPage == k_picturePage && m_pictureOptions) {
             // Arming with nothing chosen asks once, here: before any drag, so a file dialog never lands
             // in the middle of one. A cancelled dialog arms nothing, and TOOL OPTIONS says as much.
-            if (m_artworkOptions->artwork().isEmpty())
-                m_artworkOptions->chooseArtwork();
-            artwork = m_artworkOptions->artwork();
+            if (m_pictureOptions->file().isEmpty())
+                m_pictureOptions->choosePicture();
+            picture = m_pictureOptions->file();
         }
-        m_placement->setArtwork(artwork);
+        m_placement->setPicture(picture);
     }
 
     // The right column stays put under every tool, and **live** under every tool. It was briefly
@@ -517,7 +516,7 @@ void Editor::setTool(const QString& id)
     // layer. Picking the Grade tool with nothing selected selects it, rather than opening on a panel
     // that can only say "select something first". A selection the artist made is left alone — the panel
     // explains instead.
-    if (tool->kind == ToolKind::Grade && m_objects->subject() == ObjectController::Subject::None)
+    if (tool->kind == ToolKind::Grade && m_objects->subject() == Subject::None)
         m_objects->selectStrip();
 }
 
@@ -550,26 +549,27 @@ void Editor::showSubject()
     // The Grade tool acts on the selection, so it is told what that is whether or not it is showing.
     if (m_gradeOptions) {
         const auto s = m_objects->subject();
-        m_gradeOptions->setTarget(s == ObjectController::Subject::Strip ? GradeToolOptions::Target::Strip
-                                : s == ObjectController::Subject::Page ? GradeToolOptions::Target::Page
+        m_gradeOptions->setTarget(s == Subject::Strip ? GradeToolOptions::Target::Strip
+                                : s == Subject::Page ? GradeToolOptions::Target::Page
                                                                          : GradeToolOptions::Target::Other);
     }
 
     // Which panel answers is the selection's to decide; what it says is the stack's.
     switch (m_objects->subject()) {
-    case ObjectController::Subject::Strip:
+    case Subject::Strip:
         m_stateStack->showStrip(m_layout, m_cc);
         return;
-    case ObjectController::Subject::Page: {
+    case Subject::Page: {
         const int i = m_layout.pageForAnchor(m_objects->selectedPage());
         if (i < 0)
             break;
         m_stateStack->showPage(m_layout, i, m_cc);
         return;
     }
-    case ObjectController::Subject::None:
-    case ObjectController::Subject::Overlay:
-    case ObjectController::Subject::Tail:
+    case Subject::None:
+    case Subject::Overlay:
+    case Subject::Tail:
+    case Subject::Words:
         break;
     }
     m_stateStack->showObject();
@@ -645,8 +645,8 @@ void Editor::setPreviewSource(const std::vector<Platemaker::Models::InputFile>& 
 
 void Editor::rebuildScene()
 {
-    // The objects' records are read *before* the scene deletes them: forgetItems() harvests them, and
-    // after clear() every tracked pointer is dangling.
+    // The objects only show the document, so nothing is lost; but after clear() every tracked pointer is
+    // dangling, so they are dropped first.
     m_objects->forgetItems();
     m_objects->setSyncing(true);  // scene->clear() drops the selection; that is not a user action
     m_scene->clear();           // deletes every item (incl. the StripItem)
@@ -846,9 +846,9 @@ void Editor::resizeEvent(QResizeEvent *event)
 // ---------------------------------------------------------------------------
 
 void Editor::setOverlaySource(const std::vector<Platemaker::Models::StripOverlay>& overlays,
-                              const ObjectRecord::Map&                                  records)
+                              const Composition::Map&                                  compositions)
 {
-    m_objects->setSource(overlays, records);
+    m_objects->setSource(overlays, compositions);
     if (m_input)
         m_input->updateCursor();   // an object may have arrived under, or vanished from beneath, a still pointer
 }

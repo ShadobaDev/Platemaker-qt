@@ -43,7 +43,7 @@ class TailListEditor;
  * no balloon has no answer to give. Whether there is one at all is a kind, and kinds are changed by
  * *Convert to ▸* — which is what took that job over, as this comment used to predict it would.
  *
- * Follows the same contract as `GradeToolOptions`: \c setRecord() populates without emitting; editing emits
+ * Follows the same contract as `GradeToolOptions`: \c setComposition() populates without emitting; editing emits
  * \c changed() continuously (live preview) and \c committed() once the controls settle (debounced) or on
  * a discrete action (persisted, one undo step).
  */
@@ -55,16 +55,24 @@ public:
     ObjectState(PresetStore& presets, QWidget* parent = nullptr);
 
     //! Shows \p a and names it in the header. Emits nothing.
-    void setRecord(const ObjectRecord& a);
+    void setComposition(const Composition& a);
 
     /**
      * \brief Shows tail @p index of \p a — a tail selected on its own. Emits nothing.
      *
      * One section, the tail's, and *Delete tail*. The balloon's own groups are the balloon's, and showing
      * them here would make an edit look as if it belonged to the tail. Edits still arrive as the whole
-     * record through changed() and committed(), with only that tail written.
+     * composition through changed() and committed(), with only that tail written.
      */
-    void setTail(const ObjectRecord& a, int index);
+    void setTail(const Composition& a, int index);
+
+    /**
+     * \brief Shows the words of id @p id of @p a, picked on their own. Emits nothing.
+     *
+     * One section, the Text section, for those words alone, and *Delete words*; *Fit to text* and *Add words* stay,
+     * as they are the object's. Edits arrive as the whole composition, with only those words' lettering written.
+     */
+    void setWords(const Composition& a, int id);
 
     /**
      * \brief Shows @p objects as one subject — the **union** of what they have in common. Emits nothing.
@@ -77,7 +85,7 @@ public:
      * Today that is the two colour groups: a swatch is the one control that can say *Mixed*. The rest of
      * the typography is hidden while a set is bound rather than showing one object's numbers.
      */
-    void setRecords(const QList<ObjectRecord>& objects);
+    void setCompositions(const QList<Composition>& objects);
 
     /**
      * \brief Names a selection of @p count things of **different kinds** — objects and tails together.
@@ -90,14 +98,14 @@ public:
      */
     void setMixedSubjects(int count);
     //! Several tails, no whole object: @p balloons are their balloons, @p tails each (balloon, tail index).
-    void setTails(const QList<ObjectRecord>& balloons, const QList<QPair<int, int>>& tails);
+    void setTails(const QList<Composition>& balloons, const QList<QPair<int, int>>& tails);
 
 
     /**
      * \brief Shows how the selection is composited — @p blend, or *Mixed* when it has no one answer.
      *
      * Separate from the setters above because it is not one of the object's property groups: blend
-     * belongs to the overlay rather than to the record a balloon is drawn from, and every kind of
+     * belongs to the overlay rather than to the composition a balloon is drawn from, and every kind of
      * object has one. @p applies is false where there is no object to ask — nothing selected, or a
      * tail, whose composite is its balloon's.
      */
@@ -114,7 +122,7 @@ public:
      * drawn*, and because the stored form is a fraction of the page, so the same percentage survives a
      * re-profile. 100% is one image pixel per strip pixel.
      */
-    void setArtworkScale(std::optional<double> percent);
+    void setPictureScale(std::optional<double> percent);
 
 
     //! Nothing is selected: the sections go away and the panel says why.
@@ -124,12 +132,12 @@ public:
     void focusText();
 
 signals:
-    void changed(const ObjectRecord& a);    //!< Continuous — for the live preview.
-    void committed(const ObjectRecord& a);  //!< Debounced / discrete — persist + undo.
+    void changed(const Composition& a);    //!< Continuous — for the live preview.
+    void committed(const Composition& a);  //!< Debounced / discrete — persist + undo.
 
-    //! The same two, for a set: the objects in the order they were given to setRecords().
-    void changedMany(const QList<ObjectRecord>& objects);
-    void committedMany(const QList<ObjectRecord>& objects);
+    //! The same two, for a set: the objects in the order they were given to setCompositions().
+    void changedMany(const QList<Composition>& objects);
+    void committedMany(const QList<Composition>& objects);
     //! Live — while the spin box moves. The owner resizes the picture without a history step.
     void scaleChanged(double percent);
     //! Settled — one history step.
@@ -138,7 +146,7 @@ signals:
     //! A blend mode was picked for the whole selection. One history step, the owner's to name.
     void blendPicked(Platemaker::Models::BlendMode blend);
     void fitRequested();                    //!< "Fit to text" — the editor resizes the selected bubble.
-    void fixPaddingRequested();             //!< "Fix padding" — the editor lowers the bubble's padding.
+    void addWordsRequested();               //!< "Add words" — more words on the selected balloon or picture.
     void deleteRequested();                 //!< Removes the selected object.
     //! The chip naming the preset the selection was made from was clicked.
     void presetOriginClicked(const PresetOrigin& origin);
@@ -149,7 +157,7 @@ signals:
 
 private:
     void onControlChanged();   //!< A group reported an edit → collect, preview, arm the commit timer.
-    //! Shows the sections this record's kind has, and hides the rest.
+    //! Shows the sections this composition's kind has, and hides the rest.
     void applyKindVisibility();
     //! Remembers which sections are open, so the choice follows the artist rather than the object.
     void restoreExpansion();
@@ -165,6 +173,7 @@ private:
     QList<QPair<int, int>> m_tailSet;        //!< Several tails: each (index into m_subjects, tail index).
     //! Whether the subject is a tail, or several: the tail's section alone, and no look of its own.
     [[nodiscard]] bool tailSubject() const { return m_tailIndex >= 0 || !m_tailSet.isEmpty(); }
+    int m_wordsId = 0;   //!< The words on show (their id), or 0 when the subject is not words picked on their own.
 
     QLabel*             m_subject   = nullptr;  //!< Names what is being edited.
     QHBoxLayout*        m_header    = nullptr;  //!< The subject and, after it, the look chip.
@@ -178,20 +187,20 @@ private:
     BlendEditor*        m_blend     = nullptr;  //!< The one property every kind of object carries.
     QWidget*            m_scaleRow  = nullptr;  //!< A picture's size; hidden for every other kind.
     QDoubleSpinBox*     m_scale     = nullptr;
-    QWidget*            m_actions   = nullptr;  //!< Fit / Delete — they act on the selection.
+    QWidget*            m_actions   = nullptr;  //!< Fit / Add words / Delete — they act on the selection.
     QString             m_emptyText;            //!< What the hint says with nothing selected.
     QPushButton*        m_fitButton    = nullptr;
-    QPushButton*        m_padButton    = nullptr;
+    QPushButton*        m_addWordsButton = nullptr;   //!< *Add words*: shown for a balloon or a picture.
     QPushButton*        m_deleteButton = nullptr;   //!< "Delete", or "Delete tail" when a tail is the subject.
     QTimer*             m_commitTimer = nullptr;
     QHash<int, CollapsibleSection*> m_sections; //!< Keyed by PropertyGroup.
 
-    ObjectRecord m_record;
-    QList<ObjectRecord> m_subjects;   //!< The whole selection, when there is more than one of it.        //!< Working copy of the selected object.
+    Composition m_composition;
+    QList<Composition> m_subjects;   //!< The whole selection, when there is more than one of it.        //!< Working copy of the selected object.
     bool m_populating   = false;    //!< Suppresses change signals while binding.
-    //! One record is bound, so an edit may be emitted about it. False for a set — there is no single
+    //! One composition is bound, so an edit may be emitted about it. False for a set — there is no single
     //! object those controls would be describing.
-    bool m_hasRecord = false;
+    bool m_hasComposition = false;
     //! How many objects the panel is speaking for. Delete acts on all of them; 0 means nothing is selected.
     int  m_selectionCount = 0;
 };

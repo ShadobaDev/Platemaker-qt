@@ -51,7 +51,7 @@ time runs off the UI thread.
 ## Extending the strip editor
 
 Which files to touch, and which test tells you what you missed. Paths are under
-`widgets/stripeditor/` unless they start with `widgets/objectrecord/` (the record a balloon is, how it
+`widgets/stripeditor/` unless they start with `widgets/composition/` (the composition a balloon is, how it
 is drawn and saved). **The library needs no change for any of the three**: it composites the SVG or
 picture the GUI writes.
 
@@ -85,20 +85,19 @@ title and whether it speaks; the picker's tiles are the templates (`shapeTemplat
 the speech balloon and the caption box are two templates of one kind, the Box. **A new outline that an
 existing kind can describe is one template row**, and nothing else.
 
-A new kind gets move, resize, tails, lettering, undo, presets, the tiles and the row glyphs for free. Copy
-**Ellipse** (`ellipsePath()`, `inscribedInEllipse()`) for one with no parameter, **Box** (`boxPath()`,
-`boxArea()`) or **Cloud** (`cloudPath()`, `cloudArea()`) for one with parameters, or **Polygon** (`polygonPath()`, `polygonArea()`) and **Curve** (`curvePath()`,
-`curveArea()`) for one with no formula for its text area: `largestInscribedRect()` finds it from the
-outline.
+A new kind gets move, resize, tails, lettering, undo, presets, the tiles and the row glyphs for free: its words
+sit in a frame of their own, so a kind says nothing about where they fit. Copy **Ellipse** (`ellipsePath()`) for
+one with no parameter, **Box** (`boxPath()`) or **Cloud** (`cloudPath()`) for one with parameters, or **Polygon**
+(`polygonPath()`) and **Curve** (`curvePath()`) for one drawn from nodes.
 
-1. `widgets/objectrecord/propertygroups.hpp`: add to `Kind` (persisted by name; the strip editor is
+1. `widgets/composition/propertygroups.hpp`: add to `Kind` (persisted by name; the strip editor is
    unreleased, so a kind may still be renamed or merged) and move `k_lastKind`.
-2. `widgets/objectrecord/shapes.cpp`: its named constants, `<name>Path()` and `<name>Area()` (the largest
-   rectangle the outline contains), both taking the shape group and the body, and **one entry in
-   `k_shapes`**, in the enum's order: the persisted name, the title, whether an outline matching no
-   template speaks, whether it reads `cornerRadius`, the two functions, and the flash's Auto stretch.
+2. `widgets/composition/shapes.cpp`: its named constants, `<name>Path()` taking the shape group and the body,
+   and **one entry in `k_shapes`**, in the enum's order: the persisted name, the title, whether an outline
+   matching no template speaks, the sections of numbers it reads (`sections`), the path function, and the
+   flash's Auto stretch.
    Then **at least one template** in `shapeTemplates()`, in the picker's order.
-3. `widgets/objectrecord/objectrecord.cpp`: its place in `shapeOrder()`, which is what names are read
+3. `widgets/composition/names.cpp`: its place in `shapeOrder()`, which is what names are read
    back from.
 4. *Optional:* a built-in preset in `presetstore.cpp`.
 
@@ -107,7 +106,8 @@ outline.
 bare outline to the modulated one. `outlineOf()` applies it before any tail is united in, so tails stay
 smooth. Build it on `pushedIn()`, which takes a depth profile along the edge (`EdgeWalk`) and keeps the
 outline's corners, fading the push near a sharp one so a spike does not fold into a loop; the teeth
-go **in** by at most `edgeDepth`, which is what `edgeInset()` takes off the text area. Zigzag is the
+go **in** by at most the teeth's depth (`EdgeParams`, every edge's numbers), which is what `edgeInset()`
+takes off the text area. Zigzag is the
 worked example. A template does not set the edge: `templateOf()` ignores it and a picked tile keeps it
 (`withEdgeOf()`).
 
@@ -118,34 +118,46 @@ worked example. A template does not set the edge: `templateOf()` ignores it and 
 SVG is accepted with `PLATEMAKER_UPDATE_GOLDEN=1` and its diff reviewed. The table test also checks that
 every template is a balloon, is found by `templateOf()` as itself, and that every kind has one.
 
-**Not caught by any test:** every constant is named; noise uses `styleSeed` and nothing else
-(`topUpStyleSeed()` mints it; *Re-roll* on the object menu deals it again, for a record that
+**Not caught by any test:** every constant is named; noise uses the composition's `seed` and nothing else
+(`topUpStyleSeed()` mints it; *Re-roll* on the object menu deals it again, for a composition that
 `usesSeed()`). Any outline
 takes a tail, concave included: the tail walks from its tip towards the centre and leaves from the first
 edge it meets (`Tails.AConcaveOutlineIsLeftNearestTheTip`); only a balloon whose centre lies outside it
 gets none. A tail's look (`TailLook`) is Plain, the taper, or Circles: ellipses on the same curve
-(`circlesAlong()` in `silhouette.cpp`), from the crossing moved by `offset` to the tip, the first the
-tail's width across and the last `k_lastCircle` of it, sharing along what the `pitch` gaps leave, so the
+(`circlesAlong()` in `silhouette.cpp`), from the crossing moved by `circles.offset` to the tip, the first the
+tail's width across and the last `k_lastCircle` of it, sharing along what the `circles.pitch` gaps leave, so the
 last ends at the tip (`Tails.ACirclesTailIsAChainShrinkingToItsTip`). Every look is drawn along one
 spine (`TailSpine`: a quad from the base to the tip, swayed by the bend; `tailRay()` finds where it leaves
 the outline). A Plain tail is a ribbon about it (`ribbonAbout()`) and ends as its `tip` says: Sharp, or
-Round or Cut `tipWidth` per cent of the base wide, a cut end square to the tail where it ends and a round
-end's far point the tip (`Tails.ATipEndsAsItSays`). With `breaks` the spine runs in straight lines through
-that many points, evenly spaced on its course and moved across it by `jog` per cent of its length, to
-either side in turn, the first clockwise unless `clockwise` is off; the ribbon has sharp turns there
+Round or Cut `end.width` per cent of the base wide, a cut end square to the tail where it ends and a round
+end's far point the tip (`Tails.ATipEndsAsItSays`). With `breaks.count` the spine runs in straight lines through
+that many points, evenly spaced on its course and moved across it by `breaks.jog` per cent of its length, to
+either side in turn, the first clockwise unless `breaks.clockwise` is off; the ribbon has sharp turns there
 (`brokenRibbon()`, `Tails.ABrokenTailZigzagsThroughItsBreaks`). `silhouetteParts()` gives the
-balloon and each drawn tail apart; `silhouette()` is their union. A tail whose look is edited makes it the
-balloon's `TailsProperties::nextLook`, which *Add tail* gives the new one.
+balloon and each drawn tail apart; `silhouette()` is their union. A Round or Cut end is reported by the tail
+to the outline the lines take (below). A tail whose look is edited makes it the
+balloon's `TailsProperties::nextLook`, which *Add tail* gives the new one. The styles and the tips are
+tables in `styles.cpp` (`TailStyleInfo`, `TailTipInfo`: the persisted name, the title, the sections each
+reads, and whether a style takes a tip); the numbers are sections of `TailLook` (`CirclesParams`,
+`EndParams`, `BreakParams`), their rows beside the tables, and the Tail panel shows those the style and its
+tip read. A row may follow another number of its section (`Fields::RowSpec::needs`: the jog and the first
+turn only while there are breaks).
 
-**With parameters of its own** (the Box's `cornerRadius` is the worked example): each parameter is a
-member of `ShapeProperties` and **one line in its `fields()` list** — the key it is saved under and the
-member (`widgets/objectrecord/fields.hpp`). That one line gives it equality (which gates the file
-rewrite, and decides which template a shape is), a JSON key and a `pm:` attribute, with the struct's
-default as the fallback when a file lacks it. Then a row in `shapeeditor.cpp`, through `FieldRows` and a
-spec table, shown only for the kinds that read it; `loadedRecord()` and `expectUntouched()` in the test,
+**With parameters of its own** (the corner radius of a Box and a Polygon is the worked example): a
+family's numbers are a **section**, `CornerParams` (`propertygroups.hpp`), held by `ShapeProperties` as
+`corner` and listed in its `sections()`, so every family's numbers are kept whatever the kind. Each number
+is **one line in the section's `fields()` list** — the key it is saved under and the member
+(`widgets/composition/fields.hpp`) — and the section is nested in `ShapeProperties::fields()`, whose order
+is the file's. That one line gives it equality (which gates the file rewrite, and decides which template a
+shape is) and a key in the content (the JSON the workspace keeps with the overlay), with the struct's default
+as the fallback when the content lacks it.
+Then a row in the section's `section()` (`k_cornerRows`, `shapes.cpp`), and the section's name in the
+kinds' `ShapeInfo::sections`: the Shape panel builds every section's rows (`SectionRows`) and shows the
+kind's. The edge's numbers are one section, `EdgeParams` (`teeth`), under the Edge combo, shown for every
+edge but None. Then `loadedBalloon()` and `expectUntouched()` in the test,
 and the test's mirror struct, whose `static_assert` stops the build until the member is placed. `Fields.EveryFieldIsComparedAndSaved` then checks the new field on its own.
-A value of a type no group holds yet needs an overload in each of the three walks (`Fields::same()`,
-`toJsonValue()`/`fromJsonValue()`, `attrValue()`/`fromAttr()`) and a `bump()` in the test. The
+A value of a type no group holds yet needs an overload in each of the two walks (`Fields::same()`,
+`toJsonValue()`/`fromJsonValue()`) and a `bump()` in the test. The
 `nodes` is the worked example: a list of `ShapeNode`, relative to the box, which a Polygon and a Curve
 share. A node is a point, and for a Curve two handles (offsets from it) and a type; one with neither is
 saved as its point alone (`x,y`), one with handles as `x,y,type,inX,inY,outX,outY`. Full precision in the
@@ -170,7 +182,7 @@ uncompared (the shadow has no `second`, only the fill fades). One editor, `Paint
 A pattern is a value of `Paint::Kind` (move `k_lastKind`), one entry in `k_patterns` (`styles.cpp`, its
 names) and its marks in `patternCell()`: the cell's square, its angle, and the marks as one non-zero
 path. Both the painter's brush (`Painter::paintBrush()`) and the SVG's `<pattern>` (`patternDefs()` in
-`recordsvg.cpp`) are drawn from that cell and laid from the box's corner (the brush from the painter's
+`svg.cpp`) are drawn from that cell and laid from the box's corner (the brush from the painter's
 origin, the pattern in `userSpaceOnUse`), so the preview and the output match. Anything that a pattern
 paints is written in the box's coordinates, never under a `transform` (a shadow is its caster's path
 moved), or its pattern would move with it.
@@ -193,16 +205,16 @@ ends' (half-axes from that quarter's two arms, infinite for an arm that does not
 each ray from one to the other: four arms make an ellipse, one alone is still straight. `fadeReversed`
 turns the tone over: gone at the centre, whole past the ends. `fillTone()` lays the marks; both the painter and the SVG draw the ground, then the marks clipped
 to the silhouette, then the outline over both. The cross is shape editing's (`fadeHandles()`,
-`dragFadeHandle()`, roles `FadeFrom`/`FadeTo`/`FadeCentre`, appended by `BubbleObject` after the
+`dragFadeHandle()`, parts `FadePart::From`/`To`/`Centre`, gathered by `Geometry::handlesOf()` after the
 outline's own, the centre last), so a patterned fill makes any balloon editable; in the panel the fade has
 only its shape (*Rectangle* or *Ellipse*) and its reversal, which `PaintRows` offers where the group lists
 `fadeRound` and `fadeReversed`.
 
 ### An effect
 
-An effect is a field of `EffectProperties` (a group of its own), drawn in three places that must agree:
-the geometry (`styles.cpp`), the painter (`recordpainter.cpp`) and the SVG (`recordsvg.cpp`, inside the
-balloon's group so a texture acts on it too). Its reach goes into `styleMargin()`; one that needs an SVG
+An effect is a field of `EffectProperties` (a group of its own): its geometry in `styles.cpp`, and its
+items in the render list (`renderlist.cpp`, inside the balloon's group so a texture acts on it too), which
+the painter plays and the SVG writer serialises (below). Its reach goes into `styleMargin()`; one that needs an SVG
 filter (a soft shadow of one colour, `blursShadow()`) makes `hasFilter()` true, so the balloon is
 previewed through the library, at strip scale, as the output will carry it. Its editor, `EffectsEditor`,
 is a section of its own, and *Apply from tool options ▸ Effects* applies it.
@@ -214,28 +226,65 @@ list nests one level only) and keys of its own (`Shadow::fieldsAs()`), and edite
 it. `shadowOf()` returns `ShadowPaths`: the caster moved, and how far it grows. **It never unites the
 caster with its growth**: a union costs as the square of the outline, and a line of lettering took a
 second and a half. The body and a round stroke `2 × grow` wide are drawn together, opaque, in one layer
-(the painter's `drawInLayer()`) or one SVG group (`shadowElements()`), given the shadow's alpha once
+(a layer item of the render list: the painter's `drawInLayer()`, one SVG group), given the shadow's alpha once
 (`shadowLayerPaint()`), so where they overlap they do not darken twice; a shadow that does not grow is
 one path. Its reach is `shadowReach()`.
 
 ### The lettering
 
-The words are laid out in `lettering.cpp`, which alone places them, and drawn in one place per output:
-`Painter::paintLettering()` (a balloon and a lettered picture alike) and `letteringElements()` with
-`letteringDefs()` in `recordsvg.cpp`, in a `<g>` of its own after the balloon's, so a texture never moves
-them. Whatever the lettering wears goes into those two functions, in drawing order: the shadow, the
-outline, the letters.
+The words are laid out in `lettering.cpp`, which alone places them, and drawn from one place,
+`Render::lettering()` (`renderlist.cpp`), a balloon's and a lettered picture's alike, every words of a
+composition in their order, each under definition ids of its own (`pm-text-fill`, then `pm-text-fill-2`…), a
+run's own fill under `pm-text-fill…-rN` (N its place among the words' runs); the
+SVG writes them in a `<g>` of their own after the balloon's, so a texture never moves them. Whatever the lettering wears goes
+into that function, in drawing order: the shadow, the outline, the letters.
 
-- **Placement.** The text area is the shape's (`textSafeArea()`), inset by the stroke, the edge's depth
-  and the two paddings, `paddingSide` left and right and `paddingTop` at the top and, mirrored, at the
-  bottom. The block starts centred and grows both ways with each line; once its top meets the top
-  padding it stays there and grows downwards, out of the balloon. A balloon's words are clipped at the
-  sides and the top only, never at the bottom; a text object's and a picture's keep their box, centred.
-  The red text area shows when they do not fit (`fits()`), and *Fix padding* (`paddingsToFit()`) lowers
-  each padding in its own direction.
-- **The text area on the strip.** In shape editing a balloon with words shows its text area and three
-  arrows (`textAreaHandles()`, roles `TextSide` and `TextTop`, dragged by `dragTextAreaHandle()`), which
-  set the paddings; so shape editing is offered to any balloon with words.
+### The render list
+
+What a composition draws, in what order, is decided once: `Render::balloon()` and `Render::lettering()`
+(`renderlist.hpp`) turn it into **items** (a path filled and stroked, a group, a picture) and the
+**definitions** they refer to (a pattern, a filter). The painter plays the items (`Painter::play()`), the
+SVG writer serialises the same items (`Svg::write()`); neither lays out a layer of its own. What only an SVG
+renderer can draw is marked on the item, and the painter leaves it as the field says: a filter, a bleed past
+an edge a filter moves, an item only a filter needs (Dry ink's unworn middle), a mask (it clips the marks
+alone). A kind that needs a filter brings it from its table entry, `TextureInfo::filter` and
+`LineInfo::outlineFilter` (`styles.cpp`), so neither the list nor the writer names a kind. The golden checks
+the SVG byte for byte; the painter was checked pixel for pixel against the code it replaced on every golden
+case.
+
+- **Placement.** Words sit on a seat, a body or the picture, in a frame of their own: four edges, each automatic
+  (the seat's inner box: a body's box less the stroke and the edge's teeth, a picture's whole box) or set (that
+  far in from it, negative past it), so the frame keeps its distances from the seat's edges when the seat changes
+  size. The block is aligned in the frame, across
+  by `align` (left, middle, right) and up and down by `valign` (top, middle, bottom); one larger than the frame
+  goes past it away from the side it is aligned to (`blockRect()`). Seated words are clipped to the frame at
+  the sides only; a text object's keep their own box. The red text area shows when the placed
+  block leaves the frame (`fits()`). *Fit to text* fits a balloon's body to the rectangle every words' block lies
+  in, where it lies now: that rectangle becomes the seat, grown in proportion where a block would cross the outline
+  itself, less the stroke and the teeth (`liesInOutline()`). The blocks keep their places against each other: each
+  frame is measured again from the new seat, an edge past it is automatic again, and the frame is cut down so the
+  block's alignment keeps it where it was (`fitToBlocks()`). A text object's box is fitted to its block
+  (`fitBoxFor()`, as *Convert to ▸* does). The content saves the set edges.
+- **The text area on the strip.** In shape editing a balloon or a picture with words shows its frame, four arrows and a
+  handle at its middle (`textAreaHandles()`, `TextAreaPart`, dragged by `dragTextAreaHandle()`), never saved: an
+  arrow sets its edge and the middle follows; the middle moves the whole frame within the seat. A double-click
+  puts one back: an arrow's edge automatic, the frame centred on the seat by its middle. So shape editing is
+  offered to any balloon or picture with words.
+- **Several words.** A balloon or a picture holds several words, each in its own frame with its own lettering;
+  *Add words* (the context menu, OBJECT STATE) puts new ones in the lower half of the seat, lettered as the words
+  picked, with no text, and picks them with the caret in the text box. A text object is its one words. With
+  several, a press on one's text in the selected object (between its letters too; inside the frame of empty
+  ones) picks those words (`Subject::Words`): OBJECT STATE shows their Text section alone and *Delete words*,
+  and the last words of an object are never deleted. With the object selected, its Text section sets the lettering
+  of every words at once, as a set's, without the text box. In shape editing every frame shows its
+  handles, the picked words' first and drawn thicker and lighter; a press on another frame's handle picks it.
+- **Runs.** Stretches of a words' text can be set in another family, size, weight, slant (italic) or fill
+  (`TextProperties::runs`); the outline, the shadow, the alignment and the line spacing stay the words'. The Text
+  section's text box works as a small word processor: letters selected are what its font, size, bold, italic and
+  colour rows show and set; the caret alone shows and sets the lettering of the letters typed next; select all
+  sets the words' own (a run over the whole text is the words' lettering). Before the caret is put in the box,
+  those rows set the whole words. The box shows the letters in their font, bold and italic, and their sizes as
+  ranks one pixel apart.
 - **What the letters wear**, fields of `TextProperties`, off by default: their **fill** (a Paint, its
   colour still saved as `textColour`), an **outline** (a Paint and a width, drawn outside the glyphs:
   stroked at twice the width under them, two draws in the SVG, not `paint-order`), and a **shadow** (the
@@ -250,65 +299,77 @@ A style is two independent choices: a **line** (how the edge is drawn) and a **t
 to the balloon as it is rasterised).
 
 A line is a value of `StyleProperties::Line` (move `k_lastLine`) and **one entry in `k_lines`**
-(`widgets/objectrecord/styles.cpp`), in the enum's order: the persisted name, the title the *Line*
-section lists, and strokes of its own or none. Strokes are an `ink` function, from the record and its silhouette
+(`widgets/composition/styles.cpp`), in the enum's order: the persisted name, the title the *Line*
+section lists, and strokes of its own or none. Strokes are an `ink` function, from the composition and its silhouette
 to closed paths filled in the stroke colour, with an `inkReach` that says how far they reach past the
 silhouette; a line with ink leaves the solid outline off (`hasOutline()`) and is drawn locally.
 
 A texture is a value of `TextureProperties::Kind` (move `k_lastKind`; a group of its own, the *Texture*
-section, `TextureEditor`), **one entry in `k_textures`** (its name, title and `reach`, how far it moves the balloon past its geometry) and its SVG
-filter in `styleDefs()` (`recordsvg.cpp`), written from the texture's own fields. The filter hangs on the
+section, `TextureEditor`), **one entry in `k_textures`**: its name, title, `reach` (how far it moves the
+balloon past its geometry) and SVG `filter` (`roughFilter()`), written from the texture's own fields. The filter hangs on the
 balloon's group, its silhouette and its line's strokes, never on the lettering's group; a balloon with
 one previews through the library (`hasFilter()`), and `styleMargin()` adds its reach to the line's.
 Rough is the worked example: four `rough…` fields, the defaults the Marker look's, and the Ink look a
 built-in preset (`inkRough()`).
 
-A line that follows the outline walks it by arc length (`EdgeWalk`, `edgeWalks()` in `edgewalk.*`) and
-varies what it lays there with `smoothNoise()`, seeded from `styleSeed`, so it stays put while the
-balloon is edited and *Re-roll* deals it again. The brush (`brushInk()`) is the example: ribbons about
+A line takes its numbers (`StyleProperties`), the **outline model** and the balloon's seed, never the composition
+(`LineInfo::ink`). The model (`outline.hpp`, built by `outlineModel()` in `silhouette.cpp`) is the silhouette
+and its parts, each closed edge walked by arc length (`EdgeWalk`, `edgewalk.*`), with what a line would
+otherwise guess: the corners, measured once (`outline.cpp`: a turn of 35° or more, `k_cornerTurn`, with the
+edge's way either side), what covers each part's edge, and the ends the tails report (a Round or Cut end
+where it lies, a round one with no corner on it). A line varies what it lays along the edge with
+`smoothNoise()`, seeded from the composition's `seed`, so it stays put while the balloon is edited and *Re-roll* deals it
+again. The brush (`brushInk()`) is the example: ribbons about
 the edge, as wide as the outline (the line's own `strokeWidth`, not a number of its own). The dry brush
 (`drybrushInk()`) is a thin core (`drybrushCore` of the width), the outline mitred so a point stays one,
 always whole so the fill is never open; and hairs either side, thin ribbons in lanes, gone where the
 lane's noise is over a level that rises from `drybrushDryness` by the core towards bone dry at the line's
-edge. The core follows the joined silhouette, the hairs each part of it (`silhouetteParts()`: the
+edge. The core follows the joined silhouette, the hairs each part of it (the model's parts: the
 balloon, each tail) on its own edge: where that edge goes under another part they run on, a few
 half-widths at most, so a tail's root is a natural hatch and no corner. They run between a part's
 corners, never round one: at a convex corner they run on straight and cross into a hatch, at a point (a
 tail's tip) they close on the core, and at a concave one they run on straight until the other side's core
 stops them. Round a bend tighter than a hair is far from the edge (a round tail end) the hair would cross
-the bend's centre and fold, so it fades away there (`bendFade()`). Nothing is subtracted: every ring winds one way and the winding rule unites them;
+the bend's centre and fold, so it fades away there (`bendFade()`). The sketch (`sketchInk()`) lifts its pen
+at a corner and either side of a round end, which it goes round on the outline itself, its strokes losing
+their stiffness and their offset before it (`k_roundEase`). Nothing is subtracted: every ring winds one way and the winding rule unites them;
 `loopedNoise()` lays a whole number of the noise's spans round the loop (`smoothNoise()`'s period), so it
 has no seam.
 
-The flash is the worked example of a line. Its parameters are members of
-`StyleProperties` with a `flash` prefix, one line each in its `fields()` list; the *Line* section
-(`StyleEditor`) builds a
-spin for every `flash…` field from that list (`FieldRows`, `properties/fieldrows.hpp`, which any panel
-can use for a prefix of its group's fields), and takes its label, range and tooltip from `k_flashRows`
-in `styleeditor.cpp` (a field with no row there stops a debug build; a row with `decimals` is a
-decimal spin, as Rough's are in `k_roughRows`, `textureeditor.cpp`). The core stretch's *Auto* comes
+The flash is the worked example of a line. Its parameters are a **section**, `FlashParams`
+(`propertygroups.hpp`): a struct with its own `fields()` list, under keys that keep the `flash` prefix, held
+by `StyleProperties` as `flash` and listed in its `sections()`, so every line's numbers are kept whatever the
+line. The section's `section()` (`styles.cpp`) names it and gives each field's label, range and tooltip
+(`k_flashRows`, `Fields::RowSpec`); a line's table entry lists the sections it reads (`LineInfo::sections`;
+Explosion borrows the dry brush's and the flash's, hiding the flash's inner rows). The *Line* section
+(`StyleEditor`) builds the rows of every section (`SectionRows`, `properties/fieldrows.hpp`) and shows those
+the line reads: a spin per number, a combo per bool whose row names its two entries (the sketch's
+direction), a check box per bool whose row does not (Rough's *Roughen the fill too*); a number with no row
+stops a debug build, a row with `decimals` is a decimal spin, as Rough's are. A texture's numbers are
+sections the same way (`RoughParams`, its rows `k_roughRows` in `styles.cpp`, `TextureInfo::sections`, the
+Texture panel). The core stretch's *Auto* comes
 from `ShapeInfo::flashStretch`, one value per shape in `shapes.cpp`. Caught by the same table,
 round-trip and golden tests as a shape; strokes are also checked against the room reserved for them
 (`Style.AFlashStaysInsideItsBounds`) and Auto against the shape's value (`Style.AutoStretchIsTheShapes`).
 
 ### A kind of object
 
-One record, `ObjectRecord`, serves every kind on purpose (`artwork` is a field, not a type). A kind is a
-new `Object` subclass plus what in the record tells it apart. The worked example is commit `268a562`
-(the Artwork tool).
+One composition, `Composition` (`widgets/composition/composition.hpp`), serves every kind on purpose: what
+an object is, is which elements it has (a balloon, a picture, words), not a type. A kind is a new `Object`
+subclass plus the element that tells it apart. The worked example is commit `268a562` (the Artwork tool).
 
 | Where | What |
 |---|---|
 | `objects/<kind>object.*` | the subclass: what it draws and how big; selection, move, resize, mute, delete, stacking are `Object`'s |
 | `objects/object.hpp` | a `Kind` value, for the few places that must ask |
-| `ObjectController::syncItems()` | **the one place a subclass is chosen** for a record |
-| `objects/objectcontroller.cpp`, `objectstack/objectmenu.cpp`, `objectstate/objectstate.cpp` | every `isParametric()` / `isArtwork()` / `hasSilhouette()` decision; `carriesGroup()` (`properties/propertygroup.hpp`) says which groups a record carries |
+| `ObjectController::syncItems()` | **the one place a subclass is chosen** for a composition |
+| `objects/objectcontroller.cpp`, `objectstack/objectmenu.cpp`, `objectstate/objectstate.cpp` | every `isParametric()` / `picture` / `balloon` decision; `carriesGroup()` (`properties/propertygroup.hpp`) says which groups an object carries |
 | `tooloptions/` + `editor.cpp` | its options page, and a tool row (above) |
-| `widgets/objectrecord/recordsvg.cpp` | how it is written to the file the library composites |
+| `widgets/composition/svg.cpp` | how it is written to the file the library composites |
 | `widgets/project/project.cpp` | where the project creates and stores it |
 
 **A quality bar:** could the change be compiled on its own? A shape nearly can; a kind of object cannot,
-because it answers in the controller, the panels and the project. That is the cost of one shared record.
+because it answers in the controller, the panels and the project. That is the cost of one shared composition.
 
 **Tests:** configure with `PLATEMAKER_GUI_BUILD_TESTS=ON` and run `platemaker-gui-tests`; anything with
 a window is checked by hand. The layer rules are checked on every build (`cmake/check_layers.cmake`).

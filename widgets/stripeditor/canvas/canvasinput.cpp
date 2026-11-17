@@ -58,7 +58,7 @@ bool CanvasInput::eventFilter(QObject *watched, QEvent *event)
     if (watched == m_view->viewport()
         && (event->type() == QEvent::DragEnter || event->type() == QEvent::DragMove)) {
         auto* de = static_cast<QDragMoveEvent*>(event);
-        if (!droppedArtwork(de->mimeData()).isEmpty()) {
+        if (!droppedPicture(de->mimeData()).isEmpty()) {
             de->setDropAction(Qt::CopyAction);
             de->accept();
             return true;
@@ -66,9 +66,9 @@ bool CanvasInput::eventFilter(QObject *watched, QEvent *event)
     }
     if (watched == m_view->viewport() && event->type() == QEvent::Drop) {
         auto*         drop = static_cast<QDropEvent*>(event);
-        const QString file = droppedArtwork(drop->mimeData());
+        const QString file = droppedPicture(drop->mimeData());
         if (!file.isEmpty()) {
-            emit artworkDropped(file, m_view->mapToScene(drop->position().toPoint()));
+            emit pictureDropped(file, m_view->mapToScene(drop->position().toPoint()));
             drop->acceptProposedAction();
             return true;
         }
@@ -109,17 +109,17 @@ bool CanvasInput::eventFilter(QObject *watched, QEvent *event)
     // one costs nothing), a double click anywhere leaves it, and the arrows walk the pick round the outline:
     // Shift adds the next node, Alt+Shift takes the furthest away.
     // A press on the balloon, or on its handles, is the balloon's as ever.
-    if (m_objects && m_objects->shapeEditing()) {
+    if (m_objects && m_objects->shapeEdit().isOn()) {
         if (watched == m_view && event->type() == QEvent::KeyPress) {
             auto*     ke  = static_cast<QKeyEvent*>(event);
             const int key = ke->key();
             if (key == Qt::Key_Up || key == Qt::Key_Left || key == Qt::Key_Down || key == Qt::Key_Right) {
-                using Step               = ObjectController::PickStep;
+                using Step               = ShapeEditMode::PickStep;
                 const Qt::KeyboardModifiers mods = ke->modifiers();
                 const Step how = !mods.testFlag(Qt::ShiftModifier) ? Step::Move
                                : mods.testFlag(Qt::AltModifier)    ? Step::Shrink
                                                                     : Step::Extend;
-                m_objects->stepPickedNode(key == Qt::Key_Down || key == Qt::Key_Right, how);
+                m_objects->shapeEdit().stepPick(key == Qt::Key_Down || key == Qt::Key_Right, how);
                 return true;
             }
         }
@@ -127,11 +127,11 @@ bool CanvasInput::eventFilter(QObject *watched, QEvent *event)
             const auto* me  = dynamic_cast<QMouseEvent*>(event);
             const QPoint at = me ? me->position().toPoint() : QPoint();
             if (me && event->type() == QEvent::MouseButtonDblClick && me->button() == Qt::LeftButton) {
-                m_objects->leaveShapeEditingAt(m_view->mapToScene(at), m_view->transform());
+                m_objects->shapeEdit().leaveAt(m_view->mapToScene(at), m_view->transform());
                 return true;
             }
             if (me && event->type() == QEvent::MouseButtonPress && me->button() == Qt::LeftButton
-                && !m_objects->onEditedObject(m_view->mapToScene(at), m_view->transform())) {
+                && !m_objects->shapeEdit().onEditedObject(m_view->mapToScene(at), m_view->transform())) {
                 m_bandFrom = at;
                 return true;
             }
@@ -144,7 +144,7 @@ bool CanvasInput::eventFilter(QObject *watched, QEvent *event)
             }
             if (me && event->type() == QEvent::MouseButtonRelease && m_bandFrom.x() >= 0) {
                 if (m_band && m_band->isVisible()) {
-                    m_objects->pickNodesIn(m_view->mapToScene(m_band->geometry()).boundingRect(),
+                    m_objects->shapeEdit().pickNodesIn(m_view->mapToScene(m_band->geometry()).boundingRect(),
                                            me->modifiers().testFlag(Qt::ControlModifier));
                     m_band->hide();
                 }
@@ -253,7 +253,7 @@ bool CanvasInput::eventFilter(QObject *watched, QEvent *event)
     return QObject::eventFilter(watched, event);
 }
 
-QString CanvasInput::droppedArtwork(const QMimeData* mime)
+QString CanvasInput::droppedPicture(const QMimeData* mime)
 {
     // A picture, by what it *is* rather than by where it came from: the same three suffixes the import
     // has always taken. Anything else — a page, a workspace, a folder — is not for this canvas.

@@ -13,7 +13,7 @@
 #include <QPushButton>
 #include <QWidget>
 
-#include "properties/propertygroup.hpp"   // PropertyGroup, and which groups a record carries
+#include "properties/propertygroup.hpp"   // PropertyGroup, and which groups a composition carries
 
 namespace StripEdit {
 
@@ -34,8 +34,6 @@ inline constexpr int k_textSizeMin = 6;      //!< Below this the lettering stops
 inline constexpr int k_textSizeMax = 400;
 inline constexpr int k_lineSpacingMin = 25;    //!< Percent. Below this the lines sit on each other.
 inline constexpr int k_lineSpacingMax = 400;
-inline constexpr int k_paddingMin = -200;      //!< Strip px. Negative lets the lettering leave the balloon.
-inline constexpr int k_paddingMax = 200;
 
 inline constexpr int k_strokeWidthMin = 0;    //!< A balloon with no outline at all is a legitimate look.
 inline constexpr int k_strokeWidthMax = 40;
@@ -50,7 +48,7 @@ inline constexpr int k_tailBendPercent = 100;   //!< A tail bends ±this, as a p
  * The contract that stops two editors overwriting each other. An editor **reads** its subject through
  * bind() and **writes** through applyTo(), which touches only the properties its group owns — so
  * "an editor wrote a field that was not its own" becomes unstateable rather than something to
- * remember. The panel that used to do this kept a whole copy of the selected record and wrote the
+ * remember. The panel that used to do this kept a whole copy of the selected composition and wrote the
  * whole copy back on every control change, which is why a canvas resize had to be pushed into it by
  * hand to stop the stale copy writing the old box back.
  *
@@ -68,14 +66,14 @@ class PropertyGroupEditor : public QWidget
 
 public:
     /**
-     * \brief What is being edited — one record today, several once multi-selection lands.
+     * \brief What is being edited — one composition today, several once multi-selection lands.
      *
      * Plural from the first line of code on purpose: retrofitting many subjects into every editor
      * later is the expensive version of this change. Until a selection model can produce more than
      * one, an editor binding several may show the first; rendering a disagreement as *Mixed* arrives
      * with multi-selection, which is the increment that can also produce it.
      */
-    using Subjects = QList<const ObjectRecord*>;
+    using Subjects = QList<const Composition*>;
 
     explicit PropertyGroupEditor(QWidget* parent = nullptr) : QWidget(parent) {}
 
@@ -85,10 +83,10 @@ public:
     virtual void bind(const Subjects& subjects) = 0;
 
     //! Writes this group's properties into \p target, and nothing else.
-    virtual void applyTo(ObjectRecord& target) const = 0;
+    virtual void applyTo(Composition& target) const = 0;
 
     //! The single-subject case: one selected object, a tail, or the tool options' prototype.
-    void bindOne(const ObjectRecord& subject) { bind(Subjects{&subject}); }
+    void bindOne(const Composition& subject) { bind(Subjects{&subject}); }
 
     /**
      * \brief Writes into @p target only the properties the artist has **touched** since bind().
@@ -97,7 +95,7 @@ public:
      * object's other values onto everything else in the selection. Editors that can be bound to a set
      * override this; the default is the group, which is what a single subject wants.
      */
-    virtual void applyEditedTo(ObjectRecord& target) const { applyTo(target); }
+    virtual void applyEditedTo(Composition& target) const { applyTo(target); }
 
     //! The rows of this group a tool's options can show or leave out; none for a group they never show.
     [[nodiscard]] virtual QList<Row> rows() const { return {}; }
@@ -165,6 +163,42 @@ inline void paintColourSwatch(QPushButton* swatch, const QColor& c)
     swatch->setIcon(QIcon(pm));
     swatch->setToolTip(c.name(QColor::HexArgb));
 }
+
+/**
+ * \brief A spin box that, showing **Mixed** (showSpin()), steps from the values it stands for: up from the least,
+ *        down from the greatest — not from the sentinel below its minimum.
+ */
+class MixedSpinBox : public QSpinBox
+{
+public:
+    using QSpinBox::QSpinBox;
+
+    //! The least and the greatest of the values its Mixed stands for (showSpin() sets it).
+    void setSpread(int least, int greatest)
+    {
+        m_least    = least;
+        m_greatest = greatest;
+    }
+
+protected:
+    void stepBy(int steps) override
+    {
+        if (showsMixed())
+            setValue(steps > 0 ? m_least + steps : m_greatest + steps);
+        else
+            QSpinBox::stepBy(steps);
+    }
+    StepEnabled stepEnabled() const override
+    {
+        return showsMixed() ? (StepUpEnabled | StepDownEnabled) : QSpinBox::stepEnabled();
+    }
+
+private:
+    [[nodiscard]] bool showsMixed() const { return !specialValueText().isEmpty() && value() == minimum(); }
+
+    int m_least    = 0;
+    int m_greatest = 0;
+};
 
 /**
  * \brief Shows @p value in @p spin, or **Mixed** when the selection disagrees.

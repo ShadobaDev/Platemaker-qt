@@ -23,17 +23,17 @@ void EffectsEditor::bind(const Subjects& subjects)
         return;
     m_values = EffectProperties::from(*subjects.first());
     m_shadow.reset();
-    for (const ObjectRecord* a : subjects)
+    for (const Composition* a : subjects)
         m_shadow.compare(EffectProperties::from(*a), m_values);
     syncFromValues();
 }
 
-void EffectsEditor::applyTo(ObjectRecord& target) const
+void EffectsEditor::applyTo(Composition& target) const
 {
     m_values.applyTo(target);
 }
 
-void EffectsEditor::applyEditedTo(ObjectRecord& target) const
+void EffectsEditor::applyEditedTo(Composition& target) const
 {
     EffectProperties t = EffectProperties::from(target);
     m_shadow.applyEdited(m_values, t);

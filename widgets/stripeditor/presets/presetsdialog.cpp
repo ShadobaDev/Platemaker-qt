@@ -24,7 +24,7 @@
 #include "properties/styleeditor.hpp"
 #include "properties/texteditor.hpp"
 #include "properties/textureeditor.hpp"
-#include "recordpainter.hpp"
+#include "painter.hpp"
 #include "shapes.hpp"
 
 namespace StripEdit {
@@ -34,27 +34,25 @@ namespace {
 constexpr int k_sampleW = 260;   //!< The drawn sample's width in the dialog, in pixels.
 constexpr int k_sampleH = 170;   //!< ...and its height.
 
-//! A preset's look as it is stored: what save() keeps of a record, so two can be compared.
-ObjectRecord stored(ObjectRecord a)
+//! A preset's look as it is stored: what save() keeps of an object, so two can be compared.
+Composition stored(const Composition& a)
 {
-    a.tails.items.clear();
-    a.styleSeed = 0;
-    a.text.body.clear();
-    a.presetOrigin = {};
-    return a;
+    return BubblePreset::of(QString(), a).look();
 }
 
 //! @p look drawn as a balloon saying something, with a tail when its shape speaks.
-QPixmap sampleOf(const ObjectRecord& look)
+QPixmap sampleOf(const Composition& look)
 {
-    ObjectRecord a = look;
-    a.box          = QSize(k_sampleW, k_sampleH * 3 / 4);
-    a.text.body    = PresetsDialog::tr("Sample");
-    if (Geometry::shapeSpeaks(a.shape)) {
+    const QSize size(k_sampleW, k_sampleH * 3 / 4);
+    Composition a = look;
+    resize(a, size);
+    if (Words* w = wordsOf(a))
+        w->text.body = PresetsDialog::tr("Sample");
+    if (const Body* body = bodyOf(a); body && Geometry::shapeSpeaks(body->shape)) {
         Tail t;
-        t.tip         = QPointF(a.box.width() * 0.3, a.box.height() * 1.25);
-        t.baseWidth   = a.box.width() * 0.12;
-        a.tails.items = {t};
+        t.tip       = QPointF(size.width() * 0.3, size.height() * 1.25);
+        t.baseWidth = size.width() * 0.12;
+        a.balloon->tails.append({a.nextId++, body->id, t});
     }
     topUpStyleSeed(a);
     return QPixmap::fromImage(Painter::render(a).scaled(QSize(k_sampleW, k_sampleH), Qt::KeepAspectRatio,
@@ -197,8 +195,7 @@ void PresetsDialog::rebuildList(const QString& select)
         if (index < 0 || p.uid == select)
             index = i;
         auto* item = new QListWidgetItem(
-            QIcon(bubbleThumbnail(p.record.shape, p.record.skin.fill.colour, p.record.style.stroke.colour,
-                                  p.record.text.fill.colour)),
+            QIcon(bubbleThumbnail(p.look())),
             p.name, ui->listPresets);
         if (!m_store.isCustom(i)) {
             QFont f = item->font();
@@ -224,7 +221,7 @@ void PresetsDialog::showPreset(int index)
 {
     m_shown = index;
     const bool any = index >= 0 && index < m_store.presets().size();
-    m_edited = any ? m_store.presets().at(index).record : ObjectRecord();
+    m_edited = any ? m_store.presets().at(index).look() : Composition();
     m_populating = true;
     m_groups.bind(m_edited);
     m_populating = false;
@@ -278,7 +275,7 @@ void PresetsDialog::refreshButtons()
 
 bool PresetsDialog::dirty() const
 {
-    return m_store.isCustom(m_shown) && !(stored(m_edited) == stored(m_store.presets().at(m_shown).record));
+    return m_store.isCustom(m_shown) && !(stored(m_edited) == stored(m_store.presets().at(m_shown).look()));
 }
 
 bool PresetsDialog::settleEdits()
@@ -316,10 +313,10 @@ void PresetsDialog::duplicate()
         return;
     const BubblePreset source = m_store.presets().at(m_shown);
     QString name = tr("%1 copy").arg(source.name);
-    int     at   = m_store.save(name, source.record, /*replaceExisting=*/false);
+    int     at   = m_store.save(name, source.look(), /*replaceExisting=*/false);
     for (int n = 2; at < 0; ++n) {
         name = tr("%1 copy %2").arg(source.name).arg(n);
-        at   = m_store.save(name, source.record, /*replaceExisting=*/false);
+        at   = m_store.save(name, source.look(), /*replaceExisting=*/false);
     }
     rebuildList(m_store.presets().at(at).uid);
 }
@@ -348,7 +345,7 @@ void PresetsDialog::remove()
                                   .arg(m_store.presets().at(m_shown).name))
         != QMessageBox::Yes)
         return;
-    m_edited = m_store.presets().at(m_shown).record;   // nothing left unsaved to ask about
+    m_edited = m_store.presets().at(m_shown).look();   // nothing left unsaved to ask about
     m_store.remove(m_shown);
 }
 

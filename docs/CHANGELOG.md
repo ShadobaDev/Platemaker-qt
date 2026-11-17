@@ -24,7 +24,7 @@ Requires libplatemaker **0.7.0**.
   with a zigzag, wave, scallop or spike **edge**. A polygon's sides can **bow** in, unevenly if you like,
   and *Regular polygon / star…* gives it the points of a regular polygon or a star, irregular if you like.
   Double-click a balloon, or pick *Edit shape*, to edit it on the strip: round its corners, move, add and
-  delete points, bend a curve's handles and set their point type, drag the text area's paddings. Pick
+  delete points, bend a curve's handles and set their point type, drag the text's frame and its edges. Pick
   several points with a box or Ctrl+click and drag them together; the arrows walk the pick round the
   outline (Shift adds, Alt+Shift takes away). A picked point shows the handles it lacks, and *Add
   handles* gives them to it. A right-click on a point opens that point's menu. The balloon's frame
@@ -35,10 +35,14 @@ Requires libplatemaker **0.7.0**.
   paper) and **Explosion** (a dry-brush ring in a halo of hairs) lines, and a **Rough** texture
   that makes the outline wander while a fill's pattern stays put (*Roughen the fill too* wobbles it as
   well). *Re-roll* deals a line's strokes, a texture's wobble or an edge's teeth again.
-- **Lettering:** lines break only where you break them. Line spacing; side and top padding, negative
-  to let the words out of the balloon; an outline round the letters; a halftone colour; a shadow or a
-  glow. *Fit to text* sizes the balloon to the lettering, *Fix padding* keeps the size and lowers the
-  paddings, and lettering that does not fit is outlined in red.
+- **Lettering:** lines break only where you break them. The words sit in a frame of their own, aligned
+  left, centre or right and top, middle or bottom; drag its edges, past the balloon to let the words out. A
+  balloon or a picture holds **several texts** (*Add words*), each with its own frame and lettering; click
+  one's letters, or its row in the object list, to edit it on its own. **Part of a text** can be set in
+  another font, size, bold, italic or colour: select the letters in the text box and change them, or change
+  them at the caret before typing on, as in a word processor. Line spacing; an outline round the letters; a
+  halftone colour; a shadow or a glow. *Fit to text* sizes the balloon to all its texts where they lie, and
+  lettering that does not fit is outlined in red.
 - **Tails:** any number per balloon, each with its own tip, width and bend, leaving from any edge; a
   thought tail is a chain of circles. A plain tail ends sharp, round or cut, and can **break** into a
   sharp zigzag, mirrored if you like. A tail tip stays on its speaker when the balloon is resized.
@@ -57,7 +61,8 @@ Requires libplatemaker **0.7.0**.
   style.
 - **Object list:** the strip's objects front to back, each with a drawing of itself and chips for an
   unanchored object or a blend mode. Drag to reorder, tick to mute, double-click to bring the object
-  into view, *Duplicate* (Ctrl+D) and *Delete* from the context menu. The strip and its pages sit at the bottom.
+  into view, *Duplicate* (Ctrl+D) and *Delete* from the context menu. A balloon's texts and tails are
+  listed under it. The strip and its pages sit at the bottom.
 - **More on an object's context menu:** *Blend ▸* (Normal, Multiply, Screen, Overlay, Darken, Lighten;
   also in the properties panel), *Bring forward / Send back*, *Fill with primary colour*, *Outline with
   secondary colour*, *Reset to default*, *Save as preset…* and *Convert to ▸ Text / Balloon*.
@@ -78,7 +83,7 @@ Requires libplatemaker **0.7.0**.
   editor share and which outlives their windows. **Undo takes you to what it changed:** the window comes
   to the front and the object is selected and scrolled into view; in the project panel, the tab and the
   box that changed are outlined. Undoing a profile, template or project-name change opens its list
-  on that row.
+  on that row. Each history keeps 20 steps (was 10).
 - **Colour correction:** the Grade tool's *Brightness & contrast* and *Saturation*, applied live and in
   the render. A page can be excluded from it. The workflow card's **−** removes the grade.
 - **The status bar says what will not render as meant:** objects with no page under them, and

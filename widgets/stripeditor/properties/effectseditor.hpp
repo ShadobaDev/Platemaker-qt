@@ -26,8 +26,8 @@ public:
     [[nodiscard]] QList<Row> rows() const override { return {Row::Effects}; }
 
     void bind(const Subjects& subjects) override;
-    void applyTo(ObjectRecord& target) const override;
-    void applyEditedTo(ObjectRecord& target) const override;
+    void applyTo(Composition& target) const override;
+    void applyEditedTo(Composition& target) const override;
 
 private:
     void syncFromValues();

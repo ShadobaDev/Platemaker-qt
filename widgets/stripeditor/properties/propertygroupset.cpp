@@ -26,13 +26,13 @@ QList<PropertyGroupEditor*> PropertyGroupSet::all() const
     return {m_shape, m_skin, m_style, m_texture, m_effects, m_text};
 }
 
-void PropertyGroupSet::bind(const ObjectRecord& a) const
+void PropertyGroupSet::bind(const Composition& a) const
 {
     for (PropertyGroupEditor* e : all())
         e->bindOne(a);
 }
 
-void PropertyGroupSet::collect(ObjectRecord& a, const PropertyGroupEditor* tails) const
+void PropertyGroupSet::collect(Composition& a, const PropertyGroupEditor* tails) const
 {
     m_shape->applyTo(a);
     m_skin->applyTo(a);

@@ -23,7 +23,8 @@ class StripLayout;
  * \brief OBJECT STACK: every object in composite order, with the strip and its pages pinned under them.
  *
  * A **stack**: row 0 is the front-most object, and a row covers every row below it wherever they
- * overlap. A bubble's tails are rows of their own, nested under it; the strip's pages nest under the
+ * overlap. A bubble's words and tails are rows of their own, nested under it (a lettered picture's words
+ * too); the strip's pages nest under the
  * strip. Each row wears its object drawn small, names it, and carries chips for what is true of it and
  * written nowhere else on the row (unanchored, the preset it was made from, a blend mode).
  *
@@ -62,7 +63,7 @@ public:
     void refresh();
 
 private:
-    void showSelectedRows();    //!< Highlights the selected objects and tails (not a tail's carrier).
+    void showSelectedRows();    //!< Highlights the selected objects, words and tails (not their carrier).
     void showSubjectRow();      //!< Highlights the selected strip or page.
     void revealSelectedRow();   //!< Scrolls the first highlighted row into view, if it is not.
     void commitOrder();         //!< Hands the rows' order, read bottom-up, to the controller.
@@ -82,6 +83,7 @@ private:
 
     QHash<QString, QPair<QString, QIcon>> m_glyphs;   //!< uid → (what the glyph is made of, the glyph).
     QIcon                                 m_tailGlyph;  //!< One drawing; every tail row wears it.
+    QIcon                                 m_wordsGlyph; //!< Likewise for words…
     QIcon                                 m_pageGlyph;  //!< Likewise for a page…
     QIcon                                 m_stripGlyph; //!< …and for the strip itself.
 
@@ -100,8 +102,8 @@ private:
 
     //! Which kind of thing a tree row stands for, beside its id in Qt::UserRole.
     static constexpr int k_kindRole = Qt::UserRole + 1;
-    //! A tail row's position in its bubble's list, beside the bubble's uid in Qt::UserRole.
-    static constexpr int k_tailRole = Qt::UserRole + 2;
+    //! A words or tail row's element id, beside its object's uid in Qt::UserRole.
+    static constexpr int k_elementRole = Qt::UserRole + 2;
     //! The strip row's id. Overlay uids are minted as "ovl-…" and page ids are input uids, so it is free.
     static inline const QString k_stripId = QStringLiteral("strip");
 };

@@ -20,7 +20,7 @@ constexpr char k_trContext[] = "StripEdit::ShadowRows";
 
 #define PM_TR(s) QT_TRANSLATE_NOOP("StripEdit::ShadowRows", s)
 //! A shadow's numbers, in strip pixels.
-inline const FieldRowSpec k_rows[] = {
+inline const Fields::RowSpec k_rows[] = {
     {"spread",   PM_TR("Spread:"),        0,    50,  " px",
      PM_TR("How far the shadow grows past what casts it on every side; with no offset, a rim all round."), 1},
     {"x",        PM_TR("Offset across:"), -100, 100, " px", PM_TR("How far right the shadow falls; negative is left."), 1},

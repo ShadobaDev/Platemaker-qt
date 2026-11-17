@@ -29,6 +29,8 @@ inline constexpr int k_bubbleThumbH = 26;
  */
 [[nodiscard]] QPixmap bubbleThumbnail(const ShapeProperties& shape, const QColor& fill,
                                       const QColor& stroke, const QColor& ink);
+//! The same, of @p look's shape and colours: a preset's tile (BubblePreset::look()). No balloon, no shape.
+[[nodiscard]] QPixmap bubbleThumbnail(const Composition& look);
 
 //! The shape picker's tiles: UI chrome, so they wear the palette rather than three white blobs.
 [[nodiscard]] QPixmap shapeThumbnail(const ShapeProperties& shape, const QPalette& pal);
@@ -53,7 +55,7 @@ public:
     [[nodiscard]] QList<Row> rows() const override { return {Row::ShapeTiles, Row::ShapeParameters}; }
 
     void bind(const Subjects& subjects) override;
-    void applyTo(ObjectRecord& target) const override;
+    void applyTo(Composition& target) const override;
 
     [[nodiscard]] const ShapeProperties& values() const { return m_values; }
 
@@ -88,12 +90,10 @@ private:
     QWidget*                    m_tileHost = nullptr;
     QWidget*                    m_parameters = nullptr;
     QFormLayout*                m_form  = nullptr;
-    FieldRows<ShapeProperties>  m_corner;   //!< The corner radius, for a kind that is rounded.
-    FieldRows<ShapeProperties>  m_lobes;    //!< A Cloud's lobes and their size.
-    FieldRows<ShapeProperties>  m_bow;      //!< A Polygon's bow and its irregularity.
+    SectionRows<ShapeProperties> m_sections;   //!< Every family's numbers; those of the kind shown.
     QPushButton*                m_regular = nullptr;   //!< Opens *Regular polygon / star…*, on a Polygon.
     QComboBox*                  m_edge = nullptr;   //!< The edge's modulation, any family.
-    FieldRows<ShapeProperties>  m_edgeRows;         //!< Its spacing, depth and irregularity.
+    FieldRows<EdgeParams>       m_edgeRows;         //!< Its teeth: spacing, depth and irregularity.
     ShapeProperties             m_values;
     bool                        m_populating = false;
 };

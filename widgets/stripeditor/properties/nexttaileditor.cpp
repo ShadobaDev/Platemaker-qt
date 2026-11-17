@@ -50,10 +50,10 @@ void NextTailEditor::bind(const Subjects& subjects)
 {
     if (subjects.isEmpty())
         return;
-    const ObjectRecord& a = *subjects.first();
+    const Composition& a = *subjects.first();
     m_values        = TailsProperties::from(a);
-    m_box           = a.box;
-    m_shapeCanSpeak = a.hasSilhouette();
+    m_box           = sizeOf(a);
+    m_shapeCanSpeak = a.balloon.has_value();
 
     m_populating = true;
     {
@@ -69,18 +69,18 @@ void NextTailEditor::bind(const Subjects& subjects)
     syncEnabled();
 }
 
-void NextTailEditor::applyTo(ObjectRecord& target) const
+void NextTailEditor::applyTo(Composition& target) const
 {
     TailsProperties next = m_values;
 
-    // A shapeless record has nothing to grow a tail from, whatever the checkbox says.
-    const bool want = m_enabled->isChecked() && target.hasSilhouette();
+    // An object with no balloon has nothing to grow a tail from, whatever the checkbox says.
+    const bool want = m_enabled->isChecked() && target.balloon.has_value();
     if (!want) {
         next.items.clear();
     } else {
         if (next.items.isEmpty()) {
             Tail t;
-            t.tip = firstTailTip(target.box);
+            t.tip = firstTailTip(sizeOf(target));
             next.items.append(t);
         }
         for (Tail& t : next.items) {
@@ -91,12 +91,12 @@ void NextTailEditor::applyTo(ObjectRecord& target) const
     next.applyTo(target);
 }
 
-void NextTailEditor::applyToNew(ObjectRecord& target) const
+void NextTailEditor::applyToNew(Composition& target) const
 {
     TailsProperties next;
-    if (m_enabled->isChecked() && target.hasSilhouette()) {
+    if (m_enabled->isChecked() && target.balloon.has_value()) {
         Tail t;
-        t.tip       = firstTailTip(target.box);
+        t.tip       = firstTailTip(sizeOf(target));
         t.baseWidth = m_width->value();
         t.bend      = m_bend->value() / 100.0;
         next.items  = {t};
@@ -114,7 +114,7 @@ void NextTailEditor::updateRows()
 
 void NextTailEditor::shapeChanged(const ShapeProperties& shape)
 {
-    m_shapeCanSpeak = shape.kind != ObjectRecord::Shape::None;
+    m_shapeCanSpeak = shape.kind != ShapeProperties::Kind::None;
     const QSignalBlocker block(m_enabled);
     m_enabled->setChecked(Geometry::shapeSpeaks(shape));
     syncEnabled();

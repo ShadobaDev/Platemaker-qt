@@ -1,4 +1,5 @@
 #include "project.hpp"
+#include "history.hpp"
 #include "profileimpact.hpp"
 #include "ui_project.h"
 #include "imagetile.hpp"
@@ -27,7 +28,6 @@
 #include <QMessageBox>
 #include <QAbstractButton>
 #include <QPushButton>
-#include <QUndoStack>
 #include <set>
 #include <QSet>
 #include <QSettings>
@@ -589,22 +589,17 @@ void Project::removeInputs(const std::vector<std::string>& remainingPaths, const
             return;
     }
 
-    // One click is one undo step, though underneath it is two kinds of edit on one history: the pages
-    // (a project step) and the lettering (an overlay step). The macro is what makes a single Ctrl+Z put
-    // back both.
-    if (deleteThem)
-        m_undoStack->beginMacro(undoText);
-
-    commitEdit(undoText, [&] {
-        Platemaker::Infrastructure::ProjectEditor{item}.mergeFileScan(remainingPaths);
-        populate();
-        emit projectModified();
-    }, EditScope::InputFiles);
-
-    if (deleteThem) {
-        deleteOverlays(stranded, tr("Delete %n object(s)", "", stranded.size()));
-        m_undoStack->endMacro();
-    }
+    // One click is one undo step, though underneath it is two scopes: the pages (Project) and the
+    // lettering (Lettering). The edits inside this one join it, so a single Ctrl+Z puts back both.
+    m_history->edit(undoText, {}, [&] {
+        commitEdit(undoText, [&] {
+            Platemaker::Infrastructure::ProjectEditor{item}.mergeFileScan(remainingPaths);
+            populate();
+            emit projectModified();
+        }, EditScope::InputFiles);
+        if (deleteThem)
+            deleteOverlays(stranded, tr("Delete %n object(s)", "", stranded.size()));
+    });
 }
 
 void Project::replaceInput(const QString& currentPath)

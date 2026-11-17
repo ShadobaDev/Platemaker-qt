@@ -9,6 +9,7 @@
  */
 
 #include "mainwindow.hpp"
+#include "history.hpp"
 #include "ui_mainwindow.h"
 
 #include "advisories.hpp"
@@ -179,15 +180,22 @@ void MainWindow::refreshAdvisoriesFor(int projectIndex)
 QStringList MainWindow::objectsInStandIns(const Platemaker::Models::ProjectItem& project,
                                           QStringList*                         families) const
 {
-    const ObjectRecord::Map records = m_overlayRecords.records(QString::fromStdString(project.uid));
-    QStringList       out;
+    const Composition::Map compositions = m_overlayCompositions.compositions(QString::fromStdString(project.uid));
+    QStringList            out;
     for (const auto& overlay : project.getStripOverlays()) {
-        const auto rec = records.constFind(QString::fromStdString(overlay.uid));
-        if (rec == records.constEnd() || Geometry::fontFallback(*rec).isEmpty())
+        const auto rec = compositions.constFind(QString::fromStdString(overlay.uid));
+        if (rec == compositions.constEnd())
             continue;
-        out << QString::fromStdString(overlay.uid);
-        if (families && !families->contains(rec->text.family))
-            *families << rec->text.family;
+        bool standsIn = false;
+        for (const Words& w : rec->words) {
+            if (Geometry::fontFallback(w).isEmpty())
+                continue;
+            standsIn = true;
+            if (families && !families->contains(w.text.family))
+                *families << w.text.family;
+        }
+        if (standsIn)
+            out << QString::fromStdString(overlay.uid);
     }
     return out;
 }
@@ -288,10 +296,10 @@ void MainWindow::retargetActiveProject(int preferred)
     // A tab brought to the front has claimed it already (Qt shows the new tab before it hides the old
     // one, and a project behind a tab still counts as open), so only the history of the window going
     // away is handed on.
-    QUndoStack* leaving = preferred >= 0 ? historyFor(preferred) : nullptr;
+    QUndoStack* leaving = preferred >= 0 ? historyFor(preferred)->stack() : nullptr;
     if (!leaving || m_undoGroup->activeStack() == leaving)
-        m_undoGroup->setActiveStack(m_activeProjectIndex >= 0 ? historyFor(m_activeProjectIndex)
-                                                              : m_workspaceUndoStack);
+        m_undoGroup->setActiveStack(m_activeProjectIndex >= 0 ? historyFor(m_activeProjectIndex)->stack()
+                                                              : m_workspaceHistory->stack());
     refreshProjectActions();
     retargetStatusAdvisories();
 }

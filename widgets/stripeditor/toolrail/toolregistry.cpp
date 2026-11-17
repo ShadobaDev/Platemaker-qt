@@ -7,7 +7,7 @@ namespace StripEdit {
 const QList<Tool>& tools()
 {
     // The rail, in order. **A row is a kind of object, not a value of one of its properties.** Bubble
-    // and Text share an options page because they author the same record and differ in the one thing
+    // and Text share an options page because they author the same composition and differ in the one thing
     // that is structural — whether the object has a silhouette to fill, roughen and grow tails from.
     //
     // *Caption used to be a third row here and was a mistake*: a caption box is one of ten silhouettes,
@@ -104,7 +104,7 @@ const QList<Tool>& tools()
          QT_TRANSLATE_NOOP("StripEdit::Tool", 
                            "Drag on the strip to place lettering\n"
                            "with no balloon around it."),
-         ToolKind::Create, ObjectRecord::Shape::None, QStringLiteral("bubble"),
+         ToolKind::Create, ShapeProperties::Kind::None, QStringLiteral("bubble"),
          CursorStyle::Cross, CursorStyle::Inherit,
          {Row::TextFont, Row::TextColour, Row::TextOutline}},
 

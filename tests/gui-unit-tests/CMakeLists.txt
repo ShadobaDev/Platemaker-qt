@@ -37,34 +37,54 @@ add_executable(platemaker-gui-tests
     test_workspace_folder.cpp
     test_workspace_lock.cpp
     test_resize.cpp
+    test_selection.cpp
+    test_striplayout.cpp
+    test_panelbinder.cpp
+    test_document.cpp
     test_text_fit.cpp
-    ${CMAKE_SOURCE_DIR}/widgets/objectrecord/objectrecord.cpp
+    test_history.cpp
+    ${CMAKE_SOURCE_DIR}/widgets/composition/names.cpp
+    ${CMAKE_SOURCE_DIR}/widgets/composition/composition.cpp
     # The SVG a bubble is written to, and the geometry it is written from: both Qt6::Gui only, so the
     # rule above still holds — and the import's premise is worth a test of its own.
-    ${CMAKE_SOURCE_DIR}/widgets/objectrecord/recordsvg.cpp
-    ${CMAKE_SOURCE_DIR}/widgets/objectrecord/shapes.cpp
-    ${CMAKE_SOURCE_DIR}/widgets/objectrecord/styles.cpp
-    ${CMAKE_SOURCE_DIR}/widgets/objectrecord/edgewalk.cpp
-    ${CMAKE_SOURCE_DIR}/widgets/objectrecord/silhouette.cpp
-    ${CMAKE_SOURCE_DIR}/widgets/objectrecord/lettering.cpp
-    ${CMAKE_SOURCE_DIR}/widgets/objectrecord/recordpainter.cpp
+    ${CMAKE_SOURCE_DIR}/widgets/composition/svg.cpp
+    ${CMAKE_SOURCE_DIR}/widgets/composition/shapes.cpp
+    ${CMAKE_SOURCE_DIR}/widgets/composition/styles.cpp
+    ${CMAKE_SOURCE_DIR}/widgets/composition/edgewalk.cpp
+    ${CMAKE_SOURCE_DIR}/widgets/composition/outline.cpp
+    ${CMAKE_SOURCE_DIR}/widgets/composition/silhouette.cpp
+    ${CMAKE_SOURCE_DIR}/widgets/composition/lettering.cpp
+    ${CMAKE_SOURCE_DIR}/widgets/composition/handles.cpp
+    ${CMAKE_SOURCE_DIR}/widgets/composition/painter.cpp
+    ${CMAKE_SOURCE_DIR}/widgets/composition/renderlist.cpp
     ${CMAKE_SOURCE_DIR}/widgets/stripeditor/properties/colouradjustment.cpp
     # The preset store is QtCore and a QObject — no widget in it — so the rule above still holds.
     ${CMAKE_SOURCE_DIR}/widgets/stripeditor/presetstore.cpp
     # The eight grips' resize maths: a pure function over rectangles.
     ${CMAKE_SOURCE_DIR}/widgets/stripeditor/objects/resize.cpp
+    # What is selected: QtCore only.
+    ${CMAKE_SOURCE_DIR}/widgets/stripeditor/objects/selection.cpp
+    # What OBJECT STATE is bound to: QtCore, and compositions.
+    ${CMAKE_SOURCE_DIR}/widgets/stripeditor/objects/panelbinder.cpp
+    # The objects as the project holds them: the library's types, none of its code.
+    ${CMAKE_SOURCE_DIR}/widgets/stripeditor/objects/document.cpp
+    # Where an overlay sits on the strip: the library's types, none of its code.
+    ${CMAKE_SOURCE_DIR}/widgets/stripeditor/objects/striplayout.cpp
     # The one-workspace-per-folder rule: QtCore and the file system, nothing else.
     ${CMAKE_SOURCE_DIR}/widgets/workspacefolder/workspacefolder.cpp
     ${CMAKE_SOURCE_DIR}/widgets/workspacefolder/workspacelock.cpp
     ${CMAKE_SOURCE_DIR}/widgets/workspacefolder/fontfiles.cpp
+    # The undo history: QUndoStack is QtGui's, nothing else.
+    ${CMAKE_SOURCE_DIR}/widgets/history/history.cpp
 )
 
 target_include_directories(platemaker-gui-tests PRIVATE
-    ${CMAKE_SOURCE_DIR}/widgets/objectrecord
+    ${CMAKE_SOURCE_DIR}/widgets/composition
     # One root, as in the app: includes name their folder, e.g. "properties/propertygroup.hpp" for
     # carriesGroup(), which is header-only and QWidget-free so the rule can be tested.
     ${CMAKE_SOURCE_DIR}/widgets/stripeditor
     ${CMAKE_SOURCE_DIR}/widgets/workspacefolder
+    ${CMAKE_SOURCE_DIR}/widgets/history
     # The colour adjustments read libplatemaker's ColourCorrection, which is header-only. Its include path
     # and not its target: linking the target would make every test run need the library's DLL on PATH,
     # including the one gtest_discover_tests starts at build time.

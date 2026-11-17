@@ -11,7 +11,8 @@
 
 #include "objects/striplayout.hpp"
 #include "canvas/pagesource.hpp"
-#include "objectrecord.hpp"
+#include "composition.hpp"
+#include "names.hpp"
 #include "toolrail/toolregistry.hpp"
 
 #include <platemaker/core/processing_pipeline/processing_pipeline.hpp>
@@ -43,7 +44,7 @@ class QMimeData;
 
 namespace StripEdit {
 
-class ArtworkToolOptions;
+class PictureToolOptions;
 
 class CanvasInput;
 class ColourPair;
@@ -168,7 +169,7 @@ public:
     void selectStrip();
 
     /**
-     * \brief Feeds the project's text/bubble overlays and their authoring records.
+     * \brief Feeds the project's text/bubble overlays and their compositions.
      *
      * Overlays are placed in the **page domain**: each carries the uid of the input page it rides on
      * (`StripOverlay::anchorInputUid`) plus an offset from that page's top, and this editor resolves the
@@ -181,10 +182,10 @@ public:
      * and does not interrupt an interaction.
      * 
      * \param overlays The overlays to show, in any order.
-     * \param records The authoring records for those overlays, keyed by uid.
+     * \param compositions The compositions for those overlays, keyed by uid.
      */
     void setOverlaySource(const std::vector<Platemaker::Models::StripOverlay>& overlays,
-                          const ObjectRecord::Map&                                  records);
+                          const Composition::Map&                                  compositions);
 
     /**
      * \brief Select what an undone or redone step touched, when the feed carrying it arrives.
@@ -251,28 +252,28 @@ signals:
      *
      * Creation is the one thing this editor cannot finish on its own: the uid is minted by
      * `ProjectItem::addOverlay()`, which also hashes the asset and dedups identical content. Sending
-     * the intent instead of a half-built record keeps that inventory the library's.
+     * the intent instead of a half-built composition keeps that inventory the library's.
      *
-     * \param record       Authoring record for the new bubble (its box is the placement rectangle).
+     * \param composition       The new bubble's composition (its box is the placement rectangle).
      * \param x,y            Top-left, relative to the anchor page's top edge.
      * \param anchorInputUid The page it was drawn on.
      */
-    void recordCreated(const ObjectRecord& record, double xFrac, double yFrac, double wFrac,
+    void compositionCreated(const Composition& composition, double xFrac, double yFrac, double wFrac,
                          const QString& anchorInputUid);
 
     /**
      * \brief Every other overlay edit, as the complete new state: move, restyle, delete, reorder, mute.
      *
      * One channel rather than one signal per gesture — the uids already exist, so the owner only has to
-     * store what it is given (re-rasterising the records whose bitmaps no longer match) and push one
+     * store what it is given (re-rasterising the compositions whose bitmaps no longer match) and push one
      * undo step labelled @p undoText.
      * 
      * \param overlays The overlays to show, in any order.
-     * \param records The authoring records for those overlays, keyed by uid.
+     * \param compositions The compositions for those overlays, keyed by uid.
      * \param undoText The text to label the undo step with.
      */
     void overlaysCommitted(const std::vector<Platemaker::Models::StripOverlay>& overlays,
-                        const ObjectRecord::Map&                                  records,
+                        const Composition::Map&                                  compositions,
                         const QString&                                      undoText);
 
     /**
@@ -287,20 +288,9 @@ signals:
      * \param naturalSize The natural size of the imported artwork.
      * \param anchorInputUid The page it was drawn on.
      */
-    void artworkImportRequested(const QString& sourceFile, double xFrac, double yFrac, double wFrac,
+    void pictureImportRequested(const QString& sourceFile, double xFrac, double yFrac, double wFrac,
                                 QSize naturalSize, const QString& anchorInputUid);
 
-    /**
-     * \brief Something happened that the artist should be told once — not a state they can fix.
-     *
-     * **An event, deliberately not a badge.** A badge is derived from state, so whoever raised it
-     * re-evaluates and clears it; *"converting hid 2 tails"* has already happened and nothing can make
-     * it stop being true. Events belong in the status bar's temporary message area, which is what its
-     * left side is for, while the advisories keep the right.
-     * 
-     * \param text The message to show.
-     */
-    void noted(const QString& text);
 
 protected:
     /**
@@ -393,7 +383,7 @@ private:
     /**
      * \brief The Artwork tool's options: which picture a placement puts down. See `setTool()`.
      */
-    ArtworkToolOptions *m_artworkOptions = nullptr;
+    PictureToolOptions *m_pictureOptions = nullptr;
     AdvisoryBar       *m_advisoryBar  = nullptr;   //!< Bottom edge of this editor; absent until setAdvisories().
     QString            m_tool;                     //!< The active tool's registry id.
 

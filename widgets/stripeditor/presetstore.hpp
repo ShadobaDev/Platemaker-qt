@@ -5,33 +5,45 @@
 #include <QObject>
 #include <QString>
 
-#include "objectrecord.hpp"
+#include "composition.hpp"
+
+#include <optional>
 
 namespace StripEdit {
 
 /**
- * \brief A named look, with nothing said in it: shape, colours, stroke, line style, font.
+ * \brief A named look, with nothing said in it: a balloon's shape and style, and how words are lettered.
  *
- * Everything a bubble *is*, minus everything it *says* — no text, no box size, no tails, no placement,
- * no style seed. That split is the whole idea: applying one restyles an object without touching the
- * lettering, and picking one sets what the next placement starts from.
+ * Everything a bubble *is*, minus everything it *says* — no words, no size, no tails, no placement, no style
+ * seed. That split is the whole idea: applying one restyles an object without touching the lettering, and
+ * picking one sets what the next placement starts from. A text preset has no balloon.
  */
 struct BubblePreset
 {
-    QString      name;      //!< What the artist calls this look, which is what they pick it by.
-    ObjectRecord record;    //!< The look itself, with lettering, box, tails and origin cleared out.
+    QString                    name;   //!< What the artist calls this look, which is what they pick it by.
+    std::optional<BalloonLook> balloon = BalloonLook{};   //!< None for a text preset; the default balloon by default.
+    TextProperties             lettering;   //!< How the words are set; its words themselves are empty.
     //! Made when it is first saved and kept through a rename, an edit, an export and an import: what an
     //! object's PresetOrigin names it by. A built-in's is fixed in code.
-    QString      uid;
+    QString                    uid;
+
+    /**
+     * \brief @p c's look: its first body's shape and its balloon's style if it has one, its first words'
+     *        lettering without the words.
+     */
+    [[nodiscard]] static BubblePreset of(const QString& name, const Composition& c, const QString& uid = {});
+
+    //! The preset as an object with nothing said in it, of the default size: what the presets dialog edits.
+    [[nodiscard]] Composition look() const;
 };
 
 /**
- * \brief Whether @p p is a text preset: a look with no shape, saved from a text object. Every other preset is
- *        a bubble preset. Read from the look, so there is no kind to store or to keep in step with it.
+ * \brief Whether @p p is a text preset: a look with no balloon, saved from a text object. Every other preset is
+ *        a bubble preset.
  */
 [[nodiscard]] inline bool isTextPreset(const BubblePreset& p)
 {
-    return p.record.shape.kind == ObjectRecord::Shape::None;
+    return !p.balloon;
 }
 
 /**
@@ -89,7 +101,7 @@ public:
      * \param existingIndex  If not null, receives the index of an existing entry with the same name.
      * \return The entry's index, or -1 when it stopped.
      */
-    int save(const QString& name, const ObjectRecord& look, bool replaceExisting, int* existingIndex = nullptr);
+    int save(const QString& name, const Composition& look, bool replaceExisting, int* existingIndex = nullptr);
 
     void remove(int index); //!< Removes one of the artist's own. Built-ins are ignored.
 
@@ -126,22 +138,22 @@ public:
      *        one after it. A preset already there is left as it is.
      * \return Its index.
      */
-    int restore(const PresetOrigin& origin, const ObjectRecord& look);
+    int restore(const PresetOrigin& origin, const Composition& look);
 
     /**
      * \brief \p target restyled by \p p — the one place that knows what a preset does *not* carry.
      *
-     * The lettering, the balloon's size, where its tails point and its own style seed all survive:
-     * a preset is a look, not a line, and re-rolling a placed bubble's seed would make its outline
-     * jump for a reason nobody asked for.
+     * The words, the balloon's size, where its tails point and its own seed all survive: a preset is a
+     * look, not a line, and re-rolling a placed bubble's seed would make its outline jump for a reason
+     * nobody asked for. Its shape goes on every body.
      *
      * \param p  The preset to apply.
-     * \param target  The record to restyle.
+     * \param target  The object to restyle.
      * \param keepShape  True where the shape picker is not on screen, so a preset cannot change a
-     *                   shape the artist can neither see nor put back.
+     *                   shape the artist can neither see nor put back — nor give a balloon to a text
+     *                   object, or take one from a balloon.
      */
-    [[nodiscard]] static ObjectRecord applied(const BubblePreset& p, const ObjectRecord& target,
-                                              bool keepShape);
+    [[nodiscard]] static Composition applied(const BubblePreset& p, const Composition& target, bool keepShape);
 
 signals:
     void changed();     //!< The list changed — a picker showing it should rebuild.

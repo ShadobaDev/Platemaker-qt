@@ -14,6 +14,8 @@
 #include <QTimer>
 #include <QVBoxLayout>
 
+#include <algorithm>
+
 #include "badge.hpp"
 #include "collapsiblesection.hpp"
 #include "presetstore.hpp"
@@ -215,7 +217,7 @@ ObjectState::ObjectState(PresetStore& presets, QWidget* parent)
     followVisibility(shapeParameters, {m_sections.value(int(PropertyGroup::Shape))});
 
     // Under the sections and above the actions: what the object *is* composited as. It is not one of
-    // the groups — it belongs to the overlay, not to the record — so it sits outside them, and it is
+    // the groups — it belongs to the overlay, not to the composition — so it sits outside them, and it is
     // the only row a picture and a balloon both have.
     // A picture's size, in its own terms. Above blend because it is the bigger question about a
     // picture, and both are the overlay's rather than the drawing's — which is why neither is a group.
@@ -251,16 +253,14 @@ ObjectState::ObjectState(PresetStore& presets, QWidget* parent)
     actionRow->setContentsMargins(0, 0, 0, 0);
     auto* fitBtn = new QPushButton(tr("Fit to text"), m_actions);
     fitBtn->setToolTip(tr("Size the bubble to the line it holds."));
-    auto* padBtn = new QPushButton(tr("Fix padding"), m_actions);
-    padBtn->setToolTip(tr("Lower the paddings until the lettering fits the balloon: the top one if it is\n"
-                          "too tall, the side one if it is too wide, below zero if it has to reach past\n"
-                          "the outline. The balloon keeps its size."));
+    auto* addBtn = new QPushButton(tr("Add words"), m_actions);
+    addBtn->setToolTip(tr("More words on this balloon or picture, in a frame of their own."));
     auto* delBtn = new QPushButton(tr("Delete"), m_actions);
-    m_fitButton    = fitBtn;
-    m_padButton    = padBtn;
+    m_fitButton      = fitBtn;
+    m_addWordsButton = addBtn;
     m_deleteButton = delBtn;
     actionRow->addWidget(fitBtn);
-    actionRow->addWidget(padBtn);
+    actionRow->addWidget(addBtn);
     actionRow->addWidget(delBtn);
     lay->addWidget(m_actions);
     lay->addStretch(1);
@@ -272,8 +272,8 @@ ObjectState::ObjectState(PresetStore& presets, QWidget* parent)
     connect(m_commitTimer, &QTimer::timeout, this, [this] {
         if (!m_subjects.isEmpty())
             emit committedMany(m_subjects);
-        else if (m_hasRecord)
-            emit committed(m_record);
+        else if (m_hasComposition)
+            emit committed(m_composition);
     });
 
     // A group editor reports the same two things whatever it edits, so every editor maps onto the two
@@ -283,8 +283,8 @@ ObjectState::ObjectState(PresetStore& presets, QWidget* parent)
         connect(e, &PropertyGroupEditor::committed, this, [this] {
             if (!m_subjects.isEmpty())
                 emit committedMany(m_subjects);
-            else if (m_hasRecord)
-                emit committed(m_record);
+            else if (m_hasComposition)
+                emit committed(m_composition);
         });
     }
     // Picking a speaking shape gives a tail to a balloon with none, and no shape drops one — connected
@@ -294,42 +294,47 @@ ObjectState::ObjectState(PresetStore& presets, QWidget* parent)
         m_tailList->shapeChanged(m_groups.shape()->values());
     });
 
-    connect(fitBtn, &QPushButton::clicked, this, [this] { if (m_hasRecord) emit fitRequested(); });
-    connect(padBtn, &QPushButton::clicked, this, [this] { if (m_hasRecord) emit fixPaddingRequested(); });
-    // Delete asks how *many* are selected, not whether one record is bound: with several selected there
+    connect(fitBtn, &QPushButton::clicked, this, [this] { if (m_hasComposition) emit fitRequested(); });
+    connect(addBtn, &QPushButton::clicked, this, [this] { if (m_hasComposition) emit addWordsRequested(); });
+    // Delete asks how *many* are selected, not whether one composition is bound: with several selected there
     // is nothing to bind and still everything to remove.
     connect(delBtn, &QPushButton::clicked, this, [this] { if (m_selectionCount > 0) emit deleteRequested(); });
 
     clearSelection();
 }
 
-void ObjectState::setRecord(const ObjectRecord& a)
+void ObjectState::setComposition(const Composition& a)
 {
     m_tailSet.clear();
-    m_record      = a;
+    m_composition      = a;
     m_tailIndex     = -1;
-    m_hasRecord   = true;
+    m_wordsId = 0;
+    m_groups.text()->setWords(0);
+    m_hasComposition   = true;
     m_selectionCount = 1;
 
     m_populating = true;
     m_subjects.clear();
-    m_groups.bind(m_record);
-    m_tailList->bindOne(m_record);
+    m_groups.bind(m_composition);
+    m_tailList->bindOne(m_composition);
     m_populating = false;
 
     // A picture names itself by its file: one balloon is much like another, but which picture this is
     // is the only thing that tells it from the next one.
-    m_subject->setText(m_record.isArtwork()      ? m_record.artwork
-                       : m_record.hasSilhouette() ? tr("Bubble")
+    m_subject->setText(m_composition.picture.has_value()      ? m_composition.picture->file
+                       : m_composition.balloon.has_value() ? tr("Bubble")
                                                     : tr("Text"));
     m_subject->setVisible(true);
     refreshLook();
     m_emptyHint->setText(m_emptyText);
     m_emptyHint->setVisible(false);
     m_actions->setVisible(true);
-    m_fitButton->setVisible(!m_record.isArtwork());   // a picture's box is the picture's, not its words'
-    m_padButton->setVisible(m_record.hasSilhouette());   // only a balloon has an outline to keep from
+    m_fitButton->setVisible(!m_composition.picture.has_value());   // a picture's box is the picture's, not its words'
+    // Words need a seat: a balloon's or a picture's. A text object is its one words.
+    m_addWordsButton->setVisible(std::any_of(m_composition.words.cbegin(), m_composition.words.cend(),
+                                             [this](const Words& w) { return seated(m_composition, w); }));
     m_deleteButton->setText(tr("Delete"));
+    m_deleteButton->setVisible(true);
     applyKindVisibility();
 }
 
@@ -337,9 +342,11 @@ void ObjectState::setMixedSubjects(int count)
 {
     m_subjects.clear();
     m_tailSet.clear();
-    m_hasRecord    = false;
+    m_hasComposition    = false;
     m_selectionCount = count;
     m_tailIndex      = -1;
+    m_wordsId = 0;
+    m_groups.text()->setWords(0);
     m_commitTimer->stop();
 
     m_subject->setText(tr("%n objects", "", count));
@@ -348,22 +355,25 @@ void ObjectState::setMixedSubjects(int count)
                             "move them together."));
     m_emptyHint->setVisible(true);
     m_actions->setVisible(true);
-    m_padButton->setVisible(false);
     m_fitButton->setVisible(false);
+    m_addWordsButton->setVisible(false);
     m_scaleRow->setVisible(false);
     m_deleteButton->setText(tr("Delete"));
+    m_deleteButton->setVisible(true);
     for (auto it = m_sections.cbegin(); it != m_sections.cend(); ++it)
         it.value()->setVisible(false);
     refreshLook();
 }
 
-void ObjectState::setRecords(const QList<ObjectRecord>& objects)
+void ObjectState::setCompositions(const QList<Composition>& objects)
 {
     m_subjects       = objects;
     m_tailSet.clear();
-    m_hasRecord    = false;   // no single record, so the single-subject signals stay quiet
+    m_hasComposition    = false;   // no single composition, so the single-subject signals stay quiet
     m_selectionCount = static_cast<int>(objects.size());
     m_tailIndex      = -1;
+    m_wordsId = 0;
+    m_groups.text()->setWords(0);
     m_commitTimer->stop();
 
     // A role is a property several kinds share, so each group is bound to the objects that have it: the
@@ -372,9 +382,9 @@ void ObjectState::setRecords(const QList<ObjectRecord>& objects)
     PropertyGroupEditor::Subjects all;
     PropertyGroupEditor::Subjects shaped;
     all.reserve(objects.size());
-    for (const ObjectRecord& a : objects) {
+    for (const Composition& a : objects) {
         all.append(&a);
-        if (a.hasSilhouette())
+        if (a.balloon.has_value())
             shaped.append(&a);
     }
 
@@ -391,16 +401,17 @@ void ObjectState::setRecords(const QList<ObjectRecord>& objects)
     refreshLook();
     m_emptyHint->setVisible(false);
     m_actions->setVisible(true);
-    m_padButton->setVisible(false);
     m_fitButton->setVisible(false);   // one box cannot be fitted to several texts
+    m_addWordsButton->setVisible(false);
     m_scaleRow->setVisible(false);    // one spin box cannot be several pictures' sizes
     m_deleteButton->setText(tr("Delete"));
+    m_deleteButton->setVisible(true);
 
     // **The union**: a section is here when at least one of them carries that group — carriesGroup()
     // answers for each, as it does for a single subject.
     //
     // Shape and the tails are **absent** for a set on purpose, and that is a policy of this surface
-    // rather than something about the records: giving several objects one shape is a conversion, which
+    // rather than something about the compositions: giving several objects one shape is a conversion, which
     // is its own act with its own menu, and adding a tail to five balloons is five objects, not one
     // property.
     for (auto it = m_sections.cbegin(); it != m_sections.cend(); ++it) {
@@ -408,16 +419,18 @@ void ObjectState::setRecords(const QList<ObjectRecord>& objects)
         const bool forASet = g != PropertyGroup::Shape && g != PropertyGroup::Tail;
         it.value()->setVisible(forASet
                                && std::any_of(objects.cbegin(), objects.cend(),
-                                              [g](const ObjectRecord& a) { return carriesGroup(a, g); }));
+                                              [g](const Composition& a) { return carriesGroup(a, g); }));
     }
 }
 
-void ObjectState::setTails(const QList<ObjectRecord>& balloons, const QList<QPair<int, int>>& tails)
+void ObjectState::setTails(const QList<Composition>& balloons, const QList<QPair<int, int>>& tails)
 {
     m_subjects       = balloons;
     m_tailSet        = tails;
     m_tailIndex      = -1;
-    m_hasRecord      = false;
+    m_wordsId = 0;
+    m_groups.text()->setWords(0);
+    m_hasComposition      = false;
     m_selectionCount = int(tails.size());
 
     QList<TailProperties> bound;
@@ -432,25 +445,27 @@ void ObjectState::setTails(const QList<ObjectRecord>& balloons, const QList<QPai
     refreshLook();
     m_emptyHint->setVisible(false);
     m_actions->setVisible(true);
-    m_padButton->setVisible(false);
     m_fitButton->setVisible(false);
+    m_addWordsButton->setVisible(false);
     m_scaleRow->setVisible(false);
     m_deleteButton->setText(tr("Delete tails"));
     applyKindVisibility();
 }
 
-void ObjectState::setTail(const ObjectRecord& a, int index)
+void ObjectState::setTail(const Composition& a, int index)
 {
     m_tailSet.clear();
-    m_record      = a;
+    m_composition      = a;
     m_tailIndex     = index;
-    m_hasRecord   = true;
+    m_wordsId = 0;
+    m_groups.text()->setWords(0);
+    m_hasComposition   = true;
     m_selectionCount = 1;
 
     m_subjects.clear();
     m_populating = true;
     m_tail->setIndex(index);
-    m_tail->bindOne(m_record);
+    m_tail->bindOne(m_composition);
     m_populating = false;
 
     m_subject->setText(tr("Tail %1").arg(index + 1));
@@ -458,19 +473,41 @@ void ObjectState::setTail(const ObjectRecord& a, int index)
     refreshLook();
     m_emptyHint->setVisible(false);
     m_actions->setVisible(true);
-    m_padButton->setVisible(false);
     m_fitButton->setVisible(false);   // a tail holds no text to fit
+    m_addWordsButton->setVisible(false);
     m_scaleRow->setVisible(false);
     m_deleteButton->setText(tr("Delete tail"));
+    m_deleteButton->setVisible(true);
+    applyKindVisibility();
+}
+
+void ObjectState::setWords(const Composition& a, int id)
+{
+    setComposition(a);   // the object's state, then narrowed to the words
+    m_wordsId = id;
+    m_populating = true;
+    m_groups.text()->setWords(id);
+    m_groups.text()->bindOne(m_composition);
+    m_populating = false;
+
+    int index = 0;
+    while (index < m_composition.words.size() && m_composition.words.at(index).id != id)
+        ++index;
+    m_subject->setText(tr("Words %1").arg(index + 1));
+    m_deleteButton->setText(tr("Delete words"));
+    m_deleteButton->setVisible(m_composition.words.size() > 1);   // the last words are never deleted
+    refreshLook();
     applyKindVisibility();
 }
 
 void ObjectState::clearSelection()
 {
     m_tailSet.clear();
-    m_hasRecord    = false;
+    m_hasComposition    = false;
     m_selectionCount = 0;
     m_tailIndex      = -1;
+    m_wordsId = 0;
+    m_groups.text()->setWords(0);
     m_subjects.clear();
     m_commitTimer->stop();
 
@@ -502,19 +539,20 @@ void ObjectState::applyKindVisibility()
     // kind, and kinds are changed by *Convert to ▸*. The text is the only group every kind carries.
     //
     // The editors are still bound and still written back (`PropertyGroupSet::collect()` writes every
-    // group), so a hidden Shape editor holds the object's own `None` and hands it straight back — which
-    // is exactly what must happen: a panel may not convert an object by being edited.
+    // group), and a balloon's group writes nothing to an object with no balloon — which is exactly what
+    // must happen: a panel may not convert an object by being edited.
     for (auto it = m_sections.cbegin(); it != m_sections.cend(); ++it) {
         const auto g = static_cast<PropertyGroup>(it.key());
-        // A selected tail is a subject of its own with exactly one section; otherwise the record
+        // A selected tail is a subject of its own with exactly one section; otherwise the composition
         // answers, through the same rule a set is measured by.
         it.value()->setVisible(tailSubject() ? g == PropertyGroup::TailItem
-                                           : carriesGroup(m_record, g));
+                               : m_wordsId != 0 ? g == PropertyGroup::Text
+                                                : carriesGroup(m_composition, g));
     }
 }
 
 
-void ObjectState::setArtworkScale(std::optional<double> percent)
+void ObjectState::setPictureScale(std::optional<double> percent)
 {
     m_scaleRow->setVisible(percent.has_value());
     if (!percent)
@@ -543,27 +581,29 @@ void ObjectState::refreshLook()
     // own, nothing selected has nothing to report, and a picture's look is whoever drew it.
     PresetOrigin origin;
     bool         mixed = false;
-    if (tailSubject() || m_selectionCount == 0 || (m_hasRecord && m_record.isArtwork())) {
-    } else if (m_hasRecord) {
-        origin = m_record.presetOrigin;
+    if (tailSubject() || m_wordsId != 0 || m_selectionCount == 0
+        || (m_hasComposition && m_composition.picture.has_value())) {
+    } else if (m_hasComposition) {
+        origin = m_composition.preset;
     } else if (!m_subjects.isEmpty()) {
-        origin = m_subjects.first().presetOrigin;
-        mixed  = std::any_of(m_subjects.cbegin(), m_subjects.cend(), [&origin](const ObjectRecord& a) {
-            return a.presetOrigin.uid != origin.uid;
+        origin = m_subjects.first().preset;
+        mixed  = std::any_of(m_subjects.cbegin(), m_subjects.cend(), [&origin](const Composition& a) {
+            return a.preset.uid != origin.uid;
         });
     }
     // The picker goes with the chip: shown wherever there is a look a preset could replace.
-    const bool hasLook = !(tailSubject() || m_selectionCount == 0 || (m_hasRecord && m_record.isArtwork()))
-                      && (m_hasRecord || std::any_of(m_subjects.cbegin(), m_subjects.cend(),
-                                                     [](const ObjectRecord& a) { return !a.isArtwork(); }));
+    const bool hasLook = !(tailSubject() || m_wordsId != 0 || m_selectionCount == 0
+                           || (m_hasComposition && m_composition.picture.has_value()))
+                      && (m_hasComposition || std::any_of(m_subjects.cbegin(), m_subjects.cend(),
+                                                     [](const Composition& a) { return !a.picture.has_value(); }));
     m_presetRow->setVisible(hasLook);
     if (hasLook) {
         // The presets of the selection's kind: a balloon's, a text object's, both for a set of the two.
-        const auto bubbleish = [](const ObjectRecord& a) { return a.hasSilhouette(); };
-        const auto textish   = [](const ObjectRecord& a) { return !a.isArtwork() && !a.hasSilhouette(); };
-        const bool bubble = m_hasRecord ? bubbleish(m_record)
+        const auto bubbleish = [](const Composition& a) { return a.balloon.has_value(); };
+        const auto textish   = [](const Composition& a) { return !a.picture.has_value() && !a.balloon.has_value(); };
+        const bool bubble = m_hasComposition ? bubbleish(m_composition)
                                         : std::any_of(m_subjects.cbegin(), m_subjects.cend(), bubbleish);
-        const bool text   = m_hasRecord ? textish(m_record)
+        const bool text   = m_hasComposition ? textish(m_composition)
                                         : std::any_of(m_subjects.cbegin(), m_subjects.cend(), textish);
         if (bubble != m_pickerBubble || text != m_pickerText)
             refreshPresetPicker(bubble, text);
@@ -607,8 +647,7 @@ void ObjectState::refreshPresetPicker(bool bubble, bool text)
             const BubblePreset& p = presets.at(i);
             if (isTextPreset(p) != textKind)
                 continue;
-            m_presetPicker->addItem(QIcon(bubbleThumbnail(p.record.shape, p.record.skin.fill.colour,
-                                                          p.record.style.stroke.colour, p.record.text.fill.colour)),
+            m_presetPicker->addItem(QIcon(bubbleThumbnail(p.look())),
                                     p.name, i);   // the store's index rides with the entry
         }
     }
@@ -642,8 +681,8 @@ void ObjectState::onControlChanged()
 
     if (!m_subjects.isEmpty()) {
         // A set: every object takes what the artist touched and keeps everything else of its own.
-        for (ObjectRecord& a : m_subjects) {
-            if (a.hasSilhouette()) {
+        for (Composition& a : m_subjects) {
+            if (a.balloon.has_value()) {
                 m_groups.skin()->applyEditedTo(a);   // a caption with no balloon has no fill to take
                 m_groups.style()->applyEditedTo(a);
                 m_groups.texture()->applyEditedTo(a);
@@ -657,24 +696,26 @@ void ObjectState::onControlChanged()
     }
 
     if (m_tailIndex >= 0) {
-        m_tail->applyTo(m_record);   // that tail, and nothing else about the balloon
+        m_tail->applyTo(m_composition);   // that tail, and nothing else about the balloon
+    } else if (m_wordsId != 0) {
+        m_groups.text()->applyTo(m_composition);   // those words, and nothing else about the object
     } else {
-        m_groups.collect(m_record, m_tailList);
+        m_groups.collect(m_composition, m_tailList);
 
         // A shape change can add or remove whole sections — the object is still the same object, so this
         // is the one moment the panel is allowed to re-lay itself out.
         applyKindVisibility();
-        m_subject->setText(m_record.hasSilhouette() ? tr("Bubble") : tr("Text"));
+        m_subject->setText(m_composition.balloon.has_value() ? tr("Bubble") : tr("Text"));
     }
 
     // One changed property and it is no longer that preset. Computed, so it flips back by itself
     // if the artist edits the value to an exact match again.
     refreshLook();
 
-    if (!m_hasRecord)
+    if (!m_hasComposition)
         return;
 
-    emit changed(m_record);
+    emit changed(m_composition);
     m_commitTimer->start();
 }
 

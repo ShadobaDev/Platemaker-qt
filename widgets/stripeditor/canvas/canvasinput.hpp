@@ -53,7 +53,7 @@ public:
     void updateCursor();
 
 signals:
-    void artworkDropped(const QString& file, QPointF scenePos);   //!< A picture, at its own size.
+    void pictureDropped(const QString& file, QPointF scenePos);   //!< A picture, at its own size.
     void sampleRequested(QPointF scenePos, bool secondary);       //!< The colour picker pressed here.
     void colourApplyRequested(QPointF scenePos, bool secondary);  //!< The bucket pressed here.
     void zoomStepRequested(int direction);                        //!< Ctrl+wheel: +1 in, -1 out.
@@ -63,7 +63,7 @@ protected:
 
 private:
     //! The picture @p mime carries, by what it *is*: one of the suffixes the import takes. Empty if none.
-    [[nodiscard]] static QString droppedArtwork(const QMimeData* mime);
+    [[nodiscard]] static QString droppedPicture(const QMimeData* mime);
 
     QGraphicsView*    m_view    = nullptr;
     ObjectController* m_objects   = nullptr;

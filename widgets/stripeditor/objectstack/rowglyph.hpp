@@ -5,7 +5,7 @@
 #include <QPalette>
 #include <QPixmap>
 
-#include "objectrecord.hpp"
+#include "composition.hpp"
 
 namespace StripEdit {
 
@@ -30,11 +30,14 @@ inline constexpr int k_rowGlyphPx = 24;
  * \param dpr The screen's device pixel ratio. Drawing at one and letting the view scale up is what makes
  *            an icon look soft on a 150% display — so every glyph is drawn at the screen's own density.
  */
-[[nodiscard]] QIcon objectGlyph(const ObjectRecord& a, const QPalette& pal, int px = k_rowGlyphPx,
+[[nodiscard]] QIcon objectGlyph(const Composition& a, const QPalette& pal, int px = k_rowGlyphPx,
                                 qreal dpr = 1.0);
 
 //! Imported artwork is its own glyph: the art itself, scaled down. It has no silhouette to borrow.
 [[nodiscard]] QIcon assetGlyph(const QPixmap& art, int px = k_rowGlyphPx, qreal dpr = 1.0);
+
+//! Words: **Aa**, drawn as outlines (the glyph of an object with no balloon, too).
+[[nodiscard]] QIcon wordsGlyph(const QPalette& pal, int px = k_rowGlyphPx, qreal dpr = 1.0);
 
 //! A tail: a curved sliver narrowing to the point it speaks from. Deliberately **not** a V — the tree
 //! already draws a chevron next to it, and two arrow-shaped marks in one row read as one control.

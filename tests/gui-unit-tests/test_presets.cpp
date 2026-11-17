@@ -4,10 +4,12 @@
 
 #include <QCoreApplication>
 #include <QDir>
+#include <QJsonDocument>
 #include <QTemporaryDir>
 
+#include "objectparts.hpp"
 #include "presetstore.hpp"
-#include "recordsvg.hpp"
+#include "svg.hpp"
 
 using namespace StripEdit;
 
@@ -25,16 +27,16 @@ protected:
 };
 
 //! A plain balloon with something in it, standing in for one the artist has placed.
-ObjectRecord placed()
+Composition placed()
 {
-    ObjectRecord a;
-    a.shape.kind = ObjectRecord::Shape::Box;
-    a.box        = QSize(300, 160);
-    a.text.body  = QStringLiteral("Hello");
-    a.styleSeed  = 123456;
+    Composition a = balloonObject();
+    shapeOf(a).kind = ShapeProperties::Kind::Box;
+    boxOf(a)        = QSize(300, 160);
+    textOf(a).body  = QStringLiteral("Hello");
+    seedOf(a)  = 123456;
     Tail t;
     t.tip = QPointF(40, 220);
-    a.tails.items.append(t);
+    setTails(a, {t});
     return a;
 }
 
@@ -51,31 +53,27 @@ TEST_F(Presets, ARenameKeepsTheLookAndRefusesATakenName)
     const int b = store.save(QStringLiteral("Rename test B"), placed(), /*replaceExisting=*/true);
     ASSERT_GE(a, store.builtinCount());
     ASSERT_GE(b, store.builtinCount());
-    const ObjectRecord look = store.presets().at(a).record;
+    const Composition look = store.presets().at(a).look();
 
     EXPECT_FALSE(store.rename(a, QStringLiteral("rename test b")));   // taken, whatever the case
     EXPECT_FALSE(store.rename(a, QStringLiteral("   ")));
     EXPECT_FALSE(store.rename(0, QStringLiteral("Rename test C")));   // a built-in
     EXPECT_TRUE(store.rename(a, QStringLiteral("  Rename test C ")));
     EXPECT_EQ(store.presets().at(a).name, QStringLiteral("Rename test C"));
-    EXPECT_EQ(store.presets().at(a).record, look);
+    EXPECT_EQ(store.presets().at(a).look(), look);
 
     store.remove(qMax(a, b));   // the application's settings, shared with the next run
     store.remove(qMin(a, b));
 }
 
-TEST_F(Presets, APresetBringsItsPaddingAndLineSpacing)
+TEST_F(Presets, APresetBringsItsLineSpacing)
 {
     const PresetStore store;
     BubblePreset      p = store.presets().first();
-    p.record.text.paddingSide = -4;
-    p.record.text.paddingTop  = 12;
-    p.record.text.lineSpacing = 90;
+    p.lettering.lineSpacing = 90;
 
-    const ObjectRecord look = PresetStore::applied(p, placed(), /*keepShape=*/true);
-    EXPECT_EQ(look.text.paddingSide, -4);
-    EXPECT_EQ(look.text.paddingTop, 12);
-    EXPECT_EQ(look.text.lineSpacing, 90);
+    const Composition look = PresetStore::applied(p, placed(), /*keepShape=*/true);
+    EXPECT_EQ(textOf(look).lineSpacing, 90);
 }
 
 /**
@@ -88,16 +86,16 @@ TEST_F(Presets, AnAppliedPresetBecomesTheObjectsOrigin)
     QStringList       uids;
     for (int i = 0; i < store.presets().size(); ++i) {
         const BubblePreset& p = store.presets().at(i);
-        const ObjectRecord  a = PresetStore::applied(p, placed(), /*keepShape=*/false);
-        EXPECT_EQ(a.presetOrigin.uid, p.uid) << p.name.toStdString();
-        EXPECT_EQ(a.presetOrigin.name, p.name);
+        const Composition  a = PresetStore::applied(p, placed(), /*keepShape=*/false);
+        EXPECT_EQ(originOf(a).uid, p.uid) << p.name.toStdString();
+        EXPECT_EQ(originOf(a).name, p.name);
         EXPECT_FALSE(p.uid.isEmpty()) << p.name.toStdString();
         EXPECT_FALSE(uids.contains(p.uid)) << p.name.toStdString();
         uids << p.uid;
         EXPECT_EQ(store.indexOf(p.uid), i);
     }
-    const ObjectRecord based = PresetStore::applied(store.presets().first(), placed(), false);
-    EXPECT_TRUE(PresetStore::applied(BubblePreset{}, based, false).presetOrigin.isEmpty());
+    const Composition based = PresetStore::applied(store.presets().first(), placed(), false);
+    EXPECT_TRUE(originOf(PresetStore::applied(BubblePreset{}, based, false)).isEmpty());
 }
 
 /**
@@ -107,15 +105,15 @@ TEST_F(Presets, AnAppliedPresetBecomesTheObjectsOrigin)
 TEST_F(Presets, APresetKeepsItsUidAndStoresNoOrigin)
 {
     PresetStore  store;
-    ObjectRecord look = PresetStore::applied(store.presets().first(), placed(), false);
-    ASSERT_FALSE(look.presetOrigin.isEmpty());
+    Composition look = PresetStore::applied(store.presets().first(), placed(), false);
+    ASSERT_FALSE(originOf(look).isEmpty());
 
     const int     at  = store.save(QStringLiteral("Uid test"), look, /*replaceExisting=*/true);
     const QString uid = store.presets().at(at).uid;
     EXPECT_FALSE(uid.isEmpty());
-    EXPECT_TRUE(store.presets().at(at).record.presetOrigin.isEmpty());
+    EXPECT_TRUE(originOf(store.presets().at(at).look()).isEmpty());
 
-    look.skin.fill.colour = QColor(Qt::red);
+    skinOf(look).fill.colour = QColor(Qt::red);
     EXPECT_EQ(store.save(QStringLiteral("Uid test"), look, /*replaceExisting=*/true), at);
     EXPECT_EQ(store.presets().at(at).uid, uid);
     ASSERT_TRUE(store.rename(at, QStringLiteral("Uid test renamed")));
@@ -129,29 +127,34 @@ TEST_F(Presets, APresetKeepsItsUidAndStoresNoOrigin)
     ASSERT_EQ(store.indexOf(uid), -1);
     ASSERT_GE(store.importPack(pack, &error), 1) << error.toStdString();
     EXPECT_GE(store.indexOf(uid), store.builtinCount());
+    // The look comes back as it was saved: a balloon's shape and style, and the lettering without its words.
+    BubblePreset saved = BubblePreset::of(QStringLiteral("Uid test renamed"), look, uid);
+    EXPECT_TRUE(store.presets().at(store.indexOf(uid)).look() == saved.look());
+    EXPECT_TRUE(store.presets().at(store.indexOf(uid)).lettering.body.isEmpty());
 
     store.remove(store.indexOf(uid));   // the application's settings, shared with the next run
 }
 
 /**
- * \brief An object's origin is kept where the object is: in its undo snapshot (JSON) and in its SVG.
+ * \brief An object's origin is kept where the object is: in its content (JSON) and in its SVG's copy of it.
  */
 TEST_F(Presets, TheOriginTravelsWithTheObject)
 {
-    ObjectRecord a = placed();
-    a.presetOrigin = {QStringLiteral("uid-1"), QStringLiteral("Shout")};
-    EXPECT_EQ(ObjectRecord::fromJson(a.toJson()).presetOrigin, a.presetOrigin);
-    EXPECT_TRUE(ObjectRecord::fromJson(placed().toJson()).presetOrigin.isEmpty());
+    Composition a = placed();
+    originOf(a) = {QStringLiteral("uid-1"), QStringLiteral("Shout")};
+    EXPECT_EQ(originOf(compositionFromJson(toJson(a))), originOf(a));
+    EXPECT_TRUE(originOf(compositionFromJson(toJson(placed()))).isEmpty());
 
     // Built by hand rather than through Svg::write(), which measures lettering and needs a
     // QGuiApplication this target does not have: what is under test is that the reader takes the origin.
+    const QString    content = QString::fromUtf8(QJsonDocument(toJson(a)).toJson(QJsonDocument::Compact));
     const QByteArray svg = QByteArray("<svg xmlns=\"http://www.w3.org/2000/svg\" xmlns:pm=\"") + Svg::k_pmNamespace
-                         + "\" width=\"10\" height=\"10\"><g pm:shape=\"box\" pm:box=\"300,160\""
-                           " pm:presetUid=\"uid-1\" pm:presetName=\"Shout\"/></svg>";
+                         + "\" width=\"10\" height=\"10\"><pm:content>" + content.toHtmlEscaped().toUtf8()
+                         + "</pm:content></svg>";
     bool               ok   = false;
-    const ObjectRecord back = Svg::read(svg, &ok);
+    const Composition back = Svg::read(svg, &ok);
     ASSERT_TRUE(ok);
-    EXPECT_EQ(back.presetOrigin, a.presetOrigin);
+    EXPECT_EQ(originOf(back), originOf(a));
 }
 
 /**
@@ -164,11 +167,10 @@ TEST_F(Presets, APresetSavedFromTextIsATextPreset)
     for (int i = 0; i < store.builtinCount(); ++i)
         EXPECT_FALSE(isTextPreset(store.presets().at(i))) << store.presets().at(i).name.toStdString();
 
-    ObjectRecord text = placed();
-    text.shape.kind   = ObjectRecord::Shape::None;
+    const Composition text = withoutBalloon(placed());
     const int at      = store.save(QStringLiteral("Kind test"), text, /*replaceExisting=*/true);
     EXPECT_TRUE(isTextPreset(store.presets().at(at)));
     // *Reset to default* on a text object: the default look, with its own no-shape kept.
-    EXPECT_FALSE(PresetStore::applied(BubblePreset{}, text, /*keepShape=*/true).hasSilhouette());
+    EXPECT_FALSE(PresetStore::applied(BubblePreset{}, text, /*keepShape=*/true).balloon.has_value());
     store.remove(at);   // the application's settings, shared with the next run
 }

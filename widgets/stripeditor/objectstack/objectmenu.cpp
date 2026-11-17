@@ -1,6 +1,6 @@
 #include "objectstack/objectmenu.hpp"
 
-#include "objects/artworkobject.hpp"
+#include "objects/pictureobject.hpp"
 #include "objects/object.hpp"
 #include "objects/objectcontroller.hpp"
 #include "objects/striplayout.hpp"
@@ -100,7 +100,7 @@ ObjectMenu::ObjectMenu(ObjectController& objects, const StripLayout& layout, Pre
     connect(m_actToText, &QAction::triggered, this,
             [this] {
                 ShapeProperties text;
-                text.kind = ObjectRecord::Shape::None;
+                text.kind = ShapeProperties::Kind::None;
                 m_objects.convertSelectionTo(text);
             });
     m_actToBalloon = m_convertMenu->addAction(tr("Balloon"));
@@ -119,7 +119,7 @@ ObjectMenu::ObjectMenu(ObjectController& objects, const StripLayout& layout, Pre
         for (const QString& uid : std::as_const(m_objects.selectedOverlays())) {
             if (m_objects.carriers().contains(uid) || !m_objects.isParametric(uid))
                 continue;
-            const bool hasShape = m_objects.recordFor(uid).hasSilhouette();
+            const bool hasShape = m_objects.compositionOf(uid).balloon.has_value();
             if (!shaped)
                 shaped = hasShape;
             else if (*shaped != hasShape)
@@ -137,31 +137,30 @@ ObjectMenu::ObjectMenu(ObjectController& objects, const StripLayout& layout, Pre
     // Artwork's own two. They are not on a balloon's menu, because a balloon has no "own size": its
     // drawing is generated at whatever size it is given.
     m_actNaturalSize = new QAction(tr("Original size"), this);
-    connect(m_actNaturalSize, &QAction::triggered, this, [this] { m_objects.scaleSelectedArtwork(100.0); });
+    connect(m_actNaturalSize, &QAction::triggered, this, [this] { m_objects.scaleSelectedPicture(100.0); });
     m_actFitToStrip = new QAction(tr("Fit to strip width"), this);
     connect(m_actFitToStrip, &QAction::triggered, this, [this] {
-        const auto* art = qobject_cast<const ArtworkObject*>(m_objects.object(m_objects.selectedOverlay()));
-        const double tw = m_layout.targetWidth();
-        if (art && tw > 0 && art->artwork().width() > 0)
-            m_objects.scaleSelectedArtwork(tw * 100.0 / art->artwork().width());
+        const auto* art = qobject_cast<const PictureObject*>(m_objects.object(m_objects.selectedOverlay()));
+        if (art && m_layout.targetWidth() > 0 && art->pixmap().width() > 0)
+            m_objects.scaleSelectedPicture(m_layout.percentOf(1.0, art->pixmap().width()));   // the strip's width
     });
 
     // The same two OBJECT STATE offers under the panel — a right-click is where sizing an object is
     // looked for, beside the artwork's own two.
     m_actFitToText = new QAction(tr("Fit to text"), this);
     connect(m_actFitToText, &QAction::triggered, &m_objects, &ObjectController::fitSelectionToText);
-    m_actFixPadding = new QAction(tr("Fix padding"), this);
-    connect(m_actFixPadding, &QAction::triggered, &m_objects, &ObjectController::fixSelectionPadding);
+    m_actAddWords = new QAction(tr("Add words"), this);
+    connect(m_actAddWords, &QAction::triggered, &m_objects, &ObjectController::addWords);
 
     // Shape editing: entered here or by a double-click on the balloon, left here, by Esc, or
     // by a click outside it. Esc is a shortcut of its own, not an entry: the menu has nothing to show
     // for it.
     m_actEditShape = new QAction(tr("Edit shape"), this);
     m_actEditShape->setCheckable(true);
-    connect(m_actEditShape, &QAction::triggered, &m_objects, &ObjectController::setShapeEditing);
-    new QShortcut(QKeySequence(Qt::Key_Escape), m_view, [this] { m_objects.setShapeEditing(false); },
+    connect(m_actEditShape, &QAction::triggered, &m_objects.shapeEdit(), &ShapeEditMode::setOn);
+    new QShortcut(QKeySequence(Qt::Key_Escape), m_view, [this] { m_objects.shapeEdit().setOn(false); },
                   Qt::WidgetShortcut);
-    connect(&m_objects, &ObjectController::shapeEditingChanged, this, &ObjectMenu::updateEntries);
+    connect(&m_objects.shapeEdit(), &ShapeEditMode::changed, this, &ObjectMenu::updateEntries);
 
     // A Curve's own: the type of the node picked in shape editing — a right-click on a node
     // picks it, so the menu it opens is that node's — and the conversion that makes a Curve of a balloon.
@@ -175,12 +174,12 @@ ObjectMenu::ObjectMenu(ObjectController& objects, const StripLayout& layout, Pre
         QAction* a = m_nodeTypeMenu->addAction(name);
         a->setCheckable(true);
         a->setData(static_cast<int>(type));
-        connect(a, &QAction::triggered, this, [this, type] { m_objects.setPickedNodeType(type); });
+        connect(a, &QAction::triggered, this, [this, type] { m_objects.shapeEdit().setPickedNodeType(type); });
     }
     m_actAddHandles = new QAction(tr("Add handles"), this);
-    connect(m_actAddHandles, &QAction::triggered, &m_objects, &ObjectController::growPickedHandles);
+    connect(m_actAddHandles, &QAction::triggered, &m_objects.shapeEdit(), &ShapeEditMode::growPickedHandles);
     m_actToCurve = new QAction(tr("Convert to curve"), this);
-    connect(m_actToCurve, &QAction::triggered, &m_objects, &ObjectController::convertSelectionToCurve);
+    connect(m_actToCurve, &QAction::triggered, &m_objects.shapeEdit(), &ShapeEditMode::convertToCurve);
 
     // A new deal of whatever the style draws at random: a flash's strokes, a brush's, a texture's wobble.
     m_actReroll = new QAction(tr("Re-roll"), this);
@@ -196,7 +195,7 @@ ObjectMenu::ObjectMenu(ObjectController& objects, const StripLayout& layout, Pre
     // Artwork drawn elsewhere — a balloon inked on a tablet, a logo — placed as an overlay like any
     // other. Always available, unlike Duplicate/Delete, because it needs no selection.
     m_actImport = new QAction(tr("Import artwork…"), this);
-    connect(m_actImport, &QAction::triggered, this, &ObjectMenu::importArtwork);
+    connect(m_actImport, &QAction::triggered, this, &ObjectMenu::importPicture);
 
     // The menu is the widgets' own action list (Qt::ActionsContextMenu), so the canvas and the tree
     // cannot drift apart and every entry keeps its shortcut. Sections are separators in that same list:
@@ -219,7 +218,7 @@ ObjectMenu::ObjectMenu(ObjectController& objects, const StripLayout& layout, Pre
         w->addAction(m_actNaturalSize);
         w->addAction(m_actFitToStrip);
         w->addAction(m_actFitToText);
-        w->addAction(m_actFixPadding);
+        w->addAction(m_actAddWords);
         w->addAction(m_actEditShape);
         w->addAction(m_nodeTypeMenu->menuAction());
         w->addAction(m_actAddHandles);
@@ -250,7 +249,7 @@ void ObjectMenu::updateEntries()
     // quietly acting on the primary: a control that does something other than what the panel names is a
     // lie. A tail can only be deleted.
     const QStringList&                      picked      = m_objects.selectedOverlays();
-    const QList<ObjectController::TailRef>& pickedTails = m_objects.selectedTails();
+    const QList<ElementRef>& pickedTails = m_objects.selectedTails();
     const bool oneObject = picked.size() == 1 && pickedTails.isEmpty();
     if (m_actDuplicate) m_actDuplicate->setEnabled(oneObject);
     if (m_actDelete)    m_actDelete->setEnabled(!picked.isEmpty());
@@ -286,20 +285,19 @@ void ObjectMenu::updateEntries()
     if (m_presetMenu) m_presetMenu->menuAction()->setVisible(allParametric);
     if (m_actResetLook) m_actResetLook->setVisible(allParametric);
     // ...and the two that only artwork has.
-    const bool artwork = m_objects.selectionIsArtwork();
-    if (m_actNaturalSize) m_actNaturalSize->setVisible(artwork);
-    if (m_actFitToStrip)  m_actFitToStrip->setVisible(artwork);
+    const bool picture = m_objects.selectionIsPicture();
+    if (m_actNaturalSize) m_actNaturalSize->setVisible(picture);
+    if (m_actFitToStrip)  m_actFitToStrip->setVisible(picture);
     // One object's box or one balloon's padding, as in OBJECT STATE: absent for a picture (its box is
     // its pixels) and for lettering with no balloon (no outline to keep from); greyed for a set.
-    const ObjectRecord one = oneObject ? m_objects.recordFor(picked.first()) : ObjectRecord();
+    const Composition one = oneObject ? m_objects.compositionOf(picked.first()) : Composition();
     if (m_actFitToText) {
         m_actFitToText->setVisible(allParametric);
         m_actFitToText->setEnabled(oneObject);
     }
-    if (m_actFixPadding) {
-        m_actFixPadding->setVisible(allParametric && (!oneObject || one.hasSilhouette()));
-        m_actFixPadding->setEnabled(oneObject && one.hasSilhouette());
-    }
+    // A balloon's or a picture's: words with a seat to sit on. A text object is its one words.
+    if (m_actAddWords)
+        m_actAddWords->setVisible(m_objects.canAddWords());
     // A kind is something only an authored object has. One that is not — imported artwork, or a tail —
     // can reach nothing, and the intersection of "everything" with "nothing" is what greys this out.
     const bool authoredOnly =
@@ -312,22 +310,22 @@ void ObjectMenu::updateEntries()
     // A balloon's, like Fit to text: absent for a picture, greyed for a shape with no handles yet.
     if (m_actEditShape) {
         m_actEditShape->setVisible(allParametric);
-        m_actEditShape->setEnabled(m_objects.canEditShape());
-        m_actEditShape->setChecked(m_objects.shapeEditing());
+        m_actEditShape->setEnabled(m_objects.shapeEdit().canEdit());
+        m_actEditShape->setChecked(m_objects.shapeEdit().isOn());
     }
     // A Curve's node, picked: absent with none, since there is nothing it would be about.
     if (m_nodeTypeMenu) {
-        const std::optional<ShapeNode::Type> type = m_objects.pickedNodeType();
+        const std::optional<ShapeNode::Type> type = m_objects.shapeEdit().pickedNodeType();
         m_nodeTypeMenu->menuAction()->setVisible(type.has_value());
         for (QAction* a : m_nodeTypeMenu->actions())
             a->setChecked(type && a->data().toInt() == static_cast<int>(*type));
     }
     // ...and its missing handles: absent on a node that lacks none on a straight side.
     if (m_actAddHandles)
-        m_actAddHandles->setVisible(m_objects.canGrowPickedHandles());
+        m_actAddHandles->setVisible(m_objects.shapeEdit().canGrowPickedHandles());
     if (m_actToCurve) {
         m_actToCurve->setVisible(allParametric);
-        m_actToCurve->setEnabled(m_objects.canConvertToCurve());
+        m_actToCurve->setEnabled(m_objects.shapeEdit().canConvertToCurve());
     }
     // A balloon's, greyed for one whose style deals nothing at random (a clean line, no texture).
     if (m_actReroll) {
@@ -336,7 +334,7 @@ void ObjectMenu::updateEntries()
     }
     // Delete says what it will take: the picked node, in shape editing.
     if (m_actDelete)
-        m_actDelete->setText(m_objects.hasPickedVertex() ? tr("Delete point") : tr("Delete"));
+        m_actDelete->setText(m_objects.shapeEdit().hasPickedNode() ? tr("Delete point") : tr("Delete"));
 }
 
 void ObjectMenu::setColourSource(const ColourPair* pair)
@@ -400,34 +398,34 @@ void ObjectMenu::rebuildReanchorMenu()
 void ObjectMenu::saveSelectionAsPreset()
 {
     const Object* bubble = m_objects.object(m_objects.selectedOverlay());
-    if (!bubble || bubble->record().isArtwork())
+    if (!bubble || bubble->composition().picture.has_value())
         return;   // imported artwork has no look to save
 
     bool          ok   = false;
     const QString name = QInputDialog::getText(m_dialogParent, tr("Save preset"), tr("Preset name:"),
-                                               QLineEdit::Normal, bubble->record().text.body.left(24),
+                                               QLineEdit::Normal, TextProperties::from(bubble->composition()).body.left(24),
                                                &ok)
                              .trimmed();
     if (!ok || name.isEmpty())
         return;
 
     // The store decides what a preset carries — the look, never the lettering — so this hands over the
-    // whole record and lets the one function that knows the answer do the cutting.
+    // whole composition and lets the one function that knows the answer do the cutting.
     int existing = -1;
-    int at       = m_presets.save(name, bubble->record(), /*replaceExisting=*/false, &existing);
+    int at       = m_presets.save(name, bubble->composition(), /*replaceExisting=*/false, &existing);
     if (at < 0) {
         if (QMessageBox::question(m_dialogParent, tr("Save preset"),
                                   tr("A preset named “%1” already exists. Replace it?").arg(name))
             != QMessageBox::Yes)
             return;
-        at = m_presets.save(name, bubble->record(), /*replaceExisting=*/true);
+        at = m_presets.save(name, bubble->composition(), /*replaceExisting=*/true);
     }
     // The object a preset is saved from is made from it, from now on.
     const BubblePreset& saved = m_presets.presets().at(at);
     m_objects.setSelectionOrigin({saved.uid, saved.name});
 }
 
-void ObjectMenu::importArtwork()
+void ObjectMenu::importPicture()
 {
     if (m_layout.isEmpty()) {
         QMessageBox::information(m_dialogParent, tr("Import artwork"),
@@ -442,7 +440,7 @@ void ObjectMenu::importArtwork()
     if (file.isEmpty())
         return;
 
-    m_objects.importArtworkFile(file);
+    m_objects.importPictureFile(file);
 }
 
 }  // namespace StripEdit

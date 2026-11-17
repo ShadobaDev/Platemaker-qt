@@ -39,11 +39,11 @@ qt_add_executable(Platemaker
     # Project — class split across per-concern .cpp (same Project class).
     widgets/project/project.cpp widgets/project/project.hpp
     widgets/project/input.cpp widgets/project/output.cpp
-    widgets/project/projectsnapshotcommand.cpp widgets/project/projectsnapshotcommand.hpp
-    widgets/project/overlaysnapshotcommand.cpp widgets/project/overlaysnapshotcommand.hpp
     widgets/project/overlaystate.hpp
-    widgets/project/workspacesnapshotcommand.cpp widgets/project/workspacesnapshotcommand.hpp
     widgets/project/project.ui
+
+    # The undo history: one timeline, its scopes, one kind of step (QtGui only, so the unit tests build it).
+    widgets/history/history.cpp widgets/history/history.hpp
 
     # Widgets / dialogs — each in its own folder under widgets/ (.cpp/.hpp/.ui together).
     widgets/imagetile/imagetile.cpp widgets/imagetile/imagetile.hpp widgets/imagetile/imagetile.ui
@@ -64,10 +64,14 @@ qt_add_executable(Platemaker
     # the page geometry it answers placement questions from, and its two tool-options panels.
     widgets/stripeditor/editor.cpp widgets/stripeditor/editor.hpp widgets/stripeditor/editor.ui
     widgets/stripeditor/objects/object.cpp widgets/stripeditor/objects/object.hpp
+    widgets/stripeditor/objects/selection.cpp widgets/stripeditor/objects/selection.hpp
+    widgets/stripeditor/objects/shapeeditmode.cpp widgets/stripeditor/objects/shapeeditmode.hpp
+    widgets/stripeditor/objects/panelbinder.cpp widgets/stripeditor/objects/panelbinder.hpp
+    widgets/stripeditor/objects/document.cpp widgets/stripeditor/objects/document.hpp
     widgets/stripeditor/objects/resize.cpp widgets/stripeditor/objects/resize.hpp
     widgets/stripeditor/objects/selectionchrome.cpp widgets/stripeditor/objects/selectionchrome.hpp
     widgets/stripeditor/objects/bubbleobject.cpp widgets/stripeditor/objects/bubbleobject.hpp
-    widgets/stripeditor/objects/artworkobject.cpp widgets/stripeditor/objects/artworkobject.hpp
+    widgets/stripeditor/objects/pictureobject.cpp widgets/stripeditor/objects/pictureobject.hpp
     widgets/stripeditor/objects/striplayout.cpp widgets/stripeditor/objects/striplayout.hpp
     widgets/stripeditor/canvas/pagesource.cpp widgets/stripeditor/canvas/pagesource.hpp
     widgets/stripeditor/canvas/stripitem.cpp widgets/stripeditor/canvas/stripitem.hpp
@@ -106,7 +110,7 @@ qt_add_executable(Platemaker
     widgets/stripeditor/tooloptions/gradetooloptions.cpp widgets/stripeditor/tooloptions/gradetooloptions.hpp widgets/stripeditor/tooloptions/gradetooloptions.ui
     widgets/stripeditor/tooloptions/bubbletooloptions.cpp widgets/stripeditor/tooloptions/bubbletooloptions.hpp
     widgets/stripeditor/tooloptions/tooloptionsstack.cpp widgets/stripeditor/tooloptions/tooloptionsstack.hpp
-    widgets/stripeditor/tooloptions/artworktooloptions.cpp widgets/stripeditor/tooloptions/artworktooloptions.hpp
+    widgets/stripeditor/tooloptions/picturetooloptions.cpp widgets/stripeditor/tooloptions/picturetooloptions.hpp
     widgets/stripeditor/objectstate/objectstate.cpp widgets/stripeditor/objectstate/objectstate.hpp
     widgets/stripeditor/objectstate/stripstate.cpp widgets/stripeditor/objectstate/stripstate.hpp
     widgets/stripeditor/objectstate/objectstatestack.cpp widgets/stripeditor/objectstate/objectstatestack.hpp
@@ -114,16 +118,20 @@ qt_add_executable(Platemaker
 
     # The object record — what a bubble IS (shape, text, styling), its SVG codec and its rasteriser.
     # The library composites a flat RGBA bitmap and has no text engine, so the editable source lives here.
-    widgets/objectrecord/objectrecord.cpp widgets/objectrecord/objectrecord.hpp widgets/objectrecord/propertygroups.hpp
-    widgets/objectrecord/fields.hpp
-    widgets/objectrecord/recordstore.cpp widgets/objectrecord/recordstore.hpp
-    widgets/objectrecord/geometry.hpp
-    widgets/objectrecord/shapes.cpp widgets/objectrecord/shapes.hpp
-    widgets/objectrecord/styles.cpp widgets/objectrecord/styles.hpp
-    widgets/objectrecord/edgewalk.cpp widgets/objectrecord/edgewalk.hpp
-    widgets/objectrecord/silhouette.cpp widgets/objectrecord/lettering.cpp
-    widgets/objectrecord/recordpainter.cpp widgets/objectrecord/recordpainter.hpp
-    widgets/objectrecord/recordsvg.cpp widgets/objectrecord/recordsvg.hpp
+    widgets/composition/names.cpp widgets/composition/names.hpp widgets/composition/propertygroups.hpp
+    widgets/composition/composition.cpp widgets/composition/composition.hpp
+    widgets/composition/fields.hpp
+    widgets/composition/compositionstore.cpp widgets/composition/compositionstore.hpp
+    widgets/composition/geometry.hpp
+    widgets/composition/handles.cpp widgets/composition/handles.hpp
+    widgets/composition/shapes.cpp widgets/composition/shapes.hpp
+    widgets/composition/styles.cpp widgets/composition/styles.hpp
+    widgets/composition/edgewalk.cpp widgets/composition/edgewalk.hpp
+    widgets/composition/outline.cpp widgets/composition/outline.hpp
+    widgets/composition/silhouette.cpp widgets/composition/lettering.cpp
+    widgets/composition/painter.cpp widgets/composition/painter.hpp
+    widgets/composition/renderlist.cpp widgets/composition/renderlist.hpp
+    widgets/composition/svg.cpp widgets/composition/svg.hpp
 
     # Stage card — one step in the Project "Workflow" pipeline map (custom-painted, no .ui).
     widgets/stagecard/stagecard.cpp widgets/stagecard/stagecard.hpp
@@ -164,6 +172,7 @@ target_include_directories(Platemaker PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/app/menubaricontextstyle
     ${CMAKE_CURRENT_SOURCE_DIR}/mainwindow
     ${CMAKE_CURRENT_SOURCE_DIR}/widgets/project
+    ${CMAKE_CURRENT_SOURCE_DIR}/widgets/history
     ${CMAKE_CURRENT_SOURCE_DIR}/widgets/imagetile
     ${CMAKE_CURRENT_SOURCE_DIR}/widgets/canvasprofiledialog
     ${CMAKE_CURRENT_SOURCE_DIR}/widgets/managecanvasprofilesdialog
@@ -182,7 +191,7 @@ target_include_directories(Platemaker PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/widgets/stagecard
     ${CMAKE_CURRENT_SOURCE_DIR}/widgets/flowlayout
     ${CMAKE_CURRENT_SOURCE_DIR}/widgets/collapsiblesection
-    ${CMAKE_CURRENT_SOURCE_DIR}/widgets/objectrecord
+    ${CMAKE_CURRENT_SOURCE_DIR}/widgets/composition
     ${CMAKE_CURRENT_SOURCE_DIR}/widgets/docktitlebar
     ${CMAKE_CURRENT_SOURCE_DIR}/widgets/verticallabel
     ${CMAKE_CURRENT_SOURCE_DIR}/widgets/badge

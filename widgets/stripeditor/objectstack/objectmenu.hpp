@@ -85,7 +85,7 @@ private:
      */
     void saveSelectionAsPreset();
     //! Asks for a picture and hands it to the objects to place; says why not when there is no page yet.
-    void importArtwork();
+    void importPicture();
 
     ObjectController&  m_objects;
     const StripLayout& m_layout;
@@ -117,7 +117,7 @@ private:
     QAction*           m_actNaturalSize  = nullptr;   //!< Artwork at 100% — the size it was drawn at.
     QAction*           m_actFitToStrip   = nullptr;   //!< Artwork as wide as the strip, and no wider.
     QAction*           m_actFitToText    = nullptr;   //!< The box sized to the lettering — OBJECT STATE's *Fit*.
-    QAction*           m_actFixPadding   = nullptr;   //!< A balloon's padding lowered until the lettering fits.
+    QAction*           m_actAddWords     = nullptr;   //!< More words on a balloon or a picture — OBJECT STATE's too.
     QAction*           m_actEditShape    = nullptr;   //!< Shape editing of one balloon, on and off.
     QAction*           m_actResetLook    = nullptr;   //!< *Reset to default*: the default look, no origin.
     QMenu*             m_nodeTypeMenu    = nullptr;   //!< *Point type ▸*: the picked Curve node's type.

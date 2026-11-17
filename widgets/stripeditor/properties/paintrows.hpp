@@ -3,7 +3,7 @@
 
 #include "properties/fieldrows.hpp"
 #include "properties/propertygroupeditor.hpp"   // showCombo(), paintColourSwatch(), paintMixedSwatch()
-#include "objectrecord.hpp"                      // patternTitle()
+#include "names.hpp"                            // patternTitle()
 
 #include <QCheckBox>
 #include <QColorDialog>
@@ -24,7 +24,7 @@ constexpr char k_trContext[] = "StripEdit::PaintRows";
 
 #define PM_TR(s) QT_TRANSLATE_NOOP("StripEdit::PaintRows", s)
 //! A pattern's numbers, in strip pixels and degrees.
-inline const FieldRowSpec k_patternRows[] = {
+inline const Fields::RowSpec k_patternRows[] = {
     {"cellSpacing", PM_TR("Spacing:"), 1,   100, " px", PM_TR("From one dot, or line, to the next."), 1},
     {"cellSize",    PM_TR("Size:"),    0,   100, " px", PM_TR("A dot's width, or a line's. Past the spacing they merge into a solid tone."), 1},
     {"cellAngle",   PM_TR("Angle:"),   -90, 90,  "°",   PM_TR("How far the grid is turned, clockwise.")},
@@ -74,7 +74,7 @@ public:
         form->addRow(colourTitle, m_colour);
         m_kind = new QComboBox(owner);
         for (int i = 0; i <= int(Paint::k_lastKind); ++i)
-            m_kind->addItem(patternTitle(static_cast<ObjectRecord::Pattern>(i)), i);
+            m_kind->addItem(patternTitle(static_cast<Paint::Kind>(i)), i);
         m_kind->setToolTip(grounded ? QCoreApplication::translate(k_trContext,
                                           "The colour alone, or a halftone of a second colour over it: dots, lines or a grid.")
                                     : QCoreApplication::translate(k_trContext,

@@ -71,9 +71,9 @@ Bug fixes, cosmetics and internal cleanups — no new capability, no change to a
   balloon appears under them (`ObjectController::settleBox()`).
 
 - [ ] **Strip editor: *Fit to strip width* leaves the picture hanging off the strip.** It calls
-  `scaleSelectedArtwork()`, which writes only `wFrac`, so the top-left corner stays where it was. Fix:
+  `scaleSelectedPicture()`, which writes only `wFrac`, so the top-left corner stays where it was. Fix:
   the action also sets `xFrac = 0` in the same history step — a small controller method of its own,
-  because `scaleSelectedArtwork()` is also the scale spin box's live path and must keep the position.
+  because `scaleSelectedPicture()` is also the scale spin box's live path and must keep the position.
 
 - [x] **Strip editor: artwork's corner grips are not the same size on screen.** Fixed by moving the
   selection chrome out of the objects: the box, the grips and the tail handles are now one item above
@@ -212,9 +212,9 @@ New, backward-compatible features. Several are gated on a lib version, noted in 
     case — and drifts silently. Pinned by `test_overlay_anchoring.cpp` and `test_overlays.py`, each with a
     deliberate absolute-placement control.
   - **A bubble is a GUI object, a bitmap is what the lib sees.** `Artifact` (shape / box / tail /
-    text / font / colours) lives inside the overlay's own SVG in `overlays/`, in a `pm:` namespace every
-    renderer ignores; the same file is what gets composited. That is what keeps a bubble re-editable
-    instead of flattened.
+    text / font / colours) is the overlay's content, saved in the workspace with it; the SVG in `overlays/`
+    is derived from it, and is what gets composited. That is what keeps a bubble re-editable instead of
+    flattened.
   - *Still open:* hand-drawn custom shapes, rich text, per-artifact blend modes in the UI (the model and
     render already carry them), re-rasterising every bubble when the output target width changes, and
     **SVG as the stored form** — see the note under "To establish / test".
@@ -283,35 +283,20 @@ New, backward-compatible features. Several are gated on a lib version, noted in 
 
 - [ ] **Adopt an imported drawing as a balloon** — a hand-drawn silhouette (someone's own SVG) becomes a
   real parametric object: recolourable, styleable, and able to grow tails. Today an import is artwork
-  because it carries no *recipe* — the `pm:` attributes a Platemaker-written SVG has — and a foreign
+  because it carries no *recipe* — the `<pm:content>` a Platemaker-written SVG has — and a foreign
   file's paths cannot be guessed into `shape.kind`. What is already in place is most of it: tails aim at
   an arbitrary outline (`tailPath()` takes a `QPainterPath` and ray-casts, so it does not care where the
   outline came from), the style filter and fill/stroke work on any path, and the lettering is drawn over
-  whatever is underneath. What is missing is **a place in the record for a custom silhouette**
+  whatever is underneath. What is missing is **a place in the composition for a custom silhouette**
   (`ShapeProperties` holds an enum; it would need an "imported path" variant) and **a dialog where the
   artist marks which path is the silhouette and where the tails attach** — i.e. writes the recipe for
   somebody else's drawing. The honest limit: one closed silhouette, not a drawing of two hundred paths,
   or "fill" and "outline" stop meaning anything.
 
-- [ ] **Names that describe what things were, not what they are** — a sweep, deliberately deferred so it
-  lands as one mechanical diff rather than as noise inside feature work. Nothing here changes behaviour.
-  - ~~**`TextArtifact` → `Artifact`.**~~ **Done (2026-09-23).** It was never the text: it is the whole
-    authoring record of an overlay — shape, skin, style, tails, the imported picture, *and* a
-    `TextProperties text` field, which is the only part the old name described. Twenty sibling symbols
-    already said *artifact*; only the struct still said *Text*, and a reader's first question was *why
-    does a "text artifact" have tails and a picture?* 396 occurrences in 49 files, crossing into
-    `widgets/project/project.hpp` but not into the library. `widgets/textartifact/textartifact.{h,cpp}`
-    became `widgets/artifact/artifact.{hpp,cpp}`, which also makes the directory one thing: `artifact`,
-    `artifactsvg`, `artifactpainter`. No `using` alias — the feature is unreleased, so nothing had to
-    keep the old spelling alive, and an alias would have kept two names for ever.
-  - **`Artifact::artwork` is not necessarily art.** It holds whatever picture the artist placed — a
-    sprite, a sound effect, a logo, a screen grab. *Artwork* reads as "someone's drawing", which is
-    only sometimes true. Something like `picture`, `image` or `source` says what the field is without
-    claiming what it is *for*. (The same word is worth auditing in `AssetObject`, `loadArtwork()`,
-    `ArtworkOptionsPanel` and the **Artwork** tool — the rail's label is a separate question from the
-    code's, since the artist's word for it may legitimately differ.)
-  - Expect more of these once the two above are pulled: the sweep is the point, not the individual
-    rename.
+- [ ] **The Artwork tool's label.** The code calls an imported picture a *picture* (`PictureObject`,
+  `PictureToolOptions`); the rail, its menu entries (*Import artwork…*) and its undo steps still say *Artwork*.
+  Whether the artist's word should be *Picture* too is a question for the interface, not the code: a picture
+  may be a sprite, a sound effect, a logo or a screen grab, which *artwork* only sometimes describes.
 
 - [x] **A workspace owns its folder — and cleans up the files nobody uses.** *Done 2026-09-26.* Nothing ever deletes from
   `overlays/` (measured 2026-09-24: **46 files, 2 referenced**), and nothing guarantees that the
@@ -346,7 +331,7 @@ New, backward-compatible features. Several are gated on a lib version, noted in 
   outlines through `QFont`. When the family is not installed, every re-emit bakes it in a fallback,
   including **every overlay undo**, because `rewriteOverlayAssets()` rewrites *every* bubble, not
   just the ones the step touched. Fix: rewrite only what a step changed; keep the intended family in
-  the record (already true); mark a fallback bake with `pm:fontFallback`; **heal at open** when the
+  the composition (already true); mark a fallback bake with `pm:fontFallback`; **heal at open** when the
   font is back (re-bake, and mark the workspace modified); and warn at open and on entering the strip
   editor instead of on every edit.
 
@@ -425,9 +410,45 @@ New, backward-compatible features. Several are gated on a lib version, noted in 
   between them, as a manga reference does. A balloon is a graph: bubbles and the terminals of their
   tails are nodes, tails and necks its edges; the bubbles form a chain, every bubble and tail of it wears
   one style, each bubble keeps its own place, shape and words, and the whole graph is one SVG. Joining two
-  existing balloons, and splitting one by removing a neck or a middle bubble, are part of it. Waits for the
-  strip editor's object model to hold more than one balloon in an object: today an object is one balloon's
-  fields, read directly in about 740 places.
+  existing balloons, and splitting one by removing a neck or a middle bubble, are part of it. The object
+  model holds it: a balloon is a list of bodies (`Balloon::bodies`), words sit on a body (`Words::seat`) and a
+  tail leaves one (its root); everything but the neck and the joining reads the first body today.
+
+- [ ] **Tools and object kinds added from outside the editor (plugins) — idea, to decide after joined
+  balloons.** The editor reads tools (`tools()`), shapes and edges (`ShapeInfo`, `EdgeInfo`) and property
+  fields (`fields()`) from tables, and draws every object as a `Render::Item` list. That is a registry's shape.
+  Every table is still keyed by a closed enum, though (`ToolKind`, `ShapeProperties::Kind`, `PropertyGroup`,
+  `Row`). `Composition` holds exactly a balloon, a picture and words, and the editor is one executable that
+  exports nothing. The library and the CLI need no change: they composite the finished SVG and keep the
+  content JSON unread. So an object a plugin made renders without the plugin; only editing it needs the plugin.
+  What it takes, in the order it would be built (all but the last are needed for any third kind, even a
+  built-in one):
+  - **Keep what is not understood.** A composition gains extension elements, `{id, kind, data}`, saved,
+    compared and undone as they are. An object of an unknown kind is drawn from its saved SVG, as a picture
+    is. Without this, saving a workspace opened without the plugin loses the plugin's objects.
+  - **An element kind interface**, with the balloon, the picture and the words as its first implementations.
+    It covers render items, bounds, handles and their drag, the hit test, the OBJECT STACK label and glyph, and
+    the groups the kind carries. `carriesGroup()`, `Object::Kind` and the one place items are made then ask
+    it. The built-in kinds keep their direct reads of `balloon` and `picture`.
+  - **A tool behaviour hook.** A `Tool` row gets an optional handler for press, move and release, called by
+    `CanvasInput` before its own switch, and its options page comes from a factory.
+  - **A generic property panel** built from a group's `fields()`, with one row per field. A kind that needs
+    more brings its own widget.
+  - **Shapes by id.** `ShapeProperties::Kind` becomes a key, and an added shape keeps its parameters in its
+    own section. `Golden.EveryShapeAndStyleIsWrittenAsBefore` must stay byte-identical.
+  - **Only for DLLs:**
+    - What was done: `widgets/composition/` and the extension API in a shared library, plugins loaded with
+      `QPluginLoader` from the application's own `plugins/` folder, and an interface id with a version.
+    - What it costs, for as long as plugins are supported:
+      - Every plugin must be built with the application's MSVC and Qt, so a Qt bump breaks them all.
+      - A plugin must be GPL-compatible to be distributed (the FSF's reading of the GPL).
+      - Code from others runs in the signed process.
+    - A workspace package never carries a plugin: that would be an executable inside a document.
+
+  The alternative to DLLs is data: shapes read from a file (a parameterised SVG path) or a script run by
+  `QJSEngine`. That needs the first and the shape steps and no binary interface, but it cannot add a tool
+  with its own interaction. Leaning: open the editor inside (all but the DLL step) when a third kind is
+  wanted, and DLLs only for a concrete author outside the project.
 
 - [x] **Tail options** — *Done 2026-11-13.* A Plain tail ends Sharp, Round or Cut (*Tip*, *Tip width*), and
   can break into a sharp zigzag (*Breaks*, *Jog*, *First turn*), checked under every line and the Rough
@@ -445,28 +466,41 @@ New, backward-compatible features. Several are gated on a lib version, noted in 
     soft a glow.
   - A shadow is never a union of its caster and its growth: drawn as the body and a band in one layer or
     group (a union of a line of lettering took 1.5 s).
-  - **Left, only if asked:** a style per word, letter spacing, a warp along a curve. A lettered picture's
+  - **Left, only if asked:** letter spacing, a warp along a curve (a style per word came as runs, below). A lettered picture's
     soft shadow shows hard on the strip (the picture is drawn by its own item, not through the library)
     and blurred in the output.
 
+- [x] **Words as elements: several per balloon, a frame each, runs of other lettering** — *Done 2026-11-17.*
+  A balloon or a picture holds several words, each its own frame (four edges, automatic or set) and lettering,
+  picked on its own (its letters, its frame's handle, its row in OBJECT STACK) with an OBJECT STATE of its own.
+  *Fit to text* fits the body to every words' block where it lies. A stretch of the text can override the
+  family, size, bold, italic and fill (runs), edited in the Text section's text box as in a word processor.
+  Left:
+  - A *Mixed* spin box steps from the least and the greatest value only for the text size (`MixedSpinBox`);
+    every other spin box still starts from its minimum. Each would need the spread of its values at binding.
+  - Seen once and not reproduced: after typing in a second words, its whole text took a font picked earlier.
+    If it comes back, the text box's caret and selection handling (`TextEditor::rowChanged()`,
+    `showSelection()`) is where to log.
+
 - [x] **Shape registry** — built 2026-10-29, ahead of the first parameter: one table,
-  `k_shapes` in `widgets/objectrecord/shapes.cpp`, one entry per shape (name, title, tail, outline, text
+  `k_shapes` in `widgets/composition/shapes.cpp`, one entry per shape (name, title, tail, outline, text
   area), in one file rather than one file per shape. The parameters came after it, as field lists.
   What it replaced: an enum value plus a case in seven places (`shapeName`, `shapeTitle`, `shapeOrder`,
   `shapeFromName`, `Painter::silhouette`, `Painter::textSafeArea`, `Painter::label`). Moved byte for byte, checked by `Golden.EveryShapeAndStyleIsWrittenAsBefore`.
-  - **Seeds:** a noisy outline reads `styleSeed` (an `outline` that needs it then takes the `ObjectRecord`), never a seed of its
+  - **Seeds:** a noisy outline reads the composition's `seed` (an `outline` that needs it then takes it), never a seed of its
     own, so a preset cannot copy a wobble. The shape that needs it brings a **Re-roll** action (one undo
     step) on the object menu.
   - Optionally in the same step: a tool row names its options page through a factory, so `Editor`'s
     constructor stops listing the panels by hand.
   - **Later idea, not planned:** shapes loaded from a file (a parameterised SVG path, or a script) are
     the same table with rows read at run time. The library needs nothing, since it composites the
-    finished SVG. A package would have to carry such a file, as it carries `fonts/`. Plugins as DLLs:
-    no, since a stable binary interface is not worth keeping.
+    finished SVG. A package would have to carry such a file, as it carries `fonts/`. Plugins, DLLs
+    included: *Tools and object kinds added from outside the editor*, above.
   - **Not planned: a folder per object kind.** `stripeditor/kinds/<kind>/` behind an `ObjectKind` interface
     (item, prototype, options page, label, glyph, conversion rules) would turn the controller's kind checks
     into virtual calls. With two kinds that is one interface for two implementations; revisit when a third
-    kind arrives (a masked picture, a panel frame). It must keep one `ObjectRecord` for every kind.
+    kind arrives (a masked picture, a panel frame). It must keep one `Composition` for every kind. The
+    element kind interface in the plugins item above is that interface.
 
 - [x] **Export / open a workspace package.** One zip with the workspace, `overlays/`, `templates/`,
   `inputs/` and `fonts/` (everything in `fonts/` plus the installed fonts the bubbles name; the
@@ -488,7 +522,7 @@ New, backward-compatible features. Several are gated on a lib version, noted in 
   start travelling between people (which the import work makes routine):
   - ~~**`platemaker.dev` is not registered.**~~ **Done (2026-09-23).** The URI is now
     `https://github.com/ShadobaDev/Platemaker-qt/ns/artifact/1` — a name the project controls, and one
-    that no longer claims the record is about bubbles. No back-compatibility: the feature is unreleased,
+    that no longer claims the composition is about bubbles. No back-compatibility: the feature is unreleased,
     so the only overlay files carrying the old namespace were the author's own and were re-made by hand.
     A file written before the change imports as ordinary artwork, which is what it now is to us.
   - ~~**We write `pm:v="2"` and never read it.**~~ **Removed (2026-09-24).** A version marker nobody

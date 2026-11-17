@@ -154,10 +154,10 @@ as the fallback when the content lacks it.
 Then a row in the section's `section()` (`k_cornerRows`, `shapes.cpp`), and the section's name in the
 kinds' `ShapeInfo::sections`: the Shape panel builds every section's rows (`SectionRows`) and shows the
 kind's. The edge's numbers are one section, `EdgeParams` (`teeth`), under the Edge combo, shown for every
-edge but None. Then `loadedRecord()` and `expectUntouched()` in the test,
+edge but None. Then `loadedBalloon()` and `expectUntouched()` in the test,
 and the test's mirror struct, whose `static_assert` stops the build until the member is placed. `Fields.EveryFieldIsComparedAndSaved` then checks the new field on its own.
-A value of a type no group holds yet needs an overload in each of the three walks (`Fields::same()`,
-`toJsonValue()`/`fromJsonValue()`, `attrValue()`/`fromAttr()`) and a `bump()` in the test. The
+A value of a type no group holds yet needs an overload in each of the two walks (`Fields::same()`,
+`toJsonValue()`/`fromJsonValue()`) and a `bump()` in the test. The
 `nodes` is the worked example: a list of `ShapeNode`, relative to the box, which a Polygon and a Curve
 share. A node is a point, and for a Curve two handles (offsets from it) and a type; one with neither is
 saved as its point alone (`x,y`), one with handles as `x,y,type,inX,inY,outX,outY`. Full precision in the
@@ -205,7 +205,7 @@ ends' (half-axes from that quarter's two arms, infinite for an arm that does not
 each ray from one to the other: four arms make an ellipse, one alone is still straight. `fadeReversed`
 turns the tone over: gone at the centre, whole past the ends. `fillTone()` lays the marks; both the painter and the SVG draw the ground, then the marks clipped
 to the silhouette, then the outline over both. The cross is shape editing's (`fadeHandles()`,
-`dragFadeHandle()`, roles `FadeFrom`/`FadeTo`/`FadeCentre`, appended by `BubbleObject` after the
+`dragFadeHandle()`, parts `FadePart::From`/`To`/`Centre`, gathered by `Geometry::handlesOf()` after the
 outline's own, the centre last), so a patterned fill makes any balloon editable; in the panel the fade has
 only its shape (*Rectangle* or *Ellipse*) and its reversal, which `PaintRows` offers where the group lists
 `fadeRound` and `fadeReversed`.

@@ -151,6 +151,8 @@ QRectF SelectionChrome::gripRect(const Object* o, Grip grip, qreal s) const
 
 QRectF SelectionChrome::handleRect(const Object* o, int index, qreal s) const
 {
+    if (!o->isTip(index))
+        return {};   // a bridge: nothing to aim, so nothing drawn and nothing to press
     return square(o->mapToScene(o->handleAt(index)), s);
 }
 

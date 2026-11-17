@@ -104,10 +104,11 @@ bool fitToText(Composition& c);
 bool removeTails(Composition& c, QList<int> indexes);
 /**
  * \brief Adds words to @p c on the seat of its words @p from (its first when there are none such): their lettering,
- *        no text, in the seat's lower half (the top edge set at half its height). Returns their id; 0 when those
- *        words have no seat (a text object is its one words).
+ *        no text, in the seat's lower half (the top edge set at half its height); on body @p seat instead when it
+ *        is not 0 (a bubble picked on its own). Returns their id; 0 when those words have no seat (a text object is
+ *        its one words).
  */
-int addWords(Composition& c, int from);
+int addWords(Composition& c, int from, int seat = 0);
 //! Removes @p c's words @p id. False when there are no such words, or they are the last: a balloon keeps somewhere to type.
 bool removeWords(Composition& c, int id);
 

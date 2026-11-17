@@ -168,6 +168,26 @@ TEST(Chain, RemovingAMiddleBubbleOrABridgeSplitsTheChain)
     EXPECT_EQ(withoutBody(balloon(), bodyId(balloon(), 0)).first(), balloon());   // the last body stays
 }
 
+TEST(Chain, AChainIsReadFromAnEndAlongItsBridges)
+{
+    Composition c = balloon();
+    int b = 0, last = 0;
+    ASSERT_EQ(addBody(c, bodyId(c, 0), k_apart, &b), ChainError::None);
+    ASSERT_EQ(addBody(c, bodyId(c, 0), -k_apart, &last), ChainError::None);   // the first body is the middle now
+    EXPECT_EQ(Chain::order(*c.balloon), (QList<int>{b, bodyId(c, 0), last}));
+    EXPECT_NE(bridgeBetween(*c.balloon, b, bodyId(c, 0)), 0);
+    EXPECT_EQ(bridgeBetween(*c.balloon, bodyId(c, 0), b), bridgeBetween(*c.balloon, b, bodyId(c, 0)));
+    EXPECT_EQ(bridgeBetween(*c.balloon, b, last), 0);
+
+    // Each body's shape is its own: the Shape section of a bubble picked alone writes that one.
+    ShapeProperties round = ShapeProperties::from(c, last);
+    round.kind            = ShapeProperties::Kind::Ellipse;
+    round.applyTo(c, last);
+    EXPECT_EQ(ShapeProperties::from(c, last).kind, ShapeProperties::Kind::Ellipse);
+    EXPECT_NE(ShapeProperties::from(c).kind, ShapeProperties::Kind::Ellipse);   // the first, untouched
+    EXPECT_EQ(ShapeProperties::from(c, b).kind, ShapeProperties::from(c).kind);
+}
+
 TEST(Chain, ABridgeIsSavedWithItsFarBodyAndATailWithout)
 {
     const Composition c = chainOfThree();

@@ -98,7 +98,12 @@ void BubbleObject::setBoxSize(QSizeF size, const QPointF& handleShift)
 
 bool BubbleObject::handleDrawn(int index) const
 {
-    return m_tailDrawn.value(index, false);
+    return isTip(index) && m_tailDrawn.value(index, false);
+}
+
+bool BubbleObject::isTip(int index) const
+{
+    return index >= 0 && index < handleCount() && !m_composition.balloon->tails.at(index).isBridge();
 }
 
 int BubbleObject::handleCount() const

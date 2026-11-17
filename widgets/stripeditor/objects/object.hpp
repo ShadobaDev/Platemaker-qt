@@ -193,6 +193,9 @@ public:
      */
     [[nodiscard]] virtual bool handleDrawn(int index) const { Q_UNUSED(index) return true; }
 
+    //! Whether handle @p index is a tip at all: a bridge between two bubbles is counted as a tail and has none.
+    [[nodiscard]] virtual bool isTip(int index) const { Q_UNUSED(index) return true; }
+
     /**
      * \brief True when a resize keeps the box's aspect: imported artwork, whose height follows its file's, which
      *        is also what anyone dragging the corner of a logo meant. Such an object is offered no edge grips.

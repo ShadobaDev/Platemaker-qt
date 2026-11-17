@@ -688,19 +688,35 @@ void setStyleGroup(Composition& c, Group BalloonStyle::* member, const Group& va
 
 } // namespace
 
-ShapeProperties ShapeProperties::from(const Composition& c)
+namespace {
+
+//! @p c's body @p id, its first for 0; none without it.
+template <class C>
+auto* bodyById(C& c, int id)
 {
-    if (c.balloon && !c.balloon->bodies.isEmpty())
-        return c.balloon->bodies.first().shape;
+    decltype(&c.balloon->bodies.first()) found = nullptr;
+    if (c.balloon)
+        for (auto& body : c.balloon->bodies)
+            if (!found && (id == 0 || body.id == id))
+                found = &body;
+    return found;
+}
+
+} // namespace
+
+ShapeProperties ShapeProperties::from(const Composition& c, int body)
+{
+    if (const Body* b = bodyById(c, body))
+        return b->shape;
     ShapeProperties none;
     none.kind = Kind::None;
     return none;
 }
 
-void ShapeProperties::applyTo(Composition& c) const
+void ShapeProperties::applyTo(Composition& c, int body) const
 {
-    if (c.balloon && !c.balloon->bodies.isEmpty())
-        c.balloon->bodies.first().shape = *this;
+    if (Body* b = bodyById(c, body))
+        b->shape = *this;
 }
 
 SkinProperties SkinProperties::from(const Composition& c) { return styleGroup(c, &BalloonStyle::fill); }

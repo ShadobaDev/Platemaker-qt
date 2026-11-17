@@ -41,6 +41,7 @@ public:
 
     //! A tail whose tip lies inside the balloon draws nothing; its handle is the chrome's only.
     [[nodiscard]] bool handleDrawn(int index) const override;
+    [[nodiscard]] bool isTip(int index) const override;
     /**
      * \brief Returns the label for the object.
      * \return The label for the object.

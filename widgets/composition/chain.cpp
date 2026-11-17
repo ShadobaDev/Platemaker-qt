@@ -69,6 +69,41 @@ bool joined(const Balloon& b, int from, int to)
     return reach(b, from).contains(to);
 }
 
+QList<int> order(const Balloon& b)
+{
+    QList<int> out;
+    // Ends first, so a chain is read from one of them; a lone body is an end too.
+    QList<int> starts;
+    for (const Body& x : b.bodies)
+        if (bridgesOn(b, x.id) < k_maxBridgesPerBody)
+            starts.append(x.id);
+    for (const Body& x : b.bodies)
+        starts.append(x.id);   // a ring has no end: whatever is left is read from where it is listed
+    for (const int start : std::as_const(starts)) {
+        int at = start;
+        while (at != 0 && !out.contains(at)) {
+            out.append(at);
+            int next = 0;
+            for (const BalloonTail& t : b.tails)
+                if (t.isBridge() && (t.root == at || t.to == at)) {
+                    const int other = t.root == at ? t.to : t.root;
+                    if (!out.contains(other) && next == 0)
+                        next = other;
+                }
+            at = next;
+        }
+    }
+    return out;
+}
+
+int bridgeBetween(const Balloon& b, int a, int c)
+{
+    for (const BalloonTail& t : b.tails)
+        if (t.isBridge() && ((t.root == a && t.to == c) || (t.root == c && t.to == a)))
+            return t.id;
+    return 0;
+}
+
 ChainError canBridge(const Balloon& b, int from, int to)
 {
     if (!hasBody(b, from) || !hasBody(b, to))

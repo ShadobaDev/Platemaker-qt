@@ -8,6 +8,8 @@
 #include <QSet>
 #include <QString>
 
+#include "objects/selection.hpp"   // Subject: what an element row stands for
+
 class QTimer;
 class QTreeWidget;
 class QTreeWidgetItem;
@@ -63,6 +65,21 @@ public:
     void refresh();
 
 private:
+    //! One element's row: what it is, its id, its name and glyph, and the rows under it (a bubble's words and tails).
+    struct ElementRow
+    {
+        Subject           subject;
+        int               id = 0;
+        QString           name;
+        QIcon             glyph;
+        QList<ElementRow> children;
+    };
+    //! @p parent's element rows made @p elements, reusing the rows there by position, the way down.
+    void setElementRows(QTreeWidgetItem* parent, const QString& uid, const QList<ElementRow>& elements);
+    //! Whether the element @p row stands for is picked: a tail, words or a body.
+    [[nodiscard]] bool elementPicked(const QTreeWidgetItem* row) const;
+    //! Selects the picked element rows under @p parent, opening what holds one; whether any was.
+    bool showPickedElements(QTreeWidgetItem* parent);
     void showSelectedRows();    //!< Highlights the selected objects, words and tails (not their carrier).
     void showSubjectRow();      //!< Highlights the selected strip or page.
     void revealSelectedRow();   //!< Scrolls the first highlighted row into view, if it is not.
@@ -83,6 +100,7 @@ private:
 
     QHash<QString, QPair<QString, QIcon>> m_glyphs;   //!< uid → (what the glyph is made of, the glyph).
     QIcon                                 m_tailGlyph;  //!< One drawing; every tail row wears it.
+    QIcon                                 m_bridgeGlyph; //!< …and for a bridge between two bubbles.
     QIcon                                 m_wordsGlyph; //!< Likewise for words…
     QIcon                                 m_pageGlyph;  //!< Likewise for a page…
     QIcon                                 m_stripGlyph; //!< …and for the strip itself.

@@ -41,6 +41,15 @@ enum class ChainError {
 //! Whether bodies @p from and @p to are joined, through any number of bridges.
 [[nodiscard]] bool joined(const Balloon& b, int from, int to);
 
+/**
+ * \brief @p b's bodies in reading order: from the first body that ends its chain along its bridges, then each
+ *        other chain the same way (a balloon is one chain; a merge not yet bridged is two).
+ */
+[[nodiscard]] QList<int> order(const Balloon& b);
+
+//! The bridge between bodies @p a and @p c, its id; 0 for none.
+[[nodiscard]] int bridgeBetween(const Balloon& b, int a, int c);
+
 //! Whether a bridge from @p from to @p to may be added to @p b, and why not.
 [[nodiscard]] ChainError canBridge(const Balloon& b, int from, int to);
 

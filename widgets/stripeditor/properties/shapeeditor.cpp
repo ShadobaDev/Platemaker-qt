@@ -150,11 +150,17 @@ void ShapeEditor::bind(const Subjects& subjects)
 {
     if (subjects.isEmpty())
         return;
-    m_values = ShapeProperties::from(*subjects.first());
+    const Composition& c = *subjects.first();
+    m_values = ShapeProperties::from(c, m_body);
     m_sections.reset();
     m_edgeRows.reset();
-    // No higher than the balloon can show: past it the outline stops changing (Shape is one subject only).
-    m_sections.setMaximum("cornerRadius", qFloor(Geometry::cornerRadiusLimit(sizeOf(*subjects.first()))));
+    // No higher than the body can show: past it the outline stops changing (Shape is one subject only).
+    QSize size = sizeOf(c);
+    if (c.balloon)
+        for (const Body& b : c.balloon->bodies)
+            if (b.id == m_body)
+                size = b.size;
+    m_sections.setMaximum("cornerRadius", qFloor(Geometry::cornerRadiusLimit(size)));
     syncFromValues();
 }
 
@@ -206,7 +212,7 @@ void ShapeEditor::makeRegular()
 
 void ShapeEditor::applyTo(Composition& target) const
 {
-    m_values.applyTo(target);
+    m_values.applyTo(target, m_body);
 }
 
 void ShapeEditor::changeEvent(QEvent* e)

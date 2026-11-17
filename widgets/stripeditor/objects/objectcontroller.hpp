@@ -133,6 +133,8 @@ public:
     void selectTail(const QString& uid, int index);
     //! Selects words @p id of object @p uid, one of its several, the Text section theirs; the object when they are gone.
     void selectWords(const QString& uid, int id);
+    //! Selects body @p id of balloon @p uid, one bubble of several, the Shape section its own; the balloon when it is gone.
+    void selectBody(const QString& uid, int id);
     /**
      * \brief Scrolls the strip to a subject: an object or a tail centred in the view, a page with its top
      *        at the view's top. The strip, or a subject that is gone, moves nothing.
@@ -154,6 +156,8 @@ public:
     [[nodiscard]] const QList<ElementRef>& selectedTails() const { return m_selection.elements(); }
     //! The words picked on their own (Subject::Words); none otherwise.
     [[nodiscard]] ElementRef selectedWords() const { return m_selection.words(); }
+    //! The body picked on its own (Subject::Body); none otherwise.
+    [[nodiscard]] ElementRef selectedBody() const { return m_selection.body(); }
     void selectOverlay(const QString& uid);   //!< Selects one in the scene and the stack, and loads the panel.
     /**
      * \brief Selects @p uids and @p tails together — the general form, of which everything else is a case.
@@ -447,6 +451,13 @@ public:
     [[nodiscard]] bool canAddWords() const;
     //! *Add words*: new words on the selected object (Edits::addWords()), from the picked words; picked, the caret in them.
     void addWords();
+    //! Whether *Add bubble* applies: one balloon selected, or a bubble of it, that bubble (or the chain's last) an end.
+    [[nodiscard]] bool canAddBubble() const;
+    /**
+     * \brief *Add bubble*: a new bubble after the picked one (or the chain's last), below and to the right, bridged
+     *        to it, with empty words in its lettering (Chain::addBody()); picked.
+     */
+    void addBubble();
 
     // --- a new object: asked for here, created by the owner, selected when it comes back in the feed ---
     //! Asks the owner for a new authored object; it is selected when the feed brings it back.
@@ -606,6 +617,8 @@ private:
     void deleteSelectedWords();
     //! Whether @p ref's object still has those words.
     [[nodiscard]] bool hasWords(const ElementRef& ref) const;
+    //! Whether @p ref's object still has that body.
+    [[nodiscard]] bool hasBody(const ElementRef& ref) const;
     //! The selection just made, shown: the items selected, their tails and words marked, the panel bound.
     void showSelection();
 

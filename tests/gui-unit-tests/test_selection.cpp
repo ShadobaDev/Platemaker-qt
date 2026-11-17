@@ -111,4 +111,14 @@ TEST(Selection, WordsArePickedAloneTheirObjectCarryingThem)
     s.selectWords({"a", 9}, exists);   // gone: nothing
     EXPECT_EQ(s.subject(), Subject::None);
     EXPECT_TRUE(s.objects().isEmpty());
+
+    // A body is picked alone the same way, and is not taken for words.
+    s.selectBody({"a", 5}, exists);
+    EXPECT_EQ(s.subject(), Subject::Body);
+    EXPECT_EQ(s.body(), (ElementRef{"a", 5}));
+    EXPECT_EQ(s.words(), ElementRef());
+    EXPECT_EQ(s.carriers(), QStringList{"a"});
+    EXPECT_EQ(s.subjectCount(), 1);
+    s.selectWords({"a", 5}, exists);
+    EXPECT_EQ(s.body(), ElementRef());
 }

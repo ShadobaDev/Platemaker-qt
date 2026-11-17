@@ -138,6 +138,29 @@ QIcon tailGlyph(const QPalette& pal, int px, qreal dpr)
     return QIcon(pm);
 }
 
+QIcon bridgeGlyph(const QPalette& pal, int px, qreal dpr)
+{
+    QPixmap  pm = blank(px, dpr);
+    QPainter p(&pm);
+    p.setRenderHint(QPainter::Antialiasing);
+
+    // Two small bubbles, one up left and one down right, and the band between them, filled as one.
+    const qreal  w = px;
+    QPainterPath shape;
+    shape.addEllipse(QPointF(w * 0.28, w * 0.30), w * 0.20, w * 0.15);
+    shape.addEllipse(QPointF(w * 0.72, w * 0.70), w * 0.20, w * 0.15);
+    QPainterPath band;
+    band.moveTo(w * 0.32, w * 0.36);
+    band.lineTo(w * 0.70, w * 0.58);
+    band.lineTo(w * 0.66, w * 0.66);
+    band.lineTo(w * 0.28, w * 0.44);
+    band.closeSubpath();
+    p.setPen(Qt::NoPen);
+    p.setBrush(ink(pal));
+    p.drawPath(shape.united(band));
+    return QIcon(pm);
+}
+
 QIcon pageGlyph(const QPalette& pal, int px, qreal dpr)
 {
     QPixmap  pm = blank(px, dpr);

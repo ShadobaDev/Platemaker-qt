@@ -5,6 +5,7 @@
 #include "objects/bubbleobject.hpp"
 #include "objects/object.hpp"
 #include "objects/selectionchrome.hpp"
+#include "chain.hpp"
 #include "geometry.hpp"
 #include "styles.hpp"
 // blendModes(): the menu and OBJECT STATE's row name the modes from one list.
@@ -187,6 +188,10 @@ void ObjectController::reselect()
         selectWords(m_selection.words().object, m_selection.words().element);   // or the object, when they are gone
         return;
     }
+    if (m_selection.subject() == Subject::Body) {
+        selectBody(m_selection.body().object, m_selection.body().element);   // or the balloon, when it is gone
+        return;
+    }
     if (m_selection.subject() == Subject::Strip || m_selection.subject() == Subject::Page) {
         // A page can go between feeds — an input removed — and a selection must not outlive its row.
         // The question is the layout's, not the tree's: the tree is a view of it, and is refreshed from it.
@@ -232,6 +237,25 @@ void ObjectController::selectWords(const QString& uid, int id)
     showSelection();
 }
 
+void ObjectController::selectBody(const QString& uid, int id)
+{
+    if (!hasBody({uid, id})) {
+        selectOverlay(uid);   // gone: the balloon is what is left to hold
+        return;
+    }
+    m_selection.selectBody({uid, id}, [this](const QString& u, int body) { return hasBody({u, body}); });
+    showSelection();
+}
+
+bool ObjectController::hasBody(const ElementRef& ref) const
+{
+    const Object* item = m_overlayItems.value(ref.object);
+    if (!item || !item->composition().balloon)
+        return false;
+    const QList<Body>& bodies = item->composition().balloon->bodies;
+    return std::any_of(bodies.cbegin(), bodies.cend(), [&ref](const Body& b) { return b.id == ref.element; });
+}
+
 bool ObjectController::hasWords(const ElementRef& ref) const
 {
     const Object* item = m_overlayItems.value(ref.object);
@@ -257,7 +281,7 @@ void ObjectController::reveal(Subject subject, const QString& id, int tail)
         return;
     if (const int at = tailIndex({id, tail}); subject == Subject::Tail && at >= 0 && at < item->tipCount())
         m_view->centerOn(item->mapToScene(item->handleAt(at)));
-    else if (subject == Subject::Overlay || subject == Subject::Words)
+    else if (subject == Subject::Overlay || subject == Subject::Words || subject == Subject::Body)
         m_view->centerOn(item->sceneBoundingRect().center());
 }
 
@@ -494,6 +518,8 @@ void ObjectController::setSource(const std::vector<Platemaker::Models::StripOver
         selectOverlay(m_selection.primary());
     // Words, the same.
     if (m_selection.subject() == Subject::Words && !hasWords(m_selection.words()))
+        selectOverlay(m_selection.primary());
+    if (m_selection.subject() == Subject::Body && !hasBody(m_selection.body()))
         selectOverlay(m_selection.primary());
 }
 
@@ -865,7 +891,8 @@ void ObjectController::fitSelectionToText()
 bool ObjectController::canAddWords() const
 {
     const Object* item = m_selection.objects().size() == 1 ? m_overlayItems.value(m_selection.primary()) : nullptr;
-    if (!item || (m_selection.subject() != Subject::Overlay && m_selection.subject() != Subject::Words))
+    if (!item || (m_selection.subject() != Subject::Overlay && m_selection.subject() != Subject::Words
+                  && m_selection.subject() != Subject::Body))
         return false;
     const Composition& c = item->composition();
     return std::any_of(c.words.cbegin(), c.words.cend(), [&c](const Words& w) { return seated(c, w); });
@@ -877,13 +904,61 @@ void ObjectController::addWords()
         return;
     const QString uid  = m_selection.primary();
     Composition   a    = m_overlayItems.value(uid)->composition();
-    const int     from = m_selection.subject() == Subject::Words ? m_selection.words().element : 0;
-    const int     id   = Edits::addWords(a, from);
+    const int     body = m_selection.body().element;   // a bubble picked: its words, in it
+    int           from = m_selection.words().element;
+    for (const Words& w : std::as_const(a.words))
+        if (body != 0 && from == 0 && w.seat == body)
+            from = w.id;
+    const int id = Edits::addWords(a, from, body);
     if (id == 0)
         return;
     applyComposition(uid, a, /*commit=*/true, tr("Add words"));
     selectWords(uid, id);
     emit textFocusRequested();   // as a new balloon's: the next thing is to type in them
+}
+
+namespace {
+
+//! Where *Add bubble* puts the new bubble, in its neighbour's sizes: half a width to the right, below with a gap.
+constexpr qreal k_newBubbleAcross = 0.5;
+constexpr qreal k_newBubbleDown   = 1.25;
+
+//! The bubble *Add bubble* adds after in @p c: @p picked, or else the last of the chain; 0 when it is no end.
+int addBubbleAfter(const Composition& c, int picked)
+{
+    if (!c.balloon || c.balloon->bodies.isEmpty())
+        return 0;
+    const int from = picked != 0 ? picked : Chain::order(*c.balloon).last();
+    return Chain::chainEnd(*c.balloon, from) ? from : 0;
+}
+
+} // namespace
+
+bool ObjectController::canAddBubble() const
+{
+    const Object* item = m_selection.objects().size() == 1 ? m_overlayItems.value(m_selection.primary()) : nullptr;
+    if (!item || (m_selection.subject() != Subject::Overlay && m_selection.subject() != Subject::Body))
+        return false;
+    return addBubbleAfter(item->composition(), m_selection.body().element) != 0;
+}
+
+void ObjectController::addBubble()
+{
+    if (!canAddBubble())
+        return;
+    const QString uid  = m_selection.primary();
+    Composition   a    = m_overlayItems.value(uid)->composition();
+    const int     from = addBubbleAfter(a, m_selection.body().element);
+    QSize size;
+    for (const Body& b : std::as_const(a.balloon->bodies))
+        if (b.id == from)
+            size = b.size;
+    int added = 0;
+    if (Chain::addBody(a, from, QPointF(size.width() * k_newBubbleAcross, size.height() * k_newBubbleDown), &added)
+        != Chain::ChainError::None)
+        return;
+    applyComposition(uid, a, /*commit=*/true, tr("Add bubble"));
+    selectBody(uid, added);
 }
 
 int ObjectController::presetTargetCount() const
@@ -1021,6 +1096,7 @@ void ObjectController::applyCompositions(const QStringList& uids, const QList<Co
                  : uids.size() > 1              ? tr("Edit %n objects", "", uids.size())
                  : m_selection.subject() == Subject::Tail   ? tr("Edit tail")
                  : m_selection.subject() == Subject::Words  ? tr("Edit words")
+                 : m_selection.subject() == Subject::Body   ? tr("Edit bubble")
                  : compositionOf(uids.first()).picture ? tr("Edit artwork")
                                                        : tr("Edit bubble"));
 }
@@ -1161,6 +1237,8 @@ void ObjectController::deleteSelectedOverlay()
         deleteSelectedWords();
         return;
     }
+    if (m_selection.subject() == Subject::Body)
+        return;   // removing a bubble splits the chain: not offered yet
     if (m_selection.objects().isEmpty())
         return;
 

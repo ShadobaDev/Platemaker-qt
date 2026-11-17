@@ -410,9 +410,9 @@ New, backward-compatible features. Several are gated on a lib version, noted in 
   between them, as a manga reference does. A balloon is a graph: bubbles and the terminals of their
   tails are nodes, tails and necks its edges; the bubbles form a chain, every bubble and tail of it wears
   one style, each bubble keeps its own place, shape and words, and the whole graph is one SVG. Joining two
-  existing balloons, and splitting one by removing a neck or a middle bubble, are part of it. Waits for the
-  strip editor's object model to hold more than one balloon in an object: today an object is one balloon's
-  fields, read directly in about 740 places.
+  existing balloons, and splitting one by removing a neck or a middle bubble, are part of it. The object
+  model holds it: a balloon is a list of bodies (`Balloon::bodies`), words sit on a body (`Words::seat`) and a
+  tail leaves one (its root); everything but the neck and the joining reads the first body today.
 
 - [x] **Tail options** — *Done 2026-11-13.* A Plain tail ends Sharp, Round or Cut (*Tip*, *Tip width*), and
   can break into a sharp zigzag (*Breaks*, *Jog*, *First turn*), checked under every line and the Rough
@@ -430,9 +430,21 @@ New, backward-compatible features. Several are gated on a lib version, noted in 
     soft a glow.
   - A shadow is never a union of its caster and its growth: drawn as the body and a band in one layer or
     group (a union of a line of lettering took 1.5 s).
-  - **Left, only if asked:** a style per word, letter spacing, a warp along a curve. A lettered picture's
+  - **Left, only if asked:** letter spacing, a warp along a curve (a style per word came as runs, below). A lettered picture's
     soft shadow shows hard on the strip (the picture is drawn by its own item, not through the library)
     and blurred in the output.
+
+- [x] **Words as elements: several per balloon, a frame each, runs of other lettering** — *Done 2026-11-17.*
+  A balloon or a picture holds several words, each its own frame (four edges, automatic or set) and lettering,
+  picked on its own (its letters, its frame's handle, its row in OBJECT STACK) with an OBJECT STATE of its own.
+  *Fit to text* fits the body to every words' block where it lies. A stretch of the text can override the
+  family, size, bold, italic and fill (runs), edited in the Text section's text box as in a word processor.
+  Left:
+  - A *Mixed* spin box steps from the least and the greatest value only for the text size (`MixedSpinBox`);
+    every other spin box still starts from its minimum. Each would need the spread of its values at binding.
+  - Seen once and not reproduced: after typing in a second words, its whole text took a font picked earlier.
+    If it comes back, the text box's caret and selection handling (`TextEditor::rowChanged()`,
+    `showSelection()`) is where to log.
 
 - [x] **Shape registry** — built 2026-10-29, ahead of the first parameter: one table,
   `k_shapes` in `widgets/composition/shapes.cpp`, one entry per shape (name, title, tail, outline, text

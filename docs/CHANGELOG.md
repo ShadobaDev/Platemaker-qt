@@ -46,6 +46,8 @@ Requires libplatemaker **0.7.0**.
 - **Tails:** any number per balloon, each with its own tip, width and bend, leaving from any edge; a
   thought tail is a chain of circles. A plain tail ends sharp, round or cut, and can **break** into a
   sharp zigzag, mirrored if you like. A tail keeps its tip on its speaker, and its width, when the balloon is resized.
+  A selected tail shows its **anchor**, the point inside the balloon it leaves from: drag it to move where the
+  tail starts (it stops where the tail would no longer meet the outline cleanly), double-click it to put it back in the middle.
 - **Patterns and shadows:** fill, line and shadow can be halftone dots, lines or a grid in a second
   colour, and a fill's pattern can fade out, set by dragging on the strip. A drop shadow under the whole
   balloon has a spread, an offset and a softness. Colours may be transparent.

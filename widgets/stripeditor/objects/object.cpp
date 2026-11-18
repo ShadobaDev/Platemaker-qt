@@ -229,7 +229,28 @@ int Object::markedWords() const
 
 QList<Geometry::Handle> Object::shapeHandles() const
 {
-    return canEditShape() ? Geometry::handlesOf(m_composition, handleContext()) : QList<Geometry::Handle>();
+    if (m_shapeEditing)
+        return canEditShape() ? Geometry::handlesOf(m_composition, handleContext()) : QList<Geometry::Handle>();
+    // One tail picked, alone: where it leaves from is its to move.
+    if (m_focusedHandles.size() == 1 && m_composition.balloon) {
+        const int at = m_focusedHandles.first();
+        if (at >= 0 && at < m_composition.balloon->tails.size())
+            return Geometry::tailHandles(m_composition, m_composition.balloon->tails.at(at).id);
+    }
+    return {};
+}
+
+bool Object::resetShapeHandle(int index)
+{
+    const QList<Geometry::Handle> handles = shapeHandles();
+    if (index < 0 || index >= handles.size() || !handles.at(index).reset)
+        return false;
+    Composition next = m_composition;
+    if (!handles.at(index).reset(next, handles.at(index)))
+        return false;
+    emit compositionEdited(m_uid, next);
+    emit geometryCommitted(m_uid);
+    return true;
 }
 
 bool Object::beginShapeDrag(int index)

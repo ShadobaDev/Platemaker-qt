@@ -75,20 +75,21 @@ struct Body
  * \brief One tail of a balloon, leaving from the body \c root: to its tip, or, as a **bridge**, to the body \c to.
  *
  * A bridge joins two bodies of one balloon into a chain (chain.hpp); it keeps a tail's width, bend and breaks,
- * and its tip is not read.
+ * and its tip is not read: it runs from its tail's anchor in \c root to \c toAnchor in \c to.
  */
 struct BalloonTail
 {
-    int  id   = 0;
-    int  root = 0;   //!< The id of the body it leaves from.
-    Tail tail;       //!< Its tip (in the composition's frame), width, bend and look.
-    int  to   = 0;   //!< A bridge's far body; 0 for a tail.
+    int     id       = 0;
+    int     root     = 0;              //!< The id of the body it leaves from.
+    Tail    tail;                      //!< Its tip (in the composition's frame), anchor, width, bend and look.
+    int     to       = 0;              //!< A bridge's far body; 0 for a tail.
+    QPointF toAnchor = Tail::k_centre;  //!< A bridge's anchor in its far body (Tail::anchor); not read on a tail.
 
     [[nodiscard]] bool isBridge() const { return to != 0; }
 
     [[nodiscard]] bool operator==(const BalloonTail& o) const
     {
-        return id == o.id && root == o.root && tail == o.tail && to == o.to;
+        return id == o.id && root == o.root && tail == o.tail && to == o.to && toAnchor == o.toAnchor;
     }
     [[nodiscard]] bool operator!=(const BalloonTail& o) const { return !(*this == o); }
 };

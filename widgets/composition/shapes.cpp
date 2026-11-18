@@ -1431,6 +1431,11 @@ QRectF balloonRect(const Balloon& b, const Body& body)
     return r.normalized();
 }
 
+QPointF anchorAt(const QRectF& rect, const QPointF& anchor)
+{
+    return rect.topLeft() + QPointF(anchor.x() * rect.width(), anchor.y() * rect.height());
+}
+
 QPainterPath outlineOf(const Body& body, const QRectF& rect, quint32 seed)
 {
     if (body.shape.kind == ShapeProperties::Kind::None || rect.isEmpty())

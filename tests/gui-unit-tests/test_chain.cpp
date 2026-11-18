@@ -38,6 +38,50 @@ Composition chainOfThree()
     return c;
 }
 
+//! @p anchor (a fraction of body @p id's box) lies inside its outline, and a pixel further from its middle does not.
+void expectOnTheOutline(const Composition& c, int id, const QPointF& anchor)
+{
+    const Body*        body    = bodyOf(c, id);
+    const QRectF       rect    = Geometry::balloonRect(*c.balloon, *body);
+    const QPainterPath outline = Geometry::outlineOf(*body, rect, c.seed);
+    const QPointF      at      = Geometry::anchorAt(rect, anchor);
+    const QLineF       out(rect.center(), at);
+    const qreal        pixel   = 1.0;
+    EXPECT_TRUE(outline.contains(at));
+    EXPECT_FALSE(outline.contains(out.pointAt(1.0 + pixel / out.length())));
+}
+
+/**
+ * \brief Tail @p id's anchor dragged by @p h stopped at the last place its base fits (Geometry::baseFits()): there
+ *        it fits, and a pixel further on the way from its body's middle it does not.
+ */
+void expectAtTheLimit(const Composition& c, int id, const Geometry::Handle& h, const QPointF& pointer)
+{
+    const auto tail = std::find_if(c.balloon->tails.cbegin(), c.balloon->tails.cend(),
+                                   [id](const BalloonTail& t) { return t.id == id; });
+    ASSERT_NE(tail, c.balloon->tails.cend());
+    const bool    far   = h.index == 1;
+    const Body*   body  = bodyOf(c, far ? tail->to : tail->root);
+    const QRectF  rect  = Geometry::balloonRect(*c.balloon, *body);
+    const QPointF at    = Geometry::anchorAt(rect, far ? tail->toAnchor : tail->tail.anchor);
+    const QLineF  way(rect.center(), at);
+    const qreal   pixel = 1.0;
+    ASSERT_GT(way.length(), pixel);   // it moved
+    // On the way to the pointer: a drag along the edge slides it along the limit, under the pointer.
+    const qreal k_sameWay = 1e-6;
+    EXPECT_NEAR(way.unitVector().p2().x() - way.p1().x(),
+                QLineF(rect.center(), pointer).unitVector().p2().x() - way.p1().x(), k_sameWay);
+    EXPECT_NEAR(way.unitVector().p2().y() - way.p1().y(),
+                QLineF(rect.center(), pointer).unitVector().p2().y() - way.p1().y(), k_sameWay);
+    EXPECT_TRUE(Geometry::baseFits(*c.balloon, *tail, c.seed));
+
+    BalloonTail   further = *tail;
+    const QPointF next    = way.pointAt(1.0 + pixel / way.length());
+    (far ? further.toAnchor : further.tail.anchor)
+        = QPointF((next.x() - rect.left()) / rect.width(), (next.y() - rect.top()) / rect.height());
+    EXPECT_FALSE(Geometry::baseFits(*c.balloon, further, c.seed));
+}
+
 QList<int> bodyIds(const Composition& c)
 {
     QList<int> out;
@@ -104,6 +148,7 @@ TEST(Chain, AHeldTailBecomesTheBridgeAndKeepsItsLook)
     tail.root           = bodyId(a, 0);
     tail.tail.baseWidth = 20;
     tail.tail.bend      = 0.25;
+    tail.tail.anchor    = QPointF(0.2, 0.8);
     a.balloon->tails.append(tail);
 
     QList<int> merged;
@@ -115,7 +160,8 @@ TEST(Chain, AHeldTailBecomesTheBridgeAndKeepsItsLook)
     EXPECT_TRUE(bridge.isBridge());
     EXPECT_EQ(bridge.id, tail.id);
     EXPECT_EQ(bridge.to, merged.first());
-    EXPECT_EQ(bridge.tail, tail.tail);
+    EXPECT_EQ(bridge.tail, tail.tail);                // where it left from too
+    EXPECT_EQ(bridge.toAnchor, Tail::k_centre);       // and it reaches the middle of the other
     EXPECT_EQ(pieces(a).size(), 1);
 }
 
@@ -205,19 +251,29 @@ TEST(Chain, AChainIsReadFromAnEndAlongItsBridges)
     EXPECT_EQ(ShapeProperties::from(c, b).kind, ShapeProperties::from(c).kind);
 }
 
-TEST(Chain, ABridgeIsSavedWithItsFarBodyAndATailWithout)
+TEST(Chain, ABridgeIsSavedWithItsFarBodyAndAnAnchorOnlyOffTheMiddle)
 {
-    const Composition c = chainOfThree();
+    Composition c = chainOfThree();
+    const auto  firstSaved = [](const Composition& x) {
+        return toJson(x).value(QStringLiteral("balloon")).toObject()
+            .value(QStringLiteral("tails")).toArray().first().toObject();
+    };
     EXPECT_EQ(compositionFromJson(toJson(c)), c);
+    EXPECT_FALSE(firstSaved(c).contains(QStringLiteral("anchor")));
+    EXPECT_FALSE(firstSaved(c).contains(QStringLiteral("toAnchor")));
+
+    c.balloon->tails.first().tail.anchor = QPointF(0.25, 0.75);
+    c.balloon->tails.first().toAnchor    = QPointF(0.5, 1.0);
+    EXPECT_EQ(compositionFromJson(toJson(c)), c);
+    EXPECT_TRUE(firstSaved(c).contains(QStringLiteral("anchor")));
+    EXPECT_TRUE(firstSaved(c).contains(QStringLiteral("toAnchor")));
 
     Composition withTail = balloon();
     BalloonTail tail;
     tail.id   = withTail.nextId++;
     tail.root = bodyId(withTail, 0);
     withTail.balloon->tails.append(tail);
-    const QJsonObject saved = toJson(withTail).value(QStringLiteral("balloon")).toObject()
-                                  .value(QStringLiteral("tails")).toArray().first().toObject();
-    EXPECT_FALSE(saved.contains(QStringLiteral("to")));
+    EXPECT_FALSE(firstSaved(withTail).contains(QStringLiteral("to")));
 }
 
 TEST(Chain, ABridgeDrawsTwoBodiesAsOneOutline)
@@ -323,4 +379,119 @@ TEST(Chain, WordsAreReadAlongTheChainThenTheRest)
     expected << caption.id;
     EXPECT_EQ(wordsInOrder(c), expected);
     EXPECT_EQ(wordsInOrder(c).first(), c.words.at(2).id);   // the words of b, an end, before the first body's
+}
+
+/**
+ * \brief A tail leaves from its anchor, not the middle: on a wide box, a tail pointing straight down from near
+ *        its left end leaves there and not at a slant from the middle. Its handle is kept in the box and put back
+ *        in the middle by a reset.
+ */
+TEST(Chain, ATailLeavesFromItsAnchorWhichItsHandleMoves)
+{
+    Composition c = balloon(QString());
+    Body&       own = c.balloon->bodies.first();
+    own.size        = QSize(400, 100);
+    own.shape.kind  = ShapeProperties::Kind::Ellipse;   // its box's corners are outside it
+    const QRectF rect = Geometry::balloonRect(*c.balloon, own);
+    const qreal  near = 0.15;                       // across the box, from its left
+    const qreal  below = 100.0;                     // how far under the box the tip is
+    const qreal  under = 10.0;                      // a point of the tail just under the box
+    BalloonTail tail;
+    tail.id       = c.nextId++;
+    tail.root     = own.id;
+    tail.tail.tip = QPointF(rect.left() + rect.width() * near, rect.bottom() + below);
+    c.balloon->tails.append(tail);
+    const QPointF straightDown(tail.tail.tip.x(), rect.bottom() + under);
+
+    EXPECT_FALSE(Geometry::silhouette(*c.balloon, c.seed).contains(straightDown));   // from the middle: slanted
+    QList<Geometry::Handle> handles = Geometry::tailHandles(c, tail.id);
+    ASSERT_EQ(handles.size(), 1);
+    EXPECT_EQ(handles.first().at, rect.center());
+    Composition anchored = c;
+    handles.first().drag(anchored, handles.first(), QPointF(tail.tail.tip.x(), rect.center().y()), {});
+    EXPECT_EQ(anchored.balloon->tails.last().tail.anchor, QPointF(near, 0.5));
+    EXPECT_TRUE(Geometry::silhouette(*anchored.balloon, anchored.seed).contains(straightDown));
+
+    // A reset puts it back in the middle, once.
+
+    // A chain of circles has no base: it goes as far as the outline, on the way from the middle to the pointer.
+    Composition circles = c;
+    circles.balloon->tails.last().tail.look.style = TailLook::Style::Circles;
+    handles.first().drag(circles, handles.first(), rect.bottomRight() + QPointF(below, below), {});
+    expectOnTheOutline(circles, own.id, circles.balloon->tails.last().tail.anchor);
+    EXPECT_TRUE(handles.first().reset(anchored, handles.first()));
+    EXPECT_EQ(anchored.balloon->tails.last().tail, c.balloon->tails.last().tail);
+    EXPECT_FALSE(handles.first().reset(anchored, handles.first()));
+}
+
+//! A bridge offers both its anchors, and runs between them: moving the far one moves the bridge.
+TEST(Chain, ABridgeRunsBetweenItsTwoAnchors)
+{
+    Composition c = balloon(QString());
+    int         second = 0;
+    ASSERT_EQ(addBody(c, bodyId(c, 0), k_apart, &second), ChainError::None);
+    const BalloonTail& bridge = c.balloon->tails.first();
+    ASSERT_TRUE(bridge.isBridge());
+
+    const QList<Geometry::Handle> handles = Geometry::tailHandles(c, bridge.id);
+    ASSERT_EQ(handles.size(), 2);
+    const QRectF far = Geometry::balloonRect(*c.balloon, *bodyOf(c, second));
+    EXPECT_EQ(handles.at(1).at, far.center());
+
+    Composition moved = c;
+    handles.at(1).drag(moved, handles.at(1), far.bottomLeft(), {});
+    const QPointF toAnchor = moved.balloon->tails.first().toAnchor;
+    EXPECT_LT(toAnchor.x(), Tail::k_centre.x());   // towards the corner pulled to...
+    EXPECT_GT(toAnchor.y(), Tail::k_centre.y());
+    expectAtTheLimit(moved, bridge.id, handles.at(1), far.bottomLeft());   // ...as far as the bridge's end still fits
+    EXPECT_EQ(moved.balloon->tails.first().tail, bridge.tail);   // its own end stays
+    EXPECT_FALSE(Geometry::silhouette(*moved.balloon, moved.seed) == Geometry::silhouette(*c.balloon, c.seed));
+}
+
+/**
+ * \brief A flat tail anchored near the edge meets the outline with no notch: its base is found inside the bubble,
+ *        so the underside runs from the outline into the tail with no step where the base's corner stuck out.
+ */
+TEST(Chain, ATailAnchoredNearTheEdgeLeavesWithNoNotch)
+{
+    Composition c = balloon(QString());
+    Body&       own = c.balloon->bodies.first();
+    own.size        = QSize(400, 300);
+    own.shape.kind  = ShapeProperties::Kind::Ellipse;
+    const QRectF rect = Geometry::balloonRect(*c.balloon, own);
+    const QPointF anchor(0.75, 0.92);               // a few pixels above the ellipse's lower edge
+    const qreal   out    = 150.0;                    // how far right of the box the tip is
+    BalloonTail tail;
+    tail.id             = c.nextId++;
+    tail.root           = own.id;
+    tail.tail.baseWidth = 40.0;
+    tail.tail.anchor    = anchor;
+    tail.tail.tip       = QPointF(rect.right() + out, Geometry::anchorAt(rect, anchor).y() + tail.tail.baseWidth / 4);
+    c.balloon->tails.append(tail);
+    const QPainterPath drawn = Geometry::silhouette(*c.balloon, c.seed);
+
+    // The underside, a column at a time from the middle to near the tip: how low the silhouette reaches.
+    const qreal step = 1.0;                         // one pixel, across and down
+    const qreal top  = rect.center().y();
+    const qreal deep = rect.bottom() + tail.tail.baseWidth;
+    const auto  lowest = [&](qreal x) {
+        for (qreal y = deep; y > top; y -= step)
+            if (drawn.contains(QPointF(x, y)))
+                return y;
+        return top;
+    };
+    const qreal k_maxStep = 3.0;                    // a kink, not a notch: the base's corner stood ~16 px out
+    qreal       was       = lowest(rect.center().x());
+    for (qreal x = rect.center().x() + step; x < tail.tail.tip.x() - out / 2; x += step) {
+        const qreal y = lowest(x);
+        EXPECT_LE(qAbs(y - was), k_maxStep) << "at x " << x;
+        was = y;
+    }
+
+    // Dragged further down, under the pointer, it stops where the base, square to this flat tail, would stick out.
+    const Geometry::Handle anchorHandle = Geometry::tailHandles(c, tail.id).first();
+    const QPointF          pointer(anchorHandle.at.x(), rect.bottom() + out);
+    Composition            dragged = c;
+    anchorHandle.drag(dragged, anchorHandle, pointer, {});
+    expectAtTheLimit(dragged, tail.id, anchorHandle, pointer);
 }

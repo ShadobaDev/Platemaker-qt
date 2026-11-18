@@ -166,8 +166,18 @@ public:
     //! Whether this object has handles to edit: a balloon's outline, a fade's cross, words' frame.
     [[nodiscard]] virtual bool canEditShape() const { return false; }
 
-    //! The handles shape editing offers (Geometry::handlesOf()), in item coordinates; none unless canEditShape().
+    /**
+     * \brief The handles the chrome offers besides the grips and the tips, in item coordinates: while the shape
+     *        is edited, those of shape editing (Geometry::handlesOf(), none unless canEditShape()); with one tail
+     *        picked, its anchors (Geometry::tailHandles()); none otherwise.
+     */
     [[nodiscard]] QList<Geometry::Handle> shapeHandles() const;
+    /**
+     * \brief A double-click on handle @p index of shapeHandles(): what it sets put back (Geometry::Handle::reset),
+     *        reported as a settled edit.
+     * \return Whether anything changed.
+     */
+    bool resetShapeHandle(int index);
     //! The bare outline shape editing traces, in item coordinates. None by default.
     [[nodiscard]] virtual QPainterPath editOutline() const { return {}; }
 

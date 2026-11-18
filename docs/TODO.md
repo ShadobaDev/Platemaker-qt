@@ -406,6 +406,16 @@ New, backward-compatible features. Several are gated on a lib version, noted in 
     ellipses take their length along the tail from its length, so a fixed aspect would need a row of its
     own and would loosen the tip from the last one.
 
+- [ ] **A tail side flush with the outline.** The classic speech tail: one side runs on from the balloon's
+  outline, one line from the outline into the tail. A tail is symmetric about its line from its anchor to its
+  tip and tapers to the tip, so a side meets the outline smoothly only where it is tangent to it *and* starts at
+  the point it touches: two conditions, met at single anchor positions and nowhere along the anchor's limit
+  (the anchor only keeps the base inside, `Geometry::baseFits()`). Built into the shape instead: a per-tail
+  *Flush side* (none, left, right; none by default, so every tail stays as it is). That side is the tangent from
+  the tip to the outline, found on any shape by sampling the outline for the extreme direction seen from the tip,
+  and starts where it touches; the other side is the base width away, inside. The anchor is not read while a
+  side is flush; the bend sways the other side only. Not offered on a bridge or a Circles tail.
+
 - [ ] **Joined balloons.** Two balloons of one speaker, read in turn, joined into one outline by a neck
   between them, as a manga reference does. A balloon is a graph: bubbles and the terminals of their
   tails are nodes, tails and necks its edges; the bubbles form a chain, every bubble and tail of it wears

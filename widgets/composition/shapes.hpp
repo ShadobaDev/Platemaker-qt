@@ -229,6 +229,9 @@ constexpr int k_maxRegularPoints = 64;
  */
 [[nodiscard]] QRectF balloonRect(const Balloon& b, const Body& body);
 
+//! The point @p anchor (a fraction of @p rect, Tail::anchor) stands for in @p rect.
+[[nodiscard]] QPointF anchorAt(const QRectF& rect, const QPointF& anchor);
+
 //! What @p b's fill is laid over (a fade, its handles): every body's balloonRect() as one.
 [[nodiscard]] QRectF fillBox(const Balloon& b);
 

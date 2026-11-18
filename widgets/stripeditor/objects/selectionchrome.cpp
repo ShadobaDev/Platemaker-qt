@@ -159,7 +159,7 @@ QRectF SelectionChrome::handleRect(const Object* o, int index, qreal s) const
 
 QList<Geometry::Handle> SelectionChrome::shapeHandles(const Object* o)
 {
-    return o->shapeEditing() ? o->shapeHandles() : QList<Geometry::Handle>();
+    return o->shapeHandles();
 }
 
 QList<QPair<int, QRectF>> SelectionChrome::textAreaRects(const Object* o, bool overflowing)
@@ -501,6 +501,17 @@ void SelectionChrome::mouseReleaseEvent(QGraphicsSceneMouseEvent*)
     if (m_target)
         m_target->endDrag();
     m_target = nullptr;
+}
+
+void SelectionChrome::mouseDoubleClickEvent(QGraphicsSceneMouseEvent* e)
+{
+    // In shape editing a double-click is the mode's (CanvasInput), and never reaches here.
+    const Hit hit = hitAt(e->scenePos());
+    if (hit.object && hit.grip == Grip::Shape && hit.object->resetShapeHandle(hit.handle)) {
+        e->accept();
+        return;
+    }
+    QGraphicsItem::mouseDoubleClickEvent(e);   // a second press, as before
 }
 
 }  // namespace StripEdit

@@ -244,7 +244,7 @@ struct TailLookMirror {   // its sections as they are laid out: a field added to
 static_assert(sizeof(TailLook) == sizeof(TailLookMirror),
               "TailLook grew a field: place it (see above), then mirror it");
 
-struct TailMirror { QPointF tip; qreal baseWidth, bend; TailLook look; };
+struct TailMirror { QPointF tip; qreal baseWidth, bend; TailLook look; QPointF anchor; };
 static_assert(sizeof(Tail) == sizeof(TailMirror),
               "Tail grew a field: place it (see above), then mirror it");
 
@@ -3082,6 +3082,24 @@ QList<GoldenCase> goldenCases()
     for (StyleProperties::Line line : {StyleProperties::Line::Clean, StyleProperties::Line::Flash})
         write(QStringLiteral("speech chain"), QStringLiteral("apart broken, %1").arg(QLatin1String(lineName(line))),
               true, chained(apart, line, 2));
+    // Anchors: a tail leaving straight down near the left end of a wide box, and a bridge between the two bodies'
+    // lower parts.
+    {
+        Composition a     = loadedBalloon();
+        shapeOf(a)        = Geometry::shapeTemplate("speech").shape;
+        boxOf(a)          = QSize(420, 120);
+        Tail& tail        = tailsOf(a).first().tail;
+        tail.anchor       = QPointF(0.15, 0.5);
+        tail.tip          = QPointF(63, 220);
+        write(QStringLiteral("speech"), QStringLiteral("anchored tail, wide"), true, a);
+    }
+    {
+        Composition  a      = chained(apart, StyleProperties::Line::Clean, 0);
+        BalloonTail& bridge = a.balloon->tails.first();
+        bridge.tail.anchor  = QPointF(0.5, 0.85);
+        bridge.toAnchor     = QPointF(0.3, 0.85);
+        write(QStringLiteral("speech chain"), QStringLiteral("anchored, clean"), true, a);
+    }
     return cases;
 }
 

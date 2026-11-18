@@ -364,7 +364,9 @@ void ObjectController::onObjectPressed(const QString& uid, int handle)
     const Object* pressedItem = m_overlayItems.value(uid);
     const bool    inBubble    = pressedItem && pressedItem->isChain()
                           && pressedItem->bodyAt(pressedItem->mapFromScene(pressedItem->pressScenePos())) != 0;
-    if (carrier && !add && !inBubble)
+    // ...or on the picked tail's anchor, which is the tail's to move.
+    const bool onAnchor = pressedItem && !pressedItem->shapeEditing() && pressedItem->dragGrip() == Grip::Shape;
+    if (carrier && !add && !inBubble && !onAnchor)
         selectOverlay(uid);
     beginDrag(uid, handle);
 

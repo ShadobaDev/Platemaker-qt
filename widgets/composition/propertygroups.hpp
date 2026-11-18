@@ -152,14 +152,26 @@ struct TailLook
 
 struct Tail
 {
+    //! An anchor in the middle of its body's box: where a tail leaves from unless it is moved.
+    static constexpr QPointF k_centre{0.5, 0.5};
+
     QPointF  tip;                //!< Balloon coordinates; outside the balloon is normal.
     qreal    baseWidth = 34.0;   //!< Width where it emerges from the silhouette, in balloon pixels.
     qreal    bend      = 0.0;    //!< -1..+1 — sideways offset of the curve, as a fraction of its length.
     TailLook look;               //!< Plain, or a chain of ellipses.
+    /**
+     * \brief The point inside its body the tail is aimed from, as a fraction of the body's box (k_centre the
+     *        middle): its line runs from here to the tip, and leaves the outline where it crosses it.
+     *
+     * A fraction, so it follows a resize of the body, and a point and not a place on the outline, so a change
+     * of shape only casts the line again. A line from it that never crosses the outline draws no tail, as a tip
+     * inside the outline does not.
+     */
+    QPointF  anchor = k_centre;
 
     [[nodiscard]] bool operator==(const Tail& o) const
     {
-        return tip == o.tip
+        return tip == o.tip && anchor == o.anchor
             && qFuzzyCompare(baseWidth, o.baseWidth)
             && qFuzzyCompare(1.0 + bend, 1.0 + o.bend)   // +1 so an exact 0.0 compares equal
             && look == o.look;

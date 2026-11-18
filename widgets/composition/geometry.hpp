@@ -66,6 +66,15 @@ namespace Geometry {
  */
 [[nodiscard]] QList<bool> tailsDrawn(const Balloon& b, quint32 seed);
 
+/**
+ * \brief Whether @p t's base, and each end of a bridge, fits inside its bubble on the tail's line, so the tail
+ *        meets the outline with no notch; true for a tail that draws nothing, or a chain of circles.
+ *
+ * False when the anchor is too near the edge for a tail running along it: its base, square to the tail, would
+ * stick out wherever it lay. Dragging an anchor stops where this turns false.
+ */
+[[nodiscard]] bool baseFits(const Balloon& b, const BalloonTail& t, quint32 seed);
+
 //! What an object is made of where a point lands — the three things that carry a colour, and a miss.
 enum class Part { None, Fill, Outline, Text };
 

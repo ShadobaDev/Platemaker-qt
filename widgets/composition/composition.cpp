@@ -156,14 +156,18 @@ void       pointFromJson(const QJsonValue& j, QPointF& v)
         v = QPointF(a[0].toDouble(v.x()), a[1].toDouble(v.y()));
 }
 
+//! A tail; its anchor only when it is not the middle.
 QJsonObject tailToJson(const Tail& t)
 {
-    return {
+    QJsonObject j{
         {QStringLiteral("tip"),   pointToJson(t.tip)},
         {QStringLiteral("width"), t.baseWidth},
         {QStringLiteral("bend"),  t.bend},
         {QStringLiteral("look"),  groupToJson(t.look)},
     };
+    if (t.anchor != Tail::k_centre)
+        j.insert(QStringLiteral("anchor"), pointToJson(t.anchor));
+    return j;
 }
 
 Tail tailFromJson(const QJsonObject& o)
@@ -173,6 +177,7 @@ Tail tailFromJson(const QJsonObject& o)
     t.baseWidth = o.value(QStringLiteral("width")).toDouble(t.baseWidth);
     t.bend      = o.value(QStringLiteral("bend")).toDouble(t.bend);
     groupFromJson(t.look, o.value(QStringLiteral("look")).toObject());
+    pointFromJson(o.value(QStringLiteral("anchor")), t.anchor);
     return t;
 }
 
@@ -561,6 +566,8 @@ QJsonObject toJson(const Composition& c)
             o.insert(QStringLiteral("root"), t.root);
             if (t.isBridge())
                 o.insert(QStringLiteral("to"), t.to);
+            if (t.isBridge() && t.toAnchor != Tail::k_centre)
+                o.insert(QStringLiteral("toAnchor"), pointToJson(t.toAnchor));
             tails.append(o);
         }
         j.insert(QStringLiteral("balloon"), QJsonObject{
@@ -629,8 +636,10 @@ Composition compositionFromJson(const QJsonObject& j)
         }
         for (const QJsonValue& v : o.value(QStringLiteral("tails")).toArray()) {
             const QJsonObject to = v.toObject();
-            b.tails.append({id(to), to.value(QStringLiteral("root")).toInt(), tailFromJson(to),
-                            to.value(QStringLiteral("to")).toInt()});
+            BalloonTail t{id(to), to.value(QStringLiteral("root")).toInt(), tailFromJson(to),
+                          to.value(QStringLiteral("to")).toInt()};
+            pointFromJson(to.value(QStringLiteral("toAnchor")), t.toAnchor);
+            b.tails.append(t);
         }
         if (!b.bodies.isEmpty())   // a balloon is its bodies: one without any is not one
             c.balloon = b;

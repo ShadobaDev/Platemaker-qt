@@ -95,6 +95,14 @@ template <class Part>
  */
 [[nodiscard]] QList<Handle> handlesOf(const Composition& c, const HandleContext& context);
 
+/**
+ * \brief What a picked tail offers besides its tip: its anchor (Tail::anchor), and a bridge's far one
+ *        (BalloonTail::toAnchor) after it — index 0 and 1, each dragged inside its body's box and put back in
+ *        the middle by a double-click.
+ * \param tail The tail's id; none for a tail that is not there.
+ */
+[[nodiscard]] QList<Handle> tailHandles(const Composition& c, int tail);
+
 }  // namespace Geometry
 
 #endif // HANDLES_HPP

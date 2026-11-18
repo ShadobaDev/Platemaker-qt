@@ -7,6 +7,8 @@
 
 #include "chain.hpp"
 #include "geometry.hpp"
+#include "handles.hpp"
+#include "shapes.hpp"
 
 using namespace Chain;
 
@@ -235,4 +237,45 @@ TEST(Chain, ABridgeDrawsTwoBodiesAsOneOutline)
 
     a.balloon->tails.first().tail.baseWidth = 0.0;   // a bridge of no width draws none
     EXPECT_EQ(Geometry::silhouette(*a.balloon, a.seed).toSubpathPolygons().size(), 2);
+}
+
+TEST(Chain, APickedBubbleIsResizedAndReshapedAloneTheRestStaying)
+{
+    Composition c = balloon(QString());
+    int         second = 0;
+    ASSERT_EQ(addBody(c, bodyId(c, 0), k_apart, &second), ChainError::None);
+    BalloonTail tail;   // a tail of the second bubble
+    tail.id             = c.nextId++;
+    tail.root           = second;
+    tail.tail.tip       = QPointF(500, 400);
+    tail.tail.baseWidth = 30.0;
+    c.balloon->tails.append(tail);
+
+    // Its grips: its place and size; its tail's tip stays, its base follows the size.
+    Composition resized = c;
+    const Body& before  = *bodyOf(c, second);
+    resizeBody(resized, second, QRectF(before.place.pos - QPointF(10, 10), QSizeF(before.size) * 2));
+    EXPECT_EQ(bodyOf(resized, second)->size, before.size * 2);
+    EXPECT_EQ(bodyOf(resized, second)->place.pos, before.place.pos - QPointF(10, 10));
+    EXPECT_EQ(resized.balloon->bodies.first(), c.balloon->bodies.first());
+    EXPECT_EQ(resized.balloon->tails.last().tail.tip, tail.tail.tip);
+    EXPECT_DOUBLE_EQ(resized.balloon->tails.last().tail.baseWidth, 2 * tail.tail.baseWidth);
+
+    // Its outline's handles are offered for it, and a node pulled past its box moves that bubble alone.
+    bodyOf(c, second)->shape.kind  = ShapeProperties::Kind::Polygon;
+    bodyOf(c, second)->shape.nodes = Geometry::regularNodes(4, 1.0, 0.0, 0.0, 0);
+    Geometry::HandleContext context;
+    context.body = second;
+    const QList<Geometry::Handle> handles = Geometry::handlesOf(c, context);
+    const auto vertex = std::find_if(handles.cbegin(), handles.cend(), [](const Geometry::Handle& h) {
+        return Geometry::partOf<Geometry::ShapePart>(h) == Geometry::ShapePart::Vertex;
+    });
+    ASSERT_NE(vertex, handles.cend());
+    EXPECT_EQ(vertex->element, second);
+    Composition dragged = c;
+    const QPointF moved = vertex->drag(dragged, *vertex, vertex->at - QPointF(200, 200), context);
+    EXPECT_EQ(moved, QPointF());   // the object stays where it is
+    EXPECT_NE(bodyOf(dragged, second)->place.pos, bodyOf(c, second)->place.pos);
+    EXPECT_EQ(dragged.balloon->bodies.first(), c.balloon->bodies.first());
+    EXPECT_EQ(dragged.balloon->tails.last().tail.tip, tail.tail.tip);
 }

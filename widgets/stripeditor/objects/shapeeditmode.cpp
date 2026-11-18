@@ -140,7 +140,7 @@ void ShapeEditMode::stepPick(bool clockwise, PickStep how)
 std::optional<ShapeNode::Type> ShapeEditMode::pickedNodeType() const
 {
     const Object* item = m_host.object(m_edited);
-    const Body*   body = item ? bodyOf(item->composition()) : nullptr;
+    const Body*   body = item ? bodyOf(item->composition(), item->pickedBody()) : nullptr;
     if (!body || body->shape.kind != ShapeProperties::Kind::Curve)
         return std::nullopt;
     const QList<ShapeNode>& nodes = body->shape.nodes;
@@ -156,11 +156,11 @@ void ShapeEditMode::setPickedNodeType(ShapeNode::Type type)
     if (!pickedNodeType() || !item)
         return;
     Composition  a    = item->composition();
-    Body&        body = *bodyOf(a);   // pickedNodeType() found a Curve's node
+    Body&        body = *bodyOf(a, item->pickedBody());   // pickedNodeType() found a Curve's node
     const QRectF rect = Geometry::balloonRect(*a.balloon, body);
     for (int i : item->pickedVertices())
         body.shape = Geometry::withNodeType(body.shape, rect, i, type);
-    if (body.shape == bodyOf(item->composition())->shape)
+    if (body.shape == bodyOf(item->composition(), item->pickedBody())->shape)
         return;
     m_host.commit(m_edited, a, tr("Point type"));
     emit changed();   // the menu's tick, and the handles drawn
@@ -171,7 +171,7 @@ bool ShapeEditMode::canGrowPickedHandles() const
     const Object* item = m_host.object(m_edited);
     if (!pickedNodeType() || !item)
         return false;
-    const ShapeProperties& shape = bodyOf(item->composition())->shape;   // pickedNodeType() found a Curve's node
+    const ShapeProperties& shape = bodyOf(item->composition(), item->pickedBody())->shape;   // pickedNodeType() found a Curve's node
     for (int i : item->pickedVertices())
         if (!(Geometry::withHandlesGrown(shape, i) == shape))
             return true;
@@ -184,7 +184,7 @@ void ShapeEditMode::growPickedHandles()
     if (!canGrowPickedHandles() || !item)
         return;
     Composition a    = item->composition();
-    Body&       body = *bodyOf(a);
+    Body&       body = *bodyOf(a, item->pickedBody());
     for (int i : item->pickedVertices())
         body.shape = Geometry::withHandlesGrown(body.shape, i);
     m_host.commit(m_edited, a, tr("Add handles"));
@@ -197,14 +197,14 @@ bool ShapeEditMode::deletePickedNodes()
     if (!edited || edited->pickedVertex() < 0)
         return false;
     Composition a      = edited->composition();
-    Body*       body   = bodyOf(a);
+    Body*       body   = bodyOf(a, edited->pickedBody());
     QList<int>  doomed = edited->pickedVertices();
     if (!body)
         return true;
     std::sort(doomed.begin(), doomed.end(), std::greater<int>());
     for (int i : std::as_const(doomed))
         body->shape = Geometry::withVertexRemoved(body->shape, i);
-    if (body->shape == bodyOf(edited->composition())->shape)
+    if (body->shape == bodyOf(edited->composition(), edited->pickedBody())->shape)
         return true;
     edited->setPickedVertex(-1);
     m_host.commit(m_edited, a, tr("Delete point"));
@@ -215,7 +215,7 @@ bool ShapeEditMode::deletePickedNodes()
 bool ShapeEditMode::canConvertToCurve() const
 {
     const Object* item = m_host.object(m_selection.primary());
-    const Body*   body = item ? bodyOf(item->composition()) : nullptr;
+    const Body*   body = item ? bodyOf(item->composition(), item->pickedBody()) : nullptr;
     return body && m_selection.objects().size() == 1 && body->shape.kind != ShapeProperties::Kind::Curve;
 }
 
@@ -225,7 +225,7 @@ void ShapeEditMode::convertToCurve()
         return;
     const QString uid  = m_selection.primary();
     Composition   a    = m_host.object(uid)->composition();
-    Body&         body = *bodyOf(a);
+    Body&         body = *bodyOf(a, m_host.object(uid)->pickedBody());
     const QRectF  rect = Geometry::balloonRect(*a.balloon, body);
     body.shape         = Geometry::curveOf(Geometry::outlineOf(body, rect, a.seed), rect);
     m_host.commit(uid, a, tr("Convert to curve"));

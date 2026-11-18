@@ -1718,10 +1718,7 @@ QPainterPath fillTone(const Balloon& b, const QPainterPath& silhouette)
     const Paint& p = b.style.fill.fill;
     if (!fades(p) || silhouette.isEmpty() || b.bodies.isEmpty())
         return {};
-    // Laid across every body at once, as the fill is one.
-    QRectF body;
-    for (const Body& x : b.bodies)
-        body = body.isNull() ? balloonRect(b, x) : body.united(balloonRect(b, x));
+    const QRectF body = fillBox(b);   // across every body at once, as the fill is one
     // A bar's width is sampled about every half cell: a fade spans a good part of the balloon.
     return halftoneMarks(p, silhouette.boundingRect(), [&](const QPointF& at) { return fadeTone(p, body, at); },
                          qMax(p.spacing, k_minPatternSpacing) / 2.0);

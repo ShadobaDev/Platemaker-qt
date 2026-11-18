@@ -1415,6 +1415,14 @@ ShapeProperties curveOf(const QPainterPath& outline, const QRectF& body)
     return s;
 }
 
+QRectF fillBox(const Balloon& b)
+{
+    QRectF box;
+    for (const Body& x : b.bodies)
+        box = box.isNull() ? balloonRect(b, x) : box.united(balloonRect(b, x));
+    return box;
+}
+
 QRectF balloonRect(const Balloon& b, const Body& body)
 {
     const qreal sw = b.style.line.strokeWidth / 2.0;

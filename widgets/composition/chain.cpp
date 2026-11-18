@@ -108,6 +108,24 @@ void moveBody(Composition& c, int body, const QPointF& by)
             t.tail.tip += by;
 }
 
+void resizeBody(Composition& c, int body, const QRectF& to)
+{
+    Body* own = bodyOf(c, body);
+    if (!own || body == 0)
+        return;
+    const QSize old  = own->size;
+    const QSize size = to.size().toSize();
+    // The mean of the two ratios, as a balloon's resize scales its tails (BubbleObject::setBoxSize()).
+    const qreal widthScale = old.isEmpty()
+        ? 1.0
+        : (double(size.width()) / old.width() + double(size.height()) / old.height()) / 2.0;
+    own->place.pos = to.topLeft();
+    own->size      = size;
+    for (BalloonTail& t : c.balloon->tails)
+        if (t.root == body && !t.isBridge())
+            t.tail.baseWidth *= widthScale;
+}
+
 int bridgeBetween(const Balloon& b, int a, int c)
 {
     for (const BalloonTail& t : b.tails)

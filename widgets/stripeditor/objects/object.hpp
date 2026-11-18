@@ -465,6 +465,7 @@ private:
     int        m_dragBody    = 0;  //!< The body this drag moves (bodyPressed()); 0 when it moves the object.
     bool       m_wasSelected = false;   //!< Whether the object was selected before this press: a click goes through.
     Composition m_dragStart;       //!< The composition at the press, which a body's drag is measured from.
+    int        m_resizeBody  = 0;  //!< The body a grip's drag resizes (the picked one); 0 when it resizes the object.
     Grip    m_dragGrip = Grip::None;   //!< The grip of the drag under way or the last one (dragGrip()).
     bool    m_shapeEditing = false;    //!< See setShapeEditing().
     QList<int> m_pickedVertices;       //!< See pickedVertices().

@@ -243,6 +243,9 @@ void tidyRuns(TextProperties& t);
 //! The body the editor edits: the first of @p c's balloon; none without a balloon. ponytail: as wordsOf().
 [[nodiscard]] const Body* bodyOf(const Composition& c);
 [[nodiscard]] Body*       bodyOf(Composition& c);
+//! @p c's body @p id, its first for 0; none without a balloon or with no such body.
+[[nodiscard]] const Body* bodyOf(const Composition& c, int id);
+[[nodiscard]] Body*       bodyOf(Composition& c, int id);
 
 /**
  * \brief The rectangle the author dragged: the bodies', the picture's, and the box of words with no seat, as

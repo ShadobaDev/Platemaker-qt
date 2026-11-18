@@ -174,7 +174,7 @@ bool BubbleObject::canEditShape() const
 {
     // A patterned fill has its fade's cross, and words their text area's arrows, so a balloon
     // with no handles of its own is edited for those.
-    const Body* body = bodyOf(m_composition);
+    const Body* body = bodyOf(m_composition, pickedBody());
     return body
         && (Geometry::hasShapeHandles(body->shape) || m_composition.balloon->style.fill.fill.kind != Paint::Kind::Solid
             || lettered(m_composition));
@@ -182,7 +182,7 @@ bool BubbleObject::canEditShape() const
 
 QPainterPath BubbleObject::editOutline() const
 {
-    const Body* own = bodyOf(m_composition);
+    const Body* own = bodyOf(m_composition, pickedBody());
     if (!own)
         return {};
     return Geometry::outlineOf(*own, Geometry::balloonRect(*m_composition.balloon, *own), m_composition.seed);

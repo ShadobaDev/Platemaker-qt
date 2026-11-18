@@ -690,7 +690,6 @@ void setStyleGroup(Composition& c, Group BalloonStyle::* member, const Group& va
 
 namespace {
 
-//! @p c's body @p id, its first for 0; none without it.
 template <class C>
 auto* bodyById(C& c, int id)
 {
@@ -703,6 +702,9 @@ auto* bodyById(C& c, int id)
 }
 
 } // namespace
+
+const Body* bodyOf(const Composition& c, int id) { return bodyById(c, id); }
+Body*       bodyOf(Composition& c, int id) { return bodyById(c, id); }
 
 ShapeProperties ShapeProperties::from(const Composition& c, int body)
 {

@@ -53,6 +53,12 @@ enum class ChainError {
 //! Body @p body of @p c moved @p by, with the tails leaving it; its words sit on it, its bridges stretch.
 void moveBody(Composition& c, int body, const QPointF& by);
 
+/**
+ * \brief Body @p body of @p c given the box @p to: its place and size. The tips of the tails leaving it stay where
+ *        they point, their base width following the size as a balloon's do; its words sit on it.
+ */
+void resizeBody(Composition& c, int body, const QRectF& to);
+
 //! Whether a bridge from @p from to @p to may be added to @p b, and why not.
 [[nodiscard]] ChainError canBridge(const Balloon& b, int from, int to);
 

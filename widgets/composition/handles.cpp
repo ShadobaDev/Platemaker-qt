@@ -32,10 +32,11 @@ Body* bodyFor(Composition& c, const Handle& h)
  *        node pulled past it, and shrinks back when the outline comes in again.
  *
  * The nodes are re-measured against the fitted body, and the tail tips move back by as much as the box's
- * corner moved, so nothing moves on the strip but the node being dragged. A box that fits its outline
+ * corner moved, so nothing moves on the strip but the node being dragged. A bubble of a chain moves itself
+ * instead, and nothing else moves. A box that fits its outline
  * already, or an outline with no width or height, leave it as it is.
  *
- * \return How far the box's top-left moved, in the units it was in.
+ * \return How far the object has to move: the box's top-left's move for a lone balloon, none for a chain's.
  */
 QPointF fitToOutline(Composition& c, Body& own, const QRectF& rect)
 {
@@ -55,20 +56,26 @@ QPointF fitToOutline(Composition& c, Body& own, const QRectF& rect)
                        (right - left) * rect.width(), (bottom - top) * rect.height());
     const QPointF corner(fitted.left() - inset, fitted.top() - inset);
     own.size = QSize(qCeil(fitted.width() + 2 * inset), qCeil(fitted.height() + 2 * inset));
+    // A lone balloon's body is at the origin, so the whole composition moves back by the corner (the caller moves
+    // the object as much). A bubble of a chain moves itself: the others, the object and the tips stay.
+    const bool    chain = c.balloon->bodies.size() > 1;
+    const QPointF shift = chain ? QPointF() : corner;
+    if (chain)
+        own.place.pos = corner;
 
     // A handle is an offset from its node, so it only rescales.
     const QRectF  next = balloonRect(*c.balloon, own);
     const QPointF scale(rect.width() / next.width(), rect.height() / next.height());
     for (ShapeNode& n : own.shape.nodes) {
-        const QPointF at(rect.left() + n.at.x() * rect.width() - corner.x(),
-                         rect.top() + n.at.y() * rect.height() - corner.y());
+        const QPointF at(rect.left() + n.at.x() * rect.width() - shift.x(),
+                         rect.top() + n.at.y() * rect.height() - shift.y());
         n.at  = QPointF((at.x() - next.left()) / next.width(), (at.y() - next.top()) / next.height());
         n.in  = QPointF(n.in.x() * scale.x(), n.in.y() * scale.y());
         n.out = QPointF(n.out.x() * scale.x(), n.out.y() * scale.y());
     }
     for (BalloonTail& t : c.balloon->tails)
-        t.tail.tip -= corner;
-    return corner;
+        t.tail.tip -= shift;
+    return shift;
 }
 
 //! A body's outline and edge: several picked nodes move together; a node pulled past the box grows it.
@@ -101,12 +108,11 @@ bool addNode(Composition& c, Handle& h)
     return true;
 }
 
-//! The balloon's fill: the fade's cross, over its first body's rectangle.
+//! The balloon's fill: the fade's cross, over every body (fillBox()).
 QPointF dragFill(Composition& next, const Handle& h, const QPointF& to, const HandleContext&)
 {
-    if (const Body* own = bodyOf(next))
-        next.balloon->style.fill.fill = dragFadeHandle(next.balloon->style.fill.fill,
-                                                       balloonRect(*next.balloon, *own), h, to);
+    if (next.balloon && !next.balloon->bodies.isEmpty())
+        next.balloon->style.fill.fill = dragFadeHandle(next.balloon->style.fill.fill, fillBox(*next.balloon), h, to);
     return {};
 }
 
@@ -177,13 +183,13 @@ QList<Handle> owned(QList<Handle> list, int element, Handle::Drag drag)
 QList<Handle> handlesOf(const Composition& c, const HandleContext& context)
 {
     QList<Handle> out;
-    if (const Body* own = bodyOf(c)) {
+    if (const Body* own = bodyOf(c, context.body)) {
         const QRectF rect = balloonRect(*c.balloon, *own);
         out = owned(shapeHandles(own->shape, rect, context.clearance, context.lastPicked()), own->id, &dragBody);
         for (Handle& h : out)
             if (partOf<ShapePart>(h) == ShapePart::AddVertex)
                 h.press = &addNode;
-        out.append(owned(fadeHandles(c.balloon->style.fill.fill, rect), c.balloon->id, &dragFill));
+        out.append(owned(fadeHandles(c.balloon->style.fill.fill, fillBox(*c.balloon)), c.balloon->id, &dragFill));
     }
     // Every words' frame; the picked words' first, so where two frames lie over each other a press takes theirs.
     QList<const Words*> words;

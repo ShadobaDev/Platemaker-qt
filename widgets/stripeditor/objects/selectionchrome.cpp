@@ -120,11 +120,11 @@ QRectF SelectionChrome::gripRect(const Object* o, Grip grip, qreal s) const
     // While one of its tails is the subject, the box is not: its grips are not shown, so they do not
     // resize either — what looks selected is what an edit will change. Nor while its shape is edited,
     // when the outline's own handles take their place.
-    // A chain is moved as one and never resized as one; a bubble of it picked has no grips yet.
-    if (o->hasFocusedHandles() || o->shapeEditing() || o->isChain())
+    // A chain is moved as one and never resized as one: a bubble of it picked has its own grips.
+    if (o->hasFocusedHandles() || o->shapeEditing() || (o->isChain() && o->pickedBody() == 0))
         return {};
 
-    const QRectF box = o->sceneBox();
+    const QRectF box = o->chromeBox();
     switch (grip) {
     case Grip::TopLeft:     return square(box.topLeft(), s);
     case Grip::TopRight:    return square(box.topRight(), s);

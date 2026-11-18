@@ -181,7 +181,7 @@ qreal Object::gripSpanHere() const
 
 Geometry::HandleContext Object::handleContext() const
 {
-    return {gripSpanHere() * k_radiusDotClearance, pickedVertices(), markedWords()};
+    return {gripSpanHere() * k_radiusDotClearance, pickedVertices(), markedWords(), m_pickedBody};
 }
 
 void Object::setPickedBody(int id)
@@ -189,6 +189,7 @@ void Object::setPickedBody(int id)
     if (m_pickedBody == id)
         return;
     m_pickedBody = id;
+    setPickedVertex(-1);   // the nodes picked were another body's
     emit chromeChanged();
 }
 
@@ -366,7 +367,12 @@ void Object::beginDrag(Grip grip, int handle, const QPointF& scenePos)
     m_active        = grip;
     m_dragGrip      = grip;
     m_activeHandle  = grip == Grip::Handle || grip == Grip::Shape ? handle : -1;
-    m_startRect     = sceneBox();
+    // A corner or an edge of a bubble picked on its own resizes that bubble, from its own box.
+    const bool sized = grip != Grip::Body && grip != Grip::Handle && grip != Grip::Shape && grip != Grip::None;
+    m_resizeBody    = sized ? m_pickedBody : 0;
+    m_startRect     = m_resizeBody != 0 ? chromeBox() : sceneBox();
+    if (m_resizeBody != 0)
+        m_dragStart = m_composition;
     m_startScenePos = scenePos;
     m_moved         = grip == Grip::Shape && beginShapeDrag(handle);
     m_dragReported  = false;
@@ -445,6 +451,18 @@ void Object::dragTo(const QPointF& scenePos, Qt::KeyboardModifiers modifiers)
     const std::optional<QRectF> r = resizedRect(m_startRect, m_active, delta, rule);
     if (!r)
         return;   // refused, not clamped: the box keeps its last good size
+
+    if (m_resizeBody != 0) {
+        // The bubble alone: its place and size in the object's units; the object itself stays where it is.
+        Composition next = m_dragStart;
+        Chain::resizeBody(next, m_resizeBody,
+                          QRectF(mapFromScene(r->topLeft()), QSizeF(qRound(r->width() / k), qRound(r->height() / k))));
+        m_dragReported = true;
+        emit compositionEdited(m_uid, next);
+        refreshBounds();
+        update();
+        return;
+    }
 
     const QSizeF box(qRound(r->width() / k), qRound(r->height() / k));
     // How far the top-left moves, in item units — what a tail tip has to move back by to keep pointing

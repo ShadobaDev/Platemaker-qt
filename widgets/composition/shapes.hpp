@@ -229,6 +229,9 @@ constexpr int k_maxRegularPoints = 64;
  */
 [[nodiscard]] QRectF balloonRect(const Balloon& b, const Body& body);
 
+//! What @p b's fill is laid over (a fade, its handles): every body's balloonRect() as one.
+[[nodiscard]] QRectF fillBox(const Balloon& b);
+
 //! @p body's own outline in @p rect (balloonRect()) — the shape alone, no tails, its edge dealt by @p seed.
 [[nodiscard]] QPainterPath outlineOf(const Body& body, const QRectF& rect, quint32 seed);
 

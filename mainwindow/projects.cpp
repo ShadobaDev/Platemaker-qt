@@ -648,9 +648,10 @@ void MainWindow::openStripEditorDock(int projectIndex)
     });
     connect(editor, &StripEdit::Editor::overlaysCommitted, this,
             [this, projectUid](const std::vector<Platemaker::Models::StripOverlay> &overlays,
-                                 const Composition::Map &compositions, const QString &undoText) {
+                                 const Composition::Map &compositions, const QString &undoText,
+                                 const QList<Composition> &created) {
         if (auto *pw = projectWidget(projectIndexForUid(projectUid)))
-            pw->applyOverlays(overlays, compositions, undoText);
+            pw->applyOverlays(overlays, compositions, undoText, created);
     });
     // Its own advisory strip, along the bottom. Dragged out, this dock is a top-level window with no
     // status bar; maximised, it covers the one behind it. Either way the chapter's problems would be

@@ -1287,6 +1287,11 @@ void ObjectController::deleteSelectedTail()
     if (!bubble)
         return;
     Composition a = bubble->composition();
+    // A bridge taken out cuts the chain in two: each piece a balloon of its own.
+    if (const int i = selectedTail(); a.balloon && i >= 0 && i < a.balloon->tails.size() && a.balloon->tails.at(i).isBridge()) {
+        applyPieces(m_selection.primary(), Chain::withoutBridge(a, a.balloon->tails.at(i).id), tr("Delete bridge"));
+        return;
+    }
     if (!Edits::removeTails(a, {selectedTail()}))
         return;
 
@@ -1315,13 +1320,8 @@ void ObjectController::deleteSelectedWords()
 
 bool ObjectController::canDeleteSelectedBubble() const
 {
-    const ElementRef body = m_selection.body();
-    const Object*    item = m_overlayItems.value(body.object);
-    if (!item || !item->isChain())
-        return false;
-    // An end leaves one chain; a middle bubble would split it in two, which is joining's other half.
-    return Chain::chainEnd(*item->composition().balloon, body.element)
-        && Chain::withoutBody(item->composition(), body.element).size() == 1;
+    const Object* item = m_overlayItems.value(m_selection.body().object);
+    return item && item->isChain();
 }
 
 void ObjectController::deleteSelectedBubble()
@@ -1329,10 +1329,46 @@ void ObjectController::deleteSelectedBubble()
     if (!canDeleteSelectedBubble())
         return;
     const ElementRef body = m_selection.body();
-    const Composition a   = Chain::withoutBody(m_overlayItems.value(body.object)->composition(), body.element).first();
-    selectOverlay(body.object);   // the balloon is what is left to hold, selected before the edit goes out
-    applyComposition(body.object, a, /*commit=*/true, tr("Delete bubble"));
-    m_panel->show(a);
+    applyPieces(body.object, Chain::withoutBody(m_overlayItems.value(body.object)->composition(), body.element),
+                tr("Delete bubble"));
+}
+
+void ObjectController::applyPieces(const QString& uid, const QList<Composition>& pieces, const QString& undoText)
+{
+    const Object*            item     = m_overlayItems.value(uid);
+    const Document::Overlay* original = m_document.overlay(uid);
+    if (!item || !original || pieces.isEmpty())
+        return;
+
+    // Each piece after the first is a new overlay where it stood, on the same page, its look a copy: in the
+    // original's frame, so placed as its drawing lies in the original object, before the first settles.
+    const std::string              id       = original->uid;   // the document is written below
+    std::vector<Document::Overlay> overlays = m_document.overlays();
+    const auto ofId = [&id](const Document::Overlay& o) { return o.uid == id; };
+    auto       at   = std::find_if(overlays.begin(), overlays.end(), ofId);
+    const qreal k = item->scale();
+    for (qsizetype i = 1; i < pieces.size(); ++i) {
+        const QRectF                drawn = Geometry::bounds(pieces.at(i));
+        const StripLayout::Anchored place = m_layout.anchoredOn(QString::fromStdString(original->anchorInputUid),
+                                                                item->pos() + drawn.topLeft() * k, drawn.width() * k);
+        Document::Overlay o = *original;
+        o.uid.clear();   // new: the library mints it
+        o.assetPath.clear();
+        o.sha256.clear();
+        o.xFrac = place.xFrac;
+        o.yFrac = place.yFrac;
+        o.wFrac = place.wFrac;
+        at      = overlays.insert(at + 1, o);   // over the original, in the order of the pieces
+    }
+
+    selectOverlay(uid);   // the first piece is what is left to hold, selected before the edit goes out
+    applyComposition(uid, pieces.first(), /*commit=*/false);
+    writePlacement(uid, /*rehome=*/false);
+    // The first piece's placement, just written, into the list the new ones were put in.
+    *std::find_if(overlays.begin(), overlays.end(), ofId) = *m_document.overlay(uid);
+    emit stackChanged();
+    emit overlaysCommitted(overlays, m_document.compositions(), undoText, pieces.mid(1));
+    m_panel->show(pieces.first());
 }
 
 void ObjectController::deleteSelectedOverlay()
@@ -1571,7 +1607,7 @@ void ObjectController::duplicateSelectedOverlay()
 
 void ObjectController::pushOverlays(const QString& undoText)
 {
-    emit overlaysCommitted(m_document.overlays(), m_document.compositions(), undoText);
+    emit overlaysCommitted(m_document.overlays(), m_document.compositions(), undoText, {});
 }
 
 // --- a new object -----------------------------------------------------------

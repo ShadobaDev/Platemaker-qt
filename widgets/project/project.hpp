@@ -239,13 +239,19 @@ public:
      * \brief Stores a complete new overlay state — move, restyle, delete, reorder or mute — as one
      *        undo step, re-writing the assets whose composition changed.
      * 
+     * An overlay with no uid is a new one (a balloon split in two): its SVG written from the next of @p created,
+     * then registered through `ProjectItem::addOverlay()`, which mints its uid, in the same step and at its place
+     * in the order. Refused whole when one of them cannot be written.
+     *
      * \param overlays The new overlays, in the order they are drawn.
      * \param compositions The new compositions for those overlays, keyed by `StripOverlay::uid`.
      * \param undoText The text to display for the undo action.
+     * \param created The compositions of the overlays with no uid, in their order.
      */
     void applyOverlays(std::vector<Platemaker::Models::StripOverlay> overlays,
                        Composition::Map                                  compositions,
-                       const QString&                               undoText);
+                       const QString&                               undoText,
+                       const QList<Composition>&                    created = {});
 
     /**
      * \brief Deletes the overlays @p uids, with their compositions, as one undo step. Through

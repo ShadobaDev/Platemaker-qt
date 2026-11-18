@@ -455,7 +455,7 @@ public:
     void addWords();
     //! Whether *Add bubble* applies: one balloon selected, or a bubble of it, that bubble (or the chain's last) an end.
     [[nodiscard]] bool canAddBubble() const;
-    //! Whether the picked bubble can be deleted: it ends a chain of more than one (a middle one would split it).
+    //! Whether the picked bubble can be deleted: one of a chain of more than one (a middle one splits it).
     [[nodiscard]] bool canDeleteSelectedBubble() const;
     /**
      * \brief *Add bubble*: a new bubble after the picked one (or the chain's last), below and to the right, bridged
@@ -507,9 +507,12 @@ signals:
      * \param overlays  The new overlay set, in composite order.
      * \param compositions  The new compositions of the overlays, keyed by uid.
      * \param undoText  The text to use for the undo step that will be created
+     * \param created  The compositions of the overlays with no uid yet, in their order: new ones, made in the same
+     *                 step (a balloon split in two), their uids minted by the library.
      */
     void overlaysCommitted(const std::vector<Platemaker::Models::StripOverlay>& overlays,
-                        const Composition::Map& compositions, const QString& undoText);
+                        const Composition::Map& compositions, const QString& undoText,
+                        const QList<Composition>& created);
     /**
      * \brief Artwork drawn elsewhere should be copied into the workspace and registered here.
      *
@@ -627,8 +630,13 @@ private:
     void deleteSelectedTail();
     //! Delete with words picked: those words, never the last (Edits::removeWords()); the object is what is left to hold.
     void deleteSelectedWords();
-    //! Delete with a bubble picked: that bubble, its words and tails, when it ends the chain; the balloon is left held.
+    //! Delete with a bubble picked: that bubble, its words and tails; a middle one splits the chain (applyPieces()).
     void deleteSelectedBubble();
+    /**
+     * \brief Object @p uid as @p pieces, one commit labelled @p undoText: the first stays the object, held; each
+     *        other becomes a new overlay over it, where it stood on the strip, on the same page, in a copy of its look.
+     */
+    void applyPieces(const QString& uid, const QList<Composition>& pieces, const QString& undoText);
     //! Whether @p ref's object still has those words.
     [[nodiscard]] bool hasWords(const ElementRef& ref) const;
     //! Whether @p ref's object still has that body.

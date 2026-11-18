@@ -1051,7 +1051,8 @@ void Project::deleteOverlays(const QStringList& uids, const QString& undoText)
 
 void Project::applyOverlays(std::vector<Platemaker::Models::StripOverlay> overlays,
                             Composition::Map                                  compositions,
-                            const QString&                               undoText)
+                            const QString&                               undoText,
+                            const QList<Composition>&                    created)
 {
     // Refused whole rather than applied without its files: a composition saying one thing while the file the
     // render reads says another is worse than an edit that did not happen.
@@ -1061,9 +1062,24 @@ void Project::applyOverlays(std::vector<Platemaker::Models::StripOverlay> overla
     const QString dir = CompositionStore::ensureOverlaysDir(m_workspacePath);
     QStringList   failed;
 
+    // The new ones first: without its file, a new overlay is not made, and the step it belongs to neither.
+    const auto isNew = [](const Platemaker::Models::StripOverlay& o) { return o.uid.empty(); };
+    if (std::count_if(overlays.begin(), overlays.end(), isNew) != created.size())
+        return;   // a caller that lost count; registering half of it is worse
+    QStringList assets;
+    for (const Composition& c : created) {
+        assets << (dir.isEmpty() ? QString{} : Svg::writeFile(dir, c));
+        if (assets.last().isEmpty()) {
+            QMessageBox::warning(this, tr("Text & bubbles"), tr("Could not write the bubble to:\n%1").arg(dir));
+            return;
+        }
+    }
+
     // Re-write only what actually changed. A move or a reorder touches no artwork, so the common
     // gesture writes no files at all; a text or styling edit rewrites exactly one bubble.
     for (auto& o : overlays) {
+        if (isNew(o))
+            continue;
         const QString uid = QString::fromStdString(o.uid);
         const auto    it  = compositions.constFind(uid);
         if (it == compositions.constEnd())
@@ -1100,8 +1116,23 @@ void Project::applyOverlays(std::vector<Platemaker::Models::StripOverlay> overla
 
     commitOverlayEdit(undoText, [&] {
         auto& item = m_workspace.projectItems[m_projectIndex];
+        m_compositions = std::move(compositions);
+        // The library mints each new uid; addOverlay() appends, so each is then put back at its place.
+        std::vector<Platemaker::Models::StripOverlay> kept;
+        std::copy_if(overlays.begin(), overlays.end(), std::back_inserter(kept), [&](const auto& o) { return !isNew(o); });
+        item.getStripOverlays() = kept;
+        qsizetype next = 0;
+        for (auto& o : overlays) {
+            if (!isNew(o))
+                continue;
+            const std::string uid = item.addOverlay(assets.at(next).toStdString(), o.xFrac, o.yFrac, o.wFrac, o.blend,
+                                                    o.anchorInputUid);
+            const bool enabled = o.enabled;
+            o                  = item.getStripOverlays().back();
+            o.enabled          = enabled;
+            m_compositions.insert(QString::fromStdString(uid), created.at(next++));
+        }
         item.getStripOverlays() = std::move(overlays);
-        m_compositions             = std::move(compositions);
         storeContents();
         emit compositionsChanged(m_compositions);
         emit projectModified();

@@ -101,6 +101,49 @@ bool BubbleObject::handleDrawn(int index) const
     return isTip(index) && m_tailDrawn.value(index, false);
 }
 
+int BubbleObject::bodyAt(const QPointF& local) const
+{
+    if (!m_composition.balloon || m_composition.balloon->bodies.size() < 2)
+        return 0;
+    const Balloon& b = *m_composition.balloon;
+    // The last drawn on top, so tried first.
+    for (auto body = b.bodies.crbegin(); body != b.bodies.crend(); ++body)
+        if (Geometry::outlineOf(*body, Geometry::balloonRect(b, *body), m_composition.seed).contains(local))
+            return body->id;
+    return 0;
+}
+
+QRectF BubbleObject::bodyBox(int id) const
+{
+    if (m_composition.balloon)
+        for (const Body& b : m_composition.balloon->bodies)
+            if (b.id == id)
+                return QRectF(b.place.pos, QSizeF(b.size));
+    return {};
+}
+
+bool BubbleObject::isChain() const
+{
+    return m_composition.balloon && m_composition.balloon->bodies.size() > 1;
+}
+
+QRectF BubbleObject::frameBox() const
+{
+    return isChain() ? frameOf(m_composition) : Object::frameBox();
+}
+
+QPainterPath BubbleObject::hitArea() const
+{
+    if (!isChain())
+        return Object::hitArea();
+    // Every bubble's box, and the outline the bridges join them into: a press on a bridge reaches the object.
+    QPainterPath p = m_paths.silhouette;
+    p.setFillRule(Qt::WindingFill);
+    for (const Body& b : m_composition.balloon->bodies)
+        p.addRect(QRectF(b.place.pos, QSizeF(b.size)));
+    return p;
+}
+
 bool BubbleObject::isTip(int index) const
 {
     return index >= 0 && index < handleCount() && !m_composition.balloon->tails.at(index).isBridge();

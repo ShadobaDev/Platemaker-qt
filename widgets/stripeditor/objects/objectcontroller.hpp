@@ -135,6 +135,8 @@ public:
     void selectWords(const QString& uid, int id);
     //! Selects body @p id of balloon @p uid, one bubble of several, the Shape section its own; the balloon when it is gone.
     void selectBody(const QString& uid, int id);
+    //! Esc: from words or a bubble picked on its own back to their object; whether there was one to leave.
+    bool leaveElement();
     /**
      * \brief Scrolls the strip to a subject: an object or a tail centred in the view, a page with its top
      *        at the view's top. The strip, or a subject that is gone, moves nothing.
@@ -619,6 +621,8 @@ private:
     [[nodiscard]] bool hasWords(const ElementRef& ref) const;
     //! Whether @p ref's object still has that body.
     [[nodiscard]] bool hasBody(const ElementRef& ref) const;
+    //! A press in body @p id of @p uid's balloon, already selected: picks it, unless the same press picked words.
+    void onBodyPressed(const QString& uid, int id);
     //! The selection just made, shown: the items selected, their tails and words marked, the panel bound.
     void showSelection();
 

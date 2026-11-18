@@ -160,8 +160,14 @@ ObjectMenu::ObjectMenu(ObjectController& objects, const StripLayout& layout, Pre
     m_actEditShape = new QAction(tr("Edit shape"), this);
     m_actEditShape->setCheckable(true);
     connect(m_actEditShape, &QAction::triggered, &m_objects.shapeEdit(), &ShapeEditMode::setOn);
-    new QShortcut(QKeySequence(Qt::Key_Escape), m_view, [this] { m_objects.shapeEdit().setOn(false); },
-                  Qt::WidgetShortcut);
+    // Esc steps out one level: shape editing first, then words or a bubble picked on their own.
+    new QShortcut(QKeySequence(Qt::Key_Escape), m_view, [this] {
+            if (m_objects.shapeEdit().isOn())
+                m_objects.shapeEdit().setOn(false);
+            else
+                m_objects.leaveElement();
+        },
+        Qt::WidgetShortcut);
     connect(&m_objects.shapeEdit(), &ShapeEditMode::changed, this, &ObjectMenu::updateEntries);
 
     // A Curve's own: the type of the node picked in shape editing — a right-click on a node

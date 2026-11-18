@@ -1,4 +1,5 @@
 #include "objects/object.hpp"
+#include "chain.hpp"
 
 #include <QGraphicsScene>
 #include <QGuiApplication>
@@ -111,9 +112,8 @@ QPainterPath Object::shape() const
     // Rectangles only, and all of them wound the same way, so the winding rule can be trusted where they
     // overlap — a tip sitting on the box must add to the hit area, not punch a hole in it, which is
     // exactly what the default odd-even rule would do.
-    QPainterPath p;
+    QPainterPath p = hitArea();
     p.setFillRule(Qt::WindingFill);
-    p.addRect(QRectF(QPointF(0, 0), boxSize()));
 
     // A tail tip is grabbable whether or not the object is selected — it is how a bubble is aimed, and
     // it is usually the only part of it out there. Not one hidden inside its balloon: that spot shows
@@ -182,6 +182,27 @@ qreal Object::gripSpanHere() const
 Geometry::HandleContext Object::handleContext() const
 {
     return {gripSpanHere() * k_radiusDotClearance, pickedVertices(), markedWords()};
+}
+
+void Object::setPickedBody(int id)
+{
+    if (m_pickedBody == id)
+        return;
+    m_pickedBody = id;
+    emit chromeChanged();
+}
+
+QRectF Object::chromeBox() const
+{
+    const QRectF body = m_pickedBody != 0 ? bodyBox(m_pickedBody) : QRectF();
+    return mapRectToScene(body.isEmpty() ? frameBox() : body);
+}
+
+QPainterPath Object::hitArea() const
+{
+    QPainterPath p;
+    p.addRect(QRectF(QPointF(0, 0), boxSize()));
+    return p;
 }
 
 void Object::setPickedWords(int id)
@@ -355,6 +376,15 @@ void Object::beginDrag(Grip grip, int handle, const QPointF& scenePos)
         emit wordsPressed(m_uid, m_shapeHandle.element);
     if (grip == Grip::Shape)
         emit chromeChanged();   // the pressed handle is drawn as pressed
+    // A click goes through: a press in one bubble of a chain already selected picks and moves that bubble; the
+    // first press, one on a bridge, or one with Ctrl (which gathers objects) moves the whole object.
+    m_dragBody = grip == Grip::Body && m_wasSelected && !(QGuiApplication::keyboardModifiers() & Qt::ControlModifier)
+                     ? bodyAt(mapFromScene(scenePos))
+                     : 0;
+    if (m_dragBody != 0) {
+        m_dragStart = m_composition;
+        emit bodyPressed(m_uid, m_dragBody);
+    }
 }
 
 void Object::dragTo(const QPointF& scenePos, Qt::KeyboardModifiers modifiers)
@@ -364,6 +394,17 @@ void Object::dragTo(const QPointF& scenePos, Qt::KeyboardModifiers modifiers)
 
     const QPointF delta = scenePos - m_startScenePos;
     m_moved = true;
+
+    if (m_active == Grip::Body && m_dragBody != 0) {
+        // The body and the tails leaving it, by the delta in the object's own units.
+        Composition next = m_dragStart;
+        Chain::moveBody(next, m_dragBody, delta / (scale() > 0.0 ? scale() : 1.0));
+        m_dragReported = true;
+        emit compositionEdited(m_uid, next);
+        refreshBounds();
+        update();
+        return;
+    }
 
     if (m_active == Grip::Body) {
         setPos(m_startRect.topLeft() + delta);
@@ -459,6 +500,7 @@ void Object::mousePressEvent(QGraphicsSceneMouseEvent* e)
     }
 
     // Let the base class run the selection logic (which may select this object), then start the drag.
+    m_wasSelected = isSelected();
     QGraphicsObject::mousePressEvent(e);
 
     int handle = -1;

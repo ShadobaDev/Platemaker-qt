@@ -96,6 +96,18 @@ QList<int> order(const Balloon& b)
     return out;
 }
 
+void moveBody(Composition& c, int body, const QPointF& by)
+{
+    if (!c.balloon)
+        return;
+    for (Body& b : c.balloon->bodies)
+        if (b.id == body)
+            b.place.pos += by;
+    for (BalloonTail& t : c.balloon->tails)
+        if (t.root == body && !t.isBridge())
+            t.tail.tip += by;
+}
+
 int bridgeBetween(const Balloon& b, int a, int c)
 {
     for (const BalloonTail& t : b.tails)

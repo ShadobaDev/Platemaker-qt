@@ -247,6 +247,22 @@ void ObjectController::selectBody(const QString& uid, int id)
     showSelection();
 }
 
+bool ObjectController::leaveElement()
+{
+    if (m_selection.subject() != Subject::Words && m_selection.subject() != Subject::Body)
+        return false;
+    selectOverlay(m_selection.primary());
+    return true;
+}
+
+void ObjectController::onBodyPressed(const QString& uid, int id)
+{
+    if (m_selection.words().object == uid)
+        return;   // the press was on the letters of words of it: those words are what it picked
+    if (m_selection.body() != ElementRef{uid, id})
+        selectBody(uid, id);
+}
+
 bool ObjectController::hasBody(const ElementRef& ref) const
 {
     const Object* item = m_overlayItems.value(ref.object);
@@ -607,6 +623,7 @@ void ObjectController::syncItems()
                 : static_cast<Object*>(new PictureObject(uid, pictureFor(o)));
             connect(item, &Object::geometryCommitted, this, &ObjectController::onOverlayGeometryCommitted);
             connect(item, &Object::pressed,        this, &ObjectController::onObjectPressed);
+            connect(item, &Object::bodyPressed,    this, &ObjectController::onBodyPressed);
             connect(item, &Object::compositionEdited, this, &ObjectController::onCompositionEdited);
             connect(item, &Object::dragging,       this, &ObjectController::onObjectDragged);
             connect(item, &Object::chromeChanged,  this, &ObjectController::refreshChrome);
@@ -817,6 +834,7 @@ void ObjectController::showSelection()
                 focused << tailIndex(t);
         it.value()->setFocusedHandles(focused);
         it.value()->setPickedWords(m_selection.words().object == it.key() ? m_selection.words().element : 0);
+        it.value()->setPickedBody(m_selection.body().object == it.key() ? m_selection.body().element : 0);
     }
 
     emit selectionChanged();   // the stack's rows and the menu's entries follow it

@@ -120,7 +120,8 @@ QRectF SelectionChrome::gripRect(const Object* o, Grip grip, qreal s) const
     // While one of its tails is the subject, the box is not: its grips are not shown, so they do not
     // resize either — what looks selected is what an edit will change. Nor while its shape is edited,
     // when the outline's own handles take their place.
-    if (o->hasFocusedHandles() || o->shapeEditing())
+    // A chain is moved as one and never resized as one; a bubble of it picked has no grips yet.
+    if (o->hasFocusedHandles() || o->shapeEditing() || o->isChain())
         return {};
 
     const QRectF box = o->sceneBox();
@@ -182,7 +183,7 @@ void SelectionChrome::refresh()
     m_textAreas.clear();
     m_markedAreas.clear();
     for (const Object* o : subjects()) {
-        next = next.united(o->sceneBox().adjusted(-s, -s, s, s));
+        next = next.united(o->sceneBox().adjusted(-s, -s, s, s)).united(o->chromeBox().adjusted(-s, -s, s, s));
         for (int i = 0; i < o->tipCount(); ++i)
             next = next.united(handleRect(o, i, s).adjusted(-1, -1, 1, 1));
         if (o->shapeEditing())
@@ -285,7 +286,7 @@ void SelectionChrome::paint(QPainter* painter, const QStyleOptionGraphicsItem* o
             pen.setStyle(Qt::DashLine);
             painter->setPen(pen);
             painter->setBrush(Qt::NoBrush);
-            painter->drawRect(o->sceneBox());
+            painter->drawRect(o->chromeBox());
         }
 
         pen.setStyle(Qt::SolidLine);

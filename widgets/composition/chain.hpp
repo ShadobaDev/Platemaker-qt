@@ -50,6 +50,9 @@ enum class ChainError {
 //! The bridge between bodies @p a and @p c, its id; 0 for none.
 [[nodiscard]] int bridgeBetween(const Balloon& b, int a, int c);
 
+//! Body @p body of @p c moved @p by, with the tails leaving it; its words sit on it, its bridges stretch.
+void moveBody(Composition& c, int body, const QPointF& by);
+
 //! Whether a bridge from @p from to @p to may be added to @p b, and why not.
 [[nodiscard]] ChainError canBridge(const Balloon& b, int from, int to);
 

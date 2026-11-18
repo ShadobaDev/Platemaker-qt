@@ -179,6 +179,21 @@ TEST(Chain, AChainIsReadFromAnEndAlongItsBridges)
     EXPECT_EQ(bridgeBetween(*c.balloon, bodyId(c, 0), b), bridgeBetween(*c.balloon, b, bodyId(c, 0)));
     EXPECT_EQ(bridgeBetween(*c.balloon, b, last), 0);
 
+    // A bubble moved takes its tails and its words; the others, and the bridges' ends, stay.
+    BalloonTail tail;
+    tail.id       = c.nextId++;
+    tail.root     = last;
+    tail.tail.tip = QPointF(10, 20);
+    c.balloon->tails.append(tail);
+    const Composition before = c;
+    moveBody(c, last, QPointF(5, -7));
+    EXPECT_EQ(c.balloon->bodies.at(2).place.pos, before.balloon->bodies.at(2).place.pos + QPointF(5, -7));
+    EXPECT_EQ(c.balloon->bodies.at(0).place, before.balloon->bodies.at(0).place);
+    EXPECT_EQ(c.balloon->tails.last().tail.tip, QPointF(15, 13));
+    for (qsizetype i = 0; i + 1 < c.balloon->tails.size(); ++i)   // the bridges
+        EXPECT_EQ(c.balloon->tails.at(i), before.balloon->tails.at(i));
+    EXPECT_EQ(c.words, before.words);   // seated: they follow their body without a change of their own
+
     // Each body's shape is its own: the Shape section of a bubble picked alone writes that one.
     ShapeProperties round = ShapeProperties::from(c, last);
     round.kind            = ShapeProperties::Kind::Ellipse;

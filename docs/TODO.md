@@ -414,6 +414,27 @@ New, backward-compatible features. Several are gated on a lib version, noted in 
   model holds it: a balloon is a list of bodies (`Balloon::bodies`), words sit on a body (`Words::seat`) and a
   tail leaves one (its root); everything but the neck and the joining reads the first body today.
 
+- [ ] **The chapter's text at once: a script out and back in.** Every words of a project in reading order
+  (down the strip; in a joined balloon along its chain; in a body, its words in order), written to a plain
+  text file, one paragraph per words, and read back into the same words in that order, as one undo step. It
+  serves a translator's round trip, and a script poured into balloons already placed. A larger form is a list
+  of every words of the chapter, edited in place (Clip Studio's Story Editor). To decide: what a run becomes
+  when its text is replaced; a file whose count does not match (refuse, or report the difference); whether
+  text objects and lettered pictures are included.
+
+- [ ] **Lettering: letter spacing, kerning and the rest.**
+  - **Letter spacing** (tracking), for the words and for a run: one field in `TextProperties::fields()`,
+    applied in `layOutText()` and measured by `textBlockSize()`, so *Fit to text* follows it.
+  - **Kerning** from the font's metrics, on or off, and a **horizontal scale** of the glyphs.
+  - **To decide:**
+    - Wrapping at the frame. Today the lines are the author's (`QTextOption::NoWrap`), which is what
+      keeps fitting pure geometry; a one-shot *Re-break to width* would keep that.
+    - Vertical text and readings (ruby).
+    - A warp along a curve.
+
+- [ ] **Undo depth — low priority.** Each project's history keeps 20 steps. Raise it, or make it a setting,
+  after measuring what a step costs in memory (a step holds compositions).
+
 - [ ] **Tools and object kinds added from outside the editor (plugins) — idea, to decide after joined
   balloons.** The editor reads tools (`tools()`), shapes and edges (`ShapeInfo`, `EdgeInfo`) and property
   fields (`fields()`) from tables, and draws every object as a `Render::Item` list. That is a registry's shape.
@@ -466,7 +487,8 @@ New, backward-compatible features. Several are gated on a lib version, noted in 
     soft a glow.
   - A shadow is never a union of its caster and its growth: drawn as the body and a band in one layer or
     group (a union of a line of lettering took 1.5 s).
-  - **Left, only if asked:** letter spacing, a warp along a curve (a style per word came as runs, below). A lettered picture's
+  - **Left:** letter spacing and a warp along a curve are in *Lettering: letter spacing, kerning and the
+    rest*, above (a style per word came as runs, below). A lettered picture's
     soft shadow shows hard on the strip (the picture is drawn by its own item, not through the library)
     and blurred in the output.
 

@@ -42,6 +42,11 @@ public:
     //! A tail whose tip lies inside the balloon draws nothing; its handle is the chrome's only.
     [[nodiscard]] bool handleDrawn(int index) const override;
     [[nodiscard]] bool isTip(int index) const override;
+    [[nodiscard]] int    bodyAt(const QPointF& local) const override;
+    [[nodiscard]] QRectF bodyBox(int id) const override;
+    [[nodiscard]] QRectF frameBox() const override;
+    [[nodiscard]] bool   isChain() const override;
+    [[nodiscard]] QPainterPath hitArea() const override;
     /**
      * \brief Returns the label for the object.
      * \return The label for the object.

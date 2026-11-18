@@ -462,6 +462,14 @@ public:
      *        to it, with empty words in its lettering (Chain::addBody()); picked.
      */
     void addBubble();
+    //! Whether *Join* applies: two balloons selected, whole (not as a tail's carrier), each with a chain end.
+    [[nodiscard]] bool canJoin() const;
+    /**
+     * \brief *Join*: the second balloon picked taken into the first where it lies on the strip, bridged between the
+     *        chain ends nearest each other (Chain::join()); its overlay removed, the first keeping its own and its look.
+     *        One undo step; the joined balloon selected.
+     */
+    void joinSelection();
 
     // --- a new object: asked for here, created by the owner, selected when it comes back in the feed ---
     //! Asks the owner for a new authored object; it is selected when the feed brings it back.

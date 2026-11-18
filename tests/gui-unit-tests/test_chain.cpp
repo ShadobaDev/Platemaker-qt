@@ -521,3 +521,29 @@ TEST(Chain, ATailAnchoredNearTheEdgeLeavesWithNoNotch)
     const QPointF shown = Geometry::tailHandles(flat, tail.id).first().at;
     EXPECT_LT(QLineF(rect.center(), shown).length(), QLineF(rect.center(), from).length());
 }
+
+//! *Join*: the other balloon taken in where it lies, bridged from the nearer end of this chain to the nearer of its.
+TEST(Chain, JoiningBridgesTheTwoEndsNearestEachOther)
+{
+    const Composition three = chainOfThree();   // A-B-C, each further right and down
+    const QList<int>  ends  = order(*three.balloon);
+    Composition       a     = three;
+    // Past C: the bridge goes from C, not from A.
+    const Body&       c     = *bodyOf(three, ends.last());
+    ASSERT_EQ(join(a, balloon(QStringLiteral("after")), c.place.pos + k_apart), ChainError::None);
+
+    EXPECT_EQ(a.balloon->bodies.size(), 4);
+    EXPECT_EQ(pieces(a).size(), 1);
+    const BalloonTail& bridge = a.balloon->tails.last();
+    ASSERT_TRUE(bridge.isBridge());
+    EXPECT_EQ(bridge.root, ends.last());
+    EXPECT_EQ(bridge.to, a.balloon->bodies.last().id);
+    EXPECT_EQ(a.balloon->style, three.balloon->style);   // the first's look
+
+    // Nothing to join to is refused, the balloon unchanged.
+    Composition kept = three;
+    Composition none = balloon();
+    none.balloon.reset();
+    EXPECT_EQ(join(kept, none, k_apart), ChainError::NoBalloon);
+    EXPECT_EQ(kept, three);
+}

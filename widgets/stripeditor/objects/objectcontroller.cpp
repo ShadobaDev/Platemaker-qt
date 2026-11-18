@@ -122,10 +122,19 @@ ObjectController::ObjectController(QGraphicsScene* scene, QGraphicsView* view,
         if (m_syncingList) return;
         // The scene has always multi-selected — items are selectable, so Ctrl+click adds to it. This used
         // to take the first object and drop the rest, which is why the canvas could only ever hold one.
-        QStringList picked;
+        QStringList now;
         for (QGraphicsItem* gi : m_scene->selectedItems())
             if (auto* obj = dynamic_cast<Object*>(gi))
-                picked.append(obj->uid());
+                now.append(obj->uid());
+        // In the order they were picked, which the scene does not keep: those still selected as they were, the new
+        // ones after them. *Join* keeps the first picked, and the primary is the last.
+        QStringList picked;
+        for (const QString& uid : std::as_const(m_selection.objects()))
+            if (now.contains(uid))
+                picked.append(uid);
+        for (const QString& uid : std::as_const(now))
+            if (!picked.contains(uid))
+                picked.append(uid);
         selectOverlays(picked);
     });
     // An object removed while selected leaves the selection without a word to the chrome from the
@@ -998,6 +1007,47 @@ void ObjectController::addBubble()
         return;
     applyComposition(uid, a, /*commit=*/true, tr("Add bubble"));
     selectBody(uid, added);
+}
+
+bool ObjectController::canJoin() const
+{
+    const QStringList& picked = m_selection.objects();
+    if (picked.size() != 2 || !m_selection.elements().isEmpty() || m_selection.subject() != Subject::Overlay)
+        return false;
+    return std::all_of(picked.cbegin(), picked.cend(), [this](const QString& uid) {
+        const Object* item = m_overlayItems.value(uid);
+        if (!item || !item->composition().balloon)
+            return false;
+        const Balloon& b = *item->composition().balloon;
+        return std::any_of(b.bodies.cbegin(), b.bodies.cend(),
+                           [&b](const Body& body) { return Chain::chainEnd(b, body.id); });
+    });
+}
+
+void ObjectController::joinSelection()
+{
+    if (!canJoin())
+        return;
+    const QString keep  = m_selection.objects().first();   // the first picked keeps its overlay and its look
+    const QString other = m_selection.objects().last();
+    Object*       into  = m_overlayItems.value(keep);
+    const Object* from  = m_overlayItems.value(other);
+    // Where the other's frame lies in this one's, as they sit on the strip.
+    // ponytail: a translation; two objects of different scales (a chapter re-profiled under one) would need a scale too.
+    const QPointF by   = into->mapFromScene(from->mapToScene(QPointF()));
+    Composition   next = into->composition();
+    if (Chain::join(next, from->composition(), by) != Chain::ChainError::None)
+        return;
+
+    m_document.setComposition(keep, next);
+    into->setComposition(next);
+    writePlacement(keep);
+    m_document.remove({other});
+    selectOverlay(keep);
+    syncItems();
+    emit stackChanged();
+    pushOverlays(tr("Join balloons"));
+    m_panel->show(next);
 }
 
 int ObjectController::presetTargetCount() const

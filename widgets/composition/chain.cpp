@@ -1,7 +1,10 @@
 #include "chain.hpp"
 
 #include <QHash>
+#include <QLineF>
 #include <QSet>
+
+#include <limits>
 
 namespace Chain {
 
@@ -249,6 +252,43 @@ ChainError merge(Composition& c, const Composition& other, const QPointF& by, QL
             w.place.pos += by;
         c.words.append(w);
     }
+    return ChainError::None;
+}
+
+ChainError join(Composition& c, const Composition& other, const QPointF& by)
+{
+    if (!c.balloon || !other.balloon)
+        return ChainError::NoBalloon;
+    Composition next = c;
+    QList<int>  merged;
+    if (const ChainError e = merge(next, other, by, &merged); e != ChainError::None)
+        return e;
+
+    const auto middle = [&next](int id) {
+        const Body* b = bodyOf(next, id);
+        return QRectF(b->place.pos, QSizeF(b->size)).center();
+    };
+    int   from = 0, to = 0;
+    qreal best = std::numeric_limits<qreal>::max();
+    for (const Body& own : c.balloon->bodies) {
+        if (!chainEnd(*next.balloon, own.id))
+            continue;
+        for (int theirs : std::as_const(merged)) {
+            if (!chainEnd(*next.balloon, theirs))
+                continue;
+            const qreal apart = QLineF(middle(own.id), middle(theirs)).length();
+            if (apart < best) {
+                best = apart;
+                from = own.id;
+                to   = theirs;
+            }
+        }
+    }
+    if (from == 0)
+        return ChainError::NotAChainEnd;
+    if (const ChainError e = addBridge(next, from, to); e != ChainError::None)
+        return e;
+    c = next;
     return ChainError::None;
 }
 

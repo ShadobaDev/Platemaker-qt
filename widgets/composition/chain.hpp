@@ -94,6 +94,14 @@ ChainError addBody(Composition& c, int from, const QPointF& by, int* added = nul
 ChainError merge(Composition& c, const Composition& other, const QPointF& by, QList<int>* bodies = nullptr);
 
 /**
+ * \brief @p other joined to @p c: merged into it, moved by @p by (merge()), and bridged from the end of @p c's chain to
+ *        the end of @p other's that lie nearest each other, by their boxes' middles: the menu's *Join* of two balloons.
+ *
+ * @p c keeps its style, as merge() does. Refused, @p c as it was, unless both have a balloon with a chain end.
+ */
+ChainError join(Composition& c, const Composition& other, const QPointF& by);
+
+/**
  * \brief @p c cut into its chains: one composition per set of bodies the bridges join, each with its tails and
  *        the words seated on it. The first holds the first body, and the words with no seat.
  *

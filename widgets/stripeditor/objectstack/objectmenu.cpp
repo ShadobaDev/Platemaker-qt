@@ -17,7 +17,7 @@
 #include <QKeySequence>
 #include <QMenu>
 #include <QMessageBox>
-#include <QShortcut>
+#include <QKeyEvent>
 
 #include <algorithm>
 #include <optional>
@@ -160,14 +160,10 @@ ObjectMenu::ObjectMenu(ObjectController& objects, const StripLayout& layout, Pre
     m_actEditShape = new QAction(tr("Edit shape"), this);
     m_actEditShape->setCheckable(true);
     connect(m_actEditShape, &QAction::triggered, &m_objects.shapeEdit(), &ShapeEditMode::setOn);
-    // Esc steps out one level: shape editing first, then words or a bubble picked on their own.
-    new QShortcut(QKeySequence(Qt::Key_Escape), m_view, [this] {
-            if (m_objects.shapeEdit().isOn())
-                m_objects.shapeEdit().setOn(false);
-            else
-                m_objects.leaveElement();
-        },
-        Qt::WidgetShortcut);
+    // Esc steps out one level: shape editing first, then words or a bubble picked on their own. Not a QShortcut:
+    // the main window's *Stop* is Esc too, and two shortcuts on one key fire neither. The canvas claims the key
+    // (ShortcutOverride) only while there is a level to leave, so Esc still stops a render otherwise.
+    m_view->installEventFilter(this);
     connect(&m_objects.shapeEdit(), &ShapeEditMode::changed, this, &ObjectMenu::updateEntries);
 
     // A Curve's own: the type of the node picked in shape editing — a right-click on a node
@@ -452,6 +448,29 @@ void ObjectMenu::importPicture()
         return;
 
     m_objects.importPictureFile(file);
+}
+
+bool ObjectMenu::eventFilter(QObject* watched, QEvent* e)
+{
+    if (watched != m_view || (e->type() != QEvent::ShortcutOverride && e->type() != QEvent::KeyPress))
+        return QObject::eventFilter(watched, e);
+    if (static_cast<QKeyEvent*>(e)->key() != Qt::Key_Escape)
+        return false;
+    const bool shapeEdit = m_objects.shapeEdit().isOn();
+    const bool element   = m_objects.subject() == Subject::Words || m_objects.subject() == Subject::Body;
+    if (!shapeEdit && !element)
+        return false;   // nothing to step out of: the key is the window's
+    if (e->type() == QEvent::ShortcutOverride) {
+        // The canvas takes Esc before any shortcut does. Consumed, not passed on: the view hands the override to
+        // its scene, which would take the acceptance back, and the key would go to the shortcuts after all.
+        e->accept();
+        return true;
+    }
+    if (shapeEdit)
+        m_objects.shapeEdit().setOn(false);
+    else
+        m_objects.leaveElement();
+    return true;
 }
 
 }  // namespace StripEdit

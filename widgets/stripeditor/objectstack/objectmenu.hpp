@@ -52,6 +52,9 @@ public:
     ObjectMenu(ObjectController& objects, const StripLayout& layout, PresetStore& presets,
                QWidget* tree, QGraphicsView* view, QWidget* dialogParent, QObject* parent);
 
+    //! The canvas's Esc: out of shape editing, then from words or a bubble back to their object.
+    bool eventFilter(QObject* watched, QEvent* e) override;
+
     /**
      * \brief Where the menu's colour entries read from — the tool column's pair. Never written to.
      *

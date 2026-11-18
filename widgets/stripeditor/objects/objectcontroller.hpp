@@ -623,6 +623,8 @@ private:
     [[nodiscard]] bool hasBody(const ElementRef& ref) const;
     //! A press in body @p id of @p uid's balloon, already selected: picks it, unless the same press picked words.
     void onBodyPressed(const QString& uid, int id);
+    //! Whether the press being handled picked words (onObjectPressed()), which a bubble then leaves alone.
+    bool m_pressPickedWords = false;
     //! The selection just made, shown: the items selected, their tails and words marked, the panel bound.
     void showSelection();
 

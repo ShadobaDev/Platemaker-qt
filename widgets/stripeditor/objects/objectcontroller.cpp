@@ -257,7 +257,7 @@ bool ObjectController::leaveElement()
 
 void ObjectController::onBodyPressed(const QString& uid, int id)
 {
-    if (m_selection.words().object == uid)
+    if (m_pressPickedWords)
         return;   // the press was on the letters of words of it: those words are what it picked
     if (m_selection.body() != ElementRef{uid, id})
         selectBody(uid, id);
@@ -304,6 +304,7 @@ void ObjectController::reveal(Subject subject, const QString& id, int tail)
 
 void ObjectController::onObjectPressed(const QString& uid, int handle)
 {
+    m_pressPickedWords = false;
     const bool add = QGuiApplication::keyboardModifiers() & Qt::ControlModifier;
 
     if (handle >= 0) {
@@ -332,7 +333,20 @@ void ObjectController::onObjectPressed(const QString& uid, int handle)
     if (const Object* item = m_overlayItems.value(uid);
         item && !add && m_selection.objects() == QStringList{uid} && item->composition().words.size() > 1
         && item->dragGrip() != Grip::Shape) {
-        if (const int words = wordsPressedAt(item->composition(), item->mapFromScene(item->pressScenePos()))) {
+        const int  words = wordsPressedAt(item->composition(), item->mapFromScene(item->pressScenePos()));
+        // In a chain the click goes through one level at a time: words only inside the bubble already picked
+        // (or the one whose words are picked), so the first press in a bubble picks the bubble.
+        const auto seatOf = [&item](int id) {
+            for (const Words& w : item->composition().words)
+                if (w.id == id)
+                    return w.seat;
+            return 0;
+        };
+        const int  inside = m_selection.body().element != 0 ? m_selection.body().element
+                                                            : seatOf(m_selection.words().element);
+        const bool chainLevel = !item->isChain() || (words != 0 && seatOf(words) == inside);
+        if (words != 0 && chainLevel) {
+            m_pressPickedWords = true;
             if (m_selection.words() != ElementRef{uid, words})
                 selectWords(uid, words);
             beginDrag(uid, handle);
@@ -345,7 +359,12 @@ void ObjectController::onObjectPressed(const QString& uid, int handle)
     // balloon: the scene reports no change, because the balloon was selected all along, carrying them.
     const bool carrier = m_selection.carriers().contains(uid)
                       || (m_selection.subject() == Subject::Tail && uid == m_selection.primary());
-    if (carrier && !add)
+    // ...unless it lands in a bubble of a chain: the bubble is picked next (bodyPressed), and going through the
+    // balloon first would show its OBJECT STATE for a moment.
+    const Object* pressedItem = m_overlayItems.value(uid);
+    const bool    inBubble    = pressedItem && pressedItem->isChain()
+                          && pressedItem->bodyAt(pressedItem->mapFromScene(pressedItem->pressScenePos())) != 0;
+    if (carrier && !add && !inBubble)
         selectOverlay(uid);
     beginDrag(uid, handle);
 

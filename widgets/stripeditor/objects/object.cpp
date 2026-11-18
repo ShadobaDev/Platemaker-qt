@@ -194,7 +194,12 @@ void Object::setPickedBody(int id)
 
 QRectF Object::chromeBox() const
 {
-    const QRectF body = m_pickedBody != 0 ? bodyBox(m_pickedBody) : QRectF();
+    // The bubble picked, or the one the picked words sit on: what the click went through to.
+    int seat = m_pickedBody;
+    for (const Words& w : m_composition.words)
+        if (seat == 0 && m_pickedWords != 0 && w.id == m_pickedWords)
+            seat = w.seat;
+    const QRectF body = seat != 0 ? bodyBox(seat) : QRectF();
     return mapRectToScene(body.isEmpty() ? frameBox() : body);
 }
 

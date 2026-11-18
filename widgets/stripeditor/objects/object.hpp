@@ -143,8 +143,8 @@ public:
     void setPickedBody(int id);
     [[nodiscard]] int pickedBody() const { return m_pickedBody; }
     /**
-     * \brief The box the selection chrome draws: the picked body's (pickedBody()), else the object's
-     *        (sceneBox()), in scene coordinates.
+     * \brief The box the selection chrome draws: the picked body's (pickedBody()), or the body the picked words
+     *        sit on, else the object's (frameBox()), in scene coordinates.
      */
     [[nodiscard]] QRectF chromeBox() const;
     //! The words marked: those picked, or the first; 0 with no words.

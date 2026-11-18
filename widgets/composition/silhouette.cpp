@@ -496,9 +496,62 @@ const BodyOutline* rootOf(const QList<BodyOutline>& bodies, int id)
     return nullptr;
 }
 
-//! What @p t draws: a tail aimed at its root's bare outline, or a bridge between its two bodies.
-TailShape tailShapeOf(const QList<BodyOutline>& bodies, const BalloonTail& t)
+/**
+ * \brief Whether the base at one end of @p t fits inside its body on the tail's line (baseInside()): its root's,
+ *        or a bridge's far one's when @p far; true for an end that draws nothing.
+ *
+ * \param to The bridge's far body; none for a tail.
+ */
+bool endFits(const BodyOutline& root, const BodyOutline* to, const BalloonTail& t, bool far)
 {
+    const BodyOutline&           in = far ? *to : root;
+    const std::optional<TailRay> r  = to ? bridgeRay(root, *to, t, !far) : tailRay(root.outline, root.rect, t.tail);
+    return !r || baseInside(in.outline, *r, t.tail.baseWidth / 2.0, reachOf(in.rect)).has_value();
+}
+
+/**
+ * \brief The anchor at one end of @p t (see endFits()) moved from where it is set towards its body's middle, to
+ *        the last place on that way where the base fits; left where it is when the base fits there, or does not
+ *        in the middle either.
+ */
+void fitEnd(const BodyOutline& root, const BodyOutline* to, BalloonTail& t, bool far)
+{
+    QPointF& anchor = far ? t.toAnchor : t.tail.anchor;
+    if (endFits(root, to, t, far))
+        return;
+    const QPointF set = anchor;
+    anchor            = Tail::k_centre;
+    if (!endFits(root, to, t, far)) {
+        anchor = set;   // fits nowhere on the way: drawn as set, its base's corner out
+        return;
+    }
+    QPointF ok = Tail::k_centre, out = set;
+    for (int i = 0; i < k_edgeSteps; ++i) {
+        anchor = (ok + out) / 2.0;
+        (endFits(root, to, t, far) ? ok : out) = anchor;
+    }
+    anchor = ok;
+}
+
+//! @p t as drawn: each anchor where its base fits (fitEnd()), the root's first, then a bridge's far one.
+BalloonTail fittedOn(const QList<BodyOutline>& bodies, BalloonTail t)
+{
+    if (t.tail.look.style == TailLook::Style::Circles)
+        return t;   // a chain of circles has no base
+    const BodyOutline* root = rootOf(bodies, t.root);
+    const BodyOutline* to   = t.isBridge() ? rootOf(bodies, t.to) : nullptr;
+    if (!root || (t.isBridge() && !to))
+        return t;
+    fitEnd(*root, to, t, false);
+    if (to)
+        fitEnd(*root, to, t, true);
+    return t;
+}
+
+//! What @p t draws: a tail aimed at its root's bare outline, or a bridge between its two bodies.
+TailShape tailShapeOf(const QList<BodyOutline>& bodies, const BalloonTail& set)
+{
+    const BalloonTail  t    = fittedOn(bodies, set);
     const BodyOutline* root = rootOf(bodies, t.root);
     if (!root)
         return {};
@@ -575,26 +628,9 @@ QPainterPath silhouette(const Balloon& b, quint32 seed)
     return path;
 }
 
-bool baseFits(const Balloon& b, const BalloonTail& t, quint32 seed)
+BalloonTail fittedTail(const Balloon& b, const BalloonTail& t, quint32 seed)
 {
-    if (t.tail.look.style == TailLook::Style::Circles)
-        return true;   // a chain of circles has no base
-    const QList<BodyOutline> bodies = bodyOutlines(b, seed);
-    const BodyOutline*       root   = rootOf(bodies, t.root);
-    if (!root)
-        return true;
-    const qreal half = t.tail.baseWidth / 2.0;
-    if (!t.isBridge()) {
-        const std::optional<TailRay> r = tailRay(root->outline, root->rect, t.tail);
-        return !r || baseInside(root->outline, *r, half, reachOf(root->rect)).has_value();
-    }
-    const BodyOutline* to = rootOf(bodies, t.to);
-    if (!to)
-        return true;
-    const std::optional<TailRay> out = bridgeRay(*root, *to, t, true);
-    const std::optional<TailRay> in  = bridgeRay(*root, *to, t, false);
-    return !out || !in
-        || (baseInside(root->outline, *out, half, reachOf(root->rect)) && baseInside(to->outline, *in, half, reachOf(to->rect)));
+    return fittedOn(bodyOutlines(b, seed), t);
 }
 
 QList<bool> tailsDrawn(const Balloon& b, quint32 seed)

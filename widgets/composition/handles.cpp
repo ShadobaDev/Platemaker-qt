@@ -199,14 +199,13 @@ QRectF anchorBox(const Composition& c, const BalloonTail& t, const Handle& h)
 constexpr int k_outlineSteps = 24;
 
 /**
- * \brief A tail's anchor, kept inside its body's outline, and where the tail's base still fits (baseFits()).
+ * \brief A tail's anchor, kept inside its body's outline, and where the tail's base still fits (fittedTail()).
  *
  * Dragged out of the outline, it stops where the line from the body's middle to the pointer leaves it: outside, its
  * line would cross the bubble twice. Dragged where the base would stick out (too near the edge for a tail running
  * along it), it stops on the way from the body's middle to the pointer, at the last place the base fits, so a drag
- * along the edge slides it along that limit under the pointer; where the base fits neither in the middle nor where
- * the anchor was pressed, nothing holds it back. A body whose middle is outside its own outline (a deep notch) keeps
- * it inside the box only.
+ * along the edge slides it along that limit under the pointer; where the base does not fit in the middle either,
+ * nothing holds it back. A body whose middle is outside its own outline (a deep notch) keeps it inside the box only.
  */
 QPointF dragAnchor(Composition& next, const Handle& h, const QPointF& to, const HandleContext&)
 {
@@ -231,24 +230,9 @@ QPointF dragAnchor(Composition& next, const Handle& h, const QPointF& to, const 
         }
         at = in;
     }
-    const auto fits = [&](const QPointF& p) {
-        anchorOf(*t, h) = QPointF((p.x() - box.left()) / box.width(), (p.y() - box.top()) / box.height());
-        return baseFits(*next.balloon, *t, next.seed);
-    };
-    if (!fits(at)) {
-        QPointF ok = box.center();
-        if (!fits(ok))
-            ok = h.at;   // where the anchor was at the press
-        if (fits(ok)) {
-            QPointF out = at;
-            for (int i = 0; i < k_outlineSteps; ++i) {
-                const QPointF mid = (ok + out) / 2.0;
-                (fits(mid) ? ok : out) = mid;
-            }
-            at = ok;
-        }
-        fits(at);
-    }
+    anchorOf(*t, h) = QPointF((at.x() - box.left()) / box.width(), (at.y() - box.top()) / box.height());
+    BalloonTail drawn = fittedTail(*next.balloon, *t, next.seed);
+    anchorOf(*t, h)   = anchorOf(drawn, h);   // the other end of a bridge stays as set
     return {};
 }
 
@@ -303,9 +287,10 @@ QList<Handle> tailHandles(const Composition& c, int tail)
     QList<Handle> out;
     if (!c.balloon)
         return out;
-    for (const BalloonTail& t : c.balloon->tails) {
-        if (t.id != tail)
+    for (const BalloonTail& set : c.balloon->tails) {
+        if (set.id != tail)
             continue;
+        const BalloonTail t = fittedTail(*c.balloon, set, c.seed);   // where the tail is seen to start
         for (int i = 0; i <= (t.isBridge() ? k_farAnchor : 0); ++i) {
             Handle h;
             h.index   = i;

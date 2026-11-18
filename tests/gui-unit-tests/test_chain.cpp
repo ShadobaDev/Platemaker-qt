@@ -52,8 +52,8 @@ void expectOnTheOutline(const Composition& c, int id, const QPointF& anchor)
 }
 
 /**
- * \brief Tail @p id's anchor dragged by @p h stopped at the last place its base fits (Geometry::baseFits()): there
- *        it fits, and a pixel further on the way from its body's middle it does not.
+ * \brief Tail @p id's anchor dragged by @p h stopped at the last place its base fits (Geometry::fittedTail()):
+ *        there it fits, and a pixel further on the way from its body's middle it does not.
  */
 void expectAtTheLimit(const Composition& c, int id, const Geometry::Handle& h, const QPointF& pointer)
 {
@@ -73,13 +73,19 @@ void expectAtTheLimit(const Composition& c, int id, const Geometry::Handle& h, c
                 QLineF(rect.center(), pointer).unitVector().p2().x() - way.p1().x(), k_sameWay);
     EXPECT_NEAR(way.unitVector().p2().y() - way.p1().y(),
                 QLineF(rect.center(), pointer).unitVector().p2().y() - way.p1().y(), k_sameWay);
-    EXPECT_TRUE(Geometry::baseFits(*c.balloon, *tail, c.seed));
+    // Drawn where it is set there, and a pixel further, drawn back nearer the middle.
+    const auto drawnAt = [&](const BalloonTail& t) {
+        const BalloonTail drawn = Geometry::fittedTail(*c.balloon, t, c.seed);
+        return Geometry::anchorAt(rect, far ? drawn.toAnchor : drawn.tail.anchor);
+    };
+    const qreal k_same = 1e-6;                      // pixels: where it is set
+    EXPECT_LT(QLineF(drawnAt(*tail), at).length(), k_same);
 
     BalloonTail   further = *tail;
     const QPointF next    = way.pointAt(1.0 + pixel / way.length());
     (far ? further.toAnchor : further.tail.anchor)
         = QPointF((next.x() - rect.left()) / rect.width(), (next.y() - rect.top()) / rect.height());
-    EXPECT_FALSE(Geometry::baseFits(*c.balloon, further, c.seed));
+    EXPECT_GT(QLineF(drawnAt(further), next).length(), k_same);
 }
 
 QList<int> bodyIds(const Composition& c)
@@ -468,25 +474,27 @@ TEST(Chain, ATailAnchoredNearTheEdgeLeavesWithNoNotch)
     tail.tail.anchor    = anchor;
     tail.tail.tip       = QPointF(rect.right() + out, Geometry::anchorAt(rect, anchor).y() + tail.tail.baseWidth / 4);
     c.balloon->tails.append(tail);
-    const QPainterPath drawn = Geometry::silhouette(*c.balloon, c.seed);
-
-    // The underside, a column at a time from the middle to near the tip: how low the silhouette reaches.
+    // The underside, a column at a time from the middle to @p end: how low the silhouette reaches.
     const qreal step = 1.0;                         // one pixel, across and down
     const qreal top  = rect.center().y();
     const qreal deep = rect.bottom() + tail.tail.baseWidth;
-    const auto  lowest = [&](qreal x) {
-        for (qreal y = deep; y > top; y -= step)
-            if (drawn.contains(QPointF(x, y)))
-                return y;
-        return top;
-    };
     const qreal k_maxStep = 3.0;                    // a kink, not a notch: the base's corner stood ~16 px out
-    qreal       was       = lowest(rect.center().x());
-    for (qreal x = rect.center().x() + step; x < tail.tail.tip.x() - out / 2; x += step) {
-        const qreal y = lowest(x);
-        EXPECT_LE(qAbs(y - was), k_maxStep) << "at x " << x;
-        was = y;
-    }
+    const auto  expectNoNotch = [&](const Composition& drawnOf, qreal end, qreal turn) {
+        const QPainterPath drawn  = Geometry::silhouette(*drawnOf.balloon, drawnOf.seed);
+        const auto         lowest = [&](qreal x) {
+            for (qreal y = deep; y > top; y -= step)
+                if (drawn.contains(QPointF(x, y)))
+                    return y;
+            return top;
+        };
+        qreal was = lowest(rect.center().x());
+        for (qreal x = rect.center().x() + step; x < end; x += step) {
+            const qreal y = lowest(x);
+            EXPECT_LE(qAbs(y - was), k_maxStep) << "at x " << x << ", turned " << turn << " degrees";
+            was = y;
+        }
+    };
+    expectNoNotch(c, tail.tail.tip.x() - out / 2, 0.0);
 
     // Dragged further down, under the pointer, it stops where the base, square to this flat tail, would stick out.
     const Geometry::Handle anchorHandle = Geometry::tailHandles(c, tail.id).first();
@@ -494,4 +502,22 @@ TEST(Chain, ATailAnchoredNearTheEdgeLeavesWithNoNotch)
     Composition            dragged = c;
     anchorHandle.drag(dragged, anchorHandle, pointer, {});
     expectAtTheLimit(dragged, tail.id, anchorHandle, pointer);
+
+    // The tip then turned down, the anchor left at that limit: the base, square to the tail, fits nowhere on the
+    // tail's line for a while, and the tail starts nearer the middle instead, until it fits again.
+    const QPointF from   = Geometry::anchorAt(rect, dragged.balloon->tails.last().tail.anchor);
+    const qreal   length = rect.right() + out - from.x();
+    const qreal   k_turn = 1.0;                     // degrees between two looks
+    const qreal   k_most = 20.0;                    // the steepest look: past it the tail leaves the scanned rows
+    for (qreal a = 0.0; a <= k_most; a += k_turn) {
+        Composition turned = dragged;
+        turned.balloon->tails.last().tail.tip
+            = from + QPointF(std::cos(qDegreesToRadians(a)), std::sin(qDegreesToRadians(a))) * length;
+        expectNoNotch(turned, rect.right(), a);
+    }
+    // Flat, the base fits nowhere on the line: the anchor's handle shows where the tail starts, nearer the middle.
+    Composition flat = dragged;
+    flat.balloon->tails.last().tail.tip = from + QPointF(length, 0.0);
+    const QPointF shown = Geometry::tailHandles(flat, tail.id).first().at;
+    EXPECT_LT(QLineF(rect.center(), shown).length(), QLineF(rect.center(), from).length());
 }

@@ -744,36 +744,47 @@ void TextProperties::applyTo(Composition& c) const
         c.words.first().text = *this;
 }
 
-TailsProperties TailsProperties::from(const Composition& c)
+namespace {
+
+//! Where in @p b's tails the group of body @p body lies (TailsProperties): its tails, never a bridge.
+QList<qsizetype> tailPlaces(const Balloon& b, int body)
+{
+    QList<qsizetype> out;
+    for (qsizetype i = 0; i < b.tails.size(); ++i)
+        if (!b.tails[i].isBridge() && (body == 0 || b.tails[i].root == body))
+            out.append(i);
+    return out;
+}
+
+} // namespace
+
+TailsProperties TailsProperties::from(const Composition& c, int body)
 {
     TailsProperties p;
     if (!c.balloon)
         return p;
     p.nextLook = c.balloon->style.nextLook;
-    for (const BalloonTail& t : c.balloon->tails)
-        p.items.append(t.tail);
+    for (const qsizetype i : tailPlaces(*c.balloon, body))
+        p.items.append(c.balloon->tails[i].tail);
     return p;
 }
 
-void TailsProperties::applyTo(Composition& c) const
+void TailsProperties::applyTo(Composition& c, int body) const
 {
     if (!c.balloon || c.balloon->bodies.isEmpty())
         return;
     Balloon& b      = *c.balloon;
     b.style.nextLook = nextLook;
-    // A tail is kept by its place in the list, its id, its root and its far body with it; one past the end is new,
-    // from the first body; the ones the list no longer has go.
-    QList<BalloonTail> tails;
-    for (qsizetype i = 0; i < items.size(); ++i) {
-        if (i < b.tails.size()) {
-            BalloonTail t = b.tails.at(i);
-            t.tail        = items.at(i);
-            tails.append(t);
-        } else {
-            tails.append({c.nextId++, b.bodies.first().id, items.at(i)});
-        }
-    }
-    b.tails = tails;
+    // A tail is kept by its place in the group, its id and its root with it; one past the end is new, leaving
+    // the body (the first for 0); the ones the group no longer has go. Bridges and other bodies' tails stay.
+    const QList<qsizetype> places = tailPlaces(b, body);
+    const int              root   = body != 0 ? body : b.bodies.first().id;
+    for (qsizetype i = 0; i < items.size() && i < places.size(); ++i)
+        b.tails[places[i]].tail = items.at(i);
+    for (qsizetype i = places.size(); i < items.size(); ++i)
+        b.tails.append({c.nextId++, root, items.at(i)});
+    for (qsizetype i = places.size() - 1; i >= items.size(); --i)
+        b.tails.removeAt(places[i]);
 }
 
 TailProperties TailProperties::from(const Composition& c, int index)

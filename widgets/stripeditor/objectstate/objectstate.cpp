@@ -313,6 +313,7 @@ void ObjectState::setComposition(const Composition& a)
     m_groups.text()->setWords(0);
     m_bodyId = 0;
     m_groups.shape()->setBody(0);
+    m_tailList->setBody(0);
     m_hasComposition   = true;
     m_selectionCount = 1;
 
@@ -352,6 +353,7 @@ void ObjectState::setMixedSubjects(int count)
     m_groups.text()->setWords(0);
     m_bodyId = 0;
     m_groups.shape()->setBody(0);
+    m_tailList->setBody(0);
     m_commitTimer->stop();
 
     m_subject->setText(tr("%n objects", "", count));
@@ -381,6 +383,7 @@ void ObjectState::setCompositions(const QList<Composition>& objects)
     m_groups.text()->setWords(0);
     m_bodyId = 0;
     m_groups.shape()->setBody(0);
+    m_tailList->setBody(0);
     m_commitTimer->stop();
 
     // A role is a property several kinds share, so each group is bound to the objects that have it: the
@@ -439,6 +442,7 @@ void ObjectState::setTails(const QList<Composition>& balloons, const QList<QPair
     m_groups.text()->setWords(0);
     m_bodyId = 0;
     m_groups.shape()->setBody(0);
+    m_tailList->setBody(0);
     m_hasComposition      = false;
     m_selectionCount = int(tails.size());
 
@@ -470,6 +474,7 @@ void ObjectState::setTail(const Composition& a, int index)
     m_groups.text()->setWords(0);
     m_bodyId = 0;
     m_groups.shape()->setBody(0);
+    m_tailList->setBody(0);
     m_hasComposition   = true;
     m_selectionCount = 1;
 
@@ -518,6 +523,8 @@ void ObjectState::setBody(const Composition& a, int id)
     m_populating = true;
     m_groups.shape()->setBody(id);
     m_groups.shape()->bindOne(m_composition);
+    m_tailList->setBody(id);
+    m_tailList->bindOne(m_composition);
     m_populating = false;
 
     const QList<int> order = m_composition.balloon ? Chain::order(*m_composition.balloon) : QList<int>();
@@ -537,6 +544,7 @@ void ObjectState::clearSelection()
     m_groups.text()->setWords(0);
     m_bodyId = 0;
     m_groups.shape()->setBody(0);
+    m_tailList->setBody(0);
     m_subjects.clear();
     m_commitTimer->stop();
 
@@ -576,7 +584,7 @@ void ObjectState::applyKindVisibility()
         // answers, through the same rule a set is measured by.
         it.value()->setVisible(tailSubject() ? g == PropertyGroup::TailItem
                                : m_wordsId != 0 ? g == PropertyGroup::Text
-                               : m_bodyId != 0  ? g == PropertyGroup::Shape
+                               : m_bodyId != 0  ? g == PropertyGroup::Shape || g == PropertyGroup::Tail
                                                 : carriesGroup(m_composition, g));
     }
 }
@@ -730,7 +738,8 @@ void ObjectState::onControlChanged()
     } else if (m_wordsId != 0) {
         m_groups.text()->applyTo(m_composition);   // those words, and nothing else about the object
     } else if (m_bodyId != 0) {
-        m_groups.shape()->applyTo(m_composition);   // that body's shape, and nothing else about the balloon
+        m_groups.shape()->applyTo(m_composition);   // that body's shape and tails, nothing else about the balloon
+        m_tailList->applyTo(m_composition);
     } else {
         m_groups.collect(m_composition, m_tailList);
 

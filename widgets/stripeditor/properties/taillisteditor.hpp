@@ -45,6 +45,9 @@ public:
      */
     void shapeChanged(const ShapeProperties& shape);
 
+    //! The body whose tails this editor lists and adds to, by id; 0 for the balloon's (a new one leaves the first).
+    void setBody(int id) { m_body = id; }
+
 private:
     void refresh();   //!< The count, and whether a tail can be added at all.
 
@@ -54,6 +57,8 @@ private:
     TailsProperties m_values;        //!< The list as bound, plus any tail added since.
     //! The balloon's size, read at bind(): a new tail is placed relative to it. Read, never written.
     QSize m_box{280, 160};
+    QPointF m_origin;   //!< Where that box lies in the composition: a body's place, the origin for a balloon.
+    int   m_body = 0;   //!< See setBody().
     bool  m_shapeCanSpeak = true;
 };
 

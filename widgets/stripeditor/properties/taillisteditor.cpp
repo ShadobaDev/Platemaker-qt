@@ -27,14 +27,14 @@ TailListEditor::TailListEditor(QWidget* parent)
         Tail t;
         t.look = m_values.nextLook;   // the look picked last on this balloon
         if (m_values.items.isEmpty()) {
-            t.tip = firstTailTip(m_box);
+            t.tip = m_origin + firstTailTip(m_box);
         } else {
             // Opposite the last tail, so it is visible rather than stacked on it, and shaped like it —
             // a starting value only; the new tail is edited on its own from here.
             const Tail& last = m_values.items.last();
             t.baseWidth = last.baseWidth;
             t.bend      = last.bend;
-            t.tip       = QPointF(m_box.width() - last.tip.x(), last.tip.y());
+            t.tip       = QPointF(2 * m_origin.x() + m_box.width() - last.tip.x(), last.tip.y());
         }
         m_values.items.append(t);
         refresh();
@@ -49,8 +49,10 @@ void TailListEditor::bind(const Subjects& subjects)
     if (subjects.isEmpty())
         return;
     const Composition& a = *subjects.first();
-    m_values        = TailsProperties::from(a);
-    m_box           = sizeOf(a);
+    m_values        = TailsProperties::from(a, m_body);
+    const Body* own = m_body != 0 ? bodyOf(a, m_body) : nullptr;
+    m_box           = own ? own->size : sizeOf(a);
+    m_origin        = own ? own->place.pos : QPointF();
     m_shapeCanSpeak = a.balloon.has_value();
     refresh();
 }
@@ -60,7 +62,7 @@ void TailListEditor::applyTo(Composition& target) const
     TailsProperties next = m_values;
     if (!target.balloon.has_value())
         next.items.clear();   // nothing for a tail to grow from
-    next.applyTo(target);
+    next.applyTo(target, m_body);
 }
 
 void TailListEditor::shapeChanged(const ShapeProperties& shape)

@@ -279,3 +279,29 @@ TEST(Chain, APickedBubbleIsResizedAndReshapedAloneTheRestStaying)
     EXPECT_EQ(dragged.balloon->bodies.first(), c.balloon->bodies.first());
     EXPECT_EQ(dragged.balloon->tails.last().tail.tip, tail.tail.tip);
 }
+
+TEST(Chain, ABubblesTailsAreItsOwnAndABridgeIsNeverOneOfThem)
+{
+    Composition c = balloon(QString());
+    int         second = 0;
+    ASSERT_EQ(addBody(c, bodyId(c, 0), k_apart, &second), ChainError::None);
+    EXPECT_TRUE(TailsProperties::from(c).items.isEmpty());   // the bridge is not a tail
+
+    // A tail added to the second bubble leaves it; the balloon's group lists it; the bridge stays.
+    TailsProperties own = TailsProperties::from(c, second);
+    Tail            t;
+    t.tip = QPointF(700, 300);
+    own.items.append(t);
+    own.applyTo(c, second);
+    ASSERT_EQ(c.balloon->tails.size(), 2);
+    EXPECT_TRUE(c.balloon->tails.first().isBridge());
+    EXPECT_EQ(c.balloon->tails.last().root, second);
+    EXPECT_EQ(TailsProperties::from(c).items.size(), 1);
+    EXPECT_TRUE(TailsProperties::from(c, bodyId(c, 0)).items.isEmpty());
+
+    // The first bubble's group, emptied, leaves the second's tail and the bridge alone.
+    TailsProperties first = TailsProperties::from(c, bodyId(c, 0));
+    first.applyTo(c, bodyId(c, 0));
+    EXPECT_EQ(c.balloon->tails.size(), 2);
+}
+

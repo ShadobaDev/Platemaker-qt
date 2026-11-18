@@ -1161,9 +1161,13 @@ struct TailsProperties
      */
     TailLook    nextLook;
 
-    //! The same on a composition (composition.cpp): the balloon's tails, each kept by its place in the list, a new one leaving the first body; nothing written where there is none.
-    [[nodiscard]] static TailsProperties from(const Composition& c);
-    void applyTo(Composition& c) const;
+    /**
+     * \brief The same on a composition (composition.cpp): the balloon's tails, or those leaving body @p body
+     *        (0 for every body), never a bridge; each kept by its place in the list, a new one leaving @p body (the
+     *        first for 0). The others, and the bridges, are left as they are; nothing written where there is none.
+     */
+    [[nodiscard]] static TailsProperties from(const Composition& c, int body = 0);
+    void applyTo(Composition& c, int body = 0) const;
 
     [[nodiscard]] bool operator==(const TailsProperties& o) const
     {

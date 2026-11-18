@@ -77,8 +77,8 @@ public:
     /**
      * \brief Shows body @p id of @p a, one bubble of a balloon of several, picked on its own. Emits nothing.
      *
-     * One section, the Shape section, for that body alone; the balloon's look stays the balloon's. Edits arrive
-     * as the whole composition, with only that body's shape written.
+     * Its Shape and Tails sections, for that body alone; the balloon's look stays the balloon's. Edits arrive as
+     * the whole composition, with only that body's shape and tails written.
      */
     void setBody(const Composition& a, int id);
 

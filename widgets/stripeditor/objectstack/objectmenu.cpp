@@ -162,7 +162,7 @@ ObjectMenu::ObjectMenu(ObjectController& objects, const StripLayout& layout, Pre
     m_actEditShape = new QAction(tr("Edit shape"), this);
     m_actEditShape->setCheckable(true);
     connect(m_actEditShape, &QAction::triggered, &m_objects.shapeEdit(), &ShapeEditMode::setOn);
-    // Esc steps out one level: shape editing first, then words or a bubble picked on their own. Not a QShortcut:
+    // Esc steps out one level: a tail held to join first, then shape editing, then words or a bubble picked on their own. Not a QShortcut:
     // the main window's *Stop* is Esc too, and two shortcuts on one key fire neither. The canvas claims the key
     // (ShortcutOverride) only while there is a level to leave, so Esc still stops a render otherwise.
     m_view->installEventFilter(this);
@@ -461,9 +461,10 @@ bool ObjectMenu::eventFilter(QObject* watched, QEvent* e)
         return QObject::eventFilter(watched, e);
     if (static_cast<QKeyEvent*>(e)->key() != Qt::Key_Escape)
         return false;
+    const bool join      = m_objects.joinHeld();
     const bool shapeEdit = m_objects.shapeEdit().isOn();
     const bool element   = m_objects.subject() == Subject::Words || m_objects.subject() == Subject::Body;
-    if (!shapeEdit && !element)
+    if (!join && !shapeEdit && !element)
         return false;   // nothing to step out of: the key is the window's
     if (e->type() == QEvent::ShortcutOverride) {
         // The canvas takes Esc before any shortcut does. Consumed, not passed on: the view hands the override to
@@ -471,7 +472,9 @@ bool ObjectMenu::eventFilter(QObject* watched, QEvent* e)
         e->accept();
         return true;
     }
-    if (shapeEdit)
+    if (join)
+        m_objects.cancelJoin();   // a tail held over a bubble first: it does not join
+    else if (shapeEdit)
         m_objects.shapeEdit().setOn(false);
     else
         m_objects.leaveElement();

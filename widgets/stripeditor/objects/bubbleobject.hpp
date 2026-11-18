@@ -78,6 +78,9 @@ public:
     //! available now; the owner hands over a fresh rasterisation, since the old one used the old fonts.
     void refreshFonts();
 
+    //! Outlines body @p body in red: the bubble a tail held over it would join on release. 0 puts it out.
+    void setJoinLight(int body);
+
     /**
      * \brief Returns the size of the bubble's box.
      * \return The size of the bubble's box.
@@ -129,6 +132,7 @@ private:
     QImage       m_sharp;       //!< Library rasterisation shown at rest for a filtered bubble (see above).
     Painter::Paths m_paths;     //!< The paths it is drawn from, cached so a repaint resolves no geometry.
     QList<bool>  m_tailDrawn;   //!< Per tail: whether it is drawn (its tip is outside the balloon).
+    int          m_joinLight = 0;   //!< The body outlined as a held tail's target (setJoinLight()); 0 for none.
 };
 
 }  // namespace StripEdit

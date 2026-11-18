@@ -77,6 +77,9 @@ namespace Geometry {
  */
 [[nodiscard]] BalloonTail fittedTail(const Balloon& b, const BalloonTail& t, quint32 seed);
 
+//! The body of @p b whose outline holds @p local, the last drawn tried first, by its id; 0 for none.
+[[nodiscard]] int bodyAt(const Balloon& b, quint32 seed, const QPointF& local);
+
 //! What an object is made of where a point lands — the three things that carry a colour, and a miss.
 enum class Part { None, Fill, Outline, Text };
 

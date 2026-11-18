@@ -31,6 +31,7 @@
 #include <QWidget>
 
 #include <algorithm>
+#include <chrono>
 #include <functional>
 #include <string>
 #include <unordered_map>
@@ -44,6 +45,19 @@ namespace {
 constexpr int k_overlayZBase = 2;
 //! How far a duplicate lands from its original, so it is visibly a second bubble and not a mis-click.
 constexpr int k_duplicateOffset = 28;
+
+//! How long a tail's tip is held over another balloon's bubble before releasing joins them: an ordinary drag never does.
+constexpr std::chrono::milliseconds k_joinHold{1000};
+
+/**
+ * \brief Where @p from's frame lies in @p into's, as the two sit on the strip: what a balloon joined into another is
+ *        moved by.
+ */
+QPointF frameIn(const Object* into, const Object* from)
+{
+    // ponytail: a translation; two objects of different scales (a chapter re-profiled under one) would need a scale too.
+    return into->mapFromScene(from->mapToScene(QPointF()));
+}
 //! Rasterised filtered bubbles held before the cache is dropped wholesale. Generous for a chapter,
 //! nothing next to the page caches above.
 constexpr int k_sharpCacheEntries = 64;
@@ -81,6 +95,10 @@ ObjectController::ObjectController(QGraphicsScene* scene, QGraphicsView* view,
     , m_presets(presets)
     , m_layout(layout)
 {
+    m_joinHold = new QTimer(this);
+    m_joinHold->setSingleShot(true);
+    m_joinHold->setInterval(k_joinHold);
+    connect(m_joinHold, &QTimer::timeout, this, [this] { setJoinLit(true); });
     m_panel = new PanelBinder(m_selection,
                               {[this](const QString& uid) -> std::optional<Composition> {
                                    return m_overlayItems.contains(uid) ? std::optional<Composition>(compositionOf(uid))
@@ -451,6 +469,8 @@ void ObjectController::onCompositionEdited(const QString& uid, const Composition
 
 void ObjectController::onObjectDragged(const QString& uid, const QPointF& delta, int handle)
 {
+    if (handle >= 0)
+        aimJoin(uid, handle);   // a tail's tip, maybe held over a balloon it would join
     if (!m_dragIsGroup)
         return;   // one object moving itself, which it has already done
 
@@ -743,6 +763,12 @@ void ObjectController::writePlacement(const QString& uid, bool rehome)
 
 void ObjectController::onOverlayGeometryCommitted(const QString& uid)
 {
+    // A tail released over the bubble it was held over, lit: the two balloons become one.
+    if (m_joinLit && uid == m_joinFrom && joinByTail()) {
+        m_dragIsGroup = false;
+        return;
+    }
+    dropJoin();
     Object* item = m_overlayItems.value(uid);
     if (!item)
         return;
@@ -1030,24 +1056,131 @@ void ObjectController::joinSelection()
         return;
     const QString keep  = m_selection.objects().first();   // the first picked keeps its overlay and its look
     const QString other = m_selection.objects().last();
-    Object*       into  = m_overlayItems.value(keep);
+    const Object* into  = m_overlayItems.value(keep);
     const Object* from  = m_overlayItems.value(other);
-    // Where the other's frame lies in this one's, as they sit on the strip.
-    // ponytail: a translation; two objects of different scales (a chapter re-profiled under one) would need a scale too.
-    const QPointF by   = into->mapFromScene(from->mapToScene(QPointF()));
-    Composition   next = into->composition();
-    if (Chain::join(next, from->composition(), by) != Chain::ChainError::None)
-        return;
+    Composition   next  = into->composition();
+    if (Chain::join(next, from->composition(), frameIn(into, from)) == Chain::ChainError::None)
+        commitJoin(keep, other, next);
+}
 
-    m_document.setComposition(keep, next);
-    into->setComposition(next);
+void ObjectController::commitJoin(const QString& keep, const QString& other, const Composition& joined)
+{
+    Object* into = m_overlayItems.value(keep);
+    if (!into)
+        return;
+    m_document.setComposition(keep, joined);
+    into->setComposition(joined);
     writePlacement(keep);
     m_document.remove({other});
     selectOverlay(keep);
     syncItems();
     emit stackChanged();
     pushOverlays(tr("Join balloons"));
-    m_panel->show(next);
+    m_panel->show(joined);
+}
+
+// --- the hold-to-join gesture -------------------------------------------------
+
+ElementRef ObjectController::joinTargetAt(const QString& uid, int tail) const
+{
+    const Object* from = m_overlayItems.value(uid);
+    if (!from || !from->composition().balloon)
+        return {};
+    const Balloon& own = *from->composition().balloon;
+    if (tail < 0 || tail >= own.tails.size())
+        return {};
+    const BalloonTail& t = own.tails.at(tail);
+    if (t.isBridge() || !Chain::chainEnd(own, t.root))
+        return {};   // a tail on a middle bubble would make it branch
+
+    // The topmost other balloon with a bubble under the tip, and that bubble only if it ends its chain.
+    const QPointF tip = from->mapToScene(t.tail.tip);
+    ElementRef    top;
+    const Object* topItem = nullptr;
+    for (auto it = m_overlayItems.cbegin(), end = m_overlayItems.cend(); it != end; ++it) {
+        const Object* o = it.value();
+        if (it.key() == uid || !o->isVisible() || !(o->flags() & QGraphicsItem::ItemIsSelectable)
+            || !o->composition().balloon || (topItem && o->zValue() <= topItem->zValue()))
+            continue;
+        const Composition& c    = o->composition();
+        const int          body = Geometry::bodyAt(*c.balloon, c.seed, o->mapFromScene(tip));
+        if (body != 0) {
+            top     = {it.key(), body};
+            topItem = o;
+        }
+    }
+    return topItem && Chain::chainEnd(*topItem->composition().balloon, top.element) ? top : ElementRef{};
+}
+
+void ObjectController::aimJoin(const QString& uid, int tail)
+{
+    const ElementRef at = joinTargetAt(uid, tail);
+    if (uid == m_joinFrom && tail == m_joinTail && at == m_joinAt)
+        return;   // still held there: the count runs on, or the light stays (or stays out, after Esc)
+    dropJoin();
+    m_joinFrom = uid;
+    m_joinTail = tail;
+    m_joinAt   = at;
+    if (!at.object.isEmpty())
+        m_joinHold->start();
+}
+
+void ObjectController::setJoinLit(bool on)
+{
+    m_joinLit = on;
+    if (auto* target = qobject_cast<BubbleObject*>(m_overlayItems.value(m_joinAt.object)))
+        target->setJoinLight(on ? m_joinAt.element : 0);
+}
+
+void ObjectController::dropJoin()
+{
+    m_joinHold->stop();
+    if (m_joinLit)
+        setJoinLit(false);
+    m_joinFrom.clear();
+    m_joinTail = -1;
+    m_joinAt   = {};
+}
+
+bool ObjectController::joinHeld() const
+{
+    return m_joinHold->isActive() || m_joinLit;
+}
+
+bool ObjectController::cancelJoin()
+{
+    if (!joinHeld())
+        return false;
+    // The target is kept, so the same bubble does not count again until the tip has left it.
+    m_joinHold->stop();
+    if (m_joinLit)
+        setJoinLit(false);
+    return true;
+}
+
+bool ObjectController::joinByTail()
+{
+    const QString keep = m_joinFrom, other = m_joinAt.object;
+    const int     tail = m_joinTail, body = m_joinAt.element;
+    dropJoin();
+    const Object* into = m_overlayItems.value(keep);
+    const Object* from = m_overlayItems.value(other);
+    if (!into || !from || !into->composition().balloon || !from->composition().balloon)
+        return false;
+    const QList<Body>& bodies = from->composition().balloon->bodies;
+    const qsizetype    target = std::find_if(bodies.cbegin(), bodies.cend(), [body](const Body& b) { return b.id == body; })
+                              - bodies.cbegin();
+    Composition next = into->composition();
+    if (target >= bodies.size() || tail >= next.balloon->tails.size())
+        return false;
+    // The held tail becomes the bridge to the bubble it was held over, in that bubble's new id.
+    const int  tailId = next.balloon->tails.at(tail).id;
+    QList<int> merged;
+    if (Chain::merge(next, from->composition(), frameIn(into, from), &merged) != Chain::ChainError::None
+        || Chain::makeBridge(next, tailId, merged.at(target)) != Chain::ChainError::None)
+        return false;
+    commitJoin(keep, other, next);
+    return true;
 }
 
 int ObjectController::presetTargetCount() const

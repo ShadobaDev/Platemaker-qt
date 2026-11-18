@@ -11,6 +11,15 @@
 
 namespace StripEdit {
 
+namespace {
+
+//! The outline of the bubble a held tail would join: the red of a warning, as the overflow's frame.
+const QColor k_joinLightColour(220, 40, 40);
+//! Its pen's width, in screen pixels.
+constexpr qreal k_joinLightWidth = 3.0;
+
+}  // namespace
+
 BubbleObject::BubbleObject(QString uid, Composition composition, QGraphicsItem* parent)
     : Object(std::move(uid), parent)
 {
@@ -98,14 +107,15 @@ bool BubbleObject::handleDrawn(int index) const
 
 int BubbleObject::bodyAt(const QPointF& local) const
 {
-    if (!m_composition.balloon || m_composition.balloon->bodies.size() < 2)
-        return 0;
-    const Balloon& b = *m_composition.balloon;
-    // The last drawn on top, so tried first.
-    for (auto body = b.bodies.crbegin(); body != b.bodies.crend(); ++body)
-        if (Geometry::outlineOf(*body, Geometry::balloonRect(b, *body), m_composition.seed).contains(local))
-            return body->id;
-    return 0;
+    return isChain() ? Geometry::bodyAt(*m_composition.balloon, m_composition.seed, local) : 0;
+}
+
+void BubbleObject::setJoinLight(int body)
+{
+    if (body == m_joinLight)
+        return;
+    m_joinLight = body;
+    update();
 }
 
 QRectF BubbleObject::bodyBox(int id) const
@@ -188,11 +198,21 @@ void BubbleObject::paintContent(QPainter& painter)
     // Styled: show the library's rendering, at rest and while the whole object is carried, which moves
     // it and changes nothing it draws. A drag that reshapes it (a tail, a grip, a node) shows the paths
     // instead: they follow the mouse, and a rasterisation cannot be produced per mouse-move anyway.
-    if (!m_sharp.isNull() && (!isDragging() || dragGrip() == Grip::Body)) {
+    if (!m_sharp.isNull() && (!isDragging() || dragGrip() == Grip::Body))
         painter.drawImage(contentBounds().topLeft(), m_sharp);
+    else
+        Painter::paintPaths(painter, m_composition, m_paths);
+
+    // The bubble a held tail would join, outlined over the drawing.
+    const Body* lit = m_joinLight != 0 ? bodyOf(m_composition, m_joinLight) : nullptr;
+    if (!lit)
         return;
-    }
-    Painter::paintPaths(painter, m_composition, m_paths);
+    QPen pen(k_joinLightColour, k_joinLightWidth);
+    pen.setCosmetic(true);   // as wide on screen at any zoom
+    painter.setCompositionMode(QPainter::CompositionMode_SourceOver);
+    painter.setPen(pen);
+    painter.setBrush(Qt::NoBrush);
+    painter.drawPath(Geometry::outlineOf(*lit, Geometry::balloonRect(*m_composition.balloon, *lit), m_composition.seed));
 }
 
 }  // namespace StripEdit

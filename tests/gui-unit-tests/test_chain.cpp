@@ -443,6 +443,9 @@ TEST(Chain, ABridgeRunsBetweenItsTwoAnchors)
     ASSERT_EQ(handles.size(), 2);
     const QRectF far = Geometry::balloonRect(*c.balloon, *bodyOf(c, second));
     EXPECT_EQ(handles.at(1).at, far.center());
+    // Each bubble is found where it is drawn, and nothing beyond them (what a held tail looks for).
+    EXPECT_EQ(Geometry::bodyAt(*c.balloon, c.seed, far.center()), second);
+    EXPECT_EQ(Geometry::bodyAt(*c.balloon, c.seed, far.bottomRight() + k_apart), 0);
 
     Composition moved = c;
     handles.at(1).drag(moved, handles.at(1), far.bottomLeft(), {});

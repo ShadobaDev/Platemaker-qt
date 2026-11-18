@@ -633,6 +633,14 @@ BalloonTail fittedTail(const Balloon& b, const BalloonTail& t, quint32 seed)
     return fittedOn(bodyOutlines(b, seed), t);
 }
 
+int bodyAt(const Balloon& b, quint32 seed, const QPointF& local)
+{
+    for (auto body = b.bodies.crbegin(); body != b.bodies.crend(); ++body)
+        if (outlineOf(*body, balloonRect(b, *body), seed).contains(local))
+            return body->id;
+    return 0;
+}
+
 QList<bool> tailsDrawn(const Balloon& b, quint32 seed)
 {
     const QList<BodyOutline> bodies = bodyOutlines(b, seed);

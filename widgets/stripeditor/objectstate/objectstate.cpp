@@ -529,7 +529,9 @@ void ObjectState::setBody(const Composition& a, int id)
 
     const QList<int> order = m_composition.balloon ? Chain::order(*m_composition.balloon) : QList<int>();
     m_subject->setText(tr("Bubble %1").arg(order.indexOf(id) + 1));
-    m_deleteButton->setVisible(false);   // removing a bubble splits the chain: not offered yet
+    // An end of the chain only: a middle bubble would split the balloon in two.
+    m_deleteButton->setText(tr("Delete bubble"));
+    m_deleteButton->setVisible(order.size() > 1 && (order.first() == id || order.last() == id));
     refreshLook();
     applyKindVisibility();
 }

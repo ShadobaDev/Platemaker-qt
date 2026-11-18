@@ -81,17 +81,12 @@ void BubbleObject::setBoxSize(QSizeF size, const QPointF& handleShift)
 
     // **A tip stays where it points.** It is aimed at a speaker, and resizing the balloon does not move
     // the speaker — so the tip keeps its place on the strip, which in the balloon's own units means
-    // moving back by however far the box's corner moved. Only the tail's *width* follows the balloon:
-    // a tail that kept its thickness would swamp a shrinking bubble.
-    const qreal widthScale = oldBox.isEmpty()
-        ? 1.0
-        : (double(newBox.width()) / oldBox.width() + double(newBox.height()) / oldBox.height()) / 2.0;
+    // moving back by however far the box's corner moved. **Its base width stays too**: it is the author's,
+    // set in the tail's own section, and a resize is not a reason to change it.
     Composition next = m_composition;
     if (next.balloon)
-        for (BalloonTail& t : next.balloon->tails) {
-            t.tail.tip       += handleShift;
-            t.tail.baseWidth *= widthScale;
-        }
+        for (BalloonTail& t : next.balloon->tails)
+            t.tail.tip += handleShift;
     resize(next, newBox);
     emit compositionEdited(uid(), next);
 }

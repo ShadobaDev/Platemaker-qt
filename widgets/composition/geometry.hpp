@@ -260,13 +260,16 @@ using Blocks = QList<QSizeF>;
 /**
  * \brief @p c's balloon fitted to its words' blocks of @p blocks (textBlocks()) where they lie now: *Fit to text*.
  *
- * The rectangle every block on the first body lies in becomes the body's seat (inner box), its middle on theirs;
+ * The rectangle every block on a body lies in becomes the body's seat (inner box), its middle on theirs;
  * where a curved outline would cut a block, the body grows, its proportions kept (liesInOutline()). The blocks keep
  * their places against each other: each frame is measured again from the new seat, an edge past it stops at it
  * (automatic), and the frame is cut down so the block's alignment puts it where it was. Neither side goes below the
- * grips' own minimum (40 px). Without a balloon, @p c resized to fitBoxFor().
+ * grips' own minimum (40 px). A chain fits each bubble to its own words, in place: its seat's middle moves onto
+ * theirs, so the words stay where they are on the strip. Without a balloon, @p c resized to fitBoxFor().
  */
 [[nodiscard]] Composition fitToBlocks(const Composition& c, const Blocks& blocks);
+//! @p c with only body @p body fitted to its words (fitToBlocks()): a bubble of a chain, in place.
+[[nodiscard]] Composition fitBodyToBlocks(const Composition& c, int body, const Blocks& blocks);
 
 //! The text area's handles (textAreaHandles()), told apart by Handle::part.
 enum class TextAreaPart {

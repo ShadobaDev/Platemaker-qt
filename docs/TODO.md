@@ -413,6 +413,12 @@ New, backward-compatible features. Several are gated on a lib version, noted in 
   existing balloons, and splitting one by removing a neck or a middle bubble, are part of it. The object
   model holds it: a balloon is a list of bodies (`Balloon::bodies`), words sit on a body (`Words::seat`) and a
   tail leaves one (its root); everything but the neck and the joining reads the first body today.
+  - **To consider: a fading fill per bubble.** A chain wears one fill, and its fade is laid across the whole
+    chain (`fillBox()`), so with a fade one way the first bubble can come out nearly plain and the next fully
+    toned. The alternative is the same fade in every bubble, each over its own box. A mark of a bridge would take
+    the fade of the bubble nearest it (as a Flash stroke takes the nearest core, `coreFor()`): cheap, but a fade
+    one way then shows a seam halfway along the bridge, where the two bubbles' tones meet; blending them along the
+    bridge has none, at a cost out of proportion to how rarely a chain is faded.
 
 - [ ] **The chapter's text at once: a script out and back in.** Every words of a project in reading order
   (down the strip; in a joined balloon along its chain; in a body, its words in order), written to a plain

@@ -251,7 +251,7 @@ TEST(Chain, APickedBubbleIsResizedAndReshapedAloneTheRestStaying)
     tail.tail.baseWidth = 30.0;
     c.balloon->tails.append(tail);
 
-    // Its grips: its place and size; its tail's tip stays, its base follows the size.
+    // Its grips: its place and size; its tail's tip and base width stay, the base being the author's.
     Composition resized = c;
     const Body& before  = *bodyOf(c, second);
     resizeBody(resized, second, QRectF(before.place.pos - QPointF(10, 10), QSizeF(before.size) * 2));
@@ -259,7 +259,7 @@ TEST(Chain, APickedBubbleIsResizedAndReshapedAloneTheRestStaying)
     EXPECT_EQ(bodyOf(resized, second)->place.pos, before.place.pos - QPointF(10, 10));
     EXPECT_EQ(resized.balloon->bodies.first(), c.balloon->bodies.first());
     EXPECT_EQ(resized.balloon->tails.last().tail.tip, tail.tail.tip);
-    EXPECT_DOUBLE_EQ(resized.balloon->tails.last().tail.baseWidth, 2 * tail.tail.baseWidth);
+    EXPECT_DOUBLE_EQ(resized.balloon->tails.last().tail.baseWidth, tail.tail.baseWidth);
 
     // Its outline's handles are offered for it, and a node pulled past its box moves that bubble alone.
     bodyOf(c, second)->shape.kind  = ShapeProperties::Kind::Polygon;
@@ -305,3 +305,22 @@ TEST(Chain, ABubblesTailsAreItsOwnAndABridgeIsNeverOneOfThem)
     EXPECT_EQ(c.balloon->tails.size(), 2);
 }
 
+
+TEST(Chain, WordsAreReadAlongTheChainThenTheRest)
+{
+    Composition c = balloon(QString());
+    int b = 0, last = 0;
+    ASSERT_EQ(addBody(c, bodyId(c, 0), k_apart, &b), ChainError::None);
+    ASSERT_EQ(addBody(c, bodyId(c, 0), -k_apart, &last), ChainError::None);   // the first body is the middle
+    Words caption;
+    caption.id = c.nextId++;
+    c.words.prepend(caption);   // first in the list, but on no bubble: read last
+    QList<int> expected;
+    for (const int body : Chain::order(*c.balloon))
+        for (const Words& w : c.words)
+            if (w.seat == body)
+                expected << w.id;
+    expected << caption.id;
+    EXPECT_EQ(wordsInOrder(c), expected);
+    EXPECT_EQ(wordsInOrder(c).first(), c.words.at(2).id);   // the words of b, an end, before the first body's
+}

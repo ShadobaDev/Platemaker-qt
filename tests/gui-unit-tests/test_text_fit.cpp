@@ -10,6 +10,7 @@
 #include "renderlist.hpp"
 #include "handles.hpp"
 #include "shapes.hpp"
+#include "chain.hpp"
 
 #include <QJsonArray>
 #include <QJsonObject>
@@ -479,4 +480,27 @@ TEST(TextFit, ConvertingFitsTheLetteringInEveryShape)
         boxOf(balloon) = Geometry::fitBoxFor(balloon, {block});
         EXPECT_TRUE(Geometry::fits(balloon, {block})) << id;
     }
+}
+
+TEST(TextFit, AChainFitsEachBubbleToItsOwnWordsWhereTheyLie)
+{
+    Composition c = withShape(Geometry::shapeTemplate("speech").shape);
+    int second = 0;
+    ASSERT_EQ(Chain::addBody(c, bodyOf(c)->id, QPointF(600, 0), &second), Chain::ChainError::None);
+    const Geometry::Blocks blocks{QSizeF(120, 40), QSizeF(60, 30)};   // the first bubble's words, the second's
+    const QRectF before = Geometry::blockRect(c, c.words.at(1), blocks.at(1));
+
+    // Each bubble to its own block: the second's words stay where they are on the strip, its seat round them.
+    const Composition chain = Geometry::fitToBlocks(c, blocks);
+    const Body&       own   = *bodyOf(chain, second);
+    EXPECT_LT(own.size.width(), bodyOf(c, second)->size.width());
+    EXPECT_NEAR(QRectF(own.place.pos, QSizeF(own.size)).center().x(), before.center().x(), k_wholePx);
+    EXPECT_NEAR(QRectF(own.place.pos, QSizeF(own.size)).center().y(), before.center().y(), k_wholePx);
+    EXPECT_NEAR(Geometry::blockRect(chain, chain.words.at(1), blocks.at(1)).center().x(), before.center().x(),
+                k_wholePx);
+
+    // A bubble picked: that one alone.
+    const Composition picked = Geometry::fitBodyToBlocks(c, second, blocks);
+    EXPECT_EQ(picked.balloon->bodies.first(), c.balloon->bodies.first());
+    EXPECT_EQ(*bodyOf(picked, second), own);
 }

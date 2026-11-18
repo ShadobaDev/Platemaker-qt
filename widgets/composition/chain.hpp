@@ -47,6 +47,14 @@ enum class ChainError {
  */
 [[nodiscard]] QList<int> order(const Balloon& b);
 
+/**
+ * \brief @p c's words in reading order, by id: a balloon's along its chain (order()), each bubble's words in their
+ *        list order; then the words on no bubble (a picture's, a text object's), in theirs.
+ *
+ * What a script of the chapter reads a balloon by: by position in this list, not by id, since merge() renumbers.
+ */
+[[nodiscard]] QList<int> wordsInOrder(const Composition& c);
+
 //! The bridge between bodies @p a and @p c, its id; 0 for none.
 [[nodiscard]] int bridgeBetween(const Balloon& b, int a, int c);
 
@@ -54,8 +62,8 @@ enum class ChainError {
 void moveBody(Composition& c, int body, const QPointF& by);
 
 /**
- * \brief Body @p body of @p c given the box @p to: its place and size. The tips of the tails leaving it stay where
- *        they point, their base width following the size as a balloon's do; its words sit on it.
+ * \brief Body @p body of @p c given the box @p to: its place and size. The tails leaving it keep their tips and
+ *        their base width; its words sit on it.
  */
 void resizeBody(Composition& c, int body, const QRectF& to);
 

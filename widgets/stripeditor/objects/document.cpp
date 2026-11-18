@@ -206,12 +206,13 @@ bool convert(Composition& c, bool toBalloon, const BalloonLook& look)
     return true;
 }
 
-bool fitToText(Composition& c)
+bool fitToText(Composition& c, int body)
 {
     if (c.picture)
         return false;
     const Composition was = c;
-    c = Geometry::fitToBlocks(c, Geometry::textBlocks(c));
+    c = body != 0 ? Geometry::fitBodyToBlocks(c, body, Geometry::textBlocks(c))
+                  : Geometry::fitToBlocks(c, Geometry::textBlocks(c));
     return c != was;
 }
 

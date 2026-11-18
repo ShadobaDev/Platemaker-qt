@@ -455,6 +455,8 @@ public:
     void addWords();
     //! Whether *Add bubble* applies: one balloon selected, or a bubble of it, that bubble (or the chain's last) an end.
     [[nodiscard]] bool canAddBubble() const;
+    //! Whether the picked bubble can be deleted: it ends a chain of more than one (a middle one would split it).
+    [[nodiscard]] bool canDeleteSelectedBubble() const;
     /**
      * \brief *Add bubble*: a new bubble after the picked one (or the chain's last), below and to the right, bridged
      *        to it, with empty words in its lettering (Chain::addBody()); picked.
@@ -617,10 +619,13 @@ private:
     void deleteSelectedTail();
     //! Delete with words picked: those words, never the last (Edits::removeWords()); the object is what is left to hold.
     void deleteSelectedWords();
+    //! Delete with a bubble picked: that bubble, its words and tails, when it ends the chain; the balloon is left held.
+    void deleteSelectedBubble();
     //! Whether @p ref's object still has those words.
     [[nodiscard]] bool hasWords(const ElementRef& ref) const;
     //! Whether @p ref's object still has that body.
     [[nodiscard]] bool hasBody(const ElementRef& ref) const;
+
     //! A press in body @p id of @p uid's balloon, already selected: picks it, unless the same press picked words.
     void onBodyPressed(const QString& uid, int id);
     //! Whether the press being handled picked words (onObjectPressed()), which a bubble then leaves alone.

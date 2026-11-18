@@ -41,7 +41,7 @@
  *
  * A Plain tail ends as its `tip` says: in a point (**Sharp**), a half circle (**Round**) whose far point is
  * the tail's tip, or a straight end (**Cut**) through the tip, square to the tail there. A round or cut end
- * is `tipWidth` per cent of the tail's base width, so it follows a resize as the base does.
+ * is `tipWidth` per cent of the tail's base width, so it keeps its proportion when the base width is changed.
  *
  * A Plain tail may be **broken**: its middle runs in straight lines through `breaks` points, evenly spaced
  * along its bent course and moved across it by `jog` per cent of its length, to either side in turn, the

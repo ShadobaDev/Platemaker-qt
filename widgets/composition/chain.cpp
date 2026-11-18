@@ -113,17 +113,22 @@ void resizeBody(Composition& c, int body, const QRectF& to)
     Body* own = bodyOf(c, body);
     if (!own || body == 0)
         return;
-    const QSize old  = own->size;
-    const QSize size = to.size().toSize();
-    // The mean of the two ratios, as a balloon's resize scales its tails (BubbleObject::setBoxSize()).
-    const qreal widthScale = old.isEmpty()
-        ? 1.0
-        : (double(size.width()) / old.width() + double(size.height()) / old.height()) / 2.0;
     own->place.pos = to.topLeft();
-    own->size      = size;
-    for (BalloonTail& t : c.balloon->tails)
-        if (t.root == body && !t.isBridge())
-            t.tail.baseWidth *= widthScale;
+    own->size      = to.size().toSize();
+}
+
+QList<int> wordsInOrder(const Composition& c)
+{
+    QList<int> out;
+    if (c.balloon)
+        for (const int body : order(*c.balloon))
+            for (const Words& w : c.words)
+                if (w.seat == body)
+                    out.append(w.id);
+    for (const Words& w : c.words)
+        if (!out.contains(w.id))
+            out.append(w.id);
+    return out;
 }
 
 int bridgeBetween(const Balloon& b, int a, int c)

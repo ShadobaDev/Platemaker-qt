@@ -920,7 +920,7 @@ void ObjectController::fitSelectionToText()
     if (!item || item->composition().picture)
         return;   // a picture's box is the picture's, not its words'
     Composition a = item->composition();
-    Edits::fitToText(a);   // committed even when it fits already, as before: the button was pressed
+    Edits::fitToText(a, m_selection.body().element);   // a picked bubble alone; committed even when it fits
     applyComposition(m_selection.primary(), a, /*commit=*/true);
     m_panel->show(a);
 }
@@ -1261,6 +1261,28 @@ void ObjectController::deleteSelectedWords()
     m_panel->show(a);
 }
 
+bool ObjectController::canDeleteSelectedBubble() const
+{
+    const ElementRef body = m_selection.body();
+    const Object*    item = m_overlayItems.value(body.object);
+    if (!item || !item->isChain())
+        return false;
+    // An end leaves one chain; a middle bubble would split it in two, which is joining's other half.
+    return Chain::chainEnd(*item->composition().balloon, body.element)
+        && Chain::withoutBody(item->composition(), body.element).size() == 1;
+}
+
+void ObjectController::deleteSelectedBubble()
+{
+    if (!canDeleteSelectedBubble())
+        return;
+    const ElementRef body = m_selection.body();
+    const Composition a   = Chain::withoutBody(m_overlayItems.value(body.object)->composition(), body.element).first();
+    selectOverlay(body.object);   // the balloon is what is left to hold, selected before the edit goes out
+    applyComposition(body.object, a, /*commit=*/true, tr("Delete bubble"));
+    m_panel->show(a);
+}
+
 void ObjectController::deleteSelectedOverlay()
 {
     // In shape editing with nodes picked, Delete takes them and never the balloon.
@@ -1274,8 +1296,10 @@ void ObjectController::deleteSelectedOverlay()
         deleteSelectedWords();
         return;
     }
-    if (m_selection.subject() == Subject::Body)
-        return;   // removing a bubble splits the chain: not offered yet
+    if (m_selection.subject() == Subject::Body) {
+        deleteSelectedBubble();
+        return;
+    }
     if (m_selection.objects().isEmpty())
         return;
 

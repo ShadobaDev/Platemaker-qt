@@ -583,25 +583,32 @@ Frame frameKeeping(const QRectF& was, const std::optional<QRectF>& block, int al
 
 } // namespace
 
-Composition fitToBlocks(const Composition& c, const Blocks& blocks)
-{
-    const Body* body = bodyOf(c);
-    if (!body) {
-        Composition out = c;
-        resize(out, fitBoxFor(c, blocks));
-        return out;
-    }
+namespace {
 
-    // The blocks as they lie now, and the rectangle they lie in together.
+/**
+ * \brief @p c's body @p id fitted to the blocks of its own words (fitToBlocks()); @p inPlace moves it too, so its
+ *        seat's middle is on the blocks' (a bubble of a chain), where a lone balloon's body keeps the origin.
+ */
+Composition fitBody(const Composition& c, int id, const Blocks& blocks, bool inPlace)
+{
+    const Body* body = bodyOf(c, id);
+    if (!body)
+        return c;
+
+    // The blocks as they lie now, and the rectangle they lie in together; the other bodies' words left out, so
+    // their outlines are not this body's to hold.
     QList<std::optional<QRectF>> placed;
     QRectF                       all;
+    Blocks                       own;
     for (qsizetype i = 0; i < c.words.size(); ++i) {
         const Words& w     = c.words[i];
         const QSizeF block = i < blocks.size() ? blocks[i] : QSizeF();
         if (seatOf(c, w) != body || block.isEmpty()) {
             placed.append(std::nullopt);
+            own.append(QSizeF());
             continue;
         }
+        own.append(block);
         placed.append(placedBlock(c, w, block));
         all = all.isNull() ? *placed.last() : all.united(*placed.last());
     }
@@ -611,8 +618,11 @@ Composition fitToBlocks(const Composition& c, const Blocks& blocks)
     // A body of @p size whose seat (inner box) has its middle on the blocks', every frame measured from that seat.
     const qreal inset = c.balloon->style.line.strokeWidth / 2.0 + edgeInset(body->shape);
     const auto  sized = [&](const QSize& size) {
-        Composition out = c;
-        resize(out, size);
+        Composition out    = c;
+        Body*       fitted = bodyOf(out, id);
+        fitted->size       = size;
+        if (inPlace)
+            fitted->place.pos = all.center() - QPointF(size.width(), size.height()) / 2.0;
         const QSizeF inner(size.width() - 2 * inset, size.height() - 2 * inset);
         const QRectF seat(all.center() - QPointF(inner.width(), inner.height()) / 2.0, inner);
         for (qsizetype i = 0; i < c.words.size(); ++i) {
@@ -626,14 +636,14 @@ Composition fitToBlocks(const Composition& c, const Blocks& blocks)
     const auto side = [&](qreal span) { return qMax(k_minFitSize, qCeil(span + 2 * inset)); };
     const QSize framed(side(all.width()), side(all.height()));
     Composition probe = sized(framed);
-    if (liesInOutline(probe, blocks))
+    if (liesInOutline(probe, own))
         return probe;
 
     // A curved outline (an ellipse's corners, a box's rounded ones) cuts a block: the body grows, its proportions
     // kept, until none does.
     const auto inside = [&](int width) {
         probe = sized(QSize(width, qCeil(qreal(framed.height()) * width / framed.width())));
-        return liesInOutline(probe, blocks);
+        return liesInOutline(probe, own);
     };
     int lo = framed.width();
     int hi = lo * 2;
@@ -647,6 +657,28 @@ Composition fitToBlocks(const Composition& c, const Blocks& blocks)
     }
     inside(hi);
     return probe;
+}
+
+} // namespace
+
+Composition fitToBlocks(const Composition& c, const Blocks& blocks)
+{
+    if (!bodyOf(c)) {
+        Composition out = c;
+        resize(out, fitBoxFor(c, blocks));
+        return out;
+    }
+    if (c.balloon->bodies.size() == 1)
+        return fitBody(c, c.balloon->bodies.first().id, blocks, false);
+    Composition out = c;   // a chain: each bubble to its own words, where they lie
+    for (const Body& b : c.balloon->bodies)
+        out = fitBody(out, b.id, blocks, true);
+    return out;
+}
+
+Composition fitBodyToBlocks(const Composition& c, int body, const Blocks& blocks)
+{
+    return fitBody(c, body, blocks, c.balloon && c.balloon->bodies.size() > 1);
 }
 
 QList<Handle> textAreaHandles(const Composition& c, const Words& w)

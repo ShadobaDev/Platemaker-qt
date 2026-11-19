@@ -41,6 +41,12 @@ public:
 
     //! A tail whose tip lies inside the balloon draws nothing; its handle is the chrome's only.
     [[nodiscard]] bool handleDrawn(int index) const override;
+    [[nodiscard]] bool isTip(int index) const override;
+    [[nodiscard]] int    bodyAt(const QPointF& local) const override;
+    [[nodiscard]] QRectF bodyBox(int id) const override;
+    [[nodiscard]] QRectF frameBox() const override;
+    [[nodiscard]] bool   isChain() const override;
+    [[nodiscard]] QPainterPath hitArea() const override;
     /**
      * \brief Returns the label for the object.
      * \return The label for the object.
@@ -71,6 +77,12 @@ public:
     //! The fonts changed under the same composition — one added or removed. The words are re-set in whatever is
     //! available now; the owner hands over a fresh rasterisation, since the old one used the old fonts.
     void refreshFonts();
+
+    /**
+     * \brief Outlines body @p body as a held tail's target: in red when releasing joins it, in grey dashes when the two
+     *        cannot join there (@p refused). 0 puts it out.
+     */
+    void setJoinLight(int body, bool refused = false);
 
     /**
      * \brief Returns the size of the bubble's box.
@@ -123,6 +135,8 @@ private:
     QImage       m_sharp;       //!< Library rasterisation shown at rest for a filtered bubble (see above).
     Painter::Paths m_paths;     //!< The paths it is drawn from, cached so a repaint resolves no geometry.
     QList<bool>  m_tailDrawn;   //!< Per tail: whether it is drawn (its tip is outside the balloon).
+    int          m_joinLight = 0;   //!< The body outlined as a held tail's target (setJoinLight()); 0 for none.
+    bool         m_joinRefused = false;   //!< That target cannot be joined: outlined grey, dashed.
 };
 
 }  // namespace StripEdit

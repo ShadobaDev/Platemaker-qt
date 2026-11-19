@@ -52,6 +52,9 @@ public:
     ObjectMenu(ObjectController& objects, const StripLayout& layout, PresetStore& presets,
                QWidget* tree, QGraphicsView* view, QWidget* dialogParent, QObject* parent);
 
+    //! The canvas's Esc: out of shape editing, then from words or a bubble back to their object.
+    bool eventFilter(QObject* watched, QEvent* e) override;
+
     /**
      * \brief Where the menu's colour entries read from — the tool column's pair. Never written to.
      *
@@ -118,6 +121,8 @@ private:
     QAction*           m_actFitToStrip   = nullptr;   //!< Artwork as wide as the strip, and no wider.
     QAction*           m_actFitToText    = nullptr;   //!< The box sized to the lettering — OBJECT STATE's *Fit*.
     QAction*           m_actAddWords     = nullptr;   //!< More words on a balloon or a picture — OBJECT STATE's too.
+    QAction*           m_actAddBubble    = nullptr;   //!< One more bubble at the end of a balloon's chain.
+    QAction*           m_actJoin         = nullptr;   //!< Two balloons made one, bridged where they are nearest.
     QAction*           m_actEditShape    = nullptr;   //!< Shape editing of one balloon, on and off.
     QAction*           m_actResetLook    = nullptr;   //!< *Reset to default*: the default look, no origin.
     QMenu*             m_nodeTypeMenu    = nullptr;   //!< *Point type ▸*: the picked Curve node's type.

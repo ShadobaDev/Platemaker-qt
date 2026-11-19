@@ -41,7 +41,7 @@
  *
  * A Plain tail ends as its `tip` says: in a point (**Sharp**), a half circle (**Round**) whose far point is
  * the tail's tip, or a straight end (**Cut**) through the tip, square to the tail there. A round or cut end
- * is `tipWidth` per cent of the tail's base width, so it follows a resize as the base does.
+ * is `tipWidth` per cent of the tail's base width, so it keeps its proportion when the base width is changed.
  *
  * A Plain tail may be **broken**: its middle runs in straight lines through `breaks` points, evenly spaced
  * along its bent course and moved across it by `jog` per cent of its length, to either side in turn, the
@@ -152,14 +152,26 @@ struct TailLook
 
 struct Tail
 {
+    //! An anchor in the middle of its body's box: where a tail leaves from unless it is moved.
+    static constexpr QPointF k_centre{0.5, 0.5};
+
     QPointF  tip;                //!< Balloon coordinates; outside the balloon is normal.
     qreal    baseWidth = 34.0;   //!< Width where it emerges from the silhouette, in balloon pixels.
     qreal    bend      = 0.0;    //!< -1..+1 — sideways offset of the curve, as a fraction of its length.
     TailLook look;               //!< Plain, or a chain of ellipses.
+    /**
+     * \brief The point inside its body the tail is aimed from, as a fraction of the body's box (k_centre the
+     *        middle): its line runs from here to the tip, and leaves the outline where it crosses it.
+     *
+     * A fraction, so it follows a resize of the body, and a point and not a place on the outline, so a change
+     * of shape only casts the line again. A line from it that never crosses the outline draws no tail, as a tip
+     * inside the outline does not.
+     */
+    QPointF  anchor = k_centre;
 
     [[nodiscard]] bool operator==(const Tail& o) const
     {
-        return tip == o.tip
+        return tip == o.tip && anchor == o.anchor
             && qFuzzyCompare(baseWidth, o.baseWidth)
             && qFuzzyCompare(1.0 + bend, 1.0 + o.bend)   // +1 so an exact 0.0 compares equal
             && look == o.look;
@@ -623,8 +635,10 @@ struct ShapeProperties
     }
 
     //! The same on a composition (composition.cpp): the first body's shape (kind None with no balloon); nothing written where there is none.
-    [[nodiscard]] static ShapeProperties from(const Composition& c);
-    void applyTo(Composition& c) const;
+    //! The shape of @p c's body @p body, its first for 0; Kind::None without a balloon.
+    [[nodiscard]] static ShapeProperties from(const Composition& c, int body = 0);
+    //! Written to @p c's body @p body, its first for 0.
+    void applyTo(Composition& c, int body = 0) const;
 
     [[nodiscard]] bool operator==(const ShapeProperties& o) const { return Fields::equal(*this, o); }
     [[nodiscard]] bool operator!=(const ShapeProperties& o) const { return !(*this == o); }
@@ -1159,9 +1173,13 @@ struct TailsProperties
      */
     TailLook    nextLook;
 
-    //! The same on a composition (composition.cpp): the balloon's tails, each kept by its place in the list, a new one leaving the first body; nothing written where there is none.
-    [[nodiscard]] static TailsProperties from(const Composition& c);
-    void applyTo(Composition& c) const;
+    /**
+     * \brief The same on a composition (composition.cpp): the balloon's tails, or those leaving body @p body
+     *        (0 for every body), never a bridge; each kept by its place in the list, a new one leaving @p body (the
+     *        first for 0). The others, and the bridges, are left as they are; nothing written where there is none.
+     */
+    [[nodiscard]] static TailsProperties from(const Composition& c, int body = 0);
+    void applyTo(Composition& c, int body = 0) const;
 
     [[nodiscard]] bool operator==(const TailsProperties& o) const
     {

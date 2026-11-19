@@ -139,6 +139,14 @@ public:
 
     //! Marks the words @p id as picked: their frame drawn marked, its handles first. 0: none, the first words marked.
     void setPickedWords(int id);
+    //! The body picked on its own, one bubble of several (Subject::Body); 0 for none. Its box is the chrome's.
+    void setPickedBody(int id);
+    [[nodiscard]] int pickedBody() const { return m_pickedBody; }
+    /**
+     * \brief The box the selection chrome draws: the picked body's (pickedBody()), or the body the picked words
+     *        sit on, else the object's (frameBox()), in scene coordinates.
+     */
+    [[nodiscard]] QRectF chromeBox() const;
     //! The words marked: those picked, or the first; 0 with no words.
     [[nodiscard]] int markedWords() const;
 
@@ -158,8 +166,18 @@ public:
     //! Whether this object has handles to edit: a balloon's outline, a fade's cross, words' frame.
     [[nodiscard]] virtual bool canEditShape() const { return false; }
 
-    //! The handles shape editing offers (Geometry::handlesOf()), in item coordinates; none unless canEditShape().
+    /**
+     * \brief The handles the chrome offers besides the grips and the tips, in item coordinates: while the shape
+     *        is edited, those of shape editing (Geometry::handlesOf(), none unless canEditShape()); with one tail
+     *        picked, its anchors (Geometry::tailHandles()); none otherwise.
+     */
     [[nodiscard]] QList<Geometry::Handle> shapeHandles() const;
+    /**
+     * \brief A double-click on handle @p index of shapeHandles(): what it sets put back (Geometry::Handle::reset),
+     *        reported as a settled edit.
+     * \return Whether anything changed.
+     */
+    bool resetShapeHandle(int index);
     //! The bare outline shape editing traces, in item coordinates. None by default.
     [[nodiscard]] virtual QPainterPath editOutline() const { return {}; }
 
@@ -192,6 +210,26 @@ public:
      * press on a spot that shows nothing must move the object, not aim a tail nobody can see.
      */
     [[nodiscard]] virtual bool handleDrawn(int index) const { Q_UNUSED(index) return true; }
+
+    //! Whether handle @p index is a tip at all: a bridge between two bubbles is counted as a tail and has none.
+    [[nodiscard]] virtual bool isTip(int index) const { Q_UNUSED(index) return true; }
+
+    /**
+     * \brief The body a press at @p local lands in, one bubble of a balloon of several, by its id; 0 for none:
+     *        an object of one body, or a press outside every body (on a bridge, a tail).
+     */
+    [[nodiscard]] virtual int bodyAt(const QPointF& local) const { Q_UNUSED(local) return 0; }
+    //! Body @p id's box, in item coordinates; empty when there is no such body.
+    [[nodiscard]] virtual QRectF bodyBox(int id) const { Q_UNUSED(id) return {}; }
+    /**
+     * \brief The rectangle the object is moved by and framed with, in item coordinates: its box, or a chain's
+     *        every bubble (frameOf()). A chain's frame has no grips (isChain()).
+     */
+    [[nodiscard]] virtual QRectF frameBox() const { return QRectF(QPointF(0, 0), boxSize()); }
+    //! Whether the object is a balloon of several bubbles: resized one bubble at a time, never as a whole.
+    [[nodiscard]] virtual bool isChain() const { return false; }
+    //! Where a press reaches the object, in item coordinates: its frame; a chain's every bubble and bridge.
+    [[nodiscard]] virtual QPainterPath hitArea() const;
 
     /**
      * \brief True when a resize keeps the box's aspect: imported artwork, whose height follows its file's, which
@@ -307,6 +345,11 @@ signals:
 
     //! A press on a handle of the frame of words @p id that are not picked: the controller picks them.
     void wordsPressed(const QString& uid, int id);
+    /**
+     * \brief A press landed in body @p id of a balloon of several, without Alt: the drag moves that body.
+     *        Sent after pressed(), so the owner can let words picked by the same press stand.
+     */
+    void bodyPressed(const QString& uid, int id);
 
     /**
      * \brief The object was pressed — on handle @p handle, or on anything else when it is -1.
@@ -428,6 +471,11 @@ private:
     bool    m_orphaned = false;     //!< True when the anchor page is not in the strip, so the object is greyed out and cannot be moved.
     QList<int> m_focusedHandles;   //!< The selected tails' handles, drawn hollow.
     int        m_pickedWords = 0;  //!< See setPickedWords().
+    int        m_pickedBody  = 0;  //!< See setPickedBody().
+    int        m_dragBody    = 0;  //!< The body this drag moves (bodyPressed()); 0 when it moves the object.
+    bool       m_wasSelected = false;   //!< Whether the object was selected before this press: a click goes through.
+    Composition m_dragStart;       //!< The composition at the press, which a body's drag is measured from.
+    int        m_resizeBody  = 0;  //!< The body a grip's drag resizes (the picked one); 0 when it resizes the object.
     Grip    m_dragGrip = Grip::None;   //!< The grip of the drag under way or the last one (dragGrip()).
     bool    m_shapeEditing = false;    //!< See setShapeEditing().
     QList<int> m_pickedVertices;       //!< See pickedVertices().

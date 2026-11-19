@@ -120,10 +120,11 @@ QRectF SelectionChrome::gripRect(const Object* o, Grip grip, qreal s) const
     // While one of its tails is the subject, the box is not: its grips are not shown, so they do not
     // resize either — what looks selected is what an edit will change. Nor while its shape is edited,
     // when the outline's own handles take their place.
-    if (o->hasFocusedHandles() || o->shapeEditing())
+    // A chain is moved as one and never resized as one: a bubble of it picked has its own grips.
+    if (o->hasFocusedHandles() || o->shapeEditing() || (o->isChain() && o->pickedBody() == 0))
         return {};
 
-    const QRectF box = o->sceneBox();
+    const QRectF box = o->chromeBox();
     switch (grip) {
     case Grip::TopLeft:     return square(box.topLeft(), s);
     case Grip::TopRight:    return square(box.topRight(), s);
@@ -151,12 +152,14 @@ QRectF SelectionChrome::gripRect(const Object* o, Grip grip, qreal s) const
 
 QRectF SelectionChrome::handleRect(const Object* o, int index, qreal s) const
 {
+    if (!o->isTip(index))
+        return {};   // a bridge: nothing to aim, so nothing drawn and nothing to press
     return square(o->mapToScene(o->handleAt(index)), s);
 }
 
 QList<Geometry::Handle> SelectionChrome::shapeHandles(const Object* o)
 {
-    return o->shapeEditing() ? o->shapeHandles() : QList<Geometry::Handle>();
+    return o->shapeHandles();
 }
 
 QList<QPair<int, QRectF>> SelectionChrome::textAreaRects(const Object* o, bool overflowing)
@@ -180,7 +183,7 @@ void SelectionChrome::refresh()
     m_textAreas.clear();
     m_markedAreas.clear();
     for (const Object* o : subjects()) {
-        next = next.united(o->sceneBox().adjusted(-s, -s, s, s));
+        next = next.united(o->sceneBox().adjusted(-s, -s, s, s)).united(o->chromeBox().adjusted(-s, -s, s, s));
         for (int i = 0; i < o->tipCount(); ++i)
             next = next.united(handleRect(o, i, s).adjusted(-1, -1, 1, 1));
         if (o->shapeEditing())
@@ -283,7 +286,7 @@ void SelectionChrome::paint(QPainter* painter, const QStyleOptionGraphicsItem* o
             pen.setStyle(Qt::DashLine);
             painter->setPen(pen);
             painter->setBrush(Qt::NoBrush);
-            painter->drawRect(o->sceneBox());
+            painter->drawRect(o->chromeBox());
         }
 
         pen.setStyle(Qt::SolidLine);
@@ -498,6 +501,17 @@ void SelectionChrome::mouseReleaseEvent(QGraphicsSceneMouseEvent*)
     if (m_target)
         m_target->endDrag();
     m_target = nullptr;
+}
+
+void SelectionChrome::mouseDoubleClickEvent(QGraphicsSceneMouseEvent* e)
+{
+    // In shape editing a double-click is the mode's (CanvasInput), and never reaches here.
+    const Hit hit = hitAt(e->scenePos());
+    if (hit.object && hit.grip == Grip::Shape && hit.object->resetShapeHandle(hit.handle)) {
+        e->accept();
+        return;
+    }
+    QGraphicsItem::mouseDoubleClickEvent(e);   // a second press, as before
 }
 
 }  // namespace StripEdit

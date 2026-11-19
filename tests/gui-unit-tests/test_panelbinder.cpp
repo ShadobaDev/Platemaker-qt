@@ -127,4 +127,13 @@ TEST(PanelBinder, EachKindOfSelectionIsBoundAsItsOwn)
     s.select({});
     EXPECT_EQ(nothing, 1);
     EXPECT_TRUE(s.binder.subjects().isEmpty());
+
+    // A body picked alone: bound to its balloon, the body named.
+    int body = 0;
+    QObject::connect(&s.binder, &PanelBinder::boundToBody, [&](const Composition&, int id) { body = id; });
+    const int first = s.objects.value("a").balloon->bodies.first().id;
+    s.selection.selectBody({"a", first}, [](const QString&, int) { return true; });
+    s.binder.bind();
+    EXPECT_EQ(body, first);
+    EXPECT_EQ(s.binder.subjects(), QStringList{"a"});
 }

@@ -11,6 +11,17 @@
 
 namespace StripEdit {
 
+namespace {
+
+//! The outline of the bubble a held tail would join: the red of a warning, as the overflow's frame.
+const QColor k_joinLightColour(220, 40, 40);
+//! Its pen's width, in screen pixels.
+constexpr qreal k_joinLightWidth = 3.0;
+//! The outline of a bubble a held tail cannot join (Chain::canJoinByTail()): grey, dashed, as a disabled control.
+const QColor k_joinRefusedColour(128, 128, 128);
+
+}  // namespace
+
 BubbleObject::BubbleObject(QString uid, Composition composition, QGraphicsItem* parent)
     : Object(std::move(uid), parent)
 {
@@ -81,24 +92,69 @@ void BubbleObject::setBoxSize(QSizeF size, const QPointF& handleShift)
 
     // **A tip stays where it points.** It is aimed at a speaker, and resizing the balloon does not move
     // the speaker — so the tip keeps its place on the strip, which in the balloon's own units means
-    // moving back by however far the box's corner moved. Only the tail's *width* follows the balloon:
-    // a tail that kept its thickness would swamp a shrinking bubble.
-    const qreal widthScale = oldBox.isEmpty()
-        ? 1.0
-        : (double(newBox.width()) / oldBox.width() + double(newBox.height()) / oldBox.height()) / 2.0;
+    // moving back by however far the box's corner moved. **Its base width stays too**: it is the author's,
+    // set in the tail's own section, and a resize is not a reason to change it.
     Composition next = m_composition;
     if (next.balloon)
-        for (BalloonTail& t : next.balloon->tails) {
-            t.tail.tip       += handleShift;
-            t.tail.baseWidth *= widthScale;
-        }
+        for (BalloonTail& t : next.balloon->tails)
+            t.tail.tip += handleShift;
     resize(next, newBox);
     emit compositionEdited(uid(), next);
 }
 
 bool BubbleObject::handleDrawn(int index) const
 {
-    return m_tailDrawn.value(index, false);
+    return isTip(index) && m_tailDrawn.value(index, false);
+}
+
+int BubbleObject::bodyAt(const QPointF& local) const
+{
+    return isChain() ? Geometry::bodyAt(*m_composition.balloon, m_composition.seed, local) : 0;
+}
+
+void BubbleObject::setJoinLight(int body, bool refused)
+{
+    if (body == m_joinLight && refused == m_joinRefused)
+        return;
+    m_joinLight   = body;
+    m_joinRefused = refused;
+    update();
+}
+
+QRectF BubbleObject::bodyBox(int id) const
+{
+    if (m_composition.balloon)
+        for (const Body& b : m_composition.balloon->bodies)
+            if (b.id == id)
+                return QRectF(b.place.pos, QSizeF(b.size));
+    return {};
+}
+
+bool BubbleObject::isChain() const
+{
+    return m_composition.balloon && m_composition.balloon->bodies.size() > 1;
+}
+
+QRectF BubbleObject::frameBox() const
+{
+    return isChain() ? frameOf(m_composition) : Object::frameBox();
+}
+
+QPainterPath BubbleObject::hitArea() const
+{
+    if (!isChain())
+        return Object::hitArea();
+    // Every bubble's box, and the outline the bridges join them into: a press on a bridge reaches the object.
+    QPainterPath p = m_paths.silhouette;
+    p.setFillRule(Qt::WindingFill);
+    for (const Body& b : m_composition.balloon->bodies)
+        p.addRect(QRectF(b.place.pos, QSizeF(b.size)));
+    return p;
+}
+
+bool BubbleObject::isTip(int index) const
+{
+    return index >= 0 && index < handleCount() && !m_composition.balloon->tails.at(index).isBridge();
 }
 
 int BubbleObject::handleCount() const
@@ -126,7 +182,7 @@ bool BubbleObject::canEditShape() const
 {
     // A patterned fill has its fade's cross, and words their text area's arrows, so a balloon
     // with no handles of its own is edited for those.
-    const Body* body = bodyOf(m_composition);
+    const Body* body = bodyOf(m_composition, pickedBody());
     return body
         && (Geometry::hasShapeHandles(body->shape) || m_composition.balloon->style.fill.fill.kind != Paint::Kind::Solid
             || lettered(m_composition));
@@ -134,7 +190,7 @@ bool BubbleObject::canEditShape() const
 
 QPainterPath BubbleObject::editOutline() const
 {
-    const Body* own = bodyOf(m_composition);
+    const Body* own = bodyOf(m_composition, pickedBody());
     if (!own)
         return {};
     return Geometry::outlineOf(*own, Geometry::balloonRect(*m_composition.balloon, *own), m_composition.seed);
@@ -145,11 +201,22 @@ void BubbleObject::paintContent(QPainter& painter)
     // Styled: show the library's rendering, at rest and while the whole object is carried, which moves
     // it and changes nothing it draws. A drag that reshapes it (a tail, a grip, a node) shows the paths
     // instead: they follow the mouse, and a rasterisation cannot be produced per mouse-move anyway.
-    if (!m_sharp.isNull() && (!isDragging() || dragGrip() == Grip::Body)) {
+    if (!m_sharp.isNull() && (!isDragging() || dragGrip() == Grip::Body))
         painter.drawImage(contentBounds().topLeft(), m_sharp);
+    else
+        Painter::paintPaths(painter, m_composition, m_paths);
+
+    // The bubble a held tail would join, or cannot, outlined over the drawing.
+    const Body* lit = m_joinLight != 0 ? bodyOf(m_composition, m_joinLight) : nullptr;
+    if (!lit)
         return;
-    }
-    Painter::paintPaths(painter, m_composition, m_paths);
+    QPen pen(m_joinRefused ? k_joinRefusedColour : k_joinLightColour, k_joinLightWidth,
+             m_joinRefused ? Qt::DashLine : Qt::SolidLine);
+    pen.setCosmetic(true);   // as wide on screen at any zoom
+    painter.setCompositionMode(QPainter::CompositionMode_SourceOver);
+    painter.setPen(pen);
+    painter.setBrush(Qt::NoBrush);
+    painter.drawPath(Geometry::outlineOf(*lit, Geometry::balloonRect(*m_composition.balloon, *lit), m_composition.seed));
 }
 
 }  // namespace StripEdit

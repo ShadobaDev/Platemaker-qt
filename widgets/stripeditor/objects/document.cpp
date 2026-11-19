@@ -206,12 +206,13 @@ bool convert(Composition& c, bool toBalloon, const BalloonLook& look)
     return true;
 }
 
-bool fitToText(Composition& c)
+bool fitToText(Composition& c, int body)
 {
     if (c.picture)
         return false;
     const Composition was = c;
-    c = Geometry::fitToBlocks(c, Geometry::textBlocks(c));
+    c = body != 0 ? Geometry::fitBodyToBlocks(c, body, Geometry::textBlocks(c))
+                  : Geometry::fitToBlocks(c, Geometry::textBlocks(c));
     return c != was;
 }
 
@@ -230,12 +231,14 @@ bool removeTails(Composition& c, QList<int> indexes)
     return removed;
 }
 
-int addWords(Composition& c, int from)
+int addWords(Composition& c, int from, int seat)
 {
     const auto model = std::find_if(c.words.cbegin(), c.words.cend(), [from](const Words& w) { return w.id == from; });
     if (c.words.isEmpty())
         return 0;
     Words added = model != c.words.cend() ? *model : c.words.first();
+    if (seat != 0)
+        added.seat = seat;
     if (!seated(c, added))
         return 0;
     added.id = c.nextId++;

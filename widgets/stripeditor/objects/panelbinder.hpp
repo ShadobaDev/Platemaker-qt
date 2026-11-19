@@ -76,6 +76,7 @@ signals:
     void boundToComposition(const Composition& composition);            //!< One object.
     void boundToTail(const Composition& composition, int index);   //!< One tail, of the balloon @p composition.
     void boundToWords(const Composition& composition, int id);     //!< Words @p id picked, of @p composition.
+    void boundToBody(const Composition& composition, int id);      //!< Body @p id picked, of @p composition.
     void boundToCompositions(const QList<Composition>& compositions);   //!< Several objects, of any kinds.
     void boundToMixed(int count);   //!< Objects and tails together: nothing editable in common.
     //! Several tails and no whole object: their @p balloons, and each tail as (balloon index, tail index).

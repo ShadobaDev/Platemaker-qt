@@ -70,15 +70,38 @@ qreal spread(QRandomGenerator& rng, int percent)
     return 1.0 + p * (2.0 * rng.generateDouble() - 1.0);
 }
 
+//! One body's box, and the core its radiating strokes are laid from (flashInk()).
+struct FlashCore
+{
+    QRectF frame;
+    QRectF core;
+};
+
+//! The core of the body in @p cores whose box is nearest @p p, inside counting as nearest; the first on a tie.
+const QRectF& coreFor(const QList<FlashCore>& cores, const QPointF& p)
+{
+    const auto away = [&p](const QRectF& r) {
+        const qreal dx = qMax(qMax(r.left() - p.x(), 0.0), p.x() - r.right());
+        const qreal dy = qMax(qMax(r.top() - p.y(), 0.0), p.y() - r.bottom());
+        return std::hypot(dx, dy);
+    };
+    const FlashCore* best = &cores.first();
+    for (const FlashCore& c : cores)
+        if (away(c.frame) < away(best->frame))
+            best = &c;
+    return best->core;
+}
+
 /**
  * \brief Adds one ring of strokes along every closed edge in @p edges.
  *
  * Strokes are spread evenly by arc length, not by angle, which would crowd them at the ends of a wide
  * oval: the edge's perimeter is divided into whole steps near the pitch, so there is no seam where the
- * walk meets its start. Each stroke points along the ray from the nearest point of @p core through its
- * place on the edge: away from it outside, towards it inside, where it is cut short at the core.
+ * walk meets its start. Each stroke points along the ray from the nearest point of a core through its
+ * place on the edge (the core of the body nearest it, coreFor()): away from it outside, towards it inside,
+ * where it is cut short at the core.
  */
-void addRing(QPainterPath& out, const QList<OutlineRing>& edges, const QRectF& core, const Ring& r,
+void addRing(QPainterPath& out, const QList<OutlineRing>& edges, const QList<FlashCore>& cores, const Ring& r,
              QRandomGenerator& rng)
 {
     const qreal pitch = qMax(r.pitch, k_minPitch);
@@ -100,6 +123,7 @@ void addRing(QPainterPath& out, const QList<OutlineRing>& edges, const QRectF& c
             const QPointF p = edge.at(s).at;
 
             // From the nearest point of the core; a point on or inside it falls back to the core's centre.
+            const QRectF& core = coreFor(cores, p);
             const QPointF near(qBound(core.left(), p.x(), core.right()),
                                qBound(core.top(), p.y(), core.bottom()));
             QPointF ray = p - near;
@@ -130,20 +154,24 @@ void addRing(QPainterPath& out, const QList<OutlineRing>& edges, const QRectF& c
 
 QPainterPath flashInk(const StyleProperties& s, const OutlineModel& outline, quint32 seed)
 {
-    const QSizeF  box    = outline.frame.size();
-    const QPointF centre = outline.frame.center();
-
-    // What the strokes point away from: the centre, stretched into a line along the box's longer axis.
-    // At 100 % the line runs between the centres of the two circles that fit the box's ends, so every
-    // stroke on a long straight side is square to it and only the ends fan out; a square box keeps a
-    // point whatever the stretch. On Auto the shape says how far.
-    const int    percent = s.flash.coreStretch == FlashParams::k_autoStretch ? outline.coreStretch
-                                                                                 : s.flash.coreStretch;
-    const qreal  stretch = qBound(0, percent, 100) / 100.0;
-    const QSizeF half(stretch * qMax(0.0, box.width() - box.height()) / 2.0,
-                      stretch * qMax(0.0, box.height() - box.width()) / 2.0);
-    const QRectF core(centre.x() - half.width(), centre.y() - half.height(), 2 * half.width(),
-                      2 * half.height());
+    // What the strokes point away from, per body: its centre, stretched into a line along its box's longer
+    // axis. At 100 % the line runs between the centres of the two circles that fit the box's ends, so every
+    // stroke on a long straight side is square to it and only the ends fan out; a square box keeps a point
+    // whatever the stretch. On Auto the shape says how far.
+    QList<FlashCore> core;
+    for (const OutlineBody& body : outline.bodies) {
+        const QSizeF  box     = body.frame.size();
+        const QPointF centre  = body.frame.center();
+        const int     percent = s.flash.coreStretch == FlashParams::k_autoStretch ? body.coreStretch
+                                                                                      : s.flash.coreStretch;
+        const qreal   stretch = qBound(0, percent, 100) / 100.0;
+        const QSizeF  half(stretch * qMax(0.0, box.width() - box.height()) / 2.0,
+                           stretch * qMax(0.0, box.height() - box.width()) / 2.0);
+        core.append({body.frame, QRectF(centre.x() - half.width(), centre.y() - half.height(), 2 * half.width(),
+                                        2 * half.height())});
+    }
+    if (core.isEmpty())
+        return {};
 
     QPainterPath out;
     out.setFillRule(Qt::WindingFill);
@@ -1690,8 +1718,7 @@ QPainterPath fillTone(const Balloon& b, const QPainterPath& silhouette)
     const Paint& p = b.style.fill.fill;
     if (!fades(p) || silhouette.isEmpty() || b.bodies.isEmpty())
         return {};
-    // ponytail: the fade is laid on the first body; a chain's lays one across all when it comes.
-    const QRectF body = balloonRect(b, b.bodies.first());
+    const QRectF body = fillBox(b);   // across every body at once, as the fill is one
     // A bar's width is sampled about every half cell: a fade spans a good part of the balloon.
     return halftoneMarks(p, silhouette.boundingRect(), [&](const QPointF& at) { return fadeTone(p, body, at); },
                          qMax(p.spacing, k_minPatternSpacing) / 2.0);

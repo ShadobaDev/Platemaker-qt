@@ -71,16 +71,25 @@ struct Body
     [[nodiscard]] bool operator!=(const Body& o) const { return !(*this == o); }
 };
 
-//! One tail of a balloon, leaving from the body \c root.
+/**
+ * \brief One tail of a balloon, leaving from the body \c root: to its tip, or, as a **bridge**, to the body \c to.
+ *
+ * A bridge joins two bodies of one balloon into a chain (chain.hpp); it keeps a tail's width, bend and breaks,
+ * and its tip is not read: it runs from its tail's anchor in \c root to \c toAnchor in \c to.
+ */
 struct BalloonTail
 {
-    int  id   = 0;
-    int  root = 0;   //!< The id of the body it leaves from.
-    Tail tail;       //!< Its tip (in the composition's frame), width, bend and look.
+    int     id       = 0;
+    int     root     = 0;              //!< The id of the body it leaves from.
+    Tail    tail;                      //!< Its tip (in the composition's frame), anchor, width, bend and look.
+    int     to       = 0;              //!< A bridge's far body; 0 for a tail.
+    QPointF toAnchor = Tail::k_centre;  //!< A bridge's anchor in its far body (Tail::anchor); not read on a tail.
+
+    [[nodiscard]] bool isBridge() const { return to != 0; }
 
     [[nodiscard]] bool operator==(const BalloonTail& o) const
     {
-        return id == o.id && root == o.root && tail == o.tail;
+        return id == o.id && root == o.root && tail == o.tail && to == o.to && toAnchor == o.toAnchor;
     }
     [[nodiscard]] bool operator!=(const BalloonTail& o) const { return !(*this == o); }
 };
@@ -235,6 +244,9 @@ void tidyRuns(TextProperties& t);
 //! The body the editor edits: the first of @p c's balloon; none without a balloon. ponytail: as wordsOf().
 [[nodiscard]] const Body* bodyOf(const Composition& c);
 [[nodiscard]] Body*       bodyOf(Composition& c);
+//! @p c's body @p id, its first for 0; none without a balloon or with no such body.
+[[nodiscard]] const Body* bodyOf(const Composition& c, int id);
+[[nodiscard]] Body*       bodyOf(Composition& c, int id);
 
 /**
  * \brief The rectangle the author dragged: the bodies', the picture's, and the box of words with no seat, as
@@ -272,7 +284,7 @@ inline constexpr QSize k_defaultObjectSize{280, 160};
 
 /**
  * \brief Whether @p c draws anything at random from its seed: a balloon whose line is not the solid one, with a
- *        texture, or with an irregular edge on its first body — so it needs a seed, and *Re-roll* has something to
+ *        texture, or with an irregular edge on any body — so it needs a seed, and *Re-roll* has something to
  *        deal again.
  */
 [[nodiscard]] bool usesSeed(const Composition& c);
@@ -303,7 +315,8 @@ inline constexpr int k_labelChars = 32;
  *
  * `{balloon: {id, style, bodies, tails}, picture, words, seed, preset, nextId}`, each
  * group an object and each section an object inside its group (a section's numbers left out while they are their
- * defaults). A body is `{id, place, size, shape}`, a tail `{id, root, tip, width, bend, look}`, words
+ * defaults). A body is `{id, place, size, shape}`, a tail `{id, root, tip, width, bend, look}` and a bridge `to`
+ * too, words
  * `{id, text, seat, frame}` or, with no seat, `{id, text, place, box}`; a place is `{pos}`, with `rotation` and `scale`
  * only when they are not their defaults.
  */

@@ -1,4 +1,5 @@
 #include "objectstate/objectstate.hpp"
+#include "chain.hpp"
 
 #include <QComboBox>
 #include <QDoubleSpinBox>
@@ -310,6 +311,9 @@ void ObjectState::setComposition(const Composition& a)
     m_tailIndex     = -1;
     m_wordsId = 0;
     m_groups.text()->setWords(0);
+    m_bodyId = 0;
+    m_groups.shape()->setBody(0);
+    m_tailList->setBody(0);
     m_hasComposition   = true;
     m_selectionCount = 1;
 
@@ -347,6 +351,9 @@ void ObjectState::setMixedSubjects(int count)
     m_tailIndex      = -1;
     m_wordsId = 0;
     m_groups.text()->setWords(0);
+    m_bodyId = 0;
+    m_groups.shape()->setBody(0);
+    m_tailList->setBody(0);
     m_commitTimer->stop();
 
     m_subject->setText(tr("%n objects", "", count));
@@ -374,6 +381,9 @@ void ObjectState::setCompositions(const QList<Composition>& objects)
     m_tailIndex      = -1;
     m_wordsId = 0;
     m_groups.text()->setWords(0);
+    m_bodyId = 0;
+    m_groups.shape()->setBody(0);
+    m_tailList->setBody(0);
     m_commitTimer->stop();
 
     // A role is a property several kinds share, so each group is bound to the objects that have it: the
@@ -430,6 +440,9 @@ void ObjectState::setTails(const QList<Composition>& balloons, const QList<QPair
     m_tailIndex      = -1;
     m_wordsId = 0;
     m_groups.text()->setWords(0);
+    m_bodyId = 0;
+    m_groups.shape()->setBody(0);
+    m_tailList->setBody(0);
     m_hasComposition      = false;
     m_selectionCount = int(tails.size());
 
@@ -459,6 +472,9 @@ void ObjectState::setTail(const Composition& a, int index)
     m_tailIndex     = index;
     m_wordsId = 0;
     m_groups.text()->setWords(0);
+    m_bodyId = 0;
+    m_groups.shape()->setBody(0);
+    m_tailList->setBody(0);
     m_hasComposition   = true;
     m_selectionCount = 1;
 
@@ -500,6 +516,26 @@ void ObjectState::setWords(const Composition& a, int id)
     applyKindVisibility();
 }
 
+void ObjectState::setBody(const Composition& a, int id)
+{
+    setComposition(a);   // the object's state, then narrowed to the body
+    m_bodyId = id;
+    m_populating = true;
+    m_groups.shape()->setBody(id);
+    m_groups.shape()->bindOne(m_composition);
+    m_tailList->setBody(id);
+    m_tailList->bindOne(m_composition);
+    m_populating = false;
+
+    const QList<int> order = m_composition.balloon ? Chain::order(*m_composition.balloon) : QList<int>();
+    m_subject->setText(tr("Bubble %1").arg(order.indexOf(id) + 1));
+    // An end of the chain only: a middle bubble would split the balloon in two.
+    m_deleteButton->setText(tr("Delete bubble"));
+    m_deleteButton->setVisible(order.size() > 1 && (order.first() == id || order.last() == id));
+    refreshLook();
+    applyKindVisibility();
+}
+
 void ObjectState::clearSelection()
 {
     m_tailSet.clear();
@@ -508,6 +544,9 @@ void ObjectState::clearSelection()
     m_tailIndex      = -1;
     m_wordsId = 0;
     m_groups.text()->setWords(0);
+    m_bodyId = 0;
+    m_groups.shape()->setBody(0);
+    m_tailList->setBody(0);
     m_subjects.clear();
     m_commitTimer->stop();
 
@@ -547,6 +586,7 @@ void ObjectState::applyKindVisibility()
         // answers, through the same rule a set is measured by.
         it.value()->setVisible(tailSubject() ? g == PropertyGroup::TailItem
                                : m_wordsId != 0 ? g == PropertyGroup::Text
+                               : m_bodyId != 0  ? g == PropertyGroup::Shape || g == PropertyGroup::Tail
                                                 : carriesGroup(m_composition, g));
     }
 }
@@ -581,7 +621,7 @@ void ObjectState::refreshLook()
     // own, nothing selected has nothing to report, and a picture's look is whoever drew it.
     PresetOrigin origin;
     bool         mixed = false;
-    if (tailSubject() || m_wordsId != 0 || m_selectionCount == 0
+    if (tailSubject() || m_wordsId != 0 || m_bodyId != 0 || m_selectionCount == 0
         || (m_hasComposition && m_composition.picture.has_value())) {
     } else if (m_hasComposition) {
         origin = m_composition.preset;
@@ -592,7 +632,7 @@ void ObjectState::refreshLook()
         });
     }
     // The picker goes with the chip: shown wherever there is a look a preset could replace.
-    const bool hasLook = !(tailSubject() || m_wordsId != 0 || m_selectionCount == 0
+    const bool hasLook = !(tailSubject() || m_wordsId != 0 || m_bodyId != 0 || m_selectionCount == 0
                            || (m_hasComposition && m_composition.picture.has_value()))
                       && (m_hasComposition || std::any_of(m_subjects.cbegin(), m_subjects.cend(),
                                                      [](const Composition& a) { return !a.picture.has_value(); }));
@@ -699,6 +739,9 @@ void ObjectState::onControlChanged()
         m_tail->applyTo(m_composition);   // that tail, and nothing else about the balloon
     } else if (m_wordsId != 0) {
         m_groups.text()->applyTo(m_composition);   // those words, and nothing else about the object
+    } else if (m_bodyId != 0) {
+        m_groups.shape()->applyTo(m_composition);   // that body's shape and tails, nothing else about the balloon
+        m_tailList->applyTo(m_composition);
     } else {
         m_groups.collect(m_composition, m_tailList);
 

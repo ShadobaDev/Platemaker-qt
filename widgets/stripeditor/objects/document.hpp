@@ -97,17 +97,18 @@ bool paint(Composition& c, Geometry::Part part, const QColor& colour, int words 
  *        lettering in its new kind, both ways. False when it is that kind already.
  */
 bool convert(Composition& c, bool toBalloon, const BalloonLook& look);
-//! The body fitted to every words' text where it lies (Geometry::fitToBlocks()). False for a picture, whose box is its
-//! own pixels.
-bool fitToText(Composition& c);
+//! The body fitted to every words' text where it lies (Geometry::fitToBlocks()), or only body @p body when it is not 0
+//! (a bubble picked). False for a picture, whose box is its own pixels.
+bool fitToText(Composition& c, int body = 0);
 //! Removes tails @p indexes of @p c's balloon, whichever order they come in. False when none of them is there.
 bool removeTails(Composition& c, QList<int> indexes);
 /**
  * \brief Adds words to @p c on the seat of its words @p from (its first when there are none such): their lettering,
- *        no text, in the seat's lower half (the top edge set at half its height). Returns their id; 0 when those
- *        words have no seat (a text object is its one words).
+ *        no text, in the seat's lower half (the top edge set at half its height); on body @p seat instead when it
+ *        is not 0 (a bubble picked on its own). Returns their id; 0 when those words have no seat (a text object is
+ *        its one words).
  */
-int addWords(Composition& c, int from);
+int addWords(Composition& c, int from, int seat = 0);
 //! Removes @p c's words @p id. False when there are no such words, or they are the last: a balloon keeps somewhere to type.
 bool removeWords(Composition& c, int id);
 

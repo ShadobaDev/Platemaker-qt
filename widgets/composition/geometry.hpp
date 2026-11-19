@@ -66,6 +66,20 @@ namespace Geometry {
  */
 [[nodiscard]] QList<bool> tailsDrawn(const Balloon& b, quint32 seed);
 
+/**
+ * \brief @p t as it is drawn: each anchor (a bridge has two) moved towards its body's middle, to the last place on
+ *        that way where the base, square to the tail, fits inside its bubble on the tail's line, so the tail meets
+ *        the outline with no notch.
+ *
+ * An anchor too near the edge for a tail running along it, however the tip, width or shape made it so, starts the
+ * tail nearer the middle; turned back, the tail starts at the anchor again: the anchor set is never changed. One
+ * where the base fits, or fits nowhere on that way, stays; so does each of a chain of circles, which has no base.
+ */
+[[nodiscard]] BalloonTail fittedTail(const Balloon& b, const BalloonTail& t, quint32 seed);
+
+//! The body of @p b whose outline holds @p local, the last drawn tried first, by its id; 0 for none.
+[[nodiscard]] int bodyAt(const Balloon& b, quint32 seed, const QPointF& local);
+
 //! What an object is made of where a point lands — the three things that carry a colour, and a miss.
 enum class Part { None, Fill, Outline, Text };
 
@@ -260,13 +274,16 @@ using Blocks = QList<QSizeF>;
 /**
  * \brief @p c's balloon fitted to its words' blocks of @p blocks (textBlocks()) where they lie now: *Fit to text*.
  *
- * The rectangle every block on the first body lies in becomes the body's seat (inner box), its middle on theirs;
+ * The rectangle every block on a body lies in becomes the body's seat (inner box), its middle on theirs;
  * where a curved outline would cut a block, the body grows, its proportions kept (liesInOutline()). The blocks keep
  * their places against each other: each frame is measured again from the new seat, an edge past it stops at it
  * (automatic), and the frame is cut down so the block's alignment puts it where it was. Neither side goes below the
- * grips' own minimum (40 px). Without a balloon, @p c resized to fitBoxFor().
+ * grips' own minimum (40 px). A chain fits each bubble to its own words, in place: its seat's middle moves onto
+ * theirs, so the words stay where they are on the strip. Without a balloon, @p c resized to fitBoxFor().
  */
 [[nodiscard]] Composition fitToBlocks(const Composition& c, const Blocks& blocks);
+//! @p c with only body @p body fitted to its words (fitToBlocks()): a bubble of a chain, in place.
+[[nodiscard]] Composition fitBodyToBlocks(const Composition& c, int body, const Blocks& blocks);
 
 //! The text area's handles (textAreaHandles()), told apart by Handle::part.
 enum class TextAreaPart {

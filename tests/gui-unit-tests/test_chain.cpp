@@ -1,0 +1,677 @@
+// A balloon of several bodies joined by bridges: the chain's rules, each refusal leaving the composition as it
+// was, merging two balloons, cutting one in pieces, and a bridge through the content's JSON.
+
+#include <gtest/gtest.h>
+
+#include <QJsonArray>
+
+#include "chain.hpp"
+#include "geometry.hpp"
+#include "handles.hpp"
+#include "shapes.hpp"
+
+using namespace Chain;
+
+namespace {
+
+//! The offset a second balloon is merged at, and a new body placed at: any distance that tells the two apart.
+const QPointF k_apart(300, 40);
+
+//! A balloon of one body with its words, as the Bubble tool places it.
+Composition balloon(const QString& words = QStringLiteral("Hey"))
+{
+    Composition c = withBalloon(textObject(), BalloonLook{});
+    c.words.first().text.body   = words;
+    c.words.first().text.family = QStringLiteral("Comic Neue");
+    return c;
+}
+
+int bodyId(const Composition& c, int index) { return c.balloon->bodies.at(index).id; }
+
+//! A chain of three bodies, A–B–C, made by *Add bubble* twice.
+Composition chainOfThree()
+{
+    Composition c = balloon();
+    int b = 0, last = 0;
+    EXPECT_EQ(addBody(c, bodyId(c, 0), k_apart, &b), ChainError::None);
+    EXPECT_EQ(addBody(c, b, k_apart, &last), ChainError::None);
+    return c;
+}
+
+/**
+ * \brief A chain of one bubble per name, each read in turn, each bubble's words its name; with a tail on every
+ *        bubble, so any of them can be held.
+ */
+Composition chainOf(const QStringList& names)
+{
+    Composition c = balloon(names.first());
+    for (qsizetype i = 1; i < names.size(); ++i) {
+        int added = 0;
+        EXPECT_EQ(addBody(c, order(*c.balloon).constLast(), k_apart, &added), ChainError::None);
+        for (Words& w : c.words)
+            if (w.seat == added)
+                w.text.body = names.at(i);
+    }
+    for (const int body : order(*c.balloon)) {
+        BalloonTail t;
+        t.id   = c.nextId++;
+        t.root = body;
+        c.balloon->tails.append(t);
+    }
+    return c;
+}
+
+//! The tail on the bubble whose words are @p name.
+int tailOn(const Composition& c, const QString& name)
+{
+    for (const Words& w : c.words)
+        if (w.text.body == name)
+            for (const BalloonTail& t : c.balloon->tails)
+                if (!t.isBridge() && t.root == w.seat)
+                    return t.id;
+    return 0;
+}
+
+//! The bubble whose words are @p name.
+int bodyNamed(const Composition& c, const QString& name)
+{
+    for (const Words& w : c.words)
+        if (w.text.body == name)
+            return w.seat;
+    return 0;
+}
+
+//! @p c's words, by their text, in reading order (Chain::wordsInOrder()).
+QStringList readOrder(const Composition& c)
+{
+    QStringList out;
+    for (const int id : wordsInOrder(c))
+        for (const Words& w : c.words)
+            if (w.id == id)
+                out.append(w.text.body);
+    return out;
+}
+
+//! @p anchor (a fraction of body @p id's box) lies inside its outline, and a pixel further from its middle does not.
+void expectOnTheOutline(const Composition& c, int id, const QPointF& anchor)
+{
+    const Body*        body    = bodyOf(c, id);
+    const QRectF       rect    = Geometry::balloonRect(*c.balloon, *body);
+    const QPainterPath outline = Geometry::outlineOf(*body, rect, c.seed);
+    const QPointF      at      = Geometry::anchorAt(rect, anchor);
+    const QLineF       out(rect.center(), at);
+    const qreal        pixel   = 1.0;
+    EXPECT_TRUE(outline.contains(at));
+    EXPECT_FALSE(outline.contains(out.pointAt(1.0 + pixel / out.length())));
+}
+
+/**
+ * \brief Tail @p id's anchor dragged by @p h stopped at the last place its base fits (Geometry::fittedTail()):
+ *        there it fits, and a pixel further on the way from its body's middle it does not.
+ */
+void expectAtTheLimit(const Composition& c, int id, const Geometry::Handle& h, const QPointF& pointer)
+{
+    const auto tail = std::find_if(c.balloon->tails.cbegin(), c.balloon->tails.cend(),
+                                   [id](const BalloonTail& t) { return t.id == id; });
+    ASSERT_NE(tail, c.balloon->tails.cend());
+    const bool    far   = h.index == 1;
+    const Body*   body  = bodyOf(c, far ? tail->to : tail->root);
+    const QRectF  rect  = Geometry::balloonRect(*c.balloon, *body);
+    const QPointF at    = Geometry::anchorAt(rect, far ? tail->toAnchor : tail->tail.anchor);
+    const QLineF  way(rect.center(), at);
+    const qreal   pixel = 1.0;
+    ASSERT_GT(way.length(), pixel);   // it moved
+    // On the way to the pointer: a drag along the edge slides it along the limit, under the pointer.
+    const qreal k_sameWay = 1e-6;
+    EXPECT_NEAR(way.unitVector().p2().x() - way.p1().x(),
+                QLineF(rect.center(), pointer).unitVector().p2().x() - way.p1().x(), k_sameWay);
+    EXPECT_NEAR(way.unitVector().p2().y() - way.p1().y(),
+                QLineF(rect.center(), pointer).unitVector().p2().y() - way.p1().y(), k_sameWay);
+    // Drawn where it is set there, and a pixel further, drawn back nearer the middle.
+    const auto drawnAt = [&](const BalloonTail& t) {
+        const BalloonTail drawn = Geometry::fittedTail(*c.balloon, t, c.seed);
+        return Geometry::anchorAt(rect, far ? drawn.toAnchor : drawn.tail.anchor);
+    };
+    const qreal k_same = 1e-6;                      // pixels: where it is set
+    EXPECT_LT(QLineF(drawnAt(*tail), at).length(), k_same);
+
+    BalloonTail   further = *tail;
+    const QPointF next    = way.pointAt(1.0 + pixel / way.length());
+    (far ? further.toAnchor : further.tail.anchor)
+        = QPointF((next.x() - rect.left()) / rect.width(), (next.y() - rect.top()) / rect.height());
+    EXPECT_GT(QLineF(drawnAt(further), next).length(), k_same);
+}
+
+QList<int> bodyIds(const Composition& c)
+{
+    QList<int> out;
+    for (const Body& b : c.balloon->bodies)
+        out << b.id;
+    return out;
+}
+
+} // namespace
+
+TEST(Chain, TwoBalloonsMergeAsTwoPiecesUntilABridgeJoinsThem)
+{
+    Composition       a     = balloon(QStringLiteral("first"));
+    const Composition other = balloon(QStringLiteral("second"));
+    QList<int>        merged;
+    ASSERT_EQ(merge(a, other, k_apart, &merged), ChainError::None);
+
+    ASSERT_EQ(a.balloon->bodies.size(), 2);
+    ASSERT_EQ(merged.size(), 1);
+    EXPECT_EQ(bodyId(a, 1), merged.first());
+    EXPECT_NE(bodyId(a, 0), bodyId(a, 1));
+    EXPECT_EQ(a.balloon->bodies.at(1).place.pos, other.balloon->bodies.first().place.pos + k_apart);
+    // The merged words came along and sit on their own body, under a new id.
+    ASSERT_EQ(a.words.size(), 2);
+    EXPECT_EQ(a.words.at(1).text.body, QStringLiteral("second"));
+    EXPECT_EQ(a.words.at(1).seat, merged.first());
+    EXPECT_NE(a.words.at(1).id, a.words.at(0).id);
+    EXPECT_GT(a.nextId, merged.first());
+
+    EXPECT_FALSE(joined(*a.balloon, bodyId(a, 0), merged.first()));
+    EXPECT_EQ(pieces(a).size(), 2);
+    ASSERT_EQ(addBridge(a, bodyId(a, 0), merged.first()), ChainError::None);
+    EXPECT_TRUE(joined(*a.balloon, bodyId(a, 0), merged.first()));
+    EXPECT_EQ(pieces(a).size(), 1);
+}
+
+TEST(Chain, ARefusedEditLeavesTheCompositionAsItWas)
+{
+    Composition       c      = chainOfThree();
+    const Composition before = c;
+    const int         a = bodyId(c, 0), b = bodyId(c, 1), last = bodyId(c, 2);
+    const int         bridge = c.balloon->tails.first().id;
+
+    EXPECT_EQ(addBridge(c, a, a), ChainError::SameBody);
+    EXPECT_EQ(addBridge(c, a, c.nextId + 1), ChainError::NotABody);
+    EXPECT_EQ(addBridge(c, a, last), ChainError::ClosesRing);        // A and C are joined through B
+    EXPECT_EQ(addBridge(c, b, a), ChainError::NotAChainEnd);         // B has two bridges
+    EXPECT_EQ(addBody(c, b, k_apart), ChainError::NotAChainEnd);
+    EXPECT_EQ(makeBridge(c, bridge, last), ChainError::NotATail);    // a bridge already
+    EXPECT_EQ(makeBridge(c, c.nextId + 1, last), ChainError::NotATail);
+    EXPECT_EQ(c, before);
+
+    Composition text = textObject();
+    EXPECT_EQ(addBody(text, 1, k_apart), ChainError::NoBalloon);
+    EXPECT_EQ(merge(text, balloon(), k_apart), ChainError::NoBalloon);
+    EXPECT_EQ(text, textObject());
+}
+
+TEST(Chain, AHeldTailBecomesTheBridgeAndKeepsItsLook)
+{
+    Composition a = balloon();
+    BalloonTail tail;
+    tail.id             = a.nextId++;
+    tail.root           = bodyId(a, 0);
+    tail.tail.baseWidth = 20;
+    tail.tail.bend      = 0.25;
+    tail.tail.anchor    = QPointF(0.2, 0.8);
+    a.balloon->tails.append(tail);
+
+    QList<int> merged;
+    ASSERT_EQ(merge(a, balloon(), k_apart, &merged), ChainError::None);
+    ASSERT_EQ(makeBridge(a, tail.id, merged.first()), ChainError::None);
+
+    ASSERT_EQ(a.balloon->tails.size(), 1);
+    const BalloonTail& bridge = a.balloon->tails.first();
+    EXPECT_TRUE(bridge.isBridge());
+    EXPECT_EQ(bridge.id, tail.id);
+    EXPECT_EQ(bridge.to, merged.first());
+    EXPECT_EQ(bridge.tail, tail.tail);                // where it left from too
+    EXPECT_EQ(bridge.toAnchor, Tail::k_centre);       // and it reaches the middle of the other
+    EXPECT_EQ(pieces(a).size(), 1);
+}
+
+TEST(Chain, AnAddedBubbleIsBridgedAndGetsEmptyWordsInItsNeighboursLettering)
+{
+    const Composition c = chainOfThree();
+    ASSERT_EQ(c.balloon->bodies.size(), 3);
+    EXPECT_EQ(bridgesOn(*c.balloon, bodyId(c, 0)), 1);
+    EXPECT_EQ(bridgesOn(*c.balloon, bodyId(c, 1)), 2);
+    EXPECT_TRUE(chainEnd(*c.balloon, bodyId(c, 2)));
+    EXPECT_EQ(c.balloon->bodies.at(1).place.pos, c.balloon->bodies.at(0).place.pos + k_apart);
+    EXPECT_EQ(c.balloon->bodies.at(1).shape, c.balloon->bodies.at(0).shape);
+
+    ASSERT_EQ(c.words.size(), 3);
+    EXPECT_EQ(c.words.at(1).seat, bodyId(c, 1));
+    EXPECT_TRUE(c.words.at(1).text.body.isEmpty());
+    EXPECT_EQ(c.words.at(1).text.family, QStringLiteral("Comic Neue"));
+}
+
+TEST(Chain, RemovingAMiddleBubbleOrABridgeSplitsTheChain)
+{
+    Composition c = chainOfThree();
+    Words caption;   // words with no seat stay with the first piece
+    caption.id = c.nextId++;
+    c.words.append(caption);
+    const int a = bodyId(c, 0), b = bodyId(c, 1), last = bodyId(c, 2);
+
+    const QList<Composition> split = withoutBody(c, b);
+    ASSERT_EQ(split.size(), 2);
+    EXPECT_EQ(bodyIds(split.at(0)), QList<int>{a});
+    EXPECT_EQ(bodyIds(split.at(1)), QList<int>{last});
+    EXPECT_TRUE(split.at(0).balloon->tails.isEmpty());
+    EXPECT_TRUE(split.at(1).balloon->tails.isEmpty());
+    ASSERT_EQ(split.at(0).words.size(), 2);
+    EXPECT_EQ(split.at(0).words.at(1).id, caption.id);
+    ASSERT_EQ(split.at(1).words.size(), 1);
+    EXPECT_EQ(split.at(1).words.first().seat, last);
+    for (const Composition& p : split) {
+        EXPECT_EQ(p.nextId, c.nextId);
+        EXPECT_EQ(p.balloon->style, c.balloon->style);
+    }
+
+    const QList<Composition> cut = withoutBridge(c, c.balloon->tails.first().id);   // the bridge A–B
+    ASSERT_EQ(cut.size(), 2);
+    EXPECT_EQ(bodyIds(cut.at(0)), QList<int>{a});
+    EXPECT_EQ(bodyIds(cut.at(1)), (QList<int>{b, last}));
+    EXPECT_EQ(cut.at(1).balloon->tails.size(), 1);
+
+    const Composition end = withoutBody(c, last).first();   // an end: one piece, shorter
+    EXPECT_EQ(bodyIds(end), (QList<int>{a, b}));
+    EXPECT_EQ(withoutBody(c, c.nextId + 1).size(), 1);   // no such body
+    EXPECT_EQ(withoutBody(balloon(), bodyId(balloon(), 0)).first(), balloon());   // the last body stays
+}
+
+TEST(Chain, AChainIsReadFromAnEndAlongItsBridges)
+{
+    Composition c = balloon();
+    int b = 0, last = 0;
+    ASSERT_EQ(addBody(c, bodyId(c, 0), k_apart, &b), ChainError::None);
+    ASSERT_EQ(addBody(c, bodyId(c, 0), -k_apart, &last), ChainError::None);   // the first body is the middle now
+    EXPECT_EQ(Chain::order(*c.balloon), (QList<int>{b, bodyId(c, 0), last}));
+    EXPECT_NE(bridgeBetween(*c.balloon, b, bodyId(c, 0)), 0);
+    EXPECT_EQ(bridgeBetween(*c.balloon, bodyId(c, 0), b), bridgeBetween(*c.balloon, b, bodyId(c, 0)));
+    EXPECT_EQ(bridgeBetween(*c.balloon, b, last), 0);
+
+    // A bubble moved takes its tails and its words; the others, and the bridges' ends, stay.
+    BalloonTail tail;
+    tail.id       = c.nextId++;
+    tail.root     = last;
+    tail.tail.tip = QPointF(10, 20);
+    c.balloon->tails.append(tail);
+    const Composition before = c;
+    moveBody(c, last, QPointF(5, -7));
+    EXPECT_EQ(c.balloon->bodies.at(2).place.pos, before.balloon->bodies.at(2).place.pos + QPointF(5, -7));
+    EXPECT_EQ(c.balloon->bodies.at(0).place, before.balloon->bodies.at(0).place);
+    EXPECT_EQ(c.balloon->tails.last().tail.tip, QPointF(15, 13));
+    for (qsizetype i = 0; i + 1 < c.balloon->tails.size(); ++i)   // the bridges
+        EXPECT_EQ(c.balloon->tails.at(i), before.balloon->tails.at(i));
+    EXPECT_EQ(c.words, before.words);   // seated: they follow their body without a change of their own
+
+    // Each body's shape is its own: the Shape section of a bubble picked alone writes that one.
+    ShapeProperties round = ShapeProperties::from(c, last);
+    round.kind            = ShapeProperties::Kind::Ellipse;
+    round.applyTo(c, last);
+    EXPECT_EQ(ShapeProperties::from(c, last).kind, ShapeProperties::Kind::Ellipse);
+    EXPECT_NE(ShapeProperties::from(c).kind, ShapeProperties::Kind::Ellipse);   // the first, untouched
+    EXPECT_EQ(ShapeProperties::from(c, b).kind, ShapeProperties::from(c).kind);
+}
+
+TEST(Chain, ABridgeIsSavedWithItsFarBodyAndAnAnchorOnlyOffTheMiddle)
+{
+    Composition c = chainOfThree();
+    const auto  firstSaved = [](const Composition& x) {
+        return toJson(x).value(QStringLiteral("balloon")).toObject()
+            .value(QStringLiteral("tails")).toArray().first().toObject();
+    };
+    EXPECT_EQ(compositionFromJson(toJson(c)), c);
+    EXPECT_FALSE(firstSaved(c).contains(QStringLiteral("anchor")));
+    EXPECT_FALSE(firstSaved(c).contains(QStringLiteral("toAnchor")));
+
+    c.balloon->tails.first().tail.anchor = QPointF(0.25, 0.75);
+    c.balloon->tails.first().toAnchor    = QPointF(0.5, 1.0);
+    EXPECT_EQ(compositionFromJson(toJson(c)), c);
+    EXPECT_TRUE(firstSaved(c).contains(QStringLiteral("anchor")));
+    EXPECT_TRUE(firstSaved(c).contains(QStringLiteral("toAnchor")));
+
+    Composition withTail = balloon();
+    BalloonTail tail;
+    tail.id   = withTail.nextId++;
+    tail.root = bodyId(withTail, 0);
+    withTail.balloon->tails.append(tail);
+    EXPECT_FALSE(firstSaved(withTail).contains(QStringLiteral("to")));
+}
+
+TEST(Chain, ABridgeDrawsTwoBodiesAsOneOutline)
+{
+    // No lettering: measuring it needs the QGuiApplication this target does not have.
+    Composition a = balloon(QString());
+    QList<int>  merged;
+    ASSERT_EQ(merge(a, balloon(QString()), k_apart, &merged), ChainError::None);
+    EXPECT_EQ(Geometry::silhouette(*a.balloon, a.seed).toSubpathPolygons().size(), 2);   // two pieces, apart
+
+    ASSERT_EQ(addBridge(a, bodyId(a, 0), merged.first()), ChainError::None);
+    const QPainterPath joined = Geometry::silhouette(*a.balloon, a.seed);
+    EXPECT_EQ(joined.toSubpathPolygons().size(), 1);   // one ring round both: no edge inside the joint
+    const QRectF second(a.balloon->bodies.at(1).place.pos, QSizeF(a.balloon->bodies.at(1).size));
+    EXPECT_TRUE(Geometry::bounds(a).contains(second));
+    EXPECT_EQ(Geometry::tailsDrawn(*a.balloon, a.seed), QList<bool>{true});
+
+    a.balloon->tails.first().tail.baseWidth = 0.0;   // a bridge of no width draws none
+    EXPECT_EQ(Geometry::silhouette(*a.balloon, a.seed).toSubpathPolygons().size(), 2);
+}
+
+TEST(Chain, APickedBubbleIsResizedAndReshapedAloneTheRestStaying)
+{
+    Composition c = balloon(QString());
+    int         second = 0;
+    ASSERT_EQ(addBody(c, bodyId(c, 0), k_apart, &second), ChainError::None);
+    BalloonTail tail;   // a tail of the second bubble
+    tail.id             = c.nextId++;
+    tail.root           = second;
+    tail.tail.tip       = QPointF(500, 400);
+    tail.tail.baseWidth = 30.0;
+    c.balloon->tails.append(tail);
+
+    // Its grips: its place and size; its tail's tip and base width stay, the base being the author's.
+    Composition resized = c;
+    const Body& before  = *bodyOf(c, second);
+    resizeBody(resized, second, QRectF(before.place.pos - QPointF(10, 10), QSizeF(before.size) * 2));
+    EXPECT_EQ(bodyOf(resized, second)->size, before.size * 2);
+    EXPECT_EQ(bodyOf(resized, second)->place.pos, before.place.pos - QPointF(10, 10));
+    EXPECT_EQ(resized.balloon->bodies.first(), c.balloon->bodies.first());
+    EXPECT_EQ(resized.balloon->tails.last().tail.tip, tail.tail.tip);
+    EXPECT_DOUBLE_EQ(resized.balloon->tails.last().tail.baseWidth, tail.tail.baseWidth);
+
+    // Its outline's handles are offered for it, and a node pulled past its box moves that bubble alone.
+    bodyOf(c, second)->shape.kind  = ShapeProperties::Kind::Polygon;
+    bodyOf(c, second)->shape.nodes = Geometry::regularNodes(4, 1.0, 0.0, 0.0, 0);
+    Geometry::HandleContext context;
+    context.body = second;
+    const QList<Geometry::Handle> handles = Geometry::handlesOf(c, context);
+    const auto vertex = std::find_if(handles.cbegin(), handles.cend(), [](const Geometry::Handle& h) {
+        return Geometry::partOf<Geometry::ShapePart>(h) == Geometry::ShapePart::Vertex;
+    });
+    ASSERT_NE(vertex, handles.cend());
+    EXPECT_EQ(vertex->element, second);
+    Composition dragged = c;
+    const QPointF moved = vertex->drag(dragged, *vertex, vertex->at - QPointF(200, 200), context);
+    EXPECT_EQ(moved, QPointF());   // the object stays where it is
+    EXPECT_NE(bodyOf(dragged, second)->place.pos, bodyOf(c, second)->place.pos);
+    EXPECT_EQ(dragged.balloon->bodies.first(), c.balloon->bodies.first());
+    EXPECT_EQ(dragged.balloon->tails.last().tail.tip, tail.tail.tip);
+}
+
+TEST(Chain, ABubblesTailsAreItsOwnAndABridgeIsNeverOneOfThem)
+{
+    Composition c = balloon(QString());
+    int         second = 0;
+    ASSERT_EQ(addBody(c, bodyId(c, 0), k_apart, &second), ChainError::None);
+    EXPECT_TRUE(TailsProperties::from(c).items.isEmpty());   // the bridge is not a tail
+
+    // A tail added to the second bubble leaves it; the balloon's group lists it; the bridge stays.
+    TailsProperties own = TailsProperties::from(c, second);
+    Tail            t;
+    t.tip = QPointF(700, 300);
+    own.items.append(t);
+    own.applyTo(c, second);
+    ASSERT_EQ(c.balloon->tails.size(), 2);
+    EXPECT_TRUE(c.balloon->tails.first().isBridge());
+    EXPECT_EQ(c.balloon->tails.last().root, second);
+    EXPECT_EQ(TailsProperties::from(c).items.size(), 1);
+    EXPECT_TRUE(TailsProperties::from(c, bodyId(c, 0)).items.isEmpty());
+
+    // The first bubble's group, emptied, leaves the second's tail and the bridge alone.
+    TailsProperties first = TailsProperties::from(c, bodyId(c, 0));
+    first.applyTo(c, bodyId(c, 0));
+    EXPECT_EQ(c.balloon->tails.size(), 2);
+}
+
+
+TEST(Chain, WordsAreReadAlongTheChainThenTheRest)
+{
+    Composition c = balloon(QString());
+    int b = 0, last = 0;
+    ASSERT_EQ(addBody(c, bodyId(c, 0), k_apart, &b), ChainError::None);
+    ASSERT_EQ(addBody(c, bodyId(c, 0), -k_apart, &last), ChainError::None);   // the first body is the middle
+    Words caption;
+    caption.id = c.nextId++;
+    c.words.prepend(caption);   // first in the list, but on no bubble: read last
+    QList<int> expected;
+    for (const int body : Chain::order(*c.balloon))
+        for (const Words& w : c.words)
+            if (w.seat == body)
+                expected << w.id;
+    expected << caption.id;
+    EXPECT_EQ(wordsInOrder(c), expected);
+    EXPECT_EQ(wordsInOrder(c).first(), c.words.at(2).id);   // the words of b, an end, before the first body's
+}
+
+/**
+ * \brief A tail leaves from its anchor, not the middle: on a wide box, a tail pointing straight down from near
+ *        its left end leaves there and not at a slant from the middle. Its handle is kept in the box and put back
+ *        in the middle by a reset.
+ */
+TEST(Chain, ATailLeavesFromItsAnchorWhichItsHandleMoves)
+{
+    Composition c = balloon(QString());
+    Body&       own = c.balloon->bodies.first();
+    own.size        = QSize(400, 100);
+    own.shape.kind  = ShapeProperties::Kind::Ellipse;   // its box's corners are outside it
+    const QRectF rect = Geometry::balloonRect(*c.balloon, own);
+    const qreal  near = 0.15;                       // across the box, from its left
+    const qreal  below = 100.0;                     // how far under the box the tip is
+    const qreal  under = 10.0;                      // a point of the tail just under the box
+    BalloonTail tail;
+    tail.id       = c.nextId++;
+    tail.root     = own.id;
+    tail.tail.tip = QPointF(rect.left() + rect.width() * near, rect.bottom() + below);
+    c.balloon->tails.append(tail);
+    const QPointF straightDown(tail.tail.tip.x(), rect.bottom() + under);
+
+    EXPECT_FALSE(Geometry::silhouette(*c.balloon, c.seed).contains(straightDown));   // from the middle: slanted
+    QList<Geometry::Handle> handles = Geometry::tailHandles(c, tail.id);
+    ASSERT_EQ(handles.size(), 1);
+    EXPECT_EQ(handles.first().at, rect.center());
+    Composition anchored = c;
+    handles.first().drag(anchored, handles.first(), QPointF(tail.tail.tip.x(), rect.center().y()), {});
+    EXPECT_EQ(anchored.balloon->tails.last().tail.anchor, QPointF(near, 0.5));
+    EXPECT_TRUE(Geometry::silhouette(*anchored.balloon, anchored.seed).contains(straightDown));
+
+    // A reset puts it back in the middle, once.
+
+    // A chain of circles has no base: it goes as far as the outline, on the way from the middle to the pointer.
+    Composition circles = c;
+    circles.balloon->tails.last().tail.look.style = TailLook::Style::Circles;
+    handles.first().drag(circles, handles.first(), rect.bottomRight() + QPointF(below, below), {});
+    expectOnTheOutline(circles, own.id, circles.balloon->tails.last().tail.anchor);
+    EXPECT_TRUE(handles.first().reset(anchored, handles.first()));
+    EXPECT_EQ(anchored.balloon->tails.last().tail, c.balloon->tails.last().tail);
+    EXPECT_FALSE(handles.first().reset(anchored, handles.first()));
+}
+
+//! A bridge offers both its anchors, and runs between them: moving the far one moves the bridge.
+TEST(Chain, ABridgeRunsBetweenItsTwoAnchors)
+{
+    Composition c = balloon(QString());
+    int         second = 0;
+    ASSERT_EQ(addBody(c, bodyId(c, 0), k_apart, &second), ChainError::None);
+    const BalloonTail& bridge = c.balloon->tails.first();
+    ASSERT_TRUE(bridge.isBridge());
+
+    const QList<Geometry::Handle> handles = Geometry::tailHandles(c, bridge.id);
+    ASSERT_EQ(handles.size(), 2);
+    const QRectF far = Geometry::balloonRect(*c.balloon, *bodyOf(c, second));
+    EXPECT_EQ(handles.at(1).at, far.center());
+    // Each bubble is found where it is drawn, and nothing beyond them (what a held tail looks for).
+    EXPECT_EQ(Geometry::bodyAt(*c.balloon, c.seed, far.center()), second);
+    EXPECT_EQ(Geometry::bodyAt(*c.balloon, c.seed, far.bottomRight() + k_apart), 0);
+
+    Composition moved = c;
+    handles.at(1).drag(moved, handles.at(1), far.bottomLeft(), {});
+    const QPointF toAnchor = moved.balloon->tails.first().toAnchor;
+    EXPECT_LT(toAnchor.x(), Tail::k_centre.x());   // towards the corner pulled to...
+    EXPECT_GT(toAnchor.y(), Tail::k_centre.y());
+    expectAtTheLimit(moved, bridge.id, handles.at(1), far.bottomLeft());   // ...as far as the bridge's end still fits
+    EXPECT_EQ(moved.balloon->tails.first().tail, bridge.tail);   // its own end stays
+    EXPECT_FALSE(Geometry::silhouette(*moved.balloon, moved.seed) == Geometry::silhouette(*c.balloon, c.seed));
+}
+
+/**
+ * \brief A flat tail anchored near the edge meets the outline with no notch: its base is found inside the bubble,
+ *        so the underside runs from the outline into the tail with no step where the base's corner stuck out.
+ */
+TEST(Chain, ATailAnchoredNearTheEdgeLeavesWithNoNotch)
+{
+    Composition c = balloon(QString());
+    Body&       own = c.balloon->bodies.first();
+    own.size        = QSize(400, 300);
+    own.shape.kind  = ShapeProperties::Kind::Ellipse;
+    const QRectF rect = Geometry::balloonRect(*c.balloon, own);
+    const QPointF anchor(0.75, 0.92);               // a few pixels above the ellipse's lower edge
+    const qreal   out    = 150.0;                    // how far right of the box the tip is
+    BalloonTail tail;
+    tail.id             = c.nextId++;
+    tail.root           = own.id;
+    tail.tail.baseWidth = 40.0;
+    tail.tail.anchor    = anchor;
+    tail.tail.tip       = QPointF(rect.right() + out, Geometry::anchorAt(rect, anchor).y() + tail.tail.baseWidth / 4);
+    c.balloon->tails.append(tail);
+    // The underside, a column at a time from the middle to @p end: how low the silhouette reaches.
+    const qreal step = 1.0;                         // one pixel, across and down
+    const qreal top  = rect.center().y();
+    const qreal deep = rect.bottom() + tail.tail.baseWidth;
+    const qreal k_maxStep = 3.0;                    // a kink, not a notch: the base's corner stood ~16 px out
+    const auto  expectNoNotch = [&](const Composition& drawnOf, qreal end, qreal turn) {
+        const QPainterPath drawn  = Geometry::silhouette(*drawnOf.balloon, drawnOf.seed);
+        const auto         lowest = [&](qreal x) {
+            for (qreal y = deep; y > top; y -= step)
+                if (drawn.contains(QPointF(x, y)))
+                    return y;
+            return top;
+        };
+        qreal was = lowest(rect.center().x());
+        for (qreal x = rect.center().x() + step; x < end; x += step) {
+            const qreal y = lowest(x);
+            EXPECT_LE(qAbs(y - was), k_maxStep) << "at x " << x << ", turned " << turn << " degrees";
+            was = y;
+        }
+    };
+    expectNoNotch(c, tail.tail.tip.x() - out / 2, 0.0);
+
+    // Dragged further down, under the pointer, it stops where the base, square to this flat tail, would stick out.
+    const Geometry::Handle anchorHandle = Geometry::tailHandles(c, tail.id).first();
+    const QPointF          pointer(anchorHandle.at.x(), rect.bottom() + out);
+    Composition            dragged = c;
+    anchorHandle.drag(dragged, anchorHandle, pointer, {});
+    expectAtTheLimit(dragged, tail.id, anchorHandle, pointer);
+
+    // The tip then turned down, the anchor left at that limit: the base, square to the tail, fits nowhere on the
+    // tail's line for a while, and the tail starts nearer the middle instead, until it fits again.
+    const QPointF from   = Geometry::anchorAt(rect, dragged.balloon->tails.last().tail.anchor);
+    const qreal   length = rect.right() + out - from.x();
+    const qreal   k_turn = 1.0;                     // degrees between two looks
+    const qreal   k_most = 20.0;                    // the steepest look: past it the tail leaves the scanned rows
+    for (qreal a = 0.0; a <= k_most; a += k_turn) {
+        Composition turned = dragged;
+        turned.balloon->tails.last().tail.tip
+            = from + QPointF(std::cos(qDegreesToRadians(a)), std::sin(qDegreesToRadians(a))) * length;
+        expectNoNotch(turned, rect.right(), a);
+    }
+    // Flat, the base fits nowhere on the line: the anchor's handle shows where the tail starts, nearer the middle.
+    Composition flat = dragged;
+    flat.balloon->tails.last().tail.tip = from + QPointF(length, 0.0);
+    const QPointF shown = Geometry::tailHandles(flat, tail.id).first().at;
+    EXPECT_LT(QLineF(rect.center(), shown).length(), QLineF(rect.center(), from).length());
+}
+
+//! *Join*: the other balloon taken in where it lies, bridged from the nearer end of this chain to the nearer of its.
+TEST(Chain, JoiningBridgesTheTwoEndsNearestEachOther)
+{
+    const Composition three = chainOfThree();   // A-B-C, each further right and down
+    const QList<int>  ends  = order(*three.balloon);
+    Composition       a     = three;
+    // Past C: the bridge goes from C, not from A.
+    const Body&       c     = *bodyOf(three, ends.last());
+    ASSERT_EQ(join(a, balloon(QStringLiteral("after")), c.place.pos + k_apart), ChainError::None);
+
+    EXPECT_EQ(a.balloon->bodies.size(), 4);
+    EXPECT_EQ(pieces(a).size(), 1);
+    const BalloonTail& bridge = a.balloon->tails.last();
+    ASSERT_TRUE(bridge.isBridge());
+    EXPECT_EQ(bridge.root, ends.last());
+    EXPECT_EQ(bridge.to, a.balloon->bodies.last().id);
+    EXPECT_EQ(a.balloon->style, three.balloon->style);   // the first's look
+
+    // Joined before the first's start, the first chain still reads its way: the other comes first.
+    const Composition abc = chainOf({"A", "B", "C"});
+    Composition       before = abc;
+    ASSERT_EQ(join(before, chainOf({"X"}), -k_apart), ChainError::None);
+    EXPECT_EQ(readOrder(before), QStringList({"X", "A", "B", "C"}));
+    Composition chains = abc;   // X–Y lying before A, Y nearest it
+    ASSERT_EQ(join(chains, chainOf({"X", "Y"}), -2 * k_apart), ChainError::None);
+    EXPECT_EQ(readOrder(chains), QStringList({"X", "Y", "A", "B", "C"}));
+
+    // Nothing to join to is refused, the balloon unchanged.
+    Composition kept = three;
+    Composition none = balloon();
+    none.balloon.reset();
+    EXPECT_EQ(join(kept, none, k_apart), ChainError::NoBalloon);
+    EXPECT_EQ(kept, three);
+}
+
+/**
+ * \brief A tail held over another balloon's bubble reads its own bubble just before that one, wherever either lies in
+ *        its chain, so long as one of the two chains goes in whole; the result is one chain, the held tail its bridge,
+ *        drawn in the chain's style when a lone bubble joins one, and in the joining one's when two chains join.
+ */
+TEST(Chain, AHeldTailReadsItsBubbleJustBeforeTheOneItIsReleasedOver)
+{
+    // Each balloon in a style of its own.
+    const auto styled = [](Composition c, Paint::Kind fill) {
+        c.balloon->style.fill.fill.kind = fill;
+        return c;
+    };
+    const Composition abc = styled(chainOf({"A", "B", "C"}), Paint::Kind::Dots);
+    const Composition x   = styled(chainOf({"X"}), Paint::Kind::Lines);
+    const Composition xy  = styled(chainOf({"X", "Y"}), Paint::Kind::Grid);
+    const Composition xyz = chainOf({"X", "Y", "Z"});
+
+    // Joins c's @p held tail over other's bubble @p over, expecting @p reads.
+    const auto expectJoin = [](const Composition& c, const QString& held, const Composition& other,
+                               const QString& over, const QStringList& reads, const Composition& wears) {
+        Composition joined = c;
+        const int   tail   = tailOn(c, held);
+        ASSERT_EQ(joinByTail(joined, other, k_apart, tail, bodyNamed(other, over)), ChainError::None);
+        EXPECT_EQ(readOrder(joined), reads) << held.toStdString() << " over " << over.toStdString();
+        EXPECT_EQ(pieces(joined).size(), 1);
+        int bridges = 0;
+        for (const BalloonTail& t : joined.balloon->tails)
+            bridges += t.isBridge() ? 1 : 0;
+        EXPECT_EQ(bridges, joined.balloon->bodies.size() - 1);   // a chain: no ring, nothing branches
+        for (const Body& body : joined.balloon->bodies)
+            EXPECT_LE(bridgesOn(*joined.balloon, body.id), k_maxBridgesPerBody);
+        const auto heldTail = std::find_if(joined.balloon->tails.cbegin(), joined.balloon->tails.cend(),
+                                           [tail](const BalloonTail& t) { return t.id == tail; });
+        EXPECT_TRUE(heldTail->isBridge());
+        EXPECT_EQ(joined.balloon->style, wears.balloon->style) << held.toStdString() << " over " << over.toStdString();
+    };
+
+    // A lone bubble's tail goes before the bubble it is held over: first, in the middle, before the last.
+    expectJoin(x, "X", abc, "A", {"X", "A", "B", "C"}, abc);
+    expectJoin(x, "X", abc, "B", {"A", "X", "B", "C"}, abc);
+    expectJoin(x, "X", abc, "C", {"A", "B", "X", "C"}, abc);
+    // A chain's tail held over a lone bubble puts that bubble just after its own.
+    expectJoin(abc, "A", x, "X", {"A", "X", "B", "C"}, abc);
+    expectJoin(abc, "B", x, "X", {"A", "B", "X", "C"}, abc);
+    expectJoin(abc, "C", x, "X", {"A", "B", "C", "X"}, abc);
+    // Two chains: the last's tail before any bubble, or any tail before the first; the joining one's style.
+    expectJoin(xy, "Y", abc, "B", {"A", "X", "Y", "B", "C"}, xy);
+    expectJoin(abc, "A", xy, "X", {"A", "X", "Y", "B", "C"}, abc);
+    // Two lone bubbles: the joining one's.
+    expectJoin(x, "X", chainOf({"A"}), "A", {"X", "A"}, x);
+
+    // A middle over a middle is refused, the balloon as it was.
+    Composition kept = abc;
+    EXPECT_EQ(canJoinByTail(*abc.balloon, tailOn(abc, "B"), *xyz.balloon, bodyNamed(xyz, "Y")), ChainError::NotAChainEnd);
+    EXPECT_EQ(joinByTail(kept, xyz, k_apart, tailOn(abc, "B"), bodyNamed(xyz, "Y")), ChainError::NotAChainEnd);
+    EXPECT_EQ(kept, abc);
+    const int bridge = std::find_if(abc.balloon->tails.cbegin(), abc.balloon->tails.cend(),
+                                    [](const BalloonTail& t) { return t.isBridge(); })->id;
+    EXPECT_EQ(joinByTail(kept, x, k_apart, bridge, bodyNamed(x, "X")), ChainError::NotATail);
+    EXPECT_EQ(kept, abc);
+}

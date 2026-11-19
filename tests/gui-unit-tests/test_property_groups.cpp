@@ -24,6 +24,7 @@
 #include <QJsonDocument>
 #include <QJsonObject>
 
+#include "chain.hpp"
 #include "edgewalk.hpp"
 #include "geometry.hpp"
 #include "svg.hpp"
@@ -243,7 +244,7 @@ struct TailLookMirror {   // its sections as they are laid out: a field added to
 static_assert(sizeof(TailLook) == sizeof(TailLookMirror),
               "TailLook grew a field: place it (see above), then mirror it");
 
-struct TailMirror { QPointF tip; qreal baseWidth, bend; TailLook look; };
+struct TailMirror { QPointF tip; qreal baseWidth, bend; TailLook look; QPointF anchor; };
 static_assert(sizeof(Tail) == sizeof(TailMirror),
               "Tail grew a field: place it (see above), then mirror it");
 
@@ -3043,6 +3044,61 @@ QList<GoldenCase> goldenCases()
         effectsOf(a).shadow.softness  = 0.0;
         effectsOf(a).shadowFill.kind = Paint::Kind::Dots;
         write(QStringLiteral("speech"), QStringLiteral("hard halftone shadow"), true, a);
+    }
+    // Two speech balloons joined by a bridge, the first's tail made it: apart, and overlapping (the bridge only
+    // crosses the overlap), under the lines that walk the joined outline their own way; and broken.
+    const QPointF apart(380, 60);
+    const QPointF overlapping(240, 70);
+    const auto chained = [&](const QPointF& by, StyleProperties::Line line, int breaks) {
+        Composition a          = loadedBalloon();
+        shapeOf(a)             = Geometry::shapeTemplate("speech").shape;
+        styleOf(a)             = StyleProperties();
+        styleOf(a).line        = line;
+        styleOf(a).strokeWidth = 8;
+        textureOf(a)           = looks.first().texture;
+        skinOf(a).fill.kind    = Paint::Kind::Solid;
+        effectsOf(a).shadow.on = false;
+        Tail& tail             = tailsOf(a).first().tail;
+        tail.baseWidth         = 40.0;
+        tail.bend              = 0.2;
+        tail.look.breaks.count = breaks;
+        tail.look.breaks.jog   = 15;
+        Composition other      = a;
+        other.balloon->tails.clear();
+        QList<int> merged;
+        EXPECT_EQ(Chain::merge(a, other, by, &merged), Chain::ChainError::None);
+        EXPECT_EQ(Chain::makeBridge(a, a.balloon->tails.first().id, merged.first()), Chain::ChainError::None);
+        for (Words& w : a.words)
+            w.text.body.clear();
+        return a;
+    };
+    for (StyleProperties::Line line : {StyleProperties::Line::Clean, StyleProperties::Line::Drybrush,
+                                    StyleProperties::Line::Multi, StyleProperties::Line::Flash}) {
+        write(QStringLiteral("speech chain"), QStringLiteral("apart, %1").arg(QLatin1String(lineName(line))), true,
+              chained(apart, line, 0));
+        write(QStringLiteral("speech chain"), QStringLiteral("overlapping, %1").arg(QLatin1String(lineName(line))),
+              true, chained(overlapping, line, 0));
+    }
+    for (StyleProperties::Line line : {StyleProperties::Line::Clean, StyleProperties::Line::Flash})
+        write(QStringLiteral("speech chain"), QStringLiteral("apart broken, %1").arg(QLatin1String(lineName(line))),
+              true, chained(apart, line, 2));
+    // Anchors: a tail leaving straight down near the left end of a wide box, and a bridge between the two bodies'
+    // lower parts.
+    {
+        Composition a     = loadedBalloon();
+        shapeOf(a)        = Geometry::shapeTemplate("speech").shape;
+        boxOf(a)          = QSize(420, 120);
+        Tail& tail        = tailsOf(a).first().tail;
+        tail.anchor       = QPointF(0.15, 0.5);
+        tail.tip          = QPointF(63, 220);
+        write(QStringLiteral("speech"), QStringLiteral("anchored tail, wide"), true, a);
+    }
+    {
+        Composition  a      = chained(apart, StyleProperties::Line::Clean, 0);
+        BalloonTail& bridge = a.balloon->tails.first();
+        bridge.tail.anchor  = QPointF(0.5, 0.85);
+        bridge.toAnchor     = QPointF(0.3, 0.85);
+        write(QStringLiteral("speech chain"), QStringLiteral("anchored, clean"), true, a);
     }
     return cases;
 }

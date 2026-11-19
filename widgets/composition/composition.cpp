@@ -156,14 +156,18 @@ void       pointFromJson(const QJsonValue& j, QPointF& v)
         v = QPointF(a[0].toDouble(v.x()), a[1].toDouble(v.y()));
 }
 
+//! A tail; its anchor only when it is not the middle.
 QJsonObject tailToJson(const Tail& t)
 {
-    return {
+    QJsonObject j{
         {QStringLiteral("tip"),   pointToJson(t.tip)},
         {QStringLiteral("width"), t.baseWidth},
         {QStringLiteral("bend"),  t.bend},
         {QStringLiteral("look"),  groupToJson(t.look)},
     };
+    if (t.anchor != Tail::k_centre)
+        j.insert(QStringLiteral("anchor"), pointToJson(t.anchor));
+    return j;
 }
 
 Tail tailFromJson(const QJsonObject& o)
@@ -173,6 +177,7 @@ Tail tailFromJson(const QJsonObject& o)
     t.baseWidth = o.value(QStringLiteral("width")).toDouble(t.baseWidth);
     t.bend      = o.value(QStringLiteral("bend")).toDouble(t.bend);
     groupFromJson(t.look, o.value(QStringLiteral("look")).toObject());
+    pointFromJson(o.value(QStringLiteral("anchor")), t.anchor);
     return t;
 }
 
@@ -336,11 +341,12 @@ Composition withoutBalloon(Composition c)
 
 bool usesSeed(const Composition& c)
 {
-    const Body* body = bodyOf(c);
-    if (!body)
+    if (!bodyOf(c))
         return false;
     const BalloonStyle& s = c.balloon->style;
-    const bool irregularEdge = body->shape.edge != ShapeProperties::Edge::None && body->shape.teeth.irregularity > 0;
+    bool irregularEdge = false;
+    for (const Body& body : c.balloon->bodies)
+        irregularEdge |= body.shape.edge != ShapeProperties::Edge::None && body.shape.teeth.irregularity > 0;
     return s.line.line != StyleProperties::Line::Clean || s.texture.kind != TextureProperties::Kind::None
         || irregularEdge;
 }
@@ -558,6 +564,10 @@ QJsonObject toJson(const Composition& c)
             QJsonObject o = tailToJson(t.tail);
             o.insert(QStringLiteral("id"), t.id);
             o.insert(QStringLiteral("root"), t.root);
+            if (t.isBridge())
+                o.insert(QStringLiteral("to"), t.to);
+            if (t.isBridge() && t.toAnchor != Tail::k_centre)
+                o.insert(QStringLiteral("toAnchor"), pointToJson(t.toAnchor));
             tails.append(o);
         }
         j.insert(QStringLiteral("balloon"), QJsonObject{
@@ -626,7 +636,10 @@ Composition compositionFromJson(const QJsonObject& j)
         }
         for (const QJsonValue& v : o.value(QStringLiteral("tails")).toArray()) {
             const QJsonObject to = v.toObject();
-            b.tails.append({id(to), to.value(QStringLiteral("root")).toInt(), tailFromJson(to)});
+            BalloonTail t{id(to), to.value(QStringLiteral("root")).toInt(), tailFromJson(to),
+                          to.value(QStringLiteral("to")).toInt()};
+            pointFromJson(to.value(QStringLiteral("toAnchor")), t.toAnchor);
+            b.tails.append(t);
         }
         if (!b.bodies.isEmpty())   // a balloon is its bodies: one without any is not one
             c.balloon = b;
@@ -684,19 +697,37 @@ void setStyleGroup(Composition& c, Group BalloonStyle::* member, const Group& va
 
 } // namespace
 
-ShapeProperties ShapeProperties::from(const Composition& c)
+namespace {
+
+template <class C>
+auto* bodyById(C& c, int id)
 {
-    if (c.balloon && !c.balloon->bodies.isEmpty())
-        return c.balloon->bodies.first().shape;
+    decltype(&c.balloon->bodies.first()) found = nullptr;
+    if (c.balloon)
+        for (auto& body : c.balloon->bodies)
+            if (!found && (id == 0 || body.id == id))
+                found = &body;
+    return found;
+}
+
+} // namespace
+
+const Body* bodyOf(const Composition& c, int id) { return bodyById(c, id); }
+Body*       bodyOf(Composition& c, int id) { return bodyById(c, id); }
+
+ShapeProperties ShapeProperties::from(const Composition& c, int body)
+{
+    if (const Body* b = bodyById(c, body))
+        return b->shape;
     ShapeProperties none;
     none.kind = Kind::None;
     return none;
 }
 
-void ShapeProperties::applyTo(Composition& c) const
+void ShapeProperties::applyTo(Composition& c, int body) const
 {
-    if (c.balloon && !c.balloon->bodies.isEmpty())
-        c.balloon->bodies.first().shape = *this;
+    if (Body* b = bodyById(c, body))
+        b->shape = *this;
 }
 
 SkinProperties SkinProperties::from(const Composition& c) { return styleGroup(c, &BalloonStyle::fill); }
@@ -722,30 +753,47 @@ void TextProperties::applyTo(Composition& c) const
         c.words.first().text = *this;
 }
 
-TailsProperties TailsProperties::from(const Composition& c)
+namespace {
+
+//! Where in @p b's tails the group of body @p body lies (TailsProperties): its tails, never a bridge.
+QList<qsizetype> tailPlaces(const Balloon& b, int body)
+{
+    QList<qsizetype> out;
+    for (qsizetype i = 0; i < b.tails.size(); ++i)
+        if (!b.tails[i].isBridge() && (body == 0 || b.tails[i].root == body))
+            out.append(i);
+    return out;
+}
+
+} // namespace
+
+TailsProperties TailsProperties::from(const Composition& c, int body)
 {
     TailsProperties p;
     if (!c.balloon)
         return p;
     p.nextLook = c.balloon->style.nextLook;
-    for (const BalloonTail& t : c.balloon->tails)
-        p.items.append(t.tail);
+    for (const qsizetype i : tailPlaces(*c.balloon, body))
+        p.items.append(c.balloon->tails[i].tail);
     return p;
 }
 
-void TailsProperties::applyTo(Composition& c) const
+void TailsProperties::applyTo(Composition& c, int body) const
 {
     if (!c.balloon || c.balloon->bodies.isEmpty())
         return;
     Balloon& b      = *c.balloon;
     b.style.nextLook = nextLook;
-    // A tail is kept by its place in the list, its id and its root with it; one past the end is new, from the
-    // first body; the ones the list no longer has go.
-    QList<BalloonTail> tails;
-    for (qsizetype i = 0; i < items.size(); ++i)
-        tails.append(i < b.tails.size() ? BalloonTail{b.tails.at(i).id, b.tails.at(i).root, items.at(i)}
-                                        : BalloonTail{c.nextId++, b.bodies.first().id, items.at(i)});
-    b.tails = tails;
+    // A tail is kept by its place in the group, its id and its root with it; one past the end is new, leaving
+    // the body (the first for 0); the ones the group no longer has go. Bridges and other bodies' tails stay.
+    const QList<qsizetype> places = tailPlaces(b, body);
+    const int              root   = body != 0 ? body : b.bodies.first().id;
+    for (qsizetype i = 0; i < items.size() && i < places.size(); ++i)
+        b.tails[places[i]].tail = items.at(i);
+    for (qsizetype i = places.size(); i < items.size(); ++i)
+        b.tails.append({c.nextId++, root, items.at(i)});
+    for (qsizetype i = places.size() - 1; i >= items.size(); --i)
+        b.tails.removeAt(places[i]);
 }
 
 TailProperties TailProperties::from(const Composition& c, int index)

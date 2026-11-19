@@ -5,6 +5,7 @@
 #include "objects/bubbleobject.hpp"
 #include "objects/object.hpp"
 #include "objects/selectionchrome.hpp"
+#include "chain.hpp"
 #include "geometry.hpp"
 #include "styles.hpp"
 // blendModes(): the menu and OBJECT STATE's row name the modes from one list.
@@ -30,6 +31,7 @@
 #include <QWidget>
 
 #include <algorithm>
+#include <chrono>
 #include <functional>
 #include <string>
 #include <unordered_map>
@@ -43,6 +45,19 @@ namespace {
 constexpr int k_overlayZBase = 2;
 //! How far a duplicate lands from its original, so it is visibly a second bubble and not a mis-click.
 constexpr int k_duplicateOffset = 28;
+
+//! How long a tail's tip is held over another balloon's bubble before releasing joins them: an ordinary drag never does.
+constexpr std::chrono::milliseconds k_joinHold{1000};
+
+/**
+ * \brief Where @p from's frame lies in @p into's, as the two sit on the strip: what a balloon joined into another is
+ *        moved by.
+ */
+QPointF frameIn(const Object* into, const Object* from)
+{
+    // ponytail: a translation; two objects of different scales (a chapter re-profiled under one) would need a scale too.
+    return into->mapFromScene(from->mapToScene(QPointF()));
+}
 //! Rasterised filtered bubbles held before the cache is dropped wholesale. Generous for a chapter,
 //! nothing next to the page caches above.
 constexpr int k_sharpCacheEntries = 64;
@@ -80,6 +95,10 @@ ObjectController::ObjectController(QGraphicsScene* scene, QGraphicsView* view,
     , m_presets(presets)
     , m_layout(layout)
 {
+    m_joinHold = new QTimer(this);
+    m_joinHold->setSingleShot(true);
+    m_joinHold->setInterval(k_joinHold);
+    connect(m_joinHold, &QTimer::timeout, this, [this] { setJoinLit(true); });
     m_panel = new PanelBinder(m_selection,
                               {[this](const QString& uid) -> std::optional<Composition> {
                                    return m_overlayItems.contains(uid) ? std::optional<Composition>(compositionOf(uid))
@@ -121,10 +140,19 @@ ObjectController::ObjectController(QGraphicsScene* scene, QGraphicsView* view,
         if (m_syncingList) return;
         // The scene has always multi-selected — items are selectable, so Ctrl+click adds to it. This used
         // to take the first object and drop the rest, which is why the canvas could only ever hold one.
-        QStringList picked;
+        QStringList now;
         for (QGraphicsItem* gi : m_scene->selectedItems())
             if (auto* obj = dynamic_cast<Object*>(gi))
-                picked.append(obj->uid());
+                now.append(obj->uid());
+        // In the order they were picked, which the scene does not keep: those still selected as they were, the new
+        // ones after them. *Join* keeps the first picked, and the primary is the last.
+        QStringList picked;
+        for (const QString& uid : std::as_const(m_selection.objects()))
+            if (now.contains(uid))
+                picked.append(uid);
+        for (const QString& uid : std::as_const(now))
+            if (!picked.contains(uid))
+                picked.append(uid);
         selectOverlays(picked);
     });
     // An object removed while selected leaves the selection without a word to the chrome from the
@@ -187,6 +215,10 @@ void ObjectController::reselect()
         selectWords(m_selection.words().object, m_selection.words().element);   // or the object, when they are gone
         return;
     }
+    if (m_selection.subject() == Subject::Body) {
+        selectBody(m_selection.body().object, m_selection.body().element);   // or the balloon, when it is gone
+        return;
+    }
     if (m_selection.subject() == Subject::Strip || m_selection.subject() == Subject::Page) {
         // A page can go between feeds — an input removed — and a selection must not outlive its row.
         // The question is the layout's, not the tree's: the tree is a view of it, and is refreshed from it.
@@ -232,6 +264,41 @@ void ObjectController::selectWords(const QString& uid, int id)
     showSelection();
 }
 
+void ObjectController::selectBody(const QString& uid, int id)
+{
+    if (!hasBody({uid, id})) {
+        selectOverlay(uid);   // gone: the balloon is what is left to hold
+        return;
+    }
+    m_selection.selectBody({uid, id}, [this](const QString& u, int body) { return hasBody({u, body}); });
+    showSelection();
+}
+
+bool ObjectController::leaveElement()
+{
+    if (m_selection.subject() != Subject::Words && m_selection.subject() != Subject::Body)
+        return false;
+    selectOverlay(m_selection.primary());
+    return true;
+}
+
+void ObjectController::onBodyPressed(const QString& uid, int id)
+{
+    if (m_pressPickedWords)
+        return;   // the press was on the letters of words of it: those words are what it picked
+    if (m_selection.body() != ElementRef{uid, id})
+        selectBody(uid, id);
+}
+
+bool ObjectController::hasBody(const ElementRef& ref) const
+{
+    const Object* item = m_overlayItems.value(ref.object);
+    if (!item || !item->composition().balloon)
+        return false;
+    const QList<Body>& bodies = item->composition().balloon->bodies;
+    return std::any_of(bodies.cbegin(), bodies.cend(), [&ref](const Body& b) { return b.id == ref.element; });
+}
+
 bool ObjectController::hasWords(const ElementRef& ref) const
 {
     const Object* item = m_overlayItems.value(ref.object);
@@ -257,13 +324,14 @@ void ObjectController::reveal(Subject subject, const QString& id, int tail)
         return;
     if (const int at = tailIndex({id, tail}); subject == Subject::Tail && at >= 0 && at < item->tipCount())
         m_view->centerOn(item->mapToScene(item->handleAt(at)));
-    else if (subject == Subject::Overlay || subject == Subject::Words)
+    else if (subject == Subject::Overlay || subject == Subject::Words || subject == Subject::Body)
         m_view->centerOn(item->sceneBoundingRect().center());
 }
 
 
 void ObjectController::onObjectPressed(const QString& uid, int handle)
 {
+    m_pressPickedWords = false;
     const bool add = QGuiApplication::keyboardModifiers() & Qt::ControlModifier;
 
     if (handle >= 0) {
@@ -292,7 +360,20 @@ void ObjectController::onObjectPressed(const QString& uid, int handle)
     if (const Object* item = m_overlayItems.value(uid);
         item && !add && m_selection.objects() == QStringList{uid} && item->composition().words.size() > 1
         && item->dragGrip() != Grip::Shape) {
-        if (const int words = wordsPressedAt(item->composition(), item->mapFromScene(item->pressScenePos()))) {
+        const int  words = wordsPressedAt(item->composition(), item->mapFromScene(item->pressScenePos()));
+        // In a chain the click goes through one level at a time: words only inside the bubble already picked
+        // (or the one whose words are picked), so the first press in a bubble picks the bubble.
+        const auto seatOf = [&item](int id) {
+            for (const Words& w : item->composition().words)
+                if (w.id == id)
+                    return w.seat;
+            return 0;
+        };
+        const int  inside = m_selection.body().element != 0 ? m_selection.body().element
+                                                            : seatOf(m_selection.words().element);
+        const bool chainLevel = !item->isChain() || (words != 0 && seatOf(words) == inside);
+        if (words != 0 && chainLevel) {
+            m_pressPickedWords = true;
             if (m_selection.words() != ElementRef{uid, words})
                 selectWords(uid, words);
             beginDrag(uid, handle);
@@ -305,7 +386,14 @@ void ObjectController::onObjectPressed(const QString& uid, int handle)
     // balloon: the scene reports no change, because the balloon was selected all along, carrying them.
     const bool carrier = m_selection.carriers().contains(uid)
                       || (m_selection.subject() == Subject::Tail && uid == m_selection.primary());
-    if (carrier && !add)
+    // ...unless it lands in a bubble of a chain: the bubble is picked next (bodyPressed), and going through the
+    // balloon first would show its OBJECT STATE for a moment.
+    const Object* pressedItem = m_overlayItems.value(uid);
+    const bool    inBubble    = pressedItem && pressedItem->isChain()
+                          && pressedItem->bodyAt(pressedItem->mapFromScene(pressedItem->pressScenePos())) != 0;
+    // ...or on the picked tail's anchor, which is the tail's to move.
+    const bool onAnchor = pressedItem && !pressedItem->shapeEditing() && pressedItem->dragGrip() == Grip::Shape;
+    if (carrier && !add && !inBubble && !onAnchor)
         selectOverlay(uid);
     beginDrag(uid, handle);
 
@@ -381,6 +469,8 @@ void ObjectController::onCompositionEdited(const QString& uid, const Composition
 
 void ObjectController::onObjectDragged(const QString& uid, const QPointF& delta, int handle)
 {
+    if (handle >= 0)
+        aimJoin(uid, handle);   // a tail's tip, maybe held over a balloon it would join
     if (!m_dragIsGroup)
         return;   // one object moving itself, which it has already done
 
@@ -495,6 +585,8 @@ void ObjectController::setSource(const std::vector<Platemaker::Models::StripOver
     // Words, the same.
     if (m_selection.subject() == Subject::Words && !hasWords(m_selection.words()))
         selectOverlay(m_selection.primary());
+    if (m_selection.subject() == Subject::Body && !hasBody(m_selection.body()))
+        selectOverlay(m_selection.primary());
 }
 
 QImage ObjectController::sharpRasterFor(const Composition& a)
@@ -581,6 +673,7 @@ void ObjectController::syncItems()
                 : static_cast<Object*>(new PictureObject(uid, pictureFor(o)));
             connect(item, &Object::geometryCommitted, this, &ObjectController::onOverlayGeometryCommitted);
             connect(item, &Object::pressed,        this, &ObjectController::onObjectPressed);
+            connect(item, &Object::bodyPressed,    this, &ObjectController::onBodyPressed);
             connect(item, &Object::compositionEdited, this, &ObjectController::onCompositionEdited);
             connect(item, &Object::dragging,       this, &ObjectController::onObjectDragged);
             connect(item, &Object::chromeChanged,  this, &ObjectController::refreshChrome);
@@ -670,6 +763,12 @@ void ObjectController::writePlacement(const QString& uid, bool rehome)
 
 void ObjectController::onOverlayGeometryCommitted(const QString& uid)
 {
+    // A tail released over the bubble it was held over, lit: the two balloons become one.
+    if (m_joinLit && uid == m_joinFrom && joinByTail()) {
+        m_dragIsGroup = false;
+        return;
+    }
+    dropJoin();
     Object* item = m_overlayItems.value(uid);
     if (!item)
         return;
@@ -791,6 +890,7 @@ void ObjectController::showSelection()
                 focused << tailIndex(t);
         it.value()->setFocusedHandles(focused);
         it.value()->setPickedWords(m_selection.words().object == it.key() ? m_selection.words().element : 0);
+        it.value()->setPickedBody(m_selection.body().object == it.key() ? m_selection.body().element : 0);
     }
 
     emit selectionChanged();   // the stack's rows and the menu's entries follow it
@@ -857,7 +957,7 @@ void ObjectController::fitSelectionToText()
     if (!item || item->composition().picture)
         return;   // a picture's box is the picture's, not its words'
     Composition a = item->composition();
-    Edits::fitToText(a);   // committed even when it fits already, as before: the button was pressed
+    Edits::fitToText(a, m_selection.body().element);   // a picked bubble alone; committed even when it fits
     applyComposition(m_selection.primary(), a, /*commit=*/true);
     m_panel->show(a);
 }
@@ -865,7 +965,8 @@ void ObjectController::fitSelectionToText()
 bool ObjectController::canAddWords() const
 {
     const Object* item = m_selection.objects().size() == 1 ? m_overlayItems.value(m_selection.primary()) : nullptr;
-    if (!item || (m_selection.subject() != Subject::Overlay && m_selection.subject() != Subject::Words))
+    if (!item || (m_selection.subject() != Subject::Overlay && m_selection.subject() != Subject::Words
+                  && m_selection.subject() != Subject::Body))
         return false;
     const Composition& c = item->composition();
     return std::any_of(c.words.cbegin(), c.words.cend(), [&c](const Words& w) { return seated(c, w); });
@@ -877,13 +978,214 @@ void ObjectController::addWords()
         return;
     const QString uid  = m_selection.primary();
     Composition   a    = m_overlayItems.value(uid)->composition();
-    const int     from = m_selection.subject() == Subject::Words ? m_selection.words().element : 0;
-    const int     id   = Edits::addWords(a, from);
+    const int     body = m_selection.body().element;   // a bubble picked: its words, in it
+    int           from = m_selection.words().element;
+    for (const Words& w : std::as_const(a.words))
+        if (body != 0 && from == 0 && w.seat == body)
+            from = w.id;
+    const int id = Edits::addWords(a, from, body);
     if (id == 0)
         return;
     applyComposition(uid, a, /*commit=*/true, tr("Add words"));
     selectWords(uid, id);
     emit textFocusRequested();   // as a new balloon's: the next thing is to type in them
+}
+
+namespace {
+
+//! Where *Add bubble* puts the new bubble, in its neighbour's sizes: half a width to the right, below with a gap.
+constexpr qreal k_newBubbleAcross = 0.5;
+constexpr qreal k_newBubbleDown   = 1.25;
+
+//! The bubble *Add bubble* adds after in @p c: @p picked, or else the last of the chain; 0 when it is no end.
+int addBubbleAfter(const Composition& c, int picked)
+{
+    if (!c.balloon || c.balloon->bodies.isEmpty())
+        return 0;
+    const int from = picked != 0 ? picked : Chain::order(*c.balloon).last();
+    return Chain::chainEnd(*c.balloon, from) ? from : 0;
+}
+
+} // namespace
+
+bool ObjectController::canAddBubble() const
+{
+    const Object* item = m_selection.objects().size() == 1 ? m_overlayItems.value(m_selection.primary()) : nullptr;
+    if (!item || (m_selection.subject() != Subject::Overlay && m_selection.subject() != Subject::Body))
+        return false;
+    return addBubbleAfter(item->composition(), m_selection.body().element) != 0;
+}
+
+void ObjectController::addBubble()
+{
+    if (!canAddBubble())
+        return;
+    const QString uid  = m_selection.primary();
+    Composition   a    = m_overlayItems.value(uid)->composition();
+    const int     from = addBubbleAfter(a, m_selection.body().element);
+    QSize size;
+    for (const Body& b : std::as_const(a.balloon->bodies))
+        if (b.id == from)
+            size = b.size;
+    int added = 0;
+    if (Chain::addBody(a, from, QPointF(size.width() * k_newBubbleAcross, size.height() * k_newBubbleDown), &added)
+        != Chain::ChainError::None)
+        return;
+    applyComposition(uid, a, /*commit=*/true, tr("Add bubble"));
+    selectBody(uid, added);
+}
+
+bool ObjectController::canJoin() const
+{
+    const QStringList& picked = m_selection.objects();
+    if (picked.size() != 2 || !m_selection.elements().isEmpty() || m_selection.subject() != Subject::Overlay)
+        return false;
+    return std::all_of(picked.cbegin(), picked.cend(), [this](const QString& uid) {
+        const Object* item = m_overlayItems.value(uid);
+        if (!item || !item->composition().balloon)
+            return false;
+        const Balloon& b = *item->composition().balloon;
+        return std::any_of(b.bodies.cbegin(), b.bodies.cend(),
+                           [&b](const Body& body) { return Chain::chainEnd(b, body.id); });
+    });
+}
+
+void ObjectController::joinSelection()
+{
+    if (!canJoin())
+        return;
+    const QString keep  = m_selection.objects().first();   // the first picked keeps its overlay and its look
+    const QString other = m_selection.objects().last();
+    const Object* into  = m_overlayItems.value(keep);
+    const Object* from  = m_overlayItems.value(other);
+    Composition   next  = into->composition();
+    if (Chain::join(next, from->composition(), frameIn(into, from)) == Chain::ChainError::None)
+        commitJoin(keep, other, next);
+}
+
+void ObjectController::commitJoin(const QString& keep, const QString& other, const Composition& joined)
+{
+    Object* into = m_overlayItems.value(keep);
+    if (!into)
+        return;
+    m_document.setComposition(keep, joined);
+    into->setComposition(joined);
+    writePlacement(keep);
+    m_document.remove({other});
+    selectOverlay(keep);
+    syncItems();
+    emit stackChanged();
+    pushOverlays(tr("Join balloons"));
+    m_panel->show(joined);
+}
+
+// --- the hold-to-join gesture -------------------------------------------------
+
+ElementRef ObjectController::joinTargetAt(const QString& uid, int tail) const
+{
+    const Object* from = m_overlayItems.value(uid);
+    if (!from || !from->composition().balloon)
+        return {};
+    const Balloon& own = *from->composition().balloon;
+    if (tail < 0 || tail >= own.tails.size())
+        return {};
+    const BalloonTail& t = own.tails.at(tail);
+    if (t.isBridge())
+        return {};
+
+    // The topmost other balloon with a bubble under the tip.
+    const QPointF tip = from->mapToScene(t.tail.tip);
+    ElementRef    top;
+    const Object* topItem = nullptr;
+    for (auto it = m_overlayItems.cbegin(), end = m_overlayItems.cend(); it != end; ++it) {
+        const Object* o = it.value();
+        if (it.key() == uid || !o->isVisible() || !(o->flags() & QGraphicsItem::ItemIsSelectable)
+            || !o->composition().balloon || (topItem && o->zValue() <= topItem->zValue()))
+            continue;
+        const Composition& c    = o->composition();
+        const int          body = Geometry::bodyAt(*c.balloon, c.seed, o->mapFromScene(tip));
+        if (body != 0) {
+            top     = {it.key(), body};
+            topItem = o;
+        }
+    }
+    return top;
+}
+
+void ObjectController::aimJoin(const QString& uid, int tail)
+{
+    const ElementRef at = joinTargetAt(uid, tail);
+    if (uid == m_joinFrom && tail == m_joinTail && at == m_joinAt)
+        return;   // still held there: the count runs on, or the light stays (or stays out, after Esc)
+    dropJoin();
+    m_joinFrom = uid;
+    m_joinTail = tail;
+    m_joinAt   = at;
+    if (!at.object.isEmpty())
+        m_joinHold->start();
+}
+
+void ObjectController::setJoinLit(bool on)
+{
+    m_joinLit    = on;
+    auto* target = qobject_cast<BubbleObject*>(m_overlayItems.value(m_joinAt.object));
+    if (!target)
+        return;
+    if (!on) {
+        target->setJoinLight(0);
+        return;
+    }
+    const Object* from = m_overlayItems.value(m_joinFrom);
+    const Balloon* own = from && from->composition().balloon ? &*from->composition().balloon : nullptr;
+    const bool refused = !own || m_joinTail >= own->tails.size() || !target->composition().balloon
+                      || Chain::canJoinByTail(*own, own->tails.at(m_joinTail).id, *target->composition().balloon,
+                                              m_joinAt.element)
+                             != Chain::ChainError::None;
+    target->setJoinLight(m_joinAt.element, refused);
+}
+
+void ObjectController::dropJoin()
+{
+    m_joinHold->stop();
+    if (m_joinLit)
+        setJoinLit(false);
+    m_joinFrom.clear();
+    m_joinTail = -1;
+    m_joinAt   = {};
+}
+
+bool ObjectController::joinHeld() const
+{
+    return m_joinHold->isActive() || m_joinLit;
+}
+
+bool ObjectController::cancelJoin()
+{
+    if (!joinHeld())
+        return false;
+    // The target is kept, so the same bubble does not count again until the tip has left it.
+    m_joinHold->stop();
+    if (m_joinLit)
+        setJoinLit(false);
+    return true;
+}
+
+bool ObjectController::joinByTail()
+{
+    const QString keep = m_joinFrom, other = m_joinAt.object;
+    const int     tail = m_joinTail, body = m_joinAt.element;
+    dropJoin();
+    const Object* into = m_overlayItems.value(keep);
+    const Object* from = m_overlayItems.value(other);
+    if (!into || !from || !into->composition().balloon || !from->composition().balloon)
+        return false;
+    Composition next = into->composition();
+    if (tail >= next.balloon->tails.size()
+        || Chain::joinByTail(next, from->composition(), frameIn(into, from), next.balloon->tails.at(tail).id, body)
+               != Chain::ChainError::None)
+        return false;   // refused: the grey light said so
+    commitJoin(keep, other, next);
+    return true;
 }
 
 int ObjectController::presetTargetCount() const
@@ -1021,6 +1323,7 @@ void ObjectController::applyCompositions(const QStringList& uids, const QList<Co
                  : uids.size() > 1              ? tr("Edit %n objects", "", uids.size())
                  : m_selection.subject() == Subject::Tail   ? tr("Edit tail")
                  : m_selection.subject() == Subject::Words  ? tr("Edit words")
+                 : m_selection.subject() == Subject::Body   ? tr("Edit bubble")
                  : compositionOf(uids.first()).picture ? tr("Edit artwork")
                                                        : tr("Edit bubble"));
 }
@@ -1122,6 +1425,11 @@ void ObjectController::deleteSelectedTail()
     if (!bubble)
         return;
     Composition a = bubble->composition();
+    // A bridge taken out cuts the chain in two: each piece a balloon of its own.
+    if (const int i = selectedTail(); a.balloon && i >= 0 && i < a.balloon->tails.size() && a.balloon->tails.at(i).isBridge()) {
+        applyPieces(m_selection.primary(), Chain::withoutBridge(a, a.balloon->tails.at(i).id), tr("Delete bridge"));
+        return;
+    }
     if (!Edits::removeTails(a, {selectedTail()}))
         return;
 
@@ -1148,6 +1456,59 @@ void ObjectController::deleteSelectedWords()
     m_panel->show(a);
 }
 
+bool ObjectController::canDeleteSelectedBubble() const
+{
+    const Object* item = m_overlayItems.value(m_selection.body().object);
+    return item && item->isChain();
+}
+
+void ObjectController::deleteSelectedBubble()
+{
+    if (!canDeleteSelectedBubble())
+        return;
+    const ElementRef body = m_selection.body();
+    applyPieces(body.object, Chain::withoutBody(m_overlayItems.value(body.object)->composition(), body.element),
+                tr("Delete bubble"));
+}
+
+void ObjectController::applyPieces(const QString& uid, const QList<Composition>& pieces, const QString& undoText)
+{
+    const Object*            item     = m_overlayItems.value(uid);
+    const Document::Overlay* original = m_document.overlay(uid);
+    if (!item || !original || pieces.isEmpty())
+        return;
+
+    // Each piece after the first is a new overlay where it stood, on the same page, its look a copy: in the
+    // original's frame, so placed as its drawing lies in the original object, before the first settles.
+    const std::string              id       = original->uid;   // the document is written below
+    std::vector<Document::Overlay> overlays = m_document.overlays();
+    const auto ofId = [&id](const Document::Overlay& o) { return o.uid == id; };
+    auto       at   = std::find_if(overlays.begin(), overlays.end(), ofId);
+    const qreal k = item->scale();
+    for (qsizetype i = 1; i < pieces.size(); ++i) {
+        const QRectF                drawn = Geometry::bounds(pieces.at(i));
+        const StripLayout::Anchored place = m_layout.anchoredOn(QString::fromStdString(original->anchorInputUid),
+                                                                item->pos() + drawn.topLeft() * k, drawn.width() * k);
+        Document::Overlay o = *original;
+        o.uid.clear();   // new: the library mints it
+        o.assetPath.clear();
+        o.sha256.clear();
+        o.xFrac = place.xFrac;
+        o.yFrac = place.yFrac;
+        o.wFrac = place.wFrac;
+        at      = overlays.insert(at + 1, o);   // over the original, in the order of the pieces
+    }
+
+    selectOverlay(uid);   // the first piece is what is left to hold, selected before the edit goes out
+    applyComposition(uid, pieces.first(), /*commit=*/false);
+    writePlacement(uid, /*rehome=*/false);
+    // The first piece's placement, just written, into the list the new ones were put in.
+    *std::find_if(overlays.begin(), overlays.end(), ofId) = *m_document.overlay(uid);
+    emit stackChanged();
+    emit overlaysCommitted(overlays, m_document.compositions(), undoText, pieces.mid(1));
+    m_panel->show(pieces.first());
+}
+
 void ObjectController::deleteSelectedOverlay()
 {
     // In shape editing with nodes picked, Delete takes them and never the balloon.
@@ -1159,6 +1520,10 @@ void ObjectController::deleteSelectedOverlay()
     }
     if (m_selection.subject() == Subject::Words) {
         deleteSelectedWords();
+        return;
+    }
+    if (m_selection.subject() == Subject::Body) {
+        deleteSelectedBubble();
         return;
     }
     if (m_selection.objects().isEmpty())
@@ -1380,7 +1745,7 @@ void ObjectController::duplicateSelectedOverlay()
 
 void ObjectController::pushOverlays(const QString& undoText)
 {
-    emit overlaysCommitted(m_document.overlays(), m_document.compositions(), undoText);
+    emit overlaysCommitted(m_document.overlays(), m_document.compositions(), undoText, {});
 }
 
 // --- a new object -----------------------------------------------------------

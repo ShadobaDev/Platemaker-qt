@@ -24,7 +24,7 @@ namespace {
  */
 constexpr qreal k_tailBaseInset = 0.6;
 /**
- *  Samples on the way from a tail's tip to the centre, looking for the first one inside the outline. 64
+ *  Samples on the way from a tail's tip to its anchor, looking for the first one inside the outline. 64
  *  misses only a dent narrower than a sixty-fourth of the tail's reach.
  */
 constexpr int   k_tailSamples   = 64;
@@ -87,25 +87,25 @@ QPainterPath circlesAlong(const QPainterPath& spine, const Tail& t)
 }
 
 /**
- * \brief Where a tail leaves its bubble: the line from the bubble's centre to the tip, and how far along it
- *        the outline is crossed.
+ * \brief Where a tail leaves its bubble: the line from its anchor in the bubble to the tip, and how far along
+ *        it the outline is crossed.
  */
 struct TailRay
 {
-    QPointF centre;      //!< The bubble's centre, where the line starts.
-    QPointF ray;         //!< The unit direction from the centre to the tip.
+    QPointF origin;      //!< The tail's anchor in the bubble (Tail::anchor), where the line starts.
+    QPointF ray;         //!< The unit direction from the origin to the tip.
     QPointF perp;        //!< `ray` turned a quarter, the direction across the tail.
-    qreal   len  = 0.0;  //!< The distance from the centre to the tip.
-    qreal   edge = 0.0;  //!< The distance from the centre to where the line leaves the outline.
+    qreal   len  = 0.0;  //!< The distance from the origin to the tip.
+    qreal   edge = 0.0;  //!< The distance from the origin to where the line leaves the outline.
 };
 
 /**
- * \brief Where the line from @p body's centre to @p t's tip leaves @p outline, or nothing when no tail can
- *        be drawn: a tip on the centre, a tail too thin to see, a tip inside the outline, or a line that
+ * \brief Where the line from @p t's anchor in @p body to its tip leaves @p outline, or nothing when no tail
+ *        can be drawn: a tip on the anchor, a tail too thin to see, a tip inside the outline, or a line that
  *        never enters it.
  *
  * Shape-agnostic by construction. Rather than knowing where a given outline's edge is, it walks the
- * line from the tip towards the balloon's centre until a sample lands inside, then binary-searches that
+ * line from the tip towards the anchor until a sample lands inside, then binary-searches that
  * step for the crossing with QPainterPath::contains(). Walking **from the tip** finds the crossing
  * nearest it, which is the edge the tail is seen to leave even where a concave outline crosses the line
  * more than once; it is what lets a tail leave any edge instead of only the bottom one.
@@ -113,22 +113,22 @@ struct TailRay
 std::optional<TailRay> tailRay(const QPainterPath& outline, const QRectF& body, const Tail& t)
 {
     TailRay r;
-    r.centre = body.center();
-    r.ray    = t.tip - r.centre;
+    r.origin = anchorAt(body, t.anchor);
+    r.ray    = t.tip - r.origin;
     r.len    = std::hypot(r.ray.x(), r.ray.y());
     if (r.len < 1.0 || t.baseWidth < 1.0)
-        return std::nullopt;             // tip on the centre, or a tail too thin to see
+        return std::nullopt;             // tip on the anchor, or a tail too thin to see
     if (outline.contains(t.tip))
         return std::nullopt;             // the tip sits inside the balloon: nothing would show
     r.ray /= r.len;
 
-    // The crossing as a fraction of the distance from the centre: the first sample inside, walking in
+    // The crossing as a fraction of the distance from the origin: the first sample inside, walking in
     // from the tip, and the one before it bracket it.
     qreal outside = 1.0;
     qreal inside  = -1.0;
     for (int i = 1; i <= k_tailSamples && inside < 0.0; ++i) {
         const qreal f = 1.0 - qreal(i) / k_tailSamples;
-        if (outline.contains(r.centre + r.ray * (r.len * f)))
+        if (outline.contains(r.origin + r.ray * (r.len * f)))
             inside = f;
         else
             outside = f;
@@ -137,7 +137,7 @@ std::optional<TailRay> tailRay(const QPainterPath& outline, const QRectF& body, 
         return std::nullopt;             // the line never enters the balloon: nothing to leave from
     for (int i = 0; i < k_edgeSteps; ++i) {
         const qreal mid = (inside + outside) / 2.0;
-        if (outline.contains(r.centre + r.ray * (r.len * mid)))
+        if (outline.contains(r.origin + r.ray * (r.len * mid)))
             inside = mid;
         else
             outside = mid;
@@ -146,6 +146,58 @@ std::optional<TailRay> tailRay(const QPainterPath& outline, const QRectF& body, 
     r.edge = r.len * inside;
     r.perp = QPointF(-r.ray.y(), r.ray.x());
     return r;
+}
+
+/**
+ * \brief How far along @p r's line a tail's base @p half wide either side lies: pulled back inside from the
+ *        crossing by `k_tailBaseInset` of its width, and further back, behind the anchor if need be, until both its
+ *        ends are inside @p outline, so the union is watertight wherever the anchor is.
+ *
+ * Walks back from there across @p reach (the bubble's diagonal: no further base can be inside), while its line
+ * stays inside (on a concave outline, never across a notch to another part), and halves the step it finds the ends
+ * inside in, so the base is the nearest such to where the tail leaves.
+ *
+ * \return Nothing when no base fits on the line: an anchor too near the edge for a tail along it, or a tail wider
+ *         than its bubble.
+ */
+std::optional<qreal> baseInside(const QPainterPath& outline, const TailRay& r, qreal half, qreal reach)
+{
+    const auto inside = [&](qreal d) {
+        const QPointF at = r.origin + r.ray * d;
+        return outline.contains(at + r.perp * half) && outline.contains(at - r.perp * half);
+    };
+    const qreal first = qMax(0.0, r.edge - 2.0 * half * k_tailBaseInset);
+    if (inside(first))
+        return first;
+    qreal outside = first;
+    qreal in      = first;
+    bool  found   = false;
+    for (int i = 1; i <= k_tailSamples && !found; ++i) {
+        const qreal d = first - reach * qreal(i) / k_tailSamples;
+        if (!outline.contains(r.origin + r.ray * d))
+            break;   // out of the part of the bubble it leaves: a base past a notch would bridge it
+        found = inside(d);
+        (found ? in : outside) = d;
+    }
+    if (!found)
+        return std::nullopt;
+    for (int i = 0; i < k_edgeSteps; ++i) {
+        const qreal mid = (in + outside) / 2.0;
+        (inside(mid) ? in : outside) = mid;
+    }
+    return in;
+}
+
+//! The bubble's diagonal: no base further back along a tail's line than this can be inside it.
+qreal reachOf(const QRectF& body)
+{
+    return std::hypot(body.width(), body.height());
+}
+
+//! Where the base lies (baseInside()); where it would, one that fits nowhere (its corner then sticks out).
+qreal baseAlong(const QPainterPath& outline, const TailRay& r, qreal half, qreal reach)
+{
+    return baseInside(outline, r, half, reach).value_or(qMax(0.0, r.edge - 2.0 * half * k_tailBaseInset));
 }
 
 /**
@@ -333,7 +385,7 @@ TailShape ribbonAbout(const TailSpine& s, qreal half, const TailLook& look)
 /**
  * \brief One tail, from where the line to its tip leaves the silhouette (tailRay()) out to that tip.
  *
- * A Plain tail's base is pulled back *inside* the silhouette so the union is watertight — everything
+ * A Plain tail's base is pulled back *inside* the silhouette (baseAlong()) so the union is watertight — everything
  * inside disappears into it anyway, and what shows is the taper from the point it emerges. Its bend is a
  * sideways sway expressed as a fraction of the tail's own length, so it looks the same at any size. It
  * ends as its tip says (ribbonAbout()).
@@ -356,11 +408,11 @@ TailShape tailPath(const QPainterPath& outline, const QRectF& body, const Tail& 
         const qreal from = r->edge - t.look.circles.offset;
         if (r->len - from < 1.0)
             return {};   // a gap past the tip: nothing left to draw
-        const TailSpine s{r->centre + r->ray * from, t.tip, r->perp * (t.bend * (r->len - from)), r->perp};
+        const TailSpine s{r->origin + r->ray * from, t.tip, r->perp * (t.bend * (r->len - from)), r->perp};
         return {circlesAlong(spinePath(s), t), std::nullopt};
     }
 
-    const TailSpine s{r->centre + r->ray * qMax(0.0, r->edge - t.baseWidth * k_tailBaseInset), t.tip,
+    const TailSpine s{r->origin + r->ray * baseAlong(outline, *r, t.baseWidth / 2.0, reachOf(body)), t.tip,
                       r->perp * (t.bend * (r->len - r->edge)), r->perp};
     return ribbonAbout(s, t.baseWidth / 2.0, t.look);
 }
@@ -372,6 +424,55 @@ struct BodyOutline
     QRectF       rect;
     QPainterPath outline;
 };
+
+//! A bridge's end width, in per cent of its base: as wide at both ends.
+constexpr int k_evenWidth = 100;
+
+//! The line bridge @p bridge leaves @p from by (@p out), or enters @p to by: from one's anchor to the other's.
+std::optional<TailRay> bridgeRay(const BodyOutline& from, const BodyOutline& to, const BalloonTail& bridge, bool out)
+{
+    Tail towards   = bridge.tail;
+    towards.tip    = out ? anchorAt(to.rect, bridge.toAnchor) : anchorAt(from.rect, bridge.tail.anchor);
+    towards.anchor = out ? bridge.tail.anchor : bridge.toAnchor;
+    return out ? tailRay(from.outline, from.rect, towards) : tailRay(to.outline, to.rect, towards);
+}
+
+/**
+ * \brief Bridge @p bridge from @p from to @p to: a tail's middle between where the line joining its two anchors
+ *        (Tail::anchor in the one, BalloonTail::toAnchor in the other) leaves the one and enters the other, each end pulled inside its body as a tail's base is, so the union is
+ *        watertight. As wide all along (a Cut end at full width, inside @p to), bent and broken as a tail is;
+ *        a Circles look is a chain of ellipses across the gap.
+ *
+ * Nothing when the bodies overlap so much that one's anchor lies in the other: they read as one already.
+ */
+TailShape bridgePath(const BodyOutline& from, const BodyOutline& to, const BalloonTail& bridge)
+{
+    const Tail&                  t     = bridge.tail;
+    const std::optional<TailRay> out   = bridgeRay(from, to, bridge, true);
+    const std::optional<TailRay> in    = bridgeRay(from, to, bridge, false);
+    if (!out || !in)
+        return {};
+
+    const QPointF leave = out->origin + out->ray * out->edge;   // on the first body's edge
+    const QPointF enter = in->origin + in->ray * in->edge;      // on the second's
+    const qreal   gap   = QLineF(leave, enter).length();
+    const QPointF sway  = out->perp * (t.bend * gap);
+    if (t.look.style == TailLook::Style::Circles) {
+        Tail chain = t;
+        chain.tip  = enter;
+        return {circlesAlong(spinePath(TailSpine{leave, enter, sway, out->perp}), chain), std::nullopt};
+    }
+
+    // Each end inside its body as a tail's base is (baseAlong()), wherever its anchor is.
+    const qreal     half = t.baseWidth / 2.0;
+    const QPointF   start = out->origin + out->ray * baseAlong(from.outline, *out, half, reachOf(from.rect));
+    const QPointF   end   = in->origin + in->ray * baseAlong(to.outline, *in, half, reachOf(to.rect));
+    const TailSpine s{start, end, sway, out->perp};
+    TailLook even  = t.look;
+    even.tip       = TailLook::Tip::Cut;
+    even.end.width = k_evenWidth;
+    return {ribbonAbout(s, half, even).path, std::nullopt};   // its ends lie inside: no end to report
+}
 
 //! Every body of @p b that draws an outline, in order.
 QList<BodyOutline> bodyOutlines(const Balloon& b, quint32 seed)
@@ -395,6 +496,71 @@ const BodyOutline* rootOf(const QList<BodyOutline>& bodies, int id)
     return nullptr;
 }
 
+/**
+ * \brief Whether the base at one end of @p t fits inside its body on the tail's line (baseInside()): its root's,
+ *        or a bridge's far one's when @p far; true for an end that draws nothing.
+ *
+ * \param to The bridge's far body; none for a tail.
+ */
+bool endFits(const BodyOutline& root, const BodyOutline* to, const BalloonTail& t, bool far)
+{
+    const BodyOutline&           in = far ? *to : root;
+    const std::optional<TailRay> r  = to ? bridgeRay(root, *to, t, !far) : tailRay(root.outline, root.rect, t.tail);
+    return !r || baseInside(in.outline, *r, t.tail.baseWidth / 2.0, reachOf(in.rect)).has_value();
+}
+
+/**
+ * \brief The anchor at one end of @p t (see endFits()) moved from where it is set towards its body's middle, to
+ *        the last place on that way where the base fits; left where it is when the base fits there, or does not
+ *        in the middle either.
+ */
+void fitEnd(const BodyOutline& root, const BodyOutline* to, BalloonTail& t, bool far)
+{
+    QPointF& anchor = far ? t.toAnchor : t.tail.anchor;
+    if (endFits(root, to, t, far))
+        return;
+    const QPointF set = anchor;
+    anchor            = Tail::k_centre;
+    if (!endFits(root, to, t, far)) {
+        anchor = set;   // fits nowhere on the way: drawn as set, its base's corner out
+        return;
+    }
+    QPointF ok = Tail::k_centre, out = set;
+    for (int i = 0; i < k_edgeSteps; ++i) {
+        anchor = (ok + out) / 2.0;
+        (endFits(root, to, t, far) ? ok : out) = anchor;
+    }
+    anchor = ok;
+}
+
+//! @p t as drawn: each anchor where its base fits (fitEnd()), the root's first, then a bridge's far one.
+BalloonTail fittedOn(const QList<BodyOutline>& bodies, BalloonTail t)
+{
+    if (t.tail.look.style == TailLook::Style::Circles)
+        return t;   // a chain of circles has no base
+    const BodyOutline* root = rootOf(bodies, t.root);
+    const BodyOutline* to   = t.isBridge() ? rootOf(bodies, t.to) : nullptr;
+    if (!root || (t.isBridge() && !to))
+        return t;
+    fitEnd(*root, to, t, false);
+    if (to)
+        fitEnd(*root, to, t, true);
+    return t;
+}
+
+//! What @p t draws: a tail aimed at its root's bare outline, or a bridge between its two bodies.
+TailShape tailShapeOf(const QList<BodyOutline>& bodies, const BalloonTail& set)
+{
+    const BalloonTail  t    = fittedOn(bodies, set);
+    const BodyOutline* root = rootOf(bodies, t.root);
+    if (!root)
+        return {};
+    if (!t.isBridge())
+        return tailPath(root->outline, root->rect, t.tail);
+    const BodyOutline* to = rootOf(bodies, t.to);
+    return to ? bridgePath(*root, *to, t) : TailShape{};
+}
+
 } // namespace
 
 QList<QPainterPath> silhouetteParts(const Balloon& b, quint32 seed)
@@ -406,10 +572,7 @@ QList<QPainterPath> silhouetteParts(const Balloon& b, quint32 seed)
     for (const BodyOutline& body : bodies)
         parts.append(body.outline);
     for (const BalloonTail& t : b.tails) {
-        const BodyOutline* root = rootOf(bodies, t.root);
-        if (!root)
-            continue;
-        const QPainterPath tp = tailPath(root->outline, root->rect, t.tail).path;
+        const QPainterPath tp = tailShapeOf(bodies, t).path;
         if (!tp.isEmpty())
             parts.append(tp);
     }
@@ -422,10 +585,8 @@ OutlineModel outlineModel(const Balloon& b, quint32 seed, const QPainterPath& si
     m.joined = silhouette;
     if (b.bodies.isEmpty())
         return m;
-    // ponytail: the first body's frame and stretch; a chain's lines read one per body when it comes.
-    const Body& first = b.bodies.first();
-    m.frame           = QRectF(first.place.pos, QSizeF(first.size));
-    m.coreStretch     = shapeInfo(first.shape.kind).flashStretch;
+    for (const Body& body : b.bodies)
+        m.bodies.append({QRectF(body.place.pos, QSizeF(body.size)), shapeInfo(body.shape.kind).flashStretch});
 
     const QList<BodyOutline> bodies = bodyOutlines(b, seed);
     if (bodies.isEmpty())
@@ -438,10 +599,7 @@ OutlineModel outlineModel(const Balloon& b, quint32 seed, const QPainterPath& si
         partEnds.append(std::nullopt);
     }
     for (const BalloonTail& t : b.tails) {
-        const BodyOutline* root = rootOf(bodies, t.root);
-        if (!root)
-            continue;
-        TailShape tail = tailPath(root->outline, root->rect, t.tail);
+        TailShape tail = tailShapeOf(bodies, t);
         if (tail.path.isEmpty())
             continue;
         parts.append(tail.path);
@@ -470,15 +628,26 @@ QPainterPath silhouette(const Balloon& b, quint32 seed)
     return path;
 }
 
+BalloonTail fittedTail(const Balloon& b, const BalloonTail& t, quint32 seed)
+{
+    return fittedOn(bodyOutlines(b, seed), t);
+}
+
+int bodyAt(const Balloon& b, quint32 seed, const QPointF& local)
+{
+    for (auto body = b.bodies.crbegin(); body != b.bodies.crend(); ++body)
+        if (outlineOf(*body, balloonRect(b, *body), seed).contains(local))
+            return body->id;
+    return 0;
+}
+
 QList<bool> tailsDrawn(const Balloon& b, quint32 seed)
 {
     const QList<BodyOutline> bodies = bodyOutlines(b, seed);
     QList<bool>              drawn;
     drawn.reserve(b.tails.size());
-    for (const BalloonTail& t : b.tails) {
-        const BodyOutline* root = rootOf(bodies, t.root);
-        drawn.append(root && !tailPath(root->outline, root->rect, t.tail).path.isEmpty());
-    }
+    for (const BalloonTail& t : b.tails)
+        drawn.append(!tailShapeOf(bodies, t).path.isEmpty());
     return drawn;
 }
 

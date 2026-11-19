@@ -271,10 +271,13 @@ signals:
      * \param overlays The overlays to show, in any order.
      * \param compositions The compositions for those overlays, keyed by uid.
      * \param undoText The text to label the undo step with.
+     * \param created The compositions of the overlays with no uid, in their order: new ones made in this step (a
+     *                balloon split in two), whose uids the owner has the library mint.
      */
     void overlaysCommitted(const std::vector<Platemaker::Models::StripOverlay>& overlays,
                         const Composition::Map&                                  compositions,
-                        const QString&                                      undoText);
+                        const QString&                                      undoText,
+                        const QList<Composition>&                           created);
 
     /**
      * \brief The author picked artwork to bring in — the owner copies it and registers it.

@@ -10,6 +10,7 @@
 #include "presetstore.hpp"
 #include "properties/blendeditor.hpp"   // blendName(): a row names a blend mode the way the menu does
 #include "geometry.hpp"
+#include "chain.hpp"
 
 #include <QAbstractItemModel>
 #include <QFileInfo>
@@ -68,6 +69,7 @@ ObjectStack::ObjectStack(QTreeWidget* tree, ObjectController& objects, const Str
             case Subject::Tail:  tails.append(ElementRef{id, row->data(0, k_elementRole).toInt()}); break;
             // Words are picked alone, as a page is: the Text section is theirs.
             case Subject::Words: m_objects.selectWords(id, row->data(0, k_elementRole).toInt()); return;
+            case Subject::Body:  m_objects.selectBody(id, row->data(0, k_elementRole).toInt()); return;
             default:             overlays.append(id); break;
             }
         }
@@ -279,45 +281,59 @@ void ObjectStack::refresh()
         row->setSelected(m_objects.subject() == Subject::Overlay && m_objects.selectedOverlays().contains(uid));
 
         // An object's elements, one row each, by position: its words (a bubble's, or a lettered picture's; a
-        // text object is its one words), then a bubble's tails. A row stands for whichever element is at its
-        // place now.
+        // text object is its one words), then a bubble's tails. A balloon of several bodies lists them in reading
+        // order instead, each bubble with its words and tails under it and the bridge to the next between them.
+        // A row stands for whichever element is at its place now.
         const Composition rec = m_objects.compositionOf(uid);
-        struct Element
-        {
-            Subject subject;
-            int     id;
-            QString name;
-        };
-        QList<Element> elements;
-        if (rec.balloon || (rec.picture && lettered(rec)))
-            for (qsizetype w = 0; w < rec.words.size(); ++w)
-                if (seated(rec, rec.words[w]))
-                    elements.append({Subject::Words, rec.words[w].id, tr("Words %1").arg(w + 1)});
-        if (rec.balloon)
-            for (qsizetype t = 0; t < rec.balloon->tails.size(); ++t)
-                elements.append({Subject::Tail, rec.balloon->tails[t].id, tr("Tail %1").arg(t + 1)});
         if (m_tailGlyph.isNull())
             m_tailGlyph = tailGlyph(m_tree->palette(), k_rowGlyphPx, m_tree->devicePixelRatioF());
         if (m_wordsGlyph.isNull())
             m_wordsGlyph = wordsGlyph(m_tree->palette(), k_rowGlyphPx, m_tree->devicePixelRatioF());
-        while (row->childCount() > elements.size())
-            delete row->takeChild(row->childCount() - 1);
-        for (qsizetype e = 0; e < elements.size(); ++e) {
-            const Element&   el   = elements[e];
-            QTreeWidgetItem* item = e < row->childCount() ? row->child(int(e)) : nullptr;
-            if (!item) {
-                item = new QTreeWidgetItem(row);
-                item->setFlags(Qt::ItemIsSelectable | Qt::ItemIsEnabled);   // not draggable, not a drop target
+        if (m_bridgeGlyph.isNull())
+            m_bridgeGlyph = bridgeGlyph(m_tree->palette(), k_rowGlyphPx, m_tree->devicePixelRatioF());
+
+        QList<int> tailNumbers;   // a tail's number counts tails only, never bridges
+        if (rec.balloon)
+            for (const BalloonTail& t : rec.balloon->tails)
+                if (!t.isBridge())
+                    tailNumbers.append(t.id);
+        const auto wordsOn = [&](int seat, bool any) {
+            QList<ElementRow> out;
+            if (rec.balloon || (rec.picture && lettered(rec)))
+                for (qsizetype w = 0; w < rec.words.size(); ++w)
+                    if (seated(rec, rec.words[w]) && (any || rec.words[w].seat == seat))
+                        out.append({Subject::Words, rec.words[w].id, tr("Words %1").arg(w + 1), m_wordsGlyph, {}});
+            return out;
+        };
+        const auto tailsFrom = [&](int root, bool any) {
+            QList<ElementRow> out;
+            if (rec.balloon)
+                for (const BalloonTail& t : rec.balloon->tails)
+                    if (!t.isBridge() && (any || t.root == root))
+                        out.append({Subject::Tail, t.id, tr("Tail %1").arg(tailNumbers.indexOf(t.id) + 1),
+                                    m_tailGlyph, {}});
+            return out;
+        };
+
+        QList<ElementRow> elements;
+        if (rec.balloon && rec.balloon->bodies.size() > 1) {
+            const QList<int> order = Chain::order(*rec.balloon);
+            for (qsizetype i = 0; i < order.size(); ++i) {
+                Composition alone = rec;   // the bubble on its own, for its glyph
+                alone.balloon->bodies.removeIf([&](const Body& b) { return b.id != order[i]; });
+                alone.balloon->tails.clear();
+                alone.words.clear();
+                elements.append({Subject::Body, order[i], tr("Bubble %1").arg(i + 1),
+                                 objectGlyph(alone, m_tree->palette(), k_rowGlyphPx, m_tree->devicePixelRatioF()),
+                                 wordsOn(order[i], false) + tailsFrom(order[i], false)});
+                if (i + 1 < order.size())
+                    if (const int bridge = Chain::bridgeBetween(*rec.balloon, order[i], order[i + 1]))
+                        elements.append({Subject::Tail, bridge, tr("Bridge %1").arg(i + 1), m_bridgeGlyph, {}});
             }
-            item->setData(0, k_kindRole, static_cast<int>(el.subject));
-            item->setData(0, Qt::UserRole, uid);
-            item->setData(0, k_elementRole, el.id);
-            item->setText(0, el.name);
-            item->setIcon(0, el.subject == Subject::Tail ? m_tailGlyph : m_wordsGlyph);
-            item->setSelected(el.subject == Subject::Tail
-                                  ? m_objects.selectedTails().contains(ElementRef{uid, el.id})
-                                  : m_objects.selectedWords() == ElementRef{uid, el.id});
+        } else {
+            elements = wordsOn(0, true) + tailsFrom(0, true);
         }
+        setElementRows(row, uid, elements);
     }
 
     // The strip, pinned last — under every object, because it is what they all sit on. It is not an
@@ -383,6 +399,56 @@ void ObjectStack::refresh()
     m_syncing = false;
 }
 
+void ObjectStack::setElementRows(QTreeWidgetItem* parent, const QString& uid, const QList<ElementRow>& elements)
+{
+    while (parent->childCount() > elements.size())
+        delete parent->takeChild(parent->childCount() - 1);
+    for (qsizetype e = 0; e < elements.size(); ++e) {
+        const ElementRow& el   = elements[e];
+        QTreeWidgetItem*  item = e < parent->childCount() ? parent->child(int(e)) : nullptr;
+        const bool        fresh = !item;
+        if (fresh) {
+            item = new QTreeWidgetItem(parent);
+            item->setFlags(Qt::ItemIsSelectable | Qt::ItemIsEnabled);   // not draggable, not a drop target
+        }
+        item->setData(0, k_kindRole, static_cast<int>(el.subject));
+        item->setData(0, Qt::UserRole, uid);
+        item->setData(0, k_elementRole, el.id);
+        item->setText(0, el.name);
+        item->setIcon(0, el.glyph);
+        item->setSelected(elementPicked(item));
+        setElementRows(item, uid, el.children);
+        if (fresh && !el.children.isEmpty())
+            item->setExpanded(true);   // a bubble's words and tails are what it is made of: shown
+    }
+}
+
+bool ObjectStack::elementPicked(const QTreeWidgetItem* row) const
+{
+    const ElementRef element{row->data(0, Qt::UserRole).toString(), row->data(0, k_elementRole).toInt()};
+    switch (static_cast<Subject>(row->data(0, k_kindRole).toInt())) {
+    case Subject::Tail:  return m_objects.selectedTails().contains(element);
+    case Subject::Words: return m_objects.selectedWords() == element;
+    case Subject::Body:  return m_objects.selectedBody() == element;
+    default:             return false;
+    }
+}
+
+bool ObjectStack::showPickedElements(QTreeWidgetItem* parent)
+{
+    bool any = false;
+    for (int c = 0; c < parent->childCount(); ++c) {
+        QTreeWidgetItem* child  = parent->child(c);
+        const bool       picked = elementPicked(child);
+        child->setSelected(picked);
+        if (showPickedElements(child) || picked) {
+            parent->setExpanded(true);   // a folded row would hide the only highlight an element has
+            any = true;
+        }
+    }
+    return any;
+}
+
 void ObjectStack::showSelectedRows()
 {
     m_syncing = true;
@@ -394,15 +460,7 @@ void ObjectStack::showSelectedRows()
         const QString uid = row->data(0, Qt::UserRole).toString();
         // A tail's row stands for the tail; its balloon's row is only selected when the balloon itself is.
         row->setSelected(m_objects.selectedOverlays().contains(uid) && !m_objects.carriers().contains(uid));
-        for (int c = 0; c < row->childCount(); ++c) {
-            const ElementRef element{uid, row->child(c)->data(0, k_elementRole).toInt()};
-            const bool       picked = static_cast<Subject>(row->child(c)->data(0, k_kindRole).toInt()) == Subject::Tail
-                                        ? m_objects.selectedTails().contains(element)
-                                        : m_objects.selectedWords() == element;
-            row->child(c)->setSelected(picked);
-            if (picked)
-                row->setExpanded(true);   // a folded row would hide the only highlight an element has
-        }
+        showPickedElements(row);
     }
     m_syncing = false;
 }

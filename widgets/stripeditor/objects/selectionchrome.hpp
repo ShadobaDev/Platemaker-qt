@@ -67,6 +67,8 @@ protected:
     void mousePressEvent(QGraphicsSceneMouseEvent* e) override;
     void mouseMoveEvent(QGraphicsSceneMouseEvent* e) override;
     void mouseReleaseEvent(QGraphicsSceneMouseEvent* e) override;
+    //! A double-click on a handle its owner can put back (a tail's anchor) does that (Object::resetShapeHandle()).
+    void mouseDoubleClickEvent(QGraphicsSceneMouseEvent* e) override;
 
 private:
     //! The selected objects the chrome is drawn for, topmost first.
@@ -77,7 +79,7 @@ private:
     [[nodiscard]] QRectF gripRect(const Object* o, Grip grip, qreal s) const;
     //! The square a tail handle occupies, in scene units.
     [[nodiscard]] QRectF handleRect(const Object* o, int index, qreal s) const;
-    //! @p o's outline handles while its shape is edited, in its item coordinates; none otherwise.
+    //! @p o's handles besides its grips and tips (Object::shapeHandles()), in its item coordinates.
     [[nodiscard]] static QList<Geometry::Handle> shapeHandles(const Object* o);
     /**
      * \brief The frames of @p o's words with a seat, by their words' id, in scene units; with @p overflowing, only

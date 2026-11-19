@@ -75,6 +75,14 @@ public:
     void setWords(const Composition& a, int id);
 
     /**
+     * \brief Shows body @p id of @p a, one bubble of a balloon of several, picked on its own. Emits nothing.
+     *
+     * Its Shape and Tails sections, for that body alone; the balloon's look stays the balloon's. Edits arrive as
+     * the whole composition, with only that body's shape and tails written.
+     */
+    void setBody(const Composition& a, int id);
+
+    /**
      * \brief Shows @p objects as one subject — the **union** of what they have in common. Emits nothing.
      *
      * The sections that appear are those at least one selected object carries; a control whose value
@@ -174,6 +182,7 @@ private:
     //! Whether the subject is a tail, or several: the tail's section alone, and no look of its own.
     [[nodiscard]] bool tailSubject() const { return m_tailIndex >= 0 || !m_tailSet.isEmpty(); }
     int m_wordsId = 0;   //!< The words on show (their id), or 0 when the subject is not words picked on their own.
+    int m_bodyId  = 0;   //!< The body on show (its id), or 0 when the subject is not a body picked on its own.
 
     QLabel*             m_subject   = nullptr;  //!< Names what is being edited.
     QHBoxLayout*        m_header    = nullptr;  //!< The subject and, after it, the look chip.

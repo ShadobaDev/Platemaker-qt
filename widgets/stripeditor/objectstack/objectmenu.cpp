@@ -17,7 +17,7 @@
 #include <QKeySequence>
 #include <QMenu>
 #include <QMessageBox>
-#include <QShortcut>
+#include <QKeyEvent>
 
 #include <algorithm>
 #include <optional>
@@ -151,6 +151,10 @@ ObjectMenu::ObjectMenu(ObjectController& objects, const StripLayout& layout, Pre
     connect(m_actFitToText, &QAction::triggered, &m_objects, &ObjectController::fitSelectionToText);
     m_actAddWords = new QAction(tr("Add words"), this);
     connect(m_actAddWords, &QAction::triggered, &m_objects, &ObjectController::addWords);
+    m_actAddBubble = new QAction(tr("Add bubble"), this);
+    connect(m_actAddBubble, &QAction::triggered, &m_objects, &ObjectController::addBubble);
+    m_actJoin = new QAction(tr("Join"), this);
+    connect(m_actJoin, &QAction::triggered, &m_objects, &ObjectController::joinSelection);
 
     // Shape editing: entered here or by a double-click on the balloon, left here, by Esc, or
     // by a click outside it. Esc is a shortcut of its own, not an entry: the menu has nothing to show
@@ -158,8 +162,10 @@ ObjectMenu::ObjectMenu(ObjectController& objects, const StripLayout& layout, Pre
     m_actEditShape = new QAction(tr("Edit shape"), this);
     m_actEditShape->setCheckable(true);
     connect(m_actEditShape, &QAction::triggered, &m_objects.shapeEdit(), &ShapeEditMode::setOn);
-    new QShortcut(QKeySequence(Qt::Key_Escape), m_view, [this] { m_objects.shapeEdit().setOn(false); },
-                  Qt::WidgetShortcut);
+    // Esc steps out one level: a tail held to join first, then shape editing, then words or a bubble picked on their own. Not a QShortcut:
+    // the main window's *Stop* is Esc too, and two shortcuts on one key fire neither. The canvas claims the key
+    // (ShortcutOverride) only while there is a level to leave, so Esc still stops a render otherwise.
+    m_view->installEventFilter(this);
     connect(&m_objects.shapeEdit(), &ShapeEditMode::changed, this, &ObjectMenu::updateEntries);
 
     // A Curve's own: the type of the node picked in shape editing — a right-click on a node
@@ -219,6 +225,8 @@ ObjectMenu::ObjectMenu(ObjectController& objects, const StripLayout& layout, Pre
         w->addAction(m_actFitToStrip);
         w->addAction(m_actFitToText);
         w->addAction(m_actAddWords);
+        w->addAction(m_actAddBubble);
+        w->addAction(m_actJoin);
         w->addAction(m_actEditShape);
         w->addAction(m_nodeTypeMenu->menuAction());
         w->addAction(m_actAddHandles);
@@ -298,6 +306,10 @@ void ObjectMenu::updateEntries()
     // A balloon's or a picture's: words with a seat to sit on. A text object is its one words.
     if (m_actAddWords)
         m_actAddWords->setVisible(m_objects.canAddWords());
+    if (m_actAddBubble)
+        m_actAddBubble->setVisible(m_objects.canAddBubble());
+    if (m_actJoin)
+        m_actJoin->setVisible(m_objects.canJoin());
     // A kind is something only an authored object has. One that is not — imported artwork, or a tail —
     // can reach nothing, and the intersection of "everything" with "nothing" is what greys this out.
     const bool authoredOnly =
@@ -441,6 +453,32 @@ void ObjectMenu::importPicture()
         return;
 
     m_objects.importPictureFile(file);
+}
+
+bool ObjectMenu::eventFilter(QObject* watched, QEvent* e)
+{
+    if (watched != m_view || (e->type() != QEvent::ShortcutOverride && e->type() != QEvent::KeyPress))
+        return QObject::eventFilter(watched, e);
+    if (static_cast<QKeyEvent*>(e)->key() != Qt::Key_Escape)
+        return false;
+    const bool join      = m_objects.joinHeld();
+    const bool shapeEdit = m_objects.shapeEdit().isOn();
+    const bool element   = m_objects.subject() == Subject::Words || m_objects.subject() == Subject::Body;
+    if (!join && !shapeEdit && !element)
+        return false;   // nothing to step out of: the key is the window's
+    if (e->type() == QEvent::ShortcutOverride) {
+        // The canvas takes Esc before any shortcut does. Consumed, not passed on: the view hands the override to
+        // its scene, which would take the acceptance back, and the key would go to the shortcuts after all.
+        e->accept();
+        return true;
+    }
+    if (join)
+        m_objects.cancelJoin();   // a tail held over a bubble first: it does not join
+    else if (shapeEdit)
+        m_objects.shapeEdit().setOn(false);
+    else
+        m_objects.leaveElement();
+    return true;
 }
 
 }  // namespace StripEdit

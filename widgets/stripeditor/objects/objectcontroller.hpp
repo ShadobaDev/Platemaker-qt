@@ -133,6 +133,10 @@ public:
     void selectTail(const QString& uid, int index);
     //! Selects words @p id of object @p uid, one of its several, the Text section theirs; the object when they are gone.
     void selectWords(const QString& uid, int id);
+    //! Selects body @p id of balloon @p uid, one bubble of several, the Shape section its own; the balloon when it is gone.
+    void selectBody(const QString& uid, int id);
+    //! Esc: from words or a bubble picked on its own back to their object; whether there was one to leave.
+    bool leaveElement();
     /**
      * \brief Scrolls the strip to a subject: an object or a tail centred in the view, a page with its top
      *        at the view's top. The strip, or a subject that is gone, moves nothing.
@@ -154,6 +158,8 @@ public:
     [[nodiscard]] const QList<ElementRef>& selectedTails() const { return m_selection.elements(); }
     //! The words picked on their own (Subject::Words); none otherwise.
     [[nodiscard]] ElementRef selectedWords() const { return m_selection.words(); }
+    //! The body picked on its own (Subject::Body); none otherwise.
+    [[nodiscard]] ElementRef selectedBody() const { return m_selection.body(); }
     void selectOverlay(const QString& uid);   //!< Selects one in the scene and the stack, and loads the panel.
     /**
      * \brief Selects @p uids and @p tails together — the general form, of which everything else is a case.
@@ -447,6 +453,27 @@ public:
     [[nodiscard]] bool canAddWords() const;
     //! *Add words*: new words on the selected object (Edits::addWords()), from the picked words; picked, the caret in them.
     void addWords();
+    //! Whether *Add bubble* applies: one balloon selected, or a bubble of it, that bubble (or the chain's last) an end.
+    [[nodiscard]] bool canAddBubble() const;
+    //! Whether the picked bubble can be deleted: one of a chain of more than one (a middle one splits it).
+    [[nodiscard]] bool canDeleteSelectedBubble() const;
+    /**
+     * \brief *Add bubble*: a new bubble after the picked one (or the chain's last), below and to the right, bridged
+     *        to it, with empty words in its lettering (Chain::addBody()); picked.
+     */
+    void addBubble();
+    //! Whether *Join* applies: two balloons selected, whole (not as a tail's carrier), each with a chain end.
+    [[nodiscard]] bool canJoin() const;
+    /**
+     * \brief *Join*: the second balloon picked taken into the first where it lies on the strip, bridged between the
+     *        chain ends nearest each other (Chain::join()); its overlay removed, the first keeping its own and its look.
+     *        One undo step; the joined balloon selected.
+     */
+    void joinSelection();
+    //! Whether a tail's tip is held over a bubble it would join on release (counting, or lit): Esc lets go of it.
+    [[nodiscard]] bool joinHeld() const;
+    //! Esc while held: that bubble does not join, and counts again only once the tip has left it; whether one was held.
+    bool cancelJoin();
 
     // --- a new object: asked for here, created by the owner, selected when it comes back in the feed ---
     //! Asks the owner for a new authored object; it is selected when the feed brings it back.
@@ -484,9 +511,12 @@ signals:
      * \param overlays  The new overlay set, in composite order.
      * \param compositions  The new compositions of the overlays, keyed by uid.
      * \param undoText  The text to use for the undo step that will be created
+     * \param created  The compositions of the overlays with no uid yet, in their order: new ones, made in the same
+     *                 step (a balloon split in two), their uids minted by the library.
      */
     void overlaysCommitted(const std::vector<Platemaker::Models::StripOverlay>& overlays,
-                        const Composition::Map& compositions, const QString& undoText);
+                        const Composition::Map& compositions, const QString& undoText,
+                        const QList<Composition>& created);
     /**
      * \brief Artwork drawn elsewhere should be copied into the workspace and registered here.
      *
@@ -604,8 +634,37 @@ private:
     void deleteSelectedTail();
     //! Delete with words picked: those words, never the last (Edits::removeWords()); the object is what is left to hold.
     void deleteSelectedWords();
+    //! Delete with a bubble picked: that bubble, its words and tails; a middle one splits the chain (applyPieces()).
+    void deleteSelectedBubble();
+    //! The two balloons @p keep and @p other as @p joined, in @p keep: @p other's overlay removed, one undo step.
+    void commitJoin(const QString& keep, const QString& other, const Composition& joined);
+    /**
+     * \brief The bubble tail @p tail of balloon @p uid is held over: of the topmost other balloon under its tip;
+     *        empty for none, or for a bridge. Whether the two may join there is Chain::canJoinByTail()'s.
+     */
+    [[nodiscard]] ElementRef joinTargetAt(const QString& uid, int tail) const;
+    //! A tail's tip moved: a new bubble under it starts the hold's count; none, or another, drops the last.
+    void aimJoin(const QString& uid, int tail);
+    //! Lights the held bubble, red or grey as Chain::canJoinByTail() says, or puts it out.
+    void setJoinLit(bool on);
+    //! Forgets the hold: the count stopped, the light out, no target.
+    void dropJoin();
+    //! The release over a lit bubble: the held tail made the bridge to it (Chain::makeBridge()); whether it joined.
+    bool joinByTail();
+    /**
+     * \brief Object @p uid as @p pieces, one commit labelled @p undoText: the first stays the object, held; each
+     *        other becomes a new overlay over it, where it stood on the strip, on the same page, in a copy of its look.
+     */
+    void applyPieces(const QString& uid, const QList<Composition>& pieces, const QString& undoText);
     //! Whether @p ref's object still has those words.
     [[nodiscard]] bool hasWords(const ElementRef& ref) const;
+    //! Whether @p ref's object still has that body.
+    [[nodiscard]] bool hasBody(const ElementRef& ref) const;
+
+    //! A press in body @p id of @p uid's balloon, already selected: picks it, unless the same press picked words.
+    void onBodyPressed(const QString& uid, int id);
+    //! Whether the press being handled picked words (onObjectPressed()), which a bubble then leaves alone.
+    bool m_pressPickedWords = false;
     //! The selection just made, shown: the items selected, their tails and words marked, the panel bound.
     void showSelection();
 
@@ -650,6 +709,13 @@ private:
     QHash<QString, QPointF>         m_dragStartPos;   //!< Object uid → its position at the press.
     QList<QPair<ElementRef, QPointF>> m_dragStartTips;  //!< Tail → its tip, in its balloon's own units.
     bool                            m_dragIsGroup = false;
+
+    // --- the hold-to-join gesture: a tail's tip held over another balloon's bubble, then released ---
+    QString    m_joinFrom;             //!< The balloon whose tail is aimed.
+    int        m_joinTail = -1;        //!< That tail, by index.
+    ElementRef m_joinAt;               //!< The bubble under its tip (joinTargetAt()); empty for none.
+    QTimer*    m_joinHold = nullptr;   //!< Runs while the tip is held there; lights the bubble when it fires.
+    bool       m_joinLit  = false;     //!< The bubble is lit: releasing now joins, where the two may join.
     //! How far off a hairline outline or a thin letter a press may land and still count, in screen px.
     static constexpr qreal k_pickSlackPx = 3.0;
 

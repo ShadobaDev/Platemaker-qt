@@ -43,6 +43,9 @@ inline constexpr int k_rowGlyphPx = 24;
 //! already draws a chevron next to it, and two arrow-shaped marks in one row read as one control.
 [[nodiscard]] QIcon tailGlyph(const QPalette& pal, int px = k_rowGlyphPx, qreal dpr = 1.0);
 
+//! A bridge: two bubbles joined by a band, what a bridge between two bubbles of a chain is.
+[[nodiscard]] QIcon bridgeGlyph(const QPalette& pal, int px = k_rowGlyphPx, qreal dpr = 1.0);
+
 //! A page of the strip: the sheet the artwork sits on.
 [[nodiscard]] QIcon pageGlyph(const QPalette& pal, int px = k_rowGlyphPx, qreal dpr = 1.0);
 

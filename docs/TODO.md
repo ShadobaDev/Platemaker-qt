@@ -406,13 +406,57 @@ New, backward-compatible features. Several are gated on a lib version, noted in 
     ellipses take their length along the tail from its length, so a fixed aspect would need a row of its
     own and would loosen the tip from the last one.
 
-- [ ] **Joined balloons.** Two balloons of one speaker, read in turn, joined into one outline by a neck
-  between them, as a manga reference does. A balloon is a graph: bubbles and the terminals of their
-  tails are nodes, tails and necks its edges; the bubbles form a chain, every bubble and tail of it wears
-  one style, each bubble keeps its own place, shape and words, and the whole graph is one SVG. Joining two
-  existing balloons, and splitting one by removing a neck or a middle bubble, are part of it. The object
-  model holds it: a balloon is a list of bodies (`Balloon::bodies`), words sit on a body (`Words::seat`) and a
-  tail leaves one (its root); everything but the neck and the joining reads the first body today.
+- [ ] **A tail side flush with the outline.** The classic speech tail: one side runs on from the balloon's
+  outline, one line from the outline into the tail. A tail is symmetric about its line from its anchor to its
+  tip and tapers to the tip, so a side meets the outline smoothly only where it is tangent to it *and* starts at
+  the point it touches: two conditions, met at single anchor positions and nowhere along the anchor's limit
+  (the anchor only keeps the base inside, `Geometry::fittedTail()`). Built into the shape instead: a per-tail
+  *Flush side* (none, left, right; none by default, so every tail stays as it is). That side is the tangent from
+  the tip to the outline, found on any shape by sampling the outline for the extreme direction seen from the tip,
+  and starts where it touches; the other side is the base width away, inside. The anchor is not read while a
+  side is flush; the bend sways the other side only. Not offered on a bridge or a Circles tail.
+
+- [x] **Joined balloons** — *Done 2026-11-19.* A balloon is a chain of bubbles joined by bridges, one style
+  and one SVG, read along the chain; each bubble picked, moved, resized and reshaped on its own, with its own
+  tails and words. *Add bubble*, *Join* in the menu, the hold-to-join gesture (the held bubble read just before
+  the one under the tip), and splitting by deleting a middle bubble or a bridge. A tail leaves from an anchor the
+  author can move. See the wiki's
+  [Joined balloons](https://github.com/ShadobaDev/Platemaker-qt/wiki/Development-Strip-Editor-Objects#joined-balloons).
+
+- [ ] **A fading fill per bubble of a joined balloon.** A chain wears one fill, and its fade is laid across the whole
+    chain (`fillBox()`), so with a fade one way the first bubble can come out nearly plain and the next fully
+    toned. The alternative is the same fade in every bubble, each over its own box. A mark of a bridge would take
+    the fade of the bubble nearest it (as a Flash stroke takes the nearest core, `coreFor()`): cheap, but a fade
+    one way then shows a seam halfway along the bridge, where the two bubbles' tones meet; blending them along the
+    bridge has none, at a cost out of proportion to how rarely a chain is faded.
+
+- [ ] **A lock per object (*not selectable*).** A finished balloon cannot be grabbed by accident while others are
+  lettered next to it, which a long strip invites. An overlay flag beside mute, with a checkbox in OBJECT STACK;
+  the canvas's hit test skips a locked object, the tree still selects it.
+
+- [ ] **An advisory for a balloon across a slice seam.** The editor draws the line a balloon must not be split
+  by; one more advisory reports a balloon that crosses it. A joined balloon is long, so more likely to.
+
+- [ ] **The chapter's text at once: a script out and back in.** Every words of a project in reading order
+  (down the strip; in a joined balloon along its chain; in a body, its words in order), written to a plain
+  text file, one paragraph per words, and read back into the same words in that order, as one undo step. It
+  serves a translator's round trip, and a script poured into balloons already placed. A larger form is a list
+  of every words of the chapter, edited in place (Clip Studio's Story Editor). To decide: what a run becomes
+  when its text is replaced; a file whose count does not match (refuse, or report the difference); whether
+  text objects and lettered pictures are included.
+
+- [ ] **Lettering: letter spacing, kerning and the rest.**
+  - **Letter spacing** (tracking), for the words and for a run: one field in `TextProperties::fields()`,
+    applied in `layOutText()` and measured by `textBlockSize()`, so *Fit to text* follows it.
+  - **Kerning** from the font's metrics, on or off, and a **horizontal scale** of the glyphs.
+  - **To decide:**
+    - Wrapping at the frame. Today the lines are the author's (`QTextOption::NoWrap`), which is what
+      keeps fitting pure geometry; a one-shot *Re-break to width* would keep that.
+    - Vertical text and readings (ruby).
+    - A warp along a curve.
+
+- [ ] **Undo depth — low priority.** Each project's history keeps 20 steps. Raise it, or make it a setting,
+  after measuring what a step costs in memory (a step holds compositions).
 
 - [ ] **Tools and object kinds added from outside the editor (plugins) — idea, to decide after joined
   balloons.** The editor reads tools (`tools()`), shapes and edges (`ShapeInfo`, `EdgeInfo`) and property
@@ -466,7 +510,8 @@ New, backward-compatible features. Several are gated on a lib version, noted in 
     soft a glow.
   - A shadow is never a union of its caster and its growth: drawn as the body and a band in one layer or
     group (a union of a line of lettering took 1.5 s).
-  - **Left, only if asked:** letter spacing, a warp along a curve (a style per word came as runs, below). A lettered picture's
+  - **Left:** letter spacing and a warp along a curve are in *Lettering: letter spacing, kerning and the
+    rest*, above (a style per word came as runs, below). A lettered picture's
     soft shadow shows hard on the strip (the picture is drawn by its own item, not through the library)
     and blurred in the output.
 

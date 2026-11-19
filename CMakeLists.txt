@@ -120,6 +120,7 @@ qt_add_executable(Platemaker
     # The library composites a flat RGBA bitmap and has no text engine, so the editable source lives here.
     widgets/composition/names.cpp widgets/composition/names.hpp widgets/composition/propertygroups.hpp
     widgets/composition/composition.cpp widgets/composition/composition.hpp
+    widgets/composition/chain.cpp widgets/composition/chain.hpp
     widgets/composition/fields.hpp
     widgets/composition/compositionstore.cpp widgets/composition/compositionstore.hpp
     widgets/composition/geometry.hpp

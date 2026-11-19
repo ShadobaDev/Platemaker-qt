@@ -58,6 +58,8 @@ public:
     void applyTo(Composition& target) const override;
 
     [[nodiscard]] const ShapeProperties& values() const { return m_values; }
+    //! The body this editor reads and writes, by id; 0 for the first (a balloon's own Shape section).
+    void setBody(int id) { m_body = id; }
 
     /**
      * \brief The kind's parameter rows (the corner, the lobes, the edge), apart from the tiles: the panel
@@ -95,6 +97,7 @@ private:
     QComboBox*                  m_edge = nullptr;   //!< The edge's modulation, any family.
     FieldRows<EdgeParams>       m_edgeRows;         //!< Its teeth: spacing, depth and irregularity.
     ShapeProperties             m_values;
+    int                         m_body = 0;   //!< See setBody().
     bool                        m_populating = false;
 };
 

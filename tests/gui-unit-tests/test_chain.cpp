@@ -38,6 +38,60 @@ Composition chainOfThree()
     return c;
 }
 
+/**
+ * \brief A chain of one bubble per name, each read in turn, each bubble's words its name; with a tail on every
+ *        bubble, so any of them can be held.
+ */
+Composition chainOf(const QStringList& names)
+{
+    Composition c = balloon(names.first());
+    for (qsizetype i = 1; i < names.size(); ++i) {
+        int added = 0;
+        EXPECT_EQ(addBody(c, order(*c.balloon).constLast(), k_apart, &added), ChainError::None);
+        for (Words& w : c.words)
+            if (w.seat == added)
+                w.text.body = names.at(i);
+    }
+    for (const int body : order(*c.balloon)) {
+        BalloonTail t;
+        t.id   = c.nextId++;
+        t.root = body;
+        c.balloon->tails.append(t);
+    }
+    return c;
+}
+
+//! The tail on the bubble whose words are @p name.
+int tailOn(const Composition& c, const QString& name)
+{
+    for (const Words& w : c.words)
+        if (w.text.body == name)
+            for (const BalloonTail& t : c.balloon->tails)
+                if (!t.isBridge() && t.root == w.seat)
+                    return t.id;
+    return 0;
+}
+
+//! The bubble whose words are @p name.
+int bodyNamed(const Composition& c, const QString& name)
+{
+    for (const Words& w : c.words)
+        if (w.text.body == name)
+            return w.seat;
+    return 0;
+}
+
+//! @p c's words, by their text, in reading order (Chain::wordsInOrder()).
+QStringList readOrder(const Composition& c)
+{
+    QStringList out;
+    for (const int id : wordsInOrder(c))
+        for (const Words& w : c.words)
+            if (w.id == id)
+                out.append(w.text.body);
+    return out;
+}
+
 //! @p anchor (a fraction of body @p id's box) lies inside its outline, and a pixel further from its middle does not.
 void expectOnTheOutline(const Composition& c, int id, const QPointF& anchor)
 {
@@ -549,4 +603,66 @@ TEST(Chain, JoiningBridgesTheTwoEndsNearestEachOther)
     none.balloon.reset();
     EXPECT_EQ(join(kept, none, k_apart), ChainError::NoBalloon);
     EXPECT_EQ(kept, three);
+}
+
+/**
+ * \brief A tail held over another balloon's bubble reads its own bubble just before that one, wherever either lies in
+ *        its chain, so long as one of the two chains goes in whole; the result is one chain, the held tail its bridge,
+ *        drawn in the chain's style when a lone bubble joins one, and in the joining one's when two chains join.
+ */
+TEST(Chain, AHeldTailReadsItsBubbleJustBeforeTheOneItIsReleasedOver)
+{
+    // Each balloon in a style of its own.
+    const auto styled = [](Composition c, Paint::Kind fill) {
+        c.balloon->style.fill.fill.kind = fill;
+        return c;
+    };
+    const Composition abc = styled(chainOf({"A", "B", "C"}), Paint::Kind::Dots);
+    const Composition x   = styled(chainOf({"X"}), Paint::Kind::Lines);
+    const Composition xy  = styled(chainOf({"X", "Y"}), Paint::Kind::Grid);
+    const Composition xyz = chainOf({"X", "Y", "Z"});
+
+    // Joins c's @p held tail over other's bubble @p over, expecting @p reads.
+    const auto expectJoin = [](const Composition& c, const QString& held, const Composition& other,
+                               const QString& over, const QStringList& reads, const Composition& wears) {
+        Composition joined = c;
+        const int   tail   = tailOn(c, held);
+        ASSERT_EQ(joinByTail(joined, other, k_apart, tail, bodyNamed(other, over)), ChainError::None);
+        EXPECT_EQ(readOrder(joined), reads) << held.toStdString() << " over " << over.toStdString();
+        EXPECT_EQ(pieces(joined).size(), 1);
+        int bridges = 0;
+        for (const BalloonTail& t : joined.balloon->tails)
+            bridges += t.isBridge() ? 1 : 0;
+        EXPECT_EQ(bridges, joined.balloon->bodies.size() - 1);   // a chain: no ring, nothing branches
+        for (const Body& body : joined.balloon->bodies)
+            EXPECT_LE(bridgesOn(*joined.balloon, body.id), k_maxBridgesPerBody);
+        const auto heldTail = std::find_if(joined.balloon->tails.cbegin(), joined.balloon->tails.cend(),
+                                           [tail](const BalloonTail& t) { return t.id == tail; });
+        EXPECT_TRUE(heldTail->isBridge());
+        EXPECT_EQ(joined.balloon->style, wears.balloon->style) << held.toStdString() << " over " << over.toStdString();
+    };
+
+    // A lone bubble's tail goes before the bubble it is held over: first, in the middle, before the last.
+    expectJoin(x, "X", abc, "A", {"X", "A", "B", "C"}, abc);
+    expectJoin(x, "X", abc, "B", {"A", "X", "B", "C"}, abc);
+    expectJoin(x, "X", abc, "C", {"A", "B", "X", "C"}, abc);
+    // A chain's tail held over a lone bubble puts that bubble just after its own.
+    expectJoin(abc, "A", x, "X", {"A", "X", "B", "C"}, abc);
+    expectJoin(abc, "B", x, "X", {"A", "B", "X", "C"}, abc);
+    expectJoin(abc, "C", x, "X", {"A", "B", "C", "X"}, abc);
+    // Two chains: the last's tail before any bubble, or any tail before the first; the joining one's style.
+    expectJoin(xy, "Y", abc, "B", {"A", "X", "Y", "B", "C"}, xy);
+    expectJoin(abc, "A", xy, "X", {"A", "X", "Y", "B", "C"}, abc);
+    // Two lone bubbles: the joining one's.
+    expectJoin(x, "X", chainOf({"A"}), "A", {"X", "A"}, x);
+
+    // A middle over a middle is refused, the balloon as it was.
+    Composition kept = abc;
+    EXPECT_EQ(canJoinByTail(*abc.balloon, tailOn(abc, "B"), *xyz.balloon, bodyNamed(xyz, "Y")), ChainError::NotAChainEnd);
+    EXPECT_EQ(joinByTail(kept, xyz, k_apart, tailOn(abc, "B"), bodyNamed(xyz, "Y")), ChainError::NotAChainEnd);
+    EXPECT_EQ(kept, abc);
+    const int bridge = std::find_if(abc.balloon->tails.cbegin(), abc.balloon->tails.cend(),
+                                    [](const BalloonTail& t) { return t.isBridge(); })->id;
+    EXPECT_EQ(joinByTail(kept, x, k_apart, bridge, bodyNamed(x, "X")), ChainError::NotATail);
+    EXPECT_EQ(kept, abc);
 }

@@ -639,13 +639,13 @@ private:
     //! The two balloons @p keep and @p other as @p joined, in @p keep: @p other's overlay removed, one undo step.
     void commitJoin(const QString& keep, const QString& other, const Composition& joined);
     /**
-     * \brief The bubble tail @p tail of balloon @p uid would join, its tip held over it: of the topmost other balloon
-     *        under the tip, when it ends its chain and the tail's own bubble does too; empty otherwise.
+     * \brief The bubble tail @p tail of balloon @p uid is held over: of the topmost other balloon under its tip;
+     *        empty for none, or for a bridge. Whether the two may join there is Chain::canJoinByTail()'s.
      */
     [[nodiscard]] ElementRef joinTargetAt(const QString& uid, int tail) const;
     //! A tail's tip moved: a new bubble under it starts the hold's count; none, or another, drops the last.
     void aimJoin(const QString& uid, int tail);
-    //! Lights the held bubble, or puts it out.
+    //! Lights the held bubble, red or grey as Chain::canJoinByTail() says, or puts it out.
     void setJoinLit(bool on);
     //! Forgets the hold: the count stopped, the light out, no target.
     void dropJoin();
@@ -710,12 +710,12 @@ private:
     QList<QPair<ElementRef, QPointF>> m_dragStartTips;  //!< Tail → its tip, in its balloon's own units.
     bool                            m_dragIsGroup = false;
 
-    // --- the hold-to-join gesture: a tail's tip held over another balloon's chain end, then released ---
+    // --- the hold-to-join gesture: a tail's tip held over another balloon's bubble, then released ---
     QString    m_joinFrom;             //!< The balloon whose tail is aimed.
     int        m_joinTail = -1;        //!< That tail, by index.
-    ElementRef m_joinAt;               //!< The bubble under its tip it may join (joinTargetAt()); empty for none.
+    ElementRef m_joinAt;               //!< The bubble under its tip (joinTargetAt()); empty for none.
     QTimer*    m_joinHold = nullptr;   //!< Runs while the tip is held there; lights the bubble when it fires.
-    bool       m_joinLit  = false;     //!< The bubble is lit: releasing now joins.
+    bool       m_joinLit  = false;     //!< The bubble is lit: releasing now joins, where the two may join.
     //! How far off a hairline outline or a thin letter a press may land and still count, in screen px.
     static constexpr qreal k_pickSlackPx = 3.0;
 

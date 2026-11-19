@@ -28,7 +28,8 @@ enum class ChainError {
     NotABody,      //!< An end is not a body of the balloon.
     NotATail,      //!< The id is no tail of the balloon, or it is a bridge already.
     SameBody,      //!< Both ends are one body.
-    NotAChainEnd,  //!< A body has its k_maxBridgesPerBody already.
+    NotAChainEnd,  //!< A body has its k_maxBridgesPerBody already; or a held tail's body is not the last of its
+                   //!< chain and the bubble it is held over not the first of its own (canJoinByTail()).
     ClosesRing,    //!< The two bodies are joined already: a second bridge would close a ring.
 };
 
@@ -100,6 +101,22 @@ ChainError merge(Composition& c, const Composition& other, const QPointF& by, QL
  * @p c keeps its style, as merge() does. Refused, @p c as it was, unless both have a balloon with a chain end.
  */
 ChainError join(Composition& c, const Composition& other, const QPointF& by);
+
+//! Whether tail @p tail of @p own, released over body @p to of @p other, may join them by joinByTail(), and why not.
+[[nodiscard]] ChainError canJoinByTail(const Balloon& own, int tail, const Balloon& other, int to);
+
+/**
+ * \brief @p other joined to @p c by tail @p tail of @p c held over @p other's body @p to: the tail's body is then read
+ *        just before @p to (the hold-to-join gesture).
+ *
+ * Merged as merge() does, moved by @p by, and drawn as the chain: a lone bubble joined to a chain takes the chain's
+ * style, seed and preset; otherwise @p c keeps its own (two chains: the one joined yields to the one joining). The
+ * words keep their lettering. The held tail becomes the bridge to @p to. If @p to had a bubble before it,
+ * that bridge moves to the first of @p c's chain; if the tail's body had one after it, that bridge moves to the last
+ * of @p other's chain; the end a bridge moves to is aimed from its middle. order() reads the result in that order.
+ * Refused, @p c as it was, as canJoinByTail() says.
+ */
+ChainError joinByTail(Composition& c, const Composition& other, const QPointF& by, int tail, int to);
 
 /**
  * \brief @p c cut into its chains: one composition per set of bodies the bridges join, each with its tails and

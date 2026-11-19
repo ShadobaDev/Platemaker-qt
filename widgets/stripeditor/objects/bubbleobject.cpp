@@ -17,6 +17,8 @@ namespace {
 const QColor k_joinLightColour(220, 40, 40);
 //! Its pen's width, in screen pixels.
 constexpr qreal k_joinLightWidth = 3.0;
+//! The outline of a bubble a held tail cannot join (Chain::canJoinByTail()): grey, dashed, as a disabled control.
+const QColor k_joinRefusedColour(128, 128, 128);
 
 }  // namespace
 
@@ -110,11 +112,12 @@ int BubbleObject::bodyAt(const QPointF& local) const
     return isChain() ? Geometry::bodyAt(*m_composition.balloon, m_composition.seed, local) : 0;
 }
 
-void BubbleObject::setJoinLight(int body)
+void BubbleObject::setJoinLight(int body, bool refused)
 {
-    if (body == m_joinLight)
+    if (body == m_joinLight && refused == m_joinRefused)
         return;
-    m_joinLight = body;
+    m_joinLight   = body;
+    m_joinRefused = refused;
     update();
 }
 
@@ -203,11 +206,12 @@ void BubbleObject::paintContent(QPainter& painter)
     else
         Painter::paintPaths(painter, m_composition, m_paths);
 
-    // The bubble a held tail would join, outlined over the drawing.
+    // The bubble a held tail would join, or cannot, outlined over the drawing.
     const Body* lit = m_joinLight != 0 ? bodyOf(m_composition, m_joinLight) : nullptr;
     if (!lit)
         return;
-    QPen pen(k_joinLightColour, k_joinLightWidth);
+    QPen pen(m_joinRefused ? k_joinRefusedColour : k_joinLightColour, k_joinLightWidth,
+             m_joinRefused ? Qt::DashLine : Qt::SolidLine);
     pen.setCosmetic(true);   // as wide on screen at any zoom
     painter.setCompositionMode(QPainter::CompositionMode_SourceOver);
     painter.setPen(pen);

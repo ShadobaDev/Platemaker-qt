@@ -4,6 +4,7 @@
 #include <QLineF>
 #include <QSet>
 
+#include <algorithm>
 #include <limits>
 
 namespace Chain {
@@ -288,6 +289,86 @@ ChainError join(Composition& c, const Composition& other, const QPointF& by)
         return ChainError::NotAChainEnd;
     if (const ChainError e = addBridge(next, from, to); e != ChainError::None)
         return e;
+    c = next;
+    return ChainError::None;
+}
+
+ChainError canJoinByTail(const Balloon& own, int tail, const Balloon& other, int to)
+{
+    const auto held = std::find_if(own.tails.cbegin(), own.tails.cend(),
+                                   [tail](const BalloonTail& t) { return t.id == tail && !t.isBridge(); });
+    if (held == own.tails.cend())
+        return ChainError::NotATail;
+    if (!hasBody(other, to))
+        return ChainError::NotABody;
+    // One of the two goes in whole: the held tail's chain before the target, or the target's after the tail's body.
+    if (order(own).constLast() != held->root && order(other).constFirst() != to)
+        return ChainError::NotAChainEnd;
+    return ChainError::None;
+}
+
+ChainError joinByTail(Composition& c, const Composition& other, const QPointF& by, int tail, int to)
+{
+    if (!c.balloon || !other.balloon)
+        return ChainError::NoBalloon;
+    if (const ChainError e = canJoinByTail(*c.balloon, tail, *other.balloon, to); e != ChainError::None)
+        return e;
+    Composition next = c;
+    QList<int>  merged;
+    merge(next, other, by, &merged);
+    // Other's ids as merge() gave them: merged lists them in other's body order.
+    const auto renumbered = [&](int id) {
+        for (qsizetype i = 0; i < other.balloon->bodies.size(); ++i)
+            if (other.balloon->bodies.at(i).id == id)
+                return merged.at(i);
+        return 0;
+    };
+    const QList<int> mine = order(*c.balloon);
+    QList<int>       theirs;
+    for (const int id : order(*other.balloon))
+        theirs.append(renumbered(id));
+
+    if (mine.size() == 1 && theirs.size() > 1) {   // a lone bubble wears the chain it joins
+        next.balloon->style = other.balloon->style;
+        next.seed           = other.seed;
+        next.preset         = other.preset;
+    }
+
+    Balloon&        b      = *next.balloon;
+    const int       target = renumbered(to);
+    const qsizetype at     = theirs.indexOf(target);
+    int             root   = 0;
+    for (const BalloonTail& t : b.tails)
+        if (t.id == tail)
+            root = t.root;
+
+    // A bridge that had @p from at one end gets @p onto there instead, aimed from its middle.
+    const auto move = [&b](int bridge, int from, int onto) {
+        for (BalloonTail& t : b.tails)
+            if (t.id == bridge) {
+                if (t.root == from) {
+                    t.root        = onto;
+                    t.tail.anchor = Tail::k_centre;
+                } else {
+                    t.to       = onto;
+                    t.toAnchor = Tail::k_centre;
+                }
+            }
+    };
+    if (mine.constLast() == root) {   // the whole chain before the target
+        if (at > 0)
+            move(bridgeBetween(b, theirs.at(at - 1), target), target, mine.constFirst());
+    } else {                           // the whole other chain after the tail's body (the target is its first)
+        const qsizetype own = mine.indexOf(root);
+        move(bridgeBetween(b, root, mine.at(own + 1)), root, theirs.constLast());
+    }
+    for (BalloonTail& t : b.tails)
+        if (t.id == tail) {
+            t.to       = target;
+            t.toAnchor = Tail::k_centre;
+        }
+    // No body is relisted: the new first is the first end listed (c's first, or other's, ahead of its last), and
+    // order() reads from there.
     c = next;
     return ChainError::None;
 }

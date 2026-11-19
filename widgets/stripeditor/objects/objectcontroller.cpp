@@ -1090,10 +1090,10 @@ ElementRef ObjectController::joinTargetAt(const QString& uid, int tail) const
     if (tail < 0 || tail >= own.tails.size())
         return {};
     const BalloonTail& t = own.tails.at(tail);
-    if (t.isBridge() || !Chain::chainEnd(own, t.root))
-        return {};   // a tail on a middle bubble would make it branch
+    if (t.isBridge())
+        return {};
 
-    // The topmost other balloon with a bubble under the tip, and that bubble only if it ends its chain.
+    // The topmost other balloon with a bubble under the tip.
     const QPointF tip = from->mapToScene(t.tail.tip);
     ElementRef    top;
     const Object* topItem = nullptr;
@@ -1109,7 +1109,7 @@ ElementRef ObjectController::joinTargetAt(const QString& uid, int tail) const
             topItem = o;
         }
     }
-    return topItem && Chain::chainEnd(*topItem->composition().balloon, top.element) ? top : ElementRef{};
+    return top;
 }
 
 void ObjectController::aimJoin(const QString& uid, int tail)
@@ -1127,9 +1127,21 @@ void ObjectController::aimJoin(const QString& uid, int tail)
 
 void ObjectController::setJoinLit(bool on)
 {
-    m_joinLit = on;
-    if (auto* target = qobject_cast<BubbleObject*>(m_overlayItems.value(m_joinAt.object)))
-        target->setJoinLight(on ? m_joinAt.element : 0);
+    m_joinLit    = on;
+    auto* target = qobject_cast<BubbleObject*>(m_overlayItems.value(m_joinAt.object));
+    if (!target)
+        return;
+    if (!on) {
+        target->setJoinLight(0);
+        return;
+    }
+    const Object* from = m_overlayItems.value(m_joinFrom);
+    const Balloon* own = from && from->composition().balloon ? &*from->composition().balloon : nullptr;
+    const bool refused = !own || m_joinTail >= own->tails.size() || !target->composition().balloon
+                      || Chain::canJoinByTail(*own, own->tails.at(m_joinTail).id, *target->composition().balloon,
+                                              m_joinAt.element)
+                             != Chain::ChainError::None;
+    target->setJoinLight(m_joinAt.element, refused);
 }
 
 void ObjectController::dropJoin()
@@ -1167,18 +1179,11 @@ bool ObjectController::joinByTail()
     const Object* from = m_overlayItems.value(other);
     if (!into || !from || !into->composition().balloon || !from->composition().balloon)
         return false;
-    const QList<Body>& bodies = from->composition().balloon->bodies;
-    const qsizetype    target = std::find_if(bodies.cbegin(), bodies.cend(), [body](const Body& b) { return b.id == body; })
-                              - bodies.cbegin();
     Composition next = into->composition();
-    if (target >= bodies.size() || tail >= next.balloon->tails.size())
-        return false;
-    // The held tail becomes the bridge to the bubble it was held over, in that bubble's new id.
-    const int  tailId = next.balloon->tails.at(tail).id;
-    QList<int> merged;
-    if (Chain::merge(next, from->composition(), frameIn(into, from), &merged) != Chain::ChainError::None
-        || Chain::makeBridge(next, tailId, merged.at(target)) != Chain::ChainError::None)
-        return false;
+    if (tail >= next.balloon->tails.size()
+        || Chain::joinByTail(next, from->composition(), frameIn(into, from), next.balloon->tails.at(tail).id, body)
+               != Chain::ChainError::None)
+        return false;   // refused: the grey light said so
     commitJoin(keep, other, next);
     return true;
 }

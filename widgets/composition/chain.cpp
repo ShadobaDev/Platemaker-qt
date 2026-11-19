@@ -287,8 +287,19 @@ ChainError join(Composition& c, const Composition& other, const QPointF& by)
     }
     if (from == 0)
         return ChainError::NotAChainEnd;
+    const QList<int> mine   = order(*c.balloon);
+    const QList<int> theirs = order(*next.balloon).mid(mine.size());   // merge() lists other's after c's
     if (const ChainError e = addBridge(next, from, to); e != ChainError::None)
         return e;
+    // c's chain keeps its way: after its last, other follows it; before its first, other ends at it. order() reads
+    // from the first end listed, so that start goes first.
+    const int start = from == mine.constLast() ? mine.constFirst()
+                    : to == theirs.constFirst() ? theirs.constLast()
+                                                : theirs.constFirst();
+    QList<Body>& bodies = next.balloon->bodies;
+    for (qsizetype i = 0; i < bodies.size(); ++i)
+        if (bodies.at(i).id == start)
+            bodies.move(i, 0);
     c = next;
     return ChainError::None;
 }

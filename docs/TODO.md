@@ -422,8 +422,6 @@ New, backward-compatible features. Several are gated on a lib version, noted in 
   the one under the tip), and splitting by deleting a middle bubble or a bridge. A tail leaves from an anchor the
   author can move. See the wiki's
   [Joined balloons](https://github.com/ShadobaDev/Platemaker-qt/wiki/Development-Strip-Editor-Objects#joined-balloons).
-  Left: the menu's *Join* bridges the two nearest ends and may then read the first picked chain backwards
-  (`Chain::order()` starts at the first end listed); `Chain::joinByTail()`'s rule would settle it.
 
 - [ ] **A fading fill per bubble of a joined balloon.** A chain wears one fill, and its fade is laid across the whole
     chain (`fillBox()`), so with a fade one way the first bubble can come out nearly plain and the next fully

@@ -597,6 +597,15 @@ TEST(Chain, JoiningBridgesTheTwoEndsNearestEachOther)
     EXPECT_EQ(bridge.to, a.balloon->bodies.last().id);
     EXPECT_EQ(a.balloon->style, three.balloon->style);   // the first's look
 
+    // Joined before the first's start, the first chain still reads its way: the other comes first.
+    const Composition abc = chainOf({"A", "B", "C"});
+    Composition       before = abc;
+    ASSERT_EQ(join(before, chainOf({"X"}), -k_apart), ChainError::None);
+    EXPECT_EQ(readOrder(before), QStringList({"X", "A", "B", "C"}));
+    Composition chains = abc;   // X–Y lying before A, Y nearest it
+    ASSERT_EQ(join(chains, chainOf({"X", "Y"}), -2 * k_apart), ChainError::None);
+    EXPECT_EQ(readOrder(chains), QStringList({"X", "Y", "A", "B", "C"}));
+
     // Nothing to join to is refused, the balloon unchanged.
     Composition kept = three;
     Composition none = balloon();

@@ -98,7 +98,8 @@ ChainError merge(Composition& c, const Composition& other, const QPointF& by, QL
  * \brief @p other joined to @p c: merged into it, moved by @p by (merge()), and bridged from the end of @p c's chain to
  *        the end of @p other's that lie nearest each other, by their boxes' middles: the menu's *Join* of two balloons.
  *
- * @p c keeps its style, as merge() does. Refused, @p c as it was, unless both have a balloon with a chain end.
+ * @p c's chain keeps its reading direction: @p other is read after it when bridged to its last body, before it
+ * when bridged to its first. @p c keeps its style, as merge() does. Refused, @p c as it was, unless both have a balloon with a chain end.
  */
 ChainError join(Composition& c, const Composition& other, const QPointF& by);
 

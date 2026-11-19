@@ -416,19 +416,28 @@ New, backward-compatible features. Several are gated on a lib version, noted in 
   and starts where it touches; the other side is the base width away, inside. The anchor is not read while a
   side is flush; the bend sways the other side only. Not offered on a bridge or a Circles tail.
 
-- [ ] **Joined balloons.** Two balloons of one speaker, read in turn, joined into one outline by a neck
-  between them, as a manga reference does. A balloon is a graph: bubbles and the terminals of their
-  tails are nodes, tails and necks its edges; the bubbles form a chain, every bubble and tail of it wears
-  one style, each bubble keeps its own place, shape and words, and the whole graph is one SVG. Joining two
-  existing balloons, and splitting one by removing a neck or a middle bubble, are part of it. The object
-  model holds it: a balloon is a list of bodies (`Balloon::bodies`), words sit on a body (`Words::seat`) and a
-  tail leaves one (its root); everything but the neck and the joining reads the first body today.
-  - **To consider: a fading fill per bubble.** A chain wears one fill, and its fade is laid across the whole
+- [x] **Joined balloons** — *Done 2026-11-19.* A balloon is a chain of bubbles joined by bridges, one style
+  and one SVG, read along the chain; each bubble picked, moved, resized and reshaped on its own, with its own
+  tails and words. *Add bubble*, *Join* in the menu, the hold-to-join gesture (the held bubble read just before
+  the one under the tip), and splitting by deleting a middle bubble or a bridge. A tail leaves from an anchor the
+  author can move. See the wiki's
+  [Joined balloons](https://github.com/ShadobaDev/Platemaker-qt/wiki/Development-Strip-Editor-Objects#joined-balloons).
+  Left: the menu's *Join* bridges the two nearest ends and may then read the first picked chain backwards
+  (`Chain::order()` starts at the first end listed); `Chain::joinByTail()`'s rule would settle it.
+
+- [ ] **A fading fill per bubble of a joined balloon.** A chain wears one fill, and its fade is laid across the whole
     chain (`fillBox()`), so with a fade one way the first bubble can come out nearly plain and the next fully
     toned. The alternative is the same fade in every bubble, each over its own box. A mark of a bridge would take
     the fade of the bubble nearest it (as a Flash stroke takes the nearest core, `coreFor()`): cheap, but a fade
     one way then shows a seam halfway along the bridge, where the two bubbles' tones meet; blending them along the
     bridge has none, at a cost out of proportion to how rarely a chain is faded.
+
+- [ ] **A lock per object (*not selectable*).** A finished balloon cannot be grabbed by accident while others are
+  lettered next to it, which a long strip invites. An overlay flag beside mute, with a checkbox in OBJECT STACK;
+  the canvas's hit test skips a locked object, the tree still selects it.
+
+- [ ] **An advisory for a balloon across a slice seam.** The editor draws the line a balloon must not be split
+  by; one more advisory reports a balloon that crosses it. A joined balloon is long, so more likely to.
 
 - [ ] **The chapter's text at once: a script out and back in.** Every words of a project in reading order
   (down the strip; in a joined balloon along its chain; in a body, its words in order), written to a plain

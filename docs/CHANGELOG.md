@@ -48,6 +48,13 @@ Requires libplatemaker **0.7.0**.
   sharp zigzag, mirrored if you like. A tail keeps its tip on its speaker, and its width, when the balloon is resized.
   A selected tail shows its **anchor**, the point inside the balloon it leaves from: drag it to move where the
   tail starts (it stops where the tail would no longer meet the outline cleanly), double-click it to put it back in the middle.
+- **Joined balloons:** one speaker's balloons read in turn, joined into one outline by bridges. *Add bubble* adds
+  one to a balloon. Hold a tail's tip over another balloon's bubble for a moment, and release when it lights red:
+  the tail becomes the bridge and its bubble is read just before that one, so a bubble can go first, between two
+  or last; a bubble joining a chain takes its style. *Join* in the menu joins two selected balloons at their
+  nearest ends. A first click picks the joined balloon, a second one bubble of it, to move, resize, reshape, fit
+  to its text or give tails; Esc steps back. A bridge has a tail's width, bend and breaks, and both its ends can
+  be moved. Deleting a bubble or a bridge in the middle splits the balloon in two.
 - **Patterns and shadows:** fill, line and shadow can be halftone dots, lines or a grid in a second
   colour, and a fill's pattern can fade out, set by dragging on the strip. A drop shadow under the whole
   balloon has a spread, an offset and a softness. Colours may be transparent.

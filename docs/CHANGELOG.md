@@ -149,6 +149,7 @@ Requires libplatemaker **0.7.0**.
   the Recycle Bin when it is opened. Files you put there yourself are never touched.
 - **Save As takes the workspace with it:** its bubbles, artwork, templates and fonts are copied to the
   new folder. Templates used to go missing. A workspace folder can also be moved or zipped.
+- **Qt updated to 6.12.0.**
 
 ### Fixed
 

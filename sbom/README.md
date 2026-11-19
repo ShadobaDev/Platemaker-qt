@@ -8,7 +8,9 @@ zip, FetchContent), so the graph would otherwise be empty. The
 [`.github/workflows/dependency-submission.yml`](../.github/workflows/dependency-submission.yml)
 workflow submits this file through the Dependency Submission API on every push that touches `sbom/`.
 
-This is the superset SBOM: it lists **Qt, libplatemaker, libvips and nlohmann/json**.
+This is the product SBOM: **Qt and Platemaker**, added by the GUI's CMake, and **every package of the
+lib's own SBOM**, kept verbatim: libplatemaker, libvips, nlohmann/json, minipsd-vips and the DLLs the
+lib's Windows package bundles (glib, libpng, …, the compiler runtime).
 
 ## When to regenerate
 
@@ -18,7 +20,7 @@ reflects the build kit, so it changes when you build with a different Qt). The c
 produced by the build, e.g.:
 
 ```
-build/Desktop_Qt_6_11_1_MinGW_64_bit-Release/credits/sbom.spdx.json
+build/Desktop_Qt_6_12_0_MSVC2022_64bit_Release/credits/sbom.spdx.json
 ```
 
 Copy that over `sbom/sbom.spdx.json` and commit.

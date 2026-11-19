@@ -3,7 +3,7 @@
 #
 # MSVC-only. The app is built with MSVC 2022 (not MinGW): a MinGW-compiled, unsigned build trips a Defender
 # ML false positive (Wacatac.B!ml) on both libplatemaker.dll and the installer; the MSVC build is clean.
-# Because Qt 6.11 supports MSVC 2022 and windows-latest has moved to the VS 2026 image, the job runs on
+# Because Qt 6.12 supports MSVC 2022 and windows-latest has moved to the VS 2026 image, the job runs on
 # windows-2022 (which ships VS 2022). It depends on the LIB: CMake downloads
 # `platemaker-dev-<LIBPLATEMAKER_VERSION>-windows-msvc-release.zip` from the lib's GitHub Release, so that
 # lib version's MSVC dev asset must exist (0.5.1+ publishes it; 0.5.0 was MinGW-only).
@@ -23,26 +23,26 @@ permissions:
 
 jobs:
   installer:
-    runs-on: windows-2022    # VS 2022 — matches Qt 6.11's MSVC 2022 support and the lib's MSVC package
+    runs-on: windows-2022    # VS 2022 — matches Qt 6.12's MSVC 2022 support and the lib's MSVC package
     env:
       VT_API_KEY: ${{ secrets.VT_API_KEY }}
     steps:
       - uses: actions/checkout@v7
 
       # Qt (win64_msvc2022_64). aqtinstall is driven from git master because aqt 3.3.0 does not yet handle
-      # Qt 6.11's online-repo layout (miurahr/aqtinstall#1007). The MSVC compiler comes from the runner's
-      # VS 2022 (activated by msvc-dev-cmd below); Qt does not ship a compiler for MSVC.
+      # the online-repo layout of Qt 6.11 and later (miurahr/aqtinstall#1007). The MSVC compiler comes from
+      # the runner's VS 2022 (activated by msvc-dev-cmd below); Qt does not ship a compiler for MSVC.
       - uses: actions/setup-python@v7
         with:
           python-version: '3.12'
 
-      - name: Install aqtinstall (git master — has the Qt 6.11 repo-layout fix, #1007)
+      - name: Install aqtinstall (git master — has the Qt 6.11+ repo-layout fix, #1007)
         shell: pwsh
         run: python -m pip install --upgrade "git+https://github.com/miurahr/aqtinstall.git"
 
-      - name: Install Qt 6.11.2 (MSVC 2022)
+      - name: Install Qt 6.12.0 (MSVC 2022)
         shell: pwsh
-        run: python -m aqt install-qt windows desktop 6.11.2 win64_msvc2022_64 --outputdir "${{ github.workspace }}\Qt"
+        run: python -m aqt install-qt windows desktop 6.12.0 win64_msvc2022_64 --outputdir "${{ github.workspace }}\Qt"
 
       # Put cl.exe + the VS 2022 x64 environment on PATH for the Ninja build.
       - name: Set up MSVC 2022 environment
@@ -53,7 +53,7 @@ jobs:
       - name: Set Qt environment
         shell: pwsh
         run: |
-          $qt = "${{ github.workspace }}\Qt\6.11.2\msvc2022_64"
+          $qt = "${{ github.workspace }}\Qt\6.12.0\msvc2022_64"
           if (-not (Test-Path "$qt\bin\qmake.exe")) { throw "Qt not found at $qt" }
           Write-Host "Qt: $qt"
           # CMAKE_PREFIX_PATH lets find_package(Qt6) resolve; $qt\bin gives windeployqt/moc/uic.

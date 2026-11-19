@@ -2,23 +2,27 @@
   "SPDXID" : "SPDXRef-DOCUMENT",
   "creationInfo" : 
   {
-    "created" : "2026-08-02T18:44:27Z",
-    "creators" : [ "Organization: ShadobaDev", "Tool: platemaker-cmake-sbom" ]
+    "created" : "2026-11-13T00:15:11Z",
+    "creators" : 
+    [
+      "Person: Bartlomiej Mucha (shadobadev@gmail.com)",
+      "Tool: platemaker-cmake-sbom"
+    ]
   },
   "dataLicense" : "CC0-1.0",
-  "documentNamespace" : "https://github.com/ShadobaDev/Platemaker-qt/spdx/Platemaker-1.3.0-20260802203123",
-  "name" : "Platemaker-1.3.0",
+  "documentNamespace" : "https://github.com/ShadobaDev/Platemaker-qt/spdx/Platemaker-1.5.0-20261119232812",
+  "name" : "Platemaker-1.5.0",
   "packages" : 
   [
     {
       "SPDXID" : "SPDXRef-Package-libplatemaker",
-      "copyrightText" : "Copyright (c) 2026 ShadobaDev",
+      "copyrightText" : "Copyright (c) 2026 Bartlomiej Mucha <shadobadev@gmail.com>",
       "downloadLocation" : "https://github.com/ShadobaDev/PlateMaker",
       "externalRefs" : 
       [
         {
           "referenceCategory" : "PACKAGE-MANAGER",
-          "referenceLocator" : "pkg:github/ShadobaDev/PlateMaker@0.3.1",
+          "referenceLocator" : "pkg:github/ShadobaDev/PlateMaker@0.7.0",
           "referenceType" : "purl"
         }
       ],
@@ -26,8 +30,8 @@
       "licenseConcluded" : "LGPL-3.0-or-later",
       "licenseDeclared" : "LGPL-3.0-or-later",
       "name" : "libplatemaker",
-      "supplier" : "Organization: ShadobaDev",
-      "versionInfo" : "0.3.1"
+      "supplier" : "Person: Bartlomiej Mucha (shadobadev@gmail.com)",
+      "versionInfo" : "0.7.0"
     },
     {
       "SPDXID" : "SPDXRef-Package-libvips",
@@ -68,6 +72,323 @@
       "versionInfo" : "3.11.3"
     },
     {
+      "SPDXID" : "SPDXRef-Package-minipsd-vips",
+      "comment" : "The files below are the whole zip but this document; foreign/minipsd/minipsd.h is minipsd 0.4.1, one file, compiled into the plugin.",
+      "copyrightText" : "Copyright (c) 2026 Bartlomiej Mucha <shadobadev@gmail.com>",
+      "downloadLocation" : "https://github.com/ShadobaDev/minipsd/releases/download/0.4.1/minipsd-vips-0.4.1.zip",
+      "externalRefs" : 
+      [
+        {
+          "referenceCategory" : "PACKAGE-MANAGER",
+          "referenceLocator" : "pkg:github/ShadobaDev/minipsd@0.4.1",
+          "referenceType" : "purl"
+        }
+      ],
+      "filesAnalyzed" : true,
+      "homepage" : "https://github.com/ShadobaDev/minipsd",
+      "licenseConcluded" : "MIT",
+      "licenseDeclared" : "MIT",
+      "licenseInfoFromFiles" : [ "MIT" ],
+      "name" : "minipsd-vips",
+      "packageVerificationCode" : 
+      {
+        "packageVerificationCodeValue" : "f0ad9aded949652bb470039522dd5db2894e68c7"
+      },
+      "summary" : "minipsd's libvips plugin: psdload, psdsave and psdsave_layers, as a CMake project",
+      "supplier" : "Person: Bartlomiej Mucha (shadobadev@gmail.com)",
+      "versionInfo" : "0.4.1"
+    },
+    {
+      "SPDXID" : "SPDXRef-Package-glib",
+      "copyrightText" : "Copyright (C) GLib contributors / the GNOME Project",
+      "downloadLocation" : "https://gitlab.gnome.org/GNOME/glib",
+      "filesAnalyzed" : false,
+      "licenseConcluded" : "LGPL-2.1-or-later",
+      "licenseDeclared" : "LGPL-2.1-or-later",
+      "name" : "glib",
+      "versionInfo" : "2.88.0"
+    },
+    {
+      "SPDXID" : "SPDXRef-Package-libexif",
+      "copyrightText" : "Copyright (C) libexif contributors",
+      "downloadLocation" : "https://libexif.github.io/",
+      "filesAnalyzed" : false,
+      "licenseConcluded" : "LGPL-2.1-or-later",
+      "licenseDeclared" : "LGPL-2.1-or-later",
+      "name" : "libexif",
+      "versionInfo" : "0.6.25"
+    },
+    {
+      "SPDXID" : "SPDXRef-Package-fribidi",
+      "copyrightText" : "Copyright (C) GNU FriBidi contributors",
+      "downloadLocation" : "https://github.com/fribidi/fribidi",
+      "filesAnalyzed" : false,
+      "licenseConcluded" : "LGPL-2.1-or-later",
+      "licenseDeclared" : "LGPL-2.1-or-later",
+      "name" : "fribidi",
+      "versionInfo" : "1.0.16"
+    },
+    {
+      "SPDXID" : "SPDXRef-Package-pango",
+      "copyrightText" : "Copyright (C) Pango contributors / the GNOME Project",
+      "downloadLocation" : "https://pango.gnome.org/",
+      "filesAnalyzed" : false,
+      "licenseConcluded" : "LGPL-2.1-or-later",
+      "licenseDeclared" : "LGPL-2.1-or-later",
+      "name" : "pango",
+      "versionInfo" : "1.57.1"
+    },
+    {
+      "SPDXID" : "SPDXRef-Package-librsvg",
+      "copyrightText" : "Copyright (C) librsvg contributors / the GNOME Project",
+      "downloadLocation" : "https://gitlab.gnome.org/GNOME/librsvg",
+      "filesAnalyzed" : false,
+      "licenseConcluded" : "LGPL-2.1-or-later",
+      "licenseDeclared" : "LGPL-2.1-or-later",
+      "name" : "librsvg",
+      "versionInfo" : "2.62.1"
+    },
+    {
+      "SPDXID" : "SPDXRef-Package-cairo",
+      "copyrightText" : "Copyright (C) cairo contributors",
+      "downloadLocation" : "https://www.cairographics.org/",
+      "filesAnalyzed" : false,
+      "licenseConcluded" : "LGPL-2.1-only OR MPL-1.1",
+      "licenseDeclared" : "LGPL-2.1-only OR MPL-1.1",
+      "name" : "cairo",
+      "versionInfo" : "1.18.4"
+    },
+    {
+      "SPDXID" : "SPDXRef-Package-libheif",
+      "copyrightText" : "Copyright (C) struktur AG and libheif contributors",
+      "downloadLocation" : "https://github.com/strukturag/libheif",
+      "filesAnalyzed" : false,
+      "licenseConcluded" : "LGPL-3.0-or-later",
+      "licenseDeclared" : "LGPL-3.0-or-later",
+      "name" : "libheif",
+      "versionInfo" : "1.21.2"
+    },
+    {
+      "SPDXID" : "SPDXRef-Package-libimagequant",
+      "copyrightText" : "Copyright (C) 2009-2024 Kornel Lesinski and contributors (also available under a commercial licence)",
+      "downloadLocation" : "https://pngquant.org/lib/",
+      "filesAnalyzed" : false,
+      "licenseConcluded" : "GPL-3.0-or-later",
+      "licenseDeclared" : "GPL-3.0-or-later",
+      "name" : "libimagequant",
+      "versionInfo" : "2.4.1"
+    },
+    {
+      "SPDXID" : "SPDXRef-Package-expat",
+      "copyrightText" : "Copyright (c) 1998-2000 Thai Open Source Software Center Ltd and Clark Cooper; 2001-2025 Expat maintainers",
+      "downloadLocation" : "https://libexpat.github.io/",
+      "filesAnalyzed" : false,
+      "licenseConcluded" : "MIT",
+      "licenseDeclared" : "MIT",
+      "name" : "expat",
+      "versionInfo" : "2.7.5"
+    },
+    {
+      "SPDXID" : "SPDXRef-Package-libffi",
+      "copyrightText" : "Copyright (c) 1996-2024 Anthony Green, Red Hat, Inc and others",
+      "downloadLocation" : "https://sourceware.org/libffi/",
+      "filesAnalyzed" : false,
+      "licenseConcluded" : "MIT",
+      "licenseDeclared" : "MIT",
+      "name" : "libffi",
+      "versionInfo" : "3.5.2"
+    },
+    {
+      "SPDXID" : "SPDXRef-Package-lcms2",
+      "copyrightText" : "Copyright (c) 1998-2024 Marti Maria Saguer",
+      "downloadLocation" : "https://littlecms.com/",
+      "filesAnalyzed" : false,
+      "licenseConcluded" : "MIT",
+      "licenseDeclared" : "MIT",
+      "name" : "lcms2",
+      "versionInfo" : "2.18"
+    },
+    {
+      "SPDXID" : "SPDXRef-Package-pixman",
+      "copyrightText" : "Copyright (c) pixman contributors, Red Hat, Inc., SuSE, Inc.",
+      "downloadLocation" : "https://www.pixman.org/",
+      "filesAnalyzed" : false,
+      "licenseConcluded" : "MIT",
+      "licenseDeclared" : "MIT",
+      "name" : "pixman",
+      "versionInfo" : "0.46.4"
+    },
+    {
+      "SPDXID" : "SPDXRef-Package-libxml2",
+      "copyrightText" : "Copyright (c) 1998-2012 Daniel Veillard and contributors",
+      "downloadLocation" : "https://gitlab.gnome.org/GNOME/libxml2",
+      "filesAnalyzed" : false,
+      "licenseConcluded" : "MIT",
+      "licenseDeclared" : "MIT",
+      "name" : "libxml2",
+      "versionInfo" : "2.15.2"
+    },
+    {
+      "SPDXID" : "SPDXRef-Package-cgif",
+      "copyrightText" : "Copyright (c) 2020 Daniel Loebl and cgif contributors",
+      "downloadLocation" : "https://github.com/dloebl/cgif",
+      "filesAnalyzed" : false,
+      "licenseConcluded" : "MIT",
+      "licenseDeclared" : "MIT",
+      "name" : "cgif",
+      "versionInfo" : "0.5.3"
+    },
+    {
+      "SPDXID" : "SPDXRef-Package-harfbuzz",
+      "copyrightText" : "Copyright (c) HarfBuzz contributors (see the Old MIT licence text)",
+      "downloadLocation" : "https://harfbuzz.github.io/",
+      "filesAnalyzed" : false,
+      "licenseConcluded" : "MIT",
+      "licenseDeclared" : "MIT",
+      "name" : "harfbuzz",
+      "versionInfo" : "13.2.1"
+    },
+    {
+      "SPDXID" : "SPDXRef-Package-fontconfig",
+      "copyrightText" : "Copyright (c) 2000-2020 Keith Packard, Red Hat, Inc. and fontconfig contributors",
+      "downloadLocation" : "https://www.freedesktop.org/wiki/Software/fontconfig/",
+      "filesAnalyzed" : false,
+      "licenseConcluded" : "MIT",
+      "licenseDeclared" : "MIT",
+      "name" : "fontconfig",
+      "versionInfo" : "2.17.1"
+    },
+    {
+      "SPDXID" : "SPDXRef-Package-freetype",
+      "copyrightText" : "Copyright (c) 1996-2024 David Turner, Robert Wilhelm, and Werner Lemberg",
+      "downloadLocation" : "https://freetype.org/",
+      "filesAnalyzed" : false,
+      "licenseConcluded" : "FTL OR GPL-2.0-or-later",
+      "licenseDeclared" : "FTL OR GPL-2.0-or-later",
+      "name" : "freetype",
+      "versionInfo" : "2.14.3"
+    },
+    {
+      "SPDXID" : "SPDXRef-Package-libpng",
+      "copyrightText" : "Copyright (c) 1995-2024 The PNG Reference Library Authors",
+      "downloadLocation" : "http://www.libpng.org/pub/png/libpng.html",
+      "filesAnalyzed" : false,
+      "licenseConcluded" : "Libpng",
+      "licenseDeclared" : "Libpng",
+      "name" : "libpng",
+      "versionInfo" : "1.6.56"
+    },
+    {
+      "SPDXID" : "SPDXRef-Package-libtiff",
+      "copyrightText" : "Copyright (c) 1988-1997 Sam Leffler; Copyright (c) 1991-1997 Silicon Graphics, Inc.",
+      "downloadLocation" : "https://libtiff.gitlab.io/libtiff/",
+      "filesAnalyzed" : false,
+      "licenseConcluded" : "libtiff",
+      "licenseDeclared" : "libtiff",
+      "name" : "libtiff",
+      "versionInfo" : "4.7.1"
+    },
+    {
+      "SPDXID" : "SPDXRef-Package-zlib-ng",
+      "copyrightText" : "Copyright (c) 1995-2024 Jean-loup Gailly, Mark Adler and zlib-ng contributors",
+      "downloadLocation" : "https://github.com/zlib-ng/zlib-ng",
+      "filesAnalyzed" : false,
+      "licenseConcluded" : "Zlib",
+      "licenseDeclared" : "Zlib",
+      "name" : "zlib-ng",
+      "versionInfo" : "2.3.3"
+    },
+    {
+      "SPDXID" : "SPDXRef-Package-mozjpeg",
+      "copyrightText" : "Copyright (c) 1991-2020 Thomas G. Lane, Guido Vollbeding, the IJG, D. R. Commander, Mozilla and contributors",
+      "downloadLocation" : "https://github.com/mozilla/mozjpeg",
+      "filesAnalyzed" : false,
+      "licenseConcluded" : "IJG AND BSD-3-Clause AND Zlib",
+      "licenseDeclared" : "IJG AND BSD-3-Clause AND Zlib",
+      "name" : "mozjpeg",
+      "versionInfo" : "0826579"
+    },
+    {
+      "SPDXID" : "SPDXRef-Package-libwebp",
+      "copyrightText" : "Copyright (c) 2010 Google Inc. All Rights Reserved.",
+      "downloadLocation" : "https://developers.google.com/speed/webp",
+      "filesAnalyzed" : false,
+      "licenseConcluded" : "BSD-3-Clause",
+      "licenseDeclared" : "BSD-3-Clause",
+      "name" : "libwebp",
+      "versionInfo" : "1.6.0"
+    },
+    {
+      "SPDXID" : "SPDXRef-Package-libaom",
+      "copyrightText" : "Copyright (c) 2016, Alliance for Open Media (BSD-2-Clause, plus the Alliance for Open Media Patent License 1.0)",
+      "downloadLocation" : "https://aomedia.googlesource.com/aom/",
+      "filesAnalyzed" : false,
+      "licenseConcluded" : "BSD-2-Clause",
+      "licenseDeclared" : "BSD-2-Clause",
+      "name" : "libaom",
+      "versionInfo" : "3.13.2"
+    },
+    {
+      "SPDXID" : "SPDXRef-Package-libarchive",
+      "copyrightText" : "Copyright (c) 2003-2024 Tim Kientzle and libarchive contributors",
+      "downloadLocation" : "https://www.libarchive.org/",
+      "filesAnalyzed" : false,
+      "licenseConcluded" : "BSD-2-Clause",
+      "licenseDeclared" : "BSD-2-Clause",
+      "name" : "libarchive",
+      "versionInfo" : "3.8.6"
+    },
+    {
+      "SPDXID" : "SPDXRef-Package-highway",
+      "copyrightText" : "Copyright (c) Google LLC and highway contributors",
+      "downloadLocation" : "https://github.com/google/highway",
+      "filesAnalyzed" : false,
+      "licenseConcluded" : "Apache-2.0",
+      "licenseDeclared" : "Apache-2.0",
+      "name" : "highway",
+      "versionInfo" : "1.3.0"
+    },
+    {
+      "SPDXID" : "SPDXRef-Package-libultrahdr",
+      "copyrightText" : "Copyright (c) Google LLC and libultrahdr contributors",
+      "downloadLocation" : "https://github.com/google/libultrahdr",
+      "filesAnalyzed" : false,
+      "licenseConcluded" : "Apache-2.0",
+      "licenseDeclared" : "Apache-2.0",
+      "name" : "libultrahdr",
+      "versionInfo" : "1.4.0"
+    },
+    {
+      "SPDXID" : "SPDXRef-Package-llvm-libc--",
+      "copyrightText" : "Copyright (c) the LLVM Project contributors",
+      "downloadLocation" : "https://libcxx.llvm.org/",
+      "filesAnalyzed" : false,
+      "licenseConcluded" : "Apache-2.0 WITH LLVM-exception",
+      "licenseDeclared" : "Apache-2.0 WITH LLVM-exception",
+      "name" : "llvm-libc++",
+      "versionInfo" : "libvips web-build toolchain"
+    },
+    {
+      "SPDXID" : "SPDXRef-Package-mingw-gcc-runtime",
+      "copyrightText" : "Copyright (c) Free Software Foundation, Inc. (distributed under the GCC Runtime Library Exception)",
+      "downloadLocation" : "https://gcc.gnu.org/",
+      "filesAnalyzed" : false,
+      "licenseConcluded" : "GPL-3.0-or-later WITH GCC-exception-3.1",
+      "licenseDeclared" : "GPL-3.0-or-later WITH GCC-exception-3.1",
+      "name" : "mingw-gcc-runtime",
+      "versionInfo" : "MinGW-w64 GCC toolchain"
+    },
+    {
+      "SPDXID" : "SPDXRef-Package-mingw-w64-winpthreads",
+      "copyrightText" : "Copyright (c) 2011-2024 mingw-w64 project (winpthreads runtime)",
+      "downloadLocation" : "https://www.mingw-w64.org/",
+      "filesAnalyzed" : false,
+      "licenseConcluded" : "Zlib",
+      "licenseDeclared" : "Zlib",
+      "name" : "mingw-w64-winpthreads",
+      "versionInfo" : "MinGW-w64 toolchain"
+    },
+    {
       "SPDXID" : "SPDXRef-Package-Qt",
       "copyrightText" : "NOASSERTION",
       "downloadLocation" : "https://github.com/qt/qtbase",
@@ -75,7 +396,7 @@
       [
         {
           "referenceCategory" : "PACKAGE-MANAGER",
-          "referenceLocator" : "pkg:github/qt/qtbase@6.11.1",
+          "referenceLocator" : "pkg:github/qt/qtbase@6.12.0",
           "referenceType" : "purl"
         }
       ],
@@ -84,17 +405,17 @@
       "licenseDeclared" : "LGPL-3.0-only",
       "name" : "Qt",
       "supplier" : "Organization: The Qt Company",
-      "versionInfo" : "6.11.1"
+      "versionInfo" : "6.12.0"
     },
     {
       "SPDXID" : "SPDXRef-Package-Platemaker",
-      "copyrightText" : "Copyright (c) 2026 ShadobaDev",
+      "copyrightText" : "Copyright (c) 2026 Bartlomiej Mucha <shadobadev@gmail.com>",
       "downloadLocation" : "https://github.com/ShadobaDev/Platemaker-qt",
       "externalRefs" : 
       [
         {
           "referenceCategory" : "PACKAGE-MANAGER",
-          "referenceLocator" : "pkg:github/ShadobaDev/Platemaker-qt@1.3.0",
+          "referenceLocator" : "pkg:github/ShadobaDev/Platemaker-qt@1.5.0",
           "referenceType" : "purl"
         }
       ],
@@ -102,8 +423,8 @@
       "licenseConcluded" : "GPL-3.0-only",
       "licenseDeclared" : "GPL-3.0-only",
       "name" : "Platemaker",
-      "supplier" : "Organization: ShadobaDev",
-      "versionInfo" : "1.3.0"
+      "supplier" : "Person: Bartlomiej Mucha (shadobadev@gmail.com)",
+      "versionInfo" : "1.5.0"
     }
   ],
   "relationships" : 
@@ -114,16 +435,6 @@
       "spdxElementId" : "SPDXRef-DOCUMENT"
     },
     {
-      "relatedSpdxElement" : "SPDXRef-Package-libplatemaker",
-      "relationshipType" : "DEPENDS_ON",
-      "spdxElementId" : "SPDXRef-Package-Platemaker"
-    },
-    {
-      "relatedSpdxElement" : "SPDXRef-Package-Qt",
-      "relationshipType" : "DEPENDS_ON",
-      "spdxElementId" : "SPDXRef-Package-Platemaker"
-    },
-    {
       "relatedSpdxElement" : "SPDXRef-Package-libvips",
       "relationshipType" : "DEPENDS_ON",
       "spdxElementId" : "SPDXRef-Package-libplatemaker"
@@ -132,6 +443,166 @@
       "relatedSpdxElement" : "SPDXRef-Package-nlohmann-json",
       "relationshipType" : "DEPENDS_ON",
       "spdxElementId" : "SPDXRef-Package-libplatemaker"
+    },
+    {
+      "relatedSpdxElement" : "SPDXRef-Package-minipsd-vips",
+      "relationshipType" : "STATIC_LINK",
+      "spdxElementId" : "SPDXRef-Package-libplatemaker"
+    },
+    {
+      "relatedSpdxElement" : "SPDXRef-Package-glib",
+      "relationshipType" : "DEPENDS_ON",
+      "spdxElementId" : "SPDXRef-Package-libvips"
+    },
+    {
+      "relatedSpdxElement" : "SPDXRef-Package-libexif",
+      "relationshipType" : "DEPENDS_ON",
+      "spdxElementId" : "SPDXRef-Package-libvips"
+    },
+    {
+      "relatedSpdxElement" : "SPDXRef-Package-fribidi",
+      "relationshipType" : "DEPENDS_ON",
+      "spdxElementId" : "SPDXRef-Package-libvips"
+    },
+    {
+      "relatedSpdxElement" : "SPDXRef-Package-pango",
+      "relationshipType" : "DEPENDS_ON",
+      "spdxElementId" : "SPDXRef-Package-libvips"
+    },
+    {
+      "relatedSpdxElement" : "SPDXRef-Package-librsvg",
+      "relationshipType" : "DEPENDS_ON",
+      "spdxElementId" : "SPDXRef-Package-libvips"
+    },
+    {
+      "relatedSpdxElement" : "SPDXRef-Package-cairo",
+      "relationshipType" : "DEPENDS_ON",
+      "spdxElementId" : "SPDXRef-Package-libvips"
+    },
+    {
+      "relatedSpdxElement" : "SPDXRef-Package-libheif",
+      "relationshipType" : "DEPENDS_ON",
+      "spdxElementId" : "SPDXRef-Package-libvips"
+    },
+    {
+      "relatedSpdxElement" : "SPDXRef-Package-libimagequant",
+      "relationshipType" : "DEPENDS_ON",
+      "spdxElementId" : "SPDXRef-Package-libvips"
+    },
+    {
+      "relatedSpdxElement" : "SPDXRef-Package-expat",
+      "relationshipType" : "DEPENDS_ON",
+      "spdxElementId" : "SPDXRef-Package-libvips"
+    },
+    {
+      "relatedSpdxElement" : "SPDXRef-Package-libffi",
+      "relationshipType" : "DEPENDS_ON",
+      "spdxElementId" : "SPDXRef-Package-libvips"
+    },
+    {
+      "relatedSpdxElement" : "SPDXRef-Package-lcms2",
+      "relationshipType" : "DEPENDS_ON",
+      "spdxElementId" : "SPDXRef-Package-libvips"
+    },
+    {
+      "relatedSpdxElement" : "SPDXRef-Package-pixman",
+      "relationshipType" : "DEPENDS_ON",
+      "spdxElementId" : "SPDXRef-Package-libvips"
+    },
+    {
+      "relatedSpdxElement" : "SPDXRef-Package-libxml2",
+      "relationshipType" : "DEPENDS_ON",
+      "spdxElementId" : "SPDXRef-Package-libvips"
+    },
+    {
+      "relatedSpdxElement" : "SPDXRef-Package-cgif",
+      "relationshipType" : "DEPENDS_ON",
+      "spdxElementId" : "SPDXRef-Package-libvips"
+    },
+    {
+      "relatedSpdxElement" : "SPDXRef-Package-harfbuzz",
+      "relationshipType" : "DEPENDS_ON",
+      "spdxElementId" : "SPDXRef-Package-libvips"
+    },
+    {
+      "relatedSpdxElement" : "SPDXRef-Package-fontconfig",
+      "relationshipType" : "DEPENDS_ON",
+      "spdxElementId" : "SPDXRef-Package-libvips"
+    },
+    {
+      "relatedSpdxElement" : "SPDXRef-Package-freetype",
+      "relationshipType" : "DEPENDS_ON",
+      "spdxElementId" : "SPDXRef-Package-libvips"
+    },
+    {
+      "relatedSpdxElement" : "SPDXRef-Package-libpng",
+      "relationshipType" : "DEPENDS_ON",
+      "spdxElementId" : "SPDXRef-Package-libvips"
+    },
+    {
+      "relatedSpdxElement" : "SPDXRef-Package-libtiff",
+      "relationshipType" : "DEPENDS_ON",
+      "spdxElementId" : "SPDXRef-Package-libvips"
+    },
+    {
+      "relatedSpdxElement" : "SPDXRef-Package-zlib-ng",
+      "relationshipType" : "DEPENDS_ON",
+      "spdxElementId" : "SPDXRef-Package-libvips"
+    },
+    {
+      "relatedSpdxElement" : "SPDXRef-Package-mozjpeg",
+      "relationshipType" : "DEPENDS_ON",
+      "spdxElementId" : "SPDXRef-Package-libvips"
+    },
+    {
+      "relatedSpdxElement" : "SPDXRef-Package-libwebp",
+      "relationshipType" : "DEPENDS_ON",
+      "spdxElementId" : "SPDXRef-Package-libvips"
+    },
+    {
+      "relatedSpdxElement" : "SPDXRef-Package-libaom",
+      "relationshipType" : "DEPENDS_ON",
+      "spdxElementId" : "SPDXRef-Package-libvips"
+    },
+    {
+      "relatedSpdxElement" : "SPDXRef-Package-libarchive",
+      "relationshipType" : "DEPENDS_ON",
+      "spdxElementId" : "SPDXRef-Package-libvips"
+    },
+    {
+      "relatedSpdxElement" : "SPDXRef-Package-highway",
+      "relationshipType" : "DEPENDS_ON",
+      "spdxElementId" : "SPDXRef-Package-libvips"
+    },
+    {
+      "relatedSpdxElement" : "SPDXRef-Package-libultrahdr",
+      "relationshipType" : "DEPENDS_ON",
+      "spdxElementId" : "SPDXRef-Package-libvips"
+    },
+    {
+      "relatedSpdxElement" : "SPDXRef-Package-llvm-libc--",
+      "relationshipType" : "DEPENDS_ON",
+      "spdxElementId" : "SPDXRef-Package-libplatemaker"
+    },
+    {
+      "relatedSpdxElement" : "SPDXRef-Package-mingw-gcc-runtime",
+      "relationshipType" : "DEPENDS_ON",
+      "spdxElementId" : "SPDXRef-Package-libplatemaker"
+    },
+    {
+      "relatedSpdxElement" : "SPDXRef-Package-mingw-w64-winpthreads",
+      "relationshipType" : "DEPENDS_ON",
+      "spdxElementId" : "SPDXRef-Package-libplatemaker"
+    },
+    {
+      "relatedSpdxElement" : "SPDXRef-Package-libplatemaker",
+      "relationshipType" : "DEPENDS_ON",
+      "spdxElementId" : "SPDXRef-Package-Platemaker"
+    },
+    {
+      "relatedSpdxElement" : "SPDXRef-Package-Qt",
+      "relationshipType" : "DEPENDS_ON",
+      "spdxElementId" : "SPDXRef-Package-Platemaker"
     }
   ],
   "spdxVersion" : "SPDX-2.3"

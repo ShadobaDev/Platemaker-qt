@@ -98,10 +98,10 @@ If a Release was already created for that tag, delete it on the Releases page to
 - **Configure fails downloading the lib (`platemaker-dev-…zip` 404 / FATAL_ERROR)** — the pinned
   `LIBPLATEMAKER_VERSION` has no matching **published** lib Release asset. Publish the lib release first,
   or fix the pin (see Pre-flight).
-- **Qt install fails / `aqt` errors** — the workflow drives **aqtinstall from git master** because Qt
-  6.11's repo layout isn't handled by aqt's latest release (issue #1007); if it breaks, check that and the
-  Qt MinGW tool id (`tools_mingw1310` for Qt 6.11.1 — `aqt list-tool windows desktop tools_mingw`). Revert
-  to `install-qt-action` once a fixed aqt (> 3.3.0) ships.
+- **Qt install fails / `aqt` errors** — the workflow drives **aqtinstall from git master** because the
+  repo layout of Qt 6.11 and later isn't handled by aqt's latest release (issue #1007); if it breaks, check
+  that and the Qt MinGW tool id (`tools_mingw1510` for Qt 6.12 — `aqt list-tool windows desktop
+  tools_mingw`). Revert to `install-qt-action` once a fixed aqt (> 3.3.0) ships.
 - **Config-package guard FATAL_ERRORs on the lib** — an ABI mismatch between the Qt-MinGW toolchain and
   the downloaded lib archive (both should be MinGW/GCC; this is what works locally). Confirm the lib asset
   is the **MinGW** dev zip.

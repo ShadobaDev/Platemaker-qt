@@ -36,7 +36,7 @@ jobs:
         with:
           python-version: '3.12'
 
-      - name: Install aqtinstall (git master — has the Qt 6.11+ repo-layout fix, #1007)
+      - name: Install aqtinstall (git master — reads the repo layout of Qt 6.11 and later, #1007)
         shell: pwsh
         run: python -m pip install --upgrade "git+https://github.com/miurahr/aqtinstall.git"
 

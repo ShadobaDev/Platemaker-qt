@@ -144,6 +144,27 @@ QPainterPath path(const QList<ShapeNode>& nodes, const Rules& rules, const QRect
     return p;
 }
 
+QPolygonF polyline(const QList<ShapeNode>& nodes, const Rules& rules, const QRectF& box, int perSegment)
+{
+    QPolygonF out;
+    if (nodes.isEmpty())
+        return out;
+    out.append(inBox(nodes.first().at, box));
+    for (int i = 0; i < segments(nodes, rules); ++i) {
+        const ShapeNode& a  = nodes[i];
+        const ShapeNode& b  = nodes[next(nodes, i)];
+        const QPointF    p0 = inBox(a.at, box), p1 = inBox(a.at + a.out, box), p2 = inBox(b.at + b.in, box),
+                         p3 = inBox(b.at, box);
+        if (!(a.out.isNull() && b.in.isNull()))
+            for (int k = 1; k < perSegment; ++k) {
+                const qreal t = qreal(k) / perSegment, u = 1.0 - t;
+                out.append(p0 * (u * u * u) + p1 * (3.0 * u * u * t) + p2 * (3.0 * u * t * t) + p3 * (t * t * t));
+            }
+        out.append(p3);
+    }
+    return out;
+}
+
 QPointF segmentMiddle(const QList<ShapeNode>& nodes, int segment)
 {
     return splitSegment(nodes[segment], nodes[next(nodes, segment)]).mid;

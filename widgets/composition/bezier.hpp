@@ -13,6 +13,7 @@
 
 #include <QList>
 #include <QPainterPath>
+#include <QPolygonF>
 #include <QRectF>
 
 #include "propertygroups.hpp"   // ShapeNode
@@ -47,6 +48,12 @@ struct Rules
  *        along the next one's in-handle; straight where neither has one. Non-zero fill; closed if the rules say.
  */
 [[nodiscard]] QPainterPath path(const QList<ShapeNode>& nodes, const Rules& rules, const QRectF& box);
+
+/**
+ * \brief path() as points in @p box: each node, and a curved segment's @p perSegment − 1 points between, evenly in
+ *        its parameter. A straight segment is its two ends. Closed, it comes back to the first node.
+ */
+[[nodiscard]] QPolygonF polyline(const QList<ShapeNode>& nodes, const Rules& rules, const QRectF& box, int perSegment);
 
 //! The point halfway along segment @p segment (de Casteljau), in fractions: where its "+" is.
 [[nodiscard]] QPointF segmentMiddle(const QList<ShapeNode>& nodes, int segment);

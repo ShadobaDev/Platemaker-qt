@@ -274,3 +274,70 @@ TEST(Lettering, FitToTextHoldsAColumn)
     EXPECT_FALSE(Geometry::textOverflows(a, *wordsOf(a)));
     EXPECT_GT(sizeOf(a).height(), sizeOf(a).width()) << "a tall column, two columns wide";
 }
+
+namespace {
+
+//! A line of letters across a box that holds it, to be bent.
+Composition line()
+{
+    Composition a       = textObject(QSize(900, 900));
+    textOf(a).body      = QStringLiteral("HELLO WORLD");
+    textOf(a).pixelSize = 50;
+    return a;
+}
+
+//! How near two edges of a bent and a flat outline must be: the bent one is polygons, its curves flattened.
+constexpr qreal k_flattenedPx = 1.0;
+
+} // namespace
+
+TEST(Lettering, AStraightWarpBendsNothing)
+{
+    for (const bool vertical : {false, true}) {
+        Composition a       = line();
+        textOf(a).vertical  = vertical;
+        const QSizeF flat   = Geometry::textBlockSize(*wordsOf(a));
+        const QRectF drawn  = Geometry::textOutline(a, *wordsOf(a)).boundingRect();
+        textOf(a).warp      = Geometry::straightWarp(vertical);
+        const QSizeF block  = Geometry::textBlockSize(*wordsOf(a));
+        const QRectF bent   = Geometry::textOutline(a, *wordsOf(a)).boundingRect();
+        EXPECT_NEAR(block.width(), flat.width(), k_layoutPx) << vertical;
+        EXPECT_NEAR(block.height(), flat.height(), k_layoutPx) << vertical;
+        EXPECT_NEAR(bent.left(), drawn.left(), k_flattenedPx) << vertical;
+        EXPECT_NEAR(bent.top(), drawn.top(), k_flattenedPx) << vertical;
+        EXPECT_NEAR(bent.right(), drawn.right(), k_flattenedPx) << vertical;
+        EXPECT_NEAR(bent.bottom(), drawn.bottom(), k_flattenedPx) << vertical;
+    }
+}
+
+TEST(Lettering, AWarpBendsTheBlockAndFitToTextFollows)
+{
+    // Corner to corner of the flat block: the line runs uphill, and the block it takes is taller than the flat one.
+    Composition  a     = line();
+    const QSizeF flat  = Geometry::textBlockSize(*wordsOf(a));
+    const qreal  level = Geometry::textOutline(a, *wordsOf(a)).boundingRect().height();
+    textOf(a).warp     = {ShapeNode(0.0, 1.0), ShapeNode(1.0, 0.0)};
+    const QSizeF bent = Geometry::textBlockSize(*wordsOf(a));
+    EXPECT_GT(bent.height(), flat.height() + flat.height() / 2.0);
+    EXPECT_GT(Geometry::textOutline(a, *wordsOf(a)).boundingRect().height(), 2.0 * level) << "the letters climb";
+
+    // A box the flat line fits holds the bent one no more; fitted, it holds it.
+    resize(a, QSize(qCeil(bent.width()) + 4, qCeil(flat.height()) + 4));
+    EXPECT_TRUE(Geometry::textOverflows(a, *wordsOf(a)));
+    resize(a, Geometry::fittedBox(a));
+    EXPECT_FALSE(Geometry::textOverflows(a, *wordsOf(a)));
+}
+
+TEST(Lettering, AnArchRaisesTheMiddleLetters)
+{
+    // A curve up from both ends to a point over the middle: the middle letters sit higher than the first.
+    Composition a  = line();
+    textOf(a).warp = {ShapeNode(0.0, 0.5), ShapeNode(0.5, -1.0), ShapeNode(1.0, 0.5)};
+    const auto middleOf = [&a](int from) {
+        textOf(a).runs = {filledRun(from, 1)};
+        return Geometry::textFills(a, *wordsOf(a)).value(0).boundingRect().center().y();
+    };
+    const qreal first  = middleOf(0);
+    const qreal middle = middleOf(5 - 1);   // the O of HELLO, by the middle
+    EXPECT_LT(middle, first - textOf(a).pixelSize);
+}

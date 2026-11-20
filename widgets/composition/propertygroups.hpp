@@ -1104,6 +1104,14 @@ struct TextProperties
     //! The columns follow each other to the left (as manga's do), not to the right; with vertical alone.
     bool    columnsLeft = false;
     /**
+     * The curve the whole block is bent along (a warp): an open path of nodes (ShapeNode) in fractions of the block
+     * as it is laid out flat, so it follows the block as the text changes. The block's middle line, across for lines
+     * and down for columns, is laid along it by its length, each point of the letters kept as far from that line;
+     * straight from the middle of one side to the other's it changes nothing. Empty, the default, is none; never
+     * fewer than two nodes.
+     */
+    QList<ShapeNode> warp;
+    /**
      * @name The outline: a band round each letter, outside it, so the letterform keeps the
      * weight its typeface gives it — the glyphs stroked at twice the width, then filled over. Painted
      * with a colour, or a halftone of a second over it. In strip pixels; 0 is none, the default.
@@ -1143,6 +1151,7 @@ struct TextProperties
         v("kerning",       &TextProperties::kerning);
         v("vertical",      &TextProperties::vertical);
         v("columnsLeft",   &TextProperties::columnsLeft);
+        v("warp",          &TextProperties::warp);
         // The colour keeps the key it had as a plain colour; a pattern does not fade here.
         static constexpr const char* k_fill[] = {
             "textColour", "textKind", "textSecond", "textSpacing", "textSize", "textAngle",

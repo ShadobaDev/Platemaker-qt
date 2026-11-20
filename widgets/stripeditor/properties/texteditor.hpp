@@ -116,6 +116,7 @@ private:
     QSpinBox*       m_lineSpacing = nullptr;
     QSpinBox*       m_letterSpacing = nullptr;
     QCheckBox*      m_kerning = nullptr;
+    QCheckBox*      m_warp    = nullptr;
     PaintRows<TextProperties> m_fill;           //!< The letters' paint.
     FieldRows<TextProperties> m_outlineWidth;   //!< The letters' outline; 0 is none.
     PaintRows<TextProperties> m_outline;        //!< ...and its paint.
@@ -157,6 +158,8 @@ private:
     bool m_letterSpacingTouched = false;
     bool m_mixedKerning         = false;
     bool m_kerningTouched       = false;
+    bool m_mixedWarp            = false;
+    bool m_warpTouched          = false;
     bool m_mixedDirection       = false;
     bool m_directionTouched     = false;
     bool m_anyOutline         = false;  //!< Whether anything bound has an outline (showOutline()).

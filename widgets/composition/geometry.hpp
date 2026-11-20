@@ -228,6 +228,12 @@ using TextFills = QMap<int, QPainterPath>;
  */
 [[nodiscard]] QSizeF textBlockSize(const Words& w);
 
+/**
+ * \brief A warp (TextProperties::warp) that bends nothing: straight along the flat block's middle line, from the middle
+ *        of one side to the other's, across, or down for \p vertical columns. What switching a warp on starts from.
+ */
+[[nodiscard]] QList<ShapeNode> straightWarp(bool vertical);
+
 //! A block of lettering per words of a composition, in their order (Composition::words); an empty one holds anywhere.
 using Blocks = QList<QSizeF>;
 

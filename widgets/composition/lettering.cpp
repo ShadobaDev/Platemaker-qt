@@ -4,6 +4,7 @@
 // picture's whole box.
 
 #include "geometry.hpp"
+#include "bezier.hpp"
 #include "shapes.hpp"
 #include "styles.hpp"   // shadowOf(): the lettering's shadow is the balloon's kind
 
@@ -62,6 +63,18 @@ constexpr qreal k_perEm         = 1000.0;
  *  What TextProperties::lineSpacing is counted in: per cent of the font's own.
  */
 constexpr qreal k_perCent       = 100.0;
+/**
+ *  Points a curved segment of a warp is walked by (Bezier::polyline()): its length, and the way it turns, to well
+ *  under a pixel on any block.
+ */
+constexpr int   k_warpSamples   = 64;
+/**
+ *  The longest a straight stretch of a letter's outline is bent as, in strip pixels: a longer one is cut into pieces
+ *  this long first, or it would stay straight across the bend.
+ */
+constexpr qreal k_warpStep      = 1.0;
+//! A warp's curve (TextProperties::warp): an open path of two nodes at least.
+constexpr Bezier::Rules k_warpRules{2, false};
 
 //! @p font given @p spacing (TextProperties::letterSpacing) at its own size: pixels between letters.
 void setSpacing(QFont& font, int spacing)
@@ -470,6 +483,160 @@ Layout laidOut(const TextProperties& t)
     return out;
 }
 
+//! Whether @p t is bent along a curve: a warp of two nodes at least.
+bool isWarped(const TextProperties& t)
+{
+    return t.warp.size() >= k_warpRules.minNodes;
+}
+
+qreal dot(const QPointF& a, const QPointF& b)
+{
+    return a.x() * b.x() + a.y() * b.y();
+}
+
+//! @p v turned a quarter: the normal on its left as the screen shows it (y down), as long as it.
+QPointF normalOf(const QPointF& v)
+{
+    return {-v.y(), v.x()};
+}
+
+QPointF unit(const QPointF& v)
+{
+    const qreal l = std::hypot(v.x(), v.y());
+    return l > 0.0 ? v / l : QPointF();
+}
+
+/**
+ * \brief A flat block bent along a warp's curve: the block's middle line, across for lines and down for columns,
+ *        laid along the curve by length (scaled to the curve's), each point kept as far from it along the curve's
+ *        normal as it was from the line. Past the curve's ends, it runs on straight.
+ */
+class Warp
+{
+public:
+    Warp(const QList<ShapeNode>& curve, const QSizeF& flat, bool vertical)
+        : m_start(vertical ? QPointF(flat.width() / 2.0, 0.0) : QPointF(0.0, flat.height() / 2.0))
+        , m_along(vertical ? QPointF(0.0, 1.0) : QPointF(1.0, 0.0))
+        , m_reference(vertical ? flat.height() : flat.width())
+    {
+        // The curve's points, none twice in a row: each step has a length and a way.
+        for (const QPointF& p : Bezier::polyline(curve, k_warpRules, QRectF(QPointF(), flat), k_warpSamples))
+            if (m_points.isEmpty() || p != m_points.last())
+                m_points.append(p);
+        m_lengths.append(0.0);
+        for (qsizetype i = 1; i < m_points.size(); ++i) {
+            const QPointF step = m_points[i] - m_points[i - 1];
+            m_lengths.append(m_lengths.last() + std::hypot(step.x(), step.y()));
+        }
+        // A point's way is its two steps' together, so the normal turns smoothly through it; an end's is its step's.
+        for (qsizetype i = 0; i < m_points.size(); ++i) {
+            const QPointF before = i > 0 ? unit(m_points[i] - m_points[i - 1]) : QPointF();
+            const QPointF after  = i + 1 < m_points.size() ? unit(m_points[i + 1] - m_points[i]) : QPointF();
+            const QPointF way    = unit(before + after);
+            m_ways.append(way.isNull() ? (after.isNull() ? before : after) : way);   // a hairpin: one step's
+        }
+    }
+
+    //! Whether there is anything to bend along: a curve with length, a block with a middle line.
+    [[nodiscard]] bool valid() const { return m_reference > 0.0 && m_points.size() >= 2; }
+
+    //! @p p of the flat block, bent.
+    [[nodiscard]] QPointF map(const QPointF& p) const
+    {
+        const QPointF from   = p - m_start;
+        const qreal   at     = dot(from, m_along) / m_reference * m_lengths.last();
+        const qreal   beside = dot(from, normalOf(m_along));
+        // The step @p at falls in; before the first or past the last, the end step, run on straight.
+        const auto    it     = std::upper_bound(m_lengths.cbegin() + 1, m_lengths.cend() - 1, at);
+        const auto    i      = qsizetype(it - m_lengths.cbegin()) - 1;
+        const qreal   share  = (at - m_lengths[i]) / (m_lengths[i + 1] - m_lengths[i]);
+        const QPointF point  = m_points[i] + (m_points[i + 1] - m_points[i]) * share;
+        const qreal   within = qBound(0.0, share, 1.0);
+        const QPointF way    = unit(m_ways[i] * (1.0 - within) + m_ways[i + 1] * within);
+        return point + normalOf(way) * beside;
+    }
+
+private:
+    QPointF        m_start;       //!< Where the middle line starts in the flat block.
+    QPointF        m_along;       //!< Its way.
+    qreal          m_reference;   //!< Its length.
+    QList<QPointF> m_points;      //!< The curve, as points.
+    QList<qreal>   m_lengths;     //!< How far along the curve each point is.
+    QList<QPointF> m_ways;        //!< Which way the curve runs at each point.
+};
+
+/**
+ * \brief @p path bent by @p warp: its curves flattened and its edges cut to k_warpStep, each point mapped.
+ *
+ * ponytail: polygons, not Béziers, so a bent letter is many short edges in the SVG; map the curves' control points
+ * if the files grow too large.
+ */
+QPainterPath bentPath(const QPainterPath& path, const Warp& warp)
+{
+    QPainterPath out;
+    out.setFillRule(Qt::WindingFill);
+    for (const QPolygonF& ring : path.toSubpathPolygons()) {
+        QPolygonF bent;
+        for (qsizetype i = 0; i < ring.size(); ++i) {
+            if (i > 0) {
+                const QPointF a    = ring[i - 1], b = ring[i];
+                const int     cuts = qCeil(std::hypot(b.x() - a.x(), b.y() - a.y()) / k_warpStep);
+                for (int k = 1; k < cuts; ++k)
+                    bent.append(warp.map(a + (b - a) * (qreal(k) / cuts)));
+            }
+            bent.append(warp.map(ring[i]));
+        }
+        out.addPolygon(bent);
+        out.closeSubpath();
+    }
+    return out;
+}
+
+//! A piece's letters as outlines, and the run they are in (Piece::run).
+struct Outline
+{
+    QPainterPath path;
+    int          run = -1;
+};
+
+/**
+ * \brief The box a block laid out @p flat takes bent along @p t's warp: the flat block's own rectangle, bent and
+ *        measured, so a straight warp keeps it as it was and the frame, the fit and the overflow follow the bend.
+ */
+QRectF bentBox(const TextProperties& t, const QSizeF& flat)
+{
+    const Warp warp(t.warp, flat, t.vertical);
+    if (!warp.valid())
+        return QRectF(QPointF(), flat);
+    QPainterPath box;
+    box.addRect(QRectF(QPointF(), flat));
+    return bentPath(box, warp).boundingRect();
+}
+
+//! Lettering bent along its warp: the outlines in the bent block's coordinates (its top left at 0, 0), and its size.
+struct Bent
+{
+    QList<Outline> outlines;
+    QSizeF         block;
+};
+
+//! @p layout of @p t bent along its warp (Warp), moved so its bent box (bentBox()) starts at 0, 0.
+Bent bent(const TextProperties& t, const Layout& layout)
+{
+    const Warp   warp(t.warp, layout.block, t.vertical);
+    const QRectF box = bentBox(t, layout.block);
+    Bent         out;
+    out.block = box.size();
+    for (const Piece& p : layout.pieces) {
+        QPainterPath piece;
+        piece.addText(p.at, p.font, p.text);
+        Outline o{warp.valid() ? bentPath(piece, warp) : piece, p.run};
+        o.path.translate(-box.topLeft());
+        out.outlines.append(o);
+    }
+    return out;
+}
+
 /**
  * \brief @p w's letters as outlines, clipped as textOutline() says; with @p fills, the same letters also by the fill
  *        they wear: a run's index for a run that sets one, -1 for the words' own.
@@ -485,21 +652,34 @@ QPainterPath letters(const Composition& c, const Words& w, TextFills* fills)
 
     // The block placed by the alignment in its frame (placedBlock()), and each piece turned into outlines there:
     // going to *outlines* is what lets the same geometry be written into an SVG the library can rasterise without a
-    // font.
-    const Layout  layout = laidOut(w.text);
-    const QPointF origin = placedBlock(c, w, layout.block).topLeft();
+    // font. Bent, the outlines are made in the block first and the bent block is placed.
+    const Layout   layout = laidOut(w.text);
+    QList<Outline> outlines;
+    if (isWarped(w.text)) {
+        const Bent    b      = bent(w.text, layout);
+        const QPointF origin = placedBlock(c, w, b.block).topLeft();
+        for (Outline o : b.outlines) {
+            o.path.translate(origin);
+            outlines.append(o);
+        }
+    } else {
+        const QPointF origin = placedBlock(c, w, layout.block).topLeft();
+        for (const Piece& p : layout.pieces) {
+            QPainterPath piece;
+            piece.addText(origin + p.at, p.font, p.text);
+            outlines.append({piece, p.run});
+        }
+    }
     // Non-zero, as addText() leaves a path it starts: where two letters overlap (a tight face, lines set close)
     // they paint once. addPath() keeps the receiver's rule, so the paths gathered from pieces are set to it too.
     QPainterPath out;
     out.setFillRule(Qt::WindingFill);
-    for (const Piece& p : layout.pieces) {
-        QPainterPath piece;
-        piece.addText(origin + p.at, p.font, p.text);
-        out.addPath(piece);
+    for (const Outline& o : std::as_const(outlines)) {
+        out.addPath(o.path);
         if (fills) {
-            QPainterPath& filled = (*fills)[p.run >= 0 && w.text.runs.at(p.run).fill ? p.run : -1];
+            QPainterPath& filled = (*fills)[o.run >= 0 && w.text.runs.at(o.run).fill ? o.run : -1];
             filled.setFillRule(Qt::WindingFill);
-            filled.addPath(piece);
+            filled.addPath(o.path);
         }
     }
     if (out.isEmpty())
@@ -582,8 +762,17 @@ QSizeF textBlockSize(const Words& w)
     const TextProperties& t = w.text;
     if (t.body.isEmpty())
         return {};
-    // Never wrapped, so the block is the same whatever box it sits in: the widest line's letters by the lines.
-    return laidOut(t).block;
+    // Never wrapped, so the block is the same whatever box it sits in: the widest line's letters by the lines, or
+    // that block bent.
+    const QSizeF flat = laidOut(t).block;
+    return isWarped(t) ? bentBox(t, flat).size() : flat;
+}
+
+QList<ShapeNode> straightWarp(bool vertical)
+{
+    if (vertical)
+        return {ShapeNode(0.5, 0.0), ShapeNode(0.5, 1.0)};
+    return {ShapeNode(0.0, 0.5), ShapeNode(1.0, 0.5)};
 }
 
 Blocks textBlocks(const Composition& c)

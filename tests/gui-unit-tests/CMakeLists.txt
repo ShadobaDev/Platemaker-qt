@@ -31,6 +31,7 @@ if(NOT GTest_FOUND)
 endif()
 
 add_executable(platemaker-gui-tests
+    main.cpp
     test_property_groups.cpp
     test_colour_adjustments.cpp
     test_presets.cpp
@@ -42,6 +43,7 @@ add_executable(platemaker-gui-tests
     test_panelbinder.cpp
     test_document.cpp
     test_text_fit.cpp
+    test_lettering.cpp
     test_history.cpp
     test_chain.cpp
     ${CMAKE_SOURCE_DIR}/widgets/composition/names.cpp
@@ -99,7 +101,7 @@ target_compile_definitions(platemaker-gui-tests PRIVATE
 
 target_link_libraries(platemaker-gui-tests PRIVATE
     Qt6::Gui
-    GTest::gtest_main
+    GTest::gtest
 )
 if(WIN32)
     target_link_libraries(platemaker-gui-tests PRIVATE dwrite)

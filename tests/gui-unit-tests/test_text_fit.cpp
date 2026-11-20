@@ -1,6 +1,6 @@
 // Fitting a box to its lettering: the geometry half, which needs no font. The block of lettering is
-// given as a size — what Geometry::textBlockSize() would measure — so every shape can be tried without
-// the QGuiApplication this target deliberately does not have.
+// given as a size — what Geometry::textBlockSize() would measure — so every shape can be tried whatever
+// fonts the machine has.
 
 #include <gtest/gtest.h>
 

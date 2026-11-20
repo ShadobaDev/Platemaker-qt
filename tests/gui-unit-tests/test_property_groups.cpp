@@ -669,8 +669,7 @@ namespace {
 //! What @p a comes back as from its content: its JSON, read.
 
 //! An SVG of ours carrying @p c, its content element with @p attributes, under the namespace @p ns. Built by hand
-//! rather than through Svg::write(), which measures the lettering, needing the QGuiApplication this target does
-//! not have: what is under test is the reader.
+//! rather than through Svg::write(): what is under test is the reader.
 QByteArray svgWith(const Composition& c, const QByteArray& ns = Svg::k_pmNamespace, const QByteArray& attributes = {})
 {
     const QString json = QString::fromUtf8(QJsonDocument(toJson(c)).toJson(QJsonDocument::Compact));
@@ -852,8 +851,7 @@ TEST(PropertyGroupPersistence, RunsAreKeptTidy)
  * above tries one shape, which is how that went unseen.
  *
  * The kinds go through the name both readers share. The templates are written to the SVG as well, with
- * no lettering: writing lettering measures it, which needs the QGuiApplication this target does not
- * have (see the import tests below).
+ * no lettering: its outlines are a font's, which differs from one machine to another.
  */
 TEST(PropertyGroupPersistence, EveryShapeAndStyleRoundTrips)
 {
@@ -2524,8 +2522,8 @@ void bump(TextureProperties::Kind& v)
  * \brief For every field of the group @p part gives: changing it alone makes the group unequal, and the
  *        changed object comes back the same from the JSON and from the SVG.
  *
- * The SVG is written with no lettering, because writing lettering measures a font, which needs the
- * QGuiApplication this target does not have; the body's own `pm:text` is read by the import test.
+ * The SVG is written with no lettering, whose outlines are a font's and differ from one machine to another;
+ * the body's own `pm:text` is read by the import test.
  */
 template <class Part>
 void expectEveryFieldCounts(Part part)
@@ -2597,8 +2595,8 @@ struct GoldenCase
  *        Marker's and the Ink's numbers), flash, a rough flash, and brush.
  *
  * The balloon's SVG, its text area and its undo-snapshot JSON, one section per case. The lettering is
- * left empty and its family named, so nothing here measures a font: writing lettering needs the
- * QGuiApplication this target does not have, and the text area covers what the lettering is fitted to.
+ * left empty and its family named, so nothing here measures a font: a font's outlines differ from one
+ * machine to another, and the text area covers what the lettering is fitted to.
  */
 QList<GoldenCase> goldenCases()
 {

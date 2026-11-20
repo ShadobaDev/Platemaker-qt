@@ -221,7 +221,10 @@ QPainterPath letters(const Composition& c, const Words& w, TextFills* fills)
     // hand is what keeps this identical to what the document would have painted; going to *outlines* is
     // what lets the same geometry be written into an SVG the library can rasterise without a font.
     const QFont  f = doc.defaultFont();
+    // Non-zero, as addText() leaves a path it starts: where two letters overlap (a tight face, lines set close)
+    // they paint once. addPath() keeps the receiver's rule, so the paths gathered from pieces are set to it too.
     QPainterPath out;
+    out.setFillRule(Qt::WindingFill);
     // Runs set some letters in other fonts: each fragment of a line in its own, placed where the layout put it.
     if (!w.text.runs.isEmpty()) {
         for (QTextBlock b = doc.begin(); b.isValid(); b = b.next()) {
@@ -250,8 +253,10 @@ QPainterPath letters(const Composition& c, const Words& w, TextFills* fills)
                     piece.addText(at, font, s);
                     out.addPath(piece);
                     if (fills) {
-                        const int run = inRun ? format.property(k_runProperty).toInt() : -1;
-                        (*fills)[run >= 0 && w.text.runs.at(run).fill ? run : -1].addPath(piece);
+                        const int     run    = inRun ? format.property(k_runProperty).toInt() : -1;
+                        QPainterPath& filled = (*fills)[run >= 0 && w.text.runs.at(run).fill ? run : -1];
+                        filled.setFillRule(Qt::WindingFill);
+                        filled.addPath(piece);
                     }
                 }
             }

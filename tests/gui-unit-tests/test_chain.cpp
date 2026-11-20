@@ -338,7 +338,6 @@ TEST(Chain, ABridgeIsSavedWithItsFarBodyAndAnAnchorOnlyOffTheMiddle)
 
 TEST(Chain, ABridgeDrawsTwoBodiesAsOneOutline)
 {
-    // No lettering: measuring it needs the QGuiApplication this target does not have.
     Composition a = balloon(QString());
     QList<int>  merged;
     ASSERT_EQ(merge(a, balloon(QString()), k_apart, &merged), ChainError::None);

@@ -111,13 +111,6 @@ QRectF placedBlock(const Composition& c, const Words& w, const QSizeF& block)
                   block);
 }
 
-/**
- * \brief The laid-out text, ready to draw or measure.
- *
- * **Never wrapped.** The lines are the author's line breaks, exactly — lettering is broken by hand, and
- * a long word grows its box rather than being split. @p width only places each line according to the
- * alignment; a line wider than it overflows, it is not re-broken.
- */
 //! A family set as a QFont is: only when installed (layOutText()).
 void setFamily(QFont& f, const QString& family)
 {
@@ -125,6 +118,13 @@ void setFamily(QFont& f, const QString& family)
         f.setFamily(family);
 }
 
+/**
+ * \brief The laid-out text, ready to draw or measure.
+ *
+ * **Never wrapped.** The lines are the author's line breaks, exactly — lettering is broken by hand, and
+ * a long word grows its box rather than being split. @p width only places each line according to the
+ * alignment; a line wider than it overflows, it is not re-broken.
+ */
 void layOutText(QTextDocument& doc, const TextProperties& t, qreal width)
 {
     // A family that is not installed is not handed to QFont: QFont would substitute through the platform's
@@ -276,6 +276,83 @@ qreal alignedShift(const QTextBlock& b, const QTextLine& line, const QTextDocume
     return before * (width - doc.textWidth() + trailingSpacing(b, line, doc.defaultFont()));
 }
 
+//! Letters set in one font from one baseline point: a piece of laid-out lettering.
+struct Piece
+{
+    QFont   font;
+    QString text;
+    QPointF at;         //!< The baseline's start, in the block's coordinates (its top left at 0, 0).
+    int     run = -1;   //!< The run (an index in TextProperties::runs) the letters are in, or -1 for the words'.
+};
+
+//! Lettering laid out: what letters() draws and textBlockSize() measures, so the two never disagree.
+struct Layout
+{
+    QList<Piece> pieces;
+    QSizeF       block;   //!< What the frame aligns (blockOf()).
+};
+
+/**
+ * \brief @p t laid out: each line, or with runs each fragment of a line, in its font, where the layout put it and
+ *        aligned in the block by its letters (alignedShift()). A line or fragment of spaces alone is no piece.
+ *
+ * The document does the line breaking (the author's own, never wrapped) and the placing, and each line is read back
+ * at the position the layout gave it: what the document would have painted. Laid out a second time as wide as its
+ * widest line, so each line is aligned within the block.
+ */
+Layout laidOut(const TextProperties& t)
+{
+    QTextDocument doc;
+    layOutText(doc, t, 1);
+    layOutText(doc, t, doc.idealWidth());
+    Layout out;
+    out.block = blockOf(doc);
+
+    const QFont f = doc.defaultFont();
+    for (QTextBlock b = doc.begin(); b.isValid(); b = b.next()) {
+        const QTextLayout* lay = b.layout();
+        if (!lay)
+            continue;
+        const QString blockText = b.text();
+        for (int i = 0; i < lay->lineCount(); ++i) {
+            const QTextLine line  = lay->lineAt(i);
+            const qreal     shift = alignedShift(b, line, doc, t.align, out.block.width());
+            if (t.runs.isEmpty()) {
+                const QString s = blockText.mid(line.textStart(), line.textLength());
+                if (s.trimmed().isEmpty())
+                    continue;
+                // naturalTextRect(), *not* position(): Qt stores every line at the layout's left edge and
+                // applies the alignment offset inside QTextLine::draw(). Nothing here goes through draw(),
+                // so reading position() silently left-aligns every bubble whatever the setting says.
+                // naturalTextRect() is the accessor that has the offset already folded in.
+                // addText places by the text *baseline*, which is the line's top plus its ascent.
+                const QPointF p = lay->position() + line.naturalTextRect().topLeft();
+                out.pieces.append({f, s, QPointF(p.x() + shift, p.y() + line.ascent())});
+                continue;
+            }
+            // Runs set some letters in other fonts: each fragment of a line in its own.
+            const int start = line.textStart();
+            const int end   = start + line.textLength();
+            for (QTextBlock::iterator it = b.begin(); !it.atEnd(); ++it) {
+                const QTextFragment fragment = it.fragment();
+                const int           from     = qMax(start, fragment.position() - b.position());
+                const int           to       = qMin(end, fragment.position() - b.position() + fragment.length());
+                const QString       s        = blockText.mid(from, to - from);
+                if (to <= from || s.trimmed().isEmpty())
+                    continue;
+                const QTextCharFormat format = fragment.charFormat();
+                const bool            inRun  = format.hasProperty(k_runProperty);
+                // cursorToX() has Qt's alignment folded in, as naturalTextRect() has: the shift takes it out.
+                out.pieces.append({inRun ? format.font() : f, s,
+                                   QPointF(lay->position().x() + line.cursorToX(from) + shift,
+                                           lay->position().y() + line.y() + line.ascent()),
+                                   inRun ? format.property(k_runProperty).toInt() : -1});
+            }
+        }
+    }
+    return out;
+}
+
 /**
  * \brief @p w's letters as outlines, clipped as textOutline() says; with @p fills, the same letters also by the fill
  *        they wear: a run's index for a run that sets one, -1 for the words' own.
@@ -289,80 +366,23 @@ QPainterPath letters(const Composition& c, const Words& w, TextFills* fills)
     if (safe.width() <= 1 || safe.height() <= 1)
         return {};
 
-    // Laid out as wide as its widest line, so each line is aligned within the block, and the block placed by the
-    // alignment in its frame (placedBlock()).
-    QTextDocument doc;
-    layOutText(doc, w.text, 1);
-    layOutText(doc, w.text, doc.idealWidth());
-    const QSizeF  block  = blockOf(doc);
-    const QPointF origin = placedBlock(c, w, block).topLeft();
-
-    // The document does the wrapping — unchanged — and then each laid-out line is converted to glyph
-    // outlines at the position the layout gave it. Going through the layout rather than re-wrapping by
-    // hand is what keeps this identical to what the document would have painted; going to *outlines* is
-    // what lets the same geometry be written into an SVG the library can rasterise without a font.
-    const QFont  f = doc.defaultFont();
+    // The block placed by the alignment in its frame (placedBlock()), and each piece turned into outlines there:
+    // going to *outlines* is what lets the same geometry be written into an SVG the library can rasterise without a
+    // font.
+    const Layout  layout = laidOut(w.text);
+    const QPointF origin = placedBlock(c, w, layout.block).topLeft();
     // Non-zero, as addText() leaves a path it starts: where two letters overlap (a tight face, lines set close)
     // they paint once. addPath() keeps the receiver's rule, so the paths gathered from pieces are set to it too.
     QPainterPath out;
     out.setFillRule(Qt::WindingFill);
-    // Runs set some letters in other fonts: each fragment of a line in its own, placed where the layout put it.
-    if (!w.text.runs.isEmpty()) {
-        for (QTextBlock b = doc.begin(); b.isValid(); b = b.next()) {
-            const QTextLayout* lay = b.layout();
-            if (!lay)
-                continue;
-            const QString blockText = b.text();
-            for (int i = 0; i < lay->lineCount(); ++i) {
-                const QTextLine line  = lay->lineAt(i);
-                const int       start = line.textStart();
-                const int       end   = start + line.textLength();
-                const qreal     shift = alignedShift(b, line, doc, w.text.align, block.width());
-                for (QTextBlock::iterator it = b.begin(); !it.atEnd(); ++it) {
-                    const QTextFragment fragment = it.fragment();
-                    const int           from     = qMax(start, fragment.position() - b.position());
-                    const int           to       = qMin(end, fragment.position() - b.position() + fragment.length());
-                    const QString       s        = blockText.mid(from, to - from);
-                    if (to <= from || s.trimmed().isEmpty())
-                        continue;
-                    const QTextCharFormat format = fragment.charFormat();
-                    const bool            inRun  = format.hasProperty(k_runProperty);
-                    const QFont           font   = inRun ? format.font() : f;
-                    // cursorToX() has Qt's alignment folded in, as naturalTextRect() has: the shift takes it out.
-                    const QPointF at(origin.x() + lay->position().x() + line.cursorToX(from) + shift,
-                                     origin.y() + lay->position().y() + line.y() + line.ascent());
-                    QPainterPath piece;
-                    piece.addText(at, font, s);
-                    out.addPath(piece);
-                    if (fills) {
-                        const int     run    = inRun ? format.property(k_runProperty).toInt() : -1;
-                        QPainterPath& filled = (*fills)[run >= 0 && w.text.runs.at(run).fill ? run : -1];
-                        filled.setFillRule(Qt::WindingFill);
-                        filled.addPath(piece);
-                    }
-                }
-            }
-        }
-    }
-    for (QTextBlock b = doc.begin(); b.isValid() && w.text.runs.isEmpty(); b = b.next()) {
-        const QTextLayout* lay = b.layout();
-        if (!lay)
-            continue;
-        const QString blockText = b.text();
-        for (int i = 0; i < lay->lineCount(); ++i) {
-            const QTextLine line = lay->lineAt(i);
-            const QString   s    = blockText.mid(line.textStart(), line.textLength());
-            if (s.trimmed().isEmpty())
-                continue;
-            // naturalTextRect(), *not* position(): Qt stores every line at the layout's left edge and
-            // applies the alignment offset inside QTextLine::draw(). Nothing here goes through draw(),
-            // so reading position() silently left-aligns every bubble whatever the setting says.
-            // naturalTextRect() is the accessor that has the offset already folded in.
-            // The shift then aligns it by its letters (alignedShift()).
-            const QPointF p = lay->position() + line.naturalTextRect().topLeft();
-            const qreal   x = p.x() + alignedShift(b, line, doc, w.text.align, block.width());
-            // addText places by the text *baseline*, which is the line's top plus its ascent.
-            out.addText(origin.x() + x, origin.y() + p.y() + line.ascent(), f, s);
+    for (const Piece& p : layout.pieces) {
+        QPainterPath piece;
+        piece.addText(origin + p.at, p.font, p.text);
+        out.addPath(piece);
+        if (fills) {
+            QPainterPath& filled = (*fills)[p.run >= 0 && w.text.runs.at(p.run).fill ? p.run : -1];
+            filled.setFillRule(Qt::WindingFill);
+            filled.addPath(piece);
         }
     }
     if (out.isEmpty())
@@ -440,9 +460,7 @@ QSizeF textBlockSize(const Words& w)
     if (t.body.isEmpty())
         return {};
     // Never wrapped, so the block is the same whatever box it sits in: the widest line's letters by the lines.
-    QTextDocument doc;
-    layOutText(doc, t, 1);
-    return blockOf(doc);
+    return laidOut(t).block;
 }
 
 Blocks textBlocks(const Composition& c)

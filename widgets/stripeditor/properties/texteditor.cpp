@@ -526,7 +526,9 @@ void TextEditor::syncFromValues(bool box)
             m_body->setPlainText(lettering.body);
             m_caretActive = false;   // other text: the caret has not been put in it yet
         }
-        if (box && fromBox(lettering).runs != lettering.runs)
+        // The whole box, not only its runs: one format over all the letters reads back as the words' own font,
+        // no run, and so would match words with no runs while the box still held another object's font.
+        if (box && fromBox(lettering) != lettering)
             putRuns(lettering);
 
         // A font combo is a list of fonts, so "Mixed" cannot be an entry in it: no current entry, and

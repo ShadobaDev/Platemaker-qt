@@ -1046,13 +1046,15 @@ struct TextRun
     std::optional<bool>    bold;
     std::optional<bool>    italic;
     std::optional<Paint>   fill;        //!< Drawn as a path of its own, under a pattern of its own.
+    std::optional<int>     letterSpacing;   //!< As TextProperties::letterSpacing, of the run's own size.
 
     //! Whether it overrides anything at all.
-    [[nodiscard]] bool overrides() const { return family || pixelSize || bold || italic || fill; }
+    [[nodiscard]] bool overrides() const { return family || pixelSize || bold || italic || fill || letterSpacing; }
     //! The same overrides, wherever it lies.
     [[nodiscard]] bool sameLettering(const TextRun& o) const
     {
-        return family == o.family && pixelSize == o.pixelSize && bold == o.bold && italic == o.italic && fill == o.fill;
+        return family == o.family && pixelSize == o.pixelSize && bold == o.bold && italic == o.italic && fill == o.fill
+            && letterSpacing == o.letterSpacing;
     }
     [[nodiscard]] bool operator==(const TextRun& o) const
     {
@@ -1086,6 +1088,11 @@ struct TextProperties
     Paint   fill{QColor(20, 20, 20), QColor(255, 255, 255)};
     //! Line pitch as a percentage of the font's own — for faces that set their lines too far apart.
     int     lineSpacing = 100;
+    /**
+     * Room added between letters (tracking), in thousandths of an em: of the font size, so it follows the size
+     * and a run in a larger size gets more. 0 is the font's own; negative sets them closer, onto each other.
+     */
+    int     letterSpacing = 0;
     /**
      * @name The outline: a band round each letter, outside it, so the letterform keeps the
      * weight its typeface gives it — the glyphs stroked at twice the width, then filled over. Painted
@@ -1122,6 +1129,7 @@ struct TextProperties
         v("align",       &TextProperties::align);
         v("valign",      &TextProperties::valign);
         v("lineSpacing", &TextProperties::lineSpacing);
+        v("letterSpacing", &TextProperties::letterSpacing);
         // The colour keeps the key it had as a plain colour; a pattern does not fade here.
         static constexpr const char* k_fill[] = {
             "textColour", "textKind", "textSecond", "textSpacing", "textSize", "textAngle",

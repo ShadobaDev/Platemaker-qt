@@ -34,6 +34,8 @@ inline constexpr int k_textSizeMin = 6;      //!< Below this the lettering stops
 inline constexpr int k_textSizeMax = 400;
 inline constexpr int k_lineSpacingMin = 25;    //!< Percent. Below this the lines sit on each other.
 inline constexpr int k_lineSpacingMax = 400;
+inline constexpr int k_letterSpacingMin = -500;   //!< Thousandths of an em: half an em, letters well onto each other.
+inline constexpr int k_letterSpacingMax = 1000;   //!< ...and an em between letters.
 
 inline constexpr int k_strokeWidthMin = 0;    //!< A balloon with no outline at all is a legitimate look.
 inline constexpr int k_strokeWidthMax = 40;

@@ -438,6 +438,7 @@ const QLatin1String k_runSize("fontSize");
 const QLatin1String k_runBold("bold");
 const QLatin1String k_runItalic("italic");
 const QLatin1String k_runFill("fill");
+const QLatin1String k_runLetterSpacing("letterSpacing");
 
 QJsonObject runToJson(const TextRun& r)
 {
@@ -452,6 +453,8 @@ QJsonObject runToJson(const TextRun& r)
         o.insert(k_runItalic, *r.italic);
     if (r.fill)
         o.insert(k_runFill, groupToJson(*r.fill));
+    if (r.letterSpacing)
+        o.insert(k_runLetterSpacing, *r.letterSpacing);
     return o;
 }
 
@@ -473,6 +476,8 @@ TextRun runFromJson(const QJsonObject& o)
         groupFromJson(fill, o.value(k_runFill).toObject());
         r.fill = fill;
     }
+    if (o.contains(k_runLetterSpacing))
+        r.letterSpacing = o.value(k_runLetterSpacing).toInt();
     return r;
 }
 
@@ -526,6 +531,8 @@ void tidyRuns(TextProperties& t)
             r.italic.reset();
         if (r.fill == t.fill)
             r.fill.reset();
+        if (r.letterSpacing == t.letterSpacing)
+            r.letterSpacing.reset();
         if (!r.overrides())
             continue;
         if (!out.isEmpty() && out.last().from + out.last().length == r.from && out.last().sameLettering(r))
@@ -541,6 +548,7 @@ void tidyRuns(TextProperties& t)
         t.bold           = r.bold.value_or(t.bold);
         t.italic         = r.italic.value_or(t.italic);
         t.fill           = r.fill.value_or(t.fill);
+        t.letterSpacing  = r.letterSpacing.value_or(t.letterSpacing);
         out.clear();
     }
     t.runs = out;

@@ -52,6 +52,16 @@ constexpr qreal k_minTextSpan   = 2.0;
  *  The character format property a run's letters carry (layOutText()): the run's index in TextProperties::runs.
  */
 constexpr int   k_runProperty   = QTextFormat::UserProperty;
+/**
+ *  What TextProperties::letterSpacing is counted in: thousandths of an em.
+ */
+constexpr qreal k_perEm         = 1000.0;
+
+//! @p font given @p spacing (TextProperties::letterSpacing) at its own size: pixels between letters.
+void setSpacing(QFont& font, int spacing)
+{
+    font.setLetterSpacing(QFont::AbsoluteSpacing, spacing * font.pixelSize() / k_perEm);
+}
 
 /**
  * \brief Where an automatic edge of @p w stops, and what a set one is measured in from: their body's box less the
@@ -126,6 +136,7 @@ void layOutText(QTextDocument& doc, const TextProperties& t, qreal width)
     f.setPixelSize(qMax(1, t.pixelSize));
     f.setBold(t.bold);
     f.setItalic(t.italic);
+    setSpacing(f, t.letterSpacing);
 
     QTextOption opt;
     opt.setAlignment(static_cast<Qt::Alignment>(t.align));
@@ -163,6 +174,7 @@ void layOutText(QTextDocument& doc, const TextProperties& t, qreal width)
             font.setBold(*r.bold);
         if (r.italic)
             font.setItalic(*r.italic);
+        setSpacing(font, r.letterSpacing.value_or(t.letterSpacing));   // of the run's own size
         QTextCharFormat format;
         format.setFont(font);
         format.setProperty(k_runProperty, int(i));
@@ -197,6 +209,72 @@ QString defaultFamily()
 namespace {
 
 /**
+ * \brief The letter spacing after @p line's last letter: Qt adds it after every letter, the last too, so a line is
+ *        that much wider than its letters. The spacing of the font that letter is set in (a run's or the words'
+ *        @p words); 0 for a line with no letter.
+ */
+qreal trailingSpacing(const QTextBlock& b, const QTextLine& line, const QFont& words)
+{
+    const QString text = b.text();
+    int           last = line.textStart() + line.textLength() - 1;
+    while (last >= line.textStart() && text.at(last).isSpace())
+        --last;   // trailing spaces are not in the line's natural width
+    if (last < line.textStart())
+        return 0.0;
+    for (QTextBlock::iterator it = b.begin(); !it.atEnd(); ++it) {
+        const QTextFragment fragment = it.fragment();
+        const int           from     = fragment.position() - b.position();
+        if (last >= from && last < from + fragment.length()) {
+            const QTextCharFormat format = fragment.charFormat();
+            return (format.hasProperty(k_runProperty) ? format.font() : words).letterSpacing();
+        }
+    }
+    return words.letterSpacing();
+}
+
+/**
+ * \brief @p doc's block: as wide as its widest line less the spacing after that line's last letter, and as tall as
+ *        down to its last line's foot.
+ *
+ * Qt puts the room a line spacing adds under each line (ProportionalHeight: the letters at the top of a taller line),
+ * the last one too; but line spacing is room *between* lines, and under the last it would only lift the letters off
+ * the middle of their frame and leave Fit to text a band to spare. Below 100 % the last line reaches past the
+ * document's height: the block reaches with it, so it is not cut.
+ */
+QSizeF blockOf(const QTextDocument& doc)
+{
+    const QSizeF size    = doc.size();   // first: the document lays its lines out only when asked
+    qreal        widest  = -1.0;
+    qreal        spacing = 0.0;
+    qreal        foot    = size.height();   // no line: the document's own
+    for (QTextBlock b = doc.begin(); b.isValid(); b = b.next())
+        if (const QTextLayout* lay = b.layout())
+            for (int i = 0; i < lay->lineCount(); ++i) {
+                const QTextLine line = lay->lineAt(i);
+                if (line.naturalTextWidth() > widest) {
+                    widest  = line.naturalTextWidth();
+                    spacing = trailingSpacing(b, line, doc.defaultFont());
+                }
+                foot = lay->position().y() + line.y() + line.height();   // the last line read is the last
+            }
+    return {doc.idealWidth() - spacing, foot};
+}
+
+/**
+ * \brief How far @p line's letters move across from where Qt put them, so the line is aligned by its letters in a
+ *        block @p width wide: Qt aligned it in the layout's own width, the spacing after its last letter included.
+ *
+ * Qt's own place is kept, and only the difference made good: Qt does not centre a line by its natural width alone (a
+ * run's line can sit off it), and with no letter spacing the letters are where they always were.
+ */
+qreal alignedShift(const QTextBlock& b, const QTextLine& line, const QTextDocument& doc, int align, qreal width)
+{
+    const int   h      = align & Qt::AlignHorizontal_Mask;
+    const qreal before = (h & Qt::AlignRight) ? 1.0 : (h & Qt::AlignHCenter) ? 0.5 : 0.0;
+    return before * (width - doc.textWidth() + trailingSpacing(b, line, doc.defaultFont()));
+}
+
+/**
  * \brief @p w's letters as outlines, clipped as textOutline() says; with @p fills, the same letters also by the fill
  *        they wear: a run's index for a run that sets one, -1 for the words' own.
  */
@@ -214,7 +292,8 @@ QPainterPath letters(const Composition& c, const Words& w, TextFills* fills)
     QTextDocument doc;
     layOutText(doc, w.text, 1);
     layOutText(doc, w.text, doc.idealWidth());
-    const QPointF origin = placedBlock(c, w, doc.size()).topLeft();
+    const QSizeF  block  = blockOf(doc);
+    const QPointF origin = placedBlock(c, w, block).topLeft();
 
     // The document does the wrapping — unchanged — and then each laid-out line is converted to glyph
     // outlines at the position the layout gave it. Going through the layout rather than re-wrapping by
@@ -236,6 +315,7 @@ QPainterPath letters(const Composition& c, const Words& w, TextFills* fills)
                 const QTextLine line  = lay->lineAt(i);
                 const int       start = line.textStart();
                 const int       end   = start + line.textLength();
+                const qreal     shift = alignedShift(b, line, doc, w.text.align, block.width());
                 for (QTextBlock::iterator it = b.begin(); !it.atEnd(); ++it) {
                     const QTextFragment fragment = it.fragment();
                     const int           from     = qMax(start, fragment.position() - b.position());
@@ -246,8 +326,8 @@ QPainterPath letters(const Composition& c, const Words& w, TextFills* fills)
                     const QTextCharFormat format = fragment.charFormat();
                     const bool            inRun  = format.hasProperty(k_runProperty);
                     const QFont           font   = inRun ? format.font() : f;
-                    // cursorToX() has the alignment's offset folded in, as naturalTextRect() has.
-                    const QPointF at(origin.x() + lay->position().x() + line.cursorToX(from),
+                    // cursorToX() has Qt's alignment folded in, as naturalTextRect() has: the shift takes it out.
+                    const QPointF at(origin.x() + lay->position().x() + line.cursorToX(from) + shift,
                                      origin.y() + lay->position().y() + line.y() + line.ascent());
                     QPainterPath piece;
                     piece.addText(at, font, s);
@@ -276,9 +356,11 @@ QPainterPath letters(const Composition& c, const Words& w, TextFills* fills)
             // applies the alignment offset inside QTextLine::draw(). Nothing here goes through draw(),
             // so reading position() silently left-aligns every bubble whatever the setting says.
             // naturalTextRect() is the accessor that has the offset already folded in.
+            // The shift then aligns it by its letters (alignedShift()).
             const QPointF p = lay->position() + line.naturalTextRect().topLeft();
+            const qreal   x = p.x() + alignedShift(b, line, doc, w.text.align, block.width());
             // addText places by the text *baseline*, which is the line's top plus its ascent.
-            out.addText(origin.x() + p.x(), origin.y() + p.y() + line.ascent(), f, s);
+            out.addText(origin.x() + x, origin.y() + p.y() + line.ascent(), f, s);
         }
     }
     if (out.isEmpty())
@@ -355,10 +437,10 @@ QSizeF textBlockSize(const Words& w)
     const TextProperties& t = w.text;
     if (t.body.isEmpty())
         return {};
-    // Never wrapped, so the block is the same whatever box it sits in: the widest line by the lines.
+    // Never wrapped, so the block is the same whatever box it sits in: the widest line's letters by the lines.
     QTextDocument doc;
     layOutText(doc, t, 1);
-    return QSizeF(doc.idealWidth(), doc.size().height());
+    return blockOf(doc);
 }
 
 Blocks textBlocks(const Composition& c)

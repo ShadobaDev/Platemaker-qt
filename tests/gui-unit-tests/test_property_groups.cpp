@@ -134,6 +134,7 @@ Composition loadedBalloon()
     textOf(a).fill.size   = 1.75;
     textOf(a).fill.angle  = 15;
     textOf(a).lineSpacing = 85;
+    textOf(a).letterSpacing = -35;
     textOf(a).outline.colour  = QColor(21, 22, 23);
     textOf(a).outline.kind    = Paint::Kind::Dots;
     textOf(a).outline.second  = QColor(24, 25, 26);
@@ -233,7 +234,7 @@ static_assert(sizeof(StyleProperties) == sizeof(StyleMirror),
 // italic and runs are set in RoundTrips, not in loadedBalloon(): the golden cases are built from it, and a lettering
 // with neither is saved as it always was.
 struct TextMirror { QString body, family; int pixelSize; bool bold, italic; int align, valign; Paint fill; int lineSpacing;
-                    Paint outline; qreal outlineWidth; Shadow shadow; Paint shadowFill; QList<TextRun> runs; };
+                    int letterSpacing; Paint outline; qreal outlineWidth; Shadow shadow; Paint shadowFill; QList<TextRun> runs; };
 static_assert(sizeof(TextProperties) == sizeof(TextMirror),
               "TextProperties grew a field: place it (see above), then mirror it");
 
@@ -784,6 +785,7 @@ TEST(PropertyGroupPersistence, RoundTrips)
     other.bold      = false;
     other.fill      = Paint{QColor(200, 10, 10), QColor(255, 255, 255)};
     other.fill->kind = Paint::Kind::Dots;
+    other.letterSpacing = 120;
     TextRun upright;
     upright.from   = 10;
     upright.length = 3;
@@ -820,7 +822,8 @@ TEST(PropertyGroupPersistence, RunsAreKeptTidy)
     TextRun more = run(2, 4);   // over the first's last two letters, then two of its own
     more.bold    = true;
     TextRun same = run(6, 1);
-    same.pixelSize = t.pixelSize;   // the words' own size: no override
+    same.pixelSize     = t.pixelSize;       // the words' own size: no override
+    same.letterSpacing = t.letterSpacing;   // nor the words' own spacing
     TextRun past = run(7, 5);
     past.italic  = true;
     t.runs       = {bold, more, same, past};
@@ -833,12 +836,14 @@ TEST(PropertyGroupPersistence, RunsAreKeptTidy)
     EXPECT_EQ(t.runs, (QList<TextRun>{boldTidy, pastTidy}));
 
     // One run over the whole text is the words' own lettering.
-    TextRun whole   = run(0, 10);
-    whole.pixelSize = 48;
-    t.runs          = {whole};
+    TextRun whole       = run(0, 10);
+    whole.pixelSize     = 48;
+    whole.letterSpacing = -60;
+    t.runs              = {whole};
     tidyRuns(t);
     EXPECT_TRUE(t.runs.isEmpty());
     EXPECT_EQ(t.pixelSize, 48);
+    EXPECT_EQ(t.letterSpacing, -60);
 }
 
 /**

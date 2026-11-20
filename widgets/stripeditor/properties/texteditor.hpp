@@ -74,7 +74,7 @@ protected:
 
 private:
     //! What a run may set, one bit each (TextRun's fields).
-    enum RunField { RunFamily = 1, RunSize = 2, RunBold = 4, RunItalic = 8, RunFill = 16 };
+    enum RunField { RunFamily = 1, RunSize = 2, RunBold = 4, RunItalic = 8, RunFill = 16, RunSpacing = 32 };
 
     //! The rows shown from m_values, and with @p box the text box from the lettering (its text and runs).
     void syncFromValues(bool box = true);
@@ -113,6 +113,7 @@ private:
     QComboBox*      m_align  = nullptr;
     QComboBox*      m_valign = nullptr;
     QSpinBox*       m_lineSpacing = nullptr;
+    QSpinBox*       m_letterSpacing = nullptr;
     PaintRows<TextProperties> m_fill;           //!< The letters' paint.
     FieldRows<TextProperties> m_outlineWidth;   //!< The letters' outline; 0 is none.
     PaintRows<TextProperties> m_outline;        //!< ...and its paint.
@@ -150,6 +151,8 @@ private:
     bool m_bodyVisible   = true;   //!< What setContentVisible() was last told; a set hides the box too.
     bool m_mixedLineSpacing   = false;
     bool m_lineSpacingTouched = false;
+    bool m_mixedLetterSpacing   = false;
+    bool m_letterSpacingTouched = false;
     bool m_anyOutline         = false;  //!< Whether anything bound has an outline (showOutline()).
 };
 

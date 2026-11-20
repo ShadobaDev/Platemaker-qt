@@ -62,6 +62,7 @@ constexpr int k_runSize   = QTextFormat::UserProperty + 1;
 constexpr int k_runBold   = QTextFormat::UserProperty + 2;
 constexpr int k_runItalic = QTextFormat::UserProperty + 3;
 constexpr int k_runFill   = QTextFormat::UserProperty + 4;
+constexpr int k_runSpacing = QTextFormat::UserProperty + 5;
 /** @} */
 
 //! @p base with what @p f, a letter's format in the box, overrides.
@@ -77,6 +78,8 @@ TextProperties withFormat(TextProperties base, const QTextCharFormat& f)
         base.italic = f.boolProperty(k_runItalic);
     if (f.hasProperty(k_runFill))
         base.fill = f.property(k_runFill).value<Paint>();
+    if (f.hasProperty(k_runSpacing))
+        base.letterSpacing = f.intProperty(k_runSpacing);
     return base;
 }
 
@@ -201,6 +204,14 @@ TextEditor::TextEditor(QWidget* parent)
     m_lineSpacing->setToolTip(tr("Distance between lines, as a percentage of the font's own."));
     form->addRow(tr("Line spacing"), m_lineSpacing);
 
+    m_letterSpacing = new QSpinBox(this);
+    m_letterSpacing->setRange(k_letterSpacingMin, k_letterSpacingMax);
+    m_letterSpacing->setSingleStep(10);
+    m_letterSpacing->setSuffix(tr(" \u2030"));
+    m_letterSpacing->setToolTip(tr("Room between letters, in thousandths of the font size: 0 is the font's own,\n"
+                                   "negative sets them closer. Of letters selected, theirs alone."));
+    form->addRow(tr("Letter spacing"), m_letterSpacing);
+
     m_align = new QComboBox(this);
     m_align->addItem(tr("Centre"), int(Qt::AlignHCenter));
     m_align->addItem(tr("Left"),   int(Qt::AlignLeft));
@@ -282,6 +293,15 @@ TextEditor::TextEditor(QWidget* parent)
         m_lineSpacingTouched = true;
         rowChanged();
     });
+    connect(m_letterSpacing, &QSpinBox::valueChanged, this, [this](int v) {
+        if (m_populating)
+            return;
+        if (restoreSpin(m_letterSpacing, k_letterSpacingMin))
+            m_mixedLetterSpacing = false;
+        m_values.letterSpacing = v;
+        m_letterSpacingTouched = true;
+        rowChanged();
+    });
     connect(m_bold, &QCheckBox::toggled, this, [this](bool on) {
         if (m_populating)
             return;
@@ -337,7 +357,7 @@ void TextEditor::bind(const Subjects& subjects)
     m_atCaret   = false;
 
     m_mixedFamily = m_mixedSize = m_mixedBold = m_mixedItalic = m_mixedAlign = m_mixedValign = false;
-    m_mixedLineSpacing = false;
+    m_mixedLineSpacing = m_mixedLetterSpacing = false;
     m_fill.reset();
     m_leastSize = m_greatestSize = m_values.pixelSize;
     m_outlineWidth.reset();
@@ -355,13 +375,14 @@ void TextEditor::bind(const Subjects& subjects)
         m_mixedAlign  = m_mixedAlign  || t.align     != m_values.align;
         m_mixedValign = m_mixedValign || t.valign    != m_values.valign;
         m_mixedLineSpacing = m_mixedLineSpacing || t.lineSpacing != m_values.lineSpacing;
+        m_mixedLetterSpacing = m_mixedLetterSpacing || t.letterSpacing != m_values.letterSpacing;
         m_outlineWidth.compare(t, m_values);
         m_outline.compare(t, m_values);
         m_shadow.compare(t, m_values);
         m_anyOutline       = m_anyOutline       || t.outlineWidth > 0.0;
     }
     m_familyTouched = m_sizeTouched = m_boldTouched = m_italicTouched = m_alignTouched = m_valignTouched = false;
-    m_lineSpacingTouched = false;
+    m_lineSpacingTouched = m_letterSpacingTouched = false;
 
     syncFromValues();
     showSelection();   // letters still selected in the box are the rows' subject again, after a rebinding
@@ -408,6 +429,7 @@ void TextEditor::applyEdited(TextProperties& t) const
     if (m_alignTouched)  t.align     = m_values.align;
     if (m_valignTouched) t.valign    = m_values.valign;
     if (m_lineSpacingTouched) t.lineSpacing = m_values.lineSpacing;
+    if (m_letterSpacingTouched) t.letterSpacing = m_values.letterSpacing;
     m_outlineWidth.applyEdited(m_values, t);
     m_outline.applyEdited(m_values, t);
     m_shadow.applyEdited(m_values, t);
@@ -421,6 +443,8 @@ void TextEditor::applyEdited(TextProperties& t) const
             r.bold.reset();
         if (m_italicTouched)
             r.italic.reset();
+        if (m_letterSpacingTouched)
+            r.letterSpacing.reset();
     }   // a run's fill stays: the fill's rows say nothing of having been touched
     tidyRuns(t);
 }
@@ -474,6 +498,7 @@ void TextEditor::syncFromValues(bool box)
     m_size->setSpread(m_leastSize, m_greatestSize);
     showSpin(m_size, m_mixedSize, m_values.pixelSize, k_textSizeMin, k_textSizeMax);
     showSpin(m_lineSpacing, m_mixedLineSpacing, m_values.lineSpacing, k_lineSpacingMin, k_lineSpacingMax);
+    showSpin(m_letterSpacing, m_mixedLetterSpacing, m_values.letterSpacing, k_letterSpacingMin, k_letterSpacingMax);
     // A text object has no outline to keep from. Shown when anything bound has one: a value typed for
     // a set lands on the text objects in it too, where it is carried and ignored.
     showCheck(m_bold, m_mixedBold, m_values.bold);
@@ -507,6 +532,8 @@ QTextCharFormat TextEditor::runFormat(int fields, const TextProperties& from)
         f.setProperty(k_runItalic, from.italic);
     if (fields & RunFill)
         f.setProperty(k_runFill, QVariant::fromValue(from.fill));
+    if (fields & RunSpacing)
+        f.setProperty(k_runSpacing, from.letterSpacing);
     return f;
 }
 
@@ -530,6 +557,7 @@ void TextEditor::rowChanged()
         next.bold           = m_lettering.bold;
         next.italic         = m_lettering.italic;
         next.fill           = m_lettering.fill;
+        next.letterSpacing  = m_lettering.letterSpacing;
         next                = fromBox(next);
         const bool same     = next == m_lettering;
         m_lettering         = next;
@@ -563,7 +591,7 @@ void TextEditor::showSelection()
         m_onLetters = false;
         m_atCaret   = false;
         m_values    = m_lettering;
-        m_mixedFamily = m_mixedSize = m_mixedBold = m_mixedItalic = false;
+        m_mixedFamily = m_mixedSize = m_mixedBold = m_mixedItalic = m_mixedLetterSpacing = false;
         m_fill.reset();
         m_leastSize = m_greatestSize = m_values.pixelSize;
         syncFromValues(false);
@@ -583,7 +611,7 @@ void TextEditor::showSelection()
     else
         parts << withFormat(m_lettering, m_body->currentCharFormat());
     m_values = parts.isEmpty() ? m_lettering : parts.first();
-    m_mixedFamily = m_mixedSize = m_mixedBold = m_mixedItalic = false;
+    m_mixedFamily = m_mixedSize = m_mixedBold = m_mixedItalic = m_mixedLetterSpacing = false;
     m_fill.reset();
     m_leastSize = m_greatestSize = m_values.pixelSize;
     for (const TextProperties& p : std::as_const(parts)) {
@@ -593,6 +621,7 @@ void TextEditor::showSelection()
         m_mixedSize   = m_mixedSize || p.pixelSize != m_values.pixelSize;
         m_mixedBold   = m_mixedBold || p.bold != m_values.bold;
         m_mixedItalic = m_mixedItalic || p.italic != m_values.italic;
+        m_mixedLetterSpacing = m_mixedLetterSpacing || p.letterSpacing != m_values.letterSpacing;
         m_fill.compare(p, m_values);
     }
     // The rows only: the box is where the text comes from, and a caret moved by a letter typed arrives before the
@@ -603,7 +632,8 @@ void TextEditor::showSelection()
 int TextEditor::runFieldsApart(const TextProperties& a, const TextProperties& b)
 {
     return (a.family != b.family ? RunFamily : 0) | (a.pixelSize != b.pixelSize ? RunSize : 0)
-         | (a.bold != b.bold ? RunBold : 0) | (a.italic != b.italic ? RunItalic : 0) | (a.fill != b.fill ? RunFill : 0);
+         | (a.bold != b.bold ? RunBold : 0) | (a.italic != b.italic ? RunItalic : 0) | (a.fill != b.fill ? RunFill : 0)
+         | (a.letterSpacing != b.letterSpacing ? RunSpacing : 0);
 }
 
 void TextEditor::setOnSelection(int fields, const TextProperties& from)
@@ -626,7 +656,7 @@ void TextEditor::clearFromRuns(int fields)
     for (auto [f, from, to] : fragments) {
         for (const auto& [field, property] : {std::pair{RunFamily, k_runFamily}, std::pair{RunSize, k_runSize},
                                               std::pair{RunBold, k_runBold}, std::pair{RunItalic, k_runItalic},
-                                              std::pair{RunFill, k_runFill}})
+                                              std::pair{RunFill, k_runFill}, std::pair{RunSpacing, k_runSpacing}})
             if (fields & field)
                 f.clearProperty(property);
         QTextCursor c(doc);
@@ -655,6 +685,8 @@ TextProperties TextEditor::fromBox(TextProperties base) const
             r.italic = f.boolProperty(k_runItalic);
         if (f.hasProperty(k_runFill))
             r.fill = f.property(k_runFill).value<Paint>();
+        if (f.hasProperty(k_runSpacing))
+            r.letterSpacing = f.intProperty(k_runSpacing);
         if (r.overrides())
             base.runs.append(r);
     });
@@ -675,8 +707,9 @@ void TextEditor::putRuns(const TextProperties& t)
         with.bold           = r.bold.value_or(t.bold);
         with.italic         = r.italic.value_or(t.italic);
         with.fill           = r.fill.value_or(t.fill);
+        with.letterSpacing  = r.letterSpacing.value_or(t.letterSpacing);
         const int fields = (r.family ? RunFamily : 0) | (r.pixelSize ? RunSize : 0) | (r.bold ? RunBold : 0)
-                         | (r.italic ? RunItalic : 0) | (r.fill ? RunFill : 0);
+                         | (r.italic ? RunItalic : 0) | (r.fill ? RunFill : 0) | (r.letterSpacing ? RunSpacing : 0);
         QTextCursor run(m_body->document());
         run.setPosition(r.from);
         run.setPosition(r.from + r.length, QTextCursor::KeepAnchor);
@@ -728,6 +761,7 @@ void TextEditor::updateRows()
                        static_cast<QWidget*>(m_italic)})
         m_form->setRowVisible(w, shows(Row::TextFont));
     m_form->setRowVisible(m_lineSpacing, shows(Row::TextSpacing));
+    m_form->setRowVisible(m_letterSpacing, shows(Row::TextSpacing));
     m_form->setRowVisible(m_align, shows(Row::TextAlign));
     m_form->setRowVisible(m_valign, shows(Row::TextAlign));
     m_fill.setParts(shows(Row::TextColour), shows(Row::TextPattern));

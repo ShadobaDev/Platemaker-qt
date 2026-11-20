@@ -578,6 +578,18 @@ New, backward-compatible features. Several are gated on a lib version, noted in 
     to one number, in `artifactsvg.hpp` and in the specification: the URI's `/1` changes only on a
     break, where an old reader *should* fail to recognise the file at all.
 
+- [ ] **Mask object.** Some bubbles and texts are meant to sit **behind** a comic object (a character's
+  arm, a panel edge, a foreground prop). A mask cuts away part of a bubble or text the way a layer mask
+  hides part of a layer in a graphics program.
+  - **Open decision — to check before building:** is the mask a property of each object (every bubble or
+    text owns its mask), or a separate object of its own applied to the objects it covers? Compare what
+    each costs in the workspace file, in rendering and in editing (one mask shared by several bubbles is
+    only possible with the second).
+  - **Needed regardless:** a **paint tool** to draw the mask by hand (this repository), and a **gradient
+    fade** of the mask, so its edge can fade out instead of cutting hard.
+  - **Lib gate:** rendering and the stored form of the mask belong to libplatemaker — see *Mask object*
+    in its `docs/TODO.md`.
+
 ---
 
 ## MAJOR — next: 2.0.0

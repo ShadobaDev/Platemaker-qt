@@ -3,6 +3,8 @@
 #include "objects/object.hpp"
 #include "objects/selection.hpp"
 #include "objects/selectionchrome.hpp"
+#include "bezier.hpp"
+#include "geometry.hpp"
 #include "shapes.hpp"
 
 #include <QGraphicsScene>
@@ -13,6 +15,21 @@
 #include <utility>
 
 namespace StripEdit {
+
+namespace {
+
+//! The words of @p c whose curve @p item's picked nodes are (a warp, or the dormant straight one); none when they are
+//! a body's, or none are picked.
+template <class C>
+auto warpPicked(C& c, const Object& item) -> decltype(&c.words.first())
+{
+    for (auto& w : c.words)
+        if (w.id == item.pickedElement())
+            return &w;
+    return nullptr;
+}
+
+}  // namespace
 
 ShapeEditMode::ShapeEditMode(const SelectionModel& selection, QGraphicsScene* scene, Host host, QObject* parent)
     : QObject(parent), m_selection(selection), m_scene(scene), m_host(std::move(host))
@@ -81,18 +98,22 @@ void ShapeEditMode::pickNodesIn(const QRectF& sceneRect, bool add)
     Object* edited = m_host.object(m_edited);
     if (!edited)
         return;
+    // One element's nodes: the first's inside the band (an outline's, or a warp's).
     QList<int> inside;
+    int        owner = 0;
     for (const Geometry::Handle& h : edited->shapeHandles())
-        if (h.glyph == Geometry::Handle::Glyph::Node && h.node >= 0 && sceneRect.contains(edited->mapToScene(h.at))
-            && !inside.contains(h.node))
+        if (h.glyph == Geometry::Handle::Glyph::Node && h.node >= 0 && (owner == 0 || h.element == owner)
+            && sceneRect.contains(edited->mapToScene(h.at)) && !inside.contains(h.node)) {
+            owner = h.element;
             inside.append(h.node);
+        }
     if (inside.isEmpty())
         return;   // a band round no node never happened
-    QList<int> picked = add ? edited->pickedVertices() : QList<int>{};
+    QList<int> picked = add && edited->pickedElement() == owner ? edited->pickedVertices() : QList<int>{};
     for (int i : std::as_const(inside))
         if (!picked.contains(i))
             picked.append(i);
-    edited->setPickedVertices(picked);
+    edited->setPickedVertices(picked, owner);
 }
 
 void ShapeEditMode::stepPick(bool clockwise, PickStep how)
@@ -100,9 +121,10 @@ void ShapeEditMode::stepPick(bool clockwise, PickStep how)
     Object* edited = m_host.object(m_edited);
     if (!edited || edited->pickedVertices().isEmpty())
         return;
-    QPolygonF nodes;   // in index order, as drawn
+    QPolygonF nodes;   // the picked element's, in index order, as drawn
+    const int owner = edited->pickedElement();
     for (const Geometry::Handle& h : edited->shapeHandles())
-        if (h.glyph == Geometry::Handle::Glyph::Node && h.node == nodes.size())
+        if (h.glyph == Geometry::Handle::Glyph::Node && h.element == owner && h.node == nodes.size())
             nodes << edited->mapToScene(h.at);
     const int n = int(nodes.size());
     if (n == 0)
@@ -124,7 +146,7 @@ void ShapeEditMode::stepPick(bool clockwise, PickStep how)
         const int before = (end + n - step) % n;
         if (picked.removeAll(before) > 0)
             picked.append(before);
-        edited->setPickedVertices(picked);
+        edited->setPickedVertices(picked, owner);
         return;
     }
     const int next = (end + step) % n;
@@ -134,13 +156,21 @@ void ShapeEditMode::stepPick(bool clockwise, PickStep how)
         picked.append(next);
     else
         picked = {next};
-    edited->setPickedVertices(picked);
+    edited->setPickedVertices(picked, owner);
 }
 
 std::optional<ShapeNode::Type> ShapeEditMode::pickedNodeType() const
 {
     const Object* item = m_host.object(m_edited);
-    const Body*   body = item ? bodyOf(item->composition(), item->pickedBody()) : nullptr;
+    if (!item)
+        return std::nullopt;
+    if (const Words* w = warpPicked(item->composition(), *item)) {
+        const int i = item->pickedVertex();
+        if (i < 0 || i >= w->text.warp.size())
+            return std::nullopt;
+        return w->text.warp.at(i).type;
+    }
+    const Body* body = bodyOf(item->composition(), item->pickedBody());
     if (!body || body->shape.kind != ShapeProperties::Kind::Curve)
         return std::nullopt;
     const QList<ShapeNode>& nodes = body->shape.nodes;
@@ -155,7 +185,17 @@ void ShapeEditMode::setPickedNodeType(ShapeNode::Type type)
     Object* item = m_host.object(m_edited);
     if (!pickedNodeType() || !item)
         return;
-    Composition  a    = item->composition();
+    Composition a = item->composition();
+    if (Words* w = warpPicked(a, *item)) {
+        const QRectF box = Geometry::warpBox(a, *w);
+        for (int i : item->pickedVertices())
+            w->text.warp = Bezier::withNodeType(w->text.warp, Geometry::k_warpRules, box, i, type);
+        if (w->text.warp == warpPicked(item->composition(), *item)->text.warp)
+            return;
+        m_host.commit(m_edited, a, tr("Point type"));
+        emit changed();
+        return;
+    }
     Body&        body = *bodyOf(a, item->pickedBody());   // pickedNodeType() found a Curve's node
     const QRectF rect = Geometry::balloonRect(*a.balloon, body);
     for (int i : item->pickedVertices())
@@ -171,6 +211,12 @@ bool ShapeEditMode::canGrowPickedHandles() const
     const Object* item = m_host.object(m_edited);
     if (!pickedNodeType() || !item)
         return false;
+    if (const Words* w = warpPicked(item->composition(), *item)) {
+        for (int i : item->pickedVertices())
+            if (Bezier::withHandlesGrown(w->text.warp, Geometry::k_warpRules, i) != w->text.warp)
+                return true;
+        return false;
+    }
     const ShapeProperties& shape = bodyOf(item->composition(), item->pickedBody())->shape;   // pickedNodeType() found a Curve's node
     for (int i : item->pickedVertices())
         if (!(Geometry::withHandlesGrown(shape, i) == shape))
@@ -183,7 +229,14 @@ void ShapeEditMode::growPickedHandles()
     Object* item = m_host.object(m_edited);
     if (!canGrowPickedHandles() || !item)
         return;
-    Composition a    = item->composition();
+    Composition a = item->composition();
+    if (Words* w = warpPicked(a, *item)) {
+        for (int i : item->pickedVertices())
+            w->text.warp = Bezier::withHandlesGrown(w->text.warp, Geometry::k_warpRules, i);
+        m_host.commit(m_edited, a, tr("Add handles"));
+        emit changed();
+        return;
+    }
     Body&       body = *bodyOf(a, item->pickedBody());
     for (int i : item->pickedVertices())
         body.shape = Geometry::withHandlesGrown(body.shape, i);
@@ -197,11 +250,21 @@ bool ShapeEditMode::deletePickedNodes()
     if (!edited || edited->pickedVertex() < 0)
         return false;
     Composition a      = edited->composition();
-    Body*       body   = bodyOf(a, edited->pickedBody());
     QList<int>  doomed = edited->pickedVertices();
+    std::sort(doomed.begin(), doomed.end(), std::greater<int>());
+    if (Words* w = warpPicked(a, *edited)) {
+        for (int i : std::as_const(doomed))
+            w->text.warp = Bezier::withNodeRemoved(w->text.warp, Geometry::k_warpRules, i);
+        if (w->text.warp == warpPicked(edited->composition(), *edited)->text.warp)
+            return true;   // two is the fewest
+        edited->setPickedVertex(-1);
+        m_host.commit(m_edited, a, tr("Delete point"));
+        emit changed();
+        return true;
+    }
+    Body* body = bodyOf(a, edited->pickedBody());
     if (!body)
         return true;
-    std::sort(doomed.begin(), doomed.end(), std::greater<int>());
     for (int i : std::as_const(doomed))
         body->shape = Geometry::withVertexRemoved(body->shape, i);
     if (body->shape == bodyOf(edited->composition(), edited->pickedBody())->shape)

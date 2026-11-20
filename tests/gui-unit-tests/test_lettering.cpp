@@ -341,3 +341,108 @@ TEST(Lettering, AnArchRaisesTheMiddleLetters)
     const qreal middle = middleOf(5 - 1);   // the O of HELLO, by the middle
     EXPECT_LT(middle, first - textOf(a).pixelSize);
 }
+
+namespace {
+
+//! A line of letters, its warp an arch of three nodes, and edit mode's handles on it with @p context.
+QList<Geometry::Handle> warpHandlesOf(const Composition& a, const Geometry::HandleContext& context = {})
+{
+    QList<Geometry::Handle> out;
+    for (const Geometry::Handle& h : Geometry::handlesOf(a, context))
+        if (h.element == wordsOf(a)->id && h.glyph != Geometry::Handle::Glyph::Arrow && h.glyph != Geometry::Handle::Glyph::Anchor)
+            out.append(h);
+    return out;
+}
+
+Composition arched()
+{
+    Composition a  = line();
+    textOf(a).warp = {ShapeNode(0.0, 0.5), ShapeNode({0.5, -0.5}, {-0.25, 0.0}, {0.25, 0.0}, ShapeNode::Type::Symmetric),
+                      ShapeNode(1.0, 0.5)};
+    return a;
+}
+
+const Geometry::Handle* find(const QList<Geometry::Handle>& handles, Bezier::Part part, int index)
+{
+    for (const Geometry::Handle& h : handles)
+        if (Geometry::partOf<Bezier::Part>(h) == part && h.index == index)
+            return &h;
+    return nullptr;
+}
+
+} // namespace
+
+TEST(Lettering, AWarpOffersItsNodesAndTheirHandlesToItsOwnPick)
+{
+    const Composition a = arched();
+    const QList<Geometry::Handle> plain = warpHandlesOf(a);
+    EXPECT_EQ(plain.size(), 3 + 2) << "three nodes and a \"+\" on each of the two segments";
+
+    // The middle node picked: its two handles, drawn from it. Picked as another element's, none.
+    Geometry::HandleContext context;
+    context.picked   = {1};
+    context.pickedOf = wordsOf(a)->id;
+    const QList<Geometry::Handle> picked = warpHandlesOf(a, context);
+    ASSERT_NE(find(picked, Bezier::Part::InHandle, 1), nullptr);
+    ASSERT_NE(find(picked, Bezier::Part::OutHandle, 1), nullptr);
+    EXPECT_EQ(find(picked, Bezier::Part::OutHandle, 1)->origin, find(picked, Bezier::Part::Node, 1)->at);
+    context.pickedOf = wordsOf(a)->id + 1;
+    const QList<Geometry::Handle> others = warpHandlesOf(a, context);
+    EXPECT_EQ(find(others, Bezier::Part::InHandle, 1), nullptr);
+}
+
+TEST(Lettering, AWarpsNodeDraggedStaysUnderThePointer)
+{
+    // Raising the arch raises the bent block, which is placed again in the frame: the node still ends where it went.
+    Composition                   a    = arched();
+    const QList<Geometry::Handle> all  = warpHandlesOf(a);
+    const Geometry::Handle*       node = find(all, Bezier::Part::Node, 1);
+    ASSERT_NE(node, nullptr);
+    const QPointF to = node->at + QPointF(15.0, -40.0);
+    Composition   next = a;
+    node->drag(next, *node, to, {});
+    const QList<Geometry::Handle> after = warpHandlesOf(next);
+    const Geometry::Handle*       moved = find(after, Bezier::Part::Node, 1);
+    ASSERT_NE(moved, nullptr);
+    EXPECT_NEAR(moved->at.x(), to.x(), k_layoutPx);
+    EXPECT_NEAR(moved->at.y(), to.y(), k_layoutPx);
+}
+
+TEST(Lettering, AWarpsPlusAddsANodeAndKeepsTheBend)
+{
+    Composition             a    = arched();
+    const QSizeF            was  = Geometry::textBlockSize(*wordsOf(a));
+    QList<Geometry::Handle> all  = warpHandlesOf(a);
+    Geometry::Handle        plus = *find(all, Bezier::Part::AddNode, 0);
+    ASSERT_TRUE(plus.press);
+    ASSERT_TRUE(plus.press(a, plus));
+    EXPECT_EQ(textOf(a).warp.size(), 4);
+    EXPECT_EQ(Geometry::partOf<Bezier::Part>(plus), Bezier::Part::Node) << "the drag that follows is the new node's";
+    EXPECT_NEAR(Geometry::textBlockSize(*wordsOf(a)).width(), was.width(), k_layoutPx);
+    EXPECT_NEAR(Geometry::textBlockSize(*wordsOf(a)).height(), was.height(), k_layoutPx);
+}
+
+TEST(Lettering, MarkedWordsOfferAStraightCurveThatBendsThemOnlyWhenChanged)
+{
+    // Unbent words offer nothing unmarked; marked, their straight curve, and a press alone bends nothing.
+    Composition a = line();
+    EXPECT_TRUE(warpHandlesOf(a).isEmpty());
+    Geometry::HandleContext marked;
+    marked.words                        = wordsOf(a)->id;
+    const QList<Geometry::Handle> plain = warpHandlesOf(a, marked);
+    EXPECT_EQ(plain.size(), 2 + 1) << "two nodes and a \"+\"";
+    EXPECT_TRUE(textOf(a).warp.isEmpty());
+
+    // A drag of its node bends them; a double-click on a node straightens them again.
+    const Geometry::Handle* end = find(plain, Bezier::Part::Node, 1);
+    ASSERT_NE(end, nullptr);
+    Composition bent = a;
+    end->drag(bent, *end, end->at + QPointF(0.0, -30.0), marked);
+    EXPECT_EQ(textOf(bent).warp.size(), 2);
+    const QList<Geometry::Handle> bentHandles = warpHandlesOf(bent, marked);
+    const Geometry::Handle*       node        = find(bentHandles, Bezier::Part::Node, 0);
+    ASSERT_NE(node, nullptr);
+    ASSERT_TRUE(node->reset);
+    EXPECT_TRUE(node->reset(bent, *node));
+    EXPECT_TRUE(textOf(bent).warp.isEmpty());
+}

@@ -86,7 +86,7 @@ QPointF dragBody(Composition& next, const Handle& h, const QPointF& to, const Ha
         return {};
     const QRectF rect = balloonRect(*next.balloon, *own);
     const bool   node = partOf<ShapePart>(h) == ShapePart::Vertex;
-    if (node && context.picked.size() > 1)
+    if (node && context.pickedOf == own->id && context.picked.size() > 1)
         own->shape = withNodesMoved(own->shape, rect, context.picked, to - h.at);
     else
         own->shape = dragShapeHandle(own->shape, rect, h, to, context.clearance);
@@ -131,6 +131,39 @@ QPointF dragWords(Composition& next, const Handle& h, const QPointF& to, const H
     if (Words* w = wordsFor(next, h))
         *w = dragTextAreaHandle(next, *w, h, to);
     return {};
+}
+
+//! The words' warp: several picked nodes move together.
+QPointF dragWarp(Composition& next, const Handle& h, const QPointF& to, const HandleContext& context)
+{
+    if (Words* w = wordsFor(next, h))
+        *w = dragWarpHandle(next, *w, h, to, context.pickedOf == w->id ? context.picked : QList<int>());
+    return {};
+}
+
+//! A "+" on the warp adds its node at once, and the drag that follows is that node's.
+bool addWarpNode(Composition& c, Handle& h)
+{
+    Words* w = wordsFor(c, h);
+    if (!w)
+        return false;
+    w->text.warp = Bezier::withNodeAdded(warpCurve(w->text), k_warpRules, h.index);   // dormant: now bent
+    h.part       = int(Bezier::Part::Node);
+    h.glyph      = Handle::Glyph::Node;
+    h.index      = h.index + 1;
+    h.node       = h.index;
+    h.press      = nullptr;
+    return true;
+}
+
+//! The words straightened: their warp gone, by a double-click on its node.
+bool resetWarp(Composition& c, const Handle& h)
+{
+    Words* w = wordsFor(c, h);
+    if (!w || w->text.warp.isEmpty())
+        return false;
+    w->text.warp.clear();
+    return true;
 }
 
 //! The words' frame put back: an edge made automatic again, or by its middle, the frame centred in the body.
@@ -263,7 +296,7 @@ QList<Handle> handlesOf(const Composition& c, const HandleContext& context)
     QList<Handle> out;
     if (const Body* own = bodyOf(c, context.body)) {
         const QRectF rect = balloonRect(*c.balloon, *own);
-        out = owned(shapeHandles(own->shape, rect, context.clearance, context.lastPicked()), own->id, &dragBody);
+        out = owned(shapeHandles(own->shape, rect, context.clearance, context.lastPicked(own->id)), own->id, &dragBody);
         for (Handle& h : out)
             if (partOf<ShapePart>(h) == ShapePart::AddVertex)
                 h.press = &addNode;
@@ -274,6 +307,17 @@ QList<Handle> handlesOf(const Composition& c, const HandleContext& context)
     for (const Words& w : c.words)
         (w.id == context.words ? words.prepend(&w) : words.append(&w));
     for (const Words* w : std::as_const(words)) {
+        // The warp's before the frame's: its ends and its middle "+" lie on the frame's arrows and middle.
+        // Words with no warp offer their straight curve when marked: a change to it bends them.
+        QList<Handle> warp = owned(warpHandles(c, *w, context.lastPicked(w->id), w->id == context.words), w->id,
+                                   &dragWarp);
+        for (Handle& h : warp) {
+            if (partOf<Bezier::Part>(h) == Bezier::Part::AddNode)
+                h.press = &addWarpNode;
+            if (partOf<Bezier::Part>(h) == Bezier::Part::Node)
+                h.reset = &resetWarp;
+        }
+        out.append(warp);
         QList<Handle> frame = owned(textAreaHandles(c, *w), w->id, &dragWords);
         for (Handle& h : frame)
             h.reset = &resetWords;

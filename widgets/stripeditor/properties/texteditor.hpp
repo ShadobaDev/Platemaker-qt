@@ -159,7 +159,6 @@ private:
     bool m_mixedKerning         = false;
     bool m_kerningTouched       = false;
     bool m_mixedWarp            = false;
-    bool m_warpTouched          = false;
     bool m_mixedDirection       = false;
     bool m_directionTouched     = false;
     bool m_anyOutline         = false;  //!< Whether anything bound has an outline (showOutline()).

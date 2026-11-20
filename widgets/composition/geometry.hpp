@@ -28,6 +28,7 @@
 #include <QSizeF>
 #include <QString>
 
+#include "bezier.hpp"
 #include "composition.hpp"
 #include "outline.hpp"
 #include "shapes.hpp"   // Handle: the text area's arrows
@@ -314,6 +315,45 @@ enum class TextAreaPart {
  *        middle kept within the seat. Measured against \p c as it was at the press.
  */
 [[nodiscard]] Words dragTextAreaHandle(const Composition& c, const Words& w, const Handle& handle, const QPointF& to);
+
+//! A warp's curve (TextProperties::warp): an open path of two nodes at least.
+inline constexpr Bezier::Rules k_warpRules{2, false};
+
+/**
+ * \brief The curve \p t is bent along, or would be: its warp, or with none the straight one (straightWarp()),
+ *        which edit mode offers so a change to it bends the words.
+ */
+[[nodiscard]] QList<ShapeNode> warpCurve(const TextProperties& t);
+
+/**
+ * \brief Every warped words' curve of \p c, each in its warpBox(), and the dormant straight one of the words
+ *        \p marked (their id) when they have none: what edit mode traces besides the outline.
+ */
+[[nodiscard]] QPainterPath warpCurves(const Composition& c, int marked);
+
+/**
+ * \brief The box \p w's warp is in fractions of: their block laid out flat, where it sits as the bent block is
+ *        placed (blockRect()), in balloon coordinates. Empty for words with no text.
+ */
+[[nodiscard]] QRectF warpBox(const Composition& c, const Words& w);
+
+/**
+ * \brief The handles of \p w's curve (warpCurve()), in balloon coordinates (Bezier::grips()): told apart by
+ *        Handle::part, a Bezier::Part; \p picked is the node whose handles show, -1 for none. Words with no warp
+ *        have their dormant straight curve's only when \p marked, so a balloon's other words show nothing.
+ */
+[[nodiscard]] QList<Handle> warpHandles(const Composition& c, const Words& w, int picked, bool marked);
+
+/**
+ * \brief \p w with their warp's \p handle dragged to \p to (balloon coordinates), with the nodes
+ *        \p picked when it is one of them: warpHandles()' inverse, measured against \p c as it was at the press.
+ *
+ * Words with no warp are bent by it from their straight curve; dragged back straight, they have none again. A bend
+ * moves the bent block, and its placing moves the flat one the curve is in fractions of: the drag is corrected until
+ * the handle is under \p to again.
+ */
+[[nodiscard]] Words dragWarpHandle(const Composition& c, const Words& w, const Handle& handle, const QPointF& to,
+                                   const QList<int>& picked);
 
 /**
  * \brief The point of \p c's lettering that stays put when its box changes, in box coordinates: the point of the

@@ -182,18 +182,20 @@ bool BubbleObject::canEditShape() const
 {
     // A patterned fill has its fade's cross, and words their text area's arrows, so a balloon
     // with no handles of its own is edited for those.
+    // Lettering has the curve it is bent along, or would be: a bare text object's too.
     const Body* body = bodyOf(m_composition, pickedBody());
-    return body
-        && (Geometry::hasShapeHandles(body->shape) || m_composition.balloon->style.fill.fill.kind != Paint::Kind::Solid
-            || lettered(m_composition));
+    return lettered(m_composition)
+        || (body
+            && (Geometry::hasShapeHandles(body->shape)
+                || m_composition.balloon->style.fill.fill.kind != Paint::Kind::Solid));
 }
 
 QPainterPath BubbleObject::editOutline() const
 {
-    const Body* own = bodyOf(m_composition, pickedBody());
-    if (!own)
-        return {};
-    return Geometry::outlineOf(*own, Geometry::balloonRect(*m_composition.balloon, *own), m_composition.seed);
+    QPainterPath out = Geometry::warpCurves(m_composition, markedWords());
+    if (const Body* own = bodyOf(m_composition, pickedBody()))
+        out.addPath(Geometry::outlineOf(*own, Geometry::balloonRect(*m_composition.balloon, *own), m_composition.seed));
+    return out;
 }
 
 void BubbleObject::paintContent(QPainter& painter)

@@ -73,8 +73,13 @@ constexpr int   k_warpSamples   = 64;
  *  this long first, or it would stay straight across the bend.
  */
 constexpr qreal k_warpStep      = 1.0;
-//! A warp's curve (TextProperties::warp): an open path of two nodes at least.
-constexpr Bezier::Rules k_warpRules{2, false};
+/**
+ *  Most rounds of correcting a warp's drag for the block it moves (dragWarpHandle()): the block follows the drag
+ *  nearly in proportion, so the secant lands in two or three.
+ */
+constexpr int   k_warpDragPasses = 6;
+//! How near the pointer a dragged warp handle must land to stop correcting, in strip pixels.
+constexpr qreal k_warpDragSlack  = 0.01;
 
 //! @p font given @p spacing (TextProperties::letterSpacing) at its own size: pixels between letters.
 void setSpacing(QFont& font, int spacing)
@@ -1175,6 +1180,112 @@ QPointF textAnchor(const Composition& c)
 {
     const Words* w = wordsOf(c);
     return w ? alignedPoint(c, *w) : QPointF();
+}
+
+}  // namespace Geometry
+
+namespace Geometry {
+
+QRectF warpBox(const Composition& c, const Words& w)
+{
+    if (w.text.body.isEmpty())
+        return {};
+    const QSizeF flat = laidOut(w.text).block;
+    const QRectF bent = isWarped(w.text) ? bentBox(w.text, flat) : QRectF(QPointF(), flat);
+    return QRectF(placedBlock(c, w, bent.size()).topLeft() - bent.topLeft(), flat);
+}
+
+QList<ShapeNode> warpCurve(const TextProperties& t)
+{
+    return isWarped(t) ? t.warp : straightWarp(t.vertical);
+}
+
+QPainterPath warpCurves(const Composition& c, int marked)
+{
+    QPainterPath out;
+    for (const Words& w : c.words)
+        if ((isWarped(w.text) || w.id == marked) && !w.text.body.isEmpty())
+            out.addPath(Bezier::path(warpCurve(w.text), k_warpRules, warpBox(c, w)));
+    return out;
+}
+
+QList<Handle> warpHandles(const Composition& c, const Words& w, int picked, bool marked)
+{
+    const QRectF box = warpBox(c, w);
+    if (box.isEmpty() || !(isWarped(w.text) || marked))
+        return {};
+    QList<Handle> out;
+    for (const Bezier::Grip& g : Bezier::grips(warpCurve(w.text), k_warpRules, box, picked)) {
+        Handle h;
+        h.part   = int(g.part);
+        h.index  = g.index;
+        h.at     = g.at;
+        h.origin = g.origin;
+        switch (g.part) {
+        case Bezier::Part::Node:
+            h.glyph = Handle::Glyph::Node;
+            h.node  = g.index;
+            break;
+        case Bezier::Part::InHandle:
+        case Bezier::Part::OutHandle:
+            h.glyph = Handle::Glyph::Tangent;
+            h.node  = g.index;
+            break;
+        case Bezier::Part::AddNode:
+            h.glyph = Handle::Glyph::Plus;
+            break;
+        }
+        out.append(h);
+    }
+    return out;
+}
+
+Words dragWarpHandle(const Composition& c, const Words& w, const Handle& handle, const QPointF& to,
+                     const QList<int>& picked)
+{
+    const auto part = partOf<Bezier::Part>(handle);
+    const QRectF box = warpBox(c, w);
+    if (box.isEmpty() || part == Bezier::Part::AddNode)
+        return w;
+    const bool together = part == Bezier::Part::Node && picked.size() > 1 && picked.contains(handle.index);
+    // Where the handle is drawn once the curve is @p curve, the block bent and placed again.
+    const auto drawnAt = [&](const QList<ShapeNode>& curve) {
+        Composition next = c;
+        for (Words& o : next.words)
+            if (o.id == w.id)
+                o.text.warp = curve;
+        const Words* moved = nullptr;
+        for (const Words& o : next.words)
+            if (o.id == w.id)
+                moved = &o;
+        for (const Handle& h : warpHandles(next, *moved, handle.index, true))
+            if (h.part == handle.part && h.index == handle.index)
+                return h.at;
+        return to;
+    };
+    // Each axis by the secant: where the handle lands moves nearly in proportion to where it is aimed.
+    const auto secant = [](qreal aim, qreal was, qreal miss, qreal missed) {
+        return std::abs(missed - miss) > k_warpDragSlack ? aim + miss * (aim - was) / (missed - miss) : aim + miss;
+    };
+    const QList<ShapeNode> from = warpCurve(w.text);
+    QPointF                aim  = to, was, missed;
+    Words                  out  = w;
+    for (int pass = 0; pass < k_warpDragPasses; ++pass) {
+        out.text.warp = together ? Bezier::withNodesMoved(from, k_warpRules, box, picked, aim - handle.at)
+                                 : Bezier::dragged(from, k_warpRules, box, part, handle.index, aim);
+        const QPointF miss = to - drawnAt(out.text.warp);
+        if (std::abs(miss.x()) <= k_warpDragSlack && std::abs(miss.y()) <= k_warpDragSlack)
+            break;
+        const QPointF next = pass == 0 ? aim + miss
+                                       : QPointF(secant(aim.x(), was.x(), miss.x(), missed.x()),
+                                                 secant(aim.y(), was.y(), miss.y(), missed.y()));
+        was    = aim;
+        missed = miss;
+        aim    = next;
+    }
+    if (out.text.warp == straightWarp(out.text.vertical))
+        out.text.warp.clear();   // straight again: no warp
+    return out;
 }
 
 }  // namespace Geometry

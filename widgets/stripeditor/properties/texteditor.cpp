@@ -252,8 +252,10 @@ TextEditor::TextEditor(QWidget* parent)
     form->addRow(tr("Vertical"), m_valign);
 
     m_warp = new QCheckBox(tr("Warp"), this);
-    m_warp->setToolTip(tr("Bend the whole lettering along a curve, its nodes edited on the strip. On, it starts\n"
-                          "straight through the middle of the text, which bends nothing."));
+    // The words' state, not a switch: a warp is made on the strip, by bending the curve edit mode offers.
+    m_warp->setEnabled(false);
+    m_warp->setToolTip(tr("Whether the lettering is bent along a curve. Double-click the text to edit it: drag\n"
+                          "the curve through its middle to bend it, double-click a node to straighten it."));
     form->addRow(QString(), m_warp);
 
     // The letters' paint: a colour, or a halftone over it.
@@ -376,15 +378,6 @@ TextEditor::TextEditor(QWidget* parent)
         m_mixedDirection   = false;
         rowChanged();
     });
-    connect(m_warp, &QCheckBox::toggled, this, [this](bool on) {
-        if (m_populating)
-            return;
-        m_warp->setTristate(false);
-        m_values.warp = on ? Geometry::straightWarp(m_values.vertical) : QList<ShapeNode>();
-        m_warpTouched = true;
-        m_mixedWarp   = false;
-        rowChanged();
-    });
     connect(m_valign, &QComboBox::currentIndexChanged, this, [this](int i) {
         if (m_populating || i < 0)
             return;
@@ -442,7 +435,7 @@ void TextEditor::bind(const Subjects& subjects)
         m_anyOutline       = m_anyOutline       || t.outlineWidth > 0.0;
     }
     m_familyTouched = m_sizeTouched = m_boldTouched = m_italicTouched = m_alignTouched = m_valignTouched = false;
-    m_lineSpacingTouched = m_letterSpacingTouched = m_kerningTouched = m_directionTouched = m_warpTouched = false;
+    m_lineSpacingTouched = m_letterSpacingTouched = m_kerningTouched = m_directionTouched = false;
 
     syncFromValues();
     showSelection();   // letters still selected in the box are the rows' subject again, after a rebinding
@@ -492,11 +485,6 @@ void TextEditor::applyEdited(TextProperties& t) const
     if (m_letterSpacingTouched) t.letterSpacing = m_values.letterSpacing;
     if (m_kerningTouched) t.kerning = m_values.kerning;
     if (m_directionTouched) setDirection(t, directionOf(m_values));
-    // Switched on for a set, each keeps a curve it has, and the others start straight.
-    if (m_warpTouched && m_values.warp.isEmpty())
-        t.warp.clear();
-    else if (m_warpTouched && t.warp.isEmpty())
-        t.warp = Geometry::straightWarp(t.vertical);
     m_outlineWidth.applyEdited(m_values, t);
     m_outline.applyEdited(m_values, t);
     m_shadow.applyEdited(m_values, t);

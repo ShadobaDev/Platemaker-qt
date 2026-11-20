@@ -6,6 +6,8 @@
 #include "objectparts.hpp"
 #include "geometry.hpp"
 
+#include <QFontMetricsF>
+
 namespace {
 
 //! Two lines of one I each, the second a tenth of a line under the first: over it, so the block's middle
@@ -144,4 +146,27 @@ TEST(Lettering, LineSpacingIsBetweenLinesOnly)
     // Centred, the letters stay centred: the lines open both ways from the middle one.
     const auto middle = [](const Composition& c) { return Geometry::textOutline(c, *wordsOf(c)).boundingRect().center().y(); };
     EXPECT_NEAR(middle(spaced), middle(plain), k_layoutPx);
+}
+
+TEST(Lettering, KerningOffSetsEachLetterByItsOwnAdvance)
+{
+    // Whatever the font kerns, with kerning off a line is its letters' advances end to end; on, what the font says
+    // the pairs make. "AVATAR" has pairs most faces kern; a face that kerns none passes both.
+    Composition a         = textObject(QSize(800, 200));
+    textOf(a).body        = QStringLiteral("AVATAR");
+    textOf(a).pixelSize   = 60;
+    QFont font;
+    font.setPixelSize(textOf(a).pixelSize);
+
+    textOf(a).kerning = false;
+    font.setKerning(false);
+    qreal apart = 0.0;
+    for (const QChar ch : textOf(a).body)
+        apart += QFontMetricsF(font).horizontalAdvance(ch);
+    EXPECT_NEAR(Geometry::textBlockSize(*wordsOf(a)).width(), apart, k_layoutPx);
+
+    textOf(a).kerning = true;
+    font.setKerning(true);
+    EXPECT_NEAR(Geometry::textBlockSize(*wordsOf(a)).width(), QFontMetricsF(font).horizontalAdvance(textOf(a).body),
+                k_layoutPx);
 }

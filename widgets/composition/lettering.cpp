@@ -137,6 +137,7 @@ void layOutText(QTextDocument& doc, const TextProperties& t, qreal width)
     f.setBold(t.bold);
     f.setItalic(t.italic);
     setSpacing(f, t.letterSpacing);
+    f.setKerning(t.kerning);
 
     QTextOption opt;
     opt.setAlignment(static_cast<Qt::Alignment>(t.align));
@@ -167,6 +168,7 @@ void layOutText(QTextDocument& doc, const TextProperties& t, qreal width)
             font.setPixelSize(f.pixelSize());
             font.setBold(f.bold());
             font.setItalic(f.italic());
+            font.setKerning(f.kerning());   // the words' alone: a run does not set it
         }
         if (r.pixelSize)
             font.setPixelSize(qMax(1, *r.pixelSize));

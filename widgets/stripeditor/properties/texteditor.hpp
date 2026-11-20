@@ -114,6 +114,7 @@ private:
     QComboBox*      m_valign = nullptr;
     QSpinBox*       m_lineSpacing = nullptr;
     QSpinBox*       m_letterSpacing = nullptr;
+    QCheckBox*      m_kerning = nullptr;
     PaintRows<TextProperties> m_fill;           //!< The letters' paint.
     FieldRows<TextProperties> m_outlineWidth;   //!< The letters' outline; 0 is none.
     PaintRows<TextProperties> m_outline;        //!< ...and its paint.
@@ -153,6 +154,8 @@ private:
     bool m_lineSpacingTouched = false;
     bool m_mixedLetterSpacing   = false;
     bool m_letterSpacingTouched = false;
+    bool m_mixedKerning         = false;
+    bool m_kerningTouched       = false;
     bool m_anyOutline         = false;  //!< Whether anything bound has an outline (showOutline()).
 };
 

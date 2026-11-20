@@ -1093,6 +1093,8 @@ struct TextProperties
      * and a run in a larger size gets more. 0 is the font's own; negative sets them closer, onto each other.
      */
     int     letterSpacing = 0;
+    //! Pairs set as the font's own kerning says, as they are by default; off, each letter by its own advance.
+    bool    kerning = true;
     /**
      * @name The outline: a band round each letter, outside it, so the letterform keeps the
      * weight its typeface gives it — the glyphs stroked at twice the width, then filled over. Painted
@@ -1130,6 +1132,7 @@ struct TextProperties
         v("valign",      &TextProperties::valign);
         v("lineSpacing", &TextProperties::lineSpacing);
         v("letterSpacing", &TextProperties::letterSpacing);
+        v("kerning",       &TextProperties::kerning);
         // The colour keeps the key it had as a plain colour; a pattern does not fade here.
         static constexpr const char* k_fill[] = {
             "textColour", "textKind", "textSecond", "textSpacing", "textSize", "textAngle",

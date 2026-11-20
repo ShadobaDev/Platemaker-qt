@@ -46,6 +46,7 @@ add_executable(platemaker-gui-tests
     test_lettering.cpp
     test_history.cpp
     test_chain.cpp
+    test_bezier.cpp
     ${CMAKE_SOURCE_DIR}/widgets/composition/names.cpp
     ${CMAKE_SOURCE_DIR}/widgets/composition/composition.cpp
     ${CMAKE_SOURCE_DIR}/widgets/composition/chain.cpp
@@ -53,6 +54,7 @@ add_executable(platemaker-gui-tests
     # rule above still holds — and the import's premise is worth a test of its own.
     ${CMAKE_SOURCE_DIR}/widgets/composition/svg.cpp
     ${CMAKE_SOURCE_DIR}/widgets/composition/shapes.cpp
+    ${CMAKE_SOURCE_DIR}/widgets/composition/bezier.cpp
     ${CMAKE_SOURCE_DIR}/widgets/composition/styles.cpp
     ${CMAKE_SOURCE_DIR}/widgets/composition/edgewalk.cpp
     ${CMAKE_SOURCE_DIR}/widgets/composition/outline.cpp

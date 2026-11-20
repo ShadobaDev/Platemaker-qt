@@ -126,6 +126,7 @@ qt_add_executable(Platemaker
     widgets/composition/geometry.hpp
     widgets/composition/handles.cpp widgets/composition/handles.hpp
     widgets/composition/shapes.cpp widgets/composition/shapes.hpp
+    widgets/composition/bezier.cpp widgets/composition/bezier.hpp
     widgets/composition/styles.cpp widgets/composition/styles.hpp
     widgets/composition/edgewalk.cpp widgets/composition/edgewalk.hpp
     widgets/composition/outline.cpp widgets/composition/outline.hpp

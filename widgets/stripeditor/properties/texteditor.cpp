@@ -30,6 +30,20 @@ namespace {
 //! Lines of lettering the box asks room for; it grows past them when the panel has room to spare.
 constexpr int k_bodyLines = 4;
 
+//! The Direction combo's entries: TextProperties::vertical and columnsLeft as one choice.
+enum Direction { Across, DownColumnsRight, DownColumnsLeft };
+
+Direction directionOf(const TextProperties& t)
+{
+    return !t.vertical ? Across : t.columnsLeft ? DownColumnsLeft : DownColumnsRight;
+}
+
+void setDirection(TextProperties& t, int d)
+{
+    t.vertical    = d != Across;
+    t.columnsLeft = d == DownColumnsLeft;
+}
+
 /**
  * \brief The lettering box, asking for a few lines' height rather than Qt's 192 px.
  *
@@ -217,6 +231,13 @@ TextEditor::TextEditor(QWidget* parent)
                              "its own width: for a font whose kerning is poor."));
     form->addRow(QString(), m_kerning);
 
+    m_direction = new QComboBox(this);
+    m_direction->addItem(tr("Across"), int(Across));
+    m_direction->addItem(tr("Down, columns to the right"), int(DownColumnsRight));
+    m_direction->addItem(tr("Down, columns to the left"), int(DownColumnsLeft));
+    m_direction->setToolTip(tr("Lines across, or each line a column, its letters upright one under the other."));
+    form->addRow(tr("Direction"), m_direction);
+
     m_align = new QComboBox(this);
     m_align->addItem(tr("Centre"), int(Qt::AlignHCenter));
     m_align->addItem(tr("Left"),   int(Qt::AlignLeft));
@@ -342,6 +363,14 @@ TextEditor::TextEditor(QWidget* parent)
         m_mixedAlign   = false;
         rowChanged();
     });
+    connect(m_direction, &QComboBox::currentIndexChanged, this, [this](int i) {
+        if (m_populating || i < 0)
+            return;
+        setDirection(m_values, m_direction->currentData().toInt());
+        m_directionTouched = true;
+        m_mixedDirection   = false;
+        rowChanged();
+    });
     connect(m_valign, &QComboBox::currentIndexChanged, this, [this](int i) {
         if (m_populating || i < 0)
             return;
@@ -371,7 +400,7 @@ void TextEditor::bind(const Subjects& subjects)
     m_atCaret   = false;
 
     m_mixedFamily = m_mixedSize = m_mixedBold = m_mixedItalic = m_mixedAlign = m_mixedValign = false;
-    m_mixedLineSpacing = m_mixedLetterSpacing = m_mixedKerning = false;
+    m_mixedLineSpacing = m_mixedLetterSpacing = m_mixedKerning = m_mixedDirection = false;
     m_fill.reset();
     m_leastSize = m_greatestSize = m_values.pixelSize;
     m_outlineWidth.reset();
@@ -391,13 +420,14 @@ void TextEditor::bind(const Subjects& subjects)
         m_mixedLineSpacing = m_mixedLineSpacing || t.lineSpacing != m_values.lineSpacing;
         m_mixedLetterSpacing = m_mixedLetterSpacing || t.letterSpacing != m_values.letterSpacing;
         m_mixedKerning       = m_mixedKerning || t.kerning != m_values.kerning;
+        m_mixedDirection     = m_mixedDirection || directionOf(t) != directionOf(m_values);
         m_outlineWidth.compare(t, m_values);
         m_outline.compare(t, m_values);
         m_shadow.compare(t, m_values);
         m_anyOutline       = m_anyOutline       || t.outlineWidth > 0.0;
     }
     m_familyTouched = m_sizeTouched = m_boldTouched = m_italicTouched = m_alignTouched = m_valignTouched = false;
-    m_lineSpacingTouched = m_letterSpacingTouched = m_kerningTouched = false;
+    m_lineSpacingTouched = m_letterSpacingTouched = m_kerningTouched = m_directionTouched = false;
 
     syncFromValues();
     showSelection();   // letters still selected in the box are the rows' subject again, after a rebinding
@@ -446,6 +476,7 @@ void TextEditor::applyEdited(TextProperties& t) const
     if (m_lineSpacingTouched) t.lineSpacing = m_values.lineSpacing;
     if (m_letterSpacingTouched) t.letterSpacing = m_values.letterSpacing;
     if (m_kerningTouched) t.kerning = m_values.kerning;
+    if (m_directionTouched) setDirection(t, directionOf(m_values));
     m_outlineWidth.applyEdited(m_values, t);
     m_outline.applyEdited(m_values, t);
     m_shadow.applyEdited(m_values, t);
@@ -520,6 +551,7 @@ void TextEditor::syncFromValues(bool box)
     showCheck(m_bold, m_mixedBold, m_values.bold);
     showCheck(m_italic, m_mixedItalic, m_values.italic);
     showCheck(m_kerning, m_mixedKerning, m_values.kerning);
+    showCombo(m_direction, m_mixedDirection, m_direction->findData(int(directionOf(m_values))));
     showCombo(m_align, m_mixedAlign, m_align->findData(m_values.align));
     showCombo(m_valign, m_mixedValign, m_valign->findData(m_values.valign));
     m_fill.show(m_values);
@@ -780,6 +812,7 @@ void TextEditor::updateRows()
     m_form->setRowVisible(m_lineSpacing, shows(Row::TextSpacing));
     m_form->setRowVisible(m_letterSpacing, shows(Row::TextSpacing));
     m_form->setRowVisible(m_kerning, shows(Row::TextSpacing));
+    m_form->setRowVisible(m_direction, shows(Row::TextAlign));
     m_form->setRowVisible(m_align, shows(Row::TextAlign));
     m_form->setRowVisible(m_valign, shows(Row::TextAlign));
     m_fill.setParts(shows(Row::TextColour), shows(Row::TextPattern));

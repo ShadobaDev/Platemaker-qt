@@ -110,6 +110,7 @@ private:
     MixedSpinBox*   m_size   = nullptr;
     QCheckBox*      m_bold   = nullptr;
     QCheckBox*      m_italic = nullptr;
+    QComboBox*      m_direction = nullptr;   //!< TextProperties::vertical and columnsLeft as one choice.
     QComboBox*      m_align  = nullptr;
     QComboBox*      m_valign = nullptr;
     QSpinBox*       m_lineSpacing = nullptr;
@@ -156,6 +157,8 @@ private:
     bool m_letterSpacingTouched = false;
     bool m_mixedKerning         = false;
     bool m_kerningTouched       = false;
+    bool m_mixedDirection       = false;
+    bool m_directionTouched     = false;
     bool m_anyOutline         = false;  //!< Whether anything bound has an outline (showOutline()).
 };
 

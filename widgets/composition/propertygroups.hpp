@@ -1096,6 +1096,14 @@ struct TextProperties
     //! Pairs set as the font's own kerning says, as they are by default; off, each letter by its own advance.
     bool    kerning = true;
     /**
+     * Set down in columns, not across in lines: each line typed is a column, its letters upright one under the other,
+     * an em of their font apart plus the letter spacing; the columns lineSpacing per cent of their line's height
+     * apart. valign then places each column in the block, as align places each line across.
+     */
+    bool    vertical = false;
+    //! The columns follow each other to the left (as manga's do), not to the right; with vertical alone.
+    bool    columnsLeft = false;
+    /**
      * @name The outline: a band round each letter, outside it, so the letterform keeps the
      * weight its typeface gives it — the glyphs stroked at twice the width, then filled over. Painted
      * with a colour, or a halftone of a second over it. In strip pixels; 0 is none, the default.
@@ -1133,6 +1141,8 @@ struct TextProperties
         v("lineSpacing", &TextProperties::lineSpacing);
         v("letterSpacing", &TextProperties::letterSpacing);
         v("kerning",       &TextProperties::kerning);
+        v("vertical",      &TextProperties::vertical);
+        v("columnsLeft",   &TextProperties::columnsLeft);
         // The colour keeps the key it had as a plain colour; a pattern does not fade here.
         static constexpr const char* k_fill[] = {
             "textColour", "textKind", "textSecond", "textSpacing", "textSize", "textAngle",

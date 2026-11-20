@@ -136,6 +136,8 @@ Composition loadedBalloon()
     textOf(a).lineSpacing = 85;
     textOf(a).letterSpacing = -35;
     textOf(a).kerning       = false;
+    textOf(a).vertical      = true;
+    textOf(a).columnsLeft   = true;
     textOf(a).outline.colour  = QColor(21, 22, 23);
     textOf(a).outline.kind    = Paint::Kind::Dots;
     textOf(a).outline.second  = QColor(24, 25, 26);
@@ -235,7 +237,7 @@ static_assert(sizeof(StyleProperties) == sizeof(StyleMirror),
 // italic and runs are set in RoundTrips, not in loadedBalloon(): the golden cases are built from it, and a lettering
 // with neither is saved as it always was.
 struct TextMirror { QString body, family; int pixelSize; bool bold, italic; int align, valign; Paint fill; int lineSpacing;
-                    int letterSpacing; bool kerning; Paint outline; qreal outlineWidth; Shadow shadow; Paint shadowFill; QList<TextRun> runs; };
+                    int letterSpacing; bool kerning; bool vertical; bool columnsLeft; Paint outline; qreal outlineWidth; Shadow shadow; Paint shadowFill; QList<TextRun> runs; };
 static_assert(sizeof(TextProperties) == sizeof(TextMirror),
               "TextProperties grew a field: place it (see above), then mirror it");
 

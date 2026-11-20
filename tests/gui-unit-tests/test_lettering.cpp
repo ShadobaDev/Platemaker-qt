@@ -170,3 +170,107 @@ TEST(Lettering, KerningOffSetsEachLetterByItsOwnAdvance)
     EXPECT_NEAR(Geometry::textBlockSize(*wordsOf(a)).width(), QFontMetricsF(font).horizontalAdvance(textOf(a).body),
                 k_layoutPx);
 }
+
+namespace {
+
+//! Lettering set down in columns (TextProperties::vertical), @p pixelSize letters, in a box that holds it.
+Composition columns(const QString& body, int pixelSize = 50)
+{
+    Composition a       = textObject(QSize(600, 600));
+    textOf(a).body      = body;
+    textOf(a).pixelSize = pixelSize;
+    textOf(a).vertical  = true;
+    return a;
+}
+
+//! The middle across of a run's letters (the run's fill, TextFills key 0) and of all the letters.
+std::pair<qreal, qreal> runAndAll(const Composition& c)
+{
+    return {Geometry::textFills(c, *wordsOf(c)).value(0).boundingRect().center().x(),
+            Geometry::textOutline(c, *wordsOf(c)).boundingRect().center().x()};
+}
+
+//! A run over @p length letters from @p from, with a fill of its own, so its letters can be told apart.
+TextRun filledRun(int from, int length)
+{
+    TextRun run;
+    run.from   = from;
+    run.length = length;
+    run.fill   = Paint{QColor(200, 0, 0), QColor(255, 255, 255)};
+    return run;
+}
+
+} // namespace
+
+TEST(Lettering, AColumnIsItsLettersEmsAndTheSpacingBetween)
+{
+    // Four letters and a space: five cells an em tall, the spacing between them, none after the last.
+    Composition a           = columns(QStringLiteral("HH HH"));
+    textOf(a).letterSpacing = k_tenthEm;
+    const qreal em          = textOf(a).pixelSize;
+    EXPECT_NEAR(Geometry::textBlockSize(*wordsOf(a)).height(), 5 * em + 4 * em * k_tenthEm / k_perEm, k_layoutPx);
+
+    // A run's letters are cells of their own size.
+    TextRun run;
+    run.from      = 0;
+    run.length    = 1;
+    run.pixelSize = 2 * textOf(a).pixelSize;
+    textOf(a).runs = {run};
+    textOf(a).letterSpacing = 0;
+    EXPECT_NEAR(Geometry::textBlockSize(*wordsOf(a)).height(), 6 * em, k_layoutPx);
+}
+
+TEST(Lettering, ColumnsAreALinesHeightThickAndLineSpacingApart)
+{
+    Composition a = columns(QStringLiteral("HH\nHH"));
+    QFont       font;
+    font.setPixelSize(textOf(a).pixelSize);
+    const qreal thickness = QFontMetricsF(font).height();
+    EXPECT_NEAR(Geometry::textBlockSize(*wordsOf(a)).width(), 2 * thickness, k_layoutPx);
+
+    // One gap between two columns grows; nothing beyond them.
+    textOf(a).lineSpacing = k_wider;
+    EXPECT_NEAR(Geometry::textBlockSize(*wordsOf(a)).width(), 2 * thickness + thickness * (k_wider / k_perCent - 1.0),
+                k_layoutPx);
+}
+
+TEST(Lettering, ColumnsFollowEachOtherRightOrLeft)
+{
+    // The first line's letters, a run's, are the first column: on the left, or with columns to the left on the right.
+    Composition a  = columns(QStringLiteral("HH\nHH"));
+    textOf(a).runs = {filledRun(0, 2)};
+    const auto [right, rightAll] = runAndAll(a);
+    EXPECT_LT(right, rightAll);
+    textOf(a).columnsLeft      = true;
+    const auto [left, leftAll] = runAndAll(a);
+    EXPECT_GT(left, leftAll);
+    EXPECT_NEAR(left - leftAll, rightAll - right, k_layoutPx) << "the columns mirror each other";
+}
+
+TEST(Lettering, ValignPlacesEachColumnInTheBlock)
+{
+    // A short column beside a long one: its letters at the top of the block, or at its foot, as the long one's are.
+    Composition a  = columns(QStringLiteral("H\nHHHH"));
+    textOf(a).runs = {filledRun(0, 1)};
+    const auto ends = [](const Composition& c) {
+        const QRectF shortOne = Geometry::textFills(c, *wordsOf(c)).value(0).boundingRect();
+        const QRectF all      = Geometry::textOutline(c, *wordsOf(c)).boundingRect();
+        return std::pair{shortOne, all};
+    };
+    textOf(a).valign = Qt::AlignTop;
+    const auto [top, topAll] = ends(a);
+    EXPECT_NEAR(top.top(), topAll.top(), k_layoutPx);
+    textOf(a).valign = Qt::AlignBottom;
+    const auto [foot, footAll] = ends(a);
+    EXPECT_NEAR(foot.bottom(), footAll.bottom(), k_layoutPx);
+}
+
+TEST(Lettering, FitToTextHoldsAColumn)
+{
+    Composition a = columns(QStringLiteral("HHHHHHHH\nHH"));
+    resize(a, QSize(100, 100));
+    ASSERT_TRUE(Geometry::textOverflows(a, *wordsOf(a)));
+    resize(a, Geometry::fittedBox(a));
+    EXPECT_FALSE(Geometry::textOverflows(a, *wordsOf(a)));
+    EXPECT_GT(sizeOf(a).height(), sizeOf(a).width()) << "a tall column, two columns wide";
+}

@@ -10,8 +10,10 @@
 #include <QFont>
 #include <QFontDatabase>
 #include <QFontInfo>
+#include <QFontMetricsF>
 #include <QTextBlock>
 #include <QTextBlockFormat>
+#include <QTextBoundaryFinder>
 #include <QTextCursor>
 #include <QTextDocument>
 #include <QTextFragment>
@@ -56,6 +58,10 @@ constexpr int   k_runProperty   = QTextFormat::UserProperty;
  *  What TextProperties::letterSpacing is counted in: thousandths of an em.
  */
 constexpr qreal k_perEm         = 1000.0;
+/**
+ *  What TextProperties::lineSpacing is counted in: per cent of the font's own.
+ */
+constexpr qreal k_perCent       = 100.0;
 
 //! @p font given @p spacing (TextProperties::letterSpacing) at its own size: pixels between letters.
 void setSpacing(QFont& font, int spacing)
@@ -98,16 +104,20 @@ QPointF alignedPoint(const Composition& c, const Words& w)
             (v & Qt::AlignTop) ? frame.top() : (v & Qt::AlignBottom) ? frame.bottom() : frame.center().y()};
 }
 
+//! The share of a span before the point it is aligned to: none from a start, all of it to an end, half to a middle.
+qreal shareBefore(bool start, bool end)
+{
+    return start ? 0.0 : end ? 1.0 : 0.5;
+}
+
 //! The block laid in @p w's frame, as blockRect() says: aligned to it on both axes.
 QRectF placedBlock(const Composition& c, const Words& w, const QSizeF& block)
 {
     const QPointF p = alignedPoint(c, w);
     const int     h = w.text.align & Qt::AlignHorizontal_Mask;
     const int     v = w.text.valign & Qt::AlignVertical_Mask;
-    // The share of the block before the aligned point: none from a left or top, all of it to a right or bottom.
-    const auto before = [](bool start, bool end) { return start ? 0.0 : end ? 1.0 : 0.5; };
-    return QRectF(QPointF(p.x() - before(h & Qt::AlignLeft, h & Qt::AlignRight) * block.width(),
-                          p.y() - before(v & Qt::AlignTop, v & Qt::AlignBottom) * block.height()),
+    return QRectF(QPointF(p.x() - shareBefore(h & Qt::AlignLeft, h & Qt::AlignRight) * block.width(),
+                          p.y() - shareBefore(v & Qt::AlignTop, v & Qt::AlignBottom) * block.height()),
                   block);
 }
 
@@ -293,6 +303,111 @@ struct Layout
 };
 
 /**
+ * \brief How tall @p metrics' font sets a capital: its H's outline, measured, as a face's own cap height may be
+ *        missing or wrong (one comic face says 0.7 em, and sets its H 1.12 em tall).
+ */
+qreal capitalHeight(const QFontMetricsF& metrics)
+{
+    return metrics.tightBoundingRect(QStringLiteral("H")).height();
+}
+
+/**
+ * \brief @p t set down in columns (TextProperties::vertical): each line typed a column, the first on the left (or on
+ *        the right, TextProperties::columnsLeft), each letter upright in its own font (a run's or the words').
+ *
+ * Qt lays text across only, so the columns are laid here; the document still says which font each letter is in. A
+ * letter's cell is an em of its font tall, the letter spacing between two cells (after each but the last, as across);
+ * in it the letter sits centred across the column by its advance, and up and down so its font's capitals are centred
+ * in the cell: every letter of a font on one baseline, a descender below it.
+ * A space is a cell of nothing, an empty line a column of none. A column is as thick as a line of its letters would be
+ * tall (the words' font for an empty one), and the columns lineSpacing per cent of that apart, middle to middle: at
+ * 100 % they touch, as lines do. Each column is placed up and down in the block by valign.
+ */
+Layout laidOutDown(const TextProperties& t)
+{
+    QTextDocument doc;
+    layOutText(doc, t, 1);
+    const QFont words = doc.defaultFont();
+
+    struct Cell
+    {
+        QFont   font;
+        QString text;
+        int     run;
+    };
+    struct Column
+    {
+        QList<Cell> cells;
+        qreal       length    = 0.0;   //!< Top of the first cell to the foot of the last.
+        qreal       thickness = 0.0;
+    };
+    QList<Column> columns;
+    for (QTextBlock b = doc.begin(); b.isValid(); b = b.next()) {
+        const QString text = b.text();
+        QList<QFont>  fontAt(text.size(), words);
+        QList<int>    runAt(text.size(), -1);
+        for (QTextBlock::iterator it = b.begin(); !it.atEnd(); ++it) {
+            const QTextFragment   fragment = it.fragment();
+            const QTextCharFormat format   = fragment.charFormat();
+            if (!format.hasProperty(k_runProperty))
+                continue;
+            const int from = fragment.position() - b.position();
+            for (int i = from; i < from + fragment.length() && i < text.size(); ++i) {
+                fontAt[i] = format.font();
+                runAt[i]  = format.property(k_runProperty).toInt();
+            }
+        }
+        Column             column;
+        QTextBoundaryFinder graphemes(QTextBoundaryFinder::Grapheme, text);
+        for (int from = 0, to = graphemes.toNextBoundary(); to > from; from = to, to = graphemes.toNextBoundary()) {
+            const QFont& font = fontAt.at(from);
+            if (!column.cells.isEmpty())
+                column.length += column.cells.constLast().font.letterSpacing();
+            column.cells.append({font, text.mid(from, to - from), runAt.at(from)});
+            column.length   += font.pixelSize();
+            column.thickness = qMax(column.thickness, QFontMetricsF(font).height());
+        }
+        if (column.cells.isEmpty())
+            column.thickness = QFontMetricsF(words).height();
+        columns.append(column);
+    }
+
+    Layout out;
+    // The middle of each column from the block's first side, and the block's width and height.
+    QList<qreal> middles;
+    qreal        across = 0.0;
+    for (qsizetype i = 0; i < columns.size(); ++i) {
+        across += i == 0 ? columns[i].thickness / 2.0
+                         : (columns[i - 1].thickness + columns[i].thickness) / 2.0 * t.lineSpacing / k_perCent;
+        middles.append(across);
+        out.block.setHeight(qMax(out.block.height(), columns[i].length));
+    }
+    out.block.setWidth(columns.isEmpty() ? 0.0 : across + columns.constLast().thickness / 2.0);
+
+    const int   v      = t.valign & Qt::AlignVertical_Mask;
+    const qreal before = shareBefore(v & Qt::AlignTop, v & Qt::AlignBottom);
+    for (qsizetype i = 0; i < columns.size(); ++i) {
+        const Column& column = columns[i];
+        const qreal   middle = t.columnsLeft ? out.block.width() - middles[i] : middles[i];
+        qreal         top    = before * (out.block.height() - column.length);
+        for (const Cell& cell : column.cells) {
+            const qreal em = cell.font.pixelSize();
+            if (!cell.text.trimmed().isEmpty()) {
+                QFont plain = cell.font;   // the advance without the spacing after it
+                plain.setLetterSpacing(QFont::AbsoluteSpacing, 0.0);
+                const QFontMetricsF metrics(plain);
+                out.pieces.append({cell.font, cell.text,
+                                   QPointF(middle - metrics.horizontalAdvance(cell.text) / 2.0,
+                                           top + (em + capitalHeight(metrics)) / 2.0),
+                                   cell.run});
+            }
+            top += em + cell.font.letterSpacing();
+        }
+    }
+    return out;
+}
+
+/**
  * \brief @p t laid out: each line, or with runs each fragment of a line, in its font, where the layout put it and
  *        aligned in the block by its letters (alignedShift()). A line or fragment of spaces alone is no piece.
  *
@@ -302,6 +417,8 @@ struct Layout
  */
 Layout laidOut(const TextProperties& t)
 {
+    if (t.vertical)
+        return laidOutDown(t);
     QTextDocument doc;
     layOutText(doc, t, 1);
     layOutText(doc, t, doc.idealWidth());
@@ -390,13 +507,19 @@ QPainterPath letters(const Composition& c, const Words& w, TextFills* fills)
 
     // The frame is the clip, so an overlong line cannot bleed past its sides. Not up and down: lines the frame
     // has no room for go on past it, away from the side they are aligned to, never cut, and the red text area
-    // says so. A text object keeps its box as it was.
+    // says so. Columns turn it: an overlong column is cut at the top and bottom, and columns go on past the
+    // sides. A text object keeps its box as it was.
     // Intersecting keeps that in vector form, so it survives into the SVG.
     QRectF open = safe;
     if (seated(c, w)) {
         const QRectF drawn = out.boundingRect();
-        open.setTop(qMin(safe.top(), drawn.top()));
-        open.setBottom(qMax(safe.bottom(), drawn.bottom()));
+        if (w.text.vertical) {
+            open.setLeft(qMin(safe.left(), drawn.left()));
+            open.setRight(qMax(safe.right(), drawn.right()));
+        } else {
+            open.setTop(qMin(safe.top(), drawn.top()));
+            open.setBottom(qMax(safe.bottom(), drawn.bottom()));
+        }
     }
     QPainterPath clip;
     clip.addRect(open);

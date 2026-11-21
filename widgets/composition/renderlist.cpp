@@ -174,6 +174,8 @@ List balloon(const Balloon& b, quint32 seed, const QPainterPath& silhouette)
     Item inkItem;
     inkItem.path = ink;
     inkItem.fill = strokeInk;
+    // In pieces, as marks are, where its strokes allow it and its paint is a colour (marks are filled in one).
+    inkItem.marks = line.apart && b.style.line.stroke.kind == Paint::Kind::Solid;
 
     // **Rough, in parts.** The filter moves every pixel it is given, so over the whole balloon a fill's
     // pattern wobbles with the outline. Unless the artist asks for that (`rough.fill`), the balloon is drawn in

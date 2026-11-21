@@ -19,6 +19,7 @@
 #include <type_traits>
 
 #include <QFile>
+#include <QPainter>
 #include <QTemporaryDir>
 #include <QJsonArray>
 #include <QJsonDocument>
@@ -34,6 +35,8 @@
 #include "objectparts.hpp"
 #include "names.hpp"
 #include "composition.hpp"
+#include "painter.hpp"
+#include "renderlist.hpp"
 
 namespace {
 
@@ -1403,6 +1406,101 @@ TEST(Style, ABrushNeverLeavesTheEdgeBare)
                     bare += ink.contains(ring[i] + (ring[i + 1] - ring[i]) * (s / len)) ? 0 : 1;
             }
         EXPECT_EQ(bare, 0) << "seed " << seed;
+    }
+}
+
+namespace {
+
+/**
+ * \brief @p marks painted as the strip editor paints marks (Painter::fillMarks(): dots stamped, the rest in
+ *        pieces) look as the same path filled whole by the nonzero rule: alike on average, and few pixels far
+ *        apart, at a zoom.
+ */
+void expectPaintedAsItsPath(const QPainterPath& marks)
+{
+    constexpr qreal k_zoom      = 2.0;
+    constexpr qreal k_meanAlpha = 4.0;     // of 255, over the whole picture
+    constexpr int   k_farAlpha  = 64;      // a pixel this far apart counts...
+    constexpr qreal k_farShare  = 0.005;   // ...and so many of them may be
+    Render::Item item;
+    item.path    = marks;
+    item.fill    = Render::colourInk(Qt::black);
+    item.nonzero = true;
+    item.marks   = true;
+    const QRectF area    = marks.boundingRect();
+    const auto   picture = [&](const std::function<void(QPainter&)>& draw) {
+        QImage img((area.size() * k_zoom).toSize() + QSize(2, 2), QImage::Format_ARGB32_Premultiplied);
+        img.fill(Qt::transparent);
+        QPainter painter(&img);
+        painter.setRenderHint(QPainter::Antialiasing, true);
+        painter.scale(k_zoom, k_zoom);
+        painter.translate(-area.topLeft());
+        draw(painter);
+        return img;
+    };
+    const QImage painted = picture([&](QPainter& painter) { Painter::play(painter, {item}); });
+    QPainterPath whole   = marks;
+    whole.setFillRule(Qt::WindingFill);
+    const QImage path = picture([&](QPainter& painter) { painter.fillPath(whole, Qt::black); });
+
+    qint64 sum = 0;
+    int    far = 0;
+    for (int y = 0; y < path.height(); ++y)
+        for (int x = 0; x < path.width(); ++x) {
+            const int d = std::abs(qAlpha(path.pixel(x, y)) - qAlpha(painted.pixel(x, y)));
+            sum += d;
+            far += d > k_farAlpha ? 1 : 0;
+        }
+    const qreal pixels = qreal(path.width()) * path.height();
+    EXPECT_LT(sum / pixels, k_meanAlpha);
+    EXPECT_LT(far / pixels, k_farShare);
+}
+
+}  // namespace
+
+/**
+ * \brief A fading halftone's marks paint as their path: dots (stamped) merging on a turned grid, and a grid's
+ *        bars, whose crossings stay inked.
+ */
+TEST(Style, AFadingHalftonePaintsAsItsPath)
+{
+    Paint p;
+    p.colour  = Qt::white;
+    p.second  = Qt::black;
+    p.size    = 7.0;   // over the spacing: the darkest dots merge
+    p.spacing = 6.0;
+    p.angle   = 45.0;
+    // A large area, and one small enough that its marks are filled in one piece, crossings and all.
+    for (const QRectF& area : {QRectF(0, 0, 240, 120), QRectF(0, 0, 30, 20)})
+        for (Paint::Kind kind : {Paint::Kind::Dots, Paint::Kind::Grid}) {
+            SCOPED_TRACE(QStringLiteral("%1 wide, kind %2").arg(area.width()).arg(int(kind)).toStdString());
+            p.kind          = kind;
+            const auto fade = [&](const QPointF& at) { return at.x() / area.width(); };
+            expectPaintedAsItsPath(Geometry::halftoneMarks(p, area, fade, 3.0));
+        }
+}
+
+/**
+ * \brief A line drawn as strokes apart paints as its path, in pieces; a dashed line and a multi-line, whose
+ *        strokes can have holes, are not apart.
+ */
+TEST(Style, ALineOfStrokesApartPaintsAsItsPath)
+{
+    using Line    = StyleProperties::Line;
+    Composition a = balloonObject();
+    shapeOf(a)    = Geometry::shapeTemplate("ellipse").shape;
+    boxOf(a)      = QSize(280, 160);
+    for (Line line : {Line::Flash, Line::Brush, Line::Drybrush, Line::Sketch, Line::Explosion, Line::Dashed,
+                      Line::Multi}) {
+        SCOPED_TRACE(int(line));
+        styleOf(a).line               = line;
+        const QPainterPath silhouette = Geometry::silhouette(*a.balloon, a.seed);
+        const QPainterPath ink        = Geometry::ink(*a.balloon, a.seed, silhouette);
+        ASSERT_FALSE(ink.isEmpty());
+        const bool apart = Geometry::lineInfo(line).apart;
+        EXPECT_EQ(apart, line == Line::Flash || line == Line::Brush);
+        if (apart)
+            expectPaintedAsItsPath(ink);
     }
 }
 

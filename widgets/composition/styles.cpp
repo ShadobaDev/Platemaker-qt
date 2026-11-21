@@ -1477,10 +1477,14 @@ const Fields::RowSpec k_roughRows[] = {
 };
 #undef PM_TR
 
+// Apart (LineInfo::apart): Flash's spikes and Brush's ribbons. Not: a dry brush's core is a band with a hole (and
+// so Explosion's), as are a sketch's strokes, a dash closed round a whole ring, and a multi-line's lines.
 const std::array<LineInfo, int(StyleProperties::k_lastLine) + 1> k_lines{{
     {Line::Clean, "clean", QT_TRANSLATE_NOOP("QObject", "Clean"), nullptr,  nullptr},
-    {Line::Flash, "flash", QT_TRANSLATE_NOOP("QObject", "Flash"), flashInk, flashReach, nullptr, nullptr, {"flash"}},
-    {Line::Brush, "brush", QT_TRANSLATE_NOOP("QObject", "Brush"), brushInk, brushReach, nullptr, nullptr, {"brush"}},
+    {Line::Flash, "flash", QT_TRANSLATE_NOOP("QObject", "Flash"), flashInk, flashReach, nullptr, nullptr, {"flash"},
+     nullptr, true},
+    {Line::Brush, "brush", QT_TRANSLATE_NOOP("QObject", "Brush"), brushInk, brushReach, nullptr, nullptr, {"brush"},
+     nullptr, true},
     {Line::Drybrush, "drybrush", QT_TRANSLATE_NOOP("QObject", "Drybrush"), drybrushInk, drybrushReach, nullptr, nullptr,
      {"drybrush"}},
     {Line::Dashed, "dashed", QT_TRANSLATE_NOOP("QObject", "Dashed"), dashedInk, dashedReach, nullptr, nullptr, {"dash"}},

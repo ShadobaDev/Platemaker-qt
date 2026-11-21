@@ -585,6 +585,58 @@ qreal brushReach(const StyleProperties& s)
 // Drybrush: a thin whole core along the edge, and hairs either side of it that thin out away from it
 // ---------------------------------------------------------------------------
 
+//! How near a corner of a ring a tail's Sharp tip must lie to be that corner, in balloon pixels.
+constexpr qreal   k_tipCorner     = 2.0 * k_cornerProbe;
+
+//! Where along @p ring its tails' Sharp tips are.
+std::vector<qreal> tipsOf(const OutlineRing& ring)
+{
+    std::vector<qreal> out;
+    for (const OutlineEnd& e : ring.ends)
+        if (e.sharp)
+            out.push_back(ring.wrap(e.middle()));
+    return out;
+}
+
+//! Whether @p corner of @p ring is a tail's Sharp tip.
+bool isTip(const OutlineRing& ring, const OutlineCorner& corner)
+{
+    for (qreal tip : tipsOf(ring)) {
+        const qreal d = ring.wrap(corner.at - tip);
+        if (qMin(d, ring.walk.length() - d) <= k_tipCorner)
+            return true;
+    }
+    return false;
+}
+
+/**
+ * \brief How much of a line is left at @p at along @p ring by a tail's Sharp tip (C4): none at the tip, rising evenly
+ *        to all of it where the tail's last segment starts on that side, the corner before the tip (its root, or its
+ *        last break). 1 clear of every tip. A line that runs into a tip narrows by it, so it ends straight and sharp.
+ */
+qreal tipNarrowing(const OutlineRing& ring, qreal at)
+{
+    const qreal length = ring.walk.length();
+    qreal       left   = 1.0;
+    for (qreal tip : tipsOf(ring)) {
+        // The corners nearest the tip either way, the tip's own left out: where its last segments start.
+        qreal before = length, after = length;
+        for (const OutlineCorner& c : ring.corners) {
+            const qreal ahead = ring.wrap(c.at - tip), behind = ring.wrap(tip - c.at);
+            if (qMin(ahead, behind) <= k_tipCorner)
+                continue;
+            after  = qMin(after, ahead);
+            before = qMin(before, behind);
+        }
+        const qreal ahead = ring.wrap(at - tip), behind = ring.wrap(tip - at);
+        if (ahead < after)
+            left = qMin(left, ahead / after);
+        if (behind < before)
+            left = qMin(left, behind / before);
+    }
+    return left;
+}
+
 //! How long one hair or one gap is along the line, in balloon pixels: the noise's span.
 constexpr qreal   k_bristleWave   = 32.0;
 //! A hair's half-width, in lanes: thin, with the dark between them.
@@ -726,7 +778,9 @@ qreal bendFade(const EdgeWalk& edge, qreal at, qreal offset, qreal lane, qreal f
  * side's hairs lie, so the two sides cross in a hatch, narrowing away over that run. At a **concave** one
  * (between a shout's spikes) each runs on straight until it meets the other side's core (its line carried
  * on past the corner), narrowing away just before it (`k_rootTaper`). At a **point** (a convex corner
- * under `k_pointAngle`, a tail's tip) they run into it instead, closing on the core so it ends sharp.
+ * under `k_pointAngle`) they run into it instead, closing on the core so it ends sharp. At a tail's **Sharp
+ * tip** they close on the core evenly over the tail's whole last segment (tipNarrowing()), so they run straight
+ * into it with no turn where the closing starts.
  * Round a **bend** tighter than a hair is far inside the edge (a round tail end), the hair would cross
  * the bend's centre and fold over itself: it fades away there instead, over its last lane before that
  * centre (bendFade()).
@@ -779,8 +833,8 @@ QPainterPath drybrushInk(const StyleProperties& s, const OutlineModel& outline, 
         const auto concave = [&](const OutlineCorner* c) { return c && (c->turn > 0.0) != convexWay; };
         // How far from a point its hairs start closing on it: where the line's two edges meet.
         const auto closing = [&](const OutlineCorner* c) {
-            if (!c || concave(c))
-                return 0.0;
+            if (!c || concave(c) || isTip(ring, *c))
+                return 0.0;   // a tip closes them over its whole last segment instead
             const qreal inner = M_PI - std::abs(c->turn);
             return inner < qDegreesToRadians(k_pointAngle) ? half / std::tan(inner / 2.0) : 0.0;
         };
@@ -852,7 +906,7 @@ QPainterPath drybrushInk(const StyleProperties& s, const OutlineModel& outline, 
                         into = qMin(into, (at - st.from) / closeStart);
                     if (closeEnd > 0.0)
                         into = qMin(into, (st.to - at) / closeEnd);
-                    into = qBound(0.0, into, 1.0);
+                    into = qBound(0.0, qMin(into, tipNarrowing(ring, at)), 1.0);
                     const qreal   c   = (offset + lane * k_bristleWander
                                                 * loopedNoise(seed ^ k_brushStream, wrap(at), length, k_bristleWave)) * into;
                     const QPointF mid = p.at + n * c;
@@ -893,8 +947,8 @@ QPainterPath drybrushInk(const StyleProperties& s, const OutlineModel& outline, 
                 const auto runOn = [&](const Step& from, qreal dir, const OutlineCorner* c, qreal close,
                                        const Root& root) {
                     std::vector<Step> more;
-                    if (!c || close > 0.0 || from.w <= 0.0)
-                        return more;
+                    if (!c || close > 0.0 || from.w <= 0.0 || isTip(ring, *c))
+                        return more;   // into a point, or a tip: nothing runs on past it
                     const QPointF t(from.n.y(), -from.n.x());   // the tangent back from the normal
                     if (root.along >= 0.0) {
                         for (qreal past = k_brushStep; past <= k_rootReach * half; past += k_brushStep) {
@@ -1040,7 +1094,10 @@ QPolygonF blot(const QPointF& at, const QPointF& along, qreal r, qreal length, q
  * At a corner of the outline the pen lifts: the stroke ends there and goes on from it as one of its own. It
  * lifts too where a tail's round end begins and ends, and goes round the end on the outline itself, having
  * lost its stiffness and its offset over k_roundEase of the end's radius before it: straightened, a stroke
- * would leave the half circle; offset inwards past its radius, it would fold over itself.
+ * would leave the half circle; offset inwards past its radius, it would fold over itself. Into a tail's Sharp tip
+ * the strokes run on to the point, their width, offset and stiffness narrowing with the tail as the dry brush's
+ * hairs do (tipNarrowing()), so the tip is drawn by the strokes and not by the outline alone; a stroke is still cut
+ * there, each side straightened along its own way, where it has no width to show the cut.
  *
  * Its width is the pen's pressure (penPressure()), the way it goes on screen (`sketchClockwise`): a short
  * landing, a long lift-off. A stroke is a lap long at most.
@@ -1088,9 +1145,10 @@ QPainterPath sketchInk(const StyleProperties& s, const OutlineModel& outline, qu
                 corners.push_back(wrap(e.from + e.span));
             }
         std::sort(corners.begin(), corners.end());
-        // How much of a stroke's stiffness and offset is left at @p at: none on a round end, all clear of it.
+        // How much of a stroke's stiffness and offset is left at @p at: none on a round end or at a Sharp tip, all
+        // clear of them.
         const auto ease = [&](qreal at) {
-            qreal w = 1.0;
+            qreal w = tipNarrowing(ring, at);
             for (const OutlineEnd& e : ring.ends) {
                 if (!e.round || e.radius <= 0.0)
                     continue;
@@ -1123,7 +1181,7 @@ QPainterPath sketchInk(const StyleProperties& s, const OutlineModel& outline, qu
                 const QPointF bent     = p.at + n * off;
                 const QPointF straight = mid.at + n * off + mid.tangent * (len * (u - 0.5));
                 centre << bent + (straight - bent) * (k * w);
-                widths.push_back(half * penPressure(reversed ? 1.0 - u : u, entry, exit)
+                widths.push_back(half * tipNarrowing(ring, at) * penPressure(reversed ? 1.0 - u : u, entry, exit)
                                  * (1.0 + k_sketchSwell * smoothNoise(seed, at / k_sketchWave)));
             }
             // The ribbon about the stroke's own line, its sides square to the line where it goes.

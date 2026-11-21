@@ -1339,6 +1339,74 @@ TEST(Style, ADashedLineEndsEveryTailInked)
 }
 
 /**
+ * \brief Where a Circles tail's first circle only just meets its bubble, the outline turns almost back on itself at
+ *        the pinch: a brush's or a dash's corner there is bevelled, not mitred into a spike across the gap.
+ *
+ * The author's chain of three ellipses with a Circles tail from two of them, where both lines spiked. Its outline has
+ * no convex corner (ellipses, and the concave ones where parts meet), so a ribbon about it lies within half its width
+ * of it everywhere, give or take the flattening: a spike across a gap does not.
+ */
+TEST(Style, ALineDoesNotSpikeWhereATailOnlyJustTouches)
+{
+    constexpr qreal k_flattening = 1.0;   // how far a flattened outline may be from a true one
+    Composition a = compositionFromJson(QJsonDocument::fromJson(R"({"balloon":{"bodies":[
+        {"id":2,"place":{"pos":[113.63,20.82]},"shape":{"edge":"none","nodes":[],"shape":"ellipse"},"size":[116,97]},
+        {"id":4,"place":{"pos":[180.9,78.6]},"shape":{"edge":"none","nodes":[],"shape":"ellipse"},"size":[112,82]},
+        {"id":8,"place":{"pos":[275.57,24.46]},"shape":{"edge":"none","nodes":[],"shape":"ellipse"},"size":[112,103]}],
+        "id":1,"tails":[
+        {"bend":0,"id":5,"look":{"style":"circles","tip":"sharp"},"root":4,"tip":[230.16,267.55],"width":31},
+        {"bend":0,"id":7,"look":{"style":"plain","tip":"sharp"},"root":2,"tip":[0,0],"to":4,"width":34},
+        {"bend":0,"id":10,"look":{"style":"plain","tip":"sharp"},"root":4,"tip":[0,0],"to":8,"width":34},
+        {"bend":0,"id":13,"look":{"style":"circles","tip":"sharp"},"root":8,"tip":[357.9,277.43],"width":34}],
+        "style":{"line":{"line":"dashed","strokeWidth":5}}},"nextId":14,"seed":0,"words":[]})").object());
+    ASSERT_TRUE(a.balloon);
+    styleOf(a).brush.drift = 0.0;
+    styleOf(a).brush.swell = 0;
+    const qreal         half       = styleOf(a).strokeWidth / 2.0;
+    const QPainterPath  silhouette = Geometry::silhouette(*a.balloon, a.seed);
+    QPainterPathStroker reach;
+    reach.setWidth(2.0 * (half + k_flattening));
+    const QPainterPath allowed = reach.createStroke(silhouette).united(silhouette);
+    for (StyleProperties::Line line : {StyleProperties::Line::Brush, StyleProperties::Line::Dashed}) {
+        styleOf(a).line   = line;
+        const QRectF spike = Geometry::ink(*a.balloon, a.seed, silhouette).subtracted(allowed).boundingRect();
+        EXPECT_LT(qMax(spike.width(), spike.height()), k_flattening) << lineName(line) << " " << spike.width() << "x"
+                                                                    << spike.height();
+    }
+}
+
+/**
+ * \brief A brush's strokes wander off the edge, but never so far that it is left bare: the fill would show past the
+ *        ink where a stroke swells thin or narrows to its end. Every point of an ellipse's edge lies under the ink,
+ *        whatever the seed, with the default brush.
+ */
+TEST(Style, ABrushNeverLeavesTheEdgeBare)
+{
+    constexpr qreal   k_probe = 1.0;   // the edge sampled this far apart
+    constexpr quint32 k_seeds = 12;
+    Composition a = balloonObject();
+    shapeOf(a)             = Geometry::shapeTemplate("ellipse").shape;
+    boxOf(a)               = QSize(280, 160);
+    tailsOf(a).clear();
+    styleOf(a).line        = StyleProperties::Line::Brush;
+    styleOf(a).brush       = BrushParams{};
+    styleOf(a).strokeWidth = 5;
+    for (quint32 seed = 1; seed <= k_seeds; ++seed) {
+        seedOf(a)                     = seed;
+        const QPainterPath silhouette = Geometry::silhouette(*a.balloon, a.seed);
+        const QPainterPath ink        = Geometry::ink(*a.balloon, a.seed, silhouette);
+        int                bare       = 0;
+        for (const QPolygonF& ring : silhouette.toSubpathPolygons())
+            for (int i = 0; i + 1 < ring.size(); ++i) {
+                const qreal len = QLineF(ring[i], ring[i + 1]).length();
+                for (qreal s = 0.0; s < len; s += k_probe)
+                    bare += ink.contains(ring[i] + (ring[i + 1] - ring[i]) * (s / len)) ? 0 : 1;
+            }
+        EXPECT_EQ(bare, 0) << "seed " << seed;
+    }
+}
+
+/**
  * \brief A multi-line is the outline and lines inside it: measured across a caption's straight left side,
  *        ink on the outline, none in a gap, ink in each inner line, none past the last.
  */

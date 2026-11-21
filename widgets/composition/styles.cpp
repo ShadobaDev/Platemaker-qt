@@ -201,6 +201,12 @@ qreal flashReach(const StyleProperties& s)
  *  down to about ten degrees is mitred to its tip, short enough that a sliver of an edge does not spike.
  */
 constexpr qreal   k_coreMiter     = 6.0;
+/**
+ *  A dash's or a brush stroke's miter limit at a corner that is not a tail's tip, in widths, SVG's default: a sharper
+ *  corner is bevelled. Where two parts of an outline only just touch (a Circles tail's first circle on a bubble) the
+ *  edge turns almost back on itself, and a mitre there would spike across the gap.
+ */
+constexpr qreal   k_lineMiter     = 4.0;
 
 // ---------------------------------------------------------------------------
 // Brush: a few strokes along the edge, tapering at both ends, swelling and wandering
@@ -243,6 +249,11 @@ struct RibbonLook
     qreal drift;   //!< How far it wanders off the edge, in balloon pixels.
 };
 
+/**
+ *  How far a brush stroke may wander off the edge, as a share of its half-width where it is: the edge keeps half the
+ *  stroke either side of it at the least, so it is never left bare.
+ */
+constexpr qreal k_driftReach = 0.5;
 //! One plus the cosine of a corner's whole turn under which it is a hairpin: its sides near parallel, no mitre.
 constexpr qreal k_hairpin = 1e-6;
 
@@ -264,8 +275,9 @@ struct Straight
  *
  * Each side is offset along the edge's normal, and at a corner it turns (OutlineRing::corners) it takes the corner's
  * mitre point, where its offset line before the corner meets the one after: on the inside the points short of it,
- * which would fold back, are left out; on the outside the mitre reaches k_coreMiter widths at most, and past that
- * the side is bevelled. So the ribbon neither folds at a point nor spikes at a concave corner.
+ * which would fold back, are left out; the mitre reaches k_lineMiter widths at most, and past that the side is
+ * bevelled. So the ribbon neither folds at a point nor spikes at a concave corner or where two parts touch. A tail's
+ * tip is never one it turns: a brush's strokes break there.
  */
 QPolygonF ribbon(const OutlineRing& ring, qreal from, qreal to, quint32 seed, const RibbonLook& look,
                  const Straight& straight = {})
@@ -288,7 +300,9 @@ QPolygonF ribbon(const OutlineRing& ring, qreal from, qreal to, quint32 seed, co
     // How far each side lies off the centre line at @p at, @p u of the way along: the left's, the right's.
     const auto offsets = [&](qreal at, qreal u) {
         const qreal w = look.half * taperAt(u, look.taper) * (1.0 + look.swell * smoothNoise(seed, at / k_brushWave));
-        const qreal c = look.drift * smoothNoise(seed ^ k_brushStream, at / k_brushWave);
+        // Never so far off the edge that the stroke leaves it: the fill would show past the ink.
+        const qreal c = qBound(-k_driftReach * w, look.drift * smoothNoise(seed ^ k_brushStream, at / k_brushWave),
+                               k_driftReach * w);
         return std::pair{c + w, c - w};
     };
     const auto normal = [](const QPointF& way) { return QPointF(-way.y(), way.x()); };
@@ -320,7 +334,7 @@ QPolygonF ribbon(const OutlineRing& ring, qreal from, qreal to, quint32 seed, co
         const qreal   cosine = QPointF::dotProduct(in, out);   // of the whole turn
         const qreal   reach  = std::abs(offset) * std::sqrt(2.0 / qMax(1.0 + cosine, k_hairpin));   // |o| / cos(turn / 2)
         Join          j;
-        if (1.0 + cosine <= k_hairpin || reach > k_coreMiter * 2.0 * std::abs(offset)) {
+        if (1.0 + cosine <= k_hairpin || reach > k_lineMiter * std::abs(offset)) {
             j.points << p + in * offset << p + out * offset;   // too sharp: bevelled
             return j;
         }
@@ -374,7 +388,9 @@ QPolygonF ribbon(const OutlineRing& ring, qreal from, qreal to, quint32 seed, co
  * each running `brushOverlap` past the next one's start, so they overlap and do not quite close. A stroke
  * is a ribbon about the edge, as wide as the outline, narrowing to a point over `brushTaper` of its
  * length at each end, its width varied by `brushSwell` and its middle moved off the edge by
- * `brushDrift`, both along smooth noise. Every ribbon winds the same way, so overlaps paint as one.
+ * `brushDrift`, both along smooth noise. Every ribbon winds the same way, so overlaps paint as one. A stroke wanders
+ * no further than k_driftReach of its own half-width there, so the edge stays under the ink and the fill never shows
+ * past it, where a stroke swells thin or narrows to its end.
  *
  * A stroke never turns a tail's Sharp tip: the edge is shared out between the tips, a join on each, and the strokes
  * either side of it run on straight past it, tapering, so they cross at the point.
@@ -468,13 +484,20 @@ QPainterPath dashedInk(const StyleProperties& s, const OutlineModel& outline, qu
     out.setFillRule(Qt::WindingFill);
     if (width <= 0.0 || dash <= 0.0)
         return out;
-    QPainterPathStroker stroker;
-    stroker.setWidth(width);
-    stroker.setCapStyle(Qt::FlatCap);
-    stroker.setJoinStyle(Qt::MiterJoin);
-    stroker.setMiterLimit(k_coreMiter);
-    // The edge from @p from to @p to, distances that may run past either end of the lap, through every vertex between.
-    const auto add = [&](const OutlineRing& ring, qreal from, qreal to) {
+    // A dash bevels a corner sharper than a line's limit (a near hairpin where two parts touch); the dash on a tail's
+    // Sharp tip is mitred to its point, the limit there the core's.
+    QPainterPathStroker stroker, tipStroker;
+    for (QPainterPathStroker* s : {&stroker, &tipStroker}) {
+        s->setWidth(width);
+        s->setCapStyle(Qt::FlatCap);
+    }
+    stroker.setJoinStyle(Qt::SvgMiterJoin);
+    stroker.setMiterLimit(k_lineMiter);
+    tipStroker.setJoinStyle(Qt::MiterJoin);
+    tipStroker.setMiterLimit(k_coreMiter);
+    // The edge from @p from to @p to, distances that may run past either end of the lap, through every vertex between;
+    // @p tip when it is the dash on a Sharp tip.
+    const auto add = [&](const OutlineRing& ring, qreal from, qreal to, bool tip = false) {
         const EdgeWalk&           edge   = ring.walk;
         const qreal               length = edge.length();
         const std::vector<qreal>& at     = edge.corners();   // the vertices, the first again last
@@ -486,7 +509,7 @@ QPainterPath dashedInk(const StyleProperties& s, const OutlineModel& outline, qu
         piece.lineTo(edge.at(ring.wrap(to)).at);
         if (to - from >= length)
             piece.closeSubpath();   // the whole lap: joined round, no ends
-        out.addPath(stroker.createStroke(piece));
+        out.addPath((tip ? tipStroker : stroker).createStroke(piece));
     };
     for (const OutlineRing& ring : outline.rings) {
         const qreal length = ring.walk.length();
@@ -494,9 +517,9 @@ QPainterPath dashedInk(const StyleProperties& s, const OutlineModel& outline, qu
             add(ring, 0.0, length);
             continue;
         }
-        std::vector<qreal> anchors;
+        std::vector<std::pair<qreal, bool>> anchors;   // where, and whether a Sharp tip
         for (const OutlineEnd& e : ring.ends)
-            anchors.push_back(ring.wrap(e.middle()));
+            anchors.emplace_back(ring.wrap(e.middle()), e.sharp);
         std::sort(anchors.begin(), anchors.end());
         if (anchors.empty()) {
             const int   count  = qMax(1, qRound(length / (dash + gap)));
@@ -506,18 +529,18 @@ QPainterPath dashedInk(const StyleProperties& s, const OutlineModel& outline, qu
             continue;
         }
         for (size_t i = 0; i < anchors.size(); ++i) {
-            const qreal from    = anchors[i];
-            const qreal to      = i + 1 < anchors.size() ? anchors[i + 1] : anchors.front() + length;
+            const auto [from, sharp] = anchors[i];
+            const qreal to      = i + 1 < anchors.size() ? anchors[i + 1].first : anchors.front().first + length;
             const qreal stretch = to - from;
             if (stretch < dash + gap) {
-                add(ring, from - dash / 2.0, to);   // one dash, end to end, the next end's own dash going on
+                add(ring, from - dash / 2.0, to, sharp);   // one dash, end to end, the next end's own dash going on
                 continue;
             }
             const int   count  = qMax(1, qRound(stretch / (dash + gap)));
             const qreal period = stretch / count;
             const qreal half   = qMin(dash, period) / 2.0;
             for (int k = 0; k < count; ++k)
-                add(ring, from + k * period - half, from + k * period + half);
+                add(ring, from + k * period - half, from + k * period + half, k == 0 && sharp);
         }
     }
     return out;

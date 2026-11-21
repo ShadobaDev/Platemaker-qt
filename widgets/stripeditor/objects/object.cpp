@@ -42,6 +42,16 @@ QPainter::CompositionMode compositionFor(Platemaker::Models::BlendMode b)
     return QPainter::CompositionMode_SourceOver;
 }
 
+//! How an object in @p b is kept between repaints. What it draws changes far less often than the strip
+//! is repainted (a drag, a hover, the chrome), and a halftone or a flash costs tens of milliseconds to
+//! draw, so it is drawn once into a pixmap at the view's zoom and that is shown until update() says it
+//! changed. Not with a blend mode: the pixmap is drawn over a transparent one, where a multiply has
+//! nothing to multiply, and only its result would then be laid over the strip.
+QGraphicsItem::CacheMode cacheFor(Platemaker::Models::BlendMode b)
+{
+    return b == Platemaker::Models::BlendMode::Over ? QGraphicsItem::DeviceCoordinateCache : QGraphicsItem::NoCache;
+}
+
 //! A tip's hit square in item units for the current zoom, so it stays roughly constant on screen.
 qreal gripSpan(const QGraphicsItem* item)
 {
@@ -68,6 +78,7 @@ Object::Object(QString uid, QGraphicsItem* parent)
     setFlag(ItemIsSelectable, true);
     // The selection chrome follows this object from outside, so it has to hear about every move.
     setFlag(ItemSendsGeometryChanges, true);
+    setCacheMode(cacheFor(m_blend));
 }
 
 void Object::setBlend(Platemaker::Models::BlendMode blend)
@@ -75,6 +86,7 @@ void Object::setBlend(Platemaker::Models::BlendMode blend)
     if (m_blend == blend)
         return;
     m_blend = blend;
+    setCacheMode(cacheFor(m_blend));
     update();
 }
 

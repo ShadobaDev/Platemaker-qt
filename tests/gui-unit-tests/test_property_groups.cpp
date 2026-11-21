@@ -1286,7 +1286,7 @@ TEST(Style, ALinesStrokesStayInsideTheirBounds)
 
 /**
  * \brief A dashed line puts a whole number of dashes round each lap, the nearest to its length over a
- *        dash and a gap, and a gap of 0 is one whole line.
+ *        dash and a gap, and a gap of 0 is one whole line: a band, its outer edge and its inner one.
  */
 TEST(Style, ADashedLineFitsWholeDashesRoundEachLap)
 {
@@ -1305,7 +1305,36 @@ TEST(Style, ADashedLineFitsWholeDashesRoundEachLap)
         EXPECT_EQ(Geometry::ink(*a.balloon, a.seed, silhouette).toSubpathPolygons().size(), dashes) << id;
 
         styleOf(a).dash.gap = 0.0;
-        EXPECT_EQ(Geometry::ink(*a.balloon, a.seed, silhouette).toSubpathPolygons().size(), 1) << id;
+        EXPECT_EQ(Geometry::ink(*a.balloon, a.seed, silhouette).toSubpathPolygons().size(), 2) << id;
+    }
+}
+
+/**
+ * \brief A dashed line ends every tail inked, whatever its length and its tip: a dash is anchored on the tip, or on the
+ *        middle of a Cut or a Round end, so no gap falls there.
+ */
+TEST(Style, ADashedLineEndsEveryTailInked)
+{
+    constexpr qreal k_back  = 1.0;   // how far back from the tip, along the tail, the probe stands
+    constexpr int   k_steps = 12;    // tail lengths tried, a pixel apart: the dashes fall differently on each
+    Composition a = balloonObject();
+    shapeOf(a)             = Geometry::shapeTemplate("ellipse").shape;
+    boxOf(a)               = QSize(280, 160);
+    styleOf(a).line        = StyleProperties::Line::Dashed;
+    styleOf(a).strokeWidth = 4;
+    styleOf(a).dash.length = 12.0;
+    styleOf(a).dash.gap    = 10.0;
+    Tail t;
+    t.baseWidth      = 40.0;
+    t.look.end.width = 50;
+    for (TailLook::Tip tip : {TailLook::Tip::Sharp, TailLook::Tip::Cut, TailLook::Tip::Round}) {
+        t.look.tip = tip;
+        for (int k = 0; k < k_steps; ++k) {
+            t.tip = QPointF(140, 400 + k);
+            setTails(a, {t});
+            const QPainterPath ink = Geometry::ink(*a.balloon, a.seed, Geometry::silhouette(*a.balloon, a.seed));
+            EXPECT_TRUE(ink.contains(t.tip - QPointF(0.0, k_back))) << int(tip) << " at " << t.tip.y();
+        }
     }
 }
 
@@ -1582,7 +1611,7 @@ TEST(Tails, ATipEndsAsItSays)
     EXPECT_TRUE(at(TailLook::Tip::Round, t.tip + QPointF(end - k_inside, -end)));
 
     // The outline the lines take hears of the end from the tail, on the tail's own edge and on the joined one:
-    // a Round end half a circle long with no corner on it, a Cut one straight across, a Sharp one none.
+    // a Round end half a circle long with no corner on it, a Cut one straight across, a Sharp one a point at the tip.
     constexpr qreal k_flattening = 1.0;   // how far a flattened end's length may be from a true one's
     constexpr qreal k_same       = 1e-9;
     for (TailLook::Tip tip : {TailLook::Tip::Sharp, TailLook::Tip::Round, TailLook::Tip::Cut}) {
@@ -1591,11 +1620,17 @@ TEST(Tails, ATipEndsAsItSays)
         ASSERT_EQ(m.parts.size(), 2);
         ASSERT_EQ(m.rings.size(), 1);
         for (const Geometry::OutlineRing& ring : {m.parts[1].rings.first(), m.rings.first()}) {
+            ASSERT_EQ(ring.ends.size(), 1u);
             if (tip == TailLook::Tip::Sharp) {
-                EXPECT_TRUE(ring.ends.empty());
+                const Geometry::OutlineEnd& e = ring.ends.front();
+                EXPECT_TRUE(e.sharp);
+                EXPECT_FALSE(e.round);
+                EXPECT_EQ(e.span, 0.0);
+                const QPointF at = ring.walk.at(ring.wrap(e.middle())).at;
+                EXPECT_NEAR(at.x(), t.tip.x(), k_flattening);
+                EXPECT_NEAR(at.y(), t.tip.y(), k_flattening);
                 continue;
             }
-            ASSERT_EQ(ring.ends.size(), 1u);
             const Geometry::OutlineEnd& e     = ring.ends.front();
             const bool                  round = tip == TailLook::Tip::Round;
             EXPECT_EQ(e.round, round);

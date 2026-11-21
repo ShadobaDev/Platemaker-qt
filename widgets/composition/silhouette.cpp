@@ -219,12 +219,14 @@ struct TailShape
     std::optional<EndPoints> end;
 };
 
-//! The end of a ribbon @p half wide either side about @p centre, square to @p across, reaching to @p tip.
+//! The end of a ribbon @p half wide either side about @p centre, square to @p across, reaching to @p tip; with no
+//! width, the Sharp tip @p tip.
 EndPoints endAt(const QPointF& centre, const QPointF& across, const QPointF& tip, qreal half, bool round)
 {
     OutlineEnd end;
     end.radius = half;
     end.round  = round;
+    end.sharp  = half <= 0.0;
     return {centre + across * half, tip, centre - across * half, end};
 }
 
@@ -321,10 +323,8 @@ TailShape brokenRibbon(const TailSpine& s, qreal half, qreal end, bool round, co
         cap.addEllipse(line.last(), end, end);
         add(cap.toFillPolygon());
     }
-    TailShape out{parts.simplified(), std::nullopt};
-    if (end > 0.0)
-        out.end = endAt(line.last(), across(int(line.size()) - 2), s.tip, end, round);
-    return out;
+    // A sharp end is reported too: its point, where the lines anchor and turn no corner.
+    return {parts.simplified(), endAt(end > 0.0 ? line.last() : s.tip, across(int(line.size()) - 2), s.tip, end, round)};
 }
 
 /**
@@ -351,7 +351,7 @@ TailShape ribbonAbout(const TailSpine& s, qreal half, const TailLook& look)
         p.quadTo((b1 + s.tip) / 2.0 + s.sway, s.tip);
         p.quadTo((b2 + s.tip) / 2.0 + s.sway, b2);
         p.closeSubpath();
-        return {p, std::nullopt};
+        return {p, endAt(s.tip, s.perp, s.tip, 0.0, false)};
     }
 
     // The way the spine runs where it ends: from its control to its tip, the quad's last tangent.

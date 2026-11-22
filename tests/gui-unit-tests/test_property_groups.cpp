@@ -281,7 +281,7 @@ static_assert(sizeof(Balloon) == sizeof(BalloonMirror), "Balloon grew a field: p
 struct WordsMirror { int id; int seat; Place place; QSize box; TextProperties text; Frame frame; };
 static_assert(sizeof(Words) == sizeof(WordsMirror), "Words grew a field: place it (see above), then mirror it");
 struct MaskMirror { Body region; qreal feather; std::optional<QLineF> fade; Paint::Kind transition; qreal spacing;
-                    int angle; };
+                    int angle; bool keepInside; };
 static_assert(sizeof(Mask) == sizeof(MaskMirror), "Mask grew a field: place it (see above), then mirror it");
 struct CompositionMirror { std::optional<Balloon> balloon; std::optional<Picture> picture; QList<Words> words;
                            std::optional<Mask> mask; quint32 seed; PresetOrigin preset; int nextId; };
@@ -814,6 +814,7 @@ TEST(PropertyGroupPersistence, RoundTrips)
     mask.transition   = Paint::Kind::Grid;
     mask.spacing      = 11.5;
     mask.angle        = 30;
+    mask.keepInside   = true;
     a.mask            = mask;
     const Composition b = throughContent(a);
     EXPECT_EQ(textOf(b).runs, textOf(a).runs);
@@ -3477,6 +3478,13 @@ TEST(Mask, HidesWhatItCoversAndFadesAlongItsLine)
     EXPECT_EQ(alphaAt(hard, a, inside), 0);
     EXPECT_EQ(alphaAt(hard, a, outside), alphaAt(whole, plain, outside));
 
+    // Kept inside: what the region covers shows, the rest of the object goes.
+    a.mask->keepInside = true;
+    const QImage kept  = Painter::render(a);
+    EXPECT_EQ(alphaAt(kept, a, inside), 255);
+    EXPECT_EQ(alphaAt(kept, a, outside), 0);
+    a.mask->keepInside = false;
+
     // Left to right across the region: hidden wholly at its left edge, not at all at its right.
     a.mask->fade = QLineF(0.0, 0.5, 1.0, 0.5);
     const QImage faded = Painter::render(a);
@@ -3526,6 +3534,12 @@ TEST(Mask, IsPickedWhereItHides)
     a.mask->region.place = Place{QPointF(-100.0, -100.0)};   // over nothing the balloon draws
     a.mask->region.size  = QSize(50, 50);
     EXPECT_FALSE(Geometry::maskHidesAt(a, QPointF(-75.0, -75.0)));
+    // Kept inside, the other way round: outside the region it hides, inside it does not.
+    a.mask->region.place = Place{QPointF(160.0, 40.0)};
+    a.mask->region.size  = QSize(80, 80);
+    a.mask->keepInside   = true;
+    EXPECT_FALSE(Geometry::maskHidesAt(a, QPointF(200.0, 80.0)));
+    EXPECT_TRUE(Geometry::maskHidesAt(a, QPointF(80.0, 80.0)));
     a.mask.reset();
     EXPECT_FALSE(Geometry::maskHidesAt(a, QPointF(200.0, 80.0)));
 }
@@ -3622,6 +3636,13 @@ TEST(Mask, IsWrittenAsTheSvgsMask)
     bool ok = false;
     EXPECT_EQ(Svg::read(svg, &ok).mask, a.mask);   // the rest is read as RoundTrips reads it
     EXPECT_TRUE(ok);
+
+    // Kept inside, black and white swap: the whole mask black, the gradient from white.
+    a.mask->keepInside = true;
+    svg                = Svg::write(a);
+    EXPECT_TRUE(svg.contains("fill=\"black\"/><path"));
+    EXPECT_TRUE(svg.contains("<stop offset=\"0\" stop-color=\"white\"/>"));
+    a.mask->keepInside = false;
 
     // A patterned transition: the region black up to the fade's end, the marks white over it, all blurred.
     a.mask->transition = Paint::Kind::Dots;

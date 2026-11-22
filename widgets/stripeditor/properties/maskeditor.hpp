@@ -38,6 +38,7 @@ private:
     void showRows();   //!< The transition's rows with a fade, its pattern's with a pattern.
 
     QFormLayout*    m_form       = nullptr;
+    QCheckBox*      m_keep       = nullptr;
     QDoubleSpinBox* m_feather    = nullptr;
     QCheckBox*      m_fades      = nullptr;
     QComboBox*      m_transition = nullptr;

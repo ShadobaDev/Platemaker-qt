@@ -1289,14 +1289,20 @@ constexpr qreal k_maskPickCover = 0.5;
 
 bool maskHidesAt(const Composition& c, const QPointF& at)
 {
-    if (!c.mask || !maskOutline(*c.mask, c.seed).contains(at))
+    if (!c.mask)
         return false;
-    qreal cover = 1.0;
-    if (const std::optional<QLineF> fade = maskFade(*c.mask); fade && fade->length() > 0.0) {
-        const QPointF along = (fade->p2() - fade->p1()) / fade->length();
-        cover = 1.0 - std::clamp(QPointF::dotProduct(at - fade->p1(), along) / fade->length(), 0.0, 1.0);
+    // What the region covers there: none outside it, all inside, less along the fade.
+    qreal cover = 0.0;
+    if (maskOutline(*c.mask, c.seed).contains(at)) {
+        cover = 1.0;
+        if (const std::optional<QLineF> fade = maskFade(*c.mask); fade && fade->length() > 0.0) {
+            const QPointF along = (fade->p2() - fade->p1()) / fade->length();
+            cover = 1.0 - std::clamp(QPointF::dotProduct(at - fade->p1(), along) / fade->length(), 0.0, 1.0);
+        }
     }
-    if (cover < k_maskPickCover)
+    // It hides what it covers, or, kept inside, what it does not.
+    const qreal hidden = c.mask->keepInside ? 1.0 - cover : cover;
+    if (hidden < k_maskPickCover)
         return false;
     const bool onPicture = c.picture && QRectF(c.picture->place.pos, QSizeF(c.picture->size)).contains(at);
     return onPicture || partAt(c, at, 0.0) != Part::None;

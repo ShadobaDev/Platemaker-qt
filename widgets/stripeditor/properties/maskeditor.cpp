@@ -27,6 +27,15 @@ MaskEditor::MaskEditor(QWidget* parent)
     auto* form = m_form = new QFormLayout(this);
     form->setContentsMargins(0, 0, 0, 0);
 
+    m_keep = new QCheckBox(tr("Keep inside"), this);
+    m_keep->setToolTip(tr("Show only what is inside the mask, and hide the rest of the object: a balloon tucked into "
+                          "a panel, the mask traced along the panel's frame."));
+    form->addRow(QString(), m_keep);
+    connect(m_keep, &QCheckBox::toggled, this, [this] {
+        if (!m_populating)
+            emit changed();
+    });
+
     m_feather = new QDoubleSpinBox(this);
     m_feather->setRange(0.0, k_featherMaxPx);
     m_feather->setDecimals(k_featherDecimals);
@@ -106,6 +115,7 @@ void MaskEditor::bind(const Subjects& subjects)
     const Composition* c = subjects.isEmpty() ? nullptr : subjects.first();
     const bool         has = c && c->mask;
     m_populating = true;
+    m_keep->setChecked(has && c->mask->keepInside);
     m_feather->setValue(has ? c->mask->feather : 0.0);
     m_fade = has ? c->mask->fade : std::nullopt;
     m_fades->setChecked(m_fade.has_value());
@@ -121,6 +131,7 @@ void MaskEditor::applyTo(Composition& target) const
 {
     if (!target.mask)
         return;
+    target.mask->keepInside = m_keep->isChecked();
     target.mask->feather = m_feather->value();
     target.mask->fade       = m_fades->isChecked() ? m_fade : std::nullopt;
     target.mask->transition = Paint::Kind(m_transition->currentData().toInt());

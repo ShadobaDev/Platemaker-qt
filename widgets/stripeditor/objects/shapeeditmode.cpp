@@ -29,6 +29,26 @@ auto warpPicked(C& c, const Object& item) -> decltype(&c.words.first())
     return nullptr;
 }
 
+/**
+ * The outline @p item's nodes are edited on: its mask's region when the mask is picked, else its picked body (the
+ * first for none); none when there is no such.
+ */
+template <class C>
+auto outlinePicked(C& c, const Object& item) -> decltype(bodyOf(c, 0))
+{
+    if (c.mask && item.pickedBody() != 0 && c.mask->region.id == item.pickedBody())
+        return &c.mask->region;
+    return bodyOf(c, item.pickedBody());
+}
+
+//! The rectangle @p outline's nodes are fractions of: a mask's region's box, a body's balloonRect().
+QRectF outlineRect(const Composition& c, const Body& outline)
+{
+    if ((c.mask && c.mask->region.id == outline.id) || !c.balloon)
+        return QRectF(outline.place.pos, QSizeF(outline.size));
+    return Geometry::balloonRect(*c.balloon, outline);
+}
+
 }  // namespace
 
 ShapeEditMode::ShapeEditMode(const SelectionModel& selection, QGraphicsScene* scene, Host host, QObject* parent)
@@ -170,7 +190,7 @@ std::optional<ShapeNode::Type> ShapeEditMode::pickedNodeType() const
             return std::nullopt;
         return w->text.warp.at(i).type;
     }
-    const Body* body = bodyOf(item->composition(), item->pickedBody());
+    const Body* body = outlinePicked(item->composition(), *item);
     if (!body || body->shape.kind != ShapeProperties::Kind::Curve)
         return std::nullopt;
     const QList<ShapeNode>& nodes = body->shape.nodes;
@@ -196,11 +216,11 @@ void ShapeEditMode::setPickedNodeType(ShapeNode::Type type)
         emit changed();
         return;
     }
-    Body&        body = *bodyOf(a, item->pickedBody());   // pickedNodeType() found a Curve's node
-    const QRectF rect = Geometry::balloonRect(*a.balloon, body);
+    Body&        body = *outlinePicked(a, *item);   // pickedNodeType() found a Curve's node
+    const QRectF rect = outlineRect(a, body);
     for (int i : item->pickedVertices())
         body.shape = Geometry::withNodeType(body.shape, rect, i, type);
-    if (body.shape == bodyOf(item->composition(), item->pickedBody())->shape)
+    if (body.shape == outlinePicked(item->composition(), *item)->shape)
         return;
     m_host.commit(m_edited, a, tr("Point type"));
     emit changed();   // the menu's tick, and the handles drawn
@@ -217,7 +237,7 @@ bool ShapeEditMode::canGrowPickedHandles() const
                 return true;
         return false;
     }
-    const ShapeProperties& shape = bodyOf(item->composition(), item->pickedBody())->shape;   // pickedNodeType() found a Curve's node
+    const ShapeProperties& shape = outlinePicked(item->composition(), *item)->shape;   // pickedNodeType() found a Curve's node
     for (int i : item->pickedVertices())
         if (!(Geometry::withHandlesGrown(shape, i) == shape))
             return true;
@@ -237,7 +257,7 @@ void ShapeEditMode::growPickedHandles()
         emit changed();
         return;
     }
-    Body&       body = *bodyOf(a, item->pickedBody());
+    Body&       body = *outlinePicked(a, *item);
     for (int i : item->pickedVertices())
         body.shape = Geometry::withHandlesGrown(body.shape, i);
     m_host.commit(m_edited, a, tr("Add handles"));
@@ -262,12 +282,12 @@ bool ShapeEditMode::deletePickedNodes()
         emit changed();
         return true;
     }
-    Body* body = bodyOf(a, edited->pickedBody());
+    Body* body = outlinePicked(a, *edited);
     if (!body)
         return true;
     for (int i : std::as_const(doomed))
         body->shape = Geometry::withVertexRemoved(body->shape, i);
-    if (body->shape == bodyOf(edited->composition(), edited->pickedBody())->shape)
+    if (body->shape == outlinePicked(edited->composition(), *edited)->shape)
         return true;
     edited->setPickedVertex(-1);
     m_host.commit(m_edited, a, tr("Delete point"));
@@ -278,7 +298,7 @@ bool ShapeEditMode::deletePickedNodes()
 bool ShapeEditMode::canConvertToCurve() const
 {
     const Object* item = m_host.object(m_selection.primary());
-    const Body*   body = item ? bodyOf(item->composition(), item->pickedBody()) : nullptr;
+    const Body*   body = item ? outlinePicked(item->composition(), *item) : nullptr;
     return body && m_selection.objects().size() == 1 && body->shape.kind != ShapeProperties::Kind::Curve;
 }
 
@@ -288,8 +308,8 @@ void ShapeEditMode::convertToCurve()
         return;
     const QString uid  = m_selection.primary();
     Composition   a    = m_host.object(uid)->composition();
-    Body&         body = *bodyOf(a, m_host.object(uid)->pickedBody());
-    const QRectF  rect = Geometry::balloonRect(*a.balloon, body);
+    Body&         body = *outlinePicked(a, *m_host.object(uid));
+    const QRectF  rect = outlineRect(a, body);
     body.shape         = Geometry::curveOf(Geometry::outlineOf(body, rect, a.seed), rect);
     m_host.commit(uid, a, tr("Convert to curve"));
     setOn(true);

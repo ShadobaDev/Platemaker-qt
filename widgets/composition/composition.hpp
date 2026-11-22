@@ -219,11 +219,18 @@ struct Mask
     Paint::Kind transition = Paint::Kind::Solid;
     qreal       spacing    = 8.0;   //!< A pattern's marks, from one to the next, in its pixels.
     int         angle      = 45;    //!< How far a pattern's grid is turned, clockwise, in degrees.
+    /**
+     * The other way round: the region is what shows, and everything of the object outside it is hidden, as a
+     * balloon tucked into a panel keeps what is inside the panel. A fade then shows wholly at its start and not at
+     * all at its end.
+     */
+    bool keepInside = false;
 
     [[nodiscard]] bool operator==(const Mask& o) const
     {
         return region == o.region && qFuzzyCompare(1.0 + feather, 1.0 + o.feather) && fade == o.fade
-            && transition == o.transition && qFuzzyCompare(1.0 + spacing, 1.0 + o.spacing) && angle == o.angle;
+            && transition == o.transition && qFuzzyCompare(1.0 + spacing, 1.0 + o.spacing) && angle == o.angle
+            && keepInside == o.keepInside;
     }
     [[nodiscard]] bool operator!=(const Mask& o) const { return !(*this == o); }
 };
@@ -357,7 +364,7 @@ inline constexpr int k_labelChars = 32;
  * `{id, text, seat, frame}` or, with no seat, `{id, text, place, box}`; a place is `{pos}`, with `rotation` and `scale`
  * only when they are not their defaults. A mask is `{id, place, size, shape}`, with `feather` and `fade`
  * (`[x1, y1, x2, y2]`) only when it has them, and `transition` (a pattern's name), `spacing` and `angle` only when its
- * transition is a pattern.
+ * transition is a pattern, and `keepInside` only when true.
  */
 [[nodiscard]] QJsonObject toJson(const Composition& c);
 /**

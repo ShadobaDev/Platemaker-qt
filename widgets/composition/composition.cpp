@@ -657,6 +657,8 @@ QJsonObject toJson(const Composition& c)
             o.insert(QStringLiteral("spacing"), m.spacing);
             o.insert(QStringLiteral("angle"), m.angle);
         }
+        if (m.keepInside)
+            o.insert(QStringLiteral("keepInside"), true);
         j.insert(QStringLiteral("mask"), o);
     }
     if (!c.preset.isEmpty())
@@ -737,6 +739,7 @@ Composition compositionFromJson(const QJsonObject& j)
             m.transition = patternFromName(t);
         m.spacing = o.value(QStringLiteral("spacing")).toDouble(m.spacing);
         m.angle   = o.value(QStringLiteral("angle")).toInt(m.angle);
+        m.keepInside = o.value(QStringLiteral("keepInside")).toBool(false);
         c.mask = m;
     }
     const QJsonObject preset = j.value(QStringLiteral("preset")).toObject();

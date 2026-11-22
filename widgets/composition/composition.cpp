@@ -652,6 +652,11 @@ QJsonObject toJson(const Composition& c)
             o.insert(QStringLiteral("feather"), m.feather);
         if (m.fade)
             o.insert(QStringLiteral("fade"), QJsonArray{m.fade->x1(), m.fade->y1(), m.fade->x2(), m.fade->y2()});
+        if (m.transition != Paint::Kind::Solid) {
+            o.insert(QStringLiteral("transition"), QString::fromLatin1(patternName(m.transition)));
+            o.insert(QStringLiteral("spacing"), m.spacing);
+            o.insert(QStringLiteral("angle"), m.angle);
+        }
         j.insert(QStringLiteral("mask"), o);
     }
     if (!c.preset.isEmpty())
@@ -728,6 +733,10 @@ Composition compositionFromJson(const QJsonObject& j)
         m.feather      = o.value(QStringLiteral("feather")).toDouble(0.0);
         if (const QJsonArray f = o.value(QStringLiteral("fade")).toArray(); f.size() == 4)
             m.fade = QLineF(f.at(0).toDouble(), f.at(1).toDouble(), f.at(2).toDouble(), f.at(3).toDouble());
+        if (const QString t = o.value(QStringLiteral("transition")).toString(); !t.isEmpty())
+            m.transition = patternFromName(t);
+        m.spacing = o.value(QStringLiteral("spacing")).toDouble(m.spacing);
+        m.angle   = o.value(QStringLiteral("angle")).toInt(m.angle);
         c.mask = m;
     }
     const QJsonObject preset = j.value(QStringLiteral("preset")).toObject();

@@ -211,10 +211,19 @@ struct Mask
      * between. None, the default, hides the region evenly.
      */
     std::optional<QLineF> fade;
+    /**
+     * How the fade goes from hidden to shown. Solid, the default, is smooth: a gradient. A pattern breaks what the
+     * mask leaves into that pattern's marks, growing along the fade until they meet at its end: Dots a halftone,
+     * Lines a hatch, Grid a cross-hatch. Read only with a fade.
+     */
+    Paint::Kind transition = Paint::Kind::Solid;
+    qreal       spacing    = 8.0;   //!< A pattern's marks, from one to the next, in its pixels.
+    int         angle      = 45;    //!< How far a pattern's grid is turned, clockwise, in degrees.
 
     [[nodiscard]] bool operator==(const Mask& o) const
     {
-        return region == o.region && qFuzzyCompare(1.0 + feather, 1.0 + o.feather) && fade == o.fade;
+        return region == o.region && qFuzzyCompare(1.0 + feather, 1.0 + o.feather) && fade == o.fade
+            && transition == o.transition && qFuzzyCompare(1.0 + spacing, 1.0 + o.spacing) && angle == o.angle;
     }
     [[nodiscard]] bool operator!=(const Mask& o) const { return !(*this == o); }
 };
@@ -347,7 +356,8 @@ inline constexpr int k_labelChars = 32;
  * too, words
  * `{id, text, seat, frame}` or, with no seat, `{id, text, place, box}`; a place is `{pos}`, with `rotation` and `scale`
  * only when they are not their defaults. A mask is `{id, place, size, shape}`, with `feather` and `fade`
- * (`[x1, y1, x2, y2]`) only when it has them.
+ * (`[x1, y1, x2, y2]`) only when it has them, and `transition` (a pattern's name), `spacing` and `angle` only when its
+ * transition is a pattern.
  */
 [[nodiscard]] QJsonObject toJson(const Composition& c);
 /**

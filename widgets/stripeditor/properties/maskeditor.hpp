@@ -8,12 +8,15 @@
 #include <optional>
 
 class QCheckBox;
+class QComboBox;
 class QDoubleSpinBox;
+class QFormLayout;
+class QSpinBox;
 
 namespace StripEdit {
 
 /**
- * \brief An object's own mask: how soft its edge is, and whether it fades.
+ * \brief An object's own mask: how soft its edge is, whether it fades, and how: smoothly or through a pattern.
  *
  * Its region's shape is the Shape section's (ShapeProperties reaches the mask's region), and where the fade runs
  * is dragged on the strip in shape editing; this editor owns the rest of `Mask`. applyTo() writes nothing to a
@@ -32,8 +35,14 @@ public:
     void applyTo(Composition& target) const override;
 
 private:
-    QDoubleSpinBox* m_feather = nullptr;
-    QCheckBox*      m_fades   = nullptr;
+    void showRows();   //!< The transition's rows with a fade, its pattern's with a pattern.
+
+    QFormLayout*    m_form       = nullptr;
+    QDoubleSpinBox* m_feather    = nullptr;
+    QCheckBox*      m_fades      = nullptr;
+    QComboBox*      m_transition = nullptr;
+    QDoubleSpinBox* m_spacing    = nullptr;
+    QSpinBox*       m_angle      = nullptr;
     //! The fade as bound, so turning it off and on again gives back the line it had.
     std::optional<QLineF> m_fade;
     bool                  m_populating = false;

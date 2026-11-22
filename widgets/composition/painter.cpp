@@ -437,7 +437,23 @@ void paintCut(QPainter& painter, const Composition& c, const QRectF& bounds,
         // Hidden as the SVG's mask hides: wholly in the region, or less and less along its fade.
         p.setCompositionMode(QPainter::CompositionMode_DestinationOut);
         p.setRenderHint(QPainter::Antialiasing, true);
-        if (const auto fade = Geometry::maskFade(*c.mask)) {
+        if (const Geometry::MaskMarks marks = Geometry::maskMarks(*c.mask, c.seed); !marks.hidden.isEmpty()) {
+            // Up to the fade's end less the pattern's marks, as the SVG's black and white: drawn into an image of its
+            // own first, the marks cleared out of it, and that taken away from the object.
+            QImage   cover(p.device()->width(), p.device()->height(), QImage::Format_ARGB32_Premultiplied);
+            cover.fill(Qt::transparent);
+            QPainter q(&cover);
+            q.setRenderHint(QPainter::Antialiasing, true);
+            q.setTransform(p.transform());
+            q.fillPath(marks.hidden, Qt::black);
+            q.setCompositionMode(QPainter::CompositionMode_DestinationOut);
+            fillMarks(q, marks.shown, Qt::black);   // many small marks: stamped, or filled in pieces
+            q.end();
+            p.save();
+            p.resetTransform();
+            p.drawImage(0, 0, cover);
+            p.restore();
+        } else if (const auto fade = Geometry::maskFade(*c.mask)) {
             QLinearGradient g(fade->p1(), fade->p2());
             g.setColorAt(0.0, Qt::black);
             g.setColorAt(1.0, Qt::transparent);

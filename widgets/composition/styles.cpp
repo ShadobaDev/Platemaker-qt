@@ -1516,6 +1516,50 @@ constexpr qreal k_minPatternSpacing = 1.0;
 constexpr qreal k_minMark = 0.1;
 
 /**
+ * A mask's dots at their fade's end, as a fraction of their spacing: the square's diagonal, so they meet at its
+ * corners and show everything. A bar is as wide as its spacing (halftoneMarks() caps it).
+ */
+constexpr qreal k_maskDotsCover = M_SQRT2;
+//! How often a mask's bars are sampled along their length, as a fraction of their spacing.
+constexpr qreal k_maskBarStep = 0.25;
+//! Halvings that find a dot's tone for a share of its cell: far below what a pixel shows.
+constexpr int k_maskToneHalvings = 24;
+
+/**
+ * How much of its cell a mask's dot covers at @p tone (0 to 1), its diameter k_maskDotsCover of the cell's side
+ * at a tone of 1: a disc, less the four caps past the cell's sides once it is wider than the cell.
+ */
+qreal dotCover(qreal tone)
+{
+    const qreal r = k_maskDotsCover / 2.0 * std::sqrt(tone);   // in sides of the cell
+    constexpr qreal k_half = 0.5;
+    qreal cover = M_PI * r * r;
+    if (r > k_half)
+        cover -= 4.0 * (r * r * std::acos(k_half / r) - k_half * std::sqrt(r * r - k_half * k_half));
+    return std::clamp(cover, 0.0, 1.0);
+}
+
+/**
+ * The tone at which @p kind's marks cover @p shown of their cell, so a patterned fade shows as much as the
+ * smooth one does at each place: a bar's width is its share already, a grid's two bars cover 1 - (1 - t)^2, a
+ * dot's share is found by halving (dotCover()).
+ */
+qreal maskTone(Paint::Kind kind, qreal shown)
+{
+    shown = std::clamp(shown, 0.0, 1.0);
+    if (kind == Paint::Kind::Grid)
+        return 1.0 - std::sqrt(1.0 - shown);
+    if (kind != Paint::Kind::Dots)
+        return shown;
+    qreal low = 0.0, high = 1.0;
+    for (int i = 0; i < k_maskToneHalvings; ++i) {
+        const qreal mid = (low + high) / 2.0;
+        (dotCover(mid) < shown ? low : high) = mid;
+    }
+    return (low + high) / 2.0;
+}
+
+/**
  * \brief How far points lie from a shape's edge, up to a limit: positive inside, negative outside, in
  *        balloon pixels; a point further than the limit is given the limit, with its sign.
  *
@@ -1768,6 +1812,41 @@ PatternCell patternCell(const Paint& p)
         break;
     }
     return cell;
+}
+
+MaskMarks maskMarks(const Mask& mask, quint32 seed)
+{
+    MaskMarks                   out;
+    const std::optional<QLineF> fade = maskFade(mask);
+    if (mask.transition == Paint::Kind::Solid || !fade || fade->length() <= 0.0)
+        return out;
+    const QPainterPath region = maskOutline(mask, seed);
+    if (region.isEmpty())
+        return out;
+
+    // The region on the fade's start side of the line through its end, square to it.
+    const qreal   length = fade->length();
+    const QPointF along  = (fade->p2() - fade->p1()) / length;
+    const QPointF across(-along.y(), along.x());
+    const QRectF  box   = region.boundingRect();
+    const qreal   reach = std::hypot(box.width(), box.height()) + length + QLineF(box.center(), fade->p2()).length();
+    QPainterPath  before;
+    before.addPolygon(QPolygonF{fade->p2() + across * reach, fade->p2() - across * reach,
+                                fade->p2() - across * reach - along * reach, fade->p2() + across * reach - along * reach});
+    before.closeSubpath();
+    out.hidden = region.intersected(before);
+
+    Paint cell;
+    cell.kind    = mask.transition;
+    cell.spacing = qMax(mask.spacing, k_minPatternSpacing);
+    cell.size    = cell.spacing * (mask.transition == Paint::Kind::Dots ? k_maskDotsCover : 1.0);
+    cell.angle   = mask.angle;
+    const QPointF start = fade->p1();
+    out.shown = halftoneMarks(
+        cell, out.hidden.boundingRect(),
+        [&](const QPointF& at) { return maskTone(cell.kind, QPointF::dotProduct(at - start, along) / length); },
+        cell.spacing * k_maskBarStep);
+    return out;
 }
 
 QPainterPath halftoneMarks(const Paint& p, const QRectF& area, const std::function<qreal(const QPointF&)>& tone,

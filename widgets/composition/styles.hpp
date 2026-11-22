@@ -158,6 +158,24 @@ struct PatternCell
 [[nodiscard]] QPainterPath halftoneMarks(const Paint& p, const QRectF& area,
                                          const std::function<qreal(const QPointF&)>& tone, qreal step);
 
+//! What a mask with a patterned transition hides (maskMarks()), in the composition's frame.
+struct MaskMarks
+{
+    QPainterPath hidden;   //!< The region up to the fade's end: past it nothing is hidden.
+    QPainterPath shown;    //!< The pattern's marks over it, which show what they cover: non-zero filled.
+};
+
+/**
+ * \brief A mask's patterned transition: the region up to its fade's end hidden, less the marks of its pattern
+ *        (halftoneMarks()), which grow along the fade from nothing at its start until they meet at its end. Empty
+ *        for a smooth transition, or a mask with no fade.
+ *
+ * What the mask leaves of its object breaks into that pattern: a halftone's dots, a hatch's lines, a
+ * cross-hatch's grid. The SVG draws `hidden` black and `shown` white in its mask; the painter takes `hidden` less
+ * `shown` away.
+ */
+[[nodiscard]] MaskMarks maskMarks(const Mask& mask, quint32 seed);
+
 //! @p p's pattern fades by its cross (an arm's start short of its side): drawn as halftoneMarks(), not a tile.
 [[nodiscard]] bool fades(const Paint& p);
 

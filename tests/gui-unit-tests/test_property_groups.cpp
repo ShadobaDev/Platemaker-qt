@@ -280,7 +280,8 @@ struct BalloonMirror { int id; BalloonStyle style; QList<Body> bodies; QList<Bal
 static_assert(sizeof(Balloon) == sizeof(BalloonMirror), "Balloon grew a field: place it (see above), then mirror it");
 struct WordsMirror { int id; int seat; Place place; QSize box; TextProperties text; Frame frame; };
 static_assert(sizeof(Words) == sizeof(WordsMirror), "Words grew a field: place it (see above), then mirror it");
-struct MaskMirror { Body region; qreal feather; std::optional<QLineF> fade; };
+struct MaskMirror { Body region; qreal feather; std::optional<QLineF> fade; Paint::Kind transition; qreal spacing;
+                    int angle; };
 static_assert(sizeof(Mask) == sizeof(MaskMirror), "Mask grew a field: place it (see above), then mirror it");
 struct CompositionMirror { std::optional<Balloon> balloon; std::optional<Picture> picture; QList<Words> words;
                            std::optional<Mask> mask; quint32 seed; PresetOrigin preset; int nextId; };
@@ -810,6 +811,9 @@ TEST(PropertyGroupPersistence, RoundTrips)
     mask.region.shape = Geometry::shapeTemplate("ellipse").shape;
     mask.feather      = 3.5;
     mask.fade         = QLineF(0.1, 0.2, 0.9, 0.8);
+    mask.transition   = Paint::Kind::Grid;
+    mask.spacing      = 11.5;
+    mask.angle        = 30;
     a.mask            = mask;
     const Composition b = throughContent(a);
     EXPECT_EQ(textOf(b).runs, textOf(a).runs);
@@ -3481,6 +3485,27 @@ TEST(Mask, HidesWhatItCoversAndFadesAlongItsLine)
         const QPointF at(160.0 + 80.0 * along, 80.0);
         EXPECT_NEAR(alphaAt(faded, a, at), 255.0 * along, k_alphaTolerance);
     }
+
+    // Through a pattern, what is left breaks into its marks: hidden at the fade's start, whole at its end, and on
+    // the way, over a whole number of cells, about as much left as the smooth fade leaves.
+    constexpr int   k_spacing      = 8;
+    constexpr qreal k_meanTolerance = 0.1;   // of the whole: a halftone's area against its tone, sampled
+    for (const Paint::Kind pattern : {Paint::Kind::Dots, Paint::Kind::Lines, Paint::Kind::Grid}) {
+        SCOPED_TRACE(int(pattern));
+        a.mask->transition = pattern;
+        a.mask->spacing    = k_spacing;
+        a.mask->angle      = 0;
+        const QImage marked = Painter::render(a);
+        EXPECT_EQ(alphaAt(marked, a, QPointF(160.5, 80.0)), 0);
+        EXPECT_EQ(alphaAt(marked, a, QPointF(239.5, 80.0)), 255);
+        // The middle half of the fade: a mean tone of a half.
+        qreal sum = 0.0;
+        int   n   = 0;
+        for (int x = 180; x < 220; ++x)
+            for (int y = 64; y < 96; ++y, ++n)
+                sum += alphaAt(marked, a, QPointF(x + 0.5, y + 0.5)) / 255.0;
+        EXPECT_NEAR(sum / n, 0.5, k_meanTolerance);
+    }
 }
 
 //! \brief A mask keeps its place on the object as the object is resized: scaled from the box's corner with it.
@@ -3493,10 +3518,6 @@ TEST(Mask, ScalesWithTheObjectsBox)
     EXPECT_EQ(a.mask->region.size, QSize(160, 40));
 }
 
-/**
- * \brief A mask is written as the SVG's: the content group masked, the region black in a white mask, a fade a
- *        gradient, a feather a blur; and it reads back. Only a feather makes the object one only the library draws.
- */
 /**
  * \brief The mask picked is edited by its own handles alone, and the Shape section reaches its region: its outline's
  *        handles change its shape and never the balloon's, its fade's two ends move the fade, a "+" adds a node.
@@ -3556,6 +3577,10 @@ TEST(Mask, IsEditedByItsOwnHandlesAndTheShapeSection)
     EXPECT_EQ(a.mask->region.shape.nodes.size(), nodes + 1);
 }
 
+/**
+ * \brief A mask is written as the SVG's: the content group masked, the region black in a white mask, a fade a
+ *        gradient, a feather a blur; and it reads back. Only a feather makes the object one only the library draws.
+ */
 TEST(Mask, IsWrittenAsTheSvgsMask)
 {
     Composition a = maskedBalloon();
@@ -3575,4 +3600,11 @@ TEST(Mask, IsWrittenAsTheSvgsMask)
     bool ok = false;
     EXPECT_EQ(Svg::read(svg, &ok).mask, a.mask);   // the rest is read as RoundTrips reads it
     EXPECT_TRUE(ok);
+
+    // A patterned transition: the region black up to the fade's end, the marks white over it, all blurred.
+    a.mask->transition = Paint::Kind::Dots;
+    svg                = Svg::write(a);
+    EXPECT_FALSE(svg.contains("<linearGradient id=\"pm-mask-fade\""));
+    EXPECT_TRUE(svg.contains("<g filter=\"url(#pm-mask-feather)\"><path"));
+    EXPECT_TRUE(svg.contains("fill-rule=\"nonzero\" fill=\"white\"/></g>"));
 }

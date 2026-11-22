@@ -153,6 +153,9 @@ ObjectMenu::ObjectMenu(ObjectController& objects, const StripLayout& layout, Pre
     connect(m_actAddWords, &QAction::triggered, &m_objects, &ObjectController::addWords);
     m_actAddBubble = new QAction(tr("Add bubble"), this);
     connect(m_actAddBubble, &QAction::triggered, &m_objects, &ObjectController::addBubble);
+    m_actAddMask = new QAction(tr("Add mask"), this);
+    m_actAddMask->setToolTip(tr("Hide part of this object: a region of its own, which moves and resizes with it."));
+    connect(m_actAddMask, &QAction::triggered, &m_objects, &ObjectController::addMask);
     m_actJoin = new QAction(tr("Join"), this);
     connect(m_actJoin, &QAction::triggered, &m_objects, &ObjectController::joinSelection);
 
@@ -226,6 +229,7 @@ ObjectMenu::ObjectMenu(ObjectController& objects, const StripLayout& layout, Pre
         w->addAction(m_actFitToText);
         w->addAction(m_actAddWords);
         w->addAction(m_actAddBubble);
+        w->addAction(m_actAddMask);
         w->addAction(m_actJoin);
         w->addAction(m_actEditShape);
         w->addAction(m_nodeTypeMenu->menuAction());
@@ -308,6 +312,8 @@ void ObjectMenu::updateEntries()
         m_actAddWords->setVisible(m_objects.canAddWords());
     if (m_actAddBubble)
         m_actAddBubble->setVisible(m_objects.canAddBubble());
+    if (m_actAddMask)
+        m_actAddMask->setVisible(m_objects.canAddMask());
     if (m_actJoin)
         m_actJoin->setVisible(m_objects.canJoin());
     // A kind is something only an authored object has. One that is not — imported artwork, or a tail —
@@ -463,7 +469,8 @@ bool ObjectMenu::eventFilter(QObject* watched, QEvent* e)
         return false;
     const bool join      = m_objects.joinHeld();
     const bool shapeEdit = m_objects.shapeEdit().isOn();
-    const bool element   = m_objects.subject() == Subject::Words || m_objects.subject() == Subject::Body;
+    const bool element   = m_objects.subject() == Subject::Words || m_objects.subject() == Subject::Body
+                        || m_objects.subject() == Subject::Mask;
     if (!join && !shapeEdit && !element)
         return false;   // nothing to step out of: the key is the window's
     if (e->type() == QEvent::ShortcutOverride) {

@@ -14,6 +14,7 @@
 #define RECORDPAINTER_HPP
 
 #include <QBrush>
+#include <functional>
 #include <QImage>
 #include <QPainterPath>
 
@@ -76,6 +77,16 @@ void paintPaths(QPainter& painter, const Composition& c, const Paths& paths);
  *        Render::Item says: a filter, a bleed, an item that only a filter needs; a mask clips instead.
  */
 void play(QPainter& painter, const QList<Render::Item>& items);
+/**
+ * \brief Runs @p draw, which draws @p c, with @p c's mask cut out of it, as the SVG's mask does; with no mask,
+ *        straight onto @p painter.
+ *
+ * Drawn into a layer over @p bounds (in the painter's coordinates), its region then taken away from it: so a
+ * blend mode the painter is set to applies to what is left, once. The feather is not drawn (the painter draws no
+ * filter): an object with one is shown from the library's rendering (Geometry::hasFilter()).
+ */
+void paintCut(QPainter& painter, const Composition& c, const QRectF& bounds,
+              const std::function<void(QPainter&)>& draw);
 
 } // namespace Painter
 

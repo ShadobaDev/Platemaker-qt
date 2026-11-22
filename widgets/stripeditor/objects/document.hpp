@@ -111,6 +111,14 @@ bool removeTails(Composition& c, QList<int> indexes);
 int addWords(Composition& c, int from, int seat = 0);
 //! Removes @p c's words @p id. False when there are no such words, or they are the last: a balloon keeps somewhere to type.
 bool removeWords(Composition& c, int id);
+/**
+ * rief Gives @p c a mask of its own: a plain rectangle over the right third of its frame (frameOf()), hiding
+ *        wholly at the right and not at all at the left, the end of a line broken off. Returns the region's id;
+ *        0 when @p c has a mask already, or no frame.
+ */
+int addMask(Composition& c);
+//! Removes @p c's mask. False when it has none.
+bool removeMask(Composition& c);
 
 }  // namespace Edits
 

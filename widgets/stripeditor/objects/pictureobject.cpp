@@ -132,11 +132,15 @@ void PictureObject::describePicture(Composition& c) const
 
 bool PictureObject::canEditShape() const
 {
+    if (const Mask* m = pickedMask())
+        return Geometry::hasShapeHandles(m->region.shape) || m->fade.has_value();
     return lettered(m_composition);
 }
 
 QPainterPath PictureObject::editOutline() const
 {
+    if (const Mask* m = pickedMask())
+        return Geometry::maskOutline(*m, m_composition.seed);
     QPainterPath box = Geometry::warpCurves(m_composition, markedWords());
     box.addRect(QRectF(QPointF(0, 0), boxSize()));
     return box;
@@ -155,7 +159,13 @@ void PictureObject::setBoxSize(QSizeF size, const QPointF&)
 
 void PictureObject::paintContent(QPainter& painter)
 {
+    // The picture and its words, with the mask cut out of both, as the wrapper SVG's group is.
     const QRectF box(QPointF(0, 0), boxSize());
+    Painter::paintCut(painter, m_composition, box, [&](QPainter& p) { paintPicture(p, box); });
+}
+
+void PictureObject::paintPicture(QPainter& painter, const QRectF& box)
+{
     if (m_svg) {
         // Vector in, vector out: the renderer draws at the transform the view is showing, so zooming
         // in sharpens it instead of magnifying pixels somebody chose at import time.

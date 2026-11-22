@@ -17,7 +17,7 @@ namespace StripEdit {
  * is remembered under `stripEditor/objectState/expanded/<int>`, so dropping a value would silently
  * shift every section after it onto somebody else's remembered state.
  */
-enum class PropertyGroup { Placement, Size, Compositing, Shape, Skin, Style, Text, Tail, TailItem, Effects, Texture };
+enum class PropertyGroup { Placement, Size, Compositing, Shape, Skin, Style, Text, Tail, TailItem, Effects, Texture, Mask };
 
 /**
  * \brief A row, or a few rows that go together, of a group's editor: what a tool's options can show or
@@ -79,6 +79,7 @@ enum class Row {
     case PropertyGroup::Tail:
         return a.balloon.has_value();
     case PropertyGroup::TailItem:      // a tail's own group; a composition never carries it
+    case PropertyGroup::Mask:          // ...and a mask's, shown when the mask is picked
     case PropertyGroup::Placement:     // …and these three have no editor at all — see above
     case PropertyGroup::Size:
     case PropertyGroup::Compositing:

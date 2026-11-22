@@ -280,8 +280,10 @@ struct BalloonMirror { int id; BalloonStyle style; QList<Body> bodies; QList<Bal
 static_assert(sizeof(Balloon) == sizeof(BalloonMirror), "Balloon grew a field: place it (see above), then mirror it");
 struct WordsMirror { int id; int seat; Place place; QSize box; TextProperties text; Frame frame; };
 static_assert(sizeof(Words) == sizeof(WordsMirror), "Words grew a field: place it (see above), then mirror it");
+struct MaskMirror { Body region; qreal feather; std::optional<QLineF> fade; };
+static_assert(sizeof(Mask) == sizeof(MaskMirror), "Mask grew a field: place it (see above), then mirror it");
 struct CompositionMirror { std::optional<Balloon> balloon; std::optional<Picture> picture; QList<Words> words;
-                           quint32 seed; PresetOrigin preset; int nextId; };
+                           std::optional<Mask> mask; quint32 seed; PresetOrigin preset; int nextId; };
 static_assert(sizeof(Composition) == sizeof(CompositionMirror),
               "Composition grew a field: place it (see above), then mirror it");
 
@@ -434,6 +436,7 @@ void expectUntouched(Group applied, const Composition& before, const Composition
     EXPECT_EQ(wordsOf(after)->place,    wordsOf(before)->place);
     EXPECT_EQ(wordsOf(after)->box,      wordsOf(before)->box);
     EXPECT_EQ(after.picture.has_value(), before.picture.has_value());
+    EXPECT_EQ(after.mask, before.mask);
 }
 
 } // namespace
@@ -799,6 +802,15 @@ TEST(PropertyGroupPersistence, RoundTrips)
     upright.length = 3;
     upright.italic = false;
     textOf(a).runs = {other, upright};
+    // A mask with every field away from its default.
+    Mask mask;
+    mask.region.id    = a.nextId++;
+    mask.region.place = Place{QPointF(120.5, 40.0)};
+    mask.region.size  = QSize(90, 70);
+    mask.region.shape = Geometry::shapeTemplate("ellipse").shape;
+    mask.feather      = 3.5;
+    mask.fade         = QLineF(0.1, 0.2, 0.9, 0.8);
+    a.mask            = mask;
     const Composition b = throughContent(a);
     EXPECT_EQ(textOf(b).runs, textOf(a).runs);
 
@@ -3414,3 +3426,153 @@ TEST(Composition, EveryGoldenCaseComesBackFromWhatIsSaved)
     }
 }
 
+// ---------------------------------------------------------------------------
+// An object's own mask: what it hides, how it moves, how it is written.
+// ---------------------------------------------------------------------------
+
+namespace {
+
+//! A balloon of the default size with a box mask over the middle of its right half.
+Composition maskedBalloon()
+{
+    Composition a = balloonObject();
+    tailsOf(a).clear();
+    Mask m;
+    m.region.id    = a.nextId++;
+    m.region.place = Place{QPointF(160.0, 40.0)};
+    m.region.size  = QSize(80, 80);
+    m.region.shape.corner.radius = 0.0;   // a plain rectangle, so a point's coverage is the fade's alone
+    a.mask         = m;
+    return a;
+}
+
+//! @p img's alpha at @p at, a point in the composition's frame of an image Painter::render() drew of @p c.
+int alphaAt(const QImage& img, const Composition& c, const QPointF& at)
+{
+    const QPoint px = (at - Geometry::bounds(c).topLeft()).toPoint();
+    return qAlpha(img.pixel(px));
+}
+
+}  // namespace
+
+/**
+ * \brief A mask hides what the object draws inside its region and nothing outside it; with a fade, less and less
+ *        along the fade's line, as the SVG's gradient does.
+ */
+TEST(Mask, HidesWhatItCoversAndFadesAlongItsLine)
+{
+    constexpr int k_alphaTolerance = 4;   // of 255: antialiasing and the gradient's rounding
+    Composition   plain = maskedBalloon();
+    plain.mask.reset();
+    const QImage  whole = Painter::render(plain);
+
+    Composition  a   = maskedBalloon();
+    const QImage hard = Painter::render(a);
+    const QPointF inside(200.0, 80.0), outside(80.0, 80.0);
+    ASSERT_EQ(alphaAt(whole, plain, inside), 255);   // the fill is opaque there
+    EXPECT_EQ(alphaAt(hard, a, inside), 0);
+    EXPECT_EQ(alphaAt(hard, a, outside), alphaAt(whole, plain, outside));
+
+    // Left to right across the region: hidden wholly at its left edge, not at all at its right.
+    a.mask->fade = QLineF(0.0, 0.5, 1.0, 0.5);
+    const QImage faded = Painter::render(a);
+    for (const qreal along : {0.25, 0.5, 0.75}) {
+        SCOPED_TRACE(along);
+        const QPointF at(160.0 + 80.0 * along, 80.0);
+        EXPECT_NEAR(alphaAt(faded, a, at), 255.0 * along, k_alphaTolerance);
+    }
+}
+
+//! \brief A mask keeps its place on the object as the object is resized: scaled from the box's corner with it.
+TEST(Mask, ScalesWithTheObjectsBox)
+{
+    Composition   a      = maskedBalloon();
+    const QPointF corner = bodyOf(a)->place.pos;
+    resize(a, QSize(560, 80));   // twice as wide, half as tall
+    EXPECT_EQ(a.mask->region.place.pos, corner + QPointF((160.0 - corner.x()) * 2.0, (40.0 - corner.y()) * 0.5));
+    EXPECT_EQ(a.mask->region.size, QSize(160, 40));
+}
+
+/**
+ * \brief A mask is written as the SVG's: the content group masked, the region black in a white mask, a fade a
+ *        gradient, a feather a blur; and it reads back. Only a feather makes the object one only the library draws.
+ */
+/**
+ * \brief The mask picked is edited by its own handles alone, and the Shape section reaches its region: its outline's
+ *        handles change its shape and never the balloon's, its fade's two ends move the fade, a "+" adds a node.
+ */
+TEST(Mask, IsEditedByItsOwnHandlesAndTheShapeSection)
+{
+    Composition a  = maskedBalloon();
+    a.mask->fade   = QLineF(0.0, 0.5, 1.0, 0.5);
+    const int   id = a.mask->region.id;
+    Geometry::HandleContext context;
+    context.body = id;
+    const QList<Geometry::Handle> all = Geometry::handlesOf(a, context);
+    ASSERT_FALSE(all.isEmpty());
+    for (const Geometry::Handle& h : all) {
+        EXPECT_EQ(h.element, id);
+        EXPECT_TRUE(h.drag);
+    }
+
+    const auto glyphed = [&](Geometry::Handle::Glyph glyph) {
+        return std::find_if(all.cbegin(), all.cend(), [&](const Geometry::Handle& h) { return h.glyph == glyph; });
+    };
+    const auto end = glyphed(Geometry::Handle::Glyph::FadeEnd);
+    ASSERT_NE(end, all.cend());
+    const QRectF region(a.mask->region.place.pos, QSizeF(a.mask->region.size));
+    EXPECT_EQ(end->at, QPointF(region.right(), region.center().y()));
+    Composition faded = a;
+    end->drag(faded, *end, region.center(), context);
+    constexpr qreal k_fraction = 1e-9;
+    EXPECT_NEAR(faded.mask->fade->x2(), 0.5, k_fraction);
+    EXPECT_NEAR(faded.mask->fade->x1(), 0.0, k_fraction) << "the start stays";
+
+    const auto radius = std::find_if(all.cbegin(), all.cend(), [](const Geometry::Handle& h) {
+        return h.part == int(Geometry::ShapePart::Radius) && h.glyph != Geometry::Handle::Glyph::FadeStart
+            && h.glyph != Geometry::Handle::Glyph::FadeEnd;
+    });
+    ASSERT_NE(radius, all.cend());
+    Composition rounded = a;
+    radius->drag(rounded, *radius, radius->at + QPointF(20.0, 0.0), context);
+    EXPECT_FALSE(rounded.mask->region.shape == a.mask->region.shape);
+    EXPECT_TRUE(shapeOf(rounded) == shapeOf(a)) << "the balloon's own shape is not what was edited";
+
+    ShapeProperties ellipse = Geometry::shapeTemplate("ellipse").shape;
+    ellipse.applyTo(a, id);
+    EXPECT_TRUE(a.mask->region.shape == ellipse);
+    EXPECT_TRUE(ShapeProperties::from(a, id) == ellipse);
+    EXPECT_FALSE(shapeOf(a) == ellipse);
+
+    // A polygon's "+" adds its node to the region.
+    a.mask->region.shape = Geometry::shapeTemplate("diamond").shape;
+    QList<Geometry::Handle> polygon = Geometry::handlesOf(a, context);
+    const auto plus = std::find_if(polygon.begin(), polygon.end(),
+                                   [](const Geometry::Handle& h) { return h.glyph == Geometry::Handle::Glyph::Plus; });
+    ASSERT_NE(plus, polygon.end());
+    ASSERT_TRUE(plus->press);
+    const qsizetype nodes = a.mask->region.shape.nodes.size();
+    EXPECT_TRUE(plus->press(a, *plus));
+    EXPECT_EQ(a.mask->region.shape.nodes.size(), nodes + 1);
+}
+
+TEST(Mask, IsWrittenAsTheSvgsMask)
+{
+    Composition a = maskedBalloon();
+    QByteArray  svg = Svg::write(a);
+    EXPECT_TRUE(svg.contains("<g mask=\"url(#pm-mask)\">"));
+    EXPECT_TRUE(svg.contains("<mask id=\"pm-mask\""));
+    EXPECT_FALSE(svg.contains("linearGradient"));
+    EXPECT_FALSE(svg.contains("feGaussianBlur stdDeviation=\"3.5\""));
+    EXPECT_FALSE(Geometry::hasFilter(a));
+
+    a.mask->fade    = QLineF(0.0, 0.5, 1.0, 0.5);
+    a.mask->feather = 3.5;
+    svg             = Svg::write(a);
+    EXPECT_TRUE(svg.contains("<linearGradient id=\"pm-mask-fade\""));
+    EXPECT_TRUE(svg.contains("feGaussianBlur stdDeviation=\"3.5\""));
+    EXPECT_TRUE(Geometry::hasFilter(a));
+    bool ok = false;
+    EXPECT_EQ(Svg::read(svg, &ok).mask, a.mask);   // the rest is read as RoundTrips reads it
+    EXPECT_TRUE(ok);
+}

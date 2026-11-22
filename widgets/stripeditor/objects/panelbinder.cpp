@@ -24,7 +24,8 @@ void PanelBinder::bind()
 
     if (picked.isEmpty()) {
         emit boundToNothing();
-    } else if (m_selection.subject() == Subject::Words || m_selection.subject() == Subject::Body) {
+    } else if (m_selection.subject() == Subject::Words || m_selection.subject() == Subject::Body
+               || m_selection.subject() == Subject::Mask) {
         m_subjects = QStringList{m_selection.primary()};
         show(m_host.composition(m_selection.primary()).value_or(Composition()));
     } else if (m_selection.subject() == Subject::Tail) {
@@ -74,6 +75,8 @@ void PanelBinder::show(const Composition& c)
         emit boundToWords(c, m_selection.words().element);
     else if (m_selection.subject() == Subject::Body)
         emit boundToBody(c, m_selection.body().element);
+    else if (m_selection.subject() == Subject::Mask)
+        emit boundToMask(c, m_selection.mask().element);
     else
         emit boundToComposition(c);
 }

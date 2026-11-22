@@ -284,6 +284,56 @@ QString itemsOf(const QList<Render::Item>& items, const QString& indent)
     return out;
 }
 
+//! The ids of a mask's definitions.
+const QString k_maskId        = QStringLiteral("pm-mask");
+const QString k_maskFadeId    = QStringLiteral("pm-mask-fade");
+const QString k_maskFeatherId = QStringLiteral("pm-mask-feather");
+
+/**
+ * \brief @p c's mask defined over @p area (the viewBox) as k_maskId, or nothing without one.
+ *
+ * A luminance mask: white keeps, black hides. Its region is black, or a gradient from black at the fade's start
+ * to white at its end, blurred by the feather. The mask and the blur cover the whole viewBox in user space, so
+ * neither is cut at the region's box, as SVG's default regions (the element's box and a tenth round it) would.
+ */
+QString maskDefs(const Composition& c, const QRectF& area)
+{
+    if (!c.mask)
+        return {};
+    const QPainterPath region = Geometry::maskOutline(*c.mask, c.seed);
+    if (region.isEmpty())
+        return {};
+    const QString box = QStringLiteral("x=\"%1\" y=\"%2\" width=\"%3\" height=\"%4\"")
+                            .arg(num(area.left()), num(area.top()), num(area.width()), num(area.height()));
+    QString d = QStringLiteral("  <defs>\n");
+    QString fill = QStringLiteral("black");
+    if (const auto fade = Geometry::maskFade(*c.mask)) {
+        d += QStringLiteral("    <linearGradient id=\"%1\" gradientUnits=\"userSpaceOnUse\" "
+                            "x1=\"%2\" y1=\"%3\" x2=\"%4\" y2=\"%5\">"
+                            "<stop offset=\"0\" stop-color=\"black\"/><stop offset=\"1\" stop-color=\"white\"/>"
+                            "</linearGradient>\n")
+                 .arg(k_maskFadeId, num(fade->x1()), num(fade->y1()), num(fade->x2()), num(fade->y2()));
+        fill = QStringLiteral("url(#%1)").arg(k_maskFadeId);
+    }
+    QString filter;
+    if (c.mask->feather > 0.0) {
+        d += QStringLiteral("    <filter id=\"%1\" filterUnits=\"userSpaceOnUse\" %2>"
+                            "<feGaussianBlur stdDeviation=\"%3\"/></filter>\n")
+                 .arg(k_maskFeatherId, box, num(c.mask->feather));
+        filter = QStringLiteral(" filter=\"url(#%1)\"").arg(k_maskFeatherId);
+    }
+    d += QStringLiteral("    <mask id=\"%1\" maskUnits=\"userSpaceOnUse\" %2><rect %2 fill=\"white\"/>"
+                        "<path d=\"%3\" fill-rule=\"%4\" fill=\"%5\"%6/></mask>\n")
+             .arg(k_maskId, box, pathData(region), fillRule(region), fill, filter);
+    return d + QStringLiteral("  </defs>\n");
+}
+
+//! The group everything is drawn in: masked by @p c's mask when it has one (maskDefs()).
+QString contentGroup(const Composition& c)
+{
+    return c.mask ? QStringLiteral("  <g mask=\"url(#%1)\">\n").arg(k_maskId) : QStringLiteral("  <g>\n");
+}
+
 } // namespace
 
 QByteArray write(const Composition& c, const QByteArray& picture, const QString& mime)
@@ -306,11 +356,11 @@ QByteArray write(const Composition& c, const QByteArray& picture, const QString&
                               "     width=\"%2\" height=\"%3\" viewBox=\"0 0 %2 %3\">\n")
                    .arg(QLatin1String(k_pmNamespace))
                    .arg(num(size.width()), num(size.height()));
-        svg += defsOf(words);
+        svg += defsOf(words) + maskDefs(c, QRectF(QPointF(), QSizeF(size)));
 
         // The same content every file of ours carries, so an import can tell it is ours (see read).
         svg += contentElement(c);
-        svg += QStringLiteral("  <g>\n");
+        svg += contentGroup(c);
 
         Render::Item image;
         image.kind    = Render::Item::Kind::Image;
@@ -343,13 +393,13 @@ QByteArray write(const Composition& c, const QByteArray& picture, const QString&
     const QPainterPath silhouette = c.balloon ? Geometry::silhouette(*c.balloon, c.seed) : QPainterPath();
     const Render::List balloon    = c.balloon ? Render::balloon(*c.balloon, c.seed, silhouette) : Render::List();
     const Render::List words      = Render::lettering(c, Geometry::textOutlines(c), Geometry::textFillsOf(c));
-    svg += defsOf(balloon) + defsOf(words);
+    svg += defsOf(balloon) + defsOf(words) + maskDefs(c, bounds);
 
     // A copy of the bubble's content, in a namespace no renderer looks at: what *Import* reads to make this
     // file a bubble again in another workspace. Losing it leaves a perfectly good drawing that simply cannot be
     // re-typed — the intended degradation.
     svg += contentElement(c);
-    svg += QStringLiteral("  <g>\n");
+    svg += contentGroup(c);
 
     // Two groups: the balloon, and the lettering. The texture's filter hangs on the balloon's: a displacement
     // on the lettering would drag the words about with the outline.

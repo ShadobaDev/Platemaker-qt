@@ -2,6 +2,7 @@
 #include "styles.hpp"
 
 #include <QHash>
+#include <QLinearGradient>
 #include <QPainter>
 #include <QPen>
 #include <QtMath>
@@ -418,9 +419,33 @@ QImage render(const Composition& c)
     // The composition is drawn in balloon coordinates, and a tail can reach above or left of the balloon,
     // so the buffer's origin is the bounds' origin rather than the balloon's.
     p.translate(-bounds.topLeft());
-    paint(p, c);
+    paintCut(p, c, bounds, [&](QPainter& q) { paint(q, c); });
     p.end();
     return img;
+}
+
+void paintCut(QPainter& painter, const Composition& c, const QRectF& bounds,
+              const std::function<void(QPainter&)>& draw)
+{
+    const QPainterPath region = c.mask ? Geometry::maskOutline(*c.mask, c.seed) : QPainterPath();
+    if (region.isEmpty()) {
+        draw(painter);
+        return;
+    }
+    drawInLayer(painter, bounds, 1.0, [&](QPainter& p, const QTransform&) {
+        draw(p);
+        // Hidden as the SVG's mask hides: wholly in the region, or less and less along its fade.
+        p.setCompositionMode(QPainter::CompositionMode_DestinationOut);
+        p.setRenderHint(QPainter::Antialiasing, true);
+        if (const auto fade = Geometry::maskFade(*c.mask)) {
+            QLinearGradient g(fade->p1(), fade->p2());
+            g.setColorAt(0.0, Qt::black);
+            g.setColorAt(1.0, Qt::transparent);
+            p.fillPath(region, g);
+        } else {
+            p.fillPath(region, Qt::black);
+        }
+    });
 }
 
 } // namespace Painter

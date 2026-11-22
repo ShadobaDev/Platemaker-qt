@@ -18,7 +18,7 @@ struct HandleContext
     qreal      clearance = 0.0;   //!< How far in a corner's radius dot keeps from its arc, in balloon pixels.
     QList<int> picked;            //!< The nodes picked in shape editing, in pick order.
     int        words = 0;         //!< The words picked (their id): their frame's handles come first; 0 for none.
-    int        body  = 0;         //!< The body whose outline is edited (its id); 0 for the first.
+    int        body  = 0;         //!< The body whose outline is edited (its id), or the mask's region; 0 for the first body.
     int        pickedOf = 0;      //!< The element whose nodes `picked` are: a body's or words' id; 0 for none.
 
     //! The node of element @p element picked last; -1 for none, or when the nodes picked are another's.

@@ -205,8 +205,8 @@ enum class FadePart {
 [[nodiscard]] TextureProperties inkRough(TextureProperties t);
 
 /**
- * \brief \p c has an SVG filter anywhere, which only the library draws: a texture, or a
- *        soft shadow, the balloon's or its letters'. The one question the controller asks to decide how a
+ * \brief \p c has an SVG filter anywhere, which only the library draws: a texture, a
+ *        soft shadow, the balloon's or its letters', or a mask's feather. The one question the controller asks to decide how a
  *        balloon is previewed.
  */
 [[nodiscard]] bool hasFilter(const Composition& c);

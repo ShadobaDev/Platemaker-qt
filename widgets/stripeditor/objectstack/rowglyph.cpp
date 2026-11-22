@@ -1,10 +1,12 @@
 #include "objectstack/rowglyph.hpp"
 
 #include <QFont>
+#include <QImage>
 #include <QPainter>
 #include <QPainterPath>
 
 #include "geometry.hpp"
+#include "painter.hpp"
 
 namespace StripEdit {
 
@@ -104,6 +106,44 @@ QIcon objectGlyph(const Composition& a, const QPalette& pal, int px, qreal dpr)
     p.setPen(pen);
     p.drawPath(silhouette);
     return QIcon(pm);
+}
+
+QIcon maskGlyph(const Composition& a, const QPalette& pal, int px, qreal dpr)
+{
+    if (!a.mask)
+        return {};
+    // The object's frame, and the region where it reaches past it: what the mask is drawn over.
+    const QRectF region(a.mask->region.place.pos, QSizeF(a.mask->region.size));
+    const QRectF frame  = frameOf(a);
+    const QRectF extent = frame.isEmpty() ? region : frame.united(region);
+    if (extent.isEmpty())
+        return {};
+    // Drawn into an image at the screen's pixels with the density in the painter's own transform: the cut is drawn
+    // through a layer (Painter::paintCut()), which is placed by that transform.
+    const qreal ratio = qMax(1.0, dpr);
+    QImage      img(QSize(px, px) * ratio, QImage::Format_ARGB32_Premultiplied);
+    img.fill(Qt::transparent);
+    QPainter p(&img);
+    p.setRenderHint(QPainter::Antialiasing);
+    p.scale(ratio, ratio);
+    const qreal margin = 1.5;   // room for the outline
+    const qreal k      = qMin((px - 2 * margin) / extent.width(), (px - 2 * margin) / extent.height());
+    p.translate((px - extent.width() * k) / 2.0, (px - extent.height() * k) / 2.0);
+    p.scale(k, k);
+    p.translate(-extent.topLeft());
+
+    // As a layer mask is shown: white what stays, black what is hidden, grey where it fades. The white is cut by
+    // Painter::paintCut(), as the object itself is, over black.
+    p.fillRect(extent, Qt::black);
+    Painter::paintCut(p, a, extent, [&extent](QPainter& q) { q.fillRect(extent, Qt::white); });
+    QPen pen = outlinePen(pal, 1.0);
+    pen.setWidthF(qMax(0.5, 1.0 / k));   // one point on screen
+    p.setPen(pen);
+    p.setBrush(Qt::NoBrush);
+    p.drawRect(extent);
+    p.end();
+    img.setDevicePixelRatio(ratio);
+    return QIcon(QPixmap::fromImage(img));
 }
 
 QIcon assetGlyph(const QPixmap& art, int px, qreal dpr)

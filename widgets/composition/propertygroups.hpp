@@ -635,9 +635,10 @@ struct ShapeProperties
     }
 
     //! The same on a composition (composition.cpp): the first body's shape (kind None with no balloon); nothing written where there is none.
-    //! The shape of @p c's body @p body, its first for 0; Kind::None without a balloon.
+    //! The shape of @p c's body @p body, its first for 0, or of its mask's region when @p body is that; Kind::None
+    //! without a balloon.
     [[nodiscard]] static ShapeProperties from(const Composition& c, int body = 0);
-    //! Written to @p c's body @p body, its first for 0.
+    //! Written to @p c's body @p body, its first for 0, or to its mask's region when @p body is that.
     void applyTo(Composition& c, int body = 0) const;
 
     [[nodiscard]] bool operator==(const ShapeProperties& o) const { return Fields::equal(*this, o); }

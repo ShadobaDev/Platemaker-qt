@@ -174,6 +174,37 @@ TEST(Edits, WordsAreAddedInTheLowerHalfAndTheLastOneStays)
     EXPECT_EQ(text.words.size(), 1);
 }
 
+/**
+ * \brief *Add mask* covers the right third of the frame, hidden at the right and shown at the left, under an id of
+ *        its own; an object has one mask, and removing it takes it away.
+ */
+TEST(Edits, AMaskCoversTheRightThirdAndThereIsOne)
+{
+    namespace E = StripEdit::Edits;
+    Composition  a     = balloonObject();
+    const QRectF frame = frameOf(a);
+    const int    next  = a.nextId;
+    const int    id    = E::addMask(a);
+    ASSERT_EQ(id, next);
+    EXPECT_GT(a.nextId, id) << "its id is not handed out again";
+    ASSERT_TRUE(a.mask);
+    const QRectF region(a.mask->region.place.pos, QSizeF(a.mask->region.size));
+    EXPECT_EQ(region.right(), frame.right());
+    EXPECT_EQ(region.top(), frame.top());
+    EXPECT_EQ(region.height(), frame.height());
+    EXPECT_EQ(region.width(), qRound(frame.width() / 3.0));
+    ASSERT_TRUE(a.mask->fade);
+    EXPECT_GT(a.mask->fade->x1(), a.mask->fade->x2()) << "hidden at the right";
+
+    EXPECT_EQ(E::addMask(a), 0) << "one mask";
+    EXPECT_TRUE(E::removeMask(a));
+    EXPECT_FALSE(a.mask);
+    EXPECT_FALSE(E::removeMask(a));
+
+    Composition picture = pictureObject("p.png");
+    EXPECT_NE(E::addMask(picture), 0) << "a picture is masked as a balloon is";
+}
+
 TEST(Document, ItHoldsTheCompositionsOfTheOverlaysItHoldsAndNothingElse)
 {
     Document          d = three();

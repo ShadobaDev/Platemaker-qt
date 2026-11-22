@@ -208,8 +208,16 @@ void Object::setPickedBody(int id)
     emit chromeChanged();
 }
 
+const Mask* Object::pickedMask() const
+{
+    const std::optional<Mask>& m = m_composition.mask;
+    return m && m_pickedBody != 0 && m->region.id == m_pickedBody ? &*m : nullptr;
+}
+
 QRectF Object::chromeBox() const
 {
+    if (const Mask* m = pickedMask())
+        return mapRectToScene(QRectF(m->region.place.pos, QSizeF(m->region.size)));
     // The bubble picked, or the one the picked words sit on: what the click went through to.
     int seat = m_pickedBody;
     for (const Words& w : m_composition.words)
@@ -427,9 +435,15 @@ void Object::beginDrag(Grip grip, int handle, const QPointF& scenePos)
         emit chromeChanged();   // the pressed handle is drawn as pressed
     // A click goes through: a press in one bubble of a chain already selected picks and moves that bubble; the
     // first press, one on a bridge, or one with Ctrl (which gathers objects) moves the whole object.
-    m_dragBody = grip == Grip::Body && m_wasSelected && !(QGuiApplication::keyboardModifiers() & Qt::ControlModifier)
-                     ? bodyAt(mapFromScene(scenePos))
-                     : 0;
+    // A press in the picked mask's box moves the mask: it is what was picked.
+    const bool through = grip == Grip::Body && m_wasSelected
+                      && !(QGuiApplication::keyboardModifiers() & Qt::ControlModifier);
+    if (const Mask* m = pickedMask(); through && m && chromeBox().contains(scenePos)) {
+        m_dragBody  = m->region.id;
+        m_dragStart = m_composition;
+        return;
+    }
+    m_dragBody = through ? bodyAt(mapFromScene(scenePos)) : 0;
     if (m_dragBody != 0) {
         m_dragStart = m_composition;
         emit bodyPressed(m_uid, m_dragBody);
@@ -446,8 +460,12 @@ void Object::dragTo(const QPointF& scenePos, Qt::KeyboardModifiers modifiers)
 
     if (m_active == Grip::Body && m_dragBody != 0) {
         // The body and the tails leaving it, by the delta in the object's own units.
-        Composition next = m_dragStart;
-        Chain::moveBody(next, m_dragBody, delta / (scale() > 0.0 ? scale() : 1.0));
+        Composition   next = m_dragStart;
+        const QPointF by   = delta / (scale() > 0.0 ? scale() : 1.0);
+        if (next.mask && next.mask->region.id == m_dragBody)
+            next.mask->region.place.pos += by;
+        else
+            Chain::moveBody(next, m_dragBody, by);
         m_dragReported = true;
         emit compositionEdited(m_uid, next);
         refreshBounds();
@@ -492,9 +510,14 @@ void Object::dragTo(const QPointF& scenePos, Qt::KeyboardModifiers modifiers)
 
     if (m_resizeBody != 0) {
         // The bubble alone: its place and size in the object's units; the object itself stays where it is.
-        Composition next = m_dragStart;
-        Chain::resizeBody(next, m_resizeBody,
-                          QRectF(mapFromScene(r->topLeft()), QSizeF(qRound(r->width() / k), qRound(r->height() / k))));
+        Composition  next = m_dragStart;
+        const QRectF to(mapFromScene(r->topLeft()), QSizeF(qRound(r->width() / k), qRound(r->height() / k)));
+        if (next.mask && next.mask->region.id == m_resizeBody) {
+            next.mask->region.place.pos = to.topLeft();
+            next.mask->region.size      = to.size().toSize();
+        } else {
+            Chain::resizeBody(next, m_resizeBody, to);
+        }
         m_dragReported = true;
         emit compositionEdited(m_uid, next);
         refreshBounds();

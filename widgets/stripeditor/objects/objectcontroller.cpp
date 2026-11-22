@@ -219,6 +219,10 @@ void ObjectController::reselect()
         selectBody(m_selection.body().object, m_selection.body().element);   // or the balloon, when it is gone
         return;
     }
+    if (m_selection.subject() == Subject::Mask) {
+        selectMask(m_selection.mask().object, m_selection.mask().element);   // or the object, when it is gone
+        return;
+    }
     if (m_selection.subject() == Subject::Strip || m_selection.subject() == Subject::Page) {
         // A page can go between feeds — an input removed — and a selection must not outlive its row.
         // The question is the layout's, not the tree's: the tree is a view of it, and is refreshed from it.
@@ -274,9 +278,20 @@ void ObjectController::selectBody(const QString& uid, int id)
     showSelection();
 }
 
+void ObjectController::selectMask(const QString& uid, int id)
+{
+    if (!hasMask({uid, id})) {
+        selectOverlay(uid);   // gone: the object is what is left to hold
+        return;
+    }
+    m_selection.selectMask({uid, id}, [this](const QString& u, int mask) { return hasMask({u, mask}); });
+    showSelection();
+}
+
 bool ObjectController::leaveElement()
 {
-    if (m_selection.subject() != Subject::Words && m_selection.subject() != Subject::Body)
+    if (m_selection.subject() != Subject::Words && m_selection.subject() != Subject::Body
+        && m_selection.subject() != Subject::Mask)
         return false;
     selectOverlay(m_selection.primary());
     return true;
@@ -297,6 +312,12 @@ bool ObjectController::hasBody(const ElementRef& ref) const
         return false;
     const QList<Body>& bodies = item->composition().balloon->bodies;
     return std::any_of(bodies.cbegin(), bodies.cend(), [&ref](const Body& b) { return b.id == ref.element; });
+}
+
+bool ObjectController::hasMask(const ElementRef& ref) const
+{
+    const Object* item = m_overlayItems.value(ref.object);
+    return item && item->composition().mask && item->composition().mask->region.id == ref.element;
 }
 
 bool ObjectController::hasWords(const ElementRef& ref) const
@@ -324,7 +345,8 @@ void ObjectController::reveal(Subject subject, const QString& id, int tail)
         return;
     if (const int at = tailIndex({id, tail}); subject == Subject::Tail && at >= 0 && at < item->tipCount())
         m_view->centerOn(item->mapToScene(item->handleAt(at)));
-    else if (subject == Subject::Overlay || subject == Subject::Words || subject == Subject::Body)
+    else if (subject == Subject::Overlay || subject == Subject::Words || subject == Subject::Body
+             || subject == Subject::Mask)
         m_view->centerOn(item->sceneBoundingRect().center());
 }
 
@@ -334,6 +356,16 @@ void ObjectController::onObjectPressed(const QString& uid, int handle)
     m_pressPickedWords = false;
     const bool add = QGuiApplication::keyboardModifiers() & Qt::ControlModifier;
 
+    // A bubble or a mask picked on its own keeps being picked through a press on its own grips (they resize it) or
+    // its shape handles, and, for a mask, a press in its box (it moves it, Object::beginDrag()).
+    if (const Object* item = m_overlayItems.value(uid); handle < 0 && !add && item && item->pickedBody() != 0) {
+        const Grip grip    = item->dragGrip();
+        const bool ownGrip = grip != Grip::Body && grip != Grip::Handle && grip != Grip::None;
+        if (ownGrip || (item->pickedMask() && item->chromeBox().contains(item->pressScenePos()))) {
+            beginDrag(uid, handle);
+            return;
+        }
+    }
     if (handle >= 0) {
         if (add) {
             // Ctrl gathers, here as everywhere else. The scene has already toggled the balloon's own
@@ -587,6 +619,8 @@ void ObjectController::setSource(const std::vector<Platemaker::Models::StripOver
         selectOverlay(m_selection.primary());
     if (m_selection.subject() == Subject::Body && !hasBody(m_selection.body()))
         selectOverlay(m_selection.primary());
+    if (m_selection.subject() == Subject::Mask && !hasMask(m_selection.mask()))
+        selectOverlay(m_selection.primary());   // an undo of *Add mask*
 }
 
 QImage ObjectController::sharpRasterFor(const Composition& a)
@@ -890,7 +924,8 @@ void ObjectController::showSelection()
                 focused << tailIndex(t);
         it.value()->setFocusedHandles(focused);
         it.value()->setPickedWords(m_selection.words().object == it.key() ? m_selection.words().element : 0);
-        it.value()->setPickedBody(m_selection.body().object == it.key() ? m_selection.body().element : 0);
+        const ElementRef alone = m_selection.subject() == Subject::Mask ? m_selection.mask() : m_selection.body();
+        it.value()->setPickedBody(alone.object == it.key() ? alone.element : 0);
     }
 
     emit selectionChanged();   // the stack's rows and the menu's entries follow it
@@ -1033,6 +1068,29 @@ void ObjectController::addBubble()
         return;
     applyComposition(uid, a, /*commit=*/true, tr("Add bubble"));
     selectBody(uid, added);
+}
+
+bool ObjectController::canAddMask() const
+{
+    const Object* item = m_selection.objects().size() == 1 ? m_overlayItems.value(m_selection.primary()) : nullptr;
+    if (!item || !isParametric(m_selection.primary())
+        || (m_selection.subject() != Subject::Overlay && m_selection.subject() != Subject::Words
+            && m_selection.subject() != Subject::Body))
+        return false;
+    return !item->composition().mask;
+}
+
+void ObjectController::addMask()
+{
+    if (!canAddMask())
+        return;
+    const QString uid = m_selection.primary();
+    Composition   a   = m_overlayItems.value(uid)->composition();
+    const int     id  = Edits::addMask(a);
+    if (id == 0)
+        return;
+    applyComposition(uid, a, /*commit=*/true, tr("Add mask"));
+    selectMask(uid, id);
 }
 
 bool ObjectController::canJoin() const
@@ -1324,6 +1382,7 @@ void ObjectController::applyCompositions(const QStringList& uids, const QList<Co
                  : m_selection.subject() == Subject::Tail   ? tr("Edit tail")
                  : m_selection.subject() == Subject::Words  ? tr("Edit words")
                  : m_selection.subject() == Subject::Body   ? tr("Edit bubble")
+                 : m_selection.subject() == Subject::Mask   ? tr("Edit mask")
                  : compositionOf(uids.first()).picture ? tr("Edit artwork")
                                                        : tr("Edit bubble"));
 }
@@ -1456,6 +1515,20 @@ void ObjectController::deleteSelectedWords()
     m_panel->show(a);
 }
 
+void ObjectController::deleteSelectedMask()
+{
+    const ElementRef mask = m_selection.mask();
+    Object*          item = m_overlayItems.value(mask.object);
+    if (!item)
+        return;
+    Composition a = item->composition();
+    if (!Edits::removeMask(a))
+        return;
+    selectOverlay(mask.object);   // the object is what is left to hold, selected before the edit goes out
+    applyComposition(mask.object, a, /*commit=*/true, tr("Delete mask"));
+    m_panel->show(a);
+}
+
 bool ObjectController::canDeleteSelectedBubble() const
 {
     const Object* item = m_overlayItems.value(m_selection.body().object);
@@ -1524,6 +1597,10 @@ void ObjectController::deleteSelectedOverlay()
     }
     if (m_selection.subject() == Subject::Body) {
         deleteSelectedBubble();
+        return;
+    }
+    if (m_selection.subject() == Subject::Mask) {
+        deleteSelectedMask();
         return;
     }
     if (m_selection.objects().isEmpty())

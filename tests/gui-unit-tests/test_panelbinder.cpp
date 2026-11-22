@@ -136,4 +136,14 @@ TEST(PanelBinder, EachKindOfSelectionIsBoundAsItsOwn)
     s.binder.bind();
     EXPECT_EQ(body, first);
     EXPECT_EQ(s.binder.subjects(), QStringList{"a"});
+
+    // A mask picked: bound to its object, the region named, and not taken for a body.
+    int mask = 0;
+    body     = 0;
+    QObject::connect(&s.binder, &PanelBinder::boundToMask, [&](const Composition&, int id) { mask = id; });
+    s.selection.selectMask({"a", first}, [](const QString&, int) { return true; });
+    s.binder.bind();
+    EXPECT_EQ(mask, first);
+    EXPECT_EQ(body, 0);
+    EXPECT_EQ(s.binder.subjects(), QStringList{"a"});
 }

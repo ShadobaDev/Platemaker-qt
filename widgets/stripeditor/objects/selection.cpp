@@ -45,6 +45,11 @@ void SelectionModel::selectBody(const ElementRef& body, const Exists& exists)
     selectAlone(Subject::Body, body, exists);
 }
 
+void SelectionModel::selectMask(const ElementRef& mask, const Exists& exists)
+{
+    selectAlone(Subject::Mask, mask, exists);
+}
+
 void SelectionModel::selectAlone(Subject subject, const ElementRef& element, const Exists& exists)
 {
     select({}, {}, exists);

@@ -105,10 +105,12 @@ public:
 
 protected:
     /**
-     * \brief Draws the picture stretched to its box, and any lettering over it.
+     * \brief Draws the picture stretched to its box, and any lettering over it, with its mask cut out.
      * \param painter The painter to use for drawing.
      */
     void                 paintContent(QPainter& painter) override;
+    //! The picture stretched to @p box, and any lettering over it: what paintContent() cuts the mask out of.
+    void                 paintPicture(QPainter& painter, const QRectF& box);
     /**
      * \brief Computes the bounding rectangle for the object.
      * \return The bounding rectangle.

@@ -1266,6 +1266,19 @@ QPointF anchorAt(const QRectF& rect, const QPointF& anchor)
     return rect.topLeft() + QPointF(anchor.x() * rect.width(), anchor.y() * rect.height());
 }
 
+QPainterPath maskOutline(const Mask& mask, quint32 seed)
+{
+    return outlineOf(mask.region, QRectF(mask.region.place.pos, QSizeF(mask.region.size)), seed);
+}
+
+std::optional<QLineF> maskFade(const Mask& mask)
+{
+    if (!mask.fade)
+        return std::nullopt;
+    const QRectF box(mask.region.place.pos, QSizeF(mask.region.size));
+    return QLineF(anchorAt(box, mask.fade->p1()), anchorAt(box, mask.fade->p2()));
+}
+
 QPainterPath outlineOf(const Body& body, const QRectF& rect, quint32 seed)
 {
     if (body.shape.kind == ShapeProperties::Kind::None || rect.isEmpty())

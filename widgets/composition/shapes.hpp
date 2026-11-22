@@ -238,6 +238,12 @@ constexpr int k_maxRegularPoints = 64;
 //! @p body's own outline in @p rect (balloonRect()) — the shape alone, no tails, its edge dealt by @p seed.
 [[nodiscard]] QPainterPath outlineOf(const Body& body, const QRectF& rect, quint32 seed);
 
+//! Where @p mask hides: its region's outline (outlineOf()) in the composition's frame, its edge dealt by @p seed.
+[[nodiscard]] QPainterPath maskOutline(const Mask& mask, quint32 seed);
+
+//! @p mask's fade in the composition's frame (its fractions laid on the region's box); none without one.
+[[nodiscard]] std::optional<QLineF> maskFade(const Mask& mask);
+
 }  // namespace Geometry
 
 #endif // SHAPES_HPP

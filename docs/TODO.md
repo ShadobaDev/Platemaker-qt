@@ -119,8 +119,6 @@ Bug fixes, cosmetics and internal cleanups — no new capability, no change to a
   `setVisible(false)` line to preview it greyed out). A stopgap — remove it
   when the Auto-sort feature lands (see the MINOR item).
 
-- [ ] **Scroll to object in OBJECT STACK.** It shall be possible for a user to find selected object in the object stack in the strip.
-
 ---
 
 ## MINOR — next: 1.5.0

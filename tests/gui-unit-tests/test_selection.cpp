@@ -121,4 +121,14 @@ TEST(Selection, WordsArePickedAloneTheirObjectCarryingThem)
     EXPECT_EQ(s.subjectCount(), 1);
     s.selectWords({"a", 5}, exists);
     EXPECT_EQ(s.body(), ElementRef());
+
+    // ...and a mask, which is neither.
+    s.selectMask({"a", 5}, exists);
+    EXPECT_EQ(s.subject(), Subject::Mask);
+    EXPECT_EQ(s.mask(), (ElementRef{"a", 5}));
+    EXPECT_EQ(s.body(), ElementRef());
+    EXPECT_EQ(s.carriers(), QStringList{"a"});
+    EXPECT_EQ(s.subjectCount(), 1);
+    s.selectBody({"a", 5}, exists);
+    EXPECT_EQ(s.mask(), ElementRef());
 }

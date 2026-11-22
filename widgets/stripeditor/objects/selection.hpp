@@ -28,7 +28,7 @@ struct ElementRef
  * The strip and its pages are not overlays — nothing about them is placed, styled or composited — so they are
  * told apart here rather than squeezed into an overlay's uid.
  */
-enum class Subject { None, Overlay, Strip, Page, Tail, Words, Body };
+enum class Subject { None, Overlay, Strip, Page, Tail, Words, Body, Mask };
 
 /**
  * \brief A selection: objects in pick order, elements of them, or the strip or one page.
@@ -55,6 +55,8 @@ public:
     void selectWords(const ElementRef& words, const Exists& exists);
     //! Selects body @p body alone, one bubble of a balloon of several, as selectWords() does words.
     void selectBody(const ElementRef& body, const Exists& exists);
+    //! Selects an object's own mask @p mask (its region's id) alone, as selectWords() does words.
+    void selectMask(const ElementRef& mask, const Exists& exists);
     void selectStrip();                      //!< The strip, and nothing else.
     void selectPage(const QString& page);    //!< One page (its input uid), and nothing else.
 
@@ -74,6 +76,8 @@ public:
     [[nodiscard]] ElementRef words() const { return m_subject == Subject::Words ? m_alone : ElementRef{}; }
     //! When subject() is Body: that body; otherwise none (element 0).
     [[nodiscard]] ElementRef body() const { return m_subject == Subject::Body ? m_alone : ElementRef{}; }
+    //! When subject() is Mask: that mask; otherwise none (element 0).
+    [[nodiscard]] ElementRef mask() const { return m_subject == Subject::Mask ? m_alone : ElementRef{}; }
     //! How many things were picked: objects that are not carriers, and elements.
     [[nodiscard]] int subjectCount() const;
 
@@ -81,7 +85,7 @@ private:
     QStringList       m_objects;
     QList<ElementRef> m_elements;
     QStringList       m_carriers;
-    //! An element picked alone (words(), body()), or none.
+    //! An element picked alone (words(), body(), mask()), or none.
     void       selectAlone(Subject subject, const ElementRef& element, const Exists& exists);
     ElementRef m_alone;
     QString           m_primary;

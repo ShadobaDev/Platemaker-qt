@@ -263,8 +263,37 @@ QSize sizeOf(const Composition& c)
     return w ? w->box : QSize();
 }
 
+namespace {
+
+//! Where the grips' box (sizeOf()) is: the first body's place, or the picture's, or the first words' own.
+QPointF sizedCorner(const Composition& c)
+{
+    if (const Body* b = bodyOf(c))
+        return b->place.pos;
+    if (c.picture)
+        return c.picture->place.pos;
+    const Words* w = wordsOf(c);
+    return w ? w->place.pos : QPointF();
+}
+
+//! @p mask's region scaled as a box at @p corner goes from @p was to @p now, from that corner.
+void scaleMask(Mask& mask, const QPointF& corner, const QSize& was, const QSize& now)
+{
+    if (was.isEmpty())
+        return;
+    const qreal sx    = qreal(now.width()) / was.width();
+    const qreal sy    = qreal(now.height()) / was.height();
+    const QPointF off = mask.region.place.pos - corner;
+    mask.region.place.pos = corner + QPointF(off.x() * sx, off.y() * sy);
+    mask.region.size      = QSize(qRound(mask.region.size.width() * sx), qRound(mask.region.size.height() * sy));
+}
+
+}  // namespace
+
 void resize(Composition& c, const QSize& size)
 {
+    if (c.mask)
+        scaleMask(*c.mask, sizedCorner(c), sizeOf(c), size);
     if (Body* b = bodyOf(c)) {
         b->size = size;
         return;
@@ -611,6 +640,20 @@ QJsonObject toJson(const Composition& c)
         words.append(o);
     }
     j.insert(QStringLiteral("words"), words);
+    if (c.mask) {
+        const Mask& m = *c.mask;
+        QJsonObject o{
+            {QStringLiteral("id"),    m.region.id},
+            {QStringLiteral("place"), placeToJson(m.region.place)},
+            {QStringLiteral("size"),  sizeToJson(m.region.size)},
+            {QStringLiteral("shape"), toJson(m.region.shape)},
+        };
+        if (m.feather != 0.0)
+            o.insert(QStringLiteral("feather"), m.feather);
+        if (m.fade)
+            o.insert(QStringLiteral("fade"), QJsonArray{m.fade->x1(), m.fade->y1(), m.fade->x2(), m.fade->y2()});
+        j.insert(QStringLiteral("mask"), o);
+    }
     if (!c.preset.isEmpty())
         j.insert(QStringLiteral("preset"), QJsonObject{{QStringLiteral("uid"), c.preset.uid},
                                                        {QStringLiteral("name"), c.preset.name}});
@@ -676,6 +719,17 @@ Composition compositionFromJson(const QJsonObject& j)
                 *edge = v.toDouble();
         c.words.append(w);
     }
+    if (const QJsonObject o = j.value(QStringLiteral("mask")).toObject(); !o.isEmpty()) {
+        Mask m;
+        m.region.id    = id(o);
+        m.region.place = placeFromJson(o.value(QStringLiteral("place")).toObject());
+        sizeFromJson(o.value(QStringLiteral("size")), m.region.size);
+        m.region.shape = shapeFromJson(o.value(QStringLiteral("shape")).toObject());
+        m.feather      = o.value(QStringLiteral("feather")).toDouble(0.0);
+        if (const QJsonArray f = o.value(QStringLiteral("fade")).toArray(); f.size() == 4)
+            m.fade = QLineF(f.at(0).toDouble(), f.at(1).toDouble(), f.at(2).toDouble(), f.at(3).toDouble());
+        c.mask = m;
+    }
     const QJsonObject preset = j.value(QStringLiteral("preset")).toObject();
     c.preset = {preset.value(QStringLiteral("uid")).toString(), preset.value(QStringLiteral("name")).toString()};
     // Never below an id in use, so an id is never given twice whatever the file says.
@@ -725,6 +779,8 @@ Body*       bodyOf(Composition& c, int id) { return bodyById(c, id); }
 
 ShapeProperties ShapeProperties::from(const Composition& c, int body)
 {
+    if (c.mask && body != 0 && c.mask->region.id == body)
+        return c.mask->region.shape;
     if (const Body* b = bodyById(c, body))
         return b->shape;
     ShapeProperties none;
@@ -734,7 +790,9 @@ ShapeProperties ShapeProperties::from(const Composition& c, int body)
 
 void ShapeProperties::applyTo(Composition& c, int body) const
 {
-    if (Body* b = bodyById(c, body))
+    if (c.mask && body != 0 && c.mask->region.id == body)
+        c.mask->region.shape = *this;
+    else if (Body* b = bodyById(c, body))
         b->shape = *this;
 }
 

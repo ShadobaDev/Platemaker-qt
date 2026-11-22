@@ -21,6 +21,7 @@
 #include "collapsiblesection.hpp"
 #include "presetstore.hpp"
 #include "properties/effectseditor.hpp"
+#include "properties/maskeditor.hpp"
 #include "properties/shapeeditor.hpp"
 #include "properties/skineditor.hpp"
 #include "properties/styleeditor.hpp"
@@ -46,7 +47,8 @@ QString expansionKey(PropertyGroup g)
 //! Open on a first run: what is edited most, and what is looked at most.
 bool expandedByDefault(PropertyGroup g)
 {
-    return g == PropertyGroup::Text || g == PropertyGroup::Skin || g == PropertyGroup::TailItem;
+    return g == PropertyGroup::Text || g == PropertyGroup::Skin || g == PropertyGroup::TailItem
+        || g == PropertyGroup::Mask;
 }
 
 QString sectionTitle(PropertyGroup g)
@@ -60,6 +62,7 @@ QString sectionTitle(PropertyGroup g)
     case PropertyGroup::Text:  return ObjectState::tr("Text");
     case PropertyGroup::Tail:  return ObjectState::tr("Tails");
     case PropertyGroup::TailItem: return ObjectState::tr("Tail");
+    case PropertyGroup::Mask:  return ObjectState::tr("Mask");
     default: break;
     }
     return {};
@@ -187,8 +190,9 @@ ObjectState::ObjectState(PresetStore& presets, QWidget* parent)
     // is the subject.
     m_tailList = new TailListEditor(this);
     m_tail     = new TailEditor(this);
+    m_mask     = new MaskEditor(this);
     QList<PropertyGroupEditor*> editors = m_groups.all();
-    editors << m_tailList << m_tail;
+    editors << m_tailList << m_tail << m_mask;
 
     // One section per group, in a fixed order, so a group present on two consecutive selections stays
     // where it was and the panel does not shuffle under the cursor.
@@ -312,6 +316,7 @@ void ObjectState::setComposition(const Composition& a)
     m_wordsId = 0;
     m_groups.text()->setWords(0);
     m_bodyId = 0;
+    m_maskId = 0;
     m_groups.shape()->setBody(0);
     m_tailList->setBody(0);
     m_hasComposition   = true;
@@ -352,6 +357,7 @@ void ObjectState::setMixedSubjects(int count)
     m_wordsId = 0;
     m_groups.text()->setWords(0);
     m_bodyId = 0;
+    m_maskId = 0;
     m_groups.shape()->setBody(0);
     m_tailList->setBody(0);
     m_commitTimer->stop();
@@ -382,6 +388,7 @@ void ObjectState::setCompositions(const QList<Composition>& objects)
     m_wordsId = 0;
     m_groups.text()->setWords(0);
     m_bodyId = 0;
+    m_maskId = 0;
     m_groups.shape()->setBody(0);
     m_tailList->setBody(0);
     m_commitTimer->stop();
@@ -441,6 +448,7 @@ void ObjectState::setTails(const QList<Composition>& balloons, const QList<QPair
     m_wordsId = 0;
     m_groups.text()->setWords(0);
     m_bodyId = 0;
+    m_maskId = 0;
     m_groups.shape()->setBody(0);
     m_tailList->setBody(0);
     m_hasComposition      = false;
@@ -473,6 +481,7 @@ void ObjectState::setTail(const Composition& a, int index)
     m_wordsId = 0;
     m_groups.text()->setWords(0);
     m_bodyId = 0;
+    m_maskId = 0;
     m_groups.shape()->setBody(0);
     m_tailList->setBody(0);
     m_hasComposition   = true;
@@ -536,6 +545,23 @@ void ObjectState::setBody(const Composition& a, int id)
     applyKindVisibility();
 }
 
+void ObjectState::setMask(const Composition& a, int id)
+{
+    setComposition(a);   // the object's state, then narrowed to its mask
+    m_maskId     = id;
+    m_populating = true;
+    m_groups.shape()->setBody(id);   // the region's shape (ShapeProperties::from())
+    m_groups.shape()->bindOne(m_composition);
+    m_mask->bindOne(m_composition);
+    m_populating = false;
+
+    m_subject->setText(tr("Mask"));
+    m_deleteButton->setText(tr("Delete mask"));
+    m_deleteButton->setVisible(true);
+    refreshLook();
+    applyKindVisibility();
+}
+
 void ObjectState::clearSelection()
 {
     m_tailSet.clear();
@@ -545,6 +571,7 @@ void ObjectState::clearSelection()
     m_wordsId = 0;
     m_groups.text()->setWords(0);
     m_bodyId = 0;
+    m_maskId = 0;
     m_groups.shape()->setBody(0);
     m_tailList->setBody(0);
     m_subjects.clear();
@@ -586,6 +613,7 @@ void ObjectState::applyKindVisibility()
         // answers, through the same rule a set is measured by.
         it.value()->setVisible(tailSubject() ? g == PropertyGroup::TailItem
                                : m_wordsId != 0 ? g == PropertyGroup::Text
+                               : m_maskId != 0  ? g == PropertyGroup::Shape || g == PropertyGroup::Mask
                                : m_bodyId != 0  ? g == PropertyGroup::Shape || g == PropertyGroup::Tail
                                                 : carriesGroup(m_composition, g));
     }
@@ -621,7 +649,7 @@ void ObjectState::refreshLook()
     // own, nothing selected has nothing to report, and a picture's look is whoever drew it.
     PresetOrigin origin;
     bool         mixed = false;
-    if (tailSubject() || m_wordsId != 0 || m_bodyId != 0 || m_selectionCount == 0
+    if (tailSubject() || m_wordsId != 0 || m_bodyId != 0 || m_maskId != 0 || m_selectionCount == 0
         || (m_hasComposition && m_composition.picture.has_value())) {
     } else if (m_hasComposition) {
         origin = m_composition.preset;
@@ -632,7 +660,7 @@ void ObjectState::refreshLook()
         });
     }
     // The picker goes with the chip: shown wherever there is a look a preset could replace.
-    const bool hasLook = !(tailSubject() || m_wordsId != 0 || m_bodyId != 0 || m_selectionCount == 0
+    const bool hasLook = !(tailSubject() || m_wordsId != 0 || m_bodyId != 0 || m_maskId != 0 || m_selectionCount == 0
                            || (m_hasComposition && m_composition.picture.has_value()))
                       && (m_hasComposition || std::any_of(m_subjects.cbegin(), m_subjects.cend(),
                                                      [](const Composition& a) { return !a.picture.has_value(); }));
@@ -739,6 +767,9 @@ void ObjectState::onControlChanged()
         m_tail->applyTo(m_composition);   // that tail, and nothing else about the balloon
     } else if (m_wordsId != 0) {
         m_groups.text()->applyTo(m_composition);   // those words, and nothing else about the object
+    } else if (m_maskId != 0) {
+        m_groups.shape()->applyTo(m_composition);   // the mask's shape, feather and fade, nothing else about the object
+        m_mask->applyTo(m_composition);
     } else if (m_bodyId != 0) {
         m_groups.shape()->applyTo(m_composition);   // that body's shape and tails, nothing else about the balloon
         m_tailList->applyTo(m_composition);

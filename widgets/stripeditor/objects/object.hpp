@@ -139,12 +139,18 @@ public:
 
     //! Marks the words @p id as picked: their frame drawn marked, its handles first. 0: none, the first words marked.
     void setPickedWords(int id);
-    //! The body picked on its own, one bubble of several (Subject::Body); 0 for none. Its box is the chrome's.
+    /**
+     * \brief The body picked on its own, one bubble of several (Subject::Body), or the mask's region (Subject::Mask);
+     *        0 for none. Its box is the chrome's, its grips resize it, a press in it moves it, and shape editing
+     *        edits its outline.
+     */
     void setPickedBody(int id);
     [[nodiscard]] int pickedBody() const { return m_pickedBody; }
+    //! The mask, when it is what pickedBody() names; none otherwise.
+    [[nodiscard]] const Mask* pickedMask() const;
     /**
-     * \brief The box the selection chrome draws: the picked body's (pickedBody()), or the body the picked words
-     *        sit on, else the object's (frameBox()), in scene coordinates.
+     * \brief The box the selection chrome draws: the picked body's or mask's (pickedBody()), or the body the picked
+     *        words sit on, else the object's (frameBox()), in scene coordinates.
      */
     [[nodiscard]] QRectF chromeBox() const;
     //! The words marked: those picked, or the first; 0 with no words.

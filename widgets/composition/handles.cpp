@@ -16,9 +16,11 @@ namespace {
 //! How far a node may sit from the box's edge, as a fraction of it, and the box still count as fitted.
 constexpr qreal k_fitsBox = 1e-9;
 
-//! The body @p h belongs to.
+//! The body @p h belongs to, or the mask's region.
 Body* bodyFor(Composition& c, const Handle& h)
 {
+    if (c.mask && c.mask->region.id == h.element)
+        return &c.mask->region;
     if (!c.balloon)
         return nullptr;
     for (Body& b : c.balloon->bodies)
@@ -91,6 +93,36 @@ QPointF dragBody(Composition& next, const Handle& h, const QPointF& to, const Ha
     else
         own->shape = dragShapeHandle(own->shape, rect, h, to, context.clearance);
     return node ? fitToOutline(next, *own, rect) : QPointF();
+}
+
+//! The mask's outline, in its own box: several picked nodes move together. Its box stays: a region has no stroke
+//! to fit, and a node past its box is drawn there all the same.
+QPointF dragMask(Composition& next, const Handle& h, const QPointF& to, const HandleContext& context)
+{
+    if (!next.mask)
+        return {};
+    Body&        own  = next.mask->region;
+    const QRectF rect(own.place.pos, QSizeF(own.size));
+    if (partOf<ShapePart>(h) == ShapePart::Vertex && context.pickedOf == own.id && context.picked.size() > 1)
+        own.shape = withNodesMoved(own.shape, rect, context.picked, to - h.at);
+    else
+        own.shape = dragShapeHandle(own.shape, rect, h, to, context.clearance);
+    return {};
+}
+
+//! The two ends of a mask's fade (maskFade()), told apart by Handle::part.
+enum class MaskFadePart { Start, End };
+
+//! The mask's fade: the end dragged, anywhere, as a fraction of the region's box.
+QPointF dragMaskFade(Composition& next, const Handle& h, const QPointF& to, const HandleContext&)
+{
+    if (!next.mask || !next.mask->fade || next.mask->region.size.isEmpty())
+        return {};
+    const Body&   own = next.mask->region;
+    const QPointF at((to.x() - own.place.pos.x()) / own.size.width(), (to.y() - own.place.pos.y()) / own.size.height());
+    QLineF&       fade = *next.mask->fade;
+    (partOf<MaskFadePart>(h) == MaskFadePart::Start ? fade.setP1(at) : fade.setP2(at));
+    return {};
 }
 
 //! A "+" adds its node at once, and the drag that follows is that node's.
@@ -289,10 +321,41 @@ QList<Handle> owned(QList<Handle> list, int element, Handle::Drag drag)
     return list;
 }
 
+//! The mask's handles: its outline's, and its fade's two ends when it fades.
+QList<Handle> maskHandles(const Composition& c, const HandleContext& context)
+{
+    const Body&   own = c.mask->region;
+    QList<Handle> out = owned(shapeHandles(own.shape, QRectF(own.place.pos, QSizeF(own.size)), context.clearance,
+                                           context.lastPicked(own.id)),
+                              own.id, &dragMask);
+    for (Handle& h : out)
+        if (partOf<ShapePart>(h) == ShapePart::AddVertex)
+            h.press = &addNode;
+    if (const std::optional<QLineF> fade = maskFade(*c.mask)) {
+        Handle start;
+        start.part   = int(MaskFadePart::Start);
+        start.at     = fade->p1();
+        start.origin = fade->p1();
+        start.glyph  = Handle::Glyph::FadeStart;
+        Handle end   = start;
+        end.part     = int(MaskFadePart::End);
+        end.at       = fade->p2();
+        end.start    = fade->p1();
+        end.glyph    = Handle::Glyph::FadeEnd;
+        if (fade->length() > 0.0)
+            end.axis = (fade->p2() - fade->p1()) / fade->length();
+        out.append(owned({start, end}, own.id, &dragMaskFade));
+    }
+    return out;
+}
+
 } // namespace
 
 QList<Handle> handlesOf(const Composition& c, const HandleContext& context)
 {
+    // The mask picked: its handles alone, the object's own lie under it and are not what is edited.
+    if (c.mask && context.body != 0 && context.body == c.mask->region.id)
+        return maskHandles(c, context);
     QList<Handle> out;
     if (const Body* own = bodyOf(c, context.body)) {
         const QRectF rect = balloonRect(*c.balloon, *own);

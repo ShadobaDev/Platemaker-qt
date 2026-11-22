@@ -3,6 +3,7 @@
 
 #include <QHash>
 #include <QJsonObject>
+#include <QLineF>
 #include <QList>
 #include <QPointF>
 #include <QRectF>
@@ -194,6 +195,31 @@ struct Picture
 };
 
 /**
+ * \brief A cut out of the object's own drawing: where it hides what the object draws, as a layer mask does.
+ *
+ * Its \c region is a body's geometry (a place, a size and a shape, outlined by Geometry::outlineOf()), in the
+ * composition's frame, so it moves with the object; resize() scales it with the object's box. Inside the region
+ * the object is hidden; a \c feather softens the region's edge, and a \c fade lets it hide less and less along a
+ * line: wholly at the line's start, not at all past its end.
+ */
+struct Mask
+{
+    Body  region;                //!< Where it hides: its id is the mask's, as an element of the composition.
+    qreal feather = 0.0;         //!< How far the edge is blurred (a Gaussian's deviation), in its pixels; 0 is hard.
+    /**
+     * The fade, as fractions of the region's box: hidden wholly at its start, not at all at its end, a gradient
+     * between. None, the default, hides the region evenly.
+     */
+    std::optional<QLineF> fade;
+
+    [[nodiscard]] bool operator==(const Mask& o) const
+    {
+        return region == o.region && qFuzzyCompare(1.0 + feather, 1.0 + o.feather) && fade == o.fade;
+    }
+    [[nodiscard]] bool operator!=(const Mask& o) const { return !(*this == o); }
+};
+
+/**
  * \brief One object on the strip: one overlay, one SVG.
  *
  * At most one background: a balloon or a picture. Element ids are unique across the whole composition and
@@ -204,6 +230,7 @@ struct Composition
     std::optional<Balloon> balloon;
     std::optional<Picture> picture;
     QList<Words>           words;
+    std::optional<Mask>    mask;          //!< What of its drawing it hides; none by default.
     quint32                seed   = 0;   //!< The style seed (topUpStyleSeed()).
     PresetOrigin           preset;
     int                    nextId = 1;
@@ -213,8 +240,8 @@ struct Composition
 
     [[nodiscard]] bool operator==(const Composition& o) const
     {
-        return balloon == o.balloon && picture == o.picture && words == o.words && seed == o.seed
-            && preset == o.preset && nextId == o.nextId;
+        return balloon == o.balloon && picture == o.picture && words == o.words && mask == o.mask
+            && seed == o.seed && preset == o.preset && nextId == o.nextId;
     }
     [[nodiscard]] bool operator!=(const Composition& o) const { return !(*this == o); }
 };
@@ -258,7 +285,8 @@ void tidyRuns(TextProperties& t);
  * \brief The size the grips drag: the first body's, or the picture's, or the first words' own box.
  */
 [[nodiscard]] QSize sizeOf(const Composition& c);
-//! Sets sizeOf(): the first body's size; or the picture's; and the box of the words with no seat.
+//! Sets sizeOf(): the first body's size; or the picture's; and the box of the words with no seat. A mask's
+//! region is scaled with it, from its top-left corner, so it keeps its place on the object.
 void resize(Composition& c, const QSize& size);
 
 //! The size an object has before it is drawn on the strip: what a preset and the tool options show.
@@ -313,12 +341,13 @@ inline constexpr int k_labelChars = 32;
 /**
  * \brief The composition as its content: the JSON the workspace keeps with the overlay and the SVG copies.
  *
- * `{balloon: {id, style, bodies, tails}, picture, words, seed, preset, nextId}`, each
+ * `{balloon: {id, style, bodies, tails}, picture, words, mask, seed, preset, nextId}`, each
  * group an object and each section an object inside its group (a section's numbers left out while they are their
  * defaults). A body is `{id, place, size, shape}`, a tail `{id, root, tip, width, bend, look}` and a bridge `to`
  * too, words
  * `{id, text, seat, frame}` or, with no seat, `{id, text, place, box}`; a place is `{pos}`, with `rotation` and `scale`
- * only when they are not their defaults.
+ * only when they are not their defaults. A mask is `{id, place, size, shape}`, with `feather` and `fade`
+ * (`[x1, y1, x2, y2]`) only when it has them.
  */
 [[nodiscard]] QJsonObject toJson(const Composition& c);
 /**

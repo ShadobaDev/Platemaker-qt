@@ -22,6 +22,7 @@ namespace StripEdit {
 class PresetStore;
 
 class TailEditor;
+class MaskEditor;
 class TailListEditor;
 
 /**
@@ -81,6 +82,8 @@ public:
      * the whole composition, with only that body's shape and tails written.
      */
     void setBody(const Composition& a, int id);
+    //! The object's own mask picked, its region @p id of @p a: the Shape section its region's, the Mask section its own.
+    void setMask(const Composition& a, int id);
 
     /**
      * \brief Shows @p objects as one subject — the **union** of what they have in common. Emits nothing.
@@ -177,12 +180,14 @@ private:
     PropertyGroupSet m_groups;
     TailListEditor*  m_tailList = nullptr;   //!< A balloon's tails, as a collection.
     TailEditor*      m_tail     = nullptr;   //!< One selected tail.
+    MaskEditor*      m_mask     = nullptr;   //!< An object's own mask, picked.
     int              m_tailIndex = -1;       //!< The tail on show, or -1 when the subject is the balloon.
     QList<QPair<int, int>> m_tailSet;        //!< Several tails: each (index into m_subjects, tail index).
     //! Whether the subject is a tail, or several: the tail's section alone, and no look of its own.
     [[nodiscard]] bool tailSubject() const { return m_tailIndex >= 0 || !m_tailSet.isEmpty(); }
     int m_wordsId = 0;   //!< The words on show (their id), or 0 when the subject is not words picked on their own.
     int m_bodyId  = 0;   //!< The body on show (its id), or 0 when the subject is not a body picked on its own.
+    int m_maskId  = 0;   //!< The mask on show (its region's id), or 0 when the subject is not a mask.
 
     QLabel*             m_subject   = nullptr;  //!< Names what is being edited.
     QHBoxLayout*        m_header    = nullptr;  //!< The subject and, after it, the look chip.

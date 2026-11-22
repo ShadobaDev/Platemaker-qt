@@ -33,6 +33,10 @@ inline constexpr int k_rowGlyphPx = 24;
 [[nodiscard]] QIcon objectGlyph(const Composition& a, const QPalette& pal, int px = k_rowGlyphPx,
                                 qreal dpr = 1.0);
 
+//! An object's own mask, as a layer mask is shown: over the object's frame, white what stays, black what is hidden,
+//! grey where it fades. Its feather is not drawn.
+[[nodiscard]] QIcon maskGlyph(const Composition& a, const QPalette& pal, int px = k_rowGlyphPx, qreal dpr = 1.0);
+
 //! Imported artwork is its own glyph: the art itself, scaled down. It has no silhouette to borrow.
 [[nodiscard]] QIcon assetGlyph(const QPixmap& art, int px = k_rowGlyphPx, qreal dpr = 1.0);
 

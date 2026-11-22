@@ -256,6 +256,35 @@ bool removeWords(Composition& c, int id)
     return c.words.removeIf([id](const Words& w) { return w.id == id; }) > 0;
 }
 
+namespace {
+
+constexpr qreal k_newMaskWidth = 1.0 / 3.0;   //!< *Add mask*'s region, as a fraction of the frame's width.
+
+} // namespace
+
+int addMask(Composition& c)
+{
+    const QRectF frame = frameOf(c);
+    if (c.mask || frame.isEmpty())
+        return 0;
+    Mask m;
+    m.region.id    = c.nextId++;
+    const qreal w  = qRound(frame.width() * k_newMaskWidth);
+    m.region.place = Place{QPointF(frame.right() - w, frame.top())};
+    m.region.size  = QSize(int(w), qRound(frame.height()));
+    m.region.shape.corner.radius = 0.0;
+    m.fade         = QLineF(1.0, 0.5, 0.0, 0.5);   // hidden wholly at the right, not at all at the left
+    c.mask         = m;
+    return m.region.id;
+}
+
+bool removeMask(Composition& c)
+{
+    const bool had = c.mask.has_value();
+    c.mask.reset();
+    return had;
+}
+
 }  // namespace Edits
 
 }  // namespace StripEdit

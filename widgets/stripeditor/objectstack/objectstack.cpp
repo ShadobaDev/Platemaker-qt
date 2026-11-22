@@ -70,6 +70,7 @@ ObjectStack::ObjectStack(QTreeWidget* tree, ObjectController& objects, const Str
             // Words are picked alone, as a page is: the Text section is theirs.
             case Subject::Words: m_objects.selectWords(id, row->data(0, k_elementRole).toInt()); return;
             case Subject::Body:  m_objects.selectBody(id, row->data(0, k_elementRole).toInt()); return;
+            case Subject::Mask:  m_objects.selectMask(id, row->data(0, k_elementRole).toInt()); return;
             default:             overlays.append(id); break;
             }
         }
@@ -333,6 +334,10 @@ void ObjectStack::refresh()
         } else {
             elements = wordsOn(0, true) + tailsFrom(0, true);
         }
+        // Its own mask last: it cuts all of them.
+        if (rec.mask)
+            elements.append({Subject::Mask, rec.mask->region.id, tr("Mask"),
+                             maskGlyph(rec, m_tree->palette(), k_rowGlyphPx, m_tree->devicePixelRatioF()), {}});
         setElementRows(row, uid, elements);
     }
 
@@ -430,6 +435,7 @@ bool ObjectStack::elementPicked(const QTreeWidgetItem* row) const
     case Subject::Tail:  return m_objects.selectedTails().contains(element);
     case Subject::Words: return m_objects.selectedWords() == element;
     case Subject::Body:  return m_objects.selectedBody() == element;
+    case Subject::Mask:  return m_objects.selectedMask() == element;
     default:             return false;
     }
 }

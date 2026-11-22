@@ -343,6 +343,7 @@ Editor::Editor(PresetStore& presets, QWidget *parent)
         connect(&m_objects->panel(), &PanelBinder::boundToTail,        m_objectState, &OS::setTail);
         connect(&m_objects->panel(), &PanelBinder::boundToWords,       m_objectState, &OS::setWords);
         connect(&m_objects->panel(), &PanelBinder::boundToBody,        m_objectState, &OS::setBody);
+        connect(&m_objects->panel(), &PanelBinder::boundToMask,        m_objectState, &OS::setMask);
         connect(&m_objects->panel(), &PanelBinder::boundToCompositions,     m_objectState, &OS::setCompositions);
         connect(&m_objects->panel(), &PanelBinder::boundToMixed,       m_objectState, &OS::setMixedSubjects);
         connect(&m_objects->panel(), &PanelBinder::boundToTails,       m_objectState, &OS::setTails);
@@ -583,6 +584,7 @@ void Editor::showSubject()
     case Subject::Tail:
     case Subject::Words:
     case Subject::Body:
+    case Subject::Mask:
         break;
     }
     m_stateStack->showObject();

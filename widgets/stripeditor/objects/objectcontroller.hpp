@@ -135,7 +135,9 @@ public:
     void selectWords(const QString& uid, int id);
     //! Selects body @p id of balloon @p uid, one bubble of several, the Shape section its own; the balloon when it is gone.
     void selectBody(const QString& uid, int id);
-    //! Esc: from words or a bubble picked on its own back to their object; whether there was one to leave.
+    //! Selects object @p uid's own mask, its region @p id, the Shape and Mask sections its own; the object when it is gone.
+    void selectMask(const QString& uid, int id);
+    //! Esc: from words, a bubble or a mask picked on its own back to their object; whether there was one to leave.
     bool leaveElement();
     /**
      * \brief Scrolls the strip to a subject: an object or a tail centred in the view, a page with its top
@@ -160,6 +162,8 @@ public:
     [[nodiscard]] ElementRef selectedWords() const { return m_selection.words(); }
     //! The body picked on its own (Subject::Body); none otherwise.
     [[nodiscard]] ElementRef selectedBody() const { return m_selection.body(); }
+    //! The mask picked on its own (Subject::Mask); none otherwise.
+    [[nodiscard]] ElementRef selectedMask() const { return m_selection.mask(); }
     void selectOverlay(const QString& uid);   //!< Selects one in the scene and the stack, and loads the panel.
     /**
      * \brief Selects @p uids and @p tails together — the general form, of which everything else is a case.
@@ -462,6 +466,10 @@ public:
      *        to it, with empty words in its lettering (Chain::addBody()); picked.
      */
     void addBubble();
+    //! Whether *Add mask* applies: one object selected, or an element of it, with no mask of its own yet.
+    [[nodiscard]] bool canAddMask() const;
+    //! *Add mask*: a mask of the selected object's own (Edits::addMask()); picked.
+    void addMask();
     //! Whether *Join* applies: two balloons selected, whole (not as a tail's carrier), each with a chain end.
     [[nodiscard]] bool canJoin() const;
     /**
@@ -636,6 +644,8 @@ private:
     void deleteSelectedWords();
     //! Delete with a bubble picked: that bubble, its words and tails; a middle one splits the chain (applyPieces()).
     void deleteSelectedBubble();
+    //! Delete with a mask picked: the mask (Edits::removeMask()); its object is what is left to hold.
+    void deleteSelectedMask();
     //! The two balloons @p keep and @p other as @p joined, in @p keep: @p other's overlay removed, one undo step.
     void commitJoin(const QString& keep, const QString& other, const Composition& joined);
     /**
@@ -660,6 +670,8 @@ private:
     [[nodiscard]] bool hasWords(const ElementRef& ref) const;
     //! Whether @p ref's object still has that body.
     [[nodiscard]] bool hasBody(const ElementRef& ref) const;
+    //! Whether @p ref's object still has a mask, that region its.
+    [[nodiscard]] bool hasMask(const ElementRef& ref) const;
 
     //! A press in body @p id of @p uid's balloon, already selected: picks it, unless the same press picked words.
     void onBodyPressed(const QString& uid, int id);

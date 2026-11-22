@@ -183,6 +183,8 @@ bool BubbleObject::canEditShape() const
     // A patterned fill has its fade's cross, and words their text area's arrows, so a balloon
     // with no handles of its own is edited for those.
     // Lettering has the curve it is bent along, or would be: a bare text object's too.
+    if (const Mask* m = pickedMask())
+        return Geometry::hasShapeHandles(m->region.shape) || m->fade.has_value();
     const Body* body = bodyOf(m_composition, pickedBody());
     return lettered(m_composition)
         || (body
@@ -192,6 +194,8 @@ bool BubbleObject::canEditShape() const
 
 QPainterPath BubbleObject::editOutline() const
 {
+    if (const Mask* m = pickedMask())
+        return Geometry::maskOutline(*m, m_composition.seed);
     QPainterPath out = Geometry::warpCurves(m_composition, markedWords());
     if (const Body* own = bodyOf(m_composition, pickedBody()))
         out.addPath(Geometry::outlineOf(*own, Geometry::balloonRect(*m_composition.balloon, *own), m_composition.seed));
@@ -203,10 +207,12 @@ void BubbleObject::paintContent(QPainter& painter)
     // Styled: show the library's rendering, at rest and while the whole object is carried, which moves
     // it and changes nothing it draws. A drag that reshapes it (a tail, a grip, a node) shows the paths
     // instead: they follow the mouse, and a rasterisation cannot be produced per mouse-move anyway.
+    // The library's rendering has the mask cut already; the paths are cut here, as it cuts them.
     if (!m_sharp.isNull() && (!isDragging() || dragGrip() == Grip::Body))
         painter.drawImage(contentBounds().topLeft(), m_sharp);
     else
-        Painter::paintPaths(painter, m_composition, m_paths);
+        Painter::paintCut(painter, m_composition, contentBounds(),
+                          [this](QPainter& p) { Painter::paintPaths(p, m_composition, m_paths); });
 
     // The bubble a held tail would join, or cannot, outlined over the drawing.
     const Body* lit = m_joinLight != 0 ? bodyOf(m_composition, m_joinLight) : nullptr;

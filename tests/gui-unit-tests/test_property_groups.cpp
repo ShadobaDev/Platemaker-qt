@@ -1412,22 +1412,17 @@ TEST(Style, ABrushNeverLeavesTheEdgeBare)
 namespace {
 
 /**
- * \brief @p marks painted as the strip editor paints marks (Painter::fillMarks(): dots stamped, the rest in
- *        pieces) look as the same path filled whole by the nonzero rule: alike on average, and few pixels far
- *        apart, at a zoom.
+ * \brief @p item painted as the strip editor paints it (Painter::play(): marks stamped or in pieces, a stroke
+ *        in pieces) looks as @p whole draws it in one go: alike on average, and few pixels far apart, at a zoom.
  */
-void expectPaintedAsItsPath(const QPainterPath& marks)
+void expectPaintedAsWhole(const Render::Item& item, const std::function<void(QPainter&)>& whole)
 {
     constexpr qreal k_zoom      = 2.0;
     constexpr qreal k_meanAlpha = 4.0;     // of 255, over the whole picture
     constexpr int   k_farAlpha  = 64;      // a pixel this far apart counts...
     constexpr qreal k_farShare  = 0.005;   // ...and so many of them may be
-    Render::Item item;
-    item.path    = marks;
-    item.fill    = Render::colourInk(Qt::black);
-    item.nonzero = true;
-    item.marks   = true;
-    const QRectF area    = marks.boundingRect();
+    const qreal  half    = item.strokeWidth / 2.0;
+    const QRectF area    = item.path.boundingRect().adjusted(-half, -half, half, half);
     const auto   picture = [&](const std::function<void(QPainter&)>& draw) {
         QImage img((area.size() * k_zoom).toSize() + QSize(2, 2), QImage::Format_ARGB32_Premultiplied);
         img.fill(Qt::transparent);
@@ -1439,9 +1434,7 @@ void expectPaintedAsItsPath(const QPainterPath& marks)
         return img;
     };
     const QImage painted = picture([&](QPainter& painter) { Painter::play(painter, {item}); });
-    QPainterPath whole   = marks;
-    whole.setFillRule(Qt::WindingFill);
-    const QImage path = picture([&](QPainter& painter) { painter.fillPath(whole, Qt::black); });
+    const QImage path    = picture(whole);
 
     qint64 sum = 0;
     int    far = 0;
@@ -1454,6 +1447,19 @@ void expectPaintedAsItsPath(const QPainterPath& marks)
     const qreal pixels = qreal(path.width()) * path.height();
     EXPECT_LT(sum / pixels, k_meanAlpha);
     EXPECT_LT(far / pixels, k_farShare);
+}
+
+//! @p marks, as a marks item in black, painted as the same path filled whole by the nonzero rule.
+void expectPaintedAsItsPath(const QPainterPath& marks)
+{
+    Render::Item item;
+    item.path    = marks;
+    item.fill    = Render::colourInk(Qt::black);
+    item.nonzero = true;
+    item.marks   = true;
+    QPainterPath whole = marks;
+    whole.setFillRule(Qt::WindingFill);
+    expectPaintedAsWhole(item, [&](QPainter& painter) { painter.fillPath(whole, Qt::black); });
 }
 
 }  // namespace
@@ -1481,8 +1487,37 @@ TEST(Style, AFadingHalftonePaintsAsItsPath)
 }
 
 /**
- * \brief A line drawn as strokes apart paints as its path, in pieces; a dashed line and a multi-line, whose
- *        strokes can have holes, are not apart.
+ * \brief Lettering's outline, stroked round many glyphs (in pieces on screen), paints as one stroke of it does,
+ *        in a transparent colour too (the pieces overlap where letters' outlines meet).
+ */
+TEST(Style, ALetteringOutlinePaintsAsOneStroke)
+{
+    Composition a = balloonObject();
+    tailsOf(a).clear();
+    boxOf(a)                 = QSize(400, 300);
+    textOf(a).outlineWidth   = 1.5;
+    textOf(a).body           = QStringLiteral("Many letters, outlined, in pieces round every one of their contours.");
+    const QPainterPath text  = Geometry::textOutlines(a).value(0);
+    ASSERT_GT(text.toSubpathPolygons().size(), 20);
+    for (const QColor& colour : {QColor(Qt::black), QColor(0, 0, 0, 128)}) {
+        SCOPED_TRACE(colour.alpha());
+        Render::Item item;
+        item.path        = text;
+        item.stroke      = Render::colourInk(colour);
+        item.strokeWidth = 2.0 * textOf(a).outlineWidth;
+        item.roundCap    = true;
+        expectPaintedAsWhole(item, [&](QPainter& painter) {
+            QPen pen(colour, item.strokeWidth);
+            pen.setJoinStyle(Qt::RoundJoin);
+            pen.setCapStyle(Qt::RoundCap);
+            painter.strokePath(text, pen);
+        });
+    }
+}
+
+/**
+ * \brief A line drawn as strokes apart paints as its path, in pieces. The others have a band with a hole: a dry
+ *        brush's core (Explosion's too), a sketch's strokes, a dash closed round a ring, a multi-line's lines.
  */
 TEST(Style, ALineOfStrokesApartPaintsAsItsPath)
 {

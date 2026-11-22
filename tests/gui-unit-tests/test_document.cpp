@@ -4,6 +4,7 @@
 #include <gtest/gtest.h>
 
 #include "objects/document.hpp"
+#include "shapes.hpp"
 #include "objectparts.hpp"
 
 using StripEdit::Document;
@@ -175,8 +176,8 @@ TEST(Edits, WordsAreAddedInTheLowerHalfAndTheLastOneStays)
 }
 
 /**
- * \brief *Add mask* covers the right third of the frame, hidden at the right and shown at the left, under an id of
- *        its own; an object has one mask, and removing it takes it away.
+ * \brief *Add mask* covers the right third of the frame and reaches past it, hidden from the frame's right edge
+ *        and shown at its left, under an id of its own; an object has one mask, and removing it takes it away.
  */
 TEST(Edits, AMaskCoversTheRightThirdAndThereIsOne)
 {
@@ -189,12 +190,16 @@ TEST(Edits, AMaskCoversTheRightThirdAndThereIsOne)
     EXPECT_GT(a.nextId, id) << "its id is not handed out again";
     ASSERT_TRUE(a.mask);
     const QRectF region(a.mask->region.place.pos, QSizeF(a.mask->region.size));
-    EXPECT_EQ(region.right(), frame.right());
-    EXPECT_EQ(region.top(), frame.top());
-    EXPECT_EQ(region.height(), frame.height());
-    EXPECT_EQ(region.width(), qRound(frame.width() / 3.0));
+    const qreal  inside = qRound(frame.width() / 3.0);
+    EXPECT_EQ(region.left(), frame.right() - inside);
+    EXPECT_GT(region.right(), frame.right()) << "past the frame, where a feather shows nothing back";
+    EXPECT_LT(region.top(), frame.top());
+    EXPECT_GT(region.bottom(), frame.bottom());
     ASSERT_TRUE(a.mask->fade);
-    EXPECT_GT(a.mask->fade->x1(), a.mask->fade->x2()) << "hidden at the right";
+    constexpr qreal k_px = 1e-9;
+    const QLineF    fade = *Geometry::maskFade(*a.mask);
+    EXPECT_NEAR(fade.x1(), frame.right(), k_px) << "hidden wholly from the frame's right edge";
+    EXPECT_NEAR(fade.x2(), region.left(), k_px) << "shown at the region's left";
 
     EXPECT_EQ(E::addMask(a), 0) << "one mask";
     EXPECT_TRUE(E::removeMask(a));

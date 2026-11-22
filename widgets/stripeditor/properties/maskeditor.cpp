@@ -27,12 +27,15 @@ MaskEditor::MaskEditor(QWidget* parent)
     m_feather->setDecimals(k_featherDecimals);
     m_feather->setSingleStep(k_featherStepPx);
     m_feather->setSuffix(tr(" px"));
-    m_feather->setToolTip(tr("How soft the mask's edge is: 0 cuts sharply."));
+    m_feather->setToolTip(tr("Softens the mask's outline all round, blurred to both sides of it: 0 cuts sharply. "
+                             "Where the outline lies on the object's own edge, the object shows back a little; "
+                             "let the mask reach past it there. Fade, not this, hides gradually across the mask. "
+                             "Shown when the object is at rest."));
     form->addRow(tr("Feather:"), m_feather);
 
     m_fades = new QCheckBox(tr("Fade"), this);
-    m_fades->setToolTip(tr("Hide gradually: wholly at the fade's start, not at all at its end. Drag its two ends "
-                           "on the strip in Edit shape."));
+    m_fades->setToolTip(tr("Hide gradually across the mask, along a line: wholly from its start, not at all at its "
+                           "end. Drag its two ends on the strip in Edit shape."));
     form->addRow(QString(), m_fades);
 
     connect(m_feather, &QDoubleSpinBox::valueChanged, this, [this] {

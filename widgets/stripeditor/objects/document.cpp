@@ -258,7 +258,13 @@ bool removeWords(Composition& c, int id)
 
 namespace {
 
-constexpr qreal k_newMaskWidth = 1.0 / 3.0;   //!< *Add mask*'s region, as a fraction of the frame's width.
+constexpr qreal k_newMaskWidth = 1.0 / 3.0;   //!< *Add mask*'s region inside the frame, as a fraction of its width.
+/**
+ * How far *Add mask*'s region reaches past the frame's top, bottom and right, as a fraction of the frame's shorter
+ * side. A feathered edge is blurred to both sides of it: on the frame's own edge it would let the object show back
+ * there, past it the blur falls where nothing is drawn.
+ */
+constexpr qreal k_newMaskOverhang = 0.25;
 
 } // namespace
 
@@ -267,14 +273,17 @@ int addMask(Composition& c)
     const QRectF frame = frameOf(c);
     if (c.mask || frame.isEmpty())
         return 0;
+    const qreal  inside = qRound(frame.width() * k_newMaskWidth);
+    const qreal  past   = qRound(qMin(frame.width(), frame.height()) * k_newMaskOverhang);
+    const QRectF region(frame.right() - inside, frame.top() - past, inside + past, frame.height() + 2 * past);
     Mask m;
     m.region.id    = c.nextId++;
-    const qreal w  = qRound(frame.width() * k_newMaskWidth);
-    m.region.place = Place{QPointF(frame.right() - w, frame.top())};
-    m.region.size  = QSize(int(w), qRound(frame.height()));
+    m.region.place = Place{region.topLeft()};
+    m.region.size  = region.size().toSize();
     m.region.shape.corner.radius = 0.0;
-    m.fade         = QLineF(1.0, 0.5, 0.0, 0.5);   // hidden wholly at the right, not at all at the left
-    c.mask         = m;
+    // Hidden wholly from the frame's right edge on, not at all at the region's left.
+    m.fade = QLineF(inside / region.width(), 0.5, 0.0, 0.5);
+    c.mask = m;
     return m.region.id;
 }
 

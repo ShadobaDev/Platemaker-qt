@@ -3508,6 +3508,28 @@ TEST(Mask, HidesWhatItCoversAndFadesAlongItsLine)
     }
 }
 
+/**
+ * \brief A click picks the mask where it hides its object, as the eye sees it: half hidden or more, and something
+ *        drawn there; not past the fade's half way, not outside the region, not where the object draws nothing.
+ */
+TEST(Mask, IsPickedWhereItHides)
+{
+    Composition a = maskedBalloon();
+    EXPECT_TRUE(Geometry::maskHidesAt(a, QPointF(200.0, 80.0)));
+    EXPECT_FALSE(Geometry::maskHidesAt(a, QPointF(80.0, 80.0))) << "outside the region";
+
+    a.mask->fade = QLineF(0.0, 0.5, 1.0, 0.5);   // hidden at the region's left, shown at its right
+    EXPECT_TRUE(Geometry::maskHidesAt(a, QPointF(170.0, 80.0)));
+    EXPECT_FALSE(Geometry::maskHidesAt(a, QPointF(230.0, 80.0))) << "mostly shown there";
+
+    a.mask->fade.reset();
+    a.mask->region.place = Place{QPointF(-100.0, -100.0)};   // over nothing the balloon draws
+    a.mask->region.size  = QSize(50, 50);
+    EXPECT_FALSE(Geometry::maskHidesAt(a, QPointF(-75.0, -75.0)));
+    a.mask.reset();
+    EXPECT_FALSE(Geometry::maskHidesAt(a, QPointF(200.0, 80.0)));
+}
+
 //! \brief A mask keeps its place on the object as the object is resized: scaled from the box's corner with it.
 TEST(Mask, ScalesWithTheObjectsBox)
 {

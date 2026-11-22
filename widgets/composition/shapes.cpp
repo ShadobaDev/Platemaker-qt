@@ -1,6 +1,7 @@
 #include "shapes.hpp"
 #include "bezier.hpp"
 #include "edgewalk.hpp"
+#include "geometry.hpp"   // partAt(): what a click on the mask lands on
 
 #include <QByteArray>
 #include <QObject>
@@ -1277,6 +1278,28 @@ std::optional<QLineF> maskFade(const Mask& mask)
         return std::nullopt;
     const QRectF box(mask.region.place.pos, QSizeF(mask.region.size));
     return QLineF(anchorAt(box, mask.fade->p1()), anchorAt(box, mask.fade->p2()));
+}
+
+namespace {
+
+//! How hidden a place must be for a click there to pick the mask (maskHidesAt()): half, where the eye says so.
+constexpr qreal k_maskPickCover = 0.5;
+
+} // namespace
+
+bool maskHidesAt(const Composition& c, const QPointF& at)
+{
+    if (!c.mask || !maskOutline(*c.mask, c.seed).contains(at))
+        return false;
+    qreal cover = 1.0;
+    if (const std::optional<QLineF> fade = maskFade(*c.mask); fade && fade->length() > 0.0) {
+        const QPointF along = (fade->p2() - fade->p1()) / fade->length();
+        cover = 1.0 - std::clamp(QPointF::dotProduct(at - fade->p1(), along) / fade->length(), 0.0, 1.0);
+    }
+    if (cover < k_maskPickCover)
+        return false;
+    const bool onPicture = c.picture && QRectF(c.picture->place.pos, QSizeF(c.picture->size)).contains(at);
+    return onPicture || partAt(c, at, 0.0) != Part::None;
 }
 
 QPainterPath outlineOf(const Body& body, const QRectF& rect, quint32 seed)

@@ -366,6 +366,16 @@ void ObjectController::onObjectPressed(const QString& uid, int handle)
             return;
         }
     }
+    // A click going through, as into a bubble of a chain: on the one object selected, where its mask hides it, the
+    // mask is picked, before a bubble and words, which cannot be seen there; a drag from there moves it.
+    if (const Object* item = m_overlayItems.value(uid);
+        handle < 0 && !add && item && item->dragGrip() == Grip::Body && m_selection.objects() == QStringList{uid}
+        && m_selection.subject() != Subject::Mask && item->composition().mask
+        && Geometry::maskHidesAt(item->composition(), item->mapFromScene(item->pressScenePos()))) {
+        selectMask(uid, item->composition().mask->region.id);
+        beginDrag(uid, handle);
+        return;
+    }
     if (handle >= 0) {
         if (add) {
             // Ctrl gathers, here as everywhere else. The scene has already toggled the balloon's own

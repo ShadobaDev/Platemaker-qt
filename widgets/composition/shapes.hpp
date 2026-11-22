@@ -243,6 +243,12 @@ constexpr int k_maxRegularPoints = 64;
 
 //! @p mask's fade in the composition's frame (its fractions laid on the region's box); none without one.
 [[nodiscard]] std::optional<QLineF> maskFade(const Mask& mask);
+/**
+ * \brief Whether @p c's mask hides it at @p at, in the composition's frame, as the eye sees it: at least half
+ *        hidden there by the smooth fade (a pattern's marks not counted, so between two dots counts too), and @p c
+ *        draws something there (partAt(), or its picture). What a click on the strip picks the mask by.
+ */
+[[nodiscard]] bool maskHidesAt(const Composition& c, const QPointF& at);
 
 }  // namespace Geometry
 

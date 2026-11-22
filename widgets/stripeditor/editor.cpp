@@ -45,6 +45,7 @@
 #include <QListWidget>
 #include <QPainter>
 #include <QPen>
+#include <QPixmapCache>
 #include <QScrollBar>
 #include <QShortcut>
 #include <QShowEvent>
@@ -107,6 +108,12 @@ constexpr int k_rightColumnPx = 340;
  * \brief Pages built beyond the viewport on each side. One page is several slices tall, so ±1 already covers a comfortable scroll ahead; a larger margin would multiply a much heavier unit of work.
  */
 constexpr int k_prefetchPages = 1;
+
+/**
+ * \brief Qt's pixmap cache, in KiB, while the editor is open: room for the objects' pictures over two 4K screens
+ *        (3840 x 2160 x 4 bytes each).
+ */
+constexpr int k_objectCacheKiB = 2 * 3840 * 2160 * 4 / 1024;
 
 /**
  * \brief How wide a column has to be to hold @p panel whole.
@@ -172,6 +179,10 @@ Editor::Editor(PresetStore& presets, QWidget *parent)
     m_view->setDragMode(QGraphicsView::ScrollHandDrag);
     m_view->setAlignment(Qt::AlignHCenter | Qt::AlignTop);
     m_view->setRenderHints(QPainter::Antialiasing | QPainter::SmoothPixmapTransform);
+    // Each object keeps its picture in Qt's pixmap cache between repaints (Object's cacheFor()). Its default,
+    // 10 MiB, is about one full-HD screen: objects covering more of a larger screen pushed each other out and
+    // were drawn again at every repaint.
+    QPixmapCache::setCacheLimit(std::max(QPixmapCache::cacheLimit(), k_objectCacheKiB));
     // Without this a widget hears about the mouse only while a button is held, which is what made the
     // cursor look as though it followed the last *click*: it could only be re-decided on release. The
     // cursor is a promise about what a press would do here, so it has to be re-decided while hovering.

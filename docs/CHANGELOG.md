@@ -40,7 +40,9 @@ Requires libplatemaker **0.7.0**.
   balloon or a picture holds **several texts** (*Add words*), each with its own frame and lettering; click
   one's letters, or its row in the object list, to edit it on its own. **Part of a text** can be set in
   another font, size, bold, italic or colour: select the letters in the text box and change them, or change
-  them at the caret before typing on, as in a word processor. Line spacing; an outline round the letters; a
+  them at the caret before typing on, as in a word processor. Line and letter spacing, and kerning on or off.
+  **Vertical text**, in columns that follow each other to the right or to the left. A **warp** bends the words
+  along a curve drawn on the strip. An outline round the letters; a
   halftone colour; a shadow or a glow. *Fit to text* sizes the balloon to all its texts where they lie, and
   lettering that does not fit is outlined in red.
 - **Tails:** any number per balloon, each with its own tip, width and bend, leaving from any edge; a

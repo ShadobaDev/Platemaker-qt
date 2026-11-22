@@ -331,7 +331,7 @@ void SelectionChrome::paint(QPainter* painter, const QStyleOptionGraphicsItem* o
             switch (h.glyph) {
             case Glyph::Node:
                 inNegative([&] {
-                    if (o->pickedVertices().contains(h.node)) {
+                    if (o->pickedElement() == h.element && o->pickedVertices().contains(h.node)) {
                         painter->setPen(Qt::NoPen);
                         painter->setBrush(Qt::white);
                     }

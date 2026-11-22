@@ -19,6 +19,7 @@
 #include <type_traits>
 
 #include <QFile>
+#include <QPainter>
 #include <QTemporaryDir>
 #include <QJsonArray>
 #include <QJsonDocument>
@@ -34,6 +35,8 @@
 #include "objectparts.hpp"
 #include "names.hpp"
 #include "composition.hpp"
+#include "painter.hpp"
+#include "renderlist.hpp"
 
 namespace {
 
@@ -134,6 +137,12 @@ Composition loadedBalloon()
     textOf(a).fill.size   = 1.75;
     textOf(a).fill.angle  = 15;
     textOf(a).lineSpacing = 85;
+    textOf(a).letterSpacing = -35;
+    textOf(a).kerning       = false;
+    textOf(a).vertical      = true;
+    textOf(a).columnsLeft   = true;
+    textOf(a).warp          = {ShapeNode(0.0, 0.25), ShapeNode({0.5, 0.0}, {-0.125, 0.0}, {0.125, 0.0},
+                                                                  ShapeNode::Type::Symmetric), ShapeNode(1.0, 0.75)};
     textOf(a).outline.colour  = QColor(21, 22, 23);
     textOf(a).outline.kind    = Paint::Kind::Dots;
     textOf(a).outline.second  = QColor(24, 25, 26);
@@ -233,7 +242,7 @@ static_assert(sizeof(StyleProperties) == sizeof(StyleMirror),
 // italic and runs are set in RoundTrips, not in loadedBalloon(): the golden cases are built from it, and a lettering
 // with neither is saved as it always was.
 struct TextMirror { QString body, family; int pixelSize; bool bold, italic; int align, valign; Paint fill; int lineSpacing;
-                    Paint outline; qreal outlineWidth; Shadow shadow; Paint shadowFill; QList<TextRun> runs; };
+                    int letterSpacing; bool kerning; bool vertical; bool columnsLeft; QList<ShapeNode> warp; Paint outline; qreal outlineWidth; Shadow shadow; Paint shadowFill; QList<TextRun> runs; };
 static_assert(sizeof(TextProperties) == sizeof(TextMirror),
               "TextProperties grew a field: place it (see above), then mirror it");
 
@@ -669,8 +678,7 @@ namespace {
 //! What @p a comes back as from its content: its JSON, read.
 
 //! An SVG of ours carrying @p c, its content element with @p attributes, under the namespace @p ns. Built by hand
-//! rather than through Svg::write(), which measures the lettering, needing the QGuiApplication this target does
-//! not have: what is under test is the reader.
+//! rather than through Svg::write(): what is under test is the reader.
 QByteArray svgWith(const Composition& c, const QByteArray& ns = Svg::k_pmNamespace, const QByteArray& attributes = {})
 {
     const QString json = QString::fromUtf8(QJsonDocument(toJson(c)).toJson(QJsonDocument::Compact));
@@ -785,6 +793,7 @@ TEST(PropertyGroupPersistence, RoundTrips)
     other.bold      = false;
     other.fill      = Paint{QColor(200, 10, 10), QColor(255, 255, 255)};
     other.fill->kind = Paint::Kind::Dots;
+    other.letterSpacing = 120;
     TextRun upright;
     upright.from   = 10;
     upright.length = 3;
@@ -821,7 +830,8 @@ TEST(PropertyGroupPersistence, RunsAreKeptTidy)
     TextRun more = run(2, 4);   // over the first's last two letters, then two of its own
     more.bold    = true;
     TextRun same = run(6, 1);
-    same.pixelSize = t.pixelSize;   // the words' own size: no override
+    same.pixelSize     = t.pixelSize;       // the words' own size: no override
+    same.letterSpacing = t.letterSpacing;   // nor the words' own spacing
     TextRun past = run(7, 5);
     past.italic  = true;
     t.runs       = {bold, more, same, past};
@@ -834,12 +844,14 @@ TEST(PropertyGroupPersistence, RunsAreKeptTidy)
     EXPECT_EQ(t.runs, (QList<TextRun>{boldTidy, pastTidy}));
 
     // One run over the whole text is the words' own lettering.
-    TextRun whole   = run(0, 10);
-    whole.pixelSize = 48;
-    t.runs          = {whole};
+    TextRun whole       = run(0, 10);
+    whole.pixelSize     = 48;
+    whole.letterSpacing = -60;
+    t.runs              = {whole};
     tidyRuns(t);
     EXPECT_TRUE(t.runs.isEmpty());
     EXPECT_EQ(t.pixelSize, 48);
+    EXPECT_EQ(t.letterSpacing, -60);
 }
 
 /**
@@ -852,8 +864,7 @@ TEST(PropertyGroupPersistence, RunsAreKeptTidy)
  * above tries one shape, which is how that went unseen.
  *
  * The kinds go through the name both readers share. The templates are written to the SVG as well, with
- * no lettering: writing lettering measures it, which needs the QGuiApplication this target does not
- * have (see the import tests below).
+ * no lettering: its outlines are a font's, which differs from one machine to another.
  */
 TEST(PropertyGroupPersistence, EveryShapeAndStyleRoundTrips)
 {
@@ -1278,7 +1289,7 @@ TEST(Style, ALinesStrokesStayInsideTheirBounds)
 
 /**
  * \brief A dashed line puts a whole number of dashes round each lap, the nearest to its length over a
- *        dash and a gap, and a gap of 0 is one whole line.
+ *        dash and a gap, and a gap of 0 is one whole line: a band, its outer edge and its inner one.
  */
 TEST(Style, ADashedLineFitsWholeDashesRoundEachLap)
 {
@@ -1297,7 +1308,234 @@ TEST(Style, ADashedLineFitsWholeDashesRoundEachLap)
         EXPECT_EQ(Geometry::ink(*a.balloon, a.seed, silhouette).toSubpathPolygons().size(), dashes) << id;
 
         styleOf(a).dash.gap = 0.0;
-        EXPECT_EQ(Geometry::ink(*a.balloon, a.seed, silhouette).toSubpathPolygons().size(), 1) << id;
+        EXPECT_EQ(Geometry::ink(*a.balloon, a.seed, silhouette).toSubpathPolygons().size(), 2) << id;
+    }
+}
+
+/**
+ * \brief A dashed line ends every tail inked, whatever its length and its tip: a dash is anchored on the tip, or on the
+ *        middle of a Cut or a Round end, so no gap falls there.
+ */
+TEST(Style, ADashedLineEndsEveryTailInked)
+{
+    constexpr qreal k_back  = 1.0;   // how far back from the tip, along the tail, the probe stands
+    constexpr int   k_steps = 12;    // tail lengths tried, a pixel apart: the dashes fall differently on each
+    Composition a = balloonObject();
+    shapeOf(a)             = Geometry::shapeTemplate("ellipse").shape;
+    boxOf(a)               = QSize(280, 160);
+    styleOf(a).line        = StyleProperties::Line::Dashed;
+    styleOf(a).strokeWidth = 4;
+    styleOf(a).dash.length = 12.0;
+    styleOf(a).dash.gap    = 10.0;
+    Tail t;
+    t.baseWidth      = 40.0;
+    t.look.end.width = 50;
+    for (TailLook::Tip tip : {TailLook::Tip::Sharp, TailLook::Tip::Cut, TailLook::Tip::Round}) {
+        t.look.tip = tip;
+        for (int k = 0; k < k_steps; ++k) {
+            t.tip = QPointF(140, 400 + k);
+            setTails(a, {t});
+            const QPainterPath ink = Geometry::ink(*a.balloon, a.seed, Geometry::silhouette(*a.balloon, a.seed));
+            EXPECT_TRUE(ink.contains(t.tip - QPointF(0.0, k_back))) << int(tip) << " at " << t.tip.y();
+        }
+    }
+}
+
+/**
+ * \brief Where a Circles tail's first circle only just meets its bubble, the outline turns almost back on itself at
+ *        the pinch: a brush's or a dash's corner there is bevelled, not mitred into a spike across the gap.
+ *
+ * The author's chain of three ellipses with a Circles tail from two of them, where both lines spiked. Its outline has
+ * no convex corner (ellipses, and the concave ones where parts meet), so a ribbon about it lies within half its width
+ * of it everywhere, give or take the flattening: a spike across a gap does not.
+ */
+TEST(Style, ALineDoesNotSpikeWhereATailOnlyJustTouches)
+{
+    constexpr qreal k_flattening = 1.0;   // how far a flattened outline may be from a true one
+    Composition a = compositionFromJson(QJsonDocument::fromJson(R"({"balloon":{"bodies":[
+        {"id":2,"place":{"pos":[113.63,20.82]},"shape":{"edge":"none","nodes":[],"shape":"ellipse"},"size":[116,97]},
+        {"id":4,"place":{"pos":[180.9,78.6]},"shape":{"edge":"none","nodes":[],"shape":"ellipse"},"size":[112,82]},
+        {"id":8,"place":{"pos":[275.57,24.46]},"shape":{"edge":"none","nodes":[],"shape":"ellipse"},"size":[112,103]}],
+        "id":1,"tails":[
+        {"bend":0,"id":5,"look":{"style":"circles","tip":"sharp"},"root":4,"tip":[230.16,267.55],"width":31},
+        {"bend":0,"id":7,"look":{"style":"plain","tip":"sharp"},"root":2,"tip":[0,0],"to":4,"width":34},
+        {"bend":0,"id":10,"look":{"style":"plain","tip":"sharp"},"root":4,"tip":[0,0],"to":8,"width":34},
+        {"bend":0,"id":13,"look":{"style":"circles","tip":"sharp"},"root":8,"tip":[357.9,277.43],"width":34}],
+        "style":{"line":{"line":"dashed","strokeWidth":5}}},"nextId":14,"seed":0,"words":[]})").object());
+    ASSERT_TRUE(a.balloon);
+    styleOf(a).brush.drift = 0.0;
+    styleOf(a).brush.swell = 0;
+    const qreal         half       = styleOf(a).strokeWidth / 2.0;
+    const QPainterPath  silhouette = Geometry::silhouette(*a.balloon, a.seed);
+    QPainterPathStroker reach;
+    reach.setWidth(2.0 * (half + k_flattening));
+    const QPainterPath allowed = reach.createStroke(silhouette).united(silhouette);
+    for (StyleProperties::Line line : {StyleProperties::Line::Brush, StyleProperties::Line::Dashed}) {
+        styleOf(a).line   = line;
+        const QRectF spike = Geometry::ink(*a.balloon, a.seed, silhouette).subtracted(allowed).boundingRect();
+        EXPECT_LT(qMax(spike.width(), spike.height()), k_flattening) << lineName(line) << " " << spike.width() << "x"
+                                                                    << spike.height();
+    }
+}
+
+/**
+ * \brief A brush's strokes wander off the edge, but never so far that it is left bare: the fill would show past the
+ *        ink where a stroke swells thin or narrows to its end. Every point of an ellipse's edge lies under the ink,
+ *        whatever the seed, with the default brush.
+ */
+TEST(Style, ABrushNeverLeavesTheEdgeBare)
+{
+    constexpr qreal   k_probe = 1.0;   // the edge sampled this far apart
+    constexpr quint32 k_seeds = 12;
+    Composition a = balloonObject();
+    shapeOf(a)             = Geometry::shapeTemplate("ellipse").shape;
+    boxOf(a)               = QSize(280, 160);
+    tailsOf(a).clear();
+    styleOf(a).line        = StyleProperties::Line::Brush;
+    styleOf(a).brush       = BrushParams{};
+    styleOf(a).strokeWidth = 5;
+    for (quint32 seed = 1; seed <= k_seeds; ++seed) {
+        seedOf(a)                     = seed;
+        const QPainterPath silhouette = Geometry::silhouette(*a.balloon, a.seed);
+        const QPainterPath ink        = Geometry::ink(*a.balloon, a.seed, silhouette);
+        int                bare       = 0;
+        for (const QPolygonF& ring : silhouette.toSubpathPolygons())
+            for (int i = 0; i + 1 < ring.size(); ++i) {
+                const qreal len = QLineF(ring[i], ring[i + 1]).length();
+                for (qreal s = 0.0; s < len; s += k_probe)
+                    bare += ink.contains(ring[i] + (ring[i + 1] - ring[i]) * (s / len)) ? 0 : 1;
+            }
+        EXPECT_EQ(bare, 0) << "seed " << seed;
+    }
+}
+
+namespace {
+
+/**
+ * \brief @p item painted as the strip editor paints it (Painter::play(): marks stamped or in pieces, a stroke
+ *        in pieces) looks as @p whole draws it in one go: alike on average, and few pixels far apart, at a zoom.
+ */
+void expectPaintedAsWhole(const Render::Item& item, const std::function<void(QPainter&)>& whole)
+{
+    constexpr qreal k_zoom      = 2.0;
+    constexpr qreal k_meanAlpha = 4.0;     // of 255, over the whole picture
+    constexpr int   k_farAlpha  = 64;      // a pixel this far apart counts...
+    constexpr qreal k_farShare  = 0.005;   // ...and so many of them may be
+    const qreal  half    = item.strokeWidth / 2.0;
+    const QRectF area    = item.path.boundingRect().adjusted(-half, -half, half, half);
+    const auto   picture = [&](const std::function<void(QPainter&)>& draw) {
+        QImage img((area.size() * k_zoom).toSize() + QSize(2, 2), QImage::Format_ARGB32_Premultiplied);
+        img.fill(Qt::transparent);
+        QPainter painter(&img);
+        painter.setRenderHint(QPainter::Antialiasing, true);
+        painter.scale(k_zoom, k_zoom);
+        painter.translate(-area.topLeft());
+        draw(painter);
+        return img;
+    };
+    const QImage painted = picture([&](QPainter& painter) { Painter::play(painter, {item}); });
+    const QImage path    = picture(whole);
+
+    qint64 sum = 0;
+    int    far = 0;
+    for (int y = 0; y < path.height(); ++y)
+        for (int x = 0; x < path.width(); ++x) {
+            const int d = std::abs(qAlpha(path.pixel(x, y)) - qAlpha(painted.pixel(x, y)));
+            sum += d;
+            far += d > k_farAlpha ? 1 : 0;
+        }
+    const qreal pixels = qreal(path.width()) * path.height();
+    EXPECT_LT(sum / pixels, k_meanAlpha);
+    EXPECT_LT(far / pixels, k_farShare);
+}
+
+//! @p marks, as a marks item in black, painted as the same path filled whole by the nonzero rule.
+void expectPaintedAsItsPath(const QPainterPath& marks)
+{
+    Render::Item item;
+    item.path    = marks;
+    item.fill    = Render::colourInk(Qt::black);
+    item.nonzero = true;
+    item.marks   = true;
+    QPainterPath whole = marks;
+    whole.setFillRule(Qt::WindingFill);
+    expectPaintedAsWhole(item, [&](QPainter& painter) { painter.fillPath(whole, Qt::black); });
+}
+
+}  // namespace
+
+/**
+ * \brief A fading halftone's marks paint as their path: dots (stamped) merging on a turned grid, and a grid's
+ *        bars, whose crossings stay inked.
+ */
+TEST(Style, AFadingHalftonePaintsAsItsPath)
+{
+    Paint p;
+    p.colour  = Qt::white;
+    p.second  = Qt::black;
+    p.size    = 7.0;   // over the spacing: the darkest dots merge
+    p.spacing = 6.0;
+    p.angle   = 45.0;
+    // A large area, and one small enough that its marks are filled in one piece, crossings and all.
+    for (const QRectF& area : {QRectF(0, 0, 240, 120), QRectF(0, 0, 30, 20)})
+        for (Paint::Kind kind : {Paint::Kind::Dots, Paint::Kind::Grid}) {
+            SCOPED_TRACE(QStringLiteral("%1 wide, kind %2").arg(area.width()).arg(int(kind)).toStdString());
+            p.kind          = kind;
+            const auto fade = [&](const QPointF& at) { return at.x() / area.width(); };
+            expectPaintedAsItsPath(Geometry::halftoneMarks(p, area, fade, 3.0));
+        }
+}
+
+/**
+ * \brief Lettering's outline, stroked round many glyphs (in pieces on screen), paints as one stroke of it does,
+ *        in a transparent colour too (the pieces overlap where letters' outlines meet).
+ */
+TEST(Style, ALetteringOutlinePaintsAsOneStroke)
+{
+    Composition a = balloonObject();
+    tailsOf(a).clear();
+    boxOf(a)                 = QSize(400, 300);
+    textOf(a).outlineWidth   = 1.5;
+    textOf(a).body           = QStringLiteral("Many letters, outlined, in pieces round every one of their contours.");
+    const QPainterPath text  = Geometry::textOutlines(a).value(0);
+    ASSERT_GT(text.toSubpathPolygons().size(), 20);
+    for (const QColor& colour : {QColor(Qt::black), QColor(0, 0, 0, 128)}) {
+        SCOPED_TRACE(colour.alpha());
+        Render::Item item;
+        item.path        = text;
+        item.stroke      = Render::colourInk(colour);
+        item.strokeWidth = 2.0 * textOf(a).outlineWidth;
+        item.roundCap    = true;
+        expectPaintedAsWhole(item, [&](QPainter& painter) {
+            QPen pen(colour, item.strokeWidth);
+            pen.setJoinStyle(Qt::RoundJoin);
+            pen.setCapStyle(Qt::RoundCap);
+            painter.strokePath(text, pen);
+        });
+    }
+}
+
+/**
+ * \brief A line drawn as strokes apart paints as its path, in pieces. The others have a band with a hole: a dry
+ *        brush's core (Explosion's too), a sketch's strokes, a dash closed round a ring, a multi-line's lines.
+ */
+TEST(Style, ALineOfStrokesApartPaintsAsItsPath)
+{
+    using Line    = StyleProperties::Line;
+    Composition a = balloonObject();
+    shapeOf(a)    = Geometry::shapeTemplate("ellipse").shape;
+    boxOf(a)      = QSize(280, 160);
+    for (Line line : {Line::Flash, Line::Brush, Line::Drybrush, Line::Sketch, Line::Explosion, Line::Dashed,
+                      Line::Multi}) {
+        SCOPED_TRACE(int(line));
+        styleOf(a).line               = line;
+        const QPainterPath silhouette = Geometry::silhouette(*a.balloon, a.seed);
+        const QPainterPath ink        = Geometry::ink(*a.balloon, a.seed, silhouette);
+        ASSERT_FALSE(ink.isEmpty());
+        const bool apart = Geometry::lineInfo(line).apart;
+        EXPECT_EQ(apart, line == Line::Flash || line == Line::Brush);
+        if (apart)
+            expectPaintedAsItsPath(ink);
     }
 }
 
@@ -1574,7 +1812,7 @@ TEST(Tails, ATipEndsAsItSays)
     EXPECT_TRUE(at(TailLook::Tip::Round, t.tip + QPointF(end - k_inside, -end)));
 
     // The outline the lines take hears of the end from the tail, on the tail's own edge and on the joined one:
-    // a Round end half a circle long with no corner on it, a Cut one straight across, a Sharp one none.
+    // a Round end half a circle long with no corner on it, a Cut one straight across, a Sharp one a point at the tip.
     constexpr qreal k_flattening = 1.0;   // how far a flattened end's length may be from a true one's
     constexpr qreal k_same       = 1e-9;
     for (TailLook::Tip tip : {TailLook::Tip::Sharp, TailLook::Tip::Round, TailLook::Tip::Cut}) {
@@ -1583,11 +1821,17 @@ TEST(Tails, ATipEndsAsItSays)
         ASSERT_EQ(m.parts.size(), 2);
         ASSERT_EQ(m.rings.size(), 1);
         for (const Geometry::OutlineRing& ring : {m.parts[1].rings.first(), m.rings.first()}) {
+            ASSERT_EQ(ring.ends.size(), 1u);
             if (tip == TailLook::Tip::Sharp) {
-                EXPECT_TRUE(ring.ends.empty());
+                const Geometry::OutlineEnd& e = ring.ends.front();
+                EXPECT_TRUE(e.sharp);
+                EXPECT_FALSE(e.round);
+                EXPECT_EQ(e.span, 0.0);
+                const QPointF at = ring.walk.at(ring.wrap(e.middle())).at;
+                EXPECT_NEAR(at.x(), t.tip.x(), k_flattening);
+                EXPECT_NEAR(at.y(), t.tip.y(), k_flattening);
                 continue;
             }
-            ASSERT_EQ(ring.ends.size(), 1u);
             const Geometry::OutlineEnd& e     = ring.ends.front();
             const bool                  round = tip == TailLook::Tip::Round;
             EXPECT_EQ(e.round, round);
@@ -2524,8 +2768,8 @@ void bump(TextureProperties::Kind& v)
  * \brief For every field of the group @p part gives: changing it alone makes the group unequal, and the
  *        changed object comes back the same from the JSON and from the SVG.
  *
- * The SVG is written with no lettering, because writing lettering measures a font, which needs the
- * QGuiApplication this target does not have; the body's own `pm:text` is read by the import test.
+ * The SVG is written with no lettering, whose outlines are a font's and differ from one machine to another;
+ * the body's own `pm:text` is read by the import test.
  */
 template <class Part>
 void expectEveryFieldCounts(Part part)
@@ -2597,8 +2841,8 @@ struct GoldenCase
  *        Marker's and the Ink's numbers), flash, a rough flash, and brush.
  *
  * The balloon's SVG, its text area and its undo-snapshot JSON, one section per case. The lettering is
- * left empty and its family named, so nothing here measures a font: writing lettering needs the
- * QGuiApplication this target does not have, and the text area covers what the lettering is fitted to.
+ * left empty and its family named, so nothing here measures a font: a font's outlines differ from one
+ * machine to another, and the text area covers what the lettering is fitted to.
  */
 QList<GoldenCase> goldenCases()
 {

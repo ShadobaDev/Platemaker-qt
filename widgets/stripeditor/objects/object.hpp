@@ -178,7 +178,8 @@ public:
      * \return Whether anything changed.
      */
     bool resetShapeHandle(int index);
-    //! The bare outline shape editing traces, in item coordinates. None by default.
+    //! The bare outline shape editing traces, and the curves its words are bent along, in item coordinates. None by
+    //! default.
     [[nodiscard]] virtual QPainterPath editOutline() const { return {}; }
 
     //! The node picked last in shape editing (the last of pickedVertices()); -1 for none.
@@ -186,10 +187,12 @@ public:
     //! The nodes picked in shape editing, in the order they were picked: what Delete, *Point type* and a
     //! drag of any of them act on.
     [[nodiscard]] const QList<int>& pickedVertices() const { return m_pickedVertices; }
-    //! Picks node @p index alone, or none with -1.
-    void setPickedVertex(int index);
-    //! Picks @p indices, the last of them the one picked last.
-    void setPickedVertices(const QList<int>& indices);
+    //! Whose nodes pickedVertices() are: a body's id (its outline) or words' (their warp); 0 for none picked.
+    [[nodiscard]] int pickedElement() const { return m_pickedElement; }
+    //! Picks node @p index of element @p element alone, or none with -1.
+    void setPickedVertex(int index, int element = 0);
+    //! Picks @p indices of element @p element, the last of them the one picked last.
+    void setPickedVertices(const QList<int>& indices, int element);
     //! Picks the node shape handle @p index of shapeHandles() belongs to; a handle of no node changes nothing.
     void pickNodeOf(int index);
 
@@ -479,6 +482,7 @@ private:
     Grip    m_dragGrip = Grip::None;   //!< The grip of the drag under way or the last one (dragGrip()).
     bool    m_shapeEditing = false;    //!< See setShapeEditing().
     QList<int> m_pickedVertices;       //!< See pickedVertices().
+    int        m_pickedElement = 0;    //!< See pickedElement().
 
     bool m_dragReported = false;    //!< A drag was live, so the owner may have moved others along.
 

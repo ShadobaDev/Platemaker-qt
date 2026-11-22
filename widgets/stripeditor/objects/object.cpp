@@ -42,6 +42,16 @@ QPainter::CompositionMode compositionFor(Platemaker::Models::BlendMode b)
     return QPainter::CompositionMode_SourceOver;
 }
 
+//! How an object in @p b is kept between repaints. What it draws changes far less often than the strip
+//! is repainted (a drag, a hover, the chrome), and a halftone or a flash costs tens of milliseconds to
+//! draw, so it is drawn once into a pixmap at the view's zoom and that is shown until update() says it
+//! changed. Not with a blend mode: the pixmap is drawn over a transparent one, where a multiply has
+//! nothing to multiply, and only its result would then be laid over the strip.
+QGraphicsItem::CacheMode cacheFor(Platemaker::Models::BlendMode b)
+{
+    return b == Platemaker::Models::BlendMode::Over ? QGraphicsItem::DeviceCoordinateCache : QGraphicsItem::NoCache;
+}
+
 //! A tip's hit square in item units for the current zoom, so it stays roughly constant on screen.
 qreal gripSpan(const QGraphicsItem* item)
 {
@@ -68,6 +78,7 @@ Object::Object(QString uid, QGraphicsItem* parent)
     setFlag(ItemIsSelectable, true);
     // The selection chrome follows this object from outside, so it has to hear about every move.
     setFlag(ItemSendsGeometryChanges, true);
+    setCacheMode(cacheFor(m_blend));
 }
 
 void Object::setBlend(Platemaker::Models::BlendMode blend)
@@ -75,6 +86,7 @@ void Object::setBlend(Platemaker::Models::BlendMode blend)
     if (m_blend == blend)
         return;
     m_blend = blend;
+    setCacheMode(cacheFor(m_blend));
     update();
 }
 
@@ -150,19 +162,22 @@ void Object::setShapeEditing(bool on)
         return;
     m_shapeEditing = on;
     m_pickedVertices.clear();
+    m_pickedElement = 0;
     emit chromeChanged();
 }
 
-void Object::setPickedVertex(int index)
+void Object::setPickedVertex(int index, int element)
 {
-    setPickedVertices(index < 0 ? QList<int>{} : QList<int>{index});
+    setPickedVertices(index < 0 ? QList<int>{} : QList<int>{index}, element);
 }
 
-void Object::setPickedVertices(const QList<int>& indices)
+void Object::setPickedVertices(const QList<int>& indices, int element)
 {
-    if (m_pickedVertices == indices)
+    const int owner = indices.isEmpty() ? 0 : element;
+    if (m_pickedVertices == indices && m_pickedElement == owner)
         return;
     m_pickedVertices = indices;
+    m_pickedElement  = owner;
     emit chromeChanged();
     emit pickedVertexChanged();
 }
@@ -171,7 +186,7 @@ void Object::pickNodeOf(int index)
 {
     const QList<Geometry::Handle> handles = shapeHandles();
     if (index >= 0 && index < handles.size() && handles.at(index).node >= 0)
-        setPickedVertex(handles.at(index).node);
+        setPickedVertex(handles.at(index).node, handles.at(index).element);
 }
 
 qreal Object::gripSpanHere() const
@@ -181,7 +196,7 @@ qreal Object::gripSpanHere() const
 
 Geometry::HandleContext Object::handleContext() const
 {
-    return {gripSpanHere() * k_radiusDotClearance, pickedVertices(), markedWords(), m_pickedBody};
+    return {gripSpanHere() * k_radiusDotClearance, pickedVertices(), markedWords(), m_pickedBody, m_pickedElement};
 }
 
 void Object::setPickedBody(int id)
@@ -276,19 +291,21 @@ bool Object::beginShapeDrag(int index)
         return changed;
     }
     const int  node       = m_shapeHandle.node;
+    const int  owner      = m_shapeHandle.element;
     const bool nodeItself = m_shapeHandle.glyph == Geometry::Handle::Glyph::Node;
-    QList<int> picked     = pickedVertices();
+    // The nodes picked are one element's: a node of another starts a pick of its own.
+    QList<int> picked     = m_pickedElement == owner ? pickedVertices() : QList<int>{};
     if (nodeItself && !changed
         && QGuiApplication::keyboardModifiers().testFlag(Qt::ControlModifier)) {
         m_shapeDragOff = picked.removeAll(node) > 0;
         if (!m_shapeDragOff)
             picked.append(node);
-        setPickedVertices(picked);
+        setPickedVertices(picked, owner);
     } else if (nodeItself && picked.contains(node)) {
         picked.removeAll(node);
-        setPickedVertices(picked << node);   // the one pressed is the one picked last
+        setPickedVertices(picked << node, owner);   // the one pressed is the one picked last
     } else {
-        setPickedVertex(node);
+        setPickedVertex(node, owner);
     }
     return changed;
 }

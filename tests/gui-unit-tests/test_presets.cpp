@@ -145,8 +145,7 @@ TEST_F(Presets, TheOriginTravelsWithTheObject)
     EXPECT_EQ(originOf(compositionFromJson(toJson(a))), originOf(a));
     EXPECT_TRUE(originOf(compositionFromJson(toJson(placed()))).isEmpty());
 
-    // Built by hand rather than through Svg::write(), which measures lettering and needs a
-    // QGuiApplication this target does not have: what is under test is that the reader takes the origin.
+    // Built by hand rather than through Svg::write(): what is under test is that the reader takes the origin.
     const QString    content = QString::fromUtf8(QJsonDocument(toJson(a)).toJson(QJsonDocument::Compact));
     const QByteArray svg = QByteArray("<svg xmlns=\"http://www.w3.org/2000/svg\" xmlns:pm=\"") + Svg::k_pmNamespace
                          + "\" width=\"10\" height=\"10\"><pm:content>" + content.toHtmlEscaped().toUtf8()

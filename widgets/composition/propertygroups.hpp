@@ -1046,13 +1046,15 @@ struct TextRun
     std::optional<bool>    bold;
     std::optional<bool>    italic;
     std::optional<Paint>   fill;        //!< Drawn as a path of its own, under a pattern of its own.
+    std::optional<int>     letterSpacing;   //!< As TextProperties::letterSpacing, of the run's own size.
 
     //! Whether it overrides anything at all.
-    [[nodiscard]] bool overrides() const { return family || pixelSize || bold || italic || fill; }
+    [[nodiscard]] bool overrides() const { return family || pixelSize || bold || italic || fill || letterSpacing; }
     //! The same overrides, wherever it lies.
     [[nodiscard]] bool sameLettering(const TextRun& o) const
     {
-        return family == o.family && pixelSize == o.pixelSize && bold == o.bold && italic == o.italic && fill == o.fill;
+        return family == o.family && pixelSize == o.pixelSize && bold == o.bold && italic == o.italic && fill == o.fill
+            && letterSpacing == o.letterSpacing;
     }
     [[nodiscard]] bool operator==(const TextRun& o) const
     {
@@ -1086,6 +1088,29 @@ struct TextProperties
     Paint   fill{QColor(20, 20, 20), QColor(255, 255, 255)};
     //! Line pitch as a percentage of the font's own — for faces that set their lines too far apart.
     int     lineSpacing = 100;
+    /**
+     * Room added between letters (tracking), in thousandths of an em: of the font size, so it follows the size
+     * and a run in a larger size gets more. 0 is the font's own; negative sets them closer, onto each other.
+     */
+    int     letterSpacing = 0;
+    //! Pairs set as the font's own kerning says, as they are by default; off, each letter by its own advance.
+    bool    kerning = true;
+    /**
+     * Set down in columns, not across in lines: each line typed is a column, its letters upright one under the other,
+     * an em of their font apart plus the letter spacing; the columns lineSpacing per cent of their line's height
+     * apart. valign then places each column in the block, as align places each line across.
+     */
+    bool    vertical = false;
+    //! The columns follow each other to the left (as manga's do), not to the right; with vertical alone.
+    bool    columnsLeft = false;
+    /**
+     * The curve the whole block is bent along (a warp): an open path of nodes (ShapeNode) in fractions of the block
+     * as it is laid out flat, so it follows the block as the text changes. The block's middle line, across for lines
+     * and down for columns, is laid along it by its length, each point of the letters kept as far from that line;
+     * straight from the middle of one side to the other's it changes nothing. Empty, the default, is none; never
+     * fewer than two nodes.
+     */
+    QList<ShapeNode> warp;
     /**
      * @name The outline: a band round each letter, outside it, so the letterform keeps the
      * weight its typeface gives it — the glyphs stroked at twice the width, then filled over. Painted
@@ -1122,6 +1147,11 @@ struct TextProperties
         v("align",       &TextProperties::align);
         v("valign",      &TextProperties::valign);
         v("lineSpacing", &TextProperties::lineSpacing);
+        v("letterSpacing", &TextProperties::letterSpacing);
+        v("kerning",       &TextProperties::kerning);
+        v("vertical",      &TextProperties::vertical);
+        v("columnsLeft",   &TextProperties::columnsLeft);
+        v("warp",          &TextProperties::warp);
         // The colour keeps the key it had as a plain colour; a pattern does not fade here.
         static constexpr const char* k_fill[] = {
             "textColour", "textKind", "textSecond", "textSpacing", "textSize", "textAngle",

@@ -34,16 +34,24 @@ struct OutlineCorner
     QPointF out;          //!< The way it runs on, read a little after it.
 };
 
+//! How far either side of a vertex its turn is measured, in balloon pixels: a flattened curve's own small steps are
+//! not corners, one corner split by a sliver of an edge still is. A line reads a corner's ways as far from it.
+inline constexpr qreal k_cornerProbe = 1.5;
+
 /**
- * \brief A tail's end that is not a point, as the tail reports it: the stretch of the ring from one of its
- *        corners round to the other, `span` long the way the walk goes from `from`.
+ * \brief A tail's end, as the tail reports it: the stretch of the ring from one of its corners round to the other,
+ *        `span` long the way the walk goes from `from`; a Sharp tip is a point, `span` 0.
  */
 struct OutlineEnd
 {
     qreal from   = 0.0;
     qreal span   = 0.0;
-    qreal radius = 0.0;    //!< A round end's radius; for a cut one, half its width.
-    bool  round  = false;  //!< A half circle (no corner on it), else a straight cut between two corners.
+    qreal radius = 0.0;    //!< A round end's radius; for a cut one, half its width; 0 for a sharp one.
+    bool  round  = false;  //!< A half circle (no corner on it), else a straight cut between two corners, or a point.
+    bool  sharp  = false;  //!< A Sharp tip: the tail's sides meet at a point.
+
+    //! Where along the ring a line anchors on it: the tip, or the middle of a cut or round end.
+    [[nodiscard]] qreal middle() const { return from + span / 2.0; }
 };
 
 //! The tail's end where it is drawn, in box coordinates: its two corners and its far point.

@@ -137,7 +137,7 @@ bool PictureObject::canEditShape() const
 
 QPainterPath PictureObject::editOutline() const
 {
-    QPainterPath box;
+    QPainterPath box = Geometry::warpCurves(m_composition, markedWords());
     box.addRect(QRectF(QPointF(0, 0), boxSize()));
     return box;
 }

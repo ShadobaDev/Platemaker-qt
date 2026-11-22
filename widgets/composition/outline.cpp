@@ -13,9 +13,6 @@ namespace {
 
 //! The turn at a vertex, in degrees, from which it is a corner: a line does not follow it round.
 constexpr qreal k_cornerTurn  = 35.0;
-//! How far either side of a vertex its turn is measured, in balloon pixels: a flattened curve's own
-//! small steps are not corners, one corner split by a sliver of an edge still is.
-constexpr qreal k_cornerProbe = 1.5;
 //! How often along a part's edge it is asked whether another part covers it, in balloon pixels.
 constexpr qreal k_coverStep   = 2.0;
 /**

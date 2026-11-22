@@ -67,6 +67,11 @@ struct LineInfo
     Fields::SectionNames sections{};
     //! Of those rows, the ones whose key holds this are not shown: what the kind reads none of; or nullptr.
     const char* hides = nullptr;
+    /**
+     * Its ink is strokes apart from each other, none with a hole of its own, so the painter may fill them a few
+     * at a time (Render::Item::marks): far faster than as one path once there are hundreds.
+     */
+    bool apart = false;
 };
 
 //! One texture: an SVG filter (`filter`), which only the library draws.

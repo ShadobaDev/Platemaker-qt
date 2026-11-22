@@ -1,4 +1,5 @@
 #include "shapes.hpp"
+#include "bezier.hpp"
 #include "edgewalk.hpp"
 
 #include <QByteArray>
@@ -10,6 +11,7 @@
 #include <array>
 #include <cmath>
 #include <functional>
+#include <optional>
 #include <vector>
 
 namespace Geometry {
@@ -82,16 +84,6 @@ constexpr qreal k_scrollBow      = 0.06;
  */
 constexpr qreal k_quarterArc     = 0.5522847498307936;
 /**
- *  How far from one line, and from one length, a node's two handles may be and still read as Smooth or
- *  Symmetric when an outline is converted to a Curve: as a fraction (a sine, a ratio of lengths).
- */
-constexpr qreal k_smoothTolerance = 1e-3;
-/**
- *  A handle drawn for a node that has none, when it is made Smooth: this fraction of the way to its
- *  neighbour, as a straight segment's handles would sit.
- */
-constexpr qreal k_newHandle      = 1.0 / 3.0;
-/**
  *  A caption box's corner radius, in balloon pixels. The speech balloon's is the struct's default
  *  (CornerParams::radius): 0.28 of the default 160 px height, as it was before it was a number.
  */
@@ -133,29 +125,8 @@ const QList<ShapeNode>& freeNodes(const ShapeProperties& shape)
     return shape.nodes.size() >= 3 ? shape.nodes : k_rectangle;
 }
 
-//! A point relative to @p r (a node, or a node plus a handle) in @p r's own coordinates.
-QPointF inBody(const QPointF& p, const QRectF& r)
-{
-    return {r.left() + p.x() * r.width(), r.top() + p.y() * r.height()};
-}
-
-//! inBody()'s inverse: a point in @p r's coordinates, relative to it.
-QPointF relativeTo(const QPointF& p, const QRectF& r)
-{
-    return {(p.x() - r.left()) / r.width(), (p.y() - r.top()) / r.height()};
-}
-
-//! A handle (an offset, relative to @p r) in @p r's pixels, where lengths and angles mean what they look.
-QPointF toPixels(const QPointF& offset, const QRectF& r)
-{
-    return {offset.x() * r.width(), offset.y() * r.height()};
-}
-
-//! toPixels()'s inverse.
-QPointF fromPixels(const QPointF& offset, const QRectF& r)
-{
-    return {offset.x() / r.width(), offset.y() / r.height()};
-}
+//! A Polygon's and a Curve's nodes: a closed path of three at least.
+constexpr Bezier::Rules k_outlineRules{3, true};
 
 qreal length(const QPointF& v)
 {
@@ -169,7 +140,7 @@ QList<QPointF> polygonPoints(const ShapeProperties& shape, const QRectF& r)
     QList<QPointF>          out;
     out.reserve(nodes.size());
     for (const ShapeNode& n : nodes)
-        out.append(inBody(n.at, r));
+        out.append(Bezier::inBox(n.at, r));
     return out;
 }
 
@@ -272,28 +243,10 @@ QPainterPath polygonPath(const ShapeProperties& shape, const QRectF& r)
 // Curve
 // ---------------------------------------------------------------------------
 
-/**
- * \brief The nodes joined by cubic segments, each leaving a node along its out-handle and arriving along
- *        the next one's in-handle; straight where neither has one. Filled by the non-zero rule, as a
- *        Polygon is.
- */
+//! The nodes joined by Bézier segments (Bezier::path()), filled by the non-zero rule, as a Polygon is.
 QPainterPath curvePath(const ShapeProperties& shape, const QRectF& r)
 {
-    const QList<ShapeNode>& nodes = freeNodes(shape);
-    const qsizetype         n     = nodes.size();
-    QPainterPath            p;
-    p.setFillRule(Qt::WindingFill);
-    p.moveTo(inBody(nodes.first().at, r));
-    for (qsizetype i = 0; i < n; ++i) {
-        const ShapeNode& a = nodes[i];
-        const ShapeNode& b = nodes[(i + 1) % n];
-        if (a.out.isNull() && b.in.isNull())
-            p.lineTo(inBody(b.at, r));
-        else
-            p.cubicTo(inBody(a.at + a.out, r), inBody(b.at + b.in, r), inBody(b.at, r));
-    }
-    p.closeSubpath();
-    return p;
+    return Bezier::path(freeNodes(shape), k_outlineRules, r);
 }
 
 // ---------------------------------------------------------------------------
@@ -452,81 +405,39 @@ ShapeProperties dragPolygonHandle(const ShapeProperties& shape, const QRectF& bo
     return s;
 }
 
-/**
- * \brief A cubic segment from @p a to @p b cut in half (de Casteljau), relative to the body as the nodes
- *        are: the halves' new handles and the point between them. A straight one is cut at its middle,
- *        with no handles.
- */
-struct Split
+//! The shape's part an engine grip is.
+ShapePart shapePartOf(Bezier::Part part)
 {
-    QPointF aOut;            //!< @p a's out-handle, for the first half.
-    QPointF mid;             //!< The point halfway along.
-    QPointF midIn, midOut;   //!< Its handles.
-    QPointF bIn;             //!< @p b's in-handle, for the second half.
-};
-
-Split splitSegment(const ShapeNode& a, const ShapeNode& b)
-{
-    const QPointF p0 = a.at, p1 = a.at + a.out, p2 = b.at + b.in, p3 = b.at;
-    const QPointF p01 = (p0 + p1) / 2.0, p12 = (p1 + p2) / 2.0, p23 = (p2 + p3) / 2.0;
-    const QPointF p012 = (p01 + p12) / 2.0, p123 = (p12 + p23) / 2.0;
-    const QPointF mid  = (p012 + p123) / 2.0;
-    if (a.out.isNull() && b.in.isNull())
-        return {{}, mid, {}, {}, {}};
-    return {p01 - p0, mid, p012 - mid, p123 - mid, p23 - p3};
+    switch (part) {
+    case Bezier::Part::Node:      return ShapePart::Vertex;
+    case Bezier::Part::AddNode:   return ShapePart::AddVertex;
+    case Bezier::Part::InHandle:  return ShapePart::InHandle;
+    case Bezier::Part::OutHandle: break;
+    }
+    return ShapePart::OutHandle;
 }
 
-/**
- * Where node @p i's missing handle on one side grows from: a third of the way to the neighbour on that
- * side (@p out: the next one), on the line to it, so on a straight segment it bends nothing.
- */
-QPointF grownHandle(const QList<ShapeNode>& nodes, int i, bool out)
+//! The engine's part @p part is; none for a part of the shape's own (the radius, the depth).
+std::optional<Bezier::Part> bezierPartOf(ShapePart part)
 {
-    const int n = int(nodes.size());
-    return (nodes[(i + (out ? 1 : n - 1)) % n].at - nodes[i].at) * k_newHandle;
+    switch (part) {
+    case ShapePart::Vertex:    return Bezier::Part::Node;
+    case ShapePart::AddVertex: return Bezier::Part::AddNode;
+    case ShapePart::InHandle:  return Bezier::Part::InHandle;
+    case ShapePart::OutHandle: return Bezier::Part::OutHandle;
+    case ShapePart::Radius:
+    case ShapePart::Depth:     break;
+    }
+    return std::nullopt;
 }
 
-/**
- * The picked node's two handles, then every node, then a "+" halfway along each segment: the order a
- * press is answered in, so a handle wins over the node it leaves. A handle the node lacks is offered
- * where it would grow from (grownHandle()), and becomes the node's own when it is dragged.
- */
+//! The engine's grips (Bezier::grips()), as the shape's handles.
 QList<Handle> curveHandles(const ShapeProperties& shape, const QRectF& body, qreal, int picked)
 {
-    const QList<ShapeNode>& nodes = freeNodes(shape);
-    const int               n     = int(nodes.size());
-    QList<Handle>      out;
-    if (picked >= 0 && picked < n) {
-        const ShapeNode& p    = nodes[picked];
-        const QPointF    at   = inBody(p.at, body);
-        const QPointF    in   = p.in.isNull() ? grownHandle(nodes, picked, false) : p.in;
-        const QPointF    outH = p.out.isNull() ? grownHandle(nodes, picked, true) : p.out;
-        out.append(shapeHandle(ShapePart::InHandle, picked, inBody(p.at + in, body), {}, at));
-        out.append(shapeHandle(ShapePart::OutHandle, picked, inBody(p.at + outH, body), {}, at));
-    }
-    for (int i = 0; i < n; ++i)
-        out.append(shapeHandle(ShapePart::Vertex, i, inBody(nodes[i].at, body)));
-    for (int i = 0; i < n; ++i)
-        out.append(shapeHandle(ShapePart::AddVertex, i, inBody(splitSegment(nodes[i], nodes[(i + 1) % n]).mid, body)));
+    QList<Handle> out;
+    for (const Bezier::Grip& g : Bezier::grips(freeNodes(shape), k_outlineRules, body, picked))
+        out.append(shapeHandle(shapePartOf(g.part), g.index, g.at, {}, g.origin));
     return out;
-}
-
-/**
- * \brief @p node's other handle put where its type says, after the one @p movedOut names was moved: on
- *        one line through the node, for a Smooth one as long as it was, for a Symmetric one as long as
- *        the moved one. In pixels, where "on one line" and "as long" are what the eye sees.
- */
-void keepType(ShapeNode& node, bool movedOut, const QRectF& body)
-{
-    if (node.type == ShapeNode::Type::Corner)
-        return;
-    const QPointF moved = toPixels(movedOut ? node.out : node.in, body);
-    QPointF&      other = movedOut ? node.in : node.out;
-    const qreal   lm    = length(moved);
-    if (lm <= 0.0)
-        return;
-    const qreal lo = node.type == ShapeNode::Type::Symmetric ? lm : length(toPixels(other, body));
-    other          = fromPixels(-moved / lm * lo, body);
 }
 
 ShapeProperties dragCurveHandle(const ShapeProperties& shape, const QRectF& body, const Handle& handle,
@@ -536,46 +447,10 @@ ShapeProperties dragCurveHandle(const ShapeProperties& shape, const QRectF& body
     s.nodes           = freeNodes(shape);   // a Curve drawing the box's rectangle gets nodes of its own
     if (handle.index < 0 || handle.index >= s.nodes.size() || body.isEmpty())
         return shape;
-    ShapeNode&    node = s.nodes[handle.index];
-    const QPointF rel  = relativeTo(to, body);
-    switch (partOf<ShapePart>(handle)) {
-    case ShapePart::Vertex:
-        node.at = rel;   // its handles are offsets, so they come along
-        break;
-    case ShapePart::InHandle:
-        node.in = rel - node.at;
-        keepType(node, false, body);
-        break;
-    case ShapePart::OutHandle:
-        node.out = rel - node.at;
-        keepType(node, true, body);
-        break;
-    case ShapePart::Radius:
-    case ShapePart::AddVertex:
-    case ShapePart::Depth:
-        break;   // no radius; a press on a "+" adds the node (withVertexAdded()); the edge's is not here
-    }
+    // No radius; a press on a "+" adds the node (withVertexAdded()); the edge's is not here.
+    if (const std::optional<Bezier::Part> part = bezierPartOf(partOf<ShapePart>(handle)))
+        s.nodes = Bezier::dragged(s.nodes, k_outlineRules, body, *part, handle.index, to);
     return s;
-}
-
-/**
- * Which type @p node reads as, from its handles in @p body: Smooth when they point opposite ways along
- * one line, Symmetric when they are as long as each other too, else Corner.
- */
-ShapeNode::Type typeOf(const ShapeNode& node, const QRectF& body)
-{
-    const QPointF in  = toPixels(node.in, body);
-    const QPointF out = toPixels(node.out, body);
-    const qreal   li  = length(in);
-    const qreal   lo  = length(out);
-    if (li <= 0.0 || lo <= 0.0)
-        return ShapeNode::Type::Corner;
-    const qreal sine   = (in.x() * out.y() - in.y() * out.x()) / (li * lo);
-    const qreal cosine = (in.x() * out.x() + in.y() * out.y()) / (li * lo);
-    if (std::abs(sine) > k_smoothTolerance || cosine >= 0.0)
-        return ShapeNode::Type::Corner;
-    return std::abs(li - lo) <= k_smoothTolerance * qMax(li, lo) ? ShapeNode::Type::Symmetric
-                                                                  : ShapeNode::Type::Smooth;
 }
 
 // ---------------------------------------------------------------------------
@@ -1271,18 +1146,11 @@ ShapeProperties withVertexAdded(const ShapeProperties& shape, int edge)
     const int n       = int(s.nodes.size());
     if (edge < 0 || edge >= n)
         return shape;
-    ShapeNode& a = s.nodes[edge];
-    ShapeNode& b = s.nodes[(edge + 1) % n];
     if (shape.kind != ShapeProperties::Kind::Curve) {   // a Polygon's edge is straight, whatever its nodes hold
-        s.nodes.insert(edge + 1, ShapeNode((a.at + b.at) / 2.0, {}, {}));
+        s.nodes.insert(edge + 1, ShapeNode((s.nodes[edge].at + s.nodes[(edge + 1) % n].at) / 2.0, {}, {}));
         return s;
     }
-    const Split half = splitSegment(a, b);
-    a.out            = half.aOut;
-    b.in             = half.bIn;
-    // A cut curve leaves its new node with its handles on one line; a straight one with none.
-    const ShapeNode::Type type = half.midIn.isNull() ? ShapeNode::Type::Corner : ShapeNode::Type::Smooth;
-    s.nodes.insert(edge + 1, ShapeNode(half.mid, half.midIn, half.midOut, type));
+    s.nodes = Bezier::withNodeAdded(s.nodes, k_outlineRules, edge);
     return s;
 }
 
@@ -1291,22 +1159,19 @@ ShapeProperties withNodesMoved(const ShapeProperties& shape, const QRectF& body,
 {
     if (body.isEmpty())
         return shape;
-    ShapeProperties s    = shape;
-    s.nodes              = freeNodes(shape);   // a Polygon drawing the box's rectangle gets nodes of its own
-    const QPointF   step = fromPixels(by, body);
-    for (int i : indices)
-        if (i >= 0 && i < s.nodes.size())
-            s.nodes[i].at += step;   // a handle is an offset from its node, so it comes along
+    ShapeProperties s = shape;
+    // A Polygon drawing the box's rectangle gets nodes of its own.
+    s.nodes = Bezier::withNodesMoved(freeNodes(shape), k_outlineRules, body, indices, by);
     return s;
 }
 
 ShapeProperties withVertexRemoved(const ShapeProperties& shape, int index)
 {
+    const QList<ShapeNode> fewer = Bezier::withNodeRemoved(freeNodes(shape), k_outlineRules, index);
+    if (fewer.size() == freeNodes(shape).size())
+        return shape;   // refused: three is the fewest
     ShapeProperties s = shape;
-    s.nodes           = freeNodes(shape);
-    if (s.nodes.size() <= 3 || index < 0 || index >= s.nodes.size())
-        return shape;
-    s.nodes.removeAt(index);
+    s.nodes           = fewer;
     return s;
 }
 
@@ -1316,7 +1181,7 @@ QRectF outlineExtent(const ShapeProperties& shape, const QRectF& body)
         return {};
     if (shape.kind == ShapeProperties::Kind::Curve) {
         const QRectF drawn = curvePath(shape, body).boundingRect();
-        return {relativeTo(drawn.topLeft(), body), relativeTo(drawn.bottomRight(), body)};
+        return {Bezier::relativeTo(drawn.topLeft(), body), Bezier::relativeTo(drawn.bottomRight(), body)};
     }
     if (shape.kind != ShapeProperties::Kind::Polygon)
         return {};
@@ -1332,51 +1197,16 @@ QRectF outlineExtent(const ShapeProperties& shape, const QRectF& body)
 ShapeProperties withHandlesGrown(const ShapeProperties& shape, int index)
 {
     ShapeProperties s = shape;
-    s.nodes           = freeNodes(shape);
-    const int n       = int(s.nodes.size());
-    if (index < 0 || index >= n)
-        return shape;
-    ShapeNode&       node = s.nodes[index];
-    const ShapeNode& prev = s.nodes[(index + n - 1) % n];
-    const ShapeNode& next = s.nodes[(index + 1) % n];
-    // Only a straight side: a handle grown on a segment its other end already bends would bend it more.
-    if (node.in.isNull() && prev.out.isNull())
-        node.in = grownHandle(s.nodes, index, false);
-    if (node.out.isNull() && next.in.isNull())
-        node.out = grownHandle(s.nodes, index, true);
+    s.nodes           = Bezier::withHandlesGrown(freeNodes(shape), k_outlineRules, index);
     return s.nodes == freeNodes(shape) ? shape : s;
 }
 
 ShapeProperties withNodeType(const ShapeProperties& shape, const QRectF& body, int index, ShapeNode::Type type)
 {
-    ShapeProperties s = shape;
-    s.nodes           = freeNodes(shape);
-    const int n       = int(s.nodes.size());
-    if (index < 0 || index >= n || body.isEmpty())
+    if (index < 0 || index >= freeNodes(shape).size() || body.isEmpty())
         return shape;
-    ShapeNode& node = s.nodes[index];
-    node.type       = type;
-    if (type == ShapeNode::Type::Corner)
-        return s;   // the handles stay where they are, now free of each other
-
-    const QPointF prev = toPixels(node.at - s.nodes[(index + n - 1) % n].at, body);
-    const QPointF next = toPixels(s.nodes[(index + 1) % n].at - node.at, body);
-    const QPointF in   = toPixels(node.in, body);
-    const QPointF out  = toPixels(node.out, body);
-    // Along the line the handles lean along, out from the in-handle to the out-handle; with no handles,
-    // along the neighbours'.
-    QPointF dir = out - in;
-    if (length(dir) <= 0.0)
-        dir = prev + next;
-    if (length(dir) <= 0.0)
-        return s;
-    dir /= length(dir);
-    qreal li = length(in) > 0.0 ? length(in) : length(prev) * k_newHandle;
-    qreal lo = length(out) > 0.0 ? length(out) : length(next) * k_newHandle;
-    if (type == ShapeNode::Type::Symmetric)
-        li = lo = (li + lo) / 2.0;
-    node.in  = fromPixels(-dir * li, body);
-    node.out = fromPixels(dir * lo, body);
+    ShapeProperties s = shape;
+    s.nodes           = Bezier::withNodeType(freeNodes(shape), k_outlineRules, body, index, type);
     return s;
 }
 
@@ -1387,7 +1217,7 @@ ShapeProperties curveOf(const QPainterPath& outline, const QRectF& body)
     if (body.isEmpty())
         return s;
     QList<ShapeNode>& nodes = s.nodes;
-    const auto        point = [&](int i) { return relativeTo(outline.elementAt(i), body); };
+    const auto        point = [&](int i) { return Bezier::relativeTo(outline.elementAt(i), body); };
     for (int i = 0; i < outline.elementCount(); ++i) {
         const QPainterPath::Element e = outline.elementAt(i);
         const QPointF               p = point(i);
@@ -1411,7 +1241,7 @@ ShapeProperties curveOf(const QPainterPath& outline, const QRectF& body)
         nodes.removeLast();
     }
     for (ShapeNode& node : nodes)
-        node.type = typeOf(node, body);
+        node.type = Bezier::typeOf(node, body);
     return s;
 }
 

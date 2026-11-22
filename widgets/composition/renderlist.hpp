@@ -100,8 +100,9 @@ struct Item
     std::optional<Ink> fill;           //!< None: `fill="none"`.
     bool               nonzero = false;   //!< Filled by the nonzero rule whatever the path's own.
     /**
-     * The path is many small marks (a halftone): the painter fills them in pieces through a layer of their
-     * own, opaque, given the colour's alpha once, so overlaps do not darken (Painter::fillMarks()).
+     * The path is many small marks, apart (a halftone, a line's strokes: none with a hole of its own), in its
+     * fill's colour, by the nonzero rule: the painter fills them in pieces through a layer of their own,
+     * opaque, given the colour's alpha once, so overlaps do not darken (Painter::fillMarks()).
      */
     bool               marks = false;
     std::optional<Ink> stroke;

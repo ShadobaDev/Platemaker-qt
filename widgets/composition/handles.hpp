@@ -19,9 +19,10 @@ struct HandleContext
     QList<int> picked;            //!< The nodes picked in shape editing, in pick order.
     int        words = 0;         //!< The words picked (their id): their frame's handles come first; 0 for none.
     int        body  = 0;         //!< The body whose outline is edited (its id); 0 for the first.
+    int        pickedOf = 0;      //!< The element whose nodes `picked` are: a body's or words' id; 0 for none.
 
-    //! The node picked last; -1 for none.
-    [[nodiscard]] int lastPicked() const { return picked.isEmpty() ? -1 : picked.last(); }
+    //! The node of element @p element picked last; -1 for none, or when the nodes picked are another's.
+    [[nodiscard]] int lastPicked(int element) const { return picked.isEmpty() || pickedOf != element ? -1 : picked.last(); }
 };
 
 /**

@@ -119,6 +119,8 @@ Bug fixes, cosmetics and internal cleanups — no new capability, no change to a
   `setVisible(false)` line to preview it greyed out). A stopgap — remove it
   when the Auto-sort feature lands (see the MINOR item).
 
+- [ ] **Scroll to object in OBJECT STACK.** It shall be possible for a user to find selected object in the object stack in the strip.
+
 ---
 
 ## MINOR — next: 1.5.0
@@ -445,15 +447,24 @@ New, backward-compatible features. Several are gated on a lib version, noted in 
   when its text is replaced; a file whose count does not match (refuse, or report the difference); whether
   text objects and lettered pictures are included.
 
-- [ ] **Lettering: letter spacing, kerning and the rest.**
-  - **Letter spacing** (tracking), for the words and for a run: one field in `TextProperties::fields()`,
-    applied in `layOutText()` and measured by `textBlockSize()`, so *Fit to text* follows it.
-  - **Kerning** from the font's metrics, on or off, and a **horizontal scale** of the glyphs.
-  - **To decide:**
-    - Wrapping at the frame. Today the lines are the author's (`QTextOption::NoWrap`), which is what
-      keeps fitting pure geometry; a one-shot *Re-break to width* would keep that.
-    - Vertical text and readings (ruby).
-    - A warp along a curve.
+- [x] **Lettering: letter spacing, kerning, vertical text, a warp; lines at a tail's tip** — *Done 2026-11-22.*
+  Built: letter spacing for the words and a run; kerning on or off; vertical text in columns to the right or
+  left; a warp along a free curve edited on the strip; overlapping letters painted once. Brush and Dashed
+  at corners (no spike at a tail's root; strokes crossing at the tip), Dry brush and Sketch narrowing into a
+  Sharp tip, Dashed anchored at every tail end. The strip
+  paints an unchanged object from its cache, and halftone dots, Flash and Brush lines and lettering's outline
+  in a fraction of the time. Not wanted: a horizontal scale of the glyphs, and re-breaking to the frame's
+  width (the lines stay the author's).
+  - **Left:** readings over a word (ruby); several words in one balloon set a small text over a word by hand.
+
+- [ ] **Strip editor painting: what is still slow.** The on-screen painter fills a large path of many
+  subpaths slowly, so it paints small marks and strokes a few at a time; three cases are still whole:
+  - **The letters' own fill** (6–13 ms for about 140 letters): a letter's counters (o, e, a) are holes, which
+    pieces cut between subpaths would fill; the glyphs would have to come as one path each.
+  - **Drybrush's and Explosion's core**: a band with a hole, drawn with the hairs as one path. As an item of
+    its own, the hairs could be drawn in pieces.
+  - **A warp's letters** are flattened to 1 px polygons before bending; mapping the curves instead would give
+    the painter fewer points.
 
 - [ ] **Undo depth — low priority.** Each project's history keeps 20 steps. Raise it, or make it a setting,
   after measuring what a step costs in memory (a step holds compositions).

@@ -61,8 +61,8 @@ void PanelBinder::bind()
 
     // Whatever the panel is showing, it is showing it for objects that all have a blend mode —
     // the one property every kind carries. A tail is the exception: it is part of a balloon, and
-    // the balloon's composite is the balloon's.
-    const bool blends = pickedTails.isEmpty() && !picked.isEmpty();
+    // the balloon's composite is the balloon's; and so is a mask, which hides part of it and has none of its own.
+    const bool blends = pickedTails.isEmpty() && !picked.isEmpty() && m_selection.subject() != Subject::Mask;
     emit blendBound(blends ? m_host.blend() : std::nullopt, blends);
     // The other thing that belongs to the overlay and not to the drawing. One picture on its own
     // has a size to set; anything else has no single answer, so the row is not there to mislead.

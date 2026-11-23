@@ -138,12 +138,16 @@ TEST(PanelBinder, EachKindOfSelectionIsBoundAsItsOwn)
     EXPECT_EQ(s.binder.subjects(), QStringList{"a"});
 
     // A mask picked: bound to its object, the region named, and not taken for a body.
-    int mask = 0;
-    body     = 0;
+    int  mask   = 0;
+    bool blends = true;
+    body        = 0;
     QObject::connect(&s.binder, &PanelBinder::boundToMask, [&](const Composition&, int id) { mask = id; });
+    QObject::connect(&s.binder, &PanelBinder::blendBound,
+                     [&](std::optional<Platemaker::Models::BlendMode>, bool applies) { blends = applies; });
     s.selection.selectMask({"a", first}, [](const QString&, int) { return true; });
     s.binder.bind();
     EXPECT_EQ(mask, first);
     EXPECT_EQ(body, 0);
+    EXPECT_FALSE(blends) << "a mask has no blend of its own: the object's is its object's";
     EXPECT_EQ(s.binder.subjects(), QStringList{"a"});
 }

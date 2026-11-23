@@ -556,6 +556,8 @@ void ObjectState::setMask(const Composition& a, int id)
     m_populating = false;
 
     m_subject->setText(tr("Mask"));
+    m_fitButton->setVisible(false);        // a mask holds no text, and adds none
+    m_addWordsButton->setVisible(false);
     m_deleteButton->setText(tr("Delete mask"));
     m_deleteButton->setVisible(true);
     refreshLook();

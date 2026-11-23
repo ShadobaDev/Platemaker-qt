@@ -1,5 +1,6 @@
 #include "canvas/canvasinput.hpp"
 
+#include "objects/maskbrush.hpp"
 #include "objects/objectcontroller.hpp"
 #include "objects/placement.hpp"
 #include "toolrail/cursors.hpp"
@@ -21,12 +22,13 @@
 
 namespace StripEdit {
 
-CanvasInput::CanvasInput(QGraphicsView* view, ObjectController* objects, Placement* placement,
+CanvasInput::CanvasInput(QGraphicsView* view, ObjectController* objects, Placement* placement, MaskBrush* brush,
                          QObject* parent)
     : QObject(parent)
     , m_view(view)
     , m_objects(objects)
     , m_placement(placement)
+    , m_brush(brush)
 {
     m_view->viewport()->installEventFilter(this);   // Ctrl+wheel zoom, and the pointer's own answer
     m_view->installEventFilter(this);               // the arrows, in shape editing
@@ -46,6 +48,9 @@ void CanvasInput::updateCursor()
     if (m_objects && m_pointerPos.x() >= 0)
         target = m_objects->pointerTargetAt(m_view->mapToScene(m_pointerPos), m_view->transform());
     m_view->viewport()->setCursor(cursorFor(*tool, target));
+    // The brush's ring is its cursor: put where the pointer is whenever the cursor is decided again.
+    if (m_brush && tool->kind == ToolKind::Paint && m_pointerPos.x() >= 0)
+        m_brush->hover(m_view->mapToScene(m_pointerPos));
 }
 
 bool CanvasInput::eventFilter(QObject *watched, QEvent *event)
@@ -101,6 +106,30 @@ bool CanvasInput::eventFilter(QObject *watched, QEvent *event)
             m_panFrom = {-1, -1};
             updateCursor();
             return true;
+        }
+    }
+
+    // The mask brush: the left button paints the selected object's mask wherever it is pressed, on the object, past
+    // it or on a grip, and in shape editing too (a stroke leaves it). With nothing it can paint selected, a press is
+    // the objects' as under Select, so the object to paint is picked here. A double click is a second press.
+    if (watched == m_view->viewport() && kind == ToolKind::Paint && m_brush) {
+        const auto* me = dynamic_cast<QMouseEvent*>(event);
+        const QPointF at = me ? m_view->mapToScene(me->position().toPoint()) : QPointF();
+        if (event->type() == QEvent::MouseMove) {
+            m_brush->hover(at);
+            if (m_brush->isPainting()) {
+                m_brush->update(at);
+                return true;
+            }
+        } else if ((event->type() == QEvent::MouseButtonPress || event->type() == QEvent::MouseButtonDblClick)
+                   && me->button() == Qt::LeftButton && m_objects->canPaintMask()) {
+            m_brush->begin(at);
+            return true;
+        } else if (event->type() == QEvent::MouseButtonRelease && m_brush->isPainting()) {
+            m_brush->finish();
+            return true;
+        } else if (event->type() == QEvent::Leave) {
+            m_brush->leave();
         }
     }
 

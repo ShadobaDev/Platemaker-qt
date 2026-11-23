@@ -7,6 +7,9 @@
 #include "shapes.hpp"
 #include "objectparts.hpp"
 
+#include <QPainterPath>
+
+#include <array>
 using StripEdit::Document;
 using Platemaker::Models::BlendMode;
 
@@ -210,6 +213,121 @@ TEST(Edits, AMaskCoversTheRightThirdAndThereIsOne)
 
     Composition picture = pictureObject("p.png");
     EXPECT_NE(E::addMask(picture), 0) << "a picture is masked as a balloon is";
+}
+
+namespace {
+
+constexpr qreal k_fit = 0.5;    //!< How near a stroke's regions keep to it, in the object's pixels.
+constexpr qreal k_dab = 20.0;   //!< A dab's radius.
+
+//! A press of the brush at @p at, @p radius round.
+QPainterPath dab(const QPointF& at, qreal radius = k_dab)
+{
+    QPainterPath p;
+    p.addEllipse(at, radius, radius);
+    return p;
+}
+
+//! A rectangle of the brush or the eraser.
+QPainterPath bar(const QRectF& r)
+{
+    QPainterPath p;
+    p.addRect(r);
+    return p;
+}
+
+//! Whether @p c's mask has a region over @p at.
+bool coveredAt(const Composition& c, const QPointF& at)
+{
+    return c.mask && Geometry::maskOutline(*c.mask, c.seed).contains(at);
+}
+
+} // namespace
+
+/**
+ * \brief The mask brush hides and the eraser shows, in as few regions as lie apart: a stroke apart is a region of its
+ *        own, one that meets two joins them, an eraser cutting one through leaves two, a hole is filled, and erased to
+ *        nothing the mask goes. With Keep inside it is the other way round. The fade stays where it was.
+ */
+TEST(Edits, TheMaskBrushHidesAndTheEraserShowsInRegionsApart)
+{
+    namespace E = StripEdit::Edits;
+    Composition a = balloonObject();
+    EXPECT_FALSE(E::paintMask(a, dab({50, 50}), false, k_fit)) << "nothing is hidden to show";
+    ASSERT_TRUE(E::paintMask(a, dab({50, 50}), true, k_fit)) << "the first stroke makes the mask";
+    ASSERT_TRUE(a.mask);
+    ASSERT_EQ(a.mask->regions.size(), 1);
+    EXPECT_EQ(a.mask->regions[0].shape.kind, ShapeProperties::Kind::Curve);
+    EXPECT_TRUE(coveredAt(a, {50, 50}));
+    EXPECT_FALSE(coveredAt(a, {50 + k_dab + 1, 50}));
+    EXPECT_FALSE(E::paintMask(a, dab({50, 50}, k_dab / 2), true, k_fit)) << "hidden already";
+
+    const Body first = a.mask->regions[0];
+    ASSERT_TRUE(E::paintMask(a, dab({200, 50}), true, k_fit));
+    ASSERT_EQ(a.mask->regions.size(), 2) << "a stroke apart is a region of its own";
+    EXPECT_EQ(a.mask->regions[0], first) << "a region the stroke does not meet keeps its nodes";
+
+    ASSERT_TRUE(E::paintMask(a, bar({50, 45, 150, 10}), true, k_fit));
+    EXPECT_EQ(a.mask->regions.size(), 1) << "a stroke meeting both joins them";
+    EXPECT_TRUE(coveredAt(a, {125, 50}));
+
+    ASSERT_TRUE(E::paintMask(a, bar({115, 0, 20, 100}), false, k_fit));
+    EXPECT_EQ(a.mask->regions.size(), 2) << "an eraser cutting it through leaves two";
+    EXPECT_FALSE(coveredAt(a, {125, 50}));
+    EXPECT_FALSE(E::paintMask(a, dab({50, 50}, k_dab / 4), false, k_fit)) << "a hole is filled: it takes nothing";
+    EXPECT_TRUE(coveredAt(a, {50, 50}));
+
+    ASSERT_TRUE(E::paintMask(a, bar({0, 0, 300, 100}), false, k_fit));
+    EXPECT_FALSE(a.mask) << "erased to nothing, the mask goes";
+
+    ASSERT_TRUE(E::paintMask(a, dab({50, 50}).subtracted(dab({50, 50}, k_dab / 2)), true, k_fit));
+    ASSERT_EQ(a.mask->regions.size(), 1) << "a ring painted round";
+    EXPECT_TRUE(coveredAt(a, {50, 50})) << "the hole in it filled";
+
+    // Keep inside: the regions are what shows, so the brush takes from them and the eraser adds.
+    Composition k = balloonObject();
+    ASSERT_TRUE(E::paintMask(k, dab({50, 50}), true, k_fit));
+    k.mask->keepInside = true;
+    ASSERT_TRUE(E::paintMask(k, dab({50 + k_dab, 50}, k_dab / 2), true, k_fit));
+    EXPECT_FALSE(coveredAt(k, {50 + k_dab - 2, 50})) << "the brush hides: it takes from what shows";
+    ASSERT_TRUE(E::paintMask(k, dab({200, 50}), false, k_fit));
+    EXPECT_EQ(k.mask->regions.size(), 2) << "the eraser shows: it adds";
+
+    // The fade stays on the object where it was, though the box round the regions grows.
+    Composition f = balloonObject();
+    ASSERT_TRUE(E::paintMask(f, dab({50, 50}), true, k_fit));
+    f.mask->shape = Mask::Fade::Linear;
+    f.mask->fade  = QLineF(0.0, 0.5, 1.0, 0.5);
+    const QLineF line = *Geometry::maskFade(*f.mask);
+    ASSERT_TRUE(E::paintMask(f, dab({80, 50}), true, k_fit));
+    constexpr qreal k_px = 1e-9;
+    const QLineF    moved = *Geometry::maskFade(*f.mask);
+    EXPECT_NEAR(moved.x1(), line.x1(), k_px);
+    EXPECT_NEAR(moved.y1(), line.y1(), k_px);
+    EXPECT_NEAR(moved.x2(), line.x2(), k_px);
+    EXPECT_NEAR(moved.y2(), line.y2(), k_px);
+
+    // The cross's centre and its right arm, in pixels. Saved in tenths of a per cent, of a box and an arm a couple of
+    // hundred pixels long: that rounding moves them a fraction of a pixel.
+    constexpr qreal k_roundedPx = 0.25;
+    const auto cross = [](const Mask& m) {
+        const QRectF  box = Geometry::maskBox(m);
+        const Paint&  t   = m.tone;
+        const QPointF c   = box.topLeft() + QPointF(box.width() * t.fadeCentreX, box.height() * t.fadeCentreY) / 100.0;
+        const qreal   arm = box.right() - c.x();
+        return std::array<qreal, 4>{c.x(), c.y(), c.x() + arm * t.fadeRightFrom / 100.0,
+                                    c.x() + arm * t.fadeRightTo / 100.0};
+    };
+    f.mask->shape              = Mask::Fade::Rectangle;
+    f.mask->tone.fadeCentreX   = 40.0;
+    f.mask->tone.fadeRightFrom = 20.0;
+    f.mask->tone.fadeRightTo   = 80.0;
+    const auto was = cross(*f.mask);
+    ASSERT_TRUE(E::paintMask(f, dab({140, 50}), true, k_fit));
+    const auto now = cross(*f.mask);
+    for (size_t i = 0; i < was.size(); ++i)
+        EXPECT_NEAR(now[i], was[i], k_roundedPx) << "at " << i;
+    EXPECT_NEAR(f.mask->tone.fadeLeftFrom, 100.0, k_px) << "a side that does not fade still does not";
 }
 
 TEST(Document, ItHoldsTheCompositionsOfTheOverlaysItHoldsAndNothingElse)

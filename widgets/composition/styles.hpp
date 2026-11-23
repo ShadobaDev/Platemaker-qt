@@ -266,6 +266,13 @@ enum class FadePart {
 //! @p p with fade @p handle dragged to @p to (balloon coordinates): fadeHandles()' inverse.
 [[nodiscard]] Paint dragFadeHandle(const Paint& p, const QRectF& body, const Handle& handle, const QPointF& to);
 
+/**
+ * \brief @p p's cross, laid on @p from, moved onto @p to where it stands the same: its centre and its arms' starts
+ *        and ends where they were, as far as @p to reaches (clamped to its sides). A side that does not fade still
+ *        does not.
+ */
+[[nodiscard]] Paint crossMoved(const Paint& p, const QRectF& from, const QRectF& to);
+
 //! The entry for @p kind. Every kind up to `StyleProperties::k_lastLine` has one.
 [[nodiscard]] const LineInfo& lineInfo(StyleProperties::Line kind);
 

@@ -10,6 +10,7 @@ namespace {
     case CursorStyle::Hand:  return Qt::OpenHandCursor;   // what ScrollHandDrag writes, so we agree
     case CursorStyle::Cross: return Qt::CrossCursor;
     case CursorStyle::Move:  return Qt::SizeAllCursor;
+    case CursorStyle::None:  return Qt::BlankCursor;
     case CursorStyle::Arrow:
     case CursorStyle::Inherit:
         break;
@@ -28,6 +29,10 @@ bool isCanvasAffordance(PointerTarget target)
 
 QCursor cursorFor(const Tool& tool, PointerTarget target)
 {
+    // The mask brush paints wherever it is pressed, a grip included: a stroke along the object's edge must not
+    // turn into a resize.
+    if (tool.kind == ToolKind::Paint)
+        return stock(tool.cursor);
     switch (target) {
     // The canvas's, whatever the tool: a grip resizes and a tail tip aims under every one of them, so
     // a cursor that showed the tool here would promise something a drag does not do.

@@ -79,6 +79,7 @@ qt_add_executable(Platemaker
     widgets/stripeditor/canvas/sampling.cpp widgets/stripeditor/canvas/sampling.hpp
     widgets/stripeditor/objects/objectcontroller.cpp widgets/stripeditor/objects/objectcontroller.hpp
     widgets/stripeditor/objects/placement.cpp widgets/stripeditor/objects/placement.hpp
+    widgets/stripeditor/objects/maskbrush.cpp widgets/stripeditor/objects/maskbrush.hpp
     widgets/stripeditor/toolrail/toolregistry.cpp widgets/stripeditor/toolrail/toolregistry.hpp
     widgets/stripeditor/toolrail/toolrail.cpp widgets/stripeditor/toolrail/toolrail.hpp
     widgets/stripeditor/toolrail/colourpair.cpp widgets/stripeditor/toolrail/colourpair.hpp
@@ -112,6 +113,7 @@ qt_add_executable(Platemaker
     widgets/stripeditor/tooloptions/bubbletooloptions.cpp widgets/stripeditor/tooloptions/bubbletooloptions.hpp
     widgets/stripeditor/tooloptions/tooloptionsstack.cpp widgets/stripeditor/tooloptions/tooloptionsstack.hpp
     widgets/stripeditor/tooloptions/picturetooloptions.cpp widgets/stripeditor/tooloptions/picturetooloptions.hpp
+    widgets/stripeditor/tooloptions/maskbrushtooloptions.cpp widgets/stripeditor/tooloptions/maskbrushtooloptions.hpp
     widgets/stripeditor/objectstate/objectstate.cpp widgets/stripeditor/objectstate/objectstate.hpp
     widgets/stripeditor/objectstate/stripstate.cpp widgets/stripeditor/objectstate/stripstate.hpp
     widgets/stripeditor/objectstate/objectstatestack.cpp widgets/stripeditor/objectstate/objectstatestack.hpp

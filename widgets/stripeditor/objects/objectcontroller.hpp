@@ -470,6 +470,14 @@ public:
     [[nodiscard]] bool canAddMask() const;
     //! *Add mask*: a mask of the selected object's own (Edits::addMask()); picked.
     void addMask();
+    //! Whether the mask brush paints: one object we author selected, or an element of it.
+    [[nodiscard]] bool canPaintMask() const;
+    /**
+     * \brief A stroke of the mask brush on the selected object: @p sceneArea hidden (@p hide) or shown
+     *        (Edits::paintMask()), fitted within half a screen pixel; one history step, the mask then picked (the
+     *        object, when it was erased to nothing).
+     */
+    void paintMask(const QPainterPath& sceneArea, bool hide);
     //! Whether *Join* applies: two balloons selected, whole (not as a tail's carrier), each with a chain end.
     [[nodiscard]] bool canJoin() const;
     /**
@@ -730,6 +738,10 @@ private:
     bool       m_joinLit  = false;     //!< The bubble is lit: releasing now joins, where the two may join.
     //! How far off a hairline outline or a thin letter a press may land and still count, in screen px.
     static constexpr qreal k_pickSlackPx = 3.0;
+    //! How near a mask brush stroke's regions keep to it, in screen px: closer than the eye can tell.
+    static constexpr qreal k_maskFitPx = 0.5;
+    //! How many screen pixels one of @p item's own pixels is, at the zoom shown.
+    [[nodiscard]] qreal screenScale(const Object& item) const;
 
     bool               m_syncingList     = false;           //!< Guards the scene's selection round-trip.
     /**

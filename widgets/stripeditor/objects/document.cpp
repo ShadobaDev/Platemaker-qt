@@ -1,6 +1,9 @@
 #include "objects/document.hpp"
 
+#include <QPainterPath>
+#include <QPolygonF>
 #include <QtGlobal>
+#include <QtMath>
 
 #include <algorithm>
 #include <functional>
@@ -296,6 +299,95 @@ bool removeMask(Composition& c)
     const bool had = c.mask.has_value();
     c.mask.reset();
     return had;
+}
+
+namespace {
+
+//! @p contours' outer ones: those inside no other (a hole, and whatever lies in it, is inside its outer one).
+QList<QPolygonF> outerContours(const QList<QPolygonF>& contours)
+{
+    QList<QPolygonF> out;
+    for (qsizetype i = 0; i < contours.size(); ++i) {
+        bool inside = false;
+        for (qsizetype j = 0; j < contours.size() && !inside; ++j)
+            inside = j != i && !contours[i].isEmpty() && contours[j].containsPoint(contours[i].first(), Qt::OddEvenFill);
+        if (!inside)
+            out.append(contours[i]);
+    }
+    return out;
+}
+
+//! A region round @p outline: a box of whole pixels round it, and its nodes a Curve fitted within @p tolerance.
+std::optional<Body> regionRound(const QPolygonF& outline, qreal tolerance, int id)
+{
+    const QRectF bounds = outline.boundingRect();
+    const QPoint corner(qFloor(bounds.left()), qFloor(bounds.top()));
+    const QSize  size(qMax(1, qCeil(bounds.right()) - corner.x()), qMax(1, qCeil(bounds.bottom()) - corner.y()));
+    Body r;
+    r.id                  = id;
+    r.place.pos           = corner;
+    r.size                = size;
+    r.shape.kind          = ShapeProperties::Kind::Curve;
+    r.shape.corner.radius = 0.0;
+    r.shape.nodes         = Bezier::fitted(outline, QRectF(corner, QSizeF(size)), tolerance);
+    if (r.shape.nodes.isEmpty())
+        return std::nullopt;   // a sliver with no area to speak of
+    return r;
+}
+
+//! @p p, a fraction of @p from, as the fraction of @p to at the same place.
+QPointF sameFraction(const QPointF& p, const QRectF& from, const QRectF& to)
+{
+    const QPointF at = from.topLeft() + QPointF(p.x() * from.width(), p.y() * from.height());
+    return {(at.x() - to.left()) / to.width(), (at.y() - to.top()) / to.height()};
+}
+
+} // namespace
+
+bool paintMask(Composition& c, const QPainterPath& area, bool hide, qreal tolerance)
+{
+    if (area.isEmpty() || tolerance <= 0.0 || (!c.mask && !hide))
+        return false;
+    Mask         m    = c.mask.value_or(Mask{});
+    const bool   grow = hide != m.keepInside;   // with Keep inside, hiding takes from the regions
+    const QRectF before = Geometry::maskBox(m);
+
+    // The regions it meets, as one area; the others are kept as they are.
+    QPainterPath met;
+    QList<Body>  regions;
+    for (const Body& r : std::as_const(m.regions)) {
+        const QPainterPath outline = Geometry::outlineOf(r, QRectF(r.place.pos, QSizeF(r.size)), c.seed);
+        if (outline.intersects(area))
+            met = met.united(outline);
+        else
+            regions.append(r);
+    }
+    // Wholly inside, it adds nothing, or takes only a hole, which is filled.
+    if (met.contains(area) || (!grow && met.isEmpty()))
+        return false;
+
+    const QPainterPath result = (grow ? met.united(area) : met.subtracted(area)).simplified();
+    if (!c.mask)
+        m.id = c.nextId++;
+    for (const QPolygonF& piece : outerContours(result.toSubpathPolygons())) {
+        if (const std::optional<Body> r = regionRound(piece, tolerance, c.nextId)) {
+            regions.append(*r);
+            ++c.nextId;
+        }
+    }
+    if (regions.isEmpty()) {
+        c.mask.reset();
+        return true;
+    }
+    m.regions = regions;
+
+    // The fade where it was on the object, on the box round the regions as they are now.
+    const QRectF after = Geometry::maskBox(m);
+    if (!before.isEmpty() && m.fade)
+        m.fade = QLineF(sameFraction(m.fade->p1(), before, after), sameFraction(m.fade->p2(), before, after));
+    m.tone = Geometry::crossMoved(m.tone, before, after);
+    c.mask = m;
+    return true;
 }
 
 }  // namespace Edits

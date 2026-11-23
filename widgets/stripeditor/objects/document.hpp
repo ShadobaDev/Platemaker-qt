@@ -120,6 +120,16 @@ bool removeWords(Composition& c, int id);
 int addMask(Composition& c);
 //! Removes @p c's mask. False when it has none.
 bool removeMask(Composition& c);
+/**
+ * \brief A stroke of the mask brush: @p area (in @p c's frame) hidden (@p hide) or shown — with Keep inside, taken
+ *        from the regions or added to them. The regions it meets and the area become one or more regions, as few as
+ *        lie apart, their holes filled, each a Curve fitted within @p tolerance (Bezier::fitted()); the regions it
+ *        does not meet keep their nodes. The fade stays where it was on the object. An object with no mask gets one
+ *        from its first stroke that hides; a mask left with no regions is removed.
+ *
+ * False when nothing changed: an empty area, or one that adds nothing to the regions or takes nothing from them.
+ */
+bool paintMask(Composition& c, const QPainterPath& area, bool hide, qreal tolerance);
 
 }  // namespace Edits
 

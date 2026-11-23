@@ -959,11 +959,7 @@ bool ObjectController::applyColourAt(const QPointF& scenePos, const QTransform& 
 
     // A few screen pixels of forgiveness, in the object's own units: a thin letter and a hairline
     // outline are unhittable at 100% zoom otherwise, and at 400% the same slack would swallow the fill.
-    qreal onScreen = m_view ? m_view->transform().m11() : 1.0;
-    onScreen *= bubble->scale();
-    if (onScreen <= 0.0)
-        onScreen = 1.0;
-    const qreal slack = k_pickSlackPx / onScreen;
+    const qreal slack = k_pickSlackPx / screenScale(*bubble);
 
     Composition          a    = bubble->composition();
     const QPointF        local = bubble->mapFromScene(scenePos);
@@ -1101,6 +1097,36 @@ void ObjectController::addMask()
         return;
     applyComposition(uid, a, /*commit=*/true, tr("Add mask"));
     selectMask(uid, id);
+}
+
+qreal ObjectController::screenScale(const Object& item) const
+{
+    const qreal onScreen = (m_view ? m_view->transform().m11() : 1.0) * item.scale();
+    return onScreen > 0.0 ? onScreen : 1.0;
+}
+
+bool ObjectController::canPaintMask() const
+{
+    const Subject s = m_selection.subject();
+    return m_selection.objects().size() == 1 && m_overlayItems.value(m_selection.primary())
+        && isParametric(m_selection.primary())
+        && (s == Subject::Overlay || s == Subject::Words || s == Subject::Body || s == Subject::Mask);
+}
+
+void ObjectController::paintMask(const QPainterPath& sceneArea, bool hide)
+{
+    if (!canPaintMask())
+        return;
+    const QString uid  = m_selection.primary();
+    const Object* item = m_overlayItems.value(uid);
+    Composition   a    = item->composition();
+    if (!Edits::paintMask(a, item->mapFromScene(sceneArea), hide, k_maskFitPx / screenScale(*item)))
+        return;
+    applyComposition(uid, a, /*commit=*/true, hide ? tr("Paint mask") : tr("Erase mask"));
+    if (a.mask)
+        selectMask(uid, a.mask->id);
+    else
+        selectOverlay(uid);
 }
 
 bool ObjectController::canJoin() const

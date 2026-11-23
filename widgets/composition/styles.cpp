@@ -2297,6 +2297,27 @@ Paint dragFadeHandle(const Paint& p, const QRectF& body, const Handle& handle, c
     return next;
 }
 
+Paint crossMoved(const Paint& p, const QRectF& from, const QRectF& to)
+{
+    if (from.isEmpty() || to.isEmpty() || from == to)
+        return p;
+    Paint         next   = p;
+    const QPointF centre = fadeCentre(p, from);
+    next.fadeCentreX     = tenth(std::clamp((centre.x() - to.left()) / to.width() * 100.0, 0.0, 100.0));
+    next.fadeCentreY     = tenth(std::clamp((centre.y() - to.top()) / to.height() * 100.0, 0.0, 100.0));
+    const QPointF moved  = fadeCentre(next, to);
+    for (const FadeArm& arm : k_fadeArms) {
+        const qreal was = armReach(arm, from, centre);
+        const qreal now = armReach(arm, to, moved);
+        if (p.*arm.from >= 100.0 || now <= 0.0)
+            continue;   // a side that does not fade, or no arm left to lay it on
+        const auto same = [&](qreal pct) { return tenth(std::clamp(was * pct / now, 0.0, 100.0)); };
+        next.*arm.from = same(p.*arm.from);
+        next.*arm.to   = same(p.*arm.to);
+    }
+    return next;
+}
+
 TextureProperties inkRough(TextureProperties t)
 {
     t.kind              = Texture::Rough;

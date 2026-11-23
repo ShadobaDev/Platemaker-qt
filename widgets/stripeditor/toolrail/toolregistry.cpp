@@ -108,6 +108,17 @@ const QList<Tool>& tools()
          CursorStyle::Cross, CursorStyle::Inherit,
          {Row::TextFont, Row::TextColour, Row::TextOutline}},
 
+        // No pointer of its own: the ring drawn on the strip, at the brush's size there, is the cursor.
+        {QStringLiteral("maskbrush"),
+         QStringLiteral(":/icons/tools/maskbrush.svg"),
+         QT_TRANSLATE_NOOP("StripEdit::Tool", "Mask brush"),
+         QT_TRANSLATE_NOOP("StripEdit::Tool",
+                           "Drag over the selected object to hide\n"
+                           "it there; the eraser shows it again.\n"
+                           "With nothing selected, a click selects."),
+         ToolKind::Paint, std::nullopt, QStringLiteral("maskbrush"),
+         CursorStyle::None, CursorStyle::Inherit},
+
     };
     return table;
 }

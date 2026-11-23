@@ -24,6 +24,7 @@ enum class ToolKind {
     Grade,    //!< Edits the selected object's colour; picked with nothing selected, it takes the strip.
     Sample,   //!< A press reads the canvas instead of changing it — the eyedropper.
     Apply,    //!< A press spends the colour pair on the object it lands on.
+    Paint,    //!< A drag paints the selected object's mask (MaskBrush); with nothing to paint, a press selects.
 };
 
 /**
@@ -32,7 +33,14 @@ enum class ToolKind {
  * A style rather than a `QCursor`, so the table stays data: what a style is drawn as belongs to
  * `cursors.cpp`, which is also where a generated tool-glyph cursor will come from.
  */
-enum class CursorStyle { Arrow, Hand, Cross, Move, Inherit };
+enum class CursorStyle {
+    Arrow,
+    Hand,
+    Cross,
+    Move,
+    Inherit,
+    None,   //!< No pointer: the tool draws its own on the strip, as the Mask brush its ring.
+};
 
 /**
  * \brief One entry on the tool rail — a composition, because a tool is stateless.

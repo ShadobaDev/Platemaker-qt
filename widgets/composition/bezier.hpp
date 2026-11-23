@@ -102,6 +102,17 @@ struct Grip
  */
 [[nodiscard]] QList<Grip> grips(const QList<ShapeNode>& nodes, const Rules& rules, const QRectF& box, int picked);
 
+/**
+ * \brief A closed path's nodes through @p outline (a closed polygon in @p box's coordinates, its first point not
+ *        repeated at its end), as few as stay within @p tolerance of it: Schneider's fitting (Graphics Gems, 1990).
+ *        A node where the outline turns sharply, its handles along the two sides; between, nodes whose handles
+ *        lie on one line. Each node's type is what its handles read as (typeOf()), in fractions of @p box.
+ *
+ * Three nodes at least, as a closed outline keeps. None for fewer than three distinct points, an empty box or no
+ * tolerance.
+ */
+[[nodiscard]] QList<ShapeNode> fitted(const QPolygonF& outline, const QRectF& box, qreal tolerance);
+
 //! @p nodes with node @p index's @p part dragged to @p to, in @p box's coordinates. AddNode moves nothing.
 [[nodiscard]] QList<ShapeNode> dragged(const QList<ShapeNode>& nodes, const Rules& rules, const QRectF& box, Part part,
                                        int index, const QPointF& to);

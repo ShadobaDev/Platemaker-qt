@@ -1,6 +1,10 @@
 #include "bezier.hpp"
 
+#include <QtMath>
+
+#include <algorithm>
 #include <cmath>
+#include <utility>
 
 namespace Bezier {
 
@@ -304,6 +308,295 @@ QList<ShapeNode> dragged(const QList<ShapeNode>& nodes, const Rules& rules, cons
         break;   // a press adds the node (withNodeAdded()); the drag is that node's
     }
     return checked(nodes, out, rules);
+}
+
+namespace {
+
+//! Points nearer than this (pixels) are one: a chord of no length leaves the fit's parameters undefined.
+constexpr qreal k_fitSamePoint = 1e-6;
+//! How sharply the outline must turn at a point for a corner to stay there, in radians (60 degrees).
+constexpr qreal k_fitCornerTurn = M_PI / 3.0;
+//! How far to each side of a point its turn is measured, in tolerances: past a flattened round's own small turns.
+constexpr qreal k_fitCornerReach = 4.0;
+//! Newton-Raphson passes that re-place the points' parameters before a segment is split (Schneider's).
+constexpr int k_fitPasses = 4;
+//! Within this many times the squared tolerance, re-placing the parameters is tried before splitting (Schneider's).
+constexpr qreal k_fitPassError = 4.0;
+//! A handle shorter than this fraction of its chord is no fit (Schneider's): see leastSquares().
+constexpr qreal k_fitShortHandle = 1e-6;
+//! The fewest nodes a closed outline keeps.
+constexpr int k_fitFewestNodes = 3;
+
+struct Cubic
+{
+    QPointF p0, p1, p2, p3;
+};
+
+qreal dot(const QPointF& a, const QPointF& b)
+{
+    return a.x() * b.x() + a.y() * b.y();
+}
+
+QPointF unit(const QPointF& v)
+{
+    const qreal l = length(v);
+    return l > 0.0 ? v / l : QPointF();
+}
+
+QPointF pointAt(const Cubic& c, qreal t)
+{
+    const qreal u = 1.0 - t;
+    return c.p0 * (u * u * u) + c.p1 * (3.0 * u * u * t) + c.p2 * (3.0 * u * t * t) + c.p3 * (t * t * t);
+}
+
+//! The parameters of @p d's points from @p first to @p last by the length along them: 0 at the first, 1 at the last.
+QList<qreal> chordParameters(const QList<QPointF>& d, int first, int last)
+{
+    QList<qreal> u{0.0};
+    for (int i = first + 1; i <= last; ++i)
+        u.append(u.last() + length(d[i] - d[i - 1]));
+    const qreal whole = u.last();
+    for (qreal& t : u)
+        t /= whole;
+    return u;
+}
+
+//! The cubic from d[first] along @p t1 to d[last] along @p t2 (pointing back) that best fits the points between.
+Cubic leastSquares(const QList<QPointF>& d, int first, int last, const QList<qreal>& u, const QPointF& t1,
+                   const QPointF& t2)
+{
+    const QPointF p0 = d[first], p3 = d[last];
+    qreal         c00 = 0.0, c01 = 0.0, c11 = 0.0, x0 = 0.0, x1 = 0.0;
+    for (int i = first; i <= last; ++i) {
+        const qreal   t = u[i - first], s = 1.0 - t;
+        const qreal   b0 = s * s * s, b1 = 3.0 * s * s * t, b2 = 3.0 * s * t * t, b3 = t * t * t;
+        const QPointF a0 = t1 * b1, a1 = t2 * b2;
+        c00 += dot(a0, a0);
+        c01 += dot(a0, a1);
+        c11 += dot(a1, a1);
+        const QPointF rest = d[i] - (p0 * (b0 + b1) + p3 * (b2 + b3));
+        x0 += dot(a0, rest);
+        x1 += dot(a1, rest);
+    }
+    const qreal det   = c00 * c11 - c01 * c01;
+    const qreal chord = length(p3 - p0);
+    qreal       left  = det != 0.0 ? (x0 * c11 - x1 * c01) / det : 0.0;
+    qreal       right = det != 0.0 ? (c00 * x1 - c01 * x0) / det : 0.0;
+    // Too short a handle, or two that cross over each other along the chord (few points between, the system near
+    // singular: Paper.js's check), are no fit: each a third of the chord, as with no points between.
+    const QPointF line = p3 - p0;
+    if (left < k_fitShortHandle * chord || right < k_fitShortHandle * chord
+        || dot(t1 * left, line) - dot(t2 * right, line) > chord * chord)
+        left = right = chord / 3.0;
+    return {p0, p0 + t1 * left, p3 + t2 * right, p3};
+}
+
+//! The largest squared distance of the points from @p c at their parameters, and the point where it is.
+std::pair<qreal, int> worst(const QList<QPointF>& d, int first, int last, const Cubic& c, const QList<qreal>& u)
+{
+    qreal most  = 0.0;
+    int   where = (first + last) / 2;
+    for (int i = first + 1; i < last; ++i) {
+        const QPointF off = pointAt(c, u[i - first]) - d[i];
+        if (const qreal e = dot(off, off); e > most) {
+            most  = e;
+            where = i;
+        }
+    }
+    return {most, where};
+}
+
+//! Each parameter moved by a Newton-Raphson step towards the curve's point nearest its point.
+QList<qreal> replaced(const QList<QPointF>& d, int first, const Cubic& c, QList<qreal> u)
+{
+    const QPointF q1[] = {(c.p1 - c.p0) * 3.0, (c.p2 - c.p1) * 3.0, (c.p3 - c.p2) * 3.0};
+    const QPointF q2[] = {(q1[1] - q1[0]) * 2.0, (q1[2] - q1[1]) * 2.0};
+    for (int k = 0; k < u.size(); ++k) {
+        const qreal   t = u[k], s = 1.0 - t;
+        const QPointF off = pointAt(c, t) - d[first + k];
+        const QPointF v1  = q1[0] * (s * s) + q1[1] * (2.0 * s * t) + q1[2] * (t * t);
+        const QPointF v2  = q2[0] * s + q2[1] * t;
+        const qreal   den = dot(v1, v1) + dot(off, v2);
+        if (den != 0.0)
+            u[k] = t - dot(off, v1) / den;
+    }
+    return u;
+}
+
+//! Cubics through d[first..last], leaving along @p t1 and arriving along @p t2 (pointing back), appended to @p out.
+void fitSpan(const QList<QPointF>& d, int first, int last, const QPointF& t1, const QPointF& t2, qreal error,
+             QList<Cubic>& out)
+{
+    if (last - first == 1) {
+        const qreal third = length(d[last] - d[first]) / 3.0;
+        out.append({d[first], d[first] + t1 * third, d[last] + t2 * third, d[last]});
+        return;
+    }
+    QList<qreal> u    = chordParameters(d, first, last);
+    Cubic        c    = leastSquares(d, first, last, u, t1, t2);
+    auto [most, here] = worst(d, first, last, c, u);
+    if (most < error) {
+        out.append(c);
+        return;
+    }
+    if (most < error * k_fitPassError)
+        for (int pass = 0; pass < k_fitPasses; ++pass) {
+            u                    = replaced(d, first, c, u);
+            c                    = leastSquares(d, first, last, u, t1, t2);
+            std::tie(most, here) = worst(d, first, last, c, u);
+            if (most < error) {
+                out.append(c);
+                return;
+            }
+        }
+    QPointF across = unit(d[here - 1] - d[here + 1]);
+    if (across.isNull())
+        across = unit(d[here - 1] - d[here]);
+    fitSpan(d, first, here, t1, across, error, out);
+    fitSpan(d, here, last, -across, t2, error, out);
+}
+
+//! The point of the closed @p pts at least @p reach along it from point @p i, going by @p step (1 or -1).
+QPointF reached(const QList<QPointF>& pts, int i, int step, qreal reach)
+{
+    const int n    = int(pts.size());
+    qreal     gone = 0.0;
+    int       j    = i;
+    for (int k = 1; k < n && gone < reach; ++k) {
+        const int to = (j + step + n) % n;
+        gone += length(pts[to] - pts[j]);
+        j = to;
+    }
+    return pts[j];
+}
+
+//! How far the closed @p pts turns at point @p i, measured to the points @p reach away each side, in radians.
+qreal turnAt(const QList<QPointF>& pts, int i, qreal reach)
+{
+    const QPointF a = pts[i] - reached(pts, i, -1, reach), b = reached(pts, i, 1, reach) - pts[i];
+    return std::abs(std::atan2(a.x() * b.y() - a.y() * b.x(), dot(a, b)));
+}
+
+//! The points of the closed @p pts within @p reach along it each side of @p i, @p i not among them.
+QList<int> around(const QList<QPointF>& pts, int i, qreal reach)
+{
+    const int  n = int(pts.size());
+    QList<int> out;
+    for (const int step : {-1, 1}) {
+        qreal gone = 0.0;
+        for (int k = 1, j = i; k < n; ++k) {
+            const int to = (j + step + n) % n;
+            gone += length(pts[to] - pts[j]);
+            if (gone > reach)
+                break;
+            out.append(to);
+            j = to;
+        }
+    }
+    return out;
+}
+
+//! The length along the closed @p pts from point @p from forwards to point @p to.
+qreal along(const QList<QPointF>& pts, int from, int to)
+{
+    const int n = int(pts.size());
+    qreal     l = 0.0;
+    for (int j = from;;) {
+        const int k = (j + 1) % n;
+        l += length(pts[k] - pts[j]);
+        if (k == to)
+            return l;
+        j = k;
+    }
+}
+
+} // namespace
+
+QList<ShapeNode> fitted(const QPolygonF& outline, const QRectF& box, qreal tolerance)
+{
+    if (box.isEmpty() || tolerance <= 0.0)
+        return {};
+    // Its points, each apart from the one before, round to the first.
+    QList<QPointF> pts;
+    for (const QPointF& p : outline)
+        if (pts.isEmpty() || length(p - pts.last()) > k_fitSamePoint)
+            pts.append(p);
+    while (pts.size() > 1 && length(pts.last() - pts.first()) <= k_fitSamePoint)
+        pts.removeLast();
+    const int n = int(pts.size());
+    if (n < k_fitFewestNodes)
+        return {};
+
+    // The breaks, in order round it: corners where it turns sharply (the sharpest of those near each other)...
+    const qreal  reach = k_fitCornerReach * tolerance;
+    QList<qreal> turn(n);
+    for (int i = 0; i < n; ++i)
+        turn[i] = turnAt(pts, i, reach);
+    QList<std::pair<int, bool>> breaks;   // a point, and whether it is a corner
+    for (int i = 0; i < n; ++i) {
+        if (turn[i] <= k_fitCornerTurn)
+            continue;
+        const QList<int> near = around(pts, i, reach);
+        if (std::all_of(near.cbegin(), near.cend(),
+                        [&](int j) { return j < i ? turn[j] < turn[i] : turn[j] <= turn[i]; }))
+            breaks.append({i, true});
+    }
+    // ...and as many smooth ones as make three, each half way along the longest stretch between two.
+    if (breaks.isEmpty())
+        breaks.append({0, false});
+    while (breaks.size() < k_fitFewestNodes) {
+        int   longest = -1;
+        qreal most    = 0.0;
+        for (int k = 0; k < breaks.size(); ++k) {
+            const int from = breaks[k].first, to = breaks[(k + 1) % breaks.size()].first;
+            if ((from + 1) % n == to)
+                continue;   // no point between
+            if (const qreal l = along(pts, from, to); l > most) {
+                most    = l;
+                longest = k;
+            }
+        }
+        if (longest < 0)
+            return {};
+        const int from = breaks[longest].first, to = breaks[(longest + 1) % breaks.size()].first;
+        int       mid  = (from + 1) % n;
+        for (qreal gone = length(pts[mid] - pts[from]); gone < most / 2.0 && (mid + 1) % n != to;
+             mid        = (mid + 1) % n)
+            gone += length(pts[(mid + 1) % n] - pts[mid]);
+        breaks.insert(longest + 1, {mid, false});
+    }
+
+    // The points unrolled from the first break round to it again; the breaks as places in them.
+    const int      start = breaks.first().first;
+    QList<QPointF> d;
+    for (int k = 0; k <= n; ++k)
+        d.append(pts[(start + k) % n]);
+    QList<int> place;
+    for (const auto& b : std::as_const(breaks))
+        place.append((b.first - start + n) % n);
+    place.append(n);
+    const auto before = [&](int i) { return d[i == 0 ? n - 1 : i - 1]; };
+    const auto after  = [&](int i) { return d[i == n ? 1 : i + 1]; };
+
+    // Each stretch between two breaks: leaving and arriving along the sides at a corner, across a smooth one.
+    QList<Cubic> cubics;
+    const qreal  error = tolerance * tolerance;
+    for (int k = 0; k + 1 < place.size(); ++k) {
+        const int     from = place[k], to = place[k + 1];
+        const bool    sharpFrom = breaks[k].second, sharpTo = breaks[(k + 1) % breaks.size()].second;
+        const QPointF t1 = unit(sharpFrom ? d[from + 1] - d[from] : after(from) - before(from));
+        const QPointF t2 = unit(sharpTo ? d[to - 1] - d[to] : before(to) - after(to));
+        fitSpan(d, from, to, t1, t2, error, cubics);
+    }
+
+    QList<ShapeNode> nodes;
+    for (const Cubic& c : std::as_const(cubics))
+        nodes.append(ShapeNode(relativeTo(c.p0, box), {}, fromPixels(c.p1 - c.p0, box)));
+    for (int k = 0; k < cubics.size(); ++k)
+        nodes[(k + 1) % nodes.size()].in = fromPixels(cubics[k].p2 - cubics[k].p3, box);
+    for (ShapeNode& node : nodes)
+        node.type = typeOf(node, box);
+    return nodes;
 }
 
 ShapeNode::Type typeOf(const ShapeNode& node, const QRectF& box)

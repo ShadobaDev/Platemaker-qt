@@ -169,8 +169,7 @@ void MaskEditor::applyTo(Composition& target) const
     m.tone.kind         = m_tone.kind;
     m.tone.spacing      = m_tone.spacing;
     m.tone.angle        = m_tone.angle;
-    m.tone.fadeRound    = m_tone.fadeRound;
-    m.tone.fadeReversed = m_tone.fadeReversed;
+    m_fadeRows.applyEdited(m_tone, m.tone);   // where the cross stands, and its turning over
 }
 
 }  // namespace StripEdit

@@ -232,10 +232,10 @@ struct Paint
      * @name A fade: a cross in the balloon's rectangle, at `fadeCentreX`, `fadeCentreY`
      * (% of its width and height, the middle by default), an arm towards each side. Along an arm the
      * pattern is whole up to `…From` and gone past `…To`, in % of the way from the centre to that side (100
-     * is the side); the ground stays. The two directions combine as a distance, so fading towards two
-     * neighbouring sides rounds the corner between them, and all four make a round fade. A side whose
+     * is the side); the ground stays. The two directions combine by the larger, so fading towards two
+     * neighbouring sides keeps the corner between them square, and all four make a rectangle. A side whose
      * `…From` is 100 does not fade. `fadeRound` lays the fade on ellipses instead: the starts on one, the
-     * ends on another, so all four arms make an ellipse and not a rounded rectangle. `fadeReversed` turns
+     * ends on another, so all four arms make an ellipse and not a rectangle. `fadeReversed` turns
      * the tone over: gone at the centre, whole past the ends. Read only while `kind` is not Solid, and only
      * where a group lists these fields (the fill). Set on the strip, by the cross in shape editing, all but
      * the shape and the reversal (the panel's).

@@ -2,6 +2,7 @@
 #include "bezier.hpp"
 #include "edgewalk.hpp"
 #include "geometry.hpp"   // partAt(): what a click on the mask lands on
+#include "styles.hpp"     // fadeTone(): what a pattern's cross hides
 
 #include <QByteArray>
 #include <QObject>
@@ -1274,7 +1275,7 @@ QPainterPath maskOutline(const Mask& mask, quint32 seed)
 
 std::optional<QLineF> maskFade(const Mask& mask)
 {
-    if (!mask.fade)
+    if (!mask.fade || mask.shape != Mask::Fade::Linear)
         return std::nullopt;
     const QRectF box(mask.region.place.pos, QSizeF(mask.region.size));
     return QLineF(anchorAt(box, mask.fade->p1()), anchorAt(box, mask.fade->p2()));
@@ -1291,15 +1292,8 @@ bool maskHidesAt(const Composition& c, const QPointF& at)
 {
     if (!c.mask)
         return false;
-    // What the region covers there: none outside it, all inside, less along the fade.
-    qreal cover = 0.0;
-    if (maskOutline(*c.mask, c.seed).contains(at)) {
-        cover = 1.0;
-        if (const std::optional<QLineF> fade = maskFade(*c.mask); fade && fade->length() > 0.0) {
-            const QPointF along = (fade->p2() - fade->p1()) / fade->length();
-            cover = 1.0 - std::clamp(QPointF::dotProduct(at - fade->p1(), along) / fade->length(), 0.0, 1.0);
-        }
-    }
+    // What the region covers there: none outside it, inside it as its fade says.
+    const qreal cover = maskOutline(*c.mask, c.seed).contains(at) ? maskCover(*c.mask, at) : 0.0;
     // It hides what it covers, or, kept inside, what it does not.
     const qreal hidden = c.mask->keepInside ? 1.0 - cover : cover;
     if (hidden < k_maskPickCover)

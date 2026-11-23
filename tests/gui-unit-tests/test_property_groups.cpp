@@ -280,8 +280,8 @@ struct BalloonMirror { int id; BalloonStyle style; QList<Body> bodies; QList<Bal
 static_assert(sizeof(Balloon) == sizeof(BalloonMirror), "Balloon grew a field: place it (see above), then mirror it");
 struct WordsMirror { int id; int seat; Place place; QSize box; TextProperties text; Frame frame; };
 static_assert(sizeof(Words) == sizeof(WordsMirror), "Words grew a field: place it (see above), then mirror it");
-struct MaskMirror { Body region; qreal feather; std::optional<QLineF> fade; Paint::Kind transition; qreal spacing;
-                    int angle; bool keepInside; };
+struct MaskMirror { Body region; qreal feather; Mask::Fade shape; std::optional<QLineF> fade; Paint tone;
+                    bool keepInside; };
 static_assert(sizeof(Mask) == sizeof(MaskMirror), "Mask grew a field: place it (see above), then mirror it");
 struct CompositionMirror { std::optional<Balloon> balloon; std::optional<Picture> picture; QList<Words> words;
                            std::optional<Mask> mask; quint32 seed; PresetOrigin preset; int nextId; };
@@ -811,9 +811,14 @@ TEST(PropertyGroupPersistence, RoundTrips)
     mask.region.shape = Geometry::shapeTemplate("ellipse").shape;
     mask.feather      = 3.5;
     mask.fade         = QLineF(0.1, 0.2, 0.9, 0.8);
-    mask.transition   = Paint::Kind::Grid;
-    mask.spacing      = 11.5;
-    mask.angle        = 30;
+    mask.shape        = Mask::Fade::Ellipse;
+    mask.tone.kind         = Paint::Kind::Grid;
+    mask.tone.spacing      = 11.5;
+    mask.tone.angle        = 30;
+    mask.tone.fadeLeftFrom = 12.5;
+    mask.tone.fadeLeftTo   = 60.0;
+    mask.tone.fadeCentreY  = 40.0;
+    mask.tone.fadeReversed = true;
     mask.keepInside   = true;
     a.mask            = mask;
     const Composition b = throughContent(a);
@@ -2227,11 +2232,15 @@ TEST(Paint, AFadingFillThinsOutAlongItsCross)
     EXPECT_FALSE(marks.contains(dotAt(25, 21) + QPointF(0.9 * p.size / 2.0, 0)));
     EXPECT_FALSE(marks.intersects(QRectF(0, 199, 400, 1)));
 
-    // All four from the centre: round, gone at the sides and in the corners.
+    // All four from the centre: a rectangle, gone at the sides, its corners square: the larger way out counts.
     p.fadeLeftFrom = p.fadeRightFrom = p.fadeTopFrom = p.fadeBottomFrom = 0.0;
     EXPECT_DOUBLE_EQ(Geometry::fadeTone(p, body, QPointF(200, 100)), 1.0);
     EXPECT_NEAR(Geometry::fadeTone(p, body, QPointF(320, 100)), 0.4, 1e-9);   // 0.6 of the way right
-    EXPECT_NEAR(Geometry::fadeTone(p, body, QPointF(200 + 0.6 * 200, 100 + 0.8 * 100)), 0.0, 1e-9);
+    EXPECT_NEAR(Geometry::fadeTone(p, body, QPointF(200 + 0.6 * 200, 100 + 0.8 * 100)), 0.2, 1e-9);
+    EXPECT_NEAR(Geometry::fadeTone(p, body, QPointF(200 + 0.5 * 200, 100 + 0.5 * 100)), 0.5, 1e-9);   // a square corner
+    // Where the cross reaches: up to its ends a rectangle, the whole body here; up to its starts, its centre.
+    EXPECT_EQ(Geometry::fadeExtent(p, body, true).boundingRect(), body);
+    EXPECT_TRUE(Geometry::fadeExtent(p, body, false).boundingRect().isEmpty());
     EXPECT_DOUBLE_EQ(Geometry::fadeTone(p, body, QPointF(0, 0)), 0.0);
     // Turned over: gone at the centre, whole past the ends.
     p.fadeReversed = true;
@@ -2275,7 +2284,14 @@ TEST(Paint, AFadingFillThinsOutAlongItsCross)
     EXPECT_EQ(Geometry::partOf<Geometry::FadePart>(cross.at(8)), Geometry::FadePart::Centre);
     EXPECT_EQ(cross.at(8).at, QPointF(200, 100));
     EXPECT_EQ(cross.at(3).at, QPointF(200, 200));   // the bottom arm's start, on its side
-    EXPECT_TRUE(Geometry::fadeHandles(Paint(), body).isEmpty()) << "a solid fill has no cross";
+    {
+        Composition solid = a;   // a solid fill does not fade: its balloon offers no cross
+        skinOf(solid).fill = Paint();
+        const QList<Geometry::Handle> handles = Geometry::handlesOf(solid, {});
+        EXPECT_TRUE(std::none_of(handles.cbegin(), handles.cend(), [](const Geometry::Handle& h) {
+            return h.glyph == Geometry::Handle::Glyph::FadeCentre;
+        })) << "a solid fill has no cross";
+    }
     // Pulling the bottom start in begins a fade; pushing it past its end takes the end along, and the
     // end pulled in past the start takes the start.
     Paint dragged = Geometry::dragFadeHandle(still, body, cross.at(3), QPointF(200, 150));
@@ -3478,6 +3494,15 @@ TEST(Mask, HidesWhatItCoversAndFadesAlongItsLine)
     EXPECT_EQ(alphaAt(hard, a, inside), 0);
     EXPECT_EQ(alphaAt(hard, a, outside), alphaAt(whole, plain, outside));
 
+    // An ellipse hides its own shape, not its box: the box's corner, outside it, shows.
+    {
+        Composition round  = maskedBalloon();
+        round.mask->region.shape = Geometry::shapeTemplate("ellipse").shape;
+        const QImage drawn = Painter::render(round);
+        EXPECT_EQ(alphaAt(drawn, round, inside), 0);
+        EXPECT_EQ(alphaAt(drawn, round, QPointF(162.0, 42.0)), alphaAt(whole, plain, QPointF(162.0, 42.0)));
+    }
+
     // Kept inside: what the region covers shows, the rest of the object goes.
     a.mask->keepInside = true;
     const QImage kept  = Painter::render(a);
@@ -3486,7 +3511,8 @@ TEST(Mask, HidesWhatItCoversAndFadesAlongItsLine)
     a.mask->keepInside = false;
 
     // Left to right across the region: hidden wholly at its left edge, not at all at its right.
-    a.mask->fade = QLineF(0.0, 0.5, 1.0, 0.5);
+    a.mask->shape = Mask::Fade::Linear;
+    a.mask->fade  = QLineF(0.0, 0.5, 1.0, 0.5);
     const QImage faded = Painter::render(a);
     for (const qreal along : {0.25, 0.5, 0.75}) {
         SCOPED_TRACE(along);
@@ -3494,15 +3520,27 @@ TEST(Mask, HidesWhatItCoversAndFadesAlongItsLine)
         EXPECT_NEAR(alphaAt(faded, a, at), 255.0 * along, k_alphaTolerance);
     }
 
-    // Through a pattern, what is left breaks into its marks: hidden at the fade's start, whole at its end, and on
-    // the way, over a whole number of cells, about as much left as the smooth fade leaves.
+    // By the fill's cross, its centre on the region's left, its right arm fading over its whole length: smoothly,
+    // the same; and through a pattern: hidden at the left, whole at the right, and on the way, over a whole number of
+    // cells, about as much left as the smooth fade leaves.
     constexpr int   k_spacing      = 8;
     constexpr qreal k_meanTolerance = 0.1;   // of the whole: a halftone's area against its tone, sampled
+    a.mask->shape              = Mask::Fade::Rectangle;
+    a.mask->tone.fadeCentreX   = 0.0;
+    a.mask->tone.fadeRightFrom = 0.0;
+    a.mask->tone.fadeRightTo   = 100.0;
+    {
+        const QImage crossed = Painter::render(a);
+        for (const qreal along : {0.25, 0.5, 0.75}) {
+            SCOPED_TRACE(along);
+            EXPECT_NEAR(alphaAt(crossed, a, QPointF(160.0 + 80.0 * along, 80.0)), 255.0 * along, k_alphaTolerance);
+        }
+    }
     for (const Paint::Kind pattern : {Paint::Kind::Dots, Paint::Kind::Lines, Paint::Kind::Grid}) {
         SCOPED_TRACE(int(pattern));
-        a.mask->transition = pattern;
-        a.mask->spacing    = k_spacing;
-        a.mask->angle      = 0;
+        a.mask->tone.kind    = pattern;
+        a.mask->tone.spacing = k_spacing;
+        a.mask->tone.angle   = 0;
         const QImage marked = Painter::render(a);
         EXPECT_EQ(alphaAt(marked, a, QPointF(160.5, 80.0)), 0);
         EXPECT_EQ(alphaAt(marked, a, QPointF(239.5, 80.0)), 255);
@@ -3514,6 +3552,32 @@ TEST(Mask, HidesWhatItCoversAndFadesAlongItsLine)
                 sum += alphaAt(marked, a, QPointF(x + 0.5, y + 0.5)) / 255.0;
         EXPECT_NEAR(sum / n, 0.5, k_meanTolerance);
     }
+    // The arm ending half way: past its end nothing is hidden, though the region goes on.
+    a.mask->tone.fadeRightTo = 50.0;
+    EXPECT_EQ(alphaAt(Painter::render(a), a, QPointF(220.5, 80.0)), 255);
+    // With no arm fading, a pattern's mask hides its region evenly.
+    a.mask->tone.fadeRightFrom = 100.0;
+    EXPECT_EQ(alphaAt(Painter::render(a), a, QPointF(220.5, 80.0)), 0);
+
+    // Smooth over a cross from the region's middle, every arm fading from it to its side: what the shades draw is
+    // the cross's own tone (fadeTone()), the rectangle's square corners and the ellipse's alike.
+    a.mask->tone      = Paint{};
+    a.mask->tone.fadeLeftFrom = a.mask->tone.fadeRightFrom = a.mask->tone.fadeTopFrom = a.mask->tone.fadeBottomFrom = 0.0;
+    const QRectF box(a.mask->region.place.pos, QSizeF(a.mask->region.size));
+    for (const Mask::Fade shape : {Mask::Fade::Rectangle, Mask::Fade::Ellipse}) {
+        a.mask->shape = shape;
+        const QImage drawn = Painter::render(a);
+        for (const QPointF& at : {QPointF(185.0, 70.0), QPointF(225.0, 95.0), QPointF(212.0, 52.0),
+                                  QPointF(175.0, 108.0), QPointF(205.0, 85.0)}) {
+            SCOPED_TRACE(QStringLiteral("shape %1 at %2, %3").arg(int(shape)).arg(at.x()).arg(at.y()).toStdString());
+            // The tone at the centre of the pixel alphaAt() reads.
+            const QPointF corner = Geometry::bounds(a).topLeft();
+            const QPointF centre = corner + QPointF((at - corner).toPoint()) + QPointF(0.5, 0.5);
+            const qreal   hidden = Geometry::fadeTone(Geometry::maskCross(*a.mask), box, centre);
+            EXPECT_NEAR(alphaAt(drawn, a, at), 255.0 * (1.0 - hidden), k_alphaTolerance);
+            EXPECT_NEAR(Geometry::maskCover(*a.mask, centre), hidden, 1e-9);
+        }
+    }
 }
 
 /**
@@ -3523,6 +3587,7 @@ TEST(Mask, HidesWhatItCoversAndFadesAlongItsLine)
 TEST(Mask, IsPickedWhereItHides)
 {
     Composition a = maskedBalloon();
+    a.mask->shape = Mask::Fade::Linear;
     EXPECT_TRUE(Geometry::maskHidesAt(a, QPointF(200.0, 80.0)));
     EXPECT_FALSE(Geometry::maskHidesAt(a, QPointF(80.0, 80.0))) << "outside the region";
 
@@ -3561,6 +3626,7 @@ TEST(Mask, ScalesWithTheObjectsBox)
 TEST(Mask, IsEditedByItsOwnHandlesAndTheShapeSection)
 {
     Composition a  = maskedBalloon();
+    a.mask->shape  = Mask::Fade::Linear;
     a.mask->fade   = QLineF(0.0, 0.5, 1.0, 0.5);
     const int   id = a.mask->region.id;
     Geometry::HandleContext context;
@@ -3627,10 +3693,11 @@ TEST(Mask, IsWrittenAsTheSvgsMask)
     EXPECT_FALSE(svg.contains("feGaussianBlur stdDeviation=\"3.5\""));
     EXPECT_FALSE(Geometry::hasFilter(a));
 
+    a.mask->shape   = Mask::Fade::Linear;
     a.mask->fade    = QLineF(0.0, 0.5, 1.0, 0.5);
     a.mask->feather = 3.5;
     svg             = Svg::write(a);
-    EXPECT_TRUE(svg.contains("<linearGradient id=\"pm-mask-fade\""));
+    EXPECT_TRUE(svg.contains("<linearGradient id=\"pm-mask-fade-0\""));
     EXPECT_TRUE(svg.contains("feGaussianBlur stdDeviation=\"3.5\""));
     EXPECT_TRUE(Geometry::hasFilter(a));
     bool ok = false;
@@ -3640,14 +3707,27 @@ TEST(Mask, IsWrittenAsTheSvgsMask)
     // Kept inside, black and white swap: the whole mask black, the gradient from white.
     a.mask->keepInside = true;
     svg                = Svg::write(a);
-    EXPECT_TRUE(svg.contains("fill=\"black\"/><path"));
+    EXPECT_TRUE(svg.contains("fill=\"black\"/><g"));
     EXPECT_TRUE(svg.contains("<stop offset=\"0\" stop-color=\"white\"/>"));
     a.mask->keepInside = false;
 
-    // A patterned transition: the region black up to the fade's end, the marks white over it, all blurred.
-    a.mask->transition = Paint::Kind::Dots;
+    // A pattern: the region black where its cross hides, the marks white over it, all blurred; no gradient.
+    a.mask->tone.kind          = Paint::Kind::Dots;
+    a.mask->tone.fadeCentreX   = 0.0;
+    a.mask->tone.fadeRightFrom = 0.0;
     svg                = Svg::write(a);
-    EXPECT_FALSE(svg.contains("<linearGradient id=\"pm-mask-fade\""));
+    a.mask->shape              = Mask::Fade::Rectangle;
+    svg                = Svg::write(a);
+    EXPECT_FALSE(svg.contains("<linearGradient id=\"pm-mask-fade"));
     EXPECT_TRUE(svg.contains("<g filter=\"url(#pm-mask-feather)\"><path"));
     EXPECT_TRUE(svg.contains("fill-rule=\"nonzero\" fill=\"white\"/></g>"));
+
+    // Smooth by an ellipse every arm fades on: a radial gradient on the ends' ellipse, a quarter at a time.
+    a.mask->tone.kind        = Paint::Kind::Solid;
+    a.mask->shape            = Mask::Fade::Ellipse;
+    a.mask->tone.fadeCentreX = 50.0;
+    a.mask->tone.fadeLeftFrom = a.mask->tone.fadeTopFrom = a.mask->tone.fadeBottomFrom = 0.0;
+    svg               = Svg::write(a);
+    EXPECT_TRUE(svg.contains("<radialGradient id=\"pm-mask-fade-"));
+    EXPECT_EQ(Svg::read(svg, &ok).mask, a.mask);
 }

@@ -133,7 +133,7 @@ void PictureObject::describePicture(Composition& c) const
 bool PictureObject::canEditShape() const
 {
     if (const Mask* m = pickedMask())
-        return Geometry::hasShapeHandles(m->region.shape) || m->fade.has_value();
+        return Geometry::hasShapeHandles(m->region.shape) || m->shape != Mask::Fade::None;   // its fade's
     return lettered(m_composition);
 }
 

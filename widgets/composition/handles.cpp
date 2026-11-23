@@ -113,7 +113,16 @@ QPointF dragMask(Composition& next, const Handle& h, const QPointF& to, const Ha
 //! The two ends of a mask's fade (maskFade()), told apart by Handle::part.
 enum class MaskFadePart { Start, End };
 
-//! The mask's fade: the end dragged, anywhere, as a fraction of the region's box.
+//! The mask's pattern's fade: the fill's cross, on the region's box.
+QPointF dragMaskCross(Composition& next, const Handle& h, const QPointF& to, const HandleContext&)
+{
+    if (next.mask)
+        next.mask->tone = dragFadeHandle(maskCross(*next.mask), QRectF(next.mask->region.place.pos,
+                                                                       QSizeF(next.mask->region.size)), h, to);
+    return {};
+}
+
+//! The mask's smooth fade: the end dragged, anywhere, as a fraction of the region's box.
 QPointF dragMaskFade(Composition& next, const Handle& h, const QPointF& to, const HandleContext&)
 {
     if (!next.mask || !next.mask->fade || next.mask->region.size.isEmpty())
@@ -321,7 +330,7 @@ QList<Handle> owned(QList<Handle> list, int element, Handle::Drag drag)
     return list;
 }
 
-//! The mask's handles: its outline's, and its fade's two ends when it fades.
+//! The mask's handles: its outline's, then a pattern's cross (the fill's), or a smooth fade's two ends.
 QList<Handle> maskHandles(const Composition& c, const HandleContext& context)
 {
     const Body&   own = c.mask->region;
@@ -331,7 +340,10 @@ QList<Handle> maskHandles(const Composition& c, const HandleContext& context)
     for (Handle& h : out)
         if (partOf<ShapePart>(h) == ShapePart::AddVertex)
             h.press = &addNode;
-    if (const std::optional<QLineF> fade = maskFade(*c.mask)) {
+    if (c.mask->shape == Mask::Fade::Rectangle || c.mask->shape == Mask::Fade::Ellipse) {
+        out.append(owned(fadeHandles(maskCross(*c.mask), QRectF(own.place.pos, QSizeF(own.size))), own.id,
+                         &dragMaskCross));
+    } else if (const std::optional<QLineF> fade = maskFade(*c.mask)) {
         Handle start;
         start.part   = int(MaskFadePart::Start);
         start.at     = fade->p1();
@@ -363,7 +375,8 @@ QList<Handle> handlesOf(const Composition& c, const HandleContext& context)
         for (Handle& h : out)
             if (partOf<ShapePart>(h) == ShapePart::AddVertex)
                 h.press = &addNode;
-        out.append(owned(fadeHandles(c.balloon->style.fill.fill, fillBox(*c.balloon)), c.balloon->id, &dragFill));
+        if (c.balloon->style.fill.fill.kind != Paint::Kind::Solid)   // a solid fill does not fade
+            out.append(owned(fadeHandles(c.balloon->style.fill.fill, fillBox(*c.balloon)), c.balloon->id, &dragFill));
     }
     // Every words' frame; the picked words' first, so where two frames lie over each other a press takes theirs.
     QList<const Words*> words;

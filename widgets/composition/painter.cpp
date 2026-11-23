@@ -3,6 +3,7 @@
 
 #include <QHash>
 #include <QLinearGradient>
+#include <QRadialGradient>
 #include <QPainter>
 #include <QPen>
 #include <QtMath>
@@ -445,13 +446,37 @@ void paintCut(QPainter& painter, const Composition& c, const QRectF& bounds,
             q.fillPath(marks.hidden, Qt::black);
             q.setCompositionMode(QPainter::CompositionMode_DestinationOut);
             fillMarks(q, marks.shown, Qt::black);   // many small marks: stamped, or filled in pieces
-        } else if (const auto fade = Geometry::maskFade(*c.mask)) {
-            QLinearGradient g(fade->p1(), fade->p2());
-            g.setColorAt(0.0, Qt::black);
-            g.setColorAt(1.0, Qt::transparent);
-            q.fillPath(region, g);
         } else {
-            q.fillPath(region, Qt::black);
+            // Each shade: black as far as it hides, solid or along its gradient, as the SVG's; unsmoothed, where two
+            // meet their tone is the same (Geometry::MaskShade); drawn into an image of their own, which then fills
+            // the region, smoothed: a fill only touches what it covers, so nothing past the region is left.
+            const auto ink = [](qreal hidden) { return QColor(0, 0, 0, qRound(255 * std::clamp(hidden, 0.0, 1.0))); };
+            QImage   shades(cover.size(), QImage::Format_ARGB32_Premultiplied);
+            shades.fill(Qt::transparent);
+            QPainter sp(&shades);
+            sp.setTransform(p.transform());
+            for (const Geometry::MaskShade& s : Geometry::maskShades(*c.mask, c.seed)) {
+                if (s.kind == Geometry::MaskShade::Kind::Linear) {
+                    QLinearGradient g(s.line.p1(), s.line.p2());
+                    g.setColorAt(0.0, ink(s.from));
+                    g.setColorAt(1.0, ink(s.to));
+                    sp.fillPath(s.area, g);
+                } else if (s.kind == Geometry::MaskShade::Kind::Radial) {
+                    QRadialGradient g(QPointF(0.0, 0.0), 1.0);
+                    g.setColorAt(0.0, ink(s.from));
+                    g.setColorAt(s.start, ink(s.from));
+                    g.setColorAt(1.0, ink(s.to));
+                    QBrush brush(g);
+                    brush.setTransform(QTransform(s.axes.width(), 0.0, 0.0, s.axes.height(), s.centre.x(), s.centre.y()));
+                    sp.fillPath(s.area, brush);
+                } else {
+                    sp.fillPath(s.area, ink(s.from));
+                }
+            }
+            sp.end();
+            QBrush cut(shades);
+            cut.setTransform(q.transform().inverted());   // the image's pixels are the cover's
+            q.fillPath(region, cut);
         }
         q.end();
         // Taken away from the object; or, kept inside, the object kept only where it covers: the whole image is

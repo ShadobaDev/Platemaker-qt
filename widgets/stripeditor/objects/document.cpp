@@ -282,7 +282,8 @@ int addMask(Composition& c)
     m.region.size  = region.size().toSize();
     m.region.shape.corner.radius = 0.0;
     // Hidden wholly from the frame's right edge on, not at all at the region's left.
-    m.fade = QLineF(inside / region.width(), 0.5, 0.0, 0.5);
+    m.shape = Mask::Fade::Linear;
+    m.fade  = QLineF(inside / region.width(), 0.5, 0.0, 0.5);
     c.mask = m;
     return m.region.id;
 }

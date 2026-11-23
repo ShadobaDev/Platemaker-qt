@@ -199,26 +199,33 @@ struct Picture
  *
  * Its \c region is a body's geometry (a place, a size and a shape, outlined by Geometry::outlineOf()), in the
  * composition's frame, so it moves with the object; resize() scales it with the object's box. Inside the region
- * the object is hidden; a \c feather softens the region's edge, and a \c fade lets it hide less and less along a
- * line: wholly at the line's start, not at all past its end.
+ * the object is hidden; a \c feather softens the region's edge. It fades by a shape (\c shape: along a line, or by the
+ * fill's cross, a rectangle or ellipses), smoothly or through a pattern (\c tone's kind).
  */
 struct Mask
 {
     Body  region;                //!< Where it hides: its id is the mask's, as an element of the composition.
     qreal feather = 0.0;         //!< How far the edge is blurred (a Gaussian's deviation), in its pixels; 0 is hard.
+    //! The fade's shape. Persisted by name.
+    enum class Fade { None, Linear, Rectangle, Ellipse };
     /**
-     * The fade, as fractions of the region's box: hidden wholly at its start, not at all at its end, a gradient
-     * between. None, the default, hides the region evenly.
+     * How it fades. None, the default, hides the region evenly. Linear, along `line`. Rectangle and Ellipse, by the
+     * fill's cross on the region's box (`tone`'s `fade…` fields, Geometry::fadeTone()): hidden wholly at the cross's
+     * centre, not at all past its arms' ends, its corners square or on ellipses; turned over by `fadeReversed`.
+     */
+    Fade shape = Fade::None;
+    /**
+     * The Linear fade, as fractions of the region's box: hidden wholly at its start, not at all at its end. Kept
+     * while another shape is picked, so picking Linear again gives it back.
      */
     std::optional<QLineF> fade;
     /**
-     * How the fade goes from hidden to shown. Solid, the default, is smooth: a gradient. A pattern breaks what the
-     * mask leaves into that pattern's marks, growing along the fade until they meet at its end: Dots a halftone,
-     * Lines a hatch, Grid a cross-hatch. Read only with a fade.
+     * How it goes from hidden to shown, and the cross. Its kind: Solid, the default, smoothly (gradients); a
+     * pattern breaks what the mask leaves into that pattern's marks (its `spacing` and `angle`: Dots a halftone,
+     * Lines a hatch, Grid a cross-hatch). Its `fade…` fields are the cross; its `fadeRound` is not read (the shape
+     * says it), nor its colours.
      */
-    Paint::Kind transition = Paint::Kind::Solid;
-    qreal       spacing    = 8.0;   //!< A pattern's marks, from one to the next, in its pixels.
-    int         angle      = 45;    //!< How far a pattern's grid is turned, clockwise, in degrees.
+    Paint tone;
     /**
      * The other way round: the region is what shows, and everything of the object outside it is hidden, as a
      * balloon tucked into a panel keeps what is inside the panel. A fade then shows wholly at its start and not at
@@ -229,8 +236,7 @@ struct Mask
     [[nodiscard]] bool operator==(const Mask& o) const
     {
         return region == o.region && qFuzzyCompare(1.0 + feather, 1.0 + o.feather) && fade == o.fade
-            && transition == o.transition && qFuzzyCompare(1.0 + spacing, 1.0 + o.spacing) && angle == o.angle
-            && keepInside == o.keepInside;
+            && shape == o.shape && tone == o.tone && keepInside == o.keepInside;
     }
     [[nodiscard]] bool operator!=(const Mask& o) const { return !(*this == o); }
 };
@@ -363,8 +369,9 @@ inline constexpr int k_labelChars = 32;
  * too, words
  * `{id, text, seat, frame}` or, with no seat, `{id, text, place, box}`; a place is `{pos}`, with `rotation` and `scale`
  * only when they are not their defaults. A mask is `{id, place, size, shape}`, with `feather` and `fade`
- * (`[x1, y1, x2, y2]`) only when it has them, and `transition` (a pattern's name), `spacing` and `angle` only when its
- * transition is a pattern, and `keepInside` only when true.
+ * (`[x1, y1, x2, y2]`) only when it has them, `fadeShape` (`linear`, `rectangle`, `ellipse`) unless None, `tone`
+ * (`{kind, spacing, angle, cross: [left from, to, right from, to, top from, to, bottom from, to, centre x, y],
+ * reversed}`) unless it is smooth with no cross, and `keepInside` only when true.
  */
 [[nodiscard]] QJsonObject toJson(const Composition& c);
 /**

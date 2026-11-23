@@ -1524,6 +1524,10 @@ constexpr qreal k_maskDotsCover = M_SQRT2;
 constexpr qreal k_maskBarStep = 0.25;
 //! Halvings that find a dot's tone for a share of its cell: far below what a pixel shows.
 constexpr int k_maskToneHalvings = 24;
+//! How far past a body an arm that does not fade reaches (fadeExtent()), in the body's diagonals.
+constexpr qreal k_fadeExtentFar = 1000.0;
+//! The shortest a smooth mask's gradient runs, in pixels: an end on its start is a step, drawn over this.
+constexpr qreal k_maskStepPx = 1e-3;
 
 /**
  * How much of its cell a mask's dot covers at @p tone (0 to 1), its diameter k_maskDotsCover of the cell's side
@@ -1816,35 +1820,51 @@ PatternCell patternCell(const Paint& p)
 
 MaskMarks maskMarks(const Mask& mask, quint32 seed)
 {
-    MaskMarks                   out;
-    const std::optional<QLineF> fade = maskFade(mask);
-    if (mask.transition == Paint::Kind::Solid || !fade || fade->length() <= 0.0)
+    MaskMarks out;
+    if (mask.tone.kind == Paint::Kind::Solid)
         return out;
     const QPainterPath region = maskOutline(mask, seed);
     if (region.isEmpty())
         return out;
 
-    // The region on the fade's start side of the line through its end, square to it.
-    const qreal   length = fade->length();
-    const QPointF along  = (fade->p2() - fade->p1()) / length;
-    const QPointF across(-along.y(), along.x());
-    const QRectF  box   = region.boundingRect();
-    const qreal   reach = std::hypot(box.width(), box.height()) + length + QLineF(box.center(), fade->p2()).length();
-    QPainterPath  before;
-    before.addPolygon(QPolygonF{fade->p2() + across * reach, fade->p2() - across * reach,
-                                fade->p2() - across * reach - along * reach, fade->p2() + across * reach - along * reach});
-    before.closeSubpath();
-    out.hidden = region.intersected(before);
+    // Where the fade hides anything: before its line's end, or inside its cross's ends (outside its starts when
+    // turned over). Past it nothing is hidden, where marks that meet would leave seams.
+    const QRectF box(mask.region.place.pos, QSizeF(mask.region.size));
+    if (mask.shape == Mask::Fade::Linear) {
+        const std::optional<QLineF> fade = maskFade(mask);
+        if (!fade || fade->length() <= 0.0)
+            return out;
+        const qreal   length = fade->length();
+        const QPointF along  = (fade->p2() - fade->p1()) / length;
+        const QPointF across(-along.y(), along.x());
+        const QRectF  bounds = region.boundingRect();
+        const qreal   reach  = std::hypot(bounds.width(), bounds.height()) + length
+                            + QLineF(bounds.center(), fade->p2()).length();
+        QPainterPath before;
+        before.addPolygon(QPolygonF{fade->p2() + across * reach, fade->p2() - across * reach,
+                                    fade->p2() - across * reach - along * reach,
+                                    fade->p2() + across * reach - along * reach});
+        before.closeSubpath();
+        out.hidden = region.intersected(before);
+    } else if (mask.shape == Mask::Fade::Rectangle || mask.shape == Mask::Fade::Ellipse) {
+        const Paint cross = maskCross(mask);
+        if (!crossFades(cross))
+            return out;
+        out.hidden = cross.fadeReversed ? region.subtracted(fadeExtent(cross, box, false))
+                                        : region.intersected(fadeExtent(cross, box, true));
+    } else {
+        return out;
+    }
 
     Paint cell;
-    cell.kind    = mask.transition;
-    cell.spacing = qMax(mask.spacing, k_minPatternSpacing);
-    cell.size    = cell.spacing * (mask.transition == Paint::Kind::Dots ? k_maskDotsCover : 1.0);
-    cell.angle   = mask.angle;
-    const QPointF start = fade->p1();
+    cell.kind    = mask.tone.kind;
+    cell.spacing = qMax(mask.tone.spacing, k_minPatternSpacing);
+    cell.size    = cell.spacing * (cell.kind == Paint::Kind::Dots ? k_maskDotsCover : 1.0);
+    cell.angle   = mask.tone.angle;
+    // The marks show what the fade leaves (1 - maskCover()).
     out.shown = halftoneMarks(
         cell, out.hidden.boundingRect(),
-        [&](const QPointF& at) { return maskTone(cell.kind, QPointF::dotProduct(at - start, along) / length); },
+        [&](const QPointF& at) { return maskTone(cell.kind, 1.0 - maskCover(mask, at)); },
         cell.spacing * k_maskBarStep);
     return out;
 }
@@ -2024,14 +2044,48 @@ qreal fadedRound(const Paint& p, const FadeArm& h, const FadeArm& v, qreal reach
 
 } // namespace
 
-bool fades(const Paint& p)
+bool crossFades(const Paint& p)
 {
-    if (p.kind == Paint::Kind::Solid)
-        return false;
     for (const FadeArm& arm : k_fadeArms)
         if (p.*arm.from < 100.0)
             return true;
     return false;
+}
+
+bool fades(const Paint& p)
+{
+    return p.kind != Paint::Kind::Solid && crossFades(p);
+}
+
+QPainterPath fadeExtent(const Paint& p, const QRectF& body, bool ends)
+{
+    const QPointF centre = fadeCentre(p, body);
+    // Past anything drawn: an arm that does not fade reaches it. Far enough that a quarter ellipse this tall is
+    // straight across the body to well below a pixel.
+    const qreal far   = k_fadeExtentFar * (std::hypot(body.width(), body.height()) + 1.0);
+    const auto  reach = [&](const FadeArm& arm) {
+        if (p.*arm.from >= 100.0)
+            return far;
+        // Its end; past an end short of its start the tone is gone at the start (fadedAlong()).
+        return armReach(arm, body, centre) * (ends ? qMax(p.*arm.from, p.*arm.to) : p.*arm.from) / 100.0;
+    };
+    const qreal  left = reach(k_fadeArms[0]), right = reach(k_fadeArms[1]);
+    const qreal  top = reach(k_fadeArms[2]), bottom = reach(k_fadeArms[3]);
+    QPainterPath out;
+    out.setFillRule(Qt::WindingFill);
+    if (!p.fadeRound) {
+        out.addRect(QRectF(centre.x() - left, centre.y() - top, left + right, top + bottom));
+        return out;
+    }
+    // Each quarter of its own ellipse, as fadedRound() measures it: a pie from the centre, anticlockwise from the right.
+    const struct { qreal across, down, from; } quarters[] = {
+        {right, top, 0.0}, {left, top, 90.0}, {left, bottom, 180.0}, {right, bottom, 270.0}};
+    for (const auto& q : quarters) {
+        out.moveTo(centre);
+        out.arcTo(QRectF(centre.x() - q.across, centre.y() - q.down, 2.0 * q.across, 2.0 * q.down), q.from, 90.0);
+        out.closeSubpath();
+    }
+    return out;
 }
 
 qreal fadeTone(const Paint& p, const QRectF& body, const QPointF& at)
@@ -2048,10 +2102,117 @@ qreal fadeTone(const Paint& p, const QRectF& body, const QPointF& at)
     } else {
         const qreal fx = reachX > 0.0 ? fadedAlong(std::abs(d.x()) / reachX, p.*h.from, p.*h.to) : 0.0;
         const qreal fy = reachY > 0.0 ? fadedAlong(std::abs(d.y()) / reachY, p.*v.from, p.*v.to) : 0.0;
-        // As a distance: one arm alone is a straight fade, two neighbours round the corner between them.
-        faded = qMin(1.0, std::hypot(fx, fy));
+        // The larger: one arm alone is a straight fade, two neighbours keep the corner between them square.
+        faded = qMin(1.0, qMax(fx, fy));
     }
     return p.fadeReversed ? faded : 1.0 - faded;
+}
+
+Paint maskCross(const Mask& mask)
+{
+    Paint cross     = mask.tone;
+    cross.fadeRound = mask.shape == Mask::Fade::Ellipse;
+    return cross;
+}
+
+qreal maskCover(const Mask& mask, const QPointF& at)
+{
+    if (mask.shape == Mask::Fade::Linear) {
+        const std::optional<QLineF> fade = maskFade(mask);
+        if (!fade || fade->length() <= 0.0)
+            return 1.0;
+        const QPointF along = (fade->p2() - fade->p1()) / fade->length();
+        return 1.0 - std::clamp(QPointF::dotProduct(at - fade->p1(), along) / fade->length(), 0.0, 1.0);
+    }
+    if (mask.shape == Mask::Fade::Rectangle || mask.shape == Mask::Fade::Ellipse) {
+        const Paint cross = maskCross(mask);
+        if (crossFades(cross))
+            return fadeTone(cross, QRectF(mask.region.place.pos, QSizeF(mask.region.size)), at);
+    }
+    return 1.0;
+}
+
+QList<MaskShade> maskShades(const Mask& mask, quint32 seed)
+{
+    QList<MaskShade>   out;
+    const QPainterPath region = maskOutline(mask, seed);
+    if (region.isEmpty())
+        return out;
+    MaskShade whole;
+    whole.area.addRect(region.boundingRect());   // cut to the region by the writers
+
+    if (mask.shape == Mask::Fade::Linear) {
+        if (const std::optional<QLineF> fade = maskFade(mask); fade && fade->length() > 0.0) {
+            whole.kind = MaskShade::Kind::Linear;
+            whole.line = *fade;
+        }
+        return {whole};
+    }
+    const Paint cross = maskCross(mask);
+    if ((mask.shape != Mask::Fade::Rectangle && mask.shape != Mask::Fade::Ellipse) || !crossFades(cross))
+        return {whole};
+
+    // Quarter by quarter round the cross's centre, each the region within its quarter.
+    const QRectF  box(mask.region.place.pos, QSizeF(mask.region.size));
+    const QPointF c    = fadeCentre(cross, box);
+    const qreal   far  = k_fadeExtentFar * (std::hypot(box.width(), box.height()) + 1.0);
+    const qreal   from = cross.fadeReversed ? 0.0 : 1.0;   // hidden at the centre, or, turned over, past the ends
+    for (const QPoint q : {QPoint(1, -1), QPoint(-1, -1), QPoint(-1, 1), QPoint(1, 1)}) {
+        QPainterPath quarter;
+        quarter.addRect(QRectF(c, c + QPointF(q.x() * far, q.y() * far)).normalized());
+        MaskShade shade;
+        shade.area = quarter;   // cut to the region by the writers
+        shade.from = from;
+        shade.to   = 1.0 - from;
+        if (!region.intersects(quarter))
+            continue;
+        const FadeArm& h      = k_fadeArms[q.x() < 0 ? 0 : 1];
+        const FadeArm& v      = k_fadeArms[q.y() < 0 ? 2 : 3];
+        const bool     hFades = cross.*h.from < 100.0, vFades = cross.*v.from < 100.0;
+        // Each arm's start and end from the centre, an end short of its start a step there (fadedAlong()).
+        const auto span = [&](const FadeArm& arm) {
+            const qreal reach = armReach(arm, box, c);
+            const qreal start = reach * cross.*arm.from / 100.0;
+            return std::pair{start, qMax(reach * qMax(cross.*arm.from, cross.*arm.to) / 100.0, start + k_maskStepPx)};
+        };
+        const QPointF xAxis(q.x(), 0.0), yAxis(0.0, q.y());
+        const auto along = [&](const QPainterPath& area, const QPointF& axis, std::pair<qreal, qreal> s) {
+            MaskShade one = shade;
+            one.area      = area;
+            one.kind      = MaskShade::Kind::Linear;
+            one.line      = QLineF(c + axis * s.first, c + axis * s.second);
+            return one;
+        };
+        if (!hFades && !vFades) {
+            shade.to = shade.from;   // neither arm fades here: as at the centre
+            out.append(shade);
+        } else if (hFades != vFades) {
+            out.append(hFades ? along(shade.area, xAxis, span(h)) : along(shade.area, yAxis, span(v)));
+        } else if (!cross.fadeRound) {
+            // The larger way out is the tone: split where the two are equal, the line through the starts' corner
+            // and the ends' corner; the side nearer the horizontal arm fades along it, the other along the vertical.
+            const auto [sx, ex] = span(h);
+            const auto [sy, ey] = span(v);
+            const QPointF corner = c + QPointF(q.x() * sx, q.y() * sy);
+            const QPointF slope(q.x() * (ex - sx), q.y() * (ey - sy));
+            const qreal   run    = far / qMax(std::abs(slope.x()), k_maskStepPx);
+            QPainterPath  nearX;
+            nearX.addPolygon(QPolygonF{c, c + QPointF(q.x() * far, 0.0), corner + slope * run,
+                                       corner, QPointF(c.x(), corner.y())});
+            nearX.closeSubpath();
+            out.append(along(quarter.intersected(nearX), xAxis, {sx, ex}));
+            out.append(along(quarter.subtracted(nearX), yAxis, {sy, ey}));
+        } else {
+            const auto [sx, ex] = span(h);
+            const auto [sy, ey] = span(v);
+            shade.kind   = MaskShade::Kind::Radial;
+            shade.centre = c;
+            shade.axes   = QSizeF(ex, ey);
+            shade.start  = (sx / ex + sy / ey) / 2.0;
+            out.append(shade);
+        }
+    }
+    return out;
 }
 
 QPainterPath fillTone(const Balloon& b, const QPainterPath& silhouette)
@@ -2068,7 +2229,7 @@ QPainterPath fillTone(const Balloon& b, const QPainterPath& silhouette)
 QList<Handle> fadeHandles(const Paint& p, const QRectF& body)
 {
     QList<Handle> out;
-    if (p.kind == Paint::Kind::Solid || body.isEmpty())
+    if (body.isEmpty())
         return out;
     const QPointF centre = fadeCentre(p, body);
     // Every start before every end: where the two sit together (a side that does not fade), a press takes

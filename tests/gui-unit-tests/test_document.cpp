@@ -196,6 +196,7 @@ TEST(Edits, AMaskCoversTheRightThirdAndThereIsOne)
     EXPECT_LT(region.top(), frame.top());
     EXPECT_GT(region.bottom(), frame.bottom());
     ASSERT_TRUE(a.mask->fade);
+    EXPECT_EQ(a.mask->shape, Mask::Fade::Linear);
     constexpr qreal k_px = 1e-9;
     const QLineF    fade = *Geometry::maskFade(*a.mask);
     EXPECT_NEAR(fade.x1(), frame.right(), k_px) << "hidden wholly from the frame's right edge";

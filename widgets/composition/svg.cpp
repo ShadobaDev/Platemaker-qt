@@ -288,13 +288,14 @@ QString itemsOf(const QList<Render::Item>& items, const QString& indent)
 const QString k_maskId        = QStringLiteral("pm-mask");
 const QString k_maskFadeId    = QStringLiteral("pm-mask-fade");
 const QString k_maskFeatherId = QStringLiteral("pm-mask-feather");
+const QString k_maskClipId    = QStringLiteral("pm-mask-clip");
 
 /**
  * \brief @p c's mask defined over @p area (the viewBox) as k_maskId, or nothing without one.
  *
- * A luminance mask: white keeps, black hides. Its region is black, or a gradient from black at the fade's start
- * to white at its end, or with a patterned transition black up to the fade's end and the pattern's marks white
- * over it (Geometry::maskMarks()); blurred by the feather. Kept inside (Mask::keepInside), black and white swap: the
+ * A luminance mask: white keeps, black hides. Its region is black, or its shades (Geometry::maskShades(): its
+ * line's gradient, or its cross's, quarter by quarter, linear and radial), or with a pattern black where it hides
+ * and the pattern's marks white over it (Geometry::maskMarks()); blurred by the feather. Kept inside (Mask::keepInside), black and white swap: the
  * whole viewBox black, the region white. The mask and the blur cover the whole viewBox in user space, so
  * neither is cut at the region's box, as SVG's default regions (the element's box and a tenth round it) would.
  */
@@ -311,15 +312,45 @@ QString maskDefs(const Composition& c, const QRectF& area)
     // What hides and what keeps: black and white, or the other way round to keep what is inside.
     const QString hide = c.mask->keepInside ? QStringLiteral("white") : QStringLiteral("black");
     const QString keep = c.mask->keepInside ? QStringLiteral("black") : QStringLiteral("white");
-    QString fill = hide;
+    // The fade: a pattern's marks over where it hides, or its shades (Geometry::maskShades()), each solid or a
+    // gradient of its own, from how much it hides at the gradient's start to how much at its end.
+    const auto colourOf = [&](qreal hidden) { return hidden >= 0.5 ? hide : keep; };
+    QString shapes;
     const Geometry::MaskMarks marks = Geometry::maskMarks(*c.mask, c.seed);
-    if (const auto fade = Geometry::maskFade(*c.mask); fade && marks.hidden.isEmpty()) {
-        d += QStringLiteral("    <linearGradient id=\"%1\" gradientUnits=\"userSpaceOnUse\" "
-                            "x1=\"%2\" y1=\"%3\" x2=\"%4\" y2=\"%5\">"
-                            "<stop offset=\"0\" stop-color=\"%6\"/><stop offset=\"1\" stop-color=\"%7\"/>"
-                            "</linearGradient>\n")
-                 .arg(k_maskFadeId, num(fade->x1()), num(fade->y1()), num(fade->x2()), num(fade->y2()), hide, keep);
-        fill = QStringLiteral("url(#%1)").arg(k_maskFadeId);
+    if (!marks.hidden.isEmpty()) {
+        shapes = QStringLiteral("<path d=\"%1\" fill-rule=\"%2\" fill=\"%4\"/><path d=\"%3\" fill-rule=\"nonzero\" fill=\"%5\"/>")
+                     .arg(pathData(marks.hidden), fillRule(marks.hidden), pathData(marks.shown), hide, keep);
+    } else {
+        int n = 0;
+        for (const Geometry::MaskShade& s : Geometry::maskShades(*c.mask, c.seed)) {
+            QString fill = colourOf(s.from);
+            const QString id = QStringLiteral("%1-%2").arg(k_maskFadeId).arg(n++);
+            if (s.kind == Geometry::MaskShade::Kind::Linear) {
+                d += QStringLiteral("    <linearGradient id=\"%1\" gradientUnits=\"userSpaceOnUse\" "
+                                    "x1=\"%2\" y1=\"%3\" x2=\"%4\" y2=\"%5\">"
+                                    "<stop offset=\"0\" stop-color=\"%6\"/><stop offset=\"1\" stop-color=\"%7\"/>"
+                                    "</linearGradient>\n")
+                         .arg(id, num(s.line.x1()), num(s.line.y1()), num(s.line.x2()), num(s.line.y2()),
+                              colourOf(s.from), colourOf(s.to));
+                fill = QStringLiteral("url(#%1)").arg(id);
+            } else if (s.kind == Geometry::MaskShade::Kind::Radial) {
+                // A unit circle at the origin, scaled to the ends' ellipse and moved to its centre.
+                d += QStringLiteral("    <radialGradient id=\"%1\" gradientUnits=\"userSpaceOnUse\" cx=\"0\" cy=\"0\" r=\"1\" "
+                                    "gradientTransform=\"matrix(%2 0 0 %3 %4 %5)\">"
+                                    "<stop offset=\"0\" stop-color=\"%6\"/><stop offset=\"%8\" stop-color=\"%6\"/>"
+                                    "<stop offset=\"1\" stop-color=\"%7\"/></radialGradient>\n")
+                         .arg(id, num(s.axes.width()), num(s.axes.height()), num(s.centre.x()), num(s.centre.y()),
+                              colourOf(s.from), colourOf(s.to), num(s.start));
+                fill = QStringLiteral("url(#%1)").arg(id);
+            }
+            // Unsmoothed: where two meet their tone is the same, and smoothed edges would leave a seam there.
+            shapes += QStringLiteral("<path d=\"%1\" fill-rule=\"%2\" fill=\"%3\" shape-rendering=\"crispEdges\"/>")
+                          .arg(pathData(s.area), fillRule(s.area), fill);
+        }
+        // ...and the whole cut to the region, smoothed.
+        d += QStringLiteral("    <clipPath id=\"%1\"><path d=\"%2\" clip-rule=\"%3\"/></clipPath>\n")
+                 .arg(k_maskClipId, pathData(region), fillRule(region));
+        shapes = QStringLiteral("<g clip-path=\"url(#%1)\">%2</g>").arg(k_maskClipId, shapes);
     }
     QString filter;
     if (c.mask->feather > 0.0) {
@@ -328,12 +359,7 @@ QString maskDefs(const Composition& c, const QRectF& area)
                  .arg(k_maskFeatherId, box, num(c.mask->feather));
         filter = QStringLiteral(" filter=\"url(#%1)\"").arg(k_maskFeatherId);
     }
-    const QString hidden = marks.hidden.isEmpty()
-        ? QStringLiteral("<path d=\"%1\" fill-rule=\"%2\" fill=\"%3\"%4/>")
-              .arg(pathData(region), fillRule(region), fill, filter)
-        : QStringLiteral("<g%1><path d=\"%2\" fill-rule=\"%3\" fill=\"%5\"/>"
-                         "<path d=\"%4\" fill-rule=\"nonzero\" fill=\"%6\"/></g>")
-              .arg(filter, pathData(marks.hidden), fillRule(marks.hidden), pathData(marks.shown), hide, keep);
+    const QString hidden = QStringLiteral("<g%1>%2</g>").arg(filter, shapes);
     d += QStringLiteral("    <mask id=\"%1\" maskUnits=\"userSpaceOnUse\" %2><rect %2 fill=\"%4\"/>%3</mask>\n")
              .arg(k_maskId, box, hidden, keep);
     return d + QStringLiteral("  </defs>\n");

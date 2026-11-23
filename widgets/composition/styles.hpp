@@ -158,17 +158,58 @@ struct PatternCell
 [[nodiscard]] QPainterPath halftoneMarks(const Paint& p, const QRectF& area,
                                          const std::function<qreal(const QPointF&)>& tone, qreal step);
 
-//! What a mask with a patterned transition hides (maskMarks()), in the composition's frame.
+/**
+ * \brief Part of a smooth mask: an area, and how much it hides there (1 wholly, 0 nothing), evenly or along a
+ *        gradient SVG and QPainter both draw. maskShades() gives them; the SVG writes them into its mask, the painter
+ *        cuts them from the object.
+ *
+ * The areas are not cut to the mask's region: the writers draw them without smoothing their edges and cut the
+ * whole to the region, smoothed. Where two areas meet their tone is the same, so the unsmoothed edge between them
+ * cannot be seen, where two smoothed edges would leave a seam of half coverage twice.
+ */
+struct MaskShade
+{
+    enum class Kind { Solid, Linear, Radial };
+    QPainterPath area;
+    Kind         kind = Kind::Solid;
+    qreal        from = 1.0;   //!< Hidden at the gradient's start (Solid: everywhere).
+    qreal        to   = 0.0;   //!< ...and at its end, and past it.
+    QLineF       line;         //!< Linear: from its start to its end.
+    QPointF      centre;       //!< Radial: the ellipses' centre...
+    QSizeF       axes;         //!< ...the end's half-axes...
+    qreal        start = 0.0;  //!< ...and where the fade starts, as a fraction of them.
+};
+
+//! @p mask's tone as its cross: its `fade…` fields, round when its shape is Ellipse.
+[[nodiscard]] Paint maskCross(const Mask& mask);
+
+/**
+ * \brief How much @p mask hides at @p at inside its region, 1 to 0, smoothly: by its line (Linear), by its cross
+ *        (Rectangle, Ellipse; fadeTone()), wholly with no fade. A pattern's marks are not counted.
+ */
+[[nodiscard]] qreal maskCover(const Mask& mask, const QPointF& at);
+
+/**
+ * \brief @p mask drawn smoothly: its region hiding wholly; or along its line; or, by its cross, quarter by
+ *        quarter round the cross's centre: a quarter with one arm fading a linear gradient along it; with both, a
+ *        Rectangle's split along the line through the two arms' starts and ends into two linear gradients (exact:
+ *        the larger way out is the tone), an Ellipse's a radial gradient on the ends' ellipse (exact when both arms
+ *        start at the same fraction of their ends, else started at the two fractions' mean).
+ */
+[[nodiscard]] QList<MaskShade> maskShades(const Mask& mask, quint32 seed);
+
+//! What a mask with a pattern hides (maskMarks()), in the composition's frame.
 struct MaskMarks
 {
-    QPainterPath hidden;   //!< The region up to the fade's end: past it nothing is hidden.
+    QPainterPath hidden;   //!< The region where its cross hides anything (fadeExtent()): past it nothing is hidden.
     QPainterPath shown;    //!< The pattern's marks over it, which show what they cover: non-zero filled.
 };
 
 /**
- * \brief A mask's patterned transition: the region up to its fade's end hidden, less the marks of its pattern
- *        (halftoneMarks()), which grow along the fade from nothing at its start until they meet at its end. Empty
- *        for a smooth transition, or a mask with no fade.
+ * \brief A mask's pattern: the region hidden where its fade hides anything (before its line's end, or inside its
+ *        cross's reach), less the marks of the pattern (halftoneMarks()), which grow from nothing where it hides
+ *        wholly until they meet where it hides nothing (maskCover()). Empty for a smooth mask, or one that does not
+ *        fade: those are maskShades().
  *
  * What the mask leaves of its object breaks into that pattern: a halftone's dots, a hatch's lines, a
  * cross-hatch's grid. The SVG draws `hidden` black and `shown` white in its mask; the painter takes `hidden` less
@@ -176,13 +217,24 @@ struct MaskMarks
  */
 [[nodiscard]] MaskMarks maskMarks(const Mask& mask, quint32 seed);
 
-//! @p p's pattern fades by its cross (an arm's start short of its side): drawn as halftoneMarks(), not a tile.
+//! @p p's cross fades: an arm's start short of its side, whatever its kind.
+[[nodiscard]] bool crossFades(const Paint& p);
+
+//! @p p's pattern fades by its cross (crossFades()): drawn as halftoneMarks(), not a tile.
 [[nodiscard]] bool fades(const Paint& p);
+
+/**
+ * \brief Where @p p's cross on @p body reaches: up to its arms' ends (@p ends), so its tone is above nothing
+ *        inside; or up to their starts, so its tone is whole inside. A rectangle, or, round, four quarters of
+ *        ellipses; an arm that does not fade reaches as far as anything is drawn.
+ */
+[[nodiscard]] QPainterPath fadeExtent(const Paint& p, const QRectF& body, bool ends);
 
 /**
  * \brief How much of @p p's pattern is left at @p at, 1 to 0, by its fade's cross on @p body (the balloon's
  *        rectangle, balloonRect()): along each arm from the cross's centre, whole up to its start and gone
- *        past its end, the two directions combined as a distance; the other way round when reversed. Laid
+ *        past its end, the two directions combined by the larger (a rectangle, its corners square), or on
+ *        ellipses when round; the other way round when reversed. Laid
  *        on the balloon, so moving a tail does not move it.
  */
 [[nodiscard]] qreal fadeTone(const Paint& p, const QRectF& body, const QPointF& at);
@@ -193,11 +245,6 @@ struct MaskMarks
  */
 [[nodiscard]] QPainterPath fillTone(const Balloon& b, const QPainterPath& silhouette);
 
-/**
- * \brief The fade's cross for @p p on @p body, as shape-editing handles: on each arm a dot where the fade
- *        starts and one where it ends, then the centre; none for a solid Paint. At rest every dot is on
- *        its side, which is no fade, wherever the centre is.
- */
 //! The fade's handles (fadeHandles()), told apart by Handle::part.
 enum class FadePart {
     From,     //!< Side `index` (left, right, top, bottom): where it starts.
@@ -205,6 +252,11 @@ enum class FadePart {
     Centre,   //!< The cross's centre.
 };
 
+/**
+ * \brief The fade's cross for @p p on @p body, as shape-editing handles: on each arm a dot where the fade
+ *        starts and one where it ends, then the centre, whatever @p p's kind (a fill asks only with a pattern).
+ *        At rest every dot is on its side, which is no fade, wherever the centre is.
+ */
 [[nodiscard]] QList<Handle> fadeHandles(const Paint& p, const QRectF& body);
 
 //! @p p with fade @p handle dragged to @p to (balloon coordinates): fadeHandles()' inverse.

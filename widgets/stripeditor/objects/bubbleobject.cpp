@@ -184,7 +184,7 @@ bool BubbleObject::canEditShape() const
     // with no handles of its own is edited for those.
     // Lettering has the curve it is bent along, or would be: a bare text object's too.
     if (const Mask* m = pickedMask())
-        return Geometry::hasShapeHandles(m->region.shape) || m->shape != Mask::Fade::None;   // its fade's
+        return Geometry::hasShapeHandles(*m);
     const Body* body = bodyOf(m_composition, pickedBody());
     return lettered(m_composition)
         || (body

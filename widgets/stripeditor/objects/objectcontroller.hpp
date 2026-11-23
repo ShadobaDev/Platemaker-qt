@@ -135,7 +135,7 @@ public:
     void selectWords(const QString& uid, int id);
     //! Selects body @p id of balloon @p uid, one bubble of several, the Shape section its own; the balloon when it is gone.
     void selectBody(const QString& uid, int id);
-    //! Selects object @p uid's own mask, its region @p id, the Shape and Mask sections its own; the object when it is gone.
+    //! Selects object @p uid's own mask, its id @p id, the Shape and Mask sections its own; the object when it is gone.
     void selectMask(const QString& uid, int id);
     //! Esc: from words, a bubble or a mask picked on its own back to their object; whether there was one to leave.
     bool leaveElement();

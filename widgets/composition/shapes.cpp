@@ -1104,6 +1104,13 @@ bool hasShapeHandles(const ShapeProperties& shape)
     return shapeInfo(shape.kind).handles != nullptr || edgeInfo(shape.edge).modulate != nullptr;
 }
 
+bool hasShapeHandles(const Mask& mask)
+{
+    return mask.shape != Mask::Fade::None
+        || std::any_of(mask.regions.cbegin(), mask.regions.cend(),
+                       [](const Body& r) { return hasShapeHandles(r.shape); });
+}
+
 QList<Handle> shapeHandles(const ShapeProperties& shape, const QRectF& body, qreal clearance, int picked)
 {
     const ShapeInfo&   info = shapeInfo(shape.kind);
@@ -1270,14 +1277,32 @@ QPointF anchorAt(const QRectF& rect, const QPointF& anchor)
 
 QPainterPath maskOutline(const Mask& mask, quint32 seed)
 {
-    return outlineOf(mask.region, QRectF(mask.region.place.pos, QSizeF(mask.region.size)), seed);
+    // They lie apart (Mask::regions), each a subpath of its own; the first's fill rule kept, so one region's
+    // outline is its own.
+    QPainterPath out;
+    for (const Body& r : mask.regions) {
+        const QPainterPath one = outlineOf(r, QRectF(r.place.pos, QSizeF(r.size)), seed);
+        if (out.isEmpty())
+            out = one;
+        else
+            out.addPath(one);
+    }
+    return out;
+}
+
+QRectF maskBox(const Mask& mask)
+{
+    QRectF box;
+    for (const Body& r : mask.regions)
+        box = box.united(QRectF(r.place.pos, QSizeF(r.size)));
+    return box;
 }
 
 std::optional<QLineF> maskFade(const Mask& mask)
 {
     if (!mask.fade || mask.shape != Mask::Fade::Linear)
         return std::nullopt;
-    const QRectF box(mask.region.place.pos, QSizeF(mask.region.size));
+    const QRectF box = maskBox(mask);
     return QLineF(anchorAt(box, mask.fade->p1()), anchorAt(box, mask.fade->p2()));
 }
 

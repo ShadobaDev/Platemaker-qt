@@ -317,7 +317,7 @@ bool ObjectController::hasBody(const ElementRef& ref) const
 bool ObjectController::hasMask(const ElementRef& ref) const
 {
     const Object* item = m_overlayItems.value(ref.object);
-    return item && item->composition().mask && item->composition().mask->region.id == ref.element;
+    return item && item->composition().mask && item->composition().mask->id == ref.element;
 }
 
 bool ObjectController::hasWords(const ElementRef& ref) const
@@ -372,7 +372,7 @@ void ObjectController::onObjectPressed(const QString& uid, int handle)
         handle < 0 && !add && item && item->dragGrip() == Grip::Body && m_selection.objects() == QStringList{uid}
         && m_selection.subject() != Subject::Mask && item->composition().mask
         && Geometry::maskHidesAt(item->composition(), item->mapFromScene(item->pressScenePos()))) {
-        selectMask(uid, item->composition().mask->region.id);
+        selectMask(uid, item->composition().mask->id);
         beginDrag(uid, handle);
         return;
     }

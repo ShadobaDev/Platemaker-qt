@@ -277,15 +277,18 @@ int addMask(Composition& c)
     const qreal  past   = qRound(qMin(frame.width(), frame.height()) * k_newMaskOverhang);
     const QRectF region(frame.right() - inside, frame.top() - past, inside + past, frame.height() + 2 * past);
     Mask m;
-    m.region.id    = c.nextId++;
-    m.region.place = Place{region.topLeft()};
-    m.region.size  = region.size().toSize();
-    m.region.shape.corner.radius = 0.0;
+    m.id = c.nextId++;
+    Body r;
+    r.id                  = c.nextId++;
+    r.place               = Place{region.topLeft()};
+    r.size                = region.size().toSize();
+    r.shape.corner.radius = 0.0;
+    m.regions.append(r);
     // Hidden wholly from the frame's right edge on, not at all at the region's left.
     m.shape = Mask::Fade::Linear;
     m.fade  = QLineF(inside / region.width(), 0.5, 0.0, 0.5);
     c.mask = m;
-    return m.region.id;
+    return m.id;
 }
 
 bool removeMask(Composition& c)

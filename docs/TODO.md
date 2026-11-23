@@ -598,6 +598,10 @@ New, backward-compatible features. Several are gated on a lib version, noted in 
     fade** of the mask, so its edge can fade out instead of cutting hard.
   - **Lib gate:** rendering and the stored form of the mask belong to libplatemaker — see *Mask object*
     in its `docs/TODO.md`.
+  - **Snapping a traced node to the page's ink.** While a mask's node is dragged in shape editing, it
+    jumps onto the nearest edge of the page's ink within a few screen pixels, so a region traced along a
+    panel's frame lies exactly on it. It helps only along a continuous line: on a ragged or broken
+    outline (hair, sketchy ink) the node would jump between strands.
 
 ---
 

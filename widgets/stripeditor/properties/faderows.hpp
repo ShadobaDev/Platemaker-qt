@@ -8,6 +8,7 @@
 #include <QComboBox>
 #include <QCoreApplication>
 #include <QFormLayout>
+#include <QStandardItemModel>
 
 #include <array>
 #include <cmath>
@@ -42,6 +43,9 @@ public:
     {
         m_anchor = new QComboBox(owner);
         m_anchor->addItem(QCoreApplication::translate(k_trContext, "Custom"));   // dragged elsewhere: no anchor
+        // Shown, not picked: the cross is put elsewhere by dragging its centre.
+        if (auto* model = qobject_cast<QStandardItemModel*>(m_anchor->model()))
+            model->item(0)->setEnabled(false);
         for (const Anchor& a : k_anchors)
             m_anchor->addItem(QCoreApplication::translate(k_trContext, a.name), QPointF(a.x, a.y));
         m_anchor->setToolTip(QCoreApplication::translate(k_trContext,

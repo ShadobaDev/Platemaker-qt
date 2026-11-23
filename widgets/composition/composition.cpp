@@ -276,19 +276,29 @@ QPointF sizedCorner(const Composition& c)
     return w ? w->place.pos : QPointF();
 }
 
-//! @p mask's region scaled as a box at @p corner goes from @p was to @p now, from that corner.
+//! @p mask's regions scaled as a box at @p corner goes from @p was to @p now, from that corner.
 void scaleMask(Mask& mask, const QPointF& corner, const QSize& was, const QSize& now)
 {
     if (was.isEmpty())
         return;
-    const qreal sx    = qreal(now.width()) / was.width();
-    const qreal sy    = qreal(now.height()) / was.height();
-    const QPointF off = mask.region.place.pos - corner;
-    mask.region.place.pos = corner + QPointF(off.x() * sx, off.y() * sy);
-    mask.region.size      = QSize(qRound(mask.region.size.width() * sx), qRound(mask.region.size.height() * sy));
+    const qreal sx = qreal(now.width()) / was.width();
+    const qreal sy = qreal(now.height()) / was.height();
+    for (Body& r : mask.regions) {
+        const QPointF off = r.place.pos - corner;
+        r.place.pos       = corner + QPointF(off.x() * sx, off.y() * sy);
+        r.size            = QSize(qRound(r.size.width() * sx), qRound(r.size.height() * sy));
+    }
 }
 
 }  // namespace
+
+void resizeMask(Mask& mask, const QRectF& to)
+{
+    const QRectF was = Geometry::maskBox(mask);
+    scaleMask(mask, was.topLeft(), was.size().toSize(), to.size().toSize());
+    for (Body& r : mask.regions)
+        r.place.pos += to.topLeft() - was.topLeft();
+}
 
 void resize(Composition& c, const QSize& size)
 {
@@ -667,12 +677,15 @@ QJsonObject toJson(const Composition& c)
     j.insert(QStringLiteral("words"), words);
     if (c.mask) {
         const Mask& m = *c.mask;
-        QJsonObject o{
-            {QStringLiteral("id"),    m.region.id},
-            {QStringLiteral("place"), placeToJson(m.region.place)},
-            {QStringLiteral("size"),  sizeToJson(m.region.size)},
-            {QStringLiteral("shape"), toJson(m.region.shape)},
-        };
+        QJsonArray regions;
+        for (const Body& r : m.regions)
+            regions.append(QJsonObject{
+                {QStringLiteral("id"),    r.id},
+                {QStringLiteral("place"), placeToJson(r.place)},
+                {QStringLiteral("size"),  sizeToJson(r.size)},
+                {QStringLiteral("shape"), toJson(r.shape)},
+            });
+        QJsonObject o{{QStringLiteral("id"), m.id}, {QStringLiteral("regions"), regions}};
         if (m.feather != 0.0)
             o.insert(QStringLiteral("feather"), m.feather);
         if (m.fade)
@@ -761,11 +774,17 @@ Composition compositionFromJson(const QJsonObject& j)
     }
     if (const QJsonObject o = j.value(QStringLiteral("mask")).toObject(); !o.isEmpty()) {
         Mask m;
-        m.region.id    = id(o);
-        m.region.place = placeFromJson(o.value(QStringLiteral("place")).toObject());
-        sizeFromJson(o.value(QStringLiteral("size")), m.region.size);
-        m.region.shape = shapeFromJson(o.value(QStringLiteral("shape")).toObject());
-        m.feather      = o.value(QStringLiteral("feather")).toDouble(0.0);
+        m.id = id(o);
+        for (const QJsonValue v : o.value(QStringLiteral("regions")).toArray()) {
+            const QJsonObject r = v.toObject();
+            Body              b;
+            b.id    = id(r);
+            b.place = placeFromJson(r.value(QStringLiteral("place")).toObject());
+            sizeFromJson(r.value(QStringLiteral("size")), b.size);
+            b.shape = shapeFromJson(r.value(QStringLiteral("shape")).toObject());
+            m.regions.append(b);
+        }
+        m.feather = o.value(QStringLiteral("feather")).toDouble(0.0);
         if (const QJsonArray f = o.value(QStringLiteral("fade")).toArray(); f.size() == 4)
             m.fade = QLineF(f.at(0).toDouble(), f.at(1).toDouble(), f.at(2).toDouble(), f.at(3).toDouble());
         if (const QJsonObject t = o.value(QStringLiteral("tone")).toObject(); !t.isEmpty()) {
@@ -782,7 +801,8 @@ Composition compositionFromJson(const QJsonObject& j)
         }
         m.keepInside = o.value(QStringLiteral("keepInside")).toBool(false);
         m.shape      = maskFadeFromName(o.value(QStringLiteral("fadeShape")).toString());
-        c.mask = m;
+        if (!m.regions.isEmpty())   // a mask with nowhere to hide is none
+            c.mask = m;
     }
     const QJsonObject preset = j.value(QStringLiteral("preset")).toObject();
     c.preset = {preset.value(QStringLiteral("uid")).toString(), preset.value(QStringLiteral("name")).toString()};
@@ -831,10 +851,30 @@ auto* bodyById(C& c, int id)
 const Body* bodyOf(const Composition& c, int id) { return bodyById(c, id); }
 Body*       bodyOf(Composition& c, int id) { return bodyById(c, id); }
 
+namespace {
+
+template <class C>
+auto regionById(C& c, int id) -> decltype(&c.mask->regions.first())
+{
+    if (!c.mask || id == 0)
+        return nullptr;
+    if (id == c.mask->id)
+        return c.mask->regions.size() == 1 ? &c.mask->regions.first() : nullptr;
+    for (auto& r : c.mask->regions)
+        if (r.id == id)
+            return &r;
+    return nullptr;
+}
+
+} // namespace
+
+const Body* maskRegion(const Composition& c, int id) { return regionById(c, id); }
+Body*       maskRegion(Composition& c, int id) { return regionById(c, id); }
+
 ShapeProperties ShapeProperties::from(const Composition& c, int body)
 {
-    if (c.mask && body != 0 && c.mask->region.id == body)
-        return c.mask->region.shape;
+    if (const Body* r = maskRegion(c, body))
+        return r->shape;
     if (const Body* b = bodyById(c, body))
         return b->shape;
     ShapeProperties none;
@@ -844,8 +884,8 @@ ShapeProperties ShapeProperties::from(const Composition& c, int body)
 
 void ShapeProperties::applyTo(Composition& c, int body) const
 {
-    if (c.mask && body != 0 && c.mask->region.id == body)
-        c.mask->region.shape = *this;
+    if (Body* r = maskRegion(c, body))
+        r->shape = *this;
     else if (Body* b = bodyById(c, body))
         b->shape = *this;
 }

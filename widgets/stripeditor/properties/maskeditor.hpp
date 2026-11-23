@@ -20,9 +20,9 @@ namespace StripEdit {
  * \brief An object's own mask: whether it keeps or hides, how soft its edge is, and how it fades: smoothly along a
  *        line, or through a pattern faded by the fill's cross (FadeRows).
  *
- * Its region's shape is the Shape section's (ShapeProperties reaches the mask's region), and where the fade runs
- * is dragged on the strip in shape editing; this editor owns the rest of `Mask`. applyTo() writes nothing to a
- * composition with no mask.
+ * Its region's shape is the Shape section's while it has one (ShapeProperties reaches it by the mask's id), and
+ * where the fade runs is dragged on the strip in shape editing; this editor owns the rest of `Mask`. applyTo()
+ * writes nothing to a composition with no mask.
  */
 class MaskEditor : public PropertyGroupEditor
 {

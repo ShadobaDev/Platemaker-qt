@@ -550,7 +550,7 @@ void ObjectState::setMask(const Composition& a, int id)
     setComposition(a);   // the object's state, then narrowed to its mask
     m_maskId     = id;
     m_populating = true;
-    m_groups.shape()->setBody(id);   // the region's shape (ShapeProperties::from())
+    m_groups.shape()->setBody(id);   // the region's shape, if it has one alone (ShapeProperties::from())
     m_groups.shape()->bindOne(m_composition);
     m_mask->bindOne(m_composition);
     m_populating = false;
@@ -615,7 +615,9 @@ void ObjectState::applyKindVisibility()
         // answers, through the same rule a set is measured by.
         it.value()->setVisible(tailSubject() ? g == PropertyGroup::TailItem
                                : m_wordsId != 0 ? g == PropertyGroup::Text
-                               : m_maskId != 0  ? g == PropertyGroup::Shape || g == PropertyGroup::Mask
+                               // A mask's Shape while it has one region: several are each their own.
+                               : m_maskId != 0  ? (g == PropertyGroup::Shape && maskRegion(m_composition, m_maskId))
+                                                      || g == PropertyGroup::Mask
                                : m_bodyId != 0  ? g == PropertyGroup::Shape || g == PropertyGroup::Tail
                                                 : carriesGroup(m_composition, g));
     }

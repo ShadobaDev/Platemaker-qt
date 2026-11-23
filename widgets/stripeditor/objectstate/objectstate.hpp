@@ -82,7 +82,8 @@ public:
      * the whole composition, with only that body's shape and tails written.
      */
     void setBody(const Composition& a, int id);
-    //! The object's own mask picked, its region @p id of @p a: the Shape section its region's, the Mask section its own.
+    //! The object's own mask picked, its id @p id of @p a: the Shape section its region's while it has one, the Mask
+    //! section its own.
     void setMask(const Composition& a, int id);
 
     /**
@@ -187,7 +188,7 @@ private:
     [[nodiscard]] bool tailSubject() const { return m_tailIndex >= 0 || !m_tailSet.isEmpty(); }
     int m_wordsId = 0;   //!< The words on show (their id), or 0 when the subject is not words picked on their own.
     int m_bodyId  = 0;   //!< The body on show (its id), or 0 when the subject is not a body picked on its own.
-    int m_maskId  = 0;   //!< The mask on show (its region's id), or 0 when the subject is not a mask.
+    int m_maskId  = 0;   //!< The mask on show (its id), or 0 when the subject is not a mask.
 
     QLabel*             m_subject   = nullptr;  //!< Names what is being edited.
     QHBoxLayout*        m_header    = nullptr;  //!< The subject and, after it, the look chip.

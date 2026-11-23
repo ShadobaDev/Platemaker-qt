@@ -1829,7 +1829,7 @@ MaskMarks maskMarks(const Mask& mask, quint32 seed)
 
     // Where the fade hides anything: before its line's end, or inside its cross's ends (outside its starts when
     // turned over). Past it nothing is hidden, where marks that meet would leave seams.
-    const QRectF box(mask.region.place.pos, QSizeF(mask.region.size));
+    const QRectF box = maskBox(mask);
     if (mask.shape == Mask::Fade::Linear) {
         const std::optional<QLineF> fade = maskFade(mask);
         if (!fade || fade->length() <= 0.0)
@@ -2127,7 +2127,7 @@ qreal maskCover(const Mask& mask, const QPointF& at)
     if (mask.shape == Mask::Fade::Rectangle || mask.shape == Mask::Fade::Ellipse) {
         const Paint cross = maskCross(mask);
         if (crossFades(cross))
-            return fadeTone(cross, QRectF(mask.region.place.pos, QSizeF(mask.region.size)), at);
+            return fadeTone(cross, maskBox(mask), at);
     }
     return 1.0;
 }
@@ -2153,7 +2153,7 @@ QList<MaskShade> maskShades(const Mask& mask, quint32 seed)
         return {whole};
 
     // Quarter by quarter round the cross's centre, each the region within its quarter.
-    const QRectF  box(mask.region.place.pos, QSizeF(mask.region.size));
+    const QRectF  box = maskBox(mask);
     const QPointF c    = fadeCentre(cross, box);
     const qreal   far  = k_fadeExtentFar * (std::hypot(box.width(), box.height()) + 1.0);
     const qreal   from = cross.fadeReversed ? 0.0 : 1.0;   // hidden at the centre, or, turned over, past the ends
@@ -2226,7 +2226,7 @@ QPainterPath fillTone(const Balloon& b, const QPainterPath& silhouette)
                          qMax(p.spacing, k_minPatternSpacing) / 2.0);
 }
 
-QList<Handle> fadeHandles(const Paint& p, const QRectF& body)
+QList<Handle> fadeHandles(const Paint& p, const QRectF& body, qreal clearance)
 {
     QList<Handle> out;
     if (body.isEmpty())
@@ -2237,20 +2237,27 @@ QList<Handle> fadeHandles(const Paint& p, const QRectF& body)
     const auto point = [&](const FadeArm& arm, qreal pct) {
         return centre + arm.axis * armReach(arm, body, centre) * pct / 100.0;
     };
+    // Kept clear of the centre, so a press there is the centre's.
+    const auto drawn = [&](const FadeArm& arm, qreal pct) {
+        const qreal reach = armReach(arm, body, centre);
+        return centre + arm.axis * qMax(reach * pct / 100.0, qMin(clearance, reach));
+    };
     for (const FadePart part : {FadePart::From, FadePart::To})
         for (int i = 0; i < int(k_fadeArms.size()); ++i) {
             const FadeArm& arm = k_fadeArms[size_t(i)];
-            Handle         h;
+            if (armReach(arm, body, centre) <= 0.0)
+                continue;   // the centre on this side: nothing to drag along (dragFadeHandle())
+            Handle h;
             h.part   = int(part);
             h.index  = i;
-            h.at     = point(arm, p.*(part == FadePart::From ? arm.from : arm.to));
+            h.at     = drawn(arm, p.*(part == FadePart::From ? arm.from : arm.to));
             h.axis   = arm.axis;
             h.origin = centre;
             h.glyph  = part == FadePart::From ? Handle::Glyph::FadeStart : Handle::Glyph::FadeEnd;
             h.start  = point(arm, p.*arm.from);
             out.append(h);
         }
-    // The centre last: a start pulled all the way in sits on it, and must still come out again.
+    // The centre last: under the dots, which keep clear of it.
     Handle middle;
     middle.part   = int(FadePart::Centre);
     middle.at     = centre;

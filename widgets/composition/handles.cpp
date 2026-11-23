@@ -16,11 +16,11 @@ namespace {
 //! How far a node may sit from the box's edge, as a fraction of it, and the box still count as fitted.
 constexpr qreal k_fitsBox = 1e-9;
 
-//! The body @p h belongs to, or the mask's region.
+//! The body @p h belongs to, or the mask's region it does.
 Body* bodyFor(Composition& c, const Handle& h)
 {
-    if (c.mask && c.mask->region.id == h.element)
-        return &c.mask->region;
+    if (Body* r = maskRegion(c, h.element))
+        return r;
     if (!c.balloon)
         return nullptr;
     for (Body& b : c.balloon->bodies)
@@ -95,40 +95,39 @@ QPointF dragBody(Composition& next, const Handle& h, const QPointF& to, const Ha
     return node ? fitToOutline(next, *own, rect) : QPointF();
 }
 
-//! The mask's outline, in its own box: several picked nodes move together. Its box stays: a region has no stroke
-//! to fit, and a node past its box is drawn there all the same.
+//! A mask's region's outline, in its own box: several picked nodes move together. Its box stays: a region has no
+//! stroke to fit, and a node past its box is drawn there all the same.
 QPointF dragMask(Composition& next, const Handle& h, const QPointF& to, const HandleContext& context)
 {
-    if (!next.mask)
+    Body* own = maskRegion(next, h.element);
+    if (!own)
         return {};
-    Body&        own  = next.mask->region;
-    const QRectF rect(own.place.pos, QSizeF(own.size));
-    if (partOf<ShapePart>(h) == ShapePart::Vertex && context.pickedOf == own.id && context.picked.size() > 1)
-        own.shape = withNodesMoved(own.shape, rect, context.picked, to - h.at);
+    const QRectF rect(own->place.pos, QSizeF(own->size));
+    if (partOf<ShapePart>(h) == ShapePart::Vertex && context.pickedOf == own->id && context.picked.size() > 1)
+        own->shape = withNodesMoved(own->shape, rect, context.picked, to - h.at);
     else
-        own.shape = dragShapeHandle(own.shape, rect, h, to, context.clearance);
+        own->shape = dragShapeHandle(own->shape, rect, h, to, context.clearance);
     return {};
 }
 
 //! The two ends of a mask's fade (maskFade()), told apart by Handle::part.
 enum class MaskFadePart { Start, End };
 
-//! The mask's pattern's fade: the fill's cross, on the region's box.
+//! The mask's cross: the fill's, on the regions' box.
 QPointF dragMaskCross(Composition& next, const Handle& h, const QPointF& to, const HandleContext&)
 {
     if (next.mask)
-        next.mask->tone = dragFadeHandle(maskCross(*next.mask), QRectF(next.mask->region.place.pos,
-                                                                       QSizeF(next.mask->region.size)), h, to);
+        next.mask->tone = dragFadeHandle(maskCross(*next.mask), maskBox(*next.mask), h, to);
     return {};
 }
 
-//! The mask's smooth fade: the end dragged, anywhere, as a fraction of the region's box.
+//! The mask's line: the end dragged, anywhere, as a fraction of the regions' box.
 QPointF dragMaskFade(Composition& next, const Handle& h, const QPointF& to, const HandleContext&)
 {
-    if (!next.mask || !next.mask->fade || next.mask->region.size.isEmpty())
+    const QRectF box = next.mask ? maskBox(*next.mask) : QRectF();
+    if (!next.mask || !next.mask->fade || box.isEmpty())
         return {};
-    const Body&   own = next.mask->region;
-    const QPointF at((to.x() - own.place.pos.x()) / own.size.width(), (to.y() - own.place.pos.y()) / own.size.height());
+    const QPointF at((to.x() - box.x()) / box.width(), (to.y() - box.y()) / box.height());
     QLineF&       fade = *next.mask->fade;
     (partOf<MaskFadePart>(h) == MaskFadePart::Start ? fade.setP1(at) : fade.setP2(at));
     return {};
@@ -330,18 +329,19 @@ QList<Handle> owned(QList<Handle> list, int element, Handle::Drag drag)
     return list;
 }
 
-//! The mask's handles: its outline's, then a pattern's cross (the fill's), or a smooth fade's two ends.
+//! The mask's handles: each region's outline's, then the cross (the fill's), or the line's two ends.
 QList<Handle> maskHandles(const Composition& c, const HandleContext& context)
 {
-    const Body&   own = c.mask->region;
-    QList<Handle> out = owned(shapeHandles(own.shape, QRectF(own.place.pos, QSizeF(own.size)), context.clearance,
-                                           context.lastPicked(own.id)),
-                              own.id, &dragMask);
+    QList<Handle> out;
+    for (const Body& own : c.mask->regions)
+        out.append(owned(shapeHandles(own.shape, QRectF(own.place.pos, QSizeF(own.size)), context.clearance,
+                                      context.lastPicked(own.id)),
+                         own.id, &dragMask));
     for (Handle& h : out)
         if (partOf<ShapePart>(h) == ShapePart::AddVertex)
             h.press = &addNode;
     if (c.mask->shape == Mask::Fade::Rectangle || c.mask->shape == Mask::Fade::Ellipse) {
-        out.append(owned(fadeHandles(maskCross(*c.mask), QRectF(own.place.pos, QSizeF(own.size))), own.id,
+        out.append(owned(fadeHandles(maskCross(*c.mask), maskBox(*c.mask), context.clearance), c.mask->id,
                          &dragMaskCross));
     } else if (const std::optional<QLineF> fade = maskFade(*c.mask)) {
         Handle start;
@@ -356,7 +356,7 @@ QList<Handle> maskHandles(const Composition& c, const HandleContext& context)
         end.glyph    = Handle::Glyph::FadeEnd;
         if (fade->length() > 0.0)
             end.axis = (fade->p2() - fade->p1()) / fade->length();
-        out.append(owned({start, end}, own.id, &dragMaskFade));
+        out.append(owned({start, end}, c.mask->id, &dragMaskFade));
     }
     return out;
 }
@@ -366,7 +366,7 @@ QList<Handle> maskHandles(const Composition& c, const HandleContext& context)
 QList<Handle> handlesOf(const Composition& c, const HandleContext& context)
 {
     // The mask picked: its handles alone, the object's own lie under it and are not what is edited.
-    if (c.mask && context.body != 0 && context.body == c.mask->region.id)
+    if (c.mask && context.body != 0 && context.body == c.mask->id)
         return maskHandles(c, context);
     QList<Handle> out;
     if (const Body* own = bodyOf(c, context.body)) {
@@ -376,7 +376,8 @@ QList<Handle> handlesOf(const Composition& c, const HandleContext& context)
             if (partOf<ShapePart>(h) == ShapePart::AddVertex)
                 h.press = &addNode;
         if (c.balloon->style.fill.fill.kind != Paint::Kind::Solid)   // a solid fill does not fade
-            out.append(owned(fadeHandles(c.balloon->style.fill.fill, fillBox(*c.balloon)), c.balloon->id, &dragFill));
+            out.append(owned(fadeHandles(c.balloon->style.fill.fill, fillBox(*c.balloon), context.clearance),
+                             c.balloon->id, &dragFill));
     }
     // Every words' frame; the picked words' first, so where two frames lie over each other a press takes theirs.
     QList<const Words*> words;

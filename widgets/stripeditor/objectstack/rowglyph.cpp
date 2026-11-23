@@ -113,7 +113,7 @@ QIcon maskGlyph(const Composition& a, const QPalette& pal, int px, qreal dpr)
     if (!a.mask)
         return {};
     // The object's frame, and the region where it reaches past it: what the mask is drawn over.
-    const QRectF region(a.mask->region.place.pos, QSizeF(a.mask->region.size));
+    const QRectF region = Geometry::maskBox(*a.mask);
     const QRectF frame  = frameOf(a);
     const QRectF extent = frame.isEmpty() ? region : frame.united(region);
     if (extent.isEmpty())

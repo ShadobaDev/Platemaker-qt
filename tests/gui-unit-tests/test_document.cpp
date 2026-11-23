@@ -189,7 +189,8 @@ TEST(Edits, AMaskCoversTheRightThirdAndThereIsOne)
     ASSERT_EQ(id, next);
     EXPECT_GT(a.nextId, id) << "its id is not handed out again";
     ASSERT_TRUE(a.mask);
-    const QRectF region(a.mask->region.place.pos, QSizeF(a.mask->region.size));
+    ASSERT_EQ(a.mask->regions.size(), 1);
+    const QRectF region(a.mask->regions[0].place.pos, QSizeF(a.mask->regions[0].size));
     const qreal  inside = qRound(frame.width() / 3.0);
     EXPECT_EQ(region.left(), frame.right() - inside);
     EXPECT_GT(region.right(), frame.right()) << "past the frame, where a feather shows nothing back";

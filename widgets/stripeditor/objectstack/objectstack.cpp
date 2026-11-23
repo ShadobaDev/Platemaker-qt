@@ -336,7 +336,7 @@ void ObjectStack::refresh()
         }
         // Its own mask last: it cuts all of them.
         if (rec.mask)
-            elements.append({Subject::Mask, rec.mask->region.id, tr("Mask"),
+            elements.append({Subject::Mask, rec.mask->id, tr("Mask"),
                              maskGlyph(rec, m_tree->palette(), k_rowGlyphPx, m_tree->devicePixelRatioF()), {}});
         setElementRows(row, uid, elements);
     }

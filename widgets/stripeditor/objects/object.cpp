@@ -211,13 +211,13 @@ void Object::setPickedBody(int id)
 const Mask* Object::pickedMask() const
 {
     const std::optional<Mask>& m = m_composition.mask;
-    return m && m_pickedBody != 0 && m->region.id == m_pickedBody ? &*m : nullptr;
+    return m && m_pickedBody != 0 && m->id == m_pickedBody ? &*m : nullptr;
 }
 
 QRectF Object::chromeBox() const
 {
     if (const Mask* m = pickedMask())
-        return mapRectToScene(QRectF(m->region.place.pos, QSizeF(m->region.size)));
+        return mapRectToScene(Geometry::maskBox(*m));
     // The bubble picked, or the one the picked words sit on: what the click went through to.
     int seat = m_pickedBody;
     for (const Words& w : m_composition.words)
@@ -439,7 +439,7 @@ void Object::beginDrag(Grip grip, int handle, const QPointF& scenePos)
     const bool through = grip == Grip::Body && m_wasSelected
                       && !(QGuiApplication::keyboardModifiers() & Qt::ControlModifier);
     if (const Mask* m = pickedMask(); through && m && chromeBox().contains(scenePos)) {
-        m_dragBody  = m->region.id;
+        m_dragBody  = m->id;
         m_dragStart = m_composition;
         return;
     }
@@ -462,10 +462,12 @@ void Object::dragTo(const QPointF& scenePos, Qt::KeyboardModifiers modifiers)
         // The body and the tails leaving it, by the delta in the object's own units.
         Composition   next = m_dragStart;
         const QPointF by   = delta / (scale() > 0.0 ? scale() : 1.0);
-        if (next.mask && next.mask->region.id == m_dragBody)
-            next.mask->region.place.pos += by;
-        else
+        if (next.mask && next.mask->id == m_dragBody) {
+            for (Body& r : next.mask->regions)
+                r.place.pos += by;
+        } else {
             Chain::moveBody(next, m_dragBody, by);
+        }
         m_dragReported = true;
         emit compositionEdited(m_uid, next);
         refreshBounds();
@@ -512,9 +514,8 @@ void Object::dragTo(const QPointF& scenePos, Qt::KeyboardModifiers modifiers)
         // The bubble alone: its place and size in the object's units; the object itself stays where it is.
         Composition  next = m_dragStart;
         const QRectF to(mapFromScene(r->topLeft()), QSizeF(qRound(r->width() / k), qRound(r->height() / k)));
-        if (next.mask && next.mask->region.id == m_resizeBody) {
-            next.mask->region.place.pos = to.topLeft();
-            next.mask->region.size      = to.size().toSize();
+        if (next.mask && next.mask->id == m_resizeBody) {
+            resizeMask(*next.mask, to);
         } else {
             Chain::resizeBody(next, m_resizeBody, to);
         }

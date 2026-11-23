@@ -140,7 +140,7 @@ public:
     //! Marks the words @p id as picked: their frame drawn marked, its handles first. 0: none, the first words marked.
     void setPickedWords(int id);
     /**
-     * \brief The body picked on its own, one bubble of several (Subject::Body), or the mask's region (Subject::Mask);
+     * \brief The body picked on its own, one bubble of several (Subject::Body), or the mask, by its id (Subject::Mask);
      *        0 for none. Its box is the chrome's, its grips resize it, a press in it moves it, and shape editing
      *        edits its outline.
      */

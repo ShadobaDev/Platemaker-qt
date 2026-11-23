@@ -55,7 +55,7 @@ public:
     void selectWords(const ElementRef& words, const Exists& exists);
     //! Selects body @p body alone, one bubble of a balloon of several, as selectWords() does words.
     void selectBody(const ElementRef& body, const Exists& exists);
-    //! Selects an object's own mask @p mask (its region's id) alone, as selectWords() does words.
+    //! Selects an object's own mask @p mask (its id) alone, as selectWords() does words.
     void selectMask(const ElementRef& mask, const Exists& exists);
     void selectStrip();                      //!< The strip, and nothing else.
     void selectPage(const QString& page);    //!< One page (its input uid), and nothing else.

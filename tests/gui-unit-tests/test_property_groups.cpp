@@ -280,7 +280,7 @@ struct BalloonMirror { int id; BalloonStyle style; QList<Body> bodies; QList<Bal
 static_assert(sizeof(Balloon) == sizeof(BalloonMirror), "Balloon grew a field: place it (see above), then mirror it");
 struct WordsMirror { int id; int seat; Place place; QSize box; TextProperties text; Frame frame; };
 static_assert(sizeof(Words) == sizeof(WordsMirror), "Words grew a field: place it (see above), then mirror it");
-struct MaskMirror { Body region; qreal feather; Mask::Fade shape; std::optional<QLineF> fade; Paint tone;
+struct MaskMirror { int id; QList<Body> regions; qreal feather; Mask::Fade shape; std::optional<QLineF> fade; Paint tone;
                     bool keepInside; };
 static_assert(sizeof(Mask) == sizeof(MaskMirror), "Mask grew a field: place it (see above), then mirror it");
 struct CompositionMirror { std::optional<Balloon> balloon; std::optional<Picture> picture; QList<Words> words;
@@ -805,10 +805,17 @@ TEST(PropertyGroupPersistence, RoundTrips)
     textOf(a).runs = {other, upright};
     // A mask with every field away from its default.
     Mask mask;
-    mask.region.id    = a.nextId++;
-    mask.region.place = Place{QPointF(120.5, 40.0)};
-    mask.region.size  = QSize(90, 70);
-    mask.region.shape = Geometry::shapeTemplate("ellipse").shape;
+    mask.id = a.nextId++;
+    Body region;
+    region.id    = a.nextId++;
+    region.place = Place{QPointF(120.5, 40.0)};
+    region.size  = QSize(90, 70);
+    region.shape = Geometry::shapeTemplate("ellipse").shape;
+    Body apart   = region;   // a second region, apart from the first
+    apart.id          = a.nextId++;
+    apart.place       = Place{QPointF(20.0, 10.0)};
+    apart.shape       = Geometry::shapeTemplate("diamond").shape;
+    mask.regions      = {region, apart};
     mask.feather      = 3.5;
     mask.fade         = QLineF(0.1, 0.2, 0.9, 0.8);
     mask.shape        = Mask::Fade::Ellipse;
@@ -2313,9 +2320,25 @@ TEST(Paint, AFadingFillThinsOutAlongItsCross)
     const QList<Geometry::Handle> moved = Geometry::fadeHandles(dragged, body);
     EXPECT_EQ(moved.at(0).at, QPointF(0, 200));     // the left start, on its side
     EXPECT_EQ(moved.at(2).at, QPointF(100, 0));     // the top start
-    EXPECT_EQ(moved.at(3).at, QPointF(100, 200));   // the bottom arm has no length left
-    EXPECT_EQ(Geometry::dragFadeHandle(dragged, body, moved.at(3), QPointF(100, 150)), dragged)
+    EXPECT_TRUE(std::none_of(moved.cbegin(), moved.cend(), [](const Geometry::Handle& h) { return h.index == 3; }))
+        << "the bottom arm has no length left, and offers no dots to lie on the centre";
+    EXPECT_EQ(Geometry::dragFadeHandle(dragged, body, cross.at(3), QPointF(100, 150)), dragged)
         << "an arm with no length does not drag";
+    // A start pulled in onto the centre is drawn clear of it, so a press on the centre is the centre's; dragged,
+    // it goes where it is drawn.
+    {
+        constexpr qreal k_clearance = 10.0;   // balloon pixels
+        Paint           in          = still;
+        in.fadeLeftFrom             = 0.0;
+        const QList<Geometry::Handle> clear = Geometry::fadeHandles(in, body, k_clearance);
+        const QPointF centre = clear.last().at;
+        ASSERT_EQ(Geometry::partOf<Geometry::FadePart>(clear.last()), Geometry::FadePart::Centre);
+        for (qsizetype i = 0; i + 1 < clear.size(); ++i)
+            EXPECT_GE(QLineF(clear.at(i).at, centre).length(), k_clearance - 1e-9) << i;
+        EXPECT_EQ(clear.at(0).at, centre - QPointF(k_clearance, 0.0));
+        EXPECT_DOUBLE_EQ(Geometry::dragFadeHandle(in, body, clear.at(0), centre - QPointF(50.0, 0.0)).fadeLeftFrom,
+                         25.0);   // 50 of the left arm's 200
+    }
 
     // Only the fill lists the fade, and the shadow's pattern no colour of its own: neither is saved there.
     Composition b = a;
@@ -3459,11 +3482,14 @@ Composition maskedBalloon()
     Composition a = balloonObject();
     tailsOf(a).clear();
     Mask m;
-    m.region.id    = a.nextId++;
-    m.region.place = Place{QPointF(160.0, 40.0)};
-    m.region.size  = QSize(80, 80);
-    m.region.shape.corner.radius = 0.0;   // a plain rectangle, so a point's coverage is the fade's alone
-    a.mask         = m;
+    m.id = a.nextId++;
+    Body r;
+    r.id                  = a.nextId++;
+    r.place               = Place{QPointF(160.0, 40.0)};
+    r.size                = QSize(80, 80);
+    r.shape.corner.radius = 0.0;   // a plain rectangle, so a point's coverage is the fade's alone
+    m.regions.append(r);
+    a.mask = m;
     return a;
 }
 
@@ -3497,10 +3523,25 @@ TEST(Mask, HidesWhatItCoversAndFadesAlongItsLine)
     // An ellipse hides its own shape, not its box: the box's corner, outside it, shows.
     {
         Composition round  = maskedBalloon();
-        round.mask->region.shape = Geometry::shapeTemplate("ellipse").shape;
+        round.mask->regions[0].shape = Geometry::shapeTemplate("ellipse").shape;
         const QImage drawn = Painter::render(round);
         EXPECT_EQ(alphaAt(drawn, round, inside), 0);
         EXPECT_EQ(alphaAt(drawn, round, QPointF(162.0, 42.0)), alphaAt(whole, plain, QPointF(162.0, 42.0)));
+    }
+
+    // A second region, apart: it hides as well, and between the two the object shows.
+    {
+        Composition two   = maskedBalloon();
+        Body        apart = two.mask->regions[0];
+        apart.id          = two.nextId++;
+        apart.place.pos   = QPointF(60.0, 60.0);
+        apart.size        = QSize(40, 40);
+        two.mask->regions.append(apart);
+        const QImage  drawn = Painter::render(two);
+        const QPointF between(130.0, 80.0);
+        EXPECT_EQ(alphaAt(drawn, two, inside), 0);
+        EXPECT_EQ(alphaAt(drawn, two, outside), 0);
+        EXPECT_EQ(alphaAt(drawn, two, between), alphaAt(whole, plain, between));
     }
 
     // Kept inside: what the region covers shows, the rest of the object goes.
@@ -3563,7 +3604,7 @@ TEST(Mask, HidesWhatItCoversAndFadesAlongItsLine)
     // the cross's own tone (fadeTone()), the rectangle's square corners and the ellipse's alike.
     a.mask->tone      = Paint{};
     a.mask->tone.fadeLeftFrom = a.mask->tone.fadeRightFrom = a.mask->tone.fadeTopFrom = a.mask->tone.fadeBottomFrom = 0.0;
-    const QRectF box(a.mask->region.place.pos, QSizeF(a.mask->region.size));
+    const QRectF box(a.mask->regions[0].place.pos, QSizeF(a.mask->regions[0].size));
     for (const Mask::Fade shape : {Mask::Fade::Rectangle, Mask::Fade::Ellipse}) {
         a.mask->shape = shape;
         const QImage drawn = Painter::render(a);
@@ -3596,12 +3637,12 @@ TEST(Mask, IsPickedWhereItHides)
     EXPECT_FALSE(Geometry::maskHidesAt(a, QPointF(230.0, 80.0))) << "mostly shown there";
 
     a.mask->fade.reset();
-    a.mask->region.place = Place{QPointF(-100.0, -100.0)};   // over nothing the balloon draws
-    a.mask->region.size  = QSize(50, 50);
+    a.mask->regions[0].place = Place{QPointF(-100.0, -100.0)};   // over nothing the balloon draws
+    a.mask->regions[0].size  = QSize(50, 50);
     EXPECT_FALSE(Geometry::maskHidesAt(a, QPointF(-75.0, -75.0)));
     // Kept inside, the other way round: outside the region it hides, inside it does not.
-    a.mask->region.place = Place{QPointF(160.0, 40.0)};
-    a.mask->region.size  = QSize(80, 80);
+    a.mask->regions[0].place = Place{QPointF(160.0, 40.0)};
+    a.mask->regions[0].size  = QSize(80, 80);
     a.mask->keepInside   = true;
     EXPECT_FALSE(Geometry::maskHidesAt(a, QPointF(200.0, 80.0)));
     EXPECT_TRUE(Geometry::maskHidesAt(a, QPointF(80.0, 80.0)));
@@ -3615,8 +3656,18 @@ TEST(Mask, ScalesWithTheObjectsBox)
     Composition   a      = maskedBalloon();
     const QPointF corner = bodyOf(a)->place.pos;
     resize(a, QSize(560, 80));   // twice as wide, half as tall
-    EXPECT_EQ(a.mask->region.place.pos, corner + QPointF((160.0 - corner.x()) * 2.0, (40.0 - corner.y()) * 0.5));
-    EXPECT_EQ(a.mask->region.size, QSize(160, 40));
+    EXPECT_EQ(a.mask->regions[0].place.pos, corner + QPointF((160.0 - corner.x()) * 2.0, (40.0 - corner.y()) * 0.5));
+    EXPECT_EQ(a.mask->regions[0].size, QSize(160, 40));
+
+    // And the mask's grips scale its regions together, so the box round them is what was dragged.
+    Body apart = a.mask->regions[0];
+    apart.id   = a.nextId++;
+    apart.place.pos += QPointF(0.0, 100.0);
+    a.mask->regions.append(apart);
+    const QRectF to(10.0, 20.0, 80.0, 70.0);
+    resizeMask(*a.mask, to);
+    EXPECT_EQ(Geometry::maskBox(*a.mask), to);
+    EXPECT_EQ(a.mask->regions[1].place.pos.y() - a.mask->regions[0].place.pos.y(), 50.0) << "100 of 140, now of 70";
 }
 
 /**
@@ -3628,13 +3679,16 @@ TEST(Mask, IsEditedByItsOwnHandlesAndTheShapeSection)
     Composition a  = maskedBalloon();
     a.mask->shape  = Mask::Fade::Linear;
     a.mask->fade   = QLineF(0.0, 0.5, 1.0, 0.5);
-    const int   id = a.mask->region.id;
+    const int   id = a.mask->id;
     Geometry::HandleContext context;
     context.body = id;
     const QList<Geometry::Handle> all = Geometry::handlesOf(a, context);
     ASSERT_FALSE(all.isEmpty());
+    const auto isFade = [](const Geometry::Handle& h) {
+        return h.glyph == Geometry::Handle::Glyph::FadeStart || h.glyph == Geometry::Handle::Glyph::FadeEnd;
+    };
     for (const Geometry::Handle& h : all) {
-        EXPECT_EQ(h.element, id);
+        EXPECT_EQ(h.element, isFade(h) ? id : a.mask->regions[0].id) << "the outline's are its region's";
         EXPECT_TRUE(h.drag);
     }
 
@@ -3643,7 +3697,7 @@ TEST(Mask, IsEditedByItsOwnHandlesAndTheShapeSection)
     };
     const auto end = glyphed(Geometry::Handle::Glyph::FadeEnd);
     ASSERT_NE(end, all.cend());
-    const QRectF region(a.mask->region.place.pos, QSizeF(a.mask->region.size));
+    const QRectF region(a.mask->regions[0].place.pos, QSizeF(a.mask->regions[0].size));
     EXPECT_EQ(end->at, QPointF(region.right(), region.center().y()));
     Composition faded = a;
     end->drag(faded, *end, region.center(), context);
@@ -3658,25 +3712,54 @@ TEST(Mask, IsEditedByItsOwnHandlesAndTheShapeSection)
     ASSERT_NE(radius, all.cend());
     Composition rounded = a;
     radius->drag(rounded, *radius, radius->at + QPointF(20.0, 0.0), context);
-    EXPECT_FALSE(rounded.mask->region.shape == a.mask->region.shape);
+    EXPECT_FALSE(rounded.mask->regions[0].shape == a.mask->regions[0].shape);
     EXPECT_TRUE(shapeOf(rounded) == shapeOf(a)) << "the balloon's own shape is not what was edited";
 
     ShapeProperties ellipse = Geometry::shapeTemplate("ellipse").shape;
     ellipse.applyTo(a, id);
-    EXPECT_TRUE(a.mask->region.shape == ellipse);
+    EXPECT_TRUE(a.mask->regions[0].shape == ellipse);
     EXPECT_TRUE(ShapeProperties::from(a, id) == ellipse);
     EXPECT_FALSE(shapeOf(a) == ellipse);
 
     // A polygon's "+" adds its node to the region.
-    a.mask->region.shape = Geometry::shapeTemplate("diamond").shape;
+    a.mask->regions[0].shape = Geometry::shapeTemplate("diamond").shape;
     QList<Geometry::Handle> polygon = Geometry::handlesOf(a, context);
     const auto plus = std::find_if(polygon.begin(), polygon.end(),
                                    [](const Geometry::Handle& h) { return h.glyph == Geometry::Handle::Glyph::Plus; });
     ASSERT_NE(plus, polygon.end());
     ASSERT_TRUE(plus->press);
-    const qsizetype nodes = a.mask->region.shape.nodes.size();
+    const qsizetype nodes = a.mask->regions[0].shape.nodes.size();
     EXPECT_TRUE(plus->press(a, *plus));
-    EXPECT_EQ(a.mask->region.shape.nodes.size(), nodes + 1);
+    EXPECT_EQ(a.mask->regions[0].shape.nodes.size(), nodes + 1);
+
+    // Two regions: each offers its own outline's handles, a drag moves that one's alone; the fade is laid on the
+    // box round both; the Shape section has no one region to edit.
+    Body apart = a.mask->regions[0];
+    apart.id   = a.nextId++;
+    apart.place.pos += QPointF(0.0, 200.0);
+    a.mask->regions.append(apart);
+    const QList<Geometry::Handle> both = Geometry::handlesOf(a, context);
+    const auto of = [&](int region) {
+        return std::find_if(both.cbegin(), both.cend(), [&](const Geometry::Handle& h) {
+            return h.element == region && h.part == int(Geometry::ShapePart::Vertex);
+        });
+    };
+    ASSERT_NE(of(a.mask->regions[0].id), both.cend());
+    const auto second = of(apart.id);
+    ASSERT_NE(second, both.cend());
+    Composition moved = a;
+    second->drag(moved, *second, second->at + QPointF(5.0, 5.0), context);
+    EXPECT_TRUE(moved.mask->regions[0].shape == a.mask->regions[0].shape);
+    EXPECT_FALSE(moved.mask->regions[1].shape == a.mask->regions[1].shape);
+    const auto both_end = std::find_if(both.cbegin(), both.cend(), [](const Geometry::Handle& h) {
+        return h.glyph == Geometry::Handle::Glyph::FadeEnd;
+    });
+    ASSERT_NE(both_end, both.cend());
+    const QRectF box = Geometry::maskBox(*a.mask);
+    EXPECT_EQ(box, region.united(QRectF(apart.place.pos, QSizeF(apart.size))));
+    EXPECT_EQ(both_end->at, QPointF(box.right(), box.center().y()));
+    EXPECT_EQ(ShapeProperties::from(a, id).kind, ShapeProperties::Kind::None);
+    EXPECT_TRUE(ShapeProperties::from(a, apart.id) == apart.shape) << "each region by its own id";
 }
 
 /**

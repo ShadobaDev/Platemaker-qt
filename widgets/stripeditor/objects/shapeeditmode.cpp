@@ -30,21 +30,23 @@ auto warpPicked(C& c, const Object& item) -> decltype(&c.words.first())
 }
 
 /**
- * The outline @p item's nodes are edited on: its mask's region when the mask is picked, else its picked body (the
- * first for none); none when there is no such.
+ * The outline @p item's nodes are edited on: when the mask is picked, the region whose nodes are picked, or its
+ * region when it has one alone; else its picked body (the first for none); none when there is no such.
  */
 template <class C>
 auto outlinePicked(C& c, const Object& item) -> decltype(bodyOf(c, 0))
 {
-    if (c.mask && item.pickedBody() != 0 && c.mask->region.id == item.pickedBody())
-        return &c.mask->region;
+    if (c.mask && item.pickedBody() != 0 && c.mask->id == item.pickedBody()) {
+        auto* region = maskRegion(c, item.pickedElement());
+        return region ? region : maskRegion(c, c.mask->id);
+    }
     return bodyOf(c, item.pickedBody());
 }
 
 //! The rectangle @p outline's nodes are fractions of: a mask's region's box, a body's balloonRect().
 QRectF outlineRect(const Composition& c, const Body& outline)
 {
-    if ((c.mask && c.mask->region.id == outline.id) || !c.balloon)
+    if (maskRegion(c, outline.id) || !c.balloon)
         return QRectF(outline.place.pos, QSizeF(outline.size));
     return Geometry::balloonRect(*c.balloon, outline);
 }

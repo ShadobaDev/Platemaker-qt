@@ -197,25 +197,27 @@ struct Picture
 /**
  * \brief A cut out of the object's own drawing: where it hides what the object draws, as a layer mask does.
  *
- * Its \c region is a body's geometry (a place, a size and a shape, outlined by Geometry::outlineOf()), in the
- * composition's frame, so it moves with the object; resize() scales it with the object's box. Inside the region
- * the object is hidden; a \c feather softens the region's edge. It fades by a shape (\c shape: along a line, or by the
- * fill's cross, a rectangle or ellipses), smoothly or through a pattern (\c tone's kind).
+ * Its \c regions are bodies' geometry (each a place, a size and a shape, outlined by Geometry::outlineOf()), in the
+ * composition's frame, so they move with the object; resize() scales them with the object's box. They lie apart,
+ * as few as can be: regions that meet are one. Inside them the object is hidden; a \c feather softens their edge.
+ * It fades by a shape (\c shape: along a line, or by the fill's cross, a rectangle or ellipses), smoothly or through
+ * a pattern (\c tone's kind), once over all of them: on the box round them (Geometry::maskBox()).
  */
 struct Mask
 {
-    Body  region;                //!< Where it hides: its id is the mask's, as an element of the composition.
-    qreal feather = 0.0;         //!< How far the edge is blurred (a Gaussian's deviation), in its pixels; 0 is hard.
+    int         id = 0;          //!< The mask's, as an element of the composition: what selects it.
+    QList<Body> regions;         //!< Where it hides, each with an id of its own (whose nodes are edited).
+    qreal       feather = 0.0;   //!< How far the edge is blurred (a Gaussian's deviation), in its pixels; 0 is hard.
     //! The fade's shape. Persisted by name.
     enum class Fade { None, Linear, Rectangle, Ellipse };
     /**
-     * How it fades. None, the default, hides the region evenly. Linear, along `line`. Rectangle and Ellipse, by the
-     * fill's cross on the region's box (`tone`'s `fade…` fields, Geometry::fadeTone()): hidden wholly at the cross's
+     * How it fades. None, the default, hides the regions evenly. Linear, along `line`. Rectangle and Ellipse, by the
+     * fill's cross on the regions' box (`tone`'s `fade…` fields, Geometry::fadeTone()): hidden wholly at the cross's
      * centre, not at all past its arms' ends, its corners square or on ellipses; turned over by `fadeReversed`.
      */
     Fade shape = Fade::None;
     /**
-     * The Linear fade, as fractions of the region's box: hidden wholly at its start, not at all at its end. Kept
+     * The Linear fade, as fractions of the regions' box: hidden wholly at its start, not at all at its end. Kept
      * while another shape is picked, so picking Linear again gives it back.
      */
     std::optional<QLineF> fade;
@@ -227,7 +229,7 @@ struct Mask
      */
     Paint tone;
     /**
-     * The other way round: the region is what shows, and everything of the object outside it is hidden, as a
+     * The other way round: the regions are what shows, and everything of the object outside is hidden, as a
      * balloon tucked into a panel keeps what is inside the panel. A fade then shows wholly at its start and not at
      * all at its end.
      */
@@ -235,7 +237,7 @@ struct Mask
 
     [[nodiscard]] bool operator==(const Mask& o) const
     {
-        return region == o.region && qFuzzyCompare(1.0 + feather, 1.0 + o.feather) && fade == o.fade
+        return id == o.id && regions == o.regions && qFuzzyCompare(1.0 + feather, 1.0 + o.feather) && fade == o.fade
             && shape == o.shape && tone == o.tone && keepInside == o.keepInside;
     }
     [[nodiscard]] bool operator!=(const Mask& o) const { return !(*this == o); }
@@ -296,6 +298,12 @@ void tidyRuns(TextProperties& t);
 //! @p c's body @p id, its first for 0; none without a balloon or with no such body.
 [[nodiscard]] const Body* bodyOf(const Composition& c, int id);
 [[nodiscard]] Body*       bodyOf(Composition& c, int id);
+/**
+ * \brief @p c's mask's region @p id; for the mask's own id, its region when it has one alone (what the Shape section
+ *        edits); none otherwise.
+ */
+[[nodiscard]] const Body* maskRegion(const Composition& c, int id);
+[[nodiscard]] Body*       maskRegion(Composition& c, int id);
 
 /**
  * \brief The rectangle the author dragged: the bodies', the picture's, and the box of words with no seat, as
@@ -308,8 +316,10 @@ void tidyRuns(TextProperties& t);
  */
 [[nodiscard]] QSize sizeOf(const Composition& c);
 //! Sets sizeOf(): the first body's size; or the picture's; and the box of the words with no seat. A mask's
-//! region is scaled with it, from its top-left corner, so it keeps its place on the object.
+//! regions are scaled with it, from its top-left corner, so they keep their place on the object.
 void resize(Composition& c, const QSize& size);
+//! Scales @p mask's regions together, so the box round them (Geometry::maskBox()) becomes @p to.
+void resizeMask(Mask& mask, const QRectF& to);
 
 //! The size an object has before it is drawn on the strip: what a preset and the tool options show.
 inline constexpr QSize k_defaultObjectSize{280, 160};
@@ -368,7 +378,7 @@ inline constexpr int k_labelChars = 32;
  * defaults). A body is `{id, place, size, shape}`, a tail `{id, root, tip, width, bend, look}` and a bridge `to`
  * too, words
  * `{id, text, seat, frame}` or, with no seat, `{id, text, place, box}`; a place is `{pos}`, with `rotation` and `scale`
- * only when they are not their defaults. A mask is `{id, place, size, shape}`, with `feather` and `fade`
+ * only when they are not their defaults. A mask is `{id, regions}`, each region a body, with `feather` and `fade`
  * (`[x1, y1, x2, y2]`) only when it has them, `fadeShape` (`linear`, `rectangle`, `ellipse`) unless None, `tone`
  * (`{kind, spacing, angle, cross: [left from, to, right from, to, top from, to, bottom from, to, centre x, y],
  * reversed}`) unless it is smooth with no cross, and `keepInside` only when true.

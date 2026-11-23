@@ -124,6 +124,8 @@ struct EdgeInfo
 
 //! Whether @p shape offers edit mode at all: a kind with handles, or an edge.
 [[nodiscard]] bool hasShapeHandles(const ShapeProperties& shape);
+//! Whether @p mask offers edit mode: a region's shape with handles, or a fade's.
+[[nodiscard]] bool hasShapeHandles(const Mask& mask);
 
 //! @p shape with @p from's edge: what a picked tile keeps, since a template does not set the edge.
 [[nodiscard]] ShapeProperties withEdgeOf(ShapeProperties shape, const ShapeProperties& from);
@@ -238,10 +240,12 @@ constexpr int k_maxRegularPoints = 64;
 //! @p body's own outline in @p rect (balloonRect()) — the shape alone, no tails, its edge dealt by @p seed.
 [[nodiscard]] QPainterPath outlineOf(const Body& body, const QRectF& rect, quint32 seed);
 
-//! Where @p mask hides: its region's outline (outlineOf()) in the composition's frame, its edge dealt by @p seed.
+//! Where @p mask hides: its regions' outlines (outlineOf()) in the composition's frame, their edge dealt by @p seed.
 [[nodiscard]] QPainterPath maskOutline(const Mask& mask, quint32 seed);
+//! The box round @p mask's regions, in the composition's frame: what its fade is laid on, what its grips resize.
+[[nodiscard]] QRectF maskBox(const Mask& mask);
 
-//! @p mask's fade in the composition's frame (its fractions laid on the region's box); none without one.
+//! @p mask's fade in the composition's frame (its fractions laid on maskBox()); none without one.
 [[nodiscard]] std::optional<QLineF> maskFade(const Mask& mask);
 /**
  * \brief Whether @p c's mask hides it at @p at, in the composition's frame, as the eye sees it: at least half

@@ -256,8 +256,12 @@ enum class FadePart {
  * \brief The fade's cross for @p p on @p body, as shape-editing handles: on each arm a dot where the fade
  *        starts and one where it ends, then the centre, whatever @p p's kind (a fill asks only with a pattern).
  *        At rest every dot is on its side, which is no fade, wherever the centre is.
+ *
+ * The centre can always be pressed: a dot nearer it than @p clearance (balloon pixels) is drawn that far out along
+ * its arm, where a press takes it and a drag puts it where it is drawn; an arm with no length (the centre on its
+ * side) offers no dots, as it has nothing to drag along.
  */
-[[nodiscard]] QList<Handle> fadeHandles(const Paint& p, const QRectF& body);
+[[nodiscard]] QList<Handle> fadeHandles(const Paint& p, const QRectF& body, qreal clearance = 0.0);
 
 //! @p p with fade @p handle dragged to @p to (balloon coordinates): fadeHandles()' inverse.
 [[nodiscard]] Paint dragFadeHandle(const Paint& p, const QRectF& body, const Handle& handle, const QPointF& to);

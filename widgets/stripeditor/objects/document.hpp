@@ -114,7 +114,7 @@ bool removeWords(Composition& c, int id);
 /**
  * \brief Gives @p c a mask of its own: a plain rectangle over the right third of its frame (frameOf()), reaching past
  *        the frame's top, bottom and right so a feather shows nothing back there, hiding wholly from the frame's
- *        right edge on and not at all at its left: the end of a line broken off. Returns the region's id; 0 when
+ *        right edge on and not at all at its left: the end of a line broken off. Returns the mask's id; 0 when
  *        @p c has a mask already, or no frame.
  */
 int addMask(Composition& c);

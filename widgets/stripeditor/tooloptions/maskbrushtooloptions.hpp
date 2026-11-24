@@ -3,6 +3,7 @@
 
 #include <QWidget>
 
+class QLabel;
 class QRadioButton;
 class QSpinBox;
 
@@ -23,6 +24,8 @@ public:
 
     [[nodiscard]] bool hides() const;   //!< The brush; false for the eraser.
     [[nodiscard]] int  size() const;    //!< The brush's diameter, in strip pixels.
+    //! Says that a mask must be selected, unless @p paints (ObjectController::canPaintMask()).
+    void showTarget(bool paints);
 
 signals:
     void changed();   //!< hides() or size() changed.
@@ -31,6 +34,7 @@ private:
     QRadioButton* m_brush  = nullptr;
     QRadioButton* m_eraser = nullptr;
     QSpinBox*     m_size   = nullptr;
+    QLabel*       m_why    = nullptr;   //!< That a mask must be selected (showTarget()).
 };
 
 }  // namespace StripEdit

@@ -138,7 +138,10 @@ public:
     void selectBody(const QString& uid, int id);
     //! Selects object @p uid's own mask, its id @p id, the Shape and Mask sections its own; the object when it is gone.
     void selectMask(const QString& uid, int id);
-    //! Esc: from words, a bubble or a mask picked on its own back to their object; whether there was one to leave.
+    //! Whether Esc has something to leave: words, a bubble or a mask picked on its own, or one mask object selected.
+    [[nodiscard]] bool canLeaveElement() const;
+    //! Esc: from words, a bubble or a mask picked on its own back to their object, from a mask object to nothing
+    //! selected; whether there was one to leave.
     bool leaveElement();
     /**
      * \brief Scrolls the strip to a subject: an object or a tail centred in the view, a page with its top
@@ -478,16 +481,22 @@ public:
      *        to it, with empty words in its lettering (Chain::addBody()); picked.
      */
     void addBubble();
-    //! Whether *Add mask* applies: one object selected, or an element of it, with no mask of its own yet.
+    //! Whether *Add mask to object* applies: one object selected, or an element of it, with no mask of its own yet.
     [[nodiscard]] bool canAddMask() const;
-    //! *Add mask*: a mask of the selected object's own (Edits::addMask()); picked.
+    //! *Add mask to object*: a mask of the selected object's own (Edits::addMask()); picked.
     void addMask();
     //! The one mask object selected: whether it is Hued (Mask::hued). None for any other selection.
     [[nodiscard]] std::optional<bool> selectionHued() const;
     //! Shows the one mask object selected Hued or Applied (Mask::hued), one history step; the render is unchanged.
     void setSelectionHued(bool hued);
-    //! Whether the mask brush paints: one object we author selected, or an element of it.
+    //! Whether the mask tools paint: one mask selected, a mask object or an object's own mask picked.
     [[nodiscard]] bool canPaintMask() const;
+    /**
+     * \brief A mask tool's click with nothing it can paint selected: the topmost mask at @p scenePos selected, a mask
+     *        object whose regions cover it or an object's own mask where it hides it (Geometry::maskHidesAt()). Never
+     *        an object of any other kind; nothing where there is no mask.
+     */
+    void pickMaskAt(const QPointF& scenePos);
     /**
      * \brief A stroke of the mask brush on the selected object: @p sceneArea hidden (@p hide) or shown
      *        (Edits::paintMask()), fitted within half a screen pixel; one history step, the mask then picked (the

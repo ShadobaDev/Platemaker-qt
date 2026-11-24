@@ -2,6 +2,7 @@
 
 #include <QFormLayout>
 #include <QHBoxLayout>
+#include <QLabel>
 #include <QRadioButton>
 #include <QSettings>
 #include <QSpinBox>
@@ -25,9 +26,9 @@ MaskBrushToolOptions::MaskBrushToolOptions(QWidget* parent)
 
     auto* paints = new QHBoxLayout;
     m_brush      = new QRadioButton(tr("Brush"), this);
-    m_brush->setToolTip(tr("Hides the selected object where you paint."));
+    m_brush->setToolTip(tr("The selected mask hides more where you paint."));
     m_eraser = new QRadioButton(tr("Eraser"), this);
-    m_eraser->setToolTip(tr("Shows the selected object again where you paint."));
+    m_eraser->setToolTip(tr("The selected mask hides less where you paint."));
     paints->addWidget(m_brush);
     paints->addWidget(m_eraser);
     paints->addStretch(1);
@@ -38,6 +39,11 @@ MaskBrushToolOptions::MaskBrushToolOptions(QWidget* parent)
     m_size->setSuffix(tr(" px"));
     m_size->setToolTip(tr("The brush's diameter on the strip, whatever the zoom."));
     form->addRow(tr("Size"), m_size);
+
+    m_why = new QLabel(tr("Select a mask to paint: click one on the strip, or pick it in the object stack."), this);
+    m_why->setWordWrap(true);
+    form->addRow(m_why);
+    showTarget(false);
 
     const QSettings settings;
     (settings.value(k_eraseKey, false).toBool() ? m_eraser : m_brush)->setChecked(true);
@@ -61,6 +67,11 @@ bool MaskBrushToolOptions::hides() const
 int MaskBrushToolOptions::size() const
 {
     return m_size->value();
+}
+
+void MaskBrushToolOptions::showTarget(bool paints)
+{
+    m_why->setVisible(!paints);
 }
 
 }  // namespace StripEdit

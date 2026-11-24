@@ -153,7 +153,7 @@ ObjectMenu::ObjectMenu(ObjectController& objects, const StripLayout& layout, Pre
     connect(m_actAddWords, &QAction::triggered, &m_objects, &ObjectController::addWords);
     m_actAddBubble = new QAction(tr("Add bubble"), this);
     connect(m_actAddBubble, &QAction::triggered, &m_objects, &ObjectController::addBubble);
-    m_actAddMask = new QAction(tr("Add mask"), this);
+    m_actAddMask = new QAction(tr("Add mask to object"), this);
     m_actAddMask->setToolTip(tr("Hide part of this object: a region of its own, which moves and resizes with it."));
     connect(m_actAddMask, &QAction::triggered, &m_objects, &ObjectController::addMask);
     // A mask object's view on the strip, toggled here; set in its Mask section too. The render applies it either way.
@@ -486,8 +486,7 @@ bool ObjectMenu::eventFilter(QObject* watched, QEvent* e)
         return false;
     const bool join      = m_objects.joinHeld();
     const bool shapeEdit = m_objects.shapeEdit().isOn();
-    const bool element   = m_objects.subject() == Subject::Words || m_objects.subject() == Subject::Body
-                        || m_objects.subject() == Subject::Mask;
+    const bool element   = m_objects.canLeaveElement();
     if (!join && !shapeEdit && !element)
         return false;   // nothing to step out of: the key is the window's
     if (e->type() == QEvent::ShortcutOverride) {

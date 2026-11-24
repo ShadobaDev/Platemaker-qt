@@ -17,12 +17,11 @@ class QSpinBox;
 namespace StripEdit {
 
 /**
- * \brief An object's own mask: whether it keeps or hides, how soft its edge is, and how it fades: smoothly along a
- *        line, or through a pattern faded by the fill's cross (FadeRows).
+ * \brief A mask, an object's own or a mask object: whether it keeps or hides, how soft its edge is, and how it fades:
+ *        smoothly along a line, or through a pattern faded by the fill's cross (FadeRows); a mask object's view.
  *
- * Its region's shape is the Shape section's while it has one (ShapeProperties reaches it by the mask's id), and
- * where the fade runs is dragged on the strip in shape editing; this editor owns the rest of `Mask`. applyTo()
- * writes nothing to a composition with no mask.
+ * Its regions are the mask tools' and are edited by their nodes, and where the fade runs is dragged on the strip in
+ * shape editing; this editor owns the rest of `Mask`. applyTo() writes nothing to a composition with no mask.
  */
 class MaskEditor : public PropertyGroupEditor
 {

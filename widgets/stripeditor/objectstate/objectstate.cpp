@@ -615,9 +615,8 @@ void ObjectState::applyKindVisibility()
         // answers, through the same rule a set is measured by.
         it.value()->setVisible(tailSubject() ? g == PropertyGroup::TailItem
                                : m_wordsId != 0 ? g == PropertyGroup::Text
-                               // A mask's Shape while it has one region: several are each their own.
-                               : m_maskId != 0  ? (g == PropertyGroup::Shape && maskRegion(m_composition, m_maskId))
-                                                      || g == PropertyGroup::Mask
+                               // A mask's regions are the mask tools', never picked from the shapes: no Shape.
+                               : m_maskId != 0  ? g == PropertyGroup::Mask
                                : m_bodyId != 0  ? g == PropertyGroup::Shape || g == PropertyGroup::Tail
                                                 : carriesGroup(m_composition, g));
     }

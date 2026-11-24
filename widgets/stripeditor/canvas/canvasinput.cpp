@@ -47,7 +47,10 @@ void CanvasInput::updateCursor()
     PointerTarget target = PointerTarget::BareStrip;
     if (m_objects && m_pointerPos.x() >= 0)
         target = m_objects->pointerTargetAt(m_view->mapToScene(m_pointerPos), m_view->transform());
-    m_view->viewport()->setCursor(cursorFor(*tool, target));
+    // A mask tool with nothing to paint only picks a mask: the pointer, not the brush's ring.
+    const bool paints = tool->kind == ToolKind::Paint && m_objects && m_objects->canPaintMask();
+    m_view->viewport()->setCursor(tool->kind == ToolKind::Paint && !paints ? QCursor(Qt::ArrowCursor)
+                                                                            : cursorFor(*tool, target));
     // The brush's ring is its cursor: put where the pointer is whenever the cursor is decided again.
     if (m_brush && tool->kind == ToolKind::Paint && m_pointerPos.x() >= 0)
         m_brush->hover(m_view->mapToScene(m_pointerPos));
@@ -109,9 +112,10 @@ bool CanvasInput::eventFilter(QObject *watched, QEvent *event)
         }
     }
 
-    // The mask brush: the left button paints the selected object's mask wherever it is pressed, on the object, past
-    // it or on a grip, and in shape editing too (a stroke leaves it). With nothing it can paint selected, a press is
-    // the objects' as under Select, so the object to paint is picked here. A double click is a second press.
+    // The mask brush has the left button, always: it paints the selected mask wherever it is pressed, on the
+    // object, past it or on a grip, and in shape editing too (a stroke leaves it). With no mask selected, a click
+    // picks a mask and nothing else. No press reaches an object's drag, its grips or its tails. A double click is a
+    // second press.
     if (watched == m_view->viewport() && kind == ToolKind::Paint && m_brush) {
         const auto* me = dynamic_cast<QMouseEvent*>(event);
         const QPointF at = me ? m_view->mapToScene(me->position().toPoint()) : QPointF();
@@ -122,8 +126,11 @@ bool CanvasInput::eventFilter(QObject *watched, QEvent *event)
                 return true;
             }
         } else if ((event->type() == QEvent::MouseButtonPress || event->type() == QEvent::MouseButtonDblClick)
-                   && me->button() == Qt::LeftButton && m_objects->canPaintMask()) {
-            m_brush->begin(at);
+                   && me->button() == Qt::LeftButton) {
+            if (m_objects->canPaintMask())
+                m_brush->begin(at);
+            else
+                m_objects->pickMaskAt(at);
             return true;
         } else if (event->type() == QEvent::MouseButtonRelease && m_brush->isPainting()) {
             m_brush->finish();

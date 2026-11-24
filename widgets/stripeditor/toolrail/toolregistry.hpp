@@ -24,7 +24,7 @@ enum class ToolKind {
     Grade,    //!< Edits the selected object's colour; picked with nothing selected, it takes the strip.
     Sample,   //!< A press reads the canvas instead of changing it — the eyedropper.
     Apply,    //!< A press spends the colour pair on the object it lands on.
-    Paint,    //!< A drag paints the selected object's mask (MaskBrush); with nothing to paint, a press selects.
+    Paint,    //!< A drag paints the selected mask (MaskBrush); with none, a click picks a mask. Moves nothing.
 };
 
 /**

@@ -123,9 +123,9 @@ const QList<Tool>& tools()
          QStringLiteral(":/icons/tools/maskbrush.svg"),
          QT_TRANSLATE_NOOP("StripEdit::Tool", "Mask brush"),
          QT_TRANSLATE_NOOP("StripEdit::Tool",
-                           "Drag over the selected object to hide\n"
-                           "it there; the eraser shows it again.\n"
-                           "With nothing selected, a click selects."),
+                           "Drag to hide more of the selected\n"
+                           "mask; the eraser hides less.\n"
+                           "With none selected, a click picks a mask."),
          ToolKind::Paint, std::nullopt, QStringLiteral("maskbrush"),
          CursorStyle::None, CursorStyle::Inherit},
 

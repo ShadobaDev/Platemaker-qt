@@ -98,6 +98,10 @@ void MaskBrush::hover(const QPointF& scenePos)
 {
     if (!m_armed)
         return;
+    if (!m_objects.canPaintMask()) {   // nothing to paint: no ring, the pointer is the cursor
+        leave();
+        return;
+    }
     ring()->setPos(scenePos);
     m_ring->show();
 }

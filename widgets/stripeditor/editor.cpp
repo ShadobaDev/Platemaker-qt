@@ -419,7 +419,13 @@ Editor::Editor(PresetStore& presets, QWidget *parent)
         connect(m_objects, &ObjectController::compositionCreated,          this, &Editor::compositionCreated);
         connect(m_objects, &ObjectController::overlaysCommitted,      this, &Editor::overlaysCommitted);
         connect(m_objects, &ObjectController::pictureImportRequested, this, &Editor::pictureImportRequested);
-        connect(m_objects, &ObjectController::subjectChanged,         this, [this] { showSubject(); });
+        // A mask tool paints the mask selected, or picks one: its options say which, and its cursor shows it.
+        connect(m_objects, &ObjectController::subjectChanged,         this, [this] {
+            showSubject();
+            m_maskBrushOptions->showTarget(m_objects->canPaintMask());
+            if (m_input)
+                m_input->updateCursor();
+        });
 
         // CANVAS: what a press, a drag, a drop or a wheel on the strip does under the armed tool. It does
         // the canvas's own part and reports the rest, which is wired here because it belongs elsewhere:

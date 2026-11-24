@@ -179,8 +179,8 @@ TEST(Edits, WordsAreAddedInTheLowerHalfAndTheLastOneStays)
 }
 
 /**
- * \brief *Add mask* covers the right third of the frame and reaches past it, hidden from the frame's right edge
- *        and shown at its left, under an id of its own; an object has one mask, and removing it takes it away.
+ * \brief *Add mask to object* covers the right third of the frame and reaches past it, hidden from the frame's right
+ *        edge and shown at its left, under an id of its own; an object has one mask, and removing it takes it away.
  */
 TEST(Edits, AMaskCoversTheRightThirdAndThereIsOne)
 {

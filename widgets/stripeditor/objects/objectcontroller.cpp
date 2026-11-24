@@ -298,12 +298,20 @@ void ObjectController::selectMask(const QString& uid, int id)
     showSelection();
 }
 
+bool ObjectController::canLeaveElement() const
+{
+    const Subject s = m_selection.subject();
+    return s == Subject::Words || s == Subject::Body || s == Subject::Mask || selectionHued().has_value();
+}
+
 bool ObjectController::leaveElement()
 {
-    if (m_selection.subject() != Subject::Words && m_selection.subject() != Subject::Body
-        && m_selection.subject() != Subject::Mask)
+    if (!canLeaveElement())
         return false;
-    selectOverlay(m_selection.primary());
+    if (selectionHued())   // a mask object is a mask, left as an object's own is: the strip no longer dimmed for it
+        selectOverlays({});
+    else
+        selectOverlay(m_selection.primary());
     return true;
 }
 
@@ -706,7 +714,7 @@ void ObjectController::setSource(const std::vector<Platemaker::Models::StripOver
     if (m_selection.subject() == Subject::Body && !hasBody(m_selection.body()))
         selectOverlay(m_selection.primary());
     if (m_selection.subject() == Subject::Mask && !hasMask(m_selection.mask()))
-        selectOverlay(m_selection.primary());   // an undo of *Add mask*
+        selectOverlay(m_selection.primary());   // an undo of *Add mask to object*
 }
 
 QImage ObjectController::sharpRasterFor(const Composition& a)
@@ -1172,7 +1180,7 @@ void ObjectController::addMask()
     const int     id  = Edits::addMask(a);
     if (id == 0)
         return;
-    applyComposition(uid, a, /*commit=*/true, tr("Add mask"));
+    applyComposition(uid, a, /*commit=*/true, tr("Add mask to object"));
     selectMask(uid, id);
 }
 
@@ -1202,10 +1210,28 @@ qreal ObjectController::screenScale(const Object& item) const
 
 bool ObjectController::canPaintMask() const
 {
-    const Subject s = m_selection.subject();
-    return m_selection.objects().size() == 1 && m_overlayItems.value(m_selection.primary())
-        && isParametric(m_selection.primary())
-        && (s == Subject::Overlay || s == Subject::Words || s == Subject::Body || s == Subject::Mask);
+    const Object* item = m_selection.objects().size() == 1 ? m_overlayItems.value(m_selection.primary()) : nullptr;
+    return item && isParametric(m_selection.primary()) && item->pickedMask();
+}
+
+void ObjectController::pickMaskAt(const QPointF& scenePos)
+{
+    // Topmost first: by the bounds, as a mask object's shape is not where its regions are unless it is seen.
+    for (QGraphicsItem* g : m_scene->items(scenePos, Qt::IntersectsItemBoundingRect, Qt::DescendingOrder)) {
+        const auto* item = dynamic_cast<const Object*>(g);
+        if (!item || !isParametric(item->uid()))
+            continue;
+        const Composition& c  = item->composition();
+        const QPointF      at = item->mapFromScene(scenePos);
+        if (isMaskObject(c) && Geometry::maskOutline(*c.mask, c.seed).contains(at)) {
+            selectOverlay(item->uid());   // a mask object is its mask
+            return;
+        }
+        if (!isMaskObject(c) && Geometry::maskHidesAt(c, at)) {
+            selectMask(item->uid(), c.mask->id);
+            return;
+        }
+    }
 }
 
 void ObjectController::paintMask(const QPainterPath& sceneArea, bool hide)

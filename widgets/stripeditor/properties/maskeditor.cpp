@@ -32,6 +32,15 @@ MaskEditor::MaskEditor(QWidget* parent)
     auto* form = m_form = new QFormLayout(this);
     form->setContentsMargins(0, 0, 0, 0);
 
+    // A mask object's view on the strip (Mask::hued); the render applies it either way.
+    m_view = new QComboBox(this);
+    m_view->addItem(tr("Applied"));
+    m_view->addItem(tr("Hued"));
+    m_view->setToolTip(tr("Applied shows only what the mask does: the objects below it hidden where it lies. Hued "
+                          "shows where it lies, black where it hides, half see-through. Only on the strip: the render "
+                          "applies the mask."));
+    form->addRow(tr("View:"), m_view);
+
     m_keep = new QCheckBox(tr("Keep inside"), this);
     m_keep->setToolTip(tr("Show only what is inside the mask, and hide the rest of the object: a balloon tucked into "
                           "a panel, the mask traced along the panel's frame."));
@@ -90,6 +99,8 @@ MaskEditor::MaskEditor(QWidget* parent)
     };
     m_fadeRows.build(this, form, m_tone, m_populating, edited, [this] { emit committed(); }, /*withShape=*/false);
 
+    // As every row: changed() is what carries the edit into the object (committed() alone would commit it as it was).
+    connect(m_view, &QComboBox::currentIndexChanged, this, edited);
     connect(m_keep, &QCheckBox::toggled, this, edited);
     connect(m_feather, &QDoubleSpinBox::valueChanged, this, edited);
     connect(m_transition, &QComboBox::currentIndexChanged, this, [this, edited] {
@@ -135,6 +146,8 @@ void MaskEditor::bind(const Subjects& subjects)
     const Composition* c     = subjects.isEmpty() ? nullptr : subjects.first();
     const Mask         shown = c && c->mask ? *c->mask : Mask{};
     m_populating = true;
+    m_form->setRowVisible(m_view, c && isMaskObject(*c));   // an object's own mask is seen through its object
+    m_view->setCurrentIndex(shown.hued ? 1 : 0);
     m_tone = shown.tone;
     m_fade = shown.fade;
     m_fadeRows.reset();
@@ -156,6 +169,8 @@ void MaskEditor::applyTo(Composition& target) const
     if (!target.mask)
         return;
     Mask& m      = *target.mask;
+    if (isMaskObject(target))
+        m.hued = m_view->currentIndex() == 1;
     m.keepInside = m_keep->isChecked();
     m.feather    = m_feather->value();
     m.shape      = m_fadeShape;

@@ -506,6 +506,15 @@ void paintCut(QPainter& painter, const Composition& c, const QRectF& bounds,
     });
 }
 
+void paintHued(QPainter& painter, const Composition& c, qreal opacity)
+{
+    const QRectF box = Geometry::bounds(c);
+    drawInLayer(painter, box, opacity, [&](QPainter& p, const QTransform&) {
+        p.fillRect(box, Qt::black);   // where it hides shows through the white, cut away by the mask itself
+        paintCut(p, c, box, [&](QPainter& q) { q.fillRect(box, Qt::white); });
+    });
+}
+
 void paintCuts(QPainter& painter, const QRectF& bounds, const QList<Cut>& cuts,
                const std::function<void(QPainter&)>& draw)
 {

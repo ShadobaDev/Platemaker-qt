@@ -179,7 +179,12 @@ QString contentElement(const Composition& c)
             break;
         }
     // Element text, not an attribute: only what would end it or start markup is escaped, so the JSON reads.
-    QString text = contentOf(c);
+    // A mask object's Hued is the editor's view and nothing the render reads: kept out, so toggling it leaves the
+    // file, and its hash, as they were.
+    Composition written = c;
+    if (written.mask)
+        written.mask->hued = false;
+    QString text = contentOf(written);
     text.replace(QLatin1Char('&'), QLatin1String("&amp;"));   // first, or it double-escapes the rest
     text.replace(QLatin1Char('<'), QLatin1String("&lt;"));
     text.replace(QLatin1Char('>'), QLatin1String("&gt;"));

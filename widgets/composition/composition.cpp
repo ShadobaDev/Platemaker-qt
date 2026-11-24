@@ -736,6 +736,8 @@ QJsonObject toJson(const Composition& c)
                                  {QStringLiteral("reversed"), t.fadeReversed}});
         if (m.keepInside)
             o.insert(QStringLiteral("keepInside"), true);
+        if (m.hued)
+            o.insert(QStringLiteral("hued"), true);
         j.insert(QStringLiteral("mask"), o);
     }
     if (!c.preset.isEmpty())
@@ -831,6 +833,7 @@ Composition compositionFromJson(const QJsonObject& j)
                 *fields[i] = cross.at(i).toDouble(*fields[i]);
         }
         m.keepInside = o.value(QStringLiteral("keepInside")).toBool(false);
+        m.hued       = o.value(QStringLiteral("hued")).toBool(false);
         m.shape      = maskFadeFromName(o.value(QStringLiteral("fadeShape")).toString());
         if (!m.regions.isEmpty())   // a mask with nowhere to hide is none
             c.mask = m;

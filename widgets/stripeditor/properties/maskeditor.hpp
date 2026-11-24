@@ -40,6 +40,7 @@ private:
     void showRows();   //!< A pattern: its cell; a cross: its turning over.
 
     QFormLayout*    m_form       = nullptr;
+    QComboBox*      m_view       = nullptr;   //!< A mask object's Applied or Hued; no row for an object's own mask.
     QCheckBox*      m_keep       = nullptr;
     QDoubleSpinBox* m_feather    = nullptr;
     QComboBox*      m_transition = nullptr;

@@ -234,11 +234,17 @@ struct Mask
      * all at its end.
      */
     bool keepInside = false;
+    /**
+     * A mask object's view on the strip: Hued draws what it covers at half opacity (black where it hides, white
+     * where it keeps), Applied (false) only its effect. The editor's alone: kept with the object, never in the file
+     * the render reads, which a mask always hides by and never shows.
+     */
+    bool hued = false;
 
     [[nodiscard]] bool operator==(const Mask& o) const
     {
         return id == o.id && regions == o.regions && qFuzzyCompare(1.0 + feather, 1.0 + o.feather) && fade == o.fade
-            && shape == o.shape && tone == o.tone && keepInside == o.keepInside;
+            && shape == o.shape && tone == o.tone && keepInside == o.keepInside && hued == o.hued;
     }
     [[nodiscard]] bool operator!=(const Mask& o) const { return !(*this == o); }
 };

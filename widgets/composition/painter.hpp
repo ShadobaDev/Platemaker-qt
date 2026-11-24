@@ -90,6 +90,12 @@ void paintCut(QPainter& painter, const Composition& c, const QRectF& bounds,
               const std::function<void(QPainter&)>& draw);
 
 /**
+ * \brief Mask object @p c's Hued view (Mask::hued): over its drawn box, black where it hides and white where it keeps,
+ *        as a layer mask is shown, the whole at @p opacity. No feather.
+ */
+void paintHued(QPainter& painter, const Composition& c, qreal opacity);
+
+/**
  * \brief A mask cutting an object it is not part of: a mask object above it, laid on the object by @p toObject (from
  *        the mask object's frame to the object's).
  */

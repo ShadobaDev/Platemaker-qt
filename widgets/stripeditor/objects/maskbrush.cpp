@@ -1,6 +1,7 @@
 #include "objects/maskbrush.hpp"
 
 #include "objects/objectcontroller.hpp"
+#include "objects/seethrough.hpp"
 
 #include <QGraphicsPathItem>
 #include <QGraphicsScene>
@@ -14,19 +15,6 @@ namespace {
 
 constexpr qreal k_brushZ      = 1000.0;   //!< Above everything, as a placement's band.
 constexpr int   k_strokeAlpha = 70;       //!< The stroke drawn see-through, so what it covers shows.
-
-/**
- * A path drawn over the strip that a press, a hover and the hit test all go through: it has no shape. Its bounds are
- * its path's, said here: left to the base, a pen with a width would take them from the empty shape, and nothing
- * would be drawn. Its pen is a hairline, so the path's own box holds it.
- */
-class SeeThrough : public QGraphicsPathItem
-{
-public:
-    using QGraphicsPathItem::QGraphicsPathItem;
-    [[nodiscard]] QPainterPath shape() const override { return {}; }
-    [[nodiscard]] QRectF boundingRect() const override { return path().controlPointRect(); }
-};
 
 QGraphicsPathItem* seeThrough(QGraphicsScene* scene)
 {

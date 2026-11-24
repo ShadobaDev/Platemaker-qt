@@ -80,6 +80,7 @@ qt_add_executable(Platemaker
     widgets/stripeditor/objects/objectcontroller.cpp widgets/stripeditor/objects/objectcontroller.hpp
     widgets/stripeditor/objects/placement.cpp widgets/stripeditor/objects/placement.hpp
     widgets/stripeditor/objects/maskbrush.cpp widgets/stripeditor/objects/maskbrush.hpp
+    widgets/stripeditor/objects/seethrough.hpp
     widgets/stripeditor/toolrail/toolregistry.cpp widgets/stripeditor/toolrail/toolregistry.hpp
     widgets/stripeditor/toolrail/toolrail.cpp widgets/stripeditor/toolrail/toolrail.hpp
     widgets/stripeditor/toolrail/colourpair.cpp widgets/stripeditor/toolrail/colourpair.hpp

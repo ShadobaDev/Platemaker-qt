@@ -3852,6 +3852,37 @@ TEST(Mask, AMaskAloneIsAMaskObjectWrittenAsWhatItCoversHidden)
     const Composition placed = maskObject(QSize(30, 20));
     EXPECT_TRUE(isMaskObject(placed));
     EXPECT_EQ(frameOf(placed), QRectF(0.0, 0.0, 30.0, 20.0)) << "one rectangle at the origin";
+
+    // Hued is the editor's view: kept with the object (its content), never in the file the render reads.
+    Composition hued  = m;
+    hued.mask->hued   = true;
+    EXPECT_EQ(Svg::write(hued), svg) << "the file, and so its hash, as it was";
+    EXPECT_TRUE(Svg::fromContent(Svg::contentOf(hued).toStdString(), &ok) == hued);
+}
+
+/**
+ * \brief A Hued mask object draws what it covers over its box: black, half see-through, where it hides; white where it
+ *        keeps.
+ */
+TEST(Mask, AHuedMaskObjectShowsWhatItCoversHalfSeeThrough)
+{
+    Composition m = maskObject(QSize(20, 20));
+    m.mask->hued  = true;
+    QImage img(40, 40, QImage::Format_ARGB32);
+    img.fill(Qt::transparent);
+    {
+        QPainter p(&img);
+        p.translate(10.0, 10.0);
+        Painter::paintHued(p, m, 0.5);
+    }
+    constexpr int k_half = 128, k_rounding = 2;
+    const QRgb    hidden = img.pixel(20, 20);
+    EXPECT_NEAR(qAlpha(hidden), k_half, k_rounding);
+    EXPECT_EQ(qRed(hidden), 0) << "black where it hides";
+    const QRgb kept = img.pixel(9, 20);   // its drawn box reaches a pixel past the region
+    EXPECT_NEAR(qAlpha(kept), k_half, k_rounding);
+    EXPECT_EQ(qRed(kept), 255) << "white where it keeps";
+    EXPECT_EQ(qAlpha(img.pixel(2, 2)), 0) << "nothing past its box";
 }
 
 /**

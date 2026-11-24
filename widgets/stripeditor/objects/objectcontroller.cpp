@@ -4,6 +4,7 @@
 #include "objects/pictureobject.hpp"
 #include "objects/bubbleobject.hpp"
 #include "objects/object.hpp"
+#include "objects/seethrough.hpp"
 #include "objects/selectionchrome.hpp"
 #include "chain.hpp"
 #include "geometry.hpp"
@@ -43,6 +44,13 @@ namespace {
 
 //! Scene Z: the strip is 0, seam guides 1, overlays start here (in composite order).
 constexpr int k_overlayZBase = 2;
+//! The dimming round a selected mask: over every object (they count up from k_overlayZBase), under the mask brush's
+//! ring and a placement's band (1000), so what is being drawn is not dimmed.
+constexpr qreal k_dimZ = 999.0;
+//! How dark the strip round a selected mask is: 60%. 30% left a light balloon light, its mask's shape hard to see.
+constexpr qreal k_dimShade = 0.6;
+//! The edge of a selected mask's regions, drawn on the dimming: a blue apart from the chrome's and the join's colours.
+const QColor k_dimEdgeColour(40, 120, 220);
 //! How far a duplicate lands from its original, so it is visibly a second bubble and not a mis-click.
 constexpr int k_duplicateOffset = 28;
 
@@ -99,6 +107,8 @@ ObjectController::ObjectController(QGraphicsScene* scene, QGraphicsView* view,
     m_joinHold->setSingleShot(true);
     m_joinHold->setInterval(k_joinHold);
     connect(m_joinHold, &QTimer::timeout, this, [this] { setJoinLit(true); });
+    // A mask selected, or no longer: the strip round it dimmed, or not.
+    connect(this, &ObjectController::subjectChanged, this, &ObjectController::refreshDim);
     m_panel = new PanelBinder(m_selection,
                               {[this](const QString& uid) -> std::optional<Composition> {
                                    return m_overlayItems.contains(uid) ? std::optional<Composition>(compositionOf(uid))
@@ -543,7 +553,9 @@ void ObjectController::refreshCuts()
 {
     // A mask object cuts every object below it in the stack (before it in composite order) that it meets, as the
     // render's mask role does; laid on each by the two items' transforms. A muted or unanchored one cuts nothing.
-    const auto& overlays = m_document.overlays();
+    // And what each mask object hides, in the scene: the objects it cuts, where an Applied one may be pressed.
+    const auto&                   overlays = m_document.overlays();
+    QHash<const Object*, QPainterPath> hides;
     for (std::size_t i = 0; i < overlays.size(); ++i) {
         Object* item = m_overlayItems.value(QString::fromStdString(overlays[i].uid));
         if (!item)
@@ -559,10 +571,45 @@ void ObjectController::refreshCuts()
                 const Composition& m = mask->composition();
                 cuts.append({*m.mask, m.seed, mask->sceneTransform() * item->sceneTransform().inverted(),
                              Geometry::bounds(m)});
+                hides[mask].addPath(item->mapToScene(item->shape()));
             }
         }
         item->setCuts(cuts);
     }
+    for (Object* item : std::as_const(m_overlayItems))
+        if (auto* mask = qobject_cast<BubbleObject*>(item); mask && isMaskObject(mask->composition())) {
+            QPainterPath under = mask->mapFromScene(hides.value(mask));
+            under.setFillRule(Qt::WindingFill);
+            mask->setCovered(under.intersected(Geometry::maskOutline(*mask->composition().mask, mask->composition().seed)));
+        }
+    refreshDim();   // the same moments move the mask a dimming goes round
+}
+
+void ObjectController::refreshDim()
+{
+    const Object* item = m_selection.objects().size() == 1 ? m_overlayItems.value(m_selection.primary()) : nullptr;
+    const Mask*   mask = item ? item->pickedMask() : nullptr;
+    // A Hued mask object shows where it lies itself; dimmed round, its black and the strip's would run together.
+    const bool hued = mask && isMaskObject(item->composition()) && mask->hued;
+    if (!mask || hued || !m_scene) {
+        if (m_dim)
+            m_dim->hide();
+        return;
+    }
+    if (!m_dim) {
+        m_dim = new SeeThrough;
+        QPen edge(k_dimEdgeColour, 0.0);   // a hairline round the regions (and the strip's own edge), any zoom
+        edge.setCosmetic(true);
+        m_dim->setPen(edge);
+        m_dim->setBrush(QColor(0, 0, 0, qRound(255 * k_dimShade)));
+        m_dim->setZValue(k_dimZ);
+        m_scene->addItem(m_dim);
+    }
+    // Everything on the strip but its regions, which are shown as they are.
+    QPainterPath rest;
+    rest.addRect(m_scene->sceneRect());
+    m_dim->setPath(rest.subtracted(item->mapToScene(Geometry::maskOutline(*mask, item->composition().seed))));
+    m_dim->show();
 }
 
 void ObjectController::selectSubject(Subject subject, const QString& pageUid)
@@ -1127,6 +1174,24 @@ void ObjectController::addMask()
         return;
     applyComposition(uid, a, /*commit=*/true, tr("Add mask"));
     selectMask(uid, id);
+}
+
+std::optional<bool> ObjectController::selectionHued() const
+{
+    const Object* item = m_selection.objects().size() == 1 ? m_overlayItems.value(m_selection.primary()) : nullptr;
+    if (!item || !isMaskObject(item->composition()))
+        return std::nullopt;
+    return item->composition().mask->hued;
+}
+
+void ObjectController::setSelectionHued(bool hued)
+{
+    if (selectionHued() == std::optional<bool>(!hued)) {
+        Composition a = m_overlayItems.value(m_selection.primary())->composition();
+        a.mask->hued  = hued;
+        applyComposition(m_selection.primary(), a, /*commit=*/true, hued ? tr("Show mask hued") : tr("Show mask applied"));
+        m_panel->show(a);   // its Mask section's View follows
+    }
 }
 
 qreal ObjectController::screenScale(const Object& item) const

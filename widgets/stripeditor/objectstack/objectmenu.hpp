@@ -123,6 +123,7 @@ private:
     QAction*           m_actAddWords     = nullptr;   //!< More words on a balloon or a picture — OBJECT STATE's too.
     QAction*           m_actAddBubble    = nullptr;   //!< One more bubble at the end of a balloon's chain.
     QAction*           m_actAddMask      = nullptr;   //!< A mask of the object's own, when it has none.
+    QAction*           m_actHued         = nullptr;   //!< A mask object's Hued, toggled (Mask::hued).
     QAction*           m_actJoin         = nullptr;   //!< Two balloons made one, bridged where they are nearest.
     QAction*           m_actEditShape    = nullptr;   //!< Shape editing of one balloon, on and off.
     QAction*           m_actResetLook    = nullptr;   //!< *Reset to default*: the default look, no origin.

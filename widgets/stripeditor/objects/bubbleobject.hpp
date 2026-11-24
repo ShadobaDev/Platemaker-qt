@@ -47,6 +47,8 @@ public:
     [[nodiscard]] QRectF frameBox() const override;
     [[nodiscard]] bool   isChain() const override;
     [[nodiscard]] QPainterPath hitArea() const override;
+    //! A mask object's: where it hides an object below it, in its own coordinates; what an Applied one is pressed on.
+    void setCovered(const QPainterPath& covered) { m_covered = covered; }
     /**
      * \brief Returns the label for the object.
      * \return The label for the object.
@@ -137,6 +139,7 @@ private:
     QList<bool>  m_tailDrawn;   //!< Per tail: whether it is drawn (its tip is outside the balloon).
     int          m_joinLight = 0;   //!< The body outlined as a held tail's target (setJoinLight()); 0 for none.
     bool         m_joinRefused = false;   //!< That target cannot be joined: outlined grey, dashed.
+    QPainterPath m_covered;     //!< A mask object's: where it hides something (setCovered()).
 };
 
 }  // namespace StripEdit

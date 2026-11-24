@@ -28,6 +28,7 @@
 
 #include <vector>
 
+class QGraphicsPathItem;
 class QGraphicsScene;
 class QGraphicsView;
 class QTimer;
@@ -335,6 +336,12 @@ public:
     void syncItems();    //!< Reconciles the scene items with the overlay set, by uid.
     //! Gives every object the mask objects above it that meet it (Object::setCuts()): after a sync and during a drag.
     void refreshCuts();
+    /**
+     * \brief While a mask is selected (an object's own, picked, or a mask object), the strip round its regions is
+     *        dimmed, so which mask is worked on can be seen; otherwise nothing. At the moments refreshCuts() is called,
+     *        and when the selection changes.
+     */
+    void refreshDim();
     //! Removes objects @p uids, their compositions with them, as one history step called @p undoText; nothing selected.
     void removeObjects(const QStringList& uids, const QString& undoText);
     void reselect();     //!< Re-applies the current selection after the scene was rebuilt.
@@ -353,6 +360,7 @@ public:
     {
         m_overlayItems.clear();
         m_chrome = nullptr;   // the scene's too; syncItems() makes a new one
+        m_dim    = nullptr;   // likewise; refreshDim() makes a new one
     }
 
     /**
@@ -474,6 +482,10 @@ public:
     [[nodiscard]] bool canAddMask() const;
     //! *Add mask*: a mask of the selected object's own (Edits::addMask()); picked.
     void addMask();
+    //! The one mask object selected: whether it is Hued (Mask::hued). None for any other selection.
+    [[nodiscard]] std::optional<bool> selectionHued() const;
+    //! Shows the one mask object selected Hued or Applied (Mask::hued), one history step; the render is unchanged.
+    void setSelectionHued(bool hued);
     //! Whether the mask brush paints: one object we author selected, or an element of it.
     [[nodiscard]] bool canPaintMask() const;
     /**
@@ -710,6 +722,7 @@ private:
     Document                                      m_document;   //!< The objects: their overlays and compositions.
     QHash<QString, Object*>                       m_overlayItems; //!< Live scene objects, keyed by overlay uid.
     SelectionChrome*                              m_chrome = nullptr; //!< The selection's grips, above every object; owned by the scene.
+    QGraphicsPathItem*                            m_dim    = nullptr; //!< The strip dimmed round a selected mask (refreshDim()); the scene's.
     /**
      * \brief Library rasterisations of bubbles with a filter style, keyed by the SVG document itself.
      *

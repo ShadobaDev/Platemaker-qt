@@ -156,6 +156,12 @@ ObjectMenu::ObjectMenu(ObjectController& objects, const StripLayout& layout, Pre
     m_actAddMask = new QAction(tr("Add mask"), this);
     m_actAddMask->setToolTip(tr("Hide part of this object: a region of its own, which moves and resizes with it."));
     connect(m_actAddMask, &QAction::triggered, &m_objects, &ObjectController::addMask);
+    // A mask object's view on the strip, toggled here; set in its Mask section too. The render applies it either way.
+    m_actHued = new QAction(tr("Hued"), this);
+    m_actHued->setCheckable(true);
+    m_actHued->setToolTip(tr("Show where the mask lies, black where it hides, half see-through; off, only what it "
+                             "does. Only on the strip: the render applies the mask."));
+    connect(m_actHued, &QAction::triggered, this, [this](bool on) { m_objects.setSelectionHued(on); });
     m_actJoin = new QAction(tr("Join"), this);
     connect(m_actJoin, &QAction::triggered, &m_objects, &ObjectController::joinSelection);
 
@@ -230,6 +236,7 @@ ObjectMenu::ObjectMenu(ObjectController& objects, const StripLayout& layout, Pre
         w->addAction(m_actAddWords);
         w->addAction(m_actAddBubble);
         w->addAction(m_actAddMask);
+        w->addAction(m_actHued);
         w->addAction(m_actJoin);
         w->addAction(m_actEditShape);
         w->addAction(m_nodeTypeMenu->menuAction());
@@ -287,9 +294,11 @@ void ObjectMenu::updateEntries()
     // selection of a balloon and a picture would be offering to do it to both, and it would quietly
     // do it to one: a menu that acts on part of what is selected is a menu that lied about its
     // subject.
+    // A mask object has no look: it draws nothing.
+    const auto drawsALook = [this](const QString& uid) { return !isMaskObject(m_objects.compositionOf(uid)); };
     const bool allParametric = !picked.isEmpty()
-        && std::all_of(picked.cbegin(), picked.cend(), [this](const QString& uid) {
-               return m_objects.isParametric(uid) || m_objects.carriers().contains(uid);
+        && std::all_of(picked.cbegin(), picked.cend(), [&](const QString& uid) {
+               return (m_objects.isParametric(uid) && drawsALook(uid)) || m_objects.carriers().contains(uid);
            });
     for (QAction* a : {m_actSavePreset, m_actFill, m_actOutline})
         if (a)
@@ -314,14 +323,22 @@ void ObjectMenu::updateEntries()
         m_actAddBubble->setVisible(m_objects.canAddBubble());
     if (m_actAddMask)
         m_actAddMask->setVisible(m_objects.canAddMask());
+    // A mask object's view: absent for anything else. It has no blend either: it is not drawn.
+    const std::optional<bool> hued = m_objects.selectionHued();
+    if (m_blendMenu)
+        m_blendMenu->menuAction()->setVisible(!hued.has_value());
+    if (m_actHued) {
+        m_actHued->setVisible(hued.has_value());
+        m_actHued->setChecked(hued.value_or(false));
+    }
     if (m_actJoin)
         m_actJoin->setVisible(m_objects.canJoin());
     // A kind is something only an authored object has. One that is not — imported artwork, or a tail —
     // can reach nothing, and the intersection of "everything" with "nothing" is what greys this out.
     const bool authoredOnly =
         !picked.isEmpty() && pickedTails.isEmpty()
-        && std::all_of(picked.cbegin(), picked.cend(), [this](const QString& uid) {
-               return m_objects.isParametric(uid) && !m_objects.carriers().contains(uid);
+        && std::all_of(picked.cbegin(), picked.cend(), [&](const QString& uid) {
+               return m_objects.isParametric(uid) && drawsALook(uid) && !m_objects.carriers().contains(uid);
            });
     if (m_convertMenu) m_convertMenu->menuAction()->setEnabled(authoredOnly);
 

@@ -253,8 +253,15 @@ Body* bodyOf(Composition& c)
     return c.balloon && !c.balloon->bodies.isEmpty() ? &c.balloon->bodies.first() : nullptr;
 }
 
+bool isMaskObject(const Composition& c)
+{
+    return c.mask && !c.balloon && !c.picture && c.words.isEmpty();
+}
+
 QSize sizeOf(const Composition& c)
 {
+    if (isMaskObject(c))
+        return frameOf(c).size().toSize();
     if (const Body* b = bodyOf(c))
         return b->size;
     if (c.picture)
@@ -268,6 +275,8 @@ namespace {
 //! Where the grips' box (sizeOf()) is: the first body's place, or the picture's, or the first words' own.
 QPointF sizedCorner(const Composition& c)
 {
+    if (isMaskObject(c))
+        return frameOf(c).topLeft();
     if (const Body* b = bodyOf(c))
         return b->place.pos;
     if (c.picture)
@@ -302,6 +311,10 @@ void resizeMask(Mask& mask, const QRectF& to)
 
 void resize(Composition& c, const QSize& size)
 {
+    if (isMaskObject(c)) {   // its regions are the object
+        resizeMask(*c.mask, QRectF(sizedCorner(c), QSizeF(size)));
+        return;
+    }
     if (c.mask)
         scaleMask(*c.mask, sizedCorner(c), sizeOf(c), size);
     if (Body* b = bodyOf(c)) {
@@ -416,6 +429,8 @@ QString objectLabel(const Composition& c)
 
 QRectF frameOf(const Composition& c)
 {
+    if (isMaskObject(c))
+        return Geometry::maskBox(*c.mask);
     QRectF r;
     const auto add = [&r](const Place& p, const QSize& s) {
         const QRectF one(p.pos, QSizeF(s));

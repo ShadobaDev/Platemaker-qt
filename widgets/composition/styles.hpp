@@ -341,6 +341,8 @@ struct ShadowPaths
 
 //! How far past its caster \p s reaches on any side: its spread, its offset and its blur. 0 with none.
 [[nodiscard]] qreal shadowReach(const Shadow& s);
+//! How far past its regions \p m reaches on any side: its feather's blur. 0 for a hard edge.
+[[nodiscard]] qreal maskReach(const Mask& m);
 
 [[nodiscard]] bool         blursShadow(const Balloon& b);   //!< The balloon's.
 [[nodiscard]] bool         fadesShadow(const Balloon& b);   //!< The balloon's.

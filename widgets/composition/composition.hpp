@@ -306,17 +306,26 @@ void tidyRuns(TextProperties& t);
 [[nodiscard]] Body*       maskRegion(Composition& c, int id);
 
 /**
+ * \brief Whether @p c is a **mask object**: a mask and nothing else, no balloon, picture or words. It draws nothing;
+ *        its overlay hides the overlays below it where its regions are (the library's mask role).
+ */
+[[nodiscard]] bool isMaskObject(const Composition& c);
+
+/**
  * \brief The rectangle the author dragged: the bodies', the picture's, and the box of words with no seat, as
- *        one. Not what is drawn, which a tail may take past it (Geometry::bounds()).
+ *        one; a mask object's, the box round its regions. Not what is drawn, which a tail may take past it
+ *        (Geometry::bounds()).
  */
 [[nodiscard]] QRectF frameOf(const Composition& c);
 
 /**
- * \brief The size the grips drag: the first body's, or the picture's, or the first words' own box.
+ * \brief The size the grips drag: the first body's, or the picture's, or the first words' own box; a mask object's
+ *        frame.
  */
 [[nodiscard]] QSize sizeOf(const Composition& c);
 //! Sets sizeOf(): the first body's size; or the picture's; and the box of the words with no seat. A mask's
-//! regions are scaled with it, from its top-left corner, so they keep their place on the object.
+//! regions are scaled with it, from its top-left corner, so they keep their place on the object; a mask object's
+//! are its size.
 void resize(Composition& c, const QSize& size);
 //! Scales @p mask's regions together, so the box round them (Geometry::maskBox()) becomes @p to.
 void resizeMask(Mask& mask, const QRectF& to);

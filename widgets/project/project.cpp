@@ -869,6 +869,16 @@ void Project::addDroppedUrls(const QList<QUrl>& urls)
 // sends.
 // ---------------------------------------------------------------------------
 
+namespace {
+
+//! What an overlay drawn from @p c does to the strip: a mask object hides the overlays below it.
+Platemaker::Models::OverlayRole roleOf(const Composition& c)
+{
+    return isMaskObject(c) ? Platemaker::Models::OverlayRole::Mask : Platemaker::Models::OverlayRole::Overlay;
+}
+
+} // namespace
+
 void Project::setCompositions(Composition::Map compositions)
 {
     m_compositions = std::move(compositions);
@@ -900,6 +910,9 @@ void Project::createOverlay(const Composition& composition, double xFrac, double
         const std::string uid =
             item.addOverlay(asset.toStdString(), xFrac, yFrac, wFrac,
                             Platemaker::Models::BlendMode::Over, anchorInputUid.toStdString());
+        for (auto& o : item.getStripOverlays())
+            if (o.uid == uid)
+                o.role = roleOf(composition);
         m_compositions.insert(QString::fromStdString(uid), composition);
         storeContents();
         emit compositionsChanged(m_compositions);
@@ -1084,6 +1097,7 @@ void Project::applyOverlays(std::vector<Platemaker::Models::StripOverlay> overla
         const auto    it  = compositions.constFind(uid);
         if (it == compositions.constEnd())
             continue;                                   // flat asset: no parameters, nothing to re-emit
+        o.role = roleOf(it.value());
         if (m_compositions.contains(uid) && m_compositions.value(uid) == it.value())
             continue;                                   // unchanged content
 
@@ -1130,6 +1144,7 @@ void Project::applyOverlays(std::vector<Platemaker::Models::StripOverlay> overla
             const bool enabled = o.enabled;
             o                  = item.getStripOverlays().back();
             o.enabled          = enabled;
+            o.role             = roleOf(created.at(next));
             m_compositions.insert(QString::fromStdString(uid), created.at(next++));
         }
         item.getStripOverlays() = std::move(overlays);

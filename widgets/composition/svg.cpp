@@ -18,6 +18,8 @@
 
 #include <cmath>
 
+#include <platemaker/models/strip_overlay.hpp>   // k_maskCoverageClass: what a mask object's file covers
+
 namespace Svg {
 
 namespace {
@@ -425,6 +427,23 @@ QByteArray write(const Composition& c, const QByteArray& picture, const QString&
                .arg(QLatin1String(k_pmNamespace))
                .arg(num(bounds.width()), num(bounds.height()),
                     num(bounds.left()),  num(bounds.top()));
+
+    // **A mask object** draws what it covers, black, as opaque as it hides: its own mask's definition with black and
+    // white swapped (so its fade, its pattern and its feather are the object mask's), laid on a black rect. Hidden
+    // under the library's coverage class, so only a library that knows masks sees it; anything else, a transparent
+    // image.
+    if (isMaskObject(c)) {
+        Composition covered      = c;
+        covered.mask->keepInside = !c.mask->keepInside;
+        svg += maskDefs(covered, bounds);
+        svg += contentElement(c);
+        svg += QStringLiteral("  <g class=\"%1\" opacity=\"0\">\n"
+                              "    <rect x=\"%2\" y=\"%3\" width=\"%4\" height=\"%5\" fill=\"black\" mask=\"url(#%6)\"/>\n"
+                              "  </g>\n</svg>\n")
+                   .arg(QLatin1String(Platemaker::Models::k_maskCoverageClass), num(bounds.left()), num(bounds.top()),
+                        num(bounds.width()), num(bounds.height()), k_maskId);
+        return svg.toUtf8();
+    }
 
     // The balloon and the words, as the painter draws them (renderlist.hpp); their definitions first.
     const QPainterPath silhouette = c.balloon ? Geometry::silhouette(*c.balloon, c.seed) : QPainterPath();

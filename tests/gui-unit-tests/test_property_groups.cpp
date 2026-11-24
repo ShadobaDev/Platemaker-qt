@@ -3814,3 +3814,38 @@ TEST(Mask, IsWrittenAsTheSvgsMask)
     EXPECT_TRUE(svg.contains("<radialGradient id=\"pm-mask-fade-"));
     EXPECT_EQ(Svg::read(svg, &ok).mask, a.mask);
 }
+
+/**
+ * \brief A mask and nothing else is a mask object: its frame and size are the box round its regions, resizing it
+ *        scales them, what it draws reaches as far as its feather blurs, and its file draws what it covers, hidden:
+ *        white where it hides in a mask over black, under the library's coverage class at no opacity. It reads back.
+ */
+TEST(Mask, AMaskAloneIsAMaskObjectWrittenAsWhatItCoversHidden)
+{
+    const Composition balloon = maskedBalloon();
+    EXPECT_FALSE(isMaskObject(balloon));
+    Composition m;
+    m.mask   = balloon.mask;
+    m.nextId = balloon.nextId;
+    ASSERT_TRUE(isMaskObject(m));
+
+    const QRectF box = Geometry::maskBox(*m.mask);
+    EXPECT_EQ(frameOf(m), box);
+    EXPECT_EQ(sizeOf(m), box.size().toSize());
+    const QSize twice = box.size().toSize() * 2;
+    resize(m, twice);
+    EXPECT_EQ(Geometry::maskBox(*m.mask), QRectF(box.topLeft(), QSizeF(twice))) << "from its corner";
+
+    m.mask->feather = 4.0;
+    EXPECT_LE(Geometry::bounds(m).left(), frameOf(m).left() - Geometry::maskReach(*m.mask)) << "the blur is drawn";
+
+    const QByteArray svg = Svg::write(m);
+    EXPECT_TRUE(svg.contains("<g class=\"platemaker-coverage\" opacity=\"0\">"));
+    EXPECT_TRUE(svg.contains("fill=\"black\" mask=\"url(#pm-mask)\"/>")) << "black, as opaque as it hides";
+    EXPECT_TRUE(svg.contains("fill=\"black\"/><g")) << "the mask's ground black: nothing hidden there";
+    EXPECT_TRUE(svg.contains("fill=\"white\" shape-rendering=\"crispEdges\"")) << "its region white: hidden there";
+    EXPECT_FALSE(svg.contains("<g mask=")) << "nothing of its own is drawn";
+    bool ok = false;
+    EXPECT_TRUE(Svg::read(svg, &ok) == m);
+    EXPECT_TRUE(ok);
+}

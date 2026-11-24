@@ -1,6 +1,28 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="#d0d0d0">
-<!-- A round brush laying a stroke: the handle up to the right, the tip, and the stroke it left. -->
-<path d="M20.7 2.3c-0.6-0.6-1.5-0.6-2.1 0l-8.4 8.4 3.1 3.1 8.4-8.4c0.6-0.6 0.6-1.5 0-2.1z"/>
-<path d="M9.2 11.8c-1.9 0-3.4 1.5-3.4 3.4 0 1.2-0.6 2.2-1.8 2.6 1.1 1.2 2.6 1.7 4.2 1.7 2.6 0 4.6-2 4.6-4.6l-3.6-3.1z"/>
-<path d="M2 21.2c2.7 0.6 6.1 0.6 9.3-0.3 2.4-0.7 4.6-0.5 6.7 0.3v1.3c-2-0.7-4.1-0.9-6.4-0.2-3.4 1-7 1-9.6 0.3z"/>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
+<!-- Every mask tool: the alpha checker (3 x 3) over the lower left two thirds, the tool across it from the middle
+     towards the upper right, outlined dark so it stands off the checker. Here a round brush, its tip in the checker.
+     The brush is drawn along x and turned onto the diagonal; its outline is the same paths drawn first, wider. -->
+<g fill="#d0d0d0">
+  <rect x="1" y="7" width="5" height="5"/>
+  <rect x="11" y="7" width="5" height="5"/>
+  <rect x="6" y="12" width="5" height="5"/>
+  <rect x="1" y="17" width="5" height="5"/>
+  <rect x="11" y="17" width="5" height="5"/>
+</g>
+<g fill="#d0d0d0" opacity="0.35">
+  <rect x="6" y="7" width="5" height="5"/>
+  <rect x="1" y="12" width="5" height="5"/>
+  <rect x="11" y="12" width="5" height="5"/>
+  <rect x="6" y="17" width="5" height="5"/>
+</g>
+<g transform="translate(4 19.2) rotate(-45)">
+  <g fill="#151515" stroke="#151515" stroke-width="1.6" stroke-linejoin="round">
+    <path d="M0 0C3 -0.6 6 -2.2 8.8 -2.2L8.8 2.2C6 2.2 3 0.6 0 0Z"/>
+    <path d="M9.6 -2H21.8A2 2 0 0 1 21.8 2H9.6Z"/>
+  </g>
+  <g fill="#d0d0d0">
+    <path d="M0 0C3 -0.6 6 -2.2 8.8 -2.2L8.8 2.2C6 2.2 3 0.6 0 0Z"/>
+    <path d="M9.6 -2H21.8A2 2 0 0 1 21.8 2H9.6Z"/>
+  </g>
+</g>
 </svg>

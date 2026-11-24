@@ -2402,6 +2402,11 @@ qreal shadowReach(const Shadow& s)
                 : 0.0;
 }
 
+qreal maskReach(const Mask& m)
+{
+    return k_blurReach * qMax(m.feather, 0.0);
+}
+
 bool blursShadow(const Balloon& b)
 {
     return blursShadow(b.style.effects.shadow, b.style.effects.shadowFill);

@@ -50,6 +50,7 @@ private:
     Mask::Fade      m_fadeShape = Mask::Fade::None;
     bool            m_crossSet  = false;   //!< A cross was just started here (picking its shape): written whole.
     Paint           m_tone;       //!< The mask's tone as bound, edited by the rows.
+    Mask::Transition m_kind = Mask::Transition::Smooth;   //!< The Transition picked.
     //! The smooth fade as bound, so turning it off and on again gives back the line it had.
     std::optional<QLineF> m_fade;
     bool                  m_populating = false;

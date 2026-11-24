@@ -222,12 +222,20 @@ struct Mask
      */
     std::optional<QLineF> fade;
     /**
-     * How it goes from hidden to shown, and the cross. Its kind: Solid, the default, smoothly (gradients); a
-     * pattern breaks what the mask leaves into that pattern's marks (its `spacing` and `angle`: Dots a halftone,
-     * Lines a hatch, Grid a cross-hatch). Its `fade…` fields are the cross; its `fadeRound` is not read (the shape
-     * says it), nor its colours.
+     * The transition's cell and the cross. Its `spacing` is from one mark, or tooth, to the next, its `angle` how far
+     * a pattern is turned; its `fade…` fields are the cross. Its kind is not read (`transition` says it), nor its
+     * `fadeRound` (the shape says it), nor its colours.
      */
     Paint tone;
+    //! How it goes from hidden to shown. Persisted by name.
+    enum class Transition { Smooth, Halftone, Hatch, CrossHatch, Zigzag };
+    /**
+     * Smooth, the default: gradually (gradients). Halftone, Hatch and CrossHatch break what it leaves into dots,
+     * lines or a grid (`tone`'s spacing and angle). Zigzag cuts what it hides off by teeth `tone.spacing` wide, from
+     * where it hides wholly to where it hides nothing: hidden or shown, never between. All by its fade
+     * (maskMarks()); with no fade it hides evenly whatever this is.
+     */
+    Transition transition = Transition::Smooth;
     /**
      * The other way round: the regions are what shows, and everything of the object outside is hidden, as a
      * balloon tucked into a panel keeps what is inside the panel. A fade then shows wholly at its start and not at
@@ -244,7 +252,8 @@ struct Mask
     [[nodiscard]] bool operator==(const Mask& o) const
     {
         return id == o.id && regions == o.regions && qFuzzyCompare(1.0 + feather, 1.0 + o.feather) && fade == o.fade
-            && shape == o.shape && tone == o.tone && keepInside == o.keepInside && hued == o.hued;
+            && shape == o.shape && tone == o.tone && keepInside == o.keepInside && hued == o.hued
+            && transition == o.transition;
     }
     [[nodiscard]] bool operator!=(const Mask& o) const { return !(*this == o); }
 };

@@ -626,6 +626,27 @@ void tidyRuns(TextProperties& t)
 
 namespace {
 
+//! A mask's transition in a file, by name; Smooth for a name it does not know.
+const std::pair<Mask::Transition, const char*> k_maskTransitionNames[] = {
+    {Mask::Transition::Smooth, "smooth"}, {Mask::Transition::Halftone, "halftone"}, {Mask::Transition::Hatch, "hatch"},
+    {Mask::Transition::CrossHatch, "crossHatch"}, {Mask::Transition::Zigzag, "zigzag"}};
+
+Mask::Transition maskTransitionFromName(QStringView name)
+{
+    for (const auto& [transition, n] : k_maskTransitionNames)
+        if (name == QLatin1String(n))
+            return transition;
+    return Mask::Transition::Smooth;
+}
+
+const char* maskTransitionName(Mask::Transition t)
+{
+    for (const auto& [transition, name] : k_maskTransitionNames)
+        if (transition == t)
+            return name;
+    return "smooth";
+}
+
 //! A mask's fade shape in a file, by name; None for a name it does not know.
 const std::pair<Mask::Fade, const char*> k_maskFadeNames[] = {
     {Mask::Fade::None, "none"}, {Mask::Fade::Linear, "linear"}, {Mask::Fade::Rectangle, "rectangle"},
@@ -724,10 +745,11 @@ QJsonObject toJson(const Composition& c)
         const bool crossed = m.shape == Mask::Fade::Rectangle || m.shape == Mask::Fade::Ellipse;
         if (m.shape != Mask::Fade::None)
             o.insert(QStringLiteral("fadeShape"), QString::fromLatin1(maskFadeName(m.shape)));
-        if (const Paint& t = m.tone; t.kind != Paint::Kind::Solid || crossed)
+        if (m.transition != Mask::Transition::Smooth)
+            o.insert(QStringLiteral("transition"), QString::fromLatin1(maskTransitionName(m.transition)));
+        if (const Paint& t = m.tone; m.transition != Mask::Transition::Smooth || crossed)
             o.insert(QStringLiteral("tone"),
-                     QJsonObject{{QStringLiteral("kind"), QString::fromLatin1(patternName(t.kind))},
-                                 {QStringLiteral("spacing"), t.spacing},
+                     QJsonObject{{QStringLiteral("spacing"), t.spacing},
                                  {QStringLiteral("angle"), t.angle},
                                  {QStringLiteral("cross"), QJsonArray{t.fadeLeftFrom, t.fadeLeftTo, t.fadeRightFrom,
                                                                       t.fadeRightTo, t.fadeTopFrom, t.fadeTopTo,
@@ -822,7 +844,6 @@ Composition compositionFromJson(const QJsonObject& j)
             m.fade = QLineF(f.at(0).toDouble(), f.at(1).toDouble(), f.at(2).toDouble(), f.at(3).toDouble());
         if (const QJsonObject t = o.value(QStringLiteral("tone")).toObject(); !t.isEmpty()) {
             Paint& p     = m.tone;
-            p.kind       = patternFromName(t.value(QStringLiteral("kind")).toString());
             p.spacing    = t.value(QStringLiteral("spacing")).toDouble(p.spacing);
             p.angle      = t.value(QStringLiteral("angle")).toInt(p.angle);
             p.fadeReversed = t.value(QStringLiteral("reversed")).toBool(p.fadeReversed);
@@ -834,6 +855,7 @@ Composition compositionFromJson(const QJsonObject& j)
         }
         m.keepInside = o.value(QStringLiteral("keepInside")).toBool(false);
         m.hued       = o.value(QStringLiteral("hued")).toBool(false);
+        m.transition = maskTransitionFromName(o.value(QStringLiteral("transition")).toString());
         m.shape      = maskFadeFromName(o.value(QStringLiteral("fadeShape")).toString());
         if (!m.regions.isEmpty())   // a mask with nowhere to hide is none
             c.mask = m;

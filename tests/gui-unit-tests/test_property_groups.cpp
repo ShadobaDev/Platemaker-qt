@@ -819,7 +819,7 @@ TEST(PropertyGroupPersistence, RoundTrips)
     mask.feather      = 3.5;
     mask.fade         = QLineF(0.1, 0.2, 0.9, 0.8);
     mask.shape        = Mask::Fade::Ellipse;
-    mask.tone.kind         = Paint::Kind::Grid;
+    mask.transition        = Mask::Transition::CrossHatch;
     mask.tone.spacing      = 11.5;
     mask.tone.angle        = 30;
     mask.tone.fadeLeftFrom = 12.5;
@@ -3577,9 +3577,10 @@ TEST(Mask, HidesWhatItCoversAndFadesAlongItsLine)
             EXPECT_NEAR(alphaAt(crossed, a, QPointF(160.0 + 80.0 * along, 80.0)), 255.0 * along, k_alphaTolerance);
         }
     }
-    for (const Paint::Kind pattern : {Paint::Kind::Dots, Paint::Kind::Lines, Paint::Kind::Grid}) {
+    for (const Mask::Transition pattern :
+         {Mask::Transition::Halftone, Mask::Transition::Hatch, Mask::Transition::CrossHatch}) {
         SCOPED_TRACE(int(pattern));
-        a.mask->tone.kind    = pattern;
+        a.mask->transition   = pattern;
         a.mask->tone.spacing = k_spacing;
         a.mask->tone.angle   = 0;
         const QImage marked = Painter::render(a);
@@ -3593,6 +3594,56 @@ TEST(Mask, HidesWhatItCoversAndFadesAlongItsLine)
                 sum += alphaAt(marked, a, QPointF(x + 0.5, y + 0.5)) / 255.0;
         EXPECT_NEAR(sum / n, 0.5, k_meanTolerance);
     }
+    // A zigzag, by the cross and along a line: hidden at the left, whole at the right; on the way hidden or shown as
+    // the teeth pass, about half over whole teeth. Its mask reads back.
+    {
+        Composition z    = a;
+        z.mask->transition = Mask::Transition::Zigzag;
+        for (const Mask::Fade shape : {Mask::Fade::Rectangle, Mask::Fade::Linear}) {
+            SCOPED_TRACE(int(shape));
+            z.mask->shape = shape;
+            z.mask->fade  = QLineF(0.0, 0.5, 1.0, 0.5);
+            const QImage jagged = Painter::render(z);
+            // Near the start hidden but at the teeth's valleys, which touch it; near the end shown but at their tips.
+            const auto shownDown = [&](qreal x) {
+                qreal sum = 0.0;
+                for (int y = 41; y < 119; ++y)
+                    sum += alphaAt(jagged, z, QPointF(x, y + 0.5)) / 255.0;
+                return sum / (119 - 41);
+            };
+            EXPECT_LT(shownDown(162.5), k_meanTolerance);
+            EXPECT_GT(shownDown(237.5), 1.0 - k_meanTolerance);
+            qreal sum = 0.0;
+            int   n   = 0;
+            for (int x = 180; x < 220; ++x)
+                for (int y = 64; y < 96; ++y, ++n)
+                    sum += alphaAt(jagged, z, QPointF(x + 0.5, y + 0.5)) / 255.0;
+            EXPECT_NEAR(sum / n, 0.5, k_meanTolerance);
+            // Down the middle of the fade: teeth, not a gradient's half everywhere.
+            int hidden = 0, shown = 0;
+            for (int y = 41; y < 119; ++y) {
+                const int alpha = alphaAt(jagged, z, QPointF(200.5, y + 0.5));
+                hidden += alpha == 0 ? 1 : 0;
+                shown += alpha == 255 ? 1 : 0;
+            }
+            EXPECT_GT(hidden, 0);
+            EXPECT_GT(shown, 0);
+            // Along the fade, hidden and then shown, once: one front, where a pattern's marks would come and go.
+            for (const qreal y : {50.5, 80.5, 103.5}) {
+                SCOPED_TRACE(y);
+                int  changes = 0;
+                bool before  = true;
+                for (int x = 160; x < 240; ++x) {
+                    const bool hiddenHere = alphaAt(jagged, z, QPointF(x + 0.5, y)) < 128;
+                    changes += hiddenHere != before ? 1 : 0;
+                    before = hiddenHere;
+                }
+                EXPECT_EQ(changes, 1);
+            }
+            bool ok = false;
+            EXPECT_TRUE(Svg::read(Svg::write(z), &ok).mask == z.mask);
+        }
+    }
     // The arm ending half way: past its end nothing is hidden, though the region goes on.
     a.mask->tone.fadeRightTo = 50.0;
     EXPECT_EQ(alphaAt(Painter::render(a), a, QPointF(220.5, 80.0)), 255);
@@ -3603,6 +3654,7 @@ TEST(Mask, HidesWhatItCoversAndFadesAlongItsLine)
     // Smooth over a cross from the region's middle, every arm fading from it to its side: what the shades draw is
     // the cross's own tone (fadeTone()), the rectangle's square corners and the ellipse's alike.
     a.mask->tone      = Paint{};
+    a.mask->transition = Mask::Transition::Smooth;
     a.mask->tone.fadeLeftFrom = a.mask->tone.fadeRightFrom = a.mask->tone.fadeTopFrom = a.mask->tone.fadeBottomFrom = 0.0;
     const QRectF box(a.mask->regions[0].place.pos, QSizeF(a.mask->regions[0].size));
     for (const Mask::Fade shape : {Mask::Fade::Rectangle, Mask::Fade::Ellipse}) {
@@ -3795,7 +3847,7 @@ TEST(Mask, IsWrittenAsTheSvgsMask)
     a.mask->keepInside = false;
 
     // A pattern: the region black where its cross hides, the marks white over it, all blurred; no gradient.
-    a.mask->tone.kind          = Paint::Kind::Dots;
+    a.mask->transition         = Mask::Transition::Halftone;
     a.mask->tone.fadeCentreX   = 0.0;
     a.mask->tone.fadeRightFrom = 0.0;
     svg                = Svg::write(a);
@@ -3806,7 +3858,7 @@ TEST(Mask, IsWrittenAsTheSvgsMask)
     EXPECT_TRUE(svg.contains("fill-rule=\"nonzero\" fill=\"white\"/></g>"));
 
     // Smooth by an ellipse every arm fades on: a radial gradient on the ends' ellipse, a quarter at a time.
-    a.mask->tone.kind        = Paint::Kind::Solid;
+    a.mask->transition       = Mask::Transition::Smooth;
     a.mask->shape            = Mask::Fade::Ellipse;
     a.mask->tone.fadeCentreX = 50.0;
     a.mask->tone.fadeLeftFrom = a.mask->tone.fadeTopFrom = a.mask->tone.fadeBottomFrom = 0.0;

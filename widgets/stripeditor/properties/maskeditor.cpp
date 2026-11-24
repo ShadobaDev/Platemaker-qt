@@ -24,6 +24,12 @@ constexpr double k_spacingMinPx = 2.0;     //!< Closer marks read as the smooth 
 constexpr double k_spacingMaxPx = 100.0;
 constexpr int    k_angleMax     = 359;
 
+//! Whether @p t breaks what the mask leaves into marks: a cell, its spacing and angle.
+bool patterned(Mask::Transition t)
+{
+    return t == Mask::Transition::Halftone || t == Mask::Transition::Hatch || t == Mask::Transition::CrossHatch;
+}
+
 } // namespace
 
 MaskEditor::MaskEditor(QWidget* parent)
@@ -59,12 +65,14 @@ MaskEditor::MaskEditor(QWidget* parent)
 
     // Smooth, or a fill's patterns, named for what they do to a fade.
     m_transition = new QComboBox(this);
-    m_transition->addItem(tr("Smooth"), int(Paint::Kind::Solid));
-    m_transition->addItem(tr("Halftone"), int(Paint::Kind::Dots));
-    m_transition->addItem(tr("Hatch"), int(Paint::Kind::Lines));
-    m_transition->addItem(tr("Cross-hatch"), int(Paint::Kind::Grid));
+    m_transition->addItem(tr("Smooth"), int(Mask::Transition::Smooth));
+    m_transition->addItem(tr("Halftone"), int(Mask::Transition::Halftone));
+    m_transition->addItem(tr("Hatch"), int(Mask::Transition::Hatch));
+    m_transition->addItem(tr("Cross-hatch"), int(Mask::Transition::CrossHatch));
+    m_transition->addItem(tr("Zigzag"), int(Mask::Transition::Zigzag));
     m_transition->setToolTip(tr("How the mask hides: smoothly, along a line it fades on; or what it leaves breaking "
-                                "into dots, lines or a grid, faded by a cross as a balloon's fill is."));
+                                "into dots, lines or a grid, faded by a cross as a balloon's fill is; or cut off by "
+                                "teeth reaching from where the fade starts to where it ends."));
     form->addRow(tr("Transition:"), m_transition);
 
     m_shape = new QComboBox(this);
@@ -80,7 +88,7 @@ MaskEditor::MaskEditor(QWidget* parent)
     m_spacing->setRange(k_spacingMinPx, k_spacingMaxPx);
     m_spacing->setDecimals(k_featherDecimals);
     m_spacing->setSuffix(tr(" px"));
-    m_spacing->setToolTip(tr("From one dot or line to the next."));
+    m_spacing->setToolTip(tr("From one dot, line or tooth to the next."));
     form->addRow(tr("Spacing:"), m_spacing);
 
     m_angle = new QSpinBox(this);
@@ -104,7 +112,7 @@ MaskEditor::MaskEditor(QWidget* parent)
     connect(m_keep, &QCheckBox::toggled, this, edited);
     connect(m_feather, &QDoubleSpinBox::valueChanged, this, edited);
     connect(m_transition, &QComboBox::currentIndexChanged, this, [this, edited] {
-        m_tone.kind = Paint::Kind(m_transition->currentData().toInt());
+        m_kind = Mask::Transition(m_transition->currentData().toInt());
         edited();
     });
     connect(m_spacing, &QDoubleSpinBox::valueChanged, this, [this, edited](double v) {
@@ -134,9 +142,9 @@ MaskEditor::MaskEditor(QWidget* parent)
 
 void MaskEditor::showRows()
 {
-    const bool pattern = m_tone.kind != Paint::Kind::Solid;
+    const bool pattern = patterned(m_kind);
     const bool crossed = m_fadeShape == Mask::Fade::Rectangle || m_fadeShape == Mask::Fade::Ellipse;
-    m_form->setRowVisible(m_spacing, pattern);
+    m_form->setRowVisible(m_spacing, pattern || m_kind == Mask::Transition::Zigzag);
     m_form->setRowVisible(m_angle, pattern);
     m_fadeRows.setVisible(m_form, crossed);
 }
@@ -156,7 +164,8 @@ void MaskEditor::bind(const Subjects& subjects)
     m_fadeShape = shown.shape;
     m_crossSet  = false;
     m_shape->setCurrentIndex(qMax(0, m_shape->findData(int(m_fadeShape))));
-    m_transition->setCurrentIndex(qMax(0, m_transition->findData(int(m_tone.kind))));
+    m_kind = shown.transition;
+    m_transition->setCurrentIndex(qMax(0, m_transition->findData(int(m_kind))));
     m_spacing->setValue(m_tone.spacing);
     m_angle->setValue(m_tone.angle);
     m_fadeRows.show(m_tone);
@@ -181,7 +190,7 @@ void MaskEditor::applyTo(Composition& target) const
         m.tone.fadeLeftFrom = m_tone.fadeLeftFrom;
         m.tone.fadeLeftTo   = m_tone.fadeLeftTo;
     }
-    m.tone.kind         = m_tone.kind;
+    m.transition        = m_kind;
     m.tone.spacing      = m_tone.spacing;
     m.tone.angle        = m_tone.angle;
     m_fadeRows.applyEdited(m_tone, m.tone);   // where the cross stands, and its turning over

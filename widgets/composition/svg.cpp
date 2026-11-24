@@ -325,8 +325,10 @@ QString maskDefs(const Composition& c, const QRectF& area)
     QString shapes;
     const Geometry::MaskMarks marks = Geometry::maskMarks(*c.mask, c.seed);
     if (!marks.hidden.isEmpty()) {
-        shapes = QStringLiteral("<path d=\"%1\" fill-rule=\"%2\" fill=\"%4\"/><path d=\"%3\" fill-rule=\"nonzero\" fill=\"%5\"/>")
-                     .arg(pathData(marks.hidden), fillRule(marks.hidden), pathData(marks.shown), hide, keep);
+        shapes = QStringLiteral("<path d=\"%1\" fill-rule=\"%2\" fill=\"%3\"/>")
+                     .arg(pathData(marks.hidden), fillRule(marks.hidden), hide);
+        if (!marks.shown.isEmpty())   // a zigzag has none
+            shapes += QStringLiteral("<path d=\"%1\" fill-rule=\"nonzero\" fill=\"%2\"/>").arg(pathData(marks.shown), keep);
     } else {
         int n = 0;
         for (const Geometry::MaskShade& s : Geometry::maskShades(*c.mask, c.seed)) {

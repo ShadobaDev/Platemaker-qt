@@ -1818,14 +1818,114 @@ PatternCell patternCell(const Paint& p)
     return cell;
 }
 
+namespace {
+
+//! A zigzag tooth's points: one where the shade hides most, then one where it hides least, and so on.
+constexpr int k_pointsPerTooth = 2;
+//! The fewest teeth round an ellipse: fewer would not read as a zigzag.
+constexpr int k_fewestRoundTeeth = 4;
+
+/**
+ * \brief What a shade fading along @p line, from @p from hidden at its start to @p to at its end, hides with a
+ *        zigzag front over @p bounds: everything on the side hiding more, and teeth @p spacing wide reaching from the
+ *        line's end hiding more to the other. The teeth are counted from the line's start, so they stay put as
+ *        @p bounds change.
+ */
+QPainterPath zigzagAlong(const QLineF& line, qreal from, qreal to, const QRectF& bounds, qreal spacing)
+{
+    const QPointF most  = from >= to ? line.p1() : line.p2();
+    const QPointF least = from >= to ? line.p2() : line.p1();
+    const qreal   depth = QLineF(most, least).length();
+    if (depth <= 0.0)
+        return {};
+    const QPointF in = (most - least) / depth;   // towards where it hides more
+    const QPointF across(-in.y(), in.x());
+    qreal low = std::numeric_limits<qreal>::max(), high = std::numeric_limits<qreal>::lowest(), back = 0.0;
+    for (const QPointF& corner : {bounds.topLeft(), bounds.topRight(), bounds.bottomLeft(), bounds.bottomRight()}) {
+        const qreal t = QPointF::dotProduct(corner - most, across);
+        low           = qMin(low, t);
+        high          = qMax(high, t);
+        back          = qMax(back, QPointF::dotProduct(corner - most, in));
+    }
+    const qreal half  = spacing / k_pointsPerTooth;
+    const int   first = qFloor(low / half) - 1, last = qCeil(high / half) + 1;
+    QPolygonF   front;
+    for (int k = first; k <= last; ++k)
+        front << (k % k_pointsPerTooth == 0 ? most : least) + across * (k * half);
+    const QPointF behind = in * (back + spacing);   // past the bounds on the side hiding more
+    front << most + across * (last * half) + behind << most + across * (first * half) + behind;
+    QPainterPath out;
+    out.addPolygon(front);
+    out.closeSubpath();
+    return out;
+}
+
+/**
+ * \brief The ellipse of a radial shade (@p s) with a zigzag front: teeth @p spacing wide round its centre, from the
+ *        ellipse where the fade starts to its end; what lies inside when it hides most at the centre.
+ */
+QPainterPath zigzagRound(const MaskShade& s, qreal spacing)
+{
+    QPainterPath ellipse;
+    ellipse.addEllipse(s.centre, s.axes.width(), s.axes.height());
+    const int teeth = qMax(k_fewestRoundTeeth, qRound(ellipse.length() / spacing));
+    const int n     = teeth * k_pointsPerTooth;
+    const bool atCentre = s.from >= s.to;   // hides most inside: the valleys on the start's ellipse
+    QPolygonF front;
+    for (int i = 0; i < n; ++i) {
+        const qreal angle = 2.0 * M_PI * i / n;
+        const bool  most  = i % k_pointsPerTooth == 0;
+        const qreal scale = most == atCentre ? s.start : 1.0;
+        front << s.centre + QPointF(std::cos(angle) * s.axes.width(), std::sin(angle) * s.axes.height()) * scale;
+    }
+    QPainterPath out;
+    out.addPolygon(front);
+    out.closeSubpath();
+    return out;
+}
+
+/**
+ * \brief What @p mask hides with a zigzag front: shade by shade (maskShades()), a solid one wholly or not at all, a
+ *        gradient's up to its teeth; within @p region.
+ */
+QPainterPath zigzagHidden(const Mask& mask, quint32 seed, const QPainterPath& region)
+{
+    const qreal  spacing = qMax(mask.tone.spacing, k_minPatternSpacing);
+    const QRectF bounds  = region.boundingRect();
+    QPainterPath hidden;
+    for (const MaskShade& s : maskShades(mask, seed)) {
+        switch (s.kind) {
+        case MaskShade::Kind::Solid:
+            if (s.from >= 0.5)
+                hidden = hidden.united(s.area);
+            break;
+        case MaskShade::Kind::Linear:
+            hidden = hidden.united(s.area.intersected(zigzagAlong(s.line, s.from, s.to, bounds, spacing)));
+            break;
+        case MaskShade::Kind::Radial: {
+            const QPainterPath round = zigzagRound(s, spacing);
+            hidden = hidden.united(s.from >= s.to ? s.area.intersected(round) : s.area.subtracted(round));
+            break;
+        }
+        }
+    }
+    return region.intersected(hidden);
+}
+
+}  // namespace
+
 MaskMarks maskMarks(const Mask& mask, quint32 seed)
 {
     MaskMarks out;
-    if (mask.tone.kind == Paint::Kind::Solid)
+    if (mask.transition == Mask::Transition::Smooth)
         return out;
     const QPainterPath region = maskOutline(mask, seed);
     if (region.isEmpty())
         return out;
+    if (mask.transition == Mask::Transition::Zigzag) {   // hidden or shown, never between: no marks over it
+        out.hidden = zigzagHidden(mask, seed, region);
+        return out;
+    }
 
     // Where the fade hides anything: before its line's end, or inside its cross's ends (outside its starts when
     // turned over). Past it nothing is hidden, where marks that meet would leave seams.
@@ -1857,7 +1957,9 @@ MaskMarks maskMarks(const Mask& mask, quint32 seed)
     }
 
     Paint cell;
-    cell.kind    = mask.tone.kind;
+    cell.kind    = mask.transition == Mask::Transition::Halftone ? Paint::Kind::Dots
+                 : mask.transition == Mask::Transition::Hatch    ? Paint::Kind::Lines
+                                                                 : Paint::Kind::Grid;
     cell.spacing = qMax(mask.tone.spacing, k_minPatternSpacing);
     cell.size    = cell.spacing * (cell.kind == Paint::Kind::Dots ? k_maskDotsCover : 1.0);
     cell.angle   = mask.tone.angle;

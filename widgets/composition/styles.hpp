@@ -208,8 +208,9 @@ struct MaskMarks
 /**
  * \brief A mask's pattern: the region hidden where its fade hides anything (before its line's end, or inside its
  *        cross's reach), less the marks of the pattern (halftoneMarks()), which grow from nothing where it hides
- *        wholly until they meet where it hides nothing (maskCover()). Empty for a smooth mask, or one that does not
- *        fade: those are maskShades().
+ *        wholly until they meet where it hides nothing (maskCover()). A Zigzag transition: what its shades
+ *        hide, cut off by teeth across each shade's front, and no marks. Empty for a smooth mask, or a pattern's that
+ *        does not fade: those are maskShades().
  *
  * What the mask leaves of its object breaks into that pattern: a halftone's dots, a hatch's lines, a
  * cross-hatch's grid. The SVG draws `hidden` black and `shown` white in its mask; the painter takes `hidden` less

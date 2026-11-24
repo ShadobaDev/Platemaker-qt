@@ -2344,7 +2344,7 @@ bool hasFilter(const Composition& c)
         b && (textureInfo(b->style.texture.kind).filter != nullptr || lineInfo(b->style.line.line).outlineFilter != nullptr
               || blursShadow(*b)))
         return true;
-    if (c.mask && c.mask->feather > 0.0)
+    if (c.mask && c.mask->feather > 0.0 && !isMaskObject(c))   // a mask object draws nothing to blur
         return true;
     const Words* w = wordsOf(c);
     return w && !w->text.body.isEmpty() && blursShadow(w->text.shadow, w->text.shadowFill);

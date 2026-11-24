@@ -13,6 +13,7 @@
 #include "composition.hpp"
 #include "handles.hpp"
 #include "objects/resize.hpp"
+#include "painter.hpp"   // Painter::Cut: a mask object taken from what this draws
 #include "shapes.hpp"
 
 namespace StripEdit {
@@ -98,6 +99,12 @@ public:
     void setBlend(Platemaker::Models::BlendMode blend);
 
     /**
+     * \brief The mask objects above this one that meet it, each laid on it: taken away from what it draws, as the
+     *        render's mask role takes them (Painter::paintCuts()). Repaints only when they changed.
+     */
+    void setCuts(const QList<Painter::Cut>& cuts);
+
+    /**
      * \brief Greys the object out and stops interaction: its anchor page is not in the strip (see the list).
      * \param orphaned Whether the object is orphaned.
      */
@@ -146,7 +153,7 @@ public:
      */
     void setPickedBody(int id);
     [[nodiscard]] int pickedBody() const { return m_pickedBody; }
-    //! The mask, when it is what pickedBody() names; none otherwise.
+    //! The mask, when it is what pickedBody() names, or the object is a mask object; none otherwise.
     [[nodiscard]] const Mask* pickedMask() const;
     /**
      * \brief The box the selection chrome draws: the picked body's or mask's (pickedBody()), or the body the picked
@@ -471,6 +478,7 @@ private:
     QString m_uid;                   //!< The unique identifier for this object, used to track it in the library and persist its state.
     QRectF  m_bounds;                //!< Cached content bounds — see refreshBounds().
     Platemaker::Models::BlendMode m_blend = Platemaker::Models::BlendMode::Over; //!< How this object blends onto the strip — mapped to the matching QPainter composition mode.
+    QList<Painter::Cut> m_cuts;   //!< The mask objects above it that meet it (setCuts()).
 
     Grip    m_active = Grip::None;  //!< Grip being dragged (None = not resizing/aiming).
     int     m_activeHandle = -1;    //!< Which handle is being dragged, while m_active == Grip::Handle.

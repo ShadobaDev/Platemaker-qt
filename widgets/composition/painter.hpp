@@ -17,6 +17,7 @@
 #include <functional>
 #include <QImage>
 #include <QPainterPath>
+#include <QTransform>
 
 #include "geometry.hpp"
 #include "names.hpp"
@@ -87,6 +88,32 @@ void play(QPainter& painter, const QList<Render::Item>& items);
  */
 void paintCut(QPainter& painter, const Composition& c, const QRectF& bounds,
               const std::function<void(QPainter&)>& draw);
+
+/**
+ * \brief A mask cutting an object it is not part of: a mask object above it, laid on the object by @p toObject (from
+ *        the mask object's frame to the object's).
+ */
+struct Cut
+{
+    Mask       mask;
+    quint32    seed = 0;
+    QTransform toObject;
+    QRectF     frame;   //!< What the mask object draws (Geometry::bounds()): kept inside, it hides there but its regions.
+
+    [[nodiscard]] bool operator==(const Cut& o) const
+    {
+        return mask == o.mask && seed == o.seed && toObject == o.toObject && frame == o.frame;
+    }
+};
+
+/**
+ * \brief Runs @p draw with each of @p cuts taken away from what it draws, as the library's mask role cuts a mask
+ *        object out of the overlays below it; with none, straight onto @p painter.
+ *
+ * Drawn into a layer over @p bounds, as paintCut() is, so a blend mode applies once to what is left. No feather.
+ */
+void paintCuts(QPainter& painter, const QRectF& bounds, const QList<Cut>& cuts,
+               const std::function<void(QPainter&)>& draw);
 
 } // namespace Painter
 

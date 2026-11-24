@@ -333,6 +333,10 @@ public:
     void reanchorSelection(const QString& pageUid);
 
     void syncItems();    //!< Reconciles the scene items with the overlay set, by uid.
+    //! Gives every object the mask objects above it that meet it (Object::setCuts()): after a sync and during a drag.
+    void refreshCuts();
+    //! Removes objects @p uids, their compositions with them, as one history step called @p undoText; nothing selected.
+    void removeObjects(const QStringList& uids, const QString& undoText);
     void reselect();     //!< Re-applies the current selection after the scene was rebuilt.
 
     /**

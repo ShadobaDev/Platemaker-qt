@@ -19,6 +19,8 @@ const QColor k_joinLightColour(220, 40, 40);
 constexpr qreal k_joinLightWidth = 3.0;
 //! The outline of a bubble a held tail cannot join (Chain::canJoinByTail()): grey, dashed, as a disabled control.
 const QColor k_joinRefusedColour(128, 128, 128);
+//! A selected mask object's regions, outlined: a blue apart from the selection chrome's and the join's colours.
+const QColor k_maskOutlineColour(40, 120, 220);
 
 }  // namespace
 
@@ -142,6 +144,9 @@ QRectF BubbleObject::frameBox() const
 
 QPainterPath BubbleObject::hitArea() const
 {
+    // A mask object draws nothing: a press goes through it to what it covers, until it is selected (from its row).
+    if (isMaskObject(m_composition))
+        return isSelected() ? Object::hitArea() : QPainterPath();
     if (!isChain())
         return Object::hitArea();
     // Every bubble's box, and the outline the bridges join them into: a press on a bridge reaches the object.
@@ -204,6 +209,17 @@ QPainterPath BubbleObject::editOutline() const
 
 void BubbleObject::paintContent(QPainter& painter)
 {
+    // A mask object draws nothing of its own; selected, its regions are outlined, so it can be found.
+    if (isMaskObject(m_composition)) {
+        if (isSelected()) {
+            QPen pen(k_maskOutlineColour, 0.0, Qt::DashLine);
+            pen.setCosmetic(true);
+            painter.setPen(pen);
+            painter.setBrush(Qt::NoBrush);
+            painter.drawPath(Geometry::maskOutline(*m_composition.mask, m_composition.seed));
+        }
+        return;
+    }
     // Styled: show the library's rendering, at rest and while the whole object is carried, which moves
     // it and changes nothing it draws. A drag that reshapes it (a tail, a grip, a node) shows the paths
     // instead: they follow the mouse, and a rasterisation cannot be produced per mouse-move anyway.

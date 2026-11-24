@@ -513,8 +513,10 @@ void ObjectController::onObjectDragged(const QString& uid, const QPointF& delta,
 {
     if (handle >= 0)
         aimJoin(uid, handle);   // a tail's tip, maybe held over a balloon it would join
-    if (!m_dragIsGroup)
-        return;   // one object moving itself, which it has already done
+    if (!m_dragIsGroup) {
+        refreshCuts();   // one object moving itself, which it has already done: a mask object, or under one
+        return;
+    }
 
     for (auto it = m_dragStartPos.cbegin(); it != m_dragStartPos.cend(); ++it) {
         if (it.key() == uid)
@@ -533,6 +535,33 @@ void ObjectController::onObjectDragged(const QString& uid, const QPointF& delta,
         // delta has to be divided back out before it means anything to a tail.
         const qreal k = item->scale() > 0.0 ? item->scale() : 1.0;
         item->moveHandle(tailIndex(tail), start + delta / k);
+    }
+    refreshCuts();
+}
+
+void ObjectController::refreshCuts()
+{
+    // A mask object cuts every object below it in the stack (before it in composite order) that it meets, as the
+    // render's mask role does; laid on each by the two items' transforms. A muted or unanchored one cuts nothing.
+    const auto& overlays = m_document.overlays();
+    for (std::size_t i = 0; i < overlays.size(); ++i) {
+        Object* item = m_overlayItems.value(QString::fromStdString(overlays[i].uid));
+        if (!item)
+            continue;
+        QList<Painter::Cut> cuts;
+        if (!isMaskObject(item->composition())) {
+            const QRectF box = item->sceneBoundingRect();
+            for (std::size_t j = i + 1; j < overlays.size(); ++j) {
+                const Object* mask = m_overlayItems.value(QString::fromStdString(overlays[j].uid));
+                if (!overlays[j].enabled || !mask || mask->isOrphaned() || !isMaskObject(mask->composition())
+                    || !mask->sceneBoundingRect().intersects(box))
+                    continue;
+                const Composition& m = mask->composition();
+                cuts.append({*m.mask, m.seed, mask->sceneTransform() * item->sceneTransform().inverted(),
+                             Geometry::bounds(m)});
+            }
+        }
+        item->setCuts(cuts);
     }
 }
 
@@ -775,6 +804,7 @@ void ObjectController::syncItems()
         // not on the strip, so there is nothing to select it *on*.
         item->setFlag(QGraphicsItem::ItemIsSelectable, !orphaned);
     }
+    refreshCuts();
 }
 
 // --- geometry back out ------------------------------------------------------
@@ -1120,13 +1150,18 @@ void ObjectController::paintMask(const QPainterPath& sceneArea, bool hide)
     const QString uid  = m_selection.primary();
     const Object* item = m_overlayItems.value(uid);
     Composition   a    = item->composition();
+    const bool    maskObject = isMaskObject(a);
     if (!Edits::paintMask(a, item->mapFromScene(sceneArea), hide, k_maskFitPx / screenScale(*item)))
         return;
+    if (maskObject && !a.mask) {   // a mask object erased to nothing is gone
+        removeObjects({uid}, tr("Erase mask"));
+        return;
+    }
     applyComposition(uid, a, /*commit=*/true, hide ? tr("Paint mask") : tr("Erase mask"));
-    if (a.mask)
+    if (a.mask && !maskObject)
         selectMask(uid, a.mask->id);
     else
-        selectOverlay(uid);
+        selectOverlay(uid);   // a mask object is its mask; an object erased of its mask is what is left
 }
 
 bool ObjectController::canJoin() const
@@ -1392,6 +1427,7 @@ void ObjectController::applyCompositions(const QStringList& uids, const QList<Co
     // A shape tile can take the edited shape's handles away (an ellipse has none yet).
     if (const Object* edited = m_overlayItems.value(m_shapeEdit->edited()); edited && !edited->canEditShape())
         m_shapeEdit->setOn(false);
+    refreshCuts();   // an edited mask object cuts the objects below it anew, live
 
     // Live edits repaint only. Persisting every keystroke would write a file and push a history step
     // per character; the panel debounces and says when it has settled.
@@ -1558,6 +1594,10 @@ void ObjectController::deleteSelectedMask()
     if (!item)
         return;
     Composition a = item->composition();
+    if (isMaskObject(a)) {   // a mask object is its mask: nothing would be left to hold
+        removeObjects({mask.object}, tr("Delete mask"));
+        return;
+    }
     if (!Edits::removeMask(a))
         return;
     selectOverlay(mask.object);   // the object is what is left to hold, selected before the edit goes out
@@ -1668,24 +1708,25 @@ void ObjectController::deleteSelectedOverlay()
             writePlacement(it.key());
         }
 
-        m_document.remove(doomedObjects);
-        // Their compositions go with their overlays (Document::remove()), and syncItems() drops their items.
-        selectOverlay(QString());
-        syncItems();
-        emit stackChanged();
-        pushOverlays(tr("Delete %n objects", "", subjects));
+        removeObjects(doomedObjects, tr("Delete %n objects", "", subjects));
         return;
     }
 
     // One history step for the gesture, not one per object: the artist deleted a selection, and that is
     // what they will expect one Ctrl+Z to bring back.
     const QStringList doomed = m_selection.objects();
-    m_document.remove(doomed);
+    removeObjects(doomed, doomed.size() == 1 ? tr("Delete bubble")
+                                             : tr("Delete %n objects", "", static_cast<int>(doomed.size())));
+}
+
+void ObjectController::removeObjects(const QStringList& uids, const QString& undoText)
+{
+    m_document.remove(uids);
+    // Their compositions go with their overlays (Document::remove()), and syncItems() drops their items.
     selectOverlay(QString());
     syncItems();
     emit stackChanged();
-    pushOverlays(doomed.size() == 1 ? tr("Delete bubble")
-                                    : tr("Delete %n objects", "", static_cast<int>(doomed.size())));
+    pushOverlays(undoText);
 }
 
 

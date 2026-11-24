@@ -532,6 +532,11 @@ void Editor::setTool(const QString& id)
             picture = m_pictureOptions->file();
         }
         m_placement->setPicture(picture);
+        // What a placement builds: a mask object for the tool that places one, else TOOL OPTIONS' balloon.
+        if (tool->placesMask)
+            m_placement->setPrototype([] { return maskObject(); });
+        else
+            m_placement->setPrototype([this] { return m_bubbleOptions->prototype(); });
     }
 
     // The right column stays put under every tool, and **live** under every tool. It was briefly

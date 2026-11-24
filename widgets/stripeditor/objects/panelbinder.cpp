@@ -45,8 +45,12 @@ void PanelBinder::bind()
     } else if (!pickedTails.isEmpty()) {
         emit boundToMixed(m_selection.subjectCount());
     } else if (oneObject) {
-        m_subjects = QStringList{m_selection.primary()};
-        emit boundToComposition(m_host.composition(m_selection.primary()).value_or(Composition()));
+        m_subjects          = QStringList{m_selection.primary()};
+        const Composition c = m_host.composition(m_selection.primary()).value_or(Composition());
+        if (isMaskObject(c))
+            emit boundToMask(c, c.mask->id);   // a mask object is its mask
+        else
+            emit boundToComposition(c);
     } else {
         // **Whatever kinds are in it.** The panel sorts the compositions into roles: skin and line style are
         // bound to the objects with a silhouette and written back only to those, and the lettering to all of
@@ -61,8 +65,11 @@ void PanelBinder::bind()
 
     // Whatever the panel is showing, it is showing it for objects that all have a blend mode —
     // the one property every kind carries. A tail is the exception: it is part of a balloon, and
-    // the balloon's composite is the balloon's; and so is a mask, which hides part of it and has none of its own.
-    const bool blends = pickedTails.isEmpty() && !picked.isEmpty() && m_selection.subject() != Subject::Mask;
+    // the balloon's composite is the balloon's; and so is a mask, which hides part of it and has none of its own, and
+    // a mask object, which is not drawn.
+    const bool maskObject = oneObject && isMaskObject(m_host.composition(m_selection.primary()).value_or(Composition()));
+    const bool blends     = pickedTails.isEmpty() && !picked.isEmpty() && m_selection.subject() != Subject::Mask
+                     && !maskObject;
     emit blendBound(blends ? m_host.blend() : std::nullopt, blends);
     // The other thing that belongs to the overlay and not to the drawing. One picture on its own
     // has a size to set; anything else has no single answer, so the row is not there to mislead.

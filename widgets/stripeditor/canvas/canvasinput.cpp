@@ -224,13 +224,14 @@ bool CanvasInput::eventFilter(QObject *watched, QEvent *event)
     }
 
     // Bubble / Text: the left button draws a new bubble on empty strip. A press that lands on an
-    // existing overlay is left alone, so the item's own move/resize handling still runs.
+    // existing overlay is left alone, so the item's own move/resize handling still runs; but for a mask object.
     if (watched == m_view->viewport() && kind == ToolKind::Create) {
         if (event->type() == QEvent::MouseButtonPress) {
             auto* me = static_cast<QMouseEvent*>(event);
             if (me->button() == Qt::LeftButton) {
                 const QPointF scenePos = m_view->mapToScene(me->position().toPoint());
-                if (!m_objects->objectAt(scenePos, m_view->transform())) {
+                // A mask is drawn over what it hides, so its placement starts on an object too.
+                if (m_tool->placesMask || !m_objects->objectAt(scenePos, m_view->transform())) {
                     m_placement->begin(scenePos);
                     return true;
                 }

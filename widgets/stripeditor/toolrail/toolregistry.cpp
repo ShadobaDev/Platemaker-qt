@@ -108,6 +108,16 @@ const QList<Tool>& tools()
          CursorStyle::Cross, CursorStyle::Inherit,
          {Row::TextFont, Row::TextColour, Row::TextOutline}},
 
+        {QStringLiteral("maskobject"),
+         QStringLiteral(":/icons/tools/maskobject.svg"),
+         QT_TRANSLATE_NOOP("StripEdit::Tool", "Add mask object"),
+         QT_TRANSLATE_NOOP("StripEdit::Tool",
+                           "Drag on the strip, over objects too, to\n"
+                           "place a mask: it hides the objects below\n"
+                           "it in the stack where it lies."),
+         ToolKind::Create, std::nullopt, QString(),
+         CursorStyle::Cross, CursorStyle::Inherit, {}, /*placesMask=*/true},
+
         // No pointer of its own: the ring drawn on the strip, at the brush's size there, is the cursor.
         {QStringLiteral("maskbrush"),
          QStringLiteral(":/icons/tools/maskbrush.svg"),

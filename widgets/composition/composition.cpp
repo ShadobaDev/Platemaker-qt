@@ -338,6 +338,20 @@ Composition textObject(const QSize& size)
     return c;
 }
 
+Composition maskObject(const QSize& size)
+{
+    Composition c;
+    Mask        m;
+    m.id = c.nextId++;
+    Body r;
+    r.id                  = c.nextId++;
+    r.size                = size;
+    r.shape.corner.radius = 0.0;
+    m.regions.append(r);
+    c.mask = m;
+    return c;
+}
+
 Composition pictureObject(const QString& file, const QSize& size)
 {
     Composition c;
@@ -419,6 +433,8 @@ QString objectLabel(const Composition& c)
         return first.length() > k_labelChars ? first.left(k_labelChars - 1) + QStringLiteral("…") : first;
     // No words: what it is instead — its template's title, or its kind's when it matches none, so none is
     // listed as "(overlay)".
+    if (isMaskObject(c))
+        return QObject::tr("(mask)");
     const Body* body = bodyOf(c);
     if (!body)
         return QObject::tr("(text)");

@@ -3848,4 +3848,39 @@ TEST(Mask, AMaskAloneIsAMaskObjectWrittenAsWhatItCoversHidden)
     bool ok = false;
     EXPECT_TRUE(Svg::read(svg, &ok) == m);
     EXPECT_TRUE(ok);
+
+    const Composition placed = maskObject(QSize(30, 20));
+    EXPECT_TRUE(isMaskObject(placed));
+    EXPECT_EQ(frameOf(placed), QRectF(0.0, 0.0, 30.0, 20.0)) << "one rectangle at the origin";
+}
+
+/**
+ * \brief On screen, a mask object above an object is taken from what that object draws, where it is laid on it
+ *        (Painter::paintCuts()); kept inside, it hides its drawn box but its regions; with no cut, nothing changes.
+ */
+TEST(Mask, AMaskObjectIsTakenFromWhatItIsLaidOn)
+{
+    const QSize  side(60, 60);
+    const QRectF all{QPointF(), QSizeF(side)};
+    const auto   drawn = [&](const QList<Painter::Cut>& cuts) {
+        QImage img(side, QImage::Format_ARGB32_Premultiplied);
+        img.fill(Qt::transparent);
+        QPainter p(&img);
+        Painter::paintCuts(p, all, cuts, [&](QPainter& q) { q.fillRect(all, Qt::black); });
+        return img;
+    };
+    const Composition m = maskObject(QSize(20, 20));
+    Painter::Cut      cut{*m.mask, m.seed, QTransform::fromTranslate(30.0, 10.0), Geometry::bounds(m)};
+
+    QImage img = drawn({});
+    EXPECT_EQ(qAlpha(img.pixel(40, 20)), 255) << "no cut, all drawn";
+    img = drawn({cut});
+    EXPECT_EQ(qAlpha(img.pixel(40, 20)), 0) << "under the mask, laid 30 across and 10 down";
+    EXPECT_EQ(qAlpha(img.pixel(10, 20)), 255) << "beside it";
+
+    cut.mask.keepInside = true;
+    img                 = drawn({cut});
+    EXPECT_EQ(qAlpha(img.pixel(40, 20)), 255) << "kept inside: its region shows";
+    EXPECT_EQ(qAlpha(img.pixel(29, 20)), 0) << "its drawn box, a pixel past the region, hides";
+    EXPECT_EQ(qAlpha(img.pixel(10, 45)), 255) << "past its box, nothing";
 }

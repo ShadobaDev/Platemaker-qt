@@ -87,6 +87,11 @@ struct Tool
      * page for every tool that has it, so it is not a row.
      */
     QList<Row> optionRows;
+    /**
+     * `Create` only: what it places is a mask object (maskObject()), and its drag starts on an object too, as a mask
+     * is drawn over what it hides.
+     */
+    bool placesMask = false;
 };
 
 //! Every tool the rail offers, in rail order. **A tool that reuses an existing ToolKind and options page

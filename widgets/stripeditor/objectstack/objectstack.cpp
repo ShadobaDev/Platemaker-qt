@@ -158,7 +158,9 @@ QIcon ObjectStack::rowGlyph(const QString& uid)
     if (it != m_glyphs.constEnd() && it->first == key)
         return it->second;
 
-    const QIcon glyph = objectGlyph(a, m_tree->palette(), k_rowGlyphPx, m_tree->devicePixelRatioF());
+    // A mask object is its mask, drawn as a layer mask is.
+    const QIcon glyph = isMaskObject(a) ? maskGlyph(a, m_tree->palette(), k_rowGlyphPx, m_tree->devicePixelRatioF())
+                                        : objectGlyph(a, m_tree->palette(), k_rowGlyphPx, m_tree->devicePixelRatioF());
     m_glyphs.insert(uid, {key, glyph});
     return glyph;
 }
@@ -334,8 +336,8 @@ void ObjectStack::refresh()
         } else {
             elements = wordsOn(0, true) + tailsFrom(0, true);
         }
-        // Its own mask last: it cuts all of them.
-        if (rec.mask)
+        // Its own mask last: it cuts all of them. A mask object is its mask, and has no row under it.
+        if (rec.mask && !isMaskObject(rec))
             elements.append({Subject::Mask, rec.mask->id, tr("Mask"),
                              maskGlyph(rec, m_tree->palette(), k_rowGlyphPx, m_tree->devicePixelRatioF()), {}});
         setElementRows(row, uid, elements);

@@ -425,68 +425,115 @@ QImage render(const Composition& c)
     return img;
 }
 
+namespace {
+
+/**
+ * \brief What @p mask hides, as alpha, in an image of @p size drawn through @p transform (the mask's frame to the
+ *        image's pixels): up to the fade's end less the pattern's marks, or along the fade's gradient, or whole; as the
+ *        SVG's black and white. Keep inside is not read: what the region hides were it not.
+ */
+QImage coverOf(const Mask& mask, quint32 seed, const QSize& size, const QTransform& transform)
+{
+    QImage cover(size, QImage::Format_ARGB32_Premultiplied);
+    cover.fill(Qt::transparent);
+    QPainter q(&cover);
+    q.setRenderHint(QPainter::Antialiasing, true);
+    q.setTransform(transform);
+    if (const Geometry::MaskMarks marks = Geometry::maskMarks(mask, seed); !marks.hidden.isEmpty()) {
+        q.fillPath(marks.hidden, Qt::black);
+        q.setCompositionMode(QPainter::CompositionMode_DestinationOut);
+        fillMarks(q, marks.shown, Qt::black);   // many small marks: stamped, or filled in pieces
+        return cover;
+    }
+    // Each shade: black as far as it hides, solid or along its gradient, as the SVG's; unsmoothed, where two meet
+    // their tone is the same (Geometry::MaskShade); drawn into an image of their own, which then fills the region,
+    // smoothed: a fill only touches what it covers, so nothing past the region is left.
+    const auto ink = [](qreal hidden) { return QColor(0, 0, 0, qRound(255 * std::clamp(hidden, 0.0, 1.0))); };
+    QImage     shades(size, QImage::Format_ARGB32_Premultiplied);
+    shades.fill(Qt::transparent);
+    QPainter sp(&shades);
+    sp.setTransform(transform);
+    for (const Geometry::MaskShade& s : Geometry::maskShades(mask, seed)) {
+        if (s.kind == Geometry::MaskShade::Kind::Linear) {
+            QLinearGradient g(s.line.p1(), s.line.p2());
+            g.setColorAt(0.0, ink(s.from));
+            g.setColorAt(1.0, ink(s.to));
+            sp.fillPath(s.area, g);
+        } else if (s.kind == Geometry::MaskShade::Kind::Radial) {
+            QRadialGradient g(QPointF(0.0, 0.0), 1.0);
+            g.setColorAt(0.0, ink(s.from));
+            g.setColorAt(s.start, ink(s.from));
+            g.setColorAt(1.0, ink(s.to));
+            QBrush brush(g);
+            brush.setTransform(QTransform(s.axes.width(), 0.0, 0.0, s.axes.height(), s.centre.x(), s.centre.y()));
+            sp.fillPath(s.area, brush);
+        } else {
+            sp.fillPath(s.area, ink(s.from));
+        }
+    }
+    sp.end();
+    QBrush cut(shades);
+    cut.setTransform(transform.inverted());   // the image's pixels are the cover's
+    q.fillPath(Geometry::maskOutline(mask, seed), cut);
+    return cover;
+}
+
+//! @p cover taken away from what @p p has drawn; or, @p keep, what @p p has drawn kept only where it covers.
+void takeAway(QPainter& p, const QImage& cover, bool keep)
+{
+    p.save();
+    p.resetTransform();
+    p.setCompositionMode(keep ? QPainter::CompositionMode_DestinationIn : QPainter::CompositionMode_DestinationOut);
+    p.drawImage(0, 0, cover);
+    p.restore();
+}
+
+} // namespace
+
 void paintCut(QPainter& painter, const Composition& c, const QRectF& bounds,
               const std::function<void(QPainter&)>& draw)
 {
-    const QPainterPath region = c.mask ? Geometry::maskOutline(*c.mask, c.seed) : QPainterPath();
-    if (region.isEmpty()) {
+    if (!c.mask || Geometry::maskOutline(*c.mask, c.seed).isEmpty()) {
         draw(painter);
         return;
     }
     drawInLayer(painter, bounds, 1.0, [&](QPainter& p, const QTransform&) {
         draw(p);
-        // What the region hides, as alpha, in an image the layer's size: up to the fade's end less the pattern's marks,
-        // or along the fade's gradient, or whole; as the SVG's black and white.
-        QImage   cover(p.device()->width(), p.device()->height(), QImage::Format_ARGB32_Premultiplied);
-        cover.fill(Qt::transparent);
-        QPainter q(&cover);
-        q.setRenderHint(QPainter::Antialiasing, true);
-        q.setTransform(p.transform());
-        if (const Geometry::MaskMarks marks = Geometry::maskMarks(*c.mask, c.seed); !marks.hidden.isEmpty()) {
-            q.fillPath(marks.hidden, Qt::black);
-            q.setCompositionMode(QPainter::CompositionMode_DestinationOut);
-            fillMarks(q, marks.shown, Qt::black);   // many small marks: stamped, or filled in pieces
-        } else {
-            // Each shade: black as far as it hides, solid or along its gradient, as the SVG's; unsmoothed, where two
-            // meet their tone is the same (Geometry::MaskShade); drawn into an image of their own, which then fills
-            // the region, smoothed: a fill only touches what it covers, so nothing past the region is left.
-            const auto ink = [](qreal hidden) { return QColor(0, 0, 0, qRound(255 * std::clamp(hidden, 0.0, 1.0))); };
-            QImage   shades(cover.size(), QImage::Format_ARGB32_Premultiplied);
-            shades.fill(Qt::transparent);
-            QPainter sp(&shades);
-            sp.setTransform(p.transform());
-            for (const Geometry::MaskShade& s : Geometry::maskShades(*c.mask, c.seed)) {
-                if (s.kind == Geometry::MaskShade::Kind::Linear) {
-                    QLinearGradient g(s.line.p1(), s.line.p2());
-                    g.setColorAt(0.0, ink(s.from));
-                    g.setColorAt(1.0, ink(s.to));
-                    sp.fillPath(s.area, g);
-                } else if (s.kind == Geometry::MaskShade::Kind::Radial) {
-                    QRadialGradient g(QPointF(0.0, 0.0), 1.0);
-                    g.setColorAt(0.0, ink(s.from));
-                    g.setColorAt(s.start, ink(s.from));
-                    g.setColorAt(1.0, ink(s.to));
-                    QBrush brush(g);
-                    brush.setTransform(QTransform(s.axes.width(), 0.0, 0.0, s.axes.height(), s.centre.x(), s.centre.y()));
-                    sp.fillPath(s.area, brush);
-                } else {
-                    sp.fillPath(s.area, ink(s.from));
-                }
-            }
-            sp.end();
-            QBrush cut(shades);
-            cut.setTransform(q.transform().inverted());   // the image's pixels are the cover's
-            q.fillPath(region, cut);
-        }
-        q.end();
         // Taken away from the object; or, kept inside, the object kept only where it covers: the whole image is
         // drawn, so what lies outside the region goes too.
-        p.save();
-        p.resetTransform();
-        p.setCompositionMode(c.mask->keepInside ? QPainter::CompositionMode_DestinationIn
-                                                : QPainter::CompositionMode_DestinationOut);
-        p.drawImage(0, 0, cover);
-        p.restore();
+        const QSize size(p.device()->width(), p.device()->height());
+        takeAway(p, coverOf(*c.mask, c.seed, size, p.transform()), c.mask->keepInside);
+    });
+}
+
+void paintCuts(QPainter& painter, const QRectF& bounds, const QList<Cut>& cuts,
+               const std::function<void(QPainter&)>& draw)
+{
+    if (cuts.isEmpty()) {
+        draw(painter);
+        return;
+    }
+    drawInLayer(painter, bounds, 1.0, [&](QPainter& p, const QTransform&) {
+        draw(p);
+        const QSize size(p.device()->width(), p.device()->height());
+        for (const Cut& cut : cuts) {
+            const QTransform toPixels = cut.toObject * p.transform();
+            QImage           cover    = coverOf(cut.mask, cut.seed, size, toPixels);
+            if (cut.mask.keepInside) {
+                // Kept inside, it hides its drawn box but its regions, as its file does: the cover turned over there.
+                QImage box(size, QImage::Format_ARGB32_Premultiplied);
+                box.fill(Qt::transparent);
+                QPainter b(&box);
+                b.setTransform(toPixels);
+                b.fillRect(cut.frame, Qt::black);
+                b.resetTransform();
+                b.setCompositionMode(QPainter::CompositionMode_DestinationOut);
+                b.drawImage(0, 0, cover);
+                b.end();
+                cover = box;
+            }
+            takeAway(p, cover, false);
+        }
     });
 }
 

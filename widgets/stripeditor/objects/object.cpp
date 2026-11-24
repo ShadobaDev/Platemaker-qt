@@ -90,6 +90,14 @@ void Object::setBlend(Platemaker::Models::BlendMode blend)
     update();
 }
 
+void Object::setCuts(const QList<Painter::Cut>& cuts)
+{
+    if (m_cuts == cuts)
+        return;   // its cached drawing stays good
+    m_cuts = cuts;
+    update();
+}
+
 void Object::setOrphaned(bool orphaned)
 {
     if (m_orphaned == orphaned)
@@ -196,7 +204,9 @@ qreal Object::gripSpanHere() const
 
 Geometry::HandleContext Object::handleContext() const
 {
-    return {gripSpanHere() * k_radiusDotClearance, pickedVertices(), markedWords(), m_pickedBody, m_pickedElement};
+    const Mask* mask = pickedMask();   // a mask object's own, picked or not
+    return {gripSpanHere() * k_radiusDotClearance, pickedVertices(), markedWords(), mask ? mask->id : m_pickedBody,
+            m_pickedElement};
 }
 
 void Object::setPickedBody(int id)
@@ -211,6 +221,8 @@ void Object::setPickedBody(int id)
 const Mask* Object::pickedMask() const
 {
     const std::optional<Mask>& m = m_composition.mask;
+    if (isMaskObject(m_composition))
+        return &*m;   // a mask object is its mask: always what is edited of it
     return m && m_pickedBody != 0 && m->id == m_pickedBody ? &*m : nullptr;
 }
 
@@ -350,7 +362,8 @@ void Object::paint(QPainter* painter, const QStyleOptionGraphicsItem*, QWidget*)
         painter->setOpacity(k_unanchoredOpacity);   // present but not rendering
 
     painter->setCompositionMode(compositionFor(m_blend));
-    paintContent(*painter);
+    // The mask objects above it taken away in a layer of their own, so the blend applies once to what is left.
+    Painter::paintCuts(*painter, contentBounds(), m_cuts, [this](QPainter& p) { paintContent(p); });
     painter->restore();
 }
 
@@ -435,10 +448,10 @@ void Object::beginDrag(Grip grip, int handle, const QPointF& scenePos)
         emit chromeChanged();   // the pressed handle is drawn as pressed
     // A click goes through: a press in one bubble of a chain already selected picks and moves that bubble; the
     // first press, one on a bridge, or one with Ctrl (which gathers objects) moves the whole object.
-    // A press in the picked mask's box moves the mask: it is what was picked.
+    // A press in the picked mask's box moves the mask: it is what was picked. A mask object moves whole, as any object.
     const bool through = grip == Grip::Body && m_wasSelected
                       && !(QGuiApplication::keyboardModifiers() & Qt::ControlModifier);
-    if (const Mask* m = pickedMask(); through && m && chromeBox().contains(scenePos)) {
+    if (const Mask* m = pickedMask(); through && m && !isMaskObject(m_composition) && chromeBox().contains(scenePos)) {
         m_dragBody  = m->id;
         m_dragStart = m_composition;
         return;

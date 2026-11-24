@@ -336,6 +336,9 @@ inline constexpr QSize k_defaultObjectSize{280, 160};
 //! Words and nothing else: a text object, its words empty, in a box of @p size at the origin.
 [[nodiscard]] Composition textObject(const QSize& size = k_defaultObjectSize);
 
+//! A mask and nothing else: a mask object (isMaskObject()), one plain rectangle of @p size at the origin.
+[[nodiscard]] Composition maskObject(const QSize& size = k_defaultObjectSize);
+
 //! A picture of @p file at @p size (its own pixels), with empty words seated on it.
 [[nodiscard]] Composition pictureObject(const QString& file, const QSize& size);
 

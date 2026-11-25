@@ -1,10 +1,13 @@
 #include "properties/maskeditor.hpp"
 
+#include <QButtonGroup>
 #include <QCheckBox>
 #include <QComboBox>
 #include <QDoubleSpinBox>
 #include <QFormLayout>
+#include <QHBoxLayout>
 #include <QSpinBox>
+#include <QToolButton>
 
 #include "styles.hpp"   // Geometry::crossFades()
 
@@ -29,6 +32,24 @@ bool patterned(Mask::Transition t)
     return t == Mask::Transition::Halftone || t == Mask::Transition::Hatch || t == Mask::Transition::CrossHatch;
 }
 
+//! @p buttons laid side by side, touching, one pressed (@p group): a segmented switch. Returns the row's widget.
+QWidget* segmented(QWidget* parent, QButtonGroup* group, std::initializer_list<QToolButton*> buttons)
+{
+    auto* row    = new QWidget(parent);
+    auto* layout = new QHBoxLayout(row);
+    layout->setContentsMargins(0, 0, 0, 0);
+    layout->setSpacing(0);
+    for (QToolButton* b : buttons) {
+        b->setParent(row);
+        b->setCheckable(true);
+        b->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
+        group->addButton(b);
+        layout->addWidget(b);
+    }
+    (*buttons.begin())->setChecked(true);
+    return row;
+}
+
 } // namespace
 
 MaskEditor::MaskEditor(QWidget* parent)
@@ -37,13 +58,29 @@ MaskEditor::MaskEditor(QWidget* parent)
     auto* form = m_form = new QFormLayout(this);
     form->setContentsMargins(0, 0, 0, 0);
 
+    // Which handles shape editing offers (the editor's, not the mask's).
+    m_editOutline = new QToolButton(this);
+    m_editOutline->setText(tr("Outline"));
+    m_editOutline->setToolTip(tr("Edit shape drags the mask's outline: its nodes and their handles."));
+    m_editFade = new QToolButton(this);
+    m_editFade->setText(tr("Fade"));
+    m_editFade->setToolTip(tr("Edit shape drags where the mask fades: the line's ends, or the cross. Tab switches "
+                              "while editing."));
+    m_editPart = new QButtonGroup(this);
+    form->addRow(tr("Edit:"), segmented(this, m_editPart, {m_editOutline, m_editFade}));
+    connect(m_editPart, &QButtonGroup::buttonClicked, this,
+            [this](QAbstractButton* b) { emit editPartPicked(b == m_editFade); });
+
     // A mask object's view on the strip (Mask::hued); the render applies it either way.
-    m_view = new QComboBox(this);
-    m_view->addItem(tr("Applied"));
-    m_view->addItem(tr("Hued"));
-    m_view->setToolTip(tr("Applied shows only what the mask does: the objects below it hidden where it lies. Hued "
-                          "shows where it lies, black where it hides, half see-through. Only on the strip: the render "
-                          "applies the mask."));
+    m_applied = new QToolButton(this);
+    m_applied->setText(tr("Applied"));
+    m_applied->setToolTip(tr("Show only what the mask does: the objects below it hidden where it lies. Only on the "
+                             "strip: the render applies the mask."));
+    m_hued = new QToolButton(this);
+    m_hued->setText(tr("Hued"));
+    m_hued->setToolTip(tr("Show where the mask lies, black where it hides, half see-through. Only on the strip: the "
+                          "render applies the mask."));
+    m_view = segmented(this, new QButtonGroup(this), {m_applied, m_hued});
     form->addRow(tr("View:"), m_view);
 
     m_keep = new QCheckBox(tr("Keep inside"), this);
@@ -107,7 +144,7 @@ MaskEditor::MaskEditor(QWidget* parent)
     m_fadeRows.build(this, form, m_tone, m_populating, edited, [this] { emit committed(); }, /*withShape=*/false);
 
     // As every row: changed() is what carries the edit into the object (committed() alone would commit it as it was).
-    connect(m_view, &QComboBox::currentIndexChanged, this, edited);
+    connect(m_hued, &QToolButton::toggled, this, edited);
     connect(m_keep, &QCheckBox::toggled, this, edited);
     connect(m_width, &QDoubleSpinBox::valueChanged, this, edited);
     connect(m_transition, &QComboBox::currentIndexChanged, this, [this, edited] {
@@ -146,10 +183,18 @@ void MaskEditor::showRows()
     const bool pattern = fades && patterned(m_kind);
     const bool crossed = m_fadeShape == Mask::Fade::Rectangle || m_fadeShape == Mask::Fade::Ellipse;
     m_form->setRowVisible(m_width, m_fadeShape == Mask::Fade::Edge);
+    m_editFade->setEnabled(fades);
+    if (!fades && m_editFade->isChecked())   // nothing to drag: back to the outline
+        emit editPartPicked(false);
     m_form->setRowVisible(m_transition, fades);
     m_form->setRowVisible(m_spacing, pattern || (fades && m_kind == Mask::Transition::Zigzag));
     m_form->setRowVisible(m_angle, pattern);
     m_fadeRows.setVisible(m_form, crossed);
+}
+
+void MaskEditor::showEditPart(bool fade)
+{
+    (fade ? m_editFade : m_editOutline)->setChecked(true);   // a check set here is not a click: nothing emitted
 }
 
 void MaskEditor::bind(const Subjects& subjects)
@@ -158,7 +203,7 @@ void MaskEditor::bind(const Subjects& subjects)
     const Mask         shown = c && c->mask ? *c->mask : Mask{};
     m_populating = true;
     m_form->setRowVisible(m_view, c && isMaskObject(*c));   // an object's own mask is seen through its object
-    m_view->setCurrentIndex(shown.hued ? 1 : 0);
+    (shown.hued ? m_hued : m_applied)->setChecked(true);
     m_tone = shown.tone;
     m_fade = shown.fade;
     m_fadeRows.reset();
@@ -182,7 +227,7 @@ void MaskEditor::applyTo(Composition& target) const
         return;
     Mask& m      = *target.mask;
     if (isMaskObject(target))
-        m.hued = m_view->currentIndex() == 1;
+        m.hued = m_hued->isChecked();
     m.keepInside = m_keep->isChecked();
     m.edgeWidth  = m_width->value();
     m.shape      = m_fadeShape;

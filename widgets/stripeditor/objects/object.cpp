@@ -206,7 +206,22 @@ Geometry::HandleContext Object::handleContext() const
 {
     const Mask* mask = pickedMask();   // a mask object's own, picked or not
     return {gripSpanHere() * k_radiusDotClearance, pickedVertices(), markedWords(), mask ? mask->id : m_pickedBody,
-            m_pickedElement};
+            m_pickedElement, m_maskEditFade};
+}
+
+void Object::setMaskEditFade(bool fade)
+{
+    if (m_maskEditFade == fade)
+        return;
+    m_maskEditFade = fade;
+    emit chromeChanged();   // the other set of handles
+}
+
+void Object::holdStill()
+{
+    m_active   = Grip::None;
+    m_dragBody = 0;
+    m_moved    = false;
 }
 
 void Object::setPickedBody(int id)
@@ -446,6 +461,11 @@ void Object::beginDrag(Grip grip, int handle, const QPointF& scenePos)
         emit wordsPressed(m_uid, m_shapeHandle.element);
     if (grip == Grip::Shape)
         emit chromeChanged();   // the pressed handle is drawn as pressed
+    // A press on an object not selected only selects it: moving it takes a second press.
+    if (grip == Grip::Body && !m_wasSelected) {
+        holdStill();
+        return;
+    }
     // A click goes through: a press in one bubble of a chain already selected picks and moves that bubble; the
     // first press, one on a bridge, or one with Ctrl (which gathers objects) moves the whole object.
     // A press in the picked mask's box moves the mask: it is what was picked. A mask object moves whole, as any object.
@@ -457,9 +477,17 @@ void Object::beginDrag(Grip grip, int handle, const QPointF& scenePos)
         return;
     }
     m_dragBody = through ? bodyAt(mapFromScene(scenePos)) : 0;
+    // A press beside the picked mask or bubble gives the object back as a whole: it is only selected.
+    if (through && m_dragBody == 0 && m_pickedBody != 0) {
+        holdStill();
+        return;
+    }
     if (m_dragBody != 0) {
-        m_dragStart = m_composition;
-        emit bodyPressed(m_uid, m_dragBody);
+        const int picked = m_dragBody;
+        m_dragStart      = m_composition;
+        if (picked != m_pickedBody)
+            holdStill();   // a bubble not picked yet is only picked
+        emit bodyPressed(m_uid, picked);
     }
 }
 

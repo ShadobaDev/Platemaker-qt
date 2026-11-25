@@ -143,12 +143,16 @@ bool CanvasInput::eventFilter(QObject *watched, QEvent *event)
     // **Shape editing** has the strip's left button and the arrows to itself, under every tool: a press off
     // the edited balloon draws a band that picks its nodes (a click that picks none does nothing, so a stray
     // one costs nothing), a double click anywhere leaves it, and the arrows walk the pick round the outline:
-    // Shift adds the next node, Alt+Shift takes the furthest away.
+    // Shift adds the next node, Alt+Shift takes the furthest away; Tab switches a mask's handles, outline or fade.
     // A press on the balloon, or on its handles, is the balloon's as ever.
     if (m_objects && m_objects->shapeEdit().isOn()) {
         if (watched == m_view && event->type() == QEvent::KeyPress) {
             auto*     ke  = static_cast<QKeyEvent*>(event);
             const int key = ke->key();
+            if (key == Qt::Key_Tab && m_objects->canEditMaskFade()) {   // a mask: its outline's handles or its fade's
+                m_objects->setMaskEditFade(!m_objects->maskEditFade());
+                return true;
+            }
             if (key == Qt::Key_Up || key == Qt::Key_Left || key == Qt::Key_Down || key == Qt::Key_Right) {
                 using Step               = ShapeEditMode::PickStep;
                 const Qt::KeyboardModifiers mods = ke->modifiers();

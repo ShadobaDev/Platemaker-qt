@@ -330,13 +330,23 @@ QList<Handle> owned(QList<Handle> list, int element, Handle::Drag drag)
 }
 
 /**
- * rief The mask's handles: the cross (the fill's), or the line's two ends, then each region's outline's. The fade's
- *        first: a press takes the first handle under it, and the line's ends lie on the regions' box, where a painted
- *        outline has nodes.
+ * \brief The mask's handles: its fade's (the cross, the fill's, or the line's two ends) when @p context asks for them,
+ *        else each region's outline's. Never both: the line's ends lie on the regions' box, where a painted outline
+ *        has nodes, and a press takes the first handle under it.
  */
 QList<Handle> maskHandles(const Composition& c, const HandleContext& context)
 {
     QList<Handle> out;
+    if (!context.maskFade) {
+        for (const Body& own : c.mask->regions)
+            out.append(owned(shapeHandles(own.shape, QRectF(own.place.pos, QSizeF(own.size)), context.clearance,
+                                          context.lastPicked(own.id)),
+                             own.id, &dragMask));
+        for (Handle& h : out)
+            if (partOf<ShapePart>(h) == ShapePart::AddVertex)
+                h.press = &addNode;
+        return out;
+    }
     if (c.mask->shape == Mask::Fade::Rectangle || c.mask->shape == Mask::Fade::Ellipse) {
         out.append(owned(fadeHandles(maskCross(*c.mask), maskBox(*c.mask), context.clearance), c.mask->id,
                          &dragMaskCross));
@@ -355,15 +365,7 @@ QList<Handle> maskHandles(const Composition& c, const HandleContext& context)
             end.axis = (fade->p2() - fade->p1()) / fade->length();
         out.append(owned({start, end}, c.mask->id, &dragMaskFade));
     }
-    QList<Handle> outline;
-    for (const Body& own : c.mask->regions)
-        outline.append(owned(shapeHandles(own.shape, QRectF(own.place.pos, QSizeF(own.size)), context.clearance,
-                                          context.lastPicked(own.id)),
-                             own.id, &dragMask));
-    for (Handle& h : outline)
-        if (partOf<ShapePart>(h) == ShapePart::AddVertex)
-            h.press = &addNode;
-    return out + outline;
+    return out;
 }
 
 } // namespace

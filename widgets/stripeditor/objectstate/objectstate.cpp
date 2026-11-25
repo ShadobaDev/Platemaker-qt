@@ -193,6 +193,7 @@ ObjectState::ObjectState(PresetStore& presets, QWidget* parent)
     m_mask     = new MaskEditor(this);
     QList<PropertyGroupEditor*> editors = m_groups.all();
     editors << m_tailList << m_tail << m_mask;
+    connect(m_mask, &MaskEditor::editPartPicked, this, &ObjectState::maskEditPartPicked);
 
     // One section per group, in a fixed order, so a group present on two consecutive selections stays
     // where it was and the panel does not shuffle under the cursor.
@@ -543,6 +544,11 @@ void ObjectState::setBody(const Composition& a, int id)
     m_deleteButton->setVisible(order.size() > 1 && (order.first() == id || order.last() == id));
     refreshLook();
     applyKindVisibility();
+}
+
+void ObjectState::showMaskEditPart(bool fade)
+{
+    m_mask->showEditPart(fade);
 }
 
 void ObjectState::setMask(const Composition& a, int id)

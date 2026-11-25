@@ -391,7 +391,8 @@ void ObjectController::onObjectPressed(const QString& uid, int handle)
         && m_selection.subject() != Subject::Mask && item->composition().mask
         && Geometry::maskHidesAt(item->composition(), item->mapFromScene(item->pressScenePos()))) {
         selectMask(uid, item->composition().mask->id);
-        beginDrag(uid, handle);
+        if (Object* picked = m_overlayItems.value(uid))
+            picked->holdStill();   // the mask is only picked: moving it takes a second press
         return;
     }
     if (handle >= 0) {
@@ -434,9 +435,13 @@ void ObjectController::onObjectPressed(const QString& uid, int handle)
         const bool chainLevel = !item->isChain() || (words != 0 && seatOf(words) == inside);
         if (words != 0 && chainLevel) {
             m_pressPickedWords = true;
-            if (m_selection.words() != ElementRef{uid, words})
+            if (m_selection.words() != ElementRef{uid, words}) {
                 selectWords(uid, words);
-            beginDrag(uid, handle);
+                if (Object* picked = m_overlayItems.value(uid))
+                    picked->holdStill();   // words not picked yet are only picked
+            } else {
+                beginDrag(uid, handle);
+            }
             if (uid == m_shapeEdit->edited())
                 emit textFocusRequested();
             return;
@@ -1022,6 +1027,18 @@ void ObjectController::showSelection()
         const ElementRef alone = m_selection.subject() == Subject::Mask ? m_selection.mask() : m_selection.body();
         it.value()->setPickedBody(alone.object == it.key() ? alone.element : 0);
     }
+    // Shape editing of a mask starts on its outline whenever another mask is selected.
+    const Mask*      mask   = primary && picked.size() == 1 ? primary->pickedMask() : nullptr;
+    const ElementRef maskOf = mask ? ElementRef{m_selection.primary(), mask->id} : ElementRef{};
+    if (maskOf != m_maskEditOf) {
+        m_maskEditOf = maskOf;
+        if (m_maskEditFade) {
+            m_maskEditFade = false;
+            emit maskEditFadeChanged(false);
+        }
+    }
+    for (auto it = m_overlayItems.begin(); it != m_overlayItems.end(); ++it)
+        it.value()->setMaskEditFade(m_maskEditFade && it.key() == m_maskEditOf.object);
 
     emit selectionChanged();   // the stack's rows and the menu's entries follow it
     m_syncingList = false;
@@ -1206,6 +1223,26 @@ qreal ObjectController::screenScale(const Object& item) const
 {
     const qreal onScreen = (m_view ? m_view->transform().m11() : 1.0) * item.scale();
     return onScreen > 0.0 ? onScreen : 1.0;
+}
+
+bool ObjectController::canEditMaskFade() const
+{
+    const Object* item = m_selection.objects().size() == 1 ? m_overlayItems.value(m_selection.primary()) : nullptr;
+    const Mask*   mask = item ? item->pickedMask() : nullptr;
+    return mask && mask->shape != Mask::Fade::None;
+}
+
+void ObjectController::setMaskEditFade(bool fade)
+{
+    fade = fade && canEditMaskFade();
+    if (fade && !m_shapeEdit->isOn())
+        m_shapeEdit->setOn(true);
+    if (Object* item = m_overlayItems.value(m_maskEditOf.object))
+        item->setMaskEditFade(fade);
+    if (fade == m_maskEditFade)
+        return;
+    m_maskEditFade = fade;
+    emit maskEditFadeChanged(fade);
 }
 
 bool ObjectController::canPaintMask() const

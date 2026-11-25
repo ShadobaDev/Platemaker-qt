@@ -12,9 +12,8 @@ namespace StripEdit {
 
 namespace {
 
-constexpr double k_featherMaxPx   = 100.0;   //!< A blur wider than this has nothing left of the region's shape.
-constexpr int    k_featherDecimals = 1;
-constexpr double k_featherStepPx  = 0.5;
+constexpr double k_edgeWidthMaxPx = 500.0;   //!< A panel's half width, about: deeper, the edge fade is the whole mask.
+constexpr int    k_pxDecimals     = 1;
 //! The fade a mask is given when it starts fading: hidden wholly at the right, not at all at the left.
 const QLineF k_defaultFade(1.0, 0.5, 0.0, 0.5);
 //! The cross a mask is given when it starts fading by one: its centre on the right, the left arm fading all along.
@@ -52,16 +51,25 @@ MaskEditor::MaskEditor(QWidget* parent)
                           "a panel, the mask traced along the panel's frame."));
     form->addRow(QString(), m_keep);
 
-    m_feather = new QDoubleSpinBox(this);
-    m_feather->setRange(0.0, k_featherMaxPx);
-    m_feather->setDecimals(k_featherDecimals);
-    m_feather->setSingleStep(k_featherStepPx);
-    m_feather->setSuffix(tr(" px"));
-    m_feather->setToolTip(tr("Softens the mask's outline all round, blurred to both sides of it: 0 cuts sharply. "
-                             "Where the outline lies on the object's own edge, the object shows back a little; "
-                             "let the mask reach past it there. Fade, not this, hides gradually across the mask. "
-                             "Shown when the object is at rest."));
-    form->addRow(tr("Feather:"), m_feather);
+    // Where it fades, then how.
+    m_shape = new QComboBox(this);
+    m_shape->addItem(tr("None"), int(Mask::Fade::None));
+    m_shape->addItem(tr("Linear"), int(Mask::Fade::Linear));
+    m_shape->addItem(tr("Rectangle"), int(Mask::Fade::Rectangle));
+    m_shape->addItem(tr("Ellipse"), int(Mask::Fade::Ellipse));
+    m_shape->addItem(tr("Edge"), int(Mask::Fade::Edge));
+    m_shape->setToolTip(tr("Where the mask hides gradually: nowhere (it hides evenly), along a line, by a cross as a "
+                           "balloon's fill fades, its corners square or on ellipses (dragged on the strip in Edit "
+                           "shape), or inwards from its outline, as deep as Width: a soft or broken edge."));
+    form->addRow(tr("Fade:"), m_shape);
+
+    m_width = new QDoubleSpinBox(this);
+    m_width->setRange(0.0, k_edgeWidthMaxPx);
+    m_width->setDecimals(k_pxDecimals);
+    m_width->setSuffix(tr(" px"));
+    m_width->setToolTip(tr("How deep from the outline the mask hides wholly: shown on the outline, gradually hidden "
+                           "inwards. Nothing outside the mask is hidden."));
+    form->addRow(tr("Width:"), m_width);
 
     // Smooth, or a fill's patterns, named for what they do to a fade.
     m_transition = new QComboBox(this);
@@ -70,23 +78,14 @@ MaskEditor::MaskEditor(QWidget* parent)
     m_transition->addItem(tr("Hatch"), int(Mask::Transition::Hatch));
     m_transition->addItem(tr("Cross-hatch"), int(Mask::Transition::CrossHatch));
     m_transition->addItem(tr("Zigzag"), int(Mask::Transition::Zigzag));
-    m_transition->setToolTip(tr("How the mask hides: smoothly, along a line it fades on; or what it leaves breaking "
-                                "into dots, lines or a grid, faded by a cross as a balloon's fill is; or cut off by "
-                                "teeth reaching from where the fade starts to where it ends."));
+    m_transition->setToolTip(tr("How the mask goes from hidden to shown where it fades: smoothly; or what it leaves "
+                                "breaking into dots, lines or a grid; or cut off by teeth reaching from where the "
+                                "fade starts to where it ends."));
     form->addRow(tr("Transition:"), m_transition);
-
-    m_shape = new QComboBox(this);
-    m_shape->addItem(tr("None"), int(Mask::Fade::None));
-    m_shape->addItem(tr("Linear"), int(Mask::Fade::Linear));
-    m_shape->addItem(tr("Rectangle"), int(Mask::Fade::Rectangle));
-    m_shape->addItem(tr("Ellipse"), int(Mask::Fade::Ellipse));
-    m_shape->setToolTip(tr("How the mask hides gradually: not at all, along a line, or by a cross as a balloon's "
-                           "fill fades, its corners square or on ellipses. Dragged on the strip in Edit shape."));
-    form->addRow(tr("Fade:"), m_shape);
 
     m_spacing = new QDoubleSpinBox(this);
     m_spacing->setRange(k_spacingMinPx, k_spacingMaxPx);
-    m_spacing->setDecimals(k_featherDecimals);
+    m_spacing->setDecimals(k_pxDecimals);
     m_spacing->setSuffix(tr(" px"));
     m_spacing->setToolTip(tr("From one dot, line or tooth to the next."));
     form->addRow(tr("Spacing:"), m_spacing);
@@ -110,7 +109,7 @@ MaskEditor::MaskEditor(QWidget* parent)
     // As every row: changed() is what carries the edit into the object (committed() alone would commit it as it was).
     connect(m_view, &QComboBox::currentIndexChanged, this, edited);
     connect(m_keep, &QCheckBox::toggled, this, edited);
-    connect(m_feather, &QDoubleSpinBox::valueChanged, this, edited);
+    connect(m_width, &QDoubleSpinBox::valueChanged, this, edited);
     connect(m_transition, &QComboBox::currentIndexChanged, this, [this, edited] {
         m_kind = Mask::Transition(m_transition->currentData().toInt());
         edited();
@@ -142,9 +141,13 @@ MaskEditor::MaskEditor(QWidget* parent)
 
 void MaskEditor::showRows()
 {
-    const bool pattern = patterned(m_kind);
+    // A transition is how it goes where it fades: with no fade there is nowhere for it to show.
+    const bool fades   = m_fadeShape != Mask::Fade::None;
+    const bool pattern = fades && patterned(m_kind);
     const bool crossed = m_fadeShape == Mask::Fade::Rectangle || m_fadeShape == Mask::Fade::Ellipse;
-    m_form->setRowVisible(m_spacing, pattern || m_kind == Mask::Transition::Zigzag);
+    m_form->setRowVisible(m_width, m_fadeShape == Mask::Fade::Edge);
+    m_form->setRowVisible(m_transition, fades);
+    m_form->setRowVisible(m_spacing, pattern || (fades && m_kind == Mask::Transition::Zigzag));
     m_form->setRowVisible(m_angle, pattern);
     m_fadeRows.setVisible(m_form, crossed);
 }
@@ -160,7 +163,7 @@ void MaskEditor::bind(const Subjects& subjects)
     m_fade = shown.fade;
     m_fadeRows.reset();
     m_keep->setChecked(shown.keepInside);
-    m_feather->setValue(shown.feather);
+    m_width->setValue(shown.edgeWidth);
     m_fadeShape = shown.shape;
     m_crossSet  = false;
     m_shape->setCurrentIndex(qMax(0, m_shape->findData(int(m_fadeShape))));
@@ -181,7 +184,7 @@ void MaskEditor::applyTo(Composition& target) const
     if (isMaskObject(target))
         m.hued = m_view->currentIndex() == 1;
     m.keepInside = m_keep->isChecked();
-    m.feather    = m_feather->value();
+    m.edgeWidth  = m_width->value();
     m.shape      = m_fadeShape;
     m.fade       = m_fade;
     // The cross's own numbers are dragged on the strip, so they are the target's, unless a cross was just started.

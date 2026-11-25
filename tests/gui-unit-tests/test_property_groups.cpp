@@ -280,8 +280,8 @@ struct BalloonMirror { int id; BalloonStyle style; QList<Body> bodies; QList<Bal
 static_assert(sizeof(Balloon) == sizeof(BalloonMirror), "Balloon grew a field: place it (see above), then mirror it");
 struct WordsMirror { int id; int seat; Place place; QSize box; TextProperties text; Frame frame; };
 static_assert(sizeof(Words) == sizeof(WordsMirror), "Words grew a field: place it (see above), then mirror it");
-struct MaskMirror { int id; QList<Body> regions; qreal feather; Mask::Fade shape; std::optional<QLineF> fade; Paint tone;
-                    bool keepInside; };
+struct MaskMirror { int id; QList<Body> regions; qreal edgeWidth; Mask::Fade shape; std::optional<QLineF> fade;
+                    Paint tone; bool keepInside; bool hued; Mask::Transition transition; };
 static_assert(sizeof(Mask) == sizeof(MaskMirror), "Mask grew a field: place it (see above), then mirror it");
 struct CompositionMirror { std::optional<Balloon> balloon; std::optional<Picture> picture; QList<Words> words;
                            std::optional<Mask> mask; quint32 seed; PresetOrigin preset; int nextId; };
@@ -816,7 +816,7 @@ TEST(PropertyGroupPersistence, RoundTrips)
     apart.place       = Place{QPointF(20.0, 10.0)};
     apart.shape       = Geometry::shapeTemplate("diamond").shape;
     mask.regions      = {region, apart};
-    mask.feather      = 3.5;
+    mask.edgeWidth    = 3.5;
     mask.fade         = QLineF(0.1, 0.2, 0.9, 0.8);
     mask.shape        = Mask::Fade::Ellipse;
     mask.transition        = Mask::Transition::CrossHatch;
@@ -3651,6 +3651,68 @@ TEST(Mask, HidesWhatItCoversAndFadesAlongItsLine)
     a.mask->tone.fadeRightFrom = 100.0;
     EXPECT_EQ(alphaAt(Painter::render(a), a, QPointF(220.5, 80.0)), 0);
 
+    // By its Edge, 20 px wide: smoothly, blurred across the outline, half hidden on it, hidden 10 px in, shown 10 px
+    // out; through dots about half way in; through teeth with one front from each side, nothing outside hidden.
+    {
+        constexpr qreal k_width        = 20.0;
+        constexpr int   k_blurTolerance = 12;   // of 255: three boxes for a Gaussian, and antialiasing
+        Composition     e = maskedBalloon();
+        e.mask->shape     = Mask::Fade::Edge;
+        e.mask->edgeWidth = k_width;
+        const QImage soft = Painter::render(e);
+        const qreal  sigma = k_width / 4.0;
+        for (const qreal across : {-6.0, -2.0, 0.0, 2.0, 6.0}) {   // from the left side, inwards positive
+            SCOPED_TRACE(across);
+            // At the centre of the pixel alphaAt() reads.
+            const QPointF at(160.0 + across, 80.0);
+            const QPointF corner      = Geometry::bounds(e).topLeft();
+            const qreal   read        = (corner + QPointF((at - corner).toPoint()) + QPointF(0.5, 0.5)).x() - 160.0;
+            const qreal   hiddenThere = 0.5 * (1.0 + std::erf(read / (sigma * M_SQRT2)));
+            EXPECT_NEAR(alphaAt(soft, e, at), 255.0 * (1.0 - hiddenThere), k_blurTolerance);
+        }
+        EXPECT_NEAR(Geometry::maskCover(*e.mask, e.seed, QPointF(162.5, 80.0)),
+                    0.5 * (1.0 + std::erf(2.5 / (sigma * M_SQRT2))), 1e-9);
+        EXPECT_EQ(alphaAt(soft, e, inside), 0) << "40 px deep";
+        EXPECT_EQ(alphaAt(soft, e, outside), alphaAt(whole, plain, outside));
+        EXPECT_GT(Geometry::maskReach(*e.mask), k_width / 2.0) << "a mask object's drawing reaches its blur";
+
+        e.mask->transition   = Mask::Transition::Halftone;
+        e.mask->tone.spacing = 4.0;
+        e.mask->tone.angle   = 0;
+        const QImage dotted  = Painter::render(e);
+        qreal sum = 0.0;
+        int   n   = 0;
+        for (int x = 165; x < 175; ++x)   // 5 to 15 px in, along the left side, away from the corners
+            for (int y = 60; y < 100; ++y, ++n)
+                sum += alphaAt(dotted, e, QPointF(x + 0.5, y + 0.5)) / 255.0;
+        EXPECT_NEAR(sum / n, 0.5, k_meanTolerance);
+        EXPECT_EQ(alphaAt(dotted, e, inside), 0);
+
+        e.mask->transition = Mask::Transition::Zigzag;
+        e.mask->tone.spacing = 8.0;
+        const QImage torn  = Painter::render(e);
+        EXPECT_EQ(alphaAt(torn, e, inside), 0);
+        int hidden = 0, shown = 0;   // down the left side half way in: teeth, not a straight inset
+        for (int y = 60; y < 100; ++y) {
+            const int alpha = alphaAt(torn, e, QPointF(170.5, y + 0.5));
+            hidden += alpha == 0 ? 1 : 0;
+            shown += alpha == 255 ? 1 : 0;
+        }
+        EXPECT_GT(hidden, 0);
+        EXPECT_GT(shown, 0);
+        for (const qreal y : {60.5, 80.5, 97.5}) {   // inwards from the left side: shown, then hidden, once
+            SCOPED_TRACE(y);
+            int  changes = 0;
+            bool before  = false;
+            for (int x = 158; x < 200; ++x) {
+                const bool hiddenHere = alphaAt(torn, e, QPointF(x + 0.5, y)) < 128;
+                changes += hiddenHere != before ? 1 : 0;
+                before = hiddenHere;
+            }
+            EXPECT_EQ(changes, 1);
+        }
+    }
+
     // Smooth over a cross from the region's middle, every arm fading from it to its side: what the shades draw is
     // the cross's own tone (fadeTone()), the rectangle's square corners and the ellipse's alike.
     a.mask->tone      = Paint{};
@@ -3668,7 +3730,7 @@ TEST(Mask, HidesWhatItCoversAndFadesAlongItsLine)
             const QPointF centre = corner + QPointF((at - corner).toPoint()) + QPointF(0.5, 0.5);
             const qreal   hidden = Geometry::fadeTone(Geometry::maskCross(*a.mask), box, centre);
             EXPECT_NEAR(alphaAt(drawn, a, at), 255.0 * (1.0 - hidden), k_alphaTolerance);
-            EXPECT_NEAR(Geometry::maskCover(*a.mask, centre), hidden, 1e-9);
+            EXPECT_NEAR(Geometry::maskCover(*a.mask, a.seed, centre), hidden, 1e-9);
         }
     }
 }
@@ -3816,7 +3878,8 @@ TEST(Mask, IsEditedByItsOwnHandlesAndTheShapeSection)
 
 /**
  * \brief A mask is written as the SVG's: the content group masked, the region black in a white mask, a fade a
- *        gradient, a feather a blur; and it reads back. Only a feather makes the object one only the library draws.
+ *        gradient, an Edge fade grey bands; and it reads back. A mask never makes the object one only the library
+ *        draws.
  */
 TEST(Mask, IsWrittenAsTheSvgsMask)
 {
@@ -3825,16 +3888,14 @@ TEST(Mask, IsWrittenAsTheSvgsMask)
     EXPECT_TRUE(svg.contains("<g mask=\"url(#pm-mask)\">"));
     EXPECT_TRUE(svg.contains("<mask id=\"pm-mask\""));
     EXPECT_FALSE(svg.contains("linearGradient"));
-    EXPECT_FALSE(svg.contains("feGaussianBlur stdDeviation=\"3.5\""));
     EXPECT_FALSE(Geometry::hasFilter(a));
 
     a.mask->shape   = Mask::Fade::Linear;
     a.mask->fade    = QLineF(0.0, 0.5, 1.0, 0.5);
-    a.mask->feather = 3.5;
     svg             = Svg::write(a);
     EXPECT_TRUE(svg.contains("<linearGradient id=\"pm-mask-fade-0\""));
-    EXPECT_TRUE(svg.contains("feGaussianBlur stdDeviation=\"3.5\""));
-    EXPECT_TRUE(Geometry::hasFilter(a));
+    EXPECT_FALSE(svg.contains("feGaussianBlur"));
+    EXPECT_FALSE(Geometry::hasFilter(a));
     bool ok = false;
     EXPECT_EQ(Svg::read(svg, &ok).mask, a.mask);   // the rest is read as RoundTrips reads it
     EXPECT_TRUE(ok);
@@ -3846,7 +3907,7 @@ TEST(Mask, IsWrittenAsTheSvgsMask)
     EXPECT_TRUE(svg.contains("<stop offset=\"0\" stop-color=\"white\"/>"));
     a.mask->keepInside = false;
 
-    // A pattern: the region black where its cross hides, the marks white over it, all blurred; no gradient.
+    // A pattern: the region black where its cross hides, the marks white over it; no gradient.
     a.mask->transition         = Mask::Transition::Halftone;
     a.mask->tone.fadeCentreX   = 0.0;
     a.mask->tone.fadeRightFrom = 0.0;
@@ -3854,7 +3915,7 @@ TEST(Mask, IsWrittenAsTheSvgsMask)
     a.mask->shape              = Mask::Fade::Rectangle;
     svg                = Svg::write(a);
     EXPECT_FALSE(svg.contains("<linearGradient id=\"pm-mask-fade"));
-    EXPECT_TRUE(svg.contains("<g filter=\"url(#pm-mask-feather)\"><path"));
+    EXPECT_TRUE(svg.contains("<g><path"));
     EXPECT_TRUE(svg.contains("fill-rule=\"nonzero\" fill=\"white\"/></g>"));
 
     // Smooth by an ellipse every arm fades on: a radial gradient on the ends' ellipse, a quarter at a time.
@@ -3865,11 +3926,21 @@ TEST(Mask, IsWrittenAsTheSvgsMask)
     svg               = Svg::write(a);
     EXPECT_TRUE(svg.contains("<radialGradient id=\"pm-mask-fade-"));
     EXPECT_EQ(Svg::read(svg, &ok).mask, a.mask);
+
+    // Smooth by its Edge: the region blurred, by a quarter of its width, not cut to it; its width reads back.
+    a.mask->shape     = Mask::Fade::Edge;
+    a.mask->edgeWidth = 12.0;
+    svg               = Svg::write(a);
+    EXPECT_TRUE(svg.contains("<feGaussianBlur stdDeviation=\"3\"/>"));
+    EXPECT_TRUE(svg.contains("<g filter=\"url(#pm-mask-blur)\"><path"));
+    EXPECT_FALSE(svg.contains("clip-path"));
+    EXPECT_FALSE(Geometry::hasFilter(a)) << "the painter blurs it";
+    EXPECT_EQ(Svg::read(svg, &ok).mask, a.mask);
 }
 
 /**
  * \brief A mask and nothing else is a mask object: its frame and size are the box round its regions, resizing it
- *        scales them, what it draws reaches as far as its feather blurs, and its file draws what it covers, hidden:
+ *        scales them, and its file draws what it covers, hidden:
  *        white where it hides in a mask over black, under the library's coverage class at no opacity. It reads back.
  */
 TEST(Mask, AMaskAloneIsAMaskObjectWrittenAsWhatItCoversHidden)
@@ -3887,9 +3958,6 @@ TEST(Mask, AMaskAloneIsAMaskObjectWrittenAsWhatItCoversHidden)
     const QSize twice = box.size().toSize() * 2;
     resize(m, twice);
     EXPECT_EQ(Geometry::maskBox(*m.mask), QRectF(box.topLeft(), QSizeF(twice))) << "from its corner";
-
-    m.mask->feather = 4.0;
-    EXPECT_LE(Geometry::bounds(m).left(), frameOf(m).left() - Geometry::maskReach(*m.mask)) << "the blur is drawn";
 
     const QByteArray svg = Svg::write(m);
     EXPECT_TRUE(svg.contains("<g class=\"platemaker-coverage\" opacity=\"0\">"));

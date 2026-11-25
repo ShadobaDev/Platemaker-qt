@@ -650,7 +650,7 @@ const char* maskTransitionName(Mask::Transition t)
 //! A mask's fade shape in a file, by name; None for a name it does not know.
 const std::pair<Mask::Fade, const char*> k_maskFadeNames[] = {
     {Mask::Fade::None, "none"}, {Mask::Fade::Linear, "linear"}, {Mask::Fade::Rectangle, "rectangle"},
-    {Mask::Fade::Ellipse, "ellipse"}};
+    {Mask::Fade::Ellipse, "ellipse"}, {Mask::Fade::Edge, "edge"}};
 
 const char* maskFadeName(Mask::Fade f)
 {
@@ -738,16 +738,15 @@ QJsonObject toJson(const Composition& c)
                 {QStringLiteral("shape"), toJson(r.shape)},
             });
         QJsonObject o{{QStringLiteral("id"), m.id}, {QStringLiteral("regions"), regions}};
-        if (m.feather != 0.0)
-            o.insert(QStringLiteral("feather"), m.feather);
         if (m.fade)
             o.insert(QStringLiteral("fade"), QJsonArray{m.fade->x1(), m.fade->y1(), m.fade->x2(), m.fade->y2()});
-        const bool crossed = m.shape == Mask::Fade::Rectangle || m.shape == Mask::Fade::Ellipse;
         if (m.shape != Mask::Fade::None)
             o.insert(QStringLiteral("fadeShape"), QString::fromLatin1(maskFadeName(m.shape)));
+        if (m.edgeWidth != Mask::k_defaultEdgeWidth)   // kept while another shape is picked, as the line is
+            o.insert(QStringLiteral("edgeWidth"), m.edgeWidth);
         if (m.transition != Mask::Transition::Smooth)
             o.insert(QStringLiteral("transition"), QString::fromLatin1(maskTransitionName(m.transition)));
-        if (const Paint& t = m.tone; m.transition != Mask::Transition::Smooth || crossed)
+        if (const Paint& t = m.tone; t != Paint{})   // its cross kept while another shape is picked
             o.insert(QStringLiteral("tone"),
                      QJsonObject{{QStringLiteral("spacing"), t.spacing},
                                  {QStringLiteral("angle"), t.angle},
@@ -839,7 +838,7 @@ Composition compositionFromJson(const QJsonObject& j)
             b.shape = shapeFromJson(r.value(QStringLiteral("shape")).toObject());
             m.regions.append(b);
         }
-        m.feather = o.value(QStringLiteral("feather")).toDouble(0.0);
+        m.edgeWidth = o.value(QStringLiteral("edgeWidth")).toDouble(Mask::k_defaultEdgeWidth);
         if (const QJsonArray f = o.value(QStringLiteral("fade")).toArray(); f.size() == 4)
             m.fade = QLineF(f.at(0).toDouble(), f.at(1).toDouble(), f.at(2).toDouble(), f.at(3).toDouble());
         if (const QJsonObject t = o.value(QStringLiteral("tone")).toObject(); !t.isEmpty()) {

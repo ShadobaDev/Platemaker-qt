@@ -17,8 +17,8 @@ class QSpinBox;
 namespace StripEdit {
 
 /**
- * \brief A mask, an object's own or a mask object: whether it keeps or hides, how soft its edge is, and how it fades:
- *        smoothly along a line, or through a pattern faded by the fill's cross (FadeRows); a mask object's view.
+ * \brief A mask, an object's own or a mask object: whether it keeps or hides, where it fades (a line, the fill's cross,
+ *        FadeRows, or inwards from its outline) and how (Mask::Transition); a mask object's view.
  *
  * Its regions are the mask tools' and are edited by their nodes, and where the fade runs is dragged on the strip in
  * shape editing; this editor owns the rest of `Mask`. applyTo() writes nothing to a composition with no mask.
@@ -36,12 +36,12 @@ public:
     void applyTo(Composition& target) const override;
 
 private:
-    void showRows();   //!< A pattern: its cell; a cross: its turning over.
+    void showRows();   //!< A fade: its transition; Edge: its width; a pattern: its cell; a cross: its turning over.
 
     QFormLayout*    m_form       = nullptr;
     QComboBox*      m_view       = nullptr;   //!< A mask object's Applied or Hued; no row for an object's own mask.
     QCheckBox*      m_keep       = nullptr;
-    QDoubleSpinBox* m_feather    = nullptr;
+    QDoubleSpinBox* m_width      = nullptr;   //!< Fade Edge's width (Mask::edgeWidth).
     QComboBox*      m_transition = nullptr;
     QComboBox*      m_shape      = nullptr;
     QDoubleSpinBox* m_spacing    = nullptr;

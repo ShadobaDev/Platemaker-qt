@@ -1528,6 +1528,8 @@ constexpr int k_maskToneHalvings = 24;
 constexpr qreal k_fadeExtentFar = 1000.0;
 //! The shortest a smooth mask's gradient runs, in pixels: an end on its start is a step, drawn over this.
 constexpr qreal k_maskStepPx = 1e-3;
+//! A Smooth Edge fade's width in its blur's deviations: two to each side of the outline, 95 % of the change.
+constexpr qreal k_edgeWidthDeviations = 4.0;
 
 /**
  * How much of its cell a mask's dot covers at @p tone (0 to 1), its diameter k_maskDotsCover of the cell's side
@@ -1884,12 +1886,41 @@ QPainterPath zigzagRound(const MaskShade& s, qreal spacing)
     return out;
 }
 
+//! How far @p at lies from the nearest side of @p rings.
+qreal distanceToRings(const QList<QPolygonF>& rings, const QPointF& at)
+{
+    qreal nearest = std::numeric_limits<qreal>::max();
+    for (const QPolygonF& ring : rings)
+        for (qsizetype i = 0; i < ring.size(); ++i) {
+            const QPointF a    = ring[i];
+            const QPointF ab   = ring[(i + 1) % ring.size()] - a;
+            const qreal   len2 = QPointF::dotProduct(ab, ab);
+            const qreal   t    = len2 > 0.0 ? std::clamp(QPointF::dotProduct(at - a, ab) / len2, 0.0, 1.0) : 0.0;
+            nearest            = qMin(nearest, QLineF(at, a + ab * t).length());
+        }
+    return nearest;
+}
+
+//! A Fade Edge's cover at @p at inside the regions, @p rings their outline: how deep it lies over @p width, at most 1.
+qreal edgeCover(const QList<QPolygonF>& rings, qreal width, const QPointF& at)
+{
+    return width > 0.0 ? qMin(1.0, distanceToRings(rings, at) / width) : 1.0;
+}
+
 /**
- * \brief What @p mask hides with a zigzag front: shade by shade (maskShades()), a solid one wholly or not at all, a
- *        gradient's up to its teeth; within @p region.
+ * \brief What @p mask hides with a zigzag front: by an Edge fade, @p region inside teeth along its outline, as deep as
+ *        the width (the Shape section's zigzag edge); else shade by shade (maskShades()), a solid one wholly or not at
+ *        all, a gradient's up to its teeth; within @p region.
  */
 QPainterPath zigzagHidden(const Mask& mask, quint32 seed, const QPainterPath& region)
 {
+    if (mask.shape == Mask::Fade::Edge) {
+        ShapeProperties teeth;
+        teeth.edge        = ShapeProperties::Edge::Zigzag;
+        teeth.teeth.pitch = qMax(mask.tone.spacing, k_minPatternSpacing);
+        teeth.teeth.depth = mask.edgeWidth;
+        return region.intersected(edgeInfo(teeth.edge).modulate(region, teeth, seed));
+    }
     const qreal  spacing = qMax(mask.tone.spacing, k_minPatternSpacing);
     const QRectF bounds  = region.boundingRect();
     QPainterPath hidden;
@@ -1952,6 +1983,8 @@ MaskMarks maskMarks(const Mask& mask, quint32 seed)
             return out;
         out.hidden = cross.fadeReversed ? region.subtracted(fadeExtent(cross, box, false))
                                         : region.intersected(fadeExtent(cross, box, true));
+    } else if (mask.shape == Mask::Fade::Edge) {
+        out.hidden = region;   // it fades from every side of it
     } else {
         return out;
     }
@@ -1963,10 +1996,13 @@ MaskMarks maskMarks(const Mask& mask, quint32 seed)
     cell.spacing = qMax(mask.tone.spacing, k_minPatternSpacing);
     cell.size    = cell.spacing * (cell.kind == Paint::Kind::Dots ? k_maskDotsCover : 1.0);
     cell.angle   = mask.tone.angle;
-    // The marks show what the fade leaves (1 - maskCover()).
+    // The marks show what the fade leaves (1 - maskCover()); an Edge fade's outline found once, not at every mark.
+    const QList<QPolygonF> rings = mask.shape == Mask::Fade::Edge ? region.toSubpathPolygons() : QList<QPolygonF>();
+    const auto cover = [&](const QPointF& at) {
+        return mask.shape == Mask::Fade::Edge ? edgeCover(rings, mask.edgeWidth, at) : maskCover(mask, seed, at);
+    };
     out.shown = halftoneMarks(
-        cell, out.hidden.boundingRect(),
-        [&](const QPointF& at) { return maskTone(cell.kind, 1.0 - maskCover(mask, at)); },
+        cell, out.hidden.boundingRect(), [&](const QPointF& at) { return maskTone(cell.kind, 1.0 - cover(at)); },
         cell.spacing * k_maskBarStep);
     return out;
 }
@@ -2217,8 +2253,27 @@ Paint maskCross(const Mask& mask)
     return cross;
 }
 
-qreal maskCover(const Mask& mask, const QPointF& at)
+qreal maskBlur(const Mask& mask)
 {
+    return mask.shape == Mask::Fade::Edge && mask.transition == Mask::Transition::Smooth
+               ? qMax(mask.edgeWidth, 0.0) / k_edgeWidthDeviations
+               : 0.0;
+}
+
+qreal maskReach(const Mask& mask)
+{
+    return k_blurReach * maskBlur(mask);
+}
+
+qreal maskCover(const Mask& mask, quint32 seed, const QPointF& at)
+{
+    if (mask.shape == Mask::Fade::Edge) {
+        const qreal depth = distanceToRings(maskOutline(mask, seed).toSubpathPolygons(), at);
+        // Smooth, a straight outline blurred: half on it (std::erf, the normal distribution's).
+        if (const qreal sigma = maskBlur(mask); sigma > 0.0)
+            return 0.5 * (1.0 + std::erf(depth / (sigma * M_SQRT2)));
+        return mask.edgeWidth > 0.0 ? qMin(1.0, depth / mask.edgeWidth) : 1.0;
+    }
     if (mask.shape == Mask::Fade::Linear) {
         const std::optional<QLineF> fade = maskFade(mask);
         if (!fade || fade->length() <= 0.0)
@@ -2446,8 +2501,6 @@ bool hasFilter(const Composition& c)
         b && (textureInfo(b->style.texture.kind).filter != nullptr || lineInfo(b->style.line.line).outlineFilter != nullptr
               || blursShadow(*b)))
         return true;
-    if (c.mask && c.mask->feather > 0.0 && !isMaskObject(c))   // a mask object draws nothing to blur
-        return true;
     const Words* w = wordsOf(c);
     return w && !w->text.body.isEmpty() && blursShadow(w->text.shadow, w->text.shadowFill);
 }
@@ -2502,11 +2555,6 @@ qreal shadowReach(const Shadow& s)
     // As far as it grows and is moved and its blur spreads, on every side, which is generous but simple.
     return s.on ? qMax(s.spread, 0.0) + qMax(std::abs(s.x), std::abs(s.y)) + k_blurReach * qMax(s.softness, 0.0)
                 : 0.0;
-}
-
-qreal maskReach(const Mask& m)
-{
-    return k_blurReach * qMax(m.feather, 0.0);
 }
 
 bool blursShadow(const Balloon& b)

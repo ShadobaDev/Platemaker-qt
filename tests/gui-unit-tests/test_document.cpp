@@ -196,7 +196,7 @@ TEST(Edits, AMaskCoversTheRightThirdAndThereIsOne)
     const QRectF region(a.mask->regions[0].place.pos, QSizeF(a.mask->regions[0].size));
     const qreal  inside = qRound(frame.width() / 3.0);
     EXPECT_EQ(region.left(), frame.right() - inside);
-    EXPECT_GT(region.right(), frame.right()) << "past the frame, where a feather shows nothing back";
+    EXPECT_GT(region.right(), frame.right()) << "past the frame, where an Edge fade shows nothing back";
     EXPECT_LT(region.top(), frame.top());
     EXPECT_GT(region.bottom(), frame.bottom());
     ASSERT_TRUE(a.mask->fade);

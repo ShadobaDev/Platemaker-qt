@@ -294,17 +294,18 @@ QString itemsOf(const QList<Render::Item>& items, const QString& indent)
 //! The ids of a mask's definitions.
 const QString k_maskId        = QStringLiteral("pm-mask");
 const QString k_maskFadeId    = QStringLiteral("pm-mask-fade");
-const QString k_maskFeatherId = QStringLiteral("pm-mask-feather");
 const QString k_maskClipId    = QStringLiteral("pm-mask-clip");
+const QString k_maskBlurId    = QStringLiteral("pm-mask-blur");
 
 /**
  * \brief @p c's mask defined over @p area (the viewBox) as k_maskId, or nothing without one.
  *
  * A luminance mask: white keeps, black hides. Its region is black, or its shades (Geometry::maskShades(): its
- * line's gradient, or its cross's, quarter by quarter, linear and radial), or with a pattern black where it hides
- * and the pattern's marks white over it (Geometry::maskMarks()); blurred by the feather. Kept inside (Mask::keepInside), black and white swap: the
- * whole viewBox black, the region white. The mask and the blur cover the whole viewBox in user space, so
- * neither is cut at the region's box, as SVG's default regions (the element's box and a tenth round it) would.
+ * line's gradient, or its cross's, quarter by quarter, linear and radial, or an Edge fade's bands, each a grey), or
+ * with a pattern or a zigzag black where it hides and the pattern's marks white over it (Geometry::maskMarks()). Kept
+ * inside (Mask::keepInside), black and white swap: the whole viewBox black, the region white. The mask covers the
+ * whole viewBox in user space, so it is not cut at the region's box, as SVG's default regions (the element's box and
+ * a tenth round it) would.
  */
 QString maskDefs(const Composition& c, const QRectF& area)
 {
@@ -324,7 +325,16 @@ QString maskDefs(const Composition& c, const QRectF& area)
     const auto colourOf = [&](qreal hidden) { return hidden >= 0.5 ? hide : keep; };
     QString shapes;
     const Geometry::MaskMarks marks = Geometry::maskMarks(*c.mask, c.seed);
-    if (!marks.hidden.isEmpty()) {
+    QString filter;
+    if (const qreal sigma = Geometry::maskBlur(*c.mask); sigma > 0.0) {
+        // A Smooth Edge: the region, blurred across its outline, not cut to it.
+        d += QStringLiteral("    <filter id=\"%1\" filterUnits=\"userSpaceOnUse\" %2>"
+                            "<feGaussianBlur stdDeviation=\"%3\"/></filter>\n")
+                 .arg(k_maskBlurId, box, num(sigma));
+        filter = QStringLiteral(" filter=\"url(#%1)\"").arg(k_maskBlurId);
+        shapes = QStringLiteral("<path d=\"%1\" fill-rule=\"%2\" fill=\"%3\"/>")
+                     .arg(pathData(region), fillRule(region), hide);
+    } else if (!marks.hidden.isEmpty()) {
         shapes = QStringLiteral("<path d=\"%1\" fill-rule=\"%2\" fill=\"%3\"/>")
                      .arg(pathData(marks.hidden), fillRule(marks.hidden), hide);
         if (!marks.shown.isEmpty())   // a zigzag has none
@@ -360,13 +370,6 @@ QString maskDefs(const Composition& c, const QRectF& area)
         d += QStringLiteral("    <clipPath id=\"%1\"><path d=\"%2\" clip-rule=\"%3\"/></clipPath>\n")
                  .arg(k_maskClipId, pathData(region), fillRule(region));
         shapes = QStringLiteral("<g clip-path=\"url(#%1)\">%2</g>").arg(k_maskClipId, shapes);
-    }
-    QString filter;
-    if (c.mask->feather > 0.0) {
-        d += QStringLiteral("    <filter id=\"%1\" filterUnits=\"userSpaceOnUse\" %2>"
-                            "<feGaussianBlur stdDeviation=\"%3\"/></filter>\n")
-                 .arg(k_maskFeatherId, box, num(c.mask->feather));
-        filter = QStringLiteral(" filter=\"url(#%1)\"").arg(k_maskFeatherId);
     }
     const QString hidden = QStringLiteral("<g%1>%2</g>").arg(filter, shapes);
     d += QStringLiteral("    <mask id=\"%1\" maskUnits=\"userSpaceOnUse\" %2><rect %2 fill=\"%4\"/>%3</mask>\n")
@@ -436,7 +439,7 @@ QByteArray write(const Composition& c, const QByteArray& picture, const QString&
                     num(bounds.left()),  num(bounds.top()));
 
     // **A mask object** draws what it covers, black, as opaque as it hides: its own mask's definition with black and
-    // white swapped (so its fade, its pattern and its feather are the object mask's), laid on a black rect. Hidden
+    // white swapped (so its fade and its transition are the object mask's), laid on a black rect. Hidden
     // under the library's coverage class, so only a library that knows masks sees it; anything else, a transparent
     // image.
     if (isMaskObject(c)) {

@@ -731,10 +731,10 @@ QRectF boundsOf(const Composition& c, const QPainterPath& silhouette, const QLis
 
     // The stroke straddles the path, so half of it lies outside, and the line's ink, the texture and the
     // shadow reach further; one more pixel keeps antialiasing off the edge of the buffer. A balloon's only:
-    // what an object without one carries of them is not drawn. A mask object's feather blurs past its regions.
+    // what an object without one carries of them is not drawn. A mask object's blur hides past its regions.
     const qreal balloon = c.balloon ? c.balloon->style.line.strokeWidth / 2.0 + styleMargin(*c.balloon) : 0.0;
-    const qreal feather = isMaskObject(c) ? maskReach(*c.mask) : 0.0;
-    const qreal pad     = balloon + feather + 1.0;
+    const qreal blur    = isMaskObject(c) ? maskReach(*c.mask) : 0.0;
+    const qreal pad     = balloon + blur + 1.0;
     r = r.adjusted(-pad, -pad, pad, pad);
 
     // Whole pixels, so the rasterised buffer and the SVG viewBox describe the same rectangle rather

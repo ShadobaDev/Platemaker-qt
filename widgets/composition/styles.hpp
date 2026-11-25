@@ -184,10 +184,21 @@ struct MaskShade
 [[nodiscard]] Paint maskCross(const Mask& mask);
 
 /**
- * \brief How much @p mask hides at @p at inside its region, 1 to 0, smoothly: by its line (Linear), by its cross
- *        (Rectangle, Ellipse; fadeTone()), wholly with no fade. A pattern's marks are not counted.
+ * \brief A Smooth Edge fade's blur (Mask::Fade::Edge): the regions blurred across their outline, by a Gaussian of this
+ *        deviation, a quarter of the width; 0 for any other fade or transition. Drawn by an SVG filter and, on screen,
+ *        by blurring the cover.
  */
-[[nodiscard]] qreal maskCover(const Mask& mask, const QPointF& at);
+[[nodiscard]] qreal maskBlur(const Mask& mask);
+//! How far past its regions @p mask hides anything: its blur's reach. 0 without one.
+[[nodiscard]] qreal maskReach(const Mask& mask);
+
+/**
+ * \brief How much @p mask hides at @p at inside its region, 1 to 0, smoothly: by its line (Linear), by its cross
+ *        (Rectangle, Ellipse; fadeTone()), by its depth from the outline (Edge, the regions outlined with @p seed:
+ *        over the width, or Smooth, as a straight outline blurred, half on it), wholly with no fade. A pattern's marks
+ *        are not counted.
+ */
+[[nodiscard]] qreal maskCover(const Mask& mask, quint32 seed, const QPointF& at);
 
 /**
  * \brief @p mask drawn smoothly: its region hiding wholly; or along its line; or, by its cross, quarter by
@@ -288,7 +299,7 @@ enum class FadePart {
 
 /**
  * \brief \p c has an SVG filter anywhere, which only the library draws: a texture, a
- *        soft shadow, the balloon's or its letters', or a mask's feather. The one question the controller asks to decide how a
+ *        soft shadow, the balloon's or its letters'. The one question the controller asks to decide how a
  *        balloon is previewed.
  */
 [[nodiscard]] bool hasFilter(const Composition& c);
@@ -342,8 +353,6 @@ struct ShadowPaths
 
 //! How far past its caster \p s reaches on any side: its spread, its offset and its blur. 0 with none.
 [[nodiscard]] qreal shadowReach(const Shadow& s);
-//! How far past its regions \p m reaches on any side: its feather's blur. 0 for a hard edge.
-[[nodiscard]] qreal maskReach(const Mask& m);
 
 [[nodiscard]] bool         blursShadow(const Balloon& b);   //!< The balloon's.
 [[nodiscard]] bool         fadesShadow(const Balloon& b);   //!< The balloon's.

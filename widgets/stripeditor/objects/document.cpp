@@ -265,8 +265,8 @@ namespace {
 constexpr qreal k_newMaskWidth = 1.0 / 3.0;
 /**
  * How far *Add mask to object*'s region reaches past the frame's top, bottom and right, as a fraction of the frame's
- * shorter side. A feathered edge is blurred to both sides of it: on the frame's own edge it would let the object show
- * back there, past it the blur falls where nothing is drawn.
+ * shorter side. Its outline shows what it covers if it is later faded by its Edge: on the frame's own edge that would
+ * let the object show back there, past it nothing is drawn.
  */
 constexpr qreal k_newMaskOverhang = 0.25;
 

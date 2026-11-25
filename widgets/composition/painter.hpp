@@ -83,15 +83,14 @@ void play(QPainter& painter, const QList<Render::Item>& items);
  *        straight onto @p painter.
  *
  * Drawn into a layer over @p bounds (in the painter's coordinates), its region then taken away from it: so a
- * blend mode the painter is set to applies to what is left, once. The feather is not drawn (the painter draws no
- * filter): an object with one is shown from the library's rendering (Geometry::hasFilter()).
+ * blend mode the painter is set to applies to what is left, once.
  */
 void paintCut(QPainter& painter, const Composition& c, const QRectF& bounds,
               const std::function<void(QPainter&)>& draw);
 
 /**
  * \brief Mask object @p c's Hued view (Mask::hued): over its drawn box, black where it hides and white where it keeps,
- *        as a layer mask is shown, the whole at @p opacity. No feather.
+ *        as a layer mask is shown, the whole at @p opacity.
  */
 void paintHued(QPainter& painter, const Composition& c, qreal opacity);
 
@@ -116,7 +115,7 @@ struct Cut
  * \brief Runs @p draw with each of @p cuts taken away from what it draws, as the library's mask role cuts a mask
  *        object out of the overlays below it; with none, straight onto @p painter.
  *
- * Drawn into a layer over @p bounds, as paintCut() is, so a blend mode applies once to what is left. No feather.
+ * Drawn into a layer over @p bounds, as paintCut() is, so a blend mode applies once to what is left.
  */
 void paintCuts(QPainter& painter, const QRectF& bounds, const QList<Cut>& cuts,
                const std::function<void(QPainter&)>& draw);

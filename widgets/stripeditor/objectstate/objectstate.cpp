@@ -771,7 +771,7 @@ void ObjectState::onControlChanged()
     } else if (m_wordsId != 0) {
         m_groups.text()->applyTo(m_composition);   // those words, and nothing else about the object
     } else if (m_maskId != 0) {
-        m_groups.shape()->applyTo(m_composition);   // the mask's shape, feather and fade, nothing else about the object
+        m_groups.shape()->applyTo(m_composition);   // the mask's shape and fade, nothing else about the object
         m_mask->applyTo(m_composition);
     } else if (m_bodyId != 0) {
         m_groups.shape()->applyTo(m_composition);   // that body's shape and tails, nothing else about the balloon

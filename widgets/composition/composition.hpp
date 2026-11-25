@@ -199,21 +199,24 @@ struct Picture
  *
  * Its \c regions are bodies' geometry (each a place, a size and a shape, outlined by Geometry::outlineOf()), in the
  * composition's frame, so they move with the object; resize() scales them with the object's box. They lie apart,
- * as few as can be: regions that meet are one. Inside them the object is hidden; a \c feather softens their edge.
- * It fades by a shape (\c shape: along a line, or by the fill's cross, a rectangle or ellipses), smoothly or through
- * a pattern (\c tone's kind), once over all of them: on the box round them (Geometry::maskBox()).
+ * as few as can be: regions that meet are one. Inside them the object is hidden. It fades by a shape (\c shape:
+ * along a line, or by the fill's cross, a rectangle or ellipses, once over all of them on the box round them,
+ * Geometry::maskBox(); or inwards from their outline), smoothly, through a pattern or a zigzag (\c transition).
  */
 struct Mask
 {
     int         id = 0;          //!< The mask's, as an element of the composition: what selects it.
     QList<Body> regions;         //!< Where it hides, each with an id of its own (whose nodes are edited).
-    qreal       feather = 0.0;   //!< How far the edge is blurred (a Gaussian's deviation), in its pixels; 0 is hard.
+    //! Fade Edge's width when a mask starts fading so: about a letter's stroke on a page, a soft edge.
+    static constexpr qreal k_defaultEdgeWidth = 20.0;
+    qreal edgeWidth = k_defaultEdgeWidth;   //!< Fade Edge: how deep from the outline it is hidden wholly, in pixels.
     //! The fade's shape. Persisted by name.
-    enum class Fade { None, Linear, Rectangle, Ellipse };
+    enum class Fade { None, Linear, Rectangle, Ellipse, Edge };
     /**
      * How it fades. None, the default, hides the regions evenly. Linear, along `line`. Rectangle and Ellipse, by the
      * fill's cross on the regions' box (`tone`'s `fade…` fields, Geometry::fadeTone()): hidden wholly at the cross's
-     * centre, not at all past its arms' ends, its corners square or on ellipses; turned over by `fadeReversed`.
+     * centre, not at all past its arms' ends, its corners square or on ellipses; turned over by `fadeReversed`. Edge,
+     * inwards from the regions' outline: not at all on it, wholly `edgeWidth` deep and deeper.
      */
     Fade shape = Fade::None;
     /**
@@ -251,7 +254,7 @@ struct Mask
 
     [[nodiscard]] bool operator==(const Mask& o) const
     {
-        return id == o.id && regions == o.regions && qFuzzyCompare(1.0 + feather, 1.0 + o.feather) && fade == o.fade
+        return id == o.id && regions == o.regions && qFuzzyCompare(1.0 + edgeWidth, 1.0 + o.edgeWidth) && fade == o.fade
             && shape == o.shape && tone == o.tone && keepInside == o.keepInside && hued == o.hued
             && transition == o.transition;
     }
@@ -405,10 +408,11 @@ inline constexpr int k_labelChars = 32;
  * defaults). A body is `{id, place, size, shape}`, a tail `{id, root, tip, width, bend, look}` and a bridge `to`
  * too, words
  * `{id, text, seat, frame}` or, with no seat, `{id, text, place, box}`; a place is `{pos}`, with `rotation` and `scale`
- * only when they are not their defaults. A mask is `{id, regions}`, each region a body, with `feather` and `fade`
- * (`[x1, y1, x2, y2]`) only when it has them, `fadeShape` (`linear`, `rectangle`, `ellipse`) unless None, `tone`
- * (`{kind, spacing, angle, cross: [left from, to, right from, to, top from, to, bottom from, to, centre x, y],
- * reversed}`) unless it is smooth with no cross, and `keepInside` only when true.
+ * only when they are not their defaults. A mask is `{id, regions}`, each region a body, with `fade`
+ * (`[x1, y1, x2, y2]`) only when it has one, `fadeShape` (`linear`, `rectangle`, `ellipse`, `edge`) unless None,
+ * `edgeWidth` unless its default, `transition` unless smooth, `tone` (`{spacing, angle, cross: [left from, to, right from,
+ * to, top from, to, bottom from, to, centre x, y], reversed}`) unless it is its default, and `keepInside`
+ * and `hued` only when true.
  */
 [[nodiscard]] QJsonObject toJson(const Composition& c);
 /**

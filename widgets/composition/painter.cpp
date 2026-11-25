@@ -427,10 +427,62 @@ QImage render(const Composition& c)
 
 namespace {
 
+//! Box blurs each way that together come close to a Gaussian.
+constexpr int k_boxPasses = 3;
+
+//! @p alpha (@p width by @p height) blurred one way by a box @p radius wide to each side, nothing past its ends.
+void boxBlur(std::vector<int>& alpha, int width, int height, int radius, bool across)
+{
+    const int        lines = across ? height : width, length = across ? width : height;
+    const int        step  = across ? 1 : width, next = across ? width : 1;
+    const int        span  = 2 * radius + 1;
+    std::vector<int> line(size_t(length), 0);
+    for (int l = 0; l < lines; ++l) {
+        int* const start = alpha.data() + qsizetype(l) * next;
+        for (int i = 0; i < length; ++i)
+            line[size_t(i)] = start[qsizetype(i) * step];
+        int sum = 0;
+        for (int i = 0; i <= radius && i < length; ++i)
+            sum += line[size_t(i)];
+        for (int i = 0; i < length; ++i) {
+            start[qsizetype(i) * step] = sum / span;
+            if (i + radius + 1 < length)
+                sum += line[size_t(i + radius + 1)];
+            if (i - radius >= 0)
+                sum -= line[size_t(i - radius)];
+        }
+    }
+}
+
+//! @p cover's alpha (black, premultiplied) blurred about as a Gaussian of deviation @p sigma pixels.
+void blurCover(QImage& cover, qreal sigma)
+{
+    // The width of k_boxPasses boxes whose blur has that deviation.
+    const int radius = qRound((std::sqrt(12.0 * sigma * sigma / k_boxPasses + 1.0) - 1.0) / 2.0);
+    if (radius < 1)
+        return;
+    const int        w = cover.width(), h = cover.height();
+    std::vector<int> alpha(size_t(w) * size_t(h));
+    for (int y = 0; y < h; ++y) {
+        const auto* line = reinterpret_cast<const QRgb*>(cover.constScanLine(y));
+        for (int x = 0; x < w; ++x)
+            alpha[size_t(y) * size_t(w) + size_t(x)] = qAlpha(line[x]);
+    }
+    for (int pass = 0; pass < k_boxPasses; ++pass) {
+        boxBlur(alpha, w, h, radius, true);
+        boxBlur(alpha, w, h, radius, false);
+    }
+    for (int y = 0; y < h; ++y) {
+        auto* line = reinterpret_cast<QRgb*>(cover.scanLine(y));
+        for (int x = 0; x < w; ++x)
+            line[x] = qRgba(0, 0, 0, alpha[size_t(y) * size_t(w) + size_t(x)]);
+    }
+}
+
 /**
  * \brief What @p mask hides, as alpha, in an image of @p size drawn through @p transform (the mask's frame to the
- *        image's pixels): up to the fade's end less the pattern's marks, or along the fade's gradient, or whole; as the
- *        SVG's black and white. Keep inside is not read: what the region hides were it not.
+ *        image's pixels): up to the fade's end less the pattern's marks, or along the fade's gradient, or whole, or
+ *        blurred across the outline (a Smooth Edge); as the SVG's black and white. Keep inside is not read: what the region hides were it not.
  */
 QImage coverOf(const Mask& mask, quint32 seed, const QSize& size, const QTransform& transform)
 {
@@ -439,6 +491,12 @@ QImage coverOf(const Mask& mask, quint32 seed, const QSize& size, const QTransfo
     QPainter q(&cover);
     q.setRenderHint(QPainter::Antialiasing, true);
     q.setTransform(transform);
+    if (const qreal sigma = Geometry::maskBlur(mask); sigma > 0.0) {   // a Smooth Edge: the region blurred, as the SVG's
+        q.fillPath(Geometry::maskOutline(mask, seed), Qt::black);
+        q.end();
+        blurCover(cover, sigma * std::sqrt(std::abs(transform.determinant())));
+        return cover;
+    }
     if (const Geometry::MaskMarks marks = Geometry::maskMarks(mask, seed); !marks.hidden.isEmpty()) {
         q.fillPath(marks.hidden, Qt::black);
         q.setCompositionMode(QPainter::CompositionMode_DestinationOut);

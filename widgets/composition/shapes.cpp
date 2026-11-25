@@ -1318,7 +1318,7 @@ bool maskHidesAt(const Composition& c, const QPointF& at)
     if (!c.mask)
         return false;
     // What the region covers there: none outside it, inside it as its fade says.
-    const qreal cover = maskOutline(*c.mask, c.seed).contains(at) ? maskCover(*c.mask, at) : 0.0;
+    const qreal cover = maskOutline(*c.mask, c.seed).contains(at) ? maskCover(*c.mask, c.seed, at) : 0.0;
     // It hides what it covers, or, kept inside, what it does not.
     const qreal hidden = c.mask->keepInside ? 1.0 - cover : cover;
     if (hidden < k_maskPickCover)

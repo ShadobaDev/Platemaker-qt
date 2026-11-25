@@ -3805,6 +3805,9 @@ TEST(Mask, IsEditedByItsOwnHandlesAndTheShapeSection)
         EXPECT_EQ(h.element, isFade(h) ? id : a.mask->regions[0].id) << "the outline's are its region's";
         EXPECT_TRUE(h.drag);
     }
+    // The fade's first: a press takes the first handle under it, and its ends lie on the outline's box.
+    ASSERT_GE(all.size(), 2);
+    EXPECT_TRUE(isFade(all[0]) && isFade(all[1]));
 
     const auto glyphed = [&](Geometry::Handle::Glyph glyph) {
         return std::find_if(all.cbegin(), all.cend(), [&](const Geometry::Handle& h) { return h.glyph == glyph; });

@@ -8,7 +8,7 @@
 #include "objects/object.hpp"
 #include "objects/objectcontroller.hpp"
 #include "objects/placement.hpp"
-#include "objects/maskbrush.hpp"
+#include "objects/maskgesture.hpp"
 #include "canvas/pagesource.hpp"
 #include "canvas/canvasinput.hpp"
 #include "canvas/sampling.hpp"
@@ -23,7 +23,7 @@
 #include "properties/shapeeditor.hpp"
 #include "objectstate/stripstate.hpp"
 #include "tooloptions/picturetooloptions.hpp"
-#include "tooloptions/maskbrushtooloptions.hpp"
+#include "tooloptions/masktooloptions.hpp"
 #include "tooloptions/bubbletooloptions.hpp"
 
 #include <platemaker/models/colour_correction.hpp>
@@ -249,8 +249,8 @@ Editor::Editor(PresetStore& presets, QWidget *parent)
                 m_placement->setPicture(f);
         });
 
-        m_maskBrushOptions = new MaskBrushToolOptions(ui->toolOptionsStack);
-        m_toolOptions->addPage(QStringLiteral("maskbrush"), m_maskBrushOptions);
+        m_maskOptions = new MaskToolOptions(ui->toolOptionsStack);
+        m_toolOptions->addPage(QStringLiteral("masktools"), m_maskOptions);
 
         m_toolOptions->assertEveryToolHasAPage();
 
@@ -367,14 +367,15 @@ Editor::Editor(PresetStore& presets, QWidget *parent)
         // describes, or the picture the Artwork tool is armed with.
         m_placement = new Placement(m_scene, *m_objects, m_layout, this, this);
         m_placement->setPrototype([this] { return m_bubbleOptions->prototype(); });
-        // The Mask brush's drag on the strip, painted as TOOL OPTIONS says.
-        m_maskBrush = new MaskBrush(m_scene, *m_objects, this, this);
-        const auto brushOptions = [this] {
-            m_maskBrush->setHide(m_maskBrushOptions->hides());
-            m_maskBrush->setSize(m_maskBrushOptions->size());
+        // A mask tool's gesture on the strip, drawn as TOOL OPTIONS says.
+        m_maskGesture = new MaskGesture(m_scene, *m_objects, this, this);
+        const auto maskOptions = [this] {
+            m_maskGesture->setAdds(m_maskOptions->adds());
+            m_maskGesture->setSize(m_maskOptions->size());
+            m_maskGesture->setStroke(m_maskOptions->stroke());
         };
-        brushOptions();
-        connect(m_maskBrushOptions, &MaskBrushToolOptions::changed, this, brushOptions);
+        maskOptions();
+        connect(m_maskOptions, &MaskToolOptions::changed, this, maskOptions);
         // OBJECT STACK: the rows. A view of the controller, built before any feed can arrive.
         m_objectStack = new ObjectStack(ui->objectStack, *m_objects, m_layout, *m_presets, this, this);
         // The object menu, on the stack and the canvas alike. It spends the same pair the bucket does —
@@ -425,7 +426,8 @@ Editor::Editor(PresetStore& presets, QWidget *parent)
         // A mask tool paints the mask selected, or picks one: its options say which, and its cursor shows it.
         connect(m_objects, &ObjectController::subjectChanged,         this, [this] {
             showSubject();
-            m_maskBrushOptions->showTarget(m_objects->canPaintMask());
+            m_maskOptions->showTarget(m_objects->canPaintMask());
+            m_maskGesture->cancel();   // a lasso in flight was drawn for the mask selected before
             if (m_input)
                 m_input->updateCursor();
         });
@@ -433,7 +435,7 @@ Editor::Editor(PresetStore& presets, QWidget *parent)
         // CANVAS: what a press, a drag, a drop or a wheel on the strip does under the armed tool. It does
         // the canvas's own part and reports the rest, which is wired here because it belongs elsewhere:
         // the colour pair to the rail, zoom to this shell, a dropped picture to the objects' import.
-        m_input = new CanvasInput(m_view, m_objects, m_placement, m_maskBrush, this);
+        m_input = new CanvasInput(m_view, m_objects, m_placement, m_maskGesture, this);
         connect(m_input, &CanvasInput::pictureDropped, this, [this](const QString& file, QPointF at) {
             m_objects->placePictureAt(file, at);
         });
@@ -510,8 +512,13 @@ void Editor::setTool(const QString& id)
     m_view->setDragMode(tool->kind == ToolKind::Pan      ? QGraphicsView::ScrollHandDrag
                         : tool->kind == ToolKind::Select ? QGraphicsView::RubberBandDrag
                                                          : QGraphicsView::NoDrag);
-    if (m_maskBrush)
-        m_maskBrush->setArmed(tool->kind == ToolKind::Paint);   // before the cursor: armed, its ring is the cursor
+    if (m_maskGesture) {
+        if (tool->kind == ToolKind::Paint) {
+            m_maskOptions->setTool(tool->maskTool);
+            m_maskGesture->setStroke(m_maskOptions->stroke());
+        }
+        m_maskGesture->setArmed(tool->kind == ToolKind::Paint);   // before the cursor: the brush's ring is its cursor
+    }
     if (m_input)
         m_input->updateCursor();
 
@@ -692,7 +699,7 @@ void Editor::rebuildScene()
     // The objects only show the document, so nothing is lost; but after clear() every tracked pointer is
     // dangling, so they are dropped first.
     m_objects->forgetItems();
-    m_maskBrush->forgetItems();
+    m_maskGesture->forgetItems();
     m_objects->setSyncing(true);  // scene->clear() drops the selection; that is not a user action
     m_scene->clear();           // deletes every item (incl. the StripItem)
     m_objects->setSyncing(false);
@@ -758,7 +765,7 @@ void Editor::addSeamItems()
 void Editor::showEmptyState()
 {
     m_objects->forgetItems();   // before clear(), for the reason given in rebuildScene()
-    m_maskBrush->forgetItems();
+    m_maskGesture->forgetItems();
     m_objects->setSyncing(true);
     m_scene->clear();
     m_objects->setSyncing(false);

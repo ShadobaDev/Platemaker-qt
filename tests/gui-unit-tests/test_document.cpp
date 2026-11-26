@@ -4,12 +4,14 @@
 #include <gtest/gtest.h>
 
 #include "objects/document.hpp"
+#include "objects/maskarea.hpp"
 #include "shapes.hpp"
 #include "objectparts.hpp"
 
 #include <QPainterPath>
 
 #include <array>
+#include <cmath>
 using StripEdit::Document;
 using Platemaker::Models::BlendMode;
 
@@ -245,11 +247,66 @@ bool coveredAt(const Composition& c, const QPointF& at)
 } // namespace
 
 /**
- * \brief The mask brush hides and the eraser shows, in as few regions as lie apart: a stroke apart is a region of its
- *        own, one that meets two joins them, an eraser cutting one through leaves two, a hole is filled, and erased to
- *        nothing the mask goes. With Keep inside it is the other way round. The fade stays where it was.
+ * \brief Each mask tool's area, as the gesture draws it: the brush's track a size across (a dab for a click), a box
+ *        from its two points (square with Shift, centred with Alt), an ellipse in it, an outline closed; none for too
+ *        few points. A polygon's edge with Shift turns onto 45°, its length kept.
  */
-TEST(Edits, TheMaskBrushHidesAndTheEraserShowsInRegionsApart)
+TEST(Edits, AMaskToolDrawsItsArea)
+{
+    using StripEdit::BoxDraw;
+    using StripEdit::MaskStroke;
+    using StripEdit::maskArea;
+    constexpr qreal k_size = 10.0;
+    constexpr qreal k_px   = 1e-6;
+
+    const QPainterPath click = maskArea(MaskStroke::Brush, {{20, 20}}, k_size);
+    EXPECT_TRUE(click.contains(QPointF(20 + k_size / 2 - 1, 20)));
+    EXPECT_FALSE(click.contains(QPointF(20 + k_size / 2 + 1, 20)));
+    const QPainterPath track = maskArea(MaskStroke::Brush, {{0, 0}, {100, 0}}, k_size);
+    EXPECT_TRUE(track.contains(QPointF(50, k_size / 2 - 1))) << "the track is a size across";
+    EXPECT_FALSE(track.contains(QPointF(50, k_size / 2 + 1)));
+    EXPECT_TRUE(track.contains(QPointF(-k_size / 2 + 1, 0))) << "round caps";
+
+    const QPolygonF drag{{10, 10}, {40, 30}};
+    const QRectF    box = maskArea(MaskStroke::Rectangle, drag, k_size).boundingRect();
+    EXPECT_NEAR(box.left(), 10, k_px);
+    EXPECT_NEAR(box.top(), 10, k_px);
+    EXPECT_NEAR(box.right(), 40, k_px);
+    EXPECT_NEAR(box.bottom(), 30, k_px);
+    const QRectF square = maskArea(MaskStroke::Rectangle, drag, k_size, BoxDraw{true, false}).boundingRect();
+    EXPECT_NEAR(square.width(), 30, k_px) << "Shift: its longer side";
+    EXPECT_NEAR(square.height(), 30, k_px);
+    const QRectF centred = maskArea(MaskStroke::Rectangle, drag, k_size, BoxDraw{false, true}).boundingRect();
+    EXPECT_NEAR(centred.center().x(), 10, k_px) << "Alt: the press is its centre";
+    EXPECT_NEAR(centred.center().y(), 10, k_px);
+    EXPECT_NEAR(centred.width(), 60, k_px);
+    const QPainterPath ellipse = maskArea(MaskStroke::Ellipse, drag, k_size);
+    EXPECT_TRUE(ellipse.contains(QPointF(25, 20)));
+    EXPECT_FALSE(ellipse.contains(QPointF(11, 11))) << "the box's corner is outside the ellipse";
+    EXPECT_TRUE(maskArea(MaskStroke::Rectangle, {{10, 10}, {10, 30}}, k_size).isEmpty()) << "a box with no width";
+
+    const QPolygonF triangle{{0, 0}, {100, 0}, {0, 100}};
+    for (const MaskStroke outline : {MaskStroke::Freehand, MaskStroke::Polygon}) {
+        const QPainterPath closed = maskArea(outline, triangle, k_size);
+        EXPECT_TRUE(closed.contains(QPointF(20, 20))) << "closed back to the start";
+        EXPECT_FALSE(closed.contains(QPointF(80, 80)));
+        EXPECT_TRUE(maskArea(outline, {{0, 0}, {100, 0}}, k_size).isEmpty()) << "two points close round nothing";
+    }
+
+    const QPointF snapped = StripEdit::snappedTo45({0, 0}, {100, 10});
+    EXPECT_NEAR(snapped.x(), std::hypot(100.0, 10.0), k_px) << "onto the horizontal, its length kept";
+    EXPECT_NEAR(snapped.y(), 0, k_px);
+    const QPointF diagonal = StripEdit::snappedTo45({0, 0}, {50, 45});
+    EXPECT_NEAR(diagonal.x(), diagonal.y(), k_px) << "onto the diagonal";
+}
+
+/**
+ * \brief A mask tool's area added hides and subtracted shows, in as few regions as lie apart: an area apart is a region
+ *        of its own, one that meets two joins them, one subtracted cutting one through leaves two, a hole is filled,
+ *        and subtracted to nothing the mask goes. With Keep inside it is the other way round. The fade stays where it
+ *        was.
+ */
+TEST(Edits, AMaskToolsAreaIsAddedAndSubtractedInRegionsApart)
 {
     namespace E = StripEdit::Edits;
     Composition a = balloonObject();
@@ -264,34 +321,52 @@ TEST(Edits, TheMaskBrushHidesAndTheEraserShowsInRegionsApart)
 
     const Body first = a.mask->regions[0];
     ASSERT_TRUE(E::paintMask(a, dab({200, 50}), true, k_fit));
-    ASSERT_EQ(a.mask->regions.size(), 2) << "a stroke apart is a region of its own";
-    EXPECT_EQ(a.mask->regions[0], first) << "a region the stroke does not meet keeps its nodes";
+    ASSERT_EQ(a.mask->regions.size(), 2) << "an area apart is a region of its own";
+    EXPECT_EQ(a.mask->regions[0], first) << "a region the area does not meet keeps its nodes";
 
     ASSERT_TRUE(E::paintMask(a, bar({50, 45, 150, 10}), true, k_fit));
-    EXPECT_EQ(a.mask->regions.size(), 1) << "a stroke meeting both joins them";
+    EXPECT_EQ(a.mask->regions.size(), 1) << "an area meeting both joins them";
     EXPECT_TRUE(coveredAt(a, {125, 50}));
 
     ASSERT_TRUE(E::paintMask(a, bar({115, 0, 20, 100}), false, k_fit));
-    EXPECT_EQ(a.mask->regions.size(), 2) << "an eraser cutting it through leaves two";
+    EXPECT_EQ(a.mask->regions.size(), 2) << "subtracted cutting it through, it leaves two";
     EXPECT_FALSE(coveredAt(a, {125, 50}));
     EXPECT_FALSE(E::paintMask(a, dab({50, 50}, k_dab / 4), false, k_fit)) << "a hole is filled: it takes nothing";
     EXPECT_TRUE(coveredAt(a, {50, 50}));
 
     ASSERT_TRUE(E::paintMask(a, bar({0, 0, 300, 100}), false, k_fit));
-    EXPECT_FALSE(a.mask) << "erased to nothing, the mask goes";
+    EXPECT_FALSE(a.mask) << "subtracted to nothing, the mask goes";
 
     ASSERT_TRUE(E::paintMask(a, dab({50, 50}).subtracted(dab({50, 50}, k_dab / 2)), true, k_fit));
     ASSERT_EQ(a.mask->regions.size(), 1) << "a ring painted round";
     EXPECT_TRUE(coveredAt(a, {50, 50})) << "the hole in it filled";
 
-    // Keep inside: the regions are what shows, so the brush takes from them and the eraser adds.
+    // A box taken from a round region, in from its edge: its sides stay straight, whichever way the edge runs where
+    // they meet it (a side has a point only at each end: nothing between them holds the fitted curve to it).
+    constexpr qreal k_blob = 100.0, k_side = 1.5;
+    for (qreal top = 110.0; top <= 260.0; top += 10.0) {
+        Composition b = balloonObject();
+        ASSERT_TRUE(E::paintMask(b, dab({200, 200}, k_blob), true, k_fit));
+        const QRectF cut(150, top, 200, 30);
+        ASSERT_TRUE(E::paintMask(b, bar(cut), false, k_fit));
+        const QPainterPath round = dab({200, 200}, k_blob - 2 * k_side);
+        for (qreal x = cut.left() + 2 * k_side; x < cut.right(); x += 2.0)
+            for (const auto& [y, outside] : {std::pair{cut.top() - k_side, true}, {cut.top() + k_side, false},
+                                             {cut.bottom() - k_side, false}, {cut.bottom() + k_side, true}}) {
+                if (!round.contains(QPointF(x, y)))
+                    continue;   // near the round edge, or past it
+                EXPECT_EQ(coveredAt(b, {x, y}), outside) << "a side bent, the box at " << top << ", at " << x << ", " << y;
+            }
+    }
+
+    // Keep inside: the regions are what shows, so Add takes from them and Subtract adds to them.
     Composition k = balloonObject();
     ASSERT_TRUE(E::paintMask(k, dab({50, 50}), true, k_fit));
     k.mask->keepInside = true;
     ASSERT_TRUE(E::paintMask(k, dab({50 + k_dab, 50}, k_dab / 2), true, k_fit));
-    EXPECT_FALSE(coveredAt(k, {50 + k_dab - 2, 50})) << "the brush hides: it takes from what shows";
+    EXPECT_FALSE(coveredAt(k, {50 + k_dab - 2, 50})) << "Add hides: it takes from what shows";
     ASSERT_TRUE(E::paintMask(k, dab({200, 50}), false, k_fit));
-    EXPECT_EQ(k.mask->regions.size(), 2) << "the eraser shows: it adds";
+    EXPECT_EQ(k.mask->regions.size(), 2) << "Subtract shows: it adds";
 
     // The fade stays on the object where it was, though the box round the regions grows.
     Composition f = balloonObject();

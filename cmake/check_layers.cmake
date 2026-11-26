@@ -45,6 +45,8 @@ set(_exceptions
     "tooloptions>toolrail/toolregistry.hpp"
     # loadPixmap(): the Artwork tool's preview must read a file exactly as the placed object does.
     "tooloptions>objects/pictureobject.hpp"
+    # MaskStroke: the mask tools' options say how the armed tool draws, as the gesture takes it.
+    "tooloptions>objects/maskarea.hpp"
     # The object menu's Fill and Outline spend the rail's colour pair (read, never written).
     "objectstack>toolrail/colourpair.hpp"
 )

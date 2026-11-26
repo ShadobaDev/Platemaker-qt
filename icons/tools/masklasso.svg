@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
+<!-- Every mask tool: the alpha checker (3 x 3) over the lower left two thirds, the tool across it from the middle
+     towards the upper right, outlined dark so it stands off the checker. Here a lasso: a
+     loop drawn round, its tail hanging down into the checker. -->
+<g fill="#d0d0d0">
+  <rect x="1" y="7" width="5" height="5"/>
+  <rect x="11" y="7" width="5" height="5"/>
+  <rect x="6" y="12" width="5" height="5"/>
+  <rect x="1" y="17" width="5" height="5"/>
+  <rect x="11" y="17" width="5" height="5"/>
+</g>
+<g fill="#d0d0d0" opacity="0.35">
+  <rect x="6" y="7" width="5" height="5"/>
+  <rect x="1" y="12" width="5" height="5"/>
+  <rect x="11" y="12" width="5" height="5"/>
+  <rect x="6" y="17" width="5" height="5"/>
+</g>
+<g fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path d="M8.5 13C6 10 9 3 15.5 2.5C21 2 23 6 21 9.5C19 13 13 14 10.5 13C9 12.5 9.5 16 7 18.5" stroke="#151515" stroke-width="3"/>
+  <path d="M8.5 13C6 10 9 3 15.5 2.5C21 2 23 6 21 9.5C19 13 13 14 10.5 13C9 12.5 9.5 16 7 18.5" stroke="#d0d0d0" stroke-width="1.2" stroke-dasharray="2.4 1.6"/>
+</g>
+</svg>

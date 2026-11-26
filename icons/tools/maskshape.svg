@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
+<!-- Every mask tool: the alpha checker (3 x 3) over the lower left two thirds, the tool across it from the middle
+     towards the upper right, outlined dark so it stands off the checker. Here a shape drawn: a
+     rectangle's marquee, its corners rounded L's and two dashes between, the gaps equal, an ellipse inside it. -->
+<g fill="#d0d0d0">
+  <rect x="1" y="7" width="5" height="5"/>
+  <rect x="11" y="7" width="5" height="5"/>
+  <rect x="6" y="12" width="5" height="5"/>
+  <rect x="1" y="17" width="5" height="5"/>
+  <rect x="11" y="17" width="5" height="5"/>
+</g>
+<g fill="#d0d0d0" opacity="0.35">
+  <rect x="6" y="7" width="5" height="5"/>
+  <rect x="1" y="12" width="5" height="5"/>
+  <rect x="11" y="12" width="5" height="5"/>
+  <rect x="6" y="17" width="5" height="5"/>
+</g>
+<rect x="9" y="2" width="13" height="13" rx="1" fill="none" stroke="#151515" stroke-width="3"/>
+<path d="M9 3.7V3A1 1 0 0 1 10 2H10.7M20.3 2H21A1 1 0 0 1 22 3V3.7M22 13.3V14A1 1 0 0 1 21 15H20.3M10.7 15H10A1 1 0 0 1 9 14V13.3M12.3 2h2.4M12.3 15h2.4M9 5.3v2.4M22 5.3v2.4M16.3 2h2.4M16.3 15h2.4M9 9.3v2.4M22 9.3v2.4" fill="none" stroke="#d0d0d0" stroke-width="1.2"/>
+<g fill="none">
+  <ellipse cx="15.5" cy="8.5" rx="3.6" ry="3" fill="#151515" stroke="#151515" stroke-width="3"/>
+  <ellipse cx="15.5" cy="8.5" rx="3.6" ry="3" stroke="#d0d0d0" stroke-width="1.2"/>
+</g>
+</svg>

@@ -24,7 +24,14 @@ enum class ToolKind {
     Grade,    //!< Edits the selected object's colour; picked with nothing selected, it takes the strip.
     Sample,   //!< A press reads the canvas instead of changing it — the eyedropper.
     Apply,    //!< A press spends the colour pair on the object it lands on.
-    Paint,    //!< A drag paints the selected mask (MaskBrush); with none, a click picks a mask. Moves nothing.
+    Paint,    //!< Draws on the selected mask (MaskGesture); with none, a click picks a mask. Moves nothing.
+};
+
+//! `Paint` only: which mask tool, so which of the mask tools' options show (MaskToolOptions).
+enum class MaskTool {
+    Brush,   //!< A round brush's track.
+    Shape,   //!< A rectangle or an ellipse, dragged.
+    Lasso,   //!< An outline, freehand or a corner per click.
 };
 
 /**
@@ -92,6 +99,7 @@ struct Tool
      * is drawn over what it hides.
      */
     bool placesMask = false;
+    MaskTool maskTool = MaskTool::Brush;   //!< `Paint` only.
 };
 
 //! Every tool the rail offers, in rail order. **A tool that reuses an existing ToolKind and options page

@@ -60,8 +60,8 @@ class PresetStore;
 class BubbleToolOptions;
 class ObjectController;
 class Placement;
-class MaskBrush;
-class MaskBrushToolOptions;
+class MaskGesture;
+class MaskToolOptions;
 
 /**
  * \brief Continuous "infinite strip" editor for a project — the authoring surface for the optional
@@ -389,7 +389,7 @@ private:
      * \brief The Artwork tool's options: which picture a placement puts down. See `setTool()`.
      */
     PictureToolOptions *m_pictureOptions = nullptr;
-    MaskBrushToolOptions* m_maskBrushOptions = nullptr;   //!< The Mask brush's: brush or eraser, and its size.
+    MaskToolOptions* m_maskOptions = nullptr;   //!< The mask tools': Add or Subtract, and each tool's own.
     AdvisoryBar       *m_advisoryBar  = nullptr;   //!< Bottom edge of this editor; absent until setAdvisories().
     QString            m_tool;                     //!< The active tool's registry id.
 
@@ -430,7 +430,7 @@ private:
      */
     ObjectController* m_objects = nullptr;
     Placement*        m_placement = nullptr;   //!< A Create tool's drag, and the object it places.
-    MaskBrush*        m_maskBrush = nullptr;   //!< The Mask brush's drag, and the stroke it paints.
+    MaskGesture*      m_maskGesture = nullptr;   //!< A mask tool's gesture, and the area it paints.
 };
 
 }  // namespace StripEdit

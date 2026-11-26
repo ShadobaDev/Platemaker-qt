@@ -79,7 +79,8 @@ qt_add_executable(Platemaker
     widgets/stripeditor/canvas/sampling.cpp widgets/stripeditor/canvas/sampling.hpp
     widgets/stripeditor/objects/objectcontroller.cpp widgets/stripeditor/objects/objectcontroller.hpp
     widgets/stripeditor/objects/placement.cpp widgets/stripeditor/objects/placement.hpp
-    widgets/stripeditor/objects/maskbrush.cpp widgets/stripeditor/objects/maskbrush.hpp
+    widgets/stripeditor/objects/maskarea.cpp widgets/stripeditor/objects/maskarea.hpp
+    widgets/stripeditor/objects/maskgesture.cpp widgets/stripeditor/objects/maskgesture.hpp
     widgets/stripeditor/objects/seethrough.hpp
     widgets/stripeditor/toolrail/toolregistry.cpp widgets/stripeditor/toolrail/toolregistry.hpp
     widgets/stripeditor/toolrail/toolrail.cpp widgets/stripeditor/toolrail/toolrail.hpp
@@ -91,6 +92,7 @@ qt_add_executable(Platemaker
     widgets/stripeditor/presetstore.cpp widgets/stripeditor/presetstore.hpp
     widgets/stripeditor/presets/presetsdialog.cpp widgets/stripeditor/presets/presetsdialog.hpp widgets/stripeditor/presets/presetsdialog.ui
     widgets/stripeditor/scrolledpage.hpp
+    widgets/stripeditor/segmented.hpp
     widgets/stripeditor/properties/propertygroup.hpp
     widgets/stripeditor/properties/propertygroupeditor.hpp
     widgets/stripeditor/properties/fieldrows.hpp
@@ -114,7 +116,7 @@ qt_add_executable(Platemaker
     widgets/stripeditor/tooloptions/bubbletooloptions.cpp widgets/stripeditor/tooloptions/bubbletooloptions.hpp
     widgets/stripeditor/tooloptions/tooloptionsstack.cpp widgets/stripeditor/tooloptions/tooloptionsstack.hpp
     widgets/stripeditor/tooloptions/picturetooloptions.cpp widgets/stripeditor/tooloptions/picturetooloptions.hpp
-    widgets/stripeditor/tooloptions/maskbrushtooloptions.cpp widgets/stripeditor/tooloptions/maskbrushtooloptions.hpp
+    widgets/stripeditor/tooloptions/masktooloptions.cpp widgets/stripeditor/tooloptions/masktooloptions.hpp
     widgets/stripeditor/objectstate/objectstate.cpp widgets/stripeditor/objectstate/objectstate.hpp
     widgets/stripeditor/objectstate/stripstate.cpp widgets/stripeditor/objectstate/stripstate.hpp
     widgets/stripeditor/objectstate/objectstatestack.cpp widgets/stripeditor/objectstate/objectstatestack.hpp

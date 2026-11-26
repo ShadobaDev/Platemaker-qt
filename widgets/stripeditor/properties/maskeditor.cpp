@@ -5,10 +5,10 @@
 #include <QComboBox>
 #include <QDoubleSpinBox>
 #include <QFormLayout>
-#include <QHBoxLayout>
 #include <QSpinBox>
 #include <QToolButton>
 
+#include "segmented.hpp"
 #include "styles.hpp"   // Geometry::crossFades()
 
 namespace StripEdit {
@@ -30,24 +30,6 @@ constexpr int    k_angleMax     = 359;
 bool patterned(Mask::Transition t)
 {
     return t == Mask::Transition::Halftone || t == Mask::Transition::Hatch || t == Mask::Transition::CrossHatch;
-}
-
-//! @p buttons laid side by side, touching, one pressed (@p group): a segmented switch. Returns the row's widget.
-QWidget* segmented(QWidget* parent, QButtonGroup* group, std::initializer_list<QToolButton*> buttons)
-{
-    auto* row    = new QWidget(parent);
-    auto* layout = new QHBoxLayout(row);
-    layout->setContentsMargins(0, 0, 0, 0);
-    layout->setSpacing(0);
-    for (QToolButton* b : buttons) {
-        b->setParent(row);
-        b->setCheckable(true);
-        b->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
-        group->addButton(b);
-        layout->addWidget(b);
-    }
-    (*buttons.begin())->setChecked(true);
-    return row;
 }
 
 } // namespace

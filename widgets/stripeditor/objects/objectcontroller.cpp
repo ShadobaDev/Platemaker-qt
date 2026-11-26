@@ -1282,10 +1282,10 @@ void ObjectController::paintMask(const QPainterPath& sceneArea, bool hide)
     if (!Edits::paintMask(a, item->mapFromScene(sceneArea), hide, k_maskFitPx / screenScale(*item)))
         return;
     if (maskObject && !a.mask) {   // a mask object erased to nothing is gone
-        removeObjects({uid}, tr("Erase mask"));
+        removeObjects({uid}, tr("Subtract from mask"));
         return;
     }
-    applyComposition(uid, a, /*commit=*/true, hide ? tr("Paint mask") : tr("Erase mask"));
+    applyComposition(uid, a, /*commit=*/true, hide ? tr("Add to mask") : tr("Subtract from mask"));
     if (a.mask && !maskObject)
         selectMask(uid, a.mask->id);
     else

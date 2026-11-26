@@ -123,11 +123,30 @@ const QList<Tool>& tools()
          QStringLiteral(":/icons/tools/maskbrush.svg"),
          QT_TRANSLATE_NOOP("StripEdit::Tool", "Mask brush"),
          QT_TRANSLATE_NOOP("StripEdit::Tool",
-                           "Drag to hide more of the selected\n"
-                           "mask; the eraser hides less.\n"
+                           "Paint on the selected mask: Add\n"
+                           "hides more, Subtract hides less.\n"
                            "With none selected, a click picks a mask."),
-         ToolKind::Paint, std::nullopt, QStringLiteral("maskbrush"),
-         CursorStyle::None, CursorStyle::Inherit},
+         ToolKind::Paint, std::nullopt, QStringLiteral("masktools"),
+         CursorStyle::None, CursorStyle::Inherit, {}, false, MaskTool::Brush},
+        {QStringLiteral("maskshape"),
+         QStringLiteral(":/icons/tools/maskshape.svg"),
+         QT_TRANSLATE_NOOP("StripEdit::Tool", "Mask shape"),
+         QT_TRANSLATE_NOOP("StripEdit::Tool",
+                           "Drag a rectangle or an ellipse: it is\n"
+                           "added to the selected mask, or taken.\n"
+                           "With none selected, a click picks a mask."),
+         ToolKind::Paint, std::nullopt, QStringLiteral("masktools"),
+         CursorStyle::Cross, CursorStyle::Inherit, {}, false, MaskTool::Shape},
+        {QStringLiteral("masklasso"),
+         QStringLiteral(":/icons/tools/masklasso.svg"),
+         QT_TRANSLATE_NOOP("StripEdit::Tool", "Mask lasso"),
+         QT_TRANSLATE_NOOP("StripEdit::Tool",
+                           "Draw round an area, freehand or a\n"
+                           "corner per click: once closed, it is\n"
+                           "added to the selected mask, or taken.\n"
+                           "With none selected, a click picks a mask."),
+         ToolKind::Paint, std::nullopt, QStringLiteral("masktools"),
+         CursorStyle::Cross, CursorStyle::Inherit, {}, false, MaskTool::Lasso},
 
     };
     return table;

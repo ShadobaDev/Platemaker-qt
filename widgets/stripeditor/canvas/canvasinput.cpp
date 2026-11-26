@@ -1,6 +1,6 @@
 #include "canvas/canvasinput.hpp"
 
-#include "objects/maskbrush.hpp"
+#include "objects/maskgesture.hpp"
 #include "objects/objectcontroller.hpp"
 #include "objects/placement.hpp"
 #include "toolrail/cursors.hpp"
@@ -22,13 +22,20 @@
 
 namespace StripEdit {
 
-CanvasInput::CanvasInput(QGraphicsView* view, ObjectController* objects, Placement* placement, MaskBrush* brush,
+namespace {
+
+//! How near a lasso's first corner, in screen pixels, a click closes it there.
+constexpr qreal k_closeReachPx = 8.0;
+
+} // namespace
+
+CanvasInput::CanvasInput(QGraphicsView* view, ObjectController* objects, Placement* placement, MaskGesture* gesture,
                          QObject* parent)
     : QObject(parent)
     , m_view(view)
     , m_objects(objects)
     , m_placement(placement)
-    , m_brush(brush)
+    , m_gesture(gesture)
 {
     m_view->viewport()->installEventFilter(this);   // Ctrl+wheel zoom, and the pointer's own answer
     m_view->installEventFilter(this);               // the arrows, in shape editing
@@ -52,8 +59,8 @@ void CanvasInput::updateCursor()
     m_view->viewport()->setCursor(tool->kind == ToolKind::Paint && !paints ? QCursor(Qt::ArrowCursor)
                                                                             : cursorFor(*tool, target));
     // The brush's ring is its cursor: put where the pointer is whenever the cursor is decided again.
-    if (m_brush && tool->kind == ToolKind::Paint && m_pointerPos.x() >= 0)
-        m_brush->hover(m_view->mapToScene(m_pointerPos));
+    if (m_gesture && tool->kind == ToolKind::Paint && m_pointerPos.x() >= 0)
+        m_gesture->hover(m_view->mapToScene(m_pointerPos));
 }
 
 bool CanvasInput::eventFilter(QObject *watched, QEvent *event)
@@ -112,31 +119,55 @@ bool CanvasInput::eventFilter(QObject *watched, QEvent *event)
         }
     }
 
-    // The mask brush has the left button, always: it paints the selected mask wherever it is pressed, on the
-    // object, past it or on a grip, and in shape editing too (a stroke leaves it). With no mask selected, a click
+    // A mask tool has the left button, always: it draws on the selected mask wherever it is pressed, on the
+    // object, past it or on a grip, and in shape editing too (drawing leaves it). With no mask selected, a click
     // picks a mask and nothing else. No press reaches an object's drag, its grips or its tails. A double click is a
-    // second press.
-    if (watched == m_view->viewport() && kind == ToolKind::Paint && m_brush) {
+    // second press, except that it closes a polygon; a polygon also has Enter, Backspace and Esc until it closes.
+    if (watched == m_view && kind == ToolKind::Paint && m_gesture && m_gesture->isDrawingPolygon()
+        && (event->type() == QEvent::ShortcutOverride || event->type() == QEvent::KeyPress)) {
+        const int key = static_cast<QKeyEvent*>(event)->key();
+        const bool polygonKey = key == Qt::Key_Return || key == Qt::Key_Enter || key == Qt::Key_Backspace
+                             || key == Qt::Key_Escape;
+        if (polygonKey) {
+            // Taken before any shortcut (Esc steps out of a selection, Backspace deletes), as ObjectMenu takes Esc.
+            event->accept();
+            if (event->type() == QEvent::KeyPress) {
+                if (key == Qt::Key_Escape)
+                    m_gesture->cancel();
+                else if (key == Qt::Key_Backspace)
+                    m_gesture->undoCorner();
+                else
+                    m_gesture->close();
+            }
+            return true;
+        }
+    }
+    if (watched == m_view->viewport() && kind == ToolKind::Paint && m_gesture) {
         const auto* me = dynamic_cast<QMouseEvent*>(event);
         const QPointF at = me ? m_view->mapToScene(me->position().toPoint()) : QPointF();
         if (event->type() == QEvent::MouseMove) {
-            m_brush->hover(at);
-            if (m_brush->isPainting()) {
-                m_brush->update(at);
+            m_gesture->hover(at);
+            if (m_gesture->isDrawing()) {
+                m_gesture->moveTo(at, me->modifiers().testFlag(Qt::ShiftModifier),
+                                  me->modifiers().testFlag(Qt::AltModifier));
                 return true;
             }
+        } else if (event->type() == QEvent::MouseButtonDblClick && me->button() == Qt::LeftButton
+                   && m_gesture->isDrawingPolygon()) {
+            m_gesture->close();
+            return true;
         } else if ((event->type() == QEvent::MouseButtonPress || event->type() == QEvent::MouseButtonDblClick)
                    && me->button() == Qt::LeftButton) {
             if (m_objects->canPaintMask())
-                m_brush->begin(at);
+                m_gesture->press(at, k_closeReachPx / m_view->transform().m11());
             else
                 m_objects->pickMaskAt(at);
             return true;
-        } else if (event->type() == QEvent::MouseButtonRelease && m_brush->isPainting()) {
-            m_brush->finish();
+        } else if (event->type() == QEvent::MouseButtonRelease && m_gesture->isDrawing()) {
+            m_gesture->release();
             return true;
         } else if (event->type() == QEvent::Leave) {
-            m_brush->leave();
+            m_gesture->leave();
         }
     }
 

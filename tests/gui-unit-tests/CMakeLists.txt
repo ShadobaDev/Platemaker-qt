@@ -66,6 +66,8 @@ add_executable(platemaker-gui-tests
     ${CMAKE_SOURCE_DIR}/widgets/stripeditor/properties/colouradjustment.cpp
     # The preset store is QtCore and a QObject — no widget in it — so the rule above still holds.
     ${CMAKE_SOURCE_DIR}/widgets/stripeditor/presetstore.cpp
+    # The area a mask tool draws: a pure function over points.
+    ${CMAKE_SOURCE_DIR}/widgets/stripeditor/objects/maskarea.cpp
     # The eight grips' resize maths: a pure function over rectangles.
     ${CMAKE_SOURCE_DIR}/widgets/stripeditor/objects/resize.cpp
     # What is selected: QtCore only.

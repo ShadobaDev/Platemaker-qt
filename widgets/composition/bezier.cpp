@@ -578,14 +578,17 @@ QList<ShapeNode> fitted(const QPolygonF& outline, const QRectF& box, qreal toler
     const auto before = [&](int i) { return d[i == 0 ? n - 1 : i - 1]; };
     const auto after  = [&](int i) { return d[i == n ? 1 : i + 1]; };
 
-    // Each stretch between two breaks: leaving and arriving along the sides at a corner, across a smooth one.
+    // Each stretch between two breaks: leaving and arriving along the sides at a corner, across a smooth one. A side
+    // is read as far off as the corner was (turnAt()): the next point may be a step a pixel long, which a corner
+    // found beside it says nothing about, and a handle along that step bends the side.
     QList<Cubic> cubics;
     const qreal  error = tolerance * tolerance;
     for (int k = 0; k + 1 < place.size(); ++k) {
         const int     from = place[k], to = place[k + 1];
+        const int     atFrom = breaks[k].first, atTo = breaks[(k + 1) % breaks.size()].first;
         const bool    sharpFrom = breaks[k].second, sharpTo = breaks[(k + 1) % breaks.size()].second;
-        const QPointF t1 = unit(sharpFrom ? d[from + 1] - d[from] : after(from) - before(from));
-        const QPointF t2 = unit(sharpTo ? d[to - 1] - d[to] : before(to) - after(to));
+        const QPointF t1 = unit(sharpFrom ? reached(pts, atFrom, 1, reach) - pts[atFrom] : after(from) - before(from));
+        const QPointF t2 = unit(sharpTo ? reached(pts, atTo, -1, reach) - pts[atTo] : before(to) - after(to));
         fitSpan(d, from, to, t1, t2, error, cubics);
     }
 

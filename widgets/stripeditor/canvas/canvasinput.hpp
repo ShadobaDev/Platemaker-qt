@@ -12,7 +12,7 @@ class QRubberBand;
 
 namespace StripEdit {
 
-class MaskBrush;
+class MaskGesture;
 class ObjectController;
 class Placement;
 struct Tool;
@@ -36,7 +36,7 @@ class CanvasInput : public QObject
 public:
     //! Filters @p view's viewport. @p objects answers what is under the pointer; @p placement takes a
     //! Create tool's drag, @p brush the Mask brush's.
-    CanvasInput(QGraphicsView* view, ObjectController* objects, Placement* placement, MaskBrush* brush,
+    CanvasInput(QGraphicsView* view, ObjectController* objects, Placement* placement, MaskGesture* gesture,
                 QObject* parent);
 
     //! The armed tool. Kept as the registry's row, which outlives this.
@@ -70,7 +70,7 @@ private:
     QGraphicsView*    m_view    = nullptr;
     ObjectController* m_objects   = nullptr;
     Placement*        m_placement = nullptr;
-    MaskBrush*        m_brush     = nullptr;
+    MaskGesture*      m_gesture   = nullptr;
     const Tool*       m_tool    = nullptr;
     QPoint            m_panFrom {-1, -1};      //!< Last middle-button point, viewport coordinates; -1 when none.
     QPoint            m_bandFrom {-1, -1};     //!< Where shape editing's band was pressed; -1 when none.

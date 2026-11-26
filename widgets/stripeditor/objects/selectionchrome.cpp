@@ -196,7 +196,7 @@ void SelectionChrome::refresh()
             m_overflows.append(r);
             next = next.united(r.adjusted(-1, -1, 1, 1));
         }
-        if (o->shapeEditing()) {
+        if (o->shapeEditing() && !o->pickedMask()) {   // the mask's editing shows the mask alone
             for (const auto& [id, r] : textAreaRects(o, false)) {
                 (id == o->markedWords() ? m_markedAreas : m_textAreas).append(r);
                 next = next.united(r.adjusted(-2, -2, 2, 2));

@@ -3799,24 +3799,16 @@ TEST(Mask, IsEditedByItsOwnHandlesAndTheShapeSection)
     const auto isFade = [](const Geometry::Handle& h) {
         return h.glyph == Geometry::Handle::Glyph::FadeStart || h.glyph == Geometry::Handle::Glyph::FadeEnd;
     };
-    // One set at a time, the outline's or the fade's: they lie on each other where the line ends on the box.
-    const QList<Geometry::Handle> outline = Geometry::handlesOf(a, context);
-    ASSERT_FALSE(outline.isEmpty());
-    for (const Geometry::Handle& h : outline) {
-        EXPECT_FALSE(isFade(h));
-        EXPECT_EQ(h.element, a.mask->regions[0].id) << "the outline's are its region's";
+    // Both sets at once, the fade's first: where one lies on a node, a press takes the fade's.
+    QList<Geometry::Handle> all = Geometry::handlesOf(a, context);
+    constexpr int k_lineEnds = 2;
+    ASSERT_GT(all.size(), k_lineEnds);
+    for (int i = 0; i < all.size(); ++i) {
+        const Geometry::Handle& h = all.at(i);
+        EXPECT_EQ(isFade(h), i < k_lineEnds) << i;
+        EXPECT_EQ(h.element, i < k_lineEnds ? id : a.mask->regions[0].id) << "the outline's are its region's";
         EXPECT_TRUE(h.drag);
     }
-    context.maskFade = true;
-    const QList<Geometry::Handle> fadeOnly = Geometry::handlesOf(a, context);
-    ASSERT_EQ(fadeOnly.size(), 2);
-    for (const Geometry::Handle& h : fadeOnly) {
-        EXPECT_TRUE(isFade(h));
-        EXPECT_EQ(h.element, id);
-        EXPECT_TRUE(h.drag);
-    }
-    QList<Geometry::Handle> all = outline;
-    all.append(fadeOnly);
 
     const auto glyphed = [&](Geometry::Handle::Glyph glyph) {
         return std::find_if(all.cbegin(), all.cend(), [&](const Geometry::Handle& h) { return h.glyph == glyph; });
@@ -3849,7 +3841,6 @@ TEST(Mask, IsEditedByItsOwnHandlesAndTheShapeSection)
 
     // A polygon's "+" adds its node to the region.
     a.mask->regions[0].shape = Geometry::shapeTemplate("diamond").shape;
-    context.maskFade         = false;   // the outline's
     QList<Geometry::Handle> polygon = Geometry::handlesOf(a, context);
     const auto plus = std::find_if(polygon.begin(), polygon.end(),
                                    [](const Geometry::Handle& h) { return h.glyph == Geometry::Handle::Glyph::Plus; });
@@ -3878,12 +3869,11 @@ TEST(Mask, IsEditedByItsOwnHandlesAndTheShapeSection)
     second->drag(moved, *second, second->at + QPointF(5.0, 5.0), context);
     EXPECT_TRUE(moved.mask->regions[0].shape == a.mask->regions[0].shape);
     EXPECT_FALSE(moved.mask->regions[1].shape == a.mask->regions[1].shape);
-    context.maskFade = true;   // the fade's, on the box round both
-    const QList<Geometry::Handle> bothFade = Geometry::handlesOf(a, context);
-    const auto both_end = std::find_if(bothFade.cbegin(), bothFade.cend(), [](const Geometry::Handle& h) {
+    // The fade's, on the box round both.
+    const auto both_end = std::find_if(both.cbegin(), both.cend(), [](const Geometry::Handle& h) {
         return h.glyph == Geometry::Handle::Glyph::FadeEnd;
     });
-    ASSERT_NE(both_end, bothFade.cend());
+    ASSERT_NE(both_end, both.cend());
     const QRectF box = Geometry::maskBox(*a.mask);
     EXPECT_EQ(box, region.united(QRectF(apart.place.pos, QSizeF(apart.size))));
     EXPECT_EQ(both_end->at, QPointF(box.right(), box.center().y()));
@@ -3987,6 +3977,7 @@ TEST(Mask, AMaskAloneIsAMaskObjectWrittenAsWhatItCoversHidden)
     const Composition placed = maskObject(QSize(30, 20));
     EXPECT_TRUE(isMaskObject(placed));
     EXPECT_EQ(frameOf(placed), QRectF(0.0, 0.0, 30.0, 20.0)) << "one rectangle at the origin";
+    EXPECT_EQ(placed.mask->regions[0].shape.kind, ShapeProperties::Kind::Curve) << "its nodes edited, as painted";
 
     // Hued is the editor's view: kept with the object (its content), never in the file the render reads.
     Composition hued  = m;

@@ -343,13 +343,21 @@ Composition maskObject(const QSize& size)
     Composition c;
     Mask        m;
     m.id = c.nextId++;
-    Body r;
-    r.id                  = c.nextId++;
-    r.size                = size;
-    r.shape.corner.radius = 0.0;
-    m.regions.append(r);
+    m.regions.append(rectRegion(c.nextId++, QRectF(QPointF(), size)));
     c.mask = m;
     return c;
+}
+
+Body rectRegion(int id, const QRectF& rect)
+{
+    Body r;
+    r.id                  = id;
+    r.place               = Place{rect.topLeft()};
+    r.size                = rect.size().toSize();
+    r.shape.kind          = ShapeProperties::Kind::Curve;
+    r.shape.corner.radius = 0.0;
+    r.shape.nodes         = {ShapeNode(0.0, 0.0), ShapeNode(1.0, 0.0), ShapeNode(1.0, 1.0), ShapeNode(0.0, 1.0)};
+    return r;
 }
 
 Composition pictureObject(const QString& file, const QSize& size)

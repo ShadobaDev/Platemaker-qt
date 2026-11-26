@@ -17,11 +17,25 @@ namespace {
 
 constexpr double k_edgeWidthMaxPx = 500.0;   //!< A panel's half width, about: deeper, the edge fade is the whole mask.
 constexpr int    k_pxDecimals     = 1;
+//! How far in from the mask's box a new fade's handles lie, as a fraction of it: off the outline's nodes and "+".
+constexpr qreal k_defaultFadeInset = 0.1;
 //! The fade a mask is given when it starts fading: hidden wholly at the right, not at all at the left.
-const QLineF k_defaultFade(1.0, 0.5, 0.0, 0.5);
-//! The cross a mask is given when it starts fading by one: its centre on the right, the left arm fading all along.
-constexpr qreal k_defaultCrossCentre = 100.0;
-constexpr qreal k_defaultCrossEnd    = 100.0;
+const QLineF k_defaultFade(1.0 - k_defaultFadeInset, 0.5, k_defaultFadeInset, 0.5);
+//! The cross a mask is given when it starts fading by one: hidden in the middle, fading on every side towards the box.
+constexpr qreal k_defaultCrossFrom = 60.0;                                  //!< Each arm's start, % of its reach.
+constexpr qreal k_defaultCrossTo   = 100.0 * (1.0 - k_defaultFadeInset);    //!< Each arm's end: off the box.
+
+//! @p p's cross started: its centre in the middle, every arm fading from k_defaultCrossFrom to k_defaultCrossTo.
+void startCross(Paint& p)
+{
+    const Paint middle;   // its centre is the box's middle
+    p.fadeCentreX = middle.fadeCentreX;
+    p.fadeCentreY = middle.fadeCentreY;
+    for (qreal* from : {&p.fadeLeftFrom, &p.fadeRightFrom, &p.fadeTopFrom, &p.fadeBottomFrom})
+        *from = k_defaultCrossFrom;
+    for (qreal* to : {&p.fadeLeftTo, &p.fadeRightTo, &p.fadeTopTo, &p.fadeBottomTo})
+        *to = k_defaultCrossTo;
+}
 constexpr double k_spacingMinPx = 2.0;     //!< Closer marks read as the smooth transition.
 constexpr double k_spacingMaxPx = 100.0;
 constexpr int    k_angleMax     = 359;
@@ -39,19 +53,6 @@ MaskEditor::MaskEditor(QWidget* parent)
 {
     auto* form = m_form = new QFormLayout(this);
     form->setContentsMargins(0, 0, 0, 0);
-
-    // Which handles shape editing offers (the editor's, not the mask's).
-    m_editOutline = new QToolButton(this);
-    m_editOutline->setText(tr("Outline"));
-    m_editOutline->setToolTip(tr("Edit shape drags the mask's outline: its nodes and their handles."));
-    m_editFade = new QToolButton(this);
-    m_editFade->setText(tr("Fade"));
-    m_editFade->setToolTip(tr("Edit shape drags where the mask fades: the line's ends, or the cross. Tab switches "
-                              "while editing."));
-    m_editPart = new QButtonGroup(this);
-    form->addRow(tr("Edit:"), segmented(this, m_editPart, {m_editOutline, m_editFade}));
-    connect(m_editPart, &QButtonGroup::buttonClicked, this,
-            [this](QAbstractButton* b) { emit editPartPicked(b == m_editFade); });
 
     // A mask object's view on the strip (Mask::hued); the render applies it either way.
     m_applied = new QToolButton(this);
@@ -148,10 +149,8 @@ MaskEditor::MaskEditor(QWidget* parent)
             m_fade = k_defaultFade;
         if ((m_fadeShape == Mask::Fade::Rectangle || m_fadeShape == Mask::Fade::Ellipse)
             && !Geometry::crossFades(m_tone)) {
-            m_tone.fadeCentreX  = k_defaultCrossCentre;
-            m_tone.fadeLeftFrom = 0.0;
-            m_tone.fadeLeftTo   = k_defaultCrossEnd;
-            m_crossSet          = true;
+            startCross(m_tone);
+            m_crossSet = true;
         }
         edited();
     });
@@ -165,18 +164,10 @@ void MaskEditor::showRows()
     const bool pattern = fades && patterned(m_kind);
     const bool crossed = m_fadeShape == Mask::Fade::Rectangle || m_fadeShape == Mask::Fade::Ellipse;
     m_form->setRowVisible(m_width, m_fadeShape == Mask::Fade::Edge);
-    m_editFade->setEnabled(fades);
-    if (!fades && m_editFade->isChecked())   // nothing to drag: back to the outline
-        emit editPartPicked(false);
     m_form->setRowVisible(m_transition, fades);
     m_form->setRowVisible(m_spacing, pattern || (fades && m_kind == Mask::Transition::Zigzag));
     m_form->setRowVisible(m_angle, pattern);
     m_fadeRows.setVisible(m_form, crossed);
-}
-
-void MaskEditor::showEditPart(bool fade)
-{
-    (fade ? m_editFade : m_editOutline)->setChecked(true);   // a check set here is not a click: nothing emitted
 }
 
 void MaskEditor::bind(const Subjects& subjects)
@@ -215,11 +206,8 @@ void MaskEditor::applyTo(Composition& target) const
     m.shape      = m_fadeShape;
     m.fade       = m_fade;
     // The cross's own numbers are dragged on the strip, so they are the target's, unless a cross was just started.
-    if (m_crossSet) {
-        m.tone.fadeCentreX  = m_tone.fadeCentreX;
-        m.tone.fadeLeftFrom = m_tone.fadeLeftFrom;
-        m.tone.fadeLeftTo   = m_tone.fadeLeftTo;
-    }
+    if (m_crossSet)
+        startCross(m.tone);
     m.transition        = m_kind;
     m.tone.spacing      = m_tone.spacing;
     m.tone.angle        = m_tone.angle;

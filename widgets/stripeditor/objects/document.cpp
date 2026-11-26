@@ -282,15 +282,9 @@ int addMask(Composition& c)
     const QRectF region(frame.right() - inside, frame.top() - past, inside + past, frame.height() + 2 * past);
     Mask m;
     m.id = c.nextId++;
-    Body r;
-    r.id                  = c.nextId++;
-    r.place               = Place{region.topLeft()};
-    r.size                = region.size().toSize();
-    r.shape.corner.radius = 0.0;
-    m.regions.append(r);
-    // Hidden wholly from the frame's right edge on, not at all at the region's left.
-    m.shape = Mask::Fade::Linear;
-    m.fade  = QLineF(inside / region.width(), 0.5, 0.0, 0.5);
+    m.regions.append(rectRegion(c.nextId++, region));
+    // A soft edge following the outline, as deep as its default (Mask::edgeWidth): wherever it is painted to.
+    m.shape = Mask::Fade::Edge;
     c.mask = m;
     return m.id;
 }

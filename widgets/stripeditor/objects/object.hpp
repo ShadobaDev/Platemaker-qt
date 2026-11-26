@@ -153,8 +153,6 @@ public:
      */
     void setPickedBody(int id);
     [[nodiscard]] int pickedBody() const { return m_pickedBody; }
-    //! Shape editing of its mask offers the fade's handles (@p fade) or the outline's, never both (HandleContext).
-    void setMaskEditFade(bool fade);
     //! The drag a press began ends before anything moves: the press only picked (ObjectController::onObjectPressed()).
     void holdStill();
     //! The mask, when it is what pickedBody() names, or the object is a mask object; none otherwise.
@@ -488,6 +486,7 @@ private:
     int     m_activeHandle = -1;    //!< Which handle is being dragged, while m_active == Grip::Handle.
     QRectF  m_startRect;            //!< Scene box at press — resizing works against it, not per-delta.
     QPointF m_startScenePos;        //!< Cursor at press, in scene coordinates.
+    QPoint  m_pressScreenPos;       //!< ...and on the screen, where the drag distance is measured.
     bool    m_moved    = false;     //!< Whether this press actually changed anything worth reporting.
     bool    m_orphaned = false;     //!< True when the anchor page is not in the strip, so the object is greyed out and cannot be moved.
     QList<int> m_focusedHandles;   //!< The selected tails' handles, drawn hollow.
@@ -495,7 +494,6 @@ private:
     int        m_pickedBody  = 0;  //!< See setPickedBody().
     int        m_dragBody    = 0;  //!< The body this drag moves (bodyPressed()); 0 when it moves the object.
     bool       m_wasSelected = false;   //!< Whether the object was selected before this press: a click goes through.
-    bool       m_maskEditFade = false;  //!< See setMaskEditFade().
     Composition m_dragStart;       //!< The composition at the press, which a body's drag is measured from.
     int        m_resizeBody  = 0;  //!< The body a grip's drag resizes (the picked one); 0 when it resizes the object.
     Grip    m_dragGrip = Grip::None;   //!< The grip of the drag under way or the last one (dragGrip()).

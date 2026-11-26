@@ -5,6 +5,7 @@
 
 #include "objects/document.hpp"
 #include "objects/maskarea.hpp"
+#include "handles.hpp"
 #include "shapes.hpp"
 #include "objectparts.hpp"
 
@@ -181,8 +182,8 @@ TEST(Edits, WordsAreAddedInTheLowerHalfAndTheLastOneStays)
 }
 
 /**
- * \brief *Add mask to object* covers the right third of the frame and reaches past it, hidden from the frame's right
- *        edge and shown at its left, under an id of its own; an object has one mask, and removing it takes it away.
+ * \brief *Add mask to object* covers the right third of the frame and reaches past it, its edge soft along its
+ *        outline (Fade Edge), under an id of its own; an object has one mask, and removing it takes it away.
  */
 TEST(Edits, AMaskCoversTheRightThirdAndThereIsOne)
 {
@@ -201,12 +202,25 @@ TEST(Edits, AMaskCoversTheRightThirdAndThereIsOne)
     EXPECT_GT(region.right(), frame.right()) << "past the frame, where an Edge fade shows nothing back";
     EXPECT_LT(region.top(), frame.top());
     EXPECT_GT(region.bottom(), frame.bottom());
-    ASSERT_TRUE(a.mask->fade);
-    EXPECT_EQ(a.mask->shape, Mask::Fade::Linear);
+    EXPECT_EQ(a.mask->shape, Mask::Fade::Edge) << "a soft edge following what is painted";
     constexpr qreal k_px = 1e-9;
-    const QLineF    fade = *Geometry::maskFade(*a.mask);
-    EXPECT_NEAR(fade.x1(), frame.right(), k_px) << "hidden wholly from the frame's right edge";
-    EXPECT_NEAR(fade.x2(), region.left(), k_px) << "shown at the region's left";
+    EXPECT_NEAR(a.mask->edgeWidth, Mask::k_defaultEdgeWidth, k_px);
+    EXPECT_FALSE(a.mask->fade) << "no line";
+
+    // Its region a Curve of four sharp corners: shape editing offers nodes and "+", no corner radius, and nothing
+    // of a fade's (an Edge has no handles).
+    const Body& own = a.mask->regions[0];
+    EXPECT_EQ(own.shape.kind, ShapeProperties::Kind::Curve);
+    EXPECT_EQ(own.shape.nodes.size(), 4);
+    EXPECT_EQ(Geometry::outlineOf(own, region, a.seed).boundingRect(), region);
+    Geometry::HandleContext context;
+    context.body = id;
+    const QList<Geometry::Handle> handles = Geometry::handlesOf(a, context);
+    ASSERT_FALSE(handles.isEmpty());
+    for (const Geometry::Handle& h : handles) {
+        EXPECT_EQ(h.element, own.id) << "the region's alone";
+        EXPECT_NE(h.part, int(Geometry::ShapePart::Radius)) << "no corner radius";
+    }
 
     EXPECT_EQ(E::addMask(a), 0) << "one mask";
     EXPECT_TRUE(E::removeMask(a));

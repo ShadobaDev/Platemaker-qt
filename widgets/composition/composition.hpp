@@ -357,6 +357,14 @@ inline constexpr QSize k_defaultObjectSize{280, 160};
 //! A mask and nothing else: a mask object (isMaskObject()), one plain rectangle of @p size at the origin.
 [[nodiscard]] Composition maskObject(const QSize& size = k_defaultObjectSize);
 
+/**
+ * \brief A mask's region @p id: the rectangle @p rect as a Curve of its four sharp corners.
+ *
+ * A Curve from the start, so shape editing offers its nodes and their "+" as after a mask tool's stroke: a Box would
+ * offer a corner radius, which a mask has not.
+ */
+[[nodiscard]] Body rectRegion(int id, const QRectF& rect);
+
 //! A picture of @p file at @p size (its own pixels), with empty words seated on it.
 [[nodiscard]] Composition pictureObject(const QString& file, const QSize& size);
 

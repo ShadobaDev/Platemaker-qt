@@ -487,15 +487,6 @@ public:
     void addMask();
     //! The one mask object selected: whether it is Hued (Mask::hued). None for any other selection.
     [[nodiscard]] std::optional<bool> selectionHued() const;
-    //! Whether shape editing of the one mask selected offers its fade's handles (else its outline's).
-    [[nodiscard]] bool maskEditFade() const { return m_maskEditFade; }
-    //! Whether the one mask selected fades, so its fade's handles can be offered.
-    [[nodiscard]] bool canEditMaskFade() const;
-    /**
-     * \brief Shape editing of the one mask selected offers its fade's handles (@p fade) or its outline's. The fade's
-     *        turn shape editing on; refused while the mask does not fade. Every mask selected starts on its outline.
-     */
-    void setMaskEditFade(bool fade);
     //! Shows the one mask object selected Hued or Applied (Mask::hued), one history step; the render is unchanged.
     void setSelectionHued(bool hued);
     //! Whether the mask tools paint: one mask selected, a mask object or an object's own mask picked.
@@ -586,8 +577,6 @@ signals:
      * \param uid      The UID of the selected object, or an empty string if none.
      */
     void subjectChanged(StripEdit::Subject subject, const QString& uid);
-    //! Shape editing of the mask selected now offers its fade's handles (@p fade) or its outline's.
-    void maskEditFadeChanged(bool fade);
     // --- for the OBJECT STACK: what changed, so the rows can follow ---
     void stackChanged();               //!< The objects, their order, labels, looks or pages changed.
     void selectionChanged();           //!< The selected objects and tails changed (rows, menu entries).
@@ -721,8 +710,6 @@ private:
     void onBodyPressed(const QString& uid, int id);
     //! Whether the press being handled picked words (onObjectPressed()), which a bubble then leaves alone.
     bool m_pressPickedWords = false;
-    bool       m_maskEditFade = false;   //!< See setMaskEditFade().
-    ElementRef m_maskEditOf;             //!< The mask it is about: another selected starts on its outline.
     //! The selection just made, shown: the items selected, their tails and words marked, the panel bound.
     void showSelection();
 

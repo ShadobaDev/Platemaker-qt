@@ -85,8 +85,6 @@ public:
     //! The object's own mask picked, its id @p id of @p a: the Shape section its region's while it has one, the Mask
     //! section its own.
     void setMask(const Composition& a, int id);
-    //! Shows which handles shape editing of the mask offers: the fade's (@p fade) or the outline's.
-    void showMaskEditPart(bool fade);
 
     /**
      * \brief Shows @p objects as one subject — the **union** of what they have in common. Emits nothing.
@@ -146,8 +144,6 @@ public:
     void focusText();
 
 signals:
-    //! The Mask section's *Edit* switch: shape editing offers the fade's handles (@p fade) or the outline's.
-    void maskEditPartPicked(bool fade);
     void changed(const Composition& a);    //!< Continuous — for the live preview.
     void committed(const Composition& a);  //!< Debounced / discrete — persist + undo.
 

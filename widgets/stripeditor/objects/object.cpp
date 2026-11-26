@@ -6,6 +6,7 @@
 #include <QGraphicsSceneMouseEvent>
 #include <QGraphicsView>
 #include <QPainter>
+#include <QStyleHints>
 #include <QStyleOptionGraphicsItem>
 
 #include <algorithm>
@@ -206,15 +207,7 @@ Geometry::HandleContext Object::handleContext() const
 {
     const Mask* mask = pickedMask();   // a mask object's own, picked or not
     return {gripSpanHere() * k_radiusDotClearance, pickedVertices(), markedWords(), mask ? mask->id : m_pickedBody,
-            m_pickedElement, m_maskEditFade};
-}
-
-void Object::setMaskEditFade(bool fade)
-{
-    if (m_maskEditFade == fade)
-        return;
-    m_maskEditFade = fade;
-    emit chromeChanged();   // the other set of handles
+            m_pickedElement};
 }
 
 void Object::holdStill()
@@ -632,6 +625,7 @@ void Object::mousePressEvent(QGraphicsSceneMouseEvent* e)
     int handle = -1;
     const Grip grip = gripAt(e->pos(), &handle);
     e->accept();
+    m_pressScreenPos = e->screenPos();
     beginDrag(grip, handle, e->scenePos());
 }
 
@@ -641,6 +635,11 @@ void Object::mouseMoveEvent(QGraphicsSceneMouseEvent* e)
         QGraphicsObject::mouseMoveEvent(e);
         return;
     }
+    // A move, of the object, a bubble or the mask, waits for the pointer to leave the press by the system's drag
+    // distance: a click's slight slip, the first of a double-click, moves nothing. Grips and handles follow at once.
+    if (m_active == Grip::Body && !m_moved
+        && (e->screenPos() - m_pressScreenPos).manhattanLength() < QGuiApplication::styleHints()->startDragDistance())
+        return;
     dragTo(e->scenePos(), e->modifiers());
 }
 

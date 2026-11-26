@@ -34,15 +34,6 @@ public:
 
     [[nodiscard]] PropertyGroup group() const override { return PropertyGroup::Mask; }
 
-    //! Shows which handles shape editing offers: the fade's (@p fade) or the outline's. Emits nothing.
-    void showEditPart(bool fade);
-
-signals:
-    //! The author picked which handles shape editing offers: the fade's (@p fade) or the outline's.
-    void editPartPicked(bool fade);
-
-public:
-
     void bind(const Subjects& subjects) override;
     void applyTo(Composition& target) const override;
 
@@ -50,9 +41,6 @@ private:
     void showRows();   //!< A fade: its transition; Edge: its width; a pattern: its cell; a cross: its turning over.
 
     QFormLayout*    m_form       = nullptr;
-    QToolButton*    m_editOutline = nullptr;   //!< Shape editing offers the outline's handles...
-    QToolButton*    m_editFade    = nullptr;   //!< ...or the fade's, while it fades.
-    QButtonGroup*   m_editPart    = nullptr;   //!< The two, one pressed: a segmented switch.
     QWidget*        m_view       = nullptr;   //!< A mask object's view, Applied or Hued; no row for an object's own mask.
     QToolButton*    m_applied    = nullptr;
     QToolButton*    m_hued       = nullptr;   //!< Mask::hued.

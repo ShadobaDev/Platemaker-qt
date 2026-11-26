@@ -356,9 +356,6 @@ Editor::Editor(PresetStore& presets, QWidget *parent)
         connect(&m_objects->panel(), &PanelBinder::blendBound,         m_objectState, &OS::setSelectionBlend);
         connect(&m_objects->panel(), &PanelBinder::pictureScaleBound,  m_objectState, &OS::setPictureScale);
         connect(m_objects, &OC::textFocusRequested, m_objectState, &OS::focusText);
-        // Which of a mask's handles shape editing offers: switched in its Mask section, kept by the objects.
-        connect(m_objectState, &OS::maskEditPartPicked, m_objects, &OC::setMaskEditFade);
-        connect(m_objects, &OC::maskEditFadeChanged, m_objectState, &OS::showMaskEditPart);
         // What TOOL OPTIONS says the next object is, for a placement and *Convert to ▸ Balloon*. Told as
         // functions, so the objects need no tool-options panel.
         m_objects->setToolDefaults({[this] { return m_bubbleOptions->prototype(); },
